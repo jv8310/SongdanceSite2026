@@ -1,0 +1,8 @@
+{
+  "$schema": "https://unpkg.com/wrangler/config-schema.json",
+  "name": "songdancesite2026",
+  "compatibility_date": "2026-04-29",
+  "assets": {
+    "directory": "./dist"
+  }
+}
