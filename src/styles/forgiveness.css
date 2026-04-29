@@ -966,7 +966,8 @@ html, body { background: var(--paper); }
   font-family: var(--font-lyric);
   font-style: italic;
   font-weight: 500;
-  font-size: 1.06em;
+  font-size: 1.25em;
+  line-height: 1.4;
 }
 
 /* ---------- Register block ---------- */
@@ -1104,7 +1105,8 @@ html, body { background: var(--paper); }
   font-family: var(--font-lyric);
   font-style: italic;
   font-weight: 500;
-  font-size: 1.05em;
+  font-size: 1.25em;
+  line-height: 1.4;
 }
 .fc-faq-times {
   display: flex; flex-direction: column; gap: 6px;

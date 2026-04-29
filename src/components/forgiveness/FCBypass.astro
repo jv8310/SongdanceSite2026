@@ -1,9 +1,8 @@
 ---
 const slides = [
-  { src: '/imagery/forgiveness/sunflowers-sunset.jpeg', caption: '— Oprah' },
-  { src: '/imagery/forgiveness/quote-marianne.jpg', caption: '— Marianne Williamson' },
-  { src: '/imagery/forgiveness/quote-violet.jpg', caption: '— John Green' },
-  { src: '/imagery/forgiveness/quote-mystical-act.jpg', caption: '— Caroline Myss' },
+  '/imagery/forgiveness/quote-marianne.jpg',
+  '/imagery/forgiveness/quote-violet.jpg',
+  '/imagery/forgiveness/quote-mystical-act.jpg',
 ];
 ---
 
@@ -12,12 +11,9 @@ const slides = [
     <div class="fc-bypass-img" data-carousel>
       <div class="fc-bypass-track">
         {
-          slides.map((s, i) => (
-            <figure
-              class={'fc-bypass-slide' + (i === 0 ? ' is-active' : '')}
-              data-caption={s.caption}
-            >
-              <img src={s.src} alt="" />
+          slides.map((src, i) => (
+            <figure class={'fc-bypass-slide' + (i === 0 ? ' is-active' : '')}>
+              <img src={src} alt="" />
             </figure>
           ))
         }
@@ -28,7 +24,6 @@ const slides = [
       <button class="fc-carousel-arrow fc-carousel-next" aria-label="Next quote">
         <i class="ph-light ph-caret-right"></i>
       </button>
-      <div class="fc-bypass-img-caption" data-caption-target>{slides[0].caption}</div>
       <div class="fc-carousel-dots" role="tablist" aria-label="Choose a quote">
         {
           slides.map((_, i) => (
@@ -70,7 +65,6 @@ const slides = [
   if (carousel) {
     const slides = Array.from(carousel.querySelectorAll<HTMLElement>('.fc-bypass-slide'));
     const dots = Array.from(carousel.querySelectorAll<HTMLButtonElement>('.fc-carousel-dot'));
-    const captionEl = carousel.querySelector<HTMLDivElement>('[data-caption-target]');
     const prev = carousel.querySelector<HTMLButtonElement>('.fc-carousel-prev');
     const next = carousel.querySelector<HTMLButtonElement>('.fc-carousel-next');
     let index = 0;
@@ -82,8 +76,6 @@ const slides = [
         dot.classList.toggle('is-active', i === index);
         dot.setAttribute('aria-selected', i === index ? 'true' : 'false');
       });
-      const caption = slides[index].dataset.caption ?? '';
-      if (captionEl) captionEl.textContent = caption;
     };
 
     prev?.addEventListener('click', () => show(index - 1));
