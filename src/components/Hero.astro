@@ -1,55 +1,36 @@
 ---
 ---
 
-<section class="hero">
-  <h1 class="hero-title" data-anim="title">Songdance 2026</h1>
-  <p class="hero-subtitle" data-anim="subtitle">
-    Movement, music, and motion — together at last.
-  </p>
-  <a class="hero-cta" data-anim="cta" href="#about">Discover the festival</a>
-</section>
-
-<style>
-  .hero {
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    padding: 2rem;
-    text-align: center;
-  }
-
-  .hero-title {
-    font-size: clamp(2.5rem, 9vw, 7rem);
-    font-weight: 800;
-    letter-spacing: -0.04em;
-    margin: 0;
-    background: linear-gradient(120deg, #fff 0%, var(--accent) 100%);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-  }
-
-  .hero-subtitle {
-    font-size: clamp(1rem, 2vw, 1.4rem);
-    max-width: 36rem;
-    margin: 1.5rem 0 2.5rem;
-    opacity: 0.8;
-  }
-
-  .hero-cta {
-    display: inline-block;
-    padding: 0.9rem 1.8rem;
-    border-radius: 999px;
-    background: var(--accent);
-    color: #fff;
-    text-decoration: none;
-    font-weight: 600;
-    transition: transform 0.2s ease;
-  }
-
-  .hero-cta:hover {
-    transform: translateY(-2px);
-  }
-</style>
+<header class="sd-hero">
+  <div class="sd-hero-inner">
+    <div class="sd-hero-text">
+      <div class="sd-hero-eyebrow-row" data-anim="hero-eyebrow">
+        <span class="sd-hero-eyebrow-line"></span>
+        <div class="sd-eyebrow">Foundation course · begins 14 May</div>
+      </div>
+      <h1 class="sd-hero-head" data-anim="hero-head">
+        Sound that comes from you,
+        <span class="sd-hero-soft">not toward you.</span>
+      </h1>
+      <p class="sd-hero-sub" data-anim="hero-sub">
+        A small group, your own voice, and the time it takes for something to settle.
+        We meet weekly. The room is the practice.
+      </p>
+      <div class="sd-hero-cta-row" data-anim="hero-cta">
+        <a href="#offerings" class="sd-btn sd-btn-primary">Begin the practice</a>
+        <a href="#work" class="sd-btn sd-btn-quiet">What this is →</a>
+      </div>
+    </div>
+    <div class="sd-hero-imagery" aria-hidden="true">
+      <figure class="sd-hero-img-primary" data-anim="hero-img-primary">
+        <img src="/imagery/sounding-blue.jpg" alt="" />
+      </figure>
+      <figure class="sd-hero-img-secondary" data-anim="hero-img-secondary">
+        <img src="/imagery/circle-yurt-wide.jpg" alt="" />
+      </figure>
+      <div class="sd-hero-mark-stamp" data-anim="hero-stamp">
+        <img src="/brand/symbol-orange.png" alt="" />
+      </div>
+    </div>
+  </div>
+</header>
