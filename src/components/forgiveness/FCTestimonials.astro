@@ -1,0 +1,89 @@
+---
+const items = [
+  {
+    title: 'Truly exceptional teaching',
+    body: "What I received went beyond technique. There's something rare in how the work meets the body before it asks the mind to agree. I left changed in ways I'm still discovering.",
+    who: 'Dr. Karen Evans',
+    where: 'Chiropractor & Reiki Master, USA',
+  },
+  {
+    title: 'Graceful and potent presence',
+    body: 'Daniela holds a room the way a candle holds a flame — quietly, but everything orients around it. The forgiveness work she guides is gentle and unflinching at once.',
+    who: 'Rachel L.',
+    where: 'Therapist, USA',
+  },
+  {
+    title: 'A new layer of connection and awareness',
+    body: 'The somatic dimension changed everything. I had done forgiveness work for years and thought I understood it. This was a different floor of the same house.',
+    who: 'Gwenola Emilia Enciu',
+    where: 'Psychotherapist, Romania',
+  },
+  {
+    title: 'A master at holding space',
+    body: 'Daniela offers something the wellness world has mostly forgotten — the willingness to sit with what hurts, without rushing it forward. I trust her completely.',
+    who: 'Leila H.',
+    where: 'Artist, Canada',
+  },
+  {
+    title: 'Inspiring and magical experience',
+    body: 'I came skeptical and left with my chest open. Sounding sounds strange until you do it. Then it sounds like the only thing that ever made sense.',
+    who: 'Simone Pugh',
+    where: 'Great Britain',
+  },
+  {
+    title: 'Wise, heartfelt, and embodied',
+    body: 'Daniela teaches forgiveness the way someone teaches you to walk again — patiently, with attention to the smallest movement. Nothing is forced. Everything lands.',
+    who: 'Miguel Ortiz',
+    where: 'Coach & Facilitator, Mexico',
+  },
+  {
+    title: "Jacob's gift to humanity",
+    body: 'The voice he calls forward in others is not his — it is theirs. I have never met a space holder so willing to disappear so the work can happen.',
+    who: 'Olena',
+    where: 'Ukraine',
+  },
+  {
+    title: 'Revolutionary yet ancient',
+    body: 'What surprised me was how old it felt. Not a new method — a forgotten one. Daniela makes the ancient feel immediate. I will sit with her again and again.',
+    who: 'Taro Yamamoto',
+    where: 'Meditation Guide, Japan',
+  },
+];
+---
+
+<section class="fc-testimonials">
+  <div class="fc-testimonials-inner">
+    <div class="fc-testimonials-head">
+      <div>
+        <div class="fc-eyebrow">From those who have walked it</div>
+        <h2 class="fc-h2">What others have said.</h2>
+      </div>
+    </div>
+    <div class="fc-testimonials-grid">
+      {
+        items.map((t) => (
+          <article class="fc-testimonial">
+            <div class="fc-testimonial-stars" aria-label="5 out of 5 stars">
+              <i class="ph-fill ph-star" />
+              <i class="ph-fill ph-star" />
+              <i class="ph-fill ph-star" />
+              <i class="ph-fill ph-star" />
+              <i class="ph-fill ph-star" />
+            </div>
+            <h3 class="fc-testimonial-title">{t.title}</h3>
+            <p class="fc-testimonial-body">{t.body}</p>
+            <div class="fc-testimonial-by">
+              <span class="who">{t.who}</span>
+              {t.where}
+            </div>
+          </article>
+        ))
+      }
+    </div>
+    <p class="fc-trustpilot">
+      <a href="https://trustpilot.com/review/songdance.co" target="_blank" rel="noopener">
+        Read all 5-star reviews on Trustpilot →
+      </a>
+    </p>
+  </div>
+</section>

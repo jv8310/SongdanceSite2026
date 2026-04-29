@@ -1,0 +1,45 @@
+---
+const layers = [
+  {
+    num: '01',
+    title: 'Forgiving others',
+    body: 'What was done to you, or to those you love. Not condoning — naming. The pain is acknowledged, sounded, and given back to the system it came from.',
+  },
+  {
+    num: '02',
+    title: 'Forgiving self',
+    body: "What you've done, or what you believe you've done. The shame, the guilt, the I am unforgivable. Met not with absolution but with sound.",
+  },
+  {
+    num: '03',
+    title: 'Forgiving separation',
+    body: 'The deepest layer. The recognition — embodied, not believed — that the entire premise of wrong was done arises from the dream of separation. This cannot be reached by bypass. Only by walking through the first two.',
+  },
+];
+---
+
+<section class="fc-layers">
+  <div class="fc-layers-inner">
+    <div class="fc-layers-head">
+      <div class="fc-eyebrow" style="justify-content: center;">The arc of the four classes</div>
+      <h2 class="fc-h2" style="margin: var(--sp-4) auto 0; max-width: 24ch;">
+        Forgiveness moves in three directions. <em>Most courses work on one.</em>
+      </h2>
+    </div>
+    <div class="fc-layers-grid">
+      {
+        layers.map((l) => (
+          <article class="fc-layer">
+            <div class="fc-layer-num">
+              {l.num}
+              <span />
+            </div>
+            <h3 class="fc-layer-title">{l.title}</h3>
+            <p class="fc-layer-body">{l.body}</p>
+          </article>
+        ))
+      }
+    </div>
+    <p class="fc-layers-foot">— This is the arc of the four classes —</p>
+  </div>
+</section>

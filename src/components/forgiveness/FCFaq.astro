@@ -1,0 +1,110 @@
+---
+---
+
+<section class="fc-faq" id="faq">
+  <div class="fc-faq-inner">
+    <div class="fc-faq-head">
+      <div class="fc-eyebrow" style="justify-content: center;">Questions</div>
+      <h2 class="fc-h2" style="margin: var(--sp-4) auto 0; max-width: 20ch;">
+        Before you arrive.
+      </h2>
+    </div>
+    <div class="fc-faq-list" data-faq-list>
+      <details class="fc-faq-item" open>
+        <summary class="fc-faq-summary">
+          What times and dates are the sessions?
+          <i class="ph-light ph-plus"></i>
+        </summary>
+        <div class="fc-faq-answer">
+          <p>
+            All sessions take place live on Zoom over four consecutive
+            Sundays, starting on May 10, 2026.
+          </p>
+          <div class="fc-faq-times">
+            <div><span>Pacific · Los Angeles</span>10:30 AM</div>
+            <div><span>Eastern · New York</span>1:30 PM</div>
+            <div><span>Europe · Brussels</span>7:30 PM</div>
+          </div>
+        </div>
+      </details>
+      <details class="fc-faq-item">
+        <summary class="fc-faq-summary">
+          Are there replays?
+          <i class="ph-light ph-plus"></i>
+        </summary>
+        <div class="fc-faq-answer">
+          <p>Yes — replays are posted within 24 hours. You have lifetime access.</p>
+        </div>
+      </details>
+      <details class="fc-faq-item">
+        <summary class="fc-faq-summary">
+          Is this course for me?
+          <i class="ph-light ph-plus"></i>
+        </summary>
+        <div class="fc-faq-answer">
+          <p>
+            If you're carrying unresolved pain — toward others or yourself —
+            and you're ready to approach it with honesty and care, this course
+            will meet you where you are. No prior experience with sounding or
+            forgiveness work is required.
+          </p>
+        </div>
+      </details>
+      <details class="fc-faq-item">
+        <summary class="fc-faq-summary">
+          Do I need a spiritual or religious background?
+          <i class="ph-light ph-plus"></i>
+        </summary>
+        <div class="fc-faq-answer">
+          <p>
+            No. The course is open to all belief systems. We draw from diverse
+            sources — including the Enneagram, ho'oponopono, and A Course in
+            Miracles — but no prior knowledge or affiliation is needed.
+          </p>
+        </div>
+      </details>
+      <details class="fc-faq-item">
+        <summary class="fc-faq-summary">
+          Is this course about forgiving others or forgiving myself?
+          <i class="ph-light ph-plus"></i>
+        </summary>
+        <div class="fc-faq-answer">
+          <p>
+            Both. And, as the work deepens, a third layer emerges — the
+            forgiveness of separation itself. We move through all three, in
+            their natural order.
+          </p>
+        </div>
+      </details>
+      <details class="fc-faq-item">
+        <summary class="fc-faq-summary">
+          What is Somatic Vocal Healing?
+          <i class="ph-light ph-plus"></i>
+        </summary>
+        <div class="fc-faq-answer">
+          <p>
+            <strong>Somatic Vocal Healing</strong> is a practice founded by
+            Jacob Vermeulen. It uses intentional sound-making — not singing,
+            not chanting, not breathwork — to access and release what the body
+            holds beyond words. In this course, sounding becomes the somatic
+            key that allows forgiveness to move from idea to lived experience.
+          </p>
+        </div>
+      </details>
+    </div>
+  </div>
+</section>
+
+<script>
+  // Accordion: opening one closes the others, matching the React prototype.
+  const items = document.querySelectorAll<HTMLDetailsElement>('[data-faq-list] .fc-faq-item');
+  items.forEach((item) => {
+    item.addEventListener('toggle', () => {
+      if (item.open) {
+        items.forEach((other) => {
+          if (other !== item) other.open = false;
+        });
+      }
+    });
+  });
+</script>
