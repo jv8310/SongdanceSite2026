@@ -1,14 +1,47 @@
 ---
+const slides = [
+  { src: '/imagery/forgiveness/sunflowers-sunset.jpeg', caption: '— Oprah' },
+  { src: '/imagery/forgiveness/quote-marianne.jpg', caption: '— Marianne Williamson' },
+  { src: '/imagery/forgiveness/quote-violet.jpg', caption: '— John Green' },
+  { src: '/imagery/forgiveness/quote-mystical-act.jpg', caption: '— Caroline Myss' },
+];
 ---
 
 <section class="fc-bypass">
   <div class="fc-bypass-inner">
-    <div class="fc-bypass-img">
-      <img
-        src="/imagery/forgiveness/quote-mystical-act.jpg"
-        alt="A heart-shaped window with candlelight behind it"
-      />
-      <div class="fc-bypass-img-caption">— Caroline Myss</div>
+    <div class="fc-bypass-img" data-carousel>
+      <div class="fc-bypass-track">
+        {
+          slides.map((s, i) => (
+            <figure
+              class={'fc-bypass-slide' + (i === 0 ? ' is-active' : '')}
+              data-caption={s.caption}
+            >
+              <img src={s.src} alt="" />
+            </figure>
+          ))
+        }
+      </div>
+      <button class="fc-carousel-arrow fc-carousel-prev" aria-label="Previous quote">
+        <i class="ph-light ph-caret-left"></i>
+      </button>
+      <button class="fc-carousel-arrow fc-carousel-next" aria-label="Next quote">
+        <i class="ph-light ph-caret-right"></i>
+      </button>
+      <div class="fc-bypass-img-caption" data-caption-target>{slides[0].caption}</div>
+      <div class="fc-carousel-dots" role="tablist" aria-label="Choose a quote">
+        {
+          slides.map((_, i) => (
+            <button
+              class={'fc-carousel-dot' + (i === 0 ? ' is-active' : '')}
+              role="tab"
+              aria-label={`Quote ${i + 1}`}
+              aria-selected={i === 0 ? 'true' : 'false'}
+              data-index={i}
+            />
+          ))
+        }
+      </div>
     </div>
     <div class="fc-bypass-text">
       <div class="fc-eyebrow">Why this course is different</div>
@@ -31,3 +64,35 @@
     </div>
   </div>
 </section>
+
+<script>
+  const carousel = document.querySelector<HTMLDivElement>('[data-carousel]');
+  if (carousel) {
+    const slides = Array.from(carousel.querySelectorAll<HTMLElement>('.fc-bypass-slide'));
+    const dots = Array.from(carousel.querySelectorAll<HTMLButtonElement>('.fc-carousel-dot'));
+    const captionEl = carousel.querySelector<HTMLDivElement>('[data-caption-target]');
+    const prev = carousel.querySelector<HTMLButtonElement>('.fc-carousel-prev');
+    const next = carousel.querySelector<HTMLButtonElement>('.fc-carousel-next');
+    let index = 0;
+
+    const show = (n: number) => {
+      index = (n + slides.length) % slides.length;
+      slides.forEach((slide, i) => slide.classList.toggle('is-active', i === index));
+      dots.forEach((dot, i) => {
+        dot.classList.toggle('is-active', i === index);
+        dot.setAttribute('aria-selected', i === index ? 'true' : 'false');
+      });
+      const caption = slides[index].dataset.caption ?? '';
+      if (captionEl) captionEl.textContent = caption;
+    };
+
+    prev?.addEventListener('click', () => show(index - 1));
+    next?.addEventListener('click', () => show(index + 1));
+    dots.forEach((dot, i) => dot.addEventListener('click', () => show(i)));
+
+    carousel.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowLeft') show(index - 1);
+      if (e.key === 'ArrowRight') show(index + 1);
+    });
+  }
+</script>
