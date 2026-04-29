@@ -1,0 +1,41 @@
+---
+interface Props {
+  title?: string;
+}
+
+const { title = 'Songdance 2026' } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="generator" content={Astro.generator} />
+    <title>{title}</title>
+  </head>
+  <body>
+    <slot />
+    <style is:global>
+      :root {
+        --bg: #0b0b10;
+        --fg: #f5f5f7;
+        --accent: #ff5f8d;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+    </style>
+  </body>
+</html>
