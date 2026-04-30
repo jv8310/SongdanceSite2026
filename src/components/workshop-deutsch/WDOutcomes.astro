@@ -1,0 +1,28 @@
+---
+const items = [
+  'Eine somatische Praxis, mit der du blockierte Emotionen über deine Stimme spürbar lösen kannst',
+  'Mehr Vertrauen, deine Wahrheit auszusprechen — privat wie beruflich',
+  'Eine tiefere Verbindung zu deinem Körper, deinem Klang und dem, was sich darunter zeigen will',
+  'Ein Werkzeug, auf das du immer zurückkommen kannst — wenn etwas in dir feststeckt, wenn der Kopf zu laut ist, wenn der Tag dich dicht gemacht hat',
+];
+---
+
+<section class="wd-outcomes">
+  <div class="wd-outcomes-inner">
+    <div class="wd-outcomes-head">
+      <div class="wd-eyebrow">Was bleibt</div>
+      <h2 class="wd-h2">Was du mit <em>nach Hause</em> nimmst.</h2>
+      <p class="wd-outcomes-intro">
+        Eine Stunde reicht nicht, um diese Methode in ihrer ganzen Tiefe
+        kennenzulernen. Aber sie reicht, um zu spüren, dass sie real ist —
+        und um etwas in der Hand zu halten, das dich danach trägt.
+      </p>
+      <a href="#anmelden" class="wd-link-cta wd-outcomes-cta">
+        Live dabei sein <i class="ph-light ph-arrow-right"></i>
+      </a>
+    </div>
+    <ul class="wd-outcomes-list">
+      {items.map((it) => <li>{it}</li>)}
+    </ul>
+  </div>
+</section>
