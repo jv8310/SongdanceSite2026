@@ -429,8 +429,9 @@ function Generating() {
   );
 }
 
-function PracticeAndEmail({ practice, onSubmitEmail, onReplay, infoOpen, setInfoOpen, submitted }) {
+function PracticeAndEmail({ practice, onSubmitEmail, onReplay, infoOpen, setInfoOpen, submitted, sending }) {
   const [email, setEmail] = React.useState('');
+  const [hp, setHp] = React.useState('');
   const [error, setError] = React.useState('');
 
   const submit = (e) => {
@@ -441,7 +442,9 @@ function PracticeAndEmail({ practice, onSubmitEmail, onReplay, infoOpen, setInfo
       return;
     }
     setError('');
-    onSubmitEmail(trimmed);
+    onSubmitEmail(trimmed, hp).catch((err) => {
+      setError(err?.message || "Something went wrong sending it. Try once more.");
+    });
   };
 
   return (
@@ -485,9 +488,20 @@ function PracticeAndEmail({ practice, onSubmitEmail, onReplay, infoOpen, setInfo
               onChange={(e) => setEmail(e.target.value)}
               placeholder="email address"
               required
+              disabled={sending}
             />
-            <button type="submit">Send it to me</button>
+            <button type="submit" disabled={sending}>{sending ? 'Sending…' : 'Send it to me'}</button>
           </div>
+          <input
+            type="text"
+            name="company"
+            value={hp}
+            onChange={(e) => setHp(e.target.value)}
+            tabIndex={-1}
+            autoComplete="off"
+            aria-hidden="true"
+            style={{ position: 'absolute', left: '-9999px', width: '1px', height: '1px', opacity: 0 }}
+          />
           {error ? <p className="tlw-email-error">{error}</p> : null}
         </form>
       )}
@@ -548,6 +562,7 @@ function PracticeFlow({ startKey, onReplay }) {
   const [rippleKey, setRippleKey] = React.useState(0);
   const [infoOpen, setInfoOpen] = React.useState(false);
   const [submitted, setSubmitted] = React.useState(false);
+  const [sending, setSending] = React.useState(false);
 
   React.useEffect(() => {
     setStep('l1');
@@ -556,6 +571,7 @@ function PracticeFlow({ startKey, onReplay }) {
     setPractice(null);
     setInfoOpen(false);
     setSubmitted(false);
+    setSending(false);
     setRippleKey(0);
   }, [startKey]);
 
@@ -596,7 +612,7 @@ function PracticeFlow({ startKey, onReplay }) {
     setStep('practice');
   };
 
-  const submitEmail = (email) => {
+  const submitEmail = async (email, hp) => {
     const mantraText = practice ? [
       'A forgiveness practice for you.',
       '',
@@ -609,20 +625,28 @@ function PracticeFlow({ startKey, onReplay }) {
       practice.closing,
     ].join('\n') : '';
 
+    setSending(true);
     try {
-      window._dcq = window._dcq || [];
-      window._dcq.push(['identify', {
-        email,
-        custom_fields: {
-          forgiveness_mantra: mantraText,
-          forgiveness_other_word: othersWord || '',
-          forgiveness_self_word: selfWord || '',
-        },
-        tags: ['m26_Forgiveness'],
-      }]);
-    } catch (e) { console.warn('Drip push failed', e); }
-
-    setTimeout(() => setSubmitted(true), 500);
+      const res = await fetch('/api/forgiveness-deliver', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          otherWord: othersWord || '',
+          selfWord: selfWord || '',
+          mantra: mantraText,
+          hp: hp || '',
+        }),
+        signal: AbortSignal.timeout(10000),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) {
+        throw new Error("Couldn't send it just now. Try once more.");
+      }
+      setSubmitted(true);
+    } finally {
+      setSending(false);
+    }
   };
 
   let body = null;
@@ -661,7 +685,8 @@ function PracticeFlow({ startKey, onReplay }) {
         onReplay={onReplay}
         infoOpen={infoOpen}
         setInfoOpen={setInfoOpen}
-        submitted={submitted} />
+        submitted={submitted}
+        sending={sending} />
     );
   }
 

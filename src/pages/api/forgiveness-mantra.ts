@@ -30,18 +30,20 @@ RULES:
 - Output only the structured practice. No preamble, no explanation, no closing remark.
 - No exclamation marks. No emojis. No bolding individual words for emphasis.`;
 
-const fallbackResponse = () =>
-  new Response(JSON.stringify({ fallback: true }), {
+const fallbackResponse = (reason: string, detail?: string) => {
+  console.warn(`[forgiveness-mantra] fallback reason=${reason}${detail ? ' detail=' + detail : ''}`);
+  return new Response(JSON.stringify({ fallback: true, reason }), {
     status: 200,
     headers: { 'Content-Type': 'application/json' },
   });
+};
 
 export const POST: APIRoute = async ({ request, locals }) => {
   let body: { otherWord?: string; selfWord?: string };
   try {
     body = await request.json();
   } catch {
-    return fallbackResponse();
+    return fallbackResponse('bad-json');
   }
 
   const otherWord = (body.otherWord ?? '').toString().slice(0, 60).trim();
@@ -51,7 +53,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const cfEnv = (locals as { runtime?: { env?: Record<string, string | undefined> } }).runtime?.env;
   const apiKey = cfEnv?.ANTHROPIC_API_KEY ?? import.meta.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
-    return fallbackResponse();
+    return fallbackResponse('no-key');
   }
 
   const controller = new AbortController();
@@ -75,7 +77,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
     });
 
     if (!upstream.ok) {
-      return fallbackResponse();
+      const errText = await upstream.text().catch(() => '');
+      return fallbackResponse('upstream-' + upstream.status, errText.slice(0, 200));
     }
 
     const data = (await upstream.json()) as { content?: Array<{ type: string; text?: string }> };
@@ -85,14 +88,15 @@ export const POST: APIRoute = async ({ request, locals }) => {
       .join('')
       .trim();
 
-    if (!text) return fallbackResponse();
+    if (!text) return fallbackResponse('empty-response');
 
     return new Response(JSON.stringify({ text }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     });
-  } catch {
-    return fallbackResponse();
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return fallbackResponse(msg.includes('abort') ? 'timeout' : 'fetch-error', msg.slice(0, 200));
   } finally {
     clearTimeout(timer);
   }
