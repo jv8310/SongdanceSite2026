@@ -1,0 +1,41 @@
+---
+---
+
+<section class="wd-register" id="anmelden">
+  <div class="wd-register-inner">
+    <div class="wd-eyebrow" style="justify-content: center;">Komm zum nächsten Workshop</div>
+    <h2 class="wd-register-h2">
+      Was wartet in dir,<br /><em>gehört zu werden?</em>
+    </h2>
+    <p class="wd-register-body">
+      Komm. Eine Stunde. Live.<br />
+      Du musst nichts können, nichts vorbereiten, nichts beweisen.<br />
+      Du musst nur den Mund öffnen<br />
+      und schauen, was passiert.
+    </p>
+    <p class="wd-register-note">Live · Online · Begrenzte Plätze</p>
+
+    <div class="wd-register-frame">
+      <iframe id="svhWorkshop" title="Anmeldung — Somatic Vocal Healing Workshop"></iframe>
+    </div>
+  </div>
+</section>
+
+<script is:inline>
+  (function () {
+    var base = 'https://register.bknd.app/pay-replay_g2.php';
+    var params = new URLSearchParams(window.location.search);
+    params.set('replay', '0');
+    var iframe = document.getElementById('svhWorkshop');
+    if (iframe) {
+      iframe.src = base + '?' + params.toString();
+    }
+  })();
+
+  window.addEventListener('message', function (e) {
+    if (e.data && e.data.iframeHeight) {
+      var iframe = document.getElementById('svhWorkshop');
+      if (iframe) iframe.style.height = e.data.iframeHeight + 'px';
+    }
+  });
+</script>

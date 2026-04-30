@@ -1,0 +1,71 @@
+---
+const items = [
+  {
+    body: 'Somatic Vocal Healing ist ein einfacher und zugleich sehr natürlicher Weg, sich mit dem Leben in sich selbst zu verbinden. Ich bin dankbar für diese Praxis, weil sie ausgewogen, praxisnah und leicht zugänglich ist.',
+    who: 'Anna',
+    where: 'PhD-Forscherin',
+    img: '/imagery/workshop-deutsch/anna.jpg',
+  },
+  {
+    body: 'Ich bin in Gewaltfreier Kommunikation und in der Wissenschaft der Stimme ausgebildet. Somatic Vocal Healing erweitert meine Arbeit und ermöglicht mir, Menschen tiefer und feiner zu begleiten. Die Stimme wird zur Brücke zu uns selbst — sie eröffnet einen direkten Zugang zu dem, was im gegenwärtigen Moment in uns lebendig ist. Manchmal auch zu ancestralen Prägungen. Diese Praxis schafft Raum für innere Klärung, Frieden und neue Verbindung zu unseren tieferen Bedürfnissen.',
+    who: 'Isabelle',
+    where: 'Stimmexpertin',
+    img: '/imagery/workshop-deutsch/isabelle.png',
+  },
+  {
+    body: 'Mit über 40 Jahren Erfahrung in ganzheitlichen Heilmethoden — als Chiropraktikerin, Reiki-Meisterin, Yoga-Lehrerin und Coach — habe ich keine Methode kennengelernt, die so schnell, tiefgreifend, sanft und wirksam ist wie Somatic Vocal Healing.',
+    who: 'Dr. Karen',
+    where: 'Chiropraktikerin',
+    img: '/imagery/workshop-deutsch/karen.jpg',
+  },
+  {
+    body: 'Als Musikerin fühle ich mich meiner eigenen Stimme viel tiefer verbunden und habe ein neues Verständnis dafür entwickelt, wie ich die Wahrheit meines Wesens zum Ausdruck bringen kann. Doch Vorsicht — nach dieser Erfahrung werden sich Gespräche nie wieder gleich anfühlen. Du beginnst, deine Ohren auf die Emotionen im Klang zu schärfen.',
+    who: 'Mia-Maria',
+    where: 'Musikerin',
+    img: '/imagery/workshop-deutsch/mia-maria.jpg',
+  },
+  {
+    body: 'Es ist zugleich eine einfache und zutiefst spirituelle Praxis. Indem du lernst, deinem eigenen Klang zuzuhören, bringst du das Unbewusste ins Licht des gegenwärtigen Moments. Diese Praxis eröffnet einen Weg der Transformation — kraftvoll und zugleich unglaublich sanft.',
+    who: 'Olena',
+    where: 'Yogalehrerin',
+    img: '/imagery/workshop-deutsch/olena.jpg',
+  },
+  {
+    body: 'Dieser Weg ist ein tiefes Eintauchen in das Geflecht von Herz und Nervensystem. Das Schönste daran: Es braucht keine Suche nach den richtigen Worten — es genügt, den Mund zu öffnen. Im Geist der Gemeinschaft, die durch die Live-Treffen entsteht, habe ich ein tiefes Gefühl von Sicherheit erfahren.',
+    who: 'Gwenola',
+    where: 'Coach',
+    img: '/imagery/workshop-deutsch/gwenola.jpg',
+  },
+];
+---
+
+<section class="wd-testimonials">
+  <div class="wd-testimonials-inner">
+    <div class="wd-testimonials-head">
+      <div>
+        <div class="wd-eyebrow">Stimmen aus der Praxis</div>
+        <h2 class="wd-h2">Was Menschen über <em>Somatic Vocal Healing</em> sagen.</h2>
+        <p class="wd-testimonials-note">
+          Aus der internationalen Community von Jacob Vermeulen, dem Begründer der Methode.
+        </p>
+      </div>
+    </div>
+    <div class="wd-testimonials-grid">
+      {
+        items.map((t) => (
+          <article class="wd-testimonial">
+            <div class="wd-testimonial-quote" aria-hidden="true">&ldquo;</div>
+            <p class="wd-testimonial-body">{t.body}</p>
+            <div class="wd-testimonial-by">
+              <img class="wd-testimonial-avatar" src={t.img} alt={t.who} loading="lazy" />
+              <div class="wd-testimonial-meta">
+                <span class="who">{t.who}</span>
+                <span class="where">{t.where}</span>
+              </div>
+            </div>
+          </article>
+        ))
+      }
+    </div>
+  </div>
+</section>
