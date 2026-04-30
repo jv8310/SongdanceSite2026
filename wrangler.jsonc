@@ -1,10 +1,13 @@
 {
   "$schema": "https://unpkg.com/wrangler/config-schema.json",
-  "name": "songdancesite2026",
+  "name": "songdance-site",
+  "main": "./dist/_worker.js/index.js",
   "compatibility_date": "2026-04-29",
+  "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
   "preview_urls": true,
   "assets": {
-    "directory": "./dist"
+    "directory": "./dist",
+    "binding": "ASSETS"
   }
 }
