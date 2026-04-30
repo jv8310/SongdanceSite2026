@@ -1,0 +1,30 @@
+---
+import Layout from '../layouts/Layout.astro';
+import ThreeLayersWalk from '../components/forgiveness-magnet/ThreeLayersWalk.jsx';
+import '../styles/forgiveness-for-you.css';
+---
+
+<Layout
+  title="A Forgiveness Mantra, Shaped for You — Songdance"
+  description="Walk three quiet layers — others, self, separation — and receive a personalized forgiveness mantra in your inbox."
+>
+  <ThreeLayersWalk client:load />
+
+  <footer class="tlw-footer-quiet">
+    <img src="/brand/logo-wordmark.svg" alt="Songdance" />
+    <p>© 2026 Songdance · Somatic Vocal Healing</p>
+  </footer>
+
+  <script is:inline>
+    var _dcq = _dcq || [];
+    var _dcs = _dcs || {};
+    _dcs.account = '7850773';
+    (function() {
+      var dc = document.createElement('script');
+      dc.type = 'text/javascript'; dc.async = true;
+      dc.src = '//tag.getdrip.com/7850773.js';
+      var s = document.getElementsByTagName('script')[0];
+      s.parentNode.insertBefore(dc, s);
+    })();
+  </script>
+</Layout>
