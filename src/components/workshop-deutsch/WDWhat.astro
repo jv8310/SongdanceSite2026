@@ -1,0 +1,70 @@
+---
+const items = [
+  {
+    title: 'Eine Einführung in Somatic Vocal Healing',
+    body: 'Die Methode, in der Klang zur Sprache des Körpers wird.',
+  },
+  {
+    title: 'Ein somatisches Warm-Up mit Live-Musik am Klavier',
+    body: 'Damit dein Nervensystem ankommen kann, bevor irgendetwas anderes geschieht.',
+  },
+  {
+    title: 'Geführte Tönübungen',
+    body: 'Um zu spüren, wie sich blockierte Emotionen lösen, wenn du sie nicht beschreibst, sondern klingen lässt.',
+  },
+  {
+    title: 'Ein erstes Werkzeug für den Alltag',
+    body: 'Das du danach allein weiterführen kannst.',
+  },
+];
+---
+
+<section class="wd-what" id="workshop">
+  <div class="wd-what-inner">
+    <div class="wd-what-head">
+      <div class="wd-eyebrow">Was dich erwartet</div>
+      <h2 class="wd-h2">
+        Ein einstündiger Workshop —<br />
+        und ein <em>neuer Zugang</em> zu dir selbst.
+      </h2>
+    </div>
+
+    <div class="wd-what-intro">
+      <p>
+        Somatic Vocal Healing ist keine Gesangstechnik. Keine Stimmtherapie.
+        Keine Performance. Es ist eine somatische Praxis: Du nutzt deinen
+        eigenen Klang — nicht um schön zu klingen, sondern um zu hören, was
+        in dir lebendig ist.
+      </p>
+      <p>
+        In dieser Stunde führen wir dich behutsam in die Methode ein. Du
+        wirst tönen. Du wirst spüren. Du wirst entdecken, dass dein Körper
+        schon lange auf eine Sprache wartet, die nicht aus dem Kopf kommt.
+      </p>
+    </div>
+
+    <div class="wd-what-sub">Das wirst du erleben</div>
+    <div class="wd-what-grid">
+      {
+        items.map((it, i) => (
+          <article class="wd-what-card">
+            <div class="wd-what-num">{String(i + 1).padStart(2, '0')}</div>
+            <h3 class="wd-what-card-title">{it.title}</h3>
+            <p class="wd-what-card-body">{it.body}</p>
+          </article>
+        ))
+      }
+    </div>
+
+    <p class="wd-what-coffee">
+      Eine Stunde. Zum <em>Preis eines guten Kaffees.</em><br />
+      Eine Praxis, die dich ein Leben lang begleiten kann.
+    </p>
+
+    <div class="wd-what-cta-wrap">
+      <a href="#anmelden" class="wd-link-cta">
+        Zum nächsten Workshop anmelden <i class="ph-light ph-arrow-right"></i>
+      </a>
+    </div>
+  </div>
+</section>
