@@ -470,7 +470,7 @@ function PracticeAndEmail({ practice, onSubmitEmail, onReplay, infoOpen, setInfo
             The Forgiveness Course is the longer walk — 26 minutes a day for one season, with sound and guidance.
           </p>
           <p className="tlw-final-cta">
-            <a href="#register">Register for the Forgiveness Course →</a>
+            <a href="https://site.songdance.co/forgiveness">Register for the Forgiveness Course →</a>
           </p>
         </>
       ) : (
