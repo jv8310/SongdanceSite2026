@@ -1,0 +1,171 @@
+/* =========================================================
+   Songdance — Colors & Type tokens
+   Warm, contemplative, embodied. Candle-lit, not clinical.
+   ========================================================= */
+
+@import url('https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400;1,500&family=Cormorant+Garamond:ital,wght@0,400;1,400;1,500&family=Figtree:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap');
+
+:root {
+  --paper:        #F4ECDF;
+  --paper-deep:   #EADFCB;
+  --paper-soft:   #FAF5EA;
+
+  --ink:          #2A1B2A;
+  --ink-soft:     #4A3848;
+  --ink-quiet:    #7A6A78;
+  --ink-whisper:  #B6A8B4;
+
+  --ember:        #C9603A;
+  --ember-deep:   #A14826;
+  --ember-soft:   #EBC9B5;
+  --ember-glow:   #F2DCC9;
+
+  --moss:         #5C6A4A;
+  --moss-deep:    #3F4A30;
+  --moss-soft:    #C7CDB8;
+
+  --plum:         #4A2540;
+  --plum-soft:    #C9B4C3;
+
+  --night:        #1A1018;
+  --night-deep:   #0F080E;
+  --night-soft:   #2D1F2C;
+
+  --bg:            var(--paper);
+  --bg-elevated:   var(--paper-soft);
+  --bg-panel:      var(--paper-deep);
+  --bg-inverse:    var(--ink);
+
+  --fg:            var(--ink);
+  --fg-soft:       var(--ink-soft);
+  --fg-quiet:      var(--ink-quiet);
+  --fg-whisper:    var(--ink-whisper);
+  --fg-on-dark:    var(--paper);
+
+  --accent:        var(--ember);
+  --accent-deep:   var(--ember-deep);
+  --accent-soft:   var(--ember-soft);
+  --accent-glow:   var(--ember-glow);
+
+  --line:          rgba(42, 27, 42, 0.14);
+  --line-strong:   rgba(42, 27, 42, 0.28);
+  --line-on-dark:  rgba(244, 236, 223, 0.16);
+
+  --font-display:  'Spectral', 'EB Garamond', 'Iowan Old Style', 'Palatino', Georgia, serif;
+  --font-lyric:    'Cormorant Garamond', 'Spectral', Georgia, serif;
+  --font-body:     'Figtree', 'Söhne', -apple-system, 'Helvetica Neue', sans-serif;
+  --font-mono:     'iA Writer Mono', 'JetBrains Mono', ui-monospace, monospace;
+
+  --t-hero:        clamp(56px, 8vw, 112px);
+  --t-display:     clamp(40px, 5.6vw, 72px);
+  --t-h1:          clamp(36px, 4.4vw, 56px);
+  --t-h2:          clamp(28px, 3.2vw, 40px);
+  --t-h3:          24px;
+  --t-h4:          20px;
+  --t-body-lg:     19px;
+  --t-body:        17px;
+  --t-body-sm:     15px;
+  --t-caption:     13px;
+  --t-label:       12px;
+
+  --lh-tight:      1.05;
+  --lh-snug:       1.18;
+  --lh-display:    1.08;
+  --lh-body:       1.6;
+  --lh-prose:      1.7;
+
+  --tr-label:      0.18em;
+  --tr-display:   -0.012em;
+  --tr-body:       0;
+
+  --sp-1:   4px;
+  --sp-2:   8px;
+  --sp-3:   12px;
+  --sp-4:   16px;
+  --sp-5:   24px;
+  --sp-6:   32px;
+  --sp-7:   48px;
+  --sp-8:   64px;
+  --sp-9:   96px;
+  --sp-10:  144px;
+  --sp-11:  200px;
+
+  --r-sm:   4px;
+  --r-md:   10px;
+  --r-lg:   18px;
+  --r-xl:   28px;
+  --r-pill: 999px;
+
+  --shadow-1: 0 1px 2px rgba(42, 27, 42, 0.06);
+  --shadow-2: 0 6px 18px -8px rgba(42, 27, 42, 0.18), 0 2px 4px rgba(42, 27, 42, 0.04);
+  --shadow-3: 0 24px 60px -24px rgba(42, 27, 42, 0.28), 0 4px 12px rgba(42, 27, 42, 0.06);
+  --shadow-glow: 0 0 0 6px rgba(201, 96, 58, 0.12);
+
+  --ease:        cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-out:    cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in:     cubic-bezier(0.7, 0, 0.84, 0);
+  --d-quick:     180ms;
+  --d-base:      320ms;
+  --d-slow:      520ms;
+  --d-breath:    900ms;
+
+  --measure:        62ch;
+  --measure-narrow: 44ch;
+  --container:      1180px;
+  --container-narrow: 760px;
+
+  --sd-max: 1240px;
+  --sd-img-filter: saturate(0.88) contrast(1.02);
+}
+
+html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  font-weight: 400;
+  text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3, h4 { margin: 0; }
+
+p, .t-body {
+  font-family: var(--font-body);
+  font-size: var(--t-body);
+  line-height: var(--lh-prose);
+  color: var(--fg);
+  text-wrap: pretty;
+}
+
+.t-lyric {
+  font-family: var(--font-lyric);
+  font-style: italic;
+  font-weight: 400;
+  font-size: clamp(28px, 3.4vw, 44px);
+  line-height: 1.25;
+  color: var(--fg);
+  letter-spacing: 0.005em;
+  text-wrap: balance;
+}
+
+a {
+  color: var(--fg);
+  text-decoration: underline;
+  text-decoration-color: var(--ember);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+  transition: text-decoration-color var(--d-quick) var(--ease);
+}
+a:hover { text-decoration-color: var(--ember-deep); }
+
+::selection { background: var(--ember-soft); color: var(--ink); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}

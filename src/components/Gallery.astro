@@ -1,0 +1,32 @@
+---
+const shots = [
+  { src: '/imagery/sounding-yellow.jpg', slot: 'g-a' },
+  { src: '/imagery/embrace-yurt.jpg', slot: 'g-b' },
+  { src: '/imagery/two-women-meadow.jpg', slot: 'g-c' },
+  { src: '/imagery/sounding-teal.jpg', slot: 'g-d' },
+  { src: '/imagery/walk-tree-sunset.jpg', slot: 'g-e' },
+];
+---
+
+<section class="sd-gallery">
+  <div class="sd-gallery-inner">
+    <div class="sd-gallery-head" data-anim="reveal">
+      <div>
+        <div class="sd-eyebrow">From the room</div>
+        <p class="sd-gallery-quote">
+          The room is the practice. The body is the instrument.
+        </p>
+      </div>
+      <div class="sd-gallery-byline">Selected frames · 2024–25</div>
+    </div>
+    <div class="sd-gallery-grid">
+      {
+        shots.map((s) => (
+          <figure class={`sd-gallery-item ${s.slot}`} data-anim="gallery-item">
+            <img src={s.src} alt="" loading="lazy" />
+          </figure>
+        ))
+      }
+    </div>
+  </div>
+</section>

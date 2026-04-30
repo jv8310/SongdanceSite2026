@@ -1,0 +1,31 @@
+---
+---
+
+<nav class="sd-nav" data-anim="nav">
+  <div class="sd-nav-inner">
+    <a href="#" class="sd-nav-mark" aria-label="Songdance">
+      <img src="/brand/logo-wordmark.svg" alt="Songdance" />
+    </a>
+    <div class="sd-nav-links">
+      <a href="#work">the work</a>
+      <a href="#offerings">offerings</a>
+      <a href="#lineage">lineage</a>
+      <a href="#contact">contact</a>
+    </div>
+    <a href="#offerings" class="sd-nav-cta">Live workshop</a>
+    <button class="sd-nav-burger" aria-label="Menu" data-nav-burger>
+      <i class="ph-light ph-list"></i>
+    </button>
+  </div>
+</nav>
+
+<script>
+  const burger = document.querySelector<HTMLButtonElement>('[data-nav-burger]');
+  const icon = burger?.querySelector('i');
+  burger?.addEventListener('click', () => {
+    if (!icon) return;
+    const open = icon.classList.contains('ph-list');
+    icon.classList.toggle('ph-list', !open);
+    icon.classList.toggle('ph-x', open);
+  });
+</script>

@@ -1,0 +1,75 @@
+---
+const classes = [
+  {
+    num: '01',
+    label: 'Class one',
+    title: 'The dynamics of forgiveness — and why it usually fails',
+    points: [
+      'The foundational dynamics of forgiveness and gratefulness',
+      'The 5 core soul wounds — and how they shape what we can and cannot forgive',
+      { html: "Why <em>just let it go</em> doesn't work, and what does" },
+      'Introduction to the four phrases of ho’oponopono — and to sounding as the somatic key',
+    ],
+  },
+  {
+    num: '02',
+    label: 'Class two',
+    title: 'Forgiving others',
+    points: [
+      "Working with the people who've hurt you",
+      'Naming the pain without condoning the act',
+      'The constellation principle: giving back what was never yours to carry',
+      'Sounding the unforgiveness until it can move',
+    ],
+  },
+  {
+    num: '03',
+    label: 'Class three',
+    title: 'Forgiving self',
+    points: [
+      'The exile within: shame, guilt, and the belief of being unforgivable',
+      'Meeting the parts of self that have been disowned',
+      'Self-compassion as embodied practice — not a phrase repeated until it sounds true',
+      'Healing the inner critic through sound',
+    ],
+  },
+  {
+    num: '04',
+    label: 'Class four',
+    title: 'Forgiving separation, returning to grace',
+    points: [
+      'The third layer: the recognition that there was nothing to forgive',
+      'Why this can only land after Layers 1 and 2 — and why bypassing produces only fragile peace',
+      'Gratefulness as embodied arrival, not gratitude as performance',
+      'Anchoring the practice in daily life',
+    ],
+  },
+] as const;
+---
+
+<section class="fc-classes">
+  <div class="fc-classes-inner">
+    <div class="fc-classes-head">
+      <div class="fc-eyebrow">The four classes</div>
+      <h2 class="fc-h2">A 4-class arc, designed to <em>walk you through.</em></h2>
+    </div>
+    {
+      classes.map((c) => (
+        <div class="fc-class-row">
+          <div class="fc-class-num">{c.num}</div>
+          <div class="fc-class-body">
+            <div>
+              <div class="fc-class-label">{c.label}</div>
+              <h3 class="fc-class-title">{c.title}</h3>
+            </div>
+            <ul class="fc-class-points">
+              {c.points.map((p) =>
+                typeof p === 'string' ? <li>{p}</li> : <li set:html={p.html} />
+              )}
+            </ul>
+          </div>
+        </div>
+      ))
+    }
+  </div>
+</section>

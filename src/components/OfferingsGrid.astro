@@ -1,0 +1,66 @@
+---
+const offerings = [
+  {
+    label: 'Live workshop',
+    title: 'An evening of sounding',
+    body: 'Two hours together. Online or in the room. A place to begin.',
+    meta: ['next: 8 May', 'online', 'two hours'],
+    tag: 'open',
+  },
+  {
+    label: 'Foundation course',
+    title: 'Twelve weeks of practice',
+    body: 'A small group, weekly, over three months. The container that lets the work settle.',
+    meta: ['begins 14 May', 'online', 'twelve evenings'],
+    tag: 'filling',
+  },
+  {
+    label: 'Certification',
+    title: 'For those holding space',
+    body: 'We are not making practitioners — we are recognising them. A year, in person, in cohorts.',
+    meta: ['applications open', 'in person', 'one year'],
+    tag: 'by application',
+  },
+  {
+    label: 'Retreat',
+    title: 'Five days, one room',
+    body: 'Long days, slow meals, the work uninterrupted. Held in a quiet house.',
+    meta: ['October', 'Portugal', 'ten places'],
+    tag: 'two places left',
+  },
+];
+---
+
+<section class="sd-offerings" id="offerings">
+  <div class="sd-offerings-inner">
+    <div class="sd-offerings-head" data-anim="reveal">
+      <div class="sd-eyebrow">Offerings</div>
+      <h2 class="sd-section-title sd-section-title-centered">Four ways in.</h2>
+    </div>
+    <div class="sd-offerings-grid">
+      {
+        offerings.map((o) => (
+          <article class="sd-offering-card" data-anim="offering">
+            <div class="sd-offering-top">
+              <div class="sd-offering-label">{o.label}</div>
+              <span class="sd-tag sd-tag-ember">{o.tag}</span>
+            </div>
+            <h3 class="sd-offering-title">{o.title}</h3>
+            <p class="sd-offering-body">{o.body}</p>
+            <div class="sd-offering-meta">
+              {o.meta.map((m, i) => (
+                <>
+                  {i > 0 && <span class="sd-dot" />}
+                  <span>{m}</span>
+                </>
+              ))}
+            </div>
+            <a href="#" class="sd-offering-cta">
+              Read more <i class="ph-light ph-arrow-right" />
+            </a>
+          </article>
+        ))
+      }
+    </div>
+  </div>
+</section>

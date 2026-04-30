@@ -1,0 +1,36 @@
+---
+const items: Array<string | { html: string }> = [
+  "You're stuck in bitterness, resentment, blame, or guilt",
+  "You've tried to \"just let it go\" — but it doesn't really work",
+  "You long to return to gratefulness, but don't know how",
+  { html: "You're caught in negative self-talk: <em>I'm not good enough. I'm unlovable. I'm a fraud.</em>" },
+  'You find yourself in repetitive patterns of negativity and blame',
+  'You feel like the world is against you',
+  "You're holding rage or resentment toward someone",
+  'You feel unforgivable — unable to connect with your own goodness and worthiness',
+  "You're standing outside the sanctuary of grace, watching others walk in… but you can't seem to enter",
+  'You carry a fear of being punished by God, or feel stuck in shame from religious conditioning',
+  "You're still healing from church trauma or spiritual wounds",
+  "You live in your head, but don't know the practice or process to shift",
+  'You want to forgive, to reconcile, to come home to yourself — and you need guidance, tools, and your body alongside you',
+];
+---
+
+<section class="fc-foryou">
+  <div class="fc-foryou-inner">
+    <div class="fc-foryou-head">
+      <div class="fc-eyebrow">An invitation</div>
+      <h2 class="fc-h2">Forgiveness is for you if<em>…</em></h2>
+      <a href="#register" class="fc-link-cta fc-foryou-cta">
+        Register now <i class="ph-light ph-arrow-right"></i>
+      </a>
+    </div>
+    <ul class="fc-foryou-list">
+      {
+        items.map((it) =>
+          typeof it === 'string' ? <li>{it}</li> : <li set:html={it.html} />
+        )
+      }
+    </ul>
+  </div>
+</section>

@@ -1,0 +1,51 @@
+---
+const rows = [
+  {
+    n: '01',
+    label: 'Somatic Vocal Healing',
+    title: 'Self-healing through sounding',
+    body: "Your voice is the instrument. Not singing — sounding. We listen for what's already there, and let it move.",
+    meta: 'individual practice · weekly',
+    img: '/imagery/sounding-green-shirt.jpg',
+    flip: false,
+  },
+  {
+    n: '02',
+    label: 'Sound Constellations',
+    title: 'Klankopstellingen',
+    body: "A group method for what runs through families, relationships, and the body's lineage. The medium is voice.",
+    meta: 'in person · cohort of eight',
+    img: '/imagery/sounding-kneeling.jpg',
+    flip: true,
+  },
+];
+---
+
+<section class="sd-work" id="work">
+  <div class="sd-work-inner">
+    <div class="sd-work-head" data-anim="reveal">
+      <div class="sd-eyebrow">The work</div>
+      <h2 class="sd-section-title sd-section-title-centered">
+        What we work with isn't an idea. <span class="sd-italic">It's already moving.</span>
+      </h2>
+    </div>
+
+    {
+      rows.map((r) => (
+        <article class={'sd-work-row' + (r.flip ? ' flip' : '')} data-anim="work-row">
+          <figure class="sd-work-row-img">
+            <img src={r.img} alt="" />
+            <span class="sd-work-row-num">{r.n}</span>
+          </figure>
+          <div class="sd-work-row-text">
+            <div class="sd-work-row-label">{r.label}</div>
+            <h3 class="sd-work-row-title">{r.title}</h3>
+            <div class="sd-work-row-meta">{r.meta}</div>
+            <p class="sd-work-row-body">{r.body}</p>
+            <a href="#" class="sd-link">Read more</a>
+          </div>
+        </article>
+      ))
+    }
+  </div>
+</section>

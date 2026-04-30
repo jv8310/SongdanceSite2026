@@ -1,0 +1,43 @@
+---
+const phrases = [
+  { said: "I'm sorry", sounded: 'The grief that was never allowed to flow' },
+  { said: 'Please forgive me', sounded: 'The surrender of being right' },
+  { said: 'Thank you', sounded: 'The gratefulness that arises when the system has finally been heard' },
+  { said: 'I love you', sounded: 'The love under everything — met as direct experience, not belief' },
+];
+---
+
+<section class="fc-phrases">
+  <div class="fc-phrases-inner">
+    <div class="fc-phrases-head">
+      <div class="fc-eyebrow">Ho'oponopono, met with sound</div>
+      <h2 class="fc-phrases-h2">
+        Four phrases. One ancient practice.<br />
+        <em>A new way to meet them.</em>
+      </h2>
+    </div>
+    <p class="fc-phrases-mantra">
+      I'm sorry. Please forgive me.<br />Thank you. I love you.
+    </p>
+    <p class="fc-phrases-lead">
+      Four phrases from Hawaiian ho'oponopono. Repeated by millions, often as
+      mantra. Powerful in their simplicity. In this course, we don't only say
+      them.
+    </p>
+    <p class="fc-phrases-emphasis">We sound them.</p>
+    <p class="fc-phrases-lead" style="margin-top: var(--sp-5);">
+      Because the body has its own version of each.
+    </p>
+    <div class="fc-phrases-list">
+      {
+        phrases.map((p) => (
+          <div class="fc-phrase">
+            <div class="fc-phrase-said">{p.said}</div>
+            <div class="fc-phrase-sounded">{p.sounded}</div>
+          </div>
+        ))
+      }
+    </div>
+    <p class="fc-phrases-close">Each phrase becomes a doorway. Sounding is the key.</p>
+  </div>
+</section>

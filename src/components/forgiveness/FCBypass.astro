@@ -1,0 +1,90 @@
+---
+const slides = [
+  '/imagery/forgiveness/quote-marianne.jpg',
+  '/imagery/forgiveness/quote-violet.jpg',
+  '/imagery/forgiveness/quote-mystical-act.jpg',
+];
+---
+
+<section class="fc-bypass">
+  <div class="fc-bypass-inner">
+    <div class="fc-bypass-img" data-carousel>
+      <div class="fc-bypass-track">
+        {
+          slides.map((src, i) => (
+            <figure class={'fc-bypass-slide' + (i === 0 ? ' is-active' : '')}>
+              <img src={src} alt="" />
+            </figure>
+          ))
+        }
+      </div>
+      <button class="fc-carousel-arrow fc-carousel-prev" aria-label="Previous quote">
+        <i class="ph-light ph-caret-left"></i>
+      </button>
+      <button class="fc-carousel-arrow fc-carousel-next" aria-label="Next quote">
+        <i class="ph-light ph-caret-right"></i>
+      </button>
+      <div class="fc-carousel-dots" role="tablist" aria-label="Choose a quote">
+        {
+          slides.map((_, i) => (
+            <button
+              class={'fc-carousel-dot' + (i === 0 ? ' is-active' : '')}
+              role="tab"
+              aria-label={`Quote ${i + 1}`}
+              aria-selected={i === 0 ? 'true' : 'false'}
+              data-index={i}
+            />
+          ))
+        }
+      </div>
+    </div>
+    <div class="fc-bypass-text">
+      <div class="fc-eyebrow">Why this course is different</div>
+      <h2 class="fc-h2" style="margin-top: var(--sp-4); margin-bottom: var(--sp-6);">
+        Most forgiveness work asks you to let go before you've fully arrived.
+      </h2>
+      <p>To say the words. To choose. To release because you've been told it's good for you.</p>
+      <p>If forgiveness were a thought, that would be enough.</p>
+      <p>
+        But forgiveness lives where the rage lives, where the grief lives,
+        where the shame lives — and these don't speak the language of
+        decisions. They speak the language of the body.
+      </p>
+      <p>
+        <strong>This course honors the pain first.</strong>
+        Sounds it. Gives it back where it belongs. And then — only then — does
+        forgiveness arrive on its own. Not as something you forced. As
+        something that became possible.
+      </p>
+    </div>
+  </div>
+</section>
+
+<script>
+  const carousel = document.querySelector<HTMLDivElement>('[data-carousel]');
+  if (carousel) {
+    const slides = Array.from(carousel.querySelectorAll<HTMLElement>('.fc-bypass-slide'));
+    const dots = Array.from(carousel.querySelectorAll<HTMLButtonElement>('.fc-carousel-dot'));
+    const prev = carousel.querySelector<HTMLButtonElement>('.fc-carousel-prev');
+    const next = carousel.querySelector<HTMLButtonElement>('.fc-carousel-next');
+    let index = 0;
+
+    const show = (n: number) => {
+      index = (n + slides.length) % slides.length;
+      slides.forEach((slide, i) => slide.classList.toggle('is-active', i === index));
+      dots.forEach((dot, i) => {
+        dot.classList.toggle('is-active', i === index);
+        dot.setAttribute('aria-selected', i === index ? 'true' : 'false');
+      });
+    };
+
+    prev?.addEventListener('click', () => show(index - 1));
+    next?.addEventListener('click', () => show(index + 1));
+    dots.forEach((dot, i) => dot.addEventListener('click', () => show(i)));
+
+    carousel.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowLeft') show(index - 1);
+      if (e.key === 'ArrowRight') show(index + 1);
+    });
+  }
+</script>
