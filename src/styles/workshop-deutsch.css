@@ -347,13 +347,27 @@ html, body { background: var(--paper); }
   text-align: center;
   font-family: var(--font-lyric);
   font-style: italic;
+  font-size: clamp(20px, 2.1vw, 26px);
+  line-height: 1.45;
+  color: var(--ink);
+  max-width: 44ch;
+  text-wrap: balance;
+}
+.wd-what-coffee em {
+  color: var(--plum);
+}
+.wd-what-coffee-foot {
+  margin: var(--sp-5) auto 0;
+  text-align: center;
+  font-family: var(--font-lyric);
+  font-style: italic;
   font-size: clamp(22px, 2.4vw, 30px);
   line-height: 1.4;
   color: var(--ink);
   max-width: 32ch;
   text-wrap: balance;
 }
-.wd-what-coffee em {
+.wd-what-coffee-foot em {
   color: var(--plum);
 }
 .wd-what-cta-wrap {
@@ -491,56 +505,6 @@ html, body { background: var(--paper); }
   color: var(--paper);
 }
 .wd-testimonial-meta .where { color: rgba(244, 236, 223, 0.6); }
-
-/* ---------- Outcomes ---------- */
-.wd-outcomes {
-  background: var(--paper);
-  padding: var(--sp-10) var(--sp-7);
-}
-.wd-outcomes-inner {
-  max-width: var(--wd-max); margin: 0 auto;
-  display: grid;
-  grid-template-columns: 0.85fr 1.15fr;
-  gap: var(--sp-9);
-  align-items: start;
-}
-@media (max-width: 880px) {
-  .wd-outcomes-inner { grid-template-columns: 1fr; gap: var(--sp-6); }
-}
-.wd-outcomes-head {
-  position: sticky; top: 100px;
-}
-.wd-outcomes-head .wd-h2 { margin-top: var(--sp-4); }
-.wd-outcomes-intro {
-  font-family: var(--font-body);
-  font-size: 17px;
-  line-height: 1.7;
-  color: var(--ink-soft);
-  margin: var(--sp-5) 0 var(--sp-6);
-  max-width: 40ch;
-}
-.wd-outcomes-cta { margin-top: var(--sp-3); }
-.wd-outcomes-list {
-  list-style: none; margin: 0; padding: 0;
-}
-.wd-outcomes-list li {
-  font-family: var(--font-body);
-  font-size: 17px;
-  line-height: 1.6;
-  color: var(--ink-soft);
-  padding: var(--sp-5) 0 var(--sp-5) var(--sp-6);
-  border-bottom: 1px solid var(--line);
-  position: relative;
-}
-.wd-outcomes-list li:first-child { border-top: 1px solid var(--line); }
-.wd-outcomes-list li::before {
-  content: "·";
-  position: absolute;
-  left: 0; top: var(--sp-4);
-  color: var(--ember);
-  font-size: 28px;
-  line-height: 1;
-}
 
 /* ---------- About Carmen & Lorenz ---------- */
 .wd-about {
