@@ -165,7 +165,7 @@ function Generating() {
   );
 }
 
-function PrayerCard({ prayer, onSubmitEmail, onReplay, submitted, sending }) {
+function PrayerCard({ prayer, aiStatus, onSubmitEmail, onReplay, submitted, sending }) {
   const [email, setEmail] = React.useState('');
   const [hp, setHp] = React.useState('');
   const [error, setError] = React.useState('');
@@ -183,6 +183,12 @@ function PrayerCard({ prayer, onSubmitEmail, onReplay, submitted, sending }) {
     });
   };
 
+  const statusLabel = (() => {
+    if (!aiStatus) return null;
+    if (aiStatus.ok) return 'AI naming line — enriched';
+    return `AI naming line — fallback (reason: ${aiStatus.reason || 'unknown'})`;
+  })();
+
   return (
     <div className="tlw-step tlw-step-fade-enter" style={{ minHeight: 0 }}>
       <div className="tlw-practice">
@@ -192,6 +198,12 @@ function PrayerCard({ prayer, onSubmitEmail, onReplay, submitted, sending }) {
         <h3>A forgiveness prayer for you.</h3>
         <p className="tlw-prayer-body">{prayer}</p>
       </div>
+
+      {statusLabel ? (
+        <p className="tlw-debug-status" data-ok={aiStatus.ok ? 'true' : 'false'}>
+          {statusLabel}
+        </p>
+      ) : null}
 
       {submitted ? (
         <>
@@ -264,6 +276,7 @@ export default function ThreeLayersWalk() {
   const [step, setStep] = React.useState('intro');
   const [answers, setAnswers] = React.useState({ q1: '', q2: null, q3: null, q4: null, q5: null });
   const [prayer, setPrayer] = React.useState(null);
+  const [aiStatus, setAiStatus] = React.useState(null);
   const [sending, setSending] = React.useState(false);
   const [submitted, setSubmitted] = React.useState(false);
   const [rippleKey, setRippleKey] = React.useState(0);
@@ -274,6 +287,7 @@ export default function ThreeLayersWalk() {
     setStep('intro');
     setAnswers({ q1: '', q2: null, q3: null, q4: null, q5: null });
     setPrayer(null);
+    setAiStatus(null);
     setSubmitted(false);
     setSending(false);
   };
@@ -288,6 +302,7 @@ export default function ThreeLayersWalk() {
   const generate = React.useCallback(async () => {
     setStep('generating');
     let namingLine;
+    let status = { ok: false, reason: 'fetch-error' };
     try {
       const res = await fetch('/api/forgiveness-prayer', {
         method: 'POST',
@@ -298,11 +313,25 @@ export default function ThreeLayersWalk() {
       const data = await res.json().catch(() => ({}));
       if (res.ok && !data.fallback && typeof data.namingLine === 'string') {
         namingLine = data.namingLine;
+        status = { ok: true };
+      } else if (data && data.fallback) {
+        status = { ok: false, reason: data.reason || 'unknown' };
+      } else {
+        status = { ok: false, reason: 'http-' + res.status };
       }
     } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      status = { ok: false, reason: msg.includes('abort') || msg.includes('timeout') ? 'client-timeout' : 'client-error' };
       console.warn('Naming-line fallback:', err);
     }
     const composed = composePrayer(answers, namingLine);
+    console.info('[forgiveness-prayer]', {
+      ai: status.ok ? 'enriched' : 'fallback',
+      reason: status.reason,
+      center: composed.center,
+      q5: answers.q5,
+    });
+    setAiStatus(status);
     setPrayer(composed);
     setStep('prayer');
   }, [answers]);
@@ -410,6 +439,7 @@ export default function ThreeLayersWalk() {
       <PrayerCard
         key="p"
         prayer={prayer?.prayer || ''}
+        aiStatus={aiStatus}
         onSubmitEmail={submitEmail}
         onReplay={replay}
         submitted={submitted}
