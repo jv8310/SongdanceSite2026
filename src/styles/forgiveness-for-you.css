@@ -579,6 +579,31 @@ html, body { background: var(--paper); }
 }
 .tlw-progress-dot[data-done="true"] { background: var(--ember-deep); }
 
+/* ---------- Debug status badge (AI naming line) ----------
+   Small line under the prayer card that surfaces whether the
+   AI naming-line call succeeded, and the fallback reason if not.
+   Useful for diagnosing key/quota/timeout issues live. */
+.tlw-debug-status {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--ink-quiet);
+  background: var(--paper-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  padding: 6px 14px;
+  margin: 0;
+  user-select: text;
+}
+.tlw-debug-status[data-ok="true"] {
+  color: var(--moss-deep);
+  border-color: rgba(63, 74, 48, 0.25);
+}
+.tlw-debug-status[data-ok="false"] {
+  color: var(--ember-deep);
+  border-color: rgba(161, 72, 38, 0.25);
+}
+
 /* ---------- Replay ---------- */
 .tlw-replay {
   margin-top: var(--sp-5);
