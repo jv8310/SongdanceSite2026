@@ -14,9 +14,9 @@ const json = (status: number, body: Record<string, unknown>) =>
 export const POST: APIRoute = async ({ request, locals }) => {
   let body: {
     email?: string;
-    otherWord?: string;
-    selfWord?: string;
-    mantra?: string;
+    situation?: string;
+    relationship?: string;
+    prayer?: string;
     hp?: string;
   };
   try {
@@ -34,9 +34,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
     return json(400, { ok: false, error: 'bad-email' });
   }
 
-  const otherWord = (body.otherWord ?? '').toString().slice(0, 60).trim();
-  const selfWord = (body.selfWord ?? '').toString().slice(0, 60).trim();
-  const mantra = (body.mantra ?? '').toString().slice(0, 4000);
+  // Custom field names stay as the v1 names so the existing Drip workflow
+  // and email template (which references {{ subscriber.custom_fields.forgiveness_mantra }})
+  // continue to fire without reconfiguration.
+  const situation = (body.situation ?? '').toString().slice(0, 600).trim();
+  const relationship = (body.relationship ?? '').toString().slice(0, 80).trim();
+  const prayer = (body.prayer ?? '').toString().slice(0, 4000);
 
   const cfEnv = (locals as { runtime?: { env?: Record<string, string | undefined> } }).runtime?.env;
   const token = cfEnv?.DRIP_API_TOKEN ?? import.meta.env.DRIP_API_TOKEN;
@@ -65,9 +68,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
               email,
               tags: ['m26_Forgiveness'],
               custom_fields: {
-                forgiveness_mantra: mantra,
-                forgiveness_other_word: otherWord,
-                forgiveness_self_word: selfWord,
+                forgiveness_mantra: prayer,
+                forgiveness_other_word: situation,
+                forgiveness_self_word: relationship,
               },
             },
           ],

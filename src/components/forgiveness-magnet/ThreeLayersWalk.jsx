@@ -1,251 +1,48 @@
 import React from 'react';
-import HeroIntro from './HeroIntro.jsx';
+import { composePrayer, Q4_LABEL, NAMING_PATTERNS } from '../../lib/forgiveness-prayer.ts';
 
 // =============================================================
-// Three Layers, A Walk Through
-// Part 0: hero (pre-page)
-// Part 1: scroll-driven theory (you ↔ other ↔ self ↔ wholeness)
-// Part 2: interactive practice with explicit Continue buttons
+// Forgiveness — quiz → composed prayer → email → Drip
+// Five questions shape a free-verse prayer that meets the
+// visitor at their dominant center (body / heart / head).
 // =============================================================
 
-const LAYER1_CHIPS = ['father', 'mother', 'ex-partner', 'a friend', 'a sibling', 'myself', 'someone'];
-const LAYER2_CHIPS = ['the silence', 'the anger', 'what I said', "what I didn't say", 'the leaving', 'my choices', 'the hiding'];
+const Q2_OPTIONS = [
+  { value: 'body',  label: 'A tightness, heaviness, or charge somewhere in my body — jaw, chest, gut, shoulders' },
+  { value: 'heart', label: 'An ache, a heartbreak, a longing — something broken between us, or in me' },
+  { value: 'head',  label: 'A loop of thoughts — replaying it, analyzing, trying to understand what happened' },
+  { value: 'mix',   label: "A mix, or I'm not sure" },
+];
 
-const FALLBACK_PRACTICE = {
-  toward1: 'everyone I have not yet been able to forgive',
-  toward2: 'the part of me that has felt unforgivable',
-  closing: 'There was never anything to forgive.',
-  isFallback: true,
-};
+const Q3_OPTIONS = [
+  { value: 'body',  label: 'To let go. To stop carrying this. To put it down.' },
+  { value: 'heart', label: 'To be seen. To grieve it properly. To feel love again.' },
+  { value: 'head',  label: "To understand. To make sense of it. To know it's safe to move on." },
+];
 
-const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
-const lerp = (a, b, t) => a + (b - a) * t;
-const easeInOut = (t) => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+const Q4_OPTIONS = [
+  { value: 'hurt_by',   label: Q4_LABEL.hurt_by },
+  { value: 'hurt_them', label: Q4_LABEL.hurt_them },
+  { value: 'mutual',    label: Q4_LABEL.mutual },
+  { value: 'self',      label: Q4_LABEL.self },
+  { value: 'life',      label: Q4_LABEL.life },
+];
 
-// =============================================================
-// Scroll Theory
-// =============================================================
+const Q5_OPTIONS = [
+  { value: 'resistant',     label: "I want to forgive but I'm not there yet — there's still anger or resistance" },
+  { value: 'head_not_body', label: "I've forgiven in my head but not in my body" },
+  { value: 'returns',       label: 'I keep forgiving and it keeps coming back' },
+  { value: 'ready',         label: "I'm ready — I just need words for it" },
+  { value: 'numb',          label: 'I feel numb, distant, or shut down about it' },
+];
 
-function ScrollTheory({ onBegin }) {
-  const scrollerRef = React.useRef(null);
-  const [progress, setProgress] = React.useState(0);
-
-  React.useEffect(() => {
-    const el = scrollerRef.current;
-    if (!el) return;
-    let raf = 0;
-    const update = () => {
-      const rect = el.getBoundingClientRect();
-      const total = rect.height - window.innerHeight;
-      const p = clamp(-rect.top / total, 0, 1);
-      setProgress(p);
-      raf = 0;
-    };
-    const onScroll = () => {
-      if (!raf) raf = requestAnimationFrame(update);
-    };
-    update();
-    window.addEventListener('scroll', onScroll, { passive: true });
-    window.addEventListener('resize', onScroll);
-    return () => {
-      window.removeEventListener('scroll', onScroll);
-      window.removeEventListener('resize', onScroll);
-      cancelAnimationFrame(raf);
-    };
-  }, []);
-
-  const p = progress;
-
-  let scene = 0;
-  if (p < 0.08) scene = 0;
-  else if (p < 0.32) scene = 1;
-  else if (p < 0.55) scene = 2;
-  else if (p < 0.82) scene = 3;
-  else scene = 4;
-
-  const youOpacity = p < 0.78
-    ? 1
-    : clamp(1 - (p - 0.78) / 0.10, 0, 1);
-
-  const youX = (() => {
-    const t = clamp((p - 0.04) / 0.20, 0, 1);
-    const t2 = clamp((p - 0.45) / 0.10, 0, 1);
-    return lerp(0, -90, easeInOut(t)) * (1 - easeInOut(t2));
-  })();
-
-  const otherOpacity = (() => {
-    if (p < 0.06) return 0;
-    if (p < 0.18) return clamp((p - 0.06) / 0.12, 0, 1);
-    if (p < 0.42) return 1;
-    if (p < 0.55) return clamp(1 - (p - 0.42) / 0.13, 0, 1);
-    return 0;
-  })();
-  const otherX = (() => {
-    const arrival = clamp((p - 0.06) / 0.12, 0, 1);
-    const departure = clamp((p - 0.42) / 0.13, 0, 1);
-    const stayX = lerp(260, 90, easeInOut(arrival));
-    return lerp(stayX, 260, easeInOut(departure));
-  })();
-
-  const streamOuter = (() => {
-    const t = clamp((p - 0.16) / 0.16, 0, 1);
-    const fade = clamp(1 - (p - 0.36) / 0.06, 0, 1);
-    return { opacity: easeInOut(t) * fade * 0.95, width: 180 };
-  })();
-
-  const selfOpacity = (() => {
-    if (p < 0.50) return 0;
-    if (p < 0.60) return clamp((p - 0.50) / 0.10, 0, 1);
-    if (p < 0.78) return 1;
-    return clamp(1 - (p - 0.78) / 0.08, 0, 1);
-  })();
-  const selfX = (() => {
-    const arrival = clamp((p - 0.50) / 0.10, 0, 1);
-    return lerp(-260, -90, easeInOut(arrival));
-  })();
-
-  const youXLayer2 = (() => {
-    const t = clamp((p - 0.55) / 0.08, 0, 1);
-    const dissolve = clamp((p - 0.78) / 0.08, 0, 1);
-    return lerp(0, 60, easeInOut(t)) * (1 - dissolve);
-  })();
-
-  const streamInner = (() => {
-    if (p < 0.58) return { opacity: 0 };
-    const t = clamp((p - 0.58) / 0.10, 0, 1);
-    const fade = clamp(1 - (p - 0.78) / 0.06, 0, 1);
-    return { opacity: easeInOut(t) * fade * 0.95 };
-  })();
-
-  const youCombinedX = youX + youXLayer2;
-
-  const introOpacity = clamp(1 - p / 0.06, 0, 1);
-
-  const youStyle = {
-    '--x': `${youCombinedX}px`,
-    '--opacity': youOpacity,
-    '--scale': 1,
-  };
-  const otherStyle = {
-    '--x': `${otherX}px`,
-    '--opacity': otherOpacity,
-    '--scale': 1,
-  };
-  const selfStyle = {
-    '--x': `${selfX}px`,
-    '--opacity': selfOpacity,
-    '--scale': 1,
-  };
-  const streamStyle = {
-    '--stream-w': `${streamOuter.width}px`,
-    '--stream-opacity': streamOuter.opacity,
-    transform: `translate(calc(-50% + ${(youCombinedX + otherX) / 2}px), -50%)`,
-  };
-  const innerStreamStyle = {
-    '--stream-w': '180px',
-    '--stream-opacity': streamInner.opacity,
-    transform: `translate(calc(-50% + ${(youCombinedX + selfX) / 2}px), -50%)`,
-  };
-
-  return (
-    <div className="tlw-theory" ref={scrollerRef}>
-      <div className="tlw-scroller">
-        <div className="tlw-stage">
-          <div className="tlw-scroll-intro" style={{ '--intro-opacity': introOpacity }}>
-            <div className="tlw-scroll-intro-eyebrow">three layers · a walk through</div>
-            <p className="tlw-scroll-intro-title">
-              Three movements, before the practice. Scroll slowly.
-            </p>
-            <div className="tlw-scroll-cue">
-              <div className="tlw-scroll-cue-line" />
-              scroll
-            </div>
-          </div>
-
-          <div className="tlw-canvas">
-            <div className="tlw-figure" data-variant="self" style={selfStyle}>
-              <div className="tlw-figure-halo" />
-              <PersonSVG />
-              <span className="tlw-figure-label" style={{ '--label-opacity': clamp(selfOpacity, 0, 1) }}>
-                self
-              </span>
-            </div>
-
-            <div className="tlw-figure" data-variant="you" style={youStyle}>
-              <div className="tlw-figure-halo" />
-              <PersonSVG />
-              <span className="tlw-figure-label" style={{ '--label-opacity': clamp(youOpacity, 0, 1) }}>
-                you
-              </span>
-            </div>
-
-            <div className="tlw-figure" data-variant="other" style={otherStyle}>
-              <div className="tlw-figure-halo" />
-              <PersonSVG />
-              <span className="tlw-figure-label" style={{ '--label-opacity': clamp(otherOpacity, 0, 1) }}>
-                other
-              </span>
-            </div>
-
-            <div className="tlw-stream" style={streamStyle}>
-              <div className="tlw-stream-track" />
-            </div>
-
-            <div className="tlw-stream" style={innerStreamStyle}>
-              <div className="tlw-stream-track" />
-            </div>
-
-            <div className="tlw-captions">
-              <div className="tlw-caption" data-active={scene === 0 ? 'true' : 'false'}>
-                <span className="tlw-caption-eyebrow">begin here</span>
-                <p className="tlw-caption-text">
-                  You arrive. Just <em>you</em>, just for a moment.
-                </p>
-              </div>
-              <div className="tlw-caption" data-active={scene === 1 ? 'true' : 'false'}>
-                <span className="tlw-caption-eyebrow">layer one · others</span>
-                <p className="tlw-caption-text">
-                  Forgiveness moves outward — <em>toward someone</em> you have not yet been able to release.
-                </p>
-              </div>
-              <div className="tlw-caption" data-active={scene === 2 ? 'true' : 'false'}>
-                <span className="tlw-caption-eyebrow">turning</span>
-                <p className="tlw-caption-text">
-                  Now turn. There is something <em>in you</em> waiting to be met.
-                </p>
-              </div>
-              <div className="tlw-caption" data-active={scene === 3 ? 'true' : 'false'}>
-                <span className="tlw-caption-eyebrow">layer two · self</span>
-                <p className="tlw-caption-text">
-                  Forgiveness moves between you and <em>the part of you</em> that has felt unforgivable.
-                </p>
-              </div>
-              <div className="tlw-caption" data-active={scene === 4 ? 'true' : 'false'}>
-                <span className="tlw-caption-eyebrow">layer three · separation</span>
-                <p className="tlw-caption-text">
-                  And what if there were never <em>two</em> at all?
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="tlw-begin">
-        <div className="tlw-begin-eyebrow">now, the practice</div>
-        <button className="tlw-btn tlw-btn-primary tlw-btn-large" onClick={onBegin}>
-          Begin <i className="ph-light ph-arrow-right"></i>
-        </button>
-      </div>
-    </div>
-  );
-}
+const STEPS = ['intro', 'q1', 'q2', 'q3', 'q4', 'q5', 'generating', 'prayer'];
 
 // =============================================================
-// Practice Orb
+// Orb (kept from prior design — simpler now, no layer states)
 // =============================================================
 
-function Orb({ layer, rippleKey }) {
+function Orb({ shimmer, rippleKey }) {
   const motes = React.useMemo(() => {
     const presets = [
       { r: 130, dur: 14, delay: 0 },
@@ -271,7 +68,7 @@ function Orb({ layer, rippleKey }) {
       {motes.map((m) => (
         <span key={m.key} className="tlw-orb-mote" style={m.style} />
       ))}
-      <div className="tlw-orb" data-layer={layer}>
+      <div className="tlw-orb" data-layer={shimmer ? 'generating' : '1'}>
         <div className="tlw-orb-current" />
         <div className="tlw-orb-current reverse" />
         <div className="tlw-orb-inner" />
@@ -285,84 +82,50 @@ function Orb({ layer, rippleKey }) {
 // Steps
 // =============================================================
 
-function Chips({ options, value, onPick }) {
+function Intro({ onBegin }) {
   return (
-    <div className="tlw-chips" role="listbox" aria-label="Suggested words">
-      {options.map((opt) => (
-        <button
-          key={opt}
-          type="button"
-          className="tlw-chip"
-          data-active={value === opt ? 'true' : 'false'}
-          onClick={() => onPick(opt)}
-        >
-          {opt}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function ProgressDots({ step }) {
-  const states = [0, 1, 2].map((i) => {
-    if (step > i) return { active: false, done: true };
-    if (step === i) return { active: true, done: false };
-    return { active: false, done: false };
-  });
-  return (
-    <div className="tlw-progress" aria-hidden="true">
-      {states.map((s, i) => (
-        <span
-          key={i}
-          className="tlw-progress-dot"
-          data-active={s.active ? 'true' : 'false'}
-          data-done={s.done ? 'true' : 'false'}
-        />
-      ))}
-    </div>
-  );
-}
-
-function Step1({ word, setWord, onContinue, onRipple }) {
-  return (
-    <div className="tlw-step tlw-step-fade-enter">
-      <div className="tlw-layer-eyebrow">layer one · others</div>
-      <h2 className="tlw-prompt"><em>Bring to mind someone you find hard to forgive.</em></h2>
-      <div className="tlw-input-row">
-        <input
-          className="tlw-input"
-          type="text"
-          value={word}
-          onChange={(e) => {
-            const v = e.target.value.slice(0, 40);
-            setWord(v);
-            if (v.length > word.length) onRipple();
-          }}
-          placeholder="one word — a name, a role…"
-          maxLength={40}
-          autoFocus
-        />
-      </div>
-      <Chips options={LAYER1_CHIPS} value={word} onPick={(v) => { setWord(v); onRipple(); }} />
-      <div className="tlw-btn-row">
-        <button className="tlw-btn tlw-btn-primary" onClick={onContinue}>
-          Continue <i className="ph-light ph-arrow-right"></i>
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function TransitionStep({ eyebrow, text, onContinue }) {
-  return (
-    <div className="tlw-step tlw-step-fade-enter">
-      {eyebrow ? <div className="tlw-layer-eyebrow">{eyebrow}</div> : null}
-      <p className="tlw-transition">{text}</p>
-      <p className="tlw-transition" style={{ fontFamily: 'var(--font-body)', fontStyle: 'normal', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.18em', color: 'var(--ink-quiet)', maxWidth: '32ch' }}>
-        Take a slow breath. When you're ready —
+    <div className="tlw-step tlw-step-fade-enter tlw-intro">
+      <h1 className="tlw-intro-title">A Personalized Forgiveness Prayer</h1>
+      <p className="tlw-intro-body">
+        Forgiveness isn't a single act — it's a process. Something acknowledged. Something released. Something honored. Something returned to.
+      </p>
+      <p className="tlw-intro-body">
+        The questions below help shape a prayer that meets you where you actually are. Take your time. There are no wrong answers, and what you write stays private — it only shapes the prayer you receive.
       </p>
       <div className="tlw-btn-row">
-        <button className="tlw-btn tlw-btn-ghost" onClick={onContinue}>
+        <button className="tlw-btn tlw-btn-primary tlw-btn-large" onClick={onBegin}>
+          Begin <i className="ph-light ph-arrow-right"></i>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function Q1Step({ value, setValue, onContinue, onRipple }) {
+  const ref = React.useRef(null);
+  React.useEffect(() => { ref.current?.focus(); }, []);
+  const previous = React.useRef(value);
+  return (
+    <div className="tlw-step tlw-step-fade-enter">
+      <div className="tlw-layer-eyebrow">the story</div>
+      <h2 className="tlw-prompt">In a few sentences, tell us what you're seeking forgiveness around.</h2>
+      <p className="tlw-q-helper">Who or what is involved? Write as little or as much as feels right.</p>
+      <textarea
+        ref={ref}
+        className="tlw-q-textarea"
+        value={value}
+        maxLength={500}
+        onChange={(e) => {
+          const v = e.target.value.slice(0, 500);
+          if (v.length > previous.current.length) onRipple();
+          previous.current = v;
+          setValue(v);
+        }}
+        placeholder="I'm holding something around…"
+        rows={5}
+      />
+      <div className="tlw-btn-row">
+        <button className="tlw-btn tlw-btn-primary" disabled={!value.trim()} onClick={onContinue}>
           Continue <i className="ph-light ph-arrow-right"></i>
         </button>
       </div>
@@ -370,52 +133,25 @@ function TransitionStep({ eyebrow, text, onContinue }) {
   );
 }
 
-function Step2({ word, setWord, onContinue, onRipple }) {
+function ChoiceStep({ eyebrow, prompt, options, value, onPick }) {
   return (
     <div className="tlw-step tlw-step-fade-enter">
-      <div className="tlw-layer-eyebrow">layer two · self</div>
-      <h2 className="tlw-prompt">Now: what in yourself feels <em>unforgivable?</em></h2>
-      <div className="tlw-input-row">
-        <input
-          className="tlw-input"
-          type="text"
-          value={word}
-          onChange={(e) => {
-            const v = e.target.value.slice(0, 40);
-            setWord(v);
-            if (v.length > word.length) onRipple();
-          }}
-          placeholder="one word — a quality, a moment…"
-          maxLength={40}
-          autoFocus
-        />
-      </div>
-      <Chips options={LAYER2_CHIPS} value={word} onPick={(v) => { setWord(v); onRipple(); }} />
-      <div className="tlw-btn-row">
-        <button className="tlw-btn tlw-btn-primary" onClick={onContinue}>
-          Continue <i className="ph-light ph-arrow-right"></i>
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function Step3({ onGenerate }) {
-  return (
-    <div className="tlw-step tlw-step-fade-enter">
-      <div className="tlw-layer-eyebrow">layer three · separation</div>
-      <div className="tlw-prompt-long">
-        <span className="tlw-instruction">Don't type anything. Read this slowly.</span>
-        <p>What if the entire premise — that wrong was done, that someone is on the other side of an unforgivable line — is itself a story the mind tells?</p>
-        <p>Don't believe it. Don't disbelieve it. Just notice what happens in your body when the question is asked.</p>
-      </div>
-      <p className="tlw-transition" style={{ marginTop: 'var(--sp-3)' }}>
-        This is layer three. The forgiveness of separation itself.
-      </p>
-      <div className="tlw-btn-row">
-        <button className="tlw-btn tlw-btn-primary tlw-btn-large" onClick={onGenerate}>
-          Receive your forgiveness practice <i className="ph-light ph-arrow-right"></i>
-        </button>
+      <div className="tlw-layer-eyebrow">{eyebrow}</div>
+      <h2 className="tlw-prompt">{prompt}</h2>
+      <div className="tlw-choices" role="radiogroup">
+        {options.map((opt) => (
+          <button
+            key={opt.value}
+            type="button"
+            role="radio"
+            aria-checked={value === opt.value ? 'true' : 'false'}
+            className="tlw-choice"
+            data-active={value === opt.value ? 'true' : 'false'}
+            onClick={() => onPick(opt.value)}
+          >
+            {opt.label}
+          </button>
+        ))}
       </div>
     </div>
   );
@@ -424,12 +160,12 @@ function Step3({ onGenerate }) {
 function Generating() {
   return (
     <div className="tlw-step tlw-step-fade-enter">
-      <p className="tlw-generating">A practice is being shaped for you…</p>
+      <p className="tlw-generating">A prayer is being shaped for you…</p>
     </div>
   );
 }
 
-function PracticeAndEmail({ practice, onSubmitEmail, onReplay, infoOpen, setInfoOpen, submitted, sending }) {
+function PrayerCard({ prayer, onSubmitEmail, onReplay, submitted, sending }) {
   const [email, setEmail] = React.useState('');
   const [hp, setHp] = React.useState('');
   const [error, setError] = React.useState('');
@@ -453,17 +189,9 @@ function PracticeAndEmail({ practice, onSubmitEmail, onReplay, infoOpen, setInfo
         <div className="tlw-practice-mark">
           <img src="/brand/symbol-orange.png" alt="" />
         </div>
-        <h3>A forgiveness practice for you.</h3>
-        <p className="tlw-toward">Toward {practice.toward1}, I sound:</p>
-        <p className="tlw-phrases">I'm sorry. Please forgive me. Thank you. I love you.</p>
-        <p className="tlw-toward">Toward {practice.toward2}, I sound:</p>
-        <p className="tlw-phrases">I'm sorry. Please forgive me. Thank you. I love you.</p>
-        <p className="tlw-final">{practice.closing}</p>
+        <h3>A forgiveness prayer for you.</h3>
+        <p className="tlw-prayer-body">{prayer}</p>
       </div>
-
-      {practice.isFallback ? (
-        <p className="tlw-fallback-note">A simpler version while we shape the personalized one. Refresh to try again.</p>
-      ) : null}
 
       {submitted ? (
         <>
@@ -479,7 +207,7 @@ function PracticeAndEmail({ practice, onSubmitEmail, onReplay, infoOpen, setInfo
       ) : (
         <form className="tlw-email-block" onSubmit={submit}>
           <p className="tlw-email-intro">
-            We'll send your forgiveness practice to your inbox — a mantra to return to, whenever you need it.
+            We'll send your prayer to your inbox — to return to, whenever you need it.
           </p>
           <div className="tlw-email-form">
             <input
@@ -506,125 +234,86 @@ function PracticeAndEmail({ practice, onSubmitEmail, onReplay, infoOpen, setInfo
         </form>
       )}
 
-      <div className="tlw-actions">
-        <button className="tlw-btn tlw-btn-quiet" onClick={() => setInfoOpen(!infoOpen)}>
-          What does it mean to "sound" these phrases?
-        </button>
-      </div>
-      {infoOpen ? (
-        <div className="tlw-info">
-          <p>
-            To <em>sound</em> a phrase is not to sing it, and not only to think it.
-            It is to let the words leave your body on breath — quiet or full, alone in a room — and to listen
-            for what they touch on the way out. The four phrases of ho'oponopono carry no claim on the outcome.
-            They are simply offered. What changes is the one who offers them.
-          </p>
-        </div>
-      ) : null}
-
       <button className="tlw-replay" onClick={onReplay}>
-        ↻ walk the layers again
+        ↻ begin again
       </button>
     </div>
   );
 }
 
-function parsePractice(md) {
-  const lines = md.split('\n').map((l) => l.trim()).filter(Boolean);
-  const towards = [];
-  let closing = '';
-  for (let i = 0; i < lines.length; i++) {
-    const l = lines[i].replace(/\*\*/g, '');
-    const m = l.match(/^Toward\s+(.+?)[:.]?\s*$/i);
-    if (m && !/separation/i.test(m[1])) {
-      const phrase = m[1].replace(/,?\s*I sound\s*$/i, '').replace(/[,.]$/, '').trim();
-      towards.push(phrase);
-    } else if (/^there was never anything to forgive\.?$/i.test(l.replace(/\*/g, ''))) {
-      closing = 'There was never anything to forgive.';
-    }
-  }
-  return {
-    toward1: towards[0] || FALLBACK_PRACTICE.toward1,
-    toward2: towards[1] || FALLBACK_PRACTICE.toward2,
-    closing: closing || FALLBACK_PRACTICE.closing,
-  };
+function ProgressDots({ index, total }) {
+  return (
+    <div className="tlw-progress" aria-hidden="true">
+      {Array.from({ length: total }, (_, i) => (
+        <span
+          key={i}
+          className="tlw-progress-dot"
+          data-active={i === index ? 'true' : 'false'}
+          data-done={i < index ? 'true' : 'false'}
+        />
+      ))}
+    </div>
+  );
 }
 
 // =============================================================
-// Practice container
+// Top-level
 // =============================================================
 
-function PracticeFlow({ startKey, onReplay }) {
-  const [step, setStep] = React.useState('l1');
-  const [othersWord, setOthersWord] = React.useState('');
-  const [selfWord, setSelfWord] = React.useState('');
-  const [practice, setPractice] = React.useState(null);
-  const [rippleKey, setRippleKey] = React.useState(0);
-  const [infoOpen, setInfoOpen] = React.useState(false);
-  const [submitted, setSubmitted] = React.useState(false);
+export default function ThreeLayersWalk() {
+  const [step, setStep] = React.useState('intro');
+  const [answers, setAnswers] = React.useState({ q1: '', q2: null, q3: null, q4: null, q5: null });
+  const [prayer, setPrayer] = React.useState(null);
   const [sending, setSending] = React.useState(false);
-
-  React.useEffect(() => {
-    setStep('l1');
-    setOthersWord('');
-    setSelfWord('');
-    setPractice(null);
-    setInfoOpen(false);
-    setSubmitted(false);
-    setSending(false);
-    setRippleKey(0);
-  }, [startKey]);
+  const [submitted, setSubmitted] = React.useState(false);
+  const [rippleKey, setRippleKey] = React.useState(0);
 
   const triggerRipple = React.useCallback(() => setRippleKey((k) => k + 1), []);
 
-  const orbLayer = React.useMemo(() => {
-    if (step === 'l1' || step === 't1') return '1';
-    if (step === 'l2' || step === 't2') return '2';
-    if (step === 'l3') return '3';
-    if (step === 'generating') return 'generating';
-    return 'complete';
-  }, [step]);
-
-  const generate = async () => {
-    setStep('generating');
-    try {
-      const res = await fetch('/api/forgiveness-mantra', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ otherWord: othersWord, selfWord }),
-        signal: AbortSignal.timeout(10000),
-      });
-      const data = await res.json();
-      if (!res.ok || data.fallback) {
-        setPractice({ ...FALLBACK_PRACTICE });
-      } else if (data.text) {
-        const parsed = parsePractice(data.text);
-        setPractice({ ...parsed, isFallback: false });
-      } else if (data.toward1 && data.toward2 && data.closing) {
-        setPractice({ toward1: data.toward1, toward2: data.toward2, closing: data.closing, isFallback: false });
-      } else {
-        setPractice({ ...FALLBACK_PRACTICE });
-      }
-    } catch (err) {
-      console.warn('Forgiveness practice fallback:', err);
-      setPractice({ ...FALLBACK_PRACTICE });
-    }
-    setStep('practice');
+  const replay = () => {
+    setStep('intro');
+    setAnswers({ q1: '', q2: null, q3: null, q4: null, q5: null });
+    setPrayer(null);
+    setSubmitted(false);
+    setSending(false);
   };
 
-  const submitEmail = async (email, hp) => {
-    const mantraText = practice ? [
-      'A forgiveness practice for you.',
-      '',
-      `Toward ${practice.toward1}, I sound:`,
-      "I'm sorry. Please forgive me. Thank you. I love you.",
-      '',
-      `Toward ${practice.toward2}, I sound:`,
-      "I'm sorry. Please forgive me. Thank you. I love you.",
-      '',
-      practice.closing,
-    ].join('\n') : '';
+  // Pick a choice and auto-advance to the next step after a brief beat.
+  const pickAndAdvance = (key, next) => (value) => {
+    setAnswers((a) => ({ ...a, [key]: value }));
+    triggerRipple();
+    window.setTimeout(() => setStep(next), 260);
+  };
 
+  const generate = React.useCallback(async () => {
+    setStep('generating');
+    let namingLine;
+    try {
+      const res = await fetch('/api/forgiveness-prayer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ q1: answers.q1, q4: answers.q4 }),
+        signal: AbortSignal.timeout(8000),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && !data.fallback && typeof data.namingLine === 'string') {
+        namingLine = data.namingLine;
+      }
+    } catch (err) {
+      console.warn('Naming-line fallback:', err);
+    }
+    const composed = composePrayer(answers, namingLine);
+    setPrayer(composed);
+    setStep('prayer');
+  }, [answers]);
+
+  React.useEffect(() => {
+    if (step === 'q5' && answers.q5) {
+      generate();
+    }
+  }, [answers.q5, step, generate]);
+
+  const submitEmail = async (email, hp) => {
     setSending(true);
     try {
       const res = await fetch('/api/forgiveness-deliver', {
@@ -632,9 +321,9 @@ function PracticeFlow({ startKey, onReplay }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email,
-          otherWord: othersWord || '',
-          selfWord: selfWord || '',
-          mantra: mantraText,
+          situation: answers.q1 || '',
+          relationship: answers.q4 ? Q4_LABEL[answers.q4] : '',
+          prayer: prayer?.prayer || '',
           hp: hp || '',
         }),
         signal: AbortSignal.timeout(10000),
@@ -650,130 +339,97 @@ function PracticeFlow({ startKey, onReplay }) {
   };
 
   let body = null;
-  if (step === 'l1') {
+  let stepIndex = 0;
+  if (step === 'intro') {
+    body = <Intro key="intro" onBegin={() => setStep('q1')} />;
+    stepIndex = 0;
+  } else if (step === 'q1') {
     body = (
-      <Step1 key="l1" word={othersWord} setWord={setOthersWord}
-        onContinue={() => setStep('t1')} onRipple={triggerRipple} />
+      <Q1Step
+        key="q1"
+        value={answers.q1}
+        setValue={(v) => setAnswers((a) => ({ ...a, q1: v }))}
+        onContinue={() => { triggerRipple(); setStep('q2'); }}
+        onRipple={triggerRipple}
+      />
     );
-  } else if (step === 't1') {
+    stepIndex = 1;
+  } else if (step === 'q2') {
     body = (
-      <TransitionStep key="t1"
-        eyebrow="layer one · settling"
-        text="Hold them in your awareness. Notice what your body carries toward them. This is layer one."
-        onContinue={() => setStep('l2')} />
+      <ChoiceStep
+        key="q2"
+        eyebrow="where the wound lives now"
+        prompt="When you bring this situation to mind right now, where do you feel it most?"
+        options={Q2_OPTIONS}
+        value={answers.q2}
+        onPick={pickAndAdvance('q2', 'q3')}
+      />
     );
-  } else if (step === 'l2') {
+    stepIndex = 2;
+  } else if (step === 'q3') {
     body = (
-      <Step2 key="l2" word={selfWord} setWord={setSelfWord}
-        onContinue={() => setStep('t2')} onRipple={triggerRipple} />
+      <ChoiceStep
+        key="q3"
+        eyebrow="what this part of you most wants"
+        prompt="If this wound could speak, what would it ask for?"
+        options={Q3_OPTIONS}
+        value={answers.q3}
+        onPick={pickAndAdvance('q3', 'q4')}
+      />
     );
-  } else if (step === 't2') {
+    stepIndex = 3;
+  } else if (step === 'q4') {
     body = (
-      <TransitionStep key="t2"
-        eyebrow="layer two · settling"
-        text="Hold this part of yourself in awareness. Meet it. This is layer two."
-        onContinue={() => setStep('l3')} />
+      <ChoiceStep
+        key="q4"
+        eyebrow="your relationship to it"
+        prompt="How are you in relation to this situation?"
+        options={Q4_OPTIONS}
+        value={answers.q4}
+        onPick={pickAndAdvance('q4', 'q5')}
+      />
     );
-  } else if (step === 'l3') {
-    body = <Step3 key="l3" onGenerate={generate} />;
+    stepIndex = 4;
+  } else if (step === 'q5') {
+    body = (
+      <ChoiceStep
+        key="q5"
+        eyebrow="where you are right now"
+        prompt="Which of these feels truest?"
+        options={Q5_OPTIONS}
+        value={answers.q5}
+        onPick={pickAndAdvance('q5', 'q5')}
+      />
+    );
+    stepIndex = 5;
   } else if (step === 'generating') {
     body = <Generating key="g" />;
-  } else if (step === 'practice') {
+    stepIndex = 6;
+  } else if (step === 'prayer') {
     body = (
-      <PracticeAndEmail key="p" practice={practice}
+      <PrayerCard
+        key="p"
+        prayer={prayer?.prayer || ''}
         onSubmitEmail={submitEmail}
-        onReplay={onReplay}
-        infoOpen={infoOpen}
-        setInfoOpen={setInfoOpen}
+        onReplay={replay}
         submitted={submitted}
-        sending={sending} />
+        sending={sending}
+      />
     );
+    stepIndex = STEPS.length - 1;
   }
-
-  const progressStep = (() => {
-    if (step === 'l1') return 0;
-    if (step === 't1' || step === 'l2') return 1;
-    if (step === 't2' || step === 'l3') return 2;
-    return 3;
-  })();
-
-  return (
-    <section className="tlw-practice-section">
-      <div className="tlw-inner">
-        <Orb layer={orbLayer} rippleKey={rippleKey} />
-        {body}
-        {step !== 'practice' ? <ProgressDots step={progressStep} /> : null}
-      </div>
-    </section>
-  );
-}
-
-// =============================================================
-// Top-level
-// =============================================================
-
-export default function ThreeLayersWalk() {
-  const practiceRef = React.useRef(null);
-  const [practiceVisible, setPracticeVisible] = React.useState(false);
-  const [startKey, setStartKey] = React.useState(0);
-
-  const begin = () => {
-    setPracticeVisible(true);
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        practiceRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      });
-    });
-  };
-
-  const scrollToTheory = () => {
-    document.querySelector('.tlw-theory')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
-
-  const replay = () => {
-    setStartKey((k) => k + 1);
-    document.querySelector('.tlw-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
 
   return (
     <section className="tlw-section">
-      <HeroIntro onBegin={begin} onScrollToTheory={scrollToTheory} />
-      <ScrollTheory onBegin={begin} />
-      <div ref={practiceRef}>
-        {practiceVisible ? <PracticeFlow startKey={startKey} onReplay={replay} /> : null}
-      </div>
+      <section className="tlw-practice-section">
+        <div className="tlw-inner">
+          <Orb shimmer={step === 'generating'} rippleKey={rippleKey} />
+          {body}
+          {step !== 'prayer' && step !== 'intro' ? (
+            <ProgressDots index={stepIndex - 1} total={5} />
+          ) : null}
+        </div>
+      </section>
     </section>
-  );
-}
-
-// =============================================================
-// Figure — seated meditator (single locked variant)
-// =============================================================
-
-function FigureDefs() {
-  return (
-    <defs>
-      <radialGradient id="tlw-heart-glow" cx="50%" cy="50%" r="50%">
-        <stop offset="0%" stopColor="rgba(201, 96, 58, 0.7)" />
-        <stop offset="55%" stopColor="rgba(201, 96, 58, 0.22)" />
-        <stop offset="100%" stopColor="rgba(201, 96, 58, 0)" />
-      </radialGradient>
-      <filter id="tlw-ink-edge" x="-10%" y="-10%" width="120%" height="120%">
-        <feGaussianBlur stdDeviation="0.4" />
-      </filter>
-    </defs>
-  );
-}
-
-function PersonSVG() {
-  const seatedPath = "M 70 50 C 80 50, 87 58, 87 68 C 87 76, 84 82, 80 86 C 84 90, 92 96, 98 106 C 104 118, 106 130, 104 142 C 102 150, 100 156, 100 162 C 102 170, 110 182, 118 196 C 126 210, 132 220, 130 224 C 128 228, 122 229, 114 229 L 26 229 C 18 229, 12 228, 10 224 C 8 220, 14 210, 22 196 C 30 182, 38 170, 40 162 C 40 156, 38 150, 36 142 C 34 130, 36 118, 42 106 C 48 96, 56 90, 60 86 C 56 82, 53 76, 53 68 C 53 58, 60 50, 70 50 Z";
-  return (
-    <svg className="tlw-figure-svg" viewBox="0 0 140 240" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-      <FigureDefs />
-      <ellipse className="heart-glow" cx="70" cy="148" rx="44" ry="32" fill="url(#tlw-heart-glow)" />
-      <path className="ink-stroke" filter="url(#tlw-ink-edge)" d={seatedPath} />
-      <path className="ink-stroke-shadow" d={seatedPath} />
-      <circle className="heart-core" cx="70" cy="148" r="3" />
-    </svg>
   );
 }
