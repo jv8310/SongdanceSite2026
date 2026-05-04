@@ -659,3 +659,20 @@ html, body { background: var(--paper); }
   color: var(--ink-quiet);
   margin: 0;
 }
+.tlw-footer-status {
+  margin-top: var(--sp-2) !important;
+}
+.tlw-footer-status a {
+  color: var(--ink-whisper);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  text-decoration: none;
+}
+.tlw-footer-status a:hover {
+  color: var(--ember-deep);
+  text-decoration: underline;
+  text-decoration-color: var(--ember);
+  text-underline-offset: 3px;
+}

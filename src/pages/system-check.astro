@@ -1,0 +1,204 @@
+---
+import Layout from '../layouts/Layout.astro';
+
+export const prerender = false;
+
+const cfEnv = (Astro.locals as any).runtime?.env ?? {};
+const anthropic = Boolean(cfEnv.ANTHROPIC_API_KEY ?? import.meta.env.ANTHROPIC_API_KEY);
+const drip = Boolean(cfEnv.DRIP_API_TOKEN ?? import.meta.env.DRIP_API_TOKEN);
+const onCloudflare = Boolean((Astro.locals as any).runtime?.env);
+const allOk = anthropic && drip;
+---
+
+<Layout
+  title="System Check — Songdance"
+  description="Diagnostic page that shows whether the Cloudflare worker can read its required secrets."
+>
+  <main class="sc-main">
+    <h1 class="sc-title">System Check</h1>
+    <p class="sc-intro">
+      Shows whether the worker serving this site can read the secrets it needs.
+      Only "present" or "missing" — the values themselves stay encrypted.
+    </p>
+
+    <section class="sc-card" data-state={allOk ? 'ok' : 'fix'}>
+      <h2 class="sc-card-title">Worker secrets</h2>
+      <ul class="sc-list">
+        <li class="sc-row" data-ok={anthropic ? 'true' : 'false'}>
+          <span class="sc-icon">{anthropic ? '✓' : '✗'}</span>
+          <span class="sc-name">ANTHROPIC_API_KEY</span>
+          <span class="sc-status">{anthropic ? 'present' : 'MISSING'}</span>
+        </li>
+        <li class="sc-row" data-ok={drip ? 'true' : 'false'}>
+          <span class="sc-icon">{drip ? '✓' : '✗'}</span>
+          <span class="sc-name">DRIP_API_TOKEN</span>
+          <span class="sc-status">{drip ? 'present' : 'MISSING'}</span>
+        </li>
+      </ul>
+      <p class="sc-runtime">
+        Runtime: {onCloudflare ? 'Cloudflare Worker' : 'local dev'}
+      </p>
+    </section>
+
+    {!allOk && (
+      <section class="sc-card sc-fix">
+        <h2 class="sc-card-title">If a secret is MISSING — fix it in the Cloudflare dashboard</h2>
+        <ol class="sc-steps">
+          <li>Open <a href="https://dash.cloudflare.com" target="_blank" rel="noopener">dash.cloudflare.com</a> and sign in.</li>
+          <li>Left sidebar → <strong>Workers & Pages</strong>.</li>
+          <li>In the list of workers, click the one named <strong>songdance-site</strong>. (If you also see <strong>songdancesite2026</strong>, ignore it — it's a leftover from an early config.)</li>
+          <li>Top tabs → <strong>Settings</strong>.</li>
+          <li>Scroll to <strong>Variables and Secrets</strong>.</li>
+          <li>Click <strong>+ Add</strong>.</li>
+          <li>Type → choose <strong>Secret</strong> (not "Text").</li>
+          <li>Variable name → exactly <code>ANTHROPIC_API_KEY</code> or <code>DRIP_API_TOKEN</code> (case-sensitive, no spaces).</li>
+          <li>Value → paste the key.</li>
+          <li>Click <strong>Save and deploy</strong>.</li>
+          <li>Refresh this page (Cmd/Ctrl + R). The row should turn green.</li>
+        </ol>
+        <p class="sc-tip">
+          If a row stays red after refreshing: the secret may be on a different worker, or scoped to a "preview" environment instead of "production". In the Variables and Secrets section, the dropdown at the top should be set to <strong>Production</strong>.
+        </p>
+      </section>
+    )}
+
+    {allOk && (
+      <p class="sc-allgreen">
+        All secrets visible. <a href="/forgiveness-for-you">Try the forgiveness page →</a>
+      </p>
+    )}
+
+    <p class="sc-back">
+      <a href="/forgiveness-for-you">← back to forgiveness page</a>
+    </p>
+  </main>
+</Layout>
+
+<style>
+  .sc-main {
+    max-width: 640px;
+    margin: 80px auto 120px;
+    padding: 0 24px;
+    font-family: var(--font-body);
+    color: var(--ink);
+  }
+  .sc-title {
+    font-family: var(--font-display);
+    font-size: clamp(28px, 4vw, 40px);
+    line-height: 1.15;
+    letter-spacing: -0.012em;
+    font-weight: 400;
+    margin: 0 0 12px;
+  }
+  .sc-intro {
+    color: var(--ink-quiet);
+    font-size: 15px;
+    line-height: 1.6;
+    margin: 0 0 32px;
+    max-width: 48ch;
+  }
+  .sc-card {
+    background: var(--paper-soft);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 24px 28px;
+    margin-bottom: 20px;
+  }
+  .sc-card[data-state='fix'] {
+    border-color: rgba(161, 72, 38, 0.35);
+    box-shadow: 0 0 0 4px rgba(201, 96, 58, 0.08);
+  }
+  .sc-card-title {
+    font-family: var(--font-display);
+    font-size: 18px;
+    line-height: 1.3;
+    font-weight: 500;
+    margin: 0 0 16px;
+    color: var(--ink);
+  }
+  .sc-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  .sc-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--line);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    letter-spacing: 0.04em;
+  }
+  .sc-row:last-child { border-bottom: none; }
+  .sc-icon {
+    font-weight: 700;
+    font-size: 18px;
+    width: 22px;
+    text-align: center;
+  }
+  .sc-row[data-ok='true']  .sc-icon { color: var(--moss-deep); }
+  .sc-row[data-ok='false'] .sc-icon { color: var(--ember-deep); }
+  .sc-name {
+    flex: 1;
+    color: var(--ink);
+  }
+  .sc-status {
+    font-size: 11px;
+    text-transform: uppercase;
+    color: var(--ink-quiet);
+    letter-spacing: 0.12em;
+  }
+  .sc-row[data-ok='false'] .sc-status {
+    color: var(--ember-deep);
+    font-weight: 700;
+  }
+  .sc-runtime {
+    margin: 16px 0 0;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--ink-quiet);
+    letter-spacing: 0.06em;
+  }
+  .sc-steps {
+    margin: 0;
+    padding-left: 22px;
+    color: var(--ink-soft);
+    line-height: 1.75;
+    font-size: 14px;
+  }
+  .sc-steps li { margin-bottom: 4px; }
+  .sc-steps strong { color: var(--ink); font-weight: 600; }
+  .sc-steps code {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    padding: 1px 6px;
+    border-radius: 4px;
+  }
+  .sc-tip {
+    margin: 20px 0 0;
+    padding: 14px 16px;
+    background: var(--paper);
+    border-left: 2px solid var(--ember);
+    border-radius: 4px;
+    color: var(--ink-soft);
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  .sc-allgreen {
+    color: var(--moss-deep);
+    font-size: 15px;
+    margin: 8px 0 0;
+  }
+  .sc-back {
+    margin-top: 40px;
+    font-size: 13px;
+    color: var(--ink-quiet);
+  }
+  .sc-back a, .sc-allgreen a {
+    color: var(--ink);
+  }
+</style>
