@@ -1,0 +1,78 @@
+---
+const learn = [
+  'blockierte Energie im Körper wahrzunehmen und in Bewegung zu bringen',
+  'dich tief mit deinem Körper und deinem Nervensystem zu verbinden',
+  'ehrlichen Selbstausdruck und emotionale Freiheit als Praxis zu leben',
+  'konkrete Werkzeuge für Selbstregulation und innere Stabilität',
+  'deine Veränderung in dein Berufs- und Privatleben zu übersetzen — für mehr Klarheit, Leichtigkeit und Erfüllung',
+];
+
+const expect = [
+  'Dutzende somatische Stimmübungen',
+  'Visualisierungen und geführte Heilungsreisen',
+  'traumainformierte Heilungsarbeit',
+  'herzbasierter, achtsamer Unterricht',
+  'ein geschützter, vertrauter Raum während der Live-Sessions',
+  'ein offenes Umfeld — unabhängig von Vorerfahrung und persönlicher Geschichte',
+  'Chanting und Mantra-Tönen mit Live-Musikbegleitung am Klavier oder an der Gitarre',
+];
+---
+
+<section class="sg-overview">
+  <div class="sg-overview-inner">
+    <div class="sg-overview-head">
+      <div class="sg-eyebrow sg-eyebrow--center">Der Kurs im Überblick</div>
+      <h2 class="sg-h2">
+        12 Wochen.<br />Eine neue Beziehung zu deiner <em>Stimme.</em>
+      </h2>
+    </div>
+
+    <p class="sg-overview-intro">
+      In diesem 12-wöchigen Kurs begleiten dich Carmen und Lorenz durch
+      einen klar strukturierten Heilungsprozess auf der Grundlage von
+      <em>Somatic Vocal Healing</em>. Du bekommst Werkzeuge an die Hand, mit
+      denen du dir selbst Raum geben kannst — mit nichts weiter als deiner
+      eigenen Stimme. Blockierte Energie wahrnehmen. Festgehaltene
+      Emotionen lösen. Alte Muster erkennen und Schritt für Schritt
+      durchbrechen.
+    </p>
+
+    <div class="sg-overview-grid">
+      <div class="sg-overview-col">
+        <h3>Du lernst …</h3>
+        <ul class="sg-list">
+          {learn.map((item) => (
+            <li><span class="check" aria-hidden="true">✓</span><span>{item}</span></li>
+          ))}
+        </ul>
+      </div>
+      <div class="sg-overview-col">
+        <h3>Das erwartet dich …</h3>
+        <ul class="sg-list">
+          {expect.map((item) => (
+            <li><span class="check" aria-hidden="true">✓</span><span>{item}</span></li>
+          ))}
+        </ul>
+      </div>
+    </div>
+
+    <p class="sg-overview-foot">
+      Carmen und Lorenz sind langjährige Mitglieder der Songdance Community
+      und beschäftigen sich seit Jahren mit der Stimme als Werkzeug der
+      Transformation — der eigenen wie der von anderen. Durch zahlreiche
+      Workshops und Kurse haben sie ihre Praxis im
+      <em>Somatic Vocal Healing</em> vertieft und begleiten heute Menschen
+      liebevoll auf ihrem persönlichen Weg.
+    </p>
+
+    <div class="sg-cta-wrap">
+      <a
+        href="#anmelden"
+        class="sg-btn"
+        aria-label="Zum 12-wöchigen Kurs Somatic Vocal Healing anmelden"
+      >
+        Zum Kurs anmelden <i class="ph-light ph-arrow-right"></i>
+      </a>
+    </div>
+  </div>
+</section>

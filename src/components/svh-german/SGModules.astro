@@ -1,0 +1,99 @@
+---
+const modules = [
+  {
+    n: 1,
+    title: 'Die Grundlagen des Tönens',
+    body: 'Du lernst den Unterschied zwischen Tönen, Singen und Chanting kennen — und was *Somatic Vocal Healing* von anderen Stimmpraktiken unterscheidet. Einfache Grundlagen für einen klaren Einstieg.',
+  },
+  {
+    n: 2,
+    title: 'Vertraut werden mit der eigenen Stimme',
+    body: 'Lerne die verschiedenen Farben deiner Stimme kennen. Löse Ängste und kollektive Prägungen rund um deinen stimmlichen Ausdruck. Erlaube deinem echten Klang — roh, ehrlich, ungefiltert — da zu sein.',
+  },
+  {
+    n: 3,
+    title: 'Körpersysteme erforschen',
+    body: 'Wir tauchen in die Organe und Gewebe ein, die täglich für uns arbeiten und oft mehr Raum brauchen, als wir ihnen geben.',
+  },
+  {
+    n: 4,
+    title: 'Klangaufstellungen',
+    body: 'Hier verbindest du Tönen mit Aufstellungsarbeit. Über den Klang gehst du in Kontakt mit deinen weiblichen und männlichen Anteilen — und bringst sie in eine neue, stimmige Balance.',
+  },
+  {
+    n: 5,
+    title: 'Eine Heilungsreise',
+    body: 'Eine geführte Reise zu deinem inneren sicheren Ort, an dem du deinen Anteilen aus deinem erwachsenen Selbst heraus begegnen kannst.',
+  },
+  {
+    n: 6,
+    title: 'Nervensystem & Neuroanatomie',
+    body: 'Die gute Nachricht: Dein Nervensystem ist veränderbar. Du wirst dir deiner Muster bewusst, löst sie Schritt für Schritt — und öffnest dich für mehr Freiheit und Lebensfreude.',
+  },
+  {
+    n: 7,
+    title: 'Die fünf Wunden der Seele',
+    body: 'Sanfte, sichere Arbeit mit den fünf Wunden: Ablehnung, Verlassenheit, Verrat, Demütigung und Ungerechtigkeit. Erkennen, würdigen, in Einklang bringen.',
+  },
+  {
+    n: 8,
+    title: 'Klang als Weg zur Essenz',
+    body: 'Eine meditative Praxis, die dich mit deiner Essenz verbindet und Klarheit, Ruhe und innere Ausrichtung schenkt.',
+  },
+  {
+    n: 9,
+    title: 'Die Klänge der Chakren',
+    body: 'Erforsche die Energiezentren über deine Stimme — und erlebe, wie Klang jedes Chakra aktivieren, ausgleichen und harmonisieren kann.',
+  },
+  {
+    n: 10,
+    title: 'Vom Tönen zum Singen',
+    body: 'Verbinde deine Stimme mit Instrumenten und spüre, wie du dich aus deiner inneren Tiefe heraus natürlich bewegst — getragen von der Musik, hinein in freies Singen.',
+  },
+  {
+    n: 11,
+    title: 'Gemeinsam praktizieren',
+    body: 'Eine Einführung in *Somatic Vocal Healing* mit anderen. Du lernst einfache Übungen, gemeinsam zu tönen — und den individuellen Prozess anderer zu unterstützen, während du dir selbst nahe bleibst.',
+  },
+  {
+    n: 12,
+    title: 'Integration und Ausblick',
+    body: 'Alles fließt zusammen. Du gehst deinen Weg eigenständig weiter — mit verlässlichen, stärkenden Praktiken für dein ganzes Leben.',
+  },
+];
+
+function renderEm(text: string) {
+  return text.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+}
+---
+
+<section class="sg-modules" id="module">
+  <div class="sg-modules-inner">
+    <div class="sg-modules-head">
+      <p class="sg-section-italic sg-section-italic--center">
+        Ein klar gegliederter Weg durch zwölf Wochen Praxis
+      </p>
+      <h2 class="sg-h2">Das erhältst <em>du</em></h2>
+    </div>
+
+    <div class="sg-modules-grid">
+      {modules.map((m) => (
+        <article class="sg-module">
+          <div class="sg-module-label">Modul {String(m.n).padStart(2, '0')}</div>
+          <h3 class="sg-module-title">{m.title}</h3>
+          <p class="sg-module-body" set:html={renderEm(m.body)} />
+        </article>
+      ))}
+    </div>
+
+    <div class="sg-cta-wrap">
+      <a
+        href="#anmelden"
+        class="sg-btn"
+        aria-label="Zum 12-wöchigen Kurs Somatic Vocal Healing anmelden"
+      >
+        Platz sichern <i class="ph-light ph-arrow-right"></i>
+      </a>
+    </div>
+  </div>
+</section>

@@ -1,0 +1,54 @@
+---
+const items = [
+  {
+    lead: '12 wöchentliche Live-Sessions',
+    rest: 'über Zoom — über 18 Stunden inspirierender, erfahrungsbasierter Inhalt',
+  },
+  {
+    lead: '12 wöchentliche Live-Q&A-Sessions',
+    rest: 'mit Carmen oder Lorenz',
+  },
+  {
+    lead: 'Lebenslanger Zugriff',
+    rest: 'auf alle Kursmaterialien',
+  },
+  {
+    lead: 'Eine unterstützende Community',
+    rest: 'zum Teilen, Verbinden und gemeinsamen Wachsen',
+  },
+];
+---
+
+<section class="sg-format">
+  <div class="sg-format-inner">
+    <div class="sg-format-head">
+      <div class="sg-eyebrow sg-eyebrow--center">Das Format</div>
+      <h2 class="sg-h2">
+        Im eigenen Tempo.<br /><em>Nicht allein.</em>
+      </h2>
+    </div>
+
+    <p class="sg-format-intro">
+      Du arbeitest mit voraufgezeichneten Video-Modulen und vertiefst die
+      Praxis Woche für Woche durch Live-Q&amp;A-Sessions, in denen du
+      Fragen stellen, gehört werden und mit der Community in Austausch
+      treten kannst.
+    </p>
+
+    <div class="sg-format-list">
+      <ul class="sg-list">
+        {items.map((it) => (
+          <li>
+            <span class="check" aria-hidden="true">✓</span>
+            <span><strong>{it.lead}</strong> {it.rest}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+
+    <p class="sg-format-pull">
+      Das ist dein Moment, deiner Stimme Raum zu geben — und Werkzeuge in
+      die Hand zu bekommen, die ein Leben lang bei dir bleiben.
+    </p>
+  </div>
+</section>

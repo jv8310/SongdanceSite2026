@@ -1,0 +1,64 @@
+---
+const includes = [
+  {
+    lead: 'Über 18 Stunden Live-Inhalt',
+    rest: 'in einem 12-teiligen Kurs mit geführten Übungen — Start am 10. Mai 2026',
+  },
+  {
+    lead: 'Wöchentliche Live-Q&A-Sessions',
+    rest: 'mit Carmen oder Lorenz, je 1 Stunde, zur Unterstützung deiner Praxis',
+  },
+  {
+    lead: 'Lebenslanger Zugriff',
+    rest: 'auf alle Kursmaterialien — die du in deinem eigenen Tempo wiederholen und vertiefen kannst',
+  },
+  {
+    lead: 'Eine unterstützende Community',
+    rest: 'zum Teilen, Austauschen und gemeinsamen Wachsen',
+  },
+];
+---
+
+<section class="sg-register" id="anmelden">
+  <div class="sg-register-inner">
+    <div class="sg-eyebrow sg-eyebrow--center">Starte noch heute deine Reise</div>
+    <h2 class="sg-register-h2">
+      Sichere dir deinen Platz —<br /><em>mit Frühbucherrabatt</em>
+    </h2>
+    <p class="sg-register-body">
+      Wenn du dich jetzt anmeldest, bekommst du sofortigen Zugang zu fünf
+      originalen Mantren von Jacob, dem Begründer der Methode — für Freude
+      und stimmlichen Selbstausdruck.
+    </p>
+
+    <div class="sg-register-includes">
+      <p class="sg-register-sub">
+        Dein 12-wöchiger Kurs <em>Somatic Vocal Healing</em> beinhaltet:
+      </p>
+      <ul class="sg-list">
+        {includes.map((it) => (
+          <li>
+            <span class="check" aria-hidden="true">✓</span>
+            <span><strong>{it.lead}</strong> {it.rest}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+
+    <div class="sg-register-frame">
+      <div
+        class="tc-v2-embeddable-target"
+        data-thrivecart-account="npb"
+        data-thrivecart-tpl="v2"
+        data-thrivecart-product="45"
+        data-thrivecart-embeddable="tc-npb-45-2B77NG"
+      ></div>
+      <script
+        is:inline
+        async
+        src="https://tinder.thrivecart.com/embed/v2/thrivecart.js"
+        id="tc-npb-45-2B77NG"
+      ></script>
+    </div>
+  </div>
+</section>

@@ -1,0 +1,143 @@
+---
+const dates = [
+  { n: 1, d: 'Sonntag, 10. Mai · 19:00' },
+  { n: 2, d: 'Sonntag, 17. Mai · 19:00' },
+  { n: 3, d: 'Freitag, 22. Mai · 19:00' },
+  { n: 4, d: 'Sonntag, 31. Mai · 19:00' },
+  { n: 5, d: 'Freitag, 5. Juni · 19:00' },
+  { n: 6, d: 'Sonntag, 14. Juni · 19:00' },
+  { n: 7, d: 'Sonntag, 21. Juni · 19:00' },
+  { n: 8, d: 'Sonntag, 28. Juni · 19:00' },
+  { n: 9, d: 'Sonntag, 5. Juli · 19:00' },
+  { n: 10, d: 'Sonntag, 12. Juli · 19:00' },
+  { n: 11, d: 'Sonntag, 19. Juli · 19:00' },
+  { n: 12, d: 'Sonntag, 26. Juli · 19:00' },
+];
+---
+
+<section class="sg-faq">
+  <div class="sg-faq-inner">
+    <div class="sg-faq-head">
+      <div class="sg-eyebrow sg-eyebrow--center">FAQ</div>
+      <h2 class="sg-h2">Häufig gestellte <em>Fragen</em></h2>
+    </div>
+
+    <div class="sg-faq-list">
+      <details class="sg-faq-item">
+        <summary class="sg-faq-summary">
+          <span>Wann findet der Kurs statt?</span>
+          <span class="sg-faq-icon" aria-hidden="true">+</span>
+        </summary>
+        <div class="sg-faq-body">
+          <p>
+            Der 12-wöchige Kurs startet am <strong>Sonntag, 10. Mai 2026</strong>
+            und findet einmal wöchentlich live statt. Wenn du nicht live dabei
+            sein kannst, kannst du dir die Aufzeichnungen jederzeit ansehen.
+          </p>
+          <p>
+            Die Live-Q&amp;A-Sessions finden zu wechselnden Zeiten statt, damit
+            alle Zeitzonen berücksichtigt werden und du die Möglichkeit hast,
+            mit dabei zu sein. Solltest du einmal nicht teilnehmen können,
+            werden alle Q&amp;A-Sessions als Aufzeichnung zur Verfügung
+            gestellt.
+          </p>
+          <p><em>Kursdaten:</em></p>
+          <ol>
+            {dates.map((x) => <li>{x.d}</li>)}
+          </ol>
+        </div>
+      </details>
+
+      <details class="sg-faq-item">
+        <summary class="sg-faq-summary">
+          <span>Wie lange dauern die Einheiten?</span>
+          <span class="sg-faq-icon" aria-hidden="true">+</span>
+        </summary>
+        <div class="sg-faq-body">
+          <p>
+            Die Kurseinheiten dauern durchschnittlich 1,5 bis 2 Stunden. Die
+            Live-Q&amp;A-Sessions dauern jeweils 1 Stunde.
+          </p>
+        </div>
+      </details>
+
+      <details class="sg-faq-item">
+        <summary class="sg-faq-summary">
+          <span>Gibt es Aufzeichnungen?</span>
+          <span class="sg-faq-icon" aria-hidden="true">+</span>
+        </summary>
+        <div class="sg-faq-body">
+          <p>
+            Ja. Sowohl die Live-Sessions als auch die Q&amp;A-Runden werden
+            aufgezeichnet und stehen dir zur Verfügung.
+          </p>
+        </div>
+      </details>
+
+      <details class="sg-faq-item">
+        <summary class="sg-faq-summary">
+          <span>Ist Ratenzahlung möglich?</span>
+          <span class="sg-faq-icon" aria-hidden="true">+</span>
+        </summary>
+        <div class="sg-faq-body">
+          <p>Ja, du kannst in 3 monatlichen Raten bezahlen.</p>
+        </div>
+      </details>
+
+      <details class="sg-faq-item">
+        <summary class="sg-faq-summary">
+          <span>Wie lange habe ich Zugriff auf den Kurs?</span>
+          <span class="sg-faq-icon" aria-hidden="true">+</span>
+        </summary>
+        <div class="sg-faq-body">
+          <p>Du hast lebenslangen Zugriff auf alle Kursmaterialien.</p>
+        </div>
+      </details>
+
+      <details class="sg-faq-item">
+        <summary class="sg-faq-summary">
+          <span>Brauche ich Vorerfahrung mit Stimme oder Singen?</span>
+          <span class="sg-faq-icon" aria-hidden="true">+</span>
+        </summary>
+        <div class="sg-faq-body">
+          <p>
+            Nein. <em>Somatic Vocal Healing</em> ist nicht Singen — es ist
+            <em>Tönen</em>. Es geht nicht um Schönheit oder Technik, sondern
+            darum, dem Klang zu folgen, der gerade da ist. Du brauchst
+            keinerlei musikalische Vorerfahrung.
+          </p>
+        </div>
+      </details>
+
+      <details class="sg-faq-item">
+        <summary class="sg-faq-summary">
+          <span>Was, wenn ich in einer Wohnung lebe und nicht laut sein kann?</span>
+          <span class="sg-faq-icon" aria-hidden="true">+</span>
+        </summary>
+        <div class="sg-faq-body">
+          <p>
+            Die Praxis ist viel leiser, als die meisten Menschen denken.
+            Vieles funktioniert auch im Flüsterton oder mit geschlossenem
+            Mund. Im Kurs zeigen wir dir, wie du auch in beengten
+            Wohnverhältnissen praktizieren kannst.
+          </p>
+        </div>
+      </details>
+    </div>
+
+    <p class="sg-faq-foot">
+      Sonst noch Fragen? Schreib uns gerne an
+      <strong><a href="mailto:deutsch@songdance.co">deutsch@songdance.co</a></strong>
+    </p>
+
+    <div class="sg-cta-wrap">
+      <a
+        href="#anmelden"
+        class="sg-btn"
+        aria-label="Zum 12-wöchigen Kurs Somatic Vocal Healing anmelden"
+      >
+        Zum Kurs anmelden <i class="ph-light ph-arrow-right"></i>
+      </a>
+    </div>
+  </div>
+</section>

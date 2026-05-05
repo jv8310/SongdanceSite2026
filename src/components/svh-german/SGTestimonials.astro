@@ -1,0 +1,71 @@
+---
+const items = [
+  {
+    pull: 'Lebensverändernd und tief transformierend',
+    body: 'Dieser Kurs hat sowohl mein persönliches Wachstum als auch meine berufliche Arbeit tiefgreifend bereichert.',
+    by: 'Rebecca Lucy, Lehrerin, USA',
+  },
+  {
+    pull: 'Tief berührend und intuitiv',
+    body: 'Die Methode des Somatic Vocal Healings geht direkt zum Wesentlichen und macht mühelos tiefe Schichten unbewusster Emotionen sichtbar.',
+    by: 'Andre, Belgien',
+  },
+  {
+    pull: 'Ein echter Wendepunkt',
+    body: 'Diese Arbeit ist revolutionär — sie vereint Sanftheit und Kraft in einer Methode, die zugänglich und zugleich tief transformierend ist.',
+    by: 'Zsuzsanna Angalét, Yogalehrerin, Ungarn',
+  },
+  {
+    pull: 'Inspirierend und magisch',
+    body: 'Der Kurs ermöglicht schnelle, tiefe Heilung. Schichten von Widerstand lösen sich, und es wird unmittelbar sichtbar, was im Körper wirklich geschieht.',
+    by: 'Simone Pugh, Großbritannien',
+  },
+  {
+    pull: 'Außergewöhnliche Lehre',
+    body: 'Die Methoden der Stimmheilung bewirken sanfte und unmittelbare Transformation — weit über klassische Heilmethoden hinaus.',
+    by: 'Dr. Karen Evans, Chiropraktikerin & Reiki-Meisterin, USA',
+  },
+  {
+    pull: 'Eine neue Ebene von Verbindung und Bewusstsein',
+    body: 'Diese Reise bringt verborgene Anteile ans Licht und schafft einen Raum, in dem ehrlicher Selbstausdruck nicht nur möglich ist, sondern gefeiert wird.',
+    by: 'Gwenola Emilia Enciu, Psychotherapeutin, Rumänien',
+  },
+];
+---
+
+<section class="sg-testimonials">
+  <div class="sg-testimonials-inner">
+    <div class="sg-testimonials-head">
+      <p class="sg-section-italic sg-section-italic--center">Mach dir dein eigenes Bild</p>
+      <h2 class="sg-h2">Das sagen <em>andere</em></h2>
+    </div>
+
+    <div class="sg-testimonials-grid">
+      {items.map((t) => (
+        <article class="sg-testimonial">
+          <h3 class="sg-testimonial-pull">„{t.pull}"</h3>
+          <p class="sg-testimonial-body">{t.body}</p>
+          <div class="sg-testimonial-by">— {t.by}</div>
+        </article>
+      ))}
+    </div>
+
+    <div class="sg-testimonials-foot">
+      <a
+        href="https://www.trustpilot.com/review/songdance.co"
+        target="_blank"
+        rel="noopener"
+      >Weitere 5-Sterne-Bewertungen auf Trustpilot lesen →</a>
+    </div>
+
+    <div class="sg-cta-wrap">
+      <a
+        href="#anmelden"
+        class="sg-btn sg-btn--ember"
+        aria-label="Zum 12-wöchigen Kurs Somatic Vocal Healing anmelden"
+      >
+        Zum Kurs anmelden <i class="ph-light ph-arrow-right"></i>
+      </a>
+    </div>
+  </div>
+</section>
