@@ -669,7 +669,8 @@ html, body { background: var(--paper); }
   min-height: 540px;
 }
 @media (max-width: 720px) {
-  .wd-register-frame { padding: var(--sp-2); }
+  .wd-register { padding: var(--sp-9) var(--sp-3); }
+  .wd-register-frame { padding: var(--sp-1); }
 }
 
 /* ---------- Footer ---------- */
