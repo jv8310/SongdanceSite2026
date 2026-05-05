@@ -1,5 +1,5 @@
 import React from 'react';
-import { composePrayer, Q4_LABEL, NAMING_PATTERNS } from '../../lib/forgiveness-prayer.ts';
+import { composePrayer, detectCenter, Q4_LABEL, NAMING_PATTERNS } from '../../lib/forgiveness-prayer.ts';
 
 // =============================================================
 // Forgiveness — quiz → composed prayer → email → Drip
@@ -185,8 +185,8 @@ function PrayerCard({ prayer, aiStatus, onSubmitEmail, onReplay, submitted, send
 
   const statusLabel = (() => {
     if (!aiStatus) return null;
-    if (aiStatus.ok) return 'AI naming line — enriched';
-    return `AI naming line — fallback (reason: ${aiStatus.reason || 'unknown'})`;
+    if (aiStatus.ok) return 'AI prayer — generated';
+    return `library fallback (reason: ${aiStatus.reason || 'unknown'})`;
   })();
 
   return (
@@ -301,18 +301,26 @@ export default function ThreeLayersWalk() {
 
   const generate = React.useCallback(async () => {
     setStep('generating');
-    let namingLine;
+    const center = detectCenter(answers.q2, answers.q3);
+    let aiPrayer = null;
     let status = { ok: false, reason: 'fetch-error' };
     try {
       const res = await fetch('/api/forgiveness-prayer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ q1: answers.q1, q4: answers.q4 }),
-        signal: AbortSignal.timeout(8000),
+        body: JSON.stringify({
+          q1: answers.q1,
+          q2: answers.q2,
+          q3: answers.q3,
+          q4: answers.q4,
+          q5: answers.q5,
+          center,
+        }),
+        signal: AbortSignal.timeout(14000),
       });
       const data = await res.json().catch(() => ({}));
-      if (res.ok && !data.fallback && typeof data.namingLine === 'string') {
-        namingLine = data.namingLine;
+      if (res.ok && !data.fallback && typeof data.prayer === 'string' && data.prayer.trim()) {
+        aiPrayer = data.prayer.trim();
         status = { ok: true };
       } else if (data && data.fallback) {
         status = { ok: false, reason: data.reason || 'unknown' };
@@ -322,17 +330,19 @@ export default function ThreeLayersWalk() {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       status = { ok: false, reason: msg.includes('abort') || msg.includes('timeout') ? 'client-timeout' : 'client-error' };
-      console.warn('Naming-line fallback:', err);
+      console.warn('Prayer fallback:', err);
     }
-    const composed = composePrayer(answers, namingLine);
+    const finalPrayer = aiPrayer
+      ? { prayer: aiPrayer, center, source: 'ai' }
+      : { ...composePrayer(answers), source: 'library' };
     console.info('[forgiveness-prayer]', {
-      ai: status.ok ? 'enriched' : 'fallback',
+      source: finalPrayer.source,
       reason: status.reason,
-      center: composed.center,
+      center,
       q5: answers.q5,
     });
     setAiStatus(status);
-    setPrayer(composed);
+    setPrayer(finalPrayer);
     setStep('prayer');
   }, [answers]);
 
