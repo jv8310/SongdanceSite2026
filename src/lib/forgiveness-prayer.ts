@@ -168,18 +168,18 @@ export const RELEASE: ByCenter = {
 
 export const HONORING: ByCenter = {
   body: [
-    "Thank you to the body that knew.\nTo the anger that protected.\nTo the bracing that kept me upright when I didn't know how else to be.",
+    "I honor the body that knew.\nThe anger that protected.\nThe bracing that kept me upright when I didn't know how else to be.",
     "I honor what this carried.\nThe signal. The holding.\nEverything my body knew before my mind caught up.",
-    "Thank you to the part of me that didn't let this go too soon.\nIt was right to wait.",
+    "I honor the part of me that didn't let this go too soon.\nIt was right to wait.",
   ],
   heart: [
     "I honor what was real.\nThe love that was there, even imperfectly.\nThe part of me that still knows how to feel.",
-    "Thank you to the ache, which means I cared.\nTo the grief, which is love with nowhere to go yet.\nTo everything tender that survived.",
+    "I honor the ache, which means I cared.\nThe grief, which is love with nowhere to go yet.\nEverything tender that survived.",
     "I honor what this showed me —\nwhat I value,\nby showing me what I lost.",
   ],
   head: [
     "I honor what this taught me.\nThe clarity that came, even slowly, even in pieces.",
-    "Thank you for the questions this asked of me.\nFor the parts of myself I met because of this.",
+    "I honor the questions this asked of me.\nThe parts of myself I met because of this.",
     "I honor the understanding that did arrive —\nand the peace I am making with what may never be fully understood.",
   ],
 };
