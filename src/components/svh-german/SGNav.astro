@@ -1,0 +1,66 @@
+---
+---
+
+<nav class="sg-nav">
+  <div class="sg-nav-inner">
+    <a href="#top" class="sg-nav-mark" aria-label="Songdance">
+      <img src="/brand/logo-wordmark.svg" alt="Songdance" />
+    </a>
+    <div class="sg-nav-spacer"></div>
+    <div class="sg-nav-meta">
+      <span>12 Wochen · Live · Online</span>
+      <span class="dot"></span>
+      <span>Mit Carmen &amp; Lorenz</span>
+    </div>
+    <a
+      href="#anmelden"
+      class="sg-nav-cta"
+      aria-label="Zum 12-wöchigen Kurs Somatic Vocal Healing anmelden"
+    >Platz sichern</a>
+  </div>
+</nav>
+
+<div class="sg-countdown" aria-live="polite">
+  <span class="sg-countdown-label">Kursstart in</span>
+  <span class="sg-countdown-units" id="sgCountdown" data-target="2026-05-10T19:00:00+02:00">
+    <span class="sg-countdown-unit"><span class="num" data-unit="days">--</span><span class="lbl">T</span></span>
+    <span class="sg-countdown-unit"><span class="num" data-unit="hours">--</span><span class="lbl">H</span></span>
+    <span class="sg-countdown-unit"><span class="num" data-unit="minutes">--</span><span class="lbl">M</span></span>
+    <span class="sg-countdown-unit"><span class="num" data-unit="seconds">--</span><span class="lbl">S</span></span>
+  </span>
+</div>
+
+<script is:inline>
+  (function () {
+    var root = document.getElementById('sgCountdown');
+    if (!root) return;
+    var target = new Date(root.getAttribute('data-target')).getTime();
+    var nodes = {
+      days: root.querySelector('[data-unit="days"]'),
+      hours: root.querySelector('[data-unit="hours"]'),
+      minutes: root.querySelector('[data-unit="minutes"]'),
+      seconds: root.querySelector('[data-unit="seconds"]'),
+    };
+    function pad(n) { return n < 10 ? '0' + n : '' + n; }
+    function tick() {
+      var diff = target - Date.now();
+      if (diff <= 0) {
+        nodes.days.textContent = '00';
+        nodes.hours.textContent = '00';
+        nodes.minutes.textContent = '00';
+        nodes.seconds.textContent = '00';
+        return;
+      }
+      var s = Math.floor(diff / 1000);
+      var d = Math.floor(s / 86400); s -= d * 86400;
+      var h = Math.floor(s / 3600); s -= h * 3600;
+      var m = Math.floor(s / 60); s -= m * 60;
+      nodes.days.textContent = pad(d);
+      nodes.hours.textContent = pad(h);
+      nodes.minutes.textContent = pad(m);
+      nodes.seconds.textContent = pad(s);
+    }
+    tick();
+    setInterval(tick, 1000);
+  })();
+</script>
