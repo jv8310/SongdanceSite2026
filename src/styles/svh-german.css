@@ -541,7 +541,6 @@ html, body { background: var(--paper); }
   padding: var(--sp-5) var(--sp-5) var(--sp-6);
   display: flex; flex-direction: column;
   transition: box-shadow var(--d-base) var(--ease), transform var(--d-base) var(--ease);
-  min-height: 320px;
 }
 .sg-module:hover {
   box-shadow: var(--shadow-2);
