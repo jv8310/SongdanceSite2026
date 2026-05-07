@@ -525,7 +525,8 @@ html, body { background: var(--paper); }
 .sg-modules-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: var(--sp-4);
+  gap: var(--sp-5);
+  margin-bottom: var(--sp-8);
 }
 @media (max-width: 1080px) {
   .sg-modules-grid { grid-template-columns: repeat(2, 1fr); }
@@ -540,7 +541,7 @@ html, body { background: var(--paper); }
   padding: var(--sp-5) var(--sp-5) var(--sp-6);
   display: flex; flex-direction: column;
   transition: box-shadow var(--d-base) var(--ease), transform var(--d-base) var(--ease);
-  height: 100%;
+  min-height: 320px;
 }
 .sg-module:hover {
   box-shadow: var(--shadow-2);
