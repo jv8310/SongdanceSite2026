@@ -279,10 +279,15 @@ html, body { background: var(--paper); }
   padding: var(--sp-10) var(--sp-7);
 }
 .wd-what-inner { max-width: var(--wd-max); margin: 0 auto; }
-.wd-what-head { max-width: 32ch; margin-bottom: var(--sp-7); }
+.wd-what-head {
+  max-width: 32ch;
+  margin: 0 auto var(--sp-7);
+  text-align: center;
+}
 .wd-what-intro {
   max-width: 64ch;
-  margin: 0 0 var(--sp-9);
+  margin: 0 auto var(--sp-9);
+  text-align: center;
 }
 .wd-what-intro p {
   font-family: var(--font-body);
