@@ -1,0 +1,123 @@
+---
+const included = [
+  '3 days, 2 nights at Château Cortils',
+  '16 hours of workshops with Lesanne and Jacob',
+  "Delicious organic vegetarian meals lovingly prepared by Muriel, Jacob's mother",
+  'Tea, cake, and snacks during breaks',
+  'A beautiful workshop hall with panoramic views of the land',
+  'A natural pond for swimming (if you wish)',
+  'Walks in the forest of the castle grounds',
+];
+
+const rooms = [
+  { label: 'Budget Room', price: '€590', note: '' },
+  { label: 'Shared Room — Shared Bathroom', price: '€660', note: 'For 2–3 people with a nearby shared bathroom between rooms' },
+  { label: 'Twin Room — Ensuite Bathroom', price: '€770', note: 'For 2 people with a private bathroom' },
+  { label: 'Private Room — Shared Bathroom', price: '€820', note: '' },
+];
+---
+
+<section class="rb-practical" id="practical">
+  <div class="rb-practical-inner">
+    <div class="rb-practical-head">
+      <div class="rb-eyebrow rb-eyebrow--center">Practical information</div>
+      <h2 class="rb-h2">Everything you need <em>to know</em></h2>
+    </div>
+
+    <div class="rb-practical-grid">
+      <figure class="rb-practical-figure">
+        <img
+          src="/imagery/ritual-of-belonging/castle-hall.jpg"
+          alt="The glass-encased workshop hall at Château Cortils, looking out over the grounds"
+          loading="lazy"
+        />
+      </figure>
+
+      <div class="rb-practical-blocks">
+        <div class="rb-practical-block">
+          <h3>When</h3>
+          <p>
+            Arrival on <strong>Friday, 27 November 2026.</strong> You are
+            welcome to explore the castle grounds from 14:00. The program
+            begins at 15:00 with tea and cake, followed by time to settle
+            into your room before the first session at 16:30.
+          </p>
+          <p>
+            The retreat concludes after lunch on
+            <strong>Sunday, 29 November 2026.</strong>
+          </p>
+          <p>
+            You may optionally stay an additional night and check out on
+            Monday morning.
+          </p>
+        </div>
+
+        <div class="rb-practical-block">
+          <h3>Where</h3>
+          <p>
+            The retreat takes place in a historic castle dating back to
+            947, which has undergone renovations approximately every
+            century. Today it serves as a retreat and guest centre — a
+            serene haven for conscious gathering.
+          </p>
+          <p>
+            Nestled in the lush Ardennes, the castle is surrounded by a
+            tranquil landscape with a picturesque pond and an enchanting
+            forest, with ample opportunities to walk, rest, and unwind.
+            The rustic, cozy rooms feel like home, while the workshop hall
+            — encased in glass windows — opens onto stunning views of the
+            grounds.
+          </p>
+          <p>
+            <strong>Château Cortils</strong><br />
+            Chemin des Cortils 5, 4670 Blegny, Belgium<br />
+            <a href="https://www.chateaucortils.com" target="_blank" rel="noopener">www.chateaucortils.com</a>
+          </p>
+        </div>
+
+        <div class="rb-practical-block">
+          <h3>How to get there</h3>
+          <p>
+            If you are travelling from abroad by plane, we will help you
+            arrange shared taxis or shuttles with other arrivals. Those
+            coming from Belgium can drive and carpool with others.
+          </p>
+        </div>
+
+        <div class="rb-practical-block">
+          <h3>Included</h3>
+          <ul class="rb-practical-list">
+            {included.map((it) => (<li>{it}</li>))}
+          </ul>
+        </div>
+
+        <div class="rb-practical-block">
+          <h3>Room options</h3>
+          <p>
+            The castle offers unique rooms across several buildings, with
+            options to suit different levels of comfort and privacy.
+          </p>
+          <div class="rb-rooms">
+            {rooms.map((r) => (
+              <div class="rb-room">
+                <h4 class="rb-room-label">{r.label}</h4>
+                <p class="rb-room-price">{r.price}</p>
+                {r.note && <p class="rb-room-note">{r.note}</p>}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="rb-cta-wrap">
+      <a
+        href="#register"
+        class="rb-btn"
+        aria-label="Register for the Ritual of Belonging retreat"
+      >
+        Register now <i class="ph-light ph-arrow-right"></i>
+      </a>
+    </div>
+  </div>
+</section>

@@ -1,0 +1,51 @@
+---
+const flags = [
+  'You are currently navigating addiction in any form <em>(the retreat is alcohol- and substance-free for the full three days)</em>',
+  'You are currently taking state-altering medication',
+  'You are arriving from, or moving through, an especially activated moment in your life — a sudden loss, a raw and recent trauma, an episode of severe destabilisation',
+  'You are carrying unresolved, older trauma that may destabilise you when activated in a group setting, and might be better held by a therapeutic professional in a 1:1 context',
+];
+---
+
+<section class="rb-framework">
+  <div class="rb-framework-inner">
+    <div class="rb-framework-head">
+      <div class="rb-eyebrow rb-eyebrow--center">Our framework for this circle</div>
+      <h2 class="rb-h2">A circle worth <em>protecting</em></h2>
+    </div>
+
+    <p class="rb-framework-body">
+      This retreat is a space for somatic regulation, for being met, and
+      for the quiet work of returning to yourself in a held circle. The
+      integrity of that circle is a shared responsibility — and we want
+      it to truly serve you and the group as a whole.
+    </p>
+
+    <p class="rb-framework-body">
+      If any of the following applies to you, please reach out to us
+      before registering so we can talk it through:
+    </p>
+
+    <ul class="rb-framework-list">
+      {flags.map((flag) => (
+        <li><span set:html={flag} /></li>
+      ))}
+    </ul>
+
+    <p class="rb-framework-foot">
+      We would rather have an honest conversation upfront than discover a
+      mismatch on the first evening — so please write to us if anything
+      here raises a question.
+    </p>
+
+    <div class="rb-cta-wrap">
+      <a
+        href="mailto:info@songdance.co"
+        class="rb-btn"
+        aria-label="Email info@songdance.co"
+      >
+        Write to us <i class="ph-light ph-envelope-simple"></i>
+      </a>
+    </div>
+  </div>
+</section>

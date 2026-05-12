@@ -1,0 +1,44 @@
+---
+const items = [
+  {
+    body: 'I feel utterly transformed by these retreat experiences. My healing has accelerated, and I am more fully authentic than I have ever been. Jacob\'s keen, intuitive, and compassionate guidance — along with his music — has changed my vibration so much that, in spite of what is happening in the world around me, I can laugh, cry, experience joy and pain in a much healthier way.',
+    by: 'Rebecca, teacher',
+  },
+  {
+    body: 'Jacob\'s retreats are hugely inspiring and transformative for me. He is a stellar facilitator and guide, creating a strong and reliable container for us to venture into. Engaging with this work helps me to connect more deeply and more authentically with myself and the world around me.',
+    by: 'Caitríona, actor',
+  },
+  {
+    body: 'Lesanne has rare and special gifts at an extraordinary level of wisdom and refinement. While listening to get the full meaning and experience of what I\'m attempting to express, she takes it all to another dimension in a way that is both fitting and useful. We\'re really fortunate to have her listening, holding space, and guiding us.',
+    by: 'Brenda, leadership consultant',
+  },
+];
+---
+
+<section class="rb-testimonials">
+  <div class="rb-testimonials-inner">
+    <div class="rb-testimonials-head">
+      <div class="rb-eyebrow rb-eyebrow--center">What others have said</div>
+      <h2 class="rb-h2">From <em>the circle.</em></h2>
+    </div>
+
+    <div class="rb-testimonials-grid">
+      {items.map((t) => (
+        <article class="rb-testimonial">
+          <p class="rb-testimonial-body">"{t.body}"</p>
+          <div class="rb-testimonial-by">— {t.by}</div>
+        </article>
+      ))}
+    </div>
+
+    <div class="rb-cta-wrap">
+      <a
+        href="#register"
+        class="rb-btn rb-btn--ember"
+        aria-label="Register for the Ritual of Belonging retreat"
+      >
+        Register now <i class="ph-light ph-arrow-right"></i>
+      </a>
+    </div>
+  </div>
+</section>
