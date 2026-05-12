@@ -170,6 +170,14 @@ html, body { background: var(--paper); }
   text-align: center;
   color: var(--paper);
 }
+.rb-hero-inner::before {
+  content: "";
+  position: absolute;
+  inset: -8% -12%;
+  background: radial-gradient(ellipse 70% 65% at 50% 52%, rgba(15,8,14,0.55) 0%, rgba(15,8,14,0.28) 45%, rgba(15,8,14,0) 75%);
+  pointer-events: none;
+  z-index: -1;
+}
 .rb-hero-mark {
   width: 56px; height: 56px;
   margin: 0 auto var(--sp-6);
@@ -177,32 +185,39 @@ html, body { background: var(--paper); }
 }
 .rb-hero-eyebrow {
   font-family: var(--font-body);
-  font-size: 12px;
+  font-size: 13px;
   text-transform: uppercase;
   letter-spacing: 0.36em;
-  color: var(--ember);
-  font-weight: 500;
+  color: var(--ember-soft);
+  font-weight: 600;
   margin-bottom: var(--sp-5);
   display: flex; justify-content: center; align-items: center; gap: 14px;
+  text-shadow: 0 1px 3px rgba(15,8,14,0.95), 0 2px 12px rgba(15,8,14,0.7);
 }
 .rb-hero-eyebrow::before, .rb-hero-eyebrow::after {
   content: ""; width: 36px; height: 1px; background: var(--ember);
+  box-shadow: 0 0 6px rgba(15,8,14,0.6);
 }
 .rb-hero-head {
   font-family: var(--font-display);
   font-size: clamp(52px, 7.5vw, 116px);
   line-height: 1.0;
   letter-spacing: -0.024em;
-  font-weight: 400;
+  font-weight: 500;
   color: var(--paper);
   margin: 0 0 var(--sp-6);
   text-wrap: balance;
   max-width: 16ch;
   margin-left: auto; margin-right: auto;
-  text-shadow: 0 2px 24px rgba(15,8,14,0.55), 0 1px 2px rgba(15,8,14,0.4);
+  text-shadow:
+    0 1px 2px rgba(15,8,14,0.9),
+    0 3px 14px rgba(15,8,14,0.7),
+    0 0 36px rgba(15,8,14,0.5);
 }
 .rb-hero-sub, .rb-hero-when {
-  text-shadow: 0 1px 14px rgba(15,8,14,0.6);
+  text-shadow:
+    0 1px 2px rgba(15,8,14,0.9),
+    0 2px 12px rgba(15,8,14,0.7);
 }
 .rb-hero-head em {
   font-family: var(--font-lyric);
