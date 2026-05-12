@@ -1,0 +1,948 @@
+/* =========================================================
+   Ritual of Belonging — Winter Retreat
+   Château Cortils, Belgium · 27–29 November 2026
+   Held by Lesanne & Jacob.
+
+   Tone: slow, candle-lit, ardennes-winter quiet.
+   Paper, plum, ember, night.
+   ========================================================= */
+
+html, body { background: var(--paper); }
+.rb-site { width: 100%; overflow-x: hidden; }
+
+:root {
+  --rb-max: 1240px;
+  --rb-narrow: 760px;
+  --rb-img-filter: saturate(0.9) contrast(1.02);
+}
+
+/* ---------- Nav ---------- */
+.rb-nav {
+  position: sticky; top: 0; z-index: 50;
+  background: rgba(244, 236, 223, 0.9);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--line);
+}
+.rb-nav-inner {
+  max-width: var(--rb-max); margin: 0 auto;
+  padding: 14px 32px;
+  display: flex; align-items: center; gap: 20px;
+}
+.rb-nav-mark img { height: 28px; width: auto; display: block; }
+.rb-nav-spacer { flex: 1; }
+.rb-nav-meta {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--ink-quiet);
+  display: flex; gap: 14px; align-items: center;
+}
+.rb-nav-meta .dot { width: 4px; height: 4px; border-radius: 50%; background: var(--ember); }
+.rb-nav-cta {
+  font-family: var(--font-body); font-size: 13px; font-weight: 500;
+  padding: 10px 22px; border-radius: var(--r-pill);
+  background: var(--ink); color: var(--paper);
+  text-decoration: none;
+  transition: background var(--d-base) var(--ease);
+}
+.rb-nav-cta:hover { background: var(--plum); }
+@media (max-width: 880px) {
+  .rb-nav-meta { display: none; }
+  .rb-nav-inner { padding: 12px 18px; }
+}
+
+/* ---------- Shared primitives ---------- */
+.rb-eyebrow {
+  font-family: var(--font-body);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.24em;
+  color: var(--ember-deep);
+  font-weight: 500;
+  display: inline-flex; align-items: center; gap: 12px;
+}
+.rb-eyebrow::before {
+  content: "";
+  width: 28px; height: 1px; background: var(--ember);
+  display: inline-block;
+}
+.rb-eyebrow--center {
+  display: flex; justify-content: center; align-items: center; gap: 14px;
+}
+.rb-eyebrow--center::before, .rb-eyebrow--center::after {
+  content: ""; width: 28px; height: 1px; background: var(--ember);
+}
+
+.rb-section-italic {
+  font-family: var(--font-lyric);
+  font-style: italic;
+  font-size: 17px;
+  color: var(--ink-quiet);
+  margin: 0 0 var(--sp-3);
+  letter-spacing: 0.005em;
+}
+.rb-section-italic--center { text-align: center; }
+
+.rb-h2 {
+  font-family: var(--font-display);
+  font-size: clamp(34px, 4.4vw, 56px);
+  line-height: 1.06;
+  letter-spacing: -0.014em;
+  color: var(--ink);
+  font-weight: 400;
+  margin: var(--sp-4) 0 0;
+  text-wrap: balance;
+}
+.rb-h2 em {
+  font-family: var(--font-lyric); font-style: italic;
+  color: var(--plum); font-weight: 400;
+}
+
+.rb-btn {
+  display: inline-flex; align-items: center; gap: 12px;
+  font-family: var(--font-body); font-size: 15px; font-weight: 500;
+  padding: 16px 34px; border-radius: var(--r-pill);
+  background: var(--ink); color: var(--paper);
+  text-decoration: none;
+  transition: background var(--d-base) var(--ease), transform var(--d-quick) var(--ease);
+  letter-spacing: 0.005em;
+  border: 0;
+  cursor: pointer;
+}
+.rb-btn:hover { background: var(--plum); }
+.rb-btn:active { transform: translateY(1px); }
+.rb-btn i { font-size: 18px; }
+.rb-btn--ember {
+  background: var(--ember);
+  color: var(--paper);
+}
+.rb-btn--ember:hover { background: var(--ember-deep); }
+.rb-btn--lg {
+  font-size: 16px;
+  padding: 20px 44px;
+}
+.rb-btn--ghost {
+  background: transparent;
+  color: var(--paper);
+  border: 1px solid rgba(244,236,223,0.3);
+}
+.rb-btn--ghost:hover {
+  background: rgba(244,236,223,0.08);
+  border-color: rgba(244,236,223,0.5);
+}
+
+.rb-cta-wrap { text-align: center; margin-top: var(--sp-7); }
+
+/* ---------- HERO ---------- */
+.rb-hero {
+  position: relative;
+  min-height: 92vh;
+  padding: var(--sp-7) var(--sp-7) var(--sp-9);
+  background: var(--night);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+}
+.rb-hero-bg {
+  position: absolute; inset: 0;
+  z-index: 0; pointer-events: none;
+}
+.rb-hero-bg img {
+  width: 100%; height: 100%; object-fit: cover;
+  opacity: 0.55;
+  filter: saturate(0.7) contrast(1) brightness(0.9);
+  animation: rb-breath 28s ease-in-out infinite;
+}
+.rb-hero-bg::after {
+  content: ""; position: absolute; inset: 0;
+  background:
+    linear-gradient(180deg, rgba(15,8,14,0.4) 0%, rgba(15,8,14,0.2) 35%, rgba(15,8,14,0.85) 100%),
+    radial-gradient(ellipse at 50% 70%, rgba(74,37,64,0.35) 0%, rgba(15,8,14,0) 60%);
+}
+@keyframes rb-breath {
+  0%, 100% { transform: scale(1.0); }
+  50% { transform: scale(1.05); }
+}
+.rb-hero-inner {
+  position: relative; z-index: 1;
+  max-width: 980px; margin: 0 auto;
+  text-align: center;
+  color: var(--paper);
+}
+.rb-hero-mark {
+  width: 56px; height: 56px;
+  margin: 0 auto var(--sp-6);
+  opacity: 0.9;
+}
+.rb-hero-eyebrow {
+  font-family: var(--font-body);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.36em;
+  color: var(--ember);
+  font-weight: 500;
+  margin-bottom: var(--sp-5);
+  display: flex; justify-content: center; align-items: center; gap: 14px;
+}
+.rb-hero-eyebrow::before, .rb-hero-eyebrow::after {
+  content: ""; width: 36px; height: 1px; background: var(--ember);
+}
+.rb-hero-head {
+  font-family: var(--font-display);
+  font-size: clamp(52px, 7.5vw, 116px);
+  line-height: 1.0;
+  letter-spacing: -0.024em;
+  font-weight: 400;
+  color: var(--paper);
+  margin: 0 0 var(--sp-6);
+  text-wrap: balance;
+  max-width: 16ch;
+  margin-left: auto; margin-right: auto;
+}
+.rb-hero-head em {
+  font-family: var(--font-lyric);
+  font-style: italic;
+  color: var(--ember-soft);
+  font-weight: 400;
+}
+.rb-hero-when {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  color: rgba(244, 236, 223, 0.78);
+  display: flex; justify-content: center; align-items: center;
+  gap: 14px; flex-wrap: wrap;
+  margin: 0 auto var(--sp-5);
+}
+.rb-hero-when .dot { width: 3px; height: 3px; border-radius: 50%; background: rgba(244,236,223,0.45); }
+.rb-hero-sub {
+  font-family: var(--font-lyric);
+  font-style: italic;
+  font-size: clamp(20px, 2.2vw, 28px);
+  line-height: 1.45;
+  color: rgba(244, 236, 223, 0.85);
+  max-width: 32ch;
+  margin: 0 auto var(--sp-7);
+  text-wrap: balance;
+}
+.rb-hero-cta-row {
+  display: inline-flex; flex-wrap: wrap; gap: var(--sp-3);
+  justify-content: center;
+}
+.rb-hero-link {
+  display: inline-block;
+  margin-top: var(--sp-5);
+  font-family: var(--font-body); font-size: 13px; font-weight: 500;
+  color: rgba(244, 236, 223, 0.82);
+  text-decoration: underline;
+  text-decoration-color: var(--ember);
+  text-underline-offset: 4px;
+}
+.rb-hero-link:hover { color: var(--paper); }
+
+/* ---------- Opening ---------- */
+.rb-opening {
+  background: var(--paper);
+  padding: var(--sp-10) var(--sp-7);
+}
+.rb-opening-inner {
+  max-width: var(--rb-narrow); margin: 0 auto;
+  text-align: center;
+}
+.rb-opening-lead {
+  font-family: var(--font-display);
+  font-size: clamp(26px, 3vw, 36px);
+  line-height: 1.3;
+  font-weight: 400;
+  color: var(--ink);
+  margin: 0 0 var(--sp-6);
+  letter-spacing: -0.008em;
+  text-wrap: balance;
+}
+.rb-opening-body {
+  font-family: var(--font-body);
+  font-size: 18px;
+  line-height: 1.78;
+  color: var(--ink-soft);
+  max-width: 56ch;
+  margin: 0 auto var(--sp-5);
+  text-align: left;
+  text-wrap: pretty;
+}
+.rb-opening-body em {
+  font-family: var(--font-lyric);
+  font-style: italic;
+  color: var(--plum);
+}
+
+/* ---------- Letter (Lesanne / Jacob) ---------- */
+.rb-letter {
+  background: var(--paper-soft);
+  padding: var(--sp-10) var(--sp-7);
+}
+.rb-letter--alt { background: var(--paper); }
+.rb-letter-inner {
+  max-width: 760px; margin: 0 auto;
+  text-align: center;
+}
+.rb-letter-portrait {
+  width: 140px; height: 140px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin: 0 auto var(--sp-6);
+  display: block;
+  box-shadow: var(--shadow-2);
+  filter: var(--rb-img-filter);
+}
+.rb-letter-head {
+  font-family: var(--font-lyric);
+  font-style: italic;
+  font-size: clamp(24px, 3vw, 34px);
+  color: var(--plum);
+  margin: var(--sp-3) 0 var(--sp-6);
+  letter-spacing: 0.005em;
+}
+.rb-letter-body {
+  font-family: var(--font-body);
+  font-size: 18px;
+  line-height: 1.78;
+  color: var(--ink-soft);
+  max-width: 56ch;
+  margin: 0 auto var(--sp-5);
+  text-wrap: pretty;
+  text-align: left;
+}
+.rb-letter-body em {
+  font-family: var(--font-lyric);
+  font-style: italic;
+  color: var(--plum);
+}
+.rb-letter-sig {
+  font-family: var(--font-lyric);
+  font-style: italic;
+  font-size: 22px;
+  color: var(--ink);
+  margin: var(--sp-6) auto 0;
+  max-width: 56ch;
+  text-align: left;
+}
+
+/* ---------- For Whom ---------- */
+.rb-for {
+  background: var(--paper);
+  padding: var(--sp-10) var(--sp-7);
+}
+.rb-for-inner {
+  max-width: 820px; margin: 0 auto;
+}
+.rb-for-head {
+  text-align: center;
+  margin-bottom: var(--sp-8);
+}
+.rb-for-head .rb-h2 {
+  margin-left: auto; margin-right: auto;
+  max-width: 22ch;
+}
+.rb-for-intro {
+  font-family: var(--font-body);
+  font-size: 17px;
+  line-height: 1.7;
+  color: var(--ink-soft);
+  margin: 0 auto var(--sp-7);
+  text-align: center;
+  max-width: 52ch;
+}
+.rb-for-list {
+  list-style: none;
+  padding: 0; margin: 0;
+  display: flex; flex-direction: column;
+  border-top: 1px solid var(--line);
+  max-width: 640px;
+  margin: 0 auto;
+}
+.rb-for-list li {
+  display: flex; align-items: flex-start; gap: var(--sp-4);
+  padding: var(--sp-4) var(--sp-2);
+  border-bottom: 1px solid var(--line);
+  font-family: var(--font-body);
+  font-size: 17px;
+  line-height: 1.55;
+  color: var(--ink-soft);
+}
+.rb-for-list .mark {
+  flex-shrink: 0;
+  color: var(--ember);
+  font-size: 14px;
+  margin-top: 5px;
+  line-height: 1;
+  font-family: var(--font-display);
+}
+.rb-for-list li em {
+  font-family: var(--font-lyric);
+  font-style: italic;
+  color: var(--plum);
+}
+
+/* ---------- Expect ---------- */
+.rb-expect {
+  background: var(--paper-soft);
+  padding: var(--sp-10) var(--sp-7);
+  position: relative;
+  overflow: hidden;
+}
+.rb-expect-inner {
+  max-width: 980px; margin: 0 auto;
+}
+.rb-expect-head {
+  text-align: center;
+  margin-bottom: var(--sp-8);
+}
+.rb-expect-head .rb-h2 {
+  margin-left: auto; margin-right: auto;
+}
+.rb-expect-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--sp-5);
+}
+@media (max-width: 720px) {
+  .rb-expect-grid { grid-template-columns: 1fr; }
+}
+.rb-expect-card {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: var(--sp-5) var(--sp-5) var(--sp-5);
+  display: flex; align-items: flex-start; gap: var(--sp-4);
+  transition: box-shadow var(--d-base) var(--ease), transform var(--d-base) var(--ease);
+}
+.rb-expect-card:hover {
+  box-shadow: var(--shadow-2);
+  transform: translateY(-2px);
+}
+.rb-expect-sparkle {
+  flex-shrink: 0;
+  font-family: var(--font-display);
+  font-size: 22px;
+  line-height: 1;
+  color: var(--ember);
+  margin-top: 2px;
+}
+.rb-expect-card p {
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.65;
+  color: var(--ink-soft);
+  margin: 0;
+}
+.rb-expect-card em {
+  font-family: var(--font-lyric);
+  font-style: italic;
+  color: var(--plum);
+}
+
+/* ---------- Facilitators ---------- */
+.rb-fac {
+  background: var(--paper);
+  padding: var(--sp-10) var(--sp-7);
+}
+.rb-fac-inner { max-width: var(--rb-max); margin: 0 auto; }
+.rb-fac-head { text-align: center; margin-bottom: var(--sp-8); }
+.rb-fac-head .rb-h2 { margin-left: auto; margin-right: auto; max-width: 24ch; }
+.rb-fac-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-8);
+  max-width: 980px;
+  margin: 0 auto;
+}
+@media (max-width: 760px) { .rb-fac-grid { grid-template-columns: 1fr; gap: var(--sp-7); } }
+.rb-fac-card { display: flex; flex-direction: column; }
+.rb-fac-portrait-wrap {
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-2);
+  background: var(--paper-deep);
+  margin-bottom: var(--sp-5);
+  aspect-ratio: 4 / 5;
+}
+.rb-fac-portrait {
+  display: block;
+  width: 100%; height: 100%;
+  object-fit: cover;
+  filter: var(--rb-img-filter);
+}
+.rb-fac-name {
+  font-family: var(--font-display);
+  font-size: clamp(26px, 3vw, 34px);
+  line-height: 1.1;
+  font-weight: 400;
+  color: var(--ink);
+  letter-spacing: -0.012em;
+  margin: 0;
+}
+.rb-fac-role {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: var(--ember-deep);
+  margin-top: 6px;
+}
+.rb-fac-body {
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.7;
+  color: var(--ink-soft);
+  margin: var(--sp-4) 0 0;
+}
+.rb-fac-body em {
+  font-family: var(--font-lyric);
+  font-style: italic;
+  color: var(--plum);
+}
+.rb-fac-body strong { color: var(--ink); font-weight: 500; }
+.rb-fac-together {
+  max-width: 56ch;
+  margin: var(--sp-9) auto 0;
+  text-align: center;
+  font-family: var(--font-lyric);
+  font-style: italic;
+  font-size: clamp(20px, 2.2vw, 26px);
+  line-height: 1.5;
+  color: var(--ink);
+  position: relative;
+  padding: var(--sp-5) 0;
+}
+.rb-fac-together::before, .rb-fac-together::after {
+  content: "";
+  display: block;
+  width: 48px; height: 1px;
+  background: var(--ember);
+  margin: 0 auto;
+  position: absolute; left: 50%; transform: translateX(-50%);
+}
+.rb-fac-together::before { top: 0; }
+.rb-fac-together::after { bottom: 0; }
+
+/* ---------- Testimonials — night ---------- */
+.rb-testimonials {
+  background: var(--night);
+  color: var(--paper);
+  padding: var(--sp-10) var(--sp-7);
+  position: relative;
+  overflow: hidden;
+}
+.rb-testimonials::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 80% 20%, rgba(201,96,58,0.18) 0%, transparent 55%),
+              radial-gradient(ellipse at 15% 85%, rgba(74,37,64,0.45) 0%, transparent 55%);
+  pointer-events: none;
+}
+.rb-testimonials-inner {
+  position: relative;
+  max-width: var(--rb-max); margin: 0 auto;
+}
+.rb-testimonials-head {
+  margin-bottom: var(--sp-8);
+  text-align: center;
+}
+.rb-testimonials-head .rb-h2 { margin-left: auto; margin-right: auto; max-width: 26ch; }
+.rb-testimonials .rb-eyebrow,
+.rb-testimonials .rb-eyebrow--center { color: var(--ember); }
+.rb-testimonials .rb-eyebrow::before,
+.rb-testimonials .rb-eyebrow--center::before,
+.rb-testimonials .rb-eyebrow--center::after { background: var(--ember); }
+.rb-testimonials .rb-h2 { color: var(--paper); }
+.rb-testimonials .rb-h2 em { color: rgba(244,236,223,0.7); }
+.rb-testimonials .rb-section-italic { color: rgba(244,236,223,0.62); }
+
+.rb-testimonials-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--sp-5);
+}
+@media (max-width: 980px) { .rb-testimonials-grid { grid-template-columns: 1fr; max-width: 620px; margin: 0 auto; } }
+
+.rb-testimonial {
+  background: rgba(244, 236, 223, 0.04);
+  border: 1px solid rgba(244, 236, 223, 0.12);
+  border-radius: var(--r-lg);
+  padding: var(--sp-6);
+  display: flex; flex-direction: column;
+  transition: background var(--d-base) var(--ease), border-color var(--d-base) var(--ease);
+}
+.rb-testimonial:hover {
+  background: rgba(244, 236, 223, 0.06);
+  border-color: rgba(244, 236, 223, 0.22);
+}
+.rb-testimonial-body {
+  font-family: var(--font-lyric);
+  font-style: italic;
+  font-size: 18px;
+  line-height: 1.55;
+  color: rgba(244, 236, 223, 0.92);
+  margin: 0 0 var(--sp-5);
+  flex: 1;
+  text-wrap: pretty;
+}
+.rb-testimonial-by {
+  padding-top: var(--sp-3);
+  border-top: 1px solid rgba(244, 236, 223, 0.16);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: rgba(244, 236, 223, 0.7);
+}
+
+/* ---------- Practical ---------- */
+.rb-practical {
+  background: var(--paper);
+  padding: var(--sp-10) var(--sp-7);
+}
+.rb-practical-inner { max-width: var(--rb-max); margin: 0 auto; }
+.rb-practical-head { text-align: center; margin-bottom: var(--sp-8); }
+.rb-practical-head .rb-h2 { margin-left: auto; margin-right: auto; }
+
+.rb-practical-grid {
+  display: grid;
+  grid-template-columns: 1.05fr 1fr;
+  gap: var(--sp-8);
+  align-items: start;
+  max-width: 1080px;
+  margin: 0 auto;
+}
+@media (max-width: 880px) {
+  .rb-practical-grid { grid-template-columns: 1fr; }
+}
+.rb-practical-figure {
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-2);
+  background: var(--paper-deep);
+  aspect-ratio: 4 / 5;
+  position: sticky;
+  top: 80px;
+}
+@media (max-width: 880px) { .rb-practical-figure { position: static; aspect-ratio: 4 / 3; } }
+.rb-practical-figure img {
+  display: block; width: 100%; height: 100%;
+  object-fit: cover; filter: var(--rb-img-filter);
+}
+.rb-practical-blocks {
+  display: flex; flex-direction: column;
+  gap: var(--sp-7);
+}
+.rb-practical-block h3 {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  color: var(--ember-deep);
+  font-weight: 500;
+  margin: 0 0 var(--sp-3);
+}
+.rb-practical-block h4 {
+  font-family: var(--font-display);
+  font-size: 22px;
+  line-height: 1.2;
+  font-weight: 500;
+  color: var(--ink);
+  margin: 0 0 var(--sp-2);
+  letter-spacing: -0.006em;
+}
+.rb-practical-block p {
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.72;
+  color: var(--ink-soft);
+  margin: 0 0 var(--sp-3);
+}
+.rb-practical-block p strong {
+  color: var(--ink); font-weight: 500;
+}
+.rb-practical-block a {
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--ember);
+  text-underline-offset: 3px;
+}
+.rb-practical-block a:hover { color: var(--ember-deep); }
+.rb-practical-list {
+  list-style: none;
+  padding: 0; margin: 0;
+  display: flex; flex-direction: column; gap: var(--sp-2);
+}
+.rb-practical-list li {
+  display: flex; align-items: flex-start; gap: var(--sp-3);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+}
+.rb-practical-list li::before {
+  content: "";
+  flex-shrink: 0;
+  display: inline-block;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--ember);
+  margin-top: 9px;
+}
+
+.rb-rooms {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--sp-4);
+  margin-top: var(--sp-4);
+}
+@media (max-width: 980px) { .rb-rooms { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 480px) { .rb-rooms { grid-template-columns: 1fr; } }
+.rb-room {
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: var(--sp-4);
+  background: var(--paper-soft);
+}
+.rb-room-label {
+  font-family: var(--font-display);
+  font-size: 16px;
+  line-height: 1.25;
+  color: var(--ink);
+  font-weight: 500;
+  margin: 0 0 var(--sp-2);
+  letter-spacing: -0.004em;
+}
+.rb-room-price {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  letter-spacing: 0.05em;
+  color: var(--ember-deep);
+  margin: 0 0 var(--sp-2);
+}
+.rb-room-note {
+  font-family: var(--font-body);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-quiet);
+  margin: 0;
+}
+
+/* ---------- Framework ---------- */
+.rb-framework {
+  background: var(--paper-soft);
+  padding: var(--sp-10) var(--sp-7);
+}
+.rb-framework-inner {
+  max-width: 760px; margin: 0 auto;
+  text-align: center;
+}
+.rb-framework-head { margin-bottom: var(--sp-6); }
+.rb-framework-body {
+  font-family: var(--font-body);
+  font-size: 17px;
+  line-height: 1.75;
+  color: var(--ink-soft);
+  max-width: 56ch;
+  margin: 0 auto var(--sp-5);
+  text-align: left;
+  text-wrap: pretty;
+}
+.rb-framework-body em {
+  font-family: var(--font-lyric);
+  font-style: italic;
+  color: var(--plum);
+}
+.rb-framework-list {
+  list-style: none;
+  padding: 0; margin: var(--sp-5) auto 0;
+  max-width: 56ch;
+  text-align: left;
+  display: flex; flex-direction: column; gap: var(--sp-3);
+}
+.rb-framework-list li {
+  display: flex; align-items: flex-start; gap: var(--sp-3);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.65;
+  color: var(--ink-soft);
+}
+.rb-framework-list li::before {
+  content: "—";
+  flex-shrink: 0;
+  color: var(--ember);
+  font-family: var(--font-display);
+  margin-top: 1px;
+}
+.rb-framework-list em {
+  font-family: var(--font-lyric);
+  font-style: italic;
+  color: var(--plum);
+}
+.rb-framework-foot {
+  font-family: var(--font-lyric);
+  font-style: italic;
+  font-size: 18px;
+  color: var(--ink);
+  max-width: 56ch;
+  margin: var(--sp-6) auto 0;
+  text-wrap: balance;
+  text-align: center;
+}
+
+/* ---------- Register ---------- */
+.rb-register {
+  background: var(--ink);
+  color: var(--paper);
+  padding: var(--sp-10) var(--sp-7);
+  position: relative;
+  overflow: hidden;
+}
+.rb-register::before {
+  content: "";
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse at 80% 30%, rgba(201,96,58,0.18) 0%, transparent 60%),
+              radial-gradient(ellipse at 10% 80%, rgba(74,37,64,0.42) 0%, transparent 60%);
+  pointer-events: none;
+}
+.rb-register-inner {
+  position: relative;
+  max-width: 760px; margin: 0 auto;
+  text-align: center;
+}
+.rb-register .rb-eyebrow--center { color: var(--ember); }
+.rb-register .rb-eyebrow--center::before,
+.rb-register .rb-eyebrow--center::after { background: var(--ember); }
+.rb-register-h2 {
+  font-family: var(--font-display);
+  font-size: clamp(38px, 5.2vw, 68px);
+  line-height: 1.06;
+  letter-spacing: -0.018em;
+  color: var(--paper);
+  font-weight: 400;
+  margin: var(--sp-4) 0 var(--sp-5);
+  text-wrap: balance;
+}
+.rb-register-h2 em {
+  font-family: var(--font-lyric);
+  font-style: italic;
+  color: rgba(244,236,223,0.75);
+}
+.rb-register-body {
+  font-family: var(--font-body);
+  font-size: 17px;
+  line-height: 1.72;
+  color: rgba(244,236,223,0.82);
+  margin: 0 auto var(--sp-6);
+  max-width: 52ch;
+  text-wrap: pretty;
+}
+.rb-register-body em {
+  font-family: var(--font-lyric);
+  font-style: italic;
+  color: var(--paper);
+}
+.rb-register-when {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(244,236,223,0.72);
+  margin: 0 0 var(--sp-7);
+  display: flex; justify-content: center; align-items: center;
+  gap: 14px; flex-wrap: wrap;
+}
+.rb-register-when .dot { width: 3px; height: 3px; border-radius: 50%; background: rgba(244,236,223,0.45); }
+.rb-register-cta-row {
+  display: inline-flex; gap: var(--sp-3); flex-wrap: wrap;
+  justify-content: center;
+}
+.rb-register-contact {
+  margin-top: var(--sp-7);
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: rgba(244,236,223,0.7);
+}
+.rb-register-contact a {
+  color: var(--paper);
+  text-decoration: underline;
+  text-decoration-color: var(--ember);
+  text-underline-offset: 4px;
+}
+
+/* ---------- Footer ---------- */
+.rb-footer {
+  background: var(--paper-deep);
+  padding: var(--sp-9) var(--sp-7) var(--sp-6);
+  border-top: 1px solid var(--line);
+}
+.rb-footer-inner {
+  max-width: var(--rb-max); margin: 0 auto;
+  display: flex; flex-direction: column; gap: var(--sp-6);
+}
+.rb-footer-top {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr;
+  gap: var(--sp-7);
+  padding-bottom: var(--sp-6);
+  border-bottom: 1px solid var(--line);
+}
+@media (max-width: 760px) { .rb-footer-top { grid-template-columns: 1fr; gap: var(--sp-5); } }
+.rb-footer-mark { height: 32px; width: auto; display: block; }
+.rb-footer-lyric {
+  font-family: var(--font-lyric);
+  font-style: italic;
+  font-size: 18px;
+  color: var(--ink-soft);
+  max-width: 32ch;
+  margin: var(--sp-4) 0 0;
+}
+.rb-footer-col h4 {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  color: var(--ember-deep);
+  font-weight: 500;
+  margin: 0 0 var(--sp-3);
+}
+.rb-footer-col ul {
+  list-style: none; padding: 0; margin: 0;
+  display: flex; flex-direction: column; gap: var(--sp-2);
+}
+.rb-footer-col a {
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--ember);
+  text-underline-offset: 4px;
+}
+.rb-footer-col a:hover { color: var(--ember-deep); }
+.rb-footer-base {
+  display: flex; justify-content: space-between; align-items: center;
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--ink-quiet);
+  flex-wrap: wrap; gap: var(--sp-3);
+}
+.rb-footer-base a {
+  color: var(--ink-quiet);
+  text-decoration: underline;
+  text-decoration-color: var(--ember);
+  text-underline-offset: 3px;
+}
+
+/* ---------- Reduced motion ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .rb-hero-bg img { animation: none; }
+  *, *::before, *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
