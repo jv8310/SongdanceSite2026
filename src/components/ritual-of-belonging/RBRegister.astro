@@ -1,4 +1,11 @@
 ---
+const tiers = [
+  { slug: 'tier-1', label: 'Tier 1 — Private room, en-suite bathroom', price: '€833' },
+  { slug: 'tier-2', label: 'Tier 2 — Private or double room, shared bathroom', price: '€714' },
+  { slug: 'tier-3', label: 'Tier 3 — Shared common room (Ridderzaal hemelbed)', price: '€625' },
+  { slug: 'tier-4', label: 'Tier 4 — Shared bedroom (3–4 people)', price: '€595' },
+  { slug: 'tier-5', label: 'Tier 5 — Dormitory / mattress on floor', price: '€536' },
+];
 ---
 
 <section class="rb-register" id="register">
@@ -15,27 +22,82 @@
       <span>With Lesanne &amp; Jacob</span>
     </div>
     <p class="rb-register-body">
-      Spaces are intentionally limited so the circle can stay small. If
-      this calls to you, write to us and we'll send you the next steps,
-      answer any questions, and hold your place while you decide.
+      Spaces are intentionally limited so the circle can stay small.
+      Choose the room tier that calls to you. We'll hold your place,
+      take you to a secure payment page, and follow up with the
+      practical details and your specific room assignment.
     </p>
 
-    <div class="rb-register-cta-row">
-      <a
-        href="mailto:info@songdance.co?subject=Ritual%20of%20Belonging%20%E2%80%94%20Registration"
-        class="rb-btn rb-btn--ember rb-btn--lg"
-        aria-label="Email info@songdance.co to register"
-      >
-        Register now <i class="ph-light ph-arrow-right"></i>
-      </a>
-      <a
-        href="mailto:info@songdance.co"
-        class="rb-btn rb-btn--ghost rb-btn--lg"
-        aria-label="Email info@songdance.co with a question"
-      >
-        Ask a question
-      </a>
-    </div>
+    <form id="rb-reg-form" class="rb-reg-form" novalidate>
+      <input type="hidden" name="product_slug" value="ritual-of-belonging-2026" />
+
+      <label class="rb-field rb-field--full">
+        <span>Room tier</span>
+        <select name="tier_slug" required>
+          <option value="">— choose a tier —</option>
+          {tiers.map((t) => (
+            <option value={t.slug}>{t.label} · {t.price}</option>
+          ))}
+        </select>
+      </label>
+
+      <label class="rb-field">
+        <span>Your name</span>
+        <input type="text" name="name" autocomplete="name" required />
+      </label>
+
+      <label class="rb-field">
+        <span>Email</span>
+        <input type="email" name="email" autocomplete="email" required />
+      </label>
+
+      <label class="rb-field">
+        <span>Phone (optional)</span>
+        <input type="tel" name="phone" autocomplete="tel" />
+      </label>
+
+      <label class="rb-field">
+        <span>Country</span>
+        <input type="text" name="country" autocomplete="country-name" />
+      </label>
+
+      <label class="rb-field rb-field--full">
+        <span>Roommate preference (optional)</span>
+        <input type="text" name="roommate_pref" placeholder="e.g. travelling with my partner, or happy to share with anyone" />
+      </label>
+
+      <label class="rb-field rb-field--full">
+        <span>Dietary needs (optional)</span>
+        <input type="text" name="dietary" placeholder="e.g. vegan, gluten-free, no nuts" />
+      </label>
+
+      <label class="rb-field rb-field--full">
+        <span>Anything you'd like us to know (optional)</span>
+        <textarea name="notes" rows="3"></textarea>
+      </label>
+
+      <p class="rb-reg-fineprint">
+        All prices are per person, include meals and the full program, and
+        include 21% VAT. Payment is processed securely by Stripe — we
+        accept card, Bancontact, iDEAL and SEPA. You'll receive an
+        invoice from us by email automatically.
+      </p>
+
+      <div id="rb-reg-error" class="rb-reg-error" hidden></div>
+
+      <div class="rb-register-cta-row">
+        <button type="submit" class="rb-btn rb-btn--ember rb-btn--lg" id="rb-reg-submit">
+          Continue to payment <i class="ph-light ph-arrow-right"></i>
+        </button>
+        <a
+          href="mailto:info@songdance.co?subject=Ritual%20of%20Belonging%20%E2%80%94%20Question"
+          class="rb-btn rb-btn--ghost rb-btn--lg"
+          aria-label="Email info@songdance.co with a question"
+        >
+          Ask a question first
+        </a>
+      </div>
+    </form>
 
     <p class="rb-register-contact">
       Or email us directly at
@@ -43,3 +105,50 @@
     </p>
   </div>
 </section>
+
+<script>
+  const form = document.getElementById('rb-reg-form') as HTMLFormElement | null;
+  const btn = document.getElementById('rb-reg-submit') as HTMLButtonElement | null;
+  const errBox = document.getElementById('rb-reg-error') as HTMLDivElement | null;
+
+  if (form && btn && errBox) {
+    form.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      errBox.hidden = true;
+      errBox.textContent = '';
+      btn.disabled = true;
+      const original = btn.innerHTML;
+      btn.innerHTML = 'One moment…';
+
+      const data = Object.fromEntries(new FormData(form).entries());
+      try {
+        const res = await fetch('/api/registrations/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          errBox.textContent = body?.error ?? 'Something went wrong. Please try again or email us.';
+          errBox.hidden = false;
+          btn.disabled = false;
+          btn.innerHTML = original;
+          return;
+        }
+        if (body?.checkout_url) {
+          window.location.href = body.checkout_url;
+          return;
+        }
+        errBox.textContent = 'We could not start checkout. Please try again or email us.';
+        errBox.hidden = false;
+        btn.disabled = false;
+        btn.innerHTML = original;
+      } catch {
+        errBox.textContent = 'Network error. Please try again or email us.';
+        errBox.hidden = false;
+        btn.disabled = false;
+        btn.innerHTML = original;
+      }
+    });
+  }
+</script>

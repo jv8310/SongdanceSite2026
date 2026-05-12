@@ -1002,6 +1002,88 @@ html, body { background: var(--paper); }
   text-underline-offset: 4px;
 }
 
+/* ---------- Register form ---------- */
+.rb-reg-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-3) var(--sp-3);
+  max-width: 560px;
+  margin: 0 auto var(--sp-6);
+  text-align: left;
+}
+.rb-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.rb-field--full {
+  grid-column: 1 / -1;
+}
+.rb-field > span {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(244, 236, 223, 0.72);
+}
+.rb-field input,
+.rb-field select,
+.rb-field textarea {
+  font-family: var(--font-body);
+  font-size: 15px;
+  color: var(--paper);
+  background: rgba(244, 236, 223, 0.06);
+  border: 1px solid rgba(244, 236, 223, 0.22);
+  border-radius: 4px;
+  padding: 10px 12px;
+  width: 100%;
+  box-sizing: border-box;
+}
+.rb-field select {
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, rgba(244,236,223,0.6) 50%),
+                    linear-gradient(135deg, rgba(244,236,223,0.6) 50%, transparent 50%);
+  background-position: calc(100% - 18px) center, calc(100% - 12px) center;
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
+  padding-right: 32px;
+}
+.rb-field select option {
+  background: var(--ink);
+  color: var(--paper);
+}
+.rb-field input:focus,
+.rb-field select:focus,
+.rb-field textarea:focus {
+  outline: none;
+  border-color: var(--ember);
+  background: rgba(244, 236, 223, 0.1);
+}
+.rb-field textarea {
+  resize: vertical;
+  min-height: 70px;
+}
+.rb-reg-fineprint {
+  grid-column: 1 / -1;
+  font-family: var(--font-body);
+  font-size: 13px;
+  line-height: 1.6;
+  color: rgba(244, 236, 223, 0.62);
+  margin: var(--sp-2) 0 0;
+}
+.rb-reg-error {
+  grid-column: 1 / -1;
+  background: rgba(178, 34, 34, 0.18);
+  border: 1px solid rgba(255, 120, 120, 0.4);
+  color: #ffd9d9;
+  padding: 10px 12px;
+  border-radius: 4px;
+  font-size: 14px;
+}
+@media (max-width: 640px) {
+  .rb-reg-form { grid-template-columns: 1fr; }
+}
+
 /* ---------- Footer ---------- */
 .rb-footer {
   background: var(--paper-deep);

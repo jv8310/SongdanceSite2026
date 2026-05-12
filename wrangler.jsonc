@@ -9,5 +9,26 @@
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "songdance",
+      "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "vars": {
+    "PUBLIC_BASE_URL": "https://songdance.co",
+    "RESEND_FROM": "Songdance <hello@songdance.co>",
+    "QUADERNO_ACCOUNT": "songdance"
   }
+  // Secrets (set via `wrangler secret put <NAME>`):
+  //   STRIPE_SECRET_KEY
+  //   STRIPE_WEBHOOK_SECRET
+  //   STRIPE_PUBLISHABLE_KEY
+  //   QUADERNO_API_KEY
+  //   RESEND_API_KEY
+  //   ADMIN_PASSWORD
+  //   ADMIN_SESSION_SECRET   (any random 32+ char string)
 }

@@ -1,0 +1,192 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { readCookie, verifySession } from '../../lib/registrations/auth';
+
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+const authed = await verifySession(env.ADMIN_SESSION_SECRET, readCookie(Astro.request));
+if (!authed) {
+  return Astro.redirect('/admin/login');
+}
+
+const productSlug = Astro.url.searchParams.get('product') ?? 'ritual-of-belonging-2026';
+const statusFilter = Astro.url.searchParams.get('status') ?? '';
+
+const product = await env.DB.prepare(
+  'SELECT id, name, starts_at, ends_at FROM products WHERE slug = ?',
+)
+  .bind(productSlug)
+  .first<{ id: number; name: string; starts_at: string | null; ends_at: string | null }>();
+
+let rows: Array<{
+  id: number;
+  name: string;
+  email: string;
+  tier_name: string;
+  inventory_unit_name: string | null;
+  status: string;
+  amount_cents: number;
+  currency: string;
+  roommate_pref: string | null;
+  dietary: string | null;
+  created_at: string;
+  paid_at: string | null;
+}> = [];
+
+let tierSummary: Array<{ tier_name: string; capacity: number; taken: number }> = [];
+let rooms: Array<{ id: number; name: string; tier_name: string; status: string; assigned_count: number; capacity: number }> = [];
+
+if (product) {
+  const where = ['r.product_id = ?'];
+  const binds: unknown[] = [product.id];
+  if (statusFilter) {
+    where.push('r.status = ?');
+    binds.push(statusFilter);
+  }
+  const q = await env.DB.prepare(
+    `SELECT r.id, r.name, r.email, r.status, r.amount_cents, r.currency,
+            r.roommate_pref, r.dietary, r.created_at, r.paid_at,
+            t.name AS tier_name,
+            iu.name AS inventory_unit_name
+       FROM registrations r
+       JOIN tiers t ON t.id = r.tier_id
+       LEFT JOIN inventory_units iu ON iu.id = r.inventory_unit_id
+      WHERE ${where.join(' AND ')}
+      ORDER BY r.created_at DESC`,
+  )
+    .bind(...binds)
+    .all<any>();
+  rows = q.results ?? [];
+
+  const ts = await env.DB.prepare(
+    `SELECT t.name AS tier_name, t.capacity,
+            SUM(CASE WHEN r.status IN ('paid','pending') AND (r.status='paid' OR r.hold_expires_at IS NULL OR r.hold_expires_at > datetime('now')) THEN 1 ELSE 0 END) AS taken
+       FROM tiers t
+       LEFT JOIN registrations r ON r.tier_id = t.id
+      WHERE t.product_id = ?
+      GROUP BY t.id
+      ORDER BY t.sort_order`,
+  )
+    .bind(product.id)
+    .all<any>();
+  tierSummary = ts.results ?? [];
+
+  const rs = await env.DB.prepare(
+    `SELECT iu.id, iu.name, iu.capacity, iu.status,
+            t.name AS tier_name,
+            (SELECT COUNT(*) FROM registrations r WHERE r.inventory_unit_id = iu.id AND r.status IN ('paid','pending')) AS assigned_count
+       FROM inventory_units iu
+       JOIN tiers t ON t.id = iu.tier_id
+      WHERE t.product_id = ?
+      ORDER BY t.sort_order, iu.sort_order`,
+  )
+    .bind(product.id)
+    .all<any>();
+  rooms = rs.results ?? [];
+}
+
+function eur(cents: number, currency: string) {
+  return (cents / 100).toLocaleString('en-GB', { style: 'currency', currency });
+}
+---
+
+<Layout title="Admin — Registrations" description="">
+  <main style="max-width: 1200px; margin: 32px auto; padding: 0 24px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; color: #2b2519;">
+    <header style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 24px;">
+      <h1 style="font-family: Georgia, serif; font-size: 1.6rem;">{product?.name ?? 'Unknown product'}</h1>
+      <div style="display: flex; gap: 12px;">
+        <a href={`/api/admin/registrations.csv?product=${productSlug}`} style="padding: 6px 12px; border: 1px solid #c8c0b1; border-radius: 4px; text-decoration: none; color: inherit;">Export CSV</a>
+        <form method="POST" action="/api/admin/login?_method=DELETE" style="display:inline;">
+          <input type="hidden" name="_method" value="DELETE" />
+          <button type="submit" style="padding: 6px 12px; border: 1px solid #c8c0b1; border-radius: 4px; background: transparent; cursor: pointer;">Sign out</button>
+        </form>
+      </div>
+    </header>
+
+    <section style="margin-bottom: 32px;">
+      <h2 style="font-family: Georgia, serif; font-size: 1.1rem; margin-bottom: 8px;">Capacity</h2>
+      <table style="width: 100%; border-collapse: collapse;">
+        <thead>
+          <tr style="text-align: left; border-bottom: 1px solid #d0c8b7;">
+            <th style="padding: 6px 8px;">Tier</th>
+            <th style="padding: 6px 8px;">Taken</th>
+            <th style="padding: 6px 8px;">Capacity</th>
+            <th style="padding: 6px 8px;">Remaining</th>
+          </tr>
+        </thead>
+        <tbody>
+          {tierSummary.map((t) => (
+            <tr style="border-bottom: 1px solid #ede6d7;">
+              <td style="padding: 6px 8px;">{t.tier_name}</td>
+              <td style="padding: 6px 8px;">{t.taken ?? 0}</td>
+              <td style="padding: 6px 8px;">{t.capacity}</td>
+              <td style="padding: 6px 8px;">{Math.max(0, t.capacity - (t.taken ?? 0))}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
+
+    <section style="margin-bottom: 32px;">
+      <h2 style="font-family: Georgia, serif; font-size: 1.1rem; margin-bottom: 8px;">
+        Registrations
+        <span style="font-weight: normal; font-size: 0.85em; color: #6f6757;">
+          {' · '}
+          <a href={`?product=${productSlug}`}>all</a>{' '}
+          <a href={`?product=${productSlug}&status=paid`}>paid</a>{' '}
+          <a href={`?product=${productSlug}&status=pending`}>pending</a>{' '}
+          <a href={`?product=${productSlug}&status=cancelled`}>cancelled</a>
+        </span>
+      </h2>
+      <table style="width: 100%; border-collapse: collapse;">
+        <thead>
+          <tr style="text-align: left; border-bottom: 1px solid #d0c8b7;">
+            <th style="padding: 6px 8px;">Name</th>
+            <th style="padding: 6px 8px;">Email</th>
+            <th style="padding: 6px 8px;">Tier</th>
+            <th style="padding: 6px 8px;">Room</th>
+            <th style="padding: 6px 8px;">Status</th>
+            <th style="padding: 6px 8px;">Amount</th>
+            <th style="padding: 6px 8px;">Roommate pref</th>
+            <th style="padding: 6px 8px;">Diet</th>
+            <th style="padding: 6px 8px;">Created</th>
+            <th style="padding: 6px 8px;">Paid</th>
+            <th style="padding: 6px 8px;">Assign</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.length === 0 && (
+            <tr><td colspan="11" style="padding: 16px 8px; color: #6f6757;">No registrations yet.</td></tr>
+          )}
+          {rows.map((r) => (
+            <tr style="border-bottom: 1px solid #ede6d7;">
+              <td style="padding: 6px 8px;">{r.name}</td>
+              <td style="padding: 6px 8px;"><a href={`mailto:${r.email}`}>{r.email}</a></td>
+              <td style="padding: 6px 8px;">{r.tier_name}</td>
+              <td style="padding: 6px 8px;">{r.inventory_unit_name ?? '—'}</td>
+              <td style="padding: 6px 8px;">{r.status}</td>
+              <td style="padding: 6px 8px;">{eur(r.amount_cents, r.currency)}</td>
+              <td style="padding: 6px 8px;">{r.roommate_pref ?? ''}</td>
+              <td style="padding: 6px 8px;">{r.dietary ?? ''}</td>
+              <td style="padding: 6px 8px;">{r.created_at?.slice(0, 16)}</td>
+              <td style="padding: 6px 8px;">{r.paid_at?.slice(0, 16) ?? '—'}</td>
+              <td style="padding: 6px 8px;">
+                <form method="POST" action="/api/admin/assign-room" style="display: inline-flex; gap: 4px;">
+                  <input type="hidden" name="registration_id" value={r.id} />
+                  <select name="inventory_unit_id" style="padding: 2px 4px; font-size: 12px;">
+                    <option value="">— unassigned —</option>
+                    {rooms.map((room) => (
+                      <option value={room.id}>{room.name} ({room.assigned_count}/{room.capacity})</option>
+                    ))}
+                  </select>
+                  <button type="submit" style="padding: 2px 8px; font-size: 12px;">Save</button>
+                </form>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
+  </main>
+</Layout>

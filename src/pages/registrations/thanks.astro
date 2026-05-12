@@ -1,0 +1,44 @@
+---
+import Layout from '../../layouts/Layout.astro';
+
+export const prerender = false;
+
+const sessionId = Astro.url.searchParams.get('session_id');
+const env = Astro.locals.runtime.env;
+
+let reg: { name: string; status: string; product_name: string; tier_name: string } | null = null;
+if (sessionId) {
+  reg = await env.DB.prepare(
+    `SELECT r.name, r.status, p.name AS product_name, t.name AS tier_name
+       FROM registrations r
+       JOIN products p ON p.id = r.product_id
+       JOIN tiers t    ON t.id = r.tier_id
+      WHERE r.stripe_session_id = ?`,
+  )
+    .bind(sessionId)
+    .first<{ name: string; status: string; product_name: string; tier_name: string }>();
+}
+---
+
+<Layout title="Thank you — Songdance" description="Booking confirmation">
+  <main style="max-width: 640px; margin: 80px auto; padding: 0 24px; font-family: Georgia, serif; line-height: 1.6;">
+    {reg ? (
+      <>
+        <h1 style="font-size: 2rem;">Thank you, {reg.name}.</h1>
+        <p>Your place at <strong>{reg.product_name}</strong> ({reg.tier_name}) is being confirmed.</p>
+        {reg.status === 'paid' ? (
+          <p>Payment received. A confirmation email and invoice are on their way.</p>
+        ) : (
+          <p>If you've just completed payment, this page will reflect your confirmed status within a minute. You can safely close this window — we'll email you the moment it's confirmed.</p>
+        )}
+        <p style="margin-top: 32px;"><a href="/ritual-of-belonging">← back to the retreat page</a></p>
+      </>
+    ) : (
+      <>
+        <h1>Thank you.</h1>
+        <p>If you've just completed payment, we'll be in touch shortly.</p>
+        <p style="margin-top: 32px;"><a href="/ritual-of-belonging">← back to the retreat page</a></p>
+      </>
+    )}
+  </main>
+</Layout>
