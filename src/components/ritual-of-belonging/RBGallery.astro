@@ -1,0 +1,27 @@
+---
+const photos = [
+  { src: '/imagery/ritual-of-belonging/workshop-hall.jpg', alt: 'A circle gathered in the workshop hall at Château Cortils', span: 'wide' },
+  { src: '/imagery/ritual-of-belonging/piano-circle.jpg',  alt: 'A gathering around the grand piano in the salon', span: 'tall' },
+  { src: '/imagery/ritual-of-belonging/lunch-flowers.jpg', alt: 'A long lunch table set with flowers in the vaulted dining room', span: 'tall' },
+  { src: '/imagery/ritual-of-belonging/lunch-table.jpg',   alt: 'Sharing a meal at one table', span: 'wide' },
+  { src: '/imagery/ritual-of-belonging/castle-distance.jpg', alt: 'Château Cortils glimpsed through the trees', span: 'tall' },
+  { src: '/imagery/ritual-of-belonging/castle-room.jpg',  alt: 'A room inside the castle with rugs and beamed ceilings', span: 'wide' },
+];
+---
+
+<section class="rb-gallery">
+  <div class="rb-gallery-inner">
+    <div class="rb-gallery-head">
+      <div class="rb-eyebrow rb-eyebrow--center">From past retreats at the castle</div>
+      <h2 class="rb-h2">A few <em>moments</em></h2>
+    </div>
+
+    <div class="rb-gallery-grid">
+      {photos.map((p) => (
+        <figure class={`rb-gallery-cell rb-gallery-cell--${p.span}`}>
+          <img src={p.src} alt={p.alt} loading="lazy" />
+        </figure>
+      ))}
+    </div>
+  </div>
+</section>
