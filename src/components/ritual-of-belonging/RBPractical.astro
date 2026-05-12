@@ -97,15 +97,17 @@ const rooms = [
             The castle offers unique rooms across several buildings, with
             options to suit different levels of comfort and privacy.
           </p>
-          <div class="rb-rooms">
+          <ul class="rb-rooms">
             {rooms.map((r) => (
-              <div class="rb-room">
-                <h4 class="rb-room-label">{r.label}</h4>
-                <p class="rb-room-price">{r.price}</p>
-                {r.note && <p class="rb-room-note">{r.note}</p>}
-              </div>
+              <li class="rb-room-row">
+                <div class="rb-room-name">
+                  <span class="rb-room-label">{r.label}</span>
+                  {r.note && <span class="rb-room-note">{r.note}</span>}
+                </div>
+                <div class="rb-room-price">{r.price}</div>
+              </li>
             ))}
-          </div>
+          </ul>
         </div>
       </div>
     </div>

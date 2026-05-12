@@ -150,15 +150,15 @@ html, body { background: var(--paper); }
 }
 .rb-hero-bg img {
   width: 100%; height: 100%; object-fit: cover;
-  opacity: 0.55;
-  filter: saturate(0.7) contrast(1) brightness(0.9);
+  opacity: 0.88;
+  filter: saturate(0.92) contrast(0.98) brightness(1.05);
   animation: rb-breath 28s ease-in-out infinite;
 }
 .rb-hero-bg::after {
   content: ""; position: absolute; inset: 0;
   background:
-    linear-gradient(180deg, rgba(15,8,14,0.4) 0%, rgba(15,8,14,0.2) 35%, rgba(15,8,14,0.85) 100%),
-    radial-gradient(ellipse at 50% 70%, rgba(74,37,64,0.35) 0%, rgba(15,8,14,0) 60%);
+    linear-gradient(180deg, rgba(15,8,14,0.18) 0%, rgba(15,8,14,0) 30%, rgba(15,8,14,0.18) 55%, rgba(15,8,14,0.72) 100%),
+    radial-gradient(ellipse at 50% 45%, rgba(15,8,14,0) 0%, rgba(15,8,14,0.45) 90%);
 }
 @keyframes rb-breath {
   0%, 100% { transform: scale(1.0); }
@@ -199,6 +199,10 @@ html, body { background: var(--paper); }
   text-wrap: balance;
   max-width: 16ch;
   margin-left: auto; margin-right: auto;
+  text-shadow: 0 2px 24px rgba(15,8,14,0.55), 0 1px 2px rgba(15,8,14,0.4);
+}
+.rb-hero-sub, .rb-hero-when {
+  text-shadow: 0 1px 14px rgba(15,8,14,0.6);
 }
 .rb-hero-head em {
   font-family: var(--font-lyric);
@@ -271,10 +275,18 @@ html, body { background: var(--paper); }
   text-align: left;
   text-wrap: pretty;
 }
-.rb-opening-body em {
+.rb-opening-body em,
+.rb-letter-body em,
+.rb-for-list li em,
+.rb-expect-card em,
+.rb-fac-body em,
+.rb-framework-body em,
+.rb-framework-list em {
   font-family: var(--font-lyric);
   font-style: italic;
   color: var(--plum);
+  font-size: 1.12em;
+  line-height: 0.95;
 }
 
 /* ---------- Letter (Lesanne / Jacob) ---------- */
@@ -709,41 +721,106 @@ html, body { background: var(--paper); }
 }
 
 .rb-rooms {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--sp-4);
-  margin-top: var(--sp-4);
+  list-style: none;
+  padding: 0;
+  margin: var(--sp-4) 0 0;
+  border-top: 1px solid var(--line);
 }
-@media (max-width: 980px) { .rb-rooms { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 480px) { .rb-rooms { grid-template-columns: 1fr; } }
-.rb-room {
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  padding: var(--sp-4);
-  background: var(--paper-soft);
+.rb-room-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--sp-5);
+  align-items: center;
+  padding: var(--sp-4) var(--sp-2);
+  border-bottom: 1px solid var(--line);
+}
+.rb-room-name {
+  display: flex; flex-direction: column; gap: 4px;
+  min-width: 0;
 }
 .rb-room-label {
   font-family: var(--font-display);
-  font-size: 16px;
+  font-size: 18px;
   line-height: 1.25;
   color: var(--ink);
   font-weight: 500;
-  margin: 0 0 var(--sp-2);
   letter-spacing: -0.004em;
-}
-.rb-room-price {
-  font-family: var(--font-mono);
-  font-size: 13px;
-  letter-spacing: 0.05em;
-  color: var(--ember-deep);
-  margin: 0 0 var(--sp-2);
 }
 .rb-room-note {
   font-family: var(--font-body);
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: 14px;
+  line-height: 1.45;
   color: var(--ink-quiet);
+}
+.rb-room-price {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: -0.006em;
+  color: var(--ember-deep);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+@media (max-width: 480px) {
+  .rb-room-row { padding: var(--sp-4) 0; gap: var(--sp-3); }
+  .rb-room-label { font-size: 16px; }
+  .rb-room-price { font-size: 20px; }
+}
+
+/* ---------- Gallery ---------- */
+.rb-gallery {
+  background: var(--paper-soft);
+  padding: var(--sp-10) var(--sp-7);
+}
+.rb-gallery-inner {
+  max-width: var(--rb-max); margin: 0 auto;
+}
+.rb-gallery-head {
+  text-align: center;
+  margin-bottom: var(--sp-8);
+}
+.rb-gallery-head .rb-h2 { margin-left: auto; margin-right: auto; }
+.rb-gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  grid-auto-rows: 200px;
+  gap: var(--sp-3);
+}
+.rb-gallery-cell {
   margin: 0;
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  background: var(--paper-deep);
+  box-shadow: var(--shadow-1);
+  transition: transform var(--d-base) var(--ease), box-shadow var(--d-base) var(--ease);
+}
+.rb-gallery-cell:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-2);
+}
+.rb-gallery-cell img {
+  display: block;
+  width: 100%; height: 100%;
+  object-fit: cover;
+  filter: var(--rb-img-filter);
+}
+.rb-gallery-cell--wide { grid-column: span 4; grid-row: span 2; }
+.rb-gallery-cell--tall { grid-column: span 2; grid-row: span 2; }
+@media (max-width: 980px) {
+  .rb-gallery-grid {
+    grid-template-columns: repeat(4, 1fr);
+    grid-auto-rows: 180px;
+  }
+  .rb-gallery-cell--wide { grid-column: span 4; grid-row: span 1; }
+  .rb-gallery-cell--tall { grid-column: span 2; grid-row: span 1; }
+}
+@media (max-width: 560px) {
+  .rb-gallery-grid {
+    grid-template-columns: 1fr;
+    grid-auto-rows: 240px;
+  }
+  .rb-gallery-cell--wide,
+  .rb-gallery-cell--tall { grid-column: span 1; grid-row: span 1; }
 }
 
 /* ---------- Together band (joint photo above framework) ---------- */
