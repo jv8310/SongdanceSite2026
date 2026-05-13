@@ -5,30 +5,34 @@ const included = [
   "Delicious organic vegetarian meals lovingly prepared by Muriel, Jacob's mother",
   'Tea, cake, and snacks during breaks',
   'A beautiful workshop hall with panoramic views of the land',
-  'A natural pond for swimming (if you wish)',
   'Walks in the forest of the castle grounds',
 ];
 
 const rooms = [
   {
-    label: 'Private En-suite',
-    price: '€995',
-    note: 'Your own room with private bathroom — the most private option. Bedrooms in the Poorthuis or Torenverblijf, with shower, toilet, washbasin (some with a bathtub).',
+    label: 'Tier 1 — Private room, en-suite bathroom',
+    price: '€833',
+    note: 'Most private. Private 2- or 3-person bedroom in the Poorthuis or Torenverblijf with its own bathroom (shower, toilet, washbasin; some with a bathtub).',
   },
   {
-    label: 'Private Shared-bath',
-    price: '€795',
-    note: 'Your own bedroom, with the bathroom on the same floor or within the unit. Includes options with a double bed for a couple, or singles for friends.',
+    label: 'Tier 2 — Private or double room, shared bathroom',
+    price: '€714',
+    note: 'Your own bedroom (for 2 or 3 people), with a bathroom shared on the same floor or within the unit. Includes options for couples (double bed) and friends (two singles).',
   },
   {
-    label: 'Shared Bedroom',
-    price: '€695',
-    note: 'A bed in a real bedroom, shared with one or two others. Includes the option of a romantic four-poster bed in the open Knight\'s Hall of the Balkonverblijf.',
+    label: 'Tier 3 — Shared common room (Ridderzaal hemelbed)',
+    price: '€625',
+    note: 'A romantic four-poster bed (hemelbed) for two in the open "Knight\'s Hall" of the Balkonverblijf. The bed sits in a shared common space — best for adventurous couples comfortable with an open setting.',
   },
   {
-    label: 'Common Space',
+    label: 'Tier 4 — Shared bedroom (3–4 people)',
     price: '€595',
-    note: 'A bed in a beautiful open space — mezzanine, gallery or attic. Simple, cosy, and the most affordable option.',
+    note: 'Either the tower mezzanine (4 boxsprings side by side) or the Theaterkamer (2 single beds). For friends who don\'t mind sleeping in the same room.',
+  },
+  {
+    label: 'Tier 5 — Dormitory / mattress on floor',
+    price: '€536',
+    note: 'Backpacker-style: mattresses on the attic floor of the Poorthuis, or a single bed on the open vide. Simple, cosy, and the most affordable option.',
   },
 ];
 ---
@@ -61,10 +65,6 @@ const rooms = [
           <p>
             The retreat concludes after lunch on
             <strong>Sunday, 29 November 2026.</strong>
-          </p>
-          <p>
-            You may optionally stay an additional night and check out on
-            Monday morning.
           </p>
         </div>
 

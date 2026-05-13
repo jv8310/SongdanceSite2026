@@ -170,6 +170,14 @@ html, body { background: var(--paper); }
   text-align: center;
   color: var(--paper);
 }
+.rb-hero-inner::before {
+  content: "";
+  position: absolute;
+  inset: -8% -12%;
+  background: radial-gradient(ellipse 70% 65% at 50% 52%, rgba(15,8,14,0.55) 0%, rgba(15,8,14,0.28) 45%, rgba(15,8,14,0) 75%);
+  pointer-events: none;
+  z-index: -1;
+}
 .rb-hero-mark {
   width: 56px; height: 56px;
   margin: 0 auto var(--sp-6);
@@ -177,32 +185,39 @@ html, body { background: var(--paper); }
 }
 .rb-hero-eyebrow {
   font-family: var(--font-body);
-  font-size: 12px;
+  font-size: 13px;
   text-transform: uppercase;
   letter-spacing: 0.36em;
-  color: var(--ember);
-  font-weight: 500;
+  color: var(--ember-soft);
+  font-weight: 600;
   margin-bottom: var(--sp-5);
   display: flex; justify-content: center; align-items: center; gap: 14px;
+  text-shadow: 0 1px 3px rgba(15,8,14,0.95), 0 2px 12px rgba(15,8,14,0.7);
 }
 .rb-hero-eyebrow::before, .rb-hero-eyebrow::after {
   content: ""; width: 36px; height: 1px; background: var(--ember);
+  box-shadow: 0 0 6px rgba(15,8,14,0.6);
 }
 .rb-hero-head {
   font-family: var(--font-display);
   font-size: clamp(52px, 7.5vw, 116px);
   line-height: 1.0;
   letter-spacing: -0.024em;
-  font-weight: 400;
+  font-weight: 500;
   color: var(--paper);
   margin: 0 0 var(--sp-6);
   text-wrap: balance;
   max-width: 16ch;
   margin-left: auto; margin-right: auto;
-  text-shadow: 0 2px 24px rgba(15,8,14,0.55), 0 1px 2px rgba(15,8,14,0.4);
+  text-shadow:
+    0 1px 2px rgba(15,8,14,0.9),
+    0 3px 14px rgba(15,8,14,0.7),
+    0 0 36px rgba(15,8,14,0.5);
 }
 .rb-hero-sub, .rb-hero-when {
-  text-shadow: 0 1px 14px rgba(15,8,14,0.6);
+  text-shadow:
+    0 1px 2px rgba(15,8,14,0.9),
+    0 2px 12px rgba(15,8,14,0.7);
 }
 .rb-hero-head em {
   font-family: var(--font-lyric);
@@ -285,7 +300,7 @@ html, body { background: var(--paper); }
   font-family: var(--font-lyric);
   font-style: italic;
   color: var(--plum);
-  font-size: 1.12em;
+  font-size: 1.28em;
   line-height: 0.95;
 }
 
@@ -615,14 +630,25 @@ html, body { background: var(--paper); }
   flex: 1;
   text-wrap: pretty;
 }
-.rb-testimonial-by {
-  padding-top: var(--sp-3);
+.rb-testimonial-attrib {
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding-top: var(--sp-4);
   border-top: 1px solid rgba(244, 236, 223, 0.16);
+}
+.rb-testimonial-photo {
+  flex-shrink: 0;
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: rgba(244, 236, 223, 0.08);
+  filter: var(--rb-img-filter);
+}
+.rb-testimonial-by {
   font-family: var(--font-mono);
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.18em;
-  color: rgba(244, 236, 223, 0.7);
+  color: rgba(244, 236, 223, 0.78);
 }
 
 /* ---------- Practical ---------- */
@@ -1000,6 +1026,69 @@ html, body { background: var(--paper); }
   text-decoration: underline;
   text-decoration-color: var(--ember);
   text-underline-offset: 4px;
+}
+
+/* ---------- Footer ---------- */
+.rb-footer {
+  background: var(--paper-deep);
+  padding: var(--sp-9) var(--sp-7) var(--sp-6);
+  border-top: 1px solid var(--line);
+}
+.rb-footer-inner {
+  max-width: var(--rb-max); margin: 0 auto;
+  display: flex; flex-direction: column; gap: var(--sp-6);
+}
+.rb-footer-top {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr;
+  gap: var(--sp-7);
+  padding-bottom: var(--sp-6);
+  border-bottom: 1px solid var(--line);
+}
+@media (max-width: 760px) { .rb-footer-top { grid-template-columns: 1fr; gap: var(--sp-5); } }
+.rb-footer-mark { height: 32px; width: auto; display: block; }
+.rb-footer-lyric {
+  font-family: var(--font-lyric);
+  font-style: italic;
+  font-size: 18px;
+  color: var(--ink-soft);
+  max-width: 32ch;
+  margin: var(--sp-4) 0 0;
+}
+.rb-footer-col h4 {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  color: var(--ember-deep);
+  font-weight: 500;
+  margin: 0 0 var(--sp-3);
+}
+.rb-footer-col ul {
+  list-style: none; padding: 0; margin: 0;
+  display: flex; flex-direction: column; gap: var(--sp-2);
+}
+.rb-footer-col a {
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--ember);
+  text-underline-offset: 4px;
+}
+.rb-footer-col a:hover { color: var(--ember-deep); }
+.rb-footer-base {
+  display: flex; justify-content: space-between; align-items: center;
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--ink-quiet);
+  flex-wrap: wrap; gap: var(--sp-3);
+}
+.rb-footer-base a {
+  color: var(--ink-quiet);
+  text-decoration: underline;
+  text-decoration-color: var(--ember);
+  text-underline-offset: 3px;
 }
 
 /* ---------- Register form v2 (multi-step) ---------- */
@@ -1412,69 +1501,6 @@ html, body { background: var(--paper); }
   .rb-roomcard-price { grid-row: 3; grid-column: 1; margin-top: 4px; }
   .rb-roomcard-avail { grid-row: 4; grid-column: 1; }
   .rb-step-actions .rb-btn { flex: 1 1 auto; justify-content: center; }
-}
-
-/* ---------- Footer ---------- */
-.rb-footer {
-  background: var(--paper-deep);
-  padding: var(--sp-9) var(--sp-7) var(--sp-6);
-  border-top: 1px solid var(--line);
-}
-.rb-footer-inner {
-  max-width: var(--rb-max); margin: 0 auto;
-  display: flex; flex-direction: column; gap: var(--sp-6);
-}
-.rb-footer-top {
-  display: grid;
-  grid-template-columns: 1.4fr 1fr 1fr;
-  gap: var(--sp-7);
-  padding-bottom: var(--sp-6);
-  border-bottom: 1px solid var(--line);
-}
-@media (max-width: 760px) { .rb-footer-top { grid-template-columns: 1fr; gap: var(--sp-5); } }
-.rb-footer-mark { height: 32px; width: auto; display: block; }
-.rb-footer-lyric {
-  font-family: var(--font-lyric);
-  font-style: italic;
-  font-size: 18px;
-  color: var(--ink-soft);
-  max-width: 32ch;
-  margin: var(--sp-4) 0 0;
-}
-.rb-footer-col h4 {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.22em;
-  color: var(--ember-deep);
-  font-weight: 500;
-  margin: 0 0 var(--sp-3);
-}
-.rb-footer-col ul {
-  list-style: none; padding: 0; margin: 0;
-  display: flex; flex-direction: column; gap: var(--sp-2);
-}
-.rb-footer-col a {
-  font-family: var(--font-body);
-  font-size: 14px;
-  color: var(--ink);
-  text-decoration: underline;
-  text-decoration-color: var(--ember);
-  text-underline-offset: 4px;
-}
-.rb-footer-col a:hover { color: var(--ember-deep); }
-.rb-footer-base {
-  display: flex; justify-content: space-between; align-items: center;
-  font-family: var(--font-body);
-  font-size: 12px;
-  color: var(--ink-quiet);
-  flex-wrap: wrap; gap: var(--sp-3);
-}
-.rb-footer-base a {
-  color: var(--ink-quiet);
-  text-decoration: underline;
-  text-decoration-color: var(--ember);
-  text-underline-offset: 3px;
 }
 
 /* ---------- Reduced motion ---------- */
