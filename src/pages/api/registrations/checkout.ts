@@ -7,7 +7,11 @@ import {
   attachStripeSession,
   logEvent,
 } from '../../../lib/registrations/db';
-import { createCheckoutSession } from '../../../lib/registrations/stripe';
+import {
+  createCheckoutSession,
+  createCustomer,
+  stripeTaxIdTypeFor,
+} from '../../../lib/registrations/stripe';
 import { findCountry } from '../../../lib/countries';
 
 export const prerender = false;
@@ -123,9 +127,53 @@ export const POST: APIRoute = async ({ request, locals }) => {
   });
 
   const baseUrl = env.PUBLIC_BASE_URL.replace(/\/$/, '');
+
+  // For B2B with a VAT number in a country Stripe recognises (EU + GB),
+  // pre-create the Stripe Customer with tax_id_data attached. The Quaderno-
+  // Stripe integration reads tax_ids off the customer to produce the right
+  // invoice. For everyone else we just hand Stripe the email and let it
+  // create the customer itself on payment.
+  //
+  // Tax note: this retreat is a physical event in Belgium, so under EU VAT
+  // Directive Art. 53 the place-of-supply is Belgium for both B2C and B2B
+  // (no reverse-charge for event tickets). All prices are gross-inclusive
+  // of 21% Belgian VAT regardless of the buyer's country — Quaderno is
+  // configured to apply that rate when it generates the invoice.
+  let customerId: string | undefined;
+  const taxIdType = vatNumber ? stripeTaxIdTypeFor(countryCode) : null;
+  if (companyName && vatNumber && taxIdType) {
+    try {
+      const cust = await createCustomer({
+        secretKey: env.STRIPE_SECRET_KEY,
+        email,
+        name: companyName,
+        phone: phoneE164,
+        country: countryCode,
+        description: `${firstName} ${lastName} · reg ${registrationId}`,
+        tax_id: { type: taxIdType, value: vatNumber },
+        metadata: {
+          registration_id: String(registrationId),
+          contact_first_name: firstName,
+          contact_last_name: lastName,
+        },
+      });
+      customerId = cust.id;
+    } catch (err) {
+      // Don't block the registration on customer creation — log and fall
+      // back to customer_email. The VAT is still in our D1 row.
+      await logEvent(env.DB, {
+        registration_id: registrationId,
+        kind: 'stripe.customer.error',
+        payload: { error: String(err) },
+      });
+    }
+  }
+
   const session = await createCheckoutSession({
     secretKey: env.STRIPE_SECRET_KEY,
-    customer_email: email,
+    ...(customerId
+      ? { customer: customerId }
+      : { customer_email: email }),
     success_url: `${baseUrl}/registrations/thanks?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${baseUrl}/ritual-of-belonging#register`,
     line_items: [

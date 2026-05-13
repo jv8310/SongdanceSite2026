@@ -5,15 +5,15 @@ import {
   getRegistrationBySession,
   logEvent,
   markRegistrationPaid,
-  setQuadernoInvoice,
 } from '../../../lib/registrations/db';
 import { verifyStripeSignature } from '../../../lib/registrations/stripe';
-import {
-  createPaidInvoice,
-  sendInvoiceByEmail,
-  upsertContact,
-} from '../../../lib/registrations/quaderno';
 import { recordEvent, upsertSubscriber } from '../../../lib/registrations/drip';
+
+// Invoicing note: Quaderno is connected to Stripe via Quaderno's own Stripe
+// integration, so invoices are created automatically by Quaderno when a
+// Stripe payment completes (reading the Stripe customer's tax_id for B2B,
+// and applying the configured 21% Belgian VAT for this physical event).
+// We therefore do not call the Quaderno API from this webhook.
 
 export const prerender = false;
 
@@ -68,55 +68,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     if (reg.status !== 'paid' && session.payment_intent) {
       await markRegistrationPaid(env.DB, reg.id, session.payment_intent);
-    }
-
-    // Quaderno invoice (best-effort — failures don't break the flow).
-    try {
-      const contactId = await upsertContact(
-        { apiKey: env.QUADERNO_API_KEY, account: env.QUADERNO_ACCOUNT },
-        {
-          name: session.customer_details?.name ?? reg.name,
-          email: session.customer_details?.email ?? reg.email,
-          country: session.customer_details?.address?.country ?? reg.country,
-        },
-      );
-      const invoice = await createPaidInvoice(
-        { apiKey: env.QUADERNO_API_KEY, account: env.QUADERNO_ACCOUNT },
-        {
-          contact_id: contactId,
-          currency: reg.currency,
-          po_number: `REG-${reg.id}`,
-          items: [
-            {
-              description: `Registration #${reg.id}`,
-              unit_price: reg.amount_cents / 100,
-              quantity: 1,
-            },
-          ],
-          payment_method: 'credit_card',
-          paid_at: new Date().toISOString(),
-          notes: `Stripe session ${session.id}`,
-        },
-      );
-      await setQuadernoInvoice(env.DB, reg.id, invoice.id);
-      await sendInvoiceByEmail(
-        { apiKey: env.QUADERNO_API_KEY, account: env.QUADERNO_ACCOUNT },
-        invoice.id,
-      );
-      await logEvent(env.DB, {
-        registration_id: reg.id,
-        kind: 'quaderno.invoice.created',
-        source: 'system',
-        external_id: `quaderno-${invoice.id}`,
-        payload: { invoice_id: invoice.id, permalink: invoice.permalink },
-      });
-    } catch (err) {
-      await logEvent(env.DB, {
-        registration_id: reg.id,
-        kind: 'quaderno.invoice.error',
-        source: 'system',
-        payload: { error: String(err) },
-      });
     }
 
     // Push to Drip: upsert subscriber + fire the registration event so the

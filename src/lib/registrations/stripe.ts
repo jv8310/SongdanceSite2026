@@ -10,7 +10,11 @@ type StripeLineItem = {
 
 export type CreateCheckoutSessionInput = {
   secretKey: string;
-  customer_email: string;
+  // Use either a pre-created Customer id (preferred when we attached a
+  // tax_id_data for B2B) or just the email (Stripe will create a Customer
+  // itself on completion).
+  customer?: string;
+  customer_email?: string;
   success_url: string;
   cancel_url: string;
   line_items: StripeLineItem[];
@@ -18,17 +22,101 @@ export type CreateCheckoutSessionInput = {
   idempotency_key?: string;
 };
 
+export type CreateCustomerInput = {
+  secretKey: string;
+  email: string;
+  name?: string;
+  phone?: string;
+  // ISO-2 country of the customer (used by Stripe for tax/method filtering).
+  country?: string;
+  // Free-text descriptor — appears on the Stripe dashboard.
+  description?: string;
+  tax_id?: {
+    // Stripe's tax_id types — see https://stripe.com/docs/api/customer_tax_ids
+    type: 'eu_vat' | 'gb_vat';
+    value: string;
+  };
+  metadata?: Record<string, string>;
+};
+
+// Create a Stripe Customer ahead of the Checkout session so that B2B VAT
+// numbers can be attached server-side (via tax_id_data). The Quaderno-Stripe
+// integration reads these tax_ids off the Stripe customer to produce the
+// invoice with the right "reverse-charge / customer VAT" treatment.
+// Note: tax_id_data is a free Stripe feature — it does NOT require Stripe Tax.
+export async function createCustomer(input: CreateCustomerInput): Promise<{ id: string }> {
+  const form = new URLSearchParams();
+  form.set('email', input.email);
+  if (input.name) form.set('name', input.name);
+  if (input.phone) form.set('phone', input.phone);
+  if (input.country) form.set('address[country]', input.country);
+  if (input.description) form.set('description', input.description);
+  if (input.tax_id) {
+    form.set('tax_id_data[0][type]', input.tax_id.type);
+    form.set('tax_id_data[0][value]', input.tax_id.value);
+  }
+  if (input.metadata) {
+    Object.entries(input.metadata).forEach(([k, v]) =>
+      form.set(`metadata[${k}]`, v),
+    );
+  }
+
+  const res = await fetch(`${STRIPE_BASE}/customers`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${input.secretKey}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: form,
+  });
+  const body = (await res.json()) as
+    | { id: string }
+    | { error: { message: string } };
+  if (!res.ok || 'error' in body) {
+    const msg = 'error' in body ? body.error.message : 'Stripe error';
+    throw new Error(`Stripe customers: ${msg}`);
+  }
+  return body;
+}
+
+// Map an ISO-2 country code to the Stripe tax_id type appropriate for a VAT
+// number registered there. Returns null for countries Stripe doesn't have a
+// recognised "VAT-style" type for — in that case we still store the value in
+// our own DB but don't push it to Stripe.
+const EU_VAT_COUNTRIES = new Set([
+  'AT','BE','BG','CY','CZ','DE','DK','EE','ES','FI','FR','GR','HR','HU',
+  'IE','IT','LT','LU','LV','MT','NL','PL','PT','RO','SE','SI','SK',
+]);
+export function stripeTaxIdTypeFor(
+  country: string,
+): 'eu_vat' | 'gb_vat' | null {
+  const c = country.toUpperCase();
+  if (EU_VAT_COUNTRIES.has(c)) return 'eu_vat';
+  if (c === 'GB') return 'gb_vat';
+  return null;
+}
+
 export async function createCheckoutSession(input: CreateCheckoutSessionInput) {
+  if (!input.customer && !input.customer_email) {
+    throw new Error('createCheckoutSession: provide customer or customer_email');
+  }
   const form = new URLSearchParams();
   form.set('mode', 'payment');
   form.set('success_url', input.success_url);
   form.set('cancel_url', input.cancel_url);
-  form.set('customer_email', input.customer_email);
+  if (input.customer) {
+    form.set('customer', input.customer);
+    // Stripe needs to know which fields it may overwrite on our customer when
+    // the buyer edits them on Checkout. Address is the one we care about.
+    form.set('customer_update[address]', 'auto');
+  } else if (input.customer_email) {
+    form.set('customer_email', input.customer_email);
+  }
   form.set('payment_intent_data[capture_method]', 'automatic');
   form.set('billing_address_collection', 'required');
-  // Collect VAT/Tax ID on Stripe's page too — Stripe filters which countries
-  // get prompted automatically. Lets B2B customers correct what we captured.
-  form.set('tax_id_collection[enabled]', 'true');
+  // We intentionally do NOT set tax_id_collection — we collect the VAT
+  // number on our own form (and attach it to the Customer above for B2B),
+  // so we don't make the buyer re-type it on Stripe.
   // Common EU payment methods. Stripe filters by what's enabled on the account
   // and by the billing country — so Bancontact only appears for BE addresses,
   // iDEAL only for NL addresses, etc.
