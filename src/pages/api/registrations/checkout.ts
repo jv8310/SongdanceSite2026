@@ -128,11 +128,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
   const baseUrl = env.PUBLIC_BASE_URL.replace(/\/$/, '');
 
-  // For B2B with a VAT number in a country Stripe recognises (EU + GB),
-  // pre-create the Stripe Customer with tax_id_data attached. The Quaderno-
-  // Stripe integration reads tax_ids off the customer to produce the right
-  // invoice. For everyone else we just hand Stripe the email and let it
-  // create the customer itself on payment.
+  // Always pre-create a Stripe Customer with everything we already know so
+  // Stripe Checkout pre-fills email, name and country (and for B2B also
+  // attaches the VAT number as a tax_id). The Quaderno-Stripe integration
+  // reads these fields off the customer to produce the right invoice.
   //
   // Tax note: this retreat is a physical event in Belgium, so under EU VAT
   // Directive Art. 53 the place-of-supply is Belgium for both B2C and B2B
@@ -141,32 +140,41 @@ export const POST: APIRoute = async ({ request, locals }) => {
   // configured to apply that rate when it generates the invoice.
   let customerId: string | undefined;
   const taxIdType = vatNumber ? stripeTaxIdTypeFor(countryCode) : null;
-  if (companyName && vatNumber && taxIdType) {
-    try {
-      const cust = await createCustomer({
-        secretKey: env.STRIPE_SECRET_KEY,
-        email,
-        name: companyName,
-        phone: phoneE164,
-        country: countryCode,
-        description: `${firstName} ${lastName} · reg ${registrationId}`,
-        tax_id: { type: taxIdType, value: vatNumber },
-        metadata: {
-          registration_id: String(registrationId),
-          contact_first_name: firstName,
-          contact_last_name: lastName,
-        },
-      });
-      customerId = cust.id;
-    } catch (err) {
-      // Don't block the registration on customer creation — log and fall
-      // back to customer_email. The VAT is still in our D1 row.
-      await logEvent(env.DB, {
-        registration_id: registrationId,
-        kind: 'stripe.customer.error',
-        payload: { error: String(err) },
-      });
-    }
+  try {
+    // For B2B, the billing name should be the company; for B2C it's the
+    // person. Either way, country is set so Checkout filters payment
+    // methods (Bancontact for BE, iDEAL for NL, etc.) without the buyer
+    // needing to pick a country first.
+    const billingName = companyName || `${firstName} ${lastName}`;
+    const cust = await createCustomer({
+      secretKey: env.STRIPE_SECRET_KEY,
+      email,
+      name: billingName,
+      phone: phoneE164,
+      country: countryCode,
+      description: companyName
+        ? `${companyName} · ${firstName} ${lastName} · reg ${registrationId}`
+        : `${firstName} ${lastName} · reg ${registrationId}`,
+      tax_id:
+        companyName && vatNumber && taxIdType
+          ? { type: taxIdType, value: vatNumber }
+          : undefined,
+      metadata: {
+        registration_id: String(registrationId),
+        contact_first_name: firstName,
+        contact_last_name: lastName,
+        ...(companyName ? { company_name: companyName } : {}),
+      },
+    });
+    customerId = cust.id;
+  } catch (err) {
+    // Don't block the registration on customer creation — log and fall
+    // back to customer_email. The VAT (if any) is still in our D1 row.
+    await logEvent(env.DB, {
+      registration_id: registrationId,
+      kind: 'stripe.customer.error',
+      payload: { error: String(err) },
+    });
   }
 
   const session = await createCheckoutSession({
