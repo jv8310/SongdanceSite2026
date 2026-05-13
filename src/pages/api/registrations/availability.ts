@@ -1,8 +1,7 @@
 import type { APIRoute } from 'astro';
 import {
   getProductBySlug,
-  getTiersForProduct,
-  getTierAvailability,
+  computeTierAvailability,
 } from '../../../lib/registrations/db';
 
 export const prerender = false;
@@ -10,9 +9,10 @@ export const prerender = false;
 // GET /api/registrations/availability?product=ritual-of-belonging-2026
 // → { tiers: [{ slug, name, price_cents, remaining, capacity }, ...] }
 //
-// Returns the remaining-bed count per active tier so the on-page
-// registration form can show a "X spots left" nudge when a room
-// type drops to a low remaining count.
+// Per-tier remaining counts are computed from the room model so the
+// cross-tier coupling on multi-mode rooms is reflected live: e.g. a
+// Private En-suite booking on Room 1.2 removes its 3 beds from
+// Shared Bedroom availability automatically.
 export const GET: APIRoute = async ({ url, locals }) => {
   const env = locals.runtime.env;
   const productSlug = url.searchParams.get('product');
@@ -25,25 +25,19 @@ export const GET: APIRoute = async ({ url, locals }) => {
     return json({ error: 'Unknown product' }, 404);
   }
 
-  const tiers = await getTiersForProduct(env.DB, product.id);
-  const out = await Promise.all(
-    tiers.map(async (t) => {
-      const av = await getTierAvailability(env.DB, t.id);
-      return {
-        slug: t.slug,
-        name: t.name,
-        price_cents: t.price_cents,
-        remaining: av.remaining,
-        capacity: av.capacity,
-      };
-    }),
-  );
+  const availability = await computeTierAvailability(env.DB, product.id);
+  const tiers = availability.map(({ tier, remaining, capacity }) => ({
+    slug: tier.slug,
+    name: tier.name,
+    price_cents: tier.price_cents,
+    remaining,
+    capacity,
+  }));
 
-  return new Response(JSON.stringify({ tiers: out }), {
+  return new Response(JSON.stringify({ tiers }), {
     status: 200,
     headers: {
       'Content-Type': 'application/json',
-      // Always fresh — capacity changes with each registration.
       'Cache-Control': 'no-store',
     },
   });

@@ -2,10 +2,10 @@ import type { APIRoute } from 'astro';
 import {
   getProductBySlug,
   getTierBySlug,
-  getTierAvailability,
   createPendingRegistration,
   attachStripeSession,
   logEvent,
+  pickRoomForTier,
 } from '../../../lib/registrations/db';
 import {
   createCheckoutSession,
@@ -92,8 +92,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const tier = await getTierBySlug(env.DB, product.id, tierSlug);
   if (!tier) return json({ error: 'Unknown tier' }, 404);
 
-  const avail = await getTierAvailability(env.DB, tier.id);
-  if (avail.remaining <= 0) {
+  // Pick the room before recording the registration. This uses the
+  // smart "preserve solo, fill shared rooms first" algorithm in
+  // pickRoomForTier — see db.ts for the priority ladder.
+  const room = await pickRoomForTier(env.DB, product.id, tierSlug);
+  if (!room) {
     return json(
       { error: 'This room option is fully booked. Please choose another, or email info@songdance.co to join the waitlist.' },
       409,
@@ -108,6 +111,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const registrationId = await createPendingRegistration(env.DB, {
     product_id: product.id,
     tier_id: tier.id,
+    inventory_unit_id: room.id,
     first_name: firstName,
     last_name: lastName,
     email,
@@ -212,7 +216,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
     registration_id: registrationId,
     kind: 'checkout.session.created',
     external_id: `local-checkout-${registrationId}`,
-    payload: { session_id: session.id, tier: tier.slug },
+    payload: {
+      session_id: session.id,
+      tier: tier.slug,
+      auto_assigned_room: room.name,
+      auto_assigned_room_id: room.id,
+    },
   });
 
   return json({ checkout_url: session.url, registration_id: registrationId });
