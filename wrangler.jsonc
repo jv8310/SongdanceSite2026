@@ -14,7 +14,7 @@
     {
       "binding": "DB",
       "database_name": "songdance",
-      "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+      "database_id": "4814ca11-9a75-4feb-8500-533149242bca",
       "migrations_dir": "migrations"
     }
   ],
