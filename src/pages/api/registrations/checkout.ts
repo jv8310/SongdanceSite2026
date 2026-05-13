@@ -98,10 +98,30 @@ export const POST: APIRoute = async ({ request, locals }) => {
   }
 
   const product = await getProductBySlug(env.DB, productSlug);
-  if (!product) return json({ error: 'Unknown product' }, 404);
+  if (!product) {
+    await logEvent(env.DB, {
+      registration_id: null,
+      kind: 'checkout.product.unknown',
+      payload: { product_slug: productSlug },
+    });
+    return json(
+      { error: 'This retreat isn\'t available right now. Please refresh the page, or email info@songdance.co.' },
+      404,
+    );
+  }
 
   const tier = await getTierBySlug(env.DB, product.id, tierSlug);
-  if (!tier) return json({ error: 'Unknown tier' }, 404);
+  if (!tier) {
+    await logEvent(env.DB, {
+      registration_id: null,
+      kind: 'checkout.tier.unknown',
+      payload: { tier_slug: tierSlug, product_slug: productSlug },
+    });
+    return json(
+      { error: 'This room option isn\'t available right now. Please refresh the page and try again, or email info@songdance.co.' },
+      404,
+    );
+  }
 
   // Validate the opt-in role (fire keeper / cook help) against the chosen
   // tier. These rooms (Paviljoen, Room 5.2) are status='reserved' and

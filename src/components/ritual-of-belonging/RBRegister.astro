@@ -114,7 +114,7 @@ const roomTypes = [
             <select name="country" required>
               <option value="">— select —</option>
               {COUNTRIES.map((c) => (
-                <option value={c.code}>{c.flag} {c.name}</option>
+                <option value={c.code}>{c.name} {c.flag}</option>
               ))}
             </select>
           </label>
@@ -125,7 +125,7 @@ const roomTypes = [
               <select name="phone_country" aria-label="Phone country code" required>
                 <option value="">—</option>
                 {COUNTRIES.map((c) => (
-                  <option value={c.code} data-dial={c.dial}>{c.flag} +{c.dial}</option>
+                  <option value={c.code} data-dial={c.dial}>{c.name} +{c.dial} {c.flag}</option>
                 ))}
               </select>
               <input type="tel" name="phone" autocomplete="tel-national" inputmode="tel" placeholder="470 12 34 56" required />
@@ -176,7 +176,7 @@ const roomTypes = [
         <div class="rb-grid">
           <label class="rb-field rb-field--full">
             <span>Dietary notes <em class="rb-optional">(gluten, dairy, allergies…)</em></span>
-            <input type="text" name="dietary" placeholder="e.g. vegan, gluten-free, no nuts" />
+            <input type="text" name="dietary" placeholder="e.g. gluten-free, no nuts" />
           </label>
 
           <label class="rb-field rb-field--full">
@@ -321,6 +321,44 @@ const roomTypes = [
     const COOK_HELP_DISCOUNT = 0.30;
     const FIRE_KEEPER_TIERS = new Set(['common-space']);
     const COOK_HELP_TIERS = new Set(['common-space', 'shared-bedroom']);
+
+    // ─── Geo-locate: pre-fill Country + Phone country on first load ───
+    // Cloudflare attaches the visitor's country to every request; the
+    // /api/geo endpoint surfaces it. We only pre-select when the user
+    // hasn't already chosen something, and only if the detected country
+    // is in our list of options.
+    const countrySelect = form.querySelector(
+      'select[name="country"]',
+    ) as HTMLSelectElement;
+    const phoneCountrySelect = form.querySelector(
+      'select[name="phone_country"]',
+    ) as HTMLSelectElement;
+    fetch('/api/geo', { headers: { Accept: 'application/json' } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        const detected = data?.country as string | undefined;
+        if (!detected) return;
+        const hasOption = (sel: HTMLSelectElement, code: string) =>
+          !!sel.querySelector(`option[value="${code}"]`);
+        if (
+          countrySelect &&
+          !countrySelect.value &&
+          hasOption(countrySelect, detected)
+        ) {
+          countrySelect.value = detected;
+        }
+        if (
+          phoneCountrySelect &&
+          !phoneCountrySelect.value &&
+          hasOption(phoneCountrySelect, detected)
+        ) {
+          phoneCountrySelect.value = detected;
+        }
+      })
+      .catch(() => {
+        // Local dev or any network issue — fail silent; the user can
+        // still pick manually.
+      });
 
     function currentTier() {
       const slug = tierSlug.value;

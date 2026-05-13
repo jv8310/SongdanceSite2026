@@ -1395,13 +1395,21 @@ html, body { background: var(--paper); }
   min-height: 70px;
 }
 
-/* Phone field — country selector + local number side by side */
+/* Phone field — country selector + local number side by side. The
+   selector is wide enough to show the option text "Belgium +32 🇧🇪"
+   in the closed state (the country name lives first so native
+   typeahead matches when you type the name). */
 .rb-phone {
   display: grid;
-  grid-template-columns: 7em 1fr;
+  grid-template-columns: minmax(11em, 14em) 1fr;
   gap: 6px;
 }
-.rb-phone select { padding-right: 24px; }
+.rb-phone select {
+  padding-right: 24px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+}
 
 /* Special opt-in roles (fire keeper, cook help) on step 3 */
 .rb-specials {
@@ -1588,7 +1596,7 @@ html, body { background: var(--paper); }
 
 @media (max-width: 640px) {
   .rb-grid { grid-template-columns: 1fr; }
-  .rb-phone { grid-template-columns: 6.5em 1fr; }
+  .rb-phone { grid-template-columns: minmax(8.5em, 1fr) 1fr; }
   .rb-stepper { gap: 10px; }
   .rb-step-recap { display: flex; }
   .rb-roomcard { grid-template-columns: 1fr; }
