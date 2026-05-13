@@ -7,34 +7,6 @@ const included = [
   'A beautiful workshop hall with panoramic views of the land',
   'Walks in the forest of the castle grounds',
 ];
-
-const rooms = [
-  {
-    label: 'Tier 1 — Private room, en-suite bathroom',
-    price: '€833',
-    note: 'Most private. Private 2- or 3-person bedroom in the Poorthuis or Torenverblijf with its own bathroom (shower, toilet, washbasin; some with a bathtub).',
-  },
-  {
-    label: 'Tier 2 — Private or double room, shared bathroom',
-    price: '€714',
-    note: 'Your own bedroom (for 2 or 3 people), with a bathroom shared on the same floor or within the unit. Includes options for couples (double bed) and friends (two singles).',
-  },
-  {
-    label: 'Tier 3 — Shared common room (Ridderzaal hemelbed)',
-    price: '€625',
-    note: 'A romantic four-poster bed (hemelbed) for two in the open "Knight\'s Hall" of the Balkonverblijf. The bed sits in a shared common space — best for adventurous couples comfortable with an open setting.',
-  },
-  {
-    label: 'Tier 4 — Shared bedroom (3–4 people)',
-    price: '€595',
-    note: 'Either the tower mezzanine (4 boxsprings side by side) or the Theaterkamer (2 single beds). For friends who don\'t mind sleeping in the same room.',
-  },
-  {
-    label: 'Tier 5 — Dormitory / mattress on floor',
-    price: '€536',
-    note: 'Backpacker-style: mattresses on the attic floor of the Poorthuis, or a single bed on the open vide. Simple, cosy, and the most affordable option.',
-  },
-];
 ---
 
 <section class="rb-practical" id="practical">
@@ -107,27 +79,6 @@ const rooms = [
           </ul>
         </div>
 
-        <div class="rb-practical-block">
-          <h3>Room options</h3>
-          <p>
-            The castle offers unique rooms across several buildings, with
-            options to suit different levels of comfort and privacy. All
-            prices are per person, include meals and the full program, and
-            are inclusive of 21% VAT. Specific rooms are assigned in the
-            order registrations come in.
-          </p>
-          <ul class="rb-rooms">
-            {rooms.map((r) => (
-              <li class="rb-room-row">
-                <div class="rb-room-name">
-                  <span class="rb-room-label">{r.label}</span>
-                  {r.note && <span class="rb-room-note">{r.note}</span>}
-                </div>
-                <div class="rb-room-price">{r.price}</div>
-              </li>
-            ))}
-          </ul>
-        </div>
       </div>
     </div>
 
