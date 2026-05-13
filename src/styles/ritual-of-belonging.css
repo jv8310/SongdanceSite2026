@@ -300,7 +300,7 @@ html, body { background: var(--paper); }
   font-family: var(--font-lyric);
   font-style: italic;
   color: var(--plum);
-  font-size: 1.12em;
+  font-size: 1.28em;
   line-height: 0.95;
 }
 
