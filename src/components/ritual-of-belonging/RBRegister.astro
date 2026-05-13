@@ -125,7 +125,7 @@ const roomTypes = [
               <select name="phone_country" aria-label="Phone country code" required>
                 <option value="">—</option>
                 {COUNTRIES.map((c) => (
-                  <option value={c.code} data-dial={c.dial}>{c.name} +{c.dial} {c.flag}</option>
+                  <option value={c.code} data-dial={c.dial}>{c.code} {c.flag} +{c.dial}</option>
                 ))}
               </select>
               <input type="tel" name="phone" autocomplete="tel-national" inputmode="tel" placeholder="470 12 34 56" required />
@@ -189,7 +189,7 @@ const roomTypes = [
             <span class="rb-special-body">
               <span class="rb-special-heading">Be the fire keeper</span>
               <span class="rb-special-desc">
-                Sleep by yourself in the <em>Paviljoen</em> — a room
+                Sleep by yourself in the <em>Pavilion</em> — a room
                 upgrade to your own private bed and bathroom. Once the
                 evening workshop ends, the working space is yours; you
                 keep the fire going through the night and into the
@@ -229,16 +229,6 @@ const roomTypes = [
               <a href="https://www.songdance.co/terms" target="_blank" rel="noopener">Songdance terms and conditions</a>.
             </span>
           </label>
-        </div>
-
-        <div class="rb-pay-note">
-          <p>
-            On the next page you'll choose how to pay — card, Bancontact
-            (Belgium), iDEAL (Netherlands), SEPA, or Sofort. Payment is
-            processed securely by Stripe. We'll send your invoice by
-            email automatically; if you registered as a company, your
-            VAT number will already be on it.
-          </p>
         </div>
 
         <div id="rb-reg-error" class="rb-reg-error" hidden></div>
@@ -402,7 +392,7 @@ const roomTypes = [
         const discounted = cur.price * (1 - COOK_HELP_DISCOUNT);
         text = `${cur.label} · ${fmtEur(discounted)} (was ${fmtEur(cur.price)}, with kitchen help)`;
       } else if (fireKeeperCheckbox.checked) {
-        text = `${cur.label} · ${fmtEur(cur.price)} · fire keeper (Paviljoen)`;
+        text = `${cur.label} · ${fmtEur(cur.price)} · fire keeper (Pavilion)`;
       } else {
         text = `${cur.label} · ${fmtEur(cur.price)}`;
       }

@@ -273,7 +273,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       {
         name:
           role === 'fire_keeper'
-            ? `${product.name} — ${tier.name} (fire keeper, Paviljoen)`
+            ? `${product.name} — ${tier.name} (fire keeper, Pavilion)`
             : role === 'cook_help'
               ? `${product.name} — ${tier.name} (with kitchen help, 30% off)`
               : `${product.name} — ${tier.name}`,
