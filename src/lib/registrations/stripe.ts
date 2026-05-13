@@ -19,6 +19,11 @@ export type CreateCheckoutSessionInput = {
   cancel_url: string;
   line_items: StripeLineItem[];
   metadata: Record<string, string>;
+  // Description copied onto the underlying PaymentIntent / Charge. Read
+  // by the Quaderno-Stripe sync as the invoice line item name (otherwise
+  // Quaderno falls back to its configured default, which is the merchant
+  // name "SONGDANCE").
+  payment_intent_description?: string;
   idempotency_key?: string;
 };
 
@@ -113,6 +118,12 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput) {
     form.set('customer_email', input.customer_email);
   }
   form.set('payment_intent_data[capture_method]', 'automatic');
+  if (input.payment_intent_description) {
+    form.set(
+      'payment_intent_data[description]',
+      input.payment_intent_description,
+    );
+  }
   form.set('billing_address_collection', 'required');
   // We intentionally do NOT set tax_id_collection — we collect the VAT
   // number on our own form (and attach it to the Customer above for B2B),

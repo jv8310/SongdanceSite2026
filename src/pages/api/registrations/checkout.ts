@@ -262,6 +262,16 @@ export const POST: APIRoute = async ({ request, locals }) => {
     });
   }
 
+  // Build the line item name once and reuse it as the PaymentIntent
+  // description, so the Quaderno-Stripe sync picks it up as the invoice
+  // line item name (instead of falling back to the merchant name).
+  const lineItemName =
+    role === 'fire_keeper'
+      ? `${product.name} — ${tier.name} (fire keeper, Pavilion)`
+      : role === 'cook_help'
+        ? `${product.name} — ${tier.name} (with kitchen help, 30% off)`
+        : `${product.name} — ${tier.name}`;
+
   const session = await createCheckoutSession({
     secretKey: env.STRIPE_SECRET_KEY,
     ...(customerId
@@ -269,14 +279,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
       : { customer_email: email }),
     success_url: `${baseUrl}/registrations/thanks?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${baseUrl}/ritual-of-belonging#register`,
+    payment_intent_description: lineItemName,
     line_items: [
       {
-        name:
-          role === 'fire_keeper'
-            ? `${product.name} — ${tier.name} (fire keeper, Pavilion)`
-            : role === 'cook_help'
-              ? `${product.name} — ${tier.name} (with kitchen help, 30% off)`
-              : `${product.name} — ${tier.name}`,
+        name: lineItemName,
         description: tier.description ?? undefined,
         amount_cents: amountCents,
         currency: product.currency.toLowerCase(),
