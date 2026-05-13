@@ -13,6 +13,7 @@ CREATE TABLE products (
   vat_rate      REAL NOT NULL DEFAULT 0.21,
   starts_at     TEXT,
   ends_at       TEXT,
+  drip_tag      TEXT,
   active        INTEGER NOT NULL DEFAULT 1,
   created_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );

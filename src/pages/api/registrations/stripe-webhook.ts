@@ -123,10 +123,16 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // confirmation email (and any follow-up sequence) is sent from Drip.
     try {
       const product = await env.DB.prepare(
-        'SELECT name, slug, starts_at, ends_at FROM products WHERE id = ?',
+        'SELECT name, slug, starts_at, ends_at, drip_tag FROM products WHERE id = ?',
       )
         .bind(reg.product_id)
-        .first<{ name: string; slug: string; starts_at: string | null; ends_at: string | null }>();
+        .first<{
+          name: string;
+          slug: string;
+          starts_at: string | null;
+          ends_at: string | null;
+          drip_tag: string | null;
+        }>();
       const tier = await env.DB.prepare('SELECT name, slug FROM tiers WHERE id = ?')
         .bind(reg.tier_id)
         .first<{ name: string; slug: string }>();
@@ -135,6 +141,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
         apiToken: env.DRIP_API_TOKEN,
         accountId: env.DRIP_ACCOUNT_ID,
       };
+
+      const tags: string[] = [];
+      if (product) tags.push(`product:${product.slug}`);
+      if (product?.drip_tag) tags.push(product.drip_tag);
 
       await upsertSubscriber(dripCfg, {
         email: reg.email,
@@ -146,7 +156,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
           last_tier: tier?.slug ?? '',
           last_amount_eur: (reg.amount_cents / 100).toFixed(2),
         },
-        tags: product ? [`product:${product.slug}`] : undefined,
+        tags: tags.length ? tags : undefined,
       });
 
       await recordEvent(

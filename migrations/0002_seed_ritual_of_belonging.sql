@@ -1,7 +1,7 @@
 -- Seed: Ritual of Belonging retreat, 27-29 November 2026 at Château Cortils.
 -- Source of truth for prices/rooms: Retreat_Rooms_Registrations.md.
 
-INSERT INTO products (slug, type, name, description, currency, vat_rate, starts_at, ends_at)
+INSERT INTO products (slug, type, name, description, currency, vat_rate, starts_at, ends_at, drip_tag)
 VALUES (
   'ritual-of-belonging-2026',
   'retreat',
@@ -10,7 +10,8 @@ VALUES (
   'EUR',
   0.21,
   '2026-11-27',
-  '2026-11-29'
+  '2026-11-29',
+  'ev_2026-11_Ritual'
 );
 
 -- Tier 1 — Private room + en-suite bathroom · €833

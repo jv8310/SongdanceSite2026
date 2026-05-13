@@ -8,6 +8,7 @@ export type Product = {
   vat_rate: number;
   starts_at: string | null;
   ends_at: string | null;
+  drip_tag: string | null;
   active: number;
 };
 
