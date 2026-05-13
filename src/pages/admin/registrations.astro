@@ -298,6 +298,12 @@ function capacityTone(remaining: number): 'full' | 'low' | 'open' {
                     <button type="submit" class="adm-btn adm-btn--solid">Mark paid + Drip</button>
                   </form>
                 )}
+
+                <form method="POST" action="/api/admin/delete-registration" class="adm-reg-delete"
+                      onsubmit={`return confirm('Permanently delete registration #${r.id} (${r.name}, ${r.email})? This cannot be undone.')`}>
+                  <input type="hidden" name="registration_id" value={r.id} />
+                  <button type="submit" class="adm-btn adm-btn--danger">Delete</button>
+                </form>
               </div>
             </article>
           );
@@ -394,6 +400,14 @@ function capacityTone(remaining: number): 'full' | 'low' | 'open' {
       border-color: var(--adm-ember-deep);
     }
     .adm-btn--solid:hover { background: var(--adm-ember-deep); }
+    .adm-btn--danger {
+      background: transparent; color: var(--adm-danger);
+      border-color: rgba(181, 61, 61, 0.35);
+    }
+    .adm-btn--danger:hover {
+      background: rgba(181, 61, 61, 0.10);
+      border-color: var(--adm-danger);
+    }
 
     .adm-section { margin-bottom: 36px; }
     .adm-section h2 {
