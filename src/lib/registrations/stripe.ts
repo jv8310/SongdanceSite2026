@@ -26,7 +26,12 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput) {
   form.set('customer_email', input.customer_email);
   form.set('payment_intent_data[capture_method]', 'automatic');
   form.set('billing_address_collection', 'required');
-  // Common EU payment methods. Stripe filters by what's enabled on the account.
+  // Collect VAT/Tax ID on Stripe's page too — Stripe filters which countries
+  // get prompted automatically. Lets B2B customers correct what we captured.
+  form.set('tax_id_collection[enabled]', 'true');
+  // Common EU payment methods. Stripe filters by what's enabled on the account
+  // and by the billing country — so Bancontact only appears for BE addresses,
+  // iDEAL only for NL addresses, etc.
   ['card', 'bancontact', 'ideal', 'sepa_debit', 'sofort'].forEach((m, i) =>
     form.set(`payment_method_types[${i}]`, m),
   );

@@ -1002,29 +1002,230 @@ html, body { background: var(--paper); }
   text-underline-offset: 4px;
 }
 
-/* ---------- Register form ---------- */
-.rb-reg-form {
+/* ---------- Register form v2 (multi-step) ---------- */
+.rb-reg-form-v2 {
+  max-width: 640px;
+  margin: 0 auto var(--sp-6);
+  text-align: left;
+  display: block;
+}
+
+/* Stepper indicator */
+.rb-stepper {
+  list-style: none;
+  display: flex;
+  justify-content: center;
+  gap: var(--sp-3);
+  padding: 0;
+  margin: 0 0 var(--sp-6);
+  flex-wrap: wrap;
+}
+.rb-stepper-item {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(244, 236, 223, 0.35);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: color 0.3s ease;
+}
+.rb-stepper-item span {
+  display: inline-flex;
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  border: 1px solid rgba(244, 236, 223, 0.25);
+  align-items: center; justify-content: center;
+  font-size: 11px;
+  transition: all 0.3s ease;
+}
+.rb-stepper-item.is-active { color: var(--paper); }
+.rb-stepper-item.is-active span {
+  border-color: var(--ember);
+  background: var(--ember);
+  color: var(--ink);
+}
+.rb-stepper-item.is-done { color: rgba(244, 236, 223, 0.6); }
+.rb-stepper-item.is-done span {
+  border-color: rgba(201, 96, 58, 0.55);
+  color: rgba(244, 236, 223, 0.6);
+}
+
+/* Step panels — slide/fade transition */
+.rb-step {
+  display: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.32s ease, transform 0.32s ease;
+}
+.rb-step.is-active {
+  display: block;
+  opacity: 1;
+  transform: translateY(0);
+  animation: rbStepIn 0.36s ease both;
+}
+@keyframes rbStepIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.rb-step-title {
+  font-family: var(--font-display);
+  font-size: clamp(22px, 2.4vw, 30px);
+  font-weight: 400;
+  color: var(--paper);
+  letter-spacing: -0.01em;
+  margin: 0 0 var(--sp-5);
+  padding: 0;
+  text-align: center;
+  display: block;
+  width: 100%;
+}
+.rb-step-fine {
+  font-family: var(--font-body);
+  font-size: 13px;
+  line-height: 1.6;
+  color: rgba(244, 236, 223, 0.62);
+  margin: var(--sp-4) auto 0;
+  max-width: 52ch;
+  text-align: center;
+}
+
+/* Recap chips shown above later steps */
+.rb-step-recap {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(244, 236, 223, 0.05);
+  border: 1px solid rgba(244, 236, 223, 0.15);
+  border-radius: 999px;
+  padding: 6px 14px 6px 16px;
+  margin: 0 6px var(--sp-3) 0;
+  font-size: 13px;
+  color: rgba(244, 236, 223, 0.85);
+}
+.rb-step-recap-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(244, 236, 223, 0.55);
+}
+.rb-step-recap-value {
+  font-family: var(--font-body);
+  color: var(--paper);
+}
+.rb-step-recap-edit {
+  background: transparent;
+  border: 0;
+  color: var(--ember);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+.rb-step-recap-edit:hover { color: var(--paper); text-decoration: underline; }
+
+/* Step 1 — Room cards */
+.rb-rooms {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--sp-3);
+}
+.rb-room {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: auto auto;
+  column-gap: var(--sp-4);
+  row-gap: 4px;
+  align-items: start;
+  text-align: left;
+  padding: 18px 20px;
+  background: rgba(244, 236, 223, 0.04);
+  border: 1px solid rgba(244, 236, 223, 0.16);
+  border-radius: 8px;
+  color: var(--paper);
+  cursor: pointer;
+  font-family: var(--font-body);
+  transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+.rb-room:hover {
+  background: rgba(244, 236, 223, 0.07);
+  border-color: rgba(201, 96, 58, 0.55);
+  transform: translateY(-1px);
+}
+.rb-room:focus-visible {
+  outline: 2px solid var(--ember);
+  outline-offset: 3px;
+}
+.rb-room.is-selected {
+  background: rgba(201, 96, 58, 0.14);
+  border-color: var(--ember);
+  box-shadow: 0 0 0 1px var(--ember);
+}
+.rb-room.is-bumping {
+  animation: rbRoomBump 0.4s ease;
+}
+@keyframes rbRoomBump {
+  0%   { transform: scale(1); }
+  35%  { transform: scale(1.035); }
+  70%  { transform: scale(0.995); }
+  100% { transform: scale(1); }
+}
+.rb-room-name {
+  font-size: 16px;
+  color: var(--paper);
+  font-weight: 500;
+}
+.rb-room-price {
+  font-family: var(--font-mono);
+  font-size: 18px;
+  color: var(--ember);
+  letter-spacing: 0.04em;
+  align-self: center;
+  grid-row: 1 / span 2;
+  grid-column: 2;
+}
+.rb-room-desc {
+  font-size: 14px;
+  line-height: 1.55;
+  color: rgba(244, 236, 223, 0.7);
+  grid-column: 1;
+}
+
+/* Fields grid (reused on steps 2 + 3) */
+.rb-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--sp-3) var(--sp-3);
-  max-width: 560px;
-  margin: 0 auto var(--sp-6);
-  text-align: left;
 }
 .rb-field {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
-.rb-field--full {
-  grid-column: 1 / -1;
-}
+.rb-field--full { grid-column: 1 / -1; }
 .rb-field > span {
   font-family: var(--font-mono);
   font-size: 11px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: rgba(244, 236, 223, 0.72);
+}
+.rb-field .rb-optional {
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: 11px;
+  letter-spacing: 0;
+  text-transform: none;
+  color: rgba(244, 236, 223, 0.5);
+  margin-left: 4px;
 }
 .rb-field input,
 .rb-field select,
@@ -1063,25 +1264,117 @@ html, body { background: var(--paper); }
   resize: vertical;
   min-height: 70px;
 }
-.rb-reg-fineprint {
-  grid-column: 1 / -1;
+
+/* Phone field — country selector + local number side by side */
+.rb-phone {
+  display: grid;
+  grid-template-columns: 7em 1fr;
+  gap: 6px;
+}
+.rb-phone select { padding-right: 24px; }
+
+/* Consent checkboxes */
+.rb-consents {
+  margin: var(--sp-5) 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.rb-consent {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  gap: 12px;
+  align-items: start;
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.55;
+  color: rgba(244, 236, 223, 0.85);
+  cursor: pointer;
+}
+.rb-consent input[type="checkbox"] {
+  appearance: none;
+  width: 20px; height: 20px;
+  margin-top: 2px;
+  border: 1px solid rgba(244, 236, 223, 0.4);
+  border-radius: 4px;
+  background: rgba(244, 236, 223, 0.06);
+  cursor: pointer;
+  display: inline-grid;
+  place-content: center;
+  transition: background 0.18s ease, border-color 0.18s ease;
+}
+.rb-consent input[type="checkbox"]::before {
+  content: "";
+  width: 11px; height: 11px;
+  transform: scale(0);
+  transition: transform 0.18s ease;
+  box-shadow: inset 1em 1em var(--ember);
+  clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+}
+.rb-consent input[type="checkbox"]:checked {
+  border-color: var(--ember);
+  background: rgba(201, 96, 58, 0.12);
+}
+.rb-consent input[type="checkbox"]:checked::before { transform: scale(1); }
+.rb-consent input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--ember);
+  outline-offset: 2px;
+}
+.rb-consent a {
+  color: var(--paper);
+  text-decoration: underline;
+  text-decoration-color: var(--ember);
+  text-underline-offset: 3px;
+}
+.rb-consent em {
+  font-family: var(--font-lyric);
+  font-style: italic;
+  color: var(--paper);
+}
+
+.rb-pay-note {
+  margin: var(--sp-4) 0 0;
+  padding: 12px 16px;
+  background: rgba(244, 236, 223, 0.04);
+  border: 1px dashed rgba(244, 236, 223, 0.2);
+  border-radius: 6px;
+}
+.rb-pay-note p {
+  margin: 0;
   font-family: var(--font-body);
   font-size: 13px;
-  line-height: 1.6;
-  color: rgba(244, 236, 223, 0.62);
-  margin: var(--sp-2) 0 0;
+  line-height: 1.55;
+  color: rgba(244, 236, 223, 0.72);
 }
+
+/* Step navigation */
+.rb-step-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-top: var(--sp-5);
+  flex-wrap: wrap;
+}
+.rb-step-actions .rb-btn { flex: 0 1 auto; }
+
 .rb-reg-error {
-  grid-column: 1 / -1;
   background: rgba(178, 34, 34, 0.18);
   border: 1px solid rgba(255, 120, 120, 0.4);
   color: #ffd9d9;
   padding: 10px 12px;
   border-radius: 4px;
   font-size: 14px;
+  margin-top: var(--sp-3);
 }
+
 @media (max-width: 640px) {
-  .rb-reg-form { grid-template-columns: 1fr; }
+  .rb-grid { grid-template-columns: 1fr; }
+  .rb-phone { grid-template-columns: 6.5em 1fr; }
+  .rb-stepper { gap: 10px; }
+  .rb-step-recap { display: flex; }
+  .rb-room { grid-template-columns: 1fr; }
+  .rb-room-price { grid-row: auto; grid-column: 1; margin-top: 4px; }
+  .rb-step-actions .rb-btn { flex: 1 1 auto; justify-content: center; }
 }
 
 /* ---------- Footer ---------- */

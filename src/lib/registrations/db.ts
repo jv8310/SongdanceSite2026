@@ -40,12 +40,21 @@ export type Registration = {
   tier_id: number;
   inventory_unit_id: number | null;
   name: string;
+  first_name: string | null;
+  last_name: string | null;
   email: string;
   phone: string | null;
+  phone_country: string | null;
   country: string | null;
+  company_name: string | null;
+  vat_number: string | null;
+  address: string | null;
   roommate_pref: string | null;
   dietary: string | null;
   notes: string | null;
+  consent_framework: number;
+  consent_terms: number;
+  consent_at: string | null;
   status:
     | 'pending'
     | 'paid'
@@ -123,13 +132,20 @@ export async function createPendingRegistration(
   data: {
     product_id: number;
     tier_id: number;
-    name: string;
+    first_name: string;
+    last_name: string;
     email: string;
     phone: string | null;
+    phone_country: string | null;
     country: string | null;
-    roommate_pref: string | null;
+    company_name: string | null;
+    vat_number: string | null;
+    address: string | null;
+    roommate_pref?: string | null;
     dietary: string | null;
     notes: string | null;
+    consent_framework: boolean;
+    consent_terms: boolean;
     amount_cents: number;
     currency: string;
     hold_minutes: number;
@@ -138,25 +154,42 @@ export async function createPendingRegistration(
   const holdExpires = new Date(
     Date.now() + data.hold_minutes * 60 * 1000,
   ).toISOString();
+  const fullName = `${data.first_name} ${data.last_name}`.trim();
+  const consentAt =
+    data.consent_framework && data.consent_terms
+      ? new Date().toISOString()
+      : null;
   const r = await db
     .prepare(
       `INSERT INTO registrations
-        (product_id, tier_id, name, email, phone, country,
+        (product_id, tier_id, name, first_name, last_name, email,
+         phone, phone_country, country,
+         company_name, vat_number, address,
          roommate_pref, dietary, notes,
+         consent_framework, consent_terms, consent_at,
          status, amount_cents, currency, hold_expires_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)
        RETURNING id`,
     )
     .bind(
       data.product_id,
       data.tier_id,
-      data.name,
+      fullName,
+      data.first_name,
+      data.last_name,
       data.email,
       data.phone,
+      data.phone_country,
       data.country,
-      data.roommate_pref,
+      data.company_name,
+      data.vat_number,
+      data.address,
+      data.roommate_pref ?? null,
       data.dietary,
       data.notes,
+      data.consent_framework ? 1 : 0,
+      data.consent_terms ? 1 : 0,
+      consentAt,
       data.amount_cents,
       data.currency,
       holdExpires,

@@ -8,6 +8,7 @@ import {
   logEvent,
 } from '../../../lib/registrations/db';
 import { createCheckoutSession } from '../../../lib/registrations/stripe';
+import { findCountry } from '../../../lib/countries';
 
 export const prerender = false;
 
@@ -16,13 +17,19 @@ const HOLD_MINUTES = 30;
 type Body = {
   product_slug?: string;
   tier_slug?: string;
-  name?: string;
+  first_name?: string;
+  last_name?: string;
   email?: string;
-  phone?: string;
-  country?: string;
-  roommate_pref?: string;
+  country?: string;          // ISO-2
+  phone_country?: string;    // ISO-2
+  phone?: string;            // local number, no dial prefix
+  company_name?: string;
+  vat_number?: string;
+  address?: string;
   dietary?: string;
   notes?: string;
+  consent_framework?: boolean;
+  consent_terms?: boolean;
 };
 
 export const POST: APIRoute = async ({ request, locals }) => {
@@ -36,17 +43,43 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
   const productSlug = (payload.product_slug ?? '').trim();
   const tierSlug = (payload.tier_slug ?? '').trim();
-  const name = (payload.name ?? '').trim();
+  const firstName = (payload.first_name ?? '').trim();
+  const lastName = (payload.last_name ?? '').trim();
   const email = (payload.email ?? '').trim().toLowerCase();
+  const countryCode = (payload.country ?? '').trim().toUpperCase();
+  const phoneCountryCode = (payload.phone_country ?? '').trim().toUpperCase();
+  const phoneLocal = (payload.phone ?? '').trim();
+  const companyName = (payload.company_name ?? '').trim();
+  const vatNumber = (payload.vat_number ?? '').trim();
+  const address = (payload.address ?? '').trim();
 
-  if (!productSlug || !tierSlug || !name || !email) {
+  if (!productSlug || !tierSlug || !firstName || !lastName || !email) {
     return json(
-      { error: 'product_slug, tier_slug, name and email are required' },
+      { error: 'first_name, last_name, email, product_slug and tier_slug are required' },
       400,
     );
   }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return json({ error: 'Invalid email' }, 400);
+    return json({ error: 'Please enter a valid email address.' }, 400);
+  }
+  if (!countryCode || !findCountry(countryCode)) {
+    return json({ error: 'Please select your country.' }, 400);
+  }
+  if (!phoneCountryCode || !findCountry(phoneCountryCode) || !phoneLocal) {
+    return json({ error: 'Please enter a phone number with country code.' }, 400);
+  }
+  // Company is optional; when provided, VAT and address become required.
+  if (companyName && (!vatNumber || !address)) {
+    return json(
+      { error: 'When registering on behalf of a company, please add VAT number and billing address.' },
+      400,
+    );
+  }
+  if (!payload.consent_framework || !payload.consent_terms) {
+    return json(
+      { error: 'Please confirm both agreements to continue.' },
+      400,
+    );
   }
 
   const product = await getProductBySlug(env.DB, productSlug);
@@ -58,21 +91,32 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const avail = await getTierAvailability(env.DB, tier.id);
   if (avail.remaining <= 0) {
     return json(
-      { error: 'This tier is fully booked. Please choose another tier or join the waitlist.' },
+      { error: 'This room option is fully booked. Please choose another, or email info@songdance.co to join the waitlist.' },
       409,
     );
   }
 
+  const phoneCountry = findCountry(phoneCountryCode);
+  const phoneE164 = phoneCountry
+    ? `+${phoneCountry.dial}${phoneLocal.replace(/[^0-9]/g, '')}`
+    : phoneLocal;
+
   const registrationId = await createPendingRegistration(env.DB, {
     product_id: product.id,
     tier_id: tier.id,
-    name,
+    first_name: firstName,
+    last_name: lastName,
     email,
-    phone: payload.phone?.trim() || null,
-    country: payload.country?.trim() || null,
-    roommate_pref: payload.roommate_pref?.trim() || null,
+    phone: phoneE164,
+    phone_country: phoneCountryCode,
+    country: countryCode,
+    company_name: companyName || null,
+    vat_number: vatNumber || null,
+    address: address || null,
     dietary: payload.dietary?.trim() || null,
     notes: payload.notes?.trim() || null,
+    consent_framework: payload.consent_framework === true,
+    consent_terms: payload.consent_terms === true,
     amount_cents: tier.price_cents,
     currency: product.currency,
     hold_minutes: HOLD_MINUTES,
@@ -97,6 +141,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
       registration_id: String(registrationId),
       product_slug: product.slug,
       tier_slug: tier.slug,
+      first_name: firstName,
+      last_name: lastName,
+      country: countryCode,
+      phone: phoneE164,
+      company_name: companyName,
+      vat_number: vatNumber,
     },
     idempotency_key: `reg-${registrationId}`,
   });

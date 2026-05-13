@@ -148,13 +148,25 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
       await upsertSubscriber(dripCfg, {
         email: reg.email,
-        first_name: reg.name.split(' ')[0],
+        first_name: reg.first_name ?? reg.name.split(' ')[0],
+        last_name:
+          reg.last_name ??
+          (reg.name.split(' ').slice(1).join(' ') || undefined),
         country: reg.country,
         phone: reg.phone,
         custom_fields: {
           last_product: product?.slug ?? '',
           last_tier: tier?.slug ?? '',
           last_amount_eur: (reg.amount_cents / 100).toFixed(2),
+          phone_country: reg.phone_country,
+          company_name: reg.company_name,
+          vat_number: reg.vat_number,
+          billing_address: reg.address,
+          dietary: reg.dietary,
+          registration_notes: reg.notes,
+          consent_framework: reg.consent_framework ? 'yes' : 'no',
+          consent_terms: reg.consent_terms ? 'yes' : 'no',
+          consent_at: reg.consent_at,
         },
         tags: tags.length ? tags : undefined,
       });
@@ -173,6 +185,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
           currency: reg.currency,
           starts_at: product?.starts_at ?? '',
           ends_at: product?.ends_at ?? '',
+          first_name: reg.first_name ?? '',
+          last_name: reg.last_name ?? '',
+          country: reg.country ?? '',
+          phone: reg.phone ?? '',
+          dietary: reg.dietary ?? '',
+          notes: reg.notes ?? '',
+          company_name: reg.company_name ?? '',
+          vat_number: reg.vat_number ?? '',
         },
       );
     } catch (err) {
