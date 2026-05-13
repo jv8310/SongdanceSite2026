@@ -141,11 +141,6 @@ const roomTypes = [
             <span>VAT number</span>
             <input type="text" name="vat_number" placeholder="e.g. BE0123.456.789" autocomplete="off" />
           </label>
-
-          <label class="rb-field rb-field--full rb-field--biz" hidden>
-            <span>Full billing address</span>
-            <textarea name="address" rows="3" placeholder="Street, number, postal code, city, country" autocomplete="street-address"></textarea>
-          </label>
         </div>
 
         <div id="rb-reg-error-2" class="rb-reg-error" hidden></div>
@@ -292,9 +287,6 @@ const roomTypes = [
     const vatInput = form.querySelector(
       'input[name="vat_number"]',
     ) as HTMLInputElement;
-    const addressInput = form.querySelector(
-      'textarea[name="address"]',
-    ) as HTMLTextAreaElement;
 
     // ─── Special opt-in roles (fire keeper, cook help) ───
     const specialsBlock = form.querySelector('#rb-specials') as HTMLElement;
@@ -517,7 +509,6 @@ const roomTypes = [
         f.hidden = !show;
       });
       vatInput.required = show;
-      addressInput.required = show;
     }
     companyInput.addEventListener('input', toggleBiz);
 
@@ -557,9 +548,8 @@ const roomTypes = [
         ) {
           missing.push('valid email');
         }
-        if (companyInput.value.trim()) {
-          if (!vatInput.value.trim()) missing.push('VAT number');
-          if (!addressInput.value.trim()) missing.push('billing address');
+        if (companyInput.value.trim() && !vatInput.value.trim()) {
+          missing.push('VAT number');
         }
         if (missing.length) {
           errBox2.textContent = `Please fill in: ${missing.join(', ')}.`;
@@ -601,7 +591,6 @@ const roomTypes = [
         phone: fd.get('phone'),
         company_name: fd.get('company_name'),
         vat_number: fd.get('vat_number'),
-        address: fd.get('address'),
         dietary: fd.get('dietary'),
         notes: fd.get('notes'),
         consent_framework: fd.get('consent_framework') === 'on',

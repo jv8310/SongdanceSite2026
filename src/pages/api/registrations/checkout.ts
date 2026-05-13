@@ -39,7 +39,6 @@ type Body = {
   phone?: string;            // local number, no dial prefix
   company_name?: string;
   vat_number?: string;
-  address?: string;
   dietary?: string;
   notes?: string;
   consent_framework?: boolean;
@@ -66,7 +65,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const phoneLocal = (payload.phone ?? '').trim();
   const companyName = (payload.company_name ?? '').trim();
   const vatNumber = (payload.vat_number ?? '').trim();
-  const address = (payload.address ?? '').trim();
 
   if (!productSlug || !tierSlug || !firstName || !lastName || !email) {
     return json(
@@ -83,10 +81,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
   if (!phoneCountryCode || !findCountry(phoneCountryCode) || !phoneLocal) {
     return json({ error: 'Please enter a phone number with country code.' }, 400);
   }
-  // Company is optional; when provided, VAT and address become required.
-  if (companyName && (!vatNumber || !address)) {
+  // Company is optional; when provided, VAT becomes required so the
+  // invoice can carry it. Billing address is collected by Stripe.
+  if (companyName && !vatNumber) {
     return json(
-      { error: 'When registering on behalf of a company, please add VAT number and billing address.' },
+      { error: 'When registering on behalf of a company, please add the VAT number.' },
       400,
     );
   }
@@ -200,7 +199,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     country: countryCode,
     company_name: companyName || null,
     vat_number: vatNumber || null,
-    address: address || null,
+    address: null,
     dietary: payload.dietary?.trim() || null,
     notes: payload.notes?.trim() || null,
     consent_framework: payload.consent_framework === true,
