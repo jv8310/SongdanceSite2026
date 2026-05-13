@@ -1,6 +1,7 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import { readCookie, verifySession } from '../../lib/registrations/auth';
+import { computeTierAvailability } from '../../lib/registrations/db';
 
 export const prerender = false;
 
@@ -59,18 +60,18 @@ if (product) {
     .all<any>();
   rows = q.results ?? [];
 
-  const ts = await env.DB.prepare(
-    `SELECT t.name AS tier_name, t.capacity,
-            SUM(CASE WHEN r.status IN ('paid','pending') AND (r.status='paid' OR r.hold_expires_at IS NULL OR r.hold_expires_at > datetime('now')) THEN 1 ELSE 0 END) AS taken
-       FROM tiers t
-       LEFT JOIN registrations r ON r.tier_id = t.id
-      WHERE t.product_id = ?
-      GROUP BY t.id
-      ORDER BY t.sort_order`,
-  )
-    .bind(product.id)
-    .all<any>();
-  tierSummary = ts.results ?? [];
+  // Use the room-aware availability computation so this view matches the
+  // form's "Only N spots left" badges. The naive tier.capacity − SUM(regs)
+  // approach used to overcount pre-allocated hosts/cook (they live in
+  // reserved rooms but were being subtracted from public capacity) and
+  // ignored multi-mode coupling (a Private En-suite booking on Room 1.2
+  // didn't lower Shared Bedroom remaining).
+  const ta = await computeTierAvailability(env.DB, product.id);
+  tierSummary = ta.map(({ tier, remaining, capacity }) => ({
+    tier_name: tier.name,
+    capacity,
+    taken: Math.max(0, capacity - remaining),
+  }));
 
   const rs = await env.DB.prepare(
     `SELECT iu.id, iu.name, iu.capacity, iu.status,
