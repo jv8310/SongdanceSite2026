@@ -1553,6 +1553,8 @@ html, body { background: var(--paper); }
 .rb-consent em {
   font-family: var(--font-lyric);
   font-style: italic;
+  font-size: 1.18em;
+  line-height: 1;
   color: var(--paper);
 }
 
