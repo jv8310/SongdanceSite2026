@@ -28,6 +28,16 @@ const roomTypes = [
     description: 'A bed in a beautiful open space — mezzanine, gallery or attic.',
     price: 595,
   },
+  // Hidden by default — revealed by JS only when the page URL has
+  // ?admin=true. Used to exercise the full payment flow at €1 without
+  // exposing it to regular visitors.
+  {
+    slug: 'admin-test-1eur',
+    label: 'Admin test — €1',
+    description: 'Internal payment-flow test only. Visible because ?admin=true is in the URL.',
+    price: 1,
+    adminOnly: true,
+  },
 ];
 ---
 
@@ -68,12 +78,13 @@ const roomTypes = [
           {roomTypes.map((t) => (
             <button
               type="button"
-              class="rb-roomcard"
+              class={`rb-roomcard${t.adminOnly ? ' rb-roomcard--admin' : ''}`}
               data-tier-slug={t.slug}
               data-tier-price={String(t.price)}
               data-tier-label={t.label}
               role="radio"
               aria-checked="false"
+              hidden={t.adminOnly || undefined}
             >
               <span class="rb-roomcard-name">{t.label}</span>
               <span class="rb-roomcard-desc">{t.description}</span>
@@ -256,6 +267,18 @@ const roomTypes = [
 
   const form = document.getElementById('rb-reg-form') as HTMLFormElement | null;
   if (form) {
+    // Reveal the hidden "Admin test — €1" room card when the page URL
+    // carries ?admin=true. The card stays hidden for every other visitor.
+    const isAdmin =
+      new URLSearchParams(window.location.search).get('admin') === 'true';
+    if (isAdmin) {
+      form
+        .querySelectorAll<HTMLButtonElement>('.rb-roomcard--admin')
+        .forEach((el) => {
+          el.hidden = false;
+        });
+    }
+
     const tierSlug = form.querySelector('#rb-tier-slug') as HTMLInputElement;
     const rooms = Array.from(form.querySelectorAll<HTMLButtonElement>('.rb-roomcard'));
     const steps = Array.from(form.querySelectorAll<HTMLFieldSetElement>('.rb-step'));

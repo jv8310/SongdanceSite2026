@@ -19,7 +19,7 @@
     }
   ],
   "vars": {
-    "PUBLIC_BASE_URL": "https://songdance.co",
+    "PUBLIC_BASE_URL": "https://site.songdance.co",
     "QUADERNO_ACCOUNT": "songdance",
     "DRIP_REGISTRATION_EVENT": "Completed retreat registration"
   }
