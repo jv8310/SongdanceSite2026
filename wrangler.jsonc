@@ -20,15 +20,17 @@
   ],
   "vars": {
     "PUBLIC_BASE_URL": "https://songdance.co",
-    "RESEND_FROM": "Songdance <hello@songdance.co>",
-    "QUADERNO_ACCOUNT": "songdance"
+    "QUADERNO_ACCOUNT": "songdance",
+    "DRIP_REGISTRATION_EVENT": "Completed retreat registration"
   }
-  // Secrets (set via `wrangler secret put <NAME>`):
+  // Secrets (set in Cloudflare dashboard → Workers → Settings → Variables and Secrets,
+  // or via `wrangler secret put <NAME>`):
   //   STRIPE_SECRET_KEY
   //   STRIPE_WEBHOOK_SECRET
   //   STRIPE_PUBLISHABLE_KEY
   //   QUADERNO_API_KEY
-  //   RESEND_API_KEY
+  //   DRIP_API_TOKEN
+  //   DRIP_ACCOUNT_ID
   //   ADMIN_PASSWORD
   //   ADMIN_SESSION_SECRET   (any random 32+ char string)
 }

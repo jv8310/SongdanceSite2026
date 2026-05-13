@@ -13,10 +13,7 @@ import {
   sendInvoiceByEmail,
   upsertContact,
 } from '../../../lib/registrations/quaderno';
-import {
-  bookingConfirmationHtml,
-  sendEmail,
-} from '../../../lib/registrations/email';
+import { recordEvent, upsertSubscriber } from '../../../lib/registrations/drip';
 
 export const prerender = false;
 
@@ -122,34 +119,56 @@ export const POST: APIRoute = async ({ request, locals }) => {
       });
     }
 
-    // Booking confirmation email.
+    // Push to Drip: upsert subscriber + fire the registration event so the
+    // confirmation email (and any follow-up sequence) is sent from Drip.
     try {
       const product = await env.DB.prepare(
-        'SELECT name, starts_at, ends_at FROM products WHERE id = ?',
+        'SELECT name, slug, starts_at, ends_at FROM products WHERE id = ?',
       )
         .bind(reg.product_id)
-        .first<{ name: string; starts_at: string | null; ends_at: string | null }>();
-      const tier = await env.DB.prepare('SELECT name FROM tiers WHERE id = ?')
+        .first<{ name: string; slug: string; starts_at: string | null; ends_at: string | null }>();
+      const tier = await env.DB.prepare('SELECT name, slug FROM tiers WHERE id = ?')
         .bind(reg.tier_id)
-        .first<{ name: string }>();
-      await sendEmail(
-        { apiKey: env.RESEND_API_KEY, from: env.RESEND_FROM },
+        .first<{ name: string; slug: string }>();
+
+      const dripCfg = {
+        apiToken: env.DRIP_API_TOKEN,
+        accountId: env.DRIP_ACCOUNT_ID,
+      };
+
+      await upsertSubscriber(dripCfg, {
+        email: reg.email,
+        first_name: reg.name.split(' ')[0],
+        country: reg.country,
+        phone: reg.phone,
+        custom_fields: {
+          last_product: product?.slug ?? '',
+          last_tier: tier?.slug ?? '',
+          last_amount_eur: (reg.amount_cents / 100).toFixed(2),
+        },
+        tags: product ? [`product:${product.slug}`] : undefined,
+      });
+
+      await recordEvent(
+        dripCfg,
         reg.email,
-        `Your place at ${product?.name ?? 'the retreat'} is confirmed`,
-        bookingConfirmationHtml({
-          name: reg.name,
-          productName: product?.name ?? '',
-          tierName: tier?.name ?? '',
-          amountCents: reg.amount_cents,
+        env.DRIP_REGISTRATION_EVENT || 'Completed retreat registration',
+        {
+          registration_id: reg.id,
+          product_slug: product?.slug ?? '',
+          product_name: product?.name ?? '',
+          tier_slug: tier?.slug ?? '',
+          tier_name: tier?.name ?? '',
+          amount: (reg.amount_cents / 100).toFixed(2),
           currency: reg.currency,
-          startsAt: product?.starts_at ?? null,
-          endsAt: product?.ends_at ?? null,
-        }),
+          starts_at: product?.starts_at ?? '',
+          ends_at: product?.ends_at ?? '',
+        },
       );
     } catch (err) {
       await logEvent(env.DB, {
         registration_id: reg.id,
-        kind: 'email.confirmation.error',
+        kind: 'drip.error',
         source: 'system',
         payload: { error: String(err) },
       });

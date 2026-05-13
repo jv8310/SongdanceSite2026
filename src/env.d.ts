@@ -8,8 +8,9 @@ type Env = {
   STRIPE_PUBLISHABLE_KEY: string;
   QUADERNO_API_KEY: string;
   QUADERNO_ACCOUNT: string;
-  RESEND_API_KEY: string;
-  RESEND_FROM: string;
+  DRIP_API_TOKEN: string;
+  DRIP_ACCOUNT_ID: string;
+  DRIP_REGISTRATION_EVENT: string;
   ADMIN_PASSWORD: string;
   ADMIN_SESSION_SECRET: string;
   PUBLIC_BASE_URL: string;
