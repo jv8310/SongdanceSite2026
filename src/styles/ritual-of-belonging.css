@@ -1092,6 +1092,13 @@ html, body { background: var(--paper); }
 }
 
 /* ---------- Register form v2 (multi-step) ---------- */
+
+/* Restore HTML5 [hidden] semantics: several form elements in this section
+   set explicit display values (grid / flex / inline-block) which would
+   otherwise override the user-agent's [hidden] { display: none } rule and
+   leave empty pill badges, empty VAT/address inputs, etc. visible. */
+.rb-reg-form-v2 [hidden] { display: none !important; }
+
 .rb-reg-form-v2 {
   max-width: 640px;
   margin: 0 auto var(--sp-6);
@@ -1395,6 +1402,95 @@ html, body { background: var(--paper); }
   gap: 6px;
 }
 .rb-phone select { padding-right: 24px; }
+
+/* Special opt-in roles (fire keeper, cook help) on step 3 */
+.rb-specials {
+  margin: var(--sp-5) 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.rb-specials-title {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(244, 236, 223, 0.55);
+  margin: 0;
+}
+.rb-special {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  gap: 14px;
+  align-items: start;
+  padding: 14px 16px;
+  background: rgba(201, 96, 58, 0.06);
+  border: 1px solid rgba(201, 96, 58, 0.28);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.18s ease, border-color 0.18s ease;
+}
+.rb-special:hover {
+  background: rgba(201, 96, 58, 0.10);
+  border-color: rgba(201, 96, 58, 0.45);
+}
+.rb-special input[type="checkbox"] {
+  appearance: none;
+  width: 20px; height: 20px;
+  margin-top: 2px;
+  border: 1px solid rgba(244, 236, 223, 0.4);
+  border-radius: 4px;
+  background: rgba(244, 236, 223, 0.06);
+  cursor: pointer;
+  display: inline-grid;
+  place-content: center;
+  transition: background 0.18s ease, border-color 0.18s ease;
+}
+.rb-special input[type="checkbox"]::before {
+  content: "";
+  width: 11px; height: 11px;
+  transform: scale(0);
+  transition: transform 0.18s ease;
+  box-shadow: inset 1em 1em var(--ember);
+  clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+}
+.rb-special input[type="checkbox"]:checked {
+  border-color: var(--ember);
+  background: rgba(201, 96, 58, 0.18);
+}
+.rb-special input[type="checkbox"]:checked::before { transform: scale(1); }
+.rb-special input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--ember);
+  outline-offset: 2px;
+}
+.rb-special-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.55;
+  color: rgba(244, 236, 223, 0.85);
+}
+.rb-special-heading {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  color: var(--paper);
+}
+.rb-special-desc {
+  color: rgba(244, 236, 223, 0.75);
+}
+.rb-special-desc em {
+  font-family: var(--font-lyric);
+  font-style: italic;
+  color: var(--paper);
+}
+.rb-special-desc strong {
+  font-weight: 600;
+  color: var(--ember);
+}
 
 /* Consent checkboxes */
 .rb-consents {

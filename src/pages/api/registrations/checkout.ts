@@ -6,6 +6,8 @@ import {
   attachStripeSession,
   logEvent,
   pickRoomForTier,
+  getSpecialRoomByRole,
+  type SpecialRole,
 } from '../../../lib/registrations/db';
 import {
   createCheckoutSession,
@@ -17,6 +19,14 @@ import { findCountry } from '../../../lib/countries';
 export const prerender = false;
 
 const HOLD_MINUTES = 30;
+
+// Tier slugs eligible for each opt-in role.
+const FIRE_KEEPER_TIERS = new Set(['common-space']);
+const COOK_HELP_TIERS = new Set(['common-space', 'shared-bedroom']);
+
+// Cook help: pay 30% less on the chosen tier. Fire keeper is a room
+// upgrade only — no price change.
+const COOK_HELP_DISCOUNT = 0.30;
 
 type Body = {
   product_slug?: string;
@@ -34,6 +44,7 @@ type Body = {
   notes?: string;
   consent_framework?: boolean;
   consent_terms?: boolean;
+  role?: SpecialRole | null;
 };
 
 export const POST: APIRoute = async ({ request, locals }) => {
@@ -92,16 +103,65 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const tier = await getTierBySlug(env.DB, product.id, tierSlug);
   if (!tier) return json({ error: 'Unknown tier' }, 404);
 
-  // Pick the room before recording the registration. This uses the
-  // smart "preserve solo, fill shared rooms first" algorithm in
-  // pickRoomForTier — see db.ts for the priority ladder.
-  const room = await pickRoomForTier(env.DB, product.id, tierSlug);
-  if (!room) {
+  // Validate the opt-in role (fire keeper / cook help) against the chosen
+  // tier. These rooms (Paviljoen, Room 5.2) are status='reserved' and
+  // ignored by pickRoomForTier — they only get assigned via an explicit
+  // opt-in here.
+  const role: SpecialRole | null =
+    payload.role === 'fire_keeper' || payload.role === 'cook_help'
+      ? payload.role
+      : null;
+
+  if (role === 'fire_keeper' && !FIRE_KEEPER_TIERS.has(tierSlug)) {
     return json(
-      { error: 'This room option is fully booked. Please choose another, or email info@songdance.co to join the waitlist.' },
-      409,
+      { error: 'The fire keeper role is only available with the Common Space room option.' },
+      400,
     );
   }
+  if (role === 'cook_help' && !COOK_HELP_TIERS.has(tierSlug)) {
+    return json(
+      { error: 'Kitchen help is only available with Common Space or Shared Bedroom.' },
+      400,
+    );
+  }
+
+  // Pick the room: special role overrides the auto-pick.
+  let room;
+  if (role === 'fire_keeper') {
+    room = await getSpecialRoomByRole(env.DB, product.id, 'fire_keeper');
+    if (!room) {
+      return json(
+        { error: 'The fire keeper place was just taken. Please uncheck that option and try again.' },
+        409,
+      );
+    }
+  } else if (role === 'cook_help') {
+    room = await getSpecialRoomByRole(env.DB, product.id, 'cook_help');
+    if (!room) {
+      return json(
+        { error: 'The kitchen-help place was just taken. Please uncheck that option and try again.' },
+        409,
+      );
+    }
+  } else {
+    // Standard auto-pick: "preserve solo, fill shared rooms first" — see
+    // pickRoomForTier in db.ts for the priority ladder.
+    room = await pickRoomForTier(env.DB, product.id, tierSlug);
+    if (!room) {
+      return json(
+        { error: 'This room option is fully booked. Please choose another, or email info@songdance.co to join the waitlist.' },
+        409,
+      );
+    }
+  }
+
+  // Cook help: 30% off the tier price. Fire keeper: no discount (it's a
+  // room upgrade, not a price cut).
+  const roleDiscountCents =
+    role === 'cook_help'
+      ? Math.round(tier.price_cents * COOK_HELP_DISCOUNT)
+      : 0;
+  const amountCents = tier.price_cents - roleDiscountCents;
 
   const phoneCountry = findCountry(phoneCountryCode);
   const phoneE164 = phoneCountry
@@ -125,7 +185,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
     notes: payload.notes?.trim() || null,
     consent_framework: payload.consent_framework === true,
     consent_terms: payload.consent_terms === true,
-    amount_cents: tier.price_cents,
+    role,
+    role_discount_cents: roleDiscountCents,
+    amount_cents: amountCents,
     currency: product.currency,
     hold_minutes: HOLD_MINUTES,
   });
@@ -190,9 +252,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
     cancel_url: `${baseUrl}/ritual-of-belonging#register`,
     line_items: [
       {
-        name: `${product.name} — ${tier.name}`,
+        name:
+          role === 'fire_keeper'
+            ? `${product.name} — ${tier.name} (fire keeper, Paviljoen)`
+            : role === 'cook_help'
+              ? `${product.name} — ${tier.name} (with kitchen help, 30% off)`
+              : `${product.name} — ${tier.name}`,
         description: tier.description ?? undefined,
-        amount_cents: tier.price_cents,
+        amount_cents: amountCents,
         currency: product.currency.toLowerCase(),
         quantity: 1,
       },
@@ -207,6 +274,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
       phone: phoneE164,
       company_name: companyName,
       vat_number: vatNumber,
+      role: role ?? '',
+      role_discount_cents: String(roleDiscountCents),
     },
     idempotency_key: `reg-${registrationId}`,
   });
@@ -221,6 +290,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
       tier: tier.slug,
       auto_assigned_room: room.name,
       auto_assigned_room_id: room.id,
+      role: role ?? null,
+      amount_cents: amountCents,
+      role_discount_cents: roleDiscountCents,
     },
   });
 

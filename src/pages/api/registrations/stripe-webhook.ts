@@ -118,6 +118,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
           consent_framework: reg.consent_framework ? 'yes' : 'no',
           consent_terms: reg.consent_terms ? 'yes' : 'no',
           consent_at: reg.consent_at,
+          // Opt-in role they picked on step 3 (NULL for regular bookings).
+          // Drip workflows can branch on this to send dedicated info to
+          // fire keepers / kitchen helpers.
+          role: reg.role,
+          role_discount_eur:
+            reg.role_discount_cents > 0
+              ? (reg.role_discount_cents / 100).toFixed(2)
+              : null,
         },
         tags: tags.length ? tags : undefined,
       });
@@ -144,6 +152,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
           notes: reg.notes ?? '',
           company_name: reg.company_name ?? '',
           vat_number: reg.vat_number ?? '',
+          role: reg.role ?? '',
+          role_discount_eur:
+            reg.role_discount_cents > 0
+              ? (reg.role_discount_cents / 100).toFixed(2)
+              : '',
         },
       );
     } catch (err) {

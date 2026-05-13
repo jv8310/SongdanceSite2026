@@ -185,6 +185,39 @@ const roomTypes = [
           </label>
         </div>
 
+        <!-- ─── Optional opt-in roles ─── -->
+        <div class="rb-specials" id="rb-specials" hidden>
+          <p class="rb-specials-title">A special option for you</p>
+
+          <label class="rb-special" id="rb-special-fire-keeper" hidden>
+            <input type="checkbox" name="role_fire_keeper" />
+            <span class="rb-special-body">
+              <span class="rb-special-heading">Be the fire keeper</span>
+              <span class="rb-special-desc">
+                Sleep by yourself in the <em>Paviljoen</em> — a room
+                upgrade to your own private bed and bathroom. Once the
+                evening workshop ends, the working space is yours; you
+                keep the fire going through the night and into the
+                morning.
+              </span>
+            </span>
+          </label>
+
+          <label class="rb-special" id="rb-special-cook-help" hidden>
+            <input type="checkbox" name="role_cook_help" />
+            <span class="rb-special-body">
+              <span class="rb-special-heading">Save 30% — help in the kitchen</span>
+              <span class="rb-special-desc">
+                Pay <strong data-cookhelp-price>—</strong> instead of
+                <span data-cookhelp-original>—</span>, and lend a hand
+                during the last 10 minutes of each session and through
+                the breaks. A real help to our chef, with a nice
+                discount for you.
+              </span>
+            </span>
+          </label>
+        </div>
+
         <div class="rb-consents">
           <label class="rb-consent">
             <input type="checkbox" name="consent_framework" required />
@@ -263,6 +296,99 @@ const roomTypes = [
       'textarea[name="address"]',
     ) as HTMLTextAreaElement;
 
+    // ─── Special opt-in roles (fire keeper, cook help) ───
+    const specialsBlock = form.querySelector('#rb-specials') as HTMLElement;
+    const fireKeeperWrap = form.querySelector(
+      '#rb-special-fire-keeper',
+    ) as HTMLElement;
+    const cookHelpWrap = form.querySelector(
+      '#rb-special-cook-help',
+    ) as HTMLElement;
+    const fireKeeperCheckbox = form.querySelector(
+      'input[name="role_fire_keeper"]',
+    ) as HTMLInputElement;
+    const cookHelpCheckbox = form.querySelector(
+      'input[name="role_cook_help"]',
+    ) as HTMLInputElement;
+    const cookHelpPriceEl = form.querySelector(
+      '[data-cookhelp-price]',
+    ) as HTMLElement;
+    const cookHelpOriginalEl = form.querySelector(
+      '[data-cookhelp-original]',
+    ) as HTMLElement;
+    let fireKeeperAvail = false;
+    let cookHelpAvail = false;
+    const COOK_HELP_DISCOUNT = 0.30;
+    const FIRE_KEEPER_TIERS = new Set(['common-space']);
+    const COOK_HELP_TIERS = new Set(['common-space', 'shared-bedroom']);
+
+    function currentTier() {
+      const slug = tierSlug.value;
+      if (!slug) return null;
+      const card = form!.querySelector<HTMLButtonElement>(
+        `.rb-roomcard[data-tier-slug="${slug}"]`,
+      );
+      if (!card) return null;
+      const price = parseInt(card.dataset.tierPrice ?? '0', 10);
+      const label = card.dataset.tierLabel ?? '';
+      return { slug, price, label };
+    }
+
+    function fmtEur(amount: number) {
+      // amount is in EUR (not cents). Trim trailing .00 for whole numbers.
+      return amount % 1 === 0
+        ? `€${amount}`
+        : `€${amount.toFixed(2)}`;
+    }
+
+    function updateSpecials() {
+      const cur = currentTier();
+      const slug = cur?.slug ?? '';
+      const showFire = FIRE_KEEPER_TIERS.has(slug) && fireKeeperAvail;
+      const showCook = COOK_HELP_TIERS.has(slug) && cookHelpAvail;
+      fireKeeperWrap.hidden = !showFire;
+      cookHelpWrap.hidden = !showCook;
+      specialsBlock.hidden = !showFire && !showCook;
+      if (!showFire) fireKeeperCheckbox.checked = false;
+      if (!showCook) cookHelpCheckbox.checked = false;
+      // Refresh the cook-help description with the current tier's prices.
+      if (cur && showCook) {
+        const discounted = cur.price * (1 - COOK_HELP_DISCOUNT);
+        cookHelpPriceEl.textContent = fmtEur(discounted);
+        cookHelpOriginalEl.textContent = fmtEur(cur.price);
+      }
+      updateRecap();
+    }
+
+    function updateRecap() {
+      const cur = currentTier();
+      if (!cur) {
+        recapTier.textContent = '—';
+        recapTier2.textContent = '—';
+        return;
+      }
+      let text: string;
+      if (cookHelpCheckbox.checked) {
+        const discounted = cur.price * (1 - COOK_HELP_DISCOUNT);
+        text = `${cur.label} · ${fmtEur(discounted)} (was ${fmtEur(cur.price)}, with kitchen help)`;
+      } else if (fireKeeperCheckbox.checked) {
+        text = `${cur.label} · ${fmtEur(cur.price)} · fire keeper (Paviljoen)`;
+      } else {
+        text = `${cur.label} · ${fmtEur(cur.price)}`;
+      }
+      recapTier.textContent = text;
+      recapTier2.textContent = text;
+    }
+
+    fireKeeperCheckbox.addEventListener('change', () => {
+      if (fireKeeperCheckbox.checked) cookHelpCheckbox.checked = false;
+      updateRecap();
+    });
+    cookHelpCheckbox.addEventListener('change', () => {
+      if (cookHelpCheckbox.checked) fireKeeperCheckbox.checked = false;
+      updateRecap();
+    });
+
     function setStep(n: StepNum) {
       form!.dataset.step = String(n);
       steps.forEach((s) => {
@@ -287,6 +413,9 @@ const roomTypes = [
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (!data || !Array.isArray(data.tiers)) return;
+        fireKeeperAvail = !!data.fire_keeper_available;
+        cookHelpAvail = !!data.cook_help_available;
+        updateSpecials();
         for (const t of data.tiers) {
           const badge = form!.querySelector(
             `[data-avail-for="${t.slug}"]`,
@@ -335,8 +464,10 @@ const roomTypes = [
         // force reflow so the animation restarts
         void btn.offsetWidth;
         btn.classList.add('is-bumping');
-        recapTier.textContent = `${label} · €${price}`;
-        recapTier2.textContent = `${label} · €${price}`;
+        // Tier just changed: refresh which special opt-ins apply and what
+        // the recap chip should read (also resets any previously-ticked
+        // role checkbox that no longer applies to the new tier).
+        updateSpecials();
         window.setTimeout(() => setStep(2), 380);
       });
     });
@@ -437,6 +568,14 @@ const roomTypes = [
         notes: fd.get('notes'),
         consent_framework: fd.get('consent_framework') === 'on',
         consent_terms: fd.get('consent_terms') === 'on',
+        // Special opt-in role. The checkboxes are mutually exclusive in
+        // the UI, but we also defensively pick fire_keeper if both
+        // somehow got ticked. The server validates against the chosen tier.
+        role: fireKeeperCheckbox.checked
+          ? 'fire_keeper'
+          : cookHelpCheckbox.checked
+            ? 'cook_help'
+            : null,
       };
 
       if (!data.consent_framework || !data.consent_terms) {

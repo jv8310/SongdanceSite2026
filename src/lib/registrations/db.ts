@@ -24,6 +24,8 @@ export type Tier = {
   active: number;
 };
 
+export type SpecialRole = 'fire_keeper' | 'cook_help';
+
 export type InventoryUnit = {
   id: number;
   tier_id: number;
@@ -34,6 +36,7 @@ export type InventoryUnit = {
   sort_order: number;
   solo_tier_id: number | null;    // tier when sold as a single room
   shared_tier_id: number | null;  // tier when sold bed-by-bed
+  role: SpecialRole | null;       // 'fire_keeper' (Paviljoen) | 'cook_help' (Room 5.2)
 };
 
 // "mode" is a runtime concept derived from current bookings on the room:
@@ -69,6 +72,8 @@ export type Registration = {
   consent_framework: number;
   consent_terms: number;
   consent_at: string | null;
+  role: SpecialRole | null;
+  role_discount_cents: number;
   status:
     | 'pending'
     | 'paid'
@@ -161,6 +166,8 @@ export async function createPendingRegistration(
     notes: string | null;
     consent_framework: boolean;
     consent_terms: boolean;
+    role?: SpecialRole | null;
+    role_discount_cents?: number;
     amount_cents: number;
     currency: string;
     hold_minutes: number;
@@ -182,8 +189,9 @@ export async function createPendingRegistration(
          company_name, vat_number, address,
          roommate_pref, dietary, notes,
          consent_framework, consent_terms, consent_at,
+         role, role_discount_cents,
          status, amount_cents, currency, hold_expires_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)
        RETURNING id`,
     )
     .bind(
@@ -206,6 +214,8 @@ export async function createPendingRegistration(
       data.consent_framework ? 1 : 0,
       data.consent_terms ? 1 : 0,
       consentAt,
+      data.role ?? null,
+      data.role_discount_cents ?? 0,
       data.amount_cents,
       data.currency,
       holdExpires,
@@ -323,7 +333,7 @@ export async function getRoomsWithMode(
 ): Promise<RoomWithMode[]> {
   const sql = `
     SELECT iu.id, iu.tier_id, iu.name, iu.capacity, iu.notes, iu.status,
-           iu.sort_order, iu.solo_tier_id, iu.shared_tier_id,
+           iu.sort_order, iu.solo_tier_id, iu.shared_tier_id, iu.role,
            COALESCE(b.beds_sold, 0)   AS beds_sold,
            b.first_tier_id            AS first_tier_id
       FROM inventory_units iu
@@ -505,4 +515,35 @@ export async function pickRoomForTier(
   }
 
   return null;
+}
+
+// Look up the room tagged with a given opt-in role (fire keeper / cook help).
+// Returns null if the room doesn't exist or its single bed is already taken.
+export async function getSpecialRoomByRole(
+  db: D1Database,
+  productId: number,
+  role: SpecialRole,
+): Promise<RoomWithMode | null> {
+  const rooms = await getRoomsWithMode(db, productId);
+  const room = rooms.find((r) => r.role === role);
+  if (!room) return null;
+  if (room.beds_sold >= room.capacity) return null;
+  return room;
+}
+
+// Per-role availability flags for the registration form so it knows
+// whether to render the fire-keeper / cook-help checkboxes.
+export async function getSpecialRoomAvailability(
+  db: D1Database,
+  productId: number,
+): Promise<{ fire_keeper_available: boolean; cook_help_available: boolean }> {
+  const rooms = await getRoomsWithMode(db, productId);
+  const free = (role: SpecialRole) => {
+    const r = rooms.find((x) => x.role === role);
+    return !!r && r.beds_sold < r.capacity;
+  };
+  return {
+    fire_keeper_available: free('fire_keeper'),
+    cook_help_available: free('cook_help'),
+  };
 }
