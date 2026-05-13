@@ -1,36 +1,32 @@
 ---
 import { COUNTRIES } from '../../lib/countries';
 
-const tiers = [
+// Mirrors active tiers in D1 (see migrations/0004_room_type_catalog.sql).
+// Slugs MUST match the DB tier slugs — the server re-validates on submit.
+const roomTypes = [
   {
-    slug: 'tier-1',
-    label: 'Private room, en-suite bathroom',
-    description: 'Most private. Private 2- or 3-person bedroom in the Poorthuis or Torenverblijf with its own bathroom.',
-    price: 833,
+    slug: 'private-ensuite',
+    label: 'Private En-suite',
+    description: 'Your own room with private bathroom — the most private option.',
+    price: 995,
   },
   {
-    slug: 'tier-2',
-    label: 'Private or double room, shared bathroom',
-    description: 'Your own bedroom (2–3 people), bathroom shared on the same floor or within the unit.',
-    price: 714,
+    slug: 'private-shared-bath',
+    label: 'Private Shared-bath',
+    description: 'Your own room, with bathroom on the same floor or within the unit.',
+    price: 795,
   },
   {
-    slug: 'tier-3',
-    label: 'Shared common room (Ridderzaal hemelbed)',
-    description: 'Four-poster bed for two in the open Knight’s Hall of the Balkonverblijf.',
-    price: 625,
+    slug: 'shared-bedroom',
+    label: 'Shared Bedroom',
+    description: 'A bed in a real bedroom, shared with 1–2 others.',
+    price: 695,
   },
   {
-    slug: 'tier-4',
-    label: 'Shared bedroom (3–4 people)',
-    description: 'Tower mezzanine (4 boxsprings) or Theaterkamer (2 single beds).',
+    slug: 'common-space',
+    label: 'Common Space',
+    description: 'A bed in a beautiful open space — mezzanine, gallery or attic.',
     price: 595,
-  },
-  {
-    slug: 'tier-5',
-    label: 'Dormitory / mattress on floor',
-    description: 'Mattresses on the attic floor of the Poorthuis, or a single bed on the open vide.',
-    price: 536,
   },
 ];
 ---
@@ -68,20 +64,21 @@ const tiers = [
       <!-- ───────── Step 1 — Room choice ───────── -->
       <fieldset class="rb-step rb-step--rooms is-active" data-step="1">
         <legend class="rb-step-title">Choose your room option</legend>
-        <div class="rb-rooms" role="radiogroup" aria-label="Room option">
-          {tiers.map((t) => (
+        <div class="rb-roomcards" role="radiogroup" aria-label="Room option">
+          {roomTypes.map((t) => (
             <button
               type="button"
-              class="rb-room"
+              class="rb-roomcard"
               data-tier-slug={t.slug}
               data-tier-price={String(t.price)}
               data-tier-label={t.label}
               role="radio"
               aria-checked="false"
             >
-              <span class="rb-room-name">{t.label}</span>
-              <span class="rb-room-desc">{t.description}</span>
-              <span class="rb-room-price">€{t.price}</span>
+              <span class="rb-roomcard-name">{t.label}</span>
+              <span class="rb-roomcard-desc">{t.description}</span>
+              <span class="rb-roomcard-price">€{t.price}</span>
+              <span class="rb-roomcard-avail" data-avail-for={t.slug} hidden></span>
             </button>
           ))}
         </div>
@@ -242,7 +239,7 @@ const tiers = [
   const form = document.getElementById('rb-reg-form') as HTMLFormElement | null;
   if (form) {
     const tierSlug = form.querySelector('#rb-tier-slug') as HTMLInputElement;
-    const rooms = Array.from(form.querySelectorAll<HTMLButtonElement>('.rb-room'));
+    const rooms = Array.from(form.querySelectorAll<HTMLButtonElement>('.rb-roomcard'));
     const steps = Array.from(form.querySelectorAll<HTMLFieldSetElement>('.rb-step'));
     const stepIndicators = Array.from(
       form.querySelectorAll<HTMLElement>('.rb-stepper-item'),
@@ -283,9 +280,48 @@ const tiers = [
       window.scrollTo({ top, behavior: 'smooth' });
     }
 
+    // ───────── Availability: fetch on load, show "X spots left" badges ─────────
+    fetch('/api/registrations/availability?product=ritual-of-belonging-2026', {
+      headers: { Accept: 'application/json' },
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!data || !Array.isArray(data.tiers)) return;
+        for (const t of data.tiers) {
+          const badge = form!.querySelector(
+            `[data-avail-for="${t.slug}"]`,
+          ) as HTMLElement | null;
+          const card = form!.querySelector(
+            `[data-tier-slug="${t.slug}"]`,
+          ) as HTMLButtonElement | null;
+          if (!badge || !card) continue;
+          if (t.remaining === 0) {
+            badge.textContent = 'Fully booked';
+            badge.classList.add('rb-roomcard-avail--full');
+            badge.hidden = false;
+            card.disabled = true;
+            card.classList.add('is-fullybooked');
+            card.setAttribute('aria-disabled', 'true');
+          } else if (t.remaining <= 3) {
+            badge.textContent =
+              t.remaining === 1
+                ? 'Only 1 spot left'
+                : `Only ${t.remaining} spots left`;
+            badge.classList.add('rb-roomcard-avail--low');
+            badge.hidden = false;
+          }
+        }
+      })
+      .catch(() => {
+        // Network or server issue — fail silent and let the form work
+        // without availability hints. The server still validates capacity
+        // when the user submits.
+      });
+
     // ───────── Step 1: room cards ─────────
     rooms.forEach((btn) => {
       btn.addEventListener('click', () => {
+        if (btn.disabled || btn.classList.contains('is-fullybooked')) return;
         const slug = btn.dataset.tierSlug ?? '';
         const label = btn.dataset.tierLabel ?? '';
         const price = btn.dataset.tierPrice ?? '';

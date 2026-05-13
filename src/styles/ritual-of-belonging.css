@@ -1132,16 +1132,17 @@ html, body { background: var(--paper); }
 }
 .rb-step-recap-edit:hover { color: var(--paper); text-decoration: underline; }
 
-/* Step 1 — Room cards */
-.rb-rooms {
+/* Step 1 — Room cards (form-only; namespaced to avoid collisions
+   with the .rb-rooms / .rb-room-* listing in the Practical section). */
+.rb-roomcards {
   display: grid;
   grid-template-columns: 1fr;
   gap: var(--sp-3);
 }
-.rb-room {
+.rb-roomcard {
   display: grid;
   grid-template-columns: 1fr auto;
-  grid-template-rows: auto auto;
+  grid-template-rows: auto auto auto;
   column-gap: var(--sp-4);
   row-gap: 4px;
   align-items: start;
@@ -1153,23 +1154,23 @@ html, body { background: var(--paper); }
   color: var(--paper);
   cursor: pointer;
   font-family: var(--font-body);
-  transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+  transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
 }
-.rb-room:hover {
+.rb-roomcard:hover {
   background: rgba(244, 236, 223, 0.07);
   border-color: rgba(201, 96, 58, 0.55);
   transform: translateY(-1px);
 }
-.rb-room:focus-visible {
+.rb-roomcard:focus-visible {
   outline: 2px solid var(--ember);
   outline-offset: 3px;
 }
-.rb-room.is-selected {
+.rb-roomcard.is-selected {
   background: rgba(201, 96, 58, 0.14);
   border-color: var(--ember);
   box-shadow: 0 0 0 1px var(--ember);
 }
-.rb-room.is-bumping {
+.rb-roomcard.is-bumping {
   animation: rbRoomBump 0.4s ease;
 }
 @keyframes rbRoomBump {
@@ -1178,25 +1179,58 @@ html, body { background: var(--paper); }
   70%  { transform: scale(0.995); }
   100% { transform: scale(1); }
 }
-.rb-room-name {
+.rb-roomcard.is-fullybooked {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.rb-roomcard.is-fullybooked:hover {
+  background: rgba(244, 236, 223, 0.04);
+  border-color: rgba(244, 236, 223, 0.16);
+  transform: none;
+}
+.rb-roomcard-name {
   font-size: 16px;
   color: var(--paper);
   font-weight: 500;
+  grid-column: 1;
+  grid-row: 1;
 }
-.rb-room-price {
+.rb-roomcard-price {
   font-family: var(--font-mono);
   font-size: 18px;
   color: var(--ember);
   letter-spacing: 0.04em;
   align-self: center;
-  grid-row: 1 / span 2;
+  grid-row: 1 / span 3;
   grid-column: 2;
 }
-.rb-room-desc {
+.rb-roomcard-desc {
   font-size: 14px;
   line-height: 1.55;
   color: rgba(244, 236, 223, 0.7);
   grid-column: 1;
+  grid-row: 2;
+}
+.rb-roomcard-avail {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ember);
+  background: rgba(201, 96, 58, 0.12);
+  border: 1px solid rgba(201, 96, 58, 0.32);
+  padding: 3px 9px;
+  border-radius: 999px;
+  display: inline-block;
+  width: fit-content;
+  margin-top: 6px;
+  grid-column: 1;
+  grid-row: 3;
+}
+.rb-roomcard-avail--full {
+  color: rgba(244, 236, 223, 0.55);
+  background: rgba(244, 236, 223, 0.06);
+  border-color: rgba(244, 236, 223, 0.18);
 }
 
 /* Fields grid (reused on steps 2 + 3) */
@@ -1372,8 +1406,11 @@ html, body { background: var(--paper); }
   .rb-phone { grid-template-columns: 6.5em 1fr; }
   .rb-stepper { gap: 10px; }
   .rb-step-recap { display: flex; }
-  .rb-room { grid-template-columns: 1fr; }
-  .rb-room-price { grid-row: auto; grid-column: 1; margin-top: 4px; }
+  .rb-roomcard { grid-template-columns: 1fr; }
+  .rb-roomcard-name { grid-row: 1; }
+  .rb-roomcard-desc { grid-row: 2; }
+  .rb-roomcard-price { grid-row: 3; grid-column: 1; margin-top: 4px; }
+  .rb-roomcard-avail { grid-row: 4; grid-column: 1; }
   .rb-step-actions .rb-btn { flex: 1 1 auto; justify-content: center; }
 }
 
