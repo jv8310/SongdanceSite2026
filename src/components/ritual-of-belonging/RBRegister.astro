@@ -259,6 +259,38 @@ const roomTypes = [
       Or email us directly at
       <a href="mailto:info@songdance.co">info@songdance.co</a>
     </p>
+
+    <!-- ───────── Secret Easter egg — drag the heart into the house ───────── -->
+    <div class="rb-egg" id="rb-egg">
+      <div class="rb-egg-stage" id="rb-egg-stage">
+        <div class="rb-egg-house" id="rb-egg-house" aria-hidden="true">
+          <i class="ph-light ph-house"></i>
+        </div>
+        <div
+          class="rb-egg-heart"
+          id="rb-egg-heart"
+          role="button"
+          tabindex="0"
+          aria-label="Drag the heart into the house"
+        >
+          <i class="ph-light ph-heart"></i>
+        </div>
+      </div>
+      <p class="rb-egg-done" id="rb-egg-done">
+        A home for your heart — <strong>10% off</strong> every room, just for you.
+      </p>
+    </div>
+
+    <div class="rb-register-events">
+      <a
+        href="https://www.songdance.co/#calendar"
+        class="rb-btn rb-btn--ghost"
+        target="_blank"
+        rel="noopener"
+      >
+        Discover our other in-person events <i class="ph-light ph-arrow-right"></i>
+      </a>
+    </div>
   </div>
 </section>
 
@@ -326,6 +358,12 @@ const roomTypes = [
     const COOK_HELP_DISCOUNT = 0.30;
     const FIRE_KEEPER_TIERS = new Set(['common-space']);
     const COOK_HELP_TIERS = new Set(['common-space', 'shared-bedroom']);
+
+    // ─── Secret Easter egg: drag the heart into the house for 10% off ───
+    const EASTER_EGG_DISCOUNT = 0.10;
+    let easterEggActive = false;
+    const applyEgg = (amount: number) =>
+      easterEggActive ? amount * (1 - EASTER_EGG_DISCOUNT) : amount;
 
     // ─── Geo-locate: pre-fill Country + Phone country on first load ───
     // Cloudflare attaches the visitor's country to every request; the
@@ -396,9 +434,9 @@ const roomTypes = [
       if (!showCook) cookHelpCheckbox.checked = false;
       // Refresh the cook-help description with the current tier's prices.
       if (cur && showCook) {
-        const discounted = cur.price * (1 - COOK_HELP_DISCOUNT);
+        const discounted = applyEgg(cur.price * (1 - COOK_HELP_DISCOUNT));
         cookHelpPriceEl.textContent = fmtEur(discounted);
-        cookHelpOriginalEl.textContent = fmtEur(cur.price);
+        cookHelpOriginalEl.textContent = fmtEur(applyEgg(cur.price));
       }
       updateRecap();
     }
@@ -412,12 +450,12 @@ const roomTypes = [
       }
       let text: string;
       if (cookHelpCheckbox.checked) {
-        const discounted = cur.price * (1 - COOK_HELP_DISCOUNT);
-        text = `${cur.label} · ${fmtEur(discounted)} (was ${fmtEur(cur.price)}, with kitchen help)`;
+        const discounted = applyEgg(cur.price * (1 - COOK_HELP_DISCOUNT));
+        text = `${cur.label} · ${fmtEur(discounted)} (was ${fmtEur(applyEgg(cur.price))}, with kitchen help)`;
       } else if (fireKeeperCheckbox.checked) {
-        text = `${cur.label} · ${fmtEur(cur.price)} · fire keeper (Pavilion)`;
+        text = `${cur.label} · ${fmtEur(applyEgg(cur.price))} · fire keeper (Pavilion)`;
       } else {
-        text = `${cur.label} · ${fmtEur(cur.price)}`;
+        text = `${cur.label} · ${fmtEur(applyEgg(cur.price))}`;
       }
       recapTier.textContent = text;
       recapTier2.textContent = text;
@@ -616,6 +654,9 @@ const roomTypes = [
           : cookHelpCheckbox.checked
             ? 'cook_help'
             : null,
+        // Secret Easter-egg discount — unlocked by dragging the heart
+        // into the house. The server re-applies and re-prices it.
+        easter_egg_discount: easterEggActive,
       };
 
       if (!data.consent_framework || !data.consent_terms) {
@@ -659,5 +700,117 @@ const roomTypes = [
         submitBtn.innerHTML = original;
       }
     });
+
+    // ───────── Secret Easter egg: drag the heart into the house ─────────
+    // Unlocks a 10% discount across every room tier. Works with mouse,
+    // touch and pen via Pointer Events. The egg markup lives just outside
+    // the <form>, so we query the document for those elements.
+    const eggBlock = document.getElementById('rb-egg');
+    const eggStage = document.getElementById('rb-egg-stage');
+    const eggHouse = document.getElementById('rb-egg-house');
+    const eggHeart = document.getElementById('rb-egg-heart');
+
+    function activateEasterEgg() {
+      if (easterEggActive) return;
+      easterEggActive = true;
+      // Bar every room-card price and show the 10%-off price beside it.
+      rooms.forEach((card) => {
+        const priceEl = card.querySelector(
+          '.rb-roomcard-price',
+        ) as HTMLElement | null;
+        if (!priceEl) return;
+        const base = parseInt(card.dataset.tierPrice ?? '0', 10);
+        priceEl.classList.add('is-discounted');
+        priceEl.textContent = '';
+        const was = document.createElement('s');
+        was.className = 'rb-price-was';
+        was.textContent = `€${base}`;
+        const now = document.createElement('span');
+        now.className = 'rb-price-now';
+        now.textContent = fmtEur(applyEgg(base));
+        priceEl.append(was, document.createTextNode(' '), now);
+      });
+      // Refresh the cook-help copy and both recap chips with the new prices.
+      updateSpecials();
+      if (eggBlock) eggBlock.classList.add('is-unlocked');
+    }
+
+    if (eggStage && eggHouse && eggHeart) {
+      let dragging = false;
+      let startX = 0;
+      let startY = 0;
+      let curX = 0;
+      let curY = 0;
+
+      const heartHome = () => {
+        curX = 0;
+        curY = 0;
+        eggHeart.style.transform = '';
+        eggHeart.classList.remove('is-dragging');
+      };
+
+      const heartOverHouse = () => {
+        const h = eggHeart.getBoundingClientRect();
+        const house = eggHouse.getBoundingClientRect();
+        const cx = h.left + h.width / 2;
+        const cy = h.top + h.height / 2;
+        return (
+          cx >= house.left &&
+          cx <= house.right &&
+          cy >= house.top &&
+          cy <= house.bottom
+        );
+      };
+
+      const onMove = (ev: PointerEvent) => {
+        if (!dragging) return;
+        ev.preventDefault();
+        curX = ev.clientX - startX;
+        curY = ev.clientY - startY;
+        eggHeart.style.transform = `translate(${curX}px, ${curY}px)`;
+        eggHouse.classList.toggle('is-near', heartOverHouse());
+      };
+
+      const onUp = (ev: PointerEvent) => {
+        if (!dragging) return;
+        dragging = false;
+        try {
+          eggHeart.releasePointerCapture(ev.pointerId);
+        } catch {
+          /* pointer already released */
+        }
+        eggHouse.classList.remove('is-near');
+        if (heartOverHouse()) {
+          activateEasterEgg();
+        } else {
+          heartHome();
+        }
+      };
+
+      eggHeart.addEventListener('pointerdown', (ev) => {
+        if (easterEggActive) return;
+        dragging = true;
+        startX = ev.clientX - curX;
+        startY = ev.clientY - curY;
+        eggHeart.classList.add('is-dragging');
+        try {
+          eggHeart.setPointerCapture(ev.pointerId);
+        } catch {
+          /* capture unsupported — listeners still fire */
+        }
+      });
+      eggHeart.addEventListener('pointermove', onMove);
+      eggHeart.addEventListener('pointerup', onUp);
+      eggHeart.addEventListener('pointercancel', onUp);
+
+      // Keyboard fallback so the egg is reachable without a pointer.
+      eggHeart.addEventListener('keydown', (ev) => {
+        if (easterEggActive) return;
+        if (ev.key === 'Enter' || ev.key === ' ') {
+          ev.preventDefault();
+          activateEasterEgg();
+        }
+      });
+    }
   }
 </script>
