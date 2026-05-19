@@ -1028,6 +1028,115 @@ html, body { background: var(--paper); }
   text-underline-offset: 4px;
 }
 
+/* ---------- "Discover our other events" button ---------- */
+.rb-register-events {
+  margin-top: var(--sp-7);
+  display: flex;
+  justify-content: center;
+}
+
+/* ---------- Secret Easter egg — drag the heart into the house ---------- */
+.rb-egg {
+  margin-top: var(--sp-7);
+  display: grid;
+  justify-items: center;
+}
+.rb-egg-stage {
+  grid-area: 1 / 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 56px;
+  padding: 20px 34px;
+  border-radius: var(--r-pill);
+  border: 1px dashed rgba(244, 236, 223, 0.18);
+  background: rgba(244, 236, 223, 0.03);
+  transition: opacity var(--d-base) var(--ease),
+    transform var(--d-base) var(--ease);
+}
+.rb-egg-house,
+.rb-egg-heart {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+}
+.rb-egg-house i {
+  font-size: 46px;
+  color: rgba(244, 236, 223, 0.5);
+  transition: color var(--d-base) var(--ease),
+    transform var(--d-base) var(--ease);
+}
+.rb-egg-house.is-near i {
+  color: var(--ember);
+  transform: scale(1.12);
+}
+.rb-egg-heart {
+  cursor: grab;
+  touch-action: none;
+  border-radius: 50%;
+}
+.rb-egg-heart i {
+  font-size: 34px;
+  color: var(--ember);
+  transition: transform var(--d-base) var(--ease);
+}
+.rb-egg-heart:focus-visible {
+  outline: 2px solid var(--ember);
+  outline-offset: 4px;
+}
+.rb-egg-heart.is-dragging {
+  cursor: grabbing;
+  z-index: 2;
+}
+.rb-egg-heart.is-dragging i {
+  transform: scale(1.18);
+}
+.rb-egg-done {
+  grid-area: 1 / 1;
+  align-self: center;
+  margin: 0;
+  font-family: var(--font-lyric);
+  font-style: italic;
+  font-size: 19px;
+  color: rgba(244, 236, 223, 0.9);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--d-base) var(--ease),
+    visibility var(--d-base) var(--ease);
+}
+.rb-egg-done strong {
+  font-family: var(--font-body);
+  font-style: normal;
+  color: var(--ember);
+}
+.rb-egg.is-unlocked .rb-egg-stage {
+  opacity: 0;
+  transform: scale(0.96);
+  pointer-events: none;
+}
+.rb-egg.is-unlocked .rb-egg-done {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Barred room-card prices once the egg is unlocked */
+.rb-roomcard-price.is-discounted {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.rb-price-was {
+  color: rgba(244, 236, 223, 0.4);
+  font-size: 14px;
+}
+.rb-price-now {
+  color: var(--ember);
+}
+
 /* ---------- Footer ---------- */
 .rb-footer {
   background: var(--paper-deep);

@@ -28,6 +28,10 @@ const COOK_HELP_TIERS = new Set(['common-space', 'shared-bedroom']);
 // upgrade only — no price change.
 const COOK_HELP_DISCOUNT = 0.30;
 
+// Secret Easter-egg discount, unlocked on the registration page by
+// dragging the heart into the house. 10% off the running total.
+const EASTER_EGG_DISCOUNT = 0.10;
+
 type Body = {
   product_slug?: string;
   tier_slug?: string;
@@ -44,6 +48,7 @@ type Body = {
   consent_framework?: boolean;
   consent_terms?: boolean;
   role?: SpecialRole | null;
+  easter_egg_discount?: boolean;
 };
 
 export const POST: APIRoute = async ({ request, locals }) => {
@@ -182,6 +187,15 @@ export const POST: APIRoute = async ({ request, locals }) => {
       : 0;
   const amountCents = tier.price_cents - roleDiscountCents;
 
+  // Secret Easter-egg discount: 10% off the running total, applied after
+  // any role discount. Unlocked client-side, re-applied (and re-priced)
+  // here so the charged amount is always computed server-side.
+  const easterEgg = payload.easter_egg_discount === true;
+  const easterEggDiscountCents = easterEgg
+    ? Math.round(amountCents * EASTER_EGG_DISCOUNT)
+    : 0;
+  const finalAmountCents = amountCents - easterEggDiscountCents;
+
   const phoneCountry = findCountry(phoneCountryCode);
   const phoneE164 = phoneCountry
     ? `+${phoneCountry.dial}${phoneLocal.replace(/[^0-9]/g, '')}`
@@ -206,7 +220,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     consent_terms: payload.consent_terms === true,
     role,
     role_discount_cents: roleDiscountCents,
-    amount_cents: amountCents,
+    amount_cents: finalAmountCents,
     currency: product.currency,
     hold_minutes: HOLD_MINUTES,
   });
@@ -265,12 +279,15 @@ export const POST: APIRoute = async ({ request, locals }) => {
   // Build the line item name once and reuse it as the PaymentIntent
   // description, so the Quaderno-Stripe sync picks it up as the invoice
   // line item name (instead of falling back to the merchant name).
-  const lineItemName =
+  const baseLineItemName =
     role === 'fire_keeper'
       ? `${product.name} — ${tier.name} (fire keeper, Pavilion)`
       : role === 'cook_help'
         ? `${product.name} — ${tier.name} (with kitchen help, 30% off)`
         : `${product.name} — ${tier.name}`;
+  const lineItemName = easterEgg
+    ? `${baseLineItemName} (10% discount)`
+    : baseLineItemName;
 
   const session = await createCheckoutSession({
     secretKey: env.STRIPE_SECRET_KEY,
@@ -284,7 +301,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       {
         name: lineItemName,
         description: tier.description ?? undefined,
-        amount_cents: amountCents,
+        amount_cents: finalAmountCents,
         currency: product.currency.toLowerCase(),
         quantity: 1,
       },
@@ -301,6 +318,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       vat_number: vatNumber,
       role: role ?? '',
       role_discount_cents: String(roleDiscountCents),
+      easter_egg_discount_cents: String(easterEggDiscountCents),
     },
     idempotency_key: `reg-${registrationId}`,
   });
@@ -316,8 +334,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
       auto_assigned_room: room.name,
       auto_assigned_room_id: room.id,
       role: role ?? null,
-      amount_cents: amountCents,
+      amount_cents: finalAmountCents,
       role_discount_cents: roleDiscountCents,
+      easter_egg_discount_cents: easterEggDiscountCents,
     },
   });
 
