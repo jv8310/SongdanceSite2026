@@ -1,0 +1,332 @@
+import type { APIRoute } from 'astro';
+import {
+  getProductBySlug,
+  getTierBySlug,
+  createPendingRegistration,
+  attachStripeSession,
+  logEvent,
+  pickRoomForTier,
+  getSpecialRoomByRole,
+  type SpecialRole,
+} from '../../../lib/registrations/db';
+import {
+  createCheckoutSession,
+  createCustomer,
+  stripeTaxIdTypeFor,
+} from '../../../lib/registrations/stripe';
+import { findCountry } from '../../../lib/countries';
+
+export const prerender = false;
+
+const HOLD_MINUTES = 30;
+
+// Tier slugs eligible for each opt-in role.
+const FIRE_KEEPER_TIERS = new Set(['common-space']);
+const COOK_HELP_TIERS = new Set(['common-space', 'shared-bedroom']);
+
+// Cook help: pay 30% less on the chosen tier. Fire keeper is a room
+// upgrade only — no price change.
+const COOK_HELP_DISCOUNT = 0.30;
+
+type Body = {
+  product_slug?: string;
+  tier_slug?: string;
+  first_name?: string;
+  last_name?: string;
+  email?: string;
+  country?: string;          // ISO-2
+  phone_country?: string;    // ISO-2
+  phone?: string;            // local number, no dial prefix
+  company_name?: string;
+  vat_number?: string;
+  dietary?: string;
+  notes?: string;
+  consent_framework?: boolean;
+  consent_terms?: boolean;
+  role?: SpecialRole | null;
+};
+
+export const POST: APIRoute = async ({ request, locals }) => {
+  const env = locals.runtime.env;
+  let payload: Body;
+  try {
+    payload = (await request.json()) as Body;
+  } catch {
+    return json({ error: 'Invalid JSON' }, 400);
+  }
+
+  const productSlug = (payload.product_slug ?? '').trim();
+  const tierSlug = (payload.tier_slug ?? '').trim();
+  const firstName = (payload.first_name ?? '').trim();
+  const lastName = (payload.last_name ?? '').trim();
+  const email = (payload.email ?? '').trim().toLowerCase();
+  const countryCode = (payload.country ?? '').trim().toUpperCase();
+  const phoneCountryCode = (payload.phone_country ?? '').trim().toUpperCase();
+  const phoneLocal = (payload.phone ?? '').trim();
+  const companyName = (payload.company_name ?? '').trim();
+  const vatNumber = (payload.vat_number ?? '').trim();
+
+  if (!productSlug || !tierSlug || !firstName || !lastName || !email) {
+    return json(
+      { error: 'first_name, last_name, email, product_slug and tier_slug are required' },
+      400,
+    );
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return json({ error: 'Please enter a valid email address.' }, 400);
+  }
+  if (!countryCode || !findCountry(countryCode)) {
+    return json({ error: 'Please select your country.' }, 400);
+  }
+  if (!phoneCountryCode || !findCountry(phoneCountryCode) || !phoneLocal) {
+    return json({ error: 'Please enter a phone number with country code.' }, 400);
+  }
+  // Company is optional; when provided, VAT becomes required so the
+  // invoice can carry it. Billing address is collected by Stripe.
+  if (companyName && !vatNumber) {
+    return json(
+      { error: 'When registering on behalf of a company, please add the VAT number.' },
+      400,
+    );
+  }
+  if (!payload.consent_framework || !payload.consent_terms) {
+    return json(
+      { error: 'Please confirm both agreements to continue.' },
+      400,
+    );
+  }
+
+  const product = await getProductBySlug(env.DB, productSlug);
+  if (!product) {
+    await logEvent(env.DB, {
+      registration_id: null,
+      kind: 'checkout.product.unknown',
+      payload: { product_slug: productSlug },
+    });
+    return json(
+      { error: 'This retreat isn\'t available right now. Please refresh the page, or email info@songdance.co.' },
+      404,
+    );
+  }
+
+  const tier = await getTierBySlug(env.DB, product.id, tierSlug);
+  if (!tier) {
+    await logEvent(env.DB, {
+      registration_id: null,
+      kind: 'checkout.tier.unknown',
+      payload: { tier_slug: tierSlug, product_slug: productSlug },
+    });
+    return json(
+      { error: 'This room option isn\'t available right now. Please refresh the page and try again, or email info@songdance.co.' },
+      404,
+    );
+  }
+
+  // Validate the opt-in role (fire keeper / cook help) against the chosen
+  // tier. These rooms (Paviljoen, Room 5.2) are status='reserved' and
+  // ignored by pickRoomForTier — they only get assigned via an explicit
+  // opt-in here.
+  const role: SpecialRole | null =
+    payload.role === 'fire_keeper' || payload.role === 'cook_help'
+      ? payload.role
+      : null;
+
+  if (role === 'fire_keeper' && !FIRE_KEEPER_TIERS.has(tierSlug)) {
+    return json(
+      { error: 'The fire keeper role is only available with the Common Space room option.' },
+      400,
+    );
+  }
+  if (role === 'cook_help' && !COOK_HELP_TIERS.has(tierSlug)) {
+    return json(
+      { error: 'Kitchen help is only available with Common Space or Shared Bedroom.' },
+      400,
+    );
+  }
+
+  // Pick the room: special role overrides the auto-pick.
+  let room;
+  if (role === 'fire_keeper') {
+    room = await getSpecialRoomByRole(env.DB, product.id, 'fire_keeper');
+    if (!room) {
+      return json(
+        { error: 'The fire keeper place was just taken. Please uncheck that option and try again.' },
+        409,
+      );
+    }
+  } else if (role === 'cook_help') {
+    room = await getSpecialRoomByRole(env.DB, product.id, 'cook_help');
+    if (!room) {
+      return json(
+        { error: 'The kitchen-help place was just taken. Please uncheck that option and try again.' },
+        409,
+      );
+    }
+  } else {
+    // Standard auto-pick: "preserve solo, fill shared rooms first" — see
+    // pickRoomForTier in db.ts for the priority ladder.
+    room = await pickRoomForTier(env.DB, product.id, tierSlug);
+    if (!room) {
+      return json(
+        { error: 'This room option is fully booked. Please choose another, or email info@songdance.co to join the waitlist.' },
+        409,
+      );
+    }
+  }
+
+  // Cook help: 30% off the tier price. Fire keeper: no discount (it's a
+  // room upgrade, not a price cut).
+  const roleDiscountCents =
+    role === 'cook_help'
+      ? Math.round(tier.price_cents * COOK_HELP_DISCOUNT)
+      : 0;
+  const amountCents = tier.price_cents - roleDiscountCents;
+
+  const phoneCountry = findCountry(phoneCountryCode);
+  const phoneE164 = phoneCountry
+    ? `+${phoneCountry.dial}${phoneLocal.replace(/[^0-9]/g, '')}`
+    : phoneLocal;
+
+  const registrationId = await createPendingRegistration(env.DB, {
+    product_id: product.id,
+    tier_id: tier.id,
+    inventory_unit_id: room.id,
+    first_name: firstName,
+    last_name: lastName,
+    email,
+    phone: phoneE164,
+    phone_country: phoneCountryCode,
+    country: countryCode,
+    company_name: companyName || null,
+    vat_number: vatNumber || null,
+    address: null,
+    dietary: payload.dietary?.trim() || null,
+    notes: payload.notes?.trim() || null,
+    consent_framework: payload.consent_framework === true,
+    consent_terms: payload.consent_terms === true,
+    role,
+    role_discount_cents: roleDiscountCents,
+    amount_cents: amountCents,
+    currency: product.currency,
+    hold_minutes: HOLD_MINUTES,
+  });
+
+  const baseUrl = env.PUBLIC_BASE_URL.replace(/\/$/, '');
+
+  // Always pre-create a Stripe Customer with everything we already know so
+  // Stripe Checkout pre-fills email, name and country (and for B2B also
+  // attaches the VAT number as a tax_id). The Quaderno-Stripe integration
+  // reads these fields off the customer to produce the right invoice.
+  //
+  // Tax note: this retreat is a physical event in Belgium, so under EU VAT
+  // Directive Art. 53 the place-of-supply is Belgium for both B2C and B2B
+  // (no reverse-charge for event tickets). All prices are gross-inclusive
+  // of 21% Belgian VAT regardless of the buyer's country — Quaderno is
+  // configured to apply that rate when it generates the invoice.
+  let customerId: string | undefined;
+  const taxIdType = vatNumber ? stripeTaxIdTypeFor(countryCode) : null;
+  try {
+    // For B2B, the billing name should be the company; for B2C it's the
+    // person. Either way, country is set so Checkout filters payment
+    // methods (Bancontact for BE, iDEAL for NL, etc.) without the buyer
+    // needing to pick a country first.
+    const billingName = companyName || `${firstName} ${lastName}`;
+    const cust = await createCustomer({
+      secretKey: env.STRIPE_SECRET_KEY,
+      email,
+      name: billingName,
+      phone: phoneE164,
+      country: countryCode,
+      description: companyName
+        ? `${companyName} · ${firstName} ${lastName} · reg ${registrationId}`
+        : `${firstName} ${lastName} · reg ${registrationId}`,
+      tax_id:
+        companyName && vatNumber && taxIdType
+          ? { type: taxIdType, value: vatNumber }
+          : undefined,
+      metadata: {
+        registration_id: String(registrationId),
+        contact_first_name: firstName,
+        contact_last_name: lastName,
+        ...(companyName ? { company_name: companyName } : {}),
+      },
+    });
+    customerId = cust.id;
+  } catch (err) {
+    // Don't block the registration on customer creation — log and fall
+    // back to customer_email. The VAT (if any) is still in our D1 row.
+    await logEvent(env.DB, {
+      registration_id: registrationId,
+      kind: 'stripe.customer.error',
+      payload: { error: String(err) },
+    });
+  }
+
+  // Build the line item name once and reuse it as the PaymentIntent
+  // description, so the Quaderno-Stripe sync picks it up as the invoice
+  // line item name (instead of falling back to the merchant name).
+  const lineItemName =
+    role === 'fire_keeper'
+      ? `${product.name} — ${tier.name} (fire keeper, Pavilion)`
+      : role === 'cook_help'
+        ? `${product.name} — ${tier.name} (with kitchen help, 30% off)`
+        : `${product.name} — ${tier.name}`;
+
+  const session = await createCheckoutSession({
+    secretKey: env.STRIPE_SECRET_KEY,
+    ...(customerId
+      ? { customer: customerId }
+      : { customer_email: email }),
+    success_url: `${baseUrl}/registrations/thanks?session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${baseUrl}/ritual-of-belonging#register`,
+    payment_intent_description: lineItemName,
+    line_items: [
+      {
+        name: lineItemName,
+        description: tier.description ?? undefined,
+        amount_cents: amountCents,
+        currency: product.currency.toLowerCase(),
+        quantity: 1,
+      },
+    ],
+    metadata: {
+      registration_id: String(registrationId),
+      product_slug: product.slug,
+      tier_slug: tier.slug,
+      first_name: firstName,
+      last_name: lastName,
+      country: countryCode,
+      phone: phoneE164,
+      company_name: companyName,
+      vat_number: vatNumber,
+      role: role ?? '',
+      role_discount_cents: String(roleDiscountCents),
+    },
+    idempotency_key: `reg-${registrationId}`,
+  });
+
+  await attachStripeSession(env.DB, registrationId, session.id);
+  await logEvent(env.DB, {
+    registration_id: registrationId,
+    kind: 'checkout.session.created',
+    external_id: `local-checkout-${registrationId}`,
+    payload: {
+      session_id: session.id,
+      tier: tier.slug,
+      auto_assigned_room: room.name,
+      auto_assigned_room_id: room.id,
+      role: role ?? null,
+      amount_cents: amountCents,
+      role_discount_cents: roleDiscountCents,
+    },
+  });
+
+  return json({ checkout_url: session.url, registration_id: registrationId });
+};
+
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}

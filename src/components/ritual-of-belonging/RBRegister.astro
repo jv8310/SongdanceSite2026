@@ -1,4 +1,44 @@
 ---
+import { COUNTRIES } from '../../lib/countries';
+
+// Mirrors active tiers in D1 (see migrations/0004_room_type_catalog.sql).
+// Slugs MUST match the DB tier slugs — the server re-validates on submit.
+const roomTypes = [
+  {
+    slug: 'private-ensuite',
+    label: 'Private En-suite',
+    description: 'Your own room with private bathroom — the most private option.',
+    price: 995,
+  },
+  {
+    slug: 'private-shared-bath',
+    label: 'Private Shared-bath',
+    description: 'Your own room, with bathroom on the same floor or within the unit.',
+    price: 795,
+  },
+  {
+    slug: 'shared-bedroom',
+    label: 'Shared Bedroom',
+    description: 'A bed in a real bedroom, shared with 1–2 others.',
+    price: 695,
+  },
+  {
+    slug: 'common-space',
+    label: 'Common Space',
+    description: 'A bed in a beautiful open space — mezzanine, gallery or attic.',
+    price: 595,
+  },
+  // Hidden by default — revealed by JS only when the page URL has
+  // ?admin=true. Used to exercise the full payment flow at €1 without
+  // exposing it to regular visitors.
+  {
+    slug: 'admin-test-1eur',
+    label: 'Admin test — €1',
+    description: 'Internal payment-flow test only. Visible because ?admin=true is in the URL.',
+    price: 1,
+    adminOnly: true,
+  },
+];
 ---
 
 <section class="rb-register" id="register">
@@ -15,26 +55,205 @@
       <span>With Lesanne &amp; Jacob</span>
     </div>
     <p class="rb-register-body">
-      Spaces are limited. Write to us and we'll send you the next steps,
-      answer any questions, and hold your place while you decide.
+      Spaces are limited. Choose the room option that calls to you —
+      we'll hold your place, take you to a secure payment page, and
+      follow up with the practical details and your specific room
+      assignment.
     </p>
 
-    <div class="rb-register-cta-row">
-      <a
-        href="mailto:info@songdance.co?subject=Ritual%20of%20Belonging%20%E2%80%94%20Registration"
-        class="rb-btn rb-btn--ember rb-btn--lg"
-        aria-label="Email info@songdance.co to register"
-      >
-        Register now <i class="ph-light ph-arrow-right"></i>
-      </a>
-      <a
-        href="mailto:info@songdance.co"
-        class="rb-btn rb-btn--ghost rb-btn--lg"
-        aria-label="Email info@songdance.co with a question"
-      >
-        Ask a question
-      </a>
-    </div>
+    <form id="rb-reg-form" class="rb-reg-form-v2" novalidate data-step="1">
+      <input type="hidden" name="product_slug" value="ritual-of-belonging-2026" />
+      <input type="hidden" name="tier_slug" id="rb-tier-slug" value="" />
+
+      <ol class="rb-stepper" aria-hidden="true">
+        <li class="rb-stepper-item is-active" data-step-indicator="1"><span>1</span> Room</li>
+        <li class="rb-stepper-item" data-step-indicator="2"><span>2</span> Your details</li>
+        <li class="rb-stepper-item" data-step-indicator="3"><span>3</span> Confirm &amp; pay</li>
+      </ol>
+
+      <!-- ───────── Step 1 — Room choice ───────── -->
+      <fieldset class="rb-step rb-step--rooms is-active" data-step="1">
+        <legend class="rb-step-title">Choose your room option</legend>
+        <div class="rb-roomcards" role="radiogroup" aria-label="Room option">
+          {roomTypes.map((t) => (
+            <button
+              type="button"
+              class={`rb-roomcard${t.adminOnly ? ' rb-roomcard--admin' : ''}`}
+              data-tier-slug={t.slug}
+              data-tier-price={String(t.price)}
+              data-tier-label={t.label}
+              role="radio"
+              aria-checked="false"
+              hidden={t.adminOnly || undefined}
+            >
+              <span class="rb-roomcard-name">{t.label}</span>
+              <span class="rb-roomcard-desc">{t.description}</span>
+              <span class="rb-roomcard-price">€{t.price}</span>
+              <span class="rb-roomcard-avail" data-avail-for={t.slug} hidden></span>
+            </button>
+          ))}
+        </div>
+        <p class="rb-step-fine">All prices are per person and include meals, the full program, and 21% Belgian VAT — the same rate for everyone, because this retreat takes place in Belgium.</p>
+      </fieldset>
+
+      <!-- ───────── Step 2 — Your details ───────── -->
+      <fieldset class="rb-step rb-step--details" data-step="2">
+        <div class="rb-step-recap" data-recap-step="1">
+          <span class="rb-step-recap-label">Room</span>
+          <span class="rb-step-recap-value" id="rb-recap-tier">—</span>
+          <button type="button" class="rb-step-recap-edit" data-go-step="1">change</button>
+        </div>
+        <legend class="rb-step-title">Your details</legend>
+
+        <div class="rb-grid">
+          <label class="rb-field">
+            <span>First name</span>
+            <input type="text" name="first_name" autocomplete="given-name" required />
+          </label>
+          <label class="rb-field">
+            <span>Last name</span>
+            <input type="text" name="last_name" autocomplete="family-name" required />
+          </label>
+
+          <label class="rb-field rb-field--full">
+            <span>Email address</span>
+            <input type="email" name="email" autocomplete="email" required />
+          </label>
+
+          <label class="rb-field">
+            <span>Country</span>
+            <select name="country" required>
+              <option value="">— select —</option>
+              {COUNTRIES.map((c) => (
+                <option value={c.code}>{c.name} {c.flag}</option>
+              ))}
+            </select>
+          </label>
+
+          <div class="rb-field">
+            <span>Phone number</span>
+            <div class="rb-phone">
+              <select name="phone_country" aria-label="Phone country code" required>
+                <option value="">—</option>
+                {COUNTRIES.map((c) => (
+                  <option value={c.code} data-dial={c.dial}>{c.code} {c.flag} +{c.dial}</option>
+                ))}
+              </select>
+              <input type="tel" name="phone" autocomplete="tel-national" inputmode="tel" placeholder="470 12 34 56" required />
+            </div>
+          </div>
+
+          <label class="rb-field rb-field--full">
+            <span>Company name <em class="rb-optional">(optional — if registering as a company)</em></span>
+            <input type="text" name="company_name" autocomplete="organization" />
+          </label>
+
+          <label class="rb-field rb-field--full rb-field--biz" hidden>
+            <span>VAT number</span>
+            <input type="text" name="vat_number" placeholder="e.g. BE0123.456.789" autocomplete="off" />
+          </label>
+        </div>
+
+        <div id="rb-reg-error-2" class="rb-reg-error" hidden></div>
+        <div class="rb-step-actions">
+          <button type="button" class="rb-btn rb-btn--ghost" data-go-step="1">
+            <i class="ph-light ph-arrow-left"></i> Back
+          </button>
+          <button type="button" class="rb-btn rb-btn--ember" data-go-step="3">
+            Next <i class="ph-light ph-arrow-right"></i>
+          </button>
+        </div>
+      </fieldset>
+
+      <!-- ───────── Step 3 — Confirm & pay ───────── -->
+      <fieldset class="rb-step rb-step--confirm" data-step="3">
+        <div class="rb-step-recap" data-recap-step="2">
+          <span class="rb-step-recap-label">Room</span>
+          <span class="rb-step-recap-value" id="rb-recap-tier-2">—</span>
+          <button type="button" class="rb-step-recap-edit" data-go-step="1">change</button>
+        </div>
+        <div class="rb-step-recap">
+          <span class="rb-step-recap-label">You</span>
+          <span class="rb-step-recap-value" id="rb-recap-you">—</span>
+          <button type="button" class="rb-step-recap-edit" data-go-step="2">change</button>
+        </div>
+        <legend class="rb-step-title">A few last things</legend>
+
+        <div class="rb-grid">
+          <label class="rb-field rb-field--full">
+            <span>Dietary notes <em class="rb-optional">(gluten, dairy, allergies…)</em></span>
+            <input type="text" name="dietary" placeholder="e.g. gluten-free, no nuts" />
+          </label>
+
+          <label class="rb-field rb-field--full">
+            <span>Other questions or notes <em class="rb-optional">(optional)</em></span>
+            <textarea name="notes" rows="3"></textarea>
+          </label>
+        </div>
+
+        <!-- ─── Optional opt-in roles ─── -->
+        <div class="rb-specials" id="rb-specials" hidden>
+          <p class="rb-specials-title">A special option for you</p>
+
+          <label class="rb-special" id="rb-special-fire-keeper" hidden>
+            <input type="checkbox" name="role_fire_keeper" />
+            <span class="rb-special-body">
+              <span class="rb-special-heading">Be the fire keeper</span>
+              <span class="rb-special-desc">
+                Sleep by yourself in the <em>Pavilion</em> — a room
+                upgrade to your own private bed and bathroom. Once the
+                evening workshop ends, the working space is yours; you
+                keep the fire going through the night and into the
+                morning.
+              </span>
+            </span>
+          </label>
+
+          <label class="rb-special" id="rb-special-cook-help" hidden>
+            <input type="checkbox" name="role_cook_help" />
+            <span class="rb-special-body">
+              <span class="rb-special-heading">Save 30% — help in the kitchen</span>
+              <span class="rb-special-desc">
+                Pay <strong data-cookhelp-price>—</strong> instead of
+                <span data-cookhelp-original>—</span>, and lend a hand
+                during the last 10 minutes of each session and through
+                the breaks. A real help to our chef, with a nice
+                discount for you.
+              </span>
+            </span>
+          </label>
+        </div>
+
+        <div class="rb-consents">
+          <label class="rb-consent">
+            <input type="checkbox" name="consent_framework" required />
+            <span>
+              I have read and agree with the framework <em>“A circle worth protecting”</em>
+              outlined above, and confirm that none of the situations described
+              apply — or, if they do, that I have spoken with you about it first.
+            </span>
+          </label>
+          <label class="rb-consent">
+            <input type="checkbox" name="consent_terms" required />
+            <span>
+              I agree to the
+              <a href="https://www.songdance.co/terms" target="_blank" rel="noopener">Songdance terms and conditions</a>.
+            </span>
+          </label>
+        </div>
+
+        <div id="rb-reg-error" class="rb-reg-error" hidden></div>
+
+        <div class="rb-step-actions">
+          <button type="button" class="rb-btn rb-btn--ghost" data-go-step="2">
+            <i class="ph-light ph-arrow-left"></i> Back
+          </button>
+          <button type="submit" class="rb-btn rb-btn--ember rb-btn--lg" id="rb-reg-submit">
+            Proceed to payment <i class="ph-light ph-arrow-right"></i>
+          </button>
+        </div>
+      </fieldset>
+    </form>
 
     <p class="rb-register-contact">
       Or email us directly at
@@ -42,3 +261,403 @@
     </p>
   </div>
 </section>
+
+<script>
+  type StepNum = 1 | 2 | 3;
+
+  const form = document.getElementById('rb-reg-form') as HTMLFormElement | null;
+  if (form) {
+    // Reveal the hidden "Admin test — €1" room card when the page URL
+    // carries ?admin=true. The card stays hidden for every other visitor.
+    const isAdmin =
+      new URLSearchParams(window.location.search).get('admin') === 'true';
+    if (isAdmin) {
+      form
+        .querySelectorAll<HTMLButtonElement>('.rb-roomcard--admin')
+        .forEach((el) => {
+          el.hidden = false;
+        });
+    }
+
+    const tierSlug = form.querySelector('#rb-tier-slug') as HTMLInputElement;
+    const rooms = Array.from(form.querySelectorAll<HTMLButtonElement>('.rb-roomcard'));
+    const steps = Array.from(form.querySelectorAll<HTMLFieldSetElement>('.rb-step'));
+    const stepIndicators = Array.from(
+      form.querySelectorAll<HTMLElement>('.rb-stepper-item'),
+    );
+    const recapTier = form.querySelector('#rb-recap-tier') as HTMLElement;
+    const recapTier2 = form.querySelector('#rb-recap-tier-2') as HTMLElement;
+    const recapYou = form.querySelector('#rb-recap-you') as HTMLElement;
+    const errBox2 = form.querySelector('#rb-reg-error-2') as HTMLElement;
+    const errBox = form.querySelector('#rb-reg-error') as HTMLElement;
+    const submitBtn = form.querySelector('#rb-reg-submit') as HTMLButtonElement;
+    const companyInput = form.querySelector(
+      'input[name="company_name"]',
+    ) as HTMLInputElement;
+    const bizFields = Array.from(
+      form.querySelectorAll<HTMLElement>('.rb-field--biz'),
+    );
+    const vatInput = form.querySelector(
+      'input[name="vat_number"]',
+    ) as HTMLInputElement;
+
+    // ─── Special opt-in roles (fire keeper, cook help) ───
+    const specialsBlock = form.querySelector('#rb-specials') as HTMLElement;
+    const fireKeeperWrap = form.querySelector(
+      '#rb-special-fire-keeper',
+    ) as HTMLElement;
+    const cookHelpWrap = form.querySelector(
+      '#rb-special-cook-help',
+    ) as HTMLElement;
+    const fireKeeperCheckbox = form.querySelector(
+      'input[name="role_fire_keeper"]',
+    ) as HTMLInputElement;
+    const cookHelpCheckbox = form.querySelector(
+      'input[name="role_cook_help"]',
+    ) as HTMLInputElement;
+    const cookHelpPriceEl = form.querySelector(
+      '[data-cookhelp-price]',
+    ) as HTMLElement;
+    const cookHelpOriginalEl = form.querySelector(
+      '[data-cookhelp-original]',
+    ) as HTMLElement;
+    let fireKeeperAvail = false;
+    let cookHelpAvail = false;
+    const COOK_HELP_DISCOUNT = 0.30;
+    const FIRE_KEEPER_TIERS = new Set(['common-space']);
+    const COOK_HELP_TIERS = new Set(['common-space', 'shared-bedroom']);
+
+    // ─── Geo-locate: pre-fill Country + Phone country on first load ───
+    // Cloudflare attaches the visitor's country to every request; the
+    // /api/geo endpoint surfaces it. We only pre-select when the user
+    // hasn't already chosen something, and only if the detected country
+    // is in our list of options.
+    const countrySelect = form.querySelector(
+      'select[name="country"]',
+    ) as HTMLSelectElement;
+    const phoneCountrySelect = form.querySelector(
+      'select[name="phone_country"]',
+    ) as HTMLSelectElement;
+    fetch('/api/geo', { headers: { Accept: 'application/json' } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        const detected = data?.country as string | undefined;
+        if (!detected) return;
+        const hasOption = (sel: HTMLSelectElement, code: string) =>
+          !!sel.querySelector(`option[value="${code}"]`);
+        if (
+          countrySelect &&
+          !countrySelect.value &&
+          hasOption(countrySelect, detected)
+        ) {
+          countrySelect.value = detected;
+        }
+        if (
+          phoneCountrySelect &&
+          !phoneCountrySelect.value &&
+          hasOption(phoneCountrySelect, detected)
+        ) {
+          phoneCountrySelect.value = detected;
+        }
+      })
+      .catch(() => {
+        // Local dev or any network issue — fail silent; the user can
+        // still pick manually.
+      });
+
+    function currentTier() {
+      const slug = tierSlug.value;
+      if (!slug) return null;
+      const card = form!.querySelector<HTMLButtonElement>(
+        `.rb-roomcard[data-tier-slug="${slug}"]`,
+      );
+      if (!card) return null;
+      const price = parseInt(card.dataset.tierPrice ?? '0', 10);
+      const label = card.dataset.tierLabel ?? '';
+      return { slug, price, label };
+    }
+
+    function fmtEur(amount: number) {
+      // amount is in EUR (not cents). Trim trailing .00 for whole numbers.
+      return amount % 1 === 0
+        ? `€${amount}`
+        : `€${amount.toFixed(2)}`;
+    }
+
+    function updateSpecials() {
+      const cur = currentTier();
+      const slug = cur?.slug ?? '';
+      const showFire = FIRE_KEEPER_TIERS.has(slug) && fireKeeperAvail;
+      const showCook = COOK_HELP_TIERS.has(slug) && cookHelpAvail;
+      fireKeeperWrap.hidden = !showFire;
+      cookHelpWrap.hidden = !showCook;
+      specialsBlock.hidden = !showFire && !showCook;
+      if (!showFire) fireKeeperCheckbox.checked = false;
+      if (!showCook) cookHelpCheckbox.checked = false;
+      // Refresh the cook-help description with the current tier's prices.
+      if (cur && showCook) {
+        const discounted = cur.price * (1 - COOK_HELP_DISCOUNT);
+        cookHelpPriceEl.textContent = fmtEur(discounted);
+        cookHelpOriginalEl.textContent = fmtEur(cur.price);
+      }
+      updateRecap();
+    }
+
+    function updateRecap() {
+      const cur = currentTier();
+      if (!cur) {
+        recapTier.textContent = '—';
+        recapTier2.textContent = '—';
+        return;
+      }
+      let text: string;
+      if (cookHelpCheckbox.checked) {
+        const discounted = cur.price * (1 - COOK_HELP_DISCOUNT);
+        text = `${cur.label} · ${fmtEur(discounted)} (was ${fmtEur(cur.price)}, with kitchen help)`;
+      } else if (fireKeeperCheckbox.checked) {
+        text = `${cur.label} · ${fmtEur(cur.price)} · fire keeper (Pavilion)`;
+      } else {
+        text = `${cur.label} · ${fmtEur(cur.price)}`;
+      }
+      recapTier.textContent = text;
+      recapTier2.textContent = text;
+    }
+
+    fireKeeperCheckbox.addEventListener('change', () => {
+      if (fireKeeperCheckbox.checked) cookHelpCheckbox.checked = false;
+      updateRecap();
+    });
+    cookHelpCheckbox.addEventListener('change', () => {
+      if (cookHelpCheckbox.checked) fireKeeperCheckbox.checked = false;
+      updateRecap();
+    });
+
+    function setStep(n: StepNum) {
+      form!.dataset.step = String(n);
+      steps.forEach((s) => {
+        const sn = parseInt(s.dataset.step ?? '0', 10);
+        s.classList.toggle('is-active', sn === n);
+        s.classList.toggle('is-prev', sn < n);
+      });
+      stepIndicators.forEach((el) => {
+        const sn = parseInt(el.dataset.stepIndicator ?? '0', 10);
+        el.classList.toggle('is-active', sn === n);
+        el.classList.toggle('is-done', sn < n);
+      });
+      // Scroll the form into view so the active step is comfortably visible.
+      const top = form!.getBoundingClientRect().top + window.scrollY - 80;
+      window.scrollTo({ top, behavior: 'smooth' });
+    }
+
+    // ───────── Availability: fetch on load, show "X spots left" badges ─────────
+    fetch('/api/registrations/availability?product=ritual-of-belonging-2026', {
+      headers: { Accept: 'application/json' },
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!data || !Array.isArray(data.tiers)) return;
+        fireKeeperAvail = !!data.fire_keeper_available;
+        cookHelpAvail = !!data.cook_help_available;
+        updateSpecials();
+        for (const t of data.tiers) {
+          const badge = form!.querySelector(
+            `[data-avail-for="${t.slug}"]`,
+          ) as HTMLElement | null;
+          const card = form!.querySelector(
+            `[data-tier-slug="${t.slug}"]`,
+          ) as HTMLButtonElement | null;
+          if (!badge || !card) continue;
+          if (t.remaining === 0) {
+            badge.textContent = 'Fully booked';
+            badge.classList.add('rb-roomcard-avail--full');
+            badge.hidden = false;
+            card.disabled = true;
+            card.classList.add('is-fullybooked');
+            card.setAttribute('aria-disabled', 'true');
+          } else if (t.remaining <= 3) {
+            badge.textContent =
+              t.remaining === 1
+                ? 'Only 1 spot left'
+                : `Only ${t.remaining} spots left`;
+            badge.classList.add('rb-roomcard-avail--low');
+            badge.hidden = false;
+          }
+        }
+      })
+      .catch(() => {
+        // Network or server issue — fail silent and let the form work
+        // without availability hints. The server still validates capacity
+        // when the user submits.
+      });
+
+    // ───────── Step 1: room cards ─────────
+    rooms.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        if (btn.disabled || btn.classList.contains('is-fullybooked')) return;
+        const slug = btn.dataset.tierSlug ?? '';
+        const label = btn.dataset.tierLabel ?? '';
+        const price = btn.dataset.tierPrice ?? '';
+        tierSlug.value = slug;
+        rooms.forEach((b) =>
+          b.classList.toggle('is-selected', b === btn) ||
+          b.setAttribute('aria-checked', b === btn ? 'true' : 'false'),
+        );
+        // Subtle bump on the chosen tile, then advance to step 2.
+        btn.classList.remove('is-bumping');
+        // force reflow so the animation restarts
+        void btn.offsetWidth;
+        btn.classList.add('is-bumping');
+        // Tier just changed: refresh which special opt-ins apply and what
+        // the recap chip should read (also resets any previously-ticked
+        // role checkbox that no longer applies to the new tier).
+        updateSpecials();
+        window.setTimeout(() => setStep(2), 380);
+      });
+    });
+
+    // ───────── Company toggle reveals VAT + address ─────────
+    function toggleBiz() {
+      const show = companyInput.value.trim().length > 0;
+      bizFields.forEach((f) => {
+        f.hidden = !show;
+      });
+      vatInput.required = show;
+    }
+    companyInput.addEventListener('input', toggleBiz);
+
+    // ───────── Step 2 → 3 ─────────
+    form.addEventListener('click', (ev) => {
+      const t = ev.target as HTMLElement;
+      const goEl = t.closest('[data-go-step]') as HTMLElement | null;
+      if (!goEl) return;
+      const target = parseInt(goEl.dataset.goStep ?? '0', 10) as StepNum;
+
+      // Going forward from step 2 → 3? Validate first.
+      const current = parseInt(form!.dataset.step ?? '1', 10);
+      if (current === 2 && target === 3) {
+        errBox2.hidden = true;
+        errBox2.textContent = '';
+        const missing: string[] = [];
+        const required: Array<[string, string]> = [
+          ['first_name', 'first name'],
+          ['last_name', 'last name'],
+          ['email', 'email'],
+          ['country', 'country'],
+          ['phone_country', 'phone country'],
+          ['phone', 'phone number'],
+        ];
+        for (const [name, label] of required) {
+          const el = form!.querySelector(
+            `[name="${name}"]`,
+          ) as HTMLInputElement | HTMLSelectElement | null;
+          if (!el || !el.value.trim()) missing.push(label);
+        }
+        const emailEl = form!.querySelector(
+          '[name="email"]',
+        ) as HTMLInputElement;
+        if (
+          emailEl.value &&
+          !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailEl.value.trim())
+        ) {
+          missing.push('valid email');
+        }
+        if (companyInput.value.trim() && !vatInput.value.trim()) {
+          missing.push('VAT number');
+        }
+        if (missing.length) {
+          errBox2.textContent = `Please fill in: ${missing.join(', ')}.`;
+          errBox2.hidden = false;
+          return;
+        }
+        // Build the "you" recap.
+        const firstName = (form!.querySelector('[name="first_name"]') as HTMLInputElement).value.trim();
+        const lastName = (form!.querySelector('[name="last_name"]') as HTMLInputElement).value.trim();
+        const email = emailEl.value.trim();
+        recapYou.textContent = `${firstName} ${lastName} · ${email}`;
+      }
+
+      setStep(target);
+    });
+
+    // ───────── Final submit ─────────
+    form.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      errBox.hidden = true;
+      errBox.textContent = '';
+
+      if (!tierSlug.value) {
+        errBox.textContent = 'Please choose a room option first.';
+        errBox.hidden = false;
+        setStep(1);
+        return;
+      }
+
+      const fd = new FormData(form!);
+      const data: Record<string, unknown> = {
+        product_slug: fd.get('product_slug'),
+        tier_slug: fd.get('tier_slug'),
+        first_name: fd.get('first_name'),
+        last_name: fd.get('last_name'),
+        email: fd.get('email'),
+        country: fd.get('country'),
+        phone_country: fd.get('phone_country'),
+        phone: fd.get('phone'),
+        company_name: fd.get('company_name'),
+        vat_number: fd.get('vat_number'),
+        dietary: fd.get('dietary'),
+        notes: fd.get('notes'),
+        consent_framework: fd.get('consent_framework') === 'on',
+        consent_terms: fd.get('consent_terms') === 'on',
+        // Special opt-in role. The checkboxes are mutually exclusive in
+        // the UI, but we also defensively pick fire_keeper if both
+        // somehow got ticked. The server validates against the chosen tier.
+        role: fireKeeperCheckbox.checked
+          ? 'fire_keeper'
+          : cookHelpCheckbox.checked
+            ? 'cook_help'
+            : null,
+      };
+
+      if (!data.consent_framework || !data.consent_terms) {
+        errBox.textContent = 'Please confirm both agreements to continue.';
+        errBox.hidden = false;
+        return;
+      }
+
+      const original = submitBtn.innerHTML;
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = 'One moment…';
+      try {
+        const res = await fetch('/api/registrations/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+        });
+        const body = await res.json().catch(() => ({} as any));
+        if (!res.ok) {
+          errBox.textContent =
+            body?.error ?? 'Something went wrong. Please try again or email us.';
+          errBox.hidden = false;
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = original;
+          return;
+        }
+        if (body?.checkout_url) {
+          window.location.href = body.checkout_url;
+          return;
+        }
+        errBox.textContent =
+          'We could not start checkout. Please try again or email us.';
+        errBox.hidden = false;
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = original;
+      } catch {
+        errBox.textContent =
+          'Network error. Please try again or email us.';
+        errBox.hidden = false;
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = original;
+      }
+    });
+  }
+</script>
