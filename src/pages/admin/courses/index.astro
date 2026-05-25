@@ -1,0 +1,75 @@
+---
+import '../../../styles/admin.css';
+import Layout from '../../../layouts/Layout.astro';
+import { readCookie, verifySession } from '../../../lib/registrations/auth';
+
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+const authed = await verifySession(env.ADMIN_SESSION_SECRET, readCookie(Astro.request));
+if (!authed) {
+  return Astro.redirect('/admin/login');
+}
+
+// Hardcoded course catalog — single entry for now. Add more as they launch.
+// Each `slug` is the value stored in course_registrations.product_slug
+// after the matching certification-course offer is purchased.
+const COURSES = [
+  {
+    slug: 'svh-certification',
+    name: 'SVH Certification Course',
+    description: 'Cert-only (€999) and the Foundation + Cert bundle (€1,499).',
+    productSlugs: ['cc-cert', 'cc-bundle'],
+  },
+];
+
+const counts = new Map<string, { total: number; paid: number }>();
+for (const course of COURSES) {
+  const placeholders = course.productSlugs.map(() => '?').join(',');
+  const row = await env.DB
+    .prepare(
+      `SELECT COUNT(*) AS total,
+              SUM(CASE WHEN status = 'paid' THEN 1 ELSE 0 END) AS paid
+         FROM course_registrations
+        WHERE product_slug IN (${placeholders})`,
+    )
+    .bind(...course.productSlugs)
+    .first<{ total: number; paid: number | null }>();
+  counts.set(course.slug, {
+    total: row?.total ?? 0,
+    paid: row?.paid ?? 0,
+  });
+}
+---
+
+<Layout title="Admin — Courses — Songdance" description="">
+  <main class="adm">
+    <header class="adm-header">
+      <div>
+        <p class="adm-breadcrumbs">
+          <a href="/admin">Admin</a>
+          <span class="sep">/</span>
+          Courses
+        </p>
+        <h1>Courses</h1>
+      </div>
+      <div class="adm-actions">
+        <a class="adm-btn adm-btn--ghost" href="/admin">← Admin</a>
+      </div>
+    </header>
+
+    <section class="adm-section">
+      <div class="adm-menu">
+        {COURSES.map((c) => {
+          const n = counts.get(c.slug) ?? { total: 0, paid: 0 };
+          return (
+            <a href={`/admin/courses/${c.slug}`}>
+              <strong>{c.name}</strong>
+              <span>{c.description} · {n.paid} paid · {n.total} total</span>
+            </a>
+          );
+        })}
+      </div>
+    </section>
+  </main>
+</Layout>
