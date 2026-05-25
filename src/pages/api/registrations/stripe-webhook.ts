@@ -6,7 +6,11 @@ import {
   logEvent,
   markRegistrationPaid,
 } from '../../../lib/registrations/db';
-import { verifyStripeSignature } from '../../../lib/registrations/stripe';
+import {
+  computeInstallmentCancelAt,
+  setSubscriptionCancelAt,
+  verifyStripeSignature,
+} from '../../../lib/registrations/stripe';
 import { pushPaidRegistrationToDrip } from '../../../lib/registrations/paid-handler';
 import {
   attachStripeSubscriptionToCourse,
@@ -97,6 +101,34 @@ export const POST: APIRoute = async ({ request, locals }) => {
             courseReg.id,
             session.subscription,
           );
+          // Stripe Checkout doesn't accept `subscription_data[cancel_at]`,
+          // so we set it on the subscription itself now. The installment
+          // count was stashed in subscription metadata at checkout creation.
+          const installmentCount = parseInt(
+            session.metadata?.installment_count ?? '',
+            10,
+          );
+          if (Number.isFinite(installmentCount) && installmentCount > 0) {
+            try {
+              await setSubscriptionCancelAt(
+                env.STRIPE_SECRET_KEY,
+                session.subscription,
+                computeInstallmentCancelAt(installmentCount),
+              );
+            } catch (err) {
+              await logEvent(env.DB, {
+                registration_id: null,
+                kind: 'course.subscription.cancel_at.failed',
+                source: 'stripe',
+                external_id: event.id,
+                payload: {
+                  course_registration_id: courseReg.id,
+                  subscription_id: session.subscription,
+                  error: String(err),
+                },
+              });
+            }
+          }
           return new Response('OK (subscription created)', { status: 200 });
         }
 
