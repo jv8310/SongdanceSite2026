@@ -147,14 +147,18 @@ if (product) {
 
   const roomsWithMode = await getRoomsWithMode(env.DB, product.id);
   for (const r of roomsWithMode) {
-    if (r.mode === 'reserved' || r.mode === 'inactive') continue;
+    if (r.mode === 'inactive') continue;
     if (
       adminTierId != null &&
       (r.solo_tier_id === adminTierId || r.shared_tier_id === adminTierId)
     ) continue;
-    // Max retreat-wide capacity = every sellable bed (this is the real
-    // ceiling — per-tier capacities double-count multi-mode rooms because
-    // the same bed can be sold under either a Private or Shared tier).
+    // Skip truly-reserved (host/cook) rooms — those beds are non-paying. Keep
+    // role-reserved rooms (fire keeper paviljoen, Room 5.2 cook help): they
+    // are reserved for a *paying* special-role participant, so they count
+    // toward the retreat ceiling.
+    if (r.mode === 'reserved' && !r.role) continue;
+    // Max retreat-wide capacity = every sellable bed (per-tier capacities
+    // double-count multi-mode rooms, so summing tiers overcounts).
     maxPeople += r.capacity;
     if (r.mode === 'solo') continue;
     placesAvailable += Math.max(0, r.capacity - r.beds_sold);
@@ -273,7 +277,7 @@ function capacityTone(remaining: number): 'full' | 'low' | 'open' {
           </tr>
         </tfoot>
       </table>
-      <p class="adm-table-note">All numbers are people, not rooms. Each registration is one person. Per-tier capacities <strong>overlap</strong> — the same bed in a multi-mode room (e.g. Room 1.2) counts toward both Private En-suite (sold solo) and Shared Bedroom (sold bed-by-bed), so summing tier capacities overcounts. The total row shows the real retreat ceiling: {maxPeople} sellable beds across all rooms (hosts and cook excluded). With current bookings, {placesAvailable} of those are still open; the rest are either booked or locked because a Private booking blocked the rest of a multi-mode room.</p>
+      <p class="adm-table-note">All numbers are people, not rooms. Each registration is one person. Per-tier capacities <strong>overlap</strong> — the same bed in a multi-mode room (e.g. Room 1.2) counts toward both Private En-suite (sold solo) and Shared Bedroom (sold bed-by-bed), so summing tier capacities overcounts. The total row shows the real retreat ceiling: {maxPeople} sellable beds across all active rooms (hosts and cook excluded; fire keeper paviljoen and Room 5.2 cook help included since they're paying special-role seats). With current bookings, {placesAvailable} of those are still open; the rest are either booked or locked because a Private booking blocked the rest of a multi-mode room.</p>
     </section>
 
     <!-- ─── Registrations ─── -->
