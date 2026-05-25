@@ -179,6 +179,20 @@ body { background: var(--adm-paper); }
   line-height: 1.4; max-width: 280px;
 }
 
+.adm-room-mode { margin: 0; }
+.adm-room-mode-label { display: block; }
+.adm-room-mode select {
+  padding: 4px 6px; font-size: 12px; line-height: 1.2;
+  border: 1px solid var(--adm-line); border-radius: 6px;
+  background: var(--adm-paper-soft); color: inherit;
+  max-width: 130px;
+}
+.vh {
+  position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+
 .adm-empty {
   padding: 20px; background: var(--adm-paper-soft);
   border: 1px dashed var(--adm-line); border-radius: 8px;

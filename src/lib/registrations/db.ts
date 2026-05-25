@@ -37,6 +37,7 @@ export type InventoryUnit = {
   solo_tier_id: number | null;    // tier when sold as a single room
   shared_tier_id: number | null;  // tier when sold bed-by-bed
   role: SpecialRole | null;       // 'fire_keeper' (Paviljoen) | 'cook_help' (Room 5.2)
+  forced_mode: 'solo' | 'shared' | null;  // admin pin: lock an empty multi-room to one tier
 };
 
 // "mode" is a runtime concept derived from current bookings on the room:
@@ -334,6 +335,7 @@ export async function getRoomsWithMode(
   const sql = `
     SELECT iu.id, iu.tier_id, iu.name, iu.capacity, iu.notes, iu.status,
            iu.sort_order, iu.solo_tier_id, iu.shared_tier_id, iu.role,
+           iu.forced_mode,
            COALESCE(b.beds_sold, 0)   AS beds_sold,
            b.first_tier_id            AS first_tier_id
       FROM inventory_units iu
@@ -371,10 +373,16 @@ function deriveRoomMode(r: {
   first_tier_id: number | null;
   solo_tier_id: number | null;
   shared_tier_id: number | null;
+  forced_mode: 'solo' | 'shared' | null;
 }): RoomMode {
   if (r.status === 'reserved') return 'reserved';
   if (r.status === 'inactive') return 'inactive';
-  if (r.beds_sold === 0) return 'open';
+  if (r.beds_sold === 0) {
+    // Empty room. Honor an admin pin if one is set and the tier exists.
+    if (r.forced_mode === 'solo' && r.solo_tier_id != null) return 'solo';
+    if (r.forced_mode === 'shared' && r.shared_tier_id != null) return 'shared';
+    return 'open';
+  }
   // Has at least one booking — decide solo vs shared by which tier matches.
   if (r.first_tier_id != null && r.first_tier_id === r.solo_tier_id) return 'solo';
   if (r.first_tier_id != null && r.first_tier_id === r.shared_tier_id) return 'shared';
@@ -409,9 +417,13 @@ export async function computeTierAvailability(
 
     for (const r of rooms) {
       if (r.mode === 'reserved' || r.mode === 'inactive') continue;
+      // A room with mode='solo' and beds_sold=0 is admin-pinned to solo and
+      // still available for one solo booking — count it the same as 'open'
+      // for the solo tier.
+      const soloAvailable = r.mode === 'open' || (r.mode === 'solo' && r.beds_sold === 0);
       if (r.solo_tier_id === tier.id) {
         capacity += 1;
-        if (r.mode === 'open') remaining += 1;
+        if (soloAvailable) remaining += 1;
       }
       if (r.shared_tier_id === tier.id) {
         capacity += r.capacity;
@@ -454,7 +466,10 @@ export async function pickRoomForTier(
   if (isSoloTier && !isSharedTier) {
     const candidates = rooms
       .filter(
-        (r) => r.solo_tier_id === tier.id && r.mode === 'open',
+        (r) =>
+          r.solo_tier_id === tier.id &&
+          // 'open' = empty multi-mode; 'solo' + beds_sold=0 = admin-pinned solo.
+          (r.mode === 'open' || (r.mode === 'solo' && r.beds_sold === 0)),
       )
       .sort((a, b) => a.sort_order - b.sort_order);
     return candidates[0] ?? null;
