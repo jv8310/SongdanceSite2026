@@ -6,7 +6,7 @@
 
 import type { APIRoute } from 'astro';
 import { getSubscriber } from '../../../lib/registrations/drip';
-import { decideVariant } from '../../../lib/courses/variant';
+import { decideVariant, BUNDLE_OFFER } from '../../../lib/courses/variant';
 
 export const prerender = false;
 
@@ -42,10 +42,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
       variant: 'E',
       offers: [
         {
-          slug: 'cc-bundle',
-          label: 'Foundation + Certification (Bundle)',
-          price_eur: 1499,
-          price_cents: 149900,
+          ...BUNDLE_OFFER,
+          save_note: 'Save €651 — mid-cohort discount applied',
+          installments_note: 'Or pay in installments.',
         },
       ],
       degraded: true,

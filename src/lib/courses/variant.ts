@@ -19,20 +19,37 @@ export type Offer = {
   label: string;
   price_eur: number;
   price_cents: number;
+  base_price_eur: number;
+  save_note: string;
+  installments_note?: string;
 };
 
-export const CERT_OFFER: Offer = {
-  slug: 'cc-cert',
-  label: 'Certification Course',
+const CERT_BASE = {
+  slug: 'cc-cert' as const,
+  label: 'SVH Certification Course',
   price_eur: 999,
   price_cents: 99900,
+  base_price_eur: 1500,
 };
 
-export const BUNDLE_OFFER: Offer = {
-  slug: 'cc-bundle',
-  label: 'Foundation + Certification (Bundle)',
+const BUNDLE_BASE = {
+  slug: 'cc-bundle' as const,
+  label: '12-Week Course + Certification Course',
   price_eur: 1499,
   price_cents: 149900,
+  base_price_eur: 2150,
+};
+
+// Bare offers used by the checkout endpoint, where the discount copy is
+// irrelevant — only the price + identity matter.
+export const CERT_OFFER: Offer = {
+  ...CERT_BASE,
+  save_note: 'Mid-cohort discount applied',
+  installments_note: 'Or pay in three installments of €333.',
+};
+export const BUNDLE_OFFER: Offer = {
+  ...BUNDLE_BASE,
+  save_note: 'Mid-cohort discount applied',
 };
 
 export type VariantDecision = {
@@ -50,6 +67,24 @@ export type VariantDecision = {
   country?: string;
   phone?: string;
 };
+
+// The Drip "current week" field has been named differently over time
+// (Jacob's older automations use `prod_SVH_week`; the spec calls it
+// `svh_week`). Look it up case-insensitively across known aliases so a
+// returning student in week 2 isn't misclassified as "completed".
+function readWeekField(
+  fields: Record<string, string> | undefined,
+): string | undefined {
+  if (!fields) return undefined;
+  const aliases = ['svh_week', 'prod_svh_week', 'svh_current_week', 'prod_svh_current_week'];
+  const lower = new Map<string, string>();
+  for (const [k, v] of Object.entries(fields)) lower.set(k.toLowerCase(), v);
+  for (const a of aliases) {
+    const v = lower.get(a);
+    if (v != null && String(v).trim()) return String(v);
+  }
+  return undefined;
+}
 
 // Parse Drip's `svh_week` custom field. While the 12-week course is running,
 // it's a number 1-12. Once the course ends, Jacob's automation sets it to
@@ -72,13 +107,46 @@ function parseSvhWeek(raw: string | undefined): {
   return { ongoing: false, ended: false };
 }
 
+function offersFor(variant: Variant): Offer[] {
+  const cert = (save: string): Offer => ({
+    ...CERT_BASE,
+    save_note: save,
+    installments_note: 'Or pay in three installments of €333.',
+  });
+  const bundle = (save: string): Offer => ({
+    ...BUNDLE_BASE,
+    save_note: save,
+    installments_note: 'Or pay in installments.',
+  });
+  switch (variant) {
+    case 'B1':
+      return [cert('Save €501 — upgrading from the 12-week course, mid-cohort discount applied')];
+    case 'B2':
+      return [cert('Save €501 — graduate of the 12-week course, mid-cohort discount applied')];
+    case 'A':
+      return [
+        cert('Welcome-back price, mid-cohort discount applied'),
+        bundle('Save €651 — includes the complete refreshed 12-week foundational course'),
+      ];
+    case 'D':
+      return [
+        cert('Mid-cohort discount applied'),
+        bundle('Save €651 — includes the complete refreshed 12-week foundational course'),
+      ];
+    case 'E':
+      return [bundle('Save €651 — mid-cohort discount applied')];
+    case 'C':
+      return [];
+  }
+}
+
 export function decideVariant(
   subscriber: DripSubscriber | null,
   opts: { coursePortalUrl?: string } = {},
 ): VariantDecision {
   // Unknown email → newcomer
   if (!subscriber) {
-    return { variant: 'E', offers: [BUNDLE_OFFER] };
+    return { variant: 'E', offers: offersFor('E') };
   }
 
   const personalia = {
@@ -106,14 +174,14 @@ export function decideVariant(
     };
   }
 
-  const svhWeek = parseSvhWeek(subscriber.custom_fields?.svh_week);
+  const svhWeek = parseSvhWeek(readWeekField(subscriber.custom_fields));
   const has12w = has('prod_SVH_12w');
 
   // B1 — currently mid 12-week
   if (has12w && svhWeek.ongoing) {
     return {
       variant: 'B1',
-      offers: [CERT_OFFER],
+      offers: offersFor('B1'),
       twelve_week_week: svhWeek.week,
       ...personalia,
     };
@@ -122,22 +190,22 @@ export function decideVariant(
   // B2 — completed the 12-week (either explicitly ended, or has the tag
   // with no usable week value)
   if (has12w) {
-    return { variant: 'B2', offers: [CERT_OFFER], ...personalia };
+    return { variant: 'B2', offers: offersFor('B2'), ...personalia };
   }
 
   // A — old VSH client, no SVH foundation
   // (prod_VSH was the legacy course tag — these students return for the
   // updated SVH lineage and may or may not want the 12w refresh.)
   if (has('prod_VSH') && !hasAnyStartingWith('prod_SVH')) {
-    return { variant: 'A', offers: [CERT_OFFER, BUNDLE_OFFER], ...personalia };
+    return { variant: 'A', offers: offersFor('A'), ...personalia };
   }
 
   // D — in the SVH ecosystem some other way (workshop, retreat, etc.)
   // but never bought the 12w or the cert.
   if (hasAnyStartingWith('prod_SVH')) {
-    return { variant: 'D', offers: [CERT_OFFER, BUNDLE_OFFER], ...personalia };
+    return { variant: 'D', offers: offersFor('D'), ...personalia };
   }
 
   // E — known to Drip but no relevant product history → newcomer offer
-  return { variant: 'E', offers: [BUNDLE_OFFER], ...personalia };
+  return { variant: 'E', offers: offersFor('E'), ...personalia };
 }
