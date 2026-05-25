@@ -158,6 +158,16 @@ body { background: var(--adm-paper); }
 }
 .adm-table tr:last-child td { border-bottom: none; }
 .adm-table td.num, .adm-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.adm-table tfoot th, .adm-table tfoot td {
+  background: var(--adm-paper);
+  font-weight: 600;
+  border-top: 1px solid var(--adm-line);
+  border-bottom: none;
+}
+.adm-table tfoot th { text-transform: none; letter-spacing: 0; font-size: inherit; color: var(--adm-ink); }
+.adm-table-note {
+  margin: 8px 2px 0; font-size: 12px; color: var(--adm-ink-soft); line-height: 1.5;
+}
 .adm-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
 .adm-truncate { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 

@@ -2,7 +2,7 @@
 import '../../../styles/admin.css';
 import Layout from '../../../layouts/Layout.astro';
 import { readCookie, verifySession } from '../../../lib/registrations/auth';
-import { computeTierAvailability } from '../../../lib/registrations/db';
+import { computeTierAvailability, getRoomsWithMode } from '../../../lib/registrations/db';
 
 export const prerender = false;
 
@@ -82,11 +82,80 @@ const q = await env.DB.prepare(
 const rows: Row[] = q.results ?? [];
 
 const ta = await computeTierAvailability(env.DB, product.id);
+
+// Real bookings per tier — paying participants only (amount > 0 excludes
+// pre-allocated host/cook seats); pending bookings count while their hold
+// is still active, matching the room model's beds_sold semantics.
+const bookedByTier = await env.DB.prepare(
+  `SELECT r.tier_id, COUNT(*) AS c
+     FROM registrations r
+     JOIN tiers t ON t.id = r.tier_id
+    WHERE t.product_id = ?
+      AND r.status IN ('paid','pending')
+      AND r.amount_cents > 0
+      AND (r.status = 'paid'
+           OR r.hold_expires_at IS NULL
+           OR r.hold_expires_at > datetime('now'))
+    GROUP BY r.tier_id`,
+)
+  .bind(product.id)
+  .all<{ tier_id: number; c: number }>();
+const bookedMap = new Map<number, number>();
+for (const row of bookedByTier.results ?? []) {
+  bookedMap.set(row.tier_id, row.c);
+}
+
 const tierSummary = ta.map(({ tier, remaining, capacity }) => ({
   tier_name: tier.name,
   capacity,
-  taken: Math.max(0, capacity - remaining),
+  booked: bookedMap.get(tier.id) ?? 0,
+  remaining,
 }));
+
+// Real-bed availability: iterate rooms once, skip reserved/inactive AND the
+// admin-test tier so the totals reflect the actual retreat.
+const adminTier = await env.DB
+  .prepare(
+    "SELECT id FROM tiers WHERE slug = 'admin-test-1eur' AND product_id = ?",
+  )
+  .bind(product.id)
+  .first<{ id: number }>();
+const adminTierId = adminTier?.id ?? null;
+
+let payingParticipants = 0;
+let placesAvailable = 0;
+let maxPeople = 0;
+
+const roomsWithMode = await getRoomsWithMode(env.DB, product.id);
+for (const r of roomsWithMode) {
+  if (r.mode === 'inactive') continue;
+  if (
+    adminTierId != null &&
+    (r.solo_tier_id === adminTierId || r.shared_tier_id === adminTierId)
+  ) continue;
+  // Skip truly-reserved (host/cook) rooms — those beds are non-paying. Keep
+  // role-reserved rooms (fire keeper paviljoen, Room 5.2 cook help): they
+  // are reserved for a *paying* special-role participant, so they count
+  // toward the retreat ceiling.
+  if (r.mode === 'reserved' && !r.role) continue;
+  // Max retreat-wide capacity = every sellable bed (per-tier capacities
+  // double-count multi-mode rooms, so summing tiers overcounts).
+  maxPeople += r.capacity;
+  if (r.mode === 'solo') continue;
+  placesAvailable += Math.max(0, r.capacity - r.beds_sold);
+}
+
+const paying = await env.DB
+  .prepare(
+    `SELECT COUNT(*) AS c
+       FROM registrations
+      WHERE product_id = ?
+        AND status = 'paid'
+        AND amount_cents > 0`,
+  )
+  .bind(product.id)
+  .first<{ c: number }>();
+payingParticipants = paying?.c ?? 0;
 
 const rs = await env.DB.prepare(
   `SELECT iu.id, iu.name, iu.capacity, iu.status,
@@ -186,7 +255,7 @@ function capacityTone(remaining: number): 'full' | 'low' | 'open' {
         <thead>
           <tr>
             <th>Room option</th>
-            <th class="num">Taken</th>
+            <th class="num">Booked</th>
             <th class="num">Capacity</th>
             <th class="num">Remaining</th>
           </tr>
@@ -195,13 +264,22 @@ function capacityTone(remaining: number): 'full' | 'low' | 'open' {
           {tierSummary.map((t) => (
             <tr>
               <td>{t.tier_name}</td>
-              <td class="num">{t.taken ?? 0}</td>
+              <td class="num">{t.booked}</td>
               <td class="num">{t.capacity}</td>
-              <td class="num"><span class={`adm-pill adm-pill--${capacityTone(Math.max(0, t.capacity - (t.taken ?? 0)))}`}>{Math.max(0, t.capacity - (t.taken ?? 0))}</span></td>
+              <td class="num"><span class={`adm-pill adm-pill--${capacityTone(t.remaining)}`}>{t.remaining}</span></td>
             </tr>
           ))}
         </tbody>
+        <tfoot>
+          <tr class="adm-row--total">
+            <th scope="row">Total (paying)</th>
+            <td class="num">{payingParticipants}</td>
+            <td class="num">{maxPeople}</td>
+            <td class="num"><span class={`adm-pill adm-pill--${capacityTone(placesAvailable)}`}>{placesAvailable}</span></td>
+          </tr>
+        </tfoot>
       </table>
+      <p class="adm-table-note">All numbers are people, not rooms. Each registration is one person. Per-tier capacities <strong>overlap</strong> — the same bed in a multi-mode room (e.g. Room 1.2) counts toward both Private En-suite (sold solo) and Shared Bedroom (sold bed-by-bed), so summing tier capacities overcounts. The total row shows the real retreat ceiling: {maxPeople} sellable beds across all active rooms (hosts and cook excluded; fire keeper paviljoen and Room 5.2 cook help included since they're paying special-role seats). With current bookings, {placesAvailable} of those are still open; the rest are either booked or locked because a Private booking blocked the rest of a multi-mode room.</p>
     </section>
 
     <!-- ─── Registrations ─── -->
