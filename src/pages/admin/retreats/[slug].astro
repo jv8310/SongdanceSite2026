@@ -220,6 +220,77 @@ function capacityTone(remaining: number): 'full' | 'low' | 'open' {
   if (remaining <= 3) return 'low';
   return 'open';
 }
+
+function parseRoomLabel(name: string): { code: string; where: string } {
+  const m = name.match(/^Room\s+([\w.]+)\s*[—–-]\s*(.+)$/);
+  if (m) return { code: m[1], where: m[2] };
+  if (/^Paviljoen/i.test(name)) {
+    const rest = name.replace(/^Paviljoen\s*[—–-]\s*/i, '').trim();
+    return { code: 'FK', where: rest ? `Paviljoen — ${rest}` : 'Paviljoen' };
+  }
+  return { code: name, where: '' };
+}
+
+type RoomType = 'private' | 'shared' | 'multi' | 'none';
+function roomType(r: { solo_tier_id: number | null; shared_tier_id: number | null }): {
+  type: RoomType;
+  label: string;
+} {
+  if (r.solo_tier_id != null && r.shared_tier_id != null) return { type: 'multi', label: 'Multi' };
+  if (r.solo_tier_id != null) return { type: 'private', label: 'Private' };
+  if (r.shared_tier_id != null) return { type: 'shared', label: 'Shared' };
+  return { type: 'none', label: '—' };
+}
+
+type RoomState = 'open' | 'half' | 'taken' | 'reserved' | 'inactive' | 'locked';
+function roomState(r: {
+  status: 'available' | 'reserved' | 'inactive';
+  beds_sold: number;
+  capacity: number;
+  mode: 'open' | 'solo' | 'shared' | 'reserved' | 'inactive';
+  role: 'fire_keeper' | 'cook_help' | null;
+}): { state: RoomState; label: string } {
+  if (r.status === 'reserved') {
+    if (r.role === 'fire_keeper') return { state: 'reserved', label: 'Reserved · fire keeper' };
+    if (r.role === 'cook_help') return { state: 'reserved', label: 'Reserved · cook help' };
+    return { state: 'reserved', label: 'Reserved' };
+  }
+  if (r.status === 'inactive') return { state: 'inactive', label: 'Inactive' };
+  if (r.mode === 'solo' && r.capacity > 1) return { state: 'locked', label: 'Locked (private)' };
+  if (r.beds_sold === 0) return { state: 'open', label: 'Open' };
+  if (r.beds_sold >= r.capacity) return { state: 'taken', label: 'Taken' };
+  return { state: 'half', label: 'Half booked' };
+}
+
+const stateTone: Record<RoomState, string> = {
+  open: 'open',
+  half: 'low',
+  taken: 'full',
+  reserved: 'cancelled',
+  inactive: 'cancelled',
+  locked: 'low',
+};
+
+const roomBreakdown = roomsWithMode.map((r) => {
+  const { code, where } = parseRoomLabel(r.name);
+  const t = roomType(r);
+  const s = roomState(r);
+  const isBookable = r.status !== 'inactive';
+  return {
+    id: r.id,
+    code,
+    where,
+    notes: r.notes,
+    type: t.type,
+    typeLabel: t.label,
+    capacity: r.capacity,
+    booked: r.beds_sold,
+    available: isBookable ? Math.max(0, r.capacity - r.beds_sold) : 0,
+    state: s.state,
+    stateLabel: s.label,
+    showCounts: r.status !== 'inactive',
+  };
+});
 ---
 
 <Layout title={`Admin — ${product.name}`} description="">
@@ -280,6 +351,38 @@ function capacityTone(remaining: number): 'full' | 'low' | 'open' {
         </tfoot>
       </table>
       <p class="adm-table-note">All numbers are people, not rooms. Each registration is one person. Per-tier capacities <strong>overlap</strong> — the same bed in a multi-mode room (e.g. Room 1.2) counts toward both Private En-suite (sold solo) and Shared Bedroom (sold bed-by-bed), so summing tier capacities overcounts. The total row shows the real retreat ceiling: {maxPeople} sellable beds across all active rooms (hosts and cook excluded; fire keeper paviljoen and Room 5.2 cook help included since they're paying special-role seats). With current bookings, {placesAvailable} of those are still open; the rest are either booked or locked because a Private booking blocked the rest of a multi-mode room.</p>
+    </section>
+
+    <!-- ─── Rooms ─── -->
+    <section class="adm-section">
+      <h2>Rooms</h2>
+      <table class="adm-table adm-table--rooms">
+        <thead>
+          <tr>
+            <th>Room</th>
+            <th>Where</th>
+            <th>Type</th>
+            <th class="num">Booked</th>
+            <th class="num">Capacity</th>
+            <th class="num">Available</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {roomBreakdown.map((r) => (
+            <tr>
+              <td><strong>{r.code}</strong></td>
+              <td>{r.where}</td>
+              <td><span class={`adm-pill adm-pill--type-${r.type}`}>{r.typeLabel}</span></td>
+              <td class="num">{r.showCounts ? r.booked : '—'}</td>
+              <td class="num">{r.showCounts ? r.capacity : '—'}</td>
+              <td class="num">{r.showCounts ? r.available : '—'}</td>
+              <td><span class={`adm-pill adm-pill--${stateTone[r.state]}`}>{r.stateLabel}</span></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p class="adm-table-note"><strong>Type</strong>: <em>Private</em> — sold as one unit. <em>Shared</em> — sold bed by bed. <em>Multi</em> — can be sold either way; one private booking locks the rest of the beds. <strong>Booked</strong> counts active paid + pending registrations (incl. pre-allocated hosts/cook).</p>
     </section>
 
     <!-- ─── Registrations ─── -->
