@@ -1,0 +1,50 @@
+---
+import '../../styles/admin.css';
+import Layout from '../../layouts/Layout.astro';
+import { readCookie, verifySession } from '../../lib/registrations/auth';
+
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+const authed = await verifySession(env.ADMIN_SESSION_SECRET, readCookie(Astro.request));
+if (!authed) {
+  return Astro.redirect('/admin/login');
+}
+---
+
+<Layout title="Admin — Songdance" description="">
+  <main class="adm">
+    <header class="adm-header">
+      <div>
+        <h1>Admin</h1>
+        <p class="adm-sub">Registrations &amp; signups</p>
+      </div>
+      <div class="adm-actions">
+        <form method="POST" action="/api/admin/login?_method=DELETE">
+          <input type="hidden" name="_method" value="DELETE" />
+          <button class="adm-btn adm-btn--ghost" type="submit">Sign out</button>
+        </form>
+      </div>
+    </header>
+
+    <section class="adm-section">
+      <h2>Retreats</h2>
+      <div class="adm-menu">
+        <a href="/admin/retreats">
+          <strong>All retreats</strong>
+          <span>Rooms, tiers, special roles, capacity</span>
+        </a>
+      </div>
+    </section>
+
+    <section class="adm-section">
+      <h2>Courses</h2>
+      <div class="adm-menu">
+        <a href="/admin/courses">
+          <strong>All courses</strong>
+          <span>Digital course registrations &amp; Drip tagging</span>
+        </a>
+      </div>
+    </section>
+  </main>
+</Layout>

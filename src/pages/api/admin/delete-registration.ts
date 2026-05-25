@@ -21,12 +21,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
   if (!Number.isFinite(registrationId)) {
     return new Response('Bad registration_id', { status: 400 });
   }
+  const returnTo = safeReturnTo(String(form.get('return_to') ?? ''));
 
   const reg = await getRegistrationById(env.DB, registrationId);
   if (!reg) {
     return new Response(null, {
       status: 302,
-      headers: { Location: '/admin/registrations' },
+      headers: { Location: returnTo },
     });
   }
 
@@ -57,6 +58,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
   return new Response(null, {
     status: 302,
-    headers: { Location: '/admin/registrations' },
+    headers: { Location: returnTo },
   });
 };
+
+function safeReturnTo(raw: string): string {
+  if (raw.startsWith('/admin/') || raw === '/admin') return raw;
+  return '/admin';
+}

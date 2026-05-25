@@ -108,6 +108,28 @@ export async function getCourseRegistrationBySession(
     .first<CourseRegistration>();
 }
 
+export async function listCourseRegistrations(
+  db: D1Database,
+  productSlug: CourseProductSlug | string,
+  statusFilter?: string,
+) {
+  const where = ['product_slug = ?'];
+  const binds: unknown[] = [productSlug];
+  if (statusFilter) {
+    where.push('status = ?');
+    binds.push(statusFilter);
+  }
+  const r = await db
+    .prepare(
+      `SELECT * FROM course_registrations
+        WHERE ${where.join(' AND ')}
+        ORDER BY created_at DESC`,
+    )
+    .bind(...binds)
+    .all<CourseRegistration>();
+  return r.results ?? [];
+}
+
 export async function markCourseRegistrationPaid(
   db: D1Database,
   id: number,

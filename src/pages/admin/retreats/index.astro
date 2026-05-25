@@ -1,0 +1,61 @@
+---
+import '../../../styles/admin.css';
+import Layout from '../../../layouts/Layout.astro';
+import { readCookie, verifySession } from '../../../lib/registrations/auth';
+
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+const authed = await verifySession(env.ADMIN_SESSION_SECRET, readCookie(Astro.request));
+if (!authed) {
+  return Astro.redirect('/admin/login');
+}
+
+const products = (
+  await env.DB
+    .prepare(
+      `SELECT p.slug, p.name, p.starts_at, p.ends_at,
+              (SELECT COUNT(*) FROM registrations r WHERE r.product_id = p.id) AS total,
+              (SELECT COUNT(*) FROM registrations r WHERE r.product_id = p.id AND r.status = 'paid') AS paid
+         FROM products p
+        WHERE p.type = 'retreat' AND p.active = 1
+        ORDER BY p.starts_at`,
+    )
+    .all<{ slug: string; name: string; starts_at: string | null; ends_at: string | null; total: number; paid: number }>()
+).results ?? [];
+---
+
+<Layout title="Admin — Retreats — Songdance" description="">
+  <main class="adm">
+    <header class="adm-header">
+      <div>
+        <p class="adm-breadcrumbs">
+          <a href="/admin">Admin</a>
+          <span class="sep">/</span>
+          Retreats
+        </p>
+        <h1>Retreats</h1>
+      </div>
+      <div class="adm-actions">
+        <a class="adm-btn adm-btn--ghost" href="/admin">← Admin</a>
+      </div>
+    </header>
+
+    <section class="adm-section">
+      {products.length === 0 && (
+        <p class="adm-empty">No active retreats.</p>
+      )}
+      <div class="adm-menu">
+        {products.map((p) => (
+          <a href={`/admin/retreats/${p.slug}`}>
+            <strong>{p.name}</strong>
+            <span>
+              {p.starts_at ? `${p.starts_at}${p.ends_at ? ` → ${p.ends_at}` : ''} · ` : ''}
+              {p.paid} paid · {p.total} total
+            </span>
+          </a>
+        ))}
+      </div>
+    </section>
+  </main>
+</Layout>
