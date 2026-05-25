@@ -37,36 +37,45 @@ const countries = COUNTRIES;
          Hidden in markup, never rendered as-is. -->
     <template data-cc-variant-template>
       <div class="cc-variant">
-        <div class="cc-variant-badge" data-slot="badge"></div>
+        <div class="cc-variant-greeting" data-slot="greeting"></div>
         <h3 class="cc-variant-title" data-slot="title"></h3>
         <p class="cc-variant-body" data-slot="body"></p>
 
         <div data-slot="checkout-form">
+          <div class="cc-variant-emailline">
+            <span class="cc-variant-emaillabel">Continuing as</span>
+            <span class="cc-variant-email" data-slot="email"></span>
+            <button type="button" class="cc-variant-emailchange" data-slot="change-email">change</button>
+          </div>
+
           <div class="cc-variant-fields">
             <label class="cc-variant-field">
-              <label>First name</label>
+              <span>First name</span>
               <input type="text" name="first_name" autocomplete="given-name" required />
             </label>
             <label class="cc-variant-field">
-              <label>Last name</label>
+              <span>Last name</span>
               <input type="text" name="last_name" autocomplete="family-name" required />
             </label>
             <label class="cc-variant-field">
-              <label>Country</label>
-              <select name="country" required>
-                <option value="">—</option>
-                {countries.map((c) => (
-                  <option value={c.code}>{c.flag} {c.name}</option>
-                ))}
-              </select>
+              <span>Country</span>
+              <input
+                type="text"
+                name="country_search"
+                list="cc-country-list"
+                autocomplete="country-name"
+                placeholder="Start typing…"
+                required
+              />
+              <input type="hidden" name="country" />
             </label>
             <label class="cc-variant-field">
-              <label>Phone</label>
+              <span>Phone</span>
               <div class="cc-phone-grid">
                 <select name="phone_country" required aria-label="Phone country">
                   <option value="">—</option>
                   {countries.map((c) => (
-                    <option value={c.code}>{c.flag} +{c.dial}</option>
+                    <option value={c.code} data-dial={c.dial}>{c.flag} +{c.dial}</option>
                   ))}
                 </select>
                 <input type="tel" name="phone" placeholder="Phone number" autocomplete="tel" required />
@@ -109,10 +118,18 @@ const countries = COUNTRIES;
         </div>
       </div>
     </template>
+
+    <datalist id="cc-country-list">
+      {countries.map((c) => (
+        <option value={c.name} data-code={c.code} data-dial={c.dial}>{c.flag} {c.name}</option>
+      ))}
+    </datalist>
   </div>
 </section>
 
 <script>
+  import { COUNTRIES } from '../../lib/countries';
+
   type Offer = {
     slug: 'cc-cert' | 'cc-bundle';
     label: string;
@@ -125,13 +142,23 @@ const countries = COUNTRIES;
     offers: Offer[];
     twelve_week_week?: number;
     course_portal_url?: string;
+    first_name?: string;
+    last_name?: string;
+    country?: string;
+    phone?: string;
   };
 
-  const COPY: Record<
-    Variant,
-    (week?: number) => { title: string; body: string }
-  > = {
-    B1: (week) => ({
+  type CopyFn = (
+    week?: number,
+    firstName?: string,
+  ) => { greeting: string; title: string; body: string };
+
+  const greetingFor = (name?: string, fallback = 'Hi there') =>
+    name && name.trim() ? `Hi ${name.trim()}` : fallback;
+
+  const COPY: Record<Variant, CopyFn> = {
+    B1: (week, name) => ({
+      greeting: greetingFor(name),
       title: `You're already on the path.`,
       body:
         (week
@@ -139,24 +166,29 @@ const countries = COUNTRIES;
           : `You're currently in the 12-week course. `) +
         `The certification course is the natural next room — and you can step into it now, or wait until the foundation is complete. Either way, your place is held.`,
     }),
-    B2: () => ({
+    B2: (_w, name) => ({
+      greeting: greetingFor(name, 'Welcome back'),
       title: `The foundation is set.`,
       body: `You've completed the 12-week course. Everything from here is depth. The certification course continues the work — live classes, practice sessions, the CEEE field, and the door to becoming a certified practitioner.`,
     }),
-    A: () => ({
+    A: (_w, name) => ({
+      greeting: greetingFor(name, 'Welcome back'),
       title: `Welcome back.`,
       body: `You've walked this work before. So much has grown since. The certification course is the current arc — and if it's been a while, the bundle adds the updated 12-week foundation alongside.`,
     }),
-    D: () => ({
+    D: (_w, name) => ({
+      greeting: greetingFor(name, 'Good to see you'),
       title: `Time to step in fully.`,
       body: `You know this work. You've been in the circle. The certification course is the deepening — and if you haven't done the 12-week foundation yet, the bundle gathers both into one path.`,
     }),
-    E: () => ({
-      title: `Welcome. This is the full path.`,
-      body: `The certification course is more than a training — it's a deepening trajectory. To begin from the beginning, the bundle gives you the 12-week foundation and the certification course as a single journey.`,
+    E: (_w, name) => ({
+      greeting: greetingFor(name, 'Welcome'),
+      title: `Begin from the beginning.`,
+      body: `For those new to this work, the bundle is the way in — the 12-week foundation and the certification course as a single, continuous path. You'll be supported every step of the way.`,
     }),
-    C: () => ({
-      title: `You're already in.`,
+    C: (_w, name) => ({
+      greeting: greetingFor(name, 'You’re already in'),
+      title: `Your place is already held.`,
       body: `You're registered for the certification course. Use the portal link below to find your live calls, replays and materials.`,
     }),
   };
@@ -209,18 +241,96 @@ const countries = COUNTRIES;
     }
   });
 
+  // Best-effort browser geolocation by language + timezone → country code.
+  function guessCountry(): string | undefined {
+    try {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+      const tzMap: Record<string, string> = {
+        'Europe/Brussels': 'BE',
+        'Europe/Amsterdam': 'NL',
+        'Europe/Berlin': 'DE',
+        'Europe/Paris': 'FR',
+        'Europe/Luxembourg': 'LU',
+        'Europe/Vienna': 'AT',
+        'Europe/Zurich': 'CH',
+        'Europe/Rome': 'IT',
+        'Europe/Madrid': 'ES',
+        'Europe/Lisbon': 'PT',
+        'Europe/Dublin': 'IE',
+        'Europe/London': 'GB',
+        'Europe/Copenhagen': 'DK',
+        'Europe/Stockholm': 'SE',
+        'Europe/Oslo': 'NO',
+        'Europe/Helsinki': 'FI',
+        'Europe/Reykjavik': 'IS',
+        'Europe/Warsaw': 'PL',
+        'Europe/Prague': 'CZ',
+        'Europe/Bratislava': 'SK',
+        'Europe/Budapest': 'HU',
+        'Europe/Ljubljana': 'SI',
+        'Europe/Zagreb': 'HR',
+        'Europe/Athens': 'GR',
+        'Europe/Bucharest': 'RO',
+        'Europe/Sofia': 'BG',
+        'Europe/Tallinn': 'EE',
+        'Europe/Riga': 'LV',
+        'Europe/Vilnius': 'LT',
+        'Asia/Nicosia': 'CY',
+        'Europe/Malta': 'MT',
+        'America/New_York': 'US', 'America/Chicago': 'US',
+        'America/Denver': 'US', 'America/Los_Angeles': 'US',
+        'America/Phoenix': 'US', 'America/Anchorage': 'US',
+        'Pacific/Honolulu': 'US',
+        'America/Toronto': 'CA', 'America/Vancouver': 'CA',
+        'Australia/Sydney': 'AU', 'Australia/Melbourne': 'AU',
+        'Australia/Perth': 'AU',
+        'Pacific/Auckland': 'NZ',
+        'Asia/Jerusalem': 'IL',
+        'Europe/Istanbul': 'TR',
+        'Asia/Dubai': 'AE',
+        'Africa/Johannesburg': 'ZA',
+        'America/Mexico_City': 'MX',
+        'America/Sao_Paulo': 'BR',
+        'America/Argentina/Buenos_Aires': 'AR',
+        'Asia/Tokyo': 'JP',
+        'Asia/Seoul': 'KR',
+        'Asia/Singapore': 'SG',
+        'Asia/Hong_Kong': 'HK',
+      };
+      if (tzMap[tz]) return tzMap[tz];
+
+      const lang = navigator.language || '';
+      const m = lang.match(/-([A-Z]{2})$/i);
+      if (m) return m[1].toUpperCase();
+    } catch {}
+    return undefined;
+  }
+
   function renderVariant(email: string, decision: Decision) {
     const fragment = template.content.cloneNode(true) as DocumentFragment;
     const root = fragment.querySelector('.cc-variant') as HTMLElement;
 
-    const copy = COPY[decision.variant](decision.twelve_week_week);
-    (root.querySelector('[data-slot="badge"]') as HTMLElement).textContent =
-      `Variant ${decision.variant}`;
+    const copy = COPY[decision.variant](decision.twelve_week_week, decision.first_name);
+    (root.querySelector('[data-slot="greeting"]') as HTMLElement).textContent = copy.greeting;
     (root.querySelector('[data-slot="title"]') as HTMLElement).textContent = copy.title;
     (root.querySelector('[data-slot="body"]') as HTMLElement).textContent = copy.body;
 
     const checkoutForm = root.querySelector('[data-slot="checkout-form"]') as HTMLElement;
     const portalBlock = root.querySelector('[data-slot="portal"]') as HTMLElement;
+    const emailSlot = root.querySelector('[data-slot="email"]') as HTMLElement;
+    if (emailSlot) emailSlot.textContent = email;
+
+    const changeBtn = root.querySelector('[data-slot="change-email"]') as HTMLButtonElement | null;
+    changeBtn?.addEventListener('click', () => {
+      stage.replaceChildren(emailForm, errorEl);
+      const note = document.querySelector<HTMLElement>('.cc-register-form-note');
+      if (note) stage.insertBefore(note, errorEl);
+      const submit = emailForm.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+      submit.disabled = false;
+      submit.textContent = 'Check';
+      (emailForm.querySelector('input[name="email"]') as HTMLInputElement).value = email;
+      window.scrollTo({ top: stage.getBoundingClientRect().top + window.scrollY - 80, behavior: 'smooth' });
+    });
 
     if (decision.variant === 'C') {
       checkoutForm.style.display = 'none';
@@ -231,6 +341,45 @@ const countries = COUNTRIES;
       return;
     }
 
+    // Pre-fill form from Drip and/or geolocation
+    const firstNameInput = root.querySelector<HTMLInputElement>('[name="first_name"]')!;
+    const lastNameInput = root.querySelector<HTMLInputElement>('[name="last_name"]')!;
+    const countryInput = root.querySelector<HTMLInputElement>('[name="country_search"]')!;
+    const countryHidden = root.querySelector<HTMLInputElement>('[name="country"]')!;
+    const phoneCountrySelect = root.querySelector<HTMLSelectElement>('[name="phone_country"]')!;
+    const phoneInput = root.querySelector<HTMLInputElement>('[name="phone"]')!;
+
+    if (decision.first_name) firstNameInput.value = decision.first_name;
+    if (decision.last_name) lastNameInput.value = decision.last_name;
+
+    const initialCountry = decision.country || guessCountry();
+    if (initialCountry) {
+      const match = COUNTRIES.find((c) => c.code === initialCountry.toUpperCase());
+      if (match) {
+        countryInput.value = match.name;
+        countryHidden.value = match.code;
+        phoneCountrySelect.value = match.code;
+      }
+    }
+    if (decision.phone) phoneInput.value = decision.phone;
+
+    // Resolve typed country name → ISO code when user picks/blurs.
+    const resolveCountry = () => {
+      const typed = countryInput.value.trim().toLowerCase();
+      const match = COUNTRIES.find(
+        (c) => c.name.toLowerCase() === typed || c.code.toLowerCase() === typed,
+      );
+      if (match) {
+        countryHidden.value = match.code;
+        if (!phoneCountrySelect.value) phoneCountrySelect.value = match.code;
+      } else {
+        countryHidden.value = '';
+      }
+    };
+    countryInput.addEventListener('change', resolveCountry);
+    countryInput.addEventListener('blur', resolveCountry);
+    countryInput.addEventListener('input', resolveCountry);
+
     // Activate toggle: shown when offers include the bundle (slow path) OR
     // when the variant is B1 (mid-12w). It controls whether we set
     // svh_week=Ended (now) or prod_SVH_9m_status=wait at fulfilment time.
@@ -240,15 +389,17 @@ const countries = COUNTRIES;
       decision.offers.some((o) => o.slug === 'cc-bundle');
     if (showActivate) activateToggle.style.display = '';
 
-    // Render offer buttons. Each writes into a hidden product_slug field on
-    // the form just before posting to /api/courses/checkout.
+    // Render offer buttons. Buttons render in a special "prominent" style
+    // for the cert-only B1/B2 students — those are the most active intent.
     const offersEl = root.querySelector('[data-slot="offers"]') as HTMLElement;
+    const prominent = decision.variant === 'B1' || decision.variant === 'B2';
+    if (prominent) offersEl.classList.add('cc-variant-offers--prominent');
     decision.offers.forEach((offer, i) => {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className =
         'cc-offer-btn' + (i > 0 ? ' cc-offer-btn--secondary' : '');
-      btn.innerHTML = `<span>${offer.label}</span><span class="cc-offer-price">€${offer.price_eur}</span>`;
+      btn.innerHTML = `<span class="cc-offer-label">${offer.label}</span><span class="cc-offer-price">€${offer.price_eur}</span>`;
       btn.addEventListener('click', () =>
         startCheckout(root, email, decision, offer, btn),
       );
@@ -289,7 +440,7 @@ const countries = COUNTRIES;
       return;
     }
     if (!country) {
-      errorSlot.textContent = 'Please select your country.';
+      errorSlot.textContent = 'Please select your country from the list.';
       errorSlot.classList.add('is-visible');
       return;
     }
@@ -316,7 +467,7 @@ const countries = COUNTRIES;
         : 'now';
 
     btn.disabled = true;
-    btn.textContent = 'Opening secure checkout…';
+    btn.innerHTML = '<span>Opening secure checkout…</span>';
 
     try {
       const res = await fetch('/api/courses/checkout', {
@@ -343,7 +494,7 @@ const countries = COUNTRIES;
           ('error' in body && body.error) || 'Could not start checkout. Please try again.';
         errorSlot.classList.add('is-visible');
         btn.disabled = false;
-        btn.innerHTML = `<span>${offer.label}</span><span class="cc-offer-price">€${offer.price_eur}</span>`;
+        btn.innerHTML = `<span class="cc-offer-label">${offer.label}</span><span class="cc-offer-price">€${offer.price_eur}</span>`;
         return;
       }
       window.location.href = body.checkout_url;
@@ -351,7 +502,7 @@ const countries = COUNTRIES;
       errorSlot.textContent = 'We could not reach the server. Please try again.';
       errorSlot.classList.add('is-visible');
       btn.disabled = false;
-      btn.innerHTML = `<span>${offer.label}</span><span class="cc-offer-price">€${offer.price_eur}</span>`;
+      btn.innerHTML = `<span class="cc-offer-label">${offer.label}</span><span class="cc-offer-price">€${offer.price_eur}</span>`;
     }
   }
 </script>

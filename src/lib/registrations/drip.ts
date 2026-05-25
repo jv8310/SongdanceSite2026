@@ -57,6 +57,10 @@ export async function upsertSubscriber(cfg: DripConfig, input: UpsertSubscriberI
 
 export type DripSubscriber = {
   email: string;
+  first_name?: string;
+  last_name?: string;
+  country?: string;
+  phone?: string;
   tags: string[];
   custom_fields: Record<string, string>;
 };
@@ -85,6 +89,10 @@ export async function getSubscriber(
   const data = (await res.json()) as {
     subscribers?: Array<{
       email: string;
+      first_name?: string;
+      last_name?: string;
+      country?: string;
+      phone?: string;
       tags?: string[];
       custom_fields?: Record<string, string>;
     }>;
@@ -93,6 +101,10 @@ export async function getSubscriber(
   if (!s) return null;
   return {
     email: s.email,
+    first_name: s.first_name,
+    last_name: s.last_name,
+    country: s.country,
+    phone: s.phone,
     tags: s.tags ?? [],
     custom_fields: s.custom_fields ?? {},
   };

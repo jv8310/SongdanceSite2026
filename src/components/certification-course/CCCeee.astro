@@ -15,7 +15,7 @@ type DisplayState = CardState | 'up-next';
 
 function statusFor(_item: ScheduledItem, state: DisplayState): string {
   if (state === 'tbc') return 'Date TBC';
-  if (state === 'past') return 'Instant Access · replay';
+  if (state === 'past') return 'Instant access · replay';
   if (state === 'live') return 'Live now';
   if (state === 'almost-live') return 'Starting soon';
   if (state === 'tomorrow') return 'Tomorrow';
@@ -50,7 +50,9 @@ const cards = SVH_CEEE_SESSIONS.map((item) => {
         Once a month, current students and alumni gather live with Jacob to
         take the work wider — into questions that don't fit a single class,
         experiences that need more space, the practice as it lives now.
-        As a certification student, you have full access through end of 2026.
+        Each session runs two hours. As a certification student you have
+        instant access to every past session and full access to the live
+        and upcoming ones through the end of 2026.
       </p>
     </div>
 
@@ -67,6 +69,7 @@ const cards = SVH_CEEE_SESSIONS.map((item) => {
         >
           <div class="ceee-num">CEEE {item.number}</div>
           <div class="ceee-date" data-slot="date">{dateFor(item)}</div>
+          <div class="ceee-duration">2 hours</div>
           <div class="ceee-status" data-slot="status">{statusFor(item, state)}</div>
         </article>
       ))}
@@ -75,8 +78,25 @@ const cards = SVH_CEEE_SESSIONS.map((item) => {
 </section>
 
 <script>
+  // Client-side: re-derive card state on a tick + convert dates to the
+  // user's local timezone using Intl.
+
   type State =
     | 'past' | 'upcoming' | 'up-next' | 'tomorrow' | 'almost-live' | 'live' | 'tbc';
+
+  const userTz =
+    Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Brussels';
+  const tzAbbrev = (d: Date) => {
+    try {
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: userTz,
+        timeZoneName: 'short',
+      }).formatToParts(d);
+      return parts.find((p) => p.type === 'timeZoneName')?.value ?? '';
+    } catch {
+      return '';
+    }
+  };
 
   function compute(dtIso: string, durMin: number, now: Date): State {
     if (!dtIso) return 'tbc';
@@ -92,14 +112,22 @@ const cards = SVH_CEEE_SESSIONS.map((item) => {
   }
 
   function fmtDate(d: Date): string {
-    return d.toLocaleDateString('en-US', {
+    return d.toLocaleDateString(undefined, {
+      timeZone: userTz,
       weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
+    });
+  }
+  function fmtTime(d: Date): string {
+    return d.toLocaleTimeString(undefined, {
+      timeZone: userTz,
+      hour: 'numeric',
+      minute: '2-digit',
     });
   }
 
   function statusLabel(state: State): string {
     switch (state) {
-      case 'past': return 'Instant Access · replay';
+      case 'past': return 'Instant access · replay';
       case 'live': return 'Live now';
       case 'almost-live': return 'Starting soon';
       case 'tomorrow': return 'Tomorrow';
@@ -143,13 +171,12 @@ const cards = SVH_CEEE_SESSIONS.map((item) => {
       const dateEl = card.querySelector<HTMLElement>('[data-slot="date"]')!;
       const statusEl = card.querySelector<HTMLElement>('[data-slot="status"]')!;
       const monthLabel = card.dataset.monthLabel ?? '';
-      const timeLabel = card.dataset.timeLabel ?? '';
 
       if (!dt) {
         dateEl.textContent = monthLabel;
       } else {
         const start = new Date(dt);
-        dateEl.textContent = `${fmtDate(start)} · ${timeLabel}`;
+        dateEl.textContent = `${fmtDate(start)} · ${fmtTime(start)} ${tzAbbrev(start)}`.trim();
       }
       statusEl.textContent = statusLabel(finalState);
     }

@@ -43,6 +43,12 @@ export type VariantDecision = {
   twelve_week_week?: number;
   // Present for variant C only — where to send them.
   course_portal_url?: string;
+  // Personalisation: known subscriber details the front-end can use to
+  // greet by name and pre-fill the form.
+  first_name?: string;
+  last_name?: string;
+  country?: string;
+  phone?: string;
 };
 
 // Parse Drip's `svh_week` custom field. While the 12-week course is running,
@@ -75,6 +81,13 @@ export function decideVariant(
     return { variant: 'E', offers: [BUNDLE_OFFER] };
   }
 
+  const personalia = {
+    first_name: subscriber.first_name || undefined,
+    last_name: subscriber.last_name || undefined,
+    country: subscriber.country || undefined,
+    phone: subscriber.phone || undefined,
+  };
+
   const tags = new Set(subscriber.tags ?? []);
   const has = (t: string) => tags.has(t);
   const hasAnyStartingWith = (prefix: string) => {
@@ -89,6 +102,7 @@ export function decideVariant(
       offers: [],
       course_portal_url:
         opts.coursePortalUrl ?? 'https://app.songdance.co/svh-certification',
+      ...personalia,
     };
   }
 
@@ -101,28 +115,29 @@ export function decideVariant(
       variant: 'B1',
       offers: [CERT_OFFER],
       twelve_week_week: svhWeek.week,
+      ...personalia,
     };
   }
 
   // B2 — completed the 12-week (either explicitly ended, or has the tag
   // with no usable week value)
   if (has12w) {
-    return { variant: 'B2', offers: [CERT_OFFER] };
+    return { variant: 'B2', offers: [CERT_OFFER], ...personalia };
   }
 
   // A — old VSH client, no SVH foundation
   // (prod_VSH was the legacy course tag — these students return for the
   // updated SVH lineage and may or may not want the 12w refresh.)
   if (has('prod_VSH') && !hasAnyStartingWith('prod_SVH')) {
-    return { variant: 'A', offers: [CERT_OFFER, BUNDLE_OFFER] };
+    return { variant: 'A', offers: [CERT_OFFER, BUNDLE_OFFER], ...personalia };
   }
 
   // D — in the SVH ecosystem some other way (workshop, retreat, etc.)
   // but never bought the 12w or the cert.
   if (hasAnyStartingWith('prod_SVH')) {
-    return { variant: 'D', offers: [CERT_OFFER, BUNDLE_OFFER] };
+    return { variant: 'D', offers: [CERT_OFFER, BUNDLE_OFFER], ...personalia };
   }
 
   // E — known to Drip but no relevant product history → newcomer offer
-  return { variant: 'E', offers: [BUNDLE_OFFER] };
+  return { variant: 'E', offers: [BUNDLE_OFFER], ...personalia };
 }
