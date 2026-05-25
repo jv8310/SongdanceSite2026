@@ -133,10 +133,30 @@ const cards = SVH_CERT_CLASSES.map((item) => {
     }
   }
 
+  const userTz =
+    Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Brussels';
+
+  function tzAbbrev(d: Date): string {
+    try {
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: userTz, timeZoneName: 'short',
+      }).formatToParts(d);
+      return parts.find((p) => p.type === 'timeZoneName')?.value ?? '';
+    } catch { return ''; }
+  }
+
   function fmtDate(d: Date): string {
-    return d.toLocaleDateString('en-US', {
+    return d.toLocaleDateString(undefined, {
+      timeZone: userTz,
       weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
     });
+  }
+  function fmtTime(d: Date): string {
+    const time = d.toLocaleTimeString(undefined, {
+      timeZone: userTz, hour: 'numeric', minute: '2-digit',
+    });
+    const tz = tzAbbrev(d);
+    return tz ? `${time} ${tz}` : time;
   }
 
   function pad(n: number) {
@@ -188,8 +208,8 @@ const cards = SVH_CERT_CLASSES.map((item) => {
       const iconEl = card.querySelector<HTMLElement>('[data-slot="icon"]')!;
       const labelEl = card.querySelector<HTMLElement>('[data-slot="label"]')!;
       const whenEl = card.querySelector<HTMLElement>('[data-slot="when"]')!;
-      const timeLabel = card.dataset.timeLabel ?? '';
       const start = dt ? new Date(dt) : null;
+      const localTime = start ? fmtTime(start) : '';
 
       iconEl.textContent = iconFor(finalState);
 
@@ -216,12 +236,12 @@ const cards = SVH_CERT_CLASSES.map((item) => {
           const hours = Math.max(0, Math.floor(diff / 3_600_000));
           const mins = Math.max(0, Math.floor((diff % 3_600_000) / 60_000));
           labelEl.textContent = 'Tomorrow';
-          whenEl.innerHTML = ` · ${timeLabel} <span class="cc-countdown">${hours}h ${mins}m</span>`;
+          whenEl.innerHTML = ` · ${localTime} <span class="cc-countdown">${hours}h ${mins}m</span>`;
           break;
         }
         case 'up-next':
           labelEl.textContent = 'Up next · Live on';
-          whenEl.textContent = start ? `${fmtDate(start)} · ${timeLabel}` : '';
+          whenEl.textContent = start ? `${fmtDate(start)} · ${localTime}` : '';
           break;
         case 'tbc':
           labelEl.textContent = 'Date TBC';
@@ -230,7 +250,7 @@ const cards = SVH_CERT_CLASSES.map((item) => {
         case 'upcoming':
         default:
           labelEl.textContent = 'Live on';
-          whenEl.textContent = start ? `${fmtDate(start)} · ${timeLabel}` : '';
+          whenEl.textContent = start ? `${fmtDate(start)} · ${localTime}` : '';
           break;
       }
     }

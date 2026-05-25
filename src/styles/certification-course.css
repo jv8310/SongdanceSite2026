@@ -1,7 +1,7 @@
 /* =========================================================
    SVH Certification Course — page-specific styles
    Layered on tokens.css. Warm, contemplative, embodied.
-   Mirrors the FC*/SG*/RB* conventions used elsewhere.
+   Mirrors the FC/SG/RB component conventions used elsewhere.
    ========================================================= */
 
 html, body { background: var(--paper); }
@@ -111,8 +111,8 @@ html, body { background: var(--paper); }
 /* ---------- HERO ---------- */
 .cc-hero {
   position: relative;
-  min-height: 92vh;
-  padding: var(--sp-7) var(--sp-7) var(--sp-9);
+  min-height: 88vh;
+  padding: var(--sp-8) var(--sp-7) var(--sp-9);
   background: var(--paper);
   overflow: hidden;
   display: flex; align-items: center;
@@ -120,56 +120,65 @@ html, body { background: var(--paper); }
 .cc-hero-bg { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
 .cc-hero-bg img {
   width: 100%; height: 100%; object-fit: cover;
-  opacity: 0.5;
+  opacity: 0.32;
   filter: saturate(0.72) contrast(0.98) brightness(1.05);
   animation: cc-breath 24s ease-in-out infinite;
 }
 .cc-hero-bg::after {
   content: ""; position: absolute; inset: 0;
   background:
-    linear-gradient(180deg, rgba(244,236,223,0.55) 0%, rgba(244,236,223,0.15) 35%, rgba(244,236,223,0.85) 100%),
-    radial-gradient(ellipse at 50% 90%, rgba(244,236,223,0.85) 0%, rgba(244,236,223,0) 60%);
+    linear-gradient(180deg, rgba(244,236,223,0.7) 0%, rgba(244,236,223,0.3) 35%, rgba(244,236,223,0.9) 100%),
+    radial-gradient(ellipse at 50% 95%, rgba(244,236,223,0.95) 0%, rgba(244,236,223,0) 60%);
 }
 @keyframes cc-breath { 0%, 100% { transform: scale(1.0); } 50% { transform: scale(1.04); } }
 .cc-hero-inner {
   position: relative; z-index: 1;
-  max-width: 980px; margin: 0 auto;
-  text-align: center;
+  max-width: var(--cc-max); margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: var(--sp-9);
+  align-items: center;
+  width: 100%;
 }
-.cc-hero-mark { width: 56px; height: 56px; margin: 0 auto var(--sp-6); opacity: 0.92; }
+.cc-hero-text { text-align: left; }
+.cc-hero-mark { width: 52px; height: 52px; margin: 0 0 var(--sp-5); opacity: 0.92; }
 .cc-hero-eyebrow {
   font-family: var(--font-body);
   font-size: 12px;
   text-transform: uppercase;
-  letter-spacing: 0.32em;
+  letter-spacing: 0.28em;
   color: var(--ember-deep);
   font-weight: 500;
   margin-bottom: var(--sp-5);
-  display: flex; justify-content: center; align-items: center; gap: 14px;
+  display: flex; align-items: center; gap: 14px;
 }
-.cc-hero-eyebrow::before, .cc-hero-eyebrow::after {
+.cc-hero-eyebrow::before {
   content: ""; width: 36px; height: 1px; background: var(--ember);
 }
 .cc-hero-head {
   font-family: var(--font-display);
-  font-size: clamp(44px, 6.4vw, 92px);
+  font-size: clamp(40px, 5.4vw, 78px);
   line-height: 1.02;
   letter-spacing: -0.022em;
   font-weight: 400;
   color: var(--ink);
-  margin: 0 auto var(--sp-6);
+  margin: 0 0 var(--sp-6);
   text-wrap: balance;
-  max-width: 22ch;
+  max-width: 14ch;
 }
 .cc-hero-head em { font-family: var(--font-lyric); font-style: italic; color: var(--plum); font-weight: 400; }
 .cc-hero-sub {
   font-family: var(--font-lyric); font-style: italic;
-  font-size: clamp(20px, 2.2vw, 28px);
-  line-height: 1.4;
+  font-size: clamp(19px, 1.9vw, 24px);
+  line-height: 1.45;
   color: var(--ink-soft);
-  max-width: 36ch;
-  margin: 0 auto var(--sp-7);
+  max-width: 32ch;
+  margin: 0 0 var(--sp-7);
   text-wrap: balance;
+}
+.cc-hero-ctas {
+  display: flex; flex-wrap: wrap; align-items: center;
+  gap: var(--sp-5);
 }
 .cc-hero-cta {
   display: inline-flex; align-items: center; gap: 12px;
@@ -183,8 +192,6 @@ html, body { background: var(--paper); }
 .cc-hero-cta:active { transform: translateY(1px); }
 .cc-hero-cta i { font-size: 18px; }
 .cc-hero-secondary {
-  display: block;
-  margin-top: var(--sp-4);
   font-family: var(--font-body); font-size: 14px;
   color: var(--ink-soft);
   text-decoration: none;
@@ -199,10 +206,38 @@ html, body { background: var(--paper); }
   text-transform: uppercase;
   letter-spacing: 0.18em;
   color: var(--ink-quiet);
-  display: flex; justify-content: center; align-items: center;
+  display: flex; align-items: center;
   gap: 14px; flex-wrap: wrap;
 }
 .cc-hero-meta .dot { width: 3px; height: 3px; border-radius: 50%; background: var(--ink-whisper); }
+
+.cc-hero-portrait {
+  position: relative;
+  margin: 0;
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-2);
+  aspect-ratio: 4 / 5;
+  transform: rotate(0.4deg);
+}
+.cc-hero-portrait img {
+  display: block; width: 100%; height: 100%;
+  object-fit: cover;
+  filter: saturate(0.95) contrast(1.02);
+}
+.cc-hero-portrait figcaption {
+  position: absolute; inset: auto 0 0 0;
+  padding: var(--sp-5) var(--sp-5);
+  background: linear-gradient(180deg, transparent 0%, rgba(28,18,20,0.78) 100%);
+  color: var(--paper);
+  font-family: var(--font-mono); font-size: 11px;
+  letter-spacing: 0.16em; text-transform: uppercase;
+}
+@media (max-width: 860px) {
+  .cc-hero-inner { grid-template-columns: 1fr; gap: var(--sp-7); }
+  .cc-hero-text { text-align: left; }
+  .cc-hero-portrait { max-width: 420px; margin: 0 auto; aspect-ratio: 4 / 5; }
+}
 
 /* ---------- Register block (the variant gate) ---------- */
 .cc-register {
@@ -301,20 +336,14 @@ html, body { background: var(--paper); }
   border: 1px solid rgba(244,236,223,0.16);
   border-radius: var(--r-lg);
   padding: var(--sp-7) var(--sp-6);
-  max-width: 620px;
+  max-width: 640px;
   margin: 0 auto;
 }
-.cc-variant-badge {
-  display: inline-block;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.2em;
-  color: var(--ember);
-  padding: 4px 10px;
-  border: 1px solid rgba(201,96,58,0.45);
-  border-radius: var(--r-pill);
-  margin-bottom: var(--sp-4);
+.cc-variant-greeting {
+  font-family: var(--font-lyric); font-style: italic;
+  font-size: 18px;
+  color: var(--ember-glow);
+  margin-bottom: var(--sp-2);
 }
 .cc-variant-title {
   font-family: var(--font-display);
@@ -331,8 +360,35 @@ html, body { background: var(--paper); }
   font-size: 16px;
   line-height: 1.7;
   color: rgba(244,236,223,0.82);
-  margin: 0 0 var(--sp-5);
+  margin: 0 0 var(--sp-6);
 }
+
+.cc-variant-emailline {
+  display: flex; align-items: baseline; gap: 8px;
+  flex-wrap: wrap;
+  margin: 0 0 var(--sp-5);
+  padding: 10px 14px;
+  background: rgba(244,236,223,0.06);
+  border: 1px solid rgba(244,236,223,0.14);
+  border-radius: var(--r-md);
+  font-family: var(--font-body); font-size: 14px;
+  color: rgba(244,236,223,0.8);
+}
+.cc-variant-emaillabel {
+  font-family: var(--font-mono); font-size: 10px;
+  text-transform: uppercase; letter-spacing: 0.18em;
+  color: rgba(244,236,223,0.55);
+}
+.cc-variant-email { color: var(--paper); font-weight: 500; flex: 1; }
+.cc-variant-emailchange {
+  font-family: var(--font-body); font-size: 12px;
+  color: var(--ember);
+  background: none; border: none; padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.cc-variant-emailchange:hover { color: var(--ember-glow); }
 .cc-variant-fields {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -345,7 +401,7 @@ html, body { background: var(--paper); }
 .cc-variant-field {
   display: flex; flex-direction: column; gap: 6px;
 }
-.cc-variant-field label {
+.cc-variant-field > span {
   font-family: var(--font-mono); font-size: 10px;
   text-transform: uppercase; letter-spacing: 0.18em;
   color: rgba(244,236,223,0.55);
@@ -413,14 +469,14 @@ html, body { background: var(--paper); }
 .cc-consent a { color: var(--paper); text-decoration-color: var(--ember); }
 
 .cc-variant-offers {
-  display: flex; flex-direction: column; gap: var(--sp-2);
-  margin-top: var(--sp-4);
+  display: flex; flex-direction: column; gap: var(--sp-3);
+  margin-top: var(--sp-5);
 }
 .cc-offer-btn {
   display: flex; align-items: center; justify-content: space-between;
   gap: var(--sp-4);
-  font-family: var(--font-body); font-size: 15px; font-weight: 500;
-  padding: 16px 22px;
+  font-family: var(--font-body); font-size: 16px; font-weight: 500;
+  padding: 18px 26px;
   border-radius: var(--r-pill);
   border: none;
   background: var(--paper); color: var(--ink);
@@ -436,10 +492,21 @@ html, body { background: var(--paper); }
   border: 1px solid rgba(244,236,223,0.32);
 }
 .cc-offer-btn--secondary:hover { background: rgba(244,236,223,0.08); }
+.cc-offer-label { letter-spacing: 0.005em; }
 .cc-offer-price {
   font-family: var(--font-display);
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 400;
+}
+
+/* Prominent variant — used when the only offer is the cert (B1/B2). */
+.cc-variant-offers--prominent .cc-offer-btn {
+  font-size: 18px;
+  padding: 22px 30px;
+  box-shadow: 0 8px 24px rgba(201,96,58,0.28);
+}
+.cc-variant-offers--prominent .cc-offer-price {
+  font-size: 28px;
 }
 
 .cc-variant-portal {
@@ -763,6 +830,11 @@ html, body { background: var(--paper); }
 .cc-ceee-card .ceee-date {
   font-family: var(--font-display);
   font-size: 16px; color: var(--ink); font-weight: 500;
+}
+.cc-ceee-card .ceee-duration {
+  font-family: var(--font-mono);
+  font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--ink-whisper);
 }
 .cc-ceee-card .ceee-status {
   font-size: 12px; color: var(--ink-quiet);

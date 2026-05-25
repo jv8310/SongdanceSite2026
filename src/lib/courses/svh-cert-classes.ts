@@ -101,6 +101,11 @@ export const SVH_CERT_CLASSES: ScheduledItem[] = [
 ];
 
 export const SVH_CEEE_SESSIONS: ScheduledItem[] = [
+  { number: 1, datetime: '2026-01-28T19:30:00+01:00', durationMinutes: 120, timeLabel: '7:30pm CET' },
+  { number: 2, datetime: '2026-02-25T19:00:00+01:00', durationMinutes: 120, timeLabel: '7:00pm CET' },
+  { number: 3, datetime: '2026-03-17T19:00:00+01:00', durationMinutes: 120, timeLabel: '7:00pm CET' },
+  { number: 4, datetime: '2026-04-21T19:00:00+02:00', durationMinutes: 120, timeLabel: '7:00pm CEST' },
+  { number: 5, datetime: '2026-05-19T19:00:00+02:00', durationMinutes: 120, timeLabel: '7:00pm CEST' },
   { number: 6, datetime: '2026-06-16T19:00:00+02:00', durationMinutes: 120, timeLabel: '7:00pm CEST' },
   { number: 7, datetime: '2026-07-22T19:00:00+02:00', durationMinutes: 120, timeLabel: '7:00pm CEST' },
   { number: 8, datetime: '2026-08-24T19:00:00+02:00', durationMinutes: 120, timeLabel: '7:00pm CEST' },
