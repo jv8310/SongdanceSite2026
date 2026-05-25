@@ -41,9 +41,19 @@ const countries = COUNTRIES;
         <h3 class="cc-variant-title" data-slot="title"></h3>
         <p class="cc-variant-body" data-slot="body"></p>
 
-        <div data-slot="offer-cards" class="cc-offers"></div>
+        <div data-slot="offer-picker">
+          <div class="cc-step-label" data-slot="offer-picker-label">Choose your offer</div>
+          <div data-slot="offer-cards" class="cc-offers"></div>
+        </div>
+
+        <div data-slot="plan-picker" class="cc-plan-picker" style="display:none">
+          <div class="cc-step-label">How would you like to pay?</div>
+          <div class="cc-plan-options" data-slot="plan-options"></div>
+        </div>
 
         <div data-slot="checkout-form">
+          <div class="cc-step-label">Your details</div>
+
           <div class="cc-variant-emailline">
             <span class="cc-variant-emaillabel">Continuing as</span>
             <span class="cc-variant-email" data-slot="email"></span>
@@ -109,6 +119,16 @@ const countries = COUNTRIES;
             <a href="/privacy" target="_blank" rel="noopener">privacy notice</a>.</span>
           </label>
 
+          <div class="cc-checkout-summary" data-slot="summary">
+            <span class="cc-checkout-summary-label" data-slot="summary-label"></span>
+            <span class="cc-checkout-summary-amount" data-slot="summary-amount"></span>
+          </div>
+
+          <button type="button" class="cc-checkout-cta" data-slot="checkout-cta">
+            <span>Continue to payment</span>
+            <i class="ph-light ph-arrow-right"></i>
+          </button>
+
           <p class="cc-soft-fallback" data-slot="fallback"></p>
           <p class="cc-register-error" data-slot="error"></p>
         </div>
@@ -132,6 +152,13 @@ const countries = COUNTRIES;
 <script>
   import { COUNTRIES } from '../../lib/countries';
 
+  type InstallmentPlan = {
+    monthly_cents: number;
+    monthly_eur: number;
+    total_cents: number;
+    total_eur: number;
+    count: number;
+  };
   type Offer = {
     slug: 'cc-cert' | 'cc-bundle';
     label: string;
@@ -139,7 +166,7 @@ const countries = COUNTRIES;
     price_cents: number;
     base_price_eur: number;
     save_note: string;
-    installments_note?: string;
+    installments?: InstallmentPlan;
   };
   type Variant = 'B1' | 'B2' | 'A' | 'D' | 'E' | 'C';
   type Decision = {
@@ -152,6 +179,7 @@ const countries = COUNTRIES;
     country?: string;
     phone?: string;
   };
+  type PaymentPlan = 'full' | '3x';
 
   type CopyFn = (
     week?: number,
@@ -171,7 +199,7 @@ const countries = COUNTRIES;
         (week
           ? `You're currently in week ${week} of the 12-week course. `
           : `You're currently in the 12-week course. `) +
-        `The certification course is the natural next room. Because you're already in the foundation, and because the cert is already underway, your price reflects both.`,
+        `The certification course continues from that foundation — and because you're already inside it, your price reflects what you've already walked.`,
     }),
     B2: (_w, name) => ({
       greeting: greetingFor(name, 'Welcome back'),
@@ -350,6 +378,8 @@ const countries = COUNTRIES;
 
     const checkoutForm = root.querySelector('[data-slot="checkout-form"]') as HTMLElement;
     const portalBlock = root.querySelector('[data-slot="portal"]') as HTMLElement;
+    const offerPicker = root.querySelector('[data-slot="offer-picker"]') as HTMLElement;
+    const planPicker = root.querySelector('[data-slot="plan-picker"]') as HTMLElement;
     const emailSlot = root.querySelector('[data-slot="email"]') as HTMLElement;
     if (emailSlot) emailSlot.textContent = email;
 
@@ -362,6 +392,8 @@ const countries = COUNTRIES;
     });
 
     if (decision.variant === 'C') {
+      offerPicker.style.display = 'none';
+      planPicker.style.display = 'none';
       checkoutForm.style.display = 'none';
       portalBlock.style.display = 'block';
       const portalLink = root.querySelector('[data-slot="portal-link"]') as HTMLAnchorElement;
@@ -418,16 +450,109 @@ const countries = COUNTRIES;
       decision.offers.some((o) => o.slug === 'cc-bundle');
     if (showActivate) activateToggle.style.display = '';
 
-    // Render rich offer cards. Each card shows base price (strikethrough),
-    // your price, the savings note, a checkout button, and the installments
-    // note. First card is rendered as primary.
+    // ── Selection state — the single source of truth for the bottom CTA.
+    let selectedOfferSlug: Offer['slug'] = decision.offers[0]?.slug ?? 'cc-cert';
+    let selectedPlan: PaymentPlan = 'full';
+
+    // Render selectable offer cards. Clicking a card flips selectedOfferSlug
+    // (no per-card "Continue" button anymore — that lives at the bottom).
     const offersEl = root.querySelector('[data-slot="offer-cards"]') as HTMLElement;
+    const offerPickerLabel = root.querySelector('[data-slot="offer-picker-label"]') as HTMLElement;
+    if (decision.offers.length <= 1 && offerPickerLabel) {
+      offerPickerLabel.textContent = 'Your offer';
+    }
     decision.offers.forEach((offer, i) => {
-      const card = renderOfferCard(offer, i === 0);
-      const btn = card.querySelector<HTMLButtonElement>('.cc-offer-cta')!;
-      btn.addEventListener('click', () => startCheckout(root, email, decision, offer, btn));
+      const card = renderOfferCard(offer, i === 0, decision.offers.length > 1);
+      card.dataset.offerSlug = offer.slug;
+      card.addEventListener('click', () => {
+        selectedOfferSlug = offer.slug;
+        offersEl.querySelectorAll<HTMLElement>('.cc-offer').forEach((el) => {
+          el.classList.toggle(
+            'cc-offer--selected',
+            el.dataset.offerSlug === selectedOfferSlug,
+          );
+        });
+        // Re-render plan options + summary for the newly selected offer.
+        renderPlanOptions();
+        renderSummary();
+      });
+      if (i === 0) card.classList.add('cc-offer--selected');
       offersEl.appendChild(card);
     });
+
+    // Payment-plan selector (full vs. 3x). Only renders if the chosen
+    // offer has installments configured. Re-renders on offer change.
+    const planOptionsEl = root.querySelector('[data-slot="plan-options"]') as HTMLElement;
+    function renderPlanOptions() {
+      planOptionsEl.replaceChildren();
+      const offer = decision.offers.find((o) => o.slug === selectedOfferSlug);
+      if (!offer || !offer.installments) {
+        planPicker.style.display = 'none';
+        selectedPlan = 'full';
+        return;
+      }
+      planPicker.style.display = '';
+
+      const full = renderPlanOption({
+        value: 'full',
+        title: 'Pay in full',
+        subtitle: `One payment, full access today.`,
+        amountLabel: `€${offer.price_eur.toLocaleString('en-US')}`,
+      });
+      const inst = renderPlanOption({
+        value: '3x',
+        title: `Pay in ${offer.installments.count} monthly installments`,
+        subtitle: `€${offer.installments.monthly_eur}/mo for ${offer.installments.count} months (€${offer.installments.total_eur.toLocaleString('en-US')} total). Full access from the first payment.`,
+        amountLabel: `€${offer.installments.monthly_eur}/mo`,
+      });
+
+      [full, inst].forEach((el) => {
+        el.addEventListener('click', () => {
+          selectedPlan = el.dataset.planValue as PaymentPlan;
+          planOptionsEl
+            .querySelectorAll<HTMLElement>('.cc-plan-option')
+            .forEach((opt) =>
+              opt.classList.toggle(
+                'cc-plan-option--selected',
+                opt.dataset.planValue === selectedPlan,
+              ),
+            );
+          renderSummary();
+        });
+      });
+
+      // Default to full pay, mark visually selected.
+      full.classList.add('cc-plan-option--selected');
+      selectedPlan = 'full';
+      planOptionsEl.appendChild(full);
+      planOptionsEl.appendChild(inst);
+    }
+
+    // Summary line above the CTA: keeps the price visible right where the
+    // buyer is about to commit, so there's no "wait, what am I paying?".
+    const summaryLabel = root.querySelector('[data-slot="summary-label"]') as HTMLElement;
+    const summaryAmount = root.querySelector('[data-slot="summary-amount"]') as HTMLElement;
+    function renderSummary() {
+      const offer = decision.offers.find((o) => o.slug === selectedOfferSlug);
+      if (!offer) return;
+      if (selectedPlan === '3x' && offer.installments) {
+        summaryLabel.textContent = `${offer.label} — ${offer.installments.count} monthly payments`;
+        summaryAmount.textContent = `€${offer.installments.monthly_eur}/mo`;
+      } else {
+        summaryLabel.textContent = `${offer.label} — one-time payment`;
+        summaryAmount.textContent = `€${offer.price_eur.toLocaleString('en-US')}`;
+      }
+    }
+
+    renderPlanOptions();
+    renderSummary();
+
+    // Single bottom CTA: collects all the form state + selection state and
+    // hands off to /api/courses/checkout.
+    const checkoutCta = root.querySelector('[data-slot="checkout-cta"]') as HTMLButtonElement;
+    checkoutCta.addEventListener('click', () =>
+      startCheckout(root, email, decision, selectedOfferSlug, selectedPlan, checkoutCta),
+    );
 
     // Below the cards: soft fallback link copy for A and D variants only.
     const fallback = root.querySelector('[data-slot="fallback"]') as HTMLElement;
@@ -446,32 +571,53 @@ const countries = COUNTRIES;
     stage.replaceChildren(root);
   }
 
-  function renderOfferCard(offer: Offer, primary: boolean): HTMLElement {
-    const card = document.createElement('div');
+  function renderOfferCard(offer: Offer, primary: boolean, selectable: boolean): HTMLElement {
+    const card = document.createElement('button');
+    card.type = 'button';
     card.className = 'cc-offer' + (primary ? ' cc-offer--primary' : '');
-    const installments = offer.installments_note
-      ? `<p class="cc-offer-installments">${escapeHtml(offer.installments_note)}</p>`
+    if (!selectable) card.classList.add('cc-offer--single');
+    const radioMark = selectable
+      ? `<span class="cc-offer-radio" aria-hidden="true"></span>`
       : '';
     card.innerHTML = `
-      <div class="cc-offer-name">${escapeHtml(offer.label)}</div>
-      <div class="cc-offer-prices">
-        <div class="cc-offer-row">
-          <span class="cc-offer-row-label">Base price</span>
-          <span class="cc-offer-row-value cc-offer-base">€${offer.base_price_eur.toLocaleString('en-US')}</span>
+      ${radioMark}
+      <div class="cc-offer-body">
+        <div class="cc-offer-name">${escapeHtml(offer.label)}</div>
+        <div class="cc-offer-prices">
+          <div class="cc-offer-row">
+            <span class="cc-offer-row-label">Base price</span>
+            <span class="cc-offer-row-value cc-offer-base">€${offer.base_price_eur.toLocaleString('en-US')}</span>
+          </div>
+          <div class="cc-offer-row cc-offer-row--your">
+            <span class="cc-offer-row-label">Your price</span>
+            <span class="cc-offer-row-value cc-offer-your">€${offer.price_eur.toLocaleString('en-US')}</span>
+          </div>
         </div>
-        <div class="cc-offer-row cc-offer-row--your">
-          <span class="cc-offer-row-label">Your price</span>
-          <span class="cc-offer-row-value cc-offer-your">€${offer.price_eur.toLocaleString('en-US')}</span>
-        </div>
+        <p class="cc-offer-save">${escapeHtml(offer.save_note)}</p>
       </div>
-      <p class="cc-offer-save">${escapeHtml(offer.save_note)}</p>
-      <button type="button" class="cc-offer-cta">
-        <span>Continue to checkout</span>
-        <span class="cc-offer-cta-price">€${offer.price_eur.toLocaleString('en-US')}</span>
-      </button>
-      ${installments}
     `;
     return card;
+  }
+
+  function renderPlanOption(opts: {
+    value: PaymentPlan;
+    title: string;
+    subtitle: string;
+    amountLabel: string;
+  }): HTMLElement {
+    const el = document.createElement('button');
+    el.type = 'button';
+    el.className = 'cc-plan-option';
+    el.dataset.planValue = opts.value;
+    el.innerHTML = `
+      <span class="cc-plan-radio" aria-hidden="true"></span>
+      <span class="cc-plan-text">
+        <span class="cc-plan-title">${escapeHtml(opts.title)}</span>
+        <span class="cc-plan-sub">${escapeHtml(opts.subtitle)}</span>
+      </span>
+      <span class="cc-plan-amount">${escapeHtml(opts.amountLabel)}</span>
+    `;
+    return el;
   }
 
   function escapeHtml(s: string): string {
@@ -487,7 +633,8 @@ const countries = COUNTRIES;
     root: HTMLElement,
     email: string,
     decision: Decision,
-    offer: Offer,
+    productSlug: Offer['slug'],
+    paymentPlan: PaymentPlan,
     btn: HTMLButtonElement,
   ) {
     const errorSlot = root.querySelector('[data-slot="error"]') as HTMLElement;
@@ -526,7 +673,7 @@ const countries = COUNTRIES;
       root.querySelector<HTMLInputElement>('[name="activate_choice"]:checked')?.value ??
       'now';
     const activate_choice =
-      offer.slug === 'cc-bundle' || decision.variant === 'B1'
+      productSlug === 'cc-bundle' || decision.variant === 'B1'
         ? activateRaw
         : 'now';
 
@@ -539,7 +686,8 @@ const countries = COUNTRIES;
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          product_slug: offer.slug,
+          product_slug: productSlug,
+          payment_plan: paymentPlan,
           first_name,
           last_name,
           email,
@@ -551,11 +699,15 @@ const countries = COUNTRIES;
           consent_terms: true,
         }),
       });
-      const body = (await res.json()) as
-        | { checkout_url: string }
-        | { error: string };
-      if (!res.ok || !('checkout_url' in body)) {
-        fail(('error' in body && body.error) || 'Could not start checkout. Please try again.');
+      // Always try to parse JSON — the server returns JSON on errors too.
+      let body: { checkout_url?: string; error?: string } = {};
+      try {
+        body = (await res.json()) as typeof body;
+      } catch {
+        // Server returned non-JSON (very unusual now). Treat as network.
+      }
+      if (!res.ok || !body.checkout_url) {
+        fail(body.error || `Could not start checkout (HTTP ${res.status}). Please try again.`);
         btn.disabled = false;
         btn.innerHTML = originalLabel;
         return;

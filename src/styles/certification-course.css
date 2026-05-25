@@ -588,32 +588,85 @@ html, body { background: var(--paper); }
 .cc-consent input { accent-color: var(--ember); margin-top: 3px; }
 .cc-consent a { color: var(--paper); text-decoration-color: var(--ember); }
 
-/* ---- Offer cards (quiet, clear, no shouting) ---- */
+/* ---- Step labels (Choose your offer / How to pay / Your details) ---- */
+.cc-step-label {
+  font-family: var(--font-mono); font-size: 10px;
+  text-transform: uppercase; letter-spacing: 0.22em;
+  color: rgba(244,236,223,0.55);
+  text-align: left;
+  margin: var(--sp-6) 0 var(--sp-3);
+}
+.cc-step-label:first-child { margin-top: 0; }
+
+/* ---- Offer cards (selectable; CTA lives at the bottom of the form) ---- */
 .cc-offers {
   display: grid;
   grid-template-columns: 1fr;
-  gap: var(--sp-4);
-  margin: var(--sp-5) 0 var(--sp-6);
+  gap: var(--sp-3);
+  margin: 0 0 var(--sp-2);
 }
 @media (min-width: 720px) {
-  /* When two cards (A, D) — show side by side, primary first. */
   .cc-offers:has(.cc-offer + .cc-offer) {
     grid-template-columns: 1fr 1fr;
   }
 }
 .cc-offer {
-  background: rgba(244,236,223,0.05);
+  position: relative;
+  appearance: none;
+  font: inherit;
+  background: rgba(244,236,223,0.04);
   border: 1px solid rgba(244,236,223,0.18);
   border-radius: var(--r-lg);
   padding: var(--sp-5) var(--sp-5);
-  display: flex; flex-direction: column;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--sp-3);
+  align-items: start;
   text-align: left;
+  color: var(--paper);
+  cursor: pointer;
+  transition: border-color var(--d-base) var(--ease),
+              background var(--d-base) var(--ease),
+              box-shadow var(--d-base) var(--ease);
 }
-.cc-offer--primary {
-  background: rgba(244,236,223,0.09);
-  border-color: rgba(244,236,223,0.32);
-  box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+.cc-offer:hover {
+  border-color: rgba(244,236,223,0.4);
+  background: rgba(244,236,223,0.07);
 }
+.cc-offer--single {
+  grid-template-columns: 1fr;
+  cursor: default;
+  background: rgba(244,236,223,0.07);
+  border-color: rgba(244,236,223,0.28);
+}
+.cc-offer--single:hover {
+  background: rgba(244,236,223,0.07);
+  border-color: rgba(244,236,223,0.28);
+}
+.cc-offer--selected {
+  border-color: var(--ember);
+  background: rgba(201,96,58,0.10);
+  box-shadow: 0 0 0 1px var(--ember) inset, 0 8px 24px rgba(0,0,0,0.22);
+}
+.cc-offer-radio {
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  border: 1px solid rgba(244,236,223,0.45);
+  margin-top: 4px;
+  flex-shrink: 0;
+  position: relative;
+  transition: border-color var(--d-base) var(--ease);
+}
+.cc-offer--selected .cc-offer-radio {
+  border-color: var(--ember);
+}
+.cc-offer--selected .cc-offer-radio::after {
+  content: "";
+  position: absolute; inset: 3px;
+  border-radius: 50%;
+  background: var(--ember);
+}
+.cc-offer-body { min-width: 0; }
 .cc-offer-name {
   font-family: var(--font-display);
   font-size: 18px;
@@ -659,46 +712,114 @@ html, body { background: var(--paper); }
   font-family: var(--font-body); font-size: 13px;
   color: var(--ember-glow);
   font-style: italic;
-  margin: 0 0 var(--sp-4);
+  margin: 0;
   line-height: 1.5;
 }
-.cc-offer-cta {
-  display: flex; align-items: center; justify-content: space-between;
+
+/* ---- Payment-plan picker (full vs. 3 monthly) ---- */
+.cc-plan-picker {
+  margin: 0 0 var(--sp-2);
+}
+.cc-plan-options {
+  display: grid; gap: var(--sp-2);
+}
+.cc-plan-option {
+  appearance: none;
+  font: inherit;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
   gap: var(--sp-3);
-  font-family: var(--font-body); font-size: 15px; font-weight: 500;
-  padding: 14px 22px;
-  border-radius: var(--r-pill);
-  border: 1px solid rgba(244,236,223,0.32);
-  background: transparent; color: var(--paper);
-  cursor: pointer;
+  align-items: center;
   text-align: left;
-  transition: background var(--d-base) var(--ease), border-color var(--d-base) var(--ease);
+  background: rgba(244,236,223,0.04);
+  border: 1px solid rgba(244,236,223,0.18);
+  color: var(--paper);
+  border-radius: var(--r-md);
+  padding: 14px 18px;
+  cursor: pointer;
+  transition: border-color var(--d-base) var(--ease),
+              background var(--d-base) var(--ease);
 }
-.cc-offer-cta:hover {
-  background: rgba(244,236,223,0.08);
-  border-color: rgba(244,236,223,0.5);
+.cc-plan-option:hover {
+  border-color: rgba(244,236,223,0.4);
+  background: rgba(244,236,223,0.07);
 }
-.cc-offer-cta[disabled] { opacity: 0.6; cursor: progress; }
-.cc-offer-cta-price {
+.cc-plan-option--selected {
+  border-color: var(--ember);
+  background: rgba(201,96,58,0.10);
+  box-shadow: 0 0 0 1px var(--ember) inset;
+}
+.cc-plan-radio {
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  border: 1px solid rgba(244,236,223,0.45);
+  position: relative;
+  transition: border-color var(--d-base) var(--ease);
+}
+.cc-plan-option--selected .cc-plan-radio { border-color: var(--ember); }
+.cc-plan-option--selected .cc-plan-radio::after {
+  content: ""; position: absolute; inset: 3px;
+  border-radius: 50%; background: var(--ember);
+}
+.cc-plan-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.cc-plan-title {
+  font-family: var(--font-body);
+  font-size: 15px; font-weight: 500;
+  color: var(--paper);
+}
+.cc-plan-sub {
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: rgba(244,236,223,0.62);
+  line-height: 1.45;
+}
+.cc-plan-amount {
   font-family: var(--font-display);
   font-size: 18px;
-  font-weight: 400;
+  color: var(--paper);
+  font-feature-settings: "tnum" 1;
+  white-space: nowrap;
 }
-.cc-offer--primary .cc-offer-cta {
-  background: var(--paper);
-  color: var(--ink);
-  border-color: var(--paper);
+
+/* ---- Summary + final CTA ---- */
+.cc-checkout-summary {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-4) var(--sp-4);
+  border-top: 1px solid rgba(244,236,223,0.16);
+  border-bottom: 1px solid rgba(244,236,223,0.16);
+  margin: var(--sp-4) 0 var(--sp-4);
+  font-family: var(--font-body);
 }
-.cc-offer--primary .cc-offer-cta:hover {
-  background: var(--ember-glow);
-  border-color: var(--ember-glow);
+.cc-checkout-summary-label {
+  font-size: 14px;
+  color: rgba(244,236,223,0.78);
+  text-wrap: balance;
 }
-.cc-offer-installments {
-  margin: var(--sp-3) 0 0;
-  font-family: var(--font-body); font-size: 12px;
-  color: rgba(244,236,223,0.6);
-  font-style: italic;
+.cc-checkout-summary-amount {
+  font-family: var(--font-display);
+  font-size: 24px;
+  color: var(--paper);
+  font-feature-settings: "tnum" 1;
+  white-space: nowrap;
 }
+.cc-checkout-cta {
+  display: flex; align-items: center; justify-content: center;
+  gap: 12px;
+  width: 100%;
+  font-family: var(--font-body); font-size: 16px; font-weight: 500;
+  padding: 18px 28px;
+  border-radius: var(--r-pill);
+  border: none;
+  background: var(--ember); color: var(--paper);
+  cursor: pointer;
+  transition: background var(--d-base) var(--ease), transform var(--d-quick) var(--ease);
+  box-shadow: 0 8px 24px rgba(201,96,58,0.28);
+}
+.cc-checkout-cta:hover { background: var(--ember-deep); }
+.cc-checkout-cta:active { transform: translateY(1px); }
+.cc-checkout-cta[disabled] { opacity: 0.6; cursor: progress; }
+.cc-checkout-cta i { font-size: 18px; }
 
 .cc-soft-fallback {
   margin: var(--sp-4) 0 0;

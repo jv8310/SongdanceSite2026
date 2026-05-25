@@ -3,13 +3,14 @@
 
 <section class="cc-teaser" id="check-price">
   <div class="cc-teaser-inner">
-    <div class="cc-eyebrow cc-eyebrow--center">Find your place on the path</div>
+    <div class="cc-eyebrow cc-eyebrow--center">A personal price, not a public one</div>
     <h2 class="cc-teaser-h2">
-      Where are you <em>on the path?</em>
+      See your <em>price.</em>
     </h2>
     <p class="cc-teaser-lead">
-      The certification course is already underway. Enter your email — we'll
-      check what fits you and show your price further down the page.
+      The certification course is already underway, so your price depends on
+      where you already are with this work. Enter your email and we'll show
+      you the right offer further down the page.
     </p>
 
     <div class="cc-teaser-stage" data-cc-teaser-stage>
@@ -49,6 +50,13 @@
 
 <script>
   type Variant = 'B1' | 'B2' | 'A' | 'D' | 'E' | 'C';
+  type InstallmentPlan = {
+    monthly_cents: number;
+    monthly_eur: number;
+    total_cents: number;
+    total_eur: number;
+    count: number;
+  };
   type Offer = {
     slug: 'cc-cert' | 'cc-bundle';
     label: string;
@@ -56,7 +64,7 @@
     price_cents: number;
     base_price_eur: number;
     save_note: string;
-    installments_note?: string;
+    installments?: InstallmentPlan;
   };
   type Decision = {
     variant: Variant;
@@ -80,15 +88,15 @@
           greeting: hi,
           body:
             (d.twelve_week_week
-              ? `you're currently in week ${d.twelve_week_week} of the 12-week course. `
-              : `you're currently on the 12-week course. `) +
-            `The certification course is the next room — and your price reflects where you already are.`,
+              ? `you're already in week ${d.twelve_week_week} of the 12-week course. `
+              : `you're already in the 12-week course. `) +
+            `The certification course continues from there — and your price reflects what you've already walked.`,
           ctaLabel: 'See your offer',
         };
       case 'B2':
         return {
           greeting: name ? `Welcome back, ${name}.` : 'Welcome back.',
-          body: `You've completed the 12-week course. The certification course continues the work — your price honors the foundation you've already walked.`,
+          body: `You've completed the 12-week course. The certification course picks up where that foundation leaves off — and your price honors what you've already done.`,
           ctaLabel: 'See your offer',
         };
       case 'A':
@@ -100,7 +108,7 @@
       case 'D':
         return {
           greeting: name ? `Good to see you, ${name}.` : 'Good to see you.',
-          body: `You've already found this work. The certification course is the deepening — and the bundle gathers the 12-week foundation alongside it, if you haven't walked it yet.`,
+          body: `You've already found this work. You can step straight into the certification — or take the full path, including the 12-week foundation, if you haven't walked it yet.`,
           ctaLabel: 'See your options',
         };
       case 'E':

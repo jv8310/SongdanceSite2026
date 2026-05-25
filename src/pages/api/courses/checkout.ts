@@ -6,20 +6,36 @@
 // Inputs come from the variant block on /certification-course. The variant
 // itself is recorded on the row so we can audit later why a person was
 // offered the bundle vs. cert-only.
+//
+// payment_plan:
+//   'full' → one-off PaymentIntent via Stripe Checkout (mode=payment)
+//   '3x'   → monthly Subscription via Stripe Checkout (mode=subscription),
+//            cancels itself after 3 invoices
+//
+// Every code path returns JSON on failure (never an HTML 500), so the
+// frontend can render the actual error instead of the generic
+// "could not reach the server" fallback that fires when res.json() throws.
 
 import type { APIRoute } from 'astro';
 import {
   createPendingCourseRegistration,
   attachStripeSessionToCourse,
+  attachStripeSubscriptionToCourse,
   type ActivateChoice,
   type CourseProductSlug,
+  type PaymentPlan,
 } from '../../../lib/courses/db';
 import { logEvent } from '../../../lib/registrations/db';
-import { createCheckoutSession, createCustomer } from '../../../lib/registrations/stripe';
+import {
+  createCheckoutSession,
+  createCustomer,
+  createSubscriptionCheckoutSession,
+} from '../../../lib/registrations/stripe';
 import { findCountry } from '../../../lib/countries';
 import {
   BUNDLE_OFFER,
   CERT_OFFER,
+  type Offer,
   type Variant,
 } from '../../../lib/courses/variant';
 
@@ -36,9 +52,10 @@ type Body = {
   activate_choice?: string;
   source_variant?: string;
   consent_terms?: boolean;
+  payment_plan?: string;
 };
 
-const COURSE_OFFERS: Record<CourseProductSlug, typeof CERT_OFFER> = {
+const COURSE_OFFERS: Record<CourseProductSlug, Offer> = {
   'cc-cert': CERT_OFFER,
   'cc-bundle': BUNDLE_OFFER,
 };
@@ -46,155 +63,270 @@ const COURSE_OFFERS: Record<CourseProductSlug, typeof CERT_OFFER> = {
 export const POST: APIRoute = async ({ request, locals }) => {
   const env = locals.runtime.env;
 
-  let payload: Body;
+  // Wrap the whole handler in try/catch so any unexpected Stripe / D1 /
+  // network error still surfaces as a JSON {error} the client can show,
+  // instead of a 500 with HTML that res.json() would choke on.
   try {
-    payload = (await request.json()) as Body;
-  } catch {
-    return json({ error: 'Invalid JSON' }, 400);
-  }
+    let payload: Body;
+    try {
+      payload = (await request.json()) as Body;
+    } catch {
+      return json({ error: 'Invalid JSON' }, 400);
+    }
 
-  const productSlug = (payload.product_slug ?? '').trim() as CourseProductSlug;
-  const firstName = (payload.first_name ?? '').trim();
-  const lastName = (payload.last_name ?? '').trim();
-  const email = (payload.email ?? '').trim().toLowerCase();
-  const countryCode = (payload.country ?? '').trim().toUpperCase();
-  const phoneCountryCode = (payload.phone_country ?? '').trim().toUpperCase();
-  const phoneLocal = (payload.phone ?? '').trim();
+    const productSlug = (payload.product_slug ?? '').trim() as CourseProductSlug;
+    const firstName = (payload.first_name ?? '').trim();
+    const lastName = (payload.last_name ?? '').trim();
+    const email = (payload.email ?? '').trim().toLowerCase();
+    const countryCode = (payload.country ?? '').trim().toUpperCase();
+    const phoneCountryCode = (payload.phone_country ?? '').trim().toUpperCase();
+    const phoneLocal = (payload.phone ?? '').trim();
+    const paymentPlan: PaymentPlan =
+      payload.payment_plan === '3x' ? '3x' : 'full';
 
-  if (productSlug !== 'cc-cert' && productSlug !== 'cc-bundle') {
-    return json({ error: 'Unknown product.' }, 400);
-  }
-  if (!firstName || !lastName || !email) {
-    return json(
-      { error: 'first_name, last_name and email are required.' },
-      400,
-    );
-  }
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return json({ error: 'Please enter a valid email address.' }, 400);
-  }
-  if (!countryCode || !findCountry(countryCode)) {
-    return json({ error: 'Please select your country.' }, 400);
-  }
-  if (!phoneCountryCode || !findCountry(phoneCountryCode) || !phoneLocal) {
-    return json({ error: 'Please enter a phone number with country code.' }, 400);
-  }
-  if (!payload.consent_terms) {
-    return json({ error: 'Please confirm the terms to continue.' }, 400);
-  }
+    if (productSlug !== 'cc-cert' && productSlug !== 'cc-bundle') {
+      return json({ error: 'Unknown product.' }, 400);
+    }
+    if (!firstName || !lastName || !email) {
+      return json(
+        { error: 'First name, last name and email are required.' },
+        400,
+      );
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return json({ error: 'Please enter a valid email address.' }, 400);
+    }
+    if (!countryCode || !findCountry(countryCode)) {
+      return json({ error: 'Please select your country from the list.' }, 400);
+    }
+    if (!phoneCountryCode || !findCountry(phoneCountryCode) || !phoneLocal) {
+      return json(
+        { error: 'Please enter a phone number with country code.' },
+        400,
+      );
+    }
+    if (!payload.consent_terms) {
+      return json({ error: 'Please agree to the terms to continue.' }, 400);
+    }
 
-  const activateChoice: ActivateChoice | null =
-    payload.activate_choice === 'now' || payload.activate_choice === 'wait'
-      ? payload.activate_choice
-      : null;
+    const activateChoice: ActivateChoice | null =
+      payload.activate_choice === 'now' || payload.activate_choice === 'wait'
+        ? payload.activate_choice
+        : null;
 
-  const sourceVariant = isVariant(payload.source_variant)
-    ? payload.source_variant
-    : 'direct';
+    const sourceVariant = isVariant(payload.source_variant)
+      ? payload.source_variant
+      : 'direct';
 
-  const offer = COURSE_OFFERS[productSlug];
+    const offer = COURSE_OFFERS[productSlug];
 
-  const phoneCountry = findCountry(phoneCountryCode);
-  const phoneE164 = phoneCountry
-    ? `+${phoneCountry.dial}${phoneLocal.replace(/[^0-9]/g, '')}`
-    : phoneLocal;
+    // For full pay we charge price_cents once. For 3x we charge
+    // monthly_cents × 3 (total may differ by a few cents — see variant.ts).
+    if (paymentPlan === '3x' && !offer.installments) {
+      return json(
+        { error: 'This product cannot be purchased in installments.' },
+        400,
+      );
+    }
+    const totalAmountCents =
+      paymentPlan === '3x' && offer.installments
+        ? offer.installments.total_cents
+        : offer.price_cents;
+    const installmentsTotal =
+      paymentPlan === '3x' && offer.installments
+        ? offer.installments.count
+        : 1;
 
-  const registrationId = await createPendingCourseRegistration(env.DB, {
-    email,
-    first_name: firstName,
-    last_name: lastName,
-    country: countryCode,
-    phone: phoneE164,
-    phone_country: phoneCountryCode,
-    product_slug: productSlug,
-    activate_choice: activateChoice,
-    source_variant: sourceVariant,
-    amount_cents: offer.price_cents,
-    currency: 'EUR',
-    consent_terms: payload.consent_terms === true,
-  });
+    const phoneCountry = findCountry(phoneCountryCode);
+    const phoneE164 = phoneCountry
+      ? `+${phoneCountry.dial}${phoneLocal.replace(/[^0-9]/g, '')}`
+      : phoneLocal;
 
-  const baseUrl = env.PUBLIC_BASE_URL.replace(/\/$/, '');
-
-  // Pre-create the Stripe Customer so the email/name/country pre-fill on
-  // the checkout page and Stripe can filter payment methods by country.
-  // No tax_id for course purchases — this is B2C digital.
-  let customerId: string | undefined;
-  try {
-    const cust = await createCustomer({
-      secretKey: env.STRIPE_SECRET_KEY,
+    const registrationId = await createPendingCourseRegistration(env.DB, {
       email,
-      name: `${firstName} ${lastName}`,
-      phone: phoneE164,
-      country: countryCode,
-      description: `${firstName} ${lastName} · course reg ${registrationId}`,
-      metadata: {
-        course_registration_id: String(registrationId),
-        contact_first_name: firstName,
-        contact_last_name: lastName,
-        product_slug: productSlug,
-      },
-    });
-    customerId = cust.id;
-  } catch (err) {
-    await logEvent(env.DB, {
-      registration_id: null,
-      kind: 'stripe.customer.error',
-      source: 'system',
-      payload: { course_registration_id: registrationId, error: String(err) },
-    });
-  }
-
-  const lineItemName = offer.label;
-
-  const session = await createCheckoutSession({
-    secretKey: env.STRIPE_SECRET_KEY,
-    ...(customerId ? { customer: customerId } : { customer_email: email }),
-    success_url: `${baseUrl}/certification-course?paid={CHECKOUT_SESSION_ID}#register`,
-    cancel_url: `${baseUrl}/certification-course#register`,
-    payment_intent_description: lineItemName,
-    line_items: [
-      {
-        name: lineItemName,
-        amount_cents: offer.price_cents,
-        currency: 'eur',
-        quantity: 1,
-      },
-    ],
-    metadata: {
-      course_registration_id: String(registrationId),
-      product_slug: productSlug,
-      activate_choice: activateChoice ?? '',
-      source_variant: sourceVariant,
       first_name: firstName,
       last_name: lastName,
       country: countryCode,
       phone: phoneE164,
-    },
-    idempotency_key: `course-reg-${registrationId}`,
-  });
-
-  await attachStripeSessionToCourse(env.DB, registrationId, session.id);
-
-  await logEvent(env.DB, {
-    registration_id: null,
-    kind: 'course.checkout.session.created',
-    source: 'system',
-    external_id: `local-course-${registrationId}`,
-    payload: {
-      course_registration_id: registrationId,
-      session_id: session.id,
+      phone_country: phoneCountryCode,
       product_slug: productSlug,
-      amount_cents: offer.price_cents,
       activate_choice: activateChoice,
       source_variant: sourceVariant,
-    },
-  });
+      amount_cents: totalAmountCents,
+      currency: 'EUR',
+      consent_terms: payload.consent_terms === true,
+      payment_plan: paymentPlan,
+      installments_total: installmentsTotal,
+    });
 
-  return json({
-    checkout_url: session.url,
-    course_registration_id: registrationId,
-  });
+    const baseUrl = env.PUBLIC_BASE_URL.replace(/\/$/, '');
+
+    // Pre-create the Stripe Customer so the email/name/country pre-fill on
+    // the checkout page and Stripe can filter payment methods by country.
+    // For subscription mode this is required (the customer carries the
+    // payment method that future invoices charge against). For one-off
+    // payments it's still nice-to-have but optional.
+    let customerId: string | undefined;
+    try {
+      const cust = await createCustomer({
+        secretKey: env.STRIPE_SECRET_KEY,
+        email,
+        name: `${firstName} ${lastName}`,
+        phone: phoneE164,
+        country: countryCode,
+        description: `${firstName} ${lastName} · course reg ${registrationId}`,
+        metadata: {
+          course_registration_id: String(registrationId),
+          contact_first_name: firstName,
+          contact_last_name: lastName,
+          product_slug: productSlug,
+          payment_plan: paymentPlan,
+        },
+      });
+      customerId = cust.id;
+    } catch (err) {
+      await logEvent(env.DB, {
+        registration_id: null,
+        kind: 'stripe.customer.error',
+        source: 'system',
+        payload: {
+          course_registration_id: registrationId,
+          error: String(err),
+        },
+      });
+      // For subscription mode the customer is mandatory — bail with a
+      // visible error instead of silently falling back to customer_email.
+      if (paymentPlan === '3x') {
+        return json(
+          {
+            error:
+              'We could not start the payment plan. Please try again, or pick "Pay in full".',
+          },
+          502,
+        );
+      }
+    }
+
+    const metadata: Record<string, string> = {
+      course_registration_id: String(registrationId),
+      product_slug: productSlug,
+      activate_choice: activateChoice ?? '',
+      source_variant: sourceVariant,
+      payment_plan: paymentPlan,
+      first_name: firstName,
+      last_name: lastName,
+      country: countryCode,
+      phone: phoneE164,
+    };
+
+    if (paymentPlan === '3x' && offer.installments && customerId) {
+      const session = await createSubscriptionCheckoutSession({
+        secretKey: env.STRIPE_SECRET_KEY,
+        customer: customerId,
+        success_url: `${baseUrl}/certification-course?paid={CHECKOUT_SESSION_ID}#register`,
+        cancel_url: `${baseUrl}/certification-course#register`,
+        product_name: offer.label,
+        product_description: `${offer.installments.count} monthly installments of €${offer.installments.monthly_eur}`,
+        monthly_amount_cents: offer.installments.monthly_cents,
+        currency: 'eur',
+        installment_count: offer.installments.count,
+        metadata,
+        idempotency_key: `course-reg-${registrationId}-3x`,
+      });
+
+      await attachStripeSessionToCourse(env.DB, registrationId, session.id);
+      if (session.subscription) {
+        await attachStripeSubscriptionToCourse(
+          env.DB,
+          registrationId,
+          session.subscription,
+        );
+      }
+
+      await logEvent(env.DB, {
+        registration_id: null,
+        kind: 'course.checkout.subscription.created',
+        source: 'system',
+        external_id: `local-course-${registrationId}-3x`,
+        payload: {
+          course_registration_id: registrationId,
+          session_id: session.id,
+          subscription_id: session.subscription,
+          product_slug: productSlug,
+          monthly_amount_cents: offer.installments.monthly_cents,
+          installments_total: offer.installments.count,
+          activate_choice: activateChoice,
+          source_variant: sourceVariant,
+        },
+      });
+
+      return json({
+        checkout_url: session.url,
+        course_registration_id: registrationId,
+      });
+    }
+
+    // Default path: one-off payment.
+    const session = await createCheckoutSession({
+      secretKey: env.STRIPE_SECRET_KEY,
+      ...(customerId
+        ? { customer: customerId }
+        : { customer_email: email }),
+      success_url: `${baseUrl}/certification-course?paid={CHECKOUT_SESSION_ID}#register`,
+      cancel_url: `${baseUrl}/certification-course#register`,
+      payment_intent_description: offer.label,
+      line_items: [
+        {
+          name: offer.label,
+          amount_cents: offer.price_cents,
+          currency: 'eur',
+          quantity: 1,
+        },
+      ],
+      metadata,
+      idempotency_key: `course-reg-${registrationId}`,
+    });
+
+    await attachStripeSessionToCourse(env.DB, registrationId, session.id);
+
+    await logEvent(env.DB, {
+      registration_id: null,
+      kind: 'course.checkout.session.created',
+      source: 'system',
+      external_id: `local-course-${registrationId}`,
+      payload: {
+        course_registration_id: registrationId,
+        session_id: session.id,
+        product_slug: productSlug,
+        amount_cents: offer.price_cents,
+        activate_choice: activateChoice,
+        source_variant: sourceVariant,
+      },
+    });
+
+    return json({
+      checkout_url: session.url,
+      course_registration_id: registrationId,
+    });
+  } catch (err) {
+    // Best effort: log the error to D1 so we have a paper trail for prod
+    // debugging, then surface a readable message to the user.
+    try {
+      await locals.runtime.env.DB.prepare(
+        `INSERT INTO events (registration_id, kind, source, payload_json)
+         VALUES (NULL, 'course.checkout.error', 'system', ?)`,
+      )
+        .bind(JSON.stringify({ error: String(err) }))
+        .run();
+    } catch {}
+    const message = String(err).replace(/^Error:\s*/, '');
+    return json(
+      {
+        error: `Could not start checkout: ${message}`,
+      },
+      500,
+    );
+  }
 };
 
 function isVariant(v: unknown): v is Variant {

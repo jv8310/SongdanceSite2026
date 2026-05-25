@@ -3,6 +3,7 @@
 
 export type CourseProductSlug = 'cc-cert' | 'cc-bundle';
 export type ActivateChoice = 'now' | 'wait';
+export type PaymentPlan = 'full' | '3x';
 
 export type CourseRegistration = {
   id: number;
@@ -20,6 +21,10 @@ export type CourseRegistration = {
   status: 'pending' | 'paid' | 'cancelled' | 'refunded' | 'expired';
   stripe_session_id: string | null;
   stripe_payment_intent: string | null;
+  stripe_subscription_id: string | null;
+  payment_plan: PaymentPlan;
+  installments_paid: number;
+  installments_total: number;
   consent_terms: number;
   consent_at: string | null;
   created_at: string;
@@ -39,6 +44,8 @@ export type CreatePendingCourseRegistrationInput = {
   amount_cents: number;
   currency: string;
   consent_terms: boolean;
+  payment_plan: PaymentPlan;
+  installments_total: number;
 };
 
 export async function createPendingCourseRegistration(
@@ -51,8 +58,9 @@ export async function createPendingCourseRegistration(
        (email, first_name, last_name, country, phone, phone_country,
         product_slug, activate_choice, source_variant,
         amount_cents, currency, status,
+        payment_plan, installments_total,
         consent_terms, consent_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)`,
     )
     .bind(
       input.email,
@@ -66,6 +74,8 @@ export async function createPendingCourseRegistration(
       input.source_variant,
       input.amount_cents,
       input.currency,
+      input.payment_plan,
+      input.installments_total,
       input.consent_terms ? 1 : 0,
       input.consent_terms ? new Date().toISOString() : null,
     )
@@ -142,6 +152,52 @@ export async function markCourseRegistrationPaid(
              stripe_payment_intent = ?,
              paid_at = datetime('now')
        WHERE id = ? AND status != 'paid'`,
+    )
+    .bind(paymentIntent, id)
+    .run();
+}
+
+export async function attachStripeSubscriptionToCourse(
+  db: D1Database,
+  id: number,
+  subscriptionId: string,
+) {
+  await db
+    .prepare(
+      'UPDATE course_registrations SET stripe_subscription_id = ? WHERE id = ?',
+    )
+    .bind(subscriptionId, id)
+    .run();
+}
+
+export async function getCourseRegistrationBySubscription(
+  db: D1Database,
+  subscriptionId: string,
+) {
+  return db
+    .prepare(
+      'SELECT * FROM course_registrations WHERE stripe_subscription_id = ?',
+    )
+    .bind(subscriptionId)
+    .first<CourseRegistration>();
+}
+
+// Bumps installments_paid by 1 and flips the row to 'paid' the first time
+// (so the first installment grants access). Uses a single UPDATE so the
+// transition is atomic with the count change.
+export async function recordInstallmentPaid(
+  db: D1Database,
+  id: number,
+  paymentIntent: string | null,
+) {
+  await db
+    .prepare(
+      `UPDATE course_registrations
+         SET installments_paid = installments_paid + 1,
+             status = CASE WHEN status = 'paid' THEN 'paid' ELSE 'paid' END,
+             stripe_payment_intent = COALESCE(stripe_payment_intent, ?),
+             paid_at = COALESCE(paid_at, datetime('now'))
+       WHERE id = ?`,
     )
     .bind(paymentIntent, id)
     .run();

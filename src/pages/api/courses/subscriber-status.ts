@@ -44,7 +44,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
         {
           ...BUNDLE_OFFER,
           save_note: 'Save €651 — mid-cohort discount applied',
-          installments_note: 'Or pay in installments.',
         },
       ],
       degraded: true,

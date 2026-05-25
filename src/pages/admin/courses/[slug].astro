@@ -58,6 +58,10 @@ type Row = {
   status: string;
   stripe_session_id: string | null;
   stripe_payment_intent: string | null;
+  stripe_subscription_id: string | null;
+  payment_plan: 'full' | '3x';
+  installments_paid: number;
+  installments_total: number;
   created_at: string;
   paid_at: string | null;
 };
@@ -67,7 +71,8 @@ const q = await env.DB
     `SELECT id, email, first_name, last_name, country, phone, phone_country,
             product_slug, activate_choice, source_variant,
             amount_cents, currency, status,
-            stripe_session_id, stripe_payment_intent,
+            stripe_session_id, stripe_payment_intent, stripe_subscription_id,
+            payment_plan, installments_paid, installments_total,
             created_at, paid_at
        FROM course_registrations
       WHERE ${where.join(' AND ')}
@@ -226,10 +231,21 @@ function activateLabel(choice: Row['activate_choice'], productSlug: string) {
                 <div><dt>Country</dt><dd>{r.country ?? '—'}</dd></div>
                 <div><dt>Phone</dt><dd>{phoneDisplay ?? '—'}</dd></div>
                 <div><dt>Variant</dt><dd>{variantLabel(r.source_variant)}</dd></div>
+                <div><dt>Payment</dt><dd>
+                  {r.payment_plan === '3x'
+                    ? `3 monthly · ${r.installments_paid}/${r.installments_total} paid`
+                    : 'Full payment'}
+                </dd></div>
                 {r.stripe_session_id && (
                   <div class="adm-reg-detail--full">
                     <dt>Stripe session</dt>
                     <dd class="adm-mono">{r.stripe_session_id}</dd>
+                  </div>
+                )}
+                {r.stripe_subscription_id && (
+                  <div class="adm-reg-detail--full">
+                    <dt>Stripe subscription</dt>
+                    <dd class="adm-mono">{r.stripe_subscription_id}</dd>
                   </div>
                 )}
                 {r.stripe_payment_intent && (
