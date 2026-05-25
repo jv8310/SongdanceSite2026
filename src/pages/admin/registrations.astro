@@ -1,7 +1,7 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import { readCookie, verifySession } from '../../lib/registrations/auth';
-import { computeTierAvailability } from '../../lib/registrations/db';
+import { computeTierAvailability, getRoomsWithMode } from '../../lib/registrations/db';
 
 export const prerender = false;
 
@@ -52,6 +52,8 @@ type Row = {
 
 let rows: Row[] = [];
 let tierSummary: Array<{ tier_name: string; capacity: number; taken: number }> = [];
+let payingParticipants = 0;
+let placesAvailable = 0;
 let rooms: Array<{
   id: number;
   name: string;
@@ -102,6 +104,39 @@ if (product) {
     capacity,
     taken: Math.max(0, capacity - remaining),
   }));
+
+  // Real-bed availability: iterate rooms once, skip reserved/inactive AND the
+  // admin-test tier so the totals reflect the actual retreat.
+  const adminTier = await env.DB
+    .prepare(
+      "SELECT id FROM tiers WHERE slug = 'admin-test-1eur' AND product_id = ?",
+    )
+    .bind(product.id)
+    .first<{ id: number }>();
+  const adminTierId = adminTier?.id ?? null;
+
+  const roomsWithMode = await getRoomsWithMode(env.DB, product.id);
+  for (const r of roomsWithMode) {
+    if (r.mode === 'reserved' || r.mode === 'inactive') continue;
+    if (
+      adminTierId != null &&
+      (r.solo_tier_id === adminTierId || r.shared_tier_id === adminTierId)
+    ) continue;
+    if (r.mode === 'solo') continue;
+    placesAvailable += Math.max(0, r.capacity - r.beds_sold);
+  }
+
+  const paying = await env.DB
+    .prepare(
+      `SELECT COUNT(*) AS c
+         FROM registrations
+        WHERE product_id = ?
+          AND status = 'paid'
+          AND amount_cents > 0`,
+    )
+    .bind(product.id)
+    .first<{ c: number }>();
+  payingParticipants = paying?.c ?? 0;
 
   const rs = await env.DB.prepare(
     `SELECT iu.id, iu.name, iu.capacity, iu.status,
@@ -195,7 +230,16 @@ function capacityTone(remaining: number): 'full' | 'low' | 'open' {
             </tr>
           ))}
         </tbody>
+        <tfoot>
+          <tr class="adm-row--total">
+            <th scope="row">Total (paying)</th>
+            <td class="num">{payingParticipants}</td>
+            <td class="num"></td>
+            <td class="num"><span class={`adm-pill adm-pill--${capacityTone(placesAvailable)}`}>{placesAvailable}</span></td>
+          </tr>
+        </tfoot>
       </table>
+      <p class="adm-table-note">Hosts and cook (Jacob, Lesanne, Muriel) are excluded from the paying count. Places still available counts real free beds — multi-mode rooms locked by a solo booking subtract their whole bed count.</p>
     </section>
 
     <!-- ─── Registrations ─── -->
@@ -484,6 +528,16 @@ function capacityTone(remaining: number): 'full' | 'low' | 'open' {
     }
     .adm-table tr:last-child td { border-bottom: none; }
     .adm-table td.num, .adm-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .adm-table tfoot th, .adm-table tfoot td {
+      background: var(--adm-paper);
+      font-weight: 600;
+      border-top: 1px solid var(--adm-line);
+      border-bottom: none;
+    }
+    .adm-table tfoot th { text-transform: none; letter-spacing: 0; font-size: inherit; color: var(--adm-ink); }
+    .adm-table-note {
+      margin: 8px 2px 0; font-size: 12px; color: var(--adm-ink-soft); line-height: 1.5;
+    }
     .adm-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
     .adm-truncate { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
