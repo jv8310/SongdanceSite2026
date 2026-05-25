@@ -38,8 +38,16 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
   await pushPaidRegistrationToDrip(env, registrationId);
 
+  const returnTo = safeReturnTo(String(form.get('return_to') ?? ''));
   return new Response(null, {
     status: 302,
-    headers: { Location: '/admin/registrations' },
+    headers: { Location: returnTo },
   });
 };
+
+// Only allow same-site /admin/* redirects to defend against an open
+// redirect: a `return_to` from the form is otherwise free user input.
+function safeReturnTo(raw: string): string {
+  if (raw.startsWith('/admin/') || raw === '/admin') return raw;
+  return '/admin';
+}

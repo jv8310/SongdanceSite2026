@@ -34,8 +34,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
     payload: { inventory_unit_id: inventoryUnitId },
   });
 
+  const returnTo = safeReturnTo(String(form.get('return_to') ?? ''));
   return new Response(null, {
     status: 302,
-    headers: { Location: '/admin/registrations' },
+    headers: { Location: returnTo },
   });
 };
+
+function safeReturnTo(raw: string): string {
+  if (raw.startsWith('/admin/') || raw === '/admin') return raw;
+  return '/admin';
+}

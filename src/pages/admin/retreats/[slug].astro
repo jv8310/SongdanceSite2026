@@ -1,0 +1,433 @@
+---
+import '../../../styles/admin.css';
+import Layout from '../../../layouts/Layout.astro';
+import { readCookie, verifySession } from '../../../lib/registrations/auth';
+import { computeTierAvailability, getRoomsWithMode } from '../../../lib/registrations/db';
+
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+const authed = await verifySession(env.ADMIN_SESSION_SECRET, readCookie(Astro.request));
+if (!authed) {
+  return Astro.redirect('/admin/login');
+}
+
+const productSlug = Astro.params.slug ?? '';
+const statusFilter = Astro.url.searchParams.get('status') ?? '';
+const returnTo = `/admin/retreats/${productSlug}${statusFilter ? `?status=${statusFilter}` : ''}`;
+
+const product = await env.DB
+  .prepare('SELECT id, name, starts_at, ends_at FROM products WHERE slug = ? AND type = ?')
+  .bind(productSlug, 'retreat')
+  .first<{
+    id: number;
+    name: string;
+    starts_at: string | null;
+    ends_at: string | null;
+  }>();
+
+if (!product) {
+  return new Response('Retreat not found', { status: 404 });
+}
+
+type Row = {
+  id: number;
+  name: string;
+  first_name: string | null;
+  last_name: string | null;
+  email: string;
+  phone: string | null;
+  phone_country: string | null;
+  country: string | null;
+  company_name: string | null;
+  vat_number: string | null;
+  tier_name: string;
+  tier_slug: string;
+  inventory_unit_name: string | null;
+  status: string;
+  amount_cents: number;
+  currency: string;
+  role: 'fire_keeper' | 'cook_help' | null;
+  role_discount_cents: number;
+  roommate_pref: string | null;
+  dietary: string | null;
+  notes: string | null;
+  created_at: string;
+  paid_at: string | null;
+};
+
+const where = ['r.product_id = ?'];
+const binds: unknown[] = [product.id];
+if (statusFilter) {
+  where.push('r.status = ?');
+  binds.push(statusFilter);
+}
+const q = await env.DB.prepare(
+  `SELECT r.id, r.name, r.first_name, r.last_name, r.email,
+          r.phone, r.phone_country, r.country, r.company_name, r.vat_number,
+          r.status, r.amount_cents, r.currency,
+          r.role, r.role_discount_cents,
+          r.roommate_pref, r.dietary, r.notes,
+          r.created_at, r.paid_at,
+          t.name AS tier_name, t.slug AS tier_slug,
+          iu.name AS inventory_unit_name
+     FROM registrations r
+     JOIN tiers t ON t.id = r.tier_id
+     LEFT JOIN inventory_units iu ON iu.id = r.inventory_unit_id
+    WHERE ${where.join(' AND ')}
+    ORDER BY r.created_at DESC`,
+)
+  .bind(...binds)
+  .all<Row>();
+const rows: Row[] = q.results ?? [];
+
+const ta = await computeTierAvailability(env.DB, product.id);
+
+// Real bookings per tier — paying participants only (amount > 0 excludes
+// pre-allocated host/cook seats); pending bookings count while their hold
+// is still active, matching the room model's beds_sold semantics.
+const bookedByTier = await env.DB.prepare(
+  `SELECT r.tier_id, COUNT(*) AS c
+     FROM registrations r
+     JOIN tiers t ON t.id = r.tier_id
+    WHERE t.product_id = ?
+      AND r.status IN ('paid','pending')
+      AND r.amount_cents > 0
+      AND (r.status = 'paid'
+           OR r.hold_expires_at IS NULL
+           OR r.hold_expires_at > datetime('now'))
+    GROUP BY r.tier_id`,
+)
+  .bind(product.id)
+  .all<{ tier_id: number; c: number }>();
+const bookedMap = new Map<number, number>();
+for (const row of bookedByTier.results ?? []) {
+  bookedMap.set(row.tier_id, row.c);
+}
+
+const tierSummary = ta.map(({ tier, remaining, capacity }) => ({
+  tier_name: tier.name,
+  capacity,
+  booked: bookedMap.get(tier.id) ?? 0,
+  remaining,
+}));
+
+// Real-bed availability: iterate rooms once, skip reserved/inactive AND the
+// admin-test tier so the totals reflect the actual retreat.
+const adminTier = await env.DB
+  .prepare(
+    "SELECT id FROM tiers WHERE slug = 'admin-test-1eur' AND product_id = ?",
+  )
+  .bind(product.id)
+  .first<{ id: number }>();
+const adminTierId = adminTier?.id ?? null;
+
+let payingParticipants = 0;
+let placesAvailable = 0;
+let maxPeople = 0;
+
+const roomsWithMode = await getRoomsWithMode(env.DB, product.id);
+for (const r of roomsWithMode) {
+  if (r.mode === 'inactive') continue;
+  if (
+    adminTierId != null &&
+    (r.solo_tier_id === adminTierId || r.shared_tier_id === adminTierId)
+  ) continue;
+  // Skip truly-reserved (host/cook) rooms — those beds are non-paying. Keep
+  // role-reserved rooms (fire keeper paviljoen, Room 5.2 cook help): they
+  // are reserved for a *paying* special-role participant, so they count
+  // toward the retreat ceiling.
+  if (r.mode === 'reserved' && !r.role) continue;
+  // Max retreat-wide capacity = every sellable bed (per-tier capacities
+  // double-count multi-mode rooms, so summing tiers overcounts).
+  maxPeople += r.capacity;
+  if (r.mode === 'solo') continue;
+  placesAvailable += Math.max(0, r.capacity - r.beds_sold);
+}
+
+const paying = await env.DB
+  .prepare(
+    `SELECT COUNT(*) AS c
+       FROM registrations
+      WHERE product_id = ?
+        AND status = 'paid'
+        AND amount_cents > 0`,
+  )
+  .bind(product.id)
+  .first<{ c: number }>();
+payingParticipants = paying?.c ?? 0;
+
+const rs = await env.DB.prepare(
+  `SELECT iu.id, iu.name, iu.capacity, iu.status,
+          t.name AS tier_name,
+          (SELECT COUNT(*) FROM registrations r
+            WHERE r.inventory_unit_id = iu.id
+              AND r.status IN ('paid','pending')) AS assigned_count
+     FROM inventory_units iu
+     JOIN tiers t ON t.id = iu.tier_id
+    WHERE t.product_id = ?
+    ORDER BY t.sort_order, iu.sort_order`,
+)
+  .bind(product.id)
+  .all<{
+    id: number;
+    name: string;
+    tier_name: string;
+    status: string;
+    assigned_count: number;
+    capacity: number;
+  }>();
+const rooms = rs.results ?? [];
+
+const ev = await env.DB.prepare(
+  `SELECT id, registration_id, kind, source, external_id, created_at,
+          substr(COALESCE(payload_json, ''), 1, 220) AS payload_excerpt
+     FROM events
+    ORDER BY id DESC
+    LIMIT 40`,
+)
+  .all<{
+    id: number;
+    registration_id: number | null;
+    kind: string;
+    source: string;
+    external_id: string | null;
+    created_at: string;
+    payload_excerpt: string | null;
+  }>();
+const events = ev.results ?? [];
+
+function eur(cents: number, currency: string) {
+  return (cents / 100).toLocaleString('en-GB', {
+    style: 'currency',
+    currency: currency || 'EUR',
+  });
+}
+
+function ymd(s: string | null) {
+  if (!s) return '—';
+  return s.slice(0, 16).replace('T', ' ');
+}
+
+function roleLabel(role: Row['role']) {
+  if (role === 'fire_keeper') return 'Fire keeper';
+  if (role === 'cook_help') return 'Kitchen help';
+  return null;
+}
+
+function capacityTone(remaining: number): 'full' | 'low' | 'open' {
+  if (remaining === 0) return 'full';
+  if (remaining <= 3) return 'low';
+  return 'open';
+}
+---
+
+<Layout title={`Admin — ${product.name}`} description="">
+  <main class="adm">
+    <header class="adm-header">
+      <div>
+        <p class="adm-breadcrumbs">
+          <a href="/admin">Admin</a>
+          <span class="sep">/</span>
+          <a href="/admin/retreats">Retreats</a>
+          <span class="sep">/</span>
+          {productSlug}
+        </p>
+        <h1>{product.name}</h1>
+        {product.starts_at && (
+          <p class="adm-sub">{product.starts_at}{product.ends_at ? ` → ${product.ends_at}` : ''}</p>
+        )}
+      </div>
+      <div class="adm-actions">
+        <a class="adm-btn" href={`/api/admin/registrations.csv?product=${productSlug}`}>Export CSV</a>
+        <a class="adm-btn adm-btn--ghost" href="/admin/retreats">← All retreats</a>
+        <form method="POST" action="/api/admin/login?_method=DELETE">
+          <input type="hidden" name="_method" value="DELETE" />
+          <button class="adm-btn adm-btn--ghost" type="submit">Sign out</button>
+        </form>
+      </div>
+    </header>
+
+    <!-- ─── Capacity ─── -->
+    <section class="adm-section">
+      <h2>Capacity</h2>
+      <table class="adm-table adm-table--capacity">
+        <thead>
+          <tr>
+            <th>Room option</th>
+            <th class="num">Booked</th>
+            <th class="num">Capacity</th>
+            <th class="num">Remaining</th>
+          </tr>
+        </thead>
+        <tbody>
+          {tierSummary.map((t) => (
+            <tr>
+              <td>{t.tier_name}</td>
+              <td class="num">{t.booked}</td>
+              <td class="num">{t.capacity}</td>
+              <td class="num"><span class={`adm-pill adm-pill--${capacityTone(t.remaining)}`}>{t.remaining}</span></td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr class="adm-row--total">
+            <th scope="row">Total (paying)</th>
+            <td class="num">{payingParticipants}</td>
+            <td class="num">{maxPeople}</td>
+            <td class="num"><span class={`adm-pill adm-pill--${capacityTone(placesAvailable)}`}>{placesAvailable}</span></td>
+          </tr>
+        </tfoot>
+      </table>
+      <p class="adm-table-note">All numbers are people, not rooms. Each registration is one person. Per-tier capacities <strong>overlap</strong> — the same bed in a multi-mode room (e.g. Room 1.2) counts toward both Private En-suite (sold solo) and Shared Bedroom (sold bed-by-bed), so summing tier capacities overcounts. The total row shows the real retreat ceiling: {maxPeople} sellable beds across all active rooms (hosts and cook excluded; fire keeper paviljoen and Room 5.2 cook help included since they're paying special-role seats). With current bookings, {placesAvailable} of those are still open; the rest are either booked or locked because a Private booking blocked the rest of a multi-mode room.</p>
+    </section>
+
+    <!-- ─── Registrations ─── -->
+    <section class="adm-section">
+      <h2>
+        Registrations
+        <span class="adm-filters">
+          <a href={`/admin/retreats/${productSlug}`} class={statusFilter === '' ? 'is-on' : ''}>all</a>
+          <a href={`/admin/retreats/${productSlug}?status=paid`} class={statusFilter === 'paid' ? 'is-on' : ''}>paid</a>
+          <a href={`/admin/retreats/${productSlug}?status=pending`} class={statusFilter === 'pending' ? 'is-on' : ''}>pending</a>
+          <a href={`/admin/retreats/${productSlug}?status=cancelled`} class={statusFilter === 'cancelled' ? 'is-on' : ''}>cancelled</a>
+        </span>
+      </h2>
+
+      {rows.length === 0 && (
+        <p class="adm-empty">No registrations yet.</p>
+      )}
+
+      <div class="adm-regs">
+        {rows.map((r) => {
+          const displayName =
+            (r.first_name || r.last_name)
+              ? `${r.first_name ?? ''} ${r.last_name ?? ''}`.trim()
+              : r.name;
+          const role = roleLabel(r.role);
+          const phoneDisplay = r.phone
+            ? r.phone_country ? `${r.phone} (${r.phone_country})` : r.phone
+            : null;
+          return (
+            <article class={`adm-reg adm-reg--${r.status}`}>
+              <div class="adm-reg-head">
+                <div class="adm-reg-id">#{r.id}</div>
+                <div class="adm-reg-name">
+                  <strong>{displayName}</strong>
+                  <a href={`mailto:${r.email}`}>{r.email}</a>
+                </div>
+                <div class="adm-reg-tier">
+                  {r.tier_name}
+                  {role && <span class="adm-pill adm-pill--role">{role}</span>}
+                </div>
+                <div class="adm-reg-amount">
+                  {eur(r.amount_cents, r.currency)}
+                  {r.role_discount_cents > 0 && (
+                    <span class="adm-reg-discount">
+                      −{eur(r.role_discount_cents, r.currency)}
+                    </span>
+                  )}
+                </div>
+                <div class="adm-reg-status">
+                  <span class={`adm-pill adm-pill--${r.status}`}>{r.status}</span>
+                </div>
+                <div class="adm-reg-dates">
+                  <div><span>Created</span> {ymd(r.created_at)}</div>
+                  <div><span>Paid</span> {ymd(r.paid_at)}</div>
+                </div>
+              </div>
+
+              <dl class="adm-reg-details">
+                <div><dt>Room</dt><dd>{r.inventory_unit_name ?? '—'}</dd></div>
+                <div><dt>Phone</dt><dd>{phoneDisplay ?? '—'}</dd></div>
+                <div><dt>Country</dt><dd>{r.country ?? '—'}</dd></div>
+                {r.company_name && (
+                  <div><dt>Company</dt><dd>{r.company_name}</dd></div>
+                )}
+                {r.vat_number && (
+                  <div><dt>VAT</dt><dd>{r.vat_number}</dd></div>
+                )}
+                {r.dietary && (
+                  <div><dt>Diet</dt><dd>{r.dietary}</dd></div>
+                )}
+                {r.notes && (
+                  <div class="adm-reg-detail--full"><dt>Notes</dt><dd>{r.notes}</dd></div>
+                )}
+                {r.roommate_pref && (
+                  <div class="adm-reg-detail--full"><dt>Roommate pref</dt><dd>{r.roommate_pref}</dd></div>
+                )}
+              </dl>
+
+              <div class="adm-reg-actions">
+                <form method="POST" action="/api/admin/assign-room" class="adm-reg-assign">
+                  <input type="hidden" name="registration_id" value={r.id} />
+                  <input type="hidden" name="return_to" value={returnTo} />
+                  <label>
+                    <span>Assign room</span>
+                    <select name="inventory_unit_id">
+                      <option value="">— unassigned —</option>
+                      {rooms.map((room) => (
+                        <option value={room.id} selected={r.inventory_unit_name === room.name}>
+                          {room.name} ({room.assigned_count}/{room.capacity})
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <button type="submit">Save</button>
+                </form>
+
+                {(r.status === 'pending' || r.status === 'expired') && (
+                  <form method="POST" action="/api/admin/mark-paid" class="adm-reg-markpaid"
+                        onsubmit={`return confirm('Mark registration #${r.id} as paid and push to Drip?')`}>
+                    <input type="hidden" name="registration_id" value={r.id} />
+                    <input type="hidden" name="return_to" value={returnTo} />
+                    <button type="submit" class="adm-btn adm-btn--solid">Mark paid + Drip</button>
+                  </form>
+                )}
+
+                <form method="POST" action="/api/admin/delete-registration" class="adm-reg-delete"
+                      onsubmit={`return confirm('Permanently delete registration #${r.id} (${r.name}, ${r.email})? This cannot be undone.')`}>
+                  <input type="hidden" name="registration_id" value={r.id} />
+                  <input type="hidden" name="return_to" value={returnTo} />
+                  <button type="submit" class="adm-btn adm-btn--danger">Delete</button>
+                </form>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+
+    <!-- ─── Events log (newest 40) ─── -->
+    <section class="adm-section">
+      <h2>Recent events <small>(useful for diagnosing webhook delivery)</small></h2>
+      <table class="adm-table adm-table--events">
+        <thead>
+          <tr>
+            <th>When</th>
+            <th>Source</th>
+            <th>Kind</th>
+            <th>Reg #</th>
+            <th>External ID</th>
+            <th>Payload (excerpt)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {events.length === 0 && (
+            <tr><td colspan="6" class="adm-empty-cell">No events logged yet.</td></tr>
+          )}
+          {events.map((e) => (
+            <tr>
+              <td class="adm-mono">{ymd(e.created_at)}</td>
+              <td><span class={`adm-pill adm-pill--src-${e.source}`}>{e.source}</span></td>
+              <td class="adm-mono">{e.kind}</td>
+              <td class="num">{e.registration_id ?? '—'}</td>
+              <td class="adm-mono adm-truncate" title={e.external_id ?? ''}>{e.external_id ?? '—'}</td>
+              <td class="adm-mono adm-truncate" title={e.payload_excerpt ?? ''}>{e.payload_excerpt ?? '—'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
+  </main>
+</Layout>

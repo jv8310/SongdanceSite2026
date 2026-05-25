@@ -1,0 +1,248 @@
+---
+import '../../../styles/admin.css';
+import Layout from '../../../layouts/Layout.astro';
+import { readCookie, verifySession } from '../../../lib/registrations/auth';
+
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+const authed = await verifySession(env.ADMIN_SESSION_SECRET, readCookie(Astro.request));
+if (!authed) {
+  return Astro.redirect('/admin/login');
+}
+
+// Hardcoded course catalog — mirrors /admin/courses/index.astro.
+const COURSES: Record<
+  string,
+  { name: string; productSlugs: string[] }
+> = {
+  'svh-certification': {
+    name: 'SVH Certification Course',
+    productSlugs: ['cc-cert', 'cc-bundle'],
+  },
+};
+
+const slug = Astro.params.slug ?? '';
+const course = COURSES[slug];
+if (!course) {
+  return new Response('Course not found', { status: 404 });
+}
+
+const statusFilter = Astro.url.searchParams.get('status') ?? '';
+const productFilter = Astro.url.searchParams.get('product') ?? '';
+
+const where: string[] = [`product_slug IN (${course.productSlugs.map(() => '?').join(',')})`];
+const binds: unknown[] = [...course.productSlugs];
+if (statusFilter) {
+  where.push('status = ?');
+  binds.push(statusFilter);
+}
+if (productFilter && course.productSlugs.includes(productFilter)) {
+  where.push('product_slug = ?');
+  binds.push(productFilter);
+}
+
+type Row = {
+  id: number;
+  email: string;
+  first_name: string | null;
+  last_name: string | null;
+  country: string | null;
+  phone: string | null;
+  phone_country: string | null;
+  product_slug: string;
+  activate_choice: 'now' | 'wait' | null;
+  source_variant: string | null;
+  amount_cents: number;
+  currency: string;
+  status: string;
+  stripe_session_id: string | null;
+  stripe_payment_intent: string | null;
+  created_at: string;
+  paid_at: string | null;
+};
+
+const q = await env.DB
+  .prepare(
+    `SELECT id, email, first_name, last_name, country, phone, phone_country,
+            product_slug, activate_choice, source_variant,
+            amount_cents, currency, status,
+            stripe_session_id, stripe_payment_intent,
+            created_at, paid_at
+       FROM course_registrations
+      WHERE ${where.join(' AND ')}
+      ORDER BY created_at DESC`,
+  )
+  .bind(...binds)
+  .all<Row>();
+const rows: Row[] = q.results ?? [];
+
+const summary = await env.DB
+  .prepare(
+    `SELECT product_slug,
+            COUNT(*) AS total,
+            SUM(CASE WHEN status = 'paid' THEN 1 ELSE 0 END) AS paid
+       FROM course_registrations
+      WHERE product_slug IN (${course.productSlugs.map(() => '?').join(',')})
+      GROUP BY product_slug`,
+  )
+  .bind(...course.productSlugs)
+  .all<{ product_slug: string; total: number; paid: number | null }>();
+
+function eur(cents: number, currency: string) {
+  return (cents / 100).toLocaleString('en-GB', {
+    style: 'currency',
+    currency: currency || 'EUR',
+  });
+}
+function ymd(s: string | null) {
+  if (!s) return '—';
+  return s.slice(0, 16).replace('T', ' ');
+}
+function variantLabel(v: string | null) {
+  if (!v) return '—';
+  const map: Record<string, string> = {
+    B1: 'B1 · in 12w',
+    B2: 'B2 · 12w done',
+    A: 'A · returning VSH',
+    D: 'D · SVH ecosystem',
+    E: 'E · newcomer',
+    C: 'C · already enrolled',
+    direct: 'direct',
+  };
+  return map[v] ?? v;
+}
+function productLabel(slug: string) {
+  if (slug === 'cc-cert') return 'Cert only';
+  if (slug === 'cc-bundle') return 'Bundle';
+  return slug;
+}
+function activateLabel(choice: Row['activate_choice'], productSlug: string) {
+  if (choice === 'now') return 'Activate now';
+  if (choice === 'wait') return 'Wait for 12w end';
+  if (productSlug === 'cc-cert') return '—';
+  return '—';
+}
+---
+
+<Layout title={`Admin — ${course.name}`} description="">
+  <main class="adm">
+    <header class="adm-header">
+      <div>
+        <p class="adm-breadcrumbs">
+          <a href="/admin">Admin</a>
+          <span class="sep">/</span>
+          <a href="/admin/courses">Courses</a>
+          <span class="sep">/</span>
+          {slug}
+        </p>
+        <h1>{course.name}</h1>
+      </div>
+      <div class="adm-actions">
+        <a class="adm-btn adm-btn--ghost" href="/admin/courses">← All courses</a>
+        <form method="POST" action="/api/admin/login?_method=DELETE">
+          <input type="hidden" name="_method" value="DELETE" />
+          <button class="adm-btn adm-btn--ghost" type="submit">Sign out</button>
+        </form>
+      </div>
+    </header>
+
+    <!-- ─── Summary ─── -->
+    <section class="adm-section">
+      <h2>By product</h2>
+      <table class="adm-table">
+        <thead>
+          <tr>
+            <th>Product</th>
+            <th class="num">Paid</th>
+            <th class="num">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {course.productSlugs.map((ps) => {
+            const r = (summary.results ?? []).find((s) => s.product_slug === ps);
+            return (
+              <tr>
+                <td>{productLabel(ps)} <span class="adm-mono" style="color: var(--adm-mute);">({ps})</span></td>
+                <td class="num">{r?.paid ?? 0}</td>
+                <td class="num">{r?.total ?? 0}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ─── Registrations ─── -->
+    <section class="adm-section">
+      <h2>
+        Registrations
+        <span class="adm-filters">
+          <a href={`/admin/courses/${slug}`} class={statusFilter === '' && productFilter === '' ? 'is-on' : ''}>all</a>
+          <a href={`/admin/courses/${slug}?status=paid`} class={statusFilter === 'paid' ? 'is-on' : ''}>paid</a>
+          <a href={`/admin/courses/${slug}?status=pending`} class={statusFilter === 'pending' ? 'is-on' : ''}>pending</a>
+          {course.productSlugs.map((ps) => (
+            <a href={`/admin/courses/${slug}?product=${ps}`} class={productFilter === ps ? 'is-on' : ''}>{productLabel(ps)}</a>
+          ))}
+        </span>
+      </h2>
+
+      {rows.length === 0 && (
+        <p class="adm-empty">No course registrations yet.</p>
+      )}
+
+      <div class="adm-regs">
+        {rows.map((r) => {
+          const displayName =
+            (r.first_name || r.last_name)
+              ? `${r.first_name ?? ''} ${r.last_name ?? ''}`.trim()
+              : r.email;
+          const phoneDisplay = r.phone
+            ? r.phone_country ? `${r.phone} (${r.phone_country})` : r.phone
+            : null;
+          return (
+            <article class={`adm-reg adm-reg--${r.status}`}>
+              <div class="adm-reg-head">
+                <div class="adm-reg-id">#{r.id}</div>
+                <div class="adm-reg-name">
+                  <strong>{displayName}</strong>
+                  <a href={`mailto:${r.email}`}>{r.email}</a>
+                </div>
+                <div class="adm-reg-tier">
+                  {productLabel(r.product_slug)}
+                  <span class="adm-pill adm-pill--role">{activateLabel(r.activate_choice, r.product_slug)}</span>
+                </div>
+                <div class="adm-reg-amount">{eur(r.amount_cents, r.currency)}</div>
+                <div class="adm-reg-status">
+                  <span class={`adm-pill adm-pill--${r.status}`}>{r.status}</span>
+                </div>
+                <div class="adm-reg-dates">
+                  <div><span>Created</span> {ymd(r.created_at)}</div>
+                  <div><span>Paid</span> {ymd(r.paid_at)}</div>
+                </div>
+              </div>
+
+              <dl class="adm-reg-details">
+                <div><dt>Country</dt><dd>{r.country ?? '—'}</dd></div>
+                <div><dt>Phone</dt><dd>{phoneDisplay ?? '—'}</dd></div>
+                <div><dt>Variant</dt><dd>{variantLabel(r.source_variant)}</dd></div>
+                {r.stripe_session_id && (
+                  <div class="adm-reg-detail--full">
+                    <dt>Stripe session</dt>
+                    <dd class="adm-mono">{r.stripe_session_id}</dd>
+                  </div>
+                )}
+                {r.stripe_payment_intent && (
+                  <div class="adm-reg-detail--full">
+                    <dt>Payment intent</dt>
+                    <dd class="adm-mono">{r.stripe_payment_intent}</dd>
+                  </div>
+                )}
+              </dl>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  </main>
+</Layout>
