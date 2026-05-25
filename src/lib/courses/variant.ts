@@ -14,6 +14,18 @@ import type { DripSubscriber } from '../registrations/drip';
 
 export type Variant = 'B1' | 'B2' | 'A' | 'D' | 'E' | 'C';
 
+export type InstallmentPlan = {
+  // 3 monthly charges of `monthly_cents`. `total_cents` may differ from
+  // price_cents by a few cents because we round to a clean monthly amount
+  // (e.g. €499.67/mo rounds to a fixed value Stripe can charge). The UI
+  // surfaces both the monthly and the rounded total.
+  monthly_cents: number;
+  monthly_eur: number;
+  total_cents: number;
+  total_eur: number;
+  count: number; // always 3 for now
+};
+
 export type Offer = {
   slug: 'cc-cert' | 'cc-bundle';
   label: string;
@@ -21,7 +33,26 @@ export type Offer = {
   price_cents: number;
   base_price_eur: number;
   save_note: string;
-  installments_note?: string;
+  installments?: InstallmentPlan;
+};
+
+// €333 × 3 = €999 (exact match to the cert price)
+const CERT_INSTALLMENTS: InstallmentPlan = {
+  monthly_cents: 33300,
+  monthly_eur: 333,
+  total_cents: 99900,
+  total_eur: 999,
+  count: 3,
+};
+
+// €500 × 3 = €1500 — €1 uplift over the €1499 sticker; the UI is honest
+// about the slight markup that pays for the 3-month payment plan.
+const BUNDLE_INSTALLMENTS: InstallmentPlan = {
+  monthly_cents: 50000,
+  monthly_eur: 500,
+  total_cents: 150000,
+  total_eur: 1500,
+  count: 3,
 };
 
 const CERT_BASE = {
@@ -30,6 +61,7 @@ const CERT_BASE = {
   price_eur: 999,
   price_cents: 99900,
   base_price_eur: 1500,
+  installments: CERT_INSTALLMENTS,
 };
 
 const BUNDLE_BASE = {
@@ -38,6 +70,7 @@ const BUNDLE_BASE = {
   price_eur: 1499,
   price_cents: 149900,
   base_price_eur: 2150,
+  installments: BUNDLE_INSTALLMENTS,
 };
 
 // Bare offers used by the checkout endpoint, where the discount copy is
@@ -45,7 +78,6 @@ const BUNDLE_BASE = {
 export const CERT_OFFER: Offer = {
   ...CERT_BASE,
   save_note: 'Mid-cohort discount applied',
-  installments_note: 'Or pay in three installments of €333.',
 };
 export const BUNDLE_OFFER: Offer = {
   ...BUNDLE_BASE,
@@ -111,12 +143,10 @@ function offersFor(variant: Variant): Offer[] {
   const cert = (save: string): Offer => ({
     ...CERT_BASE,
     save_note: save,
-    installments_note: 'Or pay in three installments of €333.',
   });
   const bundle = (save: string): Offer => ({
     ...BUNDLE_BASE,
     save_note: save,
-    installments_note: 'Or pay in installments.',
   });
   switch (variant) {
     case 'B1':

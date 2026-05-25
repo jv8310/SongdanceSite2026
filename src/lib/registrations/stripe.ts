@@ -182,6 +182,107 @@ export async function retrieveSession(secretKey: string, sessionId: string) {
   return (await res.json()) as any;
 }
 
+// ───────────────────────────────────────────────────────────────────────
+// Subscription mode for 3-monthly-installment course purchases.
+//
+// We create an ad-hoc monthly Price (no Product object pre-required —
+// Stripe accepts `price_data` inline) and set `cancel_at` to a Unix
+// timestamp ~75 days out. Stripe charges immediately, then at +30 days,
+// +60 days; the +90 day invoice never generates because the subscription
+// cancels at day ~75 (between the third charge and the would-be fourth).
+//
+// This yields exactly 3 monthly charges without juggling subscription
+// schedules — and works inside a regular Stripe Checkout flow.
+
+export type CreateSubscriptionCheckoutInput = {
+  secretKey: string;
+  customer: string;
+  success_url: string;
+  cancel_url: string;
+  product_name: string;
+  product_description?: string;
+  monthly_amount_cents: number;
+  currency: string;
+  installment_count: number; // typically 3
+  metadata: Record<string, string>;
+  idempotency_key?: string;
+};
+
+export async function createSubscriptionCheckoutSession(
+  input: CreateSubscriptionCheckoutInput,
+) {
+  const form = new URLSearchParams();
+  form.set('mode', 'subscription');
+  form.set('success_url', input.success_url);
+  form.set('cancel_url', input.cancel_url);
+  form.set('customer', input.customer);
+  form.set('customer_update[address]', 'auto');
+  form.set('billing_address_collection', 'required');
+
+  // 3 monthly charges → cancel between charge 3 (day ~60) and charge 4
+  // (day ~90). 75 days is safely inside that window across any month.
+  const cancelAt =
+    Math.floor(Date.now() / 1000) + (input.installment_count - 1) * 30 * 86400 + 15 * 86400;
+  form.set('subscription_data[cancel_at]', String(cancelAt));
+
+  // Card only for now — most non-card EU methods (Bancontact, iDEAL) are
+  // single-charge instruments that can't authorise a recurring debit
+  // through Checkout, and Stripe will reject the session if we ask for
+  // them in subscription mode.
+  form.set('payment_method_types[0]', 'card');
+  // SEPA Direct Debit *can* drive a recurring sub; opt in when the buyer
+  // is in a SEPA country. Stripe filters by the customer's billing address.
+  form.set('payment_method_types[1]', 'sepa_debit');
+
+  // Inline price_data: avoids needing to pre-create a Product / Price.
+  form.set('line_items[0][price_data][currency]', input.currency);
+  form.set(
+    'line_items[0][price_data][unit_amount]',
+    String(input.monthly_amount_cents),
+  );
+  form.set('line_items[0][price_data][recurring][interval]', 'month');
+  form.set('line_items[0][price_data][recurring][interval_count]', '1');
+  form.set(
+    'line_items[0][price_data][product_data][name]',
+    `${input.product_name} — ${input.installment_count}-month plan`,
+  );
+  if (input.product_description) {
+    form.set(
+      'line_items[0][price_data][product_data][description]',
+      input.product_description,
+    );
+  }
+  form.set('line_items[0][quantity]', '1');
+
+  // Metadata lands on the Subscription itself (and is copied through to
+  // each generated Invoice / PaymentIntent), which the webhook uses to
+  // route invoice.paid events back to our course_registration.
+  Object.entries(input.metadata).forEach(([k, v]) => {
+    form.set(`metadata[${k}]`, v);
+    form.set(`subscription_data[metadata][${k}]`, v);
+  });
+
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${input.secretKey}`,
+    'Content-Type': 'application/x-www-form-urlencoded',
+  };
+  if (input.idempotency_key) headers['Idempotency-Key'] = input.idempotency_key;
+
+  const res = await fetch(`${STRIPE_BASE}/checkout/sessions`, {
+    method: 'POST',
+    headers,
+    body: form,
+  });
+  const body = (await res.json()) as
+    | { id: string; url: string; subscription: string | null }
+    | { error: { message: string; type?: string } };
+  if (!res.ok || 'error' in body) {
+    const msg = 'error' in body ? body.error.message : 'Stripe error';
+    throw new Error(`Stripe checkout.sessions (subscription): ${msg}`);
+  }
+  return body;
+}
+
 // Verify the Stripe webhook signature using Web Crypto (Workers-compatible).
 // Stripe signs the payload as "{timestamp}.{body}" and exposes the result in
 // the Stripe-Signature header as `t=<ts>,v1=<hex>`.

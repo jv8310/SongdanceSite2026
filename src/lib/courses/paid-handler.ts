@@ -45,6 +45,8 @@ export async function pushPaidCourseRegistrationToDrip(
     const customFields: Record<string, string | number | null> = {
       last_product: reg.product_slug,
       last_amount_eur: (reg.amount_cents / 100).toFixed(2),
+      payment_plan: reg.payment_plan,
+      installments_total: reg.installments_total,
       phone_country: reg.phone_country,
       consent_terms: reg.consent_terms ? 'yes' : 'no',
       consent_at: reg.consent_at,
@@ -78,6 +80,8 @@ export async function pushPaidCourseRegistrationToDrip(
         product_slug: reg.product_slug,
         amount: (reg.amount_cents / 100).toFixed(2),
         currency: reg.currency,
+        payment_plan: reg.payment_plan,
+        installments_total: reg.installments_total,
         activate_choice: reg.activate_choice ?? '',
         source_variant: reg.source_variant ?? '',
         first_name: reg.first_name ?? '',
