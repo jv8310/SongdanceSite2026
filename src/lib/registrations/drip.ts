@@ -55,6 +55,49 @@ export async function upsertSubscriber(cfg: DripConfig, input: UpsertSubscriberI
   }
 }
 
+export type DripSubscriber = {
+  email: string;
+  tags: string[];
+  custom_fields: Record<string, string>;
+};
+
+// Look up a subscriber by email. Returns null when Drip 404s — the email
+// has never been seen. Used by the course-page variant gate to decide
+// which offer to show a returning vs. new visitor.
+export async function getSubscriber(
+  cfg: DripConfig,
+  email: string,
+): Promise<DripSubscriber | null> {
+  const res = await fetch(
+    `${baseUrl(cfg)}/subscribers/${encodeURIComponent(email)}`,
+    {
+      method: 'GET',
+      headers: {
+        Authorization: authHeader(cfg),
+        Accept: 'application/vnd.api+json',
+      },
+    },
+  );
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    throw new Error(`Drip getSubscriber: ${res.status} ${await res.text()}`);
+  }
+  const data = (await res.json()) as {
+    subscribers?: Array<{
+      email: string;
+      tags?: string[];
+      custom_fields?: Record<string, string>;
+    }>;
+  };
+  const s = data.subscribers?.[0];
+  if (!s) return null;
+  return {
+    email: s.email,
+    tags: s.tags ?? [],
+    custom_fields: s.custom_fields ?? {},
+  };
+}
+
 export async function recordEvent(
   cfg: DripConfig,
   email: string,

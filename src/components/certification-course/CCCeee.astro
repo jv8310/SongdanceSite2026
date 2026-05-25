@@ -1,0 +1,160 @@
+---
+import {
+  SVH_CEEE_SESSIONS,
+  computeCardState,
+  getNextUpcoming,
+  formatDateLabel,
+  type CardState,
+  type ScheduledItem,
+} from '../../lib/courses/svh-cert-classes';
+
+const now = new Date();
+const nextUpcoming = getNextUpcoming(SVH_CEEE_SESSIONS, now);
+
+type DisplayState = CardState | 'up-next';
+
+function statusFor(_item: ScheduledItem, state: DisplayState): string {
+  if (state === 'tbc') return 'Date TBC';
+  if (state === 'past') return 'Instant Access · replay';
+  if (state === 'live') return 'Live now';
+  if (state === 'almost-live') return 'Starting soon';
+  if (state === 'tomorrow') return 'Tomorrow';
+  if (state === 'up-next') return 'Up next';
+  return 'Upcoming';
+}
+
+function dateFor(item: ScheduledItem): string {
+  if (!item.datetime) return item.monthLabel ?? '';
+  const d = new Date(item.datetime);
+  return `${formatDateLabel(d)} · ${item.timeLabel ?? ''}`;
+}
+
+const cards = SVH_CEEE_SESSIONS.map((item) => {
+  const base = computeCardState(item, now);
+  const state: DisplayState =
+    base === 'upcoming' && nextUpcoming?.number === item.number
+      ? 'up-next'
+      : base;
+  return { item, state };
+});
+---
+
+<section class="cc-ceee">
+  <div class="cc-ceee-inner">
+    <div class="cc-ceee-head">
+      <div class="cc-eyebrow cc-eyebrow--center">CEEE deepening sessions</div>
+      <h2 class="cc-h2" style="margin-top: var(--sp-4); max-width: 26ch; margin-left: auto; margin-right: auto;">
+        Continued Exploration, <em>Education &amp; Exchange.</em>
+      </h2>
+      <p class="cc-ceee-lead">
+        Once a month, current students and alumni gather live with Jacob to
+        take the work wider — into questions that don't fit a single class,
+        experiences that need more space, the practice as it lives now.
+        As a certification student, you have full access through end of 2026.
+      </p>
+    </div>
+
+    <div class="cc-ceee-grid">
+      {cards.map(({ item, state }) => (
+        <article
+          class="cc-ceee-card"
+          data-state={state}
+          data-datetime={item.datetime ?? ''}
+          data-duration={item.durationMinutes ?? 120}
+          data-time-label={item.timeLabel ?? ''}
+          data-month-label={item.monthLabel ?? ''}
+          data-number={item.number}
+        >
+          <div class="ceee-num">CEEE {item.number}</div>
+          <div class="ceee-date" data-slot="date">{dateFor(item)}</div>
+          <div class="ceee-status" data-slot="status">{statusFor(item, state)}</div>
+        </article>
+      ))}
+    </div>
+  </div>
+</section>
+
+<script>
+  type State =
+    | 'past' | 'upcoming' | 'up-next' | 'tomorrow' | 'almost-live' | 'live' | 'tbc';
+
+  function compute(dtIso: string, durMin: number, now: Date): State {
+    if (!dtIso) return 'tbc';
+    const start = new Date(dtIso);
+    const end = new Date(start.getTime() + durMin * 60_000);
+    const hourBefore = new Date(start.getTime() - 60 * 60_000);
+    const dayBefore = new Date(start.getTime() - 24 * 60 * 60_000);
+    if (now >= start && now < end) return 'live';
+    if (now >= hourBefore && now < start) return 'almost-live';
+    if (now >= dayBefore && now < hourBefore) return 'tomorrow';
+    if (now >= end) return 'past';
+    return 'upcoming';
+  }
+
+  function fmtDate(d: Date): string {
+    return d.toLocaleDateString('en-US', {
+      weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
+    });
+  }
+
+  function statusLabel(state: State): string {
+    switch (state) {
+      case 'past': return 'Instant Access · replay';
+      case 'live': return 'Live now';
+      case 'almost-live': return 'Starting soon';
+      case 'tomorrow': return 'Tomorrow';
+      case 'up-next': return 'Up next';
+      case 'tbc': return 'Date TBC';
+      default: return 'Upcoming';
+    }
+  }
+
+  function refresh() {
+    const now = new Date();
+    const cards = Array.from(
+      document.querySelectorAll<HTMLElement>('.cc-ceee .cc-ceee-card'),
+    );
+
+    const computed = cards.map((card) => {
+      const dt = card.dataset.datetime ?? '';
+      const dur = parseInt(card.dataset.duration ?? '120', 10);
+      return { card, dt, dur, state: compute(dt, dur, now) };
+    });
+
+    const upcoming = computed
+      .filter(
+        (c) =>
+          c.state === 'live' ||
+          c.state === 'almost-live' ||
+          c.state === 'tomorrow' ||
+          c.state === 'upcoming',
+      )
+      .sort((a, b) => new Date(a.dt).getTime() - new Date(b.dt).getTime());
+    const nextNumber = upcoming[0]?.card.dataset.number;
+
+    for (const { card, dt, state } of computed) {
+      const finalState: State =
+        state === 'upcoming' && card.dataset.number === nextNumber
+          ? 'up-next'
+          : state;
+
+      if (card.dataset.state !== finalState) card.dataset.state = finalState;
+
+      const dateEl = card.querySelector<HTMLElement>('[data-slot="date"]')!;
+      const statusEl = card.querySelector<HTMLElement>('[data-slot="status"]')!;
+      const monthLabel = card.dataset.monthLabel ?? '';
+      const timeLabel = card.dataset.timeLabel ?? '';
+
+      if (!dt) {
+        dateEl.textContent = monthLabel;
+      } else {
+        const start = new Date(dt);
+        dateEl.textContent = `${fmtDate(start)} · ${timeLabel}`;
+      }
+      statusEl.textContent = statusLabel(finalState);
+    }
+  }
+
+  refresh();
+  setInterval(refresh, 30_000);
+</script>

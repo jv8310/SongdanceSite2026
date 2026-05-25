@@ -11,6 +11,8 @@ type Env = {
   DRIP_API_TOKEN: string;
   DRIP_ACCOUNT_ID: string;
   DRIP_REGISTRATION_EVENT: string;
+  DRIP_COURSE_EVENT?: string;
+  SVH_CERT_PORTAL_URL?: string;
   ADMIN_PASSWORD: string;
   ADMIN_SESSION_SECRET: string;
   PUBLIC_BASE_URL: string;

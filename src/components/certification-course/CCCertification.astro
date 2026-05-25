@@ -1,0 +1,52 @@
+---
+const reqs = [
+  {
+    n: '01',
+    title: 'Attend all live classes — or watch the replays.',
+    body:
+      "The full arc of the course matters. Every class builds on the last. If life pulls you away from a live session, the replay is enough — the manual is enough — but the material needs to be received.",
+  },
+  {
+    n: '02',
+    title: 'Participate in some of the online practice sessions.',
+    body:
+      "You don't certify by reading. You certify by sounding, by holding space, by being held. The hosted practice sessions are where this happens.",
+  },
+  {
+    n: '03',
+    title: 'Record and submit one video where you demonstrate working with someone.',
+    body:
+      'A real session, with a real person. You facilitate. You hold space. You send it to Jacob, and he gives you feedback.',
+  },
+];
+---
+
+<section class="cc-cert" id="certification">
+  <div class="cc-cert-inner">
+    <div class="cc-cert-head">
+      <div class="cc-eyebrow cc-eyebrow--center">Becoming a certified practitioner</div>
+      <h2 class="cc-h2" style="margin-top: var(--sp-4); max-width: 26ch; margin-left: auto; margin-right: auto;">
+        The certificate is a doorway. <em>Three requirements to walk through.</em>
+      </h2>
+      <p class="cc-cert-lead">
+        The certificate is the door — into your own practice, into integrating
+        Somatic Vocal Healing with the work you already do, into a community
+        of practitioners holding this work in the world.
+      </p>
+    </div>
+
+    <div class="cc-cert-reqs">
+      {reqs.map((r) => (
+        <div class="cc-cert-req">
+          <div class="cc-cert-req-num">{r.n}</div>
+          <div>
+            <h3>{r.title}</h3>
+            <p>{r.body}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+
+    <p class="cc-cert-foot">— Three requirements. Each one a natural part of walking the path. —</p>
+  </div>
+</section>

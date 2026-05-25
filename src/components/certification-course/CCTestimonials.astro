@@ -1,0 +1,61 @@
+---
+const items = [
+  {
+    body:
+      "Working with this modality has completely changed my life — from being called 'walking dead' at work to almost completely living a normal life. It works on deep levels. On old, severe emotional traumas, family traumas, generational traumas. I've worked with clients who have been in therapy for 20 years and haven't left the house for 10. And they've been able to get on a train and go to the opera, hang out with friends they hadn't seen in years. It's changed how I work with clients — no matter what I do, hypnotherapy, anything — this is the core piece. Everything else is adjunct, because this is so effective with people.",
+    who: 'Karen Evans',
+    role: 'Co-facilitator',
+  },
+  {
+    body:
+      'I just find that I am able to express myself in a more authentic way than I have ever done before. And I find that so liberating. It builds a trust in me. I would be the type of person who would not say anything and then just explode. But more and more, that is becoming less. It changes everything — a seismic thing changing fundamentally at the very core. And because of that, different plants are growing out of the cracks.',
+    who: 'Katrina',
+    role: 'Course participant',
+  },
+  {
+    body:
+      "I've just come from a work meeting, and my boss came up to me afterwards and said, “I really like how you spoke, it's really interesting to listen to how you give your ideas.” People never used to say that to me — because it wasn't true, I wasn't able to do that. What really excites me is that I can get into my own world and get out there and be authentically expressing myself. That, to me, is the hugest freedom.",
+    who: 'Katrina',
+    role: 'Course participant',
+  },
+  {
+    body:
+      'I still have many insecurities around sounding. But the more I practice and the more I feel seen and heard, it really changes my everyday confidence. How I step up, how I deal with people, how I deal with conflicts, how I release the emotions and work through them. I am not sure I will ever feel complete in this work — still so much to explore. But these sessions gave me so much confidence, and so much love back and forth. I am grateful for this.',
+    who: 'Susanna',
+    role: 'Course participant',
+  },
+  {
+    body:
+      'I had a terrible migraine when I joined the session. During the exercise of sounding the sound of pain, I went straight to the head. There was such a vibration behind my right ear that I almost had to leave. Then I felt a release, and by the end of the session the migraine was completely gone. That’s how beautiful this work can be — in the small migraine ways and in all sorts of other things you can’t even imagine come up and get released.',
+    who: 'Marcy',
+    role: 'Course participant',
+  },
+  {
+    body:
+      'The actual being there in the room with everybody together, sounding, connecting on that deep level — I can’t get that from the Zoom. The level you go to in the retreats is just far beyond anything.',
+    who: 'Katrina',
+    role: 'On the in-person retreat',
+  },
+];
+---
+
+<section class="cc-testimonials">
+  <div class="cc-testimonials-inner">
+    <div class="cc-testimonials-head">
+      <div class="cc-eyebrow cc-eyebrow--center">From people who have travelled this path</div>
+      <h2 class="cc-h2" style="margin-top: var(--sp-4); max-width: 24ch; margin-left: auto; margin-right: auto;">
+        In their <em>own words.</em>
+      </h2>
+    </div>
+
+    {items.map((t) => (
+      <article class="cc-testimonial">
+        <p class="cc-testimonial-body">{t.body}</p>
+        <div class="cc-testimonial-by">
+          <span class="who">{t.who}</span>
+          {t.role}
+        </div>
+      </article>
+    ))}
+  </div>
+</section>
