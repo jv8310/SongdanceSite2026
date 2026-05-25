@@ -6,6 +6,11 @@ type StripeLineItem = {
   amount_cents: number;
   currency: string;
   quantity: number;
+  // Stripe Product metadata copied onto the underlying Product when the
+  // line item is created. Quaderno's Stripe sync reads this `tax_class`
+  // entry to decide how to tax the invoice (e.g. 'eservice' = electronic
+  // service, destination-based VAT for EU consumers).
+  product_metadata?: Record<string, string>;
 };
 
 export type CreateCheckoutSessionInput = {
@@ -145,6 +150,14 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput) {
         li.description,
       );
     }
+    if (li.product_metadata) {
+      Object.entries(li.product_metadata).forEach(([k, v]) =>
+        form.set(
+          `line_items[${i}][price_data][product_data][metadata][${k}]`,
+          v,
+        ),
+      );
+    }
     form.set(`line_items[${i}][quantity]`, String(li.quantity));
   });
 
@@ -236,6 +249,13 @@ export type CreateSubscriptionCheckoutInput = {
   cancel_url: string;
   product_name: string;
   product_description?: string;
+  // Copied onto each generated Invoice's payment_intent.description so the
+  // Quaderno-Stripe sync uses it as the invoice line item description
+  // (instead of falling back to the merchant name "SONGDANCE").
+  payment_intent_description?: string;
+  // Stripe Product metadata; Quaderno reads `tax_class` from here to apply
+  // eservice / digital-services VAT rules.
+  product_metadata?: Record<string, string>;
   monthly_amount_cents: number;
   currency: string;
   installment_count: number; // typically 3
@@ -279,6 +299,23 @@ export async function createSubscriptionCheckoutSession(
     form.set(
       'line_items[0][price_data][product_data][description]',
       input.product_description,
+    );
+  }
+  if (input.product_metadata) {
+    Object.entries(input.product_metadata).forEach(([k, v]) =>
+      form.set(
+        `line_items[0][price_data][product_data][metadata][${k}]`,
+        v,
+      ),
+    );
+  }
+  // Subscription-level description shows on the Stripe dashboard and is
+  // copied onto each generated Invoice's `description`, which Quaderno
+  // reads when syncing the invoice.
+  if (input.payment_intent_description) {
+    form.set(
+      'subscription_data[description]',
+      input.payment_intent_description,
     );
   }
   form.set('line_items[0][quantity]', '1');

@@ -13,6 +13,8 @@ export type CourseRegistration = {
   country: string | null;
   phone: string | null;
   phone_country: string | null;
+  company_name: string | null;
+  vat_number: string | null;
   product_slug: CourseProductSlug;
   activate_choice: ActivateChoice | null;
   source_variant: string | null;
@@ -38,6 +40,8 @@ export type CreatePendingCourseRegistrationInput = {
   country: string | null;
   phone: string | null;
   phone_country: string | null;
+  company_name: string | null;
+  vat_number: string | null;
   product_slug: CourseProductSlug;
   activate_choice: ActivateChoice | null;
   source_variant: string | null;
@@ -56,11 +60,12 @@ export async function createPendingCourseRegistration(
     .prepare(
       `INSERT INTO course_registrations
        (email, first_name, last_name, country, phone, phone_country,
+        company_name, vat_number,
         product_slug, activate_choice, source_variant,
         amount_cents, currency, status,
         payment_plan, installments_total,
         consent_terms, consent_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)`,
     )
     .bind(
       input.email,
@@ -69,6 +74,8 @@ export async function createPendingCourseRegistration(
       input.country,
       input.phone,
       input.phone_country,
+      input.company_name,
+      input.vat_number,
       input.product_slug,
       input.activate_choice,
       input.source_variant,

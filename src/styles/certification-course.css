@@ -314,13 +314,43 @@ html, body { background: var(--paper); }
 }
 .cc-teaser-error.is-visible { display: block; }
 
+/* When a decision is resolved, collapse the intro prompt — the result
+   IS the new header for this section, so the "See your price / enter your
+   email" block becomes redundant noise. */
+.cc-teaser--has-result .cc-teaser-intro { display: none; }
+.cc-teaser--has-result .cc-teaser-stage { min-height: 0; }
+
 .cc-teaser-result {
   max-width: 560px; margin: 0 auto;
   text-align: center;
 }
+.cc-teaser-badge {
+  display: inline-flex; align-items: center; gap: 10px;
+  padding: 8px 16px 8px 12px;
+  border-radius: var(--r-pill);
+  background: rgba(201, 96, 58, 0.10);
+  border: 1px solid rgba(201, 96, 58, 0.28);
+  color: var(--ember-deep);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  margin-bottom: var(--sp-5);
+  animation: cc-teaser-badge-in 480ms var(--ease) both;
+}
+.cc-teaser-badge i {
+  font-size: 18px;
+  line-height: 1;
+  color: var(--ember);
+}
+@keyframes cc-teaser-badge-in {
+  from { opacity: 0; transform: translateY(-4px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
 .cc-teaser-greeting {
   font-family: var(--font-lyric); font-style: italic;
-  font-size: clamp(20px, 2.2vw, 26px);
+  font-size: clamp(22px, 2.4vw, 30px);
   color: var(--ember-deep);
   margin-bottom: var(--sp-3);
 }
@@ -521,11 +551,20 @@ html, body { background: var(--paper); }
 .cc-variant-field {
   display: flex; flex-direction: column; gap: 6px;
 }
+.cc-variant-field--full {
+  grid-column: 1 / -1;
+}
 .cc-variant-field > span {
   font-family: var(--font-mono); font-size: 10px;
   text-transform: uppercase; letter-spacing: 0.18em;
   color: rgba(244,236,223,0.55);
 }
+.cc-field-note {
+  font-family: var(--font-body); text-transform: none;
+  letter-spacing: 0; color: rgba(244,236,223,0.45);
+  font-size: 11px; margin-left: 4px;
+}
+.cc-vat-field[hidden] { display: none; }
 .cc-variant-field input,
 .cc-variant-field select {
   font-family: var(--font-body); font-size: 15px;
@@ -883,6 +922,86 @@ html, body { background: var(--paper); }
   transition: background var(--d-base) var(--ease);
 }
 .cc-variant-portal:hover { background: var(--ember-deep); color: var(--paper); }
+
+/* ---- Variant C: "Activate the cert course now" for mid-12w students ---- */
+.cc-activate-now {
+  margin: var(--sp-4) 0 var(--sp-5);
+  padding: var(--sp-5);
+  border: 1px solid rgba(201,96,58,0.35);
+  border-radius: var(--r-lg);
+  background: rgba(201,96,58,0.08);
+  text-align: left;
+}
+.cc-activate-now[hidden] { display: none; }
+.cc-activate-now-title {
+  font-family: var(--font-display); font-size: 20px;
+  margin: 0 0 var(--sp-2);
+  color: var(--paper);
+}
+.cc-activate-now-body {
+  font-family: var(--font-body); font-size: 14px;
+  color: rgba(244,236,223,0.78);
+  line-height: 1.55;
+  margin: 0 0 var(--sp-3);
+}
+.cc-activate-now-btn {
+  appearance: none; font: inherit; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 10px;
+  font-family: var(--font-body); font-size: 15px; font-weight: 500;
+  padding: 12px 22px;
+  border-radius: var(--r-pill);
+  background: var(--ember); color: var(--ink);
+  border: 0;
+  transition: background var(--d-base) var(--ease);
+}
+.cc-activate-now-btn:hover:not(:disabled) {
+  background: var(--ember-deep); color: var(--paper);
+}
+.cc-activate-now-btn:disabled { opacity: 0.6; cursor: default; }
+.cc-activate-now-actions[hidden],
+.cc-activate-confirm[hidden] { display: none; }
+.cc-activate-confirm {
+  margin-top: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid rgba(244,236,223,0.2);
+  border-radius: var(--r-md);
+  background: rgba(244,236,223,0.04);
+}
+.cc-activate-confirm-body {
+  font-family: var(--font-body); font-size: 14px;
+  color: rgba(244,236,223,0.85);
+  line-height: 1.55;
+  margin: 0 0 var(--sp-3);
+}
+.cc-activate-confirm-actions {
+  display: flex; flex-wrap: wrap; gap: var(--sp-2);
+  align-items: center;
+}
+.cc-activate-cancel {
+  appearance: none; font: inherit; cursor: pointer;
+  background: transparent;
+  border: 1px solid rgba(244,236,223,0.3);
+  color: rgba(244,236,223,0.78);
+  font-family: var(--font-body); font-size: 14px;
+  padding: 10px 18px;
+  border-radius: var(--r-pill);
+  transition: border-color var(--d-base) var(--ease),
+              color var(--d-base) var(--ease);
+}
+.cc-activate-cancel:hover {
+  border-color: rgba(244,236,223,0.55);
+  color: var(--paper);
+}
+.cc-activate-now-msg {
+  font-family: var(--font-body); font-size: 13px;
+  color: rgba(244,236,223,0.7);
+  margin: var(--sp-3) 0 0;
+  min-height: 1.4em;
+  opacity: 0;
+  transition: opacity var(--d-base) var(--ease);
+}
+.cc-activate-now-msg.is-visible { opacity: 1; }
+.cc-activate-now-msg.is-error { color: var(--ember); }
 
 /* ---------- Opening ---------- */
 .cc-opening {

@@ -1,7 +1,7 @@
 // Course-checkout endpoint. Slimmer than the retreat checkout:
 //   - no rooms / no tiers / no inventory
-//   - no B2B (digital course, B2C only — collect VAT via Stripe Tax if needed
-//     later, currently we just bill the headline price)
+//   - B2C by default, B2B optional (company + EU VAT number attached to the
+//     Stripe Customer as tax_id_data so Quaderno applies reverse-charge)
 //
 // Inputs come from the variant block on /certification-course. The variant
 // itself is recorded on the row so we can audit later why a person was
@@ -11,6 +11,11 @@
 //   'full' → one-off PaymentIntent via Stripe Checkout (mode=payment)
 //   '3x'   → monthly Subscription via Stripe Checkout (mode=subscription),
 //            cancels itself after 3 invoices
+//
+// Tax / Quaderno: every line item carries product_metadata.tax_class =
+// 'eservice'. The Quaderno-Stripe sync reads this to apply destination-VAT
+// rules for digital services (EU consumer → buyer-country VAT; EU business
+// with VAT id → reverse-charge; non-EU → out of EU VAT scope).
 //
 // Every code path returns JSON on failure (never an HTML 500), so the
 // frontend can render the actual error instead of the generic
@@ -30,11 +35,13 @@ import {
   createCheckoutSession,
   createCustomer,
   createSubscriptionCheckoutSession,
+  stripeTaxIdTypeFor,
 } from '../../../lib/registrations/stripe';
 import { findCountry } from '../../../lib/countries';
 import {
-  BUNDLE_OFFER,
-  CERT_OFFER,
+  getBundleOffer,
+  getCertOffer,
+  type Currency,
   type Offer,
   type Variant,
 } from '../../../lib/courses/variant';
@@ -49,16 +56,20 @@ type Body = {
   country?: string;       // ISO-2
   phone_country?: string; // ISO-2
   phone?: string;
+  company_name?: string;
+  vat_number?: string;
   activate_choice?: string;
   source_variant?: string;
   consent_terms?: boolean;
   payment_plan?: string;
+  currency?: string;
 };
 
-const COURSE_OFFERS: Record<CourseProductSlug, Offer> = {
-  'cc-cert': CERT_OFFER,
-  'cc-bundle': BUNDLE_OFFER,
-};
+function offerFor(productSlug: CourseProductSlug, currency: Currency): Offer {
+  return productSlug === 'cc-bundle'
+    ? getBundleOffer(currency)
+    : getCertOffer(currency);
+}
 
 export const POST: APIRoute = async ({ request, locals }) => {
   const env = locals.runtime.env;
@@ -81,8 +92,17 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const countryCode = (payload.country ?? '').trim().toUpperCase();
     const phoneCountryCode = (payload.phone_country ?? '').trim().toUpperCase();
     const phoneLocal = (payload.phone ?? '').trim();
+    const companyName = (payload.company_name ?? '').trim() || null;
+    const vatNumberRaw = (payload.vat_number ?? '').trim().replace(/\s+/g, '');
+    const vatNumber = vatNumberRaw ? vatNumberRaw.toUpperCase() : null;
     const paymentPlan: PaymentPlan =
       payload.payment_plan === '3x' ? '3x' : 'full';
+    const currency: Currency =
+      payload.currency === 'USD'
+        ? 'USD'
+        : payload.currency === 'GBP'
+          ? 'GBP'
+          : 'EUR';
 
     if (productSlug !== 'cc-cert' && productSlug !== 'cc-bundle') {
       return json({ error: 'Unknown product.' }, 400);
@@ -108,6 +128,25 @@ export const POST: APIRoute = async ({ request, locals }) => {
     if (!payload.consent_terms) {
       return json({ error: 'Please agree to the terms to continue.' }, 400);
     }
+    // VAT number requires a company; an isolated VAT without a company is
+    // very likely a copy-paste mistake.
+    if (vatNumber && !companyName) {
+      return json(
+        { error: 'Please add your company name to use a VAT number.' },
+        400,
+      );
+    }
+    // Lightweight VAT sanity check — Stripe will reject malformed VAT ids
+    // with a less friendly message, so we filter the obvious garbage here.
+    if (vatNumber && !/^[A-Z]{2}[A-Z0-9]{6,14}$/.test(vatNumber)) {
+      return json(
+        {
+          error:
+            'That VAT number does not look right. It should start with the two-letter country code (e.g. BE0123456789).',
+        },
+        400,
+      );
+    }
 
     const activateChoice: ActivateChoice | null =
       payload.activate_choice === 'now' || payload.activate_choice === 'wait'
@@ -118,7 +157,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       ? payload.source_variant
       : 'direct';
 
-    const offer = COURSE_OFFERS[productSlug];
+    const offer = offerFor(productSlug, currency);
 
     // For full pay we charge price_cents once. For 3x we charge
     // monthly_cents × 3 (total may differ by a few cents — see variant.ts).
@@ -149,11 +188,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
       country: countryCode,
       phone: phoneE164,
       phone_country: phoneCountryCode,
+      company_name: companyName,
+      vat_number: vatNumber,
       product_slug: productSlug,
       activate_choice: activateChoice,
       source_variant: sourceVariant,
       amount_cents: totalAmountCents,
-      currency: 'EUR',
+      currency,
       consent_terms: payload.consent_terms === true,
       payment_plan: paymentPlan,
       installments_total: installmentsTotal,
@@ -166,21 +207,41 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // For subscription mode this is required (the customer carries the
     // payment method that future invoices charge against). For one-off
     // payments it's still nice-to-have but optional.
+    //
+    // When the buyer provides an EU/UK VAT number we attach it as
+    // tax_id_data, which Quaderno reads from the Stripe customer to issue
+    // a reverse-charge invoice.
     let customerId: string | undefined;
+    const taxIdType = vatNumber
+      ? stripeTaxIdTypeFor(vatNumber.slice(0, 2))
+      : null;
     try {
       const cust = await createCustomer({
         secretKey: env.STRIPE_SECRET_KEY,
         email,
-        name: `${firstName} ${lastName}`,
+        name: companyName
+          ? `${companyName} (${firstName} ${lastName})`
+          : `${firstName} ${lastName}`,
         phone: phoneE164,
         country: countryCode,
-        description: `${firstName} ${lastName} · course reg ${registrationId}`,
+        description: companyName
+          ? `${companyName} · ${firstName} ${lastName} · course reg ${registrationId}`
+          : `${firstName} ${lastName} · course reg ${registrationId}`,
+        tax_id:
+          vatNumber && taxIdType
+            ? { type: taxIdType, value: vatNumber }
+            : undefined,
         metadata: {
           course_registration_id: String(registrationId),
           contact_first_name: firstName,
           contact_last_name: lastName,
           product_slug: productSlug,
           payment_plan: paymentPlan,
+          // Quaderno reads `tax_class` from the customer too as a fallback
+          // for products without explicit tax metadata.
+          tax_class: 'eservice',
+          ...(companyName ? { company_name: companyName } : {}),
+          ...(vatNumber ? { vat_number: vatNumber } : {}),
         },
       });
       customerId = cust.id;
@@ -217,6 +278,18 @@ export const POST: APIRoute = async ({ request, locals }) => {
       last_name: lastName,
       country: countryCode,
       phone: phoneE164,
+      currency,
+      tax_class: 'eservice',
+      ...(companyName ? { company_name: companyName } : {}),
+      ...(vatNumber ? { vat_number: vatNumber } : {}),
+    };
+
+    // tax_class metadata is attached to the underlying Stripe Product so
+    // Quaderno's sync picks it up on every Invoice generated from this
+    // session (relevant for the recurring subscription too).
+    const productMetadata: Record<string, string> = {
+      tax_class: 'eservice',
+      product_slug: productSlug,
     };
 
     if (paymentPlan === '3x' && offer.installments && customerId) {
@@ -226,9 +299,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
         success_url: `${baseUrl}/certification-course?paid={CHECKOUT_SESSION_ID}#register`,
         cancel_url: `${baseUrl}/certification-course#register`,
         product_name: offer.label,
-        product_description: `${offer.installments.count} monthly installments of €${offer.installments.monthly_eur}`,
+        product_description: `${offer.installments.count} monthly installments of ${money(offer.installments.monthly, currency)}`,
+        payment_intent_description: offer.label,
+        product_metadata: productMetadata,
         monthly_amount_cents: offer.installments.monthly_cents,
-        currency: 'eur',
+        currency: currency.toLowerCase(),
         installment_count: offer.installments.count,
         metadata,
         idempotency_key: `course-reg-${registrationId}-3x`,
@@ -253,10 +328,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
           session_id: session.id,
           subscription_id: session.subscription,
           product_slug: productSlug,
+          currency,
           monthly_amount_cents: offer.installments.monthly_cents,
           installments_total: offer.installments.count,
           activate_choice: activateChoice,
           source_variant: sourceVariant,
+          company_name: companyName,
+          vat_number: vatNumber,
         },
       });
 
@@ -278,9 +356,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
       line_items: [
         {
           name: offer.label,
+          description: companyName
+            ? `${offer.label} · Billed to ${companyName}`
+            : undefined,
           amount_cents: offer.price_cents,
-          currency: 'eur',
+          currency: currency.toLowerCase(),
           quantity: 1,
+          product_metadata: productMetadata,
         },
       ],
       metadata,
@@ -298,9 +380,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
         course_registration_id: registrationId,
         session_id: session.id,
         product_slug: productSlug,
+        currency,
         amount_cents: offer.price_cents,
         activate_choice: activateChoice,
         source_variant: sourceVariant,
+        company_name: companyName,
+        vat_number: vatNumber,
       },
     });
 
@@ -331,6 +416,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
 function isVariant(v: unknown): v is Variant {
   return v === 'B1' || v === 'B2' || v === 'A' || v === 'D' || v === 'E' || v === 'C';
+}
+
+function money(amount: number, currency: Currency): string {
+  const symbol =
+    currency === 'USD' ? '$' : currency === 'GBP' ? '£' : '€';
+  return `${symbol}${amount}`;
 }
 
 function json(body: unknown, status = 200) {
