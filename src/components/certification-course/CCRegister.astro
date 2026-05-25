@@ -6,14 +6,14 @@ const countries = COUNTRIES;
 
 <section class="cc-register" id="register">
   <div class="cc-register-inner">
-    <div class="cc-eyebrow cc-eyebrow--center">Find your place on the path</div>
+    <div class="cc-eyebrow cc-eyebrow--center">Your place on the path</div>
     <h2 class="cc-register-h2">
-      Where are you <em>on the path?</em>
+      Find your <em>price.</em>
     </h2>
     <p class="cc-register-lead">
-      The certification course is already underway. Enter your email — we'll
-      check what fits you, whether you're returning to this work, currently
-      on the 12-week course, or arriving here for the first time.
+      Enter your email to see what fits — whether you're returning to this
+      work, currently on the 12-week course, or arriving here for the first
+      time.
     </p>
 
     <div class="cc-register-stage" data-cc-stage>
@@ -40,6 +40,8 @@ const countries = COUNTRIES;
         <div class="cc-variant-greeting" data-slot="greeting"></div>
         <h3 class="cc-variant-title" data-slot="title"></h3>
         <p class="cc-variant-body" data-slot="body"></p>
+
+        <div data-slot="offer-cards" class="cc-offers"></div>
 
         <div data-slot="checkout-form">
           <div class="cc-variant-emailline">
@@ -107,7 +109,7 @@ const countries = COUNTRIES;
             <a href="/privacy" target="_blank" rel="noopener">privacy notice</a>.</span>
           </label>
 
-          <div class="cc-variant-offers" data-slot="offers"></div>
+          <p class="cc-soft-fallback" data-slot="fallback"></p>
           <p class="cc-register-error" data-slot="error"></p>
         </div>
 
@@ -135,6 +137,9 @@ const countries = COUNTRIES;
     label: string;
     price_eur: number;
     price_cents: number;
+    base_price_eur: number;
+    save_note: string;
+    installments_note?: string;
   };
   type Variant = 'B1' | 'B2' | 'A' | 'D' | 'E' | 'C';
   type Decision = {
@@ -153,6 +158,8 @@ const countries = COUNTRIES;
     firstName?: string,
   ) => { greeting: string; title: string; body: string };
 
+  const STORAGE_KEY = 'cc:decision';
+
   const greetingFor = (name?: string, fallback = 'Hi there') =>
     name && name.trim() ? `Hi ${name.trim()}` : fallback;
 
@@ -164,27 +171,27 @@ const countries = COUNTRIES;
         (week
           ? `You're currently in week ${week} of the 12-week course. `
           : `You're currently in the 12-week course. `) +
-        `The certification course is the natural next room — and you can step into it now, or wait until the foundation is complete. Either way, your place is held.`,
+        `The certification course is the natural next room. Because you're already in the foundation, and because the cert is already underway, your price reflects both.`,
     }),
     B2: (_w, name) => ({
       greeting: greetingFor(name, 'Welcome back'),
       title: `The foundation is set.`,
-      body: `You've completed the 12-week course. Everything from here is depth. The certification course continues the work — live classes, practice sessions, the CEEE field, and the door to becoming a certified practitioner.`,
+      body: `You've completed the 12-week course. The certification course continues the work — live classes, practice sessions, the CEEE field, and the path of becoming a certified practitioner. Because you've already walked the foundation, your price honors both.`,
     }),
     A: (_w, name) => ({
       greeting: greetingFor(name, 'Welcome back'),
       title: `Welcome back.`,
-      body: `You've walked this work before. So much has grown since. The certification course is the current arc — and if it's been a while, the bundle adds the updated 12-week foundation alongside.`,
+      body: `You've been with this work in its earlier form. The method has grown since — so much has been refined. Most returning students choose the certification course directly. If you'd like to immerse in the renewed method from the ground up, the bundle includes the full refreshed 12-week foundational course alongside.`,
     }),
     D: (_w, name) => ({
       greeting: greetingFor(name, 'Good to see you'),
       title: `Time to step in fully.`,
-      body: `You know this work. You've been in the circle. The certification course is the deepening — and if you haven't done the 12-week foundation yet, the bundle gathers both into one path.`,
+      body: `You've found us already — through a workshop, a Q&A, or somewhere on the path. Most participants take the full path. If you feel you already have the foundation through other equivalent training, you can begin with the certification directly.`,
     }),
     E: (_w, name) => ({
       greeting: greetingFor(name, 'Welcome'),
-      title: `Begin from the beginning.`,
-      body: `For those new to this work, the bundle is the way in — the 12-week foundation and the certification course as a single, continuous path. You'll be supported every step of the way.`,
+      title: `This is the full path.`,
+      body: `The certification course is a nine-month deepening trajectory. The 12-week course is the foundation it rests on. Because the certification is already underway, the full path is offered with a single mid-cohort discount.`,
     }),
     C: (_w, name) => ({
       greeting: greetingFor(name, 'You’re already in'),
@@ -196,6 +203,7 @@ const countries = COUNTRIES;
   const stage = document.querySelector<HTMLElement>('[data-cc-stage]')!;
   const emailForm = stage.querySelector<HTMLFormElement>('[data-cc-email-form]')!;
   const errorEl = stage.querySelector<HTMLElement>('[data-cc-error]')!;
+  const noteEl = document.querySelector<HTMLElement>('.cc-register-form-note');
   const template = document.querySelector<HTMLTemplateElement>(
     '[data-cc-variant-template]',
   )!;
@@ -207,6 +215,30 @@ const countries = COUNTRIES;
   function clearError() {
     errorEl.textContent = '';
     errorEl.classList.remove('is-visible');
+  }
+
+  function showEmailForm(prefillEmail?: string) {
+    stage.replaceChildren(emailForm);
+    if (noteEl) stage.appendChild(noteEl);
+    stage.appendChild(errorEl);
+    const input = emailForm.querySelector<HTMLInputElement>('input[name="email"]')!;
+    if (prefillEmail) input.value = prefillEmail;
+    const btn = emailForm.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+    btn.disabled = false;
+    btn.textContent = 'Check';
+    clearError();
+  }
+
+  function saveDecision(email: string, decision: Decision) {
+    try {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({ email, decision, ts: Date.now() }),
+      );
+    } catch {}
+    window.dispatchEvent(
+      new CustomEvent('cc:decision-updated', { detail: { email, decision } }),
+    );
   }
 
   emailForm.addEventListener('submit', async (e) => {
@@ -233,8 +265,9 @@ const countries = COUNTRIES;
         submitBtn.textContent = 'Check';
         return;
       }
+      saveDecision(email, body);
       renderVariant(email, body);
-    } catch (err) {
+    } catch {
       showError('We could not reach the server. Please try again.');
       submitBtn.disabled = false;
       submitBtn.textContent = 'Check';
@@ -322,13 +355,9 @@ const countries = COUNTRIES;
 
     const changeBtn = root.querySelector('[data-slot="change-email"]') as HTMLButtonElement | null;
     changeBtn?.addEventListener('click', () => {
-      stage.replaceChildren(emailForm, errorEl);
-      const note = document.querySelector<HTMLElement>('.cc-register-form-note');
-      if (note) stage.insertBefore(note, errorEl);
-      const submit = emailForm.querySelector<HTMLButtonElement>('button[type="submit"]')!;
-      submit.disabled = false;
-      submit.textContent = 'Check';
-      (emailForm.querySelector('input[name="email"]') as HTMLInputElement).value = email;
+      try { localStorage.removeItem(STORAGE_KEY); } catch {}
+      window.dispatchEvent(new CustomEvent('cc:decision-cleared'));
+      showEmailForm(email);
       window.scrollTo({ top: stage.getBoundingClientRect().top + window.scrollY - 80, behavior: 'smooth' });
     });
 
@@ -389,24 +418,69 @@ const countries = COUNTRIES;
       decision.offers.some((o) => o.slug === 'cc-bundle');
     if (showActivate) activateToggle.style.display = '';
 
-    // Render offer buttons. Buttons render in a special "prominent" style
-    // for the cert-only B1/B2 students — those are the most active intent.
-    const offersEl = root.querySelector('[data-slot="offers"]') as HTMLElement;
-    const prominent = decision.variant === 'B1' || decision.variant === 'B2';
-    if (prominent) offersEl.classList.add('cc-variant-offers--prominent');
+    // Render rich offer cards. Each card shows base price (strikethrough),
+    // your price, the savings note, a checkout button, and the installments
+    // note. First card is rendered as primary.
+    const offersEl = root.querySelector('[data-slot="offer-cards"]') as HTMLElement;
     decision.offers.forEach((offer, i) => {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className =
-        'cc-offer-btn' + (i > 0 ? ' cc-offer-btn--secondary' : '');
-      btn.innerHTML = `<span class="cc-offer-label">${offer.label}</span><span class="cc-offer-price">€${offer.price_eur}</span>`;
-      btn.addEventListener('click', () =>
-        startCheckout(root, email, decision, offer, btn),
-      );
-      offersEl.appendChild(btn);
+      const card = renderOfferCard(offer, i === 0);
+      const btn = card.querySelector<HTMLButtonElement>('.cc-offer-cta')!;
+      btn.addEventListener('click', () => startCheckout(root, email, decision, offer, btn));
+      offersEl.appendChild(card);
     });
 
+    // Below the cards: soft fallback link copy for A and D variants only.
+    const fallback = root.querySelector('[data-slot="fallback"]') as HTMLElement;
+    if (decision.variant === 'A' || decision.variant === 'D') {
+      fallback.innerHTML =
+        'Not sure which path is right? ' +
+        '<a href="mailto:info@songdance.co?subject=A%20question%20about%20the%20SVH%20Certification%20Course">Email us</a> ' +
+        '— we’ll help you find your way in.';
+    } else if (decision.variant === 'E') {
+      fallback.innerHTML =
+        'Already have equivalent training in somatic, sound, or voice-based facilitation? ' +
+        '<a href="mailto:info@songdance.co?subject=A%20question%20about%20the%20SVH%20Certification%20Course">Email us</a> ' +
+        '— we’ll talk through whether the certification alone is the right fit for you.';
+    }
+
     stage.replaceChildren(root);
+  }
+
+  function renderOfferCard(offer: Offer, primary: boolean): HTMLElement {
+    const card = document.createElement('div');
+    card.className = 'cc-offer' + (primary ? ' cc-offer--primary' : '');
+    const installments = offer.installments_note
+      ? `<p class="cc-offer-installments">${escapeHtml(offer.installments_note)}</p>`
+      : '';
+    card.innerHTML = `
+      <div class="cc-offer-name">${escapeHtml(offer.label)}</div>
+      <div class="cc-offer-prices">
+        <div class="cc-offer-row">
+          <span class="cc-offer-row-label">Base price</span>
+          <span class="cc-offer-row-value cc-offer-base">€${offer.base_price_eur.toLocaleString('en-US')}</span>
+        </div>
+        <div class="cc-offer-row cc-offer-row--your">
+          <span class="cc-offer-row-label">Your price</span>
+          <span class="cc-offer-row-value cc-offer-your">€${offer.price_eur.toLocaleString('en-US')}</span>
+        </div>
+      </div>
+      <p class="cc-offer-save">${escapeHtml(offer.save_note)}</p>
+      <button type="button" class="cc-offer-cta">
+        <span>Continue to checkout</span>
+        <span class="cc-offer-cta-price">€${offer.price_eur.toLocaleString('en-US')}</span>
+      </button>
+      ${installments}
+    `;
+    return card;
+  }
+
+  function escapeHtml(s: string): string {
+    return s
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
   async function startCheckout(
@@ -434,26 +508,16 @@ const countries = COUNTRIES;
     const consentEl = root.querySelector<HTMLInputElement>('[name="consent_terms"]')!;
     const consent_terms = consentEl.checked;
 
-    if (!first_name || !last_name) {
-      errorSlot.textContent = 'Please add your first and last name.';
+    const fail = (msg: string) => {
+      errorSlot.textContent = msg;
       errorSlot.classList.add('is-visible');
-      return;
-    }
-    if (!country) {
-      errorSlot.textContent = 'Please select your country from the list.';
-      errorSlot.classList.add('is-visible');
-      return;
-    }
-    if (!phone_country || !phone) {
-      errorSlot.textContent = 'Please enter a phone number with country code.';
-      errorSlot.classList.add('is-visible');
-      return;
-    }
-    if (!consent_terms) {
-      errorSlot.textContent = 'Please agree to the terms to continue.';
-      errorSlot.classList.add('is-visible');
-      return;
-    }
+      errorSlot.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    };
+
+    if (!first_name || !last_name) return fail('Please add your first and last name.');
+    if (!country) return fail('Please select your country from the list.');
+    if (!phone_country || !phone) return fail('Please enter a phone number with country code.');
+    if (!consent_terms) return fail('Please agree to the terms to continue.');
 
     // Activate choice is only meaningful for B1 + bundle buyers; default to
     // 'now' when the toggle was never shown so the server has something
@@ -466,6 +530,7 @@ const countries = COUNTRIES;
         ? activateRaw
         : 'now';
 
+    const originalLabel = btn.innerHTML;
     btn.disabled = true;
     btn.innerHTML = '<span>Opening secure checkout…</span>';
 
@@ -490,19 +555,38 @@ const countries = COUNTRIES;
         | { checkout_url: string }
         | { error: string };
       if (!res.ok || !('checkout_url' in body)) {
-        errorSlot.textContent =
-          ('error' in body && body.error) || 'Could not start checkout. Please try again.';
-        errorSlot.classList.add('is-visible');
+        fail(('error' in body && body.error) || 'Could not start checkout. Please try again.');
         btn.disabled = false;
-        btn.innerHTML = `<span class="cc-offer-label">${offer.label}</span><span class="cc-offer-price">€${offer.price_eur}</span>`;
+        btn.innerHTML = originalLabel;
         return;
       }
       window.location.href = body.checkout_url;
-    } catch (err) {
-      errorSlot.textContent = 'We could not reach the server. Please try again.';
-      errorSlot.classList.add('is-visible');
+    } catch {
+      fail('We could not reach the server. Please try again.');
       btn.disabled = false;
-      btn.innerHTML = `<span class="cc-offer-label">${offer.label}</span><span class="cc-offer-price">€${offer.price_eur}</span>`;
+      btn.innerHTML = originalLabel;
     }
   }
+
+  // Rehydrate on load from localStorage (set by the teaser or a prior visit).
+  function rehydrateFromStorage() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return false;
+      const parsed = JSON.parse(raw) as { email?: string; decision?: Decision };
+      if (parsed?.email && parsed?.decision?.variant) {
+        renderVariant(parsed.email, parsed.decision);
+        return true;
+      }
+    } catch {}
+    return false;
+  }
+  rehydrateFromStorage();
+
+  // React to updates dispatched from the teaser.
+  window.addEventListener('cc:decision-updated', (ev) => {
+    const det = (ev as CustomEvent).detail as { email: string; decision: Decision };
+    if (det?.email && det?.decision) renderVariant(det.email, det.decision);
+  });
+  window.addEventListener('cc:decision-cleared', () => showEmailForm());
 </script>

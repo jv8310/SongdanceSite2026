@@ -1,0 +1,235 @@
+---
+---
+
+<section class="cc-teaser" id="check-price">
+  <div class="cc-teaser-inner">
+    <div class="cc-eyebrow cc-eyebrow--center">Find your place on the path</div>
+    <h2 class="cc-teaser-h2">
+      Where are you <em>on the path?</em>
+    </h2>
+    <p class="cc-teaser-lead">
+      The certification course is already underway. Enter your email — we'll
+      check what fits you and show your price further down the page.
+    </p>
+
+    <div class="cc-teaser-stage" data-cc-teaser-stage>
+      <form class="cc-teaser-form" data-cc-teaser-form>
+        <input
+          type="email"
+          name="email"
+          placeholder="Your email"
+          autocomplete="email"
+          required
+        />
+        <button type="submit">Check</button>
+      </form>
+      <p class="cc-teaser-note">
+        We'll only use this to show you the right offer. No sign-up, no list.
+      </p>
+      <p class="cc-teaser-error" data-cc-teaser-error></p>
+    </div>
+
+    <template data-cc-teaser-result>
+      <div class="cc-teaser-result">
+        <div class="cc-teaser-greeting" data-slot="greeting"></div>
+        <p class="cc-teaser-body" data-slot="body"></p>
+        <div class="cc-teaser-actions">
+          <a href="#register" class="cc-teaser-cta" data-slot="cta-down">
+            <span data-slot="cta-label">See your offer</span>
+            <i class="ph-light ph-arrow-down"></i>
+          </a>
+          <button type="button" class="cc-teaser-change" data-slot="change">
+            use a different email
+          </button>
+        </div>
+      </div>
+    </template>
+  </div>
+</section>
+
+<script>
+  type Variant = 'B1' | 'B2' | 'A' | 'D' | 'E' | 'C';
+  type Offer = {
+    slug: 'cc-cert' | 'cc-bundle';
+    label: string;
+    price_eur: number;
+    price_cents: number;
+    base_price_eur: number;
+    save_note: string;
+    installments_note?: string;
+  };
+  type Decision = {
+    variant: Variant;
+    offers: Offer[];
+    twelve_week_week?: number;
+    course_portal_url?: string;
+    first_name?: string;
+    last_name?: string;
+    country?: string;
+    phone?: string;
+  };
+
+  const STORAGE_KEY = 'cc:decision';
+
+  function teaserCopyFor(d: Decision): { greeting: string; body: string; ctaLabel: string } {
+    const name = (d.first_name || '').trim();
+    const hi = name ? `Hi ${name},` : 'Hi there,';
+    switch (d.variant) {
+      case 'B1':
+        return {
+          greeting: hi,
+          body:
+            (d.twelve_week_week
+              ? `you're currently in week ${d.twelve_week_week} of the 12-week course. `
+              : `you're currently on the 12-week course. `) +
+            `The certification course is the next room — and your price reflects where you already are.`,
+          ctaLabel: 'See your offer',
+        };
+      case 'B2':
+        return {
+          greeting: name ? `Welcome back, ${name}.` : 'Welcome back.',
+          body: `You've completed the 12-week course. The certification course continues the work — your price honors the foundation you've already walked.`,
+          ctaLabel: 'See your offer',
+        };
+      case 'A':
+        return {
+          greeting: name ? `Welcome back, ${name}.` : 'Welcome back.',
+          body: `You've walked this work in its earlier form. The certification course is the current arc — two ways in, depending on how deep you want to begin again.`,
+          ctaLabel: 'See your options',
+        };
+      case 'D':
+        return {
+          greeting: name ? `Good to see you, ${name}.` : 'Good to see you.',
+          body: `You've already found this work. The certification course is the deepening — and the bundle gathers the 12-week foundation alongside it, if you haven't walked it yet.`,
+          ctaLabel: 'See your options',
+        };
+      case 'E':
+        return {
+          greeting: name ? `Welcome, ${name}.` : 'Welcome.',
+          body: `For someone new to this work, the full path is the way in — the 12-week foundation and the certification course as one continuous journey.`,
+          ctaLabel: 'See the full path',
+        };
+      case 'C':
+        return {
+          greeting: name ? `You're already in, ${name}.` : "You're already in.",
+          body: `You're enrolled in the certification course. The portal link is further down — see you in the next class.`,
+          ctaLabel: 'Open the course portal',
+        };
+    }
+  }
+
+  const stage = document.querySelector<HTMLElement>('[data-cc-teaser-stage]');
+  if (stage) {
+    const form = stage.querySelector<HTMLFormElement>('[data-cc-teaser-form]')!;
+    const errorEl = stage.querySelector<HTMLElement>('[data-cc-teaser-error]')!;
+    const noteEl = document.querySelector<HTMLElement>('.cc-teaser-note');
+    const template = document.querySelector<HTMLTemplateElement>(
+      '[data-cc-teaser-result]',
+    )!;
+
+    function showError(msg: string) {
+      errorEl.textContent = msg;
+      errorEl.classList.add('is-visible');
+    }
+    function clearError() {
+      errorEl.textContent = '';
+      errorEl.classList.remove('is-visible');
+    }
+
+    function showForm(prefillEmail?: string) {
+      stage.replaceChildren(form);
+      if (noteEl) stage.appendChild(noteEl);
+      stage.appendChild(errorEl);
+      const input = form.querySelector<HTMLInputElement>('input[name="email"]')!;
+      if (prefillEmail) input.value = prefillEmail;
+      const btn = form.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+      btn.disabled = false;
+      btn.textContent = 'Check';
+    }
+
+    function renderResult(email: string, decision: Decision) {
+      const fragment = template.content.cloneNode(true) as DocumentFragment;
+      const root = fragment.querySelector('.cc-teaser-result') as HTMLElement;
+      const copy = teaserCopyFor(decision);
+      (root.querySelector('[data-slot="greeting"]') as HTMLElement).textContent = copy.greeting;
+      (root.querySelector('[data-slot="body"]') as HTMLElement).textContent = copy.body;
+      (root.querySelector('[data-slot="cta-label"]') as HTMLElement).textContent = copy.ctaLabel;
+
+      // For variant C we steer the user to the portal in the bottom block;
+      // for everyone else, scroll to the offer/form block.
+      const cta = root.querySelector('[data-slot="cta-down"]') as HTMLAnchorElement;
+      cta.setAttribute('href', '#register');
+
+      const changeBtn = root.querySelector('[data-slot="change"]') as HTMLButtonElement;
+      changeBtn.addEventListener('click', () => {
+        try { localStorage.removeItem(STORAGE_KEY); } catch {}
+        window.dispatchEvent(new CustomEvent('cc:decision-cleared'));
+        showForm(email);
+        clearError();
+      });
+
+      stage.replaceChildren(root);
+    }
+
+    function save(email: string, decision: Decision) {
+      try {
+        localStorage.setItem(
+          STORAGE_KEY,
+          JSON.stringify({ email, decision, ts: Date.now() }),
+        );
+      } catch {}
+      window.dispatchEvent(
+        new CustomEvent('cc:decision-updated', { detail: { email, decision } }),
+      );
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      clearError();
+      const data = new FormData(form);
+      const email = String(data.get('email') ?? '').trim().toLowerCase();
+      if (!email) return;
+      const btn = form.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+      btn.disabled = true;
+      btn.textContent = 'Checking…';
+      try {
+        const res = await fetch('/api/courses/subscriber-status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email }),
+        });
+        const body = (await res.json()) as Decision | { error: string };
+        if (!res.ok || !('variant' in body)) {
+          showError(('error' in body && body.error) || 'Something went wrong. Please try again.');
+          btn.disabled = false;
+          btn.textContent = 'Check';
+          return;
+        }
+        save(email, body);
+        renderResult(email, body);
+      } catch {
+        showError('We could not reach the server. Please try again.');
+        btn.disabled = false;
+        btn.textContent = 'Check';
+      }
+    });
+
+    // Rehydrate if a previous visit stored a decision.
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as { email?: string; decision?: Decision };
+        if (parsed?.email && parsed?.decision?.variant) {
+          renderResult(parsed.email, parsed.decision);
+        }
+      }
+    } catch {}
+
+    // If the bottom block resolves a decision first, mirror it up here.
+    window.addEventListener('cc:decision-updated', (ev) => {
+      const det = (ev as CustomEvent).detail as { email: string; decision: Decision };
+      if (det?.email && det?.decision) renderResult(det.email, det.decision);
+    });
+    window.addEventListener('cc:decision-cleared', () => showForm());
+  }
+</script>
