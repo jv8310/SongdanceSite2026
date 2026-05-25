@@ -958,6 +958,40 @@ html, body { background: var(--paper); }
   background: var(--ember-deep); color: var(--paper);
 }
 .cc-activate-now-btn:disabled { opacity: 0.6; cursor: default; }
+.cc-activate-now-actions[hidden],
+.cc-activate-confirm[hidden] { display: none; }
+.cc-activate-confirm {
+  margin-top: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid rgba(244,236,223,0.2);
+  border-radius: var(--r-md);
+  background: rgba(244,236,223,0.04);
+}
+.cc-activate-confirm-body {
+  font-family: var(--font-body); font-size: 14px;
+  color: rgba(244,236,223,0.85);
+  line-height: 1.55;
+  margin: 0 0 var(--sp-3);
+}
+.cc-activate-confirm-actions {
+  display: flex; flex-wrap: wrap; gap: var(--sp-2);
+  align-items: center;
+}
+.cc-activate-cancel {
+  appearance: none; font: inherit; cursor: pointer;
+  background: transparent;
+  border: 1px solid rgba(244,236,223,0.3);
+  color: rgba(244,236,223,0.78);
+  font-family: var(--font-body); font-size: 14px;
+  padding: 10px 18px;
+  border-radius: var(--r-pill);
+  transition: border-color var(--d-base) var(--ease),
+              color var(--d-base) var(--ease);
+}
+.cc-activate-cancel:hover {
+  border-color: rgba(244,236,223,0.55);
+  color: var(--paper);
+}
 .cc-activate-now-msg {
   font-family: var(--font-body); font-size: 13px;
   color: rgba(244,236,223,0.7);

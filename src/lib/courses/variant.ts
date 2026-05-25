@@ -42,9 +42,13 @@ export type Offer = {
   installments?: InstallmentPlan;
 };
 
-// Currency map. USD figures are EUR × ~1.10 and GBP figures are EUR × ~0.85,
-// both rounded to neat headline amounts. The save-vs-base ratio is kept
-// roughly aligned across currencies so the discount story reads the same.
+// Currency map.
+//
+// USD reuses the EUR numbers 1-for-1 ($999 / $1,499 etc.) — US buyers
+// aren't paying EU VAT, so the merchant can absorb the FX gap and the
+// price story stays simple.
+//
+// GBP is EUR × ~0.85, rounded to neat headline amounts.
 const PRICES: Record<
   Currency,
   {
@@ -57,8 +61,8 @@ const PRICES: Record<
     bundle: { full: 1499, base: 2150, monthly: 525 },
   },
   USD: {
-    cert:   { full: 1099, base: 1650, monthly: 385 },
-    bundle: { full: 1649, base: 2365, monthly: 579 },
+    cert:   { full: 999,  base: 1500, monthly: 349 },
+    bundle: { full: 1499, base: 2150, monthly: 525 },
   },
   GBP: {
     cert:   { full: 849,  base: 1299, monthly: 299 },

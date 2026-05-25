@@ -155,10 +155,27 @@ const countries = COUNTRIES;
           <div class="cc-activate-now" data-slot="activate-now" hidden>
             <h4 class="cc-activate-now-title">Ready to step into the certification course?</h4>
             <p class="cc-activate-now-body" data-slot="activate-now-body"></p>
-            <button type="button" class="cc-activate-now-btn" data-slot="activate-now-btn">
-              <span>Activate the certification course now</span>
-              <i class="ph-light ph-arrow-right"></i>
-            </button>
+
+            <div class="cc-activate-now-actions" data-slot="activate-now-actions">
+              <button type="button" class="cc-activate-now-btn" data-slot="activate-now-btn">
+                <span>Activate the certification course now</span>
+                <i class="ph-light ph-arrow-right"></i>
+              </button>
+            </div>
+
+            <div class="cc-activate-confirm" data-slot="activate-confirm" hidden>
+              <p class="cc-activate-confirm-body" data-slot="activate-confirm-body"></p>
+              <div class="cc-activate-confirm-actions">
+                <button type="button" class="cc-activate-now-btn" data-slot="activate-confirm-yes">
+                  <span>Yes, activate</span>
+                  <i class="ph-light ph-arrow-right"></i>
+                </button>
+                <button type="button" class="cc-activate-cancel" data-slot="activate-confirm-no">
+                  Cancel
+                </button>
+              </div>
+            </div>
+
             <p class="cc-activate-now-msg" data-slot="activate-now-msg"></p>
           </div>
           <a class="cc-variant-portal" data-slot="portal-link" href="#" target="_blank" rel="noopener">
@@ -442,17 +459,41 @@ const countries = COUNTRIES;
       if (decision.course_portal_url) portalLink.href = decision.course_portal_url;
 
       // Mid-12w students see an "Activate now" affordance that bumps their
-      // svh_week to 12 on Drip and opens cert access.
+      // svh_week to 12 on Drip and opens cert access. We show a two-step
+      // confirm — "you're on week N, are you sure?" — so nobody skips the
+      // foundation by accident.
       const activateBlock = root.querySelector('[data-slot="activate-now"]') as HTMLElement;
       if (decision.can_activate_now) {
         activateBlock.hidden = false;
+        const week = decision.twelve_week_week;
         const bodyEl = root.querySelector('[data-slot="activate-now-body"]') as HTMLElement;
-        bodyEl.textContent = decision.twelve_week_week
-          ? `You're currently in week ${decision.twelve_week_week} of the 12-week course. The certification opens automatically when the foundation completes — but if you'd like to start exploring it now, you can open it immediately.`
+        bodyEl.textContent = week
+          ? `You're currently in week ${week} of the 12-week course. The certification opens automatically when the foundation completes — but if you'd like to start exploring it now, you can open it immediately.`
           : `The certification opens automatically when the 12-week course completes — but if you'd like to start exploring it now, you can open it immediately.`;
-        const btn = root.querySelector('[data-slot="activate-now-btn"]') as HTMLButtonElement;
+
+        const actions = root.querySelector('[data-slot="activate-now-actions"]') as HTMLElement;
+        const confirmBlock = root.querySelector('[data-slot="activate-confirm"]') as HTMLElement;
+        const confirmBody = root.querySelector('[data-slot="activate-confirm-body"]') as HTMLElement;
+        const startBtn = root.querySelector('[data-slot="activate-now-btn"]') as HTMLButtonElement;
+        const yesBtn = root.querySelector('[data-slot="activate-confirm-yes"]') as HTMLButtonElement;
+        const noBtn = root.querySelector('[data-slot="activate-confirm-no"]') as HTMLButtonElement;
         const msg = root.querySelector('[data-slot="activate-now-msg"]') as HTMLElement;
-        btn.addEventListener('click', () => activateNow(email, btn, msg, portalLink));
+
+        confirmBody.textContent = week
+          ? `You're currently on week ${week} of the 12-week course. Are you sure you want to activate and move on to the certification course?`
+          : `Are you sure you want to activate and move on to the certification course?`;
+
+        startBtn.addEventListener('click', () => {
+          actions.hidden = true;
+          confirmBlock.hidden = false;
+        });
+        noBtn.addEventListener('click', () => {
+          confirmBlock.hidden = true;
+          actions.hidden = false;
+        });
+        yesBtn.addEventListener('click', () =>
+          activateNow(email, yesBtn, msg, portalLink, confirmBlock),
+        );
       }
       stage.replaceChildren(root);
       return;
@@ -800,6 +841,7 @@ const countries = COUNTRIES;
     btn: HTMLButtonElement,
     msg: HTMLElement,
     portalLink: HTMLAnchorElement,
+    confirmBlock: HTMLElement,
   ) {
     const originalLabel = btn.innerHTML;
     btn.disabled = true;
@@ -823,13 +865,18 @@ const countries = COUNTRIES;
         btn.innerHTML = originalLabel;
         return;
       }
+      // Success: collapse the confirm UI so the "Done" button stands alone.
+      confirmBlock.hidden = true;
       msg.textContent = 'Activated. Your certification access is opening up now — check your inbox in a few minutes.';
       msg.classList.add('is-visible');
-      btn.innerHTML = '<span>Done — head to the portal</span><i class="ph-light ph-arrow-up-right"></i>';
-      btn.disabled = false;
-      btn.onclick = () => {
+      const doneBtn = document.createElement('button');
+      doneBtn.type = 'button';
+      doneBtn.className = 'cc-activate-now-btn';
+      doneBtn.innerHTML = '<span>Head to the portal</span><i class="ph-light ph-arrow-up-right"></i>';
+      doneBtn.onclick = () => {
         window.open(portalLink.href, '_blank', 'noopener');
       };
+      msg.parentElement?.insertBefore(doneBtn, msg);
     } catch {
       msg.textContent = 'We could not reach the server. Please try again.';
       msg.classList.add('is-visible', 'is-error');
