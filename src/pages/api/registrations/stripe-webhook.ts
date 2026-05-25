@@ -8,6 +8,12 @@ import {
 } from '../../../lib/registrations/db';
 import { verifyStripeSignature } from '../../../lib/registrations/stripe';
 import { pushPaidRegistrationToDrip } from '../../../lib/registrations/paid-handler';
+import {
+  getCourseRegistrationById,
+  getCourseRegistrationBySession,
+  markCourseRegistrationPaid,
+} from '../../../lib/courses/db';
+import { pushPaidCourseRegistrationToDrip } from '../../../lib/courses/paid-handler';
 
 // Invoicing note: Quaderno is connected to Stripe via Quaderno's own Stripe
 // integration, so invoices are created automatically by Quaderno when a
@@ -58,6 +64,33 @@ export const POST: APIRoute = async ({ request, locals }) => {
       currency: string;
       metadata?: Record<string, string>;
     };
+
+    // Route by metadata: retreat checkouts carry `registration_id`,
+    // course checkouts carry `course_registration_id`. We try the course
+    // path first because it's a strict-id match.
+    const courseRegId = session.metadata?.course_registration_id
+      ? parseInt(session.metadata.course_registration_id, 10)
+      : null;
+
+    if (courseRegId || (!session.metadata?.registration_id)) {
+      const courseReg =
+        (courseRegId
+          ? await getCourseRegistrationById(env.DB, courseRegId)
+          : null) ??
+        (await getCourseRegistrationBySession(env.DB, session.id));
+
+      if (courseReg) {
+        if (courseReg.status !== 'paid' && session.payment_intent) {
+          await markCourseRegistrationPaid(
+            env.DB,
+            courseReg.id,
+            session.payment_intent,
+          );
+        }
+        await pushPaidCourseRegistrationToDrip(env, courseReg.id);
+        return new Response('OK', { status: 200 });
+      }
+    }
 
     const registrationId = session.metadata?.registration_id
       ? parseInt(session.metadata.registration_id, 10)

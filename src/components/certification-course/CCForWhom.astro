@@ -1,0 +1,52 @@
+---
+const rows = [
+  {
+    lead: "You're here because you've felt what this work can do.",
+    rest: "Maybe a single workshop already shifted something old. Maybe you've been with the 12-week course and you don't want to stop.",
+  },
+  {
+    lead: 'You want to go deeper.',
+    rest: 'Not just for one more healing experience, but to learn the work from the inside out.',
+  },
+  {
+    lead: 'You want to hold space.',
+    rest: 'Maybe for one person at a time, maybe for a group, maybe for yourself. You want to know how to do it well.',
+  },
+  {
+    lead: "You're a practitioner already",
+    rest: '— therapist, coach, sound healer, breathworker, psychologist, body worker, teacher — and you want a tool that reaches the layers your current tools cannot.',
+  },
+  {
+    lead: 'Or you have no professional ambition at all,',
+    rest: 'and you simply want this for yourself. That is enough.',
+  },
+];
+---
+
+<section class="cc-forwhom">
+  <div class="cc-forwhom-inner">
+    <div class="cc-forwhom-head">
+      <div class="cc-eyebrow cc-eyebrow--center">Who this is for</div>
+      <h2 class="cc-h2" style="margin-top: var(--sp-4); max-width: 26ch; margin-left: auto; margin-right: auto;">
+        For those who recognise <em>some of the following.</em>
+      </h2>
+    </div>
+
+    <ul class="cc-forwhom-list">
+      {rows.map((r) => (
+        <li>
+          <strong>{r.lead}</strong>
+          {r.rest}
+        </li>
+      ))}
+    </ul>
+
+    <p class="cc-forwhom-note">
+      A note on what this course is not: it is not a comprehensive training
+      to become a therapist, coach, or psychologist. It is a course in
+      Somatic Vocal Healing specifically. If you intend to work with clients
+      professionally, you should already have a background in holding space
+      and navigating emotional processes.
+    </p>
+  </div>
+</section>

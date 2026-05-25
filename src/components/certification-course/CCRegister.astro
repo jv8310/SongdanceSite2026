@@ -1,0 +1,357 @@
+---
+import { COUNTRIES } from '../../lib/countries';
+
+const countries = COUNTRIES;
+---
+
+<section class="cc-register" id="register">
+  <div class="cc-register-inner">
+    <div class="cc-eyebrow cc-eyebrow--center">Find your place on the path</div>
+    <h2 class="cc-register-h2">
+      Where are you <em>on the path?</em>
+    </h2>
+    <p class="cc-register-lead">
+      The certification course is already underway. Enter your email — we'll
+      check what fits you, whether you're returning to this work, currently
+      on the 12-week course, or arriving here for the first time.
+    </p>
+
+    <div class="cc-register-stage" data-cc-stage>
+      <form class="cc-register-form" data-cc-email-form>
+        <input
+          type="email"
+          name="email"
+          placeholder="Your email"
+          autocomplete="email"
+          required
+        />
+        <button type="submit">Check</button>
+      </form>
+      <p class="cc-register-form-note">
+        We'll only use this to show you the right offer. No sign-up, no list.
+      </p>
+      <p class="cc-register-error" data-cc-error></p>
+    </div>
+
+    <!-- Variant template — cloned and filled in by the script below.
+         Hidden in markup, never rendered as-is. -->
+    <template data-cc-variant-template>
+      <div class="cc-variant">
+        <div class="cc-variant-badge" data-slot="badge"></div>
+        <h3 class="cc-variant-title" data-slot="title"></h3>
+        <p class="cc-variant-body" data-slot="body"></p>
+
+        <div data-slot="checkout-form">
+          <div class="cc-variant-fields">
+            <label class="cc-variant-field">
+              <label>First name</label>
+              <input type="text" name="first_name" autocomplete="given-name" required />
+            </label>
+            <label class="cc-variant-field">
+              <label>Last name</label>
+              <input type="text" name="last_name" autocomplete="family-name" required />
+            </label>
+            <label class="cc-variant-field">
+              <label>Country</label>
+              <select name="country" required>
+                <option value="">—</option>
+                {countries.map((c) => (
+                  <option value={c.code}>{c.flag} {c.name}</option>
+                ))}
+              </select>
+            </label>
+            <label class="cc-variant-field">
+              <label>Phone</label>
+              <div class="cc-phone-grid">
+                <select name="phone_country" required aria-label="Phone country">
+                  <option value="">—</option>
+                  {countries.map((c) => (
+                    <option value={c.code}>{c.flag} +{c.dial}</option>
+                  ))}
+                </select>
+                <input type="tel" name="phone" placeholder="Phone number" autocomplete="tel" required />
+              </div>
+            </label>
+          </div>
+
+          <fieldset class="cc-activate-toggle" data-slot="activate-toggle" style="display:none">
+            <legend>Activate the certification course</legend>
+            <label>
+              <input type="radio" name="activate_choice" value="now" />
+              <span>
+                <strong>Activate now.</strong>
+                <small>I want immediate access to the certification materials and the live community.</small>
+              </span>
+            </label>
+            <label>
+              <input type="radio" name="activate_choice" value="wait" checked />
+              <span>
+                <strong>Wait until the 12-week course ends.</strong>
+                <small>Walk it slowly. The cert opens automatically when the foundation is complete.</small>
+              </span>
+            </label>
+          </fieldset>
+
+          <label class="cc-consent">
+            <input type="checkbox" name="consent_terms" required />
+            <span>I agree to the <a href="/terms" target="_blank" rel="noopener">terms</a> and the
+            <a href="/privacy" target="_blank" rel="noopener">privacy notice</a>.</span>
+          </label>
+
+          <div class="cc-variant-offers" data-slot="offers"></div>
+          <p class="cc-register-error" data-slot="error"></p>
+        </div>
+
+        <div data-slot="portal" style="display:none">
+          <a class="cc-variant-portal" data-slot="portal-link" href="#" target="_blank" rel="noopener">
+            Open the course portal <i class="ph-light ph-arrow-up-right"></i>
+          </a>
+        </div>
+      </div>
+    </template>
+  </div>
+</section>
+
+<script>
+  type Offer = {
+    slug: 'cc-cert' | 'cc-bundle';
+    label: string;
+    price_eur: number;
+    price_cents: number;
+  };
+  type Variant = 'B1' | 'B2' | 'A' | 'D' | 'E' | 'C';
+  type Decision = {
+    variant: Variant;
+    offers: Offer[];
+    twelve_week_week?: number;
+    course_portal_url?: string;
+  };
+
+  const COPY: Record<
+    Variant,
+    (week?: number) => { title: string; body: string }
+  > = {
+    B1: (week) => ({
+      title: `You're already on the path.`,
+      body:
+        (week
+          ? `You're currently in week ${week} of the 12-week course. `
+          : `You're currently in the 12-week course. `) +
+        `The certification course is the natural next room — and you can step into it now, or wait until the foundation is complete. Either way, your place is held.`,
+    }),
+    B2: () => ({
+      title: `The foundation is set.`,
+      body: `You've completed the 12-week course. Everything from here is depth. The certification course continues the work — live classes, practice sessions, the CEEE field, and the door to becoming a certified practitioner.`,
+    }),
+    A: () => ({
+      title: `Welcome back.`,
+      body: `You've walked this work before. So much has grown since. The certification course is the current arc — and if it's been a while, the bundle adds the updated 12-week foundation alongside.`,
+    }),
+    D: () => ({
+      title: `Time to step in fully.`,
+      body: `You know this work. You've been in the circle. The certification course is the deepening — and if you haven't done the 12-week foundation yet, the bundle gathers both into one path.`,
+    }),
+    E: () => ({
+      title: `Welcome. This is the full path.`,
+      body: `The certification course is more than a training — it's a deepening trajectory. To begin from the beginning, the bundle gives you the 12-week foundation and the certification course as a single journey.`,
+    }),
+    C: () => ({
+      title: `You're already in.`,
+      body: `You're registered for the certification course. Use the portal link below to find your live calls, replays and materials.`,
+    }),
+  };
+
+  const stage = document.querySelector<HTMLElement>('[data-cc-stage]')!;
+  const emailForm = stage.querySelector<HTMLFormElement>('[data-cc-email-form]')!;
+  const errorEl = stage.querySelector<HTMLElement>('[data-cc-error]')!;
+  const template = document.querySelector<HTMLTemplateElement>(
+    '[data-cc-variant-template]',
+  )!;
+
+  function showError(msg: string) {
+    errorEl.textContent = msg;
+    errorEl.classList.add('is-visible');
+  }
+  function clearError() {
+    errorEl.textContent = '';
+    errorEl.classList.remove('is-visible');
+  }
+
+  emailForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    clearError();
+    const data = new FormData(emailForm);
+    const email = String(data.get('email') ?? '').trim().toLowerCase();
+    if (!email) return;
+
+    const submitBtn = emailForm.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Checking…';
+
+    try {
+      const res = await fetch('/api/courses/subscriber-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const body = (await res.json()) as Decision | { error: string };
+      if (!res.ok || !('variant' in body)) {
+        showError(('error' in body && body.error) || 'Something went wrong. Please try again.');
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Check';
+        return;
+      }
+      renderVariant(email, body);
+    } catch (err) {
+      showError('We could not reach the server. Please try again.');
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Check';
+    }
+  });
+
+  function renderVariant(email: string, decision: Decision) {
+    const fragment = template.content.cloneNode(true) as DocumentFragment;
+    const root = fragment.querySelector('.cc-variant') as HTMLElement;
+
+    const copy = COPY[decision.variant](decision.twelve_week_week);
+    (root.querySelector('[data-slot="badge"]') as HTMLElement).textContent =
+      `Variant ${decision.variant}`;
+    (root.querySelector('[data-slot="title"]') as HTMLElement).textContent = copy.title;
+    (root.querySelector('[data-slot="body"]') as HTMLElement).textContent = copy.body;
+
+    const checkoutForm = root.querySelector('[data-slot="checkout-form"]') as HTMLElement;
+    const portalBlock = root.querySelector('[data-slot="portal"]') as HTMLElement;
+
+    if (decision.variant === 'C') {
+      checkoutForm.style.display = 'none';
+      portalBlock.style.display = 'block';
+      const portalLink = root.querySelector('[data-slot="portal-link"]') as HTMLAnchorElement;
+      if (decision.course_portal_url) portalLink.href = decision.course_portal_url;
+      stage.replaceChildren(root);
+      return;
+    }
+
+    // Activate toggle: shown when offers include the bundle (slow path) OR
+    // when the variant is B1 (mid-12w). It controls whether we set
+    // svh_week=Ended (now) or prod_SVH_9m_status=wait at fulfilment time.
+    const activateToggle = root.querySelector('[data-slot="activate-toggle"]') as HTMLElement;
+    const showActivate =
+      decision.variant === 'B1' ||
+      decision.offers.some((o) => o.slug === 'cc-bundle');
+    if (showActivate) activateToggle.style.display = '';
+
+    // Render offer buttons. Each writes into a hidden product_slug field on
+    // the form just before posting to /api/courses/checkout.
+    const offersEl = root.querySelector('[data-slot="offers"]') as HTMLElement;
+    decision.offers.forEach((offer, i) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className =
+        'cc-offer-btn' + (i > 0 ? ' cc-offer-btn--secondary' : '');
+      btn.innerHTML = `<span>${offer.label}</span><span class="cc-offer-price">€${offer.price_eur}</span>`;
+      btn.addEventListener('click', () =>
+        startCheckout(root, email, decision, offer, btn),
+      );
+      offersEl.appendChild(btn);
+    });
+
+    stage.replaceChildren(root);
+  }
+
+  async function startCheckout(
+    root: HTMLElement,
+    email: string,
+    decision: Decision,
+    offer: Offer,
+    btn: HTMLButtonElement,
+  ) {
+    const errorSlot = root.querySelector('[data-slot="error"]') as HTMLElement;
+    errorSlot.textContent = '';
+    errorSlot.classList.remove('is-visible');
+
+    const get = (name: string) =>
+      String(
+        (root.querySelector<HTMLInputElement>(`[name="${name}"]`)?.value ??
+          '').trim(),
+      );
+
+    const first_name = get('first_name');
+    const last_name = get('last_name');
+    const country = get('country');
+    const phone_country = get('phone_country');
+    const phone = get('phone');
+    const consentEl = root.querySelector<HTMLInputElement>('[name="consent_terms"]')!;
+    const consent_terms = consentEl.checked;
+
+    if (!first_name || !last_name) {
+      errorSlot.textContent = 'Please add your first and last name.';
+      errorSlot.classList.add('is-visible');
+      return;
+    }
+    if (!country) {
+      errorSlot.textContent = 'Please select your country.';
+      errorSlot.classList.add('is-visible');
+      return;
+    }
+    if (!phone_country || !phone) {
+      errorSlot.textContent = 'Please enter a phone number with country code.';
+      errorSlot.classList.add('is-visible');
+      return;
+    }
+    if (!consent_terms) {
+      errorSlot.textContent = 'Please agree to the terms to continue.';
+      errorSlot.classList.add('is-visible');
+      return;
+    }
+
+    // Activate choice is only meaningful for B1 + bundle buyers; default to
+    // 'now' when the toggle was never shown so the server has something
+    // explicit to record.
+    const activateRaw =
+      root.querySelector<HTMLInputElement>('[name="activate_choice"]:checked')?.value ??
+      'now';
+    const activate_choice =
+      offer.slug === 'cc-bundle' || decision.variant === 'B1'
+        ? activateRaw
+        : 'now';
+
+    btn.disabled = true;
+    btn.textContent = 'Opening secure checkout…';
+
+    try {
+      const res = await fetch('/api/courses/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          product_slug: offer.slug,
+          first_name,
+          last_name,
+          email,
+          country,
+          phone_country,
+          phone,
+          activate_choice,
+          source_variant: decision.variant,
+          consent_terms: true,
+        }),
+      });
+      const body = (await res.json()) as
+        | { checkout_url: string }
+        | { error: string };
+      if (!res.ok || !('checkout_url' in body)) {
+        errorSlot.textContent =
+          ('error' in body && body.error) || 'Could not start checkout. Please try again.';
+        errorSlot.classList.add('is-visible');
+        btn.disabled = false;
+        btn.innerHTML = `<span>${offer.label}</span><span class="cc-offer-price">€${offer.price_eur}</span>`;
+        return;
+      }
+      window.location.href = body.checkout_url;
+    } catch (err) {
+      errorSlot.textContent = 'We could not reach the server. Please try again.';
+      errorSlot.classList.add('is-visible');
+      btn.disabled = false;
+      btn.innerHTML = `<span>${offer.label}</span><span class="cc-offer-price">€${offer.price_eur}</span>`;
+    }
+  }
+</script>

@@ -1,0 +1,53 @@
+---
+const cards = [
+  {
+    title: 'Healing journey templates',
+    body:
+      'How to travel through the layers of a sound — how to recognise feelings (high, low, trembling, sharp), how to follow what is underneath the first sound, and how to land in the body, the lineage, or the present moment depending on what the journey asks for.',
+  },
+  {
+    title: 'Systemic constellation templates',
+    body:
+      'How to weave constellation work into a sounding session — how to bring in mother, father, grandmother, ancestors; how to give back what is not yours to carry; how to find the right sentences and let sound do the rest.',
+  },
+  {
+    title: 'Therapeutic skills for safe, ethical facilitation',
+    body:
+      'Pacing. Regulation. Co-regulation. The volume button. Catching the pebble before the avalanche. Knowing when to lead, when to hold, when to interrupt a story, and when to let the silence do the work.',
+  },
+  {
+    title: 'The art of receiving information from sound',
+    body:
+      "Listening with the body, not just the ear. Distinguishing grief from pain, fear from overwhelm. Reading what is at the tip of the voice. Knowing when a sound belongs to the person and when it belongs to someone else.",
+  },
+  {
+    title: 'The inner work of the practitioner',
+    body:
+      "Shadow, fixation, projection. What happens when a client's material touches your own. Transference and counter-transference. The honest work of doing your own work so that you can be fully present for someone else.",
+  },
+  {
+    title: 'Practice. A lot of practice.',
+    body:
+      'Hosted practice sessions, peer exchanges, and a final supervised practice class where you lead in front of the group and receive direct feedback from Jacob and Karen.',
+  },
+];
+---
+
+<section class="cc-learn">
+  <div class="cc-learn-inner">
+    <div class="cc-learn-head">
+      <div class="cc-eyebrow cc-eyebrow--center">What you'll learn</div>
+      <h2 class="cc-h2" style="margin-top: var(--sp-4); max-width: 22ch; margin-left: auto; margin-right: auto;">
+        The shape of <em>becoming a practitioner.</em>
+      </h2>
+    </div>
+    <div class="cc-learn-grid">
+      {cards.map((c) => (
+        <article class="cc-learn-card">
+          <h3>{c.title}</h3>
+          <p>{c.body}</p>
+        </article>
+      ))}
+    </div>
+  </div>
+</section>

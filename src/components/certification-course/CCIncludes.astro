@@ -1,0 +1,33 @@
+---
+const includes = [
+  { lead: 'Nine live classes with Jacob', rest: 'with detailed written manuals delivered within 24 hours.' },
+  { lead: 'Instant access to the classes already held', rest: '— full video and written manuals, ready the moment you join.' },
+  { lead: 'Weekly live Q&A sessions through end of 2026', rest: 'with Jacob, and occasionally hosted by Karen Evans.' },
+  { lead: 'Monthly CEEE live deepening sessions', rest: 'with Jacob and the advanced alumni community.' },
+  { lead: 'Hosted practice sessions', rest: 'to give and receive with peers — the quiet engine of the course.' },
+  { lead: 'Full access to the complete replay library', rest: 'of every Q&A and CEEE session.' },
+  { lead: 'A beautiful, powerful group field', rest: 'that continues to grow over time.' },
+  { lead: 'Optional in-person retreat in Portugal', rest: '(separate booking).' },
+  { lead: 'Feedback from Jacob on your video submission', rest: 'for certification.' },
+  { lead: 'Lifetime access to the certification course materials.', rest: '' },
+];
+---
+
+<section class="cc-includes">
+  <div class="cc-includes-inner">
+    <div class="cc-includes-head">
+      <div class="cc-eyebrow cc-eyebrow--center">What you get when you join</div>
+      <h2 class="cc-h2" style="margin-top: var(--sp-4); max-width: 22ch; margin-left: auto; margin-right: auto;">
+        Everything you need, <em>and a circle to walk it in.</em>
+      </h2>
+    </div>
+    <ul class="cc-includes-list">
+      {includes.map((it) => (
+        <li>
+          <span class="check" aria-hidden="true">✓</span>
+          <span><strong>{it.lead}</strong> {it.rest}</span>
+        </li>
+      ))}
+    </ul>
+  </div>
+</section>

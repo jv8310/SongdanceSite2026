@@ -1,0 +1,51 @@
+---
+const stanzas = [
+  {
+    title: 'Nine live classes',
+    body: 'Two hours each, with replays and a written manual within 24 hours.',
+  },
+  {
+    title: 'Weekly Q&A sessions',
+    body: 'Through end of 2026, with Jacob — and occasionally hosted by Karen Evans, co-facilitator on the course.',
+  },
+  {
+    title: 'Monthly CEEE deepening',
+    body: 'A live two-hour community session bringing together advanced alumni and current students, exploring the work at its widest edges.',
+  },
+  {
+    title: 'Hosted practice sessions',
+    body: 'Pairing up with other students to give and receive — the quiet engine of this course. Most students say this is where their facilitation actually grows.',
+  },
+  {
+    title: 'A growing global community',
+    body: 'Hundreds of people across time zones, with a shared field that is built and rebuilt each week.',
+  },
+  {
+    title: 'Full replay library',
+    body: 'Every Q&A, every class, every deepening session. Yours to keep returning to.',
+  },
+  {
+    title: 'Optional retreat in Portugal',
+    body: 'A few days together in nature — sound, constellation work, the Atlantic, and the field that only forms when people are in the same room.',
+  },
+];
+---
+
+<section class="cc-structure" id="structure">
+  <div class="cc-structure-inner">
+    <div class="cc-structure-head">
+      <div class="cc-eyebrow cc-eyebrow--center">Structure</div>
+      <h2 class="cc-h2" style="margin-top: var(--sp-4); max-width: 24ch; margin-left: auto; margin-right: auto;">
+        How the work <em>lives in time.</em>
+      </h2>
+    </div>
+    <div class="cc-structure-grid">
+      {stanzas.map((s) => (
+        <article class="cc-stanza">
+          <h3>{s.title}</h3>
+          <p>{s.body}</p>
+        </article>
+      ))}
+    </div>
+  </div>
+</section>
