@@ -1407,6 +1407,26 @@ html, body { background: var(--paper); }
   flex-wrap: wrap; gap: var(--sp-3);
 }
 
+/* ---------- Path atmosphere band ---------- */
+.cc-path {
+  background: var(--paper);
+  padding: 0 var(--sp-7) var(--sp-9);
+}
+.cc-path-img {
+  display: block;
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+  height: clamp(280px, 46vh, 520px);
+  object-fit: cover;
+  object-position: center 60%;
+  border-radius: 12px;
+}
+@media (max-width: 720px) {
+  .cc-path { padding: 0 var(--sp-5) var(--sp-8); }
+  .cc-path-img { border-radius: 8px; }
+}
+
 /* ---------- Reduced motion ---------- */
 @media (prefers-reduced-motion: reduce) {
   .cc-hero-bg img { animation: none; }
