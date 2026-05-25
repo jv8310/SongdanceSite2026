@@ -15,6 +15,7 @@ const roomTypes = [
     label: 'Private Shared-bath',
     description: 'Your own room, with bathroom on the same floor or within the unit.',
     price: 795,
+    closed: true,
   },
   {
     slug: 'shared-bedroom',
@@ -78,18 +79,25 @@ const roomTypes = [
           {roomTypes.map((t) => (
             <button
               type="button"
-              class={`rb-roomcard${t.adminOnly ? ' rb-roomcard--admin' : ''}`}
+              class={`rb-roomcard${t.adminOnly ? ' rb-roomcard--admin' : ''}${t.closed ? ' is-fullybooked' : ''}`}
               data-tier-slug={t.slug}
               data-tier-price={String(t.price)}
               data-tier-label={t.label}
+              data-tier-closed={t.closed ? 'true' : undefined}
               role="radio"
               aria-checked="false"
+              aria-disabled={t.closed ? 'true' : undefined}
+              disabled={t.closed || undefined}
               hidden={t.adminOnly || undefined}
             >
               <span class="rb-roomcard-name">{t.label}</span>
               <span class="rb-roomcard-desc">{t.description}</span>
               <span class="rb-roomcard-price">€{t.price}</span>
-              <span class="rb-roomcard-avail" data-avail-for={t.slug} hidden></span>
+              <span
+                class={`rb-roomcard-avail${t.closed ? ' rb-roomcard-avail--full' : ''}`}
+                data-avail-for={t.slug}
+                hidden={t.closed ? undefined : true}
+              >{t.closed ? 'Fully booked' : ''}</span>
             </button>
           ))}
         </div>
@@ -502,6 +510,9 @@ const roomTypes = [
             `[data-tier-slug="${t.slug}"]`,
           ) as HTMLButtonElement | null;
           if (!badge || !card) continue;
+          // Closed tiers are forced fully-booked at render time; don't
+          // let the live availability data unlock them.
+          if (card.dataset.tierClosed === 'true') continue;
           if (t.remaining === 0) {
             badge.textContent = 'Fully booked';
             badge.classList.add('rb-roomcard-avail--full');
