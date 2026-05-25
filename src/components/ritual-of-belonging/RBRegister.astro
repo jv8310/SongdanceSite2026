@@ -149,7 +149,7 @@ const roomTypes = [
           </label>
 
           <label class="rb-field rb-field--full rb-field--biz" hidden>
-            <span>VAT number</span>
+            <span>VAT number <em class="rb-optional">(optional)</em></span>
             <input type="text" name="vat_number" placeholder="e.g. BE0123.456.789" autocomplete="off" />
           </label>
         </div>
@@ -329,9 +329,6 @@ const roomTypes = [
     const bizFields = Array.from(
       form.querySelectorAll<HTMLElement>('.rb-field--biz'),
     );
-    const vatInput = form.querySelector(
-      'input[name="vat_number"]',
-    ) as HTMLInputElement;
 
     // ─── Special opt-in roles (fire keeper, cook help) ───
     const specialsBlock = form.querySelector('#rb-specials') as HTMLElement;
@@ -559,7 +556,6 @@ const roomTypes = [
       bizFields.forEach((f) => {
         f.hidden = !show;
       });
-      vatInput.required = show;
     }
     companyInput.addEventListener('input', toggleBiz);
 
@@ -598,9 +594,6 @@ const roomTypes = [
           !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailEl.value.trim())
         ) {
           missing.push('valid email');
-        }
-        if (companyInput.value.trim() && !vatInput.value.trim()) {
-          missing.push('VAT number');
         }
         if (missing.length) {
           errBox2.textContent = `Please fill in: ${missing.join(', ')}.`;
