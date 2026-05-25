@@ -3,95 +3,145 @@
 // 6 personalized offers to render in the registration block.
 //
 // Variants:
-//   B1 — currently in the 12-week course               → cert only (€999)
-//   B2 — completed the 12-week course                  → cert only (€999)
+//   B1 — currently in the 12-week course               → cert only
+//   B2 — completed the 12-week course                  → cert only
 //   A  — old VSH client, no SVH tags                   → cert OR bundle
 //   D  — already in SVH ecosystem, no 12w / no 9m      → cert OR bundle
-//   E  — completely new                                → bundle only (€1,499)
-//   C  — already enrolled in the cert course           → portal link, no checkout
+//   E  — completely new                                → bundle only
+//   C  — already enrolled in the cert course           → portal link, plus
+//                                                       an "activate now"
+//                                                       affordance while
+//                                                       they're still mid-12w
+//
+// Prices are rendered in EUR by default; US visitors see USD, UK visitors
+// see GBP (detected via Cloudflare geo). The detected currency is what
+// Stripe is asked to charge, so the buyer pays the headline number.
 
 import type { DripSubscriber } from '../registrations/drip';
 
 export type Variant = 'B1' | 'B2' | 'A' | 'D' | 'E' | 'C';
+export type Currency = 'EUR' | 'USD' | 'GBP';
 
 export type InstallmentPlan = {
-  // 3 monthly charges of `monthly_cents`. `total_cents` may differ from
-  // price_cents by a few cents because we round to a clean monthly amount
-  // (e.g. €499.67/mo rounds to a fixed value Stripe can charge). The UI
-  // surfaces both the monthly and the rounded total.
+  currency: Currency;
   monthly_cents: number;
-  monthly_eur: number;
-  total_cents: number;
-  total_eur: number;
-  count: number; // always 3 for now
+  monthly: number;        // major unit, e.g. 349
+  total_cents: number;    // monthly_cents × count
+  total: number;
+  count: number;          // always 3 for now
 };
 
 export type Offer = {
   slug: 'cc-cert' | 'cc-bundle';
   label: string;
-  price_eur: number;
-  price_cents: number;
-  base_price_eur: number;
+  currency: Currency;
+  price: number;          // major unit, e.g. 999
+  price_cents: number;    // for Stripe
+  base_price: number;     // pre-discount sticker, major unit
   save_note: string;
   installments?: InstallmentPlan;
 };
 
-// €349 × 3 = €1047 — ~5% uplift over the €999 cert sticker; the UI is
-// honest about the markup that pays for the 3-month payment plan.
-const CERT_INSTALLMENTS: InstallmentPlan = {
-  monthly_cents: 34900,
-  monthly_eur: 349,
-  total_cents: 104700,
-  total_eur: 1047,
-  count: 3,
+// Currency map. USD figures are EUR × ~1.10 and GBP figures are EUR × ~0.85,
+// both rounded to neat headline amounts. The save-vs-base ratio is kept
+// roughly aligned across currencies so the discount story reads the same.
+const PRICES: Record<
+  Currency,
+  {
+    cert:   { full: number; base: number; monthly: number };
+    bundle: { full: number; base: number; monthly: number };
+  }
+> = {
+  EUR: {
+    cert:   { full: 999,  base: 1500, monthly: 349 },
+    bundle: { full: 1499, base: 2150, monthly: 525 },
+  },
+  USD: {
+    cert:   { full: 1099, base: 1650, monthly: 385 },
+    bundle: { full: 1649, base: 2365, monthly: 579 },
+  },
+  GBP: {
+    cert:   { full: 849,  base: 1299, monthly: 299 },
+    bundle: { full: 1299, base: 1849, monthly: 459 },
+  },
 };
 
-// €525 × 3 = €1575 — ~5% uplift over the €1499 bundle sticker, matching
-// the cert's installment-uplift pattern.
-const BUNDLE_INSTALLMENTS: InstallmentPlan = {
-  monthly_cents: 52500,
-  monthly_eur: 525,
-  total_cents: 157500,
-  total_eur: 1575,
-  count: 3,
-};
+function symbol(c: Currency): string {
+  if (c === 'USD') return '$';
+  if (c === 'GBP') return '£';
+  return '€';
+}
+function money(amount: number, currency: Currency): string {
+  return `${symbol(currency)}${amount.toLocaleString('en-US')}`;
+}
 
-const CERT_BASE = {
-  slug: 'cc-cert' as const,
-  label: 'SVH Certification Course',
-  price_eur: 999,
-  price_cents: 99900,
-  base_price_eur: 1500,
-  installments: CERT_INSTALLMENTS,
-};
-
-const BUNDLE_BASE = {
-  slug: 'cc-bundle' as const,
-  label: '12-Week Course + Certification Course',
-  price_eur: 1499,
-  price_cents: 149900,
-  base_price_eur: 2150,
-  installments: BUNDLE_INSTALLMENTS,
-};
+function certOffer(currency: Currency): Omit<Offer, 'save_note'> {
+  const p = PRICES[currency].cert;
+  return {
+    slug: 'cc-cert',
+    label: 'SVH Certification Course',
+    currency,
+    price: p.full,
+    price_cents: p.full * 100,
+    base_price: p.base,
+    installments: {
+      currency,
+      monthly: p.monthly,
+      monthly_cents: p.monthly * 100,
+      count: 3,
+      total: p.monthly * 3,
+      total_cents: p.monthly * 100 * 3,
+    },
+  };
+}
+function bundleOffer(currency: Currency): Omit<Offer, 'save_note'> {
+  const p = PRICES[currency].bundle;
+  return {
+    slug: 'cc-bundle',
+    label: '12-Week Course + Certification Course',
+    currency,
+    price: p.full,
+    price_cents: p.full * 100,
+    base_price: p.base,
+    installments: {
+      currency,
+      monthly: p.monthly,
+      monthly_cents: p.monthly * 100,
+      count: 3,
+      total: p.monthly * 3,
+      total_cents: p.monthly * 100 * 3,
+    },
+  };
+}
 
 // Bare offers used by the checkout endpoint, where the discount copy is
-// irrelevant — only the price + identity matter.
-export const CERT_OFFER: Offer = {
-  ...CERT_BASE,
-  save_note: 'Mid-cohort discount applied',
-};
-export const BUNDLE_OFFER: Offer = {
-  ...BUNDLE_BASE,
-  save_note: 'Mid-cohort discount applied',
-};
+// irrelevant — only the price + identity matter. Exported per currency so
+// the checkout handler can validate {product_slug, currency} → offer.
+export function getCertOffer(currency: Currency): Offer {
+  const base = certOffer(currency);
+  return { ...base, save_note: 'Mid-cohort discount applied' };
+}
+export function getBundleOffer(currency: Currency): Offer {
+  const base = bundleOffer(currency);
+  return { ...base, save_note: 'Mid-cohort discount applied' };
+}
+
+// Back-compat exports (EUR) — still imported by older code paths.
+export const CERT_OFFER: Offer = getCertOffer('EUR');
+export const BUNDLE_OFFER: Offer = getBundleOffer('EUR');
 
 export type VariantDecision = {
   variant: Variant;
+  currency: Currency;
   offers: Offer[];
   // Present only when the subscriber's 12w is ongoing — the inline UI uses
   // it to say "you're in week N" and to surface the activate-now / wait toggle.
   twelve_week_week?: number;
-  // Present for variant C only — where to send them.
+  // Variant C only: true when the buyer holds prod_SVH_9m but is still mid-12w
+  // (svh_week 1-12 ongoing). The cert page then offers a one-click
+  // "activate now" button that sets svh_week to 12 on Drip.
+  can_activate_now?: boolean;
+  // Present for variant C only — where to send them once activated.
   course_portal_url?: string;
   // Personalisation: known subscriber details the front-end can use to
   // greet by name and pre-fill the form.
@@ -140,32 +190,42 @@ function parseSvhWeek(raw: string | undefined): {
   return { ongoing: false, ended: false };
 }
 
-function offersFor(variant: Variant): Offer[] {
-  const cert = (save: string): Offer => ({
-    ...CERT_BASE,
-    save_note: save,
+function offersFor(variant: Variant, currency: Currency): Offer[] {
+  const cert = (save_note: string): Offer => ({
+    ...certOffer(currency),
+    save_note,
   });
-  const bundle = (save: string): Offer => ({
-    ...BUNDLE_BASE,
-    save_note: save,
+  const bundle = (save_note: string): Offer => ({
+    ...bundleOffer(currency),
+    save_note,
   });
+  // "Save" amounts are derived from base − full so the copy stays correct
+  // in either currency.
+  const certSave = money(
+    PRICES[currency].cert.base - PRICES[currency].cert.full,
+    currency,
+  );
+  const bundleSave = money(
+    PRICES[currency].bundle.base - PRICES[currency].bundle.full,
+    currency,
+  );
   switch (variant) {
     case 'B1':
-      return [cert('Save €501 — upgrading from the 12-week course, mid-cohort discount applied')];
+      return [cert(`Save ${certSave} — upgrading from the 12-week course, mid-cohort discount applied`)];
     case 'B2':
-      return [cert('Save €501 — graduate of the 12-week course, mid-cohort discount applied')];
+      return [cert(`Save ${certSave} — graduate of the 12-week course, mid-cohort discount applied`)];
     case 'A':
       return [
         cert('Welcome-back price, mid-cohort discount applied'),
-        bundle('Save €651 — includes the complete refreshed 12-week foundational course'),
+        bundle(`Save ${bundleSave} — includes the complete refreshed 12-week foundational course`),
       ];
     case 'D':
       return [
         cert('Mid-cohort discount applied'),
-        bundle('Save €651 — includes the complete refreshed 12-week foundational course'),
+        bundle(`Save ${bundleSave} — includes the complete refreshed 12-week foundational course`),
       ];
     case 'E':
-      return [bundle('Save €651 — mid-cohort discount applied')];
+      return [bundle(`Save ${bundleSave} — mid-cohort discount applied`)];
     case 'C':
       return [];
   }
@@ -173,11 +233,13 @@ function offersFor(variant: Variant): Offer[] {
 
 export function decideVariant(
   subscriber: DripSubscriber | null,
-  opts: { coursePortalUrl?: string } = {},
+  opts: { coursePortalUrl?: string; currency?: Currency } = {},
 ): VariantDecision {
+  const currency: Currency = opts.currency ?? 'EUR';
+
   // Unknown email → newcomer
   if (!subscriber) {
-    return { variant: 'E', offers: offersFor('E') };
+    return { variant: 'E', currency, offers: offersFor('E', currency) };
   }
 
   const personalia = {
@@ -194,25 +256,32 @@ export function decideVariant(
     return false;
   };
 
-  // C — already in the cert course
+  const svhWeek = parseSvhWeek(readWeekField(subscriber.custom_fields));
+
+  // C — already in the cert course. If they're still in the 12-week (week 1-12
+  // ongoing), offer them an "activate now" button that bumps svh_week to 12
+  // on Drip so the existing automation opens cert access.
   if (has('prod_SVH_9m')) {
     return {
       variant: 'C',
+      currency,
       offers: [],
+      can_activate_now: svhWeek.ongoing,
+      twelve_week_week: svhWeek.week,
       course_portal_url:
         opts.coursePortalUrl ?? 'https://app.songdance.co/svh-certification',
       ...personalia,
     };
   }
 
-  const svhWeek = parseSvhWeek(readWeekField(subscriber.custom_fields));
   const has12w = has('prod_SVH_12w');
 
   // B1 — currently mid 12-week
   if (has12w && svhWeek.ongoing) {
     return {
       variant: 'B1',
-      offers: offersFor('B1'),
+      currency,
+      offers: offersFor('B1', currency),
       twelve_week_week: svhWeek.week,
       ...personalia,
     };
@@ -221,22 +290,22 @@ export function decideVariant(
   // B2 — completed the 12-week (either explicitly ended, or has the tag
   // with no usable week value)
   if (has12w) {
-    return { variant: 'B2', offers: offersFor('B2'), ...personalia };
+    return { variant: 'B2', currency, offers: offersFor('B2', currency), ...personalia };
   }
 
   // A — old VSH client, no SVH foundation
   // (prod_VSH was the legacy course tag — these students return for the
   // updated SVH lineage and may or may not want the 12w refresh.)
   if (has('prod_VSH') && !hasAnyStartingWith('prod_SVH')) {
-    return { variant: 'A', offers: offersFor('A'), ...personalia };
+    return { variant: 'A', currency, offers: offersFor('A', currency), ...personalia };
   }
 
   // D — in the SVH ecosystem some other way (workshop, retreat, etc.)
   // but never bought the 12w or the cert.
   if (hasAnyStartingWith('prod_SVH')) {
-    return { variant: 'D', offers: offersFor('D'), ...personalia };
+    return { variant: 'D', currency, offers: offersFor('D', currency), ...personalia };
   }
 
   // E — known to Drip but no relevant product history → newcomer offer
-  return { variant: 'E', offers: offersFor('E'), ...personalia };
+  return { variant: 'E', currency, offers: offersFor('E', currency), ...personalia };
 }

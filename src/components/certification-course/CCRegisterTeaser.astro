@@ -56,26 +56,31 @@
 
 <script>
   type Variant = 'B1' | 'B2' | 'A' | 'D' | 'E' | 'C';
+  type Currency = 'EUR' | 'USD' | 'GBP';
   type InstallmentPlan = {
+    currency: Currency;
     monthly_cents: number;
-    monthly_eur: number;
+    monthly: number;
     total_cents: number;
-    total_eur: number;
+    total: number;
     count: number;
   };
   type Offer = {
     slug: 'cc-cert' | 'cc-bundle';
     label: string;
-    price_eur: number;
+    currency: Currency;
+    price: number;
     price_cents: number;
-    base_price_eur: number;
+    base_price: number;
     save_note: string;
     installments?: InstallmentPlan;
   };
   type Decision = {
     variant: Variant;
+    currency: Currency;
     offers: Offer[];
     twelve_week_week?: number;
+    can_activate_now?: boolean;
     course_portal_url?: string;
     first_name?: string;
     last_name?: string;

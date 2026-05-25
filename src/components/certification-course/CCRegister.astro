@@ -93,6 +93,25 @@ const countries = COUNTRIES;
                 <input type="tel" name="phone" placeholder="Phone number" autocomplete="tel" required />
               </div>
             </label>
+            <label class="cc-variant-field cc-variant-field--full">
+              <span>Company <span class="cc-field-note">— optional, for a business invoice</span></span>
+              <input
+                type="text"
+                name="company_name"
+                autocomplete="organization"
+                placeholder="Your company name"
+              />
+            </label>
+            <label class="cc-variant-field cc-variant-field--full cc-vat-field" data-slot="vat-field" hidden>
+              <span>VAT number <span class="cc-field-note">— EU/UK businesses, for reverse-charge</span></span>
+              <input
+                type="text"
+                name="vat_number"
+                autocomplete="off"
+                placeholder="e.g. BE0123456789"
+                inputmode="text"
+              />
+            </label>
           </div>
 
           <fieldset class="cc-activate-toggle" data-slot="activate-toggle" style="display:none">
@@ -115,8 +134,7 @@ const countries = COUNTRIES;
 
           <label class="cc-consent">
             <input type="checkbox" name="consent_terms" required />
-            <span>I agree to the <a href="/terms" target="_blank" rel="noopener">terms</a> and the
-            <a href="/privacy" target="_blank" rel="noopener">privacy notice</a>.</span>
+            <span>I agree to the <a href="/terms" target="_blank" rel="noopener">terms and conditions</a>.</span>
           </label>
 
           <div class="cc-checkout-summary" data-slot="summary">
@@ -134,6 +152,15 @@ const countries = COUNTRIES;
         </div>
 
         <div data-slot="portal" style="display:none">
+          <div class="cc-activate-now" data-slot="activate-now" hidden>
+            <h4 class="cc-activate-now-title">Ready to step into the certification course?</h4>
+            <p class="cc-activate-now-body" data-slot="activate-now-body"></p>
+            <button type="button" class="cc-activate-now-btn" data-slot="activate-now-btn">
+              <span>Activate the certification course now</span>
+              <i class="ph-light ph-arrow-right"></i>
+            </button>
+            <p class="cc-activate-now-msg" data-slot="activate-now-msg"></p>
+          </div>
           <a class="cc-variant-portal" data-slot="portal-link" href="#" target="_blank" rel="noopener">
             Open the course portal <i class="ph-light ph-arrow-up-right"></i>
           </a>
@@ -152,27 +179,32 @@ const countries = COUNTRIES;
 <script>
   import { COUNTRIES } from '../../lib/countries';
 
+  type Currency = 'EUR' | 'USD' | 'GBP';
   type InstallmentPlan = {
+    currency: Currency;
     monthly_cents: number;
-    monthly_eur: number;
+    monthly: number;
     total_cents: number;
-    total_eur: number;
+    total: number;
     count: number;
   };
   type Offer = {
     slug: 'cc-cert' | 'cc-bundle';
     label: string;
-    price_eur: number;
+    currency: Currency;
+    price: number;
     price_cents: number;
-    base_price_eur: number;
+    base_price: number;
     save_note: string;
     installments?: InstallmentPlan;
   };
   type Variant = 'B1' | 'B2' | 'A' | 'D' | 'E' | 'C';
   type Decision = {
     variant: Variant;
+    currency: Currency;
     offers: Offer[];
     twelve_week_week?: number;
+    can_activate_now?: boolean;
     course_portal_url?: string;
     first_name?: string;
     last_name?: string;
@@ -187,6 +219,15 @@ const countries = COUNTRIES;
   ) => { greeting: string; title: string; body: string };
 
   const STORAGE_KEY = 'cc:decision';
+
+  function symbolFor(c: Currency): string {
+    if (c === 'USD') return '$';
+    if (c === 'GBP') return '£';
+    return '€';
+  }
+  function money(amount: number, c: Currency): string {
+    return `${symbolFor(c)}${amount.toLocaleString('en-US')}`;
+  }
 
   const greetingFor = (name?: string, fallback = 'Hi there') =>
     name && name.trim() ? `Hi ${name.trim()}` : fallback;
@@ -370,6 +411,7 @@ const countries = COUNTRIES;
   function renderVariant(email: string, decision: Decision) {
     const fragment = template.content.cloneNode(true) as DocumentFragment;
     const root = fragment.querySelector('.cc-variant') as HTMLElement;
+    const currency = decision.currency ?? 'EUR';
 
     const copy = COPY[decision.variant](decision.twelve_week_week, decision.first_name);
     (root.querySelector('[data-slot="greeting"]') as HTMLElement).textContent = copy.greeting;
@@ -398,6 +440,20 @@ const countries = COUNTRIES;
       portalBlock.style.display = 'block';
       const portalLink = root.querySelector('[data-slot="portal-link"]') as HTMLAnchorElement;
       if (decision.course_portal_url) portalLink.href = decision.course_portal_url;
+
+      // Mid-12w students see an "Activate now" affordance that bumps their
+      // svh_week to 12 on Drip and opens cert access.
+      const activateBlock = root.querySelector('[data-slot="activate-now"]') as HTMLElement;
+      if (decision.can_activate_now) {
+        activateBlock.hidden = false;
+        const bodyEl = root.querySelector('[data-slot="activate-now-body"]') as HTMLElement;
+        bodyEl.textContent = decision.twelve_week_week
+          ? `You're currently in week ${decision.twelve_week_week} of the 12-week course. The certification opens automatically when the foundation completes — but if you'd like to start exploring it now, you can open it immediately.`
+          : `The certification opens automatically when the 12-week course completes — but if you'd like to start exploring it now, you can open it immediately.`;
+        const btn = root.querySelector('[data-slot="activate-now-btn"]') as HTMLButtonElement;
+        const msg = root.querySelector('[data-slot="activate-now-msg"]') as HTMLElement;
+        btn.addEventListener('click', () => activateNow(email, btn, msg, portalLink));
+      }
       stage.replaceChildren(root);
       return;
     }
@@ -409,6 +465,9 @@ const countries = COUNTRIES;
     const countryHidden = root.querySelector<HTMLInputElement>('[name="country"]')!;
     const phoneCountrySelect = root.querySelector<HTMLSelectElement>('[name="phone_country"]')!;
     const phoneInput = root.querySelector<HTMLInputElement>('[name="phone"]')!;
+    const companyInput = root.querySelector<HTMLInputElement>('[name="company_name"]')!;
+    const vatField = root.querySelector<HTMLElement>('[data-slot="vat-field"]')!;
+    const vatInput = root.querySelector<HTMLInputElement>('[name="vat_number"]')!;
 
     if (decision.first_name) firstNameInput.value = decision.first_name;
     if (decision.last_name) lastNameInput.value = decision.last_name;
@@ -423,6 +482,16 @@ const countries = COUNTRIES;
       }
     }
     if (decision.phone) phoneInput.value = decision.phone;
+
+    // VAT field only appears when a company name has been entered. Keeps
+    // the form tidy for the B2C majority.
+    const toggleVat = () => {
+      const hasCompany = companyInput.value.trim().length > 0;
+      vatField.hidden = !hasCompany;
+      if (!hasCompany) vatInput.value = '';
+    };
+    companyInput.addEventListener('input', toggleVat);
+    toggleVat();
 
     // Resolve typed country name → ISO code when user picks/blurs.
     const resolveCountry = () => {
@@ -497,13 +566,13 @@ const countries = COUNTRIES;
         value: 'full',
         title: 'Pay in full',
         subtitle: `One payment, full access today.`,
-        amountLabel: `€${offer.price_eur.toLocaleString('en-US')}`,
+        amountLabel: money(offer.price, currency),
       });
       const inst = renderPlanOption({
         value: '3x',
         title: `Pay in ${offer.installments.count} monthly installments`,
-        subtitle: `€${offer.installments.monthly_eur}/mo for ${offer.installments.count} months (€${offer.installments.total_eur.toLocaleString('en-US')} total). Full access from the first payment.`,
-        amountLabel: `€${offer.installments.monthly_eur}/mo`,
+        subtitle: `${money(offer.installments.monthly, currency)}/mo for ${offer.installments.count} months (${money(offer.installments.total, currency)} total). Full access from the first payment.`,
+        amountLabel: `${money(offer.installments.monthly, currency)}/mo`,
       });
 
       [full, inst].forEach((el) => {
@@ -537,10 +606,10 @@ const countries = COUNTRIES;
       if (!offer) return;
       if (selectedPlan === '3x' && offer.installments) {
         summaryLabel.textContent = `${offer.label} — ${offer.installments.count} monthly payments`;
-        summaryAmount.textContent = `€${offer.installments.monthly_eur}/mo`;
+        summaryAmount.textContent = `${money(offer.installments.monthly, currency)}/mo`;
       } else {
         summaryLabel.textContent = `${offer.label} — one-time payment`;
-        summaryAmount.textContent = `€${offer.price_eur.toLocaleString('en-US')}`;
+        summaryAmount.textContent = money(offer.price, currency);
       }
     }
 
@@ -586,11 +655,11 @@ const countries = COUNTRIES;
         <div class="cc-offer-prices">
           <div class="cc-offer-row">
             <span class="cc-offer-row-label">Base price</span>
-            <span class="cc-offer-row-value cc-offer-base">€${offer.base_price_eur.toLocaleString('en-US')}</span>
+            <span class="cc-offer-row-value cc-offer-base">${money(offer.base_price, offer.currency)}</span>
           </div>
           <div class="cc-offer-row cc-offer-row--your">
             <span class="cc-offer-row-label">Your price</span>
-            <span class="cc-offer-row-value cc-offer-your">€${offer.price_eur.toLocaleString('en-US')}</span>
+            <span class="cc-offer-row-value cc-offer-your">${money(offer.price, offer.currency)}</span>
           </div>
         </div>
         <p class="cc-offer-save">${escapeHtml(offer.save_note)}</p>
@@ -652,6 +721,8 @@ const countries = COUNTRIES;
     const country = get('country');
     const phone_country = get('phone_country');
     const phone = get('phone');
+    const company_name = get('company_name');
+    const vat_number = get('vat_number');
     const consentEl = root.querySelector<HTMLInputElement>('[name="consent_terms"]')!;
     const consent_terms = consentEl.checked;
 
@@ -664,6 +735,7 @@ const countries = COUNTRIES;
     if (!first_name || !last_name) return fail('Please add your first and last name.');
     if (!country) return fail('Please select your country from the list.');
     if (!phone_country || !phone) return fail('Please enter a phone number with country code.');
+    if (vat_number && !company_name) return fail('Please add your company name to use a VAT number.');
     if (!consent_terms) return fail('Please agree to the terms to continue.');
 
     // Activate choice is only meaningful for B1 + bundle buyers; default to
@@ -688,12 +760,15 @@ const countries = COUNTRIES;
         body: JSON.stringify({
           product_slug: productSlug,
           payment_plan: paymentPlan,
+          currency: decision.currency ?? 'EUR',
           first_name,
           last_name,
           email,
           country,
           phone_country,
           phone,
+          company_name: company_name || undefined,
+          vat_number: vat_number || undefined,
           activate_choice,
           source_variant: decision.variant,
           consent_terms: true,
@@ -715,6 +790,49 @@ const countries = COUNTRIES;
       window.location.href = body.checkout_url;
     } catch {
       fail('We could not reach the server. Please try again.');
+      btn.disabled = false;
+      btn.innerHTML = originalLabel;
+    }
+  }
+
+  async function activateNow(
+    email: string,
+    btn: HTMLButtonElement,
+    msg: HTMLElement,
+    portalLink: HTMLAnchorElement,
+  ) {
+    const originalLabel = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span>Activating…</span>';
+    msg.textContent = '';
+    msg.classList.remove('is-visible', 'is-error');
+    try {
+      const res = await fetch('/api/courses/activate-now', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      let body: { ok?: boolean; error?: string } = {};
+      try {
+        body = (await res.json()) as typeof body;
+      } catch {}
+      if (!res.ok || !body.ok) {
+        msg.textContent = body.error || 'We could not activate the course just now. Please try again.';
+        msg.classList.add('is-visible', 'is-error');
+        btn.disabled = false;
+        btn.innerHTML = originalLabel;
+        return;
+      }
+      msg.textContent = 'Activated. Your certification access is opening up now — check your inbox in a few minutes.';
+      msg.classList.add('is-visible');
+      btn.innerHTML = '<span>Done — head to the portal</span><i class="ph-light ph-arrow-up-right"></i>';
+      btn.disabled = false;
+      btn.onclick = () => {
+        window.open(portalLink.href, '_blank', 'noopener');
+      };
+    } catch {
+      msg.textContent = 'We could not reach the server. Please try again.';
+      msg.classList.add('is-visible', 'is-error');
       btn.disabled = false;
       btn.innerHTML = originalLabel;
     }

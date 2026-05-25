@@ -1,19 +1,38 @@
-// POST { email } → { variant, offers, twelve_week_week?, course_portal_url? }
+// POST { email } → { variant, currency, offers, twelve_week_week?, course_portal_url? }
 // Drives the variant block on /certification-course.
+//
+// Currency: visitors are priced in USD (US) or GBP (UK), everyone else in
+// EUR. Geo comes from the Cloudflare edge (`cf.country` / `CF-IPCountry`);
+// on local dev we fall back to EUR.
 //
 // Failure mode: if Drip is unreachable, return variant E (newcomer) rather
 // than blocking the visitor — better to show *some* offer than nothing.
 
 import type { APIRoute } from 'astro';
 import { getSubscriber } from '../../../lib/registrations/drip';
-import { decideVariant, BUNDLE_OFFER } from '../../../lib/courses/variant';
+import {
+  decideVariant,
+  getBundleOffer,
+  type Currency,
+} from '../../../lib/courses/variant';
 
 export const prerender = false;
 
 type Body = { email?: string };
 
+function detectCurrency(locals: App.Locals, request: Request): Currency {
+  const cf = (locals.runtime as any)?.cf;
+  const cfCountry = (cf?.country as string | undefined) ?? null;
+  const headerCountry = request.headers.get('CF-IPCountry');
+  const raw = (cfCountry || headerCountry || '').toUpperCase();
+  if (raw === 'US') return 'USD';
+  if (raw === 'GB') return 'GBP';
+  return 'EUR';
+}
+
 export const POST: APIRoute = async ({ request, locals }) => {
   const env = locals.runtime.env;
+  const currency = detectCurrency(locals, request);
 
   let payload: Body;
   try {
@@ -34,16 +53,22 @@ export const POST: APIRoute = async ({ request, locals }) => {
     );
     const decision = decideVariant(sub, {
       coursePortalUrl: env.SVH_CERT_PORTAL_URL,
+      currency,
     });
     return json(decision);
   } catch (err) {
-    // Soft failure — treat as newcomer so the page still works.
+    // Soft failure — treat as newcomer so the page still works. Derive the
+    // save amount from the offer itself so we don't drift when prices move.
+    const bundle = getBundleOffer(currency);
+    const symbol = currency === 'USD' ? '$' : currency === 'GBP' ? '£' : '€';
+    const save = bundle.base_price - bundle.price;
     return json({
       variant: 'E',
+      currency,
       offers: [
         {
-          ...BUNDLE_OFFER,
-          save_note: 'Save €651 — mid-cohort discount applied',
+          ...bundle,
+          save_note: `Save ${symbol}${save} — mid-cohort discount applied`,
         },
       ],
       degraded: true,
