@@ -59,6 +59,7 @@ let tierSummary: Array<{
 }> = [];
 let payingParticipants = 0;
 let placesAvailable = 0;
+let maxPeople = 0;
 let rooms: Array<{
   id: number;
   name: string;
@@ -151,6 +152,10 @@ if (product) {
       adminTierId != null &&
       (r.solo_tier_id === adminTierId || r.shared_tier_id === adminTierId)
     ) continue;
+    // Max retreat-wide capacity = every sellable bed (this is the real
+    // ceiling — per-tier capacities double-count multi-mode rooms because
+    // the same bed can be sold under either a Private or Shared tier).
+    maxPeople += r.capacity;
     if (r.mode === 'solo') continue;
     placesAvailable += Math.max(0, r.capacity - r.beds_sold);
   }
@@ -263,12 +268,12 @@ function capacityTone(remaining: number): 'full' | 'low' | 'open' {
           <tr class="adm-row--total">
             <th scope="row">Total (paying)</th>
             <td class="num">{payingParticipants}</td>
-            <td class="num"></td>
+            <td class="num">{maxPeople}</td>
             <td class="num"><span class={`adm-pill adm-pill--${capacityTone(placesAvailable)}`}>{placesAvailable}</span></td>
           </tr>
         </tfoot>
       </table>
-      <p class="adm-table-note">"Booked" counts paying registrations for that tier (host and cook seats excluded). "Remaining" reflects what's still sellable: a Private booking on a multi-mode room locks all its beds out of Shared Bedroom too, so Booked + Remaining can be less than Capacity.</p>
+      <p class="adm-table-note">All numbers are people, not rooms. Each registration is one person. Per-tier capacities <strong>overlap</strong> — the same bed in a multi-mode room (e.g. Room 1.2) counts toward both Private En-suite (sold solo) and Shared Bedroom (sold bed-by-bed), so summing tier capacities overcounts. The total row shows the real retreat ceiling: {maxPeople} sellable beds across all rooms (hosts and cook excluded). With current bookings, {placesAvailable} of those are still open; the rest are either booked or locked because a Private booking blocked the rest of a multi-mode room.</p>
     </section>
 
     <!-- ─── Registrations ─── -->
