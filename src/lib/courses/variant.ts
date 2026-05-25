@@ -36,22 +36,23 @@ export type Offer = {
   installments?: InstallmentPlan;
 };
 
-// €333 × 3 = €999 (exact match to the cert price)
+// €349 × 3 = €1047 — ~5% uplift over the €999 cert sticker; the UI is
+// honest about the markup that pays for the 3-month payment plan.
 const CERT_INSTALLMENTS: InstallmentPlan = {
-  monthly_cents: 33300,
-  monthly_eur: 333,
-  total_cents: 99900,
-  total_eur: 999,
+  monthly_cents: 34900,
+  monthly_eur: 349,
+  total_cents: 104700,
+  total_eur: 1047,
   count: 3,
 };
 
-// €500 × 3 = €1500 — €1 uplift over the €1499 sticker; the UI is honest
-// about the slight markup that pays for the 3-month payment plan.
+// €525 × 3 = €1575 — ~5% uplift over the €1499 bundle sticker, matching
+// the cert's installment-uplift pattern.
 const BUNDLE_INSTALLMENTS: InstallmentPlan = {
-  monthly_cents: 50000,
-  monthly_eur: 500,
-  total_cents: 150000,
-  total_eur: 1500,
+  monthly_cents: 52500,
+  monthly_eur: 525,
+  total_cents: 157500,
+  total_eur: 1575,
   count: 3,
 };
 

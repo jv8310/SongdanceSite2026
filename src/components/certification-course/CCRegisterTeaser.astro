@@ -1,17 +1,19 @@
 ---
 ---
 
-<section class="cc-teaser" id="check-price">
+<section class="cc-teaser" id="check-price" data-cc-teaser-root>
   <div class="cc-teaser-inner">
-    <div class="cc-eyebrow cc-eyebrow--center">A personal price, not a public one</div>
-    <h2 class="cc-teaser-h2">
-      See your <em>price.</em>
-    </h2>
-    <p class="cc-teaser-lead">
-      The certification course is already underway, so your price depends on
-      where you already are with this work. Enter your email and we'll show
-      you the right offer further down the page.
-    </p>
+    <div class="cc-teaser-intro" data-cc-teaser-intro>
+      <div class="cc-eyebrow cc-eyebrow--center">A personal price, not a public one</div>
+      <h2 class="cc-teaser-h2">
+        See your <em>price.</em>
+      </h2>
+      <p class="cc-teaser-lead">
+        The certification course is already underway, so your price depends on
+        where you already are with this work. Enter your email and we'll show
+        you the right offer further down the page.
+      </p>
+    </div>
 
     <div class="cc-teaser-stage" data-cc-teaser-stage>
       <form class="cc-teaser-form" data-cc-teaser-form>
@@ -32,6 +34,10 @@
 
     <template data-cc-teaser-result>
       <div class="cc-teaser-result">
+        <div class="cc-teaser-badge" data-slot="badge">
+          <i class="ph-light ph-seal-check" aria-hidden="true"></i>
+          <span data-slot="badge-label"></span>
+        </div>
         <div class="cc-teaser-greeting" data-slot="greeting"></div>
         <p class="cc-teaser-body" data-slot="body"></p>
         <div class="cc-teaser-actions">
@@ -79,12 +85,18 @@
 
   const STORAGE_KEY = 'cc:decision';
 
-  function teaserCopyFor(d: Decision): { greeting: string; body: string; ctaLabel: string } {
+  function teaserCopyFor(d: Decision): {
+    badge: string;
+    greeting: string;
+    body: string;
+    ctaLabel: string;
+  } {
     const name = (d.first_name || '').trim();
     const hi = name ? `Hi ${name},` : 'Hi there,';
     switch (d.variant) {
       case 'B1':
         return {
+          badge: 'Special discount unlocked',
           greeting: hi,
           body:
             (d.twelve_week_week
@@ -95,30 +107,35 @@
         };
       case 'B2':
         return {
+          badge: 'Special discount unlocked',
           greeting: name ? `Welcome back, ${name}.` : 'Welcome back.',
           body: `You've completed the 12-week course. The certification course picks up where that foundation leaves off — and your price honors what you've already done.`,
           ctaLabel: 'See your offer',
         };
       case 'A':
         return {
+          badge: 'Welcome-back price unlocked',
           greeting: name ? `Welcome back, ${name}.` : 'Welcome back.',
           body: `You've walked this work in its earlier form. The certification course is the current arc — two ways in, depending on how deep you want to begin again.`,
           ctaLabel: 'See your options',
         };
       case 'D':
         return {
+          badge: 'Mid-cohort price unlocked',
           greeting: name ? `Good to see you, ${name}.` : 'Good to see you.',
           body: `You've already found this work. You can step straight into the certification — or take the full path, including the 12-week foundation, if you haven't walked it yet.`,
           ctaLabel: 'See your options',
         };
       case 'E':
         return {
+          badge: 'Mid-cohort price unlocked',
           greeting: name ? `Welcome, ${name}.` : 'Welcome.',
           body: `For someone new to this work, the full path is the way in — the 12-week foundation and the certification course as one continuous journey.`,
           ctaLabel: 'See the full path',
         };
       case 'C':
         return {
+          badge: "You're already enrolled",
           greeting: name ? `You're already in, ${name}.` : "You're already in.",
           body: `You're enrolled in the certification course. The portal link is further down — see you in the next class.`,
           ctaLabel: 'Open the course portal',
@@ -128,6 +145,7 @@
 
   const stage = document.querySelector<HTMLElement>('[data-cc-teaser-stage]');
   if (stage) {
+    const root = document.querySelector<HTMLElement>('[data-cc-teaser-root]')!;
     const form = stage.querySelector<HTMLFormElement>('[data-cc-teaser-form]')!;
     const errorEl = stage.querySelector<HTMLElement>('[data-cc-teaser-error]')!;
     const noteEl = document.querySelector<HTMLElement>('.cc-teaser-note');
@@ -145,6 +163,7 @@
     }
 
     function showForm(prefillEmail?: string) {
+      root.classList.remove('cc-teaser--has-result');
       stage.replaceChildren(form);
       if (noteEl) stage.appendChild(noteEl);
       stage.appendChild(errorEl);
@@ -157,18 +176,19 @@
 
     function renderResult(email: string, decision: Decision) {
       const fragment = template.content.cloneNode(true) as DocumentFragment;
-      const root = fragment.querySelector('.cc-teaser-result') as HTMLElement;
+      const resultRoot = fragment.querySelector('.cc-teaser-result') as HTMLElement;
       const copy = teaserCopyFor(decision);
-      (root.querySelector('[data-slot="greeting"]') as HTMLElement).textContent = copy.greeting;
-      (root.querySelector('[data-slot="body"]') as HTMLElement).textContent = copy.body;
-      (root.querySelector('[data-slot="cta-label"]') as HTMLElement).textContent = copy.ctaLabel;
+      (resultRoot.querySelector('[data-slot="badge-label"]') as HTMLElement).textContent = copy.badge;
+      (resultRoot.querySelector('[data-slot="greeting"]') as HTMLElement).textContent = copy.greeting;
+      (resultRoot.querySelector('[data-slot="body"]') as HTMLElement).textContent = copy.body;
+      (resultRoot.querySelector('[data-slot="cta-label"]') as HTMLElement).textContent = copy.ctaLabel;
 
       // For variant C we steer the user to the portal in the bottom block;
       // for everyone else, scroll to the offer/form block.
-      const cta = root.querySelector('[data-slot="cta-down"]') as HTMLAnchorElement;
+      const cta = resultRoot.querySelector('[data-slot="cta-down"]') as HTMLAnchorElement;
       cta.setAttribute('href', '#register');
 
-      const changeBtn = root.querySelector('[data-slot="change"]') as HTMLButtonElement;
+      const changeBtn = resultRoot.querySelector('[data-slot="change"]') as HTMLButtonElement;
       changeBtn.addEventListener('click', () => {
         try { localStorage.removeItem(STORAGE_KEY); } catch {}
         window.dispatchEvent(new CustomEvent('cc:decision-cleared'));
@@ -176,7 +196,8 @@
         clearError();
       });
 
-      stage.replaceChildren(root);
+      root.classList.add('cc-teaser--has-result');
+      stage.replaceChildren(resultRoot);
     }
 
     function save(email: string, decision: Decision) {
