@@ -186,13 +186,48 @@ export async function retrieveSession(secretKey: string, sessionId: string) {
 // Subscription mode for 3-monthly-installment course purchases.
 //
 // We create an ad-hoc monthly Price (no Product object pre-required —
-// Stripe accepts `price_data` inline) and set `cancel_at` to a Unix
-// timestamp ~75 days out. Stripe charges immediately, then at +30 days,
-// +60 days; the +90 day invoice never generates because the subscription
-// cancels at day ~75 (between the third charge and the would-be fourth).
+// Stripe accepts `price_data` inline). Stripe charges immediately,
+// then at +30 days, +60 days. After the subscription is created we
+// call `setSubscriptionCancelAt` from the webhook to schedule it to
+// cancel at ~day 75 (between charge 3 and the would-be charge 4),
+// yielding exactly 3 monthly charges without juggling subscription
+// schedules — and working inside a regular Stripe Checkout flow.
 //
-// This yields exactly 3 monthly charges without juggling subscription
-// schedules — and works inside a regular Stripe Checkout flow.
+// (`subscription_data[cancel_at]` on Checkout Sessions is not accepted
+// by the current Stripe API, so we set it via the Subscriptions API.)
+
+// Compute the cancel_at unix timestamp for an N-installment plan: just
+// after the Nth monthly charge, comfortably before the would-be (N+1)th.
+export function computeInstallmentCancelAt(installmentCount: number): number {
+  return (
+    Math.floor(Date.now() / 1000) +
+    (installmentCount - 1) * 30 * 86400 +
+    15 * 86400
+  );
+}
+
+export async function setSubscriptionCancelAt(
+  secretKey: string,
+  subscriptionId: string,
+  cancelAt: number,
+): Promise<void> {
+  const form = new URLSearchParams();
+  form.set('cancel_at', String(cancelAt));
+  const res = await fetch(`${STRIPE_BASE}/subscriptions/${subscriptionId}`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${secretKey}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: form,
+  });
+  if (!res.ok) {
+    const body = (await res.json()) as { error?: { message: string } };
+    throw new Error(
+      `Stripe subscriptions.update: ${body.error?.message ?? res.status}`,
+    );
+  }
+}
 
 export type CreateSubscriptionCheckoutInput = {
   secretKey: string;
@@ -218,12 +253,6 @@ export async function createSubscriptionCheckoutSession(
   form.set('customer', input.customer);
   form.set('customer_update[address]', 'auto');
   form.set('billing_address_collection', 'required');
-
-  // 3 monthly charges → cancel between charge 3 (day ~60) and charge 4
-  // (day ~90). 75 days is safely inside that window across any month.
-  const cancelAt =
-    Math.floor(Date.now() / 1000) + (input.installment_count - 1) * 30 * 86400 + 15 * 86400;
-  form.set('subscription_data[cancel_at]', String(cancelAt));
 
   // Card only for now — most non-card EU methods (Bancontact, iDEAL) are
   // single-charge instruments that can't authorise a recurring debit
@@ -256,8 +285,15 @@ export async function createSubscriptionCheckoutSession(
 
   // Metadata lands on the Subscription itself (and is copied through to
   // each generated Invoice / PaymentIntent), which the webhook uses to
-  // route invoice.paid events back to our course_registration.
-  Object.entries(input.metadata).forEach(([k, v]) => {
+  // route invoice.paid events back to our course_registration. We also
+  // stash installment_count on both the session and subscription so the
+  // checkout.session.completed handler can call the Subscriptions API to
+  // set `cancel_at` (Stripe Checkout itself doesn't accept it).
+  const fullMeta: Record<string, string> = {
+    ...input.metadata,
+    installment_count: String(input.installment_count),
+  };
+  Object.entries(fullMeta).forEach(([k, v]) => {
     form.set(`metadata[${k}]`, v);
     form.set(`subscription_data[metadata][${k}]`, v);
   });
