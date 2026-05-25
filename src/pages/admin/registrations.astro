@@ -51,7 +51,12 @@ type Row = {
 };
 
 let rows: Row[] = [];
-let tierSummary: Array<{ tier_name: string; capacity: number; taken: number }> = [];
+let tierSummary: Array<{
+  tier_name: string;
+  capacity: number;
+  booked: number;
+  remaining: number;
+}> = [];
 let payingParticipants = 0;
 let placesAvailable = 0;
 let rooms: Array<{
@@ -99,10 +104,34 @@ if (product) {
   rows = q.results ?? [];
 
   const ta = await computeTierAvailability(env.DB, product.id);
+
+  // Real bookings per tier — paying participants only (amount > 0 excludes
+  // pre-allocated host/cook seats); pending bookings count while their hold
+  // is still active, matching the room model's beds_sold semantics.
+  const bookedByTier = await env.DB.prepare(
+    `SELECT r.tier_id, COUNT(*) AS c
+       FROM registrations r
+       JOIN tiers t ON t.id = r.tier_id
+      WHERE t.product_id = ?
+        AND r.status IN ('paid','pending')
+        AND r.amount_cents > 0
+        AND (r.status = 'paid'
+             OR r.hold_expires_at IS NULL
+             OR r.hold_expires_at > datetime('now'))
+      GROUP BY r.tier_id`,
+  )
+    .bind(product.id)
+    .all<{ tier_id: number; c: number }>();
+  const bookedMap = new Map<number, number>();
+  for (const row of bookedByTier.results ?? []) {
+    bookedMap.set(row.tier_id, row.c);
+  }
+
   tierSummary = ta.map(({ tier, remaining, capacity }) => ({
     tier_name: tier.name,
     capacity,
-    taken: Math.max(0, capacity - remaining),
+    booked: bookedMap.get(tier.id) ?? 0,
+    remaining,
   }));
 
   // Real-bed availability: iterate rooms once, skip reserved/inactive AND the
@@ -215,7 +244,7 @@ function capacityTone(remaining: number): 'full' | 'low' | 'open' {
         <thead>
           <tr>
             <th>Room option</th>
-            <th class="num">Taken</th>
+            <th class="num">Booked</th>
             <th class="num">Capacity</th>
             <th class="num">Remaining</th>
           </tr>
@@ -224,9 +253,9 @@ function capacityTone(remaining: number): 'full' | 'low' | 'open' {
           {tierSummary.map((t) => (
             <tr>
               <td>{t.tier_name}</td>
-              <td class="num">{t.taken ?? 0}</td>
+              <td class="num">{t.booked}</td>
               <td class="num">{t.capacity}</td>
-              <td class="num"><span class={`adm-pill adm-pill--${capacityTone(Math.max(0, t.capacity - (t.taken ?? 0)))}`}>{Math.max(0, t.capacity - (t.taken ?? 0))}</span></td>
+              <td class="num"><span class={`adm-pill adm-pill--${capacityTone(t.remaining)}`}>{t.remaining}</span></td>
             </tr>
           ))}
         </tbody>
@@ -239,7 +268,7 @@ function capacityTone(remaining: number): 'full' | 'low' | 'open' {
           </tr>
         </tfoot>
       </table>
-      <p class="adm-table-note">Hosts and cook (Jacob, Lesanne, Muriel) are excluded from the paying count. Places still available counts real free beds — multi-mode rooms locked by a solo booking subtract their whole bed count.</p>
+      <p class="adm-table-note">"Booked" counts paying registrations for that tier (host and cook seats excluded). "Remaining" reflects what's still sellable: a Private booking on a multi-mode room locks all its beds out of Shared Bedroom too, so Booked + Remaining can be less than Capacity.</p>
     </section>
 
     <!-- ─── Registrations ─── -->
