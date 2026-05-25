@@ -271,26 +271,82 @@ const stateTone: Record<RoomState, string> = {
   locked: 'low',
 };
 
-const roomBreakdown = roomsWithMode.map((r) => {
-  const { code, where } = parseRoomLabel(r.name);
-  const t = roomType(r);
-  const s = roomState(r);
-  const isBookable = r.status !== 'inactive';
-  return {
-    id: r.id,
-    code,
-    where,
-    notes: r.notes,
-    type: t.type,
-    typeLabel: t.label,
-    capacity: r.capacity,
-    booked: r.beds_sold,
-    available: isBookable ? Math.max(0, r.capacity - r.beds_sold) : 0,
-    state: s.state,
-    stateLabel: s.label,
-    showCounts: r.status !== 'inactive',
-  };
-});
+// Active guests per room — paid + pending with valid hold. Used to show
+// who's currently placed in each room. Pulled separately from `rows` so
+// the names list isn't affected by the registrations status filter.
+const guestsQ = await env.DB.prepare(
+  `SELECT r.inventory_unit_id, r.name, r.first_name, r.last_name
+     FROM registrations r
+     JOIN tiers t ON t.id = r.tier_id
+    WHERE t.product_id = ?
+      AND r.inventory_unit_id IS NOT NULL
+      AND r.status IN ('paid','pending')
+      AND (r.status = 'paid'
+           OR r.hold_expires_at IS NULL
+           OR r.hold_expires_at > datetime('now'))
+    ORDER BY r.first_name, r.last_name, r.name`,
+)
+  .bind(product.id)
+  .all<{
+    inventory_unit_id: number;
+    name: string;
+    first_name: string | null;
+    last_name: string | null;
+  }>();
+const guestsByRoom = new Map<number, string[]>();
+for (const g of guestsQ.results ?? []) {
+  const display = (g.first_name || g.last_name)
+    ? `${g.first_name ?? ''} ${g.last_name ?? ''}`.trim()
+    : g.name;
+  const list = guestsByRoom.get(g.inventory_unit_id) ?? [];
+  list.push(display);
+  guestsByRoom.set(g.inventory_unit_id, list);
+}
+
+const roomBreakdown = roomsWithMode
+  .filter((r) =>
+    adminTierId == null ||
+    (r.solo_tier_id !== adminTierId && r.shared_tier_id !== adminTierId),
+  )
+  .map((r) => {
+    const { code, where } = parseRoomLabel(r.name);
+    const t = roomType(r);
+    const s = roomState(r);
+    const isBookable = r.status !== 'inactive';
+    // Locked = solo booking on a multi-bed room; the remaining beds are
+    // blocked by that private booking and not sellable, so show 0 here
+    // (matches the placesAvailable footer in the capacity table).
+    const locked = s.state === 'locked';
+    const available = !isBookable || locked
+      ? 0
+      : Math.max(0, r.capacity - r.beds_sold);
+    return {
+      id: r.id,
+      code,
+      where,
+      notes: r.notes,
+      type: t.type,
+      typeLabel: t.label,
+      capacity: r.capacity,
+      booked: r.beds_sold,
+      available,
+      state: s.state,
+      stateLabel: s.label,
+      showCounts: r.status !== 'inactive',
+      guests: guestsByRoom.get(r.id) ?? [],
+    };
+  });
+
+const roomTotals = roomBreakdown.reduce(
+  (acc, r) => {
+    if (!r.showCounts) return acc;
+    acc.booked += r.booked;
+    acc.capacity += r.capacity;
+    acc.available += r.available;
+    return acc;
+  },
+  { booked: 0, capacity: 0, available: 0 },
+);
 ---
 
 <Layout title={`Admin — ${product.name}`} description="">
@@ -366,6 +422,7 @@ const roomBreakdown = roomsWithMode.map((r) => {
             <th class="num">Capacity</th>
             <th class="num">Available</th>
             <th>Status</th>
+            <th>Guests</th>
           </tr>
         </thead>
         <tbody>
@@ -378,11 +435,23 @@ const roomBreakdown = roomsWithMode.map((r) => {
               <td class="num">{r.showCounts ? r.capacity : '—'}</td>
               <td class="num">{r.showCounts ? r.available : '—'}</td>
               <td><span class={`adm-pill adm-pill--${stateTone[r.state]}`}>{r.stateLabel}</span></td>
+              <td class="adm-room-guests">
+                {r.guests.length === 0 ? '—' : r.guests.join(', ')}
+              </td>
             </tr>
           ))}
         </tbody>
+        <tfoot>
+          <tr class="adm-row--total">
+            <th scope="row" colspan="3">Total (active rooms)</th>
+            <td class="num">{roomTotals.booked}</td>
+            <td class="num">{roomTotals.capacity}</td>
+            <td class="num"><span class={`adm-pill adm-pill--${capacityTone(roomTotals.available)}`}>{roomTotals.available}</span></td>
+            <td colspan="2"></td>
+          </tr>
+        </tfoot>
       </table>
-      <p class="adm-table-note"><strong>Type</strong>: <em>Private</em> — sold as one unit. <em>Shared</em> — sold bed by bed. <em>Multi</em> — can be sold either way; one private booking locks the rest of the beds. <strong>Booked</strong> counts active paid + pending registrations (incl. pre-allocated hosts/cook).</p>
+      <p class="adm-table-note"><strong>Type</strong>: <em>Private</em> — sold as one unit. <em>Shared</em> — sold bed by bed. <em>Multi</em> — can be sold either way; one private booking locks the rest of the beds. <strong>Booked</strong> counts active paid + pending registrations (incl. pre-allocated hosts/cook). <strong>Available</strong> is 0 for inactive rooms and for the empty beds in a solo-locked multi room (a private booking blocks them); for a role-reserved bed it reflects whether the fire-keeper / cook-help seat is still open. The totals row sums beds across active rooms; the admin-test bed is hidden.</p>
     </section>
 
     <!-- ─── Registrations ─── -->
