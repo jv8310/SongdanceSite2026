@@ -6,8 +6,9 @@ export const prerender = false;
 const cfEnv = (Astro.locals as any).runtime?.env ?? {};
 const anthropic = Boolean(cfEnv.ANTHROPIC_API_KEY ?? import.meta.env.ANTHROPIC_API_KEY);
 const drip = Boolean(cfEnv.DRIP_API_TOKEN ?? import.meta.env.DRIP_API_TOKEN);
+const resend = Boolean(cfEnv.RESEND_API_KEY ?? import.meta.env.RESEND_API_KEY);
 const onCloudflare = Boolean((Astro.locals as any).runtime?.env);
-const allOk = anthropic && drip;
+const allOk = anthropic && drip && resend;
 ---
 
 <Layout
@@ -34,6 +35,11 @@ const allOk = anthropic && drip;
           <span class="sc-name">DRIP_API_TOKEN</span>
           <span class="sc-status">{drip ? 'present' : 'MISSING'}</span>
         </li>
+        <li class="sc-row" data-ok={resend ? 'true' : 'false'}>
+          <span class="sc-icon">{resend ? '✓' : '✗'}</span>
+          <span class="sc-name">RESEND_API_KEY</span>
+          <span class="sc-status">{resend ? 'present' : 'MISSING'}</span>
+        </li>
       </ul>
       <p class="sc-runtime">
         Runtime: {onCloudflare ? 'Cloudflare Worker' : 'local dev'}
@@ -51,7 +57,7 @@ const allOk = anthropic && drip;
           <li>Scroll to <strong>Variables and Secrets</strong>.</li>
           <li>Click <strong>+ Add</strong>.</li>
           <li>Type → choose <strong>Secret</strong> (not "Text").</li>
-          <li>Variable name → exactly <code>ANTHROPIC_API_KEY</code> or <code>DRIP_API_TOKEN</code> (case-sensitive, no spaces).</li>
+          <li>Variable name → exactly <code>ANTHROPIC_API_KEY</code>, <code>DRIP_API_TOKEN</code>, or <code>RESEND_API_KEY</code> (case-sensitive, no spaces).</li>
           <li>Value → paste the key.</li>
           <li>Click <strong>Save and deploy</strong>.</li>
           <li>Refresh this page (Cmd/Ctrl + R). The row should turn green.</li>

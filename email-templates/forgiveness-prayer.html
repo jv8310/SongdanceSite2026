@@ -1,25 +1,18 @@
 <!--
   ============================================================
-  Forgiveness Prayer — Drip transactional email template
+  Forgiveness Prayer — Resend transactional email template
 
-  Paste this HTML into the email step of the Drip workflow
-  that fires on the `m26_Forgiveness` tag.
+  Rendered by `src/pages/api/forgiveness-deliver.ts`, which
+  imports this file as a raw string, substitutes the
+  placeholders below, and sends it through the Resend API.
 
-  In Drip:
-    Workflow → Email step
-      → Edit Email → toggle "This email is transactional" ON
-      → Paste this HTML into the "HTML" tab
+  Placeholders:
+    {{PRAYER_HTML}}   the composed prayer, HTML-escaped, with
+                      newlines converted to <br/>. Already safe
+                      to inline.
 
-  Liquid fields used:
-    {{ subscriber.first_name | default: "friend" }}
-    {{ subscriber.custom_fields.forgiveness_mantra | newline_to_br }}
-    {{ subscriber.custom_fields.forgiveness_self_word }}
-
-  Subject line suggestion:
+  Subject (set in the endpoint, not here):
     Your forgiveness prayer
-
-  Preheader suggestion:
-    A few lines, shaped for what you brought.
   ============================================================
 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
@@ -118,7 +111,7 @@
             <!-- The prayer itself -->
             <tr>
               <td align="center" class="px-outer" style="padding: 12px 56px 40px;">
-                <p class="prayer" style="margin:0; font-family: Georgia, 'Times New Roman', serif; font-style:italic; font-size:20px; line-height:1.75; color:#2A1B2A; letter-spacing:0.005em; white-space: pre-line;">{{ subscriber.custom_fields.forgiveness_mantra | newline_to_br }}</p>
+                <p class="prayer" style="margin:0; font-family: Georgia, 'Times New Roman', serif; font-style:italic; font-size:20px; line-height:1.75; color:#2A1B2A; letter-spacing:0.005em; white-space: pre-line;">{{PRAYER_HTML}}</p>
               </td>
             </tr>
 
@@ -164,7 +157,7 @@
             <tr>
               <td align="center" style="padding: 0 24px 24px;">
                 <p style="margin:0; font-family: Georgia, 'Times New Roman', serif; font-size:11px; line-height:1.6; color:#B6A8B4;">
-                  You asked for a prayer; we sent one. {% unsubscribe %}
+                  You asked for a prayer; we sent one. No list, no follow-ups.
                 </p>
               </td>
             </tr>
