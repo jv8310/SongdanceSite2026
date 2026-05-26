@@ -63,12 +63,31 @@ type Body = {
   consent_terms?: boolean;
   payment_plan?: string;
   currency?: string;
+  discount_percent?: number | string;
 };
 
 function offerFor(productSlug: CourseProductSlug, currency: Currency): Offer {
   return productSlug === 'cc-bundle'
     ? getBundleOffer(currency)
     : getCertOffer(currency);
+}
+
+// URL-driven discount. Whitelist to a fixed set so a buyer can't smuggle in
+// `?discount=99` to get the course for free.
+function parseDiscountPercent(raw: unknown): 0 | 10 | 20 | 30 {
+  const n =
+    typeof raw === 'number'
+      ? raw
+      : typeof raw === 'string'
+        ? parseInt(raw, 10)
+        : NaN;
+  if (n === 10 || n === 20 || n === 30) return n;
+  return 0;
+}
+
+function applyDiscount(cents: number, pct: 0 | 10 | 20 | 30): number {
+  if (pct === 0) return cents;
+  return Math.round((cents * (100 - pct)) / 100);
 }
 
 export const POST: APIRoute = async ({ request, locals }) => {
@@ -103,6 +122,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         : payload.currency === 'GBP'
           ? 'GBP'
           : 'EUR';
+    const discountPct = parseDiscountPercent(payload.discount_percent);
 
     if (productSlug !== 'cc-cert' && productSlug !== 'cc-bundle') {
       return json({ error: 'Unknown product.' }, 400);
@@ -167,10 +187,16 @@ export const POST: APIRoute = async ({ request, locals }) => {
         400,
       );
     }
+    // Apply URL-driven discount to the unit price charged to the buyer.
+    // For 3x, every monthly installment is discounted (not just the first).
+    const chargedPriceCents = applyDiscount(offer.price_cents, discountPct);
+    const chargedMonthlyCents = offer.installments
+      ? applyDiscount(offer.installments.monthly_cents, discountPct)
+      : 0;
     const totalAmountCents =
       paymentPlan === '3x' && offer.installments
-        ? offer.installments.total_cents
-        : offer.price_cents;
+        ? chargedMonthlyCents * offer.installments.count
+        : chargedPriceCents;
     const installmentsTotal =
       paymentPlan === '3x' && offer.installments
         ? offer.installments.count
@@ -282,7 +308,25 @@ export const POST: APIRoute = async ({ request, locals }) => {
       tax_class: 'eservice',
       ...(companyName ? { company_name: companyName } : {}),
       ...(vatNumber ? { vat_number: vatNumber } : {}),
+      ...(discountPct > 0
+        ? {
+            discount_percent: String(discountPct),
+            original_amount_cents: String(
+              paymentPlan === '3x' && offer.installments
+                ? offer.installments.total_cents
+                : offer.price_cents,
+            ),
+          }
+        : {}),
     };
+
+    // Preserve the discount on the cancel URL so the buyer's price doesn't
+    // silently jump back to full if they bail out and try again.
+    const cancelQuery = discountPct > 0 ? `?discount=${discountPct}` : '';
+    const successQuery =
+      discountPct > 0
+        ? `?paid={CHECKOUT_SESSION_ID}&discount=${discountPct}`
+        : `?paid={CHECKOUT_SESSION_ID}`;
 
     // tax_class metadata is attached to the underlying Stripe Product so
     // Quaderno's sync picks it up on every Invoice generated from this
@@ -296,17 +340,17 @@ export const POST: APIRoute = async ({ request, locals }) => {
       const session = await createSubscriptionCheckoutSession({
         secretKey: env.STRIPE_SECRET_KEY,
         customer: customerId,
-        success_url: `${baseUrl}/certification-course?paid={CHECKOUT_SESSION_ID}#register`,
-        cancel_url: `${baseUrl}/certification-course#register`,
+        success_url: `${baseUrl}/certification-course${successQuery}#register`,
+        cancel_url: `${baseUrl}/certification-course${cancelQuery}#register`,
         product_name: offer.label,
-        product_description: `${offer.installments.count} monthly installments of ${money(offer.installments.monthly, currency)}`,
+        product_description: `${offer.installments.count} monthly installments of ${moneyCents(chargedMonthlyCents, currency)}`,
         payment_intent_description: offer.label,
         product_metadata: productMetadata,
-        monthly_amount_cents: offer.installments.monthly_cents,
+        monthly_amount_cents: chargedMonthlyCents,
         currency: currency.toLowerCase(),
         installment_count: offer.installments.count,
         metadata,
-        idempotency_key: `course-reg-${registrationId}-3x`,
+        idempotency_key: `course-reg-${registrationId}-3x${discountPct > 0 ? `-d${discountPct}` : ''}`,
       });
 
       await attachStripeSessionToCourse(env.DB, registrationId, session.id);
@@ -329,12 +373,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
           subscription_id: session.subscription,
           product_slug: productSlug,
           currency,
-          monthly_amount_cents: offer.installments.monthly_cents,
+          monthly_amount_cents: chargedMonthlyCents,
           installments_total: offer.installments.count,
           activate_choice: activateChoice,
           source_variant: sourceVariant,
           company_name: companyName,
           vat_number: vatNumber,
+          discount_percent: discountPct,
+          original_monthly_amount_cents: offer.installments.monthly_cents,
         },
       });
 
@@ -350,8 +396,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
       ...(customerId
         ? { customer: customerId }
         : { customer_email: email }),
-      success_url: `${baseUrl}/certification-course?paid={CHECKOUT_SESSION_ID}#register`,
-      cancel_url: `${baseUrl}/certification-course#register`,
+      success_url: `${baseUrl}/certification-course${successQuery}#register`,
+      cancel_url: `${baseUrl}/certification-course${cancelQuery}#register`,
       payment_intent_description: offer.label,
       line_items: [
         {
@@ -359,14 +405,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
           description: companyName
             ? `${offer.label} · Billed to ${companyName}`
             : undefined,
-          amount_cents: offer.price_cents,
+          amount_cents: chargedPriceCents,
           currency: currency.toLowerCase(),
           quantity: 1,
           product_metadata: productMetadata,
         },
       ],
       metadata,
-      idempotency_key: `course-reg-${registrationId}`,
+      idempotency_key: `course-reg-${registrationId}${discountPct > 0 ? `-d${discountPct}` : ''}`,
     });
 
     await attachStripeSessionToCourse(env.DB, registrationId, session.id);
@@ -381,11 +427,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
         session_id: session.id,
         product_slug: productSlug,
         currency,
-        amount_cents: offer.price_cents,
+        amount_cents: chargedPriceCents,
         activate_choice: activateChoice,
         source_variant: sourceVariant,
         company_name: companyName,
         vat_number: vatNumber,
+        discount_percent: discountPct,
+        original_amount_cents: offer.price_cents,
       },
     });
 
@@ -418,9 +466,14 @@ function isVariant(v: unknown): v is Variant {
   return v === 'B1' || v === 'B2' || v === 'A' || v === 'D' || v === 'E' || v === 'C';
 }
 
-function money(amount: number, currency: Currency): string {
+function moneyCents(cents: number, currency: Currency): string {
   const symbol =
     currency === 'USD' ? '$' : currency === 'GBP' ? '£' : '€';
+  const whole = cents % 100 === 0;
+  const amount = (cents / 100).toLocaleString('en-US', {
+    minimumFractionDigits: whole ? 0 : 2,
+    maximumFractionDigits: whole ? 0 : 2,
+  });
   return `${symbol}${amount}`;
 }
 

@@ -742,10 +742,24 @@ html, body { background: var(--paper); }
   text-decoration-color: rgba(244,236,223,0.55);
   text-decoration-thickness: 1px;
 }
+.cc-offer-strike {
+  text-decoration: line-through;
+  text-decoration-color: rgba(244,236,223,0.55);
+  text-decoration-thickness: 1px;
+  color: rgba(244,236,223,0.55);
+}
 .cc-offer-row--your .cc-offer-row-value {
   color: var(--paper);
   font-size: 30px;
   font-weight: 500;
+}
+.cc-amount-strike {
+  text-decoration: line-through;
+  text-decoration-color: rgba(244,236,223,0.5);
+  text-decoration-thickness: 1px;
+  color: rgba(244,236,223,0.5);
+  margin-right: 4px;
+  font-weight: 400;
 }
 .cc-offer-save {
   font-family: var(--font-body); font-size: 13px;
