@@ -190,31 +190,36 @@ function PrayerCard({ prayer, onSubmitEmail, onReplay, submitted, sending }) {
   };
 
   const stanzas = splitStanzas(prayer);
-  // Show the first four stanzas. The CSS mask fades phrase 2 → phrase 4 so
-  // only the opening is fully legible; the rest tease that there is more.
-  const previewStanzas = stanzas.slice(0, 4);
+  // Show three stanzas; the CSS mask is almost complete by the third so
+  // only the opening reads cleanly and the rest is a whisper.
+  const previewStanzas = stanzas.slice(0, 3);
   const previewText = previewStanzas.join('\n\n');
 
   return (
     <div className="tlw-step tlw-step-fade-enter" style={{ minHeight: 0 }}>
-      <div className="tlw-practice" data-revealed={submitted ? 'true' : 'false'}>
-        <div className="tlw-practice-mark">
-          <img src="/brand/symbol-orange.png" alt="" />
-        </div>
-        <h3>{submitted ? 'A forgiveness prayer for you.' : 'The first lines of your prayer.'}</h3>
-
-        {submitted ? (
-          <p className="tlw-prayer-body">{prayer}</p>
-        ) : (
+      {!submitted ? (
+        <div className="tlw-practice" data-revealed="false">
+          <div className="tlw-practice-mark">
+            <img src="/brand/symbol-orange.png" alt="" />
+          </div>
+          <h3>The first lines of your prayer.</h3>
           <div className="tlw-prayer-preview">
             <p className="tlw-prayer-body tlw-prayer-body-preview">{previewText}</p>
           </div>
-        )}
-      </div>
+        </div>
+      ) : null}
 
       {submitted ? (
         <>
-          <p className="tlw-confirmation">Sent. Check your inbox in a few minutes.</p>
+          <div className="tlw-sent">
+            <div className="tlw-practice-mark tlw-sent-mark">
+              <img src="/brand/symbol-orange.png" alt="" />
+            </div>
+            <h3 className="tlw-sent-title">Check your email to find the prayer.</h3>
+            <p className="tlw-sent-note">
+              Make sure to look into your promotions folder as well as your spam or notifications folder.
+            </p>
+          </div>
 
           <aside className="tlw-course-card" aria-labelledby="tlw-course-title">
             <div className="tlw-course-eyebrow">If this opened something</div>
@@ -391,6 +396,28 @@ export default function ThreeLayersWalk() {
     }
   }, [answers.q5, step, generate]);
 
+  // When the step changes, gently scroll back to the top of the section
+  // so the orb is in view. Critical for 'generating' — if the visitor
+  // scrolled down through Q5, they'd otherwise miss the "shaping" beat.
+  const sectionRef = React.useRef(null);
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const reduceMotion =
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const behavior = reduceMotion ? 'auto' : 'smooth';
+    const node = sectionRef.current;
+    if (node) {
+      const rect = node.getBoundingClientRect();
+      // Only scroll if we're not already showing the top of the section.
+      if (rect.top < -8 || rect.top > 8) {
+        window.scrollTo({ top: window.scrollY + rect.top, behavior });
+      }
+    } else {
+      window.scrollTo({ top: 0, behavior });
+    }
+  }, [step]);
+
   const submitEmail = async (email, hp) => {
     setSending(true);
     try {
@@ -404,11 +431,17 @@ export default function ThreeLayersWalk() {
           prayer: prayer?.prayer || '',
           hp: hp || '',
         }),
-        signal: AbortSignal.timeout(10000),
+        signal: AbortSignal.timeout(16000),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.ok) {
-        throw new Error("Couldn't send it just now. Try once more.");
+        console.warn('[forgiveness-deliver] failed', { status: res.status, data });
+        const detail = data && (data.detail || data.error);
+        throw new Error(
+          detail
+            ? `Couldn't send it just now (${detail}). Try once more, or email jacob@songdance.co.`
+            : "Couldn't send it just now. Try once more, or email jacob@songdance.co.",
+        );
       }
       setSubmitted(true);
     } finally {
@@ -505,7 +538,7 @@ export default function ThreeLayersWalk() {
   }
 
   return (
-    <section className="tlw-section">
+    <section className="tlw-section" ref={sectionRef}>
       <section className="tlw-practice-section" data-step={step}>
         <div className="tlw-inner">
           <Orb shimmer={step === 'generating'} rippleKey={rippleKey} />
