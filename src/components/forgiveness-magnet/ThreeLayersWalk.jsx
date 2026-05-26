@@ -87,10 +87,7 @@ function Intro({ onBegin }) {
     <div className="tlw-step tlw-step-fade-enter tlw-intro">
       <h1 className="tlw-intro-title">A Personalized Forgiveness Prayer</h1>
       <p className="tlw-intro-body">
-        Forgiveness isn't a single act — it's a process. Something acknowledged. Something released. Something honored. Something returned to.
-      </p>
-      <p className="tlw-intro-body">
-        The questions below help shape a prayer that meets you where you actually are. Take your time. There are no wrong answers, and what you write stays private — it only shapes the prayer you receive.
+        Forgiveness isn't a single act — it's a process. Acknowledged. Released. Honored. Returned to. A few questions shape a prayer that meets you where you actually are.
       </p>
       <div className="tlw-btn-row">
         <button className="tlw-btn tlw-btn-primary tlw-btn-large" onClick={onBegin}>
@@ -165,7 +162,16 @@ function Generating() {
   );
 }
 
-function PrayerCard({ prayer, aiStatus, onSubmitEmail, onReplay, submitted, sending }) {
+// Split the prayer into stanzas (blank-line separated) so we can show
+// a preview (first 1-2 stanzas) and gate the rest behind the email form.
+function splitStanzas(text) {
+  return (text || '')
+    .split(/\n\s*\n/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function PrayerCard({ prayer, onSubmitEmail, onReplay, submitted, sending }) {
   const [email, setEmail] = React.useState('');
   const [hp, setHp] = React.useState('');
   const [error, setError] = React.useState('');
@@ -183,27 +189,27 @@ function PrayerCard({ prayer, aiStatus, onSubmitEmail, onReplay, submitted, send
     });
   };
 
-  const statusLabel = (() => {
-    if (!aiStatus) return null;
-    if (aiStatus.ok) return 'AI prayer — generated';
-    return `library fallback (reason: ${aiStatus.reason || 'unknown'})`;
-  })();
+  const stanzas = splitStanzas(prayer);
+  const previewStanzas = stanzas.slice(0, 2);
+  const previewText = previewStanzas.join('\n\n');
 
   return (
     <div className="tlw-step tlw-step-fade-enter" style={{ minHeight: 0 }}>
-      <div className="tlw-practice">
+      <div className="tlw-practice" data-revealed={submitted ? 'true' : 'false'}>
         <div className="tlw-practice-mark">
           <img src="/brand/symbol-orange.png" alt="" />
         </div>
-        <h3>A forgiveness prayer for you.</h3>
-        <p className="tlw-prayer-body">{prayer}</p>
-      </div>
+        <h3>{submitted ? 'A forgiveness prayer for you.' : 'The first lines of your prayer.'}</h3>
 
-      {statusLabel ? (
-        <p className="tlw-debug-status" data-ok={aiStatus.ok ? 'true' : 'false'}>
-          {statusLabel}
-        </p>
-      ) : null}
+        {submitted ? (
+          <p className="tlw-prayer-body">{prayer}</p>
+        ) : (
+          <div className="tlw-prayer-preview">
+            <p className="tlw-prayer-body tlw-prayer-body-preview">{previewText}</p>
+            <div className="tlw-prayer-fade" aria-hidden="true" />
+          </div>
+        )}
+      </div>
 
       {submitted ? (
         <>
@@ -219,7 +225,7 @@ function PrayerCard({ prayer, aiStatus, onSubmitEmail, onReplay, submitted, send
       ) : (
         <form className="tlw-email-block" onSubmit={submit}>
           <p className="tlw-email-intro">
-            We'll send your prayer to your inbox — to return to, whenever you need it.
+            Enter your email to receive your full Prayer.
           </p>
           <div className="tlw-email-form">
             <input
@@ -229,9 +235,13 @@ function PrayerCard({ prayer, aiStatus, onSubmitEmail, onReplay, submitted, send
               placeholder="email address"
               required
               disabled={sending}
+              autoFocus
             />
-            <button type="submit" disabled={sending}>{sending ? 'Sending…' : 'Send it to me'}</button>
+            <button type="submit" disabled={sending}>{sending ? 'Sending…' : 'Send my prayer'}</button>
           </div>
+          <p className="tlw-email-fineprint">
+            We'll send it once. No list, no follow-ups unless you ask.
+          </p>
           <input
             type="text"
             name="company"
@@ -276,18 +286,22 @@ export default function ThreeLayersWalk() {
   const [step, setStep] = React.useState('intro');
   const [answers, setAnswers] = React.useState({ q1: '', q2: null, q3: null, q4: null, q5: null });
   const [prayer, setPrayer] = React.useState(null);
-  const [aiStatus, setAiStatus] = React.useState(null);
   const [sending, setSending] = React.useState(false);
   const [submitted, setSubmitted] = React.useState(false);
   const [rippleKey, setRippleKey] = React.useState(0);
 
+  // Single-shot guard: prevents StrictMode (and any other re-entrant effect
+  // firings) from kicking off a second prayer generation and briefly flashing
+  // the fallback prayer before the real one settles.
+  const generationStartedRef = React.useRef(false);
+
   const triggerRipple = React.useCallback(() => setRippleKey((k) => k + 1), []);
 
   const replay = () => {
+    generationStartedRef.current = false;
     setStep('intro');
     setAnswers({ q1: '', q2: null, q3: null, q4: null, q5: null });
     setPrayer(null);
-    setAiStatus(null);
     setSubmitted(false);
     setSending(false);
   };
@@ -300,10 +314,13 @@ export default function ThreeLayersWalk() {
   };
 
   const generate = React.useCallback(async () => {
+    if (generationStartedRef.current) return;
+    generationStartedRef.current = true;
     setStep('generating');
+    const startedAt = Date.now();
     const center = detectCenter(answers.q2, answers.q3);
     let aiPrayer = null;
-    let status = { ok: false, reason: 'fetch-error' };
+    let reason = 'fetch-error';
     try {
       const res = await fetch('/api/forgiveness-prayer', {
         method: 'POST',
@@ -321,33 +338,33 @@ export default function ThreeLayersWalk() {
       const data = await res.json().catch(() => ({}));
       if (res.ok && !data.fallback && typeof data.prayer === 'string' && data.prayer.trim()) {
         aiPrayer = data.prayer.trim();
-        status = { ok: true };
+        reason = 'ok';
       } else if (data && data.fallback) {
-        status = { ok: false, reason: data.reason || 'unknown' };
+        reason = data.reason || 'unknown';
       } else {
-        status = { ok: false, reason: 'http-' + res.status };
+        reason = 'http-' + res.status;
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      status = { ok: false, reason: msg.includes('abort') || msg.includes('timeout') ? 'client-timeout' : 'client-error' };
+      reason = msg.includes('abort') || msg.includes('timeout') ? 'client-timeout' : 'client-error';
       console.warn('Prayer fallback:', err);
     }
     const finalPrayer = aiPrayer
       ? { prayer: aiPrayer, center, source: 'ai' }
       : { ...composePrayer(answers), source: 'library' };
-    console.info('[forgiveness-prayer]', {
-      source: finalPrayer.source,
-      reason: status.reason,
-      center,
-      q5: answers.q5,
-    });
-    setAiStatus(status);
+    // Hold the "being shaped" beat for at least 1.6s so the prayer doesn't
+    // pop in jarringly when the API returns fast.
+    const elapsed = Date.now() - startedAt;
+    if (elapsed < 1600) {
+      await new Promise((r) => setTimeout(r, 1600 - elapsed));
+    }
+    console.info('[forgiveness-prayer]', { source: finalPrayer.source, reason, center, q5: answers.q5 });
     setPrayer(finalPrayer);
     setStep('prayer');
   }, [answers]);
 
   React.useEffect(() => {
-    if (step === 'q5' && answers.q5) {
+    if (step === 'q5' && answers.q5 && !generationStartedRef.current) {
       generate();
     }
   }, [answers.q5, step, generate]);
@@ -449,7 +466,6 @@ export default function ThreeLayersWalk() {
       <PrayerCard
         key="p"
         prayer={prayer?.prayer || ''}
-        aiStatus={aiStatus}
         onSubmitEmail={submitEmail}
         onReplay={replay}
         submitted={submitted}
@@ -461,7 +477,7 @@ export default function ThreeLayersWalk() {
 
   return (
     <section className="tlw-section">
-      <section className="tlw-practice-section">
+      <section className="tlw-practice-section" data-step={step}>
         <div className="tlw-inner">
           <Orb shimmer={step === 'generating'} rippleKey={rippleKey} />
           {body}
