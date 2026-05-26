@@ -237,6 +237,26 @@ const countries = COUNTRIES;
 
   const STORAGE_KEY = 'cc:decision';
 
+  // URL-driven discount. `?discount=N` (any integer 1–99) strikes through
+  // the displayed price and tells the server to charge a discounted amount
+  // — both for the one-time payment and every installment of the 3x plan.
+  // Anything outside 1–99 is silently ignored. The server re-validates
+  // against the same range.
+  function readDiscountFromUrl(): number {
+    try {
+      const raw = new URLSearchParams(window.location.search).get('discount');
+      const n = raw ? parseInt(raw, 10) : 0;
+      if (Number.isInteger(n) && n >= 1 && n <= 99) return n;
+    } catch {}
+    return 0;
+  }
+  const discountPct: number = readDiscountFromUrl();
+
+  function applyDiscountCents(cents: number): number {
+    if (discountPct <= 0) return cents;
+    return Math.round((cents * (100 - discountPct)) / 100);
+  }
+
   function symbolFor(c: Currency): string {
     if (c === 'USD') return '$';
     if (c === 'GBP') return '£';
@@ -244,6 +264,16 @@ const countries = COUNTRIES;
   }
   function money(amount: number, c: Currency): string {
     return `${symbolFor(c)}${amount.toLocaleString('en-US')}`;
+  }
+  // Cents-aware formatter. Discounted amounts often aren't whole units
+  // (e.g. €349 × 0.9 = €314.10), so we show decimals only when needed.
+  function moneyCents(cents: number, c: Currency): string {
+    const whole = cents % 100 === 0;
+    const amount = (cents / 100).toLocaleString('en-US', {
+      minimumFractionDigits: whole ? 0 : 2,
+      maximumFractionDigits: whole ? 0 : 2,
+    });
+    return `${symbolFor(c)}${amount}`;
   }
 
   const greetingFor = (name?: string, fallback = 'Hi there') =>
@@ -670,17 +700,26 @@ const countries = COUNTRIES;
       planPicker.style.display = '';
 
       const cur = decision.currency!;
+      const fullDiscCents = applyDiscountCents(offer.price_cents);
+      const monthlyDiscCents = applyDiscountCents(offer.installments.monthly_cents);
+      const totalDiscCents = monthlyDiscCents * offer.installments.count;
       const full = renderPlanOption({
         value: 'full',
         title: 'Pay in full',
         subtitle: `One payment, full access today.`,
-        amountLabel: money(offer.price, cur),
+        amountHtml: amountWithStrike(money(offer.price, cur), moneyCents(fullDiscCents, cur)),
       });
       const inst = renderPlanOption({
         value: '3x',
         title: `Pay in ${offer.installments.count} monthly installments`,
-        subtitle: `${money(offer.installments.monthly, cur)}/mo for ${offer.installments.count} months (${money(offer.installments.total, cur)} total). Full access from the first payment.`,
-        amountLabel: `${money(offer.installments.monthly, cur)}/mo`,
+        subtitle:
+          discountPct > 0
+            ? `${moneyCents(monthlyDiscCents, cur)}/mo for ${offer.installments.count} months (${moneyCents(totalDiscCents, cur)} total, ${discountPct}% off). Full access from the first payment.`
+            : `${money(offer.installments.monthly, cur)}/mo for ${offer.installments.count} months (${money(offer.installments.total, cur)} total). Full access from the first payment.`,
+        amountHtml: amountWithStrike(
+          `${money(offer.installments.monthly, cur)}/mo`,
+          `${moneyCents(monthlyDiscCents, cur)}/mo`,
+        ),
       });
 
       [full, inst].forEach((el) => {
@@ -714,11 +753,19 @@ const countries = COUNTRIES;
       if (!offer) return;
       const cur = decision.currency!;
       if (selectedPlan === '3x' && offer.installments) {
-        summaryLabel.textContent = `${offer.label} — ${offer.installments.count} monthly payments`;
-        summaryAmount.textContent = `${money(offer.installments.monthly, cur)}/mo`;
+        const monthly = `${money(offer.installments.monthly, cur)}/mo`;
+        const monthlyDisc = `${moneyCents(applyDiscountCents(offer.installments.monthly_cents), cur)}/mo`;
+        summaryLabel.textContent = `${offer.label} — ${offer.installments.count} monthly payments${
+          discountPct > 0 ? ` (${discountPct}% off)` : ''
+        }`;
+        summaryAmount.innerHTML = amountWithStrike(monthly, monthlyDisc);
       } else {
-        summaryLabel.textContent = `${offer.label} — one-time payment`;
-        summaryAmount.textContent = money(offer.price, cur);
+        const full = money(offer.price, cur);
+        const fullDisc = moneyCents(applyDiscountCents(offer.price_cents), cur);
+        summaryLabel.textContent = `${offer.label} — one-time payment${
+          discountPct > 0 ? ` (${discountPct}% off)` : ''
+        }`;
+        summaryAmount.innerHTML = amountWithStrike(full, fullDisc);
       }
     }
 
@@ -752,6 +799,24 @@ const countries = COUNTRIES;
     const radioMark = selectable
       ? `<span class="cc-offer-radio" aria-hidden="true"></span>`
       : '';
+
+    // With a discount, the "Your price" row stops being the prominent one —
+    // it gets struck through, and a new "After N% off" row takes the spotlight.
+    const yourRowClass = discountPct > 0 ? 'cc-offer-row' : 'cc-offer-row cc-offer-row--your';
+    const yourValueClass =
+      discountPct > 0 ? 'cc-offer-row-value cc-offer-strike' : 'cc-offer-row-value cc-offer-your';
+    const discountedRow =
+      discountPct > 0
+        ? `
+          <div class="cc-offer-row cc-offer-row--your">
+            <span class="cc-offer-row-label">After ${discountPct}% off</span>
+            <span class="cc-offer-row-value cc-offer-your">${moneyCents(
+              applyDiscountCents(offer.price_cents),
+              offer.currency,
+            )}</span>
+          </div>`
+        : '';
+
     card.innerHTML = `
       ${radioMark}
       <div class="cc-offer-body">
@@ -761,10 +826,11 @@ const countries = COUNTRIES;
             <span class="cc-offer-row-label">Base price</span>
             <span class="cc-offer-row-value cc-offer-base">${money(offer.base_price, offer.currency)}</span>
           </div>
-          <div class="cc-offer-row cc-offer-row--your">
+          <div class="${yourRowClass}">
             <span class="cc-offer-row-label">Your price</span>
-            <span class="cc-offer-row-value cc-offer-your">${money(offer.price, offer.currency)}</span>
+            <span class="${yourValueClass}">${money(offer.price, offer.currency)}</span>
           </div>
+          ${discountedRow}
         </div>
         <p class="cc-offer-save">${escapeHtml(offer.save_note)}</p>
       </div>
@@ -776,7 +842,7 @@ const countries = COUNTRIES;
     value: PaymentPlan;
     title: string;
     subtitle: string;
-    amountLabel: string;
+    amountHtml: string;
   }): HTMLElement {
     const el = document.createElement('button');
     el.type = 'button';
@@ -788,9 +854,16 @@ const countries = COUNTRIES;
         <span class="cc-plan-title">${escapeHtml(opts.title)}</span>
         <span class="cc-plan-sub">${escapeHtml(opts.subtitle)}</span>
       </span>
-      <span class="cc-plan-amount">${escapeHtml(opts.amountLabel)}</span>
+      <span class="cc-plan-amount">${opts.amountHtml}</span>
     `;
     return el;
+  }
+
+  // When a discount is active, render the original amount struck through
+  // alongside the discounted amount. Otherwise just render the amount.
+  function amountWithStrike(original: string, discounted: string): string {
+    if (discountPct === 0) return escapeHtml(original);
+    return `<span class="cc-amount-strike">${escapeHtml(original)}</span> ${escapeHtml(discounted)}`;
   }
 
   function escapeHtml(s: string): string {
@@ -876,6 +949,7 @@ const countries = COUNTRIES;
           activate_choice,
           source_variant: decision.variant,
           consent_terms: true,
+          ...(discountPct > 0 ? { discount_percent: discountPct } : {}),
         }),
       });
       // Always try to parse JSON — the server returns JSON on errors too.
