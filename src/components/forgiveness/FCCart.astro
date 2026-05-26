@@ -1,0 +1,85 @@
+---
+---
+
+<div
+  class="fc-cart-modal"
+  id="fc-cart-modal"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="fc-cart-title"
+  hidden
+>
+  <div class="fc-cart-backdrop" data-cart-close></div>
+  <div class="fc-cart-dialog">
+    <button class="fc-cart-close" data-cart-close aria-label="Close checkout">
+      <i class="ph-light ph-x"></i>
+    </button>
+    <h2 id="fc-cart-title" class="fc-cart-title">Reserve your place</h2>
+    <div class="fc-cart-embed" id="fc-cart-embed"></div>
+  </div>
+</div>
+
+<script>
+  const TC_PRODUCT = '68';
+  const TC_ACCOUNT = 'inspiredliving';
+  const TC_EMBED_ID = 'tc-inspiredliving-68-7IKPXI';
+  const TC_SCRIPT_SRC = '//tinder.thrivecart.com/embed/v2/thrivecart.js';
+
+  const modal = document.getElementById('fc-cart-modal');
+  const embed = document.getElementById('fc-cart-embed');
+  let initialized = false;
+
+  const ensureEmbed = () => {
+    if (initialized || !embed) return;
+    initialized = true;
+    const target = document.createElement('div');
+    target.className = 'tc-v2-embeddable-target';
+    target.setAttribute('data-thrivecart-account', TC_ACCOUNT);
+    target.setAttribute('data-thrivecart-tpl', 'v2');
+    target.setAttribute('data-thrivecart-product', TC_PRODUCT);
+    target.setAttribute('data-thrivecart-embeddable', TC_EMBED_ID);
+    embed.appendChild(target);
+
+    const script = document.createElement('script');
+    script.async = true;
+    script.src = TC_SCRIPT_SRC;
+    script.id = TC_EMBED_ID;
+    document.body.appendChild(script);
+  };
+
+  const open = () => {
+    if (!modal) return;
+    ensureEmbed();
+    modal.hidden = false;
+    document.documentElement.classList.add('fc-cart-open');
+    requestAnimationFrame(() => modal.classList.add('is-open'));
+  };
+
+  const close = () => {
+    if (!modal) return;
+    modal.classList.remove('is-open');
+    document.documentElement.classList.remove('fc-cart-open');
+    setTimeout(() => { modal.hidden = true; }, 240);
+  };
+
+  document.addEventListener('click', (e) => {
+    const target = e.target as HTMLElement;
+    if (!target) return;
+    const trigger = target.closest<HTMLElement>(
+      'a[href="#register"], [data-fc-register]'
+    );
+    if (trigger) {
+      e.preventDefault();
+      open();
+      return;
+    }
+    if (target.closest('[data-cart-close]')) {
+      e.preventDefault();
+      close();
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && modal && !modal.hidden) close();
+  });
+</script>

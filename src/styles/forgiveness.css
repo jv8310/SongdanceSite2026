@@ -562,10 +562,27 @@ html, body { background: var(--paper); }
   .fc-foryou-inner { grid-template-columns: 1fr; gap: var(--sp-6); }
 }
 .fc-foryou-head {
-  position: sticky; top: 100px;
+  display: flex;
+  flex-direction: column;
 }
 .fc-foryou-head .fc-h2 {
   margin-top: var(--sp-4);
+}
+.fc-foryou-img {
+  margin: var(--sp-7) 0 0;
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-3);
+  aspect-ratio: 4 / 5;
+}
+.fc-foryou-img img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+  filter: var(--fc-img-filter);
+}
+@media (max-width: 880px) {
+  .fc-foryou-img { aspect-ratio: 16 / 10; margin-top: var(--sp-6); }
 }
 .fc-foryou-list {
   list-style: none; margin: 0; padding: 0;
@@ -1200,6 +1217,7 @@ html, body { background: var(--paper); }
 }
 
 /* ---------- Bypass carousel ---------- */
+.fc-bypass-carousel { display: flex; flex-direction: column; }
 .fc-bypass-img { aspect-ratio: 1 / 1; }
 .fc-bypass-track {
   position: absolute; inset: 0;
@@ -1241,19 +1259,19 @@ html, body { background: var(--paper); }
 .fc-carousel-prev { left: 12px; }
 .fc-carousel-next { right: 12px; }
 .fc-carousel-dots {
-  position: absolute;
-  bottom: 14px; left: 50%; transform: translateX(-50%);
-  display: flex; gap: 8px;
-  z-index: 2;
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: var(--sp-4);
 }
 .fc-carousel-dot {
   width: 8px; height: 8px;
   border-radius: 50%;
-  border: 1px solid rgba(244, 236, 223, 0.55);
-  background: rgba(244, 236, 223, 0.25);
+  border: 1px solid var(--line);
+  background: rgba(26, 16, 24, 0.18);
   padding: 0;
   cursor: pointer;
-  transition: background var(--d-base) var(--ease), transform var(--d-base) var(--ease);
+  transition: background var(--d-base) var(--ease), transform var(--d-base) var(--ease), border-color var(--d-base) var(--ease);
 }
 .fc-carousel-dot.is-active {
   background: var(--ember);
@@ -1495,4 +1513,74 @@ html, body { background: var(--paper); }
 .fc-footer-cohost strong {
   color: var(--ink);
   font-weight: 500;
+}
+
+/* ---------- ThriveCart modal ---------- */
+html.fc-cart-open, html.fc-cart-open body { overflow: hidden; }
+.fc-cart-modal {
+  position: fixed; inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-5);
+}
+.fc-cart-modal[hidden] { display: none; }
+.fc-cart-backdrop {
+  position: absolute; inset: 0;
+  background: rgba(26, 16, 24, 0.62);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  opacity: 0;
+  transition: opacity var(--d-base) var(--ease);
+}
+.fc-cart-dialog {
+  position: relative;
+  background: var(--paper);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-3);
+  width: min(960px, 100%);
+  max-height: calc(100vh - var(--sp-7));
+  overflow-y: auto;
+  padding: var(--sp-7) var(--sp-7) var(--sp-6);
+  transform: translateY(12px);
+  opacity: 0;
+  transition: opacity var(--d-base) var(--ease), transform var(--d-base) var(--ease);
+}
+.fc-cart-modal.is-open .fc-cart-backdrop { opacity: 1; }
+.fc-cart-modal.is-open .fc-cart-dialog { opacity: 1; transform: translateY(0); }
+.fc-cart-close {
+  position: absolute;
+  top: var(--sp-3); right: var(--sp-3);
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  display: grid; place-items: center;
+  cursor: pointer;
+  color: var(--ink);
+  transition: background var(--d-base) var(--ease), border-color var(--d-base) var(--ease);
+}
+.fc-cart-close:hover { background: var(--paper-soft); border-color: var(--ink-quiet); }
+.fc-cart-close i { font-size: 20px; }
+.fc-cart-title {
+  font-family: var(--font-display);
+  font-size: clamp(22px, 2.6vw, 28px);
+  line-height: 1.2;
+  color: var(--ink);
+  margin: 0 0 var(--sp-5);
+  padding-right: var(--sp-7);
+  letter-spacing: -0.01em;
+}
+.fc-cart-embed { min-height: 380px; }
+.fc-cart-embed .tc-v2-embeddable-target { width: 100%; }
+@media (max-width: 720px) {
+  .fc-cart-modal { padding: 0; }
+  .fc-cart-dialog {
+    border-radius: 0;
+    width: 100%;
+    max-height: 100vh;
+    height: 100vh;
+    padding: var(--sp-6) var(--sp-5) var(--sp-5);
+  }
 }
