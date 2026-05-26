@@ -2,6 +2,7 @@
 import '../../../styles/admin.css';
 import Layout from '../../../layouts/Layout.astro';
 import { readCookie, verifySession } from '../../../lib/registrations/auth';
+import { expireStaleCoursePendings } from '../../../lib/courses/db';
 
 export const prerender = false;
 
@@ -10,6 +11,8 @@ const authed = await verifySession(env.ADMIN_SESSION_SECRET, readCookie(Astro.re
 if (!authed) {
   return Astro.redirect('/admin/login');
 }
+
+await expireStaleCoursePendings(env.DB);
 
 // Hardcoded course catalog — single entry for now. Add more as they launch.
 // Each `slug` is the value stored in course_registrations.product_slug

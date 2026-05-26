@@ -168,6 +168,37 @@ export const POST: APIRoute = async ({ request, locals }) => {
   }
 
   // ─────────────────────────────────────────────────────────────────────
+  // Stripe-side session expiry. Stripe sessions live up to 24h, but the
+  // admin pages also sweep `pending` course rows to `expired` after 15
+  // min. This handler is the real-time path: if Stripe fires before any
+  // admin visit, the row is already up to date.
+  if (event.type === 'checkout.session.expired') {
+    const session = event.data.object as {
+      id: string;
+      metadata?: Record<string, string>;
+    };
+    const courseRegId = session.metadata?.course_registration_id
+      ? parseInt(session.metadata.course_registration_id, 10)
+      : null;
+    const courseReg =
+      (courseRegId
+        ? await getCourseRegistrationById(env.DB, courseRegId)
+        : null) ??
+      (await getCourseRegistrationBySession(env.DB, session.id));
+    if (courseReg && courseReg.status === 'pending') {
+      await env.DB
+        .prepare(
+          `UPDATE course_registrations
+              SET status = 'expired'
+            WHERE id = ? AND status = 'pending'`,
+        )
+        .bind(courseReg.id)
+        .run();
+    }
+    return new Response('OK', { status: 200 });
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
   // Subscription installments: every successful monthly charge fires an
   // invoice.paid event. The first one is the "you're in" moment for the
   // student — that's when we grant access (mark paid + Drip handoff).

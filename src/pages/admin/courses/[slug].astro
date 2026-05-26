@@ -2,6 +2,7 @@
 import '../../../styles/admin.css';
 import Layout from '../../../layouts/Layout.astro';
 import { readCookie, verifySession } from '../../../lib/registrations/auth';
+import { expireStaleCoursePendings } from '../../../lib/courses/db';
 
 export const prerender = false;
 
@@ -28,8 +29,14 @@ if (!course) {
   return new Response('Course not found', { status: 404 });
 }
 
+// Sweep stale pending rows to `expired` before reading. Keeps the admin
+// view honest without needing a cron — the price is one tiny UPDATE per
+// admin page load.
+await expireStaleCoursePendings(env.DB);
+
 const statusFilter = Astro.url.searchParams.get('status') ?? '';
 const productFilter = Astro.url.searchParams.get('product') ?? '';
+const returnTo = Astro.url.pathname + Astro.url.search;
 
 const where: string[] = [`product_slug IN (${course.productSlugs.map(() => '?').join(',')})`];
 const binds: unknown[] = [...course.productSlugs];
@@ -186,6 +193,7 @@ function activateLabel(choice: Row['activate_choice'], productSlug: string) {
           <a href={`/admin/courses/${slug}`} class={statusFilter === '' && productFilter === '' ? 'is-on' : ''}>all</a>
           <a href={`/admin/courses/${slug}?status=paid`} class={statusFilter === 'paid' ? 'is-on' : ''}>paid</a>
           <a href={`/admin/courses/${slug}?status=pending`} class={statusFilter === 'pending' ? 'is-on' : ''}>pending</a>
+          <a href={`/admin/courses/${slug}?status=expired`} class={statusFilter === 'expired' ? 'is-on' : ''}>expired</a>
           {course.productSlugs.map((ps) => (
             <a href={`/admin/courses/${slug}?product=${ps}`} class={productFilter === ps ? 'is-on' : ''}>{productLabel(ps)}</a>
           ))}
@@ -255,6 +263,17 @@ function activateLabel(choice: Row['activate_choice'], productSlug: string) {
                   </div>
                 )}
               </dl>
+
+              {(r.status === 'pending' || r.status === 'expired' || r.status === 'cancelled') && (
+                <div class="adm-reg-actions">
+                  <form method="POST" action="/api/admin/delete-course-registration" class="adm-reg-delete"
+                        onsubmit={`return confirm('Permanently delete course registration #${r.id} (${displayName}, ${r.email})? This cannot be undone.')`}>
+                    <input type="hidden" name="course_registration_id" value={r.id} />
+                    <input type="hidden" name="return_to" value={returnTo} />
+                    <button type="submit" class="adm-btn adm-btn--danger">Delete</button>
+                  </form>
+                </div>
+              )}
             </article>
           );
         })}

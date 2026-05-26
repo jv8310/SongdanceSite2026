@@ -125,6 +125,30 @@ export async function getCourseRegistrationBySession(
     .first<CourseRegistration>();
 }
 
+// Flip any `pending` course rows older than 15 minutes to `expired`.
+// Course checkouts have no hold/inventory, so the only reason to keep a
+// pending row alive is the live Stripe Checkout session — and the user
+// has almost certainly abandoned by 15 min. If they do still pay (Stripe
+// sessions live up to 24h), `markCourseRegistrationPaid` will flip the
+// row back to `paid` since its guard is only `status != 'paid'`.
+export async function expireStaleCoursePendings(db: D1Database) {
+  await db
+    .prepare(
+      `UPDATE course_registrations
+          SET status = 'expired'
+        WHERE status = 'pending'
+          AND created_at < datetime('now', '-15 minutes')`,
+    )
+    .run();
+}
+
+export async function deleteCourseRegistration(db: D1Database, id: number) {
+  await db
+    .prepare('DELETE FROM course_registrations WHERE id = ?')
+    .bind(id)
+    .run();
+}
+
 export async function listCourseRegistrations(
   db: D1Database,
   productSlug: CourseProductSlug | string,
