@@ -252,6 +252,23 @@ html, body { background: var(--paper); }
 }
 .fc-opening-pull::before { top: 0; }
 .fc-opening-pull::after { bottom: 0; }
+.fc-opening-img {
+  margin: var(--sp-7) auto var(--sp-8);
+  max-width: 420px;
+  aspect-ratio: 4 / 5;
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-3);
+}
+.fc-opening-img img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+  filter: var(--fc-img-filter);
+}
+@media (max-width: 600px) {
+  .fc-opening-img { max-width: 100%; aspect-ratio: 5 / 6; }
+}
 
 .fc-link-cta {
   display: inline-flex; align-items: center; gap: 10px;
@@ -815,10 +832,33 @@ html, body { background: var(--paper); }
   background: var(--paper-deep);
   padding: var(--sp-9) var(--sp-7);
   text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+.fc-lyric-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+.fc-lyric-bg img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.16;
+  filter: var(--fc-img-filter) blur(1px);
+}
+.fc-lyric-bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, var(--paper-deep) 0%, transparent 35%, transparent 65%, var(--paper-deep) 100%);
 }
 .fc-lyric-inner {
   max-width: 760px; margin: 0 auto;
   display: flex; flex-direction: column; align-items: center; gap: var(--sp-5);
+  position: relative;
+  z-index: 1;
 }
 .fc-lyric-mark { width: 36px; height: 36px; opacity: 0.85; }
 .fc-lyric-text {
