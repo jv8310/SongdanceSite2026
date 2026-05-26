@@ -4,7 +4,7 @@ export const prerender = false;
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const SUBJECT = 'Your forgiveness prayer';
-const DEFAULT_FROM = 'Songdance <prayer@site.songdance.co>';
+const DEFAULT_FROM = 'Songdance <prayer@mail.songdance.co>';
 const DEFAULT_REPLY_TO = 'jacob@songdance.co';
 const LOGO_URL = 'https://site.songdance.co/brand/logo-wordmark-dark.png';
 const HERO_IMAGE_URL = 'https://site.songdance.co/imagery/forgiveness/Heart%20%2B%20candle.jpeg';
