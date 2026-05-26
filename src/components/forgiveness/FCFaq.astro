@@ -18,12 +18,18 @@
         <div class="fc-faq-answer">
           <p>
             All sessions take place live on Zoom over four consecutive
-            Sundays, starting on May 10, 2026.
+            Sundays in July 2026 — July 5, 12, 19, and 26.
+          </p>
+          <p>
+            The full schedule, rendered in
+            <span class="fc-faq-tz" data-fc-faq-tz>your local timezone</span>,
+            is <a href="#schedule">at the top of this page</a>. Reference
+            times in three common zones:
           </p>
           <div class="fc-faq-times">
-            <div><span>Pacific · Los Angeles</span>10:30 AM</div>
-            <div><span>Eastern · New York</span>1:30 PM</div>
-            <div><span>Europe · Brussels</span>7:30 PM</div>
+            <div data-fc-faq-row data-iso="2026-07-05T18:00:00Z" data-tz="America/Los_Angeles"><span>Pacific · Los Angeles</span>11:00 AM PDT</div>
+            <div data-fc-faq-row data-iso="2026-07-05T18:00:00Z" data-tz="America/New_York"><span>Eastern · New York</span>2:00 PM EDT</div>
+            <div data-fc-faq-row data-iso="2026-07-05T18:00:00Z" data-tz="Europe/Brussels"><span>Europe · Brussels</span>8:00 PM CEST</div>
           </div>
         </div>
       </details>
@@ -33,7 +39,15 @@
           <i class="ph-light ph-plus"></i>
         </summary>
         <div class="fc-faq-answer">
-          <p>Yes — replays are posted within 24 hours. You have lifetime access.</p>
+          <p class="fc-faq-lead-line">
+            Yes — every participant receives lifetime access to the replays.
+          </p>
+          <p>
+            Recordings are posted within 24 hours of each live class, and
+            they're yours to keep and revisit — no expiry, no extra cost.
+            Whether you join every session live, some of them, or none, you
+            receive the full course.
+          </p>
         </div>
       </details>
       <details class="fc-faq-item">
@@ -107,4 +121,29 @@
       }
     });
   });
+
+  // Localize the FAQ reference times into each named timezone and surface
+  // the visitor's own timezone label in the surrounding sentence.
+  const rows = document.querySelectorAll<HTMLElement>('[data-fc-faq-row]');
+  rows.forEach((row) => {
+    const iso = row.getAttribute('data-iso');
+    const tz = row.getAttribute('data-tz');
+    if (!iso || !tz) return;
+    const d = new Date(iso);
+    const timeFmt = new Intl.DateTimeFormat('en-US', {
+      hour: 'numeric', minute: '2-digit', timeZoneName: 'short', timeZone: tz,
+    });
+    const label = row.querySelector('span');
+    if (label) {
+      row.textContent = '';
+      row.appendChild(label);
+      row.appendChild(document.createTextNode(timeFmt.format(d)));
+    }
+  });
+
+  const tzLabel = document.querySelector<HTMLElement>('[data-fc-faq-tz]');
+  if (tzLabel) {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (tz) tzLabel.textContent = `your local timezone (${tz.replace(/_/g, ' ')})`;
+  }
 </script>

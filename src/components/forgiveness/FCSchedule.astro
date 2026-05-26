@@ -1,0 +1,105 @@
+---
+// Four live sessions — Sundays in July 2026 at 20:00 Europe/Brussels (CEST, UTC+2).
+// Times below are stored in UTC and re-rendered into the visitor's local timezone
+// on the client via Intl.DateTimeFormat. The server-rendered fallback shows
+// Brussels time so the page is meaningful without JS or before hydration.
+const sessions = [
+  { iso: '2026-07-05T18:00:00Z', label: 'Class 01', title: 'The dynamics of forgiveness' },
+  { iso: '2026-07-12T18:00:00Z', label: 'Class 02', title: 'Forgiving others' },
+  { iso: '2026-07-19T18:00:00Z', label: 'Class 03', title: 'Forgiving self' },
+  { iso: '2026-07-26T18:00:00Z', label: 'Class 04', title: 'Forgiving separation' },
+];
+
+const fallback = [
+  { day: 'Sunday', date: 'July 5, 2026', time: '8:00 PM CEST' },
+  { day: 'Sunday', date: 'July 12, 2026', time: '8:00 PM CEST' },
+  { day: 'Sunday', date: 'July 19, 2026', time: '8:00 PM CEST' },
+  { day: 'Sunday', date: 'July 26, 2026', time: '8:00 PM CEST' },
+];
+---
+
+<section class="fc-schedule" id="schedule">
+  <div class="fc-schedule-inner">
+    <div class="fc-schedule-head">
+      <div class="fc-eyebrow" style="justify-content: center;">When we gather</div>
+      <h2 class="fc-h2">Four Sundays in <em>July 2026.</em></h2>
+      <p class="fc-schedule-sub">
+        Each session is 90 minutes, live on Zoom · times shown in
+        <strong data-fc-tz-name>Europe / Brussels (CEST)</strong>
+      </p>
+    </div>
+
+    <div class="fc-schedule-grid">
+      {sessions.map((s, i) => (
+        <article class="fc-schedule-card" data-fc-session data-iso={s.iso}>
+          <div class="fc-schedule-label">{s.label}</div>
+          <div class="fc-schedule-title">{s.title}</div>
+          <time class="fc-schedule-date" datetime={s.iso}>
+            <span class="fc-schedule-day" data-fc-day>{fallback[i].day}</span>
+            <span class="fc-schedule-fullday" data-fc-fullday>{fallback[i].date}</span>
+            <span class="fc-schedule-time" data-fc-time>{fallback[i].time}</span>
+          </time>
+        </article>
+      ))}
+    </div>
+
+    <div class="fc-schedule-replay">
+      <div class="fc-schedule-replay-icon" aria-hidden="true">
+        <i class="ph-light ph-play-circle"></i>
+      </div>
+      <div>
+        <h3 class="fc-schedule-replay-title">
+          Can't make a live session? <em>Come anyway.</em>
+        </h3>
+        <p class="fc-schedule-replay-body">
+          Every class is recorded and posted within 24 hours. <strong>Every participant
+          receives lifetime access to the replays</strong> — included, no extra cost,
+          no expiry. Watch each session on your own schedule, as many times as
+          you wish.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  // Re-render the sessions in the visitor's local timezone.
+  const cards = document.querySelectorAll<HTMLElement>('[data-fc-session]');
+  if (cards.length) {
+    const resolved = Intl.DateTimeFormat().resolvedOptions();
+    const tz = resolved.timeZone || 'Europe/Brussels';
+
+    const dayFmt = new Intl.DateTimeFormat(undefined, { weekday: 'long', timeZone: tz });
+    const dateFmt = new Intl.DateTimeFormat(undefined, {
+      year: 'numeric', month: 'long', day: 'numeric', timeZone: tz,
+    });
+    const timeFmt = new Intl.DateTimeFormat(undefined, {
+      hour: 'numeric', minute: '2-digit', timeZoneName: 'short', timeZone: tz,
+    });
+
+    cards.forEach((card) => {
+      const iso = card.getAttribute('data-iso');
+      if (!iso) return;
+      const d = new Date(iso);
+      const dayEl = card.querySelector<HTMLElement>('[data-fc-day]');
+      const dateEl = card.querySelector<HTMLElement>('[data-fc-fullday]');
+      const timeEl = card.querySelector<HTMLElement>('[data-fc-time]');
+      if (dayEl) dayEl.textContent = dayFmt.format(d);
+      if (dateEl) dateEl.textContent = dateFmt.format(d);
+      if (timeEl) timeEl.textContent = timeFmt.format(d);
+    });
+
+    const tzLabel = document.querySelector<HTMLElement>('[data-fc-tz-name]');
+    if (tzLabel) {
+      // Friendly label: "America/New_York" → "America / New York"
+      const friendly = tz.replace(/_/g, ' ').replace(/\//g, ' / ');
+      // Append the short zone name (e.g., "EDT") detected from the first session.
+      const sample = new Date(cards[0].getAttribute('data-iso')!);
+      const parts = new Intl.DateTimeFormat(undefined, {
+        timeZoneName: 'short', timeZone: tz,
+      }).formatToParts(sample);
+      const shortName = parts.find((p) => p.type === 'timeZoneName')?.value;
+      tzLabel.textContent = shortName ? `${friendly} (${shortName})` : friendly;
+    }
+  }
+</script>
