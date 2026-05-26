@@ -72,21 +72,22 @@ function offerFor(productSlug: CourseProductSlug, currency: Currency): Offer {
     : getCertOffer(currency);
 }
 
-// URL-driven discount. Whitelist to a fixed set so a buyer can't smuggle in
-// `?discount=99` to get the course for free.
-function parseDiscountPercent(raw: unknown): 0 | 10 | 20 | 30 {
+// URL-driven discount. Any integer 1–99 is accepted; anything else (NaN,
+// 0, ≥100, negative, non-integer) falls back to no discount. Note: this is
+// deliberately permissive — whoever holds the URL controls the price.
+function parseDiscountPercent(raw: unknown): number {
   const n =
     typeof raw === 'number'
       ? raw
       : typeof raw === 'string'
         ? parseInt(raw, 10)
         : NaN;
-  if (n === 10 || n === 20 || n === 30) return n;
+  if (Number.isInteger(n) && n >= 1 && n <= 99) return n;
   return 0;
 }
 
-function applyDiscount(cents: number, pct: 0 | 10 | 20 | 30): number {
-  if (pct === 0) return cents;
+function applyDiscount(cents: number, pct: number): number {
+  if (pct <= 0) return cents;
   return Math.round((cents * (100 - pct)) / 100);
 }
 

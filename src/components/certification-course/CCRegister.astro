@@ -237,24 +237,23 @@ const countries = COUNTRIES;
 
   const STORAGE_KEY = 'cc:decision';
 
-  // URL-driven discount. `?discount=10|20|30` strikes through the displayed
-  // price and tells the server to charge a discounted amount — both for the
-  // one-time payment and every installment of the 3x plan. Any other value
-  // is silently ignored (and the server re-validates against the same
-  // whitelist, so a tampered URL can't slip a bigger discount through).
-  type DiscountPct = 0 | 10 | 20 | 30;
-  function readDiscountFromUrl(): DiscountPct {
+  // URL-driven discount. `?discount=N` (any integer 1–99) strikes through
+  // the displayed price and tells the server to charge a discounted amount
+  // — both for the one-time payment and every installment of the 3x plan.
+  // Anything outside 1–99 is silently ignored. The server re-validates
+  // against the same range.
+  function readDiscountFromUrl(): number {
     try {
       const raw = new URLSearchParams(window.location.search).get('discount');
       const n = raw ? parseInt(raw, 10) : 0;
-      if (n === 10 || n === 20 || n === 30) return n;
+      if (Number.isInteger(n) && n >= 1 && n <= 99) return n;
     } catch {}
     return 0;
   }
-  const discountPct: DiscountPct = readDiscountFromUrl();
+  const discountPct: number = readDiscountFromUrl();
 
   function applyDiscountCents(cents: number): number {
-    if (discountPct === 0) return cents;
+    if (discountPct <= 0) return cents;
     return Math.round((cents * (100 - discountPct)) / 100);
   }
 
