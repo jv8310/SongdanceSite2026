@@ -1,18 +1,16 @@
 <!--
   ============================================================
-  Forgiveness Prayer — Resend transactional email template
+  Forgiveness Prayer — email reference
 
-  Rendered by `src/pages/api/forgiveness-deliver.ts`, which
-  imports this file as a raw string, substitutes the
-  placeholders below, and sends it through the Resend API.
+  NOTE: this file is for designer reference only. The live email
+  HTML is built inline inside `src/pages/api/forgiveness-deliver.ts`
+  (renderEmailHtml). That eliminates any ambiguity around how
+  Vite's ?raw loader / the Cloudflare bundler treat this file
+  in production. If you change the email design, update both.
 
-  Placeholders:
-    {{PRAYER_HTML}}   the composed prayer, HTML-escaped, with
-                      newlines converted to <br/>. Already safe
-                      to inline.
-
-  Subject (set in the endpoint, not here):
-    Your forgiveness prayer
+  Tone: a quiet, personal note — not a marketing piece. Big CTAs
+  and styled buttons push Gmail to file it under Promotions, so
+  the course mention here is a plain text link.
   ============================================================
 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
@@ -24,63 +22,43 @@
     <meta name="color-scheme" content="light only" />
     <meta name="supported-color-schemes" content="light only" />
     <title>Your forgiveness prayer</title>
-    <!--[if mso]>
-      <style type="text/css">
-        body, table, td, p, a { font-family: Georgia, 'Times New Roman', serif !important; }
-      </style>
-    <![endif]-->
     <style type="text/css">
-      /* Reset */
       body, table, td, p, a, h1, h2, h3 { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
       table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
       img { -ms-interpolation-mode: bicubic; border: 0; outline: none; text-decoration: none; }
       body { margin: 0 !important; padding: 0 !important; width: 100% !important; }
       a { color: #A14826; text-decoration: none; }
       a:hover { text-decoration: underline; }
-
-      /* Mobile */
       @media screen and (max-width: 600px) {
         .container { width: 100% !important; }
         .px-outer { padding-left: 24px !important; padding-right: 24px !important; }
-        .py-hero  { padding-top: 36px !important; padding-bottom: 24px !important; }
         .prayer   { font-size: 19px !important; line-height: 1.65 !important; }
         .h1       { font-size: 26px !important; line-height: 1.18 !important; }
       }
     </style>
   </head>
   <body style="margin:0; padding:0; background-color:#F4ECDF; font-family: Georgia, 'Times New Roman', serif; color:#2A1B2A;">
-
-    <!-- Preheader (hidden in body but shown in inbox preview) -->
     <div style="display:none; font-size:1px; color:#F4ECDF; line-height:1px; max-height:0; max-width:0; opacity:0; overflow:hidden;">
       A few lines, shaped for what you brought.
     </div>
-
-    <!-- Page wrapper -->
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#F4ECDF;">
       <tr>
         <td align="center" style="padding: 40px 16px;">
+          <table role="presentation" class="container" width="560" cellpadding="0" cellspacing="0" border="0">
 
-          <!-- Card -->
-          <table role="presentation" class="container" width="560" cellpadding="0" cellspacing="0" border="0" style="background-color:#FAF5EA; border-radius:16px; box-shadow: 0 2px 24px rgba(74, 37, 64, 0.07); border:1px solid #EADFCB;">
-
-            <!-- Orb / mark -->
+            <!-- Logo header -->
             <tr>
-              <td align="center" class="py-hero" style="padding: 48px 32px 8px;">
-                <!-- Inline pearl: a soft radial mark, rendered as a layered circle.
-                     Falls back to a solid swatch in clients that strip the gradient. -->
-                <div style="width:72px; height:72px; margin:0 auto 20px; border-radius:50%;
-                            background: radial-gradient(circle at 38% 35%, #FFE6C8 0%, #F2C8A0 28%, #C9603A 70%, #A14826 100%);
-                            box-shadow: 0 4px 20px rgba(201, 96, 58, 0.25);">&nbsp;</div>
-                <div style="font-family: Georgia, 'Times New Roman', serif; font-size:11px; letter-spacing:0.22em; text-transform:uppercase; color:#A14826;">
-                  &mdash;&nbsp;&nbsp;a prayer for you&nbsp;&nbsp;&mdash;
-                </div>
+              <td align="center" style="padding: 8px 32px 28px;">
+                <a href="https://songdance.co" style="display:inline-block;">
+                  <img src="https://site.songdance.co/brand/logo-wordmark-dark.png" alt="Songdance" width="140" style="display:block; width:140px; height:auto; opacity:0.85;" />
+                </a>
               </td>
             </tr>
 
             <!-- Headline -->
             <tr>
-              <td align="center" class="px-outer" style="padding: 8px 56px 8px;">
-                <h1 class="h1" style="margin:0; font-family: Georgia, 'Times New Roman', serif; font-weight:400; font-size:32px; line-height:1.15; letter-spacing:-0.012em; color:#2A1B2A;">
+              <td align="center" class="px-outer" style="padding: 8px 24px 8px;">
+                <h1 class="h1" style="margin:0; font-family: Georgia, 'Times New Roman', serif; font-weight:400; font-size:30px; line-height:1.18; letter-spacing:-0.012em; color:#2A1B2A;">
                   Your forgiveness prayer
                 </h1>
               </td>
@@ -88,81 +66,45 @@
 
             <!-- Lead-in -->
             <tr>
-              <td align="center" class="px-outer" style="padding: 16px 56px 8px;">
-                <p style="margin:0; font-family: Georgia, 'Times New Roman', serif; font-style: italic; font-size:16px; line-height:1.55; color:#4A3848; max-width:38ch;">
+              <td align="center" class="px-outer" style="padding: 14px 24px 8px;">
+                <p style="margin:0; font-family: Georgia, 'Times New Roman', serif; font-style: italic; font-size:15px; line-height:1.55; color:#4A3848; max-width:38ch;">
                   A few lines, shaped for what you brought. Return to it whenever you need to.
                 </p>
               </td>
             </tr>
 
-            <!-- Divider -->
+            <!-- The prayer -->
             <tr>
-              <td align="center" style="padding: 28px 0 12px;">
-                <table role="presentation" cellpadding="0" cellspacing="0" border="0">
-                  <tr>
-                    <td style="width:40px; height:1px; background-color:#EADFCB; line-height:1px; font-size:0;">&nbsp;</td>
-                    <td style="width:6px; height:6px; background-color:#C9603A; border-radius:50%; line-height:1px; font-size:0;">&nbsp;</td>
-                    <td style="width:40px; height:1px; background-color:#EADFCB; line-height:1px; font-size:0;">&nbsp;</td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-
-            <!-- The prayer itself -->
-            <tr>
-              <td align="center" class="px-outer" style="padding: 12px 56px 40px;">
+              <td align="center" class="px-outer" style="padding: 28px 24px 32px;">
                 <p class="prayer" style="margin:0; font-family: Georgia, 'Times New Roman', serif; font-style:italic; font-size:20px; line-height:1.75; color:#2A1B2A; letter-spacing:0.005em; white-space: pre-line;">{{PRAYER_HTML}}</p>
               </td>
             </tr>
 
-            <!-- Coda -->
+            <!-- Soft, transactional-feeling course mention -->
             <tr>
-              <td align="center" class="px-outer" style="padding: 0 56px 40px;">
-                <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-top:1px solid #EADFCB; width:100%;">
-                  <tr>
-                    <td align="center" style="padding-top: 28px;">
-                      <p style="margin:0 0 8px; font-family: Georgia, 'Times New Roman', serif; font-style:italic; font-size:16px; line-height:1.5; color:#4A3848;">
-                        This is a taste.
-                      </p>
-                      <p style="margin:0 0 20px; font-family: Georgia, 'Times New Roman', serif; font-size:14px; line-height:1.6; color:#4A3848; max-width: 38ch; margin-left:auto; margin-right:auto;">
-                        The Forgiveness Course is the longer walk &mdash; 26 minutes a day for one season, with sound and guidance.
-                      </p>
-                      <!--[if mso]>
-                      <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="https://site.songdance.co/forgiveness" style="height:44px;v-text-anchor:middle;width:240px;" arcsize="50%" stroke="f" fillcolor="#2A1B2A">
-                        <w:anchorlock/>
-                        <center style="color:#FAF5EA;font-family:Georgia,serif;font-size:14px;font-weight:500;">Register for the Course</center>
-                      </v:roundrect>
-                      <![endif]-->
-                      <!--[if !mso]><!-- -->
-                      <a href="https://site.songdance.co/forgiveness" style="display:inline-block; background-color:#2A1B2A; color:#FAF5EA; font-family: Georgia, 'Times New Roman', serif; font-size:14px; line-height:1; padding:14px 28px; border-radius:999px; text-decoration:none; letter-spacing:0.01em;">
-                        Register for the Course &rarr;
-                      </a>
-                      <!--<![endif]-->
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-          </table>
-
-          <!-- Footer -->
-          <table role="presentation" class="container" width="560" cellpadding="0" cellspacing="0" border="0" style="margin-top: 24px;">
-            <tr>
-              <td align="center" style="padding: 24px 24px 8px;">
-                <p style="margin:0; font-family: Georgia, 'Times New Roman', serif; font-size:12px; line-height:1.6; color:#7A6A78;">
-                  Songdance &middot; <a href="https://site.songdance.co" style="color:#7A6A78; text-decoration:underline;">site.songdance.co</a>
+              <td align="center" class="px-outer" style="padding: 12px 24px 8px;">
+                <p style="margin:0; font-family: Georgia, 'Times New Roman', serif; font-size:14px; line-height:1.6; color:#4A3848; max-width: 42ch; margin-left:auto; margin-right:auto;">
+                  If this opened something — the Forgiveness Course is the longer walk. Four live Sundays in July 2026. <a href="https://site.songdance.co/forgiveness" style="color:#A14826; text-decoration:underline;">Read more</a>.
                 </p>
               </td>
             </tr>
+
+            <!-- Footer: logo only, linked to songdance.co -->
             <tr>
-              <td align="center" style="padding: 0 24px 24px;">
+              <td align="center" style="padding: 40px 24px 8px;">
+                <a href="https://songdance.co" style="display:inline-block;">
+                  <img src="https://site.songdance.co/brand/logo-wordmark-dark.png" alt="Songdance" width="110" style="display:block; width:110px; height:auto; opacity:0.55;" />
+                </a>
+              </td>
+            </tr>
+            <tr>
+              <td align="center" style="padding: 12px 24px 24px;">
                 <p style="margin:0; font-family: Georgia, 'Times New Roman', serif; font-size:11px; line-height:1.6; color:#B6A8B4;">
                   You asked for a prayer; we sent one. No list, no follow-ups.
                 </p>
               </td>
             </tr>
           </table>
-
         </td>
       </tr>
     </table>

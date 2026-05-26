@@ -190,7 +190,9 @@ function PrayerCard({ prayer, onSubmitEmail, onReplay, submitted, sending }) {
   };
 
   const stanzas = splitStanzas(prayer);
-  const previewStanzas = stanzas.slice(0, 2);
+  // Show the first four stanzas. The CSS mask fades phrase 2 → phrase 4 so
+  // only the opening is fully legible; the rest tease that there is more.
+  const previewStanzas = stanzas.slice(0, 4);
   const previewText = previewStanzas.join('\n\n');
 
   return (
@@ -225,7 +227,7 @@ function PrayerCard({ prayer, onSubmitEmail, onReplay, submitted, sending }) {
             <ul className="tlw-course-facts">
               <li>
                 <span className="tlw-course-fact-key">Four 90-minute live classes on Zoom</span>
-                <span className="tlw-course-fact-val">Begins Sunday, May 10, 2026</span>
+                <span className="tlw-course-fact-val">Four Sundays in July 2026</span>
               </li>
               <li>
                 <span className="tlw-course-fact-key">With Daniela Hess &amp; Jacob Vermeulen</span>
@@ -384,7 +386,8 @@ export default function ThreeLayersWalk() {
 
   React.useEffect(() => {
     if (step === 'q5' && answers.q5 && !generationStartedRef.current) {
-      generate();
+      const t = window.setTimeout(() => generate(), 320);
+      return () => window.clearTimeout(t);
     }
   }, [answers.q5, step, generate]);
 
@@ -473,7 +476,14 @@ export default function ThreeLayersWalk() {
         prompt="Which of these feels truest?"
         options={Q5_OPTIONS}
         value={answers.q5}
-        onPick={pickAndAdvance('q5', 'q5')}
+        onPick={(value) => {
+          // Last question: just record the answer and trigger the ripple.
+          // The effect below sees answers.q5 set and advances us to
+          // 'generating'. Using pickAndAdvance here would re-set step
+          // to 'q5' after 260ms and overwrite the generating state.
+          setAnswers((a) => ({ ...a, q5: value }));
+          triggerRipple();
+        }}
       />
     );
     stepIndex = 5;
