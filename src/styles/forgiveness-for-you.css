@@ -24,6 +24,36 @@ html, body { background: var(--paper); }
 @media (max-width: 720px) {
   .tlw-practice-section { padding: var(--sp-8) var(--sp-5); }
 }
+
+/* Intro state: tighten everything so the title, body, and CTA all
+   land above the fold beside the smaller orb. */
+.tlw-practice-section[data-step="intro"] {
+  padding-top: clamp(24px, 4vh, 56px);
+  padding-bottom: clamp(24px, 4vh, 56px);
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+}
+.tlw-practice-section[data-step="intro"] .tlw-inner {
+  gap: var(--sp-4);
+  justify-content: center;
+}
+.tlw-practice-section[data-step="intro"] .tlw-orb-wrap {
+  width: clamp(140px, 22vh, 220px);
+  height: clamp(140px, 22vh, 220px);
+  margin: 0;
+}
+.tlw-practice-section[data-step="intro"] .tlw-intro-title {
+  font-size: clamp(30px, 4.2vh, 48px);
+}
+.tlw-practice-section[data-step="intro"] .tlw-intro-body {
+  font-size: clamp(15px, 1.9vh, 17px);
+  max-width: 38ch;
+  line-height: 1.55;
+}
+.tlw-practice-section[data-step="intro"] .tlw-btn-row {
+  margin-top: var(--sp-2);
+}
 .tlw-practice-section::before {
   content: "";
   position: absolute;
@@ -432,6 +462,51 @@ html, body { background: var(--paper); }
   letter-spacing: 0.005em;
 }
 
+/* Email-gated preview: show the first stanzas cleanly, fade what follows. */
+.tlw-prayer-preview {
+  position: relative;
+  width: 100%;
+}
+.tlw-prayer-body-preview {
+  /* Soft inline gradient mask so the last line of the visible preview
+     itself eases into the page below the form — pulls the eye downward. */
+  -webkit-mask-image: linear-gradient(to bottom,
+    rgba(0, 0, 0, 1) 60%,
+    rgba(0, 0, 0, 0.85) 80%,
+    rgba(0, 0, 0, 0.55) 100%);
+          mask-image: linear-gradient(to bottom,
+    rgba(0, 0, 0, 1) 60%,
+    rgba(0, 0, 0, 0.85) 80%,
+    rgba(0, 0, 0, 0.55) 100%);
+}
+.tlw-prayer-fade {
+  /* A faint phantom of the remaining stanzas, just enough to suggest
+     there is more underneath the email form. */
+  margin-top: var(--sp-3);
+  height: 64px;
+  width: 100%;
+  max-width: 36ch;
+  margin-left: auto;
+  margin-right: auto;
+  position: relative;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      rgba(74, 37, 64, 0.12) 0,
+      rgba(74, 37, 64, 0.12) 2px,
+      transparent 2px,
+      transparent 14px
+    );
+  -webkit-mask-image: linear-gradient(to bottom,
+    rgba(0, 0, 0, 0.4) 0%,
+    rgba(0, 0, 0, 0) 95%);
+          mask-image: linear-gradient(to bottom,
+    rgba(0, 0, 0, 0.4) 0%,
+    rgba(0, 0, 0, 0) 95%);
+  border-radius: 4px;
+}
+
 /* ---------- Email capture ---------- */
 .tlw-email-block {
   position: relative;
@@ -445,14 +520,23 @@ html, body { background: var(--paper); }
   text-align: center;
 }
 .tlw-email-intro {
-  font-family: var(--font-lyric);
-  font-style: italic;
-  font-size: clamp(18px, 2vw, 22px);
-  line-height: 1.4;
-  color: var(--ink-soft);
+  font-family: var(--font-display);
+  font-style: normal;
+  font-size: clamp(18px, 2.1vw, 22px);
+  line-height: 1.35;
+  color: var(--ink);
   margin: 0;
   text-wrap: balance;
   max-width: 32ch;
+  letter-spacing: -0.005em;
+}
+.tlw-email-fineprint {
+  font-family: var(--font-body);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  color: var(--ink-quiet);
+  margin: 0;
+  text-wrap: balance;
 }
 .tlw-email-form {
   display: flex;

@@ -37,6 +37,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
   // Custom field names stay as the v1 names so the existing Drip workflow
   // and email template (which references {{ subscriber.custom_fields.forgiveness_mantra }})
   // continue to fire without reconfiguration.
+  //
+  // The actual email send is handled by a Drip workflow triggered by the
+  // `m26_Forgiveness` tag, using the HTML template in
+  // `email-templates/forgiveness-prayer.html` (paste into Drip → workflow's
+  // email step). Drip's "transactional" flag is set on that email step itself
+  // (Workflow → Email step → "This email is transactional"), not via API —
+  // there is no API switch to mark a send as transactional vs marketing.
   const situation = (body.situation ?? '').toString().slice(0, 600).trim();
   const relationship = (body.relationship ?? '').toString().slice(0, 80).trim();
   const prayer = (body.prayer ?? '').toString().slice(0, 4000);
