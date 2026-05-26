@@ -38,11 +38,6 @@ html, body { background: var(--paper); }
   gap: var(--sp-4);
   justify-content: center;
 }
-.tlw-practice-section[data-step="intro"] .tlw-orb-wrap {
-  width: clamp(140px, 22vh, 220px);
-  height: clamp(140px, 22vh, 220px);
-  margin: 0;
-}
 .tlw-practice-section[data-step="intro"] .tlw-intro-title {
   font-size: clamp(30px, 4.2vh, 48px);
 }
@@ -75,11 +70,13 @@ html, body { background: var(--paper); }
   gap: var(--sp-7);
 }
 
-/* ---------- Orb ---------- */
+/* ---------- Orb ----------
+   Single size across every step. The intro orb felt right; the larger
+   variant at later steps was distracting, so we hold the same scale. */
 .tlw-orb-wrap {
   position: relative;
-  width: clamp(200px, 30vw, 280px);
-  height: clamp(200px, 30vw, 280px);
+  width: clamp(140px, 22vh, 220px);
+  height: clamp(140px, 22vh, 220px);
   display: grid;
   place-items: center;
   margin: var(--sp-3) 0;
@@ -462,9 +459,9 @@ html, body { background: var(--paper); }
   letter-spacing: 0.005em;
 }
 
-/* Email-gated preview: show the first stanzas cleanly, then ease the last
-   line gradually into the paper. No phantom lines — just a long soft fade
-   that suggests there is more underneath. */
+/* Email-gated preview: show four stanzas with a faster fade so only the
+   opening reads cleanly. By the fourth stanza the lines are barely
+   legible — a quiet promise that the rest is waiting. */
 .tlw-prayer-preview {
   position: relative;
   width: 100%;
@@ -473,15 +470,17 @@ html, body { background: var(--paper); }
 .tlw-prayer-body-preview {
   -webkit-mask-image: linear-gradient(to bottom,
     rgba(0, 0, 0, 1) 0%,
-    rgba(0, 0, 0, 1) 45%,
-    rgba(0, 0, 0, 0.85) 70%,
-    rgba(0, 0, 0, 0.45) 88%,
+    rgba(0, 0, 0, 1) 22%,
+    rgba(0, 0, 0, 0.55) 48%,
+    rgba(0, 0, 0, 0.22) 72%,
+    rgba(0, 0, 0, 0.06) 90%,
     rgba(0, 0, 0, 0) 100%);
           mask-image: linear-gradient(to bottom,
     rgba(0, 0, 0, 1) 0%,
-    rgba(0, 0, 0, 1) 45%,
-    rgba(0, 0, 0, 0.85) 70%,
-    rgba(0, 0, 0, 0.45) 88%,
+    rgba(0, 0, 0, 1) 22%,
+    rgba(0, 0, 0, 0.55) 48%,
+    rgba(0, 0, 0, 0.22) 72%,
+    rgba(0, 0, 0, 0.06) 90%,
     rgba(0, 0, 0, 0) 100%);
 }
 
