@@ -425,10 +425,19 @@ const countries = COUNTRIES;
     return undefined;
   }
 
+  function currencyForCountry(code: string): Currency {
+    const c = code.toUpperCase();
+    if (c === 'US') return 'USD';
+    if (c === 'GB') return 'GBP';
+    return 'EUR';
+  }
+
   function renderVariant(email: string, decision: Decision) {
     const fragment = template.content.cloneNode(true) as DocumentFragment;
     const root = fragment.querySelector('.cc-variant') as HTMLElement;
-    const currency = decision.currency ?? 'EUR';
+    // Note: `decision` is mutated when the buyer changes country, so we
+    // always read `decision.currency` rather than capturing it once.
+    if (!decision.currency) decision.currency = 'EUR';
 
     const copy = COPY[decision.variant](decision.twelve_week_week, decision.first_name);
     (root.querySelector('[data-slot="greeting"]') as HTMLElement).textContent = copy.greeting;
@@ -534,7 +543,51 @@ const countries = COUNTRIES;
     companyInput.addEventListener('input', toggleVat);
     toggleVat();
 
-    // Resolve typed country name → ISO code when user picks/blurs.
+    // Resolve typed country name → ISO code when user picks/blurs. The
+    // resolved code also drives the displayed currency: US → USD, GB → GBP,
+    // everywhere else → EUR. We debounce-refresh prices when it changes so
+    // typing "United Kingdom" character-by-character doesn't fire 14 fetches.
+    let currencyRefreshTimer: number | undefined;
+    let inFlightCurrency: Currency | null = null;
+    async function refreshCurrency(target: Currency) {
+      if (target === decision.currency) return;
+      if (target === inFlightCurrency) return;
+      inFlightCurrency = target;
+      try {
+        const res = await fetch('/api/courses/subscriber-status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, currency: target }),
+        });
+        const next = (await res.json()) as Decision | { error?: string };
+        if (!('offers' in next) || !next.offers) return;
+        // Only apply if the buyer hasn't moved on to yet another country
+        // while we were waiting.
+        if (target !== inFlightCurrency) return;
+        decision.currency = next.currency;
+        decision.offers = next.offers;
+        try {
+          localStorage.setItem(
+            STORAGE_KEY,
+            JSON.stringify({ email, decision, ts: Date.now() }),
+          );
+        } catch {}
+        renderOfferCards();
+        renderPlanOptions();
+        renderSummary();
+      } catch {
+        // Network blip — leave the existing prices in place.
+      } finally {
+        if (target === inFlightCurrency) inFlightCurrency = null;
+      }
+    }
+    function scheduleCurrencyRefresh(code: string) {
+      const target = currencyForCountry(code);
+      if (target === decision.currency) return;
+      window.clearTimeout(currencyRefreshTimer);
+      currencyRefreshTimer = window.setTimeout(() => refreshCurrency(target), 250);
+    }
+
     const resolveCountry = () => {
       const typed = countryInput.value.trim().toLowerCase();
       const match = COUNTRIES.find(
@@ -543,6 +596,7 @@ const countries = COUNTRIES;
       if (match) {
         countryHidden.value = match.code;
         if (!phoneCountrySelect.value) phoneCountrySelect.value = match.code;
+        scheduleCurrencyRefresh(match.code);
       } else {
         countryHidden.value = '';
       }
@@ -564,31 +618,43 @@ const countries = COUNTRIES;
     let selectedOfferSlug: Offer['slug'] = decision.offers[0]?.slug ?? 'cc-cert';
     let selectedPlan: PaymentPlan = 'full';
 
-    // Render selectable offer cards. Clicking a card flips selectedOfferSlug
-    // (no per-card "Continue" button anymore — that lives at the bottom).
+    // Offer cards (re-rendered when the buyer changes country and the
+    // currency switches). Clicking a card flips selectedOfferSlug.
     const offersEl = root.querySelector('[data-slot="offer-cards"]') as HTMLElement;
     const offerPickerLabel = root.querySelector('[data-slot="offer-picker-label"]') as HTMLElement;
-    if (decision.offers.length <= 1 && offerPickerLabel) {
-      offerPickerLabel.textContent = 'Your offer';
-    }
-    decision.offers.forEach((offer, i) => {
-      const card = renderOfferCard(offer, i === 0, decision.offers.length > 1);
-      card.dataset.offerSlug = offer.slug;
-      card.addEventListener('click', () => {
-        selectedOfferSlug = offer.slug;
-        offersEl.querySelectorAll<HTMLElement>('.cc-offer').forEach((el) => {
-          el.classList.toggle(
-            'cc-offer--selected',
-            el.dataset.offerSlug === selectedOfferSlug,
-          );
+    function renderOfferCards() {
+      offersEl.replaceChildren();
+      if (decision.offers.length <= 1 && offerPickerLabel) {
+        offerPickerLabel.textContent = 'Your offer';
+      } else if (offerPickerLabel) {
+        offerPickerLabel.textContent = 'Choose your offer';
+      }
+      // If the previously selected slug isn't in the refreshed offer list,
+      // fall back to the first card.
+      if (!decision.offers.some((o) => o.slug === selectedOfferSlug)) {
+        selectedOfferSlug = decision.offers[0]?.slug ?? 'cc-cert';
+      }
+      decision.offers.forEach((offer, i) => {
+        const card = renderOfferCard(offer, i === 0, decision.offers.length > 1);
+        card.dataset.offerSlug = offer.slug;
+        card.addEventListener('click', () => {
+          selectedOfferSlug = offer.slug;
+          offersEl.querySelectorAll<HTMLElement>('.cc-offer').forEach((el) => {
+            el.classList.toggle(
+              'cc-offer--selected',
+              el.dataset.offerSlug === selectedOfferSlug,
+            );
+          });
+          renderPlanOptions();
+          renderSummary();
         });
-        // Re-render plan options + summary for the newly selected offer.
-        renderPlanOptions();
-        renderSummary();
+        if (offer.slug === selectedOfferSlug) {
+          card.classList.add('cc-offer--selected');
+        }
+        offersEl.appendChild(card);
       });
-      if (i === 0) card.classList.add('cc-offer--selected');
-      offersEl.appendChild(card);
-    });
+    }
+    renderOfferCards();
 
     // Payment-plan selector (full vs. 3x). Only renders if the chosen
     // offer has installments configured. Re-renders on offer change.
@@ -603,17 +669,18 @@ const countries = COUNTRIES;
       }
       planPicker.style.display = '';
 
+      const cur = decision.currency!;
       const full = renderPlanOption({
         value: 'full',
         title: 'Pay in full',
         subtitle: `One payment, full access today.`,
-        amountLabel: money(offer.price, currency),
+        amountLabel: money(offer.price, cur),
       });
       const inst = renderPlanOption({
         value: '3x',
         title: `Pay in ${offer.installments.count} monthly installments`,
-        subtitle: `${money(offer.installments.monthly, currency)}/mo for ${offer.installments.count} months (${money(offer.installments.total, currency)} total). Full access from the first payment.`,
-        amountLabel: `${money(offer.installments.monthly, currency)}/mo`,
+        subtitle: `${money(offer.installments.monthly, cur)}/mo for ${offer.installments.count} months (${money(offer.installments.total, cur)} total). Full access from the first payment.`,
+        amountLabel: `${money(offer.installments.monthly, cur)}/mo`,
       });
 
       [full, inst].forEach((el) => {
@@ -645,12 +712,13 @@ const countries = COUNTRIES;
     function renderSummary() {
       const offer = decision.offers.find((o) => o.slug === selectedOfferSlug);
       if (!offer) return;
+      const cur = decision.currency!;
       if (selectedPlan === '3x' && offer.installments) {
         summaryLabel.textContent = `${offer.label} — ${offer.installments.count} monthly payments`;
-        summaryAmount.textContent = `${money(offer.installments.monthly, currency)}/mo`;
+        summaryAmount.textContent = `${money(offer.installments.monthly, cur)}/mo`;
       } else {
         summaryLabel.textContent = `${offer.label} — one-time payment`;
-        summaryAmount.textContent = money(offer.price, currency);
+        summaryAmount.textContent = money(offer.price, cur);
       }
     }
 
