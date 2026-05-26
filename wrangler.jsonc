@@ -21,7 +21,8 @@
   "vars": {
     "PUBLIC_BASE_URL": "https://site.songdance.co",
     "QUADERNO_ACCOUNT": "songdance",
-    "DRIP_REGISTRATION_EVENT": "Completed retreat registration"
+    "DRIP_REGISTRATION_EVENT": "Completed retreat registration",
+    "RESEND_FROM": "Songdance <prayer@site.songdance.co>"
   }
   // Secrets (set in Cloudflare dashboard → Workers → Settings → Variables and Secrets,
   // or via `wrangler secret put <NAME>`):
@@ -31,6 +32,7 @@
   //   QUADERNO_API_KEY
   //   DRIP_API_TOKEN
   //   DRIP_ACCOUNT_ID
+  //   RESEND_API_KEY         (used to send the forgiveness prayer transactionally)
   //   ADMIN_PASSWORD
   //   ADMIN_SESSION_SECRET   (any random 32+ char string)
 }

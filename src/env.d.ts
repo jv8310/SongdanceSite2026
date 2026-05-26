@@ -12,6 +12,8 @@ type Env = {
   DRIP_ACCOUNT_ID: string;
   DRIP_REGISTRATION_EVENT: string;
   DRIP_COURSE_EVENT?: string;
+  RESEND_API_KEY: string;
+  RESEND_FROM?: string;
   SVH_CERT_PORTAL_URL?: string;
   ADMIN_PASSWORD: string;
   ADMIN_SESSION_SECRET: string;

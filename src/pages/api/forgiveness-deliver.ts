@@ -1,15 +1,45 @@
 import type { APIRoute } from 'astro';
+import templateHtml from '../../../email-templates/forgiveness-prayer.html?raw';
 
 export const prerender = false;
 
-const DRIP_ACCOUNT_ID = '7850773';
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const SUBJECT = 'Your forgiveness prayer';
+const DEFAULT_FROM = 'Songdance <prayer@site.songdance.co>';
 
 const json = (status: number, body: Record<string, unknown>) =>
   new Response(JSON.stringify(body), {
     status,
     headers: { 'Content-Type': 'application/json' },
   });
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// Strip HTML tags for the plain-text alternative, then collapse the
+// markup-stripped whitespace down to readable paragraphs.
+function buildPlainText(prayer: string): string {
+  return [
+    'Your forgiveness prayer',
+    '',
+    'A few lines, shaped for what you brought. Return to it whenever you need to.',
+    '',
+    prayer,
+    '',
+    '—',
+    '',
+    'The Forgiveness Course is the longer walk — 26 minutes a day for one season, with sound and guidance.',
+    'https://site.songdance.co/forgiveness',
+    '',
+    'Songdance · site.songdance.co',
+  ].join('\n');
+}
 
 export const POST: APIRoute = async ({ request, locals }) => {
   let body: {
@@ -34,62 +64,47 @@ export const POST: APIRoute = async ({ request, locals }) => {
     return json(400, { ok: false, error: 'bad-email' });
   }
 
-  // Custom field names stay as the v1 names so the existing Drip workflow
-  // and email template (which references {{ subscriber.custom_fields.forgiveness_mantra }})
-  // continue to fire without reconfiguration.
-  //
-  // The actual email send is handled by a Drip workflow triggered by the
-  // `m26_Forgiveness` tag, using the HTML template in
-  // `email-templates/forgiveness-prayer.html` (paste into Drip → workflow's
-  // email step). Drip's "transactional" flag is set on that email step itself
-  // (Workflow → Email step → "This email is transactional"), not via API —
-  // there is no API switch to mark a send as transactional vs marketing.
-  const situation = (body.situation ?? '').toString().slice(0, 600).trim();
-  const relationship = (body.relationship ?? '').toString().slice(0, 80).trim();
-  const prayer = (body.prayer ?? '').toString().slice(0, 4000);
-
-  const cfEnv = (locals as { runtime?: { env?: Record<string, string | undefined> } }).runtime?.env;
-  const token = cfEnv?.DRIP_API_TOKEN ?? import.meta.env.DRIP_API_TOKEN;
-  if (!token) {
-    console.warn('[forgiveness-deliver] missing DRIP_API_TOKEN');
-    return json(500, { ok: false, error: 'no-token' });
+  const prayer = (body.prayer ?? '').toString().slice(0, 4000).trim();
+  if (!prayer) {
+    return json(400, { ok: false, error: 'missing-prayer' });
   }
 
-  const auth = 'Basic ' + btoa(`${token}:`);
+  const cfEnv = (locals as { runtime?: { env?: Record<string, string | undefined> } }).runtime?.env;
+  const apiKey = cfEnv?.RESEND_API_KEY ?? import.meta.env.RESEND_API_KEY;
+  if (!apiKey) {
+    console.warn('[forgiveness-deliver] missing RESEND_API_KEY');
+    return json(500, { ok: false, error: 'no-token' });
+  }
+  const from = cfEnv?.RESEND_FROM ?? import.meta.env.RESEND_FROM ?? DEFAULT_FROM;
+
+  const prayerHtml = escapeHtml(prayer).replace(/\n/g, '<br/>');
+  const html = templateHtml.replace('{{PRAYER_HTML}}', prayerHtml);
+  const text = buildPlainText(prayer);
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 9000);
 
   try {
-    const upstream = await fetch(
-      `https://api.getdrip.com/v2/${DRIP_ACCOUNT_ID}/subscribers`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/vnd.api+json',
-          Authorization: auth,
-          'User-Agent': 'songdance-site (forgiveness-magnet)',
-        },
-        body: JSON.stringify({
-          subscribers: [
-            {
-              email,
-              tags: ['m26_Forgiveness'],
-              custom_fields: {
-                forgiveness_mantra: prayer,
-                forgiveness_other_word: situation,
-                forgiveness_self_word: relationship,
-              },
-            },
-          ],
-        }),
-        signal: controller.signal,
+    const upstream = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
       },
-    );
+      body: JSON.stringify({
+        from,
+        to: [email],
+        subject: SUBJECT,
+        html,
+        text,
+      }),
+      signal: controller.signal,
+    });
 
     if (!upstream.ok) {
       const errText = await upstream.text().catch(() => '');
       console.warn(
-        `[forgiveness-deliver] drip upstream ${upstream.status}: ${errText.slice(0, 300)}`,
+        `[forgiveness-deliver] resend upstream ${upstream.status}: ${errText.slice(0, 300)}`,
       );
       return json(502, { ok: false, error: 'upstream-' + upstream.status });
     }
