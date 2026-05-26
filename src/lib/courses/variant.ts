@@ -273,7 +273,7 @@ export function decideVariant(
       can_activate_now: svhWeek.ongoing,
       twelve_week_week: svhWeek.week,
       course_portal_url:
-        opts.coursePortalUrl ?? 'https://app.songdance.co/svh-certification',
+        opts.coursePortalUrl ?? 'https://circle.songdance.co/spaces/20377292/feed',
       ...personalia,
     };
   }
