@@ -7,6 +7,8 @@ const SUBJECT = 'Your forgiveness prayer';
 const DEFAULT_FROM = 'Songdance <prayer@site.songdance.co>';
 const DEFAULT_REPLY_TO = 'jacob@songdance.co';
 const LOGO_URL = 'https://site.songdance.co/brand/logo-wordmark-dark.png';
+const HERO_IMAGE_URL = 'https://site.songdance.co/imagery/forgiveness/Heart%20%2B%20candle.jpeg';
+const FORGIVENESS_URL = 'https://site.songdance.co/forgiveness';
 const DRIP_ACCOUNT_ID = '7850773';
 
 // The email HTML is rendered inline (rather than loaded via ?raw) so the
@@ -47,9 +49,9 @@ function renderEmailHtml(prayerHtml: string): string {
         <td align="center" style="padding: 40px 16px;">
           <table role="presentation" class="container" width="560" cellpadding="0" cellspacing="0" border="0">
             <tr>
-              <td align="center" style="padding: 8px 32px 28px;">
-                <a href="https://songdance.co" style="display:inline-block;">
-                  <img src="${LOGO_URL}" alt="Songdance" width="140" style="display:block; width:140px; height:auto; opacity:0.85;" />
+              <td align="center" style="padding: 0 0 28px;">
+                <a href="${FORGIVENESS_URL}" style="display:block;">
+                  <img src="${HERO_IMAGE_URL}" alt="" width="560" style="display:block; width:100%; max-width:560px; height:auto; border:0;" />
                 </a>
               </td>
             </tr>
