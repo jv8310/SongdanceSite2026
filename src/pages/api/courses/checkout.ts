@@ -324,10 +324,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // Preserve the discount on the cancel URL so the buyer's price doesn't
     // silently jump back to full if they bail out and try again.
     const cancelQuery = discountPct > 0 ? `?discount=${discountPct}` : '';
-    const successQuery =
-      discountPct > 0
-        ? `?paid={CHECKOUT_SESSION_ID}&discount=${discountPct}`
-        : `?paid={CHECKOUT_SESSION_ID}`;
+    const successUrl = `${baseUrl}/certification-course/thanks?session_id={CHECKOUT_SESSION_ID}`;
 
     // tax_class metadata is attached to the underlying Stripe Product so
     // Quaderno's sync picks it up on every Invoice generated from this
@@ -341,7 +338,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       const session = await createSubscriptionCheckoutSession({
         secretKey: env.STRIPE_SECRET_KEY,
         customer: customerId,
-        success_url: `${baseUrl}/certification-course${successQuery}#register`,
+        success_url: successUrl,
         cancel_url: `${baseUrl}/certification-course${cancelQuery}#register`,
         product_name: offer.label,
         product_description: `${offer.installments.count} monthly installments of ${moneyCents(chargedMonthlyCents, currency)}`,
@@ -397,7 +394,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       ...(customerId
         ? { customer: customerId }
         : { customer_email: email }),
-      success_url: `${baseUrl}/certification-course${successQuery}#register`,
+      success_url: successUrl,
       cancel_url: `${baseUrl}/certification-course${cancelQuery}#register`,
       payment_intent_description: offer.label,
       line_items: [
