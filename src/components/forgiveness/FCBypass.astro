@@ -8,22 +8,24 @@ const slides = [
 
 <section class="fc-bypass">
   <div class="fc-bypass-inner">
-    <div class="fc-bypass-img" data-carousel>
-      <div class="fc-bypass-track">
-        {
-          slides.map((src, i) => (
-            <figure class={'fc-bypass-slide' + (i === 0 ? ' is-active' : '')}>
-              <img src={src} alt="" />
-            </figure>
-          ))
-        }
+    <div class="fc-bypass-carousel" data-carousel>
+      <div class="fc-bypass-img">
+        <div class="fc-bypass-track">
+          {
+            slides.map((src, i) => (
+              <figure class={'fc-bypass-slide' + (i === 0 ? ' is-active' : '')}>
+                <img src={src} alt="" />
+              </figure>
+            ))
+          }
+        </div>
+        <button class="fc-carousel-arrow fc-carousel-prev" aria-label="Previous quote">
+          <i class="ph-light ph-caret-left"></i>
+        </button>
+        <button class="fc-carousel-arrow fc-carousel-next" aria-label="Next quote">
+          <i class="ph-light ph-caret-right"></i>
+        </button>
       </div>
-      <button class="fc-carousel-arrow fc-carousel-prev" aria-label="Previous quote">
-        <i class="ph-light ph-caret-left"></i>
-      </button>
-      <button class="fc-carousel-arrow fc-carousel-next" aria-label="Next quote">
-        <i class="ph-light ph-caret-right"></i>
-      </button>
       <div class="fc-carousel-dots" role="tablist" aria-label="Choose a quote">
         {
           slides.map((_, i) => (
