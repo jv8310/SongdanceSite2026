@@ -266,6 +266,14 @@ function activateLabel(choice: Row['activate_choice'], productSlug: string) {
 
               {(r.status === 'pending' || r.status === 'expired' || r.status === 'cancelled') && (
                 <div class="adm-reg-actions">
+                  {(r.status === 'pending' || r.status === 'expired') && (
+                    <form method="POST" action="/api/admin/mark-course-paid" class="adm-reg-markpaid"
+                          onsubmit={`return confirm('Mark course registration #${r.id} (${displayName}, ${r.email}) as paid and push to Drip?')`}>
+                      <input type="hidden" name="course_registration_id" value={r.id} />
+                      <input type="hidden" name="return_to" value={returnTo} />
+                      <button type="submit" class="adm-btn adm-btn--solid">Mark paid + Drip</button>
+                    </form>
+                  )}
                   <form method="POST" action="/api/admin/delete-course-registration" class="adm-reg-delete"
                         onsubmit={`return confirm('Permanently delete course registration #${r.id} (${displayName}, ${r.email})? This cannot be undone.')`}>
                     <input type="hidden" name="course_registration_id" value={r.id} />

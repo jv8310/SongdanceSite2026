@@ -219,6 +219,39 @@ export function computeInstallmentCancelAt(installmentCount: number): number {
   );
 }
 
+// Fetch a subscription with its latest invoice expanded. Used by the webhook
+// to backstop a missing or delayed invoice.paid event: we can read the
+// already-paid first invoice straight off the subscription on
+// checkout.session.completed instead of waiting for Stripe to fire
+// invoice.paid (which, if the webhook endpoint isn't subscribed to it, never
+// arrives at all).
+export async function retrieveSubscriptionWithLatestInvoice(
+  secretKey: string,
+  subscriptionId: string,
+): Promise<{
+  id: string;
+  status: string;
+  latest_invoice: {
+    id: string;
+    status: string;
+    paid: boolean;
+    payment_intent: string | null;
+    amount_paid: number;
+  } | null;
+}> {
+  const res = await fetch(
+    `${STRIPE_BASE}/subscriptions/${subscriptionId}?expand[]=latest_invoice`,
+    { headers: { Authorization: `Bearer ${secretKey}` } },
+  );
+  if (!res.ok) {
+    const body = (await res.json()) as { error?: { message: string } };
+    throw new Error(
+      `Stripe subscriptions.retrieve: ${body.error?.message ?? res.status}`,
+    );
+  }
+  return (await res.json()) as any;
+}
+
 export async function setSubscriptionCancelAt(
   secretKey: string,
   subscriptionId: string,

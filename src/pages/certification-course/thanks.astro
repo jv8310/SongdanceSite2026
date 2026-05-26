@@ -1,0 +1,131 @@
+---
+import '../../styles/certification-course.css';
+import Layout from '../../layouts/Layout.astro';
+import CCNav from '../../components/certification-course/CCNav.astro';
+import CCFooter from '../../components/certification-course/CCFooter.astro';
+
+export const prerender = false;
+
+const sessionId = Astro.url.searchParams.get('session_id');
+const env = Astro.locals.runtime.env;
+
+type Row = {
+  id: number;
+  first_name: string | null;
+  last_name: string | null;
+  email: string;
+  product_slug: 'cc-cert' | 'cc-bundle';
+  payment_plan: 'full' | '3x';
+  installments_paid: number;
+  installments_total: number;
+  status: string;
+  activate_choice: 'now' | 'wait' | null;
+};
+
+let reg: Row | null = null;
+if (sessionId) {
+  reg = await env.DB
+    .prepare(
+      `SELECT id, first_name, last_name, email, product_slug,
+              payment_plan, installments_paid, installments_total, status,
+              activate_choice
+         FROM course_registrations
+        WHERE stripe_session_id = ?`,
+    )
+    .bind(sessionId)
+    .first<Row>();
+}
+
+const productLabel =
+  reg?.product_slug === 'cc-bundle'
+    ? '12-Week Course + Certification Course'
+    : reg?.product_slug === 'cc-cert'
+      ? 'Certification Course'
+      : null;
+
+const isPaid = reg?.status === 'paid';
+const isSubscription = reg?.payment_plan === '3x';
+const firstName = reg?.first_name?.trim() || null;
+---
+
+<Layout
+  title="Thank you — Songdance"
+  description="Your place on the path is confirmed."
+>
+  <div class="cc-site">
+    <CCNav />
+
+    <section class="cc-register cc-thanks">
+      <div class="cc-register-inner">
+        <div class="cc-eyebrow cc-eyebrow--center">Your place on the path</div>
+
+        {reg ? (
+          <>
+            <h1 class="cc-register-h2">
+              Thank you{firstName ? `, ${firstName}` : ''}.
+            </h1>
+
+            {isPaid ? (
+              <p class="cc-register-lead">
+                Your payment for <strong>{productLabel}</strong> has been received.
+                {isSubscription && (
+                  <> Installment {reg.installments_paid} of {reg.installments_total} paid — the next charge will run automatically.</>
+                )}
+              </p>
+            ) : (
+              <p class="cc-register-lead">
+                Your payment for <strong>{productLabel}</strong> is being confirmed.
+                This page will reflect the confirmed status within a minute or two.
+                You can safely close this window — we'll email you the moment it's confirmed.
+              </p>
+            )}
+
+            <p class="cc-register-lead cc-thanks-note">
+              A confirmation email and invoice are on their way.
+              {reg.activate_choice === 'wait' && reg.product_slug === 'cc-bundle' && (
+                <> The 12-week foundation begins right away; the certification course opens automatically when the foundation is complete.</>
+              )}
+              {reg.activate_choice === 'now' && reg.product_slug === 'cc-bundle' && (
+                <> You've activated the certification course immediately — both the foundation and the cert are open to you now.</>
+              )}
+            </p>
+
+            <div class="cc-thanks-actions">
+              <a class="cc-checkout-cta" href="/certification-course">
+                <span>Back to the course page</span>
+              </a>
+            </div>
+          </>
+        ) : (
+          <>
+            <h1 class="cc-register-h2">Thank you.</h1>
+            <p class="cc-register-lead">
+              If you've just completed payment, we'll be in touch shortly. You
+              can safely close this window — a confirmation email is on its way.
+            </p>
+            <div class="cc-thanks-actions">
+              <a class="cc-checkout-cta" href="/certification-course">
+                <span>Back to the course page</span>
+              </a>
+            </div>
+          </>
+        )}
+      </div>
+    </section>
+
+    <CCFooter />
+  </div>
+</Layout>
+
+<style>
+  .cc-thanks { min-height: 60vh; display: flex; align-items: center; }
+  .cc-thanks-note { margin-top: 1.25rem; opacity: 0.85; }
+  .cc-thanks-actions { margin-top: 2.5rem; display: flex; justify-content: center; }
+  .cc-thanks .cc-checkout-cta {
+    width: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    text-decoration: none;
+  }
+</style>
