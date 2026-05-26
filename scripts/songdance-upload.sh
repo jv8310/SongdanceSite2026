@@ -66,6 +66,10 @@ command -v gh >/dev/null 2>&1 || {
   echo "Error: gh CLI not found. Install with: brew install gh" >&2
   exit 1
 }
+command -v python3 >/dev/null 2>&1 || {
+  echo "Error: python3 not found. On macOS run: xcode-select --install" >&2
+  exit 1
+}
 gh auth status >/dev/null 2>&1 || {
   echo "Error: gh not authenticated. Run: gh auth login" >&2
   exit 1
@@ -113,23 +117,34 @@ upload_one() {
 
   echo "→ $path  →  $REPO:$target  ($branch)"
 
-  local b64="$tmpdir/content.b64"
-  base64 -i "$path" 2>/dev/null | tr -d '\n' > "$b64" || base64 "$path" | tr -d '\n' > "$b64"
-
   local sha
   sha=$(gh api "repos/$REPO/contents/$target?ref=$branch" --jq '.sha' 2>/dev/null || true)
-
-  local args=(--method PUT "repos/$REPO/contents/$target"
-              -f "message=$msg"
-              -f "content=@$b64"
-              -f "branch=$branch")
   if [[ -n "$sha" ]]; then
-    args+=(-f "sha=$sha")
     echo "  (replacing existing file)"
   fi
 
+  # Build the JSON request body ourselves so the base64 payload is sent
+  # cleanly. (gh api -f content=@file mangles binary-ish strings.)
+  local body="$tmpdir/body.json"
+  GH_PATH="$path" GH_MSG="$msg" GH_BRANCH="$branch" GH_SHA="$sha" \
+    python3 - >"$body" <<'PY'
+import base64, json, os, sys
+with open(os.environ["GH_PATH"], "rb") as f:
+    content = base64.b64encode(f.read()).decode("ascii")
+data = {
+    "message": os.environ["GH_MSG"],
+    "content": content,
+    "branch": os.environ["GH_BRANCH"],
+}
+sha = os.environ.get("GH_SHA", "")
+if sha:
+    data["sha"] = sha
+sys.stdout.write(json.dumps(data))
+PY
+
   local commit_url
-  commit_url=$(gh api "${args[@]}" --jq '.commit.html_url')
+  commit_url=$(gh api --method PUT "repos/$REPO/contents/$target" \
+    --input "$body" --jq '.commit.html_url')
   echo "  ✓ $commit_url"
 }
 
