@@ -248,16 +248,38 @@
       }
     });
 
-    // Rehydrate if a previous visit stored a decision.
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw) as { email?: string; decision?: Decision };
-        if (parsed?.email && parsed?.decision?.variant) {
-          renderResult(parsed.email, parsed.decision);
+    // URL-driven prefill. `?email=...` (e.g. from a Drip campaign link)
+    // prefills the input and auto-submits so the recipient lands directly
+    // on their personalised offer. A URL email overrides any cached
+    // decision — the link is more authoritative than stale localStorage.
+    function readEmailFromUrl(): string | undefined {
+      try {
+        const raw = new URLSearchParams(window.location.search).get('email');
+        if (!raw) return undefined;
+        const e = raw.trim().toLowerCase();
+        return e || undefined;
+      } catch {}
+      return undefined;
+    }
+
+    const urlEmail = readEmailFromUrl();
+    if (urlEmail) {
+      try { localStorage.removeItem(STORAGE_KEY); } catch {}
+      const input = form.querySelector<HTMLInputElement>('input[name="email"]')!;
+      input.value = urlEmail;
+      form.requestSubmit();
+    } else {
+      // Rehydrate if a previous visit stored a decision.
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw) as { email?: string; decision?: Decision };
+          if (parsed?.email && parsed?.decision?.variant) {
+            renderResult(parsed.email, parsed.decision);
+          }
         }
-      }
-    } catch {}
+      } catch {}
+    }
 
     // If the bottom block resolves a decision first, mirror it up here.
     window.addEventListener('cc:decision-updated', (ev) => {

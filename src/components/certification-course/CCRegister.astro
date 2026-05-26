@@ -1023,6 +1023,16 @@ const countries = COUNTRIES;
   }
 
   // Rehydrate on load from localStorage (set by the teaser or a prior visit).
+  // Skipped when `?email=` is in the URL — the teaser will auto-submit with
+  // that address and dispatch `cc:decision-updated`, and we don't want a
+  // stale cached decision to flash in first.
+  function hasUrlEmail(): boolean {
+    try {
+      const raw = new URLSearchParams(window.location.search).get('email');
+      return !!(raw && raw.trim());
+    } catch {}
+    return false;
+  }
   function rehydrateFromStorage() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -1035,7 +1045,7 @@ const countries = COUNTRIES;
     } catch {}
     return false;
   }
-  rehydrateFromStorage();
+  if (!hasUrlEmail()) rehydrateFromStorage();
 
   // React to updates dispatched from the teaser.
   window.addEventListener('cc:decision-updated', (ev) => {
