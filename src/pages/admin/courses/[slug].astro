@@ -66,11 +66,15 @@ type Row = {
   stripe_session_id: string | null;
   stripe_payment_intent: string | null;
   stripe_subscription_id: string | null;
+  subscription_status: string | null;
   payment_plan: 'full' | '3x';
   installments_paid: number;
   installments_total: number;
   created_at: string;
   paid_at: string | null;
+  cancelled_at: string | null;
+  refunded_at: string | null;
+  refunded_amount_cents: number;
 };
 
 const q = await env.DB
@@ -79,8 +83,10 @@ const q = await env.DB
             product_slug, activate_choice, source_variant,
             amount_cents, currency, status,
             stripe_session_id, stripe_payment_intent, stripe_subscription_id,
+            subscription_status,
             payment_plan, installments_paid, installments_total,
-            created_at, paid_at
+            created_at, paid_at, cancelled_at, refunded_at,
+            refunded_amount_cents
        FROM course_registrations
       WHERE ${where.join(' AND ')}
       ORDER BY created_at DESC`,
@@ -134,6 +140,22 @@ function activateLabel(choice: Row['activate_choice'], productSlug: string) {
   if (choice === 'wait') return 'Wait for 12w end';
   if (productSlug === 'cc-cert') return '—';
   return '—';
+}
+// Tone for the subscription_status badge — mirrors how Stripe colours its
+// own dashboard so the admin reads the two side-by-side without translation.
+function subStatusTone(s: string | null): string {
+  if (!s) return 'cancelled';
+  if (s === 'active' || s === 'trialing') return 'paid';
+  if (s === 'past_due' || s === 'unpaid' || s === 'incomplete' || s === 'paused')
+    return 'pending';
+  return 'cancelled'; // canceled, incomplete_expired
+}
+// Show the subscription badge only when it adds info beyond the main
+// `status` column — i.e. row is still 'paid' but Stripe says otherwise.
+function showSubBadge(rowStatus: string, subStatus: string | null): boolean {
+  if (!subStatus) return false;
+  if (rowStatus === 'paid' && subStatus === 'active') return false;
+  return true;
 }
 ---
 
@@ -193,6 +215,8 @@ function activateLabel(choice: Row['activate_choice'], productSlug: string) {
           <a href={`/admin/courses/${slug}`} class={statusFilter === '' && productFilter === '' ? 'is-on' : ''}>all</a>
           <a href={`/admin/courses/${slug}?status=paid`} class={statusFilter === 'paid' ? 'is-on' : ''}>paid</a>
           <a href={`/admin/courses/${slug}?status=pending`} class={statusFilter === 'pending' ? 'is-on' : ''}>pending</a>
+          <a href={`/admin/courses/${slug}?status=cancelled`} class={statusFilter === 'cancelled' ? 'is-on' : ''}>cancelled</a>
+          <a href={`/admin/courses/${slug}?status=refunded`} class={statusFilter === 'refunded' ? 'is-on' : ''}>refunded</a>
           <a href={`/admin/courses/${slug}?status=expired`} class={statusFilter === 'expired' ? 'is-on' : ''}>expired</a>
           {course.productSlugs.map((ps) => (
             <a href={`/admin/courses/${slug}?product=${ps}`} class={productFilter === ps ? 'is-on' : ''}>{productLabel(ps)}</a>
@@ -225,13 +249,34 @@ function activateLabel(choice: Row['activate_choice'], productSlug: string) {
                   {productLabel(r.product_slug)}
                   <span class="adm-pill adm-pill--role">{activateLabel(r.activate_choice, r.product_slug)}</span>
                 </div>
-                <div class="adm-reg-amount">{eur(r.amount_cents, r.currency)}</div>
+                <div class="adm-reg-amount">
+                  {eur(r.amount_cents, r.currency)}
+                  {r.refunded_amount_cents > 0 && (
+                    <span class="adm-reg-discount">
+                      −{eur(r.refunded_amount_cents, r.currency)} refunded
+                    </span>
+                  )}
+                </div>
                 <div class="adm-reg-status">
                   <span class={`adm-pill adm-pill--${r.status}`}>{r.status}</span>
+                  {showSubBadge(r.status, r.subscription_status) && (
+                    <span
+                      class={`adm-pill adm-pill--${subStatusTone(r.subscription_status)}`}
+                      title="Live Stripe subscription status"
+                    >
+                      sub · {r.subscription_status}
+                    </span>
+                  )}
                 </div>
                 <div class="adm-reg-dates">
                   <div><span>Created</span> {ymd(r.created_at)}</div>
                   <div><span>Paid</span> {ymd(r.paid_at)}</div>
+                  {r.cancelled_at && (
+                    <div><span>Cancelled</span> {ymd(r.cancelled_at)}</div>
+                  )}
+                  {r.refunded_at && (
+                    <div><span>Refunded</span> {ymd(r.refunded_at)}</div>
+                  )}
                 </div>
               </div>
 

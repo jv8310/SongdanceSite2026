@@ -91,6 +91,8 @@ export type Registration = {
   created_at: string;
   paid_at: string | null;
   cancelled_at: string | null;
+  refunded_at: string | null;
+  refunded_amount_cents: number;
 };
 
 export async function getProductBySlug(db: D1Database, slug: string) {
@@ -286,6 +288,39 @@ export async function getRegistrationById(db: D1Database, id: number) {
     .prepare('SELECT * FROM registrations WHERE id = ?')
     .bind(id)
     .first<Registration>();
+}
+
+// PaymentIntent → registration. Retreat checkouts are always one-off
+// (mode=payment), so the PI lives on the row itself; this is the
+// canonical refund lookup path from `charge.refunded`.
+export async function getRegistrationByPaymentIntent(
+  db: D1Database,
+  paymentIntent: string,
+) {
+  return db
+    .prepare('SELECT * FROM registrations WHERE stripe_payment_intent = ?')
+    .bind(paymentIntent)
+    .first<Registration>();
+}
+
+// Flip a retreat row to 'refunded' and accumulate the refunded amount.
+// Doesn't free the bed automatically — that's a host decision (you might
+// want to resell, you might not). Admin can clear it manually if needed.
+export async function markRegistrationRefunded(
+  db: D1Database,
+  id: number,
+  refundedAmountCents: number,
+) {
+  await db
+    .prepare(
+      `UPDATE registrations
+         SET status = 'refunded',
+             refunded_amount_cents = refunded_amount_cents + ?,
+             refunded_at = COALESCE(refunded_at, datetime('now'))
+       WHERE id = ?`,
+    )
+    .bind(refundedAmountCents, id)
+    .run();
 }
 
 export async function logEvent(

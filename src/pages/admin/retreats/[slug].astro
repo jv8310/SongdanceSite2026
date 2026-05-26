@@ -54,6 +54,9 @@ type Row = {
   notes: string | null;
   created_at: string;
   paid_at: string | null;
+  cancelled_at: string | null;
+  refunded_at: string | null;
+  refunded_amount_cents: number;
 };
 
 const where = ['r.product_id = ?'];
@@ -68,7 +71,8 @@ const q = await env.DB.prepare(
           r.status, r.amount_cents, r.currency,
           r.role, r.role_discount_cents,
           r.roommate_pref, r.dietary, r.notes,
-          r.created_at, r.paid_at,
+          r.created_at, r.paid_at, r.cancelled_at,
+          r.refunded_at, r.refunded_amount_cents,
           t.name AS tier_name, t.slug AS tier_slug,
           iu.name AS inventory_unit_name
      FROM registrations r
@@ -502,6 +506,7 @@ const roomTotals = roomBreakdown.reduce(
           <a href={`/admin/retreats/${productSlug}?status=paid`} class={statusFilter === 'paid' ? 'is-on' : ''}>paid</a>
           <a href={`/admin/retreats/${productSlug}?status=pending`} class={statusFilter === 'pending' ? 'is-on' : ''}>pending</a>
           <a href={`/admin/retreats/${productSlug}?status=cancelled`} class={statusFilter === 'cancelled' ? 'is-on' : ''}>cancelled</a>
+          <a href={`/admin/retreats/${productSlug}?status=refunded`} class={statusFilter === 'refunded' ? 'is-on' : ''}>refunded</a>
         </span>
       </h2>
 
@@ -538,6 +543,11 @@ const roomTotals = roomBreakdown.reduce(
                       −{eur(r.role_discount_cents, r.currency)}
                     </span>
                   )}
+                  {r.refunded_amount_cents > 0 && (
+                    <span class="adm-reg-discount">
+                      −{eur(r.refunded_amount_cents, r.currency)} refunded
+                    </span>
+                  )}
                 </div>
                 <div class="adm-reg-status">
                   <span class={`adm-pill adm-pill--${r.status}`}>{r.status}</span>
@@ -545,6 +555,12 @@ const roomTotals = roomBreakdown.reduce(
                 <div class="adm-reg-dates">
                   <div><span>Created</span> {ymd(r.created_at)}</div>
                   <div><span>Paid</span> {ymd(r.paid_at)}</div>
+                  {r.cancelled_at && (
+                    <div><span>Cancelled</span> {ymd(r.cancelled_at)}</div>
+                  )}
+                  {r.refunded_at && (
+                    <div><span>Refunded</span> {ymd(r.refunded_at)}</div>
+                  )}
                 </div>
               </div>
 

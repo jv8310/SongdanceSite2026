@@ -5,6 +5,19 @@ export type CourseProductSlug = 'cc-cert' | 'cc-bundle';
 export type ActivateChoice = 'now' | 'wait';
 export type PaymentPlan = 'full' | '3x';
 
+// Mirrors the Stripe Subscription `status` enum exactly. We store it
+// verbatim so the admin view shows the live Stripe state without a
+// translation table.
+export type SubscriptionStatus =
+  | 'incomplete'
+  | 'incomplete_expired'
+  | 'trialing'
+  | 'active'
+  | 'past_due'
+  | 'canceled'
+  | 'unpaid'
+  | 'paused';
+
 export type CourseRegistration = {
   id: number;
   email: string;
@@ -24,6 +37,7 @@ export type CourseRegistration = {
   stripe_session_id: string | null;
   stripe_payment_intent: string | null;
   stripe_subscription_id: string | null;
+  subscription_status: SubscriptionStatus | null;
   payment_plan: PaymentPlan;
   installments_paid: number;
   installments_total: number;
@@ -31,6 +45,9 @@ export type CourseRegistration = {
   consent_at: string | null;
   created_at: string;
   paid_at: string | null;
+  cancelled_at: string | null;
+  refunded_at: string | null;
+  refunded_amount_cents: number;
 };
 
 export type CreatePendingCourseRegistrationInput = {
@@ -216,6 +233,13 @@ export async function getCourseRegistrationBySubscription(
 // Bumps installments_paid by 1 and flips the row to 'paid' the first time
 // (so the first installment grants access). Uses a single UPDATE so the
 // transition is atomic with the count change.
+//
+// We deliberately leave 'cancelled' and 'refunded' rows alone: once an
+// admin (or a later webhook) has moved the row out of the paid lane, a
+// late `invoice.paid` for a still-flying invoice must not silently
+// resurrect it. Stripe normally stops issuing invoices the moment a sub
+// is cancelled, but there's a tiny race if invoice generation and
+// cancellation overlap — this guard makes that race safe.
 export async function recordInstallmentPaid(
   db: D1Database,
   id: number,
@@ -225,11 +249,91 @@ export async function recordInstallmentPaid(
     .prepare(
       `UPDATE course_registrations
          SET installments_paid = installments_paid + 1,
-             status = CASE WHEN status = 'paid' THEN 'paid' ELSE 'paid' END,
+             status = CASE WHEN status IN ('cancelled','refunded') THEN status ELSE 'paid' END,
              stripe_payment_intent = COALESCE(stripe_payment_intent, ?),
              paid_at = COALESCE(paid_at, datetime('now'))
        WHERE id = ?`,
     )
     .bind(paymentIntent, id)
     .run();
+}
+
+// Mirror Stripe's live `subscription.status` onto our row so the admin
+// view can show "active vs canceled vs past_due" at a glance even when
+// our coarse-grained `status` column is still 'paid' (e.g. cancel_at
+// scheduled in the future, or sub temporarily past_due before recovery).
+//
+// Returns true if a row was updated — useful for distinguishing
+// "subscription not yet linked" from "linked but state hasn't changed".
+export async function updateCourseSubscriptionStatus(
+  db: D1Database,
+  subscriptionId: string,
+  subscriptionStatus: SubscriptionStatus,
+): Promise<boolean> {
+  const res = await db
+    .prepare(
+      `UPDATE course_registrations
+         SET subscription_status = ?
+       WHERE stripe_subscription_id = ?`,
+    )
+    .bind(subscriptionStatus, subscriptionId)
+    .run();
+  return (res.meta?.changes ?? 0) > 0;
+}
+
+// Flip the row to 'cancelled' (terminal — no Drip side-effects). Used by
+// `customer.subscription.deleted` and as an idempotent step inside the
+// `customer.subscription.updated → canceled` path. Guards against
+// over-writing a 'refunded' row (refund is a stronger statement).
+export async function markCourseRegistrationCancelled(
+  db: D1Database,
+  id: number,
+) {
+  await db
+    .prepare(
+      `UPDATE course_registrations
+         SET status = 'cancelled',
+             subscription_status = 'canceled',
+             cancelled_at = COALESCE(cancelled_at, datetime('now'))
+       WHERE id = ?
+         AND status NOT IN ('refunded')`,
+    )
+    .bind(id)
+    .run();
+}
+
+// Flip the row to 'refunded' and accumulate the refunded amount. Stripe
+// fires `charge.refunded` once per refund operation (including partials);
+// we add to the running total so a sequence of partial refunds finally
+// summing to the full charge still reads correctly.
+export async function markCourseRegistrationRefunded(
+  db: D1Database,
+  id: number,
+  refundedAmountCents: number,
+) {
+  await db
+    .prepare(
+      `UPDATE course_registrations
+         SET status = 'refunded',
+             refunded_amount_cents = refunded_amount_cents + ?,
+             refunded_at = COALESCE(refunded_at, datetime('now'))
+       WHERE id = ?`,
+    )
+    .bind(refundedAmountCents, id)
+    .run();
+}
+
+// Look up a course row by the first installment's PaymentIntent (the only
+// one we persist on the row itself). For later installments we fall back
+// to subscription lookups in the webhook.
+export async function getCourseRegistrationByPaymentIntent(
+  db: D1Database,
+  paymentIntent: string,
+) {
+  return db
+    .prepare(
+      'SELECT * FROM course_registrations WHERE stripe_payment_intent = ?',
+    )
+    .bind(paymentIntent)
+    .first<CourseRegistration>();
 }

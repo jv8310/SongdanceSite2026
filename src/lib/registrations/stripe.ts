@@ -252,6 +252,38 @@ export async function retrieveSubscriptionWithLatestInvoice(
   return (await res.json()) as any;
 }
 
+// Retrieve a charge, with its invoice expanded. Used by the `charge.refunded`
+// webhook to resolve a refunded subscription-installment back to the
+// subscription id (and from there to the course_registration). For one-off
+// retreat payments `payment_intent` alone is enough — but installment 2
+// or 3 of a course subscription doesn't appear on our row, so we walk
+// charge → invoice → subscription instead.
+export async function retrieveChargeWithInvoice(
+  secretKey: string,
+  chargeId: string,
+): Promise<{
+  id: string;
+  payment_intent: string | null;
+  amount_refunded: number;
+  refunded: boolean;
+  invoice: {
+    id: string;
+    subscription: string | null;
+  } | null;
+}> {
+  const res = await fetch(
+    `${STRIPE_BASE}/charges/${chargeId}?expand[]=invoice`,
+    { headers: { Authorization: `Bearer ${secretKey}` } },
+  );
+  if (!res.ok) {
+    const body = (await res.json()) as { error?: { message: string } };
+    throw new Error(
+      `Stripe charges.retrieve: ${body.error?.message ?? res.status}`,
+    );
+  }
+  return (await res.json()) as any;
+}
+
 export async function setSubscriptionCancelAt(
   secretKey: string,
   subscriptionId: string,
