@@ -242,7 +242,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const text = buildPlainText(prayer);
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 9000);
+  const timer = setTimeout(() => controller.abort(), 14000);
 
   try {
     const upstream = await fetch('https://api.resend.com/emails', {
@@ -273,10 +273,24 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     if (!upstream.ok) {
       const errText = await upstream.text().catch(() => '');
+      // Pull a human-readable message out of the Resend error envelope so
+      // we can surface it for diagnosis (domain not verified, rate limit,
+      // invalid 'from', etc.) instead of just a status code.
+      let detail = '';
+      try {
+        const parsed = JSON.parse(errText) as { message?: string; name?: string };
+        detail = parsed?.message || parsed?.name || '';
+      } catch {
+        detail = errText.slice(0, 200);
+      }
       console.warn(
-        `[forgiveness-deliver] resend upstream ${upstream.status}: ${errText.slice(0, 300)}`,
+        `[forgiveness-deliver] resend upstream ${upstream.status} from=${from}: ${errText.slice(0, 500)}`,
       );
-      return json(502, { ok: false, error: 'upstream-' + upstream.status });
+      return json(502, {
+        ok: false,
+        error: 'upstream-' + upstream.status,
+        detail: detail || undefined,
+      });
     }
 
     // Fire-and-forget the Drip side-write. waitUntil keeps the worker alive

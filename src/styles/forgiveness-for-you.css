@@ -17,12 +17,12 @@ html, body { background: var(--paper); }
 .tlw-practice-section {
   position: relative;
   background: var(--paper);
-  padding: clamp(80px, 10vw, 144px) var(--sp-7) clamp(80px, 10vw, 144px);
+  padding: clamp(24px, 4vh, 56px) var(--sp-7) clamp(48px, 6vw, 96px);
   overflow: hidden;
   min-height: 100vh;
 }
 @media (max-width: 720px) {
-  .tlw-practice-section { padding: var(--sp-8) var(--sp-5); }
+  .tlw-practice-section { padding: var(--sp-5) var(--sp-5) var(--sp-7); }
 }
 
 /* Intro state: tighten everything so the title, body, and CTA all
@@ -67,7 +67,7 @@ html, body { background: var(--paper); }
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--sp-7);
+  gap: var(--sp-5);
 }
 
 /* ---------- Orb ----------
@@ -79,7 +79,15 @@ html, body { background: var(--paper); }
   height: clamp(140px, 22vh, 220px);
   display: grid;
   place-items: center;
-  margin: var(--sp-3) 0;
+  margin: 0 0 var(--sp-2);
+}
+
+/* Question / generating / prayer steps don't need as much orb height —
+   shrink it a touch so the prompt + options fit comfortably above the
+   fold and the page doesn't require scrolling. */
+.tlw-practice-section:not([data-step="intro"]) .tlw-orb-wrap {
+  width: clamp(110px, 16vh, 180px);
+  height: clamp(110px, 16vh, 180px);
 }
 
 .tlw-orb {
@@ -459,9 +467,9 @@ html, body { background: var(--paper); }
   letter-spacing: 0.005em;
 }
 
-/* Email-gated preview: show four stanzas with a faster fade so only the
-   opening reads cleanly. By the fourth stanza the lines are barely
-   legible — a quiet promise that the rest is waiting. */
+/* Email-gated preview: show three stanzas with a fade that's almost
+   complete by the third — only the opening reads cleanly, and the third
+   phrase is a whisper that something more is waiting. */
 .tlw-prayer-preview {
   position: relative;
   width: 100%;
@@ -470,17 +478,15 @@ html, body { background: var(--paper); }
 .tlw-prayer-body-preview {
   -webkit-mask-image: linear-gradient(to bottom,
     rgba(0, 0, 0, 1) 0%,
-    rgba(0, 0, 0, 1) 22%,
-    rgba(0, 0, 0, 0.55) 48%,
-    rgba(0, 0, 0, 0.22) 72%,
-    rgba(0, 0, 0, 0.06) 90%,
+    rgba(0, 0, 0, 1) 30%,
+    rgba(0, 0, 0, 0.45) 60%,
+    rgba(0, 0, 0, 0.10) 85%,
     rgba(0, 0, 0, 0) 100%);
           mask-image: linear-gradient(to bottom,
     rgba(0, 0, 0, 1) 0%,
-    rgba(0, 0, 0, 1) 22%,
-    rgba(0, 0, 0, 0.55) 48%,
-    rgba(0, 0, 0, 0.22) 72%,
-    rgba(0, 0, 0, 0.06) 90%,
+    rgba(0, 0, 0, 1) 30%,
+    rgba(0, 0, 0, 0.45) 60%,
+    rgba(0, 0, 0, 0.10) 85%,
     rgba(0, 0, 0, 0) 100%);
 }
 
@@ -574,6 +580,45 @@ html, body { background: var(--paper); }
   margin: 0;
   text-wrap: balance;
   text-align: center;
+}
+
+/* Post-submission confirmation: replaces the prayer card. We never show
+   the full prayer on the page — it lives only in the email. */
+.tlw-sent {
+  width: 100%;
+  max-width: 560px;
+  background: var(--paper-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: clamp(40px, 4vw, 56px) clamp(28px, 4vw, 48px) clamp(32px, 4vw, 44px);
+  text-align: center;
+  box-shadow: var(--shadow-2);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-3);
+}
+.tlw-sent-mark { top: -22px; }
+.tlw-sent-title {
+  font-family: var(--font-display);
+  font-size: clamp(22px, 2.6vw, 28px);
+  line-height: 1.22;
+  letter-spacing: -0.008em;
+  font-weight: 400;
+  color: var(--ink);
+  margin: 0;
+  text-wrap: balance;
+  max-width: 22ch;
+}
+.tlw-sent-note {
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--ink-soft);
+  margin: 0;
+  max-width: 38ch;
+  text-wrap: pretty;
 }
 
 /* ---------- Course teaser card (post-submission) ---------- */
