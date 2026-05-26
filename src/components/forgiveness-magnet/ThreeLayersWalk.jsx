@@ -206,7 +206,6 @@ function PrayerCard({ prayer, onSubmitEmail, onReplay, submitted, sending }) {
         ) : (
           <div className="tlw-prayer-preview">
             <p className="tlw-prayer-body tlw-prayer-body-preview">{previewText}</p>
-            <div className="tlw-prayer-fade" aria-hidden="true" />
           </div>
         )}
       </div>
@@ -214,13 +213,33 @@ function PrayerCard({ prayer, onSubmitEmail, onReplay, submitted, sending }) {
       {submitted ? (
         <>
           <p className="tlw-confirmation">Sent. Check your inbox in a few minutes.</p>
-          <p className="tlw-final-leadin">This is a taste.</p>
-          <p className="tlw-final-pitch">
-            The Forgiveness Course is the longer walk — 26 minutes a day for one season, with sound and guidance.
-          </p>
-          <p className="tlw-final-cta">
-            <a href="https://site.songdance.co/forgiveness">Register for the Forgiveness Course →</a>
-          </p>
+
+          <aside className="tlw-course-card" aria-labelledby="tlw-course-title">
+            <div className="tlw-course-eyebrow">If this opened something</div>
+            <h3 id="tlw-course-title" className="tlw-course-title">
+              The Forgiveness Course
+            </h3>
+            <p className="tlw-course-lede">
+              Four live Sundays where forgiveness becomes something the body knows — not a decision the mind keeps trying to make.
+            </p>
+            <ul className="tlw-course-facts">
+              <li>
+                <span className="tlw-course-fact-key">Four 90-minute live classes on Zoom</span>
+                <span className="tlw-course-fact-val">Begins Sunday, May 10, 2026</span>
+              </li>
+              <li>
+                <span className="tlw-course-fact-key">With Daniela Hess &amp; Jacob Vermeulen</span>
+                <span className="tlw-course-fact-val">Teachings, somatic practices, guided journeys</span>
+              </li>
+              <li>
+                <span className="tlw-course-fact-key">Lifetime access to all replays</span>
+                <span className="tlw-course-fact-val">Tuition €147</span>
+              </li>
+            </ul>
+            <a className="tlw-course-cta" href="https://site.songdance.co/forgiveness/">
+              Reserve your place <span aria-hidden="true">→</span>
+            </a>
+          </aside>
         </>
       ) : (
         <form className="tlw-email-block" onSubmit={submit}>
