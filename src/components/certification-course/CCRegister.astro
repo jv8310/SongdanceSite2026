@@ -504,6 +504,9 @@ const countries = COUNTRIES;
       const activateBlock = root.querySelector('[data-slot="activate-now"]') as HTMLElement;
       if (decision.can_activate_now) {
         activateBlock.hidden = false;
+        // Hide the portal link while activation is pending — they can't use
+        // the portal until the Drip automation opens access.
+        portalLink.style.display = 'none';
         const week = decision.twelve_week_week;
         const bodyEl = root.querySelector('[data-slot="activate-now-body"]') as HTMLElement;
         bodyEl.textContent = week
@@ -531,7 +534,7 @@ const countries = COUNTRIES;
           actions.hidden = false;
         });
         yesBtn.addEventListener('click', () =>
-          activateNow(email, yesBtn, msg, portalLink, confirmBlock),
+          activateNow(email, yesBtn, msg, confirmBlock),
         );
       }
       stage.replaceChildren(root);
@@ -977,7 +980,6 @@ const countries = COUNTRIES;
     email: string,
     btn: HTMLButtonElement,
     msg: HTMLElement,
-    portalLink: HTMLAnchorElement,
     confirmBlock: HTMLElement,
   ) {
     const originalLabel = btn.innerHTML;
@@ -1002,18 +1004,13 @@ const countries = COUNTRIES;
         btn.innerHTML = originalLabel;
         return;
       }
-      // Success: collapse the confirm UI so the "Done" button stands alone.
+      // Success: collapse the confirm UI and show a plain confirmation
+      // message. Drip will email the portal access details — we don't link
+      // here because the portal isn't ready until that automation runs.
       confirmBlock.hidden = true;
-      msg.textContent = 'Activated. Your certification access is opening up now — check your inbox in a few minutes.';
+      msg.textContent =
+        "Activated. You'll receive a confirmation email shortly with everything you need to step into the certification course.";
       msg.classList.add('is-visible');
-      const doneBtn = document.createElement('button');
-      doneBtn.type = 'button';
-      doneBtn.className = 'cc-activate-now-btn';
-      doneBtn.innerHTML = '<span>Head to the portal</span><i class="ph-light ph-arrow-up-right"></i>';
-      doneBtn.onclick = () => {
-        window.open(portalLink.href, '_blank', 'noopener');
-      };
-      msg.parentElement?.insertBefore(doneBtn, msg);
     } catch {
       msg.textContent = 'We could not reach the server. Please try again.';
       msg.classList.add('is-visible', 'is-error');
