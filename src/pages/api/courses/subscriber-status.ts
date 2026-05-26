@@ -1,9 +1,10 @@
-// POST { email } → { variant, currency, offers, twelve_week_week?, course_portal_url? }
+// POST { email, currency? } → { variant, currency, offers, twelve_week_week?, course_portal_url? }
 // Drives the variant block on /certification-course.
 //
-// Currency: visitors are priced in USD (US) or GBP (UK), everyone else in
-// EUR. Geo comes from the Cloudflare edge (`cf.country` / `CF-IPCountry`);
-// on local dev we fall back to EUR.
+// Currency: detected from geo by default (US → USD, GB → GBP, else EUR),
+// but the client may pass an explicit `currency` to override — used when
+// the buyer changes the country dropdown on the form (and wants the prices
+// to follow their billing country, not their IP).
 //
 // Failure mode: if Drip is unreachable, return variant E (newcomer) rather
 // than blocking the visitor — better to show *some* offer than nothing.
@@ -18,7 +19,7 @@ import {
 
 export const prerender = false;
 
-type Body = { email?: string };
+type Body = { email?: string; currency?: string };
 
 function detectCurrency(locals: App.Locals, request: Request): Currency {
   const cf = (locals.runtime as any)?.cf;
@@ -30,9 +31,13 @@ function detectCurrency(locals: App.Locals, request: Request): Currency {
   return 'EUR';
 }
 
+function parseCurrency(raw: unknown): Currency | null {
+  if (raw === 'USD' || raw === 'GBP' || raw === 'EUR') return raw;
+  return null;
+}
+
 export const POST: APIRoute = async ({ request, locals }) => {
   const env = locals.runtime.env;
-  const currency = detectCurrency(locals, request);
 
   let payload: Body;
   try {
@@ -40,6 +45,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
   } catch {
     return json({ error: 'Invalid JSON' }, 400);
   }
+
+  // Client-provided currency wins over geo so the country dropdown can
+  // drive the displayed currency.
+  const currency: Currency =
+    parseCurrency(payload.currency) ?? detectCurrency(locals, request);
 
   const email = (payload.email ?? '').trim().toLowerCase();
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
