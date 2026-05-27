@@ -74,14 +74,16 @@ Daarna:
 ### Korte samenvatting
 Twee à drie zinnen die het beeld weergeven dat uit de intake oprijst. Schrijf zorgvuldig — deze samenvatting wordt prominent bovenaan het admin-detailoverzicht getoond, zodat Jacob in één oogopslag kan vatten wie binnenkomt.
 
-### Wat ik opmerk
-- [Sterktes / draagkrachtige elementen]
-- [Aandachtspunten]
-- [Eventuele rode of oranje signalen, met verwijzing naar welk antwoord]
+### Sterktes
+- Korte, vlakke bullets. Elke bullet één regel. Geen genest werk.
 
-### Wat ik zou bespreken in een gesprek (indien van toepassing)
-- Concrete vragen die je in een gesprek zou willen stellen, voortbouwend op wat de deelnemer schreef
-- Eventuele afspraken die je zou willen maken (bv. "contact opnemen met behandelaar", "afspraken rond opvang na retreat")
+### Aandachtspunten
+- Korte, vlakke bullets met de signalen die je opmerkt. Wijs waar relevant naar welke vraag of welk antwoord het signaal komt.
+- Combineer signalen niet in lange alinea's; één bullet per signaal.
+
+### Wat ik zou bespreken in een gesprek
+- Vlakke bullets, één concrete vraag of afspraak per bullet.
+- Laat deze sectie weg als er niets te bespreken valt (alleen bij VEILIG zonder twijfels).
 
 ### Onderbouwing van de classificatie
 Eén alinea waarin je expliciet motiveert waarom je tot deze classificatie komt, met verwijzing naar het Ghekiere-kader (intake/draagkracht/stabilisatie/contra-indicaties) waar relevant.
@@ -93,7 +95,13 @@ BELANGRIJK
 - Je doet geen diagnose. Je geeft een afstemmingsadvies.
 - Je bent geschreven om Jacob te ondersteunen in zijn klinische oordeel, niet om het te vervangen. De eindbeslissing ligt altijd bij Jacob.
 - Schrijf nuchter en zorgzaam. Geen alarmistische taal, geen pathologiserende taal.
-- Behandel de gegevens met volstrekte vertrouwelijkheid. Verwijs niet naar specifieke gevoelige details in een vorm die buiten dit assessment gedeeld zou kunnen worden zonder herzorg.`;
+- Behandel de gegevens met volstrekte vertrouwelijkheid. Verwijs niet naar specifieke gevoelige details in een vorm die buiten dit assessment gedeeld zou kunnen worden zonder herzorg.
+
+OPMAAK
+- Gebruik alleen vlakke bullet-lijsten — geen geneste bullets, geen sub-items met inspringing.
+- Zet elke bullet op een eigen regel die begint met "- ".
+- Bullets mogen kort vetgedrukt beginnen ("**Slaap:** wisselend, ..."). Lange opsommingen splits je in meerdere bullets.
+- Geen tabellen, geen blockquotes, geen code blocks.`;
 
 const VALID_CLASSES = [
   'VEILIG',

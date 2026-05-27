@@ -213,16 +213,17 @@ html, body {
   color: var(--ink);
   line-height: 1.45;
 }
-.in-option:hover {
-  border-color: var(--ember-soft);
-  background: #fff;
+@media (hover: hover) and (pointer: fine) {
+  .in-option:hover {
+    border-color: var(--ember-soft);
+    background: #fff;
+  }
 }
 .in-option input {
   margin-top: 3px;
   accent-color: var(--ember);
   flex-shrink: 0;
 }
-.in-option-selected,
 .in-option:has(input:checked) {
   border-color: var(--ember);
   background: var(--ember-glow);

@@ -55,6 +55,9 @@ const assessmentHtml = row.assessment_md
   ? renderAssessmentMarkdown(row.assessment_md)
   : '';
 
+const phone = typeof payload.phone === 'string' ? payload.phone.trim() : '';
+const age = typeof payload.age === 'string' ? payload.age.trim() : '';
+
 const pageTitle = `Intake — ${row.full_name ?? row.email} — Songdance`;
 ---
 
@@ -108,6 +111,16 @@ const pageTitle = `Intake — ${row.full_name ?? row.email} — Songdance`;
           <dt>Email</dt>
           <dd><a href={`mailto:${row.email}`}>{row.email}</a></dd>
         </div>
+        <div>
+          <dt>Phone</dt>
+          <dd>{phone ? <a href={`tel:${phone.replace(/\s+/g, '')}`}>{phone}</a> : '—'}</dd>
+        </div>
+        {age && (
+          <div>
+            <dt>Age</dt>
+            <dd>{age}</dd>
+          </div>
+        )}
         <div>
           <dt>Retreat</dt>
           <dd>{event.label.nl}</dd>
