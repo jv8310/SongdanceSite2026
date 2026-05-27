@@ -145,6 +145,23 @@ body { background: var(--adm-paper); }
 .adm-pill--type-multi   { background: rgba(0,0,0,0.06); color: var(--adm-ink); }
 .adm-pill--type-none    { background: rgba(0,0,0,0.04); color: var(--adm-mute); }
 
+/* Intake assessment classifications */
+.adm-pill--class-veilig {
+  background: rgba(47, 122, 76, 0.13); color: var(--adm-success);
+}
+.adm-pill--class-call {
+  background: rgba(196, 128, 31, 0.15); color: var(--adm-warn);
+}
+.adm-pill--class-investigate {
+  background: rgba(201, 96, 58, 0.15); color: var(--adm-ember-deep);
+}
+.adm-pill--class-red {
+  background: rgba(181, 61, 61, 0.15); color: var(--adm-danger);
+}
+.adm-pill--class-none {
+  background: rgba(0,0,0,0.06); color: var(--adm-mute);
+}
+
 /* Tables */
 .adm-table {
   width: 100%; border-collapse: collapse;
@@ -328,4 +345,120 @@ body { background: var(--adm-paper); }
 .adm-menu span {
   display: block;
   font-size: 12px; color: var(--adm-ink-soft);
+}
+
+/* ----- Intake assessment + Q/A layout (detail view) ----- */
+.adm-intake-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px 24px;
+  background: var(--adm-paper-soft);
+  border: 1px solid var(--adm-line);
+  border-radius: 10px;
+  padding: 16px 20px;
+  margin-bottom: 24px;
+}
+.adm-intake-meta dt {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--adm-ink-soft);
+  margin-bottom: 4px;
+}
+.adm-intake-meta dd {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  color: var(--adm-ink);
+  word-break: break-word;
+}
+
+.adm-intake-assessment {
+  background: var(--adm-paper-soft);
+  border: 1px solid var(--adm-line);
+  border-radius: 10px;
+  padding: 24px 28px;
+  font-family: Georgia, serif;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--adm-ink);
+}
+.adm-intake-assessment h2 {
+  font-family: Georgia, serif;
+  font-weight: 500;
+  font-size: 1.1rem;
+  margin: 0 0 14px;
+}
+.adm-intake-assessment h3 {
+  font-family: Georgia, serif;
+  font-weight: 500;
+  font-size: 0.95rem;
+  margin: 20px 0 8px;
+  color: var(--adm-ink);
+}
+.adm-intake-assessment p { margin: 0 0 12px; }
+.adm-intake-assessment ul { margin: 8px 0 14px 22px; padding: 0; }
+.adm-intake-assessment li { margin-bottom: 6px; }
+.adm-intake-assessment strong { font-weight: 600; }
+
+.adm-intake-error {
+  background: rgba(181, 61, 61, 0.05);
+  border: 1px solid rgba(181, 61, 61, 0.25);
+  border-radius: 10px;
+  padding: 16px 20px;
+  color: var(--adm-danger);
+  font-size: 13px;
+}
+
+.adm-intake-answers {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.adm-intake-qa {
+  background: var(--adm-paper-soft);
+  border: 1px solid var(--adm-line);
+  border-radius: 8px;
+  padding: 12px 16px;
+}
+.adm-intake-qa dt {
+  font-size: 12px;
+  color: var(--adm-ink-soft);
+  margin-bottom: 6px;
+  line-height: 1.45;
+}
+.adm-intake-qa dd {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  color: var(--adm-ink);
+}
+
+.adm-intake-row {
+  display: grid;
+  grid-template-columns: 110px 1fr 1fr 1fr 1fr;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 16px;
+  background: var(--adm-paper-soft);
+  border: 1px solid var(--adm-line);
+  border-radius: 8px;
+  text-decoration: none;
+  color: inherit;
+  font-size: 13px;
+  transition: border-color 0.15s ease;
+}
+.adm-intake-row:hover { border-color: var(--adm-ember); }
+.adm-intake-row .meta-date { font-family: ui-monospace, monospace; font-size: 12px; color: var(--adm-ink-soft); }
+.adm-intake-row .meta-name { font-weight: 600; color: var(--adm-ink); }
+.adm-intake-row .meta-email { color: var(--adm-ink-soft); }
+.adm-intake-row .meta-event { font-size: 12px; color: var(--adm-ink-soft); }
+.adm-intake-row .meta-class { justify-self: end; }
+@media (max-width: 760px) {
+  .adm-intake-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+  .adm-intake-row .meta-class { justify-self: start; }
 }

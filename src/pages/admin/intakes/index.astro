@@ -1,0 +1,179 @@
+---
+import '../../../styles/admin.css';
+import Layout from '../../../layouts/Layout.astro';
+import { readCookie, verifySession } from '../../../lib/registrations/auth';
+import { EVENTS, resolveEvent } from '../../../lib/intake/events';
+import { pillClassFor, classificationLabel } from '../../../lib/intake/admin';
+
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+const authed = await verifySession(env.ADMIN_SESSION_SECRET, readCookie(Astro.request));
+if (!authed) {
+  return Astro.redirect('/admin/login');
+}
+
+const url = new URL(Astro.request.url);
+const eventFilter = url.searchParams.get('event') ?? '';
+const classFilter = url.searchParams.get('class') ?? '';
+
+const VALID_CLASSES = ['VEILIG', 'NEEDS A CALL', 'FURTHER INVESTIGATION NEEDED', 'RED FLAG'];
+
+const where: string[] = [];
+const binds: unknown[] = [];
+if (eventFilter && Object.prototype.hasOwnProperty.call(EVENTS, eventFilter)) {
+  where.push('event_code = ?');
+  binds.push(eventFilter);
+}
+if (classFilter === 'none') {
+  where.push('classification IS NULL');
+} else if (VALID_CLASSES.includes(classFilter)) {
+  where.push('classification = ?');
+  binds.push(classFilter);
+}
+
+const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+type Row = {
+  id: string;
+  event_code: string;
+  locale: string;
+  email: string;
+  full_name: string | null;
+  classification: string | null;
+  assessment_error: string | null;
+  created_at: string;
+};
+
+const rows: Row[] = (
+  await env.DB
+    .prepare(
+      `SELECT id, event_code, locale, email, full_name,
+              classification, assessment_error, created_at
+         FROM intake_submissions
+         ${whereSql}
+         ORDER BY created_at DESC
+         LIMIT 500`,
+    )
+    .bind(...binds)
+    .all<Row>()
+).results ?? [];
+
+// Per-classification counts (across the unfiltered table) so the filter
+// chips can show how many of each kind are in the system.
+const tallyRows: Array<{ classification: string | null; c: number }> = (
+  await env.DB
+    .prepare(
+      `SELECT classification, COUNT(*) AS c FROM intake_submissions GROUP BY classification`,
+    )
+    .all<{ classification: string | null; c: number }>()
+).results ?? [];
+const tally = new Map<string, number>();
+let total = 0;
+for (const r of tallyRows) {
+  total += r.c;
+  tally.set(r.classification ?? 'none', r.c);
+}
+
+function fmtDate(s: string): string {
+  // D1 returns "YYYY-MM-DD HH:MM:SS" (UTC); compress for table display.
+  return s.replace(' ', ' · ').slice(0, 16);
+}
+
+function buildFilterUrl(opts: { event?: string | null; class?: string | null }): string {
+  const p = new URLSearchParams();
+  const e = opts.event ?? eventFilter;
+  const c = opts.class ?? classFilter;
+  if (e) p.set('event', e);
+  if (c) p.set('class', c);
+  const qs = p.toString();
+  return qs ? `/admin/intakes?${qs}` : '/admin/intakes';
+}
+
+const eventOptions = Object.values(EVENTS);
+const activeEventLabel = eventFilter
+  ? resolveEvent(eventFilter).label.nl
+  : 'All retreats';
+---
+
+<Layout title="Admin — Intakes — Songdance" description="">
+  <main class="adm">
+    <header class="adm-header">
+      <div>
+        <p class="adm-breadcrumbs">
+          <a href="/admin">Admin</a>
+          <span class="sep">/</span>
+          Intakes
+        </p>
+        <h1>Intakes</h1>
+        <p class="adm-sub">
+          {total} submission{total === 1 ? '' : 's'} · {activeEventLabel}
+        </p>
+      </div>
+      <div class="adm-actions">
+        <a class="adm-btn adm-btn--ghost" href="/admin">← Admin</a>
+      </div>
+    </header>
+
+    <section class="adm-section">
+      <h2>
+        Retreat
+        <span class="adm-filters">
+          <a class={!eventFilter ? 'is-on' : ''} href={buildFilterUrl({ event: '' })}>All</a>
+          {eventOptions.map((e) => (
+            <a
+              class={eventFilter === e.code ? 'is-on' : ''}
+              href={buildFilterUrl({ event: e.code })}
+            >
+              {e.label.nl}
+            </a>
+          ))}
+        </span>
+      </h2>
+
+      <h2>
+        Classification
+        <span class="adm-filters">
+          <a class={!classFilter ? 'is-on' : ''} href={buildFilterUrl({ class: '' })}>All</a>
+          {VALID_CLASSES.map((c) => (
+            <a
+              class={classFilter === c ? 'is-on' : ''}
+              href={buildFilterUrl({ class: c })}
+            >
+              {c} <span style="opacity:0.6">({tally.get(c) ?? 0})</span>
+            </a>
+          ))}
+          <a class={classFilter === 'none' ? 'is-on' : ''} href={buildFilterUrl({ class: 'none' })}>
+            No assessment <span style="opacity:0.6">({tally.get('none') ?? 0})</span>
+          </a>
+        </span>
+      </h2>
+    </section>
+
+    <section class="adm-section">
+      {rows.length === 0 && (
+        <p class="adm-empty">No intake submissions match these filters yet.</p>
+      )}
+      {rows.length > 0 && (
+        <div class="adm-regs">
+          {rows.map((r) => {
+            const eventLabel = resolveEvent(r.event_code).label.nl;
+            const cls = r.classification ?? (r.assessment_error ? 'No assessment' : 'No assessment');
+            const pill = pillClassFor(r.classification);
+            return (
+              <a class="adm-intake-row" href={`/admin/intakes/${r.id}`}>
+                <span class="meta-date">{fmtDate(r.created_at)}</span>
+                <span class="meta-name">{r.full_name ?? '—'}</span>
+                <span class="meta-email">{r.email}</span>
+                <span class="meta-event">{eventLabel} · {r.locale.toUpperCase()}</span>
+                <span class="meta-class">
+                  <span class={`adm-pill ${pill}`}>{classificationLabel(r.classification)}</span>
+                </span>
+              </a>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  </main>
+</Layout>

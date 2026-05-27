@@ -1,0 +1,152 @@
+---
+import '../../../styles/admin.css';
+import Layout from '../../../layouts/Layout.astro';
+import { readCookie, verifySession } from '../../../lib/registrations/auth';
+import { resolveEvent } from '../../../lib/intake/events';
+import {
+  pillClassFor,
+  classificationLabel,
+  renderAssessmentMarkdown,
+  escapeHtml,
+  buildQAList,
+  type IntakeRow,
+} from '../../../lib/intake/admin';
+
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+const authed = await verifySession(env.ADMIN_SESSION_SECRET, readCookie(Astro.request));
+if (!authed) {
+  return Astro.redirect('/admin/login');
+}
+
+const id = Astro.params.id ?? '';
+if (!id) {
+  return new Response('Intake not found', { status: 404 });
+}
+
+const row = await env.DB
+  .prepare(
+    `SELECT id, event_code, locale, email, full_name,
+            payload_json, assessment_md, classification,
+            assessment_error, ip, user_agent, created_at
+       FROM intake_submissions
+       WHERE id = ?`,
+  )
+  .bind(id)
+  .first<IntakeRow>();
+
+if (!row) {
+  return new Response('Intake not found', { status: 404 });
+}
+
+const event = resolveEvent(row.event_code);
+let payload: Record<string, unknown> = {};
+try {
+  payload = JSON.parse(row.payload_json) as Record<string, unknown>;
+} catch {
+  payload = {};
+}
+
+const qaList = buildQAList(payload);
+const assessmentHtml = row.assessment_md
+  ? renderAssessmentMarkdown(row.assessment_md)
+  : '';
+
+const pageTitle = `Intake — ${row.full_name ?? row.email} — Songdance`;
+---
+
+<Layout title={pageTitle} description="">
+  <main class="adm">
+    <header class="adm-header">
+      <div>
+        <p class="adm-breadcrumbs">
+          <a href="/admin">Admin</a>
+          <span class="sep">/</span>
+          <a href="/admin/intakes">Intakes</a>
+          <span class="sep">/</span>
+          {row.full_name ?? row.email}
+        </p>
+        <h1>{row.full_name ?? '—'}</h1>
+        <p class="adm-sub">
+          <span class={`adm-pill ${pillClassFor(row.classification)}`}>
+            {classificationLabel(row.classification)}
+          </span>
+        </p>
+      </div>
+      <div class="adm-actions">
+        <a class="adm-btn adm-btn--ghost" href="/admin/intakes">← Intakes</a>
+        <a
+          class="adm-btn"
+          href={`mailto:${row.email}?subject=${encodeURIComponent(`Intake ${event.label[row.locale === 'en' ? 'en' : 'nl']}`)}`}
+        >
+          ✉ Reply
+        </a>
+      </div>
+    </header>
+
+    <section class="adm-section">
+      <dl class="adm-intake-meta">
+        <div>
+          <dt>Email</dt>
+          <dd><a href={`mailto:${row.email}`}>{row.email}</a></dd>
+        </div>
+        <div>
+          <dt>Retreat</dt>
+          <dd>{event.label.nl}</dd>
+        </div>
+        <div>
+          <dt>Language</dt>
+          <dd>{row.locale.toUpperCase()}</dd>
+        </div>
+        <div>
+          <dt>Submitted</dt>
+          <dd>{row.created_at}</dd>
+        </div>
+        <div>
+          <dt>ID</dt>
+          <dd style="font-size:11px">{row.id}</dd>
+        </div>
+        {row.ip && (
+          <div>
+            <dt>IP</dt>
+            <dd>{row.ip}</dd>
+          </div>
+        )}
+      </dl>
+    </section>
+
+    <section class="adm-section">
+      <h2>Assessment</h2>
+      {assessmentHtml && (
+        <div class="adm-intake-assessment" set:html={assessmentHtml} />
+      )}
+      {!assessmentHtml && (
+        <div class="adm-intake-error">
+          No automatic assessment available.
+          {row.assessment_error && (
+            <span> Reason: <code>{row.assessment_error}</code>.</span>
+          )}
+          {' '}Read the answers below.
+        </div>
+      )}
+    </section>
+
+    <section class="adm-section">
+      <h2>Answers</h2>
+      {qaList.length === 0 && (
+        <p class="adm-empty">Payload could not be parsed.</p>
+      )}
+      {qaList.length > 0 && (
+        <div class="adm-intake-answers">
+          {qaList.map((qa) => (
+            <dl class="adm-intake-qa">
+              <dt set:html={escapeHtml(qa.question)} />
+              <dd set:html={escapeHtml(qa.answer)} />
+            </dl>
+          ))}
+        </div>
+      )}
+    </section>
+  </main>
+</Layout>
