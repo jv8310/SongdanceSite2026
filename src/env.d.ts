@@ -14,6 +14,8 @@ type Env = {
   DRIP_COURSE_EVENT?: string;
   RESEND_API_KEY: string;
   RESEND_FROM?: string;
+  RESEND_REPLY_TO?: string;
+  ANTHROPIC_API_KEY?: string;
   SVH_CERT_PORTAL_URL?: string;
   ADMIN_PASSWORD: string;
   ADMIN_SESSION_SECRET: string;

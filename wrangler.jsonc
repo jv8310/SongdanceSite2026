@@ -33,6 +33,7 @@
   //   DRIP_API_TOKEN
   //   DRIP_ACCOUNT_ID
   //   RESEND_API_KEY         (used to send the forgiveness prayer transactionally)
+  //   ANTHROPIC_API_KEY      (forgiveness prayer + /intake assessment)
   //   ADMIN_PASSWORD
   //   ADMIN_SESSION_SECRET   (any random 32+ char string)
 }
