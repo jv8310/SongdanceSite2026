@@ -2,12 +2,15 @@ import type { APIRoute } from 'astro';
 import {
   eventExists,
   getRegistrationById,
+  getRegistrationByPaymentIntent,
   getRegistrationBySession,
   logEvent,
   markRegistrationPaid,
+  markRegistrationRefunded,
 } from '../../../lib/registrations/db';
 import {
   computeInstallmentCancelAt,
+  retrieveChargeWithInvoice,
   retrieveSubscriptionWithLatestInvoice,
   setSubscriptionCancelAt,
   verifyStripeSignature,
@@ -17,10 +20,15 @@ import {
   attachStripeSubscriptionToCourse,
   type CourseRegistration,
   getCourseRegistrationById,
+  getCourseRegistrationByPaymentIntent,
   getCourseRegistrationBySession,
   getCourseRegistrationBySubscription,
+  markCourseRegistrationCancelled,
   markCourseRegistrationPaid,
+  markCourseRegistrationRefunded,
   recordInstallmentPaid,
+  type SubscriptionStatus,
+  updateCourseSubscriptionStatus,
 } from '../../../lib/courses/db';
 import { pushPaidCourseRegistrationToDrip } from '../../../lib/courses/paid-handler';
 
@@ -358,6 +366,249 @@ export const POST: APIRoute = async ({ request, locals }) => {
         });
       }
     }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Subscription lifecycle. Fires whenever Stripe changes the
+  // subscription record — most importantly: status flips (active →
+  // past_due / unpaid / canceled), cancel_at_period_end being toggled
+  // on, and the scheduled cancel_at being set/cleared. We mirror
+  // `subscription.status` onto the row so the admin sees the live
+  // Stripe-side state, without flipping the coarse-grained `status`
+  // until the subscription actually ends.
+  if (event.type === 'customer.subscription.updated') {
+    const sub = event.data.object as {
+      id: string;
+      status: SubscriptionStatus;
+      cancel_at_period_end?: boolean;
+      cancel_at?: number | null;
+      canceled_at?: number | null;
+    };
+    const updated = await updateCourseSubscriptionStatus(
+      env.DB,
+      sub.id,
+      sub.status,
+    );
+    if (!updated) {
+      // We saw an updated event before our checkout.session.completed
+      // handler had attached the subscription — fine, the next event
+      // will land on a linked row. Log so we can spot real desync.
+      await logEvent(env.DB, {
+        registration_id: null,
+        kind: 'course.subscription.updated.unlinked',
+        source: 'stripe',
+        external_id: `${event.id}.unlinked`,
+        payload: {
+          subscription_id: sub.id,
+          status: sub.status,
+          cancel_at_period_end: sub.cancel_at_period_end ?? false,
+        },
+      });
+    }
+    return new Response('OK', { status: 200 });
+  }
+
+  // Terminal subscription end (cancel_at hit, or admin clicked Cancel
+  // in the Stripe dashboard, or every retry attempt for unpaid was
+  // exhausted). Flip the row to 'cancelled' so the admin view stops
+  // showing 'paid'. We do NOT push to Drip on cancel: Drip already has
+  // the original "paid" event, and cancelling a course subscription is
+  // a business question (refund? keep access? talk to them?) that the
+  // host handles manually.
+  if (event.type === 'customer.subscription.deleted') {
+    const sub = event.data.object as {
+      id: string;
+      status: SubscriptionStatus;
+    };
+    const courseReg = await getCourseRegistrationBySubscription(
+      env.DB,
+      sub.id,
+    );
+    if (courseReg) {
+      await markCourseRegistrationCancelled(env.DB, courseReg.id);
+      await logEvent(env.DB, {
+        registration_id: null,
+        kind: 'course.subscription.cancelled',
+        source: 'stripe',
+        external_id: `${event.id}.applied`,
+        payload: {
+          course_registration_id: courseReg.id,
+          subscription_id: sub.id,
+          final_status: sub.status,
+        },
+      });
+    }
+    return new Response('OK', { status: 200 });
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Refunds. Fires once per refund operation — for partial refunds the
+  // event fires once with `amount_refunded` carrying the running total,
+  // and again on each subsequent partial. We add the *delta* (this
+  // refund's amount) so a sequence of partials sums correctly even if
+  // events arrive out of order.
+  //
+  // Lookup chain (one-off retreats and first-installment courses both
+  // resolve from `payment_intent`; later installments need the
+  // charge → invoice → subscription walk):
+  //   1. registrations.stripe_payment_intent
+  //   2. course_registrations.stripe_payment_intent
+  //   3. fetch charge.invoice from Stripe → subscription_id →
+  //      course_registrations.stripe_subscription_id
+  if (event.type === 'charge.refunded') {
+    const charge = event.data.object as {
+      id: string;
+      payment_intent: string | null;
+      amount: number;
+      amount_refunded: number;
+      refunded: boolean;
+      currency: string;
+      invoice?: string | null;
+      // refunds.data[*].amount is the per-refund amount; we sum the
+      // newest one if present, else fall back to amount_refunded.
+      refunds?: {
+        data?: Array<{
+          id: string;
+          amount: number;
+          created: number;
+        }>;
+      };
+    };
+
+    // Pick the most-recent refund object's amount as the delta for this
+    // event. Stripe orders refunds.data with newest first, but we sort
+    // defensively in case that ever changes.
+    const refundDelta = (() => {
+      const list = charge.refunds?.data ?? [];
+      if (list.length === 0) return charge.amount_refunded;
+      const newest = [...list].sort((a, b) => b.created - a.created)[0];
+      return newest?.amount ?? charge.amount_refunded;
+    })();
+
+    // 1. Retreat lookup by PaymentIntent.
+    if (charge.payment_intent) {
+      const reg = await getRegistrationByPaymentIntent(
+        env.DB,
+        charge.payment_intent,
+      );
+      if (reg) {
+        await markRegistrationRefunded(env.DB, reg.id, refundDelta);
+        await logEvent(env.DB, {
+          registration_id: reg.id,
+          kind: 'registration.refunded',
+          source: 'stripe',
+          external_id: `${event.id}.applied`,
+          payload: {
+            charge_id: charge.id,
+            payment_intent: charge.payment_intent,
+            amount_refunded_total: charge.amount_refunded,
+            refund_delta: refundDelta,
+            currency: charge.currency,
+          },
+        });
+        return new Response('OK', { status: 200 });
+      }
+    }
+
+    // 2. Course lookup by PaymentIntent (first installment / full
+    //    payment plans).
+    if (charge.payment_intent) {
+      const courseReg = await getCourseRegistrationByPaymentIntent(
+        env.DB,
+        charge.payment_intent,
+      );
+      if (courseReg) {
+        await markCourseRegistrationRefunded(
+          env.DB,
+          courseReg.id,
+          refundDelta,
+        );
+        await logEvent(env.DB, {
+          registration_id: null,
+          kind: 'course.registration.refunded',
+          source: 'stripe',
+          external_id: `${event.id}.applied`,
+          payload: {
+            course_registration_id: courseReg.id,
+            charge_id: charge.id,
+            payment_intent: charge.payment_intent,
+            amount_refunded_total: charge.amount_refunded,
+            refund_delta: refundDelta,
+            currency: charge.currency,
+          },
+        });
+        return new Response('OK', { status: 200 });
+      }
+    }
+
+    // 3. Course subscription installment 2+ — the PaymentIntent isn't
+    //    on our row, so resolve charge → invoice → subscription via the
+    //    Stripe API. `charge.invoice` is sometimes a bare id and
+    //    sometimes the expanded object depending on event version; we
+    //    re-fetch to normalise.
+    if (charge.invoice) {
+      try {
+        const fresh = await retrieveChargeWithInvoice(
+          env.STRIPE_SECRET_KEY,
+          charge.id,
+        );
+        const subscriptionId = fresh.invoice?.subscription ?? null;
+        if (subscriptionId) {
+          const courseReg = await getCourseRegistrationBySubscription(
+            env.DB,
+            subscriptionId,
+          );
+          if (courseReg) {
+            await markCourseRegistrationRefunded(
+              env.DB,
+              courseReg.id,
+              refundDelta,
+            );
+            await logEvent(env.DB, {
+              registration_id: null,
+              kind: 'course.registration.refunded',
+              source: 'stripe',
+              external_id: `${event.id}.applied`,
+              payload: {
+                course_registration_id: courseReg.id,
+                charge_id: charge.id,
+                subscription_id: subscriptionId,
+                amount_refunded_total: charge.amount_refunded,
+                refund_delta: refundDelta,
+                currency: charge.currency,
+                lookup: 'invoice.subscription',
+              },
+            });
+            return new Response('OK', { status: 200 });
+          }
+        }
+      } catch (err) {
+        await logEvent(env.DB, {
+          registration_id: null,
+          kind: 'charge.refunded.lookup.failed',
+          source: 'stripe',
+          external_id: `${event.id}.lookup_failed`,
+          payload: { charge_id: charge.id, error: String(err) },
+        });
+      }
+    }
+
+    // None of our rows match this refund — likely a charge we don't
+    // own (e.g. test data, or an unrelated Stripe customer if this key
+    // is shared). Log and move on; the initial logEvent at the top of
+    // the handler already captured the full payload.
+    await logEvent(env.DB, {
+      registration_id: null,
+      kind: 'charge.refunded.unmatched',
+      source: 'stripe',
+      external_id: `${event.id}.unmatched`,
+      payload: {
+        charge_id: charge.id,
+        payment_intent: charge.payment_intent,
+        amount_refunded_total: charge.amount_refunded,
+      },
+    });
+    return new Response('OK', { status: 200 });
   }
 
   return new Response('OK', { status: 200 });
