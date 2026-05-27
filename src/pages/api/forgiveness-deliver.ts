@@ -7,7 +7,8 @@ const SUBJECT = 'Your forgiveness prayer';
 const DEFAULT_FROM = 'Songdance <prayer@mail.songdance.co>';
 const DEFAULT_REPLY_TO = 'jacob@songdance.co';
 const LOGO_URL = 'https://site.songdance.co/brand/logo-wordmark-dark.png';
-const HERO_IMAGE_URL = 'https://site.songdance.co/imagery/forgiveness/heart-candle.jpeg';
+const HERO_IMAGE_URL = 'https://site.songdance.co/imagery/forgiveness/heart-candle-rounded.jpeg';
+const COURSE_IMAGE_URL = 'https://site.songdance.co/imagery/forgiveness/course-banner-email.jpeg';
 const FORGIVENESS_URL = 'https://site.songdance.co/forgiveness';
 const DRIP_ACCOUNT_ID = '7850773';
 
@@ -33,10 +34,12 @@ function renderEmailHtml(prayerHtml: string): string {
       a { color: #A14826; text-decoration: none; }
       a:hover { text-decoration: underline; }
       @media screen and (max-width: 600px) {
-        .container { width: 100% !important; }
-        .px-outer { padding-left: 24px !important; padding-right: 24px !important; }
-        .prayer   { font-size: 19px !important; line-height: 1.65 !important; }
-        .h1       { font-size: 26px !important; line-height: 1.18 !important; }
+        .container  { width: 100% !important; }
+        .px-outer   { padding-left: 20px !important; padding-right: 20px !important; }
+        .prayer     { font-size: 19px !important; line-height: 1.65 !important; }
+        .h1         { font-size: 26px !important; line-height: 1.18 !important; }
+        .card-pad   { padding-left: 22px !important; padding-right: 22px !important; }
+        .course-h   { font-size: 19px !important; }
       }
     </style>
   </head>
@@ -48,53 +51,113 @@ function renderEmailHtml(prayerHtml: string): string {
       <tr>
         <td align="center" style="padding: 40px 16px;">
           <table role="presentation" class="container" width="560" cellpadding="0" cellspacing="0" border="0">
+
+            <!-- Hero image -->
             <tr>
-              <td align="center" style="padding: 0 0 28px;">
-                <a href="${FORGIVENESS_URL}" style="display:block;">
-                  <img src="${HERO_IMAGE_URL}" alt="" width="360" style="display:block; width:100%; max-width:360px; height:auto; border:0; border-radius:16px;" />
+              <td align="center" style="padding: 0 0 24px;">
+                <a href="${FORGIVENESS_URL}" style="display:inline-block;">
+                  <img src="${HERO_IMAGE_URL}" alt="" width="280" style="display:block; width:280px; max-width:80%; height:auto; border:0;" />
                 </a>
               </td>
             </tr>
+
+            <!-- Title -->
             <tr>
-              <td align="center" class="px-outer" style="padding: 8px 24px 8px;">
+              <td align="center" class="px-outer" style="padding: 4px 24px 0;">
                 <h1 class="h1" style="margin:0; font-family: Georgia, 'Times New Roman', serif; font-weight:400; font-size:30px; line-height:1.18; letter-spacing:-0.012em; color:#2A1B2A;">
                   Your forgiveness prayer
                 </h1>
               </td>
             </tr>
+
+            <!-- Intro line -->
             <tr>
-              <td align="center" class="px-outer" style="padding: 14px 24px 8px;">
+              <td align="center" class="px-outer" style="padding: 12px 24px 0;">
                 <p style="margin:0; font-family: Georgia, 'Times New Roman', serif; font-style: italic; font-size:15px; line-height:1.55; color:#4A3848; max-width:38ch;">
                   A few lines, shaped for what you brought. Return to it whenever you need to.
                 </p>
               </td>
             </tr>
+
+            <!-- Prayer card -->
             <tr>
-              <td align="center" class="px-outer" style="padding: 28px 24px 32px;">
-                <p class="prayer" style="margin:0; font-family: Georgia, 'Times New Roman', serif; font-style:italic; font-size:20px; line-height:1.75; color:#2A1B2A; letter-spacing:0.005em; white-space: pre-line;">${prayerHtml}</p>
+              <td class="px-outer" style="padding: 24px 24px 0;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#FBF6EC; border:1px solid rgba(161,72,38,0.22); border-radius:14px;">
+                  <tr>
+                    <td class="card-pad" align="center" style="padding: 34px 36px;">
+                      <p class="prayer" style="margin:0; font-family: Georgia, 'Times New Roman', serif; font-style:italic; font-size:20px; line-height:1.75; color:#2A1B2A; letter-spacing:0.005em; white-space: pre-line;">${prayerHtml}</p>
+                    </td>
+                  </tr>
+                </table>
               </td>
             </tr>
+
+            <!-- Ornamental divider -->
             <tr>
-              <td align="center" class="px-outer" style="padding: 12px 24px 8px;">
-                <p style="margin:0; font-family: Georgia, 'Times New Roman', serif; font-size:14px; line-height:1.6; color:#4A3848; max-width: 42ch; margin-left:auto; margin-right:auto;">
-                  If this opened something — the Forgiveness Course is the longer walk. Four live Sundays in July 2026. <a href="https://site.songdance.co/forgiveness" style="color:#A14826; text-decoration:underline;">Read more</a>.
-                </p>
+              <td align="center" style="padding: 36px 24px 28px;">
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                  <tr>
+                    <td style="height:1px; width:48px; background-color:#A14826; line-height:1px; font-size:0;">&nbsp;</td>
+                  </tr>
+                </table>
               </td>
             </tr>
+
+            <!-- Course promo card -->
             <tr>
-              <td align="center" style="padding: 40px 24px 8px;">
+              <td class="px-outer" style="padding: 0 24px;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#FBF6EC; border:1px solid rgba(161,72,38,0.22); border-radius:14px;">
+                  <tr>
+                    <td style="padding: 14px 14px 0;">
+                      <a href="${FORGIVENESS_URL}" style="display:block;">
+                        <img src="${COURSE_IMAGE_URL}" alt="The Forgiveness Course" width="512" style="display:block; width:100%; max-width:512px; height:auto; border:0;" />
+                      </a>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="card-pad" align="left" style="padding: 22px 28px 6px;">
+                      <p style="margin:0 0 6px; font-family: Georgia, 'Times New Roman', serif; font-size:12px; letter-spacing:0.14em; text-transform:uppercase; color:#A14826;">
+                        The longer walk
+                      </p>
+                      <h2 class="course-h" style="margin:0; font-family: Georgia, 'Times New Roman', serif; font-weight:400; font-size:22px; line-height:1.22; color:#2A1B2A;">
+                        The Forgiveness Course
+                      </h2>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="card-pad" align="left" style="padding: 10px 28px 4px;">
+                      <p style="margin:0; font-family: Georgia, 'Times New Roman', serif; font-size:15px; line-height:1.6; color:#4A3848;">
+                        Four live Sundays in July 2026 with Daniela Hess and Jacob Vermeulen — the prayer was a beginning; this is where the work lives.
+                      </p>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="card-pad" align="left" style="padding: 20px 28px 30px;">
+                      <a href="${FORGIVENESS_URL}" style="display:inline-block; background-color:#2A1B2A; color:#F4ECDF; font-family: Georgia, 'Times New Roman', serif; font-size:15px; line-height:1; text-decoration:none; padding:14px 24px; border-radius:999px;">
+                        Read more &rarr;
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- Footer logo -->
+            <tr>
+              <td align="center" style="padding: 44px 24px 8px;">
                 <a href="https://songdance.co" style="display:inline-block;">
-                  <img src="${LOGO_URL}" alt="Songdance" width="110" style="display:block; width:110px; height:auto; opacity:0.55;" />
+                  <img src="${LOGO_URL}" alt="Songdance" width="96" style="display:block; width:96px; height:auto; opacity:0.55;" />
                 </a>
               </td>
             </tr>
             <tr>
-              <td align="center" style="padding: 12px 24px 24px;">
+              <td align="center" style="padding: 10px 24px 24px;">
                 <p style="margin:0; font-family: Georgia, 'Times New Roman', serif; font-size:11px; line-height:1.6; color:#B6A8B4;">
                   You asked for a prayer; we sent one. No list, no follow-ups.
                 </p>
               </td>
             </tr>
+
           </table>
         </td>
       </tr>
