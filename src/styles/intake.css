@@ -1,0 +1,373 @@
+/* =========================================================
+   /intake — Songdance retreat intake
+   One-question-per-screen flow. Site palette (paper + ember),
+   wider air, slower rhythm. Designed to regulate while it asks.
+   ========================================================= */
+
+html, body {
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.in-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---------- Header (minimal, calm) ---------- */
+.in-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 22px 32px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(244, 236, 223, 0.7);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+.in-header-brand {
+  font-family: var(--font-display);
+  font-size: 17px;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+  text-decoration: none;
+}
+.in-header-event {
+  font-family: var(--font-body);
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-quiet);
+}
+.in-header-lang {
+  font-family: var(--font-body);
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ember-deep);
+  text-decoration: none;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  transition: all var(--d-base) var(--ease);
+}
+.in-header-lang:hover {
+  border-color: var(--ember);
+  color: var(--ember-deep);
+}
+
+/* ---------- Progress (subtle thread) ---------- */
+.in-progress-wrap {
+  padding: 12px 32px 0;
+}
+.in-progress-track {
+  height: 2px;
+  background: var(--line);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.in-progress-fill {
+  height: 100%;
+  background: var(--ember);
+  border-radius: 2px;
+  transition: width var(--d-base) var(--ease);
+}
+.in-progress-label {
+  font-family: var(--font-body);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-quiet);
+  margin-top: 8px;
+}
+
+/* ---------- Main step canvas ---------- */
+.in-main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px 64px;
+}
+.in-step {
+  width: 100%;
+  max-width: 640px;
+  margin: 0 auto;
+  animation: in-fade 480ms var(--ease-out) both;
+}
+@keyframes in-fade {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.in-step h1 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(28px, 4vw, 40px);
+  line-height: 1.18;
+  letter-spacing: -0.012em;
+  color: var(--ink);
+  margin: 0 0 18px;
+  text-wrap: balance;
+}
+.in-step .in-body {
+  font-family: var(--font-body);
+  font-size: 17px;
+  line-height: 1.65;
+  color: var(--ink-soft);
+  margin: 0 0 32px;
+  white-space: pre-line;
+  max-width: 56ch;
+}
+.in-step.in-step-pause h1 {
+  font-family: var(--font-lyric);
+  font-style: italic;
+  font-size: clamp(30px, 4.4vw, 44px);
+  color: var(--ink);
+}
+.in-step.in-step-pause .in-body {
+  font-family: var(--font-lyric);
+  font-style: italic;
+  font-size: 20px;
+  color: var(--ink-soft);
+}
+
+/* ---------- Inputs ---------- */
+.in-field {
+  margin: 0 0 12px;
+}
+.in-field input[type="text"],
+.in-field input[type="email"],
+.in-field input[type="number"],
+.in-field textarea {
+  width: 100%;
+  background: var(--paper-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 14px 16px;
+  font-family: var(--font-body);
+  font-size: 17px;
+  color: var(--ink);
+  line-height: 1.5;
+  transition: border-color var(--d-quick) var(--ease), background var(--d-quick) var(--ease);
+  box-sizing: border-box;
+}
+.in-field input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+  max-width: 160px;
+}
+.in-field input[type="number"]::-webkit-outer-spin-button,
+.in-field input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.in-field textarea {
+  min-height: 140px;
+  resize: vertical;
+}
+.in-field input:focus,
+.in-field textarea:focus {
+  outline: none;
+  border-color: var(--ember);
+  background: #fff;
+}
+.in-field input::placeholder,
+.in-field textarea::placeholder {
+  color: var(--ink-whisper);
+}
+.in-field-hint {
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--ink-quiet);
+  margin-left: 12px;
+}
+.in-field-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* ---------- Radios / Checkboxes (option cards) ---------- */
+.in-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.in-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px 18px;
+  background: var(--paper-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  cursor: pointer;
+  transition: all var(--d-quick) var(--ease);
+  font-family: var(--font-body);
+  font-size: 16px;
+  color: var(--ink);
+  line-height: 1.45;
+}
+.in-option:hover {
+  border-color: var(--ember-soft);
+  background: #fff;
+}
+.in-option input {
+  margin-top: 3px;
+  accent-color: var(--ember);
+  flex-shrink: 0;
+}
+.in-option-selected,
+.in-option:has(input:checked) {
+  border-color: var(--ember);
+  background: var(--ember-glow);
+}
+.in-option-text {
+  flex: 1;
+}
+
+/* ---------- Consent block ---------- */
+.in-consents {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.in-consent {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 16px 18px;
+  background: var(--paper-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--ink);
+  cursor: pointer;
+}
+.in-consent input {
+  margin-top: 3px;
+  accent-color: var(--ember);
+}
+
+/* ---------- Micro note (crisis line, etc.) ---------- */
+.in-micro {
+  font-family: var(--font-body);
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ink-quiet);
+  background: var(--ember-glow);
+  border-left: 2px solid var(--ember);
+  padding: 12px 16px;
+  border-radius: 0 var(--r-md) var(--r-md) 0;
+  margin: 18px 0 0;
+}
+
+/* ---------- Validation ---------- */
+.in-error {
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--ember-deep);
+  margin: 10px 0 0;
+}
+
+/* ---------- Footer (actions) ---------- */
+.in-footer {
+  position: sticky;
+  bottom: 0;
+  background: linear-gradient(to bottom, rgba(244, 236, 223, 0) 0%, var(--paper) 30%);
+  padding: 24px 32px 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.in-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 500;
+  padding: 14px 28px;
+  border-radius: var(--r-pill);
+  border: 1px solid transparent;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all var(--d-base) var(--ease);
+  letter-spacing: 0.005em;
+}
+.in-btn-primary {
+  background: var(--ink);
+  color: var(--paper);
+}
+.in-btn-primary:hover {
+  background: var(--plum);
+}
+.in-btn-primary:disabled {
+  background: var(--ink-whisper);
+  cursor: not-allowed;
+}
+.in-btn-quiet {
+  background: transparent;
+  color: var(--ink-soft);
+  padding: 14px 18px;
+}
+.in-btn-quiet:hover {
+  color: var(--ember-deep);
+}
+.in-btn-quiet:disabled {
+  visibility: hidden;
+}
+
+/* ---------- Submitting / done / error ---------- */
+.in-submitting,
+.in-done,
+.in-failure {
+  text-align: center;
+  max-width: 520px;
+  margin: 0 auto;
+}
+.in-submitting h1,
+.in-done h1,
+.in-failure h1 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(32px, 4.4vw, 48px);
+  line-height: 1.15;
+  letter-spacing: -0.012em;
+  color: var(--ink);
+  margin-bottom: 18px;
+}
+.in-done h1 {
+  font-family: var(--font-lyric);
+  font-style: italic;
+}
+.in-spinner {
+  width: 32px;
+  height: 32px;
+  border: 2px solid var(--ember-soft);
+  border-top-color: var(--ember);
+  border-radius: 50%;
+  animation: in-spin 900ms linear infinite;
+  margin: 0 auto 24px;
+}
+@keyframes in-spin { to { transform: rotate(360deg); } }
+
+/* ---------- Mobile ---------- */
+@media (max-width: 640px) {
+  .in-header { padding: 16px 20px; }
+  .in-progress-wrap { padding: 10px 20px 0; }
+  .in-main { padding: 32px 20px 48px; }
+  .in-footer { padding: 18px 20px 22px; }
+  .in-step h1 { font-size: 26px; }
+  .in-btn { padding: 12px 22px; font-size: 14px; }
+  .in-field input,
+  .in-field textarea { font-size: 16px; } /* avoid iOS zoom */
+}

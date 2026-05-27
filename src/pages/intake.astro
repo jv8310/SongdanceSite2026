@@ -1,0 +1,112 @@
+---
+export const prerender = false;
+
+import Layout from '../layouts/Layout.astro';
+import '../styles/intake.css';
+
+import { resolveEvent } from '../lib/intake/events';
+import { resolveLocale, SHARED, STEP_COPY } from '../lib/intake/copy';
+import { STEPS } from '../lib/intake/steps';
+
+const url = new URL(Astro.request.url);
+const rawEvent = url.searchParams.get('event');
+const rawLocale = url.searchParams.get('taal') ?? url.searchParams.get('lang');
+
+const event = resolveEvent(rawEvent);
+const locale = resolveLocale(rawLocale);
+const otherLocale = locale === 'nl' ? 'en' : 'nl';
+
+const shared = SHARED[locale];
+const copy = STEP_COPY[locale];
+
+const eventLabel = event.label[locale];
+
+// Build the URL for the language toggle, preserving event.
+const langSwitchParams = new URLSearchParams();
+if (rawEvent) langSwitchParams.set('event', rawEvent);
+langSwitchParams.set('taal', otherLocale);
+const langSwitchUrl = `/intake?${langSwitchParams.toString()}`;
+
+// Config blob the client script will read on boot.
+const config = {
+  locale,
+  eventCode: event.code,
+  eventLabel,
+  shared: {
+    // progressOf is recreated client-side — JSON can't carry functions.
+    brand: shared.brand,
+    navHome: shared.navHome,
+    langSwitchTo: shared.langSwitchTo,
+    next: shared.next,
+    back: shared.back,
+    submit: shared.submit,
+    required: shared.required,
+    emailInvalid: shared.emailInvalid,
+    numberInvalid: shared.numberInvalid,
+    selectOne: shared.selectOne,
+    consentRequired: shared.consentRequired,
+    submittingTitle: shared.submittingTitle,
+    submittingBody: shared.submittingBody,
+    errorTitle: shared.errorTitle,
+    errorBody: shared.errorBody,
+    errorRetry: shared.errorRetry,
+    forEventLabel: shared.forEventLabel,
+    optional: shared.optional,
+    crisisNote: shared.crisisNote,
+  },
+  steps: STEPS,
+  copy,
+  apiUrl: '/api/intake/submit',
+  homeUrl: 'https://songdance.co',
+  langSwitchUrl,
+};
+
+const pageTitle =
+  locale === 'nl'
+    ? `Intake — ${eventLabel} — Songdance`
+    : `Intake — ${eventLabel} — Songdance`;
+const pageDescription =
+  locale === 'nl'
+    ? 'Een eerste kennismaking voor je deelname. Vijftien minuten, zorgvuldig gelezen.'
+    : 'A first meeting before you join. Fifteen minutes, read with care.';
+---
+
+<Layout title={pageTitle} description={pageDescription}>
+  <div class="in-shell" lang={locale}>
+    <header class="in-header">
+      <a class="in-header-brand" href={config.homeUrl}>{shared.brand}</a>
+      <span class="in-header-event">{shared.forEventLabel}: {eventLabel}</span>
+      <a class="in-header-lang" href={langSwitchUrl} aria-label={shared.langSwitchTo}>
+        {shared.langSwitchTo}
+      </a>
+    </header>
+
+    <div class="in-progress-wrap">
+      <div class="in-progress-track" aria-hidden="true">
+        <div class="in-progress-fill" id="intake-progress-fill" style="width: 0%"></div>
+      </div>
+      <div class="in-progress-label" id="intake-progress-label"></div>
+    </div>
+
+    <main class="in-main">
+      <div id="intake-step-root">
+        <!-- Server-rendered skeleton: the welcome screen. Client takes over. -->
+        <div class="in-step">
+          <h1>{copy.welcome?.title}</h1>
+          <p class="in-body">{copy.welcome?.body}</p>
+        </div>
+      </div>
+    </main>
+
+    <footer class="in-footer" id="intake-footer"></footer>
+  </div>
+
+  <script
+    type="application/json"
+    id="intake-config"
+    set:html={JSON.stringify(config)}
+  />
+  <script>
+    import '../scripts/intake-form';
+  </script>
+</Layout>
