@@ -132,13 +132,13 @@ function renderConfirmationEmail(args: {
   const body = isNl
     ? `Dank je voor het invullen van de intake voor ${args.eventLabel}.
 
-Je antwoorden zijn bij ons. Je hoort binnen enkele dagen van ons.
+Ik kijk ernaar uit je te ontmoeten tijdens de retreat.
 
 Met warme groet,
 Jacob`
     : `Thank you for completing the intake for ${args.eventLabel}.
 
-Your answers are with us. You’ll hear from us within a few days.
+I'm looking forward to meeting you during the retreat.
 
 With warmth,
 Jacob`;
@@ -321,45 +321,50 @@ export const POST: APIRoute = async ({ request, locals, clientAddress }) => {
     console.warn('[intake/submit] D1 binding missing — skipping persistence');
   }
 
-  // ---------- Build the assessor user message ----------
+  // ---------- Background work: Claude assessment + emails ----------
+  // The deelnemer doesn't need to wait for any of this. We acknowledge
+  // the submission as soon as the row is persisted; Claude (which can
+  // take 30–90s) and Resend run in the background via ctx.waitUntil.
   const rawAnswersText = buildAssessorUserMessage({ event, locale, answers });
 
-  // ---------- Call Claude ----------
-  const assessmentResult = await runAssessment({
-    apiKey: anthropicKey,
-    userMessage: rawAnswersText,
-  });
-  const assessmentMd = assessmentResult.markdown;
-  const classification = assessmentResult.classification;
-  const assessmentError = assessmentResult.error;
-  if (assessmentError) {
-    console.warn('[intake/submit] claude error:', assessmentError);
-  }
-
-  // Update the row with assessment + classification.
-  if (db) {
-    try {
-      await db
-        .prepare(
-          `UPDATE intake_submissions
-           SET assessment_md = ?, classification = ?, assessment_error = ?
-           WHERE id = ?`,
-        )
-        .bind(assessmentMd || null, classification, assessmentError, id)
-        .run();
-    } catch (err) {
-      console.error('[intake/submit] D1 update failed', err);
+  const finishInBackground = async () => {
+    const assessmentResult = await runAssessment({
+      apiKey: anthropicKey,
+      userMessage: rawAnswersText,
+    });
+    const assessmentMd = assessmentResult.markdown;
+    const classification = assessmentResult.classification;
+    const assessmentError = assessmentResult.error;
+    if (assessmentError) {
+      console.warn('[intake/submit] claude error:', assessmentError);
     }
-  }
 
-  // ---------- Email Jacob with assessment ----------
-  if (resendKey) {
+    if (db) {
+      try {
+        await db
+          .prepare(
+            `UPDATE intake_submissions
+             SET assessment_md = ?, classification = ?, assessment_error = ?
+             WHERE id = ?`,
+          )
+          .bind(assessmentMd || null, classification, assessmentError, id)
+          .run();
+      } catch (err) {
+        console.error('[intake/submit] D1 update failed', err);
+      }
+    }
+
+    if (!resendKey) {
+      console.warn('[intake/submit] RESEND_API_KEY missing — skipping emails');
+      return;
+    }
+
     const displayClass = classification ?? (assessmentError ? 'GEEN ASSESSMENT' : 'ONBEKEND');
     const assessmentForEmail =
       assessmentMd ||
       `Geen automatisch assessment beschikbaar (reden: ${assessmentError ?? 'onbekend'}).\nLees onderaan de antwoorden zelf.`;
     const subject = `Intake [${displayClass}] — ${eventLabel} — ${fullName}`;
-    const html = renderAssessorEmailHtml({
+    const assessorHtml = renderAssessorEmailHtml({
       classification: displayClass,
       eventLabel,
       participantName: fullName,
@@ -367,7 +372,7 @@ export const POST: APIRoute = async ({ request, locals, clientAddress }) => {
       assessmentMd: assessmentForEmail,
       rawAnswersText,
     });
-    const text = renderAssessorEmailText({
+    const assessorText = renderAssessorEmailText({
       classification: displayClass,
       eventLabel,
       participantName: fullName,
@@ -376,42 +381,41 @@ export const POST: APIRoute = async ({ request, locals, clientAddress }) => {
       rawAnswersText,
     });
 
-    const sendAssessor = sendEmail({
-      apiKey: resendKey,
-      from,
-      to: ASSESSOR_RECIPIENT,
-      replyTo: email,
-      subject,
-      html,
-      text,
-    }).then((r) => {
-      if (!r.ok) console.warn('[intake/submit] assessor email failed:', r.error);
-    });
-
-    // Participant confirmation
     const conf = renderConfirmationEmail({ locale, participantName: fullName, eventLabel });
-    const sendParticipant = sendEmail({
-      apiKey: resendKey,
-      from,
-      to: email,
-      replyTo: ASSESSOR_RECIPIENT,
-      subject: conf.subject,
-      html: conf.html,
-      text: conf.text,
-    }).then((r) => {
-      if (!r.ok) console.warn('[intake/submit] confirmation email failed:', r.error);
-    });
 
-    // Wait for emails so the user only sees "done" once they're sent.
-    // Falls back to waitUntil if available so we don't block the response
-    // beyond a reasonable bound.
-    if (runtime?.ctx?.waitUntil) {
-      runtime.ctx.waitUntil(Promise.allSettled([sendAssessor, sendParticipant]));
-    } else {
-      await Promise.allSettled([sendAssessor, sendParticipant]);
+    const [assessorResult, participantResult] = await Promise.allSettled([
+      sendEmail({
+        apiKey: resendKey,
+        from,
+        to: ASSESSOR_RECIPIENT,
+        replyTo: email,
+        subject,
+        html: assessorHtml,
+        text: assessorText,
+      }),
+      sendEmail({
+        apiKey: resendKey,
+        from,
+        to: email,
+        replyTo: ASSESSOR_RECIPIENT,
+        subject: conf.subject,
+        html: conf.html,
+        text: conf.text,
+      }),
+    ]);
+    if (assessorResult.status === 'fulfilled' && !assessorResult.value.ok) {
+      console.warn('[intake/submit] assessor email failed:', assessorResult.value.error);
     }
+    if (participantResult.status === 'fulfilled' && !participantResult.value.ok) {
+      console.warn('[intake/submit] confirmation email failed:', participantResult.value.error);
+    }
+  };
+
+  if (runtime?.ctx?.waitUntil) {
+    runtime.ctx.waitUntil(finishInBackground());
   } else {
-    console.warn('[intake/submit] RESEND_API_KEY missing — skipping emails');
+    // Dev / no-worker context: run inline so the work still happens.
+    await finishInBackground();
   }
 
   return json(200, { ok: true, id });

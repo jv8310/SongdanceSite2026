@@ -46,14 +46,20 @@ export function escapeHtml(s: string): string {
 }
 
 // Tiny markdown → HTML renderer for the assessment.
-// Handles only the constructs the system prompt actually produces:
-// ## h2, ### h3, **bold**, *italic*, paragraphs, "- " bullet lists.
-// Everything is escaped before structural tags are added back.
+// Handles: ## h2, ### h3, **bold**, *italic*, paragraphs, bullet
+// lists (flat or nested via leading whitespace). Everything is
+// escaped before structural tags are added back.
 export function renderAssessmentMarkdown(md: string): string {
   const lines = md.split(/\r?\n/);
   const out: string[] = [];
-  let inList = false;
-  const flushList = () => { if (inList) { out.push('</ul>'); inList = false; } };
+  // listStack tracks indent widths so nested lists open/close cleanly.
+  const listStack: number[] = [];
+  const closeListsTo = (targetDepth: number) => {
+    while (listStack.length > targetDepth) {
+      out.push('</ul>');
+      listStack.pop();
+    }
+  };
   let paragraphBuf: string[] = [];
   const flushPara = () => {
     if (paragraphBuf.length === 0) return;
@@ -61,38 +67,50 @@ export function renderAssessmentMarkdown(md: string): string {
     if (text) out.push(`<p>${inlineFormat(text)}</p>`);
     paragraphBuf = [];
   };
+  const flushAll = () => {
+    flushPara();
+    closeListsTo(0);
+  };
 
   for (const raw of lines) {
     const line = raw.replace(/\s+$/, '');
     if (line.trim() === '') {
-      flushPara();
-      flushList();
+      flushAll();
       continue;
     }
     const h2 = /^##\s+(.+)$/.exec(line);
     if (h2) {
-      flushPara(); flushList();
+      flushAll();
       out.push(`<h2>${inlineFormat(h2[1]!)}</h2>`);
       continue;
     }
     const h3 = /^###\s+(.+)$/.exec(line);
     if (h3) {
-      flushPara(); flushList();
+      flushAll();
       out.push(`<h3>${inlineFormat(h3[1]!)}</h3>`);
       continue;
     }
-    const li = /^[-*]\s+(.+)$/.exec(line);
+    const li = /^(\s*)[-*]\s+(.+)$/.exec(line);
     if (li) {
       flushPara();
-      if (!inList) { out.push('<ul>'); inList = true; }
-      out.push(`<li>${inlineFormat(li[1]!)}</li>`);
+      const indent = li[1]!.length;
+      // Open new nested list when indent grows; close lists when it shrinks.
+      if (listStack.length === 0 || indent > listStack[listStack.length - 1]!) {
+        out.push('<ul>');
+        listStack.push(indent);
+      } else {
+        while (listStack.length > 1 && indent < listStack[listStack.length - 1]!) {
+          out.push('</ul>');
+          listStack.pop();
+        }
+      }
+      out.push(`<li>${inlineFormat(li[2]!)}</li>`);
       continue;
     }
-    flushList();
+    closeListsTo(0);
     paragraphBuf.push(line);
   }
-  flushPara();
-  flushList();
+  flushAll();
   return out.join('\n');
 }
 

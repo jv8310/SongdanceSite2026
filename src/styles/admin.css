@@ -398,7 +398,9 @@ body { background: var(--adm-paper); }
 }
 .adm-intake-assessment p { margin: 0 0 12px; }
 .adm-intake-assessment ul { margin: 8px 0 14px 22px; padding: 0; }
+.adm-intake-assessment ul ul { margin: 4px 0 4px 18px; }
 .adm-intake-assessment li { margin-bottom: 6px; }
+.adm-intake-assessment li > p:last-child { margin-bottom: 0; }
 .adm-intake-assessment strong { font-weight: 600; }
 
 .adm-intake-error {
