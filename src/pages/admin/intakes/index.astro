@@ -3,6 +3,7 @@ import '../../../styles/admin.css';
 import Layout from '../../../layouts/Layout.astro';
 import { readCookie, verifySession } from '../../../lib/registrations/auth';
 import { EVENTS, resolveEvent } from '../../../lib/intake/events';
+import { listRetreats } from '../../../lib/intake/retreats-db';
 import { pillClassFor, classificationLabel } from '../../../lib/intake/admin';
 
 export const prerender = false;
@@ -19,9 +20,17 @@ const classFilter = url.searchParams.get('class') ?? '';
 
 const VALID_CLASSES = ['VEILIG', 'NEEDS A CALL', 'FURTHER INVESTIGATION NEEDED', 'RED FLAG'];
 
+// Combined retreat catalogue: hardcoded EVENTS + DB rows. DB rows
+// override hardcoded ones with the same slug (display name only).
+const dbRetreats = await listRetreats(env.DB);
+const retreatLabelBySlug = new Map<string, string>();
+for (const e of Object.values(EVENTS)) retreatLabelBySlug.set(e.code, e.label.nl);
+for (const r of dbRetreats) retreatLabelBySlug.set(r.slug, r.name);
+const knownSlugs = new Set(retreatLabelBySlug.keys());
+
 const where: string[] = [];
 const binds: unknown[] = [];
-if (eventFilter && Object.prototype.hasOwnProperty.call(EVENTS, eventFilter)) {
+if (eventFilter && knownSlugs.has(eventFilter)) {
   where.push('event_code = ?');
   binds.push(eventFilter);
 }
@@ -90,9 +99,12 @@ function buildFilterUrl(opts: { event?: string | null; class?: string | null }):
   return qs ? `/admin/intakes?${qs}` : '/admin/intakes';
 }
 
-const eventOptions = Object.values(EVENTS);
+const eventOptions = Array.from(retreatLabelBySlug.entries()).map(([code, name]) => ({
+  code,
+  label: name,
+}));
 const activeEventLabel = eventFilter
-  ? resolveEvent(eventFilter).label.nl
+  ? (retreatLabelBySlug.get(eventFilter) ?? resolveEvent(eventFilter).label.nl)
   : 'All retreats';
 ---
 
@@ -111,6 +123,7 @@ const activeEventLabel = eventFilter
         </p>
       </div>
       <div class="adm-actions">
+        <a class="adm-btn" href="/admin/intakes/retreats">Manage retreats</a>
         <a class="adm-btn adm-btn--ghost" href="/admin">← Admin</a>
       </div>
     </header>
@@ -125,7 +138,7 @@ const activeEventLabel = eventFilter
               class={eventFilter === e.code ? 'is-on' : ''}
               href={buildFilterUrl({ event: e.code })}
             >
-              {e.label.nl}
+              {e.label}
             </a>
           ))}
         </span>
@@ -157,19 +170,30 @@ const activeEventLabel = eventFilter
       {rows.length > 0 && (
         <div class="adm-regs">
           {rows.map((r) => {
-            const eventLabel = resolveEvent(r.event_code).label.nl;
-            const cls = r.classification ?? (r.assessment_error ? 'No assessment' : 'No assessment');
+            const eventLabel = retreatLabelBySlug.get(r.event_code) ?? resolveEvent(r.event_code).label.nl;
             const pill = pillClassFor(r.classification);
             return (
-              <a class="adm-intake-row" href={`/admin/intakes/${r.id}`}>
-                <span class="meta-date">{fmtDate(r.created_at)}</span>
-                <span class="meta-name">{r.full_name ?? '—'}</span>
-                <span class="meta-email">{r.email}</span>
-                <span class="meta-event">{eventLabel} · {r.locale.toUpperCase()}</span>
-                <span class="meta-class">
-                  <span class={`adm-pill ${pill}`}>{classificationLabel(r.classification)}</span>
-                </span>
-              </a>
+              <div class="adm-intake-row-wrap">
+                <a class="adm-intake-row" href={`/admin/intakes/${r.id}`}>
+                  <span class="meta-date">{fmtDate(r.created_at)}</span>
+                  <span class="meta-name">{r.full_name ?? '—'}</span>
+                  <span class="meta-email">{r.email}</span>
+                  <span class="meta-event">{eventLabel} · {r.locale.toUpperCase()}</span>
+                  <span class="meta-class">
+                    <span class={`adm-pill ${pill}`}>{classificationLabel(r.classification)}</span>
+                  </span>
+                </a>
+                <form
+                  method="POST"
+                  action="/api/admin/delete-intake"
+                  class="adm-intake-delete"
+                  onsubmit={`return confirm('Permanently delete this intake submission from ${r.full_name ?? r.email}? This cannot be undone.')`}
+                >
+                  <input type="hidden" name="id" value={r.id} />
+                  <input type="hidden" name="return_to" value="/admin/intakes" />
+                  <button type="submit" class="adm-btn adm-btn--danger" aria-label="Delete intake">Delete</button>
+                </form>
+              </div>
             );
           })}
         </div>

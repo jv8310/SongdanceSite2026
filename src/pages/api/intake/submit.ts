@@ -1,19 +1,17 @@
 import type { APIRoute } from 'astro';
-import { resolveEvent, isKnownEvent } from '../../../lib/intake/events';
-import { STEPS, type StepDef } from '../../../lib/intake/steps';
-import { STEP_COPY, type Locale } from '../../../lib/intake/copy';
 import {
-  ASSESSMENT_SYSTEM_PROMPT,
-  parseClassification,
-} from '../../../lib/intake/system-prompt';
+  resolveEventWithDb,
+  isKnownEventWithDb,
+} from '../../../lib/intake/events';
+import { STEPS } from '../../../lib/intake/steps';
+import type { Locale } from '../../../lib/intake/copy';
+import { buildAssessorUserMessage, runAssessment } from '../../../lib/intake/assess';
 
 export const prerender = false;
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ASSESSOR_RECIPIENT = 'jacob@songdance.co';
 const DEFAULT_FROM = 'Songdance <prayer@mail.songdance.co>';
-const ASSESSMENT_MODEL = 'claude-opus-4-7';
-const CLAUDE_TIMEOUT_MS = 45_000;
 
 interface SubmitBody {
   eventCode?: string;
@@ -34,122 +32,6 @@ function escapeHtml(s: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
-}
-
-// Render answer values back into human-readable strings, using the NL
-// labels (the assessor reads in Dutch). For radio/checkbox answers we
-// resolve the code → label via the same copy file the form uses, so
-// adding/renaming options stays single-source.
-function labelForValue(step: StepDef, value: string): string {
-  const opts = STEP_COPY.nl[step.key]?.options;
-  if (opts && Object.prototype.hasOwnProperty.call(opts, value)) {
-    return opts[value]!;
-  }
-  return value;
-}
-
-function renderAnswerForAssessor(
-  step: StepDef,
-  raw: unknown,
-): string {
-  if (raw === undefined || raw === null) return '—';
-  switch (step.type) {
-    case 'text':
-    case 'email':
-    case 'number':
-    case 'textarea':
-      return typeof raw === 'string' && raw.trim() ? raw.trim() : '—';
-    case 'radio':
-      return typeof raw === 'string' && raw ? labelForValue(step, raw) : '—';
-    case 'checkboxes':
-      if (Array.isArray(raw) && raw.length > 0) {
-        return raw
-          .filter((v): v is string => typeof v === 'string')
-          .map((v) => labelForValue(step, v))
-          .join(', ');
-      }
-      return '—';
-    case 'consent': {
-      if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return '—';
-      const map = raw as Record<string, boolean>;
-      return Object.entries(map)
-        .filter(([, v]) => v === true)
-        .map(([k]) => k)
-        .join(', ') || '—';
-    }
-    default:
-      return '—';
-  }
-}
-
-function buildAssessorUserMessage(args: {
-  eventLabel: string;
-  eventFlavour: string;
-  locale: Locale;
-  answers: Record<string, unknown>;
-}): string {
-  const { eventLabel, eventFlavour, locale, answers } = args;
-  const lines: string[] = [];
-  lines.push(`Retreat: ${eventLabel}`);
-  lines.push(`Context retreat: ${eventFlavour}`);
-  lines.push(`Taal intake-formulier: ${locale === 'nl' ? 'Nederlands' : 'Engels'}`);
-  lines.push('');
-  lines.push('--- INTAKE-ANTWOORDEN ---');
-
-  for (const step of STEPS) {
-    if (step.type === 'intro' || step.type === 'pause' || step.type === 'closing') continue;
-    const nlCopy = STEP_COPY.nl[step.key];
-    const heading = nlCopy?.title ?? step.key;
-    const value = renderAnswerForAssessor(step, answers[step.key]);
-    lines.push('');
-    lines.push(`Q: ${heading}`);
-    lines.push(`A: ${value}`);
-  }
-  return lines.join('\n');
-}
-
-async function callClaude(args: {
-  apiKey: string;
-  userMessage: string;
-}): Promise<{ markdown: string } | { error: string }> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), CLAUDE_TIMEOUT_MS);
-  try {
-    const upstream = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': args.apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: ASSESSMENT_MODEL,
-        max_tokens: 2400,
-        system: ASSESSMENT_SYSTEM_PROMPT,
-        messages: [{ role: 'user', content: args.userMessage }],
-      }),
-      signal: controller.signal,
-    });
-    if (!upstream.ok) {
-      const errText = await upstream.text().catch(() => '');
-      return { error: `upstream-${upstream.status}: ${errText.slice(0, 200)}` };
-    }
-    const data = (await upstream.json()) as {
-      content?: Array<{ type: string; text?: string }>;
-    };
-    const text = (data.content ?? [])
-      .filter((b) => b.type === 'text' && typeof b.text === 'string')
-      .map((b) => b.text)
-      .join('')
-      .trim();
-    if (!text) return { error: 'empty-response' };
-    return { markdown: text };
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return { error: msg.includes('abort') ? 'timeout' : `fetch-error: ${msg.slice(0, 200)}` };
-  } finally {
-    clearTimeout(timer);
-  }
 }
 
 function renderAssessorEmailHtml(args: {
@@ -250,17 +132,13 @@ function renderConfirmationEmail(args: {
   const body = isNl
     ? `Dank je voor het invullen van de intake voor ${args.eventLabel}.
 
-Wat je hebt gedeeld, lezen we met zorg. We nemen binnen enkele dagen contact met je op — met een bevestiging of, als dat behulpzaam is, een korte uitwisseling.
-
-Tot dan: er valt niets te doen. Adem.
+Je antwoorden zijn bij ons. Je hoort binnen enkele dagen van ons.
 
 Met warme groet,
 Jacob`
     : `Thank you for completing the intake for ${args.eventLabel}.
 
-What you shared, we read with care. We'll be in touch within a few days — with a confirmation or, if it's helpful, a short conversation.
-
-Until then: there's nothing to do. Breathe.
+Your answers are with us. You’ll hear from us within a few days.
 
 With warmth,
 Jacob`;
@@ -355,7 +233,7 @@ export const POST: APIRoute = async ({ request, locals, clientAddress }) => {
   const locale: Locale = body.locale === 'en' ? 'en' : 'nl';
   const answers = body.answers ?? {};
 
-  if (!eventCode || !isKnownEvent(eventCode)) {
+  if (!eventCode) {
     return json(400, { ok: false, error: 'unknown-event' });
   }
   if (typeof answers !== 'object' || answers === null) {
@@ -388,9 +266,6 @@ export const POST: APIRoute = async ({ request, locals, clientAddress }) => {
     }
   }
 
-  const event = resolveEvent(eventCode);
-  const eventLabel = event.label[locale];
-
   const runtime = (locals as {
     runtime?: {
       env?: Record<string, string | undefined>;
@@ -401,6 +276,13 @@ export const POST: APIRoute = async ({ request, locals, clientAddress }) => {
 
   const db = (cfEnv as unknown as { DB?: D1Database } | undefined)?.DB
     ?? (locals as unknown as { runtime?: { env?: { DB?: D1Database } } }).runtime?.env?.DB;
+
+  if (!(await isKnownEventWithDb(db, eventCode))) {
+    return json(400, { ok: false, error: 'unknown-event' });
+  }
+
+  const event = await resolveEventWithDb(db, eventCode);
+  const eventLabel = event.label[locale];
 
   const anthropicKey = cfEnv?.ANTHROPIC_API_KEY ?? import.meta.env.ANTHROPIC_API_KEY;
   const resendKey = cfEnv?.RESEND_API_KEY ?? import.meta.env.RESEND_API_KEY;
@@ -440,30 +322,18 @@ export const POST: APIRoute = async ({ request, locals, clientAddress }) => {
   }
 
   // ---------- Build the assessor user message ----------
-  const rawAnswersText = buildAssessorUserMessage({
-    eventLabel: event.label.nl,
-    eventFlavour: event.flavour,
-    locale,
-    answers,
-  });
+  const rawAnswersText = buildAssessorUserMessage({ event, locale, answers });
 
   // ---------- Call Claude ----------
-  let assessmentMd = '';
-  let classification: string | null = null;
-  let assessmentError: string | null = null;
-
-  if (anthropicKey) {
-    const result = await callClaude({ apiKey: anthropicKey, userMessage: rawAnswersText });
-    if ('error' in result) {
-      assessmentError = result.error;
-      console.warn('[intake/submit] claude error:', result.error);
-    } else {
-      assessmentMd = result.markdown;
-      classification = parseClassification(assessmentMd);
-    }
-  } else {
-    assessmentError = 'no-anthropic-key';
-    console.warn('[intake/submit] ANTHROPIC_API_KEY missing — skipping assessment');
+  const assessmentResult = await runAssessment({
+    apiKey: anthropicKey,
+    userMessage: rawAnswersText,
+  });
+  const assessmentMd = assessmentResult.markdown;
+  const classification = assessmentResult.classification;
+  const assessmentError = assessmentResult.error;
+  if (assessmentError) {
+    console.warn('[intake/submit] claude error:', assessmentError);
   }
 
   // Update the row with assessment + classification.

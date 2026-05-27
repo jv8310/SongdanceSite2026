@@ -110,7 +110,7 @@ const NL: Record<string, StepCopy> = {
   welcome: {
     title: 'Voor we beginnen.',
     body:
-      'Dit formulier is een eerste kennismaking. We vragen je een aantal dingen — niet om je te beoordelen, maar om goed te kunnen dragen wat je meebrengt.\n\nNeem je tijd. Sommige vragen mogen even landen voor je antwoordt. Er is geen goed of fout.\n\nReken op ongeveer vijftien minuten.',
+      'Dit formulier is een eerste kennismaking. We vragen je een aantal dingen om goed te kunnen dragen wat je meebrengt.\n\nNeem je tijd. Sommige vragen mogen even landen voor je antwoordt. Er is geen goed of fout.\n\nReken op ongeveer vijftien minuten.',
   },
 
   full_name: {
@@ -121,13 +121,13 @@ const NL: Record<string, StepCopy> = {
     title: 'Op welk e-mailadres mogen we je antwoorden?',
     placeholder: 'jij@voorbeeld.nl',
   },
+  phone: {
+    title: 'Op welk telefoonnummer kunnen we je bereiken?',
+    placeholder: '+31 6 …',
+  },
   age: {
     title: 'Wat is je leeftijd?',
     hint: 'jaar',
-  },
-  country: {
-    title: 'In welk land woon je?',
-    placeholder: 'Bijvoorbeeld: Nederland, België, Duitsland…',
   },
 
   pause_1: {
@@ -256,12 +256,6 @@ const NL: Record<string, StepCopy> = {
     options: { no: 'Nee', sometimes: 'Soms', yes: 'Ja' },
   },
 
-  pause_3: {
-    title: 'Wat nu komt, vraagt iets meer.',
-    body:
-      'Niets hier is een uitsluitingsgrond op zich — het gaat om afstemming, niet om beoordeling.\n\nJe hoeft geen verhaal te geven. Een aanduiding volstaat.',
-  },
-
   trauma_history: {
     title:
       'Heb je een geschiedenis met traumatische ervaringen die je nu nog beïnvloeden?',
@@ -335,7 +329,7 @@ const NL: Record<string, StepCopy> = {
 
   consent: {
     title: 'Tot slot, drie afspraken.',
-    body: 'Vink elk vakje aan om te bevestigen.',
+    body: 'Vink elk vakje aan om te bevestigen — daarna mag je verzenden.',
     consents: {
       consent_not_therapy:
         'Ik begrijp dat deze retreat geen vervanging is voor individuele (trauma)therapie.',
@@ -346,16 +340,10 @@ const NL: Record<string, StepCopy> = {
     },
   },
 
-  closing: {
-    title: 'Dank je.',
-    body:
-      'Wat je hier deelde, lezen we met zorg. We nemen contact op met een bevestiging of, als dat behulpzaam is, een korte uitwisseling.\n\nTot dan: er valt niets te doen. Adem.',
-  },
-
   done: {
     title: 'Aangekomen.',
     body:
-      'Je antwoorden zijn bij ons. Je ontvangt binnen enkele dagen een bericht van ons. We lezen alles met zorg.\n\nTot snel.',
+      'Je antwoorden zijn bij ons. Je hoort binnen enkele dagen van ons.',
   },
 };
 
@@ -364,7 +352,7 @@ const EN: Record<string, StepCopy> = {
   welcome: {
     title: 'Before we begin.',
     body:
-      'This form is a first meeting. We ask a number of things — not to judge you, but so we can hold well what you bring.\n\nTake your time. Some questions deserve a moment before you answer. There’s no right or wrong.\n\nExpect about fifteen minutes.',
+      'This form is a first meeting. We ask a number of things so we can hold well what you bring.\n\nTake your time. Some questions deserve a moment before you answer. There’s no right or wrong.\n\nExpect about fifteen minutes.',
   },
 
   full_name: {
@@ -372,16 +360,16 @@ const EN: Record<string, StepCopy> = {
     placeholder: 'First and last name',
   },
   email: {
-    title: 'Where can we reach you?',
+    title: 'Where can we email you?',
     placeholder: 'you@example.com',
+  },
+  phone: {
+    title: 'What phone number can we reach you on?',
+    placeholder: '+31 6 …',
   },
   age: {
     title: 'How old are you?',
     hint: 'years',
-  },
-  country: {
-    title: 'Which country do you live in?',
-    placeholder: 'For example: Netherlands, Belgium, Germany…',
   },
 
   pause_1: {
@@ -508,12 +496,6 @@ const EN: Record<string, StepCopy> = {
     options: { no: 'No', sometimes: 'Sometimes', yes: 'Yes' },
   },
 
-  pause_3: {
-    title: 'What’s next asks a little more.',
-    body:
-      'Nothing here is an exclusion in itself — it’s about attunement, not judgement.\n\nYou don’t need to tell a story. A pointer is enough.',
-  },
-
   trauma_history: {
     title:
       'Do you have a history of traumatic experiences that still affect you now?',
@@ -585,7 +567,7 @@ const EN: Record<string, StepCopy> = {
 
   consent: {
     title: 'Finally, three agreements.',
-    body: 'Please tick each box to confirm.',
+    body: 'Tick each box to confirm — then you can send.',
     consents: {
       consent_not_therapy:
         'I understand that this retreat is not a substitute for individual (trauma) therapy.',
@@ -596,16 +578,10 @@ const EN: Record<string, StepCopy> = {
     },
   },
 
-  closing: {
-    title: 'Thank you.',
-    body:
-      'What you shared here, we read with care. We’ll get in touch with a confirmation or, if it’s helpful, a short conversation.\n\nUntil then: there’s nothing to do. Breathe.',
-  },
-
   done: {
     title: 'Arrived.',
     body:
-      'Your answers are with us. You’ll hear from us within a few days. We read everything with care.\n\nUntil soon.',
+      'Your answers are with us. You’ll hear from us within a few days.',
   },
 };
 

@@ -4,7 +4,7 @@ export const prerender = false;
 import Layout from '../layouts/Layout.astro';
 import '../styles/intake.css';
 
-import { resolveEvent } from '../lib/intake/events';
+import { resolveEventWithDb } from '../lib/intake/events';
 import { resolveLocale, SHARED, STEP_COPY } from '../lib/intake/copy';
 import { STEPS } from '../lib/intake/steps';
 
@@ -12,7 +12,8 @@ const url = new URL(Astro.request.url);
 const rawEvent = url.searchParams.get('event');
 const rawLocale = url.searchParams.get('taal') ?? url.searchParams.get('lang');
 
-const event = resolveEvent(rawEvent);
+const db = Astro.locals.runtime?.env?.DB as D1Database | undefined;
+const event = await resolveEventWithDb(db, rawEvent);
 const locale = resolveLocale(rawLocale);
 const otherLocale = locale === 'nl' ? 'en' : 'nl';
 

@@ -72,7 +72,7 @@ Daarna:
 **Deelnemer:** [naam], [leeftijd], voor [naam retreat]
 
 ### Korte samenvatting
-Twee à drie zinnen die het beeld weergeven dat uit de intake oprijst.
+Twee à drie zinnen die het beeld weergeven dat uit de intake oprijst. Schrijf zorgvuldig — deze samenvatting wordt prominent bovenaan het admin-detailoverzicht getoond, zodat Jacob in één oogopslag kan vatten wie binnenkomt.
 
 ### Wat ik opmerk
 - [Sterktes / draagkrachtige elementen]
