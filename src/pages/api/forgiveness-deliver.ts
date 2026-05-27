@@ -51,7 +51,7 @@ function renderEmailHtml(prayerHtml: string): string {
             <tr>
               <td align="center" style="padding: 0 0 28px;">
                 <a href="${FORGIVENESS_URL}" style="display:block;">
-                  <img src="${HERO_IMAGE_URL}" alt="" width="560" style="display:block; width:100%; max-width:560px; height:auto; border:0;" />
+                  <img src="${HERO_IMAGE_URL}" alt="" width="360" style="display:block; width:100%; max-width:360px; height:auto; border:0; border-radius:16px;" />
                 </a>
               </td>
             </tr>
