@@ -1,0 +1,77 @@
+# Apply D1 migrations to the live `songdance` database.
+#
+# Triggers:
+#   • workflow_dispatch — manual "Run workflow" button in the Actions tab.
+#     Use this if a migration ever fails to apply on merge and needs a
+#     re-run after a fix.
+#   • push to main when migrations/** changes — so the loop is just
+#     "merge a PR that adds a migration → it lands on D1".
+#
+# Wrangler tracks which migrations have already been applied in a
+# `d1_migrations` table inside D1 itself, so re-runs (and re-runs across
+# branches) are idempotent — already-applied files are skipped.
+#
+# Required repo secrets (Settings → Secrets and variables → Actions):
+#   • CLOUDFLARE_API_TOKEN  — create at dash.cloudflare.com → My Profile
+#     → API Tokens → "Edit Cloudflare Workers" template, scoped to the
+#     account that owns the songdance D1 database.
+#   • CLOUDFLARE_ACCOUNT_ID — copy from the right sidebar of the
+#     Cloudflare dashboard (any Workers / Pages page).
+
+name: D1 migrate
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'migrations/**'
+      - '.github/workflows/d1-migrate.yml'
+
+# Don't let two migrate runs race against the same D1.
+concurrency:
+  group: d1-migrate
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # One-time bootstrap (idempotent): seeds wrangler's `d1_migrations`
+      # tracking table with the historical migrations that were applied
+      # by hand before this workflow existed (0001–0015). Without this,
+      # wrangler would try to re-run them and crash on "table already
+      # exists". `INSERT OR IGNORE` makes re-runs no-ops, so this can
+      # stay in the pipeline indefinitely.
+      - name: Bootstrap migrations tracking table
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler d1 execute songdance --remote --yes --file=scripts/bootstrap-d1-migrations.sql
+
+      # List first so the run log shows which files wrangler considers
+      # pending — useful when triaging "did this migration land?".
+      - name: List pending migrations
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler d1 migrations list songdance --remote
+
+      - name: Apply migrations to remote D1
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler d1 migrations apply songdance --remote --yes
