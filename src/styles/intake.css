@@ -282,7 +282,12 @@ html, body {
   position: sticky;
   bottom: 0;
   background: linear-gradient(to bottom, rgba(244, 236, 223, 0) 0%, var(--paper) 30%);
-  padding: 24px 32px 28px;
+  padding: 18px 24px 24px;
+}
+.in-footer-inner {
+  width: 100%;
+  max-width: 640px;
+  margin: 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -365,7 +370,8 @@ html, body {
   .in-header { padding: 16px 20px; }
   .in-progress-wrap { padding: 10px 20px 0; }
   .in-main { padding: 32px 20px 48px; }
-  .in-footer { padding: 18px 20px 22px; }
+  .in-footer { padding: 14px 16px 20px; }
+  .in-footer-inner { gap: 12px; }
   .in-step h1 { font-size: 26px; }
   .in-btn { padding: 12px 22px; font-size: 14px; }
   .in-field input,

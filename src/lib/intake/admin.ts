@@ -96,6 +96,28 @@ export function renderAssessmentMarkdown(md: string): string {
   return out.join('\n');
 }
 
+// Pull the "### Korte samenvatting" block out of an assessment, so the
+// admin detail page can foreground it at the top. Returns the text
+// (without the heading) up to the next heading, trimmed.
+export function extractSummary(md: string | null | undefined): string {
+  if (!md) return '';
+  const lines = md.split(/\r?\n/);
+  let i = 0;
+  while (i < lines.length) {
+    if (/^###\s+Korte\s+samenvatting/i.test(lines[i]!)) {
+      i++;
+      const out: string[] = [];
+      while (i < lines.length && !/^#{1,6}\s+/.test(lines[i]!)) {
+        out.push(lines[i]!);
+        i++;
+      }
+      return out.join('\n').trim();
+    }
+    i++;
+  }
+  return '';
+}
+
 function inlineFormat(s: string): string {
   // Escape first, then re-inject markup for **bold** and *italic*.
   let h = escapeHtml(s);

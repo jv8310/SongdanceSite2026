@@ -2,11 +2,12 @@
 import '../../../styles/admin.css';
 import Layout from '../../../layouts/Layout.astro';
 import { readCookie, verifySession } from '../../../lib/registrations/auth';
-import { resolveEvent } from '../../../lib/intake/events';
+import { resolveEventWithDb } from '../../../lib/intake/events';
 import {
   pillClassFor,
   classificationLabel,
   renderAssessmentMarkdown,
+  extractSummary,
   escapeHtml,
   buildQAList,
   type IntakeRow,
@@ -40,7 +41,7 @@ if (!row) {
   return new Response('Intake not found', { status: 404 });
 }
 
-const event = resolveEvent(row.event_code);
+const event = await resolveEventWithDb(env.DB, row.event_code);
 let payload: Record<string, unknown> = {};
 try {
   payload = JSON.parse(row.payload_json) as Record<string, unknown>;
@@ -49,6 +50,7 @@ try {
 }
 
 const qaList = buildQAList(payload);
+const summary = extractSummary(row.assessment_md);
 const assessmentHtml = row.assessment_md
   ? renderAssessmentMarkdown(row.assessment_md)
   : '';
@@ -82,6 +84,21 @@ const pageTitle = `Intake — ${row.full_name ?? row.email} — Songdance`;
         >
           ✉ Reply
         </a>
+        <form method="POST" action="/api/admin/reassess-intake" class="adm-intake-reassess">
+          <input type="hidden" name="id" value={row.id} />
+          <input type="hidden" name="return_to" value={`/admin/intakes/${row.id}`} />
+          <button type="submit" class="adm-btn">Run assessment again</button>
+        </form>
+        <form
+          method="POST"
+          action="/api/admin/delete-intake"
+          class="adm-intake-delete"
+          onsubmit={`return confirm('Permanently delete this intake submission? This cannot be undone.')`}
+        >
+          <input type="hidden" name="id" value={row.id} />
+          <input type="hidden" name="return_to" value="/admin/intakes" />
+          <button type="submit" class="adm-btn adm-btn--danger">Delete</button>
+        </form>
       </div>
     </header>
 
@@ -116,6 +133,13 @@ const pageTitle = `Intake — ${row.full_name ?? row.email} — Songdance`;
       </dl>
     </section>
 
+    {summary && (
+      <section class="adm-section adm-intake-summary-section">
+        <h2>Korte samenvatting</h2>
+        <p class="adm-intake-summary">{summary}</p>
+      </section>
+    )}
+
     <section class="adm-section">
       <h2>Assessment</h2>
       {assessmentHtml && (
@@ -127,7 +151,7 @@ const pageTitle = `Intake — ${row.full_name ?? row.email} — Songdance`;
           {row.assessment_error && (
             <span> Reason: <code>{row.assessment_error}</code>.</span>
           )}
-          {' '}Read the answers below.
+          {' '}Try "Run assessment again", or read the answers below.
         </div>
       )}
     </section>

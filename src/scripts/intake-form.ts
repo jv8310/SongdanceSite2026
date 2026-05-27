@@ -71,7 +71,6 @@ function isAnswered(step: StepDef, answers: Answers): boolean {
     }
     case 'intro':
     case 'pause':
-    case 'closing':
       return true;
   }
 }
@@ -134,7 +133,7 @@ class IntakeApp {
   private progressNumbers(): { current: number; total: number } {
     const visible = this.visibleSteps();
     const isCounted = (s: StepDef) =>
-      s.type !== 'intro' && s.type !== 'pause' && s.type !== 'closing';
+      s.type !== 'intro' && s.type !== 'pause';
     const total = visible.filter(isCounted).length;
     let current = 0;
     for (let i = 0; i <= this.idx && i < visible.length; i++) {
@@ -291,11 +290,7 @@ class IntakeApp {
 
     this.wireInputs(step);
 
-    const nextLabel = isLast
-      ? s.submit
-      : (step.type === 'intro' || step.type === 'pause' || step.type === 'closing')
-        ? (step.type === 'closing' ? s.submit : s.next)
-        : s.next;
+    const nextLabel = isLast ? s.submit : s.next;
     const showBack = this.idx > 0;
     this.renderFooter(true, nextLabel, showBack ? s.back : '');
     this.updateProgress();
@@ -305,7 +300,6 @@ class IntakeApp {
     switch (step.type) {
       case 'intro':
       case 'pause':
-      case 'closing':
         return '';
       case 'text':
       case 'email':
@@ -432,6 +426,12 @@ class IntakeApp {
         el.addEventListener('change', () => {
           this.answers[step.key] = el.value;
           this.validationMessage = '';
+          // Auto-advance after a brief beat so the choice is visible.
+          window.setTimeout(() => {
+            if (this.phase === 'form' && this.currentStep()?.key === step.key) {
+              this.goNext();
+            }
+          }, 320);
         });
       });
     } else if (step.type === 'checkboxes') {
@@ -470,12 +470,14 @@ class IntakeApp {
   private renderFooter(_visible: boolean, nextLabel: string, backLabel: string) {
     const footer = $('intake-footer');
     footer.innerHTML = `
-      <button type="button" class="in-btn in-btn-quiet" id="intake-back" ${backLabel ? '' : 'disabled'}>
-        ${backLabel ? `<span aria-hidden="true">←</span> ${escapeHtml(backLabel)}` : ''}
-      </button>
-      <button type="button" class="in-btn in-btn-primary" id="intake-next" ${nextLabel ? '' : 'disabled style="visibility:hidden"'}>
-        ${escapeHtml(nextLabel)} ${nextLabel ? '<span aria-hidden="true">→</span>' : ''}
-      </button>
+      <div class="in-footer-inner">
+        <button type="button" class="in-btn in-btn-quiet" id="intake-back" ${backLabel ? '' : 'disabled'}>
+          ${backLabel ? `<span aria-hidden="true">←</span> ${escapeHtml(backLabel)}` : ''}
+        </button>
+        <button type="button" class="in-btn in-btn-primary" id="intake-next" ${nextLabel ? '' : 'disabled style="visibility:hidden"'}>
+          ${escapeHtml(nextLabel)} ${nextLabel ? '<span aria-hidden="true">→</span>' : ''}
+        </button>
+      </div>
     `;
     document.getElementById('intake-back')?.addEventListener('click', () => this.goBack());
     document.getElementById('intake-next')?.addEventListener('click', () => this.goNext());

@@ -462,3 +462,100 @@ body { background: var(--adm-paper); }
   }
   .adm-intake-row .meta-class { justify-self: start; }
 }
+
+/* Row + delete button side-by-side in the intakes index. */
+.adm-intake-row-wrap {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: stretch;
+  margin-bottom: 8px;
+}
+.adm-intake-row-wrap .adm-intake-row { margin: 0; }
+.adm-intake-delete { display: flex; align-items: stretch; margin: 0; }
+.adm-intake-delete button { white-space: nowrap; }
+.adm-intake-reassess { margin: 0; }
+
+/* Korte samenvatting block on the detail page. */
+.adm-intake-summary-section {
+  background: var(--adm-paper-soft);
+  border: 1px solid var(--adm-line);
+  border-left: 4px solid var(--adm-ember);
+  border-radius: 8px;
+  padding: 18px 22px;
+}
+.adm-intake-summary {
+  margin: 8px 0 0;
+  font-family: Georgia, serif;
+  font-size: 16px;
+  line-height: 1.55;
+  color: var(--adm-ink);
+  white-space: pre-line;
+}
+
+/* Retreats management editor. */
+.adm-retreats { display: flex; flex-direction: column; gap: 14px; }
+.adm-retreat-row {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  background: var(--adm-paper-soft);
+  border: 1px solid var(--adm-line);
+  border-radius: 8px;
+}
+.adm-retreat-row--readonly { background: transparent; }
+.adm-retreat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 12px;
+  align-items: end;
+}
+.adm-retreat-grid > label { display: flex; flex-direction: column; gap: 4px; }
+.adm-retreat-grid > label > span,
+.adm-retreat-label {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--adm-ink-soft);
+}
+.adm-retreat-grid input[type="text"] {
+  padding: 8px 10px;
+  border: 1px solid var(--adm-line);
+  border-radius: 6px;
+  font-size: 14px;
+  background: #fff;
+  color: var(--adm-ink);
+}
+.adm-retreat-grid input:focus { outline: none; border-color: var(--adm-ember); }
+.adm-retreat-active {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 6px !important;
+  padding-bottom: 8px;
+}
+.adm-retreat-flavour { display: flex; flex-direction: column; gap: 4px; }
+.adm-retreat-flavour > span {
+  font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--adm-ink-soft);
+}
+.adm-retreat-flavour textarea {
+  padding: 8px 10px;
+  border: 1px solid var(--adm-line);
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 13px;
+  background: #fff;
+  color: var(--adm-ink);
+  resize: vertical;
+}
+.adm-retreat-flavour textarea:focus { outline: none; border-color: var(--adm-ember); }
+.adm-retreat-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+@media (max-width: 760px) {
+  .adm-retreat-grid { grid-template-columns: 1fr; }
+  .adm-retreat-actions { justify-content: stretch; }
+}

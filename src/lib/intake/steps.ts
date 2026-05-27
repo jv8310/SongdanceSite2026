@@ -16,8 +16,7 @@ export type StepType =
   | 'textarea'     // multi-line free text
   | 'radio'        // single-select from a list
   | 'checkboxes'   // multi-select from a list
-  | 'consent'      // group of required checkboxes (one screen)
-  | 'closing';     // final screen — submit button
+  | 'consent';     // group of required checkboxes (one screen) — also the submit step
 
 export interface OptionDef {
   value: string;
@@ -47,8 +46,8 @@ export const STEPS: StepDef[] = [
   // --- Section 1: who you are
   { key: 'full_name', type: 'text', required: true, maxLength: 120 },
   { key: 'email', type: 'email', required: true, maxLength: 200 },
+  { key: 'phone', type: 'text', required: true, maxLength: 40 },
   { key: 'age', type: 'number', required: true },
-  { key: 'country', type: 'text', required: true, maxLength: 80 },
 
   // --- Pause 1
   { key: 'pause_1', type: 'pause' },
@@ -177,9 +176,6 @@ export const STEPS: StepDef[] = [
     ],
   },
 
-  // --- Pause 3 (history — most sensitive section)
-  { key: 'pause_3', type: 'pause' },
-
   // --- Section 5: history
   {
     key: 'trauma_history',
@@ -245,14 +241,11 @@ export const STEPS: StepDef[] = [
   { key: 'physical_notes', type: 'textarea', maxLength: 1500 },
   { key: 'anything_else', type: 'textarea', maxLength: 2000 },
 
-  // --- Section 7: consent
+  // --- Section 7: consent (submit happens from this step)
   {
     key: 'consent',
     type: 'consent',
     required: true,
     consentKeys: ['consent_not_therapy', 'consent_facilitator_right', 'consent_data'],
   },
-
-  // --- Closing screen → submit
-  { key: 'closing', type: 'closing' },
 ];

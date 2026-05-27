@@ -1,0 +1,147 @@
+---
+import '../../../styles/admin.css';
+import Layout from '../../../layouts/Layout.astro';
+import { readCookie, verifySession } from '../../../lib/registrations/auth';
+import { EVENTS } from '../../../lib/intake/events';
+import { listRetreats } from '../../../lib/intake/retreats-db';
+
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+const authed = await verifySession(env.ADMIN_SESSION_SECRET, readCookie(Astro.request));
+if (!authed) {
+  return Astro.redirect('/admin/login');
+}
+
+const dbRetreats = await listRetreats(env.DB);
+
+// Hardcoded retreats from events.ts that haven't been overridden in
+// the DB — shown for context so Jacob sees the full picture.
+const dbSlugs = new Set(dbRetreats.map((r) => r.slug));
+const hardcoded = Object.values(EVENTS).filter((e) => !dbSlugs.has(e.code));
+
+const siteOrigin = new URL(Astro.request.url).origin;
+function intakeUrl(slug: string): string {
+  return `${siteOrigin}/intake?event=${encodeURIComponent(slug)}`;
+}
+---
+
+<Layout title="Admin — Intake retreats — Songdance" description="">
+  <main class="adm">
+    <header class="adm-header">
+      <div>
+        <p class="adm-breadcrumbs">
+          <a href="/admin">Admin</a>
+          <span class="sep">/</span>
+          <a href="/admin/intakes">Intakes</a>
+          <span class="sep">/</span>
+          Retreats
+        </p>
+        <h1>Intake retreats</h1>
+        <p class="adm-sub">Manage which retreats accept an intake form.</p>
+      </div>
+      <div class="adm-actions">
+        <a class="adm-btn adm-btn--ghost" href="/admin/intakes">← Intakes</a>
+      </div>
+    </header>
+
+    <section class="adm-section">
+      <h2>Existing retreats</h2>
+      {dbRetreats.length === 0 && (
+        <p class="adm-empty">No admin-managed retreats yet. Add one below.</p>
+      )}
+      {dbRetreats.length > 0 && (
+        <div class="adm-retreats">
+          {dbRetreats.map((r) => (
+            <form method="POST" action="/api/admin/save-retreat" class="adm-retreat-row">
+              <input type="hidden" name="original_slug" value={r.slug} />
+              <div class="adm-retreat-grid">
+                <label>
+                  <span>Naam</span>
+                  <input type="text" name="name" value={r.name} required maxlength="200" />
+                </label>
+                <label>
+                  <span>URL slug</span>
+                  <input type="text" name="slug" value={r.slug} required maxlength="80" pattern="[a-z0-9-]+" />
+                </label>
+                <label class="adm-retreat-active">
+                  <input type="checkbox" name="active" checked={r.active === 1} />
+                  <span>Active</span>
+                </label>
+              </div>
+              <label class="adm-retreat-flavour">
+                <span>Context voor Claude (optioneel)</span>
+                <textarea name="flavour" rows="2" maxlength="600" placeholder="Een paar regels die het karakter van deze retreat schetsen voor de AI-assessor.">{r.flavour ?? ''}</textarea>
+              </label>
+              <div class="adm-retreat-actions">
+                <a class="adm-btn adm-btn--ghost" href={intakeUrl(r.slug)} target="_blank" rel="noopener">Open intake link</a>
+                <button type="submit" class="adm-btn">Save</button>
+                <button
+                  type="submit"
+                  name="action"
+                  value="delete"
+                  class="adm-btn adm-btn--danger"
+                  onclick={`return confirm('Delete retreat ${r.slug}? Intake submissions for this retreat stay; only the catalogue entry is removed.')`}
+                >Delete</button>
+              </div>
+            </form>
+          ))}
+        </div>
+      )}
+    </section>
+
+    <section class="adm-section">
+      <h2>Add a retreat</h2>
+      <form method="POST" action="/api/admin/save-retreat" class="adm-retreat-row">
+        <div class="adm-retreat-grid">
+          <label>
+            <span>Naam</span>
+            <input type="text" name="name" required maxlength="200" placeholder="Bv. Klankopstellingen 2027" />
+          </label>
+          <label>
+            <span>URL slug</span>
+            <input type="text" name="slug" required maxlength="80" pattern="[a-z0-9-]+" placeholder="klankopstellingen-2027" />
+          </label>
+          <label class="adm-retreat-active">
+            <input type="checkbox" name="active" checked />
+            <span>Active</span>
+          </label>
+        </div>
+        <label class="adm-retreat-flavour">
+          <span>Context voor Claude (optioneel)</span>
+          <textarea name="flavour" rows="2" maxlength="600" placeholder="Een paar regels die het karakter van deze retreat schetsen voor de AI-assessor."></textarea>
+        </label>
+        <div class="adm-retreat-actions">
+          <button type="submit" class="adm-btn adm-btn--solid">Add retreat</button>
+        </div>
+      </form>
+    </section>
+
+    {hardcoded.length > 0 && (
+      <section class="adm-section">
+        <h2>Built-in retreats</h2>
+        <p class="adm-table-note">
+          These retreats are defined in code (with hand-written flavour text for the AI assessor).
+          Add an entry above with the same slug to override the display name.
+        </p>
+        <div class="adm-retreats">
+          {hardcoded.map((e) => (
+            <div class="adm-retreat-row adm-retreat-row--readonly">
+              <div class="adm-retreat-grid">
+                <div>
+                  <span class="adm-retreat-label">Naam</span>
+                  <strong>{e.label.nl}</strong>
+                </div>
+                <div>
+                  <span class="adm-retreat-label">URL slug</span>
+                  <code>{e.code}</code>
+                </div>
+                <a class="adm-btn adm-btn--ghost" href={intakeUrl(e.code)} target="_blank" rel="noopener">Open intake link</a>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+    )}
+  </main>
+</Layout>
