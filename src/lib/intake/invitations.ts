@@ -246,6 +246,10 @@ function ctaLabel(locale: Locale): string {
   return locale === 'nl' ? 'Vul de intake hier in:' : 'Fill in the intake here:';
 }
 
+function ctaButtonLabel(locale: Locale): string {
+  return locale === 'nl' ? 'Naar de intake' : 'Open the intake';
+}
+
 export function buildInvitationEmail(args: {
   kind: InvitationKind;
   locale: Locale;
@@ -256,6 +260,7 @@ export function buildInvitationEmail(args: {
   const greet = greeting(locale, vars.first_name);
   const body = bodyCopy(kind, locale, vars.event_name);
   const cta = ctaLabel(locale);
+  const ctaBtn = ctaButtonLabel(locale);
   const sig = signoff(locale);
 
   const text = `${greet}\n\n${body}\n\n${cta}\n${vars.link}\n\n${sig}`;
@@ -266,17 +271,22 @@ export function buildInvitationEmail(args: {
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
   <tr><td align="center" style="padding:48px 16px;">
     <table role="presentation" width="540" cellpadding="0" cellspacing="0" border="0">
-      <tr><td style="padding:24px 8px;">
+      <tr><td align="center" style="padding:0 8px 28px;">
+        <span style="font-family:Georgia,'Times New Roman',serif;font-size:13px;letter-spacing:0.22em;text-transform:uppercase;color:#7A6A78;">Songdance</span>
+      </td></tr>
+      <tr><td style="padding:0 8px;">
         <p style="margin:0;font-family:Georgia,serif;font-size:16px;line-height:1.7;color:#2A1B2A;">${escapeHtml(greet)}</p>
         <p style="margin:18px 0 0;font-family:Georgia,serif;font-size:16px;line-height:1.75;color:#2A1B2A;white-space:pre-line;">${escapeHtml(body)}</p>
-        <p style="margin:24px 0 6px;font-family:Georgia,serif;font-size:15px;color:#4A3848;">${escapeHtml(cta)}</p>
-        <p style="margin:0;font-family:Helvetica,Arial,sans-serif;font-size:14px;">
-          <a href="${escapeHtml(vars.link)}" style="color:#A14826;text-decoration:underline;word-break:break-all;">${escapeHtml(vars.link)}</a>
-        </p>
-        <p style="margin:28px 0 0;font-family:Georgia,serif;font-size:16px;line-height:1.7;color:#2A1B2A;white-space:pre-line;">${escapeHtml(sig)}</p>
+        <p style="margin:28px 0 14px;font-family:Georgia,serif;font-size:15px;color:#4A3848;">${escapeHtml(cta)}</p>
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0;">
+          <tr><td align="center" bgcolor="#2A1B2A" style="border-radius:999px;">
+            <a href="${escapeHtml(vars.link)}" style="display:inline-block;padding:14px 30px;font-family:Helvetica,Arial,sans-serif;font-size:15px;font-weight:500;letter-spacing:0.01em;color:#F4ECDF;text-decoration:none;border-radius:999px;">${escapeHtml(ctaBtn)} &rarr;</a>
+          </td></tr>
+        </table>
+        <p style="margin:36px 0 0;font-family:Georgia,serif;font-size:16px;line-height:1.7;color:#2A1B2A;white-space:pre-line;">${escapeHtml(sig)}</p>
       </td></tr>
-      <tr><td align="center" style="padding:32px 8px 0;">
-        <p style="margin:0;font-family:Georgia,serif;font-size:11px;color:#B6A8B4;">Songdance · songdance.co</p>
+      <tr><td align="center" style="padding:36px 8px 0;">
+        <p style="margin:0;font-family:Georgia,serif;font-size:11px;color:#B6A8B4;">songdance.co</p>
       </td></tr>
     </table>
   </td></tr>
