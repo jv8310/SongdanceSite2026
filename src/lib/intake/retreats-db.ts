@@ -7,12 +7,14 @@
 // and shows up in the admin filters.
 
 import type { EventDefinition } from './events';
+import type { Locale } from './copy';
 
 export interface RetreatRow {
   slug: string;
   name: string;
   flavour: string | null;
   active: number;
+  invite_locale: Locale;
   created_at: string;
   updated_at: string;
 }
@@ -20,7 +22,7 @@ export interface RetreatRow {
 export async function listRetreats(db: D1Database): Promise<RetreatRow[]> {
   const q = await db
     .prepare(
-      `SELECT slug, name, flavour, active, created_at, updated_at
+      `SELECT slug, name, flavour, active, invite_locale, created_at, updated_at
          FROM intake_retreats
          ORDER BY active DESC, name`,
     )
@@ -34,7 +36,7 @@ export async function getRetreat(
 ): Promise<RetreatRow | null> {
   const row = await db
     .prepare(
-      `SELECT slug, name, flavour, active, created_at, updated_at
+      `SELECT slug, name, flavour, active, invite_locale, created_at, updated_at
          FROM intake_retreats
          WHERE slug = ?`,
     )

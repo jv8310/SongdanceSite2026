@@ -22,7 +22,8 @@
     "PUBLIC_BASE_URL": "https://site.songdance.co",
     "QUADERNO_ACCOUNT": "songdance",
     "DRIP_REGISTRATION_EVENT": "Completed retreat registration",
-    "RESEND_FROM": "Songdance <prayer@mail.songdance.co>"
+    "RESEND_FROM": "Songdance <prayer@mail.songdance.co>",
+    "RESEND_INTAKES_FROM": "Songdance <intakes@mail.songdance.co>"
   }
   // Secrets (set in Cloudflare dashboard → Workers → Settings → Variables and Secrets,
   // or via `wrangler secret put <NAME>`):

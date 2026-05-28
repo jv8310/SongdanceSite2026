@@ -6,6 +6,11 @@ import {
 import { STEPS } from '../../../lib/intake/steps';
 import type { Locale } from '../../../lib/intake/copy';
 import { buildAssessorUserMessage, runAssessment } from '../../../lib/intake/assess';
+import {
+  findInvitationForSubmission,
+  getInvitationByToken,
+  markInvitationSubmitted,
+} from '../../../lib/intake/invitations';
 
 export const prerender = false;
 
@@ -17,6 +22,7 @@ interface SubmitBody {
   eventCode?: string;
   locale?: string;
   answers?: Record<string, unknown>;
+  inviteToken?: string;
 }
 
 const json = (status: number, body: Record<string, unknown>) =>
@@ -232,6 +238,7 @@ export const POST: APIRoute = async ({ request, locals, clientAddress }) => {
   const eventCode = (body.eventCode ?? '').toString().trim();
   const locale: Locale = body.locale === 'en' ? 'en' : 'nl';
   const answers = body.answers ?? {};
+  const inviteToken = (body.inviteToken ?? '').toString().trim().slice(0, 80) || null;
 
   if (!eventCode) {
     return json(400, { ok: false, error: 'unknown-event' });
@@ -316,6 +323,21 @@ export const POST: APIRoute = async ({ request, locals, clientAddress }) => {
     } catch (err) {
       console.error('[intake/submit] D1 insert failed', err);
       // Don't bail — we still want Jacob to receive the email.
+    }
+
+    // Mark the invitation row (if any) as submitted so the admin stops
+    // showing send buttons for this person. We try the URL token first,
+    // then fall back to retreat+email so a forwarded link or manually
+    // typed URL still closes the loop.
+    try {
+      const inv = inviteToken
+        ? await getInvitationByToken(db, inviteToken)
+        : await findInvitationForSubmission(db, eventCode, email);
+      if (inv && inv.retreat_slug === eventCode) {
+        await markInvitationSubmitted(db, inv.id);
+      }
+    } catch (err) {
+      console.error('[intake/submit] invitation mark failed', err);
     }
   } else {
     console.warn('[intake/submit] D1 binding missing — skipping persistence');

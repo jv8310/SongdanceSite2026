@@ -509,10 +509,19 @@ body { background: var(--adm-paper); }
 .adm-retreat-row--readonly { background: transparent; }
 .adm-retreat-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr auto;
+  grid-template-columns: 1fr 1fr 160px auto;
   gap: 12px;
   align-items: end;
 }
+.adm-retreat-grid select {
+  padding: 8px 10px;
+  border: 1px solid var(--adm-line);
+  border-radius: 6px;
+  font-size: 14px;
+  background: #fff;
+  color: var(--adm-ink);
+}
+.adm-retreat-grid select:focus { outline: none; border-color: var(--adm-ember); }
 .adm-retreat-grid > label { display: flex; flex-direction: column; gap: 4px; }
 .adm-retreat-grid > label > span,
 .adm-retreat-label {
@@ -560,4 +569,88 @@ body { background: var(--adm-paper); }
 @media (max-width: 760px) {
   .adm-retreat-grid { grid-template-columns: 1fr; }
   .adm-retreat-actions { justify-content: stretch; }
+}
+
+/* Invitee management inside each retreat card. */
+.adm-retreat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  background: var(--adm-paper-soft);
+  border: 1px solid var(--adm-line);
+  border-radius: 8px;
+}
+.adm-retreat-card > .adm-retreat-row {
+  padding: 0;
+  background: transparent;
+  border: none;
+}
+.adm-invitees {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--adm-line);
+}
+.adm-invitees h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.adm-invitees h3 small {
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--adm-ink-soft);
+}
+.adm-invitees-add { display: flex; flex-direction: column; gap: 6px; }
+.adm-invitees-add label { display: flex; flex-direction: column; gap: 4px; }
+.adm-invitees-add label > span {
+  font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--adm-ink-soft);
+}
+.adm-invitees-add label > span code {
+  text-transform: none;
+  letter-spacing: 0;
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  background: rgba(0,0,0,0.04);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+.adm-invitees-add textarea {
+  padding: 8px 10px;
+  border: 1px solid var(--adm-line);
+  border-radius: 6px;
+  font-family: ui-monospace, monospace;
+  font-size: 13px;
+  background: #fff;
+  color: var(--adm-ink);
+  resize: vertical;
+}
+.adm-invitees-add button { align-self: flex-end; }
+.adm-table--invitees { width: 100%; font-size: 13px; }
+.adm-table--invitees th { font-size: 11px; }
+.adm-table--invitees td { vertical-align: middle; }
+.adm-invitee-send {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.adm-invitee-send form { margin: 0; }
+.adm-btn--tiny {
+  padding: 4px 8px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+.adm-invitee-done-label {
+  font-size: 12px;
+  color: var(--adm-ink-soft);
+  font-style: italic;
+}
+.adm-invitee--done td { opacity: 0.6; }
+@media (max-width: 760px) {
+  .adm-table--invitees { display: block; overflow-x: auto; }
 }

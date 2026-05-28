@@ -28,6 +28,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const name = String(form.get('name') ?? '').trim();
   const flavour = String(form.get('flavour') ?? '').trim();
   const active = form.get('active') === 'on' || form.get('active') === '1' ? 1 : 0;
+  const rawLocale = String(form.get('invite_locale') ?? '').trim().toLowerCase();
+  const invite_locale = rawLocale === 'en' ? 'en' : 'nl';
 
   const slug = normaliseSlug(rawSlug);
   if (!slug || !name) return new Response('Bad input', { status: 400 });
@@ -37,23 +39,29 @@ export const POST: APIRoute = async ({ request, locals }) => {
     await env.DB
       .prepare(
         `UPDATE intake_retreats
-            SET slug = ?, name = ?, flavour = ?, active = ?, updated_at = datetime('now')
+            SET slug = ?, name = ?, flavour = ?, active = ?, invite_locale = ?, updated_at = datetime('now')
           WHERE slug = ?`,
       )
-      .bind(slug, name, flavour || null, active, originalSlug)
+      .bind(slug, name, flavour || null, active, invite_locale, originalSlug)
+      .run();
+    // Move invitations too so the URL token keeps working under the new slug.
+    await env.DB
+      .prepare(`UPDATE intake_invitations SET retreat_slug = ? WHERE retreat_slug = ?`)
+      .bind(slug, originalSlug)
       .run();
   } else {
     await env.DB
       .prepare(
-        `INSERT INTO intake_retreats (slug, name, flavour, active)
-         VALUES (?, ?, ?, ?)
+        `INSERT INTO intake_retreats (slug, name, flavour, active, invite_locale)
+         VALUES (?, ?, ?, ?, ?)
          ON CONFLICT(slug) DO UPDATE SET
            name = excluded.name,
            flavour = excluded.flavour,
            active = excluded.active,
+           invite_locale = excluded.invite_locale,
            updated_at = datetime('now')`,
       )
-      .bind(slug, name, flavour || null, active)
+      .bind(slug, name, flavour || null, active, invite_locale)
       .run();
   }
 
