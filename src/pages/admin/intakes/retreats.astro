@@ -2,7 +2,6 @@
 import '../../../styles/admin.css';
 import Layout from '../../../layouts/Layout.astro';
 import { readCookie, verifySession } from '../../../lib/registrations/auth';
-import { EVENTS } from '../../../lib/intake/events';
 import { listRetreats } from '../../../lib/intake/retreats-db';
 import { listInvitations, type InvitationRow } from '../../../lib/intake/invitations';
 
@@ -15,11 +14,6 @@ if (!authed) {
 }
 
 const dbRetreats = await listRetreats(env.DB);
-
-// Hardcoded retreats from events.ts that haven't been overridden in
-// the DB — shown for context so Jacob sees the full picture.
-const dbSlugs = new Set(dbRetreats.map((r) => r.slug));
-const hardcoded = Object.values(EVENTS).filter((e) => !dbSlugs.has(e.code));
 
 const siteOrigin = new URL(Astro.request.url).origin;
 function intakeUrl(slug: string, token?: string): string {
@@ -252,30 +246,5 @@ function statusOf(row: InvitationRow): { label: string; tone: string } {
       </form>
     </section>
 
-    {hardcoded.length > 0 && (
-      <section class="adm-section">
-        <h2>Built-in retreats</h2>
-        <p class="adm-table-note">
-          These retreats are defined in code. To send invitations for one of them, add an entry above with the same slug — that adds a DB row you can then add invitees to.
-        </p>
-        <div class="adm-retreats">
-          {hardcoded.map((e) => (
-            <div class="adm-retreat-row adm-retreat-row--readonly">
-              <div class="adm-retreat-grid">
-                <div>
-                  <span class="adm-retreat-label">Naam</span>
-                  <strong>{e.label.nl}</strong>
-                </div>
-                <div>
-                  <span class="adm-retreat-label">URL slug</span>
-                  <code>{e.code}</code>
-                </div>
-                <a class="adm-btn adm-btn--ghost" href={intakeUrl(e.code)} target="_blank" rel="noopener">Open intake link</a>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-    )}
   </main>
 </Layout>

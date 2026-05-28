@@ -2,7 +2,7 @@
 import '../../../styles/admin.css';
 import Layout from '../../../layouts/Layout.astro';
 import { readCookie, verifySession } from '../../../lib/registrations/auth';
-import { EVENTS, resolveEvent } from '../../../lib/intake/events';
+import { resolveEvent } from '../../../lib/intake/events';
 import { listRetreats } from '../../../lib/intake/retreats-db';
 import { pillClassFor, classificationLabel } from '../../../lib/intake/admin';
 
@@ -20,11 +20,12 @@ const classFilter = url.searchParams.get('class') ?? '';
 
 const VALID_CLASSES = ['VEILIG', 'NEEDS A CALL', 'FURTHER INVESTIGATION NEEDED', 'RED FLAG'];
 
-// Combined retreat catalogue: hardcoded EVENTS + DB rows. DB rows
-// override hardcoded ones with the same slug (display name only).
+// Retreats come from the DB. Past submissions may reference slugs
+// that have since been deleted from the catalogue; those still resolve
+// via the resolveEvent fallback (generic label) so the admin row keeps
+// rendering.
 const dbRetreats = await listRetreats(env.DB);
 const retreatLabelBySlug = new Map<string, string>();
-for (const e of Object.values(EVENTS)) retreatLabelBySlug.set(e.code, e.label.nl);
 for (const r of dbRetreats) retreatLabelBySlug.set(r.slug, r.name);
 const knownSlugs = new Set(retreatLabelBySlug.keys());
 
