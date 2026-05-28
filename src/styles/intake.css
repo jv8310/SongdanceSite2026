@@ -84,11 +84,10 @@ html, body {
 
 /* ---------- Main step canvas ---------- */
 .in-main {
-  flex: 1;
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding: clamp(40px, 9vh, 96px) 24px 48px;
+  padding: clamp(40px, 9vh, 96px) 24px 16px;
 }
 .in-step {
   width: 100%;
@@ -280,10 +279,7 @@ html, body {
 
 /* ---------- Footer (actions) ---------- */
 .in-footer {
-  position: sticky;
-  bottom: 0;
-  background: linear-gradient(to bottom, rgba(244, 236, 223, 0) 0%, var(--paper) 30%);
-  padding: 18px 24px 24px;
+  padding: 8px 24px 48px;
 }
 .in-footer-inner {
   width: 100%;
@@ -384,8 +380,8 @@ html, body {
     color: var(--ink-quiet);
   }
   .in-progress-wrap { padding: 10px 20px 0; }
-  .in-main { padding: 36px 20px 40px; }
-  .in-footer { padding: 14px 16px 20px; }
+  .in-main { padding: 36px 20px 12px; }
+  .in-footer { padding: 8px 16px 32px; }
   .in-footer-inner { gap: 12px; }
   .in-step h1 { font-size: 26px; }
   .in-btn { padding: 12px 22px; font-size: 14px; }
