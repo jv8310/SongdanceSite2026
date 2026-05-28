@@ -21,6 +21,24 @@ function intakeUrl(slug: string, token?: string): string {
   return token ? `${base}&inv=${encodeURIComponent(token)}` : base;
 }
 
+// Surface a one-line summary after a bulk action redirect. The bulk
+// endpoints redirect back here with ?bulk=send|delete&... query params.
+const bulkParam = Astro.url.searchParams.get('bulk');
+let bulkFlash: { tone: 'ok' | 'warn'; text: string } | null = null;
+if (bulkParam === 'send') {
+  const sent = Number(Astro.url.searchParams.get('sent') ?? '0');
+  const failed = Number(Astro.url.searchParams.get('failed') ?? '0');
+  const skipped = Number(Astro.url.searchParams.get('skipped') ?? '0');
+  const kind = Astro.url.searchParams.get('kind') ?? 'invitation';
+  const parts = [`${sent} ${kind}${sent === 1 ? '' : 's'} sent`];
+  if (failed > 0) parts.push(`${failed} failed`);
+  if (skipped > 0) parts.push(`${skipped} skipped (already submitted)`);
+  bulkFlash = { tone: failed > 0 ? 'warn' : 'ok', text: parts.join(' · ') };
+} else if (bulkParam === 'delete') {
+  const deleted = Number(Astro.url.searchParams.get('deleted') ?? '0');
+  bulkFlash = { tone: 'ok', text: `${deleted} invitee${deleted === 1 ? '' : 's'} removed` };
+}
+
 // Pre-fetch invitations per retreat so the page renders in one pass.
 const invitationsByRetreat = new Map<string, InvitationRow[]>();
 for (const r of dbRetreats) {
@@ -59,6 +77,10 @@ function statusOf(row: InvitationRow): { label: string; tone: string } {
         <a class="adm-btn adm-btn--ghost" href="/admin/intakes">← Intakes</a>
       </div>
     </header>
+
+    {bulkFlash && (
+      <div class={`adm-flash adm-flash--${bulkFlash.tone}`}>{bulkFlash.text}</div>
+    )}
 
     <section class="adm-section">
       <h2>Existing retreats</h2>
@@ -132,9 +154,67 @@ function statusOf(row: InvitationRow): { label: string; tone: string } {
                   </form>
 
                   {invitations.length > 0 && (
-                    <table class="adm-table adm-table--invitees">
+                    <>
+                      <form
+                        id={`bulk-${r.slug}`}
+                        method="POST"
+                        class="adm-invitees-bulk"
+                        data-bulk-form
+                      >
+                        <div class="adm-invitees-bulk-bar">
+                          <span class="adm-invitees-bulk-count" data-bulk-count>0 selected</span>
+                          <div class="adm-invitees-bulk-actions">
+                            <button
+                              type="submit"
+                              formaction="/api/admin/invitations/bulk-send"
+                              name="kind"
+                              value="invitation"
+                              class="adm-btn adm-btn--tiny"
+                              data-bulk-action
+                              data-bulk-confirm="Send invitation to {n} selected invitee(s)?"
+                              disabled
+                            >Send invite</button>
+                            <button
+                              type="submit"
+                              formaction="/api/admin/invitations/bulk-send"
+                              name="kind"
+                              value="reminder"
+                              class="adm-btn adm-btn--tiny"
+                              data-bulk-action
+                              data-bulk-confirm="Send reminder to {n} selected invitee(s)?"
+                              disabled
+                            >Send reminder</button>
+                            <button
+                              type="submit"
+                              formaction="/api/admin/invitations/bulk-send"
+                              name="kind"
+                              value="final"
+                              class="adm-btn adm-btn--tiny"
+                              data-bulk-action
+                              data-bulk-confirm="Send final to {n} selected invitee(s)?"
+                              disabled
+                            >Send final</button>
+                            <button
+                              type="submit"
+                              formaction="/api/admin/invitations/bulk-delete"
+                              class="adm-btn adm-btn--tiny adm-btn--danger"
+                              data-bulk-action
+                              data-bulk-confirm="Remove {n} selected invitee(s) from this retreat?"
+                              disabled
+                            >Delete</button>
+                          </div>
+                        </div>
+                      </form>
+                      <table class="adm-table adm-table--invitees">
                       <thead>
                         <tr>
+                          <th class="sel">
+                            <input
+                              type="checkbox"
+                              data-bulk-all={`bulk-${r.slug}`}
+                              aria-label="Select all invitees"
+                            />
+                          </th>
                           <th>Name</th>
                           <th>Email</th>
                           <th>Status</th>
@@ -151,6 +231,15 @@ function statusOf(row: InvitationRow): { label: string; tone: string } {
                           const done = !!inv.submitted_at;
                           return (
                             <tr class={done ? 'adm-invitee--done' : ''}>
+                              <td class="sel">
+                                <input
+                                  type="checkbox"
+                                  form={`bulk-${r.slug}`}
+                                  name="ids"
+                                  value={inv.id}
+                                  aria-label={`Select ${inv.email}`}
+                                />
+                              </td>
                               <td>{inv.first_name ?? '—'}</td>
                               <td>
                                 <a href={`mailto:${inv.email}`}>{inv.email}</a>
@@ -203,6 +292,7 @@ function statusOf(row: InvitationRow): { label: string; tone: string } {
                         })}
                       </tbody>
                     </table>
+                    </>
                   )}
                 </div>
               </article>
@@ -248,3 +338,53 @@ function statusOf(row: InvitationRow): { label: string; tone: string } {
 
   </main>
 </Layout>
+
+<script is:inline>
+  (function () {
+    var forms = document.querySelectorAll('form[data-bulk-form]');
+    forms.forEach(function (form) {
+      var formId = form.id;
+      var boxes = document.querySelectorAll(
+        'input[type="checkbox"][form="' + formId + '"][name="ids"]'
+      );
+      var selectAll = document.querySelector('[data-bulk-all="' + formId + '"]');
+      var countEl = form.querySelector('[data-bulk-count]');
+      var actions = form.querySelectorAll('[data-bulk-action]');
+
+      function selected() {
+        var n = 0;
+        boxes.forEach(function (b) { if (b.checked) n += 1; });
+        return n;
+      }
+      function update() {
+        var n = selected();
+        if (countEl) countEl.textContent = n + ' selected';
+        actions.forEach(function (b) { b.disabled = n === 0; });
+        if (selectAll) {
+          selectAll.checked = n > 0 && n === boxes.length;
+          selectAll.indeterminate = n > 0 && n < boxes.length;
+        }
+      }
+
+      boxes.forEach(function (b) { b.addEventListener('change', update); });
+      if (selectAll) {
+        selectAll.addEventListener('change', function (e) {
+          var checked = e.target.checked;
+          boxes.forEach(function (b) { b.checked = checked; });
+          update();
+        });
+      }
+
+      form.addEventListener('submit', function (e) {
+        var btn = e.submitter;
+        if (!btn || !btn.dataset.bulkConfirm) return;
+        var n = selected();
+        if (n === 0) { e.preventDefault(); return; }
+        var msg = btn.dataset.bulkConfirm.replace('{n}', String(n));
+        if (!window.confirm(msg)) e.preventDefault();
+      });
+
+      update();
+    });
+  })();
+</script>
