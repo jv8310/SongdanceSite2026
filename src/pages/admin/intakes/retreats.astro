@@ -4,6 +4,7 @@ import Layout from '../../../layouts/Layout.astro';
 import { readCookie, verifySession } from '../../../lib/registrations/auth';
 import { EVENTS } from '../../../lib/intake/events';
 import { listRetreats } from '../../../lib/intake/retreats-db';
+import { listInvitations, type InvitationRow } from '../../../lib/intake/invitations';
 
 export const prerender = false;
 
@@ -21,8 +22,28 @@ const dbSlugs = new Set(dbRetreats.map((r) => r.slug));
 const hardcoded = Object.values(EVENTS).filter((e) => !dbSlugs.has(e.code));
 
 const siteOrigin = new URL(Astro.request.url).origin;
-function intakeUrl(slug: string): string {
-  return `${siteOrigin}/intake?event=${encodeURIComponent(slug)}`;
+function intakeUrl(slug: string, token?: string): string {
+  const base = `${siteOrigin}/intake?event=${encodeURIComponent(slug)}`;
+  return token ? `${base}&inv=${encodeURIComponent(token)}` : base;
+}
+
+// Pre-fetch invitations per retreat so the page renders in one pass.
+const invitationsByRetreat = new Map<string, InvitationRow[]>();
+for (const r of dbRetreats) {
+  invitationsByRetreat.set(r.slug, await listInvitations(env.DB, r.slug));
+}
+
+function fmtSent(s: string | null): string {
+  if (!s) return '';
+  return s.slice(0, 10);
+}
+
+function statusOf(row: InvitationRow): { label: string; tone: string } {
+  if (row.submitted_at) return { label: 'Submitted', tone: 'paid' };
+  if (row.final_sent_at) return { label: 'Final sent', tone: 'low' };
+  if (row.reminder_sent_at) return { label: 'Reminder sent', tone: 'low' };
+  if (row.invitation_sent_at) return { label: 'Invited', tone: 'open' };
+  return { label: 'Not sent', tone: 'cancelled' };
 }
 ---
 
@@ -38,7 +59,7 @@ function intakeUrl(slug: string): string {
           Retreats
         </p>
         <h1>Intake retreats</h1>
-        <p class="adm-sub">Manage which retreats accept an intake form.</p>
+        <p class="adm-sub">Manage which retreats accept an intake form, and invite participants.</p>
       </div>
       <div class="adm-actions">
         <a class="adm-btn adm-btn--ghost" href="/admin/intakes">← Intakes</a>
@@ -52,40 +73,147 @@ function intakeUrl(slug: string): string {
       )}
       {dbRetreats.length > 0 && (
         <div class="adm-retreats">
-          {dbRetreats.map((r) => (
-            <form method="POST" action="/api/admin/save-retreat" class="adm-retreat-row">
-              <input type="hidden" name="original_slug" value={r.slug} />
-              <div class="adm-retreat-grid">
-                <label>
-                  <span>Naam</span>
-                  <input type="text" name="name" value={r.name} required maxlength="200" />
-                </label>
-                <label>
-                  <span>URL slug</span>
-                  <input type="text" name="slug" value={r.slug} required maxlength="80" pattern="[a-z0-9-]+" />
-                </label>
-                <label class="adm-retreat-active">
-                  <input type="checkbox" name="active" checked={r.active === 1} />
-                  <span>Active</span>
-                </label>
-              </div>
-              <label class="adm-retreat-flavour">
-                <span>Context voor Claude (optioneel)</span>
-                <textarea name="flavour" rows="2" maxlength="600" placeholder="Een paar regels die het karakter van deze retreat schetsen voor de AI-assessor.">{r.flavour ?? ''}</textarea>
-              </label>
-              <div class="adm-retreat-actions">
-                <a class="adm-btn adm-btn--ghost" href={intakeUrl(r.slug)} target="_blank" rel="noopener">Open intake link</a>
-                <button type="submit" class="adm-btn">Save</button>
-                <button
-                  type="submit"
-                  name="action"
-                  value="delete"
-                  class="adm-btn adm-btn--danger"
-                  onclick={`return confirm('Delete retreat ${r.slug}? Intake submissions for this retreat stay; only the catalogue entry is removed.')`}
-                >Delete</button>
-              </div>
-            </form>
-          ))}
+          {dbRetreats.map((r) => {
+            const invitations = invitationsByRetreat.get(r.slug) ?? [];
+            const submitted = invitations.filter((i) => i.submitted_at).length;
+            return (
+              <article class="adm-retreat-card" id={`retreat-${r.slug}`}>
+                <form method="POST" action="/api/admin/save-retreat" class="adm-retreat-row">
+                  <input type="hidden" name="original_slug" value={r.slug} />
+                  <div class="adm-retreat-grid">
+                    <label>
+                      <span>Naam</span>
+                      <input type="text" name="name" value={r.name} required maxlength="200" />
+                    </label>
+                    <label>
+                      <span>URL slug</span>
+                      <input type="text" name="slug" value={r.slug} required maxlength="80" pattern="[a-z0-9-]+" />
+                    </label>
+                    <label>
+                      <span>Invite taal</span>
+                      <select name="invite_locale">
+                        <option value="nl" selected={r.invite_locale === 'nl'}>Nederlands</option>
+                        <option value="en" selected={r.invite_locale === 'en'}>English</option>
+                      </select>
+                    </label>
+                    <label class="adm-retreat-active">
+                      <input type="checkbox" name="active" checked={r.active === 1} />
+                      <span>Active</span>
+                    </label>
+                  </div>
+                  <label class="adm-retreat-flavour">
+                    <span>Context voor Claude (optioneel)</span>
+                    <textarea name="flavour" rows="2" maxlength="600" placeholder="Een paar regels die het karakter van deze retreat schetsen voor de AI-assessor.">{r.flavour ?? ''}</textarea>
+                  </label>
+                  <div class="adm-retreat-actions">
+                    <a class="adm-btn adm-btn--ghost" href={intakeUrl(r.slug)} target="_blank" rel="noopener">Open intake link</a>
+                    <button type="submit" class="adm-btn">Save</button>
+                    <button
+                      type="submit"
+                      name="action"
+                      value="delete"
+                      class="adm-btn adm-btn--danger"
+                      onclick={`return confirm('Delete retreat ${r.slug}? Intake submissions for this retreat stay; only the catalogue entry is removed.')`}
+                    >Delete</button>
+                  </div>
+                </form>
+
+                <div class="adm-invitees">
+                  <h3>
+                    Invitees
+                    <small>
+                      {invitations.length === 0
+                        ? 'none yet'
+                        : `${invitations.length} total · ${submitted} submitted`}
+                    </small>
+                  </h3>
+
+                  <form method="POST" action="/api/admin/invitations/bulk-add" class="adm-invitees-add">
+                    <input type="hidden" name="retreat_slug" value={r.slug} />
+                    <label>
+                      <span>Plak deelnemers — één per regel (bv. <code>Jane jane@x.com</code> of alleen <code>jane@x.com</code>)</span>
+                      <textarea name="invitees" rows="4" placeholder={'Jane jane@x.com\nPiet piet@x.com'}></textarea>
+                    </label>
+                    <button type="submit" class="adm-btn adm-btn--solid">Add invitees</button>
+                  </form>
+
+                  {invitations.length > 0 && (
+                    <table class="adm-table adm-table--invitees">
+                      <thead>
+                        <tr>
+                          <th>Name</th>
+                          <th>Email</th>
+                          <th>Status</th>
+                          <th class="num">Invite</th>
+                          <th class="num">Reminder</th>
+                          <th class="num">Final</th>
+                          <th>Send</th>
+                          <th></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {invitations.map((inv) => {
+                          const s = statusOf(inv);
+                          const done = !!inv.submitted_at;
+                          return (
+                            <tr class={done ? 'adm-invitee--done' : ''}>
+                              <td>{inv.first_name ?? '—'}</td>
+                              <td>
+                                <a href={`mailto:${inv.email}`}>{inv.email}</a>
+                              </td>
+                              <td><span class={`adm-pill adm-pill--${s.tone}`}>{s.label}</span></td>
+                              <td class="num">{fmtSent(inv.invitation_sent_at)}</td>
+                              <td class="num">{fmtSent(inv.reminder_sent_at)}</td>
+                              <td class="num">{fmtSent(inv.final_sent_at)}</td>
+                              <td class="adm-invitee-send">
+                                {done ? (
+                                  <span class="adm-invitee-done-label">Submitted {fmtSent(inv.submitted_at)}</span>
+                                ) : (
+                                  <>
+                                    <form method="POST" action="/api/admin/invitations/send">
+                                      <input type="hidden" name="id" value={inv.id} />
+                                      <input type="hidden" name="kind" value="invitation" />
+                                      <button type="submit" class="adm-btn adm-btn--tiny" title={inv.invitation_sent_at ? `Re-send (last: ${fmtSent(inv.invitation_sent_at)})` : 'Send invitation'}>
+                                        Invite{inv.invitation_sent_at ? ' ↻' : ''}
+                                      </button>
+                                    </form>
+                                    <form method="POST" action="/api/admin/invitations/send">
+                                      <input type="hidden" name="id" value={inv.id} />
+                                      <input type="hidden" name="kind" value="reminder" />
+                                      <button type="submit" class="adm-btn adm-btn--tiny" title={inv.reminder_sent_at ? `Re-send (last: ${fmtSent(inv.reminder_sent_at)})` : 'Send reminder'}>
+                                        Reminder{inv.reminder_sent_at ? ' ↻' : ''}
+                                      </button>
+                                    </form>
+                                    <form method="POST" action="/api/admin/invitations/send">
+                                      <input type="hidden" name="id" value={inv.id} />
+                                      <input type="hidden" name="kind" value="final" />
+                                      <button type="submit" class="adm-btn adm-btn--tiny" title={inv.final_sent_at ? `Re-send (last: ${fmtSent(inv.final_sent_at)})` : 'Send final'}>
+                                        Final{inv.final_sent_at ? ' ↻' : ''}
+                                      </button>
+                                    </form>
+                                  </>
+                                )}
+                              </td>
+                              <td>
+                                <form
+                                  method="POST"
+                                  action="/api/admin/invitations/delete"
+                                  onsubmit={`return confirm('Remove ${inv.email} from ${r.slug}?')`}
+                                >
+                                  <input type="hidden" name="id" value={inv.id} />
+                                  <button type="submit" class="adm-btn adm-btn--tiny adm-btn--danger">×</button>
+                                </form>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              </article>
+            );
+          })}
         </div>
       )}
     </section>
@@ -101,6 +229,13 @@ function intakeUrl(slug: string): string {
           <label>
             <span>URL slug</span>
             <input type="text" name="slug" required maxlength="80" pattern="[a-z0-9-]+" placeholder="klankopstellingen-2027" />
+          </label>
+          <label>
+            <span>Invite taal</span>
+            <select name="invite_locale">
+              <option value="nl" selected>Nederlands</option>
+              <option value="en">English</option>
+            </select>
           </label>
           <label class="adm-retreat-active">
             <input type="checkbox" name="active" checked />
@@ -121,8 +256,7 @@ function intakeUrl(slug: string): string {
       <section class="adm-section">
         <h2>Built-in retreats</h2>
         <p class="adm-table-note">
-          These retreats are defined in code (with hand-written flavour text for the AI assessor).
-          Add an entry above with the same slug to override the display name.
+          These retreats are defined in code. To send invitations for one of them, add an entry above with the same slug — that adds a DB row you can then add invitees to.
         </p>
         <div class="adm-retreats">
           {hardcoded.map((e) => (

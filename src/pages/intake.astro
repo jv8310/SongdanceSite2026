@@ -7,14 +7,44 @@ import '../styles/intake.css';
 import { resolveEventWithDb } from '../lib/intake/events';
 import { resolveLocale, SHARED, STEP_COPY } from '../lib/intake/copy';
 import { STEPS } from '../lib/intake/steps';
+import { getInvitationByToken } from '../lib/intake/invitations';
+import { getRetreat } from '../lib/intake/retreats-db';
 
 const url = new URL(Astro.request.url);
 const rawEvent = url.searchParams.get('event');
 const rawLocale = url.searchParams.get('taal') ?? url.searchParams.get('lang');
+const rawToken = url.searchParams.get('inv');
 
 const db = Astro.locals.runtime?.env?.DB as D1Database | undefined;
-const event = await resolveEventWithDb(db, rawEvent);
-const locale = resolveLocale(rawLocale);
+
+// If a token is present and valid, we let the invitation drive the
+// event + locale (and prefill the email / name). The invite locale on
+// the retreat trumps the URL ?taal parameter so the invitee always
+// reaches the form in the language we sent them.
+let inviteToken: string | null = null;
+let prefill: { email?: string; full_name?: string } = {};
+let invitationEventCode: string | null = null;
+let invitationLocale: 'nl' | 'en' | null = null;
+
+if (rawToken && db) {
+  const invitation = await getInvitationByToken(db, rawToken).catch(() => null);
+  if (invitation) {
+    inviteToken = invitation.token;
+    invitationEventCode = invitation.retreat_slug;
+    prefill = {
+      email: invitation.email,
+      ...(invitation.first_name ? { full_name: invitation.first_name } : {}),
+    };
+    const retreat = await getRetreat(db, invitation.retreat_slug).catch(() => null);
+    if (retreat) {
+      invitationLocale = retreat.invite_locale === 'en' ? 'en' : 'nl';
+    }
+  }
+}
+
+const eventCodeForResolve = invitationEventCode ?? rawEvent;
+const event = await resolveEventWithDb(db, eventCodeForResolve);
+const locale = invitationLocale ?? resolveLocale(rawLocale);
 const otherLocale = locale === 'nl' ? 'en' : 'nl';
 
 const shared = SHARED[locale];
@@ -22,17 +52,25 @@ const copy = STEP_COPY[locale];
 
 const eventLabel = event.label[locale];
 
-// Build the URL for the language toggle, preserving event.
+// Build the URL for the language toggle, preserving event + token.
 const langSwitchParams = new URLSearchParams();
 if (rawEvent) langSwitchParams.set('event', rawEvent);
+if (rawToken) langSwitchParams.set('inv', rawToken);
 langSwitchParams.set('taal', otherLocale);
 const langSwitchUrl = `/intake?${langSwitchParams.toString()}`;
+
+const prefilledKeys = Object.entries(prefill)
+  .filter(([, v]) => typeof v === 'string' && v.trim() !== '')
+  .map(([k]) => k);
 
 // Config blob the client script will read on boot.
 const config = {
   locale,
   eventCode: event.code,
   eventLabel,
+  inviteToken,
+  prefill,
+  prefilledKeys,
   shared: {
     // progressOf is recreated client-side — JSON can't carry functions.
     brand: shared.brand,

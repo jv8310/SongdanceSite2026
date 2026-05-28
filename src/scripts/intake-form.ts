@@ -20,6 +20,9 @@ interface Config {
   apiUrl: string;
   homeUrl: string;
   langSwitchUrl: string;
+  inviteToken?: string | null;
+  prefill?: Record<string, string>;
+  prefilledKeys?: string[];
 }
 
 type Phase = 'form' | 'submitting' | 'done' | 'error';
@@ -46,7 +49,12 @@ function readConfig(): Config {
   return cfg as Config;
 }
 
-function isStepVisible(step: StepDef, answers: Answers): boolean {
+function isStepVisible(
+  step: StepDef,
+  answers: Answers,
+  prefilled: Set<string>,
+): boolean {
+  if (prefilled.has(step.key)) return false;
   if (!step.showIf) return true;
   const dep = answers[step.showIf.stepKey];
   if (typeof dep !== 'string') return false;
@@ -108,6 +116,7 @@ class IntakeApp {
   private progressEl: HTMLElement;
   private progressLabel: HTMLElement;
   private answers: Answers = {};
+  private prefilled: Set<string>;
   private idx = 0;
   private phase: Phase = 'form';
   private errorMessage = '';
@@ -118,6 +127,16 @@ class IntakeApp {
     this.root = $('intake-step-root');
     this.progressEl = $('intake-progress-fill');
     this.progressLabel = $('intake-progress-label');
+
+    // Seed answers from server-resolved invitation prefill so the
+    // skipped steps still pass server-side required-checks on submit.
+    const prefill = cfg.prefill ?? {};
+    for (const [key, value] of Object.entries(prefill)) {
+      if (typeof value === 'string' && value.trim() !== '') {
+        this.answers[key] = value;
+      }
+    }
+    this.prefilled = new Set(cfg.prefilledKeys ?? []);
   }
 
   start() {
@@ -125,7 +144,7 @@ class IntakeApp {
   }
 
   private visibleSteps(): StepDef[] {
-    return this.cfg.steps.filter((s) => isStepVisible(s, this.answers));
+    return this.cfg.steps.filter((s) => isStepVisible(s, this.answers, this.prefilled));
   }
 
   // Counted progress: total = visible non-intro/non-pause/non-closing steps;
@@ -188,6 +207,7 @@ class IntakeApp {
           eventCode: this.cfg.eventCode,
           locale: this.cfg.locale,
           answers: this.answers,
+          inviteToken: this.cfg.inviteToken ?? undefined,
         }),
       });
       const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
