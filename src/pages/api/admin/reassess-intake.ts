@@ -16,7 +16,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
   }
   const form = await request.formData();
   const id = String(form.get('id') ?? '').trim();
-  if (!id) return new Response('Bad id', { status: 400 });
+  // The bulk "Assess pending" button loops over ids and wants a JSON
+  // result per call; the single-row button uses the default redirect.
+  const wantsJson = String(form.get('format') ?? '') === 'json';
+  if (!id) {
+    return wantsJson
+      ? jsonResult(400, { ok: false, error: 'bad-id' })
+      : new Response('Bad id', { status: 400 });
+  }
   const returnTo = safeReturnTo(String(form.get('return_to') ?? `/admin/intakes/${id}`));
 
   const row = await env.DB
@@ -32,7 +39,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
       locale: string;
       payload_json: string;
     }>();
-  if (!row) return new Response('Not found', { status: 404 });
+  if (!row) {
+    return wantsJson
+      ? jsonResult(404, { ok: false, id, error: 'not-found' })
+      : new Response('Not found', { status: 404 });
+  }
 
   let answers: Record<string, unknown> = {};
   try {
@@ -59,11 +70,27 @@ export const POST: APIRoute = async ({ request, locals }) => {
     .bind(result.markdown || null, result.classification, result.error, id)
     .run();
 
+  if (wantsJson) {
+    return jsonResult(200, {
+      ok: !result.error,
+      id,
+      classification: result.classification,
+      error: result.error,
+    });
+  }
+
   return new Response(null, {
     status: 302,
     headers: { Location: returnTo },
   });
 };
+
+function jsonResult(status: number, body: Record<string, unknown>): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
 
 function safeReturnTo(raw: string): string {
   if (raw.startsWith('/admin/') || raw === '/admin') return raw;

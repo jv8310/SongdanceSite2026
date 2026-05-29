@@ -85,6 +85,19 @@ for (const r of tallyRows) {
   tally.set(r.classification ?? 'none', r.c);
 }
 
+// Every submission that has never been classified (NULL = "No assessment",
+// including ones whose automatic assessment errored). The bulk button drives
+// a per-id assessment loop over exactly these, oldest first.
+const pendingIds: string[] = (
+  await env.DB
+    .prepare(
+      `SELECT id FROM intake_submissions
+        WHERE classification IS NULL
+        ORDER BY created_at ASC`,
+    )
+    .all<{ id: string }>()
+).results?.map((r) => r.id) ?? [];
+
 function fmtDate(s: string): string {
   // D1 returns "YYYY-MM-DD HH:MM:SS" (UTC); compress for table display.
   return s.replace(' ', ' · ').slice(0, 16);
@@ -124,10 +137,20 @@ const activeEventLabel = eventFilter
         </p>
       </div>
       <div class="adm-actions">
+        {pendingIds.length > 0 && (
+          <button type="button" id="assess-pending-btn" class="adm-btn adm-btn--solid">
+            Assess pending ({pendingIds.length})
+          </button>
+        )}
         <a class="adm-btn" href="/admin/intakes/retreats">Manage retreats</a>
         <a class="adm-btn adm-btn--ghost" href="/admin">← Admin</a>
       </div>
     </header>
+
+    <div class="adm-bulk" id="bulk-progress" aria-live="polite">
+      <p class="adm-bulk-label" id="bulk-label">0 / 0</p>
+      <div class="adm-bulk-track"><div class="adm-bulk-fill" id="bulk-fill"></div></div>
+    </div>
 
     <section class="adm-section">
       <h2>
@@ -201,4 +224,58 @@ const activeEventLabel = eventFilter
       )}
     </section>
   </main>
+
+  <script define:vars={{ pendingIds }}>
+    const btn = document.getElementById('assess-pending-btn');
+    const bulk = document.getElementById('bulk-progress');
+    const fill = document.getElementById('bulk-fill');
+    const label = document.getElementById('bulk-label');
+
+    if (btn && bulk && fill && label) {
+      btn.addEventListener('click', async () => {
+        const ids = pendingIds.slice();
+        const total = ids.length;
+        if (total === 0) return;
+
+        btn.disabled = true;
+        btn.textContent = 'Assessing…';
+        bulk.classList.add('is-on');
+
+        let done = 0;
+        let failed = 0;
+        const render = (suffix) => {
+          fill.style.width = Math.round((done / total) * 100) + '%';
+          label.textContent =
+            `${done} / ${total} assessed` +
+            (failed ? ` · ${failed} failed` : '') +
+            (suffix ?? '');
+        };
+        render();
+
+        // Sequential on purpose: each assessment is a 30–90s Claude call,
+        // and running them one at a time keeps us well within Workers
+        // request limits and avoids hammering the API rate limit.
+        for (const id of ids) {
+          try {
+            const fd = new FormData();
+            fd.set('id', id);
+            fd.set('format', 'json');
+            const res = await fetch('/api/admin/reassess-intake', {
+              method: 'POST',
+              body: fd,
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || data.ok === false || data.error) failed++;
+          } catch {
+            failed++;
+          }
+          done++;
+          render();
+        }
+
+        render(failed ? '. Reloading…' : ' — done. Reloading…');
+        setTimeout(() => location.reload(), 1000);
+      });
+    }
+  </script>
 </Layout>

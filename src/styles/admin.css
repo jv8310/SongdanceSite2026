@@ -83,6 +83,24 @@ body { background: var(--adm-paper); }
   border-color: var(--adm-danger);
 }
 
+/* Bulk "Assess pending" progress bar (intakes index). Hidden until the
+   button kicks off the per-id assessment loop. */
+.adm-bulk { display: none; margin: 0 0 28px; }
+.adm-bulk.is-on { display: block; }
+.adm-bulk-label {
+  font-family: ui-monospace, monospace; font-size: 12px;
+  color: var(--adm-ink-soft); margin: 0 0 8px;
+}
+.adm-bulk-track {
+  height: 10px; border-radius: 999px;
+  background: var(--adm-line); overflow: hidden;
+}
+.adm-bulk-fill {
+  height: 100%; width: 0%;
+  background: var(--adm-ember);
+  transition: width 0.3s ease;
+}
+
 .adm-section { margin-bottom: 36px; }
 .adm-section h2 {
   font-family: Georgia, serif; font-weight: 500;
