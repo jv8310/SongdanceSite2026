@@ -1,32 +1,40 @@
 ---
 const offerings = [
   {
-    label: 'Live workshop',
-    title: 'An evening of sounding',
-    body: 'Two hours together. Online or in the room. A place to begin.',
-    meta: ['next: 8 May', 'online', 'two hours'],
-    tag: 'open',
+    label: 'A Vocal Healing Session',
+    title: 'An hour, live, online',
+    body: "You don't watch — you sound. The simplest way to feel what this is, from the inside.",
+    meta: ['9€', 'live', 'online'],
+    tag: 'live taster',
+    href: '/session',
+    feature: false,
   },
   {
-    label: 'Foundation course',
-    title: 'Twelve weeks of practice',
-    body: 'A small group, weekly, over three months. The container that lets the work settle.',
-    meta: ['begins 14 May', 'online', 'twelve evenings'],
-    tag: 'filling',
+    label: 'The 12-Week Course',
+    title: 'Learn the practice properly',
+    body: 'Twelve weeks, in your own time, with live Q&A. Until you can become your own space holder.',
+    meta: ['foundational', 'self-paced', 'live Q&A'],
+    tag: 'foundational',
+    href: '/courses/12-week',
+    feature: false,
   },
   {
-    label: 'Certification',
-    title: 'For those holding space',
-    body: 'We are not making practitioners — we are recognising them. A year, in person, in cohorts.',
-    meta: ['applications open', 'in person', 'one year'],
+    label: 'For Professionals',
+    title: 'How sound works in your work',
+    body: 'Therapists, coaches, bodyworkers, facilitators, leaders: what sound can do when words run out.',
+    meta: ['29€', 'masterclass', 'online'],
+    tag: 'masterclass',
+    href: '/masterclass',
+    feature: false,
+  },
+  {
+    label: 'Practitioner Training',
+    title: 'Hold this work for others',
+    body: 'The live, deepening path for people called to bring sounding into their own practice — to deepen, or to be certified.',
+    meta: ['certification', 'live', 'in cohorts'],
     tag: 'by application',
-  },
-  {
-    label: 'Retreat',
-    title: 'Five days, one room',
-    body: 'Long days, slow meals, the work uninterrupted. Held in a quiet house.',
-    meta: ['October', 'Portugal', 'ten places'],
-    tag: 'two places left',
+    href: '/certification-course',
+    feature: true,
   },
 ];
 ---
@@ -40,7 +48,7 @@ const offerings = [
     <div class="sd-offerings-grid">
       {
         offerings.map((o) => (
-          <article class="sd-offering-card" data-anim="offering">
+          <article class={'sd-offering-card' + (o.feature ? ' sd-offering-card--feature' : '')} data-anim="offering">
             <div class="sd-offering-top">
               <div class="sd-offering-label">{o.label}</div>
               <span class="sd-tag sd-tag-ember">{o.tag}</span>
@@ -55,7 +63,7 @@ const offerings = [
                 </>
               ))}
             </div>
-            <a href="#" class="sd-offering-cta">
+            <a href={o.href} class="sd-offering-cta">
               Read more <i class="ph-light ph-arrow-right" />
             </a>
           </article>

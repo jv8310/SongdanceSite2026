@@ -1,26 +1,73 @@
 ---
 import SiteLayout from '../components/SiteLayout.astro';
-import PageHero from '../components/PageHero.astro';
 import SoftCta from '../components/SoftCta.astro';
 ---
 
 <SiteLayout
-  title="About Jacob — Songdance"
-  description="Jacob Vermeulen — pianist, singer, and educator. The person behind Somatic Vocal Healing."
+  title="About Jacob Vermeulen — Songdance"
+  description="Jacob Vermeulen — pianist, singer, and educator, and the person behind Somatic Vocal Healing. He holds space; people heal themselves."
 >
-  <PageHero
-    eyebrow="About"
-    title="Jacob Vermeulen"
-    lede="Pianist, singer, and educator. The person behind Somatic Vocal Healing."
-  />
+  <header class="sd-section sd-about-hero">
+    <div class="sd-about-hero-inner">
+      <figure class="sd-about-portrait">
+        <img src="/imagery/jacob-tree.png" alt="Jacob Vermeulen" />
+      </figure>
+      <div class="sd-about-intro" data-anim="reveal">
+        <div class="sd-eyebrow">About</div>
+        <h1 class="sd-pagehero-title">Jacob Vermeulen</h1>
+        <p class="sd-pagehero-lede">
+          Pianist, singer, and educator. The person behind Somatic Vocal Healing.
+        </p>
+      </div>
+    </div>
+  </header>
+
   <section class="sd-section sd-prose">
     <div class="sd-prose-inner">
-      <p class="sd-scaffold-note">Scaffold page — full copy lands in the content pass (brief §6).</p>
       <p>
-        “I don't think of myself as a healer. I hold space; people heal themselves. My job is to
-        make that safe and possible, and then to get out of the way.”
+        I started with singing. For the better part of twenty years I taught authentic singing
+        — holidays, workshops, retreats — fascinated less by technique than by something
+        underneath it: change how a person <em>feels</em>, and the voice changes on its own. The
+        reverse turned out to be true too. That was the thread I kept pulling.
+      </p>
+      <p>
+        Then life did what life does, and my focus moved from singing to sounding. Not the voice
+        that reaches for a beautiful note — the voice that tells the truth about what’s happening
+        inside, in this exact moment. Out of that, over years and a great many sessions, Somatic
+        Vocal Healing took shape.
+      </p>
+      <p>
+        I don’t think of myself as a healer. I hold space; people heal themselves. My job is to
+        make that safe and possible, and then to get out of the way. I’ve had the privilege of
+        doing this with thousands of people across Europe and South Africa, online and in person
+        — and I’m still learning what the voice can do.
       </p>
     </div>
   </section>
-  <SoftCta />
+
+  <section class="sd-section sd-about-quote">
+    <p class="t-lyric sd-about-quote-text">
+      “You can’t heal and understand at the same time. So we begin with the experience.”
+    </p>
+  </section>
+
+  <section class="sd-section sd-prose">
+    <div class="sd-prose-inner">
+      <p class="sd-about-facts">
+        Jacob lives in Belgium with his partner, Lieselot. He works in English; the
+        German-language practice is led by <strong>Carmen &amp; Lorenz</strong>, and he
+        collaborates with <strong>Karen Evans</strong>, <strong>Daniela Hess</strong>, and
+        <strong>Lesanne</strong> across courses and retreats. He is currently writing his first
+        book, <em>Healing, Honestly.</em>
+      </p>
+    </div>
+  </section>
+
+  <SoftCta
+    text="Curious how this actually feels?"
+    ctaLabel="Sit in on a live session — 9€"
+    ctaHref="/session"
+    altLabel="What is SVH? →"
+    altHref="/what-is-svh"
+  />
 </SiteLayout>
