@@ -669,6 +669,26 @@ body { background: var(--adm-paper); }
   font-style: italic;
 }
 .adm-invitee--done td { opacity: 0.6; }
+/* Keep the assessment readable even on dimmed (submitted) rows — it's
+   exactly the info worth scanning for those participants. */
+.adm-invitee--done td.adm-invitee-assess { opacity: 1; }
+.adm-assess-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  text-decoration: none;
+}
+.adm-assess-link:hover { text-decoration: none; }
+.adm-assess-arrow {
+  color: var(--adm-mute);
+  font-size: 13px;
+  transition: transform 0.12s ease, color 0.12s ease;
+}
+.adm-assess-link:hover .adm-assess-arrow {
+  color: var(--adm-ember-deep);
+  transform: translateX(2px);
+}
+.adm-assess-empty { color: var(--adm-mute); }
 .adm-table--invitees th.sel,
 .adm-table--invitees td.sel {
   width: 28px;
