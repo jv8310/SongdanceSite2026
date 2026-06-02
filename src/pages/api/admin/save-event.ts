@@ -98,6 +98,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       summary: nullable(form.get('summary')),
       href: nullable(form.get('href')),
       image_key,
+      ongoing: form.get('ongoing') === 'on' || form.get('ongoing') === '1' ? 1 : 0,
       published: form.get('published') === 'on' || form.get('published') === '1' ? 1 : 0,
       sort_order,
     },

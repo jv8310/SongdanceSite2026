@@ -1,0 +1,283 @@
+---
+import '../../../styles/admin.css';
+import Layout from '../../../layouts/Layout.astro';
+import { readCookie, verifySession } from '../../../lib/registrations/auth';
+import { listLibrary, type MediaItem } from '../../../lib/media';
+
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+const authed = await verifySession(env.ADMIN_SESSION_SECRET, readCookie(Astro.request));
+if (!authed) {
+  return Astro.redirect('/admin/login');
+}
+
+let items: MediaItem[] = [];
+let loadError: string | null = null;
+try {
+  items = await listLibrary(env.MEDIA);
+} catch (err) {
+  loadError =
+    'Could not read the media bucket. Make sure the R2 bucket "songdance-media" exists and is bound as MEDIA.';
+  console.error('image-manager list failed', err);
+}
+
+function fmtBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+function fmtDate(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+function basename(key: string): string {
+  return key.slice(key.lastIndexOf('/') + 1);
+}
+function folder(key: string): string {
+  const i = key.lastIndexOf('/');
+  return i >= 0 ? key.slice(0, i) : '—';
+}
+---
+
+<Layout title="Admin — Image library — Songdance" description="">
+  <main class="adm">
+    <header class="adm-header">
+      <div>
+        <p class="adm-breadcrumbs">
+          <a href="/admin">Admin</a>
+          <span class="sep">/</span>
+          Image library
+        </p>
+        <h1>Image library</h1>
+        <p class="adm-sub">
+          Every image in the media bucket. Drag files in to upload (they’re resized and converted
+          to WebP automatically), rename or delete them, and copy each image’s
+          <code>/media/…</code> URL to use anywhere on the site.
+        </p>
+        <p class="adm-sub">
+          <strong>Heads-up:</strong> images under <code>events/</code> are event-card pictures —
+          renaming or deleting one will break the card that uses it until you re-set its image.
+        </p>
+      </div>
+      <div class="adm-actions">
+        <a class="adm-btn adm-btn--ghost" href="/admin/events">Events</a>
+        <a class="adm-btn adm-btn--ghost" href="/admin">← Admin</a>
+      </div>
+    </header>
+
+    {loadError && <div class="adm-flash adm-flash--warn">{loadError}</div>}
+
+    <section class="adm-section">
+      <div
+        class="media-dropzone"
+        data-dropzone
+        role="button"
+        tabindex="0"
+        aria-label="Upload images"
+      >
+        <input type="file" accept="image/*" multiple hidden data-file-input />
+        <div class="media-dropzone-inner">
+          <strong>Drop images here</strong>
+          <span>or click to choose — JPG, PNG, WebP, GIF, SVG · multiple at once</span>
+        </div>
+        <div class="media-dropzone-progress" data-progress hidden></div>
+      </div>
+    </section>
+
+    <section class="adm-section">
+      <h2>
+        Images <small data-count>{items.length}</small>
+      </h2>
+      {!loadError && items.length === 0 && (
+        <p class="adm-empty" data-empty>No images yet. Drop some above to get started.</p>
+      )}
+      <div class="media-grid" data-grid>
+        {items.map((it) => (
+          <figure class="media-card" data-card data-key={it.key}>
+            <a class="media-thumb" href={it.url} target="_blank" rel="noopener">
+              <img src={it.url} alt="" loading="lazy" />
+            </a>
+            <figcaption class="media-body">
+              <div class="media-name-row">
+                <input class="media-name" value={basename(it.key)} data-name aria-label="Filename" />
+                <button type="button" class="adm-btn adm-btn--tiny" data-rename>Rename</button>
+              </div>
+              <div class="media-meta">
+                <span data-size>{fmtBytes(it.size)}</span>
+                <span>·</span>
+                <span>{fmtDate(it.uploaded)}</span>
+                <span class={`media-folder media-folder--${folder(it.key) === 'events' ? 'events' : 'lib'}`}>
+                  {folder(it.key)}/
+                </span>
+              </div>
+              <div class="media-actions">
+                <button type="button" class="adm-btn adm-btn--tiny" data-copy data-url={it.url}>Copy URL</button>
+                <button type="button" class="adm-btn adm-btn--tiny adm-btn--danger" data-delete>Delete</button>
+              </div>
+            </figcaption>
+          </figure>
+        ))}
+      </div>
+    </section>
+  </main>
+</Layout>
+
+<template id="media-card-template">
+  <figure class="media-card" data-card>
+    <a class="media-thumb" target="_blank" rel="noopener"><img alt="" loading="lazy" /></a>
+    <figcaption class="media-body">
+      <div class="media-name-row">
+        <input class="media-name" data-name aria-label="Filename" />
+        <button type="button" class="adm-btn adm-btn--tiny" data-rename>Rename</button>
+      </div>
+      <div class="media-meta">
+        <span data-size></span>
+        <span>·</span>
+        <span data-date></span>
+        <span class="media-folder media-folder--lib">library/</span>
+      </div>
+      <div class="media-actions">
+        <button type="button" class="adm-btn adm-btn--tiny" data-copy>Copy URL</button>
+        <button type="button" class="adm-btn adm-btn--tiny adm-btn--danger" data-delete>Delete</button>
+      </div>
+    </figcaption>
+  </figure>
+</template>
+
+<script>
+  import { optimizeImageFile, formatBytes } from '../../../scripts/image-optimize';
+
+  type UploadedItem = { key: string; url: string; size: number; uploaded: string };
+  type UploadResponse = { uploaded?: UploadedItem[]; error?: string };
+  type RenameResponse = { key?: string; url?: string; error?: string };
+
+  const dropzone = document.querySelector<HTMLElement>('[data-dropzone]');
+  const fileInput = document.querySelector<HTMLInputElement>('[data-file-input]');
+  const grid = document.querySelector<HTMLElement>('[data-grid]');
+  const progress = document.querySelector<HTMLElement>('[data-progress]');
+  const countEl = document.querySelector<HTMLElement>('[data-count]');
+  const emptyEl = document.querySelector<HTMLElement>('[data-empty]');
+  const tmpl = document.querySelector<HTMLTemplateElement>('#media-card-template');
+
+  function setCount() {
+    if (countEl && grid) countEl.textContent = String(grid.querySelectorAll('[data-card]').length);
+    if (emptyEl && grid) emptyEl.hidden = grid.querySelectorAll('[data-card]').length > 0;
+  }
+
+  // ---- Upload (drag-drop + click) ----
+  async function uploadFiles(fileList: FileList | File[]) {
+    const files = Array.from(fileList).filter((f) => f.type.startsWith('image/'));
+    if (!files.length || !progress) return;
+    progress.hidden = false;
+    let done = 0;
+    progress.textContent = `Optimising & uploading 0/${files.length}…`;
+
+    const optimised = await Promise.all(
+      files.map((f) => optimizeImageFile(f, { maxDim: 2000, quality: 0.84 }).catch(() => f)),
+    );
+
+    const body = new FormData();
+    for (const f of optimised) body.append('files', f, f.name);
+
+    try {
+      const res = await fetch('/api/admin/media/upload', { method: 'POST', body });
+      const data = (await res.json()) as UploadResponse;
+      if (!res.ok) throw new Error(data?.error || 'Upload failed');
+      for (const item of data.uploaded ?? []) {
+        prependCard(item);
+        done++;
+      }
+      progress.textContent = `Uploaded ${done} image${done === 1 ? '' : 's'}.`;
+      setCount();
+    } catch (err) {
+      progress.textContent = `Upload failed: ${(err as Error).message}`;
+    }
+    setTimeout(() => { if (progress) progress.hidden = true; }, 2500);
+  }
+
+  function prependCard(item: UploadedItem) {
+    if (!tmpl || !grid) return;
+    const node = tmpl.content.firstElementChild!.cloneNode(true) as HTMLElement;
+    node.dataset.key = item.key;
+    const base = item.key.slice(item.key.lastIndexOf('/') + 1);
+    (node.querySelector('.media-thumb') as HTMLAnchorElement).href = item.url;
+    (node.querySelector('img') as HTMLImageElement).src = item.url;
+    (node.querySelector('[data-name]') as HTMLInputElement).value = base;
+    (node.querySelector('[data-size]') as HTMLElement).textContent = formatBytes(item.size);
+    (node.querySelector('[data-date]') as HTMLElement).textContent = 'just now';
+    (node.querySelector('[data-copy]') as HTMLElement).dataset.url = item.url;
+    wireCard(node);
+    grid.insertBefore(node, grid.firstChild);
+  }
+
+  if (dropzone && fileInput) {
+    dropzone.addEventListener('click', () => fileInput.click());
+    dropzone.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); }
+    });
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files?.length) uploadFiles(fileInput.files);
+      fileInput.value = '';
+    });
+    ['dragenter', 'dragover'].forEach((ev) =>
+      dropzone.addEventListener(ev, (e) => { e.preventDefault(); dropzone.classList.add('is-drop'); }),
+    );
+    ['dragleave', 'dragend', 'drop'].forEach((ev) =>
+      dropzone.addEventListener(ev, () => dropzone.classList.remove('is-drop')),
+    );
+    dropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      const files = (e as DragEvent).dataTransfer?.files;
+      if (files?.length) uploadFiles(files);
+    });
+  }
+
+  // ---- Per-card actions: copy / rename / delete ----
+  function wireCard(card: HTMLElement) {
+    const key = () => card.dataset.key || '';
+
+    card.querySelector('[data-copy]')?.addEventListener('click', async (e) => {
+      const btn = e.currentTarget as HTMLElement;
+      const url = btn.dataset.url || '';
+      try {
+        await navigator.clipboard.writeText(url);
+        const prev = btn.textContent;
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = prev; }, 1200);
+      } catch {
+        window.prompt('Copy this URL:', url);
+      }
+    });
+
+    card.querySelector('[data-rename]')?.addEventListener('click', async () => {
+      const nameInput = card.querySelector('[data-name]') as HTMLInputElement;
+      const name = nameInput.value.trim();
+      if (!name) return;
+      const body = new FormData();
+      body.append('key', key());
+      body.append('name', name);
+      const res = await fetch('/api/admin/media/rename', { method: 'POST', body });
+      const data = (await res.json()) as RenameResponse;
+      if (!res.ok || !data.key || !data.url) { alert(data?.error || 'Rename failed'); return; }
+      card.dataset.key = data.key;
+      nameInput.value = data.key.slice(data.key.lastIndexOf('/') + 1);
+      (card.querySelector('.media-thumb') as HTMLAnchorElement).href = data.url;
+      (card.querySelector('img') as HTMLImageElement).src = data.url + '?t=' + Date.now();
+      (card.querySelector('[data-copy]') as HTMLElement).dataset.url = data.url;
+    });
+
+    card.querySelector('[data-delete]')?.addEventListener('click', async () => {
+      const base = key().slice(key().lastIndexOf('/') + 1);
+      if (!confirm(`Delete "${base}"? This can't be undone.`)) return;
+      const body = new FormData();
+      body.append('key', key());
+      const res = await fetch('/api/admin/media/delete', { method: 'POST', body });
+      if (!res.ok) { alert('Delete failed'); return; }
+      card.remove();
+      setCount();
+    });
+  }
+
+  document.querySelectorAll<HTMLElement>('[data-card]').forEach(wireCard);
+</script>

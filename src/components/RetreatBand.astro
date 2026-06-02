@@ -32,7 +32,12 @@
 
 <script>
   const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  function fmtRange(start: string | null, end: string | null): string {
+  function fmtRange(start: string | null, end: string | null, ongoing = false): string {
+    if (ongoing) {
+      if (!start) return 'Ongoing';
+      const m = start.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      return m ? `From ${+m[3]} ${MONTHS[+m[2] - 1]} ${+m[1]}` : `From ${start}`;
+    }
     if (!start) return 'Dates to be confirmed';
     const s = start.match(/^(\d{4})-(\d{2})-(\d{2})$/);
     if (!s) return start;
@@ -60,7 +65,7 @@
         if (el) el.textContent = val || '—';
       };
       set('[data-retreat-title]', r.title);
-      set('[data-retreat-when]', fmtRange(r.startDate, r.endDate));
+      set('[data-retreat-when]', fmtRange(r.startDate, r.endDate, r.ongoing));
       set('[data-retreat-where]', r.location ?? 'To be confirmed');
       set('[data-retreat-who]', (r.facilitators ?? []).join(' & '));
       side.removeAttribute('hidden');
