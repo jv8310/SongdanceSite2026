@@ -16,6 +16,7 @@
 import { getCourseRegistrationById } from './db';
 import { logEvent } from '../registrations/db';
 import { recordEvent, upsertSubscriber } from '../registrations/drip';
+import { GRIEF_DRIP_EVENT, GRIEF_DRIP_TAG, GRIEF_PRODUCT_SLUG } from './grief';
 
 type Env = {
   DB: D1Database;
@@ -37,8 +38,7 @@ export async function pushPaidCourseRegistrationToDrip(
       accountId: env.DRIP_ACCOUNT_ID,
     };
 
-    const tags: string[] = ['prod_SVH_9m'];
-    if (reg.product_slug === 'cc-bundle') tags.push('prod_SVH_12w');
+    const isGrief = reg.product_slug === GRIEF_PRODUCT_SLUG;
 
     const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 
@@ -53,12 +53,26 @@ export async function pushPaidCourseRegistrationToDrip(
       source_variant: reg.source_variant,
     };
 
-    if (reg.activate_choice === 'now') {
-      // Activating cert immediately — clear the 12w "in progress" state.
-      customFields.svh_week = `Ended since ${today}`;
-      customFields.prod_SVH_9m_status = 'activated';
-    } else if (reg.activate_choice === 'wait') {
-      customFields.prod_SVH_9m_status = '12w ongoing, not activated';
+    // Tagging differs by course. The grief course is a standalone thematic
+    // product — a single tag, no SVH activation state. The SVH cert/bundle
+    // carries the path-of-becoming tags plus the 12-week activation fields.
+    let tags: string[];
+    let eventName: string;
+    if (isGrief) {
+      tags = [GRIEF_DRIP_TAG];
+      eventName = GRIEF_DRIP_EVENT;
+    } else {
+      tags = ['prod_SVH_9m'];
+      if (reg.product_slug === 'cc-bundle') tags.push('prod_SVH_12w');
+      eventName = env.DRIP_COURSE_EVENT || 'Completed SVH course registration';
+
+      if (reg.activate_choice === 'now') {
+        // Activating cert immediately — clear the 12w "in progress" state.
+        customFields.svh_week = `Ended since ${today}`;
+        customFields.prod_SVH_9m_status = 'activated';
+      } else if (reg.activate_choice === 'wait') {
+        customFields.prod_SVH_9m_status = '12w ongoing, not activated';
+      }
     }
 
     await upsertSubscriber(dripCfg, {
@@ -74,7 +88,7 @@ export async function pushPaidCourseRegistrationToDrip(
     await recordEvent(
       dripCfg,
       reg.email,
-      env.DRIP_COURSE_EVENT || 'Completed SVH course registration',
+      eventName,
       {
         course_registration_id: reg.id,
         product_slug: reg.product_slug,

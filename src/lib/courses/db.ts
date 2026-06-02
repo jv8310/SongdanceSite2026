@@ -1,7 +1,7 @@
 // CRUD for course_registrations. Mirrors the slim subset of
 // src/lib/registrations/db.ts that the course flow needs.
 
-export type CourseProductSlug = 'cc-cert' | 'cc-bundle';
+export type CourseProductSlug = 'cc-cert' | 'cc-bundle' | 'grief-course';
 export type ActivateChoice = 'now' | 'wait';
 export type PaymentPlan = 'full' | '3x';
 

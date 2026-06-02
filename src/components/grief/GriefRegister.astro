@@ -1,0 +1,302 @@
+---
+import { COUNTRIES } from '../../lib/countries';
+
+const countries = COUNTRIES;
+---
+
+<section class="gr-section gr-register" id="register">
+  <div class="gr-inner gr-narrow">
+    <div class="gr-eyebrow gr-eyebrow--center">Begin when you're ready</div>
+    <h2 class="gr-h2" style="text-align:center;">Join the Grief Course</h2>
+
+    <div class="gr-register-card">
+      <div class="gr-price">
+        <span class="gr-price-strike" data-gr-strike hidden></span>
+        <span class="gr-price-amount" data-gr-amount>€99</span>
+      </div>
+      <p class="gr-price-note">
+        One-time payment · lifetime access · start anytime
+        <span class="gr-price-discount" data-gr-discount-badge hidden></span>
+      </p>
+
+      <form class="gr-fields" data-gr-form novalidate>
+        <label class="gr-field gr-field--half">
+          <span>First name</span>
+          <input type="text" name="first_name" autocomplete="given-name" required />
+        </label>
+        <label class="gr-field gr-field--half">
+          <span>Last name</span>
+          <input type="text" name="last_name" autocomplete="family-name" required />
+        </label>
+
+        <label class="gr-field gr-field--full">
+          <span>Email</span>
+          <input type="email" name="email" autocomplete="email" required />
+        </label>
+
+        <label class="gr-field gr-field--full">
+          <span>Country</span>
+          <input
+            type="text"
+            name="country_search"
+            list="gr-country-list"
+            autocomplete="country-name"
+            placeholder="Start typing…"
+            required
+          />
+          <input type="hidden" name="country" />
+        </label>
+
+        <label class="gr-field gr-field--full">
+          <span>Company <span class="gr-field-note">— optional, for a business invoice</span></span>
+          <input
+            type="text"
+            name="company_name"
+            autocomplete="organization"
+            placeholder="Your company name"
+          />
+        </label>
+
+        <label class="gr-field gr-field--full gr-vat-field" data-gr-vat hidden>
+          <span>VAT number <span class="gr-field-note">— EU/UK businesses, for reverse-charge</span></span>
+          <input
+            type="text"
+            name="vat_number"
+            autocomplete="off"
+            placeholder="e.g. BE0123456789"
+            inputmode="text"
+          />
+        </label>
+
+        <label class="gr-consent">
+          <input type="checkbox" name="consent_terms" required />
+          <span>I agree to the <a href="/terms" target="_blank" rel="noopener">terms and conditions</a>.</span>
+        </label>
+
+        <p class="gr-error" data-gr-error></p>
+
+        <button type="submit" class="gr-btn gr-btn--primary gr-checkout-cta" data-gr-cta>
+          <span>Continue to payment</span>
+          <i class="ph-light ph-arrow-right"></i>
+        </button>
+
+        <p class="gr-checkout-trust">
+          <i class="ph-light ph-lock-simple"></i>
+          Secure checkout by Stripe. Invoice by Quaderno.
+        </p>
+      </form>
+    </div>
+
+    <datalist id="gr-country-list">
+      {countries.map((c) => (
+        <option value={c.name} data-code={c.code}>{c.flag} {c.name}</option>
+      ))}
+    </datalist>
+  </div>
+</section>
+
+<script>
+  import { COUNTRIES } from '../../lib/countries';
+
+  type Currency = 'EUR' | 'USD';
+
+  const PRICE = 99; // major unit, both EUR and USD
+
+  // URL-driven discount: `?discount=N` (1–99) strikes through the displayed
+  // price and tells the server to charge a discounted amount. Anything
+  // outside 1–99 is ignored; the server re-validates the same range.
+  function readDiscount(): number {
+    try {
+      const raw = new URLSearchParams(window.location.search).get('discount');
+      const n = raw ? parseInt(raw, 10) : 0;
+      if (Number.isInteger(n) && n >= 1 && n <= 99) return n;
+    } catch {}
+    return 0;
+  }
+  const discountPct = readDiscount();
+
+  function symbolFor(c: Currency): string {
+    return c === 'USD' ? '$' : '€';
+  }
+  function applyDiscountCents(cents: number): number {
+    if (discountPct <= 0) return cents;
+    return Math.round((cents * (100 - discountPct)) / 100);
+  }
+  function moneyCents(cents: number, c: Currency): string {
+    const whole = cents % 100 === 0;
+    const amount = (cents / 100).toLocaleString('en-US', {
+      minimumFractionDigits: whole ? 0 : 2,
+      maximumFractionDigits: whole ? 0 : 2,
+    });
+    return `${symbolFor(c)}${amount}`;
+  }
+
+  // Grief course offers only EUR and USD: US buyers see USD, everyone else EUR.
+  function currencyForCountry(code: string): Currency {
+    return code.toUpperCase() === 'US' ? 'USD' : 'EUR';
+  }
+
+  // Best-effort country guess from timezone, then language, for the prefill.
+  function guessCountry(): string | undefined {
+    try {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+      const tzMap: Record<string, string> = {
+        'Europe/Brussels': 'BE', 'Europe/Amsterdam': 'NL', 'Europe/Berlin': 'DE',
+        'Europe/Paris': 'FR', 'Europe/Luxembourg': 'LU', 'Europe/Vienna': 'AT',
+        'Europe/Zurich': 'CH', 'Europe/Rome': 'IT', 'Europe/Madrid': 'ES',
+        'Europe/Lisbon': 'PT', 'Europe/Dublin': 'IE', 'Europe/London': 'GB',
+        'Europe/Copenhagen': 'DK', 'Europe/Stockholm': 'SE', 'Europe/Oslo': 'NO',
+        'Europe/Helsinki': 'FI', 'Europe/Warsaw': 'PL', 'Europe/Prague': 'CZ',
+        'Europe/Budapest': 'HU', 'Europe/Athens': 'GR', 'Europe/Bucharest': 'RO',
+        'America/New_York': 'US', 'America/Chicago': 'US', 'America/Denver': 'US',
+        'America/Los_Angeles': 'US', 'America/Phoenix': 'US', 'Pacific/Honolulu': 'US',
+        'America/Toronto': 'CA', 'America/Vancouver': 'CA',
+        'Australia/Sydney': 'AU', 'Australia/Melbourne': 'AU', 'Pacific/Auckland': 'NZ',
+      };
+      if (tzMap[tz]) return tzMap[tz];
+      const lang = navigator.language || '';
+      const m = lang.match(/-([A-Z]{2})$/i);
+      if (m) return m[1].toUpperCase();
+    } catch {}
+    return undefined;
+  }
+
+  const form = document.querySelector<HTMLFormElement>('[data-gr-form]');
+  if (form) {
+    const amountEl = document.querySelector<HTMLElement>('[data-gr-amount]')!;
+    const strikeEl = document.querySelector<HTMLElement>('[data-gr-strike]')!;
+    const badgeEl = document.querySelector<HTMLElement>('[data-gr-discount-badge]')!;
+    const countryInput = form.querySelector<HTMLInputElement>('[name="country_search"]')!;
+    const countryHidden = form.querySelector<HTMLInputElement>('[name="country"]')!;
+    const companyInput = form.querySelector<HTMLInputElement>('[name="company_name"]')!;
+    const vatField = form.querySelector<HTMLElement>('[data-gr-vat]')!;
+    const vatInput = form.querySelector<HTMLInputElement>('[name="vat_number"]')!;
+    const errorEl = form.querySelector<HTMLElement>('[data-gr-error]')!;
+    const cta = form.querySelector<HTMLButtonElement>('[data-gr-cta]')!;
+
+    let currency: Currency = 'EUR';
+
+    function renderPrice() {
+      const baseCents = PRICE * 100;
+      if (discountPct > 0) {
+        strikeEl.hidden = false;
+        strikeEl.textContent = moneyCents(baseCents, currency);
+        amountEl.textContent = moneyCents(applyDiscountCents(baseCents), currency);
+        badgeEl.hidden = false;
+        badgeEl.textContent = `${discountPct}% off`;
+      } else {
+        strikeEl.hidden = true;
+        badgeEl.hidden = true;
+        amountEl.textContent = moneyCents(baseCents, currency);
+      }
+    }
+
+    function setCurrencyFromCode(code: string) {
+      const next = currencyForCountry(code);
+      if (next !== currency) {
+        currency = next;
+        renderPrice();
+      }
+    }
+
+    // Prefill country from geolocation guess.
+    const guess = guessCountry();
+    if (guess) {
+      const match = COUNTRIES.find((c) => c.code === guess.toUpperCase());
+      if (match) {
+        countryInput.value = match.name;
+        countryHidden.value = match.code;
+        setCurrencyFromCode(match.code);
+      }
+    }
+    renderPrice();
+
+    // Resolve typed country → ISO code; also drives the displayed currency.
+    function resolveCountry() {
+      const typed = countryInput.value.trim().toLowerCase();
+      const match = COUNTRIES.find(
+        (c) => c.name.toLowerCase() === typed || c.code.toLowerCase() === typed,
+      );
+      if (match) {
+        countryHidden.value = match.code;
+        setCurrencyFromCode(match.code);
+      } else {
+        countryHidden.value = '';
+      }
+    }
+    countryInput.addEventListener('change', resolveCountry);
+    countryInput.addEventListener('blur', resolveCountry);
+    countryInput.addEventListener('input', resolveCountry);
+
+    // VAT field only appears once a company name is entered.
+    function toggleVat() {
+      const hasCompany = companyInput.value.trim().length > 0;
+      vatField.hidden = !hasCompany;
+      if (!hasCompany) vatInput.value = '';
+    }
+    companyInput.addEventListener('input', toggleVat);
+    toggleVat();
+
+    function fail(msg: string) {
+      errorEl.textContent = msg;
+      errorEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errorEl.textContent = '';
+
+      const get = (name: string) =>
+        String(form.querySelector<HTMLInputElement>(`[name="${name}"]`)?.value ?? '').trim();
+
+      const first_name = get('first_name');
+      const last_name = get('last_name');
+      const email = get('email');
+      const country = countryHidden.value.trim();
+      const company_name = get('company_name');
+      const vat_number = get('vat_number');
+      const consent_terms = form.querySelector<HTMLInputElement>('[name="consent_terms"]')!.checked;
+
+      if (!first_name || !last_name) return fail('Please add your first and last name.');
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return fail('Please enter a valid email address.');
+      if (!country) return fail('Please select your country from the list.');
+      if (vat_number && !company_name) return fail('Please add your company name to use a VAT number.');
+      if (!consent_terms) return fail('Please agree to the terms to continue.');
+
+      const original = cta.innerHTML;
+      cta.disabled = true;
+      cta.innerHTML = '<span>Opening secure checkout…</span>';
+
+      try {
+        const res = await fetch('/api/courses/grief-checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            first_name,
+            last_name,
+            email,
+            country,
+            company_name: company_name || undefined,
+            vat_number: vat_number || undefined,
+            currency,
+            consent_terms: true,
+            ...(discountPct > 0 ? { discount_percent: discountPct } : {}),
+          }),
+        });
+        let body: { checkout_url?: string; error?: string } = {};
+        try { body = (await res.json()) as typeof body; } catch {}
+        if (!res.ok || !body.checkout_url) {
+          fail(body.error || `Could not start checkout (HTTP ${res.status}). Please try again.`);
+          cta.disabled = false;
+          cta.innerHTML = original;
+          return;
+        }
+        window.location.href = body.checkout_url;
+      } catch {
+        fail('We could not reach the server. Please try again.');
+        cta.disabled = false;
+        cta.innerHTML = original;
+      }
+    });
+  }
+</script>

@@ -2,6 +2,24 @@
 import SiteLayout from '../../components/SiteLayout.astro';
 import PageHero from '../../components/PageHero.astro';
 import SoftCta from '../../components/SoftCta.astro';
+import { listLibrary, type MediaItem } from '../../lib/media';
+
+export const prerender = false;
+
+// Pull the Grief Course's hero image from the media library so the overview
+// card carries a picture. Falls back to a text-only card if nothing matches.
+const env = Astro.locals.runtime.env;
+let griefImage: string | null = null;
+try {
+  const lib: MediaItem[] = await listLibrary(env.MEDIA);
+  const grief = lib
+    .filter((i) => i.key.toLowerCase().startsWith('library/grief'))
+    .sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+  const hero = grief.find((i) => /hero/.test(i.key.toLowerCase())) ?? grief[0];
+  griefImage = hero?.url ?? null;
+} catch {
+  griefImage = null;
+}
 
 const groups = [
   {
@@ -16,7 +34,7 @@ const groups = [
   {
     title: 'Thematic Courses',
     items: [
-      { label: 'Grief Course', note: 'with Daniela · €99', href: '/courses/grief' },
+      { label: 'Grief Course', note: 'with Daniela · €99', href: '/courses/grief', img: griefImage },
       { label: 'Forgiveness Course', note: 'with Daniela · July', href: '/courses/forgiveness' },
       { label: 'Inner Child Healing Journey', note: 'guided', href: '/courses/inner-child' },
     ],
@@ -48,7 +66,12 @@ const groups = [
           <h2 class="sd-course-group-title">{g.title}</h2>
           <div class="sd-course-cards">
             {g.items.map((it) => (
-              <a class="sd-course-card" href={it.href}>
+              <a class={`sd-course-card${'img' in it && it.img ? ' sd-course-card--media' : ''}`} href={it.href}>
+                {'img' in it && it.img && (
+                  <span class="sd-course-card-media">
+                    <img src={it.img} alt="" loading="lazy" decoding="async" />
+                  </span>
+                )}
                 <span class="sd-course-card-label">{it.label}</span>
                 <span class="sd-course-card-note">{it.note}</span>
               </a>
@@ -60,3 +83,35 @@ const groups = [
   </section>
   <SoftCta />
 </SiteLayout>
+
+<style>
+  /* A course card that carries an image (e.g. the Grief Course). Switches the
+     base flex-row card to a column with a full-bleed image on top. Base card
+     padding is 18px 20px. */
+  .sd-course-card--media {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    padding-top: 0;
+    gap: 6px;
+    overflow: hidden;
+  }
+  .sd-course-card-media {
+    display: block;
+    margin: 0 -20px 12px;
+    aspect-ratio: 16 / 10;
+    overflow: hidden;
+    background: var(--paper-deep);
+  }
+  .sd-course-card-media img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: transform 320ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  }
+  .sd-course-card--media:hover .sd-course-card-media img {
+    transform: scale(1.04);
+  }
+  .sd-course-card--media .sd-course-card-note { white-space: normal; }
+</style>

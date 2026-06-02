@@ -1,0 +1,80 @@
+---
+import SiteLayout from '../../../components/SiteLayout.astro';
+import '../../../styles/grief.css';
+
+export const prerender = false;
+
+const sessionId = Astro.url.searchParams.get('session_id');
+const env = Astro.locals.runtime.env;
+
+type Row = {
+  id: number;
+  first_name: string | null;
+  email: string;
+  status: string;
+};
+
+let reg: Row | null = null;
+if (sessionId) {
+  reg = await env.DB
+    .prepare(
+      `SELECT id, first_name, email, status
+         FROM course_registrations
+        WHERE stripe_session_id = ?`,
+    )
+    .bind(sessionId)
+    .first<Row>();
+}
+
+const isPaid = reg?.status === 'paid';
+const firstName = reg?.first_name?.trim() || null;
+---
+
+<SiteLayout
+  title="Thank you — The Grief Course — Songdance"
+  description="Your place on the Grief Course is confirmed."
+  newsletter={false}
+>
+  <div class="gr">
+    <section class="gr-section" style="min-height:62vh; display:flex; align-items:center;">
+      <div class="gr-inner gr-narrow" style="text-align:center;">
+        <p class="gr-eyebrow gr-eyebrow--center">The Grief Course</p>
+
+        {reg ? (
+          <>
+            <h1 class="gr-h2">Thank you{firstName ? `, ${firstName}` : ''}.</h1>
+            {isPaid ? (
+              <p class="gr-lede">
+                Your payment for <strong>The Grief Course</strong> has been received.
+                A confirmation email is on its way, with everything you need to begin.
+              </p>
+            ) : (
+              <p class="gr-lede">
+                Your payment for <strong>The Grief Course</strong> is being confirmed.
+                This page will reflect the confirmed status within a minute or two —
+                you can safely close this window, and we'll email you the moment it's confirmed.
+              </p>
+            )}
+            <p class="gr-p" style="margin-inline:auto;">
+              Take your time with the four sessions. There's no rush, and no wrong pace.
+            </p>
+            <div class="gr-hero-actions" style="justify-content:center; margin-top:2rem;">
+              <a class="gr-btn gr-btn--primary" href="/courses/grief">Back to the course</a>
+            </div>
+          </>
+        ) : (
+          <>
+            <h1 class="gr-h2">Thank you.</h1>
+            <p class="gr-lede">
+              If you've just completed payment, we'll be in touch shortly. You can safely close
+              this window — a confirmation email is on its way.
+            </p>
+            <div class="gr-hero-actions" style="justify-content:center; margin-top:2rem;">
+              <a class="gr-btn gr-btn--primary" href="/courses/grief">Back to the course</a>
+            </div>
+          </>
+        )}
+      </div>
+    </section>
+  </div>
+</SiteLayout>
