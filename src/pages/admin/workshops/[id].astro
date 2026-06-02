@@ -1,0 +1,157 @@
+---
+import '../../../styles/admin.css';
+import Layout from '../../../layouts/Layout.astro';
+import { readCookie, verifySession } from '../../../lib/registrations/auth';
+import {
+  getWorkshopById,
+  listProducts,
+  listRegistrationsForWorkshop,
+  getProductById,
+} from '../../../lib/workshops/db';
+import { formatMoney } from '../../../lib/workshops/currency';
+import { formatInTz } from '../../../lib/workshops/time';
+
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+if (!(await verifySession(env.ADMIN_SESSION_SECRET, readCookie(Astro.request)))) {
+  return Astro.redirect('/admin/login');
+}
+
+const id = parseInt(Astro.params.id ?? '', 10);
+const workshop = Number.isFinite(id) ? await getWorkshopById(env.DB, id) : null;
+if (!workshop) return Astro.redirect('/admin/workshops');
+
+const products = await listProducts(env.DB);
+const tickets = products.filter((p) => p.type === 'ticket');
+const bumps = products.filter((p) => p.type === 'bump');
+const ticketProduct = workshop.main_product_id ? await getProductById(env.DB, workshop.main_product_id) : null;
+const bumpProduct = workshop.bump_product_id ? await getProductById(env.DB, workshop.bump_product_id) : null;
+const regs = await listRegistrationsForWorkshop(env.DB, workshop.id);
+
+const flash = Astro.url.searchParams.get('flash');
+const flashText = flash === 'saved' ? 'Workshop saved.' : flash === 'attendance' ? 'Attendance updated.' : null;
+
+const paidCount = regs.filter((r) => r.payment_status === 'paid' || r.payment_status === 'coupon').length;
+const attendedCount = regs.filter((r) => r.attendance_status === 'attended').length;
+
+// "…Z" → "YYYY-MM-DDTHH:MM" for datetime-local.
+function dtLocal(iso: string | null): string {
+  if (!iso) return '';
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(iso);
+  return m ? `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}` : '';
+}
+const STATUS_LABEL: Record<string, string> = { draft: 'Draft', published: 'Published', cancelled: 'Cancelled' };
+---
+
+<Layout title={`Admin — ${workshop.title}`} description="">
+  <main class="adm">
+    <header class="adm-header">
+      <div>
+        <p class="adm-breadcrumbs"><a href="/admin">Admin</a> <span class="sep">/</span> <a href="/admin/workshops">Workshops</a> <span class="sep">/</span> {workshop.title}</p>
+        <h1>{workshop.title}</h1>
+        <p class="adm-sub">
+          {workshop.is_replay ? 'On demand' : formatInTz(workshop.starts_at_utc, workshop.display_tz)} ·
+          <span class={`adm-pill adm-pill--${workshop.status}`}>{STATUS_LABEL[workshop.status]}</span> ·
+          {paidCount} registered · {attendedCount} attended
+        </p>
+      </div>
+      <div class="adm-actions">
+        <a class="adm-btn adm-btn--ghost" href={`/w/${workshop.slug}`} target="_blank" rel="noopener">Open registration page</a>
+        <a class="adm-btn adm-btn--ghost" href="/admin/workshops">← All workshops</a>
+      </div>
+    </header>
+
+    {flashText && <div class="adm-flash adm-flash--ok">{flashText}</div>}
+
+    <section class="adm-section">
+      <h2>Details</h2>
+      <form method="POST" action="/api/admin/workshops/save" class="adm-event-form">
+        <input type="hidden" name="id" value={workshop.id} />
+        <div class="adm-grid">
+          <label class="span-2"><span>Title</span><input type="text" name="title" value={workshop.title} required /></label>
+          <label><span>URL slug</span><input type="text" name="slug" value={workshop.slug} pattern="[a-z0-9-]*" /></label>
+          <label><span>Teacher</span><input type="text" name="teacher" value={workshop.teacher ?? ''} /></label>
+          <label><span>Starts (UTC)</span><input type="datetime-local" name="starts_at" value={dtLocal(workshop.starts_at_utc)} required /></label>
+          <label><span>Ends (UTC)</span><input type="datetime-local" name="ends_at" value={dtLocal(workshop.ends_at_utc)} /></label>
+          <label><span>Display timezone</span><input type="text" name="display_tz" value={workshop.display_tz} /></label>
+          <label>
+            <span>Status</span>
+            <select name="status">
+              <option value="draft" selected={workshop.status === 'draft'}>Draft</option>
+              <option value="published" selected={workshop.status === 'published'}>Published</option>
+              <option value="cancelled" selected={workshop.status === 'cancelled'}>Cancelled</option>
+            </select>
+          </label>
+          <label>
+            <span>Ticket product</span>
+            <select name="main_product_slug">
+              {tickets.map((p) => <option value={p.slug} selected={ticketProduct?.slug === p.slug}>{p.name}</option>)}
+            </select>
+          </label>
+          <label>
+            <span>Bump product</span>
+            <select name="bump_product_slug">
+              <option value="">— none —</option>
+              {bumps.map((p) => <option value={p.slug} selected={bumpProduct?.slug === p.slug}>{p.name}</option>)}
+            </select>
+          </label>
+          <label><span>Drip tag</span><input type="text" name="source_tag" value={workshop.source_tag ?? ''} /></label>
+          <label><span>Free coupon</span><input type="text" name="free_coupon" value={workshop.free_coupon ?? ''} /></label>
+          <label class="span-2"><span>Zoom link (overrides default)</span><input type="url" name="zoom_url" value={workshop.zoom_url ?? ''} /></label>
+          <label class="adm-event-toggle"><input type="checkbox" name="is_replay" checked={workshop.is_replay === 1} /><span>Replay / on-demand</span></label>
+        </div>
+        <div class="adm-event-actions">
+          <button type="submit" class="adm-btn adm-btn--solid">Save</button>
+          <button type="submit" name="action" value="delete" class="adm-btn adm-btn--danger" onclick={`return confirm('Delete "${workshop.title}"? It is soft-deleted and hidden, not erased.')`}>Delete</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="adm-section">
+      <h2>Registrations ({regs.length})</h2>
+      {regs.length === 0 && <p class="adm-empty">No registrations yet.</p>}
+      {regs.length > 0 && (
+        <table class="adm-table">
+          <thead>
+            <tr><th>Name / email</th><th>Country</th><th>Paid</th><th>Payment</th><th>Attendance</th><th>Bump</th><th>Courses</th><th></th></tr>
+          </thead>
+          <tbody>
+            {regs.map((r) => (
+              <tr>
+                <td>{r.name ?? '—'}<br /><code>{r.email}</code></td>
+                <td>{r.country ?? '—'}<br /><small>{r.currency ?? ''}</small></td>
+                <td>{r.amount_minor != null && r.pay_currency ? formatMoney(r.amount_minor, r.pay_currency) : '—'}{r.settlement_amount_minor != null ? <><br /><small>€{(r.settlement_amount_minor / 100).toFixed(2)} settled</small></> : null}</td>
+                <td><span class={`adm-pill adm-pill--pay-${r.payment_status}`}>{r.payment_status}</span></td>
+                <td>
+                  <form method="POST" action="/api/admin/workshops/set-attendance" class="adm-inline-form">
+                    <input type="hidden" name="registration_id" value={r.id} />
+                    <select name="attendance_status" onchange="this.form.submit()">
+                      <option value="registered" selected={r.attendance_status === 'registered'}>Registered</option>
+                      <option value="attended" selected={r.attendance_status === 'attended'}>Attended</option>
+                      <option value="no_show" selected={r.attendance_status === 'no_show'}>No-show</option>
+                    </select>
+                  </form>
+                </td>
+                <td>{r.has_bump ? 'Yes' : '—'}</td>
+                <td>{r.bought_12w ? <span class="adm-tag">12w</span> : null}{r.bought_cert ? <span class="adm-tag">cert</span> : null}{!r.bought_12w && !r.bought_cert ? '—' : null}</td>
+                <td><code>#{r.id}</code></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </section>
+  </main>
+
+  <style>
+    .adm-table { width:100%; border-collapse:collapse; }
+    .adm-table th, .adm-table td { text-align:left; padding:8px 10px; border-bottom:1px solid rgba(42,27,42,0.1); font-size:13px; vertical-align:top; }
+    .adm-table code { font-size:12px; color:#9a8; }
+    .adm-pill { font-size:12px; padding:2px 9px; border-radius:999px; background:#F4ECDF; text-transform:capitalize; }
+    .adm-pill--published, .adm-pill--pay-paid, .adm-pill--pay-coupon { background:#dcefdc; }
+    .adm-pill--cancelled, .adm-pill--pay-refunded, .adm-pill--pay-chargeback, .adm-pill--pay-failed { background:#f0d8d8; }
+    .adm-tag { display:inline-block; font-size:11px; padding:1px 7px; margin-right:4px; border-radius:999px; background:#F4ECDF; }
+    .adm-inline-form { margin:0; }
+  </style>
+</Layout>

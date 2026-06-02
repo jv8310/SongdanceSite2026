@@ -1,0 +1,170 @@
+---
+import '../../../styles/admin.css';
+import Layout from '../../../layouts/Layout.astro';
+import { readCookie, verifySession } from '../../../lib/registrations/auth';
+import { listWorkshops, listProducts, getConfig } from '../../../lib/workshops/db';
+import { formatInTz } from '../../../lib/workshops/time';
+
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+if (!(await verifySession(env.ADMIN_SESSION_SECRET, readCookie(Astro.request)))) {
+  return Astro.redirect('/admin/login');
+}
+
+const workshops = await listWorkshops(env.DB);
+const products = await listProducts(env.DB);
+const tickets = products.filter((p) => p.type === 'ticket');
+const bumps = products.filter((p) => p.type === 'bump');
+const zoomDefault = (await getConfig(env.DB, 'zoom_url_default')) ?? '';
+
+const flash = Astro.url.searchParams.get('flash');
+const flashText =
+  flash === 'saved' ? 'Workshop saved.'
+  : flash === 'deleted' ? 'Workshop removed.'
+  : flash === 'zoom' ? 'Default Zoom link saved.'
+  : null;
+
+// Build a month calendar for the month containing "now" (UTC).
+const now = new Date();
+const year = now.getUTCFullYear();
+const month = now.getUTCMonth();
+const first = new Date(Date.UTC(year, month, 1));
+const startWeekday = (first.getUTCDay() + 6) % 7; // Monday-first
+const daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+const monthLabel = first.toLocaleString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+
+type Cell = { day: number | null; items: typeof workshops };
+const cells: Cell[] = [];
+for (let i = 0; i < startWeekday; i++) cells.push({ day: null, items: [] });
+for (let d = 1; d <= daysInMonth; d++) {
+  const ds = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  const items = workshops.filter((w) => w.starts_at_utc.slice(0, 10) === ds);
+  cells.push({ day: d, items });
+}
+
+const STATUS_LABEL: Record<string, string> = { draft: 'Draft', published: 'Published', cancelled: 'Cancelled' };
+---
+
+<Layout title="Admin — Workshops — Songdance" description="">
+  <main class="adm">
+    <header class="adm-header">
+      <div>
+        <p class="adm-breadcrumbs"><a href="/admin">Admin</a> <span class="sep">/</span> Workshops</p>
+        <h1>Workshops</h1>
+        <p class="adm-sub">Live online workshops. Times are stored in UTC; each workshop renders to the registrant’s timezone.</p>
+      </div>
+      <div class="adm-actions">
+        <a class="adm-btn adm-btn--ghost" href="/admin/workshops/import-google">Import from Google</a>
+        <a class="adm-btn adm-btn--ghost" href="/admin/workshops/stats">Statistics</a>
+        <a class="adm-btn adm-btn--ghost" href="/admin">← Admin</a>
+      </div>
+    </header>
+
+    {flashText && <div class="adm-flash adm-flash--ok">{flashText}</div>}
+
+    <section class="adm-section">
+      <h2>{monthLabel}</h2>
+      <div class="wk-cal">
+        {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map((d) => <div class="wk-cal-h">{d}</div>)}
+        {cells.map((c) => (
+          <div class={`wk-cal-cell${c.day ? '' : ' wk-cal-empty'}`}>
+            {c.day && <span class="wk-cal-day">{c.day}</span>}
+            {c.items.map((w) => (
+              <a class={`wk-cal-item wk-cal-item--${w.status}`} href={`/admin/workshops/${w.id}`}>{w.title}</a>
+            ))}
+          </div>
+        ))}
+      </div>
+    </section>
+
+    <section class="adm-section">
+      <h2>All workshops</h2>
+      {workshops.length === 0 && <p class="adm-empty">No workshops yet. Add one below.</p>}
+      {workshops.length > 0 && (
+        <table class="adm-table">
+          <thead>
+            <tr><th>Title</th><th>Starts (UTC)</th><th>Teacher</th><th>Status</th><th></th></tr>
+          </thead>
+          <tbody>
+            {workshops.map((w) => (
+              <tr>
+                <td><a href={`/admin/workshops/${w.id}`}>{w.title}</a> <code>/w/{w.slug}</code></td>
+                <td>{w.is_replay ? 'On demand' : formatInTz(w.starts_at_utc, 'UTC')}</td>
+                <td>{w.teacher ?? '—'}</td>
+                <td><span class={`adm-pill adm-pill--${w.status}`}>{STATUS_LABEL[w.status]}</span></td>
+                <td><a class="adm-btn adm-btn--ghost" href={`/admin/workshops/${w.id}`}>Edit</a></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </section>
+
+    <section class="adm-section">
+      <h2>Default Zoom link</h2>
+      <form method="POST" action="/api/admin/workshops/save" class="adm-inline-form">
+        <input type="hidden" name="action" value="zoom" />
+        <input type="url" name="zoom_url_default" value={zoomDefault} placeholder="https://…zoom.us/j/…" style="flex:1;min-width:320px;" />
+        <button type="submit" class="adm-btn adm-btn--solid">Save link</button>
+      </form>
+      <p class="adm-sub">Resolution order per join: the workshop’s own link → <code>zoom_url_&lt;teacher&gt;</code> → this default.</p>
+    </section>
+
+    <section class="adm-section">
+      <h2>Add a workshop</h2>
+      <form method="POST" action="/api/admin/workshops/save" class="adm-event-form">
+        <div class="adm-grid">
+          <label class="span-2"><span>Title</span><input type="text" name="title" required placeholder="Somatic Vocal Healing Workshop" /></label>
+          <label><span>URL slug</span><input type="text" name="slug" placeholder="svh-jun" pattern="[a-z0-9-]*" /></label>
+          <label><span>Teacher</span><input type="text" name="teacher" placeholder="Jacob" /></label>
+          <label><span>Starts (UTC)</span><input type="datetime-local" name="starts_at" required /></label>
+          <label><span>Ends (UTC, optional)</span><input type="datetime-local" name="ends_at" /></label>
+          <label><span>Display timezone</span><input type="text" name="display_tz" value="Europe/Brussels" /></label>
+          <label>
+            <span>Status</span>
+            <select name="status"><option value="draft">Draft</option><option value="published">Published</option><option value="cancelled">Cancelled</option></select>
+          </label>
+          <label>
+            <span>Ticket product</span>
+            <select name="main_product_slug">
+              {tickets.map((p) => <option value={p.slug}>{p.name}</option>)}
+            </select>
+          </label>
+          <label>
+            <span>Bump product</span>
+            <select name="bump_product_slug">
+              <option value="">— none —</option>
+              {bumps.map((p) => <option value={p.slug}>{p.name}</option>)}
+            </select>
+          </label>
+          <label><span>Drip tag</span><input type="text" name="source_tag" placeholder="svh_workshop_live" /></label>
+          <label><span>Free coupon</span><input type="text" name="free_coupon" placeholder="(optional)" /></label>
+          <label class="span-2"><span>Zoom link (overrides default)</span><input type="url" name="zoom_url" placeholder="(optional)" /></label>
+          <label class="adm-event-toggle"><input type="checkbox" name="is_replay" /><span>Replay / on-demand</span></label>
+        </div>
+        <div class="adm-event-actions">
+          <button type="submit" class="adm-btn adm-btn--solid">Add workshop</button>
+        </div>
+      </form>
+    </section>
+  </main>
+
+  <style>
+    .wk-cal { display:grid; grid-template-columns:repeat(7,1fr); gap:6px; }
+    .wk-cal-h { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:#9a8; padding:4px; text-align:center; }
+    .wk-cal-cell { min-height:84px; border:1px solid rgba(42,27,42,0.12); border-radius:8px; padding:6px; background:#fff; }
+    .wk-cal-empty { background:transparent; border:0; }
+    .wk-cal-day { font-size:12px; color:#9a8; }
+    .wk-cal-item { display:block; margin-top:4px; font-size:11px; line-height:1.2; padding:3px 5px; border-radius:5px; text-decoration:none; color:#2A1B2A; background:#F4ECDF; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .wk-cal-item--published { background:#dcefdc; }
+    .wk-cal-item--cancelled { background:#f0d8d8; text-decoration:line-through; }
+    .adm-inline-form { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    .adm-pill { font-size:12px; padding:2px 9px; border-radius:999px; background:#F4ECDF; }
+    .adm-pill--published { background:#dcefdc; }
+    .adm-pill--cancelled { background:#f0d8d8; }
+    .adm-table { width:100%; border-collapse:collapse; }
+    .adm-table th, .adm-table td { text-align:left; padding:8px 10px; border-bottom:1px solid rgba(42,27,42,0.1); font-size:14px; vertical-align:top; }
+    .adm-table code { font-size:12px; color:#9a8; }
+  </style>
+</Layout>

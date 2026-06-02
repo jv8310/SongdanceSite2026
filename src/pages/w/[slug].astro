@@ -1,0 +1,204 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import {
+  getPublishedWorkshopBySlug,
+  getProductById,
+  resolvePrice,
+} from '../../lib/workshops/db';
+import { currencyForCountry, formatMoney } from '../../lib/workshops/currency';
+import { formatInTz } from '../../lib/workshops/time';
+
+export const prerender = false;
+
+const { slug } = Astro.params;
+const env = Astro.locals.runtime.env;
+const cf = (Astro.locals.runtime as any)?.cf;
+
+const workshop = slug ? await getPublishedWorkshopBySlug(env.DB, slug) : null;
+
+// Cloudflare edge geo/timezone — no external API.
+const country: string = (cf?.country as string) || 'EU';
+const detectedTz: string = (cf?.timezone as string) || workshop?.display_tz || 'Europe/Brussels';
+const currency = currencyForCountry(country === 'EU' ? null : country);
+
+let ticketLabel = '';
+let bumpLabel = '';
+let bumpName = '';
+let ticketProductId: number | null = null;
+
+if (workshop?.main_product_id) {
+  ticketProductId = workshop.main_product_id;
+  const price = await resolvePrice(env.DB, workshop.main_product_id, currency);
+  if (price) ticketLabel = formatMoney(price.amountMinor, price.currency);
+  if (workshop.bump_product_id) {
+    const bumpProduct = await getProductById(env.DB, workshop.bump_product_id);
+    const bumpPrice = await resolvePrice(env.DB, workshop.bump_product_id, currency);
+    if (bumpProduct && bumpPrice) {
+      bumpName = bumpProduct.name;
+      bumpLabel = formatMoney(bumpPrice.amountMinor, bumpPrice.currency);
+    }
+  }
+}
+
+const whenLocal = workshop && !workshop.is_replay
+  ? formatInTz(workshop.starts_at_utc, detectedTz)
+  : null;
+
+const pixelId = env.META_PIXEL_ID ?? '';
+const canceled = Astro.url.searchParams.get('canceled') === '1';
+
+// A curated timezone list for the select; the detected tz is pinned on top.
+const COMMON_TZS = [
+  'Europe/Brussels', 'Europe/London', 'Europe/Berlin', 'Europe/Paris', 'Europe/Madrid',
+  'Europe/Amsterdam', 'Europe/Zurich', 'Europe/Stockholm', 'Europe/Oslo', 'Europe/Copenhagen',
+  'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles', 'America/Toronto',
+  'America/Sao_Paulo', 'Asia/Dubai', 'Asia/Kolkata', 'Asia/Singapore', 'Asia/Tokyo',
+  'Australia/Sydney', 'Pacific/Auckland', 'UTC',
+];
+const tzOptions = Array.from(new Set([detectedTz, ...COMMON_TZS]));
+---
+
+<Layout title={workshop ? `Register — ${workshop.title}` : 'Workshop'} description={workshop?.title ?? ''}>
+  {pixelId && (
+    <script is:inline set:html={`!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init','${pixelId}');fbq('track','PageView');`} />
+  )}
+
+  <main class="wk">
+    {!workshop && (
+      <section class="wk-card wk-empty">
+        <h1>This workshop isn’t open</h1>
+        <p>It may have moved or sold out. Email <a href="mailto:info@songdance.co">info@songdance.co</a> and we’ll help.</p>
+      </section>
+    )}
+
+    {workshop && (
+      <section class="wk-card">
+        <p class="wk-kicker">Live online workshop</p>
+        <h1 class="wk-title">{workshop.title}</h1>
+        {whenLocal && <p class="wk-when">{whenLocal}<span class="wk-tz"> · your time</span></p>}
+        {workshop.is_replay === 1 && <p class="wk-when">On demand — watch anytime</p>}
+
+        {canceled && <p class="wk-flash">Payment cancelled — you can try again below.</p>}
+
+        <form id="wk-form" class="wk-form">
+          <input type="hidden" name="workshop_slug" value={workshop.slug} />
+          <input type="hidden" name="country" value={country === 'EU' ? '' : country} />
+          <input type="hidden" name="meta_event_id" id="wk-event-id" value="" />
+
+          <label class="wk-field">
+            <span>Your name</span>
+            <input type="text" name="name" required autocomplete="name" />
+          </label>
+
+          <label class="wk-field">
+            <span>Email</span>
+            <input type="email" name="email" required autocomplete="email" />
+          </label>
+
+          <label class="wk-field">
+            <span>Phone <em>(optional)</em></span>
+            <input type="tel" name="phone" autocomplete="tel" />
+          </label>
+
+          {!workshop.is_replay && (
+            <label class="wk-field">
+              <span>Your timezone</span>
+              <select name="timezone">
+                {tzOptions.map((tz) => (
+                  <option value={tz} selected={tz === detectedTz}>{tz.replace(/_/g, ' ')}</option>
+                ))}
+              </select>
+            </label>
+          )}
+
+          {bumpName && (
+            <label class="wk-bump">
+              <input type="checkbox" name="bump" />
+              <span><strong>Add {bumpName}</strong> for {bumpLabel}</span>
+            </label>
+          )}
+
+          <div class="wk-total">
+            <span>Workshop ticket</span>
+            <strong>{ticketLabel}</strong>
+          </div>
+
+          <button type="submit" class="wk-submit">Register &amp; pay {ticketLabel} →</button>
+          <p class="wk-err" id="wk-err" hidden></p>
+          <p class="wk-fine">Detected: {country} · {currency}. Secure checkout via Stripe.</p>
+        </form>
+      </section>
+    )}
+  </main>
+
+  <style>
+    .wk { max-width: 560px; margin: 0 auto; padding: 64px 20px 96px; }
+    .wk-card { background:#FBF6EC; border:1px solid rgba(161,72,38,0.22); border-radius:18px; padding:40px 36px; }
+    .wk-kicker { margin:0 0 8px; font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:#A14826; }
+    .wk-title { margin:0 0 6px; font-size:30px; line-height:1.18; color:#2A1B2A; font-weight:400; }
+    .wk-when { margin:0 0 4px; font-size:17px; color:#4A3848; }
+    .wk-tz { color:#B6A8B4; font-style:italic; }
+    .wk-flash { margin:16px 0 0; padding:10px 14px; border-radius:10px; background:#F4ECDF; color:#A14826; font-size:14px; }
+    .wk-form { margin-top:28px; display:flex; flex-direction:column; gap:16px; }
+    .wk-field { display:flex; flex-direction:column; gap:6px; }
+    .wk-field > span { font-size:14px; color:#4A3848; }
+    .wk-field em { color:#B6A8B4; font-style:italic; }
+    .wk-field input, .wk-field select { padding:12px 14px; border:1px solid rgba(42,27,42,0.2); border-radius:10px; font-size:16px; background:#fff; color:#2A1B2A; }
+    .wk-bump { display:flex; gap:10px; align-items:flex-start; padding:14px 16px; background:#F4ECDF; border-radius:12px; cursor:pointer; font-size:15px; color:#4A3848; }
+    .wk-bump input { margin-top:3px; }
+    .wk-total { display:flex; justify-content:space-between; align-items:baseline; padding-top:6px; font-size:16px; color:#4A3848; border-top:1px solid rgba(42,27,42,0.12); }
+    .wk-total strong { font-size:20px; color:#2A1B2A; }
+    .wk-submit { margin-top:6px; padding:15px 20px; border:0; border-radius:999px; background:#2A1B2A; color:#F4ECDF; font-size:16px; cursor:pointer; font-family:inherit; }
+    .wk-submit:disabled { opacity:.6; cursor:default; }
+    .wk-err { margin:0; color:#A14826; font-size:14px; }
+    .wk-fine { margin:0; color:#B6A8B4; font-size:12px; text-align:center; }
+    .wk-empty h1 { margin:0 0 10px; font-weight:400; }
+  </style>
+
+  <script is:inline>
+    (function () {
+      var form = document.getElementById('wk-form');
+      if (!form) return;
+      // Dedup event id shared by the client Pixel + server CAPI.
+      var eventId = (crypto.randomUUID && crypto.randomUUID()) ||
+        (Date.now() + '-' + Math.random().toString(36).slice(2));
+      var idField = document.getElementById('wk-event-id');
+      if (idField) idField.value = eventId;
+      if (window.fbq) {
+        try { window.fbq('track', 'InitiateCheckout', {}, { eventID: eventId }); } catch (e) {}
+      }
+
+      var err = document.getElementById('wk-err');
+      var btn = form.querySelector('.wk-submit');
+      form.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        if (err) { err.hidden = true; err.textContent = ''; }
+        btn.disabled = true;
+        var fd = new FormData(form);
+        var body = {
+          workshop_slug: fd.get('workshop_slug'),
+          name: fd.get('name'),
+          email: fd.get('email'),
+          phone: fd.get('phone') || '',
+          timezone: fd.get('timezone') || '',
+          country: fd.get('country') || '',
+          bump: fd.get('bump') === 'on',
+          meta_event_id: fd.get('meta_event_id') || '',
+        };
+        try {
+          var res = await fetch('/api/workshops/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+          var data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Something went wrong.');
+          window.location.href = data.checkout_url || data.redirect_url;
+        } catch (e2) {
+          if (err) { err.hidden = false; err.textContent = e2.message || 'Something went wrong.'; }
+          btn.disabled = false;
+        }
+      });
+    })();
+  </script>
+</Layout>

@@ -34,11 +34,12 @@
     "RESEND_FROM": "Songdance <prayer@mail.songdance.co>",
     "RESEND_INTAKES_FROM": "Songdance <intakes@mail.songdance.co>"
   },
-  // Hourly Cron trigger → the worker's `scheduled` handler assesses any
-  // intake submissions still stuck at "No assessment" (see
-  // src/worker-entrypoint.ts and src/lib/intake/sweep.ts).
+  // Cron triggers → the worker's `scheduled` handler dispatches by cron string
+  // (see src/worker-entrypoint.ts):
+  //   "0 * * * *"   hourly — assess intake submissions still at "No assessment"
+  //   "*/5 * * * *" 5-min  — workshop reminder cadence + post-workshop emails
   "triggers": {
-    "crons": ["0 * * * *"]
+    "crons": ["0 * * * *", "*/5 * * * *"]
   }
   // Secrets (set in Cloudflare dashboard → Workers → Settings → Variables and Secrets,
   // or via `wrangler secret put <NAME>`):
@@ -48,8 +49,12 @@
   //   QUADERNO_API_KEY
   //   DRIP_API_TOKEN
   //   DRIP_ACCOUNT_ID
-  //   RESEND_API_KEY         (used to send the forgiveness prayer transactionally)
+  //   RESEND_API_KEY         (forgiveness prayer + intake + workshop emails)
   //   ANTHROPIC_API_KEY      (forgiveness prayer + /intake assessment)
   //   ADMIN_PASSWORD
   //   ADMIN_SESSION_SECRET   (any random 32+ char string)
+  //   META_PIXEL_ID, META_ACCESS_TOKEN          (workshop Meta CAPI — optional)
+  //   QUADERNO_ACCOUNT (var), QUADERNO_SANDBOX  (workshop tax lookup)
+  //   GOOGLE_SA_JSON or GOOGLE_OAUTH_CLIENT_ID/SECRET/REFRESH_TOKEN,
+  //   GOOGLE_CALENDAR_ID                         (workshop Google Calendar import — optional)
 }

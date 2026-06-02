@@ -1,0 +1,161 @@
+---
+import '../../../styles/admin.css';
+import Layout from '../../../layouts/Layout.astro';
+import { readCookie, verifySession } from '../../../lib/registrations/auth';
+import { computeStats } from '../../../lib/workshops/stats';
+import { listWorkshops, getProductById } from '../../../lib/workshops/db';
+
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+if (!(await verifySession(env.ADMIN_SESSION_SECRET, readCookie(Astro.request)))) {
+  return Astro.redirect('/admin/login');
+}
+
+const from = Astro.url.searchParams.get('from') || null;
+const to = Astro.url.searchParams.get('to') || null;
+const wid = parseInt(Astro.url.searchParams.get('workshop_id') ?? '', 10);
+const workshopId = Number.isFinite(wid) ? wid : null;
+
+const workshops = await listWorkshops(env.DB);
+const report = await computeStats(env.DB, { from, to, workshopId });
+
+// Resolve course product names for the breakdown.
+const courseNames = new Map<number, string>();
+for (const c of report.courseBreakdown) {
+  const p = await getProductById(env.DB, c.product_id);
+  courseNames.set(c.product_id, p?.name ?? `Product #${c.product_id}`);
+}
+
+const eur = (minor: number) => `€${(minor / 100).toFixed(2)}`;
+const flash = Astro.url.searchParams.get('flash');
+
+// Preserve filters on the CSV export link.
+const exportQs = new URLSearchParams();
+if (from) exportQs.set('from', from);
+if (to) exportQs.set('to', to);
+if (workshopId) exportQs.set('workshop_id', String(workshopId));
+---
+
+<Layout title="Admin — Workshop stats — Songdance" description="">
+  <main class="adm">
+    <header class="adm-header">
+      <div>
+        <p class="adm-breadcrumbs"><a href="/admin">Admin</a> <span class="sep">/</span> <a href="/admin/workshops">Workshops</a> <span class="sep">/</span> Statistics</p>
+        <h1>Statistics &amp; ROAS</h1>
+        <p class="adm-sub">All figures in EUR, net of tax where tax data is available. ROAS = net revenue ÷ Meta ad spend over the same window.</p>
+      </div>
+      <div class="adm-actions"><a class="adm-btn adm-btn--ghost" href="/admin/workshops">← Workshops</a></div>
+    </header>
+
+    {flash === 'spend' && <div class="adm-flash adm-flash--ok">Ad spend imported.</div>}
+
+    <section class="adm-section">
+      <form method="GET" class="adm-inline-form">
+        <label>From <input type="date" name="from" value={from ?? ''} /></label>
+        <label>To <input type="date" name="to" value={to ?? ''} /></label>
+        <label>Workshop
+          <select name="workshop_id">
+            <option value="">All</option>
+            {workshops.map((w) => <option value={w.id} selected={workshopId === w.id}>{w.title}</option>)}
+          </select>
+        </label>
+        <button type="submit" class="adm-btn adm-btn--solid">Apply</button>
+        <a class="adm-btn adm-btn--ghost" href={`/api/admin/workshops/stats.csv?${exportQs.toString()}`}>Export CSV</a>
+      </form>
+    </section>
+
+    <section class="adm-section">
+      <div class="wk-stats">
+        <div class="wk-stat"><span>Net revenue (EUR)</span><strong>{eur(report.totals.netEurMinor)}</strong></div>
+        <div class="wk-stat"><span>Gross (EUR)</span><strong>{eur(report.totals.grossEurMinor)}</strong></div>
+        <div class="wk-stat"><span>Tax (EUR)</span><strong>{eur(report.totals.taxEurMinor)}</strong></div>
+        <div class="wk-stat"><span>Ticket net</span><strong>{eur(report.totals.ticketNetEurMinor)}</strong></div>
+        <div class="wk-stat"><span>Bump net ({report.totals.bumpCount})</span><strong>{eur(report.totals.bumpNetEurMinor)}</strong></div>
+        <div class="wk-stat"><span>Course net ({report.totals.courseCount})</span><strong>{eur(report.totals.courseNetEurMinor)}</strong></div>
+        <div class="wk-stat"><span>Ad spend (EUR)</span><strong>{eur(report.adSpendEurMinor)}</strong></div>
+        <div class="wk-stat wk-stat--hl"><span>ROAS</span><strong>{report.roas != null ? report.roas.toFixed(2) + '×' : '—'}</strong></div>
+      </div>
+      {report.totals.flaggedNoTax > 0 && (
+        <p class="adm-sub">⚠ {report.totals.flaggedNoTax} payment(s) had no tax data — net was taken equal to gross for those.</p>
+      )}
+    </section>
+
+    {report.courseBreakdown.length > 0 && (
+      <section class="adm-section">
+        <h2>Course sales</h2>
+        <table class="adm-table">
+          <thead><tr><th>Course</th><th>Count</th><th>Net (EUR)</th></tr></thead>
+          <tbody>
+            {report.courseBreakdown.map((c) => (
+              <tr><td>{courseNames.get(c.product_id)}</td><td>{c.count}</td><td>{eur(c.netEurMinor)}</td></tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+    )}
+
+    <section class="adm-section">
+      <h2>By day</h2>
+      {report.daily.length === 0 && <p class="adm-empty">No data in this window.</p>}
+      {report.daily.length > 0 && (
+        <table class="adm-table">
+          <thead><tr><th>Date</th><th>Gross</th><th>Net</th><th>Ad spend</th><th>ROAS</th></tr></thead>
+          <tbody>
+            {report.daily.map((d) => (
+              <tr>
+                <td>{d.date}</td>
+                <td>{eur(d.grossEurMinor)}</td>
+                <td>{eur(d.netEurMinor)}</td>
+                <td>{eur(d.adSpendEurMinor)}</td>
+                <td>{d.roas != null ? d.roas.toFixed(2) + '×' : '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </section>
+
+    <section class="adm-section">
+      <h2>Import Meta ad-spend CSV</h2>
+      <p class="adm-sub">Tolerant of column order; we look for a date and an amount column. Non-EUR rows are converted with a fallback rate table. Re-uploads are idempotent per (date, campaign).</p>
+      <form id="spend-form" class="adm-inline-form" enctype="multipart/form-data">
+        <input type="file" name="csv" accept=".csv,text/csv" required />
+        <label>Fallback currency <input type="text" name="currency" placeholder="EUR" maxlength="3" style="width:80px;" /></label>
+        <button type="submit" class="adm-btn adm-btn--solid">Upload</button>
+      </form>
+      <div id="spend-result" class="adm-sub" style="margin-top:14px;"></div>
+    </section>
+  </main>
+
+  <style>
+    .wk-stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; }
+    .wk-stat { background:#fff; border:1px solid rgba(42,27,42,0.12); border-radius:10px; padding:14px 16px; }
+    .wk-stat span { display:block; font-size:12px; color:#9a8; }
+    .wk-stat strong { font-size:22px; color:#2A1B2A; }
+    .wk-stat--hl { background:#dcefdc; }
+    .adm-table { width:100%; border-collapse:collapse; }
+    .adm-table th, .adm-table td { text-align:left; padding:8px 10px; border-bottom:1px solid rgba(42,27,42,0.1); font-size:13px; }
+    .adm-inline-form { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+  </style>
+
+  <script is:inline>
+    (function () {
+      var form = document.getElementById('spend-form');
+      var out = document.getElementById('spend-result');
+      form.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        out.textContent = 'Uploading…';
+        try {
+          var res = await fetch('/api/admin/workshops/ad-spend-import', { method: 'POST', body: new FormData(form) });
+          var data = await res.json();
+          if (!res.ok) { out.textContent = data.error || 'Failed.'; return; }
+          var msg = 'Imported ' + data.imported + ' row(s).';
+          if (data.skipped && data.skipped.length) msg += ' Skipped ' + data.skipped.length + ' row(s).';
+          out.textContent = msg + ' Reloading…';
+          setTimeout(function () { location.href = '/admin/workshops/stats?flash=spend'; }, 900);
+        } catch (e2) { out.textContent = 'Error: ' + (e2.message || e2); }
+      });
+    })();
+  </script>
+</Layout>

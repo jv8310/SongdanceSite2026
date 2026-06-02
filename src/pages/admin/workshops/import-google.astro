@@ -1,0 +1,76 @@
+---
+import '../../../styles/admin.css';
+import Layout from '../../../layouts/Layout.astro';
+import { readCookie, verifySession } from '../../../lib/registrations/auth';
+
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+if (!(await verifySession(env.ADMIN_SESSION_SECRET, readCookie(Astro.request)))) {
+  return Astro.redirect('/admin/login');
+}
+const configured = !!env.GOOGLE_CALENDAR_ID && (!!env.GOOGLE_SA_JSON || !!env.GOOGLE_OAUTH_REFRESH_TOKEN);
+---
+
+<Layout title="Admin — Import from Google — Songdance" description="">
+  <main class="adm">
+    <header class="adm-header">
+      <div>
+        <p class="adm-breadcrumbs"><a href="/admin">Admin</a> <span class="sep">/</span> <a href="/admin/workshops">Workshops</a> <span class="sep">/</span> Import from Google</p>
+        <h1>Import from Google Calendar</h1>
+        <p class="adm-sub">Enter an event title; we search your calendar for upcoming events with that title and add each as a <strong>draft</strong> workshop. Re-running updates rather than duplicates.</p>
+      </div>
+      <div class="adm-actions"><a class="adm-btn adm-btn--ghost" href="/admin/workshops">← Workshops</a></div>
+    </header>
+
+    {!configured && (
+      <div class="adm-flash adm-flash--warn">
+        Google Calendar isn’t configured yet. Set <code>GOOGLE_CALENDAR_ID</code> plus either
+        <code>GOOGLE_SA_JSON</code> (service account) or the <code>GOOGLE_OAUTH_*</code> secrets, then reload.
+      </div>
+    )}
+
+    <section class="adm-section">
+      <form id="gi-form" class="adm-inline-form">
+        <input type="text" id="gi-title" placeholder="Somatic Vocal Healing Workshop" required style="flex:1;min-width:320px;" />
+        <button type="submit" class="adm-btn adm-btn--solid">Find &amp; import</button>
+      </form>
+      <div id="gi-result" class="adm-sub" style="margin-top:18px;"></div>
+    </section>
+  </main>
+
+  <script is:inline>
+    (function () {
+      var form = document.getElementById('gi-form');
+      var out = document.getElementById('gi-result');
+      form.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        out.textContent = 'Searching…';
+        try {
+          var res = await fetch('/api/admin/workshops/google-import', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: document.getElementById('gi-title').value }),
+          });
+          var data = await res.json();
+          if (!res.ok) { out.textContent = data.error || 'Failed.'; return; }
+          if (!data.imported.length && !data.skipped.length) { out.textContent = 'No matching upcoming events found.'; return; }
+          var html = '';
+          if (data.imported.length) {
+            html += '<p>Imported / updated:</p><ul>';
+            data.imported.forEach(function (w) {
+              html += '<li><a href="/admin/workshops/' + w.id + '">' + w.title + '</a> — ' + w.startsAtUtc + (w.created ? ' (new)' : ' (updated)') + '</li>';
+            });
+            html += '</ul>';
+          }
+          if (data.skipped.length) {
+            html += '<p>Skipped:</p><ul>';
+            data.skipped.forEach(function (s) { html += '<li>' + s.summary + ' — ' + s.reason + '</li>'; });
+            html += '</ul>';
+          }
+          out.innerHTML = html;
+        } catch (e2) { out.textContent = 'Error: ' + (e2.message || e2); }
+      });
+    })();
+  </script>
+</Layout>

@@ -13,13 +13,34 @@
 
 import { createExports as baseCreateExports } from '@astrojs/cloudflare/entrypoints/server.js';
 import { assessPendingSubmissions } from './lib/intake/sweep';
+import { runWorkshopCron } from './lib/workshops/cron';
+
+const WORKSHOP_CRON = '*/5 * * * *';
 
 export function createExports(manifest: unknown) {
   const base = baseCreateExports(manifest as never) as {
     default: { fetch: ExportedHandlerFetchHandler };
   };
 
-  const scheduled: ExportedHandlerScheduledHandler<Env> = (_event, env, ctx) => {
+  const scheduled: ExportedHandlerScheduledHandler<Env> = (event, env, ctx) => {
+    // Dispatch by cron string (see wrangler.jsonc triggers). The 5-minute
+    // trigger drives the workshop reminder cadence + post-workshop emails;
+    // the hourly trigger keeps sweeping unassessed intake submissions.
+    if (event.cron === WORKSHOP_CRON) {
+      ctx.waitUntil(
+        runWorkshopCron(env)
+          .then((r) => {
+            console.log(
+              `[workshops/cron] reminders=${r.remindersSent} post=${r.postSent} no_shows=${r.noShowsMarked}`,
+            );
+          })
+          .catch((err) => {
+            console.error('[workshops/cron] run failed', err);
+          }),
+      );
+      return;
+    }
+
     ctx.waitUntil(
       assessPendingSubmissions({
         db: env.DB,
