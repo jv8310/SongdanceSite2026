@@ -1119,3 +1119,18 @@ a.sd-evt-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-2); 
   color: var(--ink-quiet);
   margin-top: var(--sp-5) !important;
 }
+
+/* Retreat practical details list. */
+.sd-details { margin: 0; border-top: 1px solid var(--line); max-width: 44ch; }
+.sd-details-row {
+  display: grid; grid-template-columns: 120px 1fr;
+  gap: var(--sp-4); align-items: baseline;
+  padding: var(--sp-3) 0;
+  border-bottom: 1px solid var(--line);
+}
+.sd-details-row dt {
+  font-family: var(--font-mono); font-size: 11px;
+  text-transform: uppercase; letter-spacing: 0.18em;
+  color: var(--ember-deep);
+}
+.sd-details-row dd { margin: 0; font-family: var(--font-body); font-size: var(--t-body); color: var(--ink); }

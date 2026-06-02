@@ -1,12 +1,72 @@
 ---
-import StubPage from '../../components/StubPage.astro';
+import SiteLayout from '../../components/SiteLayout.astro';
+import PageHero from '../../components/PageHero.astro';
+import SoftCta from '../../components/SoftCta.astro';
+
+const details = [
+  ['When', '20–22 June 2026'],
+  ['Where', 'Oude Abdij van Drongen, Gent'],
+  ['Language', 'In het Nederlands'],
+  ['Held by', 'Jacob'],
+  ['Places', 'Twelve, no more'],
+];
 ---
 
-<StubPage
-  title="Klankopstellingen Retreat — Songdance"
-  description="Three days of sound constellation work in Dutch, near Ghent. Twelve people, no more."
-  eyebrow="Retreat · NL · Drongen"
-  heading="Klankopstellingen Retreat"
-  lede="Three days of sound constellation work in Dutch, near Ghent. Twelve people, no more."
-  note="Scaffold page — full retreat copy lands in the content pass."
-/>
+<SiteLayout
+  title="Klankopstellingen Retreat — Drongen, Gent — Songdance"
+  description="Three days of sound constellation work in Dutch, near Ghent. A group method for what runs through families, relationships, and the body's lineage. Twelve people, no more."
+>
+  <PageHero
+    eyebrow="Retreat · Drongen, Gent · in het Nederlands"
+    title="Klankopstellingen"
+    lede="Three days of sound constellation work in Dutch, near Ghent. Twelve people, no more."
+  >
+    <div class="sd-pagehero-actions">
+      <a href="/contact" class="sd-btn sd-btn-primary">Ask about a place</a>
+    </div>
+  </PageHero>
+
+  <section class="sd-section sd-prose">
+    <div class="sd-prose-inner">
+      <p>
+        A constellation makes visible what usually stays hidden — the patterns that run through a
+        family, a relationship, a body’s lineage. In <em>klankopstellingen</em>, the medium isn’t
+        words. It’s the voice. We sound what the system is carrying, and let it move.
+      </p>
+      <p>
+        Three days, held in the quiet of the Oude Abdij van Drongen, just outside Ghent. A small
+        circle — twelve people — so there’s room for each person to be met. The work is in Dutch.
+      </p>
+    </div>
+  </section>
+
+  <section class="sd-section sd-prose sd-prose--feature">
+    <div class="sd-prose-inner">
+      <h2 class="sd-prose-h">The shape of it</h2>
+      <p>
+        Long days and slow meals, the way retreats should be. You don’t need experience, or a
+        “good voice,” or to know what you’re bringing. You arrive, and the work finds you.
+      </p>
+    </div>
+  </section>
+
+  <section class="sd-section sd-prose">
+    <div class="sd-prose-inner">
+      <h2 class="sd-prose-h">Practical</h2>
+      <dl class="sd-details">
+        {details.map(([k, v]) => (
+          <div class="sd-details-row"><dt>{k}</dt><dd>{v}</dd></div>
+        ))}
+      </dl>
+      <p class="sd-prose-note">Pricing to be confirmed — ask about a place and we’ll send the details.</p>
+    </div>
+  </section>
+
+  <SoftCta
+    text="New to the work? Start with an hour."
+    ctaLabel="Try a session — 9€"
+    ctaHref="/session"
+    altLabel="All upcoming retreats →"
+    altHref="/events?filter=retreat"
+  />
+</SiteLayout>

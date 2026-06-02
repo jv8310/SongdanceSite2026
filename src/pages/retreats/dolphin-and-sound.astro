@@ -1,12 +1,60 @@
 ---
-import StubPage from '../../components/StubPage.astro';
+import SiteLayout from '../../components/SiteLayout.astro';
+import PageHero from '../../components/PageHero.astro';
+import SoftCta from '../../components/SoftCta.astro';
+
+const details = [
+  ['When', 'November 2026'],
+  ['Where', 'To be confirmed'],
+  ['Held by', 'Jacob'],
+  ['Status', 'Waitlist open'],
+];
 ---
 
-<StubPage
+<SiteLayout
   title="Dolphin & Sound Retreat — Songdance"
-  description="Sound and open water. Details to be confirmed."
-  eyebrow="Retreat · November 2026"
-  heading="Dolphin & Sound Retreat"
-  lede="Sound and open water."
-  note="Scaffold page — dates, location and facilitators are still [CONFIRM] (brief §14.6)."
-/>
+  description="Sound and open water. A November 2026 retreat — dates and location still being confirmed. Leave your name for the waitlist."
+>
+  <PageHero
+    eyebrow="Retreat · November 2026"
+    title="Dolphin &amp; Sound"
+    lede="Sound and open water."
+  >
+    <div class="sd-pagehero-actions">
+      <a href="/contact" class="sd-btn sd-btn-primary">Join the waitlist</a>
+    </div>
+  </PageHero>
+
+  <section class="sd-section sd-prose">
+    <div class="sd-prose-inner">
+      <p>
+        A retreat where the practice meets the sea. Sounding, open water, and the particular
+        quiet that comes from days spent close to it.
+      </p>
+      <p>
+        We’re still confirming the dates and the place. If it calls to you, leave your name —
+        people on the waitlist hear first, before anything is announced.
+      </p>
+    </div>
+  </section>
+
+  <section class="sd-section sd-prose sd-prose--feature">
+    <div class="sd-prose-inner">
+      <h2 class="sd-prose-h">Practical</h2>
+      <dl class="sd-details">
+        {details.map(([k, v]) => (
+          <div class="sd-details-row"><dt>{k}</dt><dd>{v}</dd></div>
+        ))}
+      </dl>
+      <p class="sd-prose-note">Details to be confirmed.</p>
+    </div>
+  </section>
+
+  <SoftCta
+    text="In the meantime, feel what this is."
+    ctaLabel="Try a session — 9€"
+    ctaHref="/session"
+    altLabel="All upcoming retreats →"
+    altHref="/events?filter=retreat"
+  />
+</SiteLayout>

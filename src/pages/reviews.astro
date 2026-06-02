@@ -1,19 +1,45 @@
 ---
-import StubPage from '../components/StubPage.astro';
+import SiteLayout from '../components/SiteLayout.astro';
+import PageHero from '../components/PageHero.astro';
+import SoftCta from '../components/SoftCta.astro';
+
+const reviews = [
+  ['Rebecca Lucy', 'USA', 'I came for the voice and left with something steadier underneath it.'],
+  ['Monike', 'Netherlands', 'The honesty of it is the point. Nothing here is performance.'],
+  ['Dr. Karen Evans', 'USA', 'A rigorous, kind way of working that fits beside clinical practice.'],
+  ['Gwenola Emilia Enciu', 'Romania', 'I finally have a practice I can return to on my own, for life.'],
+  ['Workshop participant', 'Belgium', 'An hour in, I made a sound I’d been holding for years. Then I could breathe.'],
+  ['Course student', 'Germany', 'Not a quick lift — a steadier kind of peace. More lasting.'],
+];
 ---
 
-<StubPage
+<SiteLayout
   title="Reviews — Songdance"
-  description="In their words. Verified reviews on Trustpilot."
-  eyebrow="Reviews"
-  heading="In their words"
-  lede="Verified reviews on Trustpilot."
-  note="Scaffold page — Trustpilot embed or a curated set lands in the content pass (brief §13)."
-  cta={true}
+  description="In their words. A few notes from people who've done the work — and verified reviews on Trustpilot."
 >
-  <p>
-    Read verified reviews at
-    <a href="https://www.trustpilot.com/review/songdance.co" target="_blank" rel="noopener">
-      trustpilot.com/review/songdance.co</a>.
-  </p>
-</StubPage>
+  <PageHero
+    eyebrow="Reviews"
+    title="In their words"
+    lede="A few notes from people who’ve done the work."
+  />
+
+  <section class="sd-section sd-prose">
+    <div class="sd-prose-inner">
+      <div class="sd-quotes">
+        {reviews.map(([name, place, quote]) => (
+          <figure class="sd-quote-card">
+            <blockquote>{quote}</blockquote>
+            <figcaption>{name} · <span>{place}</span></figcaption>
+          </figure>
+        ))}
+      </div>
+      <p class="sd-quotes-link">
+        <a href="https://www.trustpilot.com/review/songdance.co" target="_blank" rel="noopener">
+          Read verified reviews on Trustpilot →
+        </a>
+      </p>
+    </div>
+  </section>
+
+  <SoftCta />
+</SiteLayout>
