@@ -1011,3 +1011,111 @@ a.sd-evt-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-2); 
   font-size: var(--t-body) !important;
   color: var(--ink-quiet);
 }
+.sd-quote-attrib {
+  text-align: center;
+  font-family: var(--font-body);
+  font-size: var(--t-body-sm);
+  letter-spacing: 0.04em;
+  color: rgba(244, 236, 223, 0.7);
+  margin: var(--sp-4) 0 0;
+}
+
+/* Course modules / steps (12-week, grief). */
+.sd-modules-section .sd-prose-inner { max-width: var(--measure); }
+.sd-modules { list-style: none; counter-reset: none; margin: 0; padding: 0; }
+.sd-module {
+  display: flex; gap: var(--sp-5);
+  padding: var(--sp-5) 0;
+  border-top: 1px solid var(--line);
+}
+.sd-module:first-child { border-top: none; }
+.sd-module-n {
+  font-family: var(--font-mono);
+  font-size: var(--t-body-sm);
+  color: var(--ember-deep);
+  padding-top: 4px;
+  flex: 0 0 auto;
+  letter-spacing: 0.05em;
+}
+.sd-module-t {
+  font-family: var(--font-display);
+  font-size: var(--t-h4);
+  font-weight: 500;
+  color: var(--ink);
+  margin: 0 0 4px;
+}
+.sd-module-d {
+  font-family: var(--font-body);
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  color: var(--ink-soft);
+  margin: 0;
+}
+
+/* Testimonials. */
+.sd-quotes {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--sp-4);
+  margin-top: var(--sp-5);
+}
+@media (max-width: 640px) { .sd-quotes { grid-template-columns: 1fr; } }
+.sd-quote-card {
+  margin: 0;
+  padding: var(--sp-5);
+  background: var(--paper-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+}
+.sd-quote-card blockquote {
+  margin: 0 0 var(--sp-3);
+  font-family: var(--font-lyric);
+  font-style: italic;
+  font-size: 20px;
+  line-height: 1.3;
+  color: var(--ink);
+}
+.sd-quote-card figcaption {
+  font-family: var(--font-body);
+  font-size: var(--t-caption);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ink-quiet);
+}
+.sd-quote-card figcaption span { color: var(--ember-deep); }
+.sd-quotes-link { margin-top: var(--sp-5); font-size: var(--t-body-sm); }
+
+/* FAQ accordion. */
+.sd-faq { border-top: 1px solid var(--line); }
+.sd-faq-item { border-bottom: 1px solid var(--line); }
+.sd-faq-item summary {
+  cursor: pointer;
+  list-style: none;
+  padding: var(--sp-4) 0;
+  font-family: var(--font-display);
+  font-size: var(--t-h4);
+  color: var(--ink);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.sd-faq-item summary::-webkit-details-marker { display: none; }
+.sd-faq-item summary::after {
+  content: '+';
+  font-family: var(--font-body);
+  color: var(--ember-deep);
+  margin-left: var(--sp-4);
+  transition: transform var(--d-base) var(--ease);
+}
+.sd-faq-item[open] summary::after { transform: rotate(45deg); }
+.sd-faq-item p {
+  margin: 0;
+  padding: 0 0 var(--sp-5);
+  color: var(--ink-soft);
+  font-size: var(--t-body);
+}
+.sd-prose-note {
+  font-family: var(--font-mono);
+  font-size: var(--t-caption) !important;
+  letter-spacing: 0.04em;
+  color: var(--ink-quiet);
+  margin-top: var(--sp-5) !important;
+}
