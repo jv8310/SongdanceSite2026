@@ -2,33 +2,69 @@
 import SiteLayout from '../components/SiteLayout.astro';
 import PageHero from '../components/PageHero.astro';
 import SoftCta from '../components/SoftCta.astro';
+
+const expect = [
+  'A small, safe online space — camera optional.',
+  'A short orientation, then guided sounding. Most of the hour is doing, not listening.',
+  'Live piano underneath, so you’re never sounding into silence.',
+  'Room for a question or two at the end.',
+];
 ---
 
 <SiteLayout
   title="A Vocal Healing Session — 9€ — Songdance"
-  description="One hour, live, online. You don't watch this one — you sound. 9€."
+  description="One hour, live, online. You don't watch this one — you sound. The simplest way to find out what Somatic Vocal Healing actually is. 9€."
 >
   <PageHero
     eyebrow="Live · online · 9€"
-    title='A Vocal Healing Session'
+    title="A Vocal Healing Session"
     lede="One hour, live, online. You don't watch this one — you sound."
   >
     <div class="sd-pagehero-actions">
-      <a href="#book" class="sd-btn sd-btn-primary">Pick a time</a>
+      <a href="/events?filter=online" class="sd-btn sd-btn-primary">See upcoming sessions</a>
     </div>
   </PageHero>
+
   <section class="sd-section sd-prose">
     <div class="sd-prose-inner">
-      <p class="sd-scaffold-note">
-        Scaffold page — full copy and the live booking flow land later (brief §7;
-        scheduling platform is a [CONFIRM] in §14.4).
+      <p>
+        This is the simplest way to find out what Somatic Vocal Healing actually is: by doing
+        a little of it. In an hour together, Jacob will guide you to find the sound of your own
+        moment — gently, safely, no experience or “good voice” required. You’ll leave knowing
+        the practice from the inside, not the outside.
       </p>
       <p>
-        The simplest way to find out what Somatic Vocal Healing actually is: by doing a little of
-        it. No experience or “good voice” required.
+        A fair warning, kindly meant: this isn’t a feel-good hour by design. You might feel
+        lighter. You might feel something tender you’d half-forgotten. Both are the practice
+        working. Come curious rather than expectant.
       </p>
     </div>
   </section>
+
+  <section class="sd-section sd-prose sd-prose--feature">
+    <div class="sd-prose-inner">
+      <h2 class="sd-prose-h">What to expect</h2>
+      <ul class="sd-prose-list">
+        {expect.map((item) => <li>{item}</li>)}
+      </ul>
+    </div>
+  </section>
+
+  <section class="sd-section sd-prose">
+    <div class="sd-prose-inner">
+      <h2 class="sd-prose-h">Who it’s for</h2>
+      <p>
+        Anyone curious about the work, anyone considering the 12-Week Course, and anyone who
+        simply wants an hour with their own voice. No background needed.
+      </p>
+      <h2 class="sd-prose-h">Practical</h2>
+      <p>
+        9€ · 60 minutes · online (Zoom). Times rotate across timezones — find the next one on
+        the <a href="/events?filter=online">events calendar</a>.
+      </p>
+    </div>
+  </section>
+
   <SoftCta
     text="Ready to go deeper?"
     ctaLabel="The 12-Week Course →"

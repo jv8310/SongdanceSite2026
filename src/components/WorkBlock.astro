@@ -3,18 +3,20 @@ const rows = [
   {
     n: '01',
     label: 'Somatic Vocal Healing',
-    title: 'Self-healing through sounding',
-    body: "Your voice is the instrument. Not singing — sounding. We listen for what's already there, and let it move.",
-    meta: 'individual practice · weekly',
+    title: 'Sounding, not singing',
+    body: "Your voice is the instrument. You don't reach for a beautiful note — you make the honest sound of what's here, and stay with it until it's been heard, and something shifts.",
+    meta: 'in your own voice',
+    href: '/what-is-svh',
     img: '/imagery/sounding-green-shirt.jpg',
     flip: false,
   },
   {
     n: '02',
     label: 'Sound Constellations',
-    title: 'Sound Constellations',
-    body: "A group method for what runs through families, relationships, and the body's lineage. The medium is voice.",
-    meta: 'in person · cohort of eight',
+    title: 'Klankopstellingen',
+    body: "A group method for what runs through families, relationships, and the body's lineage. The medium is the voice. A handful of times a year, in person.",
+    meta: 'in person · in Dutch',
+    href: '/events?filter=retreat',
     img: '/imagery/sounding-kneeling.jpg',
     flip: true,
   },
@@ -24,10 +26,17 @@ const rows = [
 <section class="sd-work" id="work">
   <div class="sd-work-inner">
     <div class="sd-work-head" data-anim="reveal">
-      <div class="sd-eyebrow">The work</div>
+      <div class="sd-eyebrow">What it is</div>
       <h2 class="sd-section-title sd-section-title-centered">
-        What we work with isn't an idea. <span class="sd-italic">It's already moving.</span>
+        It asks what a feeling <span class="sd-italic">sounds</span> like — and lets you make that sound.
       </h2>
+      <p class="sd-work-lede">
+        Most of us were taught to manage our feelings, override them, or wait for them to
+        pass. Somatic Vocal Healing does something simpler and stranger: it asks what a
+        feeling <em>sounds</em> like, and lets you make that sound. Not singing. Not
+        performing. Just the honest sound of what's here — until it has been heard, and
+        something shifts.
+      </p>
     </div>
 
     {
@@ -42,7 +51,7 @@ const rows = [
             <h3 class="sd-work-row-title">{r.title}</h3>
             <div class="sd-work-row-meta">{r.meta}</div>
             <p class="sd-work-row-body">{r.body}</p>
-            <a href="#" class="sd-link">Read more</a>
+            <a href={r.href} class="sd-link">Read more</a>
           </div>
         </article>
       ))

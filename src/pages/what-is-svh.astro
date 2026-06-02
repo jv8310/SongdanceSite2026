@@ -2,26 +2,75 @@
 import SiteLayout from '../components/SiteLayout.astro';
 import PageHero from '../components/PageHero.astro';
 import SoftCta from '../components/SoftCta.astro';
+
+const sections = [
+  {
+    h: 'Sounding, not singing',
+    p: [
+      'Singing reaches for something: a melody, a tune, a sound you’ve decided is “good.” When the voice cracks or wavers, you wince.',
+      'Sounding does the opposite. There’s no melody to reach for and nothing to get right. The crack, the waver, the rough edge — that’s the information. With sounding, we welcome exactly what most people try to fix.',
+      'The question is never <em>“how should this sound?”</em> It’s <em>“what does this feel like — and what is the sound of that?”</em>',
+    ],
+  },
+  {
+    h: 'In and out at once',
+    p: [
+      'Most sound work moves in one direction. Mantra and chanting send you outward and upward, toward calm. That’s real, and it’s lovely. Somatic Vocal Healing moves both ways at once — outward into expression and inward into what’s actually here. You sound what’s true, and in sounding it, you finally hear it yourself.',
+    ],
+  },
+  {
+    h: 'The honest part',
+    feature: true,
+    p: [
+      'Here’s the thing no brochure says: this doesn’t always feel better right away. Sometimes you feel worse before anything settles. If all you want is to feel nice for an hour, there are gentler tools, and they’re good ones.',
+      'But if you’re willing to meet the parts that have been waiting — the grief, the anger, the old fear — what’s on the other side isn’t a quick lift. It’s a steadier kind of peace. More lasting. More structurally yours.',
+    ],
+  },
+  {
+    h: 'Your body is on your side',
+    p: [
+      'We tend to treat the body as something that fails us — the tension, the ache, the symptom that won’t quit. Somatic Vocal Healing starts from the opposite assumption: your body has been cooperating with you the whole time, doing exactly what it believed it needed to do to protect you. The voice is simply the most direct way to listen to what it’s been trying to say.',
+    ],
+  },
+  {
+    h: 'The sound of the moment',
+    p: [
+      'There’s no script. You begin where you are. <em>What is the sound of this moment?</em> One tone, raw and tonal — not a song, not yet a story. You stay with it, allow it to run its course, and sometimes it shifts on its own: turns inward into a hum, opens into something rounder, dissolves. You don’t force it anywhere. You attend it.',
+    ],
+  },
+  {
+    h: 'You are your own healer',
+    p: [
+      'No one can heal you — not a teacher, not a method, not a sound. Healing happens when parts of you that split off come back together. A guide can hold the space for that. The rest is yours. Everything we teach is aimed at one thing: you, eventually needing none of us.',
+    ],
+  },
+];
 ---
 
 <SiteLayout
   title="What is Somatic Vocal Healing? — Songdance"
-  description="A practice of meeting what you feel — and giving it sound. Sounding, not singing."
+  description="Somatic Vocal Healing is a practice of meeting what you feel and giving it sound. Sounding, not singing — the honest sound of what's here, until it's been heard."
 >
   <PageHero
     eyebrow="The practice"
     title='What is <span class="sd-italic">Somatic Vocal Healing?</span>'
     lede="A practice of meeting what you feel — and giving it sound."
   />
-  <section class="sd-section sd-prose">
-    <div class="sd-prose-inner">
-      <p class="sd-scaffold-note">Scaffold page — full copy lands in the content pass (brief §5).</p>
-      <p>
-        It's called <strong>sounding</strong>, not singing. The difference is the whole thing.
-        There's no melody to reach for and nothing to get right — the crack, the waver, the rough
-        edge is the information.
-      </p>
-    </div>
-  </section>
-  <SoftCta />
+
+  {sections.map((s) => (
+    <section class={'sd-section sd-prose' + (s.feature ? ' sd-prose--feature' : '')}>
+      <div class="sd-prose-inner">
+        <h2 class="sd-prose-h">{s.h}</h2>
+        {s.p.map((para) => <p set:html={para} />)}
+      </div>
+    </section>
+  ))}
+
+  <SoftCta
+    text="Curious how this actually feels?"
+    ctaLabel="Sit in on a live session — 9€"
+    ctaHref="/session"
+    altLabel="About Jacob →"
+    altHref="/about"
+  />
 </SiteLayout>
