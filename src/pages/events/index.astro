@@ -54,7 +54,7 @@ const chips = [
         <div class="sd-evt-grid" data-events-grid>
           {events.map((e) => {
             const Tag = e.href ? 'a' : 'div';
-            const meta = [formatDateRange(e.startDate, e.endDate), e.location]
+            const meta = [formatDateRange(e.startDate, e.endDate, e.ongoing), e.location]
               .filter(Boolean)
               .join(' · ');
             return (

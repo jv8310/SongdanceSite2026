@@ -48,8 +48,14 @@ function facilitatorsText(row: EventRow): string {
           “Upcoming” strip, and the retreat band all read from here. This is the grid only — each
           event’s landing page lives at its own URL (the “Link” field below).
         </p>
+        <p class="adm-sub">
+          Drag an image onto a card’s frame (or click it) to set the picture — images are resized
+          and optimised automatically. Tick <strong>Ongoing</strong> for events with no fixed end:
+          the card then reads “Ongoing” (or “From&nbsp;&lt;date&gt;”) and never drops off the grid.
+        </p>
       </div>
       <div class="adm-actions">
+        <a class="adm-btn adm-btn--ghost" href="/admin/image-manager">Image library</a>
         <a class="adm-btn adm-btn--ghost" href="/admin">← Admin</a>
       </div>
     </header>
@@ -66,11 +72,11 @@ function facilitatorsText(row: EventRow): string {
               <form method="POST" action="/api/admin/save-event" enctype="multipart/form-data" class="adm-event-form">
                 <input type="hidden" name="original_id" value={e.id} />
                 <div class="adm-event-top">
-                  <div class="adm-event-thumb">
+                  <div class="adm-event-thumb" data-img-dropzone title="Drag an image here, or click to choose">
                     {e.image_key ? (
                       <img src={`/media/${e.image_key}`} alt="" />
                     ) : (
-                      <span class="adm-event-thumb-empty">no image</span>
+                      <span class="adm-event-thumb-empty">drag image<br />or click</span>
                     )}
                   </div>
                   <div class="adm-event-fields">
@@ -146,6 +152,10 @@ function facilitatorsText(row: EventRow): string {
                       <label>
                         <span>Sort order</span>
                         <input type="number" name="sort_order" value={e.sort_order} />
+                      </label>
+                      <label class="adm-event-toggle">
+                        <input type="checkbox" name="ongoing" checked={e.ongoing === 1} />
+                        <span>Ongoing</span>
                       </label>
                       <label class="adm-event-toggle">
                         <input type="checkbox" name="published" checked={e.published === 1} />
@@ -245,6 +255,10 @@ function facilitatorsText(row: EventRow): string {
             <input type="file" name="image" accept="image/*" />
           </label>
           <label class="adm-event-toggle">
+            <input type="checkbox" name="ongoing" />
+            <span>Ongoing</span>
+          </label>
+          <label class="adm-event-toggle">
             <input type="checkbox" name="published" checked />
             <span>Published</span>
           </label>
@@ -256,3 +270,64 @@ function facilitatorsText(row: EventRow): string {
     </section>
   </main>
 </Layout>
+
+<script>
+  import { optimizeImageFile, setInputFile, formatBytes } from '../../../scripts/image-optimize';
+
+  // Wire each event form's file input for drag-and-drop onto the thumbnail
+  // frame and for client-side optimisation (resize + WebP) before upload.
+  document.querySelectorAll<HTMLFormElement>('form.adm-event-form').forEach((form) => {
+    const input = form.querySelector<HTMLInputElement>('input[type="file"][name="image"]');
+    if (!input) return;
+    const zone = form.querySelector<HTMLElement>('[data-img-dropzone]');
+
+    async function handle(file: File) {
+      if (!file || !file.type.startsWith('image/')) return;
+      zone?.classList.add('is-busy');
+      try {
+        const optimized = await optimizeImageFile(file, { maxDim: 1400, quality: 0.82 });
+        setInputFile(input!, optimized);
+        if (zone) showPreview(zone, optimized);
+        if (zone && optimized !== file) {
+          zone.dataset.note = `${formatBytes(file.size)} → ${formatBytes(optimized.size)}`;
+        }
+      } finally {
+        zone?.classList.remove('is-busy');
+      }
+    }
+
+    input.addEventListener('change', () => {
+      const f = input.files?.[0];
+      if (f) handle(f);
+    });
+
+    if (zone) {
+      zone.addEventListener('click', () => input.click());
+      ['dragenter', 'dragover'].forEach((ev) =>
+        zone.addEventListener(ev, (e) => {
+          e.preventDefault();
+          zone.classList.add('is-drop');
+        }),
+      );
+      ['dragleave', 'dragend', 'drop'].forEach((ev) =>
+        zone.addEventListener(ev, () => zone.classList.remove('is-drop')),
+      );
+      zone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        const f = (e as DragEvent).dataTransfer?.files?.[0];
+        if (f) handle(f);
+      });
+    }
+  });
+
+  function showPreview(zone: HTMLElement, file: File) {
+    const url = URL.createObjectURL(file);
+    let img = zone.querySelector('img');
+    if (!img) {
+      zone.querySelector('.adm-event-thumb-empty')?.remove();
+      img = document.createElement('img');
+      zone.appendChild(img);
+    }
+    img.src = url;
+  }
+</script>

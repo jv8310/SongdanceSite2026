@@ -23,6 +23,7 @@ export interface EventRow {
   summary: string | null;
   href: string | null;
   image_key: string | null;
+  ongoing: number;
   published: number;
   sort_order: number;
   created_at: string;
@@ -46,6 +47,7 @@ export interface EventCard {
   summary: string | null;
   href: string | null;
   imageUrl: string | null;
+  ongoing: boolean;
 }
 
 export const CATEGORIES: EventCategory[] = ['retreat', 'online', 'course'];
@@ -83,12 +85,18 @@ export function rowToCard(row: EventRow): EventCard {
     summary: row.summary,
     href: row.href,
     imageUrl: row.image_key ? `/media/${row.image_key}` : null,
+    ongoing: row.ongoing === 1,
   };
 }
 
 // An event counts as "past" only when it has an end (or start) date that has
-// already gone by. Ongoing / "start anytime" events (no dates) never expire.
-export function isPast(card: Pick<EventCard, 'startDate' | 'endDate'>, now = new Date()): boolean {
+// already gone by. Ongoing events, and undated "start anytime" events, never
+// expire.
+export function isPast(
+  card: Pick<EventCard, 'startDate' | 'endDate' | 'ongoing'>,
+  now = new Date(),
+): boolean {
+  if (card.ongoing) return false;
   const ref = card.endDate ?? card.startDate;
   if (!ref) return false;
   const end = new Date(`${ref}T23:59:59`);
@@ -161,6 +169,7 @@ export interface EventInput {
   summary: string | null;
   href: string | null;
   image_key?: string | null; // undefined = leave existing image untouched on update
+  ongoing: number;
   published: number;
   sort_order: number;
 }
@@ -181,7 +190,7 @@ export async function upsertEvent(
            start_date = ?, end_date = ?, location = ?, capacity = ?, price = ?,
            status = ?, summary = ?, href = ?,
            ${input.image_key !== undefined ? 'image_key = ?,' : ''}
-           published = ?, sort_order = ?, updated_at = datetime('now')
+           ongoing = ?, published = ?, sort_order = ?, updated_at = datetime('now')
          WHERE id = ?`,
       )
       .bind(
@@ -189,7 +198,7 @@ export async function upsertEvent(
         input.start_date, input.end_date, input.location, input.capacity, input.price,
         input.status, input.summary, input.href,
         ...(input.image_key !== undefined ? [input.image_key] : []),
-        input.published, input.sort_order, originalId,
+        input.ongoing, input.published, input.sort_order, originalId,
       )
       .run();
     return;
@@ -200,8 +209,8 @@ export async function upsertEvent(
       `INSERT INTO calendar_events
          (id, title, category, language, facilitators, start_date, end_date,
           location, capacity, price, status, summary, href, image_key,
-          published, sort_order)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ongoing, published, sort_order)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET
          title = excluded.title,
          category = excluded.category,
@@ -216,6 +225,7 @@ export async function upsertEvent(
          summary = excluded.summary,
          href = excluded.href,
          ${input.image_key !== undefined ? 'image_key = excluded.image_key,' : ''}
+         ongoing = excluded.ongoing,
          published = excluded.published,
          sort_order = excluded.sort_order,
          updated_at = datetime('now')`,
@@ -224,7 +234,7 @@ export async function upsertEvent(
       input.id, input.title, input.category, input.language, facilitators,
       input.start_date, input.end_date, input.location, input.capacity, input.price,
       input.status, input.summary, input.href, input.image_key ?? null,
-      input.published, input.sort_order,
+      input.ongoing, input.published, input.sort_order,
     )
     .run();
 }
@@ -246,7 +256,16 @@ function fmtDay(iso: string): { d: number; m: string; y: number } | null {
   return { y: Number(m[1]), m: MONTHS[Number(m[2]) - 1], d: Number(m[3]) };
 }
 
-export function formatDateRange(start: string | null, end: string | null): string {
+export function formatDateRange(
+  start: string | null,
+  end: string | null,
+  ongoing = false,
+): string {
+  if (ongoing) {
+    if (!start) return 'Ongoing';
+    const s = fmtDay(start);
+    return s ? `From ${s.d} ${s.m} ${s.y}` : `From ${start}`;
+  }
   if (!start) return 'Start anytime';
   const s = fmtDay(start);
   if (!s) return start;
