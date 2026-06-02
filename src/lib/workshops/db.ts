@@ -592,6 +592,10 @@ export async function setConfig(db: D1Database, key: string, value: string) {
     .run();
 }
 
+export async function deleteConfig(db: D1Database, key: string) {
+  await db.prepare('DELETE FROM workshop_config WHERE key = ?').bind(key).run();
+}
+
 // Resolution order: workshop.zoom_url → zoom_url_<teacher> → zoom_url_default.
 export async function resolveZoomUrl(db: D1Database, workshop: Workshop): Promise<string | null> {
   if (workshop.zoom_url) return workshop.zoom_url;

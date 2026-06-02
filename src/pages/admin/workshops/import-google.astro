@@ -2,6 +2,7 @@
 import '../../../styles/admin.css';
 import Layout from '../../../layouts/Layout.astro';
 import { readCookie, verifySession } from '../../../lib/registrations/auth';
+import { getConnectionState } from '../../../lib/workshops/google-config';
 
 export const prerender = false;
 
@@ -9,7 +10,24 @@ const env = Astro.locals.runtime.env;
 if (!(await verifySession(env.ADMIN_SESSION_SECRET, readCookie(Astro.request)))) {
   return Astro.redirect('/admin/login');
 }
-const configured = !!env.GOOGLE_CALENDAR_ID && (!!env.GOOGLE_SA_JSON || !!env.GOOGLE_OAUTH_REFRESH_TOKEN);
+
+const state = await getConnectionState(env.DB, env);
+
+const flash = Astro.url.searchParams.get('flash');
+const FLASH: Record<string, { tone: 'ok' | 'warn'; text: string }> = {
+  connected: { tone: 'ok', text: 'Google Calendar connected.' },
+  disconnected: { tone: 'ok', text: 'Disconnected from Google Calendar.' },
+  appsaved: { tone: 'ok', text: 'OAuth app credentials saved.' },
+  calsaved: { tone: 'ok', text: 'Calendar selected.' },
+  denied: { tone: 'warn', text: 'Authorization was cancelled.' },
+  badstate: { tone: 'warn', text: 'The connection link expired — please try again.' },
+  noapp: { tone: 'warn', text: 'Add the OAuth app credentials first.' },
+  norefresh: { tone: 'warn', text: 'Google didn’t return a refresh token. Revoke the app at myaccount.google.com → Security → Third-party access, then connect again.' },
+  exchangefail: { tone: 'warn', text: 'Could not complete the token exchange — check the client secret and redirect URI.' },
+  appmissing: { tone: 'warn', text: 'Both client ID and secret are required.' },
+  nocal: { tone: 'warn', text: 'Pick a calendar.' },
+};
+const flashText = flash ? FLASH[flash] ?? null : null;
 ---
 
 <Layout title="Admin — Import from Google — Songdance" description="">
@@ -18,26 +36,115 @@ const configured = !!env.GOOGLE_CALENDAR_ID && (!!env.GOOGLE_SA_JSON || !!env.GO
       <div>
         <p class="adm-breadcrumbs"><a href="/admin">Admin</a> <span class="sep">/</span> <a href="/admin/workshops">Workshops</a> <span class="sep">/</span> Import from Google</p>
         <h1>Import from Google Calendar</h1>
-        <p class="adm-sub">Enter an event title; we search your calendar for upcoming events with that title and add each as a <strong>draft</strong> workshop. Re-running updates rather than duplicates.</p>
+        <p class="adm-sub">Connect a Google account once, choose a calendar, then import upcoming events by title as <strong>draft</strong> workshops.</p>
       </div>
       <div class="adm-actions"><a class="adm-btn adm-btn--ghost" href="/admin/workshops">← Workshops</a></div>
     </header>
 
-    {!configured && (
-      <div class="adm-flash adm-flash--warn">
-        Google Calendar isn’t configured yet. Set <code>GOOGLE_CALENDAR_ID</code> plus either
-        <code>GOOGLE_SA_JSON</code> (service account) or the <code>GOOGLE_OAUTH_*</code> secrets, then reload.
-      </div>
-    )}
+    {flashText && <div class={`adm-flash adm-flash--${flashText.tone}`}>{flashText.text}</div>}
 
+    <!-- Connection status -->
     <section class="adm-section">
+      <h2>Connection
+        {state.ready
+          ? <span class="adm-pill adm-pill--published">Ready</span>
+          : state.connected
+            ? <span class="adm-pill">Connected · pick a calendar</span>
+            : <span class="adm-pill adm-pill--cancelled">Not connected</span>}
+      </h2>
+
+      {state.saMode && (
+        <p class="adm-sub">A service account is configured via <code>GOOGLE_SA_JSON</code>. Share the target calendar with the service-account email, then pick it below.</p>
+      )}
+
+      {!state.saMode && (
+        <>
+          <!-- Step 1: OAuth app credentials -->
+          <h3>1 · Google OAuth app</h3>
+          {state.appFromEnv ? (
+            <p class="adm-sub">Client ID &amp; secret are set via environment variables. ✓</p>
+          ) : (
+            <>
+              <p class="adm-sub">
+                Create an <strong>OAuth client (Web application)</strong> in Google Cloud Console with the Calendar API enabled, then add this exact redirect URI to it:
+              </p>
+              <p><code class="adm-code">{state.redirectUri}</code></p>
+              <form method="POST" action="/api/admin/workshops/google-settings" class="adm-event-form">
+                <input type="hidden" name="action" value="save_app" />
+                <div class="adm-grid">
+                  <label class="span-2"><span>Client ID</span><input type="text" name="client_id" placeholder="…apps.googleusercontent.com" required /></label>
+                  <label class="span-2"><span>Client secret</span><input type="password" name="client_secret" placeholder="GOCSPX-…" required /></label>
+                </div>
+                <div class="adm-event-actions">
+                  <button type="submit" class="adm-btn adm-btn--solid">{state.hasApp ? 'Update credentials' : 'Save credentials'}</button>
+                </div>
+              </form>
+              {state.hasApp && <p class="adm-sub">Credentials saved. ✓</p>}
+            </>
+          )}
+
+          <!-- Step 2: Connect -->
+          <h3>2 · Authorize</h3>
+          {!state.hasApp ? (
+            <p class="adm-sub">Add the OAuth app credentials above first.</p>
+          ) : state.connected ? (
+            <div class="adm-inline-form">
+              <span class="adm-sub">Connected to a Google account. ✓</span>
+              <form method="POST" action="/api/admin/workshops/google-settings" style="margin:0;">
+                <input type="hidden" name="action" value="disconnect" />
+                <button type="submit" class="adm-btn adm-btn--danger">Disconnect</button>
+              </form>
+              <a class="adm-btn adm-btn--ghost" href="/api/admin/workshops/google-connect">Re-connect</a>
+            </div>
+          ) : (
+            <a class="adm-btn adm-btn--solid" href="/api/admin/workshops/google-connect">Connect Google Calendar →</a>
+          )}
+        </>
+      )}
+
+      <!-- Step 3: Choose a calendar -->
+      {state.connected && (
+        <>
+          <h3>3 · Calendar</h3>
+          {state.listError && <p class="adm-flash adm-flash--warn">Couldn’t list calendars: {state.listError}</p>}
+          <form method="POST" action="/api/admin/workshops/google-settings" class="adm-inline-form">
+            <input type="hidden" name="action" value="set_calendar" />
+            {state.calendars.length > 0 ? (
+              <select name="calendar_id">
+                {state.calendars.map((c) => (
+                  <option value={c.id} selected={state.calendarId === c.id}>{c.summary}{c.primary ? ' (primary)' : ''}</option>
+                ))}
+              </select>
+            ) : (
+              <input type="text" name="calendar_id" value={state.calendarId ?? ''} placeholder="calendar id or email" style="min-width:320px;" />
+            )}
+            <button type="submit" class="adm-btn adm-btn--solid">Use this calendar</button>
+          </form>
+          {state.calendarId && <p class="adm-sub">Current: <code>{state.calendarId}</code></p>}
+        </>
+      )}
+    </section>
+
+    <!-- Import -->
+    <section class="adm-section">
+      <h2>Find &amp; import</h2>
+      {!state.ready && <p class="adm-sub">Finish the connection above to enable import.</p>}
       <form id="gi-form" class="adm-inline-form">
-        <input type="text" id="gi-title" placeholder="Somatic Vocal Healing Workshop" required style="flex:1;min-width:320px;" />
-        <button type="submit" class="adm-btn adm-btn--solid">Find &amp; import</button>
+        <input type="text" id="gi-title" placeholder="Somatic Vocal Healing Workshop" required disabled={!state.ready} style="flex:1;min-width:320px;" />
+        <button type="submit" class="adm-btn adm-btn--solid" disabled={!state.ready}>Find &amp; import</button>
       </form>
       <div id="gi-result" class="adm-sub" style="margin-top:18px;"></div>
     </section>
   </main>
+
+  <style>
+    .adm-code { display:inline-block; padding:6px 10px; background:#F4ECDF; border-radius:8px; word-break:break-all; }
+    .adm-inline-form { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+    .adm-pill { font-size:12px; padding:2px 9px; border-radius:999px; background:#F4ECDF; margin-left:8px; vertical-align:middle; }
+    .adm-pill--published { background:#dcefdc; }
+    .adm-pill--cancelled { background:#f0d8d8; }
+    h3 { margin:22px 0 8px; font-size:15px; }
+  </style>
 
   <script is:inline>
     (function () {

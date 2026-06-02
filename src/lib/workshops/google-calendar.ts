@@ -105,6 +105,68 @@ export async function getAccessToken(cfg: GoogleCalConfig): Promise<string> {
   throw new Error('Google Calendar: no credentials configured');
 }
 
+// ── Interactive OAuth (admin "Connect" flow) ──────────────────────────────
+
+export const GOOGLE_SCOPE = 'https://www.googleapis.com/auth/calendar.readonly';
+
+// Build the consent URL. access_type=offline + prompt=consent guarantees a
+// refresh_token is returned even on a repeat authorisation.
+export function buildAuthUrl(clientId: string, redirectUri: string, state: string): string {
+  const u = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+  u.searchParams.set('client_id', clientId);
+  u.searchParams.set('redirect_uri', redirectUri);
+  u.searchParams.set('response_type', 'code');
+  u.searchParams.set('scope', GOOGLE_SCOPE);
+  u.searchParams.set('access_type', 'offline');
+  u.searchParams.set('prompt', 'consent');
+  u.searchParams.set('include_granted_scopes', 'true');
+  u.searchParams.set('state', state);
+  return u.toString();
+}
+
+// Exchange the authorization code for tokens. Returns the refresh token (the
+// durable credential we persist) plus the short-lived access token.
+export async function exchangeCodeForTokens(
+  clientId: string,
+  clientSecret: string,
+  code: string,
+  redirectUri: string,
+): Promise<{ refreshToken: string | null; accessToken: string }> {
+  const res = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code,
+      client_id: clientId,
+      client_secret: clientSecret,
+      redirect_uri: redirectUri,
+    }),
+  });
+  if (!res.ok) throw new Error(`Google token exchange: ${res.status} ${await res.text()}`);
+  const body = (await res.json()) as { refresh_token?: string; access_token: string };
+  return { refreshToken: body.refresh_token ?? null, accessToken: body.access_token };
+}
+
+export type GCalListEntry = { id: string; summary: string; primary: boolean };
+
+// List the calendars the connected account can read, for the admin picker.
+export async function listCalendars(accessToken: string): Promise<GCalListEntry[]> {
+  const res = await fetch(
+    'https://www.googleapis.com/calendar/v3/users/me/calendarList?minAccessRole=reader&maxResults=250',
+    { headers: { Authorization: `Bearer ${accessToken}` } },
+  );
+  if (!res.ok) throw new Error(`Google calendarList: ${res.status} ${await res.text()}`);
+  const data = (await res.json()) as {
+    items?: Array<{ id: string; summary?: string; primary?: boolean }>;
+  };
+  return (data.items ?? []).map((c) => ({
+    id: c.id,
+    summary: c.summary ?? c.id,
+    primary: !!c.primary,
+  }));
+}
+
 // ── Event search ──────────────────────────────────────────────────────────
 
 type RawGEvent = {

@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { readCookie, verifySession } from '../../../../lib/registrations/auth';
-import { findEventsByTitle, type GoogleCalConfig } from '../../../../lib/workshops/google-calendar';
+import { findEventsByTitle } from '../../../../lib/workshops/google-calendar';
+import { resolveGoogleConfig } from '../../../../lib/workshops/google-config';
 import { upsertWorkshopFromGoogle } from '../../../../lib/workshops/db';
 import { logEvent } from '../../../../lib/registrations/db';
 
@@ -22,16 +23,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
   }
   if (!title) return json({ error: 'Enter an event title to search for.' }, 400);
 
-  if (!env.GOOGLE_CALENDAR_ID) {
-    return json({ error: 'GOOGLE_CALENDAR_ID is not configured.' }, 500);
+  const cfg = await resolveGoogleConfig(env.DB, env);
+  if (!cfg) {
+    return json({ error: 'Google Calendar isn’t connected yet. Connect it in the settings above.' }, 400);
   }
-  const cfg: GoogleCalConfig = {
-    calendarId: env.GOOGLE_CALENDAR_ID,
-    saJson: env.GOOGLE_SA_JSON,
-    oauthClientId: env.GOOGLE_OAUTH_CLIENT_ID,
-    oauthClientSecret: env.GOOGLE_OAUTH_CLIENT_SECRET,
-    oauthRefreshToken: env.GOOGLE_OAUTH_REFRESH_TOKEN,
-  };
 
   let events;
   try {
