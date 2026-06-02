@@ -1,13 +1,16 @@
 -- Events catalogue — the single source of truth for the /events grid,
 -- the homepage "Upcoming" strip, and the RetreatBand.
 --
+-- NB: the table is named `calendar_events`, NOT `events` — `events` is
+-- already taken by the audit/webhook log from 0001_init (different schema).
+--
 -- This table feeds the GRID ONLY. Each event still has its own dedicated
 -- landing page (linked via `href`); the rich page content is not stored
 -- here. The team edits these rows from /admin/events without a code
 -- deploy, and can upload a card image (stored in R2, referenced by
 -- `image_key`, served from /media/<image_key>).
 
-CREATE TABLE events (
+CREATE TABLE IF NOT EXISTS calendar_events (
   id           TEXT PRIMARY KEY,                 -- URL-safe slug, e.g. 'klankopstellingen-gent-2026-06'
   title        TEXT NOT NULL,
   category     TEXT NOT NULL DEFAULT 'online',   -- 'retreat' | 'online' | 'course'
@@ -28,14 +31,14 @@ CREATE TABLE events (
   updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE INDEX idx_events_published ON events(published);
-CREATE INDEX idx_events_start ON events(start_date);
-CREATE INDEX idx_events_category ON events(category);
+CREATE INDEX IF NOT EXISTS idx_calendar_events_published ON calendar_events(published);
+CREATE INDEX IF NOT EXISTS idx_calendar_events_start ON calendar_events(start_date);
+CREATE INDEX IF NOT EXISTS idx_calendar_events_category ON calendar_events(category);
 
 -- Seed rows from the content brief (§3). Dates/prices the brief marked
 -- [CONFIRM] are left null so they render as "to be confirmed" rather than
 -- inventing numbers. INSERT OR IGNORE keeps re-runs safe.
-INSERT OR IGNORE INTO events
+INSERT OR IGNORE INTO calendar_events
   (id, title, category, language, facilitators, start_date, end_date, location, capacity, price, status, summary, href)
 VALUES
   ('klankopstellingen-gent-2026-06', 'Klankopstellingen Retreat', 'retreat', 'nl',
