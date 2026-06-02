@@ -1,0 +1,41 @@
+---
+// Lightweight scaffold page: consistent shell + hero + a clear "content
+// pending" marker + the soft 9€ CTA. Used for routes that exist so nav and
+// links don't 404 before the content pass. Pass `header={false}` to render
+// without the site header (landing-style).
+import SiteLayout from './SiteLayout.astro';
+import PageHero from './PageHero.astro';
+import SoftCta from './SoftCta.astro';
+
+interface Props {
+  title: string;
+  description?: string;
+  eyebrow?: string;
+  heading: string;
+  lede?: string;
+  note?: string;
+  header?: boolean;
+  cta?: boolean;
+}
+const {
+  title,
+  description,
+  eyebrow,
+  heading,
+  lede,
+  note = 'Scaffold page — full content lands in the content pass.',
+  header = true,
+  cta = true,
+} = Astro.props;
+---
+
+<SiteLayout title={title} description={description} header={header}>
+  <PageHero eyebrow={eyebrow} title={heading} lede={lede} />
+  <section class="sd-section sd-prose">
+    <div class="sd-prose-inner">
+      <p class="sd-scaffold-note">{note}</p>
+      <slot />
+    </div>
+  </section>
+  {cta && <SoftCta />}
+</SiteLayout>

@@ -18,6 +18,15 @@
       "migrations_dir": "migrations"
     }
   ],
+  // Media bucket — admin-uploaded event card images live here and are
+  // served back through the worker at /media/<key>. Create the bucket once
+  // with: wrangler r2 bucket create songdance-media
+  "r2_buckets": [
+    {
+      "binding": "MEDIA",
+      "bucket_name": "songdance-media"
+    }
+  ],
   "vars": {
     "PUBLIC_BASE_URL": "https://site.songdance.co",
     "QUADERNO_ACCOUNT": "songdance",

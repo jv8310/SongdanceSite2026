@@ -1,0 +1,33 @@
+---
+// Shared shell for the integrated marketing pages: consistent header +
+// footer, with the header optional (landing pages can omit it — brief §1).
+// Bespoke landing pages (cert course, forgiveness, retreats, German) and
+// the admin keep using the base Layout directly and are unaffected.
+import Layout from '../layouts/Layout.astro';
+import Nav from './Nav.astro';
+import NewsletterFooter from './NewsletterFooter.astro';
+import Footer from './Footer.astro';
+
+interface Props {
+  title?: string;
+  description?: string;
+  image?: string;
+  header?: boolean; // default true; set false on landing-style pages
+  newsletter?: boolean; // default true
+}
+
+const {
+  title,
+  description,
+  image,
+  header = true,
+  newsletter = true,
+} = Astro.props;
+---
+
+<Layout title={title} description={description} image={image}>
+  {header && <Nav />}
+  <slot />
+  {newsletter && <NewsletterFooter />}
+  <Footer />
+</Layout>

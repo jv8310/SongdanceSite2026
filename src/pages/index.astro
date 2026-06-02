@@ -1,6 +1,5 @@
 ---
-import Layout from '../layouts/Layout.astro';
-import Nav from '../components/Nav.astro';
+import SiteLayout from '../components/SiteLayout.astro';
 import Hero from '../components/Hero.astro';
 import WorkBlock from '../components/WorkBlock.astro';
 import LyricBreak from '../components/LyricBreak.astro';
@@ -8,12 +7,10 @@ import OfferingsGrid from '../components/OfferingsGrid.astro';
 import Gallery from '../components/Gallery.astro';
 import LineageBlock from '../components/LineageBlock.astro';
 import RetreatBand from '../components/RetreatBand.astro';
-import NewsletterFooter from '../components/NewsletterFooter.astro';
-import Footer from '../components/Footer.astro';
+import Upcoming from '../components/Upcoming.astro';
 ---
 
-<Layout>
-  <Nav />
+<SiteLayout>
   <Hero />
   <WorkBlock />
   <LyricBreak />
@@ -21,9 +18,8 @@ import Footer from '../components/Footer.astro';
   <Gallery />
   <LineageBlock />
   <RetreatBand />
-  <NewsletterFooter />
-  <Footer />
-</Layout>
+  <Upcoming />
+</SiteLayout>
 
 <script>
   import '../scripts/animations.ts';

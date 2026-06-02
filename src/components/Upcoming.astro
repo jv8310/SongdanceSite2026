@@ -1,0 +1,86 @@
+---
+// Homepage "Upcoming" strip — the next 3 events. Fetches client-side from
+// /api/events.json so the homepage stays static while the data stays live
+// (one source of truth with /events and the RetreatBand). Renders nothing
+// if there are no upcoming events or the fetch fails.
+---
+
+<section class="sd-section sd-upcoming" id="upcoming" hidden data-upcoming>
+  <div class="sd-upcoming-inner">
+    <div class="sd-upcoming-head">
+      <div>
+        <div class="sd-eyebrow">Upcoming</div>
+        <h2 class="sd-section-title">What's happening next</h2>
+      </div>
+      <a href="/events" class="sd-link">See all events →</a>
+    </div>
+    <div class="sd-evt-grid" data-upcoming-grid></div>
+  </div>
+</section>
+
+<script>
+  type EventCard = {
+    id: string; title: string; category: 'retreat' | 'online' | 'course';
+    facilitators: string[]; startDate: string | null; endDate: string | null;
+    location: string | null; price: string | null;
+    status: 'open' | 'waitlist' | 'closed'; summary: string | null;
+    href: string | null; imageUrl: string | null;
+  };
+
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const CATEGORY_LABEL = { retreat: 'Retreat', online: 'Online event', course: 'Course' };
+  const STATUS_LABEL = { open: 'Open', waitlist: 'Waitlist', closed: 'Closed' };
+
+  function fmtRange(start: string | null, end: string | null): string {
+    if (!start) return 'Start anytime';
+    const s = start.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!s) return start;
+    const sd = +s[3], sm = MONTHS[+s[2] - 1], sy = +s[1];
+    if (!end || end === start) return `${sd} ${sm} ${sy}`;
+    const e = end.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!e) return `${sd} ${sm} ${sy}`;
+    const ed = +e[3], em = MONTHS[+e[2] - 1], ey = +e[1];
+    if (sm === em && sy === ey) return `${sd}–${ed} ${sm} ${sy}`;
+    if (sy === ey) return `${sd} ${sm} – ${ed} ${em} ${sy}`;
+    return `${sd} ${sm} ${sy} – ${ed} ${em} ${ey}`;
+  }
+
+  function esc(s: string): string {
+    return s.replace(/[&<>"]/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c] as string));
+  }
+
+  function card(e: EventCard): string {
+    const tag = e.href ? 'a' : 'div';
+    const href = e.href ? ` href="${esc(e.href)}"` : '';
+    const meta = [fmtRange(e.startDate, e.endDate), e.location].filter(Boolean).map((m) => esc(m as string)).join(' · ');
+    const fac = e.facilitators.length ? `<span class="sd-evt-fac">with ${esc(e.facilitators.join(' & '))}</span>` : '';
+    const price = e.price ? `<span class="sd-evt-price">${esc(e.price)}</span>` : '';
+    return `<${tag} class="sd-evt-card"${href}>
+      <div class="sd-evt-top">
+        <span class="sd-evt-badge sd-evt-badge--${e.category}">${CATEGORY_LABEL[e.category]}</span>
+        <span class="sd-evt-status sd-evt-status--${e.status}">${STATUS_LABEL[e.status]}</span>
+      </div>
+      <h3 class="sd-evt-title">${esc(e.title)}</h3>
+      <div class="sd-evt-meta">${meta}</div>
+      ${e.summary ? `<p class="sd-evt-summary">${esc(e.summary)}</p>` : ''}
+      <div class="sd-evt-foot">${fac}${price}</div>
+    </${tag}>`;
+  }
+
+  (async () => {
+    const section = document.querySelector<HTMLElement>('[data-upcoming]');
+    const grid = document.querySelector<HTMLElement>('[data-upcoming-grid]');
+    if (!section || !grid) return;
+    try {
+      const res = await fetch('/api/events.json?limit=3');
+      if (!res.ok) return;
+      const data = await res.json();
+      const events: EventCard[] = data.events ?? [];
+      if (!events.length) return;
+      grid.innerHTML = events.map(card).join('');
+      section.removeAttribute('hidden');
+    } catch {
+      /* leave the strip hidden on failure */
+    }
+  })();
+</script>

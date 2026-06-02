@@ -3,6 +3,7 @@
 
 type Env = {
   DB: D1Database;
+  MEDIA: R2Bucket;
   STRIPE_SECRET_KEY: string;
   STRIPE_WEBHOOK_SECRET: string;
   STRIPE_PUBLISHABLE_KEY: string;

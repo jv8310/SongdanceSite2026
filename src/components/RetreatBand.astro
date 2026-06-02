@@ -1,4 +1,8 @@
 ---
+// Night-section retreat band (content brief §4). Generic invitation copy is
+// server-rendered; the side panel is filled from the next retreat in
+// /api/events.json (client-side, so the homepage stays static). If there's
+// no upcoming retreat, the side panel stays hidden and the band still reads.
 ---
 
 <section class="sd-retreat">
@@ -7,21 +11,61 @@
   </div>
   <div class="sd-retreat-inner">
     <div class="sd-retreat-text" data-anim="retreat-text">
-      <div class="sd-retreat-eyebrow">Autumn retreat · Portugal</div>
+      <div class="sd-retreat-eyebrow">Retreats</div>
       <h2 class="sd-retreat-head">
-        Five days. One room. <em>The work uninterrupted.</em>
+        A handful of times a year, <em>in person.</em>
       </h2>
       <p class="sd-retreat-body">
-        Long days and slow meals. Held in a quiet house in the hills.
-        Ten places. Two remain.
+        In Belgium, and further afield. Small rooms, real time, no rush.
       </p>
-      <a href="#" class="sd-btn sd-btn-on-night">Read the invitation →</a>
+      <a href="/events?filter=retreat" class="sd-btn sd-btn-on-night">See upcoming retreats →</a>
     </div>
-    <dl class="sd-retreat-side" data-anim="retreat-side">
-      <div class="sd-retreat-side-row"><dt>When</dt><dd>12 — 17 October 2025</dd></div>
-      <div class="sd-retreat-side-row"><dt>Where</dt><dd>Serra de Monchique, Portugal</dd></div>
-      <div class="sd-retreat-side-row"><dt>Held by</dt><dd>Jonathan & circle</dd></div>
-      <div class="sd-retreat-side-row"><dt>Places</dt><dd>Two of ten remaining</dd></div>
+    <dl class="sd-retreat-side" data-anim="retreat-side" data-retreat-side hidden>
+      <div class="sd-retreat-side-label">Next retreat</div>
+      <div class="sd-retreat-side-row"><dt>What</dt><dd data-retreat-title>—</dd></div>
+      <div class="sd-retreat-side-row"><dt>When</dt><dd data-retreat-when>—</dd></div>
+      <div class="sd-retreat-side-row"><dt>Where</dt><dd data-retreat-where>—</dd></div>
+      <div class="sd-retreat-side-row"><dt>Held by</dt><dd data-retreat-who>—</dd></div>
     </dl>
   </div>
 </section>
+
+<script>
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  function fmtRange(start: string | null, end: string | null): string {
+    if (!start) return 'Dates to be confirmed';
+    const s = start.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!s) return start;
+    const sd = +s[3], sm = MONTHS[+s[2] - 1], sy = +s[1];
+    if (!end || end === start) return `${sd} ${sm} ${sy}`;
+    const e = end.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!e) return `${sd} ${sm} ${sy}`;
+    const ed = +e[3], em = MONTHS[+e[2] - 1], ey = +e[1];
+    if (sm === em && sy === ey) return `${sd}–${ed} ${sm} ${sy}`;
+    if (sy === ey) return `${sd} ${sm} – ${ed} ${em} ${sy}`;
+    return `${sd} ${sm} ${sy} – ${ed} ${em} ${ey}`;
+  }
+
+  (async () => {
+    const side = document.querySelector<HTMLElement>('[data-retreat-side]');
+    if (!side) return;
+    try {
+      const res = await fetch('/api/events.json?category=retreat&limit=1');
+      if (!res.ok) return;
+      const { events } = await res.json();
+      const r = events?.[0];
+      if (!r) return;
+      const set = (sel: string, val: string) => {
+        const el = side.querySelector<HTMLElement>(sel);
+        if (el) el.textContent = val || '—';
+      };
+      set('[data-retreat-title]', r.title);
+      set('[data-retreat-when]', fmtRange(r.startDate, r.endDate));
+      set('[data-retreat-where]', r.location ?? 'To be confirmed');
+      set('[data-retreat-who]', (r.facilitators ?? []).join(' & '));
+      side.removeAttribute('hidden');
+    } catch {
+      /* keep the side panel hidden on failure */
+    }
+  })();
+</script>

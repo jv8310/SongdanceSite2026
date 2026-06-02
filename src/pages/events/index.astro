@@ -1,0 +1,129 @@
+---
+import SiteLayout from '../../components/SiteLayout.astro';
+import PageHero from '../../components/PageHero.astro';
+import {
+  listPublicEvents,
+  formatDateRange,
+  CATEGORY_LABEL,
+  STATUS_LABEL,
+} from '../../lib/events/db';
+
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+const events = await listPublicEvents(env.DB);
+
+// Default filter from ?filter=retreat|online|course (brief: RetreatBand and
+// homepage both deep-link here). 'all' otherwise.
+const rawFilter = (Astro.url.searchParams.get('filter') ?? 'all').toLowerCase();
+const filter = ['retreat', 'online', 'course'].includes(rawFilter) ? rawFilter : 'all';
+
+const chips = [
+  { value: 'all', label: 'All' },
+  { value: 'retreat', label: 'Retreats' },
+  { value: 'online', label: 'Online' },
+  { value: 'course', label: 'Courses' },
+];
+---
+
+<SiteLayout
+  title="Upcoming — Songdance"
+  description="Retreats, online sessions, and course intakes — everything happening next at Songdance."
+>
+  <PageHero
+    eyebrow="Upcoming"
+    title="Everything happening next"
+    lede="Retreats, online sessions, and course intakes — in one place."
+  />
+
+  <section class="sd-section sd-events">
+    <div class="sd-events-inner">
+      <div class="sd-events-filters" data-filters>
+        {chips.map((c) => (
+          <button
+            type="button"
+            class:list={['sd-chip', { 'is-active': filter === c.value }]}
+            data-filter={c.value}
+          >{c.label}</button>
+        ))}
+      </div>
+
+      {events.length === 0 ? (
+        <p class="sd-events-empty">No upcoming events just now. Check back soon.</p>
+      ) : (
+        <div class="sd-evt-grid" data-events-grid>
+          {events.map((e) => {
+            const Tag = e.href ? 'a' : 'div';
+            const meta = [formatDateRange(e.startDate, e.endDate), e.location]
+              .filter(Boolean)
+              .join(' · ');
+            return (
+              <Tag
+                class="sd-evt-card"
+                href={e.href ?? undefined}
+                data-category={e.category}
+                data-lang={e.language}
+              >
+                {e.imageUrl && (
+                  <div class="sd-evt-img">
+                    <img src={e.imageUrl} alt="" loading="lazy" />
+                  </div>
+                )}
+                <div class="sd-evt-body">
+                  <div class="sd-evt-top">
+                    <span class={`sd-evt-badge sd-evt-badge--${e.category}`}>
+                      {CATEGORY_LABEL[e.category]}
+                    </span>
+                    <span class={`sd-evt-status sd-evt-status--${e.status}`}>
+                      {STATUS_LABEL[e.status]}
+                    </span>
+                  </div>
+                  <h3 class="sd-evt-title">{e.title}</h3>
+                  {meta && <div class="sd-evt-meta">{meta}</div>}
+                  {e.summary && <p class="sd-evt-summary">{e.summary}</p>}
+                  <div class="sd-evt-foot">
+                    {e.facilitators.length > 0 && (
+                      <span class="sd-evt-fac">with {e.facilitators.join(' & ')}</span>
+                    )}
+                    {e.price && <span class="sd-evt-price">{e.price}</span>}
+                  </div>
+                </div>
+              </Tag>
+            );
+          })}
+        </div>
+      )}
+      <p class="sd-events-noneshown" hidden data-none-shown>Nothing in this category right now.</p>
+    </div>
+  </section>
+</SiteLayout>
+
+<script>
+  const grid = document.querySelector<HTMLElement>('[data-events-grid]');
+  const chips = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-filter]'));
+  const noneShown = document.querySelector<HTMLElement>('[data-none-shown]');
+
+  function apply(filter: string) {
+    if (!grid) return;
+    let shown = 0;
+    grid.querySelectorAll<HTMLElement>('.sd-evt-card').forEach((card) => {
+      const match = filter === 'all' || card.dataset.category === filter;
+      card.style.display = match ? '' : 'none';
+      if (match) shown += 1;
+    });
+    if (noneShown) noneShown.hidden = shown !== 0;
+    chips.forEach((c) => c.classList.toggle('is-active', c.dataset.filter === filter));
+    const url = new URL(window.location.href);
+    if (filter === 'all') url.searchParams.delete('filter');
+    else url.searchParams.set('filter', filter);
+    history.replaceState(null, '', url);
+  }
+
+  chips.forEach((chip) =>
+    chip.addEventListener('click', () => apply(chip.dataset.filter ?? 'all')),
+  );
+
+  // Honour the server-set initial filter (?filter=).
+  const initial = new URL(window.location.href).searchParams.get('filter') ?? 'all';
+  if (initial !== 'all') apply(initial);
+</script>
