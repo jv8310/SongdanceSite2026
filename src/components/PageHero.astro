@@ -1,0 +1,20 @@
+---
+// Simple, reusable hero for the integrated content pages. Keeps the
+// existing visual rhythm without the homepage Hero's self-drawing
+// underline (that stays distinctive to /).
+interface Props {
+  eyebrow?: string;
+  title: string;
+  lede?: string;
+}
+const { eyebrow, title, lede } = Astro.props;
+---
+
+<header class="sd-pagehero">
+  <div class="sd-pagehero-inner" data-anim="reveal">
+    {eyebrow && <div class="sd-eyebrow">{eyebrow}</div>}
+    <h1 class="sd-pagehero-title" set:html={title} />
+    {lede && <p class="sd-pagehero-lede">{lede}</p>}
+    <slot />
+  </div>
+</header>

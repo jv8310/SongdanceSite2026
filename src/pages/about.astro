@@ -1,0 +1,26 @@
+---
+import SiteLayout from '../components/SiteLayout.astro';
+import PageHero from '../components/PageHero.astro';
+import SoftCta from '../components/SoftCta.astro';
+---
+
+<SiteLayout
+  title="About Jacob — Songdance"
+  description="Jacob Vermeulen — pianist, singer, and educator. The person behind Somatic Vocal Healing."
+>
+  <PageHero
+    eyebrow="About"
+    title="Jacob Vermeulen"
+    lede="Pianist, singer, and educator. The person behind Somatic Vocal Healing."
+  />
+  <section class="sd-section sd-prose">
+    <div class="sd-prose-inner">
+      <p class="sd-scaffold-note">Scaffold page — full copy lands in the content pass (brief §6).</p>
+      <p>
+        “I don't think of myself as a healer. I hold space; people heal themselves. My job is to
+        make that safe and possible, and then to get out of the way.”
+      </p>
+    </div>
+  </section>
+  <SoftCta />
+</SiteLayout>

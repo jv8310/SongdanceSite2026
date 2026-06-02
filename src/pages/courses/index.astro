@@ -1,0 +1,63 @@
+---
+import SiteLayout from '../../components/SiteLayout.astro';
+import PageHero from '../../components/PageHero.astro';
+import SoftCta from '../../components/SoftCta.astro';
+
+const groups = [
+  {
+    title: 'Somatic Vocal Healing',
+    items: [
+      { label: 'Vocal Healing Session', note: '9€ · live taster', href: '/session' },
+      { label: '12-Week Course', note: 'Foundational', href: '/courses/12-week' },
+      { label: 'Practitioner Training', note: 'Certification', href: '/certification-course' },
+      { label: 'Professional Masterclass', note: '29€', href: '/masterclass' },
+    ],
+  },
+  {
+    title: 'Thematic Courses',
+    items: [
+      { label: 'Grief Course', note: 'with Daniela · €99', href: '/courses/grief' },
+      { label: 'Forgiveness Course', note: 'with Daniela · July', href: '/courses/forgiveness' },
+      { label: 'Inner Child Healing Journey', note: 'guided', href: '/courses' },
+    ],
+  },
+  {
+    title: 'Guided Journeys & Music',
+    items: [
+      { label: 'Authentic Singing Journey', note: '40 journeys', href: '/courses' },
+      { label: 'Magical Movement Journey', note: '10 journeys', href: '/courses' },
+      { label: 'Songdeck', note: 'music & mantras', href: '/songdeck' },
+    ],
+  },
+];
+---
+
+<SiteLayout
+  title="Courses — Songdance"
+  description="One practice, many doorways. Start with an hour, or commit to twelve weeks."
+>
+  <PageHero
+    eyebrow="Courses"
+    title="One practice, many doorways"
+    lede="Start with an hour, or commit to twelve weeks — wherever you are is a fine place to begin."
+  />
+  <section class="sd-section sd-courses">
+    <div class="sd-courses-inner">
+      <p class="sd-scaffold-note">Scaffold hub — card copy is finalised in the content pass (brief §12).</p>
+      {groups.map((g) => (
+        <div class="sd-course-group">
+          <h2 class="sd-course-group-title">{g.title}</h2>
+          <div class="sd-course-cards">
+            {g.items.map((it) => (
+              <a class="sd-course-card" href={it.href}>
+                <span class="sd-course-card-label">{it.label}</span>
+                <span class="sd-course-card-note">{it.note}</span>
+              </a>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  </section>
+  <SoftCta />
+</SiteLayout>

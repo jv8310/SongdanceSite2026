@@ -1,0 +1,36 @@
+---
+import SiteLayout from '../components/SiteLayout.astro';
+import PageHero from '../components/PageHero.astro';
+import SoftCta from '../components/SoftCta.astro';
+---
+
+<SiteLayout
+  title="Professional Masterclass — 29€ — Songdance"
+  description="A masterclass for therapists, coaches, bodyworkers, facilitators, teachers, and leaders. 29€."
+>
+  <PageHero
+    eyebrow="For professionals · 29€"
+    title="Somatic Vocal Healing in your work"
+    lede="A masterclass for therapists, coaches, bodyworkers, facilitators, teachers, and leaders."
+  >
+    <div class="sd-pagehero-actions">
+      <a href="#reserve" class="sd-btn sd-btn-primary">Reserve a seat</a>
+    </div>
+  </PageHero>
+  <section class="sd-section sd-prose">
+    <div class="sd-prose-inner">
+      <p class="sd-scaffold-note">Scaffold page — full copy lands in the content pass (brief §8).</p>
+      <p>
+        One question — <em>“what's the sound of that?”</em> — can move a stuck process faster and
+        more honestly than another round of talking.
+      </p>
+    </div>
+  </section>
+  <SoftCta
+    text="This is the doorway to the practitioner path."
+    ctaLabel="Practitioner Training →"
+    ctaHref="/certification-course"
+    altLabel="Try a session first — 9€"
+    altHref="/session"
+  />
+</SiteLayout>

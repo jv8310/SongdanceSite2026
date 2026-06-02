@@ -1,31 +1,91 @@
 ---
+// Shared site header. Consistent across the integrated marketing pages.
+// Landing pages that don't want a header simply don't render it (see
+// SiteLayout's `header` prop). Nav structure follows the content brief §1.
+const path = Astro.url.pathname;
+const isActive = (href: string) =>
+  href === '/' ? path === '/' : path === href || path.startsWith(href + '/');
+
+const courses = [
+  { href: '/session', label: 'Vocal Healing Session — 9€' },
+  { href: '/courses/12-week', label: '12-Week Course' },
+  { href: '/certification-course', label: 'Practitioner Training' },
+  { href: '/masterclass', label: 'Professional Masterclass — 29€' },
+  { href: '/courses/grief', label: 'Grief Course' },
+  { href: '/courses/forgiveness', label: 'Forgiveness Course' },
+  { href: '/courses', label: 'All courses →' },
+];
 ---
 
 <nav class="sd-nav" data-anim="nav">
   <div class="sd-nav-inner">
-    <a href="#" class="sd-nav-mark" aria-label="Songdance">
+    <a href="/" class="sd-nav-mark" aria-label="Songdance">
       <img src="/brand/logo-wordmark.svg" alt="Songdance" />
     </a>
+
     <div class="sd-nav-links">
-      <a href="#work">the work</a>
-      <a href="#offerings">offerings</a>
-      <a href="#lineage">lineage</a>
-      <a href="#contact">contact</a>
+      <a href="/what-is-svh" class:list={[{ 'is-active': isActive('/what-is-svh') }]}>What is SVH</a>
+
+      <div class="sd-nav-drop" data-nav-drop>
+        <button type="button" class:list={['sd-nav-drop-toggle', { 'is-active': isActive('/courses') }]} aria-expanded="false" aria-haspopup="true" data-nav-drop-toggle>
+          Courses <i class="ph-light ph-caret-down"></i>
+        </button>
+        <div class="sd-nav-drop-menu" data-nav-drop-menu>
+          {courses.map((c) => (
+            <a href={c.href} class:list={[{ 'is-active': isActive(c.href) }]}>{c.label}</a>
+          ))}
+        </div>
+      </div>
+
+      <a href="/events" class:list={[{ 'is-active': isActive('/events') }]}>Events</a>
+      <a href="/about" class:list={[{ 'is-active': isActive('/about') }]}>About</a>
     </div>
-    <a href="#offerings" class="sd-nav-cta">Live workshop</a>
-    <button class="sd-nav-burger" aria-label="Menu" data-nav-burger>
+
+    <a href="/session" class="sd-nav-cta">Try a session — 9€</a>
+    <button class="sd-nav-burger" aria-label="Menu" aria-expanded="false" data-nav-burger>
       <i class="ph-light ph-list"></i>
     </button>
+  </div>
+
+  <!-- Mobile drawer -->
+  <div class="sd-nav-drawer" data-nav-drawer hidden>
+    <a href="/what-is-svh">What is SVH</a>
+    <a href="/courses">Courses</a>
+    <a href="/events">Events</a>
+    <a href="/about">About</a>
+    <a href="/session" class="sd-nav-drawer-cta">Try a session — 9€</a>
   </div>
 </nav>
 
 <script>
+  // Desktop dropdown: open on hover (CSS) + click/keyboard (JS, for touch).
+  const drop = document.querySelector<HTMLElement>('[data-nav-drop]');
+  const dropToggle = document.querySelector<HTMLButtonElement>('[data-nav-drop-toggle]');
+  dropToggle?.addEventListener('click', (e) => {
+    e.preventDefault();
+    const open = drop?.classList.toggle('is-open') ?? false;
+    dropToggle.setAttribute('aria-expanded', String(open));
+  });
+  document.addEventListener('click', (e) => {
+    if (drop && !drop.contains(e.target as Node)) {
+      drop.classList.remove('is-open');
+      dropToggle?.setAttribute('aria-expanded', 'false');
+    }
+  });
+
+  // Mobile drawer toggle.
   const burger = document.querySelector<HTMLButtonElement>('[data-nav-burger]');
+  const drawer = document.querySelector<HTMLElement>('[data-nav-drawer]');
   const icon = burger?.querySelector('i');
   burger?.addEventListener('click', () => {
-    if (!icon) return;
-    const open = icon.classList.contains('ph-list');
-    icon.classList.toggle('ph-list', !open);
-    icon.classList.toggle('ph-x', open);
+    if (!drawer) return;
+    const open = drawer.hasAttribute('hidden');
+    if (open) drawer.removeAttribute('hidden');
+    else drawer.setAttribute('hidden', '');
+    burger.setAttribute('aria-expanded', String(open));
+    if (icon) {
+      icon.classList.toggle('ph-list', !open);
+      icon.classList.toggle('ph-x', open);
+    }
   });
 </script>

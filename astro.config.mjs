@@ -4,6 +4,7 @@ import react from '@astrojs/react';
 import cloudflare from '@astrojs/cloudflare';
 
 export default defineConfig({
+  site: 'https://site.songdance.co',
   output: 'static',
   adapter: cloudflare({
     imageService: 'compile',

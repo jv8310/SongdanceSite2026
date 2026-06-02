@@ -1,30 +1,43 @@
 ---
+// Mantra Monday signup (content brief §2). Kept quiet — no hype.
 ---
 
-<section class="sd-news" id="contact">
+<section class="sd-news" id="newsletter">
   <div class="sd-news-inner" data-anim="reveal">
-    <div class="sd-eyebrow">Notes from the field</div>
-    <h2 class="sd-news-head">Maybe once a month.<br />Easy to leave.</h2>
+    <div class="sd-eyebrow">Mantra Monday</div>
+    <h2 class="sd-news-head">A short sounding practice<br />in your inbox, most Mondays.</h2>
+    <p class="sd-news-sub">No noise. Easy to leave.</p>
     <form class="sd-news-form" data-news-form>
       <input
+        type="text"
+        name="first_name"
+        placeholder="First name"
+        aria-label="first name"
+        autocomplete="given-name"
+      />
+      <input
         type="email"
+        name="email"
         placeholder="you@somewhere"
         aria-label="email"
+        autocomplete="email"
         required
       />
       <button type="submit" class="sd-btn sd-btn-primary">Subscribe</button>
     </form>
-    <p class="sd-news-thanks" hidden data-news-thanks>Thank you. Look for something soon.</p>
+    <p class="sd-news-thanks" hidden data-news-thanks>Thank you. Look for something on Monday.</p>
   </div>
 </section>
 
 <script>
+  // TODO(infra): wire to Drip via a /api/newsletter endpoint. For now this is
+  // an optimistic, no-backend confirmation so the shell is complete.
   const form = document.querySelector<HTMLFormElement>('[data-news-form]');
   const thanks = document.querySelector<HTMLParagraphElement>('[data-news-thanks]');
   form?.addEventListener('submit', (e) => {
     e.preventDefault();
-    const input = form.querySelector<HTMLInputElement>('input[type="email"]');
-    if (!input?.value) return;
+    const email = form.querySelector<HTMLInputElement>('input[type="email"]');
+    if (!email?.value) return;
     form.hidden = true;
     if (thanks) thanks.hidden = false;
   });

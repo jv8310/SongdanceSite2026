@@ -1,0 +1,29 @@
+---
+// Recurring soft CTA band (content brief §2). Default variant points to the
+// 9€ session — the primary top-of-funnel across the site. Pages with their
+// own primary action can override the copy/links via props.
+interface Props {
+  text?: string;
+  ctaLabel?: string;
+  ctaHref?: string;
+  altLabel?: string;
+  altHref?: string;
+}
+const {
+  text = 'Curious how this actually feels?',
+  ctaLabel = 'Sit in on a live session — 9€',
+  ctaHref = '/session',
+  altLabel,
+  altHref,
+} = Astro.props;
+---
+
+<section class="sd-softcta">
+  <div class="sd-softcta-inner" data-anim="reveal">
+    <p class="sd-softcta-text">{text}</p>
+    <div class="sd-softcta-actions">
+      <a href={ctaHref} class="sd-btn sd-btn-primary">{ctaLabel}</a>
+      {altLabel && altHref && <a href={altHref} class="sd-btn sd-btn-quiet">{altLabel}</a>}
+    </div>
+  </div>
+</section>

@@ -1,0 +1,258 @@
+---
+import '../../../styles/admin.css';
+import Layout from '../../../layouts/Layout.astro';
+import { readCookie, verifySession } from '../../../lib/registrations/auth';
+import {
+  listEvents,
+  parseFacilitators,
+  CATEGORIES,
+  STATUSES,
+  LANGUAGES,
+  CATEGORY_LABEL,
+  STATUS_LABEL,
+  type EventRow,
+} from '../../../lib/events/db';
+
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+const authed = await verifySession(env.ADMIN_SESSION_SECRET, readCookie(Astro.request));
+if (!authed) {
+  return Astro.redirect('/admin/login');
+}
+
+const events = await listEvents(env.DB);
+
+const flash = Astro.url.searchParams.get('flash');
+let flashText: { tone: 'ok' | 'warn'; text: string } | null = null;
+if (flash === 'saved') flashText = { tone: 'ok', text: 'Event saved.' };
+else if (flash === 'deleted') flashText = { tone: 'ok', text: 'Event removed.' };
+
+function facilitatorsText(row: EventRow): string {
+  return parseFacilitators(row.facilitators).join(', ');
+}
+---
+
+<Layout title="Admin — Events — Songdance" description="">
+  <main class="adm">
+    <header class="adm-header">
+      <div>
+        <p class="adm-breadcrumbs">
+          <a href="/admin">Admin</a>
+          <span class="sep">/</span>
+          Events
+        </p>
+        <h1>Events</h1>
+        <p class="adm-sub">
+          The cards on <a href="/events" target="_blank" rel="noopener">/events</a>, the homepage
+          “Upcoming” strip, and the retreat band all read from here. This is the grid only — each
+          event’s landing page lives at its own URL (the “Link” field below).
+        </p>
+      </div>
+      <div class="adm-actions">
+        <a class="adm-btn adm-btn--ghost" href="/admin">← Admin</a>
+      </div>
+    </header>
+
+    {flashText && <div class={`adm-flash adm-flash--${flashText.tone}`}>{flashText.text}</div>}
+
+    <section class="adm-section">
+      <h2>Existing events</h2>
+      {events.length === 0 && <p class="adm-empty">No events yet. Add one below.</p>}
+      {events.length > 0 && (
+        <div class="adm-events">
+          {events.map((e) => (
+            <article class="adm-event-card" id={`event-${e.id}`}>
+              <form method="POST" action="/api/admin/save-event" enctype="multipart/form-data" class="adm-event-form">
+                <input type="hidden" name="original_id" value={e.id} />
+                <div class="adm-event-top">
+                  <div class="adm-event-thumb">
+                    {e.image_key ? (
+                      <img src={`/media/${e.image_key}`} alt="" />
+                    ) : (
+                      <span class="adm-event-thumb-empty">no image</span>
+                    )}
+                  </div>
+                  <div class="adm-event-fields">
+                    <div class="adm-grid">
+                      <label class="span-2">
+                        <span>Title</span>
+                        <input type="text" name="title" value={e.title} required maxlength="200" />
+                      </label>
+                      <label>
+                        <span>URL id (slug)</span>
+                        <input type="text" name="id" value={e.id} required maxlength="80" pattern="[a-z0-9-]+" />
+                      </label>
+                      <label>
+                        <span>Category</span>
+                        <select name="category">
+                          {CATEGORIES.map((c) => (
+                            <option value={c} selected={e.category === c}>{CATEGORY_LABEL[c]}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        <span>Language</span>
+                        <select name="language">
+                          {LANGUAGES.map((l) => (
+                            <option value={l} selected={e.language === l}>{l.toUpperCase()}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        <span>Status</span>
+                        <select name="status">
+                          {STATUSES.map((s) => (
+                            <option value={s} selected={e.status === s}>{STATUS_LABEL[s]}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        <span>Start date</span>
+                        <input type="date" name="start_date" value={e.start_date ?? ''} />
+                      </label>
+                      <label>
+                        <span>End date</span>
+                        <input type="date" name="end_date" value={e.end_date ?? ''} />
+                      </label>
+                      <label>
+                        <span>Capacity</span>
+                        <input type="number" name="capacity" value={e.capacity ?? ''} min="0" />
+                      </label>
+                      <label>
+                        <span>Price</span>
+                        <input type="text" name="price" value={e.price ?? ''} placeholder="9€ · €99 · from €X" maxlength="40" />
+                      </label>
+                      <label class="span-2">
+                        <span>Location</span>
+                        <input type="text" name="location" value={e.location ?? ''} maxlength="200" />
+                      </label>
+                      <label class="span-2">
+                        <span>Facilitators (comma-separated)</span>
+                        <input type="text" name="facilitators" value={facilitatorsText(e)} placeholder="Jacob, Lesanne" />
+                      </label>
+                      <label class="span-2">
+                        <span>Link (landing page)</span>
+                        <input type="text" name="href" value={e.href ?? ''} placeholder="/retreats/…" maxlength="200" />
+                      </label>
+                      <label class="span-full">
+                        <span>One-line summary</span>
+                        <textarea name="summary" rows="2" maxlength="280">{e.summary ?? ''}</textarea>
+                      </label>
+                      <label>
+                        <span>Replace image</span>
+                        <input type="file" name="image" accept="image/*" />
+                      </label>
+                      <label>
+                        <span>Sort order</span>
+                        <input type="number" name="sort_order" value={e.sort_order} />
+                      </label>
+                      <label class="adm-event-toggle">
+                        <input type="checkbox" name="published" checked={e.published === 1} />
+                        <span>Published</span>
+                      </label>
+                      {e.image_key && (
+                        <label class="adm-event-toggle">
+                          <input type="checkbox" name="remove_image" value="1" />
+                          <span>Remove image</span>
+                        </label>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div class="adm-event-actions">
+                  {e.href && <a class="adm-btn adm-btn--ghost" href={e.href} target="_blank" rel="noopener">Open landing page</a>}
+                  <button type="submit" class="adm-btn adm-btn--solid">Save</button>
+                  <button
+                    type="submit"
+                    name="action"
+                    value="delete"
+                    class="adm-btn adm-btn--danger"
+                    onclick={`return confirm('Delete event "${e.title}"? This removes the grid card only.')`}
+                  >Delete</button>
+                </div>
+              </form>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
+
+    <section class="adm-section">
+      <h2>Add an event</h2>
+      <form method="POST" action="/api/admin/save-event" enctype="multipart/form-data" class="adm-event-form">
+        <div class="adm-grid">
+          <label class="span-2">
+            <span>Title</span>
+            <input type="text" name="title" required maxlength="200" placeholder="Klankopstellingen Retreat" />
+          </label>
+          <label>
+            <span>URL id (slug)</span>
+            <input type="text" name="id" required maxlength="80" pattern="[a-z0-9-]+" placeholder="klankopstellingen-2027" />
+          </label>
+          <label>
+            <span>Category</span>
+            <select name="category">
+              {CATEGORIES.map((c) => <option value={c}>{CATEGORY_LABEL[c]}</option>)}
+            </select>
+          </label>
+          <label>
+            <span>Language</span>
+            <select name="language">
+              {LANGUAGES.map((l) => <option value={l}>{l.toUpperCase()}</option>)}
+            </select>
+          </label>
+          <label>
+            <span>Status</span>
+            <select name="status">
+              {STATUSES.map((s) => <option value={s}>{STATUS_LABEL[s]}</option>)}
+            </select>
+          </label>
+          <label>
+            <span>Start date</span>
+            <input type="date" name="start_date" />
+          </label>
+          <label>
+            <span>End date</span>
+            <input type="date" name="end_date" />
+          </label>
+          <label>
+            <span>Capacity</span>
+            <input type="number" name="capacity" min="0" />
+          </label>
+          <label>
+            <span>Price</span>
+            <input type="text" name="price" placeholder="9€" maxlength="40" />
+          </label>
+          <label class="span-2">
+            <span>Location</span>
+            <input type="text" name="location" maxlength="200" />
+          </label>
+          <label class="span-2">
+            <span>Facilitators (comma-separated)</span>
+            <input type="text" name="facilitators" placeholder="Jacob, Lesanne" />
+          </label>
+          <label class="span-2">
+            <span>Link (landing page)</span>
+            <input type="text" name="href" placeholder="/retreats/…" maxlength="200" />
+          </label>
+          <label class="span-full">
+            <span>One-line summary</span>
+            <textarea name="summary" rows="2" maxlength="280"></textarea>
+          </label>
+          <label>
+            <span>Card image</span>
+            <input type="file" name="image" accept="image/*" />
+          </label>
+          <label class="adm-event-toggle">
+            <input type="checkbox" name="published" checked />
+            <span>Published</span>
+          </label>
+        </div>
+        <div class="adm-event-actions">
+          <button type="submit" class="adm-btn adm-btn--solid">Add event</button>
+        </div>
+      </form>
+    </section>
+  </main>
+</Layout>

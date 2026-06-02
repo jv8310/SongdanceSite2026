@@ -1,0 +1,37 @@
+---
+import SiteLayout from '../components/SiteLayout.astro';
+import PageHero from '../components/PageHero.astro';
+import SoftCta from '../components/SoftCta.astro';
+---
+
+<SiteLayout
+  title="A Vocal Healing Session — 9€ — Songdance"
+  description="One hour, live, online. You don't watch this one — you sound. 9€."
+>
+  <PageHero
+    eyebrow="Live · online · 9€"
+    title='A Vocal Healing Session'
+    lede="One hour, live, online. You don't watch this one — you sound."
+  >
+    <div class="sd-pagehero-actions">
+      <a href="#book" class="sd-btn sd-btn-primary">Pick a time</a>
+    </div>
+  </PageHero>
+  <section class="sd-section sd-prose">
+    <div class="sd-prose-inner">
+      <p class="sd-scaffold-note">
+        Scaffold page — full copy and the live booking flow land later (brief §7;
+        scheduling platform is a [CONFIRM] in §14.4).
+      </p>
+      <p>
+        The simplest way to find out what Somatic Vocal Healing actually is: by doing a little of
+        it. No experience or “good voice” required.
+      </p>
+    </div>
+  </section>
+  <SoftCta
+    text="Ready to go deeper?"
+    ctaLabel="The 12-Week Course →"
+    ctaHref="/courses/12-week"
+  />
+</SiteLayout>
