@@ -21,6 +21,10 @@ const COURSES: Record<
     name: 'SVH Certification Course',
     productSlugs: ['cc-cert', 'cc-bundle'],
   },
+  'grief-course': {
+    name: 'The Grief Course',
+    productSlugs: ['grief-course'],
+  },
 };
 
 const slug = Astro.params.slug ?? '';
@@ -133,6 +137,7 @@ function variantLabel(v: string | null) {
 function productLabel(slug: string) {
   if (slug === 'cc-cert') return 'Cert only';
   if (slug === 'cc-bundle') return 'Bundle';
+  if (slug === 'grief-course') return 'Grief Course';
   return slug;
 }
 function activateLabel(choice: Row['activate_choice'], productSlug: string) {

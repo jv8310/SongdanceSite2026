@@ -1,77 +1,242 @@
 ---
 import SiteLayout from '../../components/SiteLayout.astro';
-import PageHero from '../../components/PageHero.astro';
-import SoftCta from '../../components/SoftCta.astro';
+import GriefRegister from '../../components/grief/GriefRegister.astro';
+import { listLibrary, type MediaItem } from '../../lib/media';
+import '../../styles/grief.css';
 
-const steps = [
-  ['Understanding', 'Grief as a process, not an isolated feeling; the myths, set down.'],
-  ['Meeting the mind', 'The guilt and regret that quietly stop the flow, truly acknowledged.'],
-  ['Somatic Vocal Healing', 'The body and voice as an accessible, reliable way to let grief move.'],
-  ['Integration', 'Carrying it into your own life, in your own way, at your own pace.'],
+export const prerender = false;
+
+// Pull the grief imagery straight from the R2 media library at render time,
+// so the page always reflects whatever has been uploaded under
+// library/grief… — no filenames hard-coded here. Curate ordering and roles
+// by renaming in /admin/image-manager:
+//   • a key containing "hero"    → the full-bleed hero background
+//   • a key containing "band"    → the mid-page quote band
+//   • a key with "daniela"/"jacob"/"guide" → the guides portrait
+//   • everything else            → the gallery, then the closing band,
+//     in filename order.
+const env = Astro.locals.runtime.env;
+let library: MediaItem[] = [];
+try {
+  library = await listLibrary(env.MEDIA);
+} catch {
+  library = [];
+}
+
+const grief = library
+  .filter((i) => i.key.toLowerCase().startsWith('library/grief'))
+  .sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+
+const used = new Set<string>();
+function take(re: RegExp): MediaItem | undefined {
+  const hit = grief.find((i) => !used.has(i.key) && re.test(i.key.toLowerCase()));
+  if (hit) used.add(hit.key);
+  return hit;
+}
+function takeNext(): MediaItem | undefined {
+  const hit = grief.find((i) => !used.has(i.key));
+  if (hit) used.add(hit.key);
+  return hit;
+}
+
+const heroImg = take(/hero/) ?? takeNext();
+const guidesImg = take(/daniela|jacob|guide|portrait|teacher/);
+const bandImg = take(/band|quote|candle|hold|hand/) ?? takeNext();
+const gallery: MediaItem[] = [];
+for (let i = 0; i < 5; i++) {
+  const next = grief.find((g) => !used.has(g.key));
+  if (!next) break;
+  used.add(next.key);
+  gallery.push(next);
+}
+const closingImg = take(/closing|end|light|dawn|sunrise/) ?? takeNext();
+
+const steps: [string, string][] = [
+  ['Understanding', 'Grief as a process, not an isolated feeling — and the myths that keep us stuck, gently set down.'],
+  ['Meeting the mind', 'The guilt and the regret that quietly stop the flow, truly acknowledged and met.'],
+  ['Somatic Vocal Healing', 'The body and the voice as an accessible, reliable way to let grief move and be released.'],
+  ['Integration', 'Carrying it into your own life — in your own way, at your own pace, without forcing.'],
+];
+
+const includes: [string, string][] = [
+  ['ph-waveform', '4 guided sessions of about 120 minutes, to walk in your own time'],
+  ['ph-infinity', 'Lifetime access — return to the practice whenever grief returns'],
+  ['ph-microphone-stage', 'Somatic Vocal Healing practices to let what is held move through sound'],
+  ['ph-users-three', 'Held by two guides with decades of grief work between them'],
 ];
 ---
 
 <SiteLayout
   title="The Grief Course — with Daniela Hess & Jacob — Songdance"
   description="Because no one taught you how to grieve. A way to be with grief, consciously and kindly, led by Daniela Hess and Jacob Vermeulen. 4 sessions, lifetime access, €99."
+  newsletter={false}
 >
-  <PageHero
-    eyebrow="With Daniela &amp; Jacob"
-    title="The Grief Course"
-    lede="Because no one taught you how to grieve."
-  >
-    <div class="sd-pagehero-actions">
-      <a href="/contact" class="sd-btn sd-btn-primary">Start now — €99</a>
-    </div>
-  </PageHero>
+  <div class="gr">
+    <!-- ── Hero ───────────────────────────────────────────── -->
+    <header class={`gr-hero${heroImg ? '' : ' gr-hero--noimg'}`}>
+      {heroImg && (
+        <img class="gr-hero-bg" src={heroImg.url} alt="" loading="eager" decoding="async" />
+      )}
+      <div class="gr-hero-inner">
+        <p class="gr-hero-eyebrow">A course with Daniela Hess &amp; Jacob</p>
+        <h1 class="gr-hero-title">Because no one taught you how to grieve.</h1>
+        <p class="gr-hero-lede">A way to be <em>with</em> grief — consciously, kindly, and in your own voice.</p>
+        <div class="gr-hero-actions">
+          <a href="#register" class="gr-btn gr-btn--primary">Start the course — €99</a>
+          <a href="#video" class="gr-btn gr-btn--ghost">
+            <i class="ph-light ph-play-circle"></i> Watch the invitation
+          </a>
+        </div>
+        <p class="gr-hero-meta">4 sessions · lifetime access · start anytime</p>
+      </div>
+    </header>
 
-  <section class="sd-section sd-prose">
-    <div class="sd-prose-inner">
-      <p>
-        Grief is a natural response to change, and most of us are handed no map for it. When we
-        don’t know how to grieve, we tend to reach for whatever numbs — and the numbing becomes its
-        own problem. This course offers something else: a way to be <em>with</em> grief, consciously
-        and kindly.
-      </p>
-      <p>
-        Led by <strong>Daniela Hess and Jacob Vermeulen</strong>, who between them bring decades of
-        grief work. Grief isn’t something to “get over” — that’s one of the myths we’ll set down
-        together. It’s something to honour, integrate, and live alongside.
-      </p>
-    </div>
-  </section>
+    <!-- ── Opening ────────────────────────────────────────── -->
+    <section class="gr-section gr-opening">
+      <div class="gr-inner gr-narrow">
+        <p class="gr-eyebrow">An invitation</p>
+        <p class="gr-lede">
+          Grief is a natural response to change — and most of us are handed no map for it.
+        </p>
+        <p class="gr-p">
+          When we don't know how to grieve, we tend to reach for whatever numbs — and the
+          numbing becomes its own problem. This course offers something else: a way to be
+          <em>with</em> grief, consciously and kindly, so that it can move rather than harden.
+        </p>
+        <p class="gr-p">
+          Grief isn't something to "get over" — that's one of the myths we'll set down together.
+          It's something to honour, to integrate, and to live alongside. Where there is change,
+          there is grief: a death, a divorce, a pet, a friendship, a job, an empty nest. The
+          principles here apply to all of it — big "G" and small "g" alike.
+        </p>
+      </div>
+    </section>
 
-  <section class="sd-section sd-modules-section">
-    <div class="sd-prose-inner">
-      <h2 class="sd-prose-h">A reliable four-step process</h2>
-      <ol class="sd-modules">
-        {steps.map(([t, d], i) => (
-          <li class="sd-module">
-            <span class="sd-module-n">{String(i + 1).padStart(2, '0')}</span>
-            <div>
-              <h3 class="sd-module-t">{t}</h3>
-              <p class="sd-module-d">{d}</p>
+    <!-- ── Video ──────────────────────────────────────────── -->
+    <section class="gr-section gr-video" id="video">
+      <div class="gr-inner gr-narrow">
+        <p class="gr-eyebrow gr-eyebrow--center">Watch first</p>
+        <div class="gr-video-frame">
+          <iframe
+            src="https://player.vimeo.com/video/976571800?title=0&byline=0&portrait=0"
+            title="The Grief Course — an invitation"
+            allow="autoplay; fullscreen; picture-in-picture"
+            allowfullscreen
+            loading="lazy"
+          ></iframe>
+        </div>
+        <p class="gr-video-cap">A few minutes with Daniela and Jacob, on what this work is.</p>
+      </div>
+    </section>
+
+    <!-- ── Quote band (image) ─────────────────────────────── -->
+    {bandImg && (
+      <section class="gr-band">
+        <img class="gr-band-bg" src={bandImg.url} alt="" loading="lazy" decoding="async" />
+        <div class="gr-band-inner">
+          <p class="gr-band-quote">
+            “Grief is the price we pay for love — and it deserves to be met, not managed.”
+            <span class="gr-band-cite">The Grief Course</span>
+          </p>
+        </div>
+      </section>
+    )}
+
+    <!-- ── Process ────────────────────────────────────────── -->
+    <section class="gr-section">
+      <div class="gr-inner">
+        <p class="gr-eyebrow">The path</p>
+        <h2 class="gr-h2">A reliable four-step process</h2>
+        <p class="gr-p">
+          Four sessions that move from understanding, through the mind's quiet objections, into
+          the body and the voice, and finally into your own integration.
+        </p>
+        <ol class="gr-steps">
+          {steps.map(([t, d], i) => (
+            <li class="gr-step">
+              <span class="gr-step-n">{String(i + 1).padStart(2, '0')}</span>
+              <div>
+                <h3 class="gr-step-t">{t}</h3>
+                <p class="gr-step-d">{d}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
+      </div>
+    </section>
+
+    <!-- ── Gallery ────────────────────────────────────────── -->
+    {gallery.length > 0 && (
+      <section class="gr-section" style="padding-top:0;">
+        <div class="gr-inner">
+          <div class="gr-gallery">
+            {gallery.map((img, i) => (
+              <figure class={`gr-gallery-item${i === 0 && gallery.length >= 3 ? ' gr-gallery-item--wide' : ''}`}>
+                <img src={img.url} alt="" loading="lazy" decoding="async" />
+              </figure>
+            ))}
+          </div>
+        </div>
+      </section>
+    )}
+
+    <!-- ── Guides ─────────────────────────────────────────── -->
+    <section class="gr-section gr-guides">
+      <div class="gr-inner">
+        <div class="gr-guides-grid">
+          {guidesImg && (
+            <div class="gr-guides-photo">
+              <img src={guidesImg.url} alt="Daniela Hess and Jacob Vermeulen" loading="lazy" decoding="async" />
             </div>
-          </li>
-        ))}
-      </ol>
-    </div>
-  </section>
+          )}
+          <div>
+            <p class="gr-eyebrow">Your guides</p>
+            <h2 class="gr-h2">Daniela Hess &amp; Jacob Vermeulen</h2>
+            <p class="gr-p">
+              Led by <strong>Daniela Hess</strong> and <strong>Jacob Vermeulen</strong>, who
+              between them bring decades of grief work. Daniela holds the depth and the tenderness
+              of the grieving process; Jacob brings Somatic Vocal Healing — the body and the voice
+              as a way to let what is held finally move.
+            </p>
+            <p class="gr-p">
+              Together they make a space that is unhurried and kind, where nothing about your grief
+              is too much, too late, or wrong.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
 
-  <section class="sd-section sd-prose sd-prose--feature">
-    <div class="sd-prose-inner">
-      <h2 class="sd-prose-h">Where there is change, there is grief</h2>
-      <p>
-        Big “G” and small “g”: a death, a divorce, a pet, a friendship, a job, an empty nest. The
-        principles apply to all of it.
-      </p>
-      <p class="sd-prose-note">4 sessions × 120 minutes · lifetime access · €99 · start anytime.</p>
-    </div>
-  </section>
+    <!-- ── What's included ────────────────────────────────── -->
+    <section class="gr-section">
+      <div class="gr-inner gr-narrow">
+        <p class="gr-eyebrow">What's included</p>
+        <h2 class="gr-h2">Everything you need to begin</h2>
+        <ul class="gr-includes">
+          {includes.map(([icon, text]) => (
+            <li class="gr-include">
+              <i class={`ph-light ${icon}`}></i>
+              <span>{text}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
 
-  <SoftCta
-    text="Curious how the sounding part feels?"
-    ctaLabel="Sit in on a live session — 9€"
-    ctaHref="/session"
-  />
+    <!-- ── Closing band (image) ───────────────────────────── -->
+    {closingImg && (
+      <section class="gr-band">
+        <img class="gr-band-bg" src={closingImg.url} alt="" loading="lazy" decoding="async" />
+        <div class="gr-band-inner">
+          <p class="gr-band-quote">
+            You don't have to do this alone.
+            <span class="gr-band-cite">Begin when you're ready</span>
+          </p>
+        </div>
+      </section>
+    )}
+
+    <!-- ── Register ───────────────────────────────────────── -->
+    <GriefRegister />
+  </div>
 </SiteLayout>
