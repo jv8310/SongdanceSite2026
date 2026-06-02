@@ -1,0 +1,125 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { getRegistrationById, getWorkshopById } from '../../lib/workshops/db';
+import { googleCalendarUrl } from '../../lib/workshops/ics';
+import { formatInTz, JOIN_THRESHOLD_SECONDS } from '../../lib/workshops/time';
+
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+const rid = parseInt(Astro.url.searchParams.get('rid') ?? '', 10);
+const early = Astro.url.searchParams.get('early') === '1';
+const nozoom = Astro.url.searchParams.get('nozoom') === '1';
+
+const reg = Number.isFinite(rid) ? await getRegistrationById(env.DB, rid) : null;
+const workshop = reg ? await getWorkshopById(env.DB, reg.workshop_id) : null;
+
+const paid = reg && (reg.payment_status === 'paid' || reg.payment_status === 'coupon');
+const tz = reg?.timezone || workshop?.display_tz || 'Europe/Brussels';
+const whenLocal = workshop && !workshop.is_replay ? formatInTz(workshop.starts_at_utc, tz) : null;
+const base = env.PUBLIC_BASE_URL.replace(/\/$/, '');
+const joinHref = reg ? `/api/workshops/join?rid=${reg.id}` : '#';
+const gcalUrl = workshop && !workshop.is_replay
+  ? googleCalendarUrl({ title: workshop.title, startsAtUtc: workshop.starts_at_utc, endsAtUtc: workshop.ends_at_utc, url: `${base}/workshop/success?rid=${rid}` })
+  : null;
+const icsHref = reg ? `/api/workshops/ics?rid=${reg.id}` : null;
+const startMs = workshop ? new Date(workshop.starts_at_utc).getTime() : 0;
+---
+
+<Layout title="You're registered — Songdance" description="">
+  <main class="ws">
+    {!reg || !workshop ? (
+      <section class="ws-card">
+        <h1>We couldn’t find that registration</h1>
+        <p>Try the link from your confirmation email, or email <a href="mailto:info@songdance.co">info@songdance.co</a>.</p>
+      </section>
+    ) : !paid ? (
+      <section class="ws-card" id="ws-pending">
+        <h1>Confirming your payment…</h1>
+        <p>This usually takes a few seconds. This page will refresh automatically.</p>
+        <script is:inline>setTimeout(function(){ location.reload(); }, 4000);</script>
+      </section>
+    ) : (
+      <section class="ws-card">
+        <p class="ws-kicker">You’re in</p>
+        <h1 class="ws-title">{workshop.title}</h1>
+        {whenLocal && <p class="ws-when">{whenLocal} <span class="ws-tz">· your time</span></p>}
+
+        {workshop.is_replay === 1 ? (
+          <div class="ws-actions">
+            <a class="ws-join" href={joinHref}>Watch now →</a>
+          </div>
+        ) : (
+          <>
+            <div id="ws-countdown" class="ws-countdown" data-start={String(startMs)} data-threshold={String(JOIN_THRESHOLD_SECONDS)}>
+              <div class="ws-clock"><span id="cd-d">–</span><small>days</small></div>
+              <div class="ws-clock"><span id="cd-h">–</span><small>hrs</small></div>
+              <div class="ws-clock"><span id="cd-m">–</span><small>min</small></div>
+              <div class="ws-clock"><span id="cd-s">–</span><small>sec</small></div>
+            </div>
+
+            {early && <p class="ws-note">The room isn’t open yet — the Join button appears 15 minutes before we begin.</p>}
+            {nozoom && <p class="ws-note">We’re finalising the meeting link. Refresh shortly, or check your email.</p>}
+
+            <div class="ws-actions">
+              <a class="ws-join" id="ws-join" href={joinHref} hidden>Join the workshop →</a>
+              <span class="ws-soon" id="ws-soon">Join opens 15 minutes before start</span>
+            </div>
+
+            <div class="ws-cal">
+              <span>Add to calendar:</span>
+              {gcalUrl && <a href={gcalUrl} target="_blank" rel="noopener">Google</a>}
+              {icsHref && <a href={icsHref}>Apple / Outlook</a>}
+            </div>
+          </>
+        )}
+      </section>
+    )}
+  </main>
+
+  <style>
+    .ws { max-width: 560px; margin: 0 auto; padding: 72px 20px 96px; }
+    .ws-card { background:#FBF6EC; border:1px solid rgba(161,72,38,0.22); border-radius:18px; padding:44px 36px; text-align:center; }
+    .ws-kicker { margin:0 0 8px; font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:#A14826; }
+    .ws-title { margin:0 0 6px; font-size:30px; line-height:1.18; color:#2A1B2A; font-weight:400; }
+    .ws-when { margin:0; font-size:17px; color:#4A3848; }
+    .ws-tz { color:#B6A8B4; font-style:italic; }
+    .ws-countdown { display:flex; justify-content:center; gap:14px; margin:32px 0 24px; }
+    .ws-clock { background:#F4ECDF; border-radius:12px; padding:14px 10px; min-width:62px; }
+    .ws-clock span { display:block; font-size:30px; color:#2A1B2A; line-height:1; }
+    .ws-clock small { display:block; margin-top:6px; font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:#B6A8B4; }
+    .ws-actions { margin:10px 0 8px; }
+    .ws-join { display:inline-block; padding:15px 28px; border-radius:999px; background:#2A1B2A; color:#F4ECDF; text-decoration:none; font-size:16px; }
+    .ws-soon { color:#B6A8B4; font-size:14px; }
+    .ws-note { margin:0 0 14px; color:#A14826; font-size:14px; }
+    .ws-cal { margin-top:26px; font-size:14px; color:#4A3848; }
+    .ws-cal span { color:#B6A8B4; margin-right:8px; }
+    .ws-cal a { color:#A14826; text-decoration:none; margin:0 6px; }
+  </style>
+
+  <script is:inline>
+    (function () {
+      var el = document.getElementById('ws-countdown');
+      if (!el) return;
+      var start = parseInt(el.getAttribute('data-start'), 10);
+      var threshold = parseInt(el.getAttribute('data-threshold'), 10) * 1000;
+      var joinBtn = document.getElementById('ws-join');
+      var soon = document.getElementById('ws-soon');
+      function pad(n) { return n < 10 ? '0' + n : '' + n; }
+      function tick() {
+        var diff = start - Date.now();
+        var open = diff <= threshold;
+        if (joinBtn) joinBtn.hidden = !open;
+        if (soon) soon.hidden = open;
+        var s = Math.max(0, Math.floor(diff / 1000));
+        var d = Math.floor(s / 86400); s -= d * 86400;
+        var h = Math.floor(s / 3600); s -= h * 3600;
+        var m = Math.floor(s / 60); s -= m * 60;
+        var set = function (id, v) { var n = document.getElementById(id); if (n) n.textContent = v; };
+        set('cd-d', String(d)); set('cd-h', pad(h)); set('cd-m', pad(m)); set('cd-s', pad(s));
+      }
+      tick();
+      setInterval(tick, 1000);
+    })();
+  </script>
+</Layout>

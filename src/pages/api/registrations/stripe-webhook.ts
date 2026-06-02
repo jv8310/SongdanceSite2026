@@ -31,6 +31,11 @@ import {
   updateCourseSubscriptionStatus,
 } from '../../../lib/courses/db';
 import { pushPaidCourseRegistrationToDrip } from '../../../lib/courses/paid-handler';
+import {
+  handleWorkshopCheckoutCompleted,
+  handleWorkshopDispute,
+  handleWorkshopRefund,
+} from '../../../lib/workshops/webhook';
 
 // Dedup-on-invoice-id wrapper around recordInstallmentPaid. Both
 // `invoice.paid` and the `checkout.session.completed` subscription backstop
@@ -123,6 +128,19 @@ export const POST: APIRoute = async ({ request, locals }) => {
       currency: string;
       metadata?: Record<string, string>;
     };
+
+    // Workshop checkouts carry `workshop_registration_id`. Handle them first
+    // (own tables, own idempotency on the payment row) and early-return so the
+    // retreat/course routing below never sees them.
+    const ctx = (locals.runtime as any)?.ctx;
+    const handledWorkshop = await handleWorkshopCheckoutCompleted(
+      env,
+      session as any,
+      ctx ? { waitUntil: (p: Promise<unknown>) => ctx.waitUntil(p) } : undefined,
+    );
+    if (handledWorkshop) {
+      return new Response('OK (workshop)', { status: 200 });
+    }
 
     // Route by metadata: retreat checkouts carry `registration_id`,
     // course checkouts carry `course_registration_id`. We try the course
@@ -485,6 +503,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
       return newest?.amount ?? charge.amount_refunded;
     })();
 
+    // 0. Workshop lookup by PaymentIntent (own payment table).
+    if (await handleWorkshopRefund(env, charge)) {
+      return new Response('OK (workshop refund)', { status: 200 });
+    }
+
     // 1. Retreat lookup by PaymentIntent.
     if (charge.payment_intent) {
       const reg = await getRegistrationByPaymentIntent(
@@ -608,6 +631,18 @@ export const POST: APIRoute = async ({ request, locals }) => {
         amount_refunded_total: charge.amount_refunded,
       },
     });
+    return new Response('OK', { status: 200 });
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Disputes (chargebacks). Currently only workshop payments track a
+  // chargeback status; for anything else we just log via the top-level
+  // logEvent above and move on.
+  if (event.type === 'charge.dispute.created') {
+    const dispute = event.data.object as { payment_intent: string | null };
+    if (await handleWorkshopDispute(env, dispute)) {
+      return new Response('OK (workshop chargeback)', { status: 200 });
+    }
     return new Response('OK', { status: 200 });
   }
 
