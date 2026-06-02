@@ -86,12 +86,23 @@ function folder(key: string): string {
     </section>
 
     <section class="adm-section">
-      <h2>
-        Images <small data-count>{items.length}</small>
-      </h2>
+      <div class="media-toolbar">
+        <h2>
+          Images <small data-count>{items.length}</small>
+        </h2>
+        <input
+          type="search"
+          class="media-search"
+          data-search
+          placeholder="Search by name…"
+          aria-label="Search images by name"
+          autocomplete="off"
+        />
+      </div>
       {!loadError && items.length === 0 && (
         <p class="adm-empty" data-empty>No images yet. Drop some above to get started.</p>
       )}
+      <p class="adm-empty" data-noresults hidden>No images match your search.</p>
       <div class="media-grid" data-grid>
         {items.map((it) => (
           <figure class="media-card" data-card data-key={it.key}>
@@ -158,12 +169,35 @@ function folder(key: string): string {
   const progress = document.querySelector<HTMLElement>('[data-progress]');
   const countEl = document.querySelector<HTMLElement>('[data-count]');
   const emptyEl = document.querySelector<HTMLElement>('[data-empty]');
+  const noResultsEl = document.querySelector<HTMLElement>('[data-noresults]');
+  const searchEl = document.querySelector<HTMLInputElement>('[data-search]');
   const tmpl = document.querySelector<HTMLTemplateElement>('#media-card-template');
 
-  function setCount() {
-    if (countEl && grid) countEl.textContent = String(grid.querySelectorAll('[data-card]').length);
-    if (emptyEl && grid) emptyEl.hidden = grid.querySelectorAll('[data-card]').length > 0;
+  function cardName(card: HTMLElement): string {
+    const input = card.querySelector<HTMLInputElement>('[data-name]');
+    const key = card.dataset.key || '';
+    const base = key.slice(key.lastIndexOf('/') + 1);
+    return (input?.value || base).toLowerCase();
   }
+
+  // Live filter on filename. Also keeps the count and empty/no-match messages
+  // in sync, so it doubles as the "something changed" refresh.
+  function applyFilter() {
+    if (!grid) return;
+    const q = (searchEl?.value ?? '').trim().toLowerCase();
+    const cards = Array.from(grid.querySelectorAll<HTMLElement>('[data-card]'));
+    let shown = 0;
+    for (const card of cards) {
+      const match = !q || cardName(card).includes(q);
+      card.style.display = match ? '' : 'none';
+      if (match) shown += 1;
+    }
+    if (countEl) countEl.textContent = q ? `${shown} of ${cards.length}` : String(cards.length);
+    if (emptyEl) emptyEl.hidden = cards.length > 0;
+    if (noResultsEl) noResultsEl.hidden = !(q && cards.length > 0 && shown === 0);
+  }
+
+  searchEl?.addEventListener('input', applyFilter);
 
   // ---- Upload (drag-drop + click) ----
   async function uploadFiles(fileList: FileList | File[]) {
@@ -189,7 +223,7 @@ function folder(key: string): string {
         done++;
       }
       progress.textContent = `Uploaded ${done} image${done === 1 ? '' : 's'}.`;
-      setCount();
+      applyFilter();
     } catch (err) {
       progress.textContent = `Upload failed: ${(err as Error).message}`;
     }
@@ -265,6 +299,7 @@ function folder(key: string): string {
       (card.querySelector('.media-thumb') as HTMLAnchorElement).href = data.url;
       (card.querySelector('img') as HTMLImageElement).src = data.url + '?t=' + Date.now();
       (card.querySelector('[data-copy]') as HTMLElement).dataset.url = data.url;
+      applyFilter();
     });
 
     card.querySelector('[data-delete]')?.addEventListener('click', async () => {
@@ -275,7 +310,7 @@ function folder(key: string): string {
       const res = await fetch('/api/admin/media/delete', { method: 'POST', body });
       if (!res.ok) { alert('Delete failed'); return; }
       card.remove();
-      setCount();
+      applyFilter();
     });
   }
 

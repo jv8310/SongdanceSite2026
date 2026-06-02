@@ -871,6 +871,21 @@ body { background: var(--adm-paper); }
   font-size: 12.5px;
   color: var(--adm-ink-soft);
 }
+.media-toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap; margin-bottom: 12px;
+}
+.media-toolbar h2 { margin: 0; }
+.media-search {
+  flex: 0 1 280px;
+  padding: 7px 12px;
+  border: 1px solid var(--adm-line);
+  border-radius: 999px;
+  font-family: inherit; font-size: 13px;
+  background: #fff; color: var(--adm-ink);
+}
+.media-search:focus { outline: none; border-color: var(--adm-ember); }
+.media-search::placeholder { color: var(--adm-mute); }
 .media-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
