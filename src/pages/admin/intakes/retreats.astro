@@ -4,6 +4,7 @@ import Layout from '../../../layouts/Layout.astro';
 import { readCookie, verifySession } from '../../../lib/registrations/auth';
 import { listRetreats } from '../../../lib/intake/retreats-db';
 import { listInvitations, type InvitationRow } from '../../../lib/intake/invitations';
+import { pillClassFor, classificationLabel } from '../../../lib/intake/admin';
 
 export const prerender = false;
 
@@ -41,8 +42,32 @@ if (bulkParam === 'send') {
 
 // Pre-fetch invitations per retreat so the page renders in one pass.
 const invitationsByRetreat = new Map<string, InvitationRow[]>();
+// Map an invitee (by retreat + email) to their intake submission, so the
+// table can surface the assessment classification and a link straight to
+// the submission. Keyed retreat_slug → lowercased email → { id, classification }.
+type SubLink = { id: string; classification: string | null };
+const submissionsByRetreat = new Map<string, Map<string, SubLink>>();
 for (const r of dbRetreats) {
   invitationsByRetreat.set(r.slug, await listInvitations(env.DB, r.slug));
+
+  const subs = (
+    await env.DB
+      .prepare(
+        `SELECT id, email, classification, created_at
+           FROM intake_submissions
+          WHERE event_code = ?
+          ORDER BY created_at DESC`,
+      )
+      .bind(r.slug)
+      .all<{ id: string; email: string; classification: string | null; created_at: string }>()
+  ).results ?? [];
+  // Newest-first ordering means the first row we see per email wins.
+  const byEmail = new Map<string, SubLink>();
+  for (const s of subs) {
+    const key = s.email.toLowerCase();
+    if (!byEmail.has(key)) byEmail.set(key, { id: s.id, classification: s.classification });
+  }
+  submissionsByRetreat.set(r.slug, byEmail);
 }
 
 function fmtSent(s: string | null): string {
@@ -218,6 +243,7 @@ function statusOf(row: InvitationRow): { label: string; tone: string } {
                           <th>Name</th>
                           <th>Email</th>
                           <th>Status</th>
+                          <th>Assessment</th>
                           <th class="num">Invite</th>
                           <th class="num">Reminder</th>
                           <th class="num">Final</th>
@@ -229,6 +255,7 @@ function statusOf(row: InvitationRow): { label: string; tone: string } {
                         {invitations.map((inv) => {
                           const s = statusOf(inv);
                           const done = !!inv.submitted_at;
+                          const sub = submissionsByRetreat.get(r.slug)?.get(inv.email.toLowerCase());
                           return (
                             <tr class={done ? 'adm-invitee--done' : ''}>
                               <td class="sel">
@@ -245,6 +272,20 @@ function statusOf(row: InvitationRow): { label: string; tone: string } {
                                 <a href={`mailto:${inv.email}`}>{inv.email}</a>
                               </td>
                               <td><span class={`adm-pill adm-pill--${s.tone}`}>{s.label}</span></td>
+                              <td class="adm-invitee-assess">
+                                {sub ? (
+                                  <a
+                                    class="adm-assess-link"
+                                    href={`/admin/intakes/${sub.id}`}
+                                    title="Open intake submission"
+                                  >
+                                    <span class={`adm-pill ${pillClassFor(sub.classification)}`}>{classificationLabel(sub.classification)}</span>
+                                    <span class="adm-assess-arrow" aria-hidden="true">→</span>
+                                  </a>
+                                ) : (
+                                  <span class="adm-assess-empty">—</span>
+                                )}
+                              </td>
                               <td class="num">{fmtSent(inv.invitation_sent_at)}</td>
                               <td class="num">{fmtSent(inv.reminder_sent_at)}</td>
                               <td class="num">{fmtSent(inv.final_sent_at)}</td>
