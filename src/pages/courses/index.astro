@@ -18,14 +18,14 @@ const groups = [
     items: [
       { label: 'Grief Course', note: 'with Daniela · €99', href: '/courses/grief' },
       { label: 'Forgiveness Course', note: 'with Daniela · July', href: '/courses/forgiveness' },
-      { label: 'Inner Child Healing Journey', note: 'guided', href: '/courses' },
+      { label: 'Inner Child Healing Journey', note: 'guided', href: '/courses/inner-child' },
     ],
   },
   {
     title: 'Guided Journeys & Music',
     items: [
-      { label: 'Authentic Singing Journey', note: '40 journeys', href: '/courses' },
-      { label: 'Magical Movement Journey', note: '10 journeys', href: '/courses' },
+      { label: 'Authentic Singing Journey', note: '40 journeys', href: '/courses/authentic-singing' },
+      { label: 'Magical Movement Journey', note: '10 journeys', href: '/courses/magical-movement' },
       { label: 'Songdeck', note: 'music & mantras', href: '/songdeck' },
     ],
   },
@@ -43,7 +43,6 @@ const groups = [
   />
   <section class="sd-section sd-courses">
     <div class="sd-courses-inner">
-      <p class="sd-scaffold-note">Scaffold hub — card copy is finalised in the content pass (brief §12).</p>
       {groups.map((g) => (
         <div class="sd-course-group">
           <h2 class="sd-course-group-title">{g.title}</h2>

@@ -1,0 +1,33 @@
+---
+import SiteLayout from '../../components/SiteLayout.astro';
+import PageHero from '../../components/PageHero.astro';
+import SoftCta from '../../components/SoftCta.astro';
+---
+
+<SiteLayout
+  title="Authentic Singing Journey — Songdance"
+  description="40 guided musical journeys where the voice finds its way to itself through song. Authentic singing — a healing practice in its own right, distinct from Somatic Vocal Healing."
+>
+  <PageHero
+    eyebrow="Guided journeys · music"
+    title="Authentic Singing Journey"
+    lede="40 guided musical journeys."
+  >
+    <div class="sd-pagehero-actions">
+      <a href="/contact" class="sd-btn sd-btn-primary">Begin</a>
+    </div>
+  </PageHero>
+
+  <section class="sd-section sd-prose">
+    <div class="sd-prose-inner">
+      <p>
+        One of Jacob’s earliest and most-loved bodies of work. To be clear: this is
+        <em>authentic singing</em>, not Somatic Vocal Healing — a beautiful, healing practice in its
+        own right, with full guidance and music, where the voice finds its way to itself through
+        song.
+      </p>
+    </div>
+  </section>
+
+  <SoftCta />
+</SiteLayout>

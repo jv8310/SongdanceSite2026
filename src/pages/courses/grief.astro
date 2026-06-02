@@ -1,12 +1,77 @@
 ---
-import StubPage from '../../components/StubPage.astro';
+import SiteLayout from '../../components/SiteLayout.astro';
+import PageHero from '../../components/PageHero.astro';
+import SoftCta from '../../components/SoftCta.astro';
+
+const steps = [
+  ['Understanding', 'Grief as a process, not an isolated feeling; the myths, set down.'],
+  ['Meeting the mind', 'The guilt and regret that quietly stop the flow, truly acknowledged.'],
+  ['Somatic Vocal Healing', 'The body and voice as an accessible, reliable way to let grief move.'],
+  ['Integration', 'Carrying it into your own life, in your own way, at your own pace.'],
+];
 ---
 
-<StubPage
-  title="The Grief Course — Songdance"
-  description="Because no one taught you how to grieve. With Daniela Hess and Jacob Vermeulen."
-  eyebrow="With Daniela & Jacob"
-  heading="The Grief Course"
-  lede="Because no one taught you how to grieve."
-  note="Scaffold page — full copy lands in the content pass (brief §10)."
-/>
+<SiteLayout
+  title="The Grief Course — with Daniela Hess & Jacob — Songdance"
+  description="Because no one taught you how to grieve. A way to be with grief, consciously and kindly, led by Daniela Hess and Jacob Vermeulen. 4 sessions, lifetime access, €99."
+>
+  <PageHero
+    eyebrow="With Daniela &amp; Jacob"
+    title="The Grief Course"
+    lede="Because no one taught you how to grieve."
+  >
+    <div class="sd-pagehero-actions">
+      <a href="/contact" class="sd-btn sd-btn-primary">Start now — €99</a>
+    </div>
+  </PageHero>
+
+  <section class="sd-section sd-prose">
+    <div class="sd-prose-inner">
+      <p>
+        Grief is a natural response to change, and most of us are handed no map for it. When we
+        don’t know how to grieve, we tend to reach for whatever numbs — and the numbing becomes its
+        own problem. This course offers something else: a way to be <em>with</em> grief, consciously
+        and kindly.
+      </p>
+      <p>
+        Led by <strong>Daniela Hess and Jacob Vermeulen</strong>, who between them bring decades of
+        grief work. Grief isn’t something to “get over” — that’s one of the myths we’ll set down
+        together. It’s something to honour, integrate, and live alongside.
+      </p>
+    </div>
+  </section>
+
+  <section class="sd-section sd-modules-section">
+    <div class="sd-prose-inner">
+      <h2 class="sd-prose-h">A reliable four-step process</h2>
+      <ol class="sd-modules">
+        {steps.map(([t, d], i) => (
+          <li class="sd-module">
+            <span class="sd-module-n">{String(i + 1).padStart(2, '0')}</span>
+            <div>
+              <h3 class="sd-module-t">{t}</h3>
+              <p class="sd-module-d">{d}</p>
+            </div>
+          </li>
+        ))}
+      </ol>
+    </div>
+  </section>
+
+  <section class="sd-section sd-prose sd-prose--feature">
+    <div class="sd-prose-inner">
+      <h2 class="sd-prose-h">Where there is change, there is grief</h2>
+      <p>
+        Big “G” and small “g”: a death, a divorce, a pet, a friendship, a job, an empty nest. The
+        principles apply to all of it.
+      </p>
+      <p class="sd-prose-note">4 sessions × 120 minutes · lifetime access · €99 · start anytime.</p>
+    </div>
+  </section>
+
+  <SoftCta
+    text="Curious how the sounding part feels?"
+    ctaLabel="Sit in on a live session — 9€"
+    ctaHref="/session"
+  />
+</SiteLayout>

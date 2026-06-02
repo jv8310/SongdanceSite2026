@@ -1,12 +1,42 @@
 ---
-import StubPage from '../../components/StubPage.astro';
+import SiteLayout from '../../components/SiteLayout.astro';
+import PageHero from '../../components/PageHero.astro';
+import SoftCta from '../../components/SoftCta.astro';
 ---
 
-<StubPage
-  title="The Forgiveness Course — Songdance"
-  description="The work of forgiveness — in layers, for your own freedom. With Daniela Hess and Jacob Vermeulen."
-  eyebrow="With Daniela & Jacob · launching July"
-  heading="The Forgiveness Course"
-  lede="Not forced absolution — something you do, in layers, for your own freedom."
-  note="Scaffold page — full copy lands in the content pass (brief §10). A landing page already exists at /forgiveness."
-/>
+<SiteLayout
+  title="The Forgiveness Course — with Daniela Hess & Jacob — Songdance"
+  description="The work of forgiveness — not forced absolution, but something you do, in layers, for your own freedom. With Daniela Hess and Jacob Vermeulen. Launching July 2026."
+>
+  <PageHero
+    eyebrow="With Daniela &amp; Jacob · launching July"
+    title="The Forgiveness Course"
+    lede="Not forced absolution — something you do, in layers, for your own freedom."
+  >
+    <div class="sd-pagehero-actions">
+      <a href="/forgiveness-for-you" class="sd-btn sd-btn-primary">Start the free Three Layers Walk</a>
+      <a href="/contact" class="sd-btn sd-btn-quiet">Join the waitlist →</a>
+    </div>
+  </PageHero>
+
+  <section class="sd-section sd-prose">
+    <div class="sd-prose-inner">
+      <p>
+        A focused course with <strong>Daniela Hess and Jacob Vermeulen</strong> on the work of
+        forgiveness — not as forced absolution, but as something you do, in layers, for your own
+        freedom.
+      </p>
+      <p>
+        A good place to begin, for free, is <a href="/forgiveness-for-you">The Three Layers Walk</a>
+        — a short guided practice with a personalised mantra. The full course launches
+        <strong>July 2026</strong>.
+      </p>
+    </div>
+  </section>
+
+  <SoftCta
+    text="Curious how the sounding part feels?"
+    ctaLabel="Sit in on a live session — 9€"
+    ctaHref="/session"
+  />
+</SiteLayout>
