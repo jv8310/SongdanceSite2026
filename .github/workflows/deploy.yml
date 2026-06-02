@@ -1,0 +1,73 @@
+# Build the Astro site and deploy the Cloudflare Worker.
+#
+# Triggers:
+#   • push to main — every merge to main ships.
+#   • workflow_dispatch — manual "Run workflow" button for re-deploys.
+#
+# This Action is intended to be the SINGLE deploy path. If you also have
+# Cloudflare's Git integration ("Workers Builds") connected to this repo and
+# deploying on push, disable it — otherwise main will deploy twice and the two
+# can race.
+#
+# D1 migrations are handled by the separate d1-migrate.yml workflow (it runs
+# on pushes that touch migrations/**). On a push that changes both code and a
+# migration, both workflows run; migrate is much faster than build+deploy, so
+# the schema is in place by the time the new Worker goes live.
+#
+# Required repo secrets (same ones d1-migrate.yml uses):
+#   • CLOUDFLARE_API_TOKEN  — "Edit Cloudflare Workers" template includes the
+#     Workers Scripts:Edit and Workers R2 Storage:Edit permissions this needs.
+#   • CLOUDFLARE_ACCOUNT_ID — from the Cloudflare dashboard sidebar.
+
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# A newer push supersedes an in-flight deploy.
+concurrency:
+  group: deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Ensure the R2 media bucket exists before deploy. The `MEDIA` binding in
+      # wrangler.jsonc references it, so `wrangler deploy` fails if it's missing.
+      # Idempotent: creating an existing bucket is treated as success.
+      - name: Ensure R2 bucket
+        run: |
+          set +e
+          out=$(npx wrangler r2 bucket create songdance-media 2>&1)
+          code=$?
+          echo "$out"
+          if [ $code -ne 0 ] && ! echo "$out" | grep -qiE "already (exists|owned)"; then
+            echo "::error::Failed to ensure R2 bucket songdance-media"
+            exit $code
+          fi
+          echo "R2 bucket songdance-media is ready."
+
+      - name: Build
+        run: npm run build
+
+      - name: Deploy Worker
+        run: npx wrangler deploy
