@@ -60,11 +60,16 @@ jobs:
           out=$(npx wrangler r2 bucket create songdance-media 2>&1)
           code=$?
           echo "$out"
-          if [ $code -ne 0 ] && ! echo "$out" | grep -qiE "already (exists|owned)"; then
-            echo "::error::Failed to ensure R2 bucket songdance-media"
-            exit $code
+          if [ $code -eq 0 ] || echo "$out" | grep -qiE "already (exists|owned)"; then
+            echo "R2 bucket songdance-media is ready."
+            exit 0
           fi
-          echo "R2 bucket songdance-media is ready."
+          if echo "$out" | grep -qiE "enable R2|10042"; then
+            echo "::error::R2 is not enabled on this Cloudflare account. Enable it once in the dashboard (Workers & Pages -> R2 -> accept terms), then re-run this workflow."
+          else
+            echo "::error::Failed to ensure R2 bucket songdance-media"
+          fi
+          exit $code
 
       - name: Build
         run: npm run build

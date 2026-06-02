@@ -109,7 +109,7 @@ export function compareCards(a: EventCard, b: EventCard): number {
 export async function listEvents(db: D1Database): Promise<EventRow[]> {
   const q = await db
     .prepare(
-      `SELECT * FROM events
+      `SELECT * FROM calendar_events
         ORDER BY (start_date IS NULL), start_date ASC, sort_order ASC, title ASC`,
     )
     .all<EventRow>();
@@ -117,7 +117,7 @@ export async function listEvents(db: D1Database): Promise<EventRow[]> {
 }
 
 export async function getEvent(db: D1Database, id: string): Promise<EventRow | null> {
-  const row = await db.prepare(`SELECT * FROM events WHERE id = ?`).bind(id).first<EventRow>();
+  const row = await db.prepare(`SELECT * FROM calendar_events WHERE id = ?`).bind(id).first<EventRow>();
   return row ?? null;
 }
 
@@ -176,7 +176,7 @@ export async function upsertEvent(
     // Renamed (id changed): update the existing row, keyed on the old id.
     await db
       .prepare(
-        `UPDATE events SET
+        `UPDATE calendar_events SET
            id = ?, title = ?, category = ?, language = ?, facilitators = ?,
            start_date = ?, end_date = ?, location = ?, capacity = ?, price = ?,
            status = ?, summary = ?, href = ?,
@@ -197,7 +197,7 @@ export async function upsertEvent(
 
   await db
     .prepare(
-      `INSERT INTO events
+      `INSERT INTO calendar_events
          (id, title, category, language, facilitators, start_date, end_date,
           location, capacity, price, status, summary, href, image_key,
           published, sort_order)
@@ -230,7 +230,7 @@ export async function upsertEvent(
 }
 
 export async function deleteEvent(db: D1Database, id: string): Promise<void> {
-  await db.prepare(`DELETE FROM events WHERE id = ?`).bind(id).run();
+  await db.prepare(`DELETE FROM calendar_events WHERE id = ?`).bind(id).run();
 }
 
 // ---- Formatting helpers (shared by grid + admin) ----
