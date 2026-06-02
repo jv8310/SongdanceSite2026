@@ -52,23 +52,46 @@ for (let i = 0; i < 5; i++) {
 const closingImg = take(/closing|end|light|dawn|sunrise/) ?? takeNext();
 
 const steps: [string, string][] = [
-  ['Understanding', 'Grief as a process, not an isolated feeling — and the myths that keep us stuck, gently set down.'],
-  ['Meeting the mind', 'The guilt and the regret that quietly stop the flow, truly acknowledged and met.'],
-  ['Somatic Vocal Healing', 'The body and the voice as an accessible, reliable way to let grief move and be released.'],
-  ['Integration', 'Carrying it into your own life — in your own way, at your own pace, without forcing.'],
+  [
+    'Understanding',
+    'Grief as a process rather than an isolated feeling. Together we debunk the myths and misconceptions — because allowing the process begins with understanding what grief is, and what it is not.',
+  ],
+  [
+    'Meeting the mind',
+    'Meeting the beliefs and emotions wrapped around the loss. Guilt and regret can single-handedly stop the natural flow of grief — truly acknowledging these thoughts and feelings is the key to getting it flowing again.',
+  ],
+  [
+    'Somatic Vocal Healing',
+    'Somatic voice work connects you with your body in an accessible, reliable way. The body and the nervous system hold the keys to flowing easefully with grief — and new somatic tools give you a fresh way to express it.',
+  ],
+  [
+    'Integration',
+    'Through conscious integration you are empowered to weave the new insights and practices into your life — continuing your grief journey in your own unique way, knowing it is okay to embrace and allow the process.',
+  ],
+];
+
+const forms = [
+  'A loved one',
+  'A beloved pet',
+  'A divorce',
+  'The end of a friendship',
+  'A job, or a calling',
+  'Disconnection from community',
+  'An empty nest',
+  'A life you imagined',
 ];
 
 const includes: [string, string][] = [
-  ['ph-waveform', '4 guided sessions of about 120 minutes, to walk in your own time'],
-  ['ph-infinity', 'Lifetime access — return to the practice whenever grief returns'],
-  ['ph-microphone-stage', 'Somatic Vocal Healing practices to let what is held move through sound'],
-  ['ph-users-three', 'Held by two guides with decades of grief work between them'],
+  ['ph-waveform', '4 live sessions of 120 minutes each, to walk in your own time'],
+  ['ph-infinity', 'Lifetime access to all the course material'],
+  ['ph-microphone-stage', 'Powerful teachings, practices and journeys to support and transform your grief'],
+  ['ph-users-three', 'Held by two educators in grief, death and loss, with decades of experience'],
 ];
 ---
 
 <SiteLayout
-  title="The Grief Course — with Daniela Hess & Jacob — Songdance"
-  description="Because no one taught you how to grieve. A way to be with grief, consciously and kindly, led by Daniela Hess and Jacob Vermeulen. 4 sessions, lifetime access, €99."
+  title="The Grief Course — Online Intensive with Daniela Hess & Jacob — Songdance"
+  description="Because no one taught you how to grieve. Learn the foundational tools and practices to be with your grief in a conscious, healthy way — with Daniela Hess and Jacob Vermeulen. 4 sessions, lifetime access, €99."
   newsletter={false}
 >
   <div class="gr">
@@ -78,16 +101,18 @@ const includes: [string, string][] = [
         <img class="gr-hero-bg" src={heroImg.url} alt="" loading="eager" decoding="async" />
       )}
       <div class="gr-hero-inner">
-        <p class="gr-hero-eyebrow">A course with Daniela Hess &amp; Jacob</p>
+        <p class="gr-hero-eyebrow">An online intensive with Daniela Hess &amp; Jacob</p>
         <h1 class="gr-hero-title">Because no one taught you how to grieve.</h1>
-        <p class="gr-hero-lede">A way to be <em>with</em> grief — consciously, kindly, and in your own voice.</p>
+        <p class="gr-hero-lede">
+          Learn the foundational tools and practices to be with your grief — in a conscious, healthy way.
+        </p>
         <div class="gr-hero-actions">
-          <a href="#register" class="gr-btn gr-btn--primary">Start the course — €99</a>
+          <a href="#register" class="gr-btn gr-btn--primary">Start now — €99</a>
           <a href="#video" class="gr-btn gr-btn--ghost">
-            <i class="ph-light ph-play-circle"></i> Watch the invitation
+            <i class="ph-light ph-play-circle"></i> Watch the 1-minute intro
           </a>
         </div>
-        <p class="gr-hero-meta">4 sessions · lifetime access · start anytime</p>
+        <p class="gr-hero-meta">4 sessions · 120 minutes each · lifetime access</p>
       </div>
     </header>
 
@@ -96,18 +121,23 @@ const includes: [string, string][] = [
       <div class="gr-inner gr-narrow">
         <p class="gr-eyebrow">An invitation</p>
         <p class="gr-lede">
-          Grief is a natural response to change — and most of us are handed no map for it.
+          The pain of grief is inevitable. The unnecessary suffering can be optional.
         </p>
         <p class="gr-p">
-          When we don't know how to grieve, we tend to reach for whatever numbs — and the
-          numbing becomes its own problem. This course offers something else: a way to be
-          <em>with</em> grief, consciously and kindly, so that it can move rather than harden.
+          Grief is a universal experience, touching each of us at some point in our lives — yet
+          many of us struggle to navigate this profound emotion. When we don't know how to grieve,
+          we typically reach for whatever numbs: we isolate, over-eat, seek highs, become sedentary,
+          or distract ourselves in countless ways. These unconscious patterns become habits, and the
+          habits become a cycle of pain and avoidance. But what if there were a way to break free?
         </p>
         <p class="gr-p">
-          Grief isn't something to "get over" — that's one of the myths we'll set down together.
-          It's something to honour, to integrate, and to live alongside. Where there is change,
-          there is grief: a death, a divorce, a pet, a friendship, a job, an empty nest. The
-          principles here apply to all of it — big "G" and small "g" alike.
+          In the Grief Course we guide you through an intentional process, bringing knowledge, tools,
+          guidance and support to move through your own journey of grief. Grief is rocky, mysterious
+          terrain — these are waters you really want to cross with a skillful, trustworthy guide.
+        </p>
+        <p class="gr-p">
+          Grief isn't something we strive to "heal" from — that's one of the myths we'll help you set
+          down. Grief is about honouring, integrating, and ultimately living your aliveness.
         </p>
       </div>
     </section>
@@ -119,13 +149,13 @@ const includes: [string, string][] = [
         <div class="gr-video-frame">
           <iframe
             src="https://player.vimeo.com/video/976571800?title=0&byline=0&portrait=0"
-            title="The Grief Course — an invitation"
+            title="Daniela & Jacob introduce the Grief Course"
             allow="autoplay; fullscreen; picture-in-picture"
             allowfullscreen
             loading="lazy"
           ></iframe>
         </div>
-        <p class="gr-video-cap">A few minutes with Daniela and Jacob, on what this work is.</p>
+        <p class="gr-video-cap">Daniela &amp; Jacob introduce the Grief Course — one minute.</p>
       </div>
     </section>
 
@@ -135,7 +165,7 @@ const includes: [string, string][] = [
         <img class="gr-band-bg" src={bandImg.url} alt="" loading="lazy" decoding="async" />
         <div class="gr-band-inner">
           <p class="gr-band-quote">
-            “Grief is the price we pay for love — and it deserves to be met, not managed.”
+            Where there is change, there is grief.
             <span class="gr-band-cite">The Grief Course</span>
           </p>
         </div>
@@ -148,13 +178,13 @@ const includes: [string, string][] = [
         <p class="gr-eyebrow">The path</p>
         <h2 class="gr-h2">A reliable four-step process</h2>
         <p class="gr-p">
-          Four sessions that move from understanding, through the mind's quiet objections, into
-          the body and the voice, and finally into your own integration.
+          Four sessions that move from understanding, through the mind's quiet objections, into the
+          body and the voice, and finally into your own integration.
         </p>
         <ol class="gr-steps">
           {steps.map(([t, d], i) => (
             <li class="gr-step">
-              <span class="gr-step-n">{String(i + 1).padStart(2, '0')}</span>
+              <span class="gr-step-n">{['I', 'II', 'III', 'IV'][i]}</span>
               <div>
                 <h3 class="gr-step-t">{t}</h3>
                 <p class="gr-step-d">{d}</p>
@@ -180,6 +210,26 @@ const includes: [string, string][] = [
       </section>
     )}
 
+    <!-- ── Many forms ─────────────────────────────────────── -->
+    <section class="gr-section gr-opening">
+      <div class="gr-inner gr-narrow">
+        <p class="gr-eyebrow">Who it's for</p>
+        <h2 class="gr-h2">Grief comes in many forms — big "G" and small "g".</h2>
+        <p class="gr-p">
+          Whether you're mourning a loved one or a beloved pet, facing a divorce, the end of a
+          friendship, a job loss, disconnection from community, or children leaving the nest — this
+          course is for you. We teach the principles of the grief process that apply to all of it,
+          whether life-altering or "everyday". You'll learn how to <em>allow, attend, accept and
+          release</em>, and to move through the sadness and worry that grief carries.
+        </p>
+        <ul class="gr-forms">
+          {forms.map((f) => (
+            <li class="gr-form">{f}</li>
+          ))}
+        </ul>
+      </div>
+    </section>
+
     <!-- ── Guides ─────────────────────────────────────────── -->
     <section class="gr-section gr-guides">
       <div class="gr-inner">
@@ -190,17 +240,21 @@ const includes: [string, string][] = [
             </div>
           )}
           <div>
-            <p class="gr-eyebrow">Your guides</p>
+            <p class="gr-eyebrow">Your guides &amp; educators</p>
             <h2 class="gr-h2">Daniela Hess &amp; Jacob Vermeulen</h2>
             <p class="gr-p">
-              Led by <strong>Daniela Hess</strong> and <strong>Jacob Vermeulen</strong>, who
-              between them bring decades of grief work. Daniela holds the depth and the tenderness
-              of the grieving process; Jacob brings Somatic Vocal Healing — the body and the voice
-              as a way to let what is held finally move.
+              <strong>Daniela Hess</strong> has served as an educational and spiritual mentor to
+              thousands of students and clients over the past 25 years. She has led many group grief
+              courses and worked 1:1 with the bereaved, helping people around the world navigate the
+              complex terrain of grief — a dynamic, insightful and compassionate guide who catalyses
+              ripples of transformation across her students' lives.
             </p>
             <p class="gr-p">
-              Together they make a space that is unhurried and kind, where nothing about your grief
-              is too much, too late, or wrong.
+              <strong>Jacob Vermeulen</strong> is an international educator and healer who has guided
+              thousands through deep inner work, blending the psychology of emotional wellbeing with
+              spirituality. A gifted pianist and singer, he explores the healing effects of music with
+              a special focus on the human voice. Navigating his own grief, he developed a unique
+              somatic protocol to process and release the stuck energy of grief in the body.
             </p>
           </div>
         </div>
@@ -210,7 +264,7 @@ const includes: [string, string][] = [
     <!-- ── What's included ────────────────────────────────── -->
     <section class="gr-section">
       <div class="gr-inner gr-narrow">
-        <p class="gr-eyebrow">What's included</p>
+        <p class="gr-eyebrow">Start right away</p>
         <h2 class="gr-h2">Everything you need to begin</h2>
         <ul class="gr-includes">
           {includes.map(([icon, text]) => (
@@ -220,6 +274,12 @@ const includes: [string, string][] = [
             </li>
           ))}
         </ul>
+        <p class="gr-trust">
+          <i class="ph-light ph-star"></i>
+          Every review of Songdance on
+          <a href="https://www.trustpilot.com/review/songdance.co" target="_blank" rel="noopener">Trustpilot</a>
+          is five stars.
+        </p>
       </div>
     </section>
 
@@ -229,7 +289,7 @@ const includes: [string, string][] = [
         <img class="gr-band-bg" src={closingImg.url} alt="" loading="lazy" decoding="async" />
         <div class="gr-band-inner">
           <p class="gr-band-quote">
-            You don't have to do this alone.
+            You don't have to cross these waters alone.
             <span class="gr-band-cite">Begin when you're ready</span>
           </p>
         </div>

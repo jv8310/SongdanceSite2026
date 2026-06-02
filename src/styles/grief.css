@@ -314,6 +314,37 @@
 }
 .gr-gallery-item:hover img { transform: scale(1.04); }
 
+/* ── many forms list ─────────────────────────────────────── */
+.gr-forms {
+  list-style: none;
+  margin: var(--sp-6) 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+}
+.gr-form {
+  font-size: var(--t-body-sm);
+  color: var(--ink-soft);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  padding: 0.45em 1em;
+}
+
+/* ── trust line ──────────────────────────────────────────── */
+.gr-trust {
+  margin: var(--sp-6) 0 0;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--t-body-sm);
+  color: var(--ink-quiet);
+  flex-wrap: wrap;
+}
+.gr-trust i { color: var(--ember); font-size: 18px; }
+.gr-trust a { color: var(--ember-deep); }
+
 /* ── guides ──────────────────────────────────────────────── */
 .gr-guides { background: var(--paper-soft); }
 .gr-guides-grid {
