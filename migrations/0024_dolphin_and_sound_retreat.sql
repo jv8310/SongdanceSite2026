@@ -51,5 +51,6 @@ UPDATE calendar_events
        status     = 'open',
        summary    = 'Seven days with wild dolphins and your own voice, aboard the Nooraya in Egypt''s Red Sea.',
        href       = '/retreats/dolphin-and-sound',
+       image_key  = 'library/dolphin-group-of-dolphins.webp',
        updated_at = datetime('now')
  WHERE id = 'dolphin-and-sound-2026-11';
