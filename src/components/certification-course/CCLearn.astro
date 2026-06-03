@@ -34,6 +34,7 @@ const cards = [
     title: 'Practice. A lot of practice.',
     body:
       'Hosted practice sessions, peer exchanges, and a final supervised practice class where you lead in front of the group and receive direct feedback from Jacob and Karen.',
+    feature: true,
   },
 ];
 ---
@@ -48,7 +49,7 @@ const cards = [
     </div>
     <div class="cc-learn-grid">
       {cards.map((c) => (
-        <article class="cc-learn-card">
+        <article class={`cc-learn-card${c.feature ? ' cc-learn-card--feature' : ''}`}>
           <h3>{c.title}</h3>
           <p>{c.body}</p>
         </article>

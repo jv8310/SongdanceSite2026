@@ -1154,6 +1154,29 @@ html, body { background: var(--paper); }
   max-width: var(--cc-max); margin: var(--sp-8) auto 0;
   padding-top: var(--sp-7);
   border-top: 1px solid var(--line);
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: var(--sp-7);
+  align-items: center;
+}
+@media (max-width: 640px) {
+  .cc-cofacilitator { grid-template-columns: 1fr; gap: var(--sp-5); }
+}
+.cc-cofacilitator-fig {
+  margin: 0;
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-2);
+  aspect-ratio: 4 / 5;
+  transform: rotate(0.4deg);
+}
+@media (max-width: 640px) {
+  .cc-cofacilitator-fig { max-width: 240px; }
+}
+.cc-cofacilitator-fig img {
+  display: block; width: 100%; height: 100%;
+  object-fit: cover;
+  filter: saturate(0.92) contrast(1.02);
 }
 .cc-cofacilitator-inner { max-width: 56ch; }
 .cc-cofacilitator-name {
@@ -1169,6 +1192,12 @@ html, body { background: var(--paper); }
   color: var(--ink-soft);
   margin: 0;
   text-wrap: pretty;
+}
+.cc-cofacilitator p.cc-cofacilitator-creds {
+  margin-top: var(--sp-3);
+  font-family: var(--font-lyric); font-style: italic;
+  font-size: 15px;
+  color: var(--ink-quiet);
 }
 
 /* ---------- Learn ---------- */
@@ -1203,6 +1232,22 @@ html, body { background: var(--paper); }
   line-height: 1.65;
   color: var(--ink-soft);
   margin: 0;
+}
+/* The closing "Practice" card sits alone on its row — centre it and lift it
+   into a quiet feature so the grid doesn't feel lopsided. */
+.cc-learn-card--feature {
+  grid-column: 1 / -1;
+  border-left: none;
+  text-align: center;
+  max-width: 56ch;
+  margin: var(--sp-4) auto 0;
+  padding: var(--sp-6) var(--sp-6) 0;
+  border-top: 1px solid var(--ember);
+}
+.cc-learn-card--feature h3 { margin-top: var(--sp-5); }
+.cc-learn-card--feature p { margin-left: auto; margin-right: auto; max-width: 50ch; }
+@media (max-width: 880px) {
+  .cc-learn-card--feature { padding-left: var(--sp-5); padding-right: var(--sp-5); }
 }
 
 /* ---------- Structure ---------- */
@@ -1540,8 +1585,26 @@ html, body { background: var(--paper); }
 }
 
 /* ---------- For whom ---------- */
-.cc-forwhom { background: var(--paper-soft); padding: var(--sp-10) var(--sp-7); }
-.cc-forwhom-inner { max-width: 880px; margin: 0 auto; }
+.cc-forwhom {
+  position: relative;
+  background: var(--paper-soft);
+  padding: var(--sp-10) var(--sp-7);
+  overflow: hidden;
+}
+.cc-forwhom-bg { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+.cc-forwhom-bg img {
+  width: 100%; height: 100%; object-fit: cover;
+  object-position: center 30%;
+  opacity: 0.16;
+  filter: saturate(0.7) contrast(1) brightness(1.04);
+}
+.cc-forwhom-bg::after {
+  content: ""; position: absolute; inset: 0;
+  background:
+    linear-gradient(180deg, rgba(250,245,234,0.78) 0%, rgba(250,245,234,0.62) 50%, rgba(250,245,234,0.9) 100%),
+    radial-gradient(ellipse at 50% 50%, rgba(250,245,234,0.1) 20%, rgba(250,245,234,0.72) 100%);
+}
+.cc-forwhom-inner { position: relative; z-index: 1; max-width: 880px; margin: 0 auto; }
 .cc-forwhom-head { text-align: center; margin-bottom: var(--sp-8); }
 .cc-forwhom-list {
   list-style: none; padding: 0; margin: 0;
