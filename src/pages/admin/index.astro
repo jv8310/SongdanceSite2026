@@ -10,6 +10,18 @@ const authed = await verifySession(env.ADMIN_SESSION_SECRET, readCookie(Astro.re
 if (!authed) {
   return Astro.redirect('/admin/login');
 }
+
+const flash = Astro.url.searchParams.get('flash');
+const created = Astro.url.searchParams.get('created');
+const skipped = Astro.url.searchParams.get('skipped');
+const flashBanner =
+  flash === 'cal_synced'
+    ? { tone: 'ok' as const, text: `Calendar sync: ${created ?? 0} published, ${skipped ?? 0} skipped.` }
+  : flash === 'cal_notconnected'
+    ? { tone: 'warn' as const, text: 'Google Calendar isn’t connected yet — set it up in Settings → Calendar sync.' }
+  : flash === 'cal_error'
+    ? { tone: 'warn' as const, text: 'Calendar sync failed. Check Settings → Calendar sync.' }
+  : null;
 ---
 
 <Layout title="Admin — Songdance" description="">
@@ -20,7 +32,10 @@ if (!authed) {
         <p class="adm-sub">Registrations &amp; signups</p>
       </div>
       <div class="adm-actions">
-        <a class="adm-btn adm-btn--ghost" href="/admin/settings/calendar-sync">Calendar sync</a>
+        <form method="POST" action="/api/admin/workshops/calendar-sync">
+          <input type="hidden" name="return" value="/admin" />
+          <button class="adm-btn adm-btn--ghost" type="submit">Calendar sync</button>
+        </form>
         <a class="adm-btn adm-btn--ghost" href="/admin/settings">Settings</a>
         <a class="adm-btn adm-btn--ghost" href="/admin/image-manager">Images</a>
         <form method="POST" action="/api/admin/login?_method=DELETE">
@@ -29,6 +44,8 @@ if (!authed) {
         </form>
       </div>
     </header>
+
+    {flashBanner && <div class={`adm-flash adm-flash--${flashBanner.tone === 'ok' ? 'ok' : 'warn'}`}>{flashBanner.text}</div>}
 
     <section class="adm-section">
       <h2>Retreats</h2>

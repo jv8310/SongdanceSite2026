@@ -19,10 +19,15 @@ const bumps = products.filter((p) => p.type === 'bump');
 const zoomDefault = (await getConfig(env.DB, 'zoom_url_default')) ?? '';
 
 const flash = Astro.url.searchParams.get('flash');
-const flashText =
-  flash === 'saved' ? 'Workshop saved.'
-  : flash === 'deleted' ? 'Workshop removed.'
-  : flash === 'zoom' ? 'Default Zoom link saved.'
+const created = Astro.url.searchParams.get('created');
+const skipped = Astro.url.searchParams.get('skipped');
+const flashBanner =
+  flash === 'saved' ? { tone: 'ok', text: 'Workshop saved.' }
+  : flash === 'deleted' ? { tone: 'ok', text: 'Workshop removed.' }
+  : flash === 'zoom' ? { tone: 'ok', text: 'Default Zoom link saved.' }
+  : flash === 'cal_synced' ? { tone: 'ok', text: `Calendar sync: ${created ?? 0} published, ${skipped ?? 0} skipped.` }
+  : flash === 'cal_notconnected' ? { tone: 'warn', text: 'Google Calendar isn’t connected yet — set it up in Settings → Calendar sync.' }
+  : flash === 'cal_error' ? { tone: 'warn', text: 'Calendar sync failed. Check Settings → Calendar sync.' }
   : null;
 
 // Build a month calendar for the month containing "now" (UTC).
@@ -55,13 +60,16 @@ const STATUS_LABEL: Record<string, string> = { draft: 'Draft', published: 'Publi
         <p class="adm-sub">Live online workshops. Times are stored in UTC; each workshop renders to the registrant’s timezone.</p>
       </div>
       <div class="adm-actions">
-        <a class="adm-btn adm-btn--ghost" href="/admin/settings/calendar-sync">Calendar sync</a>
+        <form method="POST" action="/api/admin/workshops/calendar-sync" style="margin:0;">
+          <input type="hidden" name="return" value="/admin/workshops" />
+          <button class="adm-btn adm-btn--ghost" type="submit">Calendar sync</button>
+        </form>
         <a class="adm-btn adm-btn--ghost" href="/admin/workshops/stats">Statistics</a>
         <a class="adm-btn adm-btn--ghost" href="/admin">← Admin</a>
       </div>
     </header>
 
-    {flashText && <div class="adm-flash adm-flash--ok">{flashText}</div>}
+    {flashBanner && <div class={`adm-flash adm-flash--${flashBanner.tone}`}>{flashBanner.text}</div>}
 
     <section class="adm-section">
       <h2>{monthLabel}</h2>
