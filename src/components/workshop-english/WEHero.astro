@@ -30,3 +30,31 @@
     </div>
   </div>
 </section>
+
+<script is:inline>
+  // Subtle hero-background parallax. Moves the background slower than the page,
+  // within the -60px headroom on .we-hero-bg so no edge is ever revealed. The
+  // image's own "breath" scale animation lives on the inner <img> and is left
+  // untouched. Disabled for reduced-motion.
+  (function () {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    var hero = document.querySelector('.we-hero');
+    var bg = document.querySelector('.we-hero-bg');
+    if (!hero || !bg) return;
+    var ticking = false;
+    function update() {
+      ticking = false;
+      var rect = hero.getBoundingClientRect();
+      if (rect.bottom < 0 || rect.top > window.innerHeight) return;
+      // 0 at top of hero, grows as we scroll past it; capped to stay in headroom.
+      var shift = Math.max(-40, Math.min(40, -rect.top * 0.12));
+      bg.style.transform = 'translate3d(0,' + shift.toFixed(1) + 'px,0)';
+    }
+    function onScroll() {
+      if (!ticking) { ticking = true; requestAnimationFrame(update); }
+    }
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll, { passive: true });
+    update();
+  })();
+</script>

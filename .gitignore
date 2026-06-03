@@ -24,3 +24,6 @@ pnpm-debug.log*
 
 # Wrangler local state (local D1 sqlite, etc.)
 .wrangler/
+
+# Local cache of images pulled from the R2 library (scripts/r2-library.mjs)
+.r2-library/

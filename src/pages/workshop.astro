@@ -17,6 +17,7 @@ import {
   listUpcomingPublishedWorkshops,
   getProductById,
   resolvePrice,
+  listPricesForProduct,
 } from '../lib/workshops/db';
 import { currencyForCountry, formatMoney } from '../lib/workshops/currency';
 import { formatInTz } from '../lib/workshops/time';
@@ -36,15 +37,21 @@ const currency = currencyForCountry(country === 'EU' ? null : country);
 // contains "masterclass".
 const upcoming = await listUpcomingPublishedWorkshops(env.DB, new Date().toISOString());
 
+// Turn the per-currency price rows into a { CUR: amountMinor } map.
+const priceMap = (rows: { currency: string; amount_minor: number }[]) =>
+  Object.fromEntries(rows.map((r) => [r.currency.toUpperCase(), r.amount_minor]));
+
 const items: CalItem[] = [];
 for (const w of upcoming) {
   if (!w.main_product_id) continue;
   const price = await resolvePrice(env.DB, w.main_product_id, currency);
   if (!price) continue;
+  const pricesByCurrency = priceMap(await listPricesForProduct(env.DB, w.main_product_id));
 
   let bumpName = '';
   let bumpLabel = '';
   let bumpMinor = 0;
+  let bumpPricesByCurrency: Record<string, number> = {};
   if (w.bump_product_id) {
     const bumpProduct = await getProductById(env.DB, w.bump_product_id);
     const bumpPrice = await resolvePrice(env.DB, w.bump_product_id, price.currency);
@@ -52,6 +59,7 @@ for (const w of upcoming) {
       bumpName = bumpProduct.name;
       bumpLabel = formatMoney(bumpPrice.amountMinor, bumpPrice.currency);
       bumpMinor = bumpPrice.amountMinor;
+      bumpPricesByCurrency = priceMap(await listPricesForProduct(env.DB, w.bump_product_id));
     }
   }
 
@@ -62,12 +70,15 @@ for (const w of upcoming) {
     whenLocal: w.is_replay ? null : formatInTz(w.starts_at_utc, detectedTz),
     isReplay: w.is_replay === 1,
     title: w.title,
+    durationMin: isMasterclass ? 90 : 60,
     priceLabel: formatMoney(price.amountMinor, price.currency),
     priceMinor: price.amountMinor,
     currency: price.currency,
+    pricesByCurrency,
     bumpName,
     bumpLabel,
     bumpMinor,
+    bumpPricesByCurrency,
     hasBump: !!bumpName,
   });
 }
@@ -86,7 +97,7 @@ const tzOptions = Array.from(new Set([detectedTz, ...COMMON_TZS]));
 ---
 
 <Layout
-  title="Somatic Vocal Healing Workshop — Sounding, not Singing | Songdance"
+  title="Somatic Vocal Healing Workshop — Sound as the Body's Language | Songdance"
   description="A one-hour live Somatic Vocal Healing workshop with Jacob Vermeulen. Use your own sound to let stuck emotion move and arrive more fully in your body."
   image="/brand/symbol-orange.png"
 >
@@ -129,9 +140,10 @@ const tzOptions = Array.from(new Set([detectedTz, ...COMMON_TZS]));
   (function () {
     var LENS = {
       neutral: {
-        title: 'Somatic Vocal Healing Workshop — Sounding, not Singing | Songdance',
+        title: 'Somatic Vocal Healing Workshop — Sound as the Body’s Language | Songdance',
         h1: 'Your voice knows <em>more</em> than you think.',
         sub: 'A one-hour live workshop in <em>Somatic Vocal Healing</em> — for everything in you that never found a way out.',
+        openHead: 'You can feel that something in you is <em>asking to be heard</em> —<br>and, at the same time, kept carefully quiet.',
         accent: '',
         reg: 'Come. One hour. Live.<br>You don’t need any skill, any preparation, anything to prove.<br>You just open your mouth<br>and see what happens.',
       },
@@ -139,6 +151,7 @@ const tzOptions = Array.from(new Set([detectedTz, ...COMMON_TZS]));
         title: 'What You’ve Carried Is Allowed to Be Heard — Somatic Vocal Healing | Songdance',
         h1: 'What you’ve carried is allowed <em>to be heard.</em>',
         sub: 'A one-hour live workshop in <em>Somatic Vocal Healing</em> — for the old feeling, the unsaid thing, the part of you that’s been waiting.',
+        openHead: 'There’s an old feeling in you that has waited a long time —<br>and, quietly, it’s <em>asking to be heard.</em>',
         accent: 'You don’t have to explain it, or even understand it. You just have to let it have a sound.',
         reg: 'Come as you are, with whatever you’ve been carrying. You don’t have to do anything with it but let it be heard.',
       },
@@ -146,6 +159,7 @@ const tzOptions = Array.from(new Set([detectedTz, ...COMMON_TZS]));
         title: 'What Would Your Voice Do If Nobody Was Grading It? — Somatic Vocal Healing | Songdance',
         h1: 'What would your voice do if <em>nobody was grading it?</em>',
         sub: 'A one-hour live workshop in <em>Somatic Vocal Healing</em> — for the held breath, the careful throat, the sound you edit before it leaves you.',
+        openHead: 'There’s a voice in you that you <em>edit before it leaves</em> —<br>careful, managed, kept just within bounds.',
         accent: 'Most of us run an editor before we ever make a sound. This is an hour with the editor off.',
         reg: 'Nothing to prepare, nothing to prove. Just an hour to hear what your voice does when you stop managing it.',
       },
@@ -153,6 +167,7 @@ const tzOptions = Array.from(new Set([detectedTz, ...COMMON_TZS]));
         title: 'Somatic Voice Work You Can Bring to Your Practice — Somatic Vocal Healing | Songdance',
         h1: 'Somatic voice work you can <em>bring to your own practice.</em>',
         sub: 'A one-hour live introduction to <em>Somatic Vocal Healing</em> — a coherent, teachable method that deepens the work you already do with clients and groups.',
+        openHead: 'You hold space for other people’s process —<br>and somewhere in you, <em>your own is asking for the same room.</em>',
         accent: 'Maybe you’re here for the people you work with. Maybe, quietly, for yourself too. Both belong here.',
         reg: 'Come and feel the method from the inside first — it’s the only place this work can be taught from.',
       },
@@ -205,6 +220,7 @@ const tzOptions = Array.from(new Set([detectedTz, ...COMMON_TZS]));
 
       setSwap('we-h1', data.h1, animate);
       setSwap('we-hero-sub', data.sub, animate);
+      setSwap('we-opening-head', data.openHead, animate);
       setSwap('we-opening-accent', data.accent, animate);
       setSwap('we-reg-body', data.reg, animate);
       document.title = data.title;
