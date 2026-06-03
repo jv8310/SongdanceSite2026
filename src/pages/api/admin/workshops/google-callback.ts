@@ -11,7 +11,7 @@ import { logEvent } from '../../../../lib/registrations/db';
 
 export const prerender = false;
 
-const SETTINGS = '/admin/workshops/import-google';
+const SETTINGS = '/admin/settings/calendar-sync';
 
 // Google redirects the admin's browser back here with ?code & ?state. We
 // verify the admin session + signed state, exchange the code for a refresh

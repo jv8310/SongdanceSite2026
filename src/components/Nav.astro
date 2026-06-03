@@ -7,7 +7,7 @@ const isActive = (href: string) =>
   href === '/' ? path === '/' : path === href || path.startsWith(href + '/');
 
 const courses = [
-  { href: '/session', label: 'Vocal Healing Session — 9€' },
+  { href: '/workshop', label: 'Vocal Healing Workshop — 6€' },
   { href: '/courses/12-week', label: '12-Week Course' },
   { href: '/certification-course', label: 'Practitioner Training' },
   { href: '/masterclass', label: 'Professional Masterclass — 29€' },
@@ -41,7 +41,7 @@ const courses = [
       <a href="/about" class:list={[{ 'is-active': isActive('/about') }]}>About</a>
     </div>
 
-    <a href="/session" class="sd-nav-cta">Try a session — 9€</a>
+    <a href="/workshop" class="sd-nav-cta">Try a workshop — 6€</a>
     <button class="sd-nav-burger" aria-label="Menu" aria-expanded="false" data-nav-burger>
       <i class="ph-light ph-list"></i>
     </button>
@@ -53,7 +53,7 @@ const courses = [
     <a href="/courses">Courses</a>
     <a href="/events">Events</a>
     <a href="/about">About</a>
-    <a href="/session" class="sd-nav-drawer-cta">Try a session — 9€</a>
+    <a href="/workshop" class="sd-nav-drawer-cta">Try a workshop — 6€</a>
   </div>
 </nav>
 
