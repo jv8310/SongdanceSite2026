@@ -1,0 +1,59 @@
+---
+const highlights = [
+  {
+    icon: 'ph-waves',
+    title: 'Seven days in the water',
+    body: 'Swim multiple times a day with wild dolphins in the stunning Sataya Reef, in Egypt’s Red Sea.',
+  },
+  {
+    icon: 'ph-microphone-stage',
+    title: 'Somatic Vocal Healing',
+    body: 'Powerful voice work guided by Jacob — process work, sound constellations, singing and chanting to integrate and deepen your dolphin connection.',
+  },
+  {
+    icon: 'ph-boat',
+    title: 'Life aboard the Nooraya',
+    body: 'Live, dine, and sleep aboard the Nooraya, a warm and welcoming boat, for the whole of the trip.',
+  },
+  {
+    icon: 'ph-sun-horizon',
+    title: 'Warm water, gentle sun',
+    body: 'Relax in the warm waters and the gentle, pleasant temperatures of the Egyptian sun in November.',
+  },
+  {
+    icon: 'ph-shrimp',
+    title: 'The wonders of the reef',
+    body: 'Free dive and marvel at the reef, encountering a surprising variety of marine life.',
+  },
+  {
+    icon: 'ph-scuba',
+    title: 'Optional scuba diving',
+    body: 'A first initiation for beginners, or a chance to continue exploring for those with experience.',
+  },
+];
+---
+
+<section class="ds-section ds-section--sand2" id="what-it-is">
+  <div class="ds-wrap">
+    <div class="ds-highlights-head">
+      <span class="ds-eyebrow ds-eyebrow--center">What the week holds</span>
+      <h2 class="ds-h2">Seven days of <em>dolphins and sound</em></h2>
+    </div>
+
+    <div class="ds-hl-grid">
+      {highlights.map((h) => (
+        <article class="ds-hl-card">
+          <div class="ds-hl-ico"><i class={`ph-light ${h.icon}`}></i></div>
+          <h3>{h.title}</h3>
+          <p>{h.body}</p>
+        </article>
+      ))}
+    </div>
+
+    <div class="ds-center-cta">
+      <a href="#register" class="ds-btn ds-btn--primary ds-btn--lg">
+        Register now <i class="ph-light ph-arrow-right"></i>
+      </a>
+    </div>
+  </div>
+</section>

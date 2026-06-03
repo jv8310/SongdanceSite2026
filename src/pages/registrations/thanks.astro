@@ -6,18 +6,24 @@ export const prerender = false;
 const sessionId = Astro.url.searchParams.get('session_id');
 const env = Astro.locals.runtime.env;
 
-let reg: { name: string; status: string; product_name: string; tier_name: string } | null = null;
+let reg: { name: string; status: string; product_name: string; tier_name: string; product_slug: string } | null = null;
 if (sessionId) {
   reg = await env.DB.prepare(
-    `SELECT r.name, r.status, p.name AS product_name, t.name AS tier_name
+    `SELECT r.name, r.status, p.name AS product_name, t.name AS tier_name, p.slug AS product_slug
        FROM registrations r
        JOIN products p ON p.id = r.product_id
        JOIN tiers t    ON t.id = r.tier_id
       WHERE r.stripe_session_id = ?`,
   )
     .bind(sessionId)
-    .first<{ name: string; status: string; product_name: string; tier_name: string }>();
+    .first<{ name: string; status: string; product_name: string; tier_name: string; product_slug: string }>();
 }
+
+// Map a product back to its landing page for the "back" link.
+const RETREAT_PAGES: Record<string, string> = {
+  'dolphin-and-sound-2026': '/retreats/dolphin-and-sound',
+};
+const backHref = reg ? (RETREAT_PAGES[reg.product_slug] ?? '/ritual-of-belonging') : '/events';
 ---
 
 <Layout title="Thank you — Songdance" description="Booking confirmation">
@@ -31,13 +37,13 @@ if (sessionId) {
         ) : (
           <p>If you've just completed payment, this page will reflect your confirmed status within a minute. You can safely close this window — we'll email you the moment it's confirmed.</p>
         )}
-        <p style="margin-top: 32px;"><a href="/ritual-of-belonging">← back to the retreat page</a></p>
+        <p style="margin-top: 32px;"><a href={backHref}>← back to the retreat page</a></p>
       </>
     ) : (
       <>
         <h1>Thank you.</h1>
         <p>If you've just completed payment, we'll be in touch shortly.</p>
-        <p style="margin-top: 32px;"><a href="/ritual-of-belonging">← back to the retreat page</a></p>
+        <p style="margin-top: 32px;"><a href={backHref}>← back to the events page</a></p>
       </>
     )}
   </main>
