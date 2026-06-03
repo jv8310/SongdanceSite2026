@@ -42,9 +42,9 @@ const cards = SVH_CEEE_SESSIONS.map((item) => {
 <section class="cc-ceee">
   <div class="cc-ceee-inner">
     <div class="cc-ceee-head">
-      <div class="cc-eyebrow cc-eyebrow--center">CEEE deepening sessions</div>
+      <div class="cc-eyebrow cc-eyebrow--center">Monthly deepening sessions</div>
       <h2 class="cc-h2" style="margin-top: var(--sp-4); max-width: 26ch; margin-left: auto; margin-right: auto;">
-        Continued Exploration, <em>Education &amp; Exchange.</em>
+        Where the work <em>keeps opening.</em>
       </h2>
       <p class="cc-ceee-lead">
         Once a month, current students and alumni gather live with Jacob to
@@ -67,7 +67,7 @@ const cards = SVH_CEEE_SESSIONS.map((item) => {
           data-month-label={item.monthLabel ?? ''}
           data-number={item.number}
         >
-          <div class="ceee-num">CEEE {item.number}</div>
+          <div class="ceee-num">Session {item.number}</div>
           <div class="ceee-date" data-slot="date">{dateFor(item)}</div>
           <div class="ceee-duration">2 hours</div>
           <div class="ceee-status" data-slot="status">{statusFor(item, state)}</div>

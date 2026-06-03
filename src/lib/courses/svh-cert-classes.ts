@@ -82,9 +82,9 @@ export const SVH_CERT_CLASSES: ScheduledItem[] = [
   },
   {
     number: 8,
-    title: 'Supervised Practice',
+    title: 'Emotional Expertise: Anger & Fear',
     description:
-      'Students lead sessions in front of the group and receive direct feedback from Jacob and Karen. This is where the work becomes real.',
+      'The second deep dive into the core emotions, with anger and fear at the centre. How anger moves and where it points. How fear contracts and what it is protecting. How to meet each one in sound — and how they so often hide behind one another.',
     datetime: '2026-09-06T19:00:00+02:00',
     durationMinutes: 120,
     timeLabel: '7:00pm CEST',
