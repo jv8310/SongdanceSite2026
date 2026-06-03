@@ -38,11 +38,11 @@ const items = [
 
     <div class="we-what-intro">
       <p>
-        Somatic Vocal Healing is a somatic practice: you use your own sound to
-        meet what's alive in you. We call it sounding, not singing. Singing
-        reaches for something beautiful; sounding lets what's inside come out
-        to be heard — and welcomes the crackle, the waver, the catch in the
-        throat, because they carry information.
+        Somatic Vocal Healing is a somatic practice: you use your own voice to
+        feel what's here and give it expression. Singing is its own beautiful
+        art — this is something quieter and more inward. Your voice becomes a
+        way to meet what's alive in you, and the crackle, the waver, the catch
+        in the throat all belong, because they carry information.
       </p>
       <p>
         In this hour I'll introduce you to the method, gently. You'll sound.
@@ -56,7 +56,10 @@ const items = [
       {
         items.map((it, i) => (
           <article class="we-what-card" data-door={it.door}>
-            <div class="we-what-num">{String(i + 1).padStart(2, '0')}</div>
+            <div class="we-what-card-top">
+              <div class="we-what-num">{String(i + 1).padStart(2, '0')}</div>
+              <span class="we-what-foryou">For you</span>
+            </div>
             <h3 class="we-what-card-title">{it.title}</h3>
             <p class="we-what-card-body">{it.body}</p>
           </article>
@@ -70,7 +73,7 @@ const items = [
       <em>the rest of your life.</em>
     </p>
     <p class="we-what-coffee-foot">
-      One hour. For the <em>price of a good coffee.</em>
+      One hour. For about the <em>price of lunch.</em>
     </p>
 
     <div class="we-what-cta-wrap">
