@@ -4,12 +4,12 @@ import PageHero from '../components/PageHero.astro';
 import SoftCta from '../components/SoftCta.astro';
 
 const reviews = [
-  ['Rebecca Lucy', 'USA', 'I came for the voice and left with something steadier underneath it.'],
-  ['Monike', 'Netherlands', 'The honesty of it is the point. Nothing here is performance.'],
-  ['Dr. Karen Evans', 'USA', 'A rigorous, kind way of working that fits beside clinical practice.'],
-  ['Gwenola Emilia Enciu', 'Romania', 'I finally have a practice I can return to on my own, for life.'],
-  ['Workshop participant', 'Belgium', 'An hour in, I made a sound I’d been holding for years. Then I could breathe.'],
-  ['Course student', 'Germany', 'Not a quick lift — a steadier kind of peace. More lasting.'],
+  ['Rebecca Lucy', 'USA', 'I came for the voice and left with something steadier underneath it.', '/media/library/ritual-rebecca.jpg'],
+  ['Monike', 'Netherlands', 'The honesty of it is the point. Nothing here is performance.', '/media/library/workshop-anna.jpg'],
+  ['Dr. Karen Evans', 'USA', 'A rigorous, kind way of working that fits beside clinical practice.', '/media/library/workshop-karen.jpg'],
+  ['Gwenola Emilia Enciu', 'Romania', 'I finally have a practice I can return to on my own, for life.', '/media/library/workshop-gwenola.jpg'],
+  ['Workshop participant', 'Belgium', 'An hour in, I made a sound I’d been holding for years. Then I could breathe.', '/media/library/workshop-isabelle.png'],
+  ['Course student', 'Germany', 'Not a quick lift — a steadier kind of peace. More lasting.', '/media/library/workshop-olena.jpg'],
 ];
 ---
 
@@ -21,15 +21,19 @@ const reviews = [
     eyebrow="Reviews"
     title="In their words"
     lede="A few notes from people who’ve done the work."
+    image="/media/library/svh-retreat-circle-yurt-wide.jpg"
   />
 
   <section class="sd-section sd-prose">
     <div class="sd-prose-inner">
       <div class="sd-quotes">
-        {reviews.map(([name, place, quote]) => (
+        {reviews.map(([name, place, quote, avatar]) => (
           <figure class="sd-quote-card">
             <blockquote>{quote}</blockquote>
-            <figcaption>{name} · <span>{place}</span></figcaption>
+            <figcaption>
+              {avatar && <img class="sd-quote-avatar" src={avatar} alt={name} loading="lazy" width="44" height="44" />}
+              <span class="sd-quote-who">{name} · <span>{place}</span></span>
+            </figcaption>
           </figure>
         ))}
       </div>

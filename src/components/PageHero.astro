@@ -2,15 +2,22 @@
 // Simple, reusable hero for the integrated content pages. Keeps the
 // existing visual rhythm without the homepage Hero's self-drawing
 // underline (that stays distinctive to /).
+//
+// Pass `image` (an R2 /media/library/… URL) to render the hero over a
+// full-bleed atmosphere photo with a warm darkening overlay and light text.
 interface Props {
   eyebrow?: string;
   title: string;
   lede?: string;
+  image?: string;
 }
-const { eyebrow, title, lede } = Astro.props;
+const { eyebrow, title, lede, image } = Astro.props;
 ---
 
-<header class="sd-pagehero">
+<header
+  class:list={['sd-pagehero', image && 'sd-pagehero--image']}
+  style={image ? `background-image:url('${image}')` : undefined}
+>
   <div class="sd-pagehero-inner" data-anim="reveal">
     {eyebrow && <div class="sd-eyebrow">{eyebrow}</div>}
     <h1 class="sd-pagehero-title" set:html={title} />

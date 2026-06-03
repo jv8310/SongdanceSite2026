@@ -7,8 +7,8 @@ const SUBJECT = 'Your forgiveness prayer';
 const DEFAULT_FROM = 'Songdance <prayer@mail.songdance.co>';
 const DEFAULT_REPLY_TO = 'jacob@songdance.co';
 const LOGO_URL = 'https://site.songdance.co/brand/logo-wordmark-dark.png';
-const HERO_IMAGE_URL = 'https://site.songdance.co/imagery/forgiveness/heart-candle-rounded.jpeg';
-const COURSE_IMAGE_URL = 'https://site.songdance.co/imagery/forgiveness/course-banner-email.jpeg';
+const HERO_IMAGE_URL = 'https://site.songdance.co/media/library/forgiveness-heart-candle-rounded.jpeg';
+const COURSE_IMAGE_URL = 'https://site.songdance.co/media/library/forgiveness-course-banner-email.jpeg';
 const FORGIVENESS_URL = 'https://site.songdance.co/forgiveness';
 const DRIP_ACCOUNT_ID = '7850773';
 
