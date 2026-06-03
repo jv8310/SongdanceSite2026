@@ -20,22 +20,13 @@ if (!authed) {
         <p class="adm-sub">Registrations &amp; signups</p>
       </div>
       <div class="adm-actions">
+        <a class="adm-btn adm-btn--ghost" href="/admin/image-manager">Images</a>
         <form method="POST" action="/api/admin/login?_method=DELETE">
           <input type="hidden" name="_method" value="DELETE" />
           <button class="adm-btn adm-btn--ghost" type="submit">Sign out</button>
         </form>
       </div>
     </header>
-
-    <section class="adm-section">
-      <h2>Media</h2>
-      <div class="adm-menu">
-        <a href="/admin/image-manager">
-          <strong>Image library</strong>
-          <span>All media in one place — drag-and-drop upload, optimise, rename, delete &amp; copy URLs</span>
-        </a>
-      </div>
-    </section>
 
     <section class="adm-section">
       <h2>Retreats</h2>
