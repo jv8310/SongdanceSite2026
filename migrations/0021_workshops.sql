@@ -169,23 +169,51 @@ INSERT OR IGNORE INTO workshop_products (slug, name, type, tax_code) VALUES
   ('12w-course',  'Somatic Vocal Healing — 12-Week Course', 'course', 'eservice'),
   ('cert-course', 'SVH Certification Course',        'course', 'eservice');
 
--- Ticket price points.
+-- Ticket price points. One INSERT per currency — D1 caps the number of terms
+-- in a compound SELECT (which a long UNION ALL / multi-row VALUES compiles
+-- to), so we keep each statement single-row.
 INSERT OR IGNORE INTO workshop_product_prices (product_id, currency, amount_minor)
-SELECT id, c.cur, c.amt FROM workshop_products,
-  (SELECT 'EUR' AS cur, 600 AS amt UNION ALL SELECT 'USD',600 UNION ALL SELECT 'CAD',900
-   UNION ALL SELECT 'GBP',500 UNION ALL SELECT 'CHF',600 UNION ALL SELECT 'NOK',6900
-   UNION ALL SELECT 'SEK',6900 UNION ALL SELECT 'DKK',4500 UNION ALL SELECT 'AUD',900
-   UNION ALL SELECT 'NZD',1100) c
-WHERE workshop_products.slug = 'svh-ticket';
+  VALUES ((SELECT id FROM workshop_products WHERE slug='svh-ticket'), 'EUR', 600);
+INSERT OR IGNORE INTO workshop_product_prices (product_id, currency, amount_minor)
+  VALUES ((SELECT id FROM workshop_products WHERE slug='svh-ticket'), 'USD', 600);
+INSERT OR IGNORE INTO workshop_product_prices (product_id, currency, amount_minor)
+  VALUES ((SELECT id FROM workshop_products WHERE slug='svh-ticket'), 'CAD', 900);
+INSERT OR IGNORE INTO workshop_product_prices (product_id, currency, amount_minor)
+  VALUES ((SELECT id FROM workshop_products WHERE slug='svh-ticket'), 'GBP', 500);
+INSERT OR IGNORE INTO workshop_product_prices (product_id, currency, amount_minor)
+  VALUES ((SELECT id FROM workshop_products WHERE slug='svh-ticket'), 'CHF', 600);
+INSERT OR IGNORE INTO workshop_product_prices (product_id, currency, amount_minor)
+  VALUES ((SELECT id FROM workshop_products WHERE slug='svh-ticket'), 'NOK', 6900);
+INSERT OR IGNORE INTO workshop_product_prices (product_id, currency, amount_minor)
+  VALUES ((SELECT id FROM workshop_products WHERE slug='svh-ticket'), 'SEK', 6900);
+INSERT OR IGNORE INTO workshop_product_prices (product_id, currency, amount_minor)
+  VALUES ((SELECT id FROM workshop_products WHERE slug='svh-ticket'), 'DKK', 4500);
+INSERT OR IGNORE INTO workshop_product_prices (product_id, currency, amount_minor)
+  VALUES ((SELECT id FROM workshop_products WHERE slug='svh-ticket'), 'AUD', 900);
+INSERT OR IGNORE INTO workshop_product_prices (product_id, currency, amount_minor)
+  VALUES ((SELECT id FROM workshop_products WHERE slug='svh-ticket'), 'NZD', 1100);
 
 -- Bump price points.
 INSERT OR IGNORE INTO workshop_product_prices (product_id, currency, amount_minor)
-SELECT id, c.cur, c.amt FROM workshop_products,
-  (SELECT 'EUR' AS cur, 1900 AS amt UNION ALL SELECT 'USD',1900 UNION ALL SELECT 'CAD',2800
-   UNION ALL SELECT 'GBP',1600 UNION ALL SELECT 'CHF',1800 UNION ALL SELECT 'NOK',19900
-   UNION ALL SELECT 'SEK',19900 UNION ALL SELECT 'DKK',13900 UNION ALL SELECT 'AUD',2800
-   UNION ALL SELECT 'NZD',3200) c
-WHERE workshop_products.slug = 'asj-bump';
+  VALUES ((SELECT id FROM workshop_products WHERE slug='asj-bump'), 'EUR', 1900);
+INSERT OR IGNORE INTO workshop_product_prices (product_id, currency, amount_minor)
+  VALUES ((SELECT id FROM workshop_products WHERE slug='asj-bump'), 'USD', 1900);
+INSERT OR IGNORE INTO workshop_product_prices (product_id, currency, amount_minor)
+  VALUES ((SELECT id FROM workshop_products WHERE slug='asj-bump'), 'CAD', 2800);
+INSERT OR IGNORE INTO workshop_product_prices (product_id, currency, amount_minor)
+  VALUES ((SELECT id FROM workshop_products WHERE slug='asj-bump'), 'GBP', 1600);
+INSERT OR IGNORE INTO workshop_product_prices (product_id, currency, amount_minor)
+  VALUES ((SELECT id FROM workshop_products WHERE slug='asj-bump'), 'CHF', 1800);
+INSERT OR IGNORE INTO workshop_product_prices (product_id, currency, amount_minor)
+  VALUES ((SELECT id FROM workshop_products WHERE slug='asj-bump'), 'NOK', 19900);
+INSERT OR IGNORE INTO workshop_product_prices (product_id, currency, amount_minor)
+  VALUES ((SELECT id FROM workshop_products WHERE slug='asj-bump'), 'SEK', 19900);
+INSERT OR IGNORE INTO workshop_product_prices (product_id, currency, amount_minor)
+  VALUES ((SELECT id FROM workshop_products WHERE slug='asj-bump'), 'DKK', 13900);
+INSERT OR IGNORE INTO workshop_product_prices (product_id, currency, amount_minor)
+  VALUES ((SELECT id FROM workshop_products WHERE slug='asj-bump'), 'AUD', 2800);
+INSERT OR IGNORE INTO workshop_product_prices (product_id, currency, amount_minor)
+  VALUES ((SELECT id FROM workshop_products WHERE slug='asj-bump'), 'NZD', 3200);
 
 -- Default Zoom link placeholder — edit in /admin/workshops or via wrangler.
 INSERT OR IGNORE INTO workshop_config (key, value) VALUES
