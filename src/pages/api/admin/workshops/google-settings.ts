@@ -8,7 +8,7 @@ import {
 
 export const prerender = false;
 
-const SETTINGS = '/admin/workshops/import-google';
+const SETTINGS = '/admin/settings/calendar-sync';
 
 // Save the OAuth app credentials / chosen calendar, or disconnect. Submitted
 // as form posts from the import-google settings page.

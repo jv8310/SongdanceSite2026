@@ -1,0 +1,50 @@
+---
+import '../../../styles/admin.css';
+import Layout from '../../../layouts/Layout.astro';
+import { readCookie, verifySession } from '../../../lib/registrations/auth';
+import { getConnectionState } from '../../../lib/workshops/google-config';
+
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+if (!(await verifySession(env.ADMIN_SESSION_SECRET, readCookie(Astro.request)))) {
+  return Astro.redirect('/admin/login');
+}
+
+const cal = await getConnectionState(env.DB, env);
+---
+
+<Layout title="Admin — Settings — Songdance" description="">
+  <main class="adm">
+    <header class="adm-header">
+      <div>
+        <p class="adm-breadcrumbs"><a href="/admin">Admin</a> <span class="sep">/</span> Settings</p>
+        <h1>Settings</h1>
+        <p class="adm-sub">Integrations and site configuration.</p>
+      </div>
+      <div class="adm-actions">
+        <a class="adm-btn adm-btn--ghost" href="/admin">← Admin</a>
+      </div>
+    </header>
+
+    <section class="adm-section">
+      <h2>Integrations</h2>
+      <div class="adm-menu">
+        <a href="/admin/settings/calendar-sync">
+          <strong>Calendar sync
+            {cal.ready
+              ? <span class="adm-pill adm-pill--published">Connected</span>
+              : <span class="adm-pill adm-pill--cancelled">Not connected</span>}
+          </strong>
+          <span>Connect Google Calendar and pull “SVH Workshop” &amp; “SVH Masterclass” dates onto the site</span>
+        </a>
+      </div>
+    </section>
+  </main>
+
+  <style>
+    .adm-pill { font-size:12px; padding:2px 9px; border-radius:999px; background:#F4ECDF; margin-left:8px; vertical-align:middle; font-weight:400; }
+    .adm-pill--published { background:#dcefdc; }
+    .adm-pill--cancelled { background:#f0d8d8; }
+  </style>
+</Layout>

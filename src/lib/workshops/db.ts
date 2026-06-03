@@ -277,6 +277,52 @@ export async function upsertWorkshopFromGoogle(
   return { id: r.id, created: true };
 }
 
+// Has a Google Calendar event already been synced into a workshop? Used by the
+// calendar sync to skip events that exist (we never re-touch them).
+export async function googleEventExists(db: D1Database, googleEventId: string): Promise<boolean> {
+  const hit = await db
+    .prepare('SELECT 1 AS one FROM workshops WHERE google_event_id = ?')
+    .bind(googleEventId)
+    .first();
+  return !!hit;
+}
+
+// Create a workshop from a mapped calendar-sync event: assigns the ticket (and
+// optional bump) product, source tag and status, keyed on google_event_id so a
+// later sync recognises it as already present (and skips it). Returns the id.
+export async function createSyncedWorkshop(
+  db: D1Database,
+  ev: {
+    googleEventId: string;
+    title: string;
+    teacher: string | null;
+    startsAtUtc: string;
+    endsAtUtc: string | null;
+    displayTz: string;
+    mainProductId: number | null;
+    bumpProductId: number | null;
+    sourceTag: string | null;
+    status: 'draft' | 'published' | 'cancelled';
+  },
+): Promise<number> {
+  const slug = await uniqueSlug(db, slugify(ev.title));
+  const r = await db
+    .prepare(
+      `INSERT INTO workshops
+        (slug, title, teacher, starts_at_utc, ends_at_utc, display_tz,
+         main_product_id, bump_product_id, source_tag, google_event_id, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       RETURNING id`,
+    )
+    .bind(
+      slug, ev.title, ev.teacher, ev.startsAtUtc, ev.endsAtUtc, ev.displayTz,
+      ev.mainProductId, ev.bumpProductId, ev.sourceTag, ev.googleEventId, ev.status,
+    )
+    .first<{ id: number }>();
+  if (!r) throw new Error('Failed to create workshop from calendar sync');
+  return r.id;
+}
+
 export function slugify(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 70) || 'workshop';
 }

@@ -15,7 +15,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
 
   const app = await resolveOAuthApp(env.DB, env);
   if (!app) {
-    return redirect('/admin/workshops/import-google?flash=noapp');
+    return redirect('/admin/settings/calendar-sync?flash=noapp');
   }
   const state = await signState(env.ADMIN_SESSION_SECRET);
   const url = buildAuthUrl(app.clientId, googleRedirectUri(env.PUBLIC_BASE_URL), state);

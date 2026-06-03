@@ -20,6 +20,8 @@ if (!authed) {
         <p class="adm-sub">Registrations &amp; signups</p>
       </div>
       <div class="adm-actions">
+        <a class="adm-btn adm-btn--ghost" href="/admin/settings/calendar-sync">Calendar sync</a>
+        <a class="adm-btn adm-btn--ghost" href="/admin/settings">Settings</a>
         <a class="adm-btn adm-btn--ghost" href="/admin/image-manager">Images</a>
         <form method="POST" action="/api/admin/login?_method=DELETE">
           <input type="hidden" name="_method" value="DELETE" />
@@ -65,9 +67,9 @@ if (!authed) {
           <strong>All workshops</strong>
           <span>Live online workshops — calendar, registrants, attendance &amp; statuses</span>
         </a>
-        <a href="/admin/workshops/import-google">
-          <strong>Import from Google Calendar</strong>
-          <span>Find upcoming calendar events by title and add them as workshops</span>
+        <a href="/admin/settings/calendar-sync">
+          <strong>Calendar sync</strong>
+          <span>Pull “SVH Workshop” &amp; “SVH Masterclass” dates from Google Calendar onto /workshop</span>
         </a>
         <a href="/admin/workshops/stats">
           <strong>Statistics &amp; ROAS</strong>
