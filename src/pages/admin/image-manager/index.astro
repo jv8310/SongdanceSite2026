@@ -53,7 +53,9 @@ function folder(key: string): string {
         <p class="adm-sub">
           Every image in the media bucket. Drag files in to upload (they’re resized and converted
           to WebP automatically), rename or delete them, and copy each image’s
-          <code>/media/…</code> URL to use anywhere on the site.
+          <code>/media/…</code> URL to use anywhere on the site. Files with
+          <strong>“email”</strong> in the name are kept in their original format (JPEG/PNG) so
+          they render in mail clients that don’t support WebP.
         </p>
         <p class="adm-sub">
           <strong>Heads-up:</strong> images under <code>events/</code> are event-card pictures —
@@ -207,8 +209,15 @@ function folder(key: string): string {
     let done = 0;
     progress.textContent = `Optimising & uploading 0/${files.length}…`;
 
+    // Files with "email" in the name are stored as-is (no WebP re-encode):
+    // many mail clients (Outlook etc.) can't render WebP, so email artwork
+    // needs to stay JPEG/PNG.
     const optimised = await Promise.all(
-      files.map((f) => optimizeImageFile(f, { maxDim: 2000, quality: 0.84 }).catch(() => f)),
+      files.map((f) =>
+        /email/i.test(f.name)
+          ? Promise.resolve(f)
+          : optimizeImageFile(f, { maxDim: 2000, quality: 0.84 }).catch(() => f),
+      ),
     );
 
     const body = new FormData();
