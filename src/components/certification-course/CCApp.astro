@@ -1,0 +1,85 @@
+---
+// The Somatic Vocal Healing app — a strong, image-led section showing the
+// practice tool students get to keep their skills alive between live sessions.
+// Screenshots live in the media library under the `app-*` keys; if you rename
+// the uploads in the image manager, update the `src` values below to match.
+const shots = [
+  {
+    src: '/media/library/app-soundofthemoment.webp',
+    alt: 'Choosing a question to sound in the Somatic Vocal Healing app',
+    caption: 'Make your sound',
+  },
+  {
+    src: '/media/library/app-quizz.webp',
+    alt: 'The ear-training quiz: identifying feelings in sound',
+    caption: 'Quiz & training',
+  },
+  {
+    src: '/media/library/app-leaderboard.webp',
+    alt: 'The community leaderboard in the Somatic Vocal Healing app',
+    caption: 'A living community',
+  },
+];
+
+const features = [
+  {
+    title: 'Make your sound',
+    body:
+      'Sit down with a question — “how am I feeling in this moment?” — and let your voice answer. The app holds the space so you can sound whenever you need to, not only when a session is on.',
+  },
+  {
+    title: 'Record & tag your own sounds',
+    body:
+      'Keep a living library of your voice. Record, name and tag each sound, and return to it later to hear how your expression — and your listening — keeps changing.',
+  },
+  {
+    title: 'Train your ear',
+    body:
+      'Short quizzes and training rounds sharpen the core skill of the work: recognising the feeling underneath a sound. Grief, fear, anger, pain — learn to hear them, one sound at a time.',
+  },
+  {
+    title: 'Practise with a community',
+    body:
+      'Review one another’s sounds, climb the leaderboard, and feel the field of fellow practitioners around you between the live calls.',
+  },
+];
+---
+
+<section class="cc-app" id="app">
+  <div class="cc-app-inner">
+    <div class="cc-app-head">
+      <div class="cc-eyebrow cc-eyebrow--center">The Somatic Vocal Healing app</div>
+      <h2 class="cc-h2" style="margin-top: var(--sp-4); max-width: 24ch; margin-left: auto; margin-right: auto;">
+        Keep the practice <em>alive between sessions.</em>
+      </h2>
+      <p class="cc-app-lead">
+        The work doesn't only happen on the live calls. Your voice is with you
+        every day — and so is the app. Train your skills, record and tag your
+        own sounds, sharpen your ear, and stay connected to a community of
+        fellow practitioners, all from your pocket.
+      </p>
+    </div>
+
+    <div class="cc-app-gallery">
+      {shots.map((s) => (
+        <figure class="cc-app-shot">
+          <img src={s.src} alt={s.alt} loading="lazy" />
+          <figcaption>{s.caption}</figcaption>
+        </figure>
+      ))}
+    </div>
+
+    <ul class="cc-app-features">
+      {features.map((f) => (
+        <li class="cc-app-feature">
+          <h3>{f.title}</h3>
+          <p>{f.body}</p>
+        </li>
+      ))}
+    </ul>
+
+    <p class="cc-app-foot">
+      Included with the certification course — yours to practise with, day by day.
+    </p>
+  </div>
+</section>
