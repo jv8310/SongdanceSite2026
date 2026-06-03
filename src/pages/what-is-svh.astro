@@ -6,6 +6,9 @@ import SoftCta from '../components/SoftCta.astro';
 const sections = [
   {
     h: 'Sounding, not singing',
+    img: '/media/library/jacob-sounding.webp',
+    imgAlt: 'Jacob Vermeulen sounding',
+    caption: 'Jacob, sounding — the honest sound of the moment, not a song.',
     p: [
       'Singing reaches for something: a melody, a tune, a sound you’ve decided is “good.” When the voice cracks or wavers, you wince.',
       'Sounding does the opposite. There’s no melody to reach for and nothing to get right. The crack, the waver, the rough edge — that’s the information. With sounding, we welcome exactly what most people try to fix.',
@@ -55,6 +58,7 @@ const sections = [
     eyebrow="The practice"
     title='What is <span class="sd-italic">Somatic Vocal Healing?</span>'
     lede="A practice of meeting what you feel — and giving it sound."
+    image="/media/library/svh-retreat-circle-trees-sunset.webp"
   />
 
   {sections.map((s) => (
@@ -62,6 +66,12 @@ const sections = [
       <div class="sd-prose-inner">
         <h2 class="sd-prose-h">{s.h}</h2>
         {s.p.map((para) => <p set:html={para} />)}
+        {s.img && (
+          <figure class="sd-prose-figure">
+            <img src={s.img} alt={s.imgAlt} loading="lazy" />
+            {s.caption && <figcaption>{s.caption}</figcaption>}
+          </figure>
+        )}
       </div>
     </section>
   ))}

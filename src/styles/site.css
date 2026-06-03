@@ -770,6 +770,27 @@ html, body { background: var(--paper); }
 }
 .sd-pagehero-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: var(--sp-6); }
 
+/* Atmosphere variant — full-bleed photo behind the hero copy. */
+.sd-pagehero--image {
+  position: relative;
+  padding-top: var(--sp-11, 96px);
+  padding-bottom: var(--sp-9);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  border-bottom: none;
+}
+.sd-pagehero--image::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(28, 18, 12, 0.35) 0%, rgba(28, 18, 12, 0.62) 100%);
+}
+.sd-pagehero--image .sd-pagehero-inner { position: relative; z-index: 1; }
+.sd-pagehero--image .sd-eyebrow { color: rgba(255, 255, 255, 0.82); }
+.sd-pagehero--image .sd-pagehero-title { color: #fff; }
+.sd-pagehero--image .sd-pagehero-lede { color: rgba(255, 255, 255, 0.92); }
+
 /* ---------- Prose + scaffold marker ---------- */
 .sd-prose-inner { max-width: var(--measure); margin: 0 auto; }
 .sd-prose p { margin: 0 0 var(--sp-5); font-size: var(--t-body-lg); }
@@ -1076,10 +1097,39 @@ a.sd-evt-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-2); 
   color: var(--ink);
 }
 .sd-quote-card figcaption {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
   font-family: var(--font-body);
   font-size: var(--t-caption);
   text-transform: uppercase;
   letter-spacing: 0.12em;
+  color: var(--ink-quiet);
+}
+.sd-quote-avatar {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  object-fit: cover;
+  border: 1px solid var(--line);
+}
+.sd-quote-card figcaption .sd-quote-who { color: var(--ink-quiet); }
+
+/* Inline figure inside a prose section (e.g. Jacob sounding on /what-is-svh). */
+.sd-prose-figure { margin: var(--sp-6) 0 0; }
+.sd-prose-figure img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+}
+.sd-prose-figure figcaption {
+  margin-top: var(--sp-3);
+  font-family: var(--font-lyric);
+  font-style: italic;
+  font-size: var(--t-body-sm);
   color: var(--ink-quiet);
 }
 .sd-quote-card figcaption span { color: var(--ember-deep); }
