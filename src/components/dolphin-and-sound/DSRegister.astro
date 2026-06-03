@@ -1,0 +1,255 @@
+---
+import { COUNTRIES } from '../../lib/countries';
+---
+
+<section class="ds-register" id="register">
+  <div class="ds-register-inner ds-wrap">
+    <div class="ds-register-head">
+      <span class="ds-eyebrow ds-eyebrow--center">Registration</span>
+      <h2 class="ds-h2">Reserve your <em>place</em></h2>
+      <div class="ds-register-when">
+        <span>1–8 November 2026</span>
+        <span class="dot"></span>
+        <span>Sataya Reef, Egypt</span>
+        <span class="dot"></span>
+        <span>Max 17 places</span>
+        <span class="dot"></span>
+        <span data-places hidden></span>
+      </div>
+    </div>
+
+    <form id="ds-reg-form" class="ds-card" novalidate>
+      <fieldset class="ds-pay-options" aria-label="Payment option" style="border:0; padding:0; margin:0 0 8px;">
+        <label class="ds-pay">
+          <input type="radio" name="payment_mode" value="full" checked />
+          <span class="ds-pay-body">
+            <span class="ds-pay-name">Pay in full</span>
+            <span class="ds-pay-price">€1995</span>
+            <span class="ds-pay-note">All-in, per person.</span>
+          </span>
+        </label>
+        <label class="ds-pay">
+          <input type="radio" name="payment_mode" value="deposit" />
+          <span class="ds-pay-body">
+            <span class="ds-pay-name">Reserve with a deposit</span>
+            <span class="ds-pay-price">€997.50</span>
+            <span class="ds-pay-note">50% now · balance €997.50 before 1 Sept 2026.</span>
+          </span>
+        </label>
+      </fieldset>
+
+      <div class="ds-grid">
+        <label class="ds-field">
+          <span>First name</span>
+          <input type="text" name="first_name" autocomplete="given-name" required />
+        </label>
+        <label class="ds-field">
+          <span>Last name</span>
+          <input type="text" name="last_name" autocomplete="family-name" required />
+        </label>
+
+        <label class="ds-field ds-field--full">
+          <span>Email address</span>
+          <input type="email" name="email" autocomplete="email" required />
+        </label>
+
+        <label class="ds-field">
+          <span>Country</span>
+          <select name="country" required>
+            <option value="">— select —</option>
+            {COUNTRIES.map((c) => (<option value={c.code}>{c.name} {c.flag}</option>))}
+          </select>
+        </label>
+
+        <div class="ds-field">
+          <span>Phone number</span>
+          <div class="ds-phone">
+            <select name="phone_country" aria-label="Phone country code" required>
+              <option value="">—</option>
+              {COUNTRIES.map((c) => (<option value={c.code} data-dial={c.dial}>{c.code} +{c.dial}</option>))}
+            </select>
+            <input type="tel" name="phone" autocomplete="tel-national" inputmode="tel" placeholder="470 12 34 56" required />
+          </div>
+        </div>
+
+        <label class="ds-field ds-field--full">
+          <span>Company name <em class="ds-optional">(optional — if registering as a company)</em></span>
+          <input type="text" name="company_name" autocomplete="organization" />
+        </label>
+
+        <label class="ds-field ds-field--full ds-field--biz" hidden>
+          <span>VAT number</span>
+          <input type="text" name="vat_number" placeholder="e.g. BE0123.456.789" autocomplete="off" />
+        </label>
+
+        <label class="ds-field ds-field--full">
+          <span>Dietary notes <em class="ds-optional">(allergies, vegetarian, …)</em></span>
+          <input type="text" name="dietary" placeholder="e.g. vegetarian, no nuts" />
+        </label>
+
+        <label class="ds-field ds-field--full">
+          <span>Anything else we should know? <em class="ds-optional">(optional)</em></span>
+          <textarea name="notes" rows="3"></textarea>
+        </label>
+      </div>
+
+      <div class="ds-consents">
+        <label class="ds-consent">
+          <input type="checkbox" name="consent_terms" required />
+          <span>
+            I agree to the
+            <a href="/terms" target="_blank" rel="noopener">Songdance terms and conditions</a>,
+            and understand that registration is final and non-refundable.
+          </span>
+        </label>
+      </div>
+
+      <div id="ds-reg-error" class="ds-reg-error" hidden></div>
+
+      <div class="ds-reg-actions">
+        <button type="submit" class="ds-btn ds-btn--primary ds-btn--lg ds-btn--block" id="ds-reg-submit">
+          Proceed to payment <i class="ph-light ph-arrow-right"></i>
+        </button>
+      </div>
+
+      <p class="ds-fine">
+        Secure payment by card via Stripe. Questions? Email
+        <a href="mailto:info@songdance.co">info@songdance.co</a>.
+      </p>
+    </form>
+  </div>
+</section>
+
+<script>
+  const form = document.getElementById('ds-reg-form') as HTMLFormElement | null;
+  if (form) {
+    const errBox = form.querySelector('#ds-reg-error') as HTMLElement;
+    const submitBtn = form.querySelector('#ds-reg-submit') as HTMLButtonElement;
+    const companyInput = form.querySelector('input[name="company_name"]') as HTMLInputElement;
+    const bizField = form.querySelector('.ds-field--biz') as HTMLElement;
+    const countrySelect = form.querySelector('select[name="country"]') as HTMLSelectElement;
+    const phoneCountrySelect = form.querySelector('select[name="phone_country"]') as HTMLSelectElement;
+    const placesEl = document.querySelector('[data-places]') as HTMLElement | null;
+
+    const fmtEur = (cents: number) =>
+      `€${(cents / 100).toFixed(2).replace(/\.00$/, '')}`;
+
+    // Live availability + authoritative prices from the server.
+    fetch('/api/registrations/dolphin-checkout', { headers: { Accept: 'application/json' } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: any) => {
+        if (!data) return;
+        if (typeof data.price_cents === 'number') {
+          const full = form.querySelector('input[value="full"]')?.closest('.ds-pay')?.querySelector('.ds-pay-price');
+          if (full) full.textContent = fmtEur(data.price_cents);
+        }
+        if (typeof data.deposit_cents === 'number') {
+          const dep = form.querySelector('input[value="deposit"]')?.closest('.ds-pay')?.querySelector('.ds-pay-price');
+          const note = form.querySelector('input[value="deposit"]')?.closest('.ds-pay')?.querySelector('.ds-pay-note');
+          if (dep) dep.textContent = fmtEur(data.deposit_cents);
+          if (note) note.textContent = `50% now · balance ${fmtEur(data.price_cents - data.deposit_cents)} before 1 Sept 2026.`;
+        }
+        if (placesEl && typeof data.remaining === 'number') {
+          if (data.remaining <= 0) {
+            placesEl.textContent = 'Fully booked — join the waiting list';
+            placesEl.hidden = false;
+          } else if (data.remaining <= 6) {
+            placesEl.textContent = data.remaining === 1 ? 'Only 1 place left' : `Only ${data.remaining} places left`;
+            placesEl.hidden = false;
+          }
+        }
+      })
+      .catch(() => {});
+
+    // Geo prefill (Cloudflare attaches country to the request → /api/geo).
+    fetch('/api/geo', { headers: { Accept: 'application/json' } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: any) => {
+        const detected = data?.country as string | undefined;
+        if (!detected) return;
+        const has = (sel: HTMLSelectElement, code: string) => !!sel.querySelector(`option[value="${code}"]`);
+        if (countrySelect && !countrySelect.value && has(countrySelect, detected)) countrySelect.value = detected;
+        if (phoneCountrySelect && !phoneCountrySelect.value && has(phoneCountrySelect, detected)) phoneCountrySelect.value = detected;
+      })
+      .catch(() => {});
+
+    // Company → reveal VAT field.
+    companyInput.addEventListener('input', () => {
+      bizField.hidden = companyInput.value.trim().length === 0;
+    });
+
+    form.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      errBox.hidden = true;
+      errBox.textContent = '';
+
+      const fd = new FormData(form);
+      const required: Array<[string, string]> = [
+        ['first_name', 'first name'],
+        ['last_name', 'last name'],
+        ['email', 'email'],
+        ['country', 'country'],
+        ['phone_country', 'phone country'],
+        ['phone', 'phone number'],
+      ];
+      const missing = required
+        .filter(([name]) => !String(fd.get(name) ?? '').trim())
+        .map(([, label]) => label);
+      const email = String(fd.get('email') ?? '').trim();
+      if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) missing.push('valid email');
+      if (fd.get('consent_terms') !== 'on') missing.push('agreement to the terms');
+      if (missing.length) {
+        errBox.textContent = `Please complete: ${missing.join(', ')}.`;
+        errBox.hidden = false;
+        return;
+      }
+
+      const data = {
+        first_name: fd.get('first_name'),
+        last_name: fd.get('last_name'),
+        email,
+        country: fd.get('country'),
+        phone_country: fd.get('phone_country'),
+        phone: fd.get('phone'),
+        company_name: fd.get('company_name'),
+        vat_number: fd.get('vat_number'),
+        dietary: fd.get('dietary'),
+        notes: fd.get('notes'),
+        payment_mode: fd.get('payment_mode') === 'deposit' ? 'deposit' : 'full',
+        consent_terms: fd.get('consent_terms') === 'on',
+      };
+
+      const original = submitBtn.innerHTML;
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = 'One moment…';
+      try {
+        const res = await fetch('/api/registrations/dolphin-checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+        });
+        const body: any = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          errBox.textContent = body?.error ?? 'Something went wrong. Please try again or email us.';
+          errBox.hidden = false;
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = original;
+          return;
+        }
+        if (body?.checkout_url) {
+          window.location.href = body.checkout_url;
+          return;
+        }
+        errBox.textContent = 'We could not start checkout. Please try again or email us.';
+        errBox.hidden = false;
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = original;
+      } catch {
+        errBox.textContent = 'Network error. Please try again or email us.';
+        errBox.hidden = false;
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = original;
+      }
+    });
+  }
+</script>

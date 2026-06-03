@@ -1,0 +1,61 @@
+---
+const faqs = [
+  {
+    q: 'Can I pay with a deposit?',
+    a: [
+      'Yes. You’re welcome to reserve your spot with a 50% deposit and settle the remaining 50% before September 2026. Just choose “Reserve with a deposit” at checkout.',
+    ],
+  },
+  {
+    q: 'Is the registration refundable?',
+    a: [
+      'No. Once you place a deposit or register for the retreat, your registration is considered final.',
+      'In some cases someone on the waiting list can take your place. Last year the retreat was fully booked with more than 20 people on the waiting list, so this has rarely been an issue.',
+    ],
+  },
+  {
+    q: 'When should I arrive with my flight?',
+    a: [
+      'You book your own flights, but you’re very welcome to email Jacob at info@songdance.co for help checking arrival times.',
+      'Arriving: if you fly into Hurghada, please be at the airport no later than 12:00 (midday) on the arrival day. From Marsa Alam you have more flexibility — no later than 15:00.',
+      'Departing: flights from Marsa Alam should not be booked before 15:00; evening departures no earlier than 19:00. A shuttle is arranged from the airport to the harbour, where the boat will be waiting.',
+    ],
+  },
+  {
+    q: 'Can I arrive earlier or leave later?',
+    a: [
+      'Yes, absolutely. If you do, transport to and from the harbour may not be included and you might need to arrange it separately.',
+      'If you arrive early, we recommend Marina Lodge in Port Ghalib — a comfortable, beautiful hotel to relax and acclimatise before the retreat.',
+    ],
+  },
+  {
+    q: 'Is it safe to travel to Egypt?',
+    a: [
+      'Yes. Egypt remains a safe and reliable destination for this retreat.',
+    ],
+  },
+];
+---
+
+<section class="ds-section ds-section--abyss" id="faq">
+  <div class="ds-wrap">
+    <div class="ds-faq-head">
+      <span class="ds-eyebrow ds-eyebrow--on-deep ds-eyebrow--center">Good to know</span>
+      <h2 class="ds-h2 ds-h2--on-deep">Questions, <em>answered</em></h2>
+    </div>
+
+    <div class="ds-faq-list">
+      {faqs.map((f) => (
+        <details class="ds-faq-item">
+          <summary>
+            <span>{f.q}</span>
+            <span class="ds-faq-plus" aria-hidden="true"></span>
+          </summary>
+          <div class="ds-faq-answer">
+            {f.a.map((p) => (<p>{p}</p>))}
+          </div>
+        </details>
+      ))}
+    </div>
+  </div>
+</section>

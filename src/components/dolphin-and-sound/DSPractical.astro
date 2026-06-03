@@ -1,0 +1,95 @@
+---
+const allIn = [
+  'Airport shuttle to and from the harbour',
+  'Lodging on board the Nooraya',
+  'All meals throughout the week',
+  'Dolphin swimming with experienced guides',
+  'Snorkelling in the reef',
+  'The daily sessions with Jacob',
+];
+
+const notIncluded = [
+  'Flights',
+  'Scuba diving (available onboard for an additional cost)',
+  'Tip for the crew (captain’s recommendation: €70 per person)',
+  'Visa (€25, obtainable on arrival). Your passport or ID must be valid for at least six months after your return.',
+];
+---
+
+<section class="ds-section" id="practical">
+  <div class="ds-wrap">
+    <div class="ds-practical-head">
+      <span class="ds-eyebrow ds-eyebrow--center">Practical information</span>
+      <h2 class="ds-h2">Everything you need <em>to know</em></h2>
+    </div>
+
+    <div class="ds-fact-grid">
+      <div class="ds-fact">
+        <h3><i class="ph-light ph-calendar-blank"></i> When</h3>
+        <p><strong>Arrival:</strong> Sunday, 1 November 2026</p>
+        <p><strong>Departure:</strong> Sunday, 8 November 2026</p>
+      </div>
+
+      <div class="ds-fact">
+        <h3><i class="ph-light ph-map-pin"></i> Where</h3>
+        <p>Onboard the <strong>Nooraya</strong></p>
+        <p>Sataya Bay, Red Sea, Egypt</p>
+      </div>
+
+      <div class="ds-fact">
+        <h3><i class="ph-light ph-users-three"></i> Group</h3>
+        <p>A maximum of <strong>17 participants</strong>, for an intimate experience.</p>
+      </div>
+
+      <div class="ds-fact ds-fact--wide">
+        <h3><i class="ph-light ph-check-circle"></i> All-inclusive package</h3>
+        <p>“All-in” means everything is provided for you upon arrival:</p>
+        <ul class="ds-practical-list" style="margin:8px 0 0; padding-left:1.1em; columns: 2; column-gap: 32px;">
+          {allIn.map((it) => (<li style="margin-bottom:6px; color: var(--ds-ink-soft);">{it}</li>))}
+        </ul>
+      </div>
+
+      <div class="ds-fact ds-fact--wide">
+        <div class="ds-fact-split">
+          <div>
+            <h3><i class="ph-light ph-airplane-tilt"></i> How to get there</h3>
+            <p>
+              Fly to either <strong>Hurghada</strong> or, preferably, <strong>Marsa Alam</strong>, as
+              it is closer. A shuttle will collect you at the airport and transfer you to the harbour,
+              where the boat will be waiting.
+            </p>
+            <p>
+              The shuttle takes roughly <strong>3 hours from Marsa Alam</strong> and about
+              <strong>5 hours from Hurghada</strong>.
+            </p>
+          </div>
+          <figure class="ds-fact-map" style="margin:0;">
+            <img src="/imagery/dolphin-and-sound/map.webp" alt="Map showing Hurghada and Marsa Alam airports, Port Hamata, and Sataya Reef" loading="lazy" />
+          </figure>
+        </div>
+      </div>
+
+      <div class="ds-fact">
+        <h3><i class="ph-light ph-tag"></i> Price</h3>
+        <div class="ds-price-row">
+          <span class="ds-price-amt">€1995</span>
+          <span class="ds-price-unit">all-in · twin cabin, private bathroom</span>
+        </div>
+        <p>Reserve with a 50% deposit and settle the balance before September 2026.</p>
+      </div>
+
+      <div class="ds-fact">
+        <h3><i class="ph-light ph-prohibit"></i> Not included</h3>
+        <ul class="ds-excl-list">
+          {notIncluded.map((it) => (<li>{it}</li>))}
+        </ul>
+      </div>
+    </div>
+
+    <div class="ds-center-cta">
+      <a href="#register" class="ds-btn ds-btn--primary ds-btn--lg">
+        Reserve your place <i class="ph-light ph-arrow-right"></i>
+      </a>
+    </div>
+  </div>
+</section>
