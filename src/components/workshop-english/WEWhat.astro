@@ -1,0 +1,80 @@
+---
+// Cards carry a data-door: an active door "lights" its card (§2.4).
+//   01 → door 3 (professional), 02 → none, 03 → door 1 (healing),
+//   04 → door 2 (freedom).
+const items = [
+  {
+    door: '3',
+    title: 'An introduction to Somatic Vocal Healing',
+    body: 'The method where sound becomes the language of the body — a closer connection to your body, your own sound, and whatever wants to show up underneath.',
+  },
+  {
+    door: '',
+    title: 'A somatic warm-up with live piano',
+    body: 'So your nervous system can arrive before anything else happens. You settle. Your breath widens. Your listening gets finer.',
+  },
+  {
+    door: '1',
+    title: 'Guided toning exercises',
+    body: 'A somatic practice for letting stuck emotion move through your voice — not by describing it, but by letting it sound. And a little more trust in speaking your own truth, at home and at work.',
+  },
+  {
+    door: '2',
+    title: 'A first tool for everyday life',
+    body: 'Something to keep coming back to — when something in you is stuck, when your head is too loud, when the day has closed you up. You can keep practicing it on your own after.',
+  },
+];
+---
+
+<section class="we-what" id="workshop">
+  <div class="we-what-inner">
+    <div class="we-what-head">
+      <div class="we-eyebrow">What to expect</div>
+      <h2 class="we-h2">
+        One hour —<br />
+        and a <em>different way in</em> to yourself.
+      </h2>
+    </div>
+
+    <div class="we-what-intro">
+      <p>
+        Somatic Vocal Healing isn't a singing technique. It isn't voice
+        therapy. It isn't performance. It's a somatic practice: you use your
+        own sound — not to sound good, but to hear what's alive in you.
+      </p>
+      <p>
+        In this hour I'll introduce you to the method, gently. You'll sound.
+        You'll feel. You'll notice that your body has been waiting a long time
+        for a language that doesn't come from the head.
+      </p>
+    </div>
+
+    <div class="we-what-sub">What you'll experience</div>
+    <div class="we-what-grid">
+      {
+        items.map((it, i) => (
+          <article class="we-what-card" data-door={it.door}>
+            <div class="we-what-num">{String(i + 1).padStart(2, '0')}</div>
+            <h3 class="we-what-card-title">{it.title}</h3>
+            <p class="we-what-card-body">{it.body}</p>
+          </article>
+        ))
+      }
+    </div>
+
+    <p class="we-what-coffee">
+      One hour isn't enough to know this method in its full depth. But it's
+      enough to feel that it's real — and to walk away holding a practice that
+      can stay with you for <em>the rest of your life.</em>
+    </p>
+    <p class="we-what-coffee-foot">
+      One hour. For the <em>price of a good coffee.</em>
+    </p>
+
+    <div class="we-what-cta-wrap">
+      <a href="#register" class="we-link-cta">
+        Register for the next workshop <i class="ph-light ph-arrow-right"></i>
+      </a>
+    </div>
+  </div>
+</section>

@@ -155,6 +155,39 @@ export async function listWorkshops(db: D1Database, includeDeleted = false) {
   return r.results ?? [];
 }
 
+// A published workshop joined with its main product's slug/name, so callers
+// (e.g. the /workshop landing-page calendar) can classify an entry — a regular
+// €9 workshop vs. the €29 masterclass — without a second query per row.
+export type UpcomingWorkshop = Workshop & {
+  product_slug: string | null;
+  product_name: string | null;
+};
+
+// Upcoming published workshops: replays always count; timed ones count while
+// they haven't ended yet (using ends_at_utc, or starts_at_utc when null).
+// Soonest first, with on-demand replays last.
+export async function listUpcomingPublishedWorkshops(
+  db: D1Database,
+  nowIso: string,
+): Promise<UpcomingWorkshop[]> {
+  const r = await db
+    .prepare(
+      `SELECT w.*, p.slug AS product_slug, p.name AS product_name
+         FROM workshops w
+         LEFT JOIN workshop_products p ON p.id = w.main_product_id
+        WHERE w.status = 'published' AND w.deleted = 0
+          AND (
+            w.is_replay = 1
+            OR (w.ends_at_utc IS NOT NULL AND w.ends_at_utc >= ?)
+            OR (w.ends_at_utc IS NULL AND w.starts_at_utc >= ?)
+          )
+        ORDER BY w.is_replay ASC, w.starts_at_utc ASC`,
+    )
+    .bind(nowIso, nowIso)
+    .all<UpcomingWorkshop>();
+  return r.results ?? [];
+}
+
 export type WorkshopInput = {
   slug: string;
   title: string;

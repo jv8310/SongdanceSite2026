@@ -1,0 +1,73 @@
+---
+// Real English originals, trimmed to card length (§13). Avatars reuse the
+// German build's R2 media-library images.
+const items = [
+  {
+    body: "Somatic Vocal Healing is a simple yet natural way to connect with the life within us. I'm grateful for this practice — it's balanced, practical, and so easy to take in.",
+    who: 'Anna',
+    where: 'PhD Researcher',
+    img: '/media/library/workshop-anna.webp',
+  },
+  {
+    body: "I'm trained in Nonviolent Communication and the science of voice, and this work enriches my toolkit, letting me support people more deeply and precisely. The voice becomes a bridge to yourself — a direct way to what's alive in the present moment, and sometimes to ancestral patterns. It makes room for clarity, peace, and reconnection to our deeper needs.",
+    who: 'Isabelle',
+    where: 'Vocal Expert',
+    img: '/media/library/workshop-isabelle.webp',
+  },
+  {
+    body: "In forty years across holistic healing — as a chiropractor, Reiki master, yoga teacher, and coach — I've never met a method that works as quickly, deeply, gently, and effectively as Somatic Vocal Healing.",
+    who: 'Dr. Karen',
+    where: 'Chiropractor',
+    img: '/media/library/workshop-karen.webp',
+  },
+  {
+    body: 'As a musician I feel far more deeply connected to my own voice, with a new understanding of how to express the truth of who I am. But beware — after this, conversations are never the same. You start tuning your ears to the emotion inside the tone.',
+    who: 'Mia-Maria',
+    where: 'Musician',
+    img: '/media/library/workshop-mia-maria.webp',
+  },
+  {
+    body: "It's both a simple and a deeply spiritual practice. By learning to listen to your own sound, you bring the unconscious into the light of the present moment. A safe path to transformation — powerful, and incredibly gentle.",
+    who: 'Olena',
+    where: 'Yoga Teacher',
+    img: '/media/library/workshop-olena.webp',
+  },
+  {
+    body: "This is a deep immersion into the weave of heart and nervous system. The most beautiful part: there's no need to search for the right words — it's enough to open my mouth. And in the community that forms through the live meetings, I found a deep sense of safety.",
+    who: 'Gwenola',
+    where: 'Coach',
+    img: '/media/library/workshop-gwenola.jpg',
+  },
+];
+---
+
+<section class="we-testimonials">
+  <div class="we-testimonials-inner">
+    <div class="we-testimonials-head">
+      <div>
+        <div class="we-eyebrow">Voices from the practice</div>
+        <h2 class="we-h2">What people say about <em>Somatic Vocal Healing.</em></h2>
+        <p class="we-testimonials-note">
+          From Jacob's international community of students and practitioners.
+        </p>
+      </div>
+    </div>
+    <div class="we-testimonials-grid">
+      {
+        items.map((t) => (
+          <article class="we-testimonial">
+            <div class="we-testimonial-quote" aria-hidden="true">&ldquo;</div>
+            <p class="we-testimonial-body">{t.body}</p>
+            <div class="we-testimonial-by">
+              <img class="we-testimonial-avatar" src={t.img} alt={t.who} loading="lazy" />
+              <div class="we-testimonial-meta">
+                <span class="who">{t.who}</span>
+                <span class="where">{t.where}</span>
+              </div>
+            </div>
+          </article>
+        ))
+      }
+    </div>
+  </div>
+</section>
