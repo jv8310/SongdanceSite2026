@@ -1645,15 +1645,15 @@ html, body { background: var(--paper); }
 .cc-doubt-bg { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
 .cc-doubt-bg img {
   width: 100%; height: 100%; object-fit: cover;
-  object-position: center 35%;
-  opacity: 0.2;
-  filter: saturate(0.8) contrast(1) brightness(0.9);
+  object-position: center 32%;
+  opacity: 0.55;
+  filter: saturate(0.9) contrast(1.02) brightness(0.95);
 }
 .cc-doubt-bg::after {
   content: ""; position: absolute; inset: 0;
   background:
-    linear-gradient(180deg, rgba(26,16,24,0.72) 0%, rgba(26,16,24,0.55) 50%, rgba(26,16,24,0.82) 100%),
-    radial-gradient(ellipse at 50% 50%, rgba(26,16,24,0.2) 25%, rgba(26,16,24,0.8) 100%);
+    linear-gradient(180deg, rgba(26,16,24,0.55) 0%, rgba(26,16,24,0.32) 50%, rgba(26,16,24,0.6) 100%),
+    radial-gradient(ellipse at 50% 50%, rgba(26,16,24,0.5) 0%, rgba(26,16,24,0.15) 60%, rgba(26,16,24,0.45) 100%);
 }
 .cc-doubt::before {
   content: ""; position: absolute; inset: 0; z-index: 1;
