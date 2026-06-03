@@ -1642,15 +1642,28 @@ html, body { background: var(--paper); }
   position: relative;
   overflow: hidden;
 }
-.cc-doubt::before {
+.cc-doubt-bg { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+.cc-doubt-bg img {
+  width: 100%; height: 100%; object-fit: cover;
+  object-position: center 35%;
+  opacity: 0.2;
+  filter: saturate(0.8) contrast(1) brightness(0.9);
+}
+.cc-doubt-bg::after {
   content: ""; position: absolute; inset: 0;
+  background:
+    linear-gradient(180deg, rgba(26,16,24,0.72) 0%, rgba(26,16,24,0.55) 50%, rgba(26,16,24,0.82) 100%),
+    radial-gradient(ellipse at 50% 50%, rgba(26,16,24,0.2) 25%, rgba(26,16,24,0.8) 100%);
+}
+.cc-doubt::before {
+  content: ""; position: absolute; inset: 0; z-index: 1;
   background:
     radial-gradient(ellipse at 80% 20%, rgba(201,96,58,0.18) 0%, transparent 55%),
     radial-gradient(ellipse at 15% 85%, rgba(74,37,64,0.45) 0%, transparent 55%);
   pointer-events: none;
 }
 .cc-doubt-inner {
-  position: relative;
+  position: relative; z-index: 2;
   max-width: 760px; margin: 0 auto; text-align: center;
 }
 .cc-doubt-text {
