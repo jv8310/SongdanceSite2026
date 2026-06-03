@@ -679,6 +679,20 @@ html, body { background: var(--paper); }
   border-top: 1px solid var(--line);
 }
 
+/* The shared sitelink columns (.sd-footer-cols) are reused inside the bespoke
+   landing-page footers so every footer carries the same links. There the
+   footer's own top block already provides the divider, so the columns drop
+   their own border/padding-top and just sit in the inner flex flow. */
+.we-footer .sd-footer-cols,
+.cc-footer .sd-footer-cols,
+.fc-footer .sd-footer-cols,
+.wd-footer .sd-footer-cols,
+.rb-footer .sd-footer-cols,
+.sg-footer .sd-footer-cols {
+  border-top: none;
+  padding-top: 0;
+}
+
 /* =========================================================
    Integrated site additions — header nav, content pages,
    events grid, course hub. (Composition only; tokens unchanged.)
