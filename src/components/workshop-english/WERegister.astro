@@ -1,0 +1,230 @@
+---
+// The new-infrastructure registration: a calendar of upcoming dates → name /
+// email / (timezone) / order-bump → POST /api/workshops/register, which starts
+// Stripe Checkout (Quaderno invoicing follows via the existing webhook).
+//
+// Masterclass entries (€29) are rendered too but hidden by CSS until the page
+// is in pro state (.we-register.is-pro), where they're shown and highlighted.
+import type { CalItem } from './types';
+interface Props {
+  items: CalItem[];
+  country: string;
+  currency: string;
+  detectedTz: string;
+  tzOptions: string[];
+}
+const { items, country, currency, detectedTz, tzOptions } = Astro.props;
+---
+
+<section class="we-register" id="register">
+  <div class="we-register-inner">
+    <div class="we-eyebrow">Come to the next workshop</div>
+    <h2 class="we-register-h2">
+      What in you is waiting<br /><em>to be heard?</em>
+    </h2>
+    <p class="we-register-body we-swap" id="we-reg-body">
+      Come. One hour. Live.<br />
+      You don't need any skill, any preparation, anything to prove.<br />
+      You just open your mouth<br />
+      and see what happens.
+    </p>
+    <p class="we-register-note">Live · Online · Limited spots</p>
+
+    <div class="we-booking">
+      <p class="we-booking-label">Choose a date</p>
+
+      {items.length === 0 && (
+        <p class="we-cal-empty">
+          No dates are open just now. Email
+          <a href="mailto:info@songdance.co"> info@songdance.co</a> and we'll
+          tell you the moment the next one is scheduled.
+        </p>
+      )}
+
+      {items.length > 0 && (
+        <div class="we-cal" role="radiogroup" aria-label="Choose a date">
+          {items.map((it) => (
+            <label class={`we-cal-item${it.kind === 'masterclass' ? ' we-cal-item--masterclass' : ''}`}>
+              <input
+                type="radio"
+                name="we-date"
+                value={it.slug}
+                data-slug={it.slug}
+                data-kind={it.kind}
+                data-price-label={it.priceLabel}
+                data-price-minor={String(it.priceMinor)}
+                data-currency={it.currency}
+                data-has-bump={it.hasBump ? '1' : '0'}
+                data-bump-name={it.bumpName}
+                data-bump-label={it.bumpLabel}
+                data-bump-minor={String(it.bumpMinor)}
+                data-is-replay={it.isReplay ? '1' : '0'}
+              />
+              <span class="we-cal-radio" aria-hidden="true"></span>
+              <span class="we-cal-main">
+                <span class="we-cal-when">
+                  {it.isReplay ? 'On demand — watch anytime' : it.whenLocal}
+                </span>
+                {it.kind === 'masterclass' ? (
+                  <span class="we-cal-tag">Masterclass · 90 min</span>
+                ) : (
+                  !it.isReplay && <span class="we-cal-sub">your local time</span>
+                )}
+              </span>
+              <span class="we-cal-price">{it.priceLabel}</span>
+            </label>
+          ))}
+        </div>
+      )}
+
+      {items.length > 0 && (
+        <form class="we-form" id="we-form" hidden>
+          <input type="hidden" name="workshop_slug" id="we-slug" value="" />
+          <input type="hidden" name="country" value={country === 'EU' ? '' : country} />
+          <input type="hidden" name="meta_event_id" id="we-event-id" value="" />
+
+          <label class="we-field">
+            <span>Your name</span>
+            <input type="text" name="name" required autocomplete="name" />
+          </label>
+
+          <label class="we-field">
+            <span>Email</span>
+            <input type="email" name="email" required autocomplete="email" />
+          </label>
+
+          <label class="we-field">
+            <span>Phone <em>(optional)</em></span>
+            <input type="tel" name="phone" autocomplete="tel" />
+          </label>
+
+          <label class="we-field" id="we-tz-field">
+            <span>Your timezone</span>
+            <select name="timezone">
+              {tzOptions.map((tz) => (
+                <option value={tz} selected={tz === detectedTz}>{tz.replace(/_/g, ' ')}</option>
+              ))}
+            </select>
+          </label>
+
+          <label class="we-bump" id="we-bump" hidden>
+            <input type="checkbox" name="bump" id="we-bump-input" />
+            <span id="we-bump-label"></span>
+          </label>
+
+          <div class="we-total">
+            <span id="we-total-label">Workshop ticket</span>
+            <strong id="we-total-amount"></strong>
+          </div>
+
+          <button type="submit" class="we-submit" id="we-submit">Register &amp; pay →</button>
+          <p class="we-err" id="we-err" hidden></p>
+          <p class="we-fine">Detected: {country} · {currency}. Secure checkout via Stripe.</p>
+        </form>
+      )}
+    </div>
+  </div>
+</section>
+
+<script is:inline>
+  (function () {
+    var form = document.getElementById('we-form');
+    var group = document.querySelector('.we-register .we-cal');
+    if (!form || !group) return;
+
+    var slugField = document.getElementById('we-slug');
+    var bumpRow = document.getElementById('we-bump');
+    var bumpInput = document.getElementById('we-bump-input');
+    var bumpLabel = document.getElementById('we-bump-label');
+    var tzField = document.getElementById('we-tz-field');
+    var totalLabel = document.getElementById('we-total-label');
+    var totalAmount = document.getElementById('we-total-amount');
+    var submitBtn = document.getElementById('we-submit');
+    var err = document.getElementById('we-err');
+    var idField = document.getElementById('we-event-id');
+
+    var SYMBOLS = { EUR: '€', USD: '$', CAD: 'CA$', GBP: '£', CHF: 'CHF ', NOK: 'kr ', SEK: 'kr ', DKK: 'kr ', AUD: 'A$', NZD: 'NZ$' };
+    function money(minor, cur) {
+      var major = minor / 100;
+      var body = Number.isInteger(major) ? String(major) : major.toFixed(2);
+      var sym = SYMBOLS[cur];
+      return sym ? sym + body : body + ' ' + cur;
+    }
+
+    // Dedup id shared by the client Pixel + server CAPI (if a pixel is set).
+    var eventId = (crypto.randomUUID && crypto.randomUUID()) ||
+      (Date.now() + '-' + Math.random().toString(36).slice(2));
+    if (idField) idField.value = eventId;
+
+    var current = null; // the selected radio's dataset
+
+    function recompute() {
+      if (!current) return;
+      var priceMinor = parseInt(current.priceMinor, 10) || 0;
+      var cur = current.currency || 'EUR';
+      var total = priceMinor;
+      var hasBump = current.hasBump === '1';
+      var wantsBump = hasBump && bumpInput.checked;
+      if (wantsBump) total += parseInt(current.bumpMinor, 10) || 0;
+      totalLabel.textContent = current.kind === 'masterclass' ? 'Masterclass'
+        : (wantsBump ? 'Workshop + extra' : 'Workshop ticket');
+      totalAmount.textContent = money(total, cur);
+      submitBtn.textContent = 'Register & pay ' + money(total, cur) + ' →';
+    }
+
+    function selectItem(input) {
+      current = input.dataset;
+      slugField.value = current.slug;
+      // Replays have no timezone choice.
+      tzField.style.display = current.isReplay === '1' ? 'none' : '';
+      // Bump only when the chosen date has one.
+      if (current.hasBump === '1') {
+        bumpRow.hidden = false;
+        bumpInput.checked = false;
+        bumpLabel.innerHTML = '<strong>Add ' + current.bumpName + '</strong> for ' + current.bumpLabel;
+      } else {
+        bumpRow.hidden = true;
+        bumpInput.checked = false;
+      }
+      form.hidden = false;
+      recompute();
+    }
+
+    group.addEventListener('change', function (e) {
+      var t = e.target;
+      if (t && t.name === 'we-date') selectItem(t);
+    });
+    if (bumpInput) bumpInput.addEventListener('change', recompute);
+
+    form.addEventListener('submit', async function (e) {
+      e.preventDefault();
+      if (!current) return;
+      if (err) { err.hidden = true; err.textContent = ''; }
+      submitBtn.disabled = true;
+      var fd = new FormData(form);
+      var body = {
+        workshop_slug: fd.get('workshop_slug'),
+        name: fd.get('name'),
+        email: fd.get('email'),
+        phone: fd.get('phone') || '',
+        timezone: current.isReplay === '1' ? '' : (fd.get('timezone') || ''),
+        country: fd.get('country') || '',
+        bump: fd.get('bump') === 'on',
+        meta_event_id: fd.get('meta_event_id') || '',
+      };
+      try {
+        var res = await fetch('/api/workshops/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        var data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Something went wrong.');
+        window.location.href = data.checkout_url || data.redirect_url;
+      } catch (e2) {
+        if (err) { err.hidden = false; err.textContent = e2.message || 'Something went wrong.'; }
+        submitBtn.disabled = false;
+      }
+    });
+  })();
+</script>

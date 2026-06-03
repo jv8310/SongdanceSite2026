@@ -1,0 +1,39 @@
+---
+// Pro state only (§15). Hidden by default; the controller reveals it when
+// door 3 is active AND a masterclass is actually scheduled. If none is
+// scheduled, `hasMasterclass` is false and the controller leaves it hidden.
+interface Props {
+  hasMasterclass: boolean;
+}
+const { hasMasterclass } = Astro.props;
+---
+
+<section
+  class="we-masterclass"
+  id="masterclass"
+  hidden
+  data-has-masterclass={hasMasterclass ? '1' : '0'}
+>
+  <div class="we-masterclass-inner">
+    <p class="we-masterclass-bridge" id="we-masterclass-bridge" hidden>
+      You can't hold this for someone else until you've let it work on you first.
+    </p>
+    <div class="we-eyebrow">For practitioners</div>
+    <h2 class="we-masterclass-h2">
+      Masterclass — <em>Somatic Vocal Healing in your practice.</em>
+    </h2>
+    <p class="we-masterclass-body">
+      Every so often I run a 90-minute masterclass for practitioners — and
+      people training toward it. It's a more structured, deeper look at how to
+      bring somatic voice work into one-to-one and group settings: how to hold
+      the space, how to read what a sound is telling you, and how to let
+      someone find their own way in without steering it for them.
+    </p>
+    <div class="we-masterclass-detail">90 minutes · Live · €29</div>
+    <div class="we-masterclass-cta-wrap">
+      <a href="#register" class="we-link-cta">
+        See the next masterclass <i class="ph-light ph-arrow-right"></i>
+      </a>
+    </div>
+  </div>
+</section>
