@@ -27,13 +27,15 @@ UPDATE inventory_units
 
 -- ─── Paying registrations ─────────────────────────────────────────────────
 
--- Cabin L1 — Manu & Dieter (twin, lower deck).
+-- Cabin L1 — Manu (twin, lower deck). Dieter (his hoped-for cabin-mate) is
+-- left out for now: it's unclear whether he'll come alone, as a pair, or not
+-- at all. The second bed in L1 is therefore left open.
 INSERT INTO registrations
   (product_id, tier_id, inventory_unit_id, name, first_name, last_name, email, country,
    roommate_pref, status, amount_cents, balance_due_cents, currency,
    consent_framework, consent_terms, consent_at, created_at, paid_at, notes)
 SELECT p.id, t.id, iu.id, 'Manu', 'Manu', NULL, 'manuomshanti@gmail.com', NULL,
-       'Sharing with Dieter', 'paid', 99750, 99750, 'EUR',
+       'Hoped to share with Dieter (unconfirmed — may come alone, as a pair, or not at all)', 'paid', 99750, 99750, 'EUR',
        1, 1, datetime('now'), datetime('now'), datetime('now'),
        'Imported from pre-launch registrations sheet. 50% deposit paid; balance €997.50 due before 1 September 2026.'
   FROM products p
@@ -41,23 +43,6 @@ SELECT p.id, t.id, iu.id, 'Manu', 'Manu', NULL, 'manuomshanti@gmail.com', NULL,
   JOIN inventory_units iu ON iu.name = 'Cabin L1 — twin, lower deck (porthole)'
  WHERE p.slug = 'dolphin-and-sound-2026'
    AND NOT EXISTS (SELECT 1 FROM registrations r WHERE r.product_id = p.id AND r.email = 'manuomshanti@gmail.com');
-
--- Dieter has no email on file; €3990 recorded with no deposit coupon (paid in
--- full). Flagged for review against Manu's separate €997.50 deposit on the
--- same cabin. Placeholder email keeps the NOT-NULL constraint satisfied.
-INSERT INTO registrations
-  (product_id, tier_id, inventory_unit_id, name, first_name, last_name, email, country,
-   roommate_pref, status, amount_cents, balance_due_cents, currency,
-   consent_framework, consent_terms, consent_at, created_at, paid_at, notes)
-SELECT p.id, t.id, iu.id, 'Dieter', 'Dieter', NULL, 'dieter@placeholder.invalid', NULL,
-       'Sharing with Manu', 'paid', 399000, 0, 'EUR',
-       1, 1, datetime('now'), datetime('now'), datetime('now'),
-       'Imported from pre-launch registrations sheet. €3990 recorded with no deposit coupon (treated as paid in full). NO EMAIL on file — placeholder used; please add the real address. Verify the €3990 vs Manu''s separate €997.50 deposit on this cabin.'
-  FROM products p
-  JOIN tiers t ON t.product_id = p.id AND t.slug = 'twin-lower'
-  JOIN inventory_units iu ON iu.name = 'Cabin L1 — twin, lower deck (porthole)'
- WHERE p.slug = 'dolphin-and-sound-2026'
-   AND NOT EXISTS (SELECT 1 FROM registrations r WHERE r.product_id = p.id AND r.email = 'dieter@placeholder.invalid');
 
 -- Cabin L2 — Anne-Mie & Katrien (twin, lower deck).
 INSERT INTO registrations
