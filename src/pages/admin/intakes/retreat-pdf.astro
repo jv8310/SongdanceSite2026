@@ -7,10 +7,9 @@
 import { readCookie, verifySession } from '../../../lib/registrations/auth';
 import { resolveEventWithDb } from '../../../lib/intake/events';
 import {
-  pillClassFor,
-  classificationLabel,
   renderAssessmentMarkdown,
   stripClassificationHeading,
+  extractSummary,
 } from '../../../lib/intake/admin';
 
 export const prerender = false;
@@ -52,9 +51,7 @@ const rows: Row[] = (
 const people = rows.map((r) => ({
   name: r.full_name ?? r.email,
   email: r.email,
-  classification: r.classification,
-  pill: pillClassFor(r.classification),
-  classLabel: classificationLabel(r.classification),
+  summary: extractSummary(r.assessment_md),
   html: r.assessment_md
     ? renderAssessmentMarkdown(stripClassificationHeading(r.assessment_md))
     : '',
@@ -126,36 +123,31 @@ const docTitle = `Intake-assessments — ${event.label.nl}`;
       }
       .btn--ghost { background: transparent; color: var(--ember); }
 
-      .doc-head { border-bottom: 2px solid var(--ink); padding-bottom: 16px; margin-bottom: 28px; }
-      .doc-head h1 { margin: 0 0 4px; font-size: 26px; }
-      .doc-head .meta { margin: 0; font-size: 13px; color: var(--mute); font-family: -apple-system, sans-serif; }
+      .doc-head { border-bottom: 2px solid var(--ink); padding-bottom: 12px; margin-bottom: 18px; }
+      .doc-head h1 { margin: 0 0 4px; font-size: 22px; }
+      .doc-head .meta { margin: 0; font-size: 12px; color: var(--mute); font-family: -apple-system, sans-serif; }
 
-      .person { padding: 22px 0; border-bottom: 1px solid var(--line); break-inside: avoid; }
-      .person:last-child { border-bottom: none; }
-      .person-head {
-        display: flex; align-items: baseline; justify-content: space-between;
-        gap: 12px; margin-bottom: 6px;
-      }
-      .person-head h2 { margin: 0; font-size: 20px; }
-      .pill {
-        display: inline-block;
-        font-family: -apple-system, sans-serif;
-        font-size: 11px; font-weight: 600;
-        letter-spacing: 0.02em;
-        padding: 3px 10px; border-radius: 999px;
-        white-space: nowrap;
-      }
-      .adm-pill--class-veilig { background: rgba(47,122,76,0.13); color: var(--success); }
-      .adm-pill--class-call { background: rgba(196,128,31,0.15); color: var(--warn); }
-      .adm-pill--class-investigate { background: rgba(201,96,58,0.15); color: var(--ember); }
-      .adm-pill--class-red { background: rgba(181,61,61,0.15); color: var(--danger); }
-      .adm-pill--class-none { background: rgba(0,0,0,0.06); color: var(--mute); }
+      /* Overview: every participant on one page — name + short summary. */
+      .overview { break-after: page; }
+      .overview h2 { font-size: 14px; margin: 0 0 8px; text-transform: uppercase; letter-spacing: 0.04em; font-family: -apple-system, sans-serif; color: var(--ink-soft); }
+      .ov-list { display: table; width: 100%; border-collapse: collapse; font-size: 10.5px; line-height: 1.32; }
+      .ov-row { display: table-row; }
+      .ov-row > div { display: table-cell; padding: 4px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+      .ov-name { width: 150px; padding-right: 12px !important; font-weight: 700; font-family: -apple-system, sans-serif; }
+      .ov-sum { color: var(--ink-soft); }
+      .ov-sum.is-empty { color: var(--mute); font-style: italic; }
 
-      .assessment h2 { font-size: 16px; margin: 16px 0 4px; }
-      .assessment h3 { font-size: 14px; margin: 14px 0 4px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.04em; font-family: -apple-system, sans-serif; }
-      .assessment p { margin: 6px 0; }
-      .assessment ul { margin: 6px 0; padding-left: 22px; }
-      .assessment li { margin: 2px 0; }
+      /* One participant per page. */
+      .person { break-before: page; break-inside: avoid; padding-top: 4px; }
+      .person-head { margin-bottom: 4px; }
+      .person-head h2 { margin: 0; font-size: 17px; }
+
+      .assessment { font-size: 11px; line-height: 1.38; }
+      .assessment h2 { font-size: 13px; margin: 8px 0 3px; }
+      .assessment h3 { font-size: 11px; margin: 9px 0 2px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.04em; font-family: -apple-system, sans-serif; }
+      .assessment p { margin: 4px 0; }
+      .assessment ul { margin: 4px 0; padding-left: 18px; }
+      .assessment li { margin: 1px 0; }
       .no-assessment { color: var(--mute); font-style: italic; }
 
       .empty { padding: 40px 0; color: var(--mute); font-style: italic; }
@@ -164,7 +156,6 @@ const docTitle = `Intake-assessments — ${event.label.nl}`;
         body { background: #fff; }
         .toolbar { display: none; }
         .sheet { max-width: none; margin: 0; padding: 0; }
-        .person { break-inside: avoid; }
       }
     </style>
   </head>
@@ -187,11 +178,26 @@ const docTitle = `Intake-assessments — ${event.label.nl}`;
         <p class="empty">Nog geen intake-inzendingen voor deze retreat.</p>
       )}
 
+      {people.length > 0 && (
+        <section class="overview">
+          <h2>Overzicht deelnemers</h2>
+          <div class="ov-list">
+            {people.map((p) => (
+              <div class="ov-row">
+                <div class="ov-name">{p.name}</div>
+                <div class={`ov-sum${p.summary ? '' : ' is-empty'}`}>
+                  {p.summary || 'Geen samenvatting beschikbaar.'}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {people.map((p) => (
         <article class="person">
           <div class="person-head">
             <h2>{p.name}</h2>
-            <span class={`pill ${p.pill}`}>{p.classLabel}</span>
           </div>
           {p.html
             ? <div class="assessment" set:html={p.html} />
