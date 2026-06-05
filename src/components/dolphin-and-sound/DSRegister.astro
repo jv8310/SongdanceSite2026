@@ -19,6 +19,44 @@ import { COUNTRIES } from '../../lib/countries';
     </div>
 
     <form id="ds-reg-form" class="ds-card" novalidate>
+      <fieldset class="ds-rooms" aria-label="Cabin">
+        <legend class="ds-rooms-legend">Choose your cabin</legend>
+
+        <label class="ds-room" data-slug="twin-lower">
+          <input type="radio" name="tier_slug" value="twin-lower" checked />
+          <span class="ds-room-body">
+            <span class="ds-room-text">
+              <span class="ds-room-name">Twin cabin – lower deck with porthole</span>
+              <span class="ds-room-avail" data-avail hidden></span>
+            </span>
+            <span class="ds-room-price"><span data-price>€1995</span> <em data-unit>per person</em></span>
+          </span>
+        </label>
+
+        <label class="ds-room" data-slug="twin-upper">
+          <input type="radio" name="tier_slug" value="twin-upper" />
+          <span class="ds-room-body">
+            <span class="ds-room-text">
+              <span class="ds-room-name">Twin cabin – upper deck with sea views</span>
+              <span class="ds-room-avail" data-avail hidden></span>
+            </span>
+            <span class="ds-room-price"><span data-price>€2495</span> <em data-unit>per person</em></span>
+          </span>
+        </label>
+
+        <label class="ds-room" data-slug="double-lower">
+          <input type="radio" name="tier_slug" value="double-lower" />
+          <span class="ds-room-body">
+            <span class="ds-room-text">
+              <span class="ds-room-name">Cabin with double bed – lower deck with porthole</span>
+              <span class="ds-room-avail" data-avail hidden></span>
+            </span>
+            <span class="ds-room-price"><span data-price>€3990</span> <em data-unit>for two people</em></span>
+          </span>
+        </label>
+      </fieldset>
+
+      <p class="ds-pay-heading">How would you like to pay?</p>
       <fieldset class="ds-pay-options" aria-label="Payment option" style="border:0; padding:0; margin:0 0 8px;">
         <label class="ds-pay">
           <input type="radio" name="payment_mode" value="full" checked />
@@ -71,6 +109,11 @@ import { COUNTRIES } from '../../lib/countries';
             <input type="tel" name="phone" autocomplete="tel-national" inputmode="tel" placeholder="470 12 34 56" required />
           </div>
         </div>
+
+        <label class="ds-field ds-field--full">
+          <span>Who are you sharing the cabin with? <em class="ds-optional">(optional — name of your cabin-mate)</em></span>
+          <input type="text" name="roommate_pref" placeholder="e.g. travelling with Sam Jones" />
+        </label>
 
         <label class="ds-field ds-field--full">
           <span>Company name <em class="ds-optional">(optional — if registering as a company)</em></span>
@@ -130,36 +173,99 @@ import { COUNTRIES } from '../../lib/countries';
     const countrySelect = form.querySelector('select[name="country"]') as HTMLSelectElement;
     const phoneCountrySelect = form.querySelector('select[name="phone_country"]') as HTMLSelectElement;
     const placesEl = document.querySelector('[data-places]') as HTMLElement | null;
+    const roomInputs = Array.from(
+      form.querySelectorAll('input[name="tier_slug"]'),
+    ) as HTMLInputElement[];
+
+    type TierInfo = {
+      slug: string;
+      name: string;
+      price_cents: number;
+      deposit_cents: number;
+      remaining: number;
+      sold_out: boolean;
+      unit_label: string;
+    };
+    const tiers = new Map<string, TierInfo>();
+    let balanceDue = 'before 1 Sept 2026';
 
     const fmtEur = (cents: number) =>
       `€${(cents / 100).toFixed(2).replace(/\.00$/, '')}`;
+
+    const selectedSlug = () =>
+      (roomInputs.find((i) => i.checked)?.value ?? roomInputs[0]?.value ?? '');
+
+    // Mirror the selected cabin's prices into the full/deposit options.
+    function renderPayment() {
+      const tier = tiers.get(selectedSlug());
+      const fullEl = form!.querySelector('input[value="full"]')?.closest('.ds-pay');
+      const depEl = form!.querySelector('input[value="deposit"]')?.closest('.ds-pay');
+      if (!tier) return;
+      const perLabel = tier.unit_label === 'for two people' ? 'for two people' : 'per person';
+      const fullPrice = fullEl?.querySelector('.ds-pay-price');
+      const fullNote = fullEl?.querySelector('.ds-pay-note');
+      if (fullPrice) fullPrice.textContent = fmtEur(tier.price_cents);
+      if (fullNote) fullNote.textContent = `All-in, ${perLabel}.`;
+      const depPrice = depEl?.querySelector('.ds-pay-price');
+      const depNote = depEl?.querySelector('.ds-pay-note');
+      if (depPrice) depPrice.textContent = fmtEur(tier.deposit_cents);
+      if (depNote)
+        depNote.textContent = `50% now · balance ${fmtEur(tier.price_cents - tier.deposit_cents)} ${balanceDue}.`;
+    }
+
+    function ensureSelectable() {
+      const current = roomInputs.find((i) => i.checked);
+      if (current && !current.disabled) return;
+      const firstOpen = roomInputs.find((i) => !i.disabled);
+      if (firstOpen) firstOpen.checked = true;
+    }
 
     // Live availability + authoritative prices from the server.
     fetch('/api/registrations/dolphin-checkout', { headers: { Accept: 'application/json' } })
       .then((r) => (r.ok ? r.json() : null))
       .then((data: any) => {
-        if (!data) return;
-        if (typeof data.price_cents === 'number') {
-          const full = form.querySelector('input[value="full"]')?.closest('.ds-pay')?.querySelector('.ds-pay-price');
-          if (full) full.textContent = fmtEur(data.price_cents);
+        if (!data || !Array.isArray(data.tiers)) return;
+        if (typeof data.balance_due === 'string') {
+          balanceDue = data.balance_due.replace('1 September 2026', '1 Sept 2026');
         }
-        if (typeof data.deposit_cents === 'number') {
-          const dep = form.querySelector('input[value="deposit"]')?.closest('.ds-pay')?.querySelector('.ds-pay-price');
-          const note = form.querySelector('input[value="deposit"]')?.closest('.ds-pay')?.querySelector('.ds-pay-note');
-          if (dep) dep.textContent = fmtEur(data.deposit_cents);
-          if (note) note.textContent = `50% now · balance ${fmtEur(data.price_cents - data.deposit_cents)} before 1 Sept 2026.`;
+        for (const t of data.tiers as TierInfo[]) {
+          tiers.set(t.slug, t);
+          const label = form!.querySelector(`.ds-room[data-slug="${t.slug}"]`) as HTMLElement | null;
+          if (!label) continue;
+          const priceEl = label.querySelector('[data-price]');
+          const unitEl = label.querySelector('[data-unit]');
+          if (priceEl) priceEl.textContent = fmtEur(t.price_cents);
+          if (unitEl) unitEl.textContent = t.unit_label;
+          const input = label.querySelector('input') as HTMLInputElement;
+          const avail = label.querySelector('[data-avail]') as HTMLElement;
+          if (t.sold_out) {
+            label.classList.add('is-soldout');
+            input.disabled = true;
+            if (avail) { avail.textContent = 'Fully booked'; avail.hidden = false; }
+          } else if (t.remaining <= 4) {
+            if (avail) {
+              avail.textContent = t.remaining === 1 ? 'Only 1 place left' : `Only ${t.remaining} places left`;
+              avail.hidden = false;
+            }
+          }
         }
-        if (placesEl && typeof data.remaining === 'number') {
-          if (data.remaining <= 0) {
+        ensureSelectable();
+        renderPayment();
+
+        if (placesEl && typeof data.total_remaining === 'number') {
+          if (data.total_remaining <= 0) {
             placesEl.textContent = 'Fully booked — join the waiting list';
             placesEl.hidden = false;
-          } else if (data.remaining <= 6) {
-            placesEl.textContent = data.remaining === 1 ? 'Only 1 place left' : `Only ${data.remaining} places left`;
+          } else if (data.total_remaining <= 6) {
+            placesEl.textContent =
+              data.total_remaining === 1 ? 'Only 1 place left' : `Only ${data.total_remaining} places left`;
             placesEl.hidden = false;
           }
         }
       })
       .catch(() => {});
+
+    roomInputs.forEach((i) => i.addEventListener('change', renderPayment));
 
     // Geo prefill (Cloudflare attaches country to the request → /api/geo).
     fetch('/api/geo', { headers: { Accept: 'application/json' } })
@@ -184,6 +290,12 @@ import { COUNTRIES } from '../../lib/countries';
       errBox.textContent = '';
 
       const fd = new FormData(form);
+      const tierSlug = String(fd.get('tier_slug') ?? '').trim();
+      if (!tierSlug || tiers.get(tierSlug)?.sold_out) {
+        errBox.textContent = 'Please choose an available cabin.';
+        errBox.hidden = false;
+        return;
+      }
       const required: Array<[string, string]> = [
         ['first_name', 'first name'],
         ['last_name', 'last name'],
@@ -205,12 +317,14 @@ import { COUNTRIES } from '../../lib/countries';
       }
 
       const data = {
+        tier_slug: tierSlug,
         first_name: fd.get('first_name'),
         last_name: fd.get('last_name'),
         email,
         country: fd.get('country'),
         phone_country: fd.get('phone_country'),
         phone: fd.get('phone'),
+        roommate_pref: fd.get('roommate_pref'),
         company_name: fd.get('company_name'),
         vat_number: fd.get('vat_number'),
         dietary: fd.get('dietary'),

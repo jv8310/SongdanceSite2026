@@ -5,6 +5,7 @@ import {
   getRegistrationByPaymentIntent,
   getRegistrationBySession,
   logEvent,
+  markBalancePaid,
   markRegistrationPaid,
   markRegistrationRefunded,
 } from '../../../lib/registrations/db';
@@ -140,6 +141,35 @@ export const POST: APIRoute = async ({ request, locals }) => {
     );
     if (handledWorkshop) {
       return new Response('OK (workshop)', { status: 200 });
+    }
+
+    // Balance ("pay the remainder") payments carry payment_kind=balance plus
+    // the registration_id. The registration is already 'paid' from the
+    // deposit, so we only clear the outstanding balance here and stop —
+    // letting it fall through to the normal routing would re-fire the
+    // "Completed registration" Drip event.
+    if (session.metadata?.payment_kind === 'balance') {
+      const balRegId = session.metadata?.registration_id
+        ? parseInt(session.metadata.registration_id, 10)
+        : null;
+      const balReg = balRegId
+        ? await getRegistrationById(env.DB, balRegId)
+        : null;
+      if (balReg && session.payment_intent) {
+        await markBalancePaid(env.DB, balReg.id);
+        await logEvent(env.DB, {
+          registration_id: balReg.id,
+          kind: 'registration.balance.paid',
+          source: 'stripe',
+          external_id: `${event.id}.balance`,
+          payload: {
+            session_id: session.id,
+            payment_intent: session.payment_intent,
+            amount_total: session.amount_total,
+          },
+        });
+      }
+      return new Response('OK (balance)', { status: 200 });
     }
 
     // Route by metadata: retreat checkouts carry `registration_id`,

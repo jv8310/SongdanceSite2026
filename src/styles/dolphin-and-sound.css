@@ -271,6 +271,34 @@
 .ds-pay-note { display: block; font-size: var(--t-body-sm); color: var(--ds-ink-quiet); }
 @media (max-width: 560px) { .ds-pay-options { grid-template-columns: 1fr; } }
 
+/* ---------- cabin options ---------- */
+.ds-rooms { border: 0; padding: 0; margin: 0 0 24px; display: grid; gap: 12px; }
+.ds-rooms-legend { padding: 0; margin: 0 0 12px; font-size: var(--t-body-sm); font-weight: 600; color: var(--ds-ink-soft); }
+.ds-room { position: relative; display: block; cursor: pointer; }
+.ds-room input { position: absolute; opacity: 0; inset: 0; cursor: pointer; }
+.ds-room-body {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  border: 1.5px solid var(--ds-line); border-radius: var(--r-lg); padding: 16px 18px;
+  transition: border-color var(--d-quick) var(--ease), background var(--d-quick) var(--ease);
+}
+.ds-room input:checked + .ds-room-body { border-color: var(--ds-teal); background: var(--ds-foam); box-shadow: var(--shadow-glow); }
+.ds-room input:focus-visible + .ds-room-body { outline: 2px solid var(--ds-teal); outline-offset: 2px; }
+.ds-room-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ds-room-name { font-weight: 600; color: var(--ds-ink); }
+.ds-room-avail { font-size: var(--t-body-sm); color: var(--ds-coral-d); font-weight: 500; }
+.ds-room-price { flex: none; font-family: var(--font-display); font-size: var(--t-h3); color: var(--ds-teal); white-space: nowrap; }
+.ds-room-price em { display: block; font-family: var(--font-body); font-style: normal; font-size: var(--t-body-sm); font-weight: 400; color: var(--ds-ink-quiet); text-align: right; }
+.ds-room.is-soldout { cursor: not-allowed; }
+.ds-room.is-soldout .ds-room-body { opacity: 0.55; border-style: dashed; background: transparent; box-shadow: none; }
+.ds-room.is-soldout .ds-room-name { text-decoration: line-through; text-decoration-thickness: 1px; }
+.ds-room.is-soldout input { cursor: not-allowed; }
+@media (max-width: 480px) {
+  .ds-room-body { flex-direction: column; align-items: flex-start; gap: 6px; }
+  .ds-room-price em { text-align: left; }
+}
+
+.ds-pay-heading { margin: 0 0 12px; font-size: var(--t-body-sm); font-weight: 600; color: var(--ds-ink-soft); }
+
 .ds-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .ds-field { display: flex; flex-direction: column; gap: 6px; }
 .ds-field--full { grid-column: 1 / -1; }
