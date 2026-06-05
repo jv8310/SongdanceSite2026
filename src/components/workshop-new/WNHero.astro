@@ -1,13 +1,17 @@
 ---
-// New hero for the reworked workshop page. Uses the painterly svhgpt-01 image
-// (a woman sounding, throat lit) on a night surface with layered glow +
-// parallax. Keeps the #we-h1 / #we-hero-sub ids so the existing personalization
-// controller swaps the headline + sub per lead lens (incl. the pro lens).
+// Hero for the reworked workshop page. The background image is a prop (defaults
+// to the painterly svhgpt-01) so a sibling page can pass a real photo instead.
+// Keeps the #we-h1 / #we-hero-sub ids so the existing personalization controller
+// swaps the headline + sub per lead lens (incl. the pro lens).
+interface Props {
+  heroImg?: string;
+}
+const { heroImg = '/media/library/svhgpt-01-hero-in-one-breath.webp' } = Astro.props;
 ---
 
 <section class="wn-hero">
   <div class="wn-hero-bg" data-parallax data-parallax-speed="0.24" aria-hidden="true">
-    <img src="/media/library/svhgpt-01-hero-in-one-breath.webp" alt="" />
+    <img src={heroImg} alt="" />
   </div>
   <div class="wn-hero-glow" aria-hidden="true"></div>
 

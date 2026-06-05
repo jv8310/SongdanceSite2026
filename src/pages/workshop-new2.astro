@@ -1,9 +1,8 @@
 ---
-// Reworked workshop page (a working /workshop-new we may promote to /workshop).
-// Reuses the proven commerce pieces (selector, calendar/register, testimonials,
-// about, masterclass, footer) and layers a richer, image-driven SVH explainer
-// on top — built from the "What Somatic Vocal Healing Is" document, with a
-// novice / practitioner ("pro") content split, parallax and scroll-reveal.
+// Reworked workshop page — REAL-PHOTO variation of /workshop-new. Identical
+// structure, copy and behaviour; only the imagery differs (real Songdance
+// library photos instead of the painterly svhgpt-* set). Built so we can
+// compare the two looks before promoting one to /workshop.
 //
 // The data-fetching mirrors workshop.astro exactly so the calendar behaves the
 // same on both pages.
@@ -125,24 +124,37 @@ const tzOptions = Array.from(new Set([detectedTz, ...COMMON_TZS]));
 <Layout
   title="Somatic Vocal Healing Workshop — Sound as the Body's Language | Songdance"
   description="A one-hour live Somatic Vocal Healing workshop with Jacob Vermeulen. Use your own sound to let stuck emotion move and arrive more fully in your body."
-  image="/media/library/svhgpt-01-hero-in-one-breath.webp"
+  image="/media/library/svh-retreat-sounding-blue.webp"
 >
   <div class="we-site wn-page">
     <p class="sr-only" id="we-live" role="status" aria-live="polite"></p>
     <WENav />
-    <WNHero />
+    <WNHero heroImg="/media/library/svh-retreat-circle-trees-sunset.webp" />
     <WESelector />
     <WEOpening />
-    <WNStory />
-    <WNCore />
-    <WNPractice />
+    <WNStory
+      lostImg="/media/library/svh-retreat-sounding-blue.webp"
+      lostAlt="A woman sounding outdoors at sunset, one hand resting on her chest"
+      soundingImg="/media/library/jacob-sounding.webp"
+      soundingAlt="A man sounding with his eyes closed and a hand on his chest"
+    />
+    <WNCore bgImg="/media/library/svh-retreat-sounding-yellow.webp" />
+    <WNPractice
+      bandImg="/media/library/svh-retreat-circle-yurt-wide.webp"
+      cupImg="/media/library/grief-hands-letting-go.webp"
+      cupAlt="Two hands reaching gently toward one another at sunset"
+    />
     <WEWhat />
-    <WNDeeper />
+    <WNDeeper
+      bandImg="/media/library/svh-retreat-walk-tree-sunset.jpg"
+      descentImg="/media/library/forgiveness-woman-hands-face.webp"
+      descentAlt="A woman lying down with her hands resting over her face"
+    />
     <WELyric />
     <WETestimonials />
     <WEAbout />
     <WEMasterclass hasMasterclass={hasMasterclass} />
-    <WNBegin />
+    <WNBegin candleImg="/media/library/forgiveness-heart-candle-rounded.webp" />
     <WERegister
       items={items}
       country={country}

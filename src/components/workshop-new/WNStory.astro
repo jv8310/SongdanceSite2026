@@ -3,6 +3,20 @@
 // Opens with the one-breath definition, then alternating image+text rows.
 // Content splits on pro state: novice blocks (.wn-novice) show by default;
 // practitioner blocks (.wn-pro) appear when door 3 is active (.we-site.is-pro).
+// Images are props (default to the svhgpt set) so a sibling page can pass real
+// photos with their own alt text.
+interface Props {
+  lostImg?: string;
+  lostAlt?: string;
+  soundingImg?: string;
+  soundingAlt?: string;
+}
+const {
+  lostImg = '/media/library/svhgpt-02-we-lost-the-voice.webp',
+  lostAlt = 'A figure with a smaller, sounding self glowing at the heart',
+  soundingImg = '/media/library/svhgpt-03-sounding-not-singing.webp',
+  soundingAlt = 'A profile sounding, frequency rings rippling from the open mouth',
+} = Astro.props;
 ---
 
 <section class="wn-story" id="breath">
@@ -24,7 +38,7 @@
       <!-- ── Row 1 · NOVICE: we lost the voice (svhgpt-02) ── -->
       <div class="wn-row wn-novice wn-mode wn-reveal">
         <div class="wn-row-media wn-row-media--tall" data-parallax data-parallax-speed="0.16">
-          <img src="/media/library/svhgpt-02-we-lost-the-voice.webp" alt="A figure with a smaller, sounding self glowing at the heart" loading="lazy" />
+          <img src={lostImg} alt={lostAlt} loading="lazy" />
         </div>
         <div class="wn-row-text">
           <div class="wn-row-eyebrow">Where it begins</div>
@@ -51,7 +65,7 @@
       <!-- ── Row 1 · PRO: the missing channel (svhgpt-02) ── -->
       <div class="wn-row wn-pro wn-reveal">
         <div class="wn-row-media wn-row-media--tall" data-parallax data-parallax-speed="0.16">
-          <img src="/media/library/svhgpt-02-we-lost-the-voice.webp" alt="A figure with a smaller, sounding self glowing at the heart" loading="lazy" />
+          <img src={lostImg} alt={lostAlt} loading="lazy" />
         </div>
         <div class="wn-row-text">
           <div class="wn-row-eyebrow">Where the voice fits</div>
@@ -78,7 +92,7 @@
       <!-- ── Row 2 · sounding, not singing (svhgpt-03) — shared, pro adds titration ── -->
       <div class="wn-row wn-row--reverse wn-reveal">
         <div class="wn-row-media" data-parallax data-parallax-speed="0.15">
-          <img src="/media/library/svhgpt-03-sounding-not-singing.webp" alt="A profile sounding, frequency rings rippling from the open mouth" loading="lazy" />
+          <img src={soundingImg} alt={soundingAlt} loading="lazy" />
         </div>
         <div class="wn-row-text">
           <div class="wn-row-eyebrow">Sounding, not singing</div>

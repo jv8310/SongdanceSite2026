@@ -6,6 +6,16 @@
    this file is imported *after* workshop-english.css.
    ========================================================= */
 
+/* ---------- Reused-component tweaks (scoped to .wn-page) ---------- */
+/* Make the reused About (Jacob) section's portrait a touch smaller, without
+   affecting the original /workshop page which shares the component. */
+.wn-page .we-about-grid { grid-template-columns: 0.62fr 1fr; align-items: center; }
+.wn-page .we-about-portrait-wrap { max-width: 380px; }
+@media (max-width: 760px) {
+  .wn-page .we-about-grid { grid-template-columns: 1fr; }
+  .wn-page .we-about-portrait-wrap { max-width: 320px; margin: 0 auto; }
+}
+
 /* ---------- Scroll-reveal primitive ---------- */
 /* Elements tagged .wn-reveal start lowered + transparent and settle in when
    they enter the viewport (controller adds .is-in). --wn-delay staggers groups.
