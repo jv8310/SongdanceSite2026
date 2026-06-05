@@ -58,7 +58,7 @@ const countries = COUNTRIES;
         </label>
 
         <label class="gr-field gr-field--full gr-vat-field" data-gr-vat hidden>
-          <span>VAT number <span class="gr-field-note">— EU/UK businesses, for reverse-charge</span></span>
+          <span>VAT number <span class="gr-field-note">— EU businesses, for reverse-charge</span></span>
           <input
             type="text"
             name="vat_number"
@@ -96,7 +96,7 @@ const countries = COUNTRIES;
 </section>
 
 <script>
-  import { COUNTRIES } from '../../lib/countries';
+  import { COUNTRIES, isEuCountry } from '../../lib/countries';
 
   type Currency = 'EUR' | 'USD';
 
@@ -223,16 +223,19 @@ const countries = COUNTRIES;
       } else {
         countryHidden.value = '';
       }
+      toggleVat();
     }
     countryInput.addEventListener('change', resolveCountry);
     countryInput.addEventListener('blur', resolveCountry);
     countryInput.addEventListener('input', resolveCountry);
 
-    // VAT field only appears once a company name is entered.
+    // VAT field appears only once a company name is entered AND the selected
+    // country is in the EU (reverse-charge only applies to EU businesses).
     function toggleVat() {
       const hasCompany = companyInput.value.trim().length > 0;
-      vatField.hidden = !hasCompany;
-      if (!hasCompany) vatInput.value = '';
+      const show = hasCompany && isEuCountry(countryHidden.value);
+      vatField.hidden = !show;
+      if (!show) vatInput.value = '';
     }
     companyInput.addEventListener('input', toggleVat);
     toggleVat();

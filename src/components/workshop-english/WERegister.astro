@@ -155,7 +155,7 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
               <span>Company <em>(optional)</em></span>
               <input type="text" name="company_name" autocomplete="organization" />
             </label>
-            <label class="we-field">
+            <label class="we-field" id="we-vat" hidden>
               <span>VAT number <em>(optional — EU businesses)</em></span>
               <input type="text" name="vat_number" autocomplete="off" />
             </label>
@@ -225,6 +225,25 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
     var bumpSaveEl = document.getElementById('we-bump-save');
     var tzField = document.getElementById('we-tz-field');
     var bizField = document.getElementById('we-biz');
+    var vatField = document.getElementById('we-vat');
+    var companyInput = form.querySelector('input[name="company_name"]');
+    var vatInput = form.querySelector('input[name="vat_number"]');
+
+    // The 27 EU member states (ISO-2). The VAT field only makes sense for EU
+    // businesses (intra-EU reverse-charge), so it stays hidden elsewhere.
+    var EU_CODES = new Set(['AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE','GR','HU','IE','IT','LV','LT','LU','MT','NL','PL','PT','RO','SK','SI','ES','SE']);
+
+    // VAT appears only on the masterclass (the only kind with a company field),
+    // once a company name is entered AND the chosen country is in the EU.
+    function toggleVat() {
+      var isMasterclass = !!(current && current.kind === 'masterclass');
+      var hasCompany = !!(companyInput && companyInput.value.trim().length > 0);
+      var inEu = EU_CODES.has(String((countryField && countryField.value) || '').toUpperCase());
+      var show = isMasterclass && hasCompany && inEu;
+      if (vatField) vatField.hidden = !show;
+      if (!show && vatInput) vatInput.value = '';
+    }
+    if (companyInput) companyInput.addEventListener('input', toggleVat);
     var totalLabel = document.getElementById('we-total-label');
     var totalAmount = document.getElementById('we-total-amount');
     var submitBtn = document.getElementById('we-submit');
@@ -274,6 +293,7 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
         if (priceEl) priceEl.textContent = money(minor, cur);
       }
       if (current) { current = group.querySelector('input[name="we-date"]:checked').dataset; refreshBump(); recompute(); }
+      toggleVat();
     }
 
     if (countrySelect) {
@@ -329,6 +349,7 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
       tzField.style.display = current.isReplay === '1' ? 'none' : '';
       // Company / VAT only for the masterclass (B2B — practitioners invoicing).
       if (bizField) bizField.hidden = current.kind !== 'masterclass';
+      toggleVat();
       bumpInput.checked = false;
       refreshBump();
       if (form.hidden) {
