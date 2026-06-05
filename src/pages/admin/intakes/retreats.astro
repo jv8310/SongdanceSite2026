@@ -148,6 +148,7 @@ function statusOf(row: InvitationRow): { label: string; tone: string } {
                   </label>
                   <div class="adm-retreat-actions">
                     <a class="adm-btn adm-btn--ghost" href={intakeUrl(r.slug)} target="_blank" rel="noopener">Open intake link</a>
+                    <a class="adm-btn adm-btn--ghost" href={`/admin/intakes/retreat-pdf?event=${encodeURIComponent(r.slug)}`} target="_blank" rel="noopener">Assessments PDF</a>
                     <button type="submit" class="adm-btn">Save</button>
                     <button
                       type="submit"

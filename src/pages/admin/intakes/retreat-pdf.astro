@@ -1,0 +1,208 @@
+---
+// Print-friendly view that gathers the AI assessments (summary + bullets,
+// not the raw intake answers) for every submission of a single retreat into
+// one document. Opening it triggers the browser's print dialog, where the
+// admin can "Save as PDF". Standalone HTML on purpose — no site chrome, no
+// nav/footer — so the resulting PDF is clean.
+import { readCookie, verifySession } from '../../../lib/registrations/auth';
+import { resolveEventWithDb } from '../../../lib/intake/events';
+import {
+  pillClassFor,
+  classificationLabel,
+  renderAssessmentMarkdown,
+  stripClassificationHeading,
+} from '../../../lib/intake/admin';
+
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+const authed = await verifySession(env.ADMIN_SESSION_SECRET, readCookie(Astro.request));
+if (!authed) {
+  return Astro.redirect('/admin/login');
+}
+
+const eventCode = new URL(Astro.request.url).searchParams.get('event') ?? '';
+if (!eventCode) {
+  return new Response('Missing ?event=<retreat-slug>', { status: 400 });
+}
+
+const event = await resolveEventWithDb(env.DB, eventCode);
+
+type Row = {
+  id: string;
+  email: string;
+  full_name: string | null;
+  assessment_md: string | null;
+  classification: string | null;
+  created_at: string;
+};
+
+const rows: Row[] = (
+  await env.DB
+    .prepare(
+      `SELECT id, email, full_name, assessment_md, classification, created_at
+         FROM intake_submissions
+        WHERE event_code = ?
+        ORDER BY full_name ASC, created_at ASC`,
+    )
+    .bind(eventCode)
+    .all<Row>()
+).results ?? [];
+
+const people = rows.map((r) => ({
+  name: r.full_name ?? r.email,
+  email: r.email,
+  classification: r.classification,
+  pill: pillClassFor(r.classification),
+  classLabel: classificationLabel(r.classification),
+  html: r.assessment_md
+    ? renderAssessmentMarkdown(stripClassificationHeading(r.assessment_md))
+    : '',
+}));
+
+const generated = new Date().toISOString().slice(0, 10);
+const docTitle = `Intake-assessments — ${event.label.nl}`;
+---
+
+<!doctype html>
+<html lang="nl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex" />
+    <title>{docTitle}</title>
+    <style>
+      :root {
+        --ink: #1c1a17;
+        --ink-soft: #4a463f;
+        --mute: #8a857c;
+        --line: #e4e0d8;
+        --ember: #c9603a;
+        --success: #2f7a4c;
+        --warn: #c4801f;
+        --danger: #b53d3d;
+      }
+      * { box-sizing: border-box; }
+      html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      body {
+        margin: 0;
+        font-family: Georgia, 'Times New Roman', serif;
+        color: var(--ink);
+        line-height: 1.5;
+        background: #f4f2ee;
+      }
+      .sheet {
+        max-width: 760px;
+        margin: 0 auto;
+        padding: 40px 48px 64px;
+        background: #fff;
+      }
+      .toolbar {
+        position: sticky;
+        top: 0;
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        justify-content: space-between;
+        max-width: 760px;
+        margin: 0 auto;
+        padding: 12px 48px;
+        background: #f4f2ee;
+        border-bottom: 1px solid var(--line);
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      }
+      .toolbar p { margin: 0; font-size: 13px; color: var(--ink-soft); }
+      .btn {
+        appearance: none;
+        border: 1px solid var(--ember);
+        background: var(--ember);
+        color: #fff;
+        font: inherit;
+        font-size: 14px;
+        padding: 8px 16px;
+        border-radius: 8px;
+        cursor: pointer;
+        text-decoration: none;
+      }
+      .btn--ghost { background: transparent; color: var(--ember); }
+
+      .doc-head { border-bottom: 2px solid var(--ink); padding-bottom: 16px; margin-bottom: 28px; }
+      .doc-head h1 { margin: 0 0 4px; font-size: 26px; }
+      .doc-head .meta { margin: 0; font-size: 13px; color: var(--mute); font-family: -apple-system, sans-serif; }
+
+      .person { padding: 22px 0; border-bottom: 1px solid var(--line); break-inside: avoid; }
+      .person:last-child { border-bottom: none; }
+      .person-head {
+        display: flex; align-items: baseline; justify-content: space-between;
+        gap: 12px; margin-bottom: 6px;
+      }
+      .person-head h2 { margin: 0; font-size: 20px; }
+      .pill {
+        display: inline-block;
+        font-family: -apple-system, sans-serif;
+        font-size: 11px; font-weight: 600;
+        letter-spacing: 0.02em;
+        padding: 3px 10px; border-radius: 999px;
+        white-space: nowrap;
+      }
+      .adm-pill--class-veilig { background: rgba(47,122,76,0.13); color: var(--success); }
+      .adm-pill--class-call { background: rgba(196,128,31,0.15); color: var(--warn); }
+      .adm-pill--class-investigate { background: rgba(201,96,58,0.15); color: var(--ember); }
+      .adm-pill--class-red { background: rgba(181,61,61,0.15); color: var(--danger); }
+      .adm-pill--class-none { background: rgba(0,0,0,0.06); color: var(--mute); }
+
+      .assessment h2 { font-size: 16px; margin: 16px 0 4px; }
+      .assessment h3 { font-size: 14px; margin: 14px 0 4px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.04em; font-family: -apple-system, sans-serif; }
+      .assessment p { margin: 6px 0; }
+      .assessment ul { margin: 6px 0; padding-left: 22px; }
+      .assessment li { margin: 2px 0; }
+      .no-assessment { color: var(--mute); font-style: italic; }
+
+      .empty { padding: 40px 0; color: var(--mute); font-style: italic; }
+
+      @media print {
+        body { background: #fff; }
+        .toolbar { display: none; }
+        .sheet { max-width: none; margin: 0; padding: 0; }
+        .person { break-inside: avoid; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="toolbar">
+      <p>{people.length} {people.length === 1 ? 'deelnemer' : 'deelnemers'} · gebruik “Opslaan als PDF” in het printvenster</p>
+      <div>
+        <a class="btn btn--ghost" href={`/admin/intakes?event=${encodeURIComponent(eventCode)}`}>← Intakes</a>
+        <button class="btn" type="button" id="print-btn">Print / Opslaan als PDF</button>
+      </div>
+    </div>
+
+    <div class="sheet">
+      <div class="doc-head">
+        <h1>{event.label.nl}</h1>
+        <p class="meta">Intake-assessments · {people.length} {people.length === 1 ? 'deelnemer' : 'deelnemers'} · gegenereerd {generated}</p>
+      </div>
+
+      {people.length === 0 && (
+        <p class="empty">Nog geen intake-inzendingen voor deze retreat.</p>
+      )}
+
+      {people.map((p) => (
+        <article class="person">
+          <div class="person-head">
+            <h2>{p.name}</h2>
+            <span class={`pill ${p.pill}`}>{p.classLabel}</span>
+          </div>
+          {p.html
+            ? <div class="assessment" set:html={p.html} />
+            : <p class="no-assessment">Geen automatisch assessment beschikbaar.</p>}
+        </article>
+      ))}
+    </div>
+
+    <script>
+      const btn = document.getElementById('print-btn');
+      if (btn) btn.addEventListener('click', () => window.print());
+    </script>
+  </body>
+</html>

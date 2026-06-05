@@ -136,6 +136,14 @@ export function extractSummary(md: string | null | undefined): string {
   return '';
 }
 
+// Drop the leading "## Assessment: <CLASS>" line from an assessment, so a
+// view that already shows the classification (e.g. as a pill in a header)
+// doesn't repeat it. Everything else — the "**Deelnemer:**" line, the
+// summary and all the bullet sections — is kept intact.
+export function stripClassificationHeading(md: string): string {
+  return md.replace(/^\s*##\s*Assessment\s*:.*(?:\r?\n)?/i, '').trimStart();
+}
+
 function inlineFormat(s: string): string {
   // Escape first, then re-inject markup for **bold** and *italic*.
   let h = escapeHtml(s);

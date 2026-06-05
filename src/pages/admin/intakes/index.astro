@@ -142,6 +142,16 @@ const activeEventLabel = eventFilter
             Assess pending ({pendingIds.length})
           </button>
         )}
+        {eventFilter && knownSlugs.has(eventFilter) && (
+          <a
+            class="adm-btn"
+            href={`/admin/intakes/retreat-pdf?event=${encodeURIComponent(eventFilter)}`}
+            target="_blank"
+            rel="noopener"
+          >
+            Assessments PDF
+          </a>
+        )}
         <a class="adm-btn" href="/admin/intakes/retreats">Manage retreats</a>
         <a class="adm-btn adm-btn--ghost" href="/admin">← Admin</a>
       </div>
