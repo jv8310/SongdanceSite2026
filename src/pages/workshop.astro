@@ -16,6 +16,7 @@ import WEFooter from '../components/workshop-english/WEFooter.astro';
 import {
   listUpcomingPublishedWorkshops,
   getProductById,
+  getProductBySlug,
   resolvePrice,
   listPricesForProduct,
 } from '../lib/workshops/db';
@@ -41,6 +42,21 @@ const upcoming = await listUpcomingPublishedWorkshops(env.DB, new Date().toISOSt
 const priceMap = (rows: { currency: string; amount_minor: number }[]) =>
   Object.fromEntries(rows.map((r) => [r.currency.toUpperCase(), r.amount_minor]));
 
+// The order bump (the Authentic Singing Journey recording pack). Workshops
+// carry it via bump_product_id; masterclasses don't define their own, so they
+// fall back to this default — the bump is offered on every date.
+const DEFAULT_BUMP_SLUG = 'asj-bump';
+const defaultBump = await getProductBySlug(env.DB, DEFAULT_BUMP_SLUG);
+
+// Marketing "regular price" anchor for the bump, used only to show a struck-
+// through compare-at price next to the one-time offer (the amount actually
+// charged is always the bump's real price above). The standalone Authentic
+// Singing Journey is €99; equivalents are kept in clean round numbers.
+const BUMP_COMPARE_BY_CURRENCY: Record<string, number> = {
+  EUR: 9900, USD: 9900, GBP: 8900, CHF: 9900, CAD: 14900,
+  AUD: 15900, NZD: 16900, NOK: 99900, SEK: 99900, DKK: 69900,
+};
+
 const items: CalItem[] = [];
 for (const w of upcoming) {
   if (!w.main_product_id) continue;
@@ -48,22 +64,26 @@ for (const w of upcoming) {
   if (!price) continue;
   const pricesByCurrency = priceMap(await listPricesForProduct(env.DB, w.main_product_id));
 
+  const isMasterclass = (w.product_slug ?? '').includes('masterclass');
+  const bumpProductId = w.bump_product_id ?? (isMasterclass ? defaultBump?.id ?? null : null);
+
   let bumpName = '';
   let bumpLabel = '';
   let bumpMinor = 0;
   let bumpPricesByCurrency: Record<string, number> = {};
-  if (w.bump_product_id) {
-    const bumpProduct = await getProductById(env.DB, w.bump_product_id);
-    const bumpPrice = await resolvePrice(env.DB, w.bump_product_id, price.currency);
+  let bumpComparePricesByCurrency: Record<string, number> = {};
+  if (bumpProductId) {
+    const bumpProduct = await getProductById(env.DB, bumpProductId);
+    const bumpPrice = await resolvePrice(env.DB, bumpProductId, price.currency);
     if (bumpProduct && bumpPrice) {
       bumpName = bumpProduct.name;
       bumpLabel = formatMoney(bumpPrice.amountMinor, bumpPrice.currency);
       bumpMinor = bumpPrice.amountMinor;
-      bumpPricesByCurrency = priceMap(await listPricesForProduct(env.DB, w.bump_product_id));
+      bumpPricesByCurrency = priceMap(await listPricesForProduct(env.DB, bumpProductId));
+      bumpComparePricesByCurrency = BUMP_COMPARE_BY_CURRENCY;
     }
   }
 
-  const isMasterclass = (w.product_slug ?? '').includes('masterclass');
   items.push({
     slug: w.slug,
     kind: isMasterclass ? 'masterclass' : 'workshop',
@@ -79,6 +99,7 @@ for (const w of upcoming) {
     bumpLabel,
     bumpMinor,
     bumpPricesByCurrency,
+    bumpComparePricesByCurrency,
     hasBump: !!bumpName,
   });
 }
@@ -173,6 +194,52 @@ const tzOptions = Array.from(new Set([detectedTz, ...COMMON_TZS]));
       },
     };
 
+    // The four experience beats, re-voiced per lead lens. Same structure for
+    // everyone — only the framing shifts to what the visitor said they came for.
+    // (Replaces the old single "For you" card: now the whole set speaks to them.)
+    var CARDS = {
+      neutral: [
+        { t: 'An introduction to Somatic Vocal Healing',
+          b: 'The method where sound becomes the language of the body — a closer connection to your body, your own sound, and whatever wants to show up underneath.' },
+        { t: 'A somatic warm-up with live piano',
+          b: 'So your nervous system can arrive before anything else happens. You settle. Your breath widens. Your listening gets finer.' },
+        { t: 'Guided toning exercises',
+          b: 'A somatic practice for letting stuck emotion move through your voice — not by describing it, but by letting it sound. And a little more trust in speaking your own truth, at home and at work.' },
+        { t: 'A first tool for everyday life',
+          b: 'Something to keep coming back to — when something in you is stuck, when your head is too loud, when the day has closed you up. You can keep practising it on your own after.' },
+      ],
+      1: [
+        { t: 'An introduction to Somatic Vocal Healing',
+          b: 'The method where sound becomes a language for what you’ve carried — a gentler way to meet the old feeling than explaining it: you let it have a sound.' },
+        { t: 'A somatic warm-up with live piano',
+          b: 'So your nervous system can soften and feel safe before anything tender surfaces. You settle. Your breath widens. Nothing is forced.' },
+        { t: 'Guided toning exercises',
+          b: 'A somatic practice for letting stuck emotion move through your voice — not by reliving the story, but by letting what’s underneath finally sound and be heard.' },
+        { t: 'A first tool for everyday life',
+          b: 'Something to come back to when the old feeling resurfaces — a way to let it move through you instead of holding it. Yours to keep practising after.' },
+      ],
+      2: [
+        { t: 'An introduction to Somatic Vocal Healing',
+          b: 'The method where sound becomes the language of the body — and the inner editor that manages your voice gets to switch off for an hour.' },
+        { t: 'A somatic warm-up with live piano',
+          b: 'So your throat can unclench and your breath can widen before you make a sound. The careful holding loosens. Your listening gets finer.' },
+        { t: 'Guided toning exercises',
+          b: 'A somatic practice for hearing what your voice does when nobody’s grading it — fuller, freer, less managed. And a little more ease in speaking up.' },
+        { t: 'A first tool for everyday life',
+          b: 'Something to reach for when you catch yourself holding back — a quick way to drop the editor and let your voice out. Yours to keep after.' },
+      ],
+      3: [
+        { t: 'An introduction to Somatic Vocal Healing',
+          b: 'A coherent, teachable method where sound becomes the body’s language — felt from the inside, so you know what you’d be offering your clients and groups.' },
+        { t: 'A somatic warm-up with live piano',
+          b: 'How to help a nervous system arrive before the work begins — the settling, the widening breath, the finer listening you can later hold for others.' },
+        { t: 'Guided toning exercises',
+          b: 'The core practice for letting stuck emotion move through the voice — experienced in your own body first, so you can guide it cleanly in your practice.' },
+        { t: 'A first tool for everyday life',
+          b: 'A practice to keep for yourself — and a first way in you can begin to offer others. Yours to keep practising after.' },
+      ],
+    };
+
     var CAMPAIGN_MAP = { healing: [1], freedom: [2], pro: [3] };
 
     function parseState() {
@@ -225,11 +292,12 @@ const tzOptions = Array.from(new Set([detectedTz, ...COMMON_TZS]));
       setSwap('we-reg-body', data.reg, animate);
       document.title = data.title;
 
-      // Card lighting — each active door lights its own card.
-      var cards = document.querySelectorAll('.we-what-card');
-      for (var i = 0; i < cards.length; i++) {
-        var d = cards[i].getAttribute('data-door');
-        cards[i].classList.toggle('is-lit', d !== '' && doors.indexOf(parseInt(d, 10)) !== -1);
+      // Card copy — every card is rewritten to the lead lens (neutral when none),
+      // so the whole "What you'll experience" set is tailored to what they chose.
+      var cardSet = CARDS[lens] || CARDS.neutral;
+      for (var i = 0; i < cardSet.length; i++) {
+        setSwap('we-card-title-' + i, cardSet[i].t, animate);
+        setSwap('we-card-body-' + i, cardSet[i].b, animate);
       }
 
       // Switch B — pro state.

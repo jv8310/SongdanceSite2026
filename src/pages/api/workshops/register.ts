@@ -1,8 +1,13 @@
 import type { APIRoute } from 'astro';
-import { createCheckoutSession } from '../../../lib/registrations/stripe';
+import {
+  createCheckoutSession,
+  createCustomer,
+  stripeTaxIdTypeFor,
+} from '../../../lib/registrations/stripe';
 import { logEvent } from '../../../lib/registrations/db';
 import {
   getProductById,
+  getProductBySlug,
   getPublishedWorkshopBySlug,
   resolvePrice,
   upsertRegistration,
@@ -23,9 +28,16 @@ type Body = {
   country?: string; // ISO-2
   timezone?: string; // IANA
   bump?: boolean;
+  company_name?: string; // B2B (masterclass)
+  vat_number?: string; // B2B (masterclass)
   coupon?: string;
   meta_event_id?: string;
 };
+
+// Default order bump (the Authentic Singing Journey recording pack). Workshops
+// reference it via bump_product_id; masterclasses fall back to this slug so the
+// bump is offered — and chargeable — on those dates too.
+const DEFAULT_BUMP_SLUG = 'asj-bump';
 
 export const POST: APIRoute = async ({ request, locals }) => {
   const env = locals.runtime.env;
@@ -42,6 +54,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const country = (payload.country ?? '').trim().toUpperCase() || null;
   const timezone = (payload.timezone ?? '').trim() || null;
   const wantsBump = payload.bump === true;
+  const companyName = (payload.company_name ?? '').trim();
+  const vatNumber = (payload.vat_number ?? '').trim().replace(/\s+/g, '');
   const coupon = (payload.coupon ?? '').trim();
   const metaEventId = (payload.meta_event_id ?? '').trim() || null;
 
@@ -63,12 +77,23 @@ export const POST: APIRoute = async ({ request, locals }) => {
     return json({ error: 'Pricing isn’t available right now. Please email info@songdance.co.' }, 500);
   }
 
-  // Resolve the bump only if the workshop has one and the buyer opted in.
+  const isMasterclass = (ticketProduct.slug ?? '').includes('masterclass');
+
+  // The bump: the workshop's own, or — for a masterclass without one — the
+  // default Authentic Singing Journey pack, so it's offered (and chargeable)
+  // on masterclass dates too.
+  let bumpProductId = workshop.bump_product_id ?? null;
+  if (!bumpProductId && isMasterclass) {
+    const def = await getProductBySlug(env.DB, DEFAULT_BUMP_SLUG);
+    bumpProductId = def?.id ?? null;
+  }
+
+  // Resolve the bump only if there is one and the buyer opted in.
   let bumpProduct = null;
   let bumpPrice = null;
-  if (wantsBump && workshop.bump_product_id) {
-    bumpProduct = await getProductById(env.DB, workshop.bump_product_id);
-    bumpPrice = await resolvePrice(env.DB, workshop.bump_product_id, ticketPrice.currency);
+  if (wantsBump && bumpProductId) {
+    bumpProduct = await getProductById(env.DB, bumpProductId);
+    bumpPrice = await resolvePrice(env.DB, bumpProductId, ticketPrice.currency);
   }
   const realBump = !!(bumpProduct && bumpPrice);
 
@@ -80,6 +105,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
     country,
     currency: ticketPrice.currency,
     timezone,
+    company_name: companyName || null,
+    vat_number: vatNumber || null,
     wants_bump: realBump,
     source_tag: workshop.source_tag,
   });
@@ -127,11 +154,46 @@ export const POST: APIRoute = async ({ request, locals }) => {
       : []),
   ];
 
+  // B2B (masterclass): when a VAT number is given, pre-create a Stripe Customer
+  // with the VAT as tax_id_data, so the Quaderno-Stripe sync issues the invoice
+  // reverse-charge. Otherwise we just pass the email. Never block the
+  // registration on customer creation — fall back to email on any error.
+  let customerId: string | undefined;
+  if (companyName || vatNumber) {
+    const taxIdType = vatNumber ? stripeTaxIdTypeFor(country ?? '') : null;
+    try {
+      const cust = await createCustomer({
+        secretKey: env.STRIPE_SECRET_KEY,
+        email,
+        name: companyName || name,
+        country: country ?? undefined,
+        description: companyName
+          ? `${companyName} · ${name} · workshop reg ${registrationId}`
+          : `${name} · workshop reg ${registrationId}`,
+        tax_id:
+          companyName && vatNumber && taxIdType
+            ? { type: taxIdType, value: vatNumber }
+            : undefined,
+        metadata: {
+          workshop_registration_id: String(registrationId),
+          ...(companyName ? { company_name: companyName } : {}),
+        },
+      });
+      customerId = cust.id;
+    } catch (err) {
+      await logEvent(env.DB, {
+        registration_id: null,
+        kind: 'workshop.customer.error',
+        payload: { registration_id: registrationId, error: String(err) },
+      });
+    }
+  }
+
   let session;
   try {
     session = await createCheckoutSession({
       secretKey: env.STRIPE_SECRET_KEY,
-      customer_email: email,
+      ...(customerId ? { customer: customerId } : { customer_email: email }),
       success_url: `${base}/workshop/success?rid=${registrationId}&cs={CHECKOUT_SESSION_ID}`,
       cancel_url: `${base}/w/${workshop.slug}?canceled=1`,
       payment_intent_description: workshop.title,

@@ -102,6 +102,7 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
                 data-bump-name={it.bumpName}
                 data-bump-minor={String(it.bumpMinor)}
                 data-bump-prices={JSON.stringify(it.bumpPricesByCurrency)}
+                data-bump-compare-prices={JSON.stringify(it.bumpComparePricesByCurrency)}
                 data-is-replay={it.isReplay ? '1' : '0'}
               />
               <span class="we-cal-radio" aria-hidden="true"></span>
@@ -109,13 +110,13 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
                 {it.kind === 'masterclass' && <span class="we-cal-kind">Masterclass</span>}
                 <span class="we-cal-when">
                   {it.isReplay ? 'On demand — watch anytime' : it.whenLocal}
+                  {!it.isReplay && <span class="we-cal-tz"> · your time</span>}
                 </span>
                 <span class="we-cal-meta">
-                  {it.kind === 'masterclass'
-                    ? `${it.durationMin} min · for practitioners`
-                    : it.isReplay
-                      ? `${it.durationMin} min`
-                      : `${it.durationMin} min · your local time`}
+                  {`${it.durationMin} min`}
+                  {it.kind === 'masterclass' && (
+                    <span> · <span class="we-cal-audience">for practitioners</span></span>
+                  )}
                 </span>
               </span>
               <span class="we-cal-price">{it.priceLabel}</span>
@@ -149,23 +150,46 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
             </select>
           </label>
 
+          <div class="we-biz" id="we-biz" hidden>
+            <label class="we-field">
+              <span>Company <em>(optional)</em></span>
+              <input type="text" name="company_name" autocomplete="organization" />
+            </label>
+            <label class="we-field">
+              <span>VAT number <em>(optional — EU businesses)</em></span>
+              <input type="text" name="vat_number" autocomplete="off" />
+            </label>
+          </div>
+
           <div class="we-bump" id="we-bump" hidden>
             <label class="we-bump-card">
               <span class="we-bump-badge">One-time offer</span>
               <span class="we-bump-row">
                 <input type="checkbox" name="bump" id="we-bump-input" />
                 <span class="we-bump-checkbox" aria-hidden="true"></span>
-                <span class="we-bump-title" id="we-bump-title">Add the practice pack</span>
+                <span class="we-bump-title" id="we-bump-title">Yes — add the journey</span>
               </span>
               <span class="we-bump-media">
                 <img src="/media/library/collage-mantrapakket-klein.webp" alt="" loading="lazy" />
-                <span class="we-bump-blurb">
-                  Keep practising after the workshop — a take-home set of somatic
-                  sounding journeys and mantras, yours to stream anytime.
+                <span class="we-bump-info">
+                  <span class="we-bump-points">
+                    <span class="we-bump-point"><strong>40 guided singing journeys</strong></span>
+                    <span class="we-bump-point">Original music &amp; mantras by Jacob</span>
+                    <span class="we-bump-point">Stream anytime — yours to keep</span>
+                  </span>
                 </span>
               </span>
+              <span class="we-bump-blurb">
+                Through healing melody and guided visualisation, each journey draws
+                you further inside — settling your nervous system and opening new
+                room in yourself. Somewhere to keep practising long after the hour.
+              </span>
               <span class="we-bump-foot">
-                <span class="we-bump-price" id="we-bump-price"></span>
+                <span class="we-bump-prices">
+                  <span class="we-bump-was" id="we-bump-was" hidden></span>
+                  <span class="we-bump-now" id="we-bump-now"></span>
+                </span>
+                <span class="we-bump-save" id="we-bump-save" hidden></span>
               </span>
             </label>
           </div>
@@ -196,8 +220,11 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
     var bumpRow = document.getElementById('we-bump');
     var bumpInput = document.getElementById('we-bump-input');
     var bumpTitle = document.getElementById('we-bump-title');
-    var bumpPriceEl = document.getElementById('we-bump-price');
+    var bumpWasEl = document.getElementById('we-bump-was');
+    var bumpNowEl = document.getElementById('we-bump-now');
+    var bumpSaveEl = document.getElementById('we-bump-save');
     var tzField = document.getElementById('we-tz-field');
+    var bizField = document.getElementById('we-biz');
     var totalLabel = document.getElementById('we-total-label');
     var totalAmount = document.getElementById('we-total-amount');
     var submitBtn = document.getElementById('we-submit');
@@ -259,8 +286,23 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
     function refreshBump() {
       if (current && current.hasBump === '1') {
         bumpRow.hidden = false;
-        if (bumpTitle) bumpTitle.textContent = 'Add ' + current.bumpName;
-        if (bumpPriceEl) bumpPriceEl.textContent = '+ ' + money(parseInt(current.bumpMinor, 10) || 0, curCurrency);
+        if (bumpTitle) bumpTitle.textContent = 'Yes — add the ' + current.bumpName;
+        var offer = parseInt(current.bumpMinor, 10) || 0;
+        if (bumpNowEl) bumpNowEl.textContent = money(offer, curCurrency);
+        // Struck "regular price" + saving — shown only when we have an anchor
+        // above the offer for this currency. The charged amount is `offer`.
+        var compare = parse(current.bumpComparePrices)[curCurrency];
+        if (bumpWasEl && bumpSaveEl) {
+          if (compare && compare > offer) {
+            bumpWasEl.textContent = money(compare, curCurrency);
+            bumpWasEl.hidden = false;
+            bumpSaveEl.textContent = 'Save ' + Math.round((1 - offer / compare) * 100) + '%';
+            bumpSaveEl.hidden = false;
+          } else {
+            bumpWasEl.hidden = true;
+            bumpSaveEl.hidden = true;
+          }
+        }
       } else {
         bumpRow.hidden = true;
         bumpInput.checked = false;
@@ -285,6 +327,8 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
       current = input.dataset;
       slugField.value = current.slug;
       tzField.style.display = current.isReplay === '1' ? 'none' : '';
+      // Company / VAT only for the masterclass (B2B — practitioners invoicing).
+      if (bizField) bizField.hidden = current.kind !== 'masterclass';
       bumpInput.checked = false;
       refreshBump();
       if (form.hidden) {
@@ -307,6 +351,7 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
       if (err) { err.hidden = true; err.textContent = ''; }
       submitBtn.disabled = true;
       var fd = new FormData(form);
+      var isMasterclass = current.kind === 'masterclass';
       var body = {
         workshop_slug: fd.get('workshop_slug'),
         name: fd.get('name'),
@@ -314,6 +359,8 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
         timezone: current.isReplay === '1' ? '' : (fd.get('timezone') || ''),
         country: fd.get('country') || '',
         bump: fd.get('bump') === 'on',
+        company_name: isMasterclass ? (fd.get('company_name') || '') : '',
+        vat_number: isMasterclass ? (fd.get('vat_number') || '') : '',
         meta_event_id: fd.get('meta_event_id') || '',
       };
       try {
