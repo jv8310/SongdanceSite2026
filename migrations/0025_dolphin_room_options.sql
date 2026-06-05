@@ -8,15 +8,15 @@
 --   • Twin cabin – upper deck with sea views      €2495 per person
 --   • Cabin with double bed – lower deck           €3990 for two people
 --
--- A fourth, non-public "single cabin – lower deck" tier is added so the one
--- single-occupancy guest (Alberto) can be recorded without offering it for
--- sale (active = 0 keeps it out of the public form + availability maths).
+-- A returning guest is given a lower-deck twin to himself as a gesture; that
+-- is handled in the seed migration by reserving one twin cabin, so no separate
+-- "single" tier is needed.
 --
 -- Each physical cabin becomes an inventory_unit so the existing smart room
 -- model drives availability (solo-locking, auto-assignment, the admin rooms
 -- view) instead of a flat count. Twin cabins are sold bed-by-bed
--- (shared_tier_id); the double + single cabins are sold as a whole unit
--- (solo_tier_id) — one booking locks the cabin.
+-- (shared_tier_id); the double cabin is sold as a whole unit (solo_tier_id) —
+-- one booking locks the cabin.
 --
 -- INSERT … WHERE NOT EXISTS keeps the unit inserts safe to re-run.
 
@@ -57,19 +57,6 @@ VALUES (
   399000,
   4,
   3
-);
-
--- 4) Single cabin — recorded for the one solo guest, NOT sold on the site.
-INSERT OR IGNORE INTO tiers (product_id, slug, name, description, price_cents, capacity, sort_order, active)
-VALUES (
-  (SELECT id FROM products WHERE slug = 'dolphin-and-sound-2026'),
-  'single-lower',
-  'Single cabin – lower deck',
-  'A single-occupancy cabin on the lower deck. Recorded for an existing guest; not sold publicly.',
-  199500,
-  1,
-  4,
-  0
 );
 
 -- ─── Cabins (inventory_units) ─────────────────────────────────────────────
@@ -132,11 +119,3 @@ SELECT t.id, 'Cabin D2 — double, lower deck (porthole)', 2, 'Private cabin, on
   FROM tiers t
  WHERE t.product_id = (SELECT id FROM products WHERE slug='dolphin-and-sound-2026') AND t.slug='double-lower'
    AND NOT EXISTS (SELECT 1 FROM inventory_units iu WHERE iu.name='Cabin D2 — double, lower deck (porthole)');
-
--- Single cabin (×1) — sold as a whole unit; tier is inactive so it's not
--- offered on the public form (the cabin still appears in the admin rooms view).
-INSERT INTO inventory_units (tier_id, name, capacity, notes, status, sort_order, solo_tier_id, shared_tier_id)
-SELECT t.id, 'Cabin S1 — single, lower deck', 1, 'Single-occupancy cabin; lower deck. Recorded for an existing guest, not sold.', 'available', 401, t.id, NULL
-  FROM tiers t
- WHERE t.product_id = (SELECT id FROM products WHERE slug='dolphin-and-sound-2026') AND t.slug='single-lower'
-   AND NOT EXISTS (SELECT 1 FROM inventory_units iu WHERE iu.name='Cabin S1 — single, lower deck');
