@@ -44,6 +44,8 @@ export type WorkshopRegistration = {
   currency: string | null;
   timezone: string | null;
   locale: string | null;
+  company_name: string | null;
+  vat_number: string | null;
   wants_bump: number;
   attendance_status: 'registered' | 'attended' | 'no_show';
   joined_at_utc: string | null;
@@ -364,6 +366,8 @@ export async function upsertRegistration(
     country: string | null;
     currency: string | null;
     timezone: string | null;
+    company_name?: string | null;
+    vat_number?: string | null;
     wants_bump: boolean;
     source_tag: string | null;
     payment_status?: WorkshopRegistration['payment_status'];
@@ -377,6 +381,7 @@ export async function upsertRegistration(
         `UPDATE workshop_registrations SET
            name = COALESCE(?, name), phone = COALESCE(?, phone), country = COALESCE(?, country),
            currency = COALESCE(?, currency), timezone = COALESCE(?, timezone),
+           company_name = COALESCE(?, company_name), vat_number = COALESCE(?, vat_number),
            wants_bump = ?, source_tag = COALESCE(?, source_tag),
            payment_status = COALESCE(?, payment_status),
            updated_at = datetime('now')
@@ -384,6 +389,7 @@ export async function upsertRegistration(
       )
       .bind(
         data.name, data.phone, data.country, data.currency, data.timezone,
+        data.company_name ?? null, data.vat_number ?? null,
         data.wants_bump ? 1 : 0, data.source_tag, data.payment_status ?? null, existing.id,
       )
       .run();
@@ -392,12 +398,14 @@ export async function upsertRegistration(
   const r = await db
     .prepare(
       `INSERT INTO workshop_registrations
-         (workshop_id, name, email, phone, country, currency, timezone, wants_bump, source_tag, payment_status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+         (workshop_id, name, email, phone, country, currency, timezone,
+          company_name, vat_number, wants_bump, source_tag, payment_status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
     )
     .bind(
       data.workshop_id, data.name, email, data.phone, data.country, data.currency,
-      data.timezone, data.wants_bump ? 1 : 0, data.source_tag, data.payment_status ?? 'prepared',
+      data.timezone, data.company_name ?? null, data.vat_number ?? null,
+      data.wants_bump ? 1 : 0, data.source_tag, data.payment_status ?? 'prepared',
     )
     .first<{ id: number }>();
   if (!r) throw new Error('Failed to create registration');

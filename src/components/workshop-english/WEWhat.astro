@@ -1,27 +1,24 @@
 ---
-// Cards carry a data-door: an active door "lights" its card (§2.4).
-//   01 → door 3 (professional), 02 → none, 03 → door 1 (healing),
-//   04 → door 2 (freedom).
+// The four experience beats. This is the neutral copy rendered server-side so
+// no-JS visitors get a complete page. The personalization controller in
+// workshop.astro rewrites every card's title + body to the visitor's chosen
+// lens (healing / freedom / professional) — see the CARDS map there.
 const items = [
   {
-    door: '3',
     title: 'An introduction to Somatic Vocal Healing',
     body: 'The method where sound becomes the language of the body — a closer connection to your body, your own sound, and whatever wants to show up underneath.',
   },
   {
-    door: '',
     title: 'A somatic warm-up with live piano',
     body: 'So your nervous system can arrive before anything else happens. You settle. Your breath widens. Your listening gets finer.',
   },
   {
-    door: '1',
     title: 'Guided toning exercises',
     body: 'A somatic practice for letting stuck emotion move through your voice — not by describing it, but by letting it sound. And a little more trust in speaking your own truth, at home and at work.',
   },
   {
-    door: '2',
     title: 'A first tool for everyday life',
-    body: 'Something to keep coming back to — when something in you is stuck, when your head is too loud, when the day has closed you up. You can keep practicing it on your own after.',
+    body: 'Something to keep coming back to — when something in you is stuck, when your head is too loud, when the day has closed you up. You can keep practising it on your own after.',
   },
 ];
 ---
@@ -55,13 +52,10 @@ const items = [
     <div class="we-what-grid">
       {
         items.map((it, i) => (
-          <article class="we-what-card" data-door={it.door}>
-            <div class="we-what-card-top">
-              <div class="we-what-num">{String(i + 1).padStart(2, '0')}</div>
-              <span class="we-what-foryou">For you</span>
-            </div>
-            <h3 class="we-what-card-title">{it.title}</h3>
-            <p class="we-what-card-body">{it.body}</p>
+          <article class="we-what-card">
+            <div class="we-what-num">{String(i + 1).padStart(2, '0')}</div>
+            <h3 class="we-what-card-title we-swap" id={`we-card-title-${i}`}>{it.title}</h3>
+            <p class="we-what-card-body we-swap" id={`we-card-body-${i}`}>{it.body}</p>
           </article>
         ))
       }
@@ -73,7 +67,7 @@ const items = [
       <em>the rest of your life.</em>
     </p>
     <p class="we-what-coffee-foot">
-      One hour. For about the <em>price of lunch.</em>
+      One hour. For about the <em>price of two coffees.</em>
     </p>
 
     <div class="we-what-cta-wrap">

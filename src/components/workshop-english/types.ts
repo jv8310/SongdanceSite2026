@@ -17,5 +17,8 @@ export interface CalItem {
   bumpLabel: string;
   bumpMinor: number;
   bumpPricesByCurrency: Record<string, number>;
+  // Marketing "regular price" anchor (minor units, per currency) for the struck
+  // compare-at price beside the one-time offer. Empty when there's no bump.
+  bumpComparePricesByCurrency: Record<string, number>;
   hasBump: boolean;
 }

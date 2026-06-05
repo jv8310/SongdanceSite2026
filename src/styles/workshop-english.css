@@ -80,7 +80,7 @@ html, body { background: var(--paper); }
 }
 .we-h2 em {
   font-family: var(--font-lyric); font-style: italic;
-  color: var(--plum); font-weight: 400;
+  color: var(--ember); font-weight: 400;
 }
 
 .we-link-cta {
@@ -170,7 +170,7 @@ html, body { background: var(--paper); }
 .we-hero-head em {
   font-family: var(--font-lyric);
   font-style: italic;
-  color: var(--plum);
+  color: var(--ember);
   font-weight: 400;
 }
 .we-hero-sub {
@@ -352,7 +352,7 @@ html, body { background: var(--paper); }
 .we-opening-head em {
   font-family: var(--font-lyric);
   font-style: italic;
-  color: var(--plum);
+  color: var(--ember);
 }
 .we-opening-body {
   font-family: var(--font-body);
@@ -450,26 +450,6 @@ html, body { background: var(--paper); }
   box-shadow: var(--shadow-2);
   transform: translateY(-2px);
 }
-/* "Lit" — a quiet emphasis when the visitor's door selects this card. */
-.we-what-card.is-lit {
-  background: var(--paper-soft);
-  border-color: var(--ember);
-  box-shadow: var(--shadow-2);
-}
-.we-what-card.is-lit::before {
-  content: "";
-  position: absolute; left: 0; top: 0; bottom: 0;
-  width: 3px;
-  background: var(--ember);
-  border-radius: var(--r-lg) 0 0 var(--r-lg);
-}
-.we-what-card-top {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--sp-3);
-  margin-bottom: var(--sp-4);
-}
 .we-what-num {
   font-family: var(--font-display);
   font-size: 40px;
@@ -477,26 +457,7 @@ html, body { background: var(--paper); }
   color: var(--ember);
   letter-spacing: -0.02em;
   font-weight: 400;
-}
-/* "For you" tag — only shown on the card the visitor's door lights up. */
-.we-what-foryou {
-  font-family: var(--font-mono, var(--font-body));
-  font-size: 10.5px;
-  text-transform: uppercase;
-  letter-spacing: 0.18em;
-  color: var(--paper);
-  background: var(--ember);
-  padding: 5px 10px;
-  border-radius: 999px;
-  white-space: nowrap;
-  opacity: 0;
-  transform: translateY(-2px);
-  transition: opacity var(--d-base) var(--ease), transform var(--d-base) var(--ease);
-  pointer-events: none;
-}
-.we-what-card.is-lit .we-what-foryou {
-  opacity: 1;
-  transform: translateY(0);
+  margin-bottom: var(--sp-4);
 }
 .we-what-card-title {
   font-family: var(--font-display);
@@ -525,7 +486,7 @@ html, body { background: var(--paper); }
   max-width: 44ch;
   text-wrap: balance;
 }
-.we-what-coffee em { color: var(--plum); }
+.we-what-coffee em { color: var(--ember); }
 .we-what-coffee-foot {
   margin: var(--sp-5) auto 0;
   text-align: center;
@@ -537,7 +498,7 @@ html, body { background: var(--paper); }
   max-width: 32ch;
   text-wrap: balance;
 }
-.we-what-coffee-foot em { color: var(--plum); }
+.we-what-coffee-foot em { color: var(--ember); }
 .we-what-cta-wrap { text-align: center; margin-top: var(--sp-6); }
 
 /* ---------- Lyric break ---------- */
@@ -934,12 +895,22 @@ html, body { background: var(--paper); }
   color: var(--ink);
   font-weight: 500;
 }
+/* "your time" qualifies the displayed time itself — kept beside the when, not
+   mixed in with the audience/duration meta line below. */
+.we-cal-tz {
+  font-style: italic;
+  font-weight: 400;
+  color: var(--ink-whisper);
+}
 .we-cal-meta {
   font-family: var(--font-body);
   font-size: 13px;
   color: var(--ink-quiet);
   margin-top: 2px;
 }
+/* The audience qualifier on a masterclass ("for practitioners") reads as a
+   distinct kind of information from the time — give it the plum accent. */
+.we-cal-meta .we-cal-audience { color: var(--plum); font-weight: 500; }
 .we-cal-price {
   font-family: var(--font-display);
   font-size: 20px;
@@ -1030,16 +1001,43 @@ html, body { background: var(--paper); }
 .we-bump-card input:checked + .we-bump-checkbox::after { transform: scale(1); }
 .we-bump-card input:focus-visible + .we-bump-checkbox { outline: 2px solid var(--plum); outline-offset: 2px; }
 .we-bump-title { font-family: var(--font-body); font-size: 16px; font-weight: 600; color: var(--ink); }
-.we-bump-media { display: flex; gap: 12px; align-items: center; }
+.we-bump-media { display: flex; gap: 14px; align-items: center; }
 .we-bump-media img {
-  width: 92px; height: 92px; object-fit: cover; border-radius: var(--r-md);
+  width: 96px; height: 96px; object-fit: cover; border-radius: var(--r-md);
   flex-shrink: 0; filter: var(--we-img-filter);
+}
+.we-bump-info { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.we-bump-points { display: flex; flex-direction: column; gap: 5px; }
+.we-bump-point {
+  position: relative; padding-left: 19px;
+  font-family: var(--font-body); font-size: 13.5px; line-height: 1.4; color: var(--ink-soft);
+}
+.we-bump-point strong { font-weight: 600; color: var(--ink); }
+.we-bump-point::before {
+  content: "✓"; position: absolute; left: 0; top: 0;
+  color: var(--plum); font-size: 12px; font-weight: 700;
 }
 .we-bump-blurb {
   font-family: var(--font-body); font-size: 13.5px; line-height: 1.55; color: var(--ink-soft);
 }
-.we-bump-foot { display: flex; justify-content: flex-end; }
-.we-bump-price { font-family: var(--font-display); font-size: 18px; color: var(--plum); font-weight: 500; }
+.we-bump-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.we-bump-prices { display: flex; align-items: baseline; gap: 10px; }
+.we-bump-was {
+  font-family: var(--font-body); font-size: 15px;
+  color: var(--ink-whisper); text-decoration: line-through;
+}
+.we-bump-was[hidden] { display: none; }
+.we-bump-now { font-family: var(--font-display); font-size: 24px; color: var(--plum); font-weight: 600; }
+.we-bump-save {
+  font-family: var(--font-mono); font-size: 10px;
+  text-transform: uppercase; letter-spacing: 0.14em;
+  color: var(--paper); background: var(--plum);
+  padding: 4px 9px; border-radius: 999px; white-space: nowrap;
+}
+.we-bump-save[hidden] { display: none; }
+/* B2B fields — revealed only for masterclass selections. */
+.we-biz { display: flex; flex-direction: column; gap: var(--sp-4); }
+.we-biz[hidden] { display: none; }
 
 .we-total {
   display: flex; justify-content: space-between; align-items: baseline;
