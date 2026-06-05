@@ -425,10 +425,16 @@ const tzOptions = Array.from(new Set([detectedTz, ...COMMON_TZS]));
     if (!reduce) {
       var nodes = Array.prototype.slice.call(document.querySelectorAll('[data-parallax]'));
       var layers = nodes.map(function (el) {
+        // `-bg` wrappers translate themselves (keeping the child img's own
+        // animation). A standalone <img> translates itself. A media frame moves
+        // its child <img>. Anything else (a foreground block) moves itself.
         var isLayer = el.className.indexOf('-bg') !== -1;
+        var target;
+        if (isLayer || el.tagName === 'IMG') target = el;
+        else target = el.querySelector('img') || el;
         return {
           el: el,
-          target: isLayer ? el : el.querySelector('img'),
+          target: target,
           speed: parseFloat(el.getAttribute('data-parallax-speed')) || 0.15,
         };
       }).filter(function (l) { return l.target; });
@@ -444,7 +450,7 @@ const tzOptions = Array.from(new Set([detectedTz, ...COMMON_TZS]));
           var elCenter = rect.top + rect.height / 2;
           var delta = (vh / 2 - elCenter); // +ve when element is above centre
           var shift = delta * l.speed;
-          var max = rect.height * 0.09;
+          var max = rect.height * 0.12;
           if (shift > max) shift = max;
           if (shift < -max) shift = -max;
           l.target.style.transform = 'translate3d(0,' + shift.toFixed(1) + 'px,0)';

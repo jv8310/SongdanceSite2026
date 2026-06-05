@@ -82,7 +82,7 @@
   align-items: center;
 }
 .wn-hero-bg {
-  position: absolute; inset: -12% 0;
+  position: absolute; inset: -16% 0;
   z-index: 0; pointer-events: none;
   will-change: transform;
 }
@@ -229,11 +229,24 @@
 .wn-story { background: var(--paper); padding: var(--sp-9) var(--sp-7); }
 .wn-story-inner { max-width: var(--we-max); margin: 0 auto; }
 
-/* A single statement that opens the explainer ("In one breath"). */
+/* A single statement that opens the explainer ("In one breath"), with a large,
+   faint symbol drifting behind it (parallax) so the moment feels anchored. */
 .wn-breath {
-  max-width: 30ch; margin: 0 auto var(--sp-10);
+  position: relative; overflow: hidden;
+  max-width: 34ch; margin: 0 auto var(--sp-10);
+  padding: var(--sp-7) var(--sp-4);
   text-align: center;
 }
+.wn-breath-mark {
+  position: absolute; inset: 0; z-index: 0;
+  display: grid; place-items: center; pointer-events: none;
+}
+.wn-breath-mark img {
+  width: min(78%, 420px); height: auto; opacity: 0.07;
+  will-change: transform;
+}
+.wn-breath > .wn-breath-eyebrow,
+.wn-breath > .wn-breath-head { position: relative; z-index: 1; }
 .wn-breath-eyebrow {
   font-family: var(--font-mono);
   font-size: 11px; text-transform: uppercase; letter-spacing: 0.24em;
@@ -241,13 +254,17 @@
 }
 .wn-breath-head {
   font-family: var(--font-display);
-  font-size: clamp(32px, 4.4vw, 56px);
-  line-height: 1.1; letter-spacing: -0.016em;
+  font-size: clamp(28px, 4vw, 52px);
+  line-height: 1.14; letter-spacing: -0.014em;
   color: var(--ink); font-weight: 400; margin: 0;
   text-wrap: balance;
 }
 .wn-breath-head em {
   font-family: var(--font-lyric); font-style: italic; color: var(--ember);
+}
+@media (max-width: 600px) {
+  .wn-breath { max-width: none; padding: var(--sp-6) var(--sp-3); margin-bottom: var(--sp-9); }
+  .wn-breath-head { font-size: clamp(23px, 6.4vw, 32px); line-height: 1.22; }
 }
 
 .wn-rows { display: flex; flex-direction: column; gap: clamp(var(--sp-8), 9vw, var(--sp-10)); }
@@ -274,8 +291,8 @@
 }
 .wn-row-media--tall { aspect-ratio: 3 / 4; }
 .wn-row-media img {
-  position: absolute; inset: -11% 0;
-  width: 100%; height: 122%;
+  position: absolute; inset: -16% 0;
+  width: 100%; height: 132%;
   object-fit: cover;
   will-change: transform;
   filter: saturate(0.96) contrast(1.02);
@@ -343,11 +360,11 @@
   text-align: center;
 }
 .wn-core-bg {
-  position: absolute; inset: -12% 0; z-index: 0; pointer-events: none;
+  position: absolute; inset: -16% 0; z-index: 0; pointer-events: none;
   will-change: transform;
 }
 .wn-core-bg img {
-  width: 100%; height: 124%; object-fit: cover; object-position: 50% 40%;
+  width: 100%; height: 132%; object-fit: cover; object-position: 50% 40%;
   opacity: 0.3; filter: saturate(0.95) contrast(1.02);
 }
 .wn-core-bg::after {
@@ -365,6 +382,14 @@
   text-wrap: balance;
 }
 .wn-core-head em { font-family: var(--font-lyric); font-style: italic; color: var(--ember); }
+.wn-core-lead {
+  font-family: var(--font-body);
+  font-size: clamp(16px, 1.9vw, 19px); line-height: 1.7;
+  color: rgba(244,236,223,0.82);
+  max-width: 52ch; margin: 0 auto var(--sp-2);
+  text-wrap: balance;
+}
+.wn-core-lead em { font-style: italic; color: var(--ember-soft); }
 /* The two-card contrast: sound FOR vs sound OF. */
 .wn-core-pair {
   display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-5);
@@ -453,9 +478,9 @@
 }
 .wn-band--thin { min-height: 240px; }
 .wn-band--tall { min-height: clamp(420px, 60vh, 620px); }
-.wn-band-bg { position: absolute; inset: -12% 0; z-index: 0; will-change: transform; }
+.wn-band-bg { position: absolute; inset: -16% 0; z-index: 0; will-change: transform; }
 .wn-band-bg img {
-  width: 100%; height: 124%; object-fit: cover; object-position: 50% 45%;
+  width: 100%; height: 132%; object-fit: cover; object-position: 50% 45%;
   filter: saturate(0.96) contrast(1.02);
 }
 .wn-band--thin .wn-band-bg img { opacity: 0.9; }
@@ -502,7 +527,7 @@
 }
 @media (max-width: 820px) { .wn-deeper-media { max-width: 420px; margin: 0 auto; } }
 .wn-deeper-media img {
-  position: absolute; inset: -11% 0; width: 100%; height: 122%;
+  position: absolute; inset: -16% 0; width: 100%; height: 132%;
   object-fit: cover; will-change: transform; filter: saturate(0.98) contrast(1.03);
 }
 .wn-deeper-text { max-width: 52ch; }
