@@ -302,6 +302,8 @@ const roomTypes = [
 </section>
 
 <script>
+  import { isEuCountry } from '../../lib/countries';
+
   type StepNum = 1 | 2 | 3;
 
   const form = document.getElementById('rb-reg-form') as HTMLFormElement | null;
@@ -560,14 +562,24 @@ const roomTypes = [
       });
     });
 
-    // ───────── Company toggle reveals VAT + address ─────────
+    // ───────── Company toggle reveals VAT (EU businesses only) ─────────
+    // The VAT field appears only once a company name is entered AND the
+    // selected country is in the EU — reverse-charge only applies to EU
+    // businesses.
     function toggleBiz() {
-      const show = companyInput.value.trim().length > 0;
+      const show =
+        companyInput.value.trim().length > 0 && isEuCountry(countrySelect.value);
       bizFields.forEach((f) => {
         f.hidden = !show;
+        if (!show) {
+          f.querySelectorAll('input').forEach((inp) => {
+            inp.value = '';
+          });
+        }
       });
     }
     companyInput.addEventListener('input', toggleBiz);
+    countrySelect.addEventListener('change', toggleBiz);
 
     // ───────── Step 2 → 3 ─────────
     form.addEventListener('click', (ev) => {

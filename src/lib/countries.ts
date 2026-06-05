@@ -69,3 +69,19 @@ export function findCountry(code: string | null | undefined): Country | undefine
   if (!code) return undefined;
   return COUNTRIES.find((c) => c.code === code.toUpperCase());
 }
+
+// The 27 EU member states (ISO-3166-1 alpha-2). NOTE: the `eu` array above is a
+// loosely-named "European" picker that also holds non-EU markets (CH, GB, NO,
+// IS), so it can't be used to decide EU membership — this set is the real list.
+// Used to gate the VAT-number field, which only makes sense for EU businesses
+// (intra-EU reverse-charge).
+export const EU_COUNTRY_CODES = new Set<string>([
+  'AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR', 'DE', 'GR',
+  'HU', 'IE', 'IT', 'LV', 'LT', 'LU', 'MT', 'NL', 'PL', 'PT', 'RO', 'SK',
+  'SI', 'ES', 'SE',
+]);
+
+export function isEuCountry(code: string | null | undefined): boolean {
+  if (!code) return false;
+  return EU_COUNTRY_CODES.has(code.toUpperCase());
+}

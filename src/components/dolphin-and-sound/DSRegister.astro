@@ -164,6 +164,8 @@ import { COUNTRIES } from '../../lib/countries';
 </section>
 
 <script>
+  import { isEuCountry } from '../../lib/countries';
+
   const form = document.getElementById('ds-reg-form') as HTMLFormElement | null;
   if (form) {
     const errBox = form.querySelector('#ds-reg-error') as HTMLElement;
@@ -279,10 +281,17 @@ import { COUNTRIES } from '../../lib/countries';
       })
       .catch(() => {});
 
-    // Company → reveal VAT field.
-    companyInput.addEventListener('input', () => {
-      bizField.hidden = companyInput.value.trim().length === 0;
-    });
+    // VAT field appears only once a company name is entered AND the selected
+    // country is in the EU (reverse-charge only applies to EU businesses).
+    const vatInput = form.querySelector('input[name="vat_number"]') as HTMLInputElement;
+    const toggleVat = () => {
+      const show = companyInput.value.trim().length > 0 && isEuCountry(countrySelect.value);
+      bizField.hidden = !show;
+      if (!show) vatInput.value = '';
+    };
+    companyInput.addEventListener('input', toggleVat);
+    countrySelect.addEventListener('change', toggleVat);
+    toggleVat();
 
     form.addEventListener('submit', async (ev) => {
       ev.preventDefault();
