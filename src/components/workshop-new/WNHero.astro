@@ -1,0 +1,42 @@
+---
+// New hero for the reworked workshop page. Uses the painterly svhgpt-01 image
+// (a woman sounding, throat lit) on a night surface with layered glow +
+// parallax. Keeps the #we-h1 / #we-hero-sub ids so the existing personalization
+// controller swaps the headline + sub per lead lens (incl. the pro lens).
+---
+
+<section class="wn-hero">
+  <div class="wn-hero-bg" data-parallax data-parallax-speed="0.18" aria-hidden="true">
+    <img src="/media/library/svhgpt-01-hero-in-one-breath.webp" alt="" />
+  </div>
+  <div class="wn-hero-glow" aria-hidden="true"></div>
+
+  <div class="wn-hero-inner">
+    <img class="wn-hero-mark" src="/brand/symbol-orange.png" alt="" aria-hidden="true" />
+    <div class="wn-hero-eyebrow">Somatic Vocal Healing Workshop</div>
+    <h1 class="wn-hero-head we-swap" id="we-h1">
+      Your voice knows <em>more</em> than you think.
+    </h1>
+    <p class="wn-hero-sub we-swap" id="we-hero-sub">
+      A one-hour live workshop in <em>Somatic Vocal Healing</em> —
+      for everything in you that never found a way out.
+    </p>
+    <div class="wn-hero-ctas">
+      <a href="#register" class="wn-hero-cta">
+        Register for the workshop <i class="ph-light ph-arrow-right"></i>
+      </a>
+      <a href="#breath" class="wn-hero-link">What is Somatic Vocal Healing?</a>
+    </div>
+    <div class="wn-hero-meta">
+      <span>With Jacob Vermeulen</span>
+      <span class="dot"></span>
+      <span>Online</span>
+      <span class="dot"></span>
+      <span>Live · 1 hour</span>
+    </div>
+  </div>
+
+  <a href="#breath" class="wn-hero-scroll" aria-label="Scroll down">
+    <i class="ph-light ph-arrow-down"></i>
+  </a>
+</section>

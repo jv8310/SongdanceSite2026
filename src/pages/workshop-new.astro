@@ -1,0 +1,461 @@
+---
+// Reworked workshop page (a working /workshop-new we may promote to /workshop).
+// Reuses the proven commerce pieces (selector, calendar/register, testimonials,
+// about, masterclass, footer) and layers a richer, image-driven SVH explainer
+// on top — built from the "What Somatic Vocal Healing Is" document, with a
+// novice / practitioner ("pro") content split, parallax and scroll-reveal.
+//
+// The data-fetching mirrors workshop.astro exactly so the calendar behaves the
+// same on both pages.
+import '../styles/workshop-english.css';
+import '../styles/workshop-new.css';
+import Layout from '../layouts/Layout.astro';
+import WENav from '../components/workshop-english/WENav.astro';
+import WNHero from '../components/workshop-new/WNHero.astro';
+import WESelector from '../components/workshop-english/WESelector.astro';
+import WEOpening from '../components/workshop-english/WEOpening.astro';
+import WNStory from '../components/workshop-new/WNStory.astro';
+import WNCore from '../components/workshop-new/WNCore.astro';
+import WNPractice from '../components/workshop-new/WNPractice.astro';
+import WEWhat from '../components/workshop-english/WEWhat.astro';
+import WNDeeper from '../components/workshop-new/WNDeeper.astro';
+import WELyric from '../components/workshop-english/WELyric.astro';
+import WETestimonials from '../components/workshop-english/WETestimonials.astro';
+import WEAbout from '../components/workshop-english/WEAbout.astro';
+import WEMasterclass from '../components/workshop-english/WEMasterclass.astro';
+import WNBegin from '../components/workshop-new/WNBegin.astro';
+import WERegister from '../components/workshop-english/WERegister.astro';
+import type { CalItem } from '../components/workshop-english/types';
+import WEFooter from '../components/workshop-english/WEFooter.astro';
+import {
+  listUpcomingPublishedWorkshops,
+  getProductById,
+  getProductBySlug,
+  resolvePrice,
+  listPricesForProduct,
+} from '../lib/workshops/db';
+import { currencyForCountry, formatMoney } from '../lib/workshops/currency';
+import { formatInTz } from '../lib/workshops/time';
+
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+const cf = (Astro.locals.runtime as any)?.cf;
+
+// Cloudflare edge geo/timezone — no external API (mirrors /w/[slug]).
+const country: string = (cf?.country as string) || 'EU';
+const detectedTz: string = (cf?.timezone as string) || 'Europe/Brussels';
+const currency = currencyForCountry(country === 'EU' ? null : country);
+
+// Build the calendar: upcoming published workshops + masterclasses, priced in
+// the visitor's currency. A masterclass is any entry whose main product slug
+// contains "masterclass".
+const upcoming = await listUpcomingPublishedWorkshops(env.DB, new Date().toISOString());
+
+const priceMap = (rows: { currency: string; amount_minor: number }[]) =>
+  Object.fromEntries(rows.map((r) => [r.currency.toUpperCase(), r.amount_minor]));
+
+const DEFAULT_BUMP_SLUG = 'asj-bump';
+const defaultBump = await getProductBySlug(env.DB, DEFAULT_BUMP_SLUG);
+
+const BUMP_COMPARE_BY_CURRENCY: Record<string, number> = {
+  EUR: 9900, USD: 9900, GBP: 8900, CHF: 9900, CAD: 14900,
+  AUD: 15900, NZD: 16900, NOK: 99900, SEK: 99900, DKK: 69900,
+};
+
+const items: CalItem[] = [];
+for (const w of upcoming) {
+  if (!w.main_product_id) continue;
+  const price = await resolvePrice(env.DB, w.main_product_id, currency);
+  if (!price) continue;
+  const pricesByCurrency = priceMap(await listPricesForProduct(env.DB, w.main_product_id));
+
+  const isMasterclass = (w.product_slug ?? '').includes('masterclass');
+  const bumpProductId = w.bump_product_id ?? (isMasterclass ? defaultBump?.id ?? null : null);
+
+  let bumpName = '';
+  let bumpLabel = '';
+  let bumpMinor = 0;
+  let bumpPricesByCurrency: Record<string, number> = {};
+  let bumpComparePricesByCurrency: Record<string, number> = {};
+  if (bumpProductId) {
+    const bumpProduct = await getProductById(env.DB, bumpProductId);
+    const bumpPrice = await resolvePrice(env.DB, bumpProductId, price.currency);
+    if (bumpProduct && bumpPrice) {
+      bumpName = bumpProduct.name;
+      bumpLabel = formatMoney(bumpPrice.amountMinor, bumpPrice.currency);
+      bumpMinor = bumpPrice.amountMinor;
+      bumpPricesByCurrency = priceMap(await listPricesForProduct(env.DB, bumpProductId));
+      bumpComparePricesByCurrency = BUMP_COMPARE_BY_CURRENCY;
+    }
+  }
+
+  items.push({
+    slug: w.slug,
+    kind: isMasterclass ? 'masterclass' : 'workshop',
+    whenLocal: w.is_replay ? null : formatInTz(w.starts_at_utc, detectedTz),
+    isReplay: w.is_replay === 1,
+    title: w.title,
+    durationMin: isMasterclass ? 90 : 60,
+    priceLabel: formatMoney(price.amountMinor, price.currency),
+    priceMinor: price.amountMinor,
+    currency: price.currency,
+    pricesByCurrency,
+    bumpName,
+    bumpLabel,
+    bumpMinor,
+    bumpPricesByCurrency,
+    bumpComparePricesByCurrency,
+    hasBump: !!bumpName,
+  });
+}
+
+const hasMasterclass = items.some((it) => it.kind === 'masterclass');
+
+const COMMON_TZS = [
+  'Europe/Brussels', 'Europe/London', 'Europe/Berlin', 'Europe/Paris', 'Europe/Madrid',
+  'Europe/Amsterdam', 'Europe/Zurich', 'Europe/Stockholm', 'Europe/Oslo', 'Europe/Copenhagen',
+  'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles', 'America/Toronto',
+  'America/Sao_Paulo', 'Asia/Dubai', 'Asia/Kolkata', 'Asia/Singapore', 'Asia/Tokyo',
+  'Australia/Sydney', 'Pacific/Auckland', 'UTC',
+];
+const tzOptions = Array.from(new Set([detectedTz, ...COMMON_TZS]));
+---
+
+<Layout
+  title="Somatic Vocal Healing Workshop — Sound as the Body's Language | Songdance"
+  description="A one-hour live Somatic Vocal Healing workshop with Jacob Vermeulen. Use your own sound to let stuck emotion move and arrive more fully in your body."
+  image="/media/library/svhgpt-01-hero-in-one-breath.webp"
+>
+  <div class="we-site">
+    <p class="sr-only" id="we-live" role="status" aria-live="polite"></p>
+    <WENav />
+    <WNHero />
+    <WESelector />
+    <WEOpening />
+    <WNStory />
+    <WNCore />
+    <WNPractice />
+    <WEWhat />
+    <WNDeeper />
+    <WELyric />
+    <WETestimonials />
+    <WEAbout />
+    <WEMasterclass hasMasterclass={hasMasterclass} />
+    <WNBegin />
+    <WERegister
+      items={items}
+      country={country}
+      currency={currency}
+      detectedTz={detectedTz}
+      tzOptions={tzOptions}
+    />
+    <WEFooter />
+  </div>
+</Layout>
+
+<style is:global>
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+  }
+</style>
+
+<script is:inline>
+  // ── Personalization controller ───────────────────────────────────────────
+  // State = URL. Door-set comes from ?audience=1,3 or a ?campaign= alias.
+  // Switch A (lead lens, priority 1→2→3) supplies H1 / sub / opening accent /
+  // reg line + page title. Switch B (pro = door 3 active) flips the page into
+  // practitioner mode: it toggles `.is-pro` on .we-site (revealing the .wn-pro
+  // content and hiding .wn-novice), reveals the masterclass, and highlights the
+  // masterclass calendar entries. Tailoring is a content swap, not a page swap.
+  (function () {
+    var LENS = {
+      neutral: {
+        title: 'Somatic Vocal Healing Workshop — Sound as the Body’s Language | Songdance',
+        h1: 'Your voice knows <em>more</em> than you think.',
+        sub: 'A one-hour live workshop in <em>Somatic Vocal Healing</em> — for everything in you that never found a way out.',
+        openHead: 'You can feel that something in you is <em>asking to be heard</em> —<br>and, at the same time, kept carefully quiet.',
+        accent: '',
+        reg: 'Come. One hour. Live.<br>You don’t need any skill, any preparation, anything to prove.<br>You just open your mouth<br>and see what happens.',
+      },
+      1: {
+        title: 'What You’ve Carried Is Allowed to Be Heard — Somatic Vocal Healing | Songdance',
+        h1: 'What you’ve carried is allowed <em>to be heard.</em>',
+        sub: 'A one-hour live workshop in <em>Somatic Vocal Healing</em> — for the old feeling, the unsaid thing, the part of you that’s been waiting.',
+        openHead: 'There’s an old feeling in you that has waited a long time —<br>and, quietly, it’s <em>asking to be heard.</em>',
+        accent: 'You don’t have to explain it, or even understand it. You just have to let it have a sound.',
+        reg: 'Come as you are, with whatever you’ve been carrying. You don’t have to do anything with it but let it be heard.',
+      },
+      2: {
+        title: 'What Would Your Voice Do If Nobody Was Grading It? — Somatic Vocal Healing | Songdance',
+        h1: 'What would your voice do if <em>nobody was grading it?</em>',
+        sub: 'A one-hour live workshop in <em>Somatic Vocal Healing</em> — for the held breath, the careful throat, the sound you edit before it leaves you.',
+        openHead: 'There’s a voice in you that you <em>edit before it leaves</em> —<br>careful, managed, kept just within bounds.',
+        accent: 'Most of us run an editor before we ever make a sound. This is an hour with the editor off.',
+        reg: 'Nothing to prepare, nothing to prove. Just an hour to hear what your voice does when you stop managing it.',
+      },
+      3: {
+        title: 'Somatic Voice Work You Can Bring to Your Practice — Somatic Vocal Healing | Songdance',
+        h1: 'Somatic voice work you can <em>bring to your own practice.</em>',
+        sub: 'A one-hour live introduction to <em>Somatic Vocal Healing</em> — a coherent, teachable method that deepens the work you already do with clients and groups.',
+        openHead: 'You hold space for other people’s process —<br>and somewhere in you, <em>your own is asking for the same room.</em>',
+        accent: 'Maybe you’re here for the people you work with. Maybe, quietly, for yourself too. Both belong here.',
+        reg: 'Come and feel the method from the inside first — it’s the only place this work can be taught from.',
+      },
+    };
+
+    var CARDS = {
+      neutral: [
+        { t: 'An introduction to Somatic Vocal Healing',
+          b: 'The method where sound becomes the language of the body — a closer connection to your body, your own sound, and whatever wants to show up underneath.' },
+        { t: 'A somatic warm-up with live piano',
+          b: 'So your nervous system can arrive before anything else happens. You settle. Your breath widens. Your listening gets finer.' },
+        { t: 'Guided toning exercises',
+          b: 'A somatic practice for letting stuck emotion move through your voice — not by describing it, but by letting it sound. And a little more trust in speaking your own truth, at home and at work.' },
+        { t: 'A first tool for everyday life',
+          b: 'Something to keep coming back to — when something in you is stuck, when your head is too loud, when the day has closed you up. You can keep practising it on your own after.' },
+      ],
+      1: [
+        { t: 'An introduction to Somatic Vocal Healing',
+          b: 'The method where sound becomes a language for what you’ve carried — a gentler way to meet the old feeling than explaining it: you let it have a sound.' },
+        { t: 'A somatic warm-up with live piano',
+          b: 'So your nervous system can soften and feel safe before anything tender surfaces. You settle. Your breath widens. Nothing is forced.' },
+        { t: 'Guided toning exercises',
+          b: 'A somatic practice for letting stuck emotion move through your voice — not by reliving the story, but by letting what’s underneath finally sound and be heard.' },
+        { t: 'A first tool for everyday life',
+          b: 'Something to come back to when the old feeling resurfaces — a way to let it move through you instead of holding it. Yours to keep practising after.' },
+      ],
+      2: [
+        { t: 'An introduction to Somatic Vocal Healing',
+          b: 'The method where sound becomes the language of the body — and the inner editor that manages your voice gets to switch off for an hour.' },
+        { t: 'A somatic warm-up with live piano',
+          b: 'So your throat can unclench and your breath can widen before you make a sound. The careful holding loosens. Your listening gets finer.' },
+        { t: 'Guided toning exercises',
+          b: 'A somatic practice for hearing what your voice does when nobody’s grading it — fuller, freer, less managed. And a little more ease in speaking up.' },
+        { t: 'A first tool for everyday life',
+          b: 'Something to reach for when you catch yourself holding back — a quick way to drop the editor and let your voice out. Yours to keep after.' },
+      ],
+      3: [
+        { t: 'An introduction to Somatic Vocal Healing',
+          b: 'A coherent, teachable method where sound becomes the body’s language — felt from the inside, so you know what you’d be offering your clients and groups.' },
+        { t: 'A somatic warm-up with live piano',
+          b: 'How to help a nervous system arrive before the work begins — the settling, the widening breath, the finer listening you can later hold for others.' },
+        { t: 'Guided toning exercises',
+          b: 'The core practice for letting stuck emotion move through the voice — experienced in your own body first, so you can guide it cleanly in your practice.' },
+        { t: 'A first tool for everyday life',
+          b: 'A practice to keep for yourself — and a first way in you can begin to offer others. Yours to keep practising after.' },
+      ],
+    };
+
+    var CAMPAIGN_MAP = { healing: [1], freedom: [2], pro: [3] };
+
+    function parseState() {
+      var p = new URLSearchParams(location.search);
+      var aud = p.get('audience');
+      if (aud) {
+        return aud.split(',')
+          .map(function (s) { return parseInt(s, 10); })
+          .filter(function (d) { return d === 1 || d === 2 || d === 3; });
+      }
+      var camp = (p.get('campaign') || '').toLowerCase();
+      if (CAMPAIGN_MAP[camp]) return CAMPAIGN_MAP[camp].slice();
+      return [];
+    }
+
+    function leadLens(doors) {
+      if (doors.indexOf(1) !== -1) return 1;
+      if (doors.indexOf(2) !== -1) return 2;
+      if (doors.indexOf(3) !== -1) return 3;
+      return 'neutral';
+    }
+
+    function setSwap(id, html, animate) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      if (!animate) { el.innerHTML = html; return; }
+      el.classList.add('is-swapping');
+      window.setTimeout(function () {
+        el.innerHTML = html;
+        el.classList.remove('is-swapping');
+      }, 320);
+    }
+
+    function announce(doors, pro) {
+      var live = document.getElementById('we-live');
+      if (!live) return;
+      live.textContent = doors.length
+        ? (pro ? 'The page has been tailored for practitioners.'
+               : 'The page has been tailored to what you chose.')
+        : 'Showing the page for everyone.';
+    }
+
+    function apply(doors, animate) {
+      var lens = leadLens(doors);
+      var data = LENS[lens] || LENS.neutral;
+
+      setSwap('we-h1', data.h1, animate);
+      setSwap('we-hero-sub', data.sub, animate);
+      setSwap('we-opening-head', data.openHead, animate);
+      setSwap('we-opening-accent', data.accent, animate);
+      setSwap('we-reg-body', data.reg, animate);
+      document.title = data.title;
+
+      var cardSet = CARDS[lens] || CARDS.neutral;
+      for (var i = 0; i < cardSet.length; i++) {
+        setSwap('we-card-title-' + i, cardSet[i].t, animate);
+        setSwap('we-card-body-' + i, cardSet[i].b, animate);
+      }
+
+      // Switch B — pro (practitioner) state. Door 3 active.
+      var pro = doors.indexOf(3) !== -1;
+
+      // The page-wide content split: reveals .wn-pro, hides .wn-novice.
+      var site = document.querySelector('.we-site');
+      if (site) site.classList.toggle('is-pro', pro);
+
+      var reg = document.querySelector('.we-register');
+      if (reg) reg.classList.toggle('is-pro', pro);
+
+      var mc = document.getElementById('masterclass');
+      var hasMc = mc && mc.getAttribute('data-has-masterclass') === '1';
+      if (mc) mc.hidden = !(pro && hasMc);
+
+      var bridge = document.getElementById('we-masterclass-bridge');
+      var personal = doors.indexOf(1) !== -1 || doors.indexOf(2) !== -1;
+      if (bridge) bridge.hidden = !(pro && personal);
+
+      // Reflect into the selector checkboxes + prominence.
+      var boxes = document.querySelectorAll('#we-selector-form input[name="door"]');
+      for (var j = 0; j < boxes.length; j++) {
+        boxes[j].checked = doors.indexOf(parseInt(boxes[j].value, 10)) !== -1;
+      }
+      var sel = document.getElementById('why');
+      if (sel) sel.classList.toggle('is-quiet', doors.length > 0);
+
+      // Newly-shown content can sit below the fold; re-scan so its reveals fire.
+      if (window.__wnScanReveals) window.__wnScanReveals();
+    }
+
+    function writeState(doors) {
+      var url = new URL(location.href);
+      url.searchParams.delete('campaign');
+      if (doors.length) url.searchParams.set('audience', doors.join(','));
+      else url.searchParams.delete('audience');
+      history.replaceState(null, '', url.toString());
+    }
+
+    function init() {
+      var doors = parseState();
+      apply(doors, false);
+
+      var form = document.getElementById('we-selector-form');
+      if (form) {
+        form.addEventListener('submit', function (e) {
+          e.preventDefault();
+          var checked = form.querySelectorAll('input[name="door"]:checked');
+          var picked = [];
+          for (var i = 0; i < checked.length; i++) picked.push(parseInt(checked[i].value, 10));
+          picked.sort();
+          writeState(picked);
+          apply(picked, true);
+          announce(picked, picked.indexOf(3) !== -1);
+          var sel = document.getElementById('why');
+          if (sel) sel.classList.add('is-collapsed');
+          var opening = document.querySelector('.we-opening');
+          if (opening) opening.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+      }
+
+      var reopen = document.getElementById('we-selector-reopen');
+      if (reopen) {
+        reopen.addEventListener('click', function () {
+          var sel = document.getElementById('why');
+          if (sel) sel.classList.remove('is-collapsed');
+        });
+      }
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', init);
+    } else {
+      init();
+    }
+  })();
+
+  // ── Motion: scroll-reveal + parallax (reduced-motion aware) ───────────────
+  (function () {
+    var root = document.documentElement;
+    var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    // Mark JS on so the reveal start-state applies (CSS scopes it to .wn-js).
+    if (!reduce) root.classList.add('wn-js');
+
+    // Reveal: IntersectionObserver adds .is-in as elements enter view. We expose
+    // a re-scan hook so the controller can pick up content shown after a mode
+    // switch (the pro/novice blocks toggle display).
+    if (!reduce && 'IntersectionObserver' in window) {
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (en) {
+          if (en.isIntersecting) {
+            en.target.classList.add('is-in');
+            io.unobserve(en.target);
+          }
+        });
+      }, { rootMargin: '0px 0px -10% 0px', threshold: 0.08 });
+
+      window.__wnScanReveals = function () {
+        var els = document.querySelectorAll('.wn-reveal:not(.is-in)');
+        for (var i = 0; i < els.length; i++) {
+          // Skip ones inside a currently-hidden block (offsetParent === null).
+          if (els[i].offsetParent === null) continue;
+          io.observe(els[i]);
+        }
+      };
+      window.__wnScanReveals();
+    } else {
+      // No observer / reduced motion: everything is simply visible.
+      var all = document.querySelectorAll('.wn-reveal');
+      for (var k = 0; k < all.length; k++) all[k].classList.add('is-in');
+    }
+
+    // Parallax: translate the layer (a `-bg` wrapper) or a media frame's <img>,
+    // proportional to its distance from viewport centre, clamped to the headroom
+    // baked into the CSS so no edge is ever revealed.
+    if (!reduce) {
+      var nodes = Array.prototype.slice.call(document.querySelectorAll('[data-parallax]'));
+      var layers = nodes.map(function (el) {
+        var isLayer = el.className.indexOf('-bg') !== -1;
+        return {
+          el: el,
+          target: isLayer ? el : el.querySelector('img'),
+          speed: parseFloat(el.getAttribute('data-parallax-speed')) || 0.15,
+        };
+      }).filter(function (l) { return l.target; });
+
+      var vh = window.innerHeight;
+      var ticking = false;
+      function update() {
+        ticking = false;
+        for (var i = 0; i < layers.length; i++) {
+          var l = layers[i];
+          var rect = l.el.getBoundingClientRect();
+          if (rect.bottom < -200 || rect.top > vh + 200) continue;
+          var elCenter = rect.top + rect.height / 2;
+          var delta = (vh / 2 - elCenter); // +ve when element is above centre
+          var shift = delta * l.speed;
+          var max = rect.height * 0.09;
+          if (shift > max) shift = max;
+          if (shift < -max) shift = -max;
+          l.target.style.transform = 'translate3d(0,' + shift.toFixed(1) + 'px,0)';
+        }
+      }
+      function onScroll() {
+        if (!ticking) { ticking = true; requestAnimationFrame(update); }
+      }
+      window.addEventListener('scroll', onScroll, { passive: true });
+      window.addEventListener('resize', function () { vh = window.innerHeight; onScroll(); }, { passive: true });
+      update();
+    }
+  })();
+</script>
