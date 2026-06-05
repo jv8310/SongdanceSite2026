@@ -1,0 +1,43 @@
+---
+// "A way to begin, right now" — the five steps from the SVH document, framed as
+// a taste of the practice just before the registration block. Closes on the
+// candle (svhgpt-09) and the "tip of the iceberg" note, then hands off to
+// #register. Builds intent at the moment the visitor reaches the bottom.
+const steps = [
+  { n: 1, t: 'Take <strong>three full breaths</strong> — in through the nose, out through the mouth.' },
+  { n: 2, t: 'On the next out-breath, make <strong>the sound of the moment</strong>. Welcome the crack, the waver, the trailing-off.' },
+  { n: 3, t: "Don't analyse it. Just <strong>feel</strong> it — notice what it's like to be heard by yourself." },
+  { n: 4, t: 'If you want to go one layer deeper, ask once: <em>what is below that?</em> Make the sound of whatever answers.' },
+  { n: 5, t: 'Let it settle. The voice often returns on its own to something softer. <strong>Let it.</strong>' },
+];
+---
+
+<section class="wn-begin">
+  <div class="wn-begin-inner">
+    <img class="wn-begin-candle wn-reveal" src="/media/library/svhgpt-09-closing-candle.webp" alt="" aria-hidden="true" />
+    <div class="we-eyebrow">You don't need a teacher to take the first step</div>
+    <h2 class="wn-begin-h2 wn-reveal">A way to begin — <em>right now.</em></h2>
+    <p class="wn-begin-lead wn-reveal">
+      Keep it light and short. Attending to a stressful day or a tired body is
+      enough in itself. And for the heavy, complex material — find a skilled
+      person to hold the space. The whole point is that you're not alone with it.
+    </p>
+
+    <div class="wn-steps">
+      {steps.map((s) => (
+        <div class="wn-step wn-reveal" style={`--wn-delay: ${(s.n - 1) * 80}ms`}>
+          <span class="wn-step-num">{String(s.n).padStart(2, '0')}</span>
+          <p set:html={s.t}></p>
+        </div>
+      ))}
+    </div>
+
+    <p class="wn-begin-foot wn-reveal">
+      Jacob is the first to say he's <em>"only at the tip of the iceberg —
+      and it's a big iceberg."</em> One hour live is the surest way in.
+    </p>
+    <a href="#register" class="wn-begin-cta wn-reveal">
+      Come to the next workshop <i class="ph-light ph-arrow-right"></i>
+    </a>
+  </div>
+</section>
