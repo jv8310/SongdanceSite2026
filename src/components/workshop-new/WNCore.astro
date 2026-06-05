@@ -1,13 +1,17 @@
 ---
 // The single idea to keep, if you keep one: the sound OF something, not FOR it.
-// Full-bleed night block over svhgpt-04 (a seated figure radiating sound), with
-// a two-card contrast and a closing pull. Shared by everyone; the mode tag just
-// reframes who it's addressed to.
+// Full-bleed night block with a two-card contrast and a closing pull. The
+// background image is a prop (defaults to svhgpt-04). Shared by everyone; the
+// mode tag just reframes who it's addressed to.
+interface Props {
+  bgImg?: string;
+}
+const { bgImg = '/media/library/svhgpt-04-sound-of-not-for.webp' } = Astro.props;
 ---
 
 <section class="wn-core">
   <div class="wn-core-bg" data-parallax data-parallax-speed="0.2" aria-hidden="true">
-    <img src="/media/library/svhgpt-04-sound-of-not-for.webp" alt="" />
+    <img src={bgImg} alt="" />
   </div>
   <div class="wn-core-inner">
     <div class="wn-mode-tag wn-reveal">

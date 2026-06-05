@@ -3,13 +3,24 @@
 // is wrapped in .wn-pro, so it's hidden for everyone else. Content is drawn from
 // Part Two of the SVH document: co-regulation, connected-and-soft vs catharsis,
 // the Cup, oscillation & pendulation, and the no-healer stance.
+// Images are props (default to the svhgpt set) for the real-photo sibling page.
+interface Props {
+  bandImg?: string;
+  cupImg?: string;
+  cupAlt?: string;
+}
+const {
+  bandImg = '/media/library/svhgpt-06-holding-space.webp',
+  cupImg = '/media/library/svhgpt-05-the-cup-receiving.webp',
+  cupAlt = 'Two cupped hands cradling a small ember of light',
+} = Astro.props;
 ---
 
 <div class="wn-pro">
   <!-- Holding space — co-regulation band (svhgpt-06) -->
   <section class="wn-band wn-band--tall">
     <div class="wn-band-bg" data-parallax data-parallax-speed="0.2" aria-hidden="true">
-      <img src="/media/library/svhgpt-06-holding-space.webp" alt="" />
+      <img src={bandImg} alt="" />
     </div>
     <div class="wn-band-inner">
       <p class="wn-band-quote wn-reveal">
@@ -80,7 +91,7 @@
   <section class="wn-deeper" style="background: var(--paper-soft);">
     <div class="wn-deeper-inner">
       <div class="wn-deeper-media wn-reveal" data-parallax data-parallax-speed="0.15">
-        <img src="/media/library/svhgpt-05-the-cup-receiving.webp" alt="Two cupped hands cradling a small ember of light" loading="lazy" />
+        <img src={cupImg} alt={cupAlt} loading="lazy" />
       </div>
       <div class="wn-deeper-text wn-reveal">
         <div class="we-eyebrow">The Cup</div>
