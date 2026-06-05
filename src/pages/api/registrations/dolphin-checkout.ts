@@ -2,7 +2,8 @@ import type { APIRoute } from 'astro';
 import {
   getProductBySlug,
   getTierBySlug,
-  getTierAvailability,
+  computeTierAvailability,
+  pickRoomForTier,
   createPendingRegistration,
   attachStripeSession,
   logEvent,
@@ -16,11 +17,16 @@ import { findCountry } from '../../../lib/countries';
 
 export const prerender = false;
 
-// The Dolphin & Sound Retreat sells a single option — a twin cabin, all-in.
-// Unlike the château retreat there is no room model: availability is a plain
-// count against the tier capacity, and registrations carry no inventory unit.
+// The Dolphin & Sound Retreat offers three cabin types, each its own tier:
+//   twin-lower   — twin cabin, lower deck (porthole)     · €1995 per person
+//   twin-upper   — twin cabin, upper deck (sea views)    · €2495 per person
+//   double-lower — double-bed cabin, lower deck          · €3990 for two
+// Availability is driven by the smart room model (see migration 0025): twin
+// cabins are sold bed-by-bed; the double cabin is sold as a whole unit. A
+// fourth, non-public "single-lower" tier exists only for record-keeping.
 const PRODUCT_SLUG = 'dolphin-and-sound-2026';
-const TIER_SLUG = 'twin-cabin';
+const PUBLIC_TIER_SLUGS = ['twin-lower', 'twin-upper', 'double-lower'] as const;
+type PublicTierSlug = (typeof PUBLIC_TIER_SLUGS)[number];
 const HOLD_MINUTES = 30;
 
 // You may reserve your place with a 50% deposit and settle the balance before
@@ -28,24 +34,47 @@ const HOLD_MINUTES = 30;
 const DEPOSIT_FRACTION = 0.5;
 const BALANCE_DUE = 'before 1 September 2026';
 
-// GET → live availability for the registration form's "X places left" badge.
+// The double cabin is priced for two people sharing; everything else is
+// per person. Used only for the human-readable label on the form.
+function unitLabel(slug: string): string {
+  return slug === 'double-lower' ? 'for two people' : 'per person';
+}
+
+// GET → per-cabin prices + live availability for the registration form.
 export const GET: APIRoute = async ({ locals }) => {
   const env = locals.runtime.env;
   const product = await getProductBySlug(env.DB, PRODUCT_SLUG);
   if (!product) return json({ error: 'Unknown product' }, 404);
-  const tier = await getTierBySlug(env.DB, product.id, TIER_SLUG);
-  if (!tier) return json({ error: 'Unknown tier' }, 404);
 
-  const avail = await getTierAvailability(env.DB, tier.id);
-  return json({
-    price_cents: tier.price_cents,
-    deposit_cents: Math.round(tier.price_cents * DEPOSIT_FRACTION),
-    capacity: avail.capacity,
-    remaining: avail.remaining,
-  });
+  const availability = await computeTierAvailability(env.DB, product.id);
+  const bySlug = new Map(availability.map((a) => [a.tier.slug, a]));
+
+  const tiers = PUBLIC_TIER_SLUGS.map((slug) => {
+    const a = bySlug.get(slug);
+    if (!a) return null;
+    const price = a.tier.price_cents;
+    return {
+      slug,
+      name: a.tier.name,
+      price_cents: price,
+      deposit_cents: Math.round(price * DEPOSIT_FRACTION),
+      remaining: a.remaining,
+      capacity: a.capacity,
+      sold_out: a.remaining <= 0,
+      unit_label: unitLabel(slug),
+    };
+  }).filter((t): t is NonNullable<typeof t> => t !== null);
+
+  const totalRemaining = tiers.reduce((n, t) => n + Math.max(0, t.remaining), 0);
+
+  return new Response(
+    JSON.stringify({ tiers, total_remaining: totalRemaining, balance_due: BALANCE_DUE }),
+    { status: 200, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } },
+  );
 };
 
 type Body = {
+  tier_slug?: string;
   first_name?: string;
   last_name?: string;
   email?: string;
@@ -54,6 +83,7 @@ type Body = {
   phone?: string; // local number, no dial prefix
   company_name?: string;
   vat_number?: string;
+  roommate_pref?: string;
   dietary?: string;
   notes?: string;
   payment_mode?: 'full' | 'deposit';
@@ -69,6 +99,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     return json({ error: 'Invalid JSON' }, 400);
   }
 
+  const tierSlug = (payload.tier_slug ?? '').trim() as PublicTierSlug;
   const firstName = (payload.first_name ?? '').trim();
   const lastName = (payload.last_name ?? '').trim();
   const email = (payload.email ?? '').trim().toLowerCase();
@@ -79,6 +110,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const vatNumber = (payload.vat_number ?? '').trim();
   const isDeposit = payload.payment_mode === 'deposit';
 
+  if (!PUBLIC_TIER_SLUGS.includes(tierSlug)) {
+    return json({ error: 'Please choose a cabin.' }, 400);
+  }
   if (!firstName || !lastName || !email) {
     return json({ error: 'Please fill in your first name, last name and email.' }, 400);
   }
@@ -114,31 +148,42 @@ export const POST: APIRoute = async ({ request, locals }) => {
     );
   }
 
-  const tier = await getTierBySlug(env.DB, product.id, TIER_SLUG);
+  const tier = await getTierBySlug(env.DB, product.id, tierSlug);
   if (!tier) {
     return json(
-      { error: 'This retreat isn\'t available right now. Please refresh, or email info@songdance.co.' },
+      { error: 'This cabin isn\'t available right now. Please refresh, or email info@songdance.co.' },
       404,
     );
   }
 
-  // Capacity guard — a plain count against the tier capacity.
-  const avail = await getTierAvailability(env.DB, tier.id);
-  if (avail.remaining <= 0) {
+  // Capacity guard — computed from the room model so cross-cabin coupling
+  // (a solo-locked double, the reserved host cabin) is respected.
+  const availability = await computeTierAvailability(env.DB, product.id);
+  const tierAvail = availability.find((a) => a.tier.id === tier.id);
+  if (!tierAvail || tierAvail.remaining <= 0) {
     await logEvent(env.DB, {
       registration_id: null,
       kind: 'checkout.tier.full',
-      payload: { tier_slug: TIER_SLUG },
+      payload: { tier_slug: tierSlug },
     });
     return json(
-      { error: 'The retreat is fully booked. Email info@songdance.co to join the waiting list.' },
+      { error: 'That cabin is fully booked. Please choose another, or email info@songdance.co for the waiting list.' },
       409,
     );
   }
 
-  // Deposit = 50% now, balance settled before 1 September 2026. The balance is
-  // tracked in the registration note + audit log (collected separately), the
-  // same way the old site's "deposit" coupon worked.
+  // Auto-assign a specific cabin for this tier.
+  const room = await pickRoomForTier(env.DB, product.id, tierSlug);
+  if (!room) {
+    return json(
+      { error: 'That cabin was just taken. Please choose another, or email info@songdance.co.' },
+      409,
+    );
+  }
+
+  // Deposit = 50% now, balance settled before the cut-off. The balance is
+  // tracked on the registration (balance_due_cents) so the admin can later
+  // send a Stripe link for the remainder.
   const fullCents = tier.price_cents;
   const depositCents = Math.round(fullCents * DEPOSIT_FRACTION);
   const amountCents = isDeposit ? depositCents : fullCents;
@@ -160,7 +205,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const registrationId = await createPendingRegistration(env.DB, {
     product_id: product.id,
     tier_id: tier.id,
-    inventory_unit_id: null,
+    inventory_unit_id: room.id,
     first_name: firstName,
     last_name: lastName,
     email,
@@ -170,6 +215,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     company_name: companyName || null,
     vat_number: vatNumber || null,
     address: null,
+    roommate_pref: payload.roommate_pref?.trim() || null,
     dietary: payload.dietary?.trim() || null,
     notes: combinedNotes,
     consent_framework: true,
@@ -177,6 +223,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     amount_cents: amountCents,
     currency: product.currency,
     hold_minutes: HOLD_MINUTES,
+    balance_due_cents: balanceCents,
   });
 
   const baseUrl = env.PUBLIC_BASE_URL.replace(/\/$/, '');
@@ -259,6 +306,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
     payload: {
       session_id: session.id,
       tier: tier.slug,
+      auto_assigned_room: room.name,
+      auto_assigned_room_id: room.id,
       payment_mode: isDeposit ? 'deposit' : 'full',
       amount_cents: amountCents,
       deposit_balance_cents: balanceCents,

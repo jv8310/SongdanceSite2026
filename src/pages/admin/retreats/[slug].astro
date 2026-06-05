@@ -2,7 +2,11 @@
 import '../../../styles/admin.css';
 import Layout from '../../../layouts/Layout.astro';
 import { readCookie, verifySession } from '../../../lib/registrations/auth';
-import { computeTierAvailability, getRoomsWithMode } from '../../../lib/registrations/db';
+import {
+  computeTierAvailability,
+  getRoomsWithMode,
+  getRegistrationsWithBalanceDue,
+} from '../../../lib/registrations/db';
 
 export const prerender = false;
 
@@ -57,6 +61,9 @@ type Row = {
   cancelled_at: string | null;
   refunded_at: string | null;
   refunded_amount_cents: number;
+  balance_due_cents: number;
+  balance_invite_sent_at: string | null;
+  balance_paid_at: string | null;
 };
 
 const where = ['r.product_id = ?'];
@@ -73,6 +80,7 @@ const q = await env.DB.prepare(
           r.roommate_pref, r.dietary, r.notes,
           r.created_at, r.paid_at, r.cancelled_at,
           r.refunded_at, r.refunded_amount_cents,
+          r.balance_due_cents, r.balance_invite_sent_at, r.balance_paid_at,
           t.name AS tier_name, t.slug AS tier_slug,
           iu.name AS inventory_unit_name
      FROM registrations r
@@ -231,7 +239,7 @@ function capacityTone(remaining: number): 'full' | 'low' | 'open' {
 }
 
 function parseRoomLabel(name: string): { code: string; where: string } {
-  const m = name.match(/^Room\s+([\w.]+)\s*[—–-]\s*(.+)$/);
+  const m = name.match(/^(?:Room|Cabin)\s+([\w.]+)\s*[—–-]\s*(.+)$/);
   if (m) return { code: m[1], where: m[2] };
   if (/^Paviljoen/i.test(name)) {
     const rest = name.replace(/^Paviljoen\s*[—–-]\s*/i, '').trim();
@@ -365,6 +373,21 @@ const roomTotals = roomBreakdown.reduce(
   },
   { booked: 0, capacity: 0, available: 0 },
 );
+
+// ─── Balance due (deposit-payers who still owe the remainder) ───
+const balanceDue = await getRegistrationsWithBalanceDue(env.DB, product.id);
+const balanceDueTotalCents = balanceDue.reduce((n, r) => n + (r.balance_due_cents ?? 0), 0);
+
+// Flash banner after a send action (set by the balance/* endpoints).
+const flash = (() => {
+  const p = Astro.url.searchParams;
+  if (p.get('bal_bulk')) {
+    return { tone: 'ok' as const, msg: `Balance emails sent: ${p.get('bal_sent') ?? '0'} · failed: ${p.get('bal_failed') ?? '0'}.` };
+  }
+  if (p.get('bal_sent')) return { tone: 'ok' as const, msg: 'Balance email sent.' };
+  if (p.get('bal_failed')) return { tone: 'err' as const, msg: `Balance email failed${p.get('bal_error') ? `: ${p.get('bal_error')}` : ''}.` };
+  return null;
+})();
 ---
 
 <Layout title={`Admin — ${product.name}`} description="">
@@ -392,6 +415,10 @@ const roomTotals = roomBreakdown.reduce(
         </form>
       </div>
     </header>
+
+    {flash && (
+      <div class={`adm-flash adm-flash--${flash.tone}`}>{flash.msg}</div>
+    )}
 
     <!-- ─── Capacity ─── -->
     <section class="adm-section">
@@ -497,6 +524,71 @@ const roomTotals = roomBreakdown.reduce(
       <p class="adm-table-note"><strong>Type</strong>: <em>Private</em> — sold as one unit. <em>Shared</em> — sold bed by bed. <em>Multi</em> — can be sold either way; one private booking locks the rest of the beds. Empty multi rooms show a dropdown: <em>Either</em> (auto), <em>Private only</em>, or <em>Shared only</em> — pin a mode to pre-decide how the room is offered on the public form. <strong>Booked</strong> counts active paid + pending registrations (incl. pre-allocated hosts/cook). <strong>Available</strong> is 0 for inactive rooms and for the empty beds in a solo-locked multi room (a private booking blocks them); for a role-reserved bed it reflects whether the fire-keeper / cook-help seat is still open. The totals row sums beds across active rooms; the admin-test bed is hidden.</p>
     </section>
 
+    <!-- ─── Balance due (deposit-payers) ─── -->
+    <section class="adm-section">
+      <h2>
+        Balance due
+        <small>(deposit-payers who still owe the remainder)</small>
+      </h2>
+
+      {balanceDue.length === 0 ? (
+        <p class="adm-empty">No outstanding balances — everyone has paid in full.</p>
+      ) : (
+        <>
+          <div class="adm-balance-bar">
+            <span>
+              <strong>{balanceDue.length}</strong> {balanceDue.length === 1 ? 'person owes' : 'people owe'} a balance ·
+              total outstanding <strong>{eur(balanceDueTotalCents, 'EUR')}</strong>
+            </span>
+            <form method="POST" action="/api/admin/balance/send-bulk"
+                  onsubmit={`return confirm('Email all ${balanceDue.length} deposit-payer(s) a Stripe link for their remaining balance?')`}>
+              <input type="hidden" name="product_slug" value={productSlug} />
+              <input type="hidden" name="return_to" value={returnTo} />
+              <button type="submit" class="adm-btn adm-btn--solid">Email everyone a balance link</button>
+            </form>
+          </div>
+
+          <table class="adm-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th class="num">Balance due</th>
+                <th>Last invited</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {balanceDue.map((r) => {
+                const displayName =
+                  (r.first_name || r.last_name)
+                    ? `${r.first_name ?? ''} ${r.last_name ?? ''}`.trim()
+                    : r.name;
+                return (
+                  <tr>
+                    <td>{displayName}</td>
+                    <td><a href={`mailto:${r.email}`}>{r.email}</a></td>
+                    <td class="num">{eur(r.balance_due_cents, r.currency)}</td>
+                    <td>{r.balance_invite_sent_at ? ymd(r.balance_invite_sent_at) : '—'}</td>
+                    <td>
+                      <form method="POST" action="/api/admin/balance/send">
+                        <input type="hidden" name="registration_id" value={r.id} />
+                        <input type="hidden" name="return_to" value={returnTo} />
+                        <button type="submit" class="adm-btn adm-btn--ghost">
+                          {r.balance_invite_sent_at ? 'Resend link' : 'Send link'}
+                        </button>
+                      </form>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <p class="adm-table-note">Each link is a Stripe Checkout for that person's exact remaining balance. When they pay, the balance is cleared automatically (via the Stripe webhook) and they drop off this list. “Last invited” shows when the email was last sent — use <strong>Resend link</strong> for a reminder.</p>
+        </>
+      )}
+    </section>
+
     <!-- ─── Registrations ─── -->
     <section class="adm-section">
       <h2>
@@ -582,6 +674,12 @@ const roomTotals = roomBreakdown.reduce(
                 )}
                 {r.roommate_pref && (
                   <div class="adm-reg-detail--full"><dt>Roommate pref</dt><dd>{r.roommate_pref}</dd></div>
+                )}
+                {r.balance_due_cents > 0 && !r.balance_paid_at && (
+                  <div><dt>Balance due</dt><dd>{eur(r.balance_due_cents, r.currency)}{r.balance_invite_sent_at ? ` · invited ${ymd(r.balance_invite_sent_at)}` : ''}</dd></div>
+                )}
+                {r.balance_paid_at && (
+                  <div><dt>Balance</dt><dd>Paid {ymd(r.balance_paid_at)}</dd></div>
                 )}
               </dl>
 

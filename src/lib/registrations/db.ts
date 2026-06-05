@@ -93,6 +93,12 @@ export type Registration = {
   cancelled_at: string | null;
   refunded_at: string | null;
   refunded_amount_cents: number;
+  // Deposit balance tracking (see migration 0026). balance_due_cents is the
+  // amount still owed after a 50% deposit; 0 means paid in full / settled.
+  balance_due_cents: number;
+  balance_invite_sent_at: string | null;
+  balance_paid_at: string | null;
+  balance_stripe_session_id: string | null;
 };
 
 export async function getProductBySlug(db: D1Database, slug: string) {
@@ -174,6 +180,9 @@ export async function createPendingRegistration(
     amount_cents: number;
     currency: string;
     hold_minutes: number;
+    // When a 50% deposit is taken, the remaining balance owed. Defaults to 0
+    // (paid in full). Surfaced later via the "pay the balance" admin flow.
+    balance_due_cents?: number;
   },
 ) {
   const holdExpires = new Date(
@@ -193,8 +202,8 @@ export async function createPendingRegistration(
          roommate_pref, dietary, notes,
          consent_framework, consent_terms, consent_at,
          role, role_discount_cents,
-         status, amount_cents, currency, hold_expires_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)
+         status, amount_cents, currency, hold_expires_at, balance_due_cents)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)
        RETURNING id`,
     )
     .bind(
@@ -222,6 +231,7 @@ export async function createPendingRegistration(
       data.amount_cents,
       data.currency,
       holdExpires,
+      data.balance_due_cents ?? 0,
     )
     .first<{ id: number }>();
   if (!r) throw new Error('Failed to create registration');
@@ -320,6 +330,63 @@ export async function markRegistrationRefunded(
        WHERE id = ?`,
     )
     .bind(refundedAmountCents, id)
+    .run();
+}
+
+// ─────────────────────────────────────────────────────────────────────
+//  Deposit balance ("pay the remainder") flow
+// ─────────────────────────────────────────────────────────────────────
+
+// Paid registrations that still owe a balance (deposit-payers who haven't
+// settled). Ordered for a stable admin list. Used by the per-person + bulk
+// "send balance link" actions.
+export async function getRegistrationsWithBalanceDue(
+  db: D1Database,
+  productId: number,
+): Promise<Registration[]> {
+  const r = await db
+    .prepare(
+      `SELECT * FROM registrations
+        WHERE product_id = ?
+          AND status = 'paid'
+          AND balance_due_cents > 0
+          AND balance_paid_at IS NULL
+        ORDER BY balance_invite_sent_at IS NOT NULL, first_name, last_name, name`,
+    )
+    .bind(productId)
+    .all<Registration>();
+  return r.results ?? [];
+}
+
+// Record that we created a Checkout Session for the balance and emailed it.
+export async function attachBalanceSession(
+  db: D1Database,
+  registrationId: number,
+  sessionId: string,
+) {
+  await db
+    .prepare(
+      `UPDATE registrations
+          SET balance_stripe_session_id = ?,
+              balance_invite_sent_at = datetime('now')
+        WHERE id = ?`,
+    )
+    .bind(sessionId, registrationId)
+    .run();
+}
+
+// Settle the balance once the balance Checkout Session completes. We do NOT
+// touch stripe_payment_intent (that column already holds the deposit's PI and
+// is UNIQUE); the balance PI is captured in the events log instead.
+export async function markBalancePaid(db: D1Database, registrationId: number) {
+  await db
+    .prepare(
+      `UPDATE registrations
+          SET balance_due_cents = 0,
+              balance_paid_at = COALESCE(balance_paid_at, datetime('now'))
+        WHERE id = ?`,
+    )
+    .bind(registrationId)
     .run();
 }
 

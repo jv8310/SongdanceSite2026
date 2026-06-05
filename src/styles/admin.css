@@ -743,6 +743,27 @@ body { background: var(--adm-paper); }
   border-color: rgba(196, 128, 31, 0.35);
   color: var(--adm-warn);
 }
+.adm-flash--err {
+  background: rgba(176, 58, 46, 0.10);
+  border-color: rgba(176, 58, 46, 0.32);
+  color: var(--adm-danger, #b03a2e);
+}
+
+/* ---------- Balance-due section ---------- */
+.adm-balance-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  background: var(--adm-paper-soft);
+  border: 1px solid var(--adm-line);
+  border-radius: 8px;
+  font-size: 14px;
+}
+.adm-balance-bar form { margin: 0; }
 @media (max-width: 760px) {
   .adm-table--invitees { display: block; overflow-x: auto; }
 }
