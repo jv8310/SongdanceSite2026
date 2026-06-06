@@ -375,14 +375,19 @@ export async function attachBalanceSession(
     .run();
 }
 
-// Settle the balance once the balance Checkout Session completes. We do NOT
-// touch stripe_payment_intent (that column already holds the deposit's PI and
-// is UNIQUE); the balance PI is captured in the events log instead.
+// Settle the balance once the balance Checkout Session completes. The
+// outstanding balance is rolled into amount_cents so that column stays a true
+// "total received" ledger for the registration (a deposit-payer who settles
+// goes from deposit → full), which the admin income overview sums directly.
+// We do NOT touch stripe_payment_intent (that column already holds the
+// deposit's PI and is UNIQUE); the balance PI is captured in the events log.
+// Idempotent: once balance_due_cents is 0 a re-run adds nothing.
 export async function markBalancePaid(db: D1Database, registrationId: number) {
   await db
     .prepare(
       `UPDATE registrations
-          SET balance_due_cents = 0,
+          SET amount_cents = amount_cents + balance_due_cents,
+              balance_due_cents = 0,
               balance_paid_at = COALESCE(balance_paid_at, datetime('now'))
         WHERE id = ?`,
     )
