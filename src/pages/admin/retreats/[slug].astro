@@ -21,13 +21,15 @@ const statusFilter = Astro.url.searchParams.get('status') ?? '';
 const returnTo = `/admin/retreats/${productSlug}${statusFilter ? `?status=${statusFilter}` : ''}`;
 
 const product = await env.DB
-  .prepare('SELECT id, name, starts_at, ends_at FROM products WHERE slug = ? AND type = ?')
+  .prepare('SELECT id, name, starts_at, ends_at, currency, vat_rate FROM products WHERE slug = ? AND type = ?')
   .bind(productSlug, 'retreat')
   .first<{
     id: number;
     name: string;
     starts_at: string | null;
     ends_at: string | null;
+    currency: string;
+    vat_rate: number;
   }>();
 
 if (!product) {
@@ -378,6 +380,53 @@ const roomTotals = roomBreakdown.reduce(
 const balanceDue = await getRegistrationsWithBalanceDue(env.DB, product.id);
 const balanceDueTotalCents = balanceDue.reduce((n, r) => n + (r.balance_due_cents ?? 0), 0);
 
+// ─── Income (money received + still to come) ───
+// Amounts are stored gross (VAT-inclusive — see the checkout tax note); when
+// the product carries VAT we split each figure into ex-VAT and VAT below.
+//   • Received  — cash actually collected: amount_cents on paid bookings
+//     (a settled deposit-payer reads as the full amount, see markBalancePaid),
+//     net of refunds on refunded bookings.
+//   • Deposit outstanding — balances still owed on active (paid) bookings.
+//   • Pending outstanding — committed-but-unpaid held bookings (e.g. an
+//     offline "pay later" hold like a couple settling by transfer); a 30-min
+//     checkout hold counts only while still live, matching the rooms view.
+const currency = product.currency || 'EUR';
+const vatRate = product.vat_rate ?? 0;
+const hasVat = vatRate > 0;
+const vatPct = Math.round(vatRate * 100);
+const exVat = (cents: number) => Math.round(cents / (1 + vatRate));
+const vatPart = (cents: number) => cents - exVat(cents);
+
+const incomeAgg = await env.DB.prepare(
+  `SELECT
+     COALESCE(SUM(CASE WHEN status = 'paid'     THEN amount_cents
+                       WHEN status = 'refunded' THEN amount_cents - refunded_amount_cents
+                       ELSE 0 END), 0) AS received_cents,
+     COALESCE(SUM(CASE WHEN status = 'paid' THEN balance_due_cents ELSE 0 END), 0) AS deposit_outstanding_cents,
+     COALESCE(SUM(CASE WHEN status = 'pending' AND amount_cents > 0
+                        AND (hold_expires_at IS NULL OR hold_expires_at > datetime('now'))
+                   THEN amount_cents + balance_due_cents ELSE 0 END), 0) AS pending_outstanding_cents
+     FROM registrations
+    WHERE product_id = ?`,
+)
+  .bind(product.id)
+  .first<{
+    received_cents: number;
+    deposit_outstanding_cents: number;
+    pending_outstanding_cents: number;
+  }>();
+
+const receivedCents = incomeAgg?.received_cents ?? 0;
+const depositOutstandingCents = incomeAgg?.deposit_outstanding_cents ?? 0;
+const pendingOutstandingCents = incomeAgg?.pending_outstanding_cents ?? 0;
+const toReceiveCents = depositOutstandingCents + pendingOutstandingCents;
+const expectedTotalCents = receivedCents + toReceiveCents;
+
+const incomeRows = [
+  { label: 'Received', cents: receivedCents },
+  { label: 'Still to receive', cents: toReceiveCents },
+];
+
 // Flash banner after a send action (set by the balance/* endpoints).
 const flash = (() => {
   const p = Astro.url.searchParams;
@@ -452,6 +501,62 @@ const flash = (() => {
         </tfoot>
       </table>
       <p class="adm-table-note">All numbers are people, not rooms. Each registration is one person. Per-tier capacities <strong>overlap</strong> — the same bed in a multi-mode room (e.g. Room 1.2) counts toward both Private En-suite (sold solo) and Twin Bedroom (sold bed-by-bed), so summing tier capacities overcounts. The total row shows the real retreat ceiling: {maxPeople} sellable beds across all active rooms (hosts and cook excluded; fire keeper paviljoen and Room 5.2 cook help included since they're paying special-role seats). With current bookings, {placesAvailable} of those are still open; the rest are either booked or locked because a Private booking blocked the rest of a multi-mode room.</p>
+    </section>
+
+    <!-- ─── Income ─── -->
+    <section class="adm-section">
+      <h2>Income <small>(money received &amp; still to come)</small></h2>
+      <table class="adm-table adm-table--income">
+        <thead>
+          <tr>
+            <th>Money</th>
+            {hasVat ? (
+              <>
+                <th class="num">Ex VAT</th>
+                <th class="num">VAT ({vatPct}%)</th>
+                <th class="num">Inc VAT</th>
+              </>
+            ) : (
+              <th class="num">Amount</th>
+            )}
+          </tr>
+        </thead>
+        <tbody>
+          {incomeRows.map((row) => (
+            <tr>
+              <td>{row.label}</td>
+              {hasVat ? (
+                <>
+                  <td class="num">{eur(exVat(row.cents), currency)}</td>
+                  <td class="num">{eur(vatPart(row.cents), currency)}</td>
+                  <td class="num">{eur(row.cents, currency)}</td>
+                </>
+              ) : (
+                <td class="num">{eur(row.cents, currency)}</td>
+              )}
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr class="adm-row--total">
+            <th scope="row">Expected total</th>
+            {hasVat ? (
+              <>
+                <td class="num">{eur(exVat(expectedTotalCents), currency)}</td>
+                <td class="num">{eur(vatPart(expectedTotalCents), currency)}</td>
+                <td class="num">{eur(expectedTotalCents, currency)}</td>
+              </>
+            ) : (
+              <td class="num">{eur(expectedTotalCents, currency)}</td>
+            )}
+          </tr>
+        </tfoot>
+      </table>
+      <p class="adm-table-note">
+        <strong>Received</strong> is cash actually collected — deposits and full payments, net of any refunds.
+        <strong> Still to receive</strong> is {eur(depositOutstandingCents, currency)} in outstanding deposit balances{pendingOutstandingCents > 0 ? ` plus ${eur(pendingOutstandingCents, currency)} from unpaid held bookings` : ''}; <strong>Expected total</strong> is the two combined.
+        {hasVat && ` Prices are VAT-inclusive — the Ex VAT and VAT columns split each figure at ${vatPct}%.`}
+      </p>
     </section>
 
     <!-- ─── Rooms ─── -->
