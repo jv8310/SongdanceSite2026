@@ -1,0 +1,495 @@
+/* =========================================================
+   Workshop · Parallax — cinematic, scroll-driven storytelling.
+   Layered on top of tokens.css + workshop-english.css (the
+   booking section, testimonials, about and footer reuse the
+   `we-` styles). Everything here is the `wp-` story layer.
+
+   Design language: candle-lit, filmic, generous black space
+   between warm-paper chapters. Motion is added by GSAP; the
+   CSS only defines the *rest* (visible) state and the dark
+   theatre the frames play inside. Pre-animation hidden states
+   are gated behind html.wp-anim so a no-JS / reduced-motion
+   reader sees everything.
+   ========================================================= */
+
+.wp-page {
+  background: var(--paper);
+  color: var(--ink);
+  overflow-x: clip;
+}
+
+/* The nav from workshop-english sits fixed; give it a filmic dark tint here
+   by letting it float over the hero. (WENav already positions itself.) */
+
+/* ── Scroll progress rail ─────────────────────────────────── */
+.wp-progress {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  z-index: 90;
+  background: transparent;
+  pointer-events: none;
+}
+.wp-progress span {
+  display: block;
+  height: 100%;
+  width: 100%;
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+  background: linear-gradient(90deg, var(--ember), var(--ember-deep));
+}
+
+/* ── Shared chapter scaffolding ───────────────────────────── */
+.wp-chapter { position: relative; }
+.wp-eyebrow {
+  font-family: var(--font-body);
+  font-size: var(--t-label);
+  text-transform: uppercase;
+  letter-spacing: var(--tr-label);
+  font-weight: 500;
+  color: var(--ember);
+}
+.wp-page em { font-family: var(--font-lyric); font-style: italic; }
+
+/* Pre-animation hidden states — only when motion + JS are confirmed. */
+html.wp-anim .wp-rise,
+html.wp-anim .wp-fade { opacity: 0; }
+
+/* ── Hero ─────────────────────────────────────────────────── */
+.wp-hero {
+  position: relative;
+  min-height: 100svh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  overflow: hidden;
+  background: var(--night-deep);
+  color: var(--paper);
+  isolation: isolate;
+}
+.wp-hero-bg {
+  position: absolute;
+  inset: -6% 0;
+  z-index: -2;
+  background-size: cover;
+  background-position: center 35%;
+  will-change: transform;
+}
+.wp-hero::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(120% 90% at 50% 30%, rgba(15, 8, 14, 0.15) 0%, rgba(15, 8, 14, 0.55) 55%, rgba(15, 8, 14, 0.92) 100%),
+    linear-gradient(180deg, rgba(15, 8, 14, 0.5) 0%, rgba(15, 8, 14, 0.15) 30%, rgba(15, 8, 14, 0.75) 100%);
+}
+.wp-hero-inner {
+  position: relative;
+  max-width: 17ch;
+  padding: 0 var(--sp-5);
+  will-change: transform, opacity;
+}
+.wp-hero-eyebrow {
+  font-family: var(--font-body);
+  font-size: var(--t-caption);
+  text-transform: uppercase;
+  letter-spacing: 0.32em;
+  color: var(--ember-soft);
+  margin-bottom: var(--sp-5);
+}
+.wp-hero-title {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--t-hero);
+  line-height: 1.02;
+  letter-spacing: -0.02em;
+  margin: 0;
+  text-wrap: balance;
+}
+.wp-hero-title .wp-line {
+  display: block;
+  overflow: hidden;
+}
+.wp-hero-title .wp-line-inner { display: block; }
+.wp-hero-title em { color: var(--ember-soft); }
+.wp-hero-sub {
+  font-family: var(--font-lyric);
+  font-size: clamp(20px, 2.6vw, 30px);
+  font-style: italic;
+  color: rgba(244, 236, 223, 0.84);
+  margin: var(--sp-6) auto 0;
+  max-width: 30ch;
+  line-height: 1.4;
+}
+.wp-hero-cue {
+  position: absolute;
+  bottom: var(--sp-7);
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--font-body);
+  font-size: var(--t-label);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(244, 236, 223, 0.6);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-3);
+}
+.wp-hero-cue i {
+  font-size: 22px;
+  animation: wp-bob 2.4s var(--ease) infinite;
+}
+@keyframes wp-bob {
+  0%, 100% { transform: translateY(0); opacity: 0.6; }
+  50% { transform: translateY(8px); opacity: 1; }
+}
+
+/* ── Thread — the opening pinned monologue ───────────────── */
+.wp-thread {
+  position: relative;
+  min-height: 100svh;
+  background:
+    radial-gradient(80% 60% at 50% 40%, var(--night-soft) 0%, var(--night-deep) 100%);
+  color: var(--paper);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.wp-thread-rope {
+  position: absolute;
+  top: 0; bottom: 0; left: 50%;
+  width: 1px;
+  transform: translateX(-50%);
+  background: rgba(244, 236, 223, 0.08);
+}
+.wp-thread-rope span {
+  display: block;
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent, var(--ember) 12%, var(--ember) 88%, transparent);
+  transform-origin: 50% 0;
+  transform: scaleY(0);
+}
+.wp-thread-stack {
+  position: relative;
+  max-width: 22ch;
+  text-align: center;
+  padding: 0 var(--sp-5);
+  display: grid;
+}
+.wp-thread-line {
+  grid-area: 1 / 1;
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: clamp(28px, 4.4vw, 52px);
+  line-height: 1.18;
+  letter-spacing: -0.01em;
+  margin: 0;
+  text-wrap: balance;
+}
+.wp-thread-line em { color: var(--ember-soft); }
+
+/* ── Cinema — the pinned cross-fading story stage ─────────── */
+.wp-cinema {
+  position: relative;
+  height: 100svh;
+  overflow: hidden;
+  background: var(--night-deep);
+  color: var(--paper);
+}
+.wp-cinema-stage {
+  position: absolute;
+  inset: 0;
+}
+.wp-cinema-frame {
+  position: absolute;
+  inset: 0;
+  will-change: opacity;
+}
+.wp-cinema-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  will-change: transform;
+}
+.wp-cinema-frame::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(15, 8, 14, 0.55) 0%, rgba(15, 8, 14, 0.1) 35%, rgba(15, 8, 14, 0.35) 60%, rgba(15, 8, 14, 0.92) 100%);
+}
+.wp-cinema-caps {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0 var(--sp-5) clamp(64px, 14vh, 160px);
+  pointer-events: none;
+}
+.wp-cinema-capstack { position: relative; display: grid; width: min(680px, 92vw); }
+.wp-cinema-cap {
+  grid-area: 1 / 1;
+  text-align: center;
+  will-change: opacity, transform;
+}
+.wp-cinema-cap .num {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  letter-spacing: 0.3em;
+  color: var(--ember-soft);
+  margin-bottom: var(--sp-4);
+}
+.wp-cinema-cap p {
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: clamp(26px, 3.6vw, 46px);
+  line-height: 1.2;
+  letter-spacing: -0.012em;
+  margin: 0;
+  text-wrap: balance;
+  text-shadow: 0 2px 30px rgba(15, 8, 14, 0.6);
+}
+.wp-cinema-cap em { color: var(--ember-soft); }
+
+/* ── Method — three pillars triptych ──────────────────────── */
+.wp-method {
+  background: var(--paper);
+  padding: clamp(96px, 16vh, 200px) var(--sp-6);
+}
+.wp-method-inner { max-width: var(--container); margin: 0 auto; }
+.wp-method-head { max-width: 26ch; margin: 0 auto var(--sp-9); text-align: center; }
+.wp-method-head h2 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--t-display);
+  line-height: 1.06;
+  letter-spacing: -0.012em;
+  margin: var(--sp-4) 0 0;
+  text-wrap: balance;
+}
+.wp-method-head em { color: var(--ember-deep); }
+.wp-method-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--sp-6);
+}
+.wp-method-card {
+  background: var(--paper-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: var(--sp-7) var(--sp-6);
+  box-shadow: var(--shadow-2);
+}
+.wp-method-card .ph-light, .wp-method-card i {
+  font-size: 34px;
+  color: var(--ember-deep);
+}
+.wp-method-card h3 {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: var(--t-h3);
+  margin: var(--sp-5) 0 var(--sp-3);
+  letter-spacing: -0.01em;
+}
+.wp-method-card p {
+  font-family: var(--font-body);
+  font-size: var(--t-body);
+  line-height: var(--lh-prose);
+  color: var(--ink-soft);
+  margin: 0;
+}
+
+/* ── Hour — what the live hour holds, over a parallax band ── */
+.wp-hour {
+  position: relative;
+  overflow: hidden;
+  background: var(--night-deep);
+  color: var(--paper);
+  padding: clamp(120px, 22vh, 260px) var(--sp-6);
+}
+.wp-hour-bg {
+  position: absolute;
+  inset: -20% 0;
+  z-index: 0;
+  background-size: cover;
+  background-position: center;
+  opacity: 0.5;
+  will-change: transform;
+}
+.wp-hour::after {
+  content: '';
+  position: absolute; inset: 0; z-index: 1;
+  background: linear-gradient(180deg, rgba(15,8,14,0.86), rgba(15,8,14,0.7) 50%, rgba(15,8,14,0.92));
+}
+.wp-hour-inner {
+  position: relative;
+  z-index: 2;
+  max-width: var(--container-narrow);
+  margin: 0 auto;
+  text-align: center;
+}
+.wp-hour-inner h2 {
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: var(--t-display);
+  line-height: 1.1;
+  letter-spacing: -0.012em;
+  margin: var(--sp-4) 0 var(--sp-8);
+  text-wrap: balance;
+}
+.wp-hour-inner em { color: var(--ember-soft); }
+.wp-hour-list {
+  display: grid;
+  gap: 0;
+  text-align: left;
+  max-width: 620px;
+  margin: 0 auto;
+}
+.wp-hour-item {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--sp-5);
+  align-items: start;
+  padding: var(--sp-6) 0;
+  border-top: 1px solid var(--line-on-dark);
+}
+.wp-hour-item:last-child { border-bottom: 1px solid var(--line-on-dark); }
+.wp-hour-item .n {
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  letter-spacing: 0.2em;
+  color: var(--ember-soft);
+  padding-top: 6px;
+}
+.wp-hour-item h3 {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: var(--t-h4);
+  margin: 0 0 var(--sp-2);
+}
+.wp-hour-item p {
+  font-family: var(--font-body);
+  font-size: var(--t-body);
+  line-height: var(--lh-prose);
+  color: rgba(244, 236, 223, 0.74);
+  margin: 0;
+}
+
+/* ── Lyric — a single breathing line ──────────────────────── */
+.wp-lyric {
+  background: var(--paper);
+  padding: clamp(120px, 24vh, 280px) var(--sp-6);
+  text-align: center;
+}
+.wp-lyric blockquote {
+  margin: 0 auto;
+  max-width: 24ch;
+  font-family: var(--font-lyric);
+  font-style: italic;
+  font-weight: 400;
+  font-size: clamp(34px, 6vw, 76px);
+  line-height: 1.16;
+  color: var(--ink);
+  text-wrap: balance;
+}
+.wp-lyric blockquote em { color: var(--ember-deep); font-style: italic; }
+.wp-lyric cite {
+  display: block;
+  margin-top: var(--sp-6);
+  font-family: var(--font-body);
+  font-style: normal;
+  font-size: var(--t-label);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-quiet);
+}
+
+/* ── Begin — the threshold before the calendar ────────────── */
+.wp-begin {
+  position: relative;
+  min-height: 90svh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  overflow: hidden;
+  background: var(--night-deep);
+  color: var(--paper);
+  padding: var(--sp-10) var(--sp-5);
+}
+.wp-begin-bg {
+  position: absolute;
+  inset: -10% 0;
+  z-index: 0;
+  background-size: cover;
+  background-position: center;
+  opacity: 0.7;
+  will-change: transform;
+}
+.wp-begin::after {
+  content: '';
+  position: absolute; inset: 0; z-index: 1;
+  background: radial-gradient(70% 60% at 50% 55%, rgba(15,8,14,0.3), rgba(15,8,14,0.92));
+}
+.wp-begin-inner { position: relative; z-index: 2; max-width: 22ch; }
+.wp-begin-inner h2 {
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: var(--t-display);
+  line-height: 1.08;
+  letter-spacing: -0.012em;
+  margin: var(--sp-4) 0;
+  text-wrap: balance;
+}
+.wp-begin-inner em { color: var(--ember-soft); }
+.wp-begin-inner p {
+  font-family: var(--font-lyric);
+  font-style: italic;
+  font-size: clamp(19px, 2.4vw, 26px);
+  color: rgba(244, 236, 223, 0.8);
+  margin: 0 auto var(--sp-7);
+  max-width: 28ch;
+  line-height: 1.45;
+}
+.wp-begin-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 500;
+  padding: 16px 32px;
+  border-radius: var(--r-pill);
+  background: var(--paper);
+  color: var(--ink);
+  text-decoration: none;
+  transition: background var(--d-base) var(--ease), transform var(--d-base) var(--ease);
+}
+.wp-begin-cta:hover { background: var(--ember-glow); transform: translateY(-2px); }
+
+/* ── Responsive ───────────────────────────────────────────── */
+@media (max-width: 860px) {
+  .wp-method-grid { grid-template-columns: 1fr; gap: var(--sp-5); }
+  .wp-cinema-caps { padding-bottom: clamp(48px, 12vh, 110px); }
+}
+
+/* ── Reduced motion: flatten everything to readable rest ──── */
+@media (prefers-reduced-motion: reduce) {
+  .wp-hero-cue i { animation: none; }
+  .wp-cinema { height: auto; }
+  .wp-cinema-frame { position: relative; opacity: 1 !important; }
+  .wp-cinema-frame img { height: 60svh; }
+  .wp-cinema-caps { position: relative; padding: var(--sp-7) var(--sp-5); }
+  .wp-cinema-cap { position: relative; opacity: 1 !important; transform: none !important; }
+  .wp-thread { min-height: auto; padding: var(--sp-9) 0; }
+  .wp-thread-stack { display: block; }
+  .wp-thread-line { position: relative; opacity: 1 !important; margin-bottom: var(--sp-6); }
+}

@@ -1,0 +1,51 @@
+---
+// What the live hour actually holds — four beats over a parallaxing golden-hour
+// band, with a crawl reveal. Copy from WEWhat's four experience cards, trimmed.
+const beats = [
+  {
+    n: '01',
+    title: 'An introduction to Somatic Vocal Healing',
+    body: 'The method where sound becomes the language of the body — and a closer connection to your own sound, and whatever wants to show up underneath.',
+  },
+  {
+    n: '02',
+    title: 'A somatic warm-up with live piano',
+    body: 'So your nervous system can arrive before anything else happens. You settle. Your breath widens. Your listening gets finer.',
+  },
+  {
+    n: '03',
+    title: 'Guided toning exercises',
+    body: 'A somatic practice for letting stuck emotion move through your voice — not by describing it, but by letting it sound.',
+  },
+  {
+    n: '04',
+    title: 'A first tool for everyday life',
+    body: 'Something to keep coming back to when your head is too loud or the day has closed you up. Yours to keep practising long after.',
+  },
+];
+---
+
+<section class="wp-hour" data-parallax-scope>
+  <div
+    class="wp-hour-bg"
+    data-parallax="0.16"
+    style="background-image:url('/media/library/svh-retreat-sounding-yellow.webp')"
+  ></div>
+
+  <div class="wp-hour-inner wp-crawl">
+    <div class="wp-eyebrow wp-line" style="display:inline-block">One hour, live</div>
+    <h2 class="wp-line">One hour — and a <em>different way in</em> to yourself.</h2>
+
+    <div class="wp-hour-list">
+      {beats.map((b) => (
+        <div class="wp-hour-item wp-line">
+          <span class="n">{b.n}</span>
+          <div>
+            <h3>{b.title}</h3>
+            <p>{b.body}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>

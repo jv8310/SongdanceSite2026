@@ -1,0 +1,23 @@
+---
+// The opening monologue, pinned. A single ember thread draws downward while the
+// sentences arrive one at a time and the previous one falls quiet — the reader
+// descends through the thought instead of scrolling past it. Copy adapted from
+// WEOpening.
+const lines = [
+  'You can feel that something in you is <em>asking to be heard.</em>',
+  'And, at the same time, kept carefully quiet.',
+  'Most of us learned early to be quiet. To stay safe. To not be too much.',
+  'Over time, that becomes a body that holds a lot.',
+  'Nothing in you is broken. It just hasn’t been heard for a long time.',
+  'Your voice was never the problem. <em>It’s the way through.</em>',
+];
+---
+
+<section class="wp-thread" id="wp-thread">
+  <div class="wp-thread-rope" aria-hidden="true"><span></span></div>
+  <div class="wp-thread-stack">
+    {lines.map((html) => (
+      <p class="wp-thread-line" set:html={html}></p>
+    ))}
+  </div>
+</section>
