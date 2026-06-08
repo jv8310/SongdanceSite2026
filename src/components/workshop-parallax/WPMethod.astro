@@ -1,0 +1,45 @@
+---
+// Three pillars, on warm paper — the distinctions that make the method what it
+// is, lifted from WNStory ("sounding, not singing"), WNCore ("sound of, not
+// for") and WNDeeper ("below, deeper, earlier"). A clean triptych after the
+// dark cinema, so the head can rest before the practical hour.
+const pillars = [
+  {
+    icon: 'ph-waveform',
+    title: 'Sounding, not singing',
+    body: 'A shaky sound, a rough sound, a sound that trails into nothing — none of it is a mistake. It’s the body talking. You don’t need a good voice. A plain, ordinary one is perfect.',
+  },
+  {
+    icon: 'ph-hand-heart',
+    title: 'The sound of, not for',
+    body: 'Bowls and tuning forks come toward you. Here the sound comes from you — your own state, given a voice. The healing is in being present with what’s actually there.',
+  },
+  {
+    icon: 'ph-arrow-down',
+    title: 'Below, deeper, earlier',
+    body: 'One quiet question, asked patiently: what is below that? Almost every fear travels down to a single root — and beneath it, once the pain is felt, something like peace.',
+  },
+];
+---
+
+<section class="wp-method" id="wp-method">
+  <div class="wp-method-inner">
+    <div class="wp-method-head wp-rise">
+      <div class="wp-eyebrow">What it is, in one breath</div>
+      <h2>
+        Using your own voice to be <em>present with what is alive in you</em> —
+        by giving it sound.
+      </h2>
+    </div>
+
+    <div class="wp-method-grid">
+      {pillars.map((p) => (
+        <article class="wp-method-card">
+          <i class={`ph-light ${p.icon}`}></i>
+          <h3>{p.title}</h3>
+          <p>{p.body}</p>
+        </article>
+      ))}
+    </div>
+  </div>
+</section>

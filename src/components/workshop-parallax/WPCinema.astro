@@ -1,0 +1,67 @@
+---
+// The centerpiece. A pinned, full-viewport stage that cross-fades through the
+// emotional arc of the work — holding → descent → the first honest sound →
+// release → receiving → rest — each frame slowly ken-burns while a single line
+// of language crawls over it. This is the "story coming to life" beat, built
+// on the purpose-made svhgpt-* storyboard series. Copy distilled from WNStory,
+// WNCore and WNDeeper.
+const frames = [
+  {
+    img: '/media/library/svhgpt-02-we-lost-the-voice.webp',
+    alt: 'A woman in profile, a small glowing figure emerging from her chest',
+    num: 'I',
+    cap: 'We didn’t lose the voice.<br /><em>We mislaid the keys.</em>',
+  },
+  {
+    img: '/media/library/svhgpt-07-below-deeper-earlier.webp',
+    alt: 'A small figure at dusk with glowing roots reaching down into the earth',
+    num: 'II',
+    cap: 'So the feeling went down —<br /><em>under the words, under the years.</em>',
+  },
+  {
+    img: '/media/library/svhgpt-03-sounding-not-singing.webp',
+    alt: 'An open mouth with concentric rings of sound radiating outward',
+    num: 'III',
+    cap: 'This isn’t singing.<br />It’s the <em>honest</em> sound of what’s actually there.',
+  },
+  {
+    img: '/media/library/svhgpt-04-sound-of-not-for.webp',
+    alt: 'A seated figure in candlelight with sound rings rising from the chest',
+    num: 'IV',
+    cap: 'The sound <em>of</em> the tiredness, <em>of</em> the grief,<br /><em>of</em> the thing that sat there a week.',
+  },
+  {
+    img: '/media/library/svhgpt-05-the-cup-receiving.webp',
+    alt: 'Two cupped hands cradling a glowing ember of light',
+    num: 'V',
+    cap: 'The healing is in the acknowledgment.<br /><em>And something in you receives it.</em>',
+  },
+  {
+    img: '/media/library/svhgpt-06-holding-space.webp',
+    alt: 'Two figures in candlelight with a thread of light between throat and heart',
+    num: 'VI',
+    cap: 'When something is truly met,<br /><em>it stops needing to clamour.</em>',
+  },
+];
+---
+
+<section class="wp-cinema" aria-label="The arc of the work">
+  <div class="wp-cinema-stage">
+    {frames.map((f) => (
+      <figure class="wp-cinema-frame">
+        <img src={f.img} alt={f.alt} loading="lazy" />
+      </figure>
+    ))}
+  </div>
+
+  <div class="wp-cinema-caps">
+    <div class="wp-cinema-capstack">
+      {frames.map((f) => (
+        <div class="wp-cinema-cap">
+          <span class="num">{f.num}</span>
+          <p set:html={f.cap}></p>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>

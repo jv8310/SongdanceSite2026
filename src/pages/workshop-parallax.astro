@@ -1,0 +1,151 @@
+---
+// Workshop — PARALLAX / cinematic variation.
+//
+// A third look at the Somatic Vocal Healing workshop page, built to tell the
+// *story* of the work the way an Apple product page tells a story: long,
+// scroll-driven, pinned "chapters" where image and language move at different
+// speeds and the meaning assembles itself as you descend the page.
+//
+// The booking machinery (calendar, currency switch, timezone, order-bump,
+// Stripe checkout) is reused verbatim from /workshop-new2 via WERegister, so
+// this page books exactly like the others — only the storytelling above it is
+// new. The data-fetch block below mirrors workshop.astro line for line.
+import '../styles/workshop-english.css';
+import '../styles/workshop-parallax.css';
+import Layout from '../layouts/Layout.astro';
+import WENav from '../components/workshop-english/WENav.astro';
+import WPHero from '../components/workshop-parallax/WPHero.astro';
+import WPThread from '../components/workshop-parallax/WPThread.astro';
+import WPCinema from '../components/workshop-parallax/WPCinema.astro';
+import WPMethod from '../components/workshop-parallax/WPMethod.astro';
+import WPHour from '../components/workshop-parallax/WPHour.astro';
+import WPLyric from '../components/workshop-parallax/WPLyric.astro';
+import WETestimonials from '../components/workshop-english/WETestimonials.astro';
+import WEAbout from '../components/workshop-english/WEAbout.astro';
+import WPBegin from '../components/workshop-parallax/WPBegin.astro';
+import WERegister from '../components/workshop-english/WERegister.astro';
+import type { CalItem } from '../components/workshop-english/types';
+import WEFooter from '../components/workshop-english/WEFooter.astro';
+import {
+  listUpcomingPublishedWorkshops,
+  getProductById,
+  getProductBySlug,
+  resolvePrice,
+  listPricesForProduct,
+} from '../lib/workshops/db';
+import { currencyForCountry, formatMoney } from '../lib/workshops/currency';
+import { formatInTz } from '../lib/workshops/time';
+
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+const cf = (Astro.locals.runtime as any)?.cf;
+
+// Cloudflare edge geo/timezone — no external API (mirrors /w/[slug]).
+const country: string = (cf?.country as string) || 'EU';
+const detectedTz: string = (cf?.timezone as string) || 'Europe/Brussels';
+const currency = currencyForCountry(country === 'EU' ? null : country);
+
+// Build the calendar: upcoming published workshops + masterclasses, priced in
+// the visitor's currency. A masterclass is any entry whose main product slug
+// contains "masterclass".
+const upcoming = await listUpcomingPublishedWorkshops(env.DB, new Date().toISOString());
+
+const priceMap = (rows: { currency: string; amount_minor: number }[]) =>
+  Object.fromEntries(rows.map((r) => [r.currency.toUpperCase(), r.amount_minor]));
+
+const DEFAULT_BUMP_SLUG = 'asj-bump';
+const defaultBump = await getProductBySlug(env.DB, DEFAULT_BUMP_SLUG);
+
+const BUMP_COMPARE_BY_CURRENCY: Record<string, number> = {
+  EUR: 9900, USD: 9900, GBP: 8900, CHF: 9900, CAD: 14900,
+  AUD: 15900, NZD: 16900, NOK: 99900, SEK: 99900, DKK: 69900,
+};
+
+const items: CalItem[] = [];
+for (const w of upcoming) {
+  if (!w.main_product_id) continue;
+  const price = await resolvePrice(env.DB, w.main_product_id, currency);
+  if (!price) continue;
+  const pricesByCurrency = priceMap(await listPricesForProduct(env.DB, w.main_product_id));
+
+  const isMasterclass = (w.product_slug ?? '').includes('masterclass');
+  const bumpProductId = w.bump_product_id ?? (isMasterclass ? defaultBump?.id ?? null : null);
+
+  let bumpName = '';
+  let bumpLabel = '';
+  let bumpMinor = 0;
+  let bumpPricesByCurrency: Record<string, number> = {};
+  let bumpComparePricesByCurrency: Record<string, number> = {};
+  if (bumpProductId) {
+    const bumpProduct = await getProductById(env.DB, bumpProductId);
+    const bumpPrice = await resolvePrice(env.DB, bumpProductId, price.currency);
+    if (bumpProduct && bumpPrice) {
+      bumpName = bumpProduct.name;
+      bumpLabel = formatMoney(bumpPrice.amountMinor, bumpPrice.currency);
+      bumpMinor = bumpPrice.amountMinor;
+      bumpPricesByCurrency = priceMap(await listPricesForProduct(env.DB, bumpProductId));
+      bumpComparePricesByCurrency = BUMP_COMPARE_BY_CURRENCY;
+    }
+  }
+
+  items.push({
+    slug: w.slug,
+    kind: isMasterclass ? 'masterclass' : 'workshop',
+    whenLocal: w.is_replay ? null : formatInTz(w.starts_at_utc, detectedTz),
+    isReplay: w.is_replay === 1,
+    title: w.title,
+    durationMin: isMasterclass ? 90 : 60,
+    priceLabel: formatMoney(price.amountMinor, price.currency),
+    priceMinor: price.amountMinor,
+    currency: price.currency,
+    pricesByCurrency,
+    bumpName,
+    bumpLabel,
+    bumpMinor,
+    bumpPricesByCurrency,
+    bumpComparePricesByCurrency,
+    hasBump: !!bumpName,
+  });
+}
+
+const COMMON_TZS = [
+  'Europe/Brussels', 'Europe/London', 'Europe/Berlin', 'Europe/Paris', 'Europe/Madrid',
+  'Europe/Amsterdam', 'Europe/Zurich', 'Europe/Stockholm', 'Europe/Oslo', 'Europe/Copenhagen',
+  'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles', 'America/Toronto',
+  'America/Sao_Paulo', 'Asia/Dubai', 'Asia/Kolkata', 'Asia/Singapore', 'Asia/Tokyo',
+  'Australia/Sydney', 'Pacific/Auckland', 'UTC',
+];
+const tzOptions = Array.from(new Set([detectedTz, ...COMMON_TZS]));
+---
+
+<Layout
+  title="Somatic Vocal Healing — Let the Body Find Its Voice | Songdance"
+  description="A one-hour live Somatic Vocal Healing workshop with Jacob Vermeulen. A cinematic introduction to the method where sound becomes the language of the body."
+  image="/media/library/svh-retreat-sounding-blue.webp"
+>
+  <div class="wp-page">
+    <WENav />
+    <WPHero />
+    <WPThread />
+    <WPCinema />
+    <WPMethod />
+    <WPHour />
+    <WPLyric />
+    <WETestimonials />
+    <WEAbout />
+    <WPBegin />
+    <WERegister
+      items={items}
+      country={country}
+      currency={currency}
+      detectedTz={detectedTz}
+      tzOptions={tzOptions}
+    />
+    <WEFooter />
+  </div>
+</Layout>
+
+<script>
+  import '../scripts/workshop-parallax.ts';
+</script>
