@@ -1,8 +1,9 @@
 ---
-interface Props { img?: string; alt?: string }
+interface Props { img?: string; alt?: string; title?: string }
 const {
   img = '/media/library/svhgpt-05-the-cup-receiving.webp',
   alt = 'Two cupped hands holding a small, warm ember of light.',
+  title = 'This won’t be twelve weeks of <em>feeling wonderful.</em>',
 } = Astro.props;
 ---
 
@@ -17,7 +18,7 @@ const {
     </div>
     <div class="tw-honest-text" data-reveal>
       <p class="tw-eyebrow">An honest note</p>
-      <h2 class="tw-h2">This won’t be twelve weeks of <em>feeling wonderful.</em></h2>
+      <h2 class="tw-h2" set:html={title}></h2>
       <p class="tw-p">
         Here’s what no course page usually admits. Sometimes you’ll feel lighter.
         Sometimes you’ll meet something tender first. If all you want is a pleasant

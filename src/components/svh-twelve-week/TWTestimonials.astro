@@ -1,26 +1,45 @@
 ---
 import { TRUSTPILOT_URL } from './config';
 
+// Real student & practitioner voices, trimmed to card length, each with the
+// person's photo. (Dr. Karen is intentionally not here — she's now a
+// co-facilitator, per the brief.)
 const quotes = [
   {
-    text: 'A rare combination of intuition, embodied knowledge, and gentle guidance. It deepened my personal growth and my professional work.',
-    by: 'Rebecca Lucy · Teacher · USA',
+    text: 'By learning to listen to your own sound, you bring the unconscious into the light. A safe path to transformation — powerful, and incredibly gentle.',
+    who: 'Olena',
+    role: 'Yoga teacher',
+    img: '/media/library/workshop-olena.webp',
   },
   {
-    text: 'Clear, structured, and deeply practical. He blends intellect with real emotional experience.',
-    by: 'Monike · Embodiment Trainer · Netherlands',
+    text: 'There’s no need to search for the right words — it’s enough to open my mouth. In the community that forms through the live meetings, I found a deep sense of safety.',
+    who: 'Gwenola',
+    role: 'Coach',
+    img: '/media/library/workshop-gwenola.jpg',
   },
   {
-    text: 'It gets straight to the essence, surfacing deep layers of emotion quietly and intuitively.',
-    by: 'Andre · Belgium',
+    text: 'As a musician I feel far more deeply connected to my own voice. After this, you start tuning your ears to the emotion inside the tone.',
+    who: 'Mia-Maria',
+    role: 'Musician',
+    img: '/media/library/workshop-mia-maria.webp',
   },
   {
-    text: 'Brings awareness to hidden parts of yourself, in an environment where authentic expression is genuinely welcome.',
-    by: 'Gwenola Emilia Enciu · Psychotherapist · Romania',
+    text: 'A simple, natural way to connect with the life within us — balanced, practical, and so easy to take in.',
+    who: 'Anna',
+    role: 'PhD researcher',
+    img: '/media/library/workshop-anna.webp',
   },
   {
-    text: 'Gentle yet powerful pathways to transformation.',
-    by: 'Olena · Ukraine',
+    text: 'The voice becomes a bridge to yourself — a direct way to what’s alive in the present moment. It makes room for clarity, peace, and reconnection.',
+    who: 'Isabelle',
+    role: 'Vocal expert',
+    img: '/media/library/workshop-isabelle.webp',
+  },
+  {
+    text: 'Connecting deeply with the heart through Somatic Vocal Healing had a profound effect on me — ripples that continue to resonate.',
+    who: 'Caitríona',
+    role: 'Actor',
+    img: '/media/library/ritual-caitriona.webp',
   },
 ];
 ---
@@ -36,7 +55,13 @@ const quotes = [
       {quotes.map((q) => (
         <figure class="tw-quote" data-reveal>
           <blockquote class="tw-quote-text">“{q.text}”</blockquote>
-          <figcaption class="tw-quote-by">{q.by}</figcaption>
+          <figcaption class="tw-quote-by">
+            <img class="tw-quote-avatar" src={q.img} alt={q.who} loading="lazy" />
+            <span class="tw-quote-meta">
+              <span class="who">{q.who}</span>
+              <span class="where">{q.role}</span>
+            </span>
+          </figcaption>
         </figure>
       ))}
     </div>
