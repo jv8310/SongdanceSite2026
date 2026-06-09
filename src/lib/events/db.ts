@@ -4,6 +4,8 @@
 // and the RetreatBand. The grid stores card data only — each event's rich
 // content lives on its own landing page, linked via `href`.
 
+import { getProductBySlug, computeBookedPercent } from '../registrations/db';
+
 export type EventCategory = 'retreat' | 'online' | 'course';
 export type EventLanguage = 'en' | 'de' | 'nl';
 export type EventStatus = 'open' | 'waitlist' | 'closed';
@@ -23,6 +25,7 @@ export interface EventRow {
   summary: string | null;
   href: string | null;
   image_key: string | null;
+  product_slug: string | null; // links to a registrations product for live "% booked"
   ongoing: number;
   published: number;
   sort_order: number;
@@ -47,6 +50,8 @@ export interface EventCard {
   summary: string | null;
   href: string | null;
   imageUrl: string | null;
+  productSlug: string | null;
+  bookedPercent: number | null; // live "% booked" when linked to a product, else null
   ongoing: boolean;
 }
 
@@ -85,6 +90,8 @@ export function rowToCard(row: EventRow): EventCard {
     summary: row.summary,
     href: row.href,
     imageUrl: row.image_key ? `/media/${row.image_key}` : null,
+    productSlug: row.product_slug,
+    bookedPercent: null, // filled in by listPublicEvents for linked products
     ongoing: row.ongoing === 1,
   };
 }
@@ -142,7 +149,24 @@ export async function listPublicEvents(
     .filter((c) => !isPast(c, now));
   if (opts.language) cards = cards.filter((c) => c.language === opts.language);
   if (opts.category) cards = cards.filter((c) => c.category === opts.category);
-  return cards.sort(compareCards);
+  cards.sort(compareCards);
+  await attachBookedPercent(db, cards);
+  return cards;
+}
+
+// Fill in `bookedPercent` for cards linked to a registrations product, so the
+// grid (and the JSON feed it powers) can show a live "X% booked" figure that
+// matches the booking pages. Cards with no product link are left untouched.
+async function attachBookedPercent(db: D1Database, cards: EventCard[]): Promise<void> {
+  await Promise.all(
+    cards.map(async (card) => {
+      if (!card.productSlug) return;
+      const product = await getProductBySlug(db, card.productSlug);
+      if (!product) return;
+      const occ = await computeBookedPercent(db, product.id);
+      if (occ) card.bookedPercent = occ.percent;
+    }),
+  );
 }
 
 export async function listUpcoming(
@@ -168,6 +192,7 @@ export interface EventInput {
   status: EventStatus;
   summary: string | null;
   href: string | null;
+  product_slug: string | null;
   image_key?: string | null; // undefined = leave existing image untouched on update
   ongoing: number;
   published: number;
@@ -188,7 +213,7 @@ export async function upsertEvent(
         `UPDATE calendar_events SET
            id = ?, title = ?, category = ?, language = ?, facilitators = ?,
            start_date = ?, end_date = ?, location = ?, capacity = ?, price = ?,
-           status = ?, summary = ?, href = ?,
+           status = ?, summary = ?, href = ?, product_slug = ?,
            ${input.image_key !== undefined ? 'image_key = ?,' : ''}
            ongoing = ?, published = ?, sort_order = ?, updated_at = datetime('now')
          WHERE id = ?`,
@@ -196,7 +221,7 @@ export async function upsertEvent(
       .bind(
         input.id, input.title, input.category, input.language, facilitators,
         input.start_date, input.end_date, input.location, input.capacity, input.price,
-        input.status, input.summary, input.href,
+        input.status, input.summary, input.href, input.product_slug,
         ...(input.image_key !== undefined ? [input.image_key] : []),
         input.ongoing, input.published, input.sort_order, originalId,
       )
@@ -208,9 +233,9 @@ export async function upsertEvent(
     .prepare(
       `INSERT INTO calendar_events
          (id, title, category, language, facilitators, start_date, end_date,
-          location, capacity, price, status, summary, href, image_key,
+          location, capacity, price, status, summary, href, product_slug, image_key,
           ongoing, published, sort_order)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET
          title = excluded.title,
          category = excluded.category,
@@ -224,6 +249,7 @@ export async function upsertEvent(
          status = excluded.status,
          summary = excluded.summary,
          href = excluded.href,
+         product_slug = excluded.product_slug,
          ${input.image_key !== undefined ? 'image_key = excluded.image_key,' : ''}
          ongoing = excluded.ongoing,
          published = excluded.published,
@@ -233,7 +259,7 @@ export async function upsertEvent(
     .bind(
       input.id, input.title, input.category, input.language, facilitators,
       input.start_date, input.end_date, input.location, input.capacity, input.price,
-      input.status, input.summary, input.href, input.image_key ?? null,
+      input.status, input.summary, input.href, input.product_slug, input.image_key ?? null,
       input.ongoing, input.published, input.sort_order,
     )
     .run();
