@@ -50,7 +50,7 @@ async function tagInDrip(env: Env, reg: WorkshopRegistration, workshop: Workshop
   else if (workshop.source_tag) tags.push(workshop.source_tag);
   if (reg.wants_bump && workshop.bump_product_id) {
     const bump = await getProductById(env.DB, workshop.bump_product_id);
-    if (bump) tags.push(`prod_${bump.slug}`);
+    if (bump) tags.push(bump.drip_tag || `prod_${bump.slug}`);
   }
   const [firstName, ...rest] = (reg.name ?? '').trim().split(' ');
   await upsertSubscriber(

@@ -118,14 +118,14 @@ export function confirmationEmail(ctx: WorkshopEmailCtx): EmailContent {
       <p style="margin:0 0 14px;">Your place in <strong>${escapeHtml(ctx.workshopTitle)}</strong> is confirmed.</p>
       <p style="margin:0 0 6px;">It takes place on:</p>
       <p style="margin:0 0 4px;font-size:18px;color:${PALETTE.ink};">${escapeHtml(ctx.whenLocal)}</p>
-      <p style="margin:14px 0 0;">When the time comes, open your countdown page below — the Join button appears 15 minutes before we begin and takes you straight into the room.</p>`,
+      <p style="margin:14px 0 0;">When the time comes, open your countdown page below — the Join button appears 5 minutes before we begin and takes you straight into the room.</p>`,
     cta: { label: 'Open my countdown page', href: ctx.joinUrl },
     extras,
   });
   return {
     subject: `You're registered — ${ctx.workshopTitle}`,
     html,
-    text: `${greeting(ctx.name).replace(/<[^>]+>/g, '')}\n\nYour place in ${ctx.workshopTitle} is confirmed.\n\nWhen: ${ctx.whenLocal}\n\nYour countdown / join page: ${ctx.joinUrl}\n\nThe Join button appears 15 minutes before we begin.`,
+    text: `${greeting(ctx.name).replace(/<[^>]+>/g, '')}\n\nYour place in ${ctx.workshopTitle} is confirmed.\n\nWhen: ${ctx.whenLocal}\n\nYour countdown / join page: ${ctx.joinUrl}\n\nThe Join button appears 5 minutes before we begin.`,
   };
 }
 
@@ -149,7 +149,7 @@ export function reminderEmail(type: string, ctx: WorkshopEmailCtx): EmailContent
     bodyHtml: `<p style="margin:0 0 14px;">${greeting(ctx.name)}</p>
       <p style="margin:0 0 14px;"><strong>${escapeHtml(ctx.workshopTitle)}</strong> starts ${lead}.</p>
       <p style="margin:0 0 4px;font-size:18px;color:${PALETTE.ink};">${escapeHtml(ctx.whenLocal)}</p>
-      <p style="margin:14px 0 0;">${isImminent ? 'Open your page now — the Join button is ready.' : 'Open your countdown page below; the Join button appears 15 minutes before we begin.'}</p>`,
+      <p style="margin:14px 0 0;">${isImminent ? 'Open your page now — the Join button is ready.' : 'Open your countdown page below; the Join button appears 5 minutes before we begin.'}</p>`,
     cta: { label: isImminent ? 'Join now' : 'Open my countdown page', href: ctx.joinUrl },
   });
   return {

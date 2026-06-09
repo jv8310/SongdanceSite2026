@@ -17,6 +17,9 @@ const products = await listProducts(env.DB);
 const tickets = products.filter((p) => p.type === 'ticket');
 const bumps = products.filter((p) => p.type === 'bump');
 const zoomDefault = (await getConfig(env.DB, 'zoom_url_default')) ?? '';
+const zoomMeetingIdDefault = (await getConfig(env.DB, 'zoom_meeting_id_default')) ?? '';
+const zoomPasscodeDefault = (await getConfig(env.DB, 'zoom_passcode_default')) ?? '';
+const replayVideoUrl = (await getConfig(env.DB, 'replay_video_url')) ?? '';
 
 const flash = Astro.url.searchParams.get('flash');
 const created = Astro.url.searchParams.get('created');
@@ -110,13 +113,16 @@ const STATUS_LABEL: Record<string, string> = { draft: 'Draft', published: 'Publi
     </section>
 
     <section class="adm-section">
-      <h2>Default Zoom link</h2>
-      <form method="POST" action="/api/admin/workshops/save" class="adm-inline-form">
+      <h2>Zoom defaults &amp; replay</h2>
+      <form method="POST" action="/api/admin/workshops/save" class="adm-grid">
         <input type="hidden" name="action" value="zoom" />
-        <input type="url" name="zoom_url_default" value={zoomDefault} placeholder="https://…zoom.us/j/…" style="flex:1;min-width:320px;" />
-        <button type="submit" class="adm-btn adm-btn--solid">Save link</button>
+        <label class="span-2"><span>Default Zoom link</span><input type="url" name="zoom_url_default" value={zoomDefault} placeholder="https://…zoom.us/j/…" /></label>
+        <label><span>Default meeting ID</span><input type="text" name="zoom_meeting_id_default" value={zoomMeetingIdDefault} placeholder="850 1234 5678" /></label>
+        <label><span>Default passcode</span><input type="text" name="zoom_passcode_default" value={zoomPasscodeDefault} placeholder="123456" /></label>
+        <label class="span-2"><span>Fixed replay video URL</span><input type="url" name="replay_video_url" value={replayVideoUrl} placeholder="https://… (YouTube, Vimeo, …)" /></label>
+        <div class="span-2"><button type="submit" class="adm-btn adm-btn--solid">Save</button></div>
       </form>
-      <p class="adm-sub">Resolution order per join: the workshop’s own link → <code>zoom_url_&lt;teacher&gt;</code> → this default.</p>
+      <p class="adm-sub">Per join, the link/ID/passcode resolve from the workshop first, then these defaults. The meeting ID + passcode appear behind the “button doesn’t work for me” fallback. The replay is shown to people who missed the live window, gated by their personal link.</p>
     </section>
 
     <section class="adm-section">
@@ -149,6 +155,8 @@ const STATUS_LABEL: Record<string, string> = { draft: 'Draft', published: 'Publi
           <label><span>Drip tag</span><input type="text" name="source_tag" placeholder="svh_workshop_live" /></label>
           <label><span>Free coupon</span><input type="text" name="free_coupon" placeholder="(optional)" /></label>
           <label class="span-2"><span>Zoom link (overrides default)</span><input type="url" name="zoom_url" placeholder="(optional)" /></label>
+          <label><span>Zoom meeting ID (fallback)</span><input type="text" name="zoom_meeting_id" placeholder="(optional)" /></label>
+          <label><span>Zoom passcode (fallback)</span><input type="text" name="zoom_passcode" placeholder="(optional)" /></label>
           <label class="adm-event-toggle"><input type="checkbox" name="is_replay" /><span>Replay / on-demand</span></label>
         </div>
         <div class="adm-event-actions">

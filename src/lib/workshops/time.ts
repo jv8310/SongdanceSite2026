@@ -5,9 +5,23 @@
 // Intl.DateTimeFormat with that timezone; the live countdown is computed
 // against Date.now() on the client.
 
-// 15-minute Zoom join threshold, in seconds (matches the legacy hard-coded
-// 900s). The Join button appears within this window before start.
-export const JOIN_THRESHOLD_SECONDS = 900;
+// Join window around the start, in seconds. The Join button (and the Zoom
+// fallback reveal) appear 5 minutes before start and stay until 15 minutes
+// after start; outside that window the room can't be reached at all.
+export const JOIN_OPEN_BEFORE_SECONDS = 5 * 60;
+export const JOIN_CLOSE_AFTER_SECONDS = 15 * 60;
+
+// State of the live join window relative to `now`:
+//   'early'  — too soon, show the countdown
+//   'open'   — within [start-5m, start+15m], Join is live
+//   'closed' — the window has passed; treat as missed (replay / new date)
+export type JoinWindow = 'early' | 'open' | 'closed';
+export function joinWindow(startsAtUtc: string, now = Date.now()): JoinWindow {
+  const start = new Date(startsAtUtc).getTime();
+  if (now < start - JOIN_OPEN_BEFORE_SECONDS * 1000) return 'early';
+  if (now > start + JOIN_CLOSE_AFTER_SECONDS * 1000) return 'closed';
+  return 'open';
+}
 
 // Default calendar event duration when a workshop has no explicit end time.
 export const DEFAULT_DURATION_MS = 60 * 60 * 1000;

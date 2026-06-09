@@ -1,14 +1,23 @@
 ---
 import Layout from '../../layouts/Layout.astro';
-import { getRegistrationById, getWorkshopById } from '../../lib/workshops/db';
+import {
+  getConfig,
+  getRegistrationById,
+  getWorkshopById,
+  listUpcomingPublishedWorkshops,
+} from '../../lib/workshops/db';
 import { googleCalendarUrl } from '../../lib/workshops/ics';
-import { formatInTz, JOIN_THRESHOLD_SECONDS } from '../../lib/workshops/time';
+import {
+  formatInTz,
+  joinWindow,
+  JOIN_OPEN_BEFORE_SECONDS,
+  JOIN_CLOSE_AFTER_SECONDS,
+} from '../../lib/workshops/time';
 
 export const prerender = false;
 
 const env = Astro.locals.runtime.env;
 const rid = parseInt(Astro.url.searchParams.get('rid') ?? '', 10);
-const early = Astro.url.searchParams.get('early') === '1';
 const nozoom = Astro.url.searchParams.get('nozoom') === '1';
 
 const reg = Number.isFinite(rid) ? await getRegistrationById(env.DB, rid) : null;
@@ -19,11 +28,23 @@ const tz = reg?.timezone || workshop?.display_tz || 'Europe/Brussels';
 const whenLocal = workshop && !workshop.is_replay ? formatInTz(workshop.starts_at_utc, tz) : null;
 const base = env.PUBLIC_BASE_URL.replace(/\/$/, '');
 const joinHref = reg ? `/api/workshops/join?rid=${reg.id}` : '#';
+const replayHref = reg ? `/workshop/replay?rid=${reg.id}` : '#';
 const gcalUrl = workshop && !workshop.is_replay
   ? googleCalendarUrl({ title: workshop.title, startsAtUtc: workshop.starts_at_utc, endsAtUtc: workshop.ends_at_utc, url: `${base}/workshop/success?rid=${rid}` })
   : null;
 const icsHref = reg ? `/api/workshops/ics?rid=${reg.id}` : null;
 const startMs = workshop ? new Date(workshop.starts_at_utc).getTime() : 0;
+
+// Live join window state (drives which block shows first; JS keeps it live).
+const win = workshop && !workshop.is_replay ? joinWindow(workshop.starts_at_utc) : 'open';
+const hasReplay = !!(await getConfig(env.DB, 'replay_video_url'));
+
+// Other upcoming live dates they can move onto, free of charge.
+const upcoming = reg
+  ? (await listUpcomingPublishedWorkshops(env.DB, new Date().toISOString()))
+      .filter((w) => w.is_replay !== 1 && w.id !== reg.workshop_id)
+      .map((w) => ({ slug: w.slug, whenLocal: formatInTz(w.starts_at_utc, tz), kind: w.product_slug?.includes('masterclass') ? 'Masterclass' : 'Workshop' }))
+  : [];
 ---
 
 <Layout title="You're registered — Songdance" description="">
@@ -40,7 +61,15 @@ const startMs = workshop ? new Date(workshop.starts_at_utc).getTime() : 0;
         <script is:inline>setTimeout(function(){ location.reload(); }, 4000);</script>
       </section>
     ) : (
-      <section class="ws-card">
+      <section
+        class="ws-card"
+        id="ws-root"
+        data-rid={String(reg.id)}
+        data-start={String(startMs)}
+        data-open-before={String(JOIN_OPEN_BEFORE_SECONDS)}
+        data-close-after={String(JOIN_CLOSE_AFTER_SECONDS)}
+        data-replay={workshop.is_replay === 1 ? '1' : '0'}
+      >
         <p class="ws-kicker">You’re in</p>
         <h1 class="ws-title">{workshop.title}</h1>
         {whenLocal && <p class="ws-when">{whenLocal} <span class="ws-tz">· your time</span></p>}
@@ -51,25 +80,62 @@ const startMs = workshop ? new Date(workshop.starts_at_utc).getTime() : 0;
           </div>
         ) : (
           <>
-            <div id="ws-countdown" class="ws-countdown" data-start={String(startMs)} data-threshold={String(JOIN_THRESHOLD_SECONDS)}>
+            <div id="ws-countdown" class="ws-countdown" hidden={win === 'closed'}>
               <div class="ws-clock"><span id="cd-d">–</span><small>days</small></div>
               <div class="ws-clock"><span id="cd-h">–</span><small>hrs</small></div>
               <div class="ws-clock"><span id="cd-m">–</span><small>min</small></div>
               <div class="ws-clock"><span id="cd-s">–</span><small>sec</small></div>
             </div>
 
-            {early && <p class="ws-note">The room isn’t open yet — the Join button appears 15 minutes before we begin.</p>}
+            <p class="ws-note" id="ws-early" hidden={win !== 'early'}>The room isn’t open yet — the Join button appears 5 minutes before we begin.</p>
             {nozoom && <p class="ws-note">We’re finalising the meeting link. Refresh shortly, or check your email.</p>}
 
-            <div class="ws-actions">
-              <a class="ws-join" id="ws-join" href={joinHref} hidden>Join the workshop →</a>
-              <span class="ws-soon" id="ws-soon">Join opens 15 minutes before start</span>
+            <div class="ws-actions" id="ws-open" hidden={win !== 'open'}>
+              <a class="ws-join" id="ws-join" href={joinHref}>Join the workshop →</a>
+              <p class="ws-fallback-line">
+                <a href="#" id="ws-fallback" class="ws-fallback">The above button doesn’t work for me</a>
+              </p>
+              <div class="ws-reveal" id="ws-reveal" hidden>
+                <p class="ws-reveal-h">Join Zoom manually</p>
+                <p class="ws-reveal-row"><span>Link</span> <a id="ws-reveal-url" href="#" target="_blank" rel="noopener"></a></p>
+                <p class="ws-reveal-row"><span>Meeting ID</span> <code id="ws-reveal-id"></code></p>
+                <p class="ws-reveal-row"><span>Passcode</span> <code id="ws-reveal-pass"></code></p>
+              </div>
             </div>
 
-            <div class="ws-cal">
+            <div class="ws-cal" id="ws-cal" hidden={win === 'closed'}>
               <span>Add to calendar:</span>
               {gcalUrl && <a href={gcalUrl} target="_blank" rel="noopener">Google</a>}
               {icsHref && <a href={icsHref}>Apple / Outlook</a>}
+            </div>
+
+            <div class="ws-missed" id="ws-missed" hidden={win !== 'closed'}>
+              <p class="ws-missed-h">This session has finished</p>
+              <p class="ws-missed-sub">No worries — pick one of the options below.</p>
+
+              {hasReplay && (
+                <a class="ws-join" href={replayHref}>Watch the replay →</a>
+              )}
+
+              <div class="ws-rebook">
+                <p class="ws-rebook-h">…or come to another date, free of charge</p>
+                {upcoming.length === 0 ? (
+                  <p class="ws-note">No new dates are open just yet — email <a href="mailto:info@songdance.co">info@songdance.co</a> and we’ll let you know.</p>
+                ) : (
+                  <>
+                    <div class="ws-rebook-list" role="radiogroup" aria-label="Choose a new date">
+                      {upcoming.map((u) => (
+                        <label class="ws-rebook-item">
+                          <input type="radio" name="ws-newdate" value={u.slug} />
+                          <span class="ws-rebook-when">{u.whenLocal} <small>· {u.kind}</small></span>
+                        </label>
+                      ))}
+                    </div>
+                    <button type="button" class="ws-join ws-rebook-btn" id="ws-rebook-btn" disabled>Register free →</button>
+                    <p class="ws-err" id="ws-rebook-err" hidden></p>
+                  </>
+                )}
+              </div>
             </div>
           </>
         )}
@@ -89,29 +155,60 @@ const startMs = workshop ? new Date(workshop.starts_at_utc).getTime() : 0;
     .ws-clock span { display:block; font-size:30px; color:#2A1B2A; line-height:1; }
     .ws-clock small { display:block; margin-top:6px; font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:#B6A8B4; }
     .ws-actions { margin:10px 0 8px; }
-    .ws-join { display:inline-block; padding:15px 28px; border-radius:999px; background:#2A1B2A; color:#F4ECDF; text-decoration:none; font-size:16px; }
-    .ws-soon { color:#B6A8B4; font-size:14px; }
+    .ws-join { display:inline-block; padding:15px 28px; border-radius:999px; background:#2A1B2A; color:#F4ECDF; text-decoration:none; font-size:16px; border:0; cursor:pointer; font-family:inherit; }
+    .ws-join:disabled { opacity:.5; cursor:default; }
     .ws-note { margin:0 0 14px; color:#A14826; font-size:14px; }
+    .ws-fallback-line { margin:14px 0 0; }
+    .ws-fallback { color:#B6A8B4; font-size:13px; text-decoration:underline; }
+    .ws-reveal { margin:18px auto 0; max-width:360px; text-align:left; background:#F4ECDF; border-radius:12px; padding:16px 18px; }
+    .ws-reveal-h { margin:0 0 10px; font-size:13px; letter-spacing:.08em; text-transform:uppercase; color:#A14826; }
+    .ws-reveal-row { margin:0 0 6px; font-size:15px; color:#2A1B2A; display:flex; gap:10px; }
+    .ws-reveal-row span { color:#B6A8B4; min-width:78px; }
+    .ws-reveal-row code { color:#2A1B2A; word-break:break-all; }
+    .ws-reveal-row a { color:#A14826; word-break:break-all; }
     .ws-cal { margin-top:26px; font-size:14px; color:#4A3848; }
     .ws-cal span { color:#B6A8B4; margin-right:8px; }
     .ws-cal a { color:#A14826; text-decoration:none; margin:0 6px; }
+    .ws-missed { margin-top:28px; }
+    .ws-missed-h { margin:0 0 4px; font-size:20px; color:#2A1B2A; }
+    .ws-missed-sub { margin:0 0 22px; color:#4A3848; font-size:15px; }
+    .ws-rebook { margin-top:30px; padding-top:24px; border-top:1px solid rgba(42,27,42,0.12); }
+    .ws-rebook-h { margin:0 0 14px; font-size:15px; color:#4A3848; }
+    .ws-rebook-list { display:flex; flex-direction:column; gap:8px; margin-bottom:18px; text-align:left; }
+    .ws-rebook-item { display:flex; align-items:center; gap:10px; padding:12px 14px; background:#F4ECDF; border-radius:10px; cursor:pointer; font-size:15px; color:#2A1B2A; }
+    .ws-rebook-when small { color:#B6A8B4; }
+    .ws-err { margin:12px 0 0; color:#A14826; font-size:14px; }
   </style>
 
   <script is:inline>
     (function () {
-      var el = document.getElementById('ws-countdown');
-      if (!el) return;
-      var start = parseInt(el.getAttribute('data-start'), 10);
-      var threshold = parseInt(el.getAttribute('data-threshold'), 10) * 1000;
-      var joinBtn = document.getElementById('ws-join');
-      var soon = document.getElementById('ws-soon');
+      var root = document.getElementById('ws-root');
+      if (!root || root.getAttribute('data-replay') === '1') return;
+
+      var start = parseInt(root.getAttribute('data-start'), 10);
+      var openBefore = parseInt(root.getAttribute('data-open-before'), 10) * 1000;
+      var closeAfter = parseInt(root.getAttribute('data-close-after'), 10) * 1000;
+      var rid = root.getAttribute('data-rid');
+
+      var countdown = document.getElementById('ws-countdown');
+      var early = document.getElementById('ws-early');
+      var openBox = document.getElementById('ws-open');
+      var cal = document.getElementById('ws-cal');
+      var missed = document.getElementById('ws-missed');
+
       function pad(n) { return n < 10 ? '0' + n : '' + n; }
+      function show(el, on) { if (el) el.hidden = !on; }
+
       function tick() {
-        var diff = start - Date.now();
-        var open = diff <= threshold;
-        if (joinBtn) joinBtn.hidden = !open;
-        if (soon) soon.hidden = open;
-        var s = Math.max(0, Math.floor(diff / 1000));
+        var now = Date.now();
+        var state = now < start - openBefore ? 'early' : (now > start + closeAfter ? 'closed' : 'open');
+        show(countdown, state !== 'closed');
+        show(early, state === 'early');
+        show(openBox, state === 'open');
+        show(cal, state !== 'closed');
+        show(missed, state === 'closed');
+
+        var s = Math.max(0, Math.floor((start - now) / 1000));
         var d = Math.floor(s / 86400); s -= d * 86400;
         var h = Math.floor(s / 3600); s -= h * 3600;
         var m = Math.floor(s / 60); s -= m * 60;
@@ -120,6 +217,59 @@ const startMs = workshop ? new Date(workshop.starts_at_utc).getTime() : 0;
       }
       tick();
       setInterval(tick, 1000);
+
+      // "The above button doesn't work for me" → reveal raw Zoom details
+      // (this also marks attendance, exactly like clicking Join).
+      var fallback = document.getElementById('ws-fallback');
+      if (fallback) {
+        fallback.addEventListener('click', async function (e) {
+          e.preventDefault();
+          try {
+            var res = await fetch('/api/workshops/join?rid=' + rid + '&reveal=1');
+            var data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'unavailable');
+            var url = document.getElementById('ws-reveal-url');
+            if (url) { url.href = data.zoom_url || '#'; url.textContent = data.zoom_url || ''; }
+            var idEl = document.getElementById('ws-reveal-id');
+            if (idEl) idEl.textContent = data.meeting_id || '—';
+            var passEl = document.getElementById('ws-reveal-pass');
+            if (passEl) passEl.textContent = data.passcode || '—';
+            var panel = document.getElementById('ws-reveal');
+            if (panel) panel.hidden = false;
+            fallback.style.display = 'none';
+          } catch (err) {
+            fallback.textContent = 'The room isn’t open right now — try the Join button when the countdown reaches zero.';
+          }
+        });
+      }
+
+      // Free re-registration onto a chosen new date.
+      var rebookBtn = document.getElementById('ws-rebook-btn');
+      var rebookErr = document.getElementById('ws-rebook-err');
+      if (rebookBtn) {
+        document.querySelectorAll('input[name="ws-newdate"]').forEach(function (r) {
+          r.addEventListener('change', function () { rebookBtn.disabled = false; });
+        });
+        rebookBtn.addEventListener('click', async function () {
+          var checked = document.querySelector('input[name="ws-newdate"]:checked');
+          if (!checked) return;
+          if (rebookErr) { rebookErr.hidden = true; rebookErr.textContent = ''; }
+          rebookBtn.disabled = true;
+          try {
+            var res = await fetch('/api/workshops/reregister', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ rid: parseInt(rid, 10), workshop_slug: checked.value }),
+            });
+            var data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Something went wrong.');
+            window.location.href = data.redirect_url;
+          } catch (err) {
+            if (rebookErr) { rebookErr.hidden = false; rebookErr.textContent = err.message || 'Something went wrong.'; }
+            rebookBtn.disabled = false;
+          }
+        });
+      }
     })();
   </script>
 </Layout>
