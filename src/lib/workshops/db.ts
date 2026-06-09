@@ -723,26 +723,56 @@ export async function deleteConfig(db: D1Database, key: string) {
   await db.prepare('DELETE FROM workshop_config WHERE key = ?').bind(key).run();
 }
 
-// Resolution order: workshop.zoom_url → zoom_url_<teacher> → zoom_url_default.
-export async function resolveZoomUrl(db: D1Database, workshop: Workshop): Promise<string | null> {
+// Is this workshop a masterclass? Classified by its main product slug, the same
+// way the /workshop landing-page calendar tells a €9 workshop from the €29
+// masterclass. Masterclasses resolve their own Zoom defaults.
+export async function workshopIsMasterclass(db: D1Database, workshop: Workshop): Promise<boolean> {
+  if (!workshop.main_product_id) return false;
+  const product = await getProductById(db, workshop.main_product_id);
+  return (product?.slug ?? '').includes('masterclass');
+}
+
+// A typed config default: masterclasses prefer the `<key>_masterclass` value and
+// fall back to the general `<key>_default` when it's blank; everything else uses
+// `<key>_default` directly. (Keys: zoom_url, zoom_meeting_id, zoom_passcode.)
+async function resolveTypedDefault(
+  db: D1Database,
+  isMasterclass: boolean,
+  baseKey: string,
+): Promise<string | null> {
+  if (isMasterclass) {
+    const masterclass = await getConfig(db, `${baseKey}_masterclass`);
+    if (masterclass) return masterclass;
+  }
+  return getConfig(db, `${baseKey}_default`);
+}
+
+// Resolution order: workshop.zoom_url → zoom_url_<teacher> → typed default
+// (zoom_url_masterclass for masterclasses, else zoom_url_default).
+export async function resolveZoomUrl(
+  db: D1Database,
+  workshop: Workshop,
+  isMasterclass: boolean,
+): Promise<string | null> {
   if (workshop.zoom_url) return workshop.zoom_url;
   if (workshop.teacher) {
     const byTeacher = await getConfig(db, `zoom_url_${workshop.teacher.toLowerCase()}`);
     if (byTeacher) return byTeacher;
   }
-  return getConfig(db, 'zoom_url_default');
+  return resolveTypedDefault(db, isMasterclass, 'zoom_url');
 }
 
 // The full Zoom details for the "the button doesn't work for me" fallback:
 // the join URL plus the raw meeting id + passcode some older clients need.
-// Each falls back to its config default when not set on the workshop.
+// Each falls back to its typed config default when not set on the workshop.
 export async function resolveZoomDetails(
   db: D1Database,
   workshop: Workshop,
 ): Promise<{ url: string | null; meetingId: string | null; passcode: string | null }> {
-  const url = await resolveZoomUrl(db, workshop);
-  const meetingId = workshop.zoom_meeting_id ?? (await getConfig(db, 'zoom_meeting_id_default'));
-  const passcode = workshop.zoom_passcode ?? (await getConfig(db, 'zoom_passcode_default'));
+  const isMasterclass = await workshopIsMasterclass(db, workshop);
+  const url = await resolveZoomUrl(db, workshop, isMasterclass);
+  const meetingId = workshop.zoom_meeting_id ?? (await resolveTypedDefault(db, isMasterclass, 'zoom_meeting_id'));
+  const passcode = workshop.zoom_passcode ?? (await resolveTypedDefault(db, isMasterclass, 'zoom_passcode'));
   return { url, meetingId, passcode };
 }
 
