@@ -118,9 +118,10 @@ function initThread() {
       { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.8, ease },
       i,
     );
-    // fade the previous line back so attention follows the newest one
+    // fade the previous line out so only the newest one holds the eye — keeps
+    // the stacked lines from muddying together mid-scroll
     if (i > 0) {
-      tl.to(lines[i - 1], { opacity: 0.18, filter: 'blur(2px)', duration: 0.6 }, i);
+      tl.to(lines[i - 1], { opacity: 0, filter: 'blur(3px)', duration: 0.5 }, i);
     }
   });
 }
@@ -148,7 +149,7 @@ function initCinema() {
     scrollTrigger: {
       trigger: cinema,
       start: 'top top',
-      end: '+=' + frames.length * 90 + '%',
+      end: '+=' + frames.length * 80 + '%',
       scrub: 0.5,
       pin: true,
       anticipatePin: 1,

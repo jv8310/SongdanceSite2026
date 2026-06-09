@@ -87,7 +87,7 @@ html.wp-anim .wp-fade { opacity: 0; }
 }
 .wp-hero-inner {
   position: relative;
-  max-width: 17ch;
+  max-width: min(90vw, 760px);
   padding: 0 var(--sp-5);
   will-change: transform, opacity;
 }
@@ -102,15 +102,20 @@ html.wp-anim .wp-fade { opacity: 0; }
 .wp-hero-title {
   font-family: var(--font-display);
   font-weight: 400;
-  font-size: var(--t-hero);
-  line-height: 1.02;
+  font-size: clamp(44px, 6.4vw, 92px);
+  line-height: 1.05;
   letter-spacing: -0.02em;
   margin: 0;
   text-wrap: balance;
 }
+/* Each line is its own reveal mask. The padding gives the glyphs (and the
+   italic "voice") vertical + horizontal breathing room so nothing is clipped
+   at rest; the inner span starts translated fully below and is masked until the
+   entrance tween lifts it into view. */
 .wp-hero-title .wp-line {
   display: block;
   overflow: hidden;
+  padding: 0.1em 0.06em;
 }
 .wp-hero-title .wp-line-inner { display: block; }
 .wp-hero-title em { color: var(--ember-soft); }
@@ -365,7 +370,7 @@ html.wp-anim .wp-fade { opacity: 0; }
 .wp-hour-item .n {
   font-family: var(--font-mono);
   font-size: var(--t-caption);
-  letter-spacing: 0.2em;
+  letter-spacing: 0.08em;
   color: var(--ember-soft);
   padding-top: 6px;
 }
