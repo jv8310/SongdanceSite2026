@@ -82,6 +82,24 @@ gsap.utils.toArray<HTMLElement>('[data-anim="work-row"]').forEach((row) => {
   if (text) tl.from(text, { opacity: 0, y: reduceMotion ? 0 : 22 }, '-=0.7');
 });
 
+// Work-row images — gentle scroll parallax inside their frames. The figure
+// clips the overflow and the image is slightly overscaled in CSS, so the drift
+// never reveals an edge. Skipped entirely under reduced-motion.
+if (!reduceMotion) {
+  gsap.utils.toArray<HTMLElement>('.sd-work-row-img img').forEach((img) => {
+    const row = img.closest('.sd-work-row') as HTMLElement | null;
+    gsap.fromTo(
+      img,
+      { yPercent: -5 },
+      {
+        yPercent: 5,
+        ease: 'none',
+        scrollTrigger: { trigger: row ?? img, start: 'top bottom', end: 'bottom top', scrub: true },
+      },
+    );
+  });
+}
+
 // Offering cards — gentle staggered rise
 gsap.utils.toArray<HTMLElement>('[data-anim="offering"]').forEach((card, i) => {
   rise(card, {

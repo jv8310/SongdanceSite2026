@@ -1,10 +1,17 @@
 ---
+// "From the room" mosaic — three 12-column bands so it always tiles cleanly.
+// `pos` sets object-position so faces (which sit high in the frame) aren't
+// clipped by the tighter tiles. Images here are kept distinct from the hero,
+// work section and lineage portrait so nothing repeats down the page.
 const shots = [
-  { src: '/media/library/svh-retreat-sounding-yellow.webp', slot: 'g-a' },
-  { src: '/media/library/jacob-teaching.webp', slot: 'g-b' },
-  { src: '/media/library/jacob-soft-portrait.webp', slot: 'g-c' },
-  { src: '/media/library/svh-retreat-sounding-teal.webp', slot: 'g-d' },
-  { src: '/media/library/svh-retreat-walk-tree-sunset.jpg', slot: 'g-e' },
+  { src: '/media/library/svh-retreat-sounding-yellow.webp', slot: 'g-a', pos: 'center 35%' },
+  { src: '/media/library/svh-retreat-sounding-kneeling.webp', slot: 'g-b', pos: 'center 18%' },
+  { src: '/media/library/jacob-soft-portrait.webp', slot: 'g-c', pos: 'center 12%' },
+  { src: '/media/library/svh-retreat-sounding-green-shirt.webp', slot: 'g-d', pos: 'center 20%' },
+  { src: '/media/library/jacob-teaching.webp', slot: 'g-e', pos: 'center 30%' },
+  { src: '/media/library/svh-retreat-sounding-teal.webp', slot: 'g-f', pos: 'center 22%' },
+  { src: '/media/library/svh-retreat-walk-tree-sunset.jpg', slot: 'g-g', pos: 'center 50%' },
+  { src: '/media/library/jacob-at-piano.webp', slot: 'g-h', pos: 'center 32%' },
 ];
 ---
 
@@ -23,7 +30,7 @@ const shots = [
       {
         shots.map((s) => (
           <figure class={`sd-gallery-item ${s.slot}`} data-anim="gallery-item">
-            <img src={s.src} alt="" loading="lazy" />
+            <img src={s.src} alt="" loading="lazy" style={s.pos ? `object-position:${s.pos}` : undefined} />
           </figure>
         ))
       }
