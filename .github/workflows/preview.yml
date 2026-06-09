@@ -1,0 +1,84 @@
+# Upload a *preview* version of the Worker for non-main branches and surface its
+# Cloudflare preview URL — without touching production.
+#
+# Production deploys are handled separately by deploy.yml (push to main →
+# `wrangler deploy`). This workflow uses `wrangler versions upload`, which
+# uploads a new version and prints a preview URL (enabled by `preview_urls: true`
+# in wrangler.jsonc) but never changes the live version — so the two never race.
+#
+# Triggers:
+#   • push to any branch except main — every push to a feature branch gets a
+#     fresh preview URL.
+#   • workflow_dispatch — manual "Run workflow" button.
+#
+# Uses the same repo secrets as deploy.yml:
+#   • CLOUDFLARE_API_TOKEN
+#   • CLOUDFLARE_ACCOUNT_ID
+# The preview URL is written to the run's job summary (and printed in the logs).
+
+name: Preview
+
+on:
+  push:
+    branches-ignore: [main]
+  workflow_dispatch:
+
+# One preview per branch; a newer push supersedes an in-flight upload.
+concurrency:
+  group: preview-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # The MEDIA binding references the R2 bucket. It already exists in
+      # production, so this is just a best-effort safety net and never fails
+      # the run.
+      - name: Ensure R2 bucket (best-effort)
+        run: npx wrangler r2 bucket create songdance-media || echo "bucket already exists or could not be created; continuing"
+
+      - name: Build
+        run: npm run build
+
+      - name: Upload preview version
+        id: preview
+        run: |
+          set -o pipefail
+          npx wrangler versions upload 2>&1 | tee upload.log
+          url=$(grep -oiE 'https://[A-Za-z0-9.-]+\.workers\.dev' upload.log | head -n 1)
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Publish preview link
+        if: always()
+        run: |
+          {
+            echo "### 🔎 Preview deployment"
+            echo ""
+            if [ -n "${{ steps.preview.outputs.url }}" ]; then
+              echo "Branch \`${{ github.ref_name }}\` is previewing at:"
+              echo ""
+              echo "**${{ steps.preview.outputs.url }}**"
+              echo ""
+              echo "_Cloudflare preview version — production is untouched._"
+            else
+              echo "Upload finished but no \`*.workers.dev\` preview URL was found in the log."
+              echo "Open the **Upload preview version** step above to see wrangler's output."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
