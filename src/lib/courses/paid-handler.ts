@@ -17,6 +17,11 @@ import { getCourseRegistrationById } from './db';
 import { logEvent } from '../registrations/db';
 import { recordEvent, upsertSubscriber } from '../registrations/drip';
 import { GRIEF_DRIP_EVENT, GRIEF_DRIP_TAG, GRIEF_PRODUCT_SLUG } from './grief';
+import {
+  TWELVE_WEEK_DRIP_EVENT,
+  TWELVE_WEEK_DRIP_TAG,
+  TWELVE_WEEK_PRODUCT_SLUG,
+} from './twelve-week';
 
 type Env = {
   DB: D1Database;
@@ -39,6 +44,7 @@ export async function pushPaidCourseRegistrationToDrip(
     };
 
     const isGrief = reg.product_slug === GRIEF_PRODUCT_SLUG;
+    const isTwelveWeek = reg.product_slug === TWELVE_WEEK_PRODUCT_SLUG;
 
     const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 
@@ -61,6 +67,13 @@ export async function pushPaidCourseRegistrationToDrip(
     if (isGrief) {
       tags = [GRIEF_DRIP_TAG];
       eventName = GRIEF_DRIP_EVENT;
+    } else if (isTwelveWeek) {
+      // The standalone 12-week foundation course. `prod_SVH_12w` is the same
+      // foundation-access tag the cert bundle grants — Jacob's existing Drip
+      // automation drives the per-week `svh_week` field from there, so we don't
+      // set it here.
+      tags = [TWELVE_WEEK_DRIP_TAG];
+      eventName = TWELVE_WEEK_DRIP_EVENT;
     } else {
       tags = ['prod_SVH_9m'];
       if (reg.product_slug === 'cc-bundle') tags.push('prod_SVH_12w');

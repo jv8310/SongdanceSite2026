@@ -1,5 +1,6 @@
 ---
-import { ENROLL_URL, SESSION_URL, PRICE, INSTALLMENTS } from './config';
+import { SESSION_URL } from './config';
+import { COUNTRIES } from '../../lib/countries';
 
 const includes = [
   '18+ hours of video across 12 modules, full of guided practices',
@@ -8,14 +9,6 @@ const includes = [
   'A supportive student community',
   'Five of Jacob’s original mantras on joining',
 ];
-
-// Price display. Until a flat figure is confirmed (see config), we lead with the
-// honest installments-and-lifetime framing the course has always used — no
-// invented number. When PRICE is set, it becomes the headline figure.
-const amount = PRICE ?? (INSTALLMENTS ? 'Three monthly installments' : 'Lifetime access');
-const terms = PRICE
-  ? (INSTALLMENTS ? 'or three monthly installments · lifetime access' : 'lifetime access')
-  : 'Lifetime access · join anytime';
 ---
 
 <section class="tw-reg tw-section" id="register">
@@ -37,24 +30,455 @@ const terms = PRICE
           </li>
         ))}
       </ul>
-      <div class="tw-reg-price">
-        <span class="amount">{amount}</span>
-        <span class="terms">{terms}</span>
-      </div>
     </div>
 
-    <div class="tw-reg-actions" data-reveal>
-      <a
-        href={ENROLL_URL}
-        class="tw-btn tw-btn--ember tw-btn--lg"
-        aria-label="Register for the 12-Week Somatic Vocal Healing Course"
-      >
-        Register <i class="ph-light ph-arrow-right"></i>
-      </a>
+    <div class="tw-reg-gate" data-tw-stage data-reveal>
+      <form class="tw-reg-emailform" data-tw-email-form>
+        <input type="email" name="email" placeholder="Your email" autocomplete="email" required />
+        <button type="submit">See your price</button>
+      </form>
+      <p class="tw-reg-formnote">
+        No account, no list — just to show your price and any workshop discount.
+      </p>
+      <p class="tw-reg-error" data-tw-error></p>
     </div>
+
+    <!-- Cloned + filled by the script once an email has been entered. -->
+    <template data-tw-template>
+      <div class="tw-reg-priced">
+        <div class="tw-reg-emailline">
+          <span class="tw-reg-emaillabel">Your price for</span>
+          <span class="tw-reg-emailval" data-slot="email"></span>
+          <button type="button" class="tw-reg-emailchange" data-slot="change">change</button>
+        </div>
+
+        <div class="tw-reg-badge" data-slot="badge" hidden>
+          <span class="dot" aria-hidden="true"></span>
+          <span data-slot="badge-text"></span>
+        </div>
+
+        <div class="tw-reg-pricebox">
+          <span class="tw-reg-pricewas" data-slot="was" hidden></span>
+          <span class="tw-reg-pricenow" data-slot="now"></span>
+          <span class="tw-reg-pricenote" data-slot="pricenote"></span>
+        </div>
+
+        <div class="tw-reg-countdown" data-slot="countdown" hidden>
+          <i class="ph-light ph-hourglass-medium" aria-hidden="true"></i>
+          <span>Your discount ends in <span class="clock" data-slot="clock">--:--:--</span></span>
+        </div>
+
+        <div class="tw-reg-steplabel">How would you like to pay?</div>
+        <div class="tw-reg-plans" data-slot="plans"></div>
+
+        <div class="tw-reg-steplabel">Your details</div>
+        <div class="tw-reg-fields">
+          <label class="tw-reg-field">
+            <span>First name</span>
+            <input type="text" name="first_name" autocomplete="given-name" required />
+          </label>
+          <label class="tw-reg-field">
+            <span>Last name</span>
+            <input type="text" name="last_name" autocomplete="family-name" required />
+          </label>
+          <label class="tw-reg-field">
+            <span>Country</span>
+            <input
+              type="text"
+              name="country_search"
+              list="tw-country-list"
+              autocomplete="country-name"
+              placeholder="Start typing…"
+              required
+            />
+            <input type="hidden" name="country" />
+          </label>
+          <label class="tw-reg-field">
+            <span>Phone</span>
+            <div class="tw-reg-phonegrid">
+              <select name="phone_country" required aria-label="Phone country">
+                <option value="">—</option>
+                {COUNTRIES.map((c) => (
+                  <option value={c.code} data-dial={c.dial}>{c.flag} +{c.dial}</option>
+                ))}
+              </select>
+              <input type="tel" name="phone" placeholder="Phone number" autocomplete="tel" required />
+            </div>
+          </label>
+          <label class="tw-reg-field tw-reg-field--full">
+            <span>Company <span class="tw-reg-fieldnote">— optional, for a business invoice</span></span>
+            <input type="text" name="company_name" autocomplete="organization" placeholder="Your company name" />
+          </label>
+          <label class="tw-reg-field tw-reg-field--full" data-slot="vat-field" hidden>
+            <span>VAT number <span class="tw-reg-fieldnote">— EU businesses, for reverse-charge</span></span>
+            <input type="text" name="vat_number" autocomplete="off" placeholder="e.g. BE0123456789" />
+          </label>
+        </div>
+
+        <label class="tw-reg-consent">
+          <input type="checkbox" name="consent_terms" required />
+          <span>I agree to the <a href="/terms" target="_blank" rel="noopener">terms and conditions</a>.</span>
+        </label>
+
+        <div class="tw-reg-summary">
+          <span class="tw-reg-summary-label" data-slot="sum-label"></span>
+          <span class="tw-reg-summary-amount" data-slot="sum-amount"></span>
+        </div>
+
+        <button type="button" class="tw-reg-cta" data-slot="cta">
+          <span>Continue to payment</span>
+          <i class="ph-light ph-arrow-right" aria-hidden="true"></i>
+        </button>
+        <p class="tw-reg-error" data-slot="error"></p>
+      </div>
+    </template>
+
+    <datalist id="tw-country-list">
+      {COUNTRIES.map((c) => (
+        <option value={c.name} data-code={c.code} data-dial={c.dial}>{c.flag} {c.name}</option>
+      ))}
+    </datalist>
 
     <p class="tw-reg-fine" data-reveal>
-      Not sure yet? <a href={SESSION_URL} class="tw-ghost tw-ghost--ondark">Sit in on a live Vocal Healing Session for 9€ first →</a>
+      Not sure yet?
+      <a href={SESSION_URL} class="tw-ghost tw-ghost--ondark">Sit in on a live Vocal Healing Session for 9€ first →</a>
     </p>
   </div>
 </section>
+
+<script>
+  import { COUNTRIES } from '../../lib/countries';
+
+  type Plan = 'full' | '3x';
+  type Status = {
+    email: string;
+    currency: string;
+    price_cents: number;
+    installment_count: number;
+    installment_monthly_cents: number;
+    installment_total_cents: number;
+    discount: {
+      eligible: boolean;
+      kind: 'pre' | 'post' | 'none';
+      percent: number;
+      expires_at_ms: number | null;
+      price_cents: number;
+      monthly_cents: number;
+    };
+    first_name?: string;
+    last_name?: string;
+    country?: string;
+  };
+
+  const SYM: Record<string, string> = {
+    EUR: '€', USD: '$', GBP: '£', CAD: 'CA$', CHF: 'CHF ',
+    NOK: 'kr ', SEK: 'kr ', DKK: 'kr ', AUD: 'A$', NZD: 'NZ$',
+  };
+  function money(cents: number, cur: string): string {
+    const major = cents / 100;
+    const sym = SYM[cur] ?? '';
+    const body = Number.isInteger(major) ? String(major) : major.toFixed(2);
+    return sym ? `${sym}${body}` : `${body} ${cur}`;
+  }
+  function escapeHtml(s: string): string {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  const stage = document.querySelector<HTMLElement>('[data-tw-stage]');
+  const template = document.querySelector<HTMLTemplateElement>('[data-tw-template]');
+  if (stage && template) {
+    const emailForm = stage.querySelector<HTMLFormElement>('[data-tw-email-form]')!;
+    const note = stage.querySelector<HTMLElement>('.tw-reg-formnote');
+    const errorEl = stage.querySelector<HTMLElement>('[data-tw-error]')!;
+    let countdownTimer: number | undefined;
+
+    function showError(msg: string) { errorEl.textContent = msg; }
+    function clearError() { errorEl.textContent = ''; }
+
+    function showEmailForm(prefill?: string) {
+      window.clearInterval(countdownTimer);
+      stage!.replaceChildren(emailForm);
+      if (note) stage!.appendChild(note);
+      stage!.appendChild(errorEl);
+      const input = emailForm.querySelector<HTMLInputElement>('input[name="email"]')!;
+      if (prefill) input.value = prefill;
+      const btn = emailForm.querySelector<HTMLButtonElement>('button')!;
+      btn.disabled = false; btn.textContent = 'See your price';
+      clearError();
+    }
+
+    // Best-effort country guess from timezone / locale, so the first price
+    // is shown in a sensible currency before the buyer fills in the form.
+    function guessCountry(): string | undefined {
+      try {
+        const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+        const tzMap: Record<string, string> = {
+          'Europe/London': 'GB', 'America/New_York': 'US', 'America/Chicago': 'US',
+          'America/Denver': 'US', 'America/Los_Angeles': 'US', 'America/Phoenix': 'US',
+          'America/Toronto': 'CA', 'America/Vancouver': 'CA', 'America/Edmonton': 'CA',
+          'Australia/Sydney': 'AU', 'Australia/Melbourne': 'AU', 'Australia/Perth': 'AU',
+          'Pacific/Auckland': 'NZ', 'Europe/Zurich': 'CH', 'Europe/Oslo': 'NO',
+          'Europe/Stockholm': 'SE', 'Europe/Copenhagen': 'DK',
+        };
+        if (tzMap[tz]) return tzMap[tz];
+        const m = (navigator.language || '').match(/-([A-Z]{2})$/i);
+        if (m) return m[1].toUpperCase();
+      } catch {}
+      return undefined;
+    }
+
+    async function fetchStatus(email: string, country?: string): Promise<Status | { error: string }> {
+      const res = await fetch('/api/courses/twelve-week-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, country }),
+      });
+      try { return (await res.json()) as Status; } catch { return { error: 'Bad response' }; }
+    }
+
+    emailForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      clearError();
+      const email = String(new FormData(emailForm).get('email') ?? '').trim().toLowerCase();
+      if (!email) return;
+      const btn = emailForm.querySelector<HTMLButtonElement>('button')!;
+      btn.disabled = true; btn.textContent = 'Checking…';
+      const status = await fetchStatus(email, guessCountry());
+      if (!('currency' in status)) {
+        showError(('error' in status && status.error) || 'Something went wrong. Please try again.');
+        btn.disabled = false; btn.textContent = 'See your price';
+        return;
+      }
+      render(email, status);
+    });
+
+    function render(email: string, status: Status) {
+      window.clearInterval(countdownTimer);
+      const frag = template!.content.cloneNode(true) as DocumentFragment;
+      const root = frag.querySelector('.tw-reg-priced') as HTMLElement;
+      const q = <T extends HTMLElement>(sel: string) => root.querySelector(sel) as T;
+
+      (q('[data-slot="email"]') as HTMLElement).textContent = email;
+      q<HTMLButtonElement>('[data-slot="change"]').addEventListener('click', () => showEmailForm(email));
+
+      let selectedPlan: Plan = 'full';
+
+      // ---- Price box + badge + countdown
+      const renderPrice = () => {
+        const d = status.discount;
+        const fullNow = d.eligible ? d.price_cents : status.price_cents;
+        const badge = q('[data-slot="badge"]') as HTMLElement;
+        const was = q('[data-slot="was"]') as HTMLElement;
+        const now = q('[data-slot="now"]') as HTMLElement;
+        const pricenote = q('[data-slot="pricenote"]') as HTMLElement;
+        const countdown = q('[data-slot="countdown"]') as HTMLElement;
+
+        now.textContent = money(fullNow, status.currency);
+        if (d.eligible) {
+          was.hidden = false;
+          was.textContent = money(status.price_cents, status.currency);
+          badge.hidden = false;
+          (q('[data-slot="badge-text"]') as HTMLElement).textContent =
+            `Workshop discount — ${d.percent}% off`;
+        } else {
+          was.hidden = true; badge.hidden = true;
+        }
+        const monthlyNow = d.eligible ? d.monthly_cents : status.installment_monthly_cents;
+        pricenote.textContent = `One payment · or ${status.installment_count} monthly payments of ${money(monthlyNow, status.currency)}`;
+
+        // Post-workshop 48h window → live countdown; on expiry, re-price.
+        if (d.eligible && d.kind === 'post' && d.expires_at_ms) {
+          countdown.hidden = false;
+          const clock = q('[data-slot="clock"]') as HTMLElement;
+          const tick = async () => {
+            const left = (d.expires_at_ms as number) - Date.now();
+            if (left <= 0) {
+              window.clearInterval(countdownTimer);
+              const fresh = await fetchStatus(email, status.country);
+              if ('currency' in fresh) render(email, fresh);
+              return;
+            }
+            const s = Math.floor(left / 1000);
+            const hh = String(Math.floor(s / 3600)).padStart(2, '0');
+            const mm = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
+            const ss = String(s % 60).padStart(2, '0');
+            clock.textContent = `${hh}:${mm}:${ss}`;
+          };
+          tick();
+          countdownTimer = window.setInterval(tick, 1000);
+        } else {
+          countdown.hidden = true;
+        }
+      };
+
+      // ---- Plan picker
+      const plansEl = q('[data-slot="plans"]') as HTMLElement;
+      const renderPlans = () => {
+        const d = status.discount;
+        const cur = status.currency;
+        const fullBase = status.price_cents;
+        const fullNow = d.eligible ? d.price_cents : fullBase;
+        const monBase = status.installment_monthly_cents;
+        const monNow = d.eligible ? d.monthly_cents : monBase;
+        const count = status.installment_count;
+
+        const fullAmount = d.eligible
+          ? `<span class="tw-amount-strike">${money(fullBase, cur)}</span>${money(fullNow, cur)}`
+          : money(fullNow, cur);
+        const monAmount = d.eligible
+          ? `<span class="tw-amount-strike">${money(monBase, cur)}/mo</span>${money(monNow, cur)}/mo`
+          : `${money(monNow, cur)}/mo`;
+
+        const opt = (plan: Plan, title: string, sub: string, amountHtml: string) => {
+          const el = document.createElement('button');
+          el.type = 'button';
+          el.className = 'tw-reg-plan' + (plan === selectedPlan ? ' tw-reg-plan--selected' : '');
+          el.dataset.plan = plan;
+          el.innerHTML =
+            `<span class="tw-reg-plan-radio" aria-hidden="true"></span>` +
+            `<span class="tw-reg-plan-text"><span class="tw-reg-plan-title">${escapeHtml(title)}</span>` +
+            `<span class="tw-reg-plan-sub">${escapeHtml(sub)}</span></span>` +
+            `<span class="tw-reg-plan-amount">${amountHtml}</span>`;
+          el.addEventListener('click', () => {
+            selectedPlan = plan;
+            plansEl.querySelectorAll<HTMLElement>('.tw-reg-plan').forEach((p) =>
+              p.classList.toggle('tw-reg-plan--selected', p.dataset.plan === selectedPlan));
+            renderSummary();
+          });
+          return el;
+        };
+
+        plansEl.replaceChildren(
+          opt('full', 'Pay in full', 'One payment · lifetime access', fullAmount),
+          opt('3x', `${count} monthly payments`,
+            `${money(monNow, cur)}/mo × ${count} (${money(monNow * count, cur)} total)`, monAmount),
+        );
+      };
+
+      // ---- Summary line above the CTA
+      const sumLabel = q('[data-slot="sum-label"]') as HTMLElement;
+      const sumAmount = q('[data-slot="sum-amount"]') as HTMLElement;
+      const renderSummary = () => {
+        const d = status.discount;
+        const cur = status.currency;
+        if (selectedPlan === '3x') {
+          const mon = d.eligible ? d.monthly_cents : status.installment_monthly_cents;
+          sumLabel.textContent = `${status.installment_count} monthly payments${d.eligible ? ` (${d.percent}% off)` : ''}`;
+          sumAmount.textContent = `${money(mon, cur)}/mo`;
+        } else {
+          const full = d.eligible ? d.price_cents : status.price_cents;
+          sumLabel.textContent = `One payment${d.eligible ? ` (${d.percent}% off)` : ''}`;
+          sumAmount.textContent = money(full, cur);
+        }
+      };
+
+      // ---- Prefill name/country from the workshop registration / geo guess
+      const firstI = root.querySelector<HTMLInputElement>('[name="first_name"]')!;
+      const lastI = root.querySelector<HTMLInputElement>('[name="last_name"]')!;
+      const countrySearch = root.querySelector<HTMLInputElement>('[name="country_search"]')!;
+      const countryHidden = root.querySelector<HTMLInputElement>('[name="country"]')!;
+      // `as unknown as` per TS: this repo's lib setup doesn't treat
+      // HTMLSelectElement as overlapping Element on a bare querySelector cast.
+      const phoneSel = root.querySelector('[name="phone_country"]') as unknown as HTMLSelectElement;
+      const companyI = root.querySelector<HTMLInputElement>('[name="company_name"]')!;
+      const vatField = q('[data-slot="vat-field"]') as HTMLElement;
+      const vatI = root.querySelector<HTMLInputElement>('[name="vat_number"]')!;
+
+      if (status.first_name) firstI.value = status.first_name;
+      if (status.last_name) lastI.value = status.last_name;
+      const initialCountry = status.country || guessCountry();
+      if (initialCountry) {
+        const match = COUNTRIES.find((c) => c.code === initialCountry.toUpperCase());
+        if (match) {
+          countrySearch.value = match.name;
+          countryHidden.value = match.code;
+          phoneSel.value = match.code;
+        }
+      }
+
+      const toggleVat = () => {
+        const show = companyI.value.trim().length > 0;
+        vatField.hidden = !show;
+        if (!show) vatI.value = '';
+      };
+      companyI.addEventListener('input', toggleVat);
+      toggleVat();
+
+      // Changing country re-prices (currency may change). Debounced.
+      let repriceTimer: number | undefined;
+      const resolveCountry = () => {
+        const typed = countrySearch.value.trim().toLowerCase();
+        const match = COUNTRIES.find((c) => c.name.toLowerCase() === typed || c.code.toLowerCase() === typed);
+        if (match) {
+          countryHidden.value = match.code;
+          if (!phoneSel.value) phoneSel.value = match.code;
+          window.clearTimeout(repriceTimer);
+          repriceTimer = window.setTimeout(async () => {
+            if (match.code === status.country) return;
+            const fresh = await fetchStatus(email, match.code);
+            if ('currency' in fresh) {
+              // Keep whatever the buyer has typed; just refresh prices.
+              status = fresh;
+              renderPrice(); renderPlans(); renderSummary();
+            }
+          }, 300);
+        } else {
+          countryHidden.value = '';
+        }
+      };
+      countrySearch.addEventListener('change', resolveCountry);
+      countrySearch.addEventListener('blur', resolveCountry);
+      countrySearch.addEventListener('input', resolveCountry);
+
+      // ---- Checkout
+      const cta = q('[data-slot="cta"]') as HTMLButtonElement;
+      const errSlot = q('[data-slot="error"]') as HTMLElement;
+      cta.addEventListener('click', async () => {
+        errSlot.textContent = '';
+        const val = (n: string) => String(root.querySelector<HTMLInputElement>(`[name="${n}"]`)?.value ?? '').trim();
+        const fail = (m: string) => { errSlot.textContent = m; errSlot.scrollIntoView({ behavior: 'smooth', block: 'center' }); };
+        const first = val('first_name'), last = val('last_name');
+        const country = val('country'), phoneCountry = val('phone_country'), phone = val('phone');
+        const company = val('company_name'), vat = val('vat_number');
+        const consent = root.querySelector<HTMLInputElement>('[name="consent_terms"]')!.checked;
+        if (!first || !last) return fail('Please add your first and last name.');
+        if (!country) return fail('Please select your country from the list.');
+        if (!phoneCountry || !phone) return fail('Please enter a phone number with country code.');
+        if (vat && !company) return fail('Please add your company name to use a VAT number.');
+        if (!consent) return fail('Please agree to the terms to continue.');
+
+        const label = cta.innerHTML;
+        cta.disabled = true; cta.innerHTML = '<span>Opening secure checkout…</span>';
+        try {
+          const res = await fetch('/api/courses/twelve-week-checkout', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email, first_name: first, last_name: last, country,
+              phone_country: phoneCountry, phone,
+              company_name: company || undefined, vat_number: vat || undefined,
+              payment_plan: selectedPlan, consent_terms: true,
+            }),
+          });
+          let body: { checkout_url?: string; error?: string } = {};
+          try { body = await res.json(); } catch {}
+          if (!res.ok || !body.checkout_url) {
+            fail(body.error || `Could not start checkout (HTTP ${res.status}). Please try again.`);
+            cta.disabled = false; cta.innerHTML = label;
+            return;
+          }
+          window.location.href = body.checkout_url;
+        } catch {
+          fail('We could not reach the server. Please try again.');
+          cta.disabled = false; cta.innerHTML = label;
+        }
+      });
+
+      renderPrice();
+      renderPlans();
+      renderSummary();
+      stage!.replaceChildren(root);
+    }
+  }
+</script>
