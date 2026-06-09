@@ -1,4 +1,14 @@
 ---
+// A small set of hero headlines. One is shown on load, picked at random in the
+// browser (the site is statically built, so the rotation has to be client-side
+// to actually change on reload). The first is the no-JS / first-paint default.
+// Each may use <em> for the oversized lyric-italic accent word.
+const headlines = [
+  "Some things can't be said. They can be <em>sounded.</em>",
+  'Your voice already knows the way <em>through.</em>',
+  'Before the words, there was a <em>sound.</em>',
+  "Healing has a sound — and it's already <em>yours.</em>",
+];
 ---
 
 <header class="sd-hero">
@@ -8,9 +18,7 @@
         <span class="sd-hero-eyebrow-line"></span>
         <div class="sd-eyebrow">Sound as the body's language</div>
       </div>
-      <h1 class="sd-hero-head" data-anim="hero-head">
-        Healing was never something done to <em>you.</em>
-      </h1>
+      <h1 class="sd-hero-head" data-anim="hero-head" data-headlines={JSON.stringify(headlines)} set:html={headlines[0]}></h1>
       <p class="sd-hero-sub" data-anim="hero-sub">
         It's something you do — with your own voice.
         This is Somatic Vocal Healing.
@@ -33,3 +41,18 @@
     </div>
   </div>
 </header>
+
+<script is:inline>
+  // Pick a random hero headline on each load. Runs inline (synchronously) so it
+  // resolves before the GSAP entrance fades the headline in.
+  (function () {
+    var el = document.querySelector('[data-anim="hero-head"]');
+    if (!el) return;
+    try {
+      var list = JSON.parse(el.getAttribute('data-headlines') || '[]');
+      if (list.length > 1) el.innerHTML = list[Math.floor(Math.random() * list.length)];
+    } catch (e) {
+      /* keep the server-rendered default */
+    }
+  })();
+</script>

@@ -2,23 +2,39 @@
 const rows = [
   {
     n: '01',
-    label: 'Somatic Vocal Healing',
-    title: 'Sound as the body’s language',
-    body: "Your voice is the instrument. Not a performance to get right — just the honest sound of what's here, stayed with until it's been heard, and something shifts.",
+    label: 'The practice',
+    title: 'Somatic Vocal Healing',
+    body: "Your voice is the instrument — not a performance to get right, but the honest sound of what's here. You stay with it until it's been heard, and something moves.",
     meta: 'in your own voice',
     href: '/what-is-svh',
-    img: '/media/library/svh-retreat-sounding-green-shirt.webp',
+    cta: 'Read more',
+    img: '/media/library/svh-retreat-sounding-jacob-sunset.webp',
+    pos: 'center 30%',
     flip: false,
   },
   {
     n: '02',
-    label: 'Sound Constellations',
-    title: 'Klankopstellingen',
-    body: "A group method for what runs through families, relationships, and the body's lineage. The medium is the voice. A handful of times a year, in person.",
-    meta: 'in person · in Dutch',
-    href: '/events?filter=retreat',
-    img: '/media/library/svh-retreat-sounding-kneeling.webp',
+    label: 'What makes it different',
+    title: 'Sounding, not singing',
+    body: "There's no melody to reach for and nothing to perform. The crack, the waver, the rough edge — that's the information. The question isn't how it should sound, but what this feels like — and what the sound of that is.",
+    meta: 'nothing to get right',
+    href: '/what-is-svh',
+    cta: 'Read more',
+    img: '/media/library/svh-retreat-sounding-patterned-rocks.webp',
+    pos: 'center 18%',
     flip: true,
+  },
+  {
+    n: '03',
+    label: 'Together',
+    title: 'Sounding in a circle',
+    body: "Most of the deep work happens with others — in a room, on retreat, sounding in a circle while the group holds the space. A handful of times a year, in person.",
+    meta: 'in person · in groups',
+    href: '/events',
+    cta: 'See upcoming events →',
+    img: '/media/library/svh-retreat-circle-sunset-group-jacob-central.webp',
+    pos: 'center 42%',
+    flip: false,
   },
 ];
 ---
@@ -28,30 +44,31 @@ const rows = [
     <div class="sd-work-head" data-anim="reveal">
       <div class="sd-eyebrow">What it is</div>
       <h2 class="sd-section-title sd-section-title-centered">
-        It asks what a feeling <span class="sd-italic">sounds</span> like — and lets you make that sound.
+        What does a feeling <span class="sd-italic">sound</span> like?
       </h2>
       <p class="sd-work-lede">
-        Most of us were taught to manage our feelings, override them, or wait for them to
-        pass. Somatic Vocal Healing does something simpler and stranger: it asks what a
-        feeling <em>sounds</em> like, and lets you make that sound. Not a performance,
-        nothing to get right — just the honest sound of what's here, until it has been
-        heard, and something shifts.
+        Most of us were taught to handle feelings from the neck up — to name them,
+        manage them, wait them out. This one works lower down: you give the feeling a
+        sound, in your own voice, and stay with it until it's been heard.
       </p>
     </div>
 
     {
       rows.map((r) => (
         <article class={'sd-work-row' + (r.flip ? ' flip' : '')} data-anim="work-row">
+          <div class="sd-work-chapter">
+            <span class="sd-work-chapter-num">{r.n}</span>
+            <span class="sd-work-chapter-rule" />
+            <span class="sd-work-chapter-label">{r.label}</span>
+          </div>
           <figure class="sd-work-row-img">
-            <img src={r.img} alt="" />
-            <span class="sd-work-row-num">{r.n}</span>
+            <img src={r.img} alt="" style={r.pos ? `object-position:${r.pos}` : undefined} />
           </figure>
           <div class="sd-work-row-text">
-            <div class="sd-work-row-label">{r.label}</div>
             <h3 class="sd-work-row-title">{r.title}</h3>
             <div class="sd-work-row-meta">{r.meta}</div>
             <p class="sd-work-row-body">{r.body}</p>
-            <a href={r.href} class="sd-link">Read more</a>
+            <a href={r.href} class="sd-link">{r.cta}</a>
           </div>
         </article>
       ))

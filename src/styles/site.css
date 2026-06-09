@@ -130,10 +130,10 @@ html, body { background: var(--paper); }
   letter-spacing: -0.018em;
   font-weight: 400;
   color: var(--ink);
-  margin: 0 0 var(--sp-8);
-  max-width: 14ch;
+  margin: 0 0 var(--sp-5);
+  max-width: 15ch;
   text-wrap: balance;
-  padding-bottom: 0.35em;
+  padding-bottom: 0.12em;
 }
 .sd-hero-soft {
   display: block;
@@ -148,10 +148,10 @@ html, body { background: var(--paper); }
 }
 .sd-hero-sub {
   font-family: var(--font-body);
-  font-size: 18px; line-height: 1.6;
+  font-size: 20px; line-height: 1.55;
   color: var(--ink-soft);
-  max-width: 40ch; text-wrap: pretty;
-  margin: 0 0 var(--sp-6);
+  max-width: 38ch; text-wrap: pretty;
+  margin: 0 0 var(--sp-5);
 }
 .sd-hero-cta-row { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
 
@@ -230,7 +230,7 @@ html, body { background: var(--paper); }
 .sd-work-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: var(--sp-8);
+  gap: var(--sp-4) var(--sp-8);
   align-items: center;
   margin-bottom: var(--sp-9);
 }
@@ -248,30 +248,28 @@ html, body { background: var(--paper); }
 .sd-work-row-img img {
   width: 100%; height: 100%; object-fit: cover;
   filter: var(--sd-img-filter);
-  transition: transform 1400ms var(--ease);
+  /* Slight overscale gives the scroll parallax (animations.ts) room to drift
+     within the figure without ever revealing an edge. */
+  transform: scale(1.18);
 }
-.sd-work-row:hover .sd-work-row-img img { transform: scale(1.03); }
-.sd-work-row-num {
-  position: absolute;
-  top: var(--sp-4); left: var(--sp-4);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.18em;
-  color: var(--paper);
-  background: rgba(26, 16, 24, 0.55);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  padding: 6px 12px;
-  border-radius: var(--r-pill);
+/* Editorial chapter header above each row: "01 ———————— Somatic Vocal Healing".
+   Spans both columns of the row grid. */
+.sd-work-chapter {
+  grid-column: 1 / -1;
+  display: flex; align-items: center; gap: var(--sp-4);
+}
+.sd-work-chapter-num {
+  font-family: var(--font-mono); font-size: 13px;
+  letter-spacing: 0.18em; color: var(--ember-deep);
+}
+.sd-work-chapter-rule { flex: 1; height: 1px; background: var(--line-strong); }
+.sd-work-chapter-label {
+  font-family: var(--font-body); font-size: 11px;
+  text-transform: uppercase; letter-spacing: 0.22em;
+  color: var(--ink-quiet); font-weight: 500;
 }
 
 .sd-work-row-text { padding: var(--sp-3) var(--sp-3); max-width: 44ch; }
-.sd-work-row-label {
-  font-family: var(--font-body); font-size: 11px;
-  text-transform: uppercase; letter-spacing: 0.22em;
-  color: var(--ember-deep); font-weight: 500;
-  margin-bottom: var(--sp-3);
-}
 .sd-work-row-title {
   font-family: var(--font-display);
   font-size: clamp(32px, 3.6vw, 44px);
@@ -439,21 +437,32 @@ html, body { background: var(--paper); }
 }
 .sd-gallery-item:hover img { transform: scale(1.04); }
 
+/* Three bands, each summing to 12 columns so the mosaic tiles with no gaps:
+   a+b+c (5+4+3), d+e+f (4+3+5), g+h (6+6, taller). Every tile is portrait or
+   square (all the photos are 2:3), so faces are never landscape-cropped; the
+   tall tiles (c, e) keep full height, the last band runs larger to close. */
 .sd-gallery-item.g-a { grid-column: span 5; grid-row: span 5; }
-.sd-gallery-item.g-b { grid-column: span 4; grid-row: span 3; }
+.sd-gallery-item.g-b { grid-column: span 4; grid-row: span 5; }
 .sd-gallery-item.g-c { grid-column: span 3; grid-row: span 5; }
-.sd-gallery-item.g-d { grid-column: span 4; grid-row: span 4; }
-.sd-gallery-item.g-e { grid-column: span 5; grid-row: span 4; }
+.sd-gallery-item.g-d { grid-column: span 4; grid-row: span 5; }
+.sd-gallery-item.g-e { grid-column: span 3; grid-row: span 5; }
+.sd-gallery-item.g-f { grid-column: span 5; grid-row: span 5; }
+.sd-gallery-item.g-g { grid-column: span 6; grid-row: span 7; }
+.sd-gallery-item.g-h { grid-column: span 6; grid-row: span 7; }
 
 @media (max-width: 800px) {
   .sd-gallery-head { grid-template-columns: 1fr; gap: var(--sp-3); }
   .sd-gallery-byline { text-align: left; }
   .sd-gallery-grid { grid-template-columns: repeat(6, 1fr); grid-auto-rows: 80px; }
-  .sd-gallery-item.g-a { grid-column: span 6; grid-row: span 4; }
+  /* Full-width anchors top and bottom; the rest pair up two-per-row. */
+  .sd-gallery-item.g-a,
+  .sd-gallery-item.g-h { grid-column: span 6; grid-row: span 4; }
   .sd-gallery-item.g-b,
   .sd-gallery-item.g-c,
   .sd-gallery-item.g-d,
-  .sd-gallery-item.g-e { grid-column: span 3; grid-row: span 3; }
+  .sd-gallery-item.g-e,
+  .sd-gallery-item.g-f,
+  .sd-gallery-item.g-g { grid-column: span 3; grid-row: span 3; }
 }
 
 /* ---------- Lineage ---------- */
@@ -727,6 +736,14 @@ html, body { background: var(--paper); }
 .sd-nav-drop.is-open .sd-nav-drop-menu {
   opacity: 1; visibility: visible; pointer-events: auto; transform: translateX(-50%) translateY(0);
 }
+/* Invisible bridge across the 14px gap between the toggle and the menu, so the
+   pointer doesn't cross dead space (which would drop :hover and close it). */
+.sd-nav-drop-menu::before {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; top: -14px;
+  height: 14px;
+}
 .sd-nav-drop-menu a {
   font-family: var(--font-body); font-size: 14px;
   color: var(--ink); text-decoration: none;
@@ -965,10 +982,10 @@ a.sd-evt-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-2); 
   font-size: var(--t-body-lg);
   line-height: var(--lh-prose);
   color: var(--ink-soft);
-  max-width: 60ch;
+  max-width: 52ch;
   margin: var(--sp-5) auto 0;
   text-align: center;
-  text-wrap: pretty;
+  text-wrap: balance;
 }
 .sd-work-lede em { font-family: var(--font-lyric); font-style: italic; color: var(--ink); }
 
