@@ -251,12 +251,19 @@ function parseRoomLabel(name: string): { code: string; where: string } {
 }
 
 type RoomType = 'private' | 'shared' | 'multi' | 'none';
-function roomType(r: { solo_tier_id: number | null; shared_tier_id: number | null }): {
+function roomType(r: {
+  solo_tier_id: number | null;
+  couple_tier_id: number | null;
+  shared_tier_id: number | null;
+}): {
   type: RoomType;
   label: string;
 } {
   if (r.solo_tier_id != null && r.shared_tier_id != null) return { type: 'multi', label: 'Multi' };
+  // A room that sells whole as either a single or a couple is still private.
+  if (r.solo_tier_id != null && r.couple_tier_id != null) return { type: 'private', label: 'Private · 1–2' };
   if (r.solo_tier_id != null) return { type: 'private', label: 'Private' };
+  if (r.couple_tier_id != null) return { type: 'private', label: 'Couple' };
   if (r.shared_tier_id != null) return { type: 'shared', label: 'Shared' };
   return { type: 'none', label: '—' };
 }
