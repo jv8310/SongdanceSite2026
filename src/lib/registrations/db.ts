@@ -544,26 +544,45 @@ export async function computeTierAvailability(
   });
 }
 
-// Overall "X% booked" for a product, derived from the same per-tier
-// availability the booking pages and /admin use — so the public figure always
-// agrees with what the room model says is left. Returns null when there's no
-// countable capacity (e.g. a product with no inventory yet), letting callers
-// simply omit the figure.
+// Overall "X% booked" for a product, counted in places at the room level so
+// it's exact: each physical room is counted once, under whichever mode it's
+// currently in (a flexible room set to private is one place; set to shared
+// it's a place per bed). The only soft case is a still-undecided ('open')
+// room, counted at the most it could offer until it's pinned or booked.
+// Returns null when there's no countable inventory, so callers can omit it.
 export async function computeBookedPercent(
   db: D1Database,
   productId: number,
-): Promise<{ capacity: number; remaining: number; sold: number; percent: number } | null> {
-  const availability = await computeTierAvailability(db, productId);
-  let capacity = 0;
-  let remaining = 0;
-  for (const a of availability) {
-    capacity += a.capacity;
-    remaining += Math.max(0, a.remaining);
+): Promise<{ total: number; sold: number; percent: number } | null> {
+  const rooms = await getRoomsWithMode(db, productId);
+  let total = 0;
+  let sold = 0;
+  for (const r of rooms) {
+    // 'inactive' rooms aren't part of the retreat right now — ignore entirely.
+    if (r.mode === 'inactive') continue;
+
+    if (r.mode === 'reserved') {
+      // Held for hosts/cook etc. — off the market, so its beds count as taken.
+      total += r.capacity;
+      sold += r.capacity;
+    } else if (r.mode === 'solo') {
+      // Sold (or pinned) as one private unit: a single place however many beds
+      // it has, taken once anyone books it.
+      total += 1;
+      sold += r.beds_sold > 0 ? 1 : 0;
+    } else if (r.mode === 'shared') {
+      // Sold bed by bed.
+      total += r.capacity;
+      sold += Math.min(r.beds_sold, r.capacity);
+    } else {
+      // 'open' — undecided and empty. Count the most it could still offer: its
+      // full bed count if it can be shared, otherwise the single private place.
+      total += r.shared_tier_id != null ? r.capacity : 1;
+    }
   }
-  if (capacity <= 0) return null;
-  const sold = Math.max(0, capacity - remaining);
-  const percent = Math.min(100, Math.max(0, Math.round((sold / capacity) * 100)));
-  return { capacity, remaining, sold, percent };
+  if (total <= 0) return null;
+  const percent = Math.min(100, Math.max(0, Math.round((sold / total) * 100)));
+  return { total, sold, percent };
 }
 
 // Pick the best room for a new registration of the given tier slug.
