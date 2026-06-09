@@ -7,6 +7,7 @@ interface Props {
   description?: string;
   image?: string;
   ogType?: string;
+  noindex?: boolean;
 }
 
 const {
@@ -14,6 +15,7 @@ const {
   description = "Somatic Vocal Healing — the honest sound of what you feel, until it's been heard. Sound that comes from you, not toward you.",
   image = '/brand/symbol-orange.png',
   ogType = 'website',
+  noindex = false,
 } = Astro.props;
 
 const canonical = new URL(Astro.url.pathname, Astro.site ?? Astro.url.origin).href;
@@ -27,6 +29,7 @@ const ogImage = new URL(image, Astro.site ?? Astro.url.origin).href;
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="generator" content={Astro.generator} />
     <meta name="description" content={description} />
+    {noindex && <meta name="robots" content="noindex, nofollow" />}
     <link rel="canonical" href={canonical} />
     <link rel="icon" href="/favicon.png" type="image/png" />
     <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/light/style.css" />

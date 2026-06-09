@@ -2,6 +2,9 @@
 import { SESSION_URL } from './config';
 import { COUNTRIES } from '../../lib/countries';
 
+interface Props { bg?: string }
+const { bg = '/media/library/svhgpt-09-closing-candle.webp' } = Astro.props;
+
 const includes = [
   '18+ hours of video across 12 modules, full of guided practices',
   '12 weeks of weekly live Q&A with Jacob, plus replays',
@@ -13,7 +16,7 @@ const includes = [
 
 <section class="tw-reg tw-section" id="register">
   <div class="tw-reg-bg" aria-hidden="true">
-    <img src="/media/library/svhgpt-09-closing-candle.webp" alt="" loading="lazy" />
+    <img src={bg} alt="" loading="lazy" />
   </div>
   <div class="tw-reg-inner">
     <p class="tw-eyebrow tw-eyebrow--center" data-reveal>Begin</p>

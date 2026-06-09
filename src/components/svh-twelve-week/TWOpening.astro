@@ -1,4 +1,9 @@
 ---
+interface Props { img?: string; alt?: string }
+const {
+  img = '/media/library/svhgpt-02-we-lost-the-voice.webp',
+  alt = 'A painterly portrait — a smaller, sounding figure glowing at the chest, the feeling still living in the body.',
+} = Astro.props;
 ---
 
 <section class="tw-move tw-move--reverse tw-section">
@@ -6,8 +11,8 @@
     <div class="tw-move-media" data-reveal>
       <img
         class="tw-move-img"
-        src="/media/library/svhgpt-02-we-lost-the-voice.webp"
-        alt="A painterly portrait — a smaller, sounding figure glowing at the chest, the feeling still living in the body."
+        src={img}
+        alt={alt}
         loading="lazy"
       />
     </div>

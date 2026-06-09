@@ -1,10 +1,13 @@
 ---
 import { REGISTER_ANCHOR, SESSION_URL } from './config';
+
+interface Props { bg?: string }
+const { bg = '/media/library/svhgpt-01-hero-in-one-breath.webp' } = Astro.props;
 ---
 
 <header class="tw-hero" id="top">
   <div class="tw-hero-bg" aria-hidden="true">
-    <img src="/media/library/svhgpt-01-hero-in-one-breath.webp" alt="" />
+    <img src={bg} alt="" />
   </div>
   <div class="tw-hero-inner">
     <img class="tw-hero-mark" src="/brand/symbol-orange.png" alt="" aria-hidden="true" />

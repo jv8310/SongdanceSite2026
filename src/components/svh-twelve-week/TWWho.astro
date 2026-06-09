@@ -1,5 +1,11 @@
 ---
 import { PRACTITIONER_URL } from './config';
+
+interface Props { img?: string; alt?: string }
+const {
+  img = '/media/library/svhgpt-07-below-deeper-earlier.webp',
+  alt = 'A seated figure on the earth, roots reaching down to a small fire glowing far below the surface.',
+} = Astro.props;
 ---
 
 <section class="tw-move tw-move--reverse tw-move--alt tw-section">
@@ -7,8 +13,8 @@ import { PRACTITIONER_URL } from './config';
     <div class="tw-move-media" data-reveal>
       <img
         class="tw-move-img"
-        src="/media/library/svhgpt-07-below-deeper-earlier.webp"
-        alt="A seated figure on the earth, roots reaching down to a small fire glowing far below the surface."
+        src={img}
+        alt={alt}
         loading="lazy"
       />
     </div>

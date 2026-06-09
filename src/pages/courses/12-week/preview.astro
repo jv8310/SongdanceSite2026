@@ -1,0 +1,103 @@
+---
+// Photography preview of /courses/12-week — identical copy and layout, but
+// every painterly (AI) image is swapped for a real retreat photograph via the
+// components' image props. Lives at /courses/12-week/preview so it can be
+// compared side-by-side with the original before we decide to switch.
+import '../../../styles/svh-twelve-week.css';
+import Layout from '../../../layouts/Layout.astro';
+import TWNav from '../../../components/svh-twelve-week/TWNav.astro';
+import TWHero from '../../../components/svh-twelve-week/TWHero.astro';
+import TWOpening from '../../../components/svh-twelve-week/TWOpening.astro';
+import TWSounding from '../../../components/svh-twelve-week/TWSounding.astro';
+import TWHonest from '../../../components/svh-twelve-week/TWHonest.astro';
+import TWOverview from '../../../components/svh-twelve-week/TWOverview.astro';
+import TWModules from '../../../components/svh-twelve-week/TWModules.astro';
+import TWWave from '../../../components/svh-twelve-week/TWWave.astro';
+import TWWho from '../../../components/svh-twelve-week/TWWho.astro';
+import TWMoments from '../../../components/svh-twelve-week/TWMoments.astro';
+import TWPhilosophy from '../../../components/svh-twelve-week/TWPhilosophy.astro';
+import TWTestimonials from '../../../components/svh-twelve-week/TWTestimonials.astro';
+import TWJacob from '../../../components/svh-twelve-week/TWJacob.astro';
+import TWPractitioner from '../../../components/svh-twelve-week/TWPractitioner.astro';
+import TWFaq from '../../../components/svh-twelve-week/TWFaq.astro';
+import TWRegister from '../../../components/svh-twelve-week/TWRegister.astro';
+import TWFooter from '../../../components/svh-twelve-week/TWFooter.astro';
+---
+
+<Layout
+  title="The 12-Week Course — photography preview | Songdance"
+  description="Photography preview of the 12-Week Somatic Vocal Healing Course landing page."
+  image="/media/library/svh-retreat-walk-tree-sunset.jpg"
+  noindex={true}
+>
+  <div class="tw-site">
+    <a
+      href="/courses/12-week"
+      style="position:fixed; top:12px; right:12px; z-index:200; background:var(--ink); color:var(--paper); font-family:var(--font-mono); font-size:10px; letter-spacing:0.18em; text-transform:uppercase; text-decoration:none; padding:8px 14px; border-radius:999px; box-shadow:var(--shadow-2);"
+    >Photography preview · view original →</a>
+
+    <TWNav />
+    <TWHero bg="/media/library/svh-retreat-walk-tree-sunset.jpg" />
+    <TWOpening
+      img="/media/library/svh-retreat-sounding-grey-hair-rocks.webp"
+      alt="A woman with grey hair, eyes closed, quietly sounding outdoors."
+    />
+    <TWSounding
+      img="/media/library/svh-retreat-sounding-poncho-indoor.webp"
+      alt="A woman in a bright patterned poncho sounding with her whole body, hands open."
+    />
+    <TWHonest
+      img="/media/library/svh-retreat-portrait-smiling-rocks.webp"
+      alt="A woman met with a gentle hand toward her heart, smiling softly in evening light."
+    />
+    <TWOverview />
+    <TWModules />
+    <TWWave src="/media/library/svh-retreat-circle-trees-sunset.webp" />
+    <TWWho
+      img="/media/library/svh-retreat-sounding-hat-rocks.webp"
+      alt="An older man in a hat, hands raised and eyes closed, sounding among the rocks."
+    />
+    <TWMoments />
+    <TWPhilosophy />
+    <TWTestimonials />
+    <TWJacob />
+    <TWPractitioner />
+    <TWFaq />
+    <TWRegister bg="/media/library/svh-retreat-circle-yurt-wide.webp" />
+    <TWFooter />
+  </div>
+</Layout>
+
+<script>
+  // Reveal-on-scroll + gentle in-page smooth scrolling. Self-contained,
+  // progressive-enhancement only: if anything is unavailable, content shows.
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const items = Array.from(document.querySelectorAll<HTMLElement>('[data-reveal]'));
+
+  if (reduce || !('IntersectionObserver' in window)) {
+    items.forEach((el) => el.classList.add('is-visible'));
+  } else {
+    const io = new IntersectionObserver(
+      (entries, obs) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('is-visible');
+            obs.unobserve(entry.target);
+          }
+        }
+      },
+      { rootMargin: '0px 0px -8% 0px', threshold: 0.12 },
+    );
+    items.forEach((el) => io.observe(el));
+    window.addEventListener('load', () => {
+      items.forEach((el) => {
+        if (!el.classList.contains('is-visible')) {
+          const r = el.getBoundingClientRect();
+          if (r.top < window.innerHeight) el.classList.add('is-visible');
+        }
+      });
+    });
+
+    document.documentElement.style.scrollBehavior = 'smooth';
+  }
+</script>

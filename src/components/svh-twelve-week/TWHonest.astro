@@ -1,12 +1,17 @@
 ---
+interface Props { img?: string; alt?: string }
+const {
+  img = '/media/library/svhgpt-05-the-cup-receiving.webp',
+  alt = 'Two cupped hands holding a small, warm ember of light.',
+} = Astro.props;
 ---
 
 <section class="tw-honest tw-section">
   <div class="tw-honest-inner">
     <div class="tw-honest-media" data-reveal>
       <img
-        src="/media/library/svhgpt-05-the-cup-receiving.webp"
-        alt="Two cupped hands holding a small, warm ember of light."
+        src={img}
+        alt={alt}
         loading="lazy"
       />
     </div>
