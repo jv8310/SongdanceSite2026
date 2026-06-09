@@ -235,11 +235,15 @@ html, body { background: var(--paper); }
   margin-bottom: var(--sp-9);
 }
 .sd-work-row:last-child { margin-bottom: 0; }
-.sd-work-row.flip > .sd-work-row-img { order: 2; }
+.sd-work-row.flip > .sd-work-row-img { order: 2; justify-self: end; }
 
 .sd-work-row-img {
   position: relative;
   aspect-ratio: 5 / 6;
+  /* A touch smaller than the column; anchored to the outer edge so the extra
+     room falls between image and text. */
+  width: 90%;
+  justify-self: start;
   border-radius: var(--r-lg);
   overflow: hidden;
   box-shadow: var(--shadow-2);
@@ -305,7 +309,7 @@ html, body { background: var(--paper); }
   }
   .sd-work-row.flip > .sd-work-row-img { order: 0; }
   .sd-work-row-text { padding: 0; }
-  .sd-work-row-img { aspect-ratio: 5 / 4; }
+  .sd-work-row-img { aspect-ratio: 5 / 4; width: 100%; }
 }
 
 /* ---------- Lyric break ---------- */
