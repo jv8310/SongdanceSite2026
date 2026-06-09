@@ -11,6 +11,7 @@ export type WorkshopProduct = {
   type: 'ticket' | 'bump' | 'course';
   tax_code: string;
   active: number;
+  drip_tag: string | null;
 };
 
 export type Workshop = {
@@ -22,6 +23,8 @@ export type Workshop = {
   ends_at_utc: string | null;
   display_tz: string;
   zoom_url: string | null;
+  zoom_meeting_id: string | null;
+  zoom_passcode: string | null;
   main_product_id: number | null;
   bump_product_id: number | null;
   free_coupon: string | null;
@@ -198,6 +201,8 @@ export type WorkshopInput = {
   ends_at_utc: string | null;
   display_tz: string;
   zoom_url: string | null;
+  zoom_meeting_id: string | null;
+  zoom_passcode: string | null;
   main_product_id: number | null;
   bump_product_id: number | null;
   free_coupon: string | null;
@@ -211,13 +216,15 @@ export async function createWorkshop(db: D1Database, input: WorkshopInput): Prom
     .prepare(
       `INSERT INTO workshops
         (slug, title, teacher, starts_at_utc, ends_at_utc, display_tz, zoom_url,
+         zoom_meeting_id, zoom_passcode,
          main_product_id, bump_product_id, free_coupon, source_tag, status, is_replay)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        RETURNING id`,
     )
     .bind(
       input.slug, input.title, input.teacher, input.starts_at_utc, input.ends_at_utc,
-      input.display_tz, input.zoom_url, input.main_product_id, input.bump_product_id,
+      input.display_tz, input.zoom_url, input.zoom_meeting_id, input.zoom_passcode,
+      input.main_product_id, input.bump_product_id,
       input.free_coupon, input.source_tag, input.status, input.is_replay,
     )
     .first<{ id: number }>();
@@ -230,14 +237,16 @@ export async function updateWorkshop(db: D1Database, id: number, input: Workshop
     .prepare(
       `UPDATE workshops SET
          slug = ?, title = ?, teacher = ?, starts_at_utc = ?, ends_at_utc = ?,
-         display_tz = ?, zoom_url = ?, main_product_id = ?, bump_product_id = ?,
+         display_tz = ?, zoom_url = ?, zoom_meeting_id = ?, zoom_passcode = ?,
+         main_product_id = ?, bump_product_id = ?,
          free_coupon = ?, source_tag = ?, status = ?, is_replay = ?,
          updated_at = datetime('now')
        WHERE id = ?`,
     )
     .bind(
       input.slug, input.title, input.teacher, input.starts_at_utc, input.ends_at_utc,
-      input.display_tz, input.zoom_url, input.main_product_id, input.bump_product_id,
+      input.display_tz, input.zoom_url, input.zoom_meeting_id, input.zoom_passcode,
+      input.main_product_id, input.bump_product_id,
       input.free_coupon, input.source_tag, input.status, input.is_replay, id,
     )
     .run();
@@ -691,6 +700,19 @@ export async function resolveZoomUrl(db: D1Database, workshop: Workshop): Promis
     if (byTeacher) return byTeacher;
   }
   return getConfig(db, 'zoom_url_default');
+}
+
+// The full Zoom details for the "the button doesn't work for me" fallback:
+// the join URL plus the raw meeting id + passcode some older clients need.
+// Each falls back to its config default when not set on the workshop.
+export async function resolveZoomDetails(
+  db: D1Database,
+  workshop: Workshop,
+): Promise<{ url: string | null; meetingId: string | null; passcode: string | null }> {
+  const url = await resolveZoomUrl(db, workshop);
+  const meetingId = workshop.zoom_meeting_id ?? (await getConfig(db, 'zoom_meeting_id_default'));
+  const passcode = workshop.zoom_passcode ?? (await getConfig(db, 'zoom_passcode_default'));
+  return { url, meetingId, passcode };
 }
 
 // ── Verification codes ──────────────────────────────────────────────────

@@ -99,6 +99,8 @@ const STATUS_LABEL: Record<string, string> = { draft: 'Draft', published: 'Publi
           <label><span>Drip tag</span><input type="text" name="source_tag" value={workshop.source_tag ?? ''} /></label>
           <label><span>Free coupon</span><input type="text" name="free_coupon" value={workshop.free_coupon ?? ''} /></label>
           <label class="span-2"><span>Zoom link (overrides default)</span><input type="url" name="zoom_url" value={workshop.zoom_url ?? ''} /></label>
+          <label><span>Zoom meeting ID (fallback)</span><input type="text" name="zoom_meeting_id" value={workshop.zoom_meeting_id ?? ''} placeholder="(falls back to default)" /></label>
+          <label><span>Zoom passcode (fallback)</span><input type="text" name="zoom_passcode" value={workshop.zoom_passcode ?? ''} placeholder="(falls back to default)" /></label>
           <label class="adm-event-toggle"><input type="checkbox" name="is_replay" checked={workshop.is_replay === 1} /><span>Replay / on-demand</span></label>
         </div>
         <div class="adm-event-actions">

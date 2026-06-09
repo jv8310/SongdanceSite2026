@@ -1,0 +1,79 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { getConfig, getRegistrationById, getWorkshopById, markJoined } from '../../lib/workshops/db';
+import { logEvent } from '../../lib/registrations/db';
+
+export const prerender = false;
+
+// The fixed replay, gated by a personal registration link (rid). Not reachable
+// without one — there's no public URL to the recording. Opening it counts as
+// attendance, so the post-workshop follow-up treats them as having shown up.
+const env = Astro.locals.runtime.env;
+const rid = parseInt(Astro.url.searchParams.get('rid') ?? '', 10);
+const reg = Number.isFinite(rid) ? await getRegistrationById(env.DB, rid) : null;
+const ok = reg && (reg.payment_status === 'paid' || reg.payment_status === 'coupon');
+const workshop = reg ? await getWorkshopById(env.DB, reg.workshop_id) : null;
+
+let replayUrl: string | null = null;
+if (ok && reg) {
+  replayUrl = await getConfig(env.DB, 'replay_video_url');
+  await markJoined(env.DB, reg.id);
+  await logEvent(env.DB, {
+    registration_id: null,
+    kind: 'workshop.replay.viewed',
+    external_id: `workshop-replay-${reg.id}`,
+    payload: { workshop_id: reg.workshop_id, registration_id: reg.id },
+  });
+}
+
+// Turn a YouTube / Vimeo watch URL into its embed form; otherwise use as-is.
+function embedSrc(u: string): string {
+  const yt = /(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/))([\w-]{6,})/.exec(u);
+  if (yt) return `https://www.youtube.com/embed/${yt[1]}`;
+  const vimeo = /vimeo\.com\/(?:video\/)?(\d+)/.exec(u);
+  if (vimeo) return `https://player.vimeo.com/video/${vimeo[1]}`;
+  return u;
+}
+---
+
+<Layout title="Your replay — Songdance" description="">
+  <main class="ws">
+    {!ok ? (
+      <section class="ws-card">
+        <h1>We couldn’t find that replay</h1>
+        <p>Use the link from your email, or write to <a href="mailto:info@songdance.co">info@songdance.co</a>.</p>
+      </section>
+    ) : (
+      <section class="ws-card">
+        <p class="ws-kicker">Your replay</p>
+        <h1 class="ws-title">{workshop?.title ?? 'The workshop'}</h1>
+        {!replayUrl ? (
+          <p class="ws-note">The replay isn’t available just yet — please check back shortly, or watch for an email from us.</p>
+        ) : (
+          <>
+            <div class="ws-video">
+              <iframe
+                src={embedSrc(replayUrl)}
+                title="Workshop replay"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowfullscreen
+              ></iframe>
+            </div>
+            <p class="ws-fine">This replay is linked to your registration and isn’t shared publicly.</p>
+          </>
+        )}
+      </section>
+    )}
+  </main>
+
+  <style>
+    .ws { max-width: 760px; margin: 0 auto; padding: 64px 20px 96px; }
+    .ws-card { background:#FBF6EC; border:1px solid rgba(161,72,38,0.22); border-radius:18px; padding:40px 36px; text-align:center; }
+    .ws-kicker { margin:0 0 8px; font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:#A14826; }
+    .ws-title { margin:0 0 20px; font-size:30px; line-height:1.18; color:#2A1B2A; font-weight:400; }
+    .ws-video { position:relative; width:100%; padding-top:56.25%; border-radius:12px; overflow:hidden; background:#000; }
+    .ws-video iframe { position:absolute; inset:0; width:100%; height:100%; border:0; }
+    .ws-note { margin:0; color:#A14826; font-size:15px; }
+    .ws-fine { margin:16px 0 0; color:#B6A8B4; font-size:13px; }
+  </style>
+</Layout>

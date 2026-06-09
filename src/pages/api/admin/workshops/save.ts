@@ -25,10 +25,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const form = await request.formData();
   const action = String(form.get('action') ?? '').trim();
 
-  // Save the default Zoom link (separate small form on the index page).
+  // Save the default Zoom link + fallback details + fixed replay URL
+  // (separate small form on the index page).
   if (action === 'zoom') {
     const url = String(form.get('zoom_url_default') ?? '').trim();
     if (url) await setConfig(env.DB, 'zoom_url_default', url);
+    await setConfig(env.DB, 'zoom_meeting_id_default', String(form.get('zoom_meeting_id_default') ?? '').trim());
+    await setConfig(env.DB, 'zoom_passcode_default', String(form.get('zoom_passcode_default') ?? '').trim());
+    await setConfig(env.DB, 'replay_video_url', String(form.get('replay_video_url') ?? '').trim());
     return redirect(`${RETURN_TO}?flash=zoom`);
   }
 
@@ -61,6 +65,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
     ends_at_utc: endsAt,
     display_tz: String(form.get('display_tz') ?? 'Europe/Brussels').trim() || 'Europe/Brussels',
     zoom_url: nullable(form.get('zoom_url')),
+    zoom_meeting_id: nullable(form.get('zoom_meeting_id')),
+    zoom_passcode: nullable(form.get('zoom_passcode')),
     main_product_id: ticket?.id ?? null,
     bump_product_id: bump?.id ?? null,
     free_coupon: nullable(form.get('free_coupon')),

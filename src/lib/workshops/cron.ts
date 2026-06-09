@@ -189,7 +189,8 @@ async function runPostWorkshop(env: CronEnv, now: number, result: CronResult) {
         const content = postNoShowEmail({
           name: reg.name,
           workshopTitle: w.title,
-          replayUrl: `${base}/w/${w.slug}`,
+          // Their personal hub: the replay + free re-booking onto a new date.
+          replayUrl: successUrl(base, reg.id),
         });
         await safeSend(env, reg.email, content, `workshop-post-no-show-${reg.id}`, result);
       }
