@@ -181,7 +181,7 @@ html.wp-anim .wp-fade { opacity: 0; }
 }
 .wp-thread-stack {
   position: relative;
-  max-width: 22ch;
+  max-width: min(92vw, 620px);
   text-align: center;
   padding: 0 var(--sp-5);
   display: grid;
@@ -195,6 +195,9 @@ html.wp-anim .wp-fade { opacity: 0; }
   letter-spacing: -0.01em;
   margin: 0;
   text-wrap: balance;
+  /* Explicit — the global `p { color: var(--fg) }` in tokens.css would
+     otherwise force this dark and make it vanish on the dark thread. */
+  color: var(--paper);
 }
 .wp-thread-line em { color: var(--ember-soft); }
 
@@ -260,17 +263,20 @@ html.wp-anim .wp-fade { opacity: 0; }
   letter-spacing: -0.012em;
   margin: 0;
   text-wrap: balance;
-  text-shadow: 0 2px 30px rgba(15, 8, 14, 0.6);
+  /* Explicit light — the global `p { color: var(--fg) }` in tokens.css would
+     force the non-italic part dark and make it disappear over the photo. */
+  color: var(--paper);
+  text-shadow: 0 2px 24px rgba(15, 8, 14, 0.85), 0 1px 4px rgba(15, 8, 14, 0.7);
 }
 .wp-cinema-cap em { color: var(--ember-soft); }
 
 /* ── Method — three pillars triptych ──────────────────────── */
 .wp-method {
   background: var(--paper);
-  padding: clamp(96px, 16vh, 200px) var(--sp-6);
+  padding: clamp(72px, 10vh, 130px) var(--sp-6);
 }
 .wp-method-inner { max-width: var(--container); margin: 0 auto; }
-.wp-method-head { max-width: 26ch; margin: 0 auto var(--sp-9); text-align: center; }
+.wp-method-head { max-width: min(92vw, 620px); margin: 0 auto var(--sp-8); text-align: center; }
 .wp-method-head h2 {
   font-family: var(--font-display);
   font-weight: 400;
@@ -318,7 +324,7 @@ html.wp-anim .wp-fade { opacity: 0; }
   overflow: hidden;
   background: var(--night-deep);
   color: var(--paper);
-  padding: clamp(120px, 22vh, 260px) var(--sp-6);
+  padding: clamp(88px, 14vh, 170px) var(--sp-6);
 }
 .wp-hour-bg {
   position: absolute;
@@ -326,14 +332,19 @@ html.wp-anim .wp-fade { opacity: 0; }
   z-index: 0;
   background-size: cover;
   background-position: center;
-  opacity: 0.5;
+  opacity: 0.92;
   will-change: transform;
 }
+/* Lighter scrim than before so the golden-hour photo actually reads; the text
+   carries its own shadow for legibility. */
 .wp-hour::after {
   content: '';
   position: absolute; inset: 0; z-index: 1;
-  background: linear-gradient(180deg, rgba(15,8,14,0.86), rgba(15,8,14,0.7) 50%, rgba(15,8,14,0.92));
+  background: linear-gradient(180deg, rgba(15,8,14,0.58), rgba(15,8,14,0.42) 45%, rgba(15,8,14,0.72));
 }
+.wp-hour-inner h2,
+.wp-hour-item h3,
+.wp-hour-item p { text-shadow: 0 1px 16px rgba(15, 8, 14, 0.7); }
 .wp-hour-inner {
   position: relative;
   z-index: 2;
@@ -391,12 +402,12 @@ html.wp-anim .wp-fade { opacity: 0; }
 /* ── Lyric — a single breathing line ──────────────────────── */
 .wp-lyric {
   background: var(--paper);
-  padding: clamp(120px, 24vh, 280px) var(--sp-6);
+  padding: clamp(80px, 13vh, 160px) var(--sp-6);
   text-align: center;
 }
 .wp-lyric blockquote {
   margin: 0 auto;
-  max-width: 24ch;
+  max-width: min(92vw, 640px);
   font-family: var(--font-lyric);
   font-style: italic;
   font-weight: 400;
@@ -428,7 +439,7 @@ html.wp-anim .wp-fade { opacity: 0; }
   overflow: hidden;
   background: var(--night-deep);
   color: var(--paper);
-  padding: var(--sp-10) var(--sp-5);
+  padding: clamp(96px, 14vh, 180px) var(--sp-5);
 }
 .wp-begin-bg {
   position: absolute;
@@ -444,7 +455,7 @@ html.wp-anim .wp-fade { opacity: 0; }
   position: absolute; inset: 0; z-index: 1;
   background: radial-gradient(70% 60% at 50% 55%, rgba(15,8,14,0.3), rgba(15,8,14,0.92));
 }
-.wp-begin-inner { position: relative; z-index: 2; max-width: 22ch; }
+.wp-begin-inner { position: relative; z-index: 2; max-width: min(92vw, 600px); }
 .wp-begin-inner h2 {
   font-family: var(--font-display);
   font-weight: 300;
@@ -479,6 +490,146 @@ html.wp-anim .wp-fade { opacity: 0; }
   transition: background var(--d-base) var(--ease), transform var(--d-base) var(--ease);
 }
 .wp-begin-cta:hover { background: var(--ember-glow); transform: translateY(-2px); }
+
+/* ── Scoped tweaks to reused chrome (only on the parallax page) ──── */
+/* The shared WEAbout portrait reads far too large in this cinematic layout —
+   cap it and rebalance the columns. Scoped under .wp-page so the other
+   workshop pages that share WEAbout are untouched. */
+.wp-page .we-about-grid { grid-template-columns: 0.58fr 1fr; align-items: center; }
+.wp-page .we-about-portrait-wrap { max-width: 320px; justify-self: center; }
+@media (max-width: 760px) {
+  .wp-page .we-about-grid { grid-template-columns: 1fr; }
+  .wp-page .we-about-portrait-wrap { max-width: 260px; }
+}
+
+/* ── Reserve band — compact booking entry under the hero ──── */
+.wp-reserve {
+  position: relative;
+  z-index: 5;
+  background: var(--paper-soft);
+  border-bottom: 1px solid var(--line);
+  padding: var(--sp-4) var(--sp-6);
+}
+.wp-reserve-inner {
+  max-width: var(--container);
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-5);
+  flex-wrap: wrap;
+}
+.wp-reserve-when { display: flex; flex-direction: column; gap: 2px; }
+.wp-reserve-eyebrow {
+  font-family: var(--font-body);
+  font-size: var(--t-label);
+  text-transform: uppercase;
+  letter-spacing: var(--tr-label);
+  color: var(--ember-deep);
+  font-weight: 500;
+}
+.wp-reserve-date {
+  font-family: var(--font-display);
+  font-size: var(--t-h4);
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+.wp-reserve-tz { color: var(--ink-quiet); font-family: var(--font-body); font-size: 0.7em; }
+.wp-reserve-action { display: flex; align-items: center; gap: var(--sp-5); }
+.wp-reserve-price {
+  font-family: var(--font-display);
+  font-size: var(--t-h4);
+  color: var(--ink-soft);
+}
+.wp-reserve-cta {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--font-body); font-size: 15px; font-weight: 500;
+  padding: 12px 24px; border-radius: var(--r-pill);
+  background: var(--ink); color: var(--paper); text-decoration: none;
+  transition: background var(--d-base) var(--ease), transform var(--d-base) var(--ease);
+}
+.wp-reserve-cta:hover { background: var(--ember-deep); transform: translateY(-1px); }
+@media (max-width: 620px) {
+  .wp-reserve-inner { justify-content: center; text-align: center; }
+  .wp-reserve-when { align-items: center; }
+}
+
+/* ── Pro reveal — content shown only in practitioner mode ──── */
+.wp-pro { display: none; }
+.wp-page.is-pro .wp-pro { display: block; }
+.wp-page.is-pro .wp-practice { animation: wp-pro-in 0.6s var(--ease) both; }
+@keyframes wp-pro-in {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ── Professional section ─────────────────────────────────── */
+.wp-practice {
+  background: var(--paper-deep);
+  padding: clamp(80px, 12vh, 150px) var(--sp-6);
+  border-top: 1px solid var(--line);
+}
+.wp-practice-inner { max-width: var(--container); margin: 0 auto; }
+.wp-practice-head { max-width: min(92vw, 640px); margin: 0 auto var(--sp-8); text-align: center; }
+.wp-practice-head h2 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--t-h1);
+  line-height: 1.08;
+  letter-spacing: -0.012em;
+  margin: var(--sp-4) 0 var(--sp-5);
+  text-wrap: balance;
+}
+.wp-practice-head em { color: var(--ember-deep); }
+.wp-practice-lead {
+  font-family: var(--font-body);
+  font-size: var(--t-body-lg);
+  line-height: var(--lh-prose);
+  color: var(--ink-soft);
+  margin: 0;
+}
+.wp-practice-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--sp-5);
+  max-width: 920px;
+  margin: 0 auto;
+}
+.wp-practice-card {
+  background: var(--paper-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: var(--sp-6);
+  box-shadow: var(--shadow-1);
+}
+.wp-practice-card i { font-size: 30px; color: var(--ember-deep); }
+.wp-practice-card h3 {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: var(--t-h4);
+  margin: var(--sp-4) 0 var(--sp-2);
+  letter-spacing: -0.01em;
+}
+.wp-practice-card p {
+  font-family: var(--font-body);
+  font-size: var(--t-body);
+  line-height: var(--lh-prose);
+  color: var(--ink-soft);
+  margin: 0;
+}
+.wp-practice-foot {
+  max-width: min(92vw, 560px);
+  margin: var(--sp-8) auto 0;
+  text-align: center;
+  font-family: var(--font-lyric);
+  font-style: italic;
+  font-size: clamp(19px, 2.2vw, 24px);
+  line-height: 1.4;
+  color: var(--ink-soft);
+}
+@media (max-width: 760px) {
+  .wp-practice-grid { grid-template-columns: 1fr; }
+}
 
 /* ── Responsive ───────────────────────────────────────────── */
 @media (max-width: 860px) {

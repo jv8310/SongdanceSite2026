@@ -1,0 +1,59 @@
+---
+// Professional section — only shown in pro mode (.wp-page.is-pro), revealed
+// when the visitor picks the practitioner door. Content distilled from the
+// practitioner material in WNPractice: how the somatic disciplines you already
+// know map onto voice work. Plain (CSS-revealed) rather than GSAP-scroll-
+// revealed, so toggling it on never leaves anything stuck hidden.
+const cards = [
+  {
+    icon: 'ph-heartbeat',
+    title: 'Connected and soft — not catharsis',
+    body: 'You stay ventral — shoulders soft, jaw soft — and put the charge into the tone, rather than discharging it. You’re not embodying the activation; you’re giving it a sound.',
+  },
+  {
+    icon: 'ph-arrows-clockwise',
+    title: 'Oscillation & pendulation',
+    body: 'The same disciplines you already work with: the wide arc of activation then regulation, and the in-the-moment move toward the difficult and deliberately back to safety. Always inside the window of tolerance.',
+  },
+  {
+    icon: 'ph-drop-half',
+    title: 'The voice as built-in titration',
+    body: 'The voice is a wise gatekeeper. It regulates both what surfaces and how intensely — the dose stays “just right.” You’re working with a system that already self-doses, not prying a lid off.',
+  },
+  {
+    icon: 'ph-hand-eye',
+    title: 'Attunement over protocol',
+    body: 'The Cup: empty, cupped hands receiving the next move. You hold plans lightly and let it fill one step at a time. Information is received, not grabbed.',
+  },
+];
+---
+
+<section class="wp-practice wp-pro" id="for-practitioners" aria-label="For practitioners">
+  <div class="wp-practice-inner">
+    <div class="wp-practice-head">
+      <div class="wp-eyebrow">If you come from somatic work</div>
+      <h2>You already carry the map.<br /><em>Here’s where the voice fits.</em></h2>
+      <p class="wp-practice-lead">
+        Sound sits between the body and talk — much of the body’s access without
+        the exposure of hands-on work, much of the articulacy of talk without
+        routing everything through narrative. In the workshop you feel the
+        method from the inside; here’s the shape of what you’d be holding.
+      </p>
+    </div>
+
+    <div class="wp-practice-grid">
+      {cards.map((c) => (
+        <article class="wp-practice-card">
+          <i class={`ph-light ${c.icon}`}></i>
+          <h3>{c.title}</h3>
+          <p>{c.body}</p>
+        </article>
+      ))}
+    </div>
+
+    <p class="wp-practice-foot">
+      You can’t hold this for someone else until you’ve let it work on you first
+      — which is exactly what the live hour is for.
+    </p>
+  </div>
+</section>
