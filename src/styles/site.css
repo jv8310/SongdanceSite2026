@@ -230,7 +230,7 @@ html, body { background: var(--paper); }
 .sd-work-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: var(--sp-8);
+  gap: var(--sp-4) var(--sp-8);
   align-items: center;
   margin-bottom: var(--sp-9);
 }
@@ -252,27 +252,24 @@ html, body { background: var(--paper); }
      within the figure without ever revealing an edge. */
   transform: scale(1.18);
 }
-.sd-work-row-num {
-  position: absolute;
-  top: var(--sp-4); left: var(--sp-4);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.18em;
-  color: var(--paper);
-  background: rgba(26, 16, 24, 0.55);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  padding: 6px 12px;
-  border-radius: var(--r-pill);
+/* Editorial chapter header above each row: "01 ———————— Somatic Vocal Healing".
+   Spans both columns of the row grid. */
+.sd-work-chapter {
+  grid-column: 1 / -1;
+  display: flex; align-items: center; gap: var(--sp-4);
+}
+.sd-work-chapter-num {
+  font-family: var(--font-mono); font-size: 13px;
+  letter-spacing: 0.18em; color: var(--ember-deep);
+}
+.sd-work-chapter-rule { flex: 1; height: 1px; background: var(--line-strong); }
+.sd-work-chapter-label {
+  font-family: var(--font-body); font-size: 11px;
+  text-transform: uppercase; letter-spacing: 0.22em;
+  color: var(--ink-quiet); font-weight: 500;
 }
 
 .sd-work-row-text { padding: var(--sp-3) var(--sp-3); max-width: 44ch; }
-.sd-work-row-label {
-  font-family: var(--font-body); font-size: 11px;
-  text-transform: uppercase; letter-spacing: 0.22em;
-  color: var(--ember-deep); font-weight: 500;
-  margin-bottom: var(--sp-3);
-}
 .sd-work-row-title {
   font-family: var(--font-display);
   font-size: clamp(32px, 3.6vw, 44px);
@@ -971,10 +968,10 @@ a.sd-evt-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-2); 
   font-size: var(--t-body-lg);
   line-height: var(--lh-prose);
   color: var(--ink-soft);
-  max-width: 60ch;
+  max-width: 52ch;
   margin: var(--sp-5) auto 0;
   text-align: center;
-  text-wrap: pretty;
+  text-wrap: balance;
 }
 .sd-work-lede em { font-family: var(--font-lyric); font-style: italic; color: var(--ink); }
 

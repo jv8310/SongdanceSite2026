@@ -28,25 +28,27 @@ const rows = [
     <div class="sd-work-head" data-anim="reveal">
       <div class="sd-eyebrow">What it is</div>
       <h2 class="sd-section-title sd-section-title-centered">
-        It asks what a feeling <span class="sd-italic">sounds</span> like — and lets you make that sound.
+        What does a feeling <span class="sd-italic">sound</span> like?
       </h2>
       <p class="sd-work-lede">
-        Most of us learned to manage a feeling, talk it down, or wait it out. This does
-        something simpler and stranger: it gives the feeling a <em>sound</em>, and lets
-        you make it — out loud, in your own voice. Nothing to perform, nothing to get
-        right. You stay with it until it's been heard, and something in you settles.
+        Most of us were taught to handle feelings from the neck up — to name them,
+        manage them, wait them out. This one works lower down: you give the feeling a
+        sound, in your own voice, and stay with it until it's been heard.
       </p>
     </div>
 
     {
       rows.map((r) => (
         <article class={'sd-work-row' + (r.flip ? ' flip' : '')} data-anim="work-row">
+          <div class="sd-work-chapter">
+            <span class="sd-work-chapter-num">{r.n}</span>
+            <span class="sd-work-chapter-rule" />
+            <span class="sd-work-chapter-label">{r.label}</span>
+          </div>
           <figure class="sd-work-row-img">
             <img src={r.img} alt="" />
-            <span class="sd-work-row-num">{r.n}</span>
           </figure>
           <div class="sd-work-row-text">
-            <div class="sd-work-row-label">{r.label}</div>
             <h3 class="sd-work-row-title">{r.title}</h3>
             <div class="sd-work-row-meta">{r.meta}</div>
             <p class="sd-work-row-body">{r.body}</p>
