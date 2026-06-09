@@ -125,9 +125,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
   if (!phoneCountryCode || !findCountry(phoneCountryCode) || !phoneLocal) {
     return json({ error: 'Please enter a phone number with country code.' }, 400);
   }
-  if (companyName && !vatNumber) {
+  if (vatNumber && !companyName) {
     return json(
-      { error: 'When registering on behalf of a company, please add the VAT number.' },
+      { error: 'Please add your company name to use a VAT number.' },
       400,
     );
   }

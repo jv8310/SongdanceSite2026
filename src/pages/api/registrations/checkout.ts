@@ -86,11 +86,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
   if (!phoneCountryCode || !findCountry(phoneCountryCode) || !phoneLocal) {
     return json({ error: 'Please enter a phone number with country code.' }, 400);
   }
-  // Company is optional; when provided, VAT becomes required so the
-  // invoice can carry it. Billing address is collected by Stripe.
-  if (companyName && !vatNumber) {
+  // Company and VAT are both optional; a VAT number only makes sense
+  // alongside a company, so guard that direction. Billing address is
+  // collected by Stripe.
+  if (vatNumber && !companyName) {
     return json(
-      { error: 'When registering on behalf of a company, please add the VAT number.' },
+      { error: 'Please add your company name to use a VAT number.' },
       400,
     );
   }
