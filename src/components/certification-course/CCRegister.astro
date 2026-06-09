@@ -194,7 +194,7 @@ const countries = COUNTRIES;
 </section>
 
 <script>
-  import { COUNTRIES, isEuCountry } from '../../lib/countries';
+  import { COUNTRIES } from '../../lib/countries';
 
   type Currency = 'EUR' | 'USD' | 'GBP';
   type InstallmentPlan = {
@@ -566,12 +566,10 @@ const countries = COUNTRIES;
     }
     if (decision.phone) phoneInput.value = decision.phone;
 
-    // VAT field only appears when a company name has been entered AND the
-    // selected country is in the EU (reverse-charge only applies to EU
-    // businesses). Keeps the form tidy for the B2C majority.
+    // VAT field appears as soon as a company name has been entered, so any
+    // business can add its VAT number. Keeps the form tidy for the B2C majority.
     const toggleVat = () => {
-      const hasCompany = companyInput.value.trim().length > 0;
-      const show = hasCompany && isEuCountry(countryHidden.value);
+      const show = companyInput.value.trim().length > 0;
       vatField.hidden = !show;
       if (!show) vatInput.value = '';
     };

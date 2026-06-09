@@ -96,7 +96,7 @@ const countries = COUNTRIES;
 </section>
 
 <script>
-  import { COUNTRIES, isEuCountry } from '../../lib/countries';
+  import { COUNTRIES } from '../../lib/countries';
 
   type Currency = 'EUR' | 'USD';
 
@@ -229,11 +229,11 @@ const countries = COUNTRIES;
     countryInput.addEventListener('blur', resolveCountry);
     countryInput.addEventListener('input', resolveCountry);
 
-    // VAT field appears only once a company name is entered AND the selected
-    // country is in the EU (reverse-charge only applies to EU businesses).
+    // VAT field appears as soon as a company name is entered (it must be
+    // reachable for every company that wants to add a VAT number, not only
+    // EU ones).
     function toggleVat() {
-      const hasCompany = companyInput.value.trim().length > 0;
-      const show = hasCompany && isEuCountry(countryHidden.value);
+      const show = companyInput.value.trim().length > 0;
       vatField.hidden = !show;
       if (!show) vatInput.value = '';
     }

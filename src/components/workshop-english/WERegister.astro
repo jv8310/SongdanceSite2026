@@ -229,17 +229,12 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
     var companyInput = form.querySelector('input[name="company_name"]');
     var vatInput = form.querySelector('input[name="vat_number"]');
 
-    // The 27 EU member states (ISO-2). The VAT field only makes sense for EU
-    // businesses (intra-EU reverse-charge), so it stays hidden elsewhere.
-    var EU_CODES = new Set(['AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE','GR','HU','IE','IT','LV','LT','LU','MT','NL','PL','PT','RO','SK','SI','ES','SE']);
-
     // VAT appears only on the masterclass (the only kind with a company field),
-    // once a company name is entered AND the chosen country is in the EU.
+    // as soon as a company name is entered.
     function toggleVat() {
       var isMasterclass = !!(current && current.kind === 'masterclass');
       var hasCompany = !!(companyInput && companyInput.value.trim().length > 0);
-      var inEu = EU_CODES.has(String((countryField && countryField.value) || '').toUpperCase());
-      var show = isMasterclass && hasCompany && inEu;
+      var show = isMasterclass && hasCompany;
       if (vatField) vatField.hidden = !show;
       if (!show && vatInput) vatInput.value = '';
     }
