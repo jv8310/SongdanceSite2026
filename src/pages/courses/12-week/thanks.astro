@@ -1,0 +1,85 @@
+---
+import '../../../styles/svh-twelve-week.css';
+import Layout from '../../../layouts/Layout.astro';
+import TWNav from '../../../components/svh-twelve-week/TWNav.astro';
+import TWFooter from '../../../components/svh-twelve-week/TWFooter.astro';
+
+export const prerender = false;
+
+const sessionId = Astro.url.searchParams.get('session_id');
+const env = Astro.locals.runtime.env;
+
+type Row = {
+  id: number;
+  first_name: string | null;
+  email: string;
+  status: string;
+  payment_plan: string;
+};
+
+let reg: Row | null = null;
+if (sessionId) {
+  reg = await env.DB
+    .prepare(
+      `SELECT id, first_name, email, status, payment_plan
+         FROM course_registrations
+        WHERE stripe_session_id = ?`,
+    )
+    .bind(sessionId)
+    .first<Row>();
+}
+
+const isPaid = reg?.status === 'paid';
+const firstName = reg?.first_name?.trim() || null;
+const is3x = reg?.payment_plan === '3x';
+---
+
+<Layout
+  title="Thank you — The 12-Week Somatic Vocal Healing Course | Songdance"
+  description="Your place on the 12-Week Somatic Vocal Healing Course is confirmed."
+>
+  <div class="tw-site">
+    <TWNav />
+    <main class="tw-phil tw-section" style="min-height:70vh; display:flex; align-items:center;">
+      <div class="tw-phil-inner">
+        <p class="tw-eyebrow tw-eyebrow--center">Somatic Vocal Healing</p>
+
+        {reg ? (
+          <>
+            <h1 class="tw-reg-h2" style="margin-top: var(--sp-5);">
+              Thank you{firstName ? `, ${firstName}` : ''}.
+            </h1>
+            {isPaid ? (
+              <p class="tw-reg-sub">
+                Your place on the 12-Week Course is confirmed{is3x ? ' — your first monthly payment has gone through' : ''}.
+                A confirmation email is on its way, with everything you need to begin.
+              </p>
+            ) : (
+              <p class="tw-reg-sub">
+                Your payment is being confirmed. This page will update within a minute or
+                two — you can safely close this window, and we’ll email you the moment it’s done.
+              </p>
+            )}
+            <p class="tw-phil-attrib" style="margin-top: var(--sp-6);">
+              Go gently. There’s no rush, and no wrong pace.
+            </p>
+          </>
+        ) : (
+          <>
+            <h1 class="tw-reg-h2" style="margin-top: var(--sp-5);">Thank you.</h1>
+            <p class="tw-reg-sub">
+              If you’ve just completed payment, we’ll be in touch shortly. You can safely
+              close this window — a confirmation email is on its way.
+            </p>
+          </>
+        )}
+
+        <div style="margin-top: var(--sp-7); display:flex; gap: var(--sp-5); justify-content:center; flex-wrap:wrap;">
+          <a class="tw-btn tw-btn--light" href="/courses/12-week">Back to the course</a>
+          <a class="tw-ghost tw-ghost--ondark" href="mailto:info@songdance.co">Questions? Email us</a>
+        </div>
+      </div>
+    </main>
+    <TWFooter />
+  </div>
+</Layout>

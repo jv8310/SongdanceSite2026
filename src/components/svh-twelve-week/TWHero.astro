@@ -1,0 +1,37 @@
+---
+import { REGISTER_ANCHOR, SESSION_URL } from './config';
+---
+
+<header class="tw-hero" id="top">
+  <div class="tw-hero-bg" aria-hidden="true">
+    <img src="/media/library/svhgpt-01-hero-in-one-breath.webp" alt="" />
+  </div>
+  <div class="tw-hero-inner">
+    <img class="tw-hero-mark" src="/brand/symbol-orange.png" alt="" aria-hidden="true" />
+    <p class="tw-hero-eyebrow">Somatic Vocal Healing</p>
+    <h1 class="tw-hero-head">
+      Twelve weeks to learn the practice — until you can hold it <em>yourself.</em>
+    </h1>
+    <p class="tw-hero-sub">
+      Your voice has carried everything you’ve ever felt. This is where you learn
+      to listen to it, and to let what’s been stuck finally move.
+    </p>
+    <div class="tw-hero-actions">
+      <a
+        href={REGISTER_ANCHOR}
+        class="tw-btn tw-btn--ember tw-btn--lg"
+        aria-label="Register for the 12-Week Somatic Vocal Healing Course"
+      >
+        Register <i class="ph-light ph-arrow-right"></i>
+      </a>
+      <a href={SESSION_URL} class="tw-ghost tw-ghost--ondark">Try a session first — 9€</a>
+    </div>
+    <p class="tw-hero-meta">
+      <span>Self-paced video course</span>
+      <span class="dot"></span>
+      <span>Live weekly Q&amp;A</span>
+      <span class="dot"></span>
+      <span>Lifetime access</span>
+    </p>
+  </div>
+</header>

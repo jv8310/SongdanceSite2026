@@ -1,0 +1,52 @@
+---
+const faqs: [string, string][] = [
+  [
+    'What are the class times and dates?',
+    'It’s a self-paced video course — watch whenever you like. The live Q&As run on a rotating schedule to cover every timezone, and every one is posted as a replay.',
+  ],
+  [
+    'How long are the classes?',
+    'Most videos are around two hours and are chaptered for easy navigation; some are shorter. Q&As run one hour.',
+  ],
+  [
+    'Are there replays?',
+    'Yes — Q&A replays for the full twelve weeks. The video classes are lifetime access.',
+  ],
+  [
+    'Can I pay in installments?',
+    'Yes, in three monthly payments.',
+  ],
+  [
+    'How long do I have access?',
+    'Lifetime access to the course materials, plus twelve weeks of live Q&A and replays from your start.',
+  ],
+];
+---
+
+<section class="tw-faq tw-section">
+  <div class="tw-faq-inner">
+    <div class="tw-faq-head" data-reveal>
+      <p class="tw-eyebrow tw-eyebrow--center">Questions</p>
+      <h2 class="tw-h2">Good <em>questions.</em></h2>
+    </div>
+
+    <div class="tw-faq-list" data-reveal>
+      {faqs.map(([q, a]) => (
+        <details class="tw-faq-item">
+          <summary class="tw-faq-summary">
+            <span>{q}</span>
+            <span class="tw-faq-icon" aria-hidden="true">+</span>
+          </summary>
+          <div class="tw-faq-body">
+            <p>{a}</p>
+          </div>
+        </details>
+      ))}
+    </div>
+
+    <p class="tw-faq-foot" data-reveal>
+      Still have questions? Write to
+      <a href="mailto:info@songdance.co">info@songdance.co</a> — we answer like people.
+    </p>
+  </div>
+</section>

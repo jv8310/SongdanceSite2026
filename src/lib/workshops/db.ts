@@ -355,6 +355,37 @@ export async function getRegistrationByWorkshopEmail(db: D1Database, workshopId:
     .first<WorkshopRegistration>();
 }
 
+export type WorkshopLinkForEmail = {
+  starts_at_utc: string;
+  ends_at_utc: string | null;
+  country: string | null;
+  name: string | null;
+};
+
+// Every workshop an email holds a *secured* seat for (paid or comped), newest
+// workshop first. Used by the 12-week course to auto-apply the workshop-
+// attendee discount: a future workshop keeps the discount live (pre-workshop),
+// and a just-passed one keeps it live for a short window after. Only seats that
+// were actually secured count — abandoned/failed checkouts are excluded.
+export async function listSecuredWorkshopLinksByEmail(
+  db: D1Database,
+  email: string,
+): Promise<WorkshopLinkForEmail[]> {
+  const r = await db
+    .prepare(
+      `SELECT w.starts_at_utc, w.ends_at_utc, r.country, r.name
+         FROM workshop_registrations r
+         JOIN workshops w ON w.id = r.workshop_id
+        WHERE lower(r.email) = lower(?)
+          AND w.deleted = 0
+          AND r.payment_status IN ('paid', 'coupon')
+        ORDER BY w.starts_at_utc DESC`,
+    )
+    .bind(email)
+    .all<WorkshopLinkForEmail>();
+  return r.results ?? [];
+}
+
 // Upsert by (workshop_id, email), case-insensitive. Returns the row id.
 export async function upsertRegistration(
   db: D1Database,

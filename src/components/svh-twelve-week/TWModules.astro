@@ -1,0 +1,49 @@
+---
+import { REGISTER_ANCHOR } from './config';
+
+const modules: [string, string][] = [
+  ['Understanding vocal sound', 'Singing, toning, chanting, sounding — and why this practice is its own thing.'],
+  ['Becoming comfortable', 'Meeting the collective unease around using the voice, and reclaiming its full, imperfect range.'],
+  ['Holding space', 'Building safe, grounded ground for sound work — for yourself and others.'],
+  ['Reading your sound', 'Hearing the feeling and the pattern inside the voice, and using it as a way in.'],
+  ['Neuroanatomy', 'The brain–body–voice connection, in plain terms.'],
+  ['Nervous system flow', 'Using sound to regulate, settle, and build resilience.'],
+  ['The five core wounds', 'Rejection, abandonment, betrayal, humiliation, injustice — met safely, through sound.'],
+  ['Sounding toward essence', 'A meditation that returns you to your own essential sound.'],
+  ['Sounds of the chakras', 'The energy centres, explored through tone.'],
+  ['Sounding with instruments', 'Voice with drum, shruti, or singing bowl.'],
+  ['Practising with others', 'First steps in sounding together.'],
+  ['Self-healing & integration', 'Carrying the practice forward on your own.'],
+];
+---
+
+<section class="tw-mods tw-section" id="modules">
+  <div class="tw-wrap">
+    <div class="tw-mods-head" data-reveal>
+      <p class="tw-eyebrow tw-eyebrow--center">The curriculum</p>
+      <h2 class="tw-h2">Twelve modules, one <em>practice.</em></h2>
+    </div>
+
+    <ol class="tw-mods-grid">
+      {modules.map(([title, desc], i) => (
+        <li class="tw-mod" data-reveal>
+          <span class="tw-mod-n">{String(i + 1).padStart(2, '0')}</span>
+          <div>
+            <h3 class="tw-mod-t">{title}</h3>
+            <p class="tw-mod-d">{desc}</p>
+          </div>
+        </li>
+      ))}
+    </ol>
+
+    <div class="tw-cta-wrap" data-reveal>
+      <a
+        href={REGISTER_ANCHOR}
+        class="tw-btn"
+        aria-label="Register for the 12-Week Somatic Vocal Healing Course"
+      >
+        Register for the course <i class="ph-light ph-arrow-right"></i>
+      </a>
+    </div>
+  </div>
+</section>
