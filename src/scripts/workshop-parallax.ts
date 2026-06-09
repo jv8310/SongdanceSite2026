@@ -22,6 +22,12 @@ const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 const ease = 'power2.out';
 
+// Exposed so the audience controller can recalc pinned/scrub geometry after it
+// reveals the pro section + masterclass (which changes the document height).
+(window as any).__wpRefresh = () => {
+  try { ScrollTrigger.refresh(); } catch { /* no-op */ }
+};
+
 // Guard: if anything throws we never want the page left in a hidden state.
 function revealAll() {
   document.querySelectorAll<HTMLElement>('.wp-rise, .wp-fade, .wp-line').forEach((el) => {

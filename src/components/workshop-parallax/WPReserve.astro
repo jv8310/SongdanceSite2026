@@ -1,0 +1,39 @@
+---
+// Compact booking band, sits right under the hero so the next date + a way in
+// are visible immediately — without breaking into the cinematic story. It
+// doesn't duplicate the form (that lives once, at #register); it surfaces the
+// next date and scrolls there. `next` is the first upcoming CalItem (or null).
+import type { CalItem } from '../workshop-english/types';
+interface Props {
+  next: CalItem | null;
+}
+const { next } = Astro.props;
+const whenLabel = next
+  ? (next.isReplay ? 'On demand — watch anytime' : next.whenLocal)
+  : null;
+---
+
+<aside class="wp-reserve" aria-label="Reserve your place">
+  <div class="wp-reserve-inner">
+    {next ? (
+      <div class="wp-reserve-when">
+        <span class="wp-reserve-eyebrow">Next live workshop</span>
+        <span class="wp-reserve-date">
+          {whenLabel}
+          {!next.isReplay && <span class="wp-reserve-tz"> · your time</span>}
+        </span>
+      </div>
+    ) : (
+      <div class="wp-reserve-when">
+        <span class="wp-reserve-eyebrow">Live · Online · One hour</span>
+        <span class="wp-reserve-date">Reserve your place at the next workshop</span>
+      </div>
+    )}
+    <div class="wp-reserve-action">
+      {next && <span class="wp-reserve-price">{next.priceLabel}</span>}
+      <a href="#register" class="wp-reserve-cta">
+        Reserve your place <i class="ph-light ph-arrow-right"></i>
+      </a>
+    </div>
+  </div>
+</aside>
