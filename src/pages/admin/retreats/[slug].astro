@@ -250,6 +250,10 @@ function parseRoomLabel(name: string): { code: string; where: string } {
   return { code: name, where: '' };
 }
 
+// How a room is sold, independent of which tier/category it belongs to:
+//   single — whole room, one booking locks it (solo and/or couple).
+//   multi  — sold bed by bed (shared).
+//   either — multi-mode: can go whole or bed-by-bed; the first booking decides.
 type RoomType = 'private' | 'shared' | 'multi' | 'none';
 function roomType(r: {
   solo_tier_id: number | null;
@@ -259,12 +263,10 @@ function roomType(r: {
   type: RoomType;
   label: string;
 } {
-  if (r.solo_tier_id != null && r.shared_tier_id != null) return { type: 'multi', label: 'Multi' };
-  // A room that sells whole as either a single or a couple is still private.
-  if (r.solo_tier_id != null && r.couple_tier_id != null) return { type: 'private', label: 'Private · 1–2' };
-  if (r.solo_tier_id != null) return { type: 'private', label: 'Private' };
-  if (r.couple_tier_id != null) return { type: 'private', label: 'Couple' };
-  if (r.shared_tier_id != null) return { type: 'shared', label: 'Shared' };
+  const whole = r.solo_tier_id != null || r.couple_tier_id != null;
+  if (whole && r.shared_tier_id != null) return { type: 'multi', label: 'Either' };
+  if (whole) return { type: 'private', label: 'Single' };
+  if (r.shared_tier_id != null) return { type: 'shared', label: 'Multi' };
   return { type: 'none', label: '—' };
 }
 
@@ -329,6 +331,18 @@ for (const g of guestsQ.results ?? []) {
   guestsByRoom.set(g.inventory_unit_id, list);
 }
 
+// Category = the tier (price band) a room belongs to, by its current display
+// name. Built from the same availability data the rest of the page uses.
+const tierNameById = new Map<number, string>();
+for (const { tier } of ta) tierNameById.set(tier.id, tier.name);
+
+// Buildings sort in walking order; anything unmapped falls to the end.
+const BUILDING_ORDER = ['Poorthuis', 'Balkon', 'Toren', 'Paviljoen'];
+function buildingRank(b: string | null): number {
+  const i = b ? BUILDING_ORDER.indexOf(b) : -1;
+  return i === -1 ? BUILDING_ORDER.length : i;
+}
+
 const roomBreakdown = roomsWithMode
   .filter((r) =>
     adminTierId == null ||
@@ -354,9 +368,12 @@ const roomBreakdown = roomsWithMode
     const forcedMode: 'solo' | 'shared' | '' = r.forced_mode ?? '';
     return {
       id: r.id,
+      building: r.building,
+      sortOrder: r.sort_order,
       code,
       where,
       notes: r.notes,
+      category: tierNameById.get(r.tier_id) ?? '—',
       type: t.type,
       typeLabel: t.label,
       isMulti,
@@ -370,7 +387,21 @@ const roomBreakdown = roomsWithMode
       showCounts: r.status !== 'inactive',
       guests: guestsByRoom.get(r.id) ?? [],
     };
+  })
+  .sort((a, b) => {
+    const rank = buildingRank(a.building) - buildingRank(b.building);
+    return rank !== 0 ? rank : a.sortOrder - b.sortOrder;
   });
+
+// Group the sorted rooms by building so the overview can show a header per
+// house. roomBreakdown is already in (building, sort_order) order.
+const roomsByBuilding: { building: string; rooms: typeof roomBreakdown }[] = [];
+for (const r of roomBreakdown) {
+  const label = r.building ?? 'Other';
+  const last = roomsByBuilding[roomsByBuilding.length - 1];
+  if (last && last.building === label) last.rooms.push(r);
+  else roomsByBuilding.push({ building: label, rooms: [r] });
+}
 
 const roomTotals = roomBreakdown.reduce(
   (acc, r) => {
@@ -573,8 +604,8 @@ const flash = (() => {
         <thead>
           <tr>
             <th>Room</th>
-            <th>Where</th>
-            <th>Type</th>
+            <th>Category</th>
+            <th>Sell as</th>
             <th class="num">Booked</th>
             <th class="num">Capacity</th>
             <th class="num">Available</th>
@@ -583,44 +614,51 @@ const flash = (() => {
           </tr>
         </thead>
         <tbody>
-          {roomBreakdown.map((r) => (
-            <tr>
-              <td><strong>{r.code}</strong></td>
-              <td>{r.where}</td>
-              <td>
-                {r.canPinMode ? (
-                  <form
-                    method="POST"
-                    action="/api/admin/set-room-mode"
-                    class="adm-room-mode"
-                  >
-                    <input type="hidden" name="inventory_unit_id" value={r.id} />
-                    <input type="hidden" name="return_to" value={returnTo} />
-                    <label class="adm-room-mode-label">
-                      <span class="vh">Sell as</span>
-                      <select
-                        name="forced_mode"
-                        onchange="this.form.submit()"
-                        aria-label={`Sell mode for ${r.code}`}
+          {roomsByBuilding.map((group) => (
+            <Fragment>
+              <tr class="adm-row--group">
+                <th scope="rowgroup" colspan="8">{group.building}</th>
+              </tr>
+              {group.rooms.map((r) => (
+                <tr>
+                  <td><strong>{r.code}</strong> {r.where}</td>
+                  <td>{r.category}</td>
+                  <td>
+                    {r.canPinMode ? (
+                      <form
+                        method="POST"
+                        action="/api/admin/set-room-mode"
+                        class="adm-room-mode"
                       >
-                        <option value="" selected={r.forcedMode === ''}>Either</option>
-                        <option value="solo" selected={r.forcedMode === 'solo'}>Private only</option>
-                        <option value="shared" selected={r.forcedMode === 'shared'}>Shared only</option>
-                      </select>
-                    </label>
-                  </form>
-                ) : (
-                  <span class={`adm-pill adm-pill--type-${r.type}`}>{r.typeLabel}</span>
-                )}
-              </td>
-              <td class="num">{r.showCounts ? r.booked : '—'}</td>
-              <td class="num">{r.showCounts ? r.capacity : '—'}</td>
-              <td class="num">{r.showCounts ? r.available : '—'}</td>
-              <td><span class={`adm-pill adm-pill--${stateTone[r.state]}`}>{r.stateLabel}</span></td>
-              <td class="adm-room-guests">
-                {r.guests.length === 0 ? '—' : r.guests.join(', ')}
-              </td>
-            </tr>
+                        <input type="hidden" name="inventory_unit_id" value={r.id} />
+                        <input type="hidden" name="return_to" value={returnTo} />
+                        <label class="adm-room-mode-label">
+                          <span class="vh">Sell as</span>
+                          <select
+                            name="forced_mode"
+                            onchange="this.form.submit()"
+                            aria-label={`Sell mode for ${r.code}`}
+                          >
+                            <option value="" selected={r.forcedMode === ''}>Either</option>
+                            <option value="solo" selected={r.forcedMode === 'solo'}>Single only</option>
+                            <option value="shared" selected={r.forcedMode === 'shared'}>Multi only</option>
+                          </select>
+                        </label>
+                      </form>
+                    ) : (
+                      <span class={`adm-pill adm-pill--type-${r.type}`}>{r.typeLabel}</span>
+                    )}
+                  </td>
+                  <td class="num">{r.showCounts ? r.booked : '—'}</td>
+                  <td class="num">{r.showCounts ? r.capacity : '—'}</td>
+                  <td class="num">{r.showCounts ? r.available : '—'}</td>
+                  <td><span class={`adm-pill adm-pill--${stateTone[r.state]}`}>{r.stateLabel}</span></td>
+                  <td class="adm-room-guests">
+                    {r.guests.length === 0 ? '—' : r.guests.join(', ')}
+                  </td>
+                </tr>
+              ))}
+            </Fragment>
           ))}
         </tbody>
         <tfoot>
@@ -633,7 +671,7 @@ const flash = (() => {
           </tr>
         </tfoot>
       </table>
-      <p class="adm-table-note"><strong>Type</strong>: <em>Private</em> — sold as one unit. <em>Shared</em> — sold bed by bed. <em>Multi</em> — can be sold either way; one private booking locks the rest of the beds. Empty multi rooms show a dropdown: <em>Either</em> (auto), <em>Private only</em>, or <em>Shared only</em> — pin a mode to pre-decide how the room is offered on the public form. <strong>Booked</strong> counts active paid + pending registrations (incl. pre-allocated hosts/cook). <strong>Available</strong> is 0 for inactive rooms and for the empty beds in a solo-locked multi room (a private booking blocks them); for a role-reserved bed it reflects whether the fire-keeper / cook-help seat is still open. The totals row sums beds across active rooms; the admin-test bed is hidden.</p>
+      <p class="adm-table-note">Rooms are grouped and sorted by building. <strong>Category</strong> is the price band (tier) the room is sold under. <strong>Sell as</strong>: <em>Single</em> — whole room, one booking locks it. <em>Multi</em> — sold bed by bed. <em>Either</em> — multi-mode; one whole-room booking locks the rest of the beds. Empty multi rooms show a dropdown: <em>Either</em> (auto), <em>Single only</em>, or <em>Multi only</em> — pin a mode to pre-decide how the room is offered on the public form. <strong>Booked</strong> counts active paid + pending registrations (incl. pre-allocated hosts/cook). <strong>Available</strong> is 0 for inactive rooms and for the empty beds in a locked whole-room booking; for a role-reserved bed it reflects whether the fire-keeper / cook-help seat is still open. The totals row sums beds across active rooms; the admin-test bed is hidden.</p>
     </section>
 
     <!-- ─── Balance due (deposit-payers) ─── -->

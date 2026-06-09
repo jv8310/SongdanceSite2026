@@ -39,6 +39,7 @@ export type InventoryUnit = {
   shared_tier_id: number | null;  // tier when sold bed-by-bed
   role: SpecialRole | null;       // 'fire_keeper' (Paviljoen) | 'cook_help' (Room 5.2)
   forced_mode: 'solo' | 'shared' | null;  // admin pin: lock an empty multi-room to one tier
+  building: string | null;        // house the room is in (Poorthuis / Balkon / Toren / …)
 };
 
 // "mode" is a runtime concept derived from current bookings on the room:
@@ -444,7 +445,7 @@ export async function getRoomsWithMode(
   const sql = `
     SELECT iu.id, iu.tier_id, iu.name, iu.capacity, iu.notes, iu.status,
            iu.sort_order, iu.solo_tier_id, iu.couple_tier_id, iu.shared_tier_id,
-           iu.role, iu.forced_mode,
+           iu.role, iu.forced_mode, iu.building,
            COALESCE(b.beds_sold, 0)   AS beds_sold,
            b.first_tier_id            AS first_tier_id
       FROM inventory_units iu

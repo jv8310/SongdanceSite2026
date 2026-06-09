@@ -139,13 +139,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
   if (role === 'fire_keeper' && !FIRE_KEEPER_TIERS.has(tierSlug)) {
     return json(
-      { error: 'The fire keeper role is only available with the Shared Room option.' },
+      { error: 'The fire keeper role is only available with the Budget Room option.' },
       400,
     );
   }
   if (role === 'cook_help' && !COOK_HELP_TIERS.has(tierSlug)) {
     return json(
-      { error: 'Kitchen help is only available with Shared Room or Twin Bedroom.' },
+      { error: 'Kitchen help is only available with the Budget Room or Shared Room.' },
       400,
     );
   }
