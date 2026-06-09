@@ -82,9 +82,7 @@ const chips = [
                   {meta && <div class="sd-evt-meta">{meta}</div>}
                   {e.bookedPercent != null && e.bookedPercent > 0 && (
                     <div class="sd-evt-booked" title={`${e.bookedPercent}% booked`}>
-                      <span class="sd-evt-booked-track">
-                        <span class="sd-evt-booked-fill" style={`width:${e.bookedPercent}%`}></span>
-                      </span>
+                      <span class="sd-evt-booked-dot" style={`--pct:${e.bookedPercent}`} aria-hidden="true"></span>
                       <span class="sd-evt-booked-label">{e.bookedPercent}% booked</span>
                     </div>
                   )}

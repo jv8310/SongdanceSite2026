@@ -900,14 +900,13 @@ a.sd-evt-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-2); 
   color: var(--ink); font-weight: 500;
 }
 .sd-evt-meta { font-family: var(--font-body); font-size: 13px; color: var(--ink-quiet); }
-.sd-evt-booked { display: flex; align-items: center; gap: 9px; }
-.sd-evt-booked-track {
-  flex: 1; height: 5px; border-radius: var(--r-pill);
-  background: var(--ember-soft); overflow: hidden;
-}
-.sd-evt-booked-fill {
-  display: block; height: 100%; border-radius: var(--r-pill);
-  background: var(--ember);
+/* Live "% booked" — a small round dial (filled like a pie to the booked
+   share) plus a quiet label, rather than a full-width bar. Deliberately
+   subtle; the exact figure is also on the element's title tooltip. */
+.sd-evt-booked { display: inline-flex; align-items: center; gap: 7px; }
+.sd-evt-booked-dot {
+  width: 13px; height: 13px; flex: none; border-radius: 50%;
+  background: conic-gradient(var(--ember) calc(var(--pct, 0) * 1%), var(--ember-soft) 0);
 }
 .sd-evt-booked-label {
   font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em;

@@ -62,7 +62,7 @@
     const fac = e.facilitators.length ? `<span class="sd-evt-fac">with ${esc(e.facilitators.join(' & '))}</span>` : '';
     const price = e.price ? `<span class="sd-evt-price">${esc(e.price)}</span>` : '';
     const booked = e.bookedPercent != null && e.bookedPercent > 0
-      ? `<div class="sd-evt-booked" title="${e.bookedPercent}% booked"><span class="sd-evt-booked-track"><span class="sd-evt-booked-fill" style="width:${e.bookedPercent}%"></span></span><span class="sd-evt-booked-label">${e.bookedPercent}% booked</span></div>`
+      ? `<div class="sd-evt-booked" title="${e.bookedPercent}% booked"><span class="sd-evt-booked-dot" style="--pct:${e.bookedPercent}" aria-hidden="true"></span><span class="sd-evt-booked-label">${e.bookedPercent}% booked</span></div>`
       : '';
     return `<${tag} class="sd-evt-card"${href}>
       <div class="sd-evt-top">
