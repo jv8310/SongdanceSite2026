@@ -561,9 +561,8 @@ const roomTypes = [
     });
 
     // ───────── Company toggle reveals VAT ─────────
-    // The VAT field appears as soon as a company name is entered. Checkout
-    // requires a VAT number whenever a company is given, so it must be
-    // reachable for every company — not only EU ones.
+    // The VAT field appears as soon as a company name is entered, so any
+    // company can optionally add a VAT number for its invoice.
     function toggleBiz() {
       const show = companyInput.value.trim().length > 0;
       bizFields.forEach((f) => {

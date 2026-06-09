@@ -121,7 +121,7 @@ import { COUNTRIES } from '../../lib/countries';
         </label>
 
         <label class="ds-field ds-field--full ds-field--biz" hidden>
-          <span>VAT number</span>
+          <span>VAT number <em class="ds-optional">(optional)</em></span>
           <input type="text" name="vat_number" placeholder="e.g. BE0123.456.789" autocomplete="off" />
         </label>
 
@@ -279,9 +279,8 @@ import { COUNTRIES } from '../../lib/countries';
       })
       .catch(() => {});
 
-    // VAT field appears as soon as a company name is entered. The checkout
-    // endpoint requires a VAT number whenever a company is given, so the field
-    // must be reachable for every company — not only EU ones.
+    // VAT field appears as soon as a company name is entered, so any company
+    // can optionally add a VAT number for its invoice.
     const vatInput = form.querySelector('input[name="vat_number"]') as HTMLInputElement;
     const toggleVat = () => {
       const show = companyInput.value.trim().length > 0;
