@@ -25,15 +25,23 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const form = await request.formData();
   const action = String(form.get('action') ?? '').trim();
 
-  // Save the default Zoom link + fallback details + fixed replay URL
-  // (separate small form on the index page).
+  // Save the Zoom defaults for both event types (Workshop + Masterclass), their
+  // meeting-id/passcode fallbacks, and the fixed replay URL. Posted from the
+  // small form on /admin/settings/zoom (a `return` field carries the page back).
   if (action === 'zoom') {
-    const url = String(form.get('zoom_url_default') ?? '').trim();
-    if (url) await setConfig(env.DB, 'zoom_url_default', url);
+    const workshopUrl = String(form.get('zoom_url_default') ?? '').trim();
+    if (workshopUrl) await setConfig(env.DB, 'zoom_url_default', workshopUrl);
     await setConfig(env.DB, 'zoom_meeting_id_default', String(form.get('zoom_meeting_id_default') ?? '').trim());
     await setConfig(env.DB, 'zoom_passcode_default', String(form.get('zoom_passcode_default') ?? '').trim());
+
+    const masterclassUrl = String(form.get('zoom_url_masterclass') ?? '').trim();
+    if (masterclassUrl) await setConfig(env.DB, 'zoom_url_masterclass', masterclassUrl);
+    await setConfig(env.DB, 'zoom_meeting_id_masterclass', String(form.get('zoom_meeting_id_masterclass') ?? '').trim());
+    await setConfig(env.DB, 'zoom_passcode_masterclass', String(form.get('zoom_passcode_masterclass') ?? '').trim());
+
     await setConfig(env.DB, 'replay_video_url', String(form.get('replay_video_url') ?? '').trim());
-    return redirect(`${RETURN_TO}?flash=zoom`);
+    const back = String(form.get('return') ?? '').trim() || RETURN_TO;
+    return redirect(`${back}?flash=zoom`);
   }
 
   if (action === 'delete') {

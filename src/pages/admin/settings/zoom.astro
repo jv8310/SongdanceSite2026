@@ -1,0 +1,70 @@
+---
+import '../../../styles/admin.css';
+import Layout from '../../../layouts/Layout.astro';
+import { readCookie, verifySession } from '../../../lib/registrations/auth';
+import { getConfig } from '../../../lib/workshops/db';
+
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+if (!(await verifySession(env.ADMIN_SESSION_SECRET, readCookie(Astro.request)))) {
+  return Astro.redirect('/admin/login');
+}
+
+const zoomUrl = (await getConfig(env.DB, 'zoom_url_default')) ?? '';
+const zoomMeetingId = (await getConfig(env.DB, 'zoom_meeting_id_default')) ?? '';
+const zoomPasscode = (await getConfig(env.DB, 'zoom_passcode_default')) ?? '';
+const mcUrl = (await getConfig(env.DB, 'zoom_url_masterclass')) ?? '';
+const mcMeetingId = (await getConfig(env.DB, 'zoom_meeting_id_masterclass')) ?? '';
+const mcPasscode = (await getConfig(env.DB, 'zoom_passcode_masterclass')) ?? '';
+const replayVideoUrl = (await getConfig(env.DB, 'replay_video_url')) ?? '';
+
+const flash = Astro.url.searchParams.get('flash');
+const flashText = flash === 'zoom' ? 'Zoom defaults saved.' : null;
+---
+
+<Layout title="Admin — Zoom defaults — Songdance" description="">
+  <main class="adm">
+    <header class="adm-header">
+      <div>
+        <p class="adm-breadcrumbs"><a href="/admin">Admin</a> <span class="sep">/</span> <a href="/admin/settings">Settings</a> <span class="sep">/</span> Zoom defaults</p>
+        <h1>Zoom defaults &amp; replay</h1>
+        <p class="adm-sub">Per join, the link/ID/passcode resolve from the workshop first, then the default for its type. Workshops use the Workshop defaults; the €29 masterclass uses the Masterclass defaults (falling back to the Workshop ones when blank). The meeting ID + passcode appear behind the “button doesn’t work for me” fallback. The replay is shown to people who missed the live window, gated by their personal link.</p>
+      </div>
+      <div class="adm-actions"><a class="adm-btn adm-btn--ghost" href="/admin/settings">← Settings</a></div>
+    </header>
+
+    {flashText && <div class="adm-flash adm-flash--ok">{flashText}</div>}
+
+    <form method="POST" action="/api/admin/workshops/save">
+      <input type="hidden" name="action" value="zoom" />
+      <input type="hidden" name="return" value="/admin/settings/zoom" />
+
+      <section class="adm-section">
+        <h2>Workshop</h2>
+        <div class="adm-grid">
+          <label class="span-2"><span>Zoom link</span><input type="url" name="zoom_url_default" value={zoomUrl} placeholder="https://…zoom.us/j/…" /></label>
+          <label><span>Meeting ID</span><input type="text" name="zoom_meeting_id_default" value={zoomMeetingId} placeholder="850 1234 5678" /></label>
+          <label><span>Passcode</span><input type="text" name="zoom_passcode_default" value={zoomPasscode} placeholder="123456" /></label>
+        </div>
+      </section>
+
+      <section class="adm-section">
+        <h2>Masterclass</h2>
+        <div class="adm-grid">
+          <label class="span-2"><span>Zoom link</span><input type="url" name="zoom_url_masterclass" value={mcUrl} placeholder="https://…zoom.us/j/…" /></label>
+          <label><span>Meeting ID</span><input type="text" name="zoom_meeting_id_masterclass" value={mcMeetingId} placeholder="850 1234 5678" /></label>
+          <label><span>Passcode</span><input type="text" name="zoom_passcode_masterclass" value={mcPasscode} placeholder="123456" /></label>
+        </div>
+      </section>
+
+      <section class="adm-section">
+        <h2>Replay</h2>
+        <div class="adm-grid">
+          <label class="span-2"><span>Fixed replay video URL</span><input type="url" name="replay_video_url" value={replayVideoUrl} placeholder="https://… (YouTube, Vimeo, …)" /></label>
+          <div class="span-2"><button type="submit" class="adm-btn adm-btn--solid">Save</button></div>
+        </div>
+      </section>
+    </form>
+  </main>
+</Layout>
