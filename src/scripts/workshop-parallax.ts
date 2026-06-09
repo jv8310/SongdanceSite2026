@@ -97,12 +97,15 @@ function initThread() {
   const lines = gsap.utils.toArray<HTMLElement>('.wp-thread .wp-thread-line');
   if (!lines.length) return;
 
+  // Keep the pinned scroll-distance tight so the page doesn't feel sluggish —
+  // shorter still on phones, where long scrubbed pins drag the most.
+  const mobile = window.matchMedia('(max-width: 720px)').matches;
   const tl = gsap.timeline({
     scrollTrigger: {
       trigger: sec,
       start: 'top top',
-      end: '+=' + Math.max(lines.length * 60, 220) + '%',
-      scrub: 0.6,
+      end: '+=' + lines.length * (mobile ? 26 : 38) + '%',
+      scrub: 0.35,
       pin: true,
       anticipatePin: 1,
     },
@@ -145,12 +148,13 @@ function initCinema() {
   gsap.set(caps, { opacity: 0, y: 30 });
 
   const perFrame = 1; // timeline units per frame
+  const mobile = window.matchMedia('(max-width: 720px)').matches;
   const tl = gsap.timeline({
     scrollTrigger: {
       trigger: cinema,
       start: 'top top',
-      end: '+=' + frames.length * 80 + '%',
-      scrub: 0.5,
+      end: '+=' + frames.length * (mobile ? 40 : 54) + '%',
+      scrub: 0.35,
       pin: true,
       anticipatePin: 1,
     },
@@ -159,10 +163,11 @@ function initCinema() {
   frames.forEach((frame, i) => {
     const at = i * perFrame;
     const img = frame.querySelector('img');
-    // Ken-burns drift across the whole time this frame is on screen.
+    // Slow ken-burns zoom. Origin is centred so the scaled image always fully
+    // covers the frame — no edge is ever revealed during the pin.
     if (img) {
-      gsap.set(img, { scale: 1.08, transformOrigin: i % 2 ? 'left center' : 'right center' });
-      tl.to(img, { scale: 1.16, ease: 'none', duration: perFrame * 1.4 }, at);
+      gsap.set(img, { scale: 1.1, transformOrigin: 'center center' });
+      tl.to(img, { scale: 1.18, ease: 'none', duration: perFrame * 1.4 }, at);
     }
     if (i > 0) {
       // cross-fade in from the previous
