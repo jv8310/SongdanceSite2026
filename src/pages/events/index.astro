@@ -80,6 +80,14 @@ const chips = [
                   </div>
                   <h3 class="sd-evt-title">{e.title}</h3>
                   {meta && <div class="sd-evt-meta">{meta}</div>}
+                  {e.bookedPercent != null && e.bookedPercent > 0 && (
+                    <div class="sd-evt-booked" title={`${e.bookedPercent}% booked`}>
+                      <span class="sd-evt-booked-track">
+                        <span class="sd-evt-booked-fill" style={`width:${e.bookedPercent}%`}></span>
+                      </span>
+                      <span class="sd-evt-booked-label">{e.bookedPercent}% booked</span>
+                    </div>
+                  )}
                   {e.summary && <p class="sd-evt-summary">{e.summary}</p>}
                   <div class="sd-evt-foot">
                     {e.facilitators.length > 0 && (

@@ -53,6 +53,12 @@ function facilitatorsText(row: EventRow): string {
           and optimised automatically. Tick <strong>Ongoing</strong> for events with no fixed end:
           the card then reads “Ongoing” (or “From&nbsp;&lt;date&gt;”) and never drops off the grid.
         </p>
+        <p class="adm-sub">
+          Set <strong>Linked product</strong> to a registration product slug (e.g.
+          <code>dolphin-and-sound-2026</code>) and the card shows a live “X% booked” figure,
+          read from the same room model the booking pages use. Leave it blank for events with no
+          online booking.
+        </p>
       </div>
       <div class="adm-actions">
         <a class="adm-btn adm-btn--ghost" href="/admin/image-manager">Image library</a>
@@ -140,6 +146,10 @@ function facilitatorsText(row: EventRow): string {
                       <label class="span-2">
                         <span>Link (landing page)</span>
                         <input type="text" name="href" value={e.href ?? ''} placeholder="/retreats/…" maxlength="200" />
+                      </label>
+                      <label class="span-2">
+                        <span>Linked product (live % booked)</span>
+                        <input type="text" name="product_slug" value={e.product_slug ?? ''} placeholder="dolphin-and-sound-2026" maxlength="80" />
                       </label>
                       <label class="span-full">
                         <span>One-line summary</span>
@@ -245,6 +255,10 @@ function facilitatorsText(row: EventRow): string {
           <label class="span-2">
             <span>Link (landing page)</span>
             <input type="text" name="href" placeholder="/retreats/…" maxlength="200" />
+          </label>
+          <label class="span-2">
+            <span>Linked product (live % booked)</span>
+            <input type="text" name="product_slug" placeholder="dolphin-and-sound-2026" maxlength="80" />
           </label>
           <label class="span-full">
             <span>One-line summary</span>

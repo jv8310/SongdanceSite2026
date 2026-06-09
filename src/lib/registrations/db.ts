@@ -544,6 +544,28 @@ export async function computeTierAvailability(
   });
 }
 
+// Overall "X% booked" for a product, derived from the same per-tier
+// availability the booking pages and /admin use — so the public figure always
+// agrees with what the room model says is left. Returns null when there's no
+// countable capacity (e.g. a product with no inventory yet), letting callers
+// simply omit the figure.
+export async function computeBookedPercent(
+  db: D1Database,
+  productId: number,
+): Promise<{ capacity: number; remaining: number; sold: number; percent: number } | null> {
+  const availability = await computeTierAvailability(db, productId);
+  let capacity = 0;
+  let remaining = 0;
+  for (const a of availability) {
+    capacity += a.capacity;
+    remaining += Math.max(0, a.remaining);
+  }
+  if (capacity <= 0) return null;
+  const sold = Math.max(0, capacity - remaining);
+  const percent = Math.min(100, Math.max(0, Math.round((sold / capacity) * 100)));
+  return { capacity, remaining, sold, percent };
+}
+
 // Pick the best room for a new registration of the given tier slug.
 // Returns null if there's no room available.
 //

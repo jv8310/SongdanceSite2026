@@ -874,6 +874,7 @@ a.sd-evt-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-2); 
 .sd-evt-card > .sd-evt-top { padding: var(--sp-5) var(--sp-5) 0; } /* upcoming-strip cards (no body wrapper) */
 .sd-evt-card > .sd-evt-title,
 .sd-evt-card > .sd-evt-meta,
+.sd-evt-card > .sd-evt-booked,
 .sd-evt-card > .sd-evt-summary { padding-left: var(--sp-5); padding-right: var(--sp-5); }
 .sd-evt-card > .sd-evt-foot { padding: 0 var(--sp-5) var(--sp-5); margin-top: auto; }
 
@@ -899,6 +900,19 @@ a.sd-evt-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-2); 
   color: var(--ink); font-weight: 500;
 }
 .sd-evt-meta { font-family: var(--font-body); font-size: 13px; color: var(--ink-quiet); }
+.sd-evt-booked { display: flex; align-items: center; gap: 9px; }
+.sd-evt-booked-track {
+  flex: 1; height: 5px; border-radius: var(--r-pill);
+  background: var(--ember-soft); overflow: hidden;
+}
+.sd-evt-booked-fill {
+  display: block; height: 100%; border-radius: var(--r-pill);
+  background: var(--ember);
+}
+.sd-evt-booked-label {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--ink-quiet); white-space: nowrap;
+}
 .sd-evt-summary { font-size: var(--t-body-sm); color: var(--ink-soft); margin: 0; line-height: 1.55; }
 .sd-evt-foot {
   display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
