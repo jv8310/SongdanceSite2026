@@ -1,203 +1,80 @@
 ---
-import SiteLayout from '../../components/SiteLayout.astro';
-import PageHero from '../../components/PageHero.astro';
-
-const able = [
-  'Find and sound blocked or stuck feeling, instead of managing or waiting it out.',
-  'Work with your nervous system rather than against it.',
-  'Recognise what your voice is telling you — fear, anger, grief, purpose, even older echoes.',
-  'Hold a safe, grounded space for sounding — first for yourself, eventually for others.',
-  'Keep practising on your own, for life.',
-];
-
-const included = [
-  '<strong>18+ hours</strong> of video across <strong>12 modules</strong>, with guided practices throughout. Chaptered for easy navigation.',
-  '<strong>12 weeks of weekly live Q&amp;A</strong> with Jacob (1 hour each), on a rotating schedule for all timezones, with replays.',
-  '<strong>Lifetime access</strong> to the course materials.',
-  'A <strong>supportive student community</strong> to practise and share with.',
-  'On joining: five of Jacob’s original mantras for joy and vocal empowerment.',
-];
-
-const modules = [
-  ['Understanding vocal sound', 'Singing, toning, chanting, sounding, and why this practice is its own thing.'],
-  ['Becoming comfortable', 'Meeting the collective unease around using the voice; reclaiming its full, imperfect range.'],
-  ['Holding space', 'Building safe, grounded ground for sound work, for yourself and others.'],
-  ['Reading your sound', 'Hearing the feeling and pattern inside the voice, and using it as a way in.'],
-  ['Neuroanatomy', 'The brain–body–voice connection, in plain terms.'],
-  ['Nervous system flow', 'Using sound to regulate, settle, and build resilience.'],
-  ['The five core wounds', 'Rejection, abandonment, betrayal, humiliation, injustice — met safely through sound.'],
-  ['Sounding toward essence', 'A meditation that returns you to your own essential sound.'],
-  ['Sounds of the chakras', 'The energy centres, explored through tone.'],
-  ['Sounding with instruments', 'Voice with drum, shruti, or bowl.'],
-  ['Practising with others', 'First steps in sounding together.'],
-  ['Self-healing & integration', 'Carrying the practice forward on your own.'],
-];
-
-const testimonials = [
-  ['Rebecca Lucy', 'USA', 'I came for the voice and left with something steadier underneath it.'],
-  ['Monike', 'Netherlands', 'The honesty of it is the point. Nothing here is performance.'],
-  ['Dr. Karen Evans', 'USA', 'A rigorous, kind way of working that fits beside clinical practice.'],
-  ['Gwenola Emilia Enciu', 'Romania', 'I finally have a practice I can return to on my own, for life.'],
-];
-
-const faq = [
-  ['Class times and dates?', 'Self-paced video; live Q&As rotate across timezones, with replays.'],
-  ['How long are the classes?', 'Most videos are about two hours, chaptered; Q&As are one hour.'],
-  ['Replays?', 'Yes — Q&A replays for the full 12 weeks; videos are lifetime access.'],
-  ['Installments?', 'Yes, three monthly payments.'],
-  ['Access?', 'Lifetime access to materials; 12 weeks of live Q&A and replays.'],
-  ['More questions?', 'Email info@songdance.co.'],
-];
+import '../../styles/svh-twelve-week.css';
+import Layout from '../../layouts/Layout.astro';
+import TWNav from '../../components/svh-twelve-week/TWNav.astro';
+import TWHero from '../../components/svh-twelve-week/TWHero.astro';
+import TWOpening from '../../components/svh-twelve-week/TWOpening.astro';
+import TWSounding from '../../components/svh-twelve-week/TWSounding.astro';
+import TWHonest from '../../components/svh-twelve-week/TWHonest.astro';
+import TWOverview from '../../components/svh-twelve-week/TWOverview.astro';
+import TWModules from '../../components/svh-twelve-week/TWModules.astro';
+import TWWave from '../../components/svh-twelve-week/TWWave.astro';
+import TWWho from '../../components/svh-twelve-week/TWWho.astro';
+import TWPhilosophy from '../../components/svh-twelve-week/TWPhilosophy.astro';
+import TWTestimonials from '../../components/svh-twelve-week/TWTestimonials.astro';
+import TWJacob from '../../components/svh-twelve-week/TWJacob.astro';
+import TWPractitioner from '../../components/svh-twelve-week/TWPractitioner.astro';
+import TWFaq from '../../components/svh-twelve-week/TWFaq.astro';
+import TWRegister from '../../components/svh-twelve-week/TWRegister.astro';
+import TWFooter from '../../components/svh-twelve-week/TWFooter.astro';
 ---
 
-<SiteLayout
-  title="Somatic Vocal Healing — The 12-Week Course — Songdance"
-  description="Twelve weeks to learn Somatic Vocal Healing properly — in your own time, with live Q&A — until you can hold the practice for yourself. 12 modules, 18+ hours, lifetime access."
+<Layout
+  title="Somatic Vocal Healing — The 12-Week Course | Songdance"
+  description="Twelve weeks to learn the practice of Somatic Vocal Healing — until you can hold it yourself. A self-paced video course with live weekly Q&A: 12 modules, 18+ hours of guided practice, and lifetime access."
+  image="/media/library/svhgpt-01-hero-in-one-breath.webp"
 >
-  <PageHero
-    eyebrow="Somatic Vocal Healing · Foundational"
-    title="The 12-Week Course"
-    lede="Learn the practice properly — in your own time, with live support — until you can hold it for yourself."
-    image="/media/library/jacob-at-piano.webp"
-  >
-    <div class="sd-pagehero-actions">
-      <a href="/events?filter=course" class="sd-btn sd-btn-primary">Join the next intake</a>
-      <a href="/workshop" class="sd-btn sd-btn-quiet">Try a workshop first — 9€ →</a>
-    </div>
-  </PageHero>
+  <div class="tw-site">
+    <TWNav />
+    <TWHero />
+    <TWOpening />
+    <TWSounding />
+    <TWHonest />
+    <TWOverview />
+    <TWModules />
+    <TWWave />
+    <TWWho />
+    <TWPhilosophy />
+    <TWTestimonials />
+    <TWJacob />
+    <TWPractitioner />
+    <TWFaq />
+    <TWRegister />
+    <TWFooter />
+  </div>
+</Layout>
 
-  <section class="sd-section sd-prose">
-    <div class="sd-prose-inner">
-      <p>
-        Your voice has carried everything you’ve felt — the first cry, the things said, the things
-        swallowed. When feelings have nowhere to go, they don’t disappear; they settle into the
-        body as tension, ache, grief, or a kind of static you’ve stopped noticing.
-      </p>
-      <p>
-        This course is twelve weeks of learning to use the most direct instrument you have — your
-        own voice — to meet those feelings and let them move. Not to perform. To listen, and to
-        answer.
-      </p>
-      <h2 class="sd-prose-h">What this is</h2>
-      <p>
-        Over twelve weeks, Jacob guides you through the full practice of Somatic Vocal Healing: how
-        to find the sound of a feeling, how to stay with it safely, and how to work with your own
-        nervous system so that this becomes something you can do for the rest of your life, without
-        anyone holding your hand.
-      </p>
-      <h2 class="sd-prose-h">What you’ll be able to do</h2>
-      <ul class="sd-prose-list">
-        {able.map((a) => <li>{a}</li>)}
-      </ul>
-    </div>
-  </section>
+<script>
+  // Reveal-on-scroll + gentle in-page smooth scrolling. Self-contained,
+  // progressive-enhancement only: if anything is unavailable, content shows.
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const items = Array.from(document.querySelectorAll<HTMLElement>('[data-reveal]'));
 
-  <section class="sd-section sd-prose sd-prose--feature">
-    <div class="sd-prose-inner">
-      <h2 class="sd-prose-h">The honest note</h2>
-      <p>
-        This isn’t twelve weeks of feeling wonderful. Some of it is tender. What you’re building is
-        sturdier than a good mood: a reliable, lasting way to be with whatever you feel.
-      </p>
-    </div>
-  </section>
+  if (reduce || !('IntersectionObserver' in window)) {
+    items.forEach((el) => el.classList.add('is-visible'));
+  } else {
+    const io = new IntersectionObserver(
+      (entries, obs) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('is-visible');
+            obs.unobserve(entry.target);
+          }
+        }
+      },
+      { rootMargin: '0px 0px -8% 0px', threshold: 0.12 },
+    );
+    items.forEach((el) => io.observe(el));
+    // Safety net: anything still hidden after load (e.g. very short pages) shows.
+    window.addEventListener('load', () => {
+      items.forEach((el) => {
+        if (!el.classList.contains('is-visible')) {
+          const r = el.getBoundingClientRect();
+          if (r.top < window.innerHeight) el.classList.add('is-visible');
+        }
+      });
+    });
 
-  <section class="sd-section sd-prose">
-    <div class="sd-prose-inner">
-      <h2 class="sd-prose-h">What’s included</h2>
-      <ul class="sd-prose-list">
-        {included.map((i) => <li set:html={i} />)}
-      </ul>
-    </div>
-  </section>
-
-  <section class="sd-section sd-modules-section">
-    <div class="sd-prose-inner">
-      <h2 class="sd-prose-h">The 12 modules</h2>
-      <ol class="sd-modules">
-        {modules.map(([t, d], i) => (
-          <li class="sd-module">
-            <span class="sd-module-n">{String(i + 1).padStart(2, '0')}</span>
-            <div>
-              <h3 class="sd-module-t">{t}</h3>
-              <p class="sd-module-d">{d}</p>
-            </div>
-          </li>
-        ))}
-      </ol>
-    </div>
-  </section>
-
-  <section class="sd-section sd-prose">
-    <div class="sd-prose-inner">
-      <h2 class="sd-prose-h">Who it’s for</h2>
-      <p>
-        Anyone called to meet themselves at a deep level — including early, preverbal, even
-        prenatal things still living in the body. And, equally, professionals — therapists, coaches,
-        yoga teachers, facilitators, bodyworkers — who want to bring this into their work.
-      </p>
-    </div>
-  </section>
-
-  <section class="sd-section sd-about-quote">
-    <p class="t-lyric sd-about-quote-text">
-      “We honour the wisdom the body already carries, and we go gently. Healing is yours alone to
-      do — what we can do is make it safe enough that what once felt unbearable can finally be
-      heard, and finished.”
-    </p>
-    <p class="sd-quote-attrib">— Jacob</p>
-  </section>
-
-  <section class="sd-section sd-prose">
-    <div class="sd-prose-inner">
-      <h2 class="sd-prose-h">In their words</h2>
-      <div class="sd-quotes">
-        {testimonials.map(([name, place, quote]) => (
-          <figure class="sd-quote-card">
-            <blockquote>{quote}</blockquote>
-            <figcaption>{name} · <span>{place}</span></figcaption>
-          </figure>
-        ))}
-      </div>
-      <p class="sd-quotes-link">
-        <a href="https://www.trustpilot.com/review/songdance.co" target="_blank" rel="noopener">Verified reviews on Trustpilot →</a>
-      </p>
-    </div>
-  </section>
-
-  <section class="sd-section sd-prose sd-prose--feature">
-    <div class="sd-prose-inner">
-      <h2 class="sd-prose-h">Want to take it further?</h2>
-      <p>
-        After the 12 weeks, you can continue into the live, deepening
-        <a href="/certification-course">Practitioner Training</a> — whether you want to be certified
-        or simply go deeper.
-      </p>
-    </div>
-  </section>
-
-  <section class="sd-section sd-prose">
-    <div class="sd-prose-inner">
-      <h2 class="sd-prose-h">Questions</h2>
-      <div class="sd-faq">
-        {faq.map(([q, a]) => (
-          <details class="sd-faq-item">
-            <summary>{q}</summary>
-            <p>{a}</p>
-          </details>
-        ))}
-      </div>
-      <p class="sd-prose-note">Three monthly installments available · lifetime access.</p>
-    </div>
-  </section>
-
-  <section class="sd-softcta">
-    <div class="sd-softcta-inner" data-anim="reveal">
-      <p class="sd-softcta-text">Not sure yet? Start with an hour.</p>
-      <div class="sd-softcta-actions">
-        <a href="/events?filter=course" class="sd-btn sd-btn-primary">Join the next intake</a>
-        <a href="/workshop" class="sd-btn sd-btn-quiet">Try a 9€ workshop →</a>
-      </div>
-    </div>
-  </section>
-</SiteLayout>
+    document.documentElement.style.scrollBehavior = 'smooth';
+  }
+</script>

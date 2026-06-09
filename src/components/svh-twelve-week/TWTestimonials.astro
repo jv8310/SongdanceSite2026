@@ -1,0 +1,48 @@
+---
+import { TRUSTPILOT_URL } from './config';
+
+const quotes = [
+  {
+    text: 'A rare combination of intuition, embodied knowledge, and gentle guidance. It deepened my personal growth and my professional work.',
+    by: 'Rebecca Lucy · Teacher · USA',
+  },
+  {
+    text: 'Clear, structured, and deeply practical. He blends intellect with real emotional experience.',
+    by: 'Monike · Embodiment Trainer · Netherlands',
+  },
+  {
+    text: 'It gets straight to the essence, surfacing deep layers of emotion quietly and intuitively.',
+    by: 'Andre · Belgium',
+  },
+  {
+    text: 'Brings awareness to hidden parts of yourself, in an environment where authentic expression is genuinely welcome.',
+    by: 'Gwenola Emilia Enciu · Psychotherapist · Romania',
+  },
+  {
+    text: 'Gentle yet powerful pathways to transformation.',
+    by: 'Olena · Ukraine',
+  },
+];
+---
+
+<section class="tw-quotes tw-section">
+  <div class="tw-quotes-inner">
+    <div class="tw-quotes-head" data-reveal>
+      <p class="tw-eyebrow tw-eyebrow--center">Verified reviews</p>
+      <h2 class="tw-h2">In their <em>words.</em></h2>
+    </div>
+
+    <div class="tw-quotes-grid">
+      {quotes.map((q) => (
+        <figure class="tw-quote" data-reveal>
+          <blockquote class="tw-quote-text">“{q.text}”</blockquote>
+          <figcaption class="tw-quote-by">{q.by}</figcaption>
+        </figure>
+      ))}
+    </div>
+
+    <div class="tw-quotes-foot" data-reveal>
+      <a href={TRUSTPILOT_URL} target="_blank" rel="noopener">Read verified reviews on Trustpilot →</a>
+    </div>
+  </div>
+</section>

@@ -1,0 +1,10 @@
+---
+// A thin full-bleed "sounding wave" divider between movements.
+// `alt` tints the band to match an adjacent paper-soft section.
+interface Props { alt?: boolean }
+const { alt = false } = Astro.props;
+---
+
+<div class:list={["tw-wave", { "tw-wave--alt": alt }]} aria-hidden="true">
+  <img src="/media/library/svhgpt-08-oscillation-breath-rhythm.webp" alt="" loading="lazy" />
+</div>

@@ -1,0 +1,60 @@
+---
+import { ENROLL_URL, SESSION_URL, PRICE, INSTALLMENTS } from './config';
+
+const includes = [
+  '18+ hours of video across 12 modules, full of guided practices',
+  '12 weeks of weekly live Q&A with Jacob, plus replays',
+  'Lifetime access to the materials',
+  'A supportive student community',
+  'Five of Jacob’s original mantras on joining',
+];
+
+// Price display. Until a flat figure is confirmed (see config), we lead with the
+// honest installments-and-lifetime framing the course has always used — no
+// invented number. When PRICE is set, it becomes the headline figure.
+const amount = PRICE ?? (INSTALLMENTS ? 'Three monthly installments' : 'Lifetime access');
+const terms = PRICE
+  ? (INSTALLMENTS ? 'or three monthly installments · lifetime access' : 'lifetime access')
+  : 'Lifetime access · join anytime';
+---
+
+<section class="tw-reg tw-section" id="register">
+  <div class="tw-reg-bg" aria-hidden="true">
+    <img src="/media/library/svhgpt-09-closing-candle.webp" alt="" loading="lazy" />
+  </div>
+  <div class="tw-reg-inner">
+    <p class="tw-eyebrow tw-eyebrow--center" data-reveal>Begin</p>
+    <h2 class="tw-reg-h2" data-reveal>Begin with your own <em>voice.</em></h2>
+    <p class="tw-reg-sub" data-reveal>Your own time — with live company whenever you want it.</p>
+
+    <div class="tw-reg-card" data-reveal>
+      <p class="tw-reg-card-h">Your 12-Week Somatic Vocal Healing Course includes</p>
+      <ul class="tw-list">
+        {includes.map((item) => (
+          <li>
+            <span class="mark" aria-hidden="true">✓</span>
+            <span>{item}</span>
+          </li>
+        ))}
+      </ul>
+      <div class="tw-reg-price">
+        <span class="amount">{amount}</span>
+        <span class="terms">{terms}</span>
+      </div>
+    </div>
+
+    <div class="tw-reg-actions" data-reveal>
+      <a
+        href={ENROLL_URL}
+        class="tw-btn tw-btn--ember tw-btn--lg"
+        aria-label="Register for the 12-Week Somatic Vocal Healing Course"
+      >
+        Register <i class="ph-light ph-arrow-right"></i>
+      </a>
+    </div>
+
+    <p class="tw-reg-fine" data-reveal>
+      Not sure yet? <a href={SESSION_URL} class="tw-ghost tw-ghost--ondark">Sit in on a live Vocal Healing Session for 9€ first →</a>
+    </p>
+  </div>
+</section>

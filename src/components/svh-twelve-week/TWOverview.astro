@@ -1,0 +1,52 @@
+---
+const able = [
+  'Find and sound a stuck feeling, instead of managing it or waiting it out.',
+  'Work <em>with</em> your nervous system, not against it.',
+  'Hear what your voice is telling you — fear, anger, grief, purpose, even older echoes.',
+  'Hold a safe, grounded space for sounding: first for yourself, eventually for others.',
+  'Keep practising on your own, for life.',
+];
+
+const included = [
+  '<strong>18+ hours of video</strong> across <strong>12 modules</strong>, full of guided practices. Chaptered, so it’s easy to find your way.',
+  '<strong>12 weeks of weekly live Q&amp;A</strong> with Jacob, one hour each, on a rotating schedule for every timezone — with replays.',
+  '<strong>Lifetime access</strong> to the course materials. Return whenever you like.',
+  'A <strong>supportive student community</strong> to practise and share with.',
+  'On joining: <strong>five of Jacob’s original mantras</strong> for joy and vocal empowerment.',
+];
+---
+
+<section class="tw-over tw-section">
+  <div class="tw-wrap">
+    <div class="tw-over-head" data-reveal>
+      <p class="tw-eyebrow tw-eyebrow--center">What you get</p>
+      <h2 class="tw-h2">What you’ll be able to do — and what’s <em>included.</em></h2>
+    </div>
+
+    <div class="tw-over-grid">
+      <div class="tw-over-col" data-reveal>
+        <h3 class="tw-over-col-h">What you’ll be able to do</h3>
+        <ul class="tw-list">
+          {able.map((item) => (
+            <li>
+              <span class="mark" aria-hidden="true">✓</span>
+              <span set:html={item} />
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <div class="tw-over-col" data-reveal>
+        <h3 class="tw-over-col-h">What’s included</h3>
+        <ul class="tw-list">
+          {included.map((item) => (
+            <li>
+              <span class="mark" aria-hidden="true">✓</span>
+              <span set:html={item} />
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
