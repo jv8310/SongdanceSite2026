@@ -171,7 +171,7 @@
 .ds-encounter-figures figure { margin: 0; border-radius: var(--r-lg); overflow: hidden; box-shadow: var(--shadow-3); }
 .ds-encounter-figures img { width: 100%; height: 100%; object-fit: cover; display: block; aspect-ratio: 3 / 4; }
 .ds-encounter-figures figure:first-child { grid-row: span 2; aspect-ratio: auto; }
-.ds-encounter-figures figure:first-child img { aspect-ratio: 3 / 5; }
+.ds-encounter-figures figure:first-child img { aspect-ratio: 3 / 5; object-position: 35% center; }
 @media (max-width: 880px) {
   .ds-encounter-grid { grid-template-columns: 1fr; }
   .ds-encounter-figures figure:first-child img { aspect-ratio: 4 / 3; }
@@ -315,6 +315,9 @@
 
 .ds-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .ds-field { display: flex; flex-direction: column; gap: 6px; }
+/* Without this, the display:flex above beats the UA [hidden] rule and the
+   VAT field (.ds-field--biz) stays visible even when its hidden attr is set. */
+.ds-field[hidden] { display: none; }
 .ds-field--full { grid-column: 1 / -1; }
 .ds-field > span { font-size: var(--t-body-sm); font-weight: 500; color: var(--ds-ink-soft); }
 .ds-optional { font-style: italic; font-weight: 400; color: var(--ds-ink-quiet); }
@@ -324,7 +327,7 @@
   transition: border-color var(--d-quick) var(--ease), box-shadow var(--d-quick) var(--ease);
 }
 .ds-field input:focus, .ds-field select:focus, .ds-field textarea:focus { outline: none; border-color: var(--ds-teal); box-shadow: var(--shadow-glow); }
-.ds-phone { display: grid; grid-template-columns: minmax(0, 150px) 1fr; gap: 10px; }
+.ds-phone { display: grid; grid-template-columns: minmax(0, 112px) 1fr; gap: 10px; }
 .ds-phone select { min-width: 0; }
 .ds-consents { margin-top: 22px; }
 .ds-consent { display: flex; gap: 12px; align-items: flex-start; font-size: var(--t-body-sm); color: var(--ds-ink-soft); line-height: var(--lh-body); }

@@ -442,6 +442,8 @@
   grid-template-columns: 1fr 1fr;
 }
 .gr-field { display: flex; flex-direction: column; gap: var(--sp-2); }
+/* display:flex would otherwise defeat the [hidden] attr on the VAT field. */
+.gr-field[hidden] { display: none; }
 .gr-field--full { grid-column: 1 / -1; }
 .gr-field > span {
   font-size: var(--t-body-sm);

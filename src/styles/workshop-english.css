@@ -943,6 +943,8 @@ html, body { background: var(--paper); }
 .we-form { opacity: 0; transform: translateY(10px); transition: opacity 0.4s var(--ease), transform 0.4s var(--ease); }
 .we-form.is-revealed { opacity: 1; transform: none; }
 .we-field { display: flex; flex-direction: column; gap: 6px; }
+/* display:flex would otherwise defeat the [hidden] attr on the VAT field. */
+.we-field[hidden] { display: none; }
 .we-field > span { font-family: var(--font-body); font-size: 14px; color: var(--ink-soft); }
 .we-field em { color: var(--ink-whisper); font-style: italic; }
 .we-field input, .we-field select {
