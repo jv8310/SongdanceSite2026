@@ -1,0 +1,36 @@
+---
+// Real photographs from the retreats — a grounding counterpoint to the
+// painterly artwork elsewhere on the page. Actual people, actual sound.
+const moments = [
+  {
+    src: '/media/library/svh-retreat-sounding-shawl.webp',
+    alt: 'A woman in a patterned shawl, hand on her heart, sounding in golden evening light.',
+  },
+  {
+    src: '/media/library/svh-retreat-circle-sunset-group-jacob-central.webp',
+    alt: 'A small group standing in a field at sunset, sounding together over the hills.',
+  },
+  {
+    src: '/media/library/svh-retreat-walk-embrace-sunset.webp',
+    alt: 'Participants walking arm in arm into the sunset after a session.',
+  },
+];
+---
+
+<section class="tw-moments tw-section">
+  <div class="tw-wrap">
+    <div class="tw-moments-head" data-reveal>
+      <p class="tw-eyebrow tw-eyebrow--center">From the circle</p>
+      <p class="tw-kicker" style="margin-top: var(--sp-4);">
+        Not a concept — a practice people actually do, together.
+      </p>
+    </div>
+    <div class="tw-moments-grid">
+      {moments.map((m) => (
+        <figure class="tw-moment" data-reveal>
+          <img src={m.src} alt={m.alt} loading="lazy" />
+        </figure>
+      ))}
+    </div>
+  </div>
+</section>
