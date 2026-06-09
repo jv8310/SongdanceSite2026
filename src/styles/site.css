@@ -438,17 +438,17 @@ html, body { background: var(--paper); }
 .sd-gallery-item:hover img { transform: scale(1.04); }
 
 /* Three bands, each summing to 12 columns so the mosaic tiles with no gaps:
-   a+b+c (5+4+3), d+e+f (4+3+5), g+h (7+5). Tile shapes are matched to the
-   images: tall tiles (c, e) hold full-height portraits, squares (a, f, h) hold
-   head-and-shoulders, the wide tile (g) holds the atmospheric frame. */
+   a+b+c (5+4+3), d+e+f (4+3+5), g+h (6+6, taller). Every tile is portrait or
+   square (all the photos are 2:3), so faces are never landscape-cropped; the
+   tall tiles (c, e) keep full height, the last band runs larger to close. */
 .sd-gallery-item.g-a { grid-column: span 5; grid-row: span 5; }
 .sd-gallery-item.g-b { grid-column: span 4; grid-row: span 5; }
 .sd-gallery-item.g-c { grid-column: span 3; grid-row: span 5; }
 .sd-gallery-item.g-d { grid-column: span 4; grid-row: span 5; }
 .sd-gallery-item.g-e { grid-column: span 3; grid-row: span 5; }
 .sd-gallery-item.g-f { grid-column: span 5; grid-row: span 5; }
-.sd-gallery-item.g-g { grid-column: span 7; grid-row: span 5; }
-.sd-gallery-item.g-h { grid-column: span 5; grid-row: span 5; }
+.sd-gallery-item.g-g { grid-column: span 6; grid-row: span 7; }
+.sd-gallery-item.g-h { grid-column: span 6; grid-row: span 7; }
 
 @media (max-width: 800px) {
   .sd-gallery-head { grid-template-columns: 1fr; gap: var(--sp-3); }
