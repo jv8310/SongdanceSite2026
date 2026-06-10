@@ -82,3 +82,14 @@ images[] }` where each image has `key`, `size`, `uploaded`, `contentType`,
 
 The CLI defaults to `https://site.songdance.co`; override with
 `SONGDANCE_BASE_URL` or `--base` (e.g. a `*.workers.dev` preview URL).
+
+## Preview link — always share one after pushing
+
+Every push to a non-`main` branch triggers the **Preview** workflow
+(`.github/workflows/preview.yml`): it uploads a Cloudflare preview version of
+the worker and prints its `*.workers.dev` URL in the run log / job summary.
+After pushing work, **always** fetch that URL (wait for the run to finish,
+pull it from the "Upload preview version" step log) and include the clickable
+preview link in your reply — Jacob expects one with every change. The preview
+shares production bindings (D1, R2), so it shows real data without touching
+the live deployment.

@@ -1,0 +1,59 @@
+---
+const demoUrl = 'https://songdeck.songdance.co/demo';
+const videoId = 'q55tWKLF8tY';
+const videoThumb = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+---
+
+<section class="sk-section" id="listen">
+  <div class="sk-wrap">
+    <div class="sk-listen-grid">
+      <div class="sk-listen-card">
+        <p class="sk-eyebrow">Listen first</p>
+        <h2 class="sk-h2">Taste <em>the music</em>.</h2>
+        <div class="sk-prose" style="margin-top:18px">
+          <p>
+            The songs normally live behind the cards — you scan, the app plays. But nobody should
+            order a box of music they've never heard. So a few of the songs sit on an open demo
+            page. Go listen. The box can wait.
+          </p>
+        </div>
+        <div class="sk-listen-cta-row">
+          <a
+            href={demoUrl}
+            target="_blank"
+            rel="noopener"
+            class="sk-btn sk-btn--primary"
+          >
+            Open the demo page <i class="ph-light ph-arrow-up-right"></i>
+          </a>
+        </div>
+      </div>
+
+      <div class="sk-video" data-video-id={videoId}>
+        <button class="sk-video-poster" type="button" aria-label="Play: Unboxing the first Songdecks">
+          <img src={videoThumb} alt="" loading="lazy" />
+          <span class="sk-video-play" aria-hidden="true"><i class="ph-light ph-play"></i></span>
+          <span class="sk-video-label">Unboxing the first Songdecks</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  // Lite video embed: only load the YouTube iframe when someone asks for it.
+  document.querySelectorAll<HTMLElement>('.sk-video').forEach((box) => {
+    const poster = box.querySelector('.sk-video-poster');
+    poster?.addEventListener('click', () => {
+      const id = box.dataset.videoId;
+      if (!id) return;
+      const iframe = document.createElement('iframe');
+      iframe.src = `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&rel=0`;
+      iframe.title = 'Unboxing the first Songdecks | Songdance';
+      iframe.allow =
+        'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
+      iframe.allowFullscreen = true;
+      box.replaceChildren(iframe);
+    });
+  });
+</script>
