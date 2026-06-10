@@ -379,7 +379,9 @@ async function runPostWorkshop(env: CronEnv, now: number, result: CronResult) {
       const discountEndsLocal = formatInTz(new Date(discountEndsMs).toISOString(), tz);
       const unsubscribeUrl = secret ? await unsubscribePageUrl(base, secret, reg.email) : undefined;
       const lc = { name: reg.name, workshopTitle: w.title, unsubscribeUrl };
-      const courseUrl = `${base}/courses/12-week`;
+      // The course page reads ?email= and reveals that person's price (and
+      // any live discount) immediately — no typing on arrival.
+      const courseUrl = `${base}/courses/12-week?email=${encodeURIComponent(reg.email)}#register`;
       const certUrl = `${base}/certification-course`;
       const hubUrl = successUrl(base, reg.id);
 
@@ -417,8 +419,8 @@ async function runPostWorkshop(env: CronEnv, now: number, result: CronResult) {
               step.type === 'post_attended'
                 ? attendedEmail1({ ...lc, courseUrl, discountEndsLocal, alreadyBoughtCourse: bought })
                 : step.type === 'post_attended_2'
-                  ? attendedEmail2({ ...lc, courseUrl, discountEndsLocal, email: reg.email })
-                  : attendedEmail3({ ...lc, courseUrl, discountEndsLocal, email: reg.email });
+                  ? attendedEmail2({ ...lc, courseUrl, discountEndsLocal })
+                  : attendedEmail3({ ...lc, courseUrl, discountEndsLocal });
           }
           if (!(await claimNotification(env.DB, reg.id, step.type))) continue;
           const sent = await sendMarketing(env, reg.email, content, `workshop-${step.type}-${reg.id}`, secret);
