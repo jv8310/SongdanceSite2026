@@ -1,31 +1,47 @@
 ---
-import SiteLayout from '../../components/SiteLayout.astro';
-import PageHero from '../../components/PageHero.astro';
-import SoftCta from '../../components/SoftCta.astro';
+import '../../styles/songdeck.css';
+import Layout from '../../layouts/Layout.astro';
+import SKNav from '../../components/songdeck/SKNav.astro';
+import SKHero from '../../components/songdeck/SKHero.astro';
+import SKWhat from '../../components/songdeck/SKWhat.astro';
+import SKDoor from '../../components/songdeck/SKDoor.astro';
+import SKHow from '../../components/songdeck/SKHow.astro';
+import SKListen from '../../components/songdeck/SKListen.astro';
+import SKOrder from '../../components/songdeck/SKOrder.astro';
+import SKFooter from '../../components/songdeck/SKFooter.astro';
+
+const productLd = JSON.stringify({
+  '@context': 'https://schema.org',
+  '@type': 'Product',
+  name: 'Songdeck — Authentic Singing',
+  description:
+    'A deck of 36 illustrated cards, each with a written message and its own song, mantra, or soundscape. Scan the QR code on a card with the free Songdeck app and the music plays.',
+  image: 'https://songdeck.shop/cdn/shop/files/Open_Box_Mockup.jpg?v=1728399000&width=1070',
+  brand: { '@type': 'Brand', name: 'Songdance' },
+  offers: {
+    '@type': 'Offer',
+    url: 'https://songdeck.shop/products/songdeck-authentic-singing-36-song-cards-with-accompanying-app',
+    priceCurrency: 'EUR',
+    price: '44.00',
+  },
+});
 ---
 
-<SiteLayout
-  title="Songdeck — Songdance"
-  description="The songs and mantras from the work, without guidance or words — just the music, to sound or sit with on your own."
+<Layout
+  title="Songdeck — the music box, reimagined | Songdance"
+  description="36 illustrated cards, each with its own song, mantra, or soundscape. Draw a card, scan it with the free app, and the music plays. From Songdance."
+  image="https://songdeck.shop/cdn/shop/files/Open_Box_Mockup.jpg?v=1728399000&width=1070"
+  ogType="product"
 >
-  <PageHero
-    eyebrow="Music"
-    title="Songdeck"
-    lede="The music and the mantras, nothing in the way."
-  >
-    <div class="sd-pagehero-actions">
-      <a href="/contact" class="sd-btn sd-btn-primary">Get access</a>
-    </div>
-  </PageHero>
-
-  <section class="sd-section sd-prose">
-    <div class="sd-prose-inner">
-      <p>
-        The songs and mantras from the work, without guidance or words — just the music, to sound
-        or sit with on your own. Where Authentic Singing guides you, Songdeck simply plays.
-      </p>
-    </div>
-  </section>
-
-  <SoftCta />
-</SiteLayout>
+  <div class="sk-site">
+    <SKNav />
+    <SKHero />
+    <SKWhat />
+    <SKDoor />
+    <SKHow />
+    <SKListen />
+    <SKOrder />
+    <SKFooter />
+  </div>
+  <script type="application/ld+json" set:html={productLd} />
+</Layout>

@@ -1,0 +1,76 @@
+---
+// The four masterclass beats: feel the method first, the of-not-for
+// mechanics, the space-holder stance, and the honest fit with existing work.
+const items = [
+  {
+    title: 'The practice, in your own body',
+    body: 'A guided sounding practice — the sound of the moment, and the question under the whole method: what is below that? You feel what acknowledgment does before we talk about how it works, because your own body is the only place this work can be understood from.',
+  },
+  {
+    title: 'Why it works: of, not for',
+    body: 'The distinction the practice stands on: we make the sound of something, never for it. The healing is in the acknowledgment — being present with what’s there — which is why nobody, including you, can do it for the person in front of you.',
+  },
+  {
+    title: 'The space-holder stance',
+    body: 'What you actually do while someone sounds: hold the room steady, ask the next honest question, and get out of the way. Present without fixing, taking on, or steering — and when they discover a connection, you leave that gift to them.',
+  },
+  {
+    title: 'Where it fits in your work — and where it doesn’t',
+    body: 'How sound sits underneath one-to-one sessions, groups, and rooms that have gone tense. A first ear for what a tone carries — fear is a short wave, grief a longer one. And the honest part: this is not therapy, and it doesn’t replace yours.',
+  },
+];
+---
+
+<section class="we-what" id="inside">
+  <div class="we-what-inner">
+    <div class="we-what-head">
+      <div class="we-eyebrow">Inside the 90 minutes</div>
+      <h2 class="we-h2">
+        First you feel it.<br />
+        <em>Then we talk shop.</em>
+      </h2>
+    </div>
+
+    <div class="we-what-intro">
+      <p>
+        Somatic Vocal Healing is sounding, not singing: one honest tone, of
+        what's actually there — a feeling, a body part, a moment. No melody, no
+        performance, no talent required, for you or for the people you work
+        with. It's a coherent, teachable method — somatic, trauma-informed —
+        and the masterclass is a structured look at how it holds together.
+      </p>
+      <p>
+        We start in your own body, because that's where the method starts.
+        Then we put on practitioner's ears: what your role in the room becomes
+        when the participant is the one doing the healing.
+      </p>
+    </div>
+
+    <div class="we-what-sub">What the 90 minutes hold</div>
+    <div class="we-what-grid">
+      {
+        items.map((it, i) => (
+          <article class="we-what-card">
+            <div class="we-what-num">{String(i + 1).padStart(2, '0')}</div>
+            <h3 class="we-what-card-title">{it.title}</h3>
+            <p class="we-what-card-body">{it.body}</p>
+          </article>
+        ))
+      }
+    </div>
+
+    <p class="we-what-coffee">
+      You don't need a good voice, and neither do your clients.
+      Sounding asks for an <em>honest</em> tone, not a beautiful one.
+    </p>
+    <p class="we-what-coffee-foot">
+      90 minutes · live, with replay · <em>€29</em>
+    </p>
+
+    <div class="we-what-cta-wrap">
+      <a href="#register" class="we-link-cta">
+        Reserve your seat <i class="ph-light ph-arrow-right"></i>
+      </a>
+    </div>
+  </div>
+</section>

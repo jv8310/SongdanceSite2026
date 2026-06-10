@@ -43,6 +43,16 @@ export function icsUrl(baseUrl: string, registrationId: number): string {
   return `${baseUrl.replace(/\/$/, '')}/api/workshops/ics?rid=${registrationId}`;
 }
 
+// The page's audience doors → readable lens names, used for Drip segmentation.
+const AUDIENCE_LENSES: Record<string, string> = { '1': 'healing', '2': 'freedom', '3': 'pro' };
+
+function audienceLenses(reg: WorkshopRegistration): string[] {
+  return (reg.audience ?? '')
+    .split(',')
+    .map((d) => AUDIENCE_LENSES[d.trim()])
+    .filter(Boolean);
+}
+
 async function tagInDrip(env: Env, reg: WorkshopRegistration, workshop: Workshop) {
   if (!env.DRIP_API_TOKEN || !env.DRIP_ACCOUNT_ID) return;
   const tags: string[] = [];
@@ -52,6 +62,11 @@ async function tagInDrip(env: Env, reg: WorkshopRegistration, workshop: Workshop
     const bump = await getProductById(env.DB, workshop.bump_product_id);
     if (bump) tags.push(bump.drip_tag || `prod_${bump.slug}`);
   }
+  // Audience doors chosen on the workshop page → one tag per lens
+  // (svh_audience_pro, …) plus an `audience` custom field. Null audience
+  // sends nothing, so a lens learned earlier is never erased.
+  const lenses = audienceLenses(reg);
+  for (const lens of lenses) tags.push(`svh_audience_${lens}`);
   const [firstName, ...rest] = (reg.name ?? '').trim().split(' ');
   await upsertSubscriber(
     { apiToken: env.DRIP_API_TOKEN, accountId: env.DRIP_ACCOUNT_ID },
@@ -67,6 +82,7 @@ async function tagInDrip(env: Env, reg: WorkshopRegistration, workshop: Workshop
         workshop_slug: workshop.slug,
         workshop_date: workshop.starts_at_utc,
         bump: reg.wants_bump ? 'yes' : 'no',
+        audience: lenses.length ? lenses.join(',') : null,
       },
     },
   );
