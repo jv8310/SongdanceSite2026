@@ -37,7 +37,7 @@ const chapters = [
     ],
     contrast: {
       a: { k: 'Singing', items: ['Reaches outward', 'Wants to sound good', 'A shape to get right'] },
-      b: { k: 'Sounding', items: ['Turns inward', 'Wants to be true', 'Whatever is actually here'] },
+      b: { k: 'Sounding', items: ['Turns inward', 'Brings you truth', 'Whatever is actually here'] },
     },
   },
   {
@@ -63,7 +63,7 @@ const chapters = [
     ih: 1402,
     flip: true,
     p: [
-      'We tend to treat the body as something that fails us — the tension, the ache, the symptom that won’t quit.',
+      'We tend to treat the body as something that can fail us — the tension, the ache, the symptom that won’t quit.',
       'Somatic Vocal Healing starts from the opposite assumption. Your body has been cooperating the whole time, doing exactly what it believed it needed to do to protect you. The voice is simply the most direct way to hear what it’s been trying to say.',
     ],
   },
@@ -78,7 +78,7 @@ const chapters = [
     flip: true,
     p: [
       'No one can heal you — not a teacher, not a method, not a sound. Healing happens when the parts of you that split off come back together.',
-      'A guide can hold the space for that. The rest is yours. Everything we teach is aimed at one thing: you, eventually needing none of us.',
+      'That doesn’t mean you do it alone — we never stop needing each other. But what we give each other isn’t the healing; it’s the space where healing becomes possible. A guide holds that space. What rises in it is yours.',
     ],
   },
 ];
@@ -140,18 +140,20 @@ const faqSchema = {
     />
     <div class="wsv-hero-scrim"></div>
     <div class="wsv-hero-inner">
-      <div class="wsv-eyebrow wsv-eyebrow--light">Somatic Vocal Healing</div>
-      <h1 class="wsv-hero-title">
-        What is <span class="wsv-italic">Somatic Vocal&nbsp;Healing?</span>
-      </h1>
-      <p class="wsv-hero-lede">A practice of meeting what you feel — and giving it sound.</p>
-      <p class="wsv-hero-def">
-        Not singing. Not performance. The honest sound of what’s here,
-        made out loud until it’s been heard.
-      </p>
-      <div class="wsv-hero-actions">
-        <a href="/workshop" class="wsv-btn wsv-btn--primary">Sit in on a live workshop — 9€</a>
-        <a href="#practice" class="wsv-btn wsv-btn--ghost">See the practice ↓</a>
+      <div class="wsv-hero-copy">
+        <div class="wsv-eyebrow wsv-eyebrow--light">Somatic Vocal Healing</div>
+        <h1 class="wsv-hero-title">
+          What is <span class="wsv-italic">Somatic Vocal&nbsp;Healing?</span>
+        </h1>
+        <p class="wsv-hero-lede">A practice of meeting what you feel — and giving it sound.</p>
+        <p class="wsv-hero-def">
+          Not singing. Not performance. The honest sound of what’s here,
+          made out loud until it’s been heard.
+        </p>
+        <div class="wsv-hero-actions">
+          <a href="/workshop" class="wsv-btn wsv-btn--primary">Sit in on a live workshop — 9€</a>
+          <a href="#practice" class="wsv-btn wsv-btn--ghost">See the practice ↓</a>
+        </div>
       </div>
     </div>
   </header>
@@ -162,13 +164,14 @@ const faqSchema = {
       <div class="wsv-eyebrow">The shift</div>
       <p class="wsv-lyric">
         Most sound work asks <em>how should this sound?</em><br />
-        This one asks <em>what does this feel like —<br />and what is the sound of that?</em>
+        Somatic Vocal Healing asks<br />
+        <em>what do you feel — and what is the sound of that?</em>
       </p>
       <p class="wsv-open-body">
-        Most of us have spent a lifetime answering the first question — in school,
-        in choirs, in every room where the voice had to behave. Somatic Vocal
-        Healing asks the second. It treats the voice as the body’s most direct
-        language — and gives that language somewhere to go.
+        That’s the whole shift. The voice stops being something to manage —
+        pleasant, in tune, never too much — and becomes what it has always been
+        underneath: the body’s most direct language. The practice gives that
+        language somewhere to go.
       </p>
     </div>
   </section>
@@ -228,11 +231,10 @@ const faqSchema = {
     <div class="wsv-wave-inner wsv-reveal">
       <div class="wsv-eyebrow">In and out at once</div>
       <p class="wsv-wave-text">
-        Most sound work moves in one direction. Mantra and chanting send you
-        outward and upward, toward calm — real, and lovely. Somatic Vocal Healing
-        moves both ways at once: outward into expression, inward into what’s
-        actually here. You sound what’s true, and in sounding it, you finally
-        hear it yourself.
+        Sounding moves in two directions at once: outward into expression, so
+        what you’ve been carrying finally leaves the body — and inward into
+        listening, because the one who most needs to hear that sound is you.
+        You sound what’s true, and at last you hear it yourself.
       </p>
     </div>
   </section>
@@ -266,15 +268,18 @@ const faqSchema = {
 
   <!-- The honest part: emotional turn, dark panel ----------------------- -->
   <section class="wsv-honest">
-    <img
-      class="wsv-honest-img"
-      src="/media/library/svhgpt-07-below-deeper-earlier.webp"
-      alt="A seated figure on the surface, roots descending to a glowing ember deep underground."
-      width="941"
-      height="1672"
-      loading="lazy"
-      decoding="async"
-    />
+    <div class="wsv-honest-media">
+      <img
+        class="wsv-honest-img"
+        src="/media/library/svhgpt-07-below-deeper-earlier.webp"
+        alt="A seated figure on the surface, roots descending to a glowing ember deep underground."
+        width="941"
+        height="1672"
+        loading="lazy"
+        decoding="async"
+        data-parallax="0.1"
+      />
+    </div>
     <div class="wsv-honest-text wsv-reveal">
       <div class="wsv-eyebrow wsv-eyebrow--light">The honest part</div>
       <h2 class="wsv-honest-h">It doesn’t always feel better right away</h2>
@@ -407,15 +412,16 @@ const faqSchema = {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    object-position: 65% 28%;
+    /* keep her face in frame when narrow viewports crop horizontally */
+    object-position: 40% 28%;
     filter: saturate(0.92) contrast(1.02);
   }
   .wsv-hero-scrim {
     position: absolute;
     inset: 0;
     background:
-      linear-gradient(to top, rgba(15, 8, 14, 0.92) 0%, rgba(15, 8, 14, 0.55) 38%, rgba(15, 8, 14, 0.12) 70%, rgba(15, 8, 14, 0.34) 100%),
-      radial-gradient(120% 90% at 20% 100%, rgba(26, 16, 24, 0.7), transparent 60%);
+      linear-gradient(to top, rgba(15, 8, 14, 0.9) 0%, rgba(15, 8, 14, 0.5) 36%, rgba(15, 8, 14, 0.1) 68%, rgba(15, 8, 14, 0.32) 100%),
+      radial-gradient(120% 95% at 78% 96%, rgba(26, 16, 24, 0.72), transparent 62%);
   }
   .wsv-hero-inner {
     position: relative;
@@ -424,10 +430,14 @@ const faqSchema = {
     width: 100%;
     margin: 0 auto;
     padding: var(--sp-9) var(--sp-7) var(--sp-8);
+    /* copy lives in the open parchment to the right of her, not on her face */
+    display: flex;
+    justify-content: flex-end;
   }
+  .wsv-hero-copy { max-width: 620px; }
   .wsv-hero-title {
     font-family: var(--font-display);
-    font-size: clamp(44px, 6.6vw, 92px);
+    font-size: clamp(42px, 5.6vw, 80px);
     line-height: 1.02;
     letter-spacing: -0.02em;
     font-weight: 400;
@@ -669,6 +679,10 @@ const faqSchema = {
     background: var(--plum);
     color: var(--paper-soft);
   }
+  .wsv-honest-media {
+    position: relative;
+    overflow: hidden; /* clips the over-scaled parallax image */
+  }
   .wsv-honest-img {
     width: 100%;
     height: 100%;
@@ -700,7 +714,7 @@ const faqSchema = {
     margin: 0 0 var(--sp-4);
   }
   .wsv-honest-text p:last-child { margin-bottom: 0; }
-  .wsv-honest-text .wsv-italic { color: var(--ember-soft); }
+  .wsv-honest-text .wsv-italic { color: var(--ember-soft); font-size: 1.35em; line-height: 1; }
 
   /* ---------- Questions ---------- */
   .wsv-faq {
@@ -815,7 +829,7 @@ const faqSchema = {
     .wsv-chapter-fig { aspect-ratio: 16 / 10; }
     .wsv-chapter-text { max-width: none; }
     .wsv-honest { grid-template-columns: 1fr; }
-    .wsv-honest-img { aspect-ratio: 16 / 10; height: auto; }
+    .wsv-honest-media { aspect-ratio: 16 / 10; }
   }
   @media (max-width: 720px) {
     .wsv-hero-inner,
@@ -864,5 +878,36 @@ const faqSchema = {
       { rootMargin: '0px 0px -8% 0px', threshold: 0.12 }
     );
     document.querySelectorAll('.wsv-reveal').forEach((el) => io.observe(el));
+
+    // Slow parallax drift for [data-parallax] media (the plum panel). The
+    // image is over-scaled and the drift clamped so its container's edges
+    // never show. Skipped entirely under prefers-reduced-motion (early
+    // return above).
+    const SCALE = 1.16;
+    const drifters = Array.from(document.querySelectorAll('[data-parallax]'));
+    if (!drifters.length) return;
+    for (const el of drifters) el.style.willChange = 'transform';
+    let ticking = false;
+    const drift = () => {
+      ticking = false;
+      const vh = window.innerHeight;
+      for (const el of drifters) {
+        const r = el.getBoundingClientRect();
+        if (r.bottom < 0 || r.top > vh) continue;
+        const speed = parseFloat(el.dataset.parallax) || 0.1;
+        const max = ((SCALE - 1) / 2) * r.height;
+        const y = Math.max(-max, Math.min(max, (vh / 2 - (r.top + r.height / 2)) * speed));
+        el.style.transform = `translate3d(0, ${y.toFixed(1)}px, 0) scale(${SCALE})`;
+      }
+    };
+    const onScroll = () => {
+      if (!ticking) {
+        ticking = true;
+        requestAnimationFrame(drift);
+      }
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll, { passive: true });
+    drift();
   })();
 </script>
