@@ -1,9 +1,10 @@
 ---
-// Masterclass registration: the masterclass dates lead, and the upcoming
-// workshop dates (incl. the instant-access replay) are offered underneath as
-// the alternative — "in case the masterclass doesn't fit your schedule".
+// Masterclass registration: the live masterclass dates lead. Underneath —
+// "in case the masterclass doesn't fit your schedule" — the instant-access
+// masterclass replay and the live workshop dates. Workshop replays (and the
+// order bump — it doesn't fit this audience) are deliberately absent here.
 // Same flow as the workshop page's WERegister: pick a date → name / email /
-// (timezone) / order-bump → POST /api/workshops/register → Stripe Checkout.
+// (timezone) → POST /api/workshops/register → Stripe Checkout.
 //
 // Prices are fixed per currency (no FX). The country selector switches the
 // currency; each date carries its full price map so the swap is instant. The
@@ -18,8 +19,23 @@ interface Props {
 }
 const { items, country, detectedTz, tzOptions } = Astro.props;
 
-const masterclasses = items.filter((it) => it.kind === 'masterclass');
-const workshops = items.filter((it) => it.kind === 'workshop');
+const masterclasses = items.filter((it) => it.kind === 'masterclass' && !it.isReplay);
+// The schedule-friendly alternatives: instant access to the masterclass
+// replay first, then the live workshop dates.
+const alternatives = [
+  ...items.filter((it) => it.kind === 'masterclass' && it.isReplay),
+  ...items.filter((it) => it.kind === 'workshop' && !it.isReplay),
+];
+const visible = [...masterclasses, ...alternatives];
+
+const hasMcReplay = alternatives.some((it) => it.kind === 'masterclass');
+const hasWsLive = alternatives.some((it) => it.kind === 'workshop');
+const altSub =
+  hasMcReplay && hasWsLive
+    ? 'Choose instant access to the masterclass replay — watch it anytime, starting today — or get to know this work in general first, at a live one-hour workshop.'
+    : hasMcReplay
+      ? 'Choose instant access to the masterclass replay — watch it anytime, starting today.'
+      : 'Get to know this work in general first, at a live one-hour workshop — the gentlest introduction to Somatic Vocal Healing.';
 
 // Country list driving the currency switch. EU members fall through to EUR;
 // only the markets we hold dedicated price points for get their own currency.
@@ -61,7 +77,7 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
     <p class="we-register-note">Live · Online · 90 min · Replay included</p>
 
     <div class="we-booking">
-      {items.length === 0 && (
+      {visible.length === 0 && (
         <p class="we-cal-empty">
           No dates are open just now. Email
           <a href="mailto:info@songdance.co"> info@songdance.co</a> and we'll
@@ -69,9 +85,9 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
         </p>
       )}
 
-      {items.length > 0 && (
+      {visible.length > 0 && (
         <div class="we-booking-head">
-          <p class="we-booking-label">{masterclasses.length > 0 ? 'Choose a masterclass date' : 'Choose a date'}</p>
+          <p class="we-booking-label">{masterclasses.length > 0 ? 'Choose a masterclass date' : 'Choose an option'}</p>
           <label class="we-country">
             <span>Showing prices for</span>
             <select id="mc-country-select" aria-label="Country for pricing">
@@ -85,12 +101,12 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
         </div>
       )}
 
-      {items.length > 0 && masterclasses.length === 0 && (
+      {visible.length > 0 && masterclasses.length === 0 && (
         <p class="mc-cal-none">
-          No masterclass dates are open right now. Email
+          No live masterclass dates are open right now. Email
           <a href="mailto:info@songdance.co"> info@songdance.co</a> and we'll
-          tell you the moment the next one is scheduled — or begin with a
-          workshop below.
+          tell you the moment the next one is scheduled — or choose an option
+          below.
         </p>
       )}
 
@@ -107,19 +123,13 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
                 data-price-minor={String(it.priceMinor)}
                 data-currency={it.currency}
                 data-prices={JSON.stringify(it.pricesByCurrency)}
-                data-has-bump={it.hasBump ? '1' : '0'}
-                data-bump-name={it.bumpName}
-                data-bump-minor={String(it.bumpMinor)}
-                data-bump-prices={JSON.stringify(it.bumpPricesByCurrency)}
-                data-bump-compare-prices={JSON.stringify(it.bumpComparePricesByCurrency)}
-                data-is-replay={it.isReplay ? '1' : '0'}
+                data-is-replay="0"
               />
               <span class="we-cal-radio" aria-hidden="true"></span>
               <span class="we-cal-main">
                 <span class="we-cal-kind">Masterclass</span>
                 <span class="we-cal-when">
-                  {it.isReplay ? 'Instant access — watch anytime' : it.whenLocal}
-                  {!it.isReplay && <span class="we-cal-tz"> · your time</span>}
+                  {it.whenLocal}<span class="we-cal-tz"> · your time</span>
                 </span>
                 <span class="we-cal-meta">
                   {`${it.durationMin} min`}
@@ -132,17 +142,13 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
         </div>
       )}
 
-      {workshops.length > 0 && (
+      {alternatives.length > 0 && (
         <div class="mc-alt">
           <p class="mc-alt-head">In case the masterclass doesn't fit your schedule</p>
-          <p class="mc-alt-sub">
-            Get to know the work itself first: choose instant access to the
-            one-hour workshop, or pick a live workshop date — the gentlest
-            general introduction to Somatic Vocal Healing.
-          </p>
-          <div class="we-cal" role="radiogroup" aria-label="Workshop alternatives">
-            {workshops.map((it) => (
-              <label class="we-cal-item">
+          <p class="mc-alt-sub">{altSub}</p>
+          <div class="we-cal" role="radiogroup" aria-label="Masterclass replay and workshop alternatives">
+            {alternatives.map((it) => (
+              <label class={`we-cal-item${it.kind === 'masterclass' ? ' mc-cal-item--masterclass' : ''}`}>
                 <input
                   type="radio"
                   name="mc-date"
@@ -152,21 +158,20 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
                   data-price-minor={String(it.priceMinor)}
                   data-currency={it.currency}
                   data-prices={JSON.stringify(it.pricesByCurrency)}
-                  data-has-bump={it.hasBump ? '1' : '0'}
-                  data-bump-name={it.bumpName}
-                  data-bump-minor={String(it.bumpMinor)}
-                  data-bump-prices={JSON.stringify(it.bumpPricesByCurrency)}
-                  data-bump-compare-prices={JSON.stringify(it.bumpComparePricesByCurrency)}
                   data-is-replay={it.isReplay ? '1' : '0'}
                 />
                 <span class="we-cal-radio" aria-hidden="true"></span>
                 <span class="we-cal-main">
-                  <span class="we-cal-kind">Workshop</span>
+                  <span class="we-cal-kind">{it.kind === 'masterclass' ? 'Masterclass' : 'Workshop'}</span>
                   <span class="we-cal-when">
                     {it.isReplay ? 'Instant access — watch anytime' : it.whenLocal}
                     {!it.isReplay && <span class="we-cal-tz"> · your time</span>}
                   </span>
-                  <span class="we-cal-meta">{`${it.durationMin} min · the general introduction`}</span>
+                  <span class="we-cal-meta">
+                    {it.kind === 'masterclass'
+                      ? `${it.durationMin} min · the replay`
+                      : `${it.durationMin} min · the general introduction`}
+                  </span>
                 </span>
                 <span class="we-cal-price">{it.priceLabel}</span>
               </label>
@@ -175,7 +180,7 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
         </div>
       )}
 
-      {items.length > 0 && (
+      {visible.length > 0 && (
         <form class="we-form" id="mc-form" hidden>
           <input type="hidden" name="workshop_slug" id="mc-slug" value="" />
           <input type="hidden" name="country" id="mc-country" value={selectedCode} />
@@ -211,39 +216,6 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
             </label>
           </div>
 
-          <div class="we-bump" id="mc-bump" hidden>
-            <label class="we-bump-card">
-              <span class="we-bump-badge">One-time offer</span>
-              <span class="we-bump-row">
-                <input type="checkbox" name="bump" id="mc-bump-input" />
-                <span class="we-bump-checkbox" aria-hidden="true"></span>
-                <span class="we-bump-title" id="mc-bump-title">Yes — add the journey</span>
-              </span>
-              <span class="we-bump-media">
-                <img src="/media/library/collage-mantrapakket-klein.webp" alt="" loading="lazy" />
-                <span class="we-bump-info">
-                  <span class="we-bump-points">
-                    <span class="we-bump-point"><strong>40 guided singing journeys</strong></span>
-                    <span class="we-bump-point">Original music &amp; mantras by Jacob</span>
-                    <span class="we-bump-point">Stream anytime — yours to keep</span>
-                  </span>
-                </span>
-              </span>
-              <span class="we-bump-blurb">
-                Through healing melody and guided visualisation, each journey draws
-                you further inside — settling your nervous system and opening new
-                room in yourself. Somewhere to keep practising long after the hour.
-              </span>
-              <span class="we-bump-foot">
-                <span class="we-bump-prices">
-                  <span class="we-bump-was" id="mc-bump-was" hidden></span>
-                  <span class="we-bump-now" id="mc-bump-now"></span>
-                </span>
-                <span class="we-bump-save" id="mc-bump-save" hidden></span>
-              </span>
-            </label>
-          </div>
-
           <div class="we-total">
             <span id="mc-total-label">Masterclass seat</span>
             <strong id="mc-total-amount"></strong>
@@ -267,12 +239,6 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
     var slugField = document.getElementById('mc-slug');
     var countryField = document.getElementById('mc-country');
     var countrySelect = document.getElementById('mc-country-select');
-    var bumpRow = document.getElementById('mc-bump');
-    var bumpInput = document.getElementById('mc-bump-input');
-    var bumpTitle = document.getElementById('mc-bump-title');
-    var bumpWasEl = document.getElementById('mc-bump-was');
-    var bumpNowEl = document.getElementById('mc-bump-now');
-    var bumpSaveEl = document.getElementById('mc-bump-save');
     var tzField = document.getElementById('mc-tz-field');
     var bizField = document.getElementById('mc-biz');
     var vatField = document.getElementById('mc-vat');
@@ -316,7 +282,7 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
 
     var current = null;       // the selected radio's dataset
     var curCurrency = 'EUR';  // active display currency
-    // Both lists (masterclasses + workshop alternatives) share one radio name.
+    // Both lists (masterclass dates + the alternatives) share one radio name.
     var radios = booking.querySelectorAll('input[name="mc-date"]');
 
     // Seed the active currency from the first radio (server-rendered for the
@@ -331,14 +297,10 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
         var minor = priceFor(parse(r.dataset.prices), cur, parseInt(r.dataset.priceMinor, 10) || 0);
         r.dataset.priceMinor = String(minor);
         r.dataset.currency = cur;
-        if (r.dataset.hasBump === '1') {
-          var bMinor = priceFor(parse(r.dataset.bumpPrices), cur, parseInt(r.dataset.bumpMinor, 10) || 0);
-          r.dataset.bumpMinor = String(bMinor);
-        }
         var priceEl = r.closest('.we-cal-item').querySelector('.we-cal-price');
         if (priceEl) priceEl.textContent = money(minor, cur);
       }
-      if (current) { current = booking.querySelector('input[name="mc-date"]:checked').dataset; refreshBump(); recompute(); }
+      if (current) { current = booking.querySelector('input[name="mc-date"]:checked').dataset; recompute(); }
       toggleVat();
     }
 
@@ -349,44 +311,13 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
       });
     }
 
-    function refreshBump() {
-      if (current && current.hasBump === '1') {
-        bumpRow.hidden = false;
-        if (bumpTitle) bumpTitle.textContent = 'Yes — add the ' + current.bumpName;
-        var offer = parseInt(current.bumpMinor, 10) || 0;
-        if (bumpNowEl) bumpNowEl.textContent = money(offer, curCurrency);
-        // Struck "regular price" + saving — shown only when we have an anchor
-        // above the offer for this currency. The charged amount is `offer`.
-        var compare = parse(current.bumpComparePrices)[curCurrency];
-        if (bumpWasEl && bumpSaveEl) {
-          if (compare && compare > offer) {
-            bumpWasEl.textContent = money(compare, curCurrency);
-            bumpWasEl.hidden = false;
-            bumpSaveEl.textContent = 'Save ' + Math.round((1 - offer / compare) * 100) + '%';
-            bumpSaveEl.hidden = false;
-          } else {
-            bumpWasEl.hidden = true;
-            bumpSaveEl.hidden = true;
-          }
-        }
-      } else {
-        bumpRow.hidden = true;
-        bumpInput.checked = false;
-      }
-    }
-
     function recompute() {
       if (!current) return;
       var priceMinor = parseInt(current.priceMinor, 10) || 0;
       var cur = current.currency || curCurrency;
-      var total = priceMinor;
-      var hasBump = current.hasBump === '1';
-      var wantsBump = hasBump && bumpInput.checked;
-      if (wantsBump) total += parseInt(current.bumpMinor, 10) || 0;
-      var base = current.kind === 'masterclass' ? 'Masterclass seat' : 'Workshop ticket';
-      totalLabel.textContent = wantsBump ? base + ' + practice pack' : base;
-      totalAmount.textContent = money(total, cur);
-      submitBtn.textContent = 'Register & pay ' + money(total, cur) + ' →';
+      totalLabel.textContent = current.kind === 'masterclass' ? 'Masterclass seat' : 'Workshop ticket';
+      totalAmount.textContent = money(priceMinor, cur);
+      submitBtn.textContent = 'Register & pay ' + money(priceMinor, cur) + ' →';
     }
 
     function selectItem(input) {
@@ -396,8 +327,6 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
       // Company / VAT only for the masterclass (B2B — practitioners invoicing).
       if (bizField) bizField.hidden = current.kind !== 'masterclass';
       toggleVat();
-      bumpInput.checked = false;
-      refreshBump();
       if (form.hidden) {
         form.hidden = false;
         // next frame so the transition runs
@@ -410,7 +339,6 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
       var t = e.target;
       if (t && t.name === 'mc-date') selectItem(t);
     });
-    if (bumpInput) bumpInput.addEventListener('change', recompute);
 
     form.addEventListener('submit', async function (e) {
       e.preventDefault();
@@ -425,7 +353,7 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
         email: fd.get('email'),
         timezone: current.isReplay === '1' ? '' : (fd.get('timezone') || ''),
         country: fd.get('country') || '',
-        bump: fd.get('bump') === 'on',
+        bump: false,
         company_name: isMasterclass ? (fd.get('company_name') || '') : '',
         vat_number: isMasterclass ? (fd.get('vat_number') || '') : '',
         meta_event_id: fd.get('meta_event_id') || '',
