@@ -3,6 +3,25 @@
 Astro site deployed to Cloudflare Workers. Media (images) live in an R2 bucket
 (`songdance-media`, bound as `MEDIA`) and are served publicly at `/media/<key>`.
 
+## Copy book — READ THIS FIRST before any page work
+
+**Before creating or editing any page, email, or post, you MUST consult
+[`docs/svh-copy-book.md`](docs/svh-copy-book.md).** It is the single source of
+truth for the site's voice, headlines, paragraphs, quotes, and the non-negotiable
+rules of the practice (Somatic Vocal Healing). No page should be written or
+changed without first pulling language and direction from it.
+
+The four laws it enforces (never break these in any string on the site):
+
+1. The sound **of** something, never *for* it (one named exception — chapter 35).
+2. **Acknowledgment** — never "release" or "letting go" as the mechanism.
+3. **Sounding**, not singing.
+4. Facilitators **hold space**; the participant heals themselves.
+
+Also: no outcome promises, no urgency, no rescue framing, and **never** the
+words "Hamer" or "German New Medicine" anywhere, in any string. Prices and
+program structures do not live in the copy book — only the practice itself.
+
 ## R2 image library — how to view and use images
 
 The bucket holds two kinds of images:
