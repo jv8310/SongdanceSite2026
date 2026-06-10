@@ -59,7 +59,7 @@ const offerings = [
               {o.meta.map((m, i) => (
                 <>
                   {i > 0 && <span class="sd-dot" />}
-                  <span>{m}</span>
+                  <span data-sd-price={m === '9€' ? 'ticket' : m === '29€' ? 'masterclass' : undefined}>{m}</span>
                 </>
               ))}
             </div>

@@ -15,8 +15,10 @@ export const SUPPORTED_CURRENCIES = [
 export type SupportedCurrency = (typeof SUPPORTED_CURRENCIES)[number];
 
 // ISO-2 country → currency. EU members are intentionally omitted so they fall
-// through to EUR. Only the non-EUR markets we price for are listed.
-const COUNTRY_CURRENCY: Record<string, string> = {
+// through to EUR. Only the non-EUR markets we price for are listed. Exported so
+// the client-side marketing price enhancer can resolve currency from /api/geo
+// without re-implementing the mapping.
+export const COUNTRY_CURRENCY: Record<string, string> = {
   US: 'USD',
   CA: 'CAD',
   GB: 'GBP',
