@@ -1,0 +1,113 @@
+---
+// Homepage band introducing the Songdeck — the one "giving direction"
+// object in the work (music offered *to* you). Warm site frame with the
+// product's indigo as accent. Box image is hotlinked from the shop CDN,
+// same as the /songdeck page.
+const boxImg =
+  'https://songdeck.shop/cdn/shop/files/Closed_Box_Mockup_Transparent_kopie.png?v=1727627801&width=990';
+---
+
+<section class="sd-songdeck" id="songdeck">
+  <div class="sd-songdeck-inner">
+    <div class="sd-songdeck-text" data-anim="reveal">
+      <div class="sd-eyebrow">Songdeck</div>
+      <h2 class="sd-songdeck-head">
+        Thirty-six cards <em>that sing.</em>
+      </h2>
+      <p class="sd-songdeck-body">
+        An oracle deck with one difference: every card has its own song. Draw a card, scan the
+        back with the free app, and the music plays — a song, a mantra, a soundscape. The one place
+        in the work where the sound comes <em>to</em> you, like tea and a blanket.
+      </p>
+      <div class="sd-songdeck-meta">
+        <span>36 song cards</span>
+        <span class="sd-dot"></span>
+        <span>Free app</span>
+        <span class="sd-dot"></span>
+        <span>€44</span>
+      </div>
+      <div class="sd-songdeck-cta-row">
+        <a href="/songdeck" class="sd-btn sd-btn-on-night">See the deck →</a>
+        <a
+          href="https://songdeck.songdance.co/demo"
+          target="_blank"
+          rel="noopener"
+          class="sd-btn sd-btn-songdeck-ghost"
+        >
+          Hear the music
+        </a>
+      </div>
+    </div>
+    <figure class="sd-songdeck-visual" data-anim="reveal">
+      <img
+        src={boxImg}
+        alt="The Songdeck box — deep blue with orange, pink and gold shapes, titled Authentic Singing"
+        loading="lazy"
+      />
+    </figure>
+  </div>
+</section>
+
+<style>
+  .sd-songdeck {
+    background:
+      radial-gradient(900px 460px at 16% -20%, rgba(240, 146, 47, 0.16), transparent 60%),
+      radial-gradient(700px 520px at 108% 120%, rgba(223, 84, 41, 0.18), transparent 55%),
+      linear-gradient(165deg, #2c3287 0%, #232967 60%, #1a1f55 100%);
+    color: #f6f1e4;
+    padding: var(--sp-9) var(--sp-7);
+    overflow: hidden;
+  }
+  .sd-songdeck-inner {
+    max-width: var(--container);
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+    align-items: center;
+    gap: clamp(28px, 5vw, 72px);
+  }
+  .sd-songdeck-text .sd-eyebrow { color: #e2a93d; }
+  .sd-songdeck-head {
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: var(--t-h1);
+    line-height: var(--lh-snug);
+    letter-spacing: var(--tr-display);
+    margin: 10px 0 18px;
+    color: #f6f1e4;
+    text-wrap: balance;
+  }
+  .sd-songdeck-head em { font-style: italic; color: #f0922f; }
+  .sd-songdeck-body {
+    font-size: var(--t-body-lg);
+    line-height: var(--lh-prose);
+    color: #c0c3e8;
+    max-width: 48ch;
+    margin: 0 0 22px;
+  }
+  .sd-songdeck-body em { font-style: italic; color: #f2abb1; }
+  .sd-songdeck-meta {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px 4px;
+    color: #c0c3e8; font-size: var(--t-body-sm); margin-bottom: 28px;
+  }
+  .sd-songdeck-meta .sd-dot { background: #e2a93d; }
+  .sd-songdeck-cta-row { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
+  .sd-btn-songdeck-ghost {
+    background: transparent; color: #f6f1e4;
+    border: 1px solid rgba(246, 241, 228, 0.4);
+  }
+  .sd-btn-songdeck-ghost:hover { border-color: #f0922f; color: #fff; }
+
+  .sd-songdeck-visual { margin: 0; display: grid; place-items: center; }
+  .sd-songdeck-visual img {
+    width: min(100%, 420px); height: auto;
+    filter: drop-shadow(0 30px 56px rgba(10, 12, 40, 0.5));
+    transform: rotate(-1.5deg);
+  }
+
+  @media (max-width: 880px) {
+    .sd-songdeck-inner { grid-template-columns: 1fr; }
+    .sd-songdeck-visual { order: -1; }
+    .sd-songdeck-visual img { width: min(72%, 320px); }
+  }
+</style>
