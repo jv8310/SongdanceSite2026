@@ -8,13 +8,15 @@ interface Props {
   ctaHref?: string;
   altLabel?: string;
   altHref?: string;
+  subtext?: string | false;
 }
 const {
   text = 'Curious how this actually feels?',
-  ctaLabel = 'Sit in on a live workshop — 9€',
+  ctaLabel = 'Try a live workshop — 9€',
   ctaHref = '/workshop',
   altLabel,
   altHref,
+  subtext = 'You cannot do it wrong. Nobody here will ask you to scream.',
 } = Astro.props;
 ---
 
@@ -25,5 +27,6 @@ const {
       <a href={ctaHref} class="sd-btn sd-btn-primary">{ctaLabel}</a>
       {altLabel && altHref && <a href={altHref} class="sd-btn sd-btn-quiet">{altLabel}</a>}
     </div>
+    {subtext && <p class="sd-softcta-subtext">{subtext}</p>}
   </div>
 </section>

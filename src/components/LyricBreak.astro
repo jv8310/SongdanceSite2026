@@ -1,12 +1,19 @@
 ---
+// Full-width lyric strip. Default copy is the homepage line; pages can pass
+// their own `text` (e.g. the safety/permission band after the offerings).
+interface Props {
+  text?: string;
+}
+const {
+  text = 'Your body has been talking the whole time. Sounding is how you finally answer.',
+} = Astro.props;
 ---
 
 <section class="sd-lyric-break">
   <div class="sd-lyric-break-inner" data-anim="lyric">
     <img src="/brand/symbol-orange.png" alt="" class="sd-lyric-mark" />
     <p class="sd-lyric-text">
-      Your body has been talking the whole time.
-      Sounding is how you finally answer.
+      {text}
     </p>
   </div>
 </section>

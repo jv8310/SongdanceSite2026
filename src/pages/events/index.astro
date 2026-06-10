@@ -49,7 +49,7 @@ const chips = [
       </div>
 
       {events.length === 0 ? (
-        <p class="sd-events-empty">No upcoming events just now. Check back soon.</p>
+        <p class="sd-events-empty">Nothing on the calendar just now. The letter below is the first to know when something's set.</p>
       ) : (
         <div class="sd-evt-grid" data-events-grid>
           {events.map((e) => {
@@ -80,12 +80,8 @@ const chips = [
                   </div>
                   <h3 class="sd-evt-title">{e.title}</h3>
                   {meta && <div class="sd-evt-meta">{meta}</div>}
-                  {e.bookedPercent != null && e.bookedPercent > 0 && (
-                    <div class="sd-evt-booked" title={`${e.bookedPercent}% booked`}>
-                      <span class="sd-evt-booked-dot" style={`--pct:${e.bookedPercent}`} aria-hidden="true"></span>
-                      <span class="sd-evt-booked-label">{e.bookedPercent}% booked</span>
-                    </div>
-                  )}
+                  {/* No "% booked" meter: the copy book rules out scarcity
+                      pressure. The status pill carries capacity honestly. */}
                   {e.summary && <p class="sd-evt-summary">{e.summary}</p>}
                   <div class="sd-evt-foot">
                     {e.facilitators.length > 0 && (
