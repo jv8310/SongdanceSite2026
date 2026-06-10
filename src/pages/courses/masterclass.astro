@@ -2,22 +2,22 @@
 // Bespoke landing page for the Professional Masterclass — the practitioner-
 // facing sibling of /workshop. Same candle-lit build (workshop-english.css)
 // with masterclass deltas in masterclass.css; copy per docs/svh-copy-book.md.
-import '../styles/workshop-english.css';
-import '../styles/masterclass.css';
-import Layout from '../layouts/Layout.astro';
-import MCNav from '../components/masterclass/MCNav.astro';
-import MCHero from '../components/masterclass/MCHero.astro';
-import MCOpening from '../components/masterclass/MCOpening.astro';
-import MCWhat from '../components/masterclass/MCWhat.astro';
-import MCWho from '../components/masterclass/MCWho.astro';
-import MCLyric from '../components/masterclass/MCLyric.astro';
-import MCTestimonials from '../components/masterclass/MCTestimonials.astro';
-import MCAbout from '../components/masterclass/MCAbout.astro';
-import MCPath from '../components/masterclass/MCPath.astro';
-import MCRegister from '../components/masterclass/MCRegister.astro';
-import WEFooter from '../components/workshop-english/WEFooter.astro';
-import { buildCalendarItems, tzOptionsFor } from '../lib/workshops/calendar';
-import { currencyForCountry } from '../lib/workshops/currency';
+import '../../styles/workshop-english.css';
+import '../../styles/masterclass.css';
+import Layout from '../../layouts/Layout.astro';
+import MCNav from '../../components/masterclass/MCNav.astro';
+import MCHero from '../../components/masterclass/MCHero.astro';
+import MCOpening from '../../components/masterclass/MCOpening.astro';
+import MCWhat from '../../components/masterclass/MCWhat.astro';
+import MCWho from '../../components/masterclass/MCWho.astro';
+import MCLyric from '../../components/masterclass/MCLyric.astro';
+import MCTestimonials from '../../components/masterclass/MCTestimonials.astro';
+import MCAbout from '../../components/masterclass/MCAbout.astro';
+import MCPath from '../../components/masterclass/MCPath.astro';
+import MCRegister from '../../components/masterclass/MCRegister.astro';
+import WEFooter from '../../components/workshop-english/WEFooter.astro';
+import { buildCalendarItems, tzOptionsFor } from '../../lib/workshops/calendar';
+import { currencyForCountry } from '../../lib/workshops/currency';
 
 export const prerender = false;
 

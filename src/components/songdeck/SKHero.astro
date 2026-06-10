@@ -1,0 +1,51 @@
+---
+const shopUrl =
+  'https://songdeck.shop/products/songdeck-authentic-singing-36-song-cards-with-accompanying-app';
+const boxImg =
+  'https://songdeck.shop/cdn/shop/files/Closed_Box_Mockup_Transparent_kopie.png?v=1727627801&width=990';
+---
+
+<header class="sk-hero" id="top">
+  <div aria-hidden="true">
+    <span class="sk-shape sk-shape--disc sk-shape--gold" style="width:120px;height:120px;left:-44px;top:18%;opacity:.9;--sk-rot:0deg"></span>
+    <span class="sk-shape sk-shape--half sk-shape--pink" style="width:96px;height:48px;left:8%;bottom:10%;--sk-rot:-12deg"></span>
+    <span class="sk-shape sk-shape--ring sk-shape--orange" style="width:54px;height:54px;left:42%;top:12%"></span>
+    <span class="sk-shape sk-shape--disc sk-shape--vermilion" style="width:18px;height:18px;left:54%;bottom:18%"></span>
+    <span class="sk-shape sk-shape--quarter sk-shape--orange" style="width:130px;height:130px;right:-40px;top:8%;--sk-rot:90deg;opacity:.85"></span>
+    <span class="sk-shape sk-shape--pill sk-shape--gold" style="width:74px;height:26px;right:10%;bottom:8%;--sk-rot:24deg"></span>
+    <span class="sk-shape sk-shape--disc sk-shape--pink" style="width:14px;height:14px;left:30%;top:30%"></span>
+  </div>
+
+  <div class="sk-hero-inner sk-wrap">
+    <div>
+      <p class="sk-hero-eyebrow">From Songdance · 36 song cards</p>
+      <h1 class="sk-hero-head">The music box, <em>reimagined</em>.</h1>
+      <p class="sk-hero-sub">
+        A deck of thirty-six cards, each with its own illustration, a short message — and its own
+        song. Draw a card, scan the back, and the music plays.
+      </p>
+      <div class="sk-hero-when">
+        <span>Songs, mantras &amp; soundscapes</span>
+        <span class="dot"></span>
+        <span>Free app, iPhone &amp; Android</span>
+        <span class="dot"></span>
+        <span>Made by Songdance</span>
+      </div>
+      <div class="sk-hero-cta-row">
+        <a href={shopUrl} class="sk-btn sk-btn--primary sk-btn--lg">
+          Order the deck <i class="ph-light ph-arrow-up-right"></i>
+        </a>
+        <a href="#listen" class="sk-btn sk-btn--ghost sk-btn--lg">Hear the music first</a>
+      </div>
+      <p class="sk-hero-note">Ships from our shop · Free shipping on two boxes or more</p>
+    </div>
+
+    <div class="sk-hero-visual">
+      <img
+        src={boxImg}
+        alt="The Songdeck box — deep blue with orange, pink and gold shapes, titled Authentic Singing"
+        fetchpriority="high"
+      />
+    </div>
+  </div>
+</header>

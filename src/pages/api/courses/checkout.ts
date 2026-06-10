@@ -3,7 +3,7 @@
 //   - B2C by default, B2B optional (company + EU VAT number attached to the
 //     Stripe Customer as tax_id_data so Quaderno applies reverse-charge)
 //
-// Inputs come from the variant block on /certification-course. The variant
+// Inputs come from the variant block on /courses/certification. The variant
 // itself is recorded on the row so we can audit later why a person was
 // offered the bundle vs. cert-only.
 //
@@ -324,7 +324,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // Preserve the discount on the cancel URL so the buyer's price doesn't
     // silently jump back to full if they bail out and try again.
     const cancelQuery = discountPct > 0 ? `?discount=${discountPct}` : '';
-    const successUrl = `${baseUrl}/certification-course/thanks?session_id={CHECKOUT_SESSION_ID}`;
+    const successUrl = `${baseUrl}/courses/certification/thanks?session_id={CHECKOUT_SESSION_ID}`;
 
     // tax_class metadata is attached to the underlying Stripe Product so
     // Quaderno's sync picks it up on every Invoice generated from this
@@ -339,7 +339,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         secretKey: env.STRIPE_SECRET_KEY,
         customer: customerId,
         success_url: successUrl,
-        cancel_url: `${baseUrl}/certification-course${cancelQuery}#register`,
+        cancel_url: `${baseUrl}/courses/certification${cancelQuery}#register`,
         product_name: offer.label,
         product_description: `${offer.installments.count} monthly installments of ${moneyCents(chargedMonthlyCents, currency)}`,
         payment_intent_description: offer.label,
@@ -395,7 +395,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         ? { customer: customerId }
         : { customer_email: email }),
       success_url: successUrl,
-      cancel_url: `${baseUrl}/certification-course${cancelQuery}#register`,
+      cancel_url: `${baseUrl}/courses/certification${cancelQuery}#register`,
       payment_intent_description: offer.label,
       line_items: [
         {
