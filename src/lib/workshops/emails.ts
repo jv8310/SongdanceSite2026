@@ -1,6 +1,13 @@
 // Templated workshop emails — table-based, ~560px, parchment / plum-ink /
 // ember palette ported from the existing transactional design. Each builder
 // returns { subject, html, text } ready for Resend.
+//
+// Copy rules: every string here obeys docs/svh-copy-book.md — the sound OF
+// something (never for), acknowledgment (never "release"/"letting go"),
+// sounding (never singing), facilitators hold space. No outcome promises, no
+// manufactured urgency (deadlines are stated as plain facts, once), no rescue
+// framing. Lifecycle emails are written in Jacob's voice and sent from
+// MARKETING_FROM; transactional ones stay from the default Songdance sender.
 
 const PALETTE = {
   bg: '#F4ECDF',
@@ -13,6 +20,10 @@ const PALETTE = {
 };
 
 const LOGO_URL = 'https://site.songdance.co/brand/logo-wordmark-dark.png';
+
+// Lifecycle (marketing-flavoured) emails come from a person, not a brand.
+// Same verified sending domain as the transactional default.
+export const MARKETING_FROM = 'Jacob from Songdance <info@mail.songdance.co>';
 
 export type EmailContent = { subject: string; html: string; text: string };
 
@@ -36,8 +47,9 @@ function shell(opts: {
   cta?: ButtonLink;
   extras?: ButtonLink[];
   footerNote?: string;
+  unsubscribeUrl?: string;
 }): string {
-  const { preheader, heading, bodyHtml, cta, extras, footerNote } = opts;
+  const { preheader, heading, bodyHtml, cta, extras, footerNote, unsubscribeUrl } = opts;
   return `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en">
 <head>
@@ -68,6 +80,7 @@ function shell(opts: {
         </td></tr>
         <tr><td align="center" style="padding:10px 24px 24px;">
           <p style="margin:0;font-family:Georgia,serif;font-size:11px;line-height:1.6;color:${PALETTE.faint};">${escapeHtml(footerNote ?? 'Songdance · songdance.co')}</p>
+          ${unsubscribeUrl ? `<p style="margin:6px 0 0;font-family:Georgia,serif;font-size:11px;line-height:1.6;color:${PALETTE.faint};"><a href="${unsubscribeUrl}" style="color:${PALETTE.faint};text-decoration:underline;">No more emails like this — unsubscribe</a></p>` : ''}
         </td></tr>
       </table>
     </td></tr>
@@ -161,43 +174,310 @@ export function reminderEmail(type: string, ctx: WorkshopEmailCtx): EmailContent
   };
 }
 
-// ── Post-workshop: attended ─────────────────────────────────────────────────
-export function postAttendedEmail(
-  ctx: { name?: string | null; workshopTitle: string; courseUrl: string; certUrl?: string },
+// ═══════════════════════════════════════════════════════════════════════════
+// Lifecycle sequences (marketing-flavoured — sent from MARKETING_FROM, carry
+// an unsubscribe link, and are gated by the email_suppressions table).
+// Cadence lives in cron.ts; this file is only the words.
+// ═══════════════════════════════════════════════════════════════════════════
+
+function textGreeting(name?: string | null): string {
+  return greeting(name).replace(/<[^>]+>/g, '');
+}
+
+function unsubText(unsubscribeUrl?: string): string {
+  return unsubscribeUrl ? `\n\nNo more emails like this — unsubscribe: ${unsubscribeUrl}` : '';
+}
+
+export type LifecycleCtx = {
+  name?: string | null;
+  workshopTitle: string;
+  unsubscribeUrl?: string;
+};
+
+// ── Abandoned checkout 1 (~1h after they stopped) ──────────────────────────
+export function abandonedEmail1(
+  ctx: LifecycleCtx & { whenLocal: string | null; resumeUrl: string },
 ): EmailContent {
-  const extras: ButtonLink[] = [];
-  if (ctx.certUrl) extras.push({ label: 'Explore the Certification', href: ctx.certUrl });
   const html = shell({
-    preheader: `Thank you for being with us`,
-    heading: 'Thank you for singing with us',
+    preheader: 'You started registering — it takes a minute to finish.',
+    heading: 'Your place is still open',
     bodyHtml: `<p style="margin:0 0 14px;">${greeting(ctx.name)}</p>
-      <p style="margin:0 0 14px;">Thank you for being part of <strong>${escapeHtml(ctx.workshopTitle)}</strong>. We hope something opened.</p>
-      <p style="margin:0 0 14px;">If you'd like to take the practice further, the 12-week course is where the real work lives — twelve weeks to learn it properly, in your own time, with live Q&amp;A.</p>`,
-    cta: { label: 'See the 12-week course', href: ctx.courseUrl },
-    extras,
+      <p style="margin:0 0 14px;">You started registering for <strong>${escapeHtml(ctx.workshopTitle)}</strong> and stopped somewhere along the way. That happens — pages close, life interrupts.</p>
+      ${ctx.whenLocal ? `<p style="margin:0 0 6px;">It takes place on:</p>
+      <p style="margin:0 0 14px;font-size:18px;color:${PALETTE.ink};">${escapeHtml(ctx.whenLocal)}</p>` : ''}
+      <p style="margin:0 0 14px;">Your details are saved. If you'd like to finish, this takes you straight back:</p>
+      <p style="margin:0;font-size:14px;color:${PALETTE.soft};">If something didn't work — a card refused, a page that wouldn't load — just reply to this email. A person reads it.</p>`,
+    cta: { label: 'Complete my registration', href: ctx.resumeUrl },
+    unsubscribeUrl: ctx.unsubscribeUrl,
   });
   return {
-    subject: `Thank you — ${ctx.workshopTitle}`,
+    subject: 'Your place is still open',
     html,
-    text: `${greeting(ctx.name).replace(/<[^>]+>/g, '')}\n\nThank you for being part of ${ctx.workshopTitle}.\n\nThe 12-week course: ${ctx.courseUrl}`,
+    text: `${textGreeting(ctx.name)}\n\nYou started registering for ${ctx.workshopTitle} and stopped somewhere along the way. That happens.\n${ctx.whenLocal ? `\nIt takes place on: ${ctx.whenLocal}\n` : ''}\nYour details are saved — finish here: ${ctx.resumeUrl}\n\nIf something didn't work on the page, just reply to this email. A person reads it.\n\nWarmly,\nJacob${unsubText(ctx.unsubscribeUrl)}`,
   };
 }
 
-// ── Post-workshop: no-show ──────────────────────────────────────────────────
-export function postNoShowEmail(
-  ctx: { name?: string | null; workshopTitle: string; replayUrl: string },
+// ── Abandoned checkout 2 (~20h after; only while the date is still ahead) ──
+export function abandonedEmail2(
+  ctx: LifecycleCtx & { whenLocal: string | null; resumeUrl: string },
 ): EmailContent {
   const html = shell({
-    preheader: `We missed you`,
-    heading: 'We missed you',
+    preheader: 'Honest small print, in case it helps.',
+    heading: 'Still thinking it over?',
     bodyHtml: `<p style="margin:0 0 14px;">${greeting(ctx.name)}</p>
-      <p style="margin:0 0 14px;">We didn't see you at <strong>${escapeHtml(ctx.workshopTitle)}</strong> — life happens. We'd still love for you to experience it.</p>
-      <p style="margin:0 0 14px;">Here is a replay / the next live date so you can join when it suits you.</p>`,
-    cta: { label: 'Watch the replay', href: ctx.replayUrl },
+      <p style="margin:0 0 14px;">Yesterday you almost joined <strong>${escapeHtml(ctx.workshopTitle)}</strong>. Maybe life got in the way — or maybe you weren't sure it's for you.</p>
+      <p style="margin:0 0 14px;">In case it's the second one, the honest small print: this is not a singing course. You don't need a good voice — you need an honest one. One tone, the tone of what's actually there. Nobody is put on the spot, cameras can stay off, and soft counts.</p>
+      ${ctx.whenLocal ? `<p style="margin:0 0 6px;">We begin on:</p>
+      <p style="margin:0 0 14px;font-size:18px;color:${PALETTE.ink};">${escapeHtml(ctx.whenLocal)}</p>` : ''}
+      <p style="margin:0;">And if now simply isn't the time — that's an honest answer too. The door doesn't disappear.</p>`,
+    cta: { label: 'Finish my registration', href: ctx.resumeUrl },
+    unsubscribeUrl: ctx.unsubscribeUrl,
   });
   return {
-    subject: `We missed you — ${ctx.workshopTitle}`,
+    subject: 'Still thinking it over?',
     html,
-    text: `${greeting(ctx.name).replace(/<[^>]+>/g, '')}\n\nWe didn't see you at ${ctx.workshopTitle}. Here's a replay / the next date: ${ctx.replayUrl}`,
+    text: `${textGreeting(ctx.name)}\n\nYesterday you almost joined ${ctx.workshopTitle}. Maybe life got in the way — or maybe you weren't sure it's for you.\n\nIn case it's the second one, the honest small print: this is not a singing course. You don't need a good voice — you need an honest one. One tone, the tone of what's actually there. Nobody is put on the spot, cameras can stay off, and soft counts.\n${ctx.whenLocal ? `\nWe begin on: ${ctx.whenLocal}\n` : ''}\nFinish your registration: ${ctx.resumeUrl}\n\nAnd if now simply isn't the time — that's an honest answer too. The door doesn't disappear.\n\n— Jacob${unsubText(ctx.unsubscribeUrl)}`,
+  };
+}
+
+// ── Attended 1 (right after the session): thank-you + the 48h window ───────
+export function attendedEmail1(
+  ctx: LifecycleCtx & {
+    courseUrl: string;
+    discountEndsLocal: string;
+    alreadyBoughtCourse?: boolean;
+  },
+): EmailContent {
+  const opener = `<p style="margin:0 0 14px;">${greeting(ctx.name)}</p>
+      <p style="margin:0 0 14px;">Thank you for being part of <strong>${escapeHtml(ctx.workshopTitle)}</strong>. Whatever sound you made today — it was the right one. You cannot do it wrong; it always expresses something.</p>
+      <p style="margin:0 0 14px;">In the day or two after a session the body sometimes keeps commenting — a yawn out of nowhere, tiredness, a feeling passing through. Nothing is wrong. Give it room, and when in doubt: one breath in, one tone out.</p>`;
+  if (ctx.alreadyBoughtCourse) {
+    const html = shell({
+      preheader: 'A note for the days after.',
+      heading: 'Thank you for sounding with us',
+      bodyHtml: `${opener}
+      <p style="margin:0;">And since your next step here is already booked, we'll be seeing more of each other. Until then: three breaths and a tone.</p>`,
+      unsubscribeUrl: ctx.unsubscribeUrl,
+    });
+    return {
+      subject: 'Thank you for sounding with us',
+      html,
+      text: `${textGreeting(ctx.name)}\n\nThank you for being part of ${ctx.workshopTitle}. Whatever sound you made today — it was the right one. You cannot do it wrong; it always expresses something.\n\nIn the day or two after a session the body sometimes keeps commenting — a yawn out of nowhere, tiredness, a feeling passing through. Nothing is wrong. Give it room.\n\nAnd since your next step here is already booked, we'll be seeing more of each other. Until then: three breaths and a tone.\n\nWarmly,\nJacob${unsubText(ctx.unsubscribeUrl)}`,
+    };
+  }
+  const html = shell({
+    preheader: 'A note for the days after — and your participant discount.',
+    heading: 'Thank you for sounding with us',
+    bodyHtml: `${opener}
+      <p style="margin:0 0 14px;">If you'd like to take this further, the 12-week course is where the practice becomes your own — twelve weeks, one layer at a time, in your own time, with live Q&amp;A.</p>
+      <p style="margin:0;">As a participant you have <strong>20% off until ${escapeHtml(ctx.discountEndsLocal)}</strong>. It's applied automatically when you enter your email on the course page — no code needed.</p>`,
+    cta: { label: 'See the 12-week course', href: ctx.courseUrl },
+    unsubscribeUrl: ctx.unsubscribeUrl,
+  });
+  return {
+    subject: 'Thank you for sounding with us',
+    html,
+    text: `${textGreeting(ctx.name)}\n\nThank you for being part of ${ctx.workshopTitle}. Whatever sound you made today — it was the right one. You cannot do it wrong; it always expresses something.\n\nIn the day or two after a session the body sometimes keeps commenting — a yawn out of nowhere, tiredness, a feeling passing through. Nothing is wrong. Give it room, and when in doubt: one breath in, one tone out.\n\nIf you'd like to take this further, the 12-week course is where the practice becomes your own — twelve weeks, one layer at a time, in your own time, with live Q&A.\n\nAs a participant you have 20% off until ${ctx.discountEndsLocal}. It's applied automatically when you enter your email on the course page — no code needed.\n\n${ctx.courseUrl}\n\nWarmly,\nJacob${unsubText(ctx.unsubscribeUrl)}`,
+  };
+}
+
+// ── Attended 2 (+24h): the case for the course, factually ──────────────────
+export function attendedEmail2(
+  ctx: LifecycleCtx & { courseUrl: string; discountEndsLocal: string; email: string },
+): EmailContent {
+  const html = shell({
+    preheader: 'The question the twelve weeks teach you to ask — and to answer.',
+    heading: 'What is below that?',
+    bodyHtml: `<p style="margin:0 0 14px;">${greeting(ctx.name)}</p>
+      <p style="margin:0 0 14px;">In the workshop you made the sound of the moment — one breath in, one tone out. That's the front door of this practice.</p>
+      <p style="margin:0 0 14px;">Behind it sits a method. After the first tone you ask: <em>what is below that?</em> — and you make the sound of that. You only ever need to go one level deeper. Learning to do that kindly, at your own tempo, is what the twelve weeks are for.</p>
+      <p style="margin:0 0 14px;">It's not an eternal excavation — it's a tool you keep. Twelve weeks, one layer at a time, in your own time, with live Q&amp;A along the way. Don't expect miracles; expect a real relationship with your own voice.</p>
+      <p style="margin:0;">A practical note: your participant discount (20%) runs until <strong>${escapeHtml(ctx.discountEndsLocal)}</strong>, applied automatically to ${escapeHtml(ctx.email)} on the page. After that the course remains — the discount doesn't.</p>`,
+    cta: { label: 'See the 12-week course', href: ctx.courseUrl },
+    unsubscribeUrl: ctx.unsubscribeUrl,
+  });
+  return {
+    subject: 'What is below that?',
+    html,
+    text: `${textGreeting(ctx.name)}\n\nIn the workshop you made the sound of the moment — one breath in, one tone out. That's the front door of this practice.\n\nBehind it sits a method. After the first tone you ask: what is below that? — and you make the sound of that. You only ever need to go one level deeper. Learning to do that kindly, at your own tempo, is what the twelve weeks are for.\n\nIt's not an eternal excavation — it's a tool you keep. Twelve weeks, one layer at a time, in your own time, with live Q&A along the way. Don't expect miracles; expect a real relationship with your own voice.\n\nA practical note: your participant discount (20%) runs until ${ctx.discountEndsLocal}, applied automatically to ${ctx.email} on the page. After that the course remains — the discount doesn't.\n\n${ctx.courseUrl}\n\n— Jacob${unsubText(ctx.unsubscribeUrl)}`,
+  };
+}
+
+// ── Attended 3 (+42h): the window closes — stated once, plainly ────────────
+export function attendedEmail3(
+  ctx: LifecycleCtx & { courseUrl: string; discountEndsLocal: string; email: string },
+): EmailContent {
+  const html = shell({
+    preheader: 'A small practical note — nothing more.',
+    heading: 'A small practical note',
+    bodyHtml: `<p style="margin:0 0 14px;">${greeting(ctx.name)}</p>
+      <p style="margin:0 0 14px;">Your participant discount on the 12-week course closes at <strong>${escapeHtml(ctx.discountEndsLocal)}</strong> — a few hours from now. After that the course stays; the price returns to normal. No countdown theatre — just so you can decide with the facts.</p>
+      <p style="margin:0 0 14px;">In plain terms: 20% off, applied automatically to ${escapeHtml(ctx.email)}. If spreading it out helps, there's a three-part monthly plan, and the discount applies there too.</p>
+      <p style="margin:0;">If the answer is "not now" — that's an honest answer, and nothing is lost. If you're unsure whether the course is for you, reply with your question. A person answers, plainly. If it's not for you, we'll say so.</p>`,
+    cta: { label: 'See the 12-week course', href: ctx.courseUrl },
+    unsubscribeUrl: ctx.unsubscribeUrl,
+  });
+  return {
+    subject: 'Before your discount closes',
+    html,
+    text: `${textGreeting(ctx.name)}\n\nYour participant discount on the 12-week course closes at ${ctx.discountEndsLocal} — a few hours from now. After that the course stays; the price returns to normal. No countdown theatre — just so you can decide with the facts.\n\nIn plain terms: 20% off, applied automatically to ${ctx.email}. If spreading it out helps, there's a three-part monthly plan, and the discount applies there too.\n\nIf the answer is "not now" — that's an honest answer, and nothing is lost. If you're unsure whether the course is for you, reply with your question. A person answers, plainly. If it's not for you, we'll say so.\n\n${ctx.courseUrl}\n\n— Jacob${unsubText(ctx.unsubscribeUrl)}`,
+  };
+}
+
+// ── Attended, PRO branch (masterclass / is_pro): the certification path ────
+export function attendedProEmail1(
+  ctx: LifecycleCtx & { certUrl: string; courseUrl: string },
+): EmailContent {
+  const html = shell({
+    preheader: 'For the ones who hold space for others.',
+    heading: 'Thank you for sounding with us',
+    bodyHtml: `<p style="margin:0 0 14px;">${greeting(ctx.name)}</p>
+      <p style="margin:0 0 14px;">Thank you for being part of <strong>${escapeHtml(ctx.workshopTitle)}</strong>.</p>
+      <p style="margin:0 0 14px;">Because you work with people yourself, there's a path here that may matter more to you than the rest: the <strong>SVH Certification</strong> — learning to hold this space for others.</p>
+      <p style="margin:0 0 14px;">Not healer, not fixer: space holder. Someone who keeps the room steady while another person does the one thing only they can do. If that sounds like your work, have a look:</p>`,
+    cta: { label: 'Explore the certification path', href: ctx.certUrl },
+    extras: [{ label: 'The 12-week course (20% off for 48 hours)', href: ctx.courseUrl }],
+    unsubscribeUrl: ctx.unsubscribeUrl,
+  });
+  return {
+    subject: 'Thank you — and a word for practitioners',
+    html,
+    text: `${textGreeting(ctx.name)}\n\nThank you for being part of ${ctx.workshopTitle}.\n\nBecause you work with people yourself, there's a path here that may matter more to you than the rest: the SVH Certification — learning to hold this space for others.\n\nNot healer, not fixer: space holder. Someone who keeps the room steady while another person does the one thing only they can do.\n\n${ctx.certUrl}\n\nPS — your participant discount on the 12-week course (20%) is also live for the next 48 hours, applied automatically with your email: ${ctx.courseUrl}\n\nWarmly,\nJacob${unsubText(ctx.unsubscribeUrl)}`,
+  };
+}
+
+export function attendedProEmail2(ctx: LifecycleCtx & { certUrl: string }): EmailContent {
+  const html = shell({
+    preheader: 'What a facilitator actually does here.',
+    heading: 'Holding space is a craft',
+    bodyHtml: `<p style="margin:0 0 14px;">${greeting(ctx.name)}</p>
+      <p style="margin:0 0 14px;">The facilitator's work in this practice is quiet: keep the room steady, ask the next honest question, hear what the other person can't hear yet — and then get out of the way.</p>
+      <p style="margin:0 0 14px;">When someone discovers a connection, you leave that gift to them. You're never the smart one who points it out. The healing is theirs; the space is yours.</p>
+      <p style="margin:0 0 14px;">The certification path teaches that craft — the method, the listening, the safety architecture — so you can bring sounding into the work you already do.</p>
+      <p style="margin:0;">If you have questions about whether it fits your practice, reply to this email and ask. A person answers.</p>`,
+    cta: { label: 'Explore the certification path', href: ctx.certUrl },
+    unsubscribeUrl: ctx.unsubscribeUrl,
+  });
+  return {
+    subject: 'Holding space is a craft',
+    html,
+    text: `${textGreeting(ctx.name)}\n\nThe facilitator's work in this practice is quiet: keep the room steady, ask the next honest question, hear what the other person can't hear yet — and then get out of the way.\n\nWhen someone discovers a connection, you leave that gift to them. You're never the smart one who points it out. The healing is theirs; the space is yours.\n\nThe certification path teaches that craft — the method, the listening, the safety architecture — so you can bring sounding into the work you already do.\n\nIf you have questions about whether it fits your practice, reply to this email and ask. A person answers.\n\n${ctx.certUrl}\n\n— Jacob${unsubText(ctx.unsubscribeUrl)}`,
+  };
+}
+
+export function attendedProEmail3(ctx: LifecycleCtx & { certUrl: string }): EmailContent {
+  const html = shell({
+    preheader: 'No deadline here — just the door.',
+    heading: 'If the path is calling',
+    bodyHtml: `<p style="margin:0 0 14px;">${greeting(ctx.name)}</p>
+      <p style="margin:0 0 14px;">A last note on this — then we'll leave it with you.</p>
+      <p style="margin:0 0 14px;">If you've been circling the certification course, the page below has the structure, the classes, and the honest small print. There's no deadline attached and no spots-left theatre. Trees don't hurry, and neither does this.</p>
+      <p style="margin:0;">If it helps to talk it through first, reply here and say where you're standing. We'll answer plainly — including "not yet", if that's the truth.</p>`,
+    cta: { label: 'See the certification course', href: ctx.certUrl },
+    unsubscribeUrl: ctx.unsubscribeUrl,
+  });
+  return {
+    subject: 'If the certification path is calling',
+    html,
+    text: `${textGreeting(ctx.name)}\n\nA last note on this — then we'll leave it with you.\n\nIf you've been circling the certification course, the page below has the structure, the classes, and the honest small print. There's no deadline attached and no spots-left theatre. Trees don't hurry, and neither does this.\n\nIf it helps to talk it through first, reply here and say where you're standing. We'll answer plainly — including "not yet", if that's the truth.\n\n${ctx.certUrl}\n\nWarmly,\nJacob${unsubText(ctx.unsubscribeUrl)}`,
+  };
+}
+
+// ── No-show 1 (right after): seat is safe ──────────────────────────────────
+export function noShowEmail1(ctx: LifecycleCtx & { hubUrl: string }): EmailContent {
+  const html = shell({
+    preheader: 'Watch the replay or move to another date, free.',
+    heading: 'We missed you',
+    bodyHtml: `<p style="margin:0 0 14px;">${greeting(ctx.name)}</p>
+      <p style="margin:0 0 14px;">We didn't see you at <strong>${escapeHtml(ctx.workshopTitle)}</strong> today. Life happens — no explanation needed.</p>
+      <p style="margin:0;">Your registration is still good, and you have two doors: watch the replay, or move to another live date, free of charge. Both live on your personal page:</p>`,
+    cta: { label: 'Open my page', href: ctx.hubUrl },
+    unsubscribeUrl: ctx.unsubscribeUrl,
+  });
+  return {
+    subject: 'We missed you — your seat is safe',
+    html,
+    text: `${textGreeting(ctx.name)}\n\nWe didn't see you at ${ctx.workshopTitle} today. Life happens — no explanation needed.\n\nYour registration is still good, and you have two doors: watch the replay, or move to another live date, free of charge. Both live on your personal page:\n\n${ctx.hubUrl}\n\n— Jacob${unsubText(ctx.unsubscribeUrl)}`,
+  };
+}
+
+// ── No-show 2 (+2d): rebook, with permission for the hesitant ──────────────
+export function noShowEmail2(ctx: LifecycleCtx & { hubUrl: string }): EmailContent {
+  const html = shell({
+    preheader: "Pick a new date — it's already paid for.",
+    heading: 'Your seat is still yours',
+    bodyHtml: `<p style="margin:0 0 14px;">${greeting(ctx.name)}</p>
+      <p style="margin:0 0 14px;">A couple of days ago you missed <strong>${escapeHtml(ctx.workshopTitle)}</strong>. Your place didn't expire — you can put it on any upcoming date, free. It's already paid for.</p>
+      <p style="margin:0 0 14px;">And if what stopped you was the idea of sounding where strangers can hear you — that's more common than you'd think. Nobody is put on the spot. Cameras can stay off. Soft counts; soft often counts double.</p>
+      <p style="margin:0;">The replay is there too, but the live hour is the thing — witnessed is different from watched.</p>`,
+    cta: { label: 'Choose a new date', href: ctx.hubUrl },
+    unsubscribeUrl: ctx.unsubscribeUrl,
+  });
+  return {
+    subject: 'Your seat is still yours',
+    html,
+    text: `${textGreeting(ctx.name)}\n\nA couple of days ago you missed ${ctx.workshopTitle}. Your place didn't expire — you can put it on any upcoming date, free. It's already paid for.\n\nAnd if what stopped you was the idea of sounding where strangers can hear you — that's more common than you'd think. Nobody is put on the spot. Cameras can stay off. Soft counts; soft often counts double.\n\nThe replay is there too, but the live hour is the thing — witnessed is different from watched.\n\n${ctx.hubUrl}\n\n— Jacob${unsubText(ctx.unsubscribeUrl)}`,
+  };
+}
+
+// ── No-show 3 (+6d): last note, then quiet ─────────────────────────────────
+export function noShowEmail3(ctx: LifecycleCtx & { hubUrl: string }): EmailContent {
+  const html = shell({
+    preheader: "One last note about your missed session — then we'll go quiet.",
+    heading: 'The door stays open',
+    bodyHtml: `<p style="margin:0 0 14px;">${greeting(ctx.name)}</p>
+      <p style="margin:0 0 14px;">This is the last note about the session you missed — we won't keep nudging.</p>
+      <p style="margin:0 0 14px;">Your page keeps working: the replay, and the free move onto any upcoming date, whenever the season suits.</p>
+      <p style="margin:0;">Until then, a practice that needs no Zoom link: one breath in, one tone out — the sound of how it actually is. Thirty honest seconds. Half this practice happens in parked cars.</p>`,
+    cta: { label: 'Open my page', href: ctx.hubUrl },
+    unsubscribeUrl: ctx.unsubscribeUrl,
+  });
+  return {
+    subject: 'The door stays open',
+    html,
+    text: `${textGreeting(ctx.name)}\n\nThis is the last note about the session you missed — we won't keep nudging.\n\nYour page keeps working: the replay, and the free move onto any upcoming date, whenever the season suits.\n\nUntil then, a practice that needs no Zoom link: one breath in, one tone out — the sound of how it actually is. Thirty honest seconds. Half this practice happens in parked cars.\n\n${ctx.hubUrl}\n\nWarmly,\nJacob${unsubText(ctx.unsubscribeUrl)}`,
+  };
+}
+
+// ── Downsell 1 (+4d, attended, window closed, didn't buy) ──────────────────
+export function downsellEmail1(ctx: LifecycleCtx & { courseUrl: string }): EmailContent {
+  const html = shell({
+    preheader: 'Two honest notes about the 12-week course.',
+    heading: "If the timing wasn't right",
+    bodyHtml: `<p style="margin:0 0 14px;">${greeting(ctx.name)}</p>
+      <p style="margin:0 0 14px;">The participant discount on the 12-week course has closed — it was a real window, so it stayed closed. But I didn't want the conversation to end on a price.</p>
+      <p style="margin:0 0 14px;">Two honest notes, in case they're useful:</p>
+      <p style="margin:0 0 14px;"><strong>If it was the amount</strong> — there's a three-part monthly plan: the course in three payments instead of one. Spreading it out is allowed.</p>
+      <p style="margin:0;"><strong>If it was doubt</strong> — reply to this email and say where you're standing. I read these. If the course isn't for you, I'll say so; we'd rather under-promise.</p>`,
+    cta: { label: 'See the 12-week course', href: ctx.courseUrl },
+    unsubscribeUrl: ctx.unsubscribeUrl,
+  });
+  return {
+    subject: "If the timing wasn't right",
+    html,
+    text: `${textGreeting(ctx.name)}\n\nThe participant discount on the 12-week course has closed — it was a real window, so it stayed closed. But I didn't want the conversation to end on a price.\n\nTwo honest notes, in case they're useful:\n\n1. If it was the amount — there's a three-part monthly plan: the course in three payments instead of one. Spreading it out is allowed.\n\n2. If it was doubt — reply to this email and say where you're standing. I read these. If the course isn't for you, I'll say so; we'd rather under-promise.\n\n${ctx.courseUrl}\n\n— Jacob${unsubText(ctx.unsubscribeUrl)}`,
+  };
+}
+
+// ── Downsell 2 (+8d): the free practice + live calendar; series ends ───────
+export function downsellEmail2(
+  ctx: LifecycleCtx & { courseUrl: string; calendarUrl: string },
+): EmailContent {
+  const html = shell({
+    preheader: 'The practice that needs no purchase — and where to find us live.',
+    heading: 'Three breaths and a tone',
+    bodyHtml: `<p style="margin:0 0 14px;">${greeting(ctx.name)}</p>
+      <p style="margin:0 0 14px;">This is the last email in this little series — then quiet. Before that, the most important thing I can leave you with:</p>
+      <p style="margin:0 0 14px;">The practice needs no purchase. In the morning, ask: <em>how am I feeling, in this moment?</em> — and make the sound of that. Thirty seconds. The kitchen is a fine temple.</p>
+      <p style="margin:0;">If you'd like company doing it, come sound with us live again — the calendar of upcoming workshops and masterclasses is below. And the 12-week course keeps its door open if a later season is the right one.</p>`,
+    cta: { label: 'See upcoming live dates', href: ctx.calendarUrl },
+    extras: [{ label: 'The 12-week course', href: ctx.courseUrl }],
+    footerNote: 'The sound was always yours. · Songdance · songdance.co',
+    unsubscribeUrl: ctx.unsubscribeUrl,
+  });
+  return {
+    subject: 'Three breaths and a tone',
+    html,
+    text: `${textGreeting(ctx.name)}\n\nThis is the last email in this little series — then quiet. Before that, the most important thing I can leave you with:\n\nThe practice needs no purchase. In the morning, ask: how am I feeling, in this moment? — and make the sound of that. Thirty seconds. The kitchen is a fine temple.\n\nIf you'd like company doing it, come sound with us live again — the calendar of upcoming workshops and masterclasses: ${ctx.calendarUrl}\n\nAnd the 12-week course keeps its door open if a later season is the right one: ${ctx.courseUrl}\n\nThe sound was always yours.\n\n— Jacob${unsubText(ctx.unsubscribeUrl)}`,
   };
 }

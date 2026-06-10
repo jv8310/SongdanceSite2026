@@ -31,6 +31,9 @@ type Env = {
   SVH_CERT_PORTAL_URL?: string;
   ADMIN_PASSWORD: string;
   ADMIN_SESSION_SECRET: string;
+  // Optional dedicated secret for unsubscribe-link HMACs; falls back to
+  // ADMIN_SESSION_SECRET (see src/lib/email/unsubscribe.ts).
+  UNSUBSCRIBE_SECRET?: string;
   PUBLIC_BASE_URL: string;
 };
 

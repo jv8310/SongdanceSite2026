@@ -13,6 +13,10 @@ export type SendEmailInput = {
   replyTo?: string;
   // A stable reference so Gmail threads/dedups and treats it as transactional.
   entityRefId?: string;
+  // RFC 8058 one-click unsubscribe target. Set on marketing-flavoured sends
+  // (abandoned checkout, post-workshop promotion, downsell); omitted on
+  // transactional ones (verification, confirmation, reminders).
+  listUnsubscribeUrl?: string;
 };
 
 const DEFAULT_FROM = 'Songdance <info@mail.songdance.co>';
@@ -36,6 +40,12 @@ export async function sendEmail(input: SendEmailInput): Promise<void> {
         'Auto-Submitted': 'auto-generated',
         'X-Auto-Response-Suppress': 'All',
         ...(input.entityRefId ? { 'X-Entity-Ref-ID': input.entityRefId } : {}),
+        ...(input.listUnsubscribeUrl
+          ? {
+              'List-Unsubscribe': `<${input.listUnsubscribeUrl}>`,
+              'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+            }
+          : {}),
       },
     }),
   });
