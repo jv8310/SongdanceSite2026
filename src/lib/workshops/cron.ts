@@ -181,7 +181,7 @@ async function runPostWorkshop(env: CronEnv, now: number, result: CronResult) {
           name: reg.name,
           workshopTitle: w.title,
           courseUrl: `${base}/courses/12-week`,
-          certUrl: `${base}/certification-course`,
+          certUrl: `${base}/courses/certification`,
         });
         await safeSend(env, reg.email, content, `workshop-post-attended-${reg.id}`, result);
       } else if (reg.attendance_status === 'no_show') {
