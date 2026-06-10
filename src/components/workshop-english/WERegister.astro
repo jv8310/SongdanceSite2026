@@ -253,6 +253,19 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
       return sym ? sym + body : body + ' ' + cur;
     }
     function parse(json) { try { return JSON.parse(json || '{}'); } catch (e) { return {}; } }
+
+    // The visitor's chosen door-set ("audience"), read from the URL at submit
+    // time. The personalization controller keeps the URL authoritative
+    // (?audience=1,3; the selector form writes back to it), with ?campaign=
+    // as the untouched-on-load alias. Sent so registrations can be segmented
+    // by lens (3 = pro) in the database and in Drip.
+    function audienceState() {
+      var p = new URLSearchParams(location.search);
+      var aud = p.get('audience');
+      if (aud) return aud;
+      var map = { healing: '1', freedom: '2', pro: '3' };
+      return map[(p.get('campaign') || '').toLowerCase()] || '';
+    }
     function priceFor(map, cur, fallbackMinor) {
       if (map && map[cur] != null) return map[cur];
       if (map && map['EUR'] != null) return map['EUR'];
@@ -378,6 +391,7 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
         company_name: isMasterclass ? (fd.get('company_name') || '') : '',
         vat_number: isMasterclass ? (fd.get('vat_number') || '') : '',
         meta_event_id: fd.get('meta_event_id') || '',
+        audience: audienceState(),
       };
       try {
         var res = await fetch('/api/workshops/register', {

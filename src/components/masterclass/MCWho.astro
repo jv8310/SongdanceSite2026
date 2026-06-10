@@ -1,0 +1,25 @@
+---
+const audiences = [
+  'Psychotherapists & counsellors',
+  'Coaches & facilitators',
+  'Body- & breathworkers',
+  'Yoga & meditation teachers',
+  'Voice & music professionals',
+  'Teachers, carers & leaders',
+];
+---
+
+<section class="mc-who">
+  <div class="mc-who-inner">
+    <div class="we-eyebrow" style="justify-content: center;">Who it's for</div>
+    <h2 class="we-h2">People who <em>hold space</em> — by profession or by calling.</h2>
+    <div class="mc-who-chips">
+      {audiences.map((a) => <span class="mc-who-chip">{a}</span>)}
+    </div>
+    <p class="mc-who-note">
+      And people quietly training toward this kind of work. Useful whether or
+      not you ever intend to teach sounding formally — it begins with what it
+      does in your own practice, and in you.
+    </p>
+  </div>
+</section>

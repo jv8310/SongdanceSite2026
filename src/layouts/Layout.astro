@@ -1,6 +1,7 @@
 ---
 import '../styles/tokens.css';
 import '../styles/site.css';
+import PriceSync from '../components/PriceSync.astro';
 
 interface Props {
   title?: string;
@@ -46,5 +47,6 @@ const ogImage = new URL(image, Astro.site ?? Astro.url.origin).href;
     <div class="sd-site">
       <slot />
     </div>
+    <PriceSync />
   </body>
 </html>

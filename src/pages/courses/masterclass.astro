@@ -1,0 +1,64 @@
+---
+// Bespoke landing page for the Professional Masterclass — the practitioner-
+// facing sibling of /workshop. Same candle-lit build (workshop-english.css)
+// with masterclass deltas in masterclass.css; copy per docs/svh-copy-book.md.
+import '../../styles/workshop-english.css';
+import '../../styles/masterclass.css';
+import Layout from '../../layouts/Layout.astro';
+import MCNav from '../../components/masterclass/MCNav.astro';
+import MCHero from '../../components/masterclass/MCHero.astro';
+import MCOpening from '../../components/masterclass/MCOpening.astro';
+import MCWhat from '../../components/masterclass/MCWhat.astro';
+import MCWho from '../../components/masterclass/MCWho.astro';
+import MCLyric from '../../components/masterclass/MCLyric.astro';
+import MCTestimonials from '../../components/masterclass/MCTestimonials.astro';
+import MCAbout from '../../components/masterclass/MCAbout.astro';
+import MCPath from '../../components/masterclass/MCPath.astro';
+import MCRegister from '../../components/masterclass/MCRegister.astro';
+import WEFooter from '../../components/workshop-english/WEFooter.astro';
+import { buildCalendarItems, tzOptionsFor } from '../../lib/workshops/calendar';
+import { currencyForCountry } from '../../lib/workshops/currency';
+
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+const cf = (Astro.locals.runtime as any)?.cf;
+
+// Cloudflare edge geo/timezone — no external API (mirrors /workshop).
+const country: string = (cf?.country as string) || 'EU';
+const detectedTz: string = (cf?.timezone as string) || 'Europe/Brussels';
+const currency = currencyForCountry(country === 'EU' ? null : country);
+
+// Upcoming published masterclasses + workshops, priced in the visitor's
+// currency (shared with /workshop — see lib/workshops/calendar.ts). The
+// register section leads with the masterclass dates and offers the workshop
+// dates (incl. the instant-access replay) as the schedule-friendly fallback.
+const items = await buildCalendarItems(env.DB, currency, detectedTz);
+const tzOptions = tzOptionsFor(detectedTz);
+---
+
+<Layout
+  title="Professional Masterclass — Somatic Vocal Healing in Your Work | Songdance"
+  description="A 90-minute live masterclass for therapists, coaches, bodyworkers, facilitators, teachers, and leaders — what sound can do in your work when words run out. €29, online, with replay."
+  image="/brand/symbol-orange.png"
+>
+  <div class="we-site">
+    <MCNav />
+    <MCHero />
+    <MCOpening />
+    <MCWhat />
+    <MCWho />
+    <MCLyric />
+    <MCTestimonials />
+    <MCAbout />
+    <MCPath />
+    <MCRegister
+      items={items}
+      country={country}
+      currency={currency}
+      detectedTz={detectedTz}
+      tzOptions={tzOptions}
+    />
+    <WEFooter />
+  </div>
+</Layout>

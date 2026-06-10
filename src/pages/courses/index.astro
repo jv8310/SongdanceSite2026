@@ -26,10 +26,10 @@ const groups = [
     title: 'Somatic Vocal Healing',
     lede: 'Not singing — sounding. Not for you — of you. Start with an hour.',
     items: [
-      { label: 'Vocal Healing Workshop', note: '9€ · one live hour', href: '/workshop' },
+      { label: 'Vocal Healing Workshop', note: '9€ · one live hour', href: '/workshop', price: 'ticket' },
       { label: '12-Week Course', note: 'Foundational', href: '/courses/12-week' },
-      { label: 'Practitioner Training', note: 'Certification', href: '/certification-course' },
-      { label: 'Professional Masterclass', note: '29€', href: '/masterclass' },
+      { label: 'Practitioner Training', note: 'Certification', href: '/courses/certification' },
+      { label: 'Professional Masterclass', note: '29€', href: '/courses/masterclass', price: 'masterclass' },
     ],
   },
   {
@@ -45,7 +45,7 @@ const groups = [
     items: [
       { label: 'Authentic Singing Journey', note: '40 journeys', href: '/courses/authentic-singing' },
       { label: 'Magical Movement Journey', note: '10 journeys', href: '/courses/magical-movement' },
-      { label: 'Songdeck', note: 'music & mantras', href: '/songdeck' },
+      { label: 'Songdeck', note: 'music & mantras', href: '/courses/songdeck' },
     ],
   },
 ];
@@ -75,7 +75,7 @@ const groups = [
                   </span>
                 )}
                 <span class="sd-course-card-label">{it.label}</span>
-                <span class="sd-course-card-note">{it.note}</span>
+                <span class="sd-course-card-note" data-sd-price={'price' in it ? it.price : undefined}>{it.note}</span>
               </a>
             ))}
           </div>

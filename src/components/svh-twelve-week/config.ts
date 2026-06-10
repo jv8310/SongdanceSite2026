@@ -15,7 +15,7 @@ export const REGISTER_ANCHOR = '#register';
 export const SESSION_URL = '/workshop';
 
 // Practitioner path — the live, deepening training after the 12 weeks.
-export const PRACTITIONER_URL = '/certification-course';
+export const PRACTITIONER_URL = '/courses/certification';
 
 // Verified reviews.
 export const TRUSTPILOT_URL = 'https://www.trustpilot.com/review/songdance.co';

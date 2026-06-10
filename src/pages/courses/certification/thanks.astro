@@ -1,8 +1,8 @@
 ---
-import '../../styles/certification-course.css';
-import Layout from '../../layouts/Layout.astro';
-import CCNav from '../../components/certification-course/CCNav.astro';
-import CCFooter from '../../components/certification-course/CCFooter.astro';
+import '../../../styles/certification-course.css';
+import Layout from '../../../layouts/Layout.astro';
+import CCNav from '../../../components/certification-course/CCNav.astro';
+import CCFooter from '../../../components/certification-course/CCFooter.astro';
 
 export const prerender = false;
 
@@ -96,7 +96,7 @@ const firstName = reg?.first_name?.trim() || null;
             </p>
 
             <div class="cc-thanks-actions">
-              <a class="cc-checkout-cta" href="/certification-course">
+              <a class="cc-checkout-cta" href="/courses/certification">
                 <span>Back to the course page</span>
               </a>
             </div>
@@ -109,7 +109,7 @@ const firstName = reg?.first_name?.trim() || null;
               can safely close this window — a confirmation email is on its way.
             </p>
             <div class="cc-thanks-actions">
-              <a class="cc-checkout-cta" href="/certification-course">
+              <a class="cc-checkout-cta" href="/courses/certification">
                 <span>Back to the course page</span>
               </a>
             </div>

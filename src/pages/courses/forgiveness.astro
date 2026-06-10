@@ -1,47 +1,48 @@
 ---
-import SiteLayout from '../../components/SiteLayout.astro';
-import PageHero from '../../components/PageHero.astro';
-import SoftCta from '../../components/SoftCta.astro';
+import '../../styles/forgiveness.css';
+import Layout from '../../layouts/Layout.astro';
+import FCNav from '../../components/forgiveness/FCNav.astro';
+import FCHero from '../../components/forgiveness/FCHero.astro';
+import FCVideo from '../../components/forgiveness/FCVideo.astro';
+import FCSchedule from '../../components/forgiveness/FCSchedule.astro';
+import FCOpening from '../../components/forgiveness/FCOpening.astro';
+import FCBypass from '../../components/forgiveness/FCBypass.astro';
+import FCLayers from '../../components/forgiveness/FCLayers.astro';
+import FCPhrases from '../../components/forgiveness/FCPhrases.astro';
+import FCLyric from '../../components/forgiveness/FCLyric.astro';
+import FCForYou from '../../components/forgiveness/FCForYou.astro';
+import FCGlance from '../../components/forgiveness/FCGlance.astro';
+import FCClasses from '../../components/forgiveness/FCClasses.astro';
+import FCTestimonials from '../../components/forgiveness/FCTestimonials.astro';
+import FCGuides from '../../components/forgiveness/FCGuides.astro';
+import FCRegister from '../../components/forgiveness/FCRegister.astro';
+import FCFaq from '../../components/forgiveness/FCFaq.astro';
+import FCFooter from '../../components/forgiveness/FCFooter.astro';
+import FCCart from '../../components/forgiveness/FCCart.astro';
 ---
 
-<SiteLayout
-  title="The Forgiveness Course — with Daniela Hess & Jacob — Songdance"
-  description="The work of forgiveness — not forced absolution, but something you do, in layers, for your own freedom. With Daniela Hess and Jacob Vermeulen. Launching July 2026."
+<Layout
+  title="The Forgiveness Course — Songdance"
+  description="A forgiveness course where your body comes with you. Four live sessions with Daniela Hess and Jacob Vermeulen. Four Sundays in July 2026 — lifetime access to replays."
 >
-  <PageHero
-    eyebrow="With Daniela &amp; Jacob · launching July"
-    title="The Forgiveness Course"
-    lede="Not forced absolution — something you do, in layers, for your own freedom."
-  >
-    <div class="sd-pagehero-actions">
-      <a href="/forgiveness-for-you" class="sd-btn sd-btn-primary">Start the free Three Layers Walk</a>
-      <a href="/contact" class="sd-btn sd-btn-quiet">Ask to join the waitlist →</a>
-    </div>
-  </PageHero>
-
-  <section class="sd-section sd-prose">
-    <div class="sd-prose-inner">
-      <p>
-        A focused course with <strong>Daniela Hess and Jacob Vermeulen</strong> on the work of
-        forgiveness — not as forced absolution, but as something you do, in layers, for your own
-        freedom.
-      </p>
-      <p>
-        We won’t ask you to let anything go. “Everything wants to be acknowledged before it can go
-        away by itself” — that’s the whole method here. The pain gets heard first. You can’t skip
-        to the love. But it’s there.
-      </p>
-      <p>
-        A good place to begin, for free, is <a href="/forgiveness-for-you">The Three Layers Walk</a>
-        — a short guided practice with a personalised mantra. The full course launches
-        <strong>July 2026</strong>.
-      </p>
-    </div>
-  </section>
-
-  <SoftCta
-    text="Curious how the sounding part feels?"
-    ctaLabel="Try a live workshop — 9€"
-    ctaHref="/workshop"
-  />
-</SiteLayout>
+  <div class="fc-site">
+    <FCNav />
+    <FCHero />
+    <FCVideo />
+    <FCSchedule />
+    <FCOpening />
+    <FCBypass />
+    <FCLayers />
+    <FCPhrases />
+    <FCLyric />
+    <FCForYou />
+    <FCGlance />
+    <FCClasses />
+    <FCTestimonials />
+    <FCGuides />
+    <FCRegister />
+    <FCFaq />
+    <FCFooter />
+    <FCCart />
+  </div>
+</Layout>

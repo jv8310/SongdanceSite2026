@@ -1,5 +1,5 @@
 // POST { email, currency? } → { variant, currency, offers, twelve_week_week?, course_portal_url? }
-// Drives the variant block on /certification-course.
+// Drives the variant block on /courses/certification.
 //
 // Currency: detected from geo by default (US → USD, GB → GBP, else EUR),
 // but the client may pass an explicit `currency` to override — used when

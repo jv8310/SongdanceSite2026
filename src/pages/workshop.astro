@@ -12,17 +12,9 @@ import WEAbout from '../components/workshop-english/WEAbout.astro';
 import WEQuiet from '../components/workshop-english/WEQuiet.astro';
 import WEMasterclass from '../components/workshop-english/WEMasterclass.astro';
 import WERegister from '../components/workshop-english/WERegister.astro';
-import type { CalItem } from '../components/workshop-english/types';
 import WEFooter from '../components/workshop-english/WEFooter.astro';
-import {
-  listUpcomingPublishedWorkshops,
-  getProductById,
-  getProductBySlug,
-  resolvePrice,
-  listPricesForProduct,
-} from '../lib/workshops/db';
-import { currencyForCountry, formatMoney } from '../lib/workshops/currency';
-import { formatInTz } from '../lib/workshops/time';
+import { buildCalendarItems, tzOptionsFor } from '../lib/workshops/calendar';
+import { currencyForCountry } from '../lib/workshops/currency';
 
 export const prerender = false;
 
@@ -34,88 +26,11 @@ const country: string = (cf?.country as string) || 'EU';
 const detectedTz: string = (cf?.timezone as string) || 'Europe/Brussels';
 const currency = currencyForCountry(country === 'EU' ? null : country);
 
-// Build the calendar: upcoming published workshops + masterclasses, priced in
-// the visitor's currency. A masterclass is any entry whose main product slug
-// contains "masterclass".
-const upcoming = await listUpcomingPublishedWorkshops(env.DB, new Date().toISOString());
-
-// Turn the per-currency price rows into a { CUR: amountMinor } map.
-const priceMap = (rows: { currency: string; amount_minor: number }[]) =>
-  Object.fromEntries(rows.map((r) => [r.currency.toUpperCase(), r.amount_minor]));
-
-// The order bump (the Authentic Singing Journey recording pack). Workshops
-// carry it via bump_product_id; masterclasses don't define their own, so they
-// fall back to this default — the bump is offered on every date.
-const DEFAULT_BUMP_SLUG = 'asj-bump';
-const defaultBump = await getProductBySlug(env.DB, DEFAULT_BUMP_SLUG);
-
-// Marketing "regular price" anchor for the bump, used only to show a struck-
-// through compare-at price next to the one-time offer (the amount actually
-// charged is always the bump's real price above). The standalone Authentic
-// Singing Journey is €99; equivalents are kept in clean round numbers.
-const BUMP_COMPARE_BY_CURRENCY: Record<string, number> = {
-  EUR: 9900, USD: 9900, GBP: 8900, CHF: 9900, CAD: 14900,
-  AUD: 15900, NZD: 16900, NOK: 99900, SEK: 99900, DKK: 69900,
-};
-
-const items: CalItem[] = [];
-for (const w of upcoming) {
-  if (!w.main_product_id) continue;
-  const price = await resolvePrice(env.DB, w.main_product_id, currency);
-  if (!price) continue;
-  const pricesByCurrency = priceMap(await listPricesForProduct(env.DB, w.main_product_id));
-
-  const isMasterclass = (w.product_slug ?? '').includes('masterclass');
-  const bumpProductId = w.bump_product_id ?? (isMasterclass ? defaultBump?.id ?? null : null);
-
-  let bumpName = '';
-  let bumpLabel = '';
-  let bumpMinor = 0;
-  let bumpPricesByCurrency: Record<string, number> = {};
-  let bumpComparePricesByCurrency: Record<string, number> = {};
-  if (bumpProductId) {
-    const bumpProduct = await getProductById(env.DB, bumpProductId);
-    const bumpPrice = await resolvePrice(env.DB, bumpProductId, price.currency);
-    if (bumpProduct && bumpPrice) {
-      bumpName = bumpProduct.name;
-      bumpLabel = formatMoney(bumpPrice.amountMinor, bumpPrice.currency);
-      bumpMinor = bumpPrice.amountMinor;
-      bumpPricesByCurrency = priceMap(await listPricesForProduct(env.DB, bumpProductId));
-      bumpComparePricesByCurrency = BUMP_COMPARE_BY_CURRENCY;
-    }
-  }
-
-  items.push({
-    slug: w.slug,
-    kind: isMasterclass ? 'masterclass' : 'workshop',
-    whenLocal: w.is_replay ? null : formatInTz(w.starts_at_utc, detectedTz),
-    isReplay: w.is_replay === 1,
-    title: w.title,
-    durationMin: isMasterclass ? 90 : 60,
-    priceLabel: formatMoney(price.amountMinor, price.currency),
-    priceMinor: price.amountMinor,
-    currency: price.currency,
-    pricesByCurrency,
-    bumpName,
-    bumpLabel,
-    bumpMinor,
-    bumpPricesByCurrency,
-    bumpComparePricesByCurrency,
-    hasBump: !!bumpName,
-  });
-}
-
+// Upcoming published workshops + masterclasses, priced in the visitor's
+// currency (shared with /masterclass — see lib/workshops/calendar.ts).
+const items = await buildCalendarItems(env.DB, currency, detectedTz);
 const hasMasterclass = items.some((it) => it.kind === 'masterclass');
-
-// Tasteful timezone list with the detected one pinned first (mirrors /w/[slug]).
-const COMMON_TZS = [
-  'Europe/Brussels', 'Europe/London', 'Europe/Berlin', 'Europe/Paris', 'Europe/Madrid',
-  'Europe/Amsterdam', 'Europe/Zurich', 'Europe/Stockholm', 'Europe/Oslo', 'Europe/Copenhagen',
-  'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles', 'America/Toronto',
-  'America/Sao_Paulo', 'Asia/Dubai', 'Asia/Kolkata', 'Asia/Singapore', 'Asia/Tokyo',
-  'Australia/Sydney', 'Pacific/Auckland', 'UTC',
-];
-const tzOptions = Array.from(new Set([detectedTz, ...COMMON_TZS]));
+const tzOptions = tzOptionsFor(detectedTz);
 ---
 
 <Layout
