@@ -32,7 +32,22 @@ type Body = {
   vat_number?: string; // B2B (masterclass)
   coupon?: string;
   meta_event_id?: string;
+  audience?: string; // door-set from the workshop page, e.g. "3" or "1,3"
 };
+
+// Normalize the door-set to a sorted, deduped "1,3" form (doors 1–3 only).
+// Anything else — junk, empty, tampered values — collapses to null.
+function normalizeAudience(raw: string): string | null {
+  const doors = Array.from(
+    new Set(
+      raw
+        .split(',')
+        .map((s) => parseInt(s.trim(), 10))
+        .filter((d) => d === 1 || d === 2 || d === 3),
+    ),
+  ).sort();
+  return doors.length ? doors.join(',') : null;
+}
 
 // Default order bump (the Authentic Singing Journey recording pack). Workshops
 // reference it via bump_product_id; masterclasses fall back to this slug so the
@@ -58,6 +73,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const vatNumber = (payload.vat_number ?? '').trim().replace(/\s+/g, '');
   const coupon = (payload.coupon ?? '').trim();
   const metaEventId = (payload.meta_event_id ?? '').trim() || null;
+  const audience = normalizeAudience(payload.audience ?? '');
 
   if (!slug || !name || !EMAIL_RE.test(email)) {
     return json({ error: 'Please enter your name and a valid email address.' }, 400);
@@ -109,6 +125,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     vat_number: vatNumber || null,
     wants_bump: realBump,
     source_tag: workshop.source_tag,
+    audience,
   });
 
   // ── Free-coupon path: skip Stripe, grant access immediately. ──────────
@@ -207,6 +224,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         timezone: timezone ?? '',
         meta_event_id: metaEventId ?? '',
         source_tag: workshop.source_tag ?? '',
+        audience: audience ?? '',
         total_minor: String(totalMinor),
       },
       idempotency_key: `wreg-${registrationId}-${totalMinor}-${realBump ? 1 : 0}`,
