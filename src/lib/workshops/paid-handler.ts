@@ -100,6 +100,7 @@ async function sendConfirmation(env: Env, reg: WorkshopRegistration, workshop: W
   const content = confirmationEmail({
     name: reg.name,
     workshopTitle: workshop.title,
+    isReplay: workshop.is_replay === 1,
     whenLocal: workshop.is_replay ? 'On demand — start anytime' : formatInTz(workshop.starts_at_utc, tz),
     joinUrl: join,
     googleCalUrl: workshop.is_replay

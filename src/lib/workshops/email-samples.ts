@@ -39,11 +39,12 @@ export function buildEmailSamples(base: string): EmailSample[] {
   const workshopTitle = 'Somatic Vocal Healing Workshop';
   const whenLocal = 'Monday 15 June 2026, 20:00 (CEST)';
   const discountEndsLocal = 'Wednesday 17 June 2026, 21:00 (CEST)';
-  const email = 'maria@example.com';
   const resumeUrl = `${b}/w/svh`;
   const joinUrl = `${b}/workshop/success?rid=123`;
-  const courseUrl = `${b}/courses/12-week`;
-  const certUrl = `${b}/certification-course`;
+  // Personalized: the course page reads ?email= and shows that person's
+  // price (and any live discount) without them typing anything.
+  const courseUrl = `${b}/courses/12-week?email=maria%40example.com#register`;
+  const certUrl = `${b}/courses/certification`;
   const calendarUrl = `${b}/workshop`;
   const unsubscribeUrl = `${b}/unsubscribe?e=maria%40example.com&t=preview`;
   const lc = { name, workshopTitle, unsubscribeUrl };
@@ -123,7 +124,7 @@ export function buildEmailSamples(base: string): EmailSample[] {
       label: 'Email 2 — the case for the course',
       timing: '+24h (mid-window)',
       audience: "Attended, hasn't bought",
-      content: attendedEmail2({ ...lc, courseUrl, discountEndsLocal, email }),
+      content: attendedEmail2({ ...lc, courseUrl, discountEndsLocal }),
     },
     {
       id: 'attended_3',
@@ -131,7 +132,7 @@ export function buildEmailSamples(base: string): EmailSample[] {
       label: 'Email 3 — last chance',
       timing: '+42h (~6h before the discount ends)',
       audience: "Attended, hasn't bought",
-      content: attendedEmail3({ ...lc, courseUrl, discountEndsLocal, email }),
+      content: attendedEmail3({ ...lc, courseUrl, discountEndsLocal }),
     },
 
     // ── Attended, PRO → certification path ──────────────────────────────

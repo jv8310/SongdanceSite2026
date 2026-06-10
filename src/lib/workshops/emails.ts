@@ -21,6 +21,18 @@ const PALETTE = {
 
 const LOGO_URL = 'https://site.songdance.co/brand/logo-wordmark-dark.png';
 
+// Email imagery must be absolute production URLs (inboxes can't resolve
+// relative paths). These live in public/imagery/ — git-tracked, so the links
+// are stable. NB: several files in that folder are named after a different
+// subject than they show; every reference below was visually verified.
+const IMG = {
+  circleWide: 'https://site.songdance.co/imagery/circle-yurt-wide.jpg', // wide circle, Jacob at the far side
+  soundingBlue: 'https://site.songdance.co/imagery/sounding-blue.jpg', // woman mid-tone, hand on chest, sunset
+  soundingYellow: 'https://site.songdance.co/imagery/sounding-yellow.jpg', // woman, eyes closed, hand on heart
+  jacobSounding: 'https://site.songdance.co/imagery/portrait-jacob-sounding.jpg', // Jacob sounding, golden field
+  walkSunset: 'https://site.songdance.co/imagery/walk-tree-sunset.jpg', // figure walking toward the light
+};
+
 // Lifecycle (marketing-flavoured) emails come from a person, not a brand.
 // Same verified sending domain as the transactional default; replies land
 // with support.
@@ -40,18 +52,20 @@ function escapeHtml(s: string): string {
     .replace(/'/g, '&#39;');
 }
 
-// Shared shell. `bodyHtml` is dropped into the parchment card; `cta` renders
-// a primary button; `extras` renders secondary links beneath it.
+// Shared shell. `bodyHtml` is dropped into the parchment card; `heroImage`
+// renders edge-to-edge above it; `cta` renders a primary button; `extras`
+// renders secondary links beneath it.
 function shell(opts: {
   preheader: string;
   heading: string;
   bodyHtml: string;
+  heroImage?: { src: string; alt: string };
   cta?: ButtonLink;
   extras?: ButtonLink[];
   footerNote?: string;
   unsubscribeUrl?: string;
 }): string {
-  const { preheader, heading, bodyHtml, cta, extras, footerNote, unsubscribeUrl } = opts;
+  const { preheader, heading, bodyHtml, heroImage, cta, extras, footerNote, unsubscribeUrl } = opts;
   return `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en">
 <head>
@@ -70,6 +84,7 @@ function shell(opts: {
         </td></tr>
         <tr><td style="padding:20px 24px 0;">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:${PALETTE.card};border:1px solid ${PALETTE.border};border-radius:14px;">
+            ${heroImage ? `<tr><td style="padding:0;"><img src="${heroImage.src}" alt="${escapeHtml(heroImage.alt)}" width="558" style="display:block;width:100%;height:auto;border-radius:13px 13px 0 0;" /></td></tr>` : ''}
             <tr><td style="padding:30px 34px;font-family:Georgia,serif;font-size:16px;line-height:1.65;color:${PALETTE.soft};">
               ${bodyHtml}
               ${cta ? `<div style="padding-top:22px;"><a href="${cta.href}" style="display:inline-block;background-color:${PALETTE.ink};color:${PALETTE.bg};font-family:Georgia,serif;font-size:15px;line-height:1;text-decoration:none;padding:14px 26px;border-radius:999px;">${escapeHtml(cta.label)}</a></div>` : ''}
@@ -105,6 +120,26 @@ function greeting(name?: string | null): string {
   return first ? `Dear ${escapeHtml(first)},` : 'Hello,';
 }
 
+// A small photo beside a paragraph — the "visual element here and there".
+// Table-based so it survives every mail client; stacks poorly nowhere
+// because 150px + text fits even narrow phones.
+function figureRow(src: string, alt: string, bodyHtml: string): string {
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:4px 0 14px;"><tr>
+    <td width="150" valign="top" style="padding:0 16px 0 0;"><img src="${src}" alt="${escapeHtml(alt)}" width="150" style="display:block;width:150px;height:auto;border-radius:10px;" /></td>
+    <td valign="top" style="font-family:Georgia,serif;font-size:16px;line-height:1.65;color:${PALETTE.soft};">${bodyHtml}</td>
+  </tr></table>`;
+}
+
+// A centered italic line in the brand ember — for the copy-book one-liners.
+function quoteLine(text: string): string {
+  return `<p style="margin:20px 0;text-align:center;font-style:italic;font-size:17px;line-height:1.5;color:${PALETTE.ember};">${escapeHtml(text)}</p>`;
+}
+
+// An ember-dotted list row (email-safe bullet).
+function dot(html: string): string {
+  return `<p style="margin:0 0 10px;"><span style="color:${PALETTE.ember};">&#9679;&nbsp;&nbsp;</span>${html}</p>`;
+}
+
 // ── Verification code ────────────────────────────────────────────────────
 export function verificationEmail(code: string): EmailContent {
   const html = shell({
@@ -122,25 +157,39 @@ export function verificationEmail(code: string): EmailContent {
 }
 
 // ── Registration confirmation ────────────────────────────────────────────
-export function confirmationEmail(ctx: WorkshopEmailCtx): EmailContent {
+export function confirmationEmail(ctx: WorkshopEmailCtx & { isReplay?: boolean }): EmailContent {
   const extras: ButtonLink[] = [];
   if (ctx.googleCalUrl) extras.push({ label: 'Add to Google Calendar', href: ctx.googleCalUrl });
   if (ctx.icsUrl) extras.push({ label: 'Apple / Outlook (.ics)', href: ctx.icsUrl });
+  const expectBlock = ctx.isReplay
+    ? ''
+    : `<p style="margin:20px 0 10px;font-size:14px;letter-spacing:0.08em;text-transform:uppercase;color:${PALETTE.ember};">What to expect</p>
+      ${dot('We gather on Zoom. A few words to arrive, then the practice itself — one breath in, one tone out, together.')}
+      ${dot(`Nobody is put on the spot. Cameras can stay off, you're muted unless you choose otherwise, and soft counts.`)}
+      ${dot(`You don't need a good voice — you need an honest one. No experience, no skill, no warm-up.`)}
+      <p style="margin:20px 0 10px;font-size:14px;letter-spacing:0.08em;text-transform:uppercase;color:${PALETTE.ember};">How to prepare</p>
+      <p style="margin:0 0 14px;">There's nothing to prepare. If you'd like to be comfortable: a quiet-ish corner where a little sound is allowed — a bedroom, even a parked car. Headphones if you share walls. Water nearby. That's the whole list.</p>`;
   const html = shell({
     preheader: `You're registered for ${ctx.workshopTitle}`,
     heading: "You're in",
+    heroImage: { src: IMG.circleWide, alt: 'A Songdance circle, mid-gathering' },
     bodyHtml: `<p style="margin:0 0 14px;">${greeting(ctx.name)}</p>
       <p style="margin:0 0 14px;">Your place in <strong>${escapeHtml(ctx.workshopTitle)}</strong> is confirmed.</p>
       <p style="margin:0 0 6px;">It takes place on:</p>
       <p style="margin:0 0 4px;font-size:18px;color:${PALETTE.ink};">${escapeHtml(ctx.whenLocal)}</p>
-      <p style="margin:14px 0 0;">When the time comes, open your countdown page below — the Join button appears 5 minutes before we begin and takes you straight into the room.</p>`,
+      ${expectBlock}
+      ${ctx.isReplay ? '' : quoteLine('Come as you sound.')}
+      <p style="margin:14px 0 0;">When the time comes, open your page below — the Join button appears 5 minutes before we begin and takes you straight into the room.</p>`,
     cta: { label: 'Open my countdown page', href: ctx.joinUrl },
     extras,
   });
+  const expectText = ctx.isReplay
+    ? ''
+    : `\nWhat to expect:\n- We gather on Zoom. A few words to arrive, then the practice itself — one breath in, one tone out, together.\n- Nobody is put on the spot. Cameras can stay off, you're muted unless you choose otherwise, and soft counts.\n- You don't need a good voice — you need an honest one. No experience, no skill, no warm-up.\n\nHow to prepare: nothing. If you'd like to be comfortable: a quiet-ish corner where a little sound is allowed, headphones if you share walls, water nearby. That's the whole list.\n`;
   return {
     subject: `You're registered — ${ctx.workshopTitle}`,
     html,
-    text: `${greeting(ctx.name).replace(/<[^>]+>/g, '')}\n\nYour place in ${ctx.workshopTitle} is confirmed.\n\nWhen: ${ctx.whenLocal}\n\nYour countdown / join page: ${ctx.joinUrl}\n\nThe Join button appears 5 minutes before we begin.`,
+    text: `${greeting(ctx.name).replace(/<[^>]+>/g, '')}\n\nYour place in ${ctx.workshopTitle} is confirmed.\n\nWhen: ${ctx.whenLocal}\n${expectText}\nYour countdown / join page: ${ctx.joinUrl}\n\nThe Join button appears 5 minutes before we begin.`,
   };
 }
 
@@ -158,21 +207,37 @@ const REMINDER_LEAD: Record<string, string> = {
 export function reminderEmail(type: string, ctx: WorkshopEmailCtx): EmailContent {
   const lead = REMINDER_LEAD[type] ?? 'soon';
   const isImminent = type === 'reminder_15m' || type === 'at_time' || type === 'reminder_1h';
+  // The early reminders carry a little warmth and reassurance; the imminent
+  // ones stay lean — just the door.
+  const isWarm = type === 'reminder_7d' || type === 'reminder_2d' || type === 'reminder_1d';
+  const warmBlock = isWarm
+    ? `<p style="margin:14px 0 0;">Nothing to prepare — just yourself, a quiet-ish corner where a little sound is allowed, and headphones if you share walls. Cameras can stay off. You can't do it wrong.</p>
+      ${
+        type === 'reminder_1d'
+          ? `<p style="margin:14px 0 0;">If you're curious before we begin: one breath in, one tone out — the sound of this moment. That's the seed of everything we'll do together.</p>`
+          : ''
+      }
+      ${quoteLine("You don't need a good voice. You need an honest one.")}`
+    : '';
   const html = shell({
     preheader: `${ctx.workshopTitle} starts ${lead}`,
     heading: type === 'at_time' ? "We're starting" : `Starting ${lead}`,
     bodyHtml: `<p style="margin:0 0 14px;">${greeting(ctx.name)}</p>
       <p style="margin:0 0 14px;"><strong>${escapeHtml(ctx.workshopTitle)}</strong> starts ${lead}.</p>
       <p style="margin:0 0 4px;font-size:18px;color:${PALETTE.ink};">${escapeHtml(ctx.whenLocal)}</p>
+      ${warmBlock}
       <p style="margin:14px 0 0;">${isImminent ? 'Open your page now — the Join button is ready.' : 'Open your countdown page below; the Join button appears 5 minutes before we begin.'}</p>`,
     cta: { label: isImminent ? 'Join now' : 'Open my countdown page', href: ctx.joinUrl },
   });
+  const warmText = isWarm
+    ? `\nNothing to prepare — just yourself, a quiet-ish corner where a little sound is allowed, and headphones if you share walls. Cameras can stay off. You can't do it wrong.\n`
+    : '';
   return {
     subject: type === 'at_time'
       ? `We're starting — ${ctx.workshopTitle}`
       : `Reminder: ${ctx.workshopTitle} starts ${lead}`,
     html,
-    text: `${greeting(ctx.name).replace(/<[^>]+>/g, '')}\n\n${ctx.workshopTitle} starts ${lead}.\nWhen: ${ctx.whenLocal}\n\nYour join page: ${ctx.joinUrl}`,
+    text: `${greeting(ctx.name).replace(/<[^>]+>/g, '')}\n\n${ctx.workshopTitle} starts ${lead}.\nWhen: ${ctx.whenLocal}\n${warmText}\nYour join page: ${ctx.joinUrl}`,
   };
 }
 
@@ -228,7 +293,11 @@ export function abandonedEmail2(
     heading: 'Still thinking it over?',
     bodyHtml: `<p style="margin:0 0 14px;">${greeting(ctx.name)}</p>
       <p style="margin:0 0 14px;">Yesterday you almost joined <strong>${escapeHtml(ctx.workshopTitle)}</strong>. Maybe life got in the way — or maybe you weren't sure it's for you.</p>
-      <p style="margin:0 0 14px;">In case it's the second one, the honest small print: this is not a singing course. You don't need a good voice — you need an honest one. One tone, the tone of what's actually there. Nobody is put on the spot, cameras can stay off, and soft counts.</p>
+      ${figureRow(
+        IMG.soundingYellow,
+        'A participant sounding — eyes closed, hand on heart',
+        `<p style="margin:0;">In case it's the second one, the honest small print: this is not a singing course. You don't need a good voice — you need an honest one. One tone, the tone of what's actually there. Nobody is put on the spot, cameras can stay off, and soft counts.</p>`,
+      )}
       ${ctx.whenLocal ? `<p style="margin:0 0 6px;">We begin on:</p>
       <p style="margin:0 0 14px;font-size:18px;color:${PALETTE.ink};">${escapeHtml(ctx.whenLocal)}</p>` : ''}
       <p style="margin:0;">And if now simply isn't the time — that's an honest answer too. The door doesn't disappear.</p>`,
@@ -271,21 +340,25 @@ export function attendedEmail1(
     preheader: 'A note for the days after — and 48 hours of 20% off the 12-week course.',
     heading: 'Thank you for sounding with us',
     bodyHtml: `${opener}
-      <p style="margin:0 0 14px;">If you'd like to take this further, the 12-week course is where the practice becomes your own — twelve weeks, one layer at a time, in your own time, with live Q&amp;A.</p>
-      <p style="margin:0;">As a participant you have <strong>20% off — for 48 hours only</strong>. It ends ${escapeHtml(ctx.discountEndsLocal)}, and it's applied automatically when you enter your email on the course page. No code needed.</p>`,
-    cta: { label: 'See the 12-week course', href: ctx.courseUrl },
+      ${figureRow(
+        IMG.soundingBlue,
+        'A participant mid-tone, hand on chest',
+        `<p style="margin:0;">If you'd like to take this further, the 12-week course is where the practice becomes your own — twelve weeks, one layer at a time, in your own time, with live Q&amp;A.</p>`,
+      )}
+      <p style="margin:0;">As a participant you have <strong>20% off — for 48 hours only</strong>, until ${escapeHtml(ctx.discountEndsLocal)}. The button below already knows it's you: your discounted price is on the page, nothing to type.</p>`,
+    cta: { label: 'See my price — 20% off', href: ctx.courseUrl },
     unsubscribeUrl: ctx.unsubscribeUrl,
   });
   return {
     subject: 'Thank you for sounding with us',
     html,
-    text: `${textGreeting(ctx.name)}\n\nThank you for being part of ${ctx.workshopTitle}. Whatever sound you made today — it was the right one. You cannot do it wrong; it always expresses something.\n\nIn the day or two after a session the body sometimes keeps commenting — a yawn out of nowhere, tiredness, a feeling passing through. Nothing is wrong. Give it room, and when in doubt: one breath in, one tone out.\n\nIf you'd like to take this further, the 12-week course is where the practice becomes your own — twelve weeks, one layer at a time, in your own time, with live Q&A.\n\nAs a participant you have 20% off — for 48 hours only. It ends ${ctx.discountEndsLocal}, and it's applied automatically when you enter your email on the course page. No code needed.\n\n${ctx.courseUrl}\n\nWarmly,\nJacob${unsubText(ctx.unsubscribeUrl)}`,
+    text: `${textGreeting(ctx.name)}\n\nThank you for being part of ${ctx.workshopTitle}. Whatever sound you made today — it was the right one. You cannot do it wrong; it always expresses something.\n\nIn the day or two after a session the body sometimes keeps commenting — a yawn out of nowhere, tiredness, a feeling passing through. Nothing is wrong. Give it room, and when in doubt: one breath in, one tone out.\n\nIf you'd like to take this further, the 12-week course is where the practice becomes your own — twelve weeks, one layer at a time, in your own time, with live Q&A.\n\nAs a participant you have 20% off — for 48 hours only, until ${ctx.discountEndsLocal}. The link below already knows it's you: your discounted price is on the page, nothing to type.\n\n${ctx.courseUrl}\n\nWarmly,\nJacob${unsubText(ctx.unsubscribeUrl)}`,
   };
 }
 
 // ── Attended 2 (+24h): the case for the course, factually ──────────────────
 export function attendedEmail2(
-  ctx: LifecycleCtx & { courseUrl: string; discountEndsLocal: string; email: string },
+  ctx: LifecycleCtx & { courseUrl: string; discountEndsLocal: string },
 ): EmailContent {
   const html = shell({
     preheader: `Your 20% ends tomorrow — ${ctx.discountEndsLocal}.`,
@@ -294,27 +367,28 @@ export function attendedEmail2(
       <p style="margin:0 0 14px;">In the workshop you made the sound of the moment — one breath in, one tone out. That's the front door of this practice.</p>
       <p style="margin:0 0 14px;">Behind it sits a method. After the first tone you ask: <em>what is below that?</em> — and you make the sound of that. You only ever need to go one level deeper. Learning to do that kindly, at your own tempo, is what the twelve weeks are for.</p>
       <p style="margin:0 0 14px;">It's not an eternal excavation — it's a tool you keep. Twelve weeks, one layer at a time, in your own time, with live Q&amp;A along the way. Don't expect miracles; expect a real relationship with your own voice.</p>
-      <p style="margin:0;">A practical note: your participant discount (20%) ends <strong>tomorrow — ${escapeHtml(ctx.discountEndsLocal)}</strong>. It's applied automatically to ${escapeHtml(ctx.email)} on the page. After that, full price.</p>`,
-    cta: { label: 'See the 12-week course', href: ctx.courseUrl },
+      ${quoteLine('Below every wound, another door.')}
+      <p style="margin:0;">A practical note: your 20% ends <strong>tomorrow — ${escapeHtml(ctx.discountEndsLocal)}</strong>. The button below opens the page with your price already showing. After that, full price.</p>`,
+    cta: { label: 'See my price — 20% off', href: ctx.courseUrl },
     unsubscribeUrl: ctx.unsubscribeUrl,
   });
   return {
     subject: 'What is below that?',
     html,
-    text: `${textGreeting(ctx.name)}\n\nIn the workshop you made the sound of the moment — one breath in, one tone out. That's the front door of this practice.\n\nBehind it sits a method. After the first tone you ask: what is below that? — and you make the sound of that. You only ever need to go one level deeper. Learning to do that kindly, at your own tempo, is what the twelve weeks are for.\n\nIt's not an eternal excavation — it's a tool you keep. Twelve weeks, one layer at a time, in your own time, with live Q&A along the way. Don't expect miracles; expect a real relationship with your own voice.\n\nA practical note: your participant discount (20%) ends tomorrow — ${ctx.discountEndsLocal}. It's applied automatically to ${ctx.email} on the page. After that, full price.\n\n${ctx.courseUrl}\n\n— Jacob${unsubText(ctx.unsubscribeUrl)}`,
+    text: `${textGreeting(ctx.name)}\n\nIn the workshop you made the sound of the moment — one breath in, one tone out. That's the front door of this practice.\n\nBehind it sits a method. After the first tone you ask: what is below that? — and you make the sound of that. You only ever need to go one level deeper. Learning to do that kindly, at your own tempo, is what the twelve weeks are for.\n\nIt's not an eternal excavation — it's a tool you keep. Twelve weeks, one layer at a time, in your own time, with live Q&A along the way. Don't expect miracles; expect a real relationship with your own voice.\n\nA practical note: your 20% ends tomorrow — ${ctx.discountEndsLocal}. The link below opens the page with your price already showing. After that, full price.\n\n${ctx.courseUrl}\n\n— Jacob${unsubText(ctx.unsubscribeUrl)}`,
   };
 }
 
 // ── Attended 3 (+42h): last chance — the one email that's allowed to push ──
 export function attendedEmail3(
-  ctx: LifecycleCtx & { courseUrl: string; discountEndsLocal: string; email: string },
+  ctx: LifecycleCtx & { courseUrl: string; discountEndsLocal: string },
 ): EmailContent {
   const html = shell({
     preheader: `It ends ${ctx.discountEndsLocal}. After that, full price.`,
     heading: 'Last chance on your 20%',
     bodyHtml: `<p style="margin:0 0 14px;">${greeting(ctx.name)}</p>
       <p style="margin:0 0 14px;">This is the last call I'll send about it: your participant discount on the 12-week course ends <strong>${escapeHtml(ctx.discountEndsLocal)}</strong> — a few hours from now. After that, full price.</p>
-      <p style="margin:0 0 14px;">The facts, once more: 20% off, applied automatically to ${escapeHtml(ctx.email)} on the page. If spreading it out helps, there's a three-part monthly plan — the discount applies to each installment too.</p>
+      <p style="margin:0 0 14px;">The facts, once more: 20% off, already applied for you — the button below opens the page with your price showing. If spreading it out helps, there's a three-part monthly plan; the discount counts there too.</p>
       <p style="margin:0 0 14px;">If the answer is "not now", that's an honest answer and nothing is lost. But if you've been meaning to — this is the moment it costs the least.</p>
       <p style="margin:0;">Unsure whether it's for you? Reply with your question before the window shuts; a person answers plainly. If it's not for you, we'll say so.</p>`,
     cta: { label: 'Take the 20% before it ends', href: ctx.courseUrl },
@@ -323,7 +397,7 @@ export function attendedEmail3(
   return {
     subject: 'Last chance — your 20% ends in a few hours',
     html,
-    text: `${textGreeting(ctx.name)}\n\nThis is the last call I'll send about it: your participant discount on the 12-week course ends ${ctx.discountEndsLocal} — a few hours from now. After that, full price.\n\nThe facts, once more: 20% off, applied automatically to ${ctx.email} on the page. If spreading it out helps, there's a three-part monthly plan — the discount applies to each installment too.\n\nIf the answer is "not now", that's an honest answer and nothing is lost. But if you've been meaning to — this is the moment it costs the least.\n\nUnsure whether it's for you? Reply with your question before the window shuts; a person answers plainly. If it's not for you, we'll say so.\n\n${ctx.courseUrl}\n\n— Jacob${unsubText(ctx.unsubscribeUrl)}`,
+    text: `${textGreeting(ctx.name)}\n\nThis is the last call I'll send about it: your participant discount on the 12-week course ends ${ctx.discountEndsLocal} — a few hours from now. After that, full price.\n\nThe facts, once more: 20% off, already applied for you — the link below opens the page with your price showing. If spreading it out helps, there's a three-part monthly plan; the discount counts there too.\n\nIf the answer is "not now", that's an honest answer and nothing is lost. But if you've been meaning to — this is the moment it costs the least.\n\nUnsure whether it's for you? Reply with your question before the window shuts; a person answers plainly. If it's not for you, we'll say so.\n\n${ctx.courseUrl}\n\n— Jacob${unsubText(ctx.unsubscribeUrl)}`,
   };
 }
 
@@ -336,16 +410,20 @@ export function attendedProEmail1(
     heading: 'Thank you for sounding with us',
     bodyHtml: `<p style="margin:0 0 14px;">${greeting(ctx.name)}</p>
       <p style="margin:0 0 14px;">Thank you for being part of <strong>${escapeHtml(ctx.workshopTitle)}</strong>.</p>
-      <p style="margin:0 0 14px;">Because you work with people yourself, there's a path here that may matter more to you than the rest: the <strong>SVH Certification</strong> — learning to hold this space for others.</p>
+      ${figureRow(
+        IMG.jacobSounding,
+        'Jacob sounding — hand on chest, eyes closed',
+        `<p style="margin:0;">Because you work with people yourself, there's a path here that may matter more to you than the rest: the <strong>SVH Certification</strong> — learning to hold this space for others.</p>`,
+      )}
       <p style="margin:0 0 14px;">Not healer, not fixer: space holder. Someone who keeps the room steady while another person does the one thing only they can do. If that sounds like your work, have a look:</p>`,
     cta: { label: 'Explore the certification path', href: ctx.certUrl },
-    extras: [{ label: 'The 12-week course (20% off for 48 hours)', href: ctx.courseUrl }],
+    extras: [{ label: 'Your 12-week price (20% off, 48 hours)', href: ctx.courseUrl }],
     unsubscribeUrl: ctx.unsubscribeUrl,
   });
   return {
     subject: 'Thank you — and a word for practitioners',
     html,
-    text: `${textGreeting(ctx.name)}\n\nThank you for being part of ${ctx.workshopTitle}.\n\nBecause you work with people yourself, there's a path here that may matter more to you than the rest: the SVH Certification — learning to hold this space for others.\n\nNot healer, not fixer: space holder. Someone who keeps the room steady while another person does the one thing only they can do.\n\n${ctx.certUrl}\n\nPS — your participant discount on the 12-week course (20%) is also live for the next 48 hours, applied automatically with your email: ${ctx.courseUrl}\n\nWarmly,\nJacob${unsubText(ctx.unsubscribeUrl)}`,
+    text: `${textGreeting(ctx.name)}\n\nThank you for being part of ${ctx.workshopTitle}.\n\nBecause you work with people yourself, there's a path here that may matter more to you than the rest: the SVH Certification — learning to hold this space for others.\n\nNot healer, not fixer: space holder. Someone who keeps the room steady while another person does the one thing only they can do.\n\n${ctx.certUrl}\n\nPS — your 20% on the 12-week course is also live for the next 48 hours; this link shows your price directly: ${ctx.courseUrl}\n\nWarmly,\nJacob${unsubText(ctx.unsubscribeUrl)}`,
   };
 }
 
@@ -430,7 +508,11 @@ export function noShowEmail3(ctx: LifecycleCtx & { hubUrl: string }): EmailConte
     heading: 'The door stays open',
     bodyHtml: `<p style="margin:0 0 14px;">${greeting(ctx.name)}</p>
       <p style="margin:0 0 14px;">This is the last note about the session you missed — we won't keep nudging.</p>
-      <p style="margin:0 0 14px;">Your page keeps working: the replay, and the free move onto any upcoming date, whenever the season suits.</p>
+      ${figureRow(
+        IMG.walkSunset,
+        'A figure walking toward the evening light',
+        `<p style="margin:0;">Your page keeps working: the replay, and the free move onto any upcoming date, whenever the season suits.</p>`,
+      )}
       <p style="margin:0;">Until then, a practice that needs no Zoom link: one breath in, one tone out — the sound of how it actually is. Thirty honest seconds. Half this practice happens in parked cars.</p>`,
     cta: { label: 'Open my page', href: ctx.hubUrl },
     unsubscribeUrl: ctx.unsubscribeUrl,
@@ -471,7 +553,11 @@ export function downsellEmail2(
     heading: 'Three breaths and a tone',
     bodyHtml: `<p style="margin:0 0 14px;">${greeting(ctx.name)}</p>
       <p style="margin:0 0 14px;">This is the last email in this little series — then quiet. Before that, the most important thing I can leave you with:</p>
-      <p style="margin:0 0 14px;">The practice needs no purchase. In the morning, ask: <em>how am I feeling, in this moment?</em> — and make the sound of that. Thirty seconds. The kitchen is a fine temple.</p>
+      ${figureRow(
+        IMG.soundingYellow,
+        'A participant sounding — eyes closed, hand on heart',
+        `<p style="margin:0;">The practice needs no purchase. In the morning, ask: <em>how am I feeling, in this moment?</em> — and make the sound of that. Thirty seconds. The kitchen is a fine temple.</p>`,
+      )}
       <p style="margin:0;">If you'd like company doing it, come sound with us live again — the calendar of upcoming workshops and masterclasses is below. And the 12-week course keeps its door open if a later season is the right one.</p>`,
     cta: { label: 'See upcoming live dates', href: ctx.calendarUrl },
     extras: [{ label: 'The 12-week course', href: ctx.courseUrl }],

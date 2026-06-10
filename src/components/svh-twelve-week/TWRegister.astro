@@ -253,6 +253,14 @@ const includes = [
       render(email, status);
     });
 
+    // Arriving from an email? ?email=… skips the gate: prefill and reveal
+    // that person's price (and any live discount) immediately.
+    const urlEmail = (new URLSearchParams(location.search).get('email') ?? '').trim().toLowerCase();
+    if (urlEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(urlEmail)) {
+      emailForm.querySelector<HTMLInputElement>('input[name="email"]')!.value = urlEmail;
+      emailForm.requestSubmit();
+    }
+
     function render(email: string, status: Status) {
       window.clearInterval(countdownTimer);
       const frag = template!.content.cloneNode(true) as DocumentFragment;
