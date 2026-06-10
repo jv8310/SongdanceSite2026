@@ -1,0 +1,61 @@
+---
+// Hero for the professional masterclass. Background: Jacob holding a circle
+// in the round hall (svh-retreat-circle-yurt-wide) — the room they hold.
+---
+
+<section class="we-hero">
+  <div class="we-hero-bg" aria-hidden="true">
+    <img src="/media/library/svh-retreat-circle-yurt-wide.webp" alt="" />
+  </div>
+  <div class="we-hero-inner">
+    <img class="we-hero-mark" src="/brand/symbol-orange.png" alt="" aria-hidden="true" />
+    <div class="we-hero-eyebrow">Professional Masterclass · Somatic Vocal Healing</div>
+    <h1 class="we-hero-head">
+      What sound can do <em>when words run out.</em>
+    </h1>
+    <p class="we-hero-sub">
+      A 90-minute live masterclass for therapists, coaches, bodyworkers,
+      facilitators, teachers, and leaders — <em>the people who hold rooms for
+      other people.</em>
+    </p>
+    <a href="#register" class="we-hero-cta">
+      Reserve your seat <i class="ph-light ph-arrow-right"></i>
+    </a>
+    <a href="#inside" class="we-hero-link">See what's inside the 90 minutes</a>
+    <div class="we-hero-meta">
+      <span>With Jacob Vermeulen</span>
+      <span class="dot"></span>
+      <span>Online</span>
+      <span class="dot"></span>
+      <span>Live</span>
+      <span class="dot"></span>
+      <span>Replay included</span>
+    </div>
+  </div>
+</section>
+
+<script is:inline>
+  // Subtle hero-background parallax, same as the workshop page. Moves the
+  // background slower than the page within the -60px headroom on .we-hero-bg.
+  // Disabled for reduced-motion.
+  (function () {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    var hero = document.querySelector('.we-hero');
+    var bg = document.querySelector('.we-hero-bg');
+    if (!hero || !bg) return;
+    var ticking = false;
+    function update() {
+      ticking = false;
+      var rect = hero.getBoundingClientRect();
+      if (rect.bottom < 0 || rect.top > window.innerHeight) return;
+      var shift = Math.max(-40, Math.min(40, -rect.top * 0.12));
+      bg.style.transform = 'translate3d(0,' + shift.toFixed(1) + 'px,0)';
+    }
+    function onScroll() {
+      if (!ticking) { ticking = true; requestAnimationFrame(update); }
+    }
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll, { passive: true });
+    update();
+  })();
+</script>
