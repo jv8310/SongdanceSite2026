@@ -266,9 +266,9 @@ const faqSchema = {
     </section>
   ))}
 
-  <!-- The honest part: emotional turn, dark panel ----------------------- -->
-  <section class="wsv-honest">
-    <div class="wsv-honest-media">
+  <!-- The honest part: pinned descent from surface to ember -------------- -->
+  <section class="wsv-honest" id="honest">
+    <div class="wsv-honest-sticky">
       <img
         class="wsv-honest-img"
         src="/media/library/svhgpt-07-below-deeper-earlier.webp"
@@ -277,23 +277,27 @@ const faqSchema = {
         height="1672"
         loading="lazy"
         decoding="async"
-        data-parallax="0.1"
       />
-    </div>
-    <div class="wsv-honest-text wsv-reveal">
-      <div class="wsv-eyebrow wsv-eyebrow--light">The honest part</div>
-      <h2 class="wsv-honest-h">It doesn’t always feel better right away</h2>
-      <p>
-        Here’s the thing no brochure says: sometimes you feel worse before
-        anything settles. If all you want is to feel nice for an hour, there are
-        gentler tools — and they’re good ones.
-      </p>
-      <p>
-        But if you’re willing to meet the parts that have been waiting — the
-        grief, the anger, the old fear — what’s on the other side isn’t a quick
-        lift. It’s a steadier kind of peace. More lasting. More structurally
-        <span class="wsv-italic">yours.</span>
-      </p>
+      <div class="wsv-honest-veil" aria-hidden="true"></div>
+      <div class="wsv-honest-step">
+        <div class="wsv-eyebrow wsv-eyebrow--light">The honest part</div>
+        <h2 class="wsv-honest-h">It doesn’t always feel better right away</h2>
+      </div>
+      <div class="wsv-honest-step">
+        <p>
+          Here’s the thing no brochure says: sometimes you feel worse before
+          anything settles. If all you want is to feel nice for an hour, there are
+          gentler tools — and they’re good ones.
+        </p>
+      </div>
+      <div class="wsv-honest-step">
+        <p>
+          But if you’re willing to meet the parts that have been waiting — the
+          grief, the anger, the old fear — what’s on the other side isn’t a quick
+          lift. It’s a steadier kind of peace. More lasting. More structurally
+          <span class="wsv-italic">yours.</span>
+        </p>
+      </div>
     </div>
   </section>
 
@@ -671,31 +675,31 @@ const faqSchema = {
     text-wrap: balance;
   }
 
-  /* ---------- The honest part (dark panel) ---------- */
+  /* ---------- The honest part (pinned descent) ----------
+     Static layout first: the whole illustration is visible — nothing
+     crops the ember — with the text on plum below it. The scroll-driven
+     descent only layers on under html.wsv-anim (JS + motion allowed). */
   .wsv-honest {
-    display: grid;
-    grid-template-columns: 0.9fr 1.1fr;
-    align-items: stretch;
     background: var(--plum);
     color: var(--paper-soft);
-  }
-  .wsv-honest-media {
-    position: relative;
-    overflow: hidden; /* clips the over-scaled parallax image */
+    padding: var(--sp-8) 0 0;
   }
   .wsv-honest-img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    object-position: center 30%;
     display: block;
+    margin: 0 auto;
+    width: auto;
+    max-width: 100%;
+    max-height: 92vh;
     filter: saturate(0.9) contrast(1.02);
   }
-  .wsv-honest-text {
-    padding: var(--sp-10) clamp(var(--sp-6), 6vw, var(--sp-10));
-    max-width: 54ch;
-    align-self: center;
+  .wsv-honest-veil { display: none; }
+  .wsv-honest-step {
+    max-width: 620px;
+    margin: 0 auto;
+    padding: var(--sp-6) var(--sp-5) 0;
+    text-align: center;
   }
+  .wsv-honest-step:last-child { padding-bottom: var(--sp-8); }
   .wsv-honest-h {
     font-family: var(--font-display);
     font-size: var(--t-h2);
@@ -703,18 +707,74 @@ const faqSchema = {
     letter-spacing: -0.012em;
     font-weight: 400;
     color: var(--paper-soft);
-    margin: var(--sp-4) 0 var(--sp-5);
+    margin: var(--sp-4) 0 0;
     text-wrap: balance;
   }
-  .wsv-honest-text p {
+  .wsv-honest-step p {
     font-family: var(--font-body);
     font-size: var(--t-body-lg);
     line-height: var(--lh-prose);
-    color: rgba(244, 245, 234, 0.84);
-    margin: 0 0 var(--sp-4);
+    color: rgba(244, 245, 234, 0.88);
+    margin: 0;
+    text-wrap: balance;
   }
-  .wsv-honest-text p:last-child { margin-bottom: 0; }
-  .wsv-honest-text .wsv-italic { color: var(--ember-soft); font-size: 1.35em; line-height: 1; }
+  .wsv-honest-step .wsv-italic { color: var(--ember-soft); font-size: 1.35em; line-height: 1; }
+
+  /* Pinned scene: the illustration pans from the figure on the surface
+     down to the ember while the text beats fade through. */
+  :global(html.wsv-anim) .wsv-honest {
+    height: 340vh;
+    padding: 0;
+  }
+  :global(html.wsv-anim) .wsv-honest-sticky {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow: hidden;
+    background: var(--plum);
+  }
+  :global(html.wsv-anim) .wsv-honest-img {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    /* wide enough to cover any viewport AND tall enough (~183vh min,
+       aspect 941:1672) that there is always vertical travel */
+    width: max(100%, 103vh);
+    max-width: none;
+    max-height: none;
+    height: auto;
+    /* translateY % is the image's own height: p=0 → top of the
+       illustration (the figure), p=1 → its bottom (the ember) */
+    transform: translate(-50%, calc(var(--wsv-p, 0) * (100vh - 100%)));
+    will-change: transform;
+  }
+  :global(html.wsv-anim) .wsv-honest-veil {
+    display: block;
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      linear-gradient(rgba(15, 8, 14, 0.16), rgba(15, 8, 14, 0.34)),
+      radial-gradient(74% 58% at 50% 52%, rgba(15, 8, 14, 0.42), transparent 74%);
+  }
+  :global(html.wsv-anim) .wsv-honest-step {
+    position: absolute;
+    inset: 0;
+    max-width: none;
+    padding: var(--sp-6);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    opacity: 0;
+    pointer-events: none;
+  }
+  :global(html.wsv-anim) .wsv-honest-step > * { max-width: 36rem; }
+  :global(html.wsv-anim) .wsv-honest-step p {
+    font-size: clamp(19px, 2.2vw, 24px);
+    line-height: 1.65;
+  }
 
   /* ---------- Questions ---------- */
   .wsv-faq {
@@ -828,8 +888,6 @@ const faqSchema = {
     .wsv-chapter--flip .wsv-chapter-fig { order: 0; }
     .wsv-chapter-fig { aspect-ratio: 16 / 10; }
     .wsv-chapter-text { max-width: none; }
-    .wsv-honest { grid-template-columns: 1fr; }
-    .wsv-honest-media { aspect-ratio: 16 / 10; }
   }
   @media (max-width: 720px) {
     .wsv-hero-inner,
@@ -879,35 +937,47 @@ const faqSchema = {
     );
     document.querySelectorAll('.wsv-reveal').forEach((el) => io.observe(el));
 
-    // Slow parallax drift for [data-parallax] media (the plum panel). The
-    // image is over-scaled and the drift clamped so its container's edges
-    // never show. Skipped entirely under prefers-reduced-motion (early
-    // return above).
-    const SCALE = 1.16;
-    const drifters = Array.from(document.querySelectorAll('[data-parallax]'));
-    if (!drifters.length) return;
-    for (const el of drifters) el.style.willChange = 'transform';
+    // Pinned descent for the plum panel: --wsv-p (0→1) pans the
+    // illustration from the figure on the surface down to the ember,
+    // while the text beats fade through their scroll windows. Skipped
+    // entirely under prefers-reduced-motion (early return above) — the
+    // static CSS layout takes over.
+    const panel = document.querySelector('.wsv-honest');
+    if (!panel) return;
+    const steps = Array.from(panel.querySelectorAll('.wsv-honest-step'));
+    const windows = [
+      [0, 0.36],
+      [0.3, 0.7],
+      [0.64, 1],
+    ];
     let ticking = false;
-    const drift = () => {
+    const render = () => {
       ticking = false;
       const vh = window.innerHeight;
-      for (const el of drifters) {
-        const r = el.getBoundingClientRect();
-        if (r.bottom < 0 || r.top > vh) continue;
-        const speed = parseFloat(el.dataset.parallax) || 0.1;
-        const max = ((SCALE - 1) / 2) * r.height;
-        const y = Math.max(-max, Math.min(max, (vh / 2 - (r.top + r.height / 2)) * speed));
-        el.style.transform = `translate3d(0, ${y.toFixed(1)}px, 0) scale(${SCALE})`;
-      }
+      const r = panel.getBoundingClientRect();
+      const total = r.height - vh;
+      if (total <= 0) return;
+      const p = Math.min(1, Math.max(0, -r.top / total));
+      panel.style.setProperty('--wsv-p', p.toFixed(4));
+      steps.forEach((el, i) => {
+        const [s, e] = windows[i] || [0, 1];
+        const t = Math.min(1, Math.max(0, (p - s) / (e - s)));
+        // first beat is already on when the scene pins; last beat stays
+        // on and exits with the panel
+        const fadeIn = i === 0 ? 1 : t / 0.22;
+        const fadeOut = i === steps.length - 1 ? 1 : (1 - t) / 0.22;
+        el.style.opacity = Math.max(0, Math.min(1, fadeIn, fadeOut)).toFixed(3);
+        el.style.transform = `translateY(${((0.5 - t) * 36).toFixed(1)}px)`;
+      });
     };
     const onScroll = () => {
       if (!ticking) {
         ticking = true;
-        requestAnimationFrame(drift);
+        requestAnimationFrame(render);
       }
     };
     window.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('resize', onScroll, { passive: true });
-    drift();
+    render();
   })();
 </script>
