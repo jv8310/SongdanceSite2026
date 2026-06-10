@@ -45,6 +45,7 @@ import {
   noShowEmail3,
   reminderEmail,
   MARKETING_FROM,
+  MARKETING_REPLY_TO,
   type EmailContent,
   type WorkshopEmailCtx,
 } from './emails';
@@ -517,9 +518,10 @@ async function cached(
   return v;
 }
 
-// Marketing send: from Jacob, with the one-click unsubscribe header.
-// Returns whether the send went through (the claim is already burned either
-// way — a transient failure skips rather than retries, like reminders).
+// Marketing send: from Jacob, replies to support, with the one-click
+// unsubscribe header. Returns whether the send went through (the claim is
+// already burned either way — a transient failure skips rather than
+// retries, like reminders).
 async function sendMarketing(
   env: CronEnv,
   to: string,
@@ -531,7 +533,7 @@ async function sendMarketing(
     await sendEmail({
       apiKey: env.RESEND_API_KEY!,
       from: MARKETING_FROM,
-      replyTo: env.RESEND_REPLY_TO,
+      replyTo: MARKETING_REPLY_TO,
       to,
       subject: content.subject,
       html: content.html,

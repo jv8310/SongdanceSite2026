@@ -38,6 +38,10 @@ All automated workshop email lives in the workshop engine:
   `/api/unsubscribe` (RFC 8058 one-click), `email_suppressions` table. Marketing
   sends honor it; transactional (confirmation/reminders) always deliver.
 - **Review**: `/admin/emails` previews every email with sample data + test-send.
+- **Sanctioned urgency exception** (owner's call, June 2026): discount-deadline
+  emails may name the deadline plainly and the final one may be a "last chance"
+  send. Keep it factual — no fake scarcity, no countdown theatrics. Marketing
+  sends are from `MARKETING_FROM` (Jacob), reply-to `support@songdance.co`.
 
 ## R2 image library — how to view and use images
 

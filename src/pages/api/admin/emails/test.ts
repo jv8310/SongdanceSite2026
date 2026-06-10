@@ -5,7 +5,7 @@ import type { APIRoute } from 'astro';
 import { readCookie, verifySession } from '../../../../lib/registrations/auth';
 import { buildEmailSamples } from '../../../../lib/workshops/email-samples';
 import { sendEmail } from '../../../../lib/workshops/resend';
-import { MARKETING_FROM } from '../../../../lib/workshops/emails';
+import { MARKETING_FROM, MARKETING_REPLY_TO } from '../../../../lib/workshops/emails';
 
 export const prerender = false;
 
@@ -35,7 +35,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     await sendEmail({
       apiKey: env.RESEND_API_KEY,
       from: MARKETING_FROM,
-      replyTo: env.RESEND_REPLY_TO,
+      replyTo: MARKETING_REPLY_TO,
       to,
       subject: `[Test] ${sample.content.subject}`,
       html: sample.content.html,

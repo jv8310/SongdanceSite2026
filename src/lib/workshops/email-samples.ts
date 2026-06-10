@@ -128,7 +128,7 @@ export function buildEmailSamples(base: string): EmailSample[] {
     {
       id: 'attended_3',
       group: 'Attended → 12-week course',
-      label: 'Email 3 — the window closes (stated once, plainly)',
+      label: 'Email 3 — last chance',
       timing: '+42h (~6h before the discount ends)',
       audience: "Attended, hasn't bought",
       content: attendedEmail3({ ...lc, courseUrl, discountEndsLocal, email }),

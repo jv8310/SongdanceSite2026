@@ -22,8 +22,10 @@ const PALETTE = {
 const LOGO_URL = 'https://site.songdance.co/brand/logo-wordmark-dark.png';
 
 // Lifecycle (marketing-flavoured) emails come from a person, not a brand.
-// Same verified sending domain as the transactional default.
+// Same verified sending domain as the transactional default; replies land
+// with support.
 export const MARKETING_FROM = 'Jacob from Songdance <info@mail.songdance.co>';
+export const MARKETING_REPLY_TO = 'support@songdance.co';
 
 export type EmailContent = { subject: string; html: string; text: string };
 
@@ -266,18 +268,18 @@ export function attendedEmail1(
     };
   }
   const html = shell({
-    preheader: 'A note for the days after — and your participant discount.',
+    preheader: 'A note for the days after — and 48 hours of 20% off the 12-week course.',
     heading: 'Thank you for sounding with us',
     bodyHtml: `${opener}
       <p style="margin:0 0 14px;">If you'd like to take this further, the 12-week course is where the practice becomes your own — twelve weeks, one layer at a time, in your own time, with live Q&amp;A.</p>
-      <p style="margin:0;">As a participant you have <strong>20% off until ${escapeHtml(ctx.discountEndsLocal)}</strong>. It's applied automatically when you enter your email on the course page — no code needed.</p>`,
+      <p style="margin:0;">As a participant you have <strong>20% off — for 48 hours only</strong>. It ends ${escapeHtml(ctx.discountEndsLocal)}, and it's applied automatically when you enter your email on the course page. No code needed.</p>`,
     cta: { label: 'See the 12-week course', href: ctx.courseUrl },
     unsubscribeUrl: ctx.unsubscribeUrl,
   });
   return {
     subject: 'Thank you for sounding with us',
     html,
-    text: `${textGreeting(ctx.name)}\n\nThank you for being part of ${ctx.workshopTitle}. Whatever sound you made today — it was the right one. You cannot do it wrong; it always expresses something.\n\nIn the day or two after a session the body sometimes keeps commenting — a yawn out of nowhere, tiredness, a feeling passing through. Nothing is wrong. Give it room, and when in doubt: one breath in, one tone out.\n\nIf you'd like to take this further, the 12-week course is where the practice becomes your own — twelve weeks, one layer at a time, in your own time, with live Q&A.\n\nAs a participant you have 20% off until ${ctx.discountEndsLocal}. It's applied automatically when you enter your email on the course page — no code needed.\n\n${ctx.courseUrl}\n\nWarmly,\nJacob${unsubText(ctx.unsubscribeUrl)}`,
+    text: `${textGreeting(ctx.name)}\n\nThank you for being part of ${ctx.workshopTitle}. Whatever sound you made today — it was the right one. You cannot do it wrong; it always expresses something.\n\nIn the day or two after a session the body sometimes keeps commenting — a yawn out of nowhere, tiredness, a feeling passing through. Nothing is wrong. Give it room, and when in doubt: one breath in, one tone out.\n\nIf you'd like to take this further, the 12-week course is where the practice becomes your own — twelve weeks, one layer at a time, in your own time, with live Q&A.\n\nAs a participant you have 20% off — for 48 hours only. It ends ${ctx.discountEndsLocal}, and it's applied automatically when you enter your email on the course page. No code needed.\n\n${ctx.courseUrl}\n\nWarmly,\nJacob${unsubText(ctx.unsubscribeUrl)}`,
   };
 }
 
@@ -286,41 +288,42 @@ export function attendedEmail2(
   ctx: LifecycleCtx & { courseUrl: string; discountEndsLocal: string; email: string },
 ): EmailContent {
   const html = shell({
-    preheader: 'The question the twelve weeks teach you to ask — and to answer.',
+    preheader: `Your 20% ends tomorrow — ${ctx.discountEndsLocal}.`,
     heading: 'What is below that?',
     bodyHtml: `<p style="margin:0 0 14px;">${greeting(ctx.name)}</p>
       <p style="margin:0 0 14px;">In the workshop you made the sound of the moment — one breath in, one tone out. That's the front door of this practice.</p>
       <p style="margin:0 0 14px;">Behind it sits a method. After the first tone you ask: <em>what is below that?</em> — and you make the sound of that. You only ever need to go one level deeper. Learning to do that kindly, at your own tempo, is what the twelve weeks are for.</p>
       <p style="margin:0 0 14px;">It's not an eternal excavation — it's a tool you keep. Twelve weeks, one layer at a time, in your own time, with live Q&amp;A along the way. Don't expect miracles; expect a real relationship with your own voice.</p>
-      <p style="margin:0;">A practical note: your participant discount (20%) runs until <strong>${escapeHtml(ctx.discountEndsLocal)}</strong>, applied automatically to ${escapeHtml(ctx.email)} on the page. After that the course remains — the discount doesn't.</p>`,
+      <p style="margin:0;">A practical note: your participant discount (20%) ends <strong>tomorrow — ${escapeHtml(ctx.discountEndsLocal)}</strong>. It's applied automatically to ${escapeHtml(ctx.email)} on the page. After that, full price.</p>`,
     cta: { label: 'See the 12-week course', href: ctx.courseUrl },
     unsubscribeUrl: ctx.unsubscribeUrl,
   });
   return {
     subject: 'What is below that?',
     html,
-    text: `${textGreeting(ctx.name)}\n\nIn the workshop you made the sound of the moment — one breath in, one tone out. That's the front door of this practice.\n\nBehind it sits a method. After the first tone you ask: what is below that? — and you make the sound of that. You only ever need to go one level deeper. Learning to do that kindly, at your own tempo, is what the twelve weeks are for.\n\nIt's not an eternal excavation — it's a tool you keep. Twelve weeks, one layer at a time, in your own time, with live Q&A along the way. Don't expect miracles; expect a real relationship with your own voice.\n\nA practical note: your participant discount (20%) runs until ${ctx.discountEndsLocal}, applied automatically to ${ctx.email} on the page. After that the course remains — the discount doesn't.\n\n${ctx.courseUrl}\n\n— Jacob${unsubText(ctx.unsubscribeUrl)}`,
+    text: `${textGreeting(ctx.name)}\n\nIn the workshop you made the sound of the moment — one breath in, one tone out. That's the front door of this practice.\n\nBehind it sits a method. After the first tone you ask: what is below that? — and you make the sound of that. You only ever need to go one level deeper. Learning to do that kindly, at your own tempo, is what the twelve weeks are for.\n\nIt's not an eternal excavation — it's a tool you keep. Twelve weeks, one layer at a time, in your own time, with live Q&A along the way. Don't expect miracles; expect a real relationship with your own voice.\n\nA practical note: your participant discount (20%) ends tomorrow — ${ctx.discountEndsLocal}. It's applied automatically to ${ctx.email} on the page. After that, full price.\n\n${ctx.courseUrl}\n\n— Jacob${unsubText(ctx.unsubscribeUrl)}`,
   };
 }
 
-// ── Attended 3 (+42h): the window closes — stated once, plainly ────────────
+// ── Attended 3 (+42h): last chance — the one email that's allowed to push ──
 export function attendedEmail3(
   ctx: LifecycleCtx & { courseUrl: string; discountEndsLocal: string; email: string },
 ): EmailContent {
   const html = shell({
-    preheader: 'A small practical note — nothing more.',
-    heading: 'A small practical note',
+    preheader: `It ends ${ctx.discountEndsLocal}. After that, full price.`,
+    heading: 'Last chance on your 20%',
     bodyHtml: `<p style="margin:0 0 14px;">${greeting(ctx.name)}</p>
-      <p style="margin:0 0 14px;">Your participant discount on the 12-week course closes at <strong>${escapeHtml(ctx.discountEndsLocal)}</strong> — a few hours from now. After that the course stays; the price returns to normal. No countdown theatre — just so you can decide with the facts.</p>
-      <p style="margin:0 0 14px;">In plain terms: 20% off, applied automatically to ${escapeHtml(ctx.email)}. If spreading it out helps, there's a three-part monthly plan, and the discount applies there too.</p>
-      <p style="margin:0;">If the answer is "not now" — that's an honest answer, and nothing is lost. If you're unsure whether the course is for you, reply with your question. A person answers, plainly. If it's not for you, we'll say so.</p>`,
-    cta: { label: 'See the 12-week course', href: ctx.courseUrl },
+      <p style="margin:0 0 14px;">This is the last call I'll send about it: your participant discount on the 12-week course ends <strong>${escapeHtml(ctx.discountEndsLocal)}</strong> — a few hours from now. After that, full price.</p>
+      <p style="margin:0 0 14px;">The facts, once more: 20% off, applied automatically to ${escapeHtml(ctx.email)} on the page. If spreading it out helps, there's a three-part monthly plan — the discount applies to each installment too.</p>
+      <p style="margin:0 0 14px;">If the answer is "not now", that's an honest answer and nothing is lost. But if you've been meaning to — this is the moment it costs the least.</p>
+      <p style="margin:0;">Unsure whether it's for you? Reply with your question before the window shuts; a person answers plainly. If it's not for you, we'll say so.</p>`,
+    cta: { label: 'Take the 20% before it ends', href: ctx.courseUrl },
     unsubscribeUrl: ctx.unsubscribeUrl,
   });
   return {
-    subject: 'Before your discount closes',
+    subject: 'Last chance — your 20% ends in a few hours',
     html,
-    text: `${textGreeting(ctx.name)}\n\nYour participant discount on the 12-week course closes at ${ctx.discountEndsLocal} — a few hours from now. After that the course stays; the price returns to normal. No countdown theatre — just so you can decide with the facts.\n\nIn plain terms: 20% off, applied automatically to ${ctx.email}. If spreading it out helps, there's a three-part monthly plan, and the discount applies there too.\n\nIf the answer is "not now" — that's an honest answer, and nothing is lost. If you're unsure whether the course is for you, reply with your question. A person answers, plainly. If it's not for you, we'll say so.\n\n${ctx.courseUrl}\n\n— Jacob${unsubText(ctx.unsubscribeUrl)}`,
+    text: `${textGreeting(ctx.name)}\n\nThis is the last call I'll send about it: your participant discount on the 12-week course ends ${ctx.discountEndsLocal} — a few hours from now. After that, full price.\n\nThe facts, once more: 20% off, applied automatically to ${ctx.email} on the page. If spreading it out helps, there's a three-part monthly plan — the discount applies to each installment too.\n\nIf the answer is "not now", that's an honest answer and nothing is lost. But if you've been meaning to — this is the moment it costs the least.\n\nUnsure whether it's for you? Reply with your question before the window shuts; a person answers plainly. If it's not for you, we'll say so.\n\n${ctx.courseUrl}\n\n— Jacob${unsubText(ctx.unsubscribeUrl)}`,
   };
 }
 
