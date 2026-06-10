@@ -73,6 +73,7 @@ const upcoming = reg
         <p class="ws-kicker">You’re in</p>
         <h1 class="ws-title">{workshop.title}</h1>
         {whenLocal && <p class="ws-when">{whenLocal} <span class="ws-tz">· your time</span></p>}
+        <p class="ws-settle">Nothing to prepare. Come as you sound.</p>
 
         {workshop.is_replay === 1 ? (
           <div class="ws-actions">
@@ -150,6 +151,7 @@ const upcoming = reg
     .ws-title { margin:0 0 6px; font-size:30px; line-height:1.18; color:#2A1B2A; font-weight:400; }
     .ws-when { margin:0; font-size:17px; color:#4A3848; }
     .ws-tz { color:#B6A8B4; font-style:italic; }
+    .ws-settle { margin:14px 0 0; font-size:15px; color:#4A3848; font-style:italic; }
     .ws-countdown { display:flex; justify-content:center; gap:14px; margin:32px 0 24px; }
     .ws-clock { background:#F4ECDF; border-radius:12px; padding:14px 10px; min-width:62px; }
     .ws-clock span { display:block; font-size:30px; color:#2A1B2A; line-height:1; }

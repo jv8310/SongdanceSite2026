@@ -83,11 +83,11 @@ const steps: [string, string][] = [
   ],
   [
     'Somatic Vocal Healing',
-    'Somatic voice work connects you with your body in an accessible, reliable way. The body and the nervous system hold the keys to flowing easefully with grief — and new somatic tools give you a fresh way to express it.',
+    'Somatic voice work connects you with your body in an accessible, reliable way. The body and the nervous system hold the keys to flowing with grief — and new somatic tools give you a fresh way to express it.',
   ],
   [
     'Integration',
-    'Through conscious integration you are empowered to weave the new insights and practices into your life — continuing your grief journey in your own unique way, knowing it is okay to embrace and allow the process.',
+    'Through conscious integration you weave the new insights and practices into your life — continuing your grief journey in your own unique way, knowing it is okay to embrace and allow the process.',
   ],
 ];
 
@@ -149,17 +149,22 @@ const includes: [string, string][] = [
           many of us struggle to navigate this profound emotion. When we don't know how to grieve,
           we typically reach for whatever numbs: we isolate, over-eat, seek highs, become sedentary,
           or distract ourselves in countless ways. These unconscious patterns become habits, and the
-          habits become a cycle of pain and avoidance. But what if there were a way to break free?
+          habits become a cycle of pain and avoidance. But grief was never the trap. Grief is the
+          river, not the knot — and the river can be learned.
         </p>
         <p class="gr-p">
           In the Grief Course we guide you through an intentional process, bringing knowledge, tools,
-          guidance and support to move through your own journey of grief. Grief is rocky, mysterious
-          terrain — these are waters you really want to cross with a skillful, trustworthy guide.
+          guidance and support to move through your own journey of grief. Grief is unfamiliar terrain
+          for most of us. It helps to cross it with company — and with someone who knows the way.
         </p>
         <p class="gr-p">
           Grief isn't something we strive to "heal" from — that's one of the myths we'll help you set
           down. Grief is about honouring, integrating, and ultimately living your aliveness.
         </p>
+        <blockquote class="gr-lede" style="margin: var(--sp-6) 0 0;">
+          Grief is not the pain. It is the process that helps you move through it.
+          <span class="gr-eyebrow" style="display: block; margin: var(--sp-4) 0 0;">— Jacob</span>
+        </blockquote>
       </div>
     </section>
 
@@ -197,7 +202,7 @@ const includes: [string, string][] = [
     <section class="gr-section">
       <div class="gr-inner">
         <p class="gr-eyebrow">The path</p>
-        <h2 class="gr-h2">A reliable four-step process</h2>
+        <h2 class="gr-h2">A four-step path</h2>
         <p class="gr-p">
           Four sessions that move from understanding, through the mind's quiet objections, into the
           body and the voice, and finally into your own integration.
@@ -209,6 +214,9 @@ const includes: [string, string][] = [
               <div>
                 <h3 class="gr-step-t">{t}</h3>
                 <p class="gr-step-d">{d}</p>
+                {i === 2 && (
+                  <p class="gr-step-d"><em>Lift the head, relax the shoulders, sound the grief outward.</em></p>
+                )}
               </div>
             </li>
           ))}
@@ -240,8 +248,8 @@ const includes: [string, string][] = [
           Whether you're mourning a loved one or a beloved pet, facing a divorce, the end of a
           friendship, a job loss, disconnection from community, or children leaving the nest — this
           course is for you. We teach the principles of the grief process that apply to all of it,
-          whether life-altering or "everyday". You'll learn how to <em>allow, attend, accept and
-          release</em>, and to move through the sadness and worry that grief carries.
+          whether life-altering or "everyday". You'll learn how to <em>allow, attend, acknowledge
+          and integrate</em> — and to move through the sadness and worry that grief carries.
         </p>
         <ul class="gr-forms">
           {forms.map((f) => (
@@ -267,8 +275,7 @@ const includes: [string, string][] = [
               <strong>Daniela Hess</strong> has served as an educational and spiritual mentor to
               thousands of students and clients over the past 25 years. She has led many group grief
               courses and worked 1:1 with the bereaved, helping people around the world navigate the
-              complex terrain of grief — a dynamic, insightful and compassionate guide who catalyses
-              ripples of transformation across her students' lives.
+              complex terrain of grief — a dynamic, insightful and compassionate guide.
             </p>
             <p class="gr-p">
               <strong>Jacob Vermeulen</strong> is an international educator who has held space for
@@ -300,6 +307,18 @@ const includes: [string, string][] = [
           Every review of Songdance on
           <a href="https://www.trustpilot.com/review/songdance.co" target="_blank" rel="noopener">Trustpilot</a>
           is five stars.
+        </p>
+      </div>
+    </section>
+
+    <!-- ── An honest note ─────────────────────────────────── -->
+    <section class="gr-section gr-opening">
+      <div class="gr-inner gr-narrow">
+        <p class="gr-eyebrow">An honest note</p>
+        <p class="gr-p">
+          This is not therapy, and it doesn't replace it — it will always remain valuable to have
+          someone who knows you. And it won't always feel good first. If you're willing to meet
+          what's been waiting, what's on the other side is a different flavor of peace.
         </p>
       </div>
     </section>

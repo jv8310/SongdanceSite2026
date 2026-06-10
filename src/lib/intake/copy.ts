@@ -352,7 +352,7 @@ const EN: Record<string, StepCopy> = {
   welcome: {
     title: 'Before we begin.',
     body:
-      'This form is a first meeting. We ask a number of things so we can hold well what you bring.\n\nTake your time. Some questions deserve a moment before you answer. There’s no right or wrong.\n\nExpect about fifteen minutes.',
+      'This form is a first meeting. We ask a number of things so we can take good care of what you bring.\n\nTake your time. Some questions deserve a moment before you answer. There’s no right or wrong.\n\nExpect about fifteen minutes.',
   },
 
   full_name: {
@@ -375,7 +375,7 @@ const EN: Record<string, StepCopy> = {
   pause_1: {
     title: 'A breath.',
     body:
-      'Feel how you’re sitting. Feet on the ground. A breath that may flow out.\n\nReady?',
+      'Feel how you’re sitting. Feet on the ground. A breath that’s allowed all the way out.\n\nReady?',
   },
 
   why_attracted: {
@@ -547,7 +547,7 @@ const EN: Record<string, StepCopy> = {
 
   support_network: {
     title:
-      'Do you have someone in your life who can hold you after the retreat, should much come into motion?',
+      'Do you have someone in your life who can be there for you after the retreat, if these days set a lot in motion?',
     options: {
       yes: 'Yes',
       not_really: 'Not really',

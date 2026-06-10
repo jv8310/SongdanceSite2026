@@ -9,6 +9,7 @@ import WEWhat from '../components/workshop-english/WEWhat.astro';
 import WELyric from '../components/workshop-english/WELyric.astro';
 import WETestimonials from '../components/workshop-english/WETestimonials.astro';
 import WEAbout from '../components/workshop-english/WEAbout.astro';
+import WEQuiet from '../components/workshop-english/WEQuiet.astro';
 import WEMasterclass from '../components/workshop-english/WEMasterclass.astro';
 import WERegister from '../components/workshop-english/WERegister.astro';
 import WEFooter from '../components/workshop-english/WEFooter.astro';
@@ -34,7 +35,7 @@ const tzOptions = tzOptionsFor(detectedTz);
 
 <Layout
   title="Somatic Vocal Healing Workshop — Sound as the Body's Language | Songdance"
-  description="A one-hour live Somatic Vocal Healing workshop with Jacob Vermeulen. Use your own sound to let stuck emotion move and arrive more fully in your body."
+  description="A one-hour live Somatic Vocal Healing workshop with Jacob Vermeulen. Not singing — sounding: one tone, the sound of what's there."
   image="/brand/symbol-orange.png"
 >
   <div class="we-site">
@@ -47,6 +48,7 @@ const tzOptions = tzOptionsFor(detectedTz);
     <WELyric />
     <WETestimonials />
     <WEAbout />
+    <WEQuiet />
     <WEMasterclass hasMasterclass={hasMasterclass} />
     <WERegister
       items={items}
@@ -117,9 +119,9 @@ const tzOptions = tzOptionsFor(detectedTz);
         { t: 'An introduction to Somatic Vocal Healing',
           b: 'The method where sound becomes the language of the body — a closer connection to your body, your own sound, and whatever wants to show up underneath.' },
         { t: 'A somatic warm-up with live piano',
-          b: 'So your nervous system can arrive before anything else happens. You settle. Your breath widens. Your listening gets finer.' },
-        { t: 'Guided toning exercises',
-          b: 'A somatic practice for letting stuck emotion move through your voice — not by describing it, but by letting it sound. And a little more trust in speaking your own truth, at home and at work.' },
+          b: 'So your nervous system can arrive before anything else happens — settling, breath widening, listening getting finer.' },
+        { t: 'Guided sounding',
+          b: 'A somatic practice for giving what’s here a sound — not describing it, sounding it. The healing is in the acknowledgment. And a little more trust in speaking your own truth, at home and at work.' },
         { t: 'A first tool for everyday life',
           b: 'Something to keep coming back to — when something in you is stuck, when your head is too loud, when the day has closed you up. You can keep practising it on your own after.' },
       ],
@@ -127,19 +129,19 @@ const tzOptions = tzOptionsFor(detectedTz);
         { t: 'An introduction to Somatic Vocal Healing',
           b: 'The method where sound becomes a language for what you’ve carried — a gentler way to meet the old feeling than explaining it: you let it have a sound.' },
         { t: 'A somatic warm-up with live piano',
-          b: 'So your nervous system can soften and feel safe before anything tender surfaces. You settle. Your breath widens. Nothing is forced.' },
-        { t: 'Guided toning exercises',
+          b: 'So your nervous system can soften and feel safe before anything tender surfaces — settling, breath widening. Nothing is forced.' },
+        { t: 'Guided sounding',
           b: 'A somatic practice for letting stuck emotion move through your voice — not by reliving the story, but by letting what’s underneath finally sound and be heard.' },
         { t: 'A first tool for everyday life',
-          b: 'Something to come back to when the old feeling resurfaces — a way to let it move through you instead of holding it. Yours to keep practising after.' },
+          b: 'Something to come back to when the old feeling resurfaces — not to push it through, but to let it be heard. Acknowledged things leave on their own. Yours to keep practising after.' },
       ],
       2: [
         { t: 'An introduction to Somatic Vocal Healing',
           b: 'The method where sound becomes the language of the body — and the inner editor that manages your voice gets to switch off for an hour.' },
         { t: 'A somatic warm-up with live piano',
-          b: 'So your throat can unclench and your breath can widen before you make a sound. The careful holding loosens. Your listening gets finer.' },
-        { t: 'Guided toning exercises',
-          b: 'A somatic practice for hearing what your voice does when nobody’s grading it — fuller, freer, less managed. And a little more ease in speaking up.' },
+          b: 'So your throat can unclench and your breath can widen before you make a sound — the careful holding loosening, the listening getting finer.' },
+        { t: 'Guided sounding',
+          b: 'A somatic practice for hearing what your voice does when nobody’s grading it. The sound that surprises you is the one worth following.' },
         { t: 'A first tool for everyday life',
           b: 'Something to reach for when you catch yourself holding back — a quick way to drop the editor and let your voice out. Yours to keep after.' },
       ],
@@ -148,8 +150,8 @@ const tzOptions = tzOptionsFor(detectedTz);
           b: 'A coherent, teachable method where sound becomes the body’s language — felt from the inside, so you know what you’d be offering your clients and groups.' },
         { t: 'A somatic warm-up with live piano',
           b: 'How to help a nervous system arrive before the work begins — the settling, the widening breath, the finer listening you can later hold for others.' },
-        { t: 'Guided toning exercises',
-          b: 'The core practice for letting stuck emotion move through the voice — experienced in your own body first, so you can guide it cleanly in your practice.' },
+        { t: 'Guided sounding',
+          b: 'The core practice — giving what’s here a sound, not describing it. The healing is in the acknowledgment. Experienced in your own body first, so you can guide it cleanly in your practice.' },
         { t: 'A first tool for everyday life',
           b: 'A practice to keep for yourself — and a first way in you can begin to offer others. Yours to keep practising after.' },
       ],

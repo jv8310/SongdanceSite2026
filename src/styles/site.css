@@ -856,6 +856,11 @@ html, body { background: var(--paper); }
   font-size: clamp(22px, 2.6vw, 30px); color: var(--ink); margin: 0; max-width: 24ch;
 }
 .sd-softcta-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+.sd-softcta-subtext {
+  flex-basis: 100%;
+  font-size: var(--t-small, 14px); color: var(--ink-soft, var(--ink));
+  margin: var(--sp-2, 8px) 0 0;
+}
 
 /* ---------- Events grid + cards ---------- */
 .sd-events-inner, .sd-upcoming-inner { max-width: var(--sd-max); margin: 0 auto; }
@@ -1182,6 +1187,10 @@ a.sd-evt-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-2); 
 }
 .sd-quote-card figcaption span { color: var(--ember-deep); }
 .sd-quotes-link { margin-top: var(--sp-5); font-size: var(--t-body-sm); }
+.sd-quotes-attrib {
+  text-align: center; color: var(--paper);
+  opacity: 0.75; margin: var(--sp-4) 0 0; font-size: var(--t-body-sm);
+}
 
 /* FAQ accordion. */
 .sd-faq { border-top: 1px solid var(--line); }

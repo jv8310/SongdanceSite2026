@@ -261,6 +261,10 @@ html, body { background: var(--paper); }
   aspect-ratio: 4 / 5;
 }
 .tw-move-media--wide { aspect-ratio: 5 / 4; }
+/* Full-height illustration (the roots-and-ember image, 941x1672): keep the
+   intrinsic ratio so the bottom of the artwork isn't cropped, capped so it
+   doesn't tower over the text column. */
+.tw-move-media--tall { aspect-ratio: 941 / 1672; max-width: 420px; justify-self: center; }
 .tw-move-img { display: block; width: 100%; height: 100%; object-fit: cover; filter: var(--tw-img); }
 .tw-move-text { max-width: 52ch; }
 .tw-move-text .tw-h2 { margin-bottom: var(--sp-5); }

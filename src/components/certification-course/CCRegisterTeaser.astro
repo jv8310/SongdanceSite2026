@@ -101,7 +101,7 @@
     switch (d.variant) {
       case 'B1':
         return {
-          badge: 'Special discount unlocked',
+          badge: 'A price for where you are',
           greeting: hi,
           body:
             (d.twelve_week_week
@@ -112,28 +112,28 @@
         };
       case 'B2':
         return {
-          badge: 'Special discount unlocked',
+          badge: 'A price for where you are',
           greeting: name ? `Welcome back, ${name}.` : 'Welcome back.',
-          body: `You've completed the 12-week course. The certification course picks up where that foundation leaves off — and your price honors what you've already done.`,
+          body: `You've completed the 12-week course. The certification course picks up where that foundation leaves off — and your price honours what you've already done.`,
           ctaLabel: 'See your offer',
         };
       case 'A':
         return {
-          badge: 'Welcome-back price unlocked',
+          badge: 'Welcome-back price',
           greeting: name ? `Welcome back, ${name}.` : 'Welcome back.',
           body: `You've walked this work in its earlier form. The certification course is the current arc — two ways in, depending on how deep you want to begin again.`,
           ctaLabel: 'See your options',
         };
       case 'D':
         return {
-          badge: 'Mid-cohort price unlocked',
+          badge: 'Mid-cohort price',
           greeting: name ? `Good to see you, ${name}.` : 'Good to see you.',
           body: `You've already found this work. You can step straight into the certification — or take the full path, including the 12-week foundation, if you haven't walked it yet.`,
           ctaLabel: 'See your options',
         };
       case 'E':
         return {
-          badge: 'Mid-cohort price unlocked',
+          badge: 'Mid-cohort price',
           greeting: name ? `Welcome, ${name}.` : 'Welcome.',
           body: `For someone new to this work, the full path is the way in — the 12-week foundation and the certification course as one continuous journey.`,
           ctaLabel: 'See the full path',

@@ -13,31 +13,31 @@ const chapters = [
     label: 'Where it went quiet',
     h: 'You arrived knowing how to do this',
     img: '/media/library/svhgpt-02-we-lost-the-voice.webp',
-    imgAlt: 'A woman in profile, eyes closed; in her chest a small child sings out, glowing like an ember.',
+    imgAlt: 'A woman in profile, eyes closed; in her chest a small child sounds out, glowing like an ember.',
     iw: 1122,
     ih: 1402,
     pos: '50% 33%',
     p: [
-      'Watch a small child for an afternoon. Delight, protest, grief, wonder — all of it sounded the moment it arrives, with the whole body behind it. Nobody taught them that. It’s what a voice is for.',
+      'Watch a small child for an afternoon. Delight, protest, grief, wonder — all of it sounded the moment it arrives, with the whole body behind it. Nobody taught them that. It’s just what a voice does.',
       'Then come the other lessons: keep it down, keep it pleasant, keep it from saying too much. The full voice doesn’t disappear. It goes quiet and waits — and it’s still in there.',
     ],
   },
   {
     n: '02',
     label: 'Sounding, not singing',
-    h: 'Sounding has a different intention',
+    h: 'One tone is the whole instruction',
     img: '/media/library/svhgpt-03-sounding-not-singing.webp',
     imgAlt: 'A profile in candlelight, mouth open, rings of sound moving outward.',
     iw: 1254,
     ih: 1254,
     flip: true,
     p: [
-      'Singing reaches for melody — for something shaped and lovely, something to get right. Sounding reaches for none of that. There’s no tune to land and no wrong note to avoid.',
+      'Singing reaches for melody — for something shaped and lovely, something to get right. Sounding reaches for none of that. You cannot do it wrong: it will always express something.',
       'The crack, the waver, the rough edge — that’s not a mistake to fix. That’s the information. With sounding we welcome exactly what a performer would smooth away.',
     ],
     contrast: {
-      a: { k: 'Singing', items: ['Reaches outward', 'Wants to sound good', 'A shape to get right'] },
-      b: { k: 'Sounding', items: ['Turns inward', 'Brings you truth', 'Whatever is actually here'] },
+      a: { k: 'Singing', items: ['Turns feeling into form', 'Wants to sound good', 'A shape to get right'] },
+      b: { k: 'Sounding', items: ['Starts from a question', 'Asks what is here', 'In and out at the same time'] },
     },
   },
   {
@@ -49,8 +49,9 @@ const chapters = [
     iw: 1672,
     ih: 941,
     p: [
-      'There’s no script. The only question is <em>what is the sound of this moment?</em> One tone — raw and tonal, not a song, not yet a story.',
+      'There’s no script. The only question is <em>what is the sound of this moment?</em> One tone — the sound of how it actually is, right now — not a song, not yet a story.',
       'You stay with it and let it run its course. Sometimes it shifts on its own: turns inward into a hum, opens into something rounder, dissolves. You don’t force it anywhere. You attend it.',
+      'And when the tone finishes, there’s one more question: <em>what is below that?</em> You make the sound of that too. You only ever need to go one level deeper for a shift to happen.',
     ],
   },
   {
@@ -77,7 +78,7 @@ const chapters = [
     ih: 1086,
     flip: true,
     p: [
-      'No one can heal you — not a teacher, not a method, not a sound. Healing happens when the parts of you that split off come back together.',
+      'No one can heal you — not a teacher, not a method, not a sound. Nobody can make your sound for you, which means nobody can do your acknowledging for you. And the healing is in the acknowledgment.',
       'That doesn’t mean you do it alone — we never stop needing each other. But what we give each other isn’t the healing; it’s the space where healing becomes possible. A guide holds that space. What rises in it is yours.',
     ],
   },
@@ -92,11 +93,11 @@ const faqs = [
   },
   {
     q: 'What does it actually look like?',
-    a: 'You land in the body first — breath, attention, settling. Then you’re guided toward one honest tone at a time, and you stay with it. In a group everyone sounds at once, so no one is listening to you. The room holds you; it doesn’t watch you.',
+    a: 'You arrive, you breathe, you settle. Then you’re guided toward one honest tone at a time, and you stay with it. In a group everyone sounds at once, so nobody is performing for anybody. The room holds you; it doesn’t watch you.',
   },
   {
     q: 'How is it different from a sound bath?',
-    a: 'In a sound bath the sound is made for you — you lie back and receive, and that can be lovely. Here the sound comes from you. You’re not bathing in someone else’s frequencies; you’re finally hearing your own.',
+    a: 'In a sound bath the sound is made for you — you lie back and receive, and that can be lovely. Here the sound comes from you: nobody does it to you, because nobody can. You’re not receiving someone else’s sound; you’re finally hearing your own.',
   },
   {
     q: 'Is this therapy?',
@@ -105,6 +106,10 @@ const faqs = [
   {
     q: 'What if I’m embarrassed by the sounds I make?',
     a: 'Nearly everyone is, at first — that shyness is part of the material the practice works with. You can begin with a hum behind closed lips. Quiet counts. Honest matters more than loud.',
+  },
+  {
+    q: 'What about the neighbours?',
+    a: 'The most common question in this work — more common than anything about trauma. Until the day you stop caring: a cushion, the bathroom, a parked car. Half this practice happens in parked cars. The first sound is the hardest — and it gets easier from there.',
   },
   {
     q: 'Where do I start?',
@@ -151,7 +156,7 @@ const faqSchema = {
           made out loud until it’s been heard.
         </p>
         <div class="wsv-hero-actions">
-          <a href="/workshop" class="wsv-btn wsv-btn--primary" data-sd-price="ticket">Sit in on a live workshop — 9€</a>
+          <a href="/workshop" class="wsv-btn wsv-btn--primary" data-sd-price="ticket">Try a live workshop — 9€</a>
           <a href="#practice" class="wsv-btn wsv-btn--ghost">See the practice ↓</a>
         </div>
       </div>
@@ -163,15 +168,16 @@ const faqSchema = {
     <div class="wsv-open-inner wsv-reveal">
       <div class="wsv-eyebrow">The shift</div>
       <p class="wsv-lyric">
-        Most sound work asks <em>how should this sound?</em><br />
+        Most sound healing makes sound <em>for</em> you.<br />
         Somatic Vocal Healing asks<br />
-        <em>what do you feel — and what is the sound of that?</em>
+        <em>what do you feel —<br />and what is the sound of that?</em>
       </p>
       <p class="wsv-open-body">
-        That’s the whole shift. The voice stops being something to manage —
-        pleasant, in tune, never too much — and becomes what it has always been
-        underneath: the body’s most direct language. The practice gives that
-        language somewhere to go.
+        That’s the whole shift — two small words. We make the sound <em>of</em>
+        something, rather than <em>for</em> it. The voice stops being something to
+        manage — pleasant, in tune, never too much — and becomes what it has
+        always been underneath: the body’s most direct language. The practice
+        gives that language somewhere to go.
       </p>
     </div>
   </section>
@@ -231,10 +237,10 @@ const faqSchema = {
     <div class="wsv-wave-inner wsv-reveal">
       <div class="wsv-eyebrow">In and out at once</div>
       <p class="wsv-wave-text">
-        Sounding moves in two directions at once: outward into expression, so
-        what you’ve been carrying finally leaves the body — and inward into
-        listening, because the one who most needs to hear that sound is you.
-        You sound what’s true, and at last you hear it yourself.
+        Sounding goes in and out at the same time: outward into expression, so
+        what’s here finally gets said — and inward into listening, because the
+        one who most needs to hear that sound is you. Acknowledged things leave
+        on their own.
       </p>
     </div>
   </section>
@@ -297,6 +303,9 @@ const faqSchema = {
           lift. It’s a steadier kind of peace. More lasting. More structurally
           <span class="wsv-italic">yours.</span>
         </p>
+        <p>
+          Don’t expect miracles — expect a real relationship with your own voice.
+        </p>
       </div>
     </div>
   </section>
@@ -327,6 +336,33 @@ const faqSchema = {
       </div>
     </section>
   ))}
+
+  <!-- Jacob, briefly ------------------------------------------------------ -->
+  <section class="wsv-open">
+    <div class="wsv-open-inner wsv-reveal">
+      <div class="wsv-eyebrow">The one holding the room</div>
+      <p class="wsv-lyric">
+        “There’s nothing I did.<br />It was already <em>there.</em>”
+      </p>
+      <p class="wsv-open-body">
+        — Jacob Vermeulen, founder · <a href="/about">Where this began →</a>
+      </p>
+    </div>
+  </section>
+
+  <!-- Before you worry ---------------------------------------------------- -->
+  <section class="wsv-open">
+    <div class="wsv-open-inner wsv-reveal">
+      <div class="wsv-eyebrow">Before you worry</div>
+      <p class="wsv-lyric">The voice will never <em>force</em> you.</p>
+      <p class="wsv-open-body">
+        The safety isn’t a rule we added — it’s built into the instrument. The
+        voice only brings up what you can be with. And volume is a dial, not a
+        dare: softer when something is big, barely a hum if that’s the day.
+        Soft counts. Soft often counts double.
+      </p>
+    </div>
+  </section>
 
   <!-- Questions ----------------------------------------------------------- -->
   <section class="wsv-faq" id="questions">
@@ -372,7 +408,7 @@ const faqSchema = {
 
   <SoftCta
     text="Curious how this actually feels?"
-    ctaLabel="Sit in on a live workshop — 9€"
+    ctaLabel="Try a live workshop — 9€"
     ctaHref="/workshop"
     altLabel="About Jacob →"
     altHref="/about"
@@ -514,6 +550,7 @@ const faqSchema = {
     text-align: center;
   }
   .wsv-lyric {
+    text-wrap: balance;
     font-family: var(--font-lyric);
     font-style: italic;
     font-size: clamp(28px, 3.6vw, 46px);
