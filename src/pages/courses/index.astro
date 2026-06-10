@@ -25,10 +25,10 @@ const groups = [
   {
     title: 'Somatic Vocal Healing',
     items: [
-      { label: 'Vocal Healing Workshop', note: '9€ · live taster', href: '/workshop' },
+      { label: 'Vocal Healing Workshop', note: '9€ · live taster', href: '/workshop', price: 'ticket' },
       { label: '12-Week Course', note: 'Foundational', href: '/courses/12-week' },
       { label: 'Practitioner Training', note: 'Certification', href: '/courses/certification' },
-      { label: 'Professional Masterclass', note: '29€', href: '/courses/masterclass' },
+      { label: 'Professional Masterclass', note: '29€', href: '/courses/masterclass', price: 'masterclass' },
     ],
   },
   {
@@ -73,7 +73,7 @@ const groups = [
                   </span>
                 )}
                 <span class="sd-course-card-label">{it.label}</span>
-                <span class="sd-course-card-note">{it.note}</span>
+                <span class="sd-course-card-note" data-sd-price={'price' in it ? it.price : undefined}>{it.note}</span>
               </a>
             ))}
           </div>

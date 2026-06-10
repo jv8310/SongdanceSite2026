@@ -8,6 +8,10 @@ interface Props {
   ctaHref?: string;
   altLabel?: string;
   altHref?: string;
+  // Which product's price the ctaLabel quotes, so the client enhancer can
+  // localize it. Defaults to the workshop ticket (the standard 9€ taster CTA).
+  // Pass null on CTAs whose label has no price to localize.
+  priceProduct?: 'ticket' | 'masterclass' | null;
 }
 const {
   text = 'Curious how this actually feels?',
@@ -15,6 +19,7 @@ const {
   ctaHref = '/workshop',
   altLabel,
   altHref,
+  priceProduct = 'ticket',
 } = Astro.props;
 ---
 
@@ -22,7 +27,7 @@ const {
   <div class="sd-softcta-inner" data-anim="reveal">
     <p class="sd-softcta-text">{text}</p>
     <div class="sd-softcta-actions">
-      <a href={ctaHref} class="sd-btn sd-btn-primary">{ctaLabel}</a>
+      <a href={ctaHref} class="sd-btn sd-btn-primary" data-sd-price={priceProduct ?? undefined}>{ctaLabel}</a>
       {altLabel && altHref && <a href={altHref} class="sd-btn sd-btn-quiet">{altLabel}</a>}
     </div>
   </div>

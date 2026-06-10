@@ -1,0 +1,97 @@
+---
+// Progressive enhancement for marketing price labels on the statically-built
+// site. The HTML ships with the EUR price baked in (correct for the base
+// currency and for crawlers — no JS needed); this script localizes the price
+// for non-EUR visitors using the country Cloudflare already exposes at
+// /api/geo. It only touches elements tagged with data-sd-price="ticket" or
+// data-sd-price="masterclass", replacing the EUR token (9€ / 29€) in their text
+// with the market-appropriate label (e.g. $9, £8, CA$13, kr 99).
+//
+// Why client-side and not SSR: the pages are output:'static', served from cache.
+// Resolving per request would force every page (the nav is global) to render
+// dynamically, hurting load speed and cacheability. Price strings are not
+// SEO-ranking content, so swapping them after load costs nothing on either.
+import { buildMarketingPriceLabels, EUR_COPY_LABEL } from '../lib/workshops/marketing-prices';
+import { COUNTRY_CURRENCY } from '../lib/workshops/currency';
+
+const payload = JSON.stringify({
+  labels: buildMarketingPriceLabels(),
+  eur: EUR_COPY_LABEL,
+  countries: COUNTRY_CURRENCY,
+});
+---
+
+<script type="application/json" id="sd-price-data" set:html={payload}></script>
+<script is:inline>
+  (function () {
+    var dataEl = document.getElementById('sd-price-data');
+    if (!dataEl) return;
+    var D;
+    try { D = JSON.parse(dataEl.textContent || '{}'); } catch (e) { return; }
+    if (!D.labels) return;
+
+    var KEY = 'sd_cur';
+    var TTL = 14 * 24 * 60 * 60 * 1000; // re-check currency every 14 days
+
+    function currencyFor(country) {
+      if (!country) return 'EUR';
+      return D.countries[String(country).toUpperCase()] || 'EUR';
+    }
+
+    function replaceToken(el, from, to) {
+      var walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null);
+      var n;
+      while ((n = walker.nextNode())) {
+        if (n.nodeValue.indexOf(from) !== -1) {
+          n.nodeValue = n.nodeValue.split(from).join(to);
+        }
+      }
+    }
+
+    function apply(cur) {
+      if (!cur || cur === 'EUR') return; // baked-in default is already EUR
+      var nodes = document.querySelectorAll('[data-sd-price]');
+      for (var i = 0; i < nodes.length; i++) {
+        var el = nodes[i];
+        var product = el.getAttribute('data-sd-price');
+        var labels = D.labels[product];
+        var eur = D.eur[product];
+        if (!labels || !eur) continue;
+        var want = labels[cur];
+        if (!want || want === eur) continue;
+        replaceToken(el, eur, want);
+      }
+    }
+
+    function readCache() {
+      try {
+        var raw = localStorage.getItem(KEY);
+        if (!raw) return null;
+        var parts = raw.split(':');
+        if (parts.length !== 2) return null;
+        if (Date.now() - Number(parts[1]) > TTL) return null;
+        return parts[0];
+      } catch (e) { return null; }
+    }
+
+    function writeCache(cur) {
+      try { localStorage.setItem(KEY, cur + ':' + Date.now()); } catch (e) {}
+    }
+
+    function resolve() {
+      var cached = readCache();
+      if (cached) { apply(cached); return; }
+      fetch('/api/geo', { headers: { accept: 'application/json' } })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          var cur = currencyFor(j && j.country);
+          writeCache(cur);
+          apply(cur);
+        })
+        .catch(function () { /* leave the EUR default in place */ });
+    }
+
+    // The script sits at the end of <body>, so the DOM is parsed; run now.
+    resolve();
+  })();
+</script>
