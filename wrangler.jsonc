@@ -53,6 +53,7 @@
   //   ANTHROPIC_API_KEY      (forgiveness prayer + /intake assessment)
   //   ADMIN_PASSWORD
   //   ADMIN_SESSION_SECRET   (any random 32+ char string)
+  //   UNSUBSCRIBE_SECRET     (optional — unsubscribe-link HMACs; falls back to ADMIN_SESSION_SECRET)
   //   META_PIXEL_ID, META_ACCESS_TOKEN          (workshop Meta CAPI — optional)
   //   QUADERNO_ACCOUNT (var), QUADERNO_SANDBOX  (workshop tax lookup)
   //   GOOGLE_SA_JSON or GOOGLE_OAUTH_CLIENT_ID/SECRET/REFRESH_TOKEN,
