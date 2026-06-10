@@ -1,0 +1,112 @@
+---
+// The objection block — the questions people actually ask, answered plainly.
+// Static for every lens; the personalization controller doesn't touch it.
+const questions = [
+  {
+    q: 'Do I need a good voice?',
+    a: 'No. You don’t need a good voice — you need an honest one. You cannot do it wrong; it will always express something.',
+  },
+  {
+    q: 'Will I have to scream?',
+    a: 'No. We don’t go to screaming. One tone, the tone of what’s there — that’s the whole instruction.',
+  },
+  {
+    q: 'What about the people I live with?',
+    a: 'The most common question in this work. Soft counts — soft often counts double. A hum is a complete practice. Start in the bathroom; everyone does.',
+  },
+  {
+    q: 'Is this a sound bath?',
+    a: 'No. In a sound bath someone makes sound for you. Here you are the one sounding — nobody does it to you, because nobody can.',
+  },
+  {
+    q: 'Is it safe if I’m carrying something heavy?',
+    a: 'The safety is built into the instrument: the voice will never force you. It only brings up what you can be with, and volume is yours to set. And this doesn’t replace therapy — it never will.',
+  },
+];
+---
+
+<section class="we-quiet" id="questions">
+  <div class="we-quiet-inner">
+    <div class="we-quiet-head">
+      <div class="we-eyebrow">Before you ask</div>
+      <h2 class="we-h2">The questions people <em>actually ask</em></h2>
+    </div>
+
+    <dl class="we-quiet-list">
+      {
+        questions.map((it) => (
+          <div class="we-quiet-item">
+            <dt>{it.q}</dt>
+            <dd>{it.a}</dd>
+          </div>
+        ))
+      }
+    </dl>
+
+    <p class="we-quiet-close">
+      “Don’t expect miracles — expect a real relationship with your own voice.”
+    </p>
+    <div class="we-quiet-by">— Jacob</div>
+  </div>
+</section>
+
+<style>
+  .we-quiet {
+    background: var(--paper);
+    padding: var(--sp-10) var(--sp-7);
+  }
+  .we-quiet-inner {
+    max-width: var(--we-narrow);
+    margin: 0 auto;
+  }
+  .we-quiet-head {
+    text-align: center;
+    margin-bottom: var(--sp-7);
+  }
+  .we-quiet-list {
+    margin: 0;
+  }
+  .we-quiet-item {
+    padding: var(--sp-5) 0;
+    border-top: 1px solid var(--line);
+  }
+  .we-quiet-item:last-child {
+    border-bottom: 1px solid var(--line);
+  }
+  .we-quiet-item dt {
+    font-family: var(--font-display);
+    font-size: 21px;
+    line-height: 1.3;
+    font-weight: 400;
+    color: var(--ink);
+    margin: 0 0 var(--sp-2);
+    letter-spacing: -0.005em;
+  }
+  .we-quiet-item dd {
+    font-family: var(--font-body);
+    font-size: 15.5px;
+    line-height: 1.65;
+    color: var(--ink-soft);
+    margin: 0;
+  }
+  .we-quiet-close {
+    margin: var(--sp-7) auto 0;
+    text-align: center;
+    font-family: var(--font-lyric);
+    font-style: italic;
+    font-size: clamp(20px, 2.1vw, 26px);
+    line-height: 1.45;
+    color: var(--ink);
+    max-width: 44ch;
+    text-wrap: balance;
+  }
+  .we-quiet-by {
+    margin-top: var(--sp-3);
+    text-align: center;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--ink-quiet);
+  }
+</style>

@@ -58,7 +58,7 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
       You just open your mouth<br />
       and see what happens.
     </p>
-    <p class="we-register-note">Live · Online · No experience needed</p>
+    <p class="we-register-note">Live on Zoom · No experience needed · Replay included</p>
 
     <div class="we-booking">
       {items.length === 0 && (
@@ -163,7 +163,7 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
 
           <div class="we-bump" id="we-bump" hidden>
             <label class="we-bump-card">
-              <span class="we-bump-badge">One-time offer</span>
+              <span class="we-bump-badge">Only offered here, at checkout</span>
               <span class="we-bump-row">
                 <input type="checkbox" name="bump" id="we-bump-input" />
                 <span class="we-bump-checkbox" aria-hidden="true"></span>
@@ -180,16 +180,15 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
                 </span>
               </span>
               <span class="we-bump-blurb">
-                Through healing melody and guided visualisation, each journey draws
-                you further inside — settling your nervous system and opening new
-                room in yourself. Somewhere to keep practising long after the hour.
+                These are the giving direction — music made for you, the tea and
+                the blanket after the hour's questions. Somewhere to keep
+                practising, long after the workshop.
               </span>
               <span class="we-bump-foot">
                 <span class="we-bump-prices">
                   <span class="we-bump-was" id="we-bump-was" hidden></span>
                   <span class="we-bump-now" id="we-bump-now"></span>
                 </span>
-                <span class="we-bump-save" id="we-bump-save" hidden></span>
               </span>
             </label>
           </div>
@@ -201,7 +200,7 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
 
           <button type="submit" class="we-submit" id="we-submit">Register &amp; pay →</button>
           <p class="we-err" id="we-err" hidden></p>
-          <p class="we-fine" id="we-fine">Secure checkout via Stripe.</p>
+          <p class="we-fine" id="we-fine">Secure checkout via Stripe. The Zoom link and a calendar invite arrive by email right after. Life intervenes? There's a replay, and you can move to another date free of charge.</p>
         </form>
       )}
     </div>
@@ -222,7 +221,6 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
     var bumpTitle = document.getElementById('we-bump-title');
     var bumpWasEl = document.getElementById('we-bump-was');
     var bumpNowEl = document.getElementById('we-bump-now');
-    var bumpSaveEl = document.getElementById('we-bump-save');
     var tzField = document.getElementById('we-tz-field');
     var bizField = document.getElementById('we-biz');
     var vatField = document.getElementById('we-vat');
@@ -304,18 +302,15 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
         if (bumpTitle) bumpTitle.textContent = 'Yes — add the ' + current.bumpName;
         var offer = parseInt(current.bumpMinor, 10) || 0;
         if (bumpNowEl) bumpNowEl.textContent = money(offer, curCurrency);
-        // Struck "regular price" + saving — shown only when we have an anchor
-        // above the offer for this currency. The charged amount is `offer`.
+        // Struck "regular price" — shown only when we have an anchor above
+        // the offer for this currency. The charged amount is `offer`.
         var compare = parse(current.bumpComparePrices)[curCurrency];
-        if (bumpWasEl && bumpSaveEl) {
+        if (bumpWasEl) {
           if (compare && compare > offer) {
             bumpWasEl.textContent = money(compare, curCurrency);
             bumpWasEl.hidden = false;
-            bumpSaveEl.textContent = 'Save ' + Math.round((1 - offer / compare) * 100) + '%';
-            bumpSaveEl.hidden = false;
           } else {
             bumpWasEl.hidden = true;
-            bumpSaveEl.hidden = true;
           }
         }
       } else {
