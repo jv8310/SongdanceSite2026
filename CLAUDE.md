@@ -18,9 +18,12 @@ The four laws it enforces (never break these in any string on the site):
 3. **Sounding**, not singing.
 4. Facilitators **hold space**; the participant heals themselves.
 
-Also: no outcome promises, no urgency, no rescue framing, and **never** the
-words "Hamer" or "German New Medicine" anywhere, in any string. Prices and
-program structures do not live in the copy book — only the practice itself.
+Also: no outcome promises, no rescue framing, and **never** the words "Hamer"
+or "German New Medicine" anywhere, in any string. Prices and program
+structures do not live in the copy book — only the practice itself.
+Marketing mechanics (discounts, deadlines, seat counters, "X places left")
+are a separate craft from the copy: allowed in moderation, not governed by
+the copy book.
 
 ## R2 image library — how to view and use images
 

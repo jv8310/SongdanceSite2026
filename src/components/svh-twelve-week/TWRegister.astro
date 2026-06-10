@@ -63,7 +63,10 @@ const includes = [
           <span class="tw-reg-pricenote" data-slot="pricenote"></span>
         </div>
 
-        <p class="tw-reg-countdown" data-slot="countdown" hidden></p>
+        <div class="tw-reg-countdown" data-slot="countdown" hidden>
+          <i class="ph-light ph-hourglass-medium" aria-hidden="true"></i>
+          <span>Your discount ends in <span class="clock" data-slot="clock">--:--:--</span></span>
+        </div>
 
         <div class="tw-reg-steplabel">How would you like to pay?</div>
         <div class="tw-reg-plans" data-slot="plans"></div>
@@ -188,11 +191,13 @@ const includes = [
     const emailForm = stage.querySelector<HTMLFormElement>('[data-tw-email-form]')!;
     const note = stage.querySelector<HTMLElement>('.tw-reg-formnote');
     const errorEl = stage.querySelector<HTMLElement>('[data-tw-error]')!;
+    let countdownTimer: number | undefined;
 
     function showError(msg: string) { errorEl.textContent = msg; }
     function clearError() { errorEl.textContent = ''; }
 
     function showEmailForm(prefill?: string) {
+      window.clearInterval(countdownTimer);
       stage!.replaceChildren(emailForm);
       if (note) stage!.appendChild(note);
       stage!.appendChild(errorEl);
@@ -249,6 +254,7 @@ const includes = [
     });
 
     function render(email: string, status: Status) {
+      window.clearInterval(countdownTimer);
       const frag = template!.content.cloneNode(true) as DocumentFragment;
       const root = frag.querySelector('.tw-reg-priced') as HTMLElement;
       const q = <T extends HTMLElement>(sel: string) => root.querySelector(sel) as T;
@@ -281,18 +287,26 @@ const includes = [
         const monthlyNow = d.eligible ? d.monthly_cents : status.installment_monthly_cents;
         pricenote.textContent = `One payment · or ${status.installment_count} monthly payments of ${money(monthlyNow, status.currency)}`;
 
-        // Post-workshop 48h window → a plain note with the deadline, their time.
-        if (d.eligible && d.kind === 'post') {
+        // Post-workshop 48h window → live countdown; on expiry, re-price.
+        if (d.eligible && d.kind === 'post' && d.expires_at_ms) {
           countdown.hidden = false;
-          if (d.expires_at_ms) {
-            const until = new Date(d.expires_at_ms).toLocaleString(undefined, {
-              weekday: 'long', month: 'long', day: 'numeric',
-              hour: 'numeric', minute: '2-digit',
-            });
-            countdown.textContent = `Your workshop discount is valid until ${until} (your time).`;
-          } else {
-            countdown.textContent = 'Your workshop discount is valid for 48 hours after your workshop.';
-          }
+          const clock = q('[data-slot="clock"]') as HTMLElement;
+          const tick = async () => {
+            const left = (d.expires_at_ms as number) - Date.now();
+            if (left <= 0) {
+              window.clearInterval(countdownTimer);
+              const fresh = await fetchStatus(email, status.country);
+              if ('currency' in fresh) render(email, fresh);
+              return;
+            }
+            const s = Math.floor(left / 1000);
+            const hh = String(Math.floor(s / 3600)).padStart(2, '0');
+            const mm = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
+            const ss = String(s % 60).padStart(2, '0');
+            clock.textContent = `${hh}:${mm}:${ss}`;
+          };
+          tick();
+          countdownTimer = window.setInterval(tick, 1000);
         } else {
           countdown.hidden = true;
         }

@@ -55,7 +55,7 @@ const roomTypes = [
       <span>With Lesanne &amp; Jacob</span>
     </div>
     <p class="rb-register-body">
-      Choose the room that suits you —
+      Spaces are limited. Choose the room that suits you —
       we'll hold your place, take you to a secure payment page, and
       follow up with the practical details and your specific room
       assignment.
@@ -522,8 +522,8 @@ const roomTypes = [
           } else if (t.remaining <= 3) {
             badge.textContent =
               t.remaining === 1
-                ? '1 spot left'
-                : `${t.remaining} spots left`;
+                ? 'Only 1 spot left'
+                : `Only ${t.remaining} spots left`;
             badge.classList.add('rb-roomcard-avail--low');
             badge.hidden = false;
           }

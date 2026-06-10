@@ -80,8 +80,12 @@ const chips = [
                   </div>
                   <h3 class="sd-evt-title">{e.title}</h3>
                   {meta && <div class="sd-evt-meta">{meta}</div>}
-                  {/* No "% booked" meter: the copy book rules out scarcity
-                      pressure. The status pill carries capacity honestly. */}
+                  {e.bookedPercent != null && e.bookedPercent > 0 && (
+                    <div class="sd-evt-booked" title={`${e.bookedPercent}% booked`}>
+                      <span class="sd-evt-booked-dot" style={`--pct:${e.bookedPercent}`} aria-hidden="true"></span>
+                      <span class="sd-evt-booked-label">{e.bookedPercent}% booked</span>
+                    </div>
+                  )}
                   {e.summary && <p class="sd-evt-summary">{e.summary}</p>}
                   <div class="sd-evt-foot">
                     {e.facilitators.length > 0 && (

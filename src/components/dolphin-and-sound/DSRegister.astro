@@ -244,7 +244,7 @@ import { COUNTRIES } from '../../lib/countries';
             if (avail) { avail.textContent = 'Fully booked'; avail.hidden = false; }
           } else if (t.remaining <= 4) {
             if (avail) {
-              avail.textContent = t.remaining === 1 ? '1 place left' : `${t.remaining} places left`;
+              avail.textContent = t.remaining === 1 ? 'Only 1 place left' : `Only ${t.remaining} places left`;
               avail.hidden = false;
             }
           }
@@ -258,7 +258,7 @@ import { COUNTRIES } from '../../lib/countries';
             placesEl.hidden = false;
           } else if (data.total_remaining <= 6) {
             placesEl.textContent =
-              data.total_remaining === 1 ? '1 place left' : `${data.total_remaining} places left`;
+              data.total_remaining === 1 ? 'Only 1 place left' : `Only ${data.total_remaining} places left`;
             placesEl.hidden = false;
           }
         }

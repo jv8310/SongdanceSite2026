@@ -61,8 +61,9 @@
     const meta = [fmtRange(e.startDate, e.endDate, e.ongoing), e.location].filter(Boolean).map((m) => esc(m as string)).join(' · ');
     const fac = e.facilitators.length ? `<span class="sd-evt-fac">with ${esc(e.facilitators.join(' & '))}</span>` : '';
     const price = e.price ? `<span class="sd-evt-price">${esc(e.price)}</span>` : '';
-    // No "% booked" meter here: the copy book rules out scarcity pressure.
-    // The status pill (Open / Waitlist / Closed) carries the honest capacity info.
+    const booked = e.bookedPercent != null && e.bookedPercent > 0
+      ? `<div class="sd-evt-booked" title="${e.bookedPercent}% booked"><span class="sd-evt-booked-dot" style="--pct:${e.bookedPercent}" aria-hidden="true"></span><span class="sd-evt-booked-label">${e.bookedPercent}% booked</span></div>`
+      : '';
     return `<${tag} class="sd-evt-card"${href}>
       <div class="sd-evt-top">
         <span class="sd-evt-badge sd-evt-badge--${e.category}">${CATEGORY_LABEL[e.category]}</span>
@@ -70,6 +71,7 @@
       </div>
       <h3 class="sd-evt-title">${esc(e.title)}</h3>
       <div class="sd-evt-meta">${meta}</div>
+      ${booked}
       ${e.summary ? `<p class="sd-evt-summary">${esc(e.summary)}</p>` : ''}
       <div class="sd-evt-foot">${fac}${price}</div>
     </${tag}>`;

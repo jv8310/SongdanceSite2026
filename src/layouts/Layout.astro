@@ -37,6 +37,10 @@ const ogImage = new URL(image, Astro.site ?? Astro.url.origin).href;
     <meta property="og:url" content={canonical} />
     <meta name="twitter:card" content="summary_large_image" />
     <title>{title}</title>
+    <!-- Review aid: highlights the June-2026 copy-pass changes when the URL
+         has ?changes. No-op otherwise. Remove with public/preview-changes.js
+         after the review round. -->
+    <script src="/preview-changes.js" defer></script>
   </head>
   <body>
     <div class="sd-site">

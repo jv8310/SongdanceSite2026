@@ -266,7 +266,7 @@ function PrayerCard({ prayer, onSubmitEmail, onReplay, submitted, sending }) {
             <button type="submit" disabled={sending}>{sending ? 'Sending…' : 'Send my prayer'}</button>
           </div>
           <p className="tlw-email-fineprint">
-            We'll send it once. No list, no follow-ups unless you ask.
+            We'll send your prayer by email. You'll also get our occasional letter — easy to leave.
           </p>
           <input
             type="text"

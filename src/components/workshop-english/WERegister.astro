@@ -163,7 +163,7 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
 
           <div class="we-bump" id="we-bump" hidden>
             <label class="we-bump-card">
-              <span class="we-bump-badge">Only offered here, at checkout</span>
+              <span class="we-bump-badge">One-time offer</span>
               <span class="we-bump-row">
                 <input type="checkbox" name="bump" id="we-bump-input" />
                 <span class="we-bump-checkbox" aria-hidden="true"></span>
@@ -189,6 +189,7 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
                   <span class="we-bump-was" id="we-bump-was" hidden></span>
                   <span class="we-bump-now" id="we-bump-now"></span>
                 </span>
+                <span class="we-bump-save" id="we-bump-save" hidden></span>
               </span>
             </label>
           </div>
@@ -221,6 +222,7 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
     var bumpTitle = document.getElementById('we-bump-title');
     var bumpWasEl = document.getElementById('we-bump-was');
     var bumpNowEl = document.getElementById('we-bump-now');
+    var bumpSaveEl = document.getElementById('we-bump-save');
     var tzField = document.getElementById('we-tz-field');
     var bizField = document.getElementById('we-biz');
     var vatField = document.getElementById('we-vat');
@@ -302,15 +304,18 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
         if (bumpTitle) bumpTitle.textContent = 'Yes — add the ' + current.bumpName;
         var offer = parseInt(current.bumpMinor, 10) || 0;
         if (bumpNowEl) bumpNowEl.textContent = money(offer, curCurrency);
-        // Struck "regular price" — shown only when we have an anchor above
-        // the offer for this currency. The charged amount is `offer`.
+        // Struck "regular price" + saving — shown only when we have an anchor
+        // above the offer for this currency. The charged amount is `offer`.
         var compare = parse(current.bumpComparePrices)[curCurrency];
-        if (bumpWasEl) {
+        if (bumpWasEl && bumpSaveEl) {
           if (compare && compare > offer) {
             bumpWasEl.textContent = money(compare, curCurrency);
             bumpWasEl.hidden = false;
+            bumpSaveEl.textContent = 'Save ' + Math.round((1 - offer / compare) * 100) + '%';
+            bumpSaveEl.hidden = false;
           } else {
             bumpWasEl.hidden = true;
+            bumpSaveEl.hidden = true;
           }
         }
       } else {
