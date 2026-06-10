@@ -46,7 +46,7 @@ export const SVH_CERT_CLASSES: ScheduledItem[] = [
   },
   {
     number: 4,
-    title: 'Shock & Disease Causality',
+    title: 'Shock & the Body',
     description:
       "A different way of looking at how the body responds to life. The phenomenon of shock as a primary feeling. How to work with shock through sounding — and where the responsible practitioner draws a clear line. Held with care; offered as inquiry, not medicine.",
     datetime: '2026-04-19T19:00:00+02:00',
