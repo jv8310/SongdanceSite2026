@@ -15,7 +15,7 @@ const Q2_OPTIONS = [
 ];
 
 const Q3_OPTIONS = [
-  { value: 'body',  label: 'To let go. To stop carrying this. To put it down.' },
+  { value: 'body',  label: 'To put this down. To stop carrying it.' },
   { value: 'heart', label: 'To be seen. To grieve it properly. To feel love again.' },
   { value: 'head',  label: "To understand. To make sense of it. To know it's safe to move on." },
 ];
@@ -87,7 +87,7 @@ function Intro({ onBegin }) {
     <div className="tlw-step tlw-step-fade-enter tlw-intro">
       <h1 className="tlw-intro-title">A Personalized Forgiveness Prayer</h1>
       <p className="tlw-intro-body">
-        Forgiveness isn't a single act — it's a process. Acknowledged. Released. Honored. Returned to. A few questions shape a prayer that meets you where you actually are.
+        Forgiveness isn't a single act — it's a process. Acknowledged. Honored. Returned to — until it can leave on its own. A few questions shape a prayer that meets you where you actually are.
       </p>
       <div className="tlw-btn-row">
         <button className="tlw-btn tlw-btn-primary tlw-btn-large" onClick={onBegin}>

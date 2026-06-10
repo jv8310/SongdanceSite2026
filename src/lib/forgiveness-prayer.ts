@@ -150,18 +150,18 @@ export const ACKNOWLEDGMENT: ByCenter = {
 
 export const RELEASE: ByCenter = {
   body: [
-    "Let it go.\nLet the fist loosen.\nLet my body decide when, and how, and how much.",
+    "It can loosen now.\nThe fist can open.\nMy body decides when, and how, and how much.",
     "I am setting this down.\nNot all at once — slowly, the way the body actually releases.\nSlower than I want, exactly as it needs.",
     "The bracing can stop now.\nI don't need to hold this any longer.\nMy hands can open.",
   ],
   heart: [
     "Let what was loved still be loved.\nLet what was real still be real.\nLet the rest pass through.",
-    "I release this.\nNot as denial of what happened,\nbut as a refusal to keep paying for it forever.",
+    "This has been heard now.\nNot denied — heard.\nAnd heard things leave on their own.",
     "Let me be welcomed back to myself,\nand to whoever I have been distant from —\nincluding me.",
   ],
   head: [
     "I release the need to have it all figured out.\nI don't need the final version of the story to put this down.",
-    "I let go of the certainty I held too tightly,\nand the doubt I held in place of peace.",
+    "The certainty I held too tightly can soften now,\nand the doubt I held in place of peace.",
     "I give myself permission to stop searching.\nThe understanding I have is enough to release with.",
   ],
 };
