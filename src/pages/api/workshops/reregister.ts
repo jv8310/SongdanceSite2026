@@ -53,6 +53,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     timezone: origin.timezone,
     wants_bump: false,
     source_tag: target.source_tag,
+    audience: origin.audience,
   });
   await setRegistrationPaymentStatus(env.DB, registrationId, 'coupon');
 
