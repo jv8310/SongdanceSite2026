@@ -5,13 +5,32 @@ import SoftCta from '../components/SoftCta.astro';
 // Illustrated chapter set (R2 `library/svhgpt-*`) made for exactly these
 // ideas — candle-lit, throat-lit, wholly on-brand. Real retreat photography
 // lives elsewhere; here the illustration carries the inner experience.
+// `iw`/`ih` are the intrinsic pixel sizes of the R2 originals (CLS hints);
+// `pos` nudges the 5/4 crop when the subject isn't centered.
 const chapters = [
   {
     n: '01',
+    label: 'Where it went quiet',
+    h: 'You arrived knowing how to do this',
+    img: '/media/library/svhgpt-02-we-lost-the-voice.webp',
+    imgAlt: 'A woman in profile, eyes closed; in her chest a small child sings out, glowing like an ember.',
+    iw: 1122,
+    ih: 1402,
+    pos: '50% 33%',
+    p: [
+      'Watch a small child for an afternoon. Delight, protest, grief, wonder — all of it sounded the moment it arrives, with the whole body behind it. Nobody taught them that. It’s what a voice is for.',
+      'Then come the other lessons: keep it down, keep it pleasant, keep it from saying too much. The full voice doesn’t disappear. It goes quiet and waits — and it’s still in there.',
+    ],
+  },
+  {
+    n: '02',
     label: 'Sounding, not singing',
     h: 'Sounding has a different intention',
     img: '/media/library/svhgpt-03-sounding-not-singing.webp',
     imgAlt: 'A profile in candlelight, mouth open, rings of sound moving outward.',
+    iw: 1254,
+    ih: 1254,
+    flip: true,
     p: [
       'Singing reaches for melody — for something shaped and lovely, something to get right. Sounding reaches for none of that. There’s no tune to land and no wrong note to avoid.',
       'The crack, the waver, the rough edge — that’s not a mistake to fix. That’s the information. With sounding we welcome exactly what a performer would smooth away.',
@@ -22,34 +41,40 @@ const chapters = [
     },
   },
   {
-    n: '02',
+    n: '03',
     label: 'The sound of the moment',
     h: 'You begin where you are',
     img: '/media/library/svhgpt-04-sound-of-not-for.webp',
     imgAlt: 'A seated figure, chest glowing, sound radiating into a dark room.',
-    flip: true,
+    iw: 1672,
+    ih: 941,
     p: [
       'There’s no script. The only question is <em>what is the sound of this moment?</em> One tone — raw and tonal, not a song, not yet a story.',
       'You stay with it and let it run its course. Sometimes it shifts on its own: turns inward into a hum, opens into something rounder, dissolves. You don’t force it anywhere. You attend it.',
     ],
   },
   {
-    n: '03',
+    n: '04',
     label: 'The body',
     h: 'Your body is on your side',
     img: '/media/library/svhgpt-05-the-cup-receiving.webp',
     imgAlt: 'Two cupped hands holding a small, warm light.',
+    iw: 1122,
+    ih: 1402,
+    flip: true,
     p: [
       'We tend to treat the body as something that fails us — the tension, the ache, the symptom that won’t quit.',
       'Somatic Vocal Healing starts from the opposite assumption. Your body has been cooperating the whole time, doing exactly what it believed it needed to do to protect you. The voice is simply the most direct way to hear what it’s been trying to say.',
     ],
   },
   {
-    n: '04',
+    n: '05',
     label: 'Whose work it is',
     h: 'You are your own healer',
     img: '/media/library/svhgpt-06-holding-space.webp',
     imgAlt: 'Two people seated facing each other, a thread of light between them.',
+    iw: 1448,
+    ih: 1086,
     flip: true,
     p: [
       'No one can heal you — not a teacher, not a method, not a sound. Healing happens when the parts of you that split off come back together.',
@@ -57,6 +82,45 @@ const chapters = [
     ],
   },
 ];
+
+// Practical questions for the reader the poetry doesn't answer. Plain-text
+// mirror goes into FAQPage JSON-LD below.
+const faqs = [
+  {
+    q: 'Do I need to be able to sing?',
+    a: 'No — and it matters that you can’t get this wrong. Sounding has no melody to hit and no audience to please. If you can sigh, groan or hum, you already have everything the practice requires.',
+  },
+  {
+    q: 'What does it actually look like?',
+    a: 'You land in the body first — breath, attention, settling. Then you’re guided toward one honest tone at a time, and you stay with it. In a group everyone sounds at once, so no one is listening to you. The room holds you; it doesn’t watch you.',
+  },
+  {
+    q: 'How is it different from a sound bath?',
+    a: 'In a sound bath the sound is made for you — you lie back and receive, and that can be lovely. Here the sound comes from you. You’re not bathing in someone else’s frequencies; you’re finally hearing your own.',
+  },
+  {
+    q: 'Is this therapy?',
+    a: 'No. Somatic Vocal Healing is a body-based practice, not a clinical treatment, and it isn’t a substitute for therapy or medical care. Many people practice it alongside therapy — the voice often reaches what words have been circling for years.',
+  },
+  {
+    q: 'What if I’m embarrassed by the sounds I make?',
+    a: 'Nearly everyone is, at first — that shyness is part of the material the practice works with. You can begin with a hum behind closed lips. Quiet counts. Honest matters more than loud.',
+  },
+  {
+    q: 'Where do I start?',
+    a: 'The simplest door is the <a href="/workshop">live online workshop</a> — one hour, 9€, no experience needed. You sound along from home and feel what this actually does in your own body.',
+  },
+];
+
+const faqSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: faqs.map((f) => ({
+    '@type': 'Question',
+    name: f.q,
+    acceptedAnswer: { '@type': 'Answer', text: f.a.replace(/<[^>]+>/g, '') },
+  })),
+};
 ---
 
 <SiteLayout
@@ -70,6 +134,8 @@ const chapters = [
       class="wsv-hero-bg"
       src="/media/library/svhgpt-01-hero-in-one-breath.webp"
       alt="A woman in candlelight, head tilted back, her throat lit from within as she sounds."
+      width="1536"
+      height="1024"
       fetchpriority="high"
     />
     <div class="wsv-hero-scrim"></div>
@@ -99,20 +165,28 @@ const chapters = [
         This one asks <em>what does this feel like —<br />and what is the sound of that?</em>
       </p>
       <p class="wsv-open-body">
-        We grow up learning to manage the voice: keep it pleasant, keep it in tune,
-        keep it from saying too much. Somatic Vocal Healing goes the other way. It
-        treats the voice as the body’s most direct language — and gives that
-        language somewhere to go.
+        Most of us have spent a lifetime answering the first question — in school,
+        in choirs, in every room where the voice had to behave. Somatic Vocal
+        Healing asks the second. It treats the voice as the body’s most direct
+        language — and gives that language somewhere to go.
       </p>
     </div>
   </section>
 
-  <!-- Chapters: sounding / the moment ----------------------------------- -->
-  {chapters.slice(0, 2).map((c) => (
+  <!-- Chapters: the quieting / sounding / the moment --------------------- -->
+  {chapters.slice(0, 3).map((c) => (
     <section class={'wsv-chapter' + (c.flip ? ' wsv-chapter--flip' : '')}>
       <div class="wsv-chapter-inner wsv-reveal">
         <figure class="wsv-chapter-fig">
-          <img src={c.img} alt={c.imgAlt} loading="lazy" />
+          <img
+            src={c.img}
+            alt={c.imgAlt}
+            width={c.iw}
+            height={c.ih}
+            loading="lazy"
+            decoding="async"
+            style={c.pos ? `object-position: ${c.pos}` : undefined}
+          />
         </figure>
         <div class="wsv-chapter-text">
           <div class="wsv-chapter-head">
@@ -144,8 +218,12 @@ const chapters = [
     <img
       class="wsv-wave-img"
       src="/media/library/svhgpt-08-oscillation-breath-rhythm.webp"
-      alt="A single line of warm light oscillating like breath across aged paper."
+      alt=""
+      width="1915"
+      height="821"
       loading="lazy"
+      decoding="async"
+      aria-hidden="true"
     />
     <div class="wsv-wave-inner wsv-reveal">
       <div class="wsv-eyebrow">In and out at once</div>
@@ -160,11 +238,18 @@ const chapters = [
   </section>
 
   <!-- Body chapter ------------------------------------------------------ -->
-  {chapters.slice(2, 3).map((c) => (
+  {chapters.slice(3, 4).map((c) => (
     <section class={'wsv-chapter' + (c.flip ? ' wsv-chapter--flip' : '')}>
       <div class="wsv-chapter-inner wsv-reveal">
         <figure class="wsv-chapter-fig">
-          <img src={c.img} alt={c.imgAlt} loading="lazy" />
+          <img
+            src={c.img}
+            alt={c.imgAlt}
+            width={c.iw}
+            height={c.ih}
+            loading="lazy"
+            decoding="async"
+          />
         </figure>
         <div class="wsv-chapter-text">
           <div class="wsv-chapter-head">
@@ -185,7 +270,10 @@ const chapters = [
       class="wsv-honest-img"
       src="/media/library/svhgpt-07-below-deeper-earlier.webp"
       alt="A seated figure on the surface, roots descending to a glowing ember deep underground."
+      width="941"
+      height="1672"
       loading="lazy"
+      decoding="async"
     />
     <div class="wsv-honest-text wsv-reveal">
       <div class="wsv-eyebrow wsv-eyebrow--light">The honest part</div>
@@ -205,11 +293,18 @@ const chapters = [
   </section>
 
   <!-- Whose work it is -------------------------------------------------- -->
-  {chapters.slice(3, 4).map((c) => (
+  {chapters.slice(4, 5).map((c) => (
     <section class={'wsv-chapter' + (c.flip ? ' wsv-chapter--flip' : '')}>
       <div class="wsv-chapter-inner wsv-reveal">
         <figure class="wsv-chapter-fig">
-          <img src={c.img} alt={c.imgAlt} loading="lazy" />
+          <img
+            src={c.img}
+            alt={c.imgAlt}
+            width={c.iw}
+            height={c.ih}
+            loading="lazy"
+            decoding="async"
+          />
         </figure>
         <div class="wsv-chapter-text">
           <div class="wsv-chapter-head">
@@ -224,13 +319,40 @@ const chapters = [
     </section>
   ))}
 
+  <!-- Questions ----------------------------------------------------------- -->
+  <section class="wsv-faq" id="questions">
+    <div class="wsv-faq-inner wsv-reveal">
+      <div class="wsv-faq-head">
+        <div class="wsv-eyebrow">Questions</div>
+        <h2 class="wsv-faq-h">Things people ask first</h2>
+      </div>
+      <div class="wsv-faq-list">
+        {faqs.map((f) => (
+          <details class="wsv-faq-item">
+            <summary class="wsv-faq-q">
+              <span>{f.q}</span>
+              <span class="wsv-faq-icon" aria-hidden="true">+</span>
+            </summary>
+            <div class="wsv-faq-a">
+              <p set:html={f.a} />
+            </div>
+          </details>
+        ))}
+      </div>
+    </div>
+  </section>
+  <script type="application/ld+json" set:html={JSON.stringify(faqSchema)} />
+
   <!-- Closing candle ---------------------------------------------------- -->
   <section class="wsv-close">
     <img
       class="wsv-close-bg"
       src="/media/library/svhgpt-09-closing-candle.webp"
       alt="A single lit candle in a dark room."
+      width="1254"
+      height="1254"
       loading="lazy"
+      decoding="async"
     />
     <div class="wsv-close-scrim"></div>
     <div class="wsv-close-inner wsv-reveal">
@@ -364,6 +486,7 @@ const chapters = [
     border: 1px solid rgba(244, 245, 234, 0.5);
   }
   .wsv-btn--ghost:hover { border-color: var(--paper-soft); background: rgba(244, 245, 234, 0.08); }
+  .wsv-btn:focus-visible { outline: 2px solid var(--ember); outline-offset: 3px; }
 
   /* ---------- Opening shift ---------- */
   .wsv-open {
@@ -579,6 +702,65 @@ const chapters = [
   .wsv-honest-text p:last-child { margin-bottom: 0; }
   .wsv-honest-text .wsv-italic { color: var(--ember-soft); }
 
+  /* ---------- Questions ---------- */
+  .wsv-faq {
+    background: var(--paper-soft);
+    border-top: 1px solid var(--line);
+    padding: var(--sp-9) var(--sp-7);
+  }
+  .wsv-faq-inner { max-width: 720px; margin: 0 auto; }
+  .wsv-faq-head { text-align: center; margin-bottom: var(--sp-6); }
+  .wsv-faq-h {
+    font-family: var(--font-display);
+    font-size: var(--t-h2);
+    line-height: 1.12;
+    letter-spacing: -0.012em;
+    font-weight: 400;
+    color: var(--ink);
+    margin: var(--sp-4) 0 0;
+    text-wrap: balance;
+  }
+  .wsv-faq-item { border-bottom: 1px solid var(--line); }
+  .wsv-faq-item:first-of-type { border-top: 1px solid var(--line); }
+  .wsv-faq-q {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--sp-4);
+    list-style: none;
+    cursor: pointer;
+    padding: var(--sp-5) var(--sp-2);
+    font-family: var(--font-display);
+    font-size: 21px;
+    line-height: 1.3;
+    color: var(--ink);
+  }
+  .wsv-faq-q::-webkit-details-marker { display: none; }
+  .wsv-faq-q:hover { color: var(--ember-deep); }
+  .wsv-faq-q:focus-visible {
+    outline: 2px solid var(--ember);
+    outline-offset: 2px;
+    border-radius: var(--r-sm);
+  }
+  .wsv-faq-icon {
+    flex: none;
+    font-family: var(--font-body);
+    font-size: 20px;
+    font-weight: 300;
+    color: var(--ember-deep);
+    transition: transform var(--d-base) var(--ease);
+  }
+  .wsv-faq-item[open] .wsv-faq-icon { transform: rotate(45deg); }
+  .wsv-faq-a { padding: 0 var(--sp-2) var(--sp-5); }
+  .wsv-faq-a p {
+    font-family: var(--font-body);
+    font-size: var(--t-body);
+    line-height: var(--lh-prose);
+    color: var(--ink-soft);
+    max-width: 58ch;
+    margin: 0;
+  }
+
   /* ---------- Closing candle ---------- */
   .wsv-close {
     position: relative;
@@ -639,9 +821,11 @@ const chapters = [
     .wsv-hero-inner,
     .wsv-open,
     .wsv-chapter,
-    .wsv-wave { padding-left: var(--sp-5); padding-right: var(--sp-5); }
+    .wsv-wave,
+    .wsv-faq { padding-left: var(--sp-5); padding-right: var(--sp-5); }
     .wsv-chapter { padding-top: var(--sp-8); padding-bottom: var(--sp-8); }
     .wsv-contrast { grid-template-columns: 1fr; }
+    .wsv-faq-q { font-size: 19px; }
   }
 
   /* ---------- Scroll reveal (progressive enhancement) ---------- */
