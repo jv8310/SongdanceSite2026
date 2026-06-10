@@ -5,58 +5,122 @@ import SoftCta from '../components/SoftCta.astro';
 // Illustrated chapter set (R2 `library/svhgpt-*`) made for exactly these
 // ideas — candle-lit, throat-lit, wholly on-brand. Real retreat photography
 // lives elsewhere; here the illustration carries the inner experience.
+// `iw`/`ih` are the intrinsic pixel sizes of the R2 originals (CLS hints);
+// `pos` nudges the 5/4 crop when the subject isn't centered.
 const chapters = [
   {
     n: '01',
+    label: 'Where it went quiet',
+    h: 'You arrived knowing how to do this',
+    img: '/media/library/svhgpt-02-we-lost-the-voice.webp',
+    imgAlt: 'A woman in profile, eyes closed; in her chest a small child sings out, glowing like an ember.',
+    iw: 1122,
+    ih: 1402,
+    pos: '50% 33%',
+    p: [
+      'Watch a small child for an afternoon. Delight, protest, grief, wonder — all of it sounded the moment it arrives, with the whole body behind it. Nobody taught them that. It’s what a voice is for.',
+      'Then come the other lessons: keep it down, keep it pleasant, keep it from saying too much. The full voice doesn’t disappear. It goes quiet and waits — and it’s still in there.',
+    ],
+  },
+  {
+    n: '02',
     label: 'Sounding, not singing',
     h: 'Sounding has a different intention',
     img: '/media/library/svhgpt-03-sounding-not-singing.webp',
     imgAlt: 'A profile in candlelight, mouth open, rings of sound moving outward.',
+    iw: 1254,
+    ih: 1254,
+    flip: true,
     p: [
       'Singing reaches for melody — for something shaped and lovely, something to get right. Sounding reaches for none of that. There’s no tune to land and no wrong note to avoid.',
       'The crack, the waver, the rough edge — that’s not a mistake to fix. That’s the information. With sounding we welcome exactly what a performer would smooth away.',
     ],
     contrast: {
       a: { k: 'Singing', items: ['Reaches outward', 'Wants to sound good', 'A shape to get right'] },
-      b: { k: 'Sounding', items: ['Turns inward', 'Wants to be true', 'Whatever is actually here'] },
+      b: { k: 'Sounding', items: ['Turns inward', 'Brings you truth', 'Whatever is actually here'] },
     },
   },
   {
-    n: '02',
+    n: '03',
     label: 'The sound of the moment',
     h: 'You begin where you are',
     img: '/media/library/svhgpt-04-sound-of-not-for.webp',
     imgAlt: 'A seated figure, chest glowing, sound radiating into a dark room.',
-    flip: true,
+    iw: 1672,
+    ih: 941,
     p: [
       'There’s no script. The only question is <em>what is the sound of this moment?</em> One tone — raw and tonal, not a song, not yet a story.',
       'You stay with it and let it run its course. Sometimes it shifts on its own: turns inward into a hum, opens into something rounder, dissolves. You don’t force it anywhere. You attend it.',
     ],
   },
   {
-    n: '03',
+    n: '04',
     label: 'The body',
     h: 'Your body is on your side',
     img: '/media/library/svhgpt-05-the-cup-receiving.webp',
     imgAlt: 'Two cupped hands holding a small, warm light.',
+    iw: 1122,
+    ih: 1402,
+    flip: true,
     p: [
-      'We tend to treat the body as something that fails us — the tension, the ache, the symptom that won’t quit.',
+      'We tend to treat the body as something that can fail us — the tension, the ache, the symptom that won’t quit.',
       'Somatic Vocal Healing starts from the opposite assumption. Your body has been cooperating the whole time, doing exactly what it believed it needed to do to protect you. The voice is simply the most direct way to hear what it’s been trying to say.',
     ],
   },
   {
-    n: '04',
+    n: '05',
     label: 'Whose work it is',
     h: 'You are your own healer',
     img: '/media/library/svhgpt-06-holding-space.webp',
     imgAlt: 'Two people seated facing each other, a thread of light between them.',
+    iw: 1448,
+    ih: 1086,
     flip: true,
     p: [
       'No one can heal you — not a teacher, not a method, not a sound. Healing happens when the parts of you that split off come back together.',
-      'A guide can hold the space for that. The rest is yours. Everything we teach is aimed at one thing: you, eventually needing none of us.',
+      'That doesn’t mean you do it alone — we never stop needing each other. But what we give each other isn’t the healing; it’s the space where healing becomes possible. A guide holds that space. What rises in it is yours.',
     ],
   },
 ];
+
+// Practical questions for the reader the poetry doesn't answer. Plain-text
+// mirror goes into FAQPage JSON-LD below.
+const faqs = [
+  {
+    q: 'Do I need to be able to sing?',
+    a: 'No — and it matters that you can’t get this wrong. Sounding has no melody to hit and no audience to please. If you can sigh, groan or hum, you already have everything the practice requires.',
+  },
+  {
+    q: 'What does it actually look like?',
+    a: 'You land in the body first — breath, attention, settling. Then you’re guided toward one honest tone at a time, and you stay with it. In a group everyone sounds at once, so no one is listening to you. The room holds you; it doesn’t watch you.',
+  },
+  {
+    q: 'How is it different from a sound bath?',
+    a: 'In a sound bath the sound is made for you — you lie back and receive, and that can be lovely. Here the sound comes from you. You’re not bathing in someone else’s frequencies; you’re finally hearing your own.',
+  },
+  {
+    q: 'Is this therapy?',
+    a: 'No. Somatic Vocal Healing is a body-based practice, not a clinical treatment, and it isn’t a substitute for therapy or medical care. Many people practice it alongside therapy — the voice often reaches what words have been circling for years.',
+  },
+  {
+    q: 'What if I’m embarrassed by the sounds I make?',
+    a: 'Nearly everyone is, at first — that shyness is part of the material the practice works with. You can begin with a hum behind closed lips. Quiet counts. Honest matters more than loud.',
+  },
+  {
+    q: 'Where do I start?',
+    a: 'The simplest door is the <a href="/workshop">live online workshop</a> — one hour, 9€, no experience needed. You sound along from home and feel what this actually does in your own body.',
+  },
+];
+
+const faqSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: faqs.map((f) => ({
+    '@type': 'Question',
+    name: f.q,
+    acceptedAnswer: { '@type': 'Answer', text: f.a.replace(/<[^>]+>/g, '') },
+  })),
+};
 ---
 
 <SiteLayout
@@ -70,22 +134,26 @@ const chapters = [
       class="wsv-hero-bg"
       src="/media/library/svhgpt-01-hero-in-one-breath.webp"
       alt="A woman in candlelight, head tilted back, her throat lit from within as she sounds."
+      width="1536"
+      height="1024"
       fetchpriority="high"
     />
     <div class="wsv-hero-scrim"></div>
     <div class="wsv-hero-inner">
-      <div class="wsv-eyebrow wsv-eyebrow--light">Somatic Vocal Healing</div>
-      <h1 class="wsv-hero-title">
-        What is <span class="wsv-italic">Somatic Vocal&nbsp;Healing?</span>
-      </h1>
-      <p class="wsv-hero-lede">A practice of meeting what you feel — and giving it sound.</p>
-      <p class="wsv-hero-def">
-        Not singing. Not performance. The honest sound of what’s here,
-        made out loud until it’s been heard.
-      </p>
-      <div class="wsv-hero-actions">
-        <a href="/workshop" class="wsv-btn wsv-btn--primary">Sit in on a live workshop — 9€</a>
-        <a href="#practice" class="wsv-btn wsv-btn--ghost">See the practice ↓</a>
+      <div class="wsv-hero-copy">
+        <div class="wsv-eyebrow wsv-eyebrow--light">Somatic Vocal Healing</div>
+        <h1 class="wsv-hero-title">
+          What is <span class="wsv-italic">Somatic Vocal&nbsp;Healing?</span>
+        </h1>
+        <p class="wsv-hero-lede">A practice of meeting what you feel — and giving it sound.</p>
+        <p class="wsv-hero-def">
+          Not singing. Not performance. The honest sound of what’s here,
+          made out loud until it’s been heard.
+        </p>
+        <div class="wsv-hero-actions">
+          <a href="/workshop" class="wsv-btn wsv-btn--primary">Sit in on a live workshop — 9€</a>
+          <a href="#practice" class="wsv-btn wsv-btn--ghost">See the practice ↓</a>
+        </div>
       </div>
     </div>
   </header>
@@ -96,23 +164,32 @@ const chapters = [
       <div class="wsv-eyebrow">The shift</div>
       <p class="wsv-lyric">
         Most sound work asks <em>how should this sound?</em><br />
-        This one asks <em>what does this feel like —<br />and what is the sound of that?</em>
+        Somatic Vocal Healing asks<br />
+        <em>what do you feel — and what is the sound of that?</em>
       </p>
       <p class="wsv-open-body">
-        We grow up learning to manage the voice: keep it pleasant, keep it in tune,
-        keep it from saying too much. Somatic Vocal Healing goes the other way. It
-        treats the voice as the body’s most direct language — and gives that
+        That’s the whole shift. The voice stops being something to manage —
+        pleasant, in tune, never too much — and becomes what it has always been
+        underneath: the body’s most direct language. The practice gives that
         language somewhere to go.
       </p>
     </div>
   </section>
 
-  <!-- Chapters: sounding / the moment ----------------------------------- -->
-  {chapters.slice(0, 2).map((c) => (
+  <!-- Chapters: the quieting / sounding / the moment --------------------- -->
+  {chapters.slice(0, 3).map((c) => (
     <section class={'wsv-chapter' + (c.flip ? ' wsv-chapter--flip' : '')}>
       <div class="wsv-chapter-inner wsv-reveal">
         <figure class="wsv-chapter-fig">
-          <img src={c.img} alt={c.imgAlt} loading="lazy" />
+          <img
+            src={c.img}
+            alt={c.imgAlt}
+            width={c.iw}
+            height={c.ih}
+            loading="lazy"
+            decoding="async"
+            style={c.pos ? `object-position: ${c.pos}` : undefined}
+          />
         </figure>
         <div class="wsv-chapter-text">
           <div class="wsv-chapter-head">
@@ -144,72 +221,37 @@ const chapters = [
     <img
       class="wsv-wave-img"
       src="/media/library/svhgpt-08-oscillation-breath-rhythm.webp"
-      alt="A single line of warm light oscillating like breath across aged paper."
+      alt=""
+      width="1915"
+      height="821"
       loading="lazy"
+      decoding="async"
+      aria-hidden="true"
     />
     <div class="wsv-wave-inner wsv-reveal">
       <div class="wsv-eyebrow">In and out at once</div>
       <p class="wsv-wave-text">
-        Most sound work moves in one direction. Mantra and chanting send you
-        outward and upward, toward calm — real, and lovely. Somatic Vocal Healing
-        moves both ways at once: outward into expression, inward into what’s
-        actually here. You sound what’s true, and in sounding it, you finally
-        hear it yourself.
+        Sounding moves in two directions at once: outward into expression, so
+        what you’ve been carrying finally leaves the body — and inward into
+        listening, because the one who most needs to hear that sound is you.
+        You sound what’s true, and at last you hear it yourself.
       </p>
     </div>
   </section>
 
   <!-- Body chapter ------------------------------------------------------ -->
-  {chapters.slice(2, 3).map((c) => (
-    <section class={'wsv-chapter' + (c.flip ? ' wsv-chapter--flip' : '')}>
-      <div class="wsv-chapter-inner wsv-reveal">
-        <figure class="wsv-chapter-fig">
-          <img src={c.img} alt={c.imgAlt} loading="lazy" />
-        </figure>
-        <div class="wsv-chapter-text">
-          <div class="wsv-chapter-head">
-            <span class="wsv-chapter-n">{c.n}</span>
-            <span class="wsv-chapter-rule"></span>
-            <span class="wsv-chapter-label">{c.label}</span>
-          </div>
-          <h2 class="wsv-chapter-h">{c.h}</h2>
-          {c.p.map((para) => <p set:html={para} />)}
-        </div>
-      </div>
-    </section>
-  ))}
-
-  <!-- The honest part: emotional turn, dark panel ----------------------- -->
-  <section class="wsv-honest">
-    <img
-      class="wsv-honest-img"
-      src="/media/library/svhgpt-07-below-deeper-earlier.webp"
-      alt="A seated figure on the surface, roots descending to a glowing ember deep underground."
-      loading="lazy"
-    />
-    <div class="wsv-honest-text wsv-reveal">
-      <div class="wsv-eyebrow wsv-eyebrow--light">The honest part</div>
-      <h2 class="wsv-honest-h">It doesn’t always feel better right away</h2>
-      <p>
-        Here’s the thing no brochure says: sometimes you feel worse before
-        anything settles. If all you want is to feel nice for an hour, there are
-        gentler tools — and they’re good ones.
-      </p>
-      <p>
-        But if you’re willing to meet the parts that have been waiting — the
-        grief, the anger, the old fear — what’s on the other side isn’t a quick
-        lift. It’s a steadier kind of peace. More lasting. More structurally
-        <span class="wsv-italic">yours.</span>
-      </p>
-    </div>
-  </section>
-
-  <!-- Whose work it is -------------------------------------------------- -->
   {chapters.slice(3, 4).map((c) => (
     <section class={'wsv-chapter' + (c.flip ? ' wsv-chapter--flip' : '')}>
       <div class="wsv-chapter-inner wsv-reveal">
         <figure class="wsv-chapter-fig">
-          <img src={c.img} alt={c.imgAlt} loading="lazy" />
+          <img
+            src={c.img}
+            alt={c.imgAlt}
+            width={c.iw}
+            height={c.ih}
+            loading="lazy"
+            decoding="async"
+          />
         </figure>
         <div class="wsv-chapter-text">
           <div class="wsv-chapter-head">
@@ -223,6 +265,92 @@ const chapters = [
       </div>
     </section>
   ))}
+
+  <!-- The honest part: pinned descent from surface to ember -------------- -->
+  <section class="wsv-honest" id="honest">
+    <div class="wsv-honest-sticky">
+      <img
+        class="wsv-honest-img"
+        src="/media/library/svhgpt-07-below-deeper-earlier.webp"
+        alt="A seated figure on the surface, roots descending to a glowing ember deep underground."
+        width="941"
+        height="1672"
+        loading="lazy"
+        decoding="async"
+      />
+      <div class="wsv-honest-veil" aria-hidden="true"></div>
+      <div class="wsv-honest-step">
+        <div class="wsv-eyebrow wsv-eyebrow--light">The honest part</div>
+        <h2 class="wsv-honest-h">It doesn’t always feel better right away</h2>
+      </div>
+      <div class="wsv-honest-step">
+        <p>
+          Here’s the thing no brochure says: sometimes you feel worse before
+          anything settles. If all you want is to feel nice for an hour, there are
+          gentler tools — and they’re good ones.
+        </p>
+      </div>
+      <div class="wsv-honest-step">
+        <p>
+          But if you’re willing to meet the parts that have been waiting — the
+          grief, the anger, the old fear — what’s on the other side isn’t a quick
+          lift. It’s a steadier kind of peace. More lasting. More structurally
+          <span class="wsv-italic">yours.</span>
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Whose work it is -------------------------------------------------- -->
+  {chapters.slice(4, 5).map((c) => (
+    <section class={'wsv-chapter' + (c.flip ? ' wsv-chapter--flip' : '')}>
+      <div class="wsv-chapter-inner wsv-reveal">
+        <figure class="wsv-chapter-fig">
+          <img
+            src={c.img}
+            alt={c.imgAlt}
+            width={c.iw}
+            height={c.ih}
+            loading="lazy"
+            decoding="async"
+          />
+        </figure>
+        <div class="wsv-chapter-text">
+          <div class="wsv-chapter-head">
+            <span class="wsv-chapter-n">{c.n}</span>
+            <span class="wsv-chapter-rule"></span>
+            <span class="wsv-chapter-label">{c.label}</span>
+          </div>
+          <h2 class="wsv-chapter-h">{c.h}</h2>
+          {c.p.map((para) => <p set:html={para} />)}
+        </div>
+      </div>
+    </section>
+  ))}
+
+  <!-- Questions ----------------------------------------------------------- -->
+  <section class="wsv-faq" id="questions">
+    <div class="wsv-faq-inner wsv-reveal">
+      <div class="wsv-faq-head">
+        <div class="wsv-eyebrow">Questions</div>
+        <h2 class="wsv-faq-h">Things people ask first</h2>
+      </div>
+      <div class="wsv-faq-list">
+        {faqs.map((f) => (
+          <details class="wsv-faq-item">
+            <summary class="wsv-faq-q">
+              <span>{f.q}</span>
+              <span class="wsv-faq-icon" aria-hidden="true">+</span>
+            </summary>
+            <div class="wsv-faq-a">
+              <p set:html={f.a} />
+            </div>
+          </details>
+        ))}
+      </div>
+    </div>
+  </section>
+  <script type="application/ld+json" set:html={JSON.stringify(faqSchema)} />
 
   <!-- Closing candle ---------------------------------------------------- -->
   <section class="wsv-close">
@@ -230,7 +358,10 @@ const chapters = [
       class="wsv-close-bg"
       src="/media/library/svhgpt-09-closing-candle.webp"
       alt="A single lit candle in a dark room."
+      width="1254"
+      height="1254"
       loading="lazy"
+      decoding="async"
     />
     <div class="wsv-close-scrim"></div>
     <div class="wsv-close-inner wsv-reveal">
@@ -285,15 +416,16 @@ const chapters = [
     width: 100%;
     height: 100%;
     object-fit: cover;
-    object-position: 65% 28%;
+    /* keep her face in frame when narrow viewports crop horizontally */
+    object-position: 40% 28%;
     filter: saturate(0.92) contrast(1.02);
   }
   .wsv-hero-scrim {
     position: absolute;
     inset: 0;
     background:
-      linear-gradient(to top, rgba(15, 8, 14, 0.92) 0%, rgba(15, 8, 14, 0.55) 38%, rgba(15, 8, 14, 0.12) 70%, rgba(15, 8, 14, 0.34) 100%),
-      radial-gradient(120% 90% at 20% 100%, rgba(26, 16, 24, 0.7), transparent 60%);
+      linear-gradient(to top, rgba(15, 8, 14, 0.9) 0%, rgba(15, 8, 14, 0.5) 36%, rgba(15, 8, 14, 0.1) 68%, rgba(15, 8, 14, 0.32) 100%),
+      radial-gradient(120% 95% at 78% 96%, rgba(26, 16, 24, 0.72), transparent 62%);
   }
   .wsv-hero-inner {
     position: relative;
@@ -302,10 +434,14 @@ const chapters = [
     width: 100%;
     margin: 0 auto;
     padding: var(--sp-9) var(--sp-7) var(--sp-8);
+    /* copy lives in the open parchment to the right of her, not on her face */
+    display: flex;
+    justify-content: flex-end;
   }
+  .wsv-hero-copy { max-width: 620px; }
   .wsv-hero-title {
     font-family: var(--font-display);
-    font-size: clamp(44px, 6.6vw, 92px);
+    font-size: clamp(42px, 5.6vw, 80px);
     line-height: 1.02;
     letter-spacing: -0.02em;
     font-weight: 400;
@@ -364,6 +500,7 @@ const chapters = [
     border: 1px solid rgba(244, 245, 234, 0.5);
   }
   .wsv-btn--ghost:hover { border-color: var(--paper-soft); background: rgba(244, 245, 234, 0.08); }
+  .wsv-btn:focus-visible { outline: 2px solid var(--ember); outline-offset: 3px; }
 
   /* ---------- Opening shift ---------- */
   .wsv-open {
@@ -538,27 +675,31 @@ const chapters = [
     text-wrap: balance;
   }
 
-  /* ---------- The honest part (dark panel) ---------- */
+  /* ---------- The honest part (pinned descent) ----------
+     Static layout first: the whole illustration is visible — nothing
+     crops the ember — with the text on plum below it. The scroll-driven
+     descent only layers on under html.wsv-anim (JS + motion allowed). */
   .wsv-honest {
-    display: grid;
-    grid-template-columns: 0.9fr 1.1fr;
-    align-items: stretch;
     background: var(--plum);
     color: var(--paper-soft);
+    padding: var(--sp-8) 0 0;
   }
   .wsv-honest-img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    object-position: center 30%;
     display: block;
+    margin: 0 auto;
+    width: auto;
+    max-width: 100%;
+    max-height: 92vh;
     filter: saturate(0.9) contrast(1.02);
   }
-  .wsv-honest-text {
-    padding: var(--sp-10) clamp(var(--sp-6), 6vw, var(--sp-10));
-    max-width: 54ch;
-    align-self: center;
+  .wsv-honest-veil { display: none; }
+  .wsv-honest-step {
+    max-width: 620px;
+    margin: 0 auto;
+    padding: var(--sp-6) var(--sp-5) 0;
+    text-align: center;
   }
+  .wsv-honest-step:last-child { padding-bottom: var(--sp-8); }
   .wsv-honest-h {
     font-family: var(--font-display);
     font-size: var(--t-h2);
@@ -566,18 +707,133 @@ const chapters = [
     letter-spacing: -0.012em;
     font-weight: 400;
     color: var(--paper-soft);
-    margin: var(--sp-4) 0 var(--sp-5);
+    margin: var(--sp-4) 0 0;
     text-wrap: balance;
   }
-  .wsv-honest-text p {
+  .wsv-honest-step p {
     font-family: var(--font-body);
     font-size: var(--t-body-lg);
     line-height: var(--lh-prose);
-    color: rgba(244, 245, 234, 0.84);
-    margin: 0 0 var(--sp-4);
+    color: rgba(244, 245, 234, 0.88);
+    margin: 0;
+    text-wrap: balance;
   }
-  .wsv-honest-text p:last-child { margin-bottom: 0; }
-  .wsv-honest-text .wsv-italic { color: var(--ember-soft); }
+  .wsv-honest-step .wsv-italic { color: var(--ember-soft); font-size: 1.35em; line-height: 1; }
+
+  /* Pinned scene: the illustration pans from the figure on the surface
+     down to the ember while the text beats fade through. */
+  :global(html.wsv-anim) .wsv-honest {
+    height: 340vh;
+    padding: 0;
+  }
+  :global(html.wsv-anim) .wsv-honest-sticky {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow: hidden;
+    background: var(--plum);
+  }
+  :global(html.wsv-anim) .wsv-honest-img {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    /* wide enough to cover any viewport AND tall enough (~183vh min,
+       aspect 941:1672) that there is always vertical travel */
+    width: max(100%, 103vh);
+    max-width: none;
+    max-height: none;
+    height: auto;
+    /* translateY % is the image's own height: p=0 → top of the
+       illustration (the figure), p=1 → its bottom (the ember) */
+    transform: translate(-50%, calc(var(--wsv-p, 0) * (100vh - 100%)));
+    will-change: transform;
+  }
+  :global(html.wsv-anim) .wsv-honest-veil {
+    display: block;
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      linear-gradient(rgba(15, 8, 14, 0.16), rgba(15, 8, 14, 0.34)),
+      radial-gradient(74% 58% at 50% 52%, rgba(15, 8, 14, 0.42), transparent 74%);
+  }
+  :global(html.wsv-anim) .wsv-honest-step {
+    position: absolute;
+    inset: 0;
+    max-width: none;
+    padding: var(--sp-6);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    opacity: 0;
+    pointer-events: none;
+  }
+  :global(html.wsv-anim) .wsv-honest-step > * { max-width: 36rem; }
+  :global(html.wsv-anim) .wsv-honest-step p {
+    font-size: clamp(19px, 2.2vw, 24px);
+    line-height: 1.65;
+  }
+
+  /* ---------- Questions ---------- */
+  .wsv-faq {
+    background: var(--paper-soft);
+    border-top: 1px solid var(--line);
+    padding: var(--sp-9) var(--sp-7);
+  }
+  .wsv-faq-inner { max-width: 720px; margin: 0 auto; }
+  .wsv-faq-head { text-align: center; margin-bottom: var(--sp-6); }
+  .wsv-faq-h {
+    font-family: var(--font-display);
+    font-size: var(--t-h2);
+    line-height: 1.12;
+    letter-spacing: -0.012em;
+    font-weight: 400;
+    color: var(--ink);
+    margin: var(--sp-4) 0 0;
+    text-wrap: balance;
+  }
+  .wsv-faq-item { border-bottom: 1px solid var(--line); }
+  .wsv-faq-item:first-of-type { border-top: 1px solid var(--line); }
+  .wsv-faq-q {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--sp-4);
+    list-style: none;
+    cursor: pointer;
+    padding: var(--sp-5) var(--sp-2);
+    font-family: var(--font-display);
+    font-size: 21px;
+    line-height: 1.3;
+    color: var(--ink);
+  }
+  .wsv-faq-q::-webkit-details-marker { display: none; }
+  .wsv-faq-q:hover { color: var(--ember-deep); }
+  .wsv-faq-q:focus-visible {
+    outline: 2px solid var(--ember);
+    outline-offset: 2px;
+    border-radius: var(--r-sm);
+  }
+  .wsv-faq-icon {
+    flex: none;
+    font-family: var(--font-body);
+    font-size: 20px;
+    font-weight: 300;
+    color: var(--ember-deep);
+    transition: transform var(--d-base) var(--ease);
+  }
+  .wsv-faq-item[open] .wsv-faq-icon { transform: rotate(45deg); }
+  .wsv-faq-a { padding: 0 var(--sp-2) var(--sp-5); }
+  .wsv-faq-a p {
+    font-family: var(--font-body);
+    font-size: var(--t-body);
+    line-height: var(--lh-prose);
+    color: var(--ink-soft);
+    max-width: 58ch;
+    margin: 0;
+  }
 
   /* ---------- Closing candle ---------- */
   .wsv-close {
@@ -632,16 +888,16 @@ const chapters = [
     .wsv-chapter--flip .wsv-chapter-fig { order: 0; }
     .wsv-chapter-fig { aspect-ratio: 16 / 10; }
     .wsv-chapter-text { max-width: none; }
-    .wsv-honest { grid-template-columns: 1fr; }
-    .wsv-honest-img { aspect-ratio: 16 / 10; height: auto; }
   }
   @media (max-width: 720px) {
     .wsv-hero-inner,
     .wsv-open,
     .wsv-chapter,
-    .wsv-wave { padding-left: var(--sp-5); padding-right: var(--sp-5); }
+    .wsv-wave,
+    .wsv-faq { padding-left: var(--sp-5); padding-right: var(--sp-5); }
     .wsv-chapter { padding-top: var(--sp-8); padding-bottom: var(--sp-8); }
     .wsv-contrast { grid-template-columns: 1fr; }
+    .wsv-faq-q { font-size: 19px; }
   }
 
   /* ---------- Scroll reveal (progressive enhancement) ---------- */
@@ -680,5 +936,48 @@ const chapters = [
       { rootMargin: '0px 0px -8% 0px', threshold: 0.12 }
     );
     document.querySelectorAll('.wsv-reveal').forEach((el) => io.observe(el));
+
+    // Pinned descent for the plum panel: --wsv-p (0→1) pans the
+    // illustration from the figure on the surface down to the ember,
+    // while the text beats fade through their scroll windows. Skipped
+    // entirely under prefers-reduced-motion (early return above) — the
+    // static CSS layout takes over.
+    const panel = document.querySelector('.wsv-honest');
+    if (!panel) return;
+    const steps = Array.from(panel.querySelectorAll('.wsv-honest-step'));
+    const windows = [
+      [0, 0.36],
+      [0.3, 0.7],
+      [0.64, 1],
+    ];
+    let ticking = false;
+    const render = () => {
+      ticking = false;
+      const vh = window.innerHeight;
+      const r = panel.getBoundingClientRect();
+      const total = r.height - vh;
+      if (total <= 0) return;
+      const p = Math.min(1, Math.max(0, -r.top / total));
+      panel.style.setProperty('--wsv-p', p.toFixed(4));
+      steps.forEach((el, i) => {
+        const [s, e] = windows[i] || [0, 1];
+        const t = Math.min(1, Math.max(0, (p - s) / (e - s)));
+        // first beat is already on when the scene pins; last beat stays
+        // on and exits with the panel
+        const fadeIn = i === 0 ? 1 : t / 0.22;
+        const fadeOut = i === steps.length - 1 ? 1 : (1 - t) / 0.22;
+        el.style.opacity = Math.max(0, Math.min(1, fadeIn, fadeOut)).toFixed(3);
+        el.style.transform = `translateY(${((0.5 - t) * 36).toFixed(1)}px)`;
+      });
+    };
+    const onScroll = () => {
+      if (!ticking) {
+        ticking = true;
+        requestAnimationFrame(render);
+      }
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll, { passive: true });
+    render();
   })();
 </script>
