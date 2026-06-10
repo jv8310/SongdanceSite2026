@@ -382,7 +382,7 @@ async function runPostWorkshop(env: CronEnv, now: number, result: CronResult) {
       // The course page reads ?email= and reveals that person's price (and
       // any live discount) immediately — no typing on arrival.
       const courseUrl = `${base}/courses/12-week?email=${encodeURIComponent(reg.email)}#register`;
-      const certUrl = `${base}/certification-course`;
+      const certUrl = `${base}/courses/certification`;
       const hubUrl = successUrl(base, reg.id);
 
       const dueSteps = (steps: LifecycleStep[]) =>
