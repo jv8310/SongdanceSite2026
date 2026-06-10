@@ -80,6 +80,12 @@
     'Ask about this journey',
     'one tone, today, in the kitchen',
     'What is the sound of this moment?',
+    'something, rather than',
+    'The first sound is the hardest',
+    'Pepe',
+    'SVH AI',
+    'Practice Together',
+    'tuning your ears to the emotion inside the tone',
     // Certification
     'Shock & the Body',
     'self-taught, self-certified',

@@ -109,7 +109,7 @@ const faqs = [
   },
   {
     q: 'What about the neighbours?',
-    a: 'The most common question in this work — more common than anything about trauma. Until the day you stop caring: a cushion, the bathroom, a parked car. Half this practice happens in parked cars. The first sound is the longest; every one after it is shorter.',
+    a: 'The most common question in this work — more common than anything about trauma. Until the day you stop caring: a cushion, the bathroom, a parked car. Half this practice happens in parked cars. The first sound is the hardest — and it gets easier from there.',
   },
   {
     q: 'Where do I start?',
@@ -170,11 +170,11 @@ const faqSchema = {
       <p class="wsv-lyric">
         Most sound healing makes sound <em>for</em> you.<br />
         Somatic Vocal Healing asks<br />
-        <em>what do you feel — and what is the sound of that?</em>
+        <em>what do you feel —<br />and what is the sound of that?</em>
       </p>
       <p class="wsv-open-body">
         That’s the whole shift — two small words. We make the sound <em>of</em>
-        something, never <em>for</em> it. The voice stops being something to
+        something, rather than <em>for</em> it. The voice stops being something to
         manage — pleasant, in tune, never too much — and becomes what it has
         always been underneath: the body’s most direct language. The practice
         gives that language somewhere to go.
@@ -550,6 +550,7 @@ const faqSchema = {
     text-align: center;
   }
   .wsv-lyric {
+    text-wrap: balance;
     font-family: var(--font-lyric);
     font-style: italic;
     font-size: clamp(28px, 3.6vw, 46px);
