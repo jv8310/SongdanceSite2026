@@ -296,7 +296,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       ? { customer: customerId }
       : { customer_email: email }),
     success_url: `${baseUrl}/registrations/thanks?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${baseUrl}/ritual-of-belonging#register`,
+    cancel_url: `${baseUrl}/retreats/ritual-of-belonging#register`,
     payment_intent_description: lineItemName,
     line_items: [
       {

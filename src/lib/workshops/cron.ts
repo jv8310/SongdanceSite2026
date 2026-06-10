@@ -380,7 +380,7 @@ async function runPostWorkshop(env: CronEnv, now: number, result: CronResult) {
       const unsubscribeUrl = secret ? await unsubscribePageUrl(base, secret, reg.email) : undefined;
       const lc = { name: reg.name, workshopTitle: w.title, unsubscribeUrl };
       const courseUrl = `${base}/courses/12-week`;
-      const certUrl = `${base}/certification-course`;
+      const certUrl = `${base}/courses/certification`;
       const hubUrl = successUrl(base, reg.id);
 
       const dueSteps = (steps: LifecycleStep[]) =>

@@ -23,7 +23,7 @@ if (sessionId) {
 const RETREAT_PAGES: Record<string, string> = {
   'dolphin-and-sound-2026': '/retreats/dolphin-and-sound',
 };
-const backHref = reg ? (RETREAT_PAGES[reg.product_slug] ?? '/ritual-of-belonging') : '/events';
+const backHref = reg ? (RETREAT_PAGES[reg.product_slug] ?? '/retreats/ritual-of-belonging') : '/events';
 ---
 
 <Layout title="Thank you — Songdance" description="Booking confirmation">
