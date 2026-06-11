@@ -1,0 +1,96 @@
+---
+// 404 — page not found. Written on-voice from the copy book: a missing page
+// is a misplaced thing, not a broken one (ch. 2 — "the keys are in the
+// house"). Plain, warm, a little dry. No scaffold marker; this is a real,
+// finished page. Helpful exits back into the site, then the soft 9€ CTA.
+import SiteLayout from '../components/SiteLayout.astro';
+import PageHero from '../components/PageHero.astro';
+import SoftCta from '../components/SoftCta.astro';
+
+// A few places that are actually here — the genuinely useful part of a 404.
+const elsewhere = [
+  { href: '/', label: 'Home' },
+  { href: '/what-is-svh', label: 'What Somatic Vocal Healing is' },
+  { href: '/courses', label: 'All courses' },
+  { href: '/events', label: 'Upcoming events' },
+  { href: '/about', label: 'About' },
+];
+---
+
+<SiteLayout
+  title="Page not found — Songdance"
+  description="This page isn't here. Nothing's broken — it's just out of reach. A few doors that are open below."
+  newsletter={false}
+>
+  <PageHero
+    eyebrow="404"
+    title="This page went quiet."
+    lede="The one you were looking for isn't here. Nothing's broken — it's just out of reach."
+  >
+    <div class="sd-pagehero-actions">
+      <a href="/" class="sd-btn sd-btn-primary">Back home</a>
+      <a href="/workshop" class="sd-btn sd-btn-quiet" data-sd-price="ticket">Try a workshop — 9€</a>
+    </div>
+  </PageHero>
+
+  <section class="sd-section sd-prose">
+    <div class="sd-prose-inner">
+      <p>
+        Maybe the link was old. Maybe the page moved. Maybe it was never
+        written. The keys are in the house somewhere — this just isn't the
+        door. Take a breath — in through the nose, out through the mouth —
+        and start again from somewhere that is here.
+      </p>
+
+      <nav class="sd-404-links" aria-label="A few places that are here">
+        <p class="sd-eyebrow">A few doors that are open</p>
+        <ul>
+          {elsewhere.map((link) => (
+            <li><a href={link.href}>{link.label}</a></li>
+          ))}
+        </ul>
+      </nav>
+
+      <p class="t-lyric sd-404-closer">Begin where you are. There's nowhere else.</p>
+    </div>
+  </section>
+
+  <SoftCta
+    text="Curious how this actually feels?"
+    subtext="You cannot do it wrong. Nobody here will ask you to scream."
+  />
+</SiteLayout>
+
+<style>
+  .sd-404-links {
+    margin: var(--sp-7) 0;
+    padding-top: var(--sp-5);
+    border-top: 1px solid var(--line);
+  }
+  .sd-404-links .sd-eyebrow {
+    display: block;
+    margin-bottom: var(--sp-4);
+  }
+  .sd-404-links ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: var(--sp-3);
+  }
+  .sd-404-links a {
+    font-family: var(--font-display);
+    font-size: var(--t-h4);
+    color: var(--ink);
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+    transition: border-color var(--d-quick) var(--ease);
+  }
+  .sd-404-links a:hover {
+    border-bottom-color: var(--ember);
+  }
+  .sd-404-closer {
+    margin-top: var(--sp-7);
+    color: var(--ink-soft);
+  }
+</style>
