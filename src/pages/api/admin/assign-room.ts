@@ -34,6 +34,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
     payload: { inventory_unit_id: inventoryUnitId },
   });
 
+  // The admin page submits this via fetch (no reload, so the view keeps its
+  // scroll position) — answer those with 204. Plain form posts still redirect.
+  if (request.headers.get('X-Requested-With') === 'fetch') {
+    return new Response(null, { status: 204 });
+  }
+
   const returnTo = safeReturnTo(String(form.get('return_to') ?? ''));
   return new Response(null, {
     status: 302,
