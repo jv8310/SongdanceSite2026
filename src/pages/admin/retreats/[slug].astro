@@ -366,6 +366,11 @@ const roomBreakdown = roomsWithMode
     // the locked label instead of a dropdown.
     const canPinMode = isMulti && r.status === 'available' && r.beds_sold === 0;
     const forcedMode: 'solo' | 'shared' | '' = r.forced_mode ?? '';
+    // Sellable = counts toward the paying retreat ceiling. Matches the
+    // Capacity section's maxPeople: a truly-reserved (host/cook) room is
+    // non-paying and excluded; a role-reserved room (fire keeper) is held for
+    // a paying special-role guest, so it still counts.
+    const sellable = !(r.mode === 'reserved' && !r.role);
     return {
       id: r.id,
       building: r.building,
@@ -385,6 +390,7 @@ const roomBreakdown = roomsWithMode
       state: s.state,
       stateLabel: s.label,
       showCounts: r.status !== 'inactive',
+      sellable,
       guests: guestsByRoom.get(r.id) ?? [],
     };
   })
@@ -403,9 +409,12 @@ for (const r of roomBreakdown) {
   else roomsByBuilding.push({ building: label, rooms: [r] });
 }
 
+// Totals count sellable beds only — excluding inactive rooms and the
+// non-paying host/cook reserved beds — so this row agrees with the Capacity
+// section's "Total (paying)" instead of overcounting by the hosts' room.
 const roomTotals = roomBreakdown.reduce(
   (acc, r) => {
-    if (!r.showCounts) return acc;
+    if (!r.showCounts || !r.sellable) return acc;
     acc.booked += r.booked;
     acc.capacity += r.capacity;
     acc.available += r.available;
@@ -671,7 +680,7 @@ const flash = (() => {
           </tr>
         </tfoot>
       </table>
-      <p class="adm-table-note">Rooms are grouped and sorted by building. <strong>Category</strong> is the price band (tier) the room is sold under. <strong>Sell as</strong>: <em>Single</em> — whole room, one booking locks it. <em>Multi</em> — sold bed by bed. <em>Either</em> — multi-mode; one whole-room booking locks the rest of the beds. Empty multi rooms show a dropdown: <em>Either</em> (auto), <em>Single only</em>, or <em>Multi only</em> — pin a mode to pre-decide how the room is offered on the public form. <strong>Booked</strong> counts active paid + pending registrations (incl. pre-allocated hosts/cook). <strong>Available</strong> is 0 for inactive rooms and for the empty beds in a locked whole-room booking; for a role-reserved bed it reflects whether the fire-keeper / cook-help seat is still open. The totals row sums beds across active rooms; the admin-test bed is hidden.</p>
+      <p class="adm-table-note">Rooms are grouped and sorted by building. <strong>Category</strong> is the price band (tier) the room is sold under. <strong>Sell as</strong>: <em>Single</em> — whole room, one booking locks it. <em>Multi</em> — sold bed by bed. <em>Either</em> — multi-mode; one whole-room booking locks the rest of the beds. Empty multi rooms show a dropdown: <em>Either</em> (auto), <em>Single only</em>, or <em>Multi only</em> — pin a mode to pre-decide how the room is offered on the public form. <strong>Booked</strong> counts active paid + pending registrations (incl. pre-allocated hosts/cook). <strong>Available</strong> is 0 for inactive rooms and for the empty beds in a locked whole-room booking; for a role-reserved bed it reflects whether the fire-keeper / cook-help seat is still open. The totals row sums sellable beds across active rooms — excluding the non-paying host/cook reserved beds and the hidden admin-test bed — so it matches the Capacity section's "Total (paying)".</p>
     </section>
 
     <!-- ─── Balance due (deposit-payers) ─── -->
