@@ -140,6 +140,22 @@ let payingParticipants = 0;
 let placesAvailable = 0;
 let maxPeople = 0;
 
+// Non-paying pre-allocated staff — the two hosts and the cook (Muriel) —
+// occupy beds but never count toward paying capacity. The cook's *helper*
+// pays (30% off) and a comped transfer guest isn't "Pre-allocated", so both
+// still count. Subtracted from the bed total below.
+const staffRow = await env.DB
+  .prepare(
+    `SELECT COUNT(*) AS c FROM registrations
+      WHERE product_id = ?
+        AND status IN ('paid','pending')
+        AND amount_cents = 0
+        AND notes LIKE 'Pre-allocated%'`,
+  )
+  .bind(product.id)
+  .first<{ c: number }>();
+const nonPayingStaff = staffRow?.c ?? 0;
+
 const roomsWithMode = await getRoomsWithMode(env.DB, product.id);
 for (const r of roomsWithMode) {
   if (r.mode === 'inactive') continue;
@@ -147,14 +163,13 @@ for (const r of roomsWithMode) {
     adminTierId != null &&
     (r.solo_tier_id === adminTierId || r.shared_tier_id === adminTierId)
   ) continue;
-  // Skip truly-reserved (host/cook) rooms — those beds are non-paying. Keep
-  // role-reserved rooms (fire keeper paviljoen, Room 5.2 cook help): they
-  // are reserved for a *paying* special-role participant, so they count
-  // toward the retreat ceiling.
-  if (r.mode === 'reserved' && !r.role) continue;
-  // Max retreat-wide capacity = every sellable bed (per-tier capacities
-  // double-count multi-mode rooms, so summing tiers overcounts).
+  // Count every active bed toward the ceiling (per-tier capacities
+  // double-count multi-mode rooms, so summing tiers overcounts); the
+  // non-paying hosts + cook are removed via nonPayingStaff below.
   maxPeople += r.capacity;
+  // Truly-reserved host/cook beds aren't sellable-empty. Role-reserved
+  // (fire keeper) seats stay open to a paying special-role guest.
+  if (r.mode === 'reserved' && !r.role) continue;
   if (r.mode === 'solo') {
     // Empty admin-pinned solo room still has 1 sellable bed; the rest are
     // held. For a real solo booking (beds_sold > 0), nothing more to sell.
@@ -163,6 +178,7 @@ for (const r of roomsWithMode) {
   }
   placesAvailable += Math.max(0, r.capacity - r.beds_sold);
 }
+maxPeople -= nonPayingStaff;
 
 const paying = await env.DB
   .prepare(
@@ -185,7 +201,14 @@ const rs = await env.DB.prepare(
      FROM inventory_units iu
      JOIN tiers t ON t.id = iu.tier_id
     WHERE t.product_id = ?
-    ORDER BY t.sort_order, iu.sort_order`,
+    ORDER BY CASE iu.building
+               WHEN 'Poorthuis' THEN 0
+               WHEN 'Theaterkamer' THEN 1
+               WHEN 'Balkonverblijf' THEN 2
+               WHEN 'Orangerie' THEN 3
+               WHEN 'Paviljoen' THEN 4
+               ELSE 5
+             END, iu.sort_order`,
 )
   .bind(product.id)
   .all<{
@@ -366,11 +389,6 @@ const roomBreakdown = roomsWithMode
     // the locked label instead of a dropdown.
     const canPinMode = isMulti && r.status === 'available' && r.beds_sold === 0;
     const forcedMode: 'solo' | 'shared' | '' = r.forced_mode ?? '';
-    // Sellable = counts toward the paying retreat ceiling. Matches the
-    // Capacity section's maxPeople: a truly-reserved (host/cook) room is
-    // non-paying and excluded; a role-reserved room (fire keeper) is held for
-    // a paying special-role guest, so it still counts.
-    const sellable = !(r.mode === 'reserved' && !r.role);
     return {
       id: r.id,
       building: r.building,
@@ -390,7 +408,6 @@ const roomBreakdown = roomsWithMode
       state: s.state,
       stateLabel: s.label,
       showCounts: r.status !== 'inactive',
-      sellable,
       guests: guestsByRoom.get(r.id) ?? [],
     };
   })
@@ -408,20 +425,6 @@ for (const r of roomBreakdown) {
   if (last && last.building === label) last.rooms.push(r);
   else roomsByBuilding.push({ building: label, rooms: [r] });
 }
-
-// Totals count sellable beds only — excluding inactive rooms and the
-// non-paying host/cook reserved beds — so this row agrees with the Capacity
-// section's "Total (paying)" instead of overcounting by the hosts' room.
-const roomTotals = roomBreakdown.reduce(
-  (acc, r) => {
-    if (!r.showCounts || !r.sellable) return acc;
-    acc.booked += r.booked;
-    acc.capacity += r.capacity;
-    acc.available += r.available;
-    return acc;
-  },
-  { booked: 0, capacity: 0, available: 0 },
-);
 
 // ─── Balance due (deposit-payers who still owe the remainder) ───
 const balanceDue = await getRegistrationsWithBalanceDue(env.DB, product.id);
@@ -608,7 +611,19 @@ const flash = (() => {
 
     <!-- ─── Rooms ─── -->
     <section class="adm-section">
-      <h2>Rooms</h2>
+      <div class="adm-section-head">
+        <h2>Rooms</h2>
+        <form
+          method="POST"
+          action="/api/admin/auto-assign-rooms"
+          class="adm-autoassign"
+          onsubmit={`return confirm('Auto-assign every unassigned paid/held guest to a room matching what they purchased? Already-assigned people are left as-is.')`}
+        >
+          <input type="hidden" name="product_slug" value={productSlug} />
+          <input type="hidden" name="return_to" value={returnTo} />
+          <button type="submit" class="adm-btn adm-btn--solid">Auto-assign unassigned</button>
+        </form>
+      </div>
       <table class="adm-table adm-table--rooms">
         <thead>
           <tr>
@@ -672,15 +687,15 @@ const flash = (() => {
         </tbody>
         <tfoot>
           <tr class="adm-row--total">
-            <th scope="row" colspan="3">Total (active rooms)</th>
-            <td class="num">{roomTotals.booked}</td>
-            <td class="num">{roomTotals.capacity}</td>
-            <td class="num"><span class={`adm-pill adm-pill--${capacityTone(roomTotals.available)}`}>{roomTotals.available}</span></td>
+            <th scope="row" colspan="3">Total (paying)</th>
+            <td class="num">{payingParticipants}</td>
+            <td class="num">{maxPeople}</td>
+            <td class="num"><span class={`adm-pill adm-pill--${capacityTone(placesAvailable)}`}>{placesAvailable}</span></td>
             <td colspan="2"></td>
           </tr>
         </tfoot>
       </table>
-      <p class="adm-table-note">Rooms are grouped and sorted by building. <strong>Category</strong> is the price band (tier) the room is sold under. <strong>Sell as</strong>: <em>Single</em> — whole room, one booking locks it. <em>Multi</em> — sold bed by bed. <em>Either</em> — multi-mode; one whole-room booking locks the rest of the beds. Empty multi rooms show a dropdown: <em>Either</em> (auto), <em>Single only</em>, or <em>Multi only</em> — pin a mode to pre-decide how the room is offered on the public form. <strong>Booked</strong> counts active paid + pending registrations (incl. pre-allocated hosts/cook). <strong>Available</strong> is 0 for inactive rooms and for the empty beds in a locked whole-room booking; for a role-reserved bed it reflects whether the fire-keeper / cook-help seat is still open. The totals row sums sellable beds across active rooms — excluding the non-paying host/cook reserved beds and the hidden admin-test bed — so it matches the Capacity section's "Total (paying)".</p>
+      <p class="adm-table-note">Rooms are grouped and sorted by building. <strong>Category</strong> is the price band (tier) the room is sold under. <strong>Sell as</strong>: <em>Single</em> — whole room, one booking locks it. <em>Multi</em> — sold bed by bed. <em>Either</em> — multi-mode; one whole-room booking locks the rest of the beds. Empty multi rooms show a dropdown: <em>Either</em> (auto), <em>Single only</em>, or <em>Multi only</em> — pin a mode to pre-decide how the room is offered on the public form. <strong>Booked</strong> counts active paid + pending registrations (incl. pre-allocated hosts/cook). <strong>Available</strong> is 0 for inactive rooms and for the empty beds in a locked whole-room booking; for a role-reserved bed it reflects whether the fire-keeper / cook-help seat is still open. The totals row is the retreat-wide paying figure (same as the Capacity section): every active bed minus the non-paying hosts + cook, and excluding the hidden admin-test bed — so it won't equal a plain sum of the room rows above.</p>
     </section>
 
     <!-- ─── Balance due (deposit-payers) ─── -->
@@ -914,4 +929,31 @@ const flash = (() => {
       </table>
     </section>
   </main>
+
+  <script is:inline>
+    // Save a room assignment without a full page reload (so the view doesn't
+    // jump back to the top). Only the per-registration assign forms are
+    // intercepted; bulk/delete/mark-paid forms keep their normal redirect.
+    document.addEventListener('submit', async (e) => {
+      const form = e.target;
+      if (!(form instanceof HTMLFormElement) || !form.classList.contains('adm-reg-assign')) return;
+      e.preventDefault();
+      const btn = form.querySelector('button[type="submit"]');
+      const original = btn ? btn.textContent : '';
+      if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+      try {
+        const res = await fetch(form.action, {
+          method: 'POST',
+          body: new FormData(form),
+          headers: { 'X-Requested-With': 'fetch' },
+        });
+        if (!res.ok) throw new Error(String(res.status));
+        if (btn) btn.textContent = 'Saved ✓';
+        setTimeout(() => { if (btn) { btn.textContent = original; btn.disabled = false; } }, 1500);
+      } catch {
+        if (btn) { btn.textContent = original; btn.disabled = false; }
+        alert('Could not save the room assignment. Please try again.');
+      }
+    });
+  </script>
 </Layout>

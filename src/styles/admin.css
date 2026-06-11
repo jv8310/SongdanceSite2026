@@ -102,6 +102,12 @@ body { background: var(--adm-paper); }
 }
 
 .adm-section { margin-bottom: 36px; }
+.adm-section-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap;
+}
+.adm-section-head h2 { margin-bottom: 12px; }
+.adm-autoassign { margin: 0 0 12px; }
 .adm-section h2 {
   font-family: Georgia, serif; font-weight: 500;
   font-size: 1.15rem; margin: 0 0 12px;
