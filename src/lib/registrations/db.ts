@@ -619,7 +619,15 @@ export async function pickRoomForTier(
           // 'open' = empty multi-mode; 'solo' + beds_sold=0 = admin-pinned solo.
           (r.mode === 'open' || (r.mode === 'solo' && r.beds_sold === 0)),
       )
-      .sort((a, b) => a.sort_order - b.sort_order);
+      // When this is a plain single (solo) booking, spend the couple-capable
+      // rooms (the canopy beds) last, so they stay open for actual couples
+      // while ordinary private rooms are still free.
+      .sort((a, b) => {
+        const aCouple = a.couple_tier_id != null && a.couple_tier_id !== tier.id ? 1 : 0;
+        const bCouple = b.couple_tier_id != null && b.couple_tier_id !== tier.id ? 1 : 0;
+        if (aCouple !== bCouple) return aCouple - bCouple;
+        return a.sort_order - b.sort_order;
+      });
     return candidates[0] ?? null;
   }
 
