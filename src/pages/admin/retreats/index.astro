@@ -16,7 +16,7 @@ const products = (
     .prepare(
       `SELECT p.slug, p.name, p.starts_at, p.ends_at,
               (SELECT COUNT(*) FROM registrations r WHERE r.product_id = p.id) AS total,
-              (SELECT COUNT(*) FROM registrations r WHERE r.product_id = p.id AND r.status = 'paid') AS paid
+              (SELECT COUNT(*) FROM registrations r WHERE r.product_id = p.id AND r.status = 'paid' AND r.host = 0) AS paid
          FROM products p
         WHERE p.type = 'retreat' AND p.active = 1
         ORDER BY p.starts_at`,

@@ -66,6 +66,7 @@ type Row = {
   balance_due_cents: number;
   balance_invite_sent_at: string | null;
   balance_paid_at: string | null;
+  host: number;
 };
 
 const where = ['r.product_id = ?'];
@@ -83,6 +84,7 @@ const q = await env.DB.prepare(
           r.created_at, r.paid_at, r.cancelled_at,
           r.refunded_at, r.refunded_amount_cents,
           r.balance_due_cents, r.balance_invite_sent_at, r.balance_paid_at,
+          r.host,
           t.name AS tier_name, t.slug AS tier_slug,
           iu.name AS inventory_unit_name
      FROM registrations r
@@ -140,17 +142,16 @@ let payingParticipants = 0;
 let placesAvailable = 0;
 let maxPeople = 0;
 
-// Non-paying pre-allocated staff — the two hosts and the cook (Muriel) —
-// occupy beds but never count toward paying capacity. The cook's *helper*
-// pays (30% off) and a comped transfer guest isn't "Pre-allocated", so both
-// still count. Subtracted from the bed total below.
+// Non-paying staff — the two hosts and the cook (host=1) — occupy beds but
+// never count toward paying capacity. The cook's *helper* and the transfer
+// guest (Zabine) are not flagged host, so they still count. Subtracted from
+// the bed total below.
 const staffRow = await env.DB
   .prepare(
     `SELECT COUNT(*) AS c FROM registrations
       WHERE product_id = ?
-        AND status IN ('paid','pending')
-        AND amount_cents = 0
-        AND notes LIKE 'Pre-allocated%'`,
+        AND host = 1
+        AND status IN ('paid','pending')`,
   )
   .bind(product.id)
   .first<{ c: number }>();
@@ -186,7 +187,7 @@ const paying = await env.DB
        FROM registrations
       WHERE product_id = ?
         AND status = 'paid'
-        AND amount_cents > 0`,
+        AND host = 0`,
   )
   .bind(product.id)
   .first<{ c: number }>();
@@ -819,7 +820,9 @@ const flash = (() => {
                   )}
                 </div>
                 <div class="adm-reg-status">
-                  <span class={`adm-pill adm-pill--${r.status}`}>{r.status}</span>
+                  {r.host
+                    ? <span class="adm-pill adm-pill--host">host</span>
+                    : <span class={`adm-pill adm-pill--${r.status}`}>{r.status}</span>}
                 </div>
                 <div class="adm-reg-dates">
                   <div><span>Created</span> {ymd(r.created_at)}</div>
