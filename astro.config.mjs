@@ -3,24 +3,15 @@ import { defineConfig } from 'astro/config';
 import react from '@astrojs/react';
 import cloudflare from '@astrojs/cloudflare';
 
+// NOTE: redirects for the old (pre-tidy) URLs are handled in the custom worker
+// entrypoint (src/worker-entrypoint.ts), not here. Astro's `redirects` config
+// normalises trailing slashes away and, for redirects to prerendered pages,
+// only emits an exact slashless _redirects rule — so the trailing-slash form of
+// an old URL (the directory-format form most inbound links use) would 404. The
+// worker matches /old and /old/ uniformly. See that file for the URL map.
 export default defineConfig({
   site: 'https://site.songdance.co',
   output: 'static',
-  // Permanent (301) redirects from the old, inconsistent URLs to the tidied
-  // structure: every online programme lives under /courses/, every retreat
-  // under /retreats/, and the German workshop under /workshop/. Keeps old
-  // links, bookmarks, and ad destinations working. The Cloudflare adapter
-  // emits these into the build's _redirects file.
-  redirects: {
-    '/certification-course': { status: 301, destination: '/courses/certification' },
-    '/certification-course/thanks': { status: 301, destination: '/courses/certification/thanks' },
-    '/masterclass': { status: 301, destination: '/courses/masterclass' },
-    '/forgiveness': { status: 301, destination: '/courses/forgiveness' },
-    '/svh-german': { status: 301, destination: '/courses/12-week-de' },
-    '/songdeck': { status: 301, destination: '/courses/songdeck' },
-    '/ritual-of-belonging': { status: 301, destination: '/retreats/ritual-of-belonging' },
-    '/workshop-deutsch': { status: 301, destination: '/workshop/deutsch' },
-  },
   adapter: cloudflare({
     imageService: 'compile',
     // Custom worker entrypoint so the generated worker also exports a
