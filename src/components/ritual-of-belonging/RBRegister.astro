@@ -7,7 +7,7 @@ const roomTypes = [
   {
     slug: 'private-ensuite',
     label: 'Private En-suite',
-    description: 'Your own room with private bathroom — the most private option.',
+    description: 'Your own room with a private bathroom in the room (ensuite) — the most private option.',
     price: 995,
   },
   {
@@ -17,15 +17,21 @@ const roomTypes = [
     price: 795,
   },
   {
+    slug: 'private-double',
+    label: 'Private Double (couple)',
+    description: 'A private room for two sharing — one booking covers the couple. Bathroom on the same floor.',
+    price: 1390,
+  },
+  {
     slug: 'shared-bedroom',
-    label: 'Twin Bedroom',
-    description: 'You share a bedroom with one other participant.',
+    label: 'Shared Room',
+    description: 'You share a spacious room with one other participant.',
     price: 695,
   },
   {
     slug: 'common-space',
-    label: 'Shared Room',
-    description: 'You share a room with up to 3 other participants.',
+    label: 'Budget Room',
+    description: 'You share a smaller room with up to three others.',
     price: 595,
   },
   // Hidden by default — revealed by JS only when the page URL has
@@ -100,7 +106,7 @@ const roomTypes = [
             </button>
           ))}
         </div>
-        <p class="rb-step-fine">All prices are per person and include meals, the full program, and 21% Belgian VAT — the same rate for everyone, because this retreat takes place in Belgium.</p>
+        <p class="rb-step-fine">Prices are per person — except the Private Double, which is one price for two people sharing. All include meals, the full program, and 21% Belgian VAT — the same rate for everyone, because this retreat takes place in Belgium.</p>
       </fieldset>
 
       <!-- ───────── Step 2 — Your details ───────── -->

@@ -163,6 +163,17 @@ body { background: var(--adm-paper); }
 .adm-pill--type-multi   { background: rgba(0,0,0,0.06); color: var(--adm-ink); }
 .adm-pill--type-none    { background: rgba(0,0,0,0.04); color: var(--adm-mute); }
 
+/* Building group header inside the rooms table */
+.adm-table--rooms .adm-row--group th {
+  background: rgba(0,0,0,0.05);
+  color: var(--adm-ink);
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding-top: 0.55rem;
+  padding-bottom: 0.55rem;
+}
+
 /* Intake assessment classifications */
 .adm-pill--class-veilig {
   background: rgba(47, 122, 76, 0.13); color: var(--adm-success);

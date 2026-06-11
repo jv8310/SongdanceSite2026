@@ -34,16 +34,19 @@ export type InventoryUnit = {
   notes: string | null;
   status: 'available' | 'reserved' | 'inactive';
   sort_order: number;
-  solo_tier_id: number | null;    // tier when sold as a single room
+  solo_tier_id: number | null;    // tier when sold as a single room (whole room, one booking locks it)
+  couple_tier_id: number | null;  // tier when sold as a couple room (whole room, one booking locks it)
   shared_tier_id: number | null;  // tier when sold bed-by-bed
   role: SpecialRole | null;       // 'fire_keeper' (Paviljoen) | 'cook_help' (Room 5.2)
   forced_mode: 'solo' | 'shared' | null;  // admin pin: lock an empty multi-room to one tier
+  building: string | null;        // house the room is in (Poorthuis / Balkon / Toren / …)
 };
 
 // "mode" is a runtime concept derived from current bookings on the room:
 //   reserved / inactive  → set by inventory_units.status
 //   open                 → 0 active registrations
 //   solo                 → at least 1 reg whose tier matches solo_tier_id
+//                          OR couple_tier_id (both are whole-room bookings)
 //   shared               → at least 1 reg whose tier matches shared_tier_id
 export type RoomMode = 'open' | 'solo' | 'shared' | 'reserved' | 'inactive';
 
@@ -441,8 +444,8 @@ export async function getRoomsWithMode(
 ): Promise<RoomWithMode[]> {
   const sql = `
     SELECT iu.id, iu.tier_id, iu.name, iu.capacity, iu.notes, iu.status,
-           iu.sort_order, iu.solo_tier_id, iu.shared_tier_id, iu.role,
-           iu.forced_mode,
+           iu.sort_order, iu.solo_tier_id, iu.couple_tier_id, iu.shared_tier_id,
+           iu.role, iu.forced_mode, iu.building,
            COALESCE(b.beds_sold, 0)   AS beds_sold,
            b.first_tier_id            AS first_tier_id
       FROM inventory_units iu
@@ -479,6 +482,7 @@ function deriveRoomMode(r: {
   beds_sold: number;
   first_tier_id: number | null;
   solo_tier_id: number | null;
+  couple_tier_id: number | null;
   shared_tier_id: number | null;
   forced_mode: 'solo' | 'shared' | null;
 }): RoomMode {
@@ -491,10 +495,13 @@ function deriveRoomMode(r: {
     return 'open';
   }
   // Has at least one booking — decide solo vs shared by which tier matches.
+  // A solo OR couple booking is a whole-room booking, so both lock the room
+  // into 'solo' (no further beds are sold).
   if (r.first_tier_id != null && r.first_tier_id === r.solo_tier_id) return 'solo';
+  if (r.first_tier_id != null && r.first_tier_id === r.couple_tier_id) return 'solo';
   if (r.first_tier_id != null && r.first_tier_id === r.shared_tier_id) return 'shared';
   // Defensive fallback: a single-tier room can only be the one mode it supports.
-  return r.solo_tier_id ? 'solo' : 'shared';
+  return r.solo_tier_id || r.couple_tier_id ? 'solo' : 'shared';
 }
 
 export type TierAvailability = {
@@ -504,7 +511,8 @@ export type TierAvailability = {
 };
 
 // Per-tier remaining bed counts, computed from the room model.
-//   Solo-tier (PE / PSB): count of OPEN rooms eligible as that solo tier.
+//   Solo/couple-tier (PE / PSB / Private Double): count of OPEN rooms
+//                          eligible as that whole-room tier.
 //   Shared-tier (SB / CS): sum of free beds in rooms whose shared_tier_id
 //                          matches and that are not solo-locked. A
 //                          multi-mode room flipped to solo therefore
@@ -529,6 +537,13 @@ export async function computeTierAvailability(
       // for the solo tier.
       const soloAvailable = r.mode === 'open' || (r.mode === 'solo' && r.beds_sold === 0);
       if (r.solo_tier_id === tier.id) {
+        capacity += 1;
+        if (soloAvailable) remaining += 1;
+      }
+      // The couple tier shares the same physical room as that room's solo
+      // tier — counted the same way. Booking either one locks the room, so
+      // the moment one sells, soloAvailable is false for both.
+      if (r.couple_tier_id === tier.id) {
         capacity += 1;
         if (soloAvailable) remaining += 1;
       }
@@ -570,7 +585,9 @@ export async function computeBookedPercent(
 // Returns null if there's no room available.
 //
 // Strategy:
-//   Solo tiers (PE / PSB): first open eligible room (by sort_order).
+//   Solo/couple tiers (PE / PSB / Private Double): first open eligible room
+//     (by sort_order). A couple tier picks from the same rooms its solo
+//     sibling does — whichever books first locks the whole room.
 //   Shared tiers (SB / CS), in priority order:
 //     1) An already shared-locked room with a free bed (fill it up before
 //        starting a new one).
@@ -589,14 +606,16 @@ export async function pickRoomForTier(
   const tier = tiers.find((t) => t.slug === tierSlug);
   if (!tier) return null;
 
-  const isSoloTier = rooms.some((r) => r.solo_tier_id === tier.id);
+  // A solo tier or a couple tier both sell the whole room (one booking locks
+  // it), so they pick rooms the same way.
+  const isSoloTier = rooms.some((r) => r.solo_tier_id === tier.id || r.couple_tier_id === tier.id);
   const isSharedTier = rooms.some((r) => r.shared_tier_id === tier.id);
 
   if (isSoloTier && !isSharedTier) {
     const candidates = rooms
       .filter(
         (r) =>
-          r.solo_tier_id === tier.id &&
+          (r.solo_tier_id === tier.id || r.couple_tier_id === tier.id) &&
           // 'open' = empty multi-mode; 'solo' + beds_sold=0 = admin-pinned solo.
           (r.mode === 'open' || (r.mode === 'solo' && r.beds_sold === 0)),
       )
