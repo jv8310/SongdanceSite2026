@@ -337,7 +337,7 @@ const tierNameById = new Map<number, string>();
 for (const { tier } of ta) tierNameById.set(tier.id, tier.name);
 
 // Buildings sort in walking order; anything unmapped falls to the end.
-const BUILDING_ORDER = ['Poorthuis', 'Balkon', 'Toren', 'Paviljoen'];
+const BUILDING_ORDER = ['Poorthuis', 'Theaterkamer', 'Balkonverblijf', 'Torenverblijf', 'Paviljoen'];
 function buildingRank(b: string | null): number {
   const i = b ? BUILDING_ORDER.indexOf(b) : -1;
   return i === -1 ? BUILDING_ORDER.length : i;
