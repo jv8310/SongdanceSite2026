@@ -288,6 +288,9 @@ function roomType(r: {
 } {
   const whole = r.solo_tier_id != null || r.couple_tier_id != null;
   if (whole && r.shared_tier_id != null) return { type: 'multi', label: 'Either' };
+  // A whole-room bed that also offers the couple tier (the canopy beds) is
+  // sold for one OR two — flag that explicitly.
+  if (r.couple_tier_id != null) return { type: 'private', label: 'Single or couple' };
   if (whole) return { type: 'private', label: 'Single' };
   if (r.shared_tier_id != null) return { type: 'shared', label: 'Multi' };
   return { type: 'none', label: '—' };
