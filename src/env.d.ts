@@ -27,6 +27,9 @@ type Env = {
   RESEND_FROM?: string;
   RESEND_INTAKES_FROM?: string;
   RESEND_REPLY_TO?: string;
+  // Comma-separated recipients for the internal "SD-ORDER" purchase
+  // notifications. Defaults to jacob@songdance.co + support@songdance.co.
+  ORDER_NOTIFICATIONS_TO?: string;
   ANTHROPIC_API_KEY?: string;
   SVH_CERT_PORTAL_URL?: string;
   ADMIN_PASSWORD: string;

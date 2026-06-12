@@ -7,6 +7,7 @@ import {
   recordInstallmentPaid,
 } from '../../../lib/courses/db';
 import { pushPaidCourseRegistrationToDrip } from '../../../lib/courses/paid-handler';
+import { notifyCourseOrder } from '../../../lib/orders/notification';
 
 export const prerender = false;
 
@@ -63,6 +64,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
   });
 
   await pushPaidCourseRegistrationToDrip(env, reg.id);
+
+  // Internal SD-ORDER notification (idempotent: a no-op if the webhook
+  // already sent it for this order). Re-fetch for the up-to-date row.
+  const paidReg = (await getCourseRegistrationById(env.DB, reg.id)) ?? reg;
+  await notifyCourseOrder(env, paidReg, {
+    stripePaymentIntent: paidReg.stripe_payment_intent,
+    stripeSubscriptionId: paidReg.stripe_subscription_id,
+  });
 
   const returnTo = safeReturnTo(String(form.get('return_to') ?? ''));
   return new Response(null, {
