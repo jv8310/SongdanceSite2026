@@ -11,6 +11,7 @@
 // Masterclass entries (€29) are rendered too but hidden by CSS until the page
 // is in pro state (.we-register.is-pro), where they're shown and highlighted.
 import type { CalItem } from './types';
+import { ALL_COUNTRIES } from '../../lib/workshops/countries';
 interface Props {
   items: CalItem[];
   country: string;
@@ -20,30 +21,13 @@ interface Props {
 }
 const { items, country, currency, detectedTz, tzOptions } = Astro.props;
 
-// Country list driving the currency switch. EU members fall through to EUR;
-// only the markets we hold dedicated price points for get their own currency.
-const COUNTRIES: { code: string; name: string; currency: string }[] = [
-  { code: 'BE', name: 'Belgium', currency: 'EUR' },
-  { code: 'NL', name: 'Netherlands', currency: 'EUR' },
-  { code: 'DE', name: 'Germany', currency: 'EUR' },
-  { code: 'FR', name: 'France', currency: 'EUR' },
-  { code: 'ES', name: 'Spain', currency: 'EUR' },
-  { code: 'IT', name: 'Italy', currency: 'EUR' },
-  { code: 'IE', name: 'Ireland', currency: 'EUR' },
-  { code: 'AT', name: 'Austria', currency: 'EUR' },
-  { code: 'PT', name: 'Portugal', currency: 'EUR' },
-  { code: 'GB', name: 'United Kingdom', currency: 'GBP' },
-  { code: 'US', name: 'United States', currency: 'USD' },
-  { code: 'CA', name: 'Canada', currency: 'CAD' },
-  { code: 'CH', name: 'Switzerland', currency: 'CHF' },
-  { code: 'NO', name: 'Norway', currency: 'NOK' },
-  { code: 'SE', name: 'Sweden', currency: 'SEK' },
-  { code: 'DK', name: 'Denmark', currency: 'DKK' },
-  { code: 'AU', name: 'Australia', currency: 'AUD' },
-  { code: 'NZ', name: 'New Zealand', currency: 'NZD' },
-  { code: '', name: 'Elsewhere (Euro)', currency: 'EUR' },
-];
-const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
+// The full country list — the visitor can type/search any country, not just the
+// markets we price for. Currency comes from countries.ts (currencyForCountry):
+// anything outside our priced markets falls through to EUR.
+const COUNTRIES = ALL_COUNTRIES;
+const detected = COUNTRIES.find((c) => c.code === country);
+const selectedCode = detected?.code ?? '';
+const selectedName = detected?.name ?? '';
 ---
 
 <section class="we-register" id="register">
@@ -72,13 +56,11 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
       {items.length > 0 && (
         <div class="we-booking-head">
           <p class="we-booking-label">Choose a date</p>
-          <label class="we-country">
-            <span>Showing prices for</span>
-            <select id="we-country-select" aria-label="Country for pricing">
-              {COUNTRIES.map((c) => (
-                <option value={c.code} data-currency={c.currency} selected={c.code === selectedCode}>
-                  {c.name}
-                </option>
+          <label class="we-tz-head">
+            <span>Times shown in</span>
+            <select id="we-tz-select" aria-label="Your timezone">
+              {tzOptions.map((tz) => (
+                <option value={tz} selected={tz === detectedTz}>{tz.replace(/_/g, ' ')}</option>
               ))}
             </select>
           </label>
@@ -103,6 +85,7 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
                 data-bump-minor={String(it.bumpMinor)}
                 data-bump-prices={JSON.stringify(it.bumpPricesByCurrency)}
                 data-bump-compare-prices={JSON.stringify(it.bumpComparePricesByCurrency)}
+                data-starts-at={it.startsAtUtc ?? ''}
                 data-is-replay={it.isReplay ? '1' : '0'}
               />
               <span class="we-cal-radio" aria-hidden="true"></span>
@@ -131,23 +114,37 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
           <input type="hidden" name="country" id="we-country" value={selectedCode} />
           <input type="hidden" name="meta_event_id" id="we-event-id" value="" />
 
-          <label class="we-field">
-            <span>Your name</span>
-            <input type="text" name="name" required autocomplete="name" />
-          </label>
+          <div class="we-field-row">
+            <label class="we-field">
+              <span>First name</span>
+              <input type="text" name="first_name" required autocomplete="given-name" />
+            </label>
+            <label class="we-field">
+              <span>Last name</span>
+              <input type="text" name="last_name" required autocomplete="family-name" />
+            </label>
+          </div>
 
           <label class="we-field">
             <span>Email</span>
             <input type="email" name="email" required autocomplete="email" />
           </label>
 
-          <label class="we-field" id="we-tz-field">
-            <span>Your timezone</span>
-            <select name="timezone">
-              {tzOptions.map((tz) => (
-                <option value={tz} selected={tz === detectedTz}>{tz.replace(/_/g, ' ')}</option>
+          <label class="we-field">
+            <span>Country</span>
+            <input
+              type="text"
+              id="we-country-input"
+              list="we-country-list"
+              autocomplete="country-name"
+              placeholder="Start typing your country…"
+              value={selectedName}
+            />
+            <datalist id="we-country-list">
+              {COUNTRIES.map((c) => (
+                <option value={c.name} data-code={c.code} data-currency={c.currency}></option>
               ))}
-            </select>
+            </datalist>
           </label>
 
           <div class="we-biz" id="we-biz" hidden>
@@ -194,9 +191,19 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
             </label>
           </div>
 
-          <div class="we-total">
-            <span id="we-total-label">Workshop ticket</span>
-            <strong id="we-total-amount"></strong>
+          <div class="we-summary">
+            <div class="we-summary-line" id="we-line-workshop">
+              <span id="we-line-workshop-label">Live workshop</span>
+              <span id="we-line-workshop-amount"></span>
+            </div>
+            <div class="we-summary-line" id="we-line-bump" hidden>
+              <span id="we-line-bump-label">Authentic Singing Journey</span>
+              <span id="we-line-bump-amount"></span>
+            </div>
+            <div class="we-total">
+              <span id="we-total-label">Total</span>
+              <strong id="we-total-amount"></strong>
+            </div>
           </div>
 
           <button type="submit" class="we-submit" id="we-submit">Register &amp; pay →</button>
@@ -216,14 +223,20 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
 
     var slugField = document.getElementById('we-slug');
     var countryField = document.getElementById('we-country');
-    var countrySelect = document.getElementById('we-country-select');
+    var countryInput = document.getElementById('we-country-input');
+    var countryList = document.getElementById('we-country-list');
+    var tzSelect = document.getElementById('we-tz-select');
     var bumpRow = document.getElementById('we-bump');
     var bumpInput = document.getElementById('we-bump-input');
     var bumpTitle = document.getElementById('we-bump-title');
     var bumpWasEl = document.getElementById('we-bump-was');
     var bumpNowEl = document.getElementById('we-bump-now');
     var bumpSaveEl = document.getElementById('we-bump-save');
-    var tzField = document.getElementById('we-tz-field');
+    var workshopLineLabel = document.getElementById('we-line-workshop-label');
+    var workshopLineAmount = document.getElementById('we-line-workshop-amount');
+    var bumpLine = document.getElementById('we-line-bump');
+    var bumpLineLabel = document.getElementById('we-line-bump-label');
+    var bumpLineAmount = document.getElementById('we-line-bump-amount');
     var bizField = document.getElementById('we-biz');
     var vatField = document.getElementById('we-vat');
     var companyInput = form.querySelector('input[name="company_name"]');
@@ -239,7 +252,6 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
       if (!show && vatInput) vatInput.value = '';
     }
     if (companyInput) companyInput.addEventListener('input', toggleVat);
-    var totalLabel = document.getElementById('we-total-label');
     var totalAmount = document.getElementById('we-total-amount');
     var submitBtn = document.getElementById('we-submit');
     var err = document.getElementById('we-err');
@@ -253,6 +265,38 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
       return sym ? sym + body : body + ' ' + cur;
     }
     function parse(json) { try { return JSON.parse(json || '{}'); } catch (e) { return {}; } }
+
+    var activeTz = (tzSelect && tzSelect.value) || 'Europe/Brussels';
+
+    // Format a UTC instant in the active timezone, mirroring lib/workshops/time.ts.
+    // `withTime` true → "Sun 15 Jun 2026, 20:00 CEST"; false → "Sun 15 Jun 2026".
+    function formatInTz(utcIso, tz, withTime) {
+      if (!utcIso) return '';
+      var opts = { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' };
+      if (withTime) { opts.hour = '2-digit'; opts.minute = '2-digit'; opts.timeZoneName = 'short'; }
+      try {
+        opts.timeZone = tz;
+        return new Intl.DateTimeFormat('en-GB', opts).format(new Date(utcIso));
+      } catch (e) {
+        opts.timeZone = 'UTC';
+        return new Intl.DateTimeFormat('en-GB', opts).format(new Date(utcIso));
+      }
+    }
+
+    // Re-render the displayed start time on every date when the visitor switches
+    // timezone, and refresh the selected workshop's summary line label.
+    function applyTimezone(tz) {
+      activeTz = tz;
+      for (var i = 0; i < radios.length; i++) {
+        var r = radios[i];
+        if (r.dataset.isReplay === '1' || !r.dataset.startsAt) continue;
+        var whenEl = r.closest('.we-cal-item').querySelector('.we-cal-when');
+        if (!whenEl) continue;
+        whenEl.innerHTML = formatInTz(r.dataset.startsAt, tz, true) +
+          '<span class="we-cal-tz"> · your time</span>';
+      }
+      if (current) recompute();
+    }
 
     // The visitor's chosen door-set ("audience"), read from the URL at submit
     // time. The personalization controller keeps the URL authoritative
@@ -304,17 +348,42 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
       toggleVat();
     }
 
-    if (countrySelect) {
-      countrySelect.addEventListener('change', function () {
-        var opt = countrySelect.options[countrySelect.selectedIndex];
-        applyCurrency(opt.getAttribute('data-currency') || 'EUR', countrySelect.value);
-      });
+    // Resolve a typed/picked country name to its option (code + currency).
+    function findCountryOption(name) {
+      if (!countryList || !name) return null;
+      var wanted = name.trim().toLowerCase();
+      var opts = countryList.options;
+      for (var i = 0; i < opts.length; i++) {
+        if ((opts[i].value || '').toLowerCase() === wanted) return opts[i];
+      }
+      return null;
+    }
+    function onCountryChange() {
+      var opt = findCountryOption(countryInput && countryInput.value);
+      if (opt) {
+        // Known country → its currency (countries.ts already maps the long tail
+        // to EUR), and store the ISO code for the server.
+        applyCurrency(opt.getAttribute('data-currency') || 'EUR', opt.getAttribute('data-code') || '');
+      } else {
+        // Unrecognised entry → charge in EUR, no country code yet.
+        applyCurrency('EUR', '');
+      }
+    }
+    if (countryInput) {
+      countryInput.addEventListener('change', onCountryChange);
+      countryInput.addEventListener('input', onCountryChange);
+    }
+
+    if (tzSelect) {
+      tzSelect.addEventListener('change', function () { applyTimezone(tzSelect.value); });
     }
 
     function refreshBump() {
       if (current && current.hasBump === '1') {
         bumpRow.hidden = false;
-        if (bumpTitle) bumpTitle.textContent = 'Yes — add the ' + current.bumpName;
+        var bName = current.bumpName || 'Authentic Singing Journey';
+        if (bumpTitle) bumpTitle.textContent = 'Yes — add the ' + bName;
+        if (bumpLineLabel) bumpLineLabel.textContent = bName;
         var offer = parseInt(current.bumpMinor, 10) || 0;
         if (bumpNowEl) bumpNowEl.textContent = money(offer, curCurrency);
         // Struck "regular price" + saving — shown only when we have an anchor
@@ -337,16 +406,33 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
       }
     }
 
+    // Build the workshop line label: "Live workshop on Sun 15 Jun 2026" (in the
+    // active timezone), "Masterclass on …", or a plain replay label.
+    function workshopLineText() {
+      var noun = current.kind === 'masterclass' ? 'Masterclass' : 'Live workshop';
+      if (current.isReplay === '1' || !current.startsAt) {
+        return current.kind === 'masterclass' ? 'Masterclass replay' : 'Workshop replay';
+      }
+      return noun + ' on ' + formatInTz(current.startsAt, activeTz, false);
+    }
+
     function recompute() {
       if (!current) return;
       var priceMinor = parseInt(current.priceMinor, 10) || 0;
       var cur = current.currency || curCurrency;
-      var total = priceMinor;
       var hasBump = current.hasBump === '1';
       var wantsBump = hasBump && bumpInput.checked;
-      if (wantsBump) total += parseInt(current.bumpMinor, 10) || 0;
-      totalLabel.textContent = current.kind === 'masterclass' ? 'Masterclass'
-        : (wantsBump ? 'Workshop + practice pack' : 'Workshop ticket');
+      var bumpMinor = wantsBump ? (parseInt(current.bumpMinor, 10) || 0) : 0;
+      var total = priceMinor + bumpMinor;
+
+      // Workshop line.
+      if (workshopLineLabel) workshopLineLabel.textContent = workshopLineText();
+      if (workshopLineAmount) workshopLineAmount.textContent = money(priceMinor, cur);
+
+      // Bump line — a second line item, shown only when the journey is added.
+      if (bumpLine) bumpLine.hidden = !wantsBump;
+      if (wantsBump && bumpLineAmount) bumpLineAmount.textContent = money(bumpMinor, cur);
+
       totalAmount.textContent = money(total, cur);
       submitBtn.textContent = 'Register & pay ' + money(total, cur) + ' →';
     }
@@ -354,7 +440,6 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
     function selectItem(input) {
       current = input.dataset;
       slugField.value = current.slug;
-      tzField.style.display = current.isReplay === '1' ? 'none' : '';
       // Company / VAT only for the masterclass (B2B — practitioners invoicing).
       if (bizField) bizField.hidden = current.kind !== 'masterclass';
       toggleVat();
@@ -381,12 +466,15 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
       submitBtn.disabled = true;
       var fd = new FormData(form);
       var isMasterclass = current.kind === 'masterclass';
+      var fullName = ((fd.get('first_name') || '') + ' ' + (fd.get('last_name') || '')).trim();
       var body = {
         workshop_slug: fd.get('workshop_slug'),
-        name: fd.get('name'),
+        name: fullName,
+        first_name: fd.get('first_name') || '',
+        last_name: fd.get('last_name') || '',
         email: fd.get('email'),
-        timezone: current.isReplay === '1' ? '' : (fd.get('timezone') || ''),
-        country: fd.get('country') || '',
+        timezone: current.isReplay === '1' ? '' : ((tzSelect && tzSelect.value) || ''),
+        country: countryField ? (countryField.value || '') : '',
         bump: fd.get('bump') === 'on',
         company_name: isMasterclass ? (fd.get('company_name') || '') : '',
         vat_number: isMasterclass ? (fd.get('vat_number') || '') : '',

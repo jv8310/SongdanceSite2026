@@ -837,19 +837,19 @@ html, body { background: var(--paper); }
   color: var(--ember-deep);
   margin: 0;
 }
-.we-country { display: flex; flex-direction: column; gap: 4px; }
-.we-country > span {
+.we-country, .we-tz-head { display: flex; flex-direction: column; gap: 4px; }
+.we-country > span, .we-tz-head > span {
   font-family: var(--font-mono);
   font-size: 10px; text-transform: uppercase; letter-spacing: 0.14em;
   color: var(--ink-whisper);
 }
-.we-country select {
+.we-country select, .we-tz-head select {
   font-family: var(--font-body); font-size: 14px;
   color: var(--ink); background: var(--paper-soft);
   border: 1px solid var(--line-strong); border-radius: var(--r-md);
   padding: 7px 10px; cursor: pointer;
 }
-.we-country select:focus { outline: 2px solid var(--ember); outline-offset: 1px; }
+.we-country select:focus, .we-tz-head select:focus { outline: 2px solid var(--ember); outline-offset: 1px; }
 .we-cal {
   display: flex; flex-direction: column; gap: var(--sp-3);
   margin-bottom: var(--sp-6);
@@ -1041,9 +1041,22 @@ html, body { background: var(--paper); }
 .we-biz { display: flex; flex-direction: column; gap: var(--sp-4); }
 .we-biz[hidden] { display: none; }
 
+/* Two-up name fields; stacks on narrow screens. */
+.we-field-row { display: flex; gap: var(--sp-3); }
+.we-field-row .we-field { flex: 1 1 0; min-width: 0; }
+@media (max-width: 480px) { .we-field-row { flex-direction: column; } }
+
+/* Itemized order summary: workshop line, optional bump line, then total. */
+.we-summary { display: flex; flex-direction: column; gap: 6px; }
+.we-summary-line {
+  display: flex; justify-content: space-between; align-items: baseline; gap: var(--sp-3);
+  font-family: var(--font-body); font-size: 15px; color: var(--ink-soft);
+}
+.we-summary-line[hidden] { display: none; }
 .we-total {
   display: flex; justify-content: space-between; align-items: baseline;
-  padding-top: 8px; font-family: var(--font-body); font-size: 16px; color: var(--ink-soft);
+  padding-top: 8px; margin-top: 2px;
+  font-family: var(--font-body); font-size: 16px; color: var(--ink-soft);
   border-top: 1px solid var(--line);
 }
 .we-total strong { font-family: var(--font-display); font-size: 22px; color: var(--ink); }

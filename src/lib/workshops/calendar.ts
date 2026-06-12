@@ -73,6 +73,7 @@ export async function buildCalendarItems(
       slug: w.slug,
       kind: isMasterclass ? 'masterclass' : 'workshop',
       whenLocal: w.is_replay ? null : formatInTz(w.starts_at_utc, detectedTz),
+      startsAtUtc: w.is_replay ? null : w.starts_at_utc,
       isReplay: w.is_replay === 1,
       title: w.title,
       durationMin: isMasterclass ? 90 : 60,

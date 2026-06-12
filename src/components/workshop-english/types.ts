@@ -4,6 +4,9 @@ export interface CalItem {
   slug: string;
   kind: 'workshop' | 'masterclass';
   whenLocal: string | null;
+  // UTC start instant (ISO-8601), so the client can re-render the displayed
+  // time when the visitor switches timezone. Null for replay (no fixed time).
+  startsAtUtc: string | null;
   isReplay: boolean;
   title: string;
   durationMin: number;
