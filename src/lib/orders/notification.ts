@@ -48,6 +48,7 @@ const PAYMENT_PLAN_LABELS: Record<string, string> = {
   full: 'Paid in full',
   '3x': '3× monthly installments',
   '6x': '6× monthly installments',
+  '12x': '12× monthly installments',
 };
 
 export type OrderNotificationInput = {

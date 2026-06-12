@@ -28,7 +28,7 @@ export type InstallmentPlan = {
   monthly: number;        // major unit, e.g. 349
   total_cents: number;    // monthly_cents × count
   total: number;
-  count: number;          // 3 or 6
+  count: number;          // 3, 6 or 12
 };
 
 export type Offer = {
@@ -44,6 +44,10 @@ export type Offer = {
   // than the 3-month plan (longer financing, lower monthly barrier).
   installments?: InstallmentPlan;     // 3 monthly payments
   installments_6x?: InstallmentPlan;  // 6 monthly payments
+  // 12 monthly payments. Hidden by default — the cert page only surfaces this
+  // ladder when the visitor arrives with `?installment=12`. It carries the
+  // highest premium over pay-in-full (the longest financing, lowest monthly).
+  installments_12x?: InstallmentPlan;
 };
 
 // Currency map.
@@ -53,27 +57,27 @@ export type Offer = {
 // price story stays simple.
 //
 // GBP is EUR × ~0.85, rounded to neat headline amounts.
-// `monthly3` is the 3-month installment; `monthly6` the 6-month one. The
-// 6-month ladder totals more (a higher premium over pay-in-full) in
-// exchange for a lower monthly figure.
+// `monthly3` is the 3-month installment; `monthly6` the 6-month one;
+// `monthly12` the hidden 12-month one. Each longer ladder totals more (a
+// higher premium over pay-in-full) in exchange for a lower monthly figure.
 const PRICES: Record<
   Currency,
   {
-    cert:   { full: number; base: number; monthly3: number; monthly6: number };
-    bundle: { full: number; base: number; monthly3: number; monthly6: number };
+    cert:   { full: number; base: number; monthly3: number; monthly6: number; monthly12: number };
+    bundle: { full: number; base: number; monthly3: number; monthly6: number; monthly12: number };
   }
 > = {
   EUR: {
-    cert:   { full: 999,  base: 1500, monthly3: 349, monthly6: 189 },
-    bundle: { full: 1499, base: 2150, monthly3: 525, monthly6: 285 },
+    cert:   { full: 999,  base: 1500, monthly3: 349, monthly6: 189, monthly12: 99 },
+    bundle: { full: 1499, base: 2150, monthly3: 525, monthly6: 285, monthly12: 149 },
   },
   USD: {
-    cert:   { full: 999,  base: 1500, monthly3: 349, monthly6: 189 },
-    bundle: { full: 1499, base: 2150, monthly3: 525, monthly6: 285 },
+    cert:   { full: 999,  base: 1500, monthly3: 349, monthly6: 189, monthly12: 99 },
+    bundle: { full: 1499, base: 2150, monthly3: 525, monthly6: 285, monthly12: 149 },
   },
   GBP: {
-    cert:   { full: 849,  base: 1299, monthly3: 299, monthly6: 159 },
-    bundle: { full: 1299, base: 1849, monthly3: 459, monthly6: 245 },
+    cert:   { full: 849,  base: 1299, monthly3: 299, monthly6: 159, monthly12: 85 },
+    bundle: { full: 1299, base: 1849, monthly3: 459, monthly6: 245, monthly12: 129 },
   },
 };
 
@@ -108,6 +112,7 @@ function certOffer(currency: Currency): Omit<Offer, 'save_note'> {
     base_price: p.base,
     installments: plan(currency, p.monthly3, 3),
     installments_6x: plan(currency, p.monthly6, 6),
+    installments_12x: plan(currency, p.monthly12, 12),
   };
 }
 function bundleOffer(currency: Currency): Omit<Offer, 'save_note'> {
@@ -121,6 +126,7 @@ function bundleOffer(currency: Currency): Omit<Offer, 'save_note'> {
     base_price: p.base,
     installments: plan(currency, p.monthly3, 3),
     installments_6x: plan(currency, p.monthly6, 6),
+    installments_12x: plan(currency, p.monthly12, 12),
   };
 }
 
