@@ -13,6 +13,11 @@ import {
   JOIN_OPEN_BEFORE_SECONDS,
   JOIN_CLOSE_AFTER_SECONDS,
 } from '../../lib/workshops/time';
+import {
+  referralShareUrl,
+  referralSecret,
+  SHARE_DISCOUNT_PCT,
+} from '../../lib/workshops/referral';
 
 export const prerender = false;
 
@@ -38,6 +43,17 @@ const startMs = workshop ? new Date(workshop.starts_at_utc).getTime() : 0;
 // Live join window state (drives which block shows first; JS keeps it live).
 const win = workshop && !workshop.is_replay ? joinWindow(workshop.starts_at_utc) : 'open';
 const hasReplay = !!(await getConfig(env.DB, 'replay_video_url'));
+
+// "Share with a friend" — a half-price referral link for this workshop. The
+// embedded, HMAC-signed code lets a friend register for the same date at 50%
+// off the ticket (never the bump).
+const refSecret = referralSecret(env);
+const shareUrl = paid && reg && workshop && refSecret
+  ? await referralShareUrl(base, refSecret, workshop.slug, reg.id)
+  : null;
+const shareText = workshop
+  ? `I just signed up for ${workshop.title} with Songdance — here's ${SHARE_DISCOUNT_PCT}% off your ticket if you'd like to join me:`
+  : '';
 
 // Other upcoming live dates they can move onto, free of charge.
 const upcoming = reg
@@ -140,6 +156,42 @@ const upcoming = reg
             </div>
           </>
         )}
+
+        {shareUrl && (
+          <div class="ws-share" data-share-url={shareUrl} data-share-text={shareText} data-share-title={workshop.title}>
+            <p class="ws-share-h">Share with a friend</p>
+            <p class="ws-share-sub">Send them this link and they get <strong>{SHARE_DISCOUNT_PCT}% off</strong> their ticket.</p>
+
+            <div class="ws-share-link">
+              <input id="ws-share-input" type="text" readonly value={shareUrl} aria-label="Your share link" />
+              <button type="button" id="ws-share-copy" class="ws-share-copy">Copy link</button>
+            </div>
+
+            <div class="ws-share-icons">
+              <a id="ws-share-wa" class="ws-share-icon" href="#" target="_blank" rel="noopener" aria-label="Share on WhatsApp">
+                <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M.057 24l1.687-6.163a11.867 11.867 0 0 1-1.587-5.945C.16 5.335 5.495 0 12.05 0a11.82 11.82 0 0 1 8.413 3.488 11.82 11.82 0 0 1 3.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 0 1-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.83 9.83 0 0 0 1.51 5.26l-.999 3.648 3.978-.607zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/></svg>
+                <span>WhatsApp</span>
+              </a>
+              <a id="ws-share-fb" class="ws-share-icon" href="#" target="_blank" rel="noopener" aria-label="Share on Facebook">
+                <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                <span>Facebook</span>
+              </a>
+              <a id="ws-share-tg" class="ws-share-icon" href="#" target="_blank" rel="noopener" aria-label="Share on Telegram">
+                <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+                <span>Telegram</span>
+              </a>
+              <a id="ws-share-email" class="ws-share-icon" href="#" aria-label="Share by email">
+                <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M1.5 4.5h21A1.5 1.5 0 0 1 24 6v12a1.5 1.5 0 0 1-1.5 1.5h-21A1.5 1.5 0 0 1 0 18V6a1.5 1.5 0 0 1 1.5-1.5zm.9 2.1 9.6 6.3 9.6-6.3H2.4zM2 8.1V18h20V8.1l-10 6.56L2 8.1z"/></svg>
+                <span>Email</span>
+              </a>
+              <button type="button" id="ws-share-more" class="ws-share-icon ws-share-more" hidden aria-label="More sharing options">
+                <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z"/></svg>
+                <span>Share…</span>
+              </button>
+            </div>
+            <p class="ws-share-done" id="ws-share-done" hidden>Link copied — paste it anywhere.</p>
+          </div>
+        )}
       </section>
     )}
   </main>
@@ -180,6 +232,20 @@ const upcoming = reg
     .ws-rebook-item { display:flex; align-items:center; gap:10px; padding:12px 14px; background:#F4ECDF; border-radius:10px; cursor:pointer; font-size:15px; color:#2A1B2A; }
     .ws-rebook-when small { color:#B6A8B4; }
     .ws-err { margin:12px 0 0; color:#A14826; font-size:14px; }
+
+    .ws-share { margin-top:34px; padding-top:28px; border-top:1px solid rgba(42,27,42,0.12); }
+    .ws-share-h { margin:0 0 4px; font-size:18px; color:#2A1B2A; }
+    .ws-share-sub { margin:0 0 18px; font-size:14px; color:#4A3848; }
+    .ws-share-sub strong { color:#A14826; }
+    .ws-share-link { display:flex; gap:8px; margin-bottom:16px; }
+    .ws-share-link input { flex:1; min-width:0; padding:12px 14px; border:1px solid rgba(42,27,42,0.2); border-radius:10px; background:#fff; color:#4A3848; font-size:14px; }
+    .ws-share-copy { flex:0 0 auto; padding:12px 18px; border:0; border-radius:10px; background:#2A1B2A; color:#F4ECDF; font-size:14px; cursor:pointer; font-family:inherit; }
+    .ws-share-copy.is-done { background:#4A7848; }
+    .ws-share-icons { display:flex; flex-wrap:wrap; justify-content:center; gap:10px; }
+    .ws-share-icon { display:inline-flex; flex-direction:column; align-items:center; gap:6px; width:72px; padding:12px 4px; border:1px solid rgba(42,27,42,0.14); border-radius:12px; background:#F4ECDF; color:#2A1B2A; text-decoration:none; font-size:12px; cursor:pointer; font-family:inherit; }
+    .ws-share-icon:hover { background:#EFE6D6; }
+    .ws-share-icon svg { color:#A14826; }
+    .ws-share-done { margin:14px 0 0; font-size:13px; color:#4A7848; }
   </style>
 
   <script is:inline>
@@ -270,6 +336,60 @@ const upcoming = reg
             if (rebookErr) { rebookErr.hidden = false; rebookErr.textContent = err.message || 'Something went wrong.'; }
             rebookBtn.disabled = false;
           }
+        });
+      }
+    })();
+  </script>
+
+  <script is:inline>
+    // "Share with a friend" — copy link + prebuilt social share targets.
+    (function () {
+      var box = document.querySelector('.ws-share');
+      if (!box) return;
+      var url = box.getAttribute('data-share-url') || '';
+      var text = box.getAttribute('data-share-text') || '';
+      var title = box.getAttribute('data-share-title') || '';
+      var msg = (text ? text + ' ' : '') + url;
+
+      var enc = encodeURIComponent;
+      var set = function (id, href) { var a = document.getElementById(id); if (a) a.href = href; };
+      set('ws-share-wa', 'https://wa.me/?text=' + enc(msg));
+      set('ws-share-fb', 'https://www.facebook.com/sharer/sharer.php?u=' + enc(url) + '&quote=' + enc(text));
+      set('ws-share-tg', 'https://t.me/share/url?url=' + enc(url) + '&text=' + enc(text));
+      set('ws-share-email', 'mailto:?subject=' + enc(title || 'A gift for you') + '&body=' + enc(msg));
+
+      // Copy link.
+      var input = document.getElementById('ws-share-input');
+      var copyBtn = document.getElementById('ws-share-copy');
+      var done = document.getElementById('ws-share-done');
+      function copied() {
+        if (copyBtn) { copyBtn.textContent = 'Copied ✓'; copyBtn.classList.add('is-done'); }
+        if (done) done.hidden = false;
+        setTimeout(function () {
+          if (copyBtn) { copyBtn.textContent = 'Copy link'; copyBtn.classList.remove('is-done'); }
+        }, 2500);
+      }
+      function doCopy() {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(url).then(copied).catch(selectFallback);
+        } else {
+          selectFallback();
+        }
+      }
+      function selectFallback() {
+        if (!input) return;
+        input.focus(); input.select();
+        try { document.execCommand('copy'); copied(); } catch (e) {}
+      }
+      if (copyBtn) copyBtn.addEventListener('click', doCopy);
+      if (input) input.addEventListener('click', function () { input.select(); });
+
+      // Native share sheet (mobile) — reveal the "Share…" button if supported.
+      var moreBtn = document.getElementById('ws-share-more');
+      if (moreBtn && navigator.share) {
+        moreBtn.hidden = false;
+        moreBtn.addEventListener('click', function () {
+          navigator.share({ title: title, text: text, url: url }).catch(function () {});
         });
       }
     })();

@@ -15,6 +15,12 @@ import {
 } from '../../../lib/workshops/db';
 import { currencyForCountry } from '../../../lib/workshops/currency';
 import { runWorkshopPaidSideEffects } from '../../../lib/workshops/paid-handler';
+import {
+  applyShareDiscount,
+  referralSecret,
+  verifyReferralCode,
+  SHARE_DISCOUNT_PCT,
+} from '../../../lib/workshops/referral';
 
 export const prerender = false;
 
@@ -31,6 +37,7 @@ type Body = {
   company_name?: string; // B2B (masterclass)
   vat_number?: string; // B2B (masterclass)
   coupon?: string;
+  ref?: string; // "share with a friend" referral code → 50% off the ticket
   meta_event_id?: string;
   audience?: string; // door-set from the workshop page, e.g. "3" or "1,3"
 };
@@ -72,6 +79,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const companyName = (payload.company_name ?? '').trim();
   const vatNumber = (payload.vat_number ?? '').trim().replace(/\s+/g, '');
   const coupon = (payload.coupon ?? '').trim();
+  const refCode = (payload.ref ?? '').trim();
   const metaEventId = (payload.meta_event_id ?? '').trim() || null;
   const audience = normalizeAudience(payload.audience ?? '');
 
@@ -94,6 +102,20 @@ export const POST: APIRoute = async ({ request, locals }) => {
   }
 
   const isMasterclass = (ticketProduct.slug ?? '').includes('masterclass');
+
+  // ── "Share with a friend" referral: 50% off the TICKET only ────────────
+  // A valid `ref` code (minted on a registrant's countdown page) halves the
+  // ticket price. The order bump is never discounted.
+  let ticketAmountMinor = ticketPrice.amountMinor;
+  let referredByRid: number | null = null;
+  if (refCode) {
+    const secret = referralSecret(env);
+    const rid = secret ? await verifyReferralCode(secret, refCode) : null;
+    if (rid) {
+      referredByRid = rid;
+      ticketAmountMinor = applyShareDiscount(ticketPrice.amountMinor);
+    }
+  }
 
   // The bump: the workshop's own, or — for a masterclass without one — the
   // default Authentic Singing Journey pack, so it's offered (and chargeable)
@@ -147,13 +169,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
   // ── Paid path: Stripe Checkout. ───────────────────────────────────────
   const base = env.PUBLIC_BASE_URL.replace(/\/$/, '');
-  const totalMinor = ticketPrice.amountMinor + (realBump ? bumpPrice!.amountMinor : 0);
+  const totalMinor = ticketAmountMinor + (realBump ? bumpPrice!.amountMinor : 0);
   const lineCurrency = ticketPrice.currency.toLowerCase();
 
   const lineItems = [
     {
-      name: workshop.title,
-      amount_cents: ticketPrice.amountMinor,
+      name: referredByRid ? `${workshop.title} (${SHARE_DISCOUNT_PCT}% friend discount)` : workshop.title,
+      amount_cents: ticketAmountMinor,
       currency: lineCurrency,
       quantity: 1,
       product_metadata: { tax_class: ticketProduct.tax_code },
@@ -226,6 +248,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         source_tag: workshop.source_tag ?? '',
         audience: audience ?? '',
         total_minor: String(totalMinor),
+        referred_by: referredByRid ? String(referredByRid) : '',
       },
       idempotency_key: `wreg-${registrationId}-${totalMinor}-${realBump ? 1 : 0}`,
     });
@@ -238,7 +261,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     registration_id: null,
     kind: 'workshop.checkout.created',
     external_id: `workshop-checkout-${registrationId}`,
-    payload: { registration_id: registrationId, session_id: session.id, total_minor: totalMinor, currency: ticketPrice.currency, bump: realBump },
+    payload: { registration_id: registrationId, session_id: session.id, total_minor: totalMinor, currency: ticketPrice.currency, bump: realBump, referred_by: referredByRid },
   });
 
   return json({ checkout_url: session.url, registration_id: registrationId });
