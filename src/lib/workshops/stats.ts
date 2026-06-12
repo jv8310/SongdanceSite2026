@@ -414,6 +414,7 @@ export type WorkshopPerformanceRow = {
   attributedCourseEurMinor: number; // standalone 12-week/cert revenue by registrant email
   totalEurMinor: number;
   metaCostEurMinor: number | null;
+  roas: number | null; // total revenue ÷ Meta cost
   conversionPct: number | null; // distinct course/cert buyers ÷ registrations
 };
 
@@ -628,6 +629,9 @@ export async function computeWorkshopPerformance(
     }
     const buyers = new Set([...courseBuyers, ...certBuyers]);
     const attended = a.live + a.replay;
+    const totalEurMinor = a.netEurMinor + attributedEur;
+    const metaCostEurMinor =
+      costPerRegistrationEurMinor != null ? Math.round(costPerRegistrationEurMinor * a.regs) : null;
     return {
       workshopId: w.id,
       title: w.title,
@@ -644,9 +648,9 @@ export async function computeWorkshopPerformance(
       certBuys: certBuyers.size,
       engineNetEurMinor: a.netEurMinor,
       attributedCourseEurMinor: attributedEur,
-      totalEurMinor: a.netEurMinor + attributedEur,
-      metaCostEurMinor:
-        costPerRegistrationEurMinor != null ? Math.round(costPerRegistrationEurMinor * a.regs) : null,
+      totalEurMinor,
+      metaCostEurMinor,
+      roas: metaCostEurMinor != null && metaCostEurMinor > 0 ? totalEurMinor / metaCostEurMinor : null,
       conversionPct: a.regs > 0 ? (buyers.size / a.regs) * 100 : null,
     };
   });

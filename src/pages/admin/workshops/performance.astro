@@ -44,6 +44,7 @@ const totCourse = sum((r) => r.courseBuys);
 const totCert = sum((r) => r.certBuys);
 const totRev = sum((r) => r.totalEurMinor);
 const totMeta = sum((r) => r.metaCostEurMinor ?? 0);
+const totRoas = totMeta > 0 ? totRev / totMeta : null;
 
 const presetRangesJson = JSON.stringify(presetRangesMap()).replace(/</g, '\\u003c');
 const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
@@ -99,6 +100,7 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
                 <th>Cert path</th>
                 <th>Revenue (net)</th>
                 <th>Meta cost</th>
+                <th>ROAS</th>
                 <th>Conv %</th>
               </tr>
             </thead>
@@ -119,6 +121,7 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
                   <td>{r.certBuys}</td>
                   <td title={`Workshop checkout ${eur(r.engineNetEurMinor)} + attributed courses ${eur(r.attributedCourseEurMinor)}`}>{eur(r.totalEurMinor)}</td>
                   <td>{r.metaCostEurMinor != null ? eur(r.metaCostEurMinor) : '—'}</td>
+                  <td>{r.roas != null ? r.roas.toFixed(2) + '×' : '—'}</td>
                   <td>{pct(r.conversionPct)}</td>
                 </tr>
               ))}
@@ -134,6 +137,7 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
                 <td><strong>{totCert}</strong></td>
                 <td><strong>{eur(totRev)}</strong></td>
                 <td><strong>{eur(totMeta)}</strong></td>
+                <td><strong>{totRoas != null ? totRoas.toFixed(2) + '×' : '—'}</strong></td>
                 <td><strong>{totRegs > 0 ? (((totCourse + totCert) / totRegs) * 100).toFixed(1) + '%' : '—'}</strong></td>
               </tr>
             </tbody>
@@ -143,7 +147,7 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
       <p class="adm-sub" style="margin-top:12px;">
         Regs = completed registrations (paid or coupon). Live vs Replay splits attendees by whether they joined before or after the live slot ended; admin-marked attendance without a join time counts as live.
         Course = 12-Week buyers, Cert path = certification buyers (cert-only or bundle) — both as distinct people, hovering Revenue shows the workshop-checkout vs attributed-course split.
-        Meta cost = average cost per registration × this workshop's registrations. Conv % = distinct course/cert buyers ÷ registrations.
+        Meta cost = average cost per registration × this workshop's registrations. ROAS = revenue ÷ Meta cost. Conv % = distinct course/cert buyers ÷ registrations.
       </p>
     </section>
   </main>
