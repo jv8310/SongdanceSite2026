@@ -814,6 +814,27 @@ html, body { background: var(--paper); }
   color: rgba(244, 236, 223, 0.62);
 }
 
+/* Discount banner (?discount=50 / ?adiscount=N) above the booking panel. */
+.we-discount-note {
+  margin: 0 auto var(--sp-7);
+  padding: 10px 18px;
+  display: inline-block;
+  border-radius: 999px;
+  background: rgba(122, 167, 116, 0.18);
+  border: 1px solid rgba(122, 167, 116, 0.45);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #C7E0C2;
+}
+.we-discount-note[hidden] { display: none; }
+.we-line-was {
+  color: rgba(42, 27, 42, 0.45);
+  text-decoration: line-through;
+  margin-right: 6px;
+}
+
 /* The booking panel (paper card on the dark surface). */
 .we-booking {
   background: var(--paper);

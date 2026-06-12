@@ -75,6 +75,7 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
       The method makes no distinction — that's exactly the point of it.
     </p>
     <p class="we-register-note">Live · Online · 90 min · Replay included</p>
+    <p class="we-discount-note" id="mc-discount-note" hidden></p>
 
     <div class="we-booking">
       {visible.length === 0 && (
@@ -184,6 +185,8 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
         <form class="we-form" id="mc-form" hidden>
           <input type="hidden" name="workshop_slug" id="mc-slug" value="" />
           <input type="hidden" name="country" id="mc-country" value={selectedCode} />
+          <input type="hidden" name="discount" id="mc-discount" value="" />
+          <input type="hidden" name="adiscount" id="mc-adiscount" value="" />
           <input type="hidden" name="meta_event_id" id="mc-event-id" value="" />
 
           <label class="we-field">
@@ -285,6 +288,23 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
     // Both lists (masterclass dates + the alternatives) share one radio name.
     var radios = booking.querySelectorAll('input[name="mc-date"]');
 
+    // Ticket discount from the URL: ?discount=50 (public, 50 only) or
+    // ?adiscount=N (owner secret, 1–100). Ticket only — never the bump.
+    var discParams = new URLSearchParams(location.search);
+    var rawDiscount = (discParams.get('discount') || '').trim();
+    var rawAdiscount = (discParams.get('adiscount') || '').trim();
+    function clampPct(v) { var n = parseInt(v, 10); return (isFinite(n) && n >= 1 && n <= 100) ? n : 0; }
+    var discountPct = clampPct(rawAdiscount) || (clampPct(rawDiscount) === 50 ? 50 : 0);
+    var discField = document.getElementById('mc-discount');
+    var adiscField = document.getElementById('mc-adiscount');
+    if (discField) discField.value = rawDiscount;
+    if (adiscField) adiscField.value = rawAdiscount;
+    if (discountPct) {
+      var note = document.getElementById('mc-discount-note');
+      if (note) { note.textContent = discountPct + '% off your seat — applied at checkout.'; note.hidden = false; }
+    }
+    function ticketAfterDiscount(minor) { return discountPct ? Math.round(minor * (100 - discountPct) / 100) : minor; }
+
     // Seed the active currency from the first radio (server-rendered for the
     // detected country), so a no-change submit stays consistent.
     if (radios.length) curCurrency = radios[0].dataset.currency || 'EUR';
@@ -313,10 +333,13 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
 
     function recompute() {
       if (!current) return;
-      var priceMinor = parseInt(current.priceMinor, 10) || 0;
+      var fullPriceMinor = parseInt(current.priceMinor, 10) || 0;
+      var priceMinor = ticketAfterDiscount(fullPriceMinor);
       var cur = current.currency || curCurrency;
       totalLabel.textContent = current.kind === 'masterclass' ? 'Masterclass seat' : 'Workshop ticket';
-      totalAmount.textContent = money(priceMinor, cur);
+      totalAmount.innerHTML = discountPct
+        ? '<span class="we-line-was">' + money(fullPriceMinor, cur) + '</span> ' + money(priceMinor, cur)
+        : money(priceMinor, cur);
       submitBtn.textContent = 'Register & pay ' + money(priceMinor, cur) + ' →';
     }
 
@@ -356,6 +379,8 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
         bump: false,
         company_name: isMasterclass ? (fd.get('company_name') || '') : '',
         vat_number: isMasterclass ? (fd.get('vat_number') || '') : '',
+        discount: fd.get('discount') || '',
+        adiscount: fd.get('adiscount') || '',
         meta_event_id: fd.get('meta_event_id') || '',
       };
       try {
