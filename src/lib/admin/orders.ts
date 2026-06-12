@@ -12,21 +12,22 @@
 //   W-<id>  workshop
 //
 // Money: every order carries the *original* amount in the currency the buyer
-// was charged, plus a best-effort EUR **net** (tax-excluded) figure:
-//   • workshops — exact, from the stored Stripe settlement (EUR payout) and
-//     the Quaderno tax split captured at checkout (mirrors the stats module);
-//   • retreats  — net = gross / (1 + product.vat_rate) when charged in EUR;
-//   • courses   — digital VAT is handled by the Stripe→Quaderno connector and
-//     not stored, so EUR rows are shown as gross (flagged), and non-EUR rows
-//     (e.g. a $99 grief course) have no EUR figure at all.
+// was charged, plus an EUR **net** (tax-excluded) figure:
+//   • EUR is taken 1:1; other currencies are converted at the approximate
+//     display rates below and flagged ≈ (we don't store per-charge FX for
+//     courses/retreats — workshops keep their exact Stripe settlement).
+//   • VAT is then stripped: workshops use the exact split captured at
+//     checkout; retreats use product.vat_rate (event-location VAT); courses
+//     use the buyer-country standard rate (destination VAT for digital
+//     services), defaulting to Belgium (21%) for EUR charges with no country.
 
 export type OrderSource = 'retreat' | 'course' | 'workshop';
 
 // How trustworthy the EUR figure is:
-//   exact — tax-excluded net in EUR
-//   gross — an EUR amount, but VAT is not separated out (course rows)
-//   none  — can't be expressed in EUR (non-EUR charge, no settlement)
-export type NetKind = 'exact' | 'gross' | 'none';
+//   exact  — EUR charge with a known VAT rate (or workshop stored split)
+//   approx — involved an FX conversion to EUR (flagged ≈ on the page)
+//   none   — couldn't be expressed in EUR at all (no amount / unknown currency)
+export type NetKind = 'exact' | 'approx' | 'none';
 
 export type StatusClass =
   | 'paid'
@@ -113,6 +114,68 @@ function courseLabel(slug: string): string {
   return COURSE_LABELS[slug] ?? slug;
 }
 
+// ── Money: FX + VAT ─────────────────────────────────────────────────────────
+
+// Approximate display rates → EUR (mid-market ballpark). We don't store a
+// per-charge settlement for courses/retreats, so non-EUR rows are converted
+// here for the overview and flagged ≈. Bump these if a rate drifts a lot.
+const FX_TO_EUR: Record<string, number> = {
+  EUR: 1,
+  USD: 0.92,
+  GBP: 1.17,
+  CAD: 0.68,
+  CHF: 1.05,
+  NOK: 0.086,
+  SEK: 0.088,
+  DKK: 0.134,
+  AUD: 0.6,
+  NZD: 0.56,
+};
+
+// EU standard VAT rates, used to strip tax off digital course sales by the
+// buyer's country (destination VAT for eservices). Non-EU buyers → 0.
+const EU_VAT: Record<string, number> = {
+  AT: 0.2, BE: 0.21, BG: 0.2, CY: 0.19, CZ: 0.21, DE: 0.19, DK: 0.25,
+  EE: 0.22, ES: 0.21, FI: 0.255, FR: 0.2, GR: 0.24, HR: 0.25, HU: 0.27,
+  IE: 0.23, IT: 0.22, LT: 0.21, LU: 0.17, LV: 0.21, MT: 0.18, NL: 0.21,
+  PL: 0.23, PT: 0.23, RO: 0.19, SE: 0.25, SI: 0.22, SK: 0.23,
+};
+
+// Convert a minor amount to EUR minor. Returns whether FX was applied (for the
+// ≈ flag), or null when the currency is one we don't have a rate for.
+function toEurMinor(
+  amountMinor: number,
+  currency: string,
+): { minor: number; fx: boolean } | null {
+  const c = (currency || 'EUR').toUpperCase();
+  if (c === 'EUR') return { minor: amountMinor, fx: false };
+  const rate = FX_TO_EUR[c];
+  if (rate == null) return null;
+  return { minor: Math.round(amountMinor * rate), fx: true };
+}
+
+// Destination VAT rate for a digital course sale. Known EU country → its
+// standard rate; known non-EU → 0; unknown → assume Belgium (home market) for
+// EUR charges, else 0.
+function courseVatRate(country: string | null, currency: string): number {
+  const c = (country ?? '').toUpperCase();
+  if (c) return EU_VAT[c] ?? 0;
+  return (currency || '').toUpperCase() === 'EUR' ? 0.21 : 0;
+}
+
+// Shared "gross in currency → EUR net" path for courses and retreats.
+function netEurFrom(
+  amountMinor: number,
+  currency: string,
+  vatRate: number,
+): { netEurMinor: number | null; netKind: NetKind } {
+  if (amountMinor <= 0) return { netEurMinor: 0, netKind: 'exact' };
+  const eur = toEurMinor(amountMinor, currency);
+  if (!eur) return { netEurMinor: null, netKind: 'none' };
+  const netEurMinor = Math.round(eur.minor / (1 + vatRate));
+  return { netEurMinor, netKind: eur.fx ? 'approx' : 'exact' };
+}
+
 // ── Retreats / registrations ──────────────────────────────────────────────
 
 type RetreatRow = {
@@ -149,9 +212,11 @@ async function loadRetreatOrders(db: D1Database): Promise<UnifiedOrder[]> {
 
   return (res.results ?? []).map((r) => {
     const fallback = splitName(r.name);
-    const isEur = (r.currency || '').toUpperCase() === 'EUR';
-    const vat = r.vat_rate ?? 0;
-    const netEurMinor = isEur ? Math.round(r.amount_cents / (1 + vat)) : null;
+    const { netEurMinor, netKind } = netEurFrom(
+      r.amount_cents,
+      r.currency,
+      r.vat_rate ?? 0,
+    );
     return {
       source: 'retreat' as const,
       rowId: r.id,
@@ -165,7 +230,7 @@ async function loadRetreatOrders(db: D1Database): Promise<UnifiedOrder[]> {
       originalAmountMinor: r.amount_cents,
       originalCurrency: (r.currency || 'EUR').toUpperCase(),
       netEurMinor,
-      netKind: isEur ? ('exact' as const) : ('none' as const),
+      netKind,
       refundedMinor: r.refunded_amount_cents ?? 0,
       paymentIntent: r.stripe_payment_intent,
       quadernoInvoiceId: r.quaderno_invoice_id,
@@ -182,6 +247,7 @@ type CourseRow = {
   first_name: string | null;
   last_name: string | null;
   email: string;
+  country: string | null;
   status: string;
   amount_cents: number;
   currency: string;
@@ -195,7 +261,7 @@ type CourseRow = {
 async function loadCourseOrders(db: D1Database): Promise<UnifiedOrder[]> {
   const res = await db
     .prepare(
-      `SELECT id, first_name, last_name, email, status,
+      `SELECT id, first_name, last_name, email, country, status,
               amount_cents, currency, refunded_amount_cents,
               stripe_payment_intent, product_slug, created_at, paid_at
          FROM course_registrations
@@ -204,7 +270,11 @@ async function loadCourseOrders(db: D1Database): Promise<UnifiedOrder[]> {
     .all<CourseRow>();
 
   return (res.results ?? []).map((r) => {
-    const isEur = (r.currency || '').toUpperCase() === 'EUR';
+    const { netEurMinor, netKind } = netEurFrom(
+      r.amount_cents,
+      r.currency,
+      courseVatRate(r.country, r.currency),
+    );
     return {
       source: 'course' as const,
       rowId: r.id,
@@ -217,10 +287,8 @@ async function loadCourseOrders(db: D1Database): Promise<UnifiedOrder[]> {
       statusClass: statusClassOf(r.status),
       originalAmountMinor: r.amount_cents,
       originalCurrency: (r.currency || 'EUR').toUpperCase(),
-      // Digital VAT is split by the Quaderno↔Stripe connector and not stored,
-      // so EUR rows read as gross; non-EUR rows have no EUR figure.
-      netEurMinor: isEur ? r.amount_cents : null,
-      netKind: isEur ? ('gross' as const) : ('none' as const),
+      netEurMinor,
+      netKind,
       refundedMinor: r.refunded_amount_cents ?? 0,
       paymentIntent: r.stripe_payment_intent,
       quadernoInvoiceId: null,
@@ -236,6 +304,7 @@ type WorkshopRegRow = {
   id: number;
   name: string | null;
   email: string;
+  country: string | null;
   reg_currency: string | null;
   payment_status: string;
   wants_bump: number;
@@ -258,7 +327,7 @@ type WorkshopPayRow = {
 async function loadWorkshopOrders(db: D1Database): Promise<UnifiedOrder[]> {
   const regRes = await db
     .prepare(
-      `SELECT r.id, r.name, r.email, r.currency AS reg_currency,
+      `SELECT r.id, r.name, r.email, r.country, r.currency AS reg_currency,
               r.payment_status, r.wants_bump, r.created_at,
               w.title AS workshop_title
          FROM workshop_registrations r
@@ -301,23 +370,31 @@ async function loadWorkshopOrders(db: D1Database): Promise<UnifiedOrder[]> {
     if (pay) {
       originalAmountMinor = pay.amount_minor;
       originalCurrency = (pay.pay_currency || originalCurrency).toUpperCase();
-      // Gross in EUR: prefer the EUR settlement, else the charge if it was EUR.
-      const grossEur =
-        pay.settlement_currency === 'EUR' && pay.settlement_amount_minor != null
-          ? pay.settlement_amount_minor
-          : pay.pay_currency?.toUpperCase() === 'EUR'
-            ? pay.amount_minor
-            : null;
+      // Gross in EUR: prefer the exact EUR settlement, else convert the charge.
+      let fx = false;
+      let grossEur: number | null = null;
+      if (pay.settlement_currency === 'EUR' && pay.settlement_amount_minor != null) {
+        grossEur = pay.settlement_amount_minor;
+      } else {
+        const eur = toEurMinor(pay.amount_minor, pay.pay_currency);
+        if (eur) {
+          grossEur = eur.minor;
+          fx = eur.fx;
+        }
+      }
       if (grossEur != null) {
         if (pay.subtotal_minor != null && pay.amount_minor > 0) {
+          // Exact tax split captured at checkout, scaled to the EUR gross.
           netEurMinor = Math.round(
             pay.subtotal_minor * (grossEur / pay.amount_minor),
           );
-          netKind = 'exact';
         } else {
-          netEurMinor = grossEur;
-          netKind = 'gross';
+          // Fall back to the buyer-country VAT rate.
+          netEurMinor = Math.round(
+            grossEur / (1 + courseVatRate(r.country, 'EUR')),
+          );
         }
+        netKind = fx ? 'approx' : 'exact';
       }
       // We don't store a partial-refund figure for workshops — a refunded
       // payment is treated as fully refunded for the running total.
@@ -350,8 +427,10 @@ async function loadWorkshopOrders(db: D1Database): Promise<UnifiedOrder[]> {
 // ── Public loader ──────────────────────────────────────────────────────────
 
 export type OrderFilter = {
-  source?: OrderSource | null;
-  status?: StatusClass | null;
+  // Multi-select: an order matches when its source/status is in the set (an
+  // empty or absent set means "no filter on this dimension").
+  sources?: OrderSource[] | null;
+  statuses?: StatusClass[] | null;
   query?: string | null;
 };
 
@@ -371,8 +450,10 @@ export async function listAllOrders(
     (b.createdAt || '').localeCompare(a.createdAt || ''),
   );
 
-  if (filter.source) all = all.filter((o) => o.source === filter.source);
-  if (filter.status) all = all.filter((o) => o.statusClass === filter.status);
+  const sources = filter.sources ?? [];
+  const statuses = filter.statuses ?? [];
+  if (sources.length) all = all.filter((o) => sources.includes(o.source));
+  if (statuses.length) all = all.filter((o) => statuses.includes(o.statusClass));
   if (filter.query) {
     const q = filter.query.trim().toLowerCase();
     if (q) {

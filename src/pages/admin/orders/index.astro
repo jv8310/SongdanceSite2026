@@ -19,23 +19,38 @@ if (!authed) {
   return Astro.redirect('/admin/login');
 }
 
-// ── Filters ──
+// ── Filters (multi-select: source/status are comma-separated sets) ──
 const SOURCES: OrderSource[] = ['retreat', 'course', 'workshop'];
 const STATUSES: StatusClass[] = ['paid', 'pending', 'refunded', 'cancelled', 'expired', 'other'];
 
-const sourceParam = Astro.url.searchParams.get('source');
-const statusParam = Astro.url.searchParams.get('status');
+const parseList = <T extends string>(raw: string | null, allowed: readonly T[]): T[] =>
+  (raw ? raw.split(',') : [])
+    .map((s) => s.trim())
+    .filter((s): s is T => (allowed as readonly string[]).includes(s));
+
+const selectedSources = parseList(Astro.url.searchParams.get('source'), SOURCES);
+const selectedStatuses = parseList(Astro.url.searchParams.get('status'), STATUSES);
 const q = Astro.url.searchParams.get('q') ?? '';
 
-const source = SOURCES.includes(sourceParam as OrderSource)
-  ? (sourceParam as OrderSource)
-  : null;
-const status = STATUSES.includes(statusParam as StatusClass)
-  ? (statusParam as StatusClass)
-  : null;
-
-const orders = await listAllOrders(env.DB, { source, status, query: q });
+const orders = await listAllOrders(env.DB, {
+  sources: selectedSources,
+  statuses: selectedStatuses,
+  query: q,
+});
 const returnTo = Astro.url.pathname + Astro.url.search;
+
+// Build a filter URL from explicit source/status sets (+ the current search).
+function filterHref(sources: string[], statuses: string[], query: string): string {
+  const params = new URLSearchParams();
+  if (sources.length) params.set('source', sources.join(','));
+  if (statuses.length) params.set('status', statuses.join(','));
+  if (query) params.set('q', query);
+  const qs = params.toString();
+  return '/admin/orders' + (qs ? `?${qs}` : '');
+}
+function toggle<T extends string>(list: T[], value: T): T[] {
+  return list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
+}
 
 // Flash from the refund endpoint.
 const flash = Astro.url.searchParams.get('flash');
@@ -103,38 +118,40 @@ const refundedTotal = orders.reduce((s, o) => s + o.refundedMinor, 0);
         )}
       </div>
       <p class="adm-table-note">
-        *Net is tax-excluded where known (workshops exact; EUR retreats ex-VAT).
-        Course rows are shown gross — digital VAT is split inside Quaderno — and
-        non-EUR charges have no EUR figure.
+        *Net is tax-excluded in EUR: workshops use the exact Stripe settlement +
+        VAT split; retreats strip event VAT; courses strip the buyer-country VAT
+        (digital services, default 21% for EU/unknown). Non-EUR charges are
+        converted at approximate display rates and flagged ≈.
       </p>
     </section>
 
-    <!-- ─── Filters ─── -->
+    <!-- ─── Filters (multi-select — toggle as many as you like) ─── -->
     <section class="adm-section">
-      <span class="adm-filters">
-        <a href="/admin/orders" class={!source ? 'is-on' : ''}>all sources</a>
+      <span class="adm-filters" role="group" aria-label="Filter by source">
+        <a href={filterHref([], selectedStatuses, q)} class={selectedSources.length === 0 ? 'is-on' : ''}>all sources</a>
         {SOURCES.map((s) => (
           <a
-            href={`/admin/orders?source=${s}${status ? `&status=${status}` : ''}${q ? `&q=${encodeURIComponent(q)}` : ''}`}
-            class={source === s ? 'is-on' : ''}
+            href={filterHref(toggle(selectedSources, s), selectedStatuses, q)}
+            class={`ord-toggle ${selectedSources.includes(s) ? 'is-on' : ''}`}
           >{SOURCE_LABEL[s]}s</a>
         ))}
       </span>
-      <span class="adm-filters">
-        <a href={`/admin/orders${source ? `?source=${source}` : ''}`} class={!status ? 'is-on' : ''}>all statuses</a>
+      <span class="adm-filters" role="group" aria-label="Filter by status">
+        <a href={filterHref(selectedSources, [], q)} class={selectedStatuses.length === 0 ? 'is-on' : ''}>all statuses</a>
         {STATUSES.map((s) => (
           <a
-            href={`/admin/orders?status=${s}${source ? `&source=${source}` : ''}${q ? `&q=${encodeURIComponent(q)}` : ''}`}
-            class={status === s ? 'is-on' : ''}
+            href={filterHref(selectedSources, toggle(selectedStatuses, s), q)}
+            class={`ord-toggle ${selectedStatuses.includes(s) ? 'is-on' : ''}`}
           >{s}</a>
         ))}
+        <span class="ord-filter-hint">pick any number</span>
       </span>
       <form method="GET" action="/admin/orders" class="ord-search">
-        {source && <input type="hidden" name="source" value={source} />}
-        {status && <input type="hidden" name="status" value={status} />}
+        {selectedSources.length > 0 && <input type="hidden" name="source" value={selectedSources.join(',')} />}
+        {selectedStatuses.length > 0 && <input type="hidden" name="status" value={selectedStatuses.join(',')} />}
         <input type="search" name="q" value={q} placeholder="Search name, email, order # or product…" />
         <button type="submit" class="adm-btn adm-btn--solid">Search</button>
-        {q && <a class="adm-btn adm-btn--ghost" href={`/admin/orders${source ? `?source=${source}` : ''}${status ? `${source ? '&' : '?'}status=${status}` : ''}`}>Clear</a>}
+        {q && <a class="adm-btn adm-btn--ghost" href={filterHref(selectedSources, selectedStatuses, '')}>Clear</a>}
       </form>
     </section>
 
@@ -182,10 +199,10 @@ const refundedTotal = orders.reduce((s, o) => s + o.refundedMinor, 0);
                   </td>
                   <td class="num">
                     {o.netKind === 'exact' && o.netEurMinor != null && eur(o.netEurMinor)}
-                    {o.netKind === 'gross' && o.netEurMinor != null && (
-                      <span title="Gross — digital VAT is split inside Quaderno">≈ {eur(o.netEurMinor)}</span>
+                    {o.netKind === 'approx' && o.netEurMinor != null && (
+                      <span title="Approximate — converted to EUR at display FX">≈ {eur(o.netEurMinor)}</span>
                     )}
-                    {o.netKind === 'none' && '—'}
+                    {(o.netKind === 'none' || o.netEurMinor == null) && '—'}
                   </td>
                   <td><span class={`adm-pill adm-pill--${o.statusClass}`}>{o.rawStatus}</span></td>
                   <td>
@@ -239,6 +256,11 @@ const refundedTotal = orders.reduce((s, o) => s + o.refundedMinor, 0);
     }
     .ord-stat span { font-size:11px; text-transform:uppercase; letter-spacing:0.04em; color:var(--adm-mute); }
     .ord-stat strong { font-size:20px; font-variant-numeric:tabular-nums; }
+
+    /* Multi-select filter chips: a selected toggle shows a ✓ so it's clear
+       several can be on at once (not radio-style single-pick). */
+    .ord-toggle.is-on::before { content:'✓ '; }
+    .ord-filter-hint { font-size:11px; color:var(--adm-mute); align-self:center; }
 
     .ord-search { display:flex; gap:8px; margin-top:12px; align-items:center; flex-wrap:wrap; }
     .ord-search input[type="search"] {
