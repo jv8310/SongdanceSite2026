@@ -1,16 +1,9 @@
 import type { APIRoute } from 'astro';
 import { readCookie, verifySession } from '../../../../lib/registrations/auth';
 import { upsertAdSpend } from '../../../../lib/workshops/db';
+import { FX_TO_EUR } from '../../../../lib/workshops/currency';
 
 export const prerender = false;
-
-// Approximate EUR-per-1-unit fallback rates, mirroring the legacy backfill
-// fallback table. Used to convert ad spend to EUR on import when the CSV
-// currency isn't EUR. Refine as needed; EUR is always 1.
-const FX_TO_EUR: Record<string, number> = {
-  EUR: 1, USD: 0.92, GBP: 1.17, CAD: 0.68, CHF: 1.05,
-  AUD: 0.61, NZD: 0.56, NOK: 0.087, SEK: 0.088, DKK: 0.134,
-};
 
 // Tolerant Meta ad-spend CSV import. Column headers vary by export, so we
 // match by fuzzy header name. Rows we can't parse are reported, not dropped.
