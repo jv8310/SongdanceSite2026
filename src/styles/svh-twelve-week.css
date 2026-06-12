@@ -628,7 +628,7 @@ html, body { background: var(--paper); }
 }
 
 /* ---- Email-gated registration (price reveal → plan → details → Stripe) ---- */
-.tw-reg-gate { max-width: 540px; margin: 0 auto; }
+.tw-reg-gate { max-width: 560px; margin: 0 auto; }
 .tw-reg-emailform { display: flex; gap: var(--sp-3); }
 @media (max-width: 460px) { .tw-reg-emailform { flex-direction: column; } }
 .tw-reg-emailform input {
@@ -698,6 +698,7 @@ html, body { background: var(--paper); }
   padding: 7px 12px; border-radius: var(--r-pill);
   margin-bottom: var(--sp-4);
 }
+.tw-reg-badge[hidden] { display: none; }
 .tw-reg-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ember); }
 .tw-reg-pricebox {
   display: flex; align-items: baseline; gap: var(--sp-3); flex-wrap: wrap;
@@ -781,7 +782,7 @@ html, body { background: var(--paper); }
 }
 .tw-reg-field input:focus, .tw-reg-field select:focus { border-color: var(--ember); }
 .tw-reg-field[hidden] { display: none; }
-.tw-reg-phonegrid { display: grid; grid-template-columns: 116px 1fr; gap: var(--sp-2); }
+.tw-reg-phonegrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: var(--sp-2); }
 .tw-reg-consent {
   margin: var(--sp-3) 0; display: flex; gap: 10px; align-items: flex-start;
   font-family: var(--font-body); font-size: 13px; color: rgba(244, 236, 223, 0.72); line-height: 1.5;
