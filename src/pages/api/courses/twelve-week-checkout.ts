@@ -24,6 +24,7 @@ import { logEvent } from '../../../lib/registrations/db';
 import {
   createCheckoutSession,
   createCustomer,
+  paypalEnabled,
   createSubscriptionCheckoutSession,
   stripeTaxIdTypeFor,
 } from '../../../lib/registrations/stripe';
@@ -281,6 +282,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // One-off payment.
     const session = await createCheckoutSession({
       secretKey: env.STRIPE_SECRET_KEY,
+      enablePaypal: paypalEnabled(env),
       ...(customerId ? { customer: customerId } : { customer_email: email }),
       success_url: successUrl,
       cancel_url: cancelUrl,
