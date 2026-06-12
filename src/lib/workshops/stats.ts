@@ -611,45 +611,45 @@ export async function computeWorkshopPerformance(
   const costPerRegistrationEurMinor =
     adSpendEurMinor > 0 && totalRegistrations > 0 ? adSpendEurMinor / totalRegistrations : null;
 
-  const rows: WorkshopPerformanceRow[] = workshopRows
-    .map((w) => {
-      const a = accs.get(w.id);
-      if (!a) return null;
-      const courseBuyers = new Set(a.engineTw);
-      const certBuyers = new Set(a.engineCert);
-      let attributedEur = 0;
-      for (const email of a.emails) {
-        const s = standalone.get(email);
-        if (!s) continue;
-        if (s.tw) courseBuyers.add(email);
-        if (s.cert) certBuyers.add(email);
-        attributedEur += s.eurMinor;
-      }
-      const buyers = new Set([...courseBuyers, ...certBuyers]);
-      const attended = a.live + a.replay;
-      return {
-        workshopId: w.id,
-        title: w.title,
-        startsAtUtc: w.starts_at_utc,
-        isReplay: w.is_replay === 1,
-        status: w.status,
-        registrations: a.regs,
-        attendedLive: a.live,
-        replayViews: a.replay,
-        noShows: a.noShow,
-        attendancePct: a.regs > 0 ? (attended / a.regs) * 100 : null,
-        bumpBuys: bumpByWorkshop.get(w.id) ?? 0,
-        courseBuys: courseBuyers.size,
-        certBuys: certBuyers.size,
-        engineNetEurMinor: a.netEurMinor,
-        attributedCourseEurMinor: attributedEur,
-        totalEurMinor: a.netEurMinor + attributedEur,
-        metaCostEurMinor:
-          costPerRegistrationEurMinor != null ? Math.round(costPerRegistrationEurMinor * a.regs) : null,
-        conversionPct: a.regs > 0 ? (buyers.size / a.regs) * 100 : null,
-      };
-    })
-    .filter((r): r is WorkshopPerformanceRow => r != null);
+  // One row per non-deleted workshop — including those with no activity yet,
+  // so the page mirrors the workshop list rather than hiding empty ones.
+  const emptyAcc: Acc = { regs: 0, emails: new Set(), live: 0, replay: 0, noShow: 0, engineTw: new Set(), engineCert: new Set(), netEurMinor: 0 };
+  const rows: WorkshopPerformanceRow[] = workshopRows.map((w) => {
+    const a = accs.get(w.id) ?? emptyAcc;
+    const courseBuyers = new Set(a.engineTw);
+    const certBuyers = new Set(a.engineCert);
+    let attributedEur = 0;
+    for (const email of a.emails) {
+      const s = standalone.get(email);
+      if (!s) continue;
+      if (s.tw) courseBuyers.add(email);
+      if (s.cert) certBuyers.add(email);
+      attributedEur += s.eurMinor;
+    }
+    const buyers = new Set([...courseBuyers, ...certBuyers]);
+    const attended = a.live + a.replay;
+    return {
+      workshopId: w.id,
+      title: w.title,
+      startsAtUtc: w.starts_at_utc,
+      isReplay: w.is_replay === 1,
+      status: w.status,
+      registrations: a.regs,
+      attendedLive: a.live,
+      replayViews: a.replay,
+      noShows: a.noShow,
+      attendancePct: a.regs > 0 ? (attended / a.regs) * 100 : null,
+      bumpBuys: bumpByWorkshop.get(w.id) ?? 0,
+      courseBuys: courseBuyers.size,
+      certBuys: certBuyers.size,
+      engineNetEurMinor: a.netEurMinor,
+      attributedCourseEurMinor: attributedEur,
+      totalEurMinor: a.netEurMinor + attributedEur,
+      metaCostEurMinor:
+        costPerRegistrationEurMinor != null ? Math.round(costPerRegistrationEurMinor * a.regs) : null,
+      conversionPct: a.regs > 0 ? (buyers.size / a.regs) * 100 : null,
+    };
+  });
 
   return { rows, adSpendEurMinor, totalRegistrations, costPerRegistrationEurMinor };
 }

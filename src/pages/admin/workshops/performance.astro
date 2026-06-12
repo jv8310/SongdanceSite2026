@@ -14,7 +14,13 @@ if (!(await verifySession(env.ADMIN_SESSION_SECRET, readCookie(Astro.request))))
 
 const { preset, from, to } = resolvePeriod(Astro.url.searchParams);
 const report = await computeWorkshopPerformance(env.DB, { from, to });
-const rows = report.rows.filter((r) => r.registrations > 0 || r.totalEurMinor > 0);
+// Every non-deleted workshop is listed (zeros when it has no activity yet);
+// drafts are pushed to the bottom so live/past workshops lead.
+const rows = report.rows.slice().sort((a, b) => {
+  const ad = a.status === 'draft' ? 1 : 0;
+  const bd = b.status === 'draft' ? 1 : 0;
+  return ad - bd;
+});
 
 const eur = (minor: number) =>
   '€' + (minor / 100).toLocaleString('en-IE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -76,7 +82,7 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
     </section>
 
     <section class="adm-section">
-      {rows.length === 0 && <p class="adm-empty">No workshop activity in this window.</p>}
+      {rows.length === 0 && <p class="adm-empty">No workshops yet.</p>}
       {rows.length > 0 && (
         <div class="wk-perf-scroll">
           <table class="adm-table wk-perf">
