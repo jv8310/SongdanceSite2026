@@ -76,7 +76,7 @@ const tzOptions = Array.from(new Set([detectedTz, ...COMMON_TZS]));
         <p class="wk-kicker">Live online workshop</p>
         <h1 class="wk-title">{workshop.title}</h1>
         {whenLocal && <p class="wk-when">{whenLocal}<span class="wk-tz"> · your time</span></p>}
-        {workshop.is_replay === 1 && <p class="wk-when">On demand — watch anytime</p>}
+        {workshop.is_replay === 1 && <p class="wk-when">Watch anytime</p>}
 
         {canceled && <p class="wk-flash">Payment cancelled — you can try again below.</p>}
 

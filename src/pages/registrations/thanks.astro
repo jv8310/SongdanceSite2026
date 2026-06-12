@@ -33,16 +33,16 @@ const backHref = reg ? (RETREAT_PAGES[reg.product_slug] ?? '/retreats/ritual-of-
         <h1 style="font-size: 2rem;">Thank you, {reg.name}.</h1>
         <p>Your place at <strong>{reg.product_name}</strong> ({reg.tier_name}) is being confirmed.</p>
         {reg.status === 'paid' ? (
-          <p>Payment received. A confirmation email and invoice are on their way.</p>
+          <p>Payment received. A confirmation email and invoice are coming soon.</p>
         ) : (
-          <p>If you've just completed payment, this page will reflect your confirmed status within a minute. You can safely close this window — we'll email you the moment it's confirmed.</p>
+          <p>If you've just completed payment, this page will show that you are confirmed within a minute. You can safely close this window — we'll email you the moment it's confirmed.</p>
         )}
         <p style="margin-top: 32px;"><a href={backHref}>← back to the retreat page</a></p>
       </>
     ) : (
       <>
         <h1>Thank you.</h1>
-        <p>If you've just completed payment, we'll be in touch shortly.</p>
+        <p>If you've just completed payment, we'll contact you soon.</p>
         <p style="margin-top: 32px;"><a href={backHref}>← back to the events page</a></p>
       </>
     )}
