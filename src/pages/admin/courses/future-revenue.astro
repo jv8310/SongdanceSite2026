@@ -1,0 +1,333 @@
+---
+import '../../../styles/admin.css';
+import Layout from '../../../layouts/Layout.astro';
+import { readCookie, verifySession } from '../../../lib/registrations/auth';
+import {
+  buildForecast,
+  type InstallmentRow,
+} from '../../../lib/courses/installment-forecast';
+
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+const authed = await verifySession(env.ADMIN_SESSION_SECRET, readCookie(Astro.request));
+if (!authed) {
+  return Astro.redirect('/admin/login');
+}
+
+// Every installment plan across all course products. We project from the local
+// mirror of Stripe (installments_paid/total, subscription_status, paid_at) — no
+// live Stripe calls, so this stays fast and works against preview data.
+const q = await env.DB
+  .prepare(
+    `SELECT id, email, first_name, last_name, currency, status,
+            payment_plan, amount_cents,
+            installments_paid, installments_total,
+            paid_at, subscription_status, stripe_subscription_id
+       FROM course_registrations
+      WHERE installments_total > 1
+      ORDER BY paid_at DESC`,
+  )
+  .all<InstallmentRow>();
+
+const forecast = buildForecast(q.results ?? [], Date.now());
+const { months, people, totals } = forecast;
+
+const eur = (minor: number) =>
+  (minor / 100).toLocaleString('en-GB', { style: 'currency', currency: 'EUR' });
+const money = (minor: number, currency: string) =>
+  (minor / 100).toLocaleString('en-GB', {
+    style: 'currency',
+    currency: currency || 'EUR',
+  });
+function prettyDate(iso: string | null) {
+  if (!iso) return '—';
+  const d = new Date(`${iso}T00:00:00Z`);
+  return d.toLocaleDateString('en-GB', {
+    day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC',
+  });
+}
+// Tone for the Stripe-status pill — mirrors Stripe's own dashboard colours.
+function subTone(s: string | null): string {
+  if (!s) return 'pending';
+  if (s === 'active' || s === 'trialing') return 'paid';
+  if (s === 'past_due' || s === 'incomplete' || s === 'paused') return 'pending';
+  if (s === 'unpaid') return 'refunded';
+  return 'cancelled'; // canceled, incomplete_expired
+}
+function stateLabel(state: string): string {
+  return state === 'at_risk' ? 'Watch'
+    : state === 'stopped' ? 'Stopped'
+    : state === 'not_started' ? 'Not started'
+    : 'On track';
+}
+
+// ── SVG line chart geometry ──
+// Two series: total expected income (solid) and the at-risk slice (dashed),
+// plotted across the projected months. Pure SVG — no chart library.
+const W = 920, H = 340;
+const padL = 64, padR = 24, padT = 24, padB = 56;
+const plotW = W - padL - padR;
+const plotH = H - padT - padB;
+const n = months.length;
+const maxRaw = months.reduce((m, x) => Math.max(m, x.totalEurMinor), 0);
+// Round the axis ceiling up to a clean number so gridlines read nicely.
+function niceCeil(v: number): number {
+  if (v <= 0) return 100 * 100; // €100 default headroom
+  const pow = Math.pow(10, Math.floor(Math.log10(v)));
+  const step = pow / 2;
+  return Math.ceil(v / step) * step;
+}
+const maxY = niceCeil(maxRaw);
+const xAt = (i: number) => (n <= 1 ? padL + plotW / 2 : padL + (plotW * i) / (n - 1));
+const yAt = (minor: number) => padT + plotH - (plotH * minor) / maxY;
+const totalPts = months.map((m, i) => `${xAt(i).toFixed(1)},${yAt(m.totalEurMinor).toFixed(1)}`);
+const riskPts = months.map((m, i) => `${xAt(i).toFixed(1)},${yAt(m.atRiskEurMinor).toFixed(1)}`);
+const areaPath =
+  n > 0
+    ? `M ${xAt(0).toFixed(1)},${(padT + plotH).toFixed(1)} ` +
+      months.map((m, i) => `L ${xAt(i).toFixed(1)},${yAt(m.totalEurMinor).toFixed(1)}`).join(' ') +
+      ` L ${xAt(n - 1).toFixed(1)},${(padT + plotH).toFixed(1)} Z`
+    : '';
+const gridLines = [0, 0.25, 0.5, 0.75, 1].map((f) => ({
+  y: padT + plotH - plotH * f,
+  label: eur(maxY * f),
+}));
+const hasAtRisk = months.some((m) => m.atRiskEurMinor > 0);
+---
+
+<Layout title="Admin — Future revenue — Songdance" description="">
+  <main class="adm">
+    <header class="adm-header">
+      <div>
+        <p class="adm-breadcrumbs">
+          <a href="/admin">Admin</a>
+          <span class="sep">/</span>
+          <a href="/admin/courses">Courses</a>
+          <span class="sep">/</span>
+          Future revenue
+        </p>
+        <h1>Future revenue</h1>
+        <p class="adm-sub">
+          Expected income from open installment plans, by month. EUR-equivalent
+          (fallback FX); charge amounts before tax/Stripe fees.
+        </p>
+      </div>
+      <div class="adm-actions">
+        <a class="adm-btn adm-btn--ghost" href="/admin/courses">← Courses</a>
+      </div>
+    </header>
+
+    <!-- ─── Headline numbers ─── -->
+    <section class="adm-section">
+      <div class="fr-stats">
+        <div class="fr-stat"><span>Expected (healthy)</span><strong>{eur(totals.expectedEurMinor)}</strong></div>
+        <div class="fr-stat"><span>At risk</span><strong class="fr-risk">{eur(totals.atRiskEurMinor)}</strong></div>
+        <div class="fr-stat fr-stat--hl"><span>Total projected</span><strong>{eur(totals.totalEurMinor)}</strong></div>
+        <div class="fr-stat"><span>Due next 30 days</span><strong>{eur(totals.next30EurMinor)}</strong></div>
+        <div class="fr-stat"><span>Open plans</span><strong>{totals.activePlans}</strong></div>
+        <div class="fr-stat"><span>Needs an eye</span><strong class={totals.attentionCount > 0 ? 'fr-risk' : ''}>{totals.attentionCount}</strong></div>
+      </div>
+    </section>
+
+    <!-- ─── Line graph ─── -->
+    <section class="adm-section">
+      <h2>Projected revenue by month</h2>
+      {n === 0 && (
+        <p class="adm-empty">No open installment plans to project yet.</p>
+      )}
+      {n > 0 && (
+        <div class="fr-chart">
+          <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Projected installment revenue by month" preserveAspectRatio="xMidYMid meet">
+            <!-- gridlines + y labels -->
+            {gridLines.map((g) => (
+              <g>
+                <line x1={padL} y1={g.y} x2={W - padR} y2={g.y} class="fr-grid" />
+                <text x={padL - 10} y={g.y + 4} text-anchor="end" class="fr-axis">{g.label}</text>
+              </g>
+            ))}
+            <!-- area under the total line -->
+            <path d={areaPath} class="fr-area" />
+            <!-- at-risk line (dashed) -->
+            {hasAtRisk && <polyline points={riskPts.join(' ')} class="fr-line-risk" />}
+            <!-- total line -->
+            <polyline points={totalPts.join(' ')} class="fr-line-total" />
+            <!-- points + value + x labels -->
+            {months.map((m, i) => (
+              <g>
+                {m.atRiskEurMinor > 0 && (
+                  <circle cx={xAt(i)} cy={yAt(m.atRiskEurMinor)} r="3" class="fr-dot-risk" />
+                )}
+                <circle cx={xAt(i)} cy={yAt(m.totalEurMinor)} r="3.5" class="fr-dot-total" />
+                {m.totalEurMinor > 0 && (
+                  <text x={xAt(i)} y={yAt(m.totalEurMinor) - 9} text-anchor="middle" class="fr-val">{eur(m.totalEurMinor)}</text>
+                )}
+                <text x={xAt(i)} y={H - padB + 20} text-anchor="middle" class="fr-axis">{m.label}</text>
+              </g>
+            ))}
+          </svg>
+          <div class="fr-legend">
+            <span class="fr-key fr-key--total">Total projected</span>
+            {hasAtRisk && <span class="fr-key fr-key--risk">At risk (retrying / unpaid)</span>}
+          </div>
+        </div>
+      )}
+    </section>
+
+    <!-- ─── Monthly breakdown table ─── -->
+    {n > 0 && (
+      <section class="adm-section">
+        <h2>By month</h2>
+        <table class="adm-table">
+          <thead>
+            <tr>
+              <th>Month</th>
+              <th class="num">Charges</th>
+              <th class="num">Healthy</th>
+              <th class="num">At risk</th>
+              <th class="num">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {months.map((m) => (
+              <tr>
+                <td>{m.label}</td>
+                <td class="num">{m.count}</td>
+                <td class="num">{eur(m.expectedEurMinor)}</td>
+                <td class="num">{m.atRiskEurMinor > 0 ? eur(m.atRiskEurMinor) : '—'}</td>
+                <td class="num">{eur(m.totalEurMinor)}</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr>
+              <th>Total</th>
+              <th class="num">{totals.installmentsAhead}</th>
+              <th class="num">{eur(totals.expectedEurMinor)}</th>
+              <th class="num">{eur(totals.atRiskEurMinor)}</th>
+              <th class="num">{eur(totals.totalEurMinor)}</th>
+            </tr>
+          </tfoot>
+        </table>
+      </section>
+    )}
+
+    <!-- ─── People with upcoming installments ─── -->
+    <section class="adm-section">
+      <h2>
+        Installment plans
+        <span class="adm-sub" style="text-transform:none;letter-spacing:0;">
+          {people.length} plan(s) · cancelled / unpaid / retrying are flagged to watch
+        </span>
+      </h2>
+
+      {people.length === 0 && (
+        <p class="adm-empty">No installment plans on record.</p>
+      )}
+
+      {people.length > 0 && (
+        <table class="adm-table">
+          <thead>
+            <tr>
+              <th>Person</th>
+              <th>Plan</th>
+              <th>Progress</th>
+              <th class="num">Per charge</th>
+              <th>Next charge</th>
+              <th class="num">Remaining</th>
+              <th>Stripe</th>
+              <th>State</th>
+            </tr>
+          </thead>
+          <tbody>
+            {people.map((p) => (
+              <tr class={p.attention ? 'fr-row--watch' : ''}>
+                <td>
+                  <strong>{p.name}</strong><br />
+                  <a href={`mailto:${p.email}`} class="adm-sub" style="text-transform:none;letter-spacing:0;">{p.email}</a>
+                </td>
+                <td>{p.plan}</td>
+                <td>
+                  {p.installmentsPaid}/{p.installmentsTotal} paid
+                  {p.remaining > 0 && <span class="adm-sub" style="text-transform:none;letter-spacing:0;"> · {p.remaining} left</span>}
+                </td>
+                <td class="num">
+                  {money(p.perInstallmentMinor, p.currency)}
+                  {p.currency !== 'EUR' && <div class="adm-sub" style="text-transform:none;letter-spacing:0;">≈ {eur(p.perInstallmentEurMinor)}</div>}
+                </td>
+                <td>{p.state === 'stopped' ? '—' : prettyDate(p.nextDueIso)}</td>
+                <td class="num">
+                  {p.remaining > 0 ? money(p.remainingMinor, p.currency) : '—'}
+                  {p.currency !== 'EUR' && p.remaining > 0 && <div class="adm-sub" style="text-transform:none;letter-spacing:0;">≈ {eur(p.remainingEurMinor)}</div>}
+                </td>
+                <td>
+                  {p.subStatus
+                    ? <span class={`adm-pill adm-pill--${subTone(p.subStatus)}`} title="Live Stripe subscription status">{p.subStatus}</span>
+                    : <span class="adm-sub" style="text-transform:none;letter-spacing:0;">—</span>}
+                </td>
+                <td>
+                  <span class={`fr-state fr-state--${p.state}`}>{stateLabel(p.state)}</span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      <p class="adm-table-note">
+        “Watch” = Stripe subscription is retrying (past&nbsp;due), unpaid, or
+        cancelled with money still owed. Healthy plans (active / trialing) keep
+        billing on schedule; their remaining charges make up the projection
+        above. At-risk charges are owed but stuck behind a failed payment, so
+        they’re plotted separately and not banked as healthy.
+      </p>
+    </section>
+  </main>
+
+  <style>
+    .fr-stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; }
+    .fr-stat {
+      background: var(--adm-paper-soft); border:1px solid var(--adm-line);
+      border-radius:10px; padding:14px 16px;
+    }
+    .fr-stat span {
+      display:block; font-size:11px; letter-spacing:0.06em; text-transform:uppercase;
+      color: var(--adm-ink-soft); margin-bottom:4px;
+    }
+    .fr-stat strong { font-size:22px; color: var(--adm-ink); font-variant-numeric:tabular-nums; }
+    .fr-stat--hl { background:#dcefdc; border-color: rgba(47,122,76,0.3); }
+    .fr-risk { color: var(--adm-danger); }
+
+    .fr-chart {
+      background: var(--adm-paper-soft); border:1px solid var(--adm-line);
+      border-radius:10px; padding:16px;
+    }
+    .fr-chart svg { width:100%; height:auto; display:block; }
+    .fr-grid { stroke: var(--adm-line); stroke-width:1; }
+    .fr-axis { fill: var(--adm-ink-soft); font-size:11px; font-family: ui-monospace, Menlo, monospace; }
+    .fr-val { fill: var(--adm-ink); font-size:11px; font-weight:600; font-variant-numeric:tabular-nums; }
+    .fr-area { fill: rgba(201,96,58,0.10); stroke:none; }
+    .fr-line-total { fill:none; stroke: var(--adm-ember); stroke-width:2.5; stroke-linejoin:round; stroke-linecap:round; }
+    .fr-line-risk { fill:none; stroke: var(--adm-danger); stroke-width:2; stroke-dasharray:5 4; stroke-linejoin:round; }
+    .fr-dot-total { fill: var(--adm-ember-deep); }
+    .fr-dot-risk { fill: var(--adm-danger); }
+    .fr-legend { display:flex; gap:18px; margin-top:10px; padding-left:4px; }
+    .fr-key { font-size:12px; color: var(--adm-ink-soft); display:inline-flex; align-items:center; gap:7px; }
+    .fr-key::before { content:''; width:16px; height:3px; border-radius:2px; }
+    .fr-key--total::before { background: var(--adm-ember); }
+    .fr-key--risk::before { background: var(--adm-danger); }
+
+    .fr-row--watch { background: rgba(181,61,61,0.06); }
+    .fr-state {
+      display:inline-block; padding:2px 9px; border-radius:999px;
+      font-size:11px; font-weight:600; letter-spacing:0.04em; text-transform:uppercase;
+    }
+    .fr-state--on_track { background: rgba(47,122,76,0.13); color: var(--adm-success); }
+    .fr-state--at_risk  { background: rgba(181,61,61,0.15); color: var(--adm-danger); }
+    .fr-state--stopped  { background: rgba(0,0,0,0.06); color: var(--adm-mute); }
+    .fr-state--not_started { background: rgba(196,128,31,0.15); color: var(--adm-warn); }
+
+    @media (max-width: 720px) {
+      .adm-table { display:block; overflow-x:auto; }
+    }
+  </style>
+</Layout>
