@@ -49,7 +49,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const skipped: number[] = [];
   for (const reg of pending) {
     const room = reg.role
-      ? await getSpecialRoomByRole(env.DB, product.id, reg.role)
+      ? await getSpecialRoomByRole(env.DB, product.id, reg.role, reg.id)
       : await pickRoomForTier(env.DB, product.id, reg.tier_slug);
     if (!room) {
       skipped.push(reg.id);
