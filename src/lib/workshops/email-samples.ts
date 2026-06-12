@@ -40,7 +40,7 @@ export function buildEmailSamples(base: string): EmailSample[] {
   const whenLocal = 'Monday 15 June 2026, 20:00 (CEST)';
   const discountEndsLocal = 'Wednesday 17 June 2026, 21:00 (CEST)';
   const resumeUrl = `${b}/w/svh`;
-  const joinUrl = `${b}/workshop/success?rid=123`;
+  const joinUrl = `${b}/workshop/success?t=sample0123456789abcdef0123456789ab`;
   // Personalized: the course page reads ?email= and shows that person's
   // price (and any live discount) without them typing anything.
   const courseUrl = `${b}/courses/12-week?email=maria%40example.com#register`;

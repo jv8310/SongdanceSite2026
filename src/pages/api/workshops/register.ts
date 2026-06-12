@@ -113,7 +113,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
   }
   const realBump = !!(bumpProduct && bumpPrice);
 
-  const registrationId = await upsertRegistration(env.DB, {
+  const { id: registrationId, token: accessToken } = await upsertRegistration(env.DB, {
     workshop_id: workshop.id,
     name,
     email,
@@ -142,7 +142,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     if (ctx?.waitUntil) ctx.waitUntil(sideEffects);
     else await sideEffects.catch(() => {});
     const base = env.PUBLIC_BASE_URL.replace(/\/$/, '');
-    return json({ redirect_url: `${base}/workshop/success?rid=${registrationId}` });
+    return json({ redirect_url: `${base}/workshop/success?t=${accessToken}` });
   }
 
   // ── Paid path: Stripe Checkout. ───────────────────────────────────────
@@ -211,7 +211,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     session = await createCheckoutSession({
       secretKey: env.STRIPE_SECRET_KEY,
       ...(customerId ? { customer: customerId } : { customer_email: email }),
-      success_url: `${base}/workshop/success?rid=${registrationId}&cs={CHECKOUT_SESSION_ID}`,
+      success_url: `${base}/workshop/success?t=${accessToken}&cs={CHECKOUT_SESSION_ID}`,
       cancel_url: `${base}/w/${workshop.slug}?canceled=1`,
       payment_intent_description: workshop.title,
       line_items: lineItems,
