@@ -781,7 +781,7 @@ html, body { background: var(--paper); }
 }
 .tw-reg-field input:focus, .tw-reg-field select:focus { border-color: var(--ember); }
 .tw-reg-field[hidden] { display: none; }
-.tw-reg-phonegrid { display: grid; grid-template-columns: 116px 1fr; gap: var(--sp-2); }
+.tw-reg-phonegrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: var(--sp-2); }
 .tw-reg-consent {
   margin: var(--sp-3) 0; display: flex; gap: 10px; align-items: flex-start;
   font-family: var(--font-body); font-size: 13px; color: rgba(244, 236, 223, 0.72); line-height: 1.5;

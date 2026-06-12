@@ -96,12 +96,17 @@ const includes = [
           <label class="tw-reg-field">
             <span>Phone</span>
             <div class="tw-reg-phonegrid">
-              <select name="phone_country" required aria-label="Phone country">
-                <option value="">—</option>
-                {COUNTRIES.map((c) => (
-                  <option value={c.code} data-dial={c.dial}>{c.flag} +{c.dial}</option>
-                ))}
-              </select>
+              <input
+                type="text"
+                name="phone_country_search"
+                list="tw-dial-list"
+                inputmode="tel"
+                placeholder="+32"
+                autocomplete="tel-country-code"
+                aria-label="Phone country code"
+                required
+              />
+              <input type="hidden" name="phone_country" />
               <input type="tel" name="phone" placeholder="Phone number" autocomplete="tel" required />
             </div>
           </label>
@@ -139,6 +144,12 @@ const includes = [
       ))}
     </datalist>
 
+    <datalist id="tw-dial-list">
+      {COUNTRIES.map((c) => (
+        <option value={`+${c.dial} ${c.name}`}>{c.flag}</option>
+      ))}
+    </datalist>
+
     <p class="tw-reg-fine" data-reveal>
       Not sure yet?
       <a href={SESSION_URL} class="tw-ghost tw-ghost--ondark" data-sd-price="ticket">Try a live Vocal Healing Session for 9€ first →</a>
@@ -147,7 +158,7 @@ const includes = [
 </section>
 
 <script>
-  import { COUNTRIES } from '../../lib/countries';
+  import { COUNTRIES, findCountry } from '../../lib/countries';
 
   type Plan = 'full' | '3x';
   type Status = {
@@ -214,12 +225,25 @@ const includes = [
       try {
         const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
         const tzMap: Record<string, string> = {
-          'Europe/London': 'GB', 'America/New_York': 'US', 'America/Chicago': 'US',
+          // Europe — keep these ahead of the language fallback, since a Belgian
+          // on a Dutch-language browser (nl-NL) would otherwise be read as NL.
+          'Europe/Brussels': 'BE', 'Europe/Amsterdam': 'NL', 'Europe/Berlin': 'DE',
+          'Europe/Paris': 'FR', 'Europe/Luxembourg': 'LU', 'Europe/Vienna': 'AT',
+          'Europe/Zurich': 'CH', 'Europe/Rome': 'IT', 'Europe/Madrid': 'ES',
+          'Europe/Lisbon': 'PT', 'Europe/Dublin': 'IE', 'Europe/London': 'GB',
+          'Europe/Copenhagen': 'DK', 'Europe/Stockholm': 'SE', 'Europe/Oslo': 'NO',
+          'Europe/Helsinki': 'FI', 'Europe/Reykjavik': 'IS', 'Europe/Warsaw': 'PL',
+          'Europe/Prague': 'CZ', 'Europe/Bratislava': 'SK', 'Europe/Budapest': 'HU',
+          'Europe/Ljubljana': 'SI', 'Europe/Zagreb': 'HR', 'Europe/Athens': 'GR',
+          'Europe/Bucharest': 'RO', 'Europe/Sofia': 'BG', 'Europe/Tallinn': 'EE',
+          'Europe/Riga': 'LV', 'Europe/Vilnius': 'LT', 'Europe/Nicosia': 'CY',
+          'Europe/Malta': 'MT',
+          // Wider world
+          'America/New_York': 'US', 'America/Chicago': 'US',
           'America/Denver': 'US', 'America/Los_Angeles': 'US', 'America/Phoenix': 'US',
           'America/Toronto': 'CA', 'America/Vancouver': 'CA', 'America/Edmonton': 'CA',
           'Australia/Sydney': 'AU', 'Australia/Melbourne': 'AU', 'Australia/Perth': 'AU',
-          'Pacific/Auckland': 'NZ', 'Europe/Zurich': 'CH', 'Europe/Oslo': 'NO',
-          'Europe/Stockholm': 'SE', 'Europe/Copenhagen': 'DK',
+          'Pacific/Auckland': 'NZ',
         };
         if (tzMap[tz]) return tzMap[tz];
         const m = (navigator.language || '').match(/-([A-Z]{2})$/i);
@@ -386,10 +410,36 @@ const includes = [
       const lastI = root.querySelector<HTMLInputElement>('[name="last_name"]')!;
       const countrySearch = root.querySelector<HTMLInputElement>('[name="country_search"]')!;
       const countryHidden = root.querySelector<HTMLInputElement>('[name="country"]')!;
-      // `as unknown as` per TS: this repo's lib setup doesn't treat
-      // HTMLSelectElement as overlapping Element on a bare querySelector cast.
-      const phoneSel = root.querySelector('[name="phone_country"]') as unknown as HTMLSelectElement;
+      const phoneSearch = root.querySelector<HTMLInputElement>('[name="phone_country_search"]')!;
+      const phoneSel = root.querySelector<HTMLInputElement>('[name="phone_country"]')!;
       const companyI = root.querySelector<HTMLInputElement>('[name="company_name"]')!;
+
+      // Phone-country is a searchable input (type "+32" or a country name) backed
+      // by a hidden field that carries the resolved ISO code to checkout.
+      const setPhoneCountry = (code: string) => {
+        const m = findCountry(code);
+        if (!m) return;
+        phoneSel.value = m.code;
+        phoneSearch.value = `+${m.dial} ${m.name}`;
+      };
+      const resolvePhone = () => {
+        const raw = phoneSearch.value.trim();
+        if (!raw) { phoneSel.value = ''; return; }
+        const norm = raw.toLowerCase();
+        let m = COUNTRIES.find((c) => `+${c.dial} ${c.name}`.toLowerCase() === norm);
+        if (!m) {
+          const dial = norm.replace(/[^0-9]/g, '');
+          if (dial) m = COUNTRIES.find((c) => c.dial === dial);
+        }
+        if (!m) m = COUNTRIES.find((c) => c.name.toLowerCase() === norm || c.name.toLowerCase().startsWith(norm));
+        phoneSel.value = m ? m.code : '';
+      };
+      phoneSearch.addEventListener('input', resolvePhone);
+      phoneSearch.addEventListener('change', resolvePhone);
+      phoneSearch.addEventListener('blur', () => {
+        resolvePhone();
+        if (phoneSel.value) setPhoneCountry(phoneSel.value); // normalise display
+      });
       const vatField = q('[data-slot="vat-field"]') as HTMLElement;
       const vatI = root.querySelector<HTMLInputElement>('[name="vat_number"]')!;
 
@@ -401,7 +451,7 @@ const includes = [
         if (match) {
           countrySearch.value = match.name;
           countryHidden.value = match.code;
-          phoneSel.value = match.code;
+          setPhoneCountry(match.code);
         }
       }
 
@@ -420,7 +470,7 @@ const includes = [
         const match = COUNTRIES.find((c) => c.name.toLowerCase() === typed || c.code.toLowerCase() === typed);
         if (match) {
           countryHidden.value = match.code;
-          if (!phoneSel.value) phoneSel.value = match.code;
+          if (!phoneSel.value) setPhoneCountry(match.code);
           window.clearTimeout(repriceTimer);
           repriceTimer = window.setTimeout(async () => {
             if (match.code === status.country) return;
