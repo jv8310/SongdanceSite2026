@@ -688,14 +688,51 @@ export async function pickRoomForTier(
   return null;
 }
 
+// Each opt-in role is a single seat, even when its room has more beds (the
+// kitchen-help bed is one of three in the attic). Count active registrations
+// holding each role — same paid / pending-with-live-hold filter beds_sold
+// uses — so a role closes the moment one person claims it.
+async function countActiveRoleHolders(
+  db: D1Database,
+  productId: number,
+  excludeRegistrationId?: number,
+): Promise<Record<SpecialRole, number>> {
+  const res = await db
+    .prepare(
+      `SELECT role, COUNT(*) AS n
+         FROM registrations r
+        WHERE r.product_id = ?
+          AND r.id <> ?
+          AND r.role IN ('fire_keeper','cook_help')
+          AND r.status IN ('paid','pending')
+          AND (r.status = 'paid'
+               OR r.hold_expires_at IS NULL
+               OR r.hold_expires_at > datetime('now'))
+        GROUP BY role`,
+    )
+    .bind(productId, excludeRegistrationId ?? -1)
+    .all<{ role: SpecialRole; n: number }>();
+  const counts: Record<SpecialRole, number> = { fire_keeper: 0, cook_help: 0 };
+  for (const row of res.results ?? []) counts[row.role] = row.n;
+  return counts;
+}
+
 // Look up the room tagged with a given opt-in role (fire keeper / cook help).
-// Returns null if the room doesn't exist or its single bed is already taken.
+// Returns null if the room doesn't exist, the role's one seat is already
+// claimed, or the room has no free bed left. Pass excludeRegistrationId when
+// (re)placing an existing role-holder — e.g. admin auto-assign after a room
+// reshuffle — so they don't block their own seat.
 export async function getSpecialRoomByRole(
   db: D1Database,
   productId: number,
   role: SpecialRole,
+  excludeRegistrationId?: number,
 ): Promise<RoomWithMode | null> {
-  const rooms = await getRoomsWithMode(db, productId);
+  const [rooms, holders] = await Promise.all([
+    getRoomsWithMode(db, productId),
+    countActiveRoleHolders(db, productId, excludeRegistrationId),
+  ]);
+  if (holders[role] >= 1) return null;
   const room = rooms.find((r) => r.role === role);
   if (!room) return null;
   if (room.beds_sold >= room.capacity) return null;
@@ -708,8 +745,12 @@ export async function getSpecialRoomAvailability(
   db: D1Database,
   productId: number,
 ): Promise<{ fire_keeper_available: boolean; cook_help_available: boolean }> {
-  const rooms = await getRoomsWithMode(db, productId);
+  const [rooms, holders] = await Promise.all([
+    getRoomsWithMode(db, productId),
+    countActiveRoleHolders(db, productId),
+  ]);
   const free = (role: SpecialRole) => {
+    if (holders[role] >= 1) return false;
     const r = rooms.find((x) => x.role === role);
     return !!r && r.beds_sold < r.capacity;
   };
