@@ -948,6 +948,22 @@ html, body { background: var(--paper); }
 }
 .we-cal-item--masterclass:hover { border-color: var(--plum); }
 .we-cal-item--masterclass .we-cal-price { color: var(--plum); }
+/* The date a friend shared — starred so it stands out, every other date still
+   bookable at the same discount. */
+.we-cal-item--friend {
+  border-color: var(--ember);
+  background: var(--ember-glow);
+  border-left: 3px solid var(--ember);
+}
+.we-cal-item--friend:hover { border-color: var(--ember); }
+.we-cal-friend {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-family: var(--font-mono);
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.16em;
+  color: var(--ember-deep); font-weight: 600;
+  margin-bottom: 4px;
+}
+.we-cal-friend-star { font-size: 12px; line-height: 1; }
 .we-cal-empty {
   font-family: var(--font-body);
   font-size: 15px;
