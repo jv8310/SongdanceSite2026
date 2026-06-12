@@ -88,12 +88,16 @@ async function tagInDrip(env: Env, reg: WorkshopRegistration, workshop: Workshop
   );
 }
 
-async function sendConfirmation(env: Env, reg: WorkshopRegistration, workshop: Workshop) {
-  if (!env.RESEND_API_KEY) return;
-  // Idempotent: only the first caller to claim the slot actually sends.
-  const claimed = await claimNotification(env.DB, reg.id, 'confirmation');
-  if (!claimed) return;
-
+// Build + send the confirmation email (join + add-to-calendar links). No
+// idempotency guard of its own — callers decide whether to gate. `entityRefId`
+// is passed in so a forced resend can carry a fresh ref and not be folded into
+// the original send by Gmail.
+async function deliverConfirmation(
+  env: Env,
+  reg: WorkshopRegistration,
+  workshop: Workshop,
+  entityRefId: string,
+) {
   const baseUrl = env.PUBLIC_BASE_URL.replace(/\/$/, '');
   const tz = reg.timezone || workshop.display_tz;
   const join = successUrl(baseUrl, reg.access_token);
@@ -114,15 +118,60 @@ async function sendConfirmation(env: Env, reg: WorkshopRegistration, workshop: W
     icsUrl: workshop.is_replay ? undefined : icsUrl(baseUrl, reg.access_token),
   });
   await sendEmail({
-    apiKey: env.RESEND_API_KEY,
+    apiKey: env.RESEND_API_KEY!,
     // Default sender (info@mail.songdance.co) — not the prayer@ RESEND_FROM.
     replyTo: env.RESEND_REPLY_TO,
     to: reg.email,
     subject: content.subject,
     html: content.html,
     text: content.text,
-    entityRefId: `workshop-confirm-${reg.id}`,
+    entityRefId,
   });
+}
+
+async function sendConfirmation(env: Env, reg: WorkshopRegistration, workshop: Workshop) {
+  if (!env.RESEND_API_KEY) return;
+  // Idempotent: only the first caller to claim the slot actually sends.
+  const claimed = await claimNotification(env.DB, reg.id, 'confirmation');
+  if (!claimed) return;
+  await deliverConfirmation(env, reg, workshop, `workshop-confirm-${reg.id}`);
+}
+
+// Force-resend the confirmation email (admin action), bypassing the
+// idempotency claim. Used to hand an existing registrant a fresh ?t= join link
+// — e.g. after the rid→token switch invalidated an older calendar/email link.
+// A unique entityRefId keeps the resend from being folded into the original.
+export async function resendConfirmation(
+  env: Env,
+  registrationId: number,
+): Promise<{ ok: boolean; error?: string }> {
+  if (!env.RESEND_API_KEY) return { ok: false, error: 'email_not_configured' };
+  const reg = await getRegistrationById(env.DB, registrationId);
+  if (!reg) return { ok: false, error: 'not_found' };
+  if (reg.payment_status !== 'paid' && reg.payment_status !== 'coupon') {
+    return { ok: false, error: 'not_paid' };
+  }
+  const workshop = await getWorkshopById(env.DB, reg.workshop_id);
+  if (!workshop) return { ok: false, error: 'not_found' };
+  // Claim the slot if it isn't already, so the cron's first-time confirmation
+  // can't also fire later; this resend is the intentional, unguarded send.
+  await claimNotification(env.DB, reg.id, 'confirmation');
+  try {
+    await deliverConfirmation(env, reg, workshop, `workshop-confirm-${reg.id}-resend-${Date.now()}`);
+  } catch (err) {
+    await logEvent(env.DB, {
+      registration_id: null,
+      kind: 'workshop.confirmation.resend_error',
+      payload: { registration_id: reg.id, error: String(err) },
+    });
+    return { ok: false, error: 'send_failed' };
+  }
+  await logEvent(env.DB, {
+    registration_id: null,
+    kind: 'workshop.confirmation.resent',
+    payload: { registration_id: reg.id, workshop_id: workshop.id },
+  });
+  return { ok: true };
 }
 
 export async function runWorkshopPaidSideEffects(
