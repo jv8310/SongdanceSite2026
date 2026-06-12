@@ -20,6 +20,14 @@
 // Stripe bills monthly (`interval: month`) from `paid_at`, so installment k
 // (0-indexed) is due `paid_at + k` calendar months. The ones still ahead of us
 // are k = installments_paid … installments_total − 1.
+//
+// Amounts are reported NET of VAT. The charged `amount_cents` is gross
+// (tax-inclusive for EU B2C); we strip VAT the same way the workshop stats do
+// — `net = gross / (1 + rate)` — using the per-country rate the page resolves
+// from Quaderno. Reverse-charge B2B (a VAT number) and non-EU sales carry a 0
+// rate, so net == gross there.
+
+import { netFromGross } from '../workshops/quaderno';
 
 export type InstallmentRow = {
   id: number;
@@ -27,6 +35,8 @@ export type InstallmentRow = {
   first_name: string | null;
   last_name: string | null;
   currency: string;
+  country: string | null;
+  vat_number: string | null;
   status: string;
   payment_plan: string;
   amount_cents: number;
@@ -35,6 +45,10 @@ export type InstallmentRow = {
   paid_at: string | null;
   subscription_status: string | null;
   stripe_subscription_id: string | null;
+  // VAT rate (decimal, e.g. 0.21) the page resolves from Quaderno for this
+  // row's country before calling buildForecast. 0 = no VAT / reverse charge /
+  // unknown, in which case net == gross. Defaults to 0 when absent.
+  taxRate?: number;
 };
 
 // Approximate EUR-per-1-unit fallback rates — same table the ad-spend import
@@ -48,6 +62,16 @@ export const FX_TO_EUR: Record<string, number> = {
 export function toEurMinor(amountMinor: number, currency: string): number {
   const rate = FX_TO_EUR[(currency || 'EUR').toUpperCase()] ?? 1;
   return Math.round(amountMinor * rate);
+}
+
+// Gross amount of a single installment (original currency, minor units).
+function grossPerInstallment(row: InstallmentRow): number {
+  return Math.round(row.amount_cents / row.installments_total);
+}
+
+// Net (VAT-stripped) amount of a single installment, original currency.
+function netPerInstallment(row: InstallmentRow): number {
+  return netFromGross(grossPerInstallment(row), row.taxRate ?? 0).subtotalMinor;
 }
 
 // Stripe statuses that mean "keep an eye on it" — the owner's
@@ -127,11 +151,13 @@ export type ForecastPerson = {
   installmentsPaid: number;
   installmentsTotal: number;
   remaining: number;
-  perInstallmentMinor: number;
-  perInstallmentEurMinor: number;
-  remainingMinor: number;        // still owed, original currency
-  remainingEurMinor: number;
-  nextDueIso: string | null;     // next charge date (null if stopped/not started)
+  perInstallmentMinor: number;     // NET, original currency
+  perInstallmentEurMinor: number;  // NET, EUR-equivalent
+  perInstallmentGrossMinor: number; // gross charge, original currency
+  taxRatePct: number;              // VAT rate applied (e.g. 21), 0 if none
+  remainingMinor: number;          // NET still owed, original currency
+  remainingEurMinor: number;       // NET, EUR-equivalent
+  nextDueIso: string | null;       // next charge date (null if stopped/not started)
   subStatus: string | null;
   rowStatus: string;
   state: PlanState;
@@ -168,10 +194,7 @@ function projectRow(row: InstallmentRow, nowMs: number): Projection[] {
   const anchor = Date.parse(row.paid_at);
   if (!Number.isFinite(anchor)) return [];
 
-  const perEur = toEurMinor(
-    Math.round(row.amount_cents / total),
-    row.currency,
-  );
+  const perEur = toEurMinor(netPerInstallment(row), row.currency);
 
   const sub = row.subscription_status;
   const thisMonth = startOfMonthUtc(nowMs);
@@ -265,7 +288,8 @@ export function buildForecast(
   let next30 = 0;
   const people: ForecastPerson[] = plans.map((row) => {
     const remaining = row.installments_total - row.installments_paid;
-    const perMinor = Math.round(row.amount_cents / row.installments_total);
+    const grossMinor = grossPerInstallment(row);
+    const netMinor = netPerInstallment(row);
     const state = planState(row);
     const anchor = row.paid_at ? Date.parse(row.paid_at) : NaN;
     let nextDueIso: string | null = null;
@@ -277,7 +301,7 @@ export function buildForecast(
       const dueMs = addMonths(anchor, row.installments_paid);
       nextDueIso = new Date(dueMs).toISOString().slice(0, 10);
       if (state === 'on_track' && dueMs <= horizon30) {
-        next30 += toEurMinor(perMinor, row.currency);
+        next30 += toEurMinor(netMinor, row.currency);
       }
     }
     return {
@@ -289,10 +313,12 @@ export function buildForecast(
       installmentsPaid: row.installments_paid,
       installmentsTotal: row.installments_total,
       remaining,
-      perInstallmentMinor: perMinor,
-      perInstallmentEurMinor: toEurMinor(perMinor, row.currency),
-      remainingMinor: perMinor * remaining,
-      remainingEurMinor: toEurMinor(perMinor * remaining, row.currency),
+      perInstallmentMinor: netMinor,
+      perInstallmentEurMinor: toEurMinor(netMinor, row.currency),
+      perInstallmentGrossMinor: grossMinor,
+      taxRatePct: Math.round((row.taxRate ?? 0) * 100),
+      remainingMinor: netMinor * remaining,
+      remainingEurMinor: toEurMinor(netMinor * remaining, row.currency),
       nextDueIso,
       subStatus: row.subscription_status,
       rowStatus: row.status,

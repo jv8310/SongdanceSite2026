@@ -6,6 +6,7 @@ import {
   buildForecast,
   type InstallmentRow,
 } from '../../../lib/courses/installment-forecast';
+import { getTaxRate } from '../../../lib/workshops/quaderno';
 
 export const prerender = false;
 
@@ -20,8 +21,8 @@ if (!authed) {
 // live Stripe calls, so this stays fast and works against preview data.
 const q = await env.DB
   .prepare(
-    `SELECT id, email, first_name, last_name, currency, status,
-            payment_plan, amount_cents,
+    `SELECT id, email, first_name, last_name, currency, country, vat_number,
+            status, payment_plan, amount_cents,
             installments_paid, installments_total,
             paid_at, subscription_status, stripe_subscription_id
        FROM course_registrations
@@ -30,7 +31,45 @@ const q = await env.DB
   )
   .all<InstallmentRow>();
 
-const forecast = buildForecast(q.results ?? [], Date.now());
+const rows: InstallmentRow[] = q.results ?? [];
+
+// Resolve the VAT rate for each row so amounts can be reported NET of tax —
+// mirroring the workshop stats. Charged amounts are gross (tax-inclusive for
+// EU B2C); net = gross / (1 + rate). A VAT number means B2B reverse charge
+// (0% — net == gross), and non-EU / unknown countries return 0 from Quaderno.
+const taxConfigured = Boolean(env.QUADERNO_API_KEY && env.QUADERNO_ACCOUNT);
+const rateByCountry = new Map<string, number>();
+if (taxConfigured) {
+  const cfg = {
+    apiKey: env.QUADERNO_API_KEY,
+    account: env.QUADERNO_ACCOUNT,
+    sandbox: env.QUADERNO_SANDBOX === '1',
+  };
+  const countries = [
+    ...new Set(
+      rows
+        .filter((r) => !r.vat_number && r.country)
+        .map((r) => (r.country as string).toUpperCase()),
+    ),
+  ];
+  await Promise.all(
+    countries.map(async (c) => {
+      rateByCountry.set(c, await getTaxRate(cfg, c, 'eservice'));
+    }),
+  );
+}
+for (const r of rows) {
+  r.taxRate = r.vat_number
+    ? 0 // reverse charge
+    : rateByCountry.get((r.country ?? '').toUpperCase()) ?? 0;
+}
+// Rows where we'd have expected EU VAT but couldn't resolve a rate (e.g.
+// Quaderno not configured in this environment) — net falls back to gross.
+const flaggedNoTax = !taxConfigured
+  ? rows.filter((r) => !r.vat_number).length
+  : 0;
+
+const forecast = buildForecast(rows, Date.now());
 const { months, people, totals } = forecast;
 
 const eur = (minor: number) =>
@@ -109,14 +148,21 @@ const hasAtRisk = months.some((m) => m.atRiskEurMinor > 0);
         </p>
         <h1>Future revenue</h1>
         <p class="adm-sub">
-          Expected income from open installment plans, by month. EUR-equivalent
-          (fallback FX); charge amounts before tax/Stripe fees.
+          Expected income from open installment plans, by month. Net of VAT,
+          EUR-equivalent (fallback FX); before Stripe fees.
         </p>
       </div>
       <div class="adm-actions">
         <a class="adm-btn adm-btn--ghost" href="/admin/courses">← Courses</a>
       </div>
     </header>
+
+    {flaggedNoTax > 0 && (
+      <div class="adm-flash adm-flash--warn">
+        ⚠ VAT rates unavailable in this environment — {flaggedNoTax} plan(s)
+        shown at gross (net taken equal to gross).
+      </div>
+    )}
 
     <!-- ─── Headline numbers ─── -->
     <section class="adm-section">
@@ -253,12 +299,15 @@ const hasAtRisk = months.some((m) => m.atRiskEurMinor > 0);
                 </td>
                 <td class="num">
                   {money(p.perInstallmentMinor, p.currency)}
-                  {p.currency !== 'EUR' && <div class="adm-sub" style="text-transform:none;letter-spacing:0;">≈ {eur(p.perInstallmentEurMinor)}</div>}
+                  <div class="adm-sub" style="text-transform:none;letter-spacing:0;">
+                    {p.taxRatePct > 0 ? `gross ${money(p.perInstallmentGrossMinor, p.currency)} · ${p.taxRatePct}% VAT` : 'no VAT'}
+                  </div>
+                  {p.currency !== 'EUR' && <div class="adm-sub" style="text-transform:none;letter-spacing:0;">≈ {eur(p.perInstallmentEurMinor)} net</div>}
                 </td>
                 <td>{p.state === 'stopped' ? '—' : prettyDate(p.nextDueIso)}</td>
                 <td class="num">
                   {p.remaining > 0 ? money(p.remainingMinor, p.currency) : '—'}
-                  {p.currency !== 'EUR' && p.remaining > 0 && <div class="adm-sub" style="text-transform:none;letter-spacing:0;">≈ {eur(p.remainingEurMinor)}</div>}
+                  {p.currency !== 'EUR' && p.remaining > 0 && <div class="adm-sub" style="text-transform:none;letter-spacing:0;">≈ {eur(p.remainingEurMinor)} net</div>}
                 </td>
                 <td>
                   {p.subStatus
@@ -274,11 +323,14 @@ const hasAtRisk = months.some((m) => m.atRiskEurMinor > 0);
         </table>
       )}
       <p class="adm-table-note">
-        “Watch” = Stripe subscription is retrying (past&nbsp;due), unpaid, or
-        cancelled with money still owed. Healthy plans (active / trialing) keep
-        billing on schedule; their remaining charges make up the projection
-        above. At-risk charges are owed but stuck behind a failed payment, so
-        they’re plotted separately and not banked as healthy.
+        Amounts are net of VAT — the gross charge with the buyer’s country VAT
+        removed (rate via Quaderno; reverse-charge B2B and non-EU carry no VAT,
+        so net&nbsp;=&nbsp;gross). “Watch” = Stripe subscription is retrying
+        (past&nbsp;due), unpaid, or cancelled with money still owed. Healthy
+        plans (active / trialing) keep billing on schedule; their remaining
+        charges make up the projection above. At-risk charges are owed but stuck
+        behind a failed payment, so they’re plotted separately and not banked as
+        healthy.
       </p>
     </section>
   </main>
