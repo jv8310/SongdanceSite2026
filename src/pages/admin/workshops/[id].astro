@@ -30,7 +30,13 @@ const bumpProduct = workshop.bump_product_id ? await getProductById(env.DB, work
 const regs = await listRegistrationsForWorkshop(env.DB, workshop.id);
 
 const flash = Astro.url.searchParams.get('flash');
-const flashText = flash === 'saved' ? 'Workshop saved.' : flash === 'attendance' ? 'Attendance updated.' : null;
+const flashText =
+  flash === 'saved' ? 'Workshop saved.'
+  : flash === 'attendance' ? 'Attendance updated.'
+  : flash === 'resent' ? 'Confirmation email re-sent — it carries a fresh join link.'
+  : flash === 'resend_error' ? 'Couldn’t re-send the confirmation email — check the event log.'
+  : null;
+const flashErr = flash === 'resend_error';
 
 const paidCount = regs.filter((r) => r.payment_status === 'paid' || r.payment_status === 'coupon').length;
 const attendedCount = regs.filter((r) => r.attendance_status === 'attended').length;
@@ -62,7 +68,7 @@ const STATUS_LABEL: Record<string, string> = { draft: 'Draft', published: 'Publi
       </div>
     </header>
 
-    {flashText && <div class="adm-flash adm-flash--ok">{flashText}</div>}
+    {flashText && <div class={`adm-flash ${flashErr ? 'adm-flash--err' : 'adm-flash--ok'}`}>{flashText}</div>}
 
     <section class="adm-section">
       <h2>Details</h2>
@@ -137,7 +143,15 @@ const STATUS_LABEL: Record<string, string> = { draft: 'Draft', published: 'Publi
                 </td>
                 <td>{r.has_bump ? 'Yes' : '—'}</td>
                 <td>{r.bought_12w ? <span class="adm-tag">12w</span> : null}{r.bought_cert ? <span class="adm-tag">cert</span> : null}{!r.bought_12w && !r.bought_cert ? '—' : null}</td>
-                <td><code>#{r.id}</code></td>
+                <td class="adm-reg-actions">
+                  <code>#{r.id}</code>
+                  {(r.payment_status === 'paid' || r.payment_status === 'coupon') && (
+                    <form method="POST" action="/api/admin/workshops/resend-confirmation" class="adm-inline-form">
+                      <input type="hidden" name="registration_id" value={r.id} />
+                      <button type="submit" class="adm-resend" onclick="return confirm('Re-send the confirmation email — with a fresh join link — to this person?')">Resend confirmation</button>
+                    </form>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -155,5 +169,9 @@ const STATUS_LABEL: Record<string, string> = { draft: 'Draft', published: 'Publi
     .adm-pill--cancelled, .adm-pill--pay-refunded, .adm-pill--pay-chargeback, .adm-pill--pay-failed { background:#f0d8d8; }
     .adm-tag { display:inline-block; font-size:11px; padding:1px 7px; margin-right:4px; border-radius:999px; background:#F4ECDF; }
     .adm-inline-form { margin:0; }
+    .adm-reg-actions { white-space:nowrap; }
+    .adm-resend { margin-top:6px; display:inline-block; font-size:12px; padding:3px 9px; border-radius:999px; border:1px solid rgba(42,27,42,0.2); background:#fff; color:#2A1B2A; cursor:pointer; font-family:inherit; }
+    .adm-resend:hover { background:#F4ECDF; }
+    .adm-flash--err { background:#f0d8d8; }
   </style>
 </Layout>

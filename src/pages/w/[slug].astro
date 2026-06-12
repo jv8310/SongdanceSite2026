@@ -7,6 +7,12 @@ import {
 } from '../../lib/workshops/db';
 import { currencyForCountry, formatMoney } from '../../lib/workshops/currency';
 import { formatInTz } from '../../lib/workshops/time';
+import {
+  applyShareDiscount,
+  referralSecret,
+  verifyReferralCode,
+  SHARE_DISCOUNT_PCT,
+} from '../../lib/workshops/referral';
 
 export const prerender = false;
 
@@ -16,12 +22,21 @@ const cf = (Astro.locals.runtime as any)?.cf;
 
 const workshop = slug ? await getPublishedWorkshopBySlug(env.DB, slug) : null;
 
+// "Share with a friend" referral: a valid ?ref code halves the ticket price.
+const refCode = (Astro.url.searchParams.get('ref') ?? '').trim();
+let referred = false;
+if (refCode) {
+  const secret = referralSecret(env);
+  referred = !!(secret && (await verifyReferralCode(secret, refCode)));
+}
+
 // Cloudflare edge geo/timezone — no external API.
 const country: string = (cf?.country as string) || 'EU';
 const detectedTz: string = (cf?.timezone as string) || workshop?.display_tz || 'Europe/Brussels';
 const currency = currencyForCountry(country === 'EU' ? null : country);
 
 let ticketLabel = '';
+let ticketFullLabel = ''; // pre-discount price, shown struck-through when referred
 let bumpLabel = '';
 let bumpName = '';
 let ticketProductId: number | null = null;
@@ -29,7 +44,12 @@ let ticketProductId: number | null = null;
 if (workshop?.main_product_id) {
   ticketProductId = workshop.main_product_id;
   const price = await resolvePrice(env.DB, workshop.main_product_id, currency);
-  if (price) ticketLabel = formatMoney(price.amountMinor, price.currency);
+  if (price) {
+    ticketFullLabel = formatMoney(price.amountMinor, price.currency);
+    ticketLabel = referred
+      ? formatMoney(applyShareDiscount(price.amountMinor), price.currency)
+      : ticketFullLabel;
+  }
   if (workshop.bump_product_id) {
     const bumpProduct = await getProductById(env.DB, workshop.bump_product_id);
     const bumpPrice = await resolvePrice(env.DB, workshop.bump_product_id, currency);
@@ -80,9 +100,14 @@ const tzOptions = Array.from(new Set([detectedTz, ...COMMON_TZS]));
 
         {canceled && <p class="wk-flash">Payment cancelled — you can try again below.</p>}
 
+        {referred && (
+          <p class="wk-gift">A friend gifted you <strong>{SHARE_DISCOUNT_PCT}% off</strong> your ticket — already applied below.</p>
+        )}
+
         <form id="wk-form" class="wk-form">
           <input type="hidden" name="workshop_slug" value={workshop.slug} />
           <input type="hidden" name="country" value={country === 'EU' ? '' : country} />
+          <input type="hidden" name="ref" value={referred ? refCode : ''} />
           <input type="hidden" name="meta_event_id" id="wk-event-id" value="" />
 
           <label class="wk-field">
@@ -120,7 +145,10 @@ const tzOptions = Array.from(new Set([detectedTz, ...COMMON_TZS]));
 
           <div class="wk-total">
             <span>Workshop ticket</span>
-            <strong>{ticketLabel}</strong>
+            <strong>
+              {referred && <span class="wk-was">{ticketFullLabel}</span>}
+              {ticketLabel}
+            </strong>
           </div>
 
           <button type="submit" class="wk-submit">Register &amp; pay {ticketLabel} →</button>
@@ -139,6 +167,8 @@ const tzOptions = Array.from(new Set([detectedTz, ...COMMON_TZS]));
     .wk-when { margin:0 0 4px; font-size:17px; color:#4A3848; }
     .wk-tz { color:#B6A8B4; font-style:italic; }
     .wk-flash { margin:16px 0 0; padding:10px 14px; border-radius:10px; background:#F4ECDF; color:#A14826; font-size:14px; }
+    .wk-gift { margin:16px 0 0; padding:12px 16px; border-radius:10px; background:#EAF3E8; border:1px solid rgba(74,120,72,0.3); color:#3C5A38; font-size:14px; }
+    .wk-was { color:#B6A8B4; text-decoration:line-through; font-weight:400; margin-right:8px; font-size:16px; }
     .wk-form { margin-top:28px; display:flex; flex-direction:column; gap:16px; }
     .wk-field { display:flex; flex-direction:column; gap:6px; }
     .wk-field > span { font-size:14px; color:#4A3848; }
@@ -182,6 +212,7 @@ const tzOptions = Array.from(new Set([detectedTz, ...COMMON_TZS]));
           phone: fd.get('phone') || '',
           timezone: fd.get('timezone') || '',
           country: fd.get('country') || '',
+          ref: fd.get('ref') || '',
           bump: fd.get('bump') === 'on',
           meta_event_id: fd.get('meta_event_id') || '',
         };
