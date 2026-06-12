@@ -52,6 +52,12 @@ const includes = [
           <button type="button" class="tw-reg-emailchange" data-slot="change">change</button>
         </div>
 
+        <!-- Pro only: choose between the 12-week course and the certification. -->
+        <div class="tw-reg-offers-wrap" data-slot="offers-wrap" hidden>
+          <div class="tw-reg-steplabel">Choose your path</div>
+          <div class="tw-reg-plans" data-slot="offers"></div>
+        </div>
+
         <div class="tw-reg-badge" data-slot="badge" hidden>
           <span class="dot" aria-hidden="true"></span>
           <span data-slot="badge-text"></span>
@@ -150,6 +156,16 @@ const includes = [
   import { COUNTRIES } from '../../lib/countries';
 
   type Plan = 'full' | '3x';
+  type OfferId = '12week' | 'cert';
+  type CertOffer = {
+    label: string;
+    currency: string;
+    price_cents: number;
+    base_price_cents: number;
+    monthly_cents: number;
+    installment_count: number;
+    installment_total_cents: number;
+  };
   type Status = {
     email: string;
     currency: string;
@@ -159,16 +175,28 @@ const includes = [
     installment_total_cents: number;
     discount: {
       eligible: boolean;
-      kind: 'pre' | 'post' | 'none';
+      kind: 'pre' | 'post' | 'none' | 'override';
       percent: number;
       expires_at_ms: number | null;
       price_cents: number;
       monthly_cents: number;
     };
+    is_pro?: boolean;
+    cert?: CertOffer;
     first_name?: string;
     last_name?: string;
     country?: string;
   };
+
+  // URL forces, read once. `?audience=pro` reveals the certification option even
+  // when we can't detect pro from the email; `?discount=N` (1–99) forces N% off
+  // the 12-week price (overriding the automatic workshop discount).
+  const urlParams = new URLSearchParams(location.search);
+  const forcePro = (urlParams.get('audience') ?? '').trim().toLowerCase() === 'pro';
+  const urlDiscount = (() => {
+    const n = parseInt(urlParams.get('discount') ?? '', 10);
+    return Number.isInteger(n) && n >= 1 && n <= 99 ? n : 0;
+  })();
 
   const SYM: Record<string, string> = {
     EUR: '€', USD: '$', GBP: '£', CAD: 'CA$', CHF: 'CHF ',
@@ -232,7 +260,12 @@ const includes = [
       const res = await fetch('/api/courses/twelve-week-status', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, country }),
+        body: JSON.stringify({
+          email,
+          country,
+          force_pro: forcePro || undefined,
+          discount_percent: urlDiscount || undefined,
+        }),
       });
       try { return (await res.json()) as Status; } catch { return { error: 'Bad response' }; }
     }
@@ -270,37 +303,125 @@ const includes = [
       (q('[data-slot="email"]') as HTMLElement).textContent = email;
       q<HTMLButtonElement>('[data-slot="change"]').addEventListener('click', () => showEmailForm(email));
 
+      // Pro emails (or ?audience=pro) can switch between the two products. The
+      // discount only ever touches the 12-week price — the cert shows its own
+      // mid-cohort price (sticker base struck → your price), never discounted.
+      const hasCert = !!(status.is_pro && status.cert);
+      let selectedOffer: OfferId = '12week';
       let selectedPlan: Plan = 'full';
+
+      // The pricing "view" for whichever offer is currently selected.
+      function view() {
+        if (selectedOffer === 'cert' && status.cert) {
+          const c = status.cert;
+          return {
+            cur: c.currency,
+            hasStrike: c.base_price_cents > c.price_cents,
+            wasCents: c.base_price_cents,
+            nowCents: c.price_cents,
+            monthlyWasCents: 0,
+            monthlyNowCents: c.monthly_cents,
+            count: c.installment_count,
+            badgeText: 'Practitioner certification',
+            offerName: 'Certification',
+            discountOff: '',
+            showCountdown: false,
+          };
+        }
+        const d = status.discount;
+        return {
+          cur: status.currency,
+          hasStrike: d.eligible,
+          wasCents: status.price_cents,
+          nowCents: d.eligible ? d.price_cents : status.price_cents,
+          monthlyWasCents: status.installment_monthly_cents,
+          monthlyNowCents: d.eligible ? d.monthly_cents : status.installment_monthly_cents,
+          count: status.installment_count,
+          badgeText: d.eligible
+            ? (d.kind === 'override' ? `${d.percent}% off` : `Workshop discount — ${d.percent}% off`)
+            : '',
+          offerName: '12-Week Course',
+          discountOff: d.eligible ? ` (${d.percent}% off)` : '',
+          showCountdown: d.eligible && d.kind === 'post' && !!d.expires_at_ms,
+        };
+      }
+
+      // ---- Offer picker (pro only): 12-Week Course vs Certification
+      const offersWrap = q('[data-slot="offers-wrap"]') as HTMLElement;
+      const offersEl = q('[data-slot="offers"]') as HTMLElement;
+      const renderOffers = () => {
+        if (!hasCert) { offersWrap.hidden = true; return; }
+        offersWrap.hidden = false;
+        const d = status.discount;
+        const cur12 = status.currency;
+        const now12 = d.eligible ? d.price_cents : status.price_cents;
+        const amount12 = d.eligible
+          ? `<span class="tw-amount-strike">${money(status.price_cents, cur12)}</span>${money(now12, cur12)}`
+          : money(now12, cur12);
+        const c = status.cert!;
+        const amountCert = c.base_price_cents > c.price_cents
+          ? `<span class="tw-amount-strike">${money(c.base_price_cents, c.currency)}</span>${money(c.price_cents, c.currency)}`
+          : money(c.price_cents, c.currency);
+
+        const card = (offer: OfferId, title: string, sub: string, amountHtml: string) => {
+          const el = document.createElement('button');
+          el.type = 'button';
+          el.className = 'tw-reg-plan' + (offer === selectedOffer ? ' tw-reg-plan--selected' : '');
+          el.dataset.offer = offer;
+          el.innerHTML =
+            `<span class="tw-reg-plan-radio" aria-hidden="true"></span>` +
+            `<span class="tw-reg-plan-text"><span class="tw-reg-plan-title">${escapeHtml(title)}</span>` +
+            `<span class="tw-reg-plan-sub">${escapeHtml(sub)}</span></span>` +
+            `<span class="tw-reg-plan-amount">${amountHtml}</span>`;
+          el.addEventListener('click', () => {
+            if (selectedOffer === offer) return;
+            selectedOffer = offer;
+            selectedPlan = 'full';
+            offersEl.querySelectorAll<HTMLElement>('.tw-reg-plan').forEach((p) =>
+              p.classList.toggle('tw-reg-plan--selected', p.dataset.offer === selectedOffer));
+            renderPrice(); renderPlans(); renderSummary();
+          });
+          return el;
+        };
+
+        offersEl.replaceChildren(
+          card('12week', 'The 12-Week Course', 'Self-paced + live weekly Q&A', amount12),
+          card('cert', 'Certification Course', 'Live practitioner training', amountCert),
+        );
+      };
 
       // ---- Price box + badge + countdown
       const renderPrice = () => {
-        const d = status.discount;
-        const fullNow = d.eligible ? d.price_cents : status.price_cents;
+        const v = view();
         const badge = q('[data-slot="badge"]') as HTMLElement;
         const was = q('[data-slot="was"]') as HTMLElement;
         const now = q('[data-slot="now"]') as HTMLElement;
         const pricenote = q('[data-slot="pricenote"]') as HTMLElement;
         const countdown = q('[data-slot="countdown"]') as HTMLElement;
 
-        now.textContent = money(fullNow, status.currency);
-        if (d.eligible) {
+        now.textContent = money(v.nowCents, v.cur);
+        if (v.hasStrike) {
           was.hidden = false;
-          was.textContent = money(status.price_cents, status.currency);
-          badge.hidden = false;
-          (q('[data-slot="badge-text"]') as HTMLElement).textContent =
-            `Workshop discount — ${d.percent}% off`;
+          was.textContent = money(v.wasCents, v.cur);
         } else {
-          was.hidden = true; badge.hidden = true;
+          was.hidden = true;
         }
-        const monthlyNow = d.eligible ? d.monthly_cents : status.installment_monthly_cents;
-        pricenote.textContent = `One payment · or ${status.installment_count} monthly payments of ${money(monthlyNow, status.currency)}`;
+        if (v.badgeText) {
+          badge.hidden = false;
+          (q('[data-slot="badge-text"]') as HTMLElement).textContent = v.badgeText;
+        } else {
+          badge.hidden = true;
+        }
+        pricenote.textContent = `One payment · or ${v.count} monthly payments of ${money(v.monthlyNowCents, v.cur)}`;
 
-        // Post-workshop 48h window → live countdown; on expiry, re-price.
-        if (d.eligible && d.kind === 'post' && d.expires_at_ms) {
+        // Post-workshop 48h window (12-week only) → live countdown; on expiry, re-price.
+        window.clearInterval(countdownTimer);
+        if (v.showCountdown) {
+          const expires = status.discount.expires_at_ms as number;
           countdown.hidden = false;
           const clock = q('[data-slot="clock"]') as HTMLElement;
           const tick = async () => {
-            const left = (d.expires_at_ms as number) - Date.now();
+            const left = expires - Date.now();
             if (left <= 0) {
               window.clearInterval(countdownTimer);
               const fresh = await fetchStatus(email, status.country);
@@ -323,20 +444,15 @@ const includes = [
       // ---- Plan picker
       const plansEl = q('[data-slot="plans"]') as HTMLElement;
       const renderPlans = () => {
-        const d = status.discount;
-        const cur = status.currency;
-        const fullBase = status.price_cents;
-        const fullNow = d.eligible ? d.price_cents : fullBase;
-        const monBase = status.installment_monthly_cents;
-        const monNow = d.eligible ? d.monthly_cents : monBase;
-        const count = status.installment_count;
-
-        const fullAmount = d.eligible
-          ? `<span class="tw-amount-strike">${money(fullBase, cur)}</span>${money(fullNow, cur)}`
-          : money(fullNow, cur);
-        const monAmount = d.eligible
-          ? `<span class="tw-amount-strike">${money(monBase, cur)}/mo</span>${money(monNow, cur)}/mo`
-          : `${money(monNow, cur)}/mo`;
+        const v = view();
+        const cur = v.cur;
+        const fullAmount = v.hasStrike
+          ? `<span class="tw-amount-strike">${money(v.wasCents, cur)}</span>${money(v.nowCents, cur)}`
+          : money(v.nowCents, cur);
+        const monStrike = v.monthlyWasCents > v.monthlyNowCents;
+        const monAmount = monStrike
+          ? `<span class="tw-amount-strike">${money(v.monthlyWasCents, cur)}/mo</span>${money(v.monthlyNowCents, cur)}/mo`
+          : `${money(v.monthlyNowCents, cur)}/mo`;
 
         const opt = (plan: Plan, title: string, sub: string, amountHtml: string) => {
           const el = document.createElement('button');
@@ -359,8 +475,8 @@ const includes = [
 
         plansEl.replaceChildren(
           opt('full', 'Pay in full', 'One payment · lifetime access', fullAmount),
-          opt('3x', `${count} monthly payments`,
-            `${money(monNow, cur)}/mo × ${count} (${money(monNow * count, cur)} total)`, monAmount),
+          opt('3x', `${v.count} monthly payments`,
+            `${money(v.monthlyNowCents, cur)}/mo × ${v.count} (${money(v.monthlyNowCents * v.count, cur)} total)`, monAmount),
         );
       };
 
@@ -368,16 +484,14 @@ const includes = [
       const sumLabel = q('[data-slot="sum-label"]') as HTMLElement;
       const sumAmount = q('[data-slot="sum-amount"]') as HTMLElement;
       const renderSummary = () => {
-        const d = status.discount;
-        const cur = status.currency;
+        const v = view();
+        const cur = v.cur;
         if (selectedPlan === '3x') {
-          const mon = d.eligible ? d.monthly_cents : status.installment_monthly_cents;
-          sumLabel.textContent = `${status.installment_count} monthly payments${d.eligible ? ` (${d.percent}% off)` : ''}`;
-          sumAmount.textContent = `${money(mon, cur)}/mo`;
+          sumLabel.textContent = `${v.offerName} · ${v.count} monthly payments${v.discountOff}`;
+          sumAmount.textContent = `${money(v.monthlyNowCents, cur)}/mo`;
         } else {
-          const full = d.eligible ? d.price_cents : status.price_cents;
-          sumLabel.textContent = `One payment${d.eligible ? ` (${d.percent}% off)` : ''}`;
-          sumAmount.textContent = money(full, cur);
+          sumLabel.textContent = `${v.offerName} · one payment${v.discountOff}`;
+          sumAmount.textContent = money(v.nowCents, cur);
         }
       };
 
@@ -428,7 +542,7 @@ const includes = [
             if ('currency' in fresh) {
               // Keep whatever the buyer has typed; just refresh prices.
               status = fresh;
-              renderPrice(); renderPlans(); renderSummary();
+              renderOffers(); renderPrice(); renderPlans(); renderSummary();
             }
           }, 300);
         } else {
@@ -459,16 +573,36 @@ const includes = [
         const label = cta.innerHTML;
         cta.disabled = true; cta.innerHTML = '<span>Opening secure checkout…</span>';
         try {
-          const res = await fetch('/api/courses/twelve-week-checkout', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              email, first_name: first, last_name: last, country,
-              phone_country: phoneCountry, phone,
-              company_name: company || undefined, vat_number: vat || undefined,
-              payment_plan: selectedPlan, consent_terms: true,
-            }),
-          });
+          // Cert selected → the shared course checkout (cc-cert, never discounted).
+          // Otherwise the 12-week checkout, which re-derives the workshop /
+          // ?discount= price server-side.
+          const res = selectedOffer === 'cert' && status.cert
+            ? await fetch('/api/courses/checkout', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  product_slug: 'cc-cert',
+                  payment_plan: selectedPlan,
+                  currency: status.cert.currency,
+                  email, first_name: first, last_name: last, country,
+                  phone_country: phoneCountry, phone,
+                  company_name: company || undefined, vat_number: vat || undefined,
+                  activate_choice: 'now',
+                  source_variant: 'twelveweek',
+                  consent_terms: true,
+                }),
+              })
+            : await fetch('/api/courses/twelve-week-checkout', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  email, first_name: first, last_name: last, country,
+                  phone_country: phoneCountry, phone,
+                  company_name: company || undefined, vat_number: vat || undefined,
+                  payment_plan: selectedPlan, consent_terms: true,
+                  discount_percent: urlDiscount || undefined,
+                }),
+              });
           let body: { checkout_url?: string; error?: string } = {};
           try { body = await res.json(); } catch {}
           if (!res.ok || !body.checkout_url) {
@@ -483,6 +617,7 @@ const includes = [
         }
       });
 
+      renderOffers();
       renderPrice();
       renderPlans();
       renderSummary();

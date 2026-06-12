@@ -29,16 +29,20 @@ import {
 } from '../../../lib/registrations/stripe';
 import { findCountry } from '../../../lib/countries';
 import { formatMoney } from '../../../lib/workshops/currency';
-import { listSecuredWorkshopLinksByEmail } from '../../../lib/workshops/db';
+import {
+  listSecuredWorkshopLinksByEmail,
+  listReplayViewAnchorsByEmail,
+} from '../../../lib/workshops/db';
 import {
   twelveWeekCurrencyForCountry,
   priceCents,
   monthlyCents,
-  applyDiscountCents,
+  applyPercentCents,
   bestDiscountStatus,
   anchorMsFromWorkshop,
+  effectiveTwelveWeekDiscount,
+  parseUrlDiscountPercent,
   TWELVE_WEEK_PRODUCT_SLUG,
-  DISCOUNT_PERCENT,
   INSTALLMENT_COUNT,
 } from '../../../lib/courses/twelve-week';
 
@@ -57,6 +61,7 @@ type Body = {
   vat_number?: string;
   payment_plan?: string;
   consent_terms?: boolean;
+  discount_percent?: number | string;
 };
 
 export const POST: APIRoute = async ({ request, locals }) => {
@@ -112,23 +117,37 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // Currency follows the buyer's country (so headline and charge agree).
     const currency = twelveWeekCurrencyForCountry(countryCode);
 
-    // Re-derive the workshop discount independently of the client.
+    // Re-derive the discount independently of the client. A `?discount=N`
+    // override (1–99) wins over the automatic workshop discount; otherwise the
+    // workshop window (incl. replay-view anchors) decides. The override is
+    // deliberately permissive — whoever holds the URL controls the price.
+    const overridePercent = parseUrlDiscountPercent(payload.discount_percent);
     const links = await listSecuredWorkshopLinksByEmail(env.DB, email);
-    const discount = bestDiscountStatus(
-      links.map((l) => anchorMsFromWorkshop(l.starts_at_utc, l.ends_at_utc)),
+    const replayAnchors = await listReplayViewAnchorsByEmail(env.DB, email);
+    const workshopStatus = bestDiscountStatus(
+      [
+        ...links.map((l) => anchorMsFromWorkshop(l.starts_at_utc, l.ends_at_utc)),
+        ...replayAnchors,
+      ],
       Date.now(),
     );
+    const discount = effectiveTwelveWeekDiscount(workshopStatus, overridePercent);
     const eligible = discount.eligible;
+    const discountPercent = discount.percent;
 
     const baseFull = priceCents(currency);
     const baseMonthly = monthlyCents(currency);
-    const chargedFull = eligible ? applyDiscountCents(baseFull) : baseFull;
-    const chargedMonthly = eligible ? applyDiscountCents(baseMonthly) : baseMonthly;
+    const chargedFull = applyPercentCents(baseFull, discountPercent);
+    const chargedMonthly = applyPercentCents(baseMonthly, discountPercent);
 
     const totalAmountCents =
       paymentPlan === '3x' ? chargedMonthly * INSTALLMENT_COUNT : chargedFull;
     const installmentsTotal = paymentPlan === '3x' ? INSTALLMENT_COUNT : 1;
-    const sourceVariant = eligible ? `workshop-${discount.kind}` : 'direct';
+    const sourceVariant = eligible
+      ? discount.kind === 'override'
+        ? `override-${discountPercent}`
+        : `workshop-${discount.kind}`
+      : 'direct';
 
     const phoneCountry = findCountry(phoneCountryCode);
     const phoneE164 = phoneCountry
@@ -217,7 +236,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       ...(vatNumber ? { vat_number: vatNumber } : {}),
       ...(eligible
         ? {
-            discount_percent: String(DISCOUNT_PERCENT),
+            discount_percent: String(discountPercent),
             discount_kind: discount.kind,
             original_amount_cents: String(
               paymentPlan === '3x' ? baseMonthly * INSTALLMENT_COUNT : baseFull,
@@ -270,7 +289,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
           monthly_amount_cents: chargedMonthly,
           installments_total: INSTALLMENT_COUNT,
           discount_kind: eligible ? discount.kind : null,
-          discount_percent: eligible ? DISCOUNT_PERCENT : 0,
+          discount_percent: eligible ? discountPercent : 0,
           original_monthly_amount_cents: baseMonthly,
         },
       });
@@ -313,7 +332,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         currency,
         amount_cents: chargedFull,
         discount_kind: eligible ? discount.kind : null,
-        discount_percent: eligible ? DISCOUNT_PERCENT : 0,
+        discount_percent: eligible ? discountPercent : 0,
         original_amount_cents: baseFull,
       },
     });

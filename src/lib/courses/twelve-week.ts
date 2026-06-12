@@ -90,6 +90,29 @@ export function applyDiscountCents(cents: number): number {
   return Math.round((cents * (100 - DISCOUNT_PERCENT)) / 100);
 }
 
+// Apply an arbitrary percentage off a cents amount (rounded to nearest cent).
+// Used for the URL `?discount=N` override, which can be any integer 1–99.
+export function applyPercentCents(cents: number, percent: number): number {
+  if (percent <= 0) return cents;
+  return Math.round((cents * (100 - percent)) / 100);
+}
+
+// URL-driven discount override (`?discount=N`). Any integer 1–99 is honoured
+// and *overrides* the automatic workshop discount; anything else (0, ≥100,
+// NaN, negative) means "no override". Mirrors the certification page's
+// `?discount=` so both funnels behave identically. (100% isn't supported —
+// Stripe Checkout can't take a zero charge.)
+export function parseUrlDiscountPercent(raw: unknown): number {
+  const n =
+    typeof raw === 'number'
+      ? raw
+      : typeof raw === 'string'
+        ? parseInt(raw, 10)
+        : NaN;
+  if (Number.isInteger(n) && n >= 1 && n <= 99) return n;
+  return 0;
+}
+
 export type DiscountKind = 'pre' | 'post' | 'none';
 
 export type DiscountStatus = {
@@ -159,4 +182,35 @@ export function anchorMsFromWorkshop(
   const raw = endsAtUtc || startsAtUtc;
   const ms = Date.parse(raw);
   return Number.isFinite(ms) ? ms : null;
+}
+
+// The discount that actually applies to the 12-week price, after a possible
+// URL override. A `?discount=N` override (1–99) always wins over the automatic
+// workshop discount and carries no countdown; otherwise the workshop window
+// decides (20% off, with the 48h countdown only for the post-workshop window).
+// The override percent is the source of truth for the charge, so the server
+// re-derives it the same way the status endpoint reports it.
+export type EffectiveDiscount = {
+  eligible: boolean;
+  percent: number; // 0 when not eligible
+  kind: DiscountKind | 'override';
+  expiresAtMs: number | null;
+};
+
+export function effectiveTwelveWeekDiscount(
+  workshop: DiscountStatus,
+  overridePercent: number,
+): EffectiveDiscount {
+  if (overridePercent >= 1 && overridePercent <= 99) {
+    return { eligible: true, percent: overridePercent, kind: 'override', expiresAtMs: null };
+  }
+  if (workshop.eligible) {
+    return {
+      eligible: true,
+      percent: DISCOUNT_PERCENT,
+      kind: workshop.kind,
+      expiresAtMs: workshop.expiresAtMs,
+    };
+  }
+  return { eligible: false, percent: 0, kind: 'none', expiresAtMs: null };
 }

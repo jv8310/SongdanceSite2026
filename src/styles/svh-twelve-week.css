@@ -731,6 +731,11 @@ html, body { background: var(--paper); }
   color: var(--paper); font-variant-numeric: tabular-nums;
 }
 
+/* Offer picker (pro only): 12-Week Course vs Certification */
+.tw-reg-offers-wrap[hidden] { display: none; }
+.tw-reg-offers-wrap { margin-bottom: var(--sp-2); }
+.tw-reg-offers-wrap .tw-reg-steplabel { margin-top: 0; }
+
 /* Plan picker (full vs. 3 monthly) */
 .tw-reg-steplabel {
   font-family: var(--font-mono); font-size: 10px;

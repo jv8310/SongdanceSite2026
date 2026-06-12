@@ -216,6 +216,23 @@ const countries = COUNTRIES;
     installments?: InstallmentPlan;
   };
   type Variant = 'B1' | 'B2' | 'A' | 'D' | 'E' | 'C';
+  // The discounted 12-week course offered inline on the cert page when the
+  // email has a live workshop discount. The discount only touches this price;
+  // the cert/bundle offers are unaffected.
+  type TwelveWeekOffer = {
+    currency: string;
+    base_full_cents: number;
+    price_cents: number;
+    base_monthly_cents: number;
+    monthly_cents: number;
+    installment_count: number;
+    discount: {
+      eligible: boolean;
+      percent: number;
+      kind: 'pre' | 'post' | 'none' | 'override';
+      expires_at_ms: number | null;
+    };
+  };
   type Decision = {
     variant: Variant;
     currency: Currency;
@@ -223,12 +240,27 @@ const countries = COUNTRIES;
     twelve_week_week?: number;
     can_activate_now?: boolean;
     course_portal_url?: string;
+    twelve_week_offer?: TwelveWeekOffer;
     first_name?: string;
     last_name?: string;
     country?: string;
     phone?: string;
   };
   type PaymentPlan = 'full' | '3x';
+
+  // Money formatter that copes with all 12-week currencies (the cert helpers
+  // only handle EUR/USD/GBP).
+  const TW_SYM: Record<string, string> = {
+    EUR: '€', USD: '$', GBP: '£', CAD: 'CA$', CHF: 'CHF ',
+    NOK: 'kr ', SEK: 'kr ', DKK: 'kr ', AUD: 'A$', NZD: 'NZ$',
+  };
+  function twMoney(cents: number, cur: string): string {
+    const major = cents / 100;
+    const sym = TW_SYM[cur] ?? '';
+    const body = Number.isInteger(major) ? String(major) : major.toFixed(2);
+    return sym ? `${sym}${body}` : `${body} ${cur}`;
+  }
+  let twCountdownTimer: number | undefined;
 
   type CopyFn = (
     week?: number,
@@ -372,7 +404,7 @@ const countries = COUNTRIES;
       const res = await fetch('/api/courses/subscriber-status', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, discount_percent: discountPct || undefined }),
       });
       const body = (await res.json()) as Decision | { error: string };
       if (!res.ok || !('variant' in body)) {
@@ -580,25 +612,35 @@ const countries = COUNTRIES;
     // resolved code also drives the displayed currency: US → USD, GB → GBP,
     // everywhere else → EUR. We debounce-refresh prices when it changes so
     // typing "United Kingdom" character-by-character doesn't fire 14 fetches.
+    // We refresh on any *country* change (not just when the cert currency
+    // EUR/USD/GBP flips), because the inline 12-week offer is priced per
+    // country across a wider currency set — so its price must follow the
+    // exact country the buyer picks, matching what they're charged.
     let currencyRefreshTimer: number | undefined;
-    let inFlightCurrency: Currency | null = null;
-    async function refreshCurrency(target: Currency) {
-      if (target === decision.currency) return;
-      if (target === inFlightCurrency) return;
-      inFlightCurrency = target;
+    let inFlightCountry: string | null = null;
+    let lastCountry = (decision.country || '').toUpperCase();
+    async function refreshForCountry(code: string) {
+      const target = currencyForCountry(code);
+      inFlightCountry = code;
       try {
         const res = await fetch('/api/courses/subscriber-status', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, currency: target }),
+          body: JSON.stringify({
+            email,
+            currency: target,
+            country: code,
+            discount_percent: discountPct || undefined,
+          }),
         });
         const next = (await res.json()) as Decision | { error?: string };
         if (!('offers' in next) || !next.offers) return;
         // Only apply if the buyer hasn't moved on to yet another country
         // while we were waiting.
-        if (target !== inFlightCurrency) return;
+        if (code !== inFlightCountry) return;
         decision.currency = next.currency;
         decision.offers = next.offers;
+        decision.twelve_week_offer = (next as Decision).twelve_week_offer;
         try {
           localStorage.setItem(
             STORAGE_KEY,
@@ -608,17 +650,19 @@ const countries = COUNTRIES;
         renderOfferCards();
         renderPlanOptions();
         renderSummary();
+        renderTwUnlock();
       } catch {
         // Network blip — leave the existing prices in place.
       } finally {
-        if (target === inFlightCurrency) inFlightCurrency = null;
+        if (code === inFlightCountry) inFlightCountry = null;
       }
     }
     function scheduleCurrencyRefresh(code: string) {
-      const target = currencyForCountry(code);
-      if (target === decision.currency) return;
+      const up = code.toUpperCase();
+      if (up === lastCountry) return;
+      lastCountry = up;
       window.clearTimeout(currencyRefreshTimer);
-      currencyRefreshTimer = window.setTimeout(() => refreshCurrency(target), 250);
+      currencyRefreshTimer = window.setTimeout(() => refreshForCountry(up), 250);
     }
 
     const resolveCountry = () => {
@@ -775,6 +819,150 @@ const countries = COUNTRIES;
 
     renderPlanOptions();
     renderSummary();
+
+    // Inline discounted 12-week course (the "other way around" cross-sell).
+    // Shown only when the email has a live workshop discount; reuses the shared
+    // form fields and hands off to the 12-week checkout. The cert/bundle offers
+    // above are untouched — the discount only ever reduces the 12-week price.
+    const bodyEl = root.querySelector('[data-slot="body"]') as HTMLElement;
+    let selectedTwPlan: PaymentPlan = 'full';
+    function renderTwUnlock() {
+      root.querySelector('.cc-tw-unlock')?.remove();
+      window.clearInterval(twCountdownTimer);
+      const offer = decision.twelve_week_offer;
+      if (!offer || !offer.discount.eligible) return;
+
+      const cur = offer.currency;
+      const d = offer.discount;
+      const badgeText =
+        d.kind === 'override' ? `${d.percent}% off` : `Workshop discount — ${d.percent}% off`;
+      const block = document.createElement('div');
+      block.className = 'cc-tw-unlock';
+      block.innerHTML = `
+        <div class="cc-tw-unlock-badge"><span class="dot" aria-hidden="true"></span><span>${escapeHtml(badgeText)}</span></div>
+        <div class="cc-tw-unlock-head">Your workshop unlocks the 12-Week Course</div>
+        <div class="cc-tw-unlock-price">
+          <span class="cc-tw-unlock-was">${escapeHtml(twMoney(offer.base_full_cents, cur))}</span>
+          <span class="cc-tw-unlock-now">${escapeHtml(twMoney(offer.price_cents, cur))}</span>
+        </div>
+        <div class="cc-tw-unlock-countdown" data-cd hidden>
+          <i class="ph-light ph-hourglass-medium" aria-hidden="true"></i>
+          <span>Discount ends in <span class="clock" data-clock>--:--:--</span></span>
+        </div>
+        <div class="cc-tw-unlock-plans" data-twplans></div>
+        <button type="button" class="cc-tw-unlock-cta" data-twbuy>
+          <span>Get the 12-Week Course</span>
+          <i class="ph-light ph-arrow-right" aria-hidden="true"></i>
+        </button>
+        <p class="cc-tw-unlock-msg" data-twmsg></p>
+      `;
+      bodyEl.insertAdjacentElement('afterend', block);
+
+      // Plan toggle (full / 3x), both at the discounted rate.
+      const plansHost = block.querySelector('[data-twplans]') as HTMLElement;
+      const planBtn = (plan: PaymentPlan, title: string, amountHtml: string) => {
+        const el = document.createElement('button');
+        el.type = 'button';
+        el.className = 'cc-tw-plan' + (plan === selectedTwPlan ? ' cc-tw-plan--selected' : '');
+        el.dataset.twplan = plan;
+        el.innerHTML =
+          `<span class="cc-tw-plan-radio" aria-hidden="true"></span>` +
+          `<span class="cc-tw-plan-title">${escapeHtml(title)}</span>` +
+          `<span class="cc-tw-plan-amount">${amountHtml}</span>`;
+        el.addEventListener('click', () => {
+          selectedTwPlan = plan;
+          plansHost.querySelectorAll<HTMLElement>('.cc-tw-plan').forEach((p) =>
+            p.classList.toggle('cc-tw-plan--selected', p.dataset.twplan === selectedTwPlan));
+        });
+        return el;
+      };
+      const fullHtml =
+        `<span class="cc-amount-strike">${escapeHtml(twMoney(offer.base_full_cents, cur))}</span> ${escapeHtml(twMoney(offer.price_cents, cur))}`;
+      const monStrike = offer.base_monthly_cents > offer.monthly_cents;
+      const monHtml = monStrike
+        ? `<span class="cc-amount-strike">${escapeHtml(twMoney(offer.base_monthly_cents, cur))}/mo</span> ${escapeHtml(twMoney(offer.monthly_cents, cur))}/mo`
+        : `${escapeHtml(twMoney(offer.monthly_cents, cur))}/mo`;
+      plansHost.replaceChildren(
+        planBtn('full', 'Pay in full', fullHtml),
+        planBtn('3x', `${offer.installment_count} monthly`, monHtml),
+      );
+
+      // Countdown (post-workshop 48h window only).
+      if (d.kind === 'post' && d.expires_at_ms) {
+        const cd = block.querySelector('[data-cd]') as HTMLElement;
+        const clock = block.querySelector('[data-clock]') as HTMLElement;
+        cd.hidden = false;
+        const tick = () => {
+          const left = (d.expires_at_ms as number) - Date.now();
+          if (left <= 0) {
+            window.clearInterval(twCountdownTimer);
+            block.remove();
+            decision.twelve_week_offer = undefined;
+            return;
+          }
+          const s = Math.floor(left / 1000);
+          const hh = String(Math.floor(s / 3600)).padStart(2, '0');
+          const mm = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
+          const ss = String(s % 60).padStart(2, '0');
+          clock.textContent = `${hh}:${mm}:${ss}`;
+        };
+        tick();
+        twCountdownTimer = window.setInterval(tick, 1000);
+      }
+
+      // Buy → reuse the shared form fields, hand off to the 12-week checkout.
+      const buyBtn = block.querySelector('[data-twbuy]') as HTMLButtonElement;
+      const msg = block.querySelector('[data-twmsg]') as HTMLElement;
+      buyBtn.addEventListener('click', async () => {
+        msg.textContent = '';
+        const get = (n: string) =>
+          String(root.querySelector<HTMLInputElement>(`[name="${n}"]`)?.value ?? '').trim();
+        const first = get('first_name'), last = get('last_name');
+        const country = get('country'), phoneCountry = get('phone_country'), phone = get('phone');
+        const company = get('company_name'), vat = get('vat_number');
+        const consent = root.querySelector<HTMLInputElement>('[name="consent_terms"]')!.checked;
+        const fail = (m: string) => {
+          msg.textContent = m;
+          msg.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        };
+        if (!first || !last) return fail('Please add your first and last name below.');
+        if (!country) return fail('Please select your country from the list below.');
+        if (!phoneCountry || !phone) return fail('Please enter a phone number with country code below.');
+        if (vat && !company) return fail('Please add your company name to use a VAT number.');
+        if (!consent) return fail('Please agree to the terms below to continue.');
+
+        const label = buyBtn.innerHTML;
+        buyBtn.disabled = true;
+        buyBtn.innerHTML = '<span>Opening secure checkout…</span>';
+        try {
+          const res = await fetch('/api/courses/twelve-week-checkout', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email, first_name: first, last_name: last, country,
+              phone_country: phoneCountry, phone,
+              company_name: company || undefined, vat_number: vat || undefined,
+              payment_plan: selectedTwPlan, consent_terms: true,
+              discount_percent: discountPct || undefined,
+            }),
+          });
+          let resBody: { checkout_url?: string; error?: string } = {};
+          try { resBody = await res.json(); } catch {}
+          if (!res.ok || !resBody.checkout_url) {
+            fail(resBody.error || `Could not start checkout (HTTP ${res.status}). Please try again.`);
+            buyBtn.disabled = false;
+            buyBtn.innerHTML = label;
+            return;
+          }
+          window.location.href = resBody.checkout_url;
+        } catch {
+          fail('We could not reach the server. Please try again.');
+          buyBtn.disabled = false;
+          buyBtn.innerHTML = label;
+        }
+      });
+    }
+    renderTwUnlock();
 
     // Single bottom CTA: collects all the form state + selection state and
     // hands off to /api/courses/checkout.
