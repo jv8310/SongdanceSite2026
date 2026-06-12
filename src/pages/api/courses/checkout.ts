@@ -8,9 +8,11 @@
 // offered the bundle vs. cert-only.
 //
 // payment_plan:
-//   'full' → one-off PaymentIntent via Stripe Checkout (mode=payment)
-//   '3x'   → monthly Subscription via Stripe Checkout (mode=subscription),
-//            cancels itself after 3 invoices
+//   'full'        → one-off PaymentIntent via Stripe Checkout (mode=payment)
+//   '3x'/'6x'/'12x' → monthly Subscription via Stripe Checkout
+//                   (mode=subscription), cancels itself after N invoices.
+//                   The 12-month ladder is hidden on the page unless the
+//                   visitor arrives with `?installment=12`.
 //
 // Tax / Quaderno: every line item carries product_metadata.tax_class =
 // 'eservice'. The Quaderno-Stripe sync reads this to apply destination-VAT
@@ -57,6 +59,7 @@ function installmentPlanFor(
 ): InstallmentPlan | undefined {
   if (paymentPlan === '3x') return offer.installments;
   if (paymentPlan === '6x') return offer.installments_6x;
+  if (paymentPlan === '12x') return offer.installments_12x;
   return undefined;
 }
 
@@ -132,7 +135,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
         ? '3x'
         : payload.payment_plan === '6x'
           ? '6x'
-          : 'full';
+          : payload.payment_plan === '12x'
+            ? '12x'
+            : 'full';
     const currency: Currency =
       payload.currency === 'USD'
         ? 'USD'
@@ -302,7 +307,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       });
       // For subscription mode the customer is mandatory — bail with a
       // visible error instead of silently falling back to customer_email.
-      if (paymentPlan === '3x') {
+      if (paymentPlan !== 'full') {
         return json(
           {
             error:
@@ -337,9 +342,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
         : {}),
     };
 
-    // Preserve the discount on the cancel URL so the buyer's price doesn't
-    // silently jump back to full if they bail out and try again.
-    const cancelQuery = discountPct > 0 ? `?discount=${discountPct}` : '';
+    // Preserve the discount — and the hidden 12-month unlock — on the cancel
+    // URL so the buyer's price (and the plan they picked) doesn't silently
+    // reset if they bail out and try again.
+    const cancelParams = new URLSearchParams();
+    if (discountPct > 0) cancelParams.set('discount', String(discountPct));
+    if (paymentPlan === '12x') cancelParams.set('installment', '12');
+    const cancelQuery = cancelParams.toString() ? `?${cancelParams.toString()}` : '';
     const successUrl = `${baseUrl}/courses/certification/thanks?session_id={CHECKOUT_SESSION_ID}`;
 
     // tax_class metadata is attached to the underlying Stripe Product so

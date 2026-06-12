@@ -215,6 +215,7 @@ const countries = COUNTRIES;
     save_note: string;
     installments?: InstallmentPlan;     // 3 monthly payments
     installments_6x?: InstallmentPlan;  // 6 monthly payments
+    installments_12x?: InstallmentPlan; // 12 monthly payments (hidden by default)
   };
   type Variant = 'B1' | 'B2' | 'A' | 'D' | 'E' | 'C';
   type Decision = {
@@ -229,7 +230,7 @@ const countries = COUNTRIES;
     country?: string;
     phone?: string;
   };
-  type PaymentPlan = 'full' | '3x' | '6x';
+  type PaymentPlan = 'full' | '3x' | '6x' | '12x';
 
   type CopyFn = (
     week?: number,
@@ -252,6 +253,19 @@ const countries = COUNTRIES;
     return 0;
   }
   const discountPct: number = readDiscountFromUrl();
+
+  // The 12-month installment ladder is hidden unless the visitor arrives with
+  // `?installment=12`. It's a quieter, longer-financing option offered by
+  // hand (e.g. over email) rather than shown to everyone. Any other value
+  // leaves it hidden. The server still validates the plan independently.
+  function showTwelveMonthPlan(): boolean {
+    try {
+      const raw = new URLSearchParams(window.location.search).get('installment');
+      return raw != null && parseInt(raw, 10) === 12;
+    } catch {}
+    return false;
+  }
+  const show12x: boolean = showTwelveMonthPlan();
 
   function applyDiscountCents(cents: number): number {
     if (discountPct <= 0) return cents;
@@ -695,6 +709,7 @@ const countries = COUNTRIES;
     function ladderFor(offer: Offer, plan: PaymentPlan): InstallmentPlan | undefined {
       if (plan === '3x') return offer.installments;
       if (plan === '6x') return offer.installments_6x;
+      if (plan === '12x') return offer.installments_12x;
       return undefined;
     }
 
@@ -728,9 +743,14 @@ const countries = COUNTRIES;
         amountHtml: amountWithStrike(money(offer.price, cur), moneyCents(fullDiscCents, cur)),
       });
 
-      // One installment row per available ladder (3 monthly, then 6 monthly).
+      // One installment row per available ladder (3 monthly, then 6 monthly,
+      // and 12 monthly only when unlocked via `?installment=12`).
       const installmentRows: HTMLElement[] = [];
-      ([['3x', offer.installments], ['6x', offer.installments_6x]] as const).forEach(
+      ([
+        ['3x', offer.installments],
+        ['6x', offer.installments_6x],
+        ...(show12x ? [['12x', offer.installments_12x] as const] : []),
+      ] as const).forEach(
         ([value, ladder]) => {
           if (!ladder) return;
           const monthlyDiscCents = applyDiscountCents(ladder.monthly_cents);

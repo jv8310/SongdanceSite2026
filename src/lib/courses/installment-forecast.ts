@@ -8,7 +8,7 @@
 //      cancelled / unpaid / retrying plans surface for a closer eye.
 //
 // Data-model recap (see src/lib/courses/db.ts + the 12-week checkout):
-//   payment_plan        '3x' | '6x' | 'full'
+//   payment_plan        '3x' | '6x' | '12x' | 'full'
 //   amount_cents        TOTAL charged across the whole plan (per-installment
 //                       = amount_cents / installments_total)
 //   installments_total  number of monthly charges (e.g. 3)
