@@ -1,9 +1,20 @@
-// Statistics + ROAS for the workshop engine.
+// Statistics + ROAS for the workshop engine, plus standalone course sales.
 //
 // All money is reported in EUR minor units. The EUR conversion mirrors the
 // legacy stats: gross EUR = the Stripe settlement amount (payout currency),
 // and net-of-tax EUR = subtotal * (settlement / amount). Per-payment totals
-// are split across ticket / bump / course using the purchases line-item shares.
+// are split across ticket / masterclass / bump / course using the purchases
+// line-item shares. Masterclass tickets are classified by the product slug
+// (`svh-masterclass`) and split out of the regular ticket bucket.
+//
+// Standalone course sales (12-week, certification, grief) live in
+// `course_registrations`, which has no Stripe settlement or tax data — those
+// figures are the charged amount converted with the FX_TO_EUR fallback table
+// (gross of any VAT), attributed to the day of `paid_at`.
+
+import { FX_TO_EUR } from './currency';
+
+export const MASTERCLASS_PRODUCT_SLUG = 'svh-masterclass';
 
 type PaymentRow = {
   id: number;
@@ -24,17 +35,20 @@ type PurchaseRow = {
   product_type: string;
   product_id: number;
   amount_minor: number;
+  slug: string | null;
 };
 
 export type StatsTotals = {
   grossEurMinor: number;
-  netEurMinor: number; // tax-excluded, all product types
+  netEurMinor: number; // tax-excluded, all product types (incl. masterclass)
   taxEurMinor: number;
-  ticketNetEurMinor: number;
+  ticketNetEurMinor: number; // regular workshop tickets, masterclass excluded
+  masterclassNetEurMinor: number;
   bumpNetEurMinor: number;
-  courseNetEurMinor: number;
-  bumpCount: number;
+  courseNetEurMinor: number; // course add-ons sold through workshop checkout
   ticketCount: number;
+  masterclassCount: number;
+  bumpCount: number;
   courseCount: number;
   paidCount: number;
   flaggedNoTax: number; // rows where we fell back to net = gross
@@ -44,6 +58,10 @@ export type DailyStat = {
   date: string; // YYYY-MM-DD (UTC)
   grossEurMinor: number;
   netEurMinor: number;
+  ticketNetEurMinor: number;
+  masterclassNetEurMinor: number;
+  bumpNetEurMinor: number;
+  courseNetEurMinor: number;
   adSpendEurMinor: number;
   roas: number | null;
 };
@@ -103,15 +121,18 @@ export async function computeStats(
     .all<PaymentRow>();
   const payments = pRes.results ?? [];
 
-  // Purchases for those payments, grouped by payment_id.
+  // Purchases for those payments (with product slug, to spot masterclass
+  // tickets), grouped by payment_id.
   const byPayment = new Map<number, PurchaseRow[]>();
   if (payments.length) {
     const ids = payments.map((p) => p.id);
     const placeholders = ids.map(() => '?').join(',');
     const purRes = await db
       .prepare(
-        `SELECT payment_id, product_type, product_id, amount_minor
-           FROM workshop_purchases WHERE payment_id IN (${placeholders})`,
+        `SELECT pur.payment_id, pur.product_type, pur.product_id, pur.amount_minor, prod.slug
+           FROM workshop_purchases pur
+           LEFT JOIN workshop_products prod ON prod.id = pur.product_id
+          WHERE pur.payment_id IN (${placeholders})`,
       )
       .bind(...ids)
       .all<PurchaseRow>();
@@ -125,10 +146,12 @@ export async function computeStats(
 
   const totals: StatsTotals = {
     grossEurMinor: 0, netEurMinor: 0, taxEurMinor: 0,
-    ticketNetEurMinor: 0, bumpNetEurMinor: 0, courseNetEurMinor: 0,
-    bumpCount: 0, ticketCount: 0, courseCount: 0, paidCount: 0, flaggedNoTax: 0,
+    ticketNetEurMinor: 0, masterclassNetEurMinor: 0, bumpNetEurMinor: 0, courseNetEurMinor: 0,
+    ticketCount: 0, masterclassCount: 0, bumpCount: 0, courseCount: 0,
+    paidCount: 0, flaggedNoTax: 0,
   };
-  const dailyMap = new Map<string, { gross: number; net: number }>();
+  type DayAcc = { gross: number; net: number; ticket: number; masterclass: number; bump: number; course: number };
+  const dailyMap = new Map<string, DayAcc>();
   const courseMap = new Map<number, { count: number; net: number }>();
 
   for (const p of payments) {
@@ -141,10 +164,9 @@ export async function computeStats(
     if (flagged) totals.flaggedNoTax += 1;
 
     const date = (p.created_at || '').slice(0, 10);
-    const d = dailyMap.get(date) ?? { gross: 0, net: 0 };
+    const d = dailyMap.get(date) ?? { gross: 0, net: 0, ticket: 0, masterclass: 0, bump: 0, course: 0 };
     d.gross += gross;
     d.net += net;
-    dailyMap.set(date, d);
 
     // Allocate the payment's net across its line items by charged-amount share.
     const lines = byPayment.get(p.id) ?? [];
@@ -153,20 +175,30 @@ export async function computeStats(
       const share = lineTotal > 0 ? l.amount_minor / lineTotal : 0;
       const lineNet = Math.round(net * share);
       if (l.product_type === 'ticket') {
-        totals.ticketNetEurMinor += lineNet;
-        totals.ticketCount += 1;
+        if (l.slug === MASTERCLASS_PRODUCT_SLUG) {
+          totals.masterclassNetEurMinor += lineNet;
+          totals.masterclassCount += 1;
+          d.masterclass += lineNet;
+        } else {
+          totals.ticketNetEurMinor += lineNet;
+          totals.ticketCount += 1;
+          d.ticket += lineNet;
+        }
       } else if (l.product_type === 'bump') {
         totals.bumpNetEurMinor += lineNet;
         totals.bumpCount += 1;
+        d.bump += lineNet;
       } else if (l.product_type === 'course') {
         totals.courseNetEurMinor += lineNet;
         totals.courseCount += 1;
+        d.course += lineNet;
         const c = courseMap.get(l.product_id) ?? { count: 0, net: 0 };
         c.count += 1;
         c.net += lineNet;
         courseMap.set(l.product_id, c);
       }
     }
+    dailyMap.set(date, d);
   }
 
   // Ad spend over the same window.
@@ -195,12 +227,16 @@ export async function computeStats(
   const daily: DailyStat[] = [...allDates]
     .sort()
     .map((date) => {
-      const rev = dailyMap.get(date) ?? { gross: 0, net: 0 };
+      const rev = dailyMap.get(date) ?? { gross: 0, net: 0, ticket: 0, masterclass: 0, bump: 0, course: 0 };
       const spend = adByDate.get(date) ?? 0;
       return {
         date,
         grossEurMinor: rev.gross,
         netEurMinor: rev.net,
+        ticketNetEurMinor: rev.ticket,
+        masterclassNetEurMinor: rev.masterclass,
+        bumpNetEurMinor: rev.bump,
+        courseNetEurMinor: rev.course,
         adSpendEurMinor: spend,
         roas: spend > 0 ? rev.net / spend : null,
       };
@@ -217,4 +253,196 @@ export async function computeStats(
       netEurMinor: v.net,
     })),
   };
+}
+
+// ---------------------------------------------------------------------------
+// Standalone course sales (course_registrations): 12-week, certification,
+// grief. Sold outside the workshop engine, so no settlement/tax data —
+// figures are charged amounts (gross of VAT) at fallback FX rates.
+
+export type CourseGroup = 'twelve_week' | 'certification' | 'other';
+
+const COURSE_PRODUCT_INFO: Record<string, { group: CourseGroup; label: string }> = {
+  'svh-12week': { group: 'twelve_week', label: '12-Week SVH Course' },
+  'cc-cert': { group: 'certification', label: 'Certification — cert only' },
+  'cc-bundle': { group: 'certification', label: 'Certification — Foundation + Cert bundle' },
+  'grief-course': { group: 'other', label: 'The Grief Course' },
+};
+
+export type CourseDailyStat = {
+  date: string; // YYYY-MM-DD (UTC, from paid_at)
+  twelveWeekEurMinor: number;
+  certificationEurMinor: number;
+  otherEurMinor: number;
+};
+
+export type CourseSalesReport = {
+  twelveWeek: { count: number; netEurMinor: number };
+  certification: { count: number; netEurMinor: number };
+  other: { count: number; netEurMinor: number };
+  totalCount: number;
+  totalNetEurMinor: number;
+  byProduct: Array<{ slug: string; label: string; group: CourseGroup; count: number; netEurMinor: number }>;
+  daily: CourseDailyStat[];
+  fxConverted: number; // rows converted to EUR with the fallback rate table
+};
+
+type CourseRegRow = {
+  product_slug: string;
+  amount_cents: number;
+  currency: string;
+  payment_plan: string;
+  installments_paid: number;
+  installments_total: number;
+  refunded_amount_cents: number;
+  paid_at: string;
+};
+
+export async function computeCourseSales(
+  db: D1Database,
+  opts: { from?: string | null; to?: string | null } = {},
+): Promise<CourseSalesReport> {
+  // Anything that ever collected money: paid, plus refunded/cancelled rows
+  // (a cancelled 3x sub keeps the installments it already collected; the
+  // refunded amount is subtracted below).
+  const where: string[] = ['paid_at IS NOT NULL', "status NOT IN ('pending','expired')"];
+  const binds: unknown[] = [];
+  if (opts.from) { where.push('paid_at >= ?'); binds.push(opts.from); }
+  if (opts.to) { where.push('paid_at <= ?'); binds.push(`${opts.to} 23:59:59`); }
+
+  const res = await db
+    .prepare(
+      `SELECT product_slug, amount_cents, currency, payment_plan,
+              installments_paid, installments_total, refunded_amount_cents, paid_at
+         FROM course_registrations
+        WHERE ${where.join(' AND ')}`,
+    )
+    .bind(...binds)
+    .all<CourseRegRow>();
+
+  const report: CourseSalesReport = {
+    twelveWeek: { count: 0, netEurMinor: 0 },
+    certification: { count: 0, netEurMinor: 0 },
+    other: { count: 0, netEurMinor: 0 },
+    totalCount: 0,
+    totalNetEurMinor: 0,
+    byProduct: [],
+    daily: [],
+    fxConverted: 0,
+  };
+  const productMap = new Map<string, { count: number; net: number }>();
+  const dailyMap = new Map<string, { tw: number; cert: number; other: number }>();
+
+  for (const r of res.results ?? []) {
+    // Amount actually collected: 3x plans bill monthly, so scale the total by
+    // installments paid; one-off plans collected the full amount. Refunds
+    // (full or partial) come straight off.
+    const expected =
+      r.payment_plan === '3x' && r.installments_total > 0
+        ? Math.round(r.amount_cents * (r.installments_paid / r.installments_total))
+        : r.amount_cents;
+    const collected = Math.max(0, expected - (r.refunded_amount_cents ?? 0));
+
+    const cur = (r.currency || 'EUR').toUpperCase();
+    const rate = FX_TO_EUR[cur] ?? 1;
+    if (cur !== 'EUR') report.fxConverted += 1;
+    const eurMinor = Math.round(collected * rate);
+
+    const info = COURSE_PRODUCT_INFO[r.product_slug] ?? { group: 'other' as const, label: r.product_slug };
+    const bucket =
+      info.group === 'twelve_week' ? report.twelveWeek :
+      info.group === 'certification' ? report.certification : report.other;
+    bucket.count += 1;
+    bucket.netEurMinor += eurMinor;
+    report.totalCount += 1;
+    report.totalNetEurMinor += eurMinor;
+
+    const p = productMap.get(r.product_slug) ?? { count: 0, net: 0 };
+    p.count += 1;
+    p.net += eurMinor;
+    productMap.set(r.product_slug, p);
+
+    const date = (r.paid_at || '').slice(0, 10);
+    const d = dailyMap.get(date) ?? { tw: 0, cert: 0, other: 0 };
+    if (info.group === 'twelve_week') d.tw += eurMinor;
+    else if (info.group === 'certification') d.cert += eurMinor;
+    else d.other += eurMinor;
+    dailyMap.set(date, d);
+  }
+
+  report.byProduct = [...productMap.entries()]
+    .map(([slug, v]) => {
+      const info = COURSE_PRODUCT_INFO[slug] ?? { group: 'other' as const, label: slug };
+      return { slug, label: info.label, group: info.group, count: v.count, netEurMinor: v.net };
+    })
+    .sort((a, b) => b.netEurMinor - a.netEurMinor);
+
+  report.daily = [...dailyMap.entries()]
+    .sort(([a], [b]) => (a < b ? -1 : 1))
+    .map(([date, v]) => ({
+      date,
+      twelveWeekEurMinor: v.tw,
+      certificationEurMinor: v.cert,
+      otherEurMinor: v.other,
+    }));
+
+  return report;
+}
+
+// ---------------------------------------------------------------------------
+// Merged per-day revenue streams for charts / tables / CSV. Fills every day
+// between `from` and `to` (or the observed data range) so line charts have a
+// continuous x-axis.
+
+export type StreamDay = {
+  date: string;
+  workshopsEurMinor: number; // workshop engine net minus masterclass share
+  masterclassEurMinor: number;
+  twelveWeekEurMinor: number;
+  certificationEurMinor: number;
+  otherCoursesEurMinor: number;
+  totalEurMinor: number;
+  adSpendEurMinor: number;
+};
+
+function addDays(ymd: string, n: number): string {
+  const [y, m, d] = ymd.split('-').map((s) => parseInt(s, 10));
+  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
+}
+
+export function mergeDailyStreams(
+  workshops: StatsReport,
+  courses: CourseSalesReport,
+  from?: string | null,
+  to?: string | null,
+): StreamDay[] {
+  const wk = new Map(workshops.daily.map((d) => [d.date, d]));
+  const cr = new Map(courses.daily.map((d) => [d.date, d]));
+  const dates = [...wk.keys(), ...cr.keys()].sort();
+  const start = from ?? dates[0];
+  const end = to ?? dates[dates.length - 1];
+  if (!start || !end || start > end) return [];
+
+  const out: StreamDay[] = [];
+  for (let date = start; date <= end; date = addDays(date, 1)) {
+    const w = wk.get(date);
+    const c = cr.get(date);
+    const masterclass = w?.masterclassNetEurMinor ?? 0;
+    const workshopsNet = (w?.netEurMinor ?? 0) - masterclass;
+    const tw = c?.twelveWeekEurMinor ?? 0;
+    const cert = c?.certificationEurMinor ?? 0;
+    const other = c?.otherEurMinor ?? 0;
+    out.push({
+      date,
+      workshopsEurMinor: workshopsNet,
+      masterclassEurMinor: masterclass,
+      twelveWeekEurMinor: tw,
+      certificationEurMinor: cert,
+      otherCoursesEurMinor: other,
+      totalEurMinor: workshopsNet + masterclass + tw + cert + other,
+      adSpendEurMinor: w?.adSpendEurMinor ?? 0,
+    });
+    if (out.length > 3700) break; // hard cap ≈ 10 years; keeps "all time" sane
+  }
+  return out;
 }
