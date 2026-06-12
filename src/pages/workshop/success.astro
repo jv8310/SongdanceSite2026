@@ -43,11 +43,14 @@ const startMs = workshop ? new Date(workshop.starts_at_utc).getTime() : 0;
 const win = workshop && !workshop.is_replay ? joinWindow(workshop.starts_at_utc) : 'open';
 const hasReplay = !!(await getConfig(env.DB, 'replay_video_url'));
 
-// "Share with a friend" — a half-price link for this workshop. The public
-// ?discount=50 param is the one publicly-honored value, so the link is safe
-// to pass anywhere; it takes 50% off the ticket (never the bump).
+// "Share with a friend" — a half-price link that lands on the full workshop
+// page (not a single date's form), so the friend can pick any upcoming date.
+// The public ?discount=50 param is the one publicly-honored value, so the link
+// is safe to pass anywhere; it takes 50% off the ticket (never the bump).
+// ?friend=<slug> stars the date the sharer is attending, while leaving every
+// other date open at the same discount.
 const shareUrl = paid && reg && workshop
-  ? `${base}/w/${workshop.slug}?${PUBLIC_DISCOUNT_PARAM}=${PUBLIC_DISCOUNT_PCT}`
+  ? `${base}/workshop?${PUBLIC_DISCOUNT_PARAM}=${PUBLIC_DISCOUNT_PCT}&friend=${encodeURIComponent(workshop.slug)}`
   : null;
 const shareText = workshop
   ? `I just signed up for ${workshop.title} with Songdance — here's ${PUBLIC_DISCOUNT_PCT}% off your ticket if you'd like to join me:`

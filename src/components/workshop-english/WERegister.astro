@@ -21,6 +21,12 @@ interface Props {
 }
 const { items, country, currency, detectedTz, tzOptions } = Astro.props;
 
+// A shared half-price link carries ?friend=<slug> — the date the sharer is
+// attending. We star it so a friend can spot "the one they're going to", while
+// every other date stays open at the same discount. Read server-side (the page
+// is prerender=false) so the star is in the markup, no flash.
+const friendSlug = (Astro.url.searchParams.get('friend') ?? '').trim();
+
 // The full country list — the visitor can type/search any country, not just the
 // markets we price for. Currency comes from countries.ts (currencyForCountry):
 // anything outside our priced markets falls through to EUR.
@@ -71,7 +77,7 @@ const selectedName = detected?.name ?? '';
       {items.length > 0 && (
         <div class="we-cal" role="radiogroup" aria-label="Choose a date">
           {items.map((it) => (
-            <label class={`we-cal-item${it.kind === 'masterclass' ? ' we-cal-item--masterclass' : ''}`}>
+            <label class={`we-cal-item${it.kind === 'masterclass' ? ' we-cal-item--masterclass' : ''}${it.slug === friendSlug ? ' we-cal-item--friend' : ''}`}>
               <input
                 type="radio"
                 name="we-date"
@@ -91,6 +97,9 @@ const selectedName = detected?.name ?? '';
               />
               <span class="we-cal-radio" aria-hidden="true"></span>
               <span class="we-cal-main">
+                {it.slug === friendSlug && (
+                  <span class="we-cal-friend"><span class="we-cal-friend-star" aria-hidden="true">★</span> Your friend is going to this one</span>
+                )}
                 {it.kind === 'masterclass' && <span class="we-cal-kind">Masterclass</span>}
                 <span class="we-cal-when">
                   {it.isReplay ? 'Watch anytime' : it.whenLocal}
