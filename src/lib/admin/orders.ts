@@ -18,8 +18,12 @@
 //     courses/retreats — workshops keep their exact Stripe settlement).
 //   • VAT is then stripped: workshops use the exact split captured at
 //     checkout; retreats use product.vat_rate (event-location VAT); courses
-//     use the buyer-country standard rate (destination VAT for digital
-//     services), defaulting to Belgium (21%) for EUR charges with no country.
+//     fetch the buyer-country rate live from Quaderno (the same eservice
+//     destination-VAT lookup the checkout uses), defaulting to Belgium for
+//     EUR charges with no country on file.
+
+import { DEFAULT_FX_TO_EUR } from './fx';
+import { getTaxRate, type QuadernoTaxConfig } from '../workshops/quaderno';
 
 export type OrderSource = 'retreat' | 'course' | 'workshop';
 
@@ -116,51 +120,56 @@ function courseLabel(slug: string): string {
 
 // ── Money: FX + VAT ─────────────────────────────────────────────────────────
 
-// Approximate display rates → EUR (mid-market ballpark). We don't store a
-// per-charge settlement for courses/retreats, so non-EUR rows are converted
-// here for the overview and flagged ≈. Bump these if a rate drifts a lot.
-const FX_TO_EUR: Record<string, number> = {
-  EUR: 1,
-  USD: 0.92,
-  GBP: 1.17,
-  CAD: 0.68,
-  CHF: 1.05,
-  NOK: 0.086,
-  SEK: 0.088,
-  DKK: 0.134,
-  AUD: 0.6,
-  NZD: 0.56,
-};
-
-// EU standard VAT rates, used to strip tax off digital course sales by the
-// buyer's country (destination VAT for eservices). Non-EU buyers → 0.
-const EU_VAT: Record<string, number> = {
-  AT: 0.2, BE: 0.21, BG: 0.2, CY: 0.19, CZ: 0.21, DE: 0.19, DK: 0.25,
-  EE: 0.22, ES: 0.21, FI: 0.255, FR: 0.2, GR: 0.24, HR: 0.25, HU: 0.27,
-  IE: 0.23, IT: 0.22, LT: 0.21, LU: 0.17, LV: 0.21, MT: 0.18, NL: 0.21,
-  PL: 0.23, PT: 0.23, RO: 0.19, SE: 0.25, SI: 0.22, SK: 0.23,
+// Options threaded into the loaders to money-up each order:
+//   fxRates  — currency→EUR rates (from the daily-refreshed fx_rates store);
+//   quaderno — config for the live eservice VAT lookup used on course rows.
+export type OrderMoneyOpts = {
+  fxRates?: Record<string, number>;
+  quaderno?: QuadernoTaxConfig;
 };
 
 // Convert a minor amount to EUR minor. Returns whether FX was applied (for the
-// ≈ flag), or null when the currency is one we don't have a rate for.
+// ≈ flag), or null when we have no rate for the currency.
 function toEurMinor(
   amountMinor: number,
   currency: string,
+  fxRates: Record<string, number>,
 ): { minor: number; fx: boolean } | null {
   const c = (currency || 'EUR').toUpperCase();
   if (c === 'EUR') return { minor: amountMinor, fx: false };
-  const rate = FX_TO_EUR[c];
-  if (rate == null) return null;
+  const rate = fxRates[c];
+  if (rate == null || !(rate > 0)) return null;
   return { minor: Math.round(amountMinor * rate), fx: true };
 }
 
-// Destination VAT rate for a digital course sale. Known EU country → its
-// standard rate; known non-EU → 0; unknown → assume Belgium (home market) for
-// EUR charges, else 0.
-function courseVatRate(country: string | null, currency: string): number {
+// The country we charge eservice VAT against: the buyer's, or Belgium (home
+// market) when it's an EUR charge with no country on file.
+function eserviceCountry(country: string | null, currency: string): string | null {
   const c = (country ?? '').toUpperCase();
-  if (c) return EU_VAT[c] ?? 0;
-  return (currency || '').toUpperCase() === 'EUR' ? 0.21 : 0;
+  if (c) return c;
+  return (currency || '').toUpperCase() === 'EUR' ? 'BE' : null;
+}
+
+// Pre-fetch Quaderno's eservice VAT rate for each distinct country, once.
+// getTaxRate caches in-process, so overlapping countries across loaders are
+// free. Missing config / failed lookups simply leave a country unset (→ 0).
+async function resolveEserviceRates(
+  countries: Array<string | null>,
+  quaderno?: QuadernoTaxConfig,
+): Promise<Map<string, number>> {
+  const map = new Map<string, number>();
+  if (!quaderno) return map;
+  const uniq = [...new Set(countries.filter((c): c is string => !!c))];
+  await Promise.all(
+    uniq.map(async (c) => {
+      try {
+        map.set(c, await getTaxRate(quaderno, c, 'eservice'));
+      } catch {
+        /* leave unset → treated as 0 */
+      }
+    }),
+  );
+  return map;
 }
 
 // Shared "gross in currency → EUR net" path for courses and retreats.
@@ -168,9 +177,10 @@ function netEurFrom(
   amountMinor: number,
   currency: string,
   vatRate: number,
+  fxRates: Record<string, number>,
 ): { netEurMinor: number | null; netKind: NetKind } {
   if (amountMinor <= 0) return { netEurMinor: 0, netKind: 'exact' };
-  const eur = toEurMinor(amountMinor, currency);
+  const eur = toEurMinor(amountMinor, currency, fxRates);
   if (!eur) return { netEurMinor: null, netKind: 'none' };
   const netEurMinor = Math.round(eur.minor / (1 + vatRate));
   return { netEurMinor, netKind: eur.fx ? 'approx' : 'exact' };
@@ -196,7 +206,11 @@ type RetreatRow = {
   vat_rate: number | null;
 };
 
-async function loadRetreatOrders(db: D1Database): Promise<UnifiedOrder[]> {
+async function loadRetreatOrders(
+  db: D1Database,
+  opts: OrderMoneyOpts,
+): Promise<UnifiedOrder[]> {
+  const fxRates = opts.fxRates ?? DEFAULT_FX_TO_EUR;
   const res = await db
     .prepare(
       `SELECT r.id, r.first_name, r.last_name, r.name, r.email, r.status,
@@ -216,6 +230,7 @@ async function loadRetreatOrders(db: D1Database): Promise<UnifiedOrder[]> {
       r.amount_cents,
       r.currency,
       r.vat_rate ?? 0,
+      fxRates,
     );
     return {
       source: 'retreat' as const,
@@ -258,7 +273,11 @@ type CourseRow = {
   paid_at: string | null;
 };
 
-async function loadCourseOrders(db: D1Database): Promise<UnifiedOrder[]> {
+async function loadCourseOrders(
+  db: D1Database,
+  opts: OrderMoneyOpts,
+): Promise<UnifiedOrder[]> {
+  const fxRates = opts.fxRates ?? DEFAULT_FX_TO_EUR;
   const res = await db
     .prepare(
       `SELECT id, first_name, last_name, email, country, status,
@@ -268,12 +287,23 @@ async function loadCourseOrders(db: D1Database): Promise<UnifiedOrder[]> {
         ORDER BY created_at DESC`,
     )
     .all<CourseRow>();
+  const rows = res.results ?? [];
 
-  return (res.results ?? []).map((r) => {
+  // Live destination VAT per buyer country, from Quaderno (eservice — the same
+  // tax class the course checkout sends).
+  const rateByCountry = await resolveEserviceRates(
+    rows.map((r) => eserviceCountry(r.country, r.currency)),
+    opts.quaderno,
+  );
+
+  return rows.map((r) => {
+    const country = eserviceCountry(r.country, r.currency);
+    const vatRate = country ? rateByCountry.get(country) ?? 0 : 0;
     const { netEurMinor, netKind } = netEurFrom(
       r.amount_cents,
       r.currency,
-      courseVatRate(r.country, r.currency),
+      vatRate,
+      fxRates,
     );
     return {
       source: 'course' as const,
@@ -324,7 +354,11 @@ type WorkshopPayRow = {
   status: string;
 };
 
-async function loadWorkshopOrders(db: D1Database): Promise<UnifiedOrder[]> {
+async function loadWorkshopOrders(
+  db: D1Database,
+  opts: OrderMoneyOpts,
+): Promise<UnifiedOrder[]> {
+  const fxRates = opts.fxRates ?? DEFAULT_FX_TO_EUR;
   const regRes = await db
     .prepare(
       `SELECT r.id, r.name, r.email, r.country, r.currency AS reg_currency,
@@ -355,6 +389,16 @@ async function loadWorkshopOrders(db: D1Database): Promise<UnifiedOrder[]> {
   const payByReg = new Map<number, WorkshopPayRow>();
   for (const p of payRes.results ?? []) payByReg.set(p.registration_id, p);
 
+  // Live eservice VAT for the rare paid rows with no stored tax split, so we
+  // can still strip VAT from the gross instead of overstating net.
+  const fallbackCountries = regs
+    .filter((r) => {
+      const pay = payByReg.get(r.id);
+      return pay && pay.subtotal_minor == null;
+    })
+    .map((r) => eserviceCountry(r.country, 'EUR'));
+  const rateByCountry = await resolveEserviceRates(fallbackCountries, opts.quaderno);
+
   return regs.map((r) => {
     const pay = payByReg.get(r.id);
     const { first, last } = splitName(r.name);
@@ -376,7 +420,7 @@ async function loadWorkshopOrders(db: D1Database): Promise<UnifiedOrder[]> {
       if (pay.settlement_currency === 'EUR' && pay.settlement_amount_minor != null) {
         grossEur = pay.settlement_amount_minor;
       } else {
-        const eur = toEurMinor(pay.amount_minor, pay.pay_currency);
+        const eur = toEurMinor(pay.amount_minor, pay.pay_currency, fxRates);
         if (eur) {
           grossEur = eur.minor;
           fx = eur.fx;
@@ -389,10 +433,10 @@ async function loadWorkshopOrders(db: D1Database): Promise<UnifiedOrder[]> {
             pay.subtotal_minor * (grossEur / pay.amount_minor),
           );
         } else {
-          // Fall back to the buyer-country VAT rate.
-          netEurMinor = Math.round(
-            grossEur / (1 + courseVatRate(r.country, 'EUR')),
-          );
+          // Fall back to the live buyer-country eservice VAT rate.
+          const country = eserviceCountry(r.country, 'EUR');
+          const vatRate = country ? rateByCountry.get(country) ?? 0 : 0;
+          netEurMinor = Math.round(grossEur / (1 + vatRate));
         }
         netKind = fx ? 'approx' : 'exact';
       }
@@ -436,15 +480,19 @@ export type OrderFilter = {
 
 // Every order across the three stores, newest first. Filtering is applied in
 // memory (the merged set is small at this stage and a single sort keeps the
-// timeline honest across sources).
+// timeline honest across sources). `money` supplies the FX rates + Quaderno
+// config used to compute each order's EUR net; omit it (e.g. the refund route,
+// which only needs amounts in the charge currency) and net falls back to the
+// seed FX table with no VAT lookups.
 export async function listAllOrders(
   db: D1Database,
   filter: OrderFilter = {},
+  money: OrderMoneyOpts = {},
 ): Promise<UnifiedOrder[]> {
   const [retreats, courses, workshops] = await Promise.all([
-    loadRetreatOrders(db),
-    loadCourseOrders(db),
-    loadWorkshopOrders(db),
+    loadRetreatOrders(db, money),
+    loadCourseOrders(db, money),
+    loadWorkshopOrders(db, money),
   ]);
   let all = [...retreats, ...courses, ...workshops].sort((a, b) =>
     (b.createdAt || '').localeCompare(a.createdAt || ''),

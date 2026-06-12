@@ -10,6 +10,7 @@ import {
   type OrderSource,
   type StatusClass,
 } from '../../../lib/admin/orders';
+import { getFxRatesToEur } from '../../../lib/admin/fx';
 
 export const prerender = false;
 
@@ -32,11 +33,23 @@ const selectedSources = parseList(Astro.url.searchParams.get('source'), SOURCES)
 const selectedStatuses = parseList(Astro.url.searchParams.get('status'), STATUSES);
 const q = Astro.url.searchParams.get('q') ?? '';
 
-const orders = await listAllOrders(env.DB, {
-  sources: selectedSources,
-  statuses: selectedStatuses,
-  query: q,
-});
+// EUR net relies on the daily-refreshed FX store + a live Quaderno VAT lookup
+// for course rows (eservice destination VAT — the same the checkout uses).
+const fxRates = await getFxRatesToEur(env.DB);
+const quaderno =
+  env.QUADERNO_API_KEY && env.QUADERNO_ACCOUNT
+    ? {
+        apiKey: env.QUADERNO_API_KEY,
+        account: env.QUADERNO_ACCOUNT,
+        sandbox: env.QUADERNO_SANDBOX === '1',
+      }
+    : undefined;
+
+const orders = await listAllOrders(
+  env.DB,
+  { sources: selectedSources, statuses: selectedStatuses, query: q },
+  { fxRates, quaderno },
+);
 const returnTo = Astro.url.pathname + Astro.url.search;
 
 // Build a filter URL from explicit source/status sets (+ the current search).
@@ -119,9 +132,9 @@ const refundedTotal = orders.reduce((s, o) => s + o.refundedMinor, 0);
       </div>
       <p class="adm-table-note">
         *Net is tax-excluded in EUR: workshops use the exact Stripe settlement +
-        VAT split; retreats strip event VAT; courses strip the buyer-country VAT
-        (digital services, default 21% for EU/unknown). Non-EUR charges are
-        converted at approximate display rates and flagged ≈.
+        VAT split; retreats strip the product VAT; courses strip the buyer-country
+        VAT looked up live from Quaderno (eservice). Non-EUR charges are converted
+        to EUR at ECB rates (refreshed daily) and flagged ≈.
       </p>
     </section>
 
