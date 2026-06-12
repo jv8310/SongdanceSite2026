@@ -134,7 +134,7 @@ const refundedTotal = orders.reduce((s, o) => s + o.refundedMinor, 0);
         *Net is tax-excluded in EUR: workshops use the exact Stripe settlement +
         VAT split; retreats strip the product VAT; courses strip the buyer-country
         VAT looked up live from Quaderno (eservice). Non-EUR charges are converted
-        to EUR at ECB rates (refreshed daily) and flagged ≈.
+        to EUR at ECB rates (refreshed daily).
       </p>
     </section>
 
@@ -213,7 +213,7 @@ const refundedTotal = orders.reduce((s, o) => s + o.refundedMinor, 0);
                   <td class="num">
                     {o.netKind === 'exact' && o.netEurMinor != null && eur(o.netEurMinor)}
                     {o.netKind === 'approx' && o.netEurMinor != null && (
-                      <span title="Approximate — converted to EUR at display FX">≈ {eur(o.netEurMinor)}</span>
+                      <span title="Approximate — converted to EUR at display FX">{eur(o.netEurMinor)}</span>
                     )}
                     {(o.netKind === 'none' || o.netEurMinor == null) && '—'}
                   </td>
