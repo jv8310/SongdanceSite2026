@@ -155,7 +155,7 @@ export async function runWorkshopCron(env: CronEnv, now = Date.now()): Promise<C
 function emailCtx(env: CronEnv, reg: WorkshopRegistration, w: Workshop): WorkshopEmailCtx {
   const base = env.PUBLIC_BASE_URL.replace(/\/$/, '');
   const tz = reg.timezone || w.display_tz;
-  const join = successUrl(base, reg.id);
+  const join = successUrl(base, reg.access_token);
   return {
     name: reg.name,
     workshopTitle: w.title,
@@ -167,7 +167,7 @@ function emailCtx(env: CronEnv, reg: WorkshopRegistration, w: Workshop): Worksho
       endsAtUtc: w.ends_at_utc,
       url: join,
     }),
-    icsUrl: icsUrl(base, reg.id),
+    icsUrl: icsUrl(base, reg.access_token),
   };
 }
 
@@ -383,7 +383,7 @@ async function runPostWorkshop(env: CronEnv, now: number, result: CronResult) {
       // any live discount) immediately — no typing on arrival.
       const courseUrl = `${base}/courses/12-week?email=${encodeURIComponent(reg.email)}#register`;
       const certUrl = `${base}/courses/certification`;
-      const hubUrl = successUrl(base, reg.id);
+      const hubUrl = successUrl(base, reg.access_token);
 
       const dueSteps = (steps: LifecycleStep[]) =>
         steps.filter((s) => {

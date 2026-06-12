@@ -35,12 +35,12 @@ type Env = {
   PUBLIC_BASE_URL: string;
 };
 
-export function successUrl(baseUrl: string, registrationId: number): string {
-  return `${baseUrl.replace(/\/$/, '')}/workshop/success?rid=${registrationId}`;
+export function successUrl(baseUrl: string, token: string): string {
+  return `${baseUrl.replace(/\/$/, '')}/workshop/success?t=${token}`;
 }
 
-export function icsUrl(baseUrl: string, registrationId: number): string {
-  return `${baseUrl.replace(/\/$/, '')}/api/workshops/ics?rid=${registrationId}`;
+export function icsUrl(baseUrl: string, token: string): string {
+  return `${baseUrl.replace(/\/$/, '')}/api/workshops/ics?t=${token}`;
 }
 
 // The page's audience doors → readable lens names, used for Drip segmentation.
@@ -96,7 +96,7 @@ async function sendConfirmation(env: Env, reg: WorkshopRegistration, workshop: W
 
   const baseUrl = env.PUBLIC_BASE_URL.replace(/\/$/, '');
   const tz = reg.timezone || workshop.display_tz;
-  const join = successUrl(baseUrl, reg.id);
+  const join = successUrl(baseUrl, reg.access_token);
   const content = confirmationEmail({
     name: reg.name,
     workshopTitle: workshop.title,
@@ -111,7 +111,7 @@ async function sendConfirmation(env: Env, reg: WorkshopRegistration, workshop: W
           endsAtUtc: workshop.ends_at_utc,
           url: join,
         }),
-    icsUrl: workshop.is_replay ? undefined : icsUrl(baseUrl, reg.id),
+    icsUrl: workshop.is_replay ? undefined : icsUrl(baseUrl, reg.access_token),
   });
   await sendEmail({
     apiKey: env.RESEND_API_KEY,

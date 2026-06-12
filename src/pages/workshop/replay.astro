@@ -1,16 +1,16 @@
 ---
 import Layout from '../../layouts/Layout.astro';
-import { getConfig, getRegistrationById, getWorkshopById, markJoined } from '../../lib/workshops/db';
+import { getConfig, getRegistrationByAccessToken, getWorkshopById, markJoined } from '../../lib/workshops/db';
 import { logEvent } from '../../lib/registrations/db';
 
 export const prerender = false;
 
-// The fixed replay, gated by a personal registration link (rid). Not reachable
-// without one — there's no public URL to the recording. Opening it counts as
-// attendance, so the post-workshop follow-up treats them as having shown up.
+// The fixed replay, gated by a personal registration link (access token). Not
+// reachable without one — there's no public URL to the recording. Opening it
+// counts as attendance, so the post-workshop follow-up treats them as shown up.
 const env = Astro.locals.runtime.env;
-const rid = parseInt(Astro.url.searchParams.get('rid') ?? '', 10);
-const reg = Number.isFinite(rid) ? await getRegistrationById(env.DB, rid) : null;
+const token = (Astro.url.searchParams.get('t') ?? '').trim();
+const reg = token ? await getRegistrationByAccessToken(env.DB, token) : null;
 const ok = reg && (reg.payment_status === 'paid' || reg.payment_status === 'coupon');
 const workshop = reg ? await getWorkshopById(env.DB, reg.workshop_id) : null;
 

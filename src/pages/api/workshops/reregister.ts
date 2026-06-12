@@ -2,7 +2,7 @@ import type { APIRoute } from 'astro';
 import { logEvent } from '../../../lib/registrations/db';
 import {
   getPublishedWorkshopBySlug,
-  getRegistrationById,
+  getRegistrationByAccessToken,
   upsertRegistration,
   setRegistrationPaymentStatus,
 } from '../../../lib/workshops/db';
@@ -10,9 +10,9 @@ import { runWorkshopPaidSideEffects, successUrl } from '../../../lib/workshops/p
 
 export const prerender = false;
 
-type Body = { rid?: number; workshop_slug?: string };
+type Body = { t?: string; workshop_slug?: string };
 
-// POST /api/workshops/reregister  { rid, workshop_slug }
+// POST /api/workshops/reregister  { t, workshop_slug }
 //
 // "I missed it — put me on a new date." Someone who already paid for a session
 // they missed can move to another upcoming date free of charge: we reuse their
@@ -27,12 +27,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
     return json({ error: 'Invalid request.' }, 400);
   }
 
-  const rid = Number(payload.rid);
+  const token = (payload.t ?? '').trim();
   const slug = (payload.workshop_slug ?? '').trim();
-  if (!Number.isFinite(rid) || !slug) return json({ error: 'Bad request.' }, 400);
+  if (!token || !slug) return json({ error: 'Bad request.' }, 400);
 
   // The original registration vouches for them — it must be a real, paid place.
-  const origin = await getRegistrationById(env.DB, rid);
+  const origin = await getRegistrationByAccessToken(env.DB, token);
   if (!origin || (origin.payment_status !== 'paid' && origin.payment_status !== 'coupon')) {
     return json({ error: 'We couldn’t find your registration.' }, 404);
   }
@@ -43,7 +43,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     return json({ error: 'That’s the date you’re already on.' }, 400);
   }
 
-  const registrationId = await upsertRegistration(env.DB, {
+  const { id: registrationId, token: newToken } = await upsertRegistration(env.DB, {
     workshop_id: target.id,
     name: origin.name,
     email: origin.email,
@@ -60,8 +60,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
   await logEvent(env.DB, {
     registration_id: null,
     kind: 'workshop.rebooked',
-    external_id: `workshop-rebook-${rid}-to-${registrationId}`,
-    payload: { from_registration_id: rid, to_registration_id: registrationId, workshop_id: target.id },
+    external_id: `workshop-rebook-${origin.id}-to-${registrationId}`,
+    payload: { from_registration_id: origin.id, to_registration_id: registrationId, workshop_id: target.id },
   });
 
   // Confirmation email + Drip tag (no Meta — there's no purchase value).
@@ -70,7 +70,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
   if (ctx?.waitUntil) ctx.waitUntil(sideEffects);
   else await sideEffects.catch(() => {});
 
-  return json({ redirect_url: successUrl(env.PUBLIC_BASE_URL, registrationId) });
+  return json({ redirect_url: successUrl(env.PUBLIC_BASE_URL, newToken) });
 };
 
 function json(body: unknown, status = 200): Response {
