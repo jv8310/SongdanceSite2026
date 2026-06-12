@@ -206,16 +206,22 @@ const hasAtRisk = months.some((m) => m.atRiskEurMinor > 0);
                 )}
                 <circle cx={xAt(i)} cy={yAt(m.totalEurMinor)} r="3.5" class="fr-dot-total" />
                 {m.totalEurMinor > 0 && (
-                  <text x={xAt(i)} y={yAt(m.totalEurMinor) - 9} text-anchor="middle" class="fr-val">{eur(m.totalEurMinor)}</text>
+                  <text
+                    x={i === 0 ? xAt(i) + 6 : i === n - 1 ? xAt(i) - 6 : xAt(i)}
+                    y={yAt(m.totalEurMinor) - 9}
+                    text-anchor={i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'}
+                    class="fr-val"
+                  >{eur(m.totalEurMinor)}</text>
                 )}
                 <text x={xAt(i)} y={H - padB + 20} text-anchor="middle" class="fr-axis">{m.label}</text>
               </g>
             ))}
           </svg>
-          <div class="fr-legend">
-            <span class="fr-key fr-key--total">Total projected</span>
-            {hasAtRisk && <span class="fr-key fr-key--risk">At risk (retrying / unpaid)</span>}
-          </div>
+          {hasAtRisk && (
+            <div class="fr-legend">
+              <span class="fr-key fr-key--risk">At risk (retrying / unpaid)</span>
+            </div>
+          )}
         </div>
       )}
     </section>
