@@ -52,9 +52,10 @@ const includes = [
           <button type="button" class="tw-reg-emailchange" data-slot="change">change</button>
         </div>
 
-        <!-- Pro only: choose between the 12-week course and the certification. -->
+        <!-- Pro only: choose between the 12-week course and the full
+             Certification path (12-week + certification course). -->
         <div class="tw-reg-offers-wrap" data-slot="offers-wrap" hidden>
-          <div class="tw-reg-steplabel">Choose your path</div>
+          <div class="tw-reg-steplabel">Choose your option</div>
           <div class="tw-reg-plans" data-slot="offers"></div>
         </div>
 
@@ -63,16 +64,52 @@ const includes = [
           <span data-slot="badge-text"></span>
         </div>
 
-        <div class="tw-reg-pricebox">
+        <div class="tw-reg-pricebox" data-slot="pricebox">
           <span class="tw-reg-pricewas" data-slot="was" hidden></span>
           <span class="tw-reg-pricenow" data-slot="now"></span>
           <span class="tw-reg-pricenote" data-slot="pricenote"></span>
+        </div>
+
+        <!-- Certification path breakdown: two line items + combined total. -->
+        <div class="tw-reg-pathbox" data-slot="pathbox" hidden>
+          <div class="tw-reg-pathline">
+            <span class="tw-reg-pathline-name">12-Week Course</span>
+            <span class="tw-reg-pathline-amt" data-slot="path-tw"></span>
+          </div>
+          <div class="tw-reg-pathline">
+            <span class="tw-reg-pathline-name">Certification Course</span>
+            <span class="tw-reg-pathline-amt" data-slot="path-cert"></span>
+          </div>
+          <div class="tw-reg-pathtotal">
+            <span class="tw-reg-pathtotal-label">Total</span>
+            <span class="tw-reg-pathtotal-amt" data-slot="path-total"></span>
+          </div>
         </div>
 
         <div class="tw-reg-countdown" data-slot="countdown" hidden>
           <i class="ph-light ph-hourglass-medium" aria-hidden="true"></i>
           <span>Your discount ends in <span class="clock" data-slot="clock">--:--:--</span></span>
         </div>
+
+        <!-- Certification path only: when does the certification course open? -->
+        <fieldset class="tw-reg-activate" data-slot="activate" hidden>
+          <legend>Activate the certification course</legend>
+          <label>
+            <input type="radio" name="activate_choice" value="now" />
+            <span>
+              <strong>Activate right away.</strong>
+              <small>Immediate access to the certification materials and live community, alongside the 12-week foundation.</small>
+            </span>
+          </label>
+          <label>
+            <input type="radio" name="activate_choice" value="wait" checked />
+            <span>
+              <strong>Activate after the 12-week course completes.</strong>
+              <small>Walk the foundation first; the certification opens automatically when it's done.</small>
+            </span>
+          </label>
+          <p class="tw-reg-activate-note">You can always email us to activate it sooner.</p>
+        </fieldset>
 
         <div class="tw-reg-steplabel">How would you like to pay?</div>
         <div class="tw-reg-plans" data-slot="plans"></div>
@@ -156,15 +193,27 @@ const includes = [
   import { COUNTRIES } from '../../lib/countries';
 
   type Plan = 'full' | '3x';
-  type OfferId = '12week' | 'cert';
-  type CertOffer = {
-    label: string;
+  type OfferId = '12week' | 'path';
+  // The Certification path = cert (standard price) + the workshop-discounted
+  // 12-week, shown as two line items + a combined total. The discount only
+  // ever touches the 12-week portion. Priced in EUR/USD/GBP (the cert
+  // currencies); mirrors CertificationPathPricing on the server.
+  type PathPricing = {
     currency: string;
-    price_cents: number;
-    base_price_cents: number;
-    monthly_cents: number;
+    twelve_week_base_cents: number;
+    twelve_week_price_cents: number;
+    cert_price_cents: number;
+    total_cents: number;
+    base_total_cents: number;
+    base_total_monthly_cents: number;
+    total_monthly_cents: number;
     installment_count: number;
-    installment_total_cents: number;
+    discount: {
+      eligible: boolean;
+      percent: number;
+      kind: 'pre' | 'post' | 'none' | 'override';
+      expires_at_ms: number | null;
+    };
   };
   type Status = {
     email: string;
@@ -182,7 +231,7 @@ const includes = [
       monthly_cents: number;
     };
     is_pro?: boolean;
-    cert?: CertOffer;
+    path?: PathPricing;
     first_name?: string;
     last_name?: string;
     country?: string;
@@ -303,29 +352,36 @@ const includes = [
       (q('[data-slot="email"]') as HTMLElement).textContent = email;
       q<HTMLButtonElement>('[data-slot="change"]').addEventListener('click', () => showEmailForm(email));
 
-      // Pro emails (or ?audience=pro) can switch between the two products. The
-      // discount only ever touches the 12-week price — the cert shows its own
-      // mid-cohort price (sticker base struck → your price), never discounted.
-      const hasCert = !!(status.is_pro && status.cert);
+      // Pro emails (or ?audience=pro) can switch between the 12-week course and
+      // the full Certification path (12-week + certification course). The
+      // discount only ever touches the 12-week price — inside the path, only its
+      // 12-week portion; the certification course always shows its standard price.
+      const hasPath = !!(status.is_pro && status.path);
       let selectedOffer: OfferId = '12week';
       let selectedPlan: Plan = 'full';
 
       // The pricing "view" for whichever offer is currently selected.
       function view() {
-        if (selectedOffer === 'cert' && status.cert) {
-          const c = status.cert;
+        if (selectedOffer === 'path' && status.path) {
+          const p = status.path;
+          const dd = p.discount;
           return {
-            cur: c.currency,
-            hasStrike: c.base_price_cents > c.price_cents,
-            wasCents: c.base_price_cents,
-            nowCents: c.price_cents,
-            monthlyWasCents: 0,
-            monthlyNowCents: c.monthly_cents,
-            count: c.installment_count,
-            badgeText: 'Practitioner certification',
-            offerName: 'Certification',
-            discountOff: '',
-            showCountdown: false,
+            cur: p.currency,
+            hasStrike: dd.eligible,
+            wasCents: p.base_total_cents,
+            nowCents: p.total_cents,
+            monthlyWasCents: p.base_total_monthly_cents,
+            monthlyNowCents: p.total_monthly_cents,
+            count: p.installment_count,
+            badgeText: dd.eligible
+              ? (dd.kind === 'override'
+                  ? `${dd.percent}% off the 12-week`
+                  : `Workshop discount — ${dd.percent}% off the 12-week`)
+              : '',
+            offerName: 'Certification path',
+            discountOff: dd.eligible ? ` (12-week ${dd.percent}% off)` : '',
+            showCountdown: dd.eligible && dd.kind === 'post' && !!dd.expires_at_ms,
+            expiresAtMs: dd.expires_at_ms,
           };
         }
         const d = status.discount;
@@ -343,6 +399,7 @@ const includes = [
           offerName: '12-Week Course',
           discountOff: d.eligible ? ` (${d.percent}% off)` : '',
           showCountdown: d.eligible && d.kind === 'post' && !!d.expires_at_ms,
+          expiresAtMs: d.expires_at_ms,
         };
       }
 
@@ -350,7 +407,7 @@ const includes = [
       const offersWrap = q('[data-slot="offers-wrap"]') as HTMLElement;
       const offersEl = q('[data-slot="offers"]') as HTMLElement;
       const renderOffers = () => {
-        if (!hasCert) { offersWrap.hidden = true; return; }
+        if (!hasPath) { offersWrap.hidden = true; return; }
         offersWrap.hidden = false;
         const d = status.discount;
         const cur12 = status.currency;
@@ -358,10 +415,10 @@ const includes = [
         const amount12 = d.eligible
           ? `<span class="tw-amount-strike">${money(status.price_cents, cur12)}</span>${money(now12, cur12)}`
           : money(now12, cur12);
-        const c = status.cert!;
-        const amountCert = c.base_price_cents > c.price_cents
-          ? `<span class="tw-amount-strike">${money(c.base_price_cents, c.currency)}</span>${money(c.price_cents, c.currency)}`
-          : money(c.price_cents, c.currency);
+        const p = status.path!;
+        const amountPath = p.discount.eligible
+          ? `<span class="tw-amount-strike">${money(p.base_total_cents, p.currency)}</span>${money(p.total_cents, p.currency)}`
+          : money(p.total_cents, p.currency);
 
         const card = (offer: OfferId, title: string, sub: string, amountHtml: string) => {
           const el = document.createElement('button');
@@ -386,38 +443,61 @@ const includes = [
 
         offersEl.replaceChildren(
           card('12week', 'The 12-Week Course', 'Self-paced + live weekly Q&A', amount12),
-          card('cert', 'Certification Course', 'Live practitioner training', amountCert),
+          card('path', 'Certification path', '12-week course + certification', amountPath),
         );
       };
 
       // ---- Price box + badge + countdown
       const renderPrice = () => {
         const v = view();
+        const isPath = selectedOffer === 'path' && !!status.path;
         const badge = q('[data-slot="badge"]') as HTMLElement;
+        const pricebox = q('[data-slot="pricebox"]') as HTMLElement;
+        const pathbox = q('[data-slot="pathbox"]') as HTMLElement;
+        const activate = q('[data-slot="activate"]') as HTMLElement;
         const was = q('[data-slot="was"]') as HTMLElement;
         const now = q('[data-slot="now"]') as HTMLElement;
         const pricenote = q('[data-slot="pricenote"]') as HTMLElement;
         const countdown = q('[data-slot="countdown"]') as HTMLElement;
 
-        now.textContent = money(v.nowCents, v.cur);
-        if (v.hasStrike) {
-          was.hidden = false;
-          was.textContent = money(v.wasCents, v.cur);
-        } else {
-          was.hidden = true;
-        }
+        // Discount badge shows for either offer when a discount is live.
         if (v.badgeText) {
           badge.hidden = false;
           (q('[data-slot="badge-text"]') as HTMLElement).textContent = v.badgeText;
         } else {
           badge.hidden = true;
         }
-        pricenote.textContent = `One payment · or ${v.count} monthly payments of ${money(v.monthlyNowCents, v.cur)}`;
 
-        // Post-workshop 48h window (12-week only) → live countdown; on expiry, re-price.
+        if (isPath) {
+          // Two transparent line items + a combined total; cert never discounted.
+          const p = status.path!;
+          pricebox.hidden = true;
+          pathbox.hidden = false;
+          activate.hidden = false;
+          const twAmt = p.discount.eligible
+            ? `<span class="tw-amount-strike">${money(p.twelve_week_base_cents, p.currency)}</span>${money(p.twelve_week_price_cents, p.currency)}`
+            : money(p.twelve_week_base_cents, p.currency);
+          (q('[data-slot="path-tw"]') as HTMLElement).innerHTML = twAmt;
+          (q('[data-slot="path-cert"]') as HTMLElement).textContent = money(p.cert_price_cents, p.currency);
+          (q('[data-slot="path-total"]') as HTMLElement).textContent = money(p.total_cents, p.currency);
+        } else {
+          pricebox.hidden = false;
+          pathbox.hidden = true;
+          activate.hidden = true;
+          now.textContent = money(v.nowCents, v.cur);
+          if (v.hasStrike) {
+            was.hidden = false;
+            was.textContent = money(v.wasCents, v.cur);
+          } else {
+            was.hidden = true;
+          }
+          pricenote.textContent = `One payment · or ${v.count} monthly payments of ${money(v.monthlyNowCents, v.cur)}`;
+        }
+
+        // Post-workshop 48h window → live countdown; on expiry, re-price.
         window.clearInterval(countdownTimer);
-        if (v.showCountdown) {
-          const expires = status.discount.expires_at_ms as number;
+        if (v.showCountdown && v.expiresAtMs) {
+          const expires = v.expiresAtMs;
           countdown.hidden = false;
           const clock = q('[data-slot="clock"]') as HTMLElement;
           const tick = async () => {
@@ -570,26 +650,33 @@ const includes = [
         if (vat && !company) return fail('Please add your company name to use a VAT number.');
         if (!consent) return fail('Please agree to the terms to continue.');
 
+        // Certification path only: when should the certification open?
+        const activateChoice = String(
+          root.querySelector<HTMLInputElement>('[name="activate_choice"]:checked')?.value ?? 'wait',
+        );
+
         const label = cta.innerHTML;
         cta.disabled = true; cta.innerHTML = '<span>Opening secure checkout…</span>';
         try {
-          // Cert selected → the shared course checkout (cc-cert, never discounted).
-          // Otherwise the 12-week checkout, which re-derives the workshop /
-          // ?discount= price server-side.
-          const res = selectedOffer === 'cert' && status.cert
+          // Path selected → the shared course checkout (cc-bundle): cert at its
+          // standard price + the workshop-discounted 12-week, re-derived
+          // server-side. Otherwise the 12-week checkout, which re-derives the
+          // workshop / ?discount= price server-side.
+          const res = selectedOffer === 'path' && status.path
             ? await fetch('/api/courses/checkout', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                  product_slug: 'cc-cert',
+                  product_slug: 'cc-bundle',
                   payment_plan: selectedPlan,
-                  currency: status.cert.currency,
+                  currency: status.path.currency,
                   email, first_name: first, last_name: last, country,
                   phone_country: phoneCountry, phone,
                   company_name: company || undefined, vat_number: vat || undefined,
-                  activate_choice: 'now',
+                  activate_choice: activateChoice,
                   source_variant: 'twelveweek',
                   consent_terms: true,
+                  discount_percent: urlDiscount || undefined,
                 }),
               })
             : await fetch('/api/courses/twelve-week-checkout', {

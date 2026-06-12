@@ -119,17 +119,18 @@ const countries = COUNTRIES;
             <label>
               <input type="radio" name="activate_choice" value="now" />
               <span>
-                <strong>Activate now.</strong>
-                <small>I want immediate access to the certification materials and the live community.</small>
+                <strong>Activate right away.</strong>
+                <small>Immediate access to the certification materials and the live community, alongside the 12-week foundation.</small>
               </span>
             </label>
             <label>
               <input type="radio" name="activate_choice" value="wait" checked />
               <span>
-                <strong>Wait until the 12-week course ends.</strong>
-                <small>Walk it slowly. The cert opens automatically when the foundation is complete.</small>
+                <strong>Activate after the 12-week course completes.</strong>
+                <small>Walk the foundation first; the certification opens automatically when it's done.</small>
               </span>
             </label>
+            <p class="cc-activate-note">You can always email us to activate it sooner.</p>
           </fieldset>
 
           <label class="cc-consent">
@@ -216,15 +217,19 @@ const countries = COUNTRIES;
     installments?: InstallmentPlan;
   };
   type Variant = 'B1' | 'B2' | 'A' | 'D' | 'E' | 'C';
-  // The discounted 12-week course offered inline on the cert page when the
-  // email has a live workshop discount. The discount only touches this price;
-  // the cert/bundle offers are unaffected.
-  type TwelveWeekOffer = {
-    currency: string;
-    base_full_cents: number;
-    price_cents: number;
-    base_monthly_cents: number;
-    monthly_cents: number;
+  // The Certification path (the `cc-bundle` product) = cert at its standard
+  // price + the workshop-discounted 12-week, shown as two line items + a
+  // combined total. The discount only ever touches the 12-week portion. Priced
+  // in EUR/USD/GBP. Mirrors CertificationPathPricing on the server.
+  type PathPricing = {
+    currency: Currency;
+    twelve_week_base_cents: number;
+    twelve_week_price_cents: number;
+    cert_price_cents: number;
+    total_cents: number;
+    total_monthly_cents: number;
+    base_total_cents: number;
+    base_total_monthly_cents: number;
     installment_count: number;
     discount: {
       eligible: boolean;
@@ -240,7 +245,7 @@ const countries = COUNTRIES;
     twelve_week_week?: number;
     can_activate_now?: boolean;
     course_portal_url?: string;
-    twelve_week_offer?: TwelveWeekOffer;
+    path?: PathPricing;
     first_name?: string;
     last_name?: string;
     country?: string;
@@ -248,26 +253,16 @@ const countries = COUNTRIES;
   };
   type PaymentPlan = 'full' | '3x';
 
-  // Money formatter that copes with all 12-week currencies (the cert helpers
-  // only handle EUR/USD/GBP).
-  const TW_SYM: Record<string, string> = {
-    EUR: '€', USD: '$', GBP: '£', CAD: 'CA$', CHF: 'CHF ',
-    NOK: 'kr ', SEK: 'kr ', DKK: 'kr ', AUD: 'A$', NZD: 'NZ$',
-  };
-  function twMoney(cents: number, cur: string): string {
-    const major = cents / 100;
-    const sym = TW_SYM[cur] ?? '';
-    const body = Number.isInteger(major) ? String(major) : major.toFixed(2);
-    return sym ? `${sym}${body}` : `${body} ${cur}`;
-  }
-  let twCountdownTimer: number | undefined;
+  let pathCountdownTimer: number | undefined;
 
   type CopyFn = (
     week?: number,
     firstName?: string,
   ) => { greeting: string; title: string; body: string };
 
-  const STORAGE_KEY = 'cc:decision';
+  // v2: the cached decision now carries `path` pricing; ignore pre-path caches
+  // so a stale flat bundle price can never be shown against the new path charge.
+  const STORAGE_KEY = 'cc:decision:v2';
 
   // URL-driven discount. `?discount=N` (any integer 1–99) strikes through
   // the displayed price and tells the server to charge a discounted amount
@@ -640,7 +635,7 @@ const countries = COUNTRIES;
         if (code !== inFlightCountry) return;
         decision.currency = next.currency;
         decision.offers = next.offers;
-        decision.twelve_week_offer = (next as Decision).twelve_week_offer;
+        decision.path = (next as Decision).path;
         try {
           localStorage.setItem(
             STORAGE_KEY,
@@ -650,7 +645,6 @@ const countries = COUNTRIES;
         renderOfferCards();
         renderPlanOptions();
         renderSummary();
-        renderTwUnlock();
       } catch {
         // Network blip — leave the existing prices in place.
       } finally {
@@ -700,6 +694,39 @@ const countries = COUNTRIES;
     // currency switches). Clicking a card flips selectedOfferSlug.
     const offersEl = root.querySelector('[data-slot="offer-cards"]') as HTMLElement;
     const offerPickerLabel = root.querySelector('[data-slot="offer-picker-label"]') as HTMLElement;
+    // The path card carries the 12-week discount's 48h countdown. Re-armed on
+    // each card render; on expiry we re-fetch so the now-full price re-renders.
+    function startPathCountdown() {
+      window.clearInterval(pathCountdownTimer);
+      const p = decision.path;
+      const clock = offersEl.querySelector<HTMLElement>('[data-clock]');
+      if (
+        !p ||
+        !clock ||
+        !p.discount.eligible ||
+        p.discount.kind !== 'post' ||
+        !p.discount.expires_at_ms
+      ) {
+        return;
+      }
+      const expires = p.discount.expires_at_ms;
+      const tick = () => {
+        const left = expires - Date.now();
+        if (left <= 0) {
+          window.clearInterval(pathCountdownTimer);
+          refreshForCountry(lastCountry || decision.country || '');
+          return;
+        }
+        const s = Math.floor(left / 1000);
+        const hh = String(Math.floor(s / 3600)).padStart(2, '0');
+        const mm = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
+        const ss = String(s % 60).padStart(2, '0');
+        clock.textContent = `${hh}:${mm}:${ss}`;
+      };
+      tick();
+      pathCountdownTimer = window.setInterval(tick, 1000);
+    }
+
     function renderOfferCards() {
       offersEl.replaceChildren();
       if (decision.offers.length <= 1 && offerPickerLabel) {
@@ -713,7 +740,12 @@ const countries = COUNTRIES;
         selectedOfferSlug = decision.offers[0]?.slug ?? 'cc-cert';
       }
       decision.offers.forEach((offer, i) => {
-        const card = renderOfferCard(offer, i === 0, decision.offers.length > 1);
+        const card = renderOfferCard(
+          offer,
+          i === 0,
+          decision.offers.length > 1,
+          decision.path,
+        );
         card.dataset.offerSlug = offer.slug;
         card.addEventListener('click', () => {
           selectedOfferSlug = offer.slug;
@@ -731,6 +763,7 @@ const countries = COUNTRIES;
         }
         offersEl.appendChild(card);
       });
+      startPathCountdown();
     }
     renderOfferCards();
 
@@ -739,6 +772,10 @@ const countries = COUNTRIES;
     const planOptionsEl = root.querySelector('[data-slot="plan-options"]') as HTMLElement;
     function renderPlanOptions() {
       planOptionsEl.replaceChildren();
+      if (selectedOfferSlug === 'cc-bundle' && decision.path) {
+        renderPathPlanOptions(decision.path);
+        return;
+      }
       const offer = decision.offers.find((o) => o.slug === selectedOfferSlug);
       if (!offer || !offer.installments) {
         planPicker.style.display = 'none';
@@ -792,11 +829,67 @@ const countries = COUNTRIES;
       planOptionsEl.appendChild(inst);
     }
 
+    // Plan options for the path: full vs. 3x on the combined total. The 12-week
+    // portion is discounted; the certification portion is not. The struck base
+    // shows whenever the workshop discount is live.
+    function renderPathPlanOptions(p: PathPricing) {
+      planPicker.style.display = '';
+      const cur = p.currency;
+      const totalMonthly = p.total_monthly_cents * p.installment_count;
+      const full = renderPlanOption({
+        value: 'full',
+        title: 'Pay in full',
+        subtitle: 'One payment — both courses secured today.',
+        amountHtml: strikeCents(p.base_total_cents, p.total_cents, cur),
+      });
+      const inst = renderPlanOption({
+        value: '3x',
+        title: `Pay in ${p.installment_count} monthly installments`,
+        subtitle: `${moneyCents(p.total_monthly_cents, cur)}/mo for ${p.installment_count} months (${moneyCents(totalMonthly, cur)} total). Full access from the first payment.`,
+        amountHtml: p.discount.eligible
+          ? `<span class="cc-amount-strike">${escapeHtml(moneyCents(p.base_total_monthly_cents, cur))}/mo</span>${escapeHtml(moneyCents(p.total_monthly_cents, cur))}/mo`
+          : `${escapeHtml(moneyCents(p.total_monthly_cents, cur))}/mo`,
+      });
+      [full, inst].forEach((el) => {
+        el.addEventListener('click', () => {
+          selectedPlan = el.dataset.planValue as PaymentPlan;
+          planOptionsEl
+            .querySelectorAll<HTMLElement>('.cc-plan-option')
+            .forEach((opt) =>
+              opt.classList.toggle(
+                'cc-plan-option--selected',
+                opt.dataset.planValue === selectedPlan,
+              ),
+            );
+          renderSummary();
+        });
+      });
+      full.classList.add('cc-plan-option--selected');
+      selectedPlan = 'full';
+      planOptionsEl.appendChild(full);
+      planOptionsEl.appendChild(inst);
+    }
+
     // Summary line above the CTA: keeps the price visible right where the
     // buyer is about to commit, so there's no "wait, what am I paying?".
     const summaryLabel = root.querySelector('[data-slot="summary-label"]') as HTMLElement;
     const summaryAmount = root.querySelector('[data-slot="summary-amount"]') as HTMLElement;
     function renderSummary() {
+      if (selectedOfferSlug === 'cc-bundle' && decision.path) {
+        const p = decision.path;
+        const cur = p.currency;
+        const off = p.discount.eligible ? ` (12-week ${p.discount.percent}% off)` : '';
+        if (selectedPlan === '3x') {
+          summaryLabel.textContent = `Certification path — ${p.installment_count} monthly payments${off}`;
+          summaryAmount.innerHTML = p.discount.eligible
+            ? `<span class="cc-amount-strike">${escapeHtml(moneyCents(p.base_total_monthly_cents, cur))}/mo</span>${escapeHtml(moneyCents(p.total_monthly_cents, cur))}/mo`
+            : `${escapeHtml(moneyCents(p.total_monthly_cents, cur))}/mo`;
+        } else {
+          summaryLabel.textContent = `Certification path — one-time payment${off}`;
+          summaryAmount.innerHTML = strikeCents(p.base_total_cents, p.total_cents, cur);
+        }
+        return;
+      }
       const offer = decision.offers.find((o) => o.slug === selectedOfferSlug);
       if (!offer) return;
       const cur = decision.currency!;
@@ -820,150 +913,6 @@ const countries = COUNTRIES;
     renderPlanOptions();
     renderSummary();
 
-    // Inline discounted 12-week course (the "other way around" cross-sell).
-    // Shown only when the email has a live workshop discount; reuses the shared
-    // form fields and hands off to the 12-week checkout. The cert/bundle offers
-    // above are untouched — the discount only ever reduces the 12-week price.
-    const bodyEl = root.querySelector('[data-slot="body"]') as HTMLElement;
-    let selectedTwPlan: PaymentPlan = 'full';
-    function renderTwUnlock() {
-      root.querySelector('.cc-tw-unlock')?.remove();
-      window.clearInterval(twCountdownTimer);
-      const offer = decision.twelve_week_offer;
-      if (!offer || !offer.discount.eligible) return;
-
-      const cur = offer.currency;
-      const d = offer.discount;
-      const badgeText =
-        d.kind === 'override' ? `${d.percent}% off` : `Workshop discount — ${d.percent}% off`;
-      const block = document.createElement('div');
-      block.className = 'cc-tw-unlock';
-      block.innerHTML = `
-        <div class="cc-tw-unlock-badge"><span class="dot" aria-hidden="true"></span><span>${escapeHtml(badgeText)}</span></div>
-        <div class="cc-tw-unlock-head">Your workshop unlocks the 12-Week Course</div>
-        <div class="cc-tw-unlock-price">
-          <span class="cc-tw-unlock-was">${escapeHtml(twMoney(offer.base_full_cents, cur))}</span>
-          <span class="cc-tw-unlock-now">${escapeHtml(twMoney(offer.price_cents, cur))}</span>
-        </div>
-        <div class="cc-tw-unlock-countdown" data-cd hidden>
-          <i class="ph-light ph-hourglass-medium" aria-hidden="true"></i>
-          <span>Discount ends in <span class="clock" data-clock>--:--:--</span></span>
-        </div>
-        <div class="cc-tw-unlock-plans" data-twplans></div>
-        <button type="button" class="cc-tw-unlock-cta" data-twbuy>
-          <span>Get the 12-Week Course</span>
-          <i class="ph-light ph-arrow-right" aria-hidden="true"></i>
-        </button>
-        <p class="cc-tw-unlock-msg" data-twmsg></p>
-      `;
-      bodyEl.insertAdjacentElement('afterend', block);
-
-      // Plan toggle (full / 3x), both at the discounted rate.
-      const plansHost = block.querySelector('[data-twplans]') as HTMLElement;
-      const planBtn = (plan: PaymentPlan, title: string, amountHtml: string) => {
-        const el = document.createElement('button');
-        el.type = 'button';
-        el.className = 'cc-tw-plan' + (plan === selectedTwPlan ? ' cc-tw-plan--selected' : '');
-        el.dataset.twplan = plan;
-        el.innerHTML =
-          `<span class="cc-tw-plan-radio" aria-hidden="true"></span>` +
-          `<span class="cc-tw-plan-title">${escapeHtml(title)}</span>` +
-          `<span class="cc-tw-plan-amount">${amountHtml}</span>`;
-        el.addEventListener('click', () => {
-          selectedTwPlan = plan;
-          plansHost.querySelectorAll<HTMLElement>('.cc-tw-plan').forEach((p) =>
-            p.classList.toggle('cc-tw-plan--selected', p.dataset.twplan === selectedTwPlan));
-        });
-        return el;
-      };
-      const fullHtml =
-        `<span class="cc-amount-strike">${escapeHtml(twMoney(offer.base_full_cents, cur))}</span> ${escapeHtml(twMoney(offer.price_cents, cur))}`;
-      const monStrike = offer.base_monthly_cents > offer.monthly_cents;
-      const monHtml = monStrike
-        ? `<span class="cc-amount-strike">${escapeHtml(twMoney(offer.base_monthly_cents, cur))}/mo</span> ${escapeHtml(twMoney(offer.monthly_cents, cur))}/mo`
-        : `${escapeHtml(twMoney(offer.monthly_cents, cur))}/mo`;
-      plansHost.replaceChildren(
-        planBtn('full', 'Pay in full', fullHtml),
-        planBtn('3x', `${offer.installment_count} monthly`, monHtml),
-      );
-
-      // Countdown (post-workshop 48h window only).
-      if (d.kind === 'post' && d.expires_at_ms) {
-        const cd = block.querySelector('[data-cd]') as HTMLElement;
-        const clock = block.querySelector('[data-clock]') as HTMLElement;
-        cd.hidden = false;
-        const tick = () => {
-          const left = (d.expires_at_ms as number) - Date.now();
-          if (left <= 0) {
-            window.clearInterval(twCountdownTimer);
-            block.remove();
-            decision.twelve_week_offer = undefined;
-            return;
-          }
-          const s = Math.floor(left / 1000);
-          const hh = String(Math.floor(s / 3600)).padStart(2, '0');
-          const mm = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
-          const ss = String(s % 60).padStart(2, '0');
-          clock.textContent = `${hh}:${mm}:${ss}`;
-        };
-        tick();
-        twCountdownTimer = window.setInterval(tick, 1000);
-      }
-
-      // Buy → reuse the shared form fields, hand off to the 12-week checkout.
-      const buyBtn = block.querySelector('[data-twbuy]') as HTMLButtonElement;
-      const msg = block.querySelector('[data-twmsg]') as HTMLElement;
-      buyBtn.addEventListener('click', async () => {
-        msg.textContent = '';
-        const get = (n: string) =>
-          String(root.querySelector<HTMLInputElement>(`[name="${n}"]`)?.value ?? '').trim();
-        const first = get('first_name'), last = get('last_name');
-        const country = get('country'), phoneCountry = get('phone_country'), phone = get('phone');
-        const company = get('company_name'), vat = get('vat_number');
-        const consent = root.querySelector<HTMLInputElement>('[name="consent_terms"]')!.checked;
-        const fail = (m: string) => {
-          msg.textContent = m;
-          msg.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        };
-        if (!first || !last) return fail('Please add your first and last name below.');
-        if (!country) return fail('Please select your country from the list below.');
-        if (!phoneCountry || !phone) return fail('Please enter a phone number with country code below.');
-        if (vat && !company) return fail('Please add your company name to use a VAT number.');
-        if (!consent) return fail('Please agree to the terms below to continue.');
-
-        const label = buyBtn.innerHTML;
-        buyBtn.disabled = true;
-        buyBtn.innerHTML = '<span>Opening secure checkout…</span>';
-        try {
-          const res = await fetch('/api/courses/twelve-week-checkout', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              email, first_name: first, last_name: last, country,
-              phone_country: phoneCountry, phone,
-              company_name: company || undefined, vat_number: vat || undefined,
-              payment_plan: selectedTwPlan, consent_terms: true,
-              discount_percent: discountPct || undefined,
-            }),
-          });
-          let resBody: { checkout_url?: string; error?: string } = {};
-          try { resBody = await res.json(); } catch {}
-          if (!res.ok || !resBody.checkout_url) {
-            fail(resBody.error || `Could not start checkout (HTTP ${res.status}). Please try again.`);
-            buyBtn.disabled = false;
-            buyBtn.innerHTML = label;
-            return;
-          }
-          window.location.href = resBody.checkout_url;
-        } catch {
-          fail('We could not reach the server. Please try again.');
-          buyBtn.disabled = false;
-          buyBtn.innerHTML = label;
-        }
-      });
-    }
-    renderTwUnlock();
-
     // Single bottom CTA: collects all the form state + selection state and
     // hands off to /api/courses/checkout.
     const checkoutCta = root.querySelector('[data-slot="checkout-cta"]') as HTMLButtonElement;
@@ -983,7 +932,12 @@ const countries = COUNTRIES;
     stage.replaceChildren(root);
   }
 
-  function renderOfferCard(offer: Offer, primary: boolean, selectable: boolean): HTMLElement {
+  function renderOfferCard(
+    offer: Offer,
+    primary: boolean,
+    selectable: boolean,
+    path?: PathPricing,
+  ): HTMLElement {
     const card = document.createElement('button');
     card.type = 'button';
     card.className = 'cc-offer' + (primary ? ' cc-offer--primary' : '');
@@ -991,6 +945,52 @@ const countries = COUNTRIES;
     const radioMark = selectable
       ? `<span class="cc-offer-radio" aria-hidden="true"></span>`
       : '';
+
+    // The path: two transparent line items + a combined total. The 12-week line
+    // carries the workshop discount (struck base) and its 48h countdown; the
+    // certification line is always its standard price.
+    if (offer.slug === 'cc-bundle' && path) {
+      const cur = path.currency;
+      const d = path.discount;
+      const twAmt = d.eligible
+        ? `<span class="cc-amount-strike">${escapeHtml(moneyCents(path.twelve_week_base_cents, cur))}</span>${escapeHtml(moneyCents(path.twelve_week_price_cents, cur))}`
+        : escapeHtml(moneyCents(path.twelve_week_base_cents, cur));
+      const badge = d.eligible
+        ? `<div class="cc-offer-badge"><span class="dot" aria-hidden="true"></span><span>${escapeHtml(
+            d.kind === 'override'
+              ? `${d.percent}% off the 12-week`
+              : `Workshop discount — ${d.percent}% off the 12-week`,
+          )}</span></div>`
+        : '';
+      const countdown =
+        d.eligible && d.kind === 'post' && d.expires_at_ms
+          ? `<div class="cc-offer-countdown" data-cd><i class="ph-light ph-hourglass-medium" aria-hidden="true"></i><span>Discount ends in <span class="clock" data-clock>--:--:--</span></span></div>`
+          : '';
+      card.innerHTML = `
+        ${radioMark}
+        <div class="cc-offer-body">
+          <div class="cc-offer-name">${escapeHtml(offer.label)}</div>
+          ${badge}
+          <div class="cc-offer-path">
+            <div class="cc-offer-pathline">
+              <span class="cc-offer-pathline-name">12-Week Course</span>
+              <span class="cc-offer-pathline-amt">${twAmt}</span>
+            </div>
+            <div class="cc-offer-pathline">
+              <span class="cc-offer-pathline-name">Certification Course</span>
+              <span class="cc-offer-pathline-amt">${escapeHtml(moneyCents(path.cert_price_cents, cur))}</span>
+            </div>
+            <div class="cc-offer-pathtotal">
+              <span class="cc-offer-pathtotal-label">Total</span>
+              <span class="cc-offer-pathtotal-amt">${escapeHtml(moneyCents(path.total_cents, cur))}</span>
+            </div>
+          </div>
+          ${countdown}
+          <p class="cc-offer-save">${escapeHtml(offer.save_note)}</p>
+        </div>
+      `;
+      return card;
+    }
 
     // With a discount, the "Your price" row stops being the prominent one —
     // it gets struck through, and a new "After N% off" row takes the spotlight.
@@ -1056,6 +1056,15 @@ const countries = COUNTRIES;
   function amountWithStrike(original: string, discounted: string): string {
     if (discountPct === 0) return escapeHtml(original);
     return `<span class="cc-amount-strike">${escapeHtml(original)}</span> ${escapeHtml(discounted)}`;
+  }
+
+  // Strike the base amount before the discounted one, in cents — used by the
+  // path (whose discount is the workshop window, independent of ?discount=N).
+  function strikeCents(baseCents: number, nowCents: number, cur: Currency): string {
+    if (baseCents > nowCents) {
+      return `<span class="cc-amount-strike">${escapeHtml(moneyCents(baseCents, cur))}</span>${escapeHtml(moneyCents(nowCents, cur))}`;
+    }
+    return escapeHtml(moneyCents(nowCents, cur));
   }
 
   function escapeHtml(s: string): string {

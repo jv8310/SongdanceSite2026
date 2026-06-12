@@ -731,7 +731,65 @@ html, body { background: var(--paper); }
   color: var(--paper); font-variant-numeric: tabular-nums;
 }
 
-/* Offer picker (pro only): 12-Week Course vs Certification */
+/* Certification path: two transparent line items + a combined total */
+.tw-reg-pricebox[hidden] { display: none; }
+.tw-reg-pathbox {
+  margin-bottom: var(--sp-2);
+  padding-bottom: var(--sp-4);
+  border-bottom: 1px solid rgba(244, 236, 223, 0.16);
+  display: flex; flex-direction: column; gap: 10px;
+}
+.tw-reg-pathbox[hidden] { display: none; }
+.tw-reg-pathline {
+  display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-3);
+}
+.tw-reg-pathline-name {
+  font-family: var(--font-body); font-size: 15px; color: rgba(244, 236, 223, 0.82);
+}
+.tw-reg-pathline-amt {
+  font-family: var(--font-display); font-size: 20px; color: var(--paper);
+  font-feature-settings: "tnum" 1; white-space: nowrap;
+}
+.tw-reg-pathtotal {
+  display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-3);
+  margin-top: 6px; padding-top: 12px;
+  border-top: 1px solid rgba(244, 236, 223, 0.16);
+}
+.tw-reg-pathtotal-label {
+  font-family: var(--font-mono); font-size: 10px;
+  text-transform: uppercase; letter-spacing: 0.18em; color: rgba(244, 236, 223, 0.62);
+}
+.tw-reg-pathtotal-amt {
+  font-family: var(--font-display); font-size: clamp(30px, 4.5vw, 40px); line-height: 1;
+  color: var(--paper); font-feature-settings: "tnum" 1;
+}
+
+/* Activate-right-away / activate-after toggle (path only) */
+.tw-reg-activate {
+  margin: var(--sp-4) 0 0; padding: var(--sp-3);
+  border: 1px solid rgba(244, 236, 223, 0.16); border-radius: var(--r-md);
+  background: rgba(244, 236, 223, 0.03);
+}
+.tw-reg-activate[hidden] { display: none; }
+.tw-reg-activate legend {
+  font-family: var(--font-mono); font-size: 10px;
+  text-transform: uppercase; letter-spacing: 0.18em; color: rgba(244, 236, 223, 0.55);
+  padding: 0 6px;
+}
+.tw-reg-activate label {
+  display: flex; align-items: flex-start; gap: 10px; padding: 8px 6px; cursor: pointer;
+  font-family: var(--font-body); font-size: 14px; color: rgba(244, 236, 223, 0.85); line-height: 1.45;
+}
+.tw-reg-activate label small {
+  display: block; color: rgba(244, 236, 223, 0.55); font-size: 12px; margin-top: 2px;
+}
+.tw-reg-activate input[type="radio"] { margin-top: 3px; accent-color: var(--ember); }
+.tw-reg-activate-note {
+  margin: 6px 6px 0; font-family: var(--font-body); font-size: 12px;
+  color: rgba(244, 236, 223, 0.5); font-style: italic;
+}
+
+/* Offer picker (pro only): 12-Week Course vs Certification path */
 .tw-reg-offers-wrap[hidden] { display: none; }
 .tw-reg-offers-wrap { margin-bottom: var(--sp-2); }
 .tw-reg-offers-wrap .tw-reg-steplabel { margin-top: 0; }

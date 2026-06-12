@@ -31,7 +31,9 @@ import {
   listReplayViewAnchorsByEmail,
   emailIsProFromLinks,
 } from '../../../lib/workshops/db';
-import { getCertOffer, type Currency } from '../../../lib/courses/variant';
+import type { Currency } from '../../../lib/courses/variant';
+import { buildCertificationPathPricing } from '../../../lib/courses/path';
+import type { EffectiveDiscount } from '../../../lib/courses/twelve-week';
 
 export const prerender = false;
 
@@ -90,10 +92,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const baseFull = priceCents(currency);
     const baseMonthly = monthlyCents(currency);
 
-    // Pro → reveal the certification as a second offer (forced via ?audience=pro
-    // on the client, or detected from a pro workshop door / masterclass seat).
+    // Pro → reveal the Certification path as a second option (forced via
+    // ?audience=pro on the client, or detected from a pro workshop door /
+    // masterclass seat). The path = cert (standard price) + the same
+    // workshop-discounted 12-week, in the certification currency (EUR/USD/GBP).
     const isPro = payload.force_pro === true || emailIsProFromLinks(links);
-    const cert = isPro ? buildCertOffer(currency) : undefined;
+    const path = isPro
+      ? buildCertificationPathPricing(certCurrencyFor(currency), eff)
+      : undefined;
 
     // Best-effort name prefill from the workshop registration.
     const fullName = (links[0]?.name ?? '').trim();
@@ -116,7 +122,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         monthly_cents: applyPercentCents(baseMonthly, eff.percent),
       },
       is_pro: isPro,
-      cert,
+      path,
       first_name: firstName || undefined,
       last_name: lastName || undefined,
       country: countryCode || undefined,
@@ -128,6 +134,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const baseMonthly = monthlyCents(currency);
     // Honour a URL override even on the degraded path (no DB needed for it).
     const isPro = payload.force_pro === true;
+    const degradedEff: EffectiveDiscount = {
+      eligible: overridePercent > 0,
+      percent: overridePercent,
+      kind: overridePercent > 0 ? 'override' : 'none',
+      expiresAtMs: null,
+    };
     return json({
       email,
       currency,
@@ -144,27 +156,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
         monthly_cents: applyPercentCents(baseMonthly, overridePercent),
       },
       is_pro: isPro,
-      cert: isPro ? buildCertOffer(currency) : undefined,
+      path: isPro
+        ? buildCertificationPathPricing(certCurrencyFor(currency), degradedEff)
+        : undefined,
       degraded: true,
       error: String(err),
     });
   }
 };
-
-// The certification offer as the 12-week page renders it: its own mid-cohort
-// price (struck base → your price), never touched by the 12-week discount.
-function buildCertOffer(currency: string) {
-  const offer = getCertOffer(certCurrencyFor(currency));
-  return {
-    label: offer.label,
-    currency: offer.currency,
-    price_cents: offer.price_cents,
-    base_price_cents: offer.base_price * 100,
-    monthly_cents: offer.installments?.monthly_cents ?? 0,
-    installment_count: offer.installments?.count ?? 0,
-    installment_total_cents: offer.installments?.total_cents ?? 0,
-  };
-}
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
