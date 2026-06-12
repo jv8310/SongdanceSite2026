@@ -37,6 +37,10 @@ import {
   handleWorkshopDispute,
   handleWorkshopRefund,
 } from '../../../lib/workshops/webhook';
+import {
+  notifyCourseOrder,
+  notifyRetreatOrder,
+} from '../../../lib/orders/notification';
 
 // Dedup-on-invoice-id wrapper around recordInstallmentPaid. Both
 // `invoice.paid` and the `checkout.session.completed` subscription backstop
@@ -44,7 +48,15 @@ import {
 // event with the Stripe invoice id as `external_id` so the second caller
 // becomes a no-op. Returns true if this call actually bumped the count.
 async function recordCourseInvoiceIfNew(
-  env: { DB: D1Database; DRIP_API_TOKEN: string; DRIP_ACCOUNT_ID: string; DRIP_COURSE_EVENT?: string },
+  env: {
+    DB: D1Database;
+    DRIP_API_TOKEN: string;
+    DRIP_ACCOUNT_ID: string;
+    DRIP_COURSE_EVENT?: string;
+    RESEND_API_KEY?: string;
+    QUADERNO_ACCOUNT?: string;
+    ORDER_NOTIFICATIONS_TO?: string;
+  },
   courseReg: CourseRegistration,
   invoiceId: string,
   paymentIntent: string | null,
@@ -74,6 +86,11 @@ async function recordCourseInvoiceIfNew(
   });
   if (wasFirstPayment) {
     await pushPaidCourseRegistrationToDrip(env, courseReg.id);
+    // Internal SD-ORDER notification (idempotent; never blocks the webhook).
+    await notifyCourseOrder(env, courseReg, {
+      stripePaymentIntent: paymentIntent,
+      stripeSubscriptionId: courseReg.stripe_subscription_id,
+    });
   }
   return true;
 }
@@ -272,6 +289,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
           );
         }
         await pushPaidCourseRegistrationToDrip(env, courseReg.id);
+        // Internal SD-ORDER notification (idempotent; never blocks the webhook).
+        await notifyCourseOrder(env, courseReg, {
+          stripePaymentIntent: session.payment_intent,
+        });
         return new Response('OK', { status: 200 });
       }
     }
@@ -297,6 +318,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // event so the confirmation email (and any follow-up sequence) is sent
     // from Drip. Shared with the admin "Mark paid" fallback button.
     await pushPaidRegistrationToDrip(env, reg.id);
+
+    // Internal SD-ORDER notification (idempotent; never blocks the webhook).
+    await notifyRetreatOrder(env, reg, {
+      stripePaymentIntent: session.payment_intent,
+    });
   }
 
   // ─────────────────────────────────────────────────────────────────────

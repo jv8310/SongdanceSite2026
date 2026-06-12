@@ -67,3 +67,11 @@ export function formatMoney(amountMinor: number, currency: string): string {
 export function isSupportedCurrency(c: string): c is SupportedCurrency {
   return (SUPPORTED_CURRENCIES as readonly string[]).includes(c.toUpperCase());
 }
+
+// Approximate EUR-per-1-unit fallback rates, mirroring the legacy backfill
+// table. Used where no Stripe settlement data exists: ad-spend CSV imports
+// and standalone course-sale stats. Refine as needed; EUR is always 1.
+export const FX_TO_EUR: Record<string, number> = {
+  EUR: 1, USD: 0.92, GBP: 1.17, CAD: 0.68, CHF: 1.05,
+  AUD: 0.61, NZD: 0.56, NOK: 0.087, SEK: 0.088, DKK: 0.134,
+};

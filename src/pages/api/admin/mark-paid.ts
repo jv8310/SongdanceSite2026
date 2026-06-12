@@ -1,10 +1,12 @@
 import type { APIRoute } from 'astro';
 import { readCookie, verifySession } from '../../../lib/registrations/auth';
 import {
+  getRegistrationById,
   logEvent,
   markRegistrationPaid,
 } from '../../../lib/registrations/db';
 import { pushPaidRegistrationToDrip } from '../../../lib/registrations/paid-handler';
+import { notifyRetreatOrder } from '../../../lib/orders/notification';
 
 export const prerender = false;
 
@@ -37,6 +39,15 @@ export const POST: APIRoute = async ({ request, locals }) => {
   });
 
   await pushPaidRegistrationToDrip(env, registrationId);
+
+  // Internal SD-ORDER notification (idempotent: a no-op if the webhook
+  // already sent it for this order).
+  const reg = await getRegistrationById(env.DB, registrationId);
+  if (reg) {
+    await notifyRetreatOrder(env, reg, {
+      stripePaymentIntent: reg.stripe_payment_intent,
+    });
+  }
 
   const returnTo = safeReturnTo(String(form.get('return_to') ?? ''));
   return new Response(null, {

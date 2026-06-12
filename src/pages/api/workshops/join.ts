@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import {
-  getRegistrationById,
+  getRegistrationByAccessToken,
   getWorkshopById,
   markJoined,
   resolveZoomDetails,
@@ -10,7 +10,7 @@ import { logEvent } from '../../../lib/registrations/db';
 
 export const prerender = false;
 
-// GET /api/workshops/join?rid=<registration_id>[&reveal=1]
+// GET /api/workshops/join?t=<access_token>[&reveal=1]
 //
 // The only way into the Zoom room. Attendance is marked here, then we either
 // 303-redirect to the resolved Zoom link, or — with reveal=1 — return the raw
@@ -23,16 +23,16 @@ export const prerender = false;
 export const GET: APIRoute = async ({ url, locals }) => {
   const env = locals.runtime.env;
   const base = env.PUBLIC_BASE_URL.replace(/\/$/, '');
-  const rid = parseInt(url.searchParams.get('rid') ?? '', 10);
+  const token = (url.searchParams.get('t') ?? '').trim();
   const reveal = url.searchParams.get('reveal') === '1';
-  if (!Number.isFinite(rid)) return bad(reveal, 'Bad request', 400);
+  if (!token) return bad(reveal, 'Bad request', 400);
 
-  const reg = await getRegistrationById(env.DB, rid);
+  const reg = await getRegistrationByAccessToken(env.DB, token);
   if (!reg) return bad(reveal, 'Not found', 404);
   if (reg.payment_status !== 'paid' && reg.payment_status !== 'coupon') {
     return reveal
       ? json({ error: 'not_paid' }, 402)
-      : redirect(`${base}/workshop/success?rid=${rid}`);
+      : redirect(`${base}/workshop/success?t=${token}`);
   }
 
   const workshop = await getWorkshopById(env.DB, reg.workshop_id);
@@ -43,12 +43,12 @@ export const GET: APIRoute = async ({ url, locals }) => {
     if (win === 'early') {
       return reveal
         ? json({ error: 'early' }, 409)
-        : redirect(`${base}/workshop/success?rid=${rid}&early=1`);
+        : redirect(`${base}/workshop/success?t=${token}&early=1`);
     }
     if (win === 'closed') {
       return reveal
         ? json({ error: 'missed' }, 410)
-        : redirect(`${base}/workshop/success?rid=${rid}&missed=1`);
+        : redirect(`${base}/workshop/success?t=${token}&missed=1`);
     }
   }
 
@@ -57,15 +57,15 @@ export const GET: APIRoute = async ({ url, locals }) => {
     await logEvent(env.DB, { registration_id: null, kind: 'workshop.zoom.missing', payload: { workshop_id: workshop.id } });
     return reveal
       ? json({ error: 'no_zoom' }, 503)
-      : redirect(`${base}/workshop/success?rid=${rid}&nozoom=1`);
+      : redirect(`${base}/workshop/success?t=${token}&nozoom=1`);
   }
 
-  await markJoined(env.DB, rid);
+  await markJoined(env.DB, reg.id);
   await logEvent(env.DB, {
     registration_id: null,
     kind: 'workshop.joined',
-    external_id: `workshop-join-${rid}`,
-    payload: { workshop_id: workshop.id, registration_id: rid, reveal },
+    external_id: `workshop-join-${reg.id}`,
+    payload: { workshop_id: workshop.id, registration_id: reg.id, reveal },
   });
 
   if (reveal) {

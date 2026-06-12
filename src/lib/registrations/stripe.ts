@@ -186,6 +186,49 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput) {
   return body;
 }
 
+// Issue a refund against a PaymentIntent. Omit `amountMinor` for a full
+// refund of whatever is still refundable; pass it (in the charge's own
+// currency) for a partial. The matching `charge.refunded` webhook is what
+// actually flips our DB row to 'refunded' and accumulates the amount — this
+// only asks Stripe to move the money, so the two never double-count.
+export async function createRefund(input: {
+  secretKey: string;
+  paymentIntent: string;
+  amountMinor?: number | null;
+  reason?: 'requested_by_customer' | 'duplicate' | 'fraudulent';
+  metadata?: Record<string, string>;
+  idempotencyKey?: string;
+}): Promise<{ id: string; status: string; amount: number; currency: string }> {
+  const form = new URLSearchParams();
+  form.set('payment_intent', input.paymentIntent);
+  if (input.amountMinor != null) form.set('amount', String(input.amountMinor));
+  if (input.reason) form.set('reason', input.reason);
+  if (input.metadata) {
+    Object.entries(input.metadata).forEach(([k, v]) =>
+      form.set(`metadata[${k}]`, v),
+    );
+  }
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${input.secretKey}`,
+    'Content-Type': 'application/x-www-form-urlencoded',
+  };
+  if (input.idempotencyKey) headers['Idempotency-Key'] = input.idempotencyKey;
+
+  const res = await fetch(`${STRIPE_BASE}/refunds`, {
+    method: 'POST',
+    headers,
+    body: form,
+  });
+  const body = (await res.json()) as
+    | { id: string; status: string; amount: number; currency: string }
+    | { error: { message: string } };
+  if (!res.ok || 'error' in body) {
+    const msg = 'error' in body ? body.error.message : 'Stripe error';
+    throw new Error(`Stripe refunds: ${msg}`);
+  }
+  return body;
+}
+
 export async function retrieveSession(secretKey: string, sessionId: string) {
   const res = await fetch(
     `${STRIPE_BASE}/checkout/sessions/${sessionId}?expand[]=payment_intent&expand[]=customer_details`,

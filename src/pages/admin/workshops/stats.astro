@@ -2,8 +2,20 @@
 import '../../../styles/admin.css';
 import Layout from '../../../layouts/Layout.astro';
 import { readCookie, verifySession } from '../../../lib/registrations/auth';
-import { computeStats } from '../../../lib/workshops/stats';
+import {
+  computeStats,
+  computeCourseSales,
+  mergeDailyStreams,
+} from '../../../lib/workshops/stats';
 import { listWorkshops, getProductById } from '../../../lib/workshops/db';
+import {
+  PERIOD_PRESETS,
+  resolvePeriod,
+  presetRangesMap,
+  shiftDays,
+  shiftYears,
+  daysBetween,
+} from '../../../lib/workshops/periods';
 
 export const prerender = false;
 
@@ -12,29 +24,193 @@ if (!(await verifySession(env.ADMIN_SESSION_SECRET, readCookie(Astro.request))))
   return Astro.redirect('/admin/login');
 }
 
-const from = Astro.url.searchParams.get('from') || null;
-const to = Astro.url.searchParams.get('to') || null;
+const { preset, from, to } = resolvePeriod(Astro.url.searchParams);
+
+// ---- Compare window (needs a bounded current window) ----
+
+const rawCompare = Astro.url.searchParams.get('compare');
+const compare =
+  (rawCompare === 'prev' || rawCompare === 'yoy') && from && to ? rawCompare : null;
+let cmpFrom: string | null = null;
+let cmpTo: string | null = null;
+if (compare === 'prev' && from && to) {
+  const len = daysBetween(from, to) + 1;
+  cmpTo = shiftDays(from, -1);
+  cmpFrom = shiftDays(from, -len);
+} else if (compare === 'yoy' && from && to) {
+  cmpFrom = shiftYears(from, -1);
+  cmpTo = shiftYears(to, -1);
+}
+
 const wid = parseInt(Astro.url.searchParams.get('workshop_id') ?? '', 10);
 const workshopId = Number.isFinite(wid) ? wid : null;
 
+// ---- Reports ----
+
 const workshops = await listWorkshops(env.DB);
 const report = await computeStats(env.DB, { from, to, workshopId });
+const courses = await computeCourseSales(env.DB, { from, to });
+const days = mergeDailyStreams(report, courses, from, to);
 
-// Resolve course product names for the breakdown.
+let cmp: {
+  report: Awaited<ReturnType<typeof computeStats>>;
+  courses: Awaited<ReturnType<typeof computeCourseSales>>;
+  days: ReturnType<typeof mergeDailyStreams>;
+} | null = null;
+if (compare && cmpFrom && cmpTo) {
+  const r = await computeStats(env.DB, { from: cmpFrom, to: cmpTo, workshopId });
+  const c = await computeCourseSales(env.DB, { from: cmpFrom, to: cmpTo });
+  cmp = { report: r, courses: c, days: mergeDailyStreams(r, c, cmpFrom, cmpTo) };
+}
+
+// Resolve course product names for the workshop-checkout add-on breakdown.
 const courseNames = new Map<number, string>();
 for (const c of report.courseBreakdown) {
   const p = await getProductById(env.DB, c.product_id);
   courseNames.set(c.product_id, p?.name ?? `Product #${c.product_id}`);
 }
 
-const eur = (minor: number) => `€${(minor / 100).toFixed(2)}`;
+// ---- Derived figures ----
+
+const workshopsNet = report.totals.netEurMinor - report.totals.masterclassNetEurMinor;
+const totalNet = report.totals.netEurMinor + courses.totalNetEurMinor;
+const blendedRoas = report.adSpendEurMinor > 0 ? totalNet / report.adSpendEurMinor : null;
+
+const cmpWorkshopsNet = cmp ? cmp.report.totals.netEurMinor - cmp.report.totals.masterclassNetEurMinor : null;
+const cmpTotalNet = cmp ? cmp.report.totals.netEurMinor + cmp.courses.totalNetEurMinor : null;
+const cmpBlendedRoas =
+  cmp && cmp.report.adSpendEurMinor > 0 && cmpTotalNet != null
+    ? cmpTotalNet / cmp.report.adSpendEurMinor
+    : null;
+
+type Delta = { cls: 'up' | 'down' | 'flat'; text: string } | null;
+function delta(cur: number, prev: number | null | undefined): Delta {
+  if (!cmp || prev == null) return null;
+  if (prev === 0) return cur === 0 ? { cls: 'flat', text: '±0%' } : { cls: 'up', text: 'new' };
+  const p = ((cur - prev) / prev) * 100;
+  const cls = p > 0.5 ? 'up' : p < -0.5 ? 'down' : 'flat';
+  return { cls, text: `${p > 0 ? '+' : ''}${p.toFixed(1)}%` };
+}
+
+const eur = (minor: number) =>
+  '€' + (minor / 100).toLocaleString('en-IE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+// Workshop dropdown labels: date-stamped and shortened, so ten near-identical
+// titles stay tellable apart.
+const workshopOptionLabel = (w: { title: string; starts_at_utc: string; is_replay: number }) => {
+  const title = w.title.replace(/Somatic Vocal Healing/gi, 'SVH');
+  if (w.is_replay) return `On-demand — ${title}`;
+  const d = new Intl.DateTimeFormat('en-GB', {
+    day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/Brussels',
+  }).format(new Date(w.starts_at_utc));
+  return `${d} — ${title}`;
+};
+
+// Headline cards: one per revenue stream + spend + blended ROAS.
+const cards: Array<{ label: string; value: string; d: Delta; hl?: boolean }> = [
+  { label: 'Total revenue (EUR)', value: eur(totalNet), d: delta(totalNet, cmpTotalNet), hl: true },
+  { label: 'Workshops net', value: eur(workshopsNet), d: delta(workshopsNet, cmpWorkshopsNet) },
+  {
+    label: `Masterclass (${report.totals.masterclassCount})`,
+    value: eur(report.totals.masterclassNetEurMinor),
+    d: delta(report.totals.masterclassNetEurMinor, cmp?.report.totals.masterclassNetEurMinor),
+  },
+  {
+    label: `12-Week Course (${courses.twelveWeek.count})`,
+    value: eur(courses.twelveWeek.netEurMinor),
+    d: delta(courses.twelveWeek.netEurMinor, cmp?.courses.twelveWeek.netEurMinor),
+  },
+  {
+    label: `Certification (${courses.certification.count})`,
+    value: eur(courses.certification.netEurMinor),
+    d: delta(courses.certification.netEurMinor, cmp?.courses.certification.netEurMinor),
+  },
+  ...(courses.other.count > 0 || (cmp?.courses.other.count ?? 0) > 0
+    ? [{
+        label: `Other courses (${courses.other.count})`,
+        value: eur(courses.other.netEurMinor),
+        d: delta(courses.other.netEurMinor, cmp?.courses.other.netEurMinor),
+      }]
+    : []),
+  {
+    label: 'Ad spend (EUR)',
+    value: eur(report.adSpendEurMinor),
+    d: delta(report.adSpendEurMinor, cmp?.report.adSpendEurMinor),
+  },
+  {
+    label: 'Blended ROAS',
+    value: blendedRoas != null ? blendedRoas.toFixed(2) + '×' : '—',
+    d: blendedRoas != null && cmpBlendedRoas != null ? delta(blendedRoas * 100, cmpBlendedRoas * 100) : null,
+    hl: true,
+  },
+];
+
+// Revenue-streams table (with share of total and compare deltas).
+const streamRows = [
+  { name: 'Workshop tickets', count: report.totals.ticketCount, eurMinor: report.totals.ticketNetEurMinor, prev: cmp?.report.totals.ticketNetEurMinor },
+  { name: 'Order bumps', count: report.totals.bumpCount, eurMinor: report.totals.bumpNetEurMinor, prev: cmp?.report.totals.bumpNetEurMinor },
+  { name: 'Course add-ons (workshop checkout)', count: report.totals.courseCount, eurMinor: report.totals.courseNetEurMinor, prev: cmp?.report.totals.courseNetEurMinor },
+  { name: 'Masterclass tickets', count: report.totals.masterclassCount, eurMinor: report.totals.masterclassNetEurMinor, prev: cmp?.report.totals.masterclassNetEurMinor },
+  { name: '12-Week Course', count: courses.twelveWeek.count, eurMinor: courses.twelveWeek.netEurMinor, prev: cmp?.courses.twelveWeek.netEurMinor },
+  { name: 'Certification Course', count: courses.certification.count, eurMinor: courses.certification.netEurMinor, prev: cmp?.courses.certification.netEurMinor },
+  ...(courses.other.count > 0
+    ? [{ name: 'Other courses', count: courses.other.count, eurMinor: courses.other.netEurMinor, prev: cmp?.courses.other.netEurMinor }]
+    : []),
+];
+const streamSum = streamRows.reduce((s, r) => s + r.eurMinor, 0);
+
+// ---- Chart data (EUR major units) ----
+
+const toMajor = (m: number) => Math.round(m) / 100;
+const anyMasterclass = days.some((d) => d.masterclassEurMinor > 0);
+const anyTwelveWeek = days.some((d) => d.twelveWeekEurMinor > 0);
+const anyCert = days.some((d) => d.certificationEurMinor > 0);
+const anyOther = days.some((d) => d.otherCoursesEurMinor > 0);
+
+let cum = 0;
+const cumulative = days.map((d) => toMajor((cum += d.totalEurMinor)));
+let cmpCum = 0;
+const cmpCumulative = cmp ? cmp.days.map((d) => toMajor((cmpCum += d.totalEurMinor))) : null;
+
+const chartData = {
+  labels: days.map((d) => d.date),
+  streams: [
+    { name: 'Workshops', color: '#7c5c9e', values: days.map((d) => toMajor(d.workshopsEurMinor)) },
+    ...(anyMasterclass ? [{ name: 'Masterclass', color: '#c2703e', values: days.map((d) => toMajor(d.masterclassEurMinor)) }] : []),
+    ...(anyTwelveWeek ? [{ name: '12-Week Course', color: '#2f7d5a', values: days.map((d) => toMajor(d.twelveWeekEurMinor)) }] : []),
+    ...(anyCert ? [{ name: 'Certification', color: '#b04a6e', values: days.map((d) => toMajor(d.certificationEurMinor)) }] : []),
+    ...(anyOther ? [{ name: 'Other courses', color: '#8a8a64', values: days.map((d) => toMajor(d.otherCoursesEurMinor)) }] : []),
+  ],
+  total: days.map((d) => toMajor(d.totalEurMinor)),
+  adSpend: days.map((d) => toMajor(d.adSpendEurMinor)),
+  cumulative,
+  compare: cmp && cmpCumulative
+    ? {
+        label: compare === 'yoy' ? 'Same period last year' : 'Previous period',
+        total: cmp.days.map((d) => toMajor(d.totalEurMinor)),
+        cumulative: cmpCumulative,
+      }
+    : null,
+};
+const chartJson = JSON.stringify(chartData).replace(/</g, '\\u003c');
+
+// Preset → date-range map for the filter form's JS.
+const presetRangesJson = JSON.stringify(presetRangesMap()).replace(/</g, '\\u003c');
+
+// By-day table: only days with any activity.
+const activeDays = days.filter(
+  (d) => d.totalEurMinor > 0 || d.adSpendEurMinor > 0,
+);
+
 const flash = Astro.url.searchParams.get('flash');
 
-// Preserve filters on the CSV export link.
+// Preserve resolved filters on the CSV export link.
 const exportQs = new URLSearchParams();
 if (from) exportQs.set('from', from);
 if (to) exportQs.set('to', to);
 if (workshopId) exportQs.set('workshop_id', String(workshopId));
+
+const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
 ---
 
 <Layout title="Admin — Workshop stats — Songdance" description="">
@@ -43,47 +219,135 @@ if (workshopId) exportQs.set('workshop_id', String(workshopId));
       <div>
         <p class="adm-breadcrumbs"><a href="/admin">Admin</a> <span class="sep">/</span> <a href="/admin/workshops">Workshops</a> <span class="sep">/</span> Statistics</p>
         <h1>Statistics &amp; ROAS</h1>
-        <p class="adm-sub">All figures in EUR, net of tax where tax data is available. ROAS = net revenue ÷ Meta ad spend over the same window.</p>
+        <p class="adm-sub">All figures in EUR. Workshop-engine figures are net of tax where tax data exists; standalone course sales (12-week, certification) are charged amounts gross of VAT, converted at fallback FX rates. Blended ROAS = total revenue ÷ Meta ad spend over the same window.</p>
       </div>
-      <div class="adm-actions"><a class="adm-btn adm-btn--ghost" href="/admin/workshops">← Workshops</a></div>
+      <div class="adm-actions">
+        <a class="adm-btn adm-btn--ghost" href="/admin/workshops/performance">Per-workshop performance</a>
+        <a class="adm-btn adm-btn--ghost" href="/admin/workshops">← Workshops</a>
+      </div>
     </header>
 
     {flash === 'spend' && <div class="adm-flash adm-flash--ok">Ad spend imported.</div>}
 
     <section class="adm-section">
-      <form method="GET" class="adm-inline-form">
-        <label>From <input type="date" name="from" value={from ?? ''} /></label>
-        <label>To <input type="date" name="to" value={to ?? ''} /></label>
+      <form method="GET" class="adm-inline-form" id="stats-filter">
+        <label>Period
+          <select name="preset" id="f-preset">
+            {PERIOD_PRESETS.map(([v, l]) => <option value={v} selected={preset === v}>{l}</option>)}
+          </select>
+        </label>
+        <label>From <input type="date" name="from" id="f-from" value={from ?? ''} /></label>
+        <label>To <input type="date" name="to" id="f-to" value={to ?? ''} /></label>
+        <label>Compare
+          <select name="compare" id="f-compare" disabled={preset === 'all'}>
+            <option value="">Off</option>
+            <option value="prev" selected={compare === 'prev'}>Previous period</option>
+            <option value="yoy" selected={compare === 'yoy'}>Same period last year</option>
+          </select>
+        </label>
         <label>Workshop
           <select name="workshop_id">
             <option value="">All</option>
-            {workshops.map((w) => <option value={w.id} selected={workshopId === w.id}>{w.title}</option>)}
+            {workshops.map((w) => <option value={w.id} selected={workshopId === w.id}>{workshopOptionLabel(w)}</option>)}
           </select>
         </label>
         <button type="submit" class="adm-btn adm-btn--solid">Apply</button>
         <a class="adm-btn adm-btn--ghost" href={`/api/admin/workshops/stats.csv?${exportQs.toString()}`}>Export CSV</a>
       </form>
+      <p class="adm-sub" style="margin-top:10px;">
+        Showing <strong>{rangeLabel}</strong>{cmp && cmpFrom && cmpTo && <> · compared with <strong>{cmpFrom} → {cmpTo}</strong></>}.
+        {workshopId && <> Standalone course sales (12-week, certification) are site-wide — the workshop filter only narrows workshop-engine figures.</>}
+        {preset === 'all' && <> Compare needs a bounded period — pick a preset or a custom range.</>}
+      </p>
     </section>
 
     <section class="adm-section">
       <div class="wk-stats">
-        <div class="wk-stat"><span>Net revenue (EUR)</span><strong>{eur(report.totals.netEurMinor)}</strong></div>
-        <div class="wk-stat"><span>Gross (EUR)</span><strong>{eur(report.totals.grossEurMinor)}</strong></div>
-        <div class="wk-stat"><span>Tax (EUR)</span><strong>{eur(report.totals.taxEurMinor)}</strong></div>
-        <div class="wk-stat"><span>Ticket net</span><strong>{eur(report.totals.ticketNetEurMinor)}</strong></div>
-        <div class="wk-stat"><span>Bump net ({report.totals.bumpCount})</span><strong>{eur(report.totals.bumpNetEurMinor)}</strong></div>
-        <div class="wk-stat"><span>Course net ({report.totals.courseCount})</span><strong>{eur(report.totals.courseNetEurMinor)}</strong></div>
-        <div class="wk-stat"><span>Ad spend (EUR)</span><strong>{eur(report.adSpendEurMinor)}</strong></div>
-        <div class="wk-stat wk-stat--hl"><span>ROAS</span><strong>{report.roas != null ? report.roas.toFixed(2) + '×' : '—'}</strong></div>
+        {cards.map((c) => (
+          <div class={`wk-stat${c.hl ? ' wk-stat--hl' : ''}`}>
+            <span>{c.label}</span>
+            <strong>{c.value}</strong>
+            {c.d && <em class={`wk-delta wk-delta--${c.d.cls}`}>{c.d.text}</em>}
+          </div>
+        ))}
       </div>
       {report.totals.flaggedNoTax > 0 && (
-        <p class="adm-sub">⚠ {report.totals.flaggedNoTax} payment(s) had no tax data — net was taken equal to gross for those.</p>
+        <p class="adm-sub">⚠ {report.totals.flaggedNoTax} workshop payment(s) had no tax data — net was taken equal to gross for those.</p>
+      )}
+      {courses.fxConverted > 0 && (
+        <p class="adm-sub">⚠ {courses.fxConverted} course sale(s) were charged in a non-EUR currency and converted with the fallback rate table.</p>
       )}
     </section>
 
+    <section class="adm-section">
+      <h2>Revenue over time</h2>
+      {days.length === 0 && <p class="adm-empty">No data in this window.</p>}
+      {days.length > 0 && (
+        <>
+          <div class="wk-chart-block">
+            <h3>Daily revenue by stream</h3>
+            <div class="wk-chart" id="chart-streams"></div>
+          </div>
+          <div class="wk-chart-block">
+            <h3>Daily revenue vs ad spend</h3>
+            <div class="wk-chart" id="chart-spend"></div>
+          </div>
+          <div class="wk-chart-block">
+            <h3>Cumulative revenue{cmp && ' (vs comparison)'}</h3>
+            <div class="wk-chart" id="chart-cumulative"></div>
+          </div>
+        </>
+      )}
+    </section>
+
+    <section class="adm-section">
+      <h2>Revenue streams</h2>
+      <table class="adm-table">
+        <thead>
+          <tr><th>Stream</th><th>Sales</th><th>Net (EUR)</th><th>Share</th>{cmp && <th>vs comparison</th>}</tr>
+        </thead>
+        <tbody>
+          {streamRows.map((r) => {
+            const d = delta(r.eurMinor, r.prev);
+            return (
+              <tr>
+                <td>{r.name}</td>
+                <td>{r.count}</td>
+                <td>{eur(r.eurMinor)}</td>
+                <td>{streamSum > 0 ? ((r.eurMinor / streamSum) * 100).toFixed(1) + '%' : '—'}</td>
+                {cmp && <td>{d ? <em class={`wk-delta wk-delta--${d.cls}`}>{d.text}</em> : '—'}</td>}
+              </tr>
+            );
+          })}
+          <tr class="wk-row--total">
+            <td><strong>Total</strong></td>
+            <td><strong>{streamRows.reduce((s, r) => s + r.count, 0)}</strong></td>
+            <td><strong>{eur(streamSum)}</strong></td>
+            <td>100%</td>
+            {cmp && <td />}
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    {courses.byProduct.length > 0 && (
+      <section class="adm-section">
+        <h2>Standalone course sales</h2>
+        <table class="adm-table">
+          <thead><tr><th>Product</th><th>Sales</th><th>Collected (EUR)</th></tr></thead>
+          <tbody>
+            {courses.byProduct.map((c) => (
+              <tr><td>{c.label}</td><td>{c.count}</td><td>{eur(c.netEurMinor)}</td></tr>
+            ))}
+          </tbody>
+        </table>
+        <p class="adm-sub">Collected = what was actually charged so far (installment plans count paid installments only, refunds subtracted), attributed to the day of first payment.</p>
+      </section>
+    )}
+
     {report.courseBreakdown.length > 0 && (
       <section class="adm-section">
-        <h2>Course sales</h2>
+        <h2>Course add-ons sold through workshop checkout</h2>
         <table class="adm-table">
           <thead><tr><th>Course</th><th>Count</th><th>Net (EUR)</th></tr></thead>
           <tbody>
@@ -97,20 +361,26 @@ if (workshopId) exportQs.set('workshop_id', String(workshopId));
 
     <section class="adm-section">
       <h2>By day</h2>
-      {report.daily.length === 0 && <p class="adm-empty">No data in this window.</p>}
-      {report.daily.length > 0 && (
+      {activeDays.length === 0 && <p class="adm-empty">No data in this window.</p>}
+      {activeDays.length > 0 && (
         <table class="adm-table">
-          <thead><tr><th>Date</th><th>Gross</th><th>Net</th><th>Ad spend</th><th>ROAS</th></tr></thead>
+          <thead><tr><th>Date</th><th>Workshops</th><th>Masterclass</th><th>Courses</th><th>Total</th><th>Ad spend</th><th>ROAS</th></tr></thead>
           <tbody>
-            {report.daily.map((d) => (
-              <tr>
-                <td>{d.date}</td>
-                <td>{eur(d.grossEurMinor)}</td>
-                <td>{eur(d.netEurMinor)}</td>
-                <td>{eur(d.adSpendEurMinor)}</td>
-                <td>{d.roas != null ? d.roas.toFixed(2) + '×' : '—'}</td>
-              </tr>
-            ))}
+            {activeDays.map((d) => {
+              const coursesEur = d.twelveWeekEurMinor + d.certificationEurMinor + d.otherCoursesEurMinor;
+              const roas = d.adSpendEurMinor > 0 ? d.totalEurMinor / d.adSpendEurMinor : null;
+              return (
+                <tr>
+                  <td>{d.date}</td>
+                  <td>{eur(d.workshopsEurMinor)}</td>
+                  <td>{eur(d.masterclassEurMinor)}</td>
+                  <td>{eur(coursesEur)}</td>
+                  <td>{eur(d.totalEurMinor)}</td>
+                  <td>{eur(d.adSpendEurMinor)}</td>
+                  <td>{roas != null ? roas.toFixed(2) + '×' : '—'}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       )}
@@ -128,16 +398,226 @@ if (workshopId) exportQs.set('workshop_id', String(workshopId));
     </section>
   </main>
 
+  <script is:inline type="application/json" id="stats-chart-data" set:html={chartJson} />
+  <script is:inline type="application/json" id="stats-preset-ranges" set:html={presetRangesJson} />
+
   <style>
     .wk-stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; }
     .wk-stat { background:#fff; border:1px solid rgba(42,27,42,0.12); border-radius:10px; padding:14px 16px; }
     .wk-stat span { display:block; font-size:12px; color:#9a8; }
     .wk-stat strong { font-size:22px; color:#2A1B2A; }
     .wk-stat--hl { background:#dcefdc; }
+    .wk-delta { display:inline-block; margin-top:4px; font-size:12px; font-style:normal; font-weight:600; border-radius:6px; padding:1px 7px; }
+    .wk-delta--up { color:#1d6b38; background:#e2f3e7; }
+    .wk-delta--down { color:#9c2b3f; background:#f9e4e8; }
+    .wk-delta--flat { color:#6b6258; background:#efece7; }
+    .wk-chart-block { margin-bottom:26px; }
+    .wk-chart-block h3 { font-size:14px; margin:0 0 8px; color:#2A1B2A; }
+    .wk-chart { position:relative; background:#fff; border:1px solid rgba(42,27,42,0.12); border-radius:10px; padding:10px 8px 4px; }
+    .wk-chart svg text { font-size:11px; fill:#8a8076; }
+    .wk-chart .wk-legend { display:flex; flex-wrap:wrap; gap:14px; padding:4px 10px 6px; font-size:12px; color:#5c5248; }
+    .wk-chart .wk-legend i { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:5px; vertical-align:-1px; }
+    .wk-chart .wk-tip { position:absolute; pointer-events:none; background:#2A1B2A; color:#fff; font-size:12px; line-height:1.5; border-radius:8px; padding:8px 11px; opacity:0; transition:opacity .08s; z-index:5; white-space:nowrap; }
+    .wk-row--total td { border-top:2px solid rgba(42,27,42,0.25); }
     .adm-table { width:100%; border-collapse:collapse; }
     .adm-table th, .adm-table td { text-align:left; padding:8px 10px; border-bottom:1px solid rgba(42,27,42,0.1); font-size:13px; }
     .adm-inline-form { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
   </style>
+
+  <script is:inline>
+    // Filter form: presets fill the date inputs and auto-apply; editing a
+    // date flips the preset to "custom"; compare is only meaningful with a
+    // bounded period.
+    (function () {
+      var ranges = JSON.parse(document.getElementById('stats-preset-ranges').textContent);
+      var form = document.getElementById('stats-filter');
+      var presetSel = document.getElementById('f-preset');
+      var fromIn = document.getElementById('f-from');
+      var toIn = document.getElementById('f-to');
+      var compareSel = document.getElementById('f-compare');
+
+      presetSel.addEventListener('change', function () {
+        var v = presetSel.value;
+        compareSel.disabled = v === 'all';
+        if (v === 'custom') return;
+        var r = ranges[v] || { from: null, to: null };
+        fromIn.value = r.from || '';
+        toIn.value = r.to || '';
+        if (v === 'all') compareSel.value = '';
+        form.submit();
+      });
+      function toCustom() {
+        presetSel.value = 'custom';
+        compareSel.disabled = !(fromIn.value && toIn.value);
+      }
+      fromIn.addEventListener('change', toCustom);
+      toIn.addEventListener('change', toCustom);
+    })();
+
+    // Hand-rolled SVG line charts (no external deps). Hover shows a tooltip
+    // with every series' value for the nearest day.
+    (function () {
+      var dataEl = document.getElementById('stats-chart-data');
+      if (!dataEl) return;
+      var data = JSON.parse(dataEl.textContent);
+      if (!data.labels || !data.labels.length) return;
+
+      var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      function shortDate(ymd) {
+        return parseInt(ymd.slice(8, 10), 10) + ' ' + MONTHS[parseInt(ymd.slice(5, 7), 10) - 1] +
+          (data.labels.length > 370 ? ' ’' + ymd.slice(2, 4) : '');
+      }
+      function fmt(v) { return '€' + v.toLocaleString('en-IE', { maximumFractionDigits: 0 }); }
+      function fmtAxis(v) {
+        if (v >= 10000) return '€' + Math.round(v / 1000) + 'k';
+        if (v >= 1000) return '€' + (v / 1000).toFixed(1) + 'k';
+        return '€' + Math.round(v);
+      }
+      function niceMax(v) {
+        var pow = Math.pow(10, Math.floor(Math.log(v) / Math.LN10));
+        var u = v / pow;
+        var nice = u <= 1 ? 1 : u <= 2 ? 2 : u <= 2.5 ? 2.5 : u <= 5 ? 5 : 10;
+        return nice * pow;
+      }
+      var NS = 'http://www.w3.org/2000/svg';
+      function elNS(tag, attrs) {
+        var e = document.createElementNS(NS, tag);
+        for (var k in attrs) e.setAttribute(k, attrs[k]);
+        return e;
+      }
+
+      // series: [{ name, color, values, dashed? }] — all aligned to data.labels
+      // (compare overlays are aligned by day index).
+      function draw(mountId, series) {
+        var mount = document.getElementById(mountId);
+        if (!mount) return;
+        mount.innerHTML = '';
+        var labels = data.labels;
+        var n = labels.length;
+        var W = Math.max(mount.clientWidth || 760, 320);
+        var H = 260, padL = 56, padR = 14, padT = 12, padB = 26;
+        var max = 1;
+        series.forEach(function (s) {
+          s.values.forEach(function (v) { if (v > max) max = v; });
+        });
+        max = niceMax(max);
+        function x(i) { return n === 1 ? (padL + W - padR) / 2 : padL + (W - padL - padR) * (i / (n - 1)); }
+        function y(v) { return H - padB - (H - padT - padB) * (v / max); }
+
+        var legend = document.createElement('div');
+        legend.className = 'wk-legend';
+        series.forEach(function (s) {
+          var span = document.createElement('span');
+          var dot = document.createElement('i');
+          dot.style.background = s.color;
+          span.appendChild(dot);
+          span.appendChild(document.createTextNode(s.name));
+          legend.appendChild(span);
+        });
+        mount.appendChild(legend);
+
+        var svg = elNS('svg', { viewBox: '0 0 ' + W + ' ' + H, width: '100%', height: H });
+        for (var g = 0; g <= 4; g++) {
+          var gy = H - padB - (H - padT - padB) * (g / 4);
+          svg.appendChild(elNS('line', { x1: padL, y1: gy, x2: W - padR, y2: gy, stroke: 'rgba(42,27,42,0.08)' }));
+          var t = elNS('text', { x: padL - 7, y: gy + 4, 'text-anchor': 'end' });
+          t.textContent = fmtAxis(max * g / 4);
+          svg.appendChild(t);
+        }
+        var step = Math.max(1, Math.ceil(n / 7));
+        for (var i = 0; i < n; i += step) {
+          var tx = elNS('text', { x: x(i), y: H - padB + 17, 'text-anchor': 'middle' });
+          tx.textContent = shortDate(labels[i]);
+          svg.appendChild(tx);
+        }
+        series.forEach(function (s) {
+          if (n === 1) {
+            svg.appendChild(elNS('circle', { cx: x(0), cy: y(s.values[0] || 0), r: 4, fill: s.color }));
+            return;
+          }
+          var pts = s.values.map(function (v, i) { return x(i) + ',' + y(v || 0); }).join(' ');
+          var pl = elNS('polyline', { points: pts, fill: 'none', stroke: s.color, 'stroke-width': 2, 'stroke-linejoin': 'round' });
+          if (s.dashed) pl.setAttribute('stroke-dasharray', '5 4');
+          svg.appendChild(pl);
+        });
+
+        // Hover: vertical guide + per-series dots + tooltip.
+        var guide = elNS('line', { y1: padT, y2: H - padB, stroke: 'rgba(42,27,42,0.3)', 'stroke-width': 1, visibility: 'hidden' });
+        svg.appendChild(guide);
+        var dots = series.map(function (s) {
+          var c = elNS('circle', { r: 3.5, fill: s.color, visibility: 'hidden' });
+          svg.appendChild(c);
+          return c;
+        });
+        mount.appendChild(svg);
+        var tip = document.createElement('div');
+        tip.className = 'wk-tip';
+        mount.appendChild(tip);
+
+        mount.addEventListener('mousemove', function (ev) {
+          var rect = svg.getBoundingClientRect();
+          var sx = W / rect.width;
+          var mx = (ev.clientX - rect.left) * sx;
+          var i = n === 1 ? 0 : Math.round(((mx - padL) / (W - padL - padR)) * (n - 1));
+          if (i < 0) i = 0;
+          if (i > n - 1) i = n - 1;
+          guide.setAttribute('x1', x(i));
+          guide.setAttribute('x2', x(i));
+          guide.setAttribute('visibility', 'visible');
+          var html = '<strong>' + labels[i] + '</strong>';
+          series.forEach(function (s, k) {
+            var v = s.values[i];
+            dots[k].setAttribute('cx', x(i));
+            dots[k].setAttribute('cy', y(v || 0));
+            dots[k].setAttribute('visibility', v == null ? 'hidden' : 'visible');
+            if (v != null) html += '<br>' + s.name + ': ' + fmt(v);
+          });
+          tip.innerHTML = html;
+          var mountRect = mount.getBoundingClientRect();
+          var left = ev.clientX - mountRect.left + 14;
+          tip.style.opacity = '1';
+          tip.style.top = (ev.clientY - mountRect.top + 14) + 'px';
+          tip.style.left = left + 'px';
+          var over = left + tip.offsetWidth - mountRect.width + 8;
+          if (over > 0) tip.style.left = (left - tip.offsetWidth - 28) + 'px';
+        });
+        mount.addEventListener('mouseleave', function () {
+          tip.style.opacity = '0';
+          guide.setAttribute('visibility', 'hidden');
+          dots.forEach(function (d) { d.setAttribute('visibility', 'hidden'); });
+        });
+      }
+
+      function drawAll() {
+        var streamSeries = data.streams.concat([
+          { name: 'Total', color: 'rgba(42,27,42,0.45)', values: data.total, dashed: true },
+        ]);
+        draw('chart-streams', streamSeries);
+        var spendSeries = [
+          { name: 'Total revenue', color: '#2A1B2A', values: data.total },
+          { name: 'Ad spend', color: '#5b7fb0', values: data.adSpend },
+        ];
+        // Compare overlays align by day index; a YoY window spanning a leap
+        // day can be one day longer, so trim to the current window's length.
+        var nLabels = data.labels.length;
+        if (data.compare) {
+          spendSeries.push({ name: data.compare.label, color: 'rgba(42,27,42,0.4)', values: data.compare.total.slice(0, nLabels), dashed: true });
+        }
+        draw('chart-spend', spendSeries);
+        var cumSeries = [{ name: 'Cumulative revenue', color: '#2f7d5a', values: data.cumulative }];
+        if (data.compare) {
+          cumSeries.push({ name: data.compare.label, color: 'rgba(42,27,42,0.4)', values: data.compare.cumulative.slice(0, nLabels), dashed: true });
+        }
+        draw('chart-cumulative', cumSeries);
+      }
+      drawAll();
+      var rt;
+      window.addEventListener('resize', function () {
+        clearTimeout(rt);
+        rt = setTimeout(drawAll, 150);
+      });
+    })();
+  </script>
 
   <script is:inline>
     (function () {
