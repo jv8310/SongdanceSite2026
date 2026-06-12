@@ -36,9 +36,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
     return new Response('Not found', { status: 404 });
   }
 
-  if (reg.payment_plan === '3x' && reg.installments_paid === 0) {
-    // 3x: bump installments_paid from 0 to 1 so the admin view reflects the
-    // first installment Stripe has already charged.
+  if (
+    (reg.payment_plan === '3x' || reg.payment_plan === '6x') &&
+    reg.installments_paid === 0
+  ) {
+    // Installment plan: bump installments_paid from 0 to 1 so the admin view
+    // reflects the first installment Stripe has already charged.
     await recordInstallmentPaid(
       env.DB,
       reg.id,

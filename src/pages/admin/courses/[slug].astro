@@ -290,8 +290,8 @@ function showSubBadge(rowStatus: string, subStatus: string | null): boolean {
                 <div><dt>Phone</dt><dd>{phoneDisplay ?? '—'}</dd></div>
                 <div><dt>Variant</dt><dd>{variantLabel(r.source_variant)}</dd></div>
                 <div><dt>Payment</dt><dd>
-                  {r.payment_plan === '3x'
-                    ? `3 monthly · ${r.installments_paid}/${r.installments_total} paid`
+                  {r.payment_plan === '3x' || r.payment_plan === '6x'
+                    ? `${r.installments_total} monthly · ${r.installments_paid}/${r.installments_total} paid`
                     : 'Full payment'}
                 </dd></div>
                 {r.stripe_session_id && (

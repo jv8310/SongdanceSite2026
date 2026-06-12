@@ -42,11 +42,23 @@ import {
   getBundleOffer,
   getCertOffer,
   type Currency,
+  type InstallmentPlan,
   type Offer,
   type Variant,
 } from '../../../lib/courses/variant';
 
 export const prerender = false;
+
+// Resolve the installment ladder for the chosen payment plan. Returns null
+// for 'full' (one-off) or when the offer doesn't carry that ladder.
+function installmentPlanFor(
+  offer: Offer,
+  paymentPlan: PaymentPlan,
+): InstallmentPlan | undefined {
+  if (paymentPlan === '3x') return offer.installments;
+  if (paymentPlan === '6x') return offer.installments_6x;
+  return undefined;
+}
 
 type Body = {
   product_slug?: string;
@@ -116,7 +128,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const vatNumberRaw = (payload.vat_number ?? '').trim().replace(/\s+/g, '');
     const vatNumber = vatNumberRaw ? vatNumberRaw.toUpperCase() : null;
     const paymentPlan: PaymentPlan =
-      payload.payment_plan === '3x' ? '3x' : 'full';
+      payload.payment_plan === '3x'
+        ? '3x'
+        : payload.payment_plan === '6x'
+          ? '6x'
+          : 'full';
     const currency: Currency =
       payload.currency === 'USD'
         ? 'USD'
@@ -180,28 +196,30 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     const offer = offerFor(productSlug, currency);
 
-    // For full pay we charge price_cents once. For 3x we charge
-    // monthly_cents × 3 (total may differ by a few cents — see variant.ts).
-    if (paymentPlan === '3x' && !offer.installments) {
+    // The installment ladder for the chosen plan (3 or 6 monthly payments),
+    // or undefined for pay-in-full.
+    const installmentPlan = installmentPlanFor(offer, paymentPlan);
+
+    // For full pay we charge price_cents once. For an installment plan we
+    // charge monthly_cents × count (total may differ by a few cents from the
+    // pay-in-full price — see variant.ts).
+    if (paymentPlan !== 'full' && !installmentPlan) {
       return json(
         { error: 'This product cannot be purchased in installments.' },
         400,
       );
     }
     // Apply URL-driven discount to the unit price charged to the buyer.
-    // For 3x, every monthly installment is discounted (not just the first).
+    // For an installment plan, every monthly payment is discounted (not just
+    // the first).
     const chargedPriceCents = applyDiscount(offer.price_cents, discountPct);
-    const chargedMonthlyCents = offer.installments
-      ? applyDiscount(offer.installments.monthly_cents, discountPct)
+    const chargedMonthlyCents = installmentPlan
+      ? applyDiscount(installmentPlan.monthly_cents, discountPct)
       : 0;
-    const totalAmountCents =
-      paymentPlan === '3x' && offer.installments
-        ? chargedMonthlyCents * offer.installments.count
-        : chargedPriceCents;
-    const installmentsTotal =
-      paymentPlan === '3x' && offer.installments
-        ? offer.installments.count
-        : 1;
+    const totalAmountCents = installmentPlan
+      ? chargedMonthlyCents * installmentPlan.count
+      : chargedPriceCents;
+    const installmentsTotal = installmentPlan ? installmentPlan.count : 1;
 
     const phoneCountry = findCountry(phoneCountryCode);
     const phoneE164 = phoneCountry
@@ -313,9 +331,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         ? {
             discount_percent: String(discountPct),
             original_amount_cents: String(
-              paymentPlan === '3x' && offer.installments
-                ? offer.installments.total_cents
-                : offer.price_cents,
+              installmentPlan ? installmentPlan.total_cents : offer.price_cents,
             ),
           }
         : {}),
@@ -334,21 +350,21 @@ export const POST: APIRoute = async ({ request, locals }) => {
       product_slug: productSlug,
     };
 
-    if (paymentPlan === '3x' && offer.installments && customerId) {
+    if (paymentPlan !== 'full' && installmentPlan && customerId) {
       const session = await createSubscriptionCheckoutSession({
         secretKey: env.STRIPE_SECRET_KEY,
         customer: customerId,
         success_url: successUrl,
         cancel_url: `${baseUrl}/courses/certification${cancelQuery}#register`,
         product_name: offer.label,
-        product_description: `${offer.installments.count} monthly installments of ${moneyCents(chargedMonthlyCents, currency)}`,
+        product_description: `${installmentPlan.count} monthly installments of ${moneyCents(chargedMonthlyCents, currency)}`,
         payment_intent_description: offer.label,
         product_metadata: productMetadata,
         monthly_amount_cents: chargedMonthlyCents,
         currency: currency.toLowerCase(),
-        installment_count: offer.installments.count,
+        installment_count: installmentPlan.count,
         metadata,
-        idempotency_key: `course-reg-${registrationId}-3x${discountPct > 0 ? `-d${discountPct}` : ''}`,
+        idempotency_key: `course-reg-${registrationId}-${paymentPlan}${discountPct > 0 ? `-d${discountPct}` : ''}`,
       });
 
       await attachStripeSessionToCourse(env.DB, registrationId, session.id);
@@ -364,7 +380,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         registration_id: null,
         kind: 'course.checkout.subscription.created',
         source: 'system',
-        external_id: `local-course-${registrationId}-3x`,
+        external_id: `local-course-${registrationId}-${paymentPlan}`,
         payload: {
           course_registration_id: registrationId,
           session_id: session.id,
@@ -372,13 +388,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
           product_slug: productSlug,
           currency,
           monthly_amount_cents: chargedMonthlyCents,
-          installments_total: offer.installments.count,
+          installments_total: installmentPlan.count,
           activate_choice: activateChoice,
           source_variant: sourceVariant,
           company_name: companyName,
           vat_number: vatNumber,
           discount_percent: discountPct,
-          original_monthly_amount_cents: offer.installments.monthly_cents,
+          original_monthly_amount_cents: installmentPlan.monthly_cents,
         },
       });
 
