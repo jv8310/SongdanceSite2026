@@ -33,7 +33,7 @@ const Q5_OPTIONS = [
   { value: 'head_not_body', label: "I've forgiven in my head but not in my body" },
   { value: 'returns',       label: 'I keep forgiving and it keeps coming back' },
   { value: 'ready',         label: "I'm ready — I just need words for it" },
-  { value: 'numb',          label: 'I feel numb, distant, or shut down about it' },
+  { value: 'numb',          label: 'I feel numb, distant, or closed off about it' },
 ];
 
 const STEPS = ['intro', 'q1', 'q2', 'q3', 'q4', 'q5', 'generating', 'prayer'];
@@ -105,7 +105,7 @@ function Q1Step({ value, setValue, onContinue, onRipple }) {
   return (
     <div className="tlw-step tlw-step-fade-enter">
       <div className="tlw-layer-eyebrow">the story</div>
-      <h2 className="tlw-prompt">In a few sentences, tell us what you're seeking forgiveness around.</h2>
+      <h2 className="tlw-prompt">In a few sentences, tell us what you're seeking forgiveness for.</h2>
       <p className="tlw-q-helper">Who or what is involved? Write as little or as much as feels right.</p>
       <textarea
         ref={ref}
@@ -240,7 +240,7 @@ function PrayerCard({ prayer, onSubmitEmail, onReplay, submitted, sending }) {
               </li>
               <li>
                 <span className="tlw-course-fact-key">Lifetime access to all replays</span>
-                <span className="tlw-course-fact-val">Tuition €147</span>
+                <span className="tlw-course-fact-val">Price €147</span>
               </li>
             </ul>
             <a className="tlw-course-cta" href="https://site.songdance.co/forgiveness/">
@@ -266,7 +266,7 @@ function PrayerCard({ prayer, onSubmitEmail, onReplay, submitted, sending }) {
             <button type="submit" disabled={sending}>{sending ? 'Sending…' : 'Send my prayer'}</button>
           </div>
           <p className="tlw-email-fineprint">
-            We'll send your prayer by email. You'll also get our occasional letter — easy to leave.
+            We'll send your prayer by email. You'll also get our occasional letter — easy to unsubscribe anytime.
           </p>
           <input
             type="text"
@@ -439,8 +439,8 @@ export default function ThreeLayersWalk() {
         const detail = data && (data.detail || data.error);
         throw new Error(
           detail
-            ? `Couldn't send it just now (${detail}). Try once more, or email jacob@songdance.co.`
-            : "Couldn't send it just now. Try once more, or email jacob@songdance.co.",
+            ? `We couldn't send it right now (${detail}). Try once more, or email jacob@songdance.co.`
+            : "We couldn't send it right now. Try once more, or email jacob@songdance.co.",
         );
       }
       setSubmitted(true);

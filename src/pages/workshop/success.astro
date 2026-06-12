@@ -112,14 +112,14 @@ const upcoming = reg
 
             <div class="ws-missed" id="ws-missed" hidden={win !== 'closed'}>
               <p class="ws-missed-h">This session has finished</p>
-              <p class="ws-missed-sub">No worries — pick one of the options below.</p>
+              <p class="ws-missed-sub">Don't worry — pick one of the options below.</p>
 
               {hasReplay && (
                 <a class="ws-join" href={replayHref}>Watch the replay →</a>
               )}
 
               <div class="ws-rebook">
-                <p class="ws-rebook-h">…or come to another date, free of charge</p>
+                <p class="ws-rebook-h">…or come to another date, for free</p>
                 {upcoming.length === 0 ? (
                   <p class="ws-note">No new dates are open just yet — email <a href="mailto:info@songdance.co">info@songdance.co</a> and we’ll let you know.</p>
                 ) : (

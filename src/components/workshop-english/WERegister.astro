@@ -109,7 +109,7 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
               <span class="we-cal-main">
                 {it.kind === 'masterclass' && <span class="we-cal-kind">Masterclass</span>}
                 <span class="we-cal-when">
-                  {it.isReplay ? 'On demand — watch anytime' : it.whenLocal}
+                  {it.isReplay ? 'Watch anytime' : it.whenLocal}
                   {!it.isReplay && <span class="we-cal-tz"> · your time</span>}
                 </span>
                 <span class="we-cal-meta">
@@ -201,7 +201,7 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
 
           <button type="submit" class="we-submit" id="we-submit">Register &amp; pay →</button>
           <p class="we-err" id="we-err" hidden></p>
-          <p class="we-fine" id="we-fine">Secure checkout via Stripe. The Zoom link and a calendar invite arrive by email right after. Life intervenes? There's a replay, and you can move to another date free of charge.</p>
+          <p class="we-fine" id="we-fine">Secure checkout via Stripe. The Zoom link and a calendar invite arrive by email right after. Something comes up? There's a replay, and you can move to another date for free.</p>
         </form>
       )}
     </div>

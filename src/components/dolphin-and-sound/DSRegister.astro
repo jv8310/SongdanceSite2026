@@ -63,7 +63,7 @@ import { COUNTRIES } from '../../lib/countries';
           <span class="ds-pay-body">
             <span class="ds-pay-name">Pay in full</span>
             <span class="ds-pay-price">€1995</span>
-            <span class="ds-pay-note">All-in, per person.</span>
+            <span class="ds-pay-note">Everything included, per person.</span>
           </span>
         </label>
         <label class="ds-pay">
@@ -71,7 +71,7 @@ import { COUNTRIES } from '../../lib/countries';
           <span class="ds-pay-body">
             <span class="ds-pay-name">Reserve with a deposit</span>
             <span class="ds-pay-price">€997.50</span>
-            <span class="ds-pay-note">50% now · balance €997.50 before 1 Sept 2026.</span>
+            <span class="ds-pay-note">50% now · remaining €997.50 before 1 Sept 2026.</span>
           </span>
         </label>
       </fieldset>
@@ -205,12 +205,12 @@ import { COUNTRIES } from '../../lib/countries';
       const fullPrice = fullEl?.querySelector('.ds-pay-price');
       const fullNote = fullEl?.querySelector('.ds-pay-note');
       if (fullPrice) fullPrice.textContent = fmtEur(tier.price_cents);
-      if (fullNote) fullNote.textContent = `All-in, ${perLabel}.`;
+      if (fullNote) fullNote.textContent = `Everything included, ${perLabel}.`;
       const depPrice = depEl?.querySelector('.ds-pay-price');
       const depNote = depEl?.querySelector('.ds-pay-note');
       if (depPrice) depPrice.textContent = fmtEur(tier.deposit_cents);
       if (depNote)
-        depNote.textContent = `50% now · balance ${fmtEur(tier.price_cents - tier.deposit_cents)} ${balanceDue}.`;
+        depNote.textContent = `50% now · remaining ${fmtEur(tier.price_cents - tier.deposit_cents)} ${balanceDue}.`;
     }
 
     function ensureSelectable() {

@@ -19,13 +19,13 @@ const elsewhere = [
 
 <SiteLayout
   title="Page not found — Songdance"
-  description="This page isn't here. Nothing's broken — it's just out of reach. A few doors that are open below."
+  description="This page isn't here. Nothing's broken — it just isn't here anymore. A few pages that are here below."
   newsletter={false}
 >
   <PageHero
     eyebrow="404"
-    title="This page went quiet."
-    lede="The one you were looking for isn't here. Nothing's broken — it's just out of reach."
+    title="This page isn't here."
+    lede="The one you were looking for isn't here. Nothing's broken — it just isn't here anymore."
   >
     <div class="sd-pagehero-actions">
       <a href="/" class="sd-btn sd-btn-primary">Back home</a>
@@ -37,13 +37,13 @@ const elsewhere = [
     <div class="sd-prose-inner">
       <p>
         Maybe the link was old. Maybe the page moved. Maybe it was never
-        written. The keys are in the house somewhere — this just isn't the
-        door. Take a breath — in through the nose, out through the mouth —
-        and start again from somewhere that is here.
+        written. What you're looking for is still on the site somewhere — this
+        just isn't the right page. Take a breath — in through the nose, out
+        through the mouth — and start again from somewhere that is here.
       </p>
 
       <nav class="sd-404-links" aria-label="A few places that are here">
-        <p class="sd-eyebrow">A few doors that are open</p>
+        <p class="sd-eyebrow">A few pages that are here</p>
         <ul>
           {elsewhere.map((link) => (
             <li><a href={link.href}>{link.label}</a></li>

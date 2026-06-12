@@ -69,19 +69,19 @@ const firstName = reg?.first_name?.trim() || null;
               <p class="cc-register-lead">
                 Your payment for <strong>{productLabel}</strong> has been received.
                 {isSubscription && (
-                  <> Installment {reg.installments_paid} of {reg.installments_total} paid — the next charge will run automatically.</>
+                  <> Installment {reg.installments_paid} of {reg.installments_total} paid — the next payment will be taken automatically.</>
                 )}
               </p>
             ) : (
               <p class="cc-register-lead">
                 Your payment for <strong>{productLabel}</strong> is being confirmed.
-                This page will reflect the confirmed status within a minute or two.
+                This page will show that you are confirmed within a minute or two.
                 You can safely close this window — we'll email you the moment it's confirmed.
               </p>
             )}
 
             <p class="cc-register-lead cc-thanks-note">
-              A confirmation email and invoice are on their way.
+              A confirmation email and invoice are coming soon.
               {reg.activate_choice === 'wait' && reg.product_slug === 'cc-bundle' && (
                 <> The 12-week foundation begins right away; the certification course opens automatically when the foundation is complete.</>
               )}
@@ -105,8 +105,8 @@ const firstName = reg?.first_name?.trim() || null;
           <>
             <h1 class="cc-register-h2">Thank you.</h1>
             <p class="cc-register-lead">
-              If you've just completed payment, we'll be in touch shortly. You
-              can safely close this window — a confirmation email is on its way.
+              If you've just completed payment, we'll contact you soon. You
+              can safely close this window — a confirmation email is coming.
             </p>
             <div class="cc-thanks-actions">
               <a class="cc-checkout-cta" href="/courses/certification">

@@ -28,12 +28,12 @@ const chips = [
 
 <SiteLayout
   title="Upcoming — Songdance"
-  description="Retreats, online sessions, and course intakes — everything happening next at Songdance."
+  description="Retreats, online sessions, and course start dates — everything happening next at Songdance."
 >
   <PageHero
     eyebrow="Upcoming"
     title="Everything happening next"
-    lede="Retreats, online sessions, and course intakes — in one place."
+    lede="Retreats, online sessions, and course start dates — in one place."
   />
 
   <section class="sd-section sd-events">
@@ -49,7 +49,7 @@ const chips = [
       </div>
 
       {events.length === 0 ? (
-        <p class="sd-events-empty">Nothing on the calendar just now. The letter below is the first to know when something's set.</p>
+        <p class="sd-events-empty">Nothing on the calendar right now. Sign up below and you'll be the first to hear when something is scheduled.</p>
       ) : (
         <div class="sd-evt-grid" data-events-grid>
           {events.map((e) => {
