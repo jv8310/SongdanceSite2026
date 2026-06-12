@@ -390,6 +390,271 @@ export async function computeCourseSales(
 }
 
 // ---------------------------------------------------------------------------
+// Per-workshop performance: the registration → attendance → course-purchase
+// funnel, one row per workshop. Course/cert purchases are attributed by email
+// (engine add-ons through any workshop checkout, plus standalone
+// course_registrations), so a buyer who registered for several workshops
+// counts toward each of them.
+
+export type WorkshopPerformanceRow = {
+  workshopId: number;
+  title: string;
+  startsAtUtc: string;
+  isReplay: boolean;
+  status: string;
+  registrations: number; // paid or coupon
+  attendedLive: number;
+  replayViews: number;
+  noShows: number;
+  attendancePct: number | null;
+  bumpBuys: number;
+  courseBuys: number; // 12-week (engine add-on + standalone, distinct emails)
+  certBuys: number; // certification path (engine cert add-on + standalone cc-*)
+  engineNetEurMinor: number; // tickets + bumps + add-ons through this workshop
+  attributedCourseEurMinor: number; // standalone 12-week/cert revenue by registrant email
+  totalEurMinor: number;
+  metaCostEurMinor: number | null;
+  conversionPct: number | null; // distinct course/cert buyers ÷ registrations
+};
+
+export type WorkshopPerformanceReport = {
+  rows: WorkshopPerformanceRow[];
+  adSpendEurMinor: number;
+  totalRegistrations: number;
+  costPerRegistrationEurMinor: number | null;
+};
+
+// Stored datetimes come in two shapes: ISO with "Z" (workshop times) and
+// SQLite's "YYYY-MM-DD HH:MM:SS" (row timestamps, also UTC).
+function parseUtcMs(s: string | null | undefined): number | null {
+  if (!s) return null;
+  const ms = Date.parse(s.includes('T') ? s : s.replace(' ', 'T') + 'Z');
+  return Number.isFinite(ms) ? ms : null;
+}
+
+export async function computeWorkshopPerformance(
+  db: D1Database,
+  opts: { from?: string | null; to?: string | null } = {},
+): Promise<WorkshopPerformanceReport> {
+  const winFrom = opts.from ?? null;
+  const winTo = opts.to ? `${opts.to} 23:59:59` : null;
+  const win = (col: string, binds: unknown[]): string => {
+    const parts: string[] = [];
+    if (winFrom) { parts.push(`${col} >= ?`); binds.push(winFrom); }
+    if (winTo) { parts.push(`${col} <= ?`); binds.push(winTo); }
+    return parts.length ? ' AND ' + parts.join(' AND ') : '';
+  };
+
+  const wRes = await db
+    .prepare(
+      `SELECT id, title, starts_at_utc, ends_at_utc, is_replay, status
+         FROM workshops WHERE deleted = 0 ORDER BY starts_at_utc DESC`,
+    )
+    .all<{ id: number; title: string; starts_at_utc: string; ends_at_utc: string | null; is_replay: number; status: string }>();
+  const workshopRows = wRes.results ?? [];
+
+  // Completed registrations (paid or coupon) in the window.
+  const regBinds: unknown[] = [];
+  const regRes = await db
+    .prepare(
+      `SELECT workshop_id, lower(email) AS email, attendance_status, joined_at_utc
+         FROM workshop_registrations
+        WHERE payment_status IN ('paid','coupon')${win('created_at', regBinds)}`,
+    )
+    .bind(...regBinds)
+    .all<{ workshop_id: number; email: string; attendance_status: string; joined_at_utc: string | null }>();
+
+  // Bump purchases (paid) per workshop.
+  const bumpBinds: unknown[] = [];
+  const bumpRes = await db
+    .prepare(
+      `SELECT r.workshop_id, COUNT(DISTINCT pur.registration_id) AS n
+         FROM workshop_purchases pur
+         JOIN workshop_payments p ON p.id = pur.payment_id AND p.status = 'paid'
+         JOIN workshop_registrations r ON r.id = pur.registration_id
+        WHERE pur.product_type = 'bump'${win('p.created_at', bumpBinds)}
+        GROUP BY r.workshop_id`,
+    )
+    .bind(...bumpBinds)
+    .all<{ workshop_id: number; n: number }>();
+  const bumpByWorkshop = new Map((bumpRes.results ?? []).map((b) => [b.workshop_id, b.n]));
+
+  // Engine course add-on buyers (paid) with slug, per workshop.
+  const addonBinds: unknown[] = [];
+  const addonRes = await db
+    .prepare(
+      `SELECT r.workshop_id, lower(r.email) AS email, prod.slug AS slug
+         FROM workshop_purchases pur
+         JOIN workshop_payments p ON p.id = pur.payment_id AND p.status = 'paid'
+         JOIN workshop_registrations r ON r.id = pur.registration_id
+         JOIN workshop_products prod ON prod.id = pur.product_id
+        WHERE pur.product_type = 'course'${win('p.created_at', addonBinds)}`,
+    )
+    .bind(...addonBinds)
+    .all<{ workshop_id: number; email: string; slug: string }>();
+
+  // Engine revenue (net EUR) per workshop.
+  const payBinds: unknown[] = [];
+  const payRes = await db
+    .prepare(
+      `SELECT r.workshop_id, p.amount_minor, p.currency, p.settlement_amount_minor,
+              p.settlement_currency, p.subtotal_minor
+         FROM workshop_payments p
+         JOIN workshop_registrations r ON r.id = p.registration_id
+        WHERE p.status = 'paid'${win('p.created_at', payBinds)}`,
+    )
+    .bind(...payBinds)
+    .all<{
+      workshop_id: number; amount_minor: number; currency: string;
+      settlement_amount_minor: number | null; settlement_currency: string | null;
+      subtotal_minor: number | null;
+    }>();
+
+  // Standalone course buyers by email: 12-week + certification path, with
+  // collected EUR (installments paid only, refunds off, fallback FX).
+  const crsBinds: unknown[] = [];
+  const crsRes = await db
+    .prepare(
+      `SELECT lower(email) AS email, product_slug, amount_cents, currency, payment_plan,
+              installments_paid, installments_total, refunded_amount_cents
+         FROM course_registrations
+        WHERE paid_at IS NOT NULL AND status NOT IN ('pending','expired')${win('paid_at', crsBinds)}`,
+    )
+    .bind(...crsBinds)
+    .all<CourseRegRow & { email: string }>();
+  const standalone = new Map<string, { tw: boolean; cert: boolean; eurMinor: number }>();
+  for (const r of crsRes.results ?? []) {
+    const isTw = r.product_slug === 'svh-12week';
+    const isCert = r.product_slug === 'cc-cert' || r.product_slug === 'cc-bundle';
+    if (!isTw && !isCert) continue;
+    const expected =
+      r.payment_plan === '3x' && r.installments_total > 0
+        ? Math.round(r.amount_cents * (r.installments_paid / r.installments_total))
+        : r.amount_cents;
+    const collected = Math.max(0, expected - (r.refunded_amount_cents ?? 0));
+    const eurMinor = Math.round(collected * (FX_TO_EUR[(r.currency || 'EUR').toUpperCase()] ?? 1));
+    const s = standalone.get(r.email) ?? { tw: false, cert: false, eurMinor: 0 };
+    if (isTw) s.tw = true;
+    if (isCert) s.cert = true;
+    s.eurMinor += eurMinor;
+    standalone.set(r.email, s);
+  }
+
+  // Ad spend over the window → average cost per completed registration.
+  const adBinds: unknown[] = [];
+  const adWhere: string[] = [];
+  if (opts.from) { adWhere.push('spend_date >= ?'); adBinds.push(opts.from); }
+  if (opts.to) { adWhere.push('spend_date <= ?'); adBinds.push(opts.to); }
+  const adRes = await db
+    .prepare(
+      `SELECT amount_eur_minor, amount_minor, currency FROM workshop_ad_spend
+        ${adWhere.length ? 'WHERE ' + adWhere.join(' AND ') : ''}`,
+    )
+    .bind(...adBinds)
+    .all<{ amount_eur_minor: number | null; amount_minor: number; currency: string }>();
+  let adSpendEurMinor = 0;
+  for (const a of adRes.results ?? []) {
+    adSpendEurMinor += a.amount_eur_minor ?? (a.currency === 'EUR' ? a.amount_minor : 0);
+  }
+
+  // ---- Aggregate per workshop ----
+  type Acc = {
+    regs: number; emails: Set<string>;
+    live: number; replay: number; noShow: number;
+    engineTw: Set<string>; engineCert: Set<string>;
+    netEurMinor: number;
+  };
+  const accs = new Map<number, Acc>();
+  const acc = (id: number): Acc => {
+    let a = accs.get(id);
+    if (!a) {
+      a = { regs: 0, emails: new Set(), live: 0, replay: 0, noShow: 0, engineTw: new Set(), engineCert: new Set(), netEurMinor: 0 };
+      accs.set(id, a);
+    }
+    return a;
+  };
+  const endMsByWorkshop = new Map<number, { endMs: number | null; isReplay: boolean }>();
+  for (const w of workshopRows) {
+    const startMs = parseUtcMs(w.starts_at_utc);
+    const endMs = parseUtcMs(w.ends_at_utc) ?? (startMs != null ? startMs + 3600_000 : null);
+    endMsByWorkshop.set(w.id, { endMs, isReplay: w.is_replay === 1 });
+  }
+
+  for (const r of regRes.results ?? []) {
+    const a = acc(r.workshop_id);
+    a.regs += 1;
+    a.emails.add(r.email);
+    if (r.attendance_status === 'no_show') {
+      a.noShow += 1;
+    } else if (r.attendance_status === 'attended') {
+      const w = endMsByWorkshop.get(r.workshop_id);
+      const joinedMs = parseUtcMs(r.joined_at_utc);
+      // Replay view: an on-demand workshop, or a join after the live slot
+      // ended. Admin-marked attendance with no join time counts as live.
+      const isReplayView = w?.isReplay || (joinedMs != null && w?.endMs != null && joinedMs > w.endMs);
+      if (isReplayView) a.replay += 1;
+      else a.live += 1;
+    }
+  }
+  for (const c of addonRes.results ?? []) {
+    const a = acc(c.workshop_id);
+    if (c.slug === '12w-course') a.engineTw.add(c.email);
+    if (c.slug === 'cert-course') a.engineCert.add(c.email);
+  }
+  for (const p of payRes.results ?? []) {
+    const slim = p as unknown as PaymentRow;
+    const gross = grossEurMinor(slim);
+    acc(p.workshop_id).netEurMinor += netEurMinor(slim, gross).net;
+  }
+
+  const totalRegistrations = [...accs.values()].reduce((s, a) => s + a.regs, 0);
+  const costPerRegistrationEurMinor =
+    adSpendEurMinor > 0 && totalRegistrations > 0 ? adSpendEurMinor / totalRegistrations : null;
+
+  const rows: WorkshopPerformanceRow[] = workshopRows
+    .map((w) => {
+      const a = accs.get(w.id);
+      if (!a) return null;
+      const courseBuyers = new Set(a.engineTw);
+      const certBuyers = new Set(a.engineCert);
+      let attributedEur = 0;
+      for (const email of a.emails) {
+        const s = standalone.get(email);
+        if (!s) continue;
+        if (s.tw) courseBuyers.add(email);
+        if (s.cert) certBuyers.add(email);
+        attributedEur += s.eurMinor;
+      }
+      const buyers = new Set([...courseBuyers, ...certBuyers]);
+      const attended = a.live + a.replay;
+      return {
+        workshopId: w.id,
+        title: w.title,
+        startsAtUtc: w.starts_at_utc,
+        isReplay: w.is_replay === 1,
+        status: w.status,
+        registrations: a.regs,
+        attendedLive: a.live,
+        replayViews: a.replay,
+        noShows: a.noShow,
+        attendancePct: a.regs > 0 ? (attended / a.regs) * 100 : null,
+        bumpBuys: bumpByWorkshop.get(w.id) ?? 0,
+        courseBuys: courseBuyers.size,
+        certBuys: certBuyers.size,
+        engineNetEurMinor: a.netEurMinor,
+        attributedCourseEurMinor: attributedEur,
+        totalEurMinor: a.netEurMinor + attributedEur,
+        metaCostEurMinor:
+          costPerRegistrationEurMinor != null ? Math.round(costPerRegistrationEurMinor * a.regs) : null,
+        conversionPct: a.regs > 0 ? (buyers.size / a.regs) * 100 : null,
+      };
+    })
+    .filter((r): r is WorkshopPerformanceRow => r != null);
+
+  return { rows, adSpendEurMinor, totalRegistrations, costPerRegistrationEurMinor };
+}
+
+// ---------------------------------------------------------------------------
 // Merged per-day revenue streams for charts / tables / CSV. Fills every day
 // between `from` and `to` (or the observed data range) so line charts have a
 // continuous x-axis.

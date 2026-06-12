@@ -8,6 +8,14 @@ import {
   mergeDailyStreams,
 } from '../../../lib/workshops/stats';
 import { listWorkshops, getProductById } from '../../../lib/workshops/db';
+import {
+  PERIOD_PRESETS,
+  resolvePeriod,
+  presetRangesMap,
+  shiftDays,
+  shiftYears,
+  daysBetween,
+} from '../../../lib/workshops/periods';
 
 export const prerender = false;
 
@@ -16,83 +24,7 @@ if (!(await verifySession(env.ADMIN_SESSION_SECRET, readCookie(Astro.request))))
   return Astro.redirect('/admin/login');
 }
 
-// ---- Period resolution (presets computed against "today" in Europe/Brussels) ----
-
-const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Brussels' }).format(new Date());
-
-function shiftDays(ymd: string, n: number): string {
-  const [y, m, d] = ymd.split('-').map((s) => parseInt(s, 10));
-  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
-}
-function shiftYears(ymd: string, n: number): string {
-  const [y, m, d] = ymd.split('-').map((s) => parseInt(s, 10));
-  return new Date(Date.UTC(y + n, m - 1, d)).toISOString().slice(0, 10);
-}
-function daysBetween(a: string, b: string): number {
-  return Math.round((Date.parse(b) - Date.parse(a)) / 86400000);
-}
-
-function presetRange(preset: string): { from: string | null; to: string | null } {
-  const [y, m, d] = today.split('-').map((s) => parseInt(s, 10));
-  switch (preset) {
-    case 'today': return { from: today, to: today };
-    case 'yesterday': { const x = shiftDays(today, -1); return { from: x, to: x }; }
-    case 'last7': return { from: shiftDays(today, -6), to: today };
-    case 'last30': return { from: shiftDays(today, -29), to: today };
-    case 'last90': return { from: shiftDays(today, -89), to: today };
-    case 'wtd': { // Monday-start week
-      const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
-      return { from: shiftDays(today, -((dow + 6) % 7)), to: today };
-    }
-    case 'mtd': return { from: `${today.slice(0, 8)}01`, to: today };
-    case 'qtd': {
-      const qm = m - ((m - 1) % 3);
-      return { from: `${y}-${String(qm).padStart(2, '0')}-01`, to: today };
-    }
-    case 'ytd': return { from: `${y}-01-01`, to: today };
-    case 'lastmonth': {
-      const first = new Date(Date.UTC(y, m - 2, 1)).toISOString().slice(0, 10);
-      const last = new Date(Date.UTC(y, m - 1, 0)).toISOString().slice(0, 10);
-      return { from: first, to: last };
-    }
-    default: return { from: null, to: null }; // 'all'
-  }
-}
-
-const PRESETS: Array<[string, string]> = [
-  ['all', 'All time'],
-  ['today', 'Today'],
-  ['yesterday', 'Yesterday'],
-  ['last7', 'Last 7 days'],
-  ['last30', 'Last 30 days'],
-  ['last90', 'Last 90 days'],
-  ['wtd', 'Week to date'],
-  ['mtd', 'Month to date'],
-  ['qtd', 'Quarter to date'],
-  ['ytd', 'Year to date'],
-  ['lastmonth', 'Last month'],
-  ['custom', 'Custom range'],
-];
-
-const isYmd = (s: string | null) => !!s && /^\d{4}-\d{2}-\d{2}$/.test(s);
-const qFrom = Astro.url.searchParams.get('from');
-const qTo = Astro.url.searchParams.get('to');
-const rawPreset = Astro.url.searchParams.get('preset');
-const preset =
-  rawPreset && PRESETS.some(([v]) => v === rawPreset)
-    ? rawPreset
-    : isYmd(qFrom) || isYmd(qTo)
-      ? 'custom'
-      : 'all';
-
-let from: string | null;
-let to: string | null;
-if (preset === 'custom') {
-  from = isYmd(qFrom) ? qFrom : null;
-  to = isYmd(qTo) ? qTo : null;
-} else {
-  ({ from, to } = presetRange(preset));
-}
+const { preset, from, to } = resolvePeriod(Astro.url.searchParams);
 
 // ---- Compare window (needs a bounded current window) ----
 
@@ -162,6 +94,17 @@ function delta(cur: number, prev: number | null | undefined): Delta {
 
 const eur = (minor: number) =>
   '€' + (minor / 100).toLocaleString('en-IE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+// Workshop dropdown labels: date-stamped and shortened, so ten near-identical
+// titles stay tellable apart.
+const workshopOptionLabel = (w: { title: string; starts_at_utc: string; is_replay: number }) => {
+  const title = w.title.replace(/Somatic Vocal Healing/gi, 'SVH');
+  if (w.is_replay) return `On-demand — ${title}`;
+  const d = new Intl.DateTimeFormat('en-GB', {
+    day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/Brussels',
+  }).format(new Date(w.starts_at_utc));
+  return `${d} — ${title}`;
+};
 
 // Headline cards: one per revenue stream + spend + blended ROAS.
 const cards: Array<{ label: string; value: string; d: Delta; hl?: boolean }> = [
@@ -252,9 +195,7 @@ const chartData = {
 const chartJson = JSON.stringify(chartData).replace(/</g, '\\u003c');
 
 // Preset → date-range map for the filter form's JS.
-const presetRangesJson = JSON.stringify(
-  Object.fromEntries(PRESETS.filter(([v]) => v !== 'custom').map(([v]) => [v, presetRange(v)])),
-).replace(/</g, '\\u003c');
+const presetRangesJson = JSON.stringify(presetRangesMap()).replace(/</g, '\\u003c');
 
 // By-day table: only days with any activity.
 const activeDays = days.filter(
@@ -280,7 +221,10 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
         <h1>Statistics &amp; ROAS</h1>
         <p class="adm-sub">All figures in EUR. Workshop-engine figures are net of tax where tax data exists; standalone course sales (12-week, certification) are charged amounts gross of VAT, converted at fallback FX rates. Blended ROAS = total revenue ÷ Meta ad spend over the same window.</p>
       </div>
-      <div class="adm-actions"><a class="adm-btn adm-btn--ghost" href="/admin/workshops">← Workshops</a></div>
+      <div class="adm-actions">
+        <a class="adm-btn adm-btn--ghost" href="/admin/workshops/performance">Per-workshop performance</a>
+        <a class="adm-btn adm-btn--ghost" href="/admin/workshops">← Workshops</a>
+      </div>
     </header>
 
     {flash === 'spend' && <div class="adm-flash adm-flash--ok">Ad spend imported.</div>}
@@ -289,7 +233,7 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
       <form method="GET" class="adm-inline-form" id="stats-filter">
         <label>Period
           <select name="preset" id="f-preset">
-            {PRESETS.map(([v, l]) => <option value={v} selected={preset === v}>{l}</option>)}
+            {PERIOD_PRESETS.map(([v, l]) => <option value={v} selected={preset === v}>{l}</option>)}
           </select>
         </label>
         <label>From <input type="date" name="from" id="f-from" value={from ?? ''} /></label>
@@ -304,7 +248,7 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
         <label>Workshop
           <select name="workshop_id">
             <option value="">All</option>
-            {workshops.map((w) => <option value={w.id} selected={workshopId === w.id}>{w.title}</option>)}
+            {workshops.map((w) => <option value={w.id} selected={workshopId === w.id}>{workshopOptionLabel(w)}</option>)}
           </select>
         </label>
         <button type="submit" class="adm-btn adm-btn--solid">Apply</button>
