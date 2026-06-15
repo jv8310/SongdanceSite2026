@@ -1,12 +1,97 @@
 ---
-import StubPage from '../components/StubPage.astro';
+import SiteLayout from '../components/SiteLayout.astro';
+import PageHero from '../components/PageHero.astro';
 ---
 
-<StubPage
-  title="Privacy — Songdance"
-  description="Privacy policy."
-  eyebrow="Legal"
-  heading="Privacy"
-  note="Scaffold page — port the existing GDPR/EU privacy policy here in the content pass (brief §13)."
-  cta={false}
-/>
+<SiteLayout
+  title="Privacy Policy — Songdance"
+  description="How SONGDANCE BV collects, uses, and protects your personal data — in plain language."
+>
+  <PageHero
+    eyebrow="Legal"
+    title="Privacy Policy"
+    lede="What we collect, why, on what legal basis, how long we keep it, and what your rights are."
+  />
+
+  <section class="sd-section sd-prose sd-legal">
+    <div class="sd-prose-inner">
+      <p class="sd-legal-updated">Last update: 12 June 2026</p>
+
+      <h2>1. Who we are</h2>
+      <div class="sd-legal-block">
+        <p><strong>SONGDANCE BV</strong></p>
+        <p>Registered office: Beaupréstraat 13, 8310 Brugge, Belgium</p>
+        <p>VAT: BE 0743.575.076</p>
+        <p>Email: <a href="mailto:info@songdance.co">info@songdance.co</a></p>
+        <p>Website: <a href="https://www.songdance.co">www.songdance.co</a></p>
+      </div>
+      <p>Songdance is the controller of the personal data described in this policy. We don’t have a data protection officer; for anything related to your data, write to <a href="mailto:info@songdance.co">info@songdance.co</a>.</p>
+
+      <h2>2. What this policy covers</h2>
+      <p>This policy applies to the Songdance website, our online courses and memberships, live workshops and retreats, private sessions, our newsletter, and our certification program. It explains what we collect, why, on what legal basis, how long we keep it, and what your rights are.</p>
+      <p>We try to say this in plain language. Where the law requires precise terms, we use them.</p>
+
+      <h2>3. What we collect, and why</h2>
+      <h3>3.1 When you buy or register</h3>
+      <p>Name, email address, billing address, country, VAT number (for businesses), the product or program purchased, and payment status. Payment card details are handled entirely by our payment providers — we never see or store them.</p>
+      <p><strong>Why:</strong> to perform the contract with you (Art. 6(1)(b) GDPR) and to meet bookkeeping and tax obligations (Art. 6(1)(c)).</p>
+      <h3>3.2 When you join the newsletter or download a free resource</h3>
+      <p>Email address, first name if you give it, and which resource you requested. We also record which emails you open and click, so we can stop sending things you ignore.</p>
+      <p><strong>Why:</strong> your consent (Art. 6(1)(a)). You can withdraw it any time via the unsubscribe link in every email. If you’re an existing customer, we may send you information about similar programs on the basis of legitimate interest (Art. 6(1)(f)); the same unsubscribe link applies.</p>
+      <h3>3.3 When you take part in courses and communities</h3>
+      <p>Your profile on our course platform, posts and comments you choose to make, attendance at live calls, and your progress through course materials.</p>
+      <p><strong>Why:</strong> to perform the contract (Art. 6(1)(b)) and our legitimate interest in running a functioning learning community (Art. 6(1)(f)).</p>
+      <h3>3.4 Recordings of live online sessions</h3>
+      <p>Live online sessions (Q&amp;As, group calls, online workshops) are recorded so participants can watch replays. The recording captures audio, video and chat of those who participate visibly.</p>
+      <p><strong>Why:</strong> legitimate interest in making sessions available to participants who couldn’t attend live (Art. 6(1)(f)). You are told at the start of each session that recording is on. You can keep your camera off, mute yourself, rename yourself, or participate by chat only. If we want to use a recognizable clip of you for anything promotional, we will ask you separately first.</p>
+      <h3>3.5 Retreat and program intake</h3>
+      <p>For retreats and some in-depth programs we ask intake questions before confirming your place. Your answers may include information about your emotional and physical wellbeing, current life circumstances, and previous experience with this kind of work. Some of this is <strong>health-related data</strong>, which the GDPR treats as a special category.</p>
+      <p><strong>Why:</strong> to assess together whether the program is right for you at this moment, and to allow the facilitators to hold the group well. The legal basis is your <strong>explicit consent</strong> (Art. 9(2)(a)), which you give when submitting the intake form. You can withhold or withdraw it — though without an intake we may not be able to confirm your participation in certain programs.</p>
+      <p>Intake answers are read only by the facilitators of that program. They are never shared with other participants and never used for marketing. They are deleted within twelve months after the program ends, unless you ask us to keep them for a future program.</p>
+      <h3>3.6 AI-assisted processing</h3>
+      <p>We sometimes use AI tools (Anthropic’s Claude) to help summarize session transcripts and to help prepare intake assessments for the facilitators’ review. The AI output is a working document for the facilitator — <strong>decisions about participation are always made by a person, never by the system.</strong> Data sent to these tools is processed under a data processing agreement and is not used by the provider to train its models.</p>
+      <p><strong>Why:</strong> legitimate interest in preparing sessions and intakes carefully and efficiently (Art. 6(1)(f)); for intake data, this happens within the scope of the explicit consent described in 3.5. If you’d rather your intake not be processed this way, say so in the form and a facilitator will read it directly instead.</p>
+      <h3>3.7 When you visit the website</h3>
+      <p>Standard technical data (IP address, browser, pages visited) and cookies. Strictly necessary cookies run on legitimate interest; analytics and any marketing cookies run only with your consent via the cookie banner. See the cookie notice on the site for the current list.</p>
+
+      <h2>4. Who we share data with</h2>
+      <p>We never sell personal data. We share it only with processors who help us run Songdance:</p>
+      <ul>
+        <li><strong>Payment providers</strong> (PayPal, credit card processing, Bancontact/iDEAL providers) — payment handling</li>
+        <li><strong>Drip</strong> — email newsletter and customer emails</li>
+        <li><strong>Mighty Networks</strong> — course and community hosting</li>
+        <li><strong>Zoom</strong> — live online sessions and recordings</li>
+        <li><strong>Anthropic</strong> — AI-assisted summarization and intake preparation (see 3.6)</li>
+        <li><strong>Our accountant</strong> — bookkeeping, as required by Belgian law</li>
+        <li>Hosting and website infrastructure providers</li>
+      </ul>
+      <p>Some of these providers are in the United States. Where data leaves the EEA, transfers are covered by the EU–US Data Privacy Framework or the European Commission’s Standard Contractual Clauses.</p>
+
+      <h2>5. How long we keep things</h2>
+      <ul>
+        <li><strong>Invoices and accounting records:</strong> 7 years (Belgian legal requirement)</li>
+        <li><strong>Customer account and purchase history:</strong> for as long as you have access to a program, plus 2 years</li>
+        <li><strong>Newsletter data:</strong> until you unsubscribe; inactive subscribers are removed periodically</li>
+        <li><strong>Session recordings:</strong> for the access period of the relevant program</li>
+        <li><strong>Intake answers:</strong> deleted within 12 months after the program ends (see 3.5)</li>
+        <li><strong>Email correspondence:</strong> up to 3 years after the last exchange</li>
+      </ul>
+
+      <h2>6. Your rights</h2>
+      <p>You have the right to access your data, correct it, have it deleted, restrict or object to its processing, take it with you (portability), and withdraw any consent you’ve given — withdrawal doesn’t affect processing that already happened.</p>
+      <p>To use any of these rights, email <a href="mailto:info@songdance.co">info@songdance.co</a>. We respond within one month. We may ask you to confirm your identity first; that’s to protect your data, not to slow you down.</p>
+      <p>If you believe we’re handling your data wrongly and we can’t resolve it together, you can complain to the Belgian Data Protection Authority:</p>
+      <div class="sd-legal-block">
+        <p><strong>Gegevensbeschermingsautoriteit / Autorité de protection des données</strong></p>
+        <p>Drukpersstraat 35, 1000 Brussels</p>
+        <p><a href="https://www.dataprotectionauthority.be">www.dataprotectionauthority.be</a></p>
+      </div>
+
+      <h2>7. Children</h2>
+      <p>Our programs and website are intended for adults. We do not knowingly collect data from anyone under 18.</p>
+
+      <h2>8. Changes to this policy</h2>
+      <p>When we change this policy in any meaningful way, we’ll update the date at the top and, for significant changes, tell active customers by email. The current version always lives at songdance.co/privacy.</p>
+    </div>
+  </section>
+</SiteLayout>

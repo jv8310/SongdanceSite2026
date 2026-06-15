@@ -1,12 +1,158 @@
 ---
-import StubPage from '../components/StubPage.astro';
+import SiteLayout from '../components/SiteLayout.astro';
+import PageHero from '../components/PageHero.astro';
 ---
 
-<StubPage
-  title="Terms — Songdance"
-  description="Terms and conditions."
-  eyebrow="Legal"
-  heading="Terms"
-  note="Scaffold page — port the existing GDPR/EU terms here in the content pass (brief §13)."
-  cta={false}
-/>
+<SiteLayout
+  title="Terms & Conditions — Songdance"
+  description="General terms and conditions for sales to consumers — SONGDANCE BV."
+>
+  <PageHero
+    eyebrow="Legal"
+    title="Terms &amp; Conditions"
+    lede="General sales to consumers — SONGDANCE BV."
+  />
+
+  <section class="sd-section sd-prose sd-legal">
+    <div class="sd-prose-inner">
+      <p class="sd-legal-updated">Last update: 12 June 2026</p>
+
+      <div class="sd-legal-block">
+        <p><strong>SONGDANCE BV</strong></p>
+        <p>Registered office: Beaupréstraat 13, 8310 Brugge, Belgium</p>
+        <p>VAT: BE 0743.575.076</p>
+        <p>Website: <a href="https://www.songdance.co">www.songdance.co</a></p>
+        <p>Email: <a href="mailto:info@songdance.co">info@songdance.co</a></p>
+      </div>
+
+      <h2>Article 1 — General provisions</h2>
+      <p>1.1 These general terms and conditions apply to all agreements concluded between SONGDANCE BV, having its registered office at Beaupréstraat 13, 8310 Brugge, Belgium (hereinafter referred to as SONGDANCE), and its clients or customers (hereinafter referred to as the Customer).</p>
+      <p>1.2 The consumer-protection provisions of these terms apply only to a Customer acting for purposes outside their trade, business or profession (a “consumer”). Where a Customer acts in a professional capacity, the provisions that the law reserves to consumers do not apply.</p>
+      <p>1.3 All agreements are exclusively governed by these general terms and conditions, unless expressly agreed otherwise in writing. Any general or special terms and conditions of the Customer are explicitly excluded.</p>
+      <p>1.4 Depending on the nature of specific transactions or activities, additional special conditions may apply. These additional conditions form an integral part of the present general terms and conditions.</p>
+      <p>1.5 Any Customer who places an order, reservation or booking with SONGDANCE accepts these general terms and conditions in full. Each order is governed by the version published on the website or included in the order confirmation at the time of purchase.</p>
+      <p>1.6 By placing an electronic order for products, programs, workshops or retreats, the Customer confirms having read and accepted these general terms and conditions. An order without such acceptance is technically impossible, except in the case of fraud.</p>
+      <p>1.7 The Customer declares to be at least eighteen (18) years of age. SONGDANCE reserves the right to cancel an order if it appears that the Customer is a minor.</p>
+
+      <h2>Article 2 — Quotations and offers</h2>
+      <p>2.1 All quotations are provided without obligation.</p>
+      <p>2.2 Price indications and listings on the website do not constitute a binding offer.</p>
+
+      <h2>Article 3 — Formation of the agreement</h2>
+      <p>3.1 An agreement is formed once the Customer has accepted these general terms and conditions, the applicable price and the product or service description. Commencement of performance by SONGDANCE is also deemed confirmation of the agreement.</p>
+      <p>3.2 SONGDANCE undertakes to process orders placed via the website while stocks last or while places remain available, within the limits of these terms and conditions.</p>
+      <p>3.3 SONGDANCE reserves the right to refuse orders in case of suspected abuse, bad faith, or unavailability of stock or places.</p>
+
+      <h2>Article 4 — Visual material and content</h2>
+      <p>4.1 Images, videos, audio fragments, tutorials, descriptions and technical specifications are provided for illustrative purposes only and cannot give rise to claims for compensation or dissolution of the agreement.</p>
+      <p>4.2 Product descriptions are provided as accurately as possible. Images may contain decorative elements that are not included in the price.</p>
+      <p>4.3 All content developed by SONGDANCE remains its exclusive property and may not be copied, reproduced, shared or used without prior written consent.</p>
+      <p>4.4 In the event of unauthorised use of SONGDANCE content, SONGDANCE is entitled to claim compensation for the actual damage suffered, with a reasonable minimum of EUR 500 per infringement, without prejudice to its right to require that the unlawful use cease.</p>
+
+      <h2>Article 5 — Prices</h2>
+      <p>5.1 All prices displayed on the SONGDANCE website include VAT for end consumers.</p>
+      <p>5.2 Certain offers may be limited in time. Such limitations will be clearly indicated.</p>
+      <p>5.3 Prices are valid while stocks last or while places remain available.</p>
+
+      <h2>Article 6 — Delivery of products and services</h2>
+      <p>6.1 Unless otherwise agreed, SONGDANCE determines the method of delivery.</p>
+      <p>6.2 The Customer is responsible for correctly receiving products or services delivered to the address or email address provided, and for keeping that email address current. Access links and confirmations are sent there.</p>
+
+      <h2>Article 7 — Delivery period and long-term access</h2>
+      <p>7.1 Delivery dates are indicative. Where a consumer’s order is delivered more than thirty (30) days after the agreement, the consumer may set a reasonable additional period; if SONGDANCE does not deliver within that period, the consumer may dissolve the agreement in respect of the undelivered item. Minor or unforeseeable delays do not give rise to further compensation.</p>
+      <h3>7.2 Lifetime / long-term access to online programs</h3>
+      <p>Where an online product or program is offered with “lifetime” or long-term access, this means that the core, pre-recorded course materials are made available to the Customer on a long-term basis. SONGDANCE guarantees that these materials will be hosted and accessible via its online platform for a minimum of two (2) years from the date of purchase, and thereafter for as long as the program continues to be offered on the platform.</p>
+      <p>If SONGDANCE ever discontinues online platform access to a program for which long-term access was promised, it will give the Customer reasonable advance notice and a guaranteed opportunity to download the core course materials for personal, offline use before access ends. This download guarantee is a firm commitment, not a discretionary option.</p>
+      <p>SONGDANCE may modify the technical delivery method, platform or format, provided reasonable access to the core materials is maintained. Bonus or supplementary materials may be modified or discontinued at any time.</p>
+      <h3>7.3 Scope of long-term access</h3>
+      <p>Long-term access applies exclusively to the pre-recorded course materials that form the core content of the program, as described on the product page. It does <strong>not</strong> apply to:</p>
+      <ul>
+        <li>Live Q&amp;A sessions</li>
+        <li>Live group calls or coaching sessions</li>
+        <li>Replays of live sessions</li>
+        <li>Community access or discussion platforms</li>
+        <li>Time-limited program components (such as twelve-week courses)</li>
+      </ul>
+      <p>Access to live elements and their replays is limited to the access period stated on the product page and expires automatically thereafter.</p>
+
+      <h2>Article 8 — Payments</h2>
+      <p>8.1 Payment is made electronically via PayPal or credit card. Belgian and Dutch customers may also use Bancontact, iDEAL or bank transfer. Orders are payable immediately.</p>
+      <p>8.2 Participation fees for courses or retreats are due in full upon registration, unless otherwise stated.</p>
+      <p>8.3 Payments are allocated first to outstanding costs, then interest, then principal, regardless of payment references.</p>
+      <h3>8.4 Cancellation and refund policy</h3>
+      <p><strong>8.4.1 In-person courses and retreats.</strong> Deposit payments are non-refundable but may be transferred to another participant who registers in the original Customer’s place. Full payments are refundable as follows:</p>
+      <ul>
+        <li>50% up to 8 weeks before the activity</li>
+        <li>No refund thereafter</li>
+      </ul>
+      <p><strong>8.4.2 Digital products.</strong> In addition to any statutory right of withdrawal (see Article 14), SONGDANCE voluntarily offers a refund on request within 14 days of purchase (or within 30 days where this is explicitly stated for a specific program). Requests are made by email.</p>
+      <p><strong>8.4.3 Memberships.</strong> Memberships may be cancelled at any time by written request at least 7 days before renewal. Access ends at the moment of renewal.</p>
+      <p><strong>8.4.4 Installment payments.</strong> Where payment in instalments has been agreed, failure to complete the instalments does not constitute cancellation, and the agreed amount remains due in full. Access may be suspended until payment is brought up to date, including where access was temporarily suspended.</p>
+      <h3>8.5 Late payment by consumers</h3>
+      <p>If a consumer fails to pay on time, SONGDANCE will first send a free reminder. Default interest and compensation become due only if the consumer has not paid within fourteen (14) days of that reminder. In that case:</p>
+      <ul>
+        <li>default interest applies at the statutory rate for late payment, and</li>
+        <li>a lump-sum compensation applies within the legal limits: EUR 20 where the balance due is EUR 150 or less; EUR 30 plus 10% of the amount between EUR 150.01 and EUR 500; and EUR 65 plus 5% of the amount above EUR 500, capped at EUR 2,000.</li>
+      </ul>
+      <h3>8.6 Late payment by professional customers</h3>
+      <p>For Customers acting in a professional capacity, overdue amounts carry interest at 12% per annum without prior notice, together with fixed compensation of 10% of the outstanding amount, with a minimum of EUR 75 per invoice.</p>
+      <p>8.7 SONGDANCE may suspend deliveries or services in case of non-payment.</p>
+
+      <h2>Article 9 — Retention of title</h2>
+      <p>9.1 Ownership of any physical goods remains with SONGDANCE until full payment of principal, interest and costs.</p>
+      <p>9.2 The Customer may not sell, rent or pledge such goods without written consent.</p>
+
+      <h2>Article 10 — Complaints</h2>
+      <p>10.1 Visible defects or non-conformities should be reported promptly. Complaints relating to an invoice must be submitted within 8 days of the invoice date. This does not affect the consumer’s statutory rights, including the legal warranty of conformity, which applies for a minimum of two years.</p>
+      <p>10.2 Complaints do not suspend payment obligations.</p>
+      <p>10.3 If a complaint is accepted, SONGDANCE may revise the invoice or offer an equivalent alternative.</p>
+
+      <h2>Article 11 — Limitation of liability</h2>
+      <p>11.1 SONGDANCE is not liable for indirect or consequential damages.</p>
+      <p>11.2 Subject to 11.3 and 11.4, SONGDANCE is not liable for delayed delivery, force majeure, or data loss.</p>
+      <p>11.3 The limitations in this article do not apply in cases of intent or gross negligence.</p>
+      <p>11.4 Nothing in these terms excludes or limits any liability that cannot lawfully be excluded or limited, including liability for death or personal injury caused by the fault of SONGDANCE. The voluntary nature of participation and the health waiver in Article 19 apply in addition to, and not in derogation of, this provision.</p>
+
+      <h2>Article 12 — Force majeure</h2>
+      <p>12.1 Events beyond reasonable control constitute force majeure, including (without limitation) illness or incapacity of a facilitator and unavailability or cancellation of a venue.</p>
+      <p>12.2 In case of force majeure affecting a course or retreat, SONGDANCE will where reasonably possible offer rescheduling or a credit before considering a refund. SONGDANCE may otherwise suspend or terminate the affected obligations without further compensation.</p>
+
+      <h2>Article 13 — Termination</h2>
+      <p>13.1 Serious non-performance, insolvency or similar events may render outstanding amounts immediately payable.</p>
+      <p>13.2 SONGDANCE may suspend or terminate agreements in such cases in accordance with applicable law.</p>
+
+      <h2>Article 14 — Right of withdrawal</h2>
+      <p>14.1 A consumer has a statutory right of withdrawal within 14 days for distance contracts, subject to the legal conditions and exceptions below.</p>
+      <p>14.2 <strong>Digital content.</strong> For pre-recorded digital products to which access is given immediately, the consumer loses the right of withdrawal once performance has begun, but only after the consumer has expressly consented to immediate access <strong>and</strong> acknowledged that the right of withdrawal is thereby lost. This consent is requested at checkout.</p>
+      <p>14.3 <strong>Dated live events.</strong> Registrations for retreats, workshops and other live events tied to a specific date are excluded from the statutory right of withdrawal (leisure services provided on a specific date). The cancellation policy in Article 8.4.1 applies to these instead.</p>
+      <p>14.4 Where the right of withdrawal validly applies and is exercised, access to the relevant digital product is withdrawn.</p>
+
+      <h2>Article 15 — Website use</h2>
+      <p>15.1 The website is provided on a best-efforts basis.</p>
+      <p>15.2 SONGDANCE may suspend or discontinue the website at any time.</p>
+
+      <h2>Article 16 — Privacy</h2>
+      <p>16.1 Personal data is processed in accordance with the SONGDANCE <a href="/privacy">Privacy Policy</a>, available at www.songdance.co/privacy, which forms part of the information provided to the Customer before conclusion of the agreement.</p>
+
+      <h2>Article 17 — Intellectual property</h2>
+      <p>17.1 All intellectual property remains the exclusive property of SONGDANCE.</p>
+      <p>17.2 A personal, non-transferable licence is granted for the Customer’s own personal use only.</p>
+      <p>17.3 A Pro-Licence, where offered, grants a non-exclusive, non-transferable right to use the method with the licensee’s own clients, within the scope described on the product page. It does not include the right to teach, certify or train others, nor to sub-licence, reproduce or distribute the materials.</p>
+
+      <h2>Article 18 — Participant conduct</h2>
+      <p>18.1 SONGDANCE may deny or withdraw access in case of disruptive or harmful behaviour. Where a participant is removed from a live program for conduct that endangers the safety or wellbeing of the group, no refund is owed.</p>
+
+      <h2>Article 19 — Health waiver</h2>
+      <p>19.1 Participation is voluntary and at the Customer’s own responsibility. The activities of SONGDANCE are educational and experiential in nature and do not replace medical or psychological treatment. This provision applies subject to Article 11.4.</p>
+
+      <h2>Article 20 — Recording of live sessions</h2>
+      <p>20.1 SONGDANCE records live online sessions so that participants may access replays. Participants are informed at the start of each session that recording is active, and may keep their camera off, mute themselves, rename themselves, or participate by chat only.</p>
+      <p>20.2 Any use of recognisable footage of a participant for promotional purposes is subject to that participant’s separate, prior consent. Recording and any related processing of personal data are governed by the Privacy Policy.</p>
+
+      <h2>Article 21 — Applicable law and jurisdiction</h2>
+      <p>21.1 These terms and all agreements are governed by Belgian law.</p>
+      <p>21.2 Disputes with a consumer are brought before the court having jurisdiction under the applicable rules, including the consumer’s right to bring proceedings before the court of their own domicile. For Customers acting in a professional capacity, the courts of the district of SONGDANCE’s registered office have exclusive jurisdiction.</p>
+      <p>21.3 A consumer may also turn to the Belgian Consumer Mediation Service (Consumentenombudsdienst, <a href="https://www.consumentenombudsdienst.be">www.consumentenombudsdienst.be</a>) for the out-of-court settlement of a dispute.</p>
+    </div>
+  </section>
+</SiteLayout>
