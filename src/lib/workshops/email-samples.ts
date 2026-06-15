@@ -40,7 +40,7 @@ export function buildEmailSamples(base: string): EmailSample[] {
   const workshopTitle = 'Somatic Vocal Healing Workshop';
   const whenLocal = 'Monday 15 June 2026, 20:00 (CEST)';
   const discountEndsLocal = 'Wednesday 17 June 2026, 21:00 (CEST)';
-  const resumeUrl = `${b}/w/svh`;
+  const resumeUrl = `${b}/workshop?resume=sample0123456789abcdef0123456789ab#register`;
   const joinUrl = `${b}/workshop/success?t=sample0123456789abcdef0123456789ab`;
   // Personalized: the course page reads ?email= and shows that person's
   // price (and any live discount) without them typing anything.
