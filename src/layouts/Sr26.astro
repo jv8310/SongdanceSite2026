@@ -1,0 +1,140 @@
+---
+// Standalone layout for the private Somatic Rising investor area (/sr26).
+// Deliberately NOT the main Songdance site layout: no public nav/footer, no
+// site chrome, no indexing — this is a confidential, self-contained surface
+// that shares the concept's warm, nocturnal aesthetic.
+
+interface Props {
+  title?: string;
+  description?: string;
+}
+
+const {
+  title = 'Somatic Rising',
+  description = 'Somatic Rising — confidential investor materials.',
+} = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="description" content={description} />
+    <link rel="icon" href="/favicon.png" type="image/png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,300;1,9..144,400&family=Inter:wght@300;400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <title>{title}</title>
+    <style is:global>
+      :root {
+        --ink: #14101d;
+        --ink-2: #1d1729;
+        --ink-3: #271e38;
+        --ink-line: rgba(243, 236, 223, 0.1);
+        --cream: #f3ecdf;
+        --cream-dim: rgba(243, 236, 223, 0.6);
+        --cream-faint: rgba(243, 236, 223, 0.36);
+        --ember: #d99a6c;
+        --ember-soft: rgba(217, 154, 108, 0.16);
+        --gold: #c9a96e;
+        --sage: #9db49b;
+        --lavender: #9b87c9;
+        --display: "Fraunces", Georgia, serif;
+        --ui: "Inter", -apple-system, "Segoe UI", sans-serif;
+      }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        background: var(--ink);
+        color: var(--cream);
+        font-family: var(--ui);
+        font-weight: 300;
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+        min-height: 100vh;
+      }
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        opacity: 0.5;
+        z-index: 0;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0.95 0 0 0 0 0.93 0 0 0 0 0.88 0 0 0 0.02 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+      }
+      a {
+        color: var(--ember);
+        text-decoration: none;
+      }
+      .sr26-shell {
+        position: relative;
+        z-index: 1;
+        max-width: 860px;
+        margin: 0 auto;
+        padding: 0 28px;
+      }
+      .sr26-topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+        padding: 26px 0 0;
+        flex-wrap: wrap;
+      }
+      .sr26-wordmark {
+        font-family: var(--display);
+        font-weight: 300;
+        font-size: 13px;
+        letter-spacing: 0.42em;
+        text-transform: uppercase;
+        color: var(--ember);
+      }
+      .sr26-nav {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .sr26-pill {
+        font-size: 11.5px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--cream-dim);
+        border: 1px solid var(--ink-line);
+        border-radius: 99px;
+        padding: 8px 16px;
+        transition: border-color 0.2s ease, color 0.2s ease;
+      }
+      .sr26-pill:hover {
+        border-color: rgba(217, 154, 108, 0.4);
+        color: var(--ember);
+      }
+      .sr26-foot {
+        position: relative;
+        z-index: 1;
+        text-align: center;
+        font-size: 11px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--cream-faint);
+        padding: 60px 0 56px;
+      }
+    </style>
+  </head>
+  <body>
+    <slot />
+    <footer class="sr26-foot">
+      Somatic Rising · Confidential · For discussion purposes only
+    </footer>
+  </body>
+</html>
