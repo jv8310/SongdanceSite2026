@@ -3,7 +3,7 @@
 //
 //   1. Reminder cadence before each live session (transactional).
 //   2. Abandoned-checkout nudges for registrations stuck at 'prepared'.
-//   3. Post-workshop sequences anchored on the session end:
+//   3. Post-workshop sequences anchored one hour after the start:
 //        attended      → thank-you + 12-week course, riding the existing
 //                        48h / 20% participant-discount window
 //        attended PRO  → certification path (masterclass attendees, and —
@@ -50,7 +50,7 @@ import {
   type WorkshopEmailCtx,
 } from './emails';
 import { googleCalendarUrl } from './ics';
-import { endsAtOrDefault, formatInTz, minutesUntil } from './time';
+import { formatInTz, minutesUntil } from './time';
 import { icsUrl, successUrl } from './paid-handler';
 import {
   isEmailSuppressed,
@@ -89,7 +89,7 @@ const CADENCE: Array<{ type: string; lead: number }> = [
   { type: 'at_time', lead: 0 },
 ];
 
-// Lifecycle sequence steps, anchored on the workshop end (minutes after).
+// Lifecycle sequence steps, anchored one hour after the start (minutes after).
 // `staleMin`: how long past due a step may still be sent — beyond that it's
 // skipped, never delivered embarrassingly late. `requires`: a step only
 // fires if the named earlier claim exists, so a sequence can never start in
@@ -334,8 +334,11 @@ async function runPostWorkshop(env: CronEnv, now: number, result: CronResult) {
   const boughtCertCache = new Map<string, boolean>();
 
   for (const w of wRes.results ?? []) {
-    const endsAtMs = new Date(endsAtOrDefault(w.starts_at_utc, w.ends_at_utc)).getTime();
-    if (endsAtMs > now) continue; // not finished yet
+    // Follow-up emails (and the no-show flip) are anchored exactly one hour
+    // after the start — never on the actual end, and never on when anyone
+    // joined — so the sequence fires on a predictable clock for every session.
+    const followUpAnchorMs = new Date(w.starts_at_utc).getTime() + 60 * MIN_MS;
+    if (followUpAnchorMs > now) continue; // not due yet
 
     // Anyone still 'registered' becomes 'no_show'.
     const flipped = await env.DB
@@ -352,8 +355,9 @@ async function runPostWorkshop(env: CronEnv, now: number, result: CronResult) {
     if (w.status !== 'published') continue; // no marketing for cancelled sessions
 
     // The 12-week participant discount closes 48h after the session — same
-    // anchor the course page uses (end, falling back to start).
-    const discountAnchorMs = anchorMsFromWorkshop(w.starts_at_utc, w.ends_at_utc) ?? endsAtMs;
+    // anchor the course page uses (end, falling back to start). This is the
+    // deadline the copy quotes; it is independent of when the emails fire.
+    const discountAnchorMs = anchorMsFromWorkshop(w.starts_at_utc, w.ends_at_utc) ?? followUpAnchorMs;
     const discountEndsMs = discountAnchorMs + DISCOUNT_WINDOW_HOURS * H * MIN_MS;
     const isMasterclass = await workshopIsMasterclass(env.DB, w);
 
@@ -387,7 +391,7 @@ async function runPostWorkshop(env: CronEnv, now: number, result: CronResult) {
 
       const dueSteps = (steps: LifecycleStep[]) =>
         steps.filter((s) => {
-          const dueAt = endsAtMs + s.offsetMin * MIN_MS;
+          const dueAt = followUpAnchorMs + s.offsetMin * MIN_MS;
           return now >= dueAt && now <= dueAt + s.staleMin * MIN_MS;
         });
 

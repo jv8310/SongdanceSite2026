@@ -17,10 +17,9 @@ export const prerender = false;
 // Zoom details as JSON (the "the button doesn't work for me" fallback for
 // older clients that need the meeting id + passcode typed in by hand).
 //
-// The room is reachable for the whole live session: 5 minutes before start
-// until shortly after the session's end (replays are always open). Too early
-// bounces back to the countdown (?early=1); too late is treated as missed
-// (?missed=1).
+// The room is reachable only inside the join window: 5 minutes before start
+// until 20 minutes after (replays are always open). Too early bounces back to
+// the countdown (?early=1); too late is treated as missed (?missed=1).
 export const GET: APIRoute = async ({ url, locals }) => {
   const env = locals.runtime.env;
   const base = env.PUBLIC_BASE_URL.replace(/\/$/, '');
@@ -40,7 +39,7 @@ export const GET: APIRoute = async ({ url, locals }) => {
   if (!workshop) return bad(reveal, 'Not found', 404);
 
   if (workshop.is_replay !== 1) {
-    const win = joinWindow(workshop.starts_at_utc, workshop.ends_at_utc);
+    const win = joinWindow(workshop.starts_at_utc);
     if (win === 'early') {
       return reveal
         ? json({ error: 'early' }, 409)

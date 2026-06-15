@@ -9,11 +9,10 @@ import {
 } from '../../lib/workshops/db';
 import { googleCalendarUrl } from '../../lib/workshops/ics';
 import {
-  endsAtOrDefault,
   formatInTz,
   joinWindow,
   JOIN_OPEN_BEFORE_SECONDS,
-  JOIN_GRACE_AFTER_SECONDS,
+  JOIN_CLOSE_AFTER_SECONDS,
 } from '../../lib/workshops/time';
 import {
   PUBLIC_DISCOUNT_PCT,
@@ -40,17 +39,11 @@ const gcalUrl = workshop && !workshop.is_replay
   : null;
 const icsHref = reg ? `/api/workshops/ics?t=${reg.access_token}` : null;
 const startMs = workshop ? new Date(workshop.starts_at_utc).getTime() : 0;
-const endMs = workshop
-  ? new Date(endsAtOrDefault(workshop.starts_at_utc, workshop.ends_at_utc)).getTime()
-  : 0;
-const nowMs = Date.now();
 // The countdown counts down to the start, then disappears once we've begun.
-const started = startMs > 0 && nowMs >= startMs;
+const started = startMs > 0 && Date.now() >= startMs;
 
 // Live join window state (drives which block shows first; JS keeps it live).
-// The room stays reachable for the whole live session, not just the first few
-// minutes — see joinWindow().
-const win = workshop && !workshop.is_replay ? joinWindow(workshop.starts_at_utc, workshop.ends_at_utc) : 'open';
+const win = workshop && !workshop.is_replay ? joinWindow(workshop.starts_at_utc) : 'open';
 const hasReplay = !!(await getConfig(env.DB, 'replay_video_url'));
 
 // "Share with a friend" — a half-price link that lands on the full workshop
@@ -98,9 +91,8 @@ const upcoming = reg
         id="ws-root"
         data-token={reg.access_token}
         data-start={String(startMs)}
-        data-end={String(endMs)}
         data-open-before={String(JOIN_OPEN_BEFORE_SECONDS)}
-        data-grace-after={String(JOIN_GRACE_AFTER_SECONDS)}
+        data-close-after={String(JOIN_CLOSE_AFTER_SECONDS)}
         data-replay={workshop.is_replay === 1 ? '1' : '0'}
       >
         <p class="ws-kicker">You’re in</p>
@@ -271,9 +263,8 @@ const upcoming = reg
       if (!root || root.getAttribute('data-replay') === '1') return;
 
       var start = parseInt(root.getAttribute('data-start'), 10);
-      var end = parseInt(root.getAttribute('data-end'), 10);
       var openBefore = parseInt(root.getAttribute('data-open-before'), 10) * 1000;
-      var graceAfter = parseInt(root.getAttribute('data-grace-after'), 10) * 1000;
+      var closeAfter = parseInt(root.getAttribute('data-close-after'), 10) * 1000;
       var token = root.getAttribute('data-token');
 
       var countdown = document.getElementById('ws-countdown');
@@ -287,9 +278,9 @@ const upcoming = reg
 
       function tick() {
         var now = Date.now();
-        // Open for the whole live session: from 5 min before start until a
-        // grace past the end. Only then has the event passed.
-        var state = now < start - openBefore ? 'early' : (now > end + graceAfter ? 'closed' : 'open');
+        // Open from 5 min before the start until 20 min after it; past that the
+        // session has passed.
+        var state = now < start - openBefore ? 'early' : (now > start + closeAfter ? 'closed' : 'open');
         // Countdown counts down to the start, then disappears once we begin.
         show(countdown, now < start);
         show(early, state === 'early');
