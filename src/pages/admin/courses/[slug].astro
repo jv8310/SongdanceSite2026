@@ -71,7 +71,7 @@ type Row = {
   stripe_payment_intent: string | null;
   stripe_subscription_id: string | null;
   subscription_status: string | null;
-  payment_plan: 'full' | '3x';
+  payment_plan: 'full' | '3x' | '6x' | '12x';
   installments_paid: number;
   installments_total: number;
   created_at: string;
@@ -290,7 +290,7 @@ function showSubBadge(rowStatus: string, subStatus: string | null): boolean {
                 <div><dt>Phone</dt><dd>{phoneDisplay ?? '—'}</dd></div>
                 <div><dt>Variant</dt><dd>{variantLabel(r.source_variant)}</dd></div>
                 <div><dt>Payment</dt><dd>
-                  {r.payment_plan === '3x' || r.payment_plan === '6x'
+                  {r.installments_total > 1
                     ? `${r.installments_total} monthly · ${r.installments_paid}/${r.installments_total} paid`
                     : 'Full payment'}
                 </dd></div>

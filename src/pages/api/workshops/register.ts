@@ -17,11 +17,9 @@ import {
 import { currencyForCountry } from '../../../lib/workshops/currency';
 import { runWorkshopPaidSideEffects } from '../../../lib/workshops/paid-handler';
 import {
-  applyShareDiscount,
-  referralSecret,
-  verifyReferralCode,
-  SHARE_DISCOUNT_PCT,
-} from '../../../lib/workshops/referral';
+  applyDiscountPercent,
+  resolveDiscountPercent,
+} from '../../../lib/workshops/discount';
 
 export const prerender = false;
 
@@ -38,7 +36,8 @@ type Body = {
   company_name?: string; // B2B (masterclass)
   vat_number?: string; // B2B (masterclass)
   coupon?: string;
-  ref?: string; // "share with a friend" referral code → 50% off the ticket
+  discount?: string; // public ticket discount — only "50" is honored
+  adiscount?: string; // owner secret ticket discount — any 1–100
   meta_event_id?: string;
   audience?: string; // door-set from the workshop page, e.g. "3" or "1,3"
 };
@@ -80,7 +79,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const companyName = (payload.company_name ?? '').trim();
   const vatNumber = (payload.vat_number ?? '').trim().replace(/\s+/g, '');
   const coupon = (payload.coupon ?? '').trim();
-  const refCode = (payload.ref ?? '').trim();
+  const discountPct = resolveDiscountPercent({
+    discount: payload.discount,
+    adiscount: payload.adiscount,
+  });
   const metaEventId = (payload.meta_event_id ?? '').trim() || null;
   const audience = normalizeAudience(payload.audience ?? '');
 
@@ -104,19 +106,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
   const isMasterclass = (ticketProduct.slug ?? '').includes('masterclass');
 
-  // ── "Share with a friend" referral: 50% off the TICKET only ────────────
-  // A valid `ref` code (minted on a registrant's countdown page) halves the
-  // ticket price. The order bump is never discounted.
-  let ticketAmountMinor = ticketPrice.amountMinor;
-  let referredByRid: number | null = null;
-  if (refCode) {
-    const secret = referralSecret(env);
-    const rid = secret ? await verifyReferralCode(secret, refCode) : null;
-    if (rid) {
-      referredByRid = rid;
-      ticketAmountMinor = applyShareDiscount(ticketPrice.amountMinor);
-    }
-  }
+  // ── Ticket discount (?discount=50 public · ?adiscount=N owner) ─────────
+  // Applies to the TICKET only; the order bump is never discounted.
+  const ticketAmountMinor = applyDiscountPercent(ticketPrice.amountMinor, discountPct);
 
   // The bump: the workshop's own, or — for a masterclass without one — the
   // default Authentic Singing Journey pack, so it's offered (and chargeable)
@@ -175,7 +167,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
   const lineItems = [
     {
-      name: referredByRid ? `${workshop.title} (${SHARE_DISCOUNT_PCT}% friend discount)` : workshop.title,
+      name: discountPct ? `${workshop.title} (${discountPct}% off)` : workshop.title,
       amount_cents: ticketAmountMinor,
       currency: lineCurrency,
       quantity: 1,
@@ -250,7 +242,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         source_tag: workshop.source_tag ?? '',
         audience: audience ?? '',
         total_minor: String(totalMinor),
-        referred_by: referredByRid ? String(referredByRid) : '',
+        discount_pct: discountPct ? String(discountPct) : '',
       },
       idempotency_key: `wreg-${registrationId}-${totalMinor}-${realBump ? 1 : 0}`,
     });
@@ -263,7 +255,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     registration_id: null,
     kind: 'workshop.checkout.created',
     external_id: `workshop-checkout-${registrationId}`,
-    payload: { registration_id: registrationId, session_id: session.id, total_minor: totalMinor, currency: ticketPrice.currency, bump: realBump, referred_by: referredByRid },
+    payload: { registration_id: registrationId, session_id: session.id, total_minor: totalMinor, currency: ticketPrice.currency, bump: realBump, discount_pct: discountPct || null },
   });
 
   return json({ checkout_url: session.url, registration_id: registrationId });

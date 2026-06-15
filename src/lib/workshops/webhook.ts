@@ -20,7 +20,7 @@ import {
 import { getTaxRate, netFromGross } from './quaderno';
 import { retrievePaymentSettlement } from './stripe';
 import { runWorkshopPaidSideEffects } from './paid-handler';
-import { applyShareDiscount } from './referral';
+import { applyDiscountPercent } from './discount';
 
 type Env = {
   DB: D1Database;
@@ -136,15 +136,15 @@ export async function handleWorkshopCheckoutCompleted(
       const ticket = await getProductById(env.DB, workshop.main_product_id);
       const ticketPrice = await resolvePrice(env.DB, workshop.main_product_id, currency);
       if (ticket && ticketPrice) {
-        // A "share with a friend" referral halved the ticket at checkout — keep
-        // the purchase ledger in step with the amount actually charged.
-        const referred = !!session.metadata?.referred_by;
+        // A ticket discount (?discount / ?adiscount) reduced the ticket at
+        // checkout — keep the purchase ledger in step with the amount charged.
+        const discountPct = parseInt(session.metadata?.discount_pct ?? '', 10) || 0;
         await insertPurchase(env.DB, {
           registration_id: registrationId,
           payment_id: paymentId,
           product_id: ticket.id,
           product_type: ticket.type,
-          amount_minor: referred ? applyShareDiscount(ticketPrice.amountMinor) : ticketPrice.amountMinor,
+          amount_minor: applyDiscountPercent(ticketPrice.amountMinor, discountPct),
           currency: ticketPrice.currency,
         });
       }

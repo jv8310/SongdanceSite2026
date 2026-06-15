@@ -14,10 +14,9 @@ import {
   JOIN_CLOSE_AFTER_SECONDS,
 } from '../../lib/workshops/time';
 import {
-  referralShareUrl,
-  referralSecret,
-  SHARE_DISCOUNT_PCT,
-} from '../../lib/workshops/referral';
+  PUBLIC_DISCOUNT_PCT,
+  PUBLIC_DISCOUNT_PARAM,
+} from '../../lib/workshops/discount';
 
 export const prerender = false;
 
@@ -44,15 +43,17 @@ const startMs = workshop ? new Date(workshop.starts_at_utc).getTime() : 0;
 const win = workshop && !workshop.is_replay ? joinWindow(workshop.starts_at_utc) : 'open';
 const hasReplay = !!(await getConfig(env.DB, 'replay_video_url'));
 
-// "Share with a friend" — a half-price referral link for this workshop. The
-// embedded, HMAC-signed code lets a friend register for the same date at 50%
-// off the ticket (never the bump).
-const refSecret = referralSecret(env);
-const shareUrl = paid && reg && workshop && refSecret
-  ? await referralShareUrl(base, refSecret, workshop.slug, reg.id)
+// "Share with a friend" — a half-price link that lands on the full workshop
+// page (not a single date's form), so the friend can pick any upcoming date.
+// The public ?discount=50 param is the one publicly-honored value, so the link
+// is safe to pass anywhere; it takes 50% off the ticket (never the bump).
+// ?friend=<slug> stars the date the sharer is attending, while leaving every
+// other date open at the same discount.
+const shareUrl = paid && reg && workshop
+  ? `${base}/workshop?${PUBLIC_DISCOUNT_PARAM}=${PUBLIC_DISCOUNT_PCT}&friend=${encodeURIComponent(workshop.slug)}`
   : null;
 const shareText = workshop
-  ? `I just signed up for ${workshop.title} with Songdance — here's ${SHARE_DISCOUNT_PCT}% off your ticket if you'd like to join me:`
+  ? `I just signed up for ${workshop.title} with Songdance — here's ${PUBLIC_DISCOUNT_PCT}% off your ticket if you'd like to join me:`
   : '';
 
 // Other upcoming live dates they can move onto, free of charge.
@@ -160,7 +161,7 @@ const upcoming = reg
         {shareUrl && (
           <div class="ws-share" data-share-url={shareUrl} data-share-text={shareText} data-share-title={workshop.title}>
             <p class="ws-share-h">Share with a friend</p>
-            <p class="ws-share-sub">Send them this link and they get <strong>{SHARE_DISCOUNT_PCT}% off</strong> their ticket.</p>
+            <p class="ws-share-sub">Send them this link and they get <strong>{PUBLIC_DISCOUNT_PCT}% off</strong> their ticket.</p>
 
             <div class="ws-share-link">
               <input id="ws-share-input" type="text" readonly value={shareUrl} aria-label="Your share link" />

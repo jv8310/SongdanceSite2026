@@ -7,6 +7,7 @@ import {
   recordInstallmentPaid,
 } from '../../../lib/courses/db';
 import { pushPaidCourseRegistrationToDrip } from '../../../lib/courses/paid-handler';
+import { notifyCourseOrder } from '../../../lib/orders/notification';
 
 export const prerender = false;
 
@@ -36,10 +37,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     return new Response('Not found', { status: 404 });
   }
 
-  if (
-    (reg.payment_plan === '3x' || reg.payment_plan === '6x') &&
-    reg.installments_paid === 0
-  ) {
+  if (reg.installments_total > 1 && reg.installments_paid === 0) {
     // Installment plan: bump installments_paid from 0 to 1 so the admin view
     // reflects the first installment Stripe has already charged.
     await recordInstallmentPaid(
@@ -63,6 +61,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
   });
 
   await pushPaidCourseRegistrationToDrip(env, reg.id);
+
+  // Internal SD-ORDER notification (idempotent: a no-op if the webhook
+  // already sent it for this order). Re-fetch for the up-to-date row.
+  const paidReg = (await getCourseRegistrationById(env.DB, reg.id)) ?? reg;
+  await notifyCourseOrder(env, paidReg, {
+    stripePaymentIntent: paidReg.stripe_payment_intent,
+    stripeSubscriptionId: paidReg.stripe_subscription_id,
+  });
 
   const returnTo = safeReturnTo(String(form.get('return_to') ?? ''));
   return new Response(null, {

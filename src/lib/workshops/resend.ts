@@ -5,7 +5,9 @@
 
 export type SendEmailInput = {
   apiKey: string;
-  to: string;
+  // A single address, or several (Resend accepts an array). Used by the
+  // internal order-notification, which lands in more than one inbox.
+  to: string | string[];
   subject: string;
   html: string;
   text?: string;
@@ -31,7 +33,7 @@ export async function sendEmail(input: SendEmailInput): Promise<void> {
     },
     body: JSON.stringify({
       from: input.from ?? DEFAULT_FROM,
-      to: [input.to],
+      to: Array.isArray(input.to) ? input.to : [input.to],
       reply_to: input.replyTo ?? DEFAULT_REPLY_TO,
       subject: input.subject,
       html: input.html,

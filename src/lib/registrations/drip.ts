@@ -56,6 +56,8 @@ export async function upsertSubscriber(cfg: DripConfig, input: UpsertSubscriberI
 }
 
 export type DripSubscriber = {
+  // Drip's internal subscriber id — used to build a deep link into the Drip
+  // app (https://www.getdrip.com/<account>/subscribers/<id>).
   id?: string;
   email: string;
   first_name?: string;
