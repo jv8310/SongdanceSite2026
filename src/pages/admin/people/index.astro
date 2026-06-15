@@ -1,0 +1,249 @@
+---
+// Admin — People: one consolidated row per email the site knows, aggregated
+// live from the workshop / course / retreat tables, the recorded email sends
+// (workshop_sent_notifications) and the marketing suppression list. Read-only:
+// there is no `people` table — see src/lib/admin/people.ts.
+import '../../../styles/admin.css';
+import Layout from '../../../layouts/Layout.astro';
+import { readCookie, verifySession } from '../../../lib/registrations/auth';
+import {
+  listPeople,
+  filterPeople,
+  summarisePeople,
+  type PeopleFilter,
+} from '../../../lib/admin/people';
+
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+if (!(await verifySession(env.ADMIN_SESSION_SECRET, readCookie(Astro.request)))) {
+  return Astro.redirect('/admin/login');
+}
+
+const params = Astro.url.searchParams;
+const subParam = params.get('sub');
+const kindParam = params.get('kind');
+const proParam = params.get('pro') === '1';
+const q = params.get('q') ?? '';
+
+const filter: PeopleFilter = {
+  subscription: subParam === 'subscribed' || subParam === 'unsubscribed' ? subParam : null,
+  kind: kindParam === 'customer' || kindParam === 'lead' ? kindParam : null,
+  pro: proParam ? true : null,
+  query: q,
+};
+
+const all = await listPeople(env.DB);
+const summary = summarisePeople(all);
+const people = filterPeople(all, filter);
+
+// Build a filter URL from explicit values (preserving the search box).
+function href(next: Partial<{ sub: string | null; kind: string | null; pro: boolean; q: string }>): string {
+  const sp = new URLSearchParams();
+  const sub = next.sub === undefined ? filter.subscription : next.sub;
+  const kind = next.kind === undefined ? filter.kind : next.kind;
+  const pro = next.pro === undefined ? !!filter.pro : next.pro;
+  const query = next.q === undefined ? q : next.q;
+  if (sub) sp.set('sub', sub);
+  if (kind) sp.set('kind', kind);
+  if (pro) sp.set('pro', '1');
+  if (query) sp.set('q', query);
+  const s = sp.toString();
+  return '/admin/people' + (s ? `?${s}` : '');
+}
+
+const csvHref = (() => {
+  const sp = new URLSearchParams();
+  if (filter.subscription) sp.set('sub', filter.subscription);
+  if (filter.kind) sp.set('kind', filter.kind);
+  if (filter.pro) sp.set('pro', '1');
+  if (q) sp.set('q', q);
+  const s = sp.toString();
+  return '/api/admin/people.csv' + (s ? `?${s}` : '');
+})();
+
+function fmtDate(s: string | null): string {
+  if (!s) return '—';
+  const iso = s.includes('T') ? s : `${s.replace(' ', 'T')}Z`;
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? '—' : d.toISOString().slice(0, 10);
+}
+---
+
+<Layout title="Admin — People — Songdance" description="">
+  <main class="adm">
+    <header class="adm-header">
+      <div>
+        <p class="adm-breadcrumbs"><a href="/admin">Admin</a> <span class="sep">/</span> People</p>
+        <h1>People</h1>
+        <p class="adm-sub">
+          Everyone the site knows, by email — gathered live from workshops,
+          courses, retreats, the emails we&rsquo;ve actually sent, and the
+          unsubscribe list. One row per address.
+        </p>
+      </div>
+      <div class="adm-actions">
+        <a class="adm-btn adm-btn--ghost" href={csvHref}>Export CSV</a>
+        <a class="adm-btn adm-btn--ghost" href="/admin">← Admin</a>
+      </div>
+    </header>
+
+    <section class="adm-section">
+      <div class="ord-summary">
+        <div class="ord-stat"><span>People</span><strong>{summary.total}</strong></div>
+        <div class="ord-stat"><span>Subscribed</span><strong>{summary.subscribed}</strong></div>
+        <div class="ord-stat"><span>Unsubscribed</span><strong>{summary.unsubscribed}</strong></div>
+        <div class="ord-stat"><span>Customers</span><strong>{summary.customers}</strong></div>
+        <div class="ord-stat"><span>Leads</span><strong>{summary.leads}</strong></div>
+        <div class="ord-stat"><span>Practitioners</span><strong>{summary.pro}</strong></div>
+      </div>
+      <p class="adm-table-note">
+        &ldquo;Subscribed&rdquo; means the address is not on the marketing
+        unsubscribe list. Transactional email (confirmations, reminders) always
+        sends regardless. &ldquo;Customer&rdquo; = secured a workshop seat or
+        bought a course/retreat; everyone else is a lead (form or unfinished
+        checkout).
+      </p>
+    </section>
+
+    <section class="adm-section">
+      <span class="adm-filters" role="group" aria-label="Subscription">
+        <a href={href({ sub: null })} class={!filter.subscription ? 'is-on' : ''}>everyone</a>
+        <a href={href({ sub: 'subscribed' })} class={filter.subscription === 'subscribed' ? 'is-on' : ''}>subscribed</a>
+        <a href={href({ sub: 'unsubscribed' })} class={filter.subscription === 'unsubscribed' ? 'is-on' : ''}>unsubscribed</a>
+      </span>
+      <span class="adm-filters" role="group" aria-label="Type">
+        <a href={href({ kind: null })} class={!filter.kind ? 'is-on' : ''}>all</a>
+        <a href={href({ kind: 'customer' })} class={filter.kind === 'customer' ? 'is-on' : ''}>customers</a>
+        <a href={href({ kind: 'lead' })} class={filter.kind === 'lead' ? 'is-on' : ''}>leads</a>
+        <a href={href({ pro: !filter.pro })} class={`ppl-toggle ${filter.pro ? 'is-on' : ''}`}>practitioners</a>
+      </span>
+      <form method="GET" action="/admin/people" class="ord-search">
+        {filter.subscription && <input type="hidden" name="sub" value={filter.subscription} />}
+        {filter.kind && <input type="hidden" name="kind" value={filter.kind} />}
+        {filter.pro && <input type="hidden" name="pro" value="1" />}
+        <input type="search" name="q" value={q} placeholder="Search name or email…" />
+        <button type="submit" class="adm-btn adm-btn--solid">Search</button>
+        {q && <a class="adm-btn adm-btn--ghost" href={href({ q: '' })}>Clear</a>}
+      </form>
+    </section>
+
+    <section class="adm-section">
+      {people.length === 0 && <p class="adm-empty">No people match these filters.</p>}
+
+      {people.length > 0 && (
+        <table class="adm-table ppl-table">
+          <thead>
+            <tr>
+              <th>Email</th>
+              <th>Name</th>
+              <th>Subscription</th>
+              <th>Workshops</th>
+              <th>Purchases</th>
+              <th class="num">Emails sent</th>
+              <th>Last activity</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {people.map((p) => (
+              <tr>
+                <td>
+                  <a href={`mailto:${p.email}`}>{p.email}</a>
+                  {p.isPro && <span class="adm-pill adm-pill--pro">pro</span>}
+                </td>
+                <td>{p.name ?? '—'}{p.country ? <span class="ppl-country"> · {p.country}</span> : ''}</td>
+                <td>
+                  {p.subscribed
+                    ? <span class="adm-pill adm-pill--paid">subscribed</span>
+                    : <span class="adm-pill adm-pill--cancelled" title={`Unsubscribed ${fmtDate(p.unsubscribedAt)}${p.unsubscribeSource ? ` (${p.unsubscribeSource})` : ''}`}>unsubscribed</span>}
+                </td>
+                <td>
+                  {p.workshopsSecured > 0
+                    ? <span>{p.workshopsAttended}/{p.workshopsSecured} attended{p.workshopsNoShow > 0 ? `, ${p.workshopsNoShow} missed` : ''}</span>
+                    : p.workshopsAbandoned > 0
+                      ? <span class="ppl-mute">{p.workshopsAbandoned} unfinished</span>
+                      : <span class="ppl-mute">—</span>}
+                </td>
+                <td>
+                  {p.purchases.length === 0 && <span class="ppl-mute">—</span>}
+                  {p.bought12w && <span class="adm-pill adm-pill--src-course">12-week</span>}
+                  {p.boughtCert && <span class="adm-pill adm-pill--src-course">Cert</span>}
+                  {p.retreatsBought > 0 && <span class="adm-pill adm-pill--src-retreat">Retreat{p.retreatsBought > 1 ? `×${p.retreatsBought}` : ''}</span>}
+                </td>
+                <td class="num">
+                  {p.totalEmailsReceived === 0 && <span class="ppl-mute">0</span>}
+                  {p.totalEmailsReceived > 0 && (
+                    <details class="ppl-emails">
+                      <summary>{p.totalEmailsReceived}{p.marketingEmailsReceived > 0 ? ` (${p.marketingEmailsReceived} mktg)` : ''}</summary>
+                      <ul class="ppl-emails-list">
+                        {p.emailsReceived.map((e) => (
+                          <li>
+                            <span class={`ppl-dot ppl-dot--${e.kind}`} aria-hidden="true"></span>
+                            <span class="ppl-em-label">{e.label}</span>
+                            {e.count > 1 && <span class="ppl-em-count">×{e.count}</span>}
+                            <span class="ppl-em-date">{fmtDate(e.lastAt)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
+                </td>
+                <td>{fmtDate(p.lastActivity)}</td>
+                <td>
+                  <div class="ord-actions">
+                    <a class="adm-btn adm-btn--tiny" href={`/api/admin/drip-profile?email=${encodeURIComponent(p.email)}`} target="_blank" rel="noopener">Drip</a>
+                    <a class="adm-btn adm-btn--tiny" href={`/admin/orders?q=${encodeURIComponent(p.email)}`}>Orders</a>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </section>
+  </main>
+
+  <style>
+    .ord-summary { display:flex; flex-wrap:wrap; gap:14px; margin-bottom:10px; }
+    .ord-stat {
+      display:flex; flex-direction:column; gap:2px;
+      padding:10px 16px; border:1px solid rgba(42,27,42,0.12); border-radius:10px;
+      min-width:110px; background:var(--adm-paper-soft);
+    }
+    .ord-stat span { font-size:11px; text-transform:uppercase; letter-spacing:0.04em; color:var(--adm-mute); }
+    .ord-stat strong { font-size:20px; font-variant-numeric:tabular-nums; }
+
+    .ppl-toggle.is-on::before { content:'✓ '; }
+    .ord-search { display:flex; gap:8px; margin-top:12px; align-items:center; flex-wrap:wrap; }
+    .ord-search input[type="search"] {
+      flex:1; min-width:240px; padding:8px 12px;
+      border:1px solid rgba(42,27,42,0.18); border-radius:8px; font-size:14px;
+    }
+
+    .ppl-table td { vertical-align:top; }
+    .ppl-country, .ppl-mute { color:var(--adm-mute); }
+    .ord-actions { display:flex; gap:6px; align-items:flex-start; flex-wrap:wrap; }
+
+    .adm-pill + .adm-pill { margin-left:6px; }
+    .adm-pill--pro { background:#efe3d2; color:var(--adm-ember-deep); margin-left:6px; }
+    .adm-pill--src-course   { background:#d6e4f0; color:#2a5a8a; }
+    .adm-pill--src-retreat  { background:rgba(201, 96, 58, 0.16); color:var(--adm-ember-deep); }
+
+    .ppl-emails > summary {
+      cursor:pointer; font-variant-numeric:tabular-nums;
+      color:var(--adm-ember-deep); white-space:nowrap;
+    }
+    .ppl-emails-list {
+      list-style:none; margin:8px 0 0; padding:0;
+      font-size:12.5px; line-height:1.5; min-width:220px;
+    }
+    .ppl-emails-list li { display:flex; align-items:center; gap:6px; padding:1px 0; }
+    .ppl-dot { width:8px; height:8px; border-radius:50%; flex:none; }
+    .ppl-dot--transactional { background:#2f7a4c; }
+    .ppl-dot--marketing { background:#a14826; }
+    .ppl-em-label { flex:1; }
+    .ppl-em-count { color:var(--adm-mute); }
+    .ppl-em-date { color:var(--adm-mute); font-variant-numeric:tabular-nums; }
+  </style>
+</Layout>
