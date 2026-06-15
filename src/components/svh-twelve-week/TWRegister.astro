@@ -380,7 +380,7 @@ const includes = [
               ? (dd.kind === 'override'
                   ? `${dd.percent}% off the 12-week`
                   : `Workshop discount — ${dd.percent}% off the 12-week`)
-              : '',
+              : 'Mid-cohort discount applied',
             offerName: 'Certification path',
             discountOff: dd.eligible ? ` (12-week ${dd.percent}% off)` : '',
             showCountdown: dd.eligible && dd.kind === 'post' && !!dd.expires_at_ms,

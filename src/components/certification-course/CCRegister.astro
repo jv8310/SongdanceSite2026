@@ -956,13 +956,14 @@ const countries = COUNTRIES;
       const twAmt = d.eligible
         ? `<span class="cc-amount-strike">${escapeHtml(moneyCents(path.twelve_week_base_cents, cur))}</span>${escapeHtml(moneyCents(path.twelve_week_price_cents, cur))}`
         : escapeHtml(moneyCents(path.twelve_week_base_cents, cur));
-      const badge = d.eligible
-        ? `<div class="cc-offer-badge"><span class="dot" aria-hidden="true"></span><span>${escapeHtml(
-            d.kind === 'override'
-              ? `${d.percent}% off the 12-week`
-              : `Workshop discount — ${d.percent}% off the 12-week`,
-          )}</span></div>`
-        : '';
+      // The cert mid-cohort discount always applies on the path; a workshop /
+      // override discount on the 12-week portion replaces the badge text when live.
+      const badgeText = d.eligible
+        ? d.kind === 'override'
+          ? `${d.percent}% off the 12-week`
+          : `Workshop discount — ${d.percent}% off the 12-week`
+        : 'Mid-cohort discount applied';
+      const badge = `<div class="cc-offer-badge"><span class="dot" aria-hidden="true"></span><span>${escapeHtml(badgeText)}</span></div>`;
       const countdown =
         d.eligible && d.kind === 'post' && d.expires_at_ms
           ? `<div class="cc-offer-countdown" data-cd><i class="ph-light ph-hourglass-medium" aria-hidden="true"></i><span>Discount ends in <span class="clock" data-clock>--:--:--</span></span></div>`

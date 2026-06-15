@@ -699,6 +699,7 @@ html, body { background: var(--paper); }
   margin-bottom: var(--sp-4);
 }
 .tw-reg-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ember); }
+.tw-reg-badge[hidden] { display: none; }
 .tw-reg-pricebox {
   display: flex; align-items: baseline; gap: var(--sp-3); flex-wrap: wrap;
   padding-bottom: var(--sp-4); margin-bottom: var(--sp-2);
