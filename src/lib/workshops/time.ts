@@ -5,21 +5,28 @@
 // Intl.DateTimeFormat with that timezone; the live countdown is computed
 // against Date.now() on the client.
 
-// Join window around the start, in seconds. The Join button (and the Zoom
-// fallback reveal) appear 5 minutes before start and stay until 15 minutes
-// after start; outside that window the room can't be reached at all.
+// Join window, in seconds. The Join button (and the Zoom fallback reveal) open
+// 5 minutes before the start and stay reachable for the WHOLE live session —
+// until JOIN_GRACE_AFTER_SECONDS past its end (a session that runs a little
+// long, clock skew, a straggler rejoining). Only after that has the event
+// truly passed.
 export const JOIN_OPEN_BEFORE_SECONDS = 5 * 60;
-export const JOIN_CLOSE_AFTER_SECONDS = 15 * 60;
+export const JOIN_GRACE_AFTER_SECONDS = 15 * 60;
 
 // State of the live join window relative to `now`:
 //   'early'  — too soon, show the countdown
-//   'open'   — within [start-5m, start+15m], Join is live
-//   'closed' — the window has passed; treat as missed (replay / new date)
+//   'open'   — within [start-5m, end+grace], Join is live for the whole session
+//   'closed' — the session has passed; treat as missed (replay / new date)
 export type JoinWindow = 'early' | 'open' | 'closed';
-export function joinWindow(startsAtUtc: string, now = Date.now()): JoinWindow {
+export function joinWindow(
+  startsAtUtc: string,
+  endsAtUtc: string | null,
+  now = Date.now(),
+): JoinWindow {
   const start = new Date(startsAtUtc).getTime();
+  const end = new Date(endsAtOrDefault(startsAtUtc, endsAtUtc)).getTime();
   if (now < start - JOIN_OPEN_BEFORE_SECONDS * 1000) return 'early';
-  if (now > start + JOIN_CLOSE_AFTER_SECONDS * 1000) return 'closed';
+  if (now > end + JOIN_GRACE_AFTER_SECONDS * 1000) return 'closed';
   return 'open';
 }
 
