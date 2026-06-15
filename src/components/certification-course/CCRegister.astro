@@ -1023,7 +1023,7 @@ const countries = COUNTRIES;
       rows.push(row(`After ${discountPct}% off`, moneyCents(afterPctCents, cur), !hasWorkshop, 'cc-offer-strike'));
     }
     if (hasWorkshop) {
-      rows.push(row(`Workshop discount · ${WORKSHOP_PCT}% off your 12-week foundation`, `−${moneyCents(workshopOffCents, cur)}`, false));
+      rows.push(row(`Workshop discount · ${WORKSHOP_PCT}% off 12-week`, `−${moneyCents(workshopOffCents, cur)}`, false));
       rows.push(row('Your price today', moneyCents(finalCents, cur), true));
     }
 
