@@ -114,6 +114,28 @@ const includes = [
         <div class="tw-reg-steplabel">How would you like to pay?</div>
         <div class="tw-reg-plans" data-slot="plans"></div>
 
+        <!-- Non-pro: a soft pointer to the certification path (not buyable
+             here). Pro buyers get the selectable picker above instead. -->
+        <aside class="tw-reg-pathteaser" data-slot="path-teaser" hidden>
+          <div class="tw-reg-pathteaser-text">
+            <p class="tw-reg-pathteaser-eyebrow">Take it further</p>
+            <p class="tw-reg-pathteaser-h">Want to go deeper, or hold this work for <em>others?</em></p>
+            <p class="tw-reg-pathteaser-p">
+              After the twelve weeks, continue into the live, deepening Practitioner
+              Training — to be certified, or simply to master the practice for yourself.
+            </p>
+          </div>
+          <a
+            class="tw-reg-pathteaser-link"
+            href="/courses/certification"
+            target="_blank"
+            rel="noopener"
+            aria-label="Tell me more about the Practitioner Training"
+          >
+            Tell me more <i class="ph-light ph-arrow-up-right" aria-hidden="true"></i>
+          </a>
+        </aside>
+
         <div class="tw-reg-steplabel">Your details</div>
         <div class="tw-reg-fields">
           <label class="tw-reg-field">
@@ -772,6 +794,10 @@ const includes = [
       });
 
       renderOffers();
+      // Non-pro (no buyable picker): reveal a soft pointer to the certification
+      // path — a "Tell me more" link through to the cert page. Pro buyers get
+      // the selectable offer cards instead, so the teaser stays hidden for them.
+      (q('[data-slot="path-teaser"]') as HTMLElement).hidden = hasPath;
       renderPrice();
       renderPlans();
       renderSummary();

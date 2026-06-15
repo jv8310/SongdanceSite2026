@@ -830,6 +830,43 @@ html, body { background: var(--paper); }
   color: rgba(244, 236, 223, 0.5); margin-right: 5px; font-size: 14px;
 }
 
+/* Non-pro: soft pointer to the Certification path (informational, opens the
+   cert page in a new tab — never competes with the 12-week "pay" button). */
+.tw-reg-pathteaser {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--sp-4); flex-wrap: wrap;
+  margin: var(--sp-5) 0 0; padding: var(--sp-4) var(--sp-5);
+  background: rgba(244, 236, 223, 0.04);
+  border: 1px solid rgba(244, 236, 223, 0.16);
+  border-left: 2px solid var(--ember);
+  border-radius: var(--r-md);
+}
+.tw-reg-pathteaser[hidden] { display: none; }
+.tw-reg-pathteaser-text { flex: 1; min-width: 220px; }
+.tw-reg-pathteaser-eyebrow {
+  margin: 0 0 6px; font-family: var(--font-mono); font-size: 10px;
+  text-transform: uppercase; letter-spacing: 0.18em; color: rgba(244, 236, 223, 0.55);
+}
+.tw-reg-pathteaser-h {
+  margin: 0 0 6px; font-family: var(--font-display); font-size: 18px;
+  font-weight: 400; line-height: 1.25; color: var(--paper);
+}
+.tw-reg-pathteaser-h em { font-style: italic; }
+.tw-reg-pathteaser-p {
+  margin: 0; font-family: var(--font-body); font-size: 13px;
+  line-height: 1.5; color: rgba(244, 236, 223, 0.62);
+}
+.tw-reg-pathteaser-link {
+  display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  font-family: var(--font-body); font-size: 14px; font-weight: 500;
+  color: var(--ember-soft); text-decoration: none;
+  padding: 10px 18px; border-radius: var(--r-pill);
+  border: 1px solid rgba(201, 96, 58, 0.4); background: rgba(201, 96, 58, 0.1);
+  transition: background var(--d-base) var(--ease), color var(--d-base) var(--ease);
+}
+.tw-reg-pathteaser-link:hover { background: rgba(201, 96, 58, 0.18); color: var(--paper); }
+.tw-reg-pathteaser-link:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
+
 /* Details fields */
 .tw-reg-fields { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3); margin-bottom: var(--sp-4); }
 @media (max-width: 520px) { .tw-reg-fields { grid-template-columns: 1fr; } }
