@@ -27,6 +27,13 @@ type Env = {
   RESEND_FROM?: string;
   RESEND_INTAKES_FROM?: string;
   RESEND_REPLY_TO?: string;
+  // Marketing-flavoured lifecycle sends (abandoned checkout, post-workshop,
+  // downsell). Set these to move marketing onto a dedicated, separately
+  // verified sending domain (e.g. a Jacob from Songdance <…@m.songdance.co>),
+  // so its reputation is isolated from transactional mail on mail.songdance.co.
+  // When unset, the defaults in src/lib/workshops/emails.ts apply.
+  MARKETING_FROM?: string;
+  MARKETING_REPLY_TO?: string;
   // Comma-separated recipients for the internal "SD-ORDER" purchase
   // notifications. Defaults to jacob@songdance.co + support@songdance.co.
   ORDER_NOTIFICATIONS_TO?: string;

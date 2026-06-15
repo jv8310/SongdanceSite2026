@@ -183,6 +183,28 @@ function fullName(first: string | null, last: string | null): string | null {
 
 // ── Aggregation ─────────────────────────────────────────────────────────────
 
+// Recorded sends, mapped to email. Counts only mail actually emailed
+// (emailed = 1): the reminder cadence reserves looser buckets with
+// emailed = 0 (see claimNotification), which must not show as received.
+// Falls back to the unfiltered query when migration 0041 (the `emailed`
+// column) hasn't landed yet — so this works on a preview sharing prod D1.
+async function loadNotifications(db: D1Database): Promise<{ results: Notif[] }> {
+  const select = (where: string) =>
+    db
+      .prepare(
+        `SELECT lower(r.email) AS email, n.type, n.sent_at_utc
+           FROM workshop_sent_notifications n
+           JOIN workshop_registrations r ON r.id = n.registration_id
+           ${where}`,
+      )
+      .all<Notif>();
+  try {
+    return await select('WHERE n.emailed = 1');
+  } catch {
+    return await select('');
+  }
+}
+
 export async function listPeople(db: D1Database): Promise<Person[]> {
   const [wregRes, notifRes, courseRes, wPurchaseRes, retreatRes, supprRes] = await Promise.all([
     db
@@ -195,13 +217,7 @@ export async function listPeople(db: D1Database): Promise<Person[]> {
            LEFT JOIN workshop_products p ON p.id = w.main_product_id`,
       )
       .all<WReg>(),
-    db
-      .prepare(
-        `SELECT lower(r.email) AS email, n.type, n.sent_at_utc
-           FROM workshop_sent_notifications n
-           JOIN workshop_registrations r ON r.id = n.registration_id`,
-      )
-      .all<Notif>(),
+    loadNotifications(db),
     db
       .prepare(
         `SELECT lower(email) AS email, first_name, last_name, product_slug, status, created_at, paid_at

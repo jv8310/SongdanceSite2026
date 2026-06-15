@@ -142,6 +142,43 @@ export async function recordEvent(
   }
 }
 
+// Globally unsubscribe a subscriber from all mailings.
+// POST /v2/:account_id/subscribers/:id_or_email/unsubscribe_all
+// A 404 means Drip has never seen the address — nothing to unsubscribe, so we
+// treat it as success rather than an error.
+export async function unsubscribeFromAll(cfg: DripConfig, email: string): Promise<void> {
+  const res = await fetch(
+    `${baseUrl(cfg)}/subscribers/${encodeURIComponent(email)}/unsubscribe_all`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: authHeader(cfg),
+        'Content-Type': 'application/vnd.api+json',
+      },
+    },
+  );
+  if (!res.ok && res.status !== 404) {
+    throw new Error(`Drip unsubscribeFromAll: ${res.status} ${await res.text()}`);
+  }
+}
+
+// Re-activate a previously unsubscribed subscriber. Drip resubscribes when the
+// subscriber is (re)created with status "active" on the create/update endpoint.
+// Only call this for a deliberate, consented opt-in (e.g. an admin action).
+export async function resubscribe(cfg: DripConfig, email: string): Promise<void> {
+  const res = await fetch(`${baseUrl(cfg)}/subscribers`, {
+    method: 'POST',
+    headers: {
+      Authorization: authHeader(cfg),
+      'Content-Type': 'application/vnd.api+json',
+    },
+    body: JSON.stringify({ subscribers: [{ email, status: 'active' }] }),
+  });
+  if (!res.ok) {
+    throw new Error(`Drip resubscribe: ${res.status} ${await res.text()}`);
+  }
+}
+
 function scrubCustomFields(
   obj: Record<string, string | number | null | undefined>,
 ): Record<string, string> {

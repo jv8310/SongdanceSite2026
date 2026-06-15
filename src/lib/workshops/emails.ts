@@ -34,10 +34,11 @@ const IMG = {
 };
 
 // Lifecycle (marketing-flavoured) emails come from a person, not a brand.
-// Same verified sending domain as the transactional default; replies land
-// with support.
-export const MARKETING_FROM = 'Jacob from Songdance <info@mail.songdance.co>';
-export const MARKETING_REPLY_TO = 'support@songdance.co';
+// These are the DEFAULTS; the MARKETING_FROM / MARKETING_REPLY_TO env vars
+// override them (see env.d.ts) — set those to move marketing onto a dedicated
+// verified subdomain so its reputation is isolated from transactional mail.
+export const MARKETING_FROM_DEFAULT = 'Jacob from Songdance <info@mail.songdance.co>';
+export const MARKETING_REPLY_TO_DEFAULT = 'support@songdance.co';
 
 export type EmailContent = { subject: string; html: string; text: string };
 

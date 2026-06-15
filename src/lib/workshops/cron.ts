@@ -44,8 +44,8 @@ import {
   noShowEmail2,
   noShowEmail3,
   reminderEmail,
-  MARKETING_FROM,
-  MARKETING_REPLY_TO,
+  MARKETING_FROM_DEFAULT,
+  MARKETING_REPLY_TO_DEFAULT,
   type EmailContent,
   type WorkshopEmailCtx,
 } from './emails';
@@ -68,6 +68,8 @@ type CronEnv = {
   RESEND_API_KEY?: string;
   RESEND_FROM?: string;
   RESEND_REPLY_TO?: string;
+  MARKETING_FROM?: string;
+  MARKETING_REPLY_TO?: string;
   UNSUBSCRIBE_SECRET?: string;
   ADMIN_SESSION_SECRET?: string;
   PUBLIC_BASE_URL: string;
@@ -214,8 +216,11 @@ async function runReminders(env: CronEnv, now: number, result: CronResult) {
       const due = CADENCE[idx];
       // Claim every looser bucket too so we never backfill them with a late
       // burst — but only actually email the single tightest due reminder.
+      // These looser claims are marked emailed=0: they reserve the slot
+      // without being emails the person received, so the admin People view
+      // doesn't count a late registrant's skipped reminders as sent.
       for (let i = 0; i < idx; i++) {
-        await claimNotification(env.DB, reg.id, CADENCE[i].type);
+        await claimNotification(env.DB, reg.id, CADENCE[i].type, false);
       }
       const shouldSend = await claimNotification(env.DB, reg.id, due.type);
       if (!shouldSend) continue;
@@ -534,8 +539,8 @@ async function sendMarketing(
   try {
     await sendEmail({
       apiKey: env.RESEND_API_KEY!,
-      from: MARKETING_FROM,
-      replyTo: MARKETING_REPLY_TO,
+      from: env.MARKETING_FROM || MARKETING_FROM_DEFAULT,
+      replyTo: env.MARKETING_REPLY_TO || MARKETING_REPLY_TO_DEFAULT,
       to,
       subject: content.subject,
       html: content.html,

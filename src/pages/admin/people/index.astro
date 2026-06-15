@@ -37,6 +37,17 @@ const all = await listPeople(env.DB);
 const summary = summarisePeople(all);
 const people = filterPeople(all, filter);
 
+const returnTo = Astro.url.pathname + Astro.url.search;
+
+// Flash from the resubscribe endpoint.
+const flash = params.get('flash');
+const flashBanner =
+  flash === 'resub_ok'
+    ? { tone: 'ok' as const, text: `Resubscribed ${params.get('email') ?? ''} — lifted the suppression and reactivated them in Drip.` }
+  : flash === 'resub_error'
+    ? { tone: 'err' as const, text: params.get('msg') ?? 'Resubscribe failed.' }
+  : null;
+
 // Build a filter URL from explicit values (preserving the search box).
 function href(next: Partial<{ sub: string | null; kind: string | null; pro: boolean; q: string }>): string {
   const sp = new URLSearchParams();
@@ -87,6 +98,8 @@ function fmtDate(s: string | null): string {
         <a class="adm-btn adm-btn--ghost" href="/admin">← Admin</a>
       </div>
     </header>
+
+    {flashBanner && <div class={`adm-flash adm-flash--${flashBanner.tone}`}>{flashBanner.text}</div>}
 
     <section class="adm-section">
       <div class="ord-summary">
@@ -194,6 +207,17 @@ function fmtDate(s: string | null): string {
                   <div class="ord-actions">
                     <a class="adm-btn adm-btn--tiny" href={`/api/admin/drip-profile?email=${encodeURIComponent(p.email)}`} target="_blank" rel="noopener">Drip</a>
                     <a class="adm-btn adm-btn--tiny" href={`/admin/orders?q=${encodeURIComponent(p.email)}`}>Orders</a>
+                    {!p.subscribed && (
+                      <form
+                        method="POST"
+                        action="/api/admin/resubscribe"
+                        onsubmit={`return confirm('Resubscribe ${p.email.replace(/['\\]/g, '\\$&')}? This opts them back into marketing and reactivates them in Drip.')`}
+                      >
+                        <input type="hidden" name="email" value={p.email} />
+                        <input type="hidden" name="return_to" value={returnTo} />
+                        <button type="submit" class="adm-btn adm-btn--tiny adm-btn--solid">Resubscribe</button>
+                      </form>
+                    )}
                   </div>
                 </td>
               </tr>
