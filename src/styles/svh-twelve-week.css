@@ -708,6 +708,9 @@ html, body { background: var(--paper); }
   border-radius: var(--r-lg);
   padding: var(--sp-6) var(--sp-6) var(--sp-7);
   text-align: left; margin: 0 auto var(--sp-7); max-width: 560px;
+  /* border-box so max-width is the *outer* width — otherwise this card sits
+     ~66px wider than the priced form below (which is capped by .tw-reg-gate). */
+  box-sizing: border-box;
 }
 .tw-reg-card-h {
   font-family: var(--font-mono); font-size: 11px; text-transform: uppercase;
@@ -738,7 +741,7 @@ html, body { background: var(--paper); }
 }
 
 /* ---- Email-gated registration (price reveal → plan → details → Stripe) ---- */
-.tw-reg-gate { max-width: 560px; margin: 0 auto; }
+.tw-reg-gate { max-width: 560px; margin: 0 auto; box-sizing: border-box; }
 .tw-reg-emailform { display: flex; gap: var(--sp-3); }
 @media (max-width: 460px) { .tw-reg-emailform { flex-direction: column; } }
 .tw-reg-emailform input {
@@ -777,6 +780,7 @@ html, body { background: var(--paper); }
   border: 1px solid rgba(244, 236, 223, 0.16);
   border-radius: var(--r-lg);
   padding: var(--sp-6); max-width: 560px; margin: 0 auto;
+  box-sizing: border-box;
 }
 .tw-reg-emailline {
   display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;

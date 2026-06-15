@@ -445,6 +445,9 @@ html, body { background: var(--paper); }
   color: var(--paper);
   outline: none;
   transition: border-color var(--d-base) var(--ease), background var(--d-base) var(--ease);
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 .cc-register-form input[type="email"]::placeholder { color: rgba(244,236,223,0.5); }
 .cc-register-form input[type="email"]:focus {
@@ -550,6 +553,9 @@ html, body { background: var(--paper); }
 }
 .cc-variant-field {
   display: flex; flex-direction: column; gap: 6px;
+  /* Let the grid cell shrink below the input's intrinsic width so fields
+     never push past the card frame on narrow screens. */
+  min-width: 0;
 }
 .cc-variant-field--full {
   grid-column: 1 / -1;
@@ -575,13 +581,19 @@ html, body { background: var(--paper); }
   color: var(--paper);
   outline: none;
   transition: border-color var(--d-base) var(--ease);
+  /* Fill the cell and count padding/border within the width, so inputs
+     can't overflow the form frame on mobile. */
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 .cc-variant-field input:focus,
 .cc-variant-field select:focus { border-color: var(--ember); }
 .cc-phone-grid {
   display: grid;
-  grid-template-columns: 110px 1fr;
+  grid-template-columns: 110px minmax(0, 1fr);
   gap: var(--sp-2);
+  min-width: 0;
 }
 
 .cc-activate-toggle {
