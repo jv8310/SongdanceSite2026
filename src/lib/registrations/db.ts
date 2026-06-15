@@ -559,21 +559,41 @@ export async function computeTierAvailability(
   });
 }
 
-// Overall "X% booked" for a product, derived from the same per-tier
-// availability the booking pages and /admin use — so the public figure always
-// agrees with what the room model says is left. Returns null when there's no
-// countable capacity (e.g. a product with no inventory yet), letting callers
+// Overall "X% booked" for a product. Counted from physical rooms (beds), each
+// room exactly once — NOT by summing per-tier capacities. A multi-mode room
+// belongs to several tiers (e.g. a twin is both "Shared Room" by the bed and
+// "Private Shared-bath" as a whole), so summing tiers double-counts it; and a
+// whole-room/couple tier contributes one unit per room, undercounting the
+// people who sleep there. Walking rooms once, by bed count, avoids both:
+//   • a couple cabin (2 beds) counts as 2, not 1;
+//   • a twin offered under two tiers counts as its 2 beds, not 2 + 1.
+// A whole-room (solo/couple) booking locks every bed in its room, so once it
+// has a booking nothing in it remains sellable. Reserved/inactive rooms and
+// admin/test tiers are left out of the public figure. Returns null when there's
+// no countable capacity (e.g. a product with no inventory yet), letting callers
 // simply omit the figure.
 export async function computeBookedPercent(
   db: D1Database,
   productId: number,
 ): Promise<{ capacity: number; remaining: number; sold: number; percent: number } | null> {
-  const availability = await computeTierAvailability(db, productId);
+  const [rooms, tiers] = await Promise.all([
+    getRoomsWithMode(db, productId),
+    getTiersForProduct(db, productId),
+  ]);
+  const excludedTierIds = new Set(
+    tiers.filter((t) => /admin|test/i.test(t.slug)).map((t) => t.id),
+  );
+
   let capacity = 0;
   let remaining = 0;
-  for (const a of availability) {
-    capacity += a.capacity;
-    remaining += Math.max(0, a.remaining);
+  for (const r of rooms) {
+    if (r.mode === 'reserved' || r.mode === 'inactive') continue;
+    if (excludedTierIds.has(r.tier_id)) continue;
+    capacity += r.capacity;
+    // A solo-locked room (a whole-room or couple booking has landed) leaves no
+    // sellable bed behind; every other room sells its free beds individually.
+    if (r.mode === 'solo' && r.beds_sold > 0) continue;
+    remaining += Math.max(0, r.capacity - r.beds_sold);
   }
   if (capacity <= 0) return null;
   const sold = Math.max(0, capacity - remaining);
