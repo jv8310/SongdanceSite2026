@@ -37,13 +37,14 @@ export type CertificationPathPricing = {
   twelve_week_price_cents: number;
   twelve_week_base_monthly_cents: number;
   twelve_week_monthly_cents: number;
-  // certification line (standard price)
+  // certification line (sticker → standard mid-cohort price)
+  cert_base_price_cents: number;
   cert_price_cents: number;
   cert_monthly_cents: number;
   // combined
   total_cents: number;
   total_monthly_cents: number;
-  base_total_cents: number; // pre-discount total (cert + full 12-week)
+  base_total_cents: number; // pre-discount total (cert sticker + full 12-week)
   base_total_monthly_cents: number;
   installment_count: number;
   discount: {
@@ -62,6 +63,7 @@ export function buildCertificationPathPricing(
   eff: EffectiveDiscount,
 ): CertificationPathPricing {
   const cert = getCertOffer(currency);
+  const certBase = cert.base_price * 100; // sticker (e.g. €1500), shown struck
   const twBase = priceCents(currency);
   const twBaseMonthly = monthlyCents(currency);
   const twPrice = applyPercentCents(twBase, eff.percent);
@@ -73,11 +75,14 @@ export function buildCertificationPathPricing(
     twelve_week_price_cents: twPrice,
     twelve_week_base_monthly_cents: twBaseMonthly,
     twelve_week_monthly_cents: twMonthly,
+    cert_base_price_cents: certBase,
     cert_price_cents: cert.price_cents,
     cert_monthly_cents: certMonthly,
     total_cents: cert.price_cents + twPrice,
     total_monthly_cents: certMonthly + twMonthly,
-    base_total_cents: cert.price_cents + twBase,
+    // List total: cert sticker + full 12-week. The charged total still applies
+    // the cert mid-cohort discount and the 12-week workshop discount.
+    base_total_cents: certBase + twBase,
     base_total_monthly_cents: certMonthly + twBaseMonthly,
     installment_count: INSTALLMENT_COUNT,
     discount: {

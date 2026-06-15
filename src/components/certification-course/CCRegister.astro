@@ -225,6 +225,7 @@ const countries = COUNTRIES;
     currency: Currency;
     twelve_week_base_cents: number;
     twelve_week_price_cents: number;
+    cert_base_price_cents: number;
     cert_price_cents: number;
     total_cents: number;
     total_monthly_cents: number;
@@ -948,7 +949,7 @@ const countries = COUNTRIES;
 
     // The path: two transparent line items + a combined total. The 12-week line
     // carries the workshop discount (struck base) and its 48h countdown; the
-    // certification line is always its standard price.
+    // certification line shows its sticker struck to the mid-cohort price.
     if (offer.slug === 'cc-bundle' && path) {
       const cur = path.currency;
       const d = path.discount;
@@ -978,11 +979,11 @@ const countries = COUNTRIES;
             </div>
             <div class="cc-offer-pathline">
               <span class="cc-offer-pathline-name">Certification Course</span>
-              <span class="cc-offer-pathline-amt">${escapeHtml(moneyCents(path.cert_price_cents, cur))}</span>
+              <span class="cc-offer-pathline-amt">${strikeCents(path.cert_base_price_cents, path.cert_price_cents, cur)}</span>
             </div>
             <div class="cc-offer-pathtotal">
               <span class="cc-offer-pathtotal-label">Total</span>
-              <span class="cc-offer-pathtotal-amt">${escapeHtml(moneyCents(path.total_cents, cur))}</span>
+              <span class="cc-offer-pathtotal-amt">${strikeCents(path.base_total_cents, path.total_cents, cur)}</span>
             </div>
           </div>
           ${countdown}

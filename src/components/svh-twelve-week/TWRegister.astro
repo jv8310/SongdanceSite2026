@@ -53,7 +53,7 @@ const includes = [
         </div>
 
         <!-- Pro only: choose between the 12-week course and the full
-             Certification path (12-week + certification course). -->
+             Certification path (12-Week Course + Certification Course). -->
         <div class="tw-reg-offers-wrap" data-slot="offers-wrap" hidden>
           <div class="tw-reg-steplabel">Choose your option</div>
           <div class="tw-reg-plans" data-slot="offers"></div>
@@ -202,6 +202,7 @@ const includes = [
     currency: string;
     twelve_week_base_cents: number;
     twelve_week_price_cents: number;
+    cert_base_price_cents: number;
     cert_price_cents: number;
     total_cents: number;
     base_total_cents: number;
@@ -353,7 +354,7 @@ const includes = [
       q<HTMLButtonElement>('[data-slot="change"]').addEventListener('click', () => showEmailForm(email));
 
       // Pro emails (or ?audience=pro) can switch between the 12-week course and
-      // the full Certification path (12-week + certification course). The
+      // the full Certification path (12-Week Course + Certification Course). The
       // discount only ever touches the 12-week price — inside the path, only its
       // 12-week portion; the certification course always shows its standard price.
       const hasPath = !!(status.is_pro && status.path);
@@ -366,8 +367,10 @@ const includes = [
           const p = status.path;
           const dd = p.discount;
           return {
+            // The total is always struck: the cert sits at its mid-cohort
+            // price, and the 12-week may carry the workshop discount on top.
             cur: p.currency,
-            hasStrike: dd.eligible,
+            hasStrike: p.base_total_cents > p.total_cents,
             wasCents: p.base_total_cents,
             nowCents: p.total_cents,
             monthlyWasCents: p.base_total_monthly_cents,
@@ -416,7 +419,7 @@ const includes = [
           ? `<span class="tw-amount-strike">${money(status.price_cents, cur12)}</span>${money(now12, cur12)}`
           : money(now12, cur12);
         const p = status.path!;
-        const amountPath = p.discount.eligible
+        const amountPath = p.base_total_cents > p.total_cents
           ? `<span class="tw-amount-strike">${money(p.base_total_cents, p.currency)}</span>${money(p.total_cents, p.currency)}`
           : money(p.total_cents, p.currency);
 
@@ -443,7 +446,7 @@ const includes = [
 
         offersEl.replaceChildren(
           card('12week', 'The 12-Week Course', 'Self-paced + live weekly Q&A', amount12),
-          card('path', 'Certification path', '12-week course + certification', amountPath),
+          card('path', 'Certification path', '12-Week Course + Certification Course', amountPath),
         );
       };
 
@@ -469,17 +472,23 @@ const includes = [
         }
 
         if (isPath) {
-          // Two transparent line items + a combined total; cert never discounted.
+          // Two transparent line items + a combined total. The cert shows its
+          // sticker struck to the mid-cohort price; the 12-week shows the
+          // workshop discount on top when it's live.
           const p = status.path!;
           pricebox.hidden = true;
           pathbox.hidden = false;
           activate.hidden = false;
+          const strike = (was: number, now: number) =>
+            was > now
+              ? `<span class="tw-amount-strike">${money(was, p.currency)}</span>${money(now, p.currency)}`
+              : money(now, p.currency);
           const twAmt = p.discount.eligible
-            ? `<span class="tw-amount-strike">${money(p.twelve_week_base_cents, p.currency)}</span>${money(p.twelve_week_price_cents, p.currency)}`
+            ? strike(p.twelve_week_base_cents, p.twelve_week_price_cents)
             : money(p.twelve_week_base_cents, p.currency);
           (q('[data-slot="path-tw"]') as HTMLElement).innerHTML = twAmt;
-          (q('[data-slot="path-cert"]') as HTMLElement).textContent = money(p.cert_price_cents, p.currency);
-          (q('[data-slot="path-total"]') as HTMLElement).textContent = money(p.total_cents, p.currency);
+          (q('[data-slot="path-cert"]') as HTMLElement).innerHTML = strike(p.cert_base_price_cents, p.cert_price_cents);
+          (q('[data-slot="path-total"]') as HTMLElement).innerHTML = strike(p.base_total_cents, p.total_cents);
         } else {
           pricebox.hidden = false;
           pathbox.hidden = true;
