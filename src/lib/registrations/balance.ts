@@ -7,11 +7,12 @@
 // Resend for delivery, the existing Stripe helper for the checkout link.
 
 import { attachBalanceSession, logEvent, type Registration } from './db';
-import { createCheckoutSession } from './stripe';
+import { createCheckoutSession, paypalEnabled } from './stripe';
 
 export type BalanceEnv = {
   DB: D1Database;
   STRIPE_SECRET_KEY: string;
+  STRIPE_ENABLE_PAYPAL?: string;
   RESEND_API_KEY?: string;
   RESEND_INTAKES_FROM?: string;
   PUBLIC_BASE_URL?: string;
@@ -127,6 +128,7 @@ export async function sendBalanceInvite(
   try {
     session = await createCheckoutSession({
       secretKey: env.STRIPE_SECRET_KEY,
+      enablePaypal: paypalEnabled(env),
       customer_email: reg.email,
       success_url: `${baseUrl}/registrations/thanks?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${baseUrl}/retreats/dolphin-and-sound`,

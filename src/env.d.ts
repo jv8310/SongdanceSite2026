@@ -7,6 +7,9 @@ type Env = {
   STRIPE_SECRET_KEY: string;
   STRIPE_WEBHOOK_SECRET: string;
   STRIPE_PUBLISHABLE_KEY: string;
+  // "true" offers PayPal in Checkout (one-off payments). Requires PayPal to be
+  // activated in the Stripe Dashboard first — see paypalEnabled() in stripe.ts.
+  STRIPE_ENABLE_PAYPAL?: string;
   QUADERNO_API_KEY: string;
   QUADERNO_ACCOUNT: string;
   QUADERNO_SANDBOX?: string;

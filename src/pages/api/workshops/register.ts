@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import {
   createCheckoutSession,
   createCustomer,
+  paypalEnabled,
   stripeTaxIdTypeFor,
 } from '../../../lib/registrations/stripe';
 import { logEvent } from '../../../lib/registrations/db';
@@ -224,6 +225,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
   try {
     session = await createCheckoutSession({
       secretKey: env.STRIPE_SECRET_KEY,
+      enablePaypal: paypalEnabled(env),
       ...(customerId ? { customer: customerId } : { customer_email: email }),
       success_url: `${base}/workshop/success?t=${accessToken}&cs={CHECKOUT_SESSION_ID}`,
       cancel_url: `${base}/w/${workshop.slug}?canceled=1`,

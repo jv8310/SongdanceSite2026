@@ -12,6 +12,7 @@ import {
 import {
   createCheckoutSession,
   createCustomer,
+  paypalEnabled,
   stripeTaxIdTypeFor,
 } from '../../../lib/registrations/stripe';
 import { findCountry } from '../../../lib/countries';
@@ -292,6 +293,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
   const session = await createCheckoutSession({
     secretKey: env.STRIPE_SECRET_KEY,
+    enablePaypal: paypalEnabled(env),
     ...(customerId
       ? { customer: customerId }
       : { customer_email: email }),
