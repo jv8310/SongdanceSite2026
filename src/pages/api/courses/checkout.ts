@@ -50,6 +50,11 @@ import {
   type Offer,
   type Variant,
 } from '../../../lib/courses/variant';
+import {
+  buildCertificationPathPricing,
+  deriveTwelveWeekDiscount,
+  type CertificationPathPricing,
+} from '../../../lib/courses/path';
 
 export const prerender = false;
 
@@ -214,17 +219,63 @@ export const POST: APIRoute = async ({ request, locals }) => {
         400,
       );
     }
-    // Apply URL-driven discount to the unit price charged to the buyer.
-    // For an installment plan, every monthly payment is discounted (not just
-    // the first).
-    const chargedPriceCents = applyDiscount(offer.price_cents, discountPct);
-    const chargedMonthlyCents = installmentPlan
-      ? applyDiscount(installmentPlan.monthly_cents, discountPct)
-      : 0;
+    // The Certification path (cc-bundle) is only offered in full or 3× — its
+    // 12-week portion has no 6/12-month ladder, so reject longer plans rather
+    // than mischarge against the old flat bundle ladder.
+    if (
+      productSlug === 'cc-bundle' &&
+      paymentPlan !== 'full' &&
+      paymentPlan !== '3x'
+    ) {
+      return json(
+        { error: 'The certification path is available in full or 3 monthly payments.' },
+        400,
+      );
+    }
+
+    // Price the order. The bundle IS the "Certification path": cert at its
+    // standard price + the workshop-discounted 12-week, re-derived server-side
+    // from the email so the charge always matches eligibility. The discount
+    // (and any ?discount=N override) only ever touches the 12-week portion —
+    // never the certification line. For cc-cert, the URL ?discount=N still
+    // reduces the cert price as before; every monthly installment is discounted.
+    let pathPricing: CertificationPathPricing | null = null;
+    let chargedPriceCents: number;
+    let chargedMonthlyCents: number;
+    if (productSlug === 'cc-bundle') {
+      const eff = await deriveTwelveWeekDiscount(env.DB, email, discountPct);
+      pathPricing = buildCertificationPathPricing(currency, eff);
+      chargedPriceCents = pathPricing.total_cents;
+      chargedMonthlyCents = pathPricing.total_monthly_cents;
+    } else {
+      chargedPriceCents = applyDiscount(offer.price_cents, discountPct);
+      chargedMonthlyCents = installmentPlan
+        ? applyDiscount(installmentPlan.monthly_cents, discountPct)
+        : 0;
+    }
     const totalAmountCents = installmentPlan
       ? chargedMonthlyCents * installmentPlan.count
       : chargedPriceCents;
     const installmentsTotal = installmentPlan ? installmentPlan.count : 1;
+
+    // Discount facts for metadata + logging, unified across cert and path.
+    const effectiveDiscountPct = pathPricing
+      ? pathPricing.discount.percent
+      : discountPct;
+    const originalFullCents = pathPricing
+      ? pathPricing.base_total_cents
+      : offer.price_cents;
+    const originalMonthlyCents = pathPricing
+      ? pathPricing.base_total_monthly_cents
+      : installmentPlan?.monthly_cents ?? 0;
+    const originalAmountForPlan = installmentPlan
+      ? originalMonthlyCents * installmentsTotal
+      : originalFullCents;
+    // Receipt line: spell out both courses for the path.
+    const lineItemLabel =
+      productSlug === 'cc-bundle'
+        ? '12-Week Course + Certification Course'
+        : offer.label;
 
     const phoneCountry = findCountry(phoneCountryCode);
     const phoneE164 = phoneCountry
@@ -332,12 +383,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
       tax_class: 'eservice',
       ...(companyName ? { company_name: companyName } : {}),
       ...(vatNumber ? { vat_number: vatNumber } : {}),
-      ...(discountPct > 0
+      ...(effectiveDiscountPct > 0
         ? {
-            discount_percent: String(discountPct),
-            original_amount_cents: String(
-              installmentPlan ? installmentPlan.total_cents : offer.price_cents,
-            ),
+            discount_percent: String(effectiveDiscountPct),
+            ...(pathPricing ? { discount_kind: pathPricing.discount.kind } : {}),
+            original_amount_cents: String(originalAmountForPlan),
           }
         : {}),
     };
@@ -402,8 +452,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
           source_variant: sourceVariant,
           company_name: companyName,
           vat_number: vatNumber,
-          discount_percent: discountPct,
-          original_monthly_amount_cents: installmentPlan.monthly_cents,
+          discount_percent: effectiveDiscountPct,
+          original_monthly_amount_cents: originalMonthlyCents,
         },
       });
 
@@ -427,8 +477,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
         {
           name: offer.label,
           description: companyName
-            ? `${offer.label} · Billed to ${companyName}`
-            : undefined,
+            ? `${lineItemLabel} · Billed to ${companyName}`
+            : productSlug === 'cc-bundle'
+              ? lineItemLabel
+              : undefined,
           amount_cents: chargedPriceCents,
           currency: currency.toLowerCase(),
           quantity: 1,
@@ -456,8 +508,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
         source_variant: sourceVariant,
         company_name: companyName,
         vat_number: vatNumber,
-        discount_percent: discountPct,
-        original_amount_cents: offer.price_cents,
+        discount_percent: effectiveDiscountPct,
+        original_amount_cents: originalFullCents,
       },
     });
 

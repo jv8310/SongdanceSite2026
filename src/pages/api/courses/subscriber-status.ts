@@ -1,10 +1,17 @@
-// POST { email, currency? } → { variant, currency, offers, twelve_week_week?, course_portal_url? }
-// Drives the variant block on /courses/certification.
+// POST { email, currency?, country?, discount_percent? } → { variant, currency,
+// offers, path?, course_portal_url? }. Drives the variant block on
+// /courses/certification.
 //
 // Currency: detected from geo by default (US → USD, GB → GBP, else EUR),
 // but the client may pass an explicit `currency` to override — used when
 // the buyer changes the country dropdown on the form (and wants the prices
 // to follow their billing country, not their IP).
+//
+// `path`: when the buyer's variant is offered the Certification path (the
+// `cc-bundle` product), we attach its two-line-item pricing — cert at its
+// standard price + the workshop-discounted 12-week, in the same currency. The
+// discount only ever touches the 12-week portion; the cert/bundle sticker
+// prices are unaffected. This is the same pricing the checkout re-derives.
 //
 // Failure mode: if Drip is unreachable, return variant E (newcomer) rather
 // than blocking the visitor — better to show *some* offer than nothing.
@@ -21,10 +28,20 @@ import {
   getBundleOffer,
   type Currency,
 } from '../../../lib/courses/variant';
+import { parseUrlDiscountPercent } from '../../../lib/courses/twelve-week';
+import {
+  buildCertificationPathPricing,
+  deriveTwelveWeekDiscount,
+} from '../../../lib/courses/path';
 
 export const prerender = false;
 
-type Body = { email?: string; currency?: string };
+type Body = {
+  email?: string;
+  currency?: string;
+  country?: string;
+  discount_percent?: number | string;
+};
 
 function detectCurrency(locals: App.Locals, request: Request): Currency {
   const cf = (locals.runtime as any)?.cf;
@@ -62,6 +79,20 @@ export const POST: APIRoute = async ({ request, locals }) => {
     return json({ error: 'Please enter a valid email address.' }, 400);
   }
 
+  const overridePercent = parseUrlDiscountPercent(payload.discount_percent);
+
+  // The Certification path pricing, in the buyer's currency. Best-effort —
+  // a DB hiccup must not block the offer (the client falls back to the flat
+  // bundle price when `path` is missing).
+  async function pathPricingFor(cur: Currency) {
+    try {
+      const eff = await deriveTwelveWeekDiscount(env.DB, email, overridePercent);
+      return buildCertificationPathPricing(cur, eff);
+    } catch {
+      return undefined;
+    }
+  }
+
   try {
     const sub = await getSubscriber(
       { apiToken: env.DRIP_API_TOKEN, accountId: env.DRIP_ACCOUNT_ID },
@@ -71,7 +102,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
       coursePortalUrl: env.SVH_CERT_PORTAL_URL,
       currency,
     });
-    return json(decision);
+    // Attach path pricing whenever the path (cc-bundle) is one of the offers.
+    const offersHaveBundle = decision.offers.some((o) => o.slug === 'cc-bundle');
+    const path = offersHaveBundle
+      ? await pathPricingFor(decision.currency)
+      : undefined;
+    return json({ ...decision, path });
   } catch (err) {
     // Soft failure — treat as newcomer so the page still works. Derive the
     // save amount from the offer itself so we don't drift when prices move.
@@ -86,6 +122,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
           save_note: `Save ${formatMoney(save, currency)} — mid-cohort discount applied`,
         },
       ],
+      path: await pathPricingFor(currency),
       degraded: true,
       error: String(err),
     });

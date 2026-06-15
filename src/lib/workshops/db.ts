@@ -387,6 +387,10 @@ export type WorkshopLinkForEmail = {
   ends_at_utc: string | null;
   country: string | null;
   name: string | null;
+  // Door-set chosen on the workshop page ("3", "1,3"); 3 = pro (practitioner).
+  audience: string | null;
+  // 1 when the workshop's main product is a masterclass (a "pro" signal).
+  is_masterclass: number;
 };
 
 // Every workshop an email holds a *secured* seat for (paid or comped), newest
@@ -394,15 +398,21 @@ export type WorkshopLinkForEmail = {
 // attendee discount: a future workshop keeps the discount live (pre-workshop),
 // and a just-passed one keeps it live for a short window after. Only seats that
 // were actually secured count — abandoned/failed checkouts are excluded.
+//
+// Also carries the chosen audience doors + a masterclass flag so callers can
+// decide whether the email belongs to a "pro" (practitioner) — see
+// `emailIsProFromLinks`.
 export async function listSecuredWorkshopLinksByEmail(
   db: D1Database,
   email: string,
 ): Promise<WorkshopLinkForEmail[]> {
   const r = await db
     .prepare(
-      `SELECT w.starts_at_utc, w.ends_at_utc, r.country, r.name
+      `SELECT w.starts_at_utc, w.ends_at_utc, r.country, r.name, r.audience,
+              CASE WHEN p.slug LIKE '%masterclass%' THEN 1 ELSE 0 END AS is_masterclass
          FROM workshop_registrations r
          JOIN workshops w ON w.id = r.workshop_id
+         LEFT JOIN products p ON p.id = w.main_product_id
         WHERE lower(r.email) = lower(?)
           AND w.deleted = 0
           AND r.payment_status IN ('paid', 'coupon')
@@ -411,6 +421,52 @@ export async function listSecuredWorkshopLinksByEmail(
     .bind(email)
     .all<WorkshopLinkForEmail>();
   return r.results ?? [];
+}
+
+// "Pro" intent expressed on any secured workshop seat: they picked the
+// practitioner door (audience door 3) or it was a masterclass. This is the
+// D1-only signal the 12-week page uses to reveal the certification option
+// (there is no single is_pro account column yet).
+export function emailIsProFromLinks(links: WorkshopLinkForEmail[]): boolean {
+  return links.some(
+    (l) =>
+      l.is_masterclass === 1 ||
+      (l.audience ?? '')
+        .split(',')
+        .map((d) => d.trim())
+        .includes('3'),
+  );
+}
+
+// Epoch-ms timestamps of every replay this email has opened. Used alongside
+// the workshop time so the 48h discount window also (re)starts when someone
+// watches the replay. Replay views are logged as `workshop.replay.viewed`
+// events keyed by `workshop-replay-<registration id>` (see workshop/replay.astro).
+export async function listReplayViewAnchorsByEmail(
+  db: D1Database,
+  email: string,
+): Promise<number[]> {
+  const r = await db
+    .prepare(
+      `SELECT e.created_at AS created_at
+         FROM events e
+         JOIN workshop_registrations r
+           ON ('workshop-replay-' || r.id) = e.external_id
+        WHERE e.kind = 'workshop.replay.viewed'
+          AND lower(r.email) = lower(?)`,
+    )
+    .bind(email)
+    .all<{ created_at: string }>();
+  const out: number[] = [];
+  for (const row of r.results ?? []) {
+    // D1 stores 'YYYY-MM-DD HH:MM:SS' (UTC); normalise to ISO so Date.parse
+    // doesn't read it as local time.
+    const raw = String(row.created_at ?? '');
+    const iso = raw.includes('T') ? raw : raw.replace(' ', 'T') + 'Z';
+    const ms = Date.parse(iso);
+    if (Number.isFinite(ms)) out.push(ms);
+  }
+  return out;
 }
 
 // Upsert by (workshop_id, email), case-insensitive. Returns the row id.

@@ -174,7 +174,7 @@ function bundleOffer(currency: Currency): Omit<Offer, 'save_note'> {
   const p = PRICES[currency].bundle;
   return {
     slug: 'cc-bundle',
-    label: '12-Week Course + Certification Course',
+    label: 'Certification path',
     currency,
     price: p.full,
     price_cents: p.full * 100,
