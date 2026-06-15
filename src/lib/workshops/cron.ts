@@ -301,7 +301,11 @@ async function runAbandonedCheckouts(env: CronEnv, now: number, result: CronResu
       name: r.name,
       workshopTitle: r.w_title,
       whenLocal: r.w_is_replay === 1 ? null : formatInTz(r.w_starts_at_utc, tz),
-      resumeUrl: `${base}/w/${r.w_slug}`,
+      // Back to the workshop page's booking form (not the bare /w/ form), with
+      // the date pre-selected and their saved details filled in. The token (not
+      // PII) rides the URL; the page resolves it server-side. #register scrolls
+      // straight to it.
+      resumeUrl: `${base}/workshop?resume=${r.access_token}#register`,
       unsubscribeUrl: secret ? await unsubscribePageUrl(base, secret, r.email) : undefined,
     };
     const content = due.build === 'first' ? abandonedEmail1(ctx) : abandonedEmail2(ctx);

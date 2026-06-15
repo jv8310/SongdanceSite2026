@@ -18,8 +18,12 @@ interface Props {
   currency: string;
   detectedTz: string;
   tzOptions: string[];
+  // Set when arriving from an abandoned-checkout email (?resume=<token>): the
+  // saved name/email and the slug of the date to pre-select. The page resolves
+  // it server-side; the country/timezone defaults are already adjusted upstream.
+  prefill?: { firstName: string; lastName: string; email: string; slug: string } | null;
 }
-const { items, country, currency, detectedTz, tzOptions } = Astro.props;
+const { items, country, currency, detectedTz, tzOptions, prefill = null } = Astro.props;
 
 // A shared half-price link carries ?friend=<slug> — the date the sharer is
 // attending. We star it so a friend can spot "the one they're going to", while
@@ -82,6 +86,7 @@ const selectedName = detected?.name ?? '';
                 type="radio"
                 name="we-date"
                 value={it.slug}
+                checked={!!prefill && prefill.slug === it.slug}
                 data-slug={it.slug}
                 data-kind={it.kind}
                 data-price-minor={String(it.priceMinor)}
@@ -129,17 +134,17 @@ const selectedName = detected?.name ?? '';
           <div class="we-field-row">
             <label class="we-field">
               <span>First name</span>
-              <input type="text" name="first_name" required autocomplete="given-name" />
+              <input type="text" name="first_name" required autocomplete="given-name" value={prefill?.firstName ?? ''} />
             </label>
             <label class="we-field">
               <span>Last name</span>
-              <input type="text" name="last_name" required autocomplete="family-name" />
+              <input type="text" name="last_name" required autocomplete="family-name" value={prefill?.lastName ?? ''} />
             </label>
           </div>
 
           <label class="we-field">
             <span>Email</span>
-            <input type="email" name="email" required autocomplete="email" />
+            <input type="email" name="email" required autocomplete="email" value={prefill?.email ?? ''} />
           </label>
 
           <label class="we-field">
@@ -492,6 +497,13 @@ const selectedName = detected?.name ?? '';
       if (t && t.name === 'we-date') selectItem(t);
     });
     if (bumpInput) bumpInput.addEventListener('change', recompute);
+
+    // Resume link (?resume=…): the matching date was pre-checked server-side, but
+    // a server-rendered `checked` fires no change event — so reveal the form and
+    // wire up the summary for it on load. The name/email/country/timezone are
+    // already filled in by the server.
+    var preChecked = group.querySelector('input[name="we-date"]:checked');
+    if (preChecked) selectItem(preChecked);
 
     form.addEventListener('submit', async function (e) {
       e.preventDefault();
