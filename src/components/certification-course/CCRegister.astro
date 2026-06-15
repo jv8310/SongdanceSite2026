@@ -196,7 +196,9 @@ const countries = COUNTRIES;
 <script>
   import { COUNTRIES } from '../../lib/countries';
 
-  type Currency = 'EUR' | 'USD' | 'GBP';
+  type Currency =
+    | 'EUR' | 'USD' | 'GBP' | 'CAD' | 'CHF'
+    | 'AUD' | 'NZD' | 'NOK' | 'SEK' | 'DKK';
   type InstallmentPlan = {
     currency: Currency;
     monthly_cents: number;
@@ -272,10 +274,12 @@ const countries = COUNTRIES;
     return Math.round((cents * (100 - discountPct)) / 100);
   }
 
+  const SYMBOLS: Record<Currency, string> = {
+    EUR: '€', USD: '$', GBP: '£', CAD: 'CA$', CHF: 'CHF ',
+    AUD: 'A$', NZD: 'NZ$', NOK: 'kr ', SEK: 'kr ', DKK: 'kr ',
+  };
   function symbolFor(c: Currency): string {
-    if (c === 'USD') return '$';
-    if (c === 'GBP') return '£';
-    return '€';
+    return SYMBOLS[c] ?? '€';
   }
   function money(amount: number, c: Currency): string {
     return `${symbolFor(c)}${amount.toLocaleString('en-US')}`;
@@ -470,11 +474,15 @@ const countries = COUNTRIES;
     return undefined;
   }
 
+  // Mirrors COUNTRY_CURRENCY in src/lib/workshops/currency.ts — only the
+  // non-EUR markets we hold cert price points for. Everywhere else falls
+  // through to EUR.
+  const COUNTRY_CURRENCY: Record<string, Currency> = {
+    US: 'USD', CA: 'CAD', GB: 'GBP', CH: 'CHF',
+    NO: 'NOK', SE: 'SEK', DK: 'DKK', AU: 'AUD', NZ: 'NZD',
+  };
   function currencyForCountry(code: string): Currency {
-    const c = code.toUpperCase();
-    if (c === 'US') return 'USD';
-    if (c === 'GB') return 'GBP';
-    return 'EUR';
+    return COUNTRY_CURRENCY[code.toUpperCase()] ?? 'EUR';
   }
 
   function renderVariant(email: string, decision: Decision) {

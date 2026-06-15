@@ -12,6 +12,11 @@
 import type { APIRoute } from 'astro';
 import { getSubscriber } from '../../../lib/registrations/drip';
 import {
+  currencyForCountry,
+  formatMoney,
+  isSupportedCurrency,
+} from '../../../lib/workshops/currency';
+import {
   decideVariant,
   getBundleOffer,
   type Currency,
@@ -26,13 +31,14 @@ function detectCurrency(locals: App.Locals, request: Request): Currency {
   const cfCountry = (cf?.country as string | undefined) ?? null;
   const headerCountry = request.headers.get('CF-IPCountry');
   const raw = (cfCountry || headerCountry || '').toUpperCase();
-  if (raw === 'US') return 'USD';
-  if (raw === 'GB') return 'GBP';
-  return 'EUR';
+  const cur = currencyForCountry(raw);
+  return isSupportedCurrency(cur) ? (cur as Currency) : 'EUR';
 }
 
 function parseCurrency(raw: unknown): Currency | null {
-  if (raw === 'USD' || raw === 'GBP' || raw === 'EUR') return raw;
+  if (typeof raw === 'string' && isSupportedCurrency(raw)) {
+    return raw.toUpperCase() as Currency;
+  }
   return null;
 }
 
@@ -70,15 +76,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // Soft failure — treat as newcomer so the page still works. Derive the
     // save amount from the offer itself so we don't drift when prices move.
     const bundle = getBundleOffer(currency);
-    const symbol = currency === 'USD' ? '$' : currency === 'GBP' ? '£' : '€';
-    const save = bundle.base_price - bundle.price;
+    const save = (bundle.base_price - bundle.price) * 100;
     return json({
       variant: 'E',
       currency,
       offers: [
         {
           ...bundle,
-          save_note: `Save ${symbol}${save} — mid-cohort discount applied`,
+          save_note: `Save ${formatMoney(save, currency)} — mid-cohort discount applied`,
         },
       ],
       degraded: true,

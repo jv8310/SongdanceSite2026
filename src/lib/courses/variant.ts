@@ -18,9 +18,19 @@
 // Stripe is asked to charge, so the buyer pays the headline number.
 
 import type { DripSubscriber } from '../registrations/drip';
+import {
+  currencyForCountry,
+  isSupportedCurrency,
+  type SupportedCurrency,
+} from '../workshops/currency';
 
 export type Variant = 'B1' | 'B2' | 'A' | 'D' | 'E' | 'C';
-export type Currency = 'EUR' | 'USD' | 'GBP';
+
+// The cert path prices in the same currencies the rest of the site is enabled
+// for (workshops + the 12-week course), so a 12-week participant upgrading to
+// the certification path — including on the 6-month installment plan — is
+// billed in their own currency rather than being forced into EUR.
+export type Currency = SupportedCurrency;
 
 export type InstallmentPlan = {
   currency: Currency;
@@ -52,14 +62,22 @@ export type Offer = {
 
 // Currency map.
 //
-// USD reuses the EUR numbers 1-for-1 ($999 / $1,499 etc.) — US buyers
-// aren't paying EU VAT, so the merchant can absorb the FX gap and the
-// price story stays simple.
+// EUR/USD/GBP are the original cert-form price points and are kept exactly as
+// they were. USD reuses the EUR numbers 1-for-1 ($999 / $1,499 etc.) — US
+// buyers aren't paying EU VAT, so the merchant can absorb the FX gap and the
+// price story stays simple. GBP is EUR × ~0.85, rounded to neat headline
+// amounts.
 //
-// GBP is EUR × ~0.85, rounded to neat headline amounts.
+// The remaining markets (CAD/CHF/AUD/NZD/NOK/SEK/DKK) mirror the same
+// EUR-relative ratios the 12-week course already uses (see
+// src/lib/courses/twelve-week.ts), rounded to clean headline numbers. They
+// exist so a 12-week participant upgrading to the certification path is billed
+// in their own currency.
+//
 // `monthly3` is the 3-month installment; `monthly6` the 6-month one;
 // `monthly12` the hidden 12-month one. Each longer ladder totals more (a
-// higher premium over pay-in-full) in exchange for a lower monthly figure.
+// higher premium over pay-in-full: ~5% at 3×, ~13% at 6×, ~20% at 12×) in
+// exchange for a lower monthly figure.
 const PRICES: Record<
   Currency,
   {
@@ -79,12 +97,49 @@ const PRICES: Record<
     cert:   { full: 849,  base: 1299, monthly3: 299, monthly6: 159, monthly12: 85 },
     bundle: { full: 1299, base: 1849, monthly3: 459, monthly6: 245, monthly12: 129 },
   },
+  CAD: {
+    cert:   { full: 1450, base: 2150, monthly3: 510, monthly6: 275, monthly12: 145 },
+    bundle: { full: 2190, base: 3150, monthly3: 765, monthly6: 415, monthly12: 219 },
+  },
+  CHF: {
+    cert:   { full: 950,  base: 1450, monthly3: 335, monthly6: 180, monthly12: 95 },
+    bundle: { full: 1430, base: 2050, monthly3: 500, monthly6: 270, monthly12: 142 },
+  },
+  AUD: {
+    cert:   { full: 1690, base: 2550, monthly3: 595, monthly6: 320, monthly12: 170 },
+    bundle: { full: 2550, base: 3650, monthly3: 895, monthly6: 485, monthly12: 255 },
+  },
+  NZD: {
+    cert:   { full: 1890, base: 2850, monthly3: 665, monthly6: 355, monthly12: 189 },
+    bundle: { full: 2850, base: 4090, monthly3: 999, monthly6: 540, monthly12: 285 },
+  },
+  NOK: {
+    cert:   { full: 11500, base: 17500, monthly3: 4050, monthly6: 2150, monthly12: 1150 },
+    bundle: { full: 17500, base: 25000, monthly3: 6150, monthly6: 3300, monthly12: 1750 },
+  },
+  SEK: {
+    cert:   { full: 11300, base: 17000, monthly3: 3950, monthly6: 2125, monthly12: 1125 },
+    bundle: { full: 16900, base: 24000, monthly3: 5900, monthly6: 3200, monthly12: 1690 },
+  },
+  DKK: {
+    cert:   { full: 7400,  base: 11000, monthly3: 2590, monthly6: 1400, monthly12: 740 },
+    bundle: { full: 11100, base: 15900, monthly3: 3900, monthly6: 2100, monthly12: 1100 },
+  },
 };
 
 function symbol(c: Currency): string {
-  if (c === 'USD') return '$';
-  if (c === 'GBP') return '£';
-  return '€';
+  switch (c) {
+    case 'USD': return '$';
+    case 'GBP': return '£';
+    case 'CAD': return 'CA$';
+    case 'CHF': return 'CHF ';
+    case 'AUD': return 'A$';
+    case 'NZD': return 'NZ$';
+    case 'NOK':
+    case 'SEK':
+    case 'DKK': return 'kr ';
+    default: return '€';
+  }
 }
 function money(amount: number, currency: Currency): string {
   return `${symbol(currency)}${amount.toLocaleString('en-US')}`;

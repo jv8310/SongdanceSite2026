@@ -56,7 +56,9 @@
 
 <script>
   type Variant = 'B1' | 'B2' | 'A' | 'D' | 'E' | 'C';
-  type Currency = 'EUR' | 'USD' | 'GBP';
+  type Currency =
+    | 'EUR' | 'USD' | 'GBP' | 'CAD' | 'CHF'
+    | 'AUD' | 'NZD' | 'NOK' | 'SEK' | 'DKK';
   type InstallmentPlan = {
     currency: Currency;
     monthly_cents: number;
