@@ -1,0 +1,188 @@
+---
+import Sr26 from '../../layouts/Sr26.astro';
+import { isSr26Authed, safeNext } from '../../lib/sr26/gate';
+import conceptHtml from '../../data/sr26/concept.html?raw';
+
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+const authed = await isSr26Authed(Astro.request, env);
+
+// Unlocked → serve the full, self-contained concept document exactly as
+// designed (its own <head>, fonts, styles, scripts), with one floating link
+// into the data room injected before </body>.
+if (authed) {
+  const dataRoom =
+    '<a href="/sr26/docs" style="position:fixed;right:18px;bottom:18px;z-index:999;' +
+    "font-family:'Inter',-apple-system,sans-serif;font-size:11.5px;font-weight:500;" +
+    'letter-spacing:.14em;text-transform:uppercase;color:#241409;background:#d99a6c;' +
+    'padding:12px 20px;border-radius:99px;text-decoration:none;' +
+    'box-shadow:0 14px 38px -10px rgba(0,0,0,.7)">Data room →</a>';
+  const html = conceptHtml.includes('</body>')
+    ? conceptHtml.replace('</body>', `${dataRoom}</body>`)
+    : conceptHtml + dataRoom;
+  return new Response(html, {
+    headers: {
+      'content-type': 'text/html; charset=utf-8',
+      'x-robots-tag': 'noindex, nofollow',
+      'cache-control': 'private, no-store',
+    },
+  });
+}
+
+// Locked → show the password gate. Preserve a deep-link target so a shared
+// /sr26/docs/... link bounces through the gate and lands where intended.
+const next = safeNext(Astro.url.searchParams.get('next'));
+const error = Astro.url.searchParams.get('error');
+---
+
+<Sr26 title="Somatic Rising — Enter" description="Private investor materials.">
+  <main class="gate">
+    <div class="gate-glow"></div>
+    <section class="gate-card">
+      <p class="gate-wordmark">Somatic Rising</p>
+      <h1 class="gate-title">The right practice, in the <em>right moment</em>.</h1>
+      <p class="gate-sub">
+        Private investor materials — the product concept and the research behind
+        it. Enter the access password to continue.
+      </p>
+
+      {error && <p class="gate-error">That password didn’t match. Try again.</p>}
+
+      <form class="gate-form" method="POST" action="/api/sr26/login">
+        <input type="hidden" name="next" value={next} />
+        <input
+          type="password"
+          name="password"
+          placeholder="Access password"
+          required
+          autocomplete="current-password"
+          autofocus
+          aria-label="Access password"
+        />
+        <button type="submit">Enter</button>
+      </form>
+
+      <p class="gate-note">Confidential · Seed round · June 2026</p>
+    </section>
+  </main>
+</Sr26>
+
+<style>
+  .gate {
+    position: relative;
+    z-index: 1;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 80px 24px;
+  }
+  .gate-glow {
+    position: absolute;
+    left: 50%;
+    top: 12%;
+    transform: translateX(-50%);
+    width: 720px;
+    max-width: 90vw;
+    height: 460px;
+    pointer-events: none;
+    background: radial-gradient(
+      closest-side,
+      rgba(217, 154, 108, 0.14),
+      rgba(155, 135, 201, 0.07) 55%,
+      transparent
+    );
+    filter: blur(10px);
+  }
+  .gate-card {
+    position: relative;
+    width: 100%;
+    max-width: 440px;
+    text-align: center;
+    background: linear-gradient(155deg, #221a33, #1a1428 72%);
+    border: 1px solid var(--ink-line);
+    border-radius: 24px;
+    padding: 44px 36px 32px;
+    box-shadow: 0 40px 90px -40px rgba(0, 0, 0, 0.8);
+  }
+  .gate-wordmark {
+    font-family: var(--display);
+    font-weight: 300;
+    font-size: 12.5px;
+    letter-spacing: 0.42em;
+    text-transform: uppercase;
+    color: var(--ember);
+  }
+  .gate-title {
+    font-family: var(--display);
+    font-weight: 300;
+    font-size: 28px;
+    line-height: 1.25;
+    margin: 18px auto 14px;
+    max-width: 18ch;
+  }
+  .gate-title em {
+    font-style: italic;
+    color: var(--ember);
+  }
+  .gate-sub {
+    color: var(--cream-dim);
+    font-size: 14.5px;
+    line-height: 1.6;
+    max-width: 36ch;
+    margin: 0 auto;
+  }
+  .gate-error {
+    margin-top: 18px;
+    color: var(--rose, #c2898f);
+    font-size: 13px;
+  }
+  .gate-form {
+    display: flex;
+    flex-direction: column;
+    gap: 11px;
+    margin-top: 26px;
+  }
+  .gate-form input {
+    width: 100%;
+    padding: 14px 16px;
+    font-family: var(--ui);
+    font-size: 15px;
+    color: var(--cream);
+    background: rgba(243, 236, 223, 0.05);
+    border: 1px solid var(--ink-line);
+    border-radius: 12px;
+    outline: none;
+    transition: border-color 0.2s ease;
+  }
+  .gate-form input:focus {
+    border-color: rgba(217, 154, 108, 0.5);
+  }
+  .gate-form input::placeholder {
+    color: var(--cream-faint);
+  }
+  .gate-form button {
+    padding: 14px 16px;
+    font-family: var(--ui);
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    color: #241409;
+    background: var(--ember);
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: filter 0.2s ease;
+  }
+  .gate-form button:hover {
+    filter: brightness(1.06);
+  }
+  .gate-note {
+    margin-top: 26px;
+    font-size: 10.5px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--cream-faint);
+  }
+</style>

@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Somatic Rising — Product Concept</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,300;1,9..144,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   SOMATIC RISING — DESIGN TOKENS
+   Warm, nocturnal, organic. Premium wellness — never clinical.
+   ============================================================ */
+:root{
+  --ink:        #14101d;   /* page background — deep night plum   */
+  --ink-2:      #1d1729;   /* raised surface                      */
+  --ink-3:      #271e38;   /* card on surface                     */
+  --ink-line:   rgba(243,236,223,.10);
+  --cream:      #f3ecdf;   /* primary text on dark                */
+  --cream-dim:  rgba(243,236,223,.60);
+  --cream-faint:rgba(243,236,223,.36);
+  --ember:      #d99a6c;   /* warm accent — touch of fire         */
+  --ember-soft: rgba(217,154,108,.16);
+  --gold:       #c9a96e;
+  --rose:       #c2898f;
+  --sage:       #9db49b;
+  --lavender:   #9b87c9;
+  --display: "Fraunces", Georgia, serif;
+  --ui: "Inter", -apple-system, "Segoe UI", sans-serif;
+  --r-card: 22px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  background:var(--ink);
+  color:var(--cream);
+  font-family:var(--ui);
+  font-weight:300;
+  line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+body::before{ /* faint grain */
+  content:"";position:fixed;inset:0;pointer-events:none;opacity:.5;z-index:0;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0.95 0 0 0 0 0.93 0 0 0 0 0.88 0 0 0 0.02 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.wrap{max-width:1120px;margin:0 auto;padding:0 40px;position:relative;z-index:1}
+
+/* ---------- showcase chrome ---------- */
+.hero{padding:130px 0 70px;text-align:center;position:relative}
+.hero-glow{position:absolute;left:50%;top:-160px;transform:translateX(-50%);width:900px;height:560px;
+  background:radial-gradient(closest-side, rgba(217,154,108,.13), rgba(155,135,201,.07) 55%, transparent);
+  filter:blur(10px);pointer-events:none}
+.wordmark{font-family:var(--display);font-weight:300;font-size:15px;letter-spacing:.42em;text-transform:uppercase;color:var(--ember)}
+.hero h1{font-family:var(--display);font-weight:300;font-size:clamp(40px,5.6vw,68px);line-height:1.12;margin:26px auto 22px;max-width:17ch}
+.hero h1 em{font-style:italic;color:var(--ember)}
+.hero .sub{max-width:56ch;margin:0 auto;color:var(--cream-dim);font-size:17px}
+.hero .meta{margin-top:34px;font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:var(--cream-faint)}
+
+.loopstrip{display:flex;justify-content:center;gap:0;flex-wrap:wrap;margin:64px auto 0;padding:0}
+.loopstrip span{font-family:var(--display);font-style:italic;font-size:17px;color:var(--cream-dim);padding:0 6px}
+.loopstrip b{font-weight:300;color:var(--cream)}
+.loopstrip i{font-style:normal;color:var(--ember);padding:0 10px;opacity:.8}
+
+.diffstrip{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin:30px 0 0}
+.diffstrip span{font-size:11.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--cream-dim);
+  border:1px solid var(--ink-line);border-radius:99px;padding:9px 20px}
+
+.showcase{display:grid;grid-template-columns:minmax(330px,1fr) auto;gap:72px;align-items:center;
+  padding:96px 0;border-top:1px solid var(--ink-line)}
+.showcase.flip{grid-template-columns:auto minmax(330px,1fr)}
+.showcase.flip .annotation{order:2}
+.annotation .kicker{font-size:11.5px;letter-spacing:.3em;text-transform:uppercase;color:var(--ember);margin-bottom:18px}
+.annotation h3{font-family:var(--display);font-weight:300;font-size:clamp(28px,3vw,38px);line-height:1.2;margin-bottom:18px;max-width:18ch}
+.annotation p{color:var(--cream-dim);font-size:15.5px;max-width:48ch}
+.annotation p + p{margin-top:14px}
+.annotation .pull{font-family:var(--display);font-style:italic;font-size:17px;color:var(--cream);margin-top:22px;
+  border-left:2px solid var(--ember);padding-left:18px;max-width:42ch}
+
+.closing{padding:110px 0 40px;text-align:center;border-top:1px solid var(--ink-line)}
+.closing h2{font-family:var(--display);font-weight:300;font-size:clamp(30px,4vw,46px);max-width:24ch;margin:0 auto 18px;line-height:1.2}
+.closing p{color:var(--cream-dim);max-width:54ch;margin:0 auto}
+.foot{padding:50px 0 60px;text-align:center;font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--cream-faint)}
+
+/* ---------- phone frame ---------- */
+.phone{
+  width:330px;flex:none;aspect-ratio:390/844;border-radius:52px;position:relative;
+  background:linear-gradient(160deg,#3a3148,#211a2e 40%);
+  padding:11px;
+  box-shadow:0 40px 90px -30px rgba(0,0,0,.75), 0 0 0 1px rgba(243,236,223,.07), inset 0 0 0 1px rgba(243,236,223,.05);
+}
+.screen{
+  position:absolute;inset:11px;border-radius:42px;overflow:hidden;
+  background:linear-gradient(175deg,#1b1527 0%, #14101d 60%);
+  display:flex;flex-direction:column;
+  font-size:13px;
+}
+.statusbar{display:flex;justify-content:space-between;align-items:center;
+  padding:16px 26px 6px;font-size:11.5px;font-weight:500;color:var(--cream-dim);flex:none}
+.statusbar .notch-ico{letter-spacing:2px}
+.homebar{position:absolute;bottom:7px;left:50%;transform:translateX(-50%);width:110px;height:4px;
+  border-radius:99px;background:rgba(243,236,223,.28)}
+
+/* ---------- shared in-screen components ---------- */
+.tabbar{margin-top:auto;flex:none;display:flex;justify-content:space-around;align-items:center;
+  padding:12px 10px 22px;border-top:1px solid var(--ink-line);
+  background:rgba(20,16,29,.7);backdrop-filter:blur(8px)}
+.tab{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:9.5px;letter-spacing:.06em;color:var(--cream-faint)}
+.tab svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round}
+.tab.on{color:var(--ember)}
+.sr-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--ink-line);
+  border-radius:99px;padding:7px 13px;font-size:11px;color:var(--cream-dim)}
+.sr-chip.lit{border-color:rgba(217,154,108,.4);color:var(--ember);background:var(--ember-soft)}
+.sr-card{background:var(--ink-3);border:1px solid var(--ink-line);border-radius:var(--r-card);padding:16px}
+.sr-btn{display:flex;align-items:center;justify-content:center;gap:8px;border-radius:99px;
+  padding:13px 18px;font-size:13px;font-weight:500;letter-spacing:.02em;
+  background:var(--ember);color:#241409}
+.sr-btn.ghost{background:transparent;border:1px solid var(--ink-line);color:var(--cream-dim);font-weight:400}
+.sr-eyebrow{font-size:10px;letter-spacing:.26em;text-transform:uppercase;color:var(--cream-faint)}
+.sr-serif{font-family:var(--display);font-weight:300}
+
+@keyframes breathe{0%,100%{transform:scale(1);opacity:.85}50%{transform:scale(1.07);opacity:1}}
+@keyframes drift{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+@keyframes pulse-soft{0%,100%{opacity:.45}50%{opacity:1}}
+@keyframes eq{0%,100%{transform:scaleY(.35)}50%{transform:scaleY(1)}}
+
+/* ---------- reveal on scroll ---------- */
+.showcase, .hero, .closing{opacity:0;transform:translateY(18px);transition:opacity .9s ease, transform .9s ease}
+.showcase.vis, .hero.vis, .closing.vis{opacity:1;transform:none}
+
+@media (max-width:900px){
+  .showcase,.showcase.flip{grid-template-columns:1fr;gap:44px;justify-items:center;text-align:left}
+  .showcase.flip .annotation{order:0}
+}
+@media print{
+  .showcase,.hero,.closing{opacity:1;transform:none}
+}
+</style>
+<style id="screen-styles">
+/* ---- screen: onboarding ---- */
+#screen-onboarding .ob-glow{position:absolute;left:-70px;top:-90px;width:280px;height:280px;border-radius:50%;background:radial-gradient(circle,rgba(155,135,201,.13),transparent 70%);pointer-events:none;animation:drift 8s ease-in-out infinite}
+#screen-onboarding .ob-body{padding:16px 22px 0;flex:1;display:flex;flex-direction:column;overflow:hidden;position:relative}
+#screen-onboarding .ob-head{display:flex;align-items:center;justify-content:space-between}
+#screen-onboarding .ob-listening{display:inline-flex;align-items:center;gap:6px;font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--cream-faint)}
+#screen-onboarding .ob-listening i{width:5px;height:5px;border-radius:50%;background:var(--sage);animation:pulse-soft 5s ease-in-out infinite}
+#screen-onboarding .ob-chat{display:flex;flex-direction:column;gap:9px;margin-top:20px}
+#screen-onboarding .ob-msg{max-width:88%;padding:12px 15px;border-radius:18px}
+#screen-onboarding .ob-companion{align-self:flex-start;border-bottom-left-radius:5px;background:linear-gradient(150deg,#2a2140,#221a33 70%);border:1px solid var(--ink-line);font-family:var(--display);font-weight:300;font-size:15px;line-height:1.45;color:var(--cream)}
+#screen-onboarding .ob-maya{align-self:flex-end;border-bottom-right-radius:5px;background:var(--ember-soft);border:1px solid rgba(217,154,108,.22);font-size:12px;line-height:1.5;color:var(--cream)}
+#screen-onboarding .ob-forming{margin-top:18px;position:relative;overflow:hidden;background:linear-gradient(155deg,#262040,#1f1832 70%);animation:onboarding-glow 7s ease-in-out infinite}
+@keyframes onboarding-glow{0%,100%{box-shadow:0 0 22px -10px rgba(217,154,108,.10)}50%{box-shadow:0 0 30px -6px rgba(217,154,108,.28)}}
+#screen-onboarding .ob-orb{position:absolute;right:-42px;top:-46px;width:130px;height:130px;border-radius:50%;background:radial-gradient(circle,rgba(155,135,201,.28),rgba(217,154,108,.10) 55%,transparent 72%);animation:breathe 7s ease-in-out infinite}
+#screen-onboarding .ob-forming-label{color:var(--ember);position:relative}
+#screen-onboarding .ob-signals{display:flex;flex-wrap:wrap;gap:6px;margin-top:11px;position:relative}
+#screen-onboarding .ob-signals .sr-chip{font-size:10.5px;padding:5px 12px}
+#screen-onboarding .ob-sig{width:5px;height:5px;border-radius:50%;background:var(--ember);flex:none;animation:pulse-soft 5s ease-in-out infinite}
+#screen-onboarding .ob-sig.dim{background:var(--lavender);animation-delay:-2.5s}
+#screen-onboarding .ob-forming-note{font-size:10.5px;color:var(--cream-faint);margin-top:11px;position:relative}
+#screen-onboarding .ob-quiet{margin:auto 0;text-align:center;font-family:var(--display);font-style:italic;font-weight:300;font-size:12.5px;color:var(--cream-faint);padding:10px 14px}
+#screen-onboarding .ob-bottom{padding-bottom:24px}
+#screen-onboarding .ob-input{display:flex;align-items:center;gap:10px;border:1px solid var(--ink-line);background:rgba(243,236,223,.04);border-radius:99px;padding:6px 6px 6px 17px}
+#screen-onboarding .ob-placeholder{flex:1;font-size:12.5px;color:var(--cream-faint)}
+#screen-onboarding .ob-mic{width:34px;height:34px;flex:none;border-radius:50%;background:var(--ember);display:flex;align-items:center;justify-content:center;color:var(--ink)}
+#screen-onboarding .ob-mic svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round}
+#screen-onboarding .ob-privacy{display:flex;align-items:center;justify-content:center;gap:6px;font-size:10px;letter-spacing:.04em;color:var(--cream-faint);margin-top:10px}
+#screen-onboarding .ob-privacy svg{width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round;opacity:.85;flex:none}
+
+/* ---- screen: composing ---- */
+#screen-composing .cmp-body{flex:1;display:flex;flex-direction:column;align-items:center;text-align:center;padding:14px 28px 26px;overflow:hidden;position:relative}
+#screen-composing .cmp-eyebrow{margin-top:6px;position:relative;z-index:1}
+#screen-composing .cmp-orbwrap{position:relative;width:186px;height:186px;margin-top:24px;flex:none}
+#screen-composing .cmp-halo{position:absolute;inset:-46px;border-radius:50%;filter:blur(7px);
+  background:radial-gradient(circle, rgba(217,154,108,.15), rgba(155,135,201,.10) 46%, transparent 72%);
+  animation:breathe 8s ease-in-out infinite}
+#screen-composing .cmp-orb{position:absolute;inset:0;border-radius:50%;
+  background:
+    radial-gradient(circle at 36% 30%, rgba(217,154,108,.50), transparent 56%),
+    radial-gradient(circle at 66% 72%, rgba(155,135,201,.44), transparent 62%),
+    radial-gradient(circle at 50% 50%, rgba(217,154,108,.14), rgba(155,135,201,.10) 55%, rgba(20,16,29,0) 74%);
+  box-shadow:0 0 70px rgba(217,154,108,.15), inset 0 0 34px rgba(155,135,201,.20);
+  animation:breathe 7s ease-in-out infinite}
+#screen-composing .cmp-core{position:absolute;left:50%;top:50%;width:60px;height:60px;transform:translate(-50%,-50%);border-radius:50%;filter:blur(2px);
+  background:radial-gradient(circle, rgba(243,236,223,.46), rgba(217,154,108,.28) 50%, transparent 75%);
+  animation:pulse-soft 5s ease-in-out infinite}
+#screen-composing .cmp-ring{position:absolute;inset:-13px;border-radius:50%;opacity:.35;
+  background:conic-gradient(from 0deg, transparent 0%, rgba(217,154,108,.65) 14%, transparent 30%);
+  -webkit-mask:radial-gradient(closest-side, transparent 95%, #000 96.5%, #000 99%, transparent 100%);
+  mask:radial-gradient(closest-side, transparent 95%, #000 96.5%, #000 99%, transparent 100%);
+  animation:composing-turn 16s linear infinite}
+@keyframes composing-turn{to{transform:rotate(360deg)}}
+#screen-composing .cmp-title{font-size:25px;line-height:1.22;margin-top:26px}
+#screen-composing .cmp-sub{font-size:12.5px;color:var(--cream-dim);margin-top:7px}
+#screen-composing .cmp-threads{width:100%;margin-top:22px;text-align:left}
+#screen-composing .cmp-thread{display:flex;align-items:center;gap:13px;padding:11px 2px;border-top:1px solid var(--ink-line)}
+#screen-composing .cmp-thread:first-child{border-top:none}
+#screen-composing .cmp-ico{width:18px;height:18px;flex:none;stroke:var(--cream-faint);fill:none;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round}
+#screen-composing .cmp-thread.live .cmp-ico{stroke:var(--ember);opacity:.8}
+#screen-composing .cmp-txt{flex:1;min-width:0}
+#screen-composing .cmp-name{font-size:12.5px;font-weight:500;letter-spacing:.04em;line-height:1.3;color:var(--cream)}
+#screen-composing .cmp-detail{font-size:11px;line-height:1.5;color:var(--cream-dim);margin-top:2px}
+#screen-composing .cmp-check{width:15px;height:15px;flex:none;stroke:var(--sage);fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;opacity:.8}
+#screen-composing .cmp-eq{display:flex;align-items:flex-end;gap:2.5px;height:14px;flex:none;padding-right:1px}
+#screen-composing .cmp-eq i{width:2.5px;height:100%;border-radius:2px;background:var(--ember);transform-origin:bottom;animation:eq 2s ease-in-out infinite}
+#screen-composing .cmp-eq i:nth-child(2){animation-delay:.3s}
+#screen-composing .cmp-eq i:nth-child(3){animation-delay:.6s}
+#screen-composing .cmp-eq i:nth-child(4){animation-delay:.9s}
+#screen-composing .cmp-foot{margin-top:auto;padding-top:18px;font-family:var(--display);font-style:italic;font-weight:300;font-size:12.5px;color:var(--cream-dim)}
+
+/* ---- screen: journey ---- */
+#screen-journey .jr-body{position:relative;flex:1;display:flex;flex-direction:column;align-items:center;padding:16px 24px 0;overflow:hidden;text-align:center}
+#screen-journey .jr-amb{position:absolute;left:50%;top:13%;transform:translateX(-50%);width:320px;height:320px;border-radius:50%;background:radial-gradient(circle,rgba(217,154,108,.10),rgba(155,135,201,.05) 55%,transparent 72%);pointer-events:none}
+#screen-journey .jr-head{position:relative;z-index:1}
+#screen-journey .jr-title{font-size:21px;line-height:1.32;margin-top:8px;max-width:21ch;color:var(--cream)}
+#screen-journey .jr-mid{position:relative;z-index:1;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:0}
+#screen-journey .jr-orbwrap{position:relative;width:184px;height:184px;flex:none}
+#screen-journey .jr-halo{position:absolute;inset:-26px;border-radius:50%;background:radial-gradient(circle,rgba(217,154,108,.22),rgba(217,154,108,.07) 52%,transparent 70%);filter:blur(7px);animation:pulse-soft 8s ease-in-out infinite}
+#screen-journey .jr-ring{position:absolute;inset:6px;border-radius:50%;border:1px solid rgba(243,236,223,.10);animation:breathe 8s ease-in-out -4s infinite}
+#screen-journey .jr-ring2{position:absolute;inset:-5px;border-radius:50%;border:1px solid rgba(243,236,223,.05);animation:breathe 9s ease-in-out -2s infinite}
+#screen-journey .jr-orb{position:absolute;inset:26px;border-radius:50%;background:radial-gradient(circle at 38% 32%,rgba(243,236,223,.22),rgba(217,154,108,.52) 38%,rgba(217,154,108,.16) 70%,rgba(155,135,201,.06) 86%,transparent 92%);box-shadow:0 0 56px rgba(217,154,108,.22);animation:breathe 8s ease-in-out infinite}
+#screen-journey .jr-line{font-style:italic;font-size:15.5px;line-height:1.5;color:var(--cream);opacity:.92;max-width:26ch;margin-top:18px}
+#screen-journey .jr-wave{position:relative;z-index:1;flex:none;margin-top:8px}
+#screen-journey .jr-bars{display:flex;align-items:center;justify-content:center;gap:3px;height:20px}
+#screen-journey .jr-bars span{width:2px;height:14px;border-radius:2px;background:rgba(217,154,108,.45);transform:scaleY(.35);animation:eq 5s ease-in-out infinite}
+#screen-journey .jr-bars span:nth-child(2n){height:18px;background:rgba(243,236,223,.30);animation-duration:6s}
+#screen-journey .jr-bars span:nth-child(3n){height:10px;animation-delay:-2.2s}
+#screen-journey .jr-bars span:nth-child(4n){height:16px;animation-duration:7s;animation-delay:-3.4s}
+#screen-journey .jr-bars span:nth-child(5n){animation-delay:-1.1s}
+#screen-journey .jr-bars span:nth-child(7n){height:12px;animation-delay:-4.6s}
+#screen-journey .jr-wave .sr-eyebrow{display:block;margin-top:7px}
+#screen-journey .jr-controls{position:relative;z-index:1;flex:none;display:flex;align-items:center;justify-content:center;gap:18px;margin-top:14px}
+#screen-journey .jr-controls .sr-chip{padding:8px 16px}
+#screen-journey .jr-pause{width:54px;height:54px;border-radius:50%;border:1px solid rgba(217,154,108,.42);background:var(--ember-soft);display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 0 26px rgba(217,154,108,.14)}
+#screen-journey .jr-pause svg{width:20px;height:20px;stroke:var(--cream);fill:none;stroke-width:1.5;stroke-linecap:round}
+#screen-journey .jr-ground{position:relative;z-index:1;flex:none;display:inline-flex;align-items:center;gap:8px;margin-top:14px;padding:10px 22px;border-radius:99px;border:1px solid rgba(157,180,155,.40);background:rgba(157,180,155,.09);color:var(--sage);font-family:var(--ui);font-size:12px;font-weight:400;letter-spacing:.05em;cursor:pointer}
+#screen-journey .jr-ground svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round}
+#screen-journey .jr-foot{position:relative;z-index:1;flex:none;width:100%;display:flex;flex-direction:column;align-items:center;gap:8px;padding:12px 0 24px}
+#screen-journey .jr-progress{width:124px;height:2px;border-radius:99px;background:var(--ink-line);overflow:hidden}
+#screen-journey .jr-progress i{display:block;width:34%;height:100%;border-radius:99px;background:linear-gradient(90deg,rgba(217,154,108,.5),var(--ember))}
+#screen-journey .jr-foot p{font-size:10px;letter-spacing:.24em;text-transform:uppercase;color:var(--cream-faint)}
+
+/* ---- screen: innerchild ---- */
+#screen-innerchild .ic-body{padding:10px 24px 0;flex:1;display:flex;flex-direction:column;overflow:hidden;position:relative}
+#screen-innerchild .ic-head{display:flex;justify-content:space-between;align-items:center;flex:none}
+#screen-innerchild .ic-live{display:inline-flex;align-items:center;gap:6px;font-size:10px;letter-spacing:.14em;color:var(--cream-faint);font-variant-numeric:tabular-nums}
+#screen-innerchild .ic-live i{width:5px;height:5px;border-radius:50%;background:var(--ember);font-style:normal;animation:pulse-soft 4.5s ease-in-out infinite}
+#screen-innerchild .ic-echo{font-style:italic;font-size:13.5px;line-height:1.5;color:var(--cream-dim);text-align:center;margin:10px auto 0;max-width:26ch;flex:none}
+#screen-innerchild .ic-field{position:relative;flex:none;height:230px;margin-top:12px;display:flex;flex-direction:column;align-items:center}
+#screen-innerchild .ic-field::before{content:"";position:absolute;inset:-30px -40px;pointer-events:none;background:radial-gradient(circle at 50% 12%, rgba(217,154,108,.09), transparent 52%),radial-gradient(circle at 50% 88%, rgba(194,137,143,.09), transparent 52%)}
+#screen-innerchild .ic-orb{border-radius:50%;flex:none;position:relative}
+#screen-innerchild .ic-orb-you{width:80px;height:80px;background:radial-gradient(circle at 38% 32%, rgba(243,236,223,.65), rgba(217,154,108,.6) 38%, rgba(217,154,108,.14) 70%, transparent 100%);box-shadow:0 0 42px rgba(217,154,108,.28);animation:breathe 7s ease-in-out infinite}
+#screen-innerchild .ic-orb-little{width:50px;height:50px;background:radial-gradient(circle at 40% 34%, rgba(243,236,223,.6), rgba(194,137,143,.62) 40%, rgba(194,137,143,.14) 70%, transparent 100%);box-shadow:0 0 34px rgba(194,137,143,.3);animation:drift 7.5s ease-in-out infinite}
+#screen-innerchild .ic-label{font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--cream-faint);margin-top:8px;flex:none}
+#screen-innerchild .ic-thread{position:relative;width:1px;flex:1;margin:9px 0;background:linear-gradient(to bottom, rgba(217,154,108,.35), rgba(194,137,143,.35))}
+#screen-innerchild .ic-thread i{position:absolute;left:50%;top:10%;transform:translateX(-50%);width:4px;height:4px;border-radius:50%;background:var(--rose);box-shadow:0 0 8px rgba(194,137,143,.6);animation:innerchild-pass 7s ease-in-out infinite}
+@keyframes innerchild-pass{0%{top:8%;opacity:0}18%{opacity:.9}50%{top:48%}82%{opacity:.9}100%{top:88%;opacity:0}}
+#screen-innerchild .ic-prompt{font-size:17.5px;line-height:1.45;text-align:center;margin:12px auto 0;max-width:24ch;flex:none}
+#screen-innerchild .ic-prompt em{color:var(--ember)}
+#screen-innerchild .ic-actions{display:flex;flex-direction:column;gap:8px;margin-top:14px;flex:none}
+#screen-innerchild .ic-actions .sr-btn{font-size:12.5px;padding:11px}
+#screen-innerchild .ic-actions svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round;flex:none}
+#screen-innerchild .ic-safety{margin-top:auto;flex:none;display:flex;align-items:center;gap:10px;border-top:1px solid var(--ink-line);padding:10px 2px 18px}
+#screen-innerchild .ic-safety p{flex:1;font-size:10.5px;line-height:1.5;color:var(--cream-faint)}
+#screen-innerchild .ic-safety p em{font-style:italic;color:var(--cream-dim)}
+#screen-innerchild .ic-ground{display:inline-flex;align-items:center;gap:6px;flex:none;border:1px solid rgba(157,180,155,.3);border-radius:99px;padding:6px 12px;font-size:10px;letter-spacing:.06em;color:var(--cream-dim)}
+#screen-innerchild .ic-ground svg{width:13px;height:13px;stroke:var(--sage);fill:none;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round}
+
+/* ---- screen: sounding ---- */
+#screen-sounding .amb{position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle at 50% 32%, rgba(201,169,110,.13), transparent 56%),radial-gradient(circle at 16% 82%, rgba(157,180,155,.10), transparent 52%)}
+#screen-sounding .body{position:relative;z-index:1;flex:1;min-height:0;display:flex;flex-direction:column;padding:0 24px}
+#screen-sounding .head{flex:none;display:flex;align-items:center;justify-content:space-between;margin-top:14px}
+#screen-sounding .pausebtn{width:30px;height:30px;flex:none;border:1px solid var(--ink-line);border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--cream-dim)}
+#screen-sounding .pausebtn svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.4;stroke-linecap:round}
+#screen-sounding .progrow{flex:none;display:flex;align-items:center;gap:10px;margin-top:13px}
+#screen-sounding .prog{flex:1;height:2px;border-radius:99px;background:var(--ink-line)}
+#screen-sounding .prog i{display:block;width:42%;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--gold),var(--sage))}
+#screen-sounding .prog-t{flex:none;font-size:10px;letter-spacing:.06em;color:var(--cream-faint);font-variant-numeric:tabular-nums}
+#screen-sounding .mid{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:0}
+#screen-sounding .vox{position:relative;width:210px;height:210px;flex:none}
+#screen-sounding .vox-halo{position:absolute;inset:18px;border-radius:50%;background:radial-gradient(circle, rgba(201,169,110,.16), rgba(157,180,155,.07) 58%, transparent 75%);filter:blur(8px);animation:breathe 8s ease-in-out infinite}
+#screen-sounding .vox-ringline{position:absolute;inset:37px;border-radius:50%;border:1px solid var(--ink-line)}
+#screen-sounding .vox-core{position:absolute;inset:64px;border-radius:50%;background:radial-gradient(circle at 44% 40%, rgba(201,169,110,.55), rgba(217,154,108,.24) 46%, rgba(157,180,155,.12) 68%, transparent 78%);filter:blur(5px);animation:breathe 6.5s ease-in-out infinite}
+#screen-sounding .vox-ring i{position:absolute;left:50%;top:50%;width:2px;height:var(--h,18px);font-style:normal;transform:translate(-50%,-50%) rotate(var(--a)) translateY(-88px)}
+#screen-sounding .vox-ring b{display:block;width:100%;height:100%;border-radius:2px;background:linear-gradient(180deg,var(--gold),var(--sage));opacity:var(--o,.38)}
+#screen-sounding .vox-ring i.hot b{background:linear-gradient(180deg,var(--ember),var(--gold));opacity:.92;animation:eq 5s ease-in-out infinite}
+#screen-sounding .vox-ring i.d1 b{animation-duration:4.2s;animation-delay:-.3s}
+#screen-sounding .vox-ring i.d2 b{animation-duration:5.6s;animation-delay:-1.9s}
+#screen-sounding .vox-ring i.d3 b{animation-duration:4.8s;animation-delay:-2.7s}
+#screen-sounding .vox-ring i.d4 b{animation-duration:6.2s;animation-delay:-1.1s}
+#screen-sounding .vox-ring i.d5 b{animation-duration:5s;animation-delay:-3.6s}
+#screen-sounding .vox-ring i.d6 b{animation-duration:4.4s;animation-delay:-.8s}
+#screen-sounding .vox-ring i.d7 b{animation-duration:5.8s;animation-delay:-2.3s}
+#screen-sounding .vox-ring i.d8 b{animation-duration:4.6s;animation-delay:-1.5s}
+#screen-sounding .vox-label{display:flex;align-items:center;gap:7px;margin-top:14px;font-size:10px;letter-spacing:.24em;text-transform:uppercase;color:var(--cream-faint)}
+#screen-sounding .vox-label i{width:5px;height:5px;flex:none;border-radius:50%;background:var(--gold);animation:pulse-soft 4s ease-in-out infinite;font-style:normal}
+#screen-sounding .prompt{font-size:19px;line-height:1.45;text-align:center;margin-top:18px;max-width:24ch;color:var(--cream)}
+#screen-sounding .prompt em{font-style:italic;color:var(--gold)}
+#screen-sounding .phases{flex:none;display:flex;align-items:center;justify-content:center;gap:9px}
+#screen-sounding .ph{font-size:9.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--cream-faint);padding:6px 12px;border-radius:99px;border:1px solid transparent}
+#screen-sounding .ph.done{color:var(--cream-dim)}
+#screen-sounding .ph.on{color:var(--gold);border-color:rgba(201,169,110,.45);background:rgba(201,169,110,.10)}
+#screen-sounding .ph-line{width:12px;height:1px;flex:none;background:var(--ink-line);font-style:normal}
+#screen-sounding .ground{flex:none;display:flex;justify-content:center;gap:8px;margin:14px 0 30px}
+#screen-sounding .ground .sr-chip{font-size:10.5px;padding:7px 12px}
+#screen-sounding .ground .sr-chip svg{width:13px;height:13px;flex:none;stroke:currentColor;fill:none;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round}
+#screen-sounding .sr-chip.mic{border-color:rgba(157,180,155,.4);color:var(--sage);background:rgba(157,180,155,.09)}
+#screen-sounding .micdot{width:5px;height:5px;flex:none;border-radius:50%;background:var(--sage);animation:pulse-soft 4s ease-in-out infinite;font-style:normal}
+
+/* ---- screen: landscape ---- */
+#screen-landscape .ls-body{padding:12px 22px 0;flex:1;display:flex;flex-direction:column;overflow:hidden;position:relative}
+#screen-landscape .ls-glow{position:absolute;top:-80px;right:-70px;width:220px;height:220px;border-radius:50%;background:radial-gradient(circle,rgba(155,135,201,.15),rgba(217,154,108,.07) 55%,transparent 75%);animation:breathe 8s ease-in-out infinite;pointer-events:none}
+#screen-landscape .ls-title{font-size:22px;line-height:1.22;margin-top:6px}
+#screen-landscape .ls-card{margin-top:9px;padding:13px 15px;position:relative;z-index:1}
+#screen-landscape .ls-stage{margin-top:12px}
+#screen-landscape .ls-stage-top{display:flex;gap:13px;align-items:center}
+#screen-landscape .ls-glyph{width:42px;height:42px;flex:none;border-radius:14px;display:flex;align-items:center;justify-content:center;border:1px solid var(--ink-line);background:radial-gradient(circle at 32% 28%,rgba(155,135,201,.16),rgba(217,154,108,.08) 60%,transparent)}
+#screen-landscape .ls-glyph svg{width:30px;height:30px;fill:none;stroke:var(--cream-dim);stroke-width:.8;stroke-linecap:round;stroke-linejoin:round}
+#screen-landscape .ls-glyph .ring{opacity:.85}
+#screen-landscape .ls-glyph .tri{opacity:.6}
+#screen-landscape .ls-glyph .hex{opacity:.38}
+#screen-landscape .ls-glyph .pt{fill:var(--ember);stroke:none}
+#screen-landscape .ls-glyph .wing{fill:var(--lavender);stroke:none;opacity:.85}
+#screen-landscape .ls-type{font-size:17px;line-height:1.2}
+#screen-landscape .ls-sub{font-size:10.5px;color:var(--cream-faint);margin-top:3px;line-height:1.45}
+#screen-landscape .ls-stage-arc{display:flex;align-items:center;gap:12px;margin-top:10px;padding-top:10px;border-top:1px solid var(--ink-line)}
+#screen-landscape .ls-stage-arc svg{width:46px;height:26px;flex:none;fill:none;stroke-linecap:round}
+#screen-landscape .ls-stage-arc .track{stroke:var(--ink-line);stroke-width:2.6}
+#screen-landscape .ls-stage-arc .fill{stroke:var(--ember);stroke-width:2.6;stroke-dasharray:40 80;opacity:.95}
+#screen-landscape .ls-arcline{font-size:12.5px;color:var(--cream);line-height:1.3}
+#screen-landscape .ls-arcline span{color:var(--ember)}
+#screen-landscape .ls-label{font-size:9.5px}
+#screen-landscape .ls-row-head{display:flex;justify-content:space-between;align-items:baseline}
+#screen-landscape .ls-micro{font-size:8.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--cream-faint)}
+#screen-landscape .ls-micro.ember{color:var(--ember);opacity:.8}
+#screen-landscape .ls-chips{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}
+#screen-landscape .ls-insight{font-size:13.5px;font-style:italic;line-height:1.42;margin-top:7px;color:var(--cream)}
+#screen-landscape .ls-stat{font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--cream-faint);margin-top:8px}
+#screen-landscape .ls-depth{padding:13px 15px 11px}
+#screen-landscape .ls-spark{width:100%;height:28px;margin-top:7px;fill:none;display:block}
+#screen-landscape .ls-spark .area{fill:var(--ember-soft);stroke:none;opacity:.55}
+#screen-landscape .ls-spark polyline{stroke:var(--ember);stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+#screen-landscape .ls-spark circle{fill:var(--ember);animation:pulse-soft 5s ease-in-out infinite}
+#screen-landscape .ls-axis{display:flex;justify-content:space-between;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--cream-faint);margin-top:4px}
+#screen-landscape .ls-foot{margin-top:auto;padding:8px 0;text-align:center;font-size:10px;color:var(--cream-faint);letter-spacing:.04em}
+
+/* ---- screen: lineage ---- */
+#screen-lineage .inner{padding:12px 24px 26px;flex:1;display:flex;flex-direction:column;overflow:hidden}
+#screen-lineage .backrow{display:flex;align-items:center;gap:9px;margin-top:4px}
+#screen-lineage .backrow svg{width:15px;height:15px;flex:none;margin-left:-2px;stroke:var(--cream-dim);fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+#screen-lineage .title{font-size:22.5px;line-height:1.27;margin-top:12px}
+#screen-lineage .context{font-family:var(--display);font-style:italic;font-weight:300;font-size:12px;color:var(--cream-dim);margin-top:8px}
+#screen-lineage .teacher{display:flex;align-items:center;gap:11px;padding:13px 14px;margin-top:12px}
+#screen-lineage .teacher.first{margin-top:18px}
+#screen-lineage .ava{width:36px;height:36px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-family:var(--display);font-weight:300;font-size:12.5px;letter-spacing:.06em;color:var(--cream);border:1px solid rgba(243,236,223,.14)}
+#screen-lineage .ava.osei{background:linear-gradient(145deg, rgba(155,135,201,.7), rgba(155,135,201,.16) 78%)}
+#screen-lineage .ava.marchetti{background:linear-gradient(145deg, rgba(194,137,143,.7), rgba(201,169,110,.2) 80%)}
+#screen-lineage .t-body{flex:1;min-width:0}
+#screen-lineage .t-role{font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--cream-faint)}
+#screen-lineage .t-name{font-size:15.5px;line-height:1.3;margin-top:2px;color:var(--cream)}
+#screen-lineage .t-meta{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:2px 8px;margin-top:5px;font-size:9.5px;color:var(--cream-faint)}
+#screen-lineage .t-meta .roy{display:inline-flex;align-items:center;gap:4px;color:var(--sage);white-space:nowrap}
+#screen-lineage .t-meta .roy i{width:5px;height:5px;border-radius:50%;background:var(--sage);box-shadow:0 0 6px rgba(157,180,155,.7);animation:pulse-soft 4.5s ease-in-out infinite}
+#screen-lineage .teacher.two .roy i{animation-delay:2.2s}
+#screen-lineage .gen{display:flex;align-items:center;gap:11px;margin-top:12px;padding:11px 14px;border-radius:18px;border:1px dashed rgba(243,236,223,.17);background:rgba(243,236,223,.02)}
+#screen-lineage .gen svg{width:17px;height:17px;flex:none;stroke:var(--ember);fill:none;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round;opacity:.9}
+#screen-lineage .gen b{display:block;font-weight:400;font-size:12px;color:var(--cream);line-height:1.35}
+#screen-lineage .gen span{display:block;font-size:10px;color:var(--cream-faint);margin-top:2px}
+#screen-lineage .note{font-size:10.5px;line-height:1.55;color:var(--cream-faint);margin-top:13px;padding:0 2px}
+#screen-lineage .pool{margin-top:auto;position:relative;overflow:hidden;border-color:rgba(217,154,108,.3);background:linear-gradient(150deg, var(--ember-soft), rgba(217,154,108,.04) 70%), var(--ink-3);padding:16px 16px 15px}
+#screen-lineage .pool > *{position:relative}
+#screen-lineage .pool .glow{position:absolute;right:-42px;top:-46px;width:140px;height:140px;border-radius:50%;background:radial-gradient(circle, rgba(217,154,108,.3), transparent 70%);animation:breathe 7s ease-in-out infinite}
+#screen-lineage .pool-eyebrow{color:var(--ember)}
+#screen-lineage .pool-line{font-size:14px;line-height:1.45;margin-top:7px;color:var(--cream)}
+#screen-lineage .pool-line b{font-weight:400;color:var(--ember)}
+#screen-lineage .flow{display:flex;align-items:flex-start;margin-top:14px}
+#screen-lineage .node{display:flex;flex-direction:column;align-items:center;gap:5px;flex:none}
+#screen-lineage .dotwrap{height:10px;display:flex;align-items:center}
+#screen-lineage .dot{width:7px;height:7px;border-radius:50%;background:var(--cream-dim)}
+#screen-lineage .node.mid .dot{width:9px;height:9px;background:var(--ember);box-shadow:0 0 9px rgba(217,154,108,.6)}
+#screen-lineage .node.end .dot{background:var(--gold)}
+#screen-lineage .lbl{font-size:8.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--cream-faint);white-space:nowrap}
+#screen-lineage .seg{flex:1;height:1px;margin:5px 7px 0;background:linear-gradient(90deg, rgba(243,236,223,.07), rgba(217,154,108,.4), rgba(243,236,223,.07));position:relative}
+#screen-lineage .seg i{position:absolute;top:-1.5px;left:0;width:4px;height:4px;border-radius:50%;background:var(--ember);box-shadow:0 0 6px rgba(217,154,108,.85);animation:lineage-flow 5.5s ease-in-out infinite}
+#screen-lineage .seg.s2 i{animation-delay:2.75s}
+@keyframes lineage-flow{0%{left:0%;opacity:0}16%{opacity:1}84%{opacity:1}100%{left:calc(100% - 4px);opacity:0}}
+</style>
+</head>
+<body>
+
+<header class="hero vis">
+  <div class="hero-glow"></div>
+  <div class="wrap">
+    <div class="wordmark">Somatic Rising</div>
+    <h1>The right practice, in the <em>right moment</em>, in your language.</h1>
+    <p class="sub">An AI companion for deep personal healing. It reads where you are, meets you there, and composes — live — the practice you need right now. Not a library you browse. A companion that knows you.</p>
+    <p class="meta">Product concept · Seed round · June 2026 · Confidential</p>
+    <div class="loopstrip">
+      <span><b>Read</b></span><i>→</i><span><b>Meet</b></span><i>→</i><span><b>Compose</b></span><i>→</i><span><b>Guide</b></span><i>→</i><span><b>Learn</b></span><i>→</i><span><b>Deepen</b></span>
+    </div>
+    <div class="diffstrip">
+      <span>Adaptive</span><span>Generative</span><span>Stage-aware</span><span>Embodied</span>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- 01 · READ -->
+  <section class="showcase" id="sec-onboarding">
+    <div class="annotation">
+      <p class="kicker">01 · Read</p>
+      <h3>Known through conversation, never a quiz</h3>
+      <p>From the first exchange, the companion builds a structured picture of where this person stands — developmental stage, Enneagram type, what's alive right now — inferred gently through dialogue rather than extracted through a form.</p>
+      <p class="pull">"The same grief is met differently in different people — that is the difference between a library and a companion."</p>
+    </div>
+    <article class="phone" id="screen-onboarding">
+  <div class="screen">
+    <div class="statusbar"><span>20:47</span><span class="notch-ico">●●●</span></div>
+    <div class="ob-glow"></div>
+    <div class="ob-body">
+      <div class="ob-head">
+        <p class="sr-eyebrow">First conversation</p>
+        <span class="ob-listening"><i></i>Listening</span>
+      </div>
+      <div class="ob-chat">
+        <div class="ob-msg ob-companion">When you say &lsquo;stuck&rsquo; &mdash; where does that live in your body?</div>
+        <div class="ob-msg ob-maya">Somewhere in my chest. Like a weight I keep carrying around.</div>
+        <div class="ob-msg ob-companion">A weight in the chest. We won&rsquo;t try to lift it tonight &mdash; just sit beside it.</div>
+      </div>
+      <div class="sr-card ob-forming">
+        <div class="ob-orb"></div>
+        <p class="sr-eyebrow ob-forming-label">A picture is forming</p>
+        <div class="ob-signals">
+          <span class="sr-chip"><i class="ob-sig"></i>Type Four, wing Five &middot; forming</span>
+          <span class="sr-chip"><i class="ob-sig dim"></i>Meaning-seeking &middot; early signal</span>
+        </div>
+        <p class="ob-forming-note">Inferred gently, in conversation. Never a quiz.</p>
+      </div>
+      <p class="ob-quiet">There&rsquo;s no pace to keep. We go at yours.</p>
+      <div class="ob-bottom">
+        <div class="ob-input">
+          <span class="ob-placeholder">Speak or type&hellip;</span>
+          <span class="ob-mic"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/></svg></span>
+        </div>
+        <p class="ob-privacy"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Everything you share stays yours.</p>
+      </div>
+    </div>
+    <div class="homebar"></div>
+  </div>
+</article>
+  </section>
+
+  <!-- 02 · MEET -->
+  <section class="showcase flip" id="sec-home">
+    <div class="annotation">
+      <p class="kicker">02 · Meet</p>
+      <h3>It remembers your inner landscape</h3>
+      <p>Every evening opens where the last one ended. The companion carries your history — what you're moving through, what has landed — and offers one practice composed for tonight, not a wall of content to browse.</p>
+      <p class="pull">Month six is dramatically better than month one — for this specific person. None of it transfers to a competitor.</p>
+    </div>
+    <article class="phone" id="screen-home">
+      <div class="screen">
+        <div class="statusbar"><span>21:14</span><span class="notch-ico">●●●</span></div>
+        <div style="padding:18px 24px 0;flex:1;display:flex;flex-direction:column;overflow:hidden">
+          <p class="sr-eyebrow">Tuesday evening</p>
+          <h2 class="sr-serif" style="font-size:27px;line-height:1.25;margin-top:8px">Good evening,<br>Maya.</h2>
+          <p style="color:var(--cream-dim);font-size:13px;margin-top:10px;line-height:1.55">Last time we stayed with the heaviness around your father. How is it in there tonight?</p>
+          <div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:14px">
+            <span class="sr-chip">Tender</span>
+            <span class="sr-chip lit">Heavy</span>
+            <span class="sr-chip">Restless</span>
+            <span class="sr-chip">Quiet</span>
+          </div>
+          <div class="sr-card" style="margin-top:22px;position:relative;overflow:hidden;background:linear-gradient(150deg,#2c2240,#241b35 65%)">
+            <div style="position:absolute;right:-46px;top:-46px;width:150px;height:150px;border-radius:50%;background:radial-gradient(circle,rgba(217,154,108,.32),transparent 70%);animation:breathe 6s ease-in-out infinite"></div>
+            <p class="sr-eyebrow" style="color:var(--ember)">Composed for you · tonight</p>
+            <h4 class="sr-serif" style="font-size:18.5px;line-height:1.3;margin-top:8px;max-width:17ch;text-wrap:balance">A walk back to the house you grew up in</h4>
+            <p style="font-size:11.5px;color:var(--cream-dim);margin-top:8px">Guided journey · 14 min · music composed live</p>
+            <div class="sr-btn" style="margin-top:14px;font-size:12.5px;padding:11px">Begin when you're ready</div>
+          </div>
+          <p style="font-size:11px;color:var(--cream-faint);margin-top:14px;text-align:center">or just talk — I'm here</p>
+        </div>
+        <nav class="tabbar">
+          <span class="tab on"><svg viewBox="0 0 24 24"><path d="M12 21c-4.5-3.6-8-6.8-8-10.5A5 5 0 0 1 12 7a5 5 0 0 1 8 3.5c0 3.7-3.5 6.9-8 10.5z"/></svg>Companion</span>
+          <span class="tab"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 2"/></svg>Practices</span>
+          <span class="tab"><svg viewBox="0 0 24 24"><path d="M4 19c4-1 5-4 5-7m0 0c0-3 1-6 5-7m-5 7h8"/></svg>Journey</span>
+          <span class="tab"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M5 20c1.5-3.5 4-5 7-5s5.5 1.5 7 5"/></svg>You</span>
+        </nav>
+        <div class="homebar"></div>
+      </div>
+    </article>
+  </section>
+
+  <!-- 03 · COMPOSE -->
+  <section class="showcase" id="sec-composing">
+    <div class="annotation">
+      <p class="kicker">03 · Compose</p>
+      <h3>Made for you, in the moment</h3>
+      <p>When the moment calls for more than conversation, the companion composes a practice on the spot — script, voice, and music generated for this person, this moment. Nothing here is pulled from a library.</p>
+      <p class="pull">The clearest, fastest "this was made for me" experience in the category.</p>
+    </div>
+    <article class="phone" id="screen-composing">
+  <div class="screen">
+    <div class="statusbar"><span>21:16</span><span class="notch-ico">●●●</span></div>
+    <div class="cmp-body">
+      <p class="sr-eyebrow cmp-eyebrow">Tonight · Guided journey</p>
+      <div class="cmp-orbwrap">
+        <div class="cmp-halo"></div>
+        <div class="cmp-ring"></div>
+        <div class="cmp-orb"></div>
+        <div class="cmp-core"></div>
+      </div>
+      <h2 class="sr-serif cmp-title">Composing your journey&hellip;</h2>
+      <p class="cmp-sub">For this evening. For you.</p>
+      <div class="cmp-threads">
+        <div class="cmp-thread done">
+          <svg class="cmp-ico" viewBox="0 0 24 24"><path d="M7 3.5h7l4 4v13H7z"/><path d="M14 3.5v4h4"/><path d="M10 11.5h6M10 15h6"/></svg>
+          <div class="cmp-txt">
+            <p class="cmp-name">Script</p>
+            <p class="cmp-detail">woven from tonight&rsquo;s conversation</p>
+          </div>
+          <svg class="cmp-check" viewBox="0 0 24 24"><path d="M5 12.5l5 5L19 7"/></svg>
+        </div>
+        <div class="cmp-thread done">
+          <svg class="cmp-ico" viewBox="0 0 24 24"><path d="M3 12h2M7 9.5v5M11 6v12M15 8.5v7M19 11v2"/></svg>
+          <div class="cmp-txt">
+            <p class="cmp-name">Voice</p>
+            <p class="cmp-detail">warm, low, unhurried</p>
+          </div>
+          <svg class="cmp-check" viewBox="0 0 24 24"><path d="M5 12.5l5 5L19 7"/></svg>
+        </div>
+        <div class="cmp-thread live">
+          <svg class="cmp-ico" viewBox="0 0 24 24"><path d="M9 18V6l8-2v12"/><circle cx="7" cy="18" r="2"/><circle cx="15" cy="16" r="2"/></svg>
+          <div class="cmp-txt">
+            <p class="cmp-name">Music</p>
+            <p class="cmp-detail">strings &amp; slow tide · 60 bpm</p>
+          </div>
+          <span class="cmp-eq"><i></i><i></i><i></i><i></i></span>
+        </div>
+      </div>
+      <p class="cmp-foot">Nothing here comes from a library.</p>
+    </div>
+    <div class="homebar"></div>
+  </div>
+</article>
+  </section>
+
+  <!-- 04 · GUIDE -->
+  <section class="showcase flip" id="sec-journey">
+    <div class="annotation">
+      <p class="kicker">04 · Guide</p>
+      <h3>A generative guided journey</h3>
+      <p>Visualizations built around your actual situation, your imagery, your pace — with music matched to the arc of the session. Grounding is always one touch away: the system is designed to know when <em>not</em> to go deeper.</p>
+      <p class="pull">Safety is a launch feature, not a roadmap item.</p>
+    </div>
+    <article class="phone" id="screen-journey">
+  <div class="screen">
+    <div class="statusbar"><span>21:26</span><span class="notch-ico">●●●</span></div>
+    <div class="jr-body">
+      <div class="jr-amb"></div>
+      <header class="jr-head">
+        <p class="sr-eyebrow">Guided journey · 14 min</p>
+        <h2 class="sr-serif jr-title">A walk back to the house you grew up in</h2>
+      </header>
+      <div class="jr-mid">
+        <div class="jr-orbwrap">
+          <div class="jr-halo"></div>
+          <div class="jr-ring2"></div>
+          <div class="jr-ring"></div>
+          <div class="jr-orb"></div>
+        </div>
+        <p class="jr-line sr-serif">Notice the door. You don't have to open it yet.</p>
+      </div>
+      <div class="jr-wave">
+        <div class="jr-bars"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+        <p class="sr-eyebrow">Music · composed live</p>
+      </div>
+      <div class="jr-controls">
+        <span class="sr-chip">Slower</span>
+        <button class="jr-pause" aria-label="Pause"><svg viewBox="0 0 24 24"><path d="M9.5 7.5v9M14.5 7.5v9"/></svg></button>
+        <span class="sr-chip">Deeper</span>
+      </div>
+      <button class="jr-ground"><svg viewBox="0 0 24 24"><path d="M12 5v9"/><path d="M8.5 10.5 12 14l3.5-3.5"/><path d="M5 18.5h14"/></svg>Ground me</button>
+      <div class="jr-foot">
+        <div class="jr-progress"><i></i></div>
+        <p>9:12 remaining</p>
+      </div>
+    </div>
+    <div class="homebar"></div>
+  </div>
+</article>
+  </section>
+
+  <!-- 05 · GUIDE · DEPTH -->
+  <section class="showcase" id="sec-innerchild">
+    <div class="annotation">
+      <p class="kicker">05 · Guide · Depth</p>
+      <h3>Inner-child &amp; constellation work</h3>
+      <p>Guided imaginal dialogue — with your younger self, with family, with people present or passed. Inherently personal, emotionally profound, and entirely absent from the app landscape. This is the depth differentiator.</p>
+      <p class="pull">Dosed and paced — the companion knows when to ground, and when to point toward human support.</p>
+    </div>
+    <article class="phone" id="screen-innerchild">
+  <div class="screen">
+    <div class="statusbar"><span>21:26</span><span class="notch-ico">●●●</span></div>
+    <div class="ic-body">
+      <div class="ic-head">
+        <p class="sr-eyebrow">Inner-child dialogue</p>
+        <span class="ic-live"><i></i>08:42</span>
+      </div>
+      <p class="ic-echo sr-serif">&ldquo;I&rsquo;m sorry I stopped listening to you.&rdquo;</p>
+      <div class="ic-field">
+        <div class="ic-orb ic-orb-you"></div>
+        <p class="ic-label">You &middot; 34</p>
+        <div class="ic-thread"><i></i></div>
+        <div class="ic-orb ic-orb-little"></div>
+        <p class="ic-label">Little Maya &middot; 7</p>
+      </div>
+      <p class="ic-prompt sr-serif">She&rsquo;s heard you. What does she want to say back? <em>Take your time.</em></p>
+      <div class="ic-actions">
+        <div class="sr-btn"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/></svg>Speak it aloud</div>
+        <div class="sr-btn ghost"><svg viewBox="0 0 24 24"><path d="M4 20l1-4L16.5 4.5a2.1 2.1 0 0 1 3 3L8 19l-4 1z"/></svg>Write it</div>
+        <div class="sr-btn ghost"><svg viewBox="0 0 24 24"><circle cx="9.5" cy="12" r="5.5"/><circle cx="14.5" cy="12" r="5.5"/></svg>Just be with her</div>
+      </div>
+      <div class="ic-safety">
+        <p>We can step out any time &mdash; just say <em>&ldquo;pause.&rdquo;</em></p>
+        <span class="ic-ground"><svg viewBox="0 0 24 24"><path d="M5 20h14"/><path d="M12 20v-7"/><path d="M12 13c0-3 2-5 5-5 0 3-2 5-5 5z"/></svg>Ground</span>
+      </div>
+    </div>
+    <div class="homebar"></div>
+  </div>
+</article>
+  </section>
+
+  <!-- 06 · GUIDE · BODY -->
+  <section class="showcase flip" id="sec-sounding">
+    <div class="annotation">
+      <p class="kicker">06 · Guide · Body</p>
+      <h3>Somatic sounding &amp; authentic voice</h3>
+      <p>Guided vocal release and embodied sound practice — active, in the body, and distinctly ours. This is what makes the product <em>somatic</em> rather than another eyes-closed meditation app.</p>
+    </div>
+    <article class="phone" id="screen-sounding">
+  <div class="screen">
+    <div class="statusbar"><span>21:26</span><span class="notch-ico">●●●</span></div>
+    <div class="amb"></div>
+    <div class="body">
+      <div class="head">
+        <p class="sr-eyebrow">Somatic sounding · 8 min</p>
+        <span class="pausebtn"><svg viewBox="0 0 24 24"><path d="M9.5 7.5v9M14.5 7.5v9"/></svg></span>
+      </div>
+      <div class="progrow">
+        <div class="prog"><i></i></div>
+        <span class="prog-t">4:38 left</span>
+      </div>
+      <div class="mid">
+        <div class="vox">
+          <div class="vox-halo"></div>
+          <div class="vox-ringline"></div>
+          <div class="vox-core"></div>
+          <div class="vox-ring">
+            <i class="hot d1" style="--a:0deg;--h:22px"><b></b></i>
+            <i style="--a:15deg;--h:14px;--o:.34"><b></b></i>
+            <i style="--a:30deg;--h:17px;--o:.42"><b></b></i>
+            <i class="hot d2" style="--a:45deg;--h:24px"><b></b></i>
+            <i style="--a:60deg;--h:13px;--o:.32"><b></b></i>
+            <i style="--a:75deg;--h:16px;--o:.4"><b></b></i>
+            <i class="hot d3" style="--a:90deg;--h:21px"><b></b></i>
+            <i style="--a:105deg;--h:15px;--o:.36"><b></b></i>
+            <i style="--a:120deg;--h:18px;--o:.44"><b></b></i>
+            <i style="--a:135deg;--h:13px;--o:.3"><b></b></i>
+            <i class="hot d4" style="--a:150deg;--h:23px"><b></b></i>
+            <i style="--a:165deg;--h:16px;--o:.4"><b></b></i>
+            <i class="hot d5" style="--a:180deg;--h:20px"><b></b></i>
+            <i style="--a:195deg;--h:14px;--o:.34"><b></b></i>
+            <i style="--a:210deg;--h:17px;--o:.42"><b></b></i>
+            <i class="hot d6" style="--a:225deg;--h:24px"><b></b></i>
+            <i style="--a:240deg;--h:13px;--o:.32"><b></b></i>
+            <i style="--a:255deg;--h:16px;--o:.38"><b></b></i>
+            <i class="hot d7" style="--a:270deg;--h:21px"><b></b></i>
+            <i style="--a:285deg;--h:15px;--o:.36"><b></b></i>
+            <i style="--a:300deg;--h:18px;--o:.44"><b></b></i>
+            <i style="--a:315deg;--h:13px;--o:.3"><b></b></i>
+            <i class="hot d8" style="--a:330deg;--h:23px"><b></b></i>
+            <i style="--a:345deg;--h:16px;--o:.4"><b></b></i>
+          </div>
+        </div>
+        <p class="vox-label"><i></i>Your voice · live</p>
+        <h3 class="sr-serif prompt">Let the sound start low in the belly. Don&rsquo;t <em>shape</em> it &mdash; just let it out.</h3>
+      </div>
+      <div class="phases">
+        <span class="ph done">Hum</span><i class="ph-line"></i>
+        <span class="ph on">Tone</span><i class="ph-line"></i>
+        <span class="ph">Release</span>
+      </div>
+      <div class="ground">
+        <span class="sr-chip"><svg viewBox="0 0 24 24"><circle cx="12" cy="4.6" r="2.2"/><path d="M12 7.5V14m0 0-3.2 6.2M12 14l3.2 6.2M8 11.2l4-1.6 4 1.6"/></svg>Standing · knees soft</span>
+        <span class="sr-chip mic"><svg viewBox="0 0 24 24"><rect x="9.2" y="3" width="5.6" height="10.4" rx="2.8"/><path d="M5.8 11.2a6.2 6.2 0 0 0 12.4 0M12 19v2.4"/></svg>Mic on<i class="micdot"></i></span>
+      </div>
+    </div>
+    <div class="homebar"></div>
+  </div>
+</article>
+  </section>
+
+  <!-- 07 · LEARN -->
+  <section class="showcase" id="sec-landscape">
+    <div class="annotation">
+      <p class="kicker">07 · Learn</p>
+      <h3>A living model of you</h3>
+      <p>Every conversation and every practice deepens a structured picture — stage, type, history, what has landed, what you're moving through. This is the compounding personal context that drives retention: a switching cost that grows with time.</p>
+      <p class="pull">The moat is accumulated knowing — and it cannot be copied quickly.</p>
+    </div>
+    <article class="phone" id="screen-landscape">
+  <div class="screen">
+    <div class="statusbar"><span>21:18</span><span class="notch-ico">●●●</span></div>
+    <div class="ls-body">
+      <div class="ls-glow"></div>
+      <p class="sr-eyebrow">Your inner landscape</p>
+      <h2 class="sr-serif ls-title">Six weeks of<br>knowing you.</h2>
+
+      <div class="sr-card ls-card ls-stage">
+        <div class="ls-stage-top">
+          <div class="ls-glyph">
+            <svg viewBox="0 0 24 24">
+              <circle class="ring" cx="12" cy="12" r="9"/>
+              <path class="tri" d="M12 3 L19.79 16.5 L4.21 16.5 Z"/>
+              <path class="hex" d="M17.79 5.11 L15.08 20.46 L20.86 10.44 L6.21 5.11 L8.92 20.46 L3.14 10.44 Z"/>
+              <circle class="pt" cx="15.08" cy="20.46" r="1.6"/>
+              <circle class="wing" cx="8.92" cy="20.46" r="1.15"/>
+            </svg>
+          </div>
+          <div>
+            <h4 class="sr-serif ls-type">Four · wing Five</h4>
+            <p class="ls-sub">Enneagram · held lightly</p>
+          </div>
+        </div>
+        <div class="ls-stage-arc">
+          <svg viewBox="0 0 48 26">
+            <path class="track" d="M4 24 A20 20 0 0 1 44 24"/>
+            <path class="fill" d="M4 24 A20 20 0 0 1 44 24"/>
+          </svg>
+          <div>
+            <p class="ls-arcline">Meaning-seeking <span>→</span> integrating</p>
+            <p class="ls-sub">developmental stage</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="sr-card ls-card">
+        <div class="ls-row-head">
+          <p class="sr-eyebrow ls-label">Moving through</p>
+          <span class="ls-micro">named in week two</span>
+        </div>
+        <div class="ls-chips">
+          <span class="sr-chip lit">grief</span>
+          <span class="sr-chip">father</span>
+          <span class="sr-chip">belonging</span>
+        </div>
+      </div>
+
+      <div class="sr-card ls-card">
+        <p class="sr-eyebrow ls-label">What has landed</p>
+        <p class="sr-serif ls-insight">Sounding sessions reach you deepest on heavy evenings.</p>
+        <p class="ls-stat">21 practices · 6 weeks</p>
+      </div>
+
+      <div class="sr-card ls-card ls-depth">
+        <div class="ls-row-head">
+          <p class="sr-eyebrow ls-label">Depth of knowing</p>
+          <span class="ls-micro ember">deepens every session</span>
+        </div>
+        <svg class="ls-spark" viewBox="0 0 236 30">
+          <polygon class="area" points="3,27 34,25.5 66,22 98,23.5 130,17.5 162,13 194,8.5 228,4 228,29 3,29"/>
+          <polyline points="3,27 34,25.5 66,22 98,23.5 130,17.5 162,13 194,8.5 228,4"/>
+          <circle cx="228" cy="4" r="2.4"/>
+        </svg>
+        <div class="ls-axis"><span>month one</span><span>now</span></div>
+      </div>
+
+      <p class="ls-foot">Yours alone — encrypted, never sold.</p>
+    </div>
+    <nav class="tabbar">
+      <span class="tab"><svg viewBox="0 0 24 24"><path d="M12 21c-4.5-3.6-8-6.8-8-10.5A5 5 0 0 1 12 7a5 5 0 0 1 8 3.5c0 3.7-3.5 6.9-8 10.5z"/></svg>Companion</span>
+      <span class="tab"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 2"/></svg>Practices</span>
+      <span class="tab on"><svg viewBox="0 0 24 24"><path d="M4 19c4-1 5-4 5-7m0 0c0-3 1-6 5-7m-5 7h8"/></svg>Journey</span>
+      <span class="tab"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M5 20c1.5-3.5 4-5 7-5s5.5 1.5 7 5"/></svg>You</span>
+    </nav>
+    <div class="homebar"></div>
+  </div>
+</article>
+  </section>
+
+  <!-- 08 · DEEPEN -->
+  <section class="showcase flip" id="sec-lineage">
+    <div class="annotation">
+      <p class="kicker">08 · Deepen</p>
+      <h3>Wisdom with a lineage</h3>
+      <p>Where general AI draws on the open internet, the companion draws on licensed, attributed knowledge from revered teachers — with usage tracked at the source and a creator royalty pool sharing ~25% of subscription revenue, Spotify-style.</p>
+      <p class="pull">A supply-side flywheel competitors must negotiate lineage by lineage to match.</p>
+    </div>
+    <article class="phone" id="screen-lineage">
+  <div class="screen">
+    <div class="statusbar"><span>21:16</span><span class="notch-ico">●●●</span></div>
+    <div class="inner">
+      <div class="backrow">
+        <svg viewBox="0 0 24 24"><path d="M14.5 5.5 8 12l6.5 6.5"/></svg>
+        <span class="sr-eyebrow">Tonight's practice · Lineage</span>
+      </div>
+      <h2 class="sr-serif title">Where tonight's journey<br>draws from</h2>
+      <p class="context">"A walk back to the house you grew up in"</p>
+
+      <div class="sr-card teacher first">
+        <div class="ava osei">AO</div>
+        <div class="t-body">
+          <p class="t-role">Inner-journey framework</p>
+          <p class="t-name sr-serif">Dr. Amara Osei</p>
+          <div class="t-meta"><span>Licensed &amp; attributed</span><span class="roy"><i></i>Royalties active</span></div>
+        </div>
+      </div>
+
+      <div class="sr-card teacher two">
+        <div class="ava marchetti">EM</div>
+        <div class="t-body">
+          <p class="t-role">Somatic voice lineage</p>
+          <p class="t-name sr-serif">Elena Marchetti</p>
+          <div class="t-meta"><span>Licensed &amp; attributed</span><span class="roy"><i></i>Royalties active</span></div>
+        </div>
+      </div>
+
+      <div class="gen">
+        <svg viewBox="0 0 24 24"><path d="M12 4.5 13.8 10.2 19.5 12 13.8 13.8 12 19.5 10.2 13.8 4.5 12 10.2 10.2Z"/><path d="M18.5 3.5v3M17 5h3"/></svg>
+        <div>
+          <b>Music &amp; script</b>
+          <span>Composed live for you · not from a library</span>
+        </div>
+      </div>
+
+      <p class="note">Usage is tracked at the source — every session credits the lineages it draws from.</p>
+
+      <div class="sr-card pool">
+        <div class="glow"></div>
+        <p class="sr-eyebrow pool-eyebrow">Creator royalties</p>
+        <p class="pool-line sr-serif"><b>25%</b> of your subscription flows to the teachers whose work guides&nbsp;you.</p>
+        <div class="flow">
+          <div class="node"><span class="dotwrap"><span class="dot"></span></span><span class="lbl">You</span></div>
+          <div class="seg"><i></i></div>
+          <div class="node mid"><span class="dotwrap"><span class="dot"></span></span><span class="lbl">Royalty pool</span></div>
+          <div class="seg s2"><i></i></div>
+          <div class="node end"><span class="dotwrap"><span class="dot"></span></span><span class="lbl">Teachers</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="homebar"></div>
+  </div>
+</article>
+  </section>
+
+</main>
+
+<section class="closing">
+  <div class="wrap">
+    <h2>Every screen here maps to the MVP scope in the memo.</h2>
+    <p>Conversational companion · stage &amp; type inferred in conversation · three signature modalities · the memory layer · safety architecture · royalty tracking from day one.</p>
+  </div>
+</section>
+
+<footer class="foot">Somatic Rising · Confidential · Product concept for discussion purposes only</footer>
+
+<script>
+const io = new IntersectionObserver(es => es.forEach(e => e.isIntersecting && e.target.classList.add('vis')), {threshold:.12});
+document.querySelectorAll('.showcase,.closing').forEach(el => io.observe(el));
+</script>
+</body>
+</html>
