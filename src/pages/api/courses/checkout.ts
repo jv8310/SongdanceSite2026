@@ -41,6 +41,7 @@ import {
   stripeTaxIdTypeFor,
 } from '../../../lib/registrations/stripe';
 import { findCountry } from '../../../lib/countries';
+import { formatMoney, isSupportedCurrency } from '../../../lib/workshops/currency';
 import {
   getBundleOffer,
   getCertOffer,
@@ -139,12 +140,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
           : payload.payment_plan === '12x'
             ? '12x'
             : 'full';
-    const currency: Currency =
-      payload.currency === 'USD'
-        ? 'USD'
-        : payload.currency === 'GBP'
-          ? 'GBP'
-          : 'EUR';
+    const currencyRaw = (payload.currency ?? '').toUpperCase();
+    const currency: Currency = isSupportedCurrency(currencyRaw)
+      ? (currencyRaw as Currency)
+      : 'EUR';
     const discountPct = parseDiscountPercent(payload.discount_percent);
 
     if (productSlug !== 'cc-cert' && productSlug !== 'cc-bundle') {
@@ -367,7 +366,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         success_url: successUrl,
         cancel_url: `${baseUrl}/courses/certification${cancelQuery}#register`,
         product_name: offer.label,
-        product_description: `${installmentPlan.count} monthly installments of ${moneyCents(chargedMonthlyCents, currency)}`,
+        product_description: `${installmentPlan.count} monthly installments of ${formatMoney(chargedMonthlyCents, currency)}`,
         payment_intent_description: offer.label,
         product_metadata: productMetadata,
         monthly_amount_cents: chargedMonthlyCents,
@@ -489,17 +488,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
 function isVariant(v: unknown): v is Variant {
   return v === 'B1' || v === 'B2' || v === 'A' || v === 'D' || v === 'E' || v === 'C';
-}
-
-function moneyCents(cents: number, currency: Currency): string {
-  const symbol =
-    currency === 'USD' ? '$' : currency === 'GBP' ? '£' : '€';
-  const whole = cents % 100 === 0;
-  const amount = (cents / 100).toLocaleString('en-US', {
-    minimumFractionDigits: whole ? 0 : 2,
-    maximumFractionDigits: whole ? 0 : 2,
-  });
-  return `${symbol}${amount}`;
 }
 
 function json(body: unknown, status = 200) {
