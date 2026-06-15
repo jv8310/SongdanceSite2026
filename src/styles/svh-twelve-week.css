@@ -20,7 +20,7 @@ html, body { background: var(--paper); }
 .tw-section { padding: var(--sp-10) var(--sp-7); }
 @media (max-width: 720px) { .tw-section { padding: var(--sp-9) var(--sp-5); } }
 /* Sticky nav offset for in-page anchor jumps. */
-#top, #modules, #register { scroll-margin-top: 84px; }
+#top, #modules, #certification, #register { scroll-margin-top: 84px; }
 .tw-wrap { max-width: var(--tw-max); margin: 0 auto; }
 .tw-narrow { max-width: var(--tw-narrow); margin: 0 auto; }
 
@@ -505,27 +505,137 @@ html, body { background: var(--paper); }
   letter-spacing: 0.2em; color: var(--ember-deep); margin: 0 0 var(--sp-4);
 }
 
-/* ---------- Practitioner band ---------- */
-.tw-prac { background: var(--plum); color: var(--paper); }
-.tw-prac-inner {
-  max-width: var(--tw-max); margin: 0 auto;
-  display: flex; align-items: center; justify-content: space-between;
-  gap: var(--sp-7); flex-wrap: wrap;
+/* ---------- Certification path (the deepening) ---------- */
+/* A rich plum movement set between Jacob and the FAQ: the next chapter for
+   those who don't want to stop after twelve weeks. Warm ember glow on a deep
+   plum ground, so it reads as "going deeper" against the warm-paper page. */
+.tw-cert { position: relative; background: var(--plum); color: var(--paper); overflow: hidden; }
+.tw-cert::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background:
+    radial-gradient(ellipse at 80% 10%, rgba(201, 96, 58, 0.2) 0%, transparent 56%),
+    radial-gradient(ellipse at 12% 94%, rgba(15, 8, 14, 0.55) 0%, transparent 60%);
 }
-.tw-prac-text { max-width: 56ch; }
-.tw-prac-eyebrow {
-  font-family: var(--font-body); font-size: 11px; text-transform: uppercase;
-  letter-spacing: 0.24em; color: var(--plum-soft); font-weight: 500; margin: 0 0 var(--sp-3);
+.tw-cert-inner { position: relative; z-index: 1; max-width: var(--tw-max); margin: 0 auto; }
+
+/* Header */
+.tw-cert-head { text-align: center; max-width: 780px; margin: 0 auto var(--sp-9); }
+.tw-cert .tw-eyebrow--center { color: var(--ember-soft); }
+.tw-cert .tw-eyebrow--center::before, .tw-cert .tw-eyebrow--center::after { background: var(--ember); }
+.tw-cert .tw-h2 { color: var(--paper); margin-left: auto; margin-right: auto; max-width: 22ch; }
+.tw-cert .tw-h2 em { color: var(--ember-soft); }
+.tw-cert-lead {
+  font-family: var(--font-lyric); font-style: italic;
+  font-size: clamp(19px, 2.1vw, 25px); line-height: 1.44;
+  color: rgba(244, 236, 223, 0.86);
+  margin: var(--sp-5) auto 0; max-width: 48ch; text-wrap: balance;
 }
-.tw-prac-h {
-  font-family: var(--font-display); font-size: clamp(26px, 3vw, 38px);
-  line-height: 1.12; font-weight: 400; color: var(--paper); margin: 0 0 var(--sp-3);
-  letter-spacing: -0.012em; text-wrap: balance;
+.tw-cert-lead em { color: var(--ember-soft); font-style: italic; }
+
+/* Feature: image + dual-purpose prose */
+.tw-cert-feature {
+  display: grid; grid-template-columns: 0.9fr 1fr;
+  gap: clamp(var(--sp-6), 5vw, var(--sp-9));
+  align-items: center; margin-bottom: var(--sp-9);
 }
-.tw-prac-h em { font-family: var(--font-lyric); font-style: italic; color: var(--plum-soft); }
-.tw-prac-p {
-  font-family: var(--font-body); font-size: 16px; line-height: 1.7;
-  color: rgba(244, 236, 223, 0.86); margin: 0;
+@media (max-width: 860px) { .tw-cert-feature { grid-template-columns: 1fr; gap: var(--sp-6); } }
+.tw-cert-media {
+  margin: 0; border-radius: var(--r-lg); overflow: hidden;
+  box-shadow: var(--shadow-3); background: var(--night-soft); aspect-ratio: 5 / 6;
+}
+.tw-cert-media img { display: block; width: 100%; height: 100%; object-fit: cover; filter: var(--tw-img); }
+.tw-cert-feature-text { max-width: 52ch; }
+.tw-cert-sub {
+  font-family: var(--font-display); font-size: clamp(24px, 2.7vw, 33px);
+  line-height: 1.16; font-weight: 400; color: var(--paper);
+  letter-spacing: -0.01em; margin: 0 0 var(--sp-5); text-wrap: balance;
+}
+.tw-cert-sub em { font-family: var(--font-lyric); font-style: italic; color: var(--ember-soft); }
+.tw-cert-p {
+  font-family: var(--font-body); font-size: 16.5px; line-height: 1.76;
+  color: rgba(244, 236, 223, 0.84); margin: 0 0 var(--sp-4);
+}
+.tw-cert-p:last-child { margin-bottom: 0; }
+.tw-cert-p strong { color: var(--paper); font-weight: 500; }
+.tw-cert-p em { font-family: var(--font-lyric); font-style: italic; color: var(--plum-soft); }
+
+/* What the path holds — card grid */
+.tw-cert-holds-h {
+  font-family: var(--font-mono); font-size: 11px; text-transform: uppercase;
+  letter-spacing: 0.22em; color: var(--ember-soft); text-align: center; margin: 0 0 var(--sp-6);
+}
+.tw-cert-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-4);
+  margin-bottom: var(--sp-9);
+}
+@media (max-width: 860px) { .tw-cert-grid { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 540px) { .tw-cert-grid { grid-template-columns: 1fr; } }
+.tw-cert-item {
+  background: rgba(244, 236, 223, 0.045);
+  border: 1px solid rgba(244, 236, 223, 0.12);
+  border-radius: var(--r-lg); padding: var(--sp-6);
+  transition: background var(--d-base) var(--ease), border-color var(--d-base) var(--ease), transform var(--d-base) var(--ease);
+}
+.tw-cert-item:hover {
+  background: rgba(244, 236, 223, 0.07);
+  border-color: rgba(244, 236, 223, 0.22);
+  transform: translateY(-2px);
+}
+.tw-cert-ic {
+  display: inline-flex; font-size: 28px; line-height: 1; color: var(--ember-soft);
+  margin-bottom: var(--sp-4);
+}
+.tw-cert-item-t {
+  font-family: var(--font-display); font-size: 19px; line-height: 1.2; font-weight: 500;
+  color: var(--paper); margin: 0 0 var(--sp-2); letter-spacing: -0.005em;
+}
+.tw-cert-item-d {
+  font-family: var(--font-body); font-size: 14.5px; line-height: 1.6;
+  color: rgba(244, 236, 223, 0.74); margin: 0;
+}
+
+/* The certificate doorway */
+.tw-cert-doorway {
+  max-width: 920px; margin: 0 auto var(--sp-8);
+  background: rgba(15, 8, 14, 0.28);
+  border: 1px solid rgba(244, 236, 223, 0.14);
+  border-radius: var(--r-lg);
+  padding: clamp(var(--sp-6), 4vw, var(--sp-8));
+}
+.tw-cert-doorway-head {
+  display: flex; align-items: center; gap: var(--sp-4); margin-bottom: var(--sp-6);
+}
+.tw-cert-seal { font-size: 32px; line-height: 1; color: var(--ember-soft); flex-shrink: 0; }
+.tw-cert-doorway-h {
+  font-family: var(--font-display); font-size: clamp(20px, 2.2vw, 26px);
+  line-height: 1.18; font-weight: 400; color: var(--paper);
+  letter-spacing: -0.008em; margin: 0; text-wrap: balance;
+}
+.tw-cert-reqs {
+  list-style: none; padding: 0; margin: 0 0 var(--sp-6);
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-5);
+}
+@media (max-width: 720px) { .tw-cert-reqs { grid-template-columns: 1fr; gap: var(--sp-4); } }
+.tw-cert-req { display: flex; flex-direction: column; gap: var(--sp-2); }
+@media (max-width: 720px) { .tw-cert-req { flex-direction: row; align-items: baseline; gap: var(--sp-3); } }
+.tw-cert-req-n {
+  font-family: var(--font-display); font-size: 26px; line-height: 1; font-weight: 400;
+  color: var(--ember-soft); font-variant-numeric: tabular-nums;
+}
+.tw-cert-req-t {
+  font-family: var(--font-body); font-size: 14.5px; line-height: 1.55;
+  color: rgba(244, 236, 223, 0.82);
+}
+.tw-cert-doorway-note {
+  margin: 0; padding-top: var(--sp-5); border-top: 1px solid rgba(244, 236, 223, 0.14);
+  font-family: var(--font-lyric); font-style: italic;
+  font-size: 17px; line-height: 1.55; color: rgba(244, 236, 223, 0.78); text-wrap: pretty;
+}
+
+/* CTA */
+.tw-cert-cta {
+  display: flex; flex-direction: column; align-items: center; gap: var(--sp-4);
+  text-align: center;
 }
 
 /* ---------- FAQ ---------- */
