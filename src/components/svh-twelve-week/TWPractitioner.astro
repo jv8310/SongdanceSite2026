@@ -1,22 +1,135 @@
 ---
 import { PRACTITIONER_URL } from './config';
+
+// What the certification path holds — drawn from the certification course page
+// (CCIncludes / CCStructure / CCApp). Kept short here; the full detail lives on
+// /courses/certification.
+const holds: { icon: string; title: string; body: string }[] = [
+  {
+    icon: 'ph-play-circle',
+    title: 'Live classes with Jacob',
+    body:
+      'A series of two-hour classes, each with a written manual. The ones already held are yours to watch the moment you join.',
+  },
+  {
+    icon: 'ph-chats-circle',
+    title: 'Weekly live Q&A',
+    body:
+      'Through the end of 2026, with Jacob — and occasionally hosted by Karen Evans.',
+  },
+  {
+    icon: 'ph-moon-stars',
+    title: 'Monthly deepening sessions',
+    body:
+      'A live community session each month, exploring the work at its widest edges with fellow practitioners.',
+  },
+  {
+    icon: 'ph-hand-heart',
+    title: 'Hosted practice sessions',
+    body:
+      'Pairing up to give and receive — the quiet heart of the course, where holding space for another actually grows.',
+  },
+  {
+    icon: 'ph-device-mobile',
+    title: 'The Somatic Vocal Healing app',
+    body:
+      'Record and tag your own sounds, train your ear, and keep the practice alive between the live sessions.',
+  },
+  {
+    icon: 'ph-users-three',
+    title: 'A growing global circle',
+    body:
+      'Practitioners across every time zone — plus lifetime access to the full replay library, yours to return to.',
+  },
+];
+
+// The certificate doorway — the three requirements, compact (full version on
+// the certification page). Copy-book: the certificate is a record of a path
+// walked, never permission or a promise.
+const reqs: { n: string; text: string }[] = [
+  { n: '01', text: 'Attend the live classes — or watch the replays. The whole arc matters.' },
+  { n: '02', text: 'Take part in the practice sessions. You certify by sounding, not by reading.' },
+  { n: '03', text: 'Record one real session and send it to Jacob, who gives you his feedback.' },
+];
+
+const ASK_URL =
+  'mailto:info@songdance.co?subject=A%20question%20about%20the%20SVH%20Certification%20Course';
 ---
 
-<section class="tw-prac tw-section">
-  <div class="tw-prac-inner">
-    <div class="tw-prac-text" data-reveal>
-      <p class="tw-prac-eyebrow">Take it further</p>
-      <h2 class="tw-prac-h">Want to go deeper, or hold this work for <em>others?</em></h2>
-      <p class="tw-prac-p">
-        After the twelve weeks, you can continue into the live, deepening Practitioner
-        Training — whether you’d like to be certified or simply want to master the
-        practice for yourself.
+<section class="tw-cert tw-section" id="certification">
+  <div class="tw-cert-inner">
+    <div class="tw-cert-head" data-reveal>
+      <p class="tw-eyebrow tw-eyebrow--center">After the twelve weeks</p>
+      <h2 class="tw-h2">Go deeper — or learn to hold this work for <em>others.</em></h2>
+      <p class="tw-cert-lead">
+        For some, twelve weeks is the whole of it. For others, it’s the doorway.
+        The <em>Certification Course</em> is the live, deepening path that takes you
+        further into Somatic Vocal Healing than anything else we offer.
       </p>
     </div>
-    <div data-reveal>
+
+    <div class="tw-cert-feature">
+      <figure class="tw-cert-media" data-reveal>
+        <img
+          src="/media/library/svh-retreat-circle-trees-sunset.webp"
+          alt="A circle of people sounding together among trees in the last gold of the evening."
+          loading="lazy"
+        />
+      </figure>
+      <div class="tw-cert-feature-text" data-reveal>
+        <h3 class="tw-cert-sub">More than a training. <em>A path.</em></h3>
+        <p class="tw-cert-p">
+          It has a dual purpose. First, it’s about <strong>you</strong> — travelling
+          further through the layers of a sound, meeting the line behind you, giving
+          back what was never yours to carry. Second, it’s about your capacity to
+          guide, facilitate, and <strong>hold space for others</strong>. Everything
+          you learn to do for someone else applies just as well to yourself.
+        </p>
+        <p class="tw-cert-p">
+          You don’t have to want to work professionally with this to belong here.
+          Many come simply to go further into their own practice. The certificate is
+          real — and so is the path of becoming a practitioner — but the heart of it
+          is the <em>journey itself.</em>
+        </p>
+      </div>
+    </div>
+
+    <p class="tw-cert-holds-h" data-reveal>What the path holds</p>
+    <div class="tw-cert-grid">
+      {holds.map((h) => (
+        <article class="tw-cert-item" data-reveal>
+          <i class={`tw-cert-ic ph-light ${h.icon}`} aria-hidden="true"></i>
+          <h4 class="tw-cert-item-t">{h.title}</h4>
+          <p class="tw-cert-item-d">{h.body}</p>
+        </article>
+      ))}
+    </div>
+
+    <div class="tw-cert-doorway" data-reveal>
+      <div class="tw-cert-doorway-head">
+        <i class="tw-cert-seal ph-light ph-seal-check" aria-hidden="true"></i>
+        <h3 class="tw-cert-doorway-h">The certificate is a doorway. Three steps to walk through.</h3>
+      </div>
+      <ol class="tw-cert-reqs">
+        {reqs.map((r) => (
+          <li class="tw-cert-req">
+            <span class="tw-cert-req-n">{r.n}</span>
+            <span class="tw-cert-req-t">{r.text}</span>
+          </li>
+        ))}
+      </ol>
+      <p class="tw-cert-doorway-note">
+        “I’m a self-taught, self-certified man. Who am I to say you need a
+        certificate?” The certificate isn’t permission. It’s a record that you
+        walked the path — and a door, for those who want one.
+      </p>
+    </div>
+
+    <div class="tw-cert-cta" data-reveal>
       <a href={PRACTITIONER_URL} class="tw-btn tw-btn--light tw-btn--lg">
-        About the Practitioner path <i class="ph-light ph-arrow-right"></i>
+        Explore the Certification Course <i class="ph-light ph-arrow-right"></i>
       </a>
+      <a href={ASK_URL} class="tw-ghost tw-ghost--ondark">Or write to us with a question</a>
     </div>
   </div>
 </section>
