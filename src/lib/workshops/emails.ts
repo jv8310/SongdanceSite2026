@@ -34,10 +34,11 @@ const IMG = {
 };
 
 // Lifecycle (marketing-flavoured) emails come from a person, not a brand.
-// Same verified sending domain as the transactional default; replies land
-// with support.
-export const MARKETING_FROM = 'Jacob from Songdance <info@mail.songdance.co>';
-export const MARKETING_REPLY_TO = 'support@songdance.co';
+// These are the DEFAULTS; the MARKETING_FROM / MARKETING_REPLY_TO env vars
+// override them (see env.d.ts) — set those to move marketing onto a dedicated
+// verified subdomain so its reputation is isolated from transactional mail.
+export const MARKETING_FROM_DEFAULT = 'Jacob from Songdance <info@mail.songdance.co>';
+export const MARKETING_REPLY_TO_DEFAULT = 'support@songdance.co';
 
 export type EmailContent = { subject: string; html: string; text: string };
 
@@ -140,6 +141,12 @@ function dot(html: string): string {
   return `<p style="margin:0 0 10px;"><span style="color:${PALETTE.ember};">&#9679;&nbsp;&nbsp;</span>${html}</p>`;
 }
 
+// A small uppercase ember section label (matches the confirmation email's
+// "What to expect" / "How to prepare" headers).
+function sectionLabel(text: string): string {
+  return `<p style="margin:20px 0 10px;font-size:14px;letter-spacing:0.08em;text-transform:uppercase;color:${PALETTE.ember};">${escapeHtml(text)}</p>`;
+}
+
 // ── Verification code ────────────────────────────────────────────────────
 export function verificationEmail(code: string): EmailContent {
   const html = shell({
@@ -204,40 +211,62 @@ const REMINDER_LEAD: Record<string, string> = {
   at_time: 'now',
 };
 
+// The early reminders each carry their own beat, so the seven-touch cadence
+// reads like a build rather than the same note struck repeatedly:
+//   7d → a spacious heads-up + reassurance for the hesitant
+//   2d → the practical prep list
+//   1d → the shape of the hour + the seed practice to try first
+// The imminent ones (6h onward) stay lean — just the door.
+function reminderWarmth(type: string): { html: string; text: string } {
+  if (type === 'reminder_7d') {
+    return {
+      html: `<p style="margin:14px 0 0;">A week from now, we sound together. There's nothing to do between now and then — let it sit in the calendar.</p>
+      <p style="margin:14px 0 0;">If the idea of using your voice where others can hear it sits oddly, that's normal, and expected. Nobody is put on the spot, cameras can stay off, and soft counts — soft often counts double.</p>
+      ${quoteLine("You don't need a good voice. You need an honest one.")}`,
+      text: `\nA week from now, we sound together. There's nothing to do between now and then — let it sit in the calendar.\n\nIf the idea of using your voice where others can hear it sits oddly, that's normal, and expected. Nobody is put on the spot, cameras can stay off, and soft counts — soft often counts double.\n`,
+    };
+  }
+  if (type === 'reminder_2d') {
+    return {
+      html: `<p style="margin:14px 0 0;">Two days out — a few practical notes, so the hour is easy when it comes:</p>
+      ${dot('A quiet-ish corner where a little sound is allowed — a bedroom, even a parked car.')}
+      ${dot('Headphones if you share walls; water within reach.')}
+      ${dot("Cameras can stay off, and you're muted unless you choose otherwise.")}
+      <p style="margin:10px 0 0;">That's the whole list. Nothing to prepare, nothing to read first.</p>`,
+      text: `\nTwo days out — a few practical notes, so the hour is easy when it comes:\n- A quiet-ish corner where a little sound is allowed — a bedroom, even a parked car.\n- Headphones if you share walls; water within reach.\n- Cameras can stay off, and you're muted unless you choose otherwise.\n\nThat's the whole list. Nothing to prepare, nothing to read first.\n`,
+    };
+  }
+  if (type === 'reminder_1d') {
+    return {
+      html: `<p style="margin:14px 0 0;">Tomorrow. Here's the shape of it: a few words to arrive, then the practice itself — one breath in, one tone out, together. No experience, no warm-up, no skill required.</p>
+      <p style="margin:14px 0 0;">If you're curious before we begin, try it once: the sound of how this moment actually is. That's the seed of everything we'll do.</p>
+      ${quoteLine('You cannot do it wrong. It always expresses something.')}`,
+      text: `\nTomorrow. Here's the shape of it: a few words to arrive, then the practice itself — one breath in, one tone out, together. No experience, no warm-up, no skill required.\n\nIf you're curious before we begin, try it once: the sound of how this moment actually is. That's the seed of everything we'll do.\n`,
+    };
+  }
+  return { html: '', text: '' };
+}
+
 export function reminderEmail(type: string, ctx: WorkshopEmailCtx): EmailContent {
   const lead = REMINDER_LEAD[type] ?? 'soon';
   const isImminent = type === 'reminder_15m' || type === 'at_time' || type === 'reminder_1h';
-  // The early reminders carry a little warmth and reassurance; the imminent
-  // ones stay lean — just the door.
-  const isWarm = type === 'reminder_7d' || type === 'reminder_2d' || type === 'reminder_1d';
-  const warmBlock = isWarm
-    ? `<p style="margin:14px 0 0;">Nothing to prepare — just yourself, a quiet-ish corner where a little sound is allowed, and headphones if you share walls. Cameras can stay off. You can't do it wrong.</p>
-      ${
-        type === 'reminder_1d'
-          ? `<p style="margin:14px 0 0;">If you're curious before we begin: one breath in, one tone out — the sound of this moment. That's the seed of everything we'll do together.</p>`
-          : ''
-      }
-      ${quoteLine("You don't need a good voice. You need an honest one.")}`
-    : '';
+  const warm = reminderWarmth(type);
   const html = shell({
     preheader: `${ctx.workshopTitle} starts ${lead}`,
     heading: type === 'at_time' ? "We're starting" : `Starting ${lead}`,
     bodyHtml: `<p style="margin:0 0 14px;">${greeting(ctx.name)}</p>
       <p style="margin:0 0 14px;"><strong>${escapeHtml(ctx.workshopTitle)}</strong> starts ${lead}.</p>
       <p style="margin:0 0 4px;font-size:18px;color:${PALETTE.ink};">${escapeHtml(ctx.whenLocal)}</p>
-      ${warmBlock}
+      ${warm.html}
       <p style="margin:14px 0 0;">${isImminent ? 'Open your page now — the Join button is ready.' : 'Open your countdown page below; the Join button appears 5 minutes before we begin.'}</p>`,
     cta: { label: isImminent ? 'Join now' : 'Open my countdown page', href: ctx.joinUrl },
   });
-  const warmText = isWarm
-    ? `\nNothing to prepare — just yourself, a quiet-ish corner where a little sound is allowed, and headphones if you share walls. Cameras can stay off. You can't do it wrong.\n`
-    : '';
   return {
     subject: type === 'at_time'
       ? `We're starting — ${ctx.workshopTitle}`
       : `Reminder: ${ctx.workshopTitle} starts ${lead}`,
     html,
-    text: `${greeting(ctx.name).replace(/<[^>]+>/g, '')}\n\n${ctx.workshopTitle} starts ${lead}.\nWhen: ${ctx.whenLocal}\n${warmText}\nYour join page: ${ctx.joinUrl}`,
+    text: `${greeting(ctx.name).replace(/<[^>]+>/g, '')}\n\n${ctx.workshopTitle} starts ${lead}.\nWhen: ${ctx.whenLocal}\n${warm.text}\nYour join page: ${ctx.joinUrl}`,
   };
 }
 
@@ -343,16 +372,21 @@ export function attendedEmail1(
       ${figureRow(
         IMG.soundingBlue,
         'A participant mid-tone, hand on chest',
-        `<p style="margin:0;">If you'd like to take this further, the 12-week course is where the practice becomes your own — twelve weeks, one layer at a time, in your own time, with live Q&amp;A.</p>`,
+        `<p style="margin:0;">If you'd like to take this further, the 12-week course is where the practice becomes your own — twelve weeks, one layer at a time, in your own time, with live Q&amp;A whenever you want company.</p>`,
       )}
-      <p style="margin:0;">As a participant you have <strong>20% off — for 48 hours only</strong>, until ${escapeHtml(ctx.discountEndsLocal)}. The button below already knows it's you: your discounted price is on the page, nothing to type.</p>`,
+      ${sectionLabel('What the twelve weeks hold')}
+      ${dot('<strong>18+ hours of guided practice</strong> across twelve modules — chaptered, self-paced, yours to return to for life.')}
+      ${dot('<strong>Weekly live Q&amp;A with Jacob</strong>, on a rotating schedule for every timezone, with replays.')}
+      ${dot('A path that moves one layer at a time — reading your own voice, working <em>with</em> the nervous system, the five core wounds, sounding toward essence, and carrying the practice on alone.')}
+      ${dot('A supportive student community — and, on joining, five of Jacob&rsquo;s original mantras.')}
+      <p style="margin:16px 0 0;">As a participant you have <strong>20% off — for 48 hours only</strong>, until ${escapeHtml(ctx.discountEndsLocal)}. The button below already knows it's you: your discounted price is on the page, nothing to type.</p>`,
     cta: { label: 'See my price — 20% off', href: ctx.courseUrl },
     unsubscribeUrl: ctx.unsubscribeUrl,
   });
   return {
     subject: 'Thank you for sounding with us',
     html,
-    text: `${textGreeting(ctx.name)}\n\nThank you for being part of ${ctx.workshopTitle}. Whatever sound you made today — it was the right one. You cannot do it wrong; it always expresses something.\n\nIn the day or two after a session the body sometimes keeps commenting — a yawn out of nowhere, tiredness, a feeling passing through. Nothing is wrong. Give it room, and when in doubt: one breath in, one tone out.\n\nIf you'd like to take this further, the 12-week course is where the practice becomes your own — twelve weeks, one layer at a time, in your own time, with live Q&A.\n\nAs a participant you have 20% off — for 48 hours only, until ${ctx.discountEndsLocal}. The link below already knows it's you: your discounted price is on the page, nothing to type.\n\n${ctx.courseUrl}\n\nWarmly,\nJacob${unsubText(ctx.unsubscribeUrl)}`,
+    text: `${textGreeting(ctx.name)}\n\nThank you for being part of ${ctx.workshopTitle}. Whatever sound you made today — it was the right one. You cannot do it wrong; it always expresses something.\n\nIn the day or two after a session the body sometimes keeps commenting — a yawn out of nowhere, tiredness, a feeling passing through. Nothing is wrong. Give it room, and when in doubt: one breath in, one tone out.\n\nIf you'd like to take this further, the 12-week course is where the practice becomes your own — twelve weeks, one layer at a time, in your own time, with live Q&A whenever you want company.\n\nWhat the twelve weeks hold:\n- 18+ hours of guided practice across twelve modules — chaptered, self-paced, yours to return to for life.\n- Weekly live Q&A with Jacob, on a rotating schedule for every timezone, with replays.\n- A path that moves one layer at a time — reading your own voice, working with the nervous system, the five core wounds, sounding toward essence, and carrying the practice on alone.\n- A supportive student community — and, on joining, five of Jacob's original mantras.\n\nAs a participant you have 20% off — for 48 hours only, until ${ctx.discountEndsLocal}. The link below already knows it's you: your discounted price is on the page, nothing to type.\n\n${ctx.courseUrl}\n\nWarmly,\nJacob${unsubText(ctx.unsubscribeUrl)}`,
   };
 }
 
@@ -366,7 +400,10 @@ export function attendedEmail2(
     bodyHtml: `<p style="margin:0 0 14px;">${greeting(ctx.name)}</p>
       <p style="margin:0 0 14px;">In the workshop you made the sound of the moment — one breath in, one tone out. That's the front door of this practice.</p>
       <p style="margin:0 0 14px;">Behind it sits a method. After the first tone you ask: <em>what is below that?</em> — and you make the sound of that. You only ever need to go one level deeper. Learning to do that kindly, at your own tempo, is what the twelve weeks are for.</p>
-      <p style="margin:0 0 14px;">It's not an eternal excavation — it's a tool you keep. Twelve weeks, one layer at a time, in your own time, with live Q&amp;A along the way. Don't expect miracles; expect a real relationship with your own voice.</p>
+      ${sectionLabel('Where the twelve weeks take you')}
+      <p style="margin:0 0 14px;">It moves gently, one module at a time — from what sounding actually is (and how it differs from singing, toning, chanting), through hearing the feeling and the pattern inside your own voice and using sound to settle the nervous system, into the five core wounds met safely, sounding toward your own essence, and finally carrying the practice forward on your own.</p>
+      <p style="margin:0 0 14px;">The shape is built to fit a life: <strong>18+ hours of video you take at your own pace</strong>, a <strong>weekly live hour with Jacob</strong> for questions (rotating timezones, with replays), a student community to practise with, and <strong>lifetime access</strong> to all of it.</p>
+      <p style="margin:0 0 14px;">It's not an eternal excavation — it's a tool you keep. Don't expect miracles; expect a real relationship with your own voice.</p>
       ${quoteLine('Below every wound, another door.')}
       <p style="margin:0;">A practical note: your 20% ends <strong>tomorrow — ${escapeHtml(ctx.discountEndsLocal)}</strong>. The button below opens the page with your price already showing. After that, full price.</p>`,
     cta: { label: 'See my price — 20% off', href: ctx.courseUrl },
@@ -375,7 +412,7 @@ export function attendedEmail2(
   return {
     subject: 'What is below that?',
     html,
-    text: `${textGreeting(ctx.name)}\n\nIn the workshop you made the sound of the moment — one breath in, one tone out. That's the front door of this practice.\n\nBehind it sits a method. After the first tone you ask: what is below that? — and you make the sound of that. You only ever need to go one level deeper. Learning to do that kindly, at your own tempo, is what the twelve weeks are for.\n\nIt's not an eternal excavation — it's a tool you keep. Twelve weeks, one layer at a time, in your own time, with live Q&A along the way. Don't expect miracles; expect a real relationship with your own voice.\n\nA practical note: your 20% ends tomorrow — ${ctx.discountEndsLocal}. The link below opens the page with your price already showing. After that, full price.\n\n${ctx.courseUrl}\n\n— Jacob${unsubText(ctx.unsubscribeUrl)}`,
+    text: `${textGreeting(ctx.name)}\n\nIn the workshop you made the sound of the moment — one breath in, one tone out. That's the front door of this practice.\n\nBehind it sits a method. After the first tone you ask: what is below that? — and you make the sound of that. You only ever need to go one level deeper. Learning to do that kindly, at your own tempo, is what the twelve weeks are for.\n\nWhere the twelve weeks take you: it moves gently, one module at a time — from what sounding actually is (and how it differs from singing, toning, chanting), through hearing the feeling and the pattern inside your own voice and using sound to settle the nervous system, into the five core wounds met safely, sounding toward your own essence, and finally carrying the practice forward on your own.\n\nThe shape is built to fit a life: 18+ hours of video you take at your own pace, a weekly live hour with Jacob for questions (rotating timezones, with replays), a student community to practise with, and lifetime access to all of it.\n\nIt's not an eternal excavation — it's a tool you keep. Don't expect miracles; expect a real relationship with your own voice.\n\nA practical note: your 20% ends tomorrow — ${ctx.discountEndsLocal}. The link below opens the page with your price already showing. After that, full price.\n\n${ctx.courseUrl}\n\n— Jacob${unsubText(ctx.unsubscribeUrl)}`,
   };
 }
 
@@ -388,6 +425,7 @@ export function attendedEmail3(
     heading: 'Last chance on your 20%',
     bodyHtml: `<p style="margin:0 0 14px;">${greeting(ctx.name)}</p>
       <p style="margin:0 0 14px;">This is the last call I'll send about it: your participant discount on the 12-week course ends <strong>${escapeHtml(ctx.discountEndsLocal)}</strong> — a few hours from now. After that, full price.</p>
+      <p style="margin:0 0 14px;">What you'd be stepping into: eighteen-plus hours of guided practice across twelve modules, a weekly live hour with Jacob, a student community, and lifetime access.</p>
       <p style="margin:0 0 14px;">The facts, once more: 20% off, already applied for you — the button below opens the page with your price showing. If spreading it out helps, there's a three-part monthly plan; the discount counts there too.</p>
       <p style="margin:0 0 14px;">If the answer is "not now", that's an honest answer and nothing is lost. But if you've been meaning to — this is the moment it costs the least.</p>
       <p style="margin:0;">Unsure whether it's for you? Reply with your question before the window shuts; a person answers plainly. If it's not for you, we'll say so.</p>`,
@@ -397,7 +435,7 @@ export function attendedEmail3(
   return {
     subject: 'Last chance — your 20% ends in a few hours',
     html,
-    text: `${textGreeting(ctx.name)}\n\nThis is the last call I'll send about it: your participant discount on the 12-week course ends ${ctx.discountEndsLocal} — a few hours from now. After that, full price.\n\nThe facts, once more: 20% off, already applied for you — the link below opens the page with your price showing. If spreading it out helps, there's a three-part monthly plan; the discount counts there too.\n\nIf the answer is "not now", that's an honest answer and nothing is lost. But if you've been meaning to — this is the moment it costs the least.\n\nUnsure whether it's for you? Reply with your question before the window shuts; a person answers plainly. If it's not for you, we'll say so.\n\n${ctx.courseUrl}\n\n— Jacob${unsubText(ctx.unsubscribeUrl)}`,
+    text: `${textGreeting(ctx.name)}\n\nThis is the last call I'll send about it: your participant discount on the 12-week course ends ${ctx.discountEndsLocal} — a few hours from now. After that, full price.\n\nWhat you'd be stepping into: eighteen-plus hours of guided practice across twelve modules, a weekly live hour with Jacob, a student community, and lifetime access.\n\nThe facts, once more: 20% off, already applied for you — the link below opens the page with your price showing. If spreading it out helps, there's a three-part monthly plan; the discount counts there too.\n\nIf the answer is "not now", that's an honest answer and nothing is lost. But if you've been meaning to — this is the moment it costs the least.\n\nUnsure whether it's for you? Reply with your question before the window shuts; a person answers plainly. If it's not for you, we'll say so.\n\n${ctx.courseUrl}\n\n— Jacob${unsubText(ctx.unsubscribeUrl)}`,
   };
 }
 
@@ -415,7 +453,13 @@ export function attendedProEmail1(
         'Jacob sounding — hand on chest, eyes closed',
         `<p style="margin:0;">Because you work with people yourself, there's a path here that may matter more to you than the rest: the <strong>SVH Certification</strong> — learning to hold this space for others.</p>`,
       )}
-      <p style="margin:0 0 14px;">Not healer, not fixer: space holder. Someone who keeps the room steady while another person does the one thing only they can do. If that sounds like your work, have a look:</p>`,
+      <p style="margin:0 0 14px;">Not healer, not fixer: space holder. Someone who keeps the room steady while another person does the one thing only they can do.</p>
+      ${sectionLabel('What the path involves')}
+      ${dot('Live classes, each with a written manual — and instant access to the ones already held, the moment you join.')}
+      ${dot('Weekly live Q&amp;A and monthly deepening sessions, so the learning stays live, not just recorded.')}
+      ${dot('Hosted practice sessions with peers — giving and receiving is the quiet heart of it, and where facilitation actually grows.')}
+      ${dot('The Somatic Vocal Healing app, a full replay library, a global community, and lifetime access.')}
+      <p style="margin:16px 0 0;">If that sounds like your work, have a look:</p>`,
     cta: { label: 'Explore the certification path', href: ctx.certUrl },
     extras: [{ label: 'Your 12-week price (20% off, 48 hours)', href: ctx.courseUrl }],
     unsubscribeUrl: ctx.unsubscribeUrl,
@@ -423,7 +467,7 @@ export function attendedProEmail1(
   return {
     subject: 'Thank you — and a word for practitioners',
     html,
-    text: `${textGreeting(ctx.name)}\n\nThank you for being part of ${ctx.workshopTitle}.\n\nBecause you work with people yourself, there's a path here that may matter more to you than the rest: the SVH Certification — learning to hold this space for others.\n\nNot healer, not fixer: space holder. Someone who keeps the room steady while another person does the one thing only they can do.\n\n${ctx.certUrl}\n\nPS — your 20% on the 12-week course is also live for the next 48 hours; this link shows your price directly: ${ctx.courseUrl}\n\nWarmly,\nJacob${unsubText(ctx.unsubscribeUrl)}`,
+    text: `${textGreeting(ctx.name)}\n\nThank you for being part of ${ctx.workshopTitle}.\n\nBecause you work with people yourself, there's a path here that may matter more to you than the rest: the SVH Certification — learning to hold this space for others.\n\nNot healer, not fixer: space holder. Someone who keeps the room steady while another person does the one thing only they can do.\n\nWhat the path involves:\n- Live classes, each with a written manual — and instant access to the ones already held, the moment you join.\n- Weekly live Q&A and monthly deepening sessions, so the learning stays live, not just recorded.\n- Hosted practice sessions with peers — giving and receiving is the quiet heart of it, and where facilitation actually grows.\n- The Somatic Vocal Healing app, a full replay library, a global community, and lifetime access.\n\n${ctx.certUrl}\n\nPS — your 20% on the 12-week course is also live for the next 48 hours; this link shows your price directly: ${ctx.courseUrl}\n\nWarmly,\nJacob${unsubText(ctx.unsubscribeUrl)}`,
   };
 }
 
@@ -434,7 +478,13 @@ export function attendedProEmail2(ctx: LifecycleCtx & { certUrl: string }): Emai
     bodyHtml: `<p style="margin:0 0 14px;">${greeting(ctx.name)}</p>
       <p style="margin:0 0 14px;">The facilitator's work in this practice is quiet: keep the room steady, ask the next honest question, hear what the other person can't hear yet — and then get out of the way.</p>
       <p style="margin:0 0 14px;">When someone discovers a connection, you leave that gift to them. You're never the smart one who points it out. The healing is theirs; the space is yours.</p>
-      <p style="margin:0 0 14px;">The certification path teaches that craft — the method, the listening, the safety architecture — so you can bring sounding into the work you already do.</p>
+      ${sectionLabel('What you learn to do')}
+      ${dot('Travel through the layers of a sound, and guide a whole session from the first tone to integration.')}
+      ${dot('Meet the core emotions in the voice — anger, fear, pain, grief — and stay with what is truly being expressed.')}
+      ${dot('Weave in systemic work: mother, father, the line behind a person; giving back what was never theirs to carry.')}
+      ${dot('The therapeutic craft — pacing, regulation, co-regulation, the volume button; knowing when to hold, when to wait, when to let silence do the work.')}
+      ${dot("Your own inner work — projection, transference, what stirs in you when another person's material touches your own.")}
+      <p style="margin:16px 0 14px;">And a great deal of practice: hosted sessions with peers, and a final supervised class where you lead in front of the group and get direct feedback. The method, the listening, the safety architecture — so you can bring sounding into the work you already do.</p>
       <p style="margin:0;">If you have questions about whether it fits your practice, reply to this email and ask. A person answers.</p>`,
     cta: { label: 'Explore the certification path', href: ctx.certUrl },
     unsubscribeUrl: ctx.unsubscribeUrl,
@@ -442,7 +492,7 @@ export function attendedProEmail2(ctx: LifecycleCtx & { certUrl: string }): Emai
   return {
     subject: 'Holding space is a craft',
     html,
-    text: `${textGreeting(ctx.name)}\n\nThe facilitator's work in this practice is quiet: keep the room steady, ask the next honest question, hear what the other person can't hear yet — and then get out of the way.\n\nWhen someone discovers a connection, you leave that gift to them. You're never the smart one who points it out. The healing is theirs; the space is yours.\n\nThe certification path teaches that craft — the method, the listening, the safety architecture — so you can bring sounding into the work you already do.\n\nIf you have questions about whether it fits your practice, reply to this email and ask. A person answers.\n\n${ctx.certUrl}\n\n— Jacob${unsubText(ctx.unsubscribeUrl)}`,
+    text: `${textGreeting(ctx.name)}\n\nThe facilitator's work in this practice is quiet: keep the room steady, ask the next honest question, hear what the other person can't hear yet — and then get out of the way.\n\nWhen someone discovers a connection, you leave that gift to them. You're never the smart one who points it out. The healing is theirs; the space is yours.\n\nWhat you learn to do:\n- Travel through the layers of a sound, and guide a whole session from the first tone to integration.\n- Meet the core emotions in the voice — anger, fear, pain, grief — and stay with what is truly being expressed.\n- Weave in systemic work: mother, father, the line behind a person; giving back what was never theirs to carry.\n- The therapeutic craft — pacing, regulation, co-regulation, the volume button; knowing when to hold, when to wait, when to let silence do the work.\n- Your own inner work — projection, transference, what stirs in you when another person's material touches your own.\n\nAnd a great deal of practice: hosted sessions with peers, and a final supervised class where you lead in front of the group and get direct feedback. The method, the listening, the safety architecture — so you can bring sounding into the work you already do.\n\nIf you have questions about whether it fits your practice, reply to this email and ask. A person answers.\n\n${ctx.certUrl}\n\n— Jacob${unsubText(ctx.unsubscribeUrl)}`,
   };
 }
 
@@ -453,6 +503,7 @@ export function attendedProEmail3(ctx: LifecycleCtx & { certUrl: string }): Emai
     bodyHtml: `<p style="margin:0 0 14px;">${greeting(ctx.name)}</p>
       <p style="margin:0 0 14px;">A last note on this — then we'll leave it with you.</p>
       <p style="margin:0 0 14px;">If you've been circling the certification course, the page below has the structure, the classes, and the honest small print. There's no deadline attached and no spots-left theatre. Trees don't hurry, and neither does this.</p>
+      <p style="margin:0 0 14px;">Two honest things before we go: it isn't a full therapist training — if you'll work with clients, you bring your own ground for holding emotional process. And there's no obligation to practise professionally at all; many walk it simply to go fully in with their own voice. You can come out a certified practitioner, or just changed. Both are welcome.</p>
       <p style="margin:0;">If it helps to talk it through first, reply here and say where you're standing. We'll answer plainly — including "not yet", if that's the truth.</p>`,
     cta: { label: 'See the certification course', href: ctx.certUrl },
     unsubscribeUrl: ctx.unsubscribeUrl,
@@ -460,7 +511,7 @@ export function attendedProEmail3(ctx: LifecycleCtx & { certUrl: string }): Emai
   return {
     subject: 'If the certification path is calling',
     html,
-    text: `${textGreeting(ctx.name)}\n\nA last note on this — then we'll leave it with you.\n\nIf you've been circling the certification course, the page below has the structure, the classes, and the honest small print. There's no deadline attached and no spots-left theatre. Trees don't hurry, and neither does this.\n\nIf it helps to talk it through first, reply here and say where you're standing. We'll answer plainly — including "not yet", if that's the truth.\n\n${ctx.certUrl}\n\nWarmly,\nJacob${unsubText(ctx.unsubscribeUrl)}`,
+    text: `${textGreeting(ctx.name)}\n\nA last note on this — then we'll leave it with you.\n\nIf you've been circling the certification course, the page below has the structure, the classes, and the honest small print. There's no deadline attached and no spots-left theatre. Trees don't hurry, and neither does this.\n\nTwo honest things before we go: it isn't a full therapist training — if you'll work with clients, you bring your own ground for holding emotional process. And there's no obligation to practise professionally at all; many walk it simply to go fully in with their own voice. You can come out a certified practitioner, or just changed. Both are welcome.\n\nIf it helps to talk it through first, reply here and say where you're standing. We'll answer plainly — including "not yet", if that's the truth.\n\n${ctx.certUrl}\n\nWarmly,\nJacob${unsubText(ctx.unsubscribeUrl)}`,
   };
 }
 

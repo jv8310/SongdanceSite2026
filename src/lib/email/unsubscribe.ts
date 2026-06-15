@@ -15,6 +15,12 @@
 // post-workshop promotion, downsell). Transactional email — verification,
 // confirmations, session reminders — keeps flowing.
 
+import {
+  resubscribe,
+  unsubscribeFromAll,
+  type DripConfig,
+} from '../registrations/drip';
+
 export function unsubscribeSecret(env: {
   UNSUBSCRIBE_SECRET?: string;
   ADMIN_SESSION_SECRET?: string;
@@ -64,6 +70,55 @@ export async function suppressEmail(db: D1Database, email: string, source: strin
     )
     .bind(email.trim().toLowerCase(), source)
     .run();
+}
+
+// Lift a suppression — the address can receive marketing again.
+export async function unsuppressEmail(db: D1Database, email: string): Promise<void> {
+  await db
+    .prepare('DELETE FROM email_suppressions WHERE email = ?')
+    .bind(email.trim().toLowerCase())
+    .run();
+}
+
+// ── Drip-synced (un)subscribe ─────────────────────────────────────────────
+// The suppression table is the authoritative gate for our own marketing sends;
+// these helpers additionally mirror the change into Drip so the two stay in
+// step. The Drip call is best-effort: a failure never blocks the local change
+// (an unsubscribe must always take effect locally, even if Drip is down).
+
+type DripEnv = { DB: D1Database; DRIP_API_TOKEN?: string; DRIP_ACCOUNT_ID?: string };
+
+function dripConfig(env: DripEnv): DripConfig | null {
+  return env.DRIP_API_TOKEN && env.DRIP_ACCOUNT_ID
+    ? { apiToken: env.DRIP_API_TOKEN, accountId: env.DRIP_ACCOUNT_ID }
+    : null;
+}
+
+// Suppress locally (authoritative) + globally unsubscribe in Drip (best-effort).
+export async function unsubscribeEmail(env: DripEnv, email: string, source: string): Promise<void> {
+  await suppressEmail(env.DB, email, source);
+  const cfg = dripConfig(env);
+  if (cfg) {
+    try {
+      await unsubscribeFromAll(cfg, email);
+    } catch {
+      // Best-effort: local suppression already stops our sends.
+    }
+  }
+}
+
+// Lift the local suppression + resubscribe in Drip (best-effort). For a
+// deliberate, consented opt-in only (admin "resubscribe" action).
+export async function resubscribeEmail(env: DripEnv, email: string): Promise<void> {
+  await unsuppressEmail(env.DB, email);
+  const cfg = dripConfig(env);
+  if (cfg) {
+    try {
+      await resubscribe(cfg, email);
+    } catch {
+      // Best-effort: the address is already un-suppressed locally.
+    }
+  }
 }
 
 // ── Crypto helpers ────────────────────────────────────────────────────────

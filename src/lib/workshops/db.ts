@@ -785,14 +785,36 @@ export async function notificationExists(db: D1Database, registrationId: number,
 
 // Atomically claim a notification slot. Returns true if THIS call inserted the
 // row (so the caller should send), false if it already existed.
-export async function claimNotification(db: D1Database, registrationId: number, type: string): Promise<boolean> {
-  const r = await db
-    .prepare(
-      `INSERT OR IGNORE INTO workshop_sent_notifications (registration_id, type) VALUES (?, ?)`,
-    )
-    .bind(registrationId, type)
-    .run();
-  return (r.meta?.changes ?? 0) > 0;
+//
+// `emailed` records whether this claim is for an email we actually send
+// (the default) or merely a slot reserved to suppress a later duplicate —
+// e.g. the looser reminder buckets a late registrant crosses at once. The
+// admin People view only counts emailed=1 rows as mail the person received.
+// Falls back to the legacy column-less insert when migration 0041 (the
+// `emailed` column) hasn't been applied yet — the column defaults to 1.
+export async function claimNotification(
+  db: D1Database,
+  registrationId: number,
+  type: string,
+  emailed = true,
+): Promise<boolean> {
+  try {
+    const r = await db
+      .prepare(
+        `INSERT OR IGNORE INTO workshop_sent_notifications (registration_id, type, emailed) VALUES (?, ?, ?)`,
+      )
+      .bind(registrationId, type, emailed ? 1 : 0)
+      .run();
+    return (r.meta?.changes ?? 0) > 0;
+  } catch {
+    const r = await db
+      .prepare(
+        `INSERT OR IGNORE INTO workshop_sent_notifications (registration_id, type) VALUES (?, ?)`,
+      )
+      .bind(registrationId, type)
+      .run();
+    return (r.meta?.changes ?? 0) > 0;
+  }
 }
 
 // ── Config / Zoom ─────────────────────────────────────────────────────────

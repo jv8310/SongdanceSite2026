@@ -5,7 +5,7 @@
 
 import type { APIRoute } from 'astro';
 import {
-  suppressEmail,
+  unsubscribeEmail,
   unsubscribeSecret,
   verifyUnsubscribeToken,
 } from '../../lib/email/unsubscribe';
@@ -33,7 +33,7 @@ export const POST: APIRoute = async ({ request, url, locals }) => {
   if (!secret || !(await verifyUnsubscribeToken(secret, email, token))) {
     return new Response('Invalid unsubscribe link.', { status: 400 });
   }
-  await suppressEmail(env.DB, email, 'one_click');
+  await unsubscribeEmail(env, email, 'one_click');
   return new Response('You are unsubscribed.', { status: 200 });
 };
 
