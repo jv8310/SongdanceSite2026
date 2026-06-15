@@ -489,7 +489,15 @@ const includes = [
           (q('[data-slot="path-tw"]') as HTMLElement).innerHTML = twAmt;
           (q('[data-slot="path-cert"]') as HTMLElement).innerHTML = strike(p.cert_base_price_cents, p.cert_price_cents);
           (q('[data-slot="path-total"]') as HTMLElement).innerHTML = strike(p.base_total_cents, p.total_cents);
+        } else if (hasPath) {
+          // 12-week selected, but the picker is shown: the card already states
+          // the price, so the big standalone price block is redundant — drop it.
+          // (The plan picker below still shows full vs. 3× and any countdown.)
+          pricebox.hidden = true;
+          pathbox.hidden = true;
+          activate.hidden = true;
         } else {
+          // No picker (non-pro): the price box is the only price display.
           pricebox.hidden = false;
           pathbox.hidden = true;
           activate.hidden = true;
