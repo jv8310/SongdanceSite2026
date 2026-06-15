@@ -890,6 +890,15 @@ const flash = (() => {
                   </form>
                 )}
 
+                {r.status === 'paid' && (
+                  <form method="POST" action="/api/admin/resend-drip" class="adm-reg-resend"
+                        onsubmit={`return confirm('Resend registration #${r.id} (${r.email}) to Drip? Re-fires the paid registration event — Drip dedupes, so it is safe.')`}>
+                    <input type="hidden" name="registration_id" value={r.id} />
+                    <input type="hidden" name="return_to" value={returnTo} />
+                    <button type="submit" class="adm-btn adm-btn--ghost">Resend to Drip</button>
+                  </form>
+                )}
+
                 <form method="POST" action="/api/admin/delete-registration" class="adm-reg-delete"
                       onsubmit={`return confirm('Permanently delete registration #${r.id} (${r.name}, ${r.email})? This cannot be undone.')`}>
                   <input type="hidden" name="registration_id" value={r.id} />
