@@ -687,6 +687,10 @@ html, body { background: var(--paper); }
   background: rgba(201,96,58,0.10);
   box-shadow: 0 0 0 1px var(--ember) inset, 0 8px 24px rgba(0,0,0,0.22);
 }
+.cc-offer:focus,
+.cc-plan-option:focus { outline: none; }
+.cc-offer:focus-visible,
+.cc-plan-option:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
 .cc-offer-radio {
   width: 18px; height: 18px;
   border-radius: 50%;

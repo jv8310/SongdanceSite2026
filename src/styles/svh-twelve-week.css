@@ -812,6 +812,8 @@ html, body { background: var(--paper); }
 }
 .tw-reg-plan:hover { border-color: rgba(244, 236, 223, 0.4); background: rgba(244, 236, 223, 0.07); }
 .tw-reg-plan--selected { border-color: var(--ember); background: rgba(201, 96, 58, 0.1); box-shadow: 0 0 0 1px var(--ember) inset; }
+.tw-reg-plan:focus { outline: none; }
+.tw-reg-plan:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
 .tw-reg-plan-radio {
   width: 16px; height: 16px; border-radius: 50%;
   border: 1px solid rgba(244, 236, 223, 0.45); position: relative;
