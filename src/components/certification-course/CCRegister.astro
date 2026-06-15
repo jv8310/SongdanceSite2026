@@ -286,37 +286,10 @@ const countries = COUNTRIES;
     discountCountdownTimer = undefined;
   }
 
-  // TEMP — PREVIEW ONLY. `?preview-workshop[=hours]` fakes a live post-workshop
-  // window so the bundle's 20%-off-12-week discount + countdown can be eyeballed
-  // without a real workshop in the DB (default 2h). Remove this + its use in
-  // applyPreviewWorkshop before merging to production.
-  const PREVIEW_WORKSHOP_HOURS: number | null = (() => {
-    try {
-      const p = new URLSearchParams(window.location.search);
-      if (!p.has('preview-workshop')) return null;
-      const raw = p.get('preview-workshop');
-      const h = raw ? parseFloat(raw) : NaN;
-      return Number.isFinite(h) && h > 0 ? h : 2;
-    } catch { return null; }
-  })();
-  // The workshop discount on the bundle is 20% off the 12-week portion. This
-  // mirrors the server's BUNDLE_WORKSHOP_DISCOUNT_PERCENT without importing
+  // The workshop discount on the bundle is 20% off the 12-week portion,
+  // mirroring the server's BUNDLE_WORKSHOP_DISCOUNT_PERCENT without importing
   // server code into the client bundle.
   const WORKSHOP_PCT = 20;
-  // 20% of the 12-week standalone price, mirroring bundleWorkshopDiscountCents.
-  const PREVIEW_WORKSHOP_OFF_CENTS: Record<Currency, number> = {
-    EUR: 13000, USD: 13000, GBP: 11000,
-  };
-  function applyPreviewWorkshop(decision: Decision): Decision {
-    if (PREVIEW_WORKSHOP_HOURS == null) return decision;
-    decision.workshop_discount = {
-      eligible: true,
-      kind: 'post',
-      expires_at_ms: Date.now() + PREVIEW_WORKSHOP_HOURS * 3600 * 1000,
-      off_cents: PREVIEW_WORKSHOP_OFF_CENTS[decision.currency ?? 'EUR'] ?? 13000,
-    };
-    return decision;
-  }
 
   // The 12-month installment ladder is hidden unless the visitor arrives with
   // `?installment=12`. It's a quieter, longer-financing option offered by
@@ -544,7 +517,6 @@ const countries = COUNTRIES;
 
   function renderVariant(email: string, decision: Decision) {
     stopDiscountCountdown();
-    applyPreviewWorkshop(decision); // TEMP — no-op unless ?preview-workshop
     const fragment = template.content.cloneNode(true) as DocumentFragment;
     const root = fragment.querySelector('.cc-variant') as HTMLElement;
     // Note: `decision` is mutated when the buyer changes country, so we
@@ -713,7 +685,6 @@ const countries = COUNTRIES;
         if (decision.workshop_discount?.eligible !== false) {
           decision.workshop_discount = next.workshop_discount;
         }
-        applyPreviewWorkshop(decision); // TEMP — no-op unless ?preview-workshop
         try {
           localStorage.setItem(
             STORAGE_KEY,

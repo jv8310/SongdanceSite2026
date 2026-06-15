@@ -196,34 +196,6 @@ const includes = [
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
-  // TEMP — PREVIEW ONLY. `?preview-discount[=hours]` fakes a live post-workshop
-  // discount window so the countdown can be eyeballed without a real workshop
-  // in the DB (default 2h). Remove this block + its use in fetchStatus before
-  // merging to production.
-  const PREVIEW_DISCOUNT_HOURS: number | null = (() => {
-    try {
-      const p = new URLSearchParams(location.search);
-      if (!p.has('preview-discount')) return null;
-      const raw = p.get('preview-discount');
-      const h = raw ? parseFloat(raw) : NaN;
-      return Number.isFinite(h) && h > 0 ? h : 2;
-    } catch { return null; }
-  })();
-  function applyPreviewDiscount(status: Status): Status {
-    if (PREVIEW_DISCOUNT_HOURS == null || !('currency' in status)) return status;
-    const pct = 20;
-    const disc = (c: number) => Math.round((c * (100 - pct)) / 100);
-    status.discount = {
-      eligible: true,
-      kind: 'post',
-      percent: pct,
-      expires_at_ms: Date.now() + PREVIEW_DISCOUNT_HOURS * 3600 * 1000,
-      price_cents: disc(status.price_cents),
-      monthly_cents: disc(status.installment_monthly_cents),
-    };
-    return status;
-  }
-
   const stage = document.querySelector<HTMLElement>('[data-tw-stage]');
   const template = document.querySelector<HTMLTemplateElement>('[data-tw-template]');
   if (stage && template) {
@@ -286,7 +258,7 @@ const includes = [
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, country }),
       });
-      try { return applyPreviewDiscount((await res.json()) as Status); } catch { return { error: 'Bad response' }; }
+      try { return (await res.json()) as Status; } catch { return { error: 'Bad response' }; }
     }
 
     emailForm.addEventListener('submit', async (e) => {
