@@ -5,6 +5,7 @@ import {
   getRegistrationByAccessToken,
   getWorkshopById,
   listUpcomingPublishedWorkshops,
+  workshopIsMasterclass,
 } from '../../lib/workshops/db';
 import { googleCalendarUrl } from '../../lib/workshops/ics';
 import {
@@ -38,6 +39,8 @@ const gcalUrl = workshop && !workshop.is_replay
   : null;
 const icsHref = reg ? `/api/workshops/ics?t=${reg.access_token}` : null;
 const startMs = workshop ? new Date(workshop.starts_at_utc).getTime() : 0;
+// The countdown counts down to the start, then disappears once we've begun.
+const started = startMs > 0 && Date.now() >= startMs;
 
 // Live join window state (drives which block shows first; JS keeps it live).
 const win = workshop && !workshop.is_replay ? joinWindow(workshop.starts_at_utc) : 'open';
@@ -56,11 +59,16 @@ const shareText = workshop
   ? `I just signed up for ${workshop.title} with Songdance — here's ${PUBLIC_DISCOUNT_PCT}% off your ticket if you'd like to join me:`
   : '';
 
-// Other upcoming live dates they can move onto, free of charge.
+// Other upcoming live dates they can move onto, free of charge. Masterclasses
+// (the higher-priced, pro-facing dates) only appear to someone who actually
+// booked a masterclass — a regular-workshop registrant is never offered a free
+// masterclass seat.
+const currentIsMasterclass = workshop ? await workshopIsMasterclass(env.DB, workshop) : false;
 const upcoming = reg
   ? (await listUpcomingPublishedWorkshops(env.DB, new Date().toISOString()))
       .filter((w) => w.is_replay !== 1 && w.id !== reg.workshop_id)
-      .map((w) => ({ slug: w.slug, whenLocal: formatInTz(w.starts_at_utc, tz), kind: w.product_slug?.includes('masterclass') ? 'Masterclass' : 'Workshop' }))
+      .filter((w) => currentIsMasterclass || !(w.product_slug ?? '').includes('masterclass'))
+      .map((w) => ({ slug: w.slug, whenLocal: formatInTz(w.starts_at_utc, tz), kind: (w.product_slug ?? '').includes('masterclass') ? 'Masterclass' : 'Workshop' }))
   : [];
 ---
 
@@ -98,7 +106,7 @@ const upcoming = reg
           </div>
         ) : (
           <>
-            <div id="ws-countdown" class="ws-countdown" hidden={win === 'closed'}>
+            <div id="ws-countdown" class="ws-countdown" hidden={win === 'closed' || started}>
               <div class="ws-clock"><span id="cd-d">–</span><small>days</small></div>
               <div class="ws-clock"><span id="cd-h">–</span><small>hrs</small></div>
               <div class="ws-clock"><span id="cd-m">–</span><small>min</small></div>
@@ -128,7 +136,7 @@ const upcoming = reg
             </div>
 
             <div class="ws-missed" id="ws-missed" hidden={win !== 'closed'}>
-              <p class="ws-missed-h">This session has finished</p>
+              <p class="ws-missed-h">This session has passed</p>
               <p class="ws-missed-sub">Don't worry — pick one of the options below.</p>
 
               {hasReplay && (
@@ -270,8 +278,11 @@ const upcoming = reg
 
       function tick() {
         var now = Date.now();
+        // Open from 5 min before the start until 20 min after it; past that the
+        // session has passed.
         var state = now < start - openBefore ? 'early' : (now > start + closeAfter ? 'closed' : 'open');
-        show(countdown, state !== 'closed');
+        // Countdown counts down to the start, then disappears once we begin.
+        show(countdown, now < start);
         show(early, state === 'early');
         show(openBox, state === 'open');
         show(cal, state !== 'closed');
@@ -307,7 +318,12 @@ const upcoming = reg
             if (panel) panel.hidden = false;
             fallback.style.display = 'none';
           } catch (err) {
-            fallback.textContent = 'The room isn’t open right now — try the Join button when the countdown reaches zero.';
+            var m = (err && err.message) || '';
+            fallback.textContent =
+              m === 'no_zoom' ? 'We’re finalising the meeting link — check your email, or refresh in a moment.'
+              : m === 'early' ? 'The room isn’t open yet — it opens 5 minutes before we begin.'
+              : m === 'missed' ? 'This session has passed — the options below will help.'
+              : 'The room isn’t reachable right now — try the Join button above.';
           }
         });
       }

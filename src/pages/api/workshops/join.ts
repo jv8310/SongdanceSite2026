@@ -18,7 +18,7 @@ export const prerender = false;
 // older clients that need the meeting id + passcode typed in by hand).
 //
 // The room is reachable only inside the join window: 5 minutes before start
-// until 15 minutes after (replays are always open). Too early bounces back to
+// until 20 minutes after (replays are always open). Too early bounces back to
 // the countdown (?early=1); too late is treated as missed (?missed=1).
 export const GET: APIRoute = async ({ url, locals }) => {
   const env = locals.runtime.env;
