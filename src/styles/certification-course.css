@@ -1149,6 +1149,127 @@ html, body { background: var(--paper); }
 }
 .cc-name-tag strong { font-weight: 500; font-style: italic; font-family: var(--font-lyric); color: var(--ember-deep); }
 
+/* ---------- The 12-week foundation (included in the path) ---------- */
+.cc-found {
+  background: var(--paper-soft);
+  padding: var(--sp-10) var(--sp-7);
+}
+.cc-found-inner { max-width: var(--cc-max); margin: 0 auto; }
+.cc-found-head { text-align: center; max-width: 760px; margin: 0 auto; }
+.cc-found-lead {
+  font-family: var(--font-lyric); font-style: italic;
+  font-size: clamp(21px, 2.5vw, 30px);
+  line-height: 1.5;
+  color: var(--ink);
+  max-width: 50ch;
+  margin: var(--sp-6) auto var(--sp-5);
+  text-align: center;
+  text-wrap: pretty;
+}
+.cc-found-lead em { font-style: normal; color: var(--ember-deep); }
+.cc-found-body {
+  font-family: var(--font-body);
+  font-size: 18px;
+  line-height: 1.75;
+  color: var(--ink-soft);
+  max-width: 60ch;
+  margin: 0 auto var(--sp-5);
+  text-align: center;
+  text-wrap: pretty;
+}
+.cc-found-body:last-of-type { margin-bottom: 0; }
+.cc-found-body strong { color: var(--ink); font-weight: 600; }
+
+/* Foundation panel — the included 12-week course, carried across from
+   /courses/12-week so it reads as part of this path. */
+.cc-found-panel {
+  margin-top: var(--sp-9);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-1);
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  align-items: stretch;
+}
+@media (max-width: 880px) {
+  .cc-found-panel { grid-template-columns: 1fr; }
+}
+.cc-found-panel-media {
+  position: relative;
+  min-height: 300px;
+}
+.cc-found-panel-media img {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover;
+  object-position: center 30%;
+  filter: var(--cc-img-filter);
+}
+@media (max-width: 880px) {
+  .cc-found-panel-media { min-height: 240px; }
+}
+.cc-found-panel-text {
+  padding: var(--sp-7);
+}
+.cc-found-tag {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--font-mono); font-size: 10px;
+  text-transform: uppercase; letter-spacing: 0.2em;
+  color: var(--ember-deep);
+  padding: 6px 12px;
+  border: 1px solid rgba(201, 96, 58, 0.3);
+  background: rgba(201, 96, 58, 0.08);
+  border-radius: var(--r-pill);
+  margin-bottom: var(--sp-4);
+}
+.cc-found-panel-title {
+  font-family: var(--font-display);
+  font-size: clamp(26px, 3vw, 34px);
+  line-height: 1.1;
+  color: var(--ink);
+  font-weight: 400;
+  margin: 0 0 var(--sp-3);
+}
+.cc-found-panel-essence {
+  font-family: var(--font-lyric); font-style: italic;
+  font-size: clamp(17px, 1.8vw, 20px);
+  line-height: 1.4;
+  color: var(--ember-deep);
+  margin: 0 0 var(--sp-3);
+  text-wrap: balance;
+}
+.cc-found-panel-sub {
+  font-family: var(--font-body);
+  font-size: 15px; line-height: 1.65;
+  color: var(--ink-soft);
+  margin: 0 0 var(--sp-5);
+}
+.cc-found-list {
+  list-style: none; margin: 0 0 var(--sp-5); padding: 0;
+  display: flex; flex-direction: column; gap: var(--sp-3);
+}
+.cc-found-list li {
+  display: flex; gap: 12px; align-items: flex-start;
+  font-family: var(--font-body); font-size: 15px;
+  line-height: 1.55; color: var(--ink-soft);
+}
+.cc-found-list li em { font-style: italic; color: var(--ink); }
+.cc-found-list .check {
+  color: var(--ember); font-weight: 600;
+  flex-shrink: 0; margin-top: 1px;
+}
+.cc-found-meta {
+  font-family: var(--font-mono); font-size: 11px;
+  text-transform: uppercase; letter-spacing: 0.14em;
+  color: var(--ink-quiet);
+  margin: 0 0 var(--sp-5);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--line);
+  line-height: 1.7;
+}
+
 /* ---------- Co-facilitator (foot of the About section) ---------- */
 .cc-cofacilitator {
   max-width: var(--cc-max); margin: var(--sp-8) auto 0;
