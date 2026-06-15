@@ -33,6 +33,12 @@
     "DRIP_REGISTRATION_EVENT": "Completed retreat registration",
     "RESEND_FROM": "Songdance <prayer@mail.songdance.co>",
     "RESEND_INTAKES_FROM": "Songdance <intakes@mail.songdance.co>",
+    // Marketing-flavoured lifecycle sends (abandoned checkout, post-workshop,
+    // downsell) go from a dedicated, separately verified subdomain so their
+    // sending reputation is isolated from transactional mail on
+    // mail.songdance.co. Reply-to stays support@songdance.co (the
+    // MARKETING_REPLY_TO default in src/lib/workshops/emails.ts).
+    "MARKETING_FROM": "Jacob from Songdance <info@m.songdance.co>",
     // Internal "SD-ORDER" purchase notifications (retreat + course orders;
     // workshops/masterclasses are intentionally excluded). Comma-separated.
     "ORDER_NOTIFICATIONS_TO": "jacob@songdance.co, support@songdance.co",
