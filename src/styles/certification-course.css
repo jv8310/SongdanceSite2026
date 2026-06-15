@@ -627,6 +627,21 @@ html, body { background: var(--paper); }
 .cc-consent input { accent-color: var(--ember); margin-top: 3px; }
 .cc-consent a { color: var(--paper); text-decoration-color: var(--ember); }
 
+/* ---- Discount countdown (URL-driven ?deadline=; presentational urgency) ---- */
+.cc-discount-countdown {
+  display: flex; align-items: center; gap: 10px;
+  margin: 0 0 var(--sp-5); padding: 12px 14px;
+  background: rgba(201, 96, 58, 0.1);
+  border: 1px solid rgba(201, 96, 58, 0.32); border-radius: var(--r-md);
+  font-family: var(--font-body); font-size: 13px; color: var(--ember-soft);
+  text-align: left;
+}
+.cc-discount-countdown[hidden] { display: none; }
+.cc-discount-countdown .clock {
+  font-family: var(--font-mono); font-size: 15px; letter-spacing: 0.08em;
+  color: var(--paper); font-variant-numeric: tabular-nums;
+}
+
 /* ---- Step labels (Choose your offer / How to pay / Your details) ---- */
 .cc-step-label {
   font-family: var(--font-mono); font-size: 10px;

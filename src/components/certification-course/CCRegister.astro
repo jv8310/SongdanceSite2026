@@ -41,6 +41,11 @@ const countries = COUNTRIES;
         <h3 class="cc-variant-title" data-slot="title"></h3>
         <p class="cc-variant-body" data-slot="body"></p>
 
+        <div class="cc-discount-countdown" data-slot="discount-countdown" hidden>
+          <i class="ph-light ph-hourglass-medium" aria-hidden="true"></i>
+          <span>Your discount ends in <span class="clock" data-slot="discount-clock">--:--:--</span></span>
+        </div>
+
         <div data-slot="offer-picker">
           <div class="cc-step-label" data-slot="offer-picker-label">Choose your offer</div>
           <div data-slot="offer-cards" class="cc-offers"></div>
@@ -252,7 +257,47 @@ const countries = COUNTRIES;
     } catch {}
     return 0;
   }
-  const discountPct: number = readDiscountFromUrl();
+  // `let`, not `const`: a `?deadline=` countdown can lapse while the page is
+  // open, at which point we zero this out and re-price at full.
+  let discountPct: number = readDiscountFromUrl();
+
+  // Optional discount deadline driving a live countdown. `?deadline=` accepts
+  // either epoch-ms or an ISO 8601 string. Only honoured when it's in the
+  // future and within a year, and only meaningful alongside `?discount=N`.
+  // Purely presentational urgency — the server doesn't see it; when it lapses
+  // we simply stop applying the discount client-side.
+  function readDeadlineFromUrl(): number | null {
+    try {
+      const raw = new URLSearchParams(window.location.search).get('deadline');
+      if (!raw) return null;
+      const ms = /^\d+$/.test(raw) ? parseInt(raw, 10) : Date.parse(raw);
+      if (!Number.isFinite(ms)) return null;
+      const now = Date.now();
+      if (ms <= now || ms > now + 365 * 24 * 60 * 60 * 1000) return null;
+      return ms;
+    } catch {}
+    return null;
+  }
+  let discountDeadlineMs: number | null = readDeadlineFromUrl();
+
+  // HH:MM:SS, prefixed with "Nd" once there's a day or more left.
+  function formatCountdown(ms: number): string {
+    const s = Math.max(0, Math.floor(ms / 1000));
+    const days = Math.floor(s / 86400);
+    const hh = Math.floor((s % 86400) / 3600);
+    const mm = Math.floor((s % 3600) / 60);
+    const ss = s % 60;
+    const p = (n: number) => String(n).padStart(2, '0');
+    return days > 0 ? `${days}d ${p(hh)}:${p(mm)}:${p(ss)}` : `${p(hh)}:${p(mm)}:${p(ss)}`;
+  }
+
+  // A single live countdown across the page lifetime; cleared whenever the
+  // variant re-renders or the buyer goes back to the email form.
+  let discountCountdownTimer: number | undefined;
+  function stopDiscountCountdown() {
+    if (discountCountdownTimer) window.clearInterval(discountCountdownTimer);
+    discountCountdownTimer = undefined;
+  }
 
   // The 12-month installment ladder is hidden unless the visitor arrives with
   // `?installment=12`. It's a quieter, longer-financing option offered by
@@ -349,6 +394,7 @@ const countries = COUNTRIES;
   }
 
   function showEmailForm(prefillEmail?: string) {
+    stopDiscountCountdown();
     stage.replaceChildren(emailForm);
     if (noteEl) stage.appendChild(noteEl);
     stage.appendChild(errorEl);
@@ -478,6 +524,7 @@ const countries = COUNTRIES;
   }
 
   function renderVariant(email: string, decision: Decision) {
+    stopDiscountCountdown();
     const fragment = template.content.cloneNode(true) as DocumentFragment;
     const root = fragment.querySelector('.cc-variant') as HTMLElement;
     // Note: `decision` is mutated when the buyer changes country, so we
@@ -826,6 +873,37 @@ const countries = COUNTRIES;
 
     renderPlanOptions();
     renderSummary();
+
+    // Discount countdown: shown only when a `?discount=N` is live AND a valid
+    // future `?deadline=` was supplied. When it reaches zero we drop the
+    // discount and re-price everything at full, in place.
+    const countdownEl = root.querySelector('[data-slot="discount-countdown"]') as HTMLElement;
+    const clockEl = root.querySelector('[data-slot="discount-clock"]') as HTMLElement;
+    function setupCountdown() {
+      stopDiscountCountdown();
+      if (discountPct <= 0 || !discountDeadlineMs || discountDeadlineMs <= Date.now()) {
+        countdownEl.hidden = true;
+        return;
+      }
+      countdownEl.hidden = false;
+      const tick = () => {
+        const left = (discountDeadlineMs as number) - Date.now();
+        if (left <= 0) {
+          stopDiscountCountdown();
+          discountPct = 0;
+          discountDeadlineMs = null;
+          countdownEl.hidden = true;
+          renderOfferCards();
+          renderPlanOptions();
+          renderSummary();
+          return;
+        }
+        clockEl.textContent = formatCountdown(left);
+      };
+      tick();
+      discountCountdownTimer = window.setInterval(tick, 1000);
+    }
+    setupCountdown();
 
     // Single bottom CTA: collects all the form state + selection state and
     // hands off to /api/courses/checkout.
