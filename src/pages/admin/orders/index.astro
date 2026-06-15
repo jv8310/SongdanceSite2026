@@ -1,0 +1,308 @@
+---
+import '../../../styles/admin.css';
+import Layout from '../../../layouts/Layout.astro';
+import { readCookie, verifySession } from '../../../lib/registrations/auth';
+import { formatMoney } from '../../../lib/workshops/currency';
+import {
+  listAllOrders,
+  isRefundable,
+  refundableMinor,
+  type OrderSource,
+  type StatusClass,
+} from '../../../lib/admin/orders';
+import { getFxRatesToEur } from '../../../lib/admin/fx';
+
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+const authed = await verifySession(env.ADMIN_SESSION_SECRET, readCookie(Astro.request));
+if (!authed) {
+  return Astro.redirect('/admin/login');
+}
+
+// ── Filters (multi-select: source/status are comma-separated sets) ──
+const SOURCES: OrderSource[] = ['retreat', 'course', 'workshop'];
+const STATUSES: StatusClass[] = ['paid', 'pending', 'refunded', 'cancelled', 'expired', 'other'];
+
+const parseList = <T extends string>(raw: string | null, allowed: readonly T[]): T[] =>
+  (raw ? raw.split(',') : [])
+    .map((s) => s.trim())
+    .filter((s): s is T => (allowed as readonly string[]).includes(s));
+
+const selectedSources = parseList(Astro.url.searchParams.get('source'), SOURCES);
+const selectedStatuses = parseList(Astro.url.searchParams.get('status'), STATUSES);
+const q = Astro.url.searchParams.get('q') ?? '';
+
+// EUR net relies on the daily-refreshed FX store + a live Quaderno VAT lookup
+// for course rows (eservice destination VAT — the same the checkout uses).
+const fxRates = await getFxRatesToEur(env.DB);
+const quaderno =
+  env.QUADERNO_API_KEY && env.QUADERNO_ACCOUNT
+    ? {
+        apiKey: env.QUADERNO_API_KEY,
+        account: env.QUADERNO_ACCOUNT,
+        sandbox: env.QUADERNO_SANDBOX === '1',
+      }
+    : undefined;
+
+const orders = await listAllOrders(
+  env.DB,
+  { sources: selectedSources, statuses: selectedStatuses, query: q },
+  { fxRates, quaderno },
+);
+const returnTo = Astro.url.pathname + Astro.url.search;
+
+// Build a filter URL from explicit source/status sets (+ the current search).
+function filterHref(sources: string[], statuses: string[], query: string): string {
+  const params = new URLSearchParams();
+  if (sources.length) params.set('source', sources.join(','));
+  if (statuses.length) params.set('status', statuses.join(','));
+  if (query) params.set('q', query);
+  const qs = params.toString();
+  return '/admin/orders' + (qs ? `?${qs}` : '');
+}
+function toggle<T extends string>(list: T[], value: T): T[] {
+  return list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
+}
+
+// Flash from the refund endpoint.
+const flash = Astro.url.searchParams.get('flash');
+const flashMsg = Astro.url.searchParams.get('msg');
+const flashBanner =
+  flash === 'refund_ok'
+    ? { tone: 'ok' as const, text: flashMsg ?? 'Refund submitted.' }
+  : flash === 'refund_error'
+    ? { tone: 'err' as const, text: flashMsg ?? 'Refund failed.' }
+  : null;
+
+// ── Money helpers ──
+function eur(minor: number): string {
+  const major = minor / 100;
+  return `€${Number.isInteger(major) ? major : major.toFixed(2)}`;
+}
+
+const SOURCE_LABEL: Record<OrderSource, string> = {
+  retreat: 'Retreat',
+  course: 'Course',
+  workshop: 'Workshop',
+};
+
+// ── Summary (over the filtered set) ──
+const paidOrders = orders.filter((o) => o.statusClass === 'paid');
+const netEurPaid = paidOrders.reduce((s, o) => s + (o.netEurMinor ?? 0), 0);
+const refundedTotal = orders.reduce((s, o) => s + o.refundedMinor, 0);
+
+// Preserve the source/status filter on the search form via hidden inputs.
+---
+
+<Layout title="Admin — Orders — Songdance" description="">
+  <main class="adm">
+    <header class="adm-header">
+      <div>
+        <p class="adm-breadcrumbs">
+          <a href="/admin">Admin</a>
+          <span class="sep">/</span>
+          Orders
+        </p>
+        <h1>Orders</h1>
+        <p class="adm-sub">Every order across retreats, courses &amp; workshops</p>
+      </div>
+      <div class="adm-actions">
+        <a class="adm-btn adm-btn--ghost" href="/admin">← Admin</a>
+        <form method="POST" action="/api/admin/login?_method=DELETE">
+          <input type="hidden" name="_method" value="DELETE" />
+          <button class="adm-btn adm-btn--ghost" type="submit">Sign out</button>
+        </form>
+      </div>
+    </header>
+
+    {flashBanner && (
+      <div class={`adm-flash adm-flash--${flashBanner.tone}`}>{flashBanner.text}</div>
+    )}
+
+    <!-- ─── Summary ─── -->
+    <section class="adm-section">
+      <div class="ord-summary">
+        <div class="ord-stat"><span>Showing</span><strong>{orders.length}</strong></div>
+        <div class="ord-stat"><span>Paid</span><strong>{paidOrders.length}</strong></div>
+        <div class="ord-stat"><span>Paid net (EUR)*</span><strong>{eur(netEurPaid)}</strong></div>
+        {refundedTotal > 0 && (
+          <div class="ord-stat"><span>Refunded</span><strong>{eur(refundedTotal)}</strong></div>
+        )}
+      </div>
+      <p class="adm-table-note">
+        *Net is tax-excluded in EUR: workshops use the exact Stripe settlement +
+        VAT split; retreats strip the product VAT; courses strip the buyer-country
+        VAT looked up live from Quaderno (eservice). Non-EUR charges are converted
+        to EUR at ECB rates (refreshed daily).
+      </p>
+    </section>
+
+    <!-- ─── Filters (multi-select — toggle as many as you like) ─── -->
+    <section class="adm-section">
+      <span class="adm-filters" role="group" aria-label="Filter by source">
+        <a href={filterHref([], selectedStatuses, q)} class={selectedSources.length === 0 ? 'is-on' : ''}>all sources</a>
+        {SOURCES.map((s) => (
+          <a
+            href={filterHref(toggle(selectedSources, s), selectedStatuses, q)}
+            class={`ord-toggle ${selectedSources.includes(s) ? 'is-on' : ''}`}
+          >{SOURCE_LABEL[s]}s</a>
+        ))}
+      </span>
+      <span class="adm-filters" role="group" aria-label="Filter by status">
+        <a href={filterHref(selectedSources, [], q)} class={selectedStatuses.length === 0 ? 'is-on' : ''}>all statuses</a>
+        {STATUSES.map((s) => (
+          <a
+            href={filterHref(selectedSources, toggle(selectedStatuses, s), q)}
+            class={`ord-toggle ${selectedStatuses.includes(s) ? 'is-on' : ''}`}
+          >{s}</a>
+        ))}
+        <span class="ord-filter-hint">pick any number</span>
+      </span>
+      <form method="GET" action="/admin/orders" class="ord-search">
+        {selectedSources.length > 0 && <input type="hidden" name="source" value={selectedSources.join(',')} />}
+        {selectedStatuses.length > 0 && <input type="hidden" name="status" value={selectedStatuses.join(',')} />}
+        <input type="search" name="q" value={q} placeholder="Search name, email, order # or product…" />
+        <button type="submit" class="adm-btn adm-btn--solid">Search</button>
+        {q && <a class="adm-btn adm-btn--ghost" href={filterHref(selectedSources, selectedStatuses, '')}>Clear</a>}
+      </form>
+    </section>
+
+    <!-- ─── Orders ─── -->
+    <section class="adm-section">
+      {orders.length === 0 && <p class="adm-empty">No orders match these filters.</p>}
+
+      {orders.length > 0 && (
+        <table class="adm-table ord-table">
+          <thead>
+            <tr>
+              <th>Order</th>
+              <th>Product(s)</th>
+              <th>Name</th>
+              <th>Email</th>
+              <th class="num">Original</th>
+              <th class="num">Net (EUR)</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {orders.map((o) => {
+              const name = `${o.firstName ?? ''} ${o.lastName ?? ''}`.trim() || '—';
+              const remaining = refundableMinor(o);
+              const remainingMajor = (remaining / 100).toFixed(2);
+              // Escape for safe interpolation into the inline confirm() JS string.
+              const jsName = name.replace(/['\\]/g, '\\$&');
+              return (
+                <tr>
+                  <td>
+                    <span class="adm-mono">{o.orderNo}</span>
+                    <span class={`adm-pill adm-pill--src-${o.source}`}>{SOURCE_LABEL[o.source]}</span>
+                  </td>
+                  <td>{o.productLabel}</td>
+                  <td>{name}</td>
+                  <td><a href={`mailto:${o.email}`}>{o.email}</a></td>
+                  <td class="num">
+                    {o.originalAmountMinor > 0
+                      ? formatMoney(o.originalAmountMinor, o.originalCurrency)
+                      : '—'}
+                    {o.refundedMinor > 0 && (
+                      <><br /><small class="ord-refunded">−{formatMoney(o.refundedMinor, o.originalCurrency)} refunded</small></>
+                    )}
+                  </td>
+                  <td class="num">
+                    {o.netKind === 'exact' && o.netEurMinor != null && eur(o.netEurMinor)}
+                    {o.netKind === 'approx' && o.netEurMinor != null && (
+                      <span title="Approximate — converted to EUR at display FX">{eur(o.netEurMinor)}</span>
+                    )}
+                    {(o.netKind === 'none' || o.netEurMinor == null) && '—'}
+                  </td>
+                  <td><span class={`adm-pill adm-pill--${o.statusClass}`}>{o.rawStatus}</span></td>
+                  <td>
+                    <div class="ord-actions">
+                      <a class="adm-btn adm-btn--tiny" href={`/api/admin/drip-profile?email=${encodeURIComponent(o.email)}`} target="_blank" rel="noopener">Drip</a>
+                      <a class="adm-btn adm-btn--tiny" href={`/api/admin/quaderno-profile?email=${encodeURIComponent(o.email)}`} target="_blank" rel="noopener">Quaderno</a>
+                      {isRefundable(o) && (
+                        <details class="ord-refund">
+                          <summary class="adm-btn adm-btn--tiny">Refund</summary>
+                          <form
+                            method="POST"
+                            action="/api/admin/refund"
+                            class="ord-refund-form"
+                            onsubmit={`return confirm('Refund ${o.orderNo} (${jsName}, ${o.email})?\\nBlank = full ${remainingMajor} ${o.originalCurrency}. This moves real money.')`}
+                          >
+                            <input type="hidden" name="order_no" value={o.orderNo} />
+                            <input type="hidden" name="return_to" value={returnTo} />
+                            <label>
+                              <span>Amount ({o.originalCurrency})</span>
+                              <input
+                                type="number"
+                                name="amount"
+                                step="0.01"
+                                min="0.01"
+                                max={remainingMajor}
+                                placeholder={`full ${remainingMajor}`}
+                              />
+                            </label>
+                            <button type="submit" class="adm-btn adm-btn--danger adm-btn--tiny">Issue refund</button>
+                            <p class="ord-refund-hint">Leave blank for a full refund of what’s left.</p>
+                          </form>
+                        </details>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+    </section>
+  </main>
+
+  <style>
+    .ord-summary { display:flex; flex-wrap:wrap; gap:14px; margin-bottom:10px; }
+    .ord-stat {
+      display:flex; flex-direction:column; gap:2px;
+      padding:10px 16px; border:1px solid rgba(42,27,42,0.12); border-radius:10px;
+      min-width:120px; background:var(--adm-paper-soft);
+    }
+    .ord-stat span { font-size:11px; text-transform:uppercase; letter-spacing:0.04em; color:var(--adm-mute); }
+    .ord-stat strong { font-size:20px; font-variant-numeric:tabular-nums; }
+
+    /* Multi-select filter chips: a selected toggle shows a ✓ so it's clear
+       several can be on at once (not radio-style single-pick). */
+    .ord-toggle.is-on::before { content:'✓ '; }
+    .ord-filter-hint { font-size:11px; color:var(--adm-mute); align-self:center; }
+
+    .ord-search { display:flex; gap:8px; margin-top:12px; align-items:center; flex-wrap:wrap; }
+    .ord-search input[type="search"] {
+      flex:1; min-width:240px; padding:8px 12px;
+      border:1px solid rgba(42,27,42,0.18); border-radius:8px; font-size:14px;
+    }
+
+    .ord-table td { vertical-align:top; }
+    .ord-refunded { color:var(--adm-danger); }
+    .adm-pill--src-retreat  { background:rgba(201, 96, 58, 0.16); color:var(--adm-ember-deep); }
+    .adm-pill--src-course   { background:#d6e4f0; color:#2a5a8a; }
+    .adm-pill--src-workshop { background:#dcefdc; color:#2f7a4c; }
+    .adm-pill--other        { background:rgba(0,0,0,0.06); color:var(--adm-ink-soft); }
+    .adm-pill + .adm-pill, .adm-mono + .adm-pill { margin-left:6px; }
+
+    .ord-actions { display:flex; gap:6px; align-items:flex-start; flex-wrap:wrap; }
+    .ord-refund { position:relative; }
+    .ord-refund > summary { list-style:none; cursor:pointer; }
+    .ord-refund > summary::-webkit-details-marker { display:none; }
+    .ord-refund-form {
+      position:absolute; right:0; z-index:10; margin-top:6px; width:220px;
+      padding:12px; border:1px solid rgba(42,27,42,0.16); border-radius:10px;
+      background:var(--adm-paper); box-shadow:0 8px 24px rgba(0,0,0,0.14);
+      display:flex; flex-direction:column; gap:8px;
+    }
+    .ord-refund-form label { display:flex; flex-direction:column; gap:4px; font-size:12px; }
+    .ord-refund-form input[type="number"] {
+      padding:7px 10px; border:1px solid rgba(42,27,42,0.18); border-radius:7px; font-size:14px;
+    }
+    .ord-refund-hint { font-size:11px; color:var(--adm-mute); margin:0; }
+  </style>
+</Layout>

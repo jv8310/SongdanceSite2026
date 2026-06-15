@@ -32,7 +32,14 @@
     "QUADERNO_ACCOUNT": "songdance",
     "DRIP_REGISTRATION_EVENT": "Completed retreat registration",
     "RESEND_FROM": "Songdance <prayer@mail.songdance.co>",
-    "RESEND_INTAKES_FROM": "Songdance <intakes@mail.songdance.co>"
+    "RESEND_INTAKES_FROM": "Songdance <intakes@mail.songdance.co>",
+    // Internal "SD-ORDER" purchase notifications (retreat + course orders;
+    // workshops/masterclasses are intentionally excluded). Comma-separated.
+    "ORDER_NOTIFICATIONS_TO": "jacob@songdance.co, support@songdance.co",
+    // Offer PayPal in Stripe Checkout (one-off payments). Flip to "true" ONLY
+    // after activating PayPal in the Stripe Dashboard (Settings → Payment
+    // methods) — listing an un-activated method makes Stripe reject the session.
+    "STRIPE_ENABLE_PAYPAL": "false"
   },
   // Cron triggers → the worker's `scheduled` handler dispatches by cron string
   // (see src/worker-entrypoint.ts):

@@ -6,14 +6,15 @@
 // against Date.now() on the client.
 
 // Join window around the start, in seconds. The Join button (and the Zoom
-// fallback reveal) appear 5 minutes before start and stay until 15 minutes
-// after start; outside that window the room can't be reached at all.
+// fallback reveal) open 5 minutes before the start and close 20 minutes after
+// it. Past that the room can't be reached at all — latecomers are sent to the
+// replay / a free rebooking instead.
 export const JOIN_OPEN_BEFORE_SECONDS = 5 * 60;
-export const JOIN_CLOSE_AFTER_SECONDS = 15 * 60;
+export const JOIN_CLOSE_AFTER_SECONDS = 20 * 60;
 
 // State of the live join window relative to `now`:
 //   'early'  — too soon, show the countdown
-//   'open'   — within [start-5m, start+15m], Join is live
+//   'open'   — within [start-5m, start+20m], Join is live
 //   'closed' — the window has passed; treat as missed (replay / new date)
 export type JoinWindow = 'early' | 'open' | 'closed';
 export function joinWindow(startsAtUtc: string, now = Date.now()): JoinWindow {

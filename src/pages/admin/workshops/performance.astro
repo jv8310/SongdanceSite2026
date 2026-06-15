@@ -1,0 +1,189 @@
+---
+import '../../../styles/admin.css';
+import Layout from '../../../layouts/Layout.astro';
+import { readCookie, verifySession } from '../../../lib/registrations/auth';
+import { computeWorkshopPerformance } from '../../../lib/workshops/stats';
+import { PERIOD_PRESETS, resolvePeriod, presetRangesMap } from '../../../lib/workshops/periods';
+
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+if (!(await verifySession(env.ADMIN_SESSION_SECRET, readCookie(Astro.request)))) {
+  return Astro.redirect('/admin/login');
+}
+
+const { preset, from, to } = resolvePeriod(Astro.url.searchParams);
+const report = await computeWorkshopPerformance(env.DB, { from, to });
+// Every non-deleted workshop is listed (zeros when it has no activity yet);
+// drafts are pushed to the bottom so live/past workshops lead.
+const rows = report.rows.slice().sort((a, b) => {
+  const ad = a.status === 'draft' ? 1 : 0;
+  const bd = b.status === 'draft' ? 1 : 0;
+  return ad - bd;
+});
+
+const eur = (minor: number) =>
+  '€' + (minor / 100).toLocaleString('en-IE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const pct = (v: number | null) => (v != null ? v.toFixed(1) + '%' : '—');
+
+const dateLabel = (iso: string) =>
+  new Intl.DateTimeFormat('en-GB', {
+    day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/Brussels',
+  }).format(new Date(iso));
+const shortTitle = (t: string) => t.replace(/Somatic Vocal Healing/gi, 'SVH');
+
+// Totals row. Attendance/conversion recomputed from the sums rather than
+// averaging the per-row percentages.
+const sum = (f: (r: (typeof rows)[number]) => number) => rows.reduce((s, r) => s + f(r), 0);
+const totRegs = sum((r) => r.registrations);
+const totLive = sum((r) => r.attendedLive);
+const totReplay = sum((r) => r.replayViews);
+const totNoShow = sum((r) => r.noShows);
+const totBumps = sum((r) => r.bumpBuys);
+const totCourse = sum((r) => r.courseBuys);
+const totCert = sum((r) => r.certBuys);
+const totRev = sum((r) => r.totalEurMinor);
+const totMeta = sum((r) => r.metaCostEurMinor ?? 0);
+const totRoas = totMeta > 0 ? totRev / totMeta : null;
+
+const presetRangesJson = JSON.stringify(presetRangesMap()).replace(/</g, '\\u003c');
+const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
+---
+
+<Layout title="Admin — Workshop performance — Songdance" description="">
+  <main class="adm adm--wide">
+    <header class="adm-header">
+      <div>
+        <p class="adm-breadcrumbs"><a href="/admin">Admin</a> <span class="sep">/</span> <a href="/admin/workshops">Workshops</a> <span class="sep">/</span> Performance</p>
+        <h1>Per-workshop performance</h1>
+        <p class="adm-sub">The funnel per workshop: registrations → attendance → course purchases. Course / Cert buys are matched by email across workshop checkouts and standalone course sales, so someone who registered for several workshops counts toward each.</p>
+      </div>
+      <div class="adm-actions">
+        <a class="adm-btn adm-btn--ghost" href="/admin/workshops/stats">← Statistics</a>
+        <a class="adm-btn adm-btn--ghost" href="/admin/workshops">Workshops</a>
+      </div>
+    </header>
+
+    <section class="adm-section">
+      <form method="GET" class="adm-inline-form" id="perf-filter">
+        <label>Period
+          <select name="preset" id="f-preset">
+            {PERIOD_PRESETS.map(([v, l]) => <option value={v} selected={preset === v}>{l}</option>)}
+          </select>
+        </label>
+        <label>From <input type="date" name="from" id="f-from" value={from ?? ''} /></label>
+        <label>To <input type="date" name="to" id="f-to" value={to ?? ''} /></label>
+        <button type="submit" class="adm-btn adm-btn--solid">Apply</button>
+      </form>
+      <p class="adm-sub" style="margin-top:10px;">
+        Showing <strong>{rangeLabel}</strong> ·
+        ad spend {eur(report.adSpendEurMinor)} ÷ {report.totalRegistrations} registrations =
+        <strong>{report.costPerRegistrationEurMinor != null ? eur(Math.round(report.costPerRegistrationEurMinor)) : '—'}</strong> avg cost per registration.
+      </p>
+    </section>
+
+    <section class="adm-section">
+      {rows.length === 0 && <p class="adm-empty">No workshops yet.</p>}
+      {rows.length > 0 && (
+        <div class="wk-perf-scroll">
+          <table class="adm-table wk-perf">
+            <thead>
+              <tr>
+                <th>Workshop</th>
+                <th>Regs</th>
+                <th>Live</th>
+                <th>Replay</th>
+                <th>No-show</th>
+                <th>Attend %</th>
+                <th>Bumps</th>
+                <th>Course</th>
+                <th>Cert path</th>
+                <th>Revenue (net)</th>
+                <th>Meta cost</th>
+                <th>ROAS</th>
+                <th>Conv %</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr>
+                  <td class="wk-perf__name">
+                    <a href={`/admin/workshops/${r.workshopId}`}>{shortTitle(r.title)}</a>
+                    <span>{r.isReplay ? 'On-demand' : dateLabel(r.startsAtUtc)}{r.status !== 'published' ? ` · ${r.status}` : ''}</span>
+                  </td>
+                  <td>{r.registrations}</td>
+                  <td>{r.attendedLive}</td>
+                  <td>{r.replayViews}</td>
+                  <td>{r.noShows}</td>
+                  <td>{pct(r.attendancePct)}</td>
+                  <td>{r.bumpBuys}</td>
+                  <td>{r.courseBuys}</td>
+                  <td>{r.certBuys}</td>
+                  <td title={`Workshop checkout ${eur(r.engineNetEurMinor)} + attributed courses ${eur(r.attributedCourseEurMinor)}`}>{eur(r.totalEurMinor)}</td>
+                  <td>{r.metaCostEurMinor != null ? eur(r.metaCostEurMinor) : '—'}</td>
+                  <td>{r.roas != null ? r.roas.toFixed(2) + '×' : '—'}</td>
+                  <td>{pct(r.conversionPct)}</td>
+                </tr>
+              ))}
+              <tr class="wk-row--total">
+                <td><strong>Total</strong></td>
+                <td><strong>{totRegs}</strong></td>
+                <td><strong>{totLive}</strong></td>
+                <td><strong>{totReplay}</strong></td>
+                <td><strong>{totNoShow}</strong></td>
+                <td><strong>{totRegs > 0 ? (((totLive + totReplay) / totRegs) * 100).toFixed(1) + '%' : '—'}</strong></td>
+                <td><strong>{totBumps}</strong></td>
+                <td><strong>{totCourse}</strong></td>
+                <td><strong>{totCert}</strong></td>
+                <td><strong>{eur(totRev)}</strong></td>
+                <td><strong>{eur(totMeta)}</strong></td>
+                <td><strong>{totRoas != null ? totRoas.toFixed(2) + '×' : '—'}</strong></td>
+                <td><strong>{totRegs > 0 ? (((totCourse + totCert) / totRegs) * 100).toFixed(1) + '%' : '—'}</strong></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
+      <p class="adm-sub" style="margin-top:12px;">
+        Regs = completed registrations (paid or coupon). Live vs Replay splits attendees by whether they joined before or after the live slot ended; admin-marked attendance without a join time counts as live.
+        Course = 12-Week buyers, Cert path = certification buyers (cert-only or bundle) — both as distinct people, hovering Revenue shows the workshop-checkout vs attributed-course split.
+        Meta cost = average cost per registration × this workshop's registrations. ROAS = revenue ÷ Meta cost. Conv % = distinct course/cert buyers ÷ registrations.
+      </p>
+    </section>
+  </main>
+
+  <script is:inline type="application/json" id="perf-preset-ranges" set:html={presetRangesJson} />
+
+  <style>
+    .adm--wide { max-width: 1280px; }
+    .adm-table { width:100%; border-collapse:collapse; }
+    .adm-table th, .adm-table td { text-align:left; padding:8px 10px; border-bottom:1px solid rgba(42,27,42,0.1); font-size:13px; white-space:nowrap; }
+    .adm-inline-form { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+    .wk-perf-scroll { overflow-x:auto; }
+    .wk-perf__name a { color:#2A1B2A; font-weight:600; text-decoration:none; }
+    .wk-perf__name a:hover { text-decoration:underline; }
+    .wk-perf__name span { display:block; font-size:11px; color:#9a8; }
+    .wk-row--total td { border-top:2px solid rgba(42,27,42,0.25); }
+  </style>
+
+  <script is:inline>
+    (function () {
+      var ranges = JSON.parse(document.getElementById('perf-preset-ranges').textContent);
+      var form = document.getElementById('perf-filter');
+      var presetSel = document.getElementById('f-preset');
+      var fromIn = document.getElementById('f-from');
+      var toIn = document.getElementById('f-to');
+      presetSel.addEventListener('change', function () {
+        var v = presetSel.value;
+        if (v === 'custom') return;
+        var r = ranges[v] || { from: null, to: null };
+        fromIn.value = r.from || '';
+        toIn.value = r.to || '';
+        form.submit();
+      });
+      function toCustom() { presetSel.value = 'custom'; }
+      fromIn.addEventListener('change', toCustom);
+      toIn.addEventListener('change', toCustom);
+    })();
+  </script>
+</Layout>

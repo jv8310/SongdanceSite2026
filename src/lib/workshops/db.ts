@@ -55,6 +55,7 @@ export type WorkshopRegistration = {
   payment_status: 'prepared' | 'paid' | 'coupon' | 'refunded' | 'chargeback' | 'failed';
   source_tag: string | null;
   audience: string | null; // door-set chosen on the page: "3", "1,3", … (3 = pro)
+  access_token: string; // unguessable token used in all user-facing links
   created_at: string;
   updated_at: string;
 };
@@ -358,6 +359,22 @@ export async function getRegistrationById(db: D1Database, id: number) {
   return db.prepare('SELECT * FROM workshop_registrations WHERE id = ?').bind(id).first<WorkshopRegistration>();
 }
 
+// Unguessable per-registration token. It stands in for the row id in every
+// user-facing link (success / join / ics / replay), so those URLs can't be
+// enumerated. 128 bits of randomness as lowercase hex.
+export function newAccessToken(): string {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+export async function getRegistrationByAccessToken(db: D1Database, token: string) {
+  return db
+    .prepare('SELECT * FROM workshop_registrations WHERE access_token = ?')
+    .bind(token)
+    .first<WorkshopRegistration>();
+}
+
 export async function getRegistrationByWorkshopEmail(db: D1Database, workshopId: number, email: string) {
   return db
     .prepare('SELECT * FROM workshop_registrations WHERE workshop_id = ? AND lower(email) = lower(?)')
@@ -470,7 +487,7 @@ export async function upsertRegistration(
     audience?: string | null;
     payment_status?: WorkshopRegistration['payment_status'];
   },
-): Promise<number> {
+): Promise<{ id: number; token: string }> {
   const email = data.email.toLowerCase();
   const existing = await getRegistrationByWorkshopEmail(db, data.workshop_id, email);
   if (existing) {
@@ -493,24 +510,36 @@ export async function upsertRegistration(
         data.payment_status ?? null, existing.id,
       )
       .run();
-    return existing.id;
+    // Re-registering the same person keeps their existing token (so any link
+    // already in their inbox/calendar stays valid). Mint one only on the off
+    // chance a legacy row predates the backfill.
+    let token = existing.access_token;
+    if (!token) {
+      token = newAccessToken();
+      await db
+        .prepare('UPDATE workshop_registrations SET access_token = ? WHERE id = ?')
+        .bind(token, existing.id)
+        .run();
+    }
+    return { id: existing.id, token };
   }
+  const token = newAccessToken();
   const r = await db
     .prepare(
       `INSERT INTO workshop_registrations
          (workshop_id, name, email, phone, country, currency, timezone,
-          company_name, vat_number, wants_bump, source_tag, audience, payment_status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+          company_name, vat_number, wants_bump, source_tag, audience, payment_status, access_token)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
     )
     .bind(
       data.workshop_id, data.name, email, data.phone, data.country, data.currency,
       data.timezone, data.company_name ?? null, data.vat_number ?? null,
       data.wants_bump ? 1 : 0, data.source_tag, data.audience ?? null,
-      data.payment_status ?? 'prepared',
+      data.payment_status ?? 'prepared', token,
     )
     .first<{ id: number }>();
   if (!r) throw new Error('Failed to create registration');
-  return r.id;
+  return { id: r.id, token };
 }
 
 export async function setRegistrationPaymentStatus(

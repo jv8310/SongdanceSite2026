@@ -15,6 +15,7 @@ import WERegister from '../components/workshop-english/WERegister.astro';
 import WEFooter from '../components/workshop-english/WEFooter.astro';
 import { buildCalendarItems, tzOptionsFor } from '../lib/workshops/calendar';
 import { currencyForCountry } from '../lib/workshops/currency';
+import { getRegistrationByAccessToken, getWorkshopById } from '../lib/workshops/db';
 
 export const prerender = false;
 
@@ -22,8 +23,33 @@ const env = Astro.locals.runtime.env;
 const cf = (Astro.locals.runtime as any)?.cf;
 
 // Cloudflare edge geo/timezone — no external API (mirrors /w/[slug]).
-const country: string = (cf?.country as string) || 'EU';
-const detectedTz: string = (cf?.timezone as string) || 'Europe/Brussels';
+let country: string = (cf?.country as string) || 'EU';
+let detectedTz: string = (cf?.timezone as string) || 'Europe/Brussels';
+
+// Resume from an abandoned-checkout email: ?resume=<access_token> restores the
+// person's saved details and the date they'd chosen, so they land on #register
+// with the form already filled in. Only an unguessable token rides the URL — no
+// PII — and only carts that never paid ('prepared'/'failed') prefill, so a paid
+// link just shows the normal page. Their saved country/timezone become the page
+// defaults, keeping prices, times and the form fields consistent server-side.
+let prefill: { firstName: string; lastName: string; email: string; slug: string } | null = null;
+const resumeToken = (Astro.url.searchParams.get('resume') ?? '').trim();
+if (resumeToken) {
+  const reg = await getRegistrationByAccessToken(env.DB, resumeToken);
+  if (reg && (reg.payment_status === 'prepared' || reg.payment_status === 'failed')) {
+    const workshop = await getWorkshopById(env.DB, reg.workshop_id);
+    const parts = (reg.name ?? '').trim().split(/\s+/).filter(Boolean);
+    prefill = {
+      firstName: parts.length ? parts[0] : '',
+      lastName: parts.length > 1 ? parts.slice(1).join(' ') : '',
+      email: reg.email,
+      slug: workshop?.slug ?? '',
+    };
+    if (reg.country) country = reg.country;
+    if (reg.timezone) detectedTz = reg.timezone;
+  }
+}
+
 const currency = currencyForCountry(country === 'EU' ? null : country);
 
 // Upcoming published workshops + masterclasses, priced in the visitor's
@@ -56,6 +82,7 @@ const tzOptions = tzOptionsFor(detectedTz);
       currency={currency}
       detectedTz={detectedTz}
       tzOptions={tzOptions}
+      prefill={prefill}
     />
     <WEFooter />
   </div>

@@ -8,9 +8,11 @@
 // offered the bundle vs. cert-only.
 //
 // payment_plan:
-//   'full' → one-off PaymentIntent via Stripe Checkout (mode=payment)
-//   '3x'   → monthly Subscription via Stripe Checkout (mode=subscription),
-//            cancels itself after 3 invoices
+//   'full'        → one-off PaymentIntent via Stripe Checkout (mode=payment)
+//   '3x'/'6x'/'12x' → monthly Subscription via Stripe Checkout
+//                   (mode=subscription), cancels itself after N invoices.
+//                   The 12-month ladder is hidden on the page unless the
+//                   visitor arrives with `?installment=12`.
 //
 // Tax / Quaderno: every line item carries product_metadata.tax_class =
 // 'eservice'. The Quaderno-Stripe sync reads this to apply destination-VAT
@@ -34,6 +36,7 @@ import { logEvent } from '../../../lib/registrations/db';
 import {
   createCheckoutSession,
   createCustomer,
+  paypalEnabled,
   createSubscriptionCheckoutSession,
   stripeTaxIdTypeFor,
 } from '../../../lib/registrations/stripe';
@@ -42,6 +45,7 @@ import {
   getBundleOffer,
   getCertOffer,
   type Currency,
+  type InstallmentPlan,
   type Offer,
   type Variant,
 } from '../../../lib/courses/variant';
@@ -52,6 +56,18 @@ import {
 } from '../../../lib/courses/path';
 
 export const prerender = false;
+
+// Resolve the installment ladder for the chosen payment plan. Returns null
+// for 'full' (one-off) or when the offer doesn't carry that ladder.
+function installmentPlanFor(
+  offer: Offer,
+  paymentPlan: PaymentPlan,
+): InstallmentPlan | undefined {
+  if (paymentPlan === '3x') return offer.installments;
+  if (paymentPlan === '6x') return offer.installments_6x;
+  if (paymentPlan === '12x') return offer.installments_12x;
+  return undefined;
+}
 
 type Body = {
   product_slug?: string;
@@ -121,7 +137,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const vatNumberRaw = (payload.vat_number ?? '').trim().replace(/\s+/g, '');
     const vatNumber = vatNumberRaw ? vatNumberRaw.toUpperCase() : null;
     const paymentPlan: PaymentPlan =
-      payload.payment_plan === '3x' ? '3x' : 'full';
+      payload.payment_plan === '3x'
+        ? '3x'
+        : payload.payment_plan === '6x'
+          ? '6x'
+          : payload.payment_plan === '12x'
+            ? '12x'
+            : 'full';
     const currency: Currency =
       payload.currency === 'USD'
         ? 'USD'
@@ -185,20 +207,39 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     const offer = offerFor(productSlug, currency);
 
-    // For full pay we charge price_cents once. For 3x we charge
-    // monthly_cents × 3 (total may differ by a few cents — see variant.ts).
-    if (paymentPlan === '3x' && !offer.installments) {
+    // The installment ladder for the chosen plan (3 or 6 monthly payments),
+    // or undefined for pay-in-full.
+    const installmentPlan = installmentPlanFor(offer, paymentPlan);
+
+    // For full pay we charge price_cents once. For an installment plan we
+    // charge monthly_cents × count (total may differ by a few cents from the
+    // pay-in-full price — see variant.ts).
+    if (paymentPlan !== 'full' && !installmentPlan) {
       return json(
         { error: 'This product cannot be purchased in installments.' },
         400,
       );
     }
+    // The Certification path (cc-bundle) is only offered in full or 3× — its
+    // 12-week portion has no 6/12-month ladder, so reject longer plans rather
+    // than mischarge against the old flat bundle ladder.
+    if (
+      productSlug === 'cc-bundle' &&
+      paymentPlan !== 'full' &&
+      paymentPlan !== '3x'
+    ) {
+      return json(
+        { error: 'The certification path is available in full or 3 monthly payments.' },
+        400,
+      );
+    }
+
     // Price the order. The bundle IS the "Certification path": cert at its
     // standard price + the workshop-discounted 12-week, re-derived server-side
     // from the email so the charge always matches eligibility. The discount
     // (and any ?discount=N override) only ever touches the 12-week portion —
     // never the certification line. For cc-cert, the URL ?discount=N still
-    // reduces the cert price as before.
+    // reduces the cert price as before; every monthly installment is discounted.
     let pathPricing: CertificationPathPricing | null = null;
     let chargedPriceCents: number;
     let chargedMonthlyCents: number;
@@ -208,20 +249,15 @@ export const POST: APIRoute = async ({ request, locals }) => {
       chargedPriceCents = pathPricing.total_cents;
       chargedMonthlyCents = pathPricing.total_monthly_cents;
     } else {
-      // For 3x, every monthly installment is discounted (not just the first).
       chargedPriceCents = applyDiscount(offer.price_cents, discountPct);
-      chargedMonthlyCents = offer.installments
-        ? applyDiscount(offer.installments.monthly_cents, discountPct)
+      chargedMonthlyCents = installmentPlan
+        ? applyDiscount(installmentPlan.monthly_cents, discountPct)
         : 0;
     }
-    const totalAmountCents =
-      paymentPlan === '3x' && offer.installments
-        ? chargedMonthlyCents * offer.installments.count
-        : chargedPriceCents;
-    const installmentsTotal =
-      paymentPlan === '3x' && offer.installments
-        ? offer.installments.count
-        : 1;
+    const totalAmountCents = installmentPlan
+      ? chargedMonthlyCents * installmentPlan.count
+      : chargedPriceCents;
+    const installmentsTotal = installmentPlan ? installmentPlan.count : 1;
 
     // Discount facts for metadata + logging, unified across cert and path.
     const effectiveDiscountPct = pathPricing
@@ -232,11 +268,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
       : offer.price_cents;
     const originalMonthlyCents = pathPricing
       ? pathPricing.base_total_monthly_cents
-      : offer.installments?.monthly_cents ?? 0;
-    const originalAmountForPlan =
-      paymentPlan === '3x'
-        ? originalMonthlyCents * installmentsTotal
-        : originalFullCents;
+      : installmentPlan?.monthly_cents ?? 0;
+    const originalAmountForPlan = installmentPlan
+      ? originalMonthlyCents * installmentsTotal
+      : originalFullCents;
     // Receipt line: spell out both courses for the path.
     const lineItemLabel =
       productSlug === 'cc-bundle'
@@ -324,7 +359,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       });
       // For subscription mode the customer is mandatory — bail with a
       // visible error instead of silently falling back to customer_email.
-      if (paymentPlan === '3x') {
+      if (paymentPlan !== 'full') {
         return json(
           {
             error:
@@ -358,9 +393,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
         : {}),
     };
 
-    // Preserve the discount on the cancel URL so the buyer's price doesn't
-    // silently jump back to full if they bail out and try again.
-    const cancelQuery = discountPct > 0 ? `?discount=${discountPct}` : '';
+    // Preserve the discount — and the hidden 12-month unlock — on the cancel
+    // URL so the buyer's price (and the plan they picked) doesn't silently
+    // reset if they bail out and try again.
+    const cancelParams = new URLSearchParams();
+    if (discountPct > 0) cancelParams.set('discount', String(discountPct));
+    if (paymentPlan === '12x') cancelParams.set('installment', '12');
+    const cancelQuery = cancelParams.toString() ? `?${cancelParams.toString()}` : '';
     const successUrl = `${baseUrl}/courses/certification/thanks?session_id={CHECKOUT_SESSION_ID}`;
 
     // tax_class metadata is attached to the underlying Stripe Product so
@@ -371,21 +410,21 @@ export const POST: APIRoute = async ({ request, locals }) => {
       product_slug: productSlug,
     };
 
-    if (paymentPlan === '3x' && offer.installments && customerId) {
+    if (paymentPlan !== 'full' && installmentPlan && customerId) {
       const session = await createSubscriptionCheckoutSession({
         secretKey: env.STRIPE_SECRET_KEY,
         customer: customerId,
         success_url: successUrl,
         cancel_url: `${baseUrl}/courses/certification${cancelQuery}#register`,
         product_name: offer.label,
-        product_description: `${offer.installments.count} monthly installments of ${moneyCents(chargedMonthlyCents, currency)}`,
+        product_description: `${installmentPlan.count} monthly installments of ${moneyCents(chargedMonthlyCents, currency)}`,
         payment_intent_description: offer.label,
         product_metadata: productMetadata,
         monthly_amount_cents: chargedMonthlyCents,
         currency: currency.toLowerCase(),
-        installment_count: offer.installments.count,
+        installment_count: installmentPlan.count,
         metadata,
-        idempotency_key: `course-reg-${registrationId}-3x${discountPct > 0 ? `-d${discountPct}` : ''}`,
+        idempotency_key: `course-reg-${registrationId}-${paymentPlan}${discountPct > 0 ? `-d${discountPct}` : ''}`,
       });
 
       await attachStripeSessionToCourse(env.DB, registrationId, session.id);
@@ -401,7 +440,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         registration_id: null,
         kind: 'course.checkout.subscription.created',
         source: 'system',
-        external_id: `local-course-${registrationId}-3x`,
+        external_id: `local-course-${registrationId}-${paymentPlan}`,
         payload: {
           course_registration_id: registrationId,
           session_id: session.id,
@@ -409,7 +448,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
           product_slug: productSlug,
           currency,
           monthly_amount_cents: chargedMonthlyCents,
-          installments_total: offer.installments.count,
+          installments_total: installmentPlan.count,
           activate_choice: activateChoice,
           source_variant: sourceVariant,
           company_name: companyName,
@@ -428,6 +467,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // Default path: one-off payment.
     const session = await createCheckoutSession({
       secretKey: env.STRIPE_SECRET_KEY,
+      enablePaypal: paypalEnabled(env),
       ...(customerId
         ? { customer: customerId }
         : { customer_email: email }),

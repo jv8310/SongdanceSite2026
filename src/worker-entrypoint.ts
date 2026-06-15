@@ -14,6 +14,7 @@
 import { createExports as baseCreateExports } from '@astrojs/cloudflare/entrypoints/server.js';
 import { assessPendingSubmissions } from './lib/intake/sweep';
 import { runWorkshopCron } from './lib/workshops/cron';
+import { fxRatesStale, refreshFxRates } from './lib/admin/fx';
 
 const WORKSHOP_CRON = '*/5 * * * *';
 
@@ -88,6 +89,23 @@ export function createExports(manifest: unknown) {
         })
         .catch((err) => {
           console.error('[intake/sweep] cron run failed', err);
+        }),
+    );
+
+    // Daily FX refresh for the order overview's EUR net column. Riding the
+    // hourly trigger and guarded by staleness, so it actually hits the ECB
+    // (via frankfurter.app) about once a day.
+    ctx.waitUntil(
+      fxRatesStale(env.DB)
+        .then((stale) =>
+          stale
+            ? refreshFxRates(env.DB).then((r) =>
+                console.log(`[fx] refreshed ${r.updated} rates`),
+              )
+            : undefined,
+        )
+        .catch((err) => {
+          console.error('[fx] refresh failed', err);
         }),
     );
   };

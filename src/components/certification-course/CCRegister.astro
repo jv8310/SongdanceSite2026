@@ -214,7 +214,9 @@ const countries = COUNTRIES;
     price_cents: number;
     base_price: number;
     save_note: string;
-    installments?: InstallmentPlan;
+    installments?: InstallmentPlan;     // 3 monthly payments
+    installments_6x?: InstallmentPlan;  // 6 monthly payments
+    installments_12x?: InstallmentPlan; // 12 monthly payments (hidden by default)
   };
   type Variant = 'B1' | 'B2' | 'A' | 'D' | 'E' | 'C';
   // The Certification path (the `cc-bundle` product) = cert at its standard
@@ -252,7 +254,7 @@ const countries = COUNTRIES;
     country?: string;
     phone?: string;
   };
-  type PaymentPlan = 'full' | '3x';
+  type PaymentPlan = 'full' | '3x' | '6x' | '12x';
 
   let pathCountdownTimer: number | undefined;
 
@@ -279,6 +281,19 @@ const countries = COUNTRIES;
     return 0;
   }
   const discountPct: number = readDiscountFromUrl();
+
+  // The 12-month installment ladder is hidden unless the visitor arrives with
+  // `?installment=12`. It's a quieter, longer-financing option offered by
+  // hand (e.g. over email) rather than shown to everyone. Any other value
+  // leaves it hidden. The server still validates the plan independently.
+  function showTwelveMonthPlan(): boolean {
+    try {
+      const raw = new URLSearchParams(window.location.search).get('installment');
+      return raw != null && parseInt(raw, 10) === 12;
+    } catch {}
+    return false;
+  }
+  const show12x: boolean = showTwelveMonthPlan();
 
   function applyDiscountCents(cents: number): number {
     if (discountPct <= 0) return cents;
@@ -768,8 +783,17 @@ const countries = COUNTRIES;
     }
     renderOfferCards();
 
-    // Payment-plan selector (full vs. 3x). Only renders if the chosen
-    // offer has installments configured. Re-renders on offer change.
+    // The installment ladder for a given plan on the current offer.
+    function ladderFor(offer: Offer, plan: PaymentPlan): InstallmentPlan | undefined {
+      if (plan === '3x') return offer.installments;
+      if (plan === '6x') return offer.installments_6x;
+      if (plan === '12x') return offer.installments_12x;
+      return undefined;
+    }
+
+    // Payment-plan selector (full vs. 3x vs. 6x). The installment rows only
+    // render for the ladders the offer actually carries. Re-renders on offer
+    // change.
     const planOptionsEl = root.querySelector('[data-slot="plan-options"]') as HTMLElement;
     function renderPlanOptions() {
       planOptionsEl.replaceChildren();
@@ -778,7 +802,7 @@ const countries = COUNTRIES;
         return;
       }
       const offer = decision.offers.find((o) => o.slug === selectedOfferSlug);
-      if (!offer || !offer.installments) {
+      if (!offer || (!offer.installments && !offer.installments_6x)) {
         planPicker.style.display = 'none';
         selectedPlan = 'full';
         return;
@@ -787,28 +811,51 @@ const countries = COUNTRIES;
 
       const cur = decision.currency!;
       const fullDiscCents = applyDiscountCents(offer.price_cents);
-      const monthlyDiscCents = applyDiscountCents(offer.installments.monthly_cents);
-      const totalDiscCents = monthlyDiscCents * offer.installments.count;
+
+      // If the previously selected plan's ladder isn't available on this
+      // offer, fall back to full pay.
+      if (selectedPlan !== 'full' && !ladderFor(offer, selectedPlan)) {
+        selectedPlan = 'full';
+      }
+
       const full = renderPlanOption({
         value: 'full',
         title: 'Pay in full',
         subtitle: `One payment, full access today.`,
         amountHtml: amountWithStrike(money(offer.price, cur), moneyCents(fullDiscCents, cur)),
       });
-      const inst = renderPlanOption({
-        value: '3x',
-        title: `Pay in ${offer.installments.count} monthly installments`,
-        subtitle:
-          discountPct > 0
-            ? `${moneyCents(monthlyDiscCents, cur)}/mo for ${offer.installments.count} months (${moneyCents(totalDiscCents, cur)} total, ${discountPct}% off). Full access from the first payment.`
-            : `${money(offer.installments.monthly, cur)}/mo for ${offer.installments.count} months (${money(offer.installments.total, cur)} total). Full access from the first payment.`,
-        amountHtml: amountWithStrike(
-          `${money(offer.installments.monthly, cur)}/mo`,
-          `${moneyCents(monthlyDiscCents, cur)}/mo`,
-        ),
-      });
 
-      [full, inst].forEach((el) => {
+      // One installment row per available ladder (3 monthly, then 6 monthly,
+      // and 12 monthly only when unlocked via `?installment=12`).
+      const installmentRows: HTMLElement[] = [];
+      ([
+        ['3x', offer.installments],
+        ['6x', offer.installments_6x],
+        ...(show12x ? [['12x', offer.installments_12x] as const] : []),
+      ] as const).forEach(
+        ([value, ladder]) => {
+          if (!ladder) return;
+          const monthlyDiscCents = applyDiscountCents(ladder.monthly_cents);
+          const totalDiscCents = monthlyDiscCents * ladder.count;
+          installmentRows.push(
+            renderPlanOption({
+              value,
+              title: `Pay in ${ladder.count} monthly installments`,
+              subtitle:
+                discountPct > 0
+                  ? `${moneyCents(monthlyDiscCents, cur)}/mo for ${ladder.count} months (${moneyCents(totalDiscCents, cur)} total, ${discountPct}% off). Full access from the first payment.`
+                  : `${money(ladder.monthly, cur)}/mo for ${ladder.count} months (${money(ladder.total, cur)} total). Full access from the first payment.`,
+              amountHtml: amountWithStrike(
+                `${money(ladder.monthly, cur)}/mo`,
+                `${moneyCents(monthlyDiscCents, cur)}/mo`,
+              ),
+            }),
+          );
+        },
+      );
+
+      const allOptions = [full, ...installmentRows];
+      allOptions.forEach((el) => {
         el.addEventListener('click', () => {
           selectedPlan = el.dataset.planValue as PaymentPlan;
           planOptionsEl
@@ -823,11 +870,14 @@ const countries = COUNTRIES;
         });
       });
 
-      // Default to full pay, mark visually selected.
-      full.classList.add('cc-plan-option--selected');
-      selectedPlan = 'full';
-      planOptionsEl.appendChild(full);
-      planOptionsEl.appendChild(inst);
+      // Mark the currently selected plan (default: full) as visually selected.
+      allOptions.forEach((el) =>
+        el.classList.toggle(
+          'cc-plan-option--selected',
+          el.dataset.planValue === selectedPlan,
+        ),
+      );
+      allOptions.forEach((el) => planOptionsEl.appendChild(el));
     }
 
     // Plan options for the path: full vs. 3x on the combined total. The 12-week
@@ -894,10 +944,11 @@ const countries = COUNTRIES;
       const offer = decision.offers.find((o) => o.slug === selectedOfferSlug);
       if (!offer) return;
       const cur = decision.currency!;
-      if (selectedPlan === '3x' && offer.installments) {
-        const monthly = `${money(offer.installments.monthly, cur)}/mo`;
-        const monthlyDisc = `${moneyCents(applyDiscountCents(offer.installments.monthly_cents), cur)}/mo`;
-        summaryLabel.textContent = `${offer.label} — ${offer.installments.count} monthly payments${
+      const ladder = ladderFor(offer, selectedPlan);
+      if (selectedPlan !== 'full' && ladder) {
+        const monthly = `${money(ladder.monthly, cur)}/mo`;
+        const monthlyDisc = `${moneyCents(applyDiscountCents(ladder.monthly_cents), cur)}/mo`;
+        summaryLabel.textContent = `${offer.label} — ${ladder.count} monthly payments${
           discountPct > 0 ? ` (${discountPct}% off)` : ''
         }`;
         summaryAmount.innerHTML = amountWithStrike(monthly, monthlyDisc);

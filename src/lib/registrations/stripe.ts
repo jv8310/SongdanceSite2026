@@ -30,6 +30,10 @@ export type CreateCheckoutSessionInput = {
   // name "SONGDANCE").
   payment_intent_description?: string;
   idempotency_key?: string;
+  // Append PayPal to the offered payment methods (one-off payments only).
+  // Caller decides via paypalEnabled(env); see the note there for why this
+  // is gated rather than always-on.
+  enablePaypal?: boolean;
 };
 
 export type CreateCustomerInput = {
@@ -106,6 +110,15 @@ export function stripeTaxIdTypeFor(
   return null;
 }
 
+// Whether to offer PayPal in Stripe Checkout. Gated behind STRIPE_ENABLE_PAYPAL
+// ("true" to turn on) so the code can ship inert: PayPal only appears once it's
+// BOTH activated in the Stripe Dashboard (Settings → Payment methods) AND this
+// flag is set. Listing an un-activated method makes Stripe reject the session,
+// so do not flip this on before enabling PayPal in the Dashboard.
+export function paypalEnabled(env: { STRIPE_ENABLE_PAYPAL?: string }): boolean {
+  return env.STRIPE_ENABLE_PAYPAL === 'true';
+}
+
 export async function createCheckoutSession(input: CreateCheckoutSessionInput) {
   if (!input.customer && !input.customer_email) {
     throw new Error('createCheckoutSession: provide customer or customer_email');
@@ -136,9 +149,14 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput) {
   // Common EU payment methods. Stripe filters by what's enabled on the account
   // and by the billing country — so Bancontact only appears for BE addresses,
   // iDEAL only for NL addresses, etc.
-  ['card', 'bancontact', 'ideal', 'sepa_debit', 'sofort'].forEach((m, i) =>
-    form.set(`payment_method_types[${i}]`, m),
-  );
+  // PayPal is appended only when the caller opts in (paypalEnabled) — and it
+  // must also be activated in the Stripe Dashboard, otherwise Stripe rejects
+  // the whole session. It's offered on one-off payments only; the installment
+  // path (createSubscriptionCheckoutSession) deliberately omits it because
+  // PayPal-via-Stripe can't authorise recurring debits.
+  const methods = ['card', 'bancontact', 'ideal', 'sepa_debit', 'sofort'];
+  if (input.enablePaypal) methods.push('paypal');
+  methods.forEach((m, i) => form.set(`payment_method_types[${i}]`, m));
 
   input.line_items.forEach((li, i) => {
     form.set(`line_items[${i}][price_data][currency]`, li.currency);
@@ -182,6 +200,49 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput) {
   if (!res.ok || 'error' in body) {
     const msg = 'error' in body ? body.error.message : 'Stripe error';
     throw new Error(`Stripe checkout.sessions: ${msg}`);
+  }
+  return body;
+}
+
+// Issue a refund against a PaymentIntent. Omit `amountMinor` for a full
+// refund of whatever is still refundable; pass it (in the charge's own
+// currency) for a partial. The matching `charge.refunded` webhook is what
+// actually flips our DB row to 'refunded' and accumulates the amount — this
+// only asks Stripe to move the money, so the two never double-count.
+export async function createRefund(input: {
+  secretKey: string;
+  paymentIntent: string;
+  amountMinor?: number | null;
+  reason?: 'requested_by_customer' | 'duplicate' | 'fraudulent';
+  metadata?: Record<string, string>;
+  idempotencyKey?: string;
+}): Promise<{ id: string; status: string; amount: number; currency: string }> {
+  const form = new URLSearchParams();
+  form.set('payment_intent', input.paymentIntent);
+  if (input.amountMinor != null) form.set('amount', String(input.amountMinor));
+  if (input.reason) form.set('reason', input.reason);
+  if (input.metadata) {
+    Object.entries(input.metadata).forEach(([k, v]) =>
+      form.set(`metadata[${k}]`, v),
+    );
+  }
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${input.secretKey}`,
+    'Content-Type': 'application/x-www-form-urlencoded',
+  };
+  if (input.idempotencyKey) headers['Idempotency-Key'] = input.idempotencyKey;
+
+  const res = await fetch(`${STRIPE_BASE}/refunds`, {
+    method: 'POST',
+    headers,
+    body: form,
+  });
+  const body = (await res.json()) as
+    | { id: string; status: string; amount: number; currency: string }
+    | { error: { message: string } };
+  if (!res.ok || 'error' in body) {
+    const msg = 'error' in body ? body.error.message : 'Stripe error';
+    throw new Error(`Stripe refunds: ${msg}`);
   }
   return body;
 }

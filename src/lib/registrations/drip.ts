@@ -56,6 +56,9 @@ export async function upsertSubscriber(cfg: DripConfig, input: UpsertSubscriberI
 }
 
 export type DripSubscriber = {
+  // Drip's internal subscriber id — used to build a deep link into the Drip
+  // app (https://www.getdrip.com/<account>/subscribers/<id>).
+  id?: string;
   email: string;
   first_name?: string;
   last_name?: string;
@@ -88,6 +91,7 @@ export async function getSubscriber(
   }
   const data = (await res.json()) as {
     subscribers?: Array<{
+      id?: string;
       email: string;
       first_name?: string;
       last_name?: string;
@@ -100,6 +104,7 @@ export async function getSubscriber(
   const s = data.subscribers?.[0];
   if (!s) return null;
   return {
+    id: s.id,
     email: s.email,
     first_name: s.first_name,
     last_name: s.last_name,

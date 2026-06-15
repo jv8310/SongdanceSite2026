@@ -28,7 +28,7 @@ export type InstallmentPlan = {
   monthly: number;        // major unit, e.g. 349
   total_cents: number;    // monthly_cents × count
   total: number;
-  count: number;          // always 3 for now
+  count: number;          // 3, 6 or 12
 };
 
 export type Offer = {
@@ -39,7 +39,15 @@ export type Offer = {
   price_cents: number;    // for Stripe
   base_price: number;     // pre-discount sticker, major unit
   save_note: string;
-  installments?: InstallmentPlan;
+  // Two installment ladders, both giving full access from the first
+  // payment. The 6-month plan carries a higher premium over pay-in-full
+  // than the 3-month plan (longer financing, lower monthly barrier).
+  installments?: InstallmentPlan;     // 3 monthly payments
+  installments_6x?: InstallmentPlan;  // 6 monthly payments
+  // 12 monthly payments. Hidden by default — the cert page only surfaces this
+  // ladder when the visitor arrives with `?installment=12`. It carries the
+  // highest premium over pay-in-full (the longest financing, lowest monthly).
+  installments_12x?: InstallmentPlan;
 };
 
 // Currency map.
@@ -49,24 +57,27 @@ export type Offer = {
 // price story stays simple.
 //
 // GBP is EUR × ~0.85, rounded to neat headline amounts.
+// `monthly3` is the 3-month installment; `monthly6` the 6-month one;
+// `monthly12` the hidden 12-month one. Each longer ladder totals more (a
+// higher premium over pay-in-full) in exchange for a lower monthly figure.
 const PRICES: Record<
   Currency,
   {
-    cert:   { full: number; base: number; monthly: number };
-    bundle: { full: number; base: number; monthly: number };
+    cert:   { full: number; base: number; monthly3: number; monthly6: number; monthly12: number };
+    bundle: { full: number; base: number; monthly3: number; monthly6: number; monthly12: number };
   }
 > = {
   EUR: {
-    cert:   { full: 999,  base: 1500, monthly: 349 },
-    bundle: { full: 1499, base: 2150, monthly: 525 },
+    cert:   { full: 999,  base: 1500, monthly3: 349, monthly6: 189, monthly12: 99 },
+    bundle: { full: 1499, base: 2150, monthly3: 525, monthly6: 285, monthly12: 149 },
   },
   USD: {
-    cert:   { full: 999,  base: 1500, monthly: 349 },
-    bundle: { full: 1499, base: 2150, monthly: 525 },
+    cert:   { full: 999,  base: 1500, monthly3: 349, monthly6: 189, monthly12: 99 },
+    bundle: { full: 1499, base: 2150, monthly3: 525, monthly6: 285, monthly12: 149 },
   },
   GBP: {
-    cert:   { full: 849,  base: 1299, monthly: 299 },
-    bundle: { full: 1299, base: 1849, monthly: 459 },
+    cert:   { full: 849,  base: 1299, monthly3: 299, monthly6: 159, monthly12: 85 },
+    bundle: { full: 1299, base: 1849, monthly3: 459, monthly6: 245, monthly12: 129 },
   },
 };
 
@@ -79,6 +90,17 @@ function money(amount: number, currency: Currency): string {
   return `${symbol(currency)}${amount.toLocaleString('en-US')}`;
 }
 
+function plan(currency: Currency, monthly: number, count: number): InstallmentPlan {
+  return {
+    currency,
+    monthly,
+    monthly_cents: monthly * 100,
+    count,
+    total: monthly * count,
+    total_cents: monthly * 100 * count,
+  };
+}
+
 function certOffer(currency: Currency): Omit<Offer, 'save_note'> {
   const p = PRICES[currency].cert;
   return {
@@ -88,14 +110,9 @@ function certOffer(currency: Currency): Omit<Offer, 'save_note'> {
     price: p.full,
     price_cents: p.full * 100,
     base_price: p.base,
-    installments: {
-      currency,
-      monthly: p.monthly,
-      monthly_cents: p.monthly * 100,
-      count: 3,
-      total: p.monthly * 3,
-      total_cents: p.monthly * 100 * 3,
-    },
+    installments: plan(currency, p.monthly3, 3),
+    installments_6x: plan(currency, p.monthly6, 6),
+    installments_12x: plan(currency, p.monthly12, 12),
   };
 }
 function bundleOffer(currency: Currency): Omit<Offer, 'save_note'> {
@@ -107,14 +124,9 @@ function bundleOffer(currency: Currency): Omit<Offer, 'save_note'> {
     price: p.full,
     price_cents: p.full * 100,
     base_price: p.base,
-    installments: {
-      currency,
-      monthly: p.monthly,
-      monthly_cents: p.monthly * 100,
-      count: 3,
-      total: p.monthly * 3,
-      total_cents: p.monthly * 100 * 3,
-    },
+    installments: plan(currency, p.monthly3, 3),
+    installments_6x: plan(currency, p.monthly6, 6),
+    installments_12x: plan(currency, p.monthly12, 12),
   };
 }
 

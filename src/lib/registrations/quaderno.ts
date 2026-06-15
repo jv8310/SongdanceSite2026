@@ -39,6 +39,25 @@ function baseUrl(cfg: QuadernoConfig) {
   return `https://${cfg.account}.quadernoapp.com/api`;
 }
 
+// Find a contact id by email (exact, case-insensitive). Returns null when
+// Quaderno has never seen the address. Used by the admin "open Quaderno
+// profile" deep-link to jump straight to the buyer's contact page.
+export async function findContactIdByEmail(
+  cfg: QuadernoConfig,
+  email: string,
+): Promise<string | null> {
+  const res = await fetch(
+    `${baseUrl(cfg)}/contacts.json?q=${encodeURIComponent(email)}`,
+    { headers: { Authorization: authHeader(cfg) } },
+  );
+  if (!res.ok) return null;
+  const arr = (await res.json()) as Array<{ id: string; email?: string }>;
+  const found = arr.find(
+    (x) => x.email?.toLowerCase() === email.toLowerCase(),
+  );
+  return found?.id ?? null;
+}
+
 export async function upsertContact(cfg: QuadernoConfig, c: ContactInput) {
   // Quaderno doesn't have a true upsert; we attempt to find by email first.
   const search = await fetch(

@@ -7,6 +7,9 @@ type Env = {
   STRIPE_SECRET_KEY: string;
   STRIPE_WEBHOOK_SECRET: string;
   STRIPE_PUBLISHABLE_KEY: string;
+  // "true" offers PayPal in Checkout (one-off payments). Requires PayPal to be
+  // activated in the Stripe Dashboard first — see paypalEnabled() in stripe.ts.
+  STRIPE_ENABLE_PAYPAL?: string;
   QUADERNO_API_KEY: string;
   QUADERNO_ACCOUNT: string;
   QUADERNO_SANDBOX?: string;
@@ -27,6 +30,9 @@ type Env = {
   RESEND_FROM?: string;
   RESEND_INTAKES_FROM?: string;
   RESEND_REPLY_TO?: string;
+  // Comma-separated recipients for the internal "SD-ORDER" purchase
+  // notifications. Defaults to jacob@songdance.co + support@songdance.co.
+  ORDER_NOTIFICATIONS_TO?: string;
   ANTHROPIC_API_KEY?: string;
   SVH_CERT_PORTAL_URL?: string;
   ADMIN_PASSWORD: string;

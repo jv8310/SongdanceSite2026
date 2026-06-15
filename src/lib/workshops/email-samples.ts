@@ -23,6 +23,7 @@ import {
   verificationEmail,
   type EmailContent,
 } from './emails';
+import { buildOrderNotificationEmail } from '../orders/notification';
 
 export type EmailSample = {
   id: string;
@@ -39,8 +40,8 @@ export function buildEmailSamples(base: string): EmailSample[] {
   const workshopTitle = 'Somatic Vocal Healing Workshop';
   const whenLocal = 'Monday 15 June 2026, 20:00 (CEST)';
   const discountEndsLocal = 'Wednesday 17 June 2026, 21:00 (CEST)';
-  const resumeUrl = `${b}/w/svh`;
-  const joinUrl = `${b}/workshop/success?rid=123`;
+  const resumeUrl = `${b}/workshop?resume=sample0123456789abcdef0123456789ab#register`;
+  const joinUrl = `${b}/workshop/success?t=sample0123456789abcdef0123456789ab`;
   // Personalized: the course page reads ?email= and shows that person's
   // price (and any live discount) without them typing anything.
   const courseUrl = `${b}/courses/12-week?email=maria%40example.com#register`;
@@ -203,6 +204,68 @@ export function buildEmailSamples(base: string): EmailSample[] {
       timing: '+8 days',
       audience: "Attended (non-pro), didn't buy — final touch",
       content: downsellEmail2({ ...lc, courseUrl, calendarUrl }),
+    },
+
+    // ── Internal order notifications (SD-ORDER, ops only) ────────────────
+    {
+      id: 'order_course',
+      group: 'Order notifications (internal)',
+      label: 'SD-ORDER — course purchase',
+      timing: 'On payment of a course order',
+      audience: 'Team inbox (jacob@ + support@) — not the customer',
+      content: buildOrderNotificationEmail(
+        {
+          orderType: 'course',
+          orderId: 128,
+          productName: 'SVH Certification Course',
+          productSlug: 'cc-cert',
+          firstName: 'Maria',
+          customerName: 'Maria Voss',
+          email: 'maria@example.com',
+          phone: '+32 470 12 34 56',
+          country: 'BE',
+          companyName: 'Voss Voice Practice',
+          vatNumber: 'BE0123456789',
+          amountCents: 165000,
+          currency: 'EUR',
+          paymentPlan: '3x',
+          installmentsTotal: 3,
+          activateChoice: 'now',
+          sourceVariant: 'returning',
+          paidAt: '2026-06-12 09:14:00',
+          stripePaymentIntent: 'pi_3QExample0001',
+          stripeSubscriptionId: 'sub_1QExample0001',
+        },
+        { quadernoAccount: 'songdance', dripAccountId: '0000000', dripSubscriberId: 'abc123def456' },
+      ),
+    },
+    {
+      id: 'order_retreat',
+      group: 'Order notifications (internal)',
+      label: 'SD-ORDER — retreat purchase',
+      timing: 'On payment of a retreat order',
+      audience: 'Team inbox (jacob@ + support@) — not the customer',
+      content: buildOrderNotificationEmail(
+        {
+          orderType: 'retreat',
+          orderId: 54,
+          productName: 'Somatic Vocal Healing Retreat',
+          productSlug: 'svh-retreat',
+          tierName: 'Shared room',
+          firstName: 'Daniel',
+          customerName: 'Daniel Mertens',
+          email: 'daniel@example.com',
+          phone: '+31 6 12 34 56 78',
+          country: 'NL',
+          amountCents: 145000,
+          currency: 'EUR',
+          dietary: 'Vegetarian',
+          notes: 'Arriving the evening before.',
+          paidAt: '2026-06-12 10:02:00',
+          stripePaymentIntent: 'pi_3QExample0002',
+        },
+        { quadernoAccount: 'songdance', dripAccountId: '0000000', dripSubscriberId: 'xyz789ghi012' },
+      ),
     },
   ];
 }

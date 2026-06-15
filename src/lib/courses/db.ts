@@ -3,7 +3,7 @@
 
 export type CourseProductSlug = 'cc-cert' | 'cc-bundle' | 'grief-course' | 'svh-12week';
 export type ActivateChoice = 'now' | 'wait';
-export type PaymentPlan = 'full' | '3x';
+export type PaymentPlan = 'full' | '3x' | '6x' | '12x';
 
 // Mirrors the Stripe Subscription `status` enum exactly. We store it
 // verbatim so the admin view shows the live Stripe state without a
