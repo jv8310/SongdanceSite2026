@@ -12,15 +12,21 @@ const authed = await isSr26Authed(Astro.request, env);
 // designed (its own <head>, fonts, styles, scripts), with one floating link
 // into the data room injected before </body>.
 if (authed) {
-  const dataRoom =
-    '<a href="/sr26/docs" style="position:fixed;right:18px;bottom:18px;z-index:999;' +
+  const floatBase =
+    'position:fixed;bottom:18px;z-index:999;' +
     "font-family:'Inter',-apple-system,sans-serif;font-size:11.5px;font-weight:500;" +
-    'letter-spacing:.14em;text-transform:uppercase;color:#241409;background:#d99a6c;' +
-    'padding:12px 20px;border-radius:99px;text-decoration:none;' +
-    'box-shadow:0 14px 38px -10px rgba(0,0,0,.7)">Data room →</a>';
+    'letter-spacing:.14em;text-transform:uppercase;text-decoration:none;' +
+    'padding:12px 20px;border-radius:99px;box-shadow:0 14px 38px -10px rgba(0,0,0,.7)';
+  const theCase =
+    `<a href="/sr26/why" style="${floatBase};right:148px;color:#d99a6c;` +
+    'background:rgba(20,16,29,.82);border:1px solid rgba(217,154,108,.4)">The case →</a>';
+  const dataRoom =
+    `<a href="/sr26/docs" style="${floatBase};right:18px;color:#241409;` +
+    'background:#d99a6c">Data room →</a>';
+  const floats = theCase + dataRoom;
   const html = conceptHtml.includes('</body>')
-    ? conceptHtml.replace('</body>', `${dataRoom}</body>`)
-    : conceptHtml + dataRoom;
+    ? conceptHtml.replace('</body>', `${floats}</body>`)
+    : conceptHtml + floats;
   return new Response(html, {
     headers: {
       'content-type': 'text/html; charset=utf-8',
