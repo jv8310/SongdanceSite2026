@@ -18,9 +18,35 @@
 // Stripe is asked to charge, so the buyer pays the headline number.
 
 import type { DripSubscriber } from '../registrations/drip';
+import {
+  priceCents as twelveWeekPriceCents,
+  DISCOUNT_PERCENT as WORKSHOP_DISCOUNT_PERCENT,
+} from './twelve-week';
+import { isSupportedCurrency } from '../workshops/currency';
 
 export type Variant = 'B1' | 'B2' | 'A' | 'D' | 'E' | 'C';
 export type Currency = 'EUR' | 'USD' | 'GBP';
+
+// Workshop-attendee discount that rides on the cert *bundle* only: 20% off the
+// 12-week course portion the bundle contains. Derived from the 12-week's own
+// standalone price so the two stay in lockstep (€130 EUR/USD, £110 GBP).
+// It's the same 20%/48h window as the standalone 12-week course; here it
+// stacks on top of the bundle's permanent mid-cohort discount, and only the
+// 20% expires when the countdown runs out.
+export const BUNDLE_WORKSHOP_DISCOUNT_PERCENT = WORKSHOP_DISCOUNT_PERCENT;
+export function bundleWorkshopDiscountCents(currency: Currency): number {
+  if (!isSupportedCurrency(currency)) return 0;
+  return Math.round((twelveWeekPriceCents(currency) * WORKSHOP_DISCOUNT_PERCENT) / 100);
+}
+
+export type WorkshopDiscount = {
+  eligible: boolean;
+  kind: 'pre' | 'post' | 'none';
+  // Epoch ms the 48h window closes — only set for the post-workshop countdown.
+  expires_at_ms: number | null;
+  // Amount knocked off the bundle's full price (0 when not eligible).
+  off_cents: number;
+};
 
 export type InstallmentPlan = {
   currency: Currency;
@@ -159,6 +185,10 @@ export type VariantDecision = {
   can_activate_now?: boolean;
   // Present for variant C only — where to send them once activated.
   course_portal_url?: string;
+  // Workshop-attendee discount on the bundle (see WorkshopDiscount). Attached
+  // by the subscriber-status endpoint, which has the DB to look up the
+  // buyer's workshops; decideVariant itself stays pure.
+  workshop_discount?: WorkshopDiscount;
   // Personalisation: known subscriber details the front-end can use to
   // greet by name and pre-fill the form.
   first_name?: string;

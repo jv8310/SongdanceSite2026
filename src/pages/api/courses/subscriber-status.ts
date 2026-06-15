@@ -14,8 +14,15 @@ import { getSubscriber } from '../../../lib/registrations/drip';
 import {
   decideVariant,
   getBundleOffer,
+  bundleWorkshopDiscountCents,
   type Currency,
+  type WorkshopDiscount,
 } from '../../../lib/courses/variant';
+import { listSecuredWorkshopLinksByEmail } from '../../../lib/workshops/db';
+import {
+  bestDiscountStatus,
+  anchorMsFromWorkshop,
+} from '../../../lib/courses/twelve-week';
 
 export const prerender = false;
 
@@ -65,7 +72,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
       coursePortalUrl: env.SVH_CERT_PORTAL_URL,
       currency,
     });
-    return json(decision);
+    const workshop_discount = await deriveWorkshopDiscount(env.DB, email, currency);
+    return json({ ...decision, workshop_discount });
   } catch (err) {
     // Soft failure — treat as newcomer so the page still works. Derive the
     // save amount from the offer itself so we don't drift when prices move.
@@ -86,6 +94,32 @@ export const POST: APIRoute = async ({ request, locals }) => {
     });
   }
 };
+
+// The bundle's workshop discount: same 20%/48h window as the standalone
+// 12-week course, derived from the buyer's secured workshop registrations.
+// Soft-fails to "no discount" so a DB blip never blocks the page. The checkout
+// endpoint re-derives this independently, so the price can't be spoofed.
+async function deriveWorkshopDiscount(
+  db: D1Database,
+  email: string,
+  currency: Currency,
+): Promise<WorkshopDiscount> {
+  try {
+    const links = await listSecuredWorkshopLinksByEmail(db, email);
+    const status = bestDiscountStatus(
+      links.map((l) => anchorMsFromWorkshop(l.starts_at_utc, l.ends_at_utc)),
+      Date.now(),
+    );
+    return {
+      eligible: status.eligible,
+      kind: status.kind,
+      expires_at_ms: status.expiresAtMs,
+      off_cents: status.eligible ? bundleWorkshopDiscountCents(currency) : 0,
+    };
+  } catch {
+    return { eligible: false, kind: 'none', expires_at_ms: null, off_cents: 0 };
+  }
+}
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {

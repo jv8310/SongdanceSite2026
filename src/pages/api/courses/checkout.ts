@@ -44,11 +44,17 @@ import { findCountry } from '../../../lib/countries';
 import {
   getBundleOffer,
   getCertOffer,
+  bundleWorkshopDiscountCents,
   type Currency,
   type InstallmentPlan,
   type Offer,
   type Variant,
 } from '../../../lib/courses/variant';
+import { listSecuredWorkshopLinksByEmail } from '../../../lib/workshops/db';
+import {
+  bestDiscountStatus,
+  anchorMsFromWorkshop,
+} from '../../../lib/courses/twelve-week';
 
 export const prerender = false;
 
@@ -215,12 +221,41 @@ export const POST: APIRoute = async ({ request, locals }) => {
         400,
       );
     }
-    // Apply URL-driven discount to the unit price charged to the buyer.
-    // For an installment plan, every monthly payment is discounted (not just
-    // the first).
-    const chargedPriceCents = applyDiscount(offer.price_cents, discountPct);
+    // Workshop-attendee discount on the bundle's 12-week portion. Re-derived
+    // here from the buyer's secured workshops (never trusted from the client),
+    // so the charge always matches what the page showed. Same 20%/48h window
+    // as the standalone 12-week course; it stacks on top of the bundle's
+    // mid-cohort price and on the full amount comes off as a flat sum, split
+    // evenly across installments. Cert-only purchases never get it.
+    let workshopOffCents = 0;
+    let workshopMonthlyOffCents = 0;
+    if (productSlug === 'cc-bundle') {
+      try {
+        const links = await listSecuredWorkshopLinksByEmail(env.DB, email);
+        const wd = bestDiscountStatus(
+          links.map((l) => anchorMsFromWorkshop(l.starts_at_utc, l.ends_at_utc)),
+          Date.now(),
+        );
+        if (wd.eligible) {
+          workshopOffCents = bundleWorkshopDiscountCents(currency);
+          workshopMonthlyOffCents = installmentPlan
+            ? Math.round(workshopOffCents / installmentPlan.count)
+            : 0;
+        }
+      } catch {
+        // Soft-fail: charge without the workshop discount rather than block.
+      }
+    }
+
+    // Apply URL-driven discount to the unit price charged to the buyer, then
+    // the workshop amount (bundle only). For an installment plan, every monthly
+    // payment is discounted (not just the first).
+    const chargedPriceCents = Math.max(
+      0,
+      applyDiscount(offer.price_cents, discountPct) - workshopOffCents,
+    );
     const chargedMonthlyCents = installmentPlan
-      ? applyDiscount(installmentPlan.monthly_cents, discountPct)
+      ? Math.max(0, applyDiscount(installmentPlan.monthly_cents, discountPct) - workshopMonthlyOffCents)
       : 0;
     const totalAmountCents = installmentPlan
       ? chargedMonthlyCents * installmentPlan.count
@@ -341,6 +376,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
             ),
           }
         : {}),
+      ...(workshopOffCents > 0
+        ? {
+            workshop_discount_cents: String(
+              installmentPlan ? workshopMonthlyOffCents * installmentPlan.count : workshopOffCents,
+            ),
+          }
+        : {}),
     };
 
     // Preserve the discount — and the hidden 12-month unlock — on the cancel
@@ -374,7 +416,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         currency: currency.toLowerCase(),
         installment_count: installmentPlan.count,
         metadata,
-        idempotency_key: `course-reg-${registrationId}-${paymentPlan}${discountPct > 0 ? `-d${discountPct}` : ''}`,
+        idempotency_key: `course-reg-${registrationId}-${paymentPlan}${discountPct > 0 ? `-d${discountPct}` : ''}${workshopOffCents > 0 ? `-w${workshopOffCents}` : ''}`,
       });
 
       await attachStripeSessionToCourse(env.DB, registrationId, session.id);
@@ -405,6 +447,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
           vat_number: vatNumber,
           discount_percent: discountPct,
           original_monthly_amount_cents: installmentPlan.monthly_cents,
+          workshop_monthly_off_cents: workshopMonthlyOffCents,
         },
       });
 
@@ -437,7 +480,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         },
       ],
       metadata,
-      idempotency_key: `course-reg-${registrationId}${discountPct > 0 ? `-d${discountPct}` : ''}`,
+      idempotency_key: `course-reg-${registrationId}${discountPct > 0 ? `-d${discountPct}` : ''}${workshopOffCents > 0 ? `-w${workshopOffCents}` : ''}`,
     });
 
     await attachStripeSessionToCourse(env.DB, registrationId, session.id);
@@ -459,6 +502,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         vat_number: vatNumber,
         discount_percent: discountPct,
         original_amount_cents: offer.price_cents,
+        workshop_discount_cents: workshopOffCents,
       },
     });
 

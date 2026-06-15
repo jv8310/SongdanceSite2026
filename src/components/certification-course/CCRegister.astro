@@ -43,7 +43,7 @@ const countries = COUNTRIES;
 
         <div class="cc-discount-countdown" data-slot="discount-countdown" hidden>
           <i class="ph-light ph-hourglass-medium" aria-hidden="true"></i>
-          <span>Your discount ends in <span class="clock" data-slot="discount-clock">--:--:--</span></span>
+          <span>Your 20% workshop discount on the 12-week foundation ends in <span class="clock" data-slot="discount-clock">--:--:--</span></span>
         </div>
 
         <div data-slot="offer-picker">
@@ -223,6 +223,12 @@ const countries = COUNTRIES;
     installments_12x?: InstallmentPlan; // 12 monthly payments (hidden by default)
   };
   type Variant = 'B1' | 'B2' | 'A' | 'D' | 'E' | 'C';
+  type WorkshopDiscount = {
+    eligible: boolean;
+    kind: 'pre' | 'post' | 'none';
+    expires_at_ms: number | null;
+    off_cents: number;
+  };
   type Decision = {
     variant: Variant;
     currency: Currency;
@@ -234,6 +240,7 @@ const countries = COUNTRIES;
     last_name?: string;
     country?: string;
     phone?: string;
+    workshop_discount?: WorkshopDiscount;
   };
   type PaymentPlan = 'full' | '3x' | '6x' | '12x';
 
@@ -257,28 +264,8 @@ const countries = COUNTRIES;
     } catch {}
     return 0;
   }
-  // `let`, not `const`: a `?deadline=` countdown can lapse while the page is
-  // open, at which point we zero this out and re-price at full.
-  let discountPct: number = readDiscountFromUrl();
-
-  // Optional discount deadline driving a live countdown. `?deadline=` accepts
-  // either epoch-ms or an ISO 8601 string. Only honoured when it's in the
-  // future and within a year, and only meaningful alongside `?discount=N`.
-  // Purely presentational urgency — the server doesn't see it; when it lapses
-  // we simply stop applying the discount client-side.
-  function readDeadlineFromUrl(): number | null {
-    try {
-      const raw = new URLSearchParams(window.location.search).get('deadline');
-      if (!raw) return null;
-      const ms = /^\d+$/.test(raw) ? parseInt(raw, 10) : Date.parse(raw);
-      if (!Number.isFinite(ms)) return null;
-      const now = Date.now();
-      if (ms <= now || ms > now + 365 * 24 * 60 * 60 * 1000) return null;
-      return ms;
-    } catch {}
-    return null;
-  }
-  let discountDeadlineMs: number | null = readDeadlineFromUrl();
+  // `?discount=N` is the untimed manual promo — it never expires on its own.
+  const discountPct: number = readDiscountFromUrl();
 
   // HH:MM:SS, prefixed with "Nd" once there's a day or more left.
   function formatCountdown(ms: number): string {
@@ -297,6 +284,38 @@ const countries = COUNTRIES;
   function stopDiscountCountdown() {
     if (discountCountdownTimer) window.clearInterval(discountCountdownTimer);
     discountCountdownTimer = undefined;
+  }
+
+  // TEMP — PREVIEW ONLY. `?preview-workshop[=hours]` fakes a live post-workshop
+  // window so the bundle's 20%-off-12-week discount + countdown can be eyeballed
+  // without a real workshop in the DB (default 2h). Remove this + its use in
+  // applyPreviewWorkshop before merging to production.
+  const PREVIEW_WORKSHOP_HOURS: number | null = (() => {
+    try {
+      const p = new URLSearchParams(window.location.search);
+      if (!p.has('preview-workshop')) return null;
+      const raw = p.get('preview-workshop');
+      const h = raw ? parseFloat(raw) : NaN;
+      return Number.isFinite(h) && h > 0 ? h : 2;
+    } catch { return null; }
+  })();
+  // The workshop discount on the bundle is 20% off the 12-week portion. This
+  // mirrors the server's BUNDLE_WORKSHOP_DISCOUNT_PERCENT without importing
+  // server code into the client bundle.
+  const WORKSHOP_PCT = 20;
+  // 20% of the 12-week standalone price, mirroring bundleWorkshopDiscountCents.
+  const PREVIEW_WORKSHOP_OFF_CENTS: Record<Currency, number> = {
+    EUR: 13000, USD: 13000, GBP: 11000,
+  };
+  function applyPreviewWorkshop(decision: Decision): Decision {
+    if (PREVIEW_WORKSHOP_HOURS == null) return decision;
+    decision.workshop_discount = {
+      eligible: true,
+      kind: 'post',
+      expires_at_ms: Date.now() + PREVIEW_WORKSHOP_HOURS * 3600 * 1000,
+      off_cents: PREVIEW_WORKSHOP_OFF_CENTS[decision.currency ?? 'EUR'] ?? 13000,
+    };
+    return decision;
   }
 
   // The 12-month installment ladder is hidden unless the visitor arrives with
@@ -525,11 +544,39 @@ const countries = COUNTRIES;
 
   function renderVariant(email: string, decision: Decision) {
     stopDiscountCountdown();
+    applyPreviewWorkshop(decision); // TEMP — no-op unless ?preview-workshop
     const fragment = template.content.cloneNode(true) as DocumentFragment;
     const root = fragment.querySelector('.cc-variant') as HTMLElement;
     // Note: `decision` is mutated when the buyer changes country, so we
     // always read `decision.currency` rather than capturing it once.
     if (!decision.currency) decision.currency = 'EUR';
+
+    // The workshop discount rides on the bundle only, and only while live.
+    // `off_cents` comes off the bundle's full price; for installments it's
+    // split across the months. Reading off `decision` (not a captured copy)
+    // means a currency change or a countdown expiry re-prices correctly.
+    const workshopOffFor = (offer: Offer): number => {
+      const wd = decision.workshop_discount;
+      if (!wd || !wd.eligible || offer.slug !== 'cc-bundle') return 0;
+      return wd.off_cents;
+    };
+    const workshopMonthlyOff = (offer: Offer, count: number): number =>
+      count > 0 ? Math.round(workshopOffFor(offer) / count) : 0;
+
+    // Final charged cents = the manual `?discount=` percent first, then the
+    // workshop amount off (bundle only). Floor at 0.
+    const finalFullCents = (offer: Offer): number =>
+      Math.max(0, applyDiscountCents(offer.price_cents) - workshopOffFor(offer));
+    const finalMonthlyCents = (offer: Offer, ladder: InstallmentPlan): number =>
+      Math.max(0, applyDiscountCents(ladder.monthly_cents) - workshopMonthlyOff(offer, ladder.count));
+    const offerHasDiscount = (offer: Offer): boolean =>
+      discountPct > 0 || workshopOffFor(offer) > 0;
+    // Strike the pre-discount figure → show the final, but only when something
+    // actually discounts it.
+    const strikeIf = (show: boolean, original: string, discounted: string): string =>
+      show
+        ? `<span class="cc-amount-strike">${escapeHtml(original)}</span> ${escapeHtml(discounted)}`
+        : escapeHtml(original);
 
     const copy = COPY[decision.variant](decision.twelve_week_week, decision.first_name);
     (root.querySelector('[data-slot="greeting"]') as HTMLElement).textContent = copy.greeting;
@@ -661,6 +708,12 @@ const countries = COUNTRIES;
         if (target !== inFlightCurrency) return;
         decision.currency = next.currency;
         decision.offers = next.offers;
+        // The workshop off-amount is currency-specific (€130 vs £110), so take
+        // the refreshed one — unless we've already let it lapse this session.
+        if (decision.workshop_discount?.eligible !== false) {
+          decision.workshop_discount = next.workshop_discount;
+        }
+        applyPreviewWorkshop(decision); // TEMP — no-op unless ?preview-workshop
         try {
           localStorage.setItem(
             STORAGE_KEY,
@@ -731,7 +784,7 @@ const countries = COUNTRIES;
         selectedOfferSlug = decision.offers[0]?.slug ?? 'cc-cert';
       }
       decision.offers.forEach((offer, i) => {
-        const card = renderOfferCard(offer, i === 0, decision.offers.length > 1);
+        const card = renderOfferCard(offer, i === 0, decision.offers.length > 1, workshopOffFor(offer));
         card.dataset.offerSlug = offer.slug;
         card.addEventListener('click', () => {
           selectedOfferSlug = offer.slug;
@@ -775,7 +828,8 @@ const countries = COUNTRIES;
       planPicker.style.display = '';
 
       const cur = decision.currency!;
-      const fullDiscCents = applyDiscountCents(offer.price_cents);
+      const discounted = offerHasDiscount(offer);
+      const fullFinalCents = finalFullCents(offer);
 
       // If the previously selected plan's ladder isn't available on this
       // offer, fall back to full pay.
@@ -787,7 +841,7 @@ const countries = COUNTRIES;
         value: 'full',
         title: 'Pay in full',
         subtitle: `One payment, full access today.`,
-        amountHtml: amountWithStrike(money(offer.price, cur), moneyCents(fullDiscCents, cur)),
+        amountHtml: strikeIf(discounted, money(offer.price, cur), moneyCents(fullFinalCents, cur)),
       });
 
       // One installment row per available ladder (3 monthly, then 6 monthly,
@@ -800,19 +854,19 @@ const countries = COUNTRIES;
       ] as const).forEach(
         ([value, ladder]) => {
           if (!ladder) return;
-          const monthlyDiscCents = applyDiscountCents(ladder.monthly_cents);
-          const totalDiscCents = monthlyDiscCents * ladder.count;
+          const monthlyFinalCents = finalMonthlyCents(offer, ladder);
+          const totalFinalCents = monthlyFinalCents * ladder.count;
           installmentRows.push(
             renderPlanOption({
               value,
               title: `Pay in ${ladder.count} monthly installments`,
-              subtitle:
-                discountPct > 0
-                  ? `${moneyCents(monthlyDiscCents, cur)}/mo for ${ladder.count} months (${moneyCents(totalDiscCents, cur)} total, ${discountPct}% off). Full access from the first payment.`
-                  : `${money(ladder.monthly, cur)}/mo for ${ladder.count} months (${money(ladder.total, cur)} total). Full access from the first payment.`,
-              amountHtml: amountWithStrike(
+              subtitle: discounted
+                ? `${moneyCents(monthlyFinalCents, cur)}/mo for ${ladder.count} months (${moneyCents(totalFinalCents, cur)} total). Full access from the first payment.`
+                : `${money(ladder.monthly, cur)}/mo for ${ladder.count} months (${money(ladder.total, cur)} total). Full access from the first payment.`,
+              amountHtml: strikeIf(
+                discounted,
                 `${money(ladder.monthly, cur)}/mo`,
-                `${moneyCents(monthlyDiscCents, cur)}/mo`,
+                `${moneyCents(monthlyFinalCents, cur)}/mo`,
               ),
             }),
           );
@@ -853,45 +907,53 @@ const countries = COUNTRIES;
       const offer = decision.offers.find((o) => o.slug === selectedOfferSlug);
       if (!offer) return;
       const cur = decision.currency!;
+      const discounted = offerHasDiscount(offer);
+      // Spell out which discounts are in play, so the line above the CTA is honest.
+      const offNotes: string[] = [];
+      if (workshopOffFor(offer) > 0) offNotes.push(`${WORKSHOP_PCT}% workshop discount`);
+      if (discountPct > 0) offNotes.push(`${discountPct}% off`);
+      const offSuffix = offNotes.length ? ` (${offNotes.join(' + ')})` : '';
       const ladder = ladderFor(offer, selectedPlan);
       if (selectedPlan !== 'full' && ladder) {
         const monthly = `${money(ladder.monthly, cur)}/mo`;
-        const monthlyDisc = `${moneyCents(applyDiscountCents(ladder.monthly_cents), cur)}/mo`;
-        summaryLabel.textContent = `${offer.label} — ${ladder.count} monthly payments${
-          discountPct > 0 ? ` (${discountPct}% off)` : ''
-        }`;
-        summaryAmount.innerHTML = amountWithStrike(monthly, monthlyDisc);
+        const monthlyDisc = `${moneyCents(finalMonthlyCents(offer, ladder), cur)}/mo`;
+        summaryLabel.textContent = `${offer.label} — ${ladder.count} monthly payments${offSuffix}`;
+        summaryAmount.innerHTML = strikeIf(discounted, monthly, monthlyDisc);
       } else {
         const full = money(offer.price, cur);
-        const fullDisc = moneyCents(applyDiscountCents(offer.price_cents), cur);
-        summaryLabel.textContent = `${offer.label} — one-time payment${
-          discountPct > 0 ? ` (${discountPct}% off)` : ''
-        }`;
-        summaryAmount.innerHTML = amountWithStrike(full, fullDisc);
+        const fullDisc = moneyCents(finalFullCents(offer), cur);
+        summaryLabel.textContent = `${offer.label} — one-time payment${offSuffix}`;
+        summaryAmount.innerHTML = strikeIf(discounted, full, fullDisc);
       }
     }
 
     renderPlanOptions();
     renderSummary();
 
-    // Discount countdown: shown only when a `?discount=N` is live AND a valid
-    // future `?deadline=` was supplied. When it reaches zero we drop the
-    // discount and re-price everything at full, in place.
+    // Workshop-discount countdown. Shown only in the 48h post-workshop window
+    // (kind 'post', with an expiry). Before the workshop (kind 'pre') the
+    // bundle discount is live but there's no clock. When the clock hits zero we
+    // drop *only* the workshop discount and re-price the bundle — the bundle's
+    // mid-cohort discount stays put.
     const countdownEl = root.querySelector('[data-slot="discount-countdown"]') as HTMLElement;
     const clockEl = root.querySelector('[data-slot="discount-clock"]') as HTMLElement;
     function setupCountdown() {
       stopDiscountCountdown();
-      if (discountPct <= 0 || !discountDeadlineMs || discountDeadlineMs <= Date.now()) {
+      const wd = decision.workshop_discount;
+      if (!wd || !wd.eligible || wd.kind !== 'post' || !wd.expires_at_ms) {
         countdownEl.hidden = true;
         return;
       }
+      const expiresAt = wd.expires_at_ms;
       countdownEl.hidden = false;
       const tick = () => {
-        const left = (discountDeadlineMs as number) - Date.now();
+        const left = expiresAt - Date.now();
         if (left <= 0) {
           stopDiscountCountdown();
-          discountPct = 0;
-          discountDeadlineMs = null;
+          // Lapse the workshop discount only; mid-cohort pricing is untouched.
+          decision.workshop_discount = {
+            eligible: false, kind: 'none', expires_at_ms: null, off_cents: 0,
+          };
           countdownEl.hidden = true;
           renderOfferCards();
           renderPlanOptions();
@@ -924,7 +986,12 @@ const countries = COUNTRIES;
     stage.replaceChildren(root);
   }
 
-  function renderOfferCard(offer: Offer, primary: boolean, selectable: boolean): HTMLElement {
+  function renderOfferCard(
+    offer: Offer,
+    primary: boolean,
+    selectable: boolean,
+    workshopOffCents: number,
+  ): HTMLElement {
     const card = document.createElement('button');
     card.type = 'button';
     card.className = 'cc-offer' + (primary ? ' cc-offer--primary' : '');
@@ -933,37 +1000,39 @@ const countries = COUNTRIES;
       ? `<span class="cc-offer-radio" aria-hidden="true"></span>`
       : '';
 
-    // With a discount, the "Your price" row stops being the prominent one —
-    // it gets struck through, and a new "After N% off" row takes the spotlight.
-    const yourRowClass = discountPct > 0 ? 'cc-offer-row' : 'cc-offer-row cc-offer-row--your';
-    const yourValueClass =
-      discountPct > 0 ? 'cc-offer-row-value cc-offer-strike' : 'cc-offer-row-value cc-offer-your';
-    const discountedRow =
-      discountPct > 0
-        ? `
-          <div class="cc-offer-row cc-offer-row--your">
-            <span class="cc-offer-row-label">After ${discountPct}% off</span>
-            <span class="cc-offer-row-value cc-offer-your">${moneyCents(
-              applyDiscountCents(offer.price_cents),
-              offer.currency,
-            )}</span>
-          </div>`
-        : '';
+    const cur = offer.currency;
+    const hasPct = discountPct > 0;
+    const hasWorkshop = workshopOffCents > 0;
+    const afterPctCents = applyDiscountCents(offer.price_cents);
+    const finalCents = Math.max(0, afterPctCents - workshopOffCents);
+
+    const row = (label: string, value: string, prominent: boolean, extra = '') =>
+      `<div class="cc-offer-row${prominent ? ' cc-offer-row--your' : ''}">
+        <span class="cc-offer-row-label">${escapeHtml(label)}</span>
+        <span class="cc-offer-row-value ${prominent ? 'cc-offer-your' : extra}">${value}</span>
+      </div>`;
+
+    // Each discount adds a row; the last one (the final price) is the
+    // prominent one. With nothing applied, "Your price" stays prominent.
+    const rows: string[] = [];
+    rows.push(row('Base price', money(offer.base_price, cur), false, 'cc-offer-base'));
+    rows.push(
+      row('Your price', money(offer.price, cur), !hasPct && !hasWorkshop, 'cc-offer-strike'),
+    );
+    if (hasPct) {
+      rows.push(row(`After ${discountPct}% off`, moneyCents(afterPctCents, cur), !hasWorkshop, 'cc-offer-strike'));
+    }
+    if (hasWorkshop) {
+      rows.push(row(`Workshop discount · ${WORKSHOP_PCT}% off your 12-week foundation`, `−${moneyCents(workshopOffCents, cur)}`, false));
+      rows.push(row('Your price today', moneyCents(finalCents, cur), true));
+    }
 
     card.innerHTML = `
       ${radioMark}
       <div class="cc-offer-body">
         <div class="cc-offer-name">${escapeHtml(offer.label)}</div>
         <div class="cc-offer-prices">
-          <div class="cc-offer-row">
-            <span class="cc-offer-row-label">Base price</span>
-            <span class="cc-offer-row-value cc-offer-base">${money(offer.base_price, offer.currency)}</span>
-          </div>
-          <div class="${yourRowClass}">
-            <span class="cc-offer-row-label">Your price</span>
-            <span class="${yourValueClass}">${money(offer.price, offer.currency)}</span>
-          </div>
-          ${discountedRow}
+          ${rows.join('')}
         </div>
         <p class="cc-offer-save">${escapeHtml(offer.save_note)}</p>
       </div>
@@ -990,13 +1059,6 @@ const countries = COUNTRIES;
       <span class="cc-plan-amount">${opts.amountHtml}</span>
     `;
     return el;
-  }
-
-  // When a discount is active, render the original amount struck through
-  // alongside the discounted amount. Otherwise just render the amount.
-  function amountWithStrike(original: string, discounted: string): string {
-    if (discountPct === 0) return escapeHtml(original);
-    return `<span class="cc-amount-strike">${escapeHtml(original)}</span> ${escapeHtml(discounted)}`;
   }
 
   function escapeHtml(s: string): string {
