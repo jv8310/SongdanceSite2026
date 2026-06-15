@@ -1,0 +1,146 @@
+---
+// The certification course is a path of learning to hold space for another
+// voice — but it begins with your own. For people whose path still includes
+// the 12-week course (new and returning visitors — the bundle buyers), this
+// section names that plainly and carries the essentials across from the
+// 12-week page (/courses/12-week), so they can see what's included without
+// leaving the page.
+//
+// Visibility is gated on the SAME decision the price segment resolves via
+// /api/courses/subscriber-status (the Drip-tag verification). The section
+// shows when the 12-week course is part of their offer (the bundle), and
+// hides for those already on it (B1), past it (B2), or already enrolled (C).
+// See the <script> at the foot of this file.
+const able = [
+  'Find and sound a stuck feeling, instead of managing it or waiting for it to pass.',
+  'Work <em>with</em> your nervous system, not against it.',
+  'Hear what your voice is telling you — fear, anger, grief, purpose, even older echoes.',
+  'Hold a safe, grounded space for sounding — first for yourself, eventually for others.',
+  'Keep practising on your own, for life.',
+];
+---
+
+<section class="cc-found" id="foundation" data-cc-foundation>
+  <div class="cc-found-inner">
+    <div class="cc-found-head">
+      <div class="cc-eyebrow cc-eyebrow--center">Where the path begins</div>
+      <h2 class="cc-h2" style="margin-top: var(--sp-4); max-width: 22ch; margin-left: auto; margin-right: auto;">
+        Before it's about others, <em>it's about you.</em>
+      </h2>
+    </div>
+
+    <p class="cc-found-lead">
+      This course will teach you to hold space for another voice. But you
+      cannot hold space for a place in someone else that you have never
+      visited in yourself.
+    </p>
+
+    <p class="cc-found-body">
+      So the path doesn't begin with anyone else's sound. It begins with
+      yours. Before you learn to sit with another person's grief, fear, anger
+      or pain, you spend twelve weeks learning to sit with your own — finding
+      the sound of a feeling, staying with it safely, working with your own
+      nervous system, until the practice is genuinely yours to hold.
+    </p>
+
+    <p class="cc-found-body">
+      That is why the path begins with the full <strong>12-week course</strong>
+      — the foundation the whole practice rests on. If you've already walked it
+      — or an equivalent foundation — you step in from where you are. If you
+      haven't, it's woven into your path: one continuous journey, from your own
+      voice to the space you'll one day hold for someone else's.
+    </p>
+
+    <div class="cc-found-panel">
+      <div class="cc-found-panel-media">
+        <img
+          src="/media/library/svhgpt-01-hero-in-one-breath.webp"
+          alt="A figure sounding, a warm light glowing at the throat — the practice meeting what's been held in the body."
+          loading="lazy"
+        />
+      </div>
+      <div class="cc-found-panel-text">
+        <span class="cc-found-tag">Included in your path</span>
+        <h3 class="cc-found-panel-title">The 12-Week Course</h3>
+        <p class="cc-found-panel-essence">
+          Twelve weeks to learn the practice — until you can hold it yourself.
+        </p>
+        <p class="cc-found-panel-sub">
+          A self-paced video course with live weekly Q&amp;A. Where you learn to
+          listen to your own voice, and let what's been waiting finally be heard.
+        </p>
+
+        <ul class="cc-found-list">
+          {able.map((item) => (
+            <li>
+              <span class="check" aria-hidden="true">✓</span>
+              <span set:html={item} />
+            </li>
+          ))}
+        </ul>
+
+        <p class="cc-found-meta">
+          12 modules · 18+ hours of guided practice · live weekly Q&amp;A · lifetime access
+        </p>
+
+        <a href="/courses/12-week" class="cc-link-cta">
+          See the full 12-week course <i class="ph-light ph-arrow-right"></i>
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  // Gate this section on the same decision the price segment resolves via
+  // /api/courses/subscriber-status (the Drip-tag verification). We don't
+  // re-fetch — we listen to the decision the teaser / register blocks already
+  // broadcast, and read the cached one on load. Same contract: `cc:decision`
+  // in localStorage, `cc:decision-updated` / `cc:decision-cleared` events.
+  type Variant = 'B1' | 'B2' | 'A' | 'D' | 'E' | 'C';
+  type Decision = { variant?: Variant; offers?: { slug?: string }[] };
+
+  const STORAGE_KEY = 'cc:decision';
+  const section = document.querySelector<HTMLElement>('[data-cc-foundation]');
+
+  if (section) {
+    // Show when the 12-week course is part of what they'd buy — i.e. their
+    // offer includes the bundle (variants A / D / E). Hide for those already
+    // on it (B1), past it (B2), or already enrolled with no offer (C).
+    // No decision yet (anonymous visitor) → show: it's a path they can still
+    // take, and it's the right default for cold traffic and no-JS.
+    function shouldShow(decision: Decision | null): boolean {
+      if (!decision || !decision.variant) return true;
+      return (decision.offers ?? []).some((o) => o.slug === 'cc-bundle');
+    }
+    function apply(decision: Decision | null) {
+      section!.hidden = !shouldShow(decision);
+    }
+
+    // Initial state from any cached decision. Skipped when `?email=` is in the
+    // URL — the teaser auto-submits that address and dispatches a fresh
+    // decision, and we don't want a stale cached one to decide visibility first.
+    function hasUrlEmail(): boolean {
+      try {
+        const raw = new URLSearchParams(window.location.search).get('email');
+        return !!(raw && raw.trim());
+      } catch {}
+      return false;
+    }
+    if (!hasUrlEmail()) {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw) as { decision?: Decision };
+          if (parsed?.decision?.variant) apply(parsed.decision);
+        }
+      } catch {}
+    }
+
+    window.addEventListener('cc:decision-updated', (ev) => {
+      const det = (ev as CustomEvent).detail as { decision?: Decision };
+      if (det?.decision) apply(det.decision);
+    });
+    window.addEventListener('cc:decision-cleared', () => apply(null));
+  }
+</script>
