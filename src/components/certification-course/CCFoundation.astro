@@ -1,10 +1,16 @@
 ---
 // The certification course is a path of learning to hold space for another
-// voice — but it begins with your own. Every way in includes the full 12-week
-// course as its foundation, so this section names that plainly and carries
-// the essentials across from the 12-week page (/courses/12-week), enough that
-// someone arriving here (often via an emailed link, not yet enrolled) can see
-// what's included without leaving the page.
+// voice — but it begins with your own. For people whose path still includes
+// the 12-week course (new and returning visitors — the bundle buyers), this
+// section names that plainly and carries the essentials across from the
+// 12-week page (/courses/12-week), so they can see what's included without
+// leaving the page.
+//
+// Visibility is gated on the SAME decision the price segment resolves via
+// /api/courses/subscriber-status (the Drip-tag verification). The section
+// shows when the 12-week course is part of their offer (the bundle), and
+// hides for those already on it (B1), past it (B2), or already enrolled (C).
+// See the <script> at the foot of this file.
 const able = [
   'Find and sound a stuck feeling, instead of managing it or waiting for it to pass.',
   'Work <em>with</em> your nervous system, not against it.',
@@ -14,7 +20,7 @@ const able = [
 ];
 ---
 
-<section class="cc-found" id="foundation">
+<section class="cc-found" id="foundation" data-cc-foundation>
   <div class="cc-found-inner">
     <div class="cc-found-head">
       <div class="cc-eyebrow cc-eyebrow--center">Where the path begins</div>
@@ -84,3 +90,57 @@ const able = [
     </div>
   </div>
 </section>
+
+<script>
+  // Gate this section on the same decision the price segment resolves via
+  // /api/courses/subscriber-status (the Drip-tag verification). We don't
+  // re-fetch — we listen to the decision the teaser / register blocks already
+  // broadcast, and read the cached one on load. Same contract: `cc:decision`
+  // in localStorage, `cc:decision-updated` / `cc:decision-cleared` events.
+  type Variant = 'B1' | 'B2' | 'A' | 'D' | 'E' | 'C';
+  type Decision = { variant?: Variant; offers?: { slug?: string }[] };
+
+  const STORAGE_KEY = 'cc:decision';
+  const section = document.querySelector<HTMLElement>('[data-cc-foundation]');
+
+  if (section) {
+    // Show when the 12-week course is part of what they'd buy — i.e. their
+    // offer includes the bundle (variants A / D / E). Hide for those already
+    // on it (B1), past it (B2), or already enrolled with no offer (C).
+    // No decision yet (anonymous visitor) → show: it's a path they can still
+    // take, and it's the right default for cold traffic and no-JS.
+    function shouldShow(decision: Decision | null): boolean {
+      if (!decision || !decision.variant) return true;
+      return (decision.offers ?? []).some((o) => o.slug === 'cc-bundle');
+    }
+    function apply(decision: Decision | null) {
+      section!.hidden = !shouldShow(decision);
+    }
+
+    // Initial state from any cached decision. Skipped when `?email=` is in the
+    // URL — the teaser auto-submits that address and dispatches a fresh
+    // decision, and we don't want a stale cached one to decide visibility first.
+    function hasUrlEmail(): boolean {
+      try {
+        const raw = new URLSearchParams(window.location.search).get('email');
+        return !!(raw && raw.trim());
+      } catch {}
+      return false;
+    }
+    if (!hasUrlEmail()) {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw) as { decision?: Decision };
+          if (parsed?.decision?.variant) apply(parsed.decision);
+        }
+      } catch {}
+    }
+
+    window.addEventListener('cc:decision-updated', (ev) => {
+      const det = (ev as CustomEvent).detail as { decision?: Decision };
+      if (det?.decision) apply(det.decision);
+    });
+    window.addEventListener('cc:decision-cleared', () => apply(null));
+  }
+</script>

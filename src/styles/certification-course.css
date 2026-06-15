@@ -1150,6 +1150,10 @@ html, body { background: var(--paper); }
 .cc-name-tag strong { font-weight: 500; font-style: italic; font-family: var(--font-lyric); color: var(--ember-deep); }
 
 /* ---------- The 12-week foundation (included in the path) ---------- */
+/* Shown when the 12-week course is part of the visitor's offer (the bundle);
+   hidden via [hidden] for those already on/past it (set by the section's
+   own script, gated on the same decision the price segment resolves). */
+.cc-found[hidden] { display: none; }
 .cc-found {
   background: var(--paper-soft);
   padding: var(--sp-10) var(--sp-7);
