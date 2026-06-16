@@ -2,6 +2,7 @@
 import '../styles/tokens.css';
 import '../styles/site.css';
 import PriceSync from '../components/PriceSync.astro';
+import AdminTopBar from '../components/admin/AdminTopBar.astro';
 
 interface Props {
   title?: string;
@@ -19,6 +20,11 @@ const {
 
 const canonical = new URL(Astro.url.pathname, Astro.site ?? Astro.url.origin).href;
 const ogImage = new URL(image, Astro.site ?? Astro.url.origin).href;
+
+// The persistent admin nav shows on every /admin page except the (pre-auth)
+// login screen, which doesn't load the admin styles.
+const path = Astro.url.pathname;
+const showAdminBar = (path === '/admin' || path.startsWith('/admin/')) && !path.startsWith('/admin/login');
 ---
 
 <!doctype html>
@@ -46,6 +52,7 @@ const ogImage = new URL(image, Astro.site ?? Astro.url.origin).href;
   </head>
   <body>
     <div class="sd-site">
+      {showAdminBar && <AdminTopBar />}
       <slot />
     </div>
     <PriceSync />

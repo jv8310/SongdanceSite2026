@@ -30,6 +30,29 @@ body { background: var(--adm-paper); }
   color: var(--adm-ink);
 }
 
+/* Persistent, full-bleed admin top bar (src/components/admin/AdminTopBar.astro),
+   rendered above every admin page. Sticky so the global actions stay visible on
+   scroll; the paper-coloured shadow masks page content sliding up through the
+   gap above .adm. */
+.adm-topbar {
+  position: sticky; top: 0; z-index: 30;
+  background: var(--adm-paper);
+  border-bottom: 1px solid var(--adm-line);
+  box-shadow: 0 24px 0 var(--adm-paper);
+}
+.adm-topbar-inner {
+  max-width: 1280px; margin: 0 auto; padding: 10px 20px;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; flex-wrap: wrap;
+}
+.adm-topbar-brand {
+  display: inline-flex; align-items: center; gap: 9px;
+  text-decoration: none; color: var(--adm-ink);
+  font-family: Georgia, serif; font-size: 1.15rem; font-weight: 500;
+}
+.adm-topbar-brand img { display: block; width: 26px; height: 26px; }
+.adm-topbar-brand:hover { color: var(--adm-ember-deep); }
+
 .adm-header {
   display: flex; align-items: flex-start; justify-content: space-between;
   gap: 16px; padding-bottom: 16px; margin-bottom: 24px;
@@ -44,7 +67,16 @@ body { background: var(--adm-paper); }
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 12px; letter-spacing: 0.04em;
 }
-.adm-actions { display: flex; gap: 8px; align-items: center; }
+.adm-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.adm-actions form { margin: 0; }
+/* Top-menu buttons: equal width, icon + label, centred. */
+.adm-btn--nav {
+  min-width: 124px;
+  justify-content: center;
+  padding: 8px 14px;
+}
+.adm-btn--nav svg { flex: 0 0 auto; color: var(--adm-ink-soft); }
+.adm-btn--nav:hover svg { color: var(--adm-ember-deep); }
 
 .adm-breadcrumbs {
   font-family: ui-monospace, monospace;
@@ -66,6 +98,9 @@ body { background: var(--adm-paper); }
   border-radius: 6px; background: var(--adm-paper-soft);
   color: inherit; text-decoration: none; cursor: pointer;
   font-size: 13px;
+  /* Normalise <button> against <a>: native buttons otherwise use the UA
+     font + line-height, which makes them taller than the anchor buttons. */
+  font-family: inherit; line-height: 1.2;
 }
 .adm-btn:hover { background: #f0e8d6; border-color: #d5cab1; }
 .adm-btn--ghost { background: transparent; }

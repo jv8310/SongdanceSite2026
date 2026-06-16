@@ -31,18 +31,6 @@ const flashBanner =
         <h1>Admin</h1>
         <p class="adm-sub">Registrations &amp; signups</p>
       </div>
-      <div class="adm-actions">
-        <form method="POST" action="/api/admin/workshops/calendar-sync">
-          <input type="hidden" name="return" value="/admin" />
-          <button class="adm-btn adm-btn--ghost" type="submit">Calendar sync</button>
-        </form>
-        <a class="adm-btn adm-btn--ghost" href="/admin/settings">Settings</a>
-        <a class="adm-btn adm-btn--ghost" href="/admin/image-manager">Images</a>
-        <form method="POST" action="/api/admin/login?_method=DELETE">
-          <input type="hidden" name="_method" value="DELETE" />
-          <button class="adm-btn adm-btn--ghost" type="submit">Sign out</button>
-        </form>
-      </div>
     </header>
 
     {flashBanner && <div class={`adm-flash adm-flash--${flashBanner.tone === 'ok' ? 'ok' : 'warn'}`}>{flashBanner.text}</div>}
@@ -62,11 +50,33 @@ const flashBanner =
     </section>
 
     <section class="adm-section">
+      <h2>Workshops</h2>
+      <div class="adm-menu">
+        <a href="/admin/workshops">
+          <strong>All workshops</strong>
+          <span>Live online workshops — calendar, registrants, attendance &amp; statuses</span>
+        </a>
+        <a href="/admin/workshops/stats">
+          <strong>Statistics &amp; ROAS</strong>
+          <span>Net-of-tax income in EUR, bump &amp; course sales, Meta ad-spend ROAS</span>
+        </a>
+      </div>
+    </section>
+
+    <section class="adm-section">
       <h2>Retreats</h2>
       <div class="adm-menu">
         <a href="/admin/retreats">
           <strong>All retreats</strong>
           <span>Rooms, tiers, special roles, capacity</span>
+        </a>
+        <a href="/admin/intakes">
+          <strong>All intake submissions</strong>
+          <span>Pre-screening forms with Claude assessment &amp; classification</span>
+        </a>
+        <a href="/admin/intakes/retreats">
+          <strong>Manage intake retreats</strong>
+          <span>Add, rename, or deactivate retreats that accept an intake form</span>
         </a>
       </div>
     </section>
@@ -87,46 +97,6 @@ const flashBanner =
         <a href="/admin/courses">
           <strong>All courses</strong>
           <span>Digital course registrations &amp; Drip tagging</span>
-        </a>
-      </div>
-    </section>
-
-    <section class="adm-section">
-      <h2>Workshops</h2>
-      <div class="adm-menu">
-        <a href="/admin/workshops">
-          <strong>All workshops</strong>
-          <span>Live online workshops — calendar, registrants, attendance &amp; statuses</span>
-        </a>
-        <a href="/admin/settings/calendar-sync">
-          <strong>Calendar sync</strong>
-          <span>Pull “SVH Workshop” &amp; “SVH Masterclass” dates from Google Calendar onto /workshop</span>
-        </a>
-        <a href="/admin/workshops/stats">
-          <strong>Statistics &amp; ROAS</strong>
-          <span>Net-of-tax income in EUR, bump &amp; course sales, Meta ad-spend ROAS</span>
-        </a>
-        <a href="/admin/emails">
-          <strong>Email sequences</strong>
-          <span>Preview every automated email (abandoned checkout, reminders, post-workshop, downsell) &amp; send tests</span>
-        </a>
-        <a href="/admin/people">
-          <strong>People</strong>
-          <span>One row per email across workshops, courses &amp; retreats — subscribed/unsubscribed, what they bought &amp; which emails they got</span>
-        </a>
-      </div>
-    </section>
-
-    <section class="adm-section">
-      <h2>Intakes</h2>
-      <div class="adm-menu">
-        <a href="/admin/intakes">
-          <strong>All intake submissions</strong>
-          <span>Pre-screening forms with Claude assessment &amp; classification</span>
-        </a>
-        <a href="/admin/intakes/retreats">
-          <strong>Manage retreats</strong>
-          <span>Add, rename, or deactivate retreats that accept an intake form</span>
         </a>
       </div>
     </section>
