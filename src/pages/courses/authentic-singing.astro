@@ -1,33 +1,277 @@
 ---
-import SiteLayout from '../../components/SiteLayout.astro';
-import PageHero from '../../components/PageHero.astro';
-import SoftCta from '../../components/SoftCta.astro';
+import '../../styles/journeys.css';
+import Layout from '../../layouts/Layout.astro';
+
+const testimonials = [
+  {
+    body: 'I feel an opening up, a stronger voice on many levels — like someone holding my hand, showing me new ways.',
+    who: 'Frances',
+  },
+  {
+    body: 'By the end I felt like I was engaged in an act of worship. What a beautiful gift the voice is.',
+    who: 'Bridie',
+  },
+  {
+    body: 'What a powerful practice — to acknowledge the place of tension, and to befriend it rather than push it away or try to fix it.',
+    who: 'Lorenz',
+  },
+  {
+    body: 'I noticed how strong my fear of being heard is. The session helped me move through it — and opened a little doorway into how I hold myself back elsewhere in life.',
+    who: 'Kitty',
+  },
+];
 ---
 
-<SiteLayout
-  title="Authentic Singing Journey — Songdance"
-  description="40 guided musical journeys where the voice finds its way to itself through song. Authentic singing — a healing practice in its own right, distinct from Somatic Vocal Healing."
+<Layout
+  title="The Authentic Singing Journey — Songdance"
+  description="Forty weeks of mantras and music, made to free the voice you already have. Self-paced, at home. No range, no experience, no performance required."
+  image="/media/library/singing-nature.webp"
 >
-  <PageHero
-    eyebrow="Guided journeys · music"
-    title="Authentic Singing Journey"
-    lede="Forty guided musical journeys — singing from yourself, not instead of yourself."
-    image="/media/library/svh-retreat-sounding-yellow.webp"
-  >
-    <div class="sd-pagehero-actions">
-      <a href="/contact" class="sd-btn sd-btn-primary">Ask about this journey</a>
-    </div>
-  </PageHero>
+  <div class="jr-site jr-theme-singing">
+    <!-- Nav -->
+    <nav class="jr-nav">
+      <div class="jr-nav-inner">
+        <a href="/" class="jr-nav-mark" aria-label="Songdance">
+          <img src="/brand/logo-wordmark.svg" alt="Songdance" />
+        </a>
+        <div class="jr-nav-spacer"></div>
+        <div class="jr-nav-meta">
+          <span>40 sessions</span>
+          <span class="dot"></span>
+          <span>Self-paced · at home</span>
+        </div>
+        <a href="#begin" class="jr-nav-cta">Begin</a>
+      </div>
+    </nav>
 
-  <section class="sd-section sd-prose">
-    <div class="sd-prose-inner">
-      <p>
-        One of Jacob’s earliest and most-loved bodies of work. To be clear: this is
-        <em>authentic singing</em>, not Somatic Vocal Healing — full guidance and music, where the
-        voice finds its way to itself through song. First the truth. Then the tune.
-      </p>
-    </div>
-  </section>
+    <!-- Hero -->
+    <header class="jr-hero">
+      <div class="jr-hero-bg" aria-hidden="true">
+        <img src="/media/library/singing-nature.webp" alt="" />
+      </div>
+      <div class="jr-hero-inner">
+        <img class="jr-hero-mark" src="/brand/symbol-orange.png" alt="" aria-hidden="true" />
+        <div class="jr-hero-eyebrow">Authentic Singing Journey · the course Songdance began with</div>
+        <h1 class="jr-hero-head">Singing, with <em>nothing to prove.</em></h1>
+        <p class="jr-hero-sub">
+          Forty weeks of mantras and music — made to free the voice you already have, not to train it
+          into something else.
+        </p>
+        <a href="/contact" class="jr-hero-cta">
+          Hear the first session <i class="ph-light ph-arrow-right"></i>
+        </a>
+        <p class="jr-hero-micro">The first session is free. Nothing expires.</p>
+        <div class="jr-hero-meta">
+          <span>40 weekly sessions</span>
+          <span class="dot"></span>
+          <span>Self-paced</span>
+          <span class="dot"></span>
+          <span><strong>3,500+ voices freed</strong></span>
+        </div>
+      </div>
+    </header>
 
-  <SoftCta />
-</SiteLayout>
+    <!-- What it is -->
+    <section class="jr-section jr-opening">
+      <div class="jr-opening-inner">
+        <div class="jr-eyebrow" style="justify-content:center;">What it is</div>
+        <h2 class="jr-opening-head">The course Songdance <em>started with.</em></h2>
+        <p class="jr-prose-body">
+          Forty weekly sessions, each one a piece of music and a mantra, recorded to be done at home —
+          eyes closed if you like, no screen required. You sing along. That's the whole of it.
+        </p>
+        <p class="jr-prose-body">
+          It is singing, but not the kind that asks you to be good at it. No right notes. No audition.
+          No one listening but you. You're not here to learn technique — you're here to let a voice
+          that's been kept quiet make some sound again.
+        </p>
+      </div>
+    </section>
+
+    <!-- Stat -->
+    <section class="jr-section jr-stat">
+      <div class="jr-stat-inner">
+        <div class="jr-stat-num">3,500<span>+</span></div>
+        <p class="jr-stat-label">voices freed, and counting.</p>
+        <p class="jr-stat-note">Since the very first session went out</p>
+      </div>
+    </section>
+
+    <!-- Origin -->
+    <section class="jr-section jr-split jr-split--rev">
+      <div class="jr-split-inner">
+        <figure class="jr-split-figure">
+          <img src="/media/library/jacob-upala-on-rock.webp" alt="Jacob and Upala, facing one another by a river" loading="lazy" />
+          <figcaption>Jacob &amp; Upala — where the work began</figcaption>
+        </figure>
+        <div class="jr-split-text">
+          <div class="jr-eyebrow">Where it came from</div>
+          <h2 class="jr-h2" style="margin-bottom: var(--sp-5);">Made one week at a time.</h2>
+          <p>
+            The sessions weren't written at a desk. They were made one week at a time, in a difficult
+            season, by two people using the practice on themselves before anyone else heard it.
+          </p>
+          <p>
+            When something worked for them, it tended to work for others too. <em>That is still the only
+            test the work trusts.</em>
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- How it works -->
+    <section class="jr-section jr-opening">
+      <div class="jr-opening-inner">
+        <div class="jr-eyebrow" style="justify-content:center;">How it works</div>
+        <h2 class="jr-opening-head">One session a week. <em>Forty weeks.</em></h2>
+        <p class="jr-prose-body">
+          One session a week for forty weeks — or at whatever pace suits you. Each week travels
+          somewhere different: another rhythm, another landscape, another mood. You never quite know
+          what's coming, and that's the point. The mind can't rehearse, so you arrive in the present
+          and sing from there.
+        </p>
+        <p class="jr-prose-body">
+          Some weeks are joyful. Some are quiet. Some go to the harder feelings and give them a tune
+          to ride out on. You sing all of it — not to get rid of anything, but to let it be heard.
+        </p>
+      </div>
+    </section>
+
+    <!-- Video glimpse -->
+    <section class="jr-section jr-video">
+      <div class="jr-video-inner">
+        <div class="jr-eyebrow" style="justify-content:center;">A glimpse</div>
+        <h2 class="jr-video-head">Jacob and Upala, <em>singing.</em></h2>
+        <p class="jr-video-sub">
+          A few minutes of the voice doing what this whole journey is for — sounding from itself,
+          with nothing to prove.
+        </p>
+        <div class="jr-video-frame">
+          <video controls playsinline preload="metadata" poster="/media/library/upala-on-rock.webp">
+            <source src="/media/library/jacob-upala-singing.mov" type="video/quicktime" />
+            <source src="/media/library/jacob-upala-singing.mov" type="video/mp4" />
+          </video>
+        </div>
+        <p class="jr-video-fallback">
+          Trouble playing it? <a href="/media/library/jacob-upala-singing.mov" target="_blank" rel="noopener">Open the clip in a new tab</a>.
+        </p>
+      </div>
+    </section>
+
+    <!-- Lyric break -->
+    <section class="jr-lyric">
+      <div class="jr-lyric-bg" aria-hidden="true">
+        <img src="/media/library/upala-on-rock.webp" alt="" />
+      </div>
+      <div class="jr-lyric-inner">
+        <img class="jr-lyric-mark" src="/brand/symbol-orange.png" alt="" aria-hidden="true" />
+        <p class="jr-lyric-text">Perfect for the moment. Not perfect for the radio.</p>
+        <div class="jr-lyric-by">Authentic Singing Journey</div>
+      </div>
+    </section>
+
+    <!-- Who it's for -->
+    <section class="jr-section jr-whom">
+      <div class="jr-whom-inner">
+        <div class="jr-whom-head">
+          <div class="jr-eyebrow">Who it's for</div>
+          <h2 class="jr-h2">For anyone who loves to sing and rarely <em>lets themselves.</em></h2>
+          <figure class="jr-whom-figure">
+            <img src="/media/library/singing-statue.webp" alt="A sculpted figure, head tilted, listening" loading="lazy" />
+          </figure>
+        </div>
+        <ul class="jr-whom-list">
+          <li>For anyone who loves to sing and rarely lets themselves.</li>
+          <li>For anyone who was told once that they <em>couldn't</em> — and believed it.</li>
+          <li>You don't need experience.</li>
+          <li>You don't need a range.</li>
+          <li>You need a little privacy and the willingness to make some sound.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Testimonials -->
+    <section class="jr-section jr-testimonials">
+      <div class="jr-testimonials-inner">
+        <div class="jr-testimonials-head">
+          <div class="jr-eyebrow">Voices from the journey</div>
+          <h2 class="jr-h2">What it has been for others.</h2>
+        </div>
+        <div class="jr-testimonials-grid">
+          {testimonials.map((t) => (
+            <article class="jr-testimonial">
+              <div class="jr-testimonial-stars" aria-label="5 out of 5">
+                <i class="ph-fill ph-star"></i>
+                <i class="ph-fill ph-star"></i>
+                <i class="ph-fill ph-star"></i>
+                <i class="ph-fill ph-star"></i>
+                <i class="ph-fill ph-star"></i>
+              </div>
+              <p class="jr-testimonial-body">“{t.body}”</p>
+              <div class="jr-testimonial-by"><span class="who">{t.who}</span></div>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+
+    <!-- Practical -->
+    <section class="jr-section jr-practical">
+      <div class="jr-practical-inner">
+        <div>
+          <div class="jr-eyebrow">At a glance</div>
+          <h2 class="jr-practical-title">Forty sessions, yours to keep.</h2>
+          <ul class="jr-practical-list">
+            <li><strong>40 self-paced audio sessions</strong> — a piece of music and a mantra each</li>
+            <li><strong>Do-at-home</strong> — eyes closed if you like, no screen required</li>
+            <li><strong>Lifetime access</strong> — go at your own pace, return whenever you like</li>
+            <li>Optional monthly online meetup with others on the journey</li>
+          </ul>
+        </div>
+        <div class="jr-practical-side">
+          <div class="jr-practical-side-label">Begin</div>
+          <p class="jr-practical-side-line">The first session is free. Nothing expires.</p>
+          <a href="/contact" class="jr-practical-side-cta">Hear the first session</a>
+          <p class="jr-practical-side-note">Enrolment details on request.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Closing -->
+    <section class="jr-section jr-closing" id="begin">
+      <div class="jr-closing-inner">
+        <div class="jr-eyebrow">The invitation</div>
+        <h2 class="jr-closing-head">Forty weeks with <em>your own voice.</em></h2>
+        <p class="jr-closing-body">
+          Forty weeks is a long time to spend with your own voice. Most people find it's the best
+          company they've kept in years. When you're ready, the first session is free.
+        </p>
+        <a href="/contact" class="jr-closing-cta">
+          Begin the journey <i class="ph-light ph-arrow-right"></i>
+        </a>
+        <p class="jr-closing-micro">No range, no experience, no performance required.</p>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="jr-footer">
+      <div class="jr-footer-inner">
+        <div class="jr-footer-top">
+          <div>
+            <img class="jr-footer-mark" src="/brand/logo-wordmark.svg" alt="Songdance" />
+            <p class="jr-footer-lyric">First the truth. Then the tune.</p>
+          </div>
+          <div class="jr-footer-links">
+            <a href="/courses">All courses &amp; journeys</a>
+            <a href="/what-is-svh">What is Somatic Vocal Healing?</a>
+            <a href="/contact">Contact</a>
+          </div>
+        </div>
+        <div class="jr-footer-base">
+          <span>© 2026 Songdance</span>
+          <span>Sound that comes from you.</span>
+        </div>
+      </div>
+    </footer>
+  </div>
+</Layout>

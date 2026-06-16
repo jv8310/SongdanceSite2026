@@ -1,32 +1,271 @@
 ---
-import SiteLayout from '../../components/SiteLayout.astro';
-import PageHero from '../../components/PageHero.astro';
-import SoftCta from '../../components/SoftCta.astro';
+import '../../styles/journeys.css';
+import Layout from '../../layouts/Layout.astro';
+
+const testimonials = [
+  {
+    body: 'I always said I can’t dance. Turns out I just couldn’t be watched. Alone in my own room, it’s another story entirely.',
+    who: 'Margreet',
+  },
+  {
+    body: 'I do it from my chair most mornings now. No one had ever told me a body like mine was allowed to dance.',
+    who: 'Pieter',
+  },
+  {
+    body: 'I’d forgotten my body could feel like this — light, a little silly, completely mine.',
+    who: 'Aïcha',
+  },
+  {
+    body: 'Halfway through one session I caught myself laughing. I hadn’t moved like that since I was a kid in the kitchen.',
+    who: 'Sam',
+  },
+];
 ---
 
-<SiteLayout
-  title="Magical Movement Journey — Songdance"
-  description="Ten guided musical journeys that move sound into the body through movement."
+<Layout
+  title="The Magical Movement Journey — Songdance"
+  description="Guided movement sessions you can do in your own room — standing or seated. No steps to learn, no floor to be good enough for. For every body."
+  image="/media/library/movement.webp"
 >
-  <PageHero
-    eyebrow="Guided journeys · music"
-    title="Magical Movement Journey"
-    lede="10 guided musical journeys."
-    image="/media/library/svh-retreat-sounding-green-shirt.webp"
-  >
-    <div class="sd-pagehero-actions">
-      <a href="/contact" class="sd-btn sd-btn-primary">Ask about this journey</a>
-    </div>
-  </PageHero>
+  <div class="jr-site jr-theme-movement">
+    <!-- Nav -->
+    <nav class="jr-nav">
+      <div class="jr-nav-inner">
+        <a href="/" class="jr-nav-mark" aria-label="Songdance">
+          <img src="/brand/logo-wordmark.svg" alt="Songdance" />
+        </a>
+        <div class="jr-nav-spacer"></div>
+        <div class="jr-nav-meta">
+          <span>Guided sessions</span>
+          <span class="dot"></span>
+          <span>Standing or seated</span>
+        </div>
+        <a href="#begin" class="jr-nav-cta">Begin</a>
+      </div>
+    </nav>
 
-  <section class="sd-section sd-prose">
-    <div class="sd-prose-inner">
-      <p>
-        Ten guided journeys that move sound into the body through movement — a gentle, playful way
-        to let the voice and the body find each other.
-      </p>
-    </div>
-  </section>
+    <!-- Hero -->
+    <header class="jr-hero">
+      <div class="jr-hero-bg" aria-hidden="true">
+        <img src="/media/library/movement.webp" alt="" />
+      </div>
+      <div class="jr-hero-inner">
+        <img class="jr-hero-mark" src="/brand/symbol-orange.png" alt="" aria-hidden="true" />
+        <div class="jr-hero-eyebrow">Magical Movement Journey</div>
+        <h1 class="jr-hero-head">Dancing, with <em>no one watching</em> and nothing to get right.</h1>
+        <p class="jr-hero-sub">
+          Guided movement sessions you can do in your own room — standing, or seated in a chair. No
+          steps to learn. No floor to be good enough for.
+        </p>
+        <a href="/contact" class="jr-hero-cta">
+          Try a free session <i class="ph-light ph-arrow-right"></i>
+        </a>
+        <p class="jr-hero-micro">The first session is free.</p>
+        <div class="jr-hero-meta">
+          <span>Guided sessions</span>
+          <span class="dot"></span>
+          <span>Standing or seated</span>
+          <span class="dot"></span>
+          <span>Self-paced</span>
+        </div>
+      </div>
+    </header>
 
-  <SoftCta />
-</SiteLayout>
+    <!-- What it is -->
+    <section class="jr-section jr-opening">
+      <div class="jr-opening-inner">
+        <div class="jr-eyebrow" style="justify-content:center;">What it is</div>
+        <h2 class="jr-opening-head">A way <em>back.</em></h2>
+        <p class="jr-prose-body">
+          Most of us danced freely once. As children we moved because the music moved us — no one
+          taught us, no one judged it. Then, somewhere, we learned to hold still: too old, too big,
+          too stiff, two left feet. The body that was made to move went quiet.
+        </p>
+        <p class="jr-prose-body">
+          The Magical Movement Journey is a way back. A set of guided sessions, each carried by its
+          own music, with just enough gentle direction to keep you company and all the room in the
+          world to move how you like. There's no choreography. Nothing to get right.
+        </p>
+      </div>
+    </section>
+
+    <!-- Accessibility -->
+    <section class="jr-section jr-split">
+      <div class="jr-split-inner">
+        <figure class="jr-split-figure">
+          <img src="/media/library/movement2.webp" alt="A woman dancing freely in her living room" loading="lazy" />
+        </figure>
+        <div class="jr-split-text">
+          <div class="jr-eyebrow">For every body</div>
+          <h2 class="jr-h2" style="margin-bottom: var(--sp-5);">Built to fit <em>any body.</em></h2>
+          <p>
+            It's built to fit any body. You can dance it standing, or sitting in a chair if that's
+            what your body needs today. Age, size, fitness, experience — none of it is the entry fee.
+          </p>
+          <p>
+            <em>If you can move something, you can do this.</em>
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- A quiet note on what it touches -->
+    <section class="jr-section jr-note">
+      <div class="jr-note-inner">
+        <div class="jr-eyebrow">A quiet note</div>
+        <p>
+          For a lot of us, what shut the door on moving freely was shame — being laughed at, told to
+          settle down, made to feel like too much.
+        </p>
+        <p>
+          This isn't about forcing past that. It's about meeting the body again, kindly, at whatever
+          pace it trusts.
+        </p>
+      </div>
+    </section>
+
+    <!-- One session highlight -->
+    <section class="jr-section jr-opening">
+      <div class="jr-opening-inner">
+        <div class="jr-eyebrow" style="justify-content:center;">One session</div>
+        <h2 class="jr-opening-head">Stepping Into <em>Your Power.</em></h2>
+        <p class="jr-prose-body">
+          One session, Stepping Into Your Power, plays with two of the body's oldest words —
+          <em>no</em> and <em>yes</em>. It's a way to feel, in movement, where your lines are and what
+          you want to open to. Quietly, it teaches boundaries.
+        </p>
+      </div>
+    </section>
+
+    <!-- Origin -->
+    <section class="jr-section jr-opening">
+      <div class="jr-opening-inner">
+        <div class="jr-eyebrow" style="justify-content:center;">Where it came from</div>
+        <h2 class="jr-opening-head">It grew on real <em>dance floors.</em></h2>
+        <p class="jr-prose-body">
+          It grew out of years on real dance floors — retreats and rooms full of ordinary people, not
+          dancers — and out of one plain observation: when someone stops performing and lets the music
+          move them, something opens. You can watch it happen. This is a way to make that moment
+          available at home.
+        </p>
+      </div>
+    </section>
+
+    <!-- Lyric break -->
+    <section class="jr-lyric">
+      <div class="jr-lyric-bg" aria-hidden="true">
+        <img src="/media/library/movement-beach.webp" alt="" />
+      </div>
+      <div class="jr-lyric-inner">
+        <img class="jr-lyric-mark" src="/brand/symbol-orange.png" alt="" aria-hidden="true" />
+        <p class="jr-lyric-text">The body remembers how.</p>
+        <div class="jr-lyric-by">Magical Movement Journey</div>
+      </div>
+    </section>
+
+    <!-- Who it's for -->
+    <section class="jr-section jr-whom">
+      <div class="jr-whom-inner">
+        <div class="jr-whom-head">
+          <div class="jr-eyebrow">Who it's for</div>
+          <h2 class="jr-h2">For anyone who used to dance in the kitchen — and <em>stopped.</em></h2>
+          <figure class="jr-whom-figure">
+            <img src="/media/library/movement-stillness.webp" alt="A figure in motion, hair caught in golden light" loading="lazy" />
+          </figure>
+        </div>
+        <ul class="jr-whom-list">
+          <li>For anyone who used to dance in the kitchen and stopped.</li>
+          <li>For anyone who's sure they <em>can't dance</em> — that one's especially welcome here.</li>
+          <li>You don't need to be fit, flexible, or coordinated.</li>
+          <li>You don't need a studio, or to be alone in one.</li>
+          <li>You need a little space and a willingness to be moved.</li>
+        </ul>
+        <p class="jr-whom-foot">No one's keeping score.</p>
+      </div>
+    </section>
+
+    <!-- Testimonials -->
+    <section class="jr-section jr-testimonials">
+      <div class="jr-testimonials-inner">
+        <div class="jr-testimonials-head">
+          <div class="jr-eyebrow">Voices from the journey</div>
+          <h2 class="jr-h2">What it has been for others.</h2>
+        </div>
+        <div class="jr-testimonials-grid">
+          {testimonials.map((t) => (
+            <article class="jr-testimonial">
+              <div class="jr-testimonial-stars" aria-label="5 out of 5">
+                <i class="ph-fill ph-star"></i>
+                <i class="ph-fill ph-star"></i>
+                <i class="ph-fill ph-star"></i>
+                <i class="ph-fill ph-star"></i>
+                <i class="ph-fill ph-star"></i>
+              </div>
+              <p class="jr-testimonial-body">“{t.body}”</p>
+              <div class="jr-testimonial-by"><span class="who">{t.who}</span></div>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+
+    <!-- Practical -->
+    <section class="jr-section jr-practical">
+      <div class="jr-practical-inner">
+        <div>
+          <div class="jr-eyebrow">At a glance</div>
+          <h2 class="jr-practical-title">Move at your own pace.</h2>
+          <ul class="jr-practical-list">
+            <li><strong>Guided movement sessions</strong> — each carried by its own original music</li>
+            <li><strong>Do-at-home</strong> — standing, or seated in a chair</li>
+            <li><strong>Lifetime access</strong> — return to any session whenever you like</li>
+            <li>No steps to learn · no choreography · nothing to get right</li>
+          </ul>
+        </div>
+        <div class="jr-practical-side">
+          <div class="jr-practical-side-label">Begin</div>
+          <p class="jr-practical-side-line">The first session is free.</p>
+          <a href="/contact" class="jr-practical-side-cta">Try a free session</a>
+          <p class="jr-practical-side-note">Enrolment details on request.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Closing -->
+    <section class="jr-section jr-closing" id="begin">
+      <div class="jr-closing-inner">
+        <div class="jr-eyebrow">The invitation</div>
+        <h2 class="jr-closing-head">See what your body does when <em>no one's keeping score.</em></h2>
+        <p class="jr-closing-body">
+          Put on one session, push the furniture back — or don't — and see what your body does when no
+          one's keeping score. The first session is free.
+        </p>
+        <a href="/contact" class="jr-closing-cta">
+          Begin the journey <i class="ph-light ph-arrow-right"></i>
+        </a>
+        <p class="jr-closing-micro">For every body. Standing or seated. No experience required.</p>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="jr-footer">
+      <div class="jr-footer-inner">
+        <div class="jr-footer-top">
+          <div>
+            <img class="jr-footer-mark" src="/brand/logo-wordmark.svg" alt="Songdance" />
+            <p class="jr-footer-lyric">The body remembers how.</p>
+          </div>
+          <div class="jr-footer-links">
+            <a href="/courses">All courses &amp; journeys</a>
+            <a href="/what-is-svh">What is Somatic Vocal Healing?</a>
+            <a href="/contact">Contact</a>
+          </div>
+        </div>
+        <div class="jr-footer-base">
+          <span>© 2026 Songdance</span>
+          <span>Sound that comes from you.</span>
+        </div>
+      </div>
+    </footer>
+  </div>
+</Layout>
