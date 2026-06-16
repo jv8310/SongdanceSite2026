@@ -1108,6 +1108,51 @@ html, body { background: var(--paper); }
 }
 .fc-register-cta:hover { background: var(--ember-glow); }
 .fc-register-cta:active { transform: translateY(1px); }
+.fc-register-cta[disabled] { opacity: 0.6; cursor: default; }
+
+/* Newsletter / "keep me in the loop" signup (replaces the checkout CTA). */
+.fc-register-form {
+  display: flex; flex-wrap: wrap; gap: var(--sp-3);
+  justify-content: center; align-items: center;
+  max-width: 540px; margin: 0 auto;
+}
+.fc-register-form .fc-register-cta { border: 0; cursor: pointer; }
+.fc-news-hp {
+  position: absolute !important;
+  left: -9999px !important;
+  width: 1px; height: 1px;
+  opacity: 0; pointer-events: none;
+}
+.fc-news-input {
+  flex: 1 1 260px;
+  font-family: var(--font-body); font-size: 15px;
+  padding: 18px 24px; border-radius: var(--r-pill);
+  border: 1px solid rgba(244,236,223,0.28);
+  background: rgba(244,236,223,0.06);
+  color: var(--paper);
+  transition: border-color var(--d-base) var(--ease), background var(--d-base) var(--ease);
+}
+.fc-news-input::placeholder { color: rgba(244,236,223,0.42); }
+.fc-news-input:focus {
+  outline: none;
+  border-color: var(--ember);
+  background: rgba(244,236,223,0.1);
+}
+.fc-register-note {
+  margin: var(--sp-4) 0 0;
+  font-family: var(--font-body); font-size: 13px;
+  color: rgba(244,236,223,0.6);
+}
+.fc-register-error {
+  margin: var(--sp-3) 0 0;
+  font-family: var(--font-body); font-size: 13px;
+  color: var(--ember-glow);
+}
+.fc-register-thanks {
+  margin: var(--sp-5) 0 0;
+  font-family: var(--font-lyric); font-style: italic;
+  font-size: 22px; color: rgba(244,236,223,0.85);
+}
 
 /* ---------- FAQ ---------- */
 .fc-faq {

@@ -3,19 +3,94 @@
 
 <section class="fc-register" id="register">
   <div class="fc-register-inner">
-    <div class="fc-eyebrow" style="justify-content: center;">Register now</div>
-    <h2 class="fc-register-h2">Come <em>anyway.</em></h2>
+    <div class="fc-eyebrow" style="justify-content: center;">Stay in the loop</div>
+    <h2 class="fc-register-h2">Be the first <em>to know.</em></h2>
     <p class="fc-register-sub">
-      After registration, gain instant access to a Forgiveness mantra.
+      Enrollment isn't open yet. Leave your email and we'll write the moment dates are set.
     </p>
     <ul class="fc-register-bullets">
-      <li>4 sessions of 90 minutes · coming in Fall 2026</li>
+      <li>Four 90-minute live sessions on Zoom · coming in Fall 2026</li>
       <li>Lifetime access to replays — for everyone, forever</li>
       <li>Teachings, somatic practices, journeys</li>
     </ul>
-    <div class="fc-register-tuition"><span>€</span>147</div>
-    <a href="#register" class="fc-register-cta" data-fc-register>
-      Reserve your place <i class="ph-light ph-arrow-right"></i>
-    </a>
+    <form class="fc-register-form" data-fc-news-form>
+      <input
+        type="text"
+        name="hp"
+        class="fc-news-hp"
+        tabindex="-1"
+        autocomplete="off"
+        aria-hidden="true"
+      />
+      <input
+        type="email"
+        name="email"
+        class="fc-news-input"
+        placeholder="you@somewhere"
+        aria-label="Email address"
+        autocomplete="email"
+        required
+      />
+      <button type="submit" class="fc-register-cta" data-fc-news-submit>
+        <span data-fc-news-label>Keep me in the loop</span>
+        <i class="ph-light ph-arrow-right"></i>
+      </button>
+    </form>
+    <p class="fc-register-note" data-fc-news-note>
+      No spam — just word when the doors open. Easy to leave, any time.
+    </p>
+    <p class="fc-register-error" hidden role="alert" data-fc-news-error></p>
+    <p class="fc-register-thanks" hidden data-fc-news-thanks>
+      Thank you. We'll be in touch the moment enrollment opens.
+    </p>
   </div>
 </section>
+
+<script>
+  const form = document.querySelector<HTMLFormElement>('[data-fc-news-form]');
+  const note = document.querySelector<HTMLElement>('[data-fc-news-note]');
+  const errorEl = document.querySelector<HTMLElement>('[data-fc-news-error]');
+  const thanks = document.querySelector<HTMLElement>('[data-fc-news-thanks]');
+  const label = document.querySelector<HTMLElement>('[data-fc-news-label]');
+
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (errorEl) errorEl.hidden = true;
+
+    const data = new FormData(form);
+    const email = String(data.get('email') ?? '').trim();
+    if (!email) return;
+
+    const btn = form.querySelector<HTMLButtonElement>('[data-fc-news-submit]');
+    const original = label?.textContent ?? 'Keep me in the loop';
+    if (btn) btn.disabled = true;
+    if (label) label.textContent = 'Sending…';
+
+    try {
+      const res = await fetch('/api/newsletter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          hp: String(data.get('hp') ?? ''),
+          source: 'forgiveness-course',
+        }),
+      });
+      const payload = (await res.json().catch(() => ({}))) as { ok?: boolean };
+      if (res.ok && payload?.ok) {
+        form.hidden = true;
+        if (note) note.hidden = true;
+        if (thanks) thanks.hidden = false;
+        return;
+      }
+      throw new Error('request-failed');
+    } catch {
+      if (btn) btn.disabled = false;
+      if (label) label.textContent = original;
+      if (errorEl) {
+        errorEl.textContent = "That didn't go through. Please check the address and try again.";
+        errorEl.hidden = false;
+      }
+    }
+  });
+</script>

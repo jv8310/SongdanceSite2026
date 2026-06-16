@@ -244,7 +244,7 @@ function PrayerCard({ prayer, onSubmitEmail, onReplay, submitted, sending }) {
               </li>
             </ul>
             <a className="tlw-course-cta" href="https://site.songdance.co/forgiveness/">
-              Reserve your place <span aria-hidden="true">→</span>
+              Keep me in the loop <span aria-hidden="true">→</span>
             </a>
           </aside>
         </>
