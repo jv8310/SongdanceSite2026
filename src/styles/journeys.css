@@ -595,15 +595,19 @@ html, body { background: var(--paper); }
   font-size: 16.5px;
   line-height: 1.6;
   color: var(--ink-soft);
-  padding: var(--sp-4) 0 var(--sp-4) var(--sp-5);
+  padding: var(--sp-4) 0;
   border-bottom: 1px solid var(--line);
-  position: relative;
+  display: flex;
+  gap: 16px;
+  align-items: baseline;
 }
 .jr-whom-list li::before {
-  content: "·";
-  position: absolute; left: 0; top: var(--sp-4);
-  color: var(--jr-accent);
-  font-size: 22px; line-height: 1;
+  content: "";
+  flex: 0 0 auto;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--jr-accent);
+  transform: translateY(-2px);
 }
 .jr-whom-list li em { font-family: var(--font-lyric); font-style: italic; color: var(--ink); font-size: 1.12em; }
 .jr-whom-foot {
@@ -1178,8 +1182,12 @@ html, body { background: var(--paper); }
   pointer-events: none;
 }
 .jr-deep-inner { position: relative; z-index: 1; max-width: 760px; margin: 0 auto; text-align: center; }
-.jr-deep .jr-eyebrow { color: var(--jr-accent); justify-content: center; display: inline-flex; }
-.jr-deep .jr-eyebrow::before { background: var(--jr-accent); }
+.jr-deep .jr-eyebrow {
+  color: rgba(244, 236, 223, 0.95);
+  justify-content: center; display: inline-flex;
+  text-shadow: 0 1px 14px rgba(15, 8, 14, 0.6);
+}
+.jr-deep .jr-eyebrow::before { background: rgba(244, 236, 223, 0.7); }
 .jr-deep-head {
   font-family: var(--font-display);
   font-size: clamp(40px, 5.6vw, 76px);
