@@ -50,7 +50,7 @@ import {
   type WorkshopEmailCtx,
 } from './emails';
 import { googleCalendarUrl } from './ics';
-import { formatInTz, minutesUntil } from './time';
+import { formatInTz, minutesUntil, withinSendWindow } from './time';
 import { icsUrl, successUrl } from './paid-handler';
 import {
   isEmailSuppressed,
@@ -91,20 +91,29 @@ const CADENCE: Array<{ type: string; lead: number }> = [
   { type: 'at_time', lead: 0 },
 ];
 
+// The early, non-urgent reminders held to the recipient's local send window
+// (08:00–21:00). The imminent ones (6h, 1h, 15m, at_time) are time-critical and
+// always go on schedule — they're never gated.
+const QUIET_HOURS_REMINDERS = new Set(['reminder_7d', 'reminder_2d', 'reminder_1d']);
+
 // Lifecycle sequence steps, anchored one hour after the start (minutes after).
 // `staleMin`: how long past due a step may still be sent — beyond that it's
 // skipped, never delivered embarrassingly late. `requires`: a step only
 // fires if the named earlier claim exists, so a sequence can never start in
 // the middle (e.g. on first deploy over historical workshops).
-type LifecycleStep = { type: string; offsetMin: number; staleMin: number; requires?: string };
+// `urgent`: deadline-driven, so it goes on its scheduled tick regardless of the
+// recipient's local hour (quiet-hours holding could push it past its staleness
+// and miss the window). Non-urgent steps wait for local daytime. The
+// discount-deadline emails carry an accurate hours-remaining figure either way.
+type LifecycleStep = { type: string; offsetMin: number; staleMin: number; requires?: string; urgent?: boolean };
 
 // The 12-week participant discount closes 48h after the session
 // (DISCOUNT_WINDOW_HOURS) — email 2 lands mid-window, email 3 shortly
 // before it shuts and must never arrive after it has.
 const ATTENDED_STEPS: LifecycleStep[] = [
   { type: 'post_attended', offsetMin: 0, staleMin: 48 * H },
-  { type: 'post_attended_2', offsetMin: 24 * H, staleMin: 16 * H, requires: 'post_attended' },
-  { type: 'post_attended_3', offsetMin: 42 * H, staleMin: 5 * H, requires: 'post_attended_2' },
+  { type: 'post_attended_2', offsetMin: 24 * H, staleMin: 16 * H, requires: 'post_attended', urgent: true },
+  { type: 'post_attended_3', offsetMin: 42 * H, staleMin: 5 * H, requires: 'post_attended_2', urgent: true },
 ];
 
 const PRO_ATTENDED_STEPS: LifecycleStep[] = [
@@ -214,6 +223,15 @@ async function runReminders(env: CronEnv, now: number, result: CronResult) {
       if (idx < 0) continue; // nothing due yet (more than 7d out)
 
       const due = CADENCE[idx];
+      // Non-urgent early reminders wait for the recipient's local send window;
+      // skip this tick (without claiming) and the next ticks re-evaluate until
+      // it's local daytime. Imminent reminders are never held.
+      if (
+        QUIET_HOURS_REMINDERS.has(due.type) &&
+        !withinSendWindow(reg.timezone || w.display_tz, now)
+      ) {
+        continue;
+      }
       // Claim every looser bucket too so we never backfill them with a late
       // burst — but only actually email the single tightest due reminder.
       // These looser claims are marked emailed=0: they reserve the slot
@@ -235,6 +253,7 @@ async function runReminders(env: CronEnv, now: number, result: CronResult) {
           html: content.html,
           text: content.text,
           entityRefId: `workshop-${due.type}-${reg.id}`,
+          track: { db: env.DB, type: due.type, registrationId: reg.id },
         });
         result.remindersSent += 1;
       } catch {
@@ -287,6 +306,11 @@ async function runAbandonedCheckouts(env: CronEnv, now: number, result: CronResu
     }
     if (!due) continue;
 
+    // Marketing-flavoured, so honour the recipient's local send window: hold
+    // the nudge until local daytime (re-evaluated on later ticks; the windows
+    // above are wide enough to absorb an overnight wait).
+    if (!withinSendWindow(r.timezone || r.w_display_tz, now)) continue;
+
     // Quiet checks before burning the claim: unsubscribed, or already a
     // customer (a secured seat on any workshop means no cart-nagging).
     if (await isEmailSuppressed(env.DB, r.email)) continue;
@@ -314,7 +338,7 @@ async function runAbandonedCheckouts(env: CronEnv, now: number, result: CronResu
       unsubscribeUrl: secret ? await unsubscribePageUrl(base, secret, r.email) : undefined,
     };
     const content = due.build === 'first' ? abandonedEmail1(ctx) : abandonedEmail2(ctx);
-    const sent = await sendMarketing(env, r.email, content, `workshop-${due.type}-${r.id}`, secret);
+    const sent = await sendMarketing(env, r.email, content, `workshop-${due.type}-${r.id}`, secret, due.type, r.id);
     if (sent) result.abandonedSent += 1;
   }
 }
@@ -390,6 +414,10 @@ async function runPostWorkshop(env: CronEnv, now: number, result: CronResult) {
 
       const tz = reg.timezone || w.display_tz;
       const discountEndsLocal = formatInTz(new Date(discountEndsMs).toISOString(), tz);
+      // Hours left on the 20% window at this exact send — so the copy is true
+      // even when the email was held for the recipient's local morning. Floored
+      // at 1 by the email builder (deadline emails always go before it shuts).
+      const hoursRemaining = Math.max(1, Math.round((discountEndsMs - now) / (60 * 60 * 1000)));
       const unsubscribeUrl = secret ? await unsubscribePageUrl(base, secret, reg.email) : undefined;
       const lc = { name: reg.name, workshopTitle: w.title, unsubscribeUrl };
       // The course page reads ?email= and reveals that person's price (and
@@ -417,9 +445,9 @@ async function runPostWorkshop(env: CronEnv, now: number, result: CronResult) {
             );
             if (boughtCert && step.type !== 'post_attended') continue;
             content = boughtCert
-              ? attendedEmail1({ ...lc, courseUrl, discountEndsLocal, alreadyBoughtCourse: true })
+              ? attendedEmail1({ ...lc, courseUrl, discountEndsLocal, hoursRemaining, alreadyBoughtCourse: true })
               : step.type === 'post_attended'
-                ? attendedProEmail1({ ...lc, certUrl, courseUrl })
+                ? attendedProEmail1({ ...lc, certUrl, courseUrl, hoursRemaining })
                 : step.type === 'post_attended_pro_2'
                   ? attendedProEmail2({ ...lc, certUrl })
                   : attendedProEmail3({ ...lc, certUrl });
@@ -430,13 +458,17 @@ async function runPostWorkshop(env: CronEnv, now: number, result: CronResult) {
             if (bought && step.type !== 'post_attended') continue;
             content =
               step.type === 'post_attended'
-                ? attendedEmail1({ ...lc, courseUrl, discountEndsLocal, alreadyBoughtCourse: bought })
+                ? attendedEmail1({ ...lc, courseUrl, discountEndsLocal, hoursRemaining, alreadyBoughtCourse: bought })
                 : step.type === 'post_attended_2'
-                  ? attendedEmail2({ ...lc, courseUrl, discountEndsLocal })
-                  : attendedEmail3({ ...lc, courseUrl, discountEndsLocal });
+                  ? attendedEmail2({ ...lc, courseUrl, discountEndsLocal, hoursRemaining })
+                  : attendedEmail3({ ...lc, courseUrl, discountEndsLocal, hoursRemaining });
           }
+          // Non-urgent steps wait for the recipient's local send window; the
+          // deadline-driven ones (urgent) go on schedule with an accurate
+          // hours-remaining figure.
+          if (!step.urgent && !withinSendWindow(tz, now)) continue;
           if (!(await claimNotification(env.DB, reg.id, step.type))) continue;
-          const sent = await sendMarketing(env, reg.email, content, `workshop-${step.type}-${reg.id}`, secret);
+          const sent = await sendMarketing(env, reg.email, content, `workshop-${step.type}-${reg.id}`, secret, step.type, reg.id);
           if (sent) result.postSent += 1;
         }
 
@@ -453,8 +485,9 @@ async function runPostWorkshop(env: CronEnv, now: number, result: CronResult) {
               step.type === 'downsell_1'
                 ? downsellEmail1({ ...lc, courseUrl })
                 : downsellEmail2({ ...lc, courseUrl, calendarUrl: `${base}/workshop` });
+            if (!withinSendWindow(tz, now)) continue; // local-daytime only
             if (!(await claimNotification(env.DB, reg.id, step.type))) continue;
-            const sent = await sendMarketing(env, reg.email, content, `workshop-${step.type}-${reg.id}`, secret);
+            const sent = await sendMarketing(env, reg.email, content, `workshop-${step.type}-${reg.id}`, secret, step.type, reg.id);
             if (sent) result.postSent += 1;
           }
         }
@@ -467,8 +500,9 @@ async function runPostWorkshop(env: CronEnv, now: number, result: CronResult) {
               : step.type === 'post_no_show_2'
                 ? noShowEmail2({ ...lc, hubUrl })
                 : noShowEmail3({ ...lc, hubUrl });
+          if (!withinSendWindow(tz, now)) continue; // local-daytime only
           if (!(await claimNotification(env.DB, reg.id, step.type))) continue;
-          const sent = await sendMarketing(env, reg.email, content, `workshop-${step.type}-${reg.id}`, secret);
+          const sent = await sendMarketing(env, reg.email, content, `workshop-${step.type}-${reg.id}`, secret, step.type, reg.id);
           if (sent) result.postSent += 1;
         }
       }
@@ -543,6 +577,8 @@ async function sendMarketing(
   content: EmailContent,
   refId: string,
   secret: string | null,
+  trackType: string,
+  registrationId: number,
 ): Promise<boolean> {
   try {
     await sendEmail({
@@ -557,6 +593,7 @@ async function sendMarketing(
       listUnsubscribeUrl: secret
         ? await oneClickUnsubscribeUrl(env.PUBLIC_BASE_URL, secret, to)
         : undefined,
+      track: { db: env.DB, type: trackType, registrationId },
     });
     return true;
   } catch {

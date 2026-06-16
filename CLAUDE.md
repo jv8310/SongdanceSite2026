@@ -41,6 +41,21 @@ All automated workshop email lives in the workshop engine:
   `/api/unsubscribe` (RFC 8058 one-click), `email_suppressions` table. Marketing
   sends honor it; transactional (confirmation/reminders) always deliver.
 - **Review**: `/admin/emails` previews every email with sample data + test-send.
+- **Engagement stats**: every send is recorded in `email_sends` (keyed on the
+  Resend message id) by `sendEmail`'s `track` option; the Resend event webhook
+  (`/api/webhooks/resend`, Svix-signed via `RESEND_WEBHOOK_SECRET`) folds
+  delivery/open/click/bounce/complaint events back onto the row. Open & click
+  rates per email type show on `/admin/emails/stats`. To light it up: enable
+  open+click tracking on the sending domain in Resend, add the webhook endpoint,
+  and set the signing secret. `variant` column is the seed for future A/B tests.
+- **Timezone-aware sending**: non-urgent mail (early reminders 7d/2d/1d + all
+  lifecycle marketing) is held to the recipient's local 08:00–21:00 window
+  (`withinSendWindow` in `src/lib/workshops/time.ts`, keyed on the registrant's
+  IANA timezone, falling back to the workshop's display tz). Time-critical mail
+  always goes on schedule: imminent reminders (6h→start) and the discount-
+  deadline emails (`urgent` steps). The discount emails compute their
+  hours-remaining figure at send time, so the number is true even after an
+  overnight hold.
 - **Sanctioned urgency exception** (owner's call, June 2026): discount-deadline
   emails may name the deadline plainly and the final one may be a "last chance"
   send. Keep it factual — no fake scarcity, no countdown theatrics. Marketing
