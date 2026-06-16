@@ -52,10 +52,12 @@ const ASJ_PRO_PRICE: PriceMap = {
 };
 
 // Per-currency sum of the three standalone journeys (the bundle's "before"
-// figure). The bundle is sold at exactly half this — a clean 50% off.
+// figure). The bundle is sold at 20% off this sum — enough of a saving to
+// reward buying all three, while still costing more than any single journey.
 function bundleSum(currency: JourneyCurrency): number {
   return ASJ_PRICE[currency] + MMJ_PRICE[currency] + INNER_CHILD_PRICE[currency];
 }
+const BUNDLE_DISCOUNT = 0.2; // 20% off the sum of the three
 
 export const PRICE_BY_SLUG: Record<JourneySlug, PriceMap | null> = {
   asj: ASJ_PRICE,
@@ -102,11 +104,12 @@ export function journeyCurrencyForCountry(
   return isSupportedCurrency(c) ? c : 'EUR';
 }
 
-// Final charged amount (in cents) for a product + currency. The bundle is half
-// the per-currency sum of the three journeys, rounded to the nearest cent.
+// Final charged amount (in cents) for a product + currency. The bundle is the
+// per-currency sum of the three journeys, 20% off, rounded to a clean whole
+// unit (so the headline stays tidy and still beats every single journey).
 export function priceCents(slug: JourneySlug, currency: JourneyCurrency): number {
   if (slug === 'journeys-bundle') {
-    return Math.round((bundleSum(currency) * 100) / 2);
+    return Math.round(bundleSum(currency) * (1 - BUNDLE_DISCOUNT)) * 100;
   }
   const map = PRICE_BY_SLUG[slug]!;
   return map[currency] * 100;

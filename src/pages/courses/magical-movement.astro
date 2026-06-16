@@ -95,7 +95,7 @@ const testimonials = [
     <section class="jr-section jr-split">
       <div class="jr-split-inner">
         <figure class="jr-split-figure">
-          <img src="/media/library/movement2.webp" alt="A woman dancing freely in her living room" loading="lazy" />
+          <img src="/media/library/svh-retreat-sounding-grey-hair-rocks.webp" alt="An older woman, eyes closed, moving with the music" loading="lazy" />
         </figure>
         <div class="jr-split-text">
           <div class="jr-eyebrow">For every body</div>
@@ -215,46 +215,18 @@ const testimonials = [
       </div>
     </section>
 
-    <!-- Practical -->
-    <section class="jr-section jr-practical">
-      <div class="jr-practical-inner">
-        <div>
-          <div class="jr-eyebrow">At a glance</div>
-          <h2 class="jr-practical-title">Move at your own pace.</h2>
-          <ul class="jr-practical-list">
-            <li><strong>Guided movement sessions</strong> — each carried by its own original music</li>
-            <li><strong>Do-at-home</strong> — standing, or seated in a chair</li>
-            <li><strong>Lifetime access</strong> — return to any session whenever you like</li>
-            <li>No steps to learn · no choreography · nothing to get right</li>
-          </ul>
-        </div>
-        <div class="jr-practical-side">
-          <div class="jr-practical-side-label">From</div>
-          <p class="jr-practical-side-line">€49 · one payment, lifetime access</p>
-          <a href="#register" class="jr-practical-side-cta">Choose your option</a>
-          <p class="jr-practical-side-note">Priced in your own currency.</p>
-        </div>
-      </div>
-    </section>
-
-    <!-- Closing -->
-    <section class="jr-section jr-closing">
-      <div class="jr-closing-inner">
-        <div class="jr-eyebrow">The invitation</div>
-        <h2 class="jr-closing-head">See what your body does when <em>no one's keeping score.</em></h2>
-        <p class="jr-closing-body">
-          Put on one session, push the furniture back — or don't — and see what your body does when no
-          one's keeping score.
-        </p>
-        <a href="#register" class="jr-closing-cta">
-          Begin the journey <i class="ph-light ph-arrow-right"></i>
-        </a>
-        <p class="jr-closing-micro">For every body. Standing or seated. No experience required.</p>
-      </div>
-    </section>
-
-    <!-- Register / buy -->
-    <JourneyRegister course="mmj" />
+    <!-- Register / buy (dark, integrated) -->
+    <JourneyRegister
+      course="mmj"
+      heroImg="/media/library/movement.webp"
+      lede="Put on one session, push the furniture back — or don't — and move how you like, with no one keeping score. Choose your way in below."
+      bullets={[
+        'Guided movement sessions with original music',
+        'Do-at-home — standing, or seated in a chair',
+        'No steps, no choreography, nothing to get right',
+        'Lifetime access — return anytime',
+      ]}
+    />
 
     <!-- More journeys -->
     <JourneyCrossPromo current="mmj" />

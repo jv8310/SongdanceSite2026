@@ -1,14 +1,17 @@
 ---
 import { COUNTRIES } from '../../lib/countries';
 
-// The buy form for a single journey page. `course` is the page's own product;
-// the form always also offers the all-three bundle, and the singing page also
-// offers the PRO mantra upgrade.
+// The buy form for a single journey page — a dark, integrated "enrolment"
+// section: a short summary of what you get, then the price options + form.
+// `course` is the page's own product; the form always also offers the
+// all-three bundle, and the singing page also offers the PRO mantra upgrade.
 interface Props {
   course: 'asj' | 'mmj' | 'inner-child';
+  heroImg: string; // shown as the thumbnail on the "this journey" option
+  lede: string;
+  bullets: string[]; // the "what you get" summary
 }
-const { course } = Astro.props;
-const countries = COUNTRIES;
+const { course, heroImg, lede, bullets } = Astro.props;
 
 const THIS_DESC: Record<Props['course'], string> = {
   asj: 'Forty weekly sessions — mantras & music, yours to keep.',
@@ -24,18 +27,19 @@ const THIS_LABEL: Record<Props['course'], string> = {
 
 <section class="jr-section jr-register" id="register">
   <div class="jr-register-inner">
-    <div class="jr-eyebrow" style="justify-content:center;">Begin when you're ready</div>
-    <h2 class="jr-register-title">Choose your way in.</h2>
-    <p class="jr-register-lede">
-      One payment, lifetime access, begin the moment you're ready. Prices show in your
-      own currency.
-    </p>
+    <div class="jr-eyebrow">Enrolment</div>
+    <h2 class="jr-register-title">Begin when you're <em>ready.</em></h2>
+    <p class="jr-register-lede">{lede}</p>
+    <ul class="jr-register-gets">
+      {bullets.map((b) => <li>{b}</li>)}
+    </ul>
 
     <div class="jr-register-card">
       <!-- Price options -->
       <div class="jr-opts" data-jr-opts>
         <label class="jr-opt" data-jr-opt data-product={course}>
           <input type="radio" name="jr-product" value={course} checked />
+          <span class="jr-opt-thumb"><img src={heroImg} alt="" loading="lazy" /></span>
           <span class="jr-opt-body">
             <span class="jr-opt-title">{THIS_LABEL[course]}</span>
             <span class="jr-opt-desc">{THIS_DESC[course]}</span>
@@ -67,13 +71,17 @@ const THIS_LABEL: Record<Props['course'], string> = {
 
         <label class="jr-opt jr-opt--bundle" data-jr-opt data-product="journeys-bundle">
           <input type="radio" name="jr-product" value="journeys-bundle" />
+          <span class="jr-opt-thumb jr-opt-thumb--triple">
+            <img src="/media/library/singing-lights-woman.webp" alt="" loading="lazy" />
+            <img src="/media/library/movement.webp" alt="" loading="lazy" />
+            <img src="/media/library/inner-child-glow.webp" alt="" loading="lazy" />
+          </span>
           <span class="jr-opt-body">
             <span class="jr-opt-title">
-              All three journeys <span class="jr-opt-tag jr-opt-tag--save" data-save hidden>Save 50%</span>
+              All three journeys <span class="jr-opt-tag jr-opt-tag--save" data-save hidden>Save 20%</span>
             </span>
             <span class="jr-opt-desc">
-              Authentic Singing · Magical Movement · Inner Child Healing — every journey, one price,
-              half off.
+              Authentic Singing · Magical Movement · Inner Child Healing — every journey, one price.
             </span>
           </span>
           <span class="jr-opt-price">
@@ -147,7 +155,7 @@ const THIS_LABEL: Record<Props['course'], string> = {
     </div>
 
     <datalist id="jr-country-list">
-      {countries.map((c) => (
+      {COUNTRIES.map((c) => (
         <option value={c.name} data-code={c.code}>{c.flag} {c.name}</option>
       ))}
     </datalist>
@@ -161,10 +169,10 @@ const THIS_LABEL: Record<Props['course'], string> = {
     | 'EUR' | 'USD' | 'GBP' | 'CAD' | 'CHF'
     | 'AUD' | 'NZD' | 'NOK' | 'SEK' | 'DKK';
 
-  // Regional price points (major units). MUST mirror src/lib/courses/journeys.ts
-  // — the server re-derives currency + price from the country, so this only
-  // controls what we display. The bundle is computed as half the per-currency
-  // sum of the three journeys (a clean 50% off).
+  // Regional price points (major units). MUST mirror src/lib/courses/journeys.ts.
+  // The server re-derives currency + price from the country; this only controls
+  // what we display. Bundle = the per-currency sum of the three journeys, 20%
+  // off, rounded to a clean whole unit.
   const ASJ: Record<Currency, number> = {
     EUR: 99, USD: 99, GBP: 89, CAD: 145, CHF: 95, AUD: 165, NZD: 185, NOK: 1150, SEK: 1100, DKK: 745,
   };
@@ -177,23 +185,21 @@ const THIS_LABEL: Record<Props['course'], string> = {
   const PRO: Record<Currency, number> = {
     EUR: 149, USD: 149, GBP: 135, CAD: 219, CHF: 145, AUD: 249, NZD: 279, NOK: 1725, SEK: 1649, DKK: 1115,
   };
+  const BUNDLE_DISCOUNT = 0.2;
 
-  function bundleSumCents(c: Currency): number {
-    return (ASJ[c] + MMJ[c] + INNER[c]) * 100;
-  }
-  // Final charged cents for a product slug.
+  function bundleSum(c: Currency): number { return ASJ[c] + MMJ[c] + INNER[c]; }
   function productCents(slug: string, c: Currency): number {
     switch (slug) {
       case 'asj': return ASJ[c] * 100;
       case 'asj-pro': return PRO[c] * 100;
       case 'mmj': return MMJ[c] * 100;
       case 'inner-child': return INNER[c] * 100;
-      case 'journeys-bundle': return Math.round(bundleSumCents(c) / 2);
+      case 'journeys-bundle': return Math.round(bundleSum(c) * (1 - BUNDLE_DISCOUNT)) * 100;
       default: return 0;
     }
   }
   function compareAtCents(slug: string, c: Currency): number | null {
-    return slug === 'journeys-bundle' ? bundleSumCents(c) : null;
+    return slug === 'journeys-bundle' ? bundleSum(c) * 100 : null;
   }
 
   const COUNTRY_CURRENCY: Record<string, Currency> = {
@@ -275,28 +281,32 @@ const THIS_LABEL: Record<Props['course'], string> = {
     }
 
     function renderPrices() {
-      // Each option card shows its own price; the bundle also shows a strike +
-      // a "Save 50%" badge.
       for (const el of optionEls) {
         const slug = el.dataset.product!;
         const amountEl = el.querySelector<HTMLElement>('[data-amount]')!;
         const strikeEl = el.querySelector<HTMLElement>('[data-strike]');
         const saveEl = el.querySelector<HTMLElement>('[data-save]');
-        const finalCents = applyDiscountCents(productCents(slug, currency));
-        amountEl.textContent = moneyCents(finalCents, currency);
+        const baseCents = productCents(slug, currency);
+        amountEl.textContent = moneyCents(applyDiscountCents(baseCents), currency);
         const cmp = compareAtCents(slug, currency);
         if (strikeEl) {
           if (cmp) { strikeEl.hidden = false; strikeEl.textContent = moneyCents(cmp, currency); }
           else strikeEl.hidden = true;
         }
-        if (saveEl) saveEl.hidden = !cmp;
+        if (saveEl) {
+          if (cmp) {
+            const pct = Math.round((1 - baseCents / cmp) * 100);
+            saveEl.textContent = `Save ${pct}%`;
+            saveEl.hidden = false;
+          } else saveEl.hidden = true;
+        }
       }
 
-      // Summary reflects the selected option.
       const slug = selectedSlug();
       const sel = optionEls.find((e) => e.dataset.product === slug)!;
       const title = sel.querySelector<HTMLElement>('.jr-opt-title')!.textContent?.trim() ?? '';
-      summaryLabelEl.textContent = `${title.replace(/\s+Save 50%$/, '').replace(/\s+for facilitators$/, '')} · one-time payment`;
+      summaryLabelEl.textContent =
+        `${title.replace(/\s+Save \d+%$/, '').replace(/\s+for facilitators$/, '')} · one-time payment`;
       summaryEl.textContent = moneyCents(applyDiscountCents(productCents(slug, currency)), currency);
 
       if (currency === 'EUR') {
@@ -313,7 +323,6 @@ const THIS_LABEL: Record<Props['course'], string> = {
       renderPrices();
     }
 
-    // Highlight the selected card + re-render the summary.
     function syncSelected() {
       const slug = selectedSlug();
       for (const el of optionEls) el.classList.toggle('is-selected', el.dataset.product === slug);
@@ -321,7 +330,6 @@ const THIS_LABEL: Record<Props['course'], string> = {
     }
     optsWrap.addEventListener('change', syncSelected);
 
-    // Prefill country from a timezone/language guess.
     const guess = guessCountry();
     if (guess) {
       const match = COUNTRIES.find((c) => c.code === guess.toUpperCase());
@@ -343,6 +351,7 @@ const THIS_LABEL: Record<Props['course'], string> = {
     countryInput.addEventListener('blur', resolveCountry);
     countryInput.addEventListener('input', resolveCountry);
 
+    // VAT field only appears once a company name is entered.
     function toggleVat() {
       const show = companyInput.value.trim().length > 0;
       vatField.hidden = !show;

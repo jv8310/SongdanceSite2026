@@ -140,6 +140,21 @@ const testimonials = [
       </div>
     </section>
 
+    <!-- How deep it goes — full-screen ocean parallax -->
+    <section class="jr-deep" style="background-image:url('/media/library/singing-water.webp')">
+      <div class="jr-deep-inner">
+        <div class="jr-eyebrow">How deep it goes</div>
+        <h2 class="jr-deep-head">It isn't really about the <em>voice.</em></h2>
+        <p class="jr-deep-body">
+          Sing from yourself for long enough and you notice the singing was never quite the point.
+          Something underneath gets a hearing — the parts that learned, early, to stay quiet. The
+          voice just happens to be the way in: it goes below the floor where words are kept, and
+          reaches what talking circles for years.
+        </p>
+        <p class="jr-deep-lyric">The voice was there before the words. It still knows the way.</p>
+      </div>
+    </section>
+
     <!-- Video glimpse — custom square player -->
     <JourneyVideo
       src="/media/library/jacob-upala-singing.mov"
@@ -152,7 +167,7 @@ const testimonials = [
     <!-- Lyric break -->
     <section class="jr-lyric">
       <div class="jr-lyric-bg" aria-hidden="true">
-        <img src="/media/library/singing-water.webp" alt="" />
+        <img src="/media/library/singing-nature.webp" alt="" />
       </div>
       <div class="jr-lyric-inner">
         <img class="jr-lyric-mark" src="/brand/symbol-orange.png" alt="" aria-hidden="true" />
@@ -210,46 +225,18 @@ const testimonials = [
       </div>
     </section>
 
-    <!-- Practical -->
-    <section class="jr-section jr-practical">
-      <div class="jr-practical-inner">
-        <div>
-          <div class="jr-eyebrow">At a glance</div>
-          <h2 class="jr-practical-title">Forty sessions, yours to keep.</h2>
-          <ul class="jr-practical-list">
-            <li><strong>40 self-paced audio sessions</strong> — a piece of music and a mantra each</li>
-            <li><strong>Do-at-home</strong> — eyes closed if you like, no screen required</li>
-            <li><strong>Lifetime access</strong> — go at your own pace, return whenever you like</li>
-            <li><strong>PRO option</strong> — mantra versions to use in your own workshops, with a licence</li>
-          </ul>
-        </div>
-        <div class="jr-practical-side">
-          <div class="jr-practical-side-label">From</div>
-          <p class="jr-practical-side-line">€99 · one payment, lifetime access</p>
-          <a href="#register" class="jr-practical-side-cta">Choose your option</a>
-          <p class="jr-practical-side-note">Priced in your own currency.</p>
-        </div>
-      </div>
-    </section>
-
-    <!-- Closing -->
-    <section class="jr-section jr-closing">
-      <div class="jr-closing-inner">
-        <div class="jr-eyebrow">The invitation</div>
-        <h2 class="jr-closing-head">Forty weeks with <em>your own voice.</em></h2>
-        <p class="jr-closing-body">
-          Forty weeks is a long time to spend with your own voice. Most people find it's the best
-          company they've kept in years.
-        </p>
-        <a href="#register" class="jr-closing-cta">
-          Begin the journey <i class="ph-light ph-arrow-right"></i>
-        </a>
-        <p class="jr-closing-micro">No range, no experience, no performance required.</p>
-      </div>
-    </section>
-
-    <!-- Register / buy -->
-    <JourneyRegister course="asj" />
+    <!-- Register / buy (dark, integrated) -->
+    <JourneyRegister
+      course="asj"
+      heroImg="/media/library/singing-lights-woman.webp"
+      lede="Forty weeks with your own voice — most people find it's the best company they've kept in years. Choose your way in below."
+      bullets={[
+        '40 self-paced audio sessions — music + a mantra each',
+        'Do-at-home — eyes closed if you like, no screen',
+        'Lifetime access — go at your own pace',
+        'Optional PRO mantra pack, licensed for facilitators',
+      ]}
+    />
 
     <!-- More journeys -->
     <JourneyCrossPromo current="asj" />

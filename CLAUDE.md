@@ -3,6 +3,18 @@
 Astro site deployed to Cloudflare Workers. Media (images) live in an R2 bucket
 (`songdance-media`, bound as `MEDIA`) and are served publicly at `/media/<key>`.
 
+## Typography law — inline italics must be sized UP
+
+The display/lyric font **Cormorant Garamond** (`--font-lyric`) optically reads
+**noticeably smaller** than the Figtree body (`--font-body`) and the Spectral
+display (`--font-display`) it sits inside — same `font-size`, smaller-looking
+letters. So **whenever an inline `<em>` (or any element) swaps to the lyric
+font inside body or heading text, you MUST size it up — never leave it at
+`1em`.** Use roughly **`1.2–1.35em` inside body/sans text** and **`~1.05em`
+inside a Spectral display heading**. An un-bumped Cormorant italic word in a
+sentence looks shrunken and wrong (e.g. a tiny "*can't dance*"). This applies to
+every page and component, not just the journeys — check it on first design.
+
 ## Copy book — READ THIS FIRST before any page work
 
 **Before creating or editing any page, email, or post, you MUST consult

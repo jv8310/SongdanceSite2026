@@ -51,6 +51,10 @@
 
 html, body { background: var(--paper); }
 
+/* `hidden` must win even when a class sets display (e.g. .jr-field is flex).
+   Without this, JS-toggled fields like the VAT input stay visible. */
+.jr-site [hidden] { display: none !important; }
+
 /* ---------- Nav ---------- */
 .jr-nav {
   position: sticky; top: 0; z-index: 50;
@@ -896,33 +900,67 @@ html, body { background: var(--paper); }
 }
 .jr-vplayer.is-playing .jr-vplayer-btn { opacity: 0; pointer-events: none; }
 
-/* ---------- Register / buy form ---------- */
-.jr-register { background: var(--paper-soft); }
-.jr-register-inner { max-width: 720px; margin: 0 auto; text-align: center; }
+/* ---------- Register / buy form (dark, integrated) ---------- */
+.jr-register {
+  background: var(--ink);
+  color: var(--paper);
+  position: relative;
+  overflow: hidden;
+}
+.jr-register::before {
+  content: ""; position: absolute; inset: 0;
+  background: radial-gradient(ellipse at 80% 12%, rgba(var(--jr-accent-rgb), 0.24) 0%, transparent 60%),
+              radial-gradient(ellipse at 8% 92%, rgba(var(--jr-accent-rgb), 0.10) 0%, transparent 55%);
+  pointer-events: none;
+}
+.jr-register-inner { position: relative; max-width: 820px; margin: 0 auto; text-align: center; }
+.jr-register .jr-eyebrow { color: var(--jr-accent); justify-content: center; display: inline-flex; }
+.jr-register .jr-eyebrow::before { background: var(--jr-accent); }
 .jr-register-title {
   font-family: var(--font-display);
-  font-size: clamp(32px, 4vw, 52px);
-  line-height: 1.05;
-  letter-spacing: -0.015em;
+  font-size: clamp(34px, 4.6vw, 60px);
+  line-height: 1.04;
+  letter-spacing: -0.018em;
   font-weight: 400;
-  color: var(--ink);
-  margin: var(--sp-4) 0 var(--sp-3);
+  color: var(--paper);
+  margin: var(--sp-4) 0 var(--sp-4);
+  text-wrap: balance;
 }
+.jr-register-title em { font-family: var(--font-lyric); font-style: italic; color: rgba(244,236,223,0.72); }
 .jr-register-lede {
   font-family: var(--font-body);
-  font-size: 16px;
-  line-height: 1.65;
-  color: var(--ink-soft);
-  max-width: 48ch;
-  margin: 0 auto var(--sp-7);
+  font-size: 17px;
+  line-height: 1.7;
+  color: rgba(244,236,223,0.82);
+  max-width: 54ch;
+  margin: 0 auto var(--sp-6);
+  text-wrap: pretty;
+}
+.jr-register-gets {
+  list-style: none; margin: 0 auto var(--sp-7); padding: 0;
+  display: flex; flex-wrap: wrap; justify-content: center;
+  gap: var(--sp-2) var(--sp-6);
+  max-width: 760px;
+}
+.jr-register-gets li {
+  font-family: var(--font-body); font-size: 14px;
+  color: rgba(244,236,223,0.88);
+  padding-left: 22px; position: relative; text-align: left;
+}
+.jr-register-gets li::before {
+  content: ""; position: absolute; left: 0; top: 10px;
+  width: 12px; height: 1px; background: var(--jr-accent);
 }
 .jr-register-card {
+  position: relative;
   background: var(--paper);
-  border: 1px solid var(--line);
+  color: var(--ink);
   border-radius: var(--r-lg);
-  box-shadow: var(--shadow-2);
+  box-shadow: var(--shadow-3);
   padding: var(--sp-6);
   text-align: left;
+  max-width: 600px;
+  margin: 0 auto;
 }
 @media (min-width: 720px) { .jr-register-card { padding: var(--sp-7); } }
 
@@ -965,6 +1003,9 @@ html, body { background: var(--paper); }
   overflow: hidden;
 }
 .jr-opt-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* Bundle option carries a little strip of all three journeys. */
+.jr-opt-thumb--triple { width: auto; display: flex; gap: 3px; }
+.jr-opt-thumb--triple img { width: 32px; height: 60px; }
 .jr-opt-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .jr-opt-title {
   font-family: var(--font-display);
@@ -991,7 +1032,10 @@ html, body { background: var(--paper); }
   font-family: var(--font-display); font-size: 24px; line-height: 1; color: var(--ink); letter-spacing: -0.01em;
 }
 @media (max-width: 560px) {
-  .jr-opt-thumb { display: none; }
+  .jr-opt { gap: var(--sp-3); padding: var(--sp-4); }
+  .jr-opt-thumb { width: 46px; height: 46px; }
+  .jr-opt-thumb--triple { width: auto; }
+  .jr-opt-thumb--triple img { width: 24px; height: 46px; }
   .jr-opt-amount { font-size: 21px; }
 }
 
@@ -1116,9 +1160,72 @@ html, body { background: var(--paper); }
 .jr-cross-bundle:hover .jr-cross-bundle-go { background: var(--jr-accent-glow); }
 @media (max-width: 560px) { .jr-cross-bundle-price { align-items: flex-start; } }
 
+/* ---------- Deep parallax band (ASJ only) ---------- */
+.jr-deep {
+  position: relative;
+  min-height: 92vh;
+  display: grid; place-items: center;
+  padding: var(--sp-11) var(--sp-7);
+  background-color: var(--night-deep);
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+  overflow: hidden;
+}
+.jr-deep::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(15,8,14,0.5) 0%, rgba(15,8,14,0.66) 100%);
+  pointer-events: none;
+}
+.jr-deep-inner { position: relative; z-index: 1; max-width: 760px; margin: 0 auto; text-align: center; }
+.jr-deep .jr-eyebrow { color: var(--ember); justify-content: center; display: inline-flex; }
+.jr-deep .jr-eyebrow::before { background: var(--ember); }
+.jr-deep-head {
+  font-family: var(--font-display);
+  font-size: clamp(40px, 5.6vw, 76px);
+  line-height: 1.04; letter-spacing: -0.02em; font-weight: 400;
+  color: var(--paper);
+  margin: var(--sp-4) 0 var(--sp-5);
+  text-wrap: balance;
+  text-shadow: 0 2px 30px rgba(15,8,14,0.5);
+}
+.jr-deep-head em { font-family: var(--font-lyric); font-style: italic; color: rgba(244,236,223,0.78); }
+.jr-deep-body {
+  font-family: var(--font-body); font-size: 18px; line-height: 1.75;
+  color: rgba(244,236,223,0.9); max-width: 52ch; margin: 0 auto var(--sp-6);
+  text-wrap: pretty; text-shadow: 0 1px 16px rgba(15,8,14,0.5);
+}
+.jr-deep-lyric {
+  font-family: var(--font-lyric); font-style: italic;
+  font-size: clamp(22px, 2.6vw, 32px); line-height: 1.35;
+  color: var(--paper); margin: 0; text-wrap: balance;
+}
+@media (max-width: 820px) {
+  .jr-deep { background-attachment: scroll; min-height: 78vh; }
+}
+
+/* ---------- Inline lyric italic sizing ----------
+   Cormorant Garamond italic reads smaller than the body/display it sits in;
+   bump every inline <em> up or it looks shrunken. See CLAUDE.md › Typography. */
+.jr-prose-body em,
+.jr-split-text p em,
+.jr-session-text em,
+.jr-note-inner em { font-size: 1.22em; }
+.jr-whom-list li em { font-size: 1.34em; }
+.jr-opt-desc em { font-size: 1.14em; }
+.jr-hero-head em,
+.jr-h2 em,
+.jr-opening-head em,
+.jr-video-head em,
+.jr-session-title em,
+.jr-closing-head em,
+.jr-register-title em,
+.jr-deep-head em { font-size: 1.05em; }
+
 /* ---------- Reduced motion ---------- */
 @media (prefers-reduced-motion: reduce) {
   .jr-hero-bg img { animation: none; }
+  .jr-deep { background-attachment: scroll; }
   *, *::before, *::after {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;

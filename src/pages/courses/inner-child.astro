@@ -279,46 +279,18 @@ const testimonials = [
       </div>
     </section>
 
-    <!-- Practical -->
-    <section class="jr-section jr-practical">
-      <div class="jr-practical-inner">
-        <div>
-          <div class="jr-eyebrow">At a glance</div>
-          <h2 class="jr-practical-title">Five sessions, yours to keep.</h2>
-          <ul class="jr-practical-list">
-            <li><strong>5 self-paced sessions</strong> — guided visualisation, music, and mantra</li>
-            <li><strong>Do-at-home</strong> — go as slowly as you need; repeat any session</li>
-            <li><strong>Lifetime access</strong> — return whenever you like</li>
-            <li>Optional 1:1 support, if you’d like a hand alongside it</li>
-          </ul>
-        </div>
-        <div class="jr-practical-side">
-          <div class="jr-practical-side-label">From</div>
-          <p class="jr-practical-side-line">€29 · one payment, lifetime access</p>
-          <a href="#register" class="jr-practical-side-cta">Begin session one</a>
-          <p class="jr-practical-side-note">Priced in your own currency.</p>
-        </div>
-      </div>
-    </section>
-
-    <!-- Closing -->
-    <section class="jr-section jr-closing">
-      <div class="jr-closing-inner">
-        <div class="jr-eyebrow">The invitation</div>
-        <h2 class="jr-closing-head">Turning toward the child you <em>were.</em></h2>
-        <p class="jr-closing-body">
-          Five sessions. No rush. Just you, turning toward the child you were — with a little more
-          kindness than they were shown. When you’re ready, session one is waiting.
-        </p>
-        <a href="#register" class="jr-closing-cta">
-          Begin the journey <i class="ph-light ph-arrow-right"></i>
-        </a>
-        <p class="jr-closing-micro">Gentle work, at your own pace. It stands on its own, and pairs naturally with the Authentic Singing Journey.</p>
-      </div>
-    </section>
-
-    <!-- Register / buy -->
-    <JourneyRegister course="inner-child" />
+    <!-- Register / buy (dark, integrated) -->
+    <JourneyRegister
+      course="inner-child"
+      heroImg="/media/library/inner-child-glow.webp"
+      lede="Five sessions, no rush — turning toward the child you were, with a little more kindness than they were shown. Choose your way in below."
+      bullets={[
+        '5 self-paced sessions — visualisation, music & mantra',
+        'Go as slowly as you need; repeat any session',
+        'Optional 1:1 support alongside it',
+        'Lifetime access — return whenever you like',
+      ]}
+    />
 
     <!-- More journeys -->
     <JourneyCrossPromo current="inner-child" />
