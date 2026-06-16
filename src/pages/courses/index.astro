@@ -2,50 +2,109 @@
 import SiteLayout from '../../components/SiteLayout.astro';
 import PageHero from '../../components/PageHero.astro';
 import SoftCta from '../../components/SoftCta.astro';
-import { listLibrary, type MediaItem } from '../../lib/media';
 
-export const prerender = false;
-
-// Pull the Grief Course's hero image from the media library so the overview
-// card carries a picture. Falls back to a text-only card if nothing matches.
-const env = Astro.locals.runtime.env;
-let griefImage: string | null = null;
-try {
-  const lib: MediaItem[] = await listLibrary(env.MEDIA);
-  const grief = lib
-    .filter((i) => i.key.toLowerCase().startsWith('library/grief'))
-    .sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
-  const hero = grief.find((i) => /hero/.test(i.key.toLowerCase())) ?? grief[0];
-  griefImage = hero?.url ?? null;
-} catch {
-  griefImage = null;
+interface CourseItem {
+  label: string;
+  href: string;
+  img: string;
+  desc: string;
+  note: string;
+  price?: 'ticket' | 'masterclass'; // opts into client-side currency localization
+  pos?: string; // object-position override when the 16:10 crop would clip the subject
+}
+interface CourseGroup {
+  title: string;
+  lede: string;
+  items: CourseItem[];
 }
 
-const groups = [
+// Each card carries its own picture from the R2 library (served at /media/…),
+// a one-line description, and a price line. The two top-of-funnel products
+// (workshop · masterclass) tag their price with data-sd-price so PriceSync can
+// localize the currency; the rest are euro price points (localized at checkout).
+const groups: CourseGroup[] = [
   {
     title: 'Somatic Vocal Healing',
-    lede: 'Not singing — sounding. Not for you — of you. Start with an hour.',
+    lede: 'The practice itself — not singing but sounding, the sound of what’s there. Start with an hour, or go all the way to holding space for others.',
     items: [
-      { label: 'Vocal Healing Workshop', note: '9€ · one live hour', href: '/workshop', price: 'ticket' },
-      { label: '12-Week Course', note: 'The foundation', href: '/courses/12-week' },
-      { label: 'Practitioner Training', note: 'Certification', href: '/courses/certification' },
-      { label: 'Professional Masterclass', note: '29€', href: '/courses/masterclass', price: 'masterclass' },
+      {
+        label: 'Vocal Healing Workshop',
+        href: '/workshop',
+        img: '/media/library/svh-retreat-sounding-blue.webp',
+        desc: 'One live hour to meet the practice — one honest tone, and what it opens.',
+        note: '9€ · one live hour',
+        price: 'ticket',
+      },
+      {
+        label: '12-Week Course',
+        href: '/courses/12-week',
+        img: '/media/library/svhgpt-01-hero-in-one-breath.webp',
+        desc: 'Twelve weeks to learn the practice for yourself — guided modules and live weekly Q&A, until you can hold it alone.',
+        note: 'The foundation · live Q&A',
+      },
+      {
+        label: 'Practitioner Training',
+        href: '/courses/certification',
+        img: '/media/library/svh-retreat-circle-sunset-group-jacob-central.webp',
+        desc: 'Nine live months to go fully in with your own voice — and to learn to hold space for another’s.',
+        note: 'Certification · 9 months',
+      },
+      {
+        label: 'Professional Masterclass',
+        href: '/courses/masterclass',
+        img: '/media/library/jacob-teaching.webp',
+        desc: 'A 90-minute live masterclass for therapists, coaches and facilitators — what sound can do when words run out.',
+        note: '29€ · 90-min live',
+        price: 'masterclass',
+        pos: 'center 20%', // tall portrait — bias the crop up so his head isn't clipped
+      },
     ],
   },
   {
     title: 'Courses by Theme',
+    lede: 'Live, themed intensives with Daniela Hess & Jacob — and lifetime access to every session.',
     items: [
-      { label: 'Grief Course', note: 'with Daniela · €99', href: '/courses/grief', img: griefImage },
-      { label: 'Forgiveness Course', note: 'with Daniela · Fall 2026', href: '/courses/forgiveness' },
-      { label: 'Inner Child Healing Journey', note: '€29 · 5 sessions', href: '/courses/inner-child' },
+      {
+        label: 'Grief Course',
+        href: '/courses/grief',
+        img: '/media/library/grief-jacob-letting-go-sounding.webp',
+        desc: 'Four live sessions for the grief no one taught you how to carry — held gently, sounded together.',
+        note: 'with Daniela · €99',
+      },
+      {
+        label: 'Forgiveness Course',
+        href: '/courses/forgiveness',
+        img: '/media/library/forgiveness-sunflowers-sunset.webp',
+        desc: 'When forgiveness feels impossible, come anyway. Four live sessions honoring what the words alone never reached.',
+        note: 'with Daniela · Fall 2026',
+      },
     ],
   },
   {
-    title: 'Guided Journeys & Music',
+    title: 'Guided Musical Journeys',
+    lede: 'Self-paced sessions of music, mantra and movement — to do at home, in your own time.',
     items: [
-      { label: 'Authentic Singing Journey', note: '€99 · 40 sessions', href: '/courses/authentic-singing' },
-      { label: 'Magical Movement Journey', note: '€49 · guided', href: '/courses/magical-movement' },
-      { label: 'Songdeck', note: 'music & mantras', href: '/courses/songdeck' },
+      {
+        label: 'Authentic Singing Journey',
+        href: '/courses/authentic-singing',
+        img: '/media/library/singing-lights-woman.webp',
+        desc: 'Forty weeks of mantras and music — made to free the voice you already have, not train it into something else.',
+        note: '€99 · 40 sessions',
+      },
+      {
+        label: 'Magical Movement Journey',
+        href: '/courses/magical-movement',
+        img: '/media/library/movement.webp',
+        desc: 'Guided movement you can do in your own room — standing, or seated in a chair. No steps to learn.',
+        note: '€49 · self-paced',
+      },
+      {
+        label: 'Inner Child Healing Journey',
+        href: '/courses/inner-child',
+        img: '/media/library/inner-child-glow.webp',
+        desc: 'Five gentle sessions of music and mantra — to sing the child you were what they never got to hear.',
+        note: '€29 · 5 sessions',
+      },
     ],
   },
 ];
@@ -53,7 +112,7 @@ const groups = [
 
 <SiteLayout
   title="Courses — Songdance"
-  description="One practice, many doorways. Start with an hour, or commit to twelve weeks."
+  description="One practice, many doorways. Start with an hour, or commit to twelve weeks — workshops, themed courses, and self-paced guided journeys."
 >
   <PageHero
     eyebrow="Courses"
@@ -65,17 +124,18 @@ const groups = [
       {groups.map((g) => (
         <div class="sd-course-group">
           <h2 class="sd-course-group-title">{g.title}</h2>
-          {'lede' in g && g.lede && <p class="sd-course-group-lede">{g.lede}</p>}
+          <p class="sd-course-group-lede">{g.lede}</p>
           <div class="sd-course-cards">
             {g.items.map((it) => (
-              <a class={`sd-course-card${'img' in it && it.img ? ' sd-course-card--media' : ''}`} href={it.href}>
-                {'img' in it && it.img && (
-                  <span class="sd-course-card-media">
-                    <img src={it.img} alt="" loading="lazy" decoding="async" />
-                  </span>
-                )}
-                <span class="sd-course-card-label">{it.label}</span>
-                <span class="sd-course-card-note" data-sd-price={'price' in it ? it.price : undefined}>{it.note}</span>
+              <a class="sd-course-card sd-course-card--media" href={it.href}>
+                <span class="sd-course-card-media">
+                  <img src={it.img} alt="" loading="lazy" decoding="async" style={it.pos ? `object-position:${it.pos}` : undefined} />
+                </span>
+                <span class="sd-course-card-body">
+                  <span class="sd-course-card-label">{it.label}</span>
+                  <span class="sd-course-card-desc">{it.desc}</span>
+                  <span class="sd-course-card-note" data-sd-price={it.price}>{it.note}</span>
+                </span>
               </a>
             ))}
           </div>
@@ -87,27 +147,26 @@ const groups = [
 </SiteLayout>
 
 <style>
-  /* A small sub-lede under a group heading (group title margin-bottom is sp-5). */
+  /* A sub-lede under each group heading (group title margin-bottom is sp-5). */
   .sd-course-group-lede {
     margin: calc(-1 * var(--sp-4)) 0 var(--sp-5);
+    max-width: 60ch;
     font-size: var(--t-body-sm);
     color: var(--ink-quiet);
   }
 
-  /* A course card that carries an image (e.g. the Grief Course). Switches the
-     base flex-row card to a column with a full-bleed image on top. Base card
-     padding is 18px 20px. */
+  /* Every course card now carries a picture: a column with a full-bleed image
+     on top, then the label / description / price stacked beneath. */
   .sd-course-card--media {
     flex-direction: column;
     align-items: stretch;
     justify-content: flex-start;
-    padding-top: 0;
-    gap: 6px;
+    padding: 0 0 var(--sp-4);
+    gap: 0;
     overflow: hidden;
   }
   .sd-course-card-media {
     display: block;
-    margin: 0 -20px 12px;
     aspect-ratio: 16 / 10;
     overflow: hidden;
     background: var(--paper-deep);
@@ -122,5 +181,24 @@ const groups = [
   .sd-course-card--media:hover .sd-course-card-media img {
     transform: scale(1.04);
   }
-  .sd-course-card--media .sd-course-card-note { white-space: normal; }
+  .sd-course-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: var(--sp-4) var(--sp-4) 0;
+  }
+  .sd-course-card-desc {
+    font-family: var(--font-body);
+    font-size: var(--t-body-sm);
+    line-height: 1.5;
+    color: var(--ink-soft);
+  }
+  .sd-course-card--media .sd-course-card-note {
+    white-space: normal;
+    margin-top: 2px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    color: var(--ember);
+  }
 </style>
