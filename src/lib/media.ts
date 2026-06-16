@@ -2,7 +2,10 @@
 //
 // Library uploads live under the `library/` prefix; event-card images live
 // under `events/` (written by save-event.ts). Everything is served publicly at
-// /media/<key>.
+// /media/<key>. The library also holds short, self-hosted clips (mp4/webm) for
+// background/accent video — anything longer or watch-with-sound still belongs on
+// Vimeo. The serving route (`/media/[...key]`) honours Range requests so video
+// seeks/plays correctly.
 
 export const LIBRARY_PREFIX = 'library/';
 
@@ -14,6 +17,29 @@ export interface MediaItem {
   url: string; // /media/<key>
 }
 
+// Self-hosted video the library accepts. Keep it to short clips — the cap below
+// is the contract; long/streamed video goes to Vimeo, not R2.
+export const ALLOWED_VIDEO_TYPES = new Set([
+  'video/mp4',
+  'video/webm',
+  'video/quicktime',
+  'video/ogg',
+]);
+
+// Short clips only. Workers' request-body limit is generous, but the library is
+// for accent video — not a video host — so we draw the line at 30 MB.
+export const MAX_VIDEO_BYTES = 30 * 1024 * 1024;
+
+export function isVideoType(type?: string | null): boolean {
+  return !!type && type.startsWith('video/');
+}
+
+// Branch the admin grid / page components off the key (the only thing some
+// callers have). Mirrors the extensions in EXT_FOR_MIME below.
+export function isVideoKey(key: string): boolean {
+  return /\.(mp4|webm|mov|m4v|ogv|ogg)$/i.test(key);
+}
+
 const EXT_FOR_MIME: Record<string, string> = {
   'image/jpeg': '.jpg',
   'image/jpg': '.jpg',
@@ -22,6 +48,10 @@ const EXT_FOR_MIME: Record<string, string> = {
   'image/avif': '.avif',
   'image/gif': '.gif',
   'image/svg+xml': '.svg',
+  'video/mp4': '.mp4',
+  'video/webm': '.webm',
+  'video/quicktime': '.mov',
+  'video/ogg': '.ogv',
 };
 
 // Turn a human filename into a safe, lowercase slug while preserving (or
@@ -37,7 +67,7 @@ export function sanitizeFilename(name: string, mime?: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 80);
-  if (!base) base = 'image';
+  if (!base) base = isVideoType(mime) ? 'video' : 'image';
   ext = ext.replace(/[^a-z0-9.]/g, '');
   return `${base}${ext}`;
 }
