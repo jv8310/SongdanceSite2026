@@ -8,6 +8,10 @@ const countries = COUNTRIES;
   <div class="gr-inner gr-narrow">
     <div class="gr-eyebrow gr-eyebrow--center">Begin when you're ready</div>
     <h2 class="gr-h2" style="text-align:center;">Join the Grief Course</h2>
+    <p class="gr-register-lede">
+      One payment, lifetime access, and you can begin the moment you're ready —
+      there's no cohort to wait for.
+    </p>
 
     <div class="gr-register-card">
       <div class="gr-price">
@@ -18,6 +22,12 @@ const countries = COUNTRIES;
         One-time payment · lifetime access · start anytime
         <span class="gr-price-discount" data-gr-discount-badge hidden></span>
       </p>
+
+      <ul class="gr-register-bullets">
+        <li><i class="ph-light ph-waveform"></i> 4 live-recorded sessions · 120 minutes each</li>
+        <li><i class="ph-light ph-infinity"></i> Lifetime access to every session and practice</li>
+        <li><i class="ph-light ph-users-three"></i> Held by Daniela Hess &amp; Jacob, two grief educators</li>
+      </ul>
 
       <form class="gr-fields" data-gr-form novalidate>
         <label class="gr-field gr-field--half">
@@ -45,6 +55,7 @@ const countries = COUNTRIES;
             required
           />
           <input type="hidden" name="country" />
+          <span class="gr-field-note gr-currency-note" data-gr-currency-note hidden></span>
         </label>
 
         <label class="gr-field gr-field--full">
@@ -73,6 +84,11 @@ const countries = COUNTRIES;
           <span>I agree to the <a href="/terms" target="_blank" rel="noopener">terms and conditions</a>.</span>
         </label>
 
+        <div class="gr-checkout-summary">
+          <span class="gr-checkout-summary-label">The Grief Course · one-time payment</span>
+          <span class="gr-checkout-summary-amount" data-gr-summary>€99</span>
+        </div>
+
         <p class="gr-error" data-gr-error></p>
 
         <button type="submit" class="gr-btn gr-btn--primary gr-checkout-cta" data-gr-cta>
@@ -98,9 +114,51 @@ const countries = COUNTRIES;
 <script>
   import { COUNTRIES } from '../../lib/countries';
 
-  type Currency = 'EUR' | 'USD';
+  type Currency =
+    | 'EUR' | 'USD' | 'GBP' | 'CAD' | 'CHF'
+    | 'AUD' | 'NZD' | 'NOK' | 'SEK' | 'DKK';
 
-  const PRICE = 99; // major unit, both EUR and USD
+  // Regional price points (major units). MUST mirror GRIEF_PRICE in
+  // src/lib/courses/grief.ts so the headline price the buyer sees is exactly
+  // what the server charges. The server re-derives the currency from the
+  // chosen country, so this map only controls what we *display*.
+  const PRICE: Record<Currency, number> = {
+    EUR: 99, USD: 99, GBP: 89, CAD: 145, CHF: 95,
+    AUD: 165, NZD: 185, NOK: 1150, SEK: 1100, DKK: 745,
+  };
+
+  // ISO-2 country → currency. Mirrors COUNTRY_CURRENCY in
+  // src/lib/workshops/currency.ts; everywhere else falls through to EUR.
+  const COUNTRY_CURRENCY: Record<string, Currency> = {
+    US: 'USD', CA: 'CAD', GB: 'GBP', CH: 'CHF',
+    NO: 'NOK', SE: 'SEK', DK: 'DKK', AU: 'AUD', NZ: 'NZD',
+  };
+  function currencyForCountry(code: string): Currency {
+    return COUNTRY_CURRENCY[code.toUpperCase()] ?? 'EUR';
+  }
+
+  const SYMBOLS: Record<Currency, string> = {
+    EUR: '€', USD: '$', GBP: '£', CAD: 'CA$', CHF: 'CHF ',
+    AUD: 'A$', NZD: 'NZ$', NOK: 'kr ', SEK: 'kr ', DKK: 'kr ',
+  };
+  // Currencies whose symbol sits ahead of the number with no thousands
+  // separator confusion. kr/CHF carry their own trailing space.
+  const CURRENCY_LABEL: Record<Currency, string> = {
+    EUR: 'euros', USD: 'US dollars', GBP: 'pounds', CAD: 'Canadian dollars',
+    CHF: 'Swiss francs', AUD: 'Australian dollars', NZD: 'New Zealand dollars',
+    NOK: 'Norwegian kroner', SEK: 'Swedish kronor', DKK: 'Danish kroner',
+  };
+  function symbolFor(c: Currency): string {
+    return SYMBOLS[c] ?? '€';
+  }
+  function moneyCents(cents: number, c: Currency): string {
+    const whole = cents % 100 === 0;
+    const amount = (cents / 100).toLocaleString('en-US', {
+      minimumFractionDigits: whole ? 0 : 2,
+      maximumFractionDigits: whole ? 0 : 2,
+    });
+    return `${symbolFor(c)}${amount}`;
+  }
 
   // URL-driven discount: `?discount=N` (1–99) strikes through the displayed
   // price and tells the server to charge a discounted amount. Anything
@@ -115,25 +173,9 @@ const countries = COUNTRIES;
   }
   const discountPct = readDiscount();
 
-  function symbolFor(c: Currency): string {
-    return c === 'USD' ? '$' : '€';
-  }
   function applyDiscountCents(cents: number): number {
     if (discountPct <= 0) return cents;
     return Math.round((cents * (100 - discountPct)) / 100);
-  }
-  function moneyCents(cents: number, c: Currency): string {
-    const whole = cents % 100 === 0;
-    const amount = (cents / 100).toLocaleString('en-US', {
-      minimumFractionDigits: whole ? 0 : 2,
-      maximumFractionDigits: whole ? 0 : 2,
-    });
-    return `${symbolFor(c)}${amount}`;
-  }
-
-  // Grief course offers only EUR and USD: US buyers see USD, everyone else EUR.
-  function currencyForCountry(code: string): Currency {
-    return code.toUpperCase() === 'US' ? 'USD' : 'EUR';
   }
 
   // Best-effort country guess from timezone, then language, for the prefill.
@@ -151,7 +193,8 @@ const countries = COUNTRIES;
         'America/New_York': 'US', 'America/Chicago': 'US', 'America/Denver': 'US',
         'America/Los_Angeles': 'US', 'America/Phoenix': 'US', 'Pacific/Honolulu': 'US',
         'America/Toronto': 'CA', 'America/Vancouver': 'CA',
-        'Australia/Sydney': 'AU', 'Australia/Melbourne': 'AU', 'Pacific/Auckland': 'NZ',
+        'Australia/Sydney': 'AU', 'Australia/Melbourne': 'AU', 'Australia/Perth': 'AU',
+        'Pacific/Auckland': 'NZ',
       };
       if (tzMap[tz]) return tzMap[tz];
       const lang = navigator.language || '';
@@ -166,6 +209,8 @@ const countries = COUNTRIES;
     const amountEl = document.querySelector<HTMLElement>('[data-gr-amount]')!;
     const strikeEl = document.querySelector<HTMLElement>('[data-gr-strike]')!;
     const badgeEl = document.querySelector<HTMLElement>('[data-gr-discount-badge]')!;
+    const summaryEl = document.querySelector<HTMLElement>('[data-gr-summary]')!;
+    const currencyNoteEl = document.querySelector<HTMLElement>('[data-gr-currency-note]')!;
     const countryInput = form.querySelector<HTMLInputElement>('[name="country_search"]')!;
     const countryHidden = form.querySelector<HTMLInputElement>('[name="country"]')!;
     const companyInput = form.querySelector<HTMLInputElement>('[name="company_name"]')!;
@@ -177,17 +222,28 @@ const countries = COUNTRIES;
     let currency: Currency = 'EUR';
 
     function renderPrice() {
-      const baseCents = PRICE * 100;
+      const baseCents = PRICE[currency] * 100;
+      const finalCents = applyDiscountCents(baseCents);
       if (discountPct > 0) {
         strikeEl.hidden = false;
         strikeEl.textContent = moneyCents(baseCents, currency);
-        amountEl.textContent = moneyCents(applyDiscountCents(baseCents), currency);
         badgeEl.hidden = false;
         badgeEl.textContent = `${discountPct}% off`;
       } else {
         strikeEl.hidden = true;
         badgeEl.hidden = true;
-        amountEl.textContent = moneyCents(baseCents, currency);
+      }
+      amountEl.textContent = moneyCents(finalCents, currency);
+      summaryEl.textContent = moneyCents(finalCents, currency);
+
+      // Quiet reassurance that the price shown is the price charged, in their
+      // own currency. Hidden for EUR (the default) to avoid noise.
+      if (currency === 'EUR') {
+        currencyNoteEl.hidden = true;
+        currencyNoteEl.textContent = '';
+      } else {
+        currencyNoteEl.hidden = false;
+        currencyNoteEl.textContent = `Shown and charged in ${CURRENCY_LABEL[currency]} (${currency}).`;
       }
     }
 
@@ -195,6 +251,9 @@ const countries = COUNTRIES;
       const next = currencyForCountry(code);
       if (next !== currency) {
         currency = next;
+        renderPrice();
+      } else {
+        // Same currency, but a first resolution still needs the note rendered.
         renderPrice();
       }
     }
@@ -206,10 +265,9 @@ const countries = COUNTRIES;
       if (match) {
         countryInput.value = match.name;
         countryHidden.value = match.code;
-        setCurrencyFromCode(match.code);
       }
     }
-    renderPrice();
+    setCurrencyFromCode(countryHidden.value || 'XX');
 
     // Resolve typed country → ISO code; also drives the displayed currency.
     function resolveCountry() {
