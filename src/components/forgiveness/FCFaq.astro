@@ -12,25 +12,19 @@
     <div class="fc-faq-list" data-faq-list>
       <details class="fc-faq-item" open>
         <summary class="fc-faq-summary">
-          What times and dates are the sessions?
+          When does the course run?
           <i class="ph-light ph-plus"></i>
         </summary>
         <div class="fc-faq-answer">
           <p>
-            All sessions take place live on Zoom over four consecutive
-            Sundays in July 2026 — July 5, 12, 19, and 26.
+            The Forgiveness Course returns in <strong>Fall 2026</strong>. It runs
+            as four 90-minute live sessions on Zoom — you can
+            <a href="#schedule">see the four-session arc</a> at the top of this page.
           </p>
           <p>
-            The full schedule, rendered in
-            <span class="fc-faq-tz" data-fc-faq-tz>your local timezone</span>,
-            is <a href="#schedule">at the top of this page</a>. Reference
-            times in three common zones:
+            The exact dates and times are still being set. Once they're confirmed,
+            everyone registered will be the first to hear.
           </p>
-          <div class="fc-faq-times">
-            <div data-fc-faq-row data-iso="2026-07-05T18:00:00Z" data-tz="America/Los_Angeles"><span>Pacific · Los Angeles</span>11:00 AM PDT</div>
-            <div data-fc-faq-row data-iso="2026-07-05T18:00:00Z" data-tz="America/New_York"><span>Eastern · New York</span>2:00 PM EDT</div>
-            <div data-fc-faq-row data-iso="2026-07-05T18:00:00Z" data-tz="Europe/Brussels"><span>Europe · Brussels</span>8:00 PM CEST</div>
-          </div>
         </div>
       </details>
       <details class="fc-faq-item">
@@ -149,29 +143,4 @@
       }
     });
   });
-
-  // Localize the FAQ reference times into each named timezone and surface
-  // the visitor's own timezone label in the surrounding sentence.
-  const rows = document.querySelectorAll<HTMLElement>('[data-fc-faq-row]');
-  rows.forEach((row) => {
-    const iso = row.getAttribute('data-iso');
-    const tz = row.getAttribute('data-tz');
-    if (!iso || !tz) return;
-    const d = new Date(iso);
-    const timeFmt = new Intl.DateTimeFormat('en-US', {
-      hour: 'numeric', minute: '2-digit', timeZoneName: 'short', timeZone: tz,
-    });
-    const label = row.querySelector('span');
-    if (label) {
-      row.textContent = '';
-      row.appendChild(label);
-      row.appendChild(document.createTextNode(timeFmt.format(d)));
-    }
-  });
-
-  const tzLabel = document.querySelector<HTMLElement>('[data-fc-faq-tz]');
-  if (tzLabel) {
-    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    if (tz) tzLabel.textContent = `your local timezone (${tz.replace(/_/g, ' ')})`;
-  }
 </script>
