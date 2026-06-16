@@ -54,7 +54,10 @@ const currency = currencyForCountry(country === 'EU' ? null : country);
 
 // Upcoming published workshops + masterclasses, priced in the visitor's
 // currency (shared with /masterclass — see lib/workshops/calendar.ts).
-const items = await buildCalendarItems(env.DB, currency, detectedTz);
+// The workshop form never lists more than 5 future events (masterclasses
+// included). Items come back soonest-first, so we keep the nearest five.
+const allItems = await buildCalendarItems(env.DB, currency, detectedTz);
+const items = allItems.slice(0, 5);
 const hasMasterclass = items.some((it) => it.kind === 'masterclass');
 const tzOptions = tzOptionsFor(detectedTz);
 ---
