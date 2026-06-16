@@ -6,15 +6,11 @@ import '../../styles/grief.css';
 
 export const prerender = false;
 
-// Pull the grief imagery straight from the R2 media library at render time, so
-// the page reflects whatever has been uploaded under library/grief…. Roles are
-// matched by keyword (in priority order) so you can re-curate by renaming in
-// /admin/image-manager:
-//   • "hero" / "sounding"          → full-bleed hero (a person in a landscape)
-//   • "band" / "quote"             → mid-page quote band (wide, warm frame)
-//   • "closing" / "sea" / "water"  → closing band ("these waters")
-//   • "daniela" / "guide"          → the guides portrait
-//   • everything else              → the gallery (wide frames lead the layout)
+// Images are pulled from the R2 media library at render time, but assigned to
+// explicit slots by hand (after reviewing each file) rather than fuzzy keyword
+// matching — that auto-picker mis-placed images and chose soft background
+// graphics for feature slots. Pulling from R2 still means a removed/renamed
+// image simply doesn't render (no broken <img>); to re-curate, swap the key.
 const env = Astro.locals.runtime.env;
 let library: MediaItem[] = [];
 try {
@@ -23,54 +19,27 @@ try {
   library = [];
 }
 
-const grief = library
-  .filter((i) => i.key.toLowerCase().startsWith('library/grief'))
-  .sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+const byKey = (name: string): MediaItem | undefined => {
+  const want = `library/${name}.webp`.toLowerCase();
+  return (
+    library.find((i) => i.key.toLowerCase() === want) ??
+    library.find((i) => i.key.toLowerCase().includes(name.toLowerCase()))
+  );
+};
 
-const used = new Set<string>();
-// Claim the first unused image matching any of the patterns, in priority order.
-function pick(...patterns: RegExp[]): MediaItem | undefined {
-  for (const re of patterns) {
-    const hit = grief.find((i) => !used.has(i.key) && re.test(i.key.toLowerCase()));
-    if (hit) {
-      used.add(hit.key);
-      return hit;
-    }
-  }
-  return undefined;
-}
-function pickNext(): MediaItem | undefined {
-  const hit = grief.find((i) => !used.has(i.key));
-  if (hit) used.add(hit.key);
-  return hit;
-}
-
-// Reserve the feature slots first, then let the gallery take what's left — so a
-// strong landscape photo carries the hero instead of a soft background graphic,
-// and the bands get wide, atmospheric frames with room for their quotes.
-const heroImg = pick(/hero/, /sounding/, /landscape|field|walk/) ?? pickNext();
-const guidesImg = pick(/daniela|guide|portrait|teacher/, /jacob/);
-const bandImg = pick(/band|quote/, /pale-background/, /feather/, /hand/) ?? pickNext();
-const closingImg =
-  pick(/closing|end|light|dawn|sunrise/, /losing-a-partner|sea|water|ocean/, /two-people/, /hand/) ??
-  pickNext();
-
-// Gallery — fill from what remains, leading with the soft, wide frames (the
-// first tile spans two columns) and dropping the near-duplicate of the band.
-function galleryRank(key: string): number {
-  const k = key.toLowerCase();
-  if (/lotus/.test(k)) return 0;
-  if (/feather/.test(k)) return 1;
-  if (/vertical/.test(k)) return 2;
-  if (/two-people/.test(k)) return 3;
-  if (/child/.test(k)) return 4;
-  if (/letting-go/.test(k)) return 9; // near-duplicate of the quote band → last
-  return 5;
-}
-const gallery = grief
-  .filter((i) => !used.has(i.key))
-  .sort((a, b) => galleryRank(a.key) - galleryRank(b.key))
-  .slice(0, 5);
+// Curated slots.
+//   hero      — Jacob sounding outward in an open field (the hero, left as-is)
+//   daniela   — Daniela's portrait        ┐ both guides pictured + named
+//   jacob     — Jacob's soft portrait     ┘
+//   band      — four hands reaching upward (the mid-page quote band)
+//   forms     — adult + child hands, B&W (the "many forms" editorial image)
+//   closing   — a figure at the sea, dusk (the closing band)
+const heroImg = byKey('grief-jacob-letting-go-sounding');
+const danielaImg = byKey('grief-daniela');
+const jacobImg = byKey('jacob-soft-portrait');
+const bandImg = byKey('grief-hands-vertical');
+const formsImg = byKey('grief-hands-child-loss');
+const closingImg = byKey('grief-letting-go-losing-a-partner');
 
 const steps: [string, string][] = [
   [
@@ -112,7 +81,7 @@ const includes: [string, string][] = [
 
 <SiteLayout
   title="The Grief Course — Online Intensive with Daniela Hess & Jacob — Songdance"
-  description="Because no one taught you how to grieve. Learn the foundational tools and practices to be with your grief in a conscious, healthy way — with Daniela Hess and Jacob Vermeulen. 4 sessions, lifetime access, €99."
+  description="Because no one taught you how to grieve. Learn the foundational tools and practices to be with your grief in a conscious, healthy way — with Daniela Hess and Jacob Vermeulen. 4 sessions, lifetime access."
   newsletter={false}
 >
   <div class="gr">
@@ -161,7 +130,7 @@ const includes: [string, string][] = [
           Grief isn't something we strive to "heal" from — that's one of the myths we'll help you put
           down. Grief is about honouring, integrating, and ultimately living fully alive.
         </p>
-        <blockquote class="gr-lede" style="margin: var(--sp-6) 0 0;">
+        <blockquote class="gr-lede gr-lede--quote" style="margin: var(--sp-6) 0 0;">
           Grief is not the pain. It is the process that helps you move through it.
           <span class="gr-eyebrow" style="display: block; margin: var(--sp-4) 0 0;">— Jacob</span>
         </blockquote>
@@ -224,67 +193,68 @@ const includes: [string, string][] = [
       </div>
     </section>
 
-    <!-- ── Gallery ────────────────────────────────────────── -->
-    {gallery.length > 0 && (
-      <section class="gr-section" style="padding-top:0;">
-        <div class="gr-inner">
-          <div class="gr-gallery">
-            {gallery.map((img, i) => (
-              <figure class={`gr-gallery-item${i === 0 && gallery.length >= 3 ? ' gr-gallery-item--wide' : ''}`}>
-                <img src={img.url} alt="" loading="lazy" decoding="async" />
-              </figure>
-            ))}
-          </div>
-        </div>
-      </section>
-    )}
-
     <!-- ── Many forms ─────────────────────────────────────── -->
-    <section class="gr-section gr-opening">
-      <div class="gr-inner gr-narrow">
-        <p class="gr-eyebrow">Who it's for</p>
-        <h2 class="gr-h2">Grief comes in many forms — the great griefs and the everyday ones.</h2>
-        <p class="gr-p">
-          Whether you're mourning a loved one or a beloved pet, facing a divorce, the end of a
-          friendship, a job loss, disconnection from community, or children growing up and moving out — this
-          course is for you. We teach the principles of the grief process that apply to all of it,
-          whether life-altering or "everyday". You'll learn how to <em>allow, attend, acknowledge
-          and integrate</em> — and to move through the sadness and worry that grief carries.
-        </p>
-        <ul class="gr-forms">
-          {forms.map((f) => (
-            <li class="gr-form">{f}</li>
-          ))}
-        </ul>
+    <section class="gr-section gr-opening gr-forms-section">
+      <div class="gr-inner gr-forms-grid">
+        {formsImg && (
+          <figure class="gr-forms-photo">
+            <img src={formsImg.url} alt="" loading="lazy" decoding="async" />
+          </figure>
+        )}
+        <div class="gr-forms-copy">
+          <p class="gr-eyebrow">Who it's for</p>
+          <h2 class="gr-h2">Grief comes in many forms — the great griefs and the everyday ones.</h2>
+          <p class="gr-p">
+            Whether you're mourning a loved one or a beloved pet, facing a divorce, the end of a
+            friendship, a job loss, disconnection from community, or children growing up and moving out — this
+            course is for you. We teach the principles of the grief process that apply to all of it,
+            whether life-altering or "everyday". You'll learn how to <em>allow, attend, acknowledge
+            and integrate</em> — and to move through the sadness and worry that grief carries.
+          </p>
+          <ul class="gr-forms">
+            {forms.map((f) => (
+              <li class="gr-form">{f}</li>
+            ))}
+          </ul>
+        </div>
       </div>
     </section>
 
     <!-- ── Guides ─────────────────────────────────────────── -->
     <section class="gr-section gr-guides">
       <div class="gr-inner">
+        <p class="gr-eyebrow gr-eyebrow--center">Your guides &amp; educators</p>
+        <h2 class="gr-h2 gr-guides-title">Daniela Hess &amp; Jacob Vermeulen</h2>
         <div class="gr-guides-grid">
-          {guidesImg && (
-            <div class="gr-guides-photo">
-              <img src={guidesImg.url} alt="Daniela Hess and Jacob Vermeulen" loading="lazy" decoding="async" />
-            </div>
-          )}
-          <div>
-            <p class="gr-eyebrow">Your guides &amp; educators</p>
-            <h2 class="gr-h2">Daniela Hess &amp; Jacob Vermeulen</h2>
-            <p class="gr-p">
-              <strong>Daniela Hess</strong> has served as an educational and spiritual mentor to
-              thousands of students and clients over the past 25 years. She has led many group grief
-              courses and worked 1:1 with the bereaved, helping people around the world navigate the
-              complex terrain of grief — a dynamic, insightful and compassionate guide.
+          <article class="gr-guide">
+            {danielaImg && (
+              <div class="gr-guide-photo">
+                <img src={danielaImg.url} alt="Daniela Hess" loading="lazy" decoding="async" />
+              </div>
+            )}
+            <h3 class="gr-guide-name">Daniela Hess</h3>
+            <p class="gr-guide-bio">
+              Daniela has served as an educational and spiritual mentor to thousands of students and
+              clients over the past 25 years. She has led many group grief courses and worked 1:1 with
+              the bereaved, helping people around the world navigate the complex terrain of grief — a
+              dynamic, insightful and compassionate guide.
             </p>
-            <p class="gr-p">
-              <strong>Jacob Vermeulen</strong> is an international educator who has held space for
-              thousands moving through deep inner work, blending the psychology of emotional wellbeing
-              with spirituality. A gifted pianist and singer, he explores the healing effects of music
-              with a special focus on the human voice. Navigating his own grief, he developed a unique
-              somatic protocol for meeting the stuck energy of grief in the body and letting it move.
+          </article>
+          <article class="gr-guide">
+            {jacobImg && (
+              <div class="gr-guide-photo gr-guide-photo--jacob">
+                <img src={jacobImg.url} alt="Jacob Vermeulen" loading="lazy" decoding="async" />
+              </div>
+            )}
+            <h3 class="gr-guide-name">Jacob Vermeulen</h3>
+            <p class="gr-guide-bio">
+              Jacob is an international educator who has held space for thousands moving through deep
+              inner work, blending the psychology of emotional wellbeing with spirituality. A gifted
+              pianist and singer, he explores the healing effects of music with a special focus on the
+              human voice. Navigating his own grief, he developed a somatic way of meeting the stuck
+              energy of grief in the body, so it can move again.
             </p>
-          </div>
+          </article>
         </div>
       </div>
     </section>
@@ -325,7 +295,7 @@ const includes: [string, string][] = [
 
     <!-- ── Closing band (image) ───────────────────────────── -->
     {closingImg && (
-      <section class="gr-band">
+      <section class="gr-band gr-band--tall">
         <img class="gr-band-bg" src={closingImg.url} alt="" loading="lazy" decoding="async" />
         <div class="gr-band-inner">
           <p class="gr-band-quote">
