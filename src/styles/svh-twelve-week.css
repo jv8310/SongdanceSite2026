@@ -505,6 +505,32 @@ html, body { background: var(--paper); }
   letter-spacing: 0.2em; color: var(--ember-deep); margin: 0 0 var(--sp-4);
 }
 
+/* Karen — co-facilitator, set quietly beneath Jacob */
+.tw-cofac {
+  max-width: 900px; margin: clamp(var(--sp-8), 7vw, var(--sp-9)) auto 0;
+  padding-top: clamp(var(--sp-7), 6vw, var(--sp-8));
+  border-top: 1px solid var(--rule, rgba(38, 26, 22, 0.12));
+  display: grid; grid-template-columns: 160px 1fr;
+  gap: clamp(var(--sp-6), 5vw, var(--sp-8));
+  align-items: center;
+}
+@media (max-width: 700px) {
+  .tw-cofac { grid-template-columns: 1fr; justify-items: center; text-align: center; gap: var(--sp-6); }
+}
+.tw-cofac-portrait {
+  width: 100%; max-width: 160px; aspect-ratio: 1; border-radius: 50%;
+  object-fit: cover; box-shadow: var(--shadow-3); filter: var(--tw-img);
+}
+.tw-cofac-text { max-width: 52ch; }
+.tw-cofac-name {
+  font-family: var(--font-display); font-size: clamp(22px, 2.4vw, 28px);
+  font-weight: 400; color: var(--ink); letter-spacing: -0.012em; margin: 0 0 var(--sp-3);
+}
+.tw-cofac-creds {
+  font-family: var(--font-lyric); font-style: italic;
+  color: var(--ink-soft, rgba(38, 26, 22, 0.66)); margin-top: var(--sp-3);
+}
+
 /* ---------- Certification path (the deepening) ---------- */
 /* A rich plum movement set between Jacob and the FAQ: the next chapter for
    those who don't want to stop after twelve weeks. Warm ember glow on a deep
