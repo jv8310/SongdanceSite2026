@@ -1,6 +1,9 @@
 ---
 import '../../styles/journeys.css';
 import Layout from '../../layouts/Layout.astro';
+import JourneyVideo from '../../components/journeys/JourneyVideo.astro';
+import JourneyRegister from '../../components/journeys/JourneyRegister.astro';
+import JourneyCrossPromo from '../../components/journeys/JourneyCrossPromo.astro';
 
 const testimonials = [
   {
@@ -40,7 +43,7 @@ const testimonials = [
           <span class="dot"></span>
           <span>Gentle · self-paced</span>
         </div>
-        <a href="#begin" class="jr-nav-cta">Begin</a>
+        <a href="#register" class="jr-nav-cta">Begin · €29</a>
       </div>
     </nav>
 
@@ -57,7 +60,7 @@ const testimonials = [
           Five gentle sessions to meet that younger part of you — and to give it, in sound, some of
           what it went without.
         </p>
-        <a href="/contact" class="jr-hero-cta">
+        <a href="#register" class="jr-hero-cta">
           Begin session one <i class="ph-light ph-arrow-right"></i>
         </a>
         <p class="jr-hero-micro">Five sessions. No rush — repeat any of them as often as you like.</p>
@@ -170,24 +173,14 @@ const testimonials = [
       </div>
     </section>
 
-    <!-- Upala video -->
-    <section class="jr-section jr-video">
-      <div class="jr-video-inner">
-        <div class="jr-eyebrow" style="justify-content:center;">A voice from this work</div>
-        <h2 class="jr-video-head">Upala, on what one session <em>opened.</em></h2>
-        <p class="jr-video-sub">
-          Upala — Jacob’s late wife, whose sounding is where this whole practice began — speaking
-          about how one of these sessions touched her.
-        </p>
-        <div class="jr-video-frame">
-          <video controls playsinline preload="metadata" poster="/media/library/upala-on-rock.webp">
-            <source src="/media/library/inner-child-upala.mov" type="video/quicktime" />
-            <source src="/media/library/inner-child-upala.mov" type="video/mp4" />
-          </video>
-        </div>
-        <p class="jr-video-fallback">Trouble playing it? <a href="/media/library/inner-child-upala.mov" target="_blank" rel="noopener">Open the clip in a new tab</a>.</p>
-      </div>
-    </section>
+    <!-- Upala video — custom square player -->
+    <JourneyVideo
+      src="/media/library/inner-child-upala.mov"
+      poster="/media/library/upala-on-rock.webp"
+      label="A voice from this work"
+      title="Upala, on what one session <em>opened.</em>"
+      sub="Upala — Jacob’s late wife, whose sounding is where this whole practice began — speaking about how one of these sessions touched her."
+    />
 
     <!-- Two ways with the voice -->
     <section class="jr-section jr-split jr-split--rev">
@@ -240,20 +233,24 @@ const testimonials = [
     <section class="jr-section jr-whom">
       <div class="jr-whom-inner">
         <div class="jr-whom-head">
-          <div class="jr-eyebrow">Who it's for</div>
+          <div class="jr-eyebrow" style="justify-content:center;">Who it's for</div>
           <h2 class="jr-h2">If some of today’s heaviness was packed a <em>long time ago.</em></h2>
+        </div>
+        <div class="jr-whom-body">
           <figure class="jr-whom-figure">
             <img src="/media/library/inner-child-beach.webp" alt="A child running freely on a beach at sunset" loading="lazy" />
           </figure>
+          <div class="jr-whom-listwrap">
+            <ul class="jr-whom-list">
+              <li>For anyone who suspects that some of today’s heaviness was packed a long time ago.</li>
+              <li>If you find it hard to feel <em>good enough.</em></li>
+              <li>If you find it hard to hold a line, or to say what you mean.</li>
+              <li>This is a kind place to begin.</li>
+              <li>It pairs naturally with the Authentic Singing Journey — and it stands completely on its own.</li>
+            </ul>
+            <p class="jr-whom-foot">Gentle, and at your own pace.</p>
+          </div>
         </div>
-        <ul class="jr-whom-list">
-          <li>For anyone who suspects that some of today’s heaviness was packed a long time ago.</li>
-          <li>If you find it hard to feel <em>good enough.</em></li>
-          <li>If you find it hard to hold a line, or to say what you mean.</li>
-          <li>This is a kind place to begin.</li>
-          <li>It pairs naturally with the Authentic Singing Journey — and it stands completely on its own.</li>
-        </ul>
-        <p class="jr-whom-foot">Gentle, and at your own pace.</p>
       </div>
     </section>
 
@@ -296,16 +293,16 @@ const testimonials = [
           </ul>
         </div>
         <div class="jr-practical-side">
-          <div class="jr-practical-side-label">Begin</div>
-          <p class="jr-practical-side-line">Five sessions. No rush.</p>
-          <a href="/contact" class="jr-practical-side-cta">Begin session one</a>
-          <p class="jr-practical-side-note">Enrolment details on request.</p>
+          <div class="jr-practical-side-label">From</div>
+          <p class="jr-practical-side-line">€29 · one payment, lifetime access</p>
+          <a href="#register" class="jr-practical-side-cta">Begin session one</a>
+          <p class="jr-practical-side-note">Priced in your own currency.</p>
         </div>
       </div>
     </section>
 
     <!-- Closing -->
-    <section class="jr-section jr-closing" id="begin">
+    <section class="jr-section jr-closing">
       <div class="jr-closing-inner">
         <div class="jr-eyebrow">The invitation</div>
         <h2 class="jr-closing-head">Turning toward the child you <em>were.</em></h2>
@@ -313,12 +310,18 @@ const testimonials = [
           Five sessions. No rush. Just you, turning toward the child you were — with a little more
           kindness than they were shown. When you’re ready, session one is waiting.
         </p>
-        <a href="/contact" class="jr-closing-cta">
+        <a href="#register" class="jr-closing-cta">
           Begin the journey <i class="ph-light ph-arrow-right"></i>
         </a>
         <p class="jr-closing-micro">Gentle work, at your own pace. It stands on its own, and pairs naturally with the Authentic Singing Journey.</p>
       </div>
     </section>
+
+    <!-- Register / buy -->
+    <JourneyRegister course="inner-child" />
+
+    <!-- More journeys -->
+    <JourneyCrossPromo current="inner-child" />
 
     <!-- Footer -->
     <footer class="jr-footer">

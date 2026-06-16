@@ -1,0 +1,77 @@
+---
+// Bottom-of-page frames promoting the other two journeys + the all-three
+// bundle. `current` is the page's own course, which is omitted from the cards.
+interface Props {
+  current: 'asj' | 'mmj' | 'inner-child';
+}
+const { current } = Astro.props;
+
+type Card = { key: Props['current']; title: string; line: string; href: string; img: string; price: string };
+const ALL: Card[] = [
+  {
+    key: 'asj',
+    title: 'Authentic Singing Journey',
+    line: 'Forty weeks of mantras & music — singing, with nothing to prove.',
+    href: '/courses/authentic-singing',
+    img: '/media/library/singing-lights-woman.webp',
+    price: '€99',
+  },
+  {
+    key: 'mmj',
+    title: 'Magical Movement Journey',
+    line: 'Guided movement you can do in your own room — standing or seated.',
+    href: '/courses/magical-movement',
+    img: '/media/library/movement.webp',
+    price: '€49',
+  },
+  {
+    key: 'inner-child',
+    title: 'Inner Child Healing Journey',
+    line: 'Five gentle sessions to meet the child you were.',
+    href: '/courses/inner-child',
+    img: '/media/library/inner-child-glow.webp',
+    price: '€29',
+  },
+];
+const others = ALL.filter((c) => c.key !== current);
+---
+
+<section class="jr-section jr-cross">
+  <div class="jr-cross-inner">
+    <div class="jr-eyebrow" style="justify-content:center;">More journeys</div>
+    <h2 class="jr-cross-title">One practice, more doorways.</h2>
+
+    <div class="jr-cross-grid">
+      {others.map((c) => (
+        <a class="jr-cross-card" href={c.href}>
+          <span class="jr-cross-card-media">
+            <img src={c.img} alt="" loading="lazy" decoding="async" />
+          </span>
+          <span class="jr-cross-card-body">
+            <span class="jr-cross-card-title">{c.title}</span>
+            <span class="jr-cross-card-line">{c.line}</span>
+            <span class="jr-cross-card-foot">
+              <span class="jr-cross-card-price">{c.price}</span>
+              <span class="jr-cross-card-go">Explore <i class="ph-light ph-arrow-right"></i></span>
+            </span>
+          </span>
+        </a>
+      ))}
+    </div>
+
+    <a class="jr-cross-bundle" href="#register">
+      <span class="jr-cross-bundle-text">
+        <span class="jr-cross-bundle-tag">Best value · save 50%</span>
+        <span class="jr-cross-bundle-title">Take all three journeys</span>
+        <span class="jr-cross-bundle-line">
+          Authentic Singing, Magical Movement &amp; Inner Child Healing — every journey, one price.
+        </span>
+      </span>
+      <span class="jr-cross-bundle-price">
+        <span class="jr-cross-bundle-strike">€177</span>
+        <span class="jr-cross-bundle-amount">€88.50</span>
+        <span class="jr-cross-bundle-go">Choose the bundle <i class="ph-light ph-arrow-right"></i></span>
+      </span>
+    </a>
+  </div>
+</section>

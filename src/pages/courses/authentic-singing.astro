@@ -1,6 +1,9 @@
 ---
 import '../../styles/journeys.css';
 import Layout from '../../layouts/Layout.astro';
+import JourneyVideo from '../../components/journeys/JourneyVideo.astro';
+import JourneyRegister from '../../components/journeys/JourneyRegister.astro';
+import JourneyCrossPromo from '../../components/journeys/JourneyCrossPromo.astro';
 
 const testimonials = [
   {
@@ -25,7 +28,7 @@ const testimonials = [
 <Layout
   title="The Authentic Singing Journey — Songdance"
   description="Forty weeks of mantras and music, made to free the voice you already have. Self-paced, at home. No range, no experience, no performance required."
-  image="/media/library/singing-nature.webp"
+  image="/media/library/singing-lights-woman.webp"
 >
   <div class="jr-site jr-theme-singing">
     <!-- Nav -->
@@ -40,14 +43,14 @@ const testimonials = [
           <span class="dot"></span>
           <span>Self-paced · at home</span>
         </div>
-        <a href="#begin" class="jr-nav-cta">Begin</a>
+        <a href="#register" class="jr-nav-cta">Begin · €99</a>
       </div>
     </nav>
 
     <!-- Hero -->
     <header class="jr-hero">
       <div class="jr-hero-bg" aria-hidden="true">
-        <img src="/media/library/singing-nature.webp" alt="" />
+        <img src="/media/library/singing-lights-woman.webp" alt="" />
       </div>
       <div class="jr-hero-inner">
         <img class="jr-hero-mark" src="/brand/symbol-orange.png" alt="" aria-hidden="true" />
@@ -57,10 +60,10 @@ const testimonials = [
           Forty weeks of mantras and music — made to free the voice you already have, not to train it
           into something else.
         </p>
-        <a href="/contact" class="jr-hero-cta">
-          Hear the first session <i class="ph-light ph-arrow-right"></i>
+        <a href="#register" class="jr-hero-cta">
+          Begin the journey <i class="ph-light ph-arrow-right"></i>
         </a>
-        <p class="jr-hero-micro">The first session is free. Nothing expires.</p>
+        <p class="jr-hero-micro">One payment · lifetime access · begin anytime.</p>
         <div class="jr-hero-meta">
           <span>40 weekly sessions</span>
           <span class="dot"></span>
@@ -137,31 +140,19 @@ const testimonials = [
       </div>
     </section>
 
-    <!-- Video glimpse -->
-    <section class="jr-section jr-video">
-      <div class="jr-video-inner">
-        <div class="jr-eyebrow" style="justify-content:center;">A glimpse</div>
-        <h2 class="jr-video-head">Jacob and Upala, <em>singing.</em></h2>
-        <p class="jr-video-sub">
-          A few minutes of the voice doing what this whole journey is for — sounding from itself,
-          with nothing to prove.
-        </p>
-        <div class="jr-video-frame">
-          <video controls playsinline preload="metadata" poster="/media/library/upala-on-rock.webp">
-            <source src="/media/library/jacob-upala-singing.mov" type="video/quicktime" />
-            <source src="/media/library/jacob-upala-singing.mov" type="video/mp4" />
-          </video>
-        </div>
-        <p class="jr-video-fallback">
-          Trouble playing it? <a href="/media/library/jacob-upala-singing.mov" target="_blank" rel="noopener">Open the clip in a new tab</a>.
-        </p>
-      </div>
-    </section>
+    <!-- Video glimpse — custom square player -->
+    <JourneyVideo
+      src="/media/library/jacob-upala-singing.mov"
+      poster="/media/library/upala-on-rock.webp"
+      label="A glimpse"
+      title="Jacob and Upala, <em>singing.</em>"
+      sub="A few minutes of the voice doing what this whole journey is for — sounding from itself, with nothing to prove."
+    />
 
     <!-- Lyric break -->
     <section class="jr-lyric">
       <div class="jr-lyric-bg" aria-hidden="true">
-        <img src="/media/library/upala-on-rock.webp" alt="" />
+        <img src="/media/library/singing-water.webp" alt="" />
       </div>
       <div class="jr-lyric-inner">
         <img class="jr-lyric-mark" src="/brand/symbol-orange.png" alt="" aria-hidden="true" />
@@ -174,19 +165,23 @@ const testimonials = [
     <section class="jr-section jr-whom">
       <div class="jr-whom-inner">
         <div class="jr-whom-head">
-          <div class="jr-eyebrow">Who it's for</div>
+          <div class="jr-eyebrow" style="justify-content:center;">Who it's for</div>
           <h2 class="jr-h2">For anyone who loves to sing and rarely <em>lets themselves.</em></h2>
+        </div>
+        <div class="jr-whom-body">
           <figure class="jr-whom-figure">
             <img src="/media/library/singing-statue.webp" alt="A sculpted figure, head tilted, listening" loading="lazy" />
           </figure>
+          <div class="jr-whom-listwrap">
+            <ul class="jr-whom-list">
+              <li>For anyone who loves to sing and rarely lets themselves.</li>
+              <li>For anyone who was told once that they <em>couldn't</em> — and believed it.</li>
+              <li>You don't need experience.</li>
+              <li>You don't need a range.</li>
+              <li>You need a little privacy and the willingness to make some sound.</li>
+            </ul>
+          </div>
         </div>
-        <ul class="jr-whom-list">
-          <li>For anyone who loves to sing and rarely lets themselves.</li>
-          <li>For anyone who was told once that they <em>couldn't</em> — and believed it.</li>
-          <li>You don't need experience.</li>
-          <li>You don't need a range.</li>
-          <li>You need a little privacy and the willingness to make some sound.</li>
-        </ul>
       </div>
     </section>
 
@@ -225,33 +220,39 @@ const testimonials = [
             <li><strong>40 self-paced audio sessions</strong> — a piece of music and a mantra each</li>
             <li><strong>Do-at-home</strong> — eyes closed if you like, no screen required</li>
             <li><strong>Lifetime access</strong> — go at your own pace, return whenever you like</li>
-            <li>Optional monthly online meetup with others on the journey</li>
+            <li><strong>PRO option</strong> — mantra versions to use in your own workshops, with a licence</li>
           </ul>
         </div>
         <div class="jr-practical-side">
-          <div class="jr-practical-side-label">Begin</div>
-          <p class="jr-practical-side-line">The first session is free. Nothing expires.</p>
-          <a href="/contact" class="jr-practical-side-cta">Hear the first session</a>
-          <p class="jr-practical-side-note">Enrolment details on request.</p>
+          <div class="jr-practical-side-label">From</div>
+          <p class="jr-practical-side-line">€99 · one payment, lifetime access</p>
+          <a href="#register" class="jr-practical-side-cta">Choose your option</a>
+          <p class="jr-practical-side-note">Priced in your own currency.</p>
         </div>
       </div>
     </section>
 
     <!-- Closing -->
-    <section class="jr-section jr-closing" id="begin">
+    <section class="jr-section jr-closing">
       <div class="jr-closing-inner">
         <div class="jr-eyebrow">The invitation</div>
         <h2 class="jr-closing-head">Forty weeks with <em>your own voice.</em></h2>
         <p class="jr-closing-body">
           Forty weeks is a long time to spend with your own voice. Most people find it's the best
-          company they've kept in years. When you're ready, the first session is free.
+          company they've kept in years.
         </p>
-        <a href="/contact" class="jr-closing-cta">
+        <a href="#register" class="jr-closing-cta">
           Begin the journey <i class="ph-light ph-arrow-right"></i>
         </a>
         <p class="jr-closing-micro">No range, no experience, no performance required.</p>
       </div>
     </section>
+
+    <!-- Register / buy -->
+    <JourneyRegister course="asj" />
+
+    <!-- More journeys -->
+    <JourneyCrossPromo current="asj" />
 
     <!-- Footer -->
     <footer class="jr-footer">

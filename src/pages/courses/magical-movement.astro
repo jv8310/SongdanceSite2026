@@ -1,6 +1,8 @@
 ---
 import '../../styles/journeys.css';
 import Layout from '../../layouts/Layout.astro';
+import JourneyRegister from '../../components/journeys/JourneyRegister.astro';
+import JourneyCrossPromo from '../../components/journeys/JourneyCrossPromo.astro';
 
 const testimonials = [
   {
@@ -40,7 +42,7 @@ const testimonials = [
           <span class="dot"></span>
           <span>Standing or seated</span>
         </div>
-        <a href="#begin" class="jr-nav-cta">Begin</a>
+        <a href="#register" class="jr-nav-cta">Begin · €49</a>
       </div>
     </nav>
 
@@ -57,10 +59,10 @@ const testimonials = [
           Guided movement sessions you can do in your own room — standing, or seated in a chair. No
           steps to learn. No floor to be good enough for.
         </p>
-        <a href="/contact" class="jr-hero-cta">
-          Try a free session <i class="ph-light ph-arrow-right"></i>
+        <a href="#register" class="jr-hero-cta">
+          Begin the journey <i class="ph-light ph-arrow-right"></i>
         </a>
-        <p class="jr-hero-micro">The first session is free.</p>
+        <p class="jr-hero-micro">One payment · lifetime access · begin anytime.</p>
         <div class="jr-hero-meta">
           <span>Guided sessions</span>
           <span class="dot"></span>
@@ -167,20 +169,24 @@ const testimonials = [
     <section class="jr-section jr-whom">
       <div class="jr-whom-inner">
         <div class="jr-whom-head">
-          <div class="jr-eyebrow">Who it's for</div>
+          <div class="jr-eyebrow" style="justify-content:center;">Who it's for</div>
           <h2 class="jr-h2">For anyone who used to dance in the kitchen — and <em>stopped.</em></h2>
+        </div>
+        <div class="jr-whom-body">
           <figure class="jr-whom-figure">
             <img src="/media/library/movement-stillness.webp" alt="A figure in motion, hair caught in golden light" loading="lazy" />
           </figure>
+          <div class="jr-whom-listwrap">
+            <ul class="jr-whom-list">
+              <li>For anyone who used to dance in the kitchen and stopped.</li>
+              <li>For anyone who's sure they <em>can't dance</em> — that one's especially welcome here.</li>
+              <li>You don't need to be fit, flexible, or coordinated.</li>
+              <li>You don't need a studio, or to be alone in one.</li>
+              <li>You need a little space and a willingness to be moved.</li>
+            </ul>
+            <p class="jr-whom-foot">No one's keeping score.</p>
+          </div>
         </div>
-        <ul class="jr-whom-list">
-          <li>For anyone who used to dance in the kitchen and stopped.</li>
-          <li>For anyone who's sure they <em>can't dance</em> — that one's especially welcome here.</li>
-          <li>You don't need to be fit, flexible, or coordinated.</li>
-          <li>You don't need a studio, or to be alone in one.</li>
-          <li>You need a little space and a willingness to be moved.</li>
-        </ul>
-        <p class="jr-whom-foot">No one's keeping score.</p>
       </div>
     </section>
 
@@ -223,29 +229,35 @@ const testimonials = [
           </ul>
         </div>
         <div class="jr-practical-side">
-          <div class="jr-practical-side-label">Begin</div>
-          <p class="jr-practical-side-line">The first session is free.</p>
-          <a href="/contact" class="jr-practical-side-cta">Try a free session</a>
-          <p class="jr-practical-side-note">Enrolment details on request.</p>
+          <div class="jr-practical-side-label">From</div>
+          <p class="jr-practical-side-line">€49 · one payment, lifetime access</p>
+          <a href="#register" class="jr-practical-side-cta">Choose your option</a>
+          <p class="jr-practical-side-note">Priced in your own currency.</p>
         </div>
       </div>
     </section>
 
     <!-- Closing -->
-    <section class="jr-section jr-closing" id="begin">
+    <section class="jr-section jr-closing">
       <div class="jr-closing-inner">
         <div class="jr-eyebrow">The invitation</div>
         <h2 class="jr-closing-head">See what your body does when <em>no one's keeping score.</em></h2>
         <p class="jr-closing-body">
           Put on one session, push the furniture back — or don't — and see what your body does when no
-          one's keeping score. The first session is free.
+          one's keeping score.
         </p>
-        <a href="/contact" class="jr-closing-cta">
+        <a href="#register" class="jr-closing-cta">
           Begin the journey <i class="ph-light ph-arrow-right"></i>
         </a>
         <p class="jr-closing-micro">For every body. Standing or seated. No experience required.</p>
       </div>
     </section>
+
+    <!-- Register / buy -->
+    <JourneyRegister course="mmj" />
+
+    <!-- More journeys -->
+    <JourneyCrossPromo current="mmj" />
 
     <!-- Footer -->
     <footer class="jr-footer">

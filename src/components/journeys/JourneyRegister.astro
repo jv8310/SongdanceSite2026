@@ -1,0 +1,413 @@
+---
+import { COUNTRIES } from '../../lib/countries';
+
+// The buy form for a single journey page. `course` is the page's own product;
+// the form always also offers the all-three bundle, and the singing page also
+// offers the PRO mantra upgrade.
+interface Props {
+  course: 'asj' | 'mmj' | 'inner-child';
+}
+const { course } = Astro.props;
+const countries = COUNTRIES;
+
+const THIS_DESC: Record<Props['course'], string> = {
+  asj: 'Forty weekly sessions — mantras & music, yours to keep.',
+  mmj: 'Guided movement sessions — standing or seated, do-at-home.',
+  'inner-child': 'Five gentle, self-paced sessions with music & mantra.',
+};
+const THIS_LABEL: Record<Props['course'], string> = {
+  asj: 'The Authentic Singing Journey',
+  mmj: 'The Magical Movement Journey',
+  'inner-child': 'The Inner Child Healing Journey',
+};
+---
+
+<section class="jr-section jr-register" id="register">
+  <div class="jr-register-inner">
+    <div class="jr-eyebrow" style="justify-content:center;">Begin when you're ready</div>
+    <h2 class="jr-register-title">Choose your way in.</h2>
+    <p class="jr-register-lede">
+      One payment, lifetime access, begin the moment you're ready. Prices show in your
+      own currency.
+    </p>
+
+    <div class="jr-register-card">
+      <!-- Price options -->
+      <div class="jr-opts" data-jr-opts>
+        <label class="jr-opt" data-jr-opt data-product={course}>
+          <input type="radio" name="jr-product" value={course} checked />
+          <span class="jr-opt-body">
+            <span class="jr-opt-title">{THIS_LABEL[course]}</span>
+            <span class="jr-opt-desc">{THIS_DESC[course]}</span>
+          </span>
+          <span class="jr-opt-price">
+            <span class="jr-opt-amount" data-amount>€—</span>
+          </span>
+        </label>
+
+        {course === 'asj' && (
+          <label class="jr-opt jr-opt--pro" data-jr-opt data-product="asj-pro">
+            <input type="radio" name="jr-product" value="asj-pro" />
+            <span class="jr-opt-thumb">
+              <img src="/media/library/collage-mantrapakket-klein.webp" alt="The mantra pack" loading="lazy" />
+            </span>
+            <span class="jr-opt-body">
+              <span class="jr-opt-title">PRO — with the mantra pack <span class="jr-opt-tag">for facilitators</span></span>
+              <span class="jr-opt-desc">
+                The full Journey <em>plus</em> mantra versions of every session — downloadable, with a
+                professional licence to use them in your own workshops &amp; sessions, and practical
+                guidance on how to apply them.
+              </span>
+            </span>
+            <span class="jr-opt-price">
+              <span class="jr-opt-amount" data-amount>€—</span>
+            </span>
+          </label>
+        )}
+
+        <label class="jr-opt jr-opt--bundle" data-jr-opt data-product="journeys-bundle">
+          <input type="radio" name="jr-product" value="journeys-bundle" />
+          <span class="jr-opt-body">
+            <span class="jr-opt-title">
+              All three journeys <span class="jr-opt-tag jr-opt-tag--save" data-save hidden>Save 50%</span>
+            </span>
+            <span class="jr-opt-desc">
+              Authentic Singing · Magical Movement · Inner Child Healing — every journey, one price,
+              half off.
+            </span>
+          </span>
+          <span class="jr-opt-price">
+            <span class="jr-opt-strike" data-strike hidden></span>
+            <span class="jr-opt-amount" data-amount>€—</span>
+          </span>
+        </label>
+      </div>
+
+      <form class="jr-fields" data-jr-form novalidate>
+        <label class="jr-field jr-field--half">
+          <span>First name</span>
+          <input type="text" name="first_name" autocomplete="given-name" required />
+        </label>
+        <label class="jr-field jr-field--half">
+          <span>Last name</span>
+          <input type="text" name="last_name" autocomplete="family-name" required />
+        </label>
+
+        <label class="jr-field jr-field--full">
+          <span>Email</span>
+          <input type="email" name="email" autocomplete="email" required />
+        </label>
+
+        <label class="jr-field jr-field--full">
+          <span>Country</span>
+          <input
+            type="text"
+            name="country_search"
+            list="jr-country-list"
+            autocomplete="country-name"
+            placeholder="Start typing…"
+            required
+          />
+          <input type="hidden" name="country" />
+          <span class="jr-field-note jr-currency-note" data-jr-currency-note hidden></span>
+        </label>
+
+        <label class="jr-field jr-field--full">
+          <span>Company <span class="jr-field-note">— optional, for a business invoice</span></span>
+          <input type="text" name="company_name" autocomplete="organization" placeholder="Your company name" />
+        </label>
+
+        <label class="jr-field jr-field--full jr-vat-field" data-jr-vat hidden>
+          <span>VAT number <span class="jr-field-note">— optional, for EU reverse-charge</span></span>
+          <input type="text" name="vat_number" autocomplete="off" placeholder="e.g. BE0123456789" inputmode="text" />
+        </label>
+
+        <label class="jr-consent">
+          <input type="checkbox" name="consent_terms" required />
+          <span>I agree to the <a href="/terms" target="_blank" rel="noopener">terms and conditions</a>.</span>
+        </label>
+
+        <div class="jr-checkout-summary">
+          <span class="jr-checkout-summary-label" data-jr-summary-label>One-time payment</span>
+          <span class="jr-checkout-summary-amount" data-jr-summary>€—</span>
+        </div>
+
+        <p class="jr-reg-error" data-jr-error></p>
+
+        <button type="submit" class="jr-checkout-cta" data-jr-cta>
+          <span>Continue to payment</span>
+          <i class="ph-light ph-arrow-right"></i>
+        </button>
+
+        <p class="jr-checkout-trust">
+          <i class="ph-light ph-lock-simple"></i>
+          Secure checkout by Stripe. Invoice by Quaderno. Lifetime access.
+        </p>
+      </form>
+    </div>
+
+    <datalist id="jr-country-list">
+      {countries.map((c) => (
+        <option value={c.name} data-code={c.code}>{c.flag} {c.name}</option>
+      ))}
+    </datalist>
+  </div>
+</section>
+
+<script>
+  import { COUNTRIES } from '../../lib/countries';
+
+  type Currency =
+    | 'EUR' | 'USD' | 'GBP' | 'CAD' | 'CHF'
+    | 'AUD' | 'NZD' | 'NOK' | 'SEK' | 'DKK';
+
+  // Regional price points (major units). MUST mirror src/lib/courses/journeys.ts
+  // — the server re-derives currency + price from the country, so this only
+  // controls what we display. The bundle is computed as half the per-currency
+  // sum of the three journeys (a clean 50% off).
+  const ASJ: Record<Currency, number> = {
+    EUR: 99, USD: 99, GBP: 89, CAD: 145, CHF: 95, AUD: 165, NZD: 185, NOK: 1150, SEK: 1100, DKK: 745,
+  };
+  const MMJ: Record<Currency, number> = {
+    EUR: 49, USD: 49, GBP: 45, CAD: 72, CHF: 49, AUD: 82, NZD: 92, NOK: 575, SEK: 545, DKK: 369,
+  };
+  const INNER: Record<Currency, number> = {
+    EUR: 29, USD: 29, GBP: 26, CAD: 43, CHF: 29, AUD: 49, NZD: 55, NOK: 339, SEK: 325, DKK: 219,
+  };
+  const PRO: Record<Currency, number> = {
+    EUR: 149, USD: 149, GBP: 135, CAD: 219, CHF: 145, AUD: 249, NZD: 279, NOK: 1725, SEK: 1649, DKK: 1115,
+  };
+
+  function bundleSumCents(c: Currency): number {
+    return (ASJ[c] + MMJ[c] + INNER[c]) * 100;
+  }
+  // Final charged cents for a product slug.
+  function productCents(slug: string, c: Currency): number {
+    switch (slug) {
+      case 'asj': return ASJ[c] * 100;
+      case 'asj-pro': return PRO[c] * 100;
+      case 'mmj': return MMJ[c] * 100;
+      case 'inner-child': return INNER[c] * 100;
+      case 'journeys-bundle': return Math.round(bundleSumCents(c) / 2);
+      default: return 0;
+    }
+  }
+  function compareAtCents(slug: string, c: Currency): number | null {
+    return slug === 'journeys-bundle' ? bundleSumCents(c) : null;
+  }
+
+  const COUNTRY_CURRENCY: Record<string, Currency> = {
+    US: 'USD', CA: 'CAD', GB: 'GBP', CH: 'CHF', NO: 'NOK', SE: 'SEK', DK: 'DKK', AU: 'AUD', NZ: 'NZD',
+  };
+  function currencyForCountry(code: string): Currency {
+    return COUNTRY_CURRENCY[code.toUpperCase()] ?? 'EUR';
+  }
+  const SYMBOLS: Record<Currency, string> = {
+    EUR: '€', USD: '$', GBP: '£', CAD: 'CA$', CHF: 'CHF ', AUD: 'A$', NZD: 'NZ$', NOK: 'kr ', SEK: 'kr ', DKK: 'kr ',
+  };
+  const CURRENCY_LABEL: Record<Currency, string> = {
+    EUR: 'euros', USD: 'US dollars', GBP: 'pounds', CAD: 'Canadian dollars', CHF: 'Swiss francs',
+    AUD: 'Australian dollars', NZD: 'New Zealand dollars', NOK: 'Norwegian kroner', SEK: 'Swedish kronor', DKK: 'Danish kroner',
+  };
+  function moneyCents(cents: number, c: Currency): string {
+    const whole = cents % 100 === 0;
+    const amount = (cents / 100).toLocaleString('en-US', {
+      minimumFractionDigits: whole ? 0 : 2,
+      maximumFractionDigits: whole ? 0 : 2,
+    });
+    return `${SYMBOLS[c] ?? '€'}${amount}`;
+  }
+
+  function readDiscount(): number {
+    try {
+      const raw = new URLSearchParams(window.location.search).get('discount');
+      const n = raw ? parseInt(raw, 10) : 0;
+      if (Number.isInteger(n) && n >= 1 && n <= 99) return n;
+    } catch {}
+    return 0;
+  }
+  const discountPct = readDiscount();
+  function applyDiscountCents(cents: number): number {
+    if (discountPct <= 0) return cents;
+    return Math.round((cents * (100 - discountPct)) / 100);
+  }
+
+  function guessCountry(): string | undefined {
+    try {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+      const tzMap: Record<string, string> = {
+        'Europe/Brussels': 'BE', 'Europe/Amsterdam': 'NL', 'Europe/Berlin': 'DE', 'Europe/Paris': 'FR',
+        'Europe/Luxembourg': 'LU', 'Europe/Vienna': 'AT', 'Europe/Zurich': 'CH', 'Europe/Rome': 'IT',
+        'Europe/Madrid': 'ES', 'Europe/Lisbon': 'PT', 'Europe/Dublin': 'IE', 'Europe/London': 'GB',
+        'Europe/Copenhagen': 'DK', 'Europe/Stockholm': 'SE', 'Europe/Oslo': 'NO', 'Europe/Helsinki': 'FI',
+        'America/New_York': 'US', 'America/Chicago': 'US', 'America/Denver': 'US', 'America/Los_Angeles': 'US',
+        'America/Phoenix': 'US', 'Pacific/Honolulu': 'US', 'America/Toronto': 'CA', 'America/Vancouver': 'CA',
+        'Australia/Sydney': 'AU', 'Australia/Melbourne': 'AU', 'Australia/Perth': 'AU', 'Pacific/Auckland': 'NZ',
+      };
+      if (tzMap[tz]) return tzMap[tz];
+      const lang = navigator.language || '';
+      const m = lang.match(/-([A-Z]{2})$/i);
+      if (m) return m[1].toUpperCase();
+    } catch {}
+    return undefined;
+  }
+
+  const form = document.querySelector<HTMLFormElement>('[data-jr-form]');
+  const optsWrap = document.querySelector<HTMLElement>('[data-jr-opts]');
+  if (form && optsWrap) {
+    const summaryEl = document.querySelector<HTMLElement>('[data-jr-summary]')!;
+    const summaryLabelEl = document.querySelector<HTMLElement>('[data-jr-summary-label]')!;
+    const currencyNoteEl = document.querySelector<HTMLElement>('[data-jr-currency-note]')!;
+    const countryInput = form.querySelector<HTMLInputElement>('[name="country_search"]')!;
+    const countryHidden = form.querySelector<HTMLInputElement>('[name="country"]')!;
+    const companyInput = form.querySelector<HTMLInputElement>('[name="company_name"]')!;
+    const vatField = form.querySelector<HTMLElement>('[data-jr-vat]')!;
+    const vatInput = form.querySelector<HTMLInputElement>('[name="vat_number"]')!;
+    const errorEl = form.querySelector<HTMLElement>('[data-jr-error]')!;
+    const cta = form.querySelector<HTMLButtonElement>('[data-jr-cta]')!;
+    const optionEls = Array.from(optsWrap.querySelectorAll<HTMLElement>('[data-jr-opt]'));
+
+    let currency: Currency = 'EUR';
+
+    function selectedSlug(): string {
+      const checked = optsWrap!.querySelector<HTMLInputElement>('input[name="jr-product"]:checked');
+      return checked?.value ?? optionEls[0].dataset.product!;
+    }
+
+    function renderPrices() {
+      // Each option card shows its own price; the bundle also shows a strike +
+      // a "Save 50%" badge.
+      for (const el of optionEls) {
+        const slug = el.dataset.product!;
+        const amountEl = el.querySelector<HTMLElement>('[data-amount]')!;
+        const strikeEl = el.querySelector<HTMLElement>('[data-strike]');
+        const saveEl = el.querySelector<HTMLElement>('[data-save]');
+        const finalCents = applyDiscountCents(productCents(slug, currency));
+        amountEl.textContent = moneyCents(finalCents, currency);
+        const cmp = compareAtCents(slug, currency);
+        if (strikeEl) {
+          if (cmp) { strikeEl.hidden = false; strikeEl.textContent = moneyCents(cmp, currency); }
+          else strikeEl.hidden = true;
+        }
+        if (saveEl) saveEl.hidden = !cmp;
+      }
+
+      // Summary reflects the selected option.
+      const slug = selectedSlug();
+      const sel = optionEls.find((e) => e.dataset.product === slug)!;
+      const title = sel.querySelector<HTMLElement>('.jr-opt-title')!.textContent?.trim() ?? '';
+      summaryLabelEl.textContent = `${title.replace(/\s+Save 50%$/, '').replace(/\s+for facilitators$/, '')} · one-time payment`;
+      summaryEl.textContent = moneyCents(applyDiscountCents(productCents(slug, currency)), currency);
+
+      if (currency === 'EUR') {
+        currencyNoteEl.hidden = true;
+        currencyNoteEl.textContent = '';
+      } else {
+        currencyNoteEl.hidden = false;
+        currencyNoteEl.textContent = `Shown and charged in ${CURRENCY_LABEL[currency]} (${currency}).`;
+      }
+    }
+
+    function setCurrencyFromCode(code: string) {
+      currency = currencyForCountry(code);
+      renderPrices();
+    }
+
+    // Highlight the selected card + re-render the summary.
+    function syncSelected() {
+      const slug = selectedSlug();
+      for (const el of optionEls) el.classList.toggle('is-selected', el.dataset.product === slug);
+      renderPrices();
+    }
+    optsWrap.addEventListener('change', syncSelected);
+
+    // Prefill country from a timezone/language guess.
+    const guess = guessCountry();
+    if (guess) {
+      const match = COUNTRIES.find((c) => c.code === guess.toUpperCase());
+      if (match) { countryInput.value = match.name; countryHidden.value = match.code; }
+    }
+    setCurrencyFromCode(countryHidden.value || 'XX');
+    syncSelected();
+
+    function resolveCountry() {
+      const typed = countryInput.value.trim().toLowerCase();
+      const match = COUNTRIES.find(
+        (c) => c.name.toLowerCase() === typed || c.code.toLowerCase() === typed,
+      );
+      if (match) { countryHidden.value = match.code; setCurrencyFromCode(match.code); }
+      else countryHidden.value = '';
+      toggleVat();
+    }
+    countryInput.addEventListener('change', resolveCountry);
+    countryInput.addEventListener('blur', resolveCountry);
+    countryInput.addEventListener('input', resolveCountry);
+
+    function toggleVat() {
+      const show = companyInput.value.trim().length > 0;
+      vatField.hidden = !show;
+      if (!show) vatInput.value = '';
+    }
+    companyInput.addEventListener('input', toggleVat);
+    toggleVat();
+
+    function fail(msg: string) {
+      errorEl.textContent = msg;
+      errorEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errorEl.textContent = '';
+      const get = (name: string) =>
+        String(form.querySelector<HTMLInputElement>(`[name="${name}"]`)?.value ?? '').trim();
+
+      const first_name = get('first_name');
+      const last_name = get('last_name');
+      const email = get('email');
+      const country = countryHidden.value.trim();
+      const company_name = get('company_name');
+      const vat_number = get('vat_number');
+      const consent_terms = form.querySelector<HTMLInputElement>('[name="consent_terms"]')!.checked;
+      const product = selectedSlug();
+
+      if (!first_name || !last_name) return fail('Please add your first and last name.');
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return fail('Please enter a valid email address.');
+      if (!country) return fail('Please select your country from the list.');
+      if (vat_number && !company_name) return fail('Please add your company name to use a VAT number.');
+      if (!consent_terms) return fail('Please agree to the terms to continue.');
+
+      const original = cta.innerHTML;
+      cta.disabled = true;
+      cta.innerHTML = '<span>Opening secure checkout…</span>';
+
+      try {
+        const res = await fetch('/api/courses/journey-checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            product,
+            first_name,
+            last_name,
+            email,
+            country,
+            company_name: company_name || undefined,
+            vat_number: vat_number || undefined,
+            consent_terms: true,
+            ...(discountPct > 0 ? { discount_percent: discountPct } : {}),
+          }),
+        });
+        let body: { checkout_url?: string; error?: string } = {};
+        try { body = (await res.json()) as typeof body; } catch {}
+        if (!res.ok || !body.checkout_url) {
+          fail(body.error || `Could not start checkout (HTTP ${res.status}). Please try again.`);
+          cta.disabled = false; cta.innerHTML = original; return;
+        }
+        window.location.href = body.checkout_url;
+      } catch {
+        fail('We could not reach the server. Please try again.');
+        cta.disabled = false; cta.innerHTML = original;
+      }
+    });
+  }
+</script>
