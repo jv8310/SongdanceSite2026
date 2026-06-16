@@ -1166,7 +1166,7 @@ html, body { background: var(--paper); }
   min-height: 92vh;
   display: grid; place-items: center;
   padding: var(--sp-11) var(--sp-7);
-  background-color: var(--night-deep);
+  background-color: var(--night);
   background-size: cover;
   background-position: center;
   background-attachment: fixed;
@@ -1178,8 +1178,8 @@ html, body { background: var(--paper); }
   pointer-events: none;
 }
 .jr-deep-inner { position: relative; z-index: 1; max-width: 760px; margin: 0 auto; text-align: center; }
-.jr-deep .jr-eyebrow { color: var(--ember); justify-content: center; display: inline-flex; }
-.jr-deep .jr-eyebrow::before { background: var(--ember); }
+.jr-deep .jr-eyebrow { color: var(--jr-accent); justify-content: center; display: inline-flex; }
+.jr-deep .jr-eyebrow::before { background: var(--jr-accent); }
 .jr-deep-head {
   font-family: var(--font-display);
   font-size: clamp(40px, 5.6vw, 76px);
