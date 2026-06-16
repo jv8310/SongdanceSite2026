@@ -27,8 +27,8 @@ export const ALLOWED_VIDEO_TYPES = new Set([
 ]);
 
 // Short clips only. Workers' request-body limit is generous, but the library is
-// for accent video — not a video host — so we draw the line at 30 MB.
-export const MAX_VIDEO_BYTES = 30 * 1024 * 1024;
+// for accent video — not a video host — so we draw the line at 70 MB.
+export const MAX_VIDEO_BYTES = 70 * 1024 * 1024;
 
 export function isVideoType(type?: string | null): boolean {
   return !!type && type.startsWith('video/');

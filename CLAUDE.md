@@ -53,7 +53,7 @@ The bucket holds two kinds of images:
 - `library/…` — general images uploaded via the admin image manager
 - `events/…` — event-card pictures (renaming/deleting one breaks its card)
 
-The library also accepts **short, self-hosted video** (MP4/WebM, ≤30 MB) for
+The library also accepts **short, self-hosted video** (MP4/WebM, ≤70 MB) for
 background/accent clips — uploaded the same way, served at `/media/<key>`, and
 embedded on a page with `<video src="/media/library/<name>.webm" muted loop
 playsinline>`. The serving route honours HTTP Range so video seeks/plays. Longer
