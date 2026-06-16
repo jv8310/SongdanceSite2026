@@ -1,0 +1,93 @@
+---
+import '../../../styles/journeys.css';
+import Layout from '../../../layouts/Layout.astro';
+
+export const prerender = false;
+
+const sessionId = Astro.url.searchParams.get('session_id');
+const env = Astro.locals.runtime.env;
+
+type Row = {
+  id: number;
+  first_name: string | null;
+  email: string;
+  status: string;
+  product_slug: string;
+};
+
+let reg: Row | null = null;
+if (sessionId) {
+  reg = await env.DB
+    .prepare(
+      `SELECT id, first_name, email, status, product_slug
+         FROM course_registrations
+        WHERE stripe_session_id = ?`,
+    )
+    .bind(sessionId)
+    .first<Row>();
+}
+
+const isPaid = reg?.status === 'paid';
+const firstName = reg?.first_name?.trim() || null;
+
+const PRODUCT_NAME: Record<string, string> = {
+  asj: 'the Authentic Singing Journey',
+  'asj-pro': 'the Authentic Singing Journey — PRO',
+  mmj: 'the Magical Movement Journey',
+  'inner-child': 'the Inner Child Healing Journey',
+  'journeys-bundle': 'all three journeys',
+};
+const backHref =
+  reg?.product_slug === 'mmj'
+    ? '/courses/magical-movement'
+    : reg?.product_slug === 'inner-child'
+      ? '/courses/inner-child'
+      : '/courses/authentic-singing';
+const productName = reg ? (PRODUCT_NAME[reg.product_slug] ?? 'your journey') : 'your journey';
+---
+
+<Layout
+  title="Thank you — Songdance"
+  description="Your journey is confirmed."
+>
+  <div class="jr-site jr-theme-singing">
+    <section class="jr-section" style="min-height:62vh; display:flex; align-items:center;">
+      <div class="jr-opening-inner">
+        <div class="jr-eyebrow" style="justify-content:center;">Songdance</div>
+        {reg ? (
+          <>
+            <h1 class="jr-opening-head">Thank you{firstName ? `, ${firstName}` : ''}.</h1>
+            {isPaid ? (
+              <p class="jr-prose-body" style="text-align:center;">
+                Your payment for <strong>{productName}</strong> has been received. A confirmation
+                email is on its way, with everything you need to begin.
+              </p>
+            ) : (
+              <p class="jr-prose-body" style="text-align:center;">
+                Your payment for <strong>{productName}</strong> is being confirmed. You can safely
+                close this window — we'll email you the moment it's done.
+              </p>
+            )}
+            <p class="jr-prose-body" style="text-align:center;">
+              Take your time. There's no rush, and no wrong pace.
+            </p>
+            <div style="text-align:center; margin-top: var(--sp-6);">
+              <a class="jr-hero-cta" href={backHref}>Back to the journey</a>
+            </div>
+          </>
+        ) : (
+          <>
+            <h1 class="jr-opening-head">Thank you.</h1>
+            <p class="jr-prose-body" style="text-align:center;">
+              If you've just completed payment, we'll be in touch shortly. You can safely close this
+              window — a confirmation email is coming.
+            </p>
+            <div style="text-align:center; margin-top: var(--sp-6);">
+              <a class="jr-hero-cta" href="/courses">Back to the courses</a>
+            </div>
+          </>
+        )}
+      </div>
+    </section>
+  </div>
+</Layout>

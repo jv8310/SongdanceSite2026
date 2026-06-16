@@ -1,45 +1,334 @@
 ---
-import SiteLayout from '../../components/SiteLayout.astro';
-import PageHero from '../../components/PageHero.astro';
-import SoftCta from '../../components/SoftCta.astro';
+import '../../styles/journeys.css';
+import Layout from '../../layouts/Layout.astro';
+import JourneyVideo from '../../components/journeys/JourneyVideo.astro';
+import JourneyRegister from '../../components/journeys/JourneyRegister.astro';
+import JourneyCrossPromo from '../../components/journeys/JourneyCrossPromo.astro';
+
+const testimonials = [
+  {
+    body: 'I expected it to be sad. Mostly it was tender — like finally sitting down beside someone who had been waiting a long time.',
+    who: 'Hannah',
+  },
+  {
+    body: 'Session one, I just listened. By the third, I was singing to her. I didn’t know I had it in me.',
+    who: 'Marie',
+  },
+  {
+    body: 'It moved at my pace, which is the only reason I could do it at all. Nothing pushed. Nothing pried.',
+    who: 'Tom',
+  },
+  {
+    body: 'I keep the closing lullaby for hard evenings. It’s the kindest thing I’ve ever made for myself.',
+    who: 'Lena',
+  },
+];
 ---
 
-<SiteLayout
-  title="Inner Child Healing Journey — Songdance"
-  description="A guided journey to meet, hear, and tend the younger parts of you — through sound, and gently."
+<Layout
+  title="The Inner Child Healing Journey — Songdance"
+  description="Five gentle sessions to meet the younger part of you — and to give it, in sound, some of what it went without. Self-paced, at home."
+  image="/media/library/inner-child-glow.webp"
 >
-  <PageHero
-    eyebrow="Guided journey"
-    title="Inner Child Healing Journey"
-    lede="Small voice. Old truth. Finally heard."
-    image="/media/library/svh-retreat-walk-tree-sunset.jpg"
-  >
-    <div class="sd-pagehero-actions">
-      <a href="/contact" class="sd-btn sd-btn-primary">Ask about this journey</a>
-    </div>
-  </PageHero>
+  <div class="jr-site jr-theme-child">
+    <!-- Nav -->
+    <nav class="jr-nav">
+      <div class="jr-nav-inner">
+        <a href="/" class="jr-nav-mark" aria-label="Songdance">
+          <img src="/brand/logo-wordmark.svg" alt="Songdance" />
+        </a>
+        <div class="jr-nav-spacer"></div>
+        <div class="jr-nav-meta">
+          <span>5 sessions</span>
+          <span class="dot"></span>
+          <span>Gentle · self-paced</span>
+        </div>
+        <a href="#register" class="jr-nav-cta">Begin · €29</a>
+      </div>
+    </nav>
 
-  <section class="sd-section sd-prose">
-    <div class="sd-prose-inner">
-      <p>
-        A guided journey to meet, hear, and tend the younger parts of you — through sound, and
-        gently. You go at your own pace, with your own voice, and nothing is forced.
-      </p>
-      <h2 class="sd-prose-h">The high, small sounds</h2>
-      <p>
-        When the sounds come out high and small, you’ve usually met the child. It remembers in the
-        present tense — an old fear looking out through adult eyes at a perfectly safe Tuesday. The
-        work is not to scold it for bad reporting. It’s to let it speak, in sound — and being heard
-        is what it was waiting for, often for decades.
-      </p>
-      <blockquote class="sd-lineage-pullquote">“I’m not being hurt — I’m being heard.”</blockquote>
-      <p class="sd-italic">— Jacob</p>
-      <p>
-        This is not regression therapy, and it doesn’t replace therapy. You go at your own pace;
-        the voice only opens what you can be with.
-      </p>
-    </div>
-  </section>
+    <!-- Hero -->
+    <header class="jr-hero">
+      <div class="jr-hero-bg" aria-hidden="true">
+        <img src="/media/library/inner-child-glow.webp" alt="" />
+      </div>
+      <div class="jr-hero-inner">
+        <img class="jr-hero-mark" src="/brand/symbol-orange.png" alt="" aria-hidden="true" />
+        <div class="jr-hero-eyebrow">Inner Child Healing Journey</div>
+        <h1 class="jr-hero-head">The child you were is <em>still listening.</em></h1>
+        <p class="jr-hero-sub">
+          Five gentle sessions to meet that younger part of you — and to give it, in sound, some of
+          what it went without.
+        </p>
+        <a href="#register" class="jr-hero-cta">
+          Begin session one <i class="ph-light ph-arrow-right"></i>
+        </a>
+        <p class="jr-hero-micro">Five sessions. No rush — repeat any of them as often as you like.</p>
+        <div class="jr-hero-meta">
+          <span>5 sessions</span>
+          <span class="dot"></span>
+          <span>Gentle</span>
+          <span class="dot"></span>
+          <span>Self-paced</span>
+        </div>
+      </div>
+    </header>
 
-  <SoftCta />
-</SiteLayout>
+    <!-- What it is -->
+    <section class="jr-section jr-opening">
+      <div class="jr-opening-inner">
+        <div class="jr-eyebrow" style="justify-content:center;">What it is</div>
+        <h2 class="jr-opening-head">Turning back toward <em>that child.</em></h2>
+        <p class="jr-prose-body">
+          Most of what we carry — the old fears, the way we shrink, the things we can’t quite say —
+          started early. Long before we had words for any of it, a younger version of us was learning
+          what felt safe to feel, and what didn’t.
+        </p>
+        <p class="jr-prose-body">
+          The Inner Child Healing Journey is a short, careful way to turn back toward that child.
+          Across five guided sessions, you become the steady, kind presence they needed — and you use
+          your voice two ways: to sing to them what they didn’t get to hear, and to let them finally
+          make the sound they couldn’t make then.
+        </p>
+      </div>
+    </section>
+
+    <!-- Gentle-approach split -->
+    <section class="jr-section jr-split">
+      <div class="jr-split-inner">
+        <figure class="jr-split-figure">
+          <img src="/media/library/inner-child-touch.webp" alt="An adult hand resting gently on a child's hair" loading="lazy" />
+        </figure>
+        <div class="jr-split-text">
+          <div class="jr-eyebrow">How it feels</div>
+          <h2 class="jr-h2" style="margin-bottom: var(--sp-5);">A warm blanket for <em>both of you.</em></h2>
+          <p>
+            The music holds the room while you do this — less a technique than a warm blanket for
+            both of you.
+          </p>
+          <p>
+            Nothing here is done <em>to</em> you. You do the reconnecting; the sessions only keep you
+            company, and keep the pace kind.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- How deep it goes — full-screen parallax -->
+    <section class="jr-deep" style="background-image:url('/media/library/inner-child-beach.webp')">
+      <div class="jr-deep-inner">
+        <div class="jr-eyebrow">Why it reaches so far</div>
+        <h2 class="jr-deep-head">It begins earlier than <em>memory.</em></h2>
+        <p class="jr-deep-body">
+          The things that shaped you most happened before you had words for them — the early years,
+          when everything was felt and nothing was yet filed under language. Talking can't reach what
+          was never in words. Singing can — gently, only as far as you can be with, because the voice
+          was there before the words.
+        </p>
+        <p class="jr-deep-lyric">Before you had words, you had a voice. It still remembers.</p>
+      </div>
+    </section>
+
+    <!-- The five sessions -->
+    <section class="jr-section jr-sessions">
+      <div class="jr-sessions-inner">
+        <div class="jr-sessions-head">
+          <div class="jr-eyebrow">The journey</div>
+          <h2 class="jr-h2">Five sessions.</h2>
+        </div>
+        <div class="jr-session-row">
+          <div class="jr-session-num">01</div>
+          <div class="jr-session-body">
+            <h3 class="jr-session-title">Establishing connection.</h3>
+            <p class="jr-session-text">
+              You meet your inner child and begin, slowly, to build trust — a place where both your
+              voices are welcome, and the story of your life can be heard in your own sound.
+            </p>
+          </div>
+        </div>
+        <div class="jr-session-row">
+          <div class="jr-session-num">02</div>
+          <div class="jr-session-body">
+            <h3 class="jr-session-title">Reclaim your innocence.</h3>
+            <p class="jr-session-text">
+              An invitation to give sound to the pain, and to sing words of innocence and care to the
+              child who went without them. A soft mantra stays with you while you do.
+            </p>
+          </div>
+        </div>
+        <div class="jr-session-row">
+          <div class="jr-session-num">03</div>
+          <div class="jr-session-body">
+            <h3 class="jr-session-title">Take your life into your hands.</h3>
+            <p class="jr-session-text">
+              Here you give sound to anger — and set down what was never yours to carry. A stronger
+              mantra opens out into your own life, as it is now, with all its room to move.
+            </p>
+          </div>
+        </div>
+        <div class="jr-session-row">
+          <div class="jr-session-num">04</div>
+          <div class="jr-session-body">
+            <h3 class="jr-session-title">The Cherry Blossom Child.</h3>
+            <p class="jr-session-text">
+              A story, and a reminder: you were born as love, the same as every child. Your inner
+              child still knows it. You sing for that.
+            </p>
+          </div>
+        </div>
+        <div class="jr-session-row">
+          <div class="jr-session-num">05</div>
+          <div class="jr-session-body">
+            <h3 class="jr-session-title">Here with you.</h3>
+            <p class="jr-session-text">
+              A closing mantra — a lullaby for you both, to honour the connection you’ve made.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Upala video — custom square player -->
+    <JourneyVideo
+      src="/media/library/inner-child-upala.mov"
+      poster="/media/library/inner-child-upala.webp"
+      label="A voice from this work"
+      title="Upala, on what one session <em>opened.</em>"
+      sub="Upala — Jacob’s late wife, whose sounding is where this whole practice began — speaking about how one of these sessions touched her."
+    />
+
+    <!-- Two ways with the voice -->
+    <section class="jr-section jr-split jr-split--rev">
+      <div class="jr-split-inner">
+        <figure class="jr-split-figure">
+          <img src="/media/library/inner-child-scream.webp" alt="A child making a full, free sound" loading="lazy" />
+        </figure>
+        <div class="jr-split-text">
+          <div class="jr-eyebrow">Two ways with the voice</div>
+          <h2 class="jr-h2" style="margin-bottom: var(--sp-5);">Sing to them. And let them <em>sound.</em></h2>
+          <p>
+            Across the five sessions, your voice does two things at once: it sings to that child what
+            they didn’t get to hear —
+          </p>
+          <p>
+            <em>— and it lets them finally make the sound they couldn’t make then.</em>
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- A note on pacing and care -->
+    <section class="jr-section jr-note">
+      <div class="jr-note-inner">
+        <div class="jr-eyebrow">Take it slowly</div>
+        <p>
+          This is gentle work, but it can touch tender places. Take it slowly. Repeat a session as
+          often as you like. Stop when you need to.
+        </p>
+        <p>
+          There’s no schedule to keep and no prize for speed — <em>your pace is the right pace.</em>
+          If you’d like a hand alongside it, optional 1:1 support is there for you.
+        </p>
+      </div>
+    </section>
+
+    <!-- Lyric break -->
+    <section class="jr-lyric">
+      <div class="jr-lyric-bg" aria-hidden="true">
+        <img src="/media/library/inner-child-glow.webp" alt="" />
+      </div>
+      <div class="jr-lyric-inner">
+        <img class="jr-lyric-mark" src="/brand/symbol-orange.png" alt="" aria-hidden="true" />
+        <p class="jr-lyric-text">Sing them what they never got to hear.</p>
+        <div class="jr-lyric-by">Inner Child Healing Journey</div>
+      </div>
+    </section>
+
+    <!-- Who it's for -->
+    <section class="jr-section jr-whom">
+      <div class="jr-whom-inner">
+        <div class="jr-whom-head">
+          <div class="jr-eyebrow" style="justify-content:center;">Who it's for</div>
+          <h2 class="jr-h2">If some of today’s heaviness was packed a <em>long time ago.</em></h2>
+        </div>
+        <div class="jr-whom-body">
+          <figure class="jr-whom-figure">
+            <img src="/media/library/svhgpt-07-below-deeper-earlier.webp" alt="A figure with roots reaching deep into the earth, toward a small glow" loading="lazy" />
+          </figure>
+          <div class="jr-whom-listwrap">
+            <ul class="jr-whom-list">
+              <li>For anyone who suspects that some of today’s heaviness was packed a long time ago.</li>
+              <li>If you find it hard to feel <em>good enough.</em></li>
+              <li>If you find it hard to hold a line, or to say what you mean.</li>
+              <li>This is a kind place to begin.</li>
+              <li>It pairs naturally with the Authentic Singing Journey — and it stands completely on its own.</li>
+            </ul>
+            <p class="jr-whom-foot">Gentle, and at your own pace.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Testimonials -->
+    <section class="jr-section jr-testimonials">
+      <div class="jr-testimonials-inner">
+        <div class="jr-testimonials-head">
+          <div class="jr-eyebrow">Voices from the journey</div>
+          <h2 class="jr-h2">What it has been for others.</h2>
+        </div>
+        <div class="jr-testimonials-grid">
+          {testimonials.map((t) => (
+            <article class="jr-testimonial">
+              <div class="jr-testimonial-stars" aria-label="5 out of 5">
+                <i class="ph-fill ph-star"></i>
+                <i class="ph-fill ph-star"></i>
+                <i class="ph-fill ph-star"></i>
+                <i class="ph-fill ph-star"></i>
+                <i class="ph-fill ph-star"></i>
+              </div>
+              <p class="jr-testimonial-body">“{t.body}”</p>
+              <div class="jr-testimonial-by"><span class="who">{t.who}</span></div>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+
+    <!-- Register / buy (dark, integrated) -->
+    <JourneyRegister
+      course="inner-child"
+      heroImg="/media/library/inner-child-glow.webp"
+      lede="Five sessions, no rush — turning toward the child you were, with a little more kindness than they were shown. Choose your way in below."
+      bullets={[
+        '5 self-paced sessions — visualisation, music & mantra',
+        'Go as slowly as you need; repeat any session',
+        'Optional 1:1 support alongside it',
+        'Lifetime access — return whenever you like',
+      ]}
+    />
+
+    <!-- More journeys -->
+    <JourneyCrossPromo current="inner-child" />
+
+    <!-- Footer -->
+    <footer class="jr-footer">
+      <div class="jr-footer-inner">
+        <div class="jr-footer-top">
+          <div>
+            <img class="jr-footer-mark" src="/brand/logo-wordmark.svg" alt="Songdance" />
+            <p class="jr-footer-lyric">Sing them what they never got to hear.</p>
+          </div>
+          <div class="jr-footer-links">
+            <a href="/courses">All courses &amp; journeys</a>
+            <a href="/what-is-svh">What is Somatic Vocal Healing?</a>
+            <a href="/contact">Contact</a>
+          </div>
+        </div>
+        <div class="jr-footer-base">
+          <span>© 2026 Songdance</span>
+          <span>Sound that comes from you.</span>
+        </div>
+      </div>
+    </footer>
+  </div>
+</Layout>
