@@ -81,6 +81,9 @@ body { background: var(--adm-paper); }
   border-radius: 6px; background: var(--adm-paper-soft);
   color: inherit; text-decoration: none; cursor: pointer;
   font-size: 13px;
+  /* Normalise <button> against <a>: native buttons otherwise use the UA
+     font + line-height, which makes them taller than the anchor buttons. */
+  font-family: inherit; line-height: 1.2;
 }
 .adm-btn:hover { background: #f0e8d6; border-color: #d5cab1; }
 .adm-btn--ghost { background: transparent; }
