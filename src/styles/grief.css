@@ -53,7 +53,11 @@
   line-height: 1.4;
   color: var(--ink-soft);
   margin: 0 0 var(--sp-5);
+  text-wrap: pretty; /* keep a lone word ("it.") from orphaning onto its own line */
 }
+/* The attributed opening quote sits a touch smaller so it reads as a quote and
+   doesn't strand its last word on a line of its own. */
+.gr-lede--quote { font-size: clamp(18px, 2vw, 23px); }
 .gr-p {
   max-width: var(--measure);
   margin: 0 0 var(--sp-5);
@@ -252,9 +256,9 @@
   z-index: -2;
   filter: saturate(0.9) contrast(1.02);
 }
-/* Two stacked overlays — a strong left-to-right wash that keeps the (left-
-   aligned) quote legible whatever the photo does behind it, plus a gentle
-   bottom anchor so the cite line never floats on a bright patch. */
+/* A gentle mood wash over the whole image. Text readability is guaranteed by
+   the frosted panel on the quote itself (below), so this can stay light enough
+   to let the photograph breathe. */
 .gr-band::after {
   content: '';
   position: absolute;
@@ -263,13 +267,13 @@
   background:
     linear-gradient(
       100deg,
-      rgba(15, 8, 14, 0.9) 0%,
-      rgba(15, 8, 14, 0.66) 42%,
-      rgba(15, 8, 14, 0.34) 100%
+      rgba(15, 8, 14, 0.58) 0%,
+      rgba(15, 8, 14, 0.32) 50%,
+      rgba(15, 8, 14, 0.16) 100%
     ),
     linear-gradient(
       to top,
-      rgba(15, 8, 14, 0.55) 0%,
+      rgba(15, 8, 14, 0.38) 0%,
       rgba(15, 8, 14, 0) 55%
     );
 }
@@ -282,11 +286,20 @@
 .gr-band-quote {
   font-family: var(--font-lyric);
   font-style: italic;
-  font-size: clamp(26px, 3.6vw, 44px);
+  font-size: clamp(25px, 3.4vw, 42px);
   line-height: 1.25;
-  max-width: 20ch;
+  max-width: 22ch;
   margin: 0;
-  text-shadow: 0 1px 28px rgba(15, 8, 14, 0.55);
+  color: #fff;
+  /* A soft frosted scrim hugging the text — guarantees the quote reads over
+     any photo (a sunset sky, a pale shoulder) without a hard, blocky panel. */
+  display: inline-block;
+  padding: var(--sp-5) clamp(var(--sp-5), 4vw, var(--sp-6));
+  border-radius: var(--r-lg);
+  background: rgba(15, 8, 14, 0.4);
+  -webkit-backdrop-filter: blur(7px);
+  backdrop-filter: blur(7px);
+  text-shadow: 0 1px 18px rgba(15, 8, 14, 0.6);
 }
 .gr-band-cite {
   display: block;
@@ -375,8 +388,8 @@
   margin-bottom: var(--sp-5);
 }
 .gr-guide-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
-/* Jacob's portrait is cropped from a wide field shot — bias up to his face. */
-.gr-guide-photo--jacob img { object-position: center 22%; }
+/* Keep Jacob's face high in the 4:5 crop of his portrait. */
+.gr-guide-photo--jacob img { object-position: center 28%; }
 .gr-guide-name {
   font-family: var(--font-display);
   font-weight: 500;
