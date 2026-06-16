@@ -30,16 +30,33 @@ body { background: var(--adm-paper); }
   color: var(--adm-ink);
 }
 
+/* Persistent, full-bleed admin top bar (src/components/admin/AdminTopBar.astro),
+   rendered above every admin page. Sticky so the global actions stay visible on
+   scroll; the paper-coloured shadow masks page content sliding up through the
+   gap above .adm. */
+.adm-topbar {
+  position: sticky; top: 0; z-index: 30;
+  background: var(--adm-paper);
+  border-bottom: 1px solid var(--adm-line);
+  box-shadow: 0 24px 0 var(--adm-paper);
+}
+.adm-topbar-inner {
+  max-width: 1280px; margin: 0 auto; padding: 10px 20px;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; flex-wrap: wrap;
+}
+.adm-topbar-brand {
+  display: inline-flex; align-items: center; gap: 9px;
+  text-decoration: none; color: var(--adm-ink);
+  font-family: Georgia, serif; font-size: 1.15rem; font-weight: 500;
+}
+.adm-topbar-brand img { display: block; width: 26px; height: 26px; }
+.adm-topbar-brand:hover { color: var(--adm-ember-deep); }
+
 .adm-header {
   display: flex; align-items: flex-start; justify-content: space-between;
   gap: 16px; padding-bottom: 16px; margin-bottom: 24px;
   border-bottom: 1px solid var(--adm-line);
-  /* Keep the title + top menu pinned while scrolling. The paper background
-     plus a paper-coloured drop shadow mask content sliding under the header
-     and through its bottom margin. */
-  position: sticky; top: 0; z-index: 20;
-  background: var(--adm-paper);
-  box-shadow: 0 24px 0 var(--adm-paper);
 }
 .adm-header h1 {
   font-family: Georgia, serif; font-weight: 500;
