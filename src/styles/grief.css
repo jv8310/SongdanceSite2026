@@ -13,6 +13,10 @@
   font-size: var(--t-body);
   line-height: var(--lh-body);
 }
+/* Border-box everywhere on this page, so width:100% controls (inputs, the
+   full-width CTA, the card) include their own padding/border and never overflow
+   their column — which is what made the two name fields overlap. */
+.gr, .gr *, .gr *::before, .gr *::after { box-sizing: border-box; }
 
 .gr em { font-style: italic; }
 .gr strong { font-weight: 600; }
@@ -502,9 +506,12 @@
 .gr-fields {
   display: grid;
   gap: var(--sp-4);
-  grid-template-columns: 1fr 1fr;
+  /* minmax(0,1fr) (not bare 1fr) lets the columns shrink to share the row
+     evenly — bare 1fr keeps a min-content floor, so a width:100% input blows
+     the track out and the two halves overlap. */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 }
-.gr-field { display: flex; flex-direction: column; gap: var(--sp-2); }
+.gr-field { display: flex; flex-direction: column; gap: var(--sp-2); min-width: 0; }
 /* display:flex would otherwise defeat the [hidden] attr on the VAT field. */
 .gr-field[hidden] { display: none; }
 .gr-field--full { grid-column: 1 / -1; }
