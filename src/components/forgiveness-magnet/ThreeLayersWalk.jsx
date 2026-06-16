@@ -227,12 +227,12 @@ function PrayerCard({ prayer, onSubmitEmail, onReplay, submitted, sending }) {
               The Forgiveness Course
             </h3>
             <p className="tlw-course-lede">
-              Four live Sundays where forgiveness becomes something the body knows — not a decision the mind keeps trying to make.
+              Four live sessions where forgiveness becomes something the body knows — not a decision the mind keeps trying to make.
             </p>
             <ul className="tlw-course-facts">
               <li>
                 <span className="tlw-course-fact-key">Four 90-minute live classes on Zoom</span>
-                <span className="tlw-course-fact-val">Four Sundays in July 2026</span>
+                <span className="tlw-course-fact-val">Coming in Fall 2026</span>
               </li>
               <li>
                 <span className="tlw-course-fact-key">With Daniela Hess &amp; Jacob Vermeulen</span>

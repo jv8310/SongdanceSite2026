@@ -127,7 +127,7 @@ function renderEmailHtml(prayerHtml: string): string {
                   <tr>
                     <td class="card-pad" align="left" style="padding: 10px 28px 4px;">
                       <p style="margin:0; font-family: Georgia, 'Times New Roman', serif; font-size:15px; line-height:1.6; color:#4A3848;">
-                        Four live Sundays in July 2026 with Daniela Hess and Jacob Vermeulen — the prayer was a beginning; this is where the work lives.
+                        Coming in Fall 2026 with Daniela Hess and Jacob Vermeulen — the prayer was a beginning; this is where the work lives.
                       </p>
                     </td>
                   </tr>
@@ -191,7 +191,7 @@ function buildPlainText(prayer: string): string {
     '',
     '—',
     '',
-    'If this opened something — the Forgiveness Course is the longer walk. Four live Sundays in July 2026.',
+    'If this opened something — the Forgiveness Course is the longer walk. Coming in Fall 2026.',
     'https://site.songdance.co/forgiveness',
     '',
     'Songdance',
