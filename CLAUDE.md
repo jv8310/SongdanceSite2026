@@ -53,6 +53,14 @@ The bucket holds two kinds of images:
 - `library/…` — general images uploaded via the admin image manager
 - `events/…` — event-card pictures (renaming/deleting one breaks its card)
 
+The library also accepts **short, self-hosted video** (MP4/WebM, ≤70 MB) for
+background/accent clips — uploaded the same way, served at `/media/<key>`, and
+embedded on a page with `<video src="/media/library/<name>.webm" muted loop
+playsinline>`. The serving route honours HTTP Range so video seeks/plays. Longer
+or watch-with-sound video still belongs on Vimeo (see
+`src/components/forgiveness/FCVideo.astro`). The CLI helper and manifest list
+videos alongside images; `pull` downloads their bytes the same way.
+
 There is **no Cloudflare credential in the dev container**, so don't reach for
 `wrangler r2`. Instead use the public, read-only manifest + the CLI helper:
 

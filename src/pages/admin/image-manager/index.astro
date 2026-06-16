@@ -2,7 +2,7 @@
 import '../../../styles/admin.css';
 import Layout from '../../../layouts/Layout.astro';
 import { readCookie, verifySession } from '../../../lib/registrations/auth';
-import { listLibrary, type MediaItem } from '../../../lib/media';
+import { isVideoKey, listLibrary, type MediaItem } from '../../../lib/media';
 
 export const prerender = false;
 
@@ -51,11 +51,16 @@ function folder(key: string): string {
         </p>
         <h1>Image library</h1>
         <p class="adm-sub">
-          Every image in the media bucket. Drag files in to upload (they’re resized and converted
-          to WebP automatically), rename or delete them, and copy each image’s
-          <code>/media/…</code> URL to use anywhere on the site. Files with
-          <strong>“email”</strong> in the name are kept in their original format (JPEG/PNG) so
+          Every image — and short video — in the media bucket. Drag files in to upload (images are
+          resized and converted to WebP automatically; videos are stored as-is), rename or delete
+          them, and copy each item’s <code>/media/…</code> URL to use anywhere on the site. Files
+          with <strong>“email”</strong> in the name are kept in their original format (JPEG/PNG) so
           they render in mail clients that don’t support WebP.
+        </p>
+        <p class="adm-sub">
+          <strong>Short videos:</strong> MP4 or WebM up to 70 MB — for background/accent clips. Drop
+          one in and use it on a page with <code>&lt;video src="/media/…" muted loop playsinline&gt;</code>.
+          Anything longer or watched with sound belongs on Vimeo, not here.
         </p>
         <p class="adm-sub">
           <strong>Heads-up:</strong> images under <code>events/</code> are event-card pictures —
@@ -78,10 +83,16 @@ function folder(key: string): string {
         tabindex="0"
         aria-label="Upload images"
       >
-        <input type="file" accept="image/*" multiple hidden data-file-input />
+        <input
+          type="file"
+          accept="image/*,video/mp4,video/webm,video/quicktime"
+          multiple
+          hidden
+          data-file-input
+        />
         <div class="media-dropzone-inner">
-          <strong>Drop images here</strong>
-          <span>or click to choose — JPG, PNG, WebP, GIF, SVG · multiple at once</span>
+          <strong>Drop images or short videos here</strong>
+          <span>or click to choose — JPG, PNG, WebP, GIF, SVG, MP4, WebM · multiple at once</span>
         </div>
         <div class="media-dropzone-progress" data-progress hidden></div>
       </div>
@@ -109,7 +120,11 @@ function folder(key: string): string {
         {items.map((it) => (
           <figure class="media-card" data-card data-key={it.key}>
             <a class="media-thumb" href={it.url} target="_blank" rel="noopener">
-              <img src={it.url} alt="" loading="lazy" />
+              {isVideoKey(it.key) ? (
+                <video class="media-video" src={`${it.url}#t=0.1`} muted playsinline preload="metadata"></video>
+              ) : (
+                <img src={it.url} alt="" loading="lazy" />
+              )}
             </a>
             <figcaption class="media-body">
               <div class="media-name-row">
@@ -160,9 +175,10 @@ function folder(key: string): string {
 
 <script>
   import { optimizeImageFile, formatBytes } from '../../../scripts/image-optimize';
+  import { ALLOWED_VIDEO_TYPES, MAX_VIDEO_BYTES, isVideoKey } from '../../../lib/media';
 
   type UploadedItem = { key: string; url: string; size: number; uploaded: string };
-  type UploadResponse = { uploaded?: UploadedItem[]; error?: string };
+  type UploadResponse = { uploaded?: UploadedItem[]; error?: string; errors?: string[] };
   type RenameResponse = { key?: string; url?: string; error?: string };
 
   const dropzone = document.querySelector<HTMLElement>('[data-dropzone]');
@@ -201,20 +217,38 @@ function folder(key: string): string {
 
   searchEl?.addEventListener('input', applyFilter);
 
+  function isVideoFile(f: File): boolean {
+    return ALLOWED_VIDEO_TYPES.has(f.type);
+  }
+
   // ---- Upload (drag-drop + click) ----
   async function uploadFiles(fileList: FileList | File[]) {
-    const files = Array.from(fileList).filter((f) => f.type.startsWith('image/'));
-    if (!files.length || !progress) return;
+    const accepted = Array.from(fileList).filter(
+      (f) => f.type.startsWith('image/') || isVideoFile(f),
+    );
+    // Reject oversized videos client-side so the user gets an instant reason
+    // rather than a slow upload that the server bounces.
+    const tooBig = accepted.filter((f) => isVideoFile(f) && f.size > MAX_VIDEO_BYTES);
+    const files = accepted.filter((f) => !tooBig.includes(f));
+    if (!progress) return;
+    if (!files.length) {
+      if (tooBig.length) {
+        progress.hidden = false;
+        progress.textContent = `Skipped ${tooBig.length} video${tooBig.length === 1 ? '' : 's'} over ${Math.round(MAX_VIDEO_BYTES / (1024 * 1024))} MB.`;
+        setTimeout(() => { if (progress) progress.hidden = true; }, 4000);
+      }
+      return;
+    }
     progress.hidden = false;
     let done = 0;
     progress.textContent = `Optimising & uploading 0/${files.length}…`;
 
-    // Files with "email" in the name are stored as-is (no WebP re-encode):
+    // Images with "email" in the name are stored as-is (no WebP re-encode):
     // many mail clients (Outlook etc.) can't render WebP, so email artwork
-    // needs to stay JPEG/PNG.
+    // needs to stay JPEG/PNG. Videos are always passed through untouched.
     const optimised = await Promise.all(
       files.map((f) =>
-        /email/i.test(f.name)
+        isVideoFile(f) || /email/i.test(f.name)
           ? Promise.resolve(f)
           : optimizeImageFile(f, { maxDim: 2000, quality: 0.84 }).catch(() => f),
       ),
@@ -231,12 +265,43 @@ function folder(key: string): string {
         prependCard(item);
         done++;
       }
-      progress.textContent = `Uploaded ${done} image${done === 1 ? '' : 's'}.`;
+      const skipped = (data.errors?.length ?? 0) + tooBig.length;
+      progress.textContent =
+        `Uploaded ${done} file${done === 1 ? '' : 's'}.` +
+        (skipped ? ` Skipped ${skipped} (${data.errors?.[0] ?? 'too large'}).` : '');
       applyFilter();
     } catch (err) {
       progress.textContent = `Upload failed: ${(err as Error).message}`;
     }
-    setTimeout(() => { if (progress) progress.hidden = true; }, 2500);
+    setTimeout(() => { if (progress) progress.hidden = true; }, 4000);
+  }
+
+  // Swap the card's <img> thumb for a <video> preview (first frame) when the
+  // item is a clip. Used on upload and after a rename changes the URL.
+  function setThumb(card: HTMLElement, key: string, url: string) {
+    const thumb = card.querySelector('.media-thumb') as HTMLAnchorElement;
+    thumb.href = url;
+    if (isVideoKey(key)) {
+      let video = thumb.querySelector('video');
+      if (!video) {
+        video = document.createElement('video');
+        video.className = 'media-video';
+        video.muted = true;
+        video.playsInline = true;
+        video.preload = 'metadata';
+        thumb.replaceChildren(video);
+      }
+      video.src = `${url}#t=0.1`;
+    } else {
+      let img = thumb.querySelector('img');
+      if (!img) {
+        img = document.createElement('img');
+        img.alt = '';
+        img.loading = 'lazy';
+        thumb.replaceChildren(img);
+      }
+      img.src = `${url}?t=${Date.now()}`;
+    }
   }
 
   function prependCard(item: UploadedItem) {
@@ -244,8 +309,7 @@ function folder(key: string): string {
     const node = tmpl.content.firstElementChild!.cloneNode(true) as HTMLElement;
     node.dataset.key = item.key;
     const base = item.key.slice(item.key.lastIndexOf('/') + 1);
-    (node.querySelector('.media-thumb') as HTMLAnchorElement).href = item.url;
-    (node.querySelector('img') as HTMLImageElement).src = item.url;
+    setThumb(node, item.key, item.url);
     (node.querySelector('[data-name]') as HTMLInputElement).value = base;
     (node.querySelector('[data-size]') as HTMLElement).textContent = formatBytes(item.size);
     (node.querySelector('[data-date]') as HTMLElement).textContent = 'just now';
@@ -305,8 +369,7 @@ function folder(key: string): string {
       if (!res.ok || !data.key || !data.url) { alert(data?.error || 'Rename failed'); return; }
       card.dataset.key = data.key;
       nameInput.value = data.key.slice(data.key.lastIndexOf('/') + 1);
-      (card.querySelector('.media-thumb') as HTMLAnchorElement).href = data.url;
-      (card.querySelector('img') as HTMLImageElement).src = data.url + '?t=' + Date.now();
+      setThumb(card, data.key, data.url);
       (card.querySelector('[data-copy]') as HTMLElement).dataset.url = data.url;
       applyFilter();
     });
