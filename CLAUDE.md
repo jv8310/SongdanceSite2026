@@ -103,7 +103,7 @@ The manifest endpoint itself: `GET /api/library/manifest.json`
 images[] }` where each image has `key`, `size`, `uploaded`, `contentType`,
 `url` (`/media/<key>`) and `absoluteUrl`.
 
-The CLI defaults to `https://site.songdance.co`; override with
+The CLI defaults to `https://songdance.co`; override with
 `SONGDANCE_BASE_URL` or `--base` (e.g. a `*.workers.dev` preview URL).
 
 ## Preview link — always share one after pushing

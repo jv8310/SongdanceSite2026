@@ -10,7 +10,7 @@ import cloudflare from '@astrojs/cloudflare';
 // an old URL (the directory-format form most inbound links use) would 404. The
 // worker matches /old and /old/ uniformly. See that file for the URL map.
 export default defineConfig({
-  site: 'https://site.songdance.co',
+  site: 'https://songdance.co',
   output: 'static',
   adapter: cloudflare({
     imageService: 'compile',
