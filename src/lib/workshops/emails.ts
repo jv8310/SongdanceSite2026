@@ -19,18 +19,18 @@ const PALETTE = {
   border: 'rgba(161,72,38,0.22)',
 };
 
-const LOGO_URL = 'https://site.songdance.co/brand/logo-wordmark-dark.png';
+const LOGO_URL = 'https://songdance.co/brand/logo-wordmark-dark.png';
 
 // Email imagery must be absolute production URLs (inboxes can't resolve
 // relative paths). These live in public/imagery/ — git-tracked, so the links
 // are stable. NB: several files in that folder are named after a different
 // subject than they show; every reference below was visually verified.
 const IMG = {
-  circleWide: 'https://site.songdance.co/imagery/circle-yurt-wide.jpg', // wide circle, Jacob at the far side
-  soundingBlue: 'https://site.songdance.co/imagery/sounding-blue.jpg', // woman mid-tone, hand on chest, sunset
-  soundingYellow: 'https://site.songdance.co/imagery/sounding-yellow.jpg', // woman, eyes closed, hand on heart
-  jacobSounding: 'https://site.songdance.co/imagery/portrait-jacob-sounding.jpg', // Jacob sounding, golden field
-  walkSunset: 'https://site.songdance.co/imagery/walk-tree-sunset.jpg', // figure walking toward the light
+  circleWide: 'https://songdance.co/imagery/circle-yurt-wide.jpg', // wide circle, Jacob at the far side
+  soundingBlue: 'https://songdance.co/imagery/sounding-blue.jpg', // woman mid-tone, hand on chest, sunset
+  soundingYellow: 'https://songdance.co/imagery/sounding-yellow.jpg', // woman, eyes closed, hand on heart
+  jacobSounding: 'https://songdance.co/imagery/portrait-jacob-sounding.jpg', // Jacob sounding, golden field
+  walkSunset: 'https://songdance.co/imagery/walk-tree-sunset.jpg', // figure walking toward the light
 };
 
 // Lifecycle (marketing-flavoured) emails come from a person, not a brand.

@@ -39,6 +39,21 @@ const MOVED_URLS: Record<string, string> = {
   '/workshop-deutsch': '/workshop/deutsch',
 };
 
+// Canonical host for the site (June 2026 move off the site.* subdomain). The
+// app now lives at the apex songdance.co; the old app host and the www. host
+// 301 to it, preserving the full path + query so every old deep link, bookmark,
+// and ad destination keeps working. Only fires for those exact hosts — the apex
+// itself, *.workers.dev preview URLs, and localhost fall straight through.
+const CANONICAL_HOST = 'songdance.co';
+const LEGACY_HOSTS = new Set(['site.songdance.co', 'www.songdance.co']);
+
+function hostRedirect(request: Request): Response | null {
+  const url = new URL(request.url);
+  if (!LEGACY_HOSTS.has(url.hostname)) return null;
+  url.hostname = CANONICAL_HOST;
+  return Response.redirect(url.toString(), 301);
+}
+
 // If the request path is a moved URL (with or without a trailing slash), return
 // a 301 to its new home, preserving any query string. Otherwise null.
 function movedRedirect(request: Request): Response | null {
@@ -111,6 +126,10 @@ export function createExports(manifest: unknown) {
   };
 
   const fetch: ExportedHandlerFetchHandler<Env> = (request, env, ctx) => {
+    // Canonicalise the host first (old site.* / www. → apex), then the old
+    // per-path redirects, then hand off to the Astro-generated worker.
+    const hostRedir = hostRedirect(request as Request);
+    if (hostRedir) return hostRedir;
     const redirect = movedRedirect(request as Request);
     if (redirect) return redirect;
     return base.default.fetch(request, env, ctx);

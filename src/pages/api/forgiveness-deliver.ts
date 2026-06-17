@@ -6,10 +6,10 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const SUBJECT = 'Your forgiveness prayer';
 const DEFAULT_FROM = 'Songdance <prayer@mail.songdance.co>';
 const DEFAULT_REPLY_TO = 'jacob@songdance.co';
-const LOGO_URL = 'https://site.songdance.co/brand/logo-wordmark-dark.png';
-const HERO_IMAGE_URL = 'https://site.songdance.co/media/library/forgiveness-heart-candle-email.jpeg';
-const COURSE_IMAGE_URL = 'https://site.songdance.co/media/library/forgiveness-course-banner-email.jpeg';
-const FORGIVENESS_URL = 'https://site.songdance.co/forgiveness';
+const LOGO_URL = 'https://songdance.co/brand/logo-wordmark-dark.png';
+const HERO_IMAGE_URL = 'https://songdance.co/media/library/forgiveness-heart-candle-email.jpeg';
+const COURSE_IMAGE_URL = 'https://songdance.co/media/library/forgiveness-course-banner-email.jpeg';
+const FORGIVENESS_URL = 'https://songdance.co/forgiveness';
 const DRIP_ACCOUNT_ID = '7850773';
 
 // The email HTML is rendered inline (rather than loaded via ?raw) so the
@@ -192,7 +192,7 @@ function buildPlainText(prayer: string): string {
     '—',
     '',
     'If this opened something — the Forgiveness Course is the longer walk. Coming in Fall 2026.',
-    'https://site.songdance.co/forgiveness',
+    'https://songdance.co/forgiveness',
     '',
     'Songdance',
     'https://songdance.co',
