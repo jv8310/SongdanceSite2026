@@ -133,7 +133,7 @@ export function buildEmailSamples(base: string): EmailSample[] {
       label: 'Email 1 — thank you + the window opens',
       timing: 'Right after the session ends',
       audience: 'Attended (non-pro)',
-      content: attendedEmail1({ ...lc, courseUrl, discountEndsLocal }),
+      content: attendedEmail1({ ...lc, courseUrl, discountEndsLocal, hoursRemaining: 47 }),
     },
     {
       id: 'attended_1_bought',
@@ -141,7 +141,7 @@ export function buildEmailSamples(base: string): EmailSample[] {
       label: 'Email 1 — variant for people who already bought',
       timing: 'Right after the session ends',
       audience: 'Attended, already owns the course (no pitch)',
-      content: attendedEmail1({ ...lc, courseUrl, discountEndsLocal, alreadyBoughtCourse: true }),
+      content: attendedEmail1({ ...lc, courseUrl, discountEndsLocal, hoursRemaining: 47, alreadyBoughtCourse: true }),
     },
     {
       id: 'attended_2',
@@ -149,7 +149,7 @@ export function buildEmailSamples(base: string): EmailSample[] {
       label: 'Email 2 — the case for the course',
       timing: '+24h (mid-window)',
       audience: "Attended, hasn't bought",
-      content: attendedEmail2({ ...lc, courseUrl, discountEndsLocal }),
+      content: attendedEmail2({ ...lc, courseUrl, discountEndsLocal, hoursRemaining: 23 }),
     },
     {
       id: 'attended_3',
@@ -157,7 +157,7 @@ export function buildEmailSamples(base: string): EmailSample[] {
       label: 'Email 3 — last chance',
       timing: '+42h (~6h before the discount ends)',
       audience: "Attended, hasn't bought",
-      content: attendedEmail3({ ...lc, courseUrl, discountEndsLocal }),
+      content: attendedEmail3({ ...lc, courseUrl, discountEndsLocal, hoursRemaining: 5 }),
     },
 
     // ── Attended, PRO → certification path ──────────────────────────────
@@ -167,7 +167,7 @@ export function buildEmailSamples(base: string): EmailSample[] {
       label: 'Email 1 — thank you + the practitioner door',
       timing: 'Right after the session ends',
       audience: 'Masterclass attendees (and is_pro once the column lands)',
-      content: attendedProEmail1({ ...lc, certUrl, courseUrl }),
+      content: attendedProEmail1({ ...lc, certUrl, courseUrl, hoursRemaining: 47 }),
     },
     {
       id: 'attended_pro_2',
