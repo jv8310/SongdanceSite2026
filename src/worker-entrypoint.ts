@@ -41,9 +41,15 @@ const MOVED_URLS: Record<string, string> = {
 
 // Canonical host for the site (June 2026 move off the site.* subdomain). The
 // app now lives at the apex songdance.co; the old app host and the www. host
-// 301 to it, preserving the full path + query so every old deep link, bookmark,
-// and ad destination keeps working. Only fires for those exact hosts — the apex
-// itself, *.workers.dev preview URLs, and localhost fall straight through.
+// redirect to it, preserving the full path + query so every old deep link,
+// bookmark, and ad destination keeps working. Only fires for those exact hosts
+// — the apex itself, *.workers.dev preview URLs, and localhost fall straight
+// through.
+//
+// 308 (not 301) so the method AND body survive the hop: a form POST from a
+// stale tab still open on the old host (e.g. the certification email check)
+// replays intact to the apex instead of being downgraded to a bodyless GET,
+// which previously surfaced as a spurious "server error" on the page.
 const CANONICAL_HOST = 'songdance.co';
 const LEGACY_HOSTS = new Set(['site.songdance.co', 'www.songdance.co']);
 
@@ -51,7 +57,7 @@ function hostRedirect(request: Request): Response | null {
   const url = new URL(request.url);
   if (!LEGACY_HOSTS.has(url.hostname)) return null;
   url.hostname = CANONICAL_HOST;
-  return Response.redirect(url.toString(), 301);
+  return Response.redirect(url.toString(), 308);
 }
 
 // If the request path is a moved URL (with or without a trailing slash), return
