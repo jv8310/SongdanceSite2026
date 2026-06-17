@@ -164,6 +164,7 @@ const THIS_LABEL: Record<Props['course'], string> = {
 
 <script>
   import { COUNTRIES } from '../../lib/countries';
+  import { launchPromoPercent } from '../../lib/promo';
 
   type Currency =
     | 'EUR' | 'USD' | 'GBP' | 'CAD' | 'CHF'
@@ -232,7 +233,10 @@ const THIS_LABEL: Record<Props['course'], string> = {
     } catch {}
     return 0;
   }
-  const discountPct = readDiscount();
+  // Launch promo: 50% off, the better of the promo and any ?discount=N. For the
+  // bundle, productCents is already 20% off the sum, so this stacks the 50% on
+  // top. Server re-derives the same number, so display matches the charge.
+  const discountPct = Math.max(readDiscount(), launchPromoPercent());
   function applyDiscountCents(cents: number): number {
     if (discountPct <= 0) return cents;
     return Math.round((cents * (100 - discountPct)) / 100);
@@ -287,15 +291,26 @@ const THIS_LABEL: Record<Props['course'], string> = {
         const strikeEl = el.querySelector<HTMLElement>('[data-strike]');
         const saveEl = el.querySelector<HTMLElement>('[data-save]');
         const baseCents = productCents(slug, currency);
-        amountEl.textContent = moneyCents(applyDiscountCents(baseCents), currency);
+        const nowCents = applyDiscountCents(baseCents);
         const cmp = compareAtCents(slug, currency);
+        // The bundle has its own dedicated strike (the undiscounted sum). For
+        // the singles/PRO there's no strike element, so when the promo is live
+        // we render an inline struck "was" so the saving is visible there too.
+        if (discountPct > 0 && !strikeEl) {
+          amountEl.innerHTML =
+            `<span style="text-decoration:line-through;opacity:.55;font-weight:400;margin-right:.35em">` +
+            `${moneyCents(baseCents, currency)}</span>${moneyCents(nowCents, currency)}`;
+        } else {
+          amountEl.textContent = moneyCents(nowCents, currency);
+        }
         if (strikeEl) {
           if (cmp) { strikeEl.hidden = false; strikeEl.textContent = moneyCents(cmp, currency); }
           else strikeEl.hidden = true;
         }
         if (saveEl) {
           if (cmp) {
-            const pct = Math.round((1 - baseCents / cmp) * 100);
+            // % off vs the full sum, after the promo (so it reflects the price shown).
+            const pct = Math.round((1 - nowCents / cmp) * 100);
             saveEl.textContent = `Save ${pct}%`;
             saveEl.hidden = false;
           } else saveEl.hidden = true;

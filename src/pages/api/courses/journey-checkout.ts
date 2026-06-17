@@ -29,6 +29,7 @@ import {
   type JourneyCurrency,
   type JourneySlug,
 } from '../../../lib/courses/journeys';
+import { withLaunchPromo } from '../../../lib/promo';
 
 export const prerender = false;
 
@@ -119,7 +120,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     const currency: JourneyCurrency = journeyCurrencyForCountry(countryCode);
     const offer = journeyOffer(slug, currency);
-    const chargedPriceCents = applyDiscount(offer.price_cents, discountPct);
+    // Launch promo: 50% off, the better of the promo and any ?discount=N. For
+    // the bundle, offer.price_cents is already 20% off the sum, so this lands
+    // the 50% promo on top of the bundle discount.
+    const effectivePct = withLaunchPromo(discountPct);
+    const chargedPriceCents = applyDiscount(offer.price_cents, effectivePct);
 
     const registrationId = await createPendingCourseRegistration(env.DB, {
       email,
@@ -199,9 +204,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
       tax_class: 'eservice',
       ...(companyName ? { company_name: companyName } : {}),
       ...(vatNumber ? { vat_number: vatNumber } : {}),
-      ...(discountPct > 0
+      ...(effectivePct > 0
         ? {
-            discount_percent: String(discountPct),
+            discount_percent: String(effectivePct),
             original_amount_cents: String(offer.price_cents),
           }
         : {}),
@@ -261,7 +266,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         amount_cents: chargedPriceCents,
         company_name: companyName,
         vat_number: vatNumber,
-        discount_percent: discountPct,
+        discount_percent: effectivePct,
         original_amount_cents: offer.price_cents,
       },
     });

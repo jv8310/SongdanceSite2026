@@ -245,7 +245,7 @@ const includes = [
     discount: {
       eligible: boolean;
       percent: number;
-      kind: 'pre' | 'post' | 'none' | 'override';
+      kind: 'pre' | 'post' | 'none' | 'promo' | 'override';
       expires_at_ms: number | null;
     };
   };
@@ -258,7 +258,7 @@ const includes = [
     installment_total_cents: number;
     discount: {
       eligible: boolean;
-      kind: 'pre' | 'post' | 'none' | 'override';
+      kind: 'pre' | 'post' | 'none' | 'promo' | 'override';
       percent: number;
       expires_at_ms: number | null;
       price_cents: number;
@@ -425,7 +425,9 @@ const includes = [
             badgeText: dd.eligible
               ? (dd.kind === 'override'
                   ? `${dd.percent}% off the 12-week`
-                  : `Workshop discount — ${dd.percent}% off the 12-week`)
+                  : dd.kind === 'promo'
+                    ? `Launch offer — ${dd.percent}% off the 12-week`
+                    : `Workshop discount — ${dd.percent}% off the 12-week`)
               : 'Mid-cohort discount applied',
             offerName: 'Certification path',
             discountOff: dd.eligible ? ` (12-week ${dd.percent}% off)` : '',
@@ -443,7 +445,11 @@ const includes = [
           monthlyNowCents: d.eligible ? d.monthly_cents : status.installment_monthly_cents,
           count: status.installment_count,
           badgeText: d.eligible
-            ? (d.kind === 'override' ? `${d.percent}% off` : `Workshop discount — ${d.percent}% off`)
+            ? (d.kind === 'override'
+                ? `${d.percent}% off`
+                : d.kind === 'promo'
+                  ? `Launch offer — ${d.percent}% off`
+                  : `Workshop discount — ${d.percent}% off`)
             : '',
           offerName: '12-Week Course',
           discountOff: d.eligible ? ` (${d.percent}% off)` : '',

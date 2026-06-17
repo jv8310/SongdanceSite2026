@@ -36,6 +36,7 @@ import {
   griefCurrencyForCountry,
   type GriefCurrency,
 } from '../../../lib/courses/grief';
+import { withLaunchPromo } from '../../../lib/promo';
 
 export const prerender = false;
 
@@ -123,7 +124,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // price and the charged price always agree.
     const currency: GriefCurrency = griefCurrencyForCountry(countryCode);
     const offer = griefOffer(currency);
-    const chargedPriceCents = applyDiscount(offer.price_cents, discountPct);
+    // Launch promo: 50% off, taken as the better of the promo and any
+    // ?discount=N override. Re-derived here so the charge can't be spoofed.
+    const effectivePct = withLaunchPromo(discountPct);
+    const chargedPriceCents = applyDiscount(offer.price_cents, effectivePct);
 
     const registrationId = await createPendingCourseRegistration(env.DB, {
       email,
@@ -206,9 +210,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
       tax_class: 'eservice',
       ...(companyName ? { company_name: companyName } : {}),
       ...(vatNumber ? { vat_number: vatNumber } : {}),
-      ...(discountPct > 0
+      ...(effectivePct > 0
         ? {
-            discount_percent: String(discountPct),
+            discount_percent: String(effectivePct),
             original_amount_cents: String(offer.price_cents),
           }
         : {}),
@@ -260,7 +264,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         amount_cents: chargedPriceCents,
         company_name: companyName,
         vat_number: vatNumber,
-        discount_percent: discountPct,
+        discount_percent: effectivePct,
         original_amount_cents: offer.price_cents,
       },
     });

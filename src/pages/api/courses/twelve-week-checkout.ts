@@ -147,7 +147,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const sourceVariant = eligible
       ? discount.kind === 'override'
         ? `override-${discountPercent}`
-        : `workshop-${discount.kind}`
+        : discount.kind === 'promo'
+          ? 'launch-promo'
+          : `workshop-${discount.kind}`
       : 'direct';
 
     const phoneCountry = findCountry(phoneCountryCode);

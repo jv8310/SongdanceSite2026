@@ -45,11 +45,13 @@ import { formatMoney, isSupportedCurrency } from '../../../lib/workshops/currenc
 import {
   getBundleOffer,
   getCertOffer,
+  applyLaunchPromoToOffer,
   type Currency,
   type InstallmentPlan,
   type Offer,
   type Variant,
 } from '../../../lib/courses/variant';
+import { launchPromoActive, LAUNCH_PROMO_PERCENT } from '../../../lib/promo';
 import {
   buildCertificationPathPricing,
   deriveTwelveWeekDiscount,
@@ -204,7 +206,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
       ? payload.source_variant
       : 'direct';
 
-    const offer = offerFor(productSlug, currency);
+    const baseOffer = offerFor(productSlug, currency);
+    // Launch promo (cc-cert only here — the cc-bundle path is priced in path.ts):
+    // pause the mid-cohort discount and price at 50% off the list/base. A
+    // ?discount=N override wins outright, so only apply the promo when there's
+    // no override. The bundle/path applies its own promo inside path.ts.
+    const certPromoApplied =
+      productSlug === 'cc-cert' && discountPct === 0 && launchPromoActive();
+    const offer = certPromoApplied ? applyLaunchPromoToOffer(baseOffer) : baseOffer;
 
     // The installment ladder for the chosen plan (3 or 6 monthly payments),
     // or undefined for pay-in-full.
@@ -259,15 +268,23 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const installmentsTotal = installmentPlan ? installmentPlan.count : 1;
 
     // Discount facts for metadata + logging, unified across cert and path.
+    // For the promo'd cc-cert, the "original" is the struck list/base price.
+    const baseInstallmentPlan = installmentPlanFor(baseOffer, paymentPlan);
     const effectiveDiscountPct = pathPricing
       ? pathPricing.discount.percent
-      : discountPct;
+      : certPromoApplied
+        ? LAUNCH_PROMO_PERCENT
+        : discountPct;
     const originalFullCents = pathPricing
       ? pathPricing.base_total_cents
-      : offer.price_cents;
+      : certPromoApplied
+        ? baseOffer.base_price * 100
+        : offer.price_cents;
     const originalMonthlyCents = pathPricing
       ? pathPricing.base_total_monthly_cents
-      : installmentPlan?.monthly_cents ?? 0;
+      : certPromoApplied
+        ? baseInstallmentPlan?.monthly_cents ?? 0
+        : installmentPlan?.monthly_cents ?? 0;
     const originalAmountForPlan = installmentPlan
       ? originalMonthlyCents * installmentsTotal
       : originalFullCents;
@@ -386,7 +403,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
       ...(effectiveDiscountPct > 0
         ? {
             discount_percent: String(effectiveDiscountPct),
-            ...(pathPricing ? { discount_kind: pathPricing.discount.kind } : {}),
+            ...(pathPricing
+              ? { discount_kind: pathPricing.discount.kind }
+              : certPromoApplied
+                ? { discount_kind: 'promo' }
+                : {}),
             original_amount_cents: String(originalAmountForPlan),
           }
         : {}),
