@@ -1,0 +1,100 @@
+---
+// Slim launch-promo announcement bar. Rendered in normal flow at the very top
+// of the page (above the sticky nav), so it scrolls away while the nav sticks —
+// the standard announcement-bar pattern. Mounted on the homepage and every
+// course page; deliberately NOT on retreats (the promo is courses-only).
+//
+// It self-expires: an inline guard removes it once the promo window has closed,
+// so it disappears at the deadline without needing a rebuild. The actual charge
+// is gated server-side regardless.
+import {
+  launchPromoPayload,
+  LAUNCH_PROMO_HEADLINE,
+  LAUNCH_PROMO_END_LABEL,
+} from '../lib/promo';
+
+const { endsAtMs } = launchPromoPayload();
+---
+
+<aside class="sd-promo" data-sd-promo data-ends={endsAtMs} aria-label="Launch offer">
+  <a class="sd-promo-inner" href="/courses">
+    <span class="sd-promo-tag">Launch</span>
+    <span class="sd-promo-text">
+      <strong>{LAUNCH_PROMO_HEADLINE}</strong>
+      <span class="sd-promo-sep">·</span>
+      <span class="sd-promo-sub">our new home is here — through {LAUNCH_PROMO_END_LABEL}</span>
+    </span>
+    <span class="sd-promo-cta">Browse courses →</span>
+  </a>
+</aside>
+
+<script is:inline>
+  (function () {
+    var el = document.querySelector('[data-sd-promo]');
+    if (!el) return;
+    var ends = Number(el.getAttribute('data-ends'));
+    if (ends && Date.now() >= ends) el.remove();
+  })();
+</script>
+
+<style>
+  .sd-promo {
+    background: linear-gradient(90deg, var(--ember, #c4622d), var(--plum, #6d3b57));
+    color: #fff;
+    font-family: var(--font-body, system-ui, sans-serif);
+    text-align: center;
+  }
+  .sd-promo-inner {
+    max-width: var(--sd-max, 1200px);
+    margin: 0 auto;
+    padding: 9px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    color: #fff;
+    text-decoration: none;
+    line-height: 1.3;
+  }
+  .sd-promo-tag {
+    flex: none;
+    font-family: var(--font-mono, ui-monospace, monospace);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border: 1px solid rgba(255, 255, 255, 0.55);
+    border-radius: 999px;
+  }
+  .sd-promo-text {
+    font-size: 14px;
+  }
+  .sd-promo-text strong {
+    font-weight: 600;
+  }
+  .sd-promo-sep {
+    opacity: 0.6;
+    margin: 0 4px;
+  }
+  .sd-promo-sub {
+    opacity: 0.92;
+  }
+  .sd-promo-cta {
+    flex: none;
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    white-space: nowrap;
+  }
+  .sd-promo-inner:hover .sd-promo-cta {
+    opacity: 0.85;
+  }
+  @media (max-width: 640px) {
+    .sd-promo-sub { display: none; }
+    .sd-promo-sep { display: none; }
+    .sd-promo-inner { gap: 8px; padding: 8px 16px; }
+    .sd-promo-text { font-size: 13px; }
+  }
+</style>

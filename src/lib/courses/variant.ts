@@ -23,6 +23,11 @@ import {
   isSupportedCurrency,
   type SupportedCurrency,
 } from '../workshops/currency';
+import {
+  launchPromoActive,
+  LAUNCH_PROMO_PERCENT,
+  LAUNCH_PROMO_END_LABEL,
+} from '../promo';
 
 export type Variant = 'B1' | 'B2' | 'A' | 'D' | 'E' | 'C';
 
@@ -200,6 +205,48 @@ export function getBundleOffer(currency: Currency): Offer {
 // Back-compat exports (EUR) — still imported by older code paths.
 export const CERT_OFFER: Offer = getCertOffer('EUR');
 export const BUNDLE_OFFER: Offer = getBundleOffer('EUR');
+
+// During the launch promo, the certification's "mid-cohort" discount is paused
+// and the price becomes the launch percent off the LIST/base price (e.g. €1500
+// → €750). The base stays as the struck "before" figure. Each installment
+// ladder keeps its existing premium-over-pay-in-full ratio, scaled to the promo
+// price and rounded to clean whole units so the monthly figures stay tidy.
+// Returns the offer unchanged when the promo isn't live. A `?discount=N`
+// override should NOT be combined with this (the override wins outright) — the
+// callers only apply this when no override is present.
+export function applyLaunchPromoToOffer(
+  offer: Offer,
+  nowMs: number = Date.now(),
+): Offer {
+  if (!launchPromoActive(nowMs)) return offer;
+  const promoFullCents = Math.round(
+    (offer.base_price * 100 * (100 - LAUNCH_PROMO_PERCENT)) / 100,
+  );
+  const oldFullCents = offer.price_cents; // mid-cohort full; ladders are relative to it
+  const reLadder = (p?: InstallmentPlan): InstallmentPlan | undefined => {
+    if (!p) return undefined;
+    const ratio = oldFullCents > 0 ? (p.monthly_cents * p.count) / oldFullCents : 1;
+    const monthlyMajor = Math.round((promoFullCents * ratio) / p.count / 100);
+    const monthly_cents = monthlyMajor * 100;
+    return {
+      currency: p.currency,
+      monthly: monthlyMajor,
+      monthly_cents,
+      count: p.count,
+      total: monthlyMajor * p.count,
+      total_cents: monthly_cents * p.count,
+    };
+  };
+  return {
+    ...offer,
+    price: Math.round(promoFullCents / 100),
+    price_cents: promoFullCents,
+    save_note: `Launch offer — ${LAUNCH_PROMO_PERCENT}% off, through ${LAUNCH_PROMO_END_LABEL}`,
+    installments: reLadder(offer.installments),
+    installments_6x: reLadder(offer.installments_6x),
+    installments_12x: reLadder(offer.installments_12x),
+  };
+}
 
 export type VariantDecision = {
   variant: Variant;

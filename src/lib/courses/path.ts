@@ -13,7 +13,8 @@
 // Fulfilment is unchanged: the path is the existing `cc-bundle` product, which
 // already tags both `prod_SVH_12w` + `prod_SVH_9m` and honours `activate_choice`.
 
-import { getCertOffer, type Currency } from './variant';
+import { getCertOffer, applyLaunchPromoToOffer, type Currency } from './variant';
+import { launchPromoActive } from '../promo';
 import {
   priceCents,
   monthlyCents,
@@ -61,14 +62,24 @@ export type CertificationPathPricing = {
 export function buildCertificationPathPricing(
   currency: Currency,
   eff: EffectiveDiscount,
+  nowMs: number = Date.now(),
 ): CertificationPathPricing {
-  const cert = getCertOffer(currency);
-  const certBase = cert.base_price * 100; // sticker (e.g. €1500), shown struck
+  const baseCert = getCertOffer(currency);
+  // The cert line takes the launch promo (50% off its list/base price), pausing
+  // its mid-cohort discount — UNLESS a hand-crafted ?discount=N override is in
+  // play, which wins outright and only ever touches the 12-week line.
+  const certPromo = eff.kind !== 'override' && launchPromoActive(nowMs);
+  const cert = certPromo ? applyLaunchPromoToOffer(baseCert, nowMs) : baseCert;
+  const certBase = baseCert.base_price * 100; // sticker (e.g. €1500), shown struck
   const twBase = priceCents(currency);
   const twBaseMonthly = monthlyCents(currency);
   const twPrice = applyPercentCents(twBase, eff.percent);
   const twMonthly = applyPercentCents(twBaseMonthly, eff.percent);
   const certMonthly = cert.installments?.monthly_cents ?? 0;
+  // The struck "before" monthly is always the FULL cert monthly (not the promo
+  // one), so the path's monthly list price reads honestly. Equals certMonthly
+  // when the promo isn't active.
+  const certBaseMonthly = baseCert.installments?.monthly_cents ?? 0;
   return {
     currency,
     twelve_week_base_cents: twBase,
@@ -83,7 +94,7 @@ export function buildCertificationPathPricing(
     // List total: cert sticker + full 12-week. The charged total still applies
     // the cert mid-cohort discount and the 12-week workshop discount.
     base_total_cents: certBase + twBase,
-    base_total_monthly_cents: certMonthly + twBaseMonthly,
+    base_total_monthly_cents: certBaseMonthly + twBaseMonthly,
     installment_count: INSTALLMENT_COUNT,
     discount: {
       eligible: eff.eligible,

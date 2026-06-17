@@ -26,9 +26,12 @@ import {
 import {
   decideVariant,
   getBundleOffer,
+  applyLaunchPromoToOffer,
   type Currency,
+  type Offer,
 } from '../../../lib/courses/variant';
 import { parseUrlDiscountPercent } from '../../../lib/courses/twelve-week';
+import { launchPromoActive } from '../../../lib/promo';
 import {
   buildCertificationPathPricing,
   deriveTwelveWeekDiscount,
@@ -80,6 +83,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
   }
 
   const overridePercent = parseUrlDiscountPercent(payload.discount_percent);
+  // The launch promo replaces the cert's mid-cohort price (50% off the list)
+  // for display, unless a ?discount=N override is in play (which wins outright).
+  const promoForCert = overridePercent === 0 && launchPromoActive();
+  const promoOffers = (offers: Offer[]): Offer[] =>
+    promoForCert ? offers.map((o) => applyLaunchPromoToOffer(o)) : offers;
 
   // The Certification path pricing, in the buyer's currency. Best-effort —
   // a DB hiccup must not block the offer (the client falls back to the flat
@@ -107,21 +115,22 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const path = offersHaveBundle
       ? await pathPricingFor(decision.currency)
       : undefined;
-    return json({ ...decision, path });
+    return json({ ...decision, offers: promoOffers(decision.offers), path });
   } catch (err) {
     // Soft failure — treat as newcomer so the page still works. Derive the
     // save amount from the offer itself so we don't drift when prices move.
     const bundle = getBundleOffer(currency);
     const save = (bundle.base_price - bundle.price) * 100;
+    const fallbackOffer = promoForCert
+      ? applyLaunchPromoToOffer(bundle)
+      : {
+          ...bundle,
+          save_note: `Save ${formatMoney(save, currency)} — mid-cohort discount applied`,
+        };
     return json({
       variant: 'E',
       currency,
-      offers: [
-        {
-          ...bundle,
-          save_note: `Save ${formatMoney(save, currency)} — mid-cohort discount applied`,
-        },
-      ],
+      offers: [fallbackOffer],
       path: await pathPricingFor(currency),
       degraded: true,
       error: String(err),
