@@ -201,9 +201,15 @@ html, body { background: var(--paper); }
 .we-hero-cta:active { transform: translateY(1px); }
 .we-hero-cta i { font-size: 18px; }
 
+/* Hero actions: the pill button + the secondary link, sitting side by side
+   with room to breathe between them, and wrapping to a centered stack on
+   narrow screens (so the link never lands hard against the button). */
+.we-hero-actions {
+  display: flex; flex-wrap: wrap;
+  align-items: center; justify-content: center;
+  gap: var(--sp-4) var(--sp-5);
+}
 .we-hero-link {
-  display: inline-block;
-  margin-top: var(--sp-5);
   font-family: var(--font-body); font-size: 13px; font-weight: 500;
   color: var(--ink-soft);
   text-decoration: underline;

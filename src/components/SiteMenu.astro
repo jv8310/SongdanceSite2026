@@ -1,0 +1,87 @@
+---
+// Floating site menu for the bespoke landing pages (workshop, masterclass,
+// retreats, course pages…). Those pages carry their own minimal header with no
+// site navigation, so the full menu would otherwise be unreachable. A menu
+// button (rendered in each landing nav, tagged data-sm-trigger) opens this
+// slide-in panel — the same structured Courses table-of-contents the main
+// header shows — on both desktop and mobile.
+//
+// The panel is position:fixed and rendered as a sibling *after* the nav so it
+// escapes the nav's backdrop-filter (which would otherwise become its
+// containing block). Styles live in site.css (.sm-*), loaded site-wide.
+import { courseMenu, coursesAllHref, topLink, tailLinks, navCta } from '../data/nav';
+const path = Astro.url.pathname;
+const isActive = (href: string) =>
+  href === '/' ? path === '/' : path === href || path.startsWith(href + '/');
+---
+
+<div class="sm-overlay" data-sm-overlay hidden>
+  <div class="sm-scrim" data-sm-close></div>
+  <aside class="sm-panel" role="dialog" aria-modal="true" aria-label="Site menu">
+    <div class="sm-panel-head">
+      <a href="/" class="sm-panel-mark" aria-label="Songdance home">
+        <img src="/brand/logo-wordmark.svg" alt="Songdance" />
+      </a>
+      <button type="button" class="sm-close" aria-label="Close menu" data-sm-close>
+        <i class="ph-light ph-x"></i>
+      </button>
+    </div>
+
+    <nav class="sm-panel-nav" aria-label="Site">
+      <a href={topLink.href} class:list={['sm-link', { 'is-active': isActive(topLink.href) }]}>{topLink.label}</a>
+
+      {courseMenu.map((sec) => (
+        <div class="sm-section">
+          <span class="sm-section-title">{sec.title}</span>
+          {sec.items.map((c) => (
+            <a href={c.href} class:list={['sm-sublink', { 'is-active': isActive(c.href) }]} data-sd-price={c.price}>{c.label}</a>
+          ))}
+        </div>
+      ))}
+      <a href={coursesAllHref} class="sm-sublink sm-all">All courses →</a>
+
+      {tailLinks.map((l) => (
+        <a href={l.href} class:list={['sm-link', { 'is-active': isActive(l.href) }]}>{l.label}</a>
+      ))}
+
+      <a href={navCta.href} class="sm-cta" data-sd-price={navCta.price}>{navCta.label}</a>
+    </nav>
+  </aside>
+</div>
+
+<script>
+  // Wire every menu button on the page (data-sm-trigger, rendered inside the
+  // landing nav) to the single slide-in panel. Esc / scrim / close all dismiss.
+  const overlay = document.querySelector<HTMLElement>('[data-sm-overlay]');
+  if (overlay) {
+    const triggers = document.querySelectorAll<HTMLButtonElement>('[data-sm-trigger]');
+    let lastTrigger: HTMLElement | null = null;
+
+    const open = (from?: HTMLElement) => {
+      lastTrigger = from ?? null;
+      overlay.removeAttribute('hidden');
+      // Next frame so the slide-in transition runs from the hidden state.
+      requestAnimationFrame(() => overlay.classList.add('is-open'));
+      document.documentElement.style.overflow = 'hidden';
+      triggers.forEach((t) => t.setAttribute('aria-expanded', 'true'));
+      overlay.querySelector<HTMLElement>('.sm-close')?.focus();
+    };
+    const close = () => {
+      overlay.classList.remove('is-open');
+      document.documentElement.style.overflow = '';
+      triggers.forEach((t) => t.setAttribute('aria-expanded', 'false'));
+      lastTrigger?.focus();
+      // Finish hiding after the slide-out (CSS --d-base ≈ 320ms). Until then the
+      // base overlay is pointer-events:none, so it never blocks the page.
+      window.setTimeout(() => overlay.setAttribute('hidden', ''), 360);
+    };
+
+    triggers.forEach((t) => t.addEventListener('click', (e) => { e.preventDefault(); open(t); }));
+    overlay.querySelectorAll('[data-sm-close]').forEach((el) =>
+      el.addEventListener('click', close)
+    );
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && overlay.classList.contains('is-open')) close();
+    });
+  }
+</script>

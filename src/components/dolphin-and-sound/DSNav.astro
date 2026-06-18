@@ -1,4 +1,5 @@
 ---
+import SiteMenu from '../SiteMenu.astro';
 ---
 
 <nav class="ds-nav">
@@ -13,5 +14,9 @@
       <span>With Jacob</span>
     </div>
     <a href="#register" class="ds-nav-cta" aria-label="Register for the Dolphin &amp; Sound Retreat">Register</a>
+    <button class="sm-trigger" data-sm-trigger aria-label="Open menu" aria-expanded="false">
+      <i class="ph-light ph-list"></i>
+    </button>
   </div>
 </nav>
+<SiteMenu />

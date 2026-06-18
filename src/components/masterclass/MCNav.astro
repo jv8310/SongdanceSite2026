@@ -1,4 +1,5 @@
 ---
+import SiteMenu from '../SiteMenu.astro';
 ---
 
 <nav class="we-nav" id="top">
@@ -13,5 +14,9 @@
       <span>With Jacob Vermeulen</span>
     </div>
     <a href="#register" class="we-nav-cta">Reserve a seat</a>
+    <button class="sm-trigger" data-sm-trigger aria-label="Open menu" aria-expanded="false">
+      <i class="ph-light ph-list"></i>
+    </button>
   </div>
 </nav>
+<SiteMenu />
