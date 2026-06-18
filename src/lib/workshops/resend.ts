@@ -3,6 +3,8 @@
 //
 // POST https://api.resend.com/emails  (Authorization: Bearer RESEND_API_KEY)
 
+import { recordEmailSend } from '../email/sends';
+
 export type SendEmailInput = {
   apiKey: string;
   // A single address, or several (Resend accepts an array). Used by the
@@ -19,12 +21,20 @@ export type SendEmailInput = {
   // (abandoned checkout, post-workshop promotion, downsell); omitted on
   // transactional ones (verification, confirmation, reminders).
   listUnsubscribeUrl?: string;
+  // Engagement tracking (open/click rates per email type). When `db` + `type`
+  // are given, a successful send is recorded in email_sends keyed on the Resend
+  // message id, so the Resend webhook can fold open/click events back onto it.
+  // Recording is best-effort and never blocks or fails the send.
+  track?: { db: D1Database; type: string; registrationId?: number | null; variant?: string | null };
 };
 
 const DEFAULT_FROM = 'Songdance <info@mail.songdance.co>';
 const DEFAULT_REPLY_TO = 'jacob@songdance.co';
 
-export async function sendEmail(input: SendEmailInput): Promise<void> {
+// Returns the Resend message id (when the API gives one) so callers can key
+// engagement tracking on it. Recording into email_sends is done here when a
+// `track` context is supplied — one place, so every tracked send is captured.
+export async function sendEmail(input: SendEmailInput): Promise<{ id: string | null }> {
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
@@ -54,4 +64,27 @@ export async function sendEmail(input: SendEmailInput): Promise<void> {
   if (!res.ok) {
     throw new Error(`Resend: ${res.status} ${await res.text().catch(() => '')}`);
   }
+
+  // Resend returns { id } (older shapes nested it under data); read both.
+  let id: string | null = null;
+  try {
+    const data = (await res.json()) as { id?: string; data?: { id?: string } };
+    id = data.id ?? data.data?.id ?? null;
+  } catch {
+    id = null;
+  }
+
+  if (input.track) {
+    const firstTo = Array.isArray(input.to) ? input.to[0] : input.to;
+    await recordEmailSend(input.track.db, {
+      resendId: id,
+      type: input.track.type,
+      to: firstTo,
+      subject: input.subject,
+      registrationId: input.track.registrationId ?? null,
+      variant: input.track.variant ?? null,
+    });
+  }
+
+  return { id };
 }

@@ -239,7 +239,7 @@ const countries = COUNTRIES;
     discount: {
       eligible: boolean;
       percent: number;
-      kind: 'pre' | 'post' | 'none' | 'override';
+      kind: 'pre' | 'post' | 'none' | 'promo' | 'override';
       expires_at_ms: number | null;
     };
   };
@@ -1020,7 +1020,9 @@ const countries = COUNTRIES;
       const badgeText = d.eligible
         ? d.kind === 'override'
           ? `${d.percent}% off the 12-week`
-          : `Workshop discount — ${d.percent}% off the 12-week`
+          : d.kind === 'promo'
+            ? `Launch offer — ${d.percent}% off the 12-week`
+            : `Workshop discount — ${d.percent}% off the 12-week`
         : 'Mid-cohort discount applied';
       const badge = `<div class="cc-offer-badge"><span class="dot" aria-hidden="true"></span><span>${escapeHtml(badgeText)}</span></div>`;
       const countdown =

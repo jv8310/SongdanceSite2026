@@ -3,6 +3,12 @@ import '../styles/tokens.css';
 import '../styles/site.css';
 import PriceSync from '../components/PriceSync.astro';
 import AdminTopBar from '../components/admin/AdminTopBar.astro';
+import { launchPromoPayload } from '../lib/promo';
+
+// Launch-promo facts, exposed to inline (non-bundled) scripts via a global. The
+// `active` flag is derived client-side from the deadline so the promo (and its
+// price strikes) switch off automatically when the window closes — no rebuild.
+const promoPayload = launchPromoPayload();
 
 interface Props {
   title?: string;
@@ -37,6 +43,7 @@ const showAdminBar = (path === '/admin' || path.startsWith('/admin/')) && !path.
     <link rel="canonical" href={canonical} />
     <link rel="icon" href="/favicon.png" type="image/png" />
     <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/light/style.css" />
+    <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css" />
     <meta property="og:type" content={ogType} />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
@@ -44,6 +51,10 @@ const showAdminBar = (path === '/admin' || path.startsWith('/admin/')) && !path.
     <meta property="og:url" content={canonical} />
     <meta name="twitter:card" content="summary_large_image" />
     <title>{title}</title>
+    <script is:inline define:vars={{ promoPayload }}>
+      window.__SD_PROMO__ = promoPayload;
+      window.__SD_PROMO__.active = Date.now() < promoPayload.endsAtMs;
+    </script>
     <!-- Review aid: highlights the June-2026 copy-pass changes when the URL
          has ?changes. No-op otherwise. Remove with public/preview-changes.js
          after the review round. -->

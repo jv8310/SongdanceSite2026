@@ -5,6 +5,7 @@
 // the admin keep using the base Layout directly and are unaffected.
 import Layout from '../layouts/Layout.astro';
 import Nav from './Nav.astro';
+import PromoBanner from './PromoBanner.astro';
 import NewsletterFooter from './NewsletterFooter.astro';
 import Footer from './Footer.astro';
 
@@ -14,6 +15,7 @@ interface Props {
   image?: string;
   header?: boolean; // default true; set false on landing-style pages
   newsletter?: boolean; // default true
+  promo?: boolean; // default true; set false where the courses promo doesn't apply (retreats)
 }
 
 const {
@@ -22,10 +24,12 @@ const {
   image,
   header = true,
   newsletter = true,
+  promo = true,
 } = Astro.props;
 ---
 
 <Layout title={title} description={description} image={image}>
+  {promo && <PromoBanner />}
   {header && <Nav />}
   <slot />
   {newsletter && <NewsletterFooter />}

@@ -22,6 +22,7 @@ import {
   TWELVE_WEEK_DRIP_TAG,
   TWELVE_WEEK_PRODUCT_SLUG,
 } from './twelve-week';
+import { DRIP_BY_SLUG, isJourneySlug } from './journeys';
 
 type Env = {
   DB: D1Database;
@@ -67,6 +68,13 @@ export async function pushPaidCourseRegistrationToDrip(
     if (isGrief) {
       tags = [GRIEF_DRIP_TAG];
       eventName = GRIEF_DRIP_EVENT;
+    } else if (isJourneySlug(reg.product_slug)) {
+      // The Three Journeys (+ PRO mantra pack, + all-three bundle). The slug
+      // maps to its own set of product tags — e.g. asj-pro grants both
+      // prod_ASJ and prod_Mantra; the bundle grants all three journey tags.
+      const drip = DRIP_BY_SLUG[reg.product_slug];
+      tags = drip.tags;
+      eventName = drip.event;
     } else if (isTwelveWeek) {
       // The standalone 12-week foundation course. `prod_SVH_12w` is the same
       // foundation-access tag the cert bundle grants — Jacob's existing Drip

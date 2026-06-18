@@ -3,6 +3,18 @@
 Astro site deployed to Cloudflare Workers. Media (images) live in an R2 bucket
 (`songdance-media`, bound as `MEDIA`) and are served publicly at `/media/<key>`.
 
+## Typography law — inline italics must be sized UP
+
+The display/lyric font **Cormorant Garamond** (`--font-lyric`) optically reads
+**noticeably smaller** than the Figtree body (`--font-body`) and the Spectral
+display (`--font-display`) it sits inside — same `font-size`, smaller-looking
+letters. So **whenever an inline `<em>` (or any element) swaps to the lyric
+font inside body or heading text, you MUST size it up — never leave it at
+`1em`.** Use roughly **`1.2–1.35em` inside body/sans text** and **`~1.05em`
+inside a Spectral display heading**. An un-bumped Cormorant italic word in a
+sentence looks shrunken and wrong (e.g. a tiny "*can't dance*"). This applies to
+every page and component, not just the journeys — check it on first design.
+
 ## Copy book — READ THIS FIRST before any page work
 
 **Before creating or editing any page, email, or post, you MUST consult
@@ -41,6 +53,21 @@ All automated workshop email lives in the workshop engine:
   `/api/unsubscribe` (RFC 8058 one-click), `email_suppressions` table. Marketing
   sends honor it; transactional (confirmation/reminders) always deliver.
 - **Review**: `/admin/emails` previews every email with sample data + test-send.
+- **Engagement stats**: every send is recorded in `email_sends` (keyed on the
+  Resend message id) by `sendEmail`'s `track` option; the Resend event webhook
+  (`/api/webhooks/resend`, Svix-signed via `RESEND_WEBHOOK_SECRET`) folds
+  delivery/open/click/bounce/complaint events back onto the row. Open & click
+  rates per email type show on `/admin/emails/stats`. To light it up: enable
+  open+click tracking on the sending domain in Resend, add the webhook endpoint,
+  and set the signing secret. `variant` column is the seed for future A/B tests.
+- **Timezone-aware sending**: non-urgent mail (early reminders 7d/2d/1d + all
+  lifecycle marketing) is held to the recipient's local 08:00–21:00 window
+  (`withinSendWindow` in `src/lib/workshops/time.ts`, keyed on the registrant's
+  IANA timezone, falling back to the workshop's display tz). Time-critical mail
+  always goes on schedule: imminent reminders (6h→start) and the discount-
+  deadline emails (`urgent` steps). The discount emails compute their
+  hours-remaining figure at send time, so the number is true even after an
+  overnight hold.
 - **Sanctioned urgency exception** (owner's call, June 2026): discount-deadline
   emails may name the deadline plainly and the final one may be a "last chance"
   send. Keep it factual — no fake scarcity, no countdown theatrics. Marketing
@@ -91,7 +118,7 @@ The manifest endpoint itself: `GET /api/library/manifest.json`
 images[] }` where each image has `key`, `size`, `uploaded`, `contentType`,
 `url` (`/media/<key>`) and `absoluteUrl`.
 
-The CLI defaults to `https://site.songdance.co`; override with
+The CLI defaults to `https://songdance.co`; override with
 `SONGDANCE_BASE_URL` or `--base` (e.g. a `*.workers.dev` preview URL).
 
 ## Preview link — always share one after pushing

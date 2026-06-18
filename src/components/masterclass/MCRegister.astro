@@ -294,7 +294,11 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
     var rawDiscount = (discParams.get('discount') || '').trim();
     var rawAdiscount = (discParams.get('adiscount') || '').trim();
     function clampPct(v) { var n = parseInt(v, 10); return (isFinite(n) && n >= 1 && n <= 100) ? n : 0; }
-    var discountPct = clampPct(rawAdiscount) || (clampPct(rawDiscount) === 50 ? 50 : 0);
+    // Launch promo (from window.__SD_PROMO__, set in the base Layout head): the
+    // seat is at least 50% off during the window, taken as the better of the
+    // promo and any ?discount=/?adiscount= link. The server re-derives this.
+    var promoPct = (window.__SD_PROMO__ && window.__SD_PROMO__.active) ? (window.__SD_PROMO__.percent || 0) : 0;
+    var discountPct = Math.max(clampPct(rawAdiscount) || (clampPct(rawDiscount) === 50 ? 50 : 0), promoPct);
     var discField = document.getElementById('mc-discount');
     var adiscField = document.getElementById('mc-adiscount');
     if (discField) discField.value = rawDiscount;

@@ -30,6 +30,10 @@ type Env = {
   RESEND_FROM?: string;
   RESEND_INTAKES_FROM?: string;
   RESEND_REPLY_TO?: string;
+  // Resend webhook (Svix) signing secret — set to verify the email-event
+  // webhook at /api/webhooks/resend that powers /admin/emails/stats. When
+  // unset, the endpoint accepts-and-ignores so it never retry-storms.
+  RESEND_WEBHOOK_SECRET?: string;
   // Marketing-flavoured lifecycle sends (abandoned checkout, post-workshop,
   // downsell). Set these to move marketing onto a dedicated, separately
   // verified sending domain (e.g. a Jacob from Songdance <…@m.songdance.co>),

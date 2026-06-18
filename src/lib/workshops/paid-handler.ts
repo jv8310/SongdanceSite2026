@@ -126,6 +126,7 @@ async function deliverConfirmation(
     html: content.html,
     text: content.text,
     entityRefId,
+    track: { db: env.DB, type: 'confirmation', registrationId: reg.id },
   });
 }
 

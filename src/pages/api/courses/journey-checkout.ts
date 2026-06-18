@@ -1,22 +1,13 @@
-// Checkout endpoint for The Grief Course — a flat €99 / $99 thematic course.
+// Checkout endpoint for the Three Journeys (Authentic Singing, Magical
+// Movement, Inner Child) + the PRO mantra upgrade + the all-three bundle.
 //
-// Deliberately simpler than the certification-course checkout:
-//   - one product, one price, full payment only (no installments / subscription)
-//   - no phone (the grief form collects first/last name, country, email, and
-//     optional company + VAT only)
-//   - B2C by default; an EU/UK VAT number (only ever shown once a company name
-//     is entered) is attached to the Stripe Customer as tax_id_data so the
-//     Quaderno–Stripe sync issues a reverse-charge invoice.
-//   - URL-driven discount (`?discount=N`, 1–99) — identical semantics to the
-//     cert course: whoever holds the URL controls the price; the server
-//     re-validates the range.
-//
-// Tax: every line item carries product_metadata.tax_class = 'eservice', so
-// Quaderno applies destination-VAT rules for digital services. Invoicing is
-// done by Quaderno's own Stripe integration — we never call Quaderno here.
-//
-// Every failure returns JSON (never an HTML 500) so the front-end can render
-// the real error instead of the generic network fallback.
+// Same shape as the Grief checkout (../grief-checkout.ts): one product, one
+// price, full payment only; B2C by default with optional company + EU/UK VAT
+// (attached to the Stripe Customer as tax_id_data for Quaderno reverse-charge);
+// URL-driven `?discount=N` honoured server-side. The product is chosen from a
+// fixed allowlist — the buyer's country decides the currency, so the headline
+// and the charge always agree. Drip tagging happens later in the shared course
+// paid-handler, keyed on the product slug stored here.
 
 import type { APIRoute } from 'astro';
 import {
@@ -32,22 +23,24 @@ import {
 } from '../../../lib/registrations/stripe';
 import { findCountry } from '../../../lib/countries';
 import {
-  griefOffer,
-  griefCurrencyForCountry,
-  type GriefCurrency,
-} from '../../../lib/courses/grief';
+  isJourneySlug,
+  journeyCurrencyForCountry,
+  journeyOffer,
+  type JourneyCurrency,
+  type JourneySlug,
+} from '../../../lib/courses/journeys';
 import { withLaunchPromo } from '../../../lib/promo';
 
 export const prerender = false;
 
 type Body = {
+  product?: string;
   first_name?: string;
   last_name?: string;
   email?: string;
   country?: string; // ISO-2
   company_name?: string;
   vat_number?: string;
-  currency?: string;
   consent_terms?: boolean;
   discount_percent?: number | string;
 };
@@ -78,6 +71,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
     } catch {
       return json({ error: 'Invalid JSON' }, 400);
     }
+
+    const product = (payload.product ?? '').trim();
+    if (!isJourneySlug(product)) {
+      return json({ error: 'Unknown product.' }, 400);
+    }
+    const slug: JourneySlug = product;
 
     const firstName = (payload.first_name ?? '').trim();
     const lastName = (payload.last_name ?? '').trim();
@@ -119,13 +118,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
       );
     }
 
-    // The buyer's country decides the currency (US → USD, else EUR). We
-    // trust the country, not the client-sent currency, so the headline
-    // price and the charged price always agree.
-    const currency: GriefCurrency = griefCurrencyForCountry(countryCode);
-    const offer = griefOffer(currency);
-    // Launch promo: 50% off, taken as the better of the promo and any
-    // ?discount=N override. Re-derived here so the charge can't be spoofed.
+    const currency: JourneyCurrency = journeyCurrencyForCountry(countryCode);
+    const offer = journeyOffer(slug, currency);
+    // Launch promo: 50% off, the better of the promo and any ?discount=N. For
+    // the bundle, offer.price_cents is already 20% off the sum, so this lands
+    // the 50% promo on top of the bundle discount.
     const effectivePct = withLaunchPromo(discountPct);
     const chargedPriceCents = applyDiscount(offer.price_cents, effectivePct);
 
@@ -138,7 +135,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       phone_country: null,
       company_name: companyName,
       vat_number: vatNumber,
-      product_slug: 'grief-course',
+      product_slug: slug,
       activate_choice: null,
       source_variant: 'direct',
       amount_cents: chargedPriceCents,
@@ -150,9 +147,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     const baseUrl = env.PUBLIC_BASE_URL.replace(/\/$/, '');
 
-    // Pre-create the Stripe Customer so name/email/country pre-fill on the
-    // Checkout page, and so a B2B VAT number can be attached server-side as
-    // tax_id_data (read by the Quaderno–Stripe sync for reverse-charge).
+    // Pre-create the Stripe Customer so name/email/country pre-fill, and so a
+    // B2B VAT number can be attached as tax_id_data for reverse-charge.
     let customerId: string | undefined;
     const taxIdType = vatNumber
       ? stripeTaxIdTypeFor(vatNumber.slice(0, 2))
@@ -166,8 +162,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
           : `${firstName} ${lastName}`,
         country: countryCode,
         description: companyName
-          ? `${companyName} · ${firstName} ${lastName} · grief course reg ${registrationId}`
-          : `${firstName} ${lastName} · grief course reg ${registrationId}`,
+          ? `${companyName} · ${firstName} ${lastName} · ${slug} reg ${registrationId}`
+          : `${firstName} ${lastName} · ${slug} reg ${registrationId}`,
         tax_id:
           vatNumber && taxIdType
             ? { type: taxIdType, value: vatNumber }
@@ -176,7 +172,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
           course_registration_id: String(registrationId),
           contact_first_name: firstName,
           contact_last_name: lastName,
-          product_slug: 'grief-course',
+          product_slug: slug,
           payment_plan: 'full',
           tax_class: 'eservice',
           ...(companyName ? { company_name: companyName } : {}),
@@ -185,8 +181,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
       });
       customerId = cust.id;
     } catch (err) {
-      // The customer is nice-to-have for a one-off payment but not required —
-      // we can fall back to customer_email. Log and continue.
       await logEvent(env.DB, {
         registration_id: null,
         kind: 'stripe.customer.error',
@@ -200,7 +194,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     const metadata: Record<string, string> = {
       course_registration_id: String(registrationId),
-      product_slug: 'grief-course',
+      product_slug: slug,
       source_variant: 'direct',
       payment_plan: 'full',
       first_name: firstName,
@@ -219,11 +213,19 @@ export const POST: APIRoute = async ({ request, locals }) => {
     };
 
     const cancelQuery = discountPct > 0 ? `?discount=${discountPct}` : '';
-    const successUrl = `${baseUrl}/courses/grief/thanks?session_id={CHECKOUT_SESSION_ID}`;
+    const successUrl = `${baseUrl}/courses/journeys/thanks?session_id={CHECKOUT_SESSION_ID}`;
+
+    // Cancel back to the page the product belongs to.
+    const cancelPath =
+      slug === 'mmj'
+        ? '/courses/magical-movement'
+        : slug === 'inner-child'
+          ? '/courses/inner-child'
+          : '/courses/authentic-singing';
 
     const productMetadata: Record<string, string> = {
       tax_class: 'eservice',
-      product_slug: 'grief-course',
+      product_slug: slug,
     };
 
     const session = await createCheckoutSession({
@@ -231,7 +233,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       enablePaypal: paypalEnabled(env),
       ...(customerId ? { customer: customerId } : { customer_email: email }),
       success_url: successUrl,
-      cancel_url: `${baseUrl}/courses/grief${cancelQuery}#register`,
+      cancel_url: `${baseUrl}${cancelPath}${cancelQuery}#register`,
       payment_intent_description: offer.label,
       line_items: [
         {
@@ -246,7 +248,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         },
       ],
       metadata,
-      idempotency_key: `grief-reg-${registrationId}${discountPct > 0 ? `-d${discountPct}` : ''}`,
+      idempotency_key: `journey-${slug}-reg-${registrationId}${discountPct > 0 ? `-d${discountPct}` : ''}`,
     });
 
     await attachStripeSessionToCourse(env.DB, registrationId, session.id);
@@ -259,7 +261,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       payload: {
         course_registration_id: registrationId,
         session_id: session.id,
-        product_slug: 'grief-course',
+        product_slug: slug,
         currency,
         amount_cents: chargedPriceCents,
         company_name: companyName,
@@ -279,7 +281,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         `INSERT INTO events (registration_id, kind, source, payload_json)
          VALUES (NULL, 'course.checkout.error', 'system', ?)`,
       )
-        .bind(JSON.stringify({ error: String(err), product: 'grief-course' }))
+        .bind(JSON.stringify({ error: String(err), product: 'journey' }))
         .run();
     } catch {}
     const message = String(err).replace(/^Error:\s*/, '');

@@ -6,14 +6,36 @@ const path = Astro.url.pathname;
 const isActive = (href: string) =>
   href === '/' ? path === '/' : path === href || path.startsWith(href + '/');
 
-const courses = [
-  { href: '/workshop', label: 'Vocal Healing Workshop — 9€', price: 'ticket' },
-  { href: '/courses/12-week', label: '12-Week Course' },
-  { href: '/courses/certification', label: 'Practitioner Training' },
-  { href: '/courses/masterclass', label: 'Professional Masterclass — 29€', price: 'masterclass' },
-  { href: '/courses/grief', label: 'Grief Course' },
-  { href: '/courses/forgiveness', label: 'Forgiveness Course' },
-  { href: '/courses', label: 'All courses →' },
+// Structured Courses dropdown — same three sections as the /courses page, so
+// the menu reads as a table of contents. data-sd-price opts a label into the
+// client-side currency localization (workshop · masterclass only).
+interface NavCourse { href: string; label: string; price?: 'ticket' | 'masterclass'; }
+interface NavCourseGroup { title: string; items: NavCourse[]; }
+const courseMenu: NavCourseGroup[] = [
+  {
+    title: 'Somatic Vocal Healing',
+    items: [
+      { href: '/workshop', label: 'Vocal Healing Workshop — 9€', price: 'ticket' },
+      { href: '/courses/12-week', label: '12-Week Course' },
+      { href: '/courses/certification', label: 'Practitioner Training' },
+      { href: '/courses/masterclass', label: 'Professional Masterclass — 29€', price: 'masterclass' },
+    ],
+  },
+  {
+    title: 'Courses by Theme',
+    items: [
+      { href: '/courses/grief', label: 'Grief Course — €99' },
+      { href: '/courses/forgiveness', label: 'Forgiveness Course' },
+    ],
+  },
+  {
+    title: 'Guided Musical Journeys',
+    items: [
+      { href: '/courses/authentic-singing', label: 'Authentic Singing Journey — €99' },
+      { href: '/courses/magical-movement', label: 'Magical Movement Journey — €49' },
+      { href: '/courses/inner-child', label: 'Inner Child Journey — €29' },
+    ],
+  },
 ];
 ---
 
@@ -31,9 +53,15 @@ const courses = [
           Courses <i class="ph-light ph-caret-down"></i>
         </button>
         <div class="sd-nav-drop-menu" data-nav-drop-menu>
-          {courses.map((c) => (
-            <a href={c.href} class:list={[{ 'is-active': isActive(c.href) }]} data-sd-price={'price' in c ? c.price : undefined}>{c.label}</a>
+          {courseMenu.map((sec) => (
+            <div class="sd-nav-drop-section">
+              <span class="sd-nav-drop-section-title">{sec.title}</span>
+              {sec.items.map((c) => (
+                <a href={c.href} class:list={[{ 'is-active': isActive(c.href) }]} data-sd-price={c.price}>{c.label}</a>
+              ))}
+            </div>
           ))}
+          <a class="sd-nav-drop-all" href="/courses">All courses →</a>
         </div>
       </div>
 

@@ -75,3 +75,41 @@ export function toICSDate(utcIso: string): string {
 export function minutesUntil(startsAtUtc: string, now = Date.now()): number {
   return (new Date(startsAtUtc).getTime() - now) / 60000;
 }
+
+// ── Quiet-hours / send-window (timezone-aware sending) ──────────────────────
+// Non-urgent email (early reminders + lifecycle marketing) is held to the
+// recipient's local daytime so a send computed during their night waits until
+// morning. Time-critical mail (the imminent reminders and the discount-deadline
+// emails) ignores this and always goes on schedule.
+
+// Inclusive start, exclusive end: a 24h clock 08:00–21:00 local.
+export const SEND_WINDOW_START_HOUR = 8;
+export const SEND_WINDOW_END_HOUR = 21;
+// Used when a registrant has no stored timezone (e.g. replay sign-ups).
+export const DEFAULT_SEND_TZ = 'Europe/Brussels';
+
+// The 0–23 local hour in `tz` at `now`. Unknown/bad tz → 12 (midday), so a
+// missing timezone never blocks a send — it just always reads as in-window.
+export function localHour(tz: string, now = Date.now()): number {
+  try {
+    const s = new Intl.DateTimeFormat('en-GB', {
+      timeZone: tz,
+      hour: '2-digit',
+      hourCycle: 'h23',
+    }).format(new Date(now));
+    const n = parseInt(s, 10);
+    return Number.isFinite(n) ? n % 24 : 12;
+  } catch {
+    return 12;
+  }
+}
+
+// Is it inside the local send window for this recipient right now?
+export function withinSendWindow(
+  tz: string | null | undefined,
+  now = Date.now(),
+  fallbackTz: string = DEFAULT_SEND_TZ,
+): boolean {
+  const h = localHour(tz || fallbackTz, now);
+  return h >= SEND_WINDOW_START_HOUR && h < SEND_WINDOW_END_HOUR;
+}

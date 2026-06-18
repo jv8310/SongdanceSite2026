@@ -33,6 +33,11 @@ const BUMP_COMPARE_BY_CURRENCY: Record<string, number> = {
 const priceMap = (rows: { currency: string; amount_minor: number }[]) =>
   Object.fromEntries(rows.map((r) => [r.currency.toUpperCase(), r.amount_minor]));
 
+// The registration calendars always show every upcoming masterclass, plus at
+// most this many upcoming workshops (the soonest ones — the source list is
+// ordered soonest-first). Replays count as workshops toward this cap.
+const MAX_WORKSHOPS = 5;
+
 export async function buildCalendarItems(
   db: D1Database,
   currency: string,
@@ -42,14 +47,21 @@ export async function buildCalendarItems(
   const defaultBump = await getProductBySlug(db, DEFAULT_BUMP_SLUG);
 
   const items: CalItem[] = [];
+  let workshopCount = 0;
   for (const w of upcoming) {
     if (!w.main_product_id) continue;
+
+    // A masterclass is any entry whose main product slug contains "masterclass".
+    // Masterclasses are always shown; workshops are capped at MAX_WORKSHOPS (the
+    // soonest ones, since the source list is ordered soonest-first).
+    const isMasterclass = (w.product_slug ?? '').includes('masterclass');
+    if (!isMasterclass && workshopCount >= MAX_WORKSHOPS) continue;
+
     const price = await resolvePrice(db, w.main_product_id, currency);
     if (!price) continue;
     const pricesByCurrency = priceMap(await listPricesForProduct(db, w.main_product_id));
 
-    // A masterclass is any entry whose main product slug contains "masterclass".
-    const isMasterclass = (w.product_slug ?? '').includes('masterclass');
+    if (!isMasterclass) workshopCount++;
     const bumpProductId = w.bump_product_id ?? (isMasterclass ? defaultBump?.id ?? null : null);
 
     let bumpName = '';

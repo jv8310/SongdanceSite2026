@@ -1,0 +1,1041 @@
+---
+// The case — a cinematic, scroll-driven investor narrative for Somatic Rising.
+//
+// This is the "why this, why now" story told the way an Apple product page
+// tells one: a held-breath hero, a pinned monologue, a pinned cross-fading
+// cinema that walks through the three categories of app the market already
+// knows, a convergence beat where the three braid into one, then the
+// differentiator (hyper-personalization + therapeutic frameworks) and the
+// market numbers that count themselves up as you arrive.
+//
+// It lives inside the gated /sr26 area and reuses its nocturnal aesthetic
+// (Fraunces + Inter, plum + ember/gold/sage/lavender — defined globally in
+// Sr26.astro). Every figure here is kept consistent with the investor memo
+// and the market-research report in the data room. Motion is GSAP +
+// ScrollTrigger (already a project dependency); reduced-motion and no-JS
+// readers get the full text in a flat, readable rest state.
+import Sr26 from '../../layouts/Sr26.astro';
+import { isSr26Authed } from '../../lib/sr26/gate';
+
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+if (!(await isSr26Authed(Astro.request, env))) {
+  return Astro.redirect(`/sr26?next=${encodeURIComponent(Astro.url.pathname)}`);
+}
+---
+
+<Sr26
+  title="Somatic Rising — The case"
+  description="Why now: the three categories of wellbeing app, and the first companion to hold all three at once."
+>
+  <div class="why-progress"><span></span></div>
+
+  <header class="sr26-shell sr26-topbar">
+    <a class="sr26-wordmark" href="/sr26">Somatic Rising</a>
+    <nav class="sr26-nav">
+      <a class="sr26-pill" href="/sr26">Concept</a>
+      <a class="sr26-pill" href="/sr26/docs">Data room</a>
+    </nav>
+  </header>
+
+  <!-- ── Hero ───────────────────────────────────────────────── -->
+  <section class="why-hero">
+    <div class="why-hero-bg">
+      <span class="orb o1" data-parallax="0.12"></span>
+      <span class="orb o2" data-parallax="0.22"></span>
+      <span class="orb o3" data-parallax="0.08"></span>
+    </div>
+    <div class="why-hero-inner">
+      <p class="why-hero-eyebrow">The case · Seed round · June 2026</p>
+      <h1 class="why-hero-title">
+        <span class="line"><span class="line-inner">Three kinds of app</span></span>
+        <span class="line"><span class="line-inner">changed how we cope.</span></span>
+        <span class="line"><span class="line-inner"><em>One</em> will change how we heal.</span></span>
+      </h1>
+      <p class="why-hero-sub">
+        You already know the first three. Somatic Rising is the first to hold all
+        of them in a single companion — one that knows you, and composes the
+        practice you need in the moment.
+      </p>
+    </div>
+    <div class="why-cue"><span>Scroll</span><i>↓</i></div>
+  </section>
+
+  <!-- ── The setup — a pinned monologue ─────────────────────── -->
+  <section class="why-said">
+    <div class="why-rope"><span></span></div>
+    <div class="why-said-stack">
+      <p class="why-said-line">You've heard of Calm. Of Headspace.</p>
+      <p class="why-said-line">You've talked to the chatbots that never sleep.</p>
+      <p class="why-said-line">You've felt the apps that work on the body.</p>
+      <p class="why-said-line">Three categories. Three real breakthroughs.</p>
+      <p class="why-said-line">Each does <em>one</em> thing the others can't.</p>
+      <p class="why-said-line">And not one of them does all three.</p>
+    </div>
+  </section>
+
+  <!-- ── The cinema — three categories, in depth ────────────── -->
+  <section class="why-cine">
+    <div class="why-stage">
+      <!-- I · Guided meditation -->
+      <article class="why-frame f1">
+        <div class="why-giant" aria-hidden="true">CALM<br>HEADSPACE</div>
+        <div class="why-frame-copy">
+          <span class="num">Category I · The guided voice</span>
+          <h3>They put a teacher in your pocket.</h3>
+          <p class="gift">
+            Meditation on demand, for a hundred million people. Calm and Headspace
+            proved that guidance through an audio practice belongs on the phone in
+            everyone's hand.
+          </p>
+          <p class="ceiling">
+            But it's the same recording for all of them. A library you browse —
+            not a companion who knows the person pressing play.
+          </p>
+        </div>
+      </article>
+
+      <!-- II · Conversational AI -->
+      <article class="why-frame f2">
+        <div class="why-giant" aria-hidden="true">WYSA<br>WOEBOT</div>
+        <div class="why-frame-copy">
+          <span class="num">Category II · The listening machine</span>
+          <h3>Always awake. Someone to tell the truth to.</h3>
+          <p class="gift">
+            Wysa, Woebot, and millions using general chatbots as confidants proved
+            the demand for a wise, always-available presence — no waiting room, no
+            three-week appointment.
+          </p>
+          <p class="ceiling">
+            But it can only talk. It can't take you <em>through</em> anything — no
+            body, no arc, no memory of your inner life — and it borrows its wisdom
+            from the open internet.
+          </p>
+        </div>
+      </article>
+
+      <!-- III · Somatic / body-based -->
+      <article class="why-frame f3">
+        <div class="why-giant" aria-hidden="true">SOMATIC<br>NEUROFIT</div>
+        <div class="why-frame-copy">
+          <span class="num">Category III · The body remembers</span>
+          <h3>Healing that lives in the body, not the head.</h3>
+          <p class="gift">
+            The somatic wave — NEUROFIT and its kin — proved that real change moves
+            through the nervous system and the breath, reaching where eyes-closed
+            meditation and text chat never do.
+          </p>
+          <p class="ceiling">
+            But these are small, static libraries. The same exercises for everyone,
+            with no intelligence and no idea who is in the room.
+          </p>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <!-- ── The convergence — three braid into one ─────────────── -->
+  <section class="why-braid">
+    <div class="why-braid-inner">
+      <div class="why-threads" aria-hidden="true">
+        <span class="why-thread t1"></span>
+        <span class="why-thread t2"></span>
+        <span class="why-thread t3"></span>
+        <span class="why-core"></span>
+      </div>
+      <div class="why-braid-out">
+        <p class="why-eyebrow">The convergence</p>
+        <h2>
+          Somatic Rising is the first to hold <em>all three</em> at once.
+        </h2>
+        <p class="why-braid-lead">
+          It guides you like the first, listens like the second, and works the body
+          like the third — inside one companion. Then it does the two things none
+          of them can: it <em>composes</em> your practice live, and it
+          <em>remembers</em> you.
+        </p>
+        <div class="why-loop">
+          <span>Read</span><i>→</i><span>Meet</span><i>→</i><span>Compose</span
+          ><i>→</i><span>Guide</span><i>→</i><span>Learn</span><i>→</i><span
+            >Deepen</span
+          >
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── The differentiator — personalization + frameworks ──── -->
+  <section class="why-person">
+    <div class="why-wrap">
+      <div class="why-person-head rise">
+        <p class="why-eyebrow">Beyond combining</p>
+        <h2>It meets you in <em>your</em> language.</h2>
+        <p class="why-lead">
+          Most apps speak one voice to everyone. Somatic Rising tunes the words,
+          the pacing, the imagery — even the aesthetic — to the person in front of
+          it, and reads where they stand through conversation, never a quiz. The
+          same grief is met differently in different people. That is the difference
+          between a library and a companion.
+        </p>
+      </div>
+
+      <div class="why-grid">
+        <article class="why-card rise">
+          <h3>Stage-aware</h3>
+          <p>
+            Developmental meta-frameworks — Integral stage models and the Enneagram
+            at launch — inferred gently in conversation, so the depth and tone are
+            calibrated to who you actually are.
+          </p>
+        </article>
+        <article class="why-card rise">
+          <h3>Generative, not a library</h3>
+          <p>
+            Guided journeys composed on the spot — script, voice, and music
+            generated for this person, this evening. The clearest “this was made
+            for me” experience in the category.
+          </p>
+        </article>
+        <article class="why-card rise">
+          <h3>Genuine depth</h3>
+          <p>
+            Inner-child and constellation work — imaginal dialogue with the younger
+            self, with family, present or passed. Emotionally profound, and almost
+            entirely absent from the app landscape.
+          </p>
+        </article>
+        <article class="why-card rise">
+          <h3>Truly embodied</h3>
+          <p>
+            Somatic sounding and authentic voice — giving sound to what's there.
+            Active, in the body, distinctly ours: what makes this somatic, not one
+            more eyes-closed meditation.
+          </p>
+        </article>
+        <article class="why-card rise">
+          <h3>Safe by design</h3>
+          <p>
+            A system that guides people into tender territory is built to dose and
+            pace — to know when <em>not</em> to go deeper, when to ground, and when
+            to point toward human support. Positioned outside clinical care, on
+            purpose.
+          </p>
+        </article>
+        <article class="why-card rise">
+          <h3>It compounds</h3>
+          <p>
+            Every conversation deepens a living model of you. Month six is
+            dramatically better than month one — for that specific person — and none
+            of it transfers to a competitor.
+          </p>
+        </article>
+      </div>
+
+      <p class="why-pull fade">
+        Adaptive · Generative · Stage-aware · Embodied — every competitor has at
+        most two.
+      </p>
+    </div>
+  </section>
+
+  <!-- ── The market — numbers that count themselves up ──────── -->
+  <section class="why-market">
+    <div class="why-wrap">
+      <div class="why-market-head rise">
+        <p class="why-eyebrow">The ground is moving</p>
+        <h2>And the market is <em>rising</em> to meet it.</h2>
+        <p class="why-lead">
+          This is not a niche bet on a category that might exist. It is a sharper
+          position inside three markets already compounding at double digits.
+        </p>
+      </div>
+
+      <div class="why-stats">
+        <article class="why-stat rise">
+          <p class="why-stat-kind">Wellness apps · global TAM</p>
+          <p class="why-stat-big">
+            <span class="count" data-from="11.3" data-to="26.2" data-decimals="1"
+              data-prefix="$" data-suffix="B">$26.2B</span>
+          </p>
+          <p class="why-stat-foot"><b>$11.3B in 2024</b> → 2030 · ~15% CAGR</p>
+        </article>
+        <article class="why-stat rise">
+          <p class="why-stat-kind">Mental-health apps</p>
+          <p class="why-stat-big">
+            <span class="count" data-from="7.4" data-to="17.5" data-decimals="1"
+              data-prefix="$" data-suffix="B+">$17.5B+</span>
+          </p>
+          <p class="why-stat-foot"><b>$7.4B in 2024</b> → 2030 · 14–17% CAGR</p>
+        </article>
+        <article class="why-stat rise">
+          <p class="why-stat-kind">AI wellness — our SAM</p>
+          <p class="why-stat-big">
+            <span class="count" data-from="1.2" data-to="5" data-decimals="1"
+              data-prefix="$" data-suffix="B+">$5.0B+</span>
+          </p>
+          <p class="why-stat-foot">
+            <b>$1.2B in 2024</b> → 2030 · 20–25% CAGR
+          </p>
+        </article>
+        <article class="why-stat rise">
+          <p class="why-stat-kind">People using wellness apps · 2024</p>
+          <p class="why-stat-big">
+            <span class="count" data-from="40" data-to="320" data-decimals="0"
+              data-suffix="M+">320M+</span>
+          </p>
+          <p class="why-stat-foot">a behaviour already mainstream</p>
+        </article>
+      </div>
+
+      <div class="why-band fade">
+        <p class="why-band-lead">And the demand is structural, not cyclical.</p>
+        <ul class="why-band-list">
+          <li><b>1 in 8</b> people live with a mental-health condition</li>
+          <li><b>56%</b> of affected U.S. adults receive no treatment</li>
+          <li>Loneliness — declared a <b>public-health epidemic</b> (2023)</li>
+          <li>Gen Z reports poor spiritual health at <b>3×</b> the boomer rate</li>
+          <li><b>66%</b> of U.S. adults now claim a personal spiritual practice</li>
+        </ul>
+        <p class="why-band-note">
+          Premium, transformation-led positioning supports <b>$15–30/month</b> —
+          well above the $10–13 meditation-app norm.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Closing ────────────────────────────────────────────── -->
+  <section class="why-close">
+    <div class="why-close-glow" aria-hidden="true"></div>
+    <div class="why-wrap">
+      <h2 class="rise">The next decade won't be won by the biggest library.</h2>
+      <p class="why-close-lead rise">
+        It will be won by the companion that knows its people — and can act on that
+        knowing with wisdom, safety, and beauty. Somatic Rising starts where the
+        need is deepest: the right practice, in the right moment, in your language.
+      </p>
+      <div class="why-close-cta rise">
+        <a class="why-btn" href="/sr26">See the product concept →</a>
+        <a class="why-btn ghost" href="/sr26/docs">Enter the data room →</a>
+      </div>
+      <p class="why-sources">
+        Figures consistent with the investor memo and market-research report in the
+        data room. Sources: Grand View Research, Precedence Research, Global Market
+        Insights, McKinsey Health Institute, Barna Group, and the U.S. Surgeon
+        General's Advisory (2023). For discussion purposes only.
+      </p>
+    </div>
+  </section>
+</Sr26>
+
+<style is:global>
+  /* Local accent the base Sr26 layout doesn't define. */
+  .why-progress { --rose: #c2898f; }
+
+  /* ── Scroll-progress rail ─────────────────────────────────── */
+  .why-progress {
+    position: fixed;
+    inset: 0 0 auto 0;
+    height: 2px;
+    z-index: 90;
+    pointer-events: none;
+  }
+  .why-progress span {
+    display: block;
+    height: 100%;
+    width: 100%;
+    transform: scaleX(0);
+    transform-origin: 0 50%;
+    background: linear-gradient(90deg, var(--ember), var(--gold));
+  }
+
+  /* The shared topbar floats above the hero on this page. */
+  .why-progress ~ .sr26-topbar { position: relative; z-index: 5; }
+
+  .why-wrap {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 0 32px;
+    position: relative;
+    z-index: 1;
+  }
+  .why-eyebrow {
+    font-size: 11.5px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--ember);
+  }
+
+  /* Pre-animation hidden states — only once JS + motion are confirmed. */
+  html.why-anim .rise,
+  html.why-anim .fade { opacity: 0; }
+
+  /* ── Hero ─────────────────────────────────────────────────── */
+  .why-hero {
+    position: relative;
+    min-height: 100svh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 80px 24px;
+    overflow: hidden;
+    isolation: isolate;
+  }
+  .why-hero-bg { position: absolute; inset: 0; z-index: -1; pointer-events: none; }
+  .why-hero-bg .orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(20px);
+    will-change: transform;
+  }
+  .why-hero-bg .o1 {
+    left: 8%; top: 14%; width: 460px; height: 460px;
+    background: radial-gradient(circle, rgba(217,154,108,.18), transparent 68%);
+  }
+  .why-hero-bg .o2 {
+    right: 2%; top: 30%; width: 540px; height: 540px;
+    background: radial-gradient(circle, rgba(155,135,201,.16), transparent 68%);
+  }
+  .why-hero-bg .o3 {
+    left: 36%; bottom: -8%; width: 600px; height: 420px;
+    background: radial-gradient(circle, rgba(157,180,155,.10), transparent 70%);
+  }
+  .why-hero-inner { position: relative; max-width: 18ch; }
+  .why-hero-eyebrow {
+    font-size: 12px;
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+    color: var(--cream-faint);
+    margin-bottom: 28px;
+  }
+  .why-hero-title {
+    font-family: var(--display);
+    font-weight: 300;
+    font-size: clamp(38px, 6vw, 76px);
+    line-height: 1.08;
+    letter-spacing: -0.01em;
+    margin: 0;
+    text-wrap: balance;
+  }
+  .why-hero-title .line { display: block; overflow: hidden; padding: 0.06em 0.04em; }
+  .why-hero-title .line-inner { display: block; }
+  .why-hero-title em { font-style: italic; color: var(--ember); }
+  .why-hero-sub {
+    margin: 30px auto 0;
+    max-width: 52ch;
+    font-size: 17px;
+    line-height: 1.65;
+    color: var(--cream-dim);
+  }
+  .why-cue {
+    position: absolute;
+    bottom: 34px; left: 50%;
+    transform: translateX(-50%);
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    font-size: 11px; letter-spacing: 0.24em; text-transform: uppercase;
+    color: var(--cream-faint);
+  }
+  .why-cue i { font-style: normal; font-size: 18px; animation: why-bob 2.4s ease infinite; }
+  @keyframes why-bob {
+    0%, 100% { transform: translateY(0); opacity: 0.55; }
+    50% { transform: translateY(7px); opacity: 1; }
+  }
+
+  /* ── The pinned monologue ─────────────────────────────────── */
+  .why-said {
+    position: relative;
+    min-height: 100svh;
+    display: flex; align-items: center; justify-content: center;
+    padding: 96px 24px;
+    overflow: hidden;
+    background: radial-gradient(80% 60% at 50% 40%, var(--ink-2), var(--ink) 100%);
+  }
+  .why-rope {
+    position: absolute; top: 0; bottom: 0; left: 50%;
+    width: 1px; transform: translateX(-50%);
+    background: rgba(243, 236, 223, 0.07);
+  }
+  .why-rope span {
+    position: absolute; inset: 0; display: block;
+    background: linear-gradient(180deg, transparent, var(--ember) 12%, var(--ember) 88%, transparent);
+    transform-origin: 50% 0; transform: scaleY(0);
+  }
+  .why-said-stack { position: relative; max-width: 20ch; text-align: center; }
+  .why-said-line {
+    font-family: var(--display);
+    font-weight: 300;
+    font-size: clamp(26px, 4.2vw, 48px);
+    line-height: 1.2;
+    margin: 0 0 22px;
+    color: var(--cream);
+    text-wrap: balance;
+  }
+  .why-said-line:last-child { margin-bottom: 0; }
+  .why-said-line em { font-style: italic; color: var(--ember); }
+  html.why-anim .why-said-stack { display: grid; max-width: 22ch; }
+  html.why-anim .why-said-line { grid-area: 1 / 1; margin: 0; }
+
+  /* ── The cinema — three category frames ───────────────────── */
+  .why-cine {
+    position: relative;
+    background: var(--ink);
+  }
+  .why-stage { position: relative; }
+  .why-frame {
+    position: relative;
+    min-height: 100svh;
+    display: flex; align-items: center; justify-content: center;
+    padding: 110px 32px;
+    overflow: hidden;
+  }
+  .why-frame.f1 { background: radial-gradient(90% 80% at 70% 30%, rgba(217,154,108,.16), transparent 60%), var(--ink); }
+  .why-frame.f2 { background: radial-gradient(90% 80% at 30% 35%, rgba(155,135,201,.18), transparent 60%), var(--ink); }
+  .why-frame.f3 { background: radial-gradient(90% 80% at 60% 70%, rgba(157,180,155,.16), transparent 60%), var(--ink); }
+  .why-giant {
+    position: absolute;
+    inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--display);
+    font-weight: 300;
+    font-size: clamp(64px, 17vw, 230px);
+    line-height: 0.92;
+    letter-spacing: -0.02em;
+    text-align: center;
+    color: rgba(243, 236, 223, 0.045);
+    pointer-events: none;
+    user-select: none;
+    will-change: transform;
+  }
+  .why-frame-copy {
+    position: relative;
+    max-width: 560px;
+    text-align: center;
+  }
+  .why-frame-copy .num {
+    display: block;
+    font-size: 11.5px;
+    letter-spacing: 0.26em;
+    text-transform: uppercase;
+    color: var(--ember);
+    margin-bottom: 18px;
+  }
+  .why-frame.f2 .num { color: var(--lavender); }
+  .why-frame.f3 .num { color: var(--sage); }
+  .why-frame-copy h3 {
+    font-family: var(--display);
+    font-weight: 300;
+    font-size: clamp(28px, 4vw, 52px);
+    line-height: 1.14;
+    letter-spacing: -0.01em;
+    margin: 0 0 22px;
+    color: var(--cream);
+    text-wrap: balance;
+  }
+  .why-frame-copy .gift {
+    font-size: 17px;
+    line-height: 1.65;
+    color: var(--cream-dim);
+    margin: 0 auto;
+    max-width: 46ch;
+  }
+  .why-frame-copy .ceiling {
+    font-family: var(--display);
+    font-style: italic;
+    font-weight: 300;
+    font-size: 18px;
+    line-height: 1.5;
+    color: var(--cream);
+    margin: 20px auto 0;
+    max-width: 42ch;
+    padding-top: 20px;
+    border-top: 1px solid var(--ink-line);
+  }
+  .why-frame-copy .ceiling em,
+  .why-frame-copy .gift em { font-style: italic; color: var(--ember); }
+  /* Cinematic stacking only when motion is on. */
+  html.why-anim .why-cine { height: 100svh; overflow: hidden; }
+  html.why-anim .why-stage { position: absolute; inset: 0; }
+  html.why-anim .why-frame {
+    position: absolute; inset: 0; min-height: 0; height: 100%;
+    will-change: opacity;
+  }
+
+  /* ── The convergence ──────────────────────────────────────── */
+  .why-braid {
+    position: relative;
+    min-height: 100svh;
+    display: flex; align-items: center; justify-content: center;
+    padding: 110px 32px;
+    overflow: hidden;
+    background: linear-gradient(180deg, var(--ink) 0%, var(--ink-2) 100%);
+  }
+  .why-braid-inner {
+    position: relative;
+    width: 100%;
+    max-width: 640px;
+    text-align: center;
+  }
+  .why-threads {
+    position: relative;
+    height: 132px;
+    margin: 0 auto 12px;
+    width: 220px;
+  }
+  .why-thread {
+    position: absolute;
+    top: 0; bottom: 30px; left: 50%;
+    width: 2px;
+    border-radius: 2px;
+    transform: translateX(-50%);
+  }
+  .why-thread.t1 { background: linear-gradient(180deg, transparent, var(--ember)); }
+  .why-thread.t2 { background: linear-gradient(180deg, transparent, var(--lavender)); }
+  .why-thread.t3 { background: linear-gradient(180deg, transparent, var(--sage)); }
+  .why-core {
+    position: absolute;
+    bottom: 8px; left: 50%;
+    width: 44px; height: 44px;
+    transform: translateX(-50%);
+    border-radius: 50%;
+    background: radial-gradient(circle at 40% 36%, rgba(243,236,223,.7), rgba(217,154,108,.5) 45%, rgba(155,135,201,.2) 72%, transparent);
+    box-shadow: 0 0 46px rgba(217, 154, 108, 0.4);
+  }
+  .why-braid-out h2 {
+    font-family: var(--display);
+    font-weight: 300;
+    font-size: clamp(30px, 4.6vw, 56px);
+    line-height: 1.12;
+    letter-spacing: -0.012em;
+    margin: 14px auto 0;
+    max-width: 18ch;
+    color: var(--cream);
+    text-wrap: balance;
+  }
+  .why-braid-out h2 em { font-style: italic; color: var(--ember); }
+  .why-braid-lead {
+    font-size: 17px;
+    line-height: 1.7;
+    color: var(--cream-dim);
+    max-width: 52ch;
+    margin: 22px auto 0;
+  }
+  .why-braid-lead em { font-style: italic; color: var(--cream); }
+  .why-loop {
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: center;
+    gap: 2px;
+    margin-top: 30px;
+  }
+  .why-loop span {
+    font-family: var(--display);
+    font-style: italic;
+    font-size: 16px;
+    color: var(--cream);
+    padding: 0 8px;
+  }
+  .why-loop i { font-style: normal; color: var(--ember); opacity: 0.75; }
+
+  /* ── The differentiator ───────────────────────────────────── */
+  .why-person { padding: clamp(90px, 13vh, 150px) 0; background: var(--ink); }
+  .why-person-head { max-width: 40ch; margin: 0 auto 56px; text-align: center; }
+  .why-person-head h2,
+  .why-market-head h2 {
+    font-family: var(--display);
+    font-weight: 300;
+    font-size: clamp(30px, 4.4vw, 52px);
+    line-height: 1.12;
+    letter-spacing: -0.012em;
+    margin: 14px 0 18px;
+    text-wrap: balance;
+  }
+  .why-person-head h2 em,
+  .why-market-head h2 em { font-style: italic; color: var(--ember); }
+  .why-lead {
+    font-size: 16.5px;
+    line-height: 1.7;
+    color: var(--cream-dim);
+    max-width: 58ch;
+    margin: 0 auto;
+  }
+  .why-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    max-width: 1000px;
+    margin: 0 auto;
+  }
+  .why-card {
+    background: var(--ink-3);
+    border: 1px solid var(--ink-line);
+    border-radius: 18px;
+    padding: 26px 24px;
+    transition: border-color 0.2s ease, transform 0.2s ease;
+  }
+  .why-card:hover { border-color: rgba(217, 154, 108, 0.4); transform: translateY(-2px); }
+  .why-card h3 {
+    font-family: var(--display);
+    font-weight: 400;
+    font-size: 20px;
+    line-height: 1.25;
+    margin: 0 0 10px;
+    color: var(--cream);
+  }
+  .why-card p { font-size: 14.5px; line-height: 1.62; color: var(--cream-dim); margin: 0; }
+  .why-card p em { font-style: italic; color: var(--ember); }
+  .why-pull {
+    text-align: center;
+    font-family: var(--display);
+    font-style: italic;
+    font-weight: 300;
+    font-size: clamp(19px, 2.4vw, 26px);
+    line-height: 1.4;
+    color: var(--cream);
+    max-width: 30ch;
+    margin: 56px auto 0;
+  }
+
+  /* ── The market ───────────────────────────────────────────── */
+  .why-market {
+    padding: clamp(90px, 13vh, 150px) 0;
+    background: linear-gradient(180deg, var(--ink) 0%, var(--ink-2) 60%, var(--ink) 100%);
+  }
+  .why-market-head { max-width: 40ch; margin: 0 auto 56px; text-align: center; }
+  .why-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    max-width: 1000px;
+    margin: 0 auto;
+  }
+  .why-stat {
+    background: var(--ink-3);
+    border: 1px solid var(--ink-line);
+    border-radius: 18px;
+    padding: 28px 22px;
+    text-align: center;
+  }
+  .why-stat-kind {
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--cream-faint);
+    min-height: 2.4em;
+  }
+  .why-stat-big {
+    font-family: var(--display);
+    font-weight: 300;
+    font-size: clamp(38px, 5vw, 58px);
+    line-height: 1;
+    color: var(--ember);
+    margin: 14px 0 12px;
+    font-variant-numeric: tabular-nums;
+  }
+  .why-stat-foot { font-size: 12.5px; line-height: 1.5; color: var(--cream-dim); }
+  .why-stat-foot b { color: var(--cream); font-weight: 500; }
+  .why-band {
+    max-width: 880px;
+    margin: 56px auto 0;
+    text-align: center;
+    border-top: 1px solid var(--ink-line);
+    padding-top: 48px;
+  }
+  .why-band-lead {
+    font-family: var(--display);
+    font-style: italic;
+    font-weight: 300;
+    font-size: clamp(20px, 2.6vw, 28px);
+    color: var(--cream);
+    margin: 0 0 26px;
+  }
+  .why-band-list {
+    list-style: none; margin: 0; padding: 0;
+    display: flex; flex-wrap: wrap; justify-content: center; gap: 12px;
+  }
+  .why-band-list li {
+    font-size: 13.5px;
+    color: var(--cream-dim);
+    border: 1px solid var(--ink-line);
+    border-radius: 99px;
+    padding: 10px 18px;
+  }
+  .why-band-list b { color: var(--ember); font-weight: 500; }
+  .why-band-note { font-size: 13.5px; color: var(--cream-faint); margin: 26px auto 0; max-width: 52ch; }
+  .why-band-note b { color: var(--cream); font-weight: 500; }
+
+  /* ── Closing ──────────────────────────────────────────────── */
+  .why-close {
+    position: relative;
+    text-align: center;
+    padding: clamp(100px, 16vh, 190px) 0 clamp(70px, 10vh, 120px);
+    overflow: hidden;
+    background: var(--ink);
+  }
+  .why-close-glow {
+    position: absolute; left: 50%; top: 20%;
+    transform: translateX(-50%);
+    width: 760px; max-width: 92vw; height: 460px;
+    pointer-events: none;
+    background: radial-gradient(closest-side, rgba(217,154,108,.14), rgba(155,135,201,.06) 55%, transparent);
+    filter: blur(12px);
+  }
+  .why-close h2 {
+    font-family: var(--display);
+    font-weight: 300;
+    font-size: clamp(30px, 4.6vw, 56px);
+    line-height: 1.14;
+    letter-spacing: -0.012em;
+    margin: 0 auto 20px;
+    max-width: 22ch;
+    color: var(--cream);
+    text-wrap: balance;
+  }
+  .why-close-lead {
+    font-size: 17px;
+    line-height: 1.7;
+    color: var(--cream-dim);
+    max-width: 56ch;
+    margin: 0 auto;
+  }
+  .why-close-cta {
+    display: flex; flex-wrap: wrap; justify-content: center; gap: 14px;
+    margin-top: 40px;
+  }
+  .why-btn {
+    display: inline-flex; align-items: center;
+    font-family: var(--ui);
+    font-size: 14px; font-weight: 500; letter-spacing: 0.02em;
+    padding: 14px 26px;
+    border-radius: 99px;
+    background: var(--ember);
+    color: #241409;
+    text-decoration: none;
+    transition: filter 0.2s ease, transform 0.2s ease;
+  }
+  .why-btn:hover { filter: brightness(1.06); transform: translateY(-2px); }
+  .why-btn.ghost { background: transparent; border: 1px solid var(--ink-line); color: var(--cream-dim); }
+  .why-btn.ghost:hover { border-color: rgba(217, 154, 108, 0.4); color: var(--ember); }
+  .why-sources {
+    margin: 48px auto 0;
+    max-width: 60ch;
+    font-size: 11.5px;
+    line-height: 1.6;
+    color: var(--cream-faint);
+  }
+
+  /* ── Responsive ───────────────────────────────────────────── */
+  @media (max-width: 900px) {
+    .why-grid { grid-template-columns: 1fr 1fr; }
+    .why-stats { grid-template-columns: 1fr 1fr; }
+  }
+  @media (max-width: 600px) {
+    .why-grid, .why-stats { grid-template-columns: 1fr; }
+    .why-wrap { padding: 0 22px; }
+  }
+
+  /* ── Reduced motion: flatten to a readable rest state ─────── */
+  @media (prefers-reduced-motion: reduce) {
+    .why-cue i { animation: none; }
+    .why-cine { height: auto; }
+    .why-stage { position: relative; inset: auto; }
+    .why-frame { position: relative; opacity: 1 !important; min-height: 80svh; }
+    .why-said-stack { display: block; }
+    .why-said-line { position: relative; opacity: 1 !important; }
+  }
+</style>
+
+<script>
+  // ── Somatic Rising · The case — cinematic scroll engine ─────────────────
+  // GSAP + ScrollTrigger, same pattern as the workshop-parallax page. Motion
+  // is gated behind html.why-anim so a no-JS / reduced-motion reader sees the
+  // flat, fully readable rest state. Any init error reveals everything rather
+  // than stranding the reader behind a half-played animation.
+  import { gsap } from 'gsap';
+  import { ScrollTrigger } from 'gsap/ScrollTrigger';
+
+  gsap.registerPlugin(ScrollTrigger);
+
+  const root = document.documentElement;
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const EASE = 'power2.out';
+
+  const fmt = (v: number, el: HTMLElement) => {
+    const d = parseInt(el.dataset.decimals || '0', 10);
+    return (el.dataset.prefix || '') + v.toFixed(d) + (el.dataset.suffix || '');
+  };
+
+  function revealAll() {
+    document.querySelectorAll<HTMLElement>('.rise, .fade').forEach((el) => {
+      el.style.opacity = '1';
+      el.style.transform = 'none';
+    });
+    document.querySelectorAll<HTMLElement>('.count').forEach((el) => {
+      el.textContent = fmt(parseFloat(el.dataset.to || '0'), el);
+    });
+  }
+
+  if (reduce) {
+    revealAll();
+  } else {
+    root.classList.add('why-anim');
+    try {
+      initHero();
+      initSaid();
+      initCinema();
+      initBraid();
+      initRises();
+      initParallax();
+      initCounts();
+      initProgress();
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('[sr26/why] animation init failed:', err);
+      revealAll();
+    }
+    window.addEventListener('load', () => ScrollTrigger.refresh());
+  }
+
+  function initHero() {
+    const hero = document.querySelector<HTMLElement>('.why-hero');
+    if (!hero) return;
+    const tl = gsap.timeline({ defaults: { ease: EASE, duration: 1.1 } });
+    tl.from('.why-hero-eyebrow', { opacity: 0, y: 16 })
+      .from('.why-hero-title .line-inner', { opacity: 0, yPercent: 120, stagger: 0.14, duration: 1.2 }, '-=0.7')
+      .from('.why-hero-sub', { opacity: 0, y: 20 }, '-=0.8')
+      .from('.why-cue', { opacity: 0, y: 10 }, '-=0.6');
+
+    gsap.to('.why-hero-inner', {
+      opacity: 0, y: -70, ease: 'none',
+      scrollTrigger: { trigger: hero, start: 'top top', end: 'bottom top', scrub: true },
+    });
+  }
+
+  function initSaid() {
+    const sec = document.querySelector<HTMLElement>('.why-said');
+    if (!sec) return;
+    const lines = gsap.utils.toArray<HTMLElement>('.why-said-line');
+    if (!lines.length) return;
+    const mobile = window.matchMedia('(max-width: 720px)').matches;
+    const tl = gsap.timeline({
+      scrollTrigger: {
+        trigger: sec, start: 'top top',
+        end: '+=' + lines.length * (mobile ? 30 : 42) + '%',
+        scrub: 0.35, pin: true, anticipatePin: 1,
+      },
+    });
+    tl.fromTo('.why-rope span', { scaleY: 0 }, { scaleY: 1, ease: 'none', duration: lines.length }, 0);
+    lines.forEach((ln, i) => {
+      tl.fromTo(ln, { opacity: 0, y: 40, filter: 'blur(6px)' },
+        { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.8, ease: EASE }, i);
+      if (i > 0) tl.to(lines[i - 1], { opacity: 0, filter: 'blur(3px)', duration: 0.5 }, i);
+    });
+  }
+
+  function initCinema() {
+    const sec = document.querySelector<HTMLElement>('.why-cine');
+    if (!sec) return;
+    const frames = gsap.utils.toArray<HTMLElement>('.why-frame');
+    if (frames.length < 2) return;
+    gsap.set(frames, { opacity: 0 });
+    gsap.set(frames[0], { opacity: 1 });
+    const mobile = window.matchMedia('(max-width: 720px)').matches;
+    const tl = gsap.timeline({
+      scrollTrigger: {
+        trigger: sec, start: 'top top',
+        end: '+=' + frames.length * (mobile ? 62 : 82) + '%',
+        scrub: 0.4, pin: true, anticipatePin: 1,
+      },
+    });
+    frames.forEach((frame, i) => {
+      const giant = frame.querySelector('.why-giant');
+      const copy = frame.querySelector('.why-frame-copy');
+      if (giant) {
+        gsap.set(giant, { scale: 1.08, transformOrigin: 'center center' });
+        tl.to(giant, { scale: 1.18, ease: 'none', duration: 1.4 }, i);
+      }
+      if (i > 0) {
+        tl.to(frames[i - 1], { opacity: 0, duration: 0.5 }, i);
+        tl.to(frame, { opacity: 1, duration: 0.5 }, i);
+      }
+      if (copy) {
+        tl.fromTo(copy, { opacity: 0, y: 32 }, { opacity: 1, y: 0, duration: 0.45, ease: EASE }, i + 0.12);
+        if (i < frames.length - 1) {
+          tl.to(copy, { opacity: 0, y: -26, duration: 0.4, ease: EASE }, i + 0.72);
+        }
+      }
+    });
+  }
+
+  function initBraid() {
+    const sec = document.querySelector<HTMLElement>('.why-braid');
+    if (!sec) return;
+    const mobile = window.matchMedia('(max-width: 720px)').matches;
+    const tl = gsap.timeline({
+      scrollTrigger: {
+        trigger: sec, start: 'top top',
+        end: '+=' + (mobile ? 90 : 120) + '%',
+        scrub: 0.4, pin: true, anticipatePin: 1,
+      },
+    });
+    tl.from('.why-thread.t1', { xPercent: -1400, opacity: 0.25, ease: EASE, duration: 1 }, 0)
+      .from('.why-thread.t3', { xPercent: 1400, opacity: 0.25, ease: EASE, duration: 1 }, 0)
+      .from('.why-thread.t2', { opacity: 0.25, scaleY: 0.4, ease: EASE, duration: 1 }, 0)
+      .fromTo('.why-core', { scale: 0, opacity: 0 }, { scale: 1, opacity: 1, ease: 'back.out(2)', duration: 0.8 }, 0.4)
+      .from('.why-braid-out', { opacity: 0, y: 28, duration: 0.9, ease: EASE }, 0.5);
+  }
+
+  function initRises() {
+    gsap.utils.toArray<HTMLElement>('.rise').forEach((el) => {
+      gsap.from(el, {
+        opacity: 0, y: 40, duration: 0.9, ease: EASE,
+        scrollTrigger: { trigger: el, start: 'top 86%' },
+      });
+    });
+    gsap.utils.toArray<HTMLElement>('.fade').forEach((el) => {
+      gsap.from(el, {
+        opacity: 0, duration: 1.2, ease: EASE,
+        scrollTrigger: { trigger: el, start: 'top 86%' },
+      });
+    });
+  }
+
+  function initParallax() {
+    gsap.utils.toArray<HTMLElement>('[data-parallax]').forEach((el) => {
+      const speed = parseFloat(el.dataset.parallax || '0.15');
+      gsap.to(el, {
+        yPercent: -speed * 100, ease: 'none',
+        scrollTrigger: {
+          trigger: el.closest('section') || el,
+          start: 'top bottom', end: 'bottom top', scrub: true,
+        },
+      });
+    });
+  }
+
+  function initCounts() {
+    gsap.utils.toArray<HTMLElement>('.count').forEach((el) => {
+      const to = parseFloat(el.dataset.to || '0');
+      const from = parseFloat(el.dataset.from || '0');
+      const obj = { v: from };
+      el.textContent = fmt(from, el);
+      ScrollTrigger.create({
+        trigger: el, start: 'top 88%', once: true,
+        onEnter: () => {
+          gsap.to(obj, {
+            v: to, duration: 1.7, ease: EASE,
+            onUpdate: () => { el.textContent = fmt(obj.v, el); },
+          });
+        },
+      });
+    });
+  }
+
+  function initProgress() {
+    const bar = document.querySelector<HTMLElement>('.why-progress span');
+    if (!bar) return;
+    gsap.to(bar, {
+      scaleX: 1, ease: 'none',
+      scrollTrigger: { start: 'top top', end: 'bottom bottom', scrub: true },
+    });
+  }
+</script>

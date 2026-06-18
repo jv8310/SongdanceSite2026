@@ -5,6 +5,7 @@
 import '../../styles/workshop-english.css';
 import '../../styles/masterclass.css';
 import Layout from '../../layouts/Layout.astro';
+import PromoBanner from '../../components/PromoBanner.astro';
 import MCNav from '../../components/masterclass/MCNav.astro';
 import MCHero from '../../components/masterclass/MCHero.astro';
 import MCOpening from '../../components/masterclass/MCOpening.astro';
@@ -43,6 +44,7 @@ const tzOptions = tzOptionsFor(detectedTz);
   image="/brand/symbol-orange.png"
 >
   <div class="we-site">
+    <PromoBanner />
     <MCNav />
     <MCHero />
     <MCOpening />

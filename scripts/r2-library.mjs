@@ -16,7 +16,7 @@
 // Options:
 //   --prefix <p>   only this folder, e.g. --prefix library/ or --prefix events/
 //   --limit <n>    cap results (newest first)
-//   --base <url>   site origin (default: $SONGDANCE_BASE_URL or https://site.songdance.co)
+//   --base <url>   site origin (default: $SONGDANCE_BASE_URL or https://songdance.co)
 //   --out <dir>    download dir for `pull` (default: .r2-library/)
 //   --json         print raw manifest JSON (for `list`)
 //
@@ -29,7 +29,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join, basename } from 'node:path';
 
-const DEFAULT_BASE = process.env.SONGDANCE_BASE_URL || 'https://site.songdance.co';
+const DEFAULT_BASE = process.env.SONGDANCE_BASE_URL || 'https://songdance.co';
 
 function parseArgs(argv) {
   const opts = { _: [] };

@@ -21,6 +21,7 @@ import {
   isSupportedCurrency,
   type SupportedCurrency,
 } from '../workshops/currency';
+import { launchPromoPercent } from '../promo';
 
 export type TwelveWeekCurrency = SupportedCurrency;
 
@@ -113,7 +114,8 @@ export function parseUrlDiscountPercent(raw: unknown): number {
   return 0;
 }
 
-export type DiscountKind = 'pre' | 'post' | 'none';
+// 'promo' = the launch-promo discount (no countdown; ends at the promo deadline).
+export type DiscountKind = 'pre' | 'post' | 'none' | 'promo';
 
 export type DiscountStatus = {
   eligible: boolean;
@@ -200,9 +202,20 @@ export type EffectiveDiscount = {
 export function effectiveTwelveWeekDiscount(
   workshop: DiscountStatus,
   overridePercent: number,
+  nowMs: number = Date.now(),
 ): EffectiveDiscount {
+  // A hand-crafted ?discount=N link is an explicit, intentional price — it wins
+  // outright (even over the launch promo), so partner/bespoke links aren't
+  // capped at the promo percent.
   if (overridePercent >= 1 && overridePercent <= 99) {
     return { eligible: true, percent: overridePercent, kind: 'override', expiresAtMs: null };
+  }
+  // Launch promo vs. the workshop window: take the better deal. The promo
+  // carries no countdown (the banner names its deadline plainly).
+  const promo = launchPromoPercent(nowMs);
+  const workshopPercent = workshop.eligible ? DISCOUNT_PERCENT : 0;
+  if (promo > 0 && promo >= workshopPercent) {
+    return { eligible: true, percent: promo, kind: 'promo', expiresAtMs: null };
   }
   if (workshop.eligible) {
     return {

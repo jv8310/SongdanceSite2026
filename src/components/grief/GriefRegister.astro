@@ -113,6 +113,7 @@ const countries = COUNTRIES;
 
 <script>
   import { COUNTRIES } from '../../lib/countries';
+  import { launchPromoPercent } from '../../lib/promo';
 
   type Currency =
     | 'EUR' | 'USD' | 'GBP' | 'CAD' | 'CHF'
@@ -171,7 +172,10 @@ const countries = COUNTRIES;
     } catch {}
     return 0;
   }
-  const discountPct = readDiscount();
+  // Launch promo: 50% off (the better of the promo and any ?discount=N). The
+  // server re-derives this independently, so the displayed price matches the
+  // charge. The promo self-expires at its deadline (launchPromoPercent → 0).
+  const discountPct = Math.max(readDiscount(), launchPromoPercent());
 
   function applyDiscountCents(cents: number): number {
     if (discountPct <= 0) return cents;

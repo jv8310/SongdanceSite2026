@@ -20,6 +20,7 @@ import {
   applyDiscountPercent,
   resolveDiscountPercent,
 } from '../../../lib/workshops/discount';
+import { withLaunchPromo } from '../../../lib/promo';
 
 export const prerender = false;
 
@@ -79,10 +80,15 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const companyName = (payload.company_name ?? '').trim();
   const vatNumber = (payload.vat_number ?? '').trim().replace(/\s+/g, '');
   const coupon = (payload.coupon ?? '').trim();
-  const discountPct = resolveDiscountPercent({
-    discount: payload.discount,
-    adiscount: payload.adiscount,
-  });
+  // Launch promo: the ticket is at least 50% off during the window. A bespoke
+  // ?adiscount=N (owner) link can still go deeper — withLaunchPromo takes the
+  // better of the two. The order bump is never discounted (handled below).
+  const discountPct = withLaunchPromo(
+    resolveDiscountPercent({
+      discount: payload.discount,
+      adiscount: payload.adiscount,
+    }),
+  );
   const metaEventId = (payload.meta_event_id ?? '').trim() || null;
   const audience = normalizeAudience(payload.audience ?? '');
 

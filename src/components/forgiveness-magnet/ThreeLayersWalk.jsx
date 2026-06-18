@@ -243,7 +243,7 @@ function PrayerCard({ prayer, onSubmitEmail, onReplay, submitted, sending }) {
                 <span className="tlw-course-fact-val">Price €147</span>
               </li>
             </ul>
-            <a className="tlw-course-cta" href="https://site.songdance.co/forgiveness/">
+            <a className="tlw-course-cta" href="https://songdance.co/forgiveness/">
               Keep me in the loop <span aria-hidden="true">→</span>
             </a>
           </aside>

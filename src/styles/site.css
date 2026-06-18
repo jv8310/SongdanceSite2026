@@ -684,6 +684,16 @@ html, body { background: var(--paper); }
   transition: color var(--d-base) var(--ease);
 }
 .sd-footer-cols a:hover { color: var(--ember-deep); }
+.sd-footer-social {
+  display: flex; align-items: center; gap: var(--sp-5);
+  padding-top: var(--sp-5);
+  border-top: 1px solid var(--line);
+}
+.sd-footer-social a {
+  display: inline-flex; color: var(--ink-quiet);
+  transition: color var(--d-base) var(--ease);
+}
+.sd-footer-social a:hover { color: var(--ember-deep); }
 .sd-footer-base {
   display: flex; align-items: center; gap: 8px;
   font-family: var(--font-body); font-size: 12px;
@@ -756,6 +766,18 @@ html, body { background: var(--paper); }
 }
 .sd-nav-drop-menu a:hover { background: var(--paper-deep); color: var(--ember-deep); }
 .sd-nav-drop-menu a.is-active { color: var(--ember-deep); }
+/* Structured dropdown: small section headers grouping the course links. */
+.sd-nav-drop-menu { min-width: 300px; }
+.sd-nav-drop-section { display: flex; flex-direction: column; gap: 2px; }
+.sd-nav-drop-section + .sd-nav-drop-section { margin-top: 4px; }
+.sd-nav-drop-section-title {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--ink-quiet); padding: 9px 12px 3px;
+}
+.sd-nav-drop-menu .sd-nav-drop-all {
+  margin-top: 6px; border-top: 1px solid var(--line); border-radius: 0 0 var(--r-sm) var(--r-sm);
+  color: var(--ember-deep);
+}
 
 .sd-nav-drawer {
   display: none;

@@ -1,0 +1,77 @@
+---
+// A custom, square video player for the self-hosted journey clips.
+// - 1:1 frame, poster image, a centred play button with a hover effect
+// - no native control bar (click the frame or button to play / pause)
+// - starts at 80% volume, with sound (the first play is user-initiated)
+interface Props {
+  src: string;
+  poster: string;
+  label?: string;
+  title?: string; // may contain <em>…</em>
+  sub?: string;
+}
+const { src, poster, label, title, sub } = Astro.props;
+---
+
+<section class="jr-section jr-video">
+  <div class="jr-video-inner">
+    {label && <div class="jr-eyebrow" style="justify-content:center;">{label}</div>}
+    {title && <h2 class="jr-video-head" set:html={title} />}
+    {sub && <p class="jr-video-sub">{sub}</p>}
+
+    <div class="jr-vplayer" data-jr-vplayer>
+      <video
+        class="jr-vplayer-video"
+        playsinline
+        preload="metadata"
+        poster={poster}
+        data-jr-video
+      >
+        <source src={src} type="video/quicktime" />
+        <source src={src} type="video/mp4" />
+      </video>
+      <button class="jr-vplayer-btn" type="button" data-jr-playbtn aria-label="Play video">
+        <i class="ph-fill ph-play"></i>
+      </button>
+    </div>
+
+    <p class="jr-video-fallback">
+      Trouble playing it? <a href={src} target="_blank" rel="noopener">Open the clip in a new tab</a>.
+    </p>
+  </div>
+</section>
+
+<script>
+  document.querySelectorAll<HTMLElement>('[data-jr-vplayer]').forEach((wrap) => {
+    const video = wrap.querySelector<HTMLVideoElement>('[data-jr-video]');
+    const btn = wrap.querySelector<HTMLButtonElement>('[data-jr-playbtn]');
+    if (!video || !btn) return;
+
+    let primed = false;
+    function play() {
+      if (!primed) {
+        // First, user-initiated play: with sound, at 80%.
+        video!.muted = false;
+        video!.volume = 0.8;
+        primed = true;
+      }
+      void video!.play();
+    }
+    function toggle() {
+      if (video!.paused || video!.ended) play();
+      else video!.pause();
+    }
+
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggle();
+    });
+    video.addEventListener('click', toggle);
+    video.addEventListener('play', () => wrap.classList.add('is-playing'));
+    video.addEventListener('pause', () => wrap.classList.remove('is-playing'));
+    video.addEventListener('ended', () => {
+      wrap.classList.remove('is-playing');
+      video.currentTime = 0;
+    });
+  });
+</script>
