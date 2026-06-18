@@ -77,14 +77,19 @@ html, body { background: var(--paper); }
 /* While the launch promo bar is on the page it is the ONLY sticky bar — every
    page's nav scrolls away beneath it instead of stacking. The bar self-removes
    when the promo ends, which makes :has() false again and restores the sticky
-   nav. (site.css loads on every page, so this one rule covers all the navs.) */
+   nav. (site.css loads on every page, so this one rule covers all the navs.)
+   Use `relative` (not `static`): the nav still scrolls away normally, but it
+   stays a positioned box so its `z-index` keeps applying. The nav also forms a
+   stacking context via `backdrop-filter`, so `static` would drop it to the
+   `auto` level and let page content paint over — and steal the clicks from —
+   the open Courses dropdown nested inside it. */
 body:has([data-sd-promo]) .sd-nav,
 body:has([data-sd-promo]) .we-nav,
 body:has([data-sd-promo]) .fc-nav,
 body:has([data-sd-promo]) .tw-nav,
 body:has([data-sd-promo]) .cc-nav,
 body:has([data-sd-promo]) .jr-nav {
-  position: static;
+  position: relative;
 }
 .sd-nav-inner {
   max-width: var(--sd-max); margin: 0 auto;
