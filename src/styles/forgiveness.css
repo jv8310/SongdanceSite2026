@@ -4,7 +4,9 @@
    ========================================================= */
 
 html, body { background: var(--paper); }
-.fc-site { width: 100%; overflow-x: hidden; }
+/* overflow-x: clip (not hidden) so the page doesn't scroll sideways while still
+   allowing position: sticky descendants (promo bar + nav) to pin to the viewport. */
+.fc-site { width: 100%; overflow-x: clip; }
 
 :root {
   --fc-max: 1240px;

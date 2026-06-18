@@ -4,6 +4,11 @@ import PageHero from '../../components/PageHero.astro';
 import SoftCta from '../../components/SoftCta.astro';
 import { coursesJsonLd } from '../../lib/seo';
 import type { MarketingProduct } from '../../lib/workshops/marketing-prices';
+import { launchPromoActive, LAUNCH_PROMO_PERCENT } from '../../lib/promo';
+
+// Launch promo: show a "% off" badge on each purchasable card while the window
+// is open (self-clears after the deadline). Excludes products you can't buy yet.
+const showPromo = launchPromoActive();
 
 interface CourseItem {
   label: string;
@@ -13,6 +18,7 @@ interface CourseItem {
   note: string;
   price?: MarketingProduct; // opts into client-side currency localization
   pos?: string; // object-position override when the 3:2 crop would clip the subject
+  noPromo?: boolean; // suppress the launch badge (not yet purchasable, e.g. forgiveness)
 }
 interface CourseGroup {
   title: string;
@@ -81,6 +87,7 @@ const groups: CourseGroup[] = [
         img: '/media/library/forgiveness-sunflowers-sunset.webp',
         desc: 'When forgiveness feels impossible, come anyway. Four live sessions honoring what the words alone never reached.',
         note: 'with Daniela · Fall 2026',
+        noPromo: true, // enrolment not open yet — no price to discount
       },
     ],
   },
@@ -145,6 +152,9 @@ const coursesLd = coursesJsonLd(
             {g.items.map((it) => (
               <a class="sd-course-card sd-course-card--media" href={it.href}>
                 <span class="sd-course-card-media">
+                  {showPromo && !it.noPromo && (
+                    <span class="sd-course-card-badge">{LAUNCH_PROMO_PERCENT}% off</span>
+                  )}
                   <img src={it.img} alt="" loading="lazy" decoding="async" style={it.pos ? `object-position:${it.pos}` : undefined} />
                 </span>
                 <span class="sd-course-card-body">
@@ -185,9 +195,26 @@ const coursesLd = coursesJsonLd(
   }
   .sd-course-card-media {
     display: block;
+    position: relative;
     aspect-ratio: 3 / 2;
     overflow: hidden;
     background: var(--paper-deep);
+  }
+  /* Launch-offer discount badge, pinned to the top-left of the card image. */
+  .sd-course-card-badge {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    z-index: 2;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: #fff;
+    background: linear-gradient(90deg, var(--ember), var(--plum));
+    padding: 5px 10px;
+    border-radius: var(--r-pill, 999px);
+    box-shadow: 0 2px 10px rgba(74, 37, 64, 0.32);
   }
   .sd-course-card-media img {
     width: 100%;

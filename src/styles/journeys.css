@@ -10,7 +10,8 @@
 
 .jr-site {
   width: 100%;
-  overflow-x: hidden;
+  /* clip (not hidden) so position: sticky descendants (promo bar + nav) still pin. */
+  overflow-x: clip;
 
   /* default theme = singing / ember */
   --jr-accent:       var(--ember);

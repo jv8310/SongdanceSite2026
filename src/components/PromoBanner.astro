@@ -1,12 +1,14 @@
 ---
-// Slim launch-promo announcement bar. Rendered in normal flow at the very top
-// of the page (above the sticky nav), so it scrolls away while the nav sticks —
-// the standard announcement-bar pattern. Mounted on the homepage and every
-// course page; deliberately NOT on retreats (the promo is courses-only).
+// Slim launch-promo announcement bar. It sticks to the very top of the viewport
+// so the offer stays in view while scrolling — and it's the ONLY sticky bar:
+// each page's nav scrolls away beneath it (site.css drops the nav's stickiness
+// while this bar is present, via body:has([data-sd-promo])). Mounted on the
+// homepage and every course page; deliberately NOT on retreats (courses-only).
 //
 // It self-expires: an inline guard removes it once the promo window has closed,
-// so it disappears at the deadline without needing a rebuild. The actual charge
-// is gated server-side regardless.
+// so it disappears at the deadline without a rebuild — and once it's gone, the
+// nav's normal sticky behaviour returns automatically. The charge is gated
+// server-side regardless.
 import {
   launchPromoPayload,
   LAUNCH_PROMO_HEADLINE,
@@ -16,13 +18,13 @@ import {
 const { endsAtMs } = launchPromoPayload();
 ---
 
-<aside class="sd-promo" data-sd-promo data-ends={endsAtMs} aria-label="Launch offer">
+<aside class="sd-promo" data-sd-promo data-ends={endsAtMs} aria-label="New-website launch offer">
   <a class="sd-promo-inner" href="/courses">
-    <span class="sd-promo-tag">Launch</span>
+    <span class="sd-promo-tag">New site</span>
     <span class="sd-promo-text">
       <strong>{LAUNCH_PROMO_HEADLINE}</strong>
       <span class="sd-promo-sep">·</span>
-      <span class="sd-promo-sub">our new home is here — through {LAUNCH_PROMO_END_LABEL}</span>
+      <span class="sd-promo-sub">celebrating our new website — through {LAUNCH_PROMO_END_LABEL}</span>
     </span>
     <span class="sd-promo-cta">Browse courses →</span>
   </a>
@@ -39,6 +41,9 @@ const { endsAtMs } = launchPromoPayload();
 
 <style>
   .sd-promo {
+    position: sticky;
+    top: 0;
+    z-index: 60; /* above the sticky nav (z-index 50) — it pins right below */
     background: linear-gradient(90deg, var(--ember, #c4622d), var(--plum, #6d3b57));
     color: #fff;
     font-family: var(--font-body, system-ui, sans-serif);
