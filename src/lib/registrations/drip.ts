@@ -115,6 +115,30 @@ export async function getSubscriber(
   };
 }
 
+// Apply a single tag to a subscriber. Drip creates the subscriber if the
+// address is new, so this is safe to call for anyone who clicks a link in a
+// send. Used by the promo-launch opt-out (`nopromo_June26`) — the tag lets a
+// Drip segment exclude them from the launch campaign while keeping them on the
+// general monthly list.
+// POST /v2/:account_id/tags  { tags: [{ email, tag }] }
+export async function applyTag(
+  cfg: DripConfig,
+  email: string,
+  tag: string,
+): Promise<void> {
+  const res = await fetch(`${baseUrl(cfg)}/tags`, {
+    method: 'POST',
+    headers: {
+      Authorization: authHeader(cfg),
+      'Content-Type': 'application/vnd.api+json',
+    },
+    body: JSON.stringify({ tags: [{ email, tag }] }),
+  });
+  if (!res.ok) {
+    throw new Error(`Drip applyTag: ${res.status} ${await res.text()}`);
+  }
+}
+
 export async function recordEvent(
   cfg: DripConfig,
   email: string,

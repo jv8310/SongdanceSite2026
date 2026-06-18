@@ -2,6 +2,7 @@
 import SiteLayout from '../../components/SiteLayout.astro';
 import PageHero from '../../components/PageHero.astro';
 import SoftCta from '../../components/SoftCta.astro';
+import { coursesJsonLd } from '../../lib/seo';
 import { launchPromoActive, LAUNCH_PROMO_PERCENT } from '../../lib/promo';
 
 // Launch promo: show a "% off" badge on each purchasable card while the window
@@ -115,6 +116,15 @@ const groups: CourseGroup[] = [
     ],
   },
 ];
+
+// Course structured data — one Course per card (name + description + provider,
+// plus a price Offer where the note carries one). Helps Google course rich
+// results and AI answer engines enumerate what Songdance offers.
+const coursesLd = coursesJsonLd(
+  groups.flatMap((g) =>
+    g.items.map((it) => ({ name: it.label, description: it.desc, href: it.href, price: it.note })),
+  ),
+);
 ---
 
 <SiteLayout
@@ -154,6 +164,8 @@ const groups: CourseGroup[] = [
     </div>
   </section>
   <SoftCta />
+
+  <script type="application/ld+json" set:html={JSON.stringify(coursesLd)} />
 </SiteLayout>
 
 <style>

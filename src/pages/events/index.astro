@@ -7,11 +7,17 @@ import {
   CATEGORY_LABEL,
   STATUS_LABEL,
 } from '../../lib/events/db';
+import { eventsJsonLd } from '../../lib/seo';
 
 export const prerender = false;
 
 const env = Astro.locals.runtime.env;
 const events = await listPublicEvents(env.DB);
+
+// Event structured data — a dual win: Google event rich results + grounding for
+// AI answer engines ("what Songdance events are coming up?"). Undated cards are
+// dropped (a schema Event needs a start date).
+const eventsLd = eventsJsonLd(events);
 
 // Default filter from ?filter=retreat|online|course (brief: RetreatBand and
 // homepage both deep-link here). 'all' otherwise.
@@ -31,9 +37,9 @@ const chips = [
   description="Retreats, online sessions, and course start dates — everything happening next at Songdance."
 >
   <PageHero
+    compact
     eyebrow="Upcoming"
     title="Everything happening next"
-    lede="Retreats, online sessions, and course start dates — in one place."
   />
 
   <section class="sd-section sd-events">
@@ -78,7 +84,7 @@ const chips = [
                       {STATUS_LABEL[e.status]}
                     </span>
                   </div>
-                  <h3 class="sd-evt-title">{e.title}</h3>
+                  <h2 class="sd-evt-title">{e.title}</h2>
                   {meta && <div class="sd-evt-meta">{meta}</div>}
                   {e.bookedPercent != null && e.bookedPercent > 0 && (
                     <div class="sd-evt-booked" title={`${e.bookedPercent}% booked`}>
@@ -102,6 +108,10 @@ const chips = [
       <p class="sd-events-noneshown" hidden data-none-shown>Nothing in this category right now.</p>
     </div>
   </section>
+
+  {eventsLd.length > 0 && (
+    <script type="application/ld+json" set:html={JSON.stringify(eventsLd)} />
+  )}
 </SiteLayout>
 
 <script>

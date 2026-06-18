@@ -4,6 +4,7 @@ import '../styles/site.css';
 import PriceSync from '../components/PriceSync.astro';
 import AdminTopBar from '../components/admin/AdminTopBar.astro';
 import { launchPromoPayload } from '../lib/promo';
+import { organizationSchema } from '../lib/seo';
 
 // Launch-promo facts, exposed to inline (non-bundled) scripts via a global. The
 // `active` flag is derived client-side from the deadline so the promo (and its
@@ -14,18 +15,28 @@ interface Props {
   title?: string;
   description?: string;
   image?: string;
+  imageAlt?: string;
   ogType?: string;
+  lang?: string; // 'en' (default) | 'de' | 'nl' — set on the language twins
 }
 
 const {
   title = 'Songdance — sound that comes from you',
   description = "Somatic Vocal Healing — the honest sound of what you feel, until it's been heard. Sound that comes from you, not toward you.",
-  image = '/brand/symbol-orange.png',
+  // A real photo, not the bare logo — so shares render as a rich card. Pass a
+  // page-specific `image` to override.
+  image = '/media/library/svhgpt-01-hero-in-one-breath.webp',
+  imageAlt = 'Somatic Vocal Healing — the honest sound of what you feel.',
   ogType = 'website',
+  lang = 'en',
 } = Astro.props;
 
 const canonical = new URL(Astro.url.pathname, Astro.site ?? Astro.url.origin).href;
 const ogImage = new URL(image, Astro.site ?? Astro.url.origin).href;
+
+const OG_LOCALE: Record<string, string> = { en: 'en_US', de: 'de_DE', nl: 'nl_BE' };
+const ogLocale = OG_LOCALE[lang] ?? 'en_US';
+const orgLd = JSON.stringify(organizationSchema());
 
 // The persistent admin nav shows on every /admin page except the (pre-auth)
 // login screen, which doesn't load the admin styles.
@@ -34,7 +45,7 @@ const showAdminBar = (path === '/admin' || path.startsWith('/admin/')) && !path.
 ---
 
 <!doctype html>
-<html lang="en">
+<html lang={lang}>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -42,14 +53,34 @@ const showAdminBar = (path === '/admin' || path.startsWith('/admin/')) && !path.
     <meta name="description" content={description} />
     <link rel="canonical" href={canonical} />
     <link rel="icon" href="/favicon.png" type="image/png" />
+    <link rel="apple-touch-icon" href="/favicon.png" />
+
+    <!-- Fonts: preconnect + a single stylesheet link (not a render-blocking
+         CSS @import) so the browser can fetch them on its own connection. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preconnect" href="https://unpkg.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400;1,500&family=Cormorant+Garamond:ital,wght@0,400;1,400;1,500&family=Figtree:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap"
+    />
     <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/light/style.css" />
     <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css" />
+
     <meta property="og:type" content={ogType} />
+    <meta property="og:site_name" content="Songdance" />
+    <meta property="og:locale" content={ogLocale} />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:image" content={ogImage} />
+    <meta property="og:image:alt" content={imageAlt} />
     <meta property="og:url" content={canonical} />
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImage} />
+    <meta name="twitter:image:alt" content={imageAlt} />
+    <script type="application/ld+json" set:html={orgLd} />
     <title>{title}</title>
     <script is:inline define:vars={{ promoPayload }}>
       window.__SD_PROMO__ = promoPayload;
