@@ -1,4 +1,5 @@
 ---
+import SiteMenu from '../SiteMenu.astro';
 ---
 
 <nav class="wd-nav">
@@ -13,5 +14,9 @@
       <span>Mit Carmen &amp; Lorenz</span>
     </div>
     <a href="#anmelden" class="wd-nav-cta">Anmelden</a>
+    <button class="sm-trigger" data-sm-trigger aria-label="Menü öffnen" aria-expanded="false">
+      <i class="ph-light ph-list"></i>
+    </button>
   </div>
 </nav>
+<SiteMenu />

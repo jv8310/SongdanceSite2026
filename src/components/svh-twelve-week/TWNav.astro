@@ -1,5 +1,6 @@
 ---
 import { REGISTER_ANCHOR } from './config';
+import SiteMenu from '../SiteMenu.astro';
 ---
 
 <nav class="tw-nav">
@@ -20,5 +21,9 @@ import { REGISTER_ANCHOR } from './config';
       class="tw-nav-cta"
       aria-label="Register for the 12-Week Somatic Vocal Healing Course"
     >Register</a>
+    <button class="sm-trigger" data-sm-trigger aria-label="Open menu" aria-expanded="false">
+      <i class="ph-light ph-list"></i>
+    </button>
   </div>
 </nav>
+<SiteMenu />

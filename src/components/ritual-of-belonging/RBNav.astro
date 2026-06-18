@@ -1,4 +1,5 @@
 ---
+import SiteMenu from '../SiteMenu.astro';
 ---
 
 <nav class="rb-nav">
@@ -17,5 +18,9 @@
       class="rb-nav-cta"
       aria-label="Register for the Ritual of Belonging retreat"
     >Register</a>
+    <button class="sm-trigger" data-sm-trigger aria-label="Open menu" aria-expanded="false">
+      <i class="ph-light ph-list"></i>
+    </button>
   </div>
 </nav>
+<SiteMenu />

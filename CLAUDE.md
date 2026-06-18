@@ -3,6 +3,26 @@
 Astro site deployed to Cloudflare Workers. Media (images) live in an R2 bucket
 (`songdance-media`, bound as `MEDIA`) and are served publicly at `/media/<key>`.
 
+## Navigation — one menu, three renderings
+
+The site menu has a single source of truth: [`src/data/nav.ts`](src/data/nav.ts)
+(the Courses table-of-contents + top-level links + CTA). It feeds three places,
+which must stay in sync — edit the data, not the markup:
+
+- **Main header** (`src/components/Nav.astro`, used via `SiteLayout`): desktop
+  Courses dropdown + a mobile drawer that renders the full structured menu.
+- **Bespoke landing pages** carry their own minimal header (e.g. `WENav`,
+  `MCNav`, retreat navs) with no site nav. Each of those navs renders a
+  `data-sm-trigger` menu button **and** `<SiteMenu />`
+  (`src/components/SiteMenu.astro`) — a slide-in panel with the same menu, on
+  desktop and mobile. **Any new landing nav must do the same** so the menu is
+  always reachable. `SiteMenu` is placed *after* `</nav>` (outside the nav's
+  backdrop-filter, or its `position:fixed` panel would be trapped); the trigger
+  uses `color: inherit` so it reads on light and dark headers alike.
+
+Course price labels in the menu carry `data-sd-price` so `PriceSync` localizes
+the currency (workshop ticket + masterclass only).
+
 ## Typography law — inline italics must be sized UP
 
 The display/lyric font **Cormorant Garamond** (`--font-lyric`) optically reads

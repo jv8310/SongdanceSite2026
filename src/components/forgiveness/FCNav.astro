@@ -1,4 +1,5 @@
 ---
+import SiteMenu from '../SiteMenu.astro';
 ---
 
 <nav class="fc-nav">
@@ -13,5 +14,9 @@
       <span>Coming in Fall 2026</span>
     </div>
     <a href="#register" class="fc-nav-cta">Stay in the loop</a>
+    <button class="sm-trigger" data-sm-trigger aria-label="Open menu" aria-expanded="false">
+      <i class="ph-light ph-list"></i>
+    </button>
   </div>
 </nav>
+<SiteMenu />

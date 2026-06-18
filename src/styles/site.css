@@ -779,40 +779,207 @@ body:has([data-sd-promo]) .jr-nav {
 }
 .sd-nav-drop-menu a:hover { background: var(--paper-deep); color: var(--ember-deep); }
 .sd-nav-drop-menu a.is-active { color: var(--ember-deep); }
-/* Structured dropdown: small section headers grouping the course links. */
+/* Structured dropdown: section headers clearly set apart from the course
+   links below them — a hairline rule + ember label, so a heading never reads
+   as just another clickable item. */
 .sd-nav-drop-menu { min-width: 300px; }
 .sd-nav-drop-section { display: flex; flex-direction: column; gap: 2px; }
-.sd-nav-drop-section + .sd-nav-drop-section { margin-top: 4px; }
+.sd-nav-drop-section + .sd-nav-drop-section { margin-top: 10px; }
 .sd-nav-drop-section-title {
-  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
-  color: var(--ink-quiet); padding: 9px 12px 3px;
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--ember-deep); font-weight: 600;
+  padding: 8px 12px 7px; margin-bottom: 3px;
+  border-bottom: 1px solid var(--line);
 }
 .sd-nav-drop-menu .sd-nav-drop-all {
-  margin-top: 6px; border-top: 1px solid var(--line); border-radius: 0 0 var(--r-sm) var(--r-sm);
+  margin-top: 8px; padding-top: 12px;
+  border-top: 1px solid var(--line); border-radius: 0 0 var(--r-sm) var(--r-sm);
   color: var(--ember-deep);
 }
 
+/* Mobile drawer — the full structured menu (matches the desktop dropdown). */
 .sd-nav-drawer {
   display: none;
   flex-direction: column; gap: 2px;
-  padding: 8px 24px 20px;
+  padding: 12px 24px 24px;
   border-top: 1px solid var(--line);
-  background: rgba(244, 236, 223, 0.96);
+  background: rgba(244, 236, 223, 0.97);
+  max-height: calc(100vh - 64px);
+  overflow-y: auto;
 }
-.sd-nav-drawer a {
+.sd-nav-drawer a { text-decoration: none; }
+.sd-nav-drawer-link {
   font-family: var(--font-body); font-size: 16px;
-  color: var(--ink); text-decoration: none;
-  padding: 12px 0; border-bottom: 1px solid var(--line);
+  color: var(--ink);
+  padding: 13px 0; border-bottom: 1px solid var(--line);
 }
-.sd-nav-drawer a:last-child { border-bottom: none; }
+.sd-nav-drawer-link.is-active { color: var(--ember-deep); }
+.sd-nav-drawer-section {
+  display: flex; flex-direction: column;
+  padding: 6px 0 4px;
+  border-bottom: 1px solid var(--line);
+}
+.sd-nav-drawer-section-title {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--ember-deep); font-weight: 600;
+  padding: 12px 0 6px;
+}
+.sd-nav-drawer-sublink {
+  font-family: var(--font-body); font-size: 15px;
+  color: var(--ink-soft);
+  padding: 9px 0 9px 14px;
+}
+.sd-nav-drawer-sublink.is-active { color: var(--ember-deep); }
+.sd-nav-drawer-all {
+  color: var(--ember-deep);
+  padding-left: 0; padding-bottom: 13px;
+  border-bottom: 1px solid var(--line);
+}
 .sd-nav-drawer-cta {
-  margin-top: 12px; align-self: flex-start;
+  margin-top: 16px; align-self: flex-start;
+  font-family: var(--font-body); font-size: 14px; font-weight: 500;
   background: var(--ink); color: var(--paper) !important;
-  padding: 11px 20px !important; border-radius: var(--r-pill);
-  border-bottom: none !important;
+  padding: 12px 22px; border-radius: var(--r-pill);
 }
+.sd-nav-drawer-cta:hover { background: var(--plum); }
+/* Courses accordion in the drawer — folded behind a "Courses" toggle. */
+.sd-nav-drawer-acc {
+  display: flex; align-items: center; justify-content: space-between;
+  width: 100%; text-align: left;
+  background: none; border: 0; border-bottom: 1px solid var(--line);
+  cursor: pointer;
+}
+.sd-nav-drawer-acc i { font-size: 16px; color: var(--ember-deep); transition: transform var(--d-base) var(--ease); }
+.sd-nav-drawer-acc.is-active i { color: inherit; }
+.sd-nav-drawer-acc[aria-expanded="true"] i { transform: rotate(180deg); }
+.sd-nav-drawer-acc-panel {
+  display: grid; grid-template-rows: 0fr;
+  transition: grid-template-rows var(--d-base) var(--ease);
+}
+.sd-nav-drawer-acc-panel.is-open { grid-template-rows: 1fr; }
+.sd-nav-drawer-acc-inner {
+  overflow: hidden; min-height: 0;
+  visibility: hidden; transition: visibility var(--d-base);
+}
+.sd-nav-drawer-acc-panel.is-open .sd-nav-drawer-acc-inner { visibility: visible; }
 @media (max-width: 800px) {
   .sd-nav-drawer:not([hidden]) { display: flex; }
+}
+
+/* ---------- Floating site menu (bespoke landing pages) ---------- */
+/* The trigger lives inside each landing nav and inherits the nav's text colour,
+   so the icon reads on both the light (paper) and dark (navy/indigo) headers. */
+.sm-trigger {
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  width: 40px; height: 40px; margin-left: 4px;
+  background: none; border: none; padding: 0;
+  color: inherit; cursor: pointer; border-radius: 50%;
+  transition: color var(--d-base) var(--ease), background var(--d-base) var(--ease);
+}
+.sm-trigger i { font-size: 24px; line-height: 1; }
+.sm-trigger:hover { color: var(--ember-deep); }
+
+.sm-overlay {
+  position: fixed; inset: 0; z-index: 200;
+  opacity: 0; pointer-events: none;
+  transition: opacity var(--d-base) var(--ease);
+}
+.sm-overlay.is-open { opacity: 1; pointer-events: auto; }
+.sm-scrim {
+  position: absolute; inset: 0;
+  background: rgba(28, 18, 30, 0.42);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+.sm-panel {
+  position: absolute; top: 0; right: 0; bottom: 0;
+  width: 360px; max-width: 88vw;
+  background: var(--paper-soft);
+  border-left: 1px solid var(--line);
+  box-shadow: var(--shadow-3);
+  display: flex; flex-direction: column;
+  overflow-y: auto;
+  transform: translateX(100%);
+  transition: transform var(--d-base) var(--ease);
+}
+.sm-overlay.is-open .sm-panel { transform: translateX(0); }
+.sm-panel-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 18px 24px; border-bottom: 1px solid var(--line);
+  position: sticky; top: 0; z-index: 1; background: var(--paper-soft);
+}
+.sm-panel-mark img { height: 26px; width: auto; display: block; }
+.sm-close {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 38px; height: 38px; margin-right: -8px;
+  background: none; border: none; cursor: pointer;
+  color: var(--ink); border-radius: 50%;
+  transition: background var(--d-base) var(--ease);
+}
+.sm-close i { font-size: 22px; }
+.sm-close:hover { background: var(--paper-deep); }
+
+.sm-panel-nav { display: flex; flex-direction: column; padding: 8px 24px 28px; }
+.sm-panel-nav a { text-decoration: none; }
+.sm-link {
+  font-family: var(--font-body); font-size: 17px; color: var(--ink);
+  padding: 14px 0; border-bottom: 1px solid var(--line);
+}
+.sm-link.is-active { color: var(--ember-deep); }
+.sm-section {
+  display: flex; flex-direction: column;
+  padding: 6px 0; border-bottom: 1px solid var(--line);
+}
+.sm-section-title {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--ember-deep); font-weight: 600;
+  padding: 14px 0 7px;
+}
+.sm-sublink {
+  font-family: var(--font-body); font-size: 15px; color: var(--ink-soft);
+  padding: 10px 0 10px 14px;
+}
+.sm-sublink.is-active { color: var(--ember-deep); }
+.sm-all {
+  color: var(--ember-deep); padding-left: 0; padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+.sm-cta {
+  margin-top: 20px; align-self: flex-start;
+  font-family: var(--font-body); font-size: 14px; font-weight: 500;
+  background: var(--ink); color: var(--paper) !important;
+  padding: 13px 24px; border-radius: var(--r-pill);
+  transition: background var(--d-base) var(--ease);
+}
+.sm-cta:hover { background: var(--plum); }
+
+/* Courses accordion — the course list is folded behind a "Courses" toggle so
+   the menu reads as a short top-level list, not one long run of links. */
+.sm-acc {
+  display: flex; align-items: center; justify-content: space-between;
+  width: 100%; text-align: left;
+  background: none; border: 0; border-bottom: 1px solid var(--line);
+  cursor: pointer;
+}
+.sm-acc i { font-size: 18px; color: var(--ember-deep); transition: transform var(--d-base) var(--ease); }
+.sm-acc.is-active i { color: inherit; }
+.sm-acc[aria-expanded="true"] i { transform: rotate(180deg); }
+.sm-acc-panel {
+  display: grid; grid-template-rows: 0fr;
+  transition: grid-template-rows var(--d-base) var(--ease);
+}
+.sm-acc-panel.is-open { grid-template-rows: 1fr; }
+.sm-acc-inner {
+  overflow: hidden; min-height: 0;
+  visibility: hidden; transition: visibility var(--d-base);
+}
+.sm-acc-panel.is-open .sm-acc-inner { visibility: visible; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sm-overlay, .sm-panel { transition: opacity 1ms, transform 1ms; }
+  .sm-acc-panel, .sd-nav-drawer-acc-panel { transition: none; }
+  .sm-acc i, .sd-nav-drawer-acc i { transition: none; }
 }
 
 .sd-news-sub {

@@ -1,4 +1,5 @@
 ---
+import SiteMenu from '../SiteMenu.astro';
 ---
 
 <nav class="sg-nav">
@@ -17,8 +18,12 @@
       class="sg-nav-cta"
       aria-label="Zum 12-wöchigen Kurs Somatic Vocal Healing anmelden"
     >Platz sichern</a>
+    <button class="sm-trigger" data-sm-trigger aria-label="Menü öffnen" aria-expanded="false">
+      <i class="ph-light ph-list"></i>
+    </button>
   </div>
 </nav>
+<SiteMenu />
 
 <div class="sg-countdown" aria-live="polite">
   <span class="sg-countdown-label">Kursstart in</span>

@@ -1,44 +1,13 @@
 ---
 // Shared site header. Consistent across the integrated marketing pages.
 // Landing pages that don't want a header simply don't render it (see
-// SiteLayout's `header` prop). Nav structure follows the content brief §1.
+// SiteLayout's `header` prop) — they surface the same menu through SiteMenu.
+// Nav structure follows the content brief §1.
+import { courseMenu, coursesAllHref, topLink, tailLinks, navCta } from '../data/nav';
 const path = Astro.url.pathname;
 const isActive = (href: string) =>
   href === '/' ? path === '/' : path === href || path.startsWith(href + '/');
-
-// Structured Courses dropdown — same three sections as the /courses page, so
-// the menu reads as a table of contents. data-sd-price opts a label into the
-// client-side currency localization (every priced item; forgiveness has no
-// price yet, so it stays untagged).
-import type { MarketingProduct } from '../lib/workshops/marketing-prices';
-interface NavCourse { href: string; label: string; price?: MarketingProduct; }
-interface NavCourseGroup { title: string; items: NavCourse[]; }
-const courseMenu: NavCourseGroup[] = [
-  {
-    title: 'Somatic Vocal Healing',
-    items: [
-      { href: '/workshop', label: 'Vocal Healing Workshop — 9€', price: 'ticket' },
-      { href: '/courses/12-week', label: '12-Week Course' },
-      { href: '/courses/certification', label: 'Practitioner Training' },
-      { href: '/courses/masterclass', label: 'Professional Masterclass — 29€', price: 'masterclass' },
-    ],
-  },
-  {
-    title: 'Courses by Theme',
-    items: [
-      { href: '/courses/grief', label: 'Grief Course — €99', price: 'grief' },
-      { href: '/courses/forgiveness', label: 'Forgiveness Course' },
-    ],
-  },
-  {
-    title: 'Guided Musical Journeys',
-    items: [
-      { href: '/courses/authentic-singing', label: 'Authentic Singing Journey — €99', price: 'asj' },
-      { href: '/courses/magical-movement', label: 'Magical Movement Journey — €49', price: 'mmj' },
-      { href: '/courses/inner-child', label: 'Inner Child Journey — €29', price: 'inner-child' },
-    ],
-  },
-];
+const coursesActive = isActive('/workshop') || path.startsWith('/courses');
 ---
 
 <nav class="sd-nav" data-anim="nav">
@@ -48,7 +17,7 @@ const courseMenu: NavCourseGroup[] = [
     </a>
 
     <div class="sd-nav-links">
-      <a href="/what-is-svh" class:list={[{ 'is-active': isActive('/what-is-svh') }]}>What is SVH</a>
+      <a href={topLink.href} class:list={[{ 'is-active': isActive(topLink.href) }]}>{topLink.label}</a>
 
       <div class="sd-nav-drop" data-nav-drop>
         <button type="button" class:list={['sd-nav-drop-toggle', { 'is-active': isActive('/courses') }]} aria-expanded="false" aria-haspopup="true" data-nav-drop-toggle>
@@ -63,29 +32,54 @@ const courseMenu: NavCourseGroup[] = [
               ))}
             </div>
           ))}
-          <a class="sd-nav-drop-all" href="/courses">All courses →</a>
+          <a class="sd-nav-drop-all" href={coursesAllHref}>All courses →</a>
         </div>
       </div>
 
-      <a href="/events" class:list={[{ 'is-active': isActive('/events') }]}>Events</a>
-      <a href="/courses/songdeck" class:list={[{ 'is-active': isActive('/courses/songdeck') }]}>Songdeck</a>
-      <a href="/about" class:list={[{ 'is-active': isActive('/about') }]}>About</a>
+      {tailLinks.map((l) => (
+        <a href={l.href} class:list={[{ 'is-active': isActive(l.href) }]}>{l.label}</a>
+      ))}
     </div>
 
-    <a href="/workshop" class="sd-nav-cta" data-sd-price="ticket">Try a workshop — 9€</a>
+    <a href={navCta.href} class="sd-nav-cta" data-sd-price={navCta.price}>{navCta.label}</a>
     <button class="sd-nav-burger" aria-label="Menu" aria-expanded="false" data-nav-burger>
       <i class="ph-light ph-list"></i>
     </button>
   </div>
 
-  <!-- Mobile drawer -->
+  <!-- Mobile drawer: the full structured menu, so phone visitors get the same
+       Courses table-of-contents the desktop dropdown shows. -->
   <div class="sd-nav-drawer" data-nav-drawer hidden>
-    <a href="/what-is-svh">What is SVH</a>
-    <a href="/courses">Courses</a>
-    <a href="/events">Events</a>
-    <a href="/courses/songdeck">Songdeck</a>
-    <a href="/about">About</a>
-    <a href="/workshop" class="sd-nav-drawer-cta" data-sd-price="ticket">Try a workshop — 9€</a>
+    <a href={topLink.href} class:list={['sd-nav-drawer-link', { 'is-active': isActive(topLink.href) }]}>{topLink.label}</a>
+
+    <button
+      type="button"
+      class:list={['sd-nav-drawer-link', 'sd-nav-drawer-acc', { 'is-active': coursesActive }]}
+      data-drawer-acc
+      aria-expanded="false"
+      aria-controls="sd-drawer-courses"
+    >
+      Courses <i class="ph-light ph-caret-down"></i>
+    </button>
+    <div id="sd-drawer-courses" class="sd-nav-drawer-acc-panel" data-drawer-acc-panel>
+      <div class="sd-nav-drawer-acc-inner">
+        {courseMenu.map((sec) => (
+          <div class="sd-nav-drawer-section">
+            <span class="sd-nav-drawer-section-title">{sec.title}</span>
+            {sec.items.map((c) => (
+              <a href={c.href} class:list={['sd-nav-drawer-sublink', { 'is-active': isActive(c.href) }]} data-sd-price={c.price}>{c.label}</a>
+            ))}
+          </div>
+        ))}
+        <a href={coursesAllHref} class="sd-nav-drawer-sublink sd-nav-drawer-all">All courses →</a>
+      </div>
+    </div>
+
+    {tailLinks.map((l) => (
+      <a href={l.href} class:list={['sd-nav-drawer-link', { 'is-active': isActive(l.href) }]}>{l.label}</a>
+    ))}
+
+    <a href={navCta.href} class="sd-nav-drawer-cta" data-sd-price={navCta.price}>{navCta.label}</a>
   </div>
 </nav>
 
@@ -103,6 +97,14 @@ const courseMenu: NavCourseGroup[] = [
       drop.classList.remove('is-open');
       dropToggle?.setAttribute('aria-expanded', 'false');
     }
+  });
+
+  // Mobile drawer: Courses accordion — collapsed until clicked.
+  const drawerAcc = document.querySelector<HTMLButtonElement>('[data-drawer-acc]');
+  const drawerAccPanel = document.querySelector<HTMLElement>('[data-drawer-acc-panel]');
+  drawerAcc?.addEventListener('click', () => {
+    const isOpen = drawerAccPanel?.classList.toggle('is-open') ?? false;
+    drawerAcc.setAttribute('aria-expanded', String(isOpen));
   });
 
   // Mobile drawer toggle.
