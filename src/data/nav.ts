@@ -33,7 +33,7 @@ export const courseMenu: NavCourseGroup[] = [
       { href: '/workshop', label: 'Vocal Healing Workshop — 9€', price: 'ticket' },
       { href: '/courses/12-week', label: '12-Week Course' },
       { href: '/courses/certification', label: 'Practitioner Training' },
-      { href: '/courses/masterclass', label: 'Professional Masterclass — 29€', price: 'masterclass' },
+      { href: '/courses/masterclass', label: 'Professional Masterclass — 118€', price: 'masterclass' },
     ],
   },
   {
