@@ -1158,14 +1158,14 @@ html, body { background: var(--paper); }
   backdrop-filter: blur(4px);
 }
 .cc-name-tag {
-  font-family: var(--font-display);
-  font-size: clamp(20px, 2.2vw, 26px);
-  line-height: 1.42;
+  font-family: var(--font-body);
+  font-size: clamp(18px, 2vw, 23px);
+  line-height: 1.55;
   color: var(--ink);
   margin: 0;
-  text-wrap: balance;
+  text-wrap: pretty;
 }
-.cc-name-tag strong { font-weight: 500; font-style: italic; font-family: var(--font-lyric); color: var(--ember-deep); }
+.cc-name-tag strong { font-weight: 600; color: var(--ember-deep); }
 
 /* ---------- The 12-week foundation (included in the path) ---------- */
 /* Shown when the 12-week course is part of the visitor's offer (the bundle);

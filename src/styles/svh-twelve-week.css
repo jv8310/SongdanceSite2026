@@ -274,7 +274,7 @@ html, body { background: var(--paper); }
   font-family: var(--font-lyric); font-style: italic;
   font-size: clamp(20px, 2.2vw, 26px); line-height: 1.4;
   color: var(--ink);
-  margin: var(--sp-6) 0 0; padding-left: var(--sp-5);
+  margin: var(--sp-6) 0; padding-left: var(--sp-5);
   border-left: 2px solid var(--ember);
   text-wrap: balance;
 }
