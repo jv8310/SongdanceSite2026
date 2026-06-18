@@ -5,17 +5,20 @@
 //
 // Pass `image` (an R2 /media/library/… URL) to render the hero over a
 // full-bleed atmosphere photo with a warm darkening overlay and light text.
+// `compact` trims the vertical rhythm for utility/listing pages (e.g. /events)
+// where the job is to get the reader to the content fast, not to set a mood.
 interface Props {
   eyebrow?: string;
   title: string;
   lede?: string;
   image?: string;
+  compact?: boolean;
 }
-const { eyebrow, title, lede, image } = Astro.props;
+const { eyebrow, title, lede, image, compact } = Astro.props;
 ---
 
 <header
-  class:list={['sd-pagehero', image && 'sd-pagehero--image']}
+  class:list={['sd-pagehero', image && 'sd-pagehero--image', compact && 'sd-pagehero--compact']}
   style={image ? `background-image:url('${image}')` : undefined}
 >
   <div class="sd-pagehero-inner" data-anim="reveal">

@@ -2,6 +2,13 @@
 import SiteLayout from '../../components/SiteLayout.astro';
 import PageHero from '../../components/PageHero.astro';
 import SoftCta from '../../components/SoftCta.astro';
+import { coursesJsonLd } from '../../lib/seo';
+import type { MarketingProduct } from '../../lib/workshops/marketing-prices';
+import { launchPromoActive, LAUNCH_PROMO_PERCENT } from '../../lib/promo';
+
+// Launch promo: show a "% off" badge on each purchasable card while the window
+// is open (self-clears after the deadline). Excludes products you can't buy yet.
+const showPromo = launchPromoActive();
 
 interface CourseItem {
   label: string;
@@ -9,8 +16,9 @@ interface CourseItem {
   img: string;
   desc: string;
   note: string;
-  price?: 'ticket' | 'masterclass'; // opts into client-side currency localization
-  pos?: string; // object-position override when the 16:10 crop would clip the subject
+  price?: MarketingProduct; // opts into client-side currency localization
+  pos?: string; // object-position override when the 3:2 crop would clip the subject
+  noPromo?: boolean; // suppress the launch badge (not yet purchasable, e.g. forgiveness)
 }
 interface CourseGroup {
   title: string;
@@ -19,9 +27,10 @@ interface CourseGroup {
 }
 
 // Each card carries its own picture from the R2 library (served at /media/…),
-// a one-line description, and a price line. The two top-of-funnel products
-// (workshop · masterclass) tag their price with data-sd-price so PriceSync can
-// localize the currency; the rest are euro price points (localized at checkout).
+// a one-line description, and a price line. Every card with a fixed price tags
+// it with data-sd-price so PriceSync localizes the currency to the visitor's
+// market — the figure shown matches what they're charged at checkout. (The
+// forgiveness course has no price yet, so it stays untagged.)
 const groups: CourseGroup[] = [
   {
     title: 'Somatic Vocal Healing',
@@ -70,6 +79,7 @@ const groups: CourseGroup[] = [
         img: '/media/library/grief-jacob-letting-go-sounding.webp',
         desc: 'Four live sessions for the grief no one taught you how to carry — held gently, sounded together.',
         note: 'with Daniela · €99',
+        price: 'grief',
       },
       {
         label: 'Forgiveness Course',
@@ -77,6 +87,7 @@ const groups: CourseGroup[] = [
         img: '/media/library/forgiveness-sunflowers-sunset.webp',
         desc: 'When forgiveness feels impossible, come anyway. Four live sessions honoring what the words alone never reached.',
         note: 'with Daniela · Fall 2026',
+        noPromo: true, // enrolment not open yet — no price to discount
       },
     ],
   },
@@ -90,6 +101,7 @@ const groups: CourseGroup[] = [
         img: '/media/library/singing-lights-woman.webp',
         desc: 'Forty weeks of mantras and music — made to free the voice you already have, not train it into something else.',
         note: '€99 · 40 sessions',
+        price: 'asj',
       },
       {
         label: 'Magical Movement Journey',
@@ -97,6 +109,7 @@ const groups: CourseGroup[] = [
         img: '/media/library/movement.webp',
         desc: 'Guided movement you can do in your own room — standing, or seated in a chair. No steps to learn.',
         note: '€49 · self-paced',
+        price: 'mmj',
       },
       {
         label: 'Inner Child Healing Journey',
@@ -104,10 +117,20 @@ const groups: CourseGroup[] = [
         img: '/media/library/inner-child-glow.webp',
         desc: 'Five gentle sessions of music and mantra — to sing the child you were what they never got to hear.',
         note: '€29 · 5 sessions',
+        price: 'inner-child',
       },
     ],
   },
 ];
+
+// Course structured data — one Course per card (name + description + provider,
+// plus a price Offer where the note carries one). Helps Google course rich
+// results and AI answer engines enumerate what Songdance offers.
+const coursesLd = coursesJsonLd(
+  groups.flatMap((g) =>
+    g.items.map((it) => ({ name: it.label, description: it.desc, href: it.href, price: it.note })),
+  ),
+);
 ---
 
 <SiteLayout
@@ -129,6 +152,9 @@ const groups: CourseGroup[] = [
             {g.items.map((it) => (
               <a class="sd-course-card sd-course-card--media" href={it.href}>
                 <span class="sd-course-card-media">
+                  {showPromo && !it.noPromo && (
+                    <span class="sd-course-card-badge">{LAUNCH_PROMO_PERCENT}% off</span>
+                  )}
                   <img src={it.img} alt="" loading="lazy" decoding="async" style={it.pos ? `object-position:${it.pos}` : undefined} />
                 </span>
                 <span class="sd-course-card-body">
@@ -144,6 +170,8 @@ const groups: CourseGroup[] = [
     </div>
   </section>
   <SoftCta />
+
+  <script type="application/ld+json" set:html={JSON.stringify(coursesLd)} />
 </SiteLayout>
 
 <style>
@@ -167,9 +195,26 @@ const groups: CourseGroup[] = [
   }
   .sd-course-card-media {
     display: block;
-    aspect-ratio: 16 / 10;
+    position: relative;
+    aspect-ratio: 3 / 2;
     overflow: hidden;
     background: var(--paper-deep);
+  }
+  /* Launch-offer discount badge, pinned to the top-left of the card image. */
+  .sd-course-card-badge {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    z-index: 2;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: #fff;
+    background: linear-gradient(90deg, var(--ember), var(--plum));
+    padding: 5px 10px;
+    border-radius: var(--r-pill, 999px);
+    box-shadow: 0 2px 10px rgba(74, 37, 64, 0.32);
   }
   .sd-course-card-media img {
     width: 100%;

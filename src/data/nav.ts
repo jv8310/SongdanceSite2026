@@ -4,12 +4,14 @@
 // renderings can never drift apart.
 //
 // data-sd-price opts a label into the client-side currency localization
-// (PriceSync) — only the workshop ticket and the masterclass carry a price token.
+// (PriceSync). Every priced course carries its MarketingProduct token;
+// forgiveness has no price yet, so it stays untagged.
+import type { MarketingProduct } from '../lib/workshops/marketing-prices';
 
 export interface NavCourse {
   href: string;
   label: string;
-  price?: 'ticket' | 'masterclass';
+  price?: MarketingProduct;
 }
 
 export interface NavCourseGroup {
@@ -37,16 +39,16 @@ export const courseMenu: NavCourseGroup[] = [
   {
     title: 'Courses by Theme',
     items: [
-      { href: '/courses/grief', label: 'Grief Course — €99' },
+      { href: '/courses/grief', label: 'Grief Course — €99', price: 'grief' },
       { href: '/courses/forgiveness', label: 'Forgiveness Course' },
     ],
   },
   {
     title: 'Guided Musical Journeys',
     items: [
-      { href: '/courses/authentic-singing', label: 'Authentic Singing Journey — €99' },
-      { href: '/courses/magical-movement', label: 'Magical Movement Journey — €49' },
-      { href: '/courses/inner-child', label: 'Inner Child Journey — €29' },
+      { href: '/courses/authentic-singing', label: 'Authentic Singing Journey — €99', price: 'asj' },
+      { href: '/courses/magical-movement', label: 'Magical Movement Journey — €49', price: 'mmj' },
+      { href: '/courses/inner-child', label: 'Inner Child Journey — €29', price: 'inner-child' },
     ],
   },
 ];

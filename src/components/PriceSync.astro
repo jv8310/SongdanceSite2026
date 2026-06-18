@@ -3,9 +3,10 @@
 // site. The HTML ships with the EUR price baked in (correct for the base
 // currency and for crawlers — no JS needed); this script localizes the price
 // for non-EUR visitors using the country Cloudflare already exposes at
-// /api/geo. It only touches elements tagged with data-sd-price="ticket" or
-// data-sd-price="masterclass", replacing the EUR token (9€ / 29€) in their text
-// with the market-appropriate label (e.g. $9, £8, CA$13, kr 99).
+// /api/geo. It touches any element tagged with data-sd-price (ticket /
+// masterclass / grief / asj / mmj / inner-child), replacing the EUR token
+// (9€, 29€, €99, €49, €29) in its text with the market-appropriate label
+// (e.g. $9, £8, CA$13, kr 99). Each product carries its own per-currency map.
 //
 // Why client-side and not SSR: the pages are output:'static', served from cache.
 // Resolving per request would force every page (the nav is global) to render

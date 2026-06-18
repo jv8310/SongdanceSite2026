@@ -1,0 +1,134 @@
+---
+// Promo-launch opt-out confirm page. Linked from the launch-campaign emails
+// (June 2026). Reads ?e=<email>; on load a small script POSTs to
+// /api/unsubscribe-promo, which tags the subscriber `nopromo_June26` in Drip
+// so the launch segment excludes them. They stay on the general monthly list.
+//
+// We tag from client-side JS (not on GET) so link-prefetchers and email
+// security scanners — which don't run JavaScript — can't opt anyone out by
+// accident. A <noscript> form button covers the rare JS-disabled visitor.
+import Layout from '../layouts/Layout.astro';
+import { applyTag } from '../lib/registrations/drip';
+
+export const prerender = false;
+
+// Keep in sync with PROMO_TAG in src/pages/api/unsubscribe-promo.ts.
+const PROMO_TAG = 'nopromo_June26';
+
+let email = (Astro.url.searchParams.get('e') ?? '').trim().toLowerCase();
+
+// No-JS fallback: the <noscript> form below POSTs back here. Tag server-side.
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  email = String(form.get('e') ?? '').trim().toLowerCase();
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    const env = Astro.locals.runtime.env;
+    try {
+      await applyTag(
+        { apiToken: env.DRIP_API_TOKEN, accountId: env.DRIP_ACCOUNT_ID },
+        email,
+        PROMO_TAG,
+      );
+    } catch {
+      /* best-effort — still show the confirmation */
+    }
+  }
+}
+
+const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+const submitted = Astro.request.method === 'POST';
+---
+
+<Layout title="Launch emails stopped — Songdance" description="">
+  <main class="unsub">
+    <section class="unsub-card">
+      {valid ? (
+        <>
+          <h1>You've unsubscribed from the launch campaign</h1>
+          <p>
+            We won't send <strong>{email}</strong> any more of the launch
+            emails about the new site and the courses.
+          </p>
+          <p class="unsub-note">
+            You're still on the quiet monthly list — about one email a month.
+            To leave that too, use the <em>Unsubscribe</em> link at the bottom
+            of any email.
+          </p>
+          {!submitted && (
+            <noscript>
+              <p class="unsub-note">One more step — please confirm:</p>
+              <form method="post">
+                <input type="hidden" name="e" value={email} />
+                <button type="submit">Confirm — stop the launch emails</button>
+              </form>
+            </noscript>
+          )}
+        </>
+      ) : (
+        <>
+          <h1>This link looks incomplete</h1>
+          <p>
+            We couldn't read which address to update. Try the link at the
+            bottom of the email again, or write to
+            <a href="mailto:info@songdance.co">info@songdance.co</a> and we'll
+            take care of it ourselves.
+          </p>
+        </>
+      )}
+    </section>
+  </main>
+
+  {valid && (
+    <script is:inline define:vars={{ email }}>
+      // Fire the opt-out once the real browser renders the page.
+      fetch('/api/unsubscribe-promo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ e: email }),
+        keepalive: true,
+      }).catch(() => {
+        /* best-effort; the message already reassures the visitor */
+      });
+    </script>
+  )}
+
+  <style>
+    .unsub {
+      min-height: 60vh;
+      display: grid;
+      place-items: center;
+      padding: 64px 16px;
+      background: #f4ecdf;
+    }
+    .unsub-card {
+      max-width: 480px;
+      background: #fbf6ec;
+      border: 1px solid rgba(161, 72, 38, 0.22);
+      border-radius: 14px;
+      padding: 36px 34px;
+      font-family: Georgia, 'Times New Roman', serif;
+      color: #4a3848;
+      line-height: 1.65;
+    }
+    .unsub-card h1 {
+      margin: 0 0 14px;
+      font-weight: 400;
+      font-size: 26px;
+      line-height: 1.2;
+      color: #2a1b2a;
+    }
+    .unsub-card p { margin: 0 0 14px; }
+    .unsub-note { font-size: 14px; color: #6f5f6d; }
+    .unsub-card button {
+      background: #2a1b2a;
+      color: #f4ecdf;
+      font-family: Georgia, serif;
+      font-size: 15px;
+      border: 0;
+      padding: 14px 26px;
+      border-radius: 999px;
+      cursor: pointer;
+    }
+    .unsub-card a { color: #a14826; }
+  </style>
+</Layout>

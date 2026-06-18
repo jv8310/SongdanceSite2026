@@ -1,5 +1,6 @@
 ---
 import { COUNTRIES } from '../../lib/countries';
+import LaunchOfferCallout from '../promo/LaunchOfferCallout.astro';
 
 const countries = COUNTRIES;
 ---
@@ -14,6 +15,7 @@ const countries = COUNTRIES;
     </p>
 
     <div class="gr-register-card">
+      <LaunchOfferCallout scope="this course" />
       <div class="gr-price">
         <span class="gr-price-strike" data-gr-strike hidden></span>
         <span class="gr-price-amount" data-gr-amount>€99</span>

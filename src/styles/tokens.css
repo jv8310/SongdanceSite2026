@@ -3,7 +3,10 @@
    Warm, contemplative, embodied. Candle-lit, not clinical.
    ========================================================= */
 
-@import url('https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400;1,500&family=Cormorant+Garamond:ital,wght@0,400;1,400;1,500&family=Figtree:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap');
+/* Fonts (Spectral · Cormorant Garamond · Figtree) are loaded from the layout
+   <head> with preconnect — NOT via an @import here. A remote @import inside
+   bundled CSS is render-blocking and request-chained (CSS → @import → fonts),
+   which hurts LCP. See src/layouts/Layout.astro. */
 
 :root {
   --paper:        #F4ECDF;
