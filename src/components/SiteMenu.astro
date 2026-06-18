@@ -56,8 +56,10 @@ const isActive = (href: string) =>
   if (overlay) {
     const triggers = document.querySelectorAll<HTMLButtonElement>('[data-sm-trigger]');
     let lastTrigger: HTMLElement | null = null;
+    let hideTimer = 0;
 
     const open = (from?: HTMLElement) => {
+      window.clearTimeout(hideTimer); // cancel a pending hide from a quick re-open
       lastTrigger = from ?? null;
       overlay.removeAttribute('hidden');
       // Next frame so the slide-in transition runs from the hidden state.
@@ -73,7 +75,8 @@ const isActive = (href: string) =>
       lastTrigger?.focus();
       // Finish hiding after the slide-out (CSS --d-base ≈ 320ms). Until then the
       // base overlay is pointer-events:none, so it never blocks the page.
-      window.setTimeout(() => overlay.setAttribute('hidden', ''), 360);
+      window.clearTimeout(hideTimer);
+      hideTimer = window.setTimeout(() => overlay.setAttribute('hidden', ''), 360);
     };
 
     triggers.forEach((t) => t.addEventListener('click', (e) => { e.preventDefault(); open(t); }));
