@@ -93,6 +93,42 @@ All automated workshop email lives in the workshop engine:
   send. Keep it factual — no fake scarcity, no countdown theatrics. Marketing
   sends are from `MARKETING_FROM` (Jacob), reply-to `support@songdance.co`.
 
+## Broadcasts — one-off marketing to a standalone contact list
+
+Separate from the workshop lifecycle: a `contacts` list (imported from a CSV,
+e.g. a Drip export) and one-off `broadcasts` sent to it. Lives in
+[`src/lib/broadcasts/`](src/lib/broadcasts/) and three admin pages
+(`/admin/contacts`, `/admin/broadcasts`, `/admin/broadcasts/[id]`). Tables in
+`migrations/0047_broadcasts.sql`: `contacts`, `broadcasts`,
+`broadcast_recipients`.
+
+- **Import**: `/admin/contacts` parses the CSV in the browser (auto-detecting
+  email / name / timezone / country headers) and posts it in chunks, so 55k
+  streams in with a progress bar. Re-importing an address updates, never dups.
+- **Timezone is everything here**: the import stores each contact's IANA
+  timezone (validated; bad/blank → null → default window) so the send rides the
+  same `withinSendWindow` 08:00–21:00 gate as lifecycle mail — truly local.
+- **Compose / preview / test**: a broadcast is a draft (subject, heading,
+  preheader, body, optional hero image + CTA) wrapped in the shared email
+  `shell()` (exported from `emails.ts`). `{{first_name}}` substitutes per
+  recipient. Same copy-book rules apply to the words. Test-send before launch.
+- **Launch → cron drain**: launch snapshots sendable contacts (minus
+  suppressions) into `broadcast_recipients`; `runBroadcasts` (in
+  `src/lib/broadcasts/cron.ts`, wired into the 5-min cron) claims a paced,
+  in-window batch each tick (`MAX_PER_RUN`/`SEND_GAP_MS`), so a big list spreads
+  over days rather than blasting at once. Idempotent atomic claims; transient
+  failures retry, then park as `failed`.
+- **Circuit breaker**: once a real sample is out, the cron auto-pauses a
+  broadcast if complaint/bounce rates cross threshold — a dormant list that's
+  gone sour stops instead of burning the domain. Pause/resume by hand too.
+- **Feedback**: each broadcast tracks under `email_type = broadcast_<id>` in
+  `email_sends`, so open/click/bounce/complaint flow in from the Resend webhook.
+  Per-broadcast stats show on its detail page; the rollup shows on
+  `/admin/emails/stats` under "Broadcasts" (`emailTypeMeta` knows the prefix).
+- **Compliance**: every send honours `email_suppressions` (re-checked at send
+  time), carries the RFC 8058 one-click `List-Unsubscribe` header, and a footer
+  unsubscribe link — same plumbing as lifecycle marketing.
+
 ## R2 image library — how to view and use images
 
 The bucket holds two kinds of images:

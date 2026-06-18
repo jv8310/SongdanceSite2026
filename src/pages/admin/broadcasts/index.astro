@@ -1,0 +1,164 @@
+---
+// Admin — broadcasts. List every one-off marketing send and start a new one.
+// A new broadcast is created as a draft; you compose, preview and test it on its
+// detail page, then launch. Delivery is drained by the 5-minute cron — paced,
+// held to each recipient's local 08:00–21:00 window, suppression-checked.
+import '../../../styles/admin.css';
+import Layout from '../../../layouts/Layout.astro';
+import { readCookie, verifySession } from '../../../lib/registrations/auth';
+import { listBroadcasts, countSendable } from '../../../lib/broadcasts/db';
+
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+if (!(await verifySession(env.ADMIN_SESSION_SECRET, readCookie(Astro.request)))) {
+  return Astro.redirect('/admin/login');
+}
+
+const broadcasts = await listBroadcasts(env.DB);
+const sendable = await countSendable(env.DB);
+
+const statusLabel: Record<string, string> = {
+  draft: 'Draft',
+  sending: 'Sending',
+  paused: 'Paused',
+  done: 'Done',
+};
+---
+
+<Layout title="Admin — Broadcasts — Songdance" description="">
+  <main class="adm">
+    <header class="adm-header">
+      <div>
+        <p class="adm-breadcrumbs"><a href="/admin">Admin</a> <span class="sep">/</span> Broadcasts</p>
+        <h1>Broadcasts</h1>
+        <p class="adm-sub">
+          One-off marketing sends to the contact list ({sendable.toLocaleString()} sendable).
+          Paced over days within each recipient's local daytime; open &amp; click
+          rates land on the detail page and on <a href="/admin/emails/stats">email stats</a>.
+        </p>
+      </div>
+      <div class="adm-actions">
+        <a class="adm-btn" href="/admin/contacts">Contacts →</a>
+        <a class="adm-btn adm-btn--ghost" href="/admin">← Admin</a>
+      </div>
+    </header>
+
+    <section class="adm-section">
+      <h2>New broadcast</h2>
+      <form id="bc-new" class="bc-form">
+        <label class="bc-field">
+          <span>Internal name</span>
+          <input name="name" required placeholder="New site announcement" />
+        </label>
+        <label class="bc-field">
+          <span>Subject line</span>
+          <input name="subject" required placeholder="Songdance has a new home" />
+        </label>
+        <label class="bc-field">
+          <span>Heading (top of the email)</span>
+          <input name="heading" required placeholder="A new door to the practice" />
+        </label>
+        <label class="bc-field">
+          <span>Preheader <em>(inbox preview line — optional)</em></span>
+          <input name="preheader" placeholder="Defaults to the subject line" />
+        </label>
+        <label class="bc-field bc-wide">
+          <span>Body — your copy. Blank line = new paragraph. <code>{'{{first_name}}'}</code> is replaced per recipient.</span>
+          <textarea name="body" rows="8" required placeholder="Dear {{first_name}},
+
+Paste your copy here…"></textarea>
+        </label>
+        <label class="bc-field">
+          <span>Hero image URL <em>(optional, absolute)</em></span>
+          <input name="hero_image" placeholder="https://songdance.co/imagery/…" />
+        </label>
+        <div class="bc-row">
+          <label class="bc-field">
+            <span>Button label <em>(optional)</em></span>
+            <input name="cta_label" placeholder="Visit the new site" />
+          </label>
+          <label class="bc-field">
+            <span>Button link <em>(optional)</em></span>
+            <input name="cta_href" placeholder="https://songdance.co" />
+          </label>
+        </div>
+        <div class="bc-actions">
+          <button class="adm-btn" type="submit">Create draft</button>
+          <span id="bc-msg" class="bc-msg"></span>
+        </div>
+      </form>
+    </section>
+
+    <section class="adm-section">
+      <h2>All broadcasts</h2>
+      {broadcasts.length === 0 ? (
+        <p class="bc-empty">No broadcasts yet.</p>
+      ) : (
+        <table class="bc-table">
+          <thead><tr><th>Name</th><th>Subject</th><th>Status</th><th>Created</th><th></th></tr></thead>
+          <tbody>
+            {broadcasts.map((b) => (
+              <tr>
+                <td><strong>{b.name}</strong></td>
+                <td>{b.subject}</td>
+                <td><span class={`bc-pill bc-pill--${b.status}`}>{statusLabel[b.status] ?? b.status}</span></td>
+                <td>{b.created_at?.slice(0, 10)}</td>
+                <td><a class="adm-btn adm-btn--ghost" href={`/admin/broadcasts/${b.id}`}>Open</a></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </section>
+  </main>
+
+  <style>
+    .bc-form { display: flex; flex-direction: column; gap: 14px; max-width: 720px; }
+    .bc-field { display: flex; flex-direction: column; gap: 5px; }
+    .bc-field > span { font-size: 13px; color: #4a3848; }
+    .bc-field > span em { color: #b6a8b4; font-style: normal; }
+    .bc-field > span code { background: #f4ecdf; padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+    .bc-field input, .bc-field textarea {
+      font: inherit; font-size: 14px; padding: 9px 11px; border: 1px solid rgba(161,72,38,0.3);
+      border-radius: 8px; background: #fff; color: #2a1b2a;
+    }
+    .bc-field textarea { resize: vertical; line-height: 1.6; }
+    .bc-row { display: flex; gap: 14px; }
+    .bc-row .bc-field { flex: 1; }
+    .bc-actions { display: flex; align-items: center; gap: 14px; }
+    .bc-msg { font-size: 13px; color: #6f5f6d; }
+    .bc-empty { font-size: 14px; color: #6f5f6d; }
+    .bc-table { width: 100%; border-collapse: collapse; background: #fbf6ec; border: 1px solid rgba(161,72,38,0.22); border-radius: 12px; overflow: hidden; }
+    .bc-table th, .bc-table td { padding: 10px 14px; text-align: left; font-size: 14px; border-bottom: 1px solid rgba(161,72,38,0.12); vertical-align: middle; }
+    .bc-table th { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.05em; color: #6f5f6d; }
+    .bc-table tr:last-child td { border-bottom: none; }
+    .bc-pill { font-size: 12px; padding: 2px 10px; border-radius: 999px; background: #ece0cf; color: #4a3848; }
+    .bc-pill--sending { background: #d9ead0; color: #38601f; }
+    .bc-pill--paused { background: #f4dcc9; color: #a14826; }
+    .bc-pill--done { background: #dfe7ef; color: #335; }
+  </style>
+
+  <script is:inline>
+    const form = document.getElementById('bc-new');
+    const msg = document.getElementById('bc-msg');
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      msg.textContent = 'Saving…';
+      const fd = new FormData(form);
+      const payload = Object.fromEntries(fd.entries());
+      try {
+        const res = await fetch('/api/admin/broadcasts/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Save failed');
+        window.location.href = '/admin/broadcasts/' + data.id;
+      } catch (err) {
+        msg.textContent = 'Failed: ' + (err && err.message ? err.message : String(err));
+      }
+    });
+  </script>
+</Layout>

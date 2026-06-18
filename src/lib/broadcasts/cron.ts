@@ -1,0 +1,171 @@
+// Broadcast sender, run from the same 5-minute cron as the workshop engine
+// (see src/worker-entrypoint.ts). Each tick, for every broadcast in 'sending':
+//
+//   1. Circuit breaker — if a meaningful sample has gone out and the complaint
+//      or bounce rate is over threshold, auto-pause it (protecting the sending
+//      domain's reputation, which a dormant 55k list can quietly wreck).
+//   2. Drain — claim up to a capped number of pending recipients whose LOCAL
+//      time is inside the 08:00–21:00 window, skip any now-suppressed address,
+//      send (paced under Resend's rate limit), and mark them sent. Tracking
+//      rides email_sends so open/click rates appear in the admin.
+//   3. When nothing is left pending, mark it done.
+//
+// The per-run cap + local-window gating is exactly what spreads a big list over
+// several days instead of blasting it in one reputation-shredding burst.
+
+import { sendEmail } from '../workshops/resend';
+import { MARKETING_FROM_DEFAULT, MARKETING_REPLY_TO_DEFAULT } from '../workshops/emails';
+import { withinSendWindow } from '../workshops/time';
+import {
+  isEmailSuppressed,
+  oneClickUnsubscribeUrl,
+  unsubscribePageUrl,
+  unsubscribeSecret,
+} from '../email/unsubscribe';
+import { renderBroadcast } from './email';
+import {
+  broadcastEmailType,
+  broadcastStats,
+  claimRecipient,
+  fetchDrainCandidates,
+  listActiveBroadcasts,
+  markBroadcastDone,
+  markRecipientRetryOrFail,
+  markRecipientSent,
+  markRecipientSuppressed,
+  pauseBroadcast,
+  pendingCount,
+  reclaimStaleClaims,
+  type Broadcast,
+} from './db';
+
+type BroadcastCronEnv = {
+  DB: D1Database;
+  RESEND_API_KEY?: string;
+  MARKETING_FROM?: string;
+  MARKETING_REPLY_TO?: string;
+  UNSUBSCRIBE_SECRET?: string;
+  ADMIN_SESSION_SECRET?: string;
+  PUBLIC_BASE_URL: string;
+};
+
+// Pacing. ~40 sends per 5-minute tick → ~11.5k/day at full availability, so a
+// 55k list lands in roughly 5 days (longer in practice, since recipients only
+// send inside their local daytime). SEND_GAP_MS keeps us under Resend's default
+// 2 req/s. All three are safe to tune if Resend grants a higher rate.
+const MAX_PER_RUN = 40;
+const SEND_GAP_MS = 600;
+// Over-fetch pending rows, then keep only those whose local time is in-window.
+const CANDIDATE_FETCH = 600;
+
+// Circuit breaker. Once a real sample has gone out, pause if complaints or
+// bounces cross these lines — a dormant list that's gone sour should stop, not
+// keep burning the domain. Rates are over tracked sends.
+const CB_MIN_SAMPLE = 250;
+const CB_MAX_COMPLAINT_RATE = 0.002; // 0.2%
+const CB_MAX_BOUNCE_RATE = 0.06; // 6%
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+export type BroadcastRunResult = { sent: number; paused: number; done: number };
+
+export async function runBroadcasts(
+  env: BroadcastCronEnv,
+  now = Date.now(),
+): Promise<BroadcastRunResult> {
+  const result: BroadcastRunResult = { sent: 0, paused: 0, done: 0 };
+  if (!env.RESEND_API_KEY) return result;
+
+  const active = await listActiveBroadcasts(env.DB);
+  for (const b of active) {
+    const emailType = broadcastEmailType(b.id);
+
+    // 1. Circuit breaker
+    const stats = await broadcastStats(env.DB, emailType);
+    if (stats.sent >= CB_MIN_SAMPLE) {
+      const complaintRate = stats.complained / stats.sent;
+      const bounceRate = stats.bounced / stats.sent;
+      if (complaintRate > CB_MAX_COMPLAINT_RATE || bounceRate > CB_MAX_BOUNCE_RATE) {
+        await pauseBroadcast(
+          env.DB,
+          b.id,
+          `Auto-paused after ${stats.sent} sent — complaints ${(complaintRate * 100).toFixed(2)}%, ` +
+            `bounces ${(bounceRate * 100).toFixed(2)}%. Review the list before resuming.`,
+        );
+        result.paused += 1;
+        continue;
+      }
+    }
+
+    // 2. Drain a paced, in-window batch
+    result.sent += await drainBroadcast(env, b, emailType, now);
+
+    // 3. Finished?
+    if ((await pendingCount(env.DB, b.id)) === 0) {
+      await markBroadcastDone(env.DB, b.id);
+      result.done += 1;
+    }
+  }
+
+  return result;
+}
+
+async function drainBroadcast(
+  env: BroadcastCronEnv,
+  b: Broadcast,
+  emailType: string,
+  now: number,
+): Promise<number> {
+  const base = env.PUBLIC_BASE_URL.replace(/\/$/, '');
+  const from = env.MARKETING_FROM || MARKETING_FROM_DEFAULT;
+  const replyTo = env.MARKETING_REPLY_TO || MARKETING_REPLY_TO_DEFAULT;
+  const secret = unsubscribeSecret(env);
+
+  // Recover any rows orphaned in 'sending' by an earlier interrupted run.
+  await reclaimStaleClaims(env.DB, b.id);
+
+  const candidates = await fetchDrainCandidates(env.DB, b.id, CANDIDATE_FETCH);
+  let sent = 0;
+
+  for (const c of candidates) {
+    if (sent >= MAX_PER_RUN) break;
+    // Hold the email until it's local daytime for this recipient.
+    if (!withinSendWindow(c.timezone, now)) continue;
+
+    // Atomic claim — only one run can own this row.
+    if (!(await claimRecipient(env.DB, c.id))) continue;
+
+    // Re-check suppression at send time (someone may have unsubscribed from an
+    // earlier send while this drip was in flight).
+    if (await isEmailSuppressed(env.DB, c.email)) {
+      await markRecipientSuppressed(env.DB, c.id);
+      continue;
+    }
+
+    const firstName = (c.name ?? '').trim().split(/\s+/)[0] ?? '';
+    const footerUnsub = secret ? await unsubscribePageUrl(base, secret, c.email) : undefined;
+    const oneClickUnsub = secret ? await oneClickUnsubscribeUrl(base, secret, c.email) : undefined;
+    const content = renderBroadcast(b, { firstName, unsubscribeUrl: footerUnsub });
+
+    try {
+      if (sent > 0) await sleep(SEND_GAP_MS);
+      const { id } = await sendEmail({
+        apiKey: env.RESEND_API_KEY!,
+        from,
+        replyTo,
+        to: c.email,
+        subject: content.subject,
+        html: content.html,
+        text: content.text,
+        listUnsubscribeUrl: oneClickUnsub,
+        track: { db: env.DB, type: emailType, registrationId: null, variant: null },
+      });
+      await markRecipientSent(env.DB, c.id, id);
+      sent += 1;
+    } catch (err) {
+      await markRecipientRetryOrFail(env.DB, c.id, String(err));
+    }
+  }
+
+  return sent;
+}

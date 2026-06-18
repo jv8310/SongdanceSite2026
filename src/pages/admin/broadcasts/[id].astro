@@ -1,0 +1,259 @@
+---
+// Admin — a single broadcast. Draft: edit, preview, test-send, then launch.
+// Sending/paused/done: live progress + engagement (open/click/bounce/complaint),
+// with pause/resume. Delivery itself is the cron's job (see src/lib/broadcasts).
+import '../../../styles/admin.css';
+import Layout from '../../../layouts/Layout.astro';
+import { readCookie, verifySession } from '../../../lib/registrations/auth';
+import {
+  getBroadcast,
+  recipientCounts,
+  broadcastStats,
+  broadcastEmailType,
+  countSendable,
+} from '../../../lib/broadcasts/db';
+import { previewBroadcast } from '../../../lib/broadcasts/email';
+
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+if (!(await verifySession(env.ADMIN_SESSION_SECRET, readCookie(Astro.request)))) {
+  return Astro.redirect('/admin/login');
+}
+
+const id = Number(Astro.params.id);
+const b = Number.isFinite(id) ? await getBroadcast(env.DB, id) : null;
+if (!b) return Astro.redirect('/admin/broadcasts');
+
+const isDraft = b.status === 'draft';
+const counts = await recipientCounts(env.DB, b.id);
+const stats = await broadcastStats(env.DB, broadcastEmailType(b.id));
+const sendable = await countSendable(env.DB);
+const preview = previewBroadcast(b, env.PUBLIC_BASE_URL);
+
+const pct = (r: number) => `${(r * 100).toFixed(1)}%`;
+const statusLabel: Record<string, string> = {
+  draft: 'Draft', sending: 'Sending', paused: 'Paused', done: 'Done',
+};
+---
+
+<Layout title={`Admin — ${b.name} — Songdance`} description="">
+  <main class="adm" data-status={b.status}>
+    <header class="adm-header">
+      <div>
+        <p class="adm-breadcrumbs">
+          <a href="/admin">Admin</a> <span class="sep">/</span>
+          <a href="/admin/broadcasts">Broadcasts</a> <span class="sep">/</span> {b.name}
+        </p>
+        <h1>{b.name} <span class={`bc-pill bc-pill--${b.status}`}>{statusLabel[b.status]}</span></h1>
+        <p class="adm-sub">Subject: {b.subject}</p>
+      </div>
+      <div class="adm-actions">
+        <a class="adm-btn adm-btn--ghost" href="/admin/broadcasts">← All broadcasts</a>
+      </div>
+    </header>
+
+    {b.status === 'paused' && b.paused_reason && (
+      <div class="adm-flash adm-flash--warn">{b.paused_reason}</div>
+    )}
+
+    <div class="bc-grid">
+      <section class="adm-section">
+        <h2>{isDraft ? 'Compose' : 'Email'}</h2>
+        {isDraft ? (
+          <form id="bc-edit" class="bc-form">
+            <input type="hidden" name="id" value={b.id} />
+            <label class="bc-field"><span>Internal name</span><input name="name" required value={b.name} /></label>
+            <label class="bc-field"><span>Subject line</span><input name="subject" required value={b.subject} /></label>
+            <label class="bc-field"><span>Heading</span><input name="heading" required value={b.heading} /></label>
+            <label class="bc-field"><span>Preheader</span><input name="preheader" value={b.preheader ?? ''} /></label>
+            <label class="bc-field"><span>Body</span><textarea name="body" rows="10" required>{b.body}</textarea></label>
+            <label class="bc-field"><span>Hero image URL</span><input name="hero_image" value={b.hero_image ?? ''} /></label>
+            <div class="bc-row">
+              <label class="bc-field"><span>Button label</span><input name="cta_label" value={b.cta_label ?? ''} /></label>
+              <label class="bc-field"><span>Button link</span><input name="cta_href" value={b.cta_href ?? ''} /></label>
+            </div>
+            <div class="bc-actions">
+              <button class="adm-btn" type="submit">Save changes</button>
+              <span id="bc-save-msg" class="bc-msg"></span>
+            </div>
+          </form>
+        ) : (
+          <dl class="bc-readonly">
+            <dt>Heading</dt><dd>{b.heading}</dd>
+            <dt>Body</dt><dd class="bc-pre">{b.body}</dd>
+            {b.cta_label && <><dt>Button</dt><dd>{b.cta_label} → {b.cta_href}</dd></>}
+          </dl>
+        )}
+      </section>
+
+      <section class="adm-section">
+        <h2>Preview</h2>
+        <iframe class="bc-frame" srcdoc={preview.html} sandbox="" title="Broadcast preview"></iframe>
+        <div class="bc-test">
+          <input id="bc-test-to" type="email" value="jacob@songdance.co" />
+          <button id="bc-test-btn" class="adm-btn" type="button" data-id={b.id}>Send test</button>
+          <span id="bc-test-msg" class="bc-msg"></span>
+        </div>
+      </section>
+    </div>
+
+    <section class="adm-section">
+      <h2>Send</h2>
+      {isDraft ? (
+        <div class="bc-launch">
+          <p>
+            This will queue <strong>{sendable.toLocaleString()}</strong> contacts
+            (everyone on the list minus unsubscribes). They'll be sent over the
+            coming days, only inside each recipient's local 08:00–21:00, and the
+            send auto-pauses if bounces or spam complaints spike.
+          </p>
+          <button id="bc-launch" class="adm-btn" type="button" data-id={b.id}>Launch broadcast →</button>
+          <span id="bc-launch-msg" class="bc-msg"></span>
+        </div>
+      ) : (
+        <div>
+          <div class="bc-stats">
+            <div class="bc-stat"><span class="n">{counts.sent.toLocaleString()}</span><span class="l">sent</span></div>
+            <div class="bc-stat"><span class="n">{counts.pending.toLocaleString()}</span><span class="l">queued</span></div>
+            <div class="bc-stat"><span class="n">{counts.suppressed.toLocaleString()}</span><span class="l">unsub-skipped</span></div>
+            <div class="bc-stat"><span class="n">{counts.failed.toLocaleString()}</span><span class="l">failed</span></div>
+            <div class="bc-stat"><span class="n">{counts.total.toLocaleString()}</span><span class="l">total audience</span></div>
+          </div>
+          <div class="bc-stats bc-stats--eng">
+            <div class="bc-stat"><span class="n">{stats.delivered.toLocaleString()}</span><span class="l">delivered</span></div>
+            <div class="bc-stat"><span class="n">{pct(stats.openRate)}</span><span class="l">open rate ({stats.opened})</span></div>
+            <div class="bc-stat"><span class="n">{pct(stats.clickRate)}</span><span class="l">click rate ({stats.clicked})</span></div>
+            <div class="bc-stat"><span class="n">{stats.bounced.toLocaleString()}</span><span class="l">bounced</span></div>
+            <div class="bc-stat"><span class="n">{stats.complained.toLocaleString()}</span><span class="l">spam</span></div>
+          </div>
+          <p class="bc-note">
+            Open/click data flows in from the Resend webhook; it also appears on
+            <a href="/admin/emails/stats">email stats</a> under “Broadcasts”.
+          </p>
+          <div class="bc-actions">
+            {b.status === 'sending' && <button class="adm-btn adm-btn--ghost bc-ctl" type="button" data-id={b.id} data-action="pause">Pause</button>}
+            {b.status === 'paused' && <button class="adm-btn bc-ctl" type="button" data-id={b.id} data-action="resume">Resume</button>}
+            {b.status === 'paused' && <button class="adm-btn adm-btn--ghost bc-ctl" type="button" data-id={b.id} data-action="launch">Top up &amp; resume</button>}
+            <span id="bc-ctl-msg" class="bc-msg"></span>
+          </div>
+        </div>
+      )}
+    </section>
+  </main>
+
+  <style>
+    .bc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    @media (max-width: 900px) { .bc-grid { grid-template-columns: 1fr; } }
+    .bc-pill { font-size: 13px; padding: 2px 11px; border-radius: 999px; background: #ece0cf; color: #4a3848; vertical-align: middle; margin-left: 8px; }
+    .bc-pill--sending { background: #d9ead0; color: #38601f; }
+    .bc-pill--paused { background: #f4dcc9; color: #a14826; }
+    .bc-pill--done { background: #dfe7ef; color: #335; }
+    .bc-form { display: flex; flex-direction: column; gap: 12px; }
+    .bc-field { display: flex; flex-direction: column; gap: 5px; }
+    .bc-field > span { font-size: 13px; color: #4a3848; }
+    .bc-field input, .bc-field textarea {
+      font: inherit; font-size: 14px; padding: 9px 11px; border: 1px solid rgba(161,72,38,0.3);
+      border-radius: 8px; background: #fff; color: #2a1b2a;
+    }
+    .bc-field textarea { resize: vertical; line-height: 1.6; }
+    .bc-row { display: flex; gap: 12px; }
+    .bc-row .bc-field { flex: 1; }
+    .bc-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .bc-msg { font-size: 13px; color: #6f5f6d; }
+    .bc-readonly dt { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.05em; color: #6f5f6d; margin-top: 12px; }
+    .bc-readonly dd { margin: 3px 0 0; font-size: 14px; color: #2a1b2a; }
+    .bc-pre { white-space: pre-wrap; line-height: 1.6; }
+    .bc-frame { width: 100%; height: 520px; border: 1px solid rgba(161,72,38,0.22); border-radius: 12px; background: #fff; }
+    .bc-test { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+    .bc-test input { font: inherit; font-size: 14px; padding: 8px 11px; border: 1px solid rgba(161,72,38,0.3); border-radius: 8px; }
+    .bc-launch p { font-size: 14px; color: #4a3848; line-height: 1.7; max-width: 64ch; }
+    .bc-stats { display: flex; gap: 26px; flex-wrap: wrap; margin-bottom: 16px; }
+    .bc-stats--eng { padding-top: 14px; border-top: 1px solid rgba(161,72,38,0.15); }
+    .bc-stat { display: flex; flex-direction: column; }
+    .bc-stat .n { font-size: 24px; font-weight: 600; color: #2a1b2a; font-variant-numeric: tabular-nums; }
+    .bc-stat .l { font-size: 12.5px; color: #6f5f6d; }
+    .bc-note { font-size: 12.5px; color: #6f5f6d; margin: 0 0 14px; }
+  </style>
+
+  <script is:inline>
+    function bind(id, fn) { const el = document.getElementById(id); if (el) el.addEventListener('click', fn); }
+
+    // Save draft edits
+    const editForm = document.getElementById('bc-edit');
+    if (editForm) {
+      const saveMsg = document.getElementById('bc-save-msg');
+      editForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        saveMsg.textContent = 'Saving…';
+        const payload = Object.fromEntries(new FormData(editForm).entries());
+        try {
+          const res = await fetch('/api/admin/broadcasts/save', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Save failed');
+          saveMsg.textContent = 'Saved ✓ — reloading preview…';
+          setTimeout(() => window.location.reload(), 500);
+        } catch (err) { saveMsg.textContent = 'Failed: ' + (err.message || err); }
+      });
+    }
+
+    // Test send
+    bind('bc-test-btn', async (e) => {
+      const btn = e.currentTarget;
+      const to = document.getElementById('bc-test-to').value.trim();
+      const msg = document.getElementById('bc-test-msg');
+      msg.textContent = 'Sending…';
+      try {
+        const res = await fetch('/api/admin/broadcasts/test', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: Number(btn.dataset.id), to }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Send failed');
+        msg.textContent = 'Sent ✓';
+      } catch (err) { msg.textContent = 'Failed: ' + (err.message || err); }
+    });
+
+    // Launch
+    bind('bc-launch', async (e) => {
+      const btn = e.currentTarget;
+      const msg = document.getElementById('bc-launch-msg');
+      if (!confirm('Launch this broadcast to the full list? It will send gradually over the coming days.')) return;
+      btn.disabled = true;
+      msg.textContent = 'Launching…';
+      try {
+        const res = await fetch('/api/admin/broadcasts/control', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: Number(btn.dataset.id), action: 'launch' }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Launch failed');
+        window.location.reload();
+      } catch (err) { msg.textContent = 'Failed: ' + (err.message || err); btn.disabled = false; }
+    });
+
+    // Pause / resume / top-up
+    document.querySelectorAll('.bc-ctl').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const msg = document.getElementById('bc-ctl-msg');
+        msg.textContent = '…';
+        try {
+          const res = await fetch('/api/admin/broadcasts/control', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: Number(btn.dataset.id), action: btn.dataset.action }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Failed');
+          window.location.reload();
+        } catch (err) { msg.textContent = 'Failed: ' + (err.message || err); }
+      });
+    });
+
+    // Live refresh while a send is in flight.
+    if (document.querySelector('.adm')?.dataset.status === 'sending') {
+      setTimeout(() => window.location.reload(), 20000);
+    }
+  </script>
+</Layout>

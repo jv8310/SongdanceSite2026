@@ -37,7 +37,13 @@ export const EMAIL_TYPE_META: Record<string, { group: string; label: string }> =
 };
 
 export function emailTypeMeta(type: string): { group: string; label: string } {
-  return EMAIL_TYPE_META[type] ?? { group: 'Other', label: type };
+  if (EMAIL_TYPE_META[type]) return EMAIL_TYPE_META[type];
+  // One-off broadcasts track under `broadcast_<id>` (see src/lib/broadcasts);
+  // group them together so the new-site blast etc. read cleanly in stats.
+  if (type.startsWith('broadcast_')) {
+    return { group: 'Broadcasts', label: `Broadcast #${type.slice('broadcast_'.length)}` };
+  }
+  return { group: 'Other', label: type };
 }
 
 // Record a send the moment Resend accepts it. Returns nothing meaningful;
