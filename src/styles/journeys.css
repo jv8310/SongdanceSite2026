@@ -1037,24 +1037,30 @@ html, body { background: var(--paper); }
   font-family: var(--font-display); font-size: 24px; line-height: 1; color: var(--ink); letter-spacing: -0.01em;
 }
 @media (max-width: 560px) {
-  /* Drastically clearer on mobile: radio + thumb + title/desc on top, then a
-     full-width price bar at the bottom (hairline rule, "one-time" label left,
-     big amount right) so the price never floats beside a tall description. */
+  /* Drastically clearer on mobile: the radio + thumbnail stack into one narrow
+     left column (image *under* the radio, not beside it) so the title/desc get
+     the full remaining width; then a full-width price bar at the bottom
+     (hairline rule, "one-time" label left, big amount right) so the price never
+     floats beside a tall description. The empty "fill" row absorbs any extra
+     body height, keeping the radio + thumb tucked tightly at the top-left. */
   .jr-opt {
     display: grid;
     align-items: start;
-    column-gap: var(--sp-3);
+    column-gap: var(--sp-4);
     row-gap: 0;
     padding: var(--sp-4);
-    grid-template-columns: auto auto 1fr;
+    grid-template-columns: auto 1fr;
+    grid-template-rows: min-content min-content 1fr auto;
     grid-template-areas:
-      "radio thumb body"
-      "price price price";
+      "radio body"
+      "thumb body"
+      "fill  body"
+      "price price";
   }
-  .jr-opt > input[type="radio"] { grid-area: radio; margin-top: 2px; }
-  .jr-opt-thumb { grid-area: thumb; width: 46px; height: 46px; }
+  .jr-opt > input[type="radio"] { grid-area: radio; justify-self: center; margin-bottom: var(--sp-2); }
+  .jr-opt-thumb { grid-area: thumb; width: 52px; height: 52px; }
   .jr-opt-thumb--triple { width: auto; }
-  .jr-opt-thumb--triple img { width: 24px; height: 46px; }
+  .jr-opt-thumb--triple img { width: 22px; height: 50px; }
   .jr-opt-body { grid-area: body; }
   .jr-opt-price {
     grid-area: price;
