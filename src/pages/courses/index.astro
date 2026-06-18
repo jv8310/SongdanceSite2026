@@ -3,6 +3,7 @@ import SiteLayout from '../../components/SiteLayout.astro';
 import PageHero from '../../components/PageHero.astro';
 import SoftCta from '../../components/SoftCta.astro';
 import { coursesJsonLd } from '../../lib/seo';
+import type { MarketingProduct } from '../../lib/workshops/marketing-prices';
 import { launchPromoActive, LAUNCH_PROMO_PERCENT } from '../../lib/promo';
 
 // Launch promo: show a "% off" badge on each purchasable card while the window
@@ -15,8 +16,8 @@ interface CourseItem {
   img: string;
   desc: string;
   note: string;
-  price?: 'ticket' | 'masterclass'; // opts into client-side currency localization
-  pos?: string; // object-position override when the 16:10 crop would clip the subject
+  price?: MarketingProduct; // opts into client-side currency localization
+  pos?: string; // object-position override when the 3:2 crop would clip the subject
   noPromo?: boolean; // suppress the launch badge (not yet purchasable, e.g. forgiveness)
 }
 interface CourseGroup {
@@ -26,9 +27,10 @@ interface CourseGroup {
 }
 
 // Each card carries its own picture from the R2 library (served at /media/…),
-// a one-line description, and a price line. The two top-of-funnel products
-// (workshop · masterclass) tag their price with data-sd-price so PriceSync can
-// localize the currency; the rest are euro price points (localized at checkout).
+// a one-line description, and a price line. Every card with a fixed price tags
+// it with data-sd-price so PriceSync localizes the currency to the visitor's
+// market — the figure shown matches what they're charged at checkout. (The
+// forgiveness course has no price yet, so it stays untagged.)
 const groups: CourseGroup[] = [
   {
     title: 'Somatic Vocal Healing',
@@ -77,6 +79,7 @@ const groups: CourseGroup[] = [
         img: '/media/library/grief-jacob-letting-go-sounding.webp',
         desc: 'Four live sessions for the grief no one taught you how to carry — held gently, sounded together.',
         note: 'with Daniela · €99',
+        price: 'grief',
       },
       {
         label: 'Forgiveness Course',
@@ -98,6 +101,7 @@ const groups: CourseGroup[] = [
         img: '/media/library/singing-lights-woman.webp',
         desc: 'Forty weeks of mantras and music — made to free the voice you already have, not train it into something else.',
         note: '€99 · 40 sessions',
+        price: 'asj',
       },
       {
         label: 'Magical Movement Journey',
@@ -105,6 +109,7 @@ const groups: CourseGroup[] = [
         img: '/media/library/movement.webp',
         desc: 'Guided movement you can do in your own room — standing, or seated in a chair. No steps to learn.',
         note: '€49 · self-paced',
+        price: 'mmj',
       },
       {
         label: 'Inner Child Healing Journey',
@@ -112,6 +117,7 @@ const groups: CourseGroup[] = [
         img: '/media/library/inner-child-glow.webp',
         desc: 'Five gentle sessions of music and mantra — to sing the child you were what they never got to hear.',
         note: '€29 · 5 sessions',
+        price: 'inner-child',
       },
     ],
   },
@@ -190,7 +196,7 @@ const coursesLd = coursesJsonLd(
   .sd-course-card-media {
     display: block;
     position: relative;
-    aspect-ratio: 16 / 10;
+    aspect-ratio: 3 / 2;
     overflow: hidden;
     background: var(--paper-deep);
   }

@@ -8,8 +8,10 @@ const isActive = (href: string) =>
 
 // Structured Courses dropdown — same three sections as the /courses page, so
 // the menu reads as a table of contents. data-sd-price opts a label into the
-// client-side currency localization (workshop · masterclass only).
-interface NavCourse { href: string; label: string; price?: 'ticket' | 'masterclass'; }
+// client-side currency localization (every priced item; forgiveness has no
+// price yet, so it stays untagged).
+import type { MarketingProduct } from '../lib/workshops/marketing-prices';
+interface NavCourse { href: string; label: string; price?: MarketingProduct; }
 interface NavCourseGroup { title: string; items: NavCourse[]; }
 const courseMenu: NavCourseGroup[] = [
   {
@@ -24,16 +26,16 @@ const courseMenu: NavCourseGroup[] = [
   {
     title: 'Courses by Theme',
     items: [
-      { href: '/courses/grief', label: 'Grief Course — €99' },
+      { href: '/courses/grief', label: 'Grief Course — €99', price: 'grief' },
       { href: '/courses/forgiveness', label: 'Forgiveness Course' },
     ],
   },
   {
     title: 'Guided Musical Journeys',
     items: [
-      { href: '/courses/authentic-singing', label: 'Authentic Singing Journey — €99' },
-      { href: '/courses/magical-movement', label: 'Magical Movement Journey — €49' },
-      { href: '/courses/inner-child', label: 'Inner Child Journey — €29' },
+      { href: '/courses/authentic-singing', label: 'Authentic Singing Journey — €99', price: 'asj' },
+      { href: '/courses/magical-movement', label: 'Magical Movement Journey — €49', price: 'mmj' },
+      { href: '/courses/inner-child', label: 'Inner Child Journey — €29', price: 'inner-child' },
     ],
   },
 ];
