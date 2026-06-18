@@ -64,8 +64,8 @@ export const MARKETING_PRICES_MINOR: Record<MarketingProduct, Record<string, num
     AUD: 1500, NZD: 1600, NOK: 9900, SEK: 9900, DKK: 6900,
   },
   masterclass: {
-    EUR: 2900, USD: 2900, GBP: 2500, CHF: 2900, CAD: 3900,
-    AUD: 3900, NZD: 4900, NOK: 29900, SEK: 29900, DKK: 19900,
+    EUR: 11800, USD: 11800, GBP: 9800, CHF: 11800, CAD: 15800,
+    AUD: 15800, NZD: 19800, NOK: 119800, SEK: 119800, DKK: 79800,
   },
   grief: toMinor(GRIEF_PRICE),
   asj: toMinor(PRICE_BY_SLUG.asj!),
@@ -90,7 +90,7 @@ export const MARKETING_COMPARE_MINOR: Record<MarketingProduct, Record<string, nu
 // the hand-written note text on the cards/menu (e.g. "with Daniela · €99").
 export const EUR_COPY_LABEL: Record<MarketingProduct, string> = {
   ticket: '9€',
-  masterclass: '29€',
+  masterclass: '118€',
   grief: `€${GRIEF_PRICE.EUR}`,
   asj: `€${PRICE_BY_SLUG.asj!.EUR}`,
   mmj: `€${PRICE_BY_SLUG.mmj!.EUR}`,
