@@ -1,7 +1,7 @@
 // Launch promo — single source of truth.
 //
 // 50% off all COURSES (and the workshop + masterclass tickets) for the new-site
-// launch, running through the end of July 2026. Retreats are deliberately
+// launch, running through the end of June 2026. Retreats are deliberately
 // excluded (a retreat is a physical event, priced/charged on its own path that
 // this module never touches).
 //
@@ -26,11 +26,11 @@
 
 export const LAUNCH_PROMO_PERCENT = 50;
 
-// 23:59 on 31 July 2026, Europe/Brussels (CEST = UTC+2) → midnight, 1 Aug local.
-export const LAUNCH_PROMO_ENDS_AT_MS = Date.parse('2026-08-01T00:00:00+02:00');
+// 23:59 on 30 June 2026, Europe/Brussels (CEST = UTC+2) → midnight, 1 July local.
+export const LAUNCH_PROMO_ENDS_AT_MS = Date.parse('2026-07-01T00:00:00+02:00');
 
 // Human label for the deadline, used in banner + price copy.
-export const LAUNCH_PROMO_END_LABEL = 'July 31';
+export const LAUNCH_PROMO_END_LABEL = 'June 30';
 
 export function launchPromoActive(nowMs: number = Date.now()): boolean {
   return Number.isFinite(LAUNCH_PROMO_ENDS_AT_MS) && nowMs < LAUNCH_PROMO_ENDS_AT_MS;
