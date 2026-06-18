@@ -13,6 +13,9 @@ import { courseMenu, coursesAllHref, topLink, tailLinks, navCta } from '../data/
 const path = Astro.url.pathname;
 const isActive = (href: string) =>
   href === '/' ? path === '/' : path === href || path.startsWith(href + '/');
+// On a course page, open the Courses accordion by default so the current page
+// is visible without a click.
+const coursesActive = isActive('/workshop') || path.startsWith('/courses');
 ---
 
 <div class="sm-overlay" data-sm-overlay hidden>
@@ -30,15 +33,28 @@ const isActive = (href: string) =>
     <nav class="sm-panel-nav" aria-label="Site">
       <a href={topLink.href} class:list={['sm-link', { 'is-active': isActive(topLink.href) }]}>{topLink.label}</a>
 
-      {courseMenu.map((sec) => (
-        <div class="sm-section">
-          <span class="sm-section-title">{sec.title}</span>
-          {sec.items.map((c) => (
-            <a href={c.href} class:list={['sm-sublink', { 'is-active': isActive(c.href) }]} data-sd-price={c.price}>{c.label}</a>
+      <button
+        type="button"
+        class:list={['sm-link', 'sm-acc', { 'is-active': coursesActive }]}
+        data-sm-acc
+        aria-expanded={coursesActive ? 'true' : 'false'}
+        aria-controls="sm-courses"
+      >
+        Courses <i class="ph-light ph-caret-down"></i>
+      </button>
+      <div id="sm-courses" class:list={['sm-acc-panel', { 'is-open': coursesActive }]} data-sm-acc-panel>
+        <div class="sm-acc-inner">
+          {courseMenu.map((sec) => (
+            <div class="sm-section">
+              <span class="sm-section-title">{sec.title}</span>
+              {sec.items.map((c) => (
+                <a href={c.href} class:list={['sm-sublink', { 'is-active': isActive(c.href) }]} data-sd-price={c.price}>{c.label}</a>
+              ))}
+            </div>
           ))}
+          <a href={coursesAllHref} class="sm-sublink sm-all">All courses →</a>
         </div>
-      ))}
-      <a href={coursesAllHref} class="sm-sublink sm-all">All courses →</a>
+      </div>
 
       {tailLinks.map((l) => (
         <a href={l.href} class:list={['sm-link', { 'is-active': isActive(l.href) }]}>{l.label}</a>
@@ -83,6 +99,14 @@ const isActive = (href: string) =>
     overlay.querySelectorAll('[data-sm-close]').forEach((el) =>
       el.addEventListener('click', close)
     );
+
+    // Courses accordion: collapsed until clicked (open by default on a course page).
+    const acc = overlay.querySelector<HTMLButtonElement>('[data-sm-acc]');
+    const accPanel = overlay.querySelector<HTMLElement>('[data-sm-acc-panel]');
+    acc?.addEventListener('click', () => {
+      const isOpen = accPanel?.classList.toggle('is-open') ?? false;
+      acc.setAttribute('aria-expanded', String(isOpen));
+    });
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && overlay.classList.contains('is-open')) close();
     });

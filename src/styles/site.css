@@ -829,6 +829,26 @@ html, body { background: var(--paper); }
   padding: 12px 22px; border-radius: var(--r-pill);
 }
 .sd-nav-drawer-cta:hover { background: var(--plum); }
+/* Courses accordion in the drawer — folded behind a "Courses" toggle. */
+.sd-nav-drawer-acc {
+  display: flex; align-items: center; justify-content: space-between;
+  width: 100%; text-align: left;
+  background: none; border: 0; border-bottom: 1px solid var(--line);
+  cursor: pointer;
+}
+.sd-nav-drawer-acc i { font-size: 16px; color: var(--ember-deep); transition: transform var(--d-base) var(--ease); }
+.sd-nav-drawer-acc.is-active i { color: inherit; }
+.sd-nav-drawer-acc[aria-expanded="true"] i { transform: rotate(180deg); }
+.sd-nav-drawer-acc-panel {
+  display: grid; grid-template-rows: 0fr;
+  transition: grid-template-rows var(--d-base) var(--ease);
+}
+.sd-nav-drawer-acc-panel.is-open { grid-template-rows: 1fr; }
+.sd-nav-drawer-acc-inner {
+  overflow: hidden; min-height: 0;
+  visibility: hidden; transition: visibility var(--d-base);
+}
+.sd-nav-drawer-acc-panel.is-open .sd-nav-drawer-acc-inner { visibility: visible; }
 @media (max-width: 800px) {
   .sd-nav-drawer:not([hidden]) { display: flex; }
 }
@@ -921,8 +941,32 @@ html, body { background: var(--paper); }
 }
 .sm-cta:hover { background: var(--plum); }
 
+/* Courses accordion — the course list is folded behind a "Courses" toggle so
+   the menu reads as a short top-level list, not one long run of links. */
+.sm-acc {
+  display: flex; align-items: center; justify-content: space-between;
+  width: 100%; text-align: left;
+  background: none; border: 0; border-bottom: 1px solid var(--line);
+  cursor: pointer;
+}
+.sm-acc i { font-size: 18px; color: var(--ember-deep); transition: transform var(--d-base) var(--ease); }
+.sm-acc.is-active i { color: inherit; }
+.sm-acc[aria-expanded="true"] i { transform: rotate(180deg); }
+.sm-acc-panel {
+  display: grid; grid-template-rows: 0fr;
+  transition: grid-template-rows var(--d-base) var(--ease);
+}
+.sm-acc-panel.is-open { grid-template-rows: 1fr; }
+.sm-acc-inner {
+  overflow: hidden; min-height: 0;
+  visibility: hidden; transition: visibility var(--d-base);
+}
+.sm-acc-panel.is-open .sm-acc-inner { visibility: visible; }
+
 @media (prefers-reduced-motion: reduce) {
   .sm-overlay, .sm-panel { transition: opacity 1ms, transform 1ms; }
+  .sm-acc-panel, .sd-nav-drawer-acc-panel { transition: none; }
+  .sm-acc i, .sd-nav-drawer-acc i { transition: none; }
 }
 
 .sd-news-sub {
