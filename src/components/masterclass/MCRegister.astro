@@ -29,6 +29,11 @@ const alternatives = [
 ];
 const visible = [...masterclasses, ...alternatives];
 
+// Every live masterclass date is the same price, so state it once above the
+// list rather than repeating it on each row. The fallback options below
+// (replay / intro workshop) differ, so they keep their per-row price.
+const leadMc = masterclasses[0];
+
 const hasMcReplay = alternatives.some((it) => it.kind === 'masterclass');
 const hasWsLive = alternatives.some((it) => it.kind === 'workshop');
 const altSub =
@@ -105,6 +110,18 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
         </div>
       )}
 
+      {leadMc && (
+        <p class="we-price-lead we-price-lead--plum">
+          <span
+            class="we-price-lead-amount"
+            id="mc-price-lead"
+            data-prices={JSON.stringify(leadMc.pricesByCurrency)}
+            data-price-minor={String(leadMc.priceMinor)}
+          >{leadMc.priceLabel}</span>
+          <span class="we-price-lead-unit">per seat · replay included</span>
+        </p>
+      )}
+
       {visible.length > 0 && masterclasses.length === 0 && (
         <p class="mc-cal-none">
           No live masterclass dates are open right now. Email
@@ -115,7 +132,7 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
       )}
 
       {masterclasses.length > 0 && (
-        <div class="we-cal" role="radiogroup" aria-label="Masterclass dates">
+        <div class="we-cal we-cal--lead-priced" role="radiogroup" aria-label="Masterclass dates">
           {masterclasses.map((it) => (
             <label class="we-cal-item mc-cal-item--masterclass">
               <input
@@ -330,6 +347,11 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
         r.dataset.currency = cur;
         var priceEl = r.closest('.we-cal-item').querySelector('.we-cal-price');
         if (priceEl) priceEl.textContent = money(minor, cur);
+      }
+      var lead = document.getElementById('mc-price-lead');
+      if (lead) {
+        var lm = priceFor(parse(lead.dataset.prices), cur, parseInt(lead.dataset.priceMinor, 10) || 0);
+        lead.textContent = money(lm, cur);
       }
       if (current) { current = booking.querySelector('input[name="mc-date"]:checked').dataset; recompute(); }
       toggleVat();

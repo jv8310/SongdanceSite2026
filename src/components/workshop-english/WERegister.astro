@@ -39,6 +39,11 @@ const COUNTRIES = ALL_COUNTRIES;
 const detected = COUNTRIES.find((c) => c.code === country);
 const selectedCode = detected?.code ?? '';
 const selectedName = detected?.name ?? '';
+
+// Every workshop date is the same ticket price, so state it once above the list
+// rather than on each row. The pro-only masterclass entries are priced
+// differently, so they keep their own per-row price (re-shown by CSS).
+const leadTicket = items.find((it) => it.kind !== 'masterclass');
 ---
 
 <section class="we-register" id="register">
@@ -81,8 +86,20 @@ const selectedName = detected?.name ?? '';
         </div>
       )}
 
+      {leadTicket && (
+        <p class="we-price-lead">
+          <span
+            class="we-price-lead-amount"
+            id="we-price-lead"
+            data-prices={JSON.stringify(leadTicket.pricesByCurrency)}
+            data-price-minor={String(leadTicket.priceMinor)}
+          >{leadTicket.priceLabel}</span>
+          <span class="we-price-lead-unit">per ticket · replay included</span>
+        </p>
+      )}
+
       {items.length > 0 && (
-        <div class="we-cal" role="radiogroup" aria-label="Choose a date">
+        <div class={`we-cal${leadTicket ? ' we-cal--lead-priced' : ''}`} role="radiogroup" aria-label="Choose a date">
           {items.map((it) => (
             <label class={`we-cal-item${it.kind === 'masterclass' ? ' we-cal-item--masterclass' : ''}${it.slug === friendSlug ? ' we-cal-item--friend' : ''}`}>
               <input
@@ -388,6 +405,11 @@ const selectedName = detected?.name ?? '';
         }
         var priceEl = r.closest('.we-cal-item').querySelector('.we-cal-price');
         if (priceEl) priceEl.textContent = money(minor, cur);
+      }
+      var lead = document.getElementById('we-price-lead');
+      if (lead) {
+        var lm = priceFor(parse(lead.dataset.prices), cur, parseInt(lead.dataset.priceMinor, 10) || 0);
+        lead.textContent = money(lm, cur);
       }
       if (current) { current = group.querySelector('input[name="we-date"]:checked').dataset; refreshBump(); recompute(); }
       toggleVat();

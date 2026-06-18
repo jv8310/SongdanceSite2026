@@ -62,7 +62,7 @@ VALUES
    '/session'),
 
   ('professional-masterclass', 'Professional Masterclass', 'online', 'en',
-   '["Jacob"]', NULL, NULL, 'Online', NULL, '29€', 'open',
+   '["Jacob"]', NULL, NULL, 'Online', NULL, '118€', 'open',
    'How sound works in a room, and in your work. For therapists, coaches, facilitators, leaders.',
    '/masterclass'),
 

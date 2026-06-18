@@ -50,6 +50,9 @@
 .mc-cal-item--masterclass:hover { border-color: var(--plum); }
 .mc-cal-item--masterclass .we-cal-price { color: var(--plum); }
 
+/* The stated-once seat price leads in the page's plum accent. */
+.we-price-lead--plum .we-price-lead-amount { color: var(--plum); }
+
 /* ---------- Register: the workshop alternative block ---------- */
 .mc-alt {
   margin: var(--sp-6) 0;
