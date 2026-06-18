@@ -1,22 +1,35 @@
 ---
 // Progressive enhancement for marketing price labels on the statically-built
 // site. The HTML ships with the EUR price baked in (correct for the base
-// currency and for crawlers — no JS needed); this script localizes the price
-// for non-EUR visitors using the country Cloudflare already exposes at
-// /api/geo. It touches any element tagged with data-sd-price (ticket /
-// masterclass / grief / asj / mmj / inner-child), replacing the EUR token
-// (9€, 29€, €99, €49, €29) in its text with the market-appropriate label
-// (e.g. $9, £8, CA$13, kr 99). Each product carries its own per-currency map.
+// currency and for crawlers — no JS needed); this script does two things after
+// load, touching only elements tagged with data-sd-price:
+//
+//  1. Currency — for non-EUR visitors it swaps the EUR token (9€ / €99 …) for
+//     the market-appropriate label, using the country Cloudflare exposes at
+//     /api/geo.
+//  2. Launch promo — for elements that also carry data-sd-promo-price (the
+//     /courses grid price chips), while the promo window is live it renders the
+//     normal price struck through + the discounted price, both in the resolved
+//     currency. Chips with data-sd-compare (the certification) always show a
+//     struck sticker. Gated on window.__SD_PROMO__.active (set in the base
+//     Layout), so it self-expires at the deadline with no rebuild.
 //
 // Why client-side and not SSR: the pages are output:'static', served from cache.
 // Resolving per request would force every page (the nav is global) to render
 // dynamically, hurting load speed and cacheability. Price strings are not
-// SEO-ranking content, so swapping them after load costs nothing on either.
-import { buildMarketingPriceLabels, EUR_COPY_LABEL } from '../lib/workshops/marketing-prices';
+// SEO-ranking content, so adjusting them after load costs nothing on either.
+import {
+  buildMarketingPriceLabels,
+  buildMarketingPromoPriceLabels,
+  buildMarketingCompareLabels,
+  EUR_COPY_LABEL,
+} from '../lib/workshops/marketing-prices';
 import { COUNTRY_CURRENCY } from '../lib/workshops/currency';
 
 const payload = JSON.stringify({
   labels: buildMarketingPriceLabels(),
+  promoLabels: buildMarketingPromoPriceLabels(),
+  compareLabels: buildMarketingCompareLabels(),
   eur: EUR_COPY_LABEL,
   countries: COUNTRY_CURRENCY,
 });
@@ -49,18 +62,54 @@ const payload = JSON.stringify({
       }
     }
 
+    function promoActive() {
+      return !!(window.__SD_PROMO__ && window.__SD_PROMO__.active);
+    }
+
     function apply(cur) {
-      if (!cur || cur === 'EUR') return; // baked-in default is already EUR
+      cur = cur || 'EUR';
+      var promo = promoActive();
       var nodes = document.querySelectorAll('[data-sd-price]');
       for (var i = 0; i < nodes.length; i++) {
         var el = nodes[i];
         var product = el.getAttribute('data-sd-price');
+        if (!product) continue;
         var labels = D.labels[product];
         var eur = D.eur[product];
-        if (!labels || !eur) continue;
-        var want = labels[cur];
-        if (!want || want === eur) continue;
-        replaceToken(el, eur, want);
+
+        // Permanent-strike chips (data-sd-compare — the certification): always
+        // show the sticker struck through + the current price, which is the
+        // promo price while the promo runs, else the normal price.
+        if (el.hasAttribute('data-sd-compare') && D.compareLabels) {
+          var cmpMap = D.compareLabels[product];
+          var compareLabel = cmpMap && cmpMap[cur];
+          var currentMap = (promo && D.promoLabels && D.promoLabels[product]) || (labels || {});
+          var currentLabel = currentMap[cur];
+          if (compareLabel && currentLabel) {
+            el.innerHTML =
+              '<s class="sd-was">' + compareLabel + '</s> <span class="sd-now">' + currentLabel + '</span>';
+            continue;
+          }
+        }
+
+        // Promo display — grid chips that opt in (data-sd-promo-price). Render
+        // the normal price struck through + the discounted price.
+        if (promo && el.hasAttribute('data-sd-promo-price') && D.promoLabels) {
+          var listLabel = (labels && labels[cur]) || eur;
+          var promoMap = D.promoLabels[product];
+          var nowLabel = promoMap && promoMap[cur];
+          if (listLabel && nowLabel) {
+            el.innerHTML =
+              '<s class="sd-was">' + listLabel + '</s> <span class="sd-now">' + nowLabel + '</span>';
+            continue;
+          }
+        }
+
+        // Currency-only localization (no promo, or elements that don't opt in).
+        if (cur !== 'EUR' && labels && eur) {
+          var want = labels[cur];
+          if (want && want !== eur) replaceToken(el, eur, want);
+        }
       }
     }
 
@@ -89,10 +138,16 @@ const payload = JSON.stringify({
           writeCache(cur);
           apply(cur);
         })
-        .catch(function () { /* leave the EUR default in place */ });
+        .catch(function () { apply('EUR'); }); // geo failed — still strike the promo for EUR
     }
 
     // The script sits at the end of <body>, so the DOM is parsed; run now.
     resolve();
   })();
 </script>
+
+<style is:global>
+  /* Injected by the promo enhancer above into grid price chips. */
+  .sd-was { text-decoration: line-through; opacity: 0.5; margin-right: 0.45em; font-weight: 400; }
+  .sd-now { font-weight: 600; }
+</style>
