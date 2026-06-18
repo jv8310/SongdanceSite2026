@@ -7,7 +7,6 @@ import { courseMenu, coursesAllHref, topLink, tailLinks, navCta } from '../data/
 const path = Astro.url.pathname;
 const isActive = (href: string) =>
   href === '/' ? path === '/' : path === href || path.startsWith(href + '/');
-// On a course page, the mobile drawer's Courses accordion opens by default.
 const coursesActive = isActive('/workshop') || path.startsWith('/courses');
 ---
 
@@ -57,12 +56,12 @@ const coursesActive = isActive('/workshop') || path.startsWith('/courses');
       type="button"
       class:list={['sd-nav-drawer-link', 'sd-nav-drawer-acc', { 'is-active': coursesActive }]}
       data-drawer-acc
-      aria-expanded={coursesActive ? 'true' : 'false'}
+      aria-expanded="false"
       aria-controls="sd-drawer-courses"
     >
       Courses <i class="ph-light ph-caret-down"></i>
     </button>
-    <div id="sd-drawer-courses" class:list={['sd-nav-drawer-acc-panel', { 'is-open': coursesActive }]} data-drawer-acc-panel>
+    <div id="sd-drawer-courses" class="sd-nav-drawer-acc-panel" data-drawer-acc-panel>
       <div class="sd-nav-drawer-acc-inner">
         {courseMenu.map((sec) => (
           <div class="sd-nav-drawer-section">
@@ -100,8 +99,7 @@ const coursesActive = isActive('/workshop') || path.startsWith('/courses');
     }
   });
 
-  // Mobile drawer: Courses accordion — collapsed until clicked (open by default
-  // on a course page).
+  // Mobile drawer: Courses accordion — collapsed until clicked.
   const drawerAcc = document.querySelector<HTMLButtonElement>('[data-drawer-acc]');
   const drawerAccPanel = document.querySelector<HTMLElement>('[data-drawer-acc-panel]');
   drawerAcc?.addEventListener('click', () => {

@@ -13,8 +13,6 @@ import { courseMenu, coursesAllHref, topLink, tailLinks, navCta } from '../data/
 const path = Astro.url.pathname;
 const isActive = (href: string) =>
   href === '/' ? path === '/' : path === href || path.startsWith(href + '/');
-// On a course page, open the Courses accordion by default so the current page
-// is visible without a click.
 const coursesActive = isActive('/workshop') || path.startsWith('/courses');
 ---
 
@@ -37,12 +35,12 @@ const coursesActive = isActive('/workshop') || path.startsWith('/courses');
         type="button"
         class:list={['sm-link', 'sm-acc', { 'is-active': coursesActive }]}
         data-sm-acc
-        aria-expanded={coursesActive ? 'true' : 'false'}
+        aria-expanded="false"
         aria-controls="sm-courses"
       >
         Courses <i class="ph-light ph-caret-down"></i>
       </button>
-      <div id="sm-courses" class:list={['sm-acc-panel', { 'is-open': coursesActive }]} data-sm-acc-panel>
+      <div id="sm-courses" class="sm-acc-panel" data-sm-acc-panel>
         <div class="sm-acc-inner">
           {courseMenu.map((sec) => (
             <div class="sm-section">
@@ -100,7 +98,7 @@ const coursesActive = isActive('/workshop') || path.startsWith('/courses');
       el.addEventListener('click', close)
     );
 
-    // Courses accordion: collapsed until clicked (open by default on a course page).
+    // Courses accordion: collapsed until clicked.
     const acc = overlay.querySelector<HTMLButtonElement>('[data-sm-acc]');
     const accPanel = overlay.querySelector<HTMLElement>('[data-sm-acc-panel]');
     acc?.addEventListener('click', () => {
