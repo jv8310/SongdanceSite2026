@@ -13,6 +13,8 @@ interface Props {
   title?: string;
   description?: string;
   image?: string;
+  imageAlt?: string;
+  lang?: string; // 'en' (default) | 'de' | 'nl'
   header?: boolean; // default true; set false on landing-style pages
   newsletter?: boolean; // default true
   promo?: boolean; // default true; set false where the courses promo doesn't apply (retreats)
@@ -22,13 +24,15 @@ const {
   title,
   description,
   image,
+  imageAlt,
+  lang,
   header = true,
   newsletter = true,
   promo = true,
 } = Astro.props;
 ---
 
-<Layout title={title} description={description} image={image}>
+<Layout title={title} description={description} image={image} imageAlt={imageAlt} lang={lang}>
   {promo && <PromoBanner />}
   {header && <Nav />}
   <slot />
