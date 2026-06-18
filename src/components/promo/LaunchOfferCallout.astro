@@ -1,0 +1,121 @@
+---
+// Standout "new-website launch offer" callout with a live countdown, dropped
+// into the registration forms where the promo discounts the price. It makes the
+// reason for the lower price unmistakable (our new-site launch, not a permanent
+// price) and shows exactly how long it runs.
+//
+// Marketing mechanics (deadline + countdown) are a separate craft from the copy
+// book; the owner has sanctioned naming the deadline plainly (see CLAUDE.md).
+// Keep it factual — no fake scarcity.
+//
+// Server-gated on launchPromoActive() so it never renders once the window has
+// closed; the inline countdown also self-removes at the deadline (no rebuild).
+import {
+  launchPromoActive,
+  LAUNCH_PROMO_PERCENT,
+  LAUNCH_PROMO_END_LABEL,
+  LAUNCH_PROMO_ENDS_AT_MS,
+} from '../../lib/promo';
+
+interface Props {
+  /** Extra class(es) for page-level spacing tweaks. */
+  class?: string;
+  /** What the discount applies to, e.g. "every course", "your seat". */
+  scope?: string;
+}
+const { class: className, scope = 'every course' } = Astro.props;
+const active = launchPromoActive();
+---
+
+{active && (
+  <div
+    class:list={['sd-launch-offer', className]}
+    data-launch-offer
+    data-ends={LAUNCH_PROMO_ENDS_AT_MS}
+    role="note"
+    aria-label={`New-website launch offer — ${LAUNCH_PROMO_PERCENT}% off ${scope}, ends ${LAUNCH_PROMO_END_LABEL}`}
+  >
+    <div class="sd-launch-offer-main">
+      <span class="sd-launch-offer-tag">New-website launch offer</span>
+      <p class="sd-launch-offer-line">
+        <strong>{LAUNCH_PROMO_PERCENT}% off {scope}</strong> to celebrate our new home — ends {LAUNCH_PROMO_END_LABEL}.
+      </p>
+    </div>
+    <div class="sd-launch-offer-clock" data-launch-countdown aria-hidden="true">
+      <span class="sd-lo-unit"><b data-d>0</b><i>days</i></span>
+      <span class="sd-lo-unit"><b data-h>00</b><i>hrs</i></span>
+      <span class="sd-lo-unit"><b data-m>00</b><i>min</i></span>
+      <span class="sd-lo-unit"><b data-s>00</b><i>sec</i></span>
+    </div>
+  </div>
+)}
+
+<script>
+  function pad(n: number): string { return n < 10 ? '0' + n : String(n); }
+  document.querySelectorAll<HTMLElement>('[data-launch-offer]').forEach((box) => {
+    const ends = Number(box.getAttribute('data-ends'));
+    if (!ends) return;
+    const dEl = box.querySelector<HTMLElement>('[data-d]');
+    const hEl = box.querySelector<HTMLElement>('[data-h]');
+    const mEl = box.querySelector<HTMLElement>('[data-m]');
+    const sEl = box.querySelector<HTMLElement>('[data-s]');
+    let timer: number | undefined;
+    function tick() {
+      const diff = ends - Date.now();
+      if (diff <= 0) { if (timer) window.clearInterval(timer); box.remove(); return; }
+      const s = Math.floor(diff / 1000);
+      if (dEl) dEl.textContent = String(Math.floor(s / 86400));
+      if (hEl) hEl.textContent = pad(Math.floor((s % 86400) / 3600));
+      if (mEl) mEl.textContent = pad(Math.floor((s % 3600) / 60));
+      if (sEl) sEl.textContent = pad(s % 60);
+    }
+    tick();
+    timer = window.setInterval(tick, 1000);
+  });
+</script>
+
+<style>
+  .sd-launch-offer {
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: center;
+    gap: 14px 22px;
+    background: linear-gradient(95deg, var(--ember, #C9603A), var(--plum, #4A2540));
+    color: #fff;
+    border-radius: 16px;
+    padding: 16px 22px;
+    margin: 0 auto 24px;
+    max-width: 580px;
+    text-align: center;
+    box-shadow: 0 10px 30px rgba(74, 37, 64, 0.28);
+  }
+  .sd-launch-offer-main { display: flex; flex-direction: column; align-items: center; gap: 7px; }
+  .sd-launch-offer-tag {
+    font-family: var(--font-mono, ui-monospace, monospace);
+    font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase;
+    padding: 4px 11px; border: 1px solid rgba(255, 255, 255, 0.55); border-radius: 999px;
+    white-space: nowrap;
+  }
+  .sd-launch-offer-line {
+    margin: 0; font-family: var(--font-body, system-ui, sans-serif);
+    font-size: 15px; line-height: 1.35; color: #fff;
+  }
+  .sd-launch-offer-line strong { font-weight: 700; }
+  .sd-launch-offer-clock { display: inline-flex; gap: 6px; }
+  .sd-lo-unit {
+    display: inline-flex; flex-direction: column; align-items: center;
+    background: rgba(255, 255, 255, 0.16); border-radius: 9px;
+    padding: 6px 9px; min-width: 46px;
+  }
+  .sd-lo-unit b {
+    font-family: var(--font-body, system-ui, sans-serif);
+    font-size: 19px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums;
+  }
+  .sd-lo-unit i {
+    font-style: normal; font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase;
+    opacity: 0.82; margin-top: 3px;
+  }
+  @media (max-width: 520px) {
+    .sd-launch-offer { gap: 12px; padding: 14px 16px; }
+    .sd-launch-offer-line { font-size: 14px; }
+    .sd-lo-unit { min-width: 42px; }
+  }
+</style>

@@ -12,6 +12,7 @@
 // is in pro state (.we-register.is-pro), where they're shown and highlighted.
 import type { CalItem } from './types';
 import { ALL_COUNTRIES } from '../../lib/workshops/countries';
+import LaunchOfferCallout from '../promo/LaunchOfferCallout.astro';
 interface Props {
   items: CalItem[];
   country: string;
@@ -54,6 +55,8 @@ const selectedName = detected?.name ?? '';
     </p>
     <p class="we-register-note">Live on Zoom · No experience needed · Replay included</p>
     <p class="we-discount-note" id="we-discount-note" hidden></p>
+
+    <LaunchOfferCallout scope="your seat" />
 
     <div class="we-booking">
       {items.length === 0 && (

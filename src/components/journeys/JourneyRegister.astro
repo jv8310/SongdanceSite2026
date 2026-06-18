@@ -1,5 +1,6 @@
 ---
 import { COUNTRIES } from '../../lib/countries';
+import LaunchOfferCallout from '../promo/LaunchOfferCallout.astro';
 
 // The buy form for a single journey page — a dark, integrated "enrolment"
 // section: a short summary of what you get, then the price options + form.
@@ -35,6 +36,7 @@ const THIS_LABEL: Record<Props['course'], string> = {
     </ul>
 
     <div class="jr-register-card">
+      <LaunchOfferCallout scope="this journey" />
       <!-- Price options -->
       <div class="jr-opts" data-jr-opts>
         <label class="jr-opt" data-jr-opt data-product={course}>

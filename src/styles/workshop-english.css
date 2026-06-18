@@ -18,7 +18,7 @@ html, body { background: var(--paper); }
 
 /* ---------- Nav ---------- */
 .we-nav {
-  position: sticky; top: 0; z-index: 50;
+  position: sticky; top: var(--sd-promo-h, 0px); z-index: 50;
   background: rgba(244, 236, 223, 0.88);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--line);

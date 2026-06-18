@@ -10,6 +10,7 @@
 // currency; each date carries its full price map so the swap is instant. The
 // posted country is authoritative — the server re-resolves the price for it.
 import type { CalItem } from '../workshop-english/types';
+import LaunchOfferCallout from '../promo/LaunchOfferCallout.astro';
 interface Props {
   items: CalItem[];
   country: string;
@@ -76,6 +77,8 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
     </p>
     <p class="we-register-note">Live · Online · 90 min · Replay included</p>
     <p class="we-discount-note" id="mc-discount-note" hidden></p>
+
+    <LaunchOfferCallout scope="your seat" />
 
     <div class="we-booking">
       {visible.length === 0 && (

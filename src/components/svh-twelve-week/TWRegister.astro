@@ -1,6 +1,7 @@
 ---
 import { SESSION_URL } from './config';
 import { COUNTRIES } from '../../lib/countries';
+import LaunchOfferCallout from '../promo/LaunchOfferCallout.astro';
 
 const includes = [
   '18+ hours of video across 12 modules, full of guided practices',
@@ -19,6 +20,8 @@ const includes = [
     <p class="tw-eyebrow tw-eyebrow--center" data-reveal>Begin</p>
     <h2 class="tw-reg-h2" data-reveal>Begin with your own <em>voice.</em></h2>
     <p class="tw-reg-sub" data-reveal>Your own time — with live company whenever you want it.</p>
+
+    <LaunchOfferCallout scope="this course" />
 
     <div class="tw-reg-card" data-reveal>
       <p class="tw-reg-card-h">Your 12-Week Somatic Vocal Healing Course includes</p>
