@@ -968,6 +968,9 @@ html, body { background: var(--paper); }
   font-size: 14px;
   color: var(--ink-quiet);
 }
+/* During the promo the lead shows the struck list price beside the live one —
+   keep the struck figure secondary so the discounted price leads. */
+.we-price-lead-amount .we-line-was { font-size: 0.68em; }
 /* Rows in a lead-priced list drop their per-row chip. The workshop page's
    pro-only masterclass rows are priced differently, so they keep theirs. */
 .we-cal--lead-priced .we-cal-price { display: none; }

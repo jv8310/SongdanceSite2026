@@ -298,6 +298,31 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
       return fallbackMinor;
     }
 
+    // Render a price with the live promo applied: the struck full price next to
+    // the discounted figure (matching the summary line), or just the price when
+    // no discount is active.
+    function priceHtml(fullMinor, cur) {
+      var disc = ticketAfterDiscount(fullMinor);
+      return (discountPct && disc !== fullMinor)
+        ? '<span class="we-line-was">' + money(fullMinor, cur) + '</span> ' + money(disc, cur)
+        : money(fullMinor, cur);
+    }
+    // Repaint every visible price for `cur`: the per-row chips (the kept fallback
+    // rows) and the stated-once lead, each carrying the promo strike.
+    function renderPrices(cur) {
+      for (var i = 0; i < radios.length; i++) {
+        var r = radios[i];
+        var minor = priceFor(parse(r.dataset.prices), cur, parseInt(r.dataset.priceMinor, 10) || 0);
+        var priceEl = r.closest('.we-cal-item').querySelector('.we-cal-price');
+        if (priceEl) priceEl.innerHTML = priceHtml(minor, cur);
+      }
+      var lead = document.getElementById('mc-price-lead');
+      if (lead) {
+        var lm = priceFor(parse(lead.dataset.prices), cur, parseInt(lead.dataset.priceMinor, 10) || 0);
+        lead.innerHTML = priceHtml(lm, cur);
+      }
+    }
+
     // Dedup id shared by the client Pixel + server CAPI (if a pixel is set).
     var eventId = (crypto.randomUUID && crypto.randomUUID()) ||
       (Date.now() + '-' + Math.random().toString(36).slice(2));
@@ -337,6 +362,11 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
     // detected country), so a no-change submit stays consistent.
     if (radios.length) curCurrency = radios[0].dataset.currency || 'EUR';
 
+    // Paint the promo onto the server-rendered prices on load (the chips render
+    // full price server-side; the discount only otherwise appeared once a date
+    // was picked).
+    renderPrices(curCurrency);
+
     function applyCurrency(cur, countryCode) {
       curCurrency = cur;
       if (countryField) countryField.value = countryCode;
@@ -345,14 +375,8 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
         var minor = priceFor(parse(r.dataset.prices), cur, parseInt(r.dataset.priceMinor, 10) || 0);
         r.dataset.priceMinor = String(minor);
         r.dataset.currency = cur;
-        var priceEl = r.closest('.we-cal-item').querySelector('.we-cal-price');
-        if (priceEl) priceEl.textContent = money(minor, cur);
       }
-      var lead = document.getElementById('mc-price-lead');
-      if (lead) {
-        var lm = priceFor(parse(lead.dataset.prices), cur, parseInt(lead.dataset.priceMinor, 10) || 0);
-        lead.textContent = money(lm, cur);
-      }
+      renderPrices(cur);
       if (current) { current = booking.querySelector('input[name="mc-date"]:checked').dataset; recompute(); }
       toggleVat();
     }
