@@ -1,6 +1,7 @@
 ---
 import '../styles/workshop-english.css';
 import Layout from '../layouts/Layout.astro';
+import PromoBanner from '../components/PromoBanner.astro';
 import WENav from '../components/workshop-english/WENav.astro';
 import WEHero from '../components/workshop-english/WEHero.astro';
 import WESelector from '../components/workshop-english/WESelector.astro';
@@ -67,6 +68,7 @@ const tzOptions = tzOptionsFor(detectedTz);
   image="/brand/symbol-orange.png"
 >
   <div class="we-site">
+    <PromoBanner />
     <p class="sr-only" id="we-live" role="status" aria-live="polite"></p>
     <WENav />
     <WEHero />

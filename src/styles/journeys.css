@@ -58,7 +58,7 @@ html, body { background: var(--paper); }
 
 /* ---------- Nav ---------- */
 .jr-nav {
-  position: sticky; top: var(--sd-promo-h, 0px); z-index: 50;
+  position: sticky; top: 0; z-index: 50;
   background: rgba(244, 236, 223, 0.88);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);

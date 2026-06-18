@@ -1,15 +1,14 @@
 ---
 // Slim launch-promo announcement bar. It sticks to the very top of the viewport
-// (above the sticky nav, which pins directly beneath it) so the offer stays in
-// view on every page where it's shown. Mounted on the homepage and every course
-// page; deliberately NOT on retreats (the promo is courses-only).
+// so the offer stays in view while scrolling — and it's the ONLY sticky bar:
+// each page's nav scrolls away beneath it (site.css drops the nav's stickiness
+// while this bar is present, via body:has([data-sd-promo])). Mounted on the
+// homepage and every course page; deliberately NOT on retreats (courses-only).
 //
-// The inline script measures the bar's height into `--sd-promo-h` so each page's
-// sticky nav can pin right below it (navs use `top: var(--sd-promo-h, 0px)`).
-//
-// It self-expires: the same guard removes it once the promo window has closed,
-// so it disappears at the deadline without needing a rebuild (and clears the
-// offset). The actual charge is gated server-side regardless.
+// It self-expires: an inline guard removes it once the promo window has closed,
+// so it disappears at the deadline without a rebuild — and once it's gone, the
+// nav's normal sticky behaviour returns automatically. The charge is gated
+// server-side regardless.
 import {
   launchPromoPayload,
   LAUNCH_PROMO_HEADLINE,
@@ -35,17 +34,8 @@ const { endsAtMs } = launchPromoPayload();
   (function () {
     var el = document.querySelector('[data-sd-promo]');
     if (!el) return;
-    var root = document.documentElement;
     var ends = Number(el.getAttribute('data-ends'));
-    if (ends && Date.now() >= ends) {
-      el.remove();
-      root.style.setProperty('--sd-promo-h', '0px');
-      return;
-    }
-    function sync() { root.style.setProperty('--sd-promo-h', el.offsetHeight + 'px'); }
-    sync();
-    window.addEventListener('resize', sync);
-    window.addEventListener('load', sync);
+    if (ends && Date.now() >= ends) el.remove();
   })();
 </script>
 

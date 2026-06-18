@@ -67,11 +67,24 @@ html, body { background: var(--paper); }
 
 /* ---------- Nav ---------- */
 .sd-nav {
-  position: sticky; top: var(--sd-promo-h, 0px); z-index: 50;
+  position: sticky; top: 0; z-index: 50;
   background: rgba(244, 236, 223, 0.85);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--line);
+}
+
+/* While the launch promo bar is on the page it is the ONLY sticky bar — every
+   page's nav scrolls away beneath it instead of stacking. The bar self-removes
+   when the promo ends, which makes :has() false again and restores the sticky
+   nav. (site.css loads on every page, so this one rule covers all the navs.) */
+body:has([data-sd-promo]) .sd-nav,
+body:has([data-sd-promo]) .we-nav,
+body:has([data-sd-promo]) .fc-nav,
+body:has([data-sd-promo]) .tw-nav,
+body:has([data-sd-promo]) .cc-nav,
+body:has([data-sd-promo]) .jr-nav {
+  position: static;
 }
 .sd-nav-inner {
   max-width: var(--sd-max); margin: 0 auto;
