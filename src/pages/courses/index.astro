@@ -3,12 +3,7 @@ import SiteLayout from '../../components/SiteLayout.astro';
 import PageHero from '../../components/PageHero.astro';
 import SoftCta from '../../components/SoftCta.astro';
 import { coursesJsonLd } from '../../lib/seo';
-import type { MarketingProduct } from '../../lib/workshops/marketing-prices';
-import { launchPromoActive, LAUNCH_PROMO_PERCENT } from '../../lib/promo';
-
-// Launch promo: show a "% off" badge on each purchasable card while the window
-// is open (self-clears after the deadline). Excludes products you can't buy yet.
-const showPromo = launchPromoActive();
+import { EUR_COPY_LABEL, hasCompareStrike, type MarketingProduct } from '../../lib/workshops/marketing-prices';
 
 interface CourseItem {
   label: string;
@@ -16,9 +11,8 @@ interface CourseItem {
   img: string;
   desc: string;
   note: string;
-  price?: MarketingProduct; // opts into client-side currency localization
+  price?: MarketingProduct; // opts into client-side currency localization + promo strike
   pos?: string; // object-position override when the 3:2 crop would clip the subject
-  noPromo?: boolean; // suppress the launch badge (not yet purchasable, e.g. forgiveness)
 }
 interface CourseGroup {
   title: string;
@@ -27,10 +21,12 @@ interface CourseGroup {
 }
 
 // Each card carries its own picture from the R2 library (served at /media/…),
-// a one-line description, and a price line. Every card with a fixed price tags
-// it with data-sd-price so PriceSync localizes the currency to the visitor's
-// market — the figure shown matches what they're charged at checkout. (The
-// forgiveness course has no price yet, so it stays untagged.)
+// a one-line description, and a price line. Cards with a price get their figure
+// wrapped in its own chip (see priceParts) so PriceSync can localize the
+// currency AND — while the launch promo is live — strike the normal price and
+// show the discounted one. Every figure matches what's charged at checkout.
+// Certification shows its cert-only line with the €1500 sticker struck
+// permanently (hasCompareStrike); Forgiveness (not on sale yet) shows no figure.
 const groups: CourseGroup[] = [
   {
     title: 'Somatic Vocal Healing',
@@ -49,14 +45,16 @@ const groups: CourseGroup[] = [
         href: '/courses/12-week',
         img: '/media/library/svhgpt-01-hero-in-one-breath.webp',
         desc: 'Twelve weeks to learn the practice for yourself — guided modules and live weekly Q&A, until you can hold it alone.',
-        note: 'The foundation · live Q&A',
+        note: '€650 · live Q&A',
+        price: 'twelve-week',
       },
       {
         label: 'Practitioner Training',
         href: '/courses/certification',
         img: '/media/library/svh-retreat-circle-sunset-group-jacob-central.webp',
         desc: 'Nine live months to go fully in with your own voice — and to learn to hold space for another’s.',
-        note: 'Certification · 9 months',
+        note: '€999 · 9 months',
+        price: 'cert',
       },
       {
         label: 'Professional Masterclass',
@@ -87,7 +85,6 @@ const groups: CourseGroup[] = [
         img: '/media/library/forgiveness-sunflowers-sunset.webp',
         desc: 'When forgiveness feels impossible, come anyway. Four live sessions honoring what the words alone never reached.',
         note: 'with Daniela · Fall 2026',
-        noPromo: true, // enrolment not open yet — no price to discount
       },
     ],
   },
@@ -106,7 +103,7 @@ const groups: CourseGroup[] = [
       {
         label: 'Magical Movement Journey',
         href: '/courses/magical-movement',
-        img: '/media/library/movement.webp',
+        img: '/media/library/movement2.webp',
         desc: 'Guided movement you can do in your own room — standing, or seated in a chair. No steps to learn.',
         note: '€49 · self-paced',
         price: 'mmj',
@@ -122,6 +119,17 @@ const groups: CourseGroup[] = [
     ],
   },
 ];
+
+// Split a note around its EUR price token so the price lives in its own chip —
+// currency-localized, and struck-through + discounted by PriceSync while the
+// launch promo runs. Returns null for cards with no price.
+function priceParts(note: string, price?: MarketingProduct) {
+  if (!price) return null;
+  const token = EUR_COPY_LABEL[price];
+  const at = note.indexOf(token);
+  if (at < 0) return null;
+  return { pre: note.slice(0, at), token, post: note.slice(at + token.length) };
+}
 
 // Course structured data — one Course per card (name + description + provider,
 // plus a price Offer where the note carries one). Helps Google course rich
@@ -149,21 +157,26 @@ const coursesLd = coursesJsonLd(
           <h2 class="sd-course-group-title">{g.title}</h2>
           <p class="sd-course-group-lede">{g.lede}</p>
           <div class="sd-course-cards">
-            {g.items.map((it) => (
+            {g.items.map((it) => {
+              const pp = priceParts(it.note, it.price);
+              const compareStrike = !!it.price && hasCompareStrike(it.price);
+              return (
               <a class="sd-course-card sd-course-card--media" href={it.href}>
                 <span class="sd-course-card-media">
-                  {showPromo && !it.noPromo && (
-                    <span class="sd-course-card-badge">{LAUNCH_PROMO_PERCENT}% off</span>
-                  )}
                   <img src={it.img} alt="" loading="lazy" decoding="async" style={it.pos ? `object-position:${it.pos}` : undefined} />
                 </span>
                 <span class="sd-course-card-body">
                   <span class="sd-course-card-label">{it.label}</span>
                   <span class="sd-course-card-desc">{it.desc}</span>
-                  <span class="sd-course-card-note" data-sd-price={it.price}>{it.note}</span>
+                  <span class="sd-course-card-note">
+                    {pp ? (
+                      <Fragment>{pp.pre}<span class="sd-price" data-sd-price={it.price} data-sd-promo-price data-sd-compare={compareStrike ? '' : undefined}>{pp.token}</span>{pp.post}</Fragment>
+                    ) : it.note}
+                  </span>
                 </span>
               </a>
-            ))}
+              );
+            })}
           </div>
         </div>
       ))}
@@ -195,26 +208,9 @@ const coursesLd = coursesJsonLd(
   }
   .sd-course-card-media {
     display: block;
-    position: relative;
     aspect-ratio: 3 / 2;
     overflow: hidden;
     background: var(--paper-deep);
-  }
-  /* Launch-offer discount badge, pinned to the top-left of the card image. */
-  .sd-course-card-badge {
-    position: absolute;
-    top: 10px;
-    left: 10px;
-    z-index: 2;
-    font-family: var(--font-mono);
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    color: #fff;
-    background: linear-gradient(90deg, var(--ember), var(--plum));
-    padding: 5px 10px;
-    border-radius: var(--r-pill, 999px);
-    box-shadow: 0 2px 10px rgba(74, 37, 64, 0.32);
   }
   .sd-course-card-media img {
     width: 100%;
