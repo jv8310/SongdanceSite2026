@@ -65,5 +65,5 @@ export function launchPromoPayload(): PromoPayload {
 }
 
 // Banner copy (marketing mechanics — not governed by the copy book).
-export const LAUNCH_PROMO_HEADLINE = `Launch offer — ${LAUNCH_PROMO_PERCENT}% off all courses`;
-export const LAUNCH_PROMO_SUBHEAD = `Our new website is here — every course is half price through ${LAUNCH_PROMO_END_LABEL}.`;
+export const LAUNCH_PROMO_HEADLINE = `Launch offer — ${LAUNCH_PROMO_PERCENT}% off all courses and online events`;
+export const LAUNCH_PROMO_SUBHEAD = `Our new website is here — every course and online event is half price through ${LAUNCH_PROMO_END_LABEL}.`;

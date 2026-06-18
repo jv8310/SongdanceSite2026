@@ -646,7 +646,7 @@ html, body { background: var(--paper); }
 .we-about-h2 { margin-left: auto; margin-right: auto; max-width: 22ch; }
 .we-about-grid {
   display: grid;
-  grid-template-columns: 0.82fr 1fr;
+  grid-template-columns: 0.62fr 1fr;
   gap: clamp(var(--sp-6), 5vw, var(--sp-9));
   align-items: center;
 }
@@ -658,6 +658,8 @@ html, body { background: var(--paper); }
   overflow: hidden;
   box-shadow: var(--shadow-3);
   background: var(--paper-deep);
+  max-width: 340px;
+  width: 100%;
 }
 @media (max-width: 760px) {
   .we-about-portrait-wrap { max-width: 440px; margin: 0 auto; }
