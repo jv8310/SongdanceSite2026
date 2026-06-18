@@ -827,6 +827,14 @@ html, body { background: var(--paper); }
 }
 .sd-pagehero-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: var(--sp-6); }
 
+/* Compact variant — utility/listing pages (e.g. /events). Trims the vertical
+   space so the content (the events) sits higher; lighter, smaller title. */
+.sd-pagehero--compact { padding: var(--sp-6) var(--sp-7) var(--sp-5); }
+.sd-pagehero--compact .sd-pagehero-title { font-size: var(--t-h2); max-width: 26ch; margin-top: var(--sp-3); }
+@media (max-width: 720px) {
+  .sd-pagehero--compact { padding: var(--sp-5) var(--sp-5) var(--sp-4); }
+}
+
 /* Atmosphere variant — full-bleed photo behind the hero copy. */
 .sd-pagehero--image {
   position: relative;
@@ -885,6 +893,9 @@ html, body { background: var(--paper); }
 }
 
 /* ---------- Events grid + cards ---------- */
+/* Listing page: tighten the gap between the compact hero and the first row of
+   cards so events sit closer to the fold (the page's whole job). */
+.sd-events { padding-top: var(--sp-6); }
 .sd-events-inner, .sd-upcoming-inner { max-width: var(--sd-max); margin: 0 auto; }
 .sd-upcoming-head {
   display: flex; align-items: flex-end; justify-content: space-between;
