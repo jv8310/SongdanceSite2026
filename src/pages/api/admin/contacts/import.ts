@@ -50,16 +50,25 @@ export const POST: APIRoute = async ({ request, locals }) => {
         raw?.custom && typeof raw.custom === 'object' && !Array.isArray(raw.custom)
           ? (raw.custom as Record<string, unknown>)
           : null,
+      unsubscribed: raw?.unsubscribed === true,
     });
   }
 
+  let suppressed = 0;
   try {
-    await importContacts(env.DB, valid, (payload.source || 'import').slice(0, 40));
+    const res = await importContacts(env.DB, valid, (payload.source || 'import').slice(0, 40));
+    suppressed = res.suppressed;
   } catch (err) {
     return json({ error: `Import failed: ${String(err)}` }, 500);
   }
 
-  return json({ ok: true, processed: valid.length, skipped, total: await countContacts(env.DB) });
+  return json({
+    ok: true,
+    processed: valid.length,
+    skipped,
+    suppressed,
+    total: await countContacts(env.DB),
+  });
 };
 
 function str(v: unknown): string | null {
