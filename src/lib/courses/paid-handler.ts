@@ -4,7 +4,7 @@
 // Tagging contract (settled with Jacob):
 //   - Every cert registration adds `prod_SVH_9m` (always).
 //   - The bundle additionally adds `prod_SVH_12w` (foundation access).
-//   - If buyer chose "activate now" → custom field `svh_week` is set to
+//   - If buyer chose "activate now" → custom field `prod_SVH_week` is set to
 //     "Ended since YYYY-MM-DD". This mirrors what Jacob's existing Drip
 //     automation does at the end of a real 12-week run, so the same
 //     downstream workflows pick up cert access without changes.
@@ -89,7 +89,7 @@ export async function pushPaidCourseRegistrationToDrip(
 
       if (reg.activate_choice === 'now') {
         // Activating cert immediately — clear the 12w "in progress" state.
-        customFields.svh_week = `Ended since ${today}`;
+        customFields.prod_SVH_week = `Ended since ${today}`;
         customFields.prod_SVH_9m_status = 'activated';
       } else if (reg.activate_choice === 'wait') {
         customFields.prod_SVH_9m_status = '12w ongoing, not activated';
