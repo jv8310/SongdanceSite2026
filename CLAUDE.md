@@ -122,8 +122,11 @@ e.g. a Drip export) and one-off `broadcasts` sent to it. Lives in
   unsaved fields server-side). Two `format`s: `simple` (subject, heading,
   preheader, body paragraphs, optional hero + CTA) wrapped in the shared email
   `shell()` (exported from `emails.ts`); or `html` (paste a full email — `body`
-  is used as-is). `{{first_name}}` substitutes everywhere; in `html` mode
-  `{{unsubscribe_url}}` does too (absent → a footer is appended). Optional
+  is used as-is). `{{first_name}}` substitutes everywhere (and Drip/Liquid-style
+  `{{ subscriber.first_name | default: "there" }}` is understood, honouring the
+  default; unknown `{{ … }}` merge tags resolve to their default or are dropped,
+  never sent literally); in `html` mode `{{unsubscribe_url}}` does too (absent →
+  a footer is appended). Optional
   `body_text` overrides the auto plain-text part. Same copy-book rules apply to
   the words. Test-send before launch.
 - **Send window is per-broadcast** (`window_start_hour`/`window_end_hour`,
