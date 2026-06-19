@@ -507,6 +507,51 @@ export async function listActiveBroadcasts(db: D1Database): Promise<Broadcast[]>
 
 export type DrainCandidate = { id: number; email: string; name: string | null; timezone: string | null };
 
+// The distinct timezones still pending for a broadcast (one row per zone, incl.
+// null). The cron works out which of these are inside the send window right now
+// and only then fetches recipients in those zones — so a big block of one
+// timezone sitting at the head of the queue (out of window) can't starve the
+// rest. Distinct zones are few (dozens), so this is cheap.
+export async function pendingTimezones(db: D1Database, broadcastId: number): Promise<(string | null)[]> {
+  const r = await db
+    .prepare(`SELECT DISTINCT timezone FROM broadcast_recipients WHERE broadcast_id = ? AND status = 'pending'`)
+    .bind(broadcastId)
+    .all<{ timezone: string | null }>();
+  return (r.results ?? []).map((row) => row.timezone);
+}
+
+// Pending recipients whose timezone is in the given in-window set (plus the
+// null/default zone when it's in-window). Ordered by id within that set.
+export async function fetchDrainCandidatesForTz(
+  db: D1Database,
+  broadcastId: number,
+  tzs: string[],
+  includeNull: boolean,
+  limit: number,
+): Promise<DrainCandidate[]> {
+  let cond: string;
+  const binds: (string | number)[] = [broadcastId];
+  if (tzs.length && includeNull) {
+    cond = `(timezone IN (${tzs.map(() => '?').join(',')}) OR timezone IS NULL)`;
+    binds.push(...tzs);
+  } else if (tzs.length) {
+    cond = `timezone IN (${tzs.map(() => '?').join(',')})`;
+    binds.push(...tzs);
+  } else {
+    cond = `timezone IS NULL`;
+  }
+  binds.push(limit);
+  const r = await db
+    .prepare(
+      `SELECT id, email, name, timezone FROM broadcast_recipients
+        WHERE broadcast_id = ? AND status = 'pending' AND ${cond}
+        ORDER BY id LIMIT ?`,
+    )
+    .bind(...binds)
+    .all<DrainCandidate>();
+  return r.results ?? [];
+}
+
 // Over-fetch pending rows; the cron filters them by each recipient's local
 // window and sends up to its per-run cap. Ordered by id (snapshot order, which
 // is arbitrary w.r.t. timezone), so the in-window subset stays well-mixed.

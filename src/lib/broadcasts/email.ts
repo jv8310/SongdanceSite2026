@@ -88,11 +88,12 @@ function appendUnsubFooter(html: string, url: string): string {
 }
 
 // Ensure the legal postal address is present in a pasted-HTML email (it isn't in
-// the shell-rendered ones — those get it via the shell footer). Idempotent: skips
-// if the address is already in the markup. Inserted before </body> when present.
+// the shell-rendered ones — those get it via the shell footer). Idempotent: if
+// the author's own footer already carries the street, we leave it alone (so the
+// address never ends up in two places). Inserted before </body> when present.
 function ensureAddress(html: string): string {
-  if (html.includes(MAILING_ADDRESS)) return html;
-  const line = `<div style="font-family:Georgia,serif;font-size:11px;line-height:1.6;color:#9b8fa0;text-align:center;padding:0 12px 18px;">${MAILING_ADDRESS}</div>`;
+  if (/beaupr[ée]straat/i.test(html)) return html;
+  const line = `<div style="font-family:Georgia,serif;font-size:11px;line-height:1.6;color:#9b8fa0;text-align:center;padding:0 12px 18px;">Songdance BV · ${MAILING_ADDRESS}</div>`;
   if (/<\/body>/i.test(html)) return html.replace(/<\/body>/i, `${line}</body>`);
   return html + line;
 }
@@ -112,11 +113,13 @@ export function renderBroadcast(
     let html = personalize(b.body, { firstName: fn, unsubscribeUrl: unsub });
     // Append a footer only if the author didn't place their own unsubscribe tag.
     if (unsub && !hadUnsub) html = appendUnsubFooter(html, unsub);
-    // Always ensure the legal postal address is present.
+    // Ensure the legal postal address is present (unless the author's footer
+    // already has it). The text part is derived from the final html, so it
+    // inherits the address without double-listing it.
     html = ensureAddress(html);
     const text = b.body_text
       ? personalize(b.body_text, { firstName: fn, unsubscribeUrl: unsub })
-      : `${stripToText(html)}\n\n${MAILING_ADDRESS}${unsub && !hadUnsub ? `\nUnsubscribe: ${unsub}` : ''}`;
+      : `${stripToText(html)}${unsub && !hadUnsub ? `\n\nUnsubscribe: ${unsub}` : ''}`;
     return { subject, html, text };
   }
 
