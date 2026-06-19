@@ -37,6 +37,7 @@ export type ContactRow = {
   country?: string | null;
   tags?: string | null; // comma-joined (display)
   custom?: Record<string, unknown> | null;
+  unsubscribed?: boolean; // status === 'unsubscribed' → store but suppress
 };
 
 // Audience targeting criteria, shared by the count + snapshot queries.
@@ -92,32 +93,36 @@ function customJson(custom: Record<string, unknown> | null | undefined): string 
 
 // ── Contacts ────────────────────────────────────────────────────────────────
 
-// Upsert a batch of contacts plus their normalized tags. Per chunk, in one D1
-// batch (a transaction): the contacts upsert, then a delete + re-insert of that
-// chunk's contact_tags (so re-importing reflects the latest tag set). Multi-row
-// INSERTs stay well under SQLite's 999 bound-variable ceiling. Returns rows seen.
+// Upsert a batch of contacts plus their normalized tags, and suppress anyone
+// imported with status 'unsubscribed' (stored, but never emailed). Everything
+// runs in one D1 batch (a transaction). D1 caps bound parameters at 100 per
+// statement, so every multi-row statement is chunked well under that. Returns
+// how many rows were seen and how many were suppressed.
 export async function importContacts(
   db: D1Database,
   rows: ContactRow[],
   source = 'import',
-): Promise<number> {
-  if (rows.length === 0) return 0;
-  const CHUNK = 80; // 80 × 7 binds = 560, under the 999 variable limit
-  const TAG_CHUNK = 150; // 150 × 2 binds = 300
+): Promise<{ processed: number; suppressed: number }> {
+  if (rows.length === 0) return { processed: 0, suppressed: 0 };
+  const ROWS_PER_STMT = 12; // 12 × 7 binds = 84  (≤ 100)
+  const TAGS_PER_STMT = 45; // 45 × 2 binds = 90
+  const EMAILS_PER_STMT = 90; // DELETE … IN / suppression insert
   const statements: D1PreparedStatement[] = [];
 
-  for (let i = 0; i < rows.length; i += CHUNK) {
-    const slice = rows.slice(i, i + CHUNK);
-    const emails: string[] = [];
-    const tagPairs: Array<[string, string]> = [];
+  const allEmails: string[] = [];
+  const tagPairs: Array<[string, string]> = [];
+  const unsubEmails: string[] = [];
 
-    const placeholders = slice.map(() => '(?,?,?,?,?,?,?)').join(',');
+  // contacts upserts (≤12 rows each)
+  for (let i = 0; i < rows.length; i += ROWS_PER_STMT) {
+    const slice = rows.slice(i, i + ROWS_PER_STMT);
     const binds: (string | null)[] = [];
     for (const r of slice) {
       const email = r.email.trim().toLowerCase();
       const tags = splitTags(r.tags);
-      emails.push(email);
+      allEmails.push(email);
       for (const tag of tags) tagPairs.push([email, tag]);
+      if (r.unsubscribed) unsubEmails.push(email);
       binds.push(
         email,
         (r.name ?? null) || null,
@@ -128,12 +133,11 @@ export async function importContacts(
         source,
       );
     }
-
     statements.push(
       db
         .prepare(
           `INSERT INTO contacts (email, name, timezone, country, tags, custom, source)
-             VALUES ${placeholders}
+             VALUES ${slice.map(() => '(?,?,?,?,?,?,?)').join(',')}
            ON CONFLICT(email) DO UPDATE SET
              name = COALESCE(excluded.name, contacts.name),
              timezone = COALESCE(excluded.timezone, contacts.timezone),
@@ -144,27 +148,39 @@ export async function importContacts(
         )
         .bind(...binds),
     );
+  }
 
-    // Replace this chunk's tags: clear then re-insert (keeps re-imports correct).
+  // Replace these emails' tags: clear (≤90 per stmt) then re-insert (≤45 pairs).
+  for (let i = 0; i < allEmails.length; i += EMAILS_PER_STMT) {
+    const slice = allEmails.slice(i, i + EMAILS_PER_STMT);
+    statements.push(
+      db.prepare(`DELETE FROM contact_tags WHERE email IN (${slice.map(() => '?').join(',')})`).bind(...slice),
+    );
+  }
+  for (let i = 0; i < tagPairs.length; i += TAGS_PER_STMT) {
+    const slice = tagPairs.slice(i, i + TAGS_PER_STMT);
     statements.push(
       db
-        .prepare(`DELETE FROM contact_tags WHERE email IN (${emails.map(() => '?').join(',')})`)
-        .bind(...emails),
+        .prepare(`INSERT OR IGNORE INTO contact_tags (email, tag) VALUES ${slice.map(() => '(?,?)').join(',')}`)
+        .bind(...slice.flat()),
     );
-    for (let j = 0; j < tagPairs.length; j += TAG_CHUNK) {
-      const tslice = tagPairs.slice(j, j + TAG_CHUNK);
-      statements.push(
-        db
-          .prepare(
-            `INSERT OR IGNORE INTO contact_tags (email, tag) VALUES ${tslice.map(() => '(?,?)').join(',')}`,
-          )
-          .bind(...tslice.flat()),
-      );
-    }
+  }
+
+  // Stored-but-never-emailed: add unsubscribed addresses to the suppression list.
+  for (let i = 0; i < unsubEmails.length; i += EMAILS_PER_STMT) {
+    const slice = unsubEmails.slice(i, i + EMAILS_PER_STMT);
+    statements.push(
+      db
+        .prepare(
+          `INSERT OR IGNORE INTO email_suppressions (email, reason, source)
+             VALUES ${slice.map(() => "(?, 'unsubscribe', 'import')").join(',')}`,
+        )
+        .bind(...slice),
+    );
   }
 
   await db.batch(statements);
-  return rows.length;
+  return { processed: rows.length, suppressed: unsubEmails.length };
 }
 
 // Distinct tags with how many contacts carry each — populates the compose

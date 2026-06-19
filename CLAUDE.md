@@ -108,7 +108,10 @@ e.g. a Drip export) and one-off `broadcasts` sent to it. Lives in
   dups. Every other column is preserved: `tags` is normalized into a
   `contact_tags` table (for fast targeting + counts) and kept as a display
   string; all remaining non-empty columns go into a `custom` JSON blob, so the
-  full export is retained and filterable.
+  full export is retained and filterable. Rows whose `status` is `unsubscribed`
+  are stored but added to `email_suppressions` (so they're never emailed).
+  D1 caps bound params at 100/statement, so the batch upsert chunks rows
+  accordingly (12 contacts / 45 tag-pairs / 90 emails per statement).
 - **Timezone is everything here**: the import stores each contact's IANA
   timezone (validated; bad/blank → null → default window) so the send rides the
   same `withinSendWindow` 08:00–21:00 gate as lifecycle mail — truly local.

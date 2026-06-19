@@ -149,12 +149,13 @@ const recent = await recentContacts(env.DB, 8);
     const norm = (s) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
 
     function detectColumns(header) {
-      const idx = { email: -1, name: -1, first: -1, last: -1, timezone: -1, country: -1, tags: -1 };
+      const idx = { email: -1, name: -1, first: -1, last: -1, timezone: -1, country: -1, tags: -1, status: -1 };
       header.forEach((h, i) => {
         const n = norm(h);
         if (idx.email < 0 && n.includes('email')) idx.email = i;
         else if (idx.timezone < 0 && (n.includes('timezone') || n === 'tz')) idx.timezone = i;
         else if (idx.tags < 0 && (n === 'tags' || n === 'tag')) idx.tags = i;
+        else if (idx.status < 0 && n === 'status') idx.status = i;
         else if (idx.country < 0 && n.includes('country')) idx.country = i;
         else if (idx.first < 0 && (n === 'firstname' || n === 'first')) idx.first = i;
         else if (idx.last < 0 && (n === 'lastname' || n === 'last')) idx.last = i;
@@ -200,7 +201,7 @@ const recent = await recentContacts(env.DB, 8);
       header.forEach((h, i) => { if (!mapped.has(i) && (h || '').trim()) customCols.push(i); });
 
       const out = [];
-      let customSeen = 0;
+      let unsubCount = 0;
       for (let r = 1; r < rows.length; r++) {
         const cells = rows[r];
         const email = (cells[idx.email] || '').trim();
@@ -215,7 +216,8 @@ const recent = await recentContacts(env.DB, 8);
           const v = (cells[ci] || '').trim();
           if (v) custom[header[ci].trim()] = v;
         }
-        if (Object.keys(custom).length) customSeen++;
+        const unsubscribed = idx.status >= 0 && (cells[idx.status] || '').trim().toLowerCase() === 'unsubscribed';
+        if (unsubscribed) unsubCount++;
         out.push({
           email,
           name: name || null,
@@ -223,6 +225,7 @@ const recent = await recentContacts(env.DB, 8);
           country: idx.country >= 0 ? (cells[idx.country] || '').trim() || null : null,
           tags: idx.tags >= 0 ? (cells[idx.tags] || '').trim() || null : null,
           custom: Object.keys(custom).length ? custom : null,
+          unsubscribed,
         });
       }
       parsedRows = out;
@@ -235,6 +238,7 @@ const recent = await recentContacts(env.DB, 8);
       if (idx.tags >= 0) cols.push(`tags → <code>${header[idx.tags]}</code>`);
       if (idx.country >= 0) cols.push(`country → <code>${header[idx.country]}</code>`);
       if (customCols.length) cols.push(`+ ${customCols.length} custom fields preserved`);
+      if (unsubCount > 0) cols.push(`<strong>${unsubCount.toLocaleString()}</strong> unsubscribed (stored, won't be emailed)`);
       detected.hidden = false;
       detected.innerHTML = `<strong>${out.length.toLocaleString()}</strong> rows ready · ${cols.join(' · ')}`;
       importBtn.disabled = out.length === 0;
@@ -245,9 +249,10 @@ const recent = await recentContacts(env.DB, 8);
       importBtn.disabled = true;
       fileInput.disabled = true;
       barWrap.hidden = false;
-      const CHUNK = 500; // smaller, since each row may carry many custom fields
+      const CHUNK = 200; // each row may carry many custom fields; keeps the batch modest
       let done = 0;
       let processed = 0;
+      let suppressed = 0;
       let latestTotal = null;
       try {
         for (let i = 0; i < parsedRows.length; i += CHUNK) {
@@ -260,13 +265,16 @@ const recent = await recentContacts(env.DB, 8);
           const data = await res.json();
           if (!res.ok) throw new Error(data.error || 'Import failed');
           processed += data.processed || 0;
+          suppressed += data.suppressed || 0;
           latestTotal = data.total;
           done += chunk.length;
           const pct = Math.round((done / parsedRows.length) * 100);
           bar.style.width = pct + '%';
           progress.textContent = `${done.toLocaleString()} / ${parsedRows.length.toLocaleString()} (${pct}%)`;
         }
-        progress.textContent = `Imported ${processed.toLocaleString()} contacts. ✓`;
+        progress.textContent =
+          `Imported ${processed.toLocaleString()} contacts. ✓` +
+          (suppressed > 0 ? ` (${suppressed.toLocaleString()} unsubscribed — stored, won't be emailed)` : '');
         if (latestTotal != null && totalEl) totalEl.textContent = Number(latestTotal).toLocaleString();
       } catch (err) {
         progress.textContent = 'Failed: ' + (err && err.message ? err.message : String(err));
