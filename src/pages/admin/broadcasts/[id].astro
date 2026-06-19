@@ -27,6 +27,9 @@ const b = Number.isFinite(id) ? await getBroadcast(env.DB, id) : null;
 if (!b) return Astro.redirect('/admin/broadcasts');
 
 const isDraft = b.status === 'draft';
+// Editable until done — content edits to a sending/paused broadcast flow to
+// recipients not yet sent (the cron re-renders each batch).
+const isEditable = b.status !== 'done';
 const counts = await recipientCounts(env.DB, b.id);
 const stats = await broadcastStats(env.DB, broadcastEmailType(b.id));
 // The audience this broadcast targets right now (criteria minus suppressions).
@@ -36,7 +39,7 @@ const audience = await countAudience(env.DB, {
   field: b.audience_field,
   fieldValue: b.audience_field_value,
 });
-const tags = isDraft ? await availableTags(env.DB, 80) : [];
+const tags = isEditable ? await availableTags(env.DB, 80) : [];
 const hasAudienceFilter = !!(b.audience_include_tags || b.audience_exclude_tags || b.audience_field);
 const preview = previewBroadcast(b, env.PUBLIC_BASE_URL);
 
@@ -69,7 +72,10 @@ const statusLabel: Record<string, string> = {
     <div class="bc-grid">
       <section class="adm-section">
         <h2>{isDraft ? 'Compose' : 'Email'}</h2>
-        {isDraft ? (
+        {!isDraft && isEditable && (
+          <p class="bc-editnote">Editing a live broadcast — changes apply to recipients not yet sent. (Audience changes need a re-launch.)</p>
+        )}
+        {isEditable ? (
           <form id="bc-edit" class="bc-form">
             <input type="hidden" name="id" value={b.id} />
             <label class="bc-field"><span>Internal name</span><input name="name" required value={b.name} /></label>
@@ -131,7 +137,8 @@ const statusLabel: Record<string, string> = {
               b.audience_field ? `${b.audience_field} = ${b.audience_field_value ?? ''}` : null,
             ].filter(Boolean).join(' · ') : 'Whole list'} <span class="bc-muted">({audience.toLocaleString()} contacts)</span></dd>
             {b.format !== 'html' && <><dt>Heading</dt><dd>{b.heading}</dd></>}
-            <dt>Body</dt><dd class="bc-pre">{b.body}</dd>
+            <dt>Body</dt>
+            <dd><details class="bc-bodydetails"><summary>Show {b.format === 'html' ? 'HTML' : 'body'}</summary><pre class="bc-pre">{b.body}</pre></details></dd>
             {b.cta_label && <><dt>Button</dt><dd>{b.cta_label} → {b.cta_href}</dd></>}
           </dl>
         )}
@@ -237,13 +244,17 @@ const statusLabel: Record<string, string> = {
     .bc-tagchip { font: inherit; font-size: 12px; cursor: pointer; border: 1px solid rgba(161,72,38,0.3); background: #fff; color: #4a3848; border-radius: 999px; padding: 3px 10px; }
     .bc-tagchip:hover { background: #f4ecdf; }
     .bc-tagchip span { color: #b6a8b4; }
+    .bc-editnote { font-size: 12.5px; color: #a14826; background: #f9efe2; border: 1px solid rgba(161,72,38,0.22); border-radius: 8px; padding: 8px 12px; margin: 0 0 12px; }
+    .bc-bodydetails summary { cursor: pointer; font-size: 13px; color: #a14826; }
+    .bc-bodydetails pre { max-height: 320px; overflow: auto; background: #fbf6ec; border: 1px solid rgba(161,72,38,0.18); border-radius: 8px; padding: 12px; font-size: 12px; white-space: pre-wrap; word-break: break-word; margin: 6px 0 0; }
   </style>
 
   <script is:inline>
     const editForm = document.getElementById('bc-edit');
     const previewFrame = document.getElementById('bc-preview');
+    let formDirty = false; // pause the live stats refresh while the user is editing
 
-    // Draft compose: format toggle + live preview.
+    // Compose: format toggle + live preview.
     if (editForm) {
       const formatSel = document.getElementById('bc-format');
       const bodyLabel = document.getElementById('bc-body-label');
@@ -303,7 +314,7 @@ const statusLabel: Record<string, string> = {
       });
 
       formatSel.addEventListener('change', () => { applyFormat(); schedule(); });
-      editForm.addEventListener('input', () => { schedule(); scheduleAud(); });
+      editForm.addEventListener('input', () => { formDirty = true; schedule(); scheduleAud(); });
       applyFormat();
       updateAudience();
 
@@ -317,7 +328,8 @@ const statusLabel: Record<string, string> = {
           });
           const data = await res.json();
           if (!res.ok) throw new Error(data.error || 'Save failed');
-          saveMsg.textContent = 'Saved ✓';
+          formDirty = false;
+          saveMsg.textContent = 'Saved ✓ — applies to recipients not yet sent.';
           updatePreview();
         } catch (err) { saveMsg.textContent = 'Failed: ' + (err.message || err); }
       });
@@ -390,9 +402,14 @@ const statusLabel: Record<string, string> = {
       });
     });
 
-    // Live refresh while a send is in flight.
+    // Live refresh while a send is in flight — but never while the user is
+    // mid-edit (would wipe unsaved changes); re-arm and wait instead.
     if (document.querySelector('.adm')?.dataset.status === 'sending') {
-      setTimeout(() => window.location.reload(), 20000);
+      const tick = () => {
+        if (!formDirty) window.location.reload();
+        else setTimeout(tick, 20000);
+      };
+      setTimeout(tick, 20000);
     }
   </script>
 </Layout>

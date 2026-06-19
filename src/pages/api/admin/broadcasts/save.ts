@@ -60,8 +60,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
   if (id) {
     const existing = await getBroadcast(env.DB, id);
     if (!existing) return json({ error: 'Broadcast not found.' }, 404);
-    if (existing.status !== 'draft') {
-      return json({ error: 'This broadcast has already started and can no longer be edited.' }, 409);
+    if (existing.status === 'done') {
+      return json({ error: 'This broadcast has finished and can no longer be edited.' }, 409);
     }
     await updateBroadcast(env.DB, id, fields);
     return json({ ok: true, id });

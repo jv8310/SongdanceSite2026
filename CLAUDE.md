@@ -151,7 +151,13 @@ e.g. a Drip export) and one-off `broadcasts` sent to it. Lives in
   `/admin/emails/stats` under "Broadcasts" (`emailTypeMeta` knows the prefix).
 - **Compliance**: every send honours `email_suppressions` (re-checked at send
   time), carries the RFC 8058 one-click `List-Unsubscribe` header, and a footer
-  unsubscribe link — same plumbing as lifecycle marketing.
+  unsubscribe link — same plumbing as lifecycle marketing. The physical postal
+  address (`MAILING_ADDRESS` in `emails.ts`) is in the shell footer (simple) and
+  auto-appended to pasted HTML (`ensureAddress`, idempotent).
+- **Editable until done**: a broadcast can be edited while `sending`/`paused`
+  (not just `draft`) — the cron re-renders each batch from the row, so content
+  edits reach recipients not yet sent. Stats label broadcasts by their real name
+  (`/admin/emails/stats` looks the name up from the id).
 
 ## R2 image library — how to view and use images
 

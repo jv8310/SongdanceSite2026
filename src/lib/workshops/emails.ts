@@ -40,6 +40,9 @@ const IMG = {
 export const MARKETING_FROM_DEFAULT = 'Jacob from Songdance <info@mail.songdance.co>';
 export const MARKETING_REPLY_TO_DEFAULT = 'support@songdance.co';
 
+// Physical postal address for marketing footers (CAN-SPAM / GDPR compliance).
+export const MAILING_ADDRESS = 'Beaupréstraat 13, 8310 Bruges, Belgium';
+
 export type EmailContent = { subject: string; html: string; text: string };
 
 type ButtonLink = { label: string; href: string };
@@ -66,8 +69,9 @@ export function shell(opts: {
   extras?: ButtonLink[];
   footerNote?: string;
   unsubscribeUrl?: string;
+  address?: string;
 }): string {
-  const { preheader, heading, bodyHtml, heroImage, cta, extras, footerNote, unsubscribeUrl } = opts;
+  const { preheader, heading, bodyHtml, heroImage, cta, extras, footerNote, unsubscribeUrl, address } = opts;
   return `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en">
 <head>
@@ -99,6 +103,7 @@ export function shell(opts: {
         </td></tr>
         <tr><td align="center" style="padding:10px 24px 24px;">
           <p style="margin:0;font-family:Georgia,serif;font-size:11px;line-height:1.6;color:${PALETTE.faint};">${escapeHtml(footerNote ?? 'Songdance · songdance.co')}</p>
+          ${address ? `<p style="margin:4px 0 0;font-family:Georgia,serif;font-size:11px;line-height:1.6;color:${PALETTE.faint};">${escapeHtml(address)}</p>` : ''}
           ${unsubscribeUrl ? `<p style="margin:6px 0 0;font-family:Georgia,serif;font-size:11px;line-height:1.6;color:${PALETTE.faint};"><a href="${unsubscribeUrl}" style="color:${PALETTE.faint};text-decoration:underline;">No more emails like this — unsubscribe</a></p>` : ''}
         </td></tr>
       </table>

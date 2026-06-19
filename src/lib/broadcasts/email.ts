@@ -13,7 +13,7 @@
 // (docs/svh-copy-book.md) still apply to the words; this module only frames and
 // personalises them.
 
-import { shell, type EmailContent } from '../workshops/emails';
+import { shell, MAILING_ADDRESS, type EmailContent } from '../workshops/emails';
 import type { Broadcast } from './db';
 
 // Any {{ field | filters }} merge tag. The field allows a `subscriber.` prefix
@@ -87,6 +87,16 @@ function appendUnsubFooter(html: string, url: string): string {
   return html + footer;
 }
 
+// Ensure the legal postal address is present in a pasted-HTML email (it isn't in
+// the shell-rendered ones — those get it via the shell footer). Idempotent: skips
+// if the address is already in the markup. Inserted before </body> when present.
+function ensureAddress(html: string): string {
+  if (html.includes(MAILING_ADDRESS)) return html;
+  const line = `<div style="font-family:Georgia,serif;font-size:11px;line-height:1.6;color:#9b8fa0;text-align:center;padding:0 12px 18px;">${MAILING_ADDRESS}</div>`;
+  if (/<\/body>/i.test(html)) return html.replace(/<\/body>/i, `${line}</body>`);
+  return html + line;
+}
+
 // Render a broadcast for one recipient. `unsubscribeUrl` is the human-facing
 // footer link (the one-click RFC 8058 header is set separately on the send).
 export function renderBroadcast(
@@ -102,9 +112,11 @@ export function renderBroadcast(
     let html = personalize(b.body, { firstName: fn, unsubscribeUrl: unsub });
     // Append a footer only if the author didn't place their own unsubscribe tag.
     if (unsub && !hadUnsub) html = appendUnsubFooter(html, unsub);
+    // Always ensure the legal postal address is present.
+    html = ensureAddress(html);
     const text = b.body_text
       ? personalize(b.body_text, { firstName: fn, unsubscribeUrl: unsub })
-      : `${stripToText(html)}${unsub && !hadUnsub ? `\n\nUnsubscribe: ${unsub}` : ''}`;
+      : `${stripToText(html)}\n\n${MAILING_ADDRESS}${unsub && !hadUnsub ? `\nUnsubscribe: ${unsub}` : ''}`;
     return { subject, html, text };
   }
 
@@ -120,6 +132,7 @@ export function renderBroadcast(
     heroImage: b.hero_image ? { src: b.hero_image, alt: heading } : undefined,
     cta,
     footerNote: 'Songdance · songdance.co',
+    address: MAILING_ADDRESS,
     unsubscribeUrl: opts.unsubscribeUrl,
   });
 
@@ -129,7 +142,7 @@ export function renderBroadcast(
   } else {
     const lines = [heading, '', stripToText(bodyToHtml(bodyTokened))];
     if (cta) lines.push('', `${cta.label}: ${cta.href}`);
-    lines.push('', 'Songdance · songdance.co');
+    lines.push('', 'Songdance · songdance.co', MAILING_ADDRESS);
     if (unsub) lines.push(`Unsubscribe: ${unsub}`);
     text = lines.join('\n');
   }
