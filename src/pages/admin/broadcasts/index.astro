@@ -1,8 +1,8 @@
 ---
-// Admin — broadcasts. List every one-off marketing send and start a new one.
-// A new broadcast is created as a draft; you compose, preview and test it on its
-// detail page, then launch. Delivery is drained by the 5-minute cron — paced,
-// held to each recipient's local 08:00–21:00 window, suppression-checked.
+// Admin — broadcasts. List every one-off marketing send and compose a new one
+// with a live preview. A new broadcast is created as a draft; you preview and
+// test it, then launch. Delivery is drained by the 5-minute cron — paced, held
+// to each recipient's local send window, suppression-checked.
 import '../../../styles/admin.css';
 import Layout from '../../../layouts/Layout.astro';
 import { readCookie, verifySession } from '../../../lib/registrations/auth';
@@ -19,10 +19,7 @@ const broadcasts = await listBroadcasts(env.DB);
 const sendable = await countSendable(env.DB);
 
 const statusLabel: Record<string, string> = {
-  draft: 'Draft',
-  sending: 'Sending',
-  paused: 'Paused',
-  done: 'Done',
+  draft: 'Draft', sending: 'Sending', paused: 'Paused', done: 'Done',
 };
 ---
 
@@ -34,7 +31,7 @@ const statusLabel: Record<string, string> = {
         <h1>Broadcasts</h1>
         <p class="adm-sub">
           One-off marketing sends to the contact list ({sendable.toLocaleString()} sendable).
-          Paced over days within each recipient's local daytime; open &amp; click
+          Paced over days within each recipient's local send window; open &amp; click
           rates land on the detail page and on <a href="/admin/emails/stats">email stats</a>.
         </p>
       </div>
@@ -46,48 +43,92 @@ const statusLabel: Record<string, string> = {
 
     <section class="adm-section">
       <h2>New broadcast</h2>
-      <form id="bc-new" class="bc-form">
-        <label class="bc-field">
-          <span>Internal name</span>
-          <input name="name" required placeholder="New site announcement" />
-        </label>
-        <label class="bc-field">
-          <span>Subject line</span>
-          <input name="subject" required placeholder="Songdance has a new home" />
-        </label>
-        <label class="bc-field">
-          <span>Heading (top of the email)</span>
-          <input name="heading" required placeholder="A new door to the practice" />
-        </label>
-        <label class="bc-field">
-          <span>Preheader <em>(inbox preview line — optional)</em></span>
-          <input name="preheader" placeholder="Defaults to the subject line" />
-        </label>
-        <label class="bc-field bc-wide">
-          <span>Body — your copy. Blank line = new paragraph. <code>{'{{first_name}}'}</code> is replaced per recipient.</span>
-          <textarea name="body" rows="8" required placeholder="Dear {{first_name}},
+      <div class="bc-compose">
+        <form id="bc-new" class="bc-form">
+          <label class="bc-field">
+            <span>Internal name</span>
+            <input name="name" required placeholder="New site announcement" />
+          </label>
+          <label class="bc-field">
+            <span>Subject line</span>
+            <input name="subject" required placeholder="Songdance has a new home" />
+          </label>
 
-Paste your copy here…"></textarea>
-        </label>
-        <label class="bc-field">
-          <span>Hero image URL <em>(optional, absolute)</em></span>
-          <input name="hero_image" placeholder="https://songdance.co/imagery/…" />
-        </label>
-        <div class="bc-row">
           <label class="bc-field">
-            <span>Button label <em>(optional)</em></span>
-            <input name="cta_label" placeholder="Visit the new site" />
+            <span>Content format</span>
+            <select name="format" id="bc-format">
+              <option value="simple">Simple — paragraphs in the Songdance template</option>
+              <option value="html">Paste HTML — your own full email code</option>
+            </select>
           </label>
+
+          <div class="bc-simple-only">
+            <label class="bc-field">
+              <span>Heading (top of the email)</span>
+              <input name="heading" placeholder="A new door to the practice" />
+            </label>
+            <label class="bc-field">
+              <span>Preheader <em>(inbox preview line — optional)</em></span>
+              <input name="preheader" placeholder="Defaults to the subject line" />
+            </label>
+          </div>
+
+          <label class="bc-field bc-wide">
+            <span id="bc-body-label">Body — blank line = new paragraph. <code>{'{{first_name}}'}</code> is replaced per recipient.</span>
+            <textarea name="body" rows="10" required placeholder="Dear {{first_name}},&#10;&#10;Paste your copy here…"></textarea>
+          </label>
+
           <label class="bc-field">
-            <span>Button link <em>(optional)</em></span>
-            <input name="cta_href" placeholder="https://songdance.co" />
+            <span>Plain-text version <em>(optional — auto-generated from the body if blank)</em></span>
+            <textarea name="body_text" rows="3" placeholder="Plain-text fallback for clients that don't render HTML"></textarea>
           </label>
+
+          <div class="bc-simple-only">
+            <label class="bc-field">
+              <span>Hero image URL <em>(optional, absolute)</em></span>
+              <input name="hero_image" placeholder="https://songdance.co/imagery/…" />
+            </label>
+            <div class="bc-row">
+              <label class="bc-field">
+                <span>Button label <em>(optional)</em></span>
+                <input name="cta_label" placeholder="Visit the new site" />
+              </label>
+              <label class="bc-field">
+                <span>Button link <em>(optional)</em></span>
+                <input name="cta_href" placeholder="https://songdance.co" />
+              </label>
+            </div>
+          </div>
+
+          <div class="bc-row">
+            <label class="bc-field">
+              <span>Send window — start hour <em>(local, 0–23)</em></span>
+              <input name="window_start_hour" type="number" min="0" max="23" value="8" />
+            </label>
+            <label class="bc-field">
+              <span>end hour <em>(local, 1–24)</em></span>
+              <input name="window_end_hour" type="number" min="1" max="24" value="21" />
+            </label>
+          </div>
+          <p class="bc-hint">
+            Each contact is only mailed inside this local-hour window. Wider =
+            faster, but mailing in the small hours hurts opens &amp; looks spammy.
+          </p>
+
+          <div class="bc-actions">
+            <button class="adm-btn" type="submit">Create draft</button>
+            <span id="bc-msg" class="bc-msg"></span>
+          </div>
+        </form>
+
+        <div class="bc-preview-pane">
+          <div class="bc-preview-head">
+            <span>Live preview</span>
+            <button type="button" id="bc-refresh" class="adm-btn adm-btn--ghost">Refresh</button>
+          </div>
+          <iframe id="bc-preview" class="bc-frame" sandbox="" title="Live preview"></iframe>
         </div>
-        <div class="bc-actions">
-          <button class="adm-btn" type="submit">Create draft</button>
-          <span id="bc-msg" class="bc-msg"></span>
-        </div>
-      </form>
+      </div>
     </section>
 
     <section class="adm-section">
@@ -96,12 +137,13 @@ Paste your copy here…"></textarea>
         <p class="bc-empty">No broadcasts yet.</p>
       ) : (
         <table class="bc-table">
-          <thead><tr><th>Name</th><th>Subject</th><th>Status</th><th>Created</th><th></th></tr></thead>
+          <thead><tr><th>Name</th><th>Subject</th><th>Format</th><th>Status</th><th>Created</th><th></th></tr></thead>
           <tbody>
             {broadcasts.map((b) => (
               <tr>
                 <td><strong>{b.name}</strong></td>
                 <td>{b.subject}</td>
+                <td>{b.format === 'html' ? 'HTML' : 'Simple'}</td>
                 <td><span class={`bc-pill bc-pill--${b.status}`}>{statusLabel[b.status] ?? b.status}</span></td>
                 <td>{b.created_at?.slice(0, 10)}</td>
                 <td><a class="adm-btn adm-btn--ghost" href={`/admin/broadcasts/${b.id}`}>Open</a></td>
@@ -114,20 +156,27 @@ Paste your copy here…"></textarea>
   </main>
 
   <style>
-    .bc-form { display: flex; flex-direction: column; gap: 14px; max-width: 720px; }
+    .bc-compose { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+    @media (max-width: 1000px) { .bc-compose { grid-template-columns: 1fr; } }
+    .bc-form { display: flex; flex-direction: column; gap: 14px; }
     .bc-field { display: flex; flex-direction: column; gap: 5px; }
     .bc-field > span { font-size: 13px; color: #4a3848; }
     .bc-field > span em { color: #b6a8b4; font-style: normal; }
     .bc-field > span code { background: #f4ecdf; padding: 1px 5px; border-radius: 4px; font-size: 12px; }
-    .bc-field input, .bc-field textarea {
+    .bc-field input, .bc-field textarea, .bc-field select {
       font: inherit; font-size: 14px; padding: 9px 11px; border: 1px solid rgba(161,72,38,0.3);
       border-radius: 8px; background: #fff; color: #2a1b2a;
     }
     .bc-field textarea { resize: vertical; line-height: 1.6; }
+    .bc-simple-only { display: flex; flex-direction: column; gap: 14px; }
     .bc-row { display: flex; gap: 14px; }
     .bc-row .bc-field { flex: 1; }
+    .bc-hint { font-size: 12.5px; color: #6f5f6d; margin: -4px 0 0; line-height: 1.6; }
     .bc-actions { display: flex; align-items: center; gap: 14px; }
     .bc-msg { font-size: 13px; color: #6f5f6d; }
+    .bc-preview-pane { position: sticky; top: 16px; display: flex; flex-direction: column; gap: 8px; }
+    .bc-preview-head { display: flex; align-items: center; justify-content: space-between; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: #6f5f6d; }
+    .bc-frame { width: 100%; height: 620px; border: 1px solid rgba(161,72,38,0.22); border-radius: 12px; background: #fff; }
     .bc-empty { font-size: 14px; color: #6f5f6d; }
     .bc-table { width: 100%; border-collapse: collapse; background: #fbf6ec; border: 1px solid rgba(161,72,38,0.22); border-radius: 12px; overflow: hidden; }
     .bc-table th, .bc-table td { padding: 10px 14px; text-align: left; font-size: 14px; border-bottom: 1px solid rgba(161,72,38,0.12); vertical-align: middle; }
@@ -142,16 +191,44 @@ Paste your copy here…"></textarea>
   <script is:inline>
     const form = document.getElementById('bc-new');
     const msg = document.getElementById('bc-msg');
+    const formatSel = document.getElementById('bc-format');
+    const bodyLabel = document.getElementById('bc-body-label');
+    const previewFrame = document.getElementById('bc-preview');
+
+    function applyFormat() {
+      const html = formatSel.value === 'html';
+      document.querySelectorAll('.bc-simple-only').forEach((el) => { el.style.display = html ? 'none' : 'flex'; });
+      bodyLabel.innerHTML = html
+        ? 'Body — paste your full HTML email. <code>{{first_name}}</code> and <code>{{unsubscribe_url}}</code> are replaced per recipient.'
+        : 'Body — blank line = new paragraph. <code>{{first_name}}</code> is replaced per recipient.';
+    }
+
+    let previewTimer = null;
+    async function updatePreview() {
+      const payload = Object.fromEntries(new FormData(form).entries());
+      try {
+        const res = await fetch('/api/admin/broadcasts/preview', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (res.ok && data.html) previewFrame.srcdoc = data.html;
+      } catch (_) { /* preview is best-effort */ }
+    }
+    function schedulePreview() { clearTimeout(previewTimer); previewTimer = setTimeout(updatePreview, 400); }
+
+    formatSel.addEventListener('change', () => { applyFormat(); schedulePreview(); });
+    form.addEventListener('input', schedulePreview);
+    document.getElementById('bc-refresh').addEventListener('click', updatePreview);
+    applyFormat();
+    updatePreview();
+
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       msg.textContent = 'Saving…';
-      const fd = new FormData(form);
-      const payload = Object.fromEntries(fd.entries());
+      const payload = Object.fromEntries(new FormData(form).entries());
       try {
         const res = await fetch('/api/admin/broadcasts/save', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Save failed');

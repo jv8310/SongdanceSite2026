@@ -21,25 +21,34 @@ CREATE TABLE IF NOT EXISTS contacts (
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- One marketing broadcast. The author's copy lives in `body` (paragraphs, with
--- light inline HTML allowed since it's admin-authored); it's wrapped in the
--- shared email shell at send time. `{{first_name}}` in subject/heading/body is
--- substituted per recipient. status: draft → sending → (paused) → done.
+-- One marketing broadcast. The author's copy lives in `body`. In 'simple'
+-- format it's paragraphs (light inline HTML allowed) wrapped in the shared email
+-- shell; in 'html' format `body` IS the full email HTML, used as-is (so a
+-- designed template can be pasted straight in). `{{first_name}}` is substituted
+-- per recipient everywhere; in 'html' format `{{unsubscribe_url}}` is too (and
+-- if it's absent an unsubscribe footer is appended for compliance). `body_text`
+-- is an optional plain-text part (auto-generated from the body when blank).
+-- The send window is the local-hour range a recipient may be mailed in
+-- (defaults 08:00–21:00); widen it to push a big list out faster.
 CREATE TABLE IF NOT EXISTS broadcasts (
-  id            INTEGER PRIMARY KEY AUTOINCREMENT,
-  name          TEXT NOT NULL,                       -- internal label
-  subject       TEXT NOT NULL,
-  preheader     TEXT,                                -- inbox preview line (defaults to subject)
-  heading       TEXT NOT NULL,                       -- the big line at the top of the card
-  body          TEXT NOT NULL,                       -- author's copy
-  hero_image    TEXT,                                -- absolute image URL (optional)
-  cta_label     TEXT,
-  cta_href      TEXT,
-  status        TEXT NOT NULL DEFAULT 'draft',       -- draft | sending | paused | done
-  paused_reason TEXT,                                -- set when auto-paused by the circuit breaker
-  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
-  started_at    TEXT,
-  completed_at  TEXT
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  name              TEXT NOT NULL,                   -- internal label
+  subject           TEXT NOT NULL,
+  preheader         TEXT,                            -- inbox preview line (simple format only)
+  heading           TEXT NOT NULL,                   -- big line at the top of the card (simple format)
+  body              TEXT NOT NULL,                   -- author's copy (paragraphs) or full HTML
+  format            TEXT NOT NULL DEFAULT 'simple',  -- simple | html
+  body_text         TEXT,                            -- optional plain-text part
+  hero_image        TEXT,                            -- absolute image URL (simple format, optional)
+  cta_label         TEXT,
+  cta_href          TEXT,
+  window_start_hour INTEGER NOT NULL DEFAULT 8,      -- local-hour send window (inclusive)
+  window_end_hour   INTEGER NOT NULL DEFAULT 21,     -- local-hour send window (exclusive)
+  status            TEXT NOT NULL DEFAULT 'draft',   -- draft | sending | paused | done
+  paused_reason     TEXT,                            -- set when auto-paused by the circuit breaker
+  created_at        TEXT NOT NULL DEFAULT (datetime('now')),
+  started_at        TEXT,
+  completed_at      TEXT
 );
 
 -- The per-broadcast send queue, snapshotted from `contacts` at launch (minus

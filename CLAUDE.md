@@ -108,10 +108,19 @@ e.g. a Drip export) and one-off `broadcasts` sent to it. Lives in
 - **Timezone is everything here**: the import stores each contact's IANA
   timezone (validated; bad/blank → null → default window) so the send rides the
   same `withinSendWindow` 08:00–21:00 gate as lifecycle mail — truly local.
-- **Compose / preview / test**: a broadcast is a draft (subject, heading,
-  preheader, body, optional hero image + CTA) wrapped in the shared email
-  `shell()` (exported from `emails.ts`). `{{first_name}}` substitutes per
-  recipient. Same copy-book rules apply to the words. Test-send before launch.
+- **Compose / preview / test**: a broadcast is a draft with a **live preview**
+  (the compose pages POST to `/api/admin/broadcasts/preview`, which renders the
+  unsaved fields server-side). Two `format`s: `simple` (subject, heading,
+  preheader, body paragraphs, optional hero + CTA) wrapped in the shared email
+  `shell()` (exported from `emails.ts`); or `html` (paste a full email — `body`
+  is used as-is). `{{first_name}}` substitutes everywhere; in `html` mode
+  `{{unsubscribe_url}}` does too (absent → a footer is appended). Optional
+  `body_text` overrides the auto plain-text part. Same copy-book rules apply to
+  the words. Test-send before launch.
+- **Send window is per-broadcast** (`window_start_hour`/`window_end_hour`,
+  default 08:00–21:00 local). Widen it to push faster — but the real throughput
+  lever is `MAX_PER_RUN` in `cron.ts`. Each recipient is only mailed inside the
+  window for their own timezone.
 - **Launch → cron drain**: launch snapshots sendable contacts (minus
   suppressions) into `broadcast_recipients`; `runBroadcasts` (in
   `src/lib/broadcasts/cron.ts`, wired into the 5-min cron) claims a paced,

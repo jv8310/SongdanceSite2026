@@ -12,9 +12,13 @@ export type Broadcast = {
   preheader: string | null;
   heading: string;
   body: string;
+  format: 'simple' | 'html';
+  body_text: string | null;
   hero_image: string | null;
   cta_label: string | null;
   cta_href: string | null;
+  window_start_hour: number;
+  window_end_hour: number;
   status: 'draft' | 'sending' | 'paused' | 'done';
   paused_reason: string | null;
   created_at: string;
@@ -159,16 +163,37 @@ export type BroadcastInput = {
   preheader?: string | null;
   heading: string;
   body: string;
+  format?: 'simple' | 'html';
+  body_text?: string | null;
   hero_image?: string | null;
   cta_label?: string | null;
   cta_href?: string | null;
+  window_start_hour?: number;
+  window_end_hour?: number;
 };
 
+// Clamp the send window to a sane 0–24 and ensure start < end; fall back to the
+// 08:00–21:00 default if the values are nonsense.
+function windowHours(b: BroadcastInput): { start: number; end: number } {
+  let start = Number.isFinite(b.window_start_hour) ? Math.floor(b.window_start_hour as number) : 8;
+  let end = Number.isFinite(b.window_end_hour) ? Math.floor(b.window_end_hour as number) : 21;
+  start = Math.max(0, Math.min(23, start));
+  end = Math.max(1, Math.min(24, end));
+  if (end <= start) {
+    start = 8;
+    end = 21;
+  }
+  return { start, end };
+}
+
 export async function createBroadcast(db: D1Database, b: BroadcastInput): Promise<number> {
+  const w = windowHours(b);
   const r = await db
     .prepare(
-      `INSERT INTO broadcasts (name, subject, preheader, heading, body, hero_image, cta_label, cta_href)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO broadcasts
+         (name, subject, preheader, heading, body, format, body_text, hero_image,
+          cta_label, cta_href, window_start_hour, window_end_hour)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       b.name,
@@ -176,9 +201,13 @@ export async function createBroadcast(db: D1Database, b: BroadcastInput): Promis
       b.preheader ?? null,
       b.heading,
       b.body,
+      b.format === 'html' ? 'html' : 'simple',
+      b.body_text ?? null,
       b.hero_image ?? null,
       b.cta_label ?? null,
       b.cta_href ?? null,
+      w.start,
+      w.end,
     )
     .run();
   return Number(r.meta?.last_row_id ?? 0);
@@ -187,11 +216,13 @@ export async function createBroadcast(db: D1Database, b: BroadcastInput): Promis
 // Edits are only allowed while a broadcast is still a draft — once it's sending,
 // the queue is already snapshotted and recipients may have received the email.
 export async function updateBroadcast(db: D1Database, id: number, b: BroadcastInput): Promise<void> {
+  const w = windowHours(b);
   await db
     .prepare(
       `UPDATE broadcasts
           SET name = ?, subject = ?, preheader = ?, heading = ?, body = ?,
-              hero_image = ?, cta_label = ?, cta_href = ?
+              format = ?, body_text = ?, hero_image = ?, cta_label = ?, cta_href = ?,
+              window_start_hour = ?, window_end_hour = ?
         WHERE id = ? AND status = 'draft'`,
     )
     .bind(
@@ -200,9 +231,13 @@ export async function updateBroadcast(db: D1Database, id: number, b: BroadcastIn
       b.preheader ?? null,
       b.heading,
       b.body,
+      b.format === 'html' ? 'html' : 'simple',
+      b.body_text ?? null,
       b.hero_image ?? null,
       b.cta_label ?? null,
       b.cta_href ?? null,
+      w.start,
+      w.end,
       id,
     )
     .run();

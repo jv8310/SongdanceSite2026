@@ -15,7 +15,7 @@
 
 import { sendEmail } from '../workshops/resend';
 import { MARKETING_FROM_DEFAULT, MARKETING_REPLY_TO_DEFAULT } from '../workshops/emails';
-import { withinSendWindow } from '../workshops/time';
+import { DEFAULT_SEND_TZ, localHour } from '../workshops/time';
 import {
   isEmailSuppressed,
   oneClickUnsubscribeUrl,
@@ -49,12 +49,14 @@ type BroadcastCronEnv = {
   PUBLIC_BASE_URL: string;
 };
 
-// Pacing. ~40 sends per 5-minute tick → ~11.5k/day at full availability, so a
-// 55k list lands in roughly 5 days (longer in practice, since recipients only
-// send inside their local daytime). SEND_GAP_MS keeps us under Resend's default
-// 2 req/s. All three are safe to tune if Resend grants a higher rate.
-const MAX_PER_RUN = 40;
-const SEND_GAP_MS = 600;
+// Pacing. ~80 sends per 5-minute tick → ~23k/day at full availability, so a 55k
+// list lands in ~2.5 days (longer in practice, since recipients only send inside
+// their local window). SEND_GAP_MS keeps us under Resend's default 2 req/s.
+// Raise MAX_PER_RUN (and/or widen a broadcast's send window) to go faster — the
+// batch cap is the real throughput lever, not the window. Mind Resend's account
+// rate limit if you push it much higher.
+const MAX_PER_RUN = 80;
+const SEND_GAP_MS = 550;
 // Over-fetch pending rows, then keep only those whose local time is in-window.
 const CANDIDATE_FETCH = 600;
 
@@ -129,8 +131,10 @@ async function drainBroadcast(
 
   for (const c of candidates) {
     if (sent >= MAX_PER_RUN) break;
-    // Hold the email until it's local daytime for this recipient.
-    if (!withinSendWindow(c.timezone, now)) continue;
+    // Hold the email until it's inside this broadcast's local-hour window for
+    // the recipient (unknown tz → the default zone).
+    const h = localHour(c.timezone || DEFAULT_SEND_TZ, now);
+    if (h < b.window_start_hour || h >= b.window_end_hour) continue;
 
     // Atomic claim — only one run can own this row.
     if (!(await claimRecipient(env.DB, c.id))) continue;

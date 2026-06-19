@@ -28,8 +28,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
   const name = str(p.name);
   const subject = str(p.subject);
-  const heading = str(p.heading);
   const body = str(p.body);
+  const format = p.format === 'html' ? 'html' : 'simple';
+  // Heading anchors the simple-format card; in html format the pasted markup
+  // owns the layout, so a heading isn't required.
+  const heading = str(p.heading) ?? (format === 'html' ? name : null);
   if (!name || !subject || !heading || !body) {
     return json({ error: 'Name, subject, heading and body are all required.' }, 400);
   }
@@ -39,10 +42,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
     subject,
     heading,
     body,
+    format,
+    body_text: str(p.body_text),
     preheader: str(p.preheader),
     hero_image: str(p.hero_image),
     cta_label: str(p.cta_label),
     cta_href: str(p.cta_href),
+    window_start_hour: hour(p.window_start_hour, 8),
+    window_end_hour: hour(p.window_end_hour, 21),
   };
 
   const id = num(p.id);
@@ -67,6 +74,10 @@ function str(v: unknown): string | null {
 function num(v: unknown): number | null {
   const n = Number(v);
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : null;
+}
+function hour(v: unknown, dflt: number): number {
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.floor(n) : dflt;
 }
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
