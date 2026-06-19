@@ -62,6 +62,7 @@ export const tailLinks: NavLink[] = [
   { href: '/events', label: 'Events' },
   { href: '/courses/songdeck', label: 'Songdeck' },
   { href: '/about', label: 'About' },
+  { href: '/access', label: 'Login / Access products' },
 ];
 
 export const navCta: NavCourse = { href: '/workshop', label: 'Try a workshop — 9€', price: 'ticket' };
