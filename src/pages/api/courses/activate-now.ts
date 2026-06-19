@@ -2,7 +2,7 @@
 //
 // One-click "activate the cert course now" for variant-C visitors (i.e.
 // they already hold prod_SVH_9m) who are still inside the 12-week course.
-// We set their svh_week custom field to "12" on Drip; the existing Drip
+// We set their prod_SVH_week custom field to "12" on Drip; the existing Drip
 // automation picks up from there to open cert-course access.
 //
 // We don't reach inside Stripe or our own DB — the only side effect is on
@@ -40,7 +40,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
   try {
     // Guardrail: only activate for subscribers who actually own the cert
     // course. Anyone else hitting this endpoint shouldn't be able to flip
-    // their svh_week.
+    // their prod_SVH_week.
     const sub = await getSubscriber(dripCfg, email);
     if (!sub) {
       return json(
@@ -60,7 +60,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     await upsertSubscriber(dripCfg, {
       email,
-      custom_fields: { svh_week: '12' },
+      custom_fields: { prod_SVH_week: '12' },
     });
 
     await logEvent(env.DB, {
