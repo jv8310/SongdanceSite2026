@@ -28,6 +28,7 @@ import {
   broadcastStats,
   claimRecipient,
   fetchDrainCandidates,
+  fetchDrainCandidatesForTz,
   listActiveBroadcasts,
   markBroadcastDone,
   markRecipientRetryOrFail,
@@ -35,6 +36,7 @@ import {
   markRecipientSuppressed,
   pauseBroadcast,
   pendingCount,
+  pendingTimezones,
   reclaimStaleClaims,
   type Broadcast,
 } from './db';
@@ -57,8 +59,6 @@ type BroadcastCronEnv = {
 // rate limit if you push it much higher.
 const MAX_PER_RUN = 80;
 const SEND_GAP_MS = 550;
-// Over-fetch pending rows, then keep only those whose local time is in-window.
-const CANDIDATE_FETCH = 600;
 
 // Circuit breaker. Once a real sample has gone out, pause if complaints or
 // bounces cross these lines — a dormant list that's gone sour should stop, not
@@ -126,15 +126,31 @@ async function drainBroadcast(
   // Recover any rows orphaned in 'sending' by an earlier interrupted run.
   await reclaimStaleClaims(env.DB, b.id);
 
-  const candidates = await fetchDrainCandidates(env.DB, b.id, CANDIDATE_FETCH);
+  // Work out which still-pending timezones are inside the window right now, then
+  // fetch only recipients in those zones. This avoids a head-of-line stall where
+  // a big block of one (out-of-window) timezone at the front of the queue would
+  // otherwise starve everyone else.
+  const distinct = await pendingTimezones(env.DB, b.id);
+  const inWindowTzs: string[] = [];
+  let nullInWindow = false;
+  for (const tz of distinct) {
+    const h = localHour(tz || DEFAULT_SEND_TZ, now);
+    if (h < b.window_start_hour || h >= b.window_end_hour) continue;
+    if (tz == null) nullInWindow = true;
+    else inWindowTzs.push(tz);
+  }
+  if (inWindowTzs.length === 0 && !nullInWindow) return 0; // nobody is in-window yet
+
+  // D1 caps bound params ~100; if nearly every zone is in-window, the IN list is
+  // pointless anyway — fall back to "everyone pending" (head-of-line is moot then).
+  const candidates =
+    inWindowTzs.length > 90
+      ? await fetchDrainCandidates(env.DB, b.id, MAX_PER_RUN * 2)
+      : await fetchDrainCandidatesForTz(env.DB, b.id, inWindowTzs, nullInWindow, MAX_PER_RUN * 2);
   let sent = 0;
 
   for (const c of candidates) {
     if (sent >= MAX_PER_RUN) break;
-    // Hold the email until it's inside this broadcast's local-hour window for
-    // the recipient (unknown tz → the default zone).
-    const h = localHour(c.timezone || DEFAULT_SEND_TZ, now);
-    if (h < b.window_start_hour || h >= b.window_end_hour) continue;
 
     // Atomic claim — only one run can own this row.
     if (!(await claimRecipient(env.DB, c.id))) continue;
