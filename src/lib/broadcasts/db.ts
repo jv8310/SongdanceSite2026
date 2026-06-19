@@ -391,8 +391,11 @@ export async function createBroadcast(db: D1Database, b: BroadcastInput): Promis
   return Number(r.meta?.last_row_id ?? 0);
 }
 
-// Edits are only allowed while a broadcast is still a draft — once it's sending,
-// the queue is already snapshotted and recipients may have received the email.
+// Edits are allowed until a broadcast is done. Editing a sending/paused
+// broadcast is safe: the cron re-renders each batch from this row, so content
+// changes flow to recipients not yet sent (already-sent ones keep the version
+// they got). Audience criteria only matter at (re)launch, not for the queue
+// already snapshotted.
 export async function updateBroadcast(db: D1Database, id: number, b: BroadcastInput): Promise<void> {
   const w = windowHours(b);
   await db
@@ -403,7 +406,7 @@ export async function updateBroadcast(db: D1Database, id: number, b: BroadcastIn
               window_start_hour = ?, window_end_hour = ?,
               audience_include_tags = ?, audience_exclude_tags = ?,
               audience_field = ?, audience_field_value = ?
-        WHERE id = ? AND status = 'draft'`,
+        WHERE id = ? AND status != 'done'`,
     )
     .bind(
       b.name,

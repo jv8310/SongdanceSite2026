@@ -7,6 +7,7 @@ import '../../../styles/admin.css';
 import Layout from '../../../layouts/Layout.astro';
 import { readCookie, verifySession } from '../../../lib/registrations/auth';
 import { emailStatsByType, type EmailTypeStats } from '../../../lib/email/sends';
+import { listBroadcasts } from '../../../lib/broadcasts/db';
 
 export const prerender = false;
 
@@ -16,6 +17,12 @@ if (!(await verifySession(env.ADMIN_SESSION_SECRET, readCookie(Astro.request))))
 }
 
 const stats = await emailStatsByType(env.DB);
+// Replace the generic "Broadcast #<id>" label with the broadcast's real name.
+const bcNames = new Map((await listBroadcasts(env.DB)).map((b) => [`broadcast_${b.id}`, b.name]));
+for (const s of stats) {
+  const name = bcNames.get(s.type);
+  if (name) s.label = name;
+}
 const groups = [...new Set(stats.map((s) => s.group))];
 const totalSent = stats.reduce((n, s) => n + s.sent, 0);
 
