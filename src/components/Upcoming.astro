@@ -26,6 +26,7 @@
     status: 'open' | 'waitlist' | 'closed'; summary: string | null;
     href: string | null; imageUrl: string | null; ongoing?: boolean;
     bookedPercent?: number | null;
+    promoPrice?: { was: string; now: string } | null;
   };
 
   const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -60,7 +61,9 @@
     const href = e.href ? ` href="${esc(e.href)}"` : '';
     const meta = [fmtRange(e.startDate, e.endDate, e.ongoing), e.location].filter(Boolean).map((m) => esc(m as string)).join(' · ');
     const fac = e.facilitators.length ? `<span class="sd-evt-fac">with ${esc(e.facilitators.join(' & '))}</span>` : '';
-    const price = e.price ? `<span class="sd-evt-price">${esc(e.price)}</span>` : '';
+    const price = e.promoPrice
+      ? `<span class="sd-evt-price sd-evt-price--promo"><s class="sd-evt-was">${esc(e.promoPrice.was)}</s><span class="sd-evt-now">${esc(e.promoPrice.now)}</span></span>`
+      : e.price ? `<span class="sd-evt-price">${esc(e.price)}</span>` : '';
     const booked = e.bookedPercent != null && e.bookedPercent > 0
       ? `<div class="sd-evt-booked" title="${e.bookedPercent}% booked"><span class="sd-evt-booked-dot" style="--pct:${e.bookedPercent}" aria-hidden="true"></span><span class="sd-evt-booked-label">${e.bookedPercent}% booked</span></div>`
       : '';
