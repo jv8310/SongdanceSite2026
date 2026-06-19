@@ -253,7 +253,7 @@ const statusLabel: Record<string, string> = {
         const html = formatSel.value === 'html';
         document.querySelectorAll('.bc-simple-only').forEach((el) => { el.style.display = html ? 'none' : 'flex'; });
         bodyLabel.innerHTML = html
-          ? 'Body — paste your full HTML email. <code>{{first_name}}</code> &amp; <code>{{unsubscribe_url}}</code> are replaced per recipient.'
+          ? 'Body — paste your full HTML email. <code>{{first_name}}</code>, <code>{{unsubscribe_url}}</code> &amp; Drip-style <code>{{ subscriber.first_name | default: "there" }}</code> are replaced per recipient.'
           : 'Body — blank line = new paragraph. <code>{{first_name}}</code> is replaced per recipient.';
       }
 

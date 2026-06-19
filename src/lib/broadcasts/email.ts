@@ -7,25 +7,54 @@
 //     template can be pasted straight in. `{{unsubscribe_url}}` is substituted
 //     (and if it's missing an unsubscribe footer is appended for compliance).
 //
-// `{{first_name}}` is substituted in both. Copy rules (docs/svh-copy-book.md)
-// still apply to the words; this module only frames and personalises them.
+// `{{first_name}}` is substituted in both. We also understand Drip/Liquid-style
+// merge tags (e.g. `{{ subscriber.first_name | default: "there" }}`), honouring
+// the `default:` value, so a pasted Drip template just works. Copy rules
+// (docs/svh-copy-book.md) still apply to the words; this module only frames and
+// personalises them.
 
 import { shell, type EmailContent } from '../workshops/emails';
 import type { Broadcast } from './db';
 
-// `{{first_name}}` reads "friend" when no name is on file so a greeting never
-// goes out blank.
-export function applyTokens(s: string, firstName: string): string {
-  const fn = (firstName || '').trim() || 'friend';
-  return s.replace(/\{\{\s*first[_\s]?name\s*\}\}/gi, fn);
+// Any {{ field | filters }} merge tag. The field allows a `subscriber.` prefix
+// and dots; filters (`| default: "x" | upcase` …) are captured so we can read a
+// default and so the whole tag is consumed (never left half-replaced).
+const MERGE_RE = /\{\{\s*([a-zA-Z0-9_.]+)\s*((?:\|[^}]*)?)\}\}/g;
+
+function defaultOf(filters: string): string {
+  const m = filters.match(/default\s*:\s*(['"])([\s\S]*?)\1/i);
+  return m ? m[2] : '';
 }
 
-function applyUnsubToken(s: string, url: string): string {
-  return s.replace(/\{\{\s*unsubscribe[_\s]?url\s*\}\}/gi, url);
+// Substitute merge tags for one recipient. Recognises first name (ours +
+// Drip's), and the unsubscribe URL. Any OTHER merge tag resolves to its
+// `default:` value, or is dropped — so an unrecognised `{{ subscriber.x }}` is
+// never sent to a reader literally (custom fields aren't loaded at send time).
+export function personalize(
+  s: string,
+  opts: { firstName?: string; unsubscribeUrl?: string } = {},
+): string {
+  const fn = (opts.firstName || '').trim();
+  return s.replace(MERGE_RE, (_m, rawPath: string, filters: string) => {
+    const key = rawPath.toLowerCase().replace(/^subscriber\./, '');
+    const def = defaultOf(filters || '');
+    if (['first_name', 'firstname', 'first', 'fname', 'name', 'full_name', 'fullname'].includes(key)) {
+      return fn || def || 'friend';
+    }
+    if (['unsubscribe_url', 'unsubscribeurl', 'unsub_url'].includes(key)) {
+      return opts.unsubscribeUrl || def || '';
+    }
+    return def || '';
+  });
+}
+
+// Back-compat alias (first name only).
+export function applyTokens(s: string, firstName: string): string {
+  return personalize(s, { firstName });
 }
 
 function hasUnsubToken(s: string): boolean {
-  return /\{\{\s*unsubscribe[_\s]?url\s*\}\}/i.test(s);
+  return /\{\{\s*(?:subscriber\.)?unsub(?:scribe)?[_\s]?url\b[^}]*\}\}/i.test(s);
 }
 
 // Turn the author's copy into shell-ready HTML (simple format). A blank line
@@ -66,26 +95,26 @@ export function renderBroadcast(
 ): EmailContent {
   const fn = opts.firstName ?? '';
   const unsub = opts.unsubscribeUrl ?? '';
-  const subject = applyTokens(b.subject, fn);
+  const subject = personalize(b.subject, { firstName: fn });
 
   if (b.format === 'html') {
-    let html = applyTokens(b.body, fn);
-    if (unsub) {
-      html = hasUnsubToken(html) ? applyUnsubToken(html, unsub) : appendUnsubFooter(html, unsub);
-    }
+    const hadUnsub = hasUnsubToken(b.body);
+    let html = personalize(b.body, { firstName: fn, unsubscribeUrl: unsub });
+    // Append a footer only if the author didn't place their own unsubscribe tag.
+    if (unsub && !hadUnsub) html = appendUnsubFooter(html, unsub);
     const text = b.body_text
-      ? applyTokens(b.body_text, fn)
-      : `${stripToText(html)}${unsub ? `\n\nUnsubscribe: ${unsub}` : ''}`;
+      ? personalize(b.body_text, { firstName: fn, unsubscribeUrl: unsub })
+      : `${stripToText(html)}${unsub && !hadUnsub ? `\n\nUnsubscribe: ${unsub}` : ''}`;
     return { subject, html, text };
   }
 
   // simple
-  const heading = applyTokens(b.heading, fn);
-  const bodyTokened = applyTokens(b.body, fn);
+  const heading = personalize(b.heading, { firstName: fn });
+  const bodyTokened = personalize(b.body, { firstName: fn, unsubscribeUrl: unsub });
   const cta = b.cta_label && b.cta_href ? { label: b.cta_label, href: b.cta_href } : undefined;
 
   const html = shell({
-    preheader: applyTokens(b.preheader || b.subject, fn),
+    preheader: personalize(b.preheader || b.subject, { firstName: fn }),
     heading,
     bodyHtml: bodyToHtml(bodyTokened),
     heroImage: b.hero_image ? { src: b.hero_image, alt: heading } : undefined,
@@ -96,7 +125,7 @@ export function renderBroadcast(
 
   let text: string;
   if (b.body_text) {
-    text = applyTokens(b.body_text, fn);
+    text = personalize(b.body_text, { firstName: fn, unsubscribeUrl: unsub });
   } else {
     const lines = [heading, '', stripToText(bodyToHtml(bodyTokened))];
     if (cta) lines.push('', `${cta.label}: ${cta.href}`);
