@@ -97,7 +97,14 @@ const chips = [
                     {e.facilitators.length > 0 && (
                       <span class="sd-evt-fac">with {e.facilitators.join(' & ')}</span>
                     )}
-                    {e.price && <span class="sd-evt-price">{e.price}</span>}
+                    {e.priceLabel && (
+                      <span
+                        class="sd-evt-price"
+                        data-sd-price={e.marketingProduct ?? undefined}
+                        data-sd-promo-price={e.marketingProduct ? '' : undefined}
+                        data-sd-compare={e.compareStrike ? '' : undefined}
+                      >{e.priceLabel}</span>
+                    )}
                   </div>
                 </div>
               </Tag>

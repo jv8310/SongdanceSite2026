@@ -5,6 +5,11 @@
 // content lives on its own landing page, linked via `href`.
 
 import { getProductBySlug, computeBookedPercent } from '../registrations/db';
+import {
+  EUR_COPY_LABEL,
+  hasCompareStrike,
+  type MarketingProduct,
+} from '../workshops/marketing-prices';
 
 export type EventCategory = 'retreat' | 'online' | 'course';
 export type EventLanguage = 'en' | 'de' | 'nl';
@@ -53,7 +58,25 @@ export interface EventCard {
   productSlug: string | null;
   bookedPercent: number | null; // live "% booked" when linked to a product, else null
   ongoing: boolean;
+  // Events that correspond to a marketed product surface the SAME price the
+  // /courses grid + nav do, so PriceSync localizes the currency, strikes the
+  // launch-promo deal, and shows the certification's struck sticker identically.
+  marketingProduct: MarketingProduct | null; // PriceSync product key, or null
+  priceLabel: string | null; // baked EUR label: the marketing price, else the free-text price
+  compareStrike: boolean; // permanent struck sticker (certification's €1500)
 }
+
+// Map a grid event to its marketed product so the card reuses the single price
+// source in src/lib/workshops/marketing-prices.ts (which the /courses grid and
+// nav read from). Keyed on the stable event id. Retreats have no entry — they
+// price on their own path and are excluded from the launch promo.
+const EVENT_MARKETING_PRODUCT: Record<string, MarketingProduct> = {
+  'vocal-healing-session': 'ticket',
+  'professional-masterclass': 'masterclass',
+  'svh-12-week': 'twelve-week',
+  'certification-course': 'cert',
+  'grief-course': 'grief',
+};
 
 export const CATEGORIES: EventCategory[] = ['retreat', 'online', 'course'];
 export const STATUSES: EventStatus[] = ['open', 'waitlist', 'closed'];
@@ -75,6 +98,7 @@ export function parseFacilitators(raw: string | null): string[] {
 }
 
 export function rowToCard(row: EventRow): EventCard {
+  const marketingProduct = EVENT_MARKETING_PRODUCT[row.id] ?? null;
   return {
     id: row.id,
     title: row.title,
@@ -93,6 +117,11 @@ export function rowToCard(row: EventRow): EventCard {
     productSlug: row.product_slug,
     bookedPercent: null, // filled in by listPublicEvents for linked products
     ongoing: row.ongoing === 1,
+    marketingProduct,
+    // Marketed events show the marketing price (so the figure, promo strike and
+    // cert sticker match /courses); everyone else keeps their free-text price.
+    priceLabel: marketingProduct ? EUR_COPY_LABEL[marketingProduct] : row.price,
+    compareStrike: marketingProduct ? hasCompareStrike(marketingProduct) : false,
   };
 }
 

@@ -26,6 +26,7 @@
     status: 'open' | 'waitlist' | 'closed'; summary: string | null;
     href: string | null; imageUrl: string | null; ongoing?: boolean;
     bookedPercent?: number | null;
+    marketingProduct?: string | null; priceLabel?: string | null; compareStrike?: boolean;
   };
 
   const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -60,7 +61,14 @@
     const href = e.href ? ` href="${esc(e.href)}"` : '';
     const meta = [fmtRange(e.startDate, e.endDate, e.ongoing), e.location].filter(Boolean).map((m) => esc(m as string)).join(' · ');
     const fac = e.facilitators.length ? `<span class="sd-evt-fac">with ${esc(e.facilitators.join(' & '))}</span>` : '';
-    const price = e.price ? `<span class="sd-evt-price">${esc(e.price)}</span>` : '';
+    // Marketed events carry data-sd-price so the global PriceSync localizes the
+    // currency + strikes the launch-promo deal (and the cert sticker), matching
+    // /courses; everyone else shows their plain price.
+    const priceAttrs = e.marketingProduct
+      ? ` data-sd-price="${esc(e.marketingProduct)}" data-sd-promo-price${e.compareStrike ? ' data-sd-compare' : ''}`
+      : '';
+    const priceLabel = e.priceLabel ?? e.price;
+    const price = priceLabel ? `<span class="sd-evt-price"${priceAttrs}>${esc(priceLabel)}</span>` : '';
     const booked = e.bookedPercent != null && e.bookedPercent > 0
       ? `<div class="sd-evt-booked" title="${e.bookedPercent}% booked"><span class="sd-evt-booked-dot" style="--pct:${e.bookedPercent}" aria-hidden="true"></span><span class="sd-evt-booked-label">${e.bookedPercent}% booked</span></div>`
       : '';
