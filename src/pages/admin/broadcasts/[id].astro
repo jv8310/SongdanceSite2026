@@ -10,7 +10,8 @@ import {
   recipientCounts,
   broadcastStats,
   broadcastEmailType,
-  countSendable,
+  countAudience,
+  availableTags,
 } from '../../../lib/broadcasts/db';
 import { previewBroadcast } from '../../../lib/broadcasts/email';
 
@@ -28,7 +29,15 @@ if (!b) return Astro.redirect('/admin/broadcasts');
 const isDraft = b.status === 'draft';
 const counts = await recipientCounts(env.DB, b.id);
 const stats = await broadcastStats(env.DB, broadcastEmailType(b.id));
-const sendable = await countSendable(env.DB);
+// The audience this broadcast targets right now (criteria minus suppressions).
+const audience = await countAudience(env.DB, {
+  includeTags: b.audience_include_tags,
+  excludeTags: b.audience_exclude_tags,
+  field: b.audience_field,
+  fieldValue: b.audience_field_value,
+});
+const tags = isDraft ? await availableTags(env.DB, 80) : [];
+const hasAudienceFilter = !!(b.audience_include_tags || b.audience_exclude_tags || b.audience_field);
 const preview = previewBroadcast(b, env.PUBLIC_BASE_URL);
 
 const pct = (r: number) => `${(r * 100).toFixed(1)}%`;
@@ -89,6 +98,25 @@ const statusLabel: Record<string, string> = {
               <label class="bc-field"><span>Send window start <em>(0–23)</em></span><input name="window_start_hour" type="number" min="0" max="23" value={b.window_start_hour} /></label>
               <label class="bc-field"><span>end <em>(1–24)</em></span><input name="window_end_hour" type="number" min="1" max="24" value={b.window_end_hour} /></label>
             </div>
+
+            <fieldset class="bc-audience">
+              <legend>Audience <span id="bc-aud-count" class="bc-aud-count"></span></legend>
+              <label class="bc-field"><span>Include tags <em>(match ANY; blank = everyone)</em></span><input name="audience_include_tags" id="aud-include" value={b.audience_include_tags ?? ''} /></label>
+              <label class="bc-field"><span>Exclude tags</span><input name="audience_exclude_tags" value={b.audience_exclude_tags ?? ''} /></label>
+              <div class="bc-row">
+                <label class="bc-field"><span>Field filter</span><input name="audience_field" value={b.audience_field ?? ''} /></label>
+                <label class="bc-field"><span>equals</span><input name="audience_field_value" value={b.audience_field_value ?? ''} /></label>
+              </div>
+              {tags.length > 0 && (
+                <div class="bc-tagcloud">
+                  <span class="bc-tagcloud-label">Your tags (click to include):</span>
+                  {tags.map((t) => (
+                    <button type="button" class="bc-tagchip" data-tag={t.tag}>{t.tag} <span>{t.n.toLocaleString()}</span></button>
+                  ))}
+                </div>
+              )}
+            </fieldset>
+
             <div class="bc-actions">
               <button class="adm-btn" type="submit">Save changes</button>
               <span id="bc-save-msg" class="bc-msg"></span>
@@ -97,6 +125,11 @@ const statusLabel: Record<string, string> = {
         ) : (
           <dl class="bc-readonly">
             <dt>Format</dt><dd>{b.format === 'html' ? 'Pasted HTML' : 'Simple template'}</dd>
+            <dt>Audience</dt><dd>{hasAudienceFilter ? [
+              b.audience_include_tags ? `include: ${b.audience_include_tags}` : null,
+              b.audience_exclude_tags ? `exclude: ${b.audience_exclude_tags}` : null,
+              b.audience_field ? `${b.audience_field} = ${b.audience_field_value ?? ''}` : null,
+            ].filter(Boolean).join(' · ') : 'Whole list'} <span class="bc-muted">({audience.toLocaleString()} contacts)</span></dd>
             {b.format !== 'html' && <><dt>Heading</dt><dd>{b.heading}</dd></>}
             <dt>Body</dt><dd class="bc-pre">{b.body}</dd>
             {b.cta_label && <><dt>Button</dt><dd>{b.cta_label} → {b.cta_href}</dd></>}
@@ -120,10 +153,11 @@ const statusLabel: Record<string, string> = {
       {isDraft ? (
         <div class="bc-launch">
           <p>
-            This will queue <strong>{sendable.toLocaleString()}</strong> contacts
-            (everyone on the list minus unsubscribes). They'll be sent over the
-            coming days, only inside each recipient's local {b.window_start_hour}:00–{b.window_end_hour}:00,
-            and the send auto-pauses if bounces or spam complaints spike.
+            This will queue <strong>{audience.toLocaleString()}</strong> contacts
+            ({hasAudienceFilter ? 'matching your audience filter' : 'the whole list'}, minus
+            unsubscribes). They'll be sent over the coming days, only inside each
+            recipient's local {b.window_start_hour}:00–{b.window_end_hour}:00, and
+            the send auto-pauses if bounces or spam complaints spike.
           </p>
           <button id="bc-launch" class="adm-btn" type="button" data-id={b.id}>Launch broadcast →</button>
           <span id="bc-launch-msg" class="bc-msg"></span>
@@ -194,6 +228,15 @@ const statusLabel: Record<string, string> = {
     .bc-stat .n { font-size: 24px; font-weight: 600; color: #2a1b2a; font-variant-numeric: tabular-nums; }
     .bc-stat .l { font-size: 12.5px; color: #6f5f6d; }
     .bc-note { font-size: 12.5px; color: #6f5f6d; margin: 0 0 14px; }
+    .bc-muted { color: #b6a8b4; }
+    .bc-audience { border: 1px solid rgba(161,72,38,0.22); border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; margin: 0; }
+    .bc-audience legend { font-size: 13px; color: #4a3848; padding: 0 6px; }
+    .bc-aud-count { color: #a14826; font-weight: 600; }
+    .bc-tagcloud { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    .bc-tagcloud-label { font-size: 12px; color: #6f5f6d; width: 100%; }
+    .bc-tagchip { font: inherit; font-size: 12px; cursor: pointer; border: 1px solid rgba(161,72,38,0.3); background: #fff; color: #4a3848; border-radius: 999px; padding: 3px 10px; }
+    .bc-tagchip:hover { background: #f4ecdf; }
+    .bc-tagchip span { color: #b6a8b4; }
   </style>
 
   <script is:inline>
@@ -227,9 +270,42 @@ const statusLabel: Record<string, string> = {
       }
       const schedule = () => { clearTimeout(timer); timer = setTimeout(updatePreview, 400); };
 
+      // Live audience estimate + tag chips.
+      const audCount = document.getElementById('bc-aud-count');
+      const audInclude = document.getElementById('aud-include');
+      let audTimer = null;
+      async function updateAudience() {
+        const fd = new FormData(editForm);
+        const payload = {
+          audience_include_tags: fd.get('audience_include_tags'),
+          audience_exclude_tags: fd.get('audience_exclude_tags'),
+          audience_field: fd.get('audience_field'),
+          audience_field_value: fd.get('audience_field_value'),
+        };
+        const any = Object.values(payload).some((v) => (v || '').toString().trim());
+        try {
+          const res = await fetch('/api/admin/broadcasts/audience', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+          });
+          const data = await res.json();
+          if (res.ok) audCount.textContent = `${Number(data.count).toLocaleString()} contacts` + (any ? '' : ' (whole list)');
+        } catch (_) { /* best-effort */ }
+      }
+      const scheduleAud = () => { clearTimeout(audTimer); audTimer = setTimeout(updateAudience, 400); };
+      document.querySelectorAll('.bc-tagchip').forEach((chip) => {
+        chip.addEventListener('click', () => {
+          const tag = chip.dataset.tag;
+          const cur = audInclude.value.split(',').map((s) => s.trim()).filter(Boolean);
+          if (!cur.includes(tag)) cur.push(tag);
+          audInclude.value = cur.join(', ');
+          updateAudience();
+        });
+      });
+
       formatSel.addEventListener('change', () => { applyFormat(); schedule(); });
-      editForm.addEventListener('input', schedule);
+      editForm.addEventListener('input', () => { schedule(); scheduleAud(); });
       applyFormat();
+      updateAudience();
 
       editForm.addEventListener('submit', async (e) => {
         e.preventDefault();

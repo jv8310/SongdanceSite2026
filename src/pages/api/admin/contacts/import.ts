@@ -45,6 +45,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
       name: str(raw?.name),
       timezone: str(raw?.timezone),
       country: str(raw?.country),
+      tags: str(raw?.tags),
+      custom:
+        raw?.custom && typeof raw.custom === 'object' && !Array.isArray(raw.custom)
+          ? (raw.custom as Record<string, unknown>)
+          : null,
     });
   }
 

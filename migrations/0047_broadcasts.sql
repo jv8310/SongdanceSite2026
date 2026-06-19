@@ -9,16 +9,30 @@
 -- The imported marketing list. One row per address, independent of any workshop
 -- registration. `timezone` is an IANA string validated at import (invalid/blank
 -- → null, which falls back to the default send window); `country` is whatever
--- the source carried, informational only.
+-- the source carried, informational only. `tags` is the comma-joined tag list
+-- (display copy; the normalized contact_tags table is what targeting queries
+-- hit); `custom` is a JSON blob of every other non-empty CSV column, so the
+-- source export is preserved verbatim and is filterable via json_extract.
 CREATE TABLE IF NOT EXISTS contacts (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   email      TEXT NOT NULL UNIQUE,                  -- lowercased
   name       TEXT,
   timezone   TEXT,                                  -- IANA (e.g. America/New_York); null → default window
   country    TEXT,                                  -- as imported; informational
+  tags       TEXT,                                  -- comma-joined, lowercased (display)
+  custom     TEXT,                                  -- JSON of the remaining CSV columns
   source     TEXT,                                  -- 'import', 'drip-export', …
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Normalized tags, keyed by email (no contact-id dependency, so the batch import
+-- can write them without a round-trip). Powers fast tag targeting (EXISTS) and
+-- the available-tags list (GROUP BY) on the compose page.
+CREATE TABLE IF NOT EXISTS contact_tags (
+  email TEXT NOT NULL,
+  tag   TEXT NOT NULL,
+  PRIMARY KEY (email, tag)
 );
 
 -- One marketing broadcast. The author's copy lives in `body`. In 'simple'
@@ -44,6 +58,14 @@ CREATE TABLE IF NOT EXISTS broadcasts (
   cta_href          TEXT,
   window_start_hour INTEGER NOT NULL DEFAULT 8,      -- local-hour send window (inclusive)
   window_end_hour   INTEGER NOT NULL DEFAULT 21,     -- local-hour send window (exclusive)
+  -- Audience targeting (all optional; blank = whole sendable list). Tags are
+  -- comma-separated: include = contact must carry ANY listed tag; exclude =
+  -- contact must carry NONE. The field filter matches a custom column exactly,
+  -- e.g. audience_field='Nederlands', audience_field_value='No'.
+  audience_include_tags TEXT,
+  audience_exclude_tags TEXT,
+  audience_field        TEXT,
+  audience_field_value  TEXT,
   status            TEXT NOT NULL DEFAULT 'draft',   -- draft | sending | paused | done
   paused_reason     TEXT,                            -- set when auto-paused by the circuit breaker
   created_at        TEXT NOT NULL DEFAULT (datetime('now')),
@@ -74,3 +96,5 @@ CREATE TABLE IF NOT EXISTS broadcast_recipients (
 
 CREATE INDEX IF NOT EXISTS idx_contacts_email ON contacts(email);
 CREATE INDEX IF NOT EXISTS idx_bc_recip_drain ON broadcast_recipients(broadcast_id, status);
+CREATE INDEX IF NOT EXISTS idx_contact_tags_tag ON contact_tags(tag);
+CREATE INDEX IF NOT EXISTS idx_contact_tags_email ON contact_tags(email);

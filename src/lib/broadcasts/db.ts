@@ -19,6 +19,10 @@ export type Broadcast = {
   cta_href: string | null;
   window_start_hour: number;
   window_end_hour: number;
+  audience_include_tags: string | null;
+  audience_exclude_tags: string | null;
+  audience_field: string | null;
+  audience_field_value: string | null;
   status: 'draft' | 'sending' | 'paused' | 'done';
   paused_reason: string | null;
   created_at: string;
@@ -31,6 +35,16 @@ export type ContactRow = {
   name?: string | null;
   timezone?: string | null;
   country?: string | null;
+  tags?: string | null; // comma-joined (display)
+  custom?: Record<string, unknown> | null;
+};
+
+// Audience targeting criteria, shared by the count + snapshot queries.
+export type AudienceCriteria = {
+  includeTags?: string | null; // comma-separated; contact must carry ANY
+  excludeTags?: string | null; // comma-separated; contact must carry NONE
+  field?: string | null; // custom-field key
+  fieldValue?: string | null; // exact match
 };
 
 // Each broadcast tracks its sends under its own email_type, so the stats table
@@ -54,48 +68,120 @@ export function normalizeTimezone(tz: string | null | undefined): string | null 
   }
 }
 
+// Split a raw tag string into a normalized, de-duped list (trimmed, lowercased).
+export function splitTags(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  const seen = new Set<string>();
+  for (const t of String(raw).split(',')) {
+    const tag = t.trim().toLowerCase();
+    if (tag) seen.add(tag);
+  }
+  return [...seen];
+}
+
+function customJson(custom: Record<string, unknown> | null | undefined): string | null {
+  if (!custom) return null;
+  const keys = Object.keys(custom);
+  if (keys.length === 0) return null;
+  try {
+    return JSON.stringify(custom);
+  } catch {
+    return null;
+  }
+}
+
 // ── Contacts ────────────────────────────────────────────────────────────────
 
-// Upsert a batch of contacts. Multi-row INSERTs (≤80 rows each, well under
-// SQLite's bound-variable ceiling) run in one D1 batch. Existing rows keep their
-// non-null fields unless the import carries a better value. Returns rows seen.
+// Upsert a batch of contacts plus their normalized tags. Per chunk, in one D1
+// batch (a transaction): the contacts upsert, then a delete + re-insert of that
+// chunk's contact_tags (so re-importing reflects the latest tag set). Multi-row
+// INSERTs stay well under SQLite's 999 bound-variable ceiling. Returns rows seen.
 export async function importContacts(
   db: D1Database,
   rows: ContactRow[],
   source = 'import',
 ): Promise<number> {
   if (rows.length === 0) return 0;
-  const CHUNK = 80; // 80 × 5 binds = 400, under the 999 variable limit
+  const CHUNK = 80; // 80 × 7 binds = 560, under the 999 variable limit
+  const TAG_CHUNK = 150; // 150 × 2 binds = 300
   const statements: D1PreparedStatement[] = [];
+
   for (let i = 0; i < rows.length; i += CHUNK) {
     const slice = rows.slice(i, i + CHUNK);
-    const placeholders = slice.map(() => '(?,?,?,?,?)').join(',');
+    const emails: string[] = [];
+    const tagPairs: Array<[string, string]> = [];
+
+    const placeholders = slice.map(() => '(?,?,?,?,?,?,?)').join(',');
     const binds: (string | null)[] = [];
     for (const r of slice) {
+      const email = r.email.trim().toLowerCase();
+      const tags = splitTags(r.tags);
+      emails.push(email);
+      for (const tag of tags) tagPairs.push([email, tag]);
       binds.push(
-        r.email.trim().toLowerCase(),
+        email,
         (r.name ?? null) || null,
         normalizeTimezone(r.timezone),
         (r.country ?? null) || null,
+        tags.length ? tags.join(', ') : null,
+        customJson(r.custom),
         source,
       );
     }
+
     statements.push(
       db
         .prepare(
-          `INSERT INTO contacts (email, name, timezone, country, source)
+          `INSERT INTO contacts (email, name, timezone, country, tags, custom, source)
              VALUES ${placeholders}
            ON CONFLICT(email) DO UPDATE SET
              name = COALESCE(excluded.name, contacts.name),
              timezone = COALESCE(excluded.timezone, contacts.timezone),
              country = COALESCE(excluded.country, contacts.country),
+             tags = COALESCE(excluded.tags, contacts.tags),
+             custom = COALESCE(excluded.custom, contacts.custom),
              updated_at = datetime('now')`,
         )
         .bind(...binds),
     );
+
+    // Replace this chunk's tags: clear then re-insert (keeps re-imports correct).
+    statements.push(
+      db
+        .prepare(`DELETE FROM contact_tags WHERE email IN (${emails.map(() => '?').join(',')})`)
+        .bind(...emails),
+    );
+    for (let j = 0; j < tagPairs.length; j += TAG_CHUNK) {
+      const tslice = tagPairs.slice(j, j + TAG_CHUNK);
+      statements.push(
+        db
+          .prepare(
+            `INSERT OR IGNORE INTO contact_tags (email, tag) VALUES ${tslice.map(() => '(?,?)').join(',')}`,
+          )
+          .bind(...tslice.flat()),
+      );
+    }
   }
+
   await db.batch(statements);
   return rows.length;
+}
+
+// Distinct tags with how many contacts carry each — populates the compose
+// page's clickable tag list. Defensive: empty when the table isn't there yet.
+export async function availableTags(
+  db: D1Database,
+  limit = 200,
+): Promise<Array<{ tag: string; n: number }>> {
+  try {
+    const r = await db
+      .prepare(`SELECT tag, COUNT(*) AS n FROM contact_tags GROUP BY tag ORDER BY n DESC, tag LIMIT ?`)
+      .bind(limit)
+      .all<{ tag: string; n: number }>();
+    return r.results ?? [];
+  } catch {
+    return [];
+  }
 }
 
 // Reads are defensive: the tables may not exist yet on a preview version that
@@ -129,12 +215,79 @@ export async function countSendable(db: D1Database): Promise<number> {
 export async function recentContacts(db: D1Database, limit = 10): Promise<ContactRow[]> {
   try {
     const r = await db
-      .prepare('SELECT email, name, timezone, country FROM contacts ORDER BY id DESC LIMIT ?')
+      .prepare('SELECT email, name, timezone, country, tags FROM contacts ORDER BY id DESC LIMIT ?')
       .bind(limit)
       .all<ContactRow>();
     return r.results ?? [];
   } catch {
     return [];
+  }
+}
+
+// ── Audience targeting ──────────────────────────────────────────────────────
+
+// Build the WHERE additions (and their binds) for a set of audience criteria,
+// against a `contacts c` row. Always excludes the suppression list. Tag matching
+// goes through the normalized contact_tags table; the field filter uses
+// json_extract on the preserved `custom` blob.
+function audienceWhere(criteria: AudienceCriteria): { sql: string; binds: string[] } {
+  const clauses = [`NOT EXISTS (SELECT 1 FROM email_suppressions s WHERE s.email = c.email)`];
+  const binds: string[] = [];
+
+  const include = splitTags(criteria.includeTags);
+  if (include.length) {
+    clauses.push(
+      `EXISTS (SELECT 1 FROM contact_tags t WHERE t.email = c.email AND t.tag IN (${include
+        .map(() => '?')
+        .join(',')}))`,
+    );
+    binds.push(...include);
+  }
+
+  const exclude = splitTags(criteria.excludeTags);
+  if (exclude.length) {
+    clauses.push(
+      `NOT EXISTS (SELECT 1 FROM contact_tags t WHERE t.email = c.email AND t.tag IN (${exclude
+        .map(() => '?')
+        .join(',')}))`,
+    );
+    binds.push(...exclude);
+  }
+
+  const field = (criteria.field ?? '').trim();
+  const value = (criteria.fieldValue ?? '').trim();
+  if (field) {
+    // json_extract path: $."Field Name" (quoted so spaces/odd chars are fine).
+    clauses.push(`json_extract(c.custom, '$."' || ? || '"') = ?`);
+    binds.push(field, value);
+  }
+
+  return { sql: clauses.join(' AND '), binds };
+}
+
+function criteriaOf(b: Broadcast | AudienceCriteria): AudienceCriteria {
+  if ('audience_include_tags' in b) {
+    return {
+      includeTags: b.audience_include_tags,
+      excludeTags: b.audience_exclude_tags,
+      field: b.audience_field,
+      fieldValue: b.audience_field_value,
+    };
+  }
+  return b;
+}
+
+// How many contacts match these criteria right now (minus suppressions).
+export async function countAudience(db: D1Database, criteria: AudienceCriteria): Promise<number> {
+  try {
+    const { sql, binds } = audienceWhere(criteria);
+    const r = await db
+      .prepare(`SELECT COUNT(*) AS n FROM contacts c WHERE ${sql}`)
+      .bind(...binds)
+      .first<{ n: number }>();
+    return r?.n ?? 0;
+  } catch {
+    return 0;
   }
 }
 
@@ -170,6 +323,10 @@ export type BroadcastInput = {
   cta_href?: string | null;
   window_start_hour?: number;
   window_end_hour?: number;
+  audience_include_tags?: string | null;
+  audience_exclude_tags?: string | null;
+  audience_field?: string | null;
+  audience_field_value?: string | null;
 };
 
 // Clamp the send window to a sane 0–24 and ensure start < end; fall back to the
@@ -192,8 +349,9 @@ export async function createBroadcast(db: D1Database, b: BroadcastInput): Promis
     .prepare(
       `INSERT INTO broadcasts
          (name, subject, preheader, heading, body, format, body_text, hero_image,
-          cta_label, cta_href, window_start_hour, window_end_hour)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          cta_label, cta_href, window_start_hour, window_end_hour,
+          audience_include_tags, audience_exclude_tags, audience_field, audience_field_value)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       b.name,
@@ -208,6 +366,10 @@ export async function createBroadcast(db: D1Database, b: BroadcastInput): Promis
       b.cta_href ?? null,
       w.start,
       w.end,
+      b.audience_include_tags ?? null,
+      b.audience_exclude_tags ?? null,
+      b.audience_field ?? null,
+      b.audience_field_value ?? null,
     )
     .run();
   return Number(r.meta?.last_row_id ?? 0);
@@ -222,7 +384,9 @@ export async function updateBroadcast(db: D1Database, id: number, b: BroadcastIn
       `UPDATE broadcasts
           SET name = ?, subject = ?, preheader = ?, heading = ?, body = ?,
               format = ?, body_text = ?, hero_image = ?, cta_label = ?, cta_href = ?,
-              window_start_hour = ?, window_end_hour = ?
+              window_start_hour = ?, window_end_hour = ?,
+              audience_include_tags = ?, audience_exclude_tags = ?,
+              audience_field = ?, audience_field_value = ?
         WHERE id = ? AND status = 'draft'`,
     )
     .bind(
@@ -238,6 +402,10 @@ export async function updateBroadcast(db: D1Database, id: number, b: BroadcastIn
       b.cta_href ?? null,
       w.start,
       w.end,
+      b.audience_include_tags ?? null,
+      b.audience_exclude_tags ?? null,
+      b.audience_field ?? null,
+      b.audience_field_value ?? null,
       id,
     )
     .run();
@@ -245,19 +413,21 @@ export async function updateBroadcast(db: D1Database, id: number, b: BroadcastIn
 
 // ── Launch / queue ────────────────────────────────────────────────────────────
 
-// Snapshot the current sendable contacts into the queue. INSERT … SELECT does
-// the whole list in one statement (no client-side row shuttling); INSERT OR
+// Snapshot the contacts matching the broadcast's audience into the queue.
+// INSERT … SELECT does the whole (filtered) list in one statement; INSERT OR
 // IGNORE + the UNIQUE(broadcast_id,email) makes a re-launch a safe top-up.
 // Returns the number of new rows added this call.
 export async function snapshotRecipients(db: D1Database, broadcastId: number): Promise<number> {
+  const b = await getBroadcast(db, broadcastId);
+  const { sql, binds } = audienceWhere(b ? criteriaOf(b) : {});
   const r = await db
     .prepare(
       `INSERT OR IGNORE INTO broadcast_recipients (broadcast_id, email, name, timezone, status)
          SELECT ?, c.email, c.name, c.timezone, 'pending'
            FROM contacts c
-          WHERE NOT EXISTS (SELECT 1 FROM email_suppressions s WHERE s.email = c.email)`,
+          WHERE ${sql}`,
     )
-    .bind(broadcastId)
+    .bind(broadcastId, ...binds)
     .run();
   return r.meta?.changes ?? 0;
 }

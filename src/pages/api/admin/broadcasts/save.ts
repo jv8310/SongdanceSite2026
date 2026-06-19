@@ -50,6 +50,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
     cta_href: str(p.cta_href),
     window_start_hour: hour(p.window_start_hour, 8),
     window_end_hour: hour(p.window_end_hour, 21),
+    audience_include_tags: str(p.audience_include_tags),
+    audience_exclude_tags: str(p.audience_exclude_tags),
+    audience_field: str(p.audience_field),
+    audience_field_value: str(p.audience_field_value),
   };
 
   const id = num(p.id);

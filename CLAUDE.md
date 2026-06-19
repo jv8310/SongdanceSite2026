@@ -103,11 +103,20 @@ e.g. a Drip export) and one-off `broadcasts` sent to it. Lives in
 `broadcast_recipients`.
 
 - **Import**: `/admin/contacts` parses the CSV in the browser (auto-detecting
-  email / name / timezone / country headers) and posts it in chunks, so 55k
-  streams in with a progress bar. Re-importing an address updates, never dups.
+  email / name / timezone / country / tags headers) and posts it in chunks, so
+  55k streams in with a progress bar. Re-importing an address updates, never
+  dups. Every other column is preserved: `tags` is normalized into a
+  `contact_tags` table (for fast targeting + counts) and kept as a display
+  string; all remaining non-empty columns go into a `custom` JSON blob, so the
+  full export is retained and filterable.
 - **Timezone is everything here**: the import stores each contact's IANA
   timezone (validated; bad/blank → null → default window) so the send rides the
   same `withinSendWindow` 08:00–21:00 gate as lifecycle mail — truly local.
+- **Audience targeting**: a broadcast can include tags (match ANY), exclude
+  tags, and one custom-field equals filter (e.g. `Nederlands = No`). The compose
+  page lists your tags with counts (click to add) and shows a live "X contacts
+  match" estimate (`/api/admin/broadcasts/audience`); the launch snapshot applies
+  the same `audienceWhere` criteria. Blank = the whole sendable list.
 - **Compose / preview / test**: a broadcast is a draft with a **live preview**
   (the compose pages POST to `/api/admin/broadcasts/preview`, which renders the
   unsaved fields server-side). Two `format`s: `simple` (subject, heading,

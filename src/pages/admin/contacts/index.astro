@@ -52,9 +52,11 @@ const recent = await recentContacts(env.DB, 8);
         Headers are matched automatically. Expected columns:
         <code>email</code> (required), <code>name</code> (or
         <code>first name</code> + <code>last name</code>),
-        <code>timezone</code> (IANA, e.g. <code>America/New_York</code>) and
-        <code>country</code>. Re-importing the same address updates it; it
-        never duplicates.
+        <code>timezone</code> (IANA, e.g. <code>America/New_York</code>),
+        <code>country</code> and <code>tags</code>. Every other column is
+        preserved on the contact as custom data (so your full export is kept and
+        is filterable when you target a broadcast). Re-importing the same address
+        updates it; it never duplicates.
       </p>
 
       <input id="csv-file" type="file" accept=".csv,text/csv" class="ct-file" />
@@ -72,7 +74,7 @@ const recent = await recentContacts(env.DB, 8);
       <section class="adm-section">
         <h2>Most recent</h2>
         <table class="ct-table">
-          <thead><tr><th>Email</th><th>Name</th><th>Timezone</th><th>Country</th></tr></thead>
+          <thead><tr><th>Email</th><th>Name</th><th>Timezone</th><th>Country</th><th>Tags</th></tr></thead>
           <tbody>
             {recent.map((c) => (
               <tr>
@@ -80,6 +82,7 @@ const recent = await recentContacts(env.DB, 8);
                 <td>{c.name ?? '—'}</td>
                 <td>{c.timezone ?? <span class="ct-muted">default window</span>}</td>
                 <td>{c.country ?? '—'}</td>
+                <td class="ct-tags">{c.tags ?? '—'}</td>
               </tr>
             ))}
           </tbody>
@@ -112,6 +115,7 @@ const recent = await recentContacts(env.DB, 8);
     .ct-table th { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.05em; color: #6f5f6d; }
     .ct-table tr:last-child td { border-bottom: none; }
     .ct-muted { color: #b6a8b4; }
+    .ct-tags { color: #6f5f6d; font-size: 12px; max-width: 280px; }
   </style>
 
   <script is:inline>
@@ -145,11 +149,12 @@ const recent = await recentContacts(env.DB, 8);
     const norm = (s) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
 
     function detectColumns(header) {
-      const idx = { email: -1, name: -1, first: -1, last: -1, timezone: -1, country: -1 };
+      const idx = { email: -1, name: -1, first: -1, last: -1, timezone: -1, country: -1, tags: -1 };
       header.forEach((h, i) => {
         const n = norm(h);
         if (idx.email < 0 && n.includes('email')) idx.email = i;
         else if (idx.timezone < 0 && (n.includes('timezone') || n === 'tz')) idx.timezone = i;
+        else if (idx.tags < 0 && (n === 'tags' || n === 'tag')) idx.tags = i;
         else if (idx.country < 0 && n.includes('country')) idx.country = i;
         else if (idx.first < 0 && (n === 'firstname' || n === 'first')) idx.first = i;
         else if (idx.last < 0 && (n === 'lastname' || n === 'last')) idx.last = i;
@@ -188,7 +193,14 @@ const recent = await recentContacts(env.DB, 8);
         detected.innerHTML = '<span class="warn">No email column found. The CSV needs a header row with an <code>email</code> column.</span>';
         return;
       }
+      // Columns we map explicitly never get duplicated into `custom`. Everything
+      // else with a non-blank header is preserved there, keyed by header name.
+      const mapped = new Set([idx.email, idx.name, idx.first, idx.last, idx.timezone, idx.country, idx.tags]);
+      const customCols = [];
+      header.forEach((h, i) => { if (!mapped.has(i) && (h || '').trim()) customCols.push(i); });
+
       const out = [];
+      let customSeen = 0;
       for (let r = 1; r < rows.length; r++) {
         const cells = rows[r];
         const email = (cells[idx.email] || '').trim();
@@ -198,11 +210,19 @@ const recent = await recentContacts(env.DB, 8);
           name = [idx.first >= 0 ? cells[idx.first] : '', idx.last >= 0 ? cells[idx.last] : '']
             .map((s) => (s || '').trim()).filter(Boolean).join(' ');
         }
+        const custom = {};
+        for (const ci of customCols) {
+          const v = (cells[ci] || '').trim();
+          if (v) custom[header[ci].trim()] = v;
+        }
+        if (Object.keys(custom).length) customSeen++;
         out.push({
           email,
           name: name || null,
           timezone: idx.timezone >= 0 ? (cells[idx.timezone] || '').trim() || null : null,
           country: idx.country >= 0 ? (cells[idx.country] || '').trim() || null : null,
+          tags: idx.tags >= 0 ? (cells[idx.tags] || '').trim() || null : null,
+          custom: Object.keys(custom).length ? custom : null,
         });
       }
       parsedRows = out;
@@ -212,7 +232,9 @@ const recent = await recentContacts(env.DB, 8);
       else if (idx.first >= 0 || idx.last >= 0) cols.push('name → first + last');
       if (idx.timezone >= 0) cols.push(`timezone → <code>${header[idx.timezone]}</code>`);
       else cols.push('<span class="warn">no timezone column — those contacts use the default send window</span>');
+      if (idx.tags >= 0) cols.push(`tags → <code>${header[idx.tags]}</code>`);
       if (idx.country >= 0) cols.push(`country → <code>${header[idx.country]}</code>`);
+      if (customCols.length) cols.push(`+ ${customCols.length} custom fields preserved`);
       detected.hidden = false;
       detected.innerHTML = `<strong>${out.length.toLocaleString()}</strong> rows ready · ${cols.join(' · ')}`;
       importBtn.disabled = out.length === 0;
@@ -223,7 +245,7 @@ const recent = await recentContacts(env.DB, 8);
       importBtn.disabled = true;
       fileInput.disabled = true;
       barWrap.hidden = false;
-      const CHUNK = 1000;
+      const CHUNK = 500; // smaller, since each row may carry many custom fields
       let done = 0;
       let processed = 0;
       let latestTotal = null;
