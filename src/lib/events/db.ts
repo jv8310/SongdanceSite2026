@@ -5,7 +5,11 @@
 // content lives on its own landing page, linked via `href`.
 
 import { getProductBySlug, computeBookedPercent } from '../registrations/db';
-import { launchPromoActive, LAUNCH_PROMO_PERCENT } from '../promo';
+import {
+  EUR_COPY_LABEL,
+  hasCompareStrike,
+  type MarketingProduct,
+} from '../workshops/marketing-prices';
 
 export type EventCategory = 'retreat' | 'online' | 'course';
 export type EventLanguage = 'en' | 'de' | 'nl';
@@ -54,14 +58,25 @@ export interface EventCard {
   productSlug: string | null;
   bookedPercent: number | null; // live "% booked" when linked to a product, else null
   ongoing: boolean;
-  promoPrice: PromoPrice | null; // launch-promo struck list + discounted price, else null
+  // Events that correspond to a marketed product surface the SAME price the
+  // /courses grid + nav do, so PriceSync localizes the currency, strikes the
+  // launch-promo deal, and shows the certification's struck sticker identically.
+  marketingProduct: MarketingProduct | null; // PriceSync product key, or null
+  priceLabel: string | null; // baked EUR label: the marketing price, else the free-text price
+  compareStrike: boolean; // permanent struck sticker (certification's €1500)
 }
 
-// The struck list price + discounted price shown while the launch promo runs.
-export interface PromoPrice {
-  was: string; // the normal price, struck through (e.g. "9€")
-  now: string; // the discounted price in the same style (e.g. "4.50€")
-}
+// Map a grid event to its marketed product so the card reuses the single price
+// source in src/lib/workshops/marketing-prices.ts (which the /courses grid and
+// nav read from). Keyed on the stable event id. Retreats have no entry — they
+// price on their own path and are excluded from the launch promo.
+const EVENT_MARKETING_PRODUCT: Record<string, MarketingProduct> = {
+  'vocal-healing-session': 'ticket',
+  'professional-masterclass': 'masterclass',
+  'svh-12-week': 'twelve-week',
+  'certification-course': 'cert',
+  'grief-course': 'grief',
+};
 
 export const CATEGORIES: EventCategory[] = ['retreat', 'online', 'course'];
 export const STATUSES: EventStatus[] = ['open', 'waitlist', 'closed'];
@@ -83,6 +98,7 @@ export function parseFacilitators(raw: string | null): string[] {
 }
 
 export function rowToCard(row: EventRow): EventCard {
+  const marketingProduct = EVENT_MARKETING_PRODUCT[row.id] ?? null;
   return {
     id: row.id,
     title: row.title,
@@ -101,37 +117,12 @@ export function rowToCard(row: EventRow): EventCard {
     productSlug: row.product_slug,
     bookedPercent: null, // filled in by listPublicEvents for linked products
     ongoing: row.ongoing === 1,
-    promoPrice: null, // filled in by listPublicEvents while the promo runs
+    marketingProduct,
+    // Marketed events show the marketing price (so the figure, promo strike and
+    // cert sticker match /courses); everyone else keeps their free-text price.
+    priceLabel: marketingProduct ? EUR_COPY_LABEL[marketingProduct] : row.price,
+    compareStrike: marketingProduct ? hasCompareStrike(marketingProduct) : false,
   };
-}
-
-// The launch promo (50% off) applies to online events and courses only — never
-// retreats, which are physical events priced on their own path (mirrors the
-// scope in src/lib/promo.ts). Keep these two in lock-step.
-const PROMO_EVENT_CATEGORIES: ReadonlySet<EventCategory> = new Set(['online', 'course']);
-
-// While the launch promo is live, derive the struck list price + discounted
-// price for a promo-eligible event whose free-text price carries a single euro
-// figure (e.g. "9€", "€650"). Returns null when the promo is off, the category
-// is excluded (retreats), or the label has no single parseable figure (blank,
-// a "From €X" with no number, a range) — the card then shows its plain price.
-// The discount is computed in minor units with the same rounding the checkout
-// endpoints use, so the struck deal matches what's charged.
-export function eventPromoPrice(
-  card: Pick<EventCard, 'category' | 'price'>,
-  nowMs: number = Date.now(),
-): PromoPrice | null {
-  if (!card.price || !launchPromoActive(nowMs)) return null;
-  if (!PROMO_EVENT_CATEGORIES.has(card.category)) return null;
-  const figures = card.price.match(/\d+(?:[.,]\d+)?/g);
-  if (!figures || figures.length !== 1) return null; // blank or ambiguous (range)
-  const raw = figures[0];
-  const amount = parseFloat(raw.replace(',', '.'));
-  if (!Number.isFinite(amount) || amount <= 0) return null;
-  const promoMinor = Math.round((Math.round(amount * 100) * (100 - LAUNCH_PROMO_PERCENT)) / 100);
-  const promoMajor = promoMinor / 100;
-  const body = Number.isInteger(promoMajor) ? String(promoMajor) : promoMajor.toFixed(2);
-  return { was: card.price, now: card.price.replace(raw, body) };
 }
 
 // An event counts as "past" only when it has an end (or start) date that has
@@ -189,8 +180,6 @@ export async function listPublicEvents(
   if (opts.category) cards = cards.filter((c) => c.category === opts.category);
   cards.sort(compareCards);
   await attachBookedPercent(db, cards);
-  const nowMs = now.getTime();
-  for (const card of cards) card.promoPrice = eventPromoPrice(card, nowMs);
   return cards;
 }
 

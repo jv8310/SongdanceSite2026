@@ -1163,11 +1163,6 @@ a.sd-evt-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-2); 
 }
 .sd-evt-fac { font-family: var(--font-lyric); font-style: italic; font-size: 15px; color: var(--ink-soft); }
 .sd-evt-price { font-family: var(--font-body); font-size: 14px; font-weight: 600; color: var(--ember-deep); white-space: nowrap; }
-/* Launch-promo: normal price struck through + the discounted price (online events
-   and courses only — retreats are excluded from the promo). */
-.sd-evt-price--promo { display: inline-flex; align-items: baseline; gap: 0.45em; white-space: nowrap; }
-.sd-evt-was { font-weight: 400; text-decoration: line-through; color: var(--ink-soft); opacity: 0.6; }
-.sd-evt-now { font-weight: 600; color: var(--ember-deep); }
 .sd-events-empty, .sd-events-noneshown { font-family: var(--font-lyric); font-style: italic; font-size: 20px; color: var(--ink-quiet); }
 .sd-events-noneshown { margin-top: var(--sp-6); }
 .sd-retreat-side-label {
