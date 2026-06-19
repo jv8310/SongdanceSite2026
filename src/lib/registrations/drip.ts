@@ -71,6 +71,14 @@ export type DripSubscriber = {
 // Look up a subscriber by email. Returns null when Drip 404s — the email
 // has never been seen. Used by the course-page variant gate to decide
 // which offer to show a returning vs. new visitor.
+// This read sits on the synchronous request path of the certification "see
+// your price" page, so a slow/stalled Drip must not hang the Worker until the
+// edge kills it (which surfaces to the visitor as a hard "could not reach the
+// server" error). Bound it with a timeout: on stall the fetch aborts and
+// throws, and callers like `subscriber-status` fall back to the newcomer offer
+// rather than failing the page.
+const GET_SUBSCRIBER_TIMEOUT_MS = 8000;
+
 export async function getSubscriber(
   cfg: DripConfig,
   email: string,
@@ -83,6 +91,7 @@ export async function getSubscriber(
         Authorization: authHeader(cfg),
         Accept: 'application/vnd.api+json',
       },
+      signal: AbortSignal.timeout(GET_SUBSCRIBER_TIMEOUT_MS),
     },
   );
   if (res.status === 404) return null;
