@@ -14,6 +14,7 @@
 import { createExports as baseCreateExports } from '@astrojs/cloudflare/entrypoints/server.js';
 import { assessPendingSubmissions } from './lib/intake/sweep';
 import { runWorkshopCron } from './lib/workshops/cron';
+import { runBroadcasts } from './lib/broadcasts/cron';
 import { fxRatesStale, refreshFxRates } from './lib/admin/fx';
 
 const WORKSHOP_CRON = '*/5 * * * *';
@@ -93,6 +94,19 @@ export function createExports(manifest: unknown) {
           })
           .catch((err) => {
             console.error('[workshops/cron] run failed', err);
+          }),
+      );
+      // Drain any in-flight marketing broadcast on the same tick — paced, held
+      // to each recipient's local window, auto-paused on bounce/complaint spikes.
+      ctx.waitUntil(
+        runBroadcasts(env)
+          .then((r) => {
+            if (r.sent || r.paused || r.done) {
+              console.log(`[broadcasts/cron] sent=${r.sent} paused=${r.paused} done=${r.done}`);
+            }
+          })
+          .catch((err) => {
+            console.error('[broadcasts/cron] run failed', err);
           }),
       );
       return;

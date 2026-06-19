@@ -1,0 +1,279 @@
+---
+// Admin — marketing contacts. Upload a CSV (e.g. a Drip export) into the
+// standalone `contacts` list that broadcasts send to. The file is parsed in the
+// browser and posted in chunks, so a 55k import streams in with live progress
+// and never trips a request limit. Columns are auto-detected: email (required),
+// name / first+last name, timezone (IANA — drives local-time sending), country.
+import '../../../styles/admin.css';
+import Layout from '../../../layouts/Layout.astro';
+import { readCookie, verifySession } from '../../../lib/registrations/auth';
+import { countContacts, countSendable, recentContacts } from '../../../lib/broadcasts/db';
+
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+if (!(await verifySession(env.ADMIN_SESSION_SECRET, readCookie(Astro.request)))) {
+  return Astro.redirect('/admin/login');
+}
+
+const total = await countContacts(env.DB);
+const sendable = await countSendable(env.DB);
+const recent = await recentContacts(env.DB, 8);
+---
+
+<Layout title="Admin — Contacts — Songdance" description="">
+  <main class="adm">
+    <header class="adm-header">
+      <div>
+        <p class="adm-breadcrumbs"><a href="/admin">Admin</a> <span class="sep">/</span> Contacts</p>
+        <h1>Marketing contacts</h1>
+        <p class="adm-sub">
+          The standalone list that broadcasts send to — independent of workshop
+          registrations. Unsubscribed / complained addresses are excluded from
+          every send automatically.
+        </p>
+      </div>
+      <div class="adm-actions">
+        <a class="adm-btn" href="/admin/broadcasts">Broadcasts →</a>
+        <a class="adm-btn adm-btn--ghost" href="/admin">← Admin</a>
+      </div>
+    </header>
+
+    <section class="adm-section">
+      <div class="ct-stats">
+        <div class="ct-stat"><span class="ct-num" id="ct-total">{total.toLocaleString()}</span><span class="ct-lbl">contacts</span></div>
+        <div class="ct-stat"><span class="ct-num">{sendable.toLocaleString()}</span><span class="ct-lbl">sendable (minus unsubscribes)</span></div>
+      </div>
+    </section>
+
+    <section class="adm-section">
+      <h2>Import a CSV</h2>
+      <p class="ct-help">
+        Headers are matched automatically. Expected columns:
+        <code>email</code> (required), <code>name</code> (or
+        <code>first name</code> + <code>last name</code>),
+        <code>timezone</code> (IANA, e.g. <code>America/New_York</code>),
+        <code>country</code> and <code>tags</code>. Every other column is
+        preserved on the contact as custom data (so your full export is kept and
+        is filterable when you target a broadcast). Re-importing the same address
+        updates it; it never duplicates.
+      </p>
+
+      <input id="csv-file" type="file" accept=".csv,text/csv" class="ct-file" />
+
+      <div id="ct-detected" class="ct-detected" hidden></div>
+
+      <div class="ct-actions">
+        <button id="ct-import" class="adm-btn" type="button" disabled>Import</button>
+        <span id="ct-progress" class="ct-progress"></span>
+      </div>
+      <div id="ct-bar-wrap" class="ct-bar-wrap" hidden><div id="ct-bar" class="ct-bar"></div></div>
+    </section>
+
+    {recent.length > 0 && (
+      <section class="adm-section">
+        <h2>Most recent</h2>
+        <table class="ct-table">
+          <thead><tr><th>Email</th><th>Name</th><th>Timezone</th><th>Country</th><th>Tags</th></tr></thead>
+          <tbody>
+            {recent.map((c) => (
+              <tr>
+                <td>{c.email}</td>
+                <td>{c.name ?? '—'}</td>
+                <td>{c.timezone ?? <span class="ct-muted">default window</span>}</td>
+                <td>{c.country ?? '—'}</td>
+                <td class="ct-tags">{c.tags ?? '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+    )}
+  </main>
+
+  <style>
+    .ct-stats { display: flex; gap: 28px; }
+    .ct-stat { display: flex; flex-direction: column; }
+    .ct-num { font-size: 30px; font-weight: 600; color: #2a1b2a; font-variant-numeric: tabular-nums; }
+    .ct-lbl { font-size: 13px; color: #6f5f6d; }
+    .ct-help { font-size: 13.5px; color: #6f5f6d; line-height: 1.7; max-width: 60ch; }
+    .ct-help code { background: #f4ecdf; padding: 1px 6px; border-radius: 5px; font-size: 12.5px; }
+    .ct-file { display: block; margin: 14px 0; font-size: 14px; }
+    .ct-detected {
+      font-size: 13.5px; color: #2a1b2a; background: #fbf6ec;
+      border: 1px solid rgba(161,72,38,0.22); border-radius: 10px; padding: 12px 16px; margin: 6px 0 14px;
+      line-height: 1.7;
+    }
+    .ct-detected .warn { color: #a14826; }
+    .ct-detected code { background: #f4ecdf; padding: 1px 5px; border-radius: 4px; }
+    .ct-actions { display: flex; align-items: center; gap: 14px; }
+    .ct-progress { font-size: 13px; color: #6f5f6d; }
+    .ct-bar-wrap { margin-top: 12px; height: 8px; background: #ece0cf; border-radius: 999px; overflow: hidden; max-width: 460px; }
+    .ct-bar { height: 100%; width: 0; background: #a14826; transition: width 0.2s ease; }
+    .ct-table { width: 100%; border-collapse: collapse; background: #fbf6ec; border: 1px solid rgba(161,72,38,0.22); border-radius: 12px; overflow: hidden; }
+    .ct-table th, .ct-table td { padding: 9px 14px; text-align: left; font-size: 13.5px; border-bottom: 1px solid rgba(161,72,38,0.12); }
+    .ct-table th { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.05em; color: #6f5f6d; }
+    .ct-table tr:last-child td { border-bottom: none; }
+    .ct-muted { color: #b6a8b4; }
+    .ct-tags { color: #6f5f6d; font-size: 12px; max-width: 280px; }
+  </style>
+
+  <script is:inline>
+    // ── Minimal CSV parser (handles quoted fields, embedded commas/quotes, CRLF) ──
+    function parseCsv(text) {
+      const rows = [];
+      let row = [];
+      let field = '';
+      let inQuotes = false;
+      for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+        if (inQuotes) {
+          if (ch === '"') {
+            if (text[i + 1] === '"') { field += '"'; i++; }
+            else inQuotes = false;
+          } else field += ch;
+        } else if (ch === '"') {
+          inQuotes = true;
+        } else if (ch === ',') {
+          row.push(field); field = '';
+        } else if (ch === '\n') {
+          row.push(field); rows.push(row); row = []; field = '';
+        } else if (ch === '\r') {
+          // swallow; \n handles the row break
+        } else field += ch;
+      }
+      if (field.length > 0 || row.length > 0) { row.push(field); rows.push(row); }
+      return rows.filter((r) => r.some((c) => c.trim() !== ''));
+    }
+
+    const norm = (s) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+    function detectColumns(header) {
+      const idx = { email: -1, name: -1, first: -1, last: -1, timezone: -1, country: -1, tags: -1 };
+      header.forEach((h, i) => {
+        const n = norm(h);
+        if (idx.email < 0 && n.includes('email')) idx.email = i;
+        else if (idx.timezone < 0 && (n.includes('timezone') || n === 'tz')) idx.timezone = i;
+        else if (idx.tags < 0 && (n === 'tags' || n === 'tag')) idx.tags = i;
+        else if (idx.country < 0 && n.includes('country')) idx.country = i;
+        else if (idx.first < 0 && (n === 'firstname' || n === 'first')) idx.first = i;
+        else if (idx.last < 0 && (n === 'lastname' || n === 'last')) idx.last = i;
+        else if (idx.name < 0 && (n === 'name' || n === 'fullname')) idx.name = i;
+      });
+      return idx;
+    }
+
+    const fileInput = document.getElementById('csv-file');
+    const detected = document.getElementById('ct-detected');
+    const importBtn = document.getElementById('ct-import');
+    const progress = document.getElementById('ct-progress');
+    const barWrap = document.getElementById('ct-bar-wrap');
+    const bar = document.getElementById('ct-bar');
+    const totalEl = document.getElementById('ct-total');
+
+    let parsedRows = [];
+
+    fileInput.addEventListener('change', async () => {
+      parsedRows = [];
+      importBtn.disabled = true;
+      detected.hidden = true;
+      const file = fileInput.files && fileInput.files[0];
+      if (!file) return;
+      const text = await file.text();
+      const rows = parseCsv(text);
+      if (rows.length < 2) {
+        detected.hidden = false;
+        detected.innerHTML = '<span class="warn">Could not read any data rows from that file.</span>';
+        return;
+      }
+      const header = rows[0];
+      const idx = detectColumns(header);
+      if (idx.email < 0) {
+        detected.hidden = false;
+        detected.innerHTML = '<span class="warn">No email column found. The CSV needs a header row with an <code>email</code> column.</span>';
+        return;
+      }
+      // Columns we map explicitly never get duplicated into `custom`. Everything
+      // else with a non-blank header is preserved there, keyed by header name.
+      const mapped = new Set([idx.email, idx.name, idx.first, idx.last, idx.timezone, idx.country, idx.tags]);
+      const customCols = [];
+      header.forEach((h, i) => { if (!mapped.has(i) && (h || '').trim()) customCols.push(i); });
+
+      const out = [];
+      let customSeen = 0;
+      for (let r = 1; r < rows.length; r++) {
+        const cells = rows[r];
+        const email = (cells[idx.email] || '').trim();
+        if (!email) continue;
+        let name = idx.name >= 0 ? (cells[idx.name] || '').trim() : '';
+        if (!name && (idx.first >= 0 || idx.last >= 0)) {
+          name = [idx.first >= 0 ? cells[idx.first] : '', idx.last >= 0 ? cells[idx.last] : '']
+            .map((s) => (s || '').trim()).filter(Boolean).join(' ');
+        }
+        const custom = {};
+        for (const ci of customCols) {
+          const v = (cells[ci] || '').trim();
+          if (v) custom[header[ci].trim()] = v;
+        }
+        if (Object.keys(custom).length) customSeen++;
+        out.push({
+          email,
+          name: name || null,
+          timezone: idx.timezone >= 0 ? (cells[idx.timezone] || '').trim() || null : null,
+          country: idx.country >= 0 ? (cells[idx.country] || '').trim() || null : null,
+          tags: idx.tags >= 0 ? (cells[idx.tags] || '').trim() || null : null,
+          custom: Object.keys(custom).length ? custom : null,
+        });
+      }
+      parsedRows = out;
+      const cols = [];
+      cols.push(`email → <code>${header[idx.email]}</code>`);
+      if (idx.name >= 0) cols.push(`name → <code>${header[idx.name]}</code>`);
+      else if (idx.first >= 0 || idx.last >= 0) cols.push('name → first + last');
+      if (idx.timezone >= 0) cols.push(`timezone → <code>${header[idx.timezone]}</code>`);
+      else cols.push('<span class="warn">no timezone column — those contacts use the default send window</span>');
+      if (idx.tags >= 0) cols.push(`tags → <code>${header[idx.tags]}</code>`);
+      if (idx.country >= 0) cols.push(`country → <code>${header[idx.country]}</code>`);
+      if (customCols.length) cols.push(`+ ${customCols.length} custom fields preserved`);
+      detected.hidden = false;
+      detected.innerHTML = `<strong>${out.length.toLocaleString()}</strong> rows ready · ${cols.join(' · ')}`;
+      importBtn.disabled = out.length === 0;
+    });
+
+    importBtn.addEventListener('click', async () => {
+      if (parsedRows.length === 0) return;
+      importBtn.disabled = true;
+      fileInput.disabled = true;
+      barWrap.hidden = false;
+      const CHUNK = 500; // smaller, since each row may carry many custom fields
+      let done = 0;
+      let processed = 0;
+      let latestTotal = null;
+      try {
+        for (let i = 0; i < parsedRows.length; i += CHUNK) {
+          const chunk = parsedRows.slice(i, i + CHUNK);
+          const res = await fetch('/api/admin/contacts/import', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rows: chunk, source: 'csv-import' }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Import failed');
+          processed += data.processed || 0;
+          latestTotal = data.total;
+          done += chunk.length;
+          const pct = Math.round((done / parsedRows.length) * 100);
+          bar.style.width = pct + '%';
+          progress.textContent = `${done.toLocaleString()} / ${parsedRows.length.toLocaleString()} (${pct}%)`;
+        }
+        progress.textContent = `Imported ${processed.toLocaleString()} contacts. ✓`;
+        if (latestTotal != null && totalEl) totalEl.textContent = Number(latestTotal).toLocaleString();
+      } catch (err) {
+        progress.textContent = 'Failed: ' + (err && err.message ? err.message : String(err));
+        importBtn.disabled = false;
+      } finally {
+        fileInput.disabled = false;
+      }
+    });
+  </script>
+</Layout>

@@ -93,6 +93,60 @@ All automated workshop email lives in the workshop engine:
   send. Keep it factual — no fake scarcity, no countdown theatrics. Marketing
   sends are from `MARKETING_FROM` (Jacob), reply-to `support@songdance.co`.
 
+## Broadcasts — one-off marketing to a standalone contact list
+
+Separate from the workshop lifecycle: a `contacts` list (imported from a CSV,
+e.g. a Drip export) and one-off `broadcasts` sent to it. Lives in
+[`src/lib/broadcasts/`](src/lib/broadcasts/) and three admin pages
+(`/admin/contacts`, `/admin/broadcasts`, `/admin/broadcasts/[id]`). Tables in
+`migrations/0047_broadcasts.sql`: `contacts`, `broadcasts`,
+`broadcast_recipients`.
+
+- **Import**: `/admin/contacts` parses the CSV in the browser (auto-detecting
+  email / name / timezone / country / tags headers) and posts it in chunks, so
+  55k streams in with a progress bar. Re-importing an address updates, never
+  dups. Every other column is preserved: `tags` is normalized into a
+  `contact_tags` table (for fast targeting + counts) and kept as a display
+  string; all remaining non-empty columns go into a `custom` JSON blob, so the
+  full export is retained and filterable.
+- **Timezone is everything here**: the import stores each contact's IANA
+  timezone (validated; bad/blank → null → default window) so the send rides the
+  same `withinSendWindow` 08:00–21:00 gate as lifecycle mail — truly local.
+- **Audience targeting**: a broadcast can include tags (match ANY), exclude
+  tags, and one custom-field equals filter (e.g. `Nederlands = No`). The compose
+  page lists your tags with counts (click to add) and shows a live "X contacts
+  match" estimate (`/api/admin/broadcasts/audience`); the launch snapshot applies
+  the same `audienceWhere` criteria. Blank = the whole sendable list.
+- **Compose / preview / test**: a broadcast is a draft with a **live preview**
+  (the compose pages POST to `/api/admin/broadcasts/preview`, which renders the
+  unsaved fields server-side). Two `format`s: `simple` (subject, heading,
+  preheader, body paragraphs, optional hero + CTA) wrapped in the shared email
+  `shell()` (exported from `emails.ts`); or `html` (paste a full email — `body`
+  is used as-is). `{{first_name}}` substitutes everywhere; in `html` mode
+  `{{unsubscribe_url}}` does too (absent → a footer is appended). Optional
+  `body_text` overrides the auto plain-text part. Same copy-book rules apply to
+  the words. Test-send before launch.
+- **Send window is per-broadcast** (`window_start_hour`/`window_end_hour`,
+  default 08:00–21:00 local). Widen it to push faster — but the real throughput
+  lever is `MAX_PER_RUN` in `cron.ts`. Each recipient is only mailed inside the
+  window for their own timezone.
+- **Launch → cron drain**: launch snapshots sendable contacts (minus
+  suppressions) into `broadcast_recipients`; `runBroadcasts` (in
+  `src/lib/broadcasts/cron.ts`, wired into the 5-min cron) claims a paced,
+  in-window batch each tick (`MAX_PER_RUN`/`SEND_GAP_MS`), so a big list spreads
+  over days rather than blasting at once. Idempotent atomic claims; transient
+  failures retry, then park as `failed`.
+- **Circuit breaker**: once a real sample is out, the cron auto-pauses a
+  broadcast if complaint/bounce rates cross threshold — a dormant list that's
+  gone sour stops instead of burning the domain. Pause/resume by hand too.
+- **Feedback**: each broadcast tracks under `email_type = broadcast_<id>` in
+  `email_sends`, so open/click/bounce/complaint flow in from the Resend webhook.
+  Per-broadcast stats show on its detail page; the rollup shows on
+  `/admin/emails/stats` under "Broadcasts" (`emailTypeMeta` knows the prefix).
+- **Compliance**: every send honours `email_suppressions` (re-checked at send
+  time), carries the RFC 8058 one-click `List-Unsubscribe` header, and a footer
+  unsubscribe link — same plumbing as lifecycle marketing.
+
 ## R2 image library — how to view and use images
 
 The bucket holds two kinds of images:

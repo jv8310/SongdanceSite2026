@@ -44,7 +44,7 @@ export type EmailContent = { subject: string; html: string; text: string };
 
 type ButtonLink = { label: string; href: string };
 
-function escapeHtml(s: string): string {
+export function escapeHtml(s: string): string {
   return s
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -55,8 +55,9 @@ function escapeHtml(s: string): string {
 
 // Shared shell. `bodyHtml` is dropped into the parchment card; `heroImage`
 // renders edge-to-edge above it; `cta` renders a primary button; `extras`
-// renders secondary links beneath it.
-function shell(opts: {
+// renders secondary links beneath it. Exported so one-off broadcasts
+// (src/lib/broadcasts/email.ts) render in the exact same parchment frame.
+export function shell(opts: {
   preheader: string;
   heading: string;
   bodyHtml: string;
