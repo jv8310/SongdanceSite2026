@@ -173,7 +173,6 @@ export async function handleWorkshopCheckoutCompleted(
   // Drip tag + confirmation email + Meta CAPI (best-effort, idempotent).
   const sideEffects = runWorkshopPaidSideEffects(env, {
     registrationId,
-    metaEventId: session.metadata?.meta_event_id || null,
     valueMajor: amountMinor / 100,
     currency,
   });

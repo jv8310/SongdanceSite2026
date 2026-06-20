@@ -21,7 +21,7 @@ import { sendEmail } from './resend';
 import { confirmationEmail } from './emails';
 import { googleCalendarUrl } from './ics';
 import { formatInTz } from './time';
-import { sendPurchaseEvent } from './meta';
+import { purchaseEventId, sendPurchaseEvent } from './meta';
 
 type Env = {
   DB: D1Database;
@@ -179,7 +179,6 @@ export async function runWorkshopPaidSideEffects(
   env: Env,
   args: {
     registrationId: number;
-    metaEventId?: string | null;
     valueMajor?: number;
     currency?: string;
     clientIp?: string | null;
@@ -206,9 +205,13 @@ export async function runWorkshopPaidSideEffects(
     await logEvent(env.DB, { registration_id: null, kind: 'workshop.email.error', payload: { registration_id: reg.id, error: String(err) } });
   }
 
-  // 3. Meta CAPI Purchase (only for real, paid value)
+  // 3. Meta CAPI Purchase (only for real, paid value). The event_id is
+  // deterministic per registration so it deduplicates against the browser Pixel
+  // Purchase fired on /workshop/success. This fires from the Stripe webhook —
+  // a server-to-server call — so there's no real visitor IP/UA to attach; the
+  // browser send carries those. We still pass a true event_source_url, which
+  // Meta expects for website events.
   if (
-    args.metaEventId &&
     args.valueMajor &&
     args.valueMajor > 0 &&
     args.currency &&
@@ -219,14 +222,15 @@ export async function runWorkshopPaidSideEffects(
       await sendPurchaseEvent(
         { pixelId: env.META_PIXEL_ID, accessToken: env.META_ACCESS_TOKEN },
         {
-          eventId: args.metaEventId,
+          eventId: purchaseEventId(reg.id),
           email: reg.email,
           value: args.valueMajor,
           currency: args.currency,
           orderId: `wreg-${reg.id}`,
           clientIp: args.clientIp ?? null,
           clientUserAgent: args.clientUserAgent ?? null,
-          eventSourceUrl: args.eventSourceUrl,
+          eventSourceUrl:
+            args.eventSourceUrl ?? successUrl(env.PUBLIC_BASE_URL, reg.access_token),
         },
       );
     } catch (err) {

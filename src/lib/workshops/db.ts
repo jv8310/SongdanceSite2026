@@ -664,6 +664,18 @@ export async function getPaymentByIntent(db: D1Database, paymentIntentId: string
     .first<WorkshopPayment>();
 }
 
+// The settled payment for a registration (newest first) — used to surface the
+// amount actually charged, e.g. the browser-side Meta Purchase value on the
+// success page. Returns null for free/coupon registrations (no payment row).
+export async function getPaidPaymentForRegistration(db: D1Database, registrationId: number) {
+  return db
+    .prepare(
+      "SELECT * FROM workshop_payments WHERE registration_id = ? AND status = 'paid' ORDER BY id DESC LIMIT 1",
+    )
+    .bind(registrationId)
+    .first<WorkshopPayment>();
+}
+
 export async function upsertPayment(
   db: D1Database,
   p: {

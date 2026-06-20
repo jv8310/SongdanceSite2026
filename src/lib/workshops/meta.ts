@@ -1,9 +1,12 @@
-// Meta Conversions API — server-side Purchase event with a dedup event_id.
+// Meta Conversions API — server-side Purchase event, deduplicated against the
+// browser Pixel Purchase.
 //
-// The registration page generates a dedup `event_id`, passes it to the client
-// Pixel `Purchase` event AND through Stripe metadata to the server. On the
-// webhook success path we POST a server-side Purchase with the same id, so
-// Meta deduplicates the browser + server events into one.
+// A deterministic per-registration event_id (`purchaseEventId`) is shared by
+// the browser Pixel Purchase (fired on /workshop/success) and this server-side
+// CAPI Purchase (fired from the paid webhook). Because both carry the same
+// event_id, Meta folds the two into one event — the browser send brings the
+// rich match signals (fbp/fbc cookie, IP, user-agent), while the server send is
+// the reliable backstop for when the Pixel is blocked or the tab is closed.
 
 export type MetaConfig = {
   pixelId: string;
@@ -14,6 +17,13 @@ export type MetaConfig = {
 // A random, URL-safe dedup id shared by the client Pixel and server CAPI.
 export function generateEventId(): string {
   return crypto.randomUUID();
+}
+
+// Deterministic Purchase event_id for a registration. Used identically by the
+// browser Pixel and the server CAPI so Meta deduplicates the two Purchase hits
+// into one — no need to thread a random id through Stripe metadata.
+export function purchaseEventId(registrationId: number): string {
+  return `wpur-${registrationId}`;
 }
 
 async function sha256Hex(input: string): Promise<string> {
