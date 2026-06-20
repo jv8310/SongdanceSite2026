@@ -145,6 +145,13 @@ e.g. a Drip export) and one-off `broadcasts` sent to it. Lives in
 - **Circuit breaker**: once a real sample is out, the cron auto-pauses a
   broadcast if complaint/bounce rates cross threshold — a dormant list that's
   gone sour stops instead of burning the domain. Pause/resume by hand too.
+- **List cleaning** (`src/lib/broadcasts/clean.ts`): the detail page can scrub
+  the pending queue of dead domains — MX/A checked via DNS-over-HTTPS
+  (cloudflare-dns.com), cached in `domain_status` (migration 0048), recipients
+  at non-deliverable domains marked `suppressed`. Catches dead domains + typo
+  TLDs (`.con`) for free; for dead mailboxes at live providers, export the
+  pending list (`/api/admin/broadcasts/export`) and run a mailbox-level
+  validator. Fails open so a DNS hiccup never drops a valid address.
 - **Feedback**: each broadcast tracks under `email_type = broadcast_<id>` in
   `email_sends`, so open/click/bounce/complaint flow in from the Resend webhook.
   Per-broadcast stats show on its detail page; the rollup shows on
