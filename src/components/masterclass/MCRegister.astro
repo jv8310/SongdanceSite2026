@@ -11,6 +11,7 @@
 // posted country is authoritative — the server re-resolves the price for it.
 import type { CalItem } from '../workshop-english/types';
 import LaunchOfferCallout from '../promo/LaunchOfferCallout.astro';
+import MetaPixel from '../MetaPixel.astro';
 interface Props {
   items: CalItem[];
   country: string;
@@ -67,9 +68,15 @@ const COUNTRIES: { code: string; name: string; currency: string }[] = [
   { code: '', name: 'Elsewhere (Euro)', currency: 'EUR' },
 ];
 const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
+
+// Meta Pixel: the base code is loaded here (this is the real, advertised
+// registration page) so PageView + InitiateCheckout fire. Empty → renders
+// nothing.
+const pixelId = Astro.locals.runtime.env.META_PIXEL_ID ?? '';
 ---
 
 <section class="we-register" id="register">
+  <MetaPixel pixelId={pixelId} />
   <div class="we-register-inner">
     <div class="we-eyebrow">Reserve your seat</div>
     <h2 class="we-register-h2">
@@ -425,6 +432,10 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
       if (!current) return;
       if (err) { err.hidden = true; err.textContent = ''; }
       submitBtn.disabled = true;
+      // Meta Pixel: the visitor is starting checkout (off to Stripe next).
+      if (window.fbq) {
+        try { window.fbq('track', 'InitiateCheckout', {}, { eventID: eventId }); } catch (e) {}
+      }
       var fd = new FormData(form);
       var isMasterclass = current.kind === 'masterclass';
       var body = {

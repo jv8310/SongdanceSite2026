@@ -1,5 +1,6 @@
 ---
 import Layout from '../../layouts/Layout.astro';
+import MetaPixel from '../../components/MetaPixel.astro';
 import {
   getPublishedWorkshopBySlug,
   getProductById,
@@ -75,9 +76,7 @@ const tzOptions = Array.from(new Set([detectedTz, ...COMMON_TZS]));
 ---
 
 <Layout title={workshop ? `Register — ${workshop.title}` : 'Workshop'} description={workshop?.title ?? ''}>
-  {pixelId && (
-    <script is:inline set:html={`!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init','${pixelId}');fbq('track','PageView');`} />
-  )}
+  <MetaPixel pixelId={pixelId} />
 
   <main class="wk">
     {!workshop && (

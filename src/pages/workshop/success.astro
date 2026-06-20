@@ -1,7 +1,10 @@
 ---
 import Layout from '../../layouts/Layout.astro';
+import MetaPixel from '../../components/MetaPixel.astro';
+import { purchaseEventId } from '../../lib/workshops/meta';
 import {
   getConfig,
+  getPaidPaymentForRegistration,
   getRegistrationByAccessToken,
   getWorkshopById,
   listUpcomingPublishedWorkshops,
@@ -70,9 +73,31 @@ const upcoming = reg
       .filter((w) => currentIsMasterclass || !(w.product_slug ?? '').includes('masterclass'))
       .map((w) => ({ slug: w.slug, whenLocal: formatInTz(w.starts_at_utc, tz), kind: (w.product_slug ?? '').includes('masterclass') ? 'Masterclass' : 'Workshop' }))
   : [];
+
+// Meta Pixel Purchase — fired here in the browser, deduplicated against the
+// server-side CAPI Purchase via the deterministic per-registration event id.
+// Only for a real, settled payment (free/coupon registrations have no payment
+// row, so nothing fires).
+const pixelId = env.META_PIXEL_ID ?? '';
+let purchase: { value: number; currency: string; eventId: string } | null = null;
+if (reg && paid && reg.payment_status === 'paid') {
+  const pay = await getPaidPaymentForRegistration(env.DB, reg.id);
+  if (pay && pay.amount_minor > 0) {
+    purchase = {
+      value: Number((pay.amount_minor / 100).toFixed(2)),
+      currency: pay.currency.toUpperCase(),
+      eventId: purchaseEventId(reg.id),
+    };
+  }
+}
 ---
 
 <Layout title="You're registered — Songdance" description="">
+  <MetaPixel pixelId={pixelId} />
+  {pixelId && purchase && (
+    <script is:inline set:html={`window.fbq && window.fbq('track','Purchase',${JSON.stringify({ value: purchase.value, currency: purchase.currency })},{eventID:${JSON.stringify(purchase.eventId)}});`} />
+  )}
+
   <main class="ws">
     {!reg || !workshop ? (
       <section class="ws-card">
