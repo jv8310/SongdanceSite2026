@@ -151,7 +151,11 @@ e.g. a Drip export) and one-off `broadcasts` sent to it. Lives in
   at non-deliverable domains marked `suppressed`. Catches dead domains + typo
   TLDs (`.con`) for free; for dead mailboxes at live providers, export the
   pending list (`/api/admin/broadcasts/export`) and run a mailbox-level
-  validator. Fails open so a DNS hiccup never drops a valid address.
+  validator. Fails open so a DNS hiccup never drops a valid address. The same
+  panel can also remove already-queued contacts carrying given tags
+  (`/api/admin/broadcasts/exclude-tags` → `suppressPendingByTags`), e.g. ones
+  Drip flagged undeliverable — audience exclude-tags only apply at launch, this
+  scrubs a live/paused queue.
 - **Feedback**: each broadcast tracks under `email_type = broadcast_<id>` in
   `email_sends`, so open/click/bounce/complaint flow in from the Resend webhook.
   Per-broadcast stats show on its detail page; the rollup shows on
