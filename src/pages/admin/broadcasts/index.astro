@@ -17,7 +17,7 @@ if (!(await verifySession(env.ADMIN_SESSION_SECRET, readCookie(Astro.request))))
 
 const broadcasts = await listBroadcasts(env.DB);
 const sendable = await countSendable(env.DB);
-const tags = await availableTags(env.DB, 80);
+const tags = await availableTags(env.DB, 1000);
 
 const statusLabel: Record<string, string> = {
   draft: 'Draft', sending: 'Sending', paused: 'Paused', done: 'Done',
@@ -138,10 +138,13 @@ const statusLabel: Record<string, string> = {
             </div>
             {tags.length > 0 && (
               <div class="bc-tagcloud">
-                <span class="bc-tagcloud-label">Your tags (click to include):</span>
-                {tags.map((t) => (
-                  <button type="button" class="bc-tagchip" data-tag={t.tag}>{t.tag} <span>{t.n.toLocaleString()}</span></button>
-                ))}
+                <span class="bc-tagcloud-label">Your {tags.length.toLocaleString()} tags — click to include, or type any tag name into the fields above.</span>
+                <input type="text" class="bc-tagsearch" placeholder="Filter tags…" />
+                <div class="bc-tagchips">
+                  {tags.map((t) => (
+                    <button type="button" class="bc-tagchip" data-tag={t.tag}>{t.tag} <span>{t.n.toLocaleString()}</span></button>
+                  ))}
+                </div>
               </div>
             )}
           </fieldset>
@@ -220,8 +223,10 @@ const statusLabel: Record<string, string> = {
     .bc-audience { border: 1px solid rgba(161,72,38,0.22); border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; margin: 0; }
     .bc-audience legend { font-size: 13px; color: #4a3848; padding: 0 6px; }
     .bc-aud-count { color: #a14826; font-weight: 600; }
-    .bc-tagcloud { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-    .bc-tagcloud-label { font-size: 12px; color: #6f5f6d; width: 100%; }
+    .bc-tagcloud { display: flex; flex-direction: column; gap: 8px; }
+    .bc-tagcloud-label { font-size: 12px; color: #6f5f6d; }
+    .bc-tagsearch { font: inherit; font-size: 13px; padding: 6px 10px; border: 1px solid rgba(161,72,38,0.3); border-radius: 8px; max-width: 260px; }
+    .bc-tagchips { display: flex; flex-wrap: wrap; gap: 6px; max-height: 168px; overflow: auto; }
     .bc-tagchip { font: inherit; font-size: 12px; cursor: pointer; border: 1px solid rgba(161,72,38,0.3); background: #fff; color: #4a3848; border-radius: 999px; padding: 3px 10px; }
     .bc-tagchip:hover { background: #f4ecdf; }
     .bc-tagchip span { color: #b6a8b4; }
@@ -286,6 +291,16 @@ const statusLabel: Record<string, string> = {
         if (!cur.includes(tag)) cur.push(tag);
         audInclude.value = cur.join(', ');
         updateAudience();
+      });
+    });
+
+    // Filter the tag chips as you type (the full list can be long).
+    document.querySelectorAll('.bc-tagsearch').forEach((inp) => {
+      inp.addEventListener('input', () => {
+        const q = inp.value.trim().toLowerCase();
+        inp.parentElement.querySelectorAll('.bc-tagchip').forEach((c) => {
+          c.style.display = !q || c.dataset.tag.includes(q) ? '' : 'none';
+        });
       });
     });
 

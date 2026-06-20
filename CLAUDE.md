@@ -117,9 +117,10 @@ e.g. a Drip export) and one-off `broadcasts` sent to it. Lives in
   same `withinSendWindow` 08:00–21:00 gate as lifecycle mail — truly local.
 - **Audience targeting**: a broadcast can include tags (match ANY), exclude
   tags, and one custom-field equals filter (e.g. `Nederlands = No`). The compose
-  page lists your tags with counts (click to add) and shows a live "X contacts
-  match" estimate (`/api/admin/broadcasts/audience`); the launch snapshot applies
-  the same `audienceWhere` criteria. Blank = the whole sendable list.
+  page lists all your tags with counts — searchable, click to add — and shows a
+  live "X contacts match" estimate (`/api/admin/broadcasts/audience`); the launch
+  snapshot applies the same `audienceWhere` criteria. Blank = the whole sendable
+  list. (Tag fields are free text too — any tag works, listed or not.)
 - **Compose / preview / test**: a broadcast is a draft with a **live preview**
   (the compose pages POST to `/api/admin/broadcasts/preview`, which renders the
   unsaved fields server-side). Two `format`s: `simple` (subject, heading,
