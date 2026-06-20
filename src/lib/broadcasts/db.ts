@@ -675,6 +675,82 @@ export async function pendingCount(db: D1Database, broadcastId: number): Promise
   return r?.n ?? 0;
 }
 
+// ── List cleaning (dead-domain removal) ────────────────────────────────────────
+// The domain of an email is substr(email, instr(email,'@')+1). We cache each
+// domain's deliverability in domain_status so it's resolved once.
+
+// Distinct pending domains for this broadcast not yet in the cache.
+export async function distinctUncheckedPendingDomains(
+  db: D1Database,
+  broadcastId: number,
+  limit: number,
+): Promise<string[]> {
+  const r = await db
+    .prepare(
+      `SELECT DISTINCT substr(email, instr(email, '@') + 1) AS domain
+         FROM broadcast_recipients
+        WHERE broadcast_id = ? AND status = 'pending'
+          AND substr(email, instr(email, '@') + 1) NOT IN (SELECT domain FROM domain_status)
+        LIMIT ?`,
+    )
+    .bind(broadcastId, limit)
+    .all<{ domain: string }>();
+  return (r.results ?? []).map((row) => row.domain);
+}
+
+export async function uncheckedPendingDomainCount(db: D1Database, broadcastId: number): Promise<number> {
+  const r = await db
+    .prepare(
+      `SELECT COUNT(*) AS n FROM (
+         SELECT DISTINCT substr(email, instr(email, '@') + 1) AS domain
+           FROM broadcast_recipients
+          WHERE broadcast_id = ? AND status = 'pending'
+            AND substr(email, instr(email, '@') + 1) NOT IN (SELECT domain FROM domain_status))`,
+    )
+    .bind(broadcastId)
+    .first<{ n: number }>();
+  return r?.n ?? 0;
+}
+
+export async function cacheDomainStatus(db: D1Database, domain: string, ok: boolean): Promise<void> {
+  await db
+    .prepare(`INSERT OR REPLACE INTO domain_status (domain, ok, checked_at) VALUES (?, ?, datetime('now'))`)
+    .bind(domain.toLowerCase(), ok ? 1 : 0)
+    .run();
+}
+
+// Mark every pending recipient at a dead domain as suppressed; returns how many.
+export async function suppressPendingByDomain(
+  db: D1Database,
+  broadcastId: number,
+  domain: string,
+): Promise<number> {
+  const r = await db
+    .prepare(
+      `UPDATE broadcast_recipients SET status = 'suppressed', error = 'invalid domain'
+        WHERE broadcast_id = ? AND status = 'pending'
+          AND substr(email, instr(email, '@') + 1) = ?`,
+    )
+    .bind(broadcastId, domain.toLowerCase())
+    .run();
+  return r.meta?.changes ?? 0;
+}
+
+// All still-pending recipients (for CSV export to an external validator).
+export async function pendingRecipientsForExport(
+  db: D1Database,
+  broadcastId: number,
+): Promise<Array<{ email: string; name: string | null }>> {
+  const r = await db
+    .prepare(
+      `SELECT email, name FROM broadcast_recipients
+        WHERE broadcast_id = ? AND status = 'pending' ORDER BY id`,
+    )
+    .bind(broadcastId)
+    .all<{ email: string; name: string | null }>();
+  return r.results ?? [];
+}
+
 // ── Engagement (reads the shared email_sends table) ────────────────────────────
 
 export type BroadcastStats = {

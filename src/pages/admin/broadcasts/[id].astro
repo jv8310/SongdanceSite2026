@@ -189,6 +189,22 @@ const statusLabel: Record<string, string> = {
             Open/click data flows in from the Resend webhook; it also appears on
             <a href="/admin/emails/stats">email stats</a> under “Broadcasts”.
           </p>
+
+          {counts.pending > 0 && (
+            <div class="bc-clean">
+              <strong>List health</strong>
+              <p>
+                Remove dead domains (no mail server / typo domains) from the
+                {' '}{counts.pending.toLocaleString()} still queued, to cut bounces before resuming.
+                For dead mailboxes at live providers (e.g. closed Gmail accounts),
+                <a href={`/api/admin/broadcasts/export?id=${b.id}`}>export the remaining list</a>
+                and run it through a validator, then re-import the verified-good addresses.
+              </p>
+              <button id="bc-clean" class="adm-btn" type="button" data-id={b.id}>Clean invalid domains</button>
+              <span id="bc-clean-msg" class="bc-msg"></span>
+            </div>
+          )}
+
           <div class="bc-actions">
             {b.status === 'sending' && <button class="adm-btn adm-btn--ghost bc-ctl" type="button" data-id={b.id} data-action="pause">Pause</button>}
             {b.status === 'paused' && <button class="adm-btn bc-ctl" type="button" data-id={b.id} data-action="resume">Resume</button>}
@@ -247,6 +263,10 @@ const statusLabel: Record<string, string> = {
     .bc-editnote { font-size: 12.5px; color: #a14826; background: #f9efe2; border: 1px solid rgba(161,72,38,0.22); border-radius: 8px; padding: 8px 12px; margin: 0 0 12px; }
     .bc-bodydetails summary { cursor: pointer; font-size: 13px; color: #a14826; }
     .bc-bodydetails pre { max-height: 320px; overflow: auto; background: #fbf6ec; border: 1px solid rgba(161,72,38,0.18); border-radius: 8px; padding: 12px; font-size: 12px; white-space: pre-wrap; word-break: break-word; margin: 6px 0 0; }
+    .bc-clean { border: 1px solid rgba(161,72,38,0.22); border-radius: 10px; padding: 14px 16px; margin: 0 0 16px; }
+    .bc-clean strong { font-size: 13px; }
+    .bc-clean p { font-size: 13px; color: #6f5f6d; line-height: 1.6; margin: 6px 0 10px; max-width: 70ch; }
+    .bc-clean a { color: #a14826; }
   </style>
 
   <script is:inline>
@@ -401,6 +421,37 @@ const statusLabel: Record<string, string> = {
         } catch (err) { m.textContent = 'Failed: ' + (err.message || err); }
       });
     });
+
+    // Clean invalid domains — loops the batch endpoint until no domains remain.
+    (function () {
+      const btn = document.getElementById('bc-clean');
+      if (!btn) return;
+      btn.addEventListener('click', async () => {
+        const msg = document.getElementById('bc-clean-msg');
+        btn.disabled = true;
+        let removed = 0;
+        let checked = 0;
+        msg.textContent = 'Checking domains…';
+        try {
+          for (;;) {
+            const res = await fetch('/api/admin/broadcasts/clean', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id: Number(btn.dataset.id) }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Clean failed');
+            removed += data.removed || 0;
+            checked += data.checked || 0;
+            msg.textContent = `Checked ${checked.toLocaleString()} domains · removed ${removed.toLocaleString()} invalid · ${Number(data.remaining).toLocaleString()} domains left…`;
+            if (!data.checked || data.remaining === 0) break;
+          }
+          msg.textContent = `Done — removed ${removed.toLocaleString()} addresses at dead domains. Reload to see updated counts, then Resume.`;
+        } catch (err) {
+          msg.textContent = 'Failed: ' + (err.message || err);
+        }
+        btn.disabled = false;
+      });
+    })();
 
     // Live refresh while a send is in flight — but never while the user is
     // mid-edit (would wipe unsaved changes); re-arm and wait instead.
