@@ -736,6 +736,31 @@ export async function suppressPendingByDomain(
   return r.meta?.changes ?? 0;
 }
 
+// Suppress every still-pending recipient that carries any of the given tags —
+// used to scrub already-queued contacts (e.g. ones Drip tagged undeliverable)
+// from a launched broadcast, since audience filters otherwise only apply at
+// launch. Returns how many were removed.
+export async function suppressPendingByTags(
+  db: D1Database,
+  broadcastId: number,
+  tagsRaw: string,
+): Promise<number> {
+  const tags = splitTags(tagsRaw);
+  if (tags.length === 0) return 0;
+  const r = await db
+    .prepare(
+      `UPDATE broadcast_recipients SET status = 'suppressed', error = 'excluded by tag'
+        WHERE broadcast_id = ? AND status = 'pending'
+          AND EXISTS (
+            SELECT 1 FROM contact_tags t
+             WHERE t.email = broadcast_recipients.email
+               AND t.tag IN (${tags.map(() => '?').join(',')}))`,
+    )
+    .bind(broadcastId, ...tags)
+    .run();
+  return r.meta?.changes ?? 0;
+}
+
 // All still-pending recipients (for CSV export to an external validator).
 export async function pendingRecipientsForExport(
   db: D1Database,
