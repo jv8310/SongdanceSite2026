@@ -34,9 +34,17 @@ export type CourseRegistration = {
   amount_cents: number;
   currency: string;
   status: 'pending' | 'paid' | 'cancelled' | 'refunded' | 'expired';
+  // Which gateway owns this row. 'stripe' for every legacy row (default).
+  provider: 'stripe' | 'paypal';
   stripe_session_id: string | null;
   stripe_payment_intent: string | null;
   stripe_subscription_id: string | null;
+  // PayPal counterparts (see migration 0049). paypal_order_id is the one-off
+  // Orders API order; paypal_capture_id the captured payment (refund target);
+  // paypal_subscription_id the installment subscription.
+  paypal_order_id: string | null;
+  paypal_capture_id: string | null;
+  paypal_subscription_id: string | null;
   subscription_status: SubscriptionStatus | null;
   payment_plan: PaymentPlan;
   installments_paid: number;
@@ -67,6 +75,8 @@ export type CreatePendingCourseRegistrationInput = {
   consent_terms: boolean;
   payment_plan: PaymentPlan;
   installments_total: number;
+  // Defaults to 'stripe' when omitted (every legacy caller).
+  provider?: 'stripe' | 'paypal';
 };
 
 export async function createPendingCourseRegistration(
@@ -79,10 +89,10 @@ export async function createPendingCourseRegistration(
        (email, first_name, last_name, country, phone, phone_country,
         company_name, vat_number,
         product_slug, activate_choice, source_variant,
-        amount_cents, currency, status,
+        amount_cents, currency, status, provider,
         payment_plan, installments_total,
         consent_terms, consent_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?)`,
     )
     .bind(
       input.email,
@@ -98,6 +108,7 @@ export async function createPendingCourseRegistration(
       input.source_variant,
       input.amount_cents,
       input.currency,
+      input.provider ?? 'stripe',
       input.payment_plan,
       input.installments_total,
       input.consent_terms ? 1 : 0,
@@ -336,4 +347,122 @@ export async function getCourseRegistrationByPaymentIntent(
     )
     .bind(paymentIntent)
     .first<CourseRegistration>();
+}
+
+// ─────────────────────────────────────────────────────────────────────
+//  PayPal mirrors of the Stripe helpers above. Same row, different ids;
+//  the webhook / return endpoint pick the path by `provider`.
+// ─────────────────────────────────────────────────────────────────────
+
+export async function attachPaypalOrderToCourse(
+  db: D1Database,
+  id: number,
+  orderId: string,
+) {
+  await db
+    .prepare('UPDATE course_registrations SET paypal_order_id = ? WHERE id = ?')
+    .bind(orderId, id)
+    .run();
+}
+
+export async function attachPaypalSubscriptionToCourse(
+  db: D1Database,
+  id: number,
+  subscriptionId: string,
+) {
+  await db
+    .prepare(
+      'UPDATE course_registrations SET paypal_subscription_id = ? WHERE id = ?',
+    )
+    .bind(subscriptionId, id)
+    .run();
+}
+
+export async function getCourseRegistrationByPaypalOrder(
+  db: D1Database,
+  orderId: string,
+) {
+  return db
+    .prepare('SELECT * FROM course_registrations WHERE paypal_order_id = ?')
+    .bind(orderId)
+    .first<CourseRegistration>();
+}
+
+export async function getCourseRegistrationByPaypalSubscription(
+  db: D1Database,
+  subscriptionId: string,
+) {
+  return db
+    .prepare(
+      'SELECT * FROM course_registrations WHERE paypal_subscription_id = ?',
+    )
+    .bind(subscriptionId)
+    .first<CourseRegistration>();
+}
+
+export async function getCourseRegistrationByPaypalCapture(
+  db: D1Database,
+  captureId: string,
+) {
+  return db
+    .prepare('SELECT * FROM course_registrations WHERE paypal_capture_id = ?')
+    .bind(captureId)
+    .first<CourseRegistration>();
+}
+
+// One-off / full-payment PayPal course paid (mirrors markCourseRegistrationPaid).
+export async function markCourseRegistrationPaidPaypal(
+  db: D1Database,
+  id: number,
+  captureId: string,
+) {
+  await db
+    .prepare(
+      `UPDATE course_registrations
+         SET status = 'paid',
+             paypal_capture_id = ?,
+             paid_at = datetime('now')
+       WHERE id = ? AND status != 'paid'`,
+    )
+    .bind(captureId, id)
+    .run();
+}
+
+// Bump installments_paid by 1 for a PayPal subscription cycle (mirrors
+// recordInstallmentPaid). Stores the first capture id as the refund anchor.
+export async function recordPaypalInstallmentPaid(
+  db: D1Database,
+  id: number,
+  captureId: string | null,
+) {
+  await db
+    .prepare(
+      `UPDATE course_registrations
+         SET installments_paid = installments_paid + 1,
+             status = CASE WHEN status IN ('cancelled','refunded') THEN status ELSE 'paid' END,
+             paypal_capture_id = COALESCE(paypal_capture_id, ?),
+             paid_at = COALESCE(paid_at, datetime('now'))
+       WHERE id = ?`,
+    )
+    .bind(captureId, id)
+    .run();
+}
+
+// Mirror a (normalised) PayPal subscription status onto the row, keyed by the
+// PayPal subscription id. Status is pre-mapped to the Stripe vocabulary via
+// normalizePaypalSubStatus so the forecast/badge stay provider-agnostic.
+export async function updateCourseSubscriptionStatusByPaypal(
+  db: D1Database,
+  subscriptionId: string,
+  subscriptionStatus: SubscriptionStatus,
+): Promise<boolean> {
+  const res = await db
+    .prepare(
+      `UPDATE course_registrations
+         SET subscription_status = ?
+       WHERE paypal_subscription_id = ?`,
+    )
+    .bind(subscriptionStatus, subscriptionId)
+    .run();
+  return (res.meta?.changes ?? 0) > 0;
 }

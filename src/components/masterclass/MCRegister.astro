@@ -12,6 +12,7 @@
 import type { CalItem } from '../workshop-english/types';
 import LaunchOfferCallout from '../promo/LaunchOfferCallout.astro';
 import MetaPixel from '../MetaPixel.astro';
+import { paypalConfigured } from '../../lib/payments/paypal';
 interface Props {
   items: CalItem[];
   country: string;
@@ -73,6 +74,9 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
 // registration page) so PageView + InitiateCheckout fire. Empty → renders
 // nothing.
 const pixelId = Astro.locals.runtime.env.META_PIXEL_ID ?? '';
+
+// Offer PayPal as a second gateway only when the direct PayPal app is wired up.
+const paypalAvailable = paypalConfigured(Astro.locals.runtime.env);
 ---
 
 <section class="we-register" id="register">
@@ -252,8 +256,20 @@ const pixelId = Astro.locals.runtime.env.META_PIXEL_ID ?? '';
           </div>
 
           <button type="submit" class="we-submit" id="mc-submit">Register &amp; pay →</button>
+
+          {paypalAvailable && (
+            <button
+              type="button"
+              class="we-submit"
+              id="mc-paypal"
+              style="margin-top:10px;background:#ffc439;color:#003087;"
+            >
+              Pay with <strong>PayPal</strong>
+            </button>
+          )}
+
           <p class="we-err" id="mc-err" hidden></p>
-          <p class="we-fine" id="mc-fine">Secure checkout via Stripe.</p>
+          <p class="we-fine" id="mc-fine">Secure checkout via Stripe{paypalAvailable ? ' or PayPal' : ''}.</p>
         </form>
       )}
     </div>
@@ -288,8 +304,19 @@ const pixelId = Astro.locals.runtime.env.META_PIXEL_ID ?? '';
     var totalLabel = document.getElementById('mc-total-label');
     var totalAmount = document.getElementById('mc-total-amount');
     var submitBtn = document.getElementById('mc-submit');
+    var paypalBtn = document.getElementById('mc-paypal');
     var err = document.getElementById('mc-err');
     var idField = document.getElementById('mc-event-id');
+
+    // Which gateway the next submit uses. The PayPal button flips it for one
+    // submit; everything else (incl. the Enter key) stays on Stripe.
+    var nextProvider = 'stripe';
+    if (paypalBtn) {
+      paypalBtn.addEventListener('click', function () {
+        nextProvider = 'paypal';
+        if (form.requestSubmit) form.requestSubmit(); else form.dispatchEvent(new Event('submit', { cancelable: true }));
+      });
+    }
 
     var SYMBOLS = { EUR: '€', USD: '$', CAD: 'CA$', GBP: '£', CHF: 'CHF ', NOK: 'kr ', SEK: 'kr ', DKK: 'kr ', AUD: 'A$', NZD: 'NZ$' };
     function money(minor, cur) {
@@ -431,7 +458,10 @@ const pixelId = Astro.locals.runtime.env.META_PIXEL_ID ?? '';
       e.preventDefault();
       if (!current) return;
       if (err) { err.hidden = true; err.textContent = ''; }
+      var provider = nextProvider;
+      nextProvider = 'stripe';
       submitBtn.disabled = true;
+      if (paypalBtn) paypalBtn.disabled = true;
       // Meta Pixel: the visitor is starting checkout (off to Stripe next).
       if (window.fbq) {
         try { window.fbq('track', 'InitiateCheckout', {}, { eventID: eventId }); } catch (e) {}
@@ -450,6 +480,7 @@ const pixelId = Astro.locals.runtime.env.META_PIXEL_ID ?? '';
         discount: fd.get('discount') || '',
         adiscount: fd.get('adiscount') || '',
         meta_event_id: fd.get('meta_event_id') || '',
+        provider: provider,
       };
       try {
         var res = await fetch('/api/workshops/register', {
@@ -463,6 +494,7 @@ const pixelId = Astro.locals.runtime.env.META_PIXEL_ID ?? '';
       } catch (e2) {
         if (err) { err.hidden = false; err.textContent = e2.message || 'Something went wrong.'; }
         submitBtn.disabled = false;
+        if (paypalBtn) paypalBtn.disabled = false;
       }
     });
   })();

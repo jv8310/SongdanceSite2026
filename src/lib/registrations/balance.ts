@@ -6,13 +6,26 @@
 // send (api/admin/balance/send-bulk). Mirrors the intake-invitation sender:
 // Resend for delivery, the existing Stripe helper for the checkout link.
 
-import { attachBalanceSession, logEvent, type Registration } from './db';
+import {
+  attachBalanceSession,
+  attachBalancePaypalOrder,
+  logEvent,
+  type Registration,
+} from './db';
 import { createCheckoutSession, paypalEnabled } from './stripe';
+import {
+  paypalConfigured,
+  createOrder as createPaypalOrder,
+} from '../payments/paypal';
+import { encodeCustomId } from '../payments/provider';
 
 export type BalanceEnv = {
   DB: D1Database;
   STRIPE_SECRET_KEY: string;
   STRIPE_ENABLE_PAYPAL?: string;
+  PAYPAL_CLIENT_ID?: string;
+  PAYPAL_CLIENT_SECRET?: string;
+  PAYPAL_ENV?: string;
   RESEND_API_KEY?: string;
   RESEND_INTAKES_FROM?: string;
   PUBLIC_BASE_URL?: string;
@@ -121,41 +134,75 @@ export async function sendBalanceInvite(
   if (!product || !tier) return { ok: false, error: 'product-or-tier-missing' };
 
   const baseUrl = (env.PUBLIC_BASE_URL || requestOrigin || '').replace(/\/+$/, '');
-  const currency = (reg.currency || product.currency || 'EUR').toLowerCase();
   const lineItemName = `${product.name} — ${tier.name} (remaining balance)`;
 
-  let session: { id: string; url: string };
-  try {
-    session = await createCheckoutSession({
-      secretKey: env.STRIPE_SECRET_KEY,
-      enablePaypal: paypalEnabled(env),
-      customer_email: reg.email,
-      success_url: `${baseUrl}/registrations/thanks?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${baseUrl}/retreats/dolphin-and-sound`,
-      payment_intent_description: lineItemName,
-      line_items: [
-        {
-          name: lineItemName,
-          amount_cents: balance,
-          currency,
-          quantity: 1,
+  // The balance link rides the SAME gateway the deposit was paid on, so a
+  // PayPal deposit settles via PayPal and a Stripe deposit via Stripe. The
+  // balance webhook (Stripe payment_kind=balance / PayPal balance:<id>) rolls
+  // the balance into amount_cents either way.
+  const usePaypal = reg.provider === 'paypal' && paypalConfigured(env);
+
+  let link: string;
+  let externalRef: string; // session id or order id, for logging + attach
+  if (usePaypal) {
+    try {
+      const order = await createPaypalOrder({
+        env,
+        currency: (reg.currency || product.currency || 'EUR').toUpperCase(),
+        items: [
+          { name: lineItemName, amountMinor: balance, category: 'PHYSICAL_GOODS' },
+        ],
+        customId: encodeCustomId('balance', reg.id),
+        description: lineItemName,
+        softDescriptor: 'SONGDANCE',
+        invoiceId: `balance-${reg.id}-${balance}`,
+        returnUrl: `${baseUrl}/api/payments/paypal-return?dest=${encodeURIComponent('/registrations/thanks')}`,
+        cancelUrl: `${baseUrl}/retreats/dolphin-and-sound`,
+        brandName: 'Songdance',
+        payer: { email: reg.email, countryCode: reg.country ?? undefined },
+        requestId: `balance-${reg.id}-${balance}-pp`,
+      });
+      link = order.approveUrl;
+      externalRef = order.id;
+    } catch (err) {
+      await logEvent(env.DB, {
+        registration_id: reg.id,
+        kind: 'registration.balance.checkout_error',
+        payload: { provider: 'paypal', error: String(err) },
+      });
+      return { ok: false, error: 'paypal-error' };
+    }
+  } else {
+    const currency = (reg.currency || product.currency || 'EUR').toLowerCase();
+    try {
+      const session = await createCheckoutSession({
+        secretKey: env.STRIPE_SECRET_KEY,
+        enablePaypal: paypalEnabled(env),
+        customer_email: reg.email,
+        success_url: `${baseUrl}/registrations/thanks?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${baseUrl}/retreats/dolphin-and-sound`,
+        payment_intent_description: lineItemName,
+        line_items: [
+          { name: lineItemName, amount_cents: balance, currency, quantity: 1 },
+        ],
+        metadata: {
+          registration_id: String(reg.id),
+          product_slug: product.slug,
+          tier_slug: tier.slug,
+          payment_kind: 'balance',
         },
-      ],
-      metadata: {
-        registration_id: String(reg.id),
-        product_slug: product.slug,
-        tier_slug: tier.slug,
-        payment_kind: 'balance',
-      },
-      idempotency_key: `balance-${reg.id}-${balance}`,
-    });
-  } catch (err) {
-    await logEvent(env.DB, {
-      registration_id: reg.id,
-      kind: 'registration.balance.checkout_error',
-      payload: { error: String(err) },
-    });
-    return { ok: false, error: 'stripe-error' };
+        idempotency_key: `balance-${reg.id}-${balance}`,
+      });
+      link = session.url;
+      externalRef = session.id;
+    } catch (err) {
+      await logEvent(env.DB, {
+        registration_id: reg.id,
+        kind: 'registration.balance.checkout_error',
+        payload: { error: String(err) },
+      });
+      return { ok: false, error: 'stripe-error' };
+    }
   }
 
   const email = buildBalanceEmail({
@@ -163,7 +210,7 @@ export async function sendBalanceInvite(
     event_name: product.name,
     amount_label: eur(balance),
     due_label: BALANCE_DUE_LABEL,
-    link: session.url,
+    link,
   });
 
   const sent = await sendViaResend({
@@ -179,17 +226,21 @@ export async function sendBalanceInvite(
     await logEvent(env.DB, {
       registration_id: reg.id,
       kind: 'registration.balance.email_error',
-      payload: { error: sent.error, session_id: session.id },
+      payload: { error: sent.error, ref: externalRef },
     });
     return { ok: false, error: sent.error };
   }
 
-  await attachBalanceSession(env.DB, reg.id, session.id);
+  if (usePaypal) {
+    await attachBalancePaypalOrder(env.DB, reg.id, externalRef);
+  } else {
+    await attachBalanceSession(env.DB, reg.id, externalRef);
+  }
   await logEvent(env.DB, {
     registration_id: reg.id,
     kind: 'registration.balance.invited',
     source: 'admin',
-    payload: { session_id: session.id, balance_cents: balance },
+    payload: { ref: externalRef, provider: usePaypal ? 'paypal' : 'stripe', balance_cents: balance },
   });
 
   return { ok: true };

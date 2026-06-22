@@ -7,7 +7,19 @@ import TWFooter from '../../../components/svh-twelve-week/TWFooter.astro';
 export const prerender = false;
 
 const sessionId = Astro.url.searchParams.get('session_id');
+const paypalOrder = Astro.url.searchParams.get('paypal_order');
+const paypalSub = Astro.url.searchParams.get('paypal_sub');
 const env = Astro.locals.runtime.env;
+// The PayPal return endpoint redirects here with paypal_order / paypal_sub
+// after it has already captured + fulfilled, so resolve the row by whichever
+// id we were handed.
+const lookup: [string, string] | null = sessionId
+  ? ['stripe_session_id', sessionId]
+  : paypalOrder
+    ? ['paypal_order_id', paypalOrder]
+    : paypalSub
+      ? ['paypal_subscription_id', paypalSub]
+      : null;
 
 type Row = {
   id: number;
@@ -18,14 +30,14 @@ type Row = {
 };
 
 let reg: Row | null = null;
-if (sessionId) {
+if (lookup) {
   reg = await env.DB
     .prepare(
       `SELECT id, first_name, email, status, payment_plan
          FROM course_registrations
-        WHERE stripe_session_id = ?`,
+        WHERE ${lookup[0]} = ?`,
     )
-    .bind(sessionId)
+    .bind(lookup[1])
     .first<Row>();
 }
 

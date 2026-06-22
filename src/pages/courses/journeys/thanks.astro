@@ -5,7 +5,14 @@ import Layout from '../../../layouts/Layout.astro';
 export const prerender = false;
 
 const sessionId = Astro.url.searchParams.get('session_id');
+const paypalOrder = Astro.url.searchParams.get('paypal_order');
 const env = Astro.locals.runtime.env;
+// PayPal returns here with paypal_order (one-off) after capture + fulfillment.
+const lookup: [string, string] | null = sessionId
+  ? ['stripe_session_id', sessionId]
+  : paypalOrder
+    ? ['paypal_order_id', paypalOrder]
+    : null;
 
 type Row = {
   id: number;
@@ -16,14 +23,14 @@ type Row = {
 };
 
 let reg: Row | null = null;
-if (sessionId) {
+if (lookup) {
   reg = await env.DB
     .prepare(
       `SELECT id, first_name, email, status, product_slug
          FROM course_registrations
-        WHERE stripe_session_id = ?`,
+        WHERE ${lookup[0]} = ?`,
     )
-    .bind(sessionId)
+    .bind(lookup[1])
     .first<Row>();
 }
 

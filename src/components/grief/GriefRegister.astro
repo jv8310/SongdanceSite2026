@@ -1,8 +1,11 @@
 ---
 import { COUNTRIES } from '../../lib/countries';
 import LaunchOfferCallout from '../promo/LaunchOfferCallout.astro';
+import { paypalConfigured } from '../../lib/payments/paypal';
 
 const countries = COUNTRIES;
+// Offer PayPal as a second gateway only when the direct PayPal app is wired up.
+const paypalAvailable = paypalConfigured(Astro.locals.runtime.env);
 ---
 
 <section class="gr-section gr-register" id="register">
@@ -98,9 +101,20 @@ const countries = COUNTRIES;
           <i class="ph-light ph-arrow-right"></i>
         </button>
 
+        {paypalAvailable && (
+          <button
+            type="button"
+            class="gr-btn gr-btn--paypal gr-checkout-cta"
+            data-gr-paypal
+            style="margin-top:10px;background:#ffc439;color:#003087;"
+          >
+            <span>Pay with <strong>PayPal</strong></span>
+          </button>
+        )}
+
         <p class="gr-checkout-trust">
           <i class="ph-light ph-lock-simple"></i>
-          Secure checkout by Stripe. Invoice by Quaderno.
+          Secure checkout by Stripe{paypalAvailable ? ' or PayPal' : ''}. Invoice by Quaderno.
         </p>
       </form>
     </div>
@@ -224,6 +238,14 @@ const countries = COUNTRIES;
     const vatInput = form.querySelector<HTMLInputElement>('[name="vat_number"]')!;
     const errorEl = form.querySelector<HTMLElement>('[data-gr-error]')!;
     const cta = form.querySelector<HTMLButtonElement>('[data-gr-cta]')!;
+    const paypalBtn = form.querySelector<HTMLButtonElement>('[data-gr-paypal]');
+    // Which gateway the next submit uses. The PayPal button flips it for one
+    // submit; everything else (incl. the Enter key) stays on Stripe.
+    let nextProvider: 'stripe' | 'paypal' = 'stripe';
+    paypalBtn?.addEventListener('click', () => {
+      nextProvider = 'paypal';
+      form.requestSubmit();
+    });
 
     let currency: Currency = 'EUR';
 
@@ -330,9 +352,17 @@ const countries = COUNTRIES;
       if (vat_number && !company_name) return fail('Please add your company name to use a VAT number.');
       if (!consent_terms) return fail('Please agree to the terms to continue.');
 
+      const provider = nextProvider;
+      nextProvider = 'stripe';
       const original = cta.innerHTML;
       cta.disabled = true;
+      if (paypalBtn) paypalBtn.disabled = true;
       cta.innerHTML = '<span>Opening secure checkout…</span>';
+      const restore = () => {
+        cta.disabled = false;
+        if (paypalBtn) paypalBtn.disabled = false;
+        cta.innerHTML = original;
+      };
 
       try {
         const res = await fetch('/api/courses/grief-checkout', {
@@ -347,6 +377,7 @@ const countries = COUNTRIES;
             vat_number: vat_number || undefined,
             currency,
             consent_terms: true,
+            provider,
             ...(discountPct > 0 ? { discount_percent: discountPct } : {}),
           }),
         });
@@ -354,15 +385,13 @@ const countries = COUNTRIES;
         try { body = (await res.json()) as typeof body; } catch {}
         if (!res.ok || !body.checkout_url) {
           fail(body.error || `Could not start checkout (HTTP ${res.status}). Please try again.`);
-          cta.disabled = false;
-          cta.innerHTML = original;
+          restore();
           return;
         }
         window.location.href = body.checkout_url;
       } catch {
         fail('We could not reach the server. Please try again.');
-        cta.disabled = false;
-        cta.innerHTML = original;
+        restore();
       }
     });
   }

@@ -1,8 +1,11 @@
 ---
 import { COUNTRIES } from '../../lib/countries';
 import LaunchOfferCallout from '../promo/LaunchOfferCallout.astro';
+import { paypalConfigured } from '../../lib/payments/paypal';
 
 const countries = COUNTRIES;
+// Offer PayPal as a second gateway only when the direct PayPal app is wired up.
+const paypalAvailable = paypalConfigured(Astro.locals.runtime.env);
 ---
 
 <section class="cc-register" id="register">
@@ -151,6 +154,17 @@ const countries = COUNTRIES;
             <i class="ph-light ph-arrow-right"></i>
           </button>
 
+          {paypalAvailable && (
+            <button
+              type="button"
+              class="cc-checkout-cta"
+              data-slot="checkout-paypal"
+              style="margin-top:10px;background:#ffc439;color:#003087;"
+            >
+              <span>Pay with <strong>PayPal</strong></span>
+            </button>
+          )}
+
           <p class="cc-soft-fallback" data-slot="fallback"></p>
           <p class="cc-register-error" data-slot="error"></p>
         </div>
@@ -262,6 +276,11 @@ const countries = COUNTRIES;
   type PaymentPlan = 'full' | '3x' | '6x' | '12x';
 
   let pathCountdownTimer: number | undefined;
+
+  // Which gateway the next checkout uses. The PayPal button flips it for one
+  // submit; everything else stays on Stripe. Captured + reset inside
+  // startCheckout so it never leaks into a later checkout.
+  let nextProvider: 'stripe' | 'paypal' = 'stripe';
 
   type CopyFn = (
     week?: number,
@@ -979,9 +998,17 @@ const countries = COUNTRIES;
     // Single bottom CTA: collects all the form state + selection state and
     // hands off to /api/courses/checkout.
     const checkoutCta = root.querySelector('[data-slot="checkout-cta"]') as HTMLButtonElement;
+    const paypalCta = root.querySelector('[data-slot="checkout-paypal"]') as HTMLButtonElement | null;
     checkoutCta.addEventListener('click', () =>
-      startCheckout(root, email, decision, selectedOfferSlug, selectedPlan, checkoutCta),
+      startCheckout(root, email, decision, selectedOfferSlug, selectedPlan, checkoutCta, paypalCta),
     );
+    // The PayPal button runs the exact same submission path, just flipping the
+    // gateway for that one checkout (full pay or any installment plan — the
+    // backend handles both).
+    paypalCta?.addEventListener('click', () => {
+      nextProvider = 'paypal';
+      startCheckout(root, email, decision, selectedOfferSlug, selectedPlan, checkoutCta, paypalCta);
+    });
 
     // Below the cards: soft fallback link copy for A and D variants only.
     const fallback = root.querySelector('[data-slot="fallback"]') as HTMLElement;
@@ -1149,6 +1176,7 @@ const countries = COUNTRIES;
     productSlug: Offer['slug'],
     paymentPlan: PaymentPlan,
     btn: HTMLButtonElement,
+    paypalBtn?: HTMLButtonElement | null,
   ) {
     const errorSlot = root.querySelector('[data-slot="error"]') as HTMLElement;
     errorSlot.textContent = '';
@@ -1193,9 +1221,20 @@ const countries = COUNTRIES;
         ? activateRaw
         : 'now';
 
+    // Capture the chosen gateway for this submit, then reset so the next
+    // checkout defaults back to Stripe.
+    const provider = nextProvider;
+    nextProvider = 'stripe';
+
     const originalLabel = btn.innerHTML;
     btn.disabled = true;
+    if (paypalBtn) paypalBtn.disabled = true;
     btn.innerHTML = '<span>Opening secure checkout…</span>';
+    const restore = () => {
+      btn.disabled = false;
+      if (paypalBtn) paypalBtn.disabled = false;
+      btn.innerHTML = originalLabel;
+    };
 
     try {
       const res = await fetch('/api/courses/checkout', {
@@ -1216,6 +1255,7 @@ const countries = COUNTRIES;
           activate_choice,
           source_variant: decision.variant,
           consent_terms: true,
+          provider,
           ...(discountPct > 0 ? { discount_percent: discountPct } : {}),
         }),
       });
@@ -1228,15 +1268,13 @@ const countries = COUNTRIES;
       }
       if (!res.ok || !body.checkout_url) {
         fail(body.error || `Could not start checkout (HTTP ${res.status}). Please try again.`);
-        btn.disabled = false;
-        btn.innerHTML = originalLabel;
+        restore();
         return;
       }
       window.location.href = body.checkout_url;
     } catch {
       fail('We could not reach the server. Please try again.');
-      btn.disabled = false;
-      btn.innerHTML = originalLabel;
+      restore();
     }
   }
 

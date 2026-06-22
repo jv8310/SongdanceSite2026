@@ -2,6 +2,8 @@ import type { APIRoute } from 'astro';
 import { readCookie, verifySession } from '../../../lib/registrations/auth';
 import { logEvent } from '../../../lib/registrations/db';
 import { createRefund } from '../../../lib/registrations/stripe';
+import { refundCapture, refundSale } from '../../../lib/payments/paypal';
+import { recordPaypalRefund } from '../../../lib/payments/paypal-fulfill';
 import {
   isRefundable,
   listAllOrders,
@@ -39,7 +41,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
   if (!order) {
     return redirect(returnTo, { flash: 'refund_error', msg: 'Order not found' });
   }
-  if (!isRefundable(order) || !order.paymentIntent) {
+  if (!isRefundable(order)) {
     return redirect(returnTo, {
       flash: 'refund_error',
       msg: 'Order is not refundable',
@@ -66,6 +68,76 @@ export const POST: APIRoute = async ({ request, locals }) => {
         msg: 'Amount exceeds what is left to refund',
       });
     }
+  }
+
+  // ── PayPal refund. Subscription installments are v1 "sale" objects (refund
+  //    via the sale endpoint); one-off captures use the v2 captures endpoint.
+  //    Unlike Stripe (webhook is the single writer), we record the refund here
+  //    too — idempotent on the refund id, so a later webhook never re-counts it.
+  if (order.provider === 'paypal') {
+    if (!order.paypalCaptureId) {
+      return redirect(returnTo, { flash: 'refund_error', msg: 'No PayPal payment to refund' });
+    }
+    try {
+      const currency = order.originalCurrency;
+      const refund = order.paypalSubscriptionId
+        ? await refundSale({
+            env,
+            saleId: order.paypalCaptureId,
+            amountMinor,
+            currency,
+            noteToPayer: `Refund for ${order.orderNo}`,
+          })
+        : await refundCapture({
+            env,
+            captureId: order.paypalCaptureId,
+            amountMinor,
+            currency,
+            noteToPayer: `Refund for ${order.orderNo}`,
+            customId: order.orderNo,
+          });
+      const delta = refund.amountMinor ?? amountMinor ?? remaining;
+      await recordPaypalRefund(env as any, {
+        refundId: refund.id,
+        captureId: order.paypalCaptureId,
+        amountMinor: delta,
+        currency,
+      });
+      await logEvent(env.DB, {
+        registration_id: order.source === 'retreat' ? order.rowId : null,
+        kind: 'admin.refund.requested',
+        source: 'admin',
+        external_id: `paypal-refund-${refund.id}`,
+        payload: {
+          order_no: order.orderNo,
+          source: order.source,
+          row_id: order.rowId,
+          provider: 'paypal',
+          capture_id: order.paypalCaptureId,
+          refund_id: refund.id,
+          amount_minor: delta,
+          currency,
+          full: amountMinor == null,
+        },
+      });
+      const amtMajor = (delta / 100).toFixed(2);
+      return redirect(returnTo, {
+        flash: 'refund_ok',
+        msg: `PayPal refund of ${amtMajor} ${currency} submitted for ${order.orderNo}`,
+      });
+    } catch (err) {
+      await logEvent(env.DB, {
+        registration_id: null,
+        kind: 'admin.refund.failed',
+        source: 'admin',
+        payload: { order_no: order.orderNo, provider: 'paypal', error: String(err) },
+      });
+      return redirect(returnTo, { flash: 'refund_error', msg: 'PayPal refund failed — see logs' });
+    }
+  }
+
+  if (!order.paymentIntent) {
+    return redirect(returnTo, { flash: 'refund_error', msg: 'Order is not refundable' });
   }
 
   try {

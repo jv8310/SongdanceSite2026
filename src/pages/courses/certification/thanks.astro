@@ -7,7 +7,18 @@ import CCFooter from '../../../components/certification-course/CCFooter.astro';
 export const prerender = false;
 
 const sessionId = Astro.url.searchParams.get('session_id');
+const paypalOrder = Astro.url.searchParams.get('paypal_order');
+const paypalSub = Astro.url.searchParams.get('paypal_sub');
 const env = Astro.locals.runtime.env;
+// PayPal returns here with paypal_order (one-off) or paypal_sub (installments)
+// after capture / subscription confirmation.
+const lookup: [string, string] | null = sessionId
+  ? ['stripe_session_id', sessionId]
+  : paypalOrder
+    ? ['paypal_order_id', paypalOrder]
+    : paypalSub
+      ? ['paypal_subscription_id', paypalSub]
+      : null;
 
 type Row = {
   id: number;
@@ -23,16 +34,16 @@ type Row = {
 };
 
 let reg: Row | null = null;
-if (sessionId) {
+if (lookup) {
   reg = await env.DB
     .prepare(
       `SELECT id, first_name, last_name, email, product_slug,
               payment_plan, installments_paid, installments_total, status,
               activate_choice
          FROM course_registrations
-        WHERE stripe_session_id = ?`,
+        WHERE ${lookup[0]} = ?`,
     )
-    .bind(sessionId)
+    .bind(lookup[1])
     .first<Row>();
 }
 

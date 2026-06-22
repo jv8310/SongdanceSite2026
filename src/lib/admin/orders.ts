@@ -56,7 +56,11 @@ export type UnifiedOrder = {
   netEurMinor: number | null;
   netKind: NetKind;
   refundedMinor: number;
-  paymentIntent: string | null;
+  // Which gateway charged this order.
+  provider: 'stripe' | 'paypal';
+  paymentIntent: string | null; // Stripe PaymentIntent (refund target)
+  paypalCaptureId: string | null; // PayPal capture / sale id (refund target)
+  paypalSubscriptionId: string | null; // set → a PayPal installment plan
   quadernoInvoiceId: string | null;
   createdAt: string;
   paidAt: string | null;
@@ -198,7 +202,9 @@ type RetreatRow = {
   amount_cents: number;
   currency: string;
   refunded_amount_cents: number;
+  provider: string | null;
   stripe_payment_intent: string | null;
+  paypal_capture_id: string | null;
   quaderno_invoice_id: string | null;
   created_at: string;
   paid_at: string | null;
@@ -215,7 +221,8 @@ async function loadRetreatOrders(
     .prepare(
       `SELECT r.id, r.first_name, r.last_name, r.name, r.email, r.status,
               r.amount_cents, r.currency, r.refunded_amount_cents,
-              r.stripe_payment_intent, r.quaderno_invoice_id,
+              r.provider, r.stripe_payment_intent, r.paypal_capture_id,
+              r.quaderno_invoice_id,
               r.created_at, r.paid_at,
               p.name AS product_name, p.vat_rate AS vat_rate
          FROM registrations r
@@ -247,7 +254,10 @@ async function loadRetreatOrders(
       netEurMinor,
       netKind,
       refundedMinor: r.refunded_amount_cents ?? 0,
+      provider: r.provider === 'paypal' ? 'paypal' : 'stripe',
       paymentIntent: r.stripe_payment_intent,
+      paypalCaptureId: r.paypal_capture_id,
+      paypalSubscriptionId: null,
       quadernoInvoiceId: r.quaderno_invoice_id,
       createdAt: r.created_at,
       paidAt: r.paid_at,
@@ -267,7 +277,10 @@ type CourseRow = {
   amount_cents: number;
   currency: string;
   refunded_amount_cents: number;
+  provider: string | null;
   stripe_payment_intent: string | null;
+  paypal_capture_id: string | null;
+  paypal_subscription_id: string | null;
   product_slug: string;
   created_at: string;
   paid_at: string | null;
@@ -282,7 +295,8 @@ async function loadCourseOrders(
     .prepare(
       `SELECT id, first_name, last_name, email, country, status,
               amount_cents, currency, refunded_amount_cents,
-              stripe_payment_intent, product_slug, created_at, paid_at
+              provider, stripe_payment_intent, paypal_capture_id,
+              paypal_subscription_id, product_slug, created_at, paid_at
          FROM course_registrations
         ORDER BY created_at DESC`,
     )
@@ -320,7 +334,10 @@ async function loadCourseOrders(
       netEurMinor,
       netKind,
       refundedMinor: r.refunded_amount_cents ?? 0,
+      provider: r.provider === 'paypal' ? 'paypal' : 'stripe',
       paymentIntent: r.stripe_payment_intent,
+      paypalCaptureId: r.paypal_capture_id,
+      paypalSubscriptionId: r.paypal_subscription_id,
       quadernoInvoiceId: null,
       createdAt: r.created_at,
       paidAt: r.paid_at,
@@ -349,7 +366,9 @@ type WorkshopPayRow = {
   settlement_amount_minor: number | null;
   settlement_currency: string | null;
   subtotal_minor: number | null;
+  provider: string | null;
   stripe_payment_intent_id: string | null;
+  paypal_capture_id: string | null;
   quaderno_invoice_id: string | null;
   status: string;
 };
@@ -379,7 +398,8 @@ async function loadWorkshopOrders(
     .prepare(
       `SELECT registration_id, amount_minor, currency AS pay_currency,
               settlement_amount_minor, settlement_currency, subtotal_minor,
-              stripe_payment_intent_id, quaderno_invoice_id, status
+              provider, stripe_payment_intent_id, paypal_capture_id,
+              quaderno_invoice_id, status
          FROM workshop_payments
         WHERE registration_id IN (${ph}) AND status IN ('paid','refunded')
         ORDER BY created_at ASC`,
@@ -460,7 +480,10 @@ async function loadWorkshopOrders(
       netEurMinor,
       netKind,
       refundedMinor,
+      provider: pay?.provider === 'paypal' ? 'paypal' : 'stripe',
       paymentIntent: pay?.stripe_payment_intent_id ?? null,
+      paypalCaptureId: pay?.paypal_capture_id ?? null,
+      paypalSubscriptionId: null,
       quadernoInvoiceId: pay?.quaderno_invoice_id ?? null,
       createdAt: r.created_at,
       paidAt: null,
@@ -524,11 +547,14 @@ export function refundableMinor(o: UnifiedOrder): number {
   return Math.max(0, o.originalAmountMinor - o.refundedMinor);
 }
 
-// Can this order be refunded from the admin? Needs a PaymentIntent to target,
-// a positive charge, and money still left to give back.
+// Can this order be refunded from the admin? Needs a charge to target (a Stripe
+// PaymentIntent or a PayPal capture/sale id), a positive amount, and money still
+// left to give back.
 export function isRefundable(o: UnifiedOrder): boolean {
+  const hasTarget =
+    o.provider === 'paypal' ? !!o.paypalCaptureId : !!o.paymentIntent;
   return (
-    !!o.paymentIntent &&
+    hasTarget &&
     o.originalAmountMinor > 0 &&
     refundableMinor(o) > 0 &&
     o.statusClass !== 'pending'

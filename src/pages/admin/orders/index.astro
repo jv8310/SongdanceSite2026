@@ -198,6 +198,9 @@ const refundedTotal = orders.reduce((s, o) => s + o.refundedMinor, 0);
                   <td>
                     <span class="adm-mono">{o.orderNo}</span>
                     <span class={`adm-pill adm-pill--src-${o.source}`}>{SOURCE_LABEL[o.source]}</span>
+                    {o.provider === 'paypal' && (
+                      <span class="adm-pill" style="background:#003087;color:#fff;">PayPal</span>
+                    )}
                   </td>
                   <td>{o.productLabel}</td>
                   <td>{name}</td>

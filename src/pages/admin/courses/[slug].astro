@@ -67,9 +67,13 @@ type Row = {
   amount_cents: number;
   currency: string;
   status: string;
+  provider: string | null;
   stripe_session_id: string | null;
   stripe_payment_intent: string | null;
   stripe_subscription_id: string | null;
+  paypal_order_id: string | null;
+  paypal_capture_id: string | null;
+  paypal_subscription_id: string | null;
   subscription_status: string | null;
   payment_plan: 'full' | '3x' | '6x' | '12x';
   installments_paid: number;
@@ -86,7 +90,9 @@ const q = await env.DB
     `SELECT id, email, first_name, last_name, country, phone, phone_country,
             product_slug, activate_choice, source_variant,
             amount_cents, currency, status,
+            provider,
             stripe_session_id, stripe_payment_intent, stripe_subscription_id,
+            paypal_order_id, paypal_capture_id, paypal_subscription_id,
             subscription_status,
             payment_plan, installments_paid, installments_total,
             created_at, paid_at, cancelled_at, refunded_at,
@@ -310,6 +316,27 @@ function showSubBadge(rowStatus: string, subStatus: string | null): boolean {
                   <div class="adm-reg-detail--full">
                     <dt>Payment intent</dt>
                     <dd class="adm-mono">{r.stripe_payment_intent}</dd>
+                  </div>
+                )}
+                {r.provider === 'paypal' && (
+                  <div><dt>Gateway</dt><dd>PayPal</dd></div>
+                )}
+                {r.paypal_subscription_id && (
+                  <div class="adm-reg-detail--full">
+                    <dt>PayPal subscription</dt>
+                    <dd class="adm-mono">{r.paypal_subscription_id}</dd>
+                  </div>
+                )}
+                {r.paypal_order_id && (
+                  <div class="adm-reg-detail--full">
+                    <dt>PayPal order</dt>
+                    <dd class="adm-mono">{r.paypal_order_id}</dd>
+                  </div>
+                )}
+                {r.paypal_capture_id && (
+                  <div class="adm-reg-detail--full">
+                    <dt>PayPal capture</dt>
+                    <dd class="adm-mono">{r.paypal_capture_id}</dd>
                   </div>
                 )}
               </dl>

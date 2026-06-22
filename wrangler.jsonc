@@ -45,7 +45,11 @@
     // Offer PayPal in Stripe Checkout (one-off payments). Flip to "true" ONLY
     // after activating PayPal in the Stripe Dashboard (Settings → Payment
     // methods) — listing an un-activated method makes Stripe reject the session.
-    "STRIPE_ENABLE_PAYPAL": "false"
+    "STRIPE_ENABLE_PAYPAL": "false",
+    // Direct PayPal gateway host: "sandbox" hits api-m.sandbox.paypal.com,
+    // anything else (or unset) hits the live host. The actual credentials
+    // (PAYPAL_CLIENT_ID / PAYPAL_CLIENT_SECRET / PAYPAL_WEBHOOK_ID) are secrets.
+    "PAYPAL_ENV": "live"
   },
   // Cron triggers → the worker's `scheduled` handler dispatches by cron string
   // (see src/worker-entrypoint.ts):
@@ -59,6 +63,8 @@
   //   STRIPE_SECRET_KEY
   //   STRIPE_WEBHOOK_SECRET
   //   STRIPE_PUBLISHABLE_KEY
+  //   PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET     (direct PayPal gateway — optional)
+  //   PAYPAL_WEBHOOK_ID                          (verify PayPal webhooks — optional)
   //   QUADERNO_API_KEY
   //   DRIP_API_TOKEN
   //   DRIP_ACCOUNT_ID

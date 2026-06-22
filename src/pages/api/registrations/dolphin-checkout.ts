@@ -6,6 +6,7 @@ import {
   pickRoomForTier,
   createPendingRegistration,
   attachStripeSession,
+  attachPaypalOrder,
   logEvent,
 } from '../../../lib/registrations/db';
 import {
@@ -14,6 +15,11 @@ import {
   paypalEnabled,
   stripeTaxIdTypeFor,
 } from '../../../lib/registrations/stripe';
+import {
+  paypalConfigured,
+  createOrder as createPaypalOrder,
+} from '../../../lib/payments/paypal';
+import { encodeCustomId, parseProvider } from '../../../lib/payments/provider';
 import { findCountry } from '../../../lib/countries';
 
 export const prerender = false;
@@ -89,6 +95,7 @@ type Body = {
   notes?: string;
   payment_mode?: 'full' | 'deposit';
   consent_terms?: boolean;
+  provider?: string; // 'stripe' (default) | 'paypal'
 };
 
 export const POST: APIRoute = async ({ request, locals }) => {
@@ -110,6 +117,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const companyName = (payload.company_name ?? '').trim();
   const vatNumber = (payload.vat_number ?? '').trim();
   const isDeposit = payload.payment_mode === 'deposit';
+  const provider = parseProvider(payload.provider);
+  if (provider === 'paypal' && !paypalConfigured(env)) {
+    return json({ error: 'PayPal is not available right now. Please pay by card.' }, 400);
+  }
 
   if (!PUBLIC_TIER_SLUGS.includes(tierSlug)) {
     return json({ error: 'Please choose a cabin.' }, 400);
@@ -203,6 +214,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
     ? `+${phoneCountry.dial}${phoneLocal.replace(/[^0-9]/g, '')}`
     : phoneLocal;
 
+  // The receipt line — reused as the PaymentIntent / PayPal item name.
+  const lineItemName = isDeposit
+    ? `${product.name} — ${tier.name} (50% deposit, balance ${eur(balanceCents)} due ${BALANCE_DUE})`
+    : `${product.name} — ${tier.name}`;
+
   const registrationId = await createPendingRegistration(env.DB, {
     product_id: product.id,
     tier_id: tier.id,
@@ -225,9 +241,52 @@ export const POST: APIRoute = async ({ request, locals }) => {
     currency: product.currency,
     hold_minutes: HOLD_MINUTES,
     balance_due_cents: balanceCents,
+    provider,
   });
 
   const baseUrl = env.PUBLIC_BASE_URL.replace(/\/$/, '');
+
+  // ── PayPal branch (one-off / 50% deposit). Same receipt line as Stripe so
+  //    the PayPal→Quaderno invoice reads right; physical event → physical goods.
+  if (provider === 'paypal') {
+    const order = await createPaypalOrder({
+      env,
+      currency: product.currency,
+      items: [
+        {
+          name: lineItemName,
+          description: tier.description ?? undefined,
+          amountMinor: amountCents,
+          category: 'PHYSICAL_GOODS',
+        },
+      ],
+      customId: encodeCustomId('retreat', registrationId),
+      description: lineItemName,
+      softDescriptor: 'SONGDANCE',
+      invoiceId: `reg-${registrationId}`,
+      returnUrl: `${baseUrl}/api/payments/paypal-return?dest=${encodeURIComponent('/registrations/thanks')}`,
+      cancelUrl: `${baseUrl}/retreats/dolphin-and-sound#register`,
+      brandName: 'Songdance',
+      payer: { email, firstName, lastName, countryCode },
+      requestId: `reg-${registrationId}-pp`,
+    });
+    await attachPaypalOrder(env.DB, registrationId, order.id);
+    await logEvent(env.DB, {
+      registration_id: registrationId,
+      kind: 'checkout.paypal.order.created',
+      external_id: `local-checkout-pp-${registrationId}`,
+      payload: {
+        order_id: order.id,
+        tier: tier.slug,
+        auto_assigned_room: room.name,
+        auto_assigned_room_id: room.id,
+        payment_mode: isDeposit ? 'deposit' : 'full',
+        amount_cents: amountCents,
+        deposit_balance_cents: balanceCents,
+      },
+    });
+    return json({ checkout_url: order.approveUrl, registration_id: registrationId });
+  }
 
   // Pre-create a Stripe Customer so Checkout pre-fills email/name/country
   // (and attaches the VAT number for B2B). Mirrors the château flow.
@@ -263,10 +322,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
       payload: { error: String(err) },
     });
   }
-
-  const lineItemName = isDeposit
-    ? `${product.name} — ${tier.name} (50% deposit, balance ${eur(balanceCents)} due ${BALANCE_DUE})`
-    : `${product.name} — ${tier.name}`;
 
   const session = await createCheckoutSession({
     secretKey: env.STRIPE_SECRET_KEY,

@@ -10,6 +10,17 @@ type Env = {
   // "true" offers PayPal in Checkout (one-off payments). Requires PayPal to be
   // activated in the Stripe Dashboard first — see paypalEnabled() in stripe.ts.
   STRIPE_ENABLE_PAYPAL?: string;
+  // ── Direct PayPal gateway (separate from PayPal-via-Stripe above) ──
+  // A PayPal Business app's REST credentials. When both client id + secret are
+  // set, PayPal is offered as a second gateway alongside Stripe (one-off via
+  // Orders API, installments via Subscriptions API). See src/lib/payments/paypal.ts.
+  PAYPAL_CLIENT_ID?: string;
+  PAYPAL_CLIENT_SECRET?: string;
+  // 'sandbox' to hit the PayPal sandbox host; anything else (or unset) = live.
+  PAYPAL_ENV?: string;
+  // The webhook id from the PayPal Dashboard (Apps → Webhooks). Needed to
+  // verify inbound webhook signatures at /api/payments/paypal-webhook.
+  PAYPAL_WEBHOOK_ID?: string;
   QUADERNO_API_KEY: string;
   QUADERNO_ACCOUNT: string;
   QUADERNO_SANDBOX?: string;

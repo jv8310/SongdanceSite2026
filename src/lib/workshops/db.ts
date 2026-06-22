@@ -67,6 +67,9 @@ export type WorkshopPayment = {
   stripe_session_id: string | null;
   stripe_payment_intent_id: string | null;
   stripe_charge_id: string | null;
+  // PayPal counterparts (see migration 0049).
+  paypal_order_id: string | null;
+  paypal_capture_id: string | null;
   balance_transaction_id: string | null;
   status: string;
   method: string | null;
@@ -748,6 +751,77 @@ export async function setPaymentStatusByIntent(db: D1Database, paymentIntentId: 
   await db
     .prepare("UPDATE workshop_payments SET status = ?, updated_at = datetime('now') WHERE stripe_payment_intent_id = ?")
     .bind(status, paymentIntentId)
+    .run();
+}
+
+// ── PayPal workshop payments (provider='paypal') ─────────────────────────
+
+export async function getPaymentByPaypalCapture(db: D1Database, captureId: string) {
+  return db
+    .prepare('SELECT * FROM workshop_payments WHERE paypal_capture_id = ?')
+    .bind(captureId)
+    .first<WorkshopPayment>();
+}
+
+// Insert a PayPal workshop payment, deduped on the capture id (so the return
+// endpoint + webhook backstop never double-insert). Returns the row id.
+export async function upsertPaypalPayment(
+  db: D1Database,
+  p: {
+    registration_id: number;
+    paypal_order_id: string | null;
+    paypal_capture_id: string;
+    status: string;
+    amount_minor: number;
+    currency: string;
+    tax_rate?: number | null;
+    tax_country?: string | null;
+    subtotal_minor?: number | null;
+    tax_minor?: number | null;
+    raw_event?: unknown;
+  },
+): Promise<number> {
+  const existing = await getPaymentByPaypalCapture(db, p.paypal_capture_id);
+  if (existing) {
+    await db
+      .prepare(
+        `UPDATE workshop_payments SET
+           status = ?, paypal_order_id = COALESCE(?, paypal_order_id),
+           tax_rate = COALESCE(?, tax_rate), tax_country = COALESCE(?, tax_country),
+           subtotal_minor = COALESCE(?, subtotal_minor), tax_minor = COALESCE(?, tax_minor),
+           updated_at = datetime('now')
+         WHERE id = ?`,
+      )
+      .bind(
+        p.status, p.paypal_order_id, p.tax_rate ?? null, p.tax_country ?? null,
+        p.subtotal_minor ?? null, p.tax_minor ?? null, existing.id,
+      )
+      .run();
+    return existing.id;
+  }
+  const r = await db
+    .prepare(
+      `INSERT INTO workshop_payments
+        (registration_id, provider, paypal_order_id, paypal_capture_id,
+         status, method, amount_minor, currency,
+         tax_rate, tax_country, subtotal_minor, tax_minor, raw_event)
+       VALUES (?, 'paypal', ?, ?, ?, 'paypal', ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+    )
+    .bind(
+      p.registration_id, p.paypal_order_id, p.paypal_capture_id,
+      p.status, p.amount_minor, p.currency,
+      p.tax_rate ?? null, p.tax_country ?? null, p.subtotal_minor ?? null, p.tax_minor ?? null,
+      p.raw_event ? JSON.stringify(p.raw_event) : null,
+    )
+    .first<{ id: number }>();
+  if (!r) throw new Error('Failed to upsert PayPal payment');
+  return r.id;
+}
+
+export async function setPaymentStatusByPaypalCapture(db: D1Database, captureId: string, status: string) {
+  await db
+    .prepare("UPDATE workshop_payments SET status = ?, updated_at = datetime('now') WHERE paypal_capture_id = ?")
+    .bind(status, captureId)
     .run();
 }
 

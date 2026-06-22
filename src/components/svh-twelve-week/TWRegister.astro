@@ -2,6 +2,10 @@
 import { SESSION_URL } from './config';
 import { COUNTRIES } from '../../lib/countries';
 import LaunchOfferCallout from '../promo/LaunchOfferCallout.astro';
+import { paypalConfigured } from '../../lib/payments/paypal';
+
+// Offer PayPal as a second gateway only when the direct PayPal app is wired up.
+const paypalAvailable = paypalConfigured(Astro.locals.runtime.env);
 
 const includes = [
   '18+ hours of video across 12 modules, full of guided practices',
@@ -202,6 +206,18 @@ const includes = [
           <span>Continue to payment</span>
           <i class="ph-light ph-arrow-right" aria-hidden="true"></i>
         </button>
+
+        {paypalAvailable && (
+          <button
+            type="button"
+            class="tw-reg-cta"
+            data-slot="paypal"
+            style="margin-top:10px;background:#ffc439;color:#003087;"
+          >
+            <span>Pay with <strong>PayPal</strong></span>
+          </button>
+        )}
+
         <p class="tw-reg-error" data-slot="error"></p>
       </div>
     </template>
@@ -733,7 +749,15 @@ const includes = [
 
       // ---- Checkout
       const cta = q('[data-slot="cta"]') as HTMLButtonElement;
+      const paypalBtn = root.querySelector<HTMLButtonElement>('[data-slot="paypal"]');
       const errSlot = q('[data-slot="error"]') as HTMLElement;
+      // Which gateway the next submit uses. The PayPal button flips it for one
+      // submit; the primary CTA stays on Stripe.
+      let nextProvider: 'stripe' | 'paypal' = 'stripe';
+      paypalBtn?.addEventListener('click', () => {
+        nextProvider = 'paypal';
+        cta.click();
+      });
       cta.addEventListener('click', async () => {
         errSlot.textContent = '';
         const val = (n: string) => String(root.querySelector<HTMLInputElement>(`[name="${n}"]`)?.value ?? '').trim();
@@ -753,8 +777,16 @@ const includes = [
           root.querySelector<HTMLInputElement>('[name="activate_choice"]:checked')?.value ?? 'wait',
         );
 
+        // Capture + reset the gateway for this one submit.
+        const provider = nextProvider;
+        nextProvider = 'stripe';
         const label = cta.innerHTML;
         cta.disabled = true; cta.innerHTML = '<span>Opening secure checkout…</span>';
+        if (paypalBtn) paypalBtn.disabled = true;
+        const restore = () => {
+          cta.disabled = false; cta.innerHTML = label;
+          if (paypalBtn) paypalBtn.disabled = false;
+        };
         try {
           // Path selected → the shared course checkout (cc-bundle): cert at its
           // standard price + the workshop-discounted 12-week, re-derived
@@ -774,6 +806,7 @@ const includes = [
                   activate_choice: activateChoice,
                   source_variant: 'twelveweek',
                   consent_terms: true,
+                  provider,
                   discount_percent: urlDiscount || undefined,
                 }),
               })
@@ -785,6 +818,7 @@ const includes = [
                   phone_country: phoneCountry, phone,
                   company_name: company || undefined, vat_number: vat || undefined,
                   payment_plan: selectedPlan, consent_terms: true,
+                  provider,
                   discount_percent: urlDiscount || undefined,
                 }),
               });
@@ -792,13 +826,13 @@ const includes = [
           try { body = await res.json(); } catch {}
           if (!res.ok || !body.checkout_url) {
             fail(body.error || `Could not start checkout (HTTP ${res.status}). Please try again.`);
-            cta.disabled = false; cta.innerHTML = label;
+            restore();
             return;
           }
           window.location.href = body.checkout_url;
         } catch {
           fail('We could not reach the server. Please try again.');
-          cta.disabled = false; cta.innerHTML = label;
+          restore();
         }
       });
 

@@ -87,8 +87,13 @@ export type Registration = {
     | 'expired';
   amount_cents: number;
   currency: string;
+  // Which gateway owns this row. 'stripe' for every legacy row (default).
+  provider: 'stripe' | 'paypal';
   stripe_session_id: string | null;
   stripe_payment_intent: string | null;
+  // PayPal counterparts (see migration 0049).
+  paypal_order_id: string | null;
+  paypal_capture_id: string | null;
   quaderno_invoice_id: string | null;
   hold_expires_at: string | null;
   created_at: string;
@@ -102,6 +107,8 @@ export type Registration = {
   balance_invite_sent_at: string | null;
   balance_paid_at: string | null;
   balance_stripe_session_id: string | null;
+  // The balance ("pay the remainder") order, when settled via PayPal.
+  balance_paypal_order_id: string | null;
 };
 
 export async function getProductBySlug(db: D1Database, slug: string) {
@@ -186,6 +193,8 @@ export async function createPendingRegistration(
     // When a 50% deposit is taken, the remaining balance owed. Defaults to 0
     // (paid in full). Surfaced later via the "pay the balance" admin flow.
     balance_due_cents?: number;
+    // Defaults to 'stripe' when omitted (every legacy caller).
+    provider?: 'stripe' | 'paypal';
   },
 ) {
   const holdExpires = new Date(
@@ -205,8 +214,8 @@ export async function createPendingRegistration(
          roommate_pref, dietary, notes,
          consent_framework, consent_terms, consent_at,
          role, role_discount_cents,
-         status, amount_cents, currency, hold_expires_at, balance_due_cents)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)
+         status, amount_cents, currency, provider, hold_expires_at, balance_due_cents)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?)
        RETURNING id`,
     )
     .bind(
@@ -233,6 +242,7 @@ export async function createPendingRegistration(
       data.role_discount_cents ?? 0,
       data.amount_cents,
       data.currency,
+      data.provider ?? 'stripe',
       holdExpires,
       data.balance_due_cents ?? 0,
     )
@@ -316,6 +326,58 @@ export async function getRegistrationByPaymentIntent(
     .first<Registration>();
 }
 
+// ── PayPal mirrors (same row, different ids; picked by `provider`) ────────
+
+export async function attachPaypalOrder(
+  db: D1Database,
+  registrationId: number,
+  orderId: string,
+) {
+  await db
+    .prepare('UPDATE registrations SET paypal_order_id = ? WHERE id = ?')
+    .bind(orderId, registrationId)
+    .run();
+}
+
+export async function markRegistrationPaidPaypal(
+  db: D1Database,
+  registrationId: number,
+  captureId: string,
+) {
+  await db
+    .prepare(
+      `UPDATE registrations
+          SET status = 'paid',
+              paypal_capture_id = ?,
+              paid_at = datetime('now'),
+              hold_expires_at = NULL
+        WHERE id = ?
+          AND status IN ('pending','expired')`,
+    )
+    .bind(captureId, registrationId)
+    .run();
+}
+
+export async function getRegistrationByPaypalOrder(
+  db: D1Database,
+  orderId: string,
+) {
+  return db
+    .prepare('SELECT * FROM registrations WHERE paypal_order_id = ?')
+    .bind(orderId)
+    .first<Registration>();
+}
+
+export async function getRegistrationByPaypalCapture(
+  db: D1Database,
+  captureId: string,
+) {
+  return db
+    .prepare('SELECT * FROM registrations WHERE paypal_capture_id = ?')
+    .bind(captureId)
+    .first<Registration>();
+}
+
 // Flip a retreat row to 'refunded' and accumulate the refunded amount.
 // Doesn't free the bed automatically — that's a host decision (you might
 // want to resell, you might not). Admin can clear it manually if needed.
@@ -376,6 +438,34 @@ export async function attachBalanceSession(
     )
     .bind(sessionId, registrationId)
     .run();
+}
+
+// PayPal variant of attachBalanceSession: record the balance order id + that
+// we emailed the link.
+export async function attachBalancePaypalOrder(
+  db: D1Database,
+  registrationId: number,
+  orderId: string,
+) {
+  await db
+    .prepare(
+      `UPDATE registrations
+          SET balance_paypal_order_id = ?,
+              balance_invite_sent_at = datetime('now')
+        WHERE id = ?`,
+    )
+    .bind(orderId, registrationId)
+    .run();
+}
+
+export async function getRegistrationByBalancePaypalOrder(
+  db: D1Database,
+  orderId: string,
+) {
+  return db
+    .prepare('SELECT * FROM registrations WHERE balance_paypal_order_id = ?')
+    .bind(orderId)
+    .first<Registration>();
 }
 
 // Settle the balance once the balance Checkout Session completes. The
