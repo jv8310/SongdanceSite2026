@@ -4,7 +4,7 @@
 
 import type { APIRoute } from 'astro';
 import { readCookie, verifySession } from '../../../../lib/registrations/auth';
-import { getBroadcast } from '../../../../lib/broadcasts/db';
+import { getBroadcast, markBroadcastCleaned } from '../../../../lib/broadcasts/db';
 import { cleanPendingDomains } from '../../../../lib/broadcasts/clean';
 
 export const prerender = false;
@@ -28,6 +28,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
   try {
     const result = await cleanPendingDomains(env.DB, id, 20);
+    if (result.checked > 0) await markBroadcastCleaned(env.DB, id);
     return json({ ok: true, ...result });
   } catch (err) {
     return json({ error: `Clean failed: ${String(err)}` }, 500);

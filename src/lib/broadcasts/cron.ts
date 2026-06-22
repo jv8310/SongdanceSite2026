@@ -82,8 +82,11 @@ export async function runBroadcasts(
   for (const b of active) {
     const emailType = broadcastEmailType(b.id);
 
-    // 1. Circuit breaker
-    const stats = await broadcastStats(env.DB, emailType);
+    // 1. Circuit breaker — over sends made SINCE the last launch/resume, so a
+    // cleaned-and-resumed queue is judged on its own fresh sample rather than a
+    // sour historical rate it can never live down. Needs CB_MIN_SAMPLE *new*
+    // sends before it can trip again.
+    const stats = await broadcastStats(env.DB, emailType, b.breaker_baseline_at);
     if (stats.sent >= CB_MIN_SAMPLE) {
       const complaintRate = stats.complained / stats.sent;
       const bounceRate = stats.bounced / stats.sent;
@@ -91,8 +94,8 @@ export async function runBroadcasts(
         await pauseBroadcast(
           env.DB,
           b.id,
-          `Auto-paused after ${stats.sent} sent — complaints ${(complaintRate * 100).toFixed(2)}%, ` +
-            `bounces ${(bounceRate * 100).toFixed(2)}%. Review the list before resuming.`,
+          `Auto-paused after ${stats.sent} sent since resuming — complaints ${(complaintRate * 100).toFixed(2)}%, ` +
+            `bounces ${(bounceRate * 100).toFixed(2)}%. Clean the queue (dead domains / bad tags) before resuming.`,
         );
         result.paused += 1;
         continue;

@@ -4,7 +4,7 @@
 
 import type { APIRoute } from 'astro';
 import { readCookie, verifySession } from '../../../../lib/registrations/auth';
-import { getBroadcast, suppressPendingByTags } from '../../../../lib/broadcasts/db';
+import { getBroadcast, markBroadcastCleaned, suppressPendingByTags } from '../../../../lib/broadcasts/db';
 
 export const prerender = false;
 
@@ -30,6 +30,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
   try {
     const removed = await suppressPendingByTags(env.DB, id, tags);
+    if (removed > 0) await markBroadcastCleaned(env.DB, id);
     return json({ ok: true, removed });
   } catch (err) {
     return json({ error: `Failed: ${String(err)}` }, 500);

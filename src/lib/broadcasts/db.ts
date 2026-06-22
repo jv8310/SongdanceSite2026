@@ -25,6 +25,12 @@ export type Broadcast = {
   audience_field_value: string | null;
   status: 'draft' | 'sending' | 'paused' | 'done';
   paused_reason: string | null;
+  // The circuit breaker evaluates complaint/bounce rates only over sends made
+  // since this instant (set on every launch/resume), so a cleaned queue gets a
+  // fresh sample instead of staying tripped by a sour historical rate.
+  breaker_baseline_at: string | null;
+  // When the pending queue was last scrubbed (dead domains or by tag).
+  last_cleaned_at: string | null;
   created_at: string;
   started_at: string | null;
   completed_at: string | null;
@@ -461,7 +467,8 @@ export async function launchBroadcast(db: D1Database, id: number): Promise<numbe
           SET status = 'sending',
               started_at = COALESCE(started_at, datetime('now')),
               completed_at = NULL,
-              paused_reason = NULL
+              paused_reason = NULL,
+              breaker_baseline_at = datetime('now')
         WHERE id = ? AND status IN ('draft', 'paused')`,
     )
     .bind(id)
@@ -480,9 +487,27 @@ export async function pauseBroadcast(db: D1Database, id: number, reason: string)
     .run();
 }
 
+// Resume a paused broadcast. Resetting breaker_baseline_at is the crux of the
+// fix: the cron's circuit breaker only weighs sends made *after* this moment, so
+// a queue you've just cleaned gets a fresh sample to prove itself rather than
+// being re-tripped instantly by the unchanged historical bounce/complaint rate.
 export async function resumeBroadcast(db: D1Database, id: number): Promise<void> {
   await db
-    .prepare(`UPDATE broadcasts SET status = 'sending', paused_reason = NULL WHERE id = ? AND status = 'paused'`)
+    .prepare(
+      `UPDATE broadcasts
+          SET status = 'sending', paused_reason = NULL, breaker_baseline_at = datetime('now')
+        WHERE id = ? AND status = 'paused'`,
+    )
+    .bind(id)
+    .run();
+}
+
+// Record that the pending queue was just scrubbed (dead domains or by tag), so
+// the page can show when it last happened. Doesn't gate on status — cleaning is
+// allowed while sending or paused.
+export async function markBroadcastCleaned(db: D1Database, id: number): Promise<void> {
+  await db
+    .prepare(`UPDATE broadcasts SET last_cleaned_at = datetime('now') WHERE id = ?`)
     .bind(id)
     .run();
 }
@@ -761,6 +786,31 @@ export async function suppressPendingByTags(
   return r.meta?.changes ?? 0;
 }
 
+// How many recipients this broadcast's cleaning has removed, split by reason.
+// Derived straight from the queue's `error` marker (set by suppressPendingBy*),
+// so it stays accurate without a separate counter. Distinct from send-time
+// unsubscribe skips, which carry no error.
+export type CleaningCounts = { deadDomain: number; byTag: number };
+
+export async function cleaningCounts(db: D1Database, broadcastId: number): Promise<CleaningCounts> {
+  const zero = { deadDomain: 0, byTag: 0 };
+  try {
+    const r = await db
+      .prepare(
+        `SELECT
+           SUM(CASE WHEN error = 'invalid domain' THEN 1 ELSE 0 END) AS deadDomain,
+           SUM(CASE WHEN error = 'excluded by tag' THEN 1 ELSE 0 END) AS byTag
+         FROM broadcast_recipients
+        WHERE broadcast_id = ? AND status = 'suppressed'`,
+      )
+      .bind(broadcastId)
+      .first<CleaningCounts>();
+    return r ? { deadDomain: r.deadDomain ?? 0, byTag: r.byTag ?? 0 } : zero;
+  } catch {
+    return zero;
+  }
+}
+
 // All still-pending recipients (for CSV export to an external validator).
 export async function pendingRecipientsForExport(
   db: D1Database,
@@ -793,7 +843,15 @@ const ZERO_STATS: BroadcastStats = {
   sent: 0, delivered: 0, opened: 0, clicked: 0, bounced: 0, complained: 0, openRate: 0, clickRate: 0,
 };
 
-export async function broadcastStats(db: D1Database, emailType: string): Promise<BroadcastStats> {
+// `since` (an ISO/SQLite datetime) windows the stats to sends made at or after
+// that moment — the cron's circuit breaker passes the broadcast's
+// breaker_baseline_at so it judges only post-resume sends. Omit it (the page +
+// /admin/emails/stats do) for all-time engagement numbers.
+export async function broadcastStats(
+  db: D1Database,
+  emailType: string,
+  since?: string | null,
+): Promise<BroadcastStats> {
   try {
     const r = await db
       .prepare(
@@ -803,9 +861,9 @@ export async function broadcastStats(db: D1Database, emailType: string): Promise
                 SUM(CASE WHEN first_clicked_at IS NOT NULL THEN 1 ELSE 0 END) AS clicked,
                 SUM(CASE WHEN bounced_at IS NOT NULL THEN 1 ELSE 0 END) AS bounced,
                 SUM(CASE WHEN complained_at IS NOT NULL THEN 1 ELSE 0 END) AS complained
-           FROM email_sends WHERE email_type = ?`,
+           FROM email_sends WHERE email_type = ?${since ? ' AND sent_at >= ?' : ''}`,
       )
-      .bind(emailType)
+      .bind(...(since ? [emailType, since] : [emailType]))
       .first<Omit<BroadcastStats, 'openRate' | 'clickRate'>>();
     if (!r) return ZERO_STATS;
     const denom = r.delivered || r.sent || 0;

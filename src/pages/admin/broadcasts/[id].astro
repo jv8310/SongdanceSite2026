@@ -12,8 +12,10 @@ import {
   broadcastEmailType,
   countAudience,
   availableTags,
+  cleaningCounts,
 } from '../../../lib/broadcasts/db';
 import { previewBroadcast } from '../../../lib/broadcasts/email';
+import { DEFAULT_SEND_TZ } from '../../../lib/workshops/time';
 
 export const prerender = false;
 
@@ -42,8 +44,21 @@ const audience = await countAudience(env.DB, {
 const tags = isEditable ? await availableTags(env.DB, 1000) : [];
 const hasAudienceFilter = !!(b.audience_include_tags || b.audience_exclude_tags || b.audience_field);
 const preview = previewBroadcast(b, env.PUBLIC_BASE_URL);
+// How much the queue cleaning has removed (dead domains vs by tag), and when it
+// last ran — so "did I already clean this?" is answerable at a glance.
+const clean = isDraft ? { deadDomain: 0, byTag: 0 } : await cleaningCounts(env.DB, b.id);
 
 const pct = (r: number) => `${(r * 100).toFixed(1)}%`;
+// SQLite datetime('now') is UTC, no zone marker — read it as UTC, show it local.
+const fmtWhen = (s: string | null): string | null => {
+  if (!s) return null;
+  const d = new Date(s.replace(' ', 'T') + 'Z');
+  if (Number.isNaN(d.getTime())) return s;
+  return new Intl.DateTimeFormat('en-GB', {
+    dateStyle: 'medium', timeStyle: 'short', timeZone: DEFAULT_SEND_TZ,
+  }).format(d);
+};
+const lastCleaned = fmtWhen(b.last_cleaned_at);
 const statusLabel: Record<string, string> = {
   draft: 'Draft', sending: 'Sending', paused: 'Paused', done: 'Done',
 };
@@ -177,7 +192,7 @@ const statusLabel: Record<string, string> = {
           <div class="bc-stats">
             <div class="bc-stat"><span class="n">{counts.sent.toLocaleString()}</span><span class="l">sent</span></div>
             <div class="bc-stat"><span class="n">{counts.pending.toLocaleString()}</span><span class="l">queued</span></div>
-            <div class="bc-stat"><span class="n">{counts.suppressed.toLocaleString()}</span><span class="l">unsub-skipped</span></div>
+            <div class="bc-stat"><span class="n">{counts.suppressed.toLocaleString()}</span><span class="l">skipped</span></div>
             <div class="bc-stat"><span class="n">{counts.failed.toLocaleString()}</span><span class="l">failed</span></div>
             <div class="bc-stat"><span class="n">{counts.total.toLocaleString()}</span><span class="l">total audience</span></div>
           </div>
@@ -192,6 +207,15 @@ const statusLabel: Record<string, string> = {
             Open/click data flows in from the Resend webhook; it also appears on
             <a href="/admin/emails/stats">email stats</a> under “Broadcasts”.
           </p>
+
+          {(clean.deadDomain > 0 || clean.byTag > 0 || lastCleaned) && (
+            <p class="bc-note bc-cleanstatus">
+              <strong>Queue cleaned{lastCleaned ? ` · last run ${lastCleaned}` : ''}:</strong>
+              {' '}{clean.deadDomain.toLocaleString()} removed at dead domains ·
+              {' '}{clean.byTag.toLocaleString()} removed by tag
+              {' '}(part of the {counts.suppressed.toLocaleString()} skipped above).
+            </p>
+          )}
 
           {counts.pending > 0 && (
             <div class="bc-clean">
@@ -263,6 +287,8 @@ const statusLabel: Record<string, string> = {
     .bc-stat .n { font-size: 24px; font-weight: 600; color: #2a1b2a; font-variant-numeric: tabular-nums; }
     .bc-stat .l { font-size: 12.5px; color: #6f5f6d; }
     .bc-note { font-size: 12.5px; color: #6f5f6d; margin: 0 0 14px; }
+    .bc-cleanstatus { background: #f4ecdf; border: 1px solid rgba(161,72,38,0.18); border-radius: 8px; padding: 8px 12px; }
+    .bc-cleanstatus strong { color: #4a3848; }
     .bc-muted { color: #b6a8b4; }
     .bc-audience { border: 1px solid rgba(161,72,38,0.22); border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; margin: 0; }
     .bc-audience legend { font-size: 13px; color: #4a3848; padding: 0 6px; }

@@ -43,6 +43,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
     audience_field_value: null,
     status: 'draft',
     paused_reason: null,
+    breaker_baseline_at: null,
+    last_cleaned_at: null,
     created_at: '',
     started_at: null,
     completed_at: null,
