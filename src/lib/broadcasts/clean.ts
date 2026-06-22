@@ -1,21 +1,23 @@
-// List cleaning for a broadcast's pending queue. For each distinct pending
-// domain we check, via DNS-over-HTTPS, whether it can receive mail at all
-// (MX, or an A record as fallback). Domains that can't — dead domains, typo
-// TLDs like ".con", NXDOMAIN — get all their pending recipients marked
-// 'suppressed' so they're never sent. This removes a real chunk of the bounces
-// on a dormant list for free; it does NOT catch dead mailboxes at live
-// providers (a deleted Gmail address still resolves Gmail's MX) — that needs a
-// mailbox-level validator on the exported list.
+// List cleaning for the whole contacts list. For each distinct contact domain we
+// check, via DNS-over-HTTPS, whether it can receive mail at all (MX, or an A
+// record as fallback). Domains that can't — dead domains, typo TLDs like ".con",
+// NXDOMAIN — get all their contacts added to the global suppression list, so
+// they're gone from this broadcast, every future broadcast, and lifecycle
+// marketing. This removes a real chunk of the bounces on a dormant list for
+// free; it does NOT catch dead mailboxes at live providers (a deleted Gmail
+// address still resolves Gmail's MX) — that needs a mailbox-level validator on
+// the exported list.
 //
 // Lookups are cached in domain_status (migration 0048) so each domain is only
-// resolved once. Failures fail OPEN (treated as deliverable) so a transient DNS
-// hiccup never wrongly drops a valid address.
+// resolved once across runs/imports. Failures fail OPEN (treated as deliverable)
+// so a transient DNS hiccup never wrongly drops a valid address.
 
 import {
   cacheDomainStatus,
-  distinctUncheckedPendingDomains,
-  suppressPendingByDomain,
-  uncheckedPendingDomainCount,
+  distinctUncheckedContactDomains,
+  suppressContactsAtDeadDomains,
+  suppressPendingRecipientsAtDeadDomains,
+  uncheckedContactDomainCount,
 } from './db';
 
 // Obvious typo / non-deliverable domains we can reject without a DNS lookup.
@@ -66,35 +68,37 @@ export async function domainCanReceiveMail(domain: string): Promise<boolean> {
 export type CleanResult = {
   checked: number; // domains resolved this batch
   dead: number; // of those, non-deliverable
-  removed: number; // pending recipients suppressed this batch
-  remaining: number; // distinct pending domains still unchecked
+  removed: number; // addresses globally suppressed once the scan finished
+  remaining: number; // distinct contact domains still unchecked
 };
 
-// Process one batch of unchecked pending domains. Called repeatedly from the
-// admin page until `remaining` reaches 0.
-export async function cleanPendingDomains(
-  db: D1Database,
-  broadcastId: number,
-  maxDomains = 20,
-): Promise<CleanResult> {
-  const domains = await distinctUncheckedPendingDomains(db, broadcastId, maxDomains);
-  if (domains.length === 0) return { checked: 0, dead: 0, removed: 0, remaining: 0 };
+// Process one batch of unchecked contact domains. Called repeatedly from the
+// admin page until `remaining` reaches 0. The (whole-list) suppression sweep is
+// run once, when the last domain is resolved, so it scans the contacts table a
+// single time rather than on every batch.
+export async function cleanContactDomains(db: D1Database, maxDomains = 20): Promise<CleanResult> {
+  const domains = await distinctUncheckedContactDomains(db, maxDomains);
 
-  // Resolve in parallel (the slow part), then apply DB writes sequentially.
+  // Resolve in parallel (the slow part), then cache verdicts sequentially.
   const verdicts = await Promise.all(
     domains.map(async (d) => ({ d, ok: isBadDomain(d) ? false : await domainCanReceiveMail(d) })),
   );
-
   let dead = 0;
-  let removed = 0;
   for (const { d, ok } of verdicts) {
     await cacheDomainStatus(db, d, ok);
-    if (!ok) {
-      removed += await suppressPendingByDomain(db, broadcastId, d);
-      dead += 1;
-    }
+    if (!ok) dead += 1;
   }
 
-  const remaining = await uncheckedPendingDomainCount(db, broadcastId);
+  const remaining = await uncheckedContactDomainCount(db);
+
+  // All domains resolved → suppress every contact at a dead domain (globally),
+  // and scrub any live broadcast queues to match. Idempotent, so re-running is
+  // safe and a first run also catches domains resolved by an earlier pass.
+  let removed = 0;
+  if (remaining === 0) {
+    removed = await suppressContactsAtDeadDomains(db);
+    await suppressPendingRecipientsAtDeadDomains(db);
+  }
+
   return { checked: domains.length, dead, removed, remaining };
 }

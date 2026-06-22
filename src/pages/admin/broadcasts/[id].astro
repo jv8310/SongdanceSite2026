@@ -221,17 +221,16 @@ const statusLabel: Record<string, string> = {
             <div class="bc-clean">
               <strong>List health</strong>
               <p>
-                Remove dead domains (no mail server / typo domains) from the
-                {' '}{counts.pending.toLocaleString()} still queued, to cut bounces before resuming.
+                Dead domains (no mail server / typo domains) are cleaned at the
+                list level now — run <a href="/admin/contacts">Clean dead domains on Contacts</a>
+                {' '}once and they're suppressed for this and every future broadcast.
                 For dead mailboxes at live providers (e.g. closed Gmail accounts),
                 <a href={`/api/admin/broadcasts/export?id=${b.id}`}>export the remaining list</a>
                 and run it through a validator, then re-import the verified-good addresses.
               </p>
-              <button id="bc-clean" class="adm-btn" type="button" data-id={b.id}>Clean invalid domains</button>
-              <span id="bc-clean-msg" class="bc-msg"></span>
 
               <div class="bc-clean-tags">
-                <label for="bc-extags">Or remove queued contacts carrying tags <em>(comma-separated — e.g. a Drip “undeliverable” / “bounced” tag)</em></label>
+                <label for="bc-extags">Remove queued contacts carrying tags <em>(comma-separated — e.g. a Drip “undeliverable” / “bounced” tag)</em></label>
                 <div class="bc-clean-tagrow">
                   <input id="bc-extags" type="text" value={b.audience_exclude_tags ?? ''} placeholder="bounced, undeliverable" />
                   <button id="bc-extags-btn" class="adm-btn adm-btn--ghost" type="button" data-id={b.id}>Remove from queue</button>
@@ -476,37 +475,6 @@ const statusLabel: Record<string, string> = {
         } catch (err) { m.textContent = 'Failed: ' + (err.message || err); }
       });
     });
-
-    // Clean invalid domains — loops the batch endpoint until no domains remain.
-    (function () {
-      const btn = document.getElementById('bc-clean');
-      if (!btn) return;
-      btn.addEventListener('click', async () => {
-        const msg = document.getElementById('bc-clean-msg');
-        btn.disabled = true;
-        let removed = 0;
-        let checked = 0;
-        msg.textContent = 'Checking domains…';
-        try {
-          for (;;) {
-            const res = await fetch('/api/admin/broadcasts/clean', {
-              method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ id: Number(btn.dataset.id) }),
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || 'Clean failed');
-            removed += data.removed || 0;
-            checked += data.checked || 0;
-            msg.textContent = `Checked ${checked.toLocaleString()} domains · removed ${removed.toLocaleString()} invalid · ${Number(data.remaining).toLocaleString()} domains left…`;
-            if (!data.checked || data.remaining === 0) break;
-          }
-          msg.textContent = `Done — removed ${removed.toLocaleString()} addresses at dead domains. Reload to see updated counts, then Resume.`;
-        } catch (err) {
-          msg.textContent = 'Failed: ' + (err.message || err);
-        }
-        btn.disabled = false;
-      });
-    })();
 
     // Remove queued contacts carrying given tags (e.g. Drip "undeliverable").
     (function () {

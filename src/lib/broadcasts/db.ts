@@ -185,6 +185,25 @@ export async function importContacts(
     );
   }
 
+  // Auto-suppress any imported address at a domain already known to be dead
+  // (domain_status.ok = 0), so cleaning the list once keeps a bad domain out of
+  // the sendable pool even across later re-imports. Runs after the upsert above
+  // in the same (sequential, transactional) batch, so it sees the new rows.
+  for (let i = 0; i < allEmails.length; i += EMAILS_PER_STMT) {
+    const slice = allEmails.slice(i, i + EMAILS_PER_STMT);
+    statements.push(
+      db
+        .prepare(
+          `INSERT OR IGNORE INTO email_suppressions (email, reason, source)
+             SELECT email, 'invalid_domain', 'import'
+               FROM contacts
+              WHERE email IN (${slice.map(() => '?').join(',')})
+                AND substr(email, instr(email, '@') + 1) IN (SELECT domain FROM domain_status WHERE ok = 0)`,
+        )
+        .bind(...slice),
+    );
+  }
+
   await db.batch(statements);
   return { processed: rows.length, suppressed: unsubEmails.length };
 }
@@ -701,38 +720,35 @@ export async function pendingCount(db: D1Database, broadcastId: number): Promise
 }
 
 // ── List cleaning (dead-domain removal) ────────────────────────────────────────
-// The domain of an email is substr(email, instr(email,'@')+1). We cache each
-// domain's deliverability in domain_status so it's resolved once.
+// Dead-domain cleaning is a LIST-level operation: it scans every contact's
+// domain (the domain of an email is substr(email, instr(email,'@')+1)), caches
+// each domain's deliverability once in domain_status, and adds addresses at dead
+// domains to the global email_suppressions list — so a domain cleaned once is
+// gone from this broadcast, every future broadcast, and lifecycle marketing.
+// (Per-broadcast tag removal still lives below in suppressPendingByTags.)
 
-// Distinct pending domains for this broadcast not yet in the cache.
-export async function distinctUncheckedPendingDomains(
-  db: D1Database,
-  broadcastId: number,
-  limit: number,
-): Promise<string[]> {
+// Distinct contact domains not yet resolved (a batch of work for the cleaner).
+export async function distinctUncheckedContactDomains(db: D1Database, limit: number): Promise<string[]> {
   const r = await db
     .prepare(
       `SELECT DISTINCT substr(email, instr(email, '@') + 1) AS domain
-         FROM broadcast_recipients
-        WHERE broadcast_id = ? AND status = 'pending'
-          AND substr(email, instr(email, '@') + 1) NOT IN (SELECT domain FROM domain_status)
+         FROM contacts
+        WHERE substr(email, instr(email, '@') + 1) NOT IN (SELECT domain FROM domain_status)
         LIMIT ?`,
     )
-    .bind(broadcastId, limit)
+    .bind(limit)
     .all<{ domain: string }>();
   return (r.results ?? []).map((row) => row.domain);
 }
 
-export async function uncheckedPendingDomainCount(db: D1Database, broadcastId: number): Promise<number> {
+export async function uncheckedContactDomainCount(db: D1Database): Promise<number> {
   const r = await db
     .prepare(
       `SELECT COUNT(*) AS n FROM (
          SELECT DISTINCT substr(email, instr(email, '@') + 1) AS domain
-           FROM broadcast_recipients
-          WHERE broadcast_id = ? AND status = 'pending'
-            AND substr(email, instr(email, '@') + 1) NOT IN (SELECT domain FROM domain_status))`,
+           FROM contacts
+          WHERE substr(email, instr(email, '@') + 1) NOT IN (SELECT domain FROM domain_status))`,
     )
-    .bind(broadcastId)
     .first<{ n: number }>();
   return r?.n ?? 0;
 }
@@ -744,21 +760,47 @@ export async function cacheDomainStatus(db: D1Database, domain: string, ok: bool
     .run();
 }
 
-// Mark every pending recipient at a dead domain as suppressed; returns how many.
-export async function suppressPendingByDomain(
-  db: D1Database,
-  broadcastId: number,
-  domain: string,
-): Promise<number> {
+// Add every contact at a known-dead domain to the global suppression list.
+// Idempotent (INSERT OR IGNORE) — returns how many addresses were newly
+// suppressed this call. Non-destructive: contact rows stay, reason marks them.
+export async function suppressContactsAtDeadDomains(db: D1Database): Promise<number> {
+  const r = await db
+    .prepare(
+      `INSERT OR IGNORE INTO email_suppressions (email, reason, source)
+         SELECT email, 'invalid_domain', 'list_clean'
+           FROM contacts
+          WHERE substr(email, instr(email, '@') + 1) IN (SELECT domain FROM domain_status WHERE ok = 0)`,
+    )
+    .run();
+  return r.meta?.changes ?? 0;
+}
+
+// Mirror the suppression into any still-pending broadcast queues (across all
+// broadcasts) so their counts drop immediately and the breaker's sample isn't
+// padded with sends that will never go out. The 'invalid domain' marker feeds
+// the per-broadcast "removed at dead domains" stat. Returns how many.
+export async function suppressPendingRecipientsAtDeadDomains(db: D1Database): Promise<number> {
   const r = await db
     .prepare(
       `UPDATE broadcast_recipients SET status = 'suppressed', error = 'invalid domain'
-        WHERE broadcast_id = ? AND status = 'pending'
-          AND substr(email, instr(email, '@') + 1) = ?`,
+        WHERE status = 'pending'
+          AND substr(email, instr(email, '@') + 1) IN (SELECT domain FROM domain_status WHERE ok = 0)`,
     )
-    .bind(broadcastId, domain.toLowerCase())
     .run();
   return r.meta?.changes ?? 0;
+}
+
+// How many addresses are suppressed specifically as dead domains — a persistent
+// "list health" figure for the contacts page.
+export async function countDeadDomainSuppressions(db: D1Database): Promise<number> {
+  try {
+    const r = await db
+      .prepare(`SELECT COUNT(*) AS n FROM email_suppressions WHERE reason = 'invalid_domain'`)
+      .first<{ n: number }>();
+    return r?.n ?? 0;
+  } catch {
+    return 0;
+  }
 }
 
 // Suppress every still-pending recipient that carries any of the given tags —

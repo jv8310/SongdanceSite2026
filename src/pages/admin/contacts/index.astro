@@ -7,7 +7,13 @@
 import '../../../styles/admin.css';
 import Layout from '../../../layouts/Layout.astro';
 import { readCookie, verifySession } from '../../../lib/registrations/auth';
-import { countContacts, countSendable, recentContacts } from '../../../lib/broadcasts/db';
+import {
+  countContacts,
+  countSendable,
+  recentContacts,
+  countDeadDomainSuppressions,
+  uncheckedContactDomainCount,
+} from '../../../lib/broadcasts/db';
 
 export const prerender = false;
 
@@ -19,6 +25,9 @@ if (!(await verifySession(env.ADMIN_SESSION_SECRET, readCookie(Astro.request))))
 const total = await countContacts(env.DB);
 const sendable = await countSendable(env.DB);
 const recent = await recentContacts(env.DB, 8);
+// List-health figures for the dead-domain cleaner.
+const deadSuppressed = await countDeadDomainSuppressions(env.DB);
+const uncheckedDomains = await uncheckedContactDomainCount(env.DB);
 ---
 
 <Layout title="Admin — Contacts — Songdance" description="">
@@ -42,7 +51,31 @@ const recent = await recentContacts(env.DB, 8);
     <section class="adm-section">
       <div class="ct-stats">
         <div class="ct-stat"><span class="ct-num" id="ct-total">{total.toLocaleString()}</span><span class="ct-lbl">contacts</span></div>
-        <div class="ct-stat"><span class="ct-num">{sendable.toLocaleString()}</span><span class="ct-lbl">sendable (minus unsubscribes)</span></div>
+        <div class="ct-stat"><span class="ct-num">{sendable.toLocaleString()}</span><span class="ct-lbl">sendable (minus suppressions)</span></div>
+        <div class="ct-stat"><span class="ct-num">{deadSuppressed.toLocaleString()}</span><span class="ct-lbl">at dead domains</span></div>
+      </div>
+    </section>
+
+    <section class="adm-section">
+      <h2>List health</h2>
+      <p class="ct-help">
+        Check every contact's email domain for a working mail server (MX/A via
+        DNS). Addresses at dead domains — no mail server, typo TLDs like
+        <code>.con</code>, domains that no longer exist — are added to the
+        suppression list, so they're skipped on this and <strong>every future
+        broadcast</strong> and never bounce again. Non-destructive: the contacts
+        stay, just flagged. Done once; new imports at a known-dead domain are
+        auto-skipped. (Dead mailboxes at live providers — a closed Gmail, say —
+        still resolve, so for those export a broadcast's queue and run a
+        mailbox-level validator.)
+      </p>
+      <div class="ct-actions">
+        <button id="ct-clean" class="adm-btn" type="button">Clean dead domains</button>
+        <span id="ct-clean-msg" class="ct-progress">
+          {uncheckedDomains > 0
+            ? `${uncheckedDomains.toLocaleString()} domains not yet checked`
+            : 'All domains checked'}
+        </span>
       </div>
     </section>
 
@@ -283,5 +316,42 @@ const recent = await recentContacts(env.DB, 8);
         fileInput.disabled = false;
       }
     });
+
+    // Clean dead domains — loops the batch endpoint until every contact domain
+    // is resolved, then the server suppresses addresses at dead domains.
+    (function () {
+      const btn = document.getElementById('ct-clean');
+      if (!btn) return;
+      const msg = document.getElementById('ct-clean-msg');
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        let checked = 0;
+        let dead = 0;
+        let removed = 0;
+        msg.textContent = 'Checking domains…';
+        try {
+          for (;;) {
+            const res = await fetch('/api/admin/contacts/clean', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Clean failed');
+            checked += data.checked || 0;
+            dead += data.dead || 0;
+            removed += data.removed || 0;
+            msg.textContent =
+              `Checked ${checked.toLocaleString()} domains · ${dead.toLocaleString()} dead · ` +
+              `${Number(data.remaining).toLocaleString()} left…`;
+            if (data.remaining === 0) break;
+            if (!data.checked) break; // safety: no progress
+          }
+          msg.textContent =
+            `Done — ${removed.toLocaleString()} addresses at dead domains suppressed. Reload to update counts.`;
+        } catch (err) {
+          msg.textContent = 'Failed: ' + (err && err.message ? err.message : String(err));
+        }
+        btn.disabled = false;
+      });
+    })();
   </script>
 </Layout>
