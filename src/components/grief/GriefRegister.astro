@@ -174,10 +174,24 @@ const countries = COUNTRIES;
     } catch {}
     return 0;
   }
+  // Owner's secret ?adiscount=N (1–100). The only route to 100% — a free
+  // checkout. Sent to the server in its own field; the server re-validates.
+  function readSecretDiscount(): number {
+    try {
+      const raw = new URLSearchParams(window.location.search).get('adiscount');
+      const n = raw ? parseInt(raw, 10) : 0;
+      if (Number.isInteger(n) && n >= 1 && n <= 100) return n;
+    } catch {}
+    return 0;
+  }
   // Launch promo: 50% off (the better of the promo and any ?discount=N). The
   // server re-derives this independently, so the displayed price matches the
   // charge. The promo self-expires at its deadline (launchPromoPercent → 0).
-  const discountPct = Math.max(readDiscount(), launchPromoPercent());
+  const publicPct = Math.max(readDiscount(), launchPromoPercent());
+  const secretPct = readSecretDiscount();
+  // The secret owner discount (incl. 100% = free) wins for display; otherwise
+  // the better of the public discount and the launch promo.
+  const discountPct = Math.max(publicPct, secretPct);
 
   function applyDiscountCents(cents: number): number {
     if (discountPct <= 0) return cents;
@@ -347,7 +361,8 @@ const countries = COUNTRIES;
             vat_number: vat_number || undefined,
             currency,
             consent_terms: true,
-            ...(discountPct > 0 ? { discount_percent: discountPct } : {}),
+            ...(publicPct > 0 ? { discount_percent: publicPct } : {}),
+            ...(secretPct > 0 ? { adiscount_percent: secretPct } : {}),
           }),
         });
         let body: { checkout_url?: string; error?: string } = {};

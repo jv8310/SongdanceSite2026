@@ -57,6 +57,11 @@ import {
   deriveTwelveWeekDiscount,
   type CertificationPathPricing,
 } from '../../../lib/courses/path';
+import {
+  resolveCourseDiscountPercent,
+  isFreeCourseCheckout,
+} from '../../../lib/courses/discount';
+import { fulfilFreeCourseRegistration } from '../../../lib/courses/free-checkout';
 
 export const prerender = false;
 
@@ -88,26 +93,13 @@ type Body = {
   payment_plan?: string;
   currency?: string;
   discount_percent?: number | string;
+  adiscount_percent?: number | string;
 };
 
 function offerFor(productSlug: CourseProductSlug, currency: Currency): Offer {
   return productSlug === 'cc-bundle'
     ? getBundleOffer(currency)
     : getCertOffer(currency);
-}
-
-// URL-driven discount. Any integer 1–99 is accepted; anything else (NaN,
-// 0, ≥100, negative, non-integer) falls back to no discount. Note: this is
-// deliberately permissive — whoever holds the URL controls the price.
-function parseDiscountPercent(raw: unknown): number {
-  const n =
-    typeof raw === 'number'
-      ? raw
-      : typeof raw === 'string'
-        ? parseInt(raw, 10)
-        : NaN;
-  if (Number.isInteger(n) && n >= 1 && n <= 99) return n;
-  return 0;
 }
 
 function applyDiscount(cents: number, pct: number): number {
@@ -151,7 +143,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const currency: Currency = isSupportedCurrency(currencyRaw)
       ? (currencyRaw as Currency)
       : 'EUR';
-    const discountPct = parseDiscountPercent(payload.discount_percent);
+    // ?discount=N (public, 1–99) or the owner's secret ?adiscount=N (1–100).
+    // The secret param is the only route to 100% — a free checkout. For the
+    // bundle/cert pricing below, only 1–99 is ever meaningful (a 100% request
+    // is intercepted by the free-checkout branch before any pricing runs).
+    const discountPct = resolveCourseDiscountPercent({
+      discount: payload.discount_percent,
+      adiscount: payload.adiscount_percent,
+    });
 
     if (productSlug !== 'cc-cert' && productSlug !== 'cc-bundle') {
       return json({ error: 'Unknown product.' }, 400);
@@ -205,6 +204,50 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const sourceVariant = isVariant(payload.source_variant)
       ? payload.source_variant
       : 'direct';
+
+    const phoneCountry = findCountry(phoneCountryCode);
+    const phoneE164 = phoneCountry
+      ? `+${phoneCountry.dial}${phoneLocal.replace(/[^0-9]/g, '')}`
+      : phoneLocal;
+
+    // Free checkout (secret ?adiscount=100): nothing to charge, so fulfil the
+    // registration directly instead of opening Stripe — always as a single
+    // full €0 grant, never an installment plan. The buyer's activation choice
+    // is preserved so Drip tags the certification path correctly. Same
+    // paid-side effects (Drip access + SD-ORDER) run inside the helper.
+    if (
+      isFreeCourseCheckout({
+        discount: payload.discount_percent,
+        adiscount: payload.adiscount_percent,
+      })
+    ) {
+      const result = await fulfilFreeCourseRegistration(
+        env,
+        {
+          email,
+          first_name: firstName,
+          last_name: lastName,
+          country: countryCode,
+          phone: phoneE164,
+          phone_country: phoneCountryCode,
+          company_name: companyName,
+          vat_number: vatNumber,
+          product_slug: productSlug,
+          activate_choice: activateChoice,
+          source_variant: sourceVariant,
+          amount_cents: 0,
+          currency,
+          consent_terms: payload.consent_terms === true,
+          payment_plan: 'full',
+          installments_total: 1,
+        },
+        {
+          thanksPath: '/courses/certification/thanks',
+          originalAmountCents: offerFor(productSlug, currency).price_cents,
+        },
+      );
+      return json(result);
+    }
 
     const baseOffer = offerFor(productSlug, currency);
     // Launch promo (cc-cert only here — the cc-bundle path is priced in path.ts):
@@ -293,11 +336,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
       productSlug === 'cc-bundle'
         ? '12-Week Course + Certification Course'
         : offer.label;
-
-    const phoneCountry = findCountry(phoneCountryCode);
-    const phoneE164 = phoneCountry
-      ? `+${phoneCountry.dial}${phoneLocal.replace(/[^0-9]/g, '')}`
-      : phoneLocal;
 
     const registrationId = await createPendingCourseRegistration(env.DB, {
       email,
