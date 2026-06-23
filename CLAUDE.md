@@ -77,7 +77,13 @@ All automated workshop email lives in the workshop engine:
   Resend message id) by `sendEmail`'s `track` option; the Resend event webhook
   (`/api/webhooks/resend`, Svix-signed via `RESEND_WEBHOOK_SECRET`) folds
   delivery/open/click/bounce/complaint events back onto the row. Open & click
-  rates per email type show on `/admin/emails/stats`. To light it up: enable
+  rates per email type show on `/admin/emails/stats`. A spam **complaint** and a
+  **permanent (hard) bounce** also add the address to `email_suppressions`
+  (reasons `complaint` / `bounced`) so marketing stops; soft/transient bounces
+  are left alone, and Resend must report the bounce `type` for the hard-bounce
+  suppression to fire (the bounce-check reimport below is the comprehensive
+  cleanup). Transactional mail ignores suppression, so this never blocks
+  confirmations/reminders. To light it up: enable
   open+click tracking on the sending domain in Resend, add the webhook endpoint,
   and set the signing secret. `variant` column is the seed for future A/B tests.
 - **Timezone-aware sending**: non-urgent mail (early reminders 7d/2d/1d + all
@@ -161,8 +167,15 @@ e.g. a Drip export) and one-off `broadcasts` sent to it. Lives in
   (`suppressPendingRecipientsAtDeadDomains`). Fails open so a DNS hiccup never
   drops a valid address; non-destructive (contact rows stay). New imports at a
   known-dead domain are auto-suppressed on the way in (`importContacts`). For
-  dead mailboxes at live providers, export a broadcast's queue
-  (`/api/admin/broadcasts/export`) and run a mailbox-level validator. Separately,
+  dead mailboxes at live providers, use the **bounce-check loop** on
+  `/admin/contacts`: export the whole sendable list
+  (`/api/admin/contacts/export` → `sendableContactsForExport`), run it through a
+  mailbox-level checker (NeverBounce/ZeroBounce/Bouncer/…), then reimport the
+  results — the page detects the result column, you tick which values mean
+  undeliverable, and `/api/admin/contacts/suppress` (`suppressEmailsBatch`,
+  reason `bounced`) adds them to the global `email_suppressions` list and scrubs
+  live broadcast queues. (Or export a single broadcast's queue via
+  `/api/admin/broadcasts/export` for a per-send check.) Separately,
   a broadcast's detail page can remove already-queued contacts carrying given
   tags (`/api/admin/broadcasts/exclude-tags` → `suppressPendingByTags`), e.g.
   ones Drip flagged undeliverable — audience exclude-tags only apply at launch,

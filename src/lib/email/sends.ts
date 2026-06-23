@@ -8,6 +8,8 @@
 // every write is wrapped and a missing table simply means "no stats yet" rather
 // than a broken send. Recording a send must NEVER throw into the mail path.
 
+import { suppressEmailWithReason } from './unsubscribe';
+
 // The notification/email types the engine emits, mapped to a human group +
 // label for the stats view. Unknown types fall back to their raw key, so a new
 // email shows up in stats the moment it sends — it just isn't prettily named
@@ -95,11 +97,21 @@ export type ResendEventType =
   | 'email.bounced'
   | 'email.complained';
 
+// Resend mirrors SES bounce types: 'Permanent' (hard — mailbox is gone),
+// 'Transient' (soft — full/greylisted, may clear) and 'Undetermined'. Only a
+// permanent bounce means the address will only ever bounce again. Be
+// conservative: if Resend didn't tell us the type, treat it as soft and don't
+// suppress — the bounce-checker reimport loop is the comprehensive cleanup.
+function isPermanentBounce(bounceType?: string): boolean {
+  return (bounceType ?? '').toLowerCase() === 'permanent';
+}
+
 export async function applyResendEvent(
   db: D1Database,
   type: string,
   resendId: string,
   atIso: string,
+  opts: { bounceType?: string } = {},
 ): Promise<void> {
   let sql: string | null = null;
   switch (type) {
@@ -136,6 +148,27 @@ export async function applyResendEvent(
       ? [atIso, atIso, resendId]
       : [atIso, resendId];
   await db.prepare(sql).bind(...binds).run();
+
+  // A spam complaint MUST take the address off marketing, and a permanent
+  // bounce will only bounce again — fold both onto the global suppression list
+  // so they're skipped on every future marketing/broadcast send. (Transactional
+  // mail ignores suppression, so this never blocks what someone paid for.)
+  // Best-effort: a hiccup here must never fail the already-recorded webhook.
+  const complaint = type === 'email.complained';
+  const hardBounce = type === 'email.bounced' && isPermanentBounce(opts.bounceType);
+  if (complaint || hardBounce) {
+    try {
+      const row = await db
+        .prepare('SELECT to_email FROM email_sends WHERE resend_id = ?')
+        .bind(resendId)
+        .first<{ to_email: string | null }>();
+      if (row?.to_email) {
+        await suppressEmailWithReason(db, row.to_email, complaint ? 'complaint' : 'bounced', 'resend');
+      }
+    } catch {
+      // best-effort — the bounce/complaint timestamp is already recorded.
+    }
+  }
 }
 
 export type EmailTypeStats = {
