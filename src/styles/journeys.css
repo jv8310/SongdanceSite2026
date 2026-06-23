@@ -980,6 +980,16 @@ html, body { background: var(--paper); }
   transition: border-color var(--d-base) var(--ease), box-shadow var(--d-base) var(--ease), background var(--d-base) var(--ease);
 }
 .jr-opt:hover { border-color: var(--line-strong); }
+/* A reveal-on-select option (e.g. bundle-PRO) — keep [hidden] winning over the
+   flex/grid display above, and read as a nested upgrade of the option above. */
+.jr-opt[hidden] { display: none; }
+.jr-opt--bundle-pro {
+  margin-top: calc(var(--sp-3) * -1 + 2px);
+  margin-left: var(--sp-5);
+  border-top-left-radius: 0;
+  border-color: var(--jr-accent-soft);
+}
+@media (max-width: 560px) { .jr-opt--bundle-pro { margin-left: var(--sp-3); } }
 .jr-opt input[type="radio"] {
   appearance: none; -webkit-appearance: none;
   flex: 0 0 auto;
