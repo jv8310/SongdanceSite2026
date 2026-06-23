@@ -30,6 +30,11 @@ import {
   type JourneySlug,
 } from '../../../lib/courses/journeys';
 import { withLaunchPromo } from '../../../lib/promo';
+import {
+  resolveCourseDiscountPercent,
+  isFreeCourseCheckout,
+} from '../../../lib/courses/discount';
+import { fulfilFreeCourseRegistration } from '../../../lib/courses/free-checkout';
 
 export const prerender = false;
 
@@ -43,18 +48,8 @@ type Body = {
   vat_number?: string;
   consent_terms?: boolean;
   discount_percent?: number | string;
+  adiscount_percent?: number | string;
 };
-
-function parseDiscountPercent(raw: unknown): number {
-  const n =
-    typeof raw === 'number'
-      ? raw
-      : typeof raw === 'string'
-        ? parseInt(raw, 10)
-        : NaN;
-  if (Number.isInteger(n) && n >= 1 && n <= 99) return n;
-  return 0;
-}
 
 function applyDiscount(cents: number, pct: number): number {
   if (pct <= 0) return cents;
@@ -85,7 +80,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const companyName = (payload.company_name ?? '').trim() || null;
     const vatNumberRaw = (payload.vat_number ?? '').trim().replace(/\s+/g, '');
     const vatNumber = vatNumberRaw ? vatNumberRaw.toUpperCase() : null;
-    const discountPct = parseDiscountPercent(payload.discount_percent);
+    // ?discount=N (public, 1–99) or the owner's secret ?adiscount=N (1–100).
+    // The secret param is the only route to 100% — a free checkout.
+    const discountPct = resolveCourseDiscountPercent({
+      discount: payload.discount_percent,
+      adiscount: payload.adiscount_percent,
+    });
 
     if (!firstName || !lastName || !email) {
       return json(
@@ -120,6 +120,44 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     const currency: JourneyCurrency = journeyCurrencyForCountry(countryCode);
     const offer = journeyOffer(slug, currency);
+
+    // Free checkout (secret ?adiscount=100): nothing to charge, so fulfil the
+    // registration directly instead of opening Stripe. Same paid-side effects
+    // (Drip access + SD-ORDER) run inside the helper.
+    if (
+      isFreeCourseCheckout({
+        discount: payload.discount_percent,
+        adiscount: payload.adiscount_percent,
+      })
+    ) {
+      const result = await fulfilFreeCourseRegistration(
+        env,
+        {
+          email,
+          first_name: firstName,
+          last_name: lastName,
+          country: countryCode,
+          phone: null,
+          phone_country: null,
+          company_name: companyName,
+          vat_number: vatNumber,
+          product_slug: slug,
+          activate_choice: null,
+          source_variant: 'free-comp',
+          amount_cents: 0,
+          currency,
+          consent_terms: payload.consent_terms === true,
+          payment_plan: 'full',
+          installments_total: 1,
+        },
+        {
+          thanksPath: '/courses/journeys/thanks',
+          originalAmountCents: offer.price_cents,
+        },
+      );
+      return json(result);
+    }
+
     // Launch promo: 50% off, the better of the promo and any ?discount=N. For
     // the bundle, offer.price_cents is already 20% off the sum, so this lands
     // the 50% promo on top of the bundle discount.
