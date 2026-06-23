@@ -12,6 +12,7 @@ import {
   countSendable,
   recentContacts,
   countDeadDomainSuppressions,
+  countBounceSuppressions,
   uncheckedContactDomainCount,
 } from '../../../lib/broadcasts/db';
 
@@ -28,6 +29,8 @@ const recent = await recentContacts(env.DB, 8);
 // List-health figures for the dead-domain cleaner.
 const deadSuppressed = await countDeadDomainSuppressions(env.DB);
 const uncheckedDomains = await uncheckedContactDomainCount(env.DB);
+// Addresses taken off by the bounce-checker loop + Resend hard bounces/complaints.
+const bounceSuppressed = await countBounceSuppressions(env.DB);
 ---
 
 <Layout title="Admin — Contacts — Songdance" description="">
@@ -53,6 +56,7 @@ const uncheckedDomains = await uncheckedContactDomainCount(env.DB);
         <div class="ct-stat"><span class="ct-num" id="ct-total">{total.toLocaleString()}</span><span class="ct-lbl">contacts</span></div>
         <div class="ct-stat"><span class="ct-num">{sendable.toLocaleString()}</span><span class="ct-lbl">sendable (minus suppressions)</span></div>
         <div class="ct-stat"><span class="ct-num">{deadSuppressed.toLocaleString()}</span><span class="ct-lbl">at dead domains</span></div>
+        <div class="ct-stat"><span class="ct-num">{bounceSuppressed.toLocaleString()}</span><span class="ct-lbl">bounced / complained</span></div>
       </div>
     </section>
 
@@ -77,6 +81,39 @@ const uncheckedDomains = await uncheckedContactDomainCount(env.DB);
             : 'All domains checked'}
         </span>
       </div>
+    </section>
+
+    <section class="adm-section">
+      <h2>Bounce check (mailbox-level)</h2>
+      <p class="ct-help">
+        Dead-domain cleaning can't catch a dead mailbox at a live provider (a
+        closed Gmail still resolves Gmail's MX). For those, <strong>export the
+        sendable list</strong>, run it through a bounce-checker (NeverBounce,
+        ZeroBounce, Bouncer, …), then <strong>reimport the results</strong> here.
+        Addresses you mark go onto the suppression list — skipped on this and
+        every future broadcast, and removed from any live queue. Non-destructive:
+        the contacts stay, just flagged. (Going forward, Resend hard bounces and
+        spam complaints are now auto-suppressed too.)
+      </p>
+      <div class="ct-actions">
+        <a class="adm-btn" href="/api/admin/contacts/export">Export sendable list (CSV)</a>
+        <span class="ct-progress">{sendable.toLocaleString()} addresses</span>
+      </div>
+
+      <p class="ct-help" style="margin-top:18px;">
+        Reimport the checker's results CSV. The email column and a result/status
+        column are detected automatically; pick which result values mean
+        undeliverable and suppress them. (No result column? Every address in the
+        file is treated as bad.)
+      </p>
+      <input id="bc-file" type="file" accept=".csv,text/csv" class="ct-file" />
+      <div id="bc-detected" class="ct-detected" hidden></div>
+      <div id="bc-values" class="ct-values" hidden></div>
+      <div class="ct-actions">
+        <button id="bc-suppress" class="adm-btn" type="button" disabled>Suppress selected</button>
+        <span id="bc-progress" class="ct-progress"></span>
+      </div>
+      <div id="bc-bar-wrap" class="ct-bar-wrap" hidden><div id="bc-bar" class="ct-bar"></div></div>
     </section>
 
     <section class="adm-section">
@@ -149,6 +186,10 @@ const uncheckedDomains = await uncheckedContactDomainCount(env.DB);
     .ct-table tr:last-child td { border-bottom: none; }
     .ct-muted { color: #b6a8b4; }
     .ct-tags { color: #6f5f6d; font-size: 12px; max-width: 280px; }
+    .ct-values { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 4px 0 14px; max-width: 64ch; }
+    .ct-values label { display: inline-flex; align-items: center; gap: 6px; font-size: 13.5px; color: #2a1b2a; cursor: pointer; }
+    .ct-values .bad { color: #a14826; }
+    .ct-values .cnt { color: #6f5f6d; font-variant-numeric: tabular-nums; }
   </style>
 
   <script is:inline>
@@ -351,6 +392,154 @@ const uncheckedDomains = await uncheckedContactDomainCount(env.DB);
           msg.textContent = 'Failed: ' + (err && err.message ? err.message : String(err));
         }
         btn.disabled = false;
+      });
+    })();
+
+    // ── Bounce-check reimport — upload a validator's results, pick the bad
+    // result values, suppress those addresses (and scrub live queues). ──────────
+    (function () {
+      const file = document.getElementById('bc-file');
+      if (!file) return;
+      const detected = document.getElementById('bc-detected');
+      const valuesEl = document.getElementById('bc-values');
+      const suppressBtn = document.getElementById('bc-suppress');
+      const progress = document.getElementById('bc-progress');
+      const barWrap = document.getElementById('bc-bar-wrap');
+      const bar = document.getElementById('bc-bar');
+      const totalEl = document.getElementById('ct-total');
+
+      // Result values a checker uses for an undeliverable address — pre-checked.
+      // Risky / unknown / catch-all / disposable are judgment calls: shown, left
+      // off, the user opts in.
+      const BAD = /invalid|undeliver|^bad$|donotmail|do_not_mail|spamtrap|spam_trap|abuse|bounce|reject|fail|hardbounce/;
+
+      // rows: [{ email, status }]; statusCol present when a result column found.
+      let rows = [];
+      let hasStatus = false;
+
+      function detectStatusCol(header) {
+        for (let i = 0; i < header.length; i++) {
+          const n = norm(header[i]);
+          if (n.includes('result') || n.includes('status') || n === 'verdict' ||
+              n.includes('deliverab') || n.includes('zbstatus') || n.includes('state')) {
+            return i;
+          }
+        }
+        return -1;
+      }
+
+      file.addEventListener('change', async () => {
+        rows = [];
+        suppressBtn.disabled = true;
+        detected.hidden = true;
+        valuesEl.hidden = true;
+        valuesEl.innerHTML = '';
+        progress.textContent = '';
+        const f = file.files && file.files[0];
+        if (!f) return;
+        const parsed = parseCsv(await f.text());
+        if (parsed.length < 2) {
+          detected.hidden = false;
+          detected.innerHTML = '<span class="warn">Could not read any data rows from that file.</span>';
+          return;
+        }
+        const header = parsed[0];
+        const idx = detectColumns(header); // reuse — finds the email column
+        if (idx.email < 0) {
+          detected.hidden = false;
+          detected.innerHTML = '<span class="warn">No email column found in the results file.</span>';
+          return;
+        }
+        const statusCol = detectStatusCol(header);
+        hasStatus = statusCol >= 0;
+
+        const counts = new Map(); // lowercased status value → count
+        for (let r = 1; r < parsed.length; r++) {
+          const email = (parsed[r][idx.email] || '').trim().toLowerCase();
+          if (!email) continue;
+          const status = hasStatus ? (parsed[r][statusCol] || '').trim() : '';
+          rows.push({ email, status });
+          if (hasStatus) {
+            const key = status.toLowerCase() || '(blank)';
+            counts.set(key, (counts.get(key) || 0) + 1);
+          }
+        }
+
+        detected.hidden = false;
+        if (!hasStatus) {
+          detected.innerHTML =
+            `<strong>${rows.length.toLocaleString()}</strong> addresses · ` +
+            `<span class="warn">no result column detected — every address in this file will be suppressed.</span>`;
+          suppressBtn.disabled = rows.length === 0;
+          return;
+        }
+
+        detected.innerHTML =
+          `<strong>${rows.length.toLocaleString()}</strong> addresses · result column → ` +
+          `<code>${header[statusCol]}</code>. Tick the values that mean undeliverable:`;
+        const entries = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+        valuesEl.hidden = false;
+        valuesEl.innerHTML = entries.map(([val, n]) => {
+          const bad = BAD.test(norm(val));
+          return `<label><input type="checkbox" value="${encodeURIComponent(val)}"${bad ? ' checked' : ''}>` +
+            `<span class="${bad ? 'bad' : ''}">${val}</span> <span class="cnt">(${n.toLocaleString()})</span></label>`;
+        }).join('');
+        suppressBtn.disabled = false;
+      });
+
+      suppressBtn.addEventListener('click', async () => {
+        let targets;
+        if (hasStatus) {
+          const chosen = new Set(
+            [...valuesEl.querySelectorAll('input:checked')].map((c) => decodeURIComponent(c.value)),
+          );
+          targets = rows.filter((r) => chosen.has(r.status.toLowerCase() || '(blank)')).map((r) => r.email);
+        } else {
+          targets = rows.map((r) => r.email);
+        }
+        targets = [...new Set(targets)];
+        if (targets.length === 0) {
+          progress.textContent = 'Nothing selected.';
+          return;
+        }
+        if (!confirm(`Suppress ${targets.length.toLocaleString()} address(es)? They'll be skipped on every future send.`)) return;
+
+        suppressBtn.disabled = true;
+        file.disabled = true;
+        barWrap.hidden = false;
+        const CHUNK = 2000;
+        let done = 0;
+        let suppressed = 0;
+        let scrubbed = 0;
+        let sendable = null;
+        try {
+          for (let i = 0; i < targets.length; i += CHUNK) {
+            const slice = targets.slice(i, i + CHUNK);
+            const res = await fetch('/api/admin/contacts/suppress', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ emails: slice, reason: 'bounced' }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Suppress failed');
+            suppressed += data.suppressed || 0;
+            scrubbed += data.scrubbed || 0;
+            sendable = data.sendable;
+            done += slice.length;
+            const pct = Math.round((done / targets.length) * 100);
+            bar.style.width = pct + '%';
+            progress.textContent = `${done.toLocaleString()} / ${targets.length.toLocaleString()} (${pct}%)`;
+          }
+          progress.textContent =
+            `Suppressed ${suppressed.toLocaleString()} new address(es). ✓` +
+            (scrubbed > 0 ? ` (${scrubbed.toLocaleString()} removed from live queues)` : '') +
+            ' Reload to update counts.';
+        } catch (err) {
+          progress.textContent = 'Failed: ' + (err && err.message ? err.message : String(err));
+          suppressBtn.disabled = false;
+        } finally {
+          file.disabled = false;
+        }
       });
     })();
   </script>

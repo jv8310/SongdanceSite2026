@@ -868,6 +868,100 @@ export async function pendingRecipientsForExport(
   return r.results ?? [];
 }
 
+// ── Bounce check: list-level export + result reimport ──────────────────────────
+// The dead-domain cleaner catches whole dead domains; it can't catch dead
+// mailboxes at a live provider (a closed Gmail still resolves Gmail's MX). For
+// those: export the sendable list, run it through a mailbox-level bounce-checker
+// (NeverBounce, ZeroBounce, Bouncer, …), then reimport the undeliverable
+// addresses here. They go onto the global email_suppressions list — same as a
+// dead domain — so they're skipped on this broadcast, every future broadcast,
+// and lifecycle marketing, and never bounce again.
+
+// Every contact a broadcast could currently reach (not already suppressed), for
+// CSV export to an external validator. Keyset-paginated by id so the full list
+// (tens of thousands) streams out without tripping a single-query row cap.
+export async function sendableContactsForExport(
+  db: D1Database,
+): Promise<Array<{ email: string; name: string | null }>> {
+  const out: Array<{ email: string; name: string | null }> = [];
+  const PAGE = 10000;
+  let afterId = 0;
+  for (;;) {
+    const r = await db
+      .prepare(
+        `SELECT c.id AS id, c.email AS email, c.name AS name FROM contacts c
+          WHERE c.id > ?
+            AND NOT EXISTS (SELECT 1 FROM email_suppressions s WHERE s.email = c.email)
+          ORDER BY c.id LIMIT ?`,
+      )
+      .bind(afterId, PAGE)
+      .all<{ id: number; email: string; name: string | null }>();
+    const rows = r.results ?? [];
+    for (const row of rows) out.push({ email: row.email, name: row.name });
+    if (rows.length < PAGE) break;
+    afterId = rows[rows.length - 1].id;
+  }
+  return out;
+}
+
+// Add a batch of addresses to the global suppression list (bounce-checker
+// results) and scrub them from any live broadcast queue — mirroring the
+// dead-domain sweep. Idempotent (INSERT OR IGNORE). D1 caps bound params at
+// 100/statement, so the suppress upsert chunks at 30 rows (3 params each) and
+// the queue scrub at 90 emails. Returns newly-suppressed + queue rows scrubbed.
+export async function suppressEmailsBatch(
+  db: D1Database,
+  emails: string[],
+  reason: string,
+  source: string,
+): Promise<{ suppressed: number; scrubbed: number }> {
+  const clean = [...new Set(emails.map((e) => e.trim().toLowerCase()).filter(Boolean))];
+  if (clean.length === 0) return { suppressed: 0, scrubbed: 0 };
+
+  let suppressed = 0;
+  const SUPPRESS_PER_STMT = 30;
+  for (let i = 0; i < clean.length; i += SUPPRESS_PER_STMT) {
+    const slice = clean.slice(i, i + SUPPRESS_PER_STMT);
+    const r = await db
+      .prepare(
+        `INSERT OR IGNORE INTO email_suppressions (email, reason, source)
+           VALUES ${slice.map(() => '(?, ?, ?)').join(',')}`,
+      )
+      .bind(...slice.flatMap((e) => [e, reason, source]))
+      .run();
+    suppressed += r.meta?.changes ?? 0;
+  }
+
+  let scrubbed = 0;
+  const QUEUE_PER_STMT = 90;
+  for (let i = 0; i < clean.length; i += QUEUE_PER_STMT) {
+    const slice = clean.slice(i, i + QUEUE_PER_STMT);
+    const r = await db
+      .prepare(
+        `UPDATE broadcast_recipients SET status = 'suppressed', error = 'bounced'
+          WHERE status = 'pending' AND email IN (${slice.map(() => '?').join(',')})`,
+      )
+      .bind(...slice)
+      .run();
+    scrubbed += r.meta?.changes ?? 0;
+  }
+  return { suppressed, scrubbed };
+}
+
+// Addresses suppressed because they bounce / complain — bounce-checker results
+// plus Resend hard bounces and spam complaints folded in by the event webhook.
+// A list-health figure for the contacts page (parallels dead-domain count).
+export async function countBounceSuppressions(db: D1Database): Promise<number> {
+  try {
+    const r = await db
+      .prepare(`SELECT COUNT(*) AS n FROM email_suppressions WHERE reason IN ('bounced', 'complaint')`)
+      .first<{ n: number }>();
+    return r?.n ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
 // ── Engagement (reads the shared email_sends table) ────────────────────────────
 
 export type BroadcastStats = {

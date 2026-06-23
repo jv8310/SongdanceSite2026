@@ -72,6 +72,24 @@ export async function suppressEmail(db: D1Database, email: string, source: strin
     .run();
 }
 
+// Suppress with an explicit reason/source (hard bounces, spam complaints,
+// bounce-checker results) — like suppressEmail but not pinned to 'unsubscribe'.
+// Idempotent: an already-suppressed address keeps its original reason.
+export async function suppressEmailWithReason(
+  db: D1Database,
+  email: string,
+  reason: string,
+  source: string,
+): Promise<void> {
+  await db
+    .prepare(
+      `INSERT INTO email_suppressions (email, reason, source) VALUES (?, ?, ?)
+       ON CONFLICT(email) DO NOTHING`,
+    )
+    .bind(email.trim().toLowerCase(), reason, source)
+    .run();
+}
+
 // Lift a suppression — the address can receive marketing again.
 export async function unsuppressEmail(db: D1Database, email: string): Promise<void> {
   await db
