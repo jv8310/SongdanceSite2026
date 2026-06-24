@@ -1013,14 +1013,15 @@ export type BroadcastStats = {
   delivered: number;
   opened: number;
   clicked: number;
-  bounced: number;
+  bounced: number; // all bounces (soft + hard) — the display figure
+  hardBounced: number; // permanent bounces only — what the circuit breaker weighs
   complained: number;
   openRate: number;
   clickRate: number;
 };
 
 const ZERO_STATS: BroadcastStats = {
-  sent: 0, delivered: 0, opened: 0, clicked: 0, bounced: 0, complained: 0, openRate: 0, clickRate: 0,
+  sent: 0, delivered: 0, opened: 0, clicked: 0, bounced: 0, hardBounced: 0, complained: 0, openRate: 0, clickRate: 0,
 };
 
 // `since` (an ISO/SQLite datetime) windows the stats to sends made at or after
@@ -1040,6 +1041,7 @@ export async function broadcastStats(
                 SUM(CASE WHEN first_opened_at IS NOT NULL THEN 1 ELSE 0 END) AS opened,
                 SUM(CASE WHEN first_clicked_at IS NOT NULL THEN 1 ELSE 0 END) AS clicked,
                 SUM(CASE WHEN bounced_at IS NOT NULL THEN 1 ELSE 0 END) AS bounced,
+                SUM(CASE WHEN hard_bounced_at IS NOT NULL THEN 1 ELSE 0 END) AS hardBounced,
                 SUM(CASE WHEN complained_at IS NOT NULL THEN 1 ELSE 0 END) AS complained
            FROM email_sends WHERE email_type = ?${since ? ' AND sent_at >= ?' : ''}`,
       )

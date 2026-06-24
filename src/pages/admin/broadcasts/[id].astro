@@ -200,7 +200,7 @@ const statusLabel: Record<string, string> = {
             <div class="bc-stat"><span class="n">{stats.delivered.toLocaleString()}</span><span class="l">delivered</span></div>
             <div class="bc-stat"><span class="n">{pct(stats.openRate)}</span><span class="l">open rate ({stats.opened})</span></div>
             <div class="bc-stat"><span class="n">{pct(stats.clickRate)}</span><span class="l">click rate ({stats.clicked})</span></div>
-            <div class="bc-stat"><span class="n">{stats.bounced.toLocaleString()}</span><span class="l">bounced</span></div>
+            <div class="bc-stat"><span class="n">{stats.bounced.toLocaleString()}</span><span class="l">bounced ({stats.hardBounced.toLocaleString()} hard)</span></div>
             <div class="bc-stat"><span class="n">{stats.complained.toLocaleString()}</span><span class="l">spam</span></div>
           </div>
           <p class="bc-note">

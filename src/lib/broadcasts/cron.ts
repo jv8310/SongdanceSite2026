@@ -62,11 +62,14 @@ const MAX_PER_RUN = 200;
 const SEND_GAP_MS = 550;
 
 // Circuit breaker. Once a real sample has gone out, pause if complaints or
-// bounces cross these lines — a dormant list that's gone sour should stop, not
-// keep burning the domain. Rates are over tracked sends.
+// HARD (permanent) bounces cross these lines — a dormant list that's gone sour
+// should stop, not keep burning the domain. The bounce rate counts permanent
+// bounces only (hard_bounced_at): a transient/greylist bounce clears on its own,
+// isn't removed by list cleaning, and would otherwise re-trip the breaker on
+// every resume. Rates are over tracked sends.
 const CB_MIN_SAMPLE = 250;
 const CB_MAX_COMPLAINT_RATE = 0.002; // 0.2%
-const CB_MAX_BOUNCE_RATE = 0.06; // 6%
+const CB_MAX_BOUNCE_RATE = 0.06; // 6% (permanent bounces)
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -81,35 +84,42 @@ export async function runBroadcasts(
 
   const active = await listActiveBroadcasts(env.DB);
   for (const b of active) {
-    const emailType = broadcastEmailType(b.id);
+    // Isolate each broadcast: a thrown error (a transient D1 hiccup, a bad row)
+    // must not abort the whole run and silently wedge every broadcast tick after
+    // tick. Log it and carry on to the next.
+    try {
+      const emailType = broadcastEmailType(b.id);
 
-    // 1. Circuit breaker — over sends made SINCE the last launch/resume, so a
-    // cleaned-and-resumed queue is judged on its own fresh sample rather than a
-    // sour historical rate it can never live down. Needs CB_MIN_SAMPLE *new*
-    // sends before it can trip again.
-    const stats = await broadcastStats(env.DB, emailType, b.breaker_baseline_at);
-    if (stats.sent >= CB_MIN_SAMPLE) {
-      const complaintRate = stats.complained / stats.sent;
-      const bounceRate = stats.bounced / stats.sent;
-      if (complaintRate > CB_MAX_COMPLAINT_RATE || bounceRate > CB_MAX_BOUNCE_RATE) {
-        await pauseBroadcast(
-          env.DB,
-          b.id,
-          `Auto-paused after ${stats.sent} sent since resuming — complaints ${(complaintRate * 100).toFixed(2)}%, ` +
-            `bounces ${(bounceRate * 100).toFixed(2)}%. Clean the queue (dead domains / bad tags) before resuming.`,
-        );
-        result.paused += 1;
-        continue;
+      // 1. Circuit breaker — over sends made SINCE the last launch/resume, so a
+      // cleaned-and-resumed queue is judged on its own fresh sample rather than a
+      // sour historical rate it can never live down. Needs CB_MIN_SAMPLE *new*
+      // sends before it can trip again. Bounce side weighs permanent bounces only.
+      const stats = await broadcastStats(env.DB, emailType, b.breaker_baseline_at);
+      if (stats.sent >= CB_MIN_SAMPLE) {
+        const complaintRate = stats.complained / stats.sent;
+        const bounceRate = stats.hardBounced / stats.sent;
+        if (complaintRate > CB_MAX_COMPLAINT_RATE || bounceRate > CB_MAX_BOUNCE_RATE) {
+          await pauseBroadcast(
+            env.DB,
+            b.id,
+            `Auto-paused after ${stats.sent} sent since resuming — complaints ${(complaintRate * 100).toFixed(2)}%, ` +
+              `hard bounces ${(bounceRate * 100).toFixed(2)}%. Clean the queue (dead domains / bad tags) before resuming.`,
+          );
+          result.paused += 1;
+          continue;
+        }
       }
-    }
 
-    // 2. Drain a paced, in-window batch
-    result.sent += await drainBroadcast(env, b, emailType, now);
+      // 2. Drain a paced, in-window batch
+      result.sent += await drainBroadcast(env, b, emailType, now);
 
-    // 3. Finished?
-    if ((await pendingCount(env.DB, b.id)) === 0) {
-      await markBroadcastDone(env.DB, b.id);
-      result.done += 1;
+      // 3. Finished?
+      if ((await pendingCount(env.DB, b.id)) === 0) {
+        await markBroadcastDone(env.DB, b.id);
+        result.done += 1;
+      }
+    } catch (err) {
+      console.error(`[broadcasts/cron] broadcast ${b.id} failed this tick`, err);
     }
   }
 
@@ -166,12 +176,15 @@ async function drainBroadcast(
       continue;
     }
 
-    const firstName = (c.name ?? '').trim().split(/\s+/)[0] ?? '';
-    const footerUnsub = secret ? await unsubscribePageUrl(base, secret, c.email) : undefined;
-    const oneClickUnsub = secret ? await oneClickUnsubscribeUrl(base, secret, c.email) : undefined;
-    const content = renderBroadcast(b, { firstName, unsubscribeUrl: footerUnsub });
-
     try {
+      // Build + send inside the try so a bad row (render/unsub-URL/Resend
+      // failure) is parked as retry/fail for THIS recipient, never thrown out of
+      // the loop where it would abort the whole drain with the row left claimed.
+      const firstName = (c.name ?? '').trim().split(/\s+/)[0] ?? '';
+      const footerUnsub = secret ? await unsubscribePageUrl(base, secret, c.email) : undefined;
+      const oneClickUnsub = secret ? await oneClickUnsubscribeUrl(base, secret, c.email) : undefined;
+      const content = renderBroadcast(b, { firstName, unsubscribeUrl: footerUnsub });
+
       if (sent > 0) await sleep(SEND_GAP_MS);
       const { id } = await sendEmail({
         apiKey: env.RESEND_API_KEY!,
