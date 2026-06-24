@@ -1,7 +1,7 @@
 // CRUD for course_registrations. Mirrors the slim subset of
 // src/lib/registrations/db.ts that the course flow needs.
 
-import type { JourneySlug } from './journeys';
+import type { JourneyLanguageChoice, JourneySlug } from './journeys';
 
 // The thematic SVH course products. Journeys (asj/mmj/inner-child + PRO/bundle)
 // are also stored on course_registrations, so the registration's product_slug
@@ -36,6 +36,10 @@ export type CourseRegistration = {
   vat_number: string | null;
   product_slug: CourseRegistrationSlug;
   activate_choice: ActivateChoice | null;
+  // Authentic Singing Journey language edition (Dutch / English / both). NULL
+  // for products with no ASJ and any buyer never shown the choice — see
+  // journeyDrip in ./journeys.ts.
+  language_choice: JourneyLanguageChoice | null;
   source_variant: string | null;
   amount_cents: number;
   currency: string;
@@ -75,6 +79,8 @@ export type CreatePendingCourseRegistrationInput = {
   vat_number: string | null;
   product_slug: CourseRegistrationSlug;
   activate_choice: ActivateChoice | null;
+  // ASJ language edition; null/omitted for everything else (English default).
+  language_choice?: JourneyLanguageChoice | null;
   source_variant: string | null;
   amount_cents: number;
   currency: string;
@@ -94,11 +100,11 @@ export async function createPendingCourseRegistration(
       `INSERT INTO course_registrations
        (email, first_name, last_name, country, phone, phone_country,
         company_name, vat_number,
-        product_slug, activate_choice, source_variant,
+        product_slug, activate_choice, language_choice, source_variant,
         amount_cents, currency, status, provider,
         payment_plan, installments_total,
         consent_terms, consent_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?)`,
     )
     .bind(
       input.email,
@@ -111,6 +117,7 @@ export async function createPendingCourseRegistration(
       input.vat_number,
       input.product_slug,
       input.activate_choice,
+      input.language_choice ?? null,
       input.source_variant,
       input.amount_cents,
       input.currency,

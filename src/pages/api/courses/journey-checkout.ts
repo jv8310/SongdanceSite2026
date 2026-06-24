@@ -29,10 +29,13 @@ import {
 import { encodeCustomId, parseProvider } from '../../../lib/payments/provider';
 import { findCountry } from '../../../lib/countries';
 import {
+  hasDutchEdition,
+  isJourneyLanguageChoice,
   isJourneySlug,
   journeyCurrencyForCountry,
   journeyOffer,
   type JourneyCurrency,
+  type JourneyLanguageChoice,
   type JourneySlug,
 } from '../../../lib/courses/journeys';
 import { withLaunchPromo } from '../../../lib/promo';
@@ -56,6 +59,7 @@ type Body = {
   discount_percent?: number | string;
   adiscount_percent?: number | string;
   provider?: string; // 'stripe' (default) | 'paypal'
+  language_choice?: string; // ASJ component: 'nl' | 'en' | 'both'
 };
 
 function applyDiscount(cents: number, pct: number): number {
@@ -87,6 +91,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const companyName = (payload.company_name ?? '').trim() || null;
     const vatNumberRaw = (payload.vat_number ?? '').trim().replace(/\s+/g, '');
     const vatNumber = vatNumberRaw ? vatNumberRaw.toUpperCase() : null;
+    // Language edition — only meaningful for products containing the Authentic
+    // Singing Journey (asj, asj-pro, and the two bundles). Any other product, or
+    // an unknown value, falls back to null = the English default. The buyer's
+    // country/browser decides whether the choice is shown; the server simply
+    // records what was sent.
+    const langRaw = (payload.language_choice ?? '').toString().trim().toLowerCase();
+    const languageChoice: JourneyLanguageChoice | null =
+      hasDutchEdition(slug) && isJourneyLanguageChoice(langRaw) ? langRaw : null;
     // ?discount=N (public, 1–99) or the owner's secret ?adiscount=N (1–100).
     // The secret param is the only route to 100% — a free checkout.
     const discountPct = resolveCourseDiscountPercent({
@@ -154,6 +166,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
           vat_number: vatNumber,
           product_slug: slug,
           activate_choice: null,
+          language_choice: languageChoice,
           source_variant: 'free-comp',
           amount_cents: 0,
           currency,
@@ -186,6 +199,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       vat_number: vatNumber,
       product_slug: slug,
       activate_choice: null,
+      language_choice: languageChoice,
       source_variant: 'direct',
       amount_cents: chargedPriceCents,
       currency,
@@ -304,6 +318,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       tax_class: 'eservice',
       ...(companyName ? { company_name: companyName } : {}),
       ...(vatNumber ? { vat_number: vatNumber } : {}),
+      ...(languageChoice ? { language_choice: languageChoice } : {}),
       ...(effectivePct > 0
         ? {
             discount_percent: String(effectivePct),

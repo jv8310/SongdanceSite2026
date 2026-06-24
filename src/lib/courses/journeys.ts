@@ -123,6 +123,68 @@ export function isJourneySlug(slug: string | null | undefined): slug is JourneyS
   return !!slug && slug in LABEL_BY_SLUG;
 }
 
+// ── Dutch edition — the Authentic Singing Journey component ─────────────────
+// The ASJ ships in two language editions: the original English course and a
+// Dutch one. Buyers in a Dutch context (country BE/NL, geolocation, or a Dutch
+// browser) choose on the registration form which edition to receive. The choice
+// swaps the ASJ tags for their Dutch counterparts — prod_ASJ → prod_JAZ,
+// prod_ASJ_PRO → prod_JAZ_PRO — leaving any other product tags (a bundle's
+// prod_MMJ + prod_InnerChild) untouched. "both" keeps the English ASJ tags and
+// adds the Dutch ones. Only products that contain the ASJ have an edition (asj,
+// asj-pro, and the two bundles); Magical Movement and Inner Child do not.
+export type JourneyLanguageChoice = 'nl' | 'en' | 'both';
+
+export const LANGUAGE_CHOICE_LABEL: Record<JourneyLanguageChoice, string> = {
+  nl: 'Dutch (Nederlandstalige versie)',
+  en: 'English (Engelstalige versie)',
+  both: 'Both (Dutch + English)',
+};
+
+// English → Dutch tag swaps for the ASJ component of each product. Tags not
+// listed here (prod_MMJ, prod_InnerChild) are language-neutral and kept as-is.
+const ASJ_EDITION_SWAPS: Partial<
+  Record<JourneySlug, ReadonlyArray<readonly [string, string]>>
+> = {
+  asj: [['prod_ASJ', 'prod_JAZ']],
+  'asj-pro': [['prod_ASJ', 'prod_JAZ'], ['prod_ASJ_PRO', 'prod_JAZ_PRO']],
+  'journeys-bundle': [['prod_ASJ', 'prod_JAZ']],
+  'journeys-bundle-pro': [['prod_ASJ', 'prod_JAZ'], ['prod_ASJ_PRO', 'prod_JAZ_PRO']],
+};
+
+export function isJourneyLanguageChoice(
+  v: unknown,
+): v is JourneyLanguageChoice {
+  return v === 'nl' || v === 'en' || v === 'both';
+}
+
+// Whether a product contains the Authentic Singing Journey, so the Dutch-edition
+// choice applies: the ASJ itself, its PRO, and both bundles.
+export function hasDutchEdition(slug: JourneySlug): boolean {
+  return slug in ASJ_EDITION_SWAPS;
+}
+
+// Drip side-effects (tags + event) for a journey purchase, honouring the buyer's
+// language choice for the ASJ component. English — or no / unknown / legacy
+// choice, or a product with no ASJ — keeps the DRIP_BY_SLUG defaults. Dutch
+// swaps the ASJ tags for their prod_JAZ counterparts; "both" keeps the English
+// ASJ tags and adds the Dutch ones. The event name is unchanged: the chosen
+// edition rides along as an event property + a `journey_language` custom field
+// set by the paid-handler.
+export function journeyDrip(
+  slug: JourneySlug,
+  language?: JourneyLanguageChoice | null,
+): { tags: string[]; event: string } {
+  const base = DRIP_BY_SLUG[slug];
+  const swaps = ASJ_EDITION_SWAPS[slug];
+  if (!swaps || !isJourneyLanguageChoice(language) || language === 'en') return base;
+  const enToNl = new Map(swaps);
+  const tags =
+    language === 'nl'
+      ? base.tags.map((t) => enToNl.get(t) ?? t)
+      : base.tags.flatMap((t) => (enToNl.has(t) ? [t, enToNl.get(t)!] : [t]));
+  return { tags, event: base.event };
+}
+
 export function journeyCurrencyForCountry(
   country: string | null | undefined,
 ): JourneyCurrency {
