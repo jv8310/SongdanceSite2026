@@ -200,6 +200,7 @@ const THIS_LABEL: Record<Props['course'], string> = {
 <script>
   import { COUNTRIES } from '../../lib/countries';
   import { launchPromoPercent } from '../../lib/promo';
+  import { postJsonResilient } from '../../lib/client/resilient-fetch';
 
   type Currency =
     | 'EUR' | 'USD' | 'GBP' | 'CAD' | 'CHF'
@@ -530,22 +531,18 @@ const THIS_LABEL: Record<Props['course'], string> = {
       };
 
       try {
-        const res = await fetch('/api/courses/journey-checkout', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            product,
-            first_name,
-            last_name,
-            email,
-            country,
-            company_name: company_name || undefined,
-            vat_number: vat_number || undefined,
-            consent_terms: true,
-            provider,
-            ...(publicPct > 0 ? { discount_percent: publicPct } : {}),
-            ...(secretPct > 0 ? { adiscount_percent: secretPct } : {}),
-          }),
+        const res = await postJsonResilient('/api/courses/journey-checkout', {
+          product,
+          first_name,
+          last_name,
+          email,
+          country,
+          company_name: company_name || undefined,
+          vat_number: vat_number || undefined,
+          consent_terms: true,
+          provider,
+          ...(publicPct > 0 ? { discount_percent: publicPct } : {}),
+          ...(secretPct > 0 ? { adiscount_percent: secretPct } : {}),
         });
         let body: { checkout_url?: string; error?: string } = {};
         try { body = (await res.json()) as typeof body; } catch {}

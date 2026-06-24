@@ -484,6 +484,48 @@ html, body { background: var(--paper); }
 }
 .cc-register-error.is-visible { display: block; }
 
+/* ---- Lookup progress (spinner + "finding your profile") ---- */
+.cc-register-status {
+  margin-top: var(--sp-4);
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: rgba(244,236,223,0.82);
+}
+.cc-register-status[hidden] { display: none; }
+.cc-register-spinner {
+  width: 16px; height: 16px;
+  flex: none;
+  border-radius: 50%;
+  border: 2px solid rgba(244,236,223,0.25);
+  border-top-color: var(--ember);
+  animation: cc-spin 0.7s linear infinite;
+}
+.cc-teaser-status {
+  margin-top: var(--sp-3);
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--ink-quiet);
+}
+.cc-teaser-status[hidden] { display: none; }
+.cc-teaser-spinner {
+  width: 16px; height: 16px;
+  flex: none;
+  border-radius: 50%;
+  border: 2px solid rgba(40,32,28,0.18);
+  border-top-color: var(--ember);
+  animation: cc-spin 0.7s linear infinite;
+}
+@keyframes cc-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .cc-register-spinner, .cc-teaser-spinner { animation-duration: 1.6s; }
+}
+
 /* ---- Variant block (post-lookup) ---- */
 .cc-variant {
   text-align: left;
