@@ -18,6 +18,8 @@ import {
   createPendingCourseRegistration,
   attachStripeSessionToCourse,
   attachStripeSubscriptionToCourse,
+  attachPaypalOrderToCourse,
+  attachPaypalSubscriptionToCourse,
   type PaymentPlan,
 } from '../../../lib/courses/db';
 import { logEvent } from '../../../lib/registrations/db';
@@ -28,6 +30,12 @@ import {
   createSubscriptionCheckoutSession,
   stripeTaxIdTypeFor,
 } from '../../../lib/registrations/stripe';
+import {
+  paypalConfigured,
+  createOrder as createPaypalOrder,
+  createSubscription as createPaypalSubscription,
+} from '../../../lib/payments/paypal';
+import { encodeCustomId, parseProvider } from '../../../lib/payments/provider';
 import { findCountry } from '../../../lib/countries';
 import { formatMoney } from '../../../lib/workshops/currency';
 import {
@@ -68,6 +76,7 @@ type Body = {
   consent_terms?: boolean;
   discount_percent?: number | string;
   adiscount_percent?: number | string;
+  provider?: string; // 'stripe' (default) | 'paypal'
 };
 
 export const POST: APIRoute = async ({ request, locals }) => {
@@ -91,6 +100,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const vatNumberRaw = (payload.vat_number ?? '').trim().replace(/\s+/g, '');
     const vatNumber = vatNumberRaw ? vatNumberRaw.toUpperCase() : null;
     const paymentPlan: PaymentPlan = payload.payment_plan === '3x' ? '3x' : 'full';
+    const provider = parseProvider(payload.provider);
+    if (provider === 'paypal' && !paypalConfigured(env)) {
+      return json({ error: 'PayPal is not available right now. Please pay by card.' }, 400);
+    }
 
     if (!firstName || !lastName || !email) {
       return json({ error: 'First name, last name and email are required.' }, 400);
@@ -220,9 +233,86 @@ export const POST: APIRoute = async ({ request, locals }) => {
       consent_terms: payload.consent_terms === true,
       payment_plan: paymentPlan,
       installments_total: installmentsTotal,
+      provider,
     });
 
     const baseUrl = env.PUBLIC_BASE_URL.replace(/\/$/, '');
+
+    // ── PayPal branch (direct gateway). Mirrors the Stripe amounts/metadata;
+    //    the line item name + buyer info feed PayPal's Quaderno connector.
+    if (provider === 'paypal') {
+      const returnUrl = `${baseUrl}/api/payments/paypal-return?dest=${encodeURIComponent('/courses/12-week/thanks')}`;
+      const cancelUrl = `${baseUrl}/courses/12-week#register`;
+      if (paymentPlan === '3x') {
+        const sub = await createPaypalSubscription({
+          env,
+          productName: LABEL,
+          productDescription: `${INSTALLMENT_COUNT} monthly installments of ${formatMoney(chargedMonthly, currency)}`,
+          planName: `${LABEL} — ${INSTALLMENT_COUNT}-month plan`,
+          monthlyAmountMinor: chargedMonthly,
+          currency,
+          installmentCount: INSTALLMENT_COUNT,
+          customId: encodeCustomId('course', registrationId),
+          returnUrl,
+          cancelUrl,
+          brandName: 'Songdance',
+          subscriber: { email, firstName, lastName },
+          requestId: `tw-reg-${registrationId}-pp3x`,
+        });
+        await attachPaypalSubscriptionToCourse(env.DB, registrationId, sub.subscriptionId);
+        await logEvent(env.DB, {
+          registration_id: null,
+          kind: 'course.checkout.paypal.subscription.created',
+          source: 'system',
+          external_id: `local-course-pp-${registrationId}-3x`,
+          payload: {
+            course_registration_id: registrationId,
+            subscription_id: sub.subscriptionId,
+            product_slug: TWELVE_WEEK_PRODUCT_SLUG,
+            currency,
+            monthly_amount_cents: chargedMonthly,
+            installments_total: INSTALLMENT_COUNT,
+          },
+        });
+        return json({ checkout_url: sub.approveUrl, course_registration_id: registrationId });
+      }
+      const order = await createPaypalOrder({
+        env,
+        currency,
+        items: [
+          {
+            name: LABEL,
+            description: companyName ? `Billed to ${companyName}` : undefined,
+            amountMinor: chargedFull,
+            category: 'DIGITAL_GOODS',
+          },
+        ],
+        customId: encodeCustomId('course', registrationId),
+        description: LABEL,
+        softDescriptor: 'SONGDANCE',
+        invoiceId: `tw-${registrationId}`,
+        returnUrl,
+        cancelUrl,
+        brandName: 'Songdance',
+        payer: { email, firstName, lastName, countryCode: countryCode },
+        requestId: `tw-reg-${registrationId}-pp`,
+      });
+      await attachPaypalOrderToCourse(env.DB, registrationId, order.id);
+      await logEvent(env.DB, {
+        registration_id: null,
+        kind: 'course.checkout.paypal.order.created',
+        source: 'system',
+        external_id: `local-course-pp-${registrationId}`,
+        payload: {
+          course_registration_id: registrationId,
+          order_id: order.id,
+          product_slug: TWELVE_WEEK_PRODUCT_SLUG,
+          currency,
+          amount_cents: chargedFull,
+        },
+      });
+      return json({ checkout_url: order.approveUrl, course_registration_id: registrationId });
+    }
 
     // Pre-create the Stripe Customer (required for subscription mode; carries
     // the VAT id for reverse-charge invoicing).

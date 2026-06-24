@@ -4,18 +4,26 @@ import Layout from '../../layouts/Layout.astro';
 export const prerender = false;
 
 const sessionId = Astro.url.searchParams.get('session_id');
+const paypalOrder = Astro.url.searchParams.get('paypal_order');
 const env = Astro.locals.runtime.env;
+// PayPal returns here with paypal_order after capture + fulfillment (covers the
+// deposit/full retreat order and the balance order — both store the order id).
+const lookup: [string, string] | null = sessionId
+  ? ['r.stripe_session_id', sessionId]
+  : paypalOrder
+    ? ['r.paypal_order_id', paypalOrder]
+    : null;
 
 let reg: { name: string; status: string; product_name: string; tier_name: string; product_slug: string } | null = null;
-if (sessionId) {
+if (lookup) {
   reg = await env.DB.prepare(
     `SELECT r.name, r.status, p.name AS product_name, t.name AS tier_name, p.slug AS product_slug
        FROM registrations r
        JOIN products p ON p.id = r.product_id
        JOIN tiers t    ON t.id = r.tier_id
-      WHERE r.stripe_session_id = ?`,
+      WHERE ${lookup[0]} = ?`,
   )
-    .bind(sessionId)
+    .bind(lookup[1])
     .first<{ name: string; status: string; product_name: string; tier_name: string; product_slug: string }>();
 }
 

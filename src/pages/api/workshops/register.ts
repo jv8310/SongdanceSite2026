@@ -5,6 +5,11 @@ import {
   paypalEnabled,
   stripeTaxIdTypeFor,
 } from '../../../lib/registrations/stripe';
+import {
+  paypalConfigured,
+  createOrder as createPaypalOrder,
+} from '../../../lib/payments/paypal';
+import { encodeCustomId, parseProvider } from '../../../lib/payments/provider';
 import { logEvent } from '../../../lib/registrations/db';
 import {
   getProductById,
@@ -41,6 +46,7 @@ type Body = {
   adiscount?: string; // owner secret ticket discount — any 1–100
   meta_event_id?: string;
   audience?: string; // door-set from the workshop page, e.g. "3" or "1,3"
+  provider?: string; // 'stripe' (default) | 'paypal'
 };
 
 // Normalize the door-set to a sorted, deduped "1,3" form (doors 1–3 only).
@@ -91,6 +97,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
   );
   const metaEventId = (payload.meta_event_id ?? '').trim() || null;
   const audience = normalizeAudience(payload.audience ?? '');
+  const provider = parseProvider(payload.provider);
+  if (provider === 'paypal' && !paypalConfigured(env)) {
+    return json({ error: 'PayPal is not available right now. Please pay by card.' }, 400);
+  }
 
   if (!slug || !name || !EMAIL_RE.test(email)) {
     return json({ error: 'Please enter your name and a valid email address.' }, 400);
@@ -166,10 +176,58 @@ export const POST: APIRoute = async ({ request, locals }) => {
     return json({ redirect_url: `${base}/workshop/success?t=${accessToken}` });
   }
 
-  // ── Paid path: Stripe Checkout. ───────────────────────────────────────
+  // ── Paid path. ────────────────────────────────────────────────────────
   const base = env.PUBLIC_BASE_URL.replace(/\/$/, '');
   const totalMinor = ticketAmountMinor + (realBump ? bumpPrice!.amountMinor : 0);
   const lineCurrency = ticketPrice.currency.toLowerCase();
+
+  // ── PayPal branch (one-off ticket + optional bump). Item names feed the
+  //    PayPal→Quaderno connector; success lands on the same /workshop/success.
+  if (provider === 'paypal') {
+    const ppItems = [
+      {
+        name: discountPct ? `${workshop.title} (${discountPct}% off)` : workshop.title,
+        amountMinor: ticketAmountMinor,
+        category: 'DIGITAL_GOODS' as const,
+      },
+      ...(realBump
+        ? [
+            {
+              name: bumpProduct!.name,
+              amountMinor: bumpPrice!.amountMinor,
+              category: 'DIGITAL_GOODS' as const,
+            },
+          ]
+        : []),
+    ];
+    let order;
+    try {
+      order = await createPaypalOrder({
+        env,
+        currency: ticketPrice.currency,
+        items: ppItems,
+        customId: encodeCustomId('workshop', registrationId),
+        description: workshop.title,
+        softDescriptor: 'SONGDANCE',
+        invoiceId: `wreg-${registrationId}`,
+        returnUrl: `${base}/api/payments/paypal-return?dest=${encodeURIComponent(`/workshop/success?t=${accessToken}`)}`,
+        cancelUrl: `${base}/w/${workshop.slug}?canceled=1`,
+        brandName: 'Songdance',
+        payer: { email, countryCode: country ?? undefined },
+        requestId: `wreg-${registrationId}-pp-${totalMinor}-${realBump ? 1 : 0}`,
+      });
+    } catch (err) {
+      await logEvent(env.DB, { registration_id: null, kind: 'workshop.checkout.paypal.error', payload: { registration_id: registrationId, error: String(err) } });
+      return json({ error: 'We couldn’t start PayPal checkout. Please try again, or pay by card.' }, 502);
+    }
+    await logEvent(env.DB, {
+      registration_id: null,
+      kind: 'workshop.checkout.paypal.created',
+      external_id: `workshop-checkout-pp-${registrationId}`,
+      payload: { registration_id: registrationId, order_id: order.id, total_minor: totalMinor, currency: ticketPrice.currency, bump: realBump, discount_pct: discountPct || null },
+    });
+    return json({ checkout_url: order.approveUrl, registration_id: registrationId });
+  }
 
   const lineItems = [
     {

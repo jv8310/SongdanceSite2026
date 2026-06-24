@@ -1,0 +1,225 @@
+import type { APIRoute } from 'astro';
+import { eventExists, logEvent } from '../../../lib/registrations/db';
+import {
+  captureOrder,
+  getOrder,
+  verifyPaypalWebhook,
+  type PaypalCapture,
+} from '../../../lib/payments/paypal';
+import { decodeCustomId } from '../../../lib/payments/provider';
+import {
+  applyPaypalSubscriptionStatus,
+  fulfillBalancePaypal,
+  fulfillCoursePaypalOneOff,
+  fulfillRetreatPaypalOneOff,
+  fulfillWorkshopPaypalCapture,
+  recordCoursePaypalInstallment,
+  recordPaypalRefund,
+  type PaypalFulfillEnv,
+} from '../../../lib/payments/paypal-fulfill';
+import { getCourseRegistrationByPaypalSubscription } from '../../../lib/courses/db';
+
+export const prerender = false;
+
+// Route a one-off capture to the right table by its "<kind>:<id>" custom_id.
+async function fulfillOneOff(
+  env: PaypalFulfillEnv,
+  capture: PaypalCapture,
+  ctx?: { waitUntil?: (p: Promise<unknown>) => void },
+): Promise<void> {
+  const routed = decodeCustomId(capture.customId);
+  if (!routed) return;
+  if (routed.kind === 'course') {
+    await fulfillCoursePaypalOneOff(env, routed.id, capture);
+  } else if (routed.kind === 'retreat') {
+    await fulfillRetreatPaypalOneOff(env, routed.id, capture);
+  } else if (routed.kind === 'balance') {
+    await fulfillBalancePaypal(env, routed.id, capture);
+  } else if (routed.kind === 'workshop') {
+    await fulfillWorkshopPaypalCapture(env, routed.id, capture, ctx);
+  }
+}
+
+// Parse the capture/sale id a refund resource points back to.
+function refundTargetId(resource: any): string | null {
+  if (resource?.sale_id) return resource.sale_id; // v1 sale refund
+  const up = (resource?.links as Array<{ rel?: string; href?: string }>)?.find(
+    (l) => l.rel === 'up',
+  )?.href;
+  if (up) {
+    const m = up.match(/\/(?:captures|sale)\/([^/?]+)/);
+    if (m) return m[1];
+  }
+  return null;
+}
+
+export const POST: APIRoute = async ({ request, locals }) => {
+  const env = locals.runtime.env as unknown as PaypalFulfillEnv & {
+    PAYPAL_CLIENT_ID?: string;
+    PAYPAL_CLIENT_SECRET?: string;
+    PAYPAL_ENV?: string;
+    PAYPAL_WEBHOOK_ID?: string;
+  };
+  const ctxRaw = (locals.runtime as any)?.ctx;
+  const ctx = ctxRaw
+    ? { waitUntil: (p: Promise<unknown>) => ctxRaw.waitUntil(p) }
+    : undefined;
+
+  const body = await request.text();
+
+  const verified = await verifyPaypalWebhook(env as any, request.headers, body);
+  if (!verified) return new Response('Bad signature', { status: 400 });
+
+  const event = JSON.parse(body) as {
+    id: string;
+    event_type: string;
+    resource: any;
+  };
+
+  // Idempotency: skip events we've already processed.
+  if (await eventExists(env.DB, event.id)) {
+    return new Response('OK (duplicate)', { status: 200 });
+  }
+  await logEvent(env.DB, {
+    registration_id: null,
+    kind: event.event_type,
+    source: 'paypal',
+    external_id: event.id,
+    payload: event.resource,
+  });
+
+  const type = event.event_type;
+  const resource = event.resource ?? {};
+
+  try {
+    // ── Buyer approved an order but may not have hit our return endpoint.
+    //    Capture it ourselves and fulfill (backstop for a closed tab).
+    if (type === 'CHECKOUT.ORDER.APPROVED') {
+      const orderId = resource.id as string;
+      if (orderId) {
+        let capture: PaypalCapture;
+        try {
+          capture = await captureOrder(env as any, orderId);
+        } catch {
+          capture = await getOrder(env as any, orderId);
+        }
+        if (capture.captureId && capture.captureStatus === 'COMPLETED') {
+          await fulfillOneOff(env, capture, ctx);
+        }
+      }
+      return new Response('OK', { status: 200 });
+    }
+
+    // ── One-off capture completed (card/PayPal balance). Main confirmation
+    //    path if the return endpoint didn't fulfill.
+    if (type === 'PAYMENT.CAPTURE.COMPLETED') {
+      const capture: PaypalCapture = {
+        orderId: resource?.supplementary_data?.related_ids?.order_id ?? '',
+        status: 'COMPLETED',
+        captureId: resource.id ?? null,
+        captureStatus: resource.status ?? 'COMPLETED',
+        amountMinor: resource?.amount?.value
+          ? Math.round(parseFloat(resource.amount.value) * 100)
+          : null,
+        currency: resource?.amount?.currency_code ?? null,
+        customId: resource.custom_id ?? null,
+        payerEmail: null,
+      };
+      await fulfillOneOff(env, capture, ctx);
+      return new Response('OK', { status: 200 });
+    }
+
+    // ── Subscription cycle settled → record an installment.
+    if (type === 'PAYMENT.SALE.COMPLETED') {
+      const subscriptionId = resource.billing_agreement_id as
+        | string
+        | undefined;
+      const saleId = resource.id as string | undefined;
+      if (subscriptionId && saleId) {
+        const courseReg = await getCourseRegistrationByPaypalSubscription(
+          env.DB,
+          subscriptionId,
+        );
+        if (courseReg) {
+          await recordCoursePaypalInstallment(env, courseReg, saleId, saleId);
+        }
+      }
+      return new Response('OK', { status: 200 });
+    }
+
+    // ── Subscription lifecycle → mirror status (normalised to Stripe vocab).
+    if (
+      type === 'BILLING.SUBSCRIPTION.ACTIVATED' ||
+      type === 'BILLING.SUBSCRIPTION.UPDATED' ||
+      type === 'BILLING.SUBSCRIPTION.SUSPENDED' ||
+      type === 'BILLING.SUBSCRIPTION.CANCELLED' ||
+      type === 'BILLING.SUBSCRIPTION.EXPIRED'
+    ) {
+      const subscriptionId = resource.id as string | undefined;
+      const status = (resource.status as string | undefined) ?? '';
+      if (subscriptionId) {
+        await applyPaypalSubscriptionStatus(env, subscriptionId, status);
+      }
+      return new Response('OK', { status: 200 });
+    }
+
+    // ── A failed installment: log only; access stays granted (manual call).
+    if (type === 'BILLING.SUBSCRIPTION.PAYMENT.FAILED') {
+      const subscriptionId = resource.id as string | undefined;
+      if (subscriptionId) {
+        const courseReg = await getCourseRegistrationByPaypalSubscription(
+          env.DB,
+          subscriptionId,
+        );
+        if (courseReg) {
+          await logEvent(env.DB, {
+            registration_id: null,
+            kind: 'paypal.course.installment.failed',
+            source: 'paypal',
+            external_id: `${event.id}.failed`,
+            payload: {
+              course_registration_id: courseReg.id,
+              subscription_id: subscriptionId,
+            },
+          });
+        }
+      }
+      return new Response('OK', { status: 200 });
+    }
+
+    // ── Refunds (one-off capture refund + subscription sale refund).
+    if (
+      type === 'PAYMENT.CAPTURE.REFUNDED' ||
+      type === 'PAYMENT.SALE.REFUNDED'
+    ) {
+      const refundId = resource.id as string | undefined;
+      const captureId = refundTargetId(resource);
+      if (refundId && captureId) {
+        await recordPaypalRefund(env, {
+          refundId,
+          captureId,
+          amountMinor: resource?.amount?.value
+            ? Math.round(parseFloat(resource.amount.value) * 100)
+            : resource?.amount?.total
+              ? Math.round(parseFloat(resource.amount.total) * 100)
+              : null,
+          currency:
+            resource?.amount?.currency_code ?? resource?.amount?.currency ?? null,
+        });
+      }
+      return new Response('OK', { status: 200 });
+    }
+  } catch (err) {
+    await logEvent(env.DB, {
+      registration_id: null,
+      kind: 'paypal.webhook.error',
+      source: 'paypal',
+      external_id: `${event.id}.error`,
+      payload: { event_type: type, error: String(err) },
+    });
+    // 200 so PayPal doesn't hammer retries on a poison event; we've logged it.
+    return new Response('OK (logged error)', { status: 200 });
+  }
+
+  return new Response('OK', { status: 200 });
+};

@@ -12,12 +12,16 @@ import {
   applyDiscountPercent,
   resolveDiscountPercent,
 } from '../../lib/workshops/discount';
+import { paypalConfigured } from '../../lib/payments/paypal';
 
 export const prerender = false;
 
 const { slug } = Astro.params;
 const env = Astro.locals.runtime.env;
 const cf = (Astro.locals.runtime as any)?.cf;
+
+// Offer PayPal as a second gateway only when the direct PayPal app is wired up.
+const paypalAvailable = paypalConfigured(env);
 
 const workshop = slug ? await getPublishedWorkshopBySlug(env.DB, slug) : null;
 
@@ -153,8 +157,17 @@ const tzOptions = Array.from(new Set([detectedTz, ...COMMON_TZS]));
           </div>
 
           <button type="submit" class="wk-submit">Register &amp; pay {ticketLabel} →</button>
+          {paypalAvailable && (
+            <button
+              type="button"
+              class="wk-submit"
+              id="wk-paypal"
+              data-wk-paypal
+              style="margin-top:10px;background:#ffc439;color:#003087;"
+            >Pay with <strong>PayPal</strong></button>
+          )}
           <p class="wk-err" id="wk-err" hidden></p>
-          <p class="wk-fine">Prices shown for {country}. Secure checkout via Stripe. You’ll receive the Zoom link by email right after checkout.</p>
+          <p class="wk-fine">Prices shown for {country}. Secure checkout via Stripe{paypalAvailable ? ' or PayPal' : ''}. You’ll receive the Zoom link by email right after checkout.</p>
         </form>
       </section>
     )}
@@ -201,10 +214,23 @@ const tzOptions = Array.from(new Set([detectedTz, ...COMMON_TZS]));
 
       var err = document.getElementById('wk-err');
       var btn = form.querySelector('.wk-submit');
+      var paypalBtn = document.getElementById('wk-paypal');
+      // Which gateway the next submit uses. The PayPal button flips it for one
+      // submit; everything else (incl. the Enter key) stays on Stripe.
+      var nextProvider = 'stripe';
+      if (paypalBtn) {
+        paypalBtn.addEventListener('click', function () {
+          nextProvider = 'paypal';
+          form.requestSubmit();
+        });
+      }
       form.addEventListener('submit', async function (e) {
         e.preventDefault();
         if (err) { err.hidden = true; err.textContent = ''; }
+        var provider = nextProvider;
+        nextProvider = 'stripe';
         btn.disabled = true;
+        if (paypalBtn) paypalBtn.disabled = true;
         var fd = new FormData(form);
         var body = {
           workshop_slug: fd.get('workshop_slug'),
@@ -217,6 +243,7 @@ const tzOptions = Array.from(new Set([detectedTz, ...COMMON_TZS]));
           adiscount: fd.get('adiscount') || '',
           bump: fd.get('bump') === 'on',
           meta_event_id: fd.get('meta_event_id') || '',
+          provider: provider,
         };
         try {
           var res = await fetch('/api/workshops/register', {
@@ -230,6 +257,7 @@ const tzOptions = Array.from(new Set([detectedTz, ...COMMON_TZS]));
         } catch (e2) {
           if (err) { err.hidden = false; err.textContent = e2.message || 'Something went wrong.'; }
           btn.disabled = false;
+          if (paypalBtn) paypalBtn.disabled = false;
         }
       });
     })();

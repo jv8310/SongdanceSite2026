@@ -13,6 +13,7 @@ import type { APIRoute } from 'astro';
 import {
   createPendingCourseRegistration,
   attachStripeSessionToCourse,
+  attachPaypalOrderToCourse,
 } from '../../../lib/courses/db';
 import { logEvent } from '../../../lib/registrations/db';
 import {
@@ -21,6 +22,11 @@ import {
   paypalEnabled,
   stripeTaxIdTypeFor,
 } from '../../../lib/registrations/stripe';
+import {
+  paypalConfigured,
+  createOrder as createPaypalOrder,
+} from '../../../lib/payments/paypal';
+import { encodeCustomId, parseProvider } from '../../../lib/payments/provider';
 import { findCountry } from '../../../lib/countries';
 import {
   isJourneySlug,
@@ -49,6 +55,7 @@ type Body = {
   consent_terms?: boolean;
   discount_percent?: number | string;
   adiscount_percent?: number | string;
+  provider?: string; // 'stripe' (default) | 'paypal'
 };
 
 function applyDiscount(cents: number, pct: number): number {
@@ -86,6 +93,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
       discount: payload.discount_percent,
       adiscount: payload.adiscount_percent,
     });
+    const provider = parseProvider(payload.provider);
+    if (provider === 'paypal' && !paypalConfigured(env)) {
+      return json({ error: 'PayPal is not available right now. Please pay by card.' }, 400);
+    }
 
     if (!firstName || !lastName || !email) {
       return json(
@@ -181,9 +192,60 @@ export const POST: APIRoute = async ({ request, locals }) => {
       consent_terms: payload.consent_terms === true,
       payment_plan: 'full',
       installments_total: 1,
+      provider,
     });
 
     const baseUrl = env.PUBLIC_BASE_URL.replace(/\/$/, '');
+
+    // Cancel back to the page the product belongs to.
+    const cancelPath =
+      slug === 'mmj'
+        ? '/courses/magical-movement'
+        : slug === 'inner-child'
+          ? '/courses/inner-child'
+          : '/courses/authentic-singing';
+    const cancelQuery = discountPct > 0 ? `?discount=${discountPct}` : '';
+
+    // ── PayPal branch (one-off). Same line item label as Stripe so PayPal's
+    //    Quaderno connector builds the invoice with the right name.
+    if (provider === 'paypal') {
+      const order = await createPaypalOrder({
+        env,
+        currency,
+        items: [
+          {
+            name: offer.label,
+            description: companyName ? `Billed to ${companyName}` : undefined,
+            amountMinor: chargedPriceCents,
+            category: 'DIGITAL_GOODS',
+          },
+        ],
+        customId: encodeCustomId('course', registrationId),
+        description: offer.label,
+        softDescriptor: 'SONGDANCE',
+        invoiceId: `journey-${slug}-${registrationId}`,
+        returnUrl: `${baseUrl}/api/payments/paypal-return?dest=${encodeURIComponent('/courses/journeys/thanks')}`,
+        cancelUrl: `${baseUrl}${cancelPath}${cancelQuery}#register`,
+        brandName: 'Songdance',
+        payer: { email, firstName, lastName, countryCode },
+        requestId: `journey-${slug}-reg-${registrationId}-pp`,
+      });
+      await attachPaypalOrderToCourse(env.DB, registrationId, order.id);
+      await logEvent(env.DB, {
+        registration_id: null,
+        kind: 'course.checkout.paypal.order.created',
+        source: 'system',
+        external_id: `local-course-pp-${registrationId}`,
+        payload: {
+          course_registration_id: registrationId,
+          order_id: order.id,
+          product_slug: slug,
+          currency,
+          amount_cents: chargedPriceCents,
+        },
+      });
+      return json({ checkout_url: order.approveUrl, course_registration_id: registrationId });
+    }
 
     // Pre-create the Stripe Customer so name/email/country pre-fill, and so a
     // B2B VAT number can be attached as tax_id_data for reverse-charge.
@@ -250,16 +312,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         : {}),
     };
 
-    const cancelQuery = discountPct > 0 ? `?discount=${discountPct}` : '';
     const successUrl = `${baseUrl}/courses/journeys/thanks?session_id={CHECKOUT_SESSION_ID}`;
-
-    // Cancel back to the page the product belongs to.
-    const cancelPath =
-      slug === 'mmj'
-        ? '/courses/magical-movement'
-        : slug === 'inner-child'
-          ? '/courses/inner-child'
-          : '/courses/authentic-singing';
 
     const productMetadata: Record<string, string> = {
       tax_class: 'eservice',

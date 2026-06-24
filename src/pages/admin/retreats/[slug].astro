@@ -719,7 +719,7 @@ const flash = (() => {
               total outstanding <strong>{eur(balanceDueTotalCents, 'EUR')}</strong>
             </span>
             <form method="POST" action="/api/admin/balance/send-bulk"
-                  onsubmit={`return confirm('Email all ${balanceDue.length} deposit-payer(s) a Stripe link for their remaining balance?')`}>
+                  onsubmit={`return confirm('Email all ${balanceDue.length} deposit-payer(s) a payment link for their remaining balance?')`}>
               <input type="hidden" name="product_slug" value={productSlug} />
               <input type="hidden" name="return_to" value={returnTo} />
               <button type="submit" class="adm-btn adm-btn--solid">Email everyone a balance link</button>
@@ -762,7 +762,7 @@ const flash = (() => {
               })}
             </tbody>
           </table>
-          <p class="adm-table-note">Each link is a Stripe Checkout for that person's exact remaining balance. When they pay, the balance is cleared automatically (via the Stripe webhook) and they drop off this list. “Last invited” shows when the email was last sent — use <strong>Resend link</strong> for a reminder.</p>
+          <p class="adm-table-note">Each link is a checkout for that person's exact remaining balance, on the same gateway (Stripe or PayPal) they paid the deposit with. When they pay, the balance is cleared automatically (via the payment webhook) and they drop off this list. “Last invited” shows when the email was last sent — use <strong>Resend link</strong> for a reminder.</p>
         </>
       )}
     </section>

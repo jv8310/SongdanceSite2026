@@ -22,6 +22,7 @@ import type { APIRoute } from 'astro';
 import {
   createPendingCourseRegistration,
   attachStripeSessionToCourse,
+  attachPaypalOrderToCourse,
 } from '../../../lib/courses/db';
 import { logEvent } from '../../../lib/registrations/db';
 import {
@@ -30,6 +31,11 @@ import {
   paypalEnabled,
   stripeTaxIdTypeFor,
 } from '../../../lib/registrations/stripe';
+import {
+  paypalConfigured,
+  createOrder as createPaypalOrder,
+} from '../../../lib/payments/paypal';
+import { encodeCustomId, parseProvider } from '../../../lib/payments/provider';
 import { findCountry } from '../../../lib/countries';
 import {
   griefOffer,
@@ -56,6 +62,7 @@ type Body = {
   consent_terms?: boolean;
   discount_percent?: number | string;
   adiscount_percent?: number | string;
+  provider?: string; // 'stripe' (default) | 'paypal'
 };
 
 function applyDiscount(cents: number, pct: number): number {
@@ -87,6 +94,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
       discount: payload.discount_percent,
       adiscount: payload.adiscount_percent,
     });
+    const provider = parseProvider(payload.provider);
+    if (provider === 'paypal' && !paypalConfigured(env)) {
+      return json({ error: 'PayPal is not available right now. Please pay by card.' }, 400);
+    }
 
     if (!firstName || !lastName || !email) {
       return json(
@@ -181,9 +192,52 @@ export const POST: APIRoute = async ({ request, locals }) => {
       consent_terms: payload.consent_terms === true,
       payment_plan: 'full',
       installments_total: 1,
+      provider,
     });
 
     const baseUrl = env.PUBLIC_BASE_URL.replace(/\/$/, '');
+
+    // ── PayPal branch (one-off). Quaderno's PayPal connector reads the line
+    //    item name + buyer info, so we pass the same label Stripe gets.
+    if (provider === 'paypal') {
+      const cancelQ = discountPct > 0 ? `?discount=${discountPct}` : '';
+      const order = await createPaypalOrder({
+        env,
+        currency,
+        items: [
+          {
+            name: offer.label,
+            description: companyName ? `Billed to ${companyName}` : undefined,
+            amountMinor: chargedPriceCents,
+            category: 'DIGITAL_GOODS',
+          },
+        ],
+        customId: encodeCustomId('course', registrationId),
+        description: offer.label,
+        softDescriptor: 'SONGDANCE',
+        invoiceId: `grief-${registrationId}`,
+        returnUrl: `${baseUrl}/api/payments/paypal-return?dest=${encodeURIComponent('/courses/grief/thanks')}`,
+        cancelUrl: `${baseUrl}/courses/grief${cancelQ}#register`,
+        brandName: 'Songdance',
+        payer: { email, firstName, lastName, countryCode },
+        requestId: `grief-reg-${registrationId}-pp`,
+      });
+      await attachPaypalOrderToCourse(env.DB, registrationId, order.id);
+      await logEvent(env.DB, {
+        registration_id: null,
+        kind: 'course.checkout.paypal.order.created',
+        source: 'system',
+        external_id: `local-course-pp-${registrationId}`,
+        payload: {
+          course_registration_id: registrationId,
+          order_id: order.id,
+          product_slug: 'grief-course',
+          currency,
+          amount_cents: chargedPriceCents,
+        },
+      });
+      return json({ checkout_url: order.approveUrl, course_registration_id: registrationId });
+    }
 
     // Pre-create the Stripe Customer so name/email/country pre-fill on the
     // Checkout page, and so a B2B VAT number can be attached server-side as

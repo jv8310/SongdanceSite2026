@@ -73,8 +73,11 @@ export type OrderNotificationInput = {
   dietary?: string | null;
   notes?: string | null;
   paidAt?: string | null;
+  provider?: 'stripe' | 'paypal';
   stripePaymentIntent?: string | null;
   stripeSubscriptionId?: string | null;
+  paypalCaptureId?: string | null;
+  paypalSubscriptionId?: string | null;
 };
 
 // Link config resolved from env at send time (kept out of the pure builder so
@@ -117,7 +120,17 @@ function quadernoUrl(ctx: LinkContext, email: string): string | null {
   return `https://${ctx.quadernoAccount}.quadernoapp.com/invoices?q=${encodeURIComponent(email)}`;
 }
 
-function stripeUrl(input: OrderNotificationInput): string | null {
+// Provider-aware deep link into the gateway dashboard for this payment.
+function paymentUrl(input: OrderNotificationInput): string | null {
+  if (input.provider === 'paypal') {
+    if (input.paypalSubscriptionId) {
+      return `https://www.paypal.com/billing/subscriptions/${input.paypalSubscriptionId}`;
+    }
+    if (input.paypalCaptureId) {
+      return `https://www.paypal.com/activity/payment/${input.paypalCaptureId}`;
+    }
+    return `https://www.paypal.com/listing/transactions`;
+  }
   if (input.stripeSubscriptionId) {
     return `https://dashboard.stripe.com/subscriptions/${input.stripeSubscriptionId}`;
   }
@@ -154,6 +167,7 @@ export function buildOrderNotificationEmail(
     ['Order', `#${input.orderId} · ${input.orderType === 'course' ? 'Course' : 'Retreat'}`],
     ['Product', input.tierName ? `${input.productName} — ${input.tierName}` : input.productName],
     ['Amount', planLabel ? `${amount} (${planLabel})` : amount],
+    ['Gateway', input.provider === 'paypal' ? 'PayPal' : 'Stripe'],
     ['Name', input.customerName],
     ['Email', input.email],
     ['Phone', input.phone],
@@ -176,7 +190,7 @@ export function buildOrderNotificationEmail(
 
   const links: Array<[string, string | null]> = [
     ['Quaderno invoice', quadernoUrl(ctx, input.email)],
-    ['Stripe payment', stripeUrl(input)],
+    [input.provider === 'paypal' ? 'PayPal payment' : 'Stripe payment', paymentUrl(input)],
     ['Drip subscriber', dripUrl(ctx)],
   ];
 
@@ -343,8 +357,11 @@ export async function notifyCourseOrder(
     activateChoice: reg.activate_choice,
     sourceVariant: reg.source_variant,
     paidAt: reg.paid_at ?? new Date().toISOString(),
+    provider: reg.provider,
     stripePaymentIntent: opts?.stripePaymentIntent ?? reg.stripe_payment_intent,
     stripeSubscriptionId: opts?.stripeSubscriptionId ?? reg.stripe_subscription_id,
+    paypalCaptureId: reg.paypal_capture_id,
+    paypalSubscriptionId: reg.paypal_subscription_id,
   });
 }
 
@@ -377,6 +394,8 @@ export async function notifyRetreatOrder(
     dietary: reg.dietary,
     notes: reg.notes,
     paidAt: reg.paid_at ?? new Date().toISOString(),
+    provider: reg.provider,
     stripePaymentIntent: opts?.stripePaymentIntent ?? reg.stripe_payment_intent,
+    paypalCaptureId: reg.paypal_capture_id,
   });
 }

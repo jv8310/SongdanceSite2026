@@ -1,5 +1,9 @@
 ---
 import { COUNTRIES } from '../../lib/countries';
+import { paypalConfigured } from '../../lib/payments/paypal';
+
+// Offer PayPal as a second gateway only when the direct PayPal app is wired up.
+const paypalAvailable = paypalConfigured(Astro.locals.runtime.env);
 
 // Mirrors active tiers in D1 (see migrations/0004_room_type_catalog.sql).
 // Slugs MUST match the DB tier slugs — the server re-validates on submit.
@@ -265,6 +269,19 @@ const roomTypes = [
             Proceed to payment <i class="ph-light ph-arrow-right"></i>
           </button>
         </div>
+
+        {paypalAvailable && (
+          <div class="rb-step-actions rb-step-actions--paypal">
+            <button
+              type="button"
+              class="rb-btn rb-btn--lg"
+              id="rb-reg-paypal"
+              style="margin-top:10px;background:#ffc439;color:#003087;"
+            >
+              Pay with <strong>PayPal</strong>
+            </button>
+          </div>
+        )}
       </fieldset>
     </form>
 
@@ -336,6 +353,14 @@ const roomTypes = [
     const errBox2 = form.querySelector('#rb-reg-error-2') as HTMLElement;
     const errBox = form.querySelector('#rb-reg-error') as HTMLElement;
     const submitBtn = form.querySelector('#rb-reg-submit') as HTMLButtonElement;
+    const paypalBtn = form.querySelector('#rb-reg-paypal') as HTMLButtonElement | null;
+    // Which gateway the next submit uses. The PayPal button flips it for one
+    // submit; everything else (incl. the Enter key) stays on Stripe.
+    let nextProvider: 'stripe' | 'paypal' = 'stripe';
+    paypalBtn?.addEventListener('click', () => {
+      nextProvider = 'paypal';
+      form.requestSubmit();
+    });
     const companyInput = form.querySelector(
       'input[name="company_name"]',
     ) as HTMLInputElement;
@@ -646,6 +671,11 @@ const roomTypes = [
         return;
       }
 
+      // Capture which gateway this submit uses, then reset to Stripe so the
+      // next submit (e.g. the Enter key) defaults back unless PayPal is picked.
+      const provider = nextProvider;
+      nextProvider = 'stripe';
+
       const fd = new FormData(form!);
       const data: Record<string, unknown> = {
         product_slug: fd.get('product_slug'),
@@ -673,6 +703,9 @@ const roomTypes = [
         // Secret Easter-egg discount — unlocked by dragging the heart
         // into the house. The server re-applies and re-prices it.
         easter_egg_discount: easterEggActive,
+        // Payment gateway for this checkout: 'stripe' (default) or 'paypal'.
+        // The response shape is identical, so the redirect below is unchanged.
+        provider,
       };
 
       if (!data.consent_framework || !data.consent_terms) {
@@ -683,7 +716,13 @@ const roomTypes = [
 
       const original = submitBtn.innerHTML;
       submitBtn.disabled = true;
+      if (paypalBtn) paypalBtn.disabled = true;
       submitBtn.innerHTML = 'One moment…';
+      const restore = () => {
+        submitBtn.disabled = false;
+        if (paypalBtn) paypalBtn.disabled = false;
+        submitBtn.innerHTML = original;
+      };
       try {
         const res = await fetch('/api/registrations/checkout', {
           method: 'POST',
@@ -695,8 +734,7 @@ const roomTypes = [
           errBox.textContent =
             body?.error ?? 'Something went wrong. Please try again or email us.';
           errBox.hidden = false;
-          submitBtn.disabled = false;
-          submitBtn.innerHTML = original;
+          restore();
           return;
         }
         if (body?.checkout_url) {
@@ -706,14 +744,12 @@ const roomTypes = [
         errBox.textContent =
           'We could not start checkout. Please try again or email us.';
         errBox.hidden = false;
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = original;
+        restore();
       } catch {
         errBox.textContent =
           'Network error. Please try again or email us.';
         errBox.hidden = false;
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = original;
+        restore();
       }
     });
 

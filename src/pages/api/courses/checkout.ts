@@ -28,6 +28,8 @@ import {
   createPendingCourseRegistration,
   attachStripeSessionToCourse,
   attachStripeSubscriptionToCourse,
+  attachPaypalOrderToCourse,
+  attachPaypalSubscriptionToCourse,
   type ActivateChoice,
   type CourseProductSlug,
   type PaymentPlan,
@@ -40,6 +42,12 @@ import {
   createSubscriptionCheckoutSession,
   stripeTaxIdTypeFor,
 } from '../../../lib/registrations/stripe';
+import {
+  paypalConfigured,
+  createOrder as createPaypalOrder,
+  createSubscription as createPaypalSubscription,
+} from '../../../lib/payments/paypal';
+import { encodeCustomId, parseProvider } from '../../../lib/payments/provider';
 import { findCountry } from '../../../lib/countries';
 import { formatMoney, isSupportedCurrency } from '../../../lib/workshops/currency';
 import {
@@ -94,6 +102,7 @@ type Body = {
   currency?: string;
   discount_percent?: number | string;
   adiscount_percent?: number | string;
+  provider?: string; // 'stripe' (default) | 'paypal'
 };
 
 function offerFor(productSlug: CourseProductSlug, currency: Currency): Offer {
@@ -151,6 +160,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
       discount: payload.discount_percent,
       adiscount: payload.adiscount_percent,
     });
+    const provider = parseProvider(payload.provider);
+    if (provider === 'paypal' && !paypalConfigured(env)) {
+      return json({ error: 'PayPal is not available right now. Please pay by card.' }, 400);
+    }
 
     if (productSlug !== 'cc-cert' && productSlug !== 'cc-bundle') {
       return json({ error: 'Unknown product.' }, 400);
@@ -354,9 +367,93 @@ export const POST: APIRoute = async ({ request, locals }) => {
       consent_terms: payload.consent_terms === true,
       payment_plan: paymentPlan,
       installments_total: installmentsTotal,
+      provider,
     });
 
     const baseUrl = env.PUBLIC_BASE_URL.replace(/\/$/, '');
+
+    // ── PayPal branch (direct gateway). One-off via Orders API, installments
+    //    via Subscriptions API (total_cycles = N). Same receipt label as Stripe
+    //    so PayPal's Quaderno connector builds the invoice correctly.
+    if (provider === 'paypal') {
+      const ppCancelParams = new URLSearchParams();
+      if (discountPct > 0) ppCancelParams.set('discount', String(discountPct));
+      if (paymentPlan === '12x') ppCancelParams.set('installment', '12');
+      const ppCancelQuery = ppCancelParams.toString()
+        ? `?${ppCancelParams.toString()}`
+        : '';
+      const returnUrl = `${baseUrl}/api/payments/paypal-return?dest=${encodeURIComponent('/courses/certification/thanks')}`;
+      const cancelUrl = `${baseUrl}/courses/certification${ppCancelQuery}#register`;
+      if (paymentPlan !== 'full' && installmentPlan) {
+        const sub = await createPaypalSubscription({
+          env,
+          productName: lineItemLabel,
+          productDescription: `${installmentPlan.count} monthly installments of ${formatMoney(chargedMonthlyCents, currency)}`,
+          planName: `${lineItemLabel} — ${installmentPlan.count}-month plan`,
+          monthlyAmountMinor: chargedMonthlyCents,
+          currency,
+          installmentCount: installmentPlan.count,
+          customId: encodeCustomId('course', registrationId),
+          returnUrl,
+          cancelUrl,
+          brandName: 'Songdance',
+          subscriber: { email, firstName, lastName },
+          requestId: `course-reg-${registrationId}-pp-${paymentPlan}`,
+        });
+        await attachPaypalSubscriptionToCourse(env.DB, registrationId, sub.subscriptionId);
+        await logEvent(env.DB, {
+          registration_id: null,
+          kind: 'course.checkout.paypal.subscription.created',
+          source: 'system',
+          external_id: `local-course-pp-${registrationId}-${paymentPlan}`,
+          payload: {
+            course_registration_id: registrationId,
+            subscription_id: sub.subscriptionId,
+            product_slug: productSlug,
+            currency,
+            monthly_amount_cents: chargedMonthlyCents,
+            installments_total: installmentPlan.count,
+          },
+        });
+        return json({ checkout_url: sub.approveUrl, course_registration_id: registrationId });
+      }
+      const order = await createPaypalOrder({
+        env,
+        currency,
+        items: [
+          {
+            name: lineItemLabel,
+            description: companyName ? `Billed to ${companyName}` : undefined,
+            amountMinor: chargedPriceCents,
+            category: 'DIGITAL_GOODS',
+          },
+        ],
+        customId: encodeCustomId('course', registrationId),
+        description: lineItemLabel,
+        softDescriptor: 'SONGDANCE',
+        invoiceId: `course-${registrationId}`,
+        returnUrl,
+        cancelUrl,
+        brandName: 'Songdance',
+        payer: { email, firstName, lastName, countryCode },
+        requestId: `course-reg-${registrationId}-pp`,
+      });
+      await attachPaypalOrderToCourse(env.DB, registrationId, order.id);
+      await logEvent(env.DB, {
+        registration_id: null,
+        kind: 'course.checkout.paypal.order.created',
+        source: 'system',
+        external_id: `local-course-pp-${registrationId}`,
+        payload: {
+          course_registration_id: registrationId,
+          order_id: order.id,
+          product_slug: productSlug,
+          currency,
+          amount_cents: chargedPriceCents,
+        },
+      });
+      return json({ checkout_url: order.approveUrl, course_registration_id: registrationId });
+    }
 
     // Pre-create the Stripe Customer so the email/name/country pre-fill on
     // the checkout page and Stripe can filter payment methods by country.

@@ -1,5 +1,9 @@
 ---
 import { COUNTRIES } from '../../lib/countries';
+import { paypalConfigured } from '../../lib/payments/paypal';
+
+// Offer PayPal as a second gateway only when the direct PayPal app is wired up.
+const paypalAvailable = paypalConfigured(Astro.locals.runtime.env);
 ---
 
 <section class="ds-register" id="register">
@@ -153,10 +157,21 @@ import { COUNTRIES } from '../../lib/countries';
         <button type="submit" class="ds-btn ds-btn--primary ds-btn--lg ds-btn--block" id="ds-reg-submit">
           Proceed to payment <i class="ph-light ph-arrow-right"></i>
         </button>
+
+        {paypalAvailable && (
+          <button
+            type="button"
+            class="ds-btn ds-btn--primary ds-btn--lg ds-btn--block"
+            id="ds-reg-paypal"
+            style="margin-top:10px;background:#ffc439;color:#003087;"
+          >
+            Pay with <strong>PayPal</strong>
+          </button>
+        )}
       </div>
 
       <p class="ds-fine">
-        Secure payment by card via Stripe. Questions? Email
+        Secure payment by card via Stripe{paypalAvailable ? ' or PayPal' : ''}. Questions? Email
         <a href="mailto:info@songdance.co">info@songdance.co</a>.
       </p>
     </form>
@@ -168,6 +183,14 @@ import { COUNTRIES } from '../../lib/countries';
   if (form) {
     const errBox = form.querySelector('#ds-reg-error') as HTMLElement;
     const submitBtn = form.querySelector('#ds-reg-submit') as HTMLButtonElement;
+    const paypalBtn = form.querySelector('#ds-reg-paypal') as HTMLButtonElement | null;
+    // Which gateway the next submit uses. The PayPal button flips it for one
+    // submit; everything else (incl. the Enter key) stays on Stripe.
+    let nextProvider: 'stripe' | 'paypal' = 'stripe';
+    paypalBtn?.addEventListener('click', () => {
+      nextProvider = 'paypal';
+      form.requestSubmit();
+    });
     const companyInput = form.querySelector('input[name="company_name"]') as HTMLInputElement;
     const bizField = form.querySelector('.ds-field--biz') as HTMLElement;
     const countrySelect = form.querySelector('select[name="country"]') as HTMLSelectElement;
@@ -322,6 +345,9 @@ import { COUNTRIES } from '../../lib/countries';
         return;
       }
 
+      const provider = nextProvider;
+      nextProvider = 'stripe';
+
       const data = {
         tier_slug: tierSlug,
         first_name: fd.get('first_name'),
@@ -337,11 +363,18 @@ import { COUNTRIES } from '../../lib/countries';
         notes: fd.get('notes'),
         payment_mode: fd.get('payment_mode') === 'deposit' ? 'deposit' : 'full',
         consent_terms: fd.get('consent_terms') === 'on',
+        provider,
       };
 
       const original = submitBtn.innerHTML;
       submitBtn.disabled = true;
+      if (paypalBtn) paypalBtn.disabled = true;
       submitBtn.innerHTML = 'One moment…';
+      const restore = () => {
+        submitBtn.disabled = false;
+        if (paypalBtn) paypalBtn.disabled = false;
+        submitBtn.innerHTML = original;
+      };
       try {
         const res = await fetch('/api/registrations/dolphin-checkout', {
           method: 'POST',
@@ -352,8 +385,7 @@ import { COUNTRIES } from '../../lib/countries';
         if (!res.ok) {
           errBox.textContent = body?.error ?? 'Something went wrong. Please try again or email us.';
           errBox.hidden = false;
-          submitBtn.disabled = false;
-          submitBtn.innerHTML = original;
+          restore();
           return;
         }
         if (body?.checkout_url) {
@@ -362,13 +394,11 @@ import { COUNTRIES } from '../../lib/countries';
         }
         errBox.textContent = 'We could not start checkout. Please try again or email us.';
         errBox.hidden = false;
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = original;
+        restore();
       } catch {
         errBox.textContent = 'Network error. Please try again or email us.';
         errBox.hidden = false;
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = original;
+        restore();
       }
     });
   }

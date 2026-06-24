@@ -14,6 +14,7 @@ import type { CalItem } from './types';
 import { ALL_COUNTRIES } from '../../lib/workshops/countries';
 import LaunchOfferCallout from '../promo/LaunchOfferCallout.astro';
 import MetaPixel from '../MetaPixel.astro';
+import { paypalConfigured } from '../../lib/payments/paypal';
 interface Props {
   items: CalItem[];
   country: string;
@@ -50,6 +51,9 @@ const selectedName = detected?.name ?? '';
 // rather than on each row. The pro-only masterclass entries are priced
 // differently, so they keep their own per-row price (re-shown by CSS).
 const leadTicket = items.find((it) => it.kind !== 'masterclass');
+
+// Offer PayPal as a second gateway only when the direct PayPal app is wired up.
+const paypalAvailable = paypalConfigured(Astro.locals.runtime.env);
 ---
 
 <section class="we-register" id="register">
@@ -251,8 +255,16 @@ const leadTicket = items.find((it) => it.kind !== 'masterclass');
           </div>
 
           <button type="submit" class="we-submit" id="we-submit">Register &amp; pay →</button>
+          {paypalAvailable && (
+            <button
+              type="button"
+              class="we-submit"
+              id="we-paypal"
+              style="margin-top:10px;background:#ffc439;color:#003087;"
+            >Pay with <strong>PayPal</strong></button>
+          )}
           <p class="we-err" id="we-err" hidden></p>
-          <p class="we-fine" id="we-fine">Secure checkout via Stripe. The Zoom link and a calendar invite arrive by email right after. Something comes up? There's a replay, and you can move to another date for free.</p>
+          <p class="we-fine" id="we-fine">Secure checkout via Stripe{paypalAvailable ? ' or PayPal' : ''}. The Zoom link and a calendar invite arrive by email right after. Something comes up? There's a replay, and you can move to another date for free.</p>
         </form>
       )}
     </div>
@@ -298,8 +310,20 @@ const leadTicket = items.find((it) => it.kind !== 'masterclass');
     if (companyInput) companyInput.addEventListener('input', toggleVat);
     var totalAmount = document.getElementById('we-total-amount');
     var submitBtn = document.getElementById('we-submit');
+    var paypalBtn = document.getElementById('we-paypal');
     var err = document.getElementById('we-err');
     var idField = document.getElementById('we-event-id');
+
+    // Which gateway the next submit uses. The PayPal button flips it for one
+    // submit; everything else (incl. the Enter key) stays on Stripe.
+    var nextProvider = 'stripe';
+    if (paypalBtn) {
+      paypalBtn.addEventListener('click', function () {
+        nextProvider = 'paypal';
+        if (form.requestSubmit) form.requestSubmit();
+        else form.dispatchEvent(new Event('submit', { cancelable: true }));
+      });
+    }
 
     var SYMBOLS = { EUR: '€', USD: '$', CAD: 'CA$', GBP: '£', CHF: 'CHF ', NOK: 'kr ', SEK: 'kr ', DKK: 'kr ', AUD: 'A$', NZD: 'NZ$' };
     function money(minor, cur) {
@@ -573,7 +597,10 @@ const leadTicket = items.find((it) => it.kind !== 'masterclass');
       e.preventDefault();
       if (!current) return;
       if (err) { err.hidden = true; err.textContent = ''; }
+      var provider = nextProvider;
+      nextProvider = 'stripe';
       submitBtn.disabled = true;
+      if (paypalBtn) paypalBtn.disabled = true;
       // Meta Pixel: the visitor is starting checkout (off to Stripe next).
       if (window.fbq) {
         try { window.fbq('track', 'InitiateCheckout', {}, { eventID: eventId }); } catch (e) {}
@@ -596,6 +623,7 @@ const leadTicket = items.find((it) => it.kind !== 'masterclass');
         adiscount: fd.get('adiscount') || '',
         meta_event_id: fd.get('meta_event_id') || '',
         audience: audienceState(),
+        provider: provider,
       };
       try {
         var res = await fetch('/api/workshops/register', {
@@ -609,6 +637,7 @@ const leadTicket = items.find((it) => it.kind !== 'masterclass');
       } catch (e2) {
         if (err) { err.hidden = false; err.textContent = e2.message || 'Something went wrong.'; }
         submitBtn.disabled = false;
+        if (paypalBtn) paypalBtn.disabled = false;
       }
     });
   })();

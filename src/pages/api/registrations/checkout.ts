@@ -4,6 +4,7 @@ import {
   getTierBySlug,
   createPendingRegistration,
   attachStripeSession,
+  attachPaypalOrder,
   logEvent,
   pickRoomForTier,
   getSpecialRoomByRole,
@@ -15,6 +16,11 @@ import {
   paypalEnabled,
   stripeTaxIdTypeFor,
 } from '../../../lib/registrations/stripe';
+import {
+  paypalConfigured,
+  createOrder as createPaypalOrder,
+} from '../../../lib/payments/paypal';
+import { encodeCustomId, parseProvider } from '../../../lib/payments/provider';
 import { findCountry } from '../../../lib/countries';
 
 export const prerender = false;
@@ -50,6 +56,7 @@ type Body = {
   consent_terms?: boolean;
   role?: SpecialRole | null;
   easter_egg_discount?: boolean;
+  provider?: string; // 'stripe' (default) | 'paypal'
 };
 
 export const POST: APIRoute = async ({ request, locals }) => {
@@ -71,6 +78,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const phoneLocal = (payload.phone ?? '').trim();
   const companyName = (payload.company_name ?? '').trim();
   const vatNumber = (payload.vat_number ?? '').trim();
+  const provider = parseProvider(payload.provider);
+  if (provider === 'paypal' && !paypalConfigured(env)) {
+    return json({ error: 'PayPal is not available right now. Please pay by card.' }, 400);
+  }
 
   if (!productSlug || !tierSlug || !firstName || !lastName || !email) {
     return json(
@@ -203,6 +214,18 @@ export const POST: APIRoute = async ({ request, locals }) => {
     ? `+${phoneCountry.dial}${phoneLocal.replace(/[^0-9]/g, '')}`
     : phoneLocal;
 
+  // The receipt line — reused as the PaymentIntent / PayPal item name so the
+  // Quaderno connector (Stripe or PayPal) picks it up as the invoice line.
+  const baseLineItemName =
+    role === 'fire_keeper'
+      ? `${product.name} — ${tier.name} (fire keeper, Pavilion)`
+      : role === 'cook_help'
+        ? `${product.name} — ${tier.name} (with kitchen help, 30% off)`
+        : `${product.name} — ${tier.name}`;
+  const lineItemName = easterEgg
+    ? `${baseLineItemName} (10% discount)`
+    : baseLineItemName;
+
   const registrationId = await createPendingRegistration(env.DB, {
     product_id: product.id,
     tier_id: tier.id,
@@ -225,9 +248,52 @@ export const POST: APIRoute = async ({ request, locals }) => {
     amount_cents: finalAmountCents,
     currency: product.currency,
     hold_minutes: HOLD_MINUTES,
+    provider,
   });
 
   const baseUrl = env.PUBLIC_BASE_URL.replace(/\/$/, '');
+
+  // ── PayPal branch (one-off retreat ticket; a physical event → physical
+  //    goods). Same receipt line as Stripe so the PayPal→Quaderno invoice
+  //    reads correctly. Gross-inclusive of 21% BE VAT (place-of-supply).
+  if (provider === 'paypal') {
+    const order = await createPaypalOrder({
+      env,
+      currency: product.currency,
+      items: [
+        {
+          name: lineItemName,
+          description: tier.description ?? undefined,
+          amountMinor: finalAmountCents,
+          category: 'PHYSICAL_GOODS',
+        },
+      ],
+      customId: encodeCustomId('retreat', registrationId),
+      description: lineItemName,
+      softDescriptor: 'SONGDANCE',
+      invoiceId: `reg-${registrationId}`,
+      returnUrl: `${baseUrl}/api/payments/paypal-return?dest=${encodeURIComponent('/registrations/thanks')}`,
+      cancelUrl: `${baseUrl}/retreats/ritual-of-belonging#register`,
+      brandName: 'Songdance',
+      payer: { email, firstName, lastName, countryCode },
+      requestId: `reg-${registrationId}-pp`,
+    });
+    await attachPaypalOrder(env.DB, registrationId, order.id);
+    await logEvent(env.DB, {
+      registration_id: registrationId,
+      kind: 'checkout.paypal.order.created',
+      external_id: `local-checkout-pp-${registrationId}`,
+      payload: {
+        order_id: order.id,
+        tier: tier.slug,
+        auto_assigned_room: room.name,
+        auto_assigned_room_id: room.id,
+        role: role ?? null,
+        amount_cents: finalAmountCents,
+      },
+    });
+    return json({ checkout_url: order.approveUrl, registration_id: registrationId });
+  }
 
   // Always pre-create a Stripe Customer with everything we already know so
   // Stripe Checkout pre-fills email, name and country (and for B2B also
@@ -277,19 +343,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
       payload: { error: String(err) },
     });
   }
-
-  // Build the line item name once and reuse it as the PaymentIntent
-  // description, so the Quaderno-Stripe sync picks it up as the invoice
-  // line item name (instead of falling back to the merchant name).
-  const baseLineItemName =
-    role === 'fire_keeper'
-      ? `${product.name} — ${tier.name} (fire keeper, Pavilion)`
-      : role === 'cook_help'
-        ? `${product.name} — ${tier.name} (with kitchen help, 30% off)`
-        : `${product.name} — ${tier.name}`;
-  const lineItemName = easterEgg
-    ? `${baseLineItemName} (10% discount)`
-    : baseLineItemName;
 
   const session = await createCheckoutSession({
     secretKey: env.STRIPE_SECRET_KEY,
