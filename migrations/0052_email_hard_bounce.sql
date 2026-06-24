@@ -1,0 +1,20 @@
+-- Separate hard (permanent) bounces from soft (transient) ones on email_sends,
+-- so the broadcast circuit breaker can weigh ONLY the kind that means trouble.
+--
+-- Why this exists: the breaker (src/lib/broadcasts/cron.ts) auto-pauses a
+-- broadcast when its bounce rate crosses a threshold, to protect the sending
+-- domain's reputation. It read `bounced_at`, which the webhook stamped for
+-- EVERY bounce — including transient ones (greylisting, a momentarily full
+-- mailbox) that clear on their own and say nothing about list quality. Cleaning
+-- the list (dead domains, bounce-checker hard bounces) doesn't remove a
+-- soft-bouncing address, so after each clean-and-resume the soft bounces simply
+-- re-accumulated on the fresh sample and re-tripped the breaker — a broadcast
+-- that "stopped sending again" for no real reason.
+--
+-- `hard_bounced_at` is stamped by the Resend webhook only on a *permanent*
+-- bounce (bounce.type = 'Permanent'), exactly the same test that decides
+-- suppression (src/lib/email/sends.ts → isPermanentBounce). The breaker now
+-- counts this column; `bounced_at` stays as the all-bounces display figure.
+-- Historical rows keep hard_bounced_at = NULL (the original bounce type wasn't
+-- recorded), which simply gives the breaker a clean slate going forward.
+ALTER TABLE email_sends ADD COLUMN hard_bounced_at TEXT;

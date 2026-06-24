@@ -114,6 +114,7 @@ export async function applyResendEvent(
   opts: { bounceType?: string } = {},
 ): Promise<void> {
   let sql: string | null = null;
+  let binds: string[] = [atIso, resendId];
   switch (type) {
     case 'email.delivered':
       sql = `UPDATE email_sends SET delivered_at = COALESCE(delivered_at, ?) WHERE resend_id = ?`;
@@ -124,6 +125,7 @@ export async function applyResendEvent(
                     last_opened_at = ?,
                     open_count = open_count + 1
               WHERE resend_id = ?`;
+      binds = [atIso, atIso, resendId];
       break;
     case 'email.clicked':
       sql = `UPDATE email_sends
@@ -131,9 +133,22 @@ export async function applyResendEvent(
                     last_clicked_at = ?,
                     click_count = click_count + 1
               WHERE resend_id = ?`;
+      binds = [atIso, atIso, resendId];
       break;
     case 'email.bounced':
-      sql = `UPDATE email_sends SET bounced_at = COALESCE(bounced_at, ?) WHERE resend_id = ?`;
+      // Stamp `bounced_at` for every bounce (the all-bounces display figure),
+      // but mark `hard_bounced_at` only for a permanent one — the same test that
+      // drives suppression below. The broadcast circuit breaker weighs hard
+      // bounces only, so a transient/greylist bounce can't auto-pause a send.
+      if (isPermanentBounce(opts.bounceType)) {
+        sql = `UPDATE email_sends
+                  SET bounced_at = COALESCE(bounced_at, ?),
+                      hard_bounced_at = COALESCE(hard_bounced_at, ?)
+                WHERE resend_id = ?`;
+        binds = [atIso, atIso, resendId];
+      } else {
+        sql = `UPDATE email_sends SET bounced_at = COALESCE(bounced_at, ?) WHERE resend_id = ?`;
+      }
       break;
     case 'email.complained':
       sql = `UPDATE email_sends SET complained_at = COALESCE(complained_at, ?) WHERE resend_id = ?`;
@@ -142,11 +157,6 @@ export async function applyResendEvent(
       // email.sent (already recorded), email.delivery_delayed, anything new.
       return;
   }
-  // Opened/clicked bind (ts, ts, id); the rest bind (ts, id).
-  const binds =
-    type === 'email.opened' || type === 'email.clicked'
-      ? [atIso, atIso, resendId]
-      : [atIso, resendId];
   await db.prepare(sql).bind(...binds).run();
 
   // A spam complaint MUST take the address off marketing, and a permanent

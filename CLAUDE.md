@@ -180,11 +180,15 @@ e.g. a Drip export) and one-off `broadcasts` sent to it. Lives in
   over days rather than blasting at once. Idempotent atomic claims; transient
   failures retry, then park as `failed`.
 - **Circuit breaker**: once a real sample is out, the cron auto-pauses a
-  broadcast if complaint/bounce rates cross threshold — a dormant list that's
-  gone sour stops instead of burning the domain. Pause/resume by hand too. The
-  rates are measured **since the last launch/resume** (`broadcasts.breaker_baseline_at`,
-  migration 0049), so cleaning the list and resuming gets a fresh sample to prove
-  itself instead of staying permanently tripped by a sour historical rate.
+  broadcast if complaint / **hard-bounce** rates cross threshold — a dormant list
+  that's gone sour stops instead of burning the domain. Pause/resume by hand too.
+  The bounce side weighs **permanent bounces only** (`hard_bounced_at`, migration
+  0052, stamped by the Resend webhook when `bounce.type = 'Permanent'`): a
+  transient/greylist bounce clears on its own and isn't removed by list cleaning,
+  so counting it would re-trip the breaker on every resume. The rates are measured
+  **since the last launch/resume** (`broadcasts.breaker_baseline_at`, migration
+  0049), so cleaning the list and resuming gets a fresh sample to prove itself
+  instead of staying permanently tripped by a sour historical rate.
 - **List cleaning is list-level** (`src/lib/broadcasts/clean.ts`,
   `/admin/contacts` → "Clean dead domains", `/api/admin/contacts/clean`): scans
   every contact's domain — MX/A checked via DNS-over-HTTPS (cloudflare-dns.com),
