@@ -21,11 +21,11 @@ plainly (sanctioned launch urgency); no fake scarcity.
 
 | Purpose | File |
 |---|---|
-| Drip — non-owners | `asj-origin-story.drip-others.html` |
-| Drip — owners | `asj-origin-story.drip-owners.html` |
+| Drip — one conditional email | `asj-origin-story.drip.html` |
 | Broadcast — non-owners | `asj-origin-story.broadcast-others.html` |
 | Broadcast — owners | `asj-origin-story.broadcast-owners.html` |
 | **Seed both broadcast drafts** | `migrations/0051_asj_origin_story_broadcasts.sql` |
+| **Update seeded drafts' copy** | `migrations/0052_asj_origin_story_update.sql` |
 
 **Images** (R2, public): hero = `…/media/library/jacob-upala-speaker.webp` ·
 band = `…/media/library/jacob-upala-singing.webp`.
@@ -35,18 +35,23 @@ band = `…/media/library/jacob-upala-singing.webp`.
 
 ## The owner / non-owner split — two ways to ship
 
-### A) Drip — two segment sends
+### A) Drip — one conditional email
 
-Paste each file as a Drip email's HTML. There is **no inline Liquid logic** — Drip's
-HTML editor rejects `{% if subscriber.tags contains … %}` (and even a bare `{% %}`
-in a comment), so the split is done by **audience, not template**:
+Paste `asj-origin-story.drip.html` as a single Drip email's HTML. It branches in
+two places with Drip's own Liquid — owners (tag **contains** `ASJ` or `JAZ`) get the
+calm "enjoy another session" CTA and **no** offer ribbon; everyone else gets the
+ribbon + 50%-off box:
 
-- `…drip-others.html` → a segment that does **not** own ASJ/JAZ (the 50%-off invite).
-- `…drip-owners.html` → a segment that **owns** ASJ/JAZ ("enjoy another session").
+```liquid
+{% if subscriber.tags contains "ASJ" %}…owner…{% elsif subscriber.tags contains "JAZ" %}…owner…{% else %}…offer…{% endif %}
+```
 
-Footer uses Drip's required tags: `{{ html_postal_address }}` + `{{ unsubscribe_url }}`,
-plus the two-tier promo unsubscribe (`/unsubscribe-promo?e={{ subscriber.email | url_encode }}`
-to stop just the launch emails, or the full `{{ unsubscribe_url }}`).
+Done Drip's documented way (`if`/`elsif`/`else`, **not** a compound `or`, and **no
+Liquid inside HTML comments**) — those two were what threw the earlier "error in the
+'if' tag" messages. `contains` is substring, so `"ASJ"` catches every `prod_ASJ*`
+variant; **test-send to a tagged address** to confirm the branch before the real send.
+Footer uses Drip's required `{{ html_postal_address }}` + `{{ unsubscribe_url }}`, plus
+the two-tier promo unsubscribe (`/unsubscribe-promo?e={{ subscriber.email | url_encode }}`).
 
 ### B) Site broadcasts — seeded by migration 0051
 
