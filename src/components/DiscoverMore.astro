@@ -1,0 +1,261 @@
+---
+// "Find out more" band — dropped in at the foot of every course/event landing
+// page, just before the footer. Shows a small set of other doorways into the
+// work: one featured course (server-rendered, so it's there with no JS and for
+// crawlers) plus up to two upcoming events fetched live from /api/events.json
+// (same source the homepage Upcoming strip + /events read from), so the band
+// stays current without rebuilding the static pages it lives on.
+//
+// Default mix is one course + two events; if there are no upcoming events the
+// two event slots fall back to two more courses, so the band is never empty or
+// lonely. Pass `currentHref` so the page never recommends itself.
+//
+// Cards reuse the global .sd-evt-* card + grid styles (site.css), so the course
+// and event cards share one shape. Course price chips carry data-sd-price so the
+// global PriceSync localizes the currency + strikes the launch promo, exactly
+// like the /courses grid.
+import { EUR_COPY_LABEL, hasCompareStrike, type MarketingProduct } from '../lib/workshops/marketing-prices';
+
+interface Props {
+  /** This page's own path, so it's filtered out of the recommendations. */
+  currentHref?: string;
+  /** Override the section heading. */
+  heading?: string;
+}
+
+const { currentHref, heading = 'Discover other courses and upcoming events' } = Astro.props;
+
+interface FeaturedCourse {
+  label: string;
+  href: string;
+  img: string;
+  desc: string;
+  price?: MarketingProduct; // opts into PriceSync currency + promo strike
+  note?: string; // plain price/timing line when there's no marketed price yet
+  pos?: string; // object-position override when the 16:10 crop clips the subject
+}
+
+// A curated walk through the catalogue, most-accessible first. The featured
+// (always-on) card is the first of these that isn't the current page — so a
+// retreat page leads with the 9€ workshop, while the workshop page leads with
+// the 12-week, and so on.
+const COURSES: FeaturedCourse[] = [
+  {
+    label: 'Vocal Healing Workshop',
+    href: '/workshop',
+    img: '/media/library/svh-retreat-sounding-blue.webp',
+    desc: 'One live hour to meet the practice — one honest tone, and what it opens.',
+    price: 'ticket',
+  },
+  {
+    label: '12-Week Course',
+    href: '/courses/12-week',
+    img: '/media/library/svhgpt-01-hero-in-one-breath.webp',
+    desc: 'Twelve weeks to learn the practice for yourself — guided modules and live weekly Q&A.',
+    price: 'twelve-week',
+  },
+  {
+    label: 'Grief Course',
+    href: '/courses/grief',
+    img: '/media/library/grief-jacob-letting-go-sounding.webp',
+    desc: 'Four live sessions for the grief no one taught you how to carry — held gently, sounded together.',
+    price: 'grief',
+  },
+  {
+    label: 'Authentic Singing Journey',
+    href: '/courses/authentic-singing',
+    img: '/media/library/singing-lights-woman.webp',
+    desc: 'Forty self-paced weeks of mantras and music — to free the voice you already have.',
+    price: 'asj',
+  },
+  {
+    label: 'Practitioner Training',
+    href: '/courses/certification',
+    img: '/media/library/svh-retreat-circle-sunset-group-jacob-central.webp',
+    desc: 'Nine live months to go fully in with your own voice — and to learn to hold space for another’s.',
+    price: 'cert',
+  },
+  {
+    label: 'Professional Masterclass',
+    href: '/courses/masterclass',
+    img: '/media/library/jacob-teaching.webp',
+    desc: 'A 90-minute live masterclass for therapists, coaches and facilitators — what sound can do when words run out.',
+    price: 'masterclass',
+    pos: 'center 20%',
+  },
+  {
+    label: 'Forgiveness Course',
+    href: '/courses/forgiveness',
+    img: '/media/library/forgiveness-sunflowers-sunset.webp',
+    desc: 'When forgiveness feels impossible, come anyway. Four live sessions honoring what the words alone never reached.',
+    note: 'with Daniela · Fall 2026',
+  },
+];
+
+// First three courses that aren't this page. The first is the always-on
+// featured card; the other two are fallbacks that the script swaps out for live
+// events when there are any.
+const norm = (h?: string) => (h ?? '').replace(/\/+$/, '');
+const here = norm(currentHref);
+const picks = COURSES.filter((c) => norm(c.href) !== here).slice(0, 3);
+
+function priceLabel(c: FeaturedCourse): string | null {
+  return c.price ? EUR_COPY_LABEL[c.price] : (c.note ?? null);
+}
+---
+
+<section class="sd-section sd-discover">
+  <div class="sd-discover-inner">
+    <div class="sd-discover-head">
+      <div class="sd-eyebrow">Find out more</div>
+      <h2 class="sd-section-title">{heading}</h2>
+    </div>
+
+    <div class="sd-evt-grid" data-discover-grid>
+      {picks.map((c, i) => (
+        <a
+          class="sd-evt-card sd-discover-course"
+          href={c.href}
+          data-discover-fallback={i > 0 ? '' : undefined}
+        >
+          <div class="sd-evt-img">
+            <img src={c.img} alt="" loading="lazy" decoding="async" style={c.pos ? `object-position:${c.pos}` : undefined} />
+          </div>
+          <div class="sd-evt-body">
+            <div class="sd-evt-top">
+              <span class="sd-evt-badge sd-evt-badge--course">Course</span>
+            </div>
+            <h3 class="sd-evt-title">{c.label}</h3>
+            <p class="sd-evt-summary">{c.desc}</p>
+            <div class="sd-evt-foot">
+              {priceLabel(c) && (
+                <span
+                  class="sd-evt-price"
+                  data-sd-price={c.price ?? undefined}
+                  data-sd-promo-price={c.price ? '' : undefined}
+                  data-sd-compare={c.price && hasCompareStrike(c.price) ? '' : undefined}
+                >{priceLabel(c)}</span>
+              )}
+            </div>
+          </div>
+        </a>
+      ))}
+    </div>
+
+    <div class="sd-discover-links">
+      <a href="/courses" class="sd-link">Browse all courses →</a>
+      <a href="/events" class="sd-link">See upcoming events →</a>
+    </div>
+  </div>
+</section>
+
+<script is:inline define:vars={{ currentHref: here }}>
+  (function () {
+    var grid = document.querySelector('[data-discover-grid]');
+    if (!grid) return;
+
+    var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var CATEGORY_LABEL = { retreat: 'Retreat', online: 'Online event', course: 'Course' };
+    var STATUS_LABEL = { open: 'Open', waitlist: 'Waitlist', closed: 'Closed' };
+
+    function fmtRange(start, end, ongoing) {
+      if (ongoing) {
+        if (!start) return 'Ongoing';
+        var mo = /^(\d{4})-(\d{2})-(\d{2})$/.exec(start);
+        return mo ? 'From ' + (+mo[3]) + ' ' + MONTHS[+mo[2] - 1] + ' ' + (+mo[1]) : 'From ' + start;
+      }
+      if (!start) return 'Start anytime';
+      var s = /^(\d{4})-(\d{2})-(\d{2})$/.exec(start);
+      if (!s) return start;
+      var sd = +s[3], sm = MONTHS[+s[2] - 1], sy = +s[1];
+      if (!end || end === start) return sd + ' ' + sm + ' ' + sy;
+      var e = /^(\d{4})-(\d{2})-(\d{2})$/.exec(end);
+      if (!e) return sd + ' ' + sm + ' ' + sy;
+      var ed = +e[3], em = MONTHS[+e[2] - 1], ey = +e[1];
+      if (sm === em && sy === ey) return sd + '–' + ed + ' ' + sm + ' ' + sy;
+      if (sy === ey) return sd + ' ' + sm + ' – ' + ed + ' ' + em + ' ' + sy;
+      return sd + ' ' + sm + ' ' + sy + ' – ' + ed + ' ' + em + ' ' + ey;
+    }
+
+    function esc(s) {
+      return String(s).replace(/[&<>"]/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+      });
+    }
+
+    function norm(h) { return (h || '').replace(/\/+$/, ''); }
+
+    function eventCard(e) {
+      var meta = [fmtRange(e.startDate, e.endDate, e.ongoing), e.location]
+        .filter(Boolean).map(function (m) { return esc(m); }).join(' · ');
+      var fac = e.facilitators && e.facilitators.length
+        ? '<span class="sd-evt-fac">with ' + esc(e.facilitators.join(' & ')) + '</span>' : '';
+      var priceLabel = e.priceLabel || e.price;
+      var priceAttrs = e.marketingProduct
+        ? ' data-sd-price="' + esc(e.marketingProduct) + '" data-sd-promo-price' + (e.compareStrike ? ' data-sd-compare' : '')
+        : '';
+      var price = priceLabel ? '<span class="sd-evt-price"' + priceAttrs + '>' + esc(priceLabel) + '</span>' : '';
+      var img = e.imageUrl
+        ? '<div class="sd-evt-img"><img src="' + esc(e.imageUrl) + '" alt="" loading="lazy"></div>' : '';
+      var inner =
+        img +
+        '<div class="sd-evt-body">' +
+          '<div class="sd-evt-top">' +
+            '<span class="sd-evt-badge sd-evt-badge--' + e.category + '">' + CATEGORY_LABEL[e.category] + '</span>' +
+            '<span class="sd-evt-status sd-evt-status--' + e.status + '">' + STATUS_LABEL[e.status] + '</span>' +
+          '</div>' +
+          '<h3 class="sd-evt-title">' + esc(e.title) + '</h3>' +
+          (meta ? '<div class="sd-evt-meta">' + meta + '</div>' : '') +
+          (e.summary ? '<p class="sd-evt-summary">' + esc(e.summary) + '</p>' : '') +
+          '<div class="sd-evt-foot">' + fac + price + '</div>' +
+        '</div>';
+      var el;
+      if (e.href) {
+        el = document.createElement('a');
+        el.href = e.href;
+      } else {
+        el = document.createElement('div');
+      }
+      el.className = 'sd-evt-card';
+      el.innerHTML = inner;
+      return el;
+    }
+
+    fetch('/api/events.json?limit=6')
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) {
+        if (!data) return;
+        var events = (data.events || []).filter(function (e) {
+          return norm(e.href) !== norm(currentHref);
+        }).slice(0, 2);
+        if (!events.length) return; // keep the fallback courses
+
+        var fallbacks = Array.prototype.slice.call(
+          grid.querySelectorAll('[data-discover-fallback]'),
+        );
+        // Replace one fallback course per event (events lead the live slots),
+        // leaving any unfilled fallbacks in place so the band always holds three.
+        events.forEach(function (e, i) {
+          var card = eventCard(e);
+          if (fallbacks[i]) {
+            grid.replaceChild(card, fallbacks[i]);
+          } else {
+            grid.appendChild(card);
+          }
+        });
+      })
+      .catch(function () { /* leave the course fallbacks in place */ });
+  })();
+</script>
+
+<style>
+  /* A clean band before the footer, self-contained so it reads the same dropped
+     into any landing page's theme. */
+  .sd-discover { background: var(--paper); border-top: 1px solid var(--line); }
+  .sd-discover-inner { max-width: var(--sd-max); margin: 0 auto; }
+  .sd-discover-head { margin-bottom: var(--sp-6); }
+  .sd-discover-links {
+    display: flex; flex-wrap: wrap; gap: var(--sp-5);
+    margin-top: var(--sp-6);
+  }
+</style>

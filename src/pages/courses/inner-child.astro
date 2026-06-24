@@ -5,6 +5,7 @@ import PromoBanner from '../../components/PromoBanner.astro';
 import JourneyVideo from '../../components/journeys/JourneyVideo.astro';
 import JourneyRegister from '../../components/journeys/JourneyRegister.astro';
 import JourneyCrossPromo from '../../components/journeys/JourneyCrossPromo.astro';
+import DiscoverMore from '../../components/DiscoverMore.astro';
 import MetaProductView from '../../components/MetaProductView.astro';
 import { catalogItemById } from '../../lib/catalog/products';
 import SiteMenu from '../../components/SiteMenu.astro';
@@ -329,6 +330,8 @@ const testimonials = [
 
     <!-- More journeys -->
     <JourneyCrossPromo current="inner-child" />
+
+    <DiscoverMore currentHref="/courses/inner-child" />
 
     <!-- Footer -->
     <footer class="jr-footer">

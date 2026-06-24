@@ -17,6 +17,7 @@ import MCAbout from '../../components/masterclass/MCAbout.astro';
 import MCPath from '../../components/masterclass/MCPath.astro';
 import MCRegister from '../../components/masterclass/MCRegister.astro';
 import WEFooter from '../../components/workshop-english/WEFooter.astro';
+import DiscoverMore from '../../components/DiscoverMore.astro';
 import { buildCalendarItems, tzOptionsFor } from '../../lib/workshops/calendar';
 import { currencyForCountry } from '../../lib/workshops/currency';
 import MetaProductView from '../../components/MetaProductView.astro';
@@ -66,6 +67,7 @@ const product = catalogItemById('masterclass');
       detectedTz={detectedTz}
       tzOptions={tzOptions}
     />
+    <DiscoverMore currentHref="/courses/masterclass" />
     <WEFooter />
   </div>
   <MetaProductView

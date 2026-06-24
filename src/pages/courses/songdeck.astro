@@ -9,6 +9,7 @@ import SKHow from '../../components/songdeck/SKHow.astro';
 import SKListen from '../../components/songdeck/SKListen.astro';
 import SKOrder from '../../components/songdeck/SKOrder.astro';
 import SKFooter from '../../components/songdeck/SKFooter.astro';
+import DiscoverMore from '../../components/DiscoverMore.astro';
 import MetaProductView from '../../components/MetaProductView.astro';
 import { catalogItemById } from '../../lib/catalog/products';
 
@@ -58,6 +59,7 @@ const productLd = JSON.stringify({
     <SKHow />
     <SKListen />
     <SKOrder />
+    <DiscoverMore currentHref="/courses/songdeck" />
     <SKFooter />
   </div>
   <script type="application/ld+json" set:html={productLd} />
