@@ -176,6 +176,11 @@ const META: CatalogMeta[] = [
       'library/svh-retreat-sounding-jacob-sunset.webp',
       'library/svh-retreat-teaching-jacob-whiteboard.webp',
       'library/svh-retreat-group-indoor.webp',
+      // The SVH concept illustrations — warm, evocative sounding imagery.
+      'library/svhgpt-01-hero-in-one-breath.webp',
+      'library/svhgpt-03-sounding-not-singing.webp',
+      'library/svhgpt-06-holding-space.webp',
+      'library/svhgpt-05-the-cup-receiving.webp',
     ],
     availability: 'in stock',
     condition: 'new',
