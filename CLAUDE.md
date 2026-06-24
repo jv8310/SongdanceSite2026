@@ -130,13 +130,23 @@ e.g. a Drip export) and one-off `broadcasts` sent to it. Lives in
 - **Import**: `/admin/contacts` parses the CSV in the browser (auto-detecting
   email / name / timezone / country / tags headers) and posts it in chunks, so
   55k streams in with a progress bar. Re-importing an address updates, never
-  dups. Every other column is preserved: `tags` is normalized into a
+  dups — but an existing **name is never overwritten** (only filled when
+  missing), so a verifier re-import can't downgrade good names. Every other
+  column is preserved: `tags` is normalized into a
   `contact_tags` table (for fast targeting + counts) and kept as a display
   string; all remaining non-empty columns go into a `custom` JSON blob, so the
   full export is retained and filterable. Rows whose `status` is `unsubscribed`
   are stored but added to `email_suppressions` (so they're never emailed).
   D1 caps bound params at 100/statement, so the batch upsert chunks rows
-  accordingly (12 contacts / 45 tag-pairs / 90 emails per statement).
+  accordingly (12 contacts / 45 tag-pairs / 90 emails per statement). Tags are
+  only replaced for rows that actually carry a tags value — a tag-less re-import
+  (e.g. a verifier file) never wipes a contact's existing targeting tags.
+- **Email-verifier re-import** (e.g. MillionVerifier): the import recognises a
+  `result`/`quality` verdict column and acts on it — `bad` (invalid / disposable)
+  → `email_suppressions` (reason `invalid_address`); `risky` (unknown / catch_all)
+  → the `risky` tag, added *additively* so the address can be excluded (or
+  segmented) per broadcast without losing its other tags; `good`/blank → no
+  action. The raw verdict columns are still kept in `custom`.
 - **Timezone is everything here**: the import stores each contact's IANA
   timezone (validated; bad/blank → null → default window) so the send rides the
   same `withinSendWindow` 08:00–21:00 gate as lifecycle mail — truly local.
@@ -160,8 +170,9 @@ e.g. a Drip export) and one-off `broadcasts` sent to it. Lives in
   the words. Test-send before launch.
 - **Send window is per-broadcast** (`window_start_hour`/`window_end_hour`,
   default 08:00–21:00 local). Widen it to push faster — but the real throughput
-  lever is `MAX_PER_RUN` in `cron.ts`. Each recipient is only mailed inside the
-  window for their own timezone.
+  lever is `MAX_PER_RUN` in `cron.ts` (currently **200**/tick ≈ 57k/day; ~110s of
+  sending per 5-min tick at `SEND_GAP_MS`=550ms, still under Resend's 2 req/s).
+  Each recipient is only mailed inside the window for their own timezone.
 - **Launch → cron drain**: launch snapshots sendable contacts (minus
   suppressions) into `broadcast_recipients`; `runBroadcasts` (in
   `src/lib/broadcasts/cron.ts`, wired into the 5-min cron) claims a paced,
