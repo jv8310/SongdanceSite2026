@@ -18,6 +18,10 @@ type Env = {
   PAYPAL_CLIENT_SECRET?: string;
   // 'sandbox' to hit the PayPal sandbox host; anything else (or unset) = live.
   PAYPAL_ENV?: string;
+  // "true" shows the "Pay with PayPal" button in the UI. A public var (not a
+  // secret) so it's readable when the static register pages are prerendered at
+  // build time. The server still requires the secrets before charging.
+  PAYPAL_ENABLED?: string;
   // The webhook id from the PayPal Dashboard (Apps → Webhooks). Needed to
   // verify inbound webhook signatures at /api/payments/paypal-webhook.
   PAYPAL_WEBHOOK_ID?: string;

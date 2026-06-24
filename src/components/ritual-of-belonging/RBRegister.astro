@@ -1,9 +1,5 @@
 ---
 import { COUNTRIES } from '../../lib/countries';
-import { paypalConfigured } from '../../lib/payments/paypal';
-
-// Offer PayPal as a second gateway only when the direct PayPal app is wired up.
-const paypalAvailable = paypalConfigured(Astro.locals.runtime.env);
 
 // Mirrors active tiers in D1 (see migrations/0004_room_type_catalog.sql).
 // Slugs MUST match the DB tier slugs — the server re-validates on submit.
@@ -270,18 +266,17 @@ const roomTypes = [
           </button>
         </div>
 
-        {paypalAvailable && (
-          <div class="rb-step-actions rb-step-actions--paypal">
-            <button
-              type="button"
-              class="rb-btn rb-btn--lg"
-              id="rb-reg-paypal"
-              style="margin-top:10px;background:#ffc439;color:#003087;"
-            >
-              Pay with <strong>PayPal</strong>
-            </button>
-          </div>
-        )}
+        <div class="rb-step-actions rb-step-actions--paypal">
+          <button
+            type="button"
+            class="rb-btn rb-btn--lg"
+            id="rb-reg-paypal"
+            hidden
+            style="margin-top:10px;background:#ffc439;color:#003087;"
+          >
+            Pay with <strong>PayPal</strong>
+          </button>
+        </div>
       </fieldset>
     </form>
 
@@ -354,6 +349,12 @@ const roomTypes = [
     const errBox = form.querySelector('#rb-reg-error') as HTMLElement;
     const submitBtn = form.querySelector('#rb-reg-submit') as HTMLButtonElement;
     const paypalBtn = form.querySelector('#rb-reg-paypal') as HTMLButtonElement | null;
+    // The page is static, so PayPal availability can't be known at build time —
+    // ask the server at runtime and reveal the button if the gateway is live.
+    fetch('/api/payments/availability')
+      .then((r) => r.json())
+      .then((d: any) => { if (d && d.paypal && paypalBtn) paypalBtn.hidden = false; })
+      .catch(() => {});
     // Which gateway the next submit uses. The PayPal button flips it for one
     // submit; everything else (incl. the Enter key) stays on Stripe.
     let nextProvider: 'stripe' | 'paypal' = 'stripe';

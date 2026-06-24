@@ -2,10 +2,6 @@
 import { SESSION_URL } from './config';
 import { COUNTRIES } from '../../lib/countries';
 import LaunchOfferCallout from '../promo/LaunchOfferCallout.astro';
-import { paypalConfigured } from '../../lib/payments/paypal';
-
-// Offer PayPal as a second gateway only when the direct PayPal app is wired up.
-const paypalAvailable = paypalConfigured(Astro.locals.runtime.env);
 
 const includes = [
   '18+ hours of video across 12 modules, full of guided practices',
@@ -207,16 +203,15 @@ const includes = [
           <i class="ph-light ph-arrow-right" aria-hidden="true"></i>
         </button>
 
-        {paypalAvailable && (
-          <button
-            type="button"
-            class="tw-reg-cta"
-            data-slot="paypal"
-            style="margin-top:10px;background:#ffc439;color:#003087;"
-          >
-            <span>Pay with <strong>PayPal</strong></span>
-          </button>
-        )}
+        <button
+          type="button"
+          class="tw-reg-cta"
+          data-slot="paypal"
+          hidden
+          style="margin-top:10px;background:#ffc439;color:#003087;"
+        >
+          <span>Pay with <strong>PayPal</strong></span>
+        </button>
 
         <p class="tw-reg-error" data-slot="error"></p>
       </div>
@@ -765,6 +760,14 @@ const includes = [
       // ---- Checkout
       const cta = q('[data-slot="cta"]') as HTMLButtonElement;
       const paypalBtn = root.querySelector<HTMLButtonElement>('[data-slot="paypal"]');
+      // The page is static, so PayPal availability can't be known at build time —
+      // ask the server at runtime and reveal the button if the gateway is live.
+      if (paypalBtn) {
+        fetch('/api/payments/availability')
+          .then((r) => r.json())
+          .then((d: any) => { if (d?.paypal) paypalBtn.hidden = false; })
+          .catch(() => {});
+      }
       const errSlot = q('[data-slot="error"]') as HTMLElement;
       // Which gateway the next submit uses. The PayPal button flips it for one
       // submit; the primary CTA stays on Stripe.

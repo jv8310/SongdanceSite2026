@@ -1,9 +1,5 @@
 ---
 import { COUNTRIES } from '../../lib/countries';
-import { paypalConfigured } from '../../lib/payments/paypal';
-
-// Offer PayPal as a second gateway only when the direct PayPal app is wired up.
-const paypalAvailable = paypalConfigured(Astro.locals.runtime.env);
 ---
 
 <section class="ds-register" id="register">
@@ -158,20 +154,19 @@ const paypalAvailable = paypalConfigured(Astro.locals.runtime.env);
           Proceed to payment <i class="ph-light ph-arrow-right"></i>
         </button>
 
-        {paypalAvailable && (
-          <button
-            type="button"
-            class="ds-btn ds-btn--primary ds-btn--lg ds-btn--block"
-            id="ds-reg-paypal"
-            style="margin-top:10px;background:#ffc439;color:#003087;"
-          >
-            Pay with <strong>PayPal</strong>
-          </button>
-        )}
+        <button
+          type="button"
+          class="ds-btn ds-btn--primary ds-btn--lg ds-btn--block"
+          id="ds-reg-paypal"
+          hidden
+          style="margin-top:10px;background:#ffc439;color:#003087;"
+        >
+          Pay with <strong>PayPal</strong>
+        </button>
       </div>
 
       <p class="ds-fine">
-        Secure payment by card via Stripe{paypalAvailable ? ' or PayPal' : ''}. Questions? Email
+        Secure payment by card via Stripe. Questions? Email
         <a href="mailto:info@songdance.co">info@songdance.co</a>.
       </p>
     </form>
@@ -184,6 +179,12 @@ const paypalAvailable = paypalConfigured(Astro.locals.runtime.env);
     const errBox = form.querySelector('#ds-reg-error') as HTMLElement;
     const submitBtn = form.querySelector('#ds-reg-submit') as HTMLButtonElement;
     const paypalBtn = form.querySelector('#ds-reg-paypal') as HTMLButtonElement | null;
+    // The page is static, so PayPal availability can't be known at build time —
+    // ask the server at runtime and reveal the button if the gateway is live.
+    fetch('/api/payments/availability')
+      .then((r) => r.json())
+      .then((d: any) => { if (d && d.paypal && paypalBtn) paypalBtn.hidden = false; })
+      .catch(() => {});
     // Which gateway the next submit uses. The PayPal button flips it for one
     // submit; everything else (incl. the Enter key) stays on Stripe.
     let nextProvider: 'stripe' | 'paypal' = 'stripe';

@@ -14,7 +14,6 @@ import type { CalItem } from './types';
 import { ALL_COUNTRIES } from '../../lib/workshops/countries';
 import LaunchOfferCallout from '../promo/LaunchOfferCallout.astro';
 import MetaPixel from '../MetaPixel.astro';
-import { paypalConfigured } from '../../lib/payments/paypal';
 interface Props {
   items: CalItem[];
   country: string;
@@ -51,9 +50,6 @@ const selectedName = detected?.name ?? '';
 // rather than on each row. The pro-only masterclass entries are priced
 // differently, so they keep their own per-row price (re-shown by CSS).
 const leadTicket = items.find((it) => it.kind !== 'masterclass');
-
-// Offer PayPal as a second gateway only when the direct PayPal app is wired up.
-const paypalAvailable = paypalConfigured(Astro.locals.runtime.env);
 ---
 
 <section class="we-register" id="register">
@@ -255,16 +251,15 @@ const paypalAvailable = paypalConfigured(Astro.locals.runtime.env);
           </div>
 
           <button type="submit" class="we-submit" id="we-submit">Register &amp; pay →</button>
-          {paypalAvailable && (
-            <button
-              type="button"
-              class="we-submit"
-              id="we-paypal"
-              style="margin-top:10px;background:#ffc439;color:#003087;"
-            >Pay with <strong>PayPal</strong></button>
-          )}
+          <button
+            type="button"
+            class="we-submit"
+            id="we-paypal"
+            hidden
+            style="margin-top:10px;background:#ffc439;color:#003087;"
+          >Pay with <strong>PayPal</strong></button>
           <p class="we-err" id="we-err" hidden></p>
-          <p class="we-fine" id="we-fine">Secure checkout via Stripe{paypalAvailable ? ' or PayPal' : ''}. The Zoom link and a calendar invite arrive by email right after. Something comes up? There's a replay, and you can move to another date for free.</p>
+          <p class="we-fine" id="we-fine">Secure checkout via Stripe. The Zoom link and a calendar invite arrive by email right after. Something comes up? There's a replay, and you can move to another date for free.</p>
         </form>
       )}
     </div>
@@ -311,6 +306,11 @@ const paypalAvailable = paypalConfigured(Astro.locals.runtime.env);
     var totalAmount = document.getElementById('we-total-amount');
     var submitBtn = document.getElementById('we-submit');
     var paypalBtn = document.getElementById('we-paypal');
+    // The page is static, so PayPal availability can't be known at build time —
+    // ask the server at runtime and reveal the button if the gateway is live.
+    if (paypalBtn) {
+      fetch('/api/payments/availability').then(function (r) { return r.json(); }).then(function (d) { if (d && d.paypal) paypalBtn.hidden = false; }).catch(function () {});
+    }
     var err = document.getElementById('we-err');
     var idField = document.getElementById('we-event-id');
 

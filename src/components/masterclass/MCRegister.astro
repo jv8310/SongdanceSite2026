@@ -12,7 +12,6 @@
 import type { CalItem } from '../workshop-english/types';
 import LaunchOfferCallout from '../promo/LaunchOfferCallout.astro';
 import MetaPixel from '../MetaPixel.astro';
-import { paypalConfigured } from '../../lib/payments/paypal';
 interface Props {
   items: CalItem[];
   country: string;
@@ -74,9 +73,6 @@ const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
 // registration page) so PageView + InitiateCheckout fire. Empty → renders
 // nothing.
 const pixelId = Astro.locals.runtime.env.META_PIXEL_ID ?? '';
-
-// Offer PayPal as a second gateway only when the direct PayPal app is wired up.
-const paypalAvailable = paypalConfigured(Astro.locals.runtime.env);
 ---
 
 <section class="we-register" id="register">
@@ -257,19 +253,18 @@ const paypalAvailable = paypalConfigured(Astro.locals.runtime.env);
 
           <button type="submit" class="we-submit" id="mc-submit">Register &amp; pay →</button>
 
-          {paypalAvailable && (
-            <button
-              type="button"
-              class="we-submit"
-              id="mc-paypal"
-              style="margin-top:10px;background:#ffc439;color:#003087;"
-            >
-              Pay with <strong>PayPal</strong>
-            </button>
-          )}
+          <button
+            type="button"
+            class="we-submit"
+            id="mc-paypal"
+            hidden
+            style="margin-top:10px;background:#ffc439;color:#003087;"
+          >
+            Pay with <strong>PayPal</strong>
+          </button>
 
           <p class="we-err" id="mc-err" hidden></p>
-          <p class="we-fine" id="mc-fine">Secure checkout via Stripe{paypalAvailable ? ' or PayPal' : ''}.</p>
+          <p class="we-fine" id="mc-fine">Secure checkout via Stripe.</p>
         </form>
       )}
     </div>
@@ -305,6 +300,14 @@ const paypalAvailable = paypalConfigured(Astro.locals.runtime.env);
     var totalAmount = document.getElementById('mc-total-amount');
     var submitBtn = document.getElementById('mc-submit');
     var paypalBtn = document.getElementById('mc-paypal');
+    // The page is static, so PayPal availability can't be known at build time —
+    // ask the server at runtime and reveal the button if the gateway is live.
+    if (paypalBtn) {
+      fetch('/api/payments/availability')
+        .then(function (r) { return r.json(); })
+        .then(function (d) { if (d && d.paypal) paypalBtn.hidden = false; })
+        .catch(function () {});
+    }
     var err = document.getElementById('mc-err');
     var idField = document.getElementById('mc-event-id');
 

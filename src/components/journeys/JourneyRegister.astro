@@ -1,10 +1,6 @@
 ---
 import { COUNTRIES } from '../../lib/countries';
 import LaunchOfferCallout from '../promo/LaunchOfferCallout.astro';
-import { paypalConfigured } from '../../lib/payments/paypal';
-
-// Offer PayPal as a second gateway only when the direct PayPal app is wired up.
-const paypalAvailable = paypalConfigured(Astro.locals.runtime.env);
 
 // The buy form for a single journey page — a dark, integrated "enrolment"
 // section: a short summary of what you get, then the price options + form.
@@ -176,20 +172,19 @@ const THIS_LABEL: Record<Props['course'], string> = {
           <i class="ph-light ph-arrow-right"></i>
         </button>
 
-        {paypalAvailable && (
-          <button
-            type="button"
-            class="jr-checkout-cta"
-            data-jr-paypal
-            style="margin-top:10px;background:#ffc439;color:#003087;"
-          >
-            <span>Pay with <strong>PayPal</strong></span>
-          </button>
-        )}
+        <button
+          type="button"
+          class="jr-checkout-cta"
+          data-jr-paypal
+          hidden
+          style="margin-top:10px;background:#ffc439;color:#003087;"
+        >
+          <span>Pay with <strong>PayPal</strong></span>
+        </button>
 
         <p class="jr-checkout-trust">
           <i class="ph-light ph-lock-simple"></i>
-          Secure checkout by Stripe{paypalAvailable ? ' or PayPal' : ''}. Invoice by Quaderno. Lifetime access.
+          Secure checkout by Stripe. Invoice by Quaderno. Lifetime access.
         </p>
       </form>
     </div>
@@ -339,6 +334,12 @@ const THIS_LABEL: Record<Props['course'], string> = {
     const errorEl = form.querySelector<HTMLElement>('[data-jr-error]')!;
     const cta = form.querySelector<HTMLButtonElement>('[data-jr-cta]')!;
     const paypalBtn = form.querySelector<HTMLButtonElement>('[data-jr-paypal]');
+    // The page is static, so PayPal availability can't be known at build time —
+    // ask the server at runtime and reveal the button if the gateway is live.
+    fetch('/api/payments/availability')
+      .then((r) => r.json())
+      .then((d: any) => { if (d?.paypal && paypalBtn) paypalBtn.hidden = false; })
+      .catch(() => {});
     const optionEls = Array.from(optsWrap.querySelectorAll<HTMLElement>('[data-jr-opt]'));
     // The bundle-only PRO add-on (the ASJ mantra pack). A checkbox that turns
     // the bundle into journeys-bundle-pro; revealed only while the bundle is the
