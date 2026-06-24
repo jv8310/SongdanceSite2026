@@ -57,7 +57,14 @@ type Env = {
   ORDER_NOTIFICATIONS_TO?: string;
   ANTHROPIC_API_KEY?: string;
   SVH_CERT_PORTAL_URL?: string;
+  // Admin login is email + password, multi-user. ADMIN_PASSWORD is the original
+  // owner login (paired with ADMIN_EMAIL, default jacob@songdance.co). Add
+  // collaborators in ADMIN_USERS — one `email:password` per line (or `;`-
+  // separated), or a JSON array `[{"email":"…","password":"…"}]`. See
+  // src/lib/registrations/auth.ts.
   ADMIN_PASSWORD: string;
+  ADMIN_EMAIL?: string;
+  ADMIN_USERS?: string;
   ADMIN_SESSION_SECRET: string;
   // Optional dedicated secret for unsubscribe-link HMACs; falls back to
   // ADMIN_SESSION_SECRET (see src/lib/email/unsubscribe.ts).

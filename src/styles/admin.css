@@ -69,6 +69,11 @@ body { background: var(--adm-paper); }
 }
 .adm-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
 .adm-actions form { margin: 0; }
+/* Who's signed in (multi-user login), sat just before the Sign out button. */
+.adm-topbar-user {
+  font-family: Georgia, serif; font-size: 0.85rem; color: var(--adm-ink-soft);
+  max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 /* Top-menu buttons: equal width, icon + label, centred. */
 .adm-btn--nav {
   min-width: 124px;
