@@ -980,16 +980,63 @@ html, body { background: var(--paper); }
   transition: border-color var(--d-base) var(--ease), box-shadow var(--d-base) var(--ease), background var(--d-base) var(--ease);
 }
 .jr-opt:hover { border-color: var(--line-strong); }
-/* A reveal-on-select option (e.g. bundle-PRO) — keep [hidden] winning over the
-   flex/grid display above, and read as a nested upgrade of the option above. */
-.jr-opt[hidden] { display: none; }
-.jr-opt--bundle-pro {
-  margin-top: calc(var(--sp-3) * -1 + 2px);
-  margin-left: var(--sp-5);
+
+/* PRO add-on (bundle only): a checkbox card that appears nested under the
+   bundle option once it's chosen — tick to add the ASJ PRO mantra pack. */
+.jr-addon[hidden] { display: none; }
+.jr-addon {
+  display: flex; align-items: center; gap: var(--sp-4);
+  margin: calc(var(--sp-3) * -1 + 2px) 0 0 var(--sp-5);
+  padding: var(--sp-4) var(--sp-5);
+  border: 1px dashed var(--jr-accent-soft);
   border-top-left-radius: 0;
-  border-color: var(--jr-accent-soft);
+  border-radius: var(--r-md);
+  background: var(--paper-soft);
+  cursor: pointer;
+  transition: border-color var(--d-base) var(--ease), background var(--d-base) var(--ease), box-shadow var(--d-base) var(--ease);
 }
-@media (max-width: 560px) { .jr-opt--bundle-pro { margin-left: var(--sp-3); } }
+.jr-addon:hover { border-color: var(--jr-accent); }
+.jr-addon.is-checked {
+  border-style: solid; border-color: var(--jr-accent);
+  background: var(--paper); box-shadow: var(--shadow-glow);
+}
+.jr-addon input[type="checkbox"] {
+  appearance: none; -webkit-appearance: none;
+  flex: 0 0 auto; width: 20px; height: 20px; margin: 0;
+  border: 1.5px solid var(--ink-whisper); border-radius: 6px;
+  display: grid; place-items: center; cursor: pointer;
+  transition: border-color var(--d-base) var(--ease);
+}
+.jr-addon input[type="checkbox"]::after {
+  content: ""; width: 11px; height: 11px; border-radius: 2px;
+  background: var(--jr-accent); transform: scale(0);
+  transition: transform var(--d-quick) var(--ease);
+}
+.jr-addon input[type="checkbox"]:checked { border-color: var(--jr-accent); }
+.jr-addon input[type="checkbox"]:checked::after { transform: scale(1); }
+.jr-addon-thumb { flex: 0 0 auto; width: 48px; height: 48px; border-radius: var(--r-sm); overflow: hidden; }
+.jr-addon-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.jr-addon-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.jr-addon-title {
+  font-family: var(--font-display);
+  font-size: 17px; line-height: 1.2; color: var(--ink); font-weight: 400;
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+.jr-addon-desc { font-family: var(--font-body); font-size: 13px; line-height: 1.5; color: var(--ink-soft); }
+.jr-addon-desc em { font-family: var(--font-lyric); font-style: italic; font-size: 1.25em; color: var(--ink); }
+.jr-addon-note { color: var(--ink-quiet); }
+.jr-addon-price { flex: 0 0 auto; margin-left: auto; text-align: right; }
+.jr-addon-amount {
+  font-family: var(--font-display); font-size: 19px; line-height: 1;
+  color: var(--jr-accent-deep); white-space: nowrap;
+}
+@media (max-width: 560px) {
+  .jr-addon { margin-left: var(--sp-3); flex-wrap: wrap; align-items: flex-start; }
+  .jr-addon-price {
+    width: 100%; margin: var(--sp-3) 0 0; padding-top: var(--sp-3);
+    border-top: 1px solid var(--line); text-align: left;
+  }
+}
 .jr-opt input[type="radio"] {
   appearance: none; -webkit-appearance: none;
   flex: 0 0 auto;

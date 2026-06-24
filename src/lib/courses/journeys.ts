@@ -2,11 +2,15 @@
 // in the same multi-currency model as the Grief course (see ./grief.ts).
 //
 //   asj                  — Authentic Singing Journey            €99   → prod_ASJ
-//   asj-pro              — ASJ + the PRO mantra pack (license)  €149  → prod_ASJ + prod_Mantra
+//   asj-pro              — ASJ + the PRO mantra pack (license)  €149  → prod_ASJ + prod_ASJ_PRO
 //   mmj                  — Magical Movement Journey             €49   → prod_MMJ
 //   inner-child          — Inner Child Healing Journey          €29   → prod_InnerChild
 //   journeys-bundle      — all three journeys, 20% off the sum  →      prod_ASJ + prod_MMJ + prod_InnerChild
-//   journeys-bundle-pro  — the bundle + the PRO mantra pack     →      prod_ASJ + prod_MMJ + prod_InnerChild + prod_Mantra
+//   journeys-bundle-pro  — the bundle + the ASJ PRO mantra pack →      prod_ASJ + prod_MMJ + prod_InnerChild + prod_ASJ_PRO
+//
+// Only the Authentic Singing Journey has a PRO tier (the mantra pack); Magical
+// Movement and Inner Child do not. The bundle-PRO is therefore the all-three
+// bundle with that single ASJ PRO upgrade added on top — not a PRO of each.
 //
 // One product, one price, full payment only — no installments. The buyer's
 // country picks the currency (US→USD, … else EUR), so the headline price and
@@ -90,14 +94,14 @@ export const LABEL_BY_SLUG: Record<JourneySlug, string> = {
   'inner-child': 'The Inner Child Healing Journey',
   'journeys-bundle': 'The Three Journeys — complete bundle',
   'journeys-bundle-pro':
-    'The Three Journeys — complete bundle PRO (with mantra pack)',
+    'The Three Journeys — complete bundle + Authentic Singing PRO (mantra pack)',
 };
 
 // Drip side-effects per product (read by the shared course paid-handler).
 export const DRIP_BY_SLUG: Record<JourneySlug, { tags: string[]; event: string }> = {
   asj: { tags: ['prod_ASJ'], event: 'Completed Authentic Singing Journey registration' },
   'asj-pro': {
-    tags: ['prod_ASJ', 'prod_Mantra'],
+    tags: ['prod_ASJ', 'prod_ASJ_PRO'],
     event: 'Completed Authentic Singing Journey PRO registration',
   },
   mmj: { tags: ['prod_MMJ'], event: 'Completed Magical Movement Journey registration' },
@@ -110,8 +114,8 @@ export const DRIP_BY_SLUG: Record<JourneySlug, { tags: string[]; event: string }
     event: 'Completed Three Journeys bundle registration',
   },
   'journeys-bundle-pro': {
-    tags: ['prod_ASJ', 'prod_MMJ', 'prod_InnerChild', 'prod_Mantra'],
-    event: 'Completed Three Journeys PRO bundle registration',
+    tags: ['prod_ASJ', 'prod_MMJ', 'prod_InnerChild', 'prod_ASJ_PRO'],
+    event: 'Completed Three Journeys bundle + ASJ PRO registration',
   },
 };
 

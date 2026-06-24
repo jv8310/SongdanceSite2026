@@ -69,9 +69,10 @@ export async function pushPaidCourseRegistrationToDrip(
       tags = [GRIEF_DRIP_TAG];
       eventName = GRIEF_DRIP_EVENT;
     } else if (isJourneySlug(reg.product_slug)) {
-      // The Three Journeys (+ PRO mantra pack, + all-three bundle). The slug
+      // The Three Journeys (+ ASJ PRO mantra pack, + all-three bundle). The slug
       // maps to its own set of product tags — e.g. asj-pro grants both
-      // prod_ASJ and prod_Mantra; the bundle grants all three journey tags.
+      // prod_ASJ and prod_ASJ_PRO; the bundle grants all three journey tags,
+      // and the bundle-PRO adds prod_ASJ_PRO on top.
       const drip = DRIP_BY_SLUG[reg.product_slug];
       tags = drip.tags;
       eventName = drip.event;
