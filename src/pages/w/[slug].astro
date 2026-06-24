@@ -75,7 +75,12 @@ const COMMON_TZS = [
 const tzOptions = Array.from(new Set([detectedTz, ...COMMON_TZS]));
 ---
 
-<Layout title={workshop ? `Register — ${workshop.title}` : 'Workshop'} description={workshop?.title ?? ''}>
+<Layout
+  title={workshop ? `Register — ${workshop.title}` : 'Workshop'}
+  description={workshop?.title ?? ''}
+  image="/media/library/svh-retreat-sounding-jacob-sunset.webp"
+  imageAlt="Sounding in an open field at sunset."
+>
   <MetaPixel pixelId={pixelId} />
 
   <main class="wk">
