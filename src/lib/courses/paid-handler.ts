@@ -22,7 +22,7 @@ import {
   TWELVE_WEEK_DRIP_TAG,
   TWELVE_WEEK_PRODUCT_SLUG,
 } from './twelve-week';
-import { DRIP_BY_SLUG, isJourneySlug } from './journeys';
+import { isJourneySlug, journeyDrip } from './journeys';
 import { sendCoursePurchaseEvent } from './meta';
 
 type Env = {
@@ -77,10 +77,13 @@ export async function pushPaidCourseRegistrationToDrip(
       // The Three Journeys (+ ASJ PRO mantra pack, + all-three bundle). The slug
       // maps to its own set of product tags — e.g. asj-pro grants both
       // prod_ASJ and prod_ASJ_PRO; the bundle grants all three journey tags,
-      // and the bundle-PRO adds prod_ASJ_PRO on top.
-      const drip = DRIP_BY_SLUG[reg.product_slug];
+      // and the bundle-PRO adds prod_ASJ_PRO on top. The Authentic Singing
+      // component additionally honours the buyer's Dutch / English / both
+      // language choice (prod_JAZ[/_PRO] in place of prod_ASJ[/_PRO]).
+      const drip = journeyDrip(reg.product_slug, reg.language_choice);
       tags = drip.tags;
       eventName = drip.event;
+      if (reg.language_choice) customFields.journey_language = reg.language_choice;
     } else if (isTwelveWeek) {
       // The standalone 12-week foundation course. `prod_SVH_12w` is the same
       // foundation-access tag the cert bundle grants — Jacob's existing Drip
@@ -124,6 +127,7 @@ export async function pushPaidCourseRegistrationToDrip(
         payment_plan: reg.payment_plan,
         installments_total: reg.installments_total,
         activate_choice: reg.activate_choice ?? '',
+        journey_language: reg.language_choice ?? '',
         source_variant: reg.source_variant ?? '',
         first_name: reg.first_name ?? '',
         last_name: reg.last_name ?? '',

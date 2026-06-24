@@ -33,6 +33,10 @@ const countries = COUNTRIES;
       <p class="cc-register-form-note">
         We'll only use this to show you the right offer. No sign-up, no list.
       </p>
+      <div class="cc-register-status" data-cc-status hidden aria-live="polite">
+        <span class="cc-register-spinner" aria-hidden="true"></span>
+        <span class="cc-register-status-text" data-cc-status-text>Finding your profile…</span>
+      </div>
       <p class="cc-register-error" data-cc-error></p>
     </div>
 
@@ -209,6 +213,7 @@ const countries = COUNTRIES;
 
 <script>
   import { COUNTRIES } from '../../lib/countries';
+  import { postJsonResilient } from '../../lib/client/resilient-fetch';
 
   type Currency =
     | 'EUR' | 'USD' | 'GBP' | 'CAD' | 'CHF'
@@ -406,6 +411,8 @@ const countries = COUNTRIES;
   const emailForm = stage.querySelector<HTMLFormElement>('[data-cc-email-form]')!;
   const errorEl = stage.querySelector<HTMLElement>('[data-cc-error]')!;
   const noteEl = document.querySelector<HTMLElement>('.cc-register-form-note');
+  const statusEl = stage.querySelector<HTMLElement>('[data-cc-status]')!;
+  const statusTextEl = statusEl.querySelector<HTMLElement>('[data-cc-status-text]')!;
   const template = document.querySelector<HTMLTemplateElement>(
     '[data-cc-variant-template]',
   )!;
@@ -419,9 +426,41 @@ const countries = COUNTRIES;
     errorEl.classList.remove('is-visible');
   }
 
+  // Lookup progress indicator: a spinner + reassuring rotating copy while we
+  // talk to the server, so a slow round-trip on mobile reads as "working" and
+  // not "broken". The visible status is what the visitor asked for — a little
+  // "finding your profile" beat instead of a dead button.
+  const PROGRESS_MESSAGES = [
+    'Finding your profile…',
+    'Checking your place on the path…',
+    'Almost there…',
+  ];
+  let statusRotateTimer: number | undefined;
+  function startStatus() {
+    clearError();
+    statusEl.hidden = false;
+    let i = 0;
+    statusTextEl.textContent = PROGRESS_MESSAGES[0];
+    window.clearInterval(statusRotateTimer);
+    statusRotateTimer = window.setInterval(() => {
+      i = (i + 1) % PROGRESS_MESSAGES.length;
+      statusTextEl.textContent = PROGRESS_MESSAGES[i];
+    }, 2200);
+  }
+  function setStatus(text: string) {
+    window.clearInterval(statusRotateTimer);
+    statusTextEl.textContent = text;
+  }
+  function stopStatus() {
+    window.clearInterval(statusRotateTimer);
+    statusEl.hidden = true;
+  }
+
   function showEmailForm(prefillEmail?: string) {
+    stopStatus();
     stage.replaceChildren(emailForm);
     if (noteEl) stage.appendChild(noteEl);
+    stage.appendChild(statusEl);
     stage.appendChild(errorEl);
     const input = emailForm.querySelector<HTMLInputElement>('input[name="email"]')!;
     if (prefillEmail) input.value = prefillEmail;
@@ -453,24 +492,32 @@ const countries = COUNTRIES;
     const submitBtn = emailForm.querySelector<HTMLButtonElement>('button[type="submit"]')!;
     submitBtn.disabled = true;
     submitBtn.textContent = 'Checking…';
+    startStatus();
 
     try {
-      const res = await fetch('/api/courses/subscriber-status', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, discount_percent: discountPct || undefined }),
-      });
+      const res = await postJsonResilient(
+        '/api/courses/subscriber-status',
+        { email, discount_percent: discountPct || undefined },
+        {
+          onAttempt: (attempt) => {
+            if (attempt > 1) setStatus('Reconnecting…');
+          },
+        },
+      );
       const body = (await res.json()) as Decision | { error: string };
       if (!res.ok || !('variant' in body)) {
+        stopStatus();
         showError(('error' in body && body.error) || 'Something went wrong. Please try again.');
         submitBtn.disabled = false;
         submitBtn.textContent = 'Check';
         return;
       }
+      stopStatus();
       saveDecision(email, body);
       renderVariant(email, body);
     } catch {
-      showError('We could not reach the server. Please try again.');
+      stopStatus();
+      showError('We had trouble reaching the server — please check your connection and tap Check again.');
       submitBtn.disabled = false;
       submitBtn.textContent = 'Check';
     }
@@ -681,16 +728,18 @@ const countries = COUNTRIES;
       const target = currencyForCountry(code);
       inFlightCountry = code;
       try {
-        const res = await fetch('/api/courses/subscriber-status', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+        const res = await postJsonResilient(
+          '/api/courses/subscriber-status',
+          {
             email,
             currency: target,
             country: code,
             discount_percent: discountPct || undefined,
-          }),
-        });
+          },
+          // Background price refresh — keep it snappy and quiet; on failure we
+          // simply leave the existing prices in place.
+          { retries: 2, timeoutMs: 8000 },
+        );
         const next = (await res.json()) as Decision | { error?: string };
         if (!('offers' in next) || !next.offers) return;
         // Only apply if the buyer hasn't moved on to yet another country
@@ -1260,28 +1309,24 @@ const countries = COUNTRIES;
     };
 
     try {
-      const res = await fetch('/api/courses/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          product_slug: productSlug,
-          payment_plan: paymentPlan,
-          currency: decision.currency ?? 'EUR',
-          first_name,
-          last_name,
-          email,
-          country,
-          phone_country,
-          phone,
-          company_name: company_name || undefined,
-          vat_number: vat_number || undefined,
-          activate_choice,
-          source_variant: decision.variant,
-          consent_terms: true,
-          provider,
-          ...(discountPct > 0 ? { discount_percent: discountPct } : {}),
-          ...(adiscountPct > 0 ? { adiscount_percent: adiscountPct } : {}),
-        }),
+      const res = await postJsonResilient('/api/courses/checkout', {
+        product_slug: productSlug,
+        payment_plan: paymentPlan,
+        currency: decision.currency ?? 'EUR',
+        first_name,
+        last_name,
+        email,
+        country,
+        phone_country,
+        phone,
+        company_name: company_name || undefined,
+        vat_number: vat_number || undefined,
+        activate_choice,
+        source_variant: decision.variant,
+        consent_terms: true,
+        provider,
+        ...(discountPct > 0 ? { discount_percent: discountPct } : {}),
+        ...(adiscountPct > 0 ? { adiscount_percent: adiscountPct } : {}),
       });
       // Always try to parse JSON — the server returns JSON on errors too.
       let body: { checkout_url?: string; error?: string } = {};
@@ -1327,11 +1372,7 @@ const countries = COUNTRIES;
     msg.textContent = '';
     msg.classList.remove('is-visible', 'is-error');
     try {
-      const res = await fetch('/api/courses/activate-now', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      });
+      const res = await postJsonResilient('/api/courses/activate-now', { email });
       let body: { ok?: boolean; error?: string } = {};
       try {
         body = (await res.json()) as typeof body;

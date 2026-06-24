@@ -29,6 +29,10 @@
       <p class="cc-teaser-note">
         We'll only use this to show you the right offer. No sign-up, no list.
       </p>
+      <div class="cc-teaser-status" data-cc-teaser-status hidden aria-live="polite">
+        <span class="cc-teaser-spinner" aria-hidden="true"></span>
+        <span data-cc-teaser-status-text>Finding your profile…</span>
+      </div>
       <p class="cc-teaser-error" data-cc-teaser-error></p>
     </div>
 
@@ -55,6 +59,8 @@
 </section>
 
 <script>
+  import { postJsonResilient } from '../../lib/client/resilient-fetch';
+
   type Variant = 'B1' | 'B2' | 'A' | 'D' | 'E' | 'C';
   type Currency =
     | 'EUR' | 'USD' | 'GBP' | 'CAD' | 'CHF'
@@ -156,6 +162,8 @@
     const form = stage.querySelector<HTMLFormElement>('[data-cc-teaser-form]')!;
     const errorEl = stage.querySelector<HTMLElement>('[data-cc-teaser-error]')!;
     const noteEl = document.querySelector<HTMLElement>('.cc-teaser-note');
+    const statusEl = stage.querySelector<HTMLElement>('[data-cc-teaser-status]')!;
+    const statusTextEl = statusEl.querySelector<HTMLElement>('[data-cc-teaser-status-text]')!;
     const template = document.querySelector<HTMLTemplateElement>(
       '[data-cc-teaser-result]',
     )!;
@@ -169,11 +177,44 @@
       errorEl.classList.remove('is-visible');
     }
 
+    // Lookup progress: spinner + reassuring rotating copy, so a slow round-trip
+    // on mobile reads as "working", not "broken".
+    const PROGRESS_MESSAGES = [
+      'Finding your profile…',
+      'Checking your place on the path…',
+      'Almost there…',
+    ];
+    let statusRotateTimer: number | undefined;
+    function startStatus() {
+      clearError();
+      statusEl.hidden = false;
+      let i = 0;
+      statusTextEl.textContent = PROGRESS_MESSAGES[0];
+      window.clearInterval(statusRotateTimer);
+      statusRotateTimer = window.setInterval(() => {
+        i = (i + 1) % PROGRESS_MESSAGES.length;
+        statusTextEl.textContent = PROGRESS_MESSAGES[i];
+      }, 2200);
+    }
+    function setStatus(text: string) {
+      window.clearInterval(statusRotateTimer);
+      statusTextEl.textContent = text;
+    }
+    function stopStatus() {
+      window.clearInterval(statusRotateTimer);
+      statusEl.hidden = true;
+    }
+
     function showForm(prefillEmail?: string) {
+      stopStatus();
       root.classList.remove('cc-teaser--has-result');
       stage.replaceChildren(form);
       if (noteEl) stage.appendChild(noteEl);
       stage.appendChild(errorEl);
+      // Keep the progress status between the note and the error line, without a
+      // further `stage` reference (TS can't narrow `stage` inside this hoisted
+      // helper, so this avoids a spurious "possibly null" on a guaranteed node).
+      errorEl.before(statusEl);
       const input = form.querySelector<HTMLInputElement>('input[name="email"]')!;
       if (prefillEmail) input.value = prefillEmail;
       const btn = form.querySelector<HTMLButtonElement>('button[type="submit"]')!;
@@ -228,23 +269,31 @@
       const btn = form.querySelector<HTMLButtonElement>('button[type="submit"]')!;
       btn.disabled = true;
       btn.textContent = 'Checking…';
+      startStatus();
       try {
-        const res = await fetch('/api/courses/subscriber-status', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email }),
-        });
+        const res = await postJsonResilient(
+          '/api/courses/subscriber-status',
+          { email },
+          {
+            onAttempt: (attempt) => {
+              if (attempt > 1) setStatus('Reconnecting…');
+            },
+          },
+        );
         const body = (await res.json()) as Decision | { error: string };
         if (!res.ok || !('variant' in body)) {
+          stopStatus();
           showError(('error' in body && body.error) || 'Something went wrong. Please try again.');
           btn.disabled = false;
           btn.textContent = 'Check';
           return;
         }
+        stopStatus();
         save(email, body);
         renderResult(email, body);
       } catch {
-        showError('We could not reach the server. Please try again.');
+        stopStatus();
+        showError('We had trouble reaching the server — please check your connection and tap Check again.');
         btn.disabled = false;
         btn.textContent = 'Check';
       }

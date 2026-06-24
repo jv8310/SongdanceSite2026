@@ -1178,6 +1178,28 @@ html, body { background: var(--paper); }
 }
 .jr-consent input { margin-top: 3px; accent-color: var(--jr-accent); }
 .jr-consent a { color: var(--ink); text-decoration-color: var(--jr-accent); text-underline-offset: 3px; }
+/* Dutch-edition chooser (Authentic Singing Journey) — shown to BE/NL / Dutch-
+   browser buyers. A gentle callout inside the form. The `.jr-lang .jr-lang-q`
+   selector outweighs `.jr-field > span`, so the question reads in body type
+   rather than the mono-uppercase field-label style. */
+.jr-lang {
+  gap: 12px;
+  padding: var(--sp-4);
+  background: var(--paper-soft);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--jr-accent);
+  border-radius: var(--r-sm);
+}
+.jr-lang .jr-lang-q {
+  font-family: var(--font-body); font-size: 14px;
+  text-transform: none; letter-spacing: 0; color: var(--ink-soft);
+}
+.jr-lang-opt {
+  display: flex; align-items: center; gap: 10px;
+  font-family: var(--font-body); font-size: 15px; color: var(--ink);
+  cursor: pointer;
+}
+.jr-lang-opt input { accent-color: var(--jr-accent); }
 .jr-checkout-summary {
   grid-column: 1 / -1;
   display: flex; justify-content: space-between; align-items: baseline; gap: var(--sp-4);

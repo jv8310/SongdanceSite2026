@@ -7,6 +7,7 @@ import JourneyRegister from '../../components/journeys/JourneyRegister.astro';
 import JourneyCrossPromo from '../../components/journeys/JourneyCrossPromo.astro';
 import MetaProductView from '../../components/MetaProductView.astro';
 import { catalogItemById } from '../../lib/catalog/products';
+import SiteMenu from '../../components/SiteMenu.astro';
 
 export const prerender = false;
 
@@ -59,8 +60,12 @@ const testimonials = [
           <span>Self-paced · at home</span>
         </div>
         <a href="#register" class="jr-nav-cta">Begin · €99</a>
+        <button class="sm-trigger" data-sm-trigger aria-label="Open menu" aria-expanded="false">
+          <i class="ph-light ph-list"></i>
+        </button>
       </div>
     </nav>
+    <SiteMenu />
 
     <!-- Hero -->
     <header class="jr-hero">

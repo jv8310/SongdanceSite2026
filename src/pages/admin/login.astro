@@ -10,9 +10,20 @@ const error = Astro.url.searchParams.get('error');
   <main style="max-width: 360px; margin: 120px auto; padding: 0 24px; font-family: Georgia, serif;">
     <h1 style="font-size: 1.5rem; margin-bottom: 24px;">Admin login</h1>
     {error && (
-      <p style="color: #b22; margin-bottom: 16px;">Incorrect password.</p>
+      <p style="color: #b22; margin-bottom: 16px;">Incorrect email or password.</p>
     )}
     <form method="POST" action="/api/admin/login" style="display: flex; flex-direction: column; gap: 12px;">
+      <input
+        type="email"
+        name="email"
+        placeholder="Email"
+        required
+        autocomplete="username"
+        autocapitalize="off"
+        autocorrect="off"
+        spellcheck="false"
+        style="padding: 10px 12px; border: 1px solid #c8c0b1; border-radius: 4px;"
+      />
       <input
         type="password"
         name="password"

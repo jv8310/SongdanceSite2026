@@ -145,6 +145,33 @@ const THIS_LABEL: Record<Props['course'], string> = {
           <span class="jr-field-note jr-currency-note" data-jr-currency-note hidden></span>
         </label>
 
+        <!-- Dutch edition of the Authentic Singing Journey. Hidden by default;
+             revealed by the script for Dutch-context buyers (country BE/NL,
+             geolocation, or a Dutch browser) when the chosen product contains
+             the ASJ (asj / asj-pro / either bundle). The question text switches
+             between "this programme" and the bundle wording. -->
+        <div
+          class="jr-field jr-field--full jr-lang"
+          data-jr-lang
+          hidden
+          role="radiogroup"
+          aria-labelledby="jr-lang-q"
+        >
+          <span class="jr-lang-q" id="jr-lang-q" data-jr-lang-q>Dit programma is ook beschikbaar in het Nederlands. Ik kies:</span>
+          <label class="jr-lang-opt">
+            <input type="radio" name="jr-language" value="nl" checked />
+            <span>Nederlandstalige versie</span>
+          </label>
+          <label class="jr-lang-opt">
+            <input type="radio" name="jr-language" value="en" />
+            <span>Engelstalige versie</span>
+          </label>
+          <label class="jr-lang-opt">
+            <input type="radio" name="jr-language" value="both" />
+            <span>Graag toegang tot beide</span>
+          </label>
+        </div>
+
         <label class="jr-field jr-field--full">
           <span>Company <span class="jr-field-note">— optional, for a business invoice</span></span>
           <input type="text" name="company_name" autocomplete="organization" placeholder="Your company name" />
@@ -200,6 +227,7 @@ const THIS_LABEL: Record<Props['course'], string> = {
 <script>
   import { COUNTRIES } from '../../lib/countries';
   import { launchPromoPercent } from '../../lib/promo';
+  import { postJsonResilient } from '../../lib/client/resilient-fetch';
 
   type Currency =
     | 'EUR' | 'USD' | 'GBP' | 'CAD' | 'CHF'
@@ -372,6 +400,35 @@ const THIS_LABEL: Record<Props['course'], string> = {
       return bundleProActive() ? 'journeys-bundle-pro' : checkedRadio();
     }
 
+    // Dutch-edition chooser for the Authentic Singing Journey. Shown to
+    // Dutch-context buyers (country BE/NL, geolocation via the prefilled
+    // country, or a Dutch browser) when the chosen product contains the ASJ
+    // (asj / asj-pro / either bundle). The wording differs for a bundle, where
+    // the ASJ is only one part of the purchase.
+    const langBlock = form.querySelector<HTMLElement>('[data-jr-lang]');
+    const langQEl = form.querySelector<HTMLElement>('[data-jr-lang-q]');
+    const browserDutch = [navigator.language, ...(navigator.languages || [])]
+      .some((l) => (l || '').toLowerCase().startsWith('nl'));
+    const LANG_Q_SINGLE = 'Dit programma is ook beschikbaar in het Nederlands. Ik kies:';
+    const LANG_Q_BUNDLE = 'Het Authentiek Zingen programma bestaat ook in het Nederlands. Ik kies:';
+    function dutchContext(): boolean {
+      const code = countryHidden.value.trim().toUpperCase();
+      return code === 'BE' || code === 'NL' || browserDutch;
+    }
+    function slugHasDutchEdition(slug: string): boolean {
+      return slug === 'asj' || slug === 'asj-pro'
+        || slug === 'journeys-bundle' || slug === 'journeys-bundle-pro';
+    }
+    function syncLangVisibility() {
+      if (!langBlock) return;
+      const slug = selectedSlug();
+      const applies = slugHasDutchEdition(slug) && dutchContext();
+      langBlock.hidden = !applies;
+      if (applies && langQEl) {
+        langQEl.textContent = slug.startsWith('journeys-bundle') ? LANG_Q_BUNDLE : LANG_Q_SINGLE;
+      }
+    }
+
     function renderPrices() {
       for (const el of optionEls) {
         const slug = el.dataset.product!;
@@ -458,6 +515,7 @@ const THIS_LABEL: Record<Props['course'], string> = {
       // Selected styling follows the chosen radio (the base product).
       for (const el of optionEls) el.classList.toggle('is-selected', el.dataset.product === radio);
       renderPrices();
+      syncLangVisibility();
     }
     optsWrap.addEventListener('change', syncSelected);
 
@@ -477,6 +535,7 @@ const THIS_LABEL: Record<Props['course'], string> = {
       if (match) { countryHidden.value = match.code; setCurrencyFromCode(match.code); }
       else countryHidden.value = '';
       toggleVat();
+      syncLangVisibility();
     }
     countryInput.addEventListener('change', resolveCountry);
     countryInput.addEventListener('blur', resolveCountry);
@@ -510,6 +569,15 @@ const THIS_LABEL: Record<Props['course'], string> = {
       const vat_number = get('vat_number');
       const consent_terms = form.querySelector<HTMLInputElement>('[name="consent_terms"]')!.checked;
       const product = selectedSlug();
+      // Send the Dutch-edition choice only when the chooser is actually shown
+      // (ASJ-containing product + Dutch context). Hidden/absent → server keeps
+      // the English default. The 'nl' radio is preselected, so a shown chooser
+      // always sends a value.
+      let language_choice: string | undefined;
+      if (langBlock && !langBlock.hidden) {
+        language_choice =
+          form.querySelector<HTMLInputElement>('input[name="jr-language"]:checked')?.value || undefined;
+      }
 
       if (!first_name || !last_name) return fail('Please add your first and last name.');
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return fail('Please enter a valid email address.');
@@ -530,22 +598,19 @@ const THIS_LABEL: Record<Props['course'], string> = {
       };
 
       try {
-        const res = await fetch('/api/courses/journey-checkout', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            product,
-            first_name,
-            last_name,
-            email,
-            country,
-            company_name: company_name || undefined,
-            vat_number: vat_number || undefined,
-            consent_terms: true,
-            provider,
-            ...(publicPct > 0 ? { discount_percent: publicPct } : {}),
-            ...(secretPct > 0 ? { adiscount_percent: secretPct } : {}),
-          }),
+        const res = await postJsonResilient('/api/courses/journey-checkout', {
+          product,
+          first_name,
+          last_name,
+          email,
+          country,
+          company_name: company_name || undefined,
+          vat_number: vat_number || undefined,
+          consent_terms: true,
+          provider,
+          ...(language_choice ? { language_choice } : {}),
+          ...(publicPct > 0 ? { discount_percent: publicPct } : {}),
+          ...(secretPct > 0 ? { adiscount_percent: secretPct } : {}),
         });
         let body: { checkout_url?: string; error?: string } = {};
         try { body = (await res.json()) as typeof body; } catch {}

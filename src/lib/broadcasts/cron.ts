@@ -51,13 +51,14 @@ type BroadcastCronEnv = {
   PUBLIC_BASE_URL: string;
 };
 
-// Pacing. ~80 sends per 5-minute tick → ~23k/day at full availability, so a 55k
-// list lands in ~2.5 days (longer in practice, since recipients only send inside
-// their local window). SEND_GAP_MS keeps us under Resend's default 2 req/s.
-// Raise MAX_PER_RUN (and/or widen a broadcast's send window) to go faster — the
-// batch cap is the real throughput lever, not the window. Mind Resend's account
-// rate limit if you push it much higher.
-const MAX_PER_RUN = 80;
+// Pacing. ~200 sends per 5-minute tick → ~57k/day at full availability (a
+// cleaned, validated list earns the higher rate). At SEND_GAP_MS=550ms that's
+// ~110s of sending per tick — well inside the scheduled Worker's wall-clock
+// budget, and still under Resend's default 2 req/s. SEND_GAP_MS is the per-send
+// throttle; MAX_PER_RUN is the real throughput lever (widening a broadcast's
+// send window only helps at the edges). Mind your Resend plan's daily cap if you
+// push MAX_PER_RUN much higher.
+const MAX_PER_RUN = 200;
 const SEND_GAP_MS = 550;
 
 // Circuit breaker. Once a real sample has gone out, pause if complaints or
