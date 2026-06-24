@@ -1,6 +1,7 @@
 ---
 import '../../../styles/journeys.css';
 import Layout from '../../../layouts/Layout.astro';
+import CoursePurchasePixel from '../../../components/CoursePurchasePixel.astro';
 
 export const prerender = false;
 
@@ -20,13 +21,15 @@ type Row = {
   email: string;
   status: string;
   product_slug: string;
+  amount_cents: number;
+  currency: string;
 };
 
 let reg: Row | null = null;
 if (lookup) {
   reg = await env.DB
     .prepare(
-      `SELECT id, first_name, email, status, product_slug
+      `SELECT id, first_name, email, status, product_slug, amount_cents, currency
          FROM course_registrations
         WHERE ${lookup[0]} = ?`,
     )
@@ -36,6 +39,7 @@ if (lookup) {
 
 const isPaid = reg?.status === 'paid';
 const firstName = reg?.first_name?.trim() || null;
+const pixelId = env.META_PIXEL_ID ?? '';
 
 const PRODUCT_NAME: Record<string, string> = {
   asj: 'the Authentic Singing Journey',
@@ -58,6 +62,14 @@ const productName = reg ? (PRODUCT_NAME[reg.product_slug] ?? 'your journey') : '
   title="Thank you — Songdance"
   description="Your journey is confirmed."
 >
+  <CoursePurchasePixel
+    pixelId={pixelId}
+    registrationId={reg?.id}
+    status={reg?.status}
+    amountCents={reg?.amount_cents}
+    currency={reg?.currency}
+    productSlug={reg?.product_slug}
+  />
   <div class="jr-site jr-theme-singing">
     <section class="jr-section" style="min-height:62vh; display:flex; align-items:center;">
       <div class="jr-opening-inner">

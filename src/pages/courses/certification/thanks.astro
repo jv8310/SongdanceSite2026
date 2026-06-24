@@ -3,6 +3,7 @@ import '../../../styles/certification-course.css';
 import Layout from '../../../layouts/Layout.astro';
 import CCNav from '../../../components/certification-course/CCNav.astro';
 import CCFooter from '../../../components/certification-course/CCFooter.astro';
+import CoursePurchasePixel from '../../../components/CoursePurchasePixel.astro';
 
 export const prerender = false;
 
@@ -31,6 +32,8 @@ type Row = {
   installments_total: number;
   status: string;
   activate_choice: 'now' | 'wait' | null;
+  amount_cents: number;
+  currency: string;
 };
 
 let reg: Row | null = null;
@@ -39,7 +42,7 @@ if (lookup) {
     .prepare(
       `SELECT id, first_name, last_name, email, product_slug,
               payment_plan, installments_paid, installments_total, status,
-              activate_choice
+              activate_choice, amount_cents, currency
          FROM course_registrations
         WHERE ${lookup[0]} = ?`,
     )
@@ -57,12 +60,21 @@ const productLabel =
 const isPaid = reg?.status === 'paid';
 const isSubscription = reg?.payment_plan === '3x';
 const firstName = reg?.first_name?.trim() || null;
+const pixelId = env.META_PIXEL_ID ?? '';
 ---
 
 <Layout
   title="Thank you — Songdance"
   description="Your place on the path is confirmed."
 >
+  <CoursePurchasePixel
+    pixelId={pixelId}
+    registrationId={reg?.id}
+    status={reg?.status}
+    amountCents={reg?.amount_cents}
+    currency={reg?.currency}
+    productSlug={reg?.product_slug}
+  />
   <div class="cc-site">
     <CCNav />
 

@@ -554,6 +554,17 @@ const THIS_LABEL: Record<Props['course'], string> = {
           restore();
           return;
         }
+        // Meta Pixel: catalog product going to checkout. (Currency/value are
+        // re-derived server-side from the country, so we send content_ids only.)
+        const fbq = (window as any).fbq;
+        if (fbq) {
+          try {
+            fbq('track', 'AddToCart', {
+              content_ids: [product],
+              content_type: 'product',
+            });
+          } catch (e) {}
+        }
         window.location.href = body.checkout_url;
       } catch {
         fail('We could not reach the server. Please try again.');

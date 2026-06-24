@@ -43,6 +43,10 @@ export async function sendPurchaseEvent(
     value: number; // major units (e.g. 25.00)
     currency: string;
     orderId: string;
+    // Catalog product ids this purchase covers. When set, the event carries
+    // content_ids + content_type:'product' so Meta can bind the Purchase to the
+    // product catalog (ROAS attribution + excluding buyers from view-retargeting).
+    contentIds?: string[];
     eventTime?: number; // unix seconds; defaults to now
     eventSourceUrl?: string;
     clientIp?: string | null;
@@ -69,6 +73,9 @@ export async function sendPurchaseEvent(
           value: Number(args.value.toFixed(2)),
           currency: args.currency.toUpperCase(),
           order_id: args.orderId,
+          ...(args.contentIds && args.contentIds.length
+            ? { content_ids: args.contentIds, content_type: 'product' }
+            : {}),
         },
       },
     ],
