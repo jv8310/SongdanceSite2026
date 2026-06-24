@@ -14,10 +14,16 @@
 // straight through to the feed and the events.
 
 import { PRICE as TWELVE_WEEK_PRICE } from '../courses/twelve-week';
-import { getCertOffer } from '../courses/variant';
+import { getCertOffer, applyLaunchPromoToOffer } from '../courses/variant';
 import { GRIEF_PRICE } from '../courses/grief';
 import { PRICE_BY_SLUG } from '../courses/journeys';
 import { MARKETING_PRICES_MINOR } from '../workshops/marketing-prices';
+import {
+  SUPPORTED_CURRENCIES,
+  COUNTRY_CURRENCY,
+  type SupportedCurrency,
+} from '../workshops/currency';
+import { launchPromoActive, LAUNCH_PROMO_PERCENT } from '../promo';
 
 // The catalog id IS the Pixel content_id. Use the canonical product slugs.
 // Note we deliberately list ONE certification product (the bundle/"path" is the
@@ -50,11 +56,29 @@ export function catalogContentId(slug: string): string {
 }
 
 // Meta wants ONE currency per feed (verified: a feed is single-currency, and
-// other currencies come from a country-override feed keyed by id). We publish
-// the EUR main feed plus a USD override feed, so these are the two currencies
-// a catalog item resolves a price in.
-export type FeedCurrency = 'EUR' | 'USD';
-export const FEED_CURRENCIES: FeedCurrency[] = ['EUR', 'USD'];
+// other currencies come from a country-override feed keyed by id). So we publish
+// the EUR main feed (/feeds/meta-catalog.csv) plus one override feed per other
+// currency the site prices in (/feeds/meta-catalog-<cur>.csv). A feed currency
+// is therefore exactly the set of currencies the site holds price points for.
+export type FeedCurrency = SupportedCurrency;
+export const FEED_CURRENCIES: FeedCurrency[] = [...SUPPORTED_CURRENCIES];
+
+// EUR is the catalog's base/main-feed currency; every other supported currency
+// gets a country-override feed. The country each override should be assigned to
+// in Commerce Manager is the inverse of COUNTRY_CURRENCY (here 1:1 — USD↦US,
+// GBP↦GB, …; EUR is the default for every other country).
+export const BASE_FEED_CURRENCY: FeedCurrency = 'EUR';
+export const OVERRIDE_CURRENCIES: FeedCurrency[] = FEED_CURRENCIES.filter(
+  (c) => c !== BASE_FEED_CURRENCY,
+);
+
+// currency → the ISO-2 country/countries that should receive its override feed.
+export const OVERRIDE_FEED_COUNTRIES: Record<string, string[]> = Object.entries(
+  COUNTRY_CURRENCY,
+).reduce<Record<string, string[]>>((acc, [country, currency]) => {
+  (acc[currency] ??= []).push(country);
+  return acc;
+}, {});
 
 export interface CatalogItem {
   id: CatalogId;
@@ -63,28 +87,34 @@ export interface CatalogItem {
   // lifted from each page's already-approved meta description.
   description: string;
   link: string; // site-relative path; absolutized in the feed
-  imageKey?: string; // R2 key, served at /media/<key>
-  imageUrl?: string; // absolute image URL — used instead of imageKey when set
+  imageKey?: string; // R2 key for the main image, served at /media/<key>
+  imageUrl?: string; // absolute main-image URL — used instead of imageKey when set
+  // Extra R2 image keys (served at /media/<key>) for Meta's additional_image_link
+  // — Meta shows whichever performs best (up to 10).
+  additionalImageKeys?: string[];
   priceEur: number; // major units (99 = €99) — convenience for pages/events
-  prices: Record<FeedCurrency, number>; // major units, per feed currency
+  // major units, per feed currency. Partial because a product may not be priced
+  // in every currency (Songdeck is EUR-only), in which case the override feed
+  // for the missing currency simply omits the product and Meta shows the base.
+  prices: Partial<Record<FeedCurrency, number>>;
   availability: 'in stock' | 'out of stock';
   condition: 'new';
   brand: string;
 }
 
-// The single price-resolution point. Reads each product's EUR/USD figure from
-// the existing per-currency price modules (never a second copy), so the feeds,
-// the override feed, and the on-page event value all track one source.
+// The single price-resolution point. Reads each product's figure from the
+// existing per-currency price modules (never a second copy), so the feeds and
+// the on-page event value all track one source. Returns null when a product has
+// no price point in that currency, so the override feed can skip it.
 // NOTE: the masterclass DB/migration slug is `svh-masterclass`, but the catalog
 // id stays `masterclass` on purpose — do not "fix" it, or the feed/Pixel match
 // breaks. Its price lives (in minor units) in the marketing-prices table.
 // Songdeck is a physical product sold on the external songdeck.shop (Shopify),
-// so it has no per-currency price module here — its price is a fixed figure,
-// the same numerically in EUR and USD (matching how every other product mirrors
-// EUR↔USD on this site).
-const SONGDECK_PRICE = 44;
+// which handles its own currency display — so here it carries only its EUR
+// price and is omitted from the non-EUR override feeds.
+const SONGDECK_PRICE_EUR = 44;
 
-function priceFor(id: CatalogId, currency: FeedCurrency): number {
+function priceFor(id: CatalogId, currency: FeedCurrency): number | null {
   switch (id) {
     case 'svh-12week':
       return TWELVE_WEEK_PRICE[currency];
@@ -101,8 +131,35 @@ function priceFor(id: CatalogId, currency: FeedCurrency): number {
     case 'masterclass':
       return MARKETING_PRICES_MINOR.masterclass[currency] / 100;
     case 'songdeck':
-      return SONGDECK_PRICE;
+      return currency === 'EUR' ? SONGDECK_PRICE_EUR : null;
   }
+}
+
+// The current sale price for the feed's `sale_price` column, or null when there
+// is no live sale for this product/currency. Driven by the site's single promo
+// source (src/lib/promo): when the launch promo ends, this returns null again
+// and the feeds drop sale_price automatically — no manual edit, no rebuild.
+//
+// MUST be called at request time (it reads Date.now() via launchPromoActive),
+// never baked into the module-load CATALOG. Songdeck (external shop) is never on
+// sale here. The certification has bespoke promo math (the launch percent off
+// its LIST/base price), so we read its authoritative promo price from
+// applyLaunchPromoToOffer rather than halving its regular price; every other
+// product is a straight `LAUNCH_PROMO_PERCENT`% off its regular price — matching
+// what each checkout actually charges.
+export function salePriceFor(
+  id: CatalogId,
+  currency: FeedCurrency,
+  nowMs: number = Date.now(),
+): number | null {
+  if (id === 'songdeck') return null;
+  if (!launchPromoActive(nowMs)) return null;
+  const regular = priceFor(id, currency);
+  if (regular == null) return null;
+  if (id === 'cc-cert') {
+    return applyLaunchPromoToOffer(getCertOffer(currency), nowMs).price;
+  }
+  return Math.round(regular * (100 - LAUNCH_PROMO_PERCENT)) / 100;
 }
 
 type CatalogMeta = Omit<CatalogItem, 'priceEur' | 'prices'>;
@@ -115,6 +172,11 @@ const META: CatalogMeta[] = [
       'Twelve weeks to learn the practice of Somatic Vocal Healing — until you can hold it yourself. A self-paced video course with live weekly Q&A: 12 modules, 18+ hours of guided practice, and lifetime access.',
     link: '/courses/12-week',
     imageKey: 'library/svh-retreat-circle-sunset-group-jacob-central.webp',
+    additionalImageKeys: [
+      'library/svh-retreat-sounding-jacob-sunset.webp',
+      'library/svh-retreat-teaching-jacob-whiteboard.webp',
+      'library/svh-retreat-group-indoor.webp',
+    ],
     availability: 'in stock',
     condition: 'new',
     brand: 'Songdance',
@@ -126,6 +188,11 @@ const META: CatalogMeta[] = [
       'A deepening journey with Jacob Vermeulen. Live classes and instant-access recordings, weekly Q&As, hosted practice sessions, monthly live deepening sessions, the Somatic Vocal Healing app, and a global community walking it together. Become a certified Somatic Vocal Healing practitioner — or simply go fully in with your own voice.',
     link: '/courses/certification',
     imageKey: 'library/svh-retreat-facilitator-jacob-seated.webp',
+    additionalImageKeys: [
+      'library/svh-retreat-teaching-jacob-whiteboard.webp',
+      'library/svh-retreat-singing-microphone-jacob.webp',
+      'library/svh-retreat-circle-sunset-group-jacob-central.webp',
+    ],
     availability: 'in stock',
     condition: 'new',
     brand: 'Songdance',
@@ -137,6 +204,11 @@ const META: CatalogMeta[] = [
       'Because no one taught you how to grieve. Learn the foundational tools and practices to be with your grief in a conscious, healthy way — with Daniela Hess and Jacob Vermeulen. 4 sessions, lifetime access.',
     link: '/courses/grief',
     imageKey: 'library/grief-jacob-letting-go-sounding.webp',
+    additionalImageKeys: [
+      'library/grief-daniela.webp',
+      'library/grief-hands-letting-go.webp',
+      'library/grief-background-lotus.webp',
+    ],
     availability: 'in stock',
     condition: 'new',
     brand: 'Songdance',
@@ -148,6 +220,11 @@ const META: CatalogMeta[] = [
       'Forty weeks of mantras and music, made to free the voice you already have. Self-paced, at home. No range, no experience, no performance required.',
     link: '/courses/authentic-singing',
     imageKey: 'library/singing-lights-woman.webp',
+    additionalImageKeys: [
+      'library/singing-lights-man.webp',
+      'library/singing-nature.webp',
+      'library/singing-water.webp',
+    ],
     availability: 'in stock',
     condition: 'new',
     brand: 'Songdance',
@@ -159,6 +236,11 @@ const META: CatalogMeta[] = [
       'Guided movement sessions you can do in your own room — standing or seated. No steps to learn, no floor to be good enough for. For every body.',
     link: '/courses/magical-movement',
     imageKey: 'library/movement.webp',
+    additionalImageKeys: [
+      'library/movement2.webp',
+      'library/movement-beach.webp',
+      'library/movement-stillness.webp',
+    ],
     availability: 'in stock',
     condition: 'new',
     brand: 'Songdance',
@@ -170,6 +252,11 @@ const META: CatalogMeta[] = [
       'Five gentle sessions to meet the younger part of you — and to give it, in sound, some of what it went without. Self-paced, at home.',
     link: '/courses/inner-child',
     imageKey: 'library/inner-child-glow.webp',
+    additionalImageKeys: [
+      'library/inner-child-beach.webp',
+      'library/inner-child-touch.webp',
+      'library/inner-child-closeup.webp',
+    ],
     availability: 'in stock',
     condition: 'new',
     brand: 'Songdance',
@@ -181,6 +268,11 @@ const META: CatalogMeta[] = [
       'A 90-minute live masterclass for therapists, coaches, bodyworkers, facilitators, teachers, and leaders — what sound can do in your work when words run out. Online, with replay.',
     link: '/courses/masterclass',
     imageKey: 'library/jacob-teaching.webp',
+    additionalImageKeys: [
+      'library/svh-retreat-teaching-jacob-whiteboard.webp',
+      'library/svh-retreat-singing-microphone-jacob.webp',
+      'library/jacob-at-piano.webp',
+    ],
     availability: 'in stock',
     condition: 'new',
     brand: 'Songdance',
@@ -195,17 +287,27 @@ const META: CatalogMeta[] = [
     // lives on that store's CDN (same image used on the page + structured data).
     imageUrl:
       'https://songdeck.shop/cdn/shop/files/Open_Box_Mockup.jpg?v=1728399000&width=1070',
+    // The free Songdeck app that plays each card's sound (served from our R2).
+    additionalImageKeys: [
+      'library/app-soundofthemoment.webp',
+      'library/app-quizz.webp',
+      'library/app-leaderboard.webp',
+    ],
     availability: 'in stock',
     condition: 'new',
     brand: 'Songdance',
   },
 ];
 
-export const CATALOG: CatalogItem[] = META.map((m) => ({
-  ...m,
-  priceEur: priceFor(m.id, 'EUR'),
-  prices: { EUR: priceFor(m.id, 'EUR'), USD: priceFor(m.id, 'USD') },
-}));
+export const CATALOG: CatalogItem[] = META.map((m) => {
+  const prices: Partial<Record<FeedCurrency, number>> = {};
+  for (const c of FEED_CURRENCIES) {
+    const p = priceFor(m.id, c);
+    if (p != null) prices[c] = p;
+  }
+  // EUR is always priced (it's the base currency), so priceEur is safe.
+  return { ...m, priceEur: prices.EUR!, prices };
+});
 
 const BY_ID = new Map<string, CatalogItem>(CATALOG.map((it) => [it.id, it]));
 
