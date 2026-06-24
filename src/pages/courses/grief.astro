@@ -1,6 +1,7 @@
 ---
 import SiteLayout from '../../components/SiteLayout.astro';
 import GriefRegister from '../../components/grief/GriefRegister.astro';
+import DiscoverMore from '../../components/DiscoverMore.astro';
 import { listLibrary, type MediaItem } from '../../lib/media';
 import MetaProductView from '../../components/MetaProductView.astro';
 import { catalogItemById } from '../../lib/catalog/products';
@@ -320,5 +321,6 @@ const product = catalogItemById('grief-course');
 
     <!-- ── Register ───────────────────────────────────────── -->
     <GriefRegister />
+    <DiscoverMore currentHref="/courses/grief" />
   </div>
 </SiteLayout>

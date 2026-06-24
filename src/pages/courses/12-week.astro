@@ -19,6 +19,7 @@ import TWPractitioner from '../../components/svh-twelve-week/TWPractitioner.astr
 import TWFaq from '../../components/svh-twelve-week/TWFaq.astro';
 import TWRegister from '../../components/svh-twelve-week/TWRegister.astro';
 import TWFooter from '../../components/svh-twelve-week/TWFooter.astro';
+import DiscoverMore from '../../components/DiscoverMore.astro';
 import MetaProductView from '../../components/MetaProductView.astro';
 import { catalogItemById } from '../../lib/catalog/products';
 
@@ -58,6 +59,7 @@ const product = catalogItemById('svh-12week');
     <TWPractitioner />
     <TWFaq />
     <TWRegister />
+    <DiscoverMore currentHref="/courses/12-week" />
     <TWFooter />
   </div>
 </Layout>
