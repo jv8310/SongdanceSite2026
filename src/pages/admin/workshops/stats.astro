@@ -109,7 +109,11 @@ const workshopOptionLabel = (w: { title: string; starts_at_utc: string; is_repla
 // Headline cards: one per revenue stream + spend + blended ROAS.
 const cards: Array<{ label: string; value: string; d: Delta; hl?: boolean }> = [
   { label: 'Total revenue (EUR)', value: eur(totalNet), d: delta(totalNet, cmpTotalNet), hl: true },
-  { label: 'Workshops net', value: eur(workshopsNet), d: delta(workshopsNet, cmpWorkshopsNet) },
+  {
+    label: `Workshops net (${report.totals.ticketCount})`,
+    value: eur(workshopsNet),
+    d: delta(workshopsNet, cmpWorkshopsNet),
+  },
   {
     label: `Masterclass (${report.totals.masterclassCount})`,
     value: eur(report.totals.masterclassNetEurMinor),
@@ -286,6 +290,7 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
         <>
           <div class="wk-chart-block">
             <h3>Daily revenue by stream</h3>
+            <p class="adm-sub" style="margin:-2px 0 8px;">Tick a series in the legend to show or hide it — the scale fits what’s shown.</p>
             <div class="wk-chart" id="chart-streams"></div>
           </div>
           <div class="wk-chart-block">
@@ -415,8 +420,13 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
     .wk-chart-block h3 { font-size:14px; margin:0 0 8px; color:#2A1B2A; }
     .wk-chart { position:relative; background:#fff; border:1px solid rgba(42,27,42,0.12); border-radius:10px; padding:10px 8px 4px; }
     .wk-chart svg text { font-size:11px; fill:#8a8076; }
-    .wk-chart .wk-legend { display:flex; flex-wrap:wrap; gap:14px; padding:4px 10px 6px; font-size:12px; color:#5c5248; }
-    .wk-chart .wk-legend i { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:5px; vertical-align:-1px; }
+    .wk-chart .wk-legend { display:flex; flex-wrap:wrap; gap:8px 16px; padding:4px 10px 8px; font-size:12px; color:#5c5248; }
+    .wk-chart .wk-legend-item { display:inline-flex; align-items:center; gap:6px; }
+    .wk-chart .wk-legend label.wk-legend-item { cursor:pointer; user-select:none; }
+    .wk-chart .wk-legend label.wk-legend-item input { margin:0; cursor:pointer; accent-color:#7c5c9e; }
+    .wk-chart .wk-legend-item--off { opacity:0.4; }
+    .wk-chart .wk-legend i.wk-swatch { display:inline-block; width:18px; height:0; border-top:3px solid transparent; border-radius:2px; vertical-align:middle; }
+    .wk-chart .wk-legend i.wk-swatch--dashed { border-top-style:dashed; }
     .wk-chart .wk-tip { position:absolute; pointer-events:none; background:#2A1B2A; color:#fff; font-size:12px; line-height:1.5; border-radius:8px; padding:8px 11px; opacity:0; transition:opacity .08s; z-index:5; white-space:nowrap; }
     .wk-row--total td { border-top:2px solid rgba(42,27,42,0.25); }
     .adm-table { width:100%; border-collapse:collapse; }
@@ -487,8 +497,13 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
       }
 
       // series: [{ name, color, values, dashed? }] — all aligned to data.labels
-      // (compare overlays are aligned by day index).
-      function draw(mountId, series) {
+      // (compare overlays are aligned by day index). opts.hidden is an optional
+      // { name: true } map of series toggled off via the legend checkboxes;
+      // when present the legend becomes interactive and only the checked series
+      // are plotted and scaled.
+      function draw(mountId, series, opts) {
+        opts = opts || {};
+        var hidden = opts.hidden || null;
         var mount = document.getElementById(mountId);
         if (!mount) return;
         mount.innerHTML = '';
@@ -496,25 +511,50 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
         var n = labels.length;
         var W = Math.max(mount.clientWidth || 760, 320);
         var H = 260, padL = 56, padR = 14, padT = 12, padB = 26;
-        var max = 1;
+
+        // Legend lists every series; swatches mirror the line (colour + solid/
+        // dashed) so it reads like the chart. When interactive, each item is a
+        // checkbox that toggles its series and redraws.
+        var legend = document.createElement('div');
+        legend.className = 'wk-legend';
         series.forEach(function (s) {
+          var off = !!(hidden && hidden[s.name]);
+          var item, cb;
+          if (hidden) {
+            item = document.createElement('label');
+            item.className = 'wk-legend-item' + (off ? ' wk-legend-item--off' : '');
+            cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.checked = !off;
+            cb.addEventListener('change', function () {
+              if (cb.checked) delete hidden[s.name];
+              else hidden[s.name] = true;
+              draw(mountId, series, opts);
+            });
+            item.appendChild(cb);
+          } else {
+            item = document.createElement('span');
+            item.className = 'wk-legend-item';
+          }
+          var sw = document.createElement('i');
+          sw.className = 'wk-swatch' + (s.dashed ? ' wk-swatch--dashed' : '');
+          sw.style.borderTopColor = s.color;
+          item.appendChild(sw);
+          item.appendChild(document.createTextNode(s.name));
+          legend.appendChild(item);
+        });
+        mount.appendChild(legend);
+
+        // Only the checked series are plotted, and the y-axis fits them — so
+        // hiding a big stream lets the smaller ones breathe.
+        var visible = hidden ? series.filter(function (s) { return !hidden[s.name]; }) : series;
+        var max = 1;
+        visible.forEach(function (s) {
           s.values.forEach(function (v) { if (v > max) max = v; });
         });
         max = niceMax(max);
         function x(i) { return n === 1 ? (padL + W - padR) / 2 : padL + (W - padL - padR) * (i / (n - 1)); }
         function y(v) { return H - padB - (H - padT - padB) * (v / max); }
-
-        var legend = document.createElement('div');
-        legend.className = 'wk-legend';
-        series.forEach(function (s) {
-          var span = document.createElement('span');
-          var dot = document.createElement('i');
-          dot.style.background = s.color;
-          span.appendChild(dot);
-          span.appendChild(document.createTextNode(s.name));
-          legend.appendChild(span);
-        });
-        mount.appendChild(legend);
 
         var svg = elNS('svg', { viewBox: '0 0 ' + W + ' ' + H, width: '100%', height: H });
         for (var g = 0; g <= 4; g++) {
@@ -530,7 +570,7 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
           tx.textContent = shortDate(labels[i]);
           svg.appendChild(tx);
         }
-        series.forEach(function (s) {
+        visible.forEach(function (s) {
           if (n === 1) {
             svg.appendChild(elNS('circle', { cx: x(0), cy: y(s.values[0] || 0), r: 4, fill: s.color }));
             return;
@@ -541,10 +581,12 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
           svg.appendChild(pl);
         });
 
-        // Hover: vertical guide + per-series dots + tooltip.
+        // Hover: vertical guide + per-series dots + tooltip. Listeners hang off
+        // the freshly-built svg, so a redraw (toggle/resize) drops the old ones
+        // with it rather than stacking up.
         var guide = elNS('line', { y1: padT, y2: H - padB, stroke: 'rgba(42,27,42,0.3)', 'stroke-width': 1, visibility: 'hidden' });
         svg.appendChild(guide);
-        var dots = series.map(function (s) {
+        var dots = visible.map(function (s) {
           var c = elNS('circle', { r: 3.5, fill: s.color, visibility: 'hidden' });
           svg.appendChild(c);
           return c;
@@ -554,7 +596,7 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
         tip.className = 'wk-tip';
         mount.appendChild(tip);
 
-        mount.addEventListener('mousemove', function (ev) {
+        svg.addEventListener('mousemove', function (ev) {
           var rect = svg.getBoundingClientRect();
           var sx = W / rect.width;
           var mx = (ev.clientX - rect.left) * sx;
@@ -565,7 +607,7 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
           guide.setAttribute('x2', x(i));
           guide.setAttribute('visibility', 'visible');
           var html = '<strong>' + labels[i] + '</strong>';
-          series.forEach(function (s, k) {
+          visible.forEach(function (s, k) {
             var v = s.values[i];
             dots[k].setAttribute('cx', x(i));
             dots[k].setAttribute('cy', y(v || 0));
@@ -581,18 +623,22 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
           var over = left + tip.offsetWidth - mountRect.width + 8;
           if (over > 0) tip.style.left = (left - tip.offsetWidth - 28) + 'px';
         });
-        mount.addEventListener('mouseleave', function () {
+        svg.addEventListener('mouseleave', function () {
           tip.style.opacity = '0';
           guide.setAttribute('visibility', 'hidden');
           dots.forEach(function (d) { d.setAttribute('visibility', 'hidden'); });
         });
       }
 
+      // Series toggled off in the by-stream chart, persisted across redraws
+      // (legend checkboxes + window resize) by name.
+      var hiddenStreams = {};
+
       function drawAll() {
         var streamSeries = data.streams.concat([
           { name: 'Total', color: 'rgba(42,27,42,0.45)', values: data.total, dashed: true },
         ]);
-        draw('chart-streams', streamSeries);
+        draw('chart-streams', streamSeries, { hidden: hiddenStreams });
         var spendSeries = [
           { name: 'Total revenue', color: '#2A1B2A', values: data.total },
           { name: 'Ad spend', color: '#5b7fb0', values: data.adSpend },
