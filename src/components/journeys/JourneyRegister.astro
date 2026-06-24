@@ -250,10 +250,24 @@ const THIS_LABEL: Record<Props['course'], string> = {
     } catch {}
     return 0;
   }
+  // Owner's secret ?adiscount=N (1–100). The only route to 100% — a free
+  // checkout. Sent to the server in its own field; the server re-validates.
+  function readSecretDiscount(): number {
+    try {
+      const raw = new URLSearchParams(window.location.search).get('adiscount');
+      const n = raw ? parseInt(raw, 10) : 0;
+      if (Number.isInteger(n) && n >= 1 && n <= 100) return n;
+    } catch {}
+    return 0;
+  }
   // Launch promo: 50% off, the better of the promo and any ?discount=N. For the
   // bundle, productCents is already 20% off the sum, so this stacks the 50% on
   // top. Server re-derives the same number, so display matches the charge.
-  const discountPct = Math.max(readDiscount(), launchPromoPercent());
+  const publicPct = Math.max(readDiscount(), launchPromoPercent());
+  const secretPct = readSecretDiscount();
+  // The secret owner discount (incl. 100% = free) wins for display; otherwise
+  // the better of the public discount and the launch promo.
+  const discountPct = Math.max(publicPct, secretPct);
   function applyDiscountCents(cents: number): number {
     if (discountPct <= 0) return cents;
     return Math.round((cents * (100 - discountPct)) / 100);
@@ -453,7 +467,8 @@ const THIS_LABEL: Record<Props['course'], string> = {
             vat_number: vat_number || undefined,
             consent_terms: true,
             provider,
-            ...(discountPct > 0 ? { discount_percent: discountPct } : {}),
+            ...(publicPct > 0 ? { discount_percent: publicPct } : {}),
+            ...(secretPct > 0 ? { adiscount_percent: secretPct } : {}),
           }),
         });
         let body: { checkout_url?: string; error?: string } = {};

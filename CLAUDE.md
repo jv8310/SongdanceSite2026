@@ -77,7 +77,13 @@ All automated workshop email lives in the workshop engine:
   Resend message id) by `sendEmail`'s `track` option; the Resend event webhook
   (`/api/webhooks/resend`, Svix-signed via `RESEND_WEBHOOK_SECRET`) folds
   delivery/open/click/bounce/complaint events back onto the row. Open & click
-  rates per email type show on `/admin/emails/stats`. To light it up: enable
+  rates per email type show on `/admin/emails/stats`. A spam **complaint** and a
+  **permanent (hard) bounce** also add the address to `email_suppressions`
+  (reasons `complaint` / `bounced`) so marketing stops; soft/transient bounces
+  are left alone, and Resend must report the bounce `type` for the hard-bounce
+  suppression to fire (the bounce-check reimport below is the comprehensive
+  cleanup). Transactional mail ignores suppression, so this never blocks
+  confirmations/reminders. To light it up: enable
   open+click tracking on the sending domain in Resend, add the webhook endpoint,
   and set the signing secret. `variant` column is the seed for future A/B tests.
 - **Timezone-aware sending**: non-urgent mail (early reminders 7d/2d/1d + all
@@ -145,18 +151,35 @@ e.g. a Drip export) and one-off `broadcasts` sent to it. Lives in
   failures retry, then park as `failed`.
 - **Circuit breaker**: once a real sample is out, the cron auto-pauses a
   broadcast if complaint/bounce rates cross threshold — a dormant list that's
-  gone sour stops instead of burning the domain. Pause/resume by hand too.
-- **List cleaning** (`src/lib/broadcasts/clean.ts`): the detail page can scrub
-  the pending queue of dead domains — MX/A checked via DNS-over-HTTPS
-  (cloudflare-dns.com), cached in `domain_status` (migration 0048), recipients
-  at non-deliverable domains marked `suppressed`. Catches dead domains + typo
-  TLDs (`.con`) for free; for dead mailboxes at live providers, export the
-  pending list (`/api/admin/broadcasts/export`) and run a mailbox-level
-  validator. Fails open so a DNS hiccup never drops a valid address. The same
-  panel can also remove already-queued contacts carrying given tags
-  (`/api/admin/broadcasts/exclude-tags` → `suppressPendingByTags`), e.g. ones
-  Drip flagged undeliverable — audience exclude-tags only apply at launch, this
-  scrubs a live/paused queue.
+  gone sour stops instead of burning the domain. Pause/resume by hand too. The
+  rates are measured **since the last launch/resume** (`broadcasts.breaker_baseline_at`,
+  migration 0049), so cleaning the list and resuming gets a fresh sample to prove
+  itself instead of staying permanently tripped by a sour historical rate.
+- **List cleaning is list-level** (`src/lib/broadcasts/clean.ts`,
+  `/admin/contacts` → "Clean dead domains", `/api/admin/contacts/clean`): scans
+  every contact's domain — MX/A checked via DNS-over-HTTPS (cloudflare-dns.com),
+  cached in `domain_status` (migration 0048) so each domain resolves once across
+  runs/imports — and adds addresses at dead domains (no mail server, typo TLDs
+  like `.con`, NXDOMAIN) to the **global `email_suppressions`** list
+  (`suppressContactsAtDeadDomains`, reason `invalid_domain`). So a domain cleaned
+  once is gone from this broadcast, every future broadcast, and lifecycle
+  marketing; live broadcast queues are scrubbed to match
+  (`suppressPendingRecipientsAtDeadDomains`). Fails open so a DNS hiccup never
+  drops a valid address; non-destructive (contact rows stay). New imports at a
+  known-dead domain are auto-suppressed on the way in (`importContacts`). For
+  dead mailboxes at live providers, use the **bounce-check loop** on
+  `/admin/contacts`: export the whole sendable list
+  (`/api/admin/contacts/export` → `sendableContactsForExport`), run it through a
+  mailbox-level checker (NeverBounce/ZeroBounce/Bouncer/…), then reimport the
+  results — the page detects the result column, you tick which values mean
+  undeliverable, and `/api/admin/contacts/suppress` (`suppressEmailsBatch`,
+  reason `bounced`) adds them to the global `email_suppressions` list and scrubs
+  live broadcast queues. (Or export a single broadcast's queue via
+  `/api/admin/broadcasts/export` for a per-send check.) Separately,
+  a broadcast's detail page can remove already-queued contacts carrying given
+  tags (`/api/admin/broadcasts/exclude-tags` → `suppressPendingByTags`), e.g.
+  ones Drip flagged undeliverable — audience exclude-tags only apply at launch,
+  this scrubs a live/paused queue.
 - **Feedback**: each broadcast tracks under `email_type = broadcast_<id>` in
   `email_sends`, so open/click/bounce/complaint flow in from the Resend webhook.
   Per-broadcast stats show on its detail page; the rollup shows on

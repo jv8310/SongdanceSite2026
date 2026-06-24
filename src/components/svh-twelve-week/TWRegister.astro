@@ -299,6 +299,13 @@ const includes = [
     const n = parseInt(urlParams.get('discount') ?? '', 10);
     return Number.isInteger(n) && n >= 1 && n <= 99 ? n : 0;
   })();
+  // Owner's secret ?adiscount=N (1–100). 100 grants a free (complimentary)
+  // place — the server fulfils it without Stripe. The server re-validates.
+  const urlAdiscount = (() => {
+    const n = parseInt(urlParams.get('adiscount') ?? '', 10);
+    return Number.isInteger(n) && n >= 1 && n <= 100 ? n : 0;
+  })();
+  const isFreeComp = urlAdiscount === 100;
 
   const SYM: Record<string, string> = {
     EUR: '€', USD: '$', GBP: '£', CAD: 'CA$', CHF: 'CHF ',
@@ -318,6 +325,14 @@ const includes = [
   const stage = document.querySelector<HTMLElement>('[data-tw-stage]');
   const template = document.querySelector<HTMLTemplateElement>('[data-tw-template]');
   if (stage && template) {
+    // Complimentary place (secret ?adiscount=100): the price cards still show
+    // the standard figures, so make it unmistakable that nothing is charged.
+    if (isFreeComp) {
+      stage.insertAdjacentHTML(
+        'afterbegin',
+        '<div style="margin:0 0 1.25rem;padding:0.85rem 1.1rem;border-radius:12px;background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.4);color:#065f46;font-size:0.95rem;line-height:1.45;">This link grants a complimentary place — you won’t be charged. Complete the form and continue; your place is confirmed at no cost.</div>',
+      );
+    }
     const emailForm = stage.querySelector<HTMLFormElement>('[data-tw-email-form]')!;
     const note = stage.querySelector<HTMLElement>('.tw-reg-formnote');
     const errorEl = stage.querySelector<HTMLElement>('[data-tw-error]')!;
@@ -808,6 +823,7 @@ const includes = [
                   consent_terms: true,
                   provider,
                   discount_percent: urlDiscount || undefined,
+                  adiscount_percent: urlAdiscount || undefined,
                 }),
               })
             : await fetch('/api/courses/twelve-week-checkout', {
@@ -820,6 +836,7 @@ const includes = [
                   payment_plan: selectedPlan, consent_terms: true,
                   provider,
                   discount_percent: urlDiscount || undefined,
+                  adiscount_percent: urlAdiscount || undefined,
                 }),
               });
           let body: { checkout_url?: string; error?: string } = {};

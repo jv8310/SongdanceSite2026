@@ -25,6 +25,12 @@ export type Broadcast = {
   audience_field_value: string | null;
   status: 'draft' | 'sending' | 'paused' | 'done';
   paused_reason: string | null;
+  // The circuit breaker evaluates complaint/bounce rates only over sends made
+  // since this instant (set on every launch/resume), so a cleaned queue gets a
+  // fresh sample instead of staying tripped by a sour historical rate.
+  breaker_baseline_at: string | null;
+  // When the pending queue was last scrubbed (dead domains or by tag).
+  last_cleaned_at: string | null;
   created_at: string;
   started_at: string | null;
   completed_at: string | null;
@@ -174,6 +180,25 @@ export async function importContacts(
         .prepare(
           `INSERT OR IGNORE INTO email_suppressions (email, reason, source)
              VALUES ${slice.map(() => "(?, 'unsubscribe', 'import')").join(',')}`,
+        )
+        .bind(...slice),
+    );
+  }
+
+  // Auto-suppress any imported address at a domain already known to be dead
+  // (domain_status.ok = 0), so cleaning the list once keeps a bad domain out of
+  // the sendable pool even across later re-imports. Runs after the upsert above
+  // in the same (sequential, transactional) batch, so it sees the new rows.
+  for (let i = 0; i < allEmails.length; i += EMAILS_PER_STMT) {
+    const slice = allEmails.slice(i, i + EMAILS_PER_STMT);
+    statements.push(
+      db
+        .prepare(
+          `INSERT OR IGNORE INTO email_suppressions (email, reason, source)
+             SELECT email, 'invalid_domain', 'import'
+               FROM contacts
+              WHERE email IN (${slice.map(() => '?').join(',')})
+                AND substr(email, instr(email, '@') + 1) IN (SELECT domain FROM domain_status WHERE ok = 0)`,
         )
         .bind(...slice),
     );
@@ -461,7 +486,8 @@ export async function launchBroadcast(db: D1Database, id: number): Promise<numbe
           SET status = 'sending',
               started_at = COALESCE(started_at, datetime('now')),
               completed_at = NULL,
-              paused_reason = NULL
+              paused_reason = NULL,
+              breaker_baseline_at = datetime('now')
         WHERE id = ? AND status IN ('draft', 'paused')`,
     )
     .bind(id)
@@ -480,9 +506,27 @@ export async function pauseBroadcast(db: D1Database, id: number, reason: string)
     .run();
 }
 
+// Resume a paused broadcast. Resetting breaker_baseline_at is the crux of the
+// fix: the cron's circuit breaker only weighs sends made *after* this moment, so
+// a queue you've just cleaned gets a fresh sample to prove itself rather than
+// being re-tripped instantly by the unchanged historical bounce/complaint rate.
 export async function resumeBroadcast(db: D1Database, id: number): Promise<void> {
   await db
-    .prepare(`UPDATE broadcasts SET status = 'sending', paused_reason = NULL WHERE id = ? AND status = 'paused'`)
+    .prepare(
+      `UPDATE broadcasts
+          SET status = 'sending', paused_reason = NULL, breaker_baseline_at = datetime('now')
+        WHERE id = ? AND status = 'paused'`,
+    )
+    .bind(id)
+    .run();
+}
+
+// Record that the pending queue was just scrubbed (dead domains or by tag), so
+// the page can show when it last happened. Doesn't gate on status — cleaning is
+// allowed while sending or paused.
+export async function markBroadcastCleaned(db: D1Database, id: number): Promise<void> {
+  await db
+    .prepare(`UPDATE broadcasts SET last_cleaned_at = datetime('now') WHERE id = ?`)
     .bind(id)
     .run();
 }
@@ -676,38 +720,35 @@ export async function pendingCount(db: D1Database, broadcastId: number): Promise
 }
 
 // ── List cleaning (dead-domain removal) ────────────────────────────────────────
-// The domain of an email is substr(email, instr(email,'@')+1). We cache each
-// domain's deliverability in domain_status so it's resolved once.
+// Dead-domain cleaning is a LIST-level operation: it scans every contact's
+// domain (the domain of an email is substr(email, instr(email,'@')+1)), caches
+// each domain's deliverability once in domain_status, and adds addresses at dead
+// domains to the global email_suppressions list — so a domain cleaned once is
+// gone from this broadcast, every future broadcast, and lifecycle marketing.
+// (Per-broadcast tag removal still lives below in suppressPendingByTags.)
 
-// Distinct pending domains for this broadcast not yet in the cache.
-export async function distinctUncheckedPendingDomains(
-  db: D1Database,
-  broadcastId: number,
-  limit: number,
-): Promise<string[]> {
+// Distinct contact domains not yet resolved (a batch of work for the cleaner).
+export async function distinctUncheckedContactDomains(db: D1Database, limit: number): Promise<string[]> {
   const r = await db
     .prepare(
       `SELECT DISTINCT substr(email, instr(email, '@') + 1) AS domain
-         FROM broadcast_recipients
-        WHERE broadcast_id = ? AND status = 'pending'
-          AND substr(email, instr(email, '@') + 1) NOT IN (SELECT domain FROM domain_status)
+         FROM contacts
+        WHERE substr(email, instr(email, '@') + 1) NOT IN (SELECT domain FROM domain_status)
         LIMIT ?`,
     )
-    .bind(broadcastId, limit)
+    .bind(limit)
     .all<{ domain: string }>();
   return (r.results ?? []).map((row) => row.domain);
 }
 
-export async function uncheckedPendingDomainCount(db: D1Database, broadcastId: number): Promise<number> {
+export async function uncheckedContactDomainCount(db: D1Database): Promise<number> {
   const r = await db
     .prepare(
       `SELECT COUNT(*) AS n FROM (
          SELECT DISTINCT substr(email, instr(email, '@') + 1) AS domain
-           FROM broadcast_recipients
-          WHERE broadcast_id = ? AND status = 'pending'
-            AND substr(email, instr(email, '@') + 1) NOT IN (SELECT domain FROM domain_status))`,
+           FROM contacts
+          WHERE substr(email, instr(email, '@') + 1) NOT IN (SELECT domain FROM domain_status))`,
     )
-    .bind(broadcastId)
     .first<{ n: number }>();
   return r?.n ?? 0;
 }
@@ -719,21 +760,47 @@ export async function cacheDomainStatus(db: D1Database, domain: string, ok: bool
     .run();
 }
 
-// Mark every pending recipient at a dead domain as suppressed; returns how many.
-export async function suppressPendingByDomain(
-  db: D1Database,
-  broadcastId: number,
-  domain: string,
-): Promise<number> {
+// Add every contact at a known-dead domain to the global suppression list.
+// Idempotent (INSERT OR IGNORE) — returns how many addresses were newly
+// suppressed this call. Non-destructive: contact rows stay, reason marks them.
+export async function suppressContactsAtDeadDomains(db: D1Database): Promise<number> {
+  const r = await db
+    .prepare(
+      `INSERT OR IGNORE INTO email_suppressions (email, reason, source)
+         SELECT email, 'invalid_domain', 'list_clean'
+           FROM contacts
+          WHERE substr(email, instr(email, '@') + 1) IN (SELECT domain FROM domain_status WHERE ok = 0)`,
+    )
+    .run();
+  return r.meta?.changes ?? 0;
+}
+
+// Mirror the suppression into any still-pending broadcast queues (across all
+// broadcasts) so their counts drop immediately and the breaker's sample isn't
+// padded with sends that will never go out. The 'invalid domain' marker feeds
+// the per-broadcast "removed at dead domains" stat. Returns how many.
+export async function suppressPendingRecipientsAtDeadDomains(db: D1Database): Promise<number> {
   const r = await db
     .prepare(
       `UPDATE broadcast_recipients SET status = 'suppressed', error = 'invalid domain'
-        WHERE broadcast_id = ? AND status = 'pending'
-          AND substr(email, instr(email, '@') + 1) = ?`,
+        WHERE status = 'pending'
+          AND substr(email, instr(email, '@') + 1) IN (SELECT domain FROM domain_status WHERE ok = 0)`,
     )
-    .bind(broadcastId, domain.toLowerCase())
     .run();
   return r.meta?.changes ?? 0;
+}
+
+// How many addresses are suppressed specifically as dead domains — a persistent
+// "list health" figure for the contacts page.
+export async function countDeadDomainSuppressions(db: D1Database): Promise<number> {
+  try {
+    const r = await db
+      .prepare(`SELECT COUNT(*) AS n FROM email_suppressions WHERE reason = 'invalid_domain'`)
+      .first<{ n: number }>();
+    return r?.n ?? 0;
+  } catch {
+    return 0;
+  }
 }
 
 // Suppress every still-pending recipient that carries any of the given tags —
@@ -761,6 +828,31 @@ export async function suppressPendingByTags(
   return r.meta?.changes ?? 0;
 }
 
+// How many recipients this broadcast's cleaning has removed, split by reason.
+// Derived straight from the queue's `error` marker (set by suppressPendingBy*),
+// so it stays accurate without a separate counter. Distinct from send-time
+// unsubscribe skips, which carry no error.
+export type CleaningCounts = { deadDomain: number; byTag: number };
+
+export async function cleaningCounts(db: D1Database, broadcastId: number): Promise<CleaningCounts> {
+  const zero = { deadDomain: 0, byTag: 0 };
+  try {
+    const r = await db
+      .prepare(
+        `SELECT
+           SUM(CASE WHEN error = 'invalid domain' THEN 1 ELSE 0 END) AS deadDomain,
+           SUM(CASE WHEN error = 'excluded by tag' THEN 1 ELSE 0 END) AS byTag
+         FROM broadcast_recipients
+        WHERE broadcast_id = ? AND status = 'suppressed'`,
+      )
+      .bind(broadcastId)
+      .first<CleaningCounts>();
+    return r ? { deadDomain: r.deadDomain ?? 0, byTag: r.byTag ?? 0 } : zero;
+  } catch {
+    return zero;
+  }
+}
+
 // All still-pending recipients (for CSV export to an external validator).
 export async function pendingRecipientsForExport(
   db: D1Database,
@@ -774,6 +866,100 @@ export async function pendingRecipientsForExport(
     .bind(broadcastId)
     .all<{ email: string; name: string | null }>();
   return r.results ?? [];
+}
+
+// ── Bounce check: list-level export + result reimport ──────────────────────────
+// The dead-domain cleaner catches whole dead domains; it can't catch dead
+// mailboxes at a live provider (a closed Gmail still resolves Gmail's MX). For
+// those: export the sendable list, run it through a mailbox-level bounce-checker
+// (NeverBounce, ZeroBounce, Bouncer, …), then reimport the undeliverable
+// addresses here. They go onto the global email_suppressions list — same as a
+// dead domain — so they're skipped on this broadcast, every future broadcast,
+// and lifecycle marketing, and never bounce again.
+
+// Every contact a broadcast could currently reach (not already suppressed), for
+// CSV export to an external validator. Keyset-paginated by id so the full list
+// (tens of thousands) streams out without tripping a single-query row cap.
+export async function sendableContactsForExport(
+  db: D1Database,
+): Promise<Array<{ email: string; name: string | null }>> {
+  const out: Array<{ email: string; name: string | null }> = [];
+  const PAGE = 10000;
+  let afterId = 0;
+  for (;;) {
+    const r = await db
+      .prepare(
+        `SELECT c.id AS id, c.email AS email, c.name AS name FROM contacts c
+          WHERE c.id > ?
+            AND NOT EXISTS (SELECT 1 FROM email_suppressions s WHERE s.email = c.email)
+          ORDER BY c.id LIMIT ?`,
+      )
+      .bind(afterId, PAGE)
+      .all<{ id: number; email: string; name: string | null }>();
+    const rows = r.results ?? [];
+    for (const row of rows) out.push({ email: row.email, name: row.name });
+    if (rows.length < PAGE) break;
+    afterId = rows[rows.length - 1].id;
+  }
+  return out;
+}
+
+// Add a batch of addresses to the global suppression list (bounce-checker
+// results) and scrub them from any live broadcast queue — mirroring the
+// dead-domain sweep. Idempotent (INSERT OR IGNORE). D1 caps bound params at
+// 100/statement, so the suppress upsert chunks at 30 rows (3 params each) and
+// the queue scrub at 90 emails. Returns newly-suppressed + queue rows scrubbed.
+export async function suppressEmailsBatch(
+  db: D1Database,
+  emails: string[],
+  reason: string,
+  source: string,
+): Promise<{ suppressed: number; scrubbed: number }> {
+  const clean = [...new Set(emails.map((e) => e.trim().toLowerCase()).filter(Boolean))];
+  if (clean.length === 0) return { suppressed: 0, scrubbed: 0 };
+
+  let suppressed = 0;
+  const SUPPRESS_PER_STMT = 30;
+  for (let i = 0; i < clean.length; i += SUPPRESS_PER_STMT) {
+    const slice = clean.slice(i, i + SUPPRESS_PER_STMT);
+    const r = await db
+      .prepare(
+        `INSERT OR IGNORE INTO email_suppressions (email, reason, source)
+           VALUES ${slice.map(() => '(?, ?, ?)').join(',')}`,
+      )
+      .bind(...slice.flatMap((e) => [e, reason, source]))
+      .run();
+    suppressed += r.meta?.changes ?? 0;
+  }
+
+  let scrubbed = 0;
+  const QUEUE_PER_STMT = 90;
+  for (let i = 0; i < clean.length; i += QUEUE_PER_STMT) {
+    const slice = clean.slice(i, i + QUEUE_PER_STMT);
+    const r = await db
+      .prepare(
+        `UPDATE broadcast_recipients SET status = 'suppressed', error = 'bounced'
+          WHERE status = 'pending' AND email IN (${slice.map(() => '?').join(',')})`,
+      )
+      .bind(...slice)
+      .run();
+    scrubbed += r.meta?.changes ?? 0;
+  }
+  return { suppressed, scrubbed };
+}
+
+// Addresses suppressed because they bounce / complain — bounce-checker results
+// plus Resend hard bounces and spam complaints folded in by the event webhook.
+// A list-health figure for the contacts page (parallels dead-domain count).
+export async function countBounceSuppressions(db: D1Database): Promise<number> {
+  try {
+    const r = await db
+      .prepare(`SELECT COUNT(*) AS n FROM email_suppressions WHERE reason IN ('bounced', 'complaint')`)
+      .first<{ n: number }>();
+    return r?.n ?? 0;
+  } catch {
+    return 0;
+  }
 }
 
 // ── Engagement (reads the shared email_sends table) ────────────────────────────
@@ -793,7 +979,15 @@ const ZERO_STATS: BroadcastStats = {
   sent: 0, delivered: 0, opened: 0, clicked: 0, bounced: 0, complained: 0, openRate: 0, clickRate: 0,
 };
 
-export async function broadcastStats(db: D1Database, emailType: string): Promise<BroadcastStats> {
+// `since` (an ISO/SQLite datetime) windows the stats to sends made at or after
+// that moment — the cron's circuit breaker passes the broadcast's
+// breaker_baseline_at so it judges only post-resume sends. Omit it (the page +
+// /admin/emails/stats do) for all-time engagement numbers.
+export async function broadcastStats(
+  db: D1Database,
+  emailType: string,
+  since?: string | null,
+): Promise<BroadcastStats> {
   try {
     const r = await db
       .prepare(
@@ -803,9 +997,9 @@ export async function broadcastStats(db: D1Database, emailType: string): Promise
                 SUM(CASE WHEN first_clicked_at IS NOT NULL THEN 1 ELSE 0 END) AS clicked,
                 SUM(CASE WHEN bounced_at IS NOT NULL THEN 1 ELSE 0 END) AS bounced,
                 SUM(CASE WHEN complained_at IS NOT NULL THEN 1 ELSE 0 END) AS complained
-           FROM email_sends WHERE email_type = ?`,
+           FROM email_sends WHERE email_type = ?${since ? ' AND sent_at >= ?' : ''}`,
       )
-      .bind(emailType)
+      .bind(...(since ? [emailType, since] : [emailType]))
       .first<Omit<BroadcastStats, 'openRate' | 'clickRate'>>();
     if (!r) return ZERO_STATS;
     const denom = r.delivered || r.sent || 0;

@@ -306,6 +306,19 @@ const paypalAvailable = paypalConfigured(Astro.locals.runtime.env);
   }
   const discountPct: number = readDiscountFromUrl();
 
+  // Owner's secret ?adiscount=N (1–100). 100 grants a free (complimentary)
+  // place — the server fulfils it without Stripe. The server re-validates.
+  function readSecretDiscountFromUrl(): number {
+    try {
+      const raw = new URLSearchParams(window.location.search).get('adiscount');
+      const n = raw ? parseInt(raw, 10) : 0;
+      if (Number.isInteger(n) && n >= 1 && n <= 100) return n;
+    } catch {}
+    return 0;
+  }
+  const adiscountPct: number = readSecretDiscountFromUrl();
+  const isFreeComp: boolean = adiscountPct === 100;
+
   // The 12-month installment ladder is hidden unless the visitor arrives with
   // `?installment=12`. It's a quieter, longer-financing option offered by
   // hand (e.g. over email) rather than shown to everyone. Any other value
@@ -386,6 +399,14 @@ const paypalAvailable = paypalConfigured(Astro.locals.runtime.env);
   };
 
   const stage = document.querySelector<HTMLElement>('[data-cc-stage]')!;
+  // Complimentary place (secret ?adiscount=100): the offer cards still show the
+  // standard figures, so make it unmistakable that nothing is charged.
+  if (isFreeComp) {
+    stage.insertAdjacentHTML(
+      'afterbegin',
+      '<div style="margin:0 0 1.25rem;padding:0.85rem 1.1rem;border-radius:12px;background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.4);color:#065f46;font-size:0.95rem;line-height:1.45;">This link grants a complimentary place — you won’t be charged. Complete the form and continue; your place is confirmed at no cost.</div>',
+    );
+  }
   const emailForm = stage.querySelector<HTMLFormElement>('[data-cc-email-form]')!;
   const errorEl = stage.querySelector<HTMLElement>('[data-cc-error]')!;
   const noteEl = document.querySelector<HTMLElement>('.cc-register-form-note');
@@ -1257,6 +1278,7 @@ const paypalAvailable = paypalConfigured(Astro.locals.runtime.env);
           consent_terms: true,
           provider,
           ...(discountPct > 0 ? { discount_percent: discountPct } : {}),
+          ...(adiscountPct > 0 ? { adiscount_percent: adiscountPct } : {}),
         }),
       });
       // Always try to parse JSON — the server returns JSON on errors too.

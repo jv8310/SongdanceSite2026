@@ -19,7 +19,14 @@ export const prerender = false;
 type ResendWebhookBody = {
   type?: string;
   created_at?: string;
-  data?: { email_id?: string; id?: string; created_at?: string };
+  data?: {
+    email_id?: string;
+    id?: string;
+    created_at?: string;
+    // email.bounced carries SES-style bounce metadata; type is
+    // 'Permanent' | 'Transient' | 'Undetermined'. Used to suppress hard bounces.
+    bounce?: { type?: string };
+  };
 };
 
 export const POST: APIRoute = async ({ request, locals }) => {
@@ -63,7 +70,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
   if (resendId && type.startsWith('email.')) {
     try {
-      await applyResendEvent(env.DB, type, resendId, atIso);
+      await applyResendEvent(env.DB, type, resendId, atIso, { bounceType: body.data?.bounce?.type });
     } catch (err) {
       // Never fail the webhook on a write hiccup (e.g. table not migrated yet);
       // log for visibility and ack so Resend moves on.

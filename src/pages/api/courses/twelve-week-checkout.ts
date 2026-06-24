@@ -50,10 +50,14 @@ import {
   bestDiscountStatus,
   anchorMsFromWorkshop,
   effectiveTwelveWeekDiscount,
-  parseUrlDiscountPercent,
   TWELVE_WEEK_PRODUCT_SLUG,
   INSTALLMENT_COUNT,
 } from '../../../lib/courses/twelve-week';
+import {
+  resolveCourseDiscountPercent,
+  isFreeCourseCheckout,
+} from '../../../lib/courses/discount';
+import { fulfilFreeCourseRegistration } from '../../../lib/courses/free-checkout';
 
 export const prerender = false;
 
@@ -71,6 +75,7 @@ type Body = {
   payment_plan?: string;
   consent_terms?: boolean;
   discount_percent?: number | string;
+  adiscount_percent?: number | string;
   provider?: string; // 'stripe' (default) | 'paypal'
 };
 
@@ -131,11 +136,57 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // Currency follows the buyer's country (so headline and charge agree).
     const currency = twelveWeekCurrencyForCountry(countryCode);
 
+    const phoneCountry = findCountry(phoneCountryCode);
+    const phoneE164 = phoneCountry
+      ? `+${phoneCountry.dial}${phoneLocal.replace(/[^0-9]/g, '')}`
+      : phoneLocal;
+
+    // Free checkout (secret ?adiscount=100): nothing to charge, so fulfil the
+    // registration directly instead of opening Stripe. Same paid-side effects
+    // (Drip access + SD-ORDER) run inside the helper.
+    if (
+      isFreeCourseCheckout({
+        discount: payload.discount_percent,
+        adiscount: payload.adiscount_percent,
+      })
+    ) {
+      const result = await fulfilFreeCourseRegistration(
+        env,
+        {
+          email,
+          first_name: firstName,
+          last_name: lastName,
+          country: countryCode,
+          phone: phoneE164,
+          phone_country: phoneCountryCode,
+          company_name: companyName,
+          vat_number: vatNumber,
+          product_slug: TWELVE_WEEK_PRODUCT_SLUG,
+          activate_choice: null,
+          source_variant: 'free-comp',
+          amount_cents: 0,
+          currency,
+          consent_terms: payload.consent_terms === true,
+          payment_plan: 'full',
+          installments_total: 1,
+        },
+        {
+          thanksPath: '/courses/12-week/thanks',
+          originalAmountCents: priceCents(currency),
+        },
+      );
+      return json(result);
+    }
+
     // Re-derive the discount independently of the client. A `?discount=N`
-    // override (1–99) wins over the automatic workshop discount; otherwise the
-    // workshop window (incl. replay-view anchors) decides. The override is
-    // deliberately permissive — whoever holds the URL controls the price.
-    const overridePercent = parseUrlDiscountPercent(payload.discount_percent);
+    // override (1–99, or the owner's secret ?adiscount=N) wins over the
+    // automatic workshop discount; otherwise the workshop window (incl.
+    // replay-view anchors) decides. The override is deliberately permissive —
+    // whoever holds the URL controls the price.
+    const overridePercent = resolveCourseDiscountPercent({
+      discount: payload.discount_percent,
+      adiscount: payload.adiscount_percent,
+    });
     const links = await listSecuredWorkshopLinksByEmail(env.DB, email);
     const replayAnchors = await listReplayViewAnchorsByEmail(env.DB, email);
     const workshopStatus = bestDiscountStatus(
@@ -164,11 +215,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
           ? 'launch-promo'
           : `workshop-${discount.kind}`
       : 'direct';
-
-    const phoneCountry = findCountry(phoneCountryCode);
-    const phoneE164 = phoneCountry
-      ? `+${phoneCountry.dial}${phoneLocal.replace(/[^0-9]/g, '')}`
-      : phoneLocal;
 
     const registrationId = await createPendingCourseRegistration(env.DB, {
       email,

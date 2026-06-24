@@ -1,7 +1,13 @@
 // CRUD for course_registrations. Mirrors the slim subset of
 // src/lib/registrations/db.ts that the course flow needs.
 
+import type { JourneySlug } from './journeys';
+
+// The thematic SVH course products. Journeys (asj/mmj/inner-child + PRO/bundle)
+// are also stored on course_registrations, so the registration's product_slug
+// is the union of both.
 export type CourseProductSlug = 'cc-cert' | 'cc-bundle' | 'grief-course' | 'svh-12week';
+export type CourseRegistrationSlug = CourseProductSlug | JourneySlug;
 export type ActivateChoice = 'now' | 'wait';
 export type PaymentPlan = 'full' | '3x' | '6x' | '12x';
 
@@ -28,7 +34,7 @@ export type CourseRegistration = {
   phone_country: string | null;
   company_name: string | null;
   vat_number: string | null;
-  product_slug: CourseProductSlug;
+  product_slug: CourseRegistrationSlug;
   activate_choice: ActivateChoice | null;
   source_variant: string | null;
   amount_cents: number;
@@ -67,7 +73,7 @@ export type CreatePendingCourseRegistrationInput = {
   phone_country: string | null;
   company_name: string | null;
   vat_number: string | null;
-  product_slug: CourseProductSlug;
+  product_slug: CourseRegistrationSlug;
   activate_choice: ActivateChoice | null;
   source_variant: string | null;
   amount_cents: number;
