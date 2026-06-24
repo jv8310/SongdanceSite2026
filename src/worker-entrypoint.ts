@@ -37,6 +37,7 @@ const MOVED_URLS: Record<string, string> = {
   '/svh-german': '/courses/12-week-de',
   '/songdeck': '/courses/songdeck',
   '/ritual-of-belonging': '/retreats/ritual-of-belonging',
+  '/dolphin-retreat': '/retreats/dolphin-and-sound',
   '/workshop-deutsch': '/workshop/deutsch',
 };
 
