@@ -35,7 +35,19 @@ const filter: PeopleFilter = {
 
 const all = await listPeople(env.DB);
 const summary = summarisePeople(all);
-const people = filterPeople(all, filter);
+const filtered = filterPeople(all, filter);
+
+// Paginate the render. The aggregated set can be tens of thousands of rows —
+// the suppression list now carries the imported marketing contacts — and
+// building every row in one request trips Cloudflare's per-request limit
+// (error 1102). Filters/search run over the whole set first, so paging never
+// hides a match; only the rendered slice is bounded.
+const PAGE_SIZE = 200;
+const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+const pageRaw = parseInt(params.get('page') ?? '1', 10);
+const page = Number.isFinite(pageRaw) ? Math.min(Math.max(pageRaw, 1), pageCount) : 1;
+const pageStart = (page - 1) * PAGE_SIZE;
+const people = filtered.slice(pageStart, pageStart + PAGE_SIZE);
 
 const returnTo = Astro.url.pathname + Astro.url.search;
 
@@ -72,6 +84,18 @@ const csvHref = (() => {
   const s = sp.toString();
   return '/api/admin/people.csv' + (s ? `?${s}` : '');
 })();
+
+// A page link that keeps the current filters/search and sets the page number.
+function pageHref(n: number): string {
+  const sp = new URLSearchParams();
+  if (filter.subscription) sp.set('sub', filter.subscription);
+  if (filter.kind) sp.set('kind', filter.kind);
+  if (filter.pro) sp.set('pro', '1');
+  if (q) sp.set('q', q);
+  if (n > 1) sp.set('page', String(n));
+  const s = sp.toString();
+  return '/admin/people' + (s ? `?${s}` : '');
+}
 
 function fmtDate(s: string | null): string {
   if (!s) return '—';
@@ -142,9 +166,9 @@ function fmtDate(s: string | null): string {
     </section>
 
     <section class="adm-section">
-      {people.length === 0 && <p class="adm-empty">No people match these filters.</p>}
+      {filtered.length === 0 && <p class="adm-empty">No people match these filters.</p>}
 
-      {people.length > 0 && (
+      {filtered.length > 0 && (
         <table class="adm-table ppl-table">
           <thead>
             <tr>
@@ -225,6 +249,23 @@ function fmtDate(s: string | null): string {
           </tbody>
         </table>
       )}
+
+      {filtered.length > PAGE_SIZE && (
+        <nav class="ppl-pager" aria-label="People pages">
+          <span class="ppl-pager-info">
+            Showing {(pageStart + 1).toLocaleString()}&ndash;{Math.min(pageStart + PAGE_SIZE, filtered.length).toLocaleString()} of {filtered.length.toLocaleString()}
+          </span>
+          <span class="ppl-pager-controls">
+            {page > 1
+              ? <a class="adm-btn adm-btn--ghost" href={pageHref(page - 1)}>&larr; Prev</a>
+              : <span class="adm-btn adm-btn--ghost ppl-pager-off">&larr; Prev</span>}
+            <span class="ppl-pager-pos">Page {page} of {pageCount.toLocaleString()}</span>
+            {page < pageCount
+              ? <a class="adm-btn adm-btn--ghost" href={pageHref(page + 1)}>Next &rarr;</a>
+              : <span class="adm-btn adm-btn--ghost ppl-pager-off">Next &rarr;</span>}
+          </span>
+        </nav>
+      )}
     </section>
   </main>
 
@@ -269,5 +310,14 @@ function fmtDate(s: string | null): string {
     .ppl-em-label { flex:1; }
     .ppl-em-count { color:var(--adm-mute); }
     .ppl-em-date { color:var(--adm-mute); font-variant-numeric:tabular-nums; }
+
+    .ppl-pager {
+      display:flex; align-items:center; justify-content:space-between;
+      gap:14px; flex-wrap:wrap; margin-top:16px;
+    }
+    .ppl-pager-info { font-size:13px; color:var(--adm-mute); font-variant-numeric:tabular-nums; }
+    .ppl-pager-controls { display:flex; align-items:center; gap:10px; }
+    .ppl-pager-pos { font-size:13px; color:var(--adm-mute); font-variant-numeric:tabular-nums; }
+    .ppl-pager-off { opacity:0.4; pointer-events:none; }
   </style>
 </Layout>
