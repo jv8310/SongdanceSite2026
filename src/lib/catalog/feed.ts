@@ -39,7 +39,7 @@ export function buildMainFeed(base: string, currency: FeedCurrency): string {
       condition: item.condition,
       price: priceCell(item.prices[currency], currency),
       link: `${base}${item.link}`,
-      image_link: `${base}/media/${item.imageKey}`,
+      image_link: item.imageUrl ?? `${base}/media/${item.imageKey}`,
       brand: item.brand,
     };
     return MAIN_COLUMNS.map((c) => csvCell(cells[c])).join(',');

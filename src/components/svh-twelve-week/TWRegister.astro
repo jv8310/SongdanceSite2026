@@ -855,8 +855,10 @@ const includes = [
           if (fbq) {
             try {
               const isPath = selectedOffer === 'path' && status.path;
+              // The "path" offer is the bundle, which is the certification
+              // course in the catalog; otherwise the standalone 12-week.
               fbq('track', 'AddToCart', {
-                content_ids: [isPath ? 'cc-bundle' : 'svh-12week'],
+                content_ids: [isPath ? 'cc-cert' : 'svh-12week'],
                 content_type: 'product',
                 currency: isPath ? status.path!.currency : status.currency,
               });

@@ -1300,8 +1300,9 @@ const countries = COUNTRIES;
       const fbq = (window as any).fbq;
       if (fbq) {
         try {
+          // The bundle ("path") is the certification course in the catalog.
           fbq('track', 'AddToCart', {
-            content_ids: [productSlug],
+            content_ids: ['cc-cert'],
             content_type: 'product',
             currency: decision.currency ?? 'EUR',
           });

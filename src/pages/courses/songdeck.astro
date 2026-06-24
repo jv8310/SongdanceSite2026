@@ -9,6 +9,17 @@ import SKHow from '../../components/songdeck/SKHow.astro';
 import SKListen from '../../components/songdeck/SKListen.astro';
 import SKOrder from '../../components/songdeck/SKOrder.astro';
 import SKFooter from '../../components/songdeck/SKFooter.astro';
+import MetaProductView from '../../components/MetaProductView.astro';
+import { catalogItemById } from '../../lib/catalog/products';
+
+export const prerender = false;
+
+// Meta catalog retargeting: fire ViewContent with the same content_id Songdeck
+// carries in the feed (/feeds/meta-catalog.csv), so a visit here builds the
+// audience that catalog ads retarget. Pixel id comes from the runtime env.
+const env = Astro.locals.runtime.env;
+const pixelId = env.META_PIXEL_ID ?? '';
+const sk = catalogItemById('songdeck');
 
 const productLd = JSON.stringify({
   '@context': 'https://schema.org',
@@ -33,6 +44,12 @@ const productLd = JSON.stringify({
   image="https://songdeck.shop/cdn/shop/files/Open_Box_Mockup.jpg?v=1728399000&width=1070"
   ogType="product"
 >
+  <MetaProductView
+    pixelId={pixelId}
+    contentId={sk.id}
+    contentName={sk.title}
+    value={sk.priceEur}
+  />
   <div class="sk-site">
     <SKNav />
     <SKHero />

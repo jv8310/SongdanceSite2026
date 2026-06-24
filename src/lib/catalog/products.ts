@@ -14,22 +14,40 @@
 // straight through to the feed and the events.
 
 import { PRICE as TWELVE_WEEK_PRICE } from '../courses/twelve-week';
-import { getCertOffer, getBundleOffer } from '../courses/variant';
+import { getCertOffer } from '../courses/variant';
 import { GRIEF_PRICE } from '../courses/grief';
 import { PRICE_BY_SLUG } from '../courses/journeys';
 import { MARKETING_PRICES_MINOR } from '../workshops/marketing-prices';
 
 // The catalog id IS the Pixel content_id. Use the canonical product slugs.
+// Note we deliberately list ONE certification product (the bundle/"path" is the
+// same product, sold as the certification course) and ONE Authentic Singing
+// product (ASJ-PRO is the same journey with a mantra-pack add-on, not its own
+// catalog product). The variant checkout slugs are folded back to these by
+// `catalogContentId` below so their events still bind to a real catalog item.
 export type CatalogId =
   | 'svh-12week'
   | 'cc-cert'
-  | 'cc-bundle'
   | 'grief-course'
   | 'asj'
-  | 'asj-pro'
   | 'mmj'
   | 'inner-child'
-  | 'masterclass';
+  | 'masterclass'
+  | 'songdeck';
+
+// Checkout/registration slugs that are variants of a catalog product, mapped to
+// the canonical catalog id so Purchase/AddToCart events bind to a real product.
+const VARIANT_TO_CATALOG_ID: Record<string, CatalogId> = {
+  'cc-bundle': 'cc-cert', // the certification "path" is the certification course
+  'asj-pro': 'asj', // ASJ-PRO is the Authentic Singing Journey + mantra pack
+};
+
+// Resolve any product/registration slug to the catalog content_id to report.
+// Unknown slugs (e.g. the journey bundles, which aren't catalog products) pass
+// through unchanged — harmless: they simply won't match a catalog item.
+export function catalogContentId(slug: string): string {
+  return VARIANT_TO_CATALOG_ID[slug] ?? slug;
+}
 
 // Meta wants ONE currency per feed (verified: a feed is single-currency, and
 // other currencies come from a country-override feed keyed by id). We publish
@@ -45,7 +63,8 @@ export interface CatalogItem {
   // lifted from each page's already-approved meta description.
   description: string;
   link: string; // site-relative path; absolutized in the feed
-  imageKey: string; // R2 key, served at /media/<key>
+  imageKey?: string; // R2 key, served at /media/<key>
+  imageUrl?: string; // absolute image URL — used instead of imageKey when set
   priceEur: number; // major units (99 = €99) — convenience for pages/events
   prices: Record<FeedCurrency, number>; // major units, per feed currency
   availability: 'in stock' | 'out of stock';
@@ -59,26 +78,30 @@ export interface CatalogItem {
 // NOTE: the masterclass DB/migration slug is `svh-masterclass`, but the catalog
 // id stays `masterclass` on purpose — do not "fix" it, or the feed/Pixel match
 // breaks. Its price lives (in minor units) in the marketing-prices table.
+// Songdeck is a physical product sold on the external songdeck.shop (Shopify),
+// so it has no per-currency price module here — its price is a fixed figure,
+// the same numerically in EUR and USD (matching how every other product mirrors
+// EUR↔USD on this site).
+const SONGDECK_PRICE = 44;
+
 function priceFor(id: CatalogId, currency: FeedCurrency): number {
   switch (id) {
     case 'svh-12week':
       return TWELVE_WEEK_PRICE[currency];
     case 'cc-cert':
       return getCertOffer(currency).price;
-    case 'cc-bundle':
-      return getBundleOffer(currency).price;
     case 'grief-course':
       return GRIEF_PRICE[currency];
     case 'asj':
       return PRICE_BY_SLUG.asj![currency];
-    case 'asj-pro':
-      return PRICE_BY_SLUG['asj-pro']![currency];
     case 'mmj':
       return PRICE_BY_SLUG.mmj![currency];
     case 'inner-child':
       return PRICE_BY_SLUG['inner-child']![currency];
     case 'masterclass':
       return MARKETING_PRICES_MINOR.masterclass[currency] / 100;
+    case 'songdeck':
+      return SONGDECK_PRICE;
   }
 }
 
@@ -108,17 +131,6 @@ const META: CatalogMeta[] = [
     brand: 'Songdance',
   },
   {
-    id: 'cc-bundle',
-    title: 'The Certification Path — 12-Week Course + Certification',
-    description:
-      'The full path in one place: the 12-Week Course and the Certification Course together. Learn the practice of Somatic Vocal Healing and walk all the way to certified practitioner, with live classes, weekly Q&As, the app, and a global community.',
-    link: '/courses/certification',
-    imageKey: 'library/svh-retreat-facilitator-jacob-seated.webp',
-    availability: 'in stock',
-    condition: 'new',
-    brand: 'Songdance',
-  },
-  {
     id: 'grief-course',
     title: 'The Grief Course',
     description:
@@ -134,17 +146,6 @@ const META: CatalogMeta[] = [
     title: 'The Authentic Singing Journey',
     description:
       'Forty weeks of mantras and music, made to free the voice you already have. Self-paced, at home. No range, no experience, no performance required.',
-    link: '/courses/authentic-singing',
-    imageKey: 'library/singing-lights-woman.webp',
-    availability: 'in stock',
-    condition: 'new',
-    brand: 'Songdance',
-  },
-  {
-    id: 'asj-pro',
-    title: 'The Authentic Singing Journey — PRO (with mantra pack)',
-    description:
-      'The Authentic Singing Journey with the PRO mantra pack added — the same forty weeks of mantras and music to free the voice you already have, plus the downloadable mantra pack. Self-paced, at home.',
     link: '/courses/authentic-singing',
     imageKey: 'library/singing-lights-woman.webp',
     availability: 'in stock',
@@ -180,6 +181,20 @@ const META: CatalogMeta[] = [
       'A 90-minute live masterclass for therapists, coaches, bodyworkers, facilitators, teachers, and leaders — what sound can do in your work when words run out. Online, with replay.',
     link: '/courses/masterclass',
     imageKey: 'library/jacob-teaching.webp',
+    availability: 'in stock',
+    condition: 'new',
+    brand: 'Songdance',
+  },
+  {
+    id: 'songdeck',
+    title: 'Songdeck — Authentic Singing',
+    description:
+      'A deck of 36 illustrated cards, each with a written message and its own song, mantra, or soundscape. Draw a card, scan it with the free Songdeck app, and the music plays.',
+    link: '/courses/songdeck',
+    // Physical product fulfilled on songdeck.shop; its canonical product photo
+    // lives on that store's CDN (same image used on the page + structured data).
+    imageUrl:
+      'https://songdeck.shop/cdn/shop/files/Open_Box_Mockup.jpg?v=1728399000&width=1070',
     availability: 'in stock',
     condition: 'new',
     brand: 'Songdance',

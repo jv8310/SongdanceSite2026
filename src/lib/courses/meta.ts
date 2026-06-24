@@ -10,6 +10,7 @@
 // backstop when the Pixel is blocked or the tab is closed).
 
 import { sendPurchaseEvent } from '../workshops/meta';
+import { catalogContentId } from '../catalog/products';
 import type { CourseRegistration } from './db';
 
 export type CourseMetaEnv = {
@@ -44,7 +45,8 @@ export async function sendCoursePurchaseEvent(
       value: reg.amount_cents / 100,
       currency: reg.currency,
       orderId: `creg-${reg.id}`,
-      contentIds: [reg.product_slug],
+      // Fold variant slugs (cc-bundle, asj-pro) to their canonical catalog id.
+      contentIds: [catalogContentId(reg.product_slug)],
       // Server-to-server call from the webhook — no real visitor IP/UA; the
       // browser send carries those. We still pass a true event_source_url.
       eventSourceUrl: env.PUBLIC_BASE_URL

@@ -559,8 +559,11 @@ const THIS_LABEL: Record<Props['course'], string> = {
         const fbq = (window as any).fbq;
         if (fbq) {
           try {
+            // ASJ-PRO is the Authentic Singing Journey in the catalog (the PRO
+            // mantra pack is an add-on, not a separate product).
+            const contentId = product === 'asj-pro' ? 'asj' : product;
             fbq('track', 'AddToCart', {
-              content_ids: [product],
+              content_ids: [contentId],
               content_type: 'product',
             });
           } catch (e) {}
