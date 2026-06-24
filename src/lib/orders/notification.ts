@@ -16,6 +16,7 @@
 // claim so a later retry can still get through.
 
 import type { CourseRegistration } from '../courses/db';
+import { LANGUAGE_CHOICE_LABEL } from '../courses/journeys';
 import type { Registration } from '../registrations/db';
 import { logEvent } from '../registrations/db';
 import { getSubscriber } from '../registrations/drip';
@@ -69,6 +70,7 @@ export type OrderNotificationInput = {
   paymentPlan?: string | null;
   installmentsTotal?: number | null;
   activateChoice?: string | null;
+  languageChoice?: string | null;
   sourceVariant?: string | null;
   dietary?: string | null;
   notes?: string | null;
@@ -182,6 +184,7 @@ export function buildOrderNotificationEmail(
           : 'Wait (12-week first)'
         : null,
     ],
+    ['Journey language', input.languageChoice],
     ['Dietary', input.dietary],
     ['Notes', input.notes],
     ['Source', input.sourceVariant],
@@ -355,6 +358,9 @@ export async function notifyCourseOrder(
     paymentPlan: reg.payment_plan,
     installmentsTotal: reg.installments_total,
     activateChoice: reg.activate_choice,
+    languageChoice: reg.language_choice
+      ? LANGUAGE_CHOICE_LABEL[reg.language_choice] ?? reg.language_choice
+      : null,
     sourceVariant: reg.source_variant,
     paidAt: reg.paid_at ?? new Date().toISOString(),
     provider: reg.provider,
