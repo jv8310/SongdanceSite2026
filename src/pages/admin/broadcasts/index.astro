@@ -43,6 +43,29 @@ const statusLabel: Record<string, string> = {
     </header>
 
     <section class="adm-section">
+      <h2>All broadcasts</h2>
+      {broadcasts.length === 0 ? (
+        <p class="bc-empty">No broadcasts yet.</p>
+      ) : (
+        <table class="bc-table">
+          <thead><tr><th>Name</th><th>Subject</th><th>Format</th><th>Status</th><th>Created</th><th></th></tr></thead>
+          <tbody>
+            {broadcasts.map((b) => (
+              <tr>
+                <td><strong>{b.name}</strong></td>
+                <td>{b.subject}</td>
+                <td>{b.format === 'html' ? 'HTML' : 'Simple'}</td>
+                <td><span class={`bc-pill bc-pill--${b.status}`}>{statusLabel[b.status] ?? b.status}</span></td>
+                <td>{b.created_at?.slice(0, 10)}</td>
+                <td><a class="adm-btn adm-btn--ghost" href={`/admin/broadcasts/${b.id}`}>Open</a></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </section>
+
+    <section class="adm-section">
       <h2>New broadcast</h2>
       <div class="bc-compose">
         <form id="bc-new" class="bc-form">
@@ -163,29 +186,6 @@ const statusLabel: Record<string, string> = {
           <iframe id="bc-preview" class="bc-frame" sandbox="" title="Live preview"></iframe>
         </div>
       </div>
-    </section>
-
-    <section class="adm-section">
-      <h2>All broadcasts</h2>
-      {broadcasts.length === 0 ? (
-        <p class="bc-empty">No broadcasts yet.</p>
-      ) : (
-        <table class="bc-table">
-          <thead><tr><th>Name</th><th>Subject</th><th>Format</th><th>Status</th><th>Created</th><th></th></tr></thead>
-          <tbody>
-            {broadcasts.map((b) => (
-              <tr>
-                <td><strong>{b.name}</strong></td>
-                <td>{b.subject}</td>
-                <td>{b.format === 'html' ? 'HTML' : 'Simple'}</td>
-                <td><span class={`bc-pill bc-pill--${b.status}`}>{statusLabel[b.status] ?? b.status}</span></td>
-                <td>{b.created_at?.slice(0, 10)}</td>
-                <td><a class="adm-btn adm-btn--ghost" href={`/admin/broadcasts/${b.id}`}>Open</a></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
     </section>
   </main>
 
