@@ -1,11 +1,16 @@
 // The Three Journeys — self-paced thematic courses sold as flat-price products,
 // in the same multi-currency model as the Grief course (see ./grief.ts).
 //
-//   asj             — Authentic Singing Journey            €99   → prod_ASJ
-//   asj-pro         — ASJ + the PRO mantra pack (license)  €149  → prod_ASJ + prod_Mantra
-//   mmj             — Magical Movement Journey             €49   → prod_MMJ
-//   inner-child     — Inner Child Healing Journey          €29   → prod_InnerChild
-//   journeys-bundle — all three journeys, 50% off the sum  →      prod_ASJ + prod_MMJ + prod_InnerChild
+//   asj                  — Authentic Singing Journey            €99   → prod_ASJ
+//   asj-pro              — ASJ + the PRO mantra pack (license)  €149  → prod_ASJ + prod_ASJ_PRO
+//   mmj                  — Magical Movement Journey             €49   → prod_MMJ
+//   inner-child          — Inner Child Healing Journey          €29   → prod_InnerChild
+//   journeys-bundle      — all three journeys, 20% off the sum  →      prod_ASJ + prod_MMJ + prod_InnerChild
+//   journeys-bundle-pro  — the bundle + the ASJ PRO mantra pack →      prod_ASJ + prod_MMJ + prod_InnerChild + prod_ASJ_PRO
+//
+// Only the Authentic Singing Journey has a PRO tier (the mantra pack); Magical
+// Movement and Inner Child do not. The bundle-PRO is therefore the all-three
+// bundle with that single ASJ PRO upgrade added on top — not a PRO of each.
 //
 // One product, one price, full payment only — no installments. The buyer's
 // country picks the currency (US→USD, … else EUR), so the headline price and
@@ -25,7 +30,8 @@ export type JourneySlug =
   | 'asj-pro'
   | 'mmj'
   | 'inner-child'
-  | 'journeys-bundle';
+  | 'journeys-bundle'
+  | 'journeys-bundle-pro';
 
 // Fixed regional price points (major units), mirroring the EUR-relative ratios
 // the Grief / 12-week courses use, rounded to clean headline numbers. Edit a
@@ -50,6 +56,13 @@ const ASJ_PRO_PRICE: PriceMap = {
   EUR: 149, USD: 149, GBP: 135, CAD: 219, CHF: 145,
   AUD: 249, NZD: 279, NOK: 1725, SEK: 1649, DKK: 1115,
 };
+// The mantra-pack premium: what PRO adds on top of the plain journey
+// (ASJ_PRO − ASJ, per currency). The same flat add-on turns the all-three
+// bundle into the bundle-PRO. NOT discounted — the licence is the licence.
+const MANTRA_PREMIUM: PriceMap = {
+  EUR: 50, USD: 50, GBP: 46, CAD: 74, CHF: 50,
+  AUD: 84, NZD: 94, NOK: 575, SEK: 549, DKK: 370,
+};
 
 // Per-currency sum of the three standalone journeys (the bundle's "before"
 // figure). The bundle is sold at 20% off this sum — enough of a saving to
@@ -59,12 +72,19 @@ function bundleSum(currency: JourneyCurrency): number {
 }
 const BUNDLE_DISCOUNT = 0.2; // 20% off the sum of the three
 
+// The bundle's charged price in whole units (the sum, 20% off, rounded clean).
+// The bundle-PRO is this plus the (undiscounted) mantra-pack premium.
+function bundleMajor(currency: JourneyCurrency): number {
+  return Math.round(bundleSum(currency) * (1 - BUNDLE_DISCOUNT));
+}
+
 export const PRICE_BY_SLUG: Record<JourneySlug, PriceMap | null> = {
   asj: ASJ_PRICE,
   'asj-pro': ASJ_PRO_PRICE,
   mmj: MMJ_PRICE,
   'inner-child': INNER_CHILD_PRICE,
   'journeys-bundle': null, // computed from the three maps (see priceCents)
+  'journeys-bundle-pro': null, // bundle + mantra premium (see priceCents)
 };
 
 export const LABEL_BY_SLUG: Record<JourneySlug, string> = {
@@ -73,13 +93,15 @@ export const LABEL_BY_SLUG: Record<JourneySlug, string> = {
   mmj: 'The Magical Movement Journey',
   'inner-child': 'The Inner Child Healing Journey',
   'journeys-bundle': 'The Three Journeys — complete bundle',
+  'journeys-bundle-pro':
+    'The Three Journeys — complete bundle + Authentic Singing PRO (mantra pack)',
 };
 
 // Drip side-effects per product (read by the shared course paid-handler).
 export const DRIP_BY_SLUG: Record<JourneySlug, { tags: string[]; event: string }> = {
   asj: { tags: ['prod_ASJ'], event: 'Completed Authentic Singing Journey registration' },
   'asj-pro': {
-    tags: ['prod_ASJ', 'prod_Mantra'],
+    tags: ['prod_ASJ', 'prod_ASJ_PRO'],
     event: 'Completed Authentic Singing Journey PRO registration',
   },
   mmj: { tags: ['prod_MMJ'], event: 'Completed Magical Movement Journey registration' },
@@ -90,6 +112,10 @@ export const DRIP_BY_SLUG: Record<JourneySlug, { tags: string[]; event: string }
   'journeys-bundle': {
     tags: ['prod_ASJ', 'prod_MMJ', 'prod_InnerChild'],
     event: 'Completed Three Journeys bundle registration',
+  },
+  'journeys-bundle-pro': {
+    tags: ['prod_ASJ', 'prod_MMJ', 'prod_InnerChild', 'prod_ASJ_PRO'],
+    event: 'Completed Three Journeys bundle + ASJ PRO registration',
   },
 };
 
@@ -109,7 +135,10 @@ export function journeyCurrencyForCountry(
 // unit (so the headline stays tidy and still beats every single journey).
 export function priceCents(slug: JourneySlug, currency: JourneyCurrency): number {
   if (slug === 'journeys-bundle') {
-    return Math.round(bundleSum(currency) * (1 - BUNDLE_DISCOUNT)) * 100;
+    return bundleMajor(currency) * 100;
+  }
+  if (slug === 'journeys-bundle-pro') {
+    return (bundleMajor(currency) + MANTRA_PREMIUM[currency]) * 100;
   }
   const map = PRICE_BY_SLUG[slug]!;
   return map[currency] * 100;
@@ -122,6 +151,11 @@ export function compareAtCents(
   currency: JourneyCurrency,
 ): number | null {
   if (slug === 'journeys-bundle') return bundleSum(currency) * 100;
+  // The bundle-PRO strikes the full sum of the three journeys plus the
+  // mantra premium (the discount lives only on the three journeys).
+  if (slug === 'journeys-bundle-pro') {
+    return (bundleSum(currency) + MANTRA_PREMIUM[currency]) * 100;
+  }
   return null;
 }
 

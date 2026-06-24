@@ -95,6 +95,29 @@ const THIS_LABEL: Record<Props['course'], string> = {
             <span class="jr-opt-amount" data-amount>€—</span>
           </span>
         </label>
+
+        <!-- PRO upgrade — only the Authentic Singing Journey has one. Appears
+             once the bundle is chosen: tick it to add the ASJ PRO mantra pack
+             (the facilitator licence) on top of the bundle. -->
+        <label class="jr-addon" data-jr-bundle-pro hidden>
+          <input type="checkbox" data-jr-bundle-pro-input />
+          <span class="jr-addon-thumb">
+            <img src="/media/library/collage-mantrapakket-klein.webp" alt="The mantra pack" loading="lazy" />
+          </span>
+          <span class="jr-addon-body">
+            <span class="jr-addon-title">
+              Add the PRO mantra pack <span class="jr-opt-tag">for facilitators</span>
+            </span>
+            <span class="jr-addon-desc">
+              Upgrade the <em>Authentic Singing Journey</em> to PRO: mantra versions of every singing
+              session, downloadable, with a professional licence to use them in your own workshops &amp;
+              sessions. <span class="jr-addon-note">(Magical Movement &amp; Inner Child have no PRO version.)</span>
+            </span>
+          </span>
+          <span class="jr-addon-price">
+            <span class="jr-addon-amount" data-bundle-pro-amount>+€—</span>
+          </span>
+        </label>
       </div>
 
       <form class="jr-fields" data-jr-form novalidate>
@@ -203,21 +226,30 @@ const THIS_LABEL: Record<Props['course'], string> = {
   const PRO: Record<Currency, number> = {
     EUR: 149, USD: 149, GBP: 135, CAD: 219, CHF: 145, AUD: 249, NZD: 279, NOK: 1725, SEK: 1649, DKK: 1115,
   };
+  // What the PRO mantra pack adds (PRO − ASJ) — the same flat add-on turns the
+  // all-three bundle into the bundle-PRO. Not discounted.
+  const MANTRA_PREMIUM: Record<Currency, number> = {
+    EUR: 50, USD: 50, GBP: 46, CAD: 74, CHF: 50, AUD: 84, NZD: 94, NOK: 575, SEK: 549, DKK: 370,
+  };
   const BUNDLE_DISCOUNT = 0.2;
 
   function bundleSum(c: Currency): number { return ASJ[c] + MMJ[c] + INNER[c]; }
+  function bundleMajor(c: Currency): number { return Math.round(bundleSum(c) * (1 - BUNDLE_DISCOUNT)); }
   function productCents(slug: string, c: Currency): number {
     switch (slug) {
       case 'asj': return ASJ[c] * 100;
       case 'asj-pro': return PRO[c] * 100;
       case 'mmj': return MMJ[c] * 100;
       case 'inner-child': return INNER[c] * 100;
-      case 'journeys-bundle': return Math.round(bundleSum(c) * (1 - BUNDLE_DISCOUNT)) * 100;
+      case 'journeys-bundle': return bundleMajor(c) * 100;
+      case 'journeys-bundle-pro': return (bundleMajor(c) + MANTRA_PREMIUM[c]) * 100;
       default: return 0;
     }
   }
   function compareAtCents(slug: string, c: Currency): number | null {
-    return slug === 'journeys-bundle' ? bundleSum(c) * 100 : null;
+    if (slug === 'journeys-bundle') return bundleSum(c) * 100;
+    if (slug === 'journeys-bundle-pro') return (bundleSum(c) + MANTRA_PREMIUM[c]) * 100;
+    return null;
   }
 
   const COUNTRY_CURRENCY: Record<string, Currency> = {
@@ -308,6 +340,12 @@ const THIS_LABEL: Record<Props['course'], string> = {
     const cta = form.querySelector<HTMLButtonElement>('[data-jr-cta]')!;
     const paypalBtn = form.querySelector<HTMLButtonElement>('[data-jr-paypal]');
     const optionEls = Array.from(optsWrap.querySelectorAll<HTMLElement>('[data-jr-opt]'));
+    // The bundle-only PRO add-on (the ASJ mantra pack). A checkbox that turns
+    // the bundle into journeys-bundle-pro; revealed only while the bundle is the
+    // chosen option.
+    const bundleProEl = optsWrap.querySelector<HTMLElement>('[data-jr-bundle-pro]');
+    const bundleProInput = bundleProEl?.querySelector<HTMLInputElement>('[data-jr-bundle-pro-input]') ?? null;
+    const bundleProAmountEl = bundleProEl?.querySelector<HTMLElement>('[data-bundle-pro-amount]') ?? null;
 
     // Which gateway the next submit uses. The PayPal button flips it for one
     // submit; everything else (incl. the Enter key) stays on Stripe.
@@ -319,9 +357,18 @@ const THIS_LABEL: Record<Props['course'], string> = {
 
     let currency: Currency = 'EUR';
 
-    function selectedSlug(): string {
+    // The chosen radio (the base product), independent of the PRO add-on.
+    function checkedRadio(): string {
       const checked = optsWrap!.querySelector<HTMLInputElement>('input[name="jr-product"]:checked');
       return checked?.value ?? optionEls[0].dataset.product!;
+    }
+    // PRO add-on counts only when the bundle is chosen and the box is ticked.
+    function bundleProActive(): boolean {
+      return checkedRadio() === 'journeys-bundle' && !!bundleProInput?.checked;
+    }
+    // The effective product slug sent to checkout.
+    function selectedSlug(): string {
+      return bundleProActive() ? 'journeys-bundle-pro' : checkedRadio();
     }
 
     function renderPrices() {
@@ -357,11 +404,30 @@ const THIS_LABEL: Record<Props['course'], string> = {
         }
       }
 
+      // The PRO add-on's price is the marginal cost over the plain bundle
+      // (after any promo), shown as a "+ €X" on the checkbox row.
+      if (bundleProAmountEl) {
+        const bundleNow = applyDiscountCents(productCents('journeys-bundle', currency));
+        const proNow = applyDiscountCents(productCents('journeys-bundle-pro', currency));
+        bundleProAmountEl.textContent = `+ ${moneyCents(proNow - bundleNow, currency)}`;
+      }
+
       const slug = selectedSlug();
-      const sel = optionEls.find((e) => e.dataset.product === slug)!;
-      const title = sel.querySelector<HTMLElement>('.jr-opt-title')!.textContent?.trim() ?? '';
-      summaryLabelEl.textContent =
-        `${title.replace(/\s+Save \d+%$/, '').replace(/\s+for facilitators$/, '')} · one-time payment`;
+      const sel = optionEls.find((e) => e.dataset.product === slug);
+      // Strip the "Save N%" badge text and the "for facilitators" tag out of a
+      // raw option title, and tidy whitespace.
+      const cleanTitle = (s: string) =>
+        s.replace(/\s*Save \d+%/g, '').replace(/\s*for facilitators/g, '').replace(/\s{2,}/g, ' ').trim();
+      let title: string;
+      if (sel) {
+        title = cleanTitle(sel.querySelector<HTMLElement>('.jr-opt-title')!.textContent ?? '');
+      } else {
+        // bundle-pro has no option row of its own — it's the bundle + the add-on.
+        const bundleOpt = optionEls.find((e) => e.dataset.product === 'journeys-bundle');
+        const base = cleanTitle(bundleOpt?.querySelector<HTMLElement>('.jr-opt-title')!.textContent ?? 'All three journeys');
+        title = `${base} + PRO mantra pack`;
+      }
+      summaryLabelEl.textContent = `${title} · one-time payment`;
       summaryEl.textContent = moneyCents(applyDiscountCents(productCents(slug, currency)), currency);
 
       if (currency === 'EUR') {
@@ -379,8 +445,17 @@ const THIS_LABEL: Record<Props['course'], string> = {
     }
 
     function syncSelected() {
-      const slug = selectedSlug();
-      for (const el of optionEls) el.classList.toggle('is-selected', el.dataset.product === slug);
+      const radio = checkedRadio();
+      // The PRO add-on is offered only with the bundle. Hide (and reset) it for
+      // every other choice so its tick never leaks into another product.
+      if (bundleProEl) {
+        const showAddon = radio === 'journeys-bundle';
+        bundleProEl.hidden = !showAddon;
+        if (!showAddon && bundleProInput) bundleProInput.checked = false;
+        bundleProEl.classList.toggle('is-checked', !!bundleProInput?.checked);
+      }
+      // Selected styling follows the chosen radio (the base product).
+      for (const el of optionEls) el.classList.toggle('is-selected', el.dataset.product === radio);
       renderPrices();
     }
     optsWrap.addEventListener('change', syncSelected);
