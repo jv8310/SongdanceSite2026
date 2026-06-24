@@ -156,7 +156,10 @@ export async function importContacts(
           `INSERT INTO contacts (email, name, timezone, country, tags, custom, source)
              VALUES ${slice.map(() => '(?,?,?,?,?,?,?)').join(',')}
            ON CONFLICT(email) DO UPDATE SET
-             name = COALESCE(excluded.name, contacts.name),
+             -- Never overwrite an existing name on re-import (a verifier file
+             -- echoes back first-name-only / lowercased names); only fill it in
+             -- when the contact has none yet.
+             name = COALESCE(contacts.name, excluded.name),
              timezone = COALESCE(excluded.timezone, contacts.timezone),
              country = COALESCE(excluded.country, contacts.country),
              tags = COALESCE(excluded.tags, contacts.tags),

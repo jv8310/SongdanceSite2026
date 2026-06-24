@@ -130,7 +130,9 @@ e.g. a Drip export) and one-off `broadcasts` sent to it. Lives in
 - **Import**: `/admin/contacts` parses the CSV in the browser (auto-detecting
   email / name / timezone / country / tags headers) and posts it in chunks, so
   55k streams in with a progress bar. Re-importing an address updates, never
-  dups. Every other column is preserved: `tags` is normalized into a
+  dups — but an existing **name is never overwritten** (only filled when
+  missing), so a verifier re-import can't downgrade good names. Every other
+  column is preserved: `tags` is normalized into a
   `contact_tags` table (for fast targeting + counts) and kept as a display
   string; all remaining non-empty columns go into a `custom` JSON blob, so the
   full export is retained and filterable. Rows whose `status` is `unsubscribed`
