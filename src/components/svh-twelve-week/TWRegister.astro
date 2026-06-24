@@ -238,6 +238,7 @@ const includes = [
 
 <script>
   import { COUNTRIES, findCountry } from '../../lib/countries';
+  import { postJsonResilient } from '../../lib/client/resilient-fetch';
 
   type Plan = 'full' | '3x';
   type OfferId = '12week' | 'path';
@@ -811,36 +812,28 @@ const includes = [
           // server-side. Otherwise the 12-week checkout, which re-derives the
           // workshop / ?discount= price server-side.
           const res = selectedOffer === 'path' && status.path
-            ? await fetch('/api/courses/checkout', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  product_slug: 'cc-bundle',
-                  payment_plan: selectedPlan,
-                  currency: status.path.currency,
-                  email, first_name: first, last_name: last, country,
-                  phone_country: phoneCountry, phone,
-                  company_name: company || undefined, vat_number: vat || undefined,
-                  activate_choice: activateChoice,
-                  source_variant: 'twelveweek',
-                  consent_terms: true,
-                  provider,
-                  discount_percent: urlDiscount || undefined,
-                  adiscount_percent: urlAdiscount || undefined,
-                }),
+            ? await postJsonResilient('/api/courses/checkout', {
+                product_slug: 'cc-bundle',
+                payment_plan: selectedPlan,
+                currency: status.path.currency,
+                email, first_name: first, last_name: last, country,
+                phone_country: phoneCountry, phone,
+                company_name: company || undefined, vat_number: vat || undefined,
+                activate_choice: activateChoice,
+                source_variant: 'twelveweek',
+                consent_terms: true,
+                provider,
+                discount_percent: urlDiscount || undefined,
+                adiscount_percent: urlAdiscount || undefined,
               })
-            : await fetch('/api/courses/twelve-week-checkout', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  email, first_name: first, last_name: last, country,
-                  phone_country: phoneCountry, phone,
-                  company_name: company || undefined, vat_number: vat || undefined,
-                  payment_plan: selectedPlan, consent_terms: true,
-                  provider,
-                  discount_percent: urlDiscount || undefined,
-                  adiscount_percent: urlAdiscount || undefined,
-                }),
+            : await postJsonResilient('/api/courses/twelve-week-checkout', {
+                email, first_name: first, last_name: last, country,
+                phone_country: phoneCountry, phone,
+                company_name: company || undefined, vat_number: vat || undefined,
+                payment_plan: selectedPlan, consent_terms: true,
+                provider,
+                discount_percent: urlDiscount || undefined,
+                adiscount_percent: urlAdiscount || undefined,
               });
           let body: { checkout_url?: string; error?: string } = {};
           try { body = await res.json(); } catch {}
