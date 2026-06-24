@@ -131,6 +131,8 @@ const bounceSuppressed = await countBounceSuppressions(env.DB);
 
       <input id="csv-file" type="file" accept=".csv,text/csv" class="ct-file" />
 
+      <label class="ct-checkbox"><input type="checkbox" id="ct-skip-name" /> Skip the name column (keep existing names; don't import names from this file)</label>
+
       <div id="ct-detected" class="ct-detected" hidden></div>
 
       <div class="ct-actions">
@@ -169,6 +171,7 @@ const bounceSuppressed = await countBounceSuppressions(env.DB);
     .ct-help { font-size: 13.5px; color: #6f5f6d; line-height: 1.7; max-width: 60ch; }
     .ct-help code { background: #f4ecdf; padding: 1px 6px; border-radius: 5px; font-size: 12.5px; }
     .ct-file { display: block; margin: 14px 0; font-size: 14px; }
+    .ct-checkbox { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: #4a3848; margin: 0 0 12px; cursor: pointer; }
     .ct-detected {
       font-size: 13.5px; color: #2a1b2a; background: #fbf6ec;
       border: 1px solid rgba(161,72,38,0.22); border-radius: 10px; padding: 12px 16px; margin: 6px 0 14px;
@@ -260,29 +263,24 @@ const bounceSuppressed = await countBounceSuppressions(env.DB);
     const totalEl = document.getElementById('ct-total');
 
     let parsedRows = [];
+    let parsed = null; // cached { header, rows } from the selected file
+    const skipNameBox = document.getElementById('ct-skip-name');
 
-    fileInput.addEventListener('change', async () => {
-      parsedRows = [];
-      importBtn.disabled = true;
-      detected.hidden = true;
-      const file = fileInput.files && fileInput.files[0];
-      if (!file) return;
-      const text = await file.text();
-      const rows = parseCsv(text);
-      if (rows.length < 2) {
-        detected.hidden = false;
-        detected.innerHTML = '<span class="warn">Could not read any data rows from that file.</span>';
-        return;
-      }
-      const header = rows[0];
+    // Build the row payload + detection line from the cached file, honouring the
+    // "skip name" toggle. Re-runnable so toggling the checkbox updates instantly.
+    function rebuild() {
+      if (!parsed) return;
+      const { header, rows } = parsed;
       const idx = detectColumns(header);
       if (idx.email < 0) {
         detected.hidden = false;
         detected.innerHTML = '<span class="warn">No email column found. The CSV needs a header row with an <code>email</code> column.</span>';
+        importBtn.disabled = true;
         return;
       }
-      // Columns we map explicitly never get duplicated into `custom`. Everything
-      // else with a non-blank header is preserved there, keyed by header name.
+      const useName = !(skipNameBox && skipNameBox.checked);
+      // Explicitly-mapped columns never get duplicated into `custom`. name/first/
+      // last stay mapped even when skipped, so a skipped name isn't stored as custom.
       const mapped = new Set([idx.email, idx.name, idx.first, idx.last, idx.timezone, idx.country, idx.tags]);
       const customCols = [];
       header.forEach((h, i) => { if (!mapped.has(i) && (h || '').trim()) customCols.push(i); });
@@ -296,10 +294,13 @@ const bounceSuppressed = await countBounceSuppressions(env.DB);
         const cells = rows[r];
         const email = (cells[idx.email] || '').trim();
         if (!email) continue;
-        let name = idx.name >= 0 ? (cells[idx.name] || '').trim() : '';
-        if (!name && (idx.first >= 0 || idx.last >= 0)) {
-          name = [idx.first >= 0 ? cells[idx.first] : '', idx.last >= 0 ? cells[idx.last] : '']
-            .map((s) => (s || '').trim()).filter(Boolean).join(' ');
+        let name = '';
+        if (useName) {
+          name = idx.name >= 0 ? (cells[idx.name] || '').trim() : '';
+          if (!name && (idx.first >= 0 || idx.last >= 0)) {
+            name = [idx.first >= 0 ? cells[idx.first] : '', idx.last >= 0 ? cells[idx.last] : '']
+              .map((s) => (s || '').trim()).filter(Boolean).join(' ');
+          }
         }
         const custom = {};
         for (const ci of customCols) {
@@ -327,7 +328,8 @@ const bounceSuppressed = await countBounceSuppressions(env.DB);
       parsedRows = out;
       const cols = [];
       cols.push(`email → <code>${header[idx.email]}</code>`);
-      if (idx.name >= 0) cols.push(`name → <code>${header[idx.name]}</code>`);
+      if (!useName) cols.push('name → <span class="warn">skipped</span>');
+      else if (idx.name >= 0) cols.push(`name → <code>${header[idx.name]}</code>`);
       else if (idx.first >= 0 || idx.last >= 0) cols.push('name → first + last');
       if (idx.timezone >= 0) cols.push(`timezone → <code>${header[idx.timezone]}</code>`);
       else cols.push('<span class="warn">no timezone column — those contacts use the default send window</span>');
@@ -341,7 +343,27 @@ const bounceSuppressed = await countBounceSuppressions(env.DB);
       detected.hidden = false;
       detected.innerHTML = `<strong>${out.length.toLocaleString()}</strong> rows ready · ${cols.join(' · ')}`;
       importBtn.disabled = out.length === 0;
+    }
+
+    fileInput.addEventListener('change', async () => {
+      parsedRows = [];
+      parsed = null;
+      importBtn.disabled = true;
+      detected.hidden = true;
+      const file = fileInput.files && fileInput.files[0];
+      if (!file) return;
+      const text = await file.text();
+      const rows = parseCsv(text);
+      if (rows.length < 2) {
+        detected.hidden = false;
+        detected.innerHTML = '<span class="warn">Could not read any data rows from that file.</span>';
+        return;
+      }
+      parsed = { header: rows[0], rows };
+      rebuild();
     });
+
+    if (skipNameBox) skipNameBox.addEventListener('change', rebuild);
 
     importBtn.addEventListener('click', async () => {
       if (parsedRows.length === 0) return;
