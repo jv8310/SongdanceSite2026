@@ -76,7 +76,10 @@
   //   DRIP_ACCOUNT_ID
   //   RESEND_API_KEY         (forgiveness prayer + intake + workshop emails)
   //   ANTHROPIC_API_KEY      (forgiveness prayer + /intake assessment)
-  //   ADMIN_PASSWORD
+  //   ADMIN_PASSWORD         (owner login; paired with ADMIN_EMAIL below)
+  //   ADMIN_EMAIL            (optional — owner's login email; defaults to jacob@songdance.co)
+  //   ADMIN_USERS            (optional — extra admins; one "email:password" per line,
+  //                           or a JSON array. See src/lib/registrations/auth.ts)
   //   ADMIN_SESSION_SECRET   (any random 32+ char string)
   //   UNSUBSCRIBE_SECRET     (optional — unsubscribe-link HMACs; falls back to ADMIN_SESSION_SECRET)
   //   META_PIXEL_ID, META_ACCESS_TOKEN          (workshop Meta CAPI — optional)

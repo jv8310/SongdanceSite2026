@@ -3,6 +3,25 @@
 Astro site deployed to Cloudflare Workers. Media (images) live in an R2 bucket
 (`songdance-media`, bound as `MEDIA`) and are served publicly at `/media/<key>`.
 
+## Admin login — email + password, multi-user
+
+`/admin/login` takes an **email + password**; the session is an HMAC-signed
+cookie (`sd_admin`, 12h) carrying the signed-in email. Logic in
+[`src/lib/registrations/auth.ts`](src/lib/registrations/auth.ts); every admin
+page/endpoint gates on `verifySession`. Credentials come from env (no DB, no
+hashing — same posture as the rest of the site's secrets), merged from:
+
+- **`ADMIN_PASSWORD`** (+ optional **`ADMIN_EMAIL`**, default `jacob@songdance.co`)
+  — the owner login, unchanged.
+- **`ADMIN_USERS`** — collaborators. Either one `email:password` per line (or
+  `;`-separated), e.g. `collaborator@example.com:theirPassword`, **or** a JSON
+  array `[{"email":"…","password":"…"}]`. Set it as a secret:
+  `wrangler secret put ADMIN_USERS`. Add/remove an admin = edit that secret.
+
+Email match is case-insensitive; passwords compared timing-safe. Old
+`admin.…` sessions stay valid across the deploy (verify checks the signature,
+not the subject), so nobody is force-logged-out.
+
 ## Navigation — one menu, three renderings
 
 The site menu has a single source of truth: [`src/data/nav.ts`](src/data/nav.ts)
