@@ -40,6 +40,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
       continue;
     }
     seen.add(email);
+    const verdict =
+      raw?.verdict === 'bad' || raw?.verdict === 'risky' || raw?.verdict === 'good'
+        ? raw.verdict
+        : null;
     valid.push({
       email,
       name: str(raw?.name),
@@ -51,13 +55,16 @@ export const POST: APIRoute = async ({ request, locals }) => {
           ? (raw.custom as Record<string, unknown>)
           : null,
       unsubscribed: raw?.unsubscribed === true,
+      verdict,
     });
   }
 
   let suppressed = 0;
+  let risky = 0;
   try {
     const res = await importContacts(env.DB, valid, (payload.source || 'import').slice(0, 40));
     suppressed = res.suppressed;
+    risky = res.risky;
   } catch (err) {
     return json({ error: `Import failed: ${String(err)}` }, 500);
   }
@@ -67,6 +74,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     processed: valid.length,
     skipped,
     suppressed,
+    risky,
     total: await countContacts(env.DB),
   });
 };

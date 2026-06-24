@@ -44,6 +44,10 @@ export type ContactRow = {
   tags?: string | null; // comma-joined (display)
   custom?: Record<string, unknown> | null;
   unsubscribed?: boolean; // status === 'unsubscribed' → store but suppress
+  // Email-verifier verdict (e.g. MillionVerifier): 'bad' → suppress as an
+  // invalid address; 'risky' → tag 'risky' so it can be targeted/excluded;
+  // 'good'/null → no action. Never wipes existing tags.
+  verdict?: 'bad' | 'risky' | 'good' | null;
 };
 
 // Audience targeting criteria, shared by the count + snapshot queries.
@@ -99,25 +103,29 @@ function customJson(custom: Record<string, unknown> | null | undefined): string 
 
 // ── Contacts ────────────────────────────────────────────────────────────────
 
-// Upsert a batch of contacts plus their normalized tags, and suppress anyone
-// imported with status 'unsubscribed' (stored, but never emailed). Everything
-// runs in one D1 batch (a transaction). D1 caps bound parameters at 100 per
-// statement, so every multi-row statement is chunked well under that. Returns
-// how many rows were seen and how many were suppressed.
+// Upsert a batch of contacts plus their normalized tags, suppress anyone
+// imported with status 'unsubscribed' (stored, but never emailed), and act on an
+// email-verifier verdict (bad → suppress; risky → tag). Everything runs in one
+// D1 batch (a transaction). D1 caps bound parameters at 100 per statement, so
+// every multi-row statement is chunked well under that. Returns how many rows
+// were seen, suppressed (unsub + invalid), and tagged risky.
 export async function importContacts(
   db: D1Database,
   rows: ContactRow[],
   source = 'import',
-): Promise<{ processed: number; suppressed: number }> {
-  if (rows.length === 0) return { processed: 0, suppressed: 0 };
+): Promise<{ processed: number; suppressed: number; risky: number }> {
+  if (rows.length === 0) return { processed: 0, suppressed: 0, risky: 0 };
   const ROWS_PER_STMT = 12; // 12 × 7 binds = 84  (≤ 100)
   const TAGS_PER_STMT = 45; // 45 × 2 binds = 90
   const EMAILS_PER_STMT = 90; // DELETE … IN / suppression insert
   const statements: D1PreparedStatement[] = [];
 
   const allEmails: string[] = [];
+  const taggedEmails: string[] = []; // only rows that carried a tags value
   const tagPairs: Array<[string, string]> = [];
   const unsubEmails: string[] = [];
+  const invalidEmails: string[] = []; // verifier verdict 'bad'
+  const riskyEmails: string[] = []; // verifier verdict 'risky'
 
   // contacts upserts (≤12 rows each)
   for (let i = 0; i < rows.length; i += ROWS_PER_STMT) {
@@ -127,8 +135,11 @@ export async function importContacts(
       const email = r.email.trim().toLowerCase();
       const tags = splitTags(r.tags);
       allEmails.push(email);
+      if (tags.length) taggedEmails.push(email);
       for (const tag of tags) tagPairs.push([email, tag]);
       if (r.unsubscribed) unsubEmails.push(email);
+      if (r.verdict === 'bad') invalidEmails.push(email);
+      else if (r.verdict === 'risky') riskyEmails.push(email);
       binds.push(
         email,
         (r.name ?? null) || null,
@@ -156,9 +167,11 @@ export async function importContacts(
     );
   }
 
-  // Replace these emails' tags: clear (≤90 per stmt) then re-insert (≤45 pairs).
-  for (let i = 0; i < allEmails.length; i += EMAILS_PER_STMT) {
-    const slice = allEmails.slice(i, i + EMAILS_PER_STMT);
+  // Replace tags ONLY for rows that actually carried a tags value — clear
+  // (≤90/stmt) then re-insert (≤45 pairs). A row with no tags column (e.g. a
+  // verifier re-import) must NOT wipe a contact's existing targeting tags.
+  for (let i = 0; i < taggedEmails.length; i += EMAILS_PER_STMT) {
+    const slice = taggedEmails.slice(i, i + EMAILS_PER_STMT);
     statements.push(
       db.prepare(`DELETE FROM contact_tags WHERE email IN (${slice.map(() => '?').join(',')})`).bind(...slice),
     );
@@ -172,6 +185,17 @@ export async function importContacts(
     );
   }
 
+  // Verifier 'risky' → add the 'risky' tag additively (no delete), so existing
+  // tags survive and the address can be targeted or excluded per broadcast.
+  for (let i = 0; i < riskyEmails.length; i += TAGS_PER_STMT) {
+    const slice = riskyEmails.slice(i, i + TAGS_PER_STMT);
+    statements.push(
+      db
+        .prepare(`INSERT OR IGNORE INTO contact_tags (email, tag) VALUES ${slice.map(() => "(?, 'risky')").join(',')}`)
+        .bind(...slice),
+    );
+  }
+
   // Stored-but-never-emailed: add unsubscribed addresses to the suppression list.
   for (let i = 0; i < unsubEmails.length; i += EMAILS_PER_STMT) {
     const slice = unsubEmails.slice(i, i + EMAILS_PER_STMT);
@@ -180,6 +204,19 @@ export async function importContacts(
         .prepare(
           `INSERT OR IGNORE INTO email_suppressions (email, reason, source)
              VALUES ${slice.map(() => "(?, 'unsubscribe', 'import')").join(',')}`,
+        )
+        .bind(...slice),
+    );
+  }
+
+  // Verifier 'bad' (invalid / disposable mailbox) → suppress as invalid_address.
+  for (let i = 0; i < invalidEmails.length; i += EMAILS_PER_STMT) {
+    const slice = invalidEmails.slice(i, i + EMAILS_PER_STMT);
+    statements.push(
+      db
+        .prepare(
+          `INSERT OR IGNORE INTO email_suppressions (email, reason, source)
+             VALUES ${slice.map(() => "(?, 'invalid_address', 'verifier')").join(',')}`,
         )
         .bind(...slice),
     );
@@ -205,7 +242,11 @@ export async function importContacts(
   }
 
   await db.batch(statements);
-  return { processed: rows.length, suppressed: unsubEmails.length };
+  return {
+    processed: rows.length,
+    suppressed: unsubEmails.length + invalidEmails.length,
+    risky: riskyEmails.length,
+  };
 }
 
 // Distinct tags with how many contacts carry each — populates the compose
