@@ -1,71 +1,119 @@
-<!--
-  Songdance — Authentic Singing Journey · Origin Story (BROADCAST B — NON-OWNERS)
-  Site broadcast (/admin/broadcasts). Create a broadcast, format = HTML, paste this body.
-
-  SUBJECT:    Before any of this, there was Upala   (see the .md for A/B options)
-  PREHEADER:  Upala, the first recordings, and a program I almost didn’t believe in.
-  AUDIENCE:   EXCLUDE tags: prod_ASJ, prod_JAZ (and any other ASJ/JAZ ownership tags),
-             so owners don’t get the discount pitch. Leave include blank = whole list.
-
-  The renderer substitutes {{ subscriber.first_name | default: "there" }} and
-  {{unsubscribe_url}}; the postal address is already in the footer (so it isn’t
-  doubled). Test-send before launch.
--->
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml" lang="en">
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="color-scheme" content="light only" />
-  <title>Before any of this, there was Upala</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
+<title>Before any of this, there was Upala</title>
+<link href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,500;1,400&family=Cormorant+Garamond:ital@1&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  body { margin: 0; padding: 0; background-color: #EADFCB; }
+  table { border-collapse: collapse; }
+  img { display: block; border: 0; line-height: 100%; outline: none; text-decoration: none; }
+  a { color: #A14826; text-decoration: none; }
+  .preheader { display: none !important; visibility: hidden; opacity: 0; max-height: 0; overflow: hidden; mso-hide: all; }
+  @media only screen and (max-width: 600px) {
+    .wrapper { width: 100% !important; }
+    .pad { padding-left: 26px !important; padding-right: 26px !important; }
+    .h1 { font-size: 34px !important; line-height: 1.15 !important; }
+    .offer-h { font-size: 29px !important; line-height: 1.2 !important; }
+    .band img { width: 100% !important; }
+  }
+</style>
 </head>
-<body style="margin:0;padding:0;background-color:#F4ECDF;font-family:Georgia,'Times New Roman',serif;color:#2A1B2A;">
-  <div style="display:none;font-size:1px;color:#F4ECDF;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">Upala, the first recordings, and a program I almost didn’t believe in.</div>
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#F4ECDF;">
-    <tr><td align="center" style="padding:40px 16px;">
-      <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="width:560px;max-width:100%;">
-        <tr><td align="center" style="padding:0 24px 8px;">
-          <h1 style="margin:0;font-family:Georgia,serif;font-weight:400;font-size:28px;line-height:1.2;letter-spacing:-0.01em;color:#2A1B2A;">Before any of this, there was Upala</h1>
-        </td></tr>
-        <tr><td style="padding:20px 24px 0;">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#FBF6EC;border:1px solid rgba(161,72,38,0.22);border-radius:14px;">
-            <tr><td style="padding:0;"><img src="https://songdance.co/media/library/jacob-upala-speaker.webp" alt="Jacob and Upala together at golden hour" width="558" style="display:block;width:100%;height:auto;border-radius:13px 13px 0 0;" /></td></tr>
-            <tr><td style="padding:30px 34px;font-family:Georgia,serif;font-size:16px;line-height:1.65;color:#4A3848;">
-              <p style="margin:0 0 16px;">Hi {{ subscriber.first_name | default: "there" }},</p>
-              <p style="margin:0 0 16px;">This program will always have a special place in my heart.</p>
-              <p style="margin:0 0 16px;">So let me tell you how it began.</p>
-              <p style="margin:0 0 16px;">Upala — my late wife — was recovering from the surgery that saved her life after her brain tumour. The doctors had given her one year. She didn't want to spend it resting. She wanted to travel, and to share the power of authentic singing with the world.</p>
-              <p style="margin:0 0 16px;">We had no money left in the bank. And I had never recorded anything like this before.</p>
-              <p style="margin:0 0 16px;">This was before Covid. There weren't many online programs combining music and guided sessions back then. It was new — to me, and to the first people who signed up.</p>
-              <p style="margin:0 0 16px;">I remember the self-doubt. Will this work? Will people believe me when I say — recorded, at the end of the first session — <em>much love to you</em>? Will the music be good enough? Will anyone actually pay for this?</p>
-              <p style="margin:0 0 16px;">For those first recordings, Upala almost literally held my hand while I spoke into the mic and played.</p>
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 18px;"><tr><td align="center">
-                <img src="https://songdance.co/media/library/jacob-upala-singing.webp" alt="Jacob and Upala sounding together in a warm archway" width="320" style="display:block;width:320px;max-width:100%;height:auto;border-radius:12px;" />
-                <div style="font-family:Georgia,serif;font-style:italic;font-size:13px;line-height:1.5;color:#B6A8B4;padding-top:9px;">Upala beside me.</div>
-              </td></tr></table>
-              <p style="margin:0 0 16px;">And then we did start travelling. And people did sign up. And they loved it.</p>
-              <p style="margin:0 0 16px;">First came the Dutch program — now available again on the site — and later the English one. Our community grew from tens of people to thousands, all over the world, discovering their own authentic voices.</p>
-              <p style="margin:0 0 16px;">As the months passed, Upala grew stronger, lighter, full of purpose. So we kept going further. A community member in South Africa reached out and invited us to hold retreats there. So we went.</p>
-              <p style="margin:22px 0;text-align:center;font-style:italic;font-size:17px;line-height:1.5;color:#A14826;">She mostly just taught by being. By living.</p>
-              <p style="margin:0 0 16px;">Then Corona happened. By then the <strong>Authentic Singing Journey</strong> was finished — forty weeks to build, one session a week, and another forty for the English version. So we found a new way to stay close to everyone: live, fully improvised mantra sessions on YouTube.</p>
-              <p style="margin:0 0 18px;">And of course, other programs followed. But more on those in the next email.</p>
-              <div style="border-top:1px solid rgba(161,72,38,0.22);margin:26px 0 22px;"></div>
-              <p style="margin:0 0 16px;">Curious to find out more about this program? Have a look — the 50% discount is still on.</p>
-              <div><a href="https://songdance.co/courses/authentic-singing?utm_source=broadcast&amp;utm_medium=email&amp;utm_campaign=asj_origin_story&amp;utm_content=discover" style="display:inline-block;background-color:#2A1B2A;color:#F4ECDF;font-family:Georgia,serif;font-size:15px;line-height:1;text-decoration:none;padding:14px 26px;border-radius:999px;">Discover the Authentic Singing Journey &rarr;</a></div>
-              <p style="margin:24px 0 0;">With love,<br />Jacob</p>
-            </td></tr>
-          </table>
-        </td></tr>
-        <tr><td align="center" style="padding:40px 24px 6px;">
-          <a href="https://songdance.co"><img src="https://songdance.co/brand/logo-wordmark-dark.png" alt="Songdance" width="96" style="display:block;width:96px;height:auto;opacity:0.55;" /></a>
-        </td></tr>
-        <tr><td align="center" style="padding:10px 24px 24px;">
-          <p style="margin:0;font-family:Georgia,serif;font-size:11px;line-height:1.6;color:#B6A8B4;">Songdance · songdance.co</p>
-          <p style="margin:4px 0 0;font-family:Georgia,serif;font-size:11px;line-height:1.6;color:#B6A8B4;">Beaupréstraat 13, 8310 Bruges, Belgium</p>
-          <p style="margin:6px 0 0;font-family:Georgia,serif;font-size:11px;line-height:1.6;color:#B6A8B4;"><a href="{{unsubscribe_url}}" style="color:#B6A8B4;text-decoration:underline;">No more emails like this — unsubscribe</a></p>
-        </td></tr>
-      </table>
+<body style="margin: 0; padding: 0; background-color: #EADFCB; -webkit-font-smoothing: antialiased;">
+
+<span class="preheader">Upala, the first recordings, and a program I almost didn’t believe in.</span>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #EADFCB;">
+<tr><td align="center" style="padding: 24px 12px;">
+
+<table role="presentation" class="wrapper" width="600" cellpadding="0" cellspacing="0" style="width: 600px; background-color: #F4ECDF; border-radius: 4px; overflow: hidden;">
+
+<tr><td align="center" style="background-color: #A14826; padding: 11px 24px; font-family: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; font-size: 11px; letter-spacing: 1.3px; color: #F4ECDF; font-weight: 600; text-transform: uppercase;">&#10022;&nbsp;&nbsp;The Authentic Singing Journey &middot; half&nbsp;price until 30&nbsp;June&nbsp;&nbsp;&#10022;</td></tr>
+<!-- HERO -->
+<tr><td style="padding: 0;">
+  <a href="https://songdance.co/courses/authentic-singing" style="text-decoration: none; display: block;"><img src="https://songdance.co/media/library/jacob-upala-speaker.webp" width="600" alt="Jacob and Upala together at golden hour" style="width: 100%; height: auto; background-color: #2A1B2A;"></a>
+</td></tr>
+
+<!-- INTRO -->
+<tr><td class="pad" style="padding: 46px 44px 12px;">
+  <p style="margin: 0 0 22px; font-family: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; font-size: 11px; letter-spacing: 2.5px; color: #A14826; font-weight: 600; text-transform: uppercase;"><span style="display: inline-block; width: 26px; height: 1px; background-color: #A14826; vertical-align: middle; margin-right: 12px;"></span>the story behind the journey</p>
+  <h1 class="h1" style="font-family: 'Spectral', Georgia, 'Times New Roman', serif; font-weight: 400; font-size: 40px; line-height: 1.12; color: #2A1B2A; margin: 0 0 28px;">Before any of this, there was <em style="font-family: 'Cormorant Garamond', Georgia, serif; font-style: italic; font-size: 1.05em; color: #C9603A;">Upala</em>.</h1>
+  <p style="font-family: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #2A1B2A; margin: 0 0 16px;">Hello {{ subscriber.first_name | default: "there" }},</p>
+  <p style="font-family: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #2A1B2A; margin: 0 0 16px;">This program will always have a special place in my heart.</p>
+  <p style="font-family: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #2A1B2A; margin: 0 0 16px;">So let me tell you how it began.</p>
+  <p style="font-family: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #4A3848; margin: 0 0 0px;">Upala &mdash; my late wife &mdash; was recovering from the surgery that saved her life after her brain tumour. The doctors had given her one year. She didn’t want to spend it resting. She wanted to travel, and to share the power of authentic singing with the world.</p>
+</td></tr>
+
+<!-- NARRATIVE -->
+<tr><td class="pad" style="padding: 22px 44px 6px;">
+  <p style="font-family: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #2A1B2A; margin: 0 0 16px;">We had no money left in the bank. And I had never recorded anything like this before.</p>
+  <p style="font-family: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #2A1B2A; margin: 0 0 16px;">This was before Covid. There weren’t many online programs combining music and guided sessions back then. It was new &mdash; to me, and to the first people who signed up.</p>
+  <p style="font-family: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #2A1B2A; margin: 0 0 0px;">I remember the self-doubt. Will this work? Will people believe me when I say &mdash; recorded, at the end of the first session &mdash; <em style="font-family: 'Cormorant Garamond', Georgia, serif; font-style: italic; font-size: 1.25em; color: #A14826;">much love to you</em>? Will the music be good enough? Will anyone actually pay for this?</p>
+</td></tr>
+
+<!-- BAND IMAGE -->
+<tr><td style="padding: 22px 44px 4px;" class="pad band">
+  <a href="https://songdance.co/courses/authentic-singing" style="text-decoration: none; display: block;"><img src="https://songdance.co/media/library/jacob-upala-singing.webp" width="512" alt="Jacob and Upala sounding together while making the first recordings" style="width: 100%; height: auto; border-radius: 4px; background-color: #2A1B2A;"></a>
+  <p style="font-family: 'Cormorant Garamond', Georgia, serif; font-style: italic; font-size: 16px; line-height: 1.5; color: #7A6A78; text-align: center; margin: 12px 0 0;">Upala beside me.</p>
+</td></tr>
+
+<tr><td class="pad" style="padding: 24px 44px 6px;">
+  <p style="font-family: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #2A1B2A; margin: 0 0 16px;">For those first recordings, Upala almost literally held my hand while I spoke into the mic and played.</p>
+  <p style="font-family: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #2A1B2A; margin: 0 0 16px;">And then we did start travelling. And people did sign up. And they loved it.</p>
+  <p style="font-family: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #2A1B2A; margin: 0 0 16px;">First came the Dutch program &mdash; now available again on the site &mdash; and later the English one. Our community grew from tens of people to thousands, all over the world, discovering their own authentic voices.</p>
+  <p style="font-family: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #4A3848; margin: 0 0 0px;">As the months passed, Upala grew stronger, lighter, full of purpose. So we kept going further. A community member in South Africa reached out and invited us to hold retreats there. So we went.</p>
+</td></tr>
+
+<!-- LYRIC PULL-QUOTE -->
+<tr><td class="pad" style="padding: 30px 44px 18px;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+    <td style="border-left: 2px solid #C9603A; padding: 2px 0 2px 20px;"><p style="font-family: 'Cormorant Garamond', Georgia, serif; font-style: italic; font-size: 23px; line-height: 1.4; color: #4A3848; margin: 0;">She mostly just taught by being. By living.</p></td>
+  </tr></table>
+</td></tr>
+
+<tr><td class="pad" style="padding: 12px 44px 6px;">
+  <p style="font-family: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #2A1B2A; margin: 0 0 16px;">Then Corona happened. By then the <strong style="font-weight: 600;">Authentic Singing Journey</strong> was finished &mdash; forty weeks to build, one session a week, and another forty for the English version. So we found a new way to stay close to everyone: live, fully improvised mantra sessions on YouTube.</p>
+  <p style="font-family: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #2A1B2A; margin: 0 0 0px;">And of course, other programs followed. But more on those in the next email.</p>
+</td></tr>
+
+<tr><td style="padding: 38px 44px 0;" class="pad">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #4A2540; border-radius: 4px;">
+    <tr><td style="padding: 40px 38px;" class="pad">
+      <table role="presentation" cellpadding="0" cellspacing="0" style="margin: 0 0 22px;"><tr>
+        <td style="background-color: #C9603A; border-radius: 30px; padding: 9px 18px;"><span style="font-family: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; font-size: 15px; font-weight: 700; letter-spacing: 0.5px; color: #F4ECDF;">50% OFF</span></td>
+        <td style="padding-left: 14px; font-family: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; font-size: 11px; letter-spacing: 2.5px; color: #F2DCC9; font-weight: 600; text-transform: uppercase;">to celebrate<br>the launch</td>
+      </tr></table>
+      <h2 class="offer-h" style="font-family: 'Spectral', Georgia, 'Times New Roman', serif; font-weight: 400; font-size: 32px; line-height: 1.18; color: #F4ECDF; margin: 0 0 20px;">The journey, at <em style="font-family: 'Cormorant Garamond', Georgia, serif; font-style: italic; font-size: 1.05em; color: #F2DCC9;">half price</em>.</h2>
+      <p style="font-family: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #EADFCB; margin: 0 0 4px;">To celebrate the new website, the Authentic Singing Journey &mdash; and all the courses &mdash; are half price for the next two weeks, until <strong style="color: #F4ECDF; font-weight: 600;">30 June</strong>.</p>
+      <table role="presentation" cellpadding="0" cellspacing="0" style="margin: 28px 0 6px;"><tr>
+        <td style="background-color: #F4ECDF; border-radius: 32px;"><a href="https://songdance.co/courses/authentic-singing?utm_source=broadcast&amp;utm_medium=email&amp;utm_campaign=asj_origin_story&amp;utm_content=discover" style="display: inline-block; font-family: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; font-size: 14px; font-weight: 600; letter-spacing: 0.3px; color: #4A2540; padding: 15px 34px; text-decoration: none;">Discover the Authentic Singing Journey &rarr;</a></td>
+      </tr></table>
+      <p style="font-family: 'Cormorant Garamond', Georgia, serif; font-style: italic; font-size: 17px; line-height: 1.5; color: #F2DCC9; margin: 22px 0 0;">No pressure either way &mdash; the work will be here when you’re ready.</p>
     </td></tr>
   </table>
+</td></tr>
+
+<!-- SIGN-OFF -->
+<tr><td class="pad" style="padding: 34px 44px 40px;">
+  <p style="font-family: 'Cormorant Garamond', Georgia, serif; font-style: italic; font-size: 18px; line-height: 1.5; color: #4A3848; margin: 0;">With love,<br>Jacob</p>
+</td></tr>
+
+<tr><td style="background-color: #EADFCB; padding: 32px 44px 34px;" class="pad">
+  <img src="https://songdance.co/brand/logo-wordmark-dark.png" width="130" alt="Songdance" style="width: 130px; height: auto; margin: 0 0 18px;">
+  <p style="font-family: 'Cormorant Garamond', Georgia, serif; font-style: italic; font-size: 16px; line-height: 1.5; color: #7A6A78; margin: 0 0 18px;">The sound was always yours.</p>
+  <p style="font-family: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; font-size: 12px; line-height: 1.9; color: #A14826; margin: 0 0 16px;"><a href="https://songdance.co/what-is-svh" style="color: #A14826; text-decoration: none;">what is svh</a>&nbsp;&nbsp;&middot;&nbsp;&nbsp;<a href="https://songdance.co/courses" style="color: #A14826; text-decoration: none;">courses</a>&nbsp;&nbsp;&middot;&nbsp;&nbsp;<a href="https://songdance.co/events" style="color: #A14826; text-decoration: none;">events</a>&nbsp;&nbsp;&middot;&nbsp;&nbsp;<a href="https://songdance.co/about" style="color: #A14826; text-decoration: none;">about</a>&nbsp;&nbsp;&middot;&nbsp;&nbsp;<a href="https://songdance.co/reviews" style="color: #A14826; text-decoration: none;">reviews</a></p>
+  <p style="font-family: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; font-size: 11px; line-height: 1.7; color: #7A6A78; margin: 0 0 6px;">A quiet list &mdash; about one email a month. A little more during the launch: between now and 30 June you’ll get a few emails about the new website and the courses.</p>
+  <p style="font-family: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; font-size: 11px; line-height: 1.7; color: #7A6A78; margin: 0 0 6px;">Not for you? <a href="{{ unsubscribe_url }}" style="color: #7A6A78; text-decoration: underline;">Unsubscribe</a> &mdash; you won’t hear from this list again.</p>
+  <p style="font-family: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; font-size: 11px; line-height: 1.7; color: #9A8A78; margin: 0;">Songdance BV &middot; Beaupréstraat 13, 8310 Bruges, Belgium<br>BE0743575076</p>
+</td></tr>
+
+</table>
+
+</td></tr>
+</table>
+
 </body>
 </html>

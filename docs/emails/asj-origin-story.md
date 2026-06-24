@@ -1,13 +1,13 @@
 # Email — Authentic Singing Journey · Origin Story
 
-Jacob's origin story for the **Authentic Singing Journey** (ASJ): Upala, the first
-recordings, and how the program began. Written from the brief in
-`songdance_email_asj_origin_story_20260624.md`, framed in the site's email shell
-(parchment / plum-ink / ember, Georgia, 560px) with two photographs.
+Jacob's origin story for the **Authentic Singing Journey** (Upala, the first
+recordings, how it began), in the launch-email design system: **Spectral**
+(display) / **Cormorant Garamond** (lyric italics) / **Figtree** (body), an ember
+announcement ribbon, a plum offer box, and a two-tier footer. Two endings —
+owners vs. non-owners.
 
-**Goal:** clicks to the program page (`/courses/authentic-singing`).
-**Voice:** no manufactured urgency, no rescue framing. The 50% discount is named
-once, softly, to non-owners only.
+**Goal:** clicks to `/courses/authentic-singing`. The 30 June deadline is named
+plainly (sanctioned launch urgency); no fake scarcity.
 
 ## Subject (A/B)
 
@@ -15,68 +15,67 @@ once, softly, to non-owners only.
 2. **Before any of this, there was Upala** ← recommended (rawer, likely higher open)
 3. The story behind the Authentic Singing Journey
 
-**Preheader:** Upala, the first recordings, and a program I almost didn’t believe in.
+**Preheader:** Upala, the first recordings, and a program I almost didn't believe in.
 
-## Images (already in R2, served publicly)
+## Files
 
-- Hero — `https://songdance.co/media/library/jacob-upala-speaker.webp`
-- Inline — `https://songdance.co/media/library/jacob-upala-singing.webp`
+| Purpose | File |
+|---|---|
+| Drip — non-owners | `asj-origin-story.drip-others.html` |
+| Drip — owners | `asj-origin-story.drip-owners.html` |
+| Broadcast — non-owners | `asj-origin-story.broadcast-others.html` |
+| Broadcast — owners | `asj-origin-story.broadcast-owners.html` |
+| **Seed both broadcast drafts** | `migrations/0051_asj_origin_story_broadcasts.sql` |
 
-## Preview
+**Images** (R2, public): hero = `…/media/library/jacob-upala-speaker.webp` ·
+band = `…/media/library/jacob-upala-singing.webp`.
 
-After any push to this branch the Preview workflow prints a `*.workers.dev` URL.
-The finished email is served there:
+**Preview:** `/email-previews/asj-origin-story` (non-owners) ·
+`/email-previews/asj-origin-story-owner` (owners).
 
-- `/email-previews/asj-origin-story.html` — non-owners (50%-off CTA)
-- `/email-previews/asj-origin-story-owner.html` — owners (“enjoy another session” CTA)
+## The owner / non-owner split — two ways to ship
 
-## The owner / non-owner split
+### A) Drip — two segment sends
 
-The email ends two ways: owners (already hold ASJ/JAZ) get a warm “thank you —
-enjoy another session”; everyone else gets the soft 50%-off invitation. Two ways
-to ship that:
+Paste each file as a Drip email's HTML. There is **no inline Liquid logic** — Drip's
+HTML editor rejects `{% if subscriber.tags contains … %}` (and even a bare `{% %}`
+in a comment), so the split is done by **audience, not template**:
 
-### A) Drip — one send (recommended for the ASJ list)
+- `…drip-others.html` → a segment that does **not** own ASJ/JAZ (the 50%-off invite).
+- `…drip-owners.html` → a segment that **owns** ASJ/JAZ ("enjoy another session").
 
-File: **`asj-origin-story.drip.html`**. Paste as the HTML body of a Drip broadcast.
-The `{% if subscriber.tags contains "ASJ" or … "JAZ" %}` block does the split in a
-single send to the full ASJ list. Set the subject; test-send; go.
+Footer uses Drip's required tags: `{{ html_postal_address }}` + `{{ unsubscribe_url }}`,
+plus the two-tier promo unsubscribe (`/unsubscribe-promo?e={{ subscriber.email | url_encode }}`
+to stop just the launch emails, or the full `{{ unsubscribe_url }}`).
 
-- Drip’s `contains` is substring, so `"ASJ"` also matches the `prod_ASJ` purchase
-  tag (and `"JAZ"` → `prod_JAZ`). If your account doesn’t expose
-  `{{ subscriber.tags }}`, delete the `{% if %}` and use Drip’s conditional-content
-  rule on the ASJ / JAZ tags instead — same result.
-- The footer carries the postal address + unsubscribe via `{{ unsubscribe_url }}`.
-  If Drip auto-appends its own compliance footer, disable it for this send so the
-  address/unsub aren’t doubled.
+### B) Site broadcasts — seeded by migration 0051
 
-### B) Site broadcasts — two sends split by audience
+**Merge to `main` → `d1-migrate` applies `0051` → two drafts appear in
+`/admin/broadcasts`:**
 
-The site renderer substitutes merge tags but can’t branch on tags mid-email, so the
-split is done with **two broadcasts** (`/admin/broadcasts`, format = **HTML**):
+- **"ASJ · Origin Story — non-owners"** — audience **excludes** the ASJ/JAZ tags.
+- **"ASJ · Origin Story — owners"** — audience **includes** the ASJ/JAZ tags.
 
-| Broadcast | Paste | Audience |
-|---|---|---|
-| A — Owners | `asj-origin-story.broadcast-owners.html` | **Include** (match ANY): every ASJ/JAZ ownership tag variant |
-| B — Non-owners | `asj-origin-story.broadcast-others.html` | **Exclude** those same variants (include left blank = whole list) |
+Both are `format = html`, `status = draft` — nothing sends until you launch them.
+Review, **set the final tag variants**, test-send, launch. The renderer fills
+`{{ subscriber.first_name | default: "there" }}` + `{{ unsubscribe_url }}` and leaves
+the literal postal address (it won't double it). Single unsubscribe here — the site
+list has no promo tier, unlike Drip.
 
-- Tag matching here is **exact** and **match-ANY**, and ASJ/JAZ ownership is spread
-  across several literal tags — so list **all the variants** in both the include (A)
-  and exclude (B) fields: e.g. `prod_ASJ`, `prod_ASJ_PRO`, `prod_ASJ_end`,
-  `prod_JAZ`, `prod_JAZ_PRO`, … Grab the full set from the searchable tag list on
-  the compose page (it shows counts); case doesn't matter.
-- _(Alternative, if you'd rather not enumerate variants every time: I can switch the
-  broadcast audience filter to **contains**-matching — "any tag containing ASJ/JAZ",
-  the way Drip's `contains` works — so one entry catches all variants. Say the word.)_
-- `{{ subscriber.first_name | default: "there" }}` and `{{unsubscribe_url}}` are
-  handled by the renderer; the postal address is already in the footer (not
-  doubled). Test-send each before launch.
-- Subject/preheader as above. Send window + circuit breaker use the broadcast
-  defaults.
+**Audience tags:** the migration seeds `prod_asj, prod_asj_pro, prod_asj_end,
+prod_jaz, prod_jaz_pro` as a starting point. Matching is **exact + match-ANY**, and
+ownership is spread across varying tags, so verify/extend the list against your real
+tags on the compose page before launch. (Or ask me to switch the broadcast audience
+filter to **contains**-matching, so one entry catches every variant like Drip does.)
 
-## Regenerating
+## Notes
 
-These HTML files are hand-checkable final artifacts. If the copy or design changes,
-re-run the generator (kept out of the repo — it lives in the working scratchpad) or
-edit the HTML directly; the Drip and both broadcast variants must stay in sync (they
-differ only in the CTA block).
+- **Typography law:** inline Cormorant italics are sized up (1.05em in headings,
+  1.25em in body) per `CLAUDE.md` — never left at 1em.
+- **Fonts** load from Google Fonts where the client allows it; Georgia is the
+  fallback everywhere.
+- **Regenerating:** these are final, hand-checkable artifacts. All four HTML
+  variants **and** the migration are generated from one template (kept in the
+  working scratchpad) so they never drift — they differ only in the CTA block and
+  the footer tags. For small tweaks, edit the HTML directly and re-embed the
+  broadcast bodies into the migration.
