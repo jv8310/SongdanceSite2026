@@ -1,0 +1,49 @@
+---
+// Loads the Meta Pixel (base code + PageView via <MetaPixel/>) and then fires a
+// ViewContent event for a single catalog product. This is the on-page half of
+// catalog retargeting: the content_id sent here MUST equal the product's `id`
+// in the catalog feed (/feeds/meta-catalog.csv) — both come from
+// src/lib/catalog/products.ts via catalogItemById, so they stay in lockstep.
+//
+// content_type is 'product' (these are individual products, not product
+// groups), which is what binds the event to the catalog. Renders nothing when
+// no pixel id is configured.
+//
+// loadPixel (default true) renders the base Pixel loader alongside the event.
+// Set it false on a page that already loads the Pixel elsewhere (e.g. the
+// masterclass register block) to avoid a duplicate PageView — in that case
+// place this component AFTER that loader in document order so window.fbq exists.
+import MetaPixel from './MetaPixel.astro';
+
+interface Props {
+  pixelId?: string;
+  contentId: string;
+  contentName: string;
+  value: number;
+  currency?: string;
+  loadPixel?: boolean;
+}
+
+const {
+  pixelId,
+  contentId,
+  contentName,
+  value,
+  currency = 'EUR',
+  loadPixel = true,
+} = Astro.props;
+
+const payload = JSON.stringify({
+  content_ids: [contentId],
+  content_type: 'product',
+  content_name: contentName,
+  value,
+  currency,
+});
+---
+{pixelId && (
+  <>
+    {loadPixel && <MetaPixel pixelId={pixelId} />}
+    <script is:inline set:html={`fbq('track','ViewContent',${payload});`} />
+  </>
+)}

@@ -2,6 +2,8 @@
 import SiteLayout from '../../components/SiteLayout.astro';
 import GriefRegister from '../../components/grief/GriefRegister.astro';
 import { listLibrary, type MediaItem } from '../../lib/media';
+import MetaProductView from '../../components/MetaProductView.astro';
+import { catalogItemById } from '../../lib/catalog/products';
 import '../../styles/grief.css';
 
 export const prerender = false;
@@ -77,6 +79,8 @@ const includes: [string, string][] = [
   ['ph-microphone-stage', 'Powerful teachings, practices and journeys to support and transform your grief'],
   ['ph-users-three', 'Held by two educators in grief, death and loss, with decades of experience'],
 ];
+
+const product = catalogItemById('grief-course');
 ---
 
 <SiteLayout
@@ -86,6 +90,12 @@ const includes: [string, string][] = [
   imageAlt="Jacob sounding with open arms in an open field."
   newsletter={false}
 >
+  <MetaProductView
+    pixelId={env.META_PIXEL_ID}
+    contentId={product.id}
+    contentName={product.title}
+    value={product.priceEur}
+  />
   <div class="gr">
     <!-- ── Hero ───────────────────────────────────────────── -->
     <header class={`gr-hero${heroImg ? '' : ' gr-hero--noimg'}`}>

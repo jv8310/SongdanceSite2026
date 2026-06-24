@@ -19,6 +19,8 @@ import MCRegister from '../../components/masterclass/MCRegister.astro';
 import WEFooter from '../../components/workshop-english/WEFooter.astro';
 import { buildCalendarItems, tzOptionsFor } from '../../lib/workshops/calendar';
 import { currencyForCountry } from '../../lib/workshops/currency';
+import MetaProductView from '../../components/MetaProductView.astro';
+import { catalogItemById } from '../../lib/catalog/products';
 
 export const prerender = false;
 
@@ -36,6 +38,8 @@ const currency = currencyForCountry(country === 'EU' ? null : country);
 // dates (incl. the instant-access replay) as the schedule-friendly fallback.
 const items = await buildCalendarItems(env.DB, currency, detectedTz);
 const tzOptions = tzOptionsFor(detectedTz);
+
+const product = catalogItemById('masterclass');
 ---
 
 <Layout
@@ -64,4 +68,11 @@ const tzOptions = tzOptionsFor(detectedTz);
     />
     <WEFooter />
   </div>
+  <MetaProductView
+    pixelId={env.META_PIXEL_ID}
+    contentId={product.id}
+    contentName={product.title}
+    value={product.priceEur}
+    loadPixel={false}
+  />
 </Layout>

@@ -19,6 +19,13 @@ import TWPractitioner from '../../components/svh-twelve-week/TWPractitioner.astr
 import TWFaq from '../../components/svh-twelve-week/TWFaq.astro';
 import TWRegister from '../../components/svh-twelve-week/TWRegister.astro';
 import TWFooter from '../../components/svh-twelve-week/TWFooter.astro';
+import MetaProductView from '../../components/MetaProductView.astro';
+import { catalogItemById } from '../../lib/catalog/products';
+
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+const product = catalogItemById('svh-12week');
 ---
 
 <Layout
@@ -27,6 +34,12 @@ import TWFooter from '../../components/svh-twelve-week/TWFooter.astro';
   image="/media/library/svh-retreat-circle-sunset-group-jacob-central.webp"
   imageAlt="A small group sounding together in a field at sunset."
 >
+  <MetaProductView
+    pixelId={env.META_PIXEL_ID}
+    contentId={product.id}
+    contentName={product.title}
+    value={product.priceEur}
+  />
   <div class="tw-site">
     <PromoBanner />
     <TWNav />

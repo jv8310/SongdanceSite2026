@@ -4,6 +4,13 @@ import Layout from '../../layouts/Layout.astro';
 import PromoBanner from '../../components/PromoBanner.astro';
 import JourneyRegister from '../../components/journeys/JourneyRegister.astro';
 import JourneyCrossPromo from '../../components/journeys/JourneyCrossPromo.astro';
+import MetaProductView from '../../components/MetaProductView.astro';
+import { catalogItemById } from '../../lib/catalog/products';
+
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+const product = catalogItemById('mmj');
 
 const testimonials = [
   {
@@ -30,6 +37,12 @@ const testimonials = [
   description="Guided movement sessions you can do in your own room — standing or seated. No steps to learn, no floor to be good enough for. For every body."
   image="/media/library/movement.webp"
 >
+  <MetaProductView
+    pixelId={env.META_PIXEL_ID}
+    contentId={product.id}
+    contentName={product.title}
+    value={product.priceEur}
+  />
   <div class="jr-site jr-theme-movement">
     <PromoBanner />
     <!-- Nav -->
