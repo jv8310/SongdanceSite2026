@@ -29,8 +29,22 @@ const LIVE_BASE = 'https://api-m.paypal.com';
 const SANDBOX_BASE = 'https://api-m.sandbox.paypal.com';
 
 // Whether the direct PayPal gateway is wired up. Both id + secret required.
+// This is the RUNTIME guard (secrets exist at request time) — use it in API
+// endpoints / webhooks / the return handler.
 export function paypalConfigured(env: PaypalEnv): boolean {
   return !!(env.PAYPAL_CLIENT_ID && env.PAYPAL_CLIENT_SECRET);
+}
+
+// Whether to OFFER the "Pay with PayPal" button in the UI. Gated on a public
+// var (like STRIPE_ENABLE_PAYPAL) rather than the secrets, because the register
+// forms live on statically-prerendered pages: their frontmatter runs at BUILD
+// time, where Cloudflare secrets don't exist but wrangler `vars` do. So gating
+// the button on paypalConfigured() would bake it out of the static HTML even
+// when the secrets are set at runtime. The server still enforces
+// paypalConfigured() before charging, so a button shown without secrets just
+// returns a friendly "pay by card" error rather than a broken charge.
+export function paypalOffered(env: { PAYPAL_ENABLED?: string }): boolean {
+  return env?.PAYPAL_ENABLED === 'true';
 }
 
 export function paypalBase(env: PaypalEnv): string {
