@@ -1,0 +1,53 @@
+---
+// Browser Pixel Purchase for a course thank-you page. Mirrors the workshop
+// Purchase on /workshop/success: loads the base Pixel, then fires a single
+// Purchase only for a settled, paid order. The event id is the deterministic
+// `cpur-{id}` so it deduplicates against the server-side CAPI Purchase fired
+// from the fulfillment hook (src/lib/courses/paid-handler.ts). content_ids =
+// the product slug, which is the catalog content_id.
+import MetaPixel from './MetaPixel.astro';
+import { coursePurchaseEventId } from '../lib/courses/meta';
+import { catalogContentId } from '../lib/catalog/products';
+
+interface Props {
+  pixelId: string;
+  registrationId: number | null | undefined;
+  status: string | null | undefined;
+  amountCents: number | null | undefined;
+  currency: string | null | undefined;
+  productSlug: string | null | undefined;
+}
+
+const { pixelId, registrationId, status, amountCents, currency, productSlug } =
+  Astro.props;
+
+const purchase =
+  pixelId &&
+  registrationId &&
+  status === 'paid' &&
+  amountCents &&
+  amountCents > 0 &&
+  currency
+    ? {
+        value: Number((amountCents / 100).toFixed(2)),
+        currency: currency.toUpperCase(),
+        contentIds: productSlug ? [catalogContentId(productSlug)] : [],
+        eventId: coursePurchaseEventId(registrationId),
+      }
+    : null;
+---
+
+<MetaPixel pixelId={pixelId} />
+{pixelId && purchase && (
+  <script
+    is:inline
+    set:html={`window.fbq && window.fbq('track','Purchase',${JSON.stringify(
+      {
+        value: purchase.value,
+        currency: purchase.currency,
+        content_ids: purchase.contentIds,
+        content_type: 'product',
+      },
+    )},{eventID:${JSON.stringify(purchase.eventId)}});`}
+  />
+)}

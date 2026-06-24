@@ -1,5 +1,6 @@
 ---
 import SiteLayout from '../../../components/SiteLayout.astro';
+import CoursePurchasePixel from '../../../components/CoursePurchasePixel.astro';
 import '../../../styles/grief.css';
 
 export const prerender = false;
@@ -19,13 +20,16 @@ type Row = {
   first_name: string | null;
   email: string;
   status: string;
+  product_slug: string;
+  amount_cents: number;
+  currency: string;
 };
 
 let reg: Row | null = null;
 if (lookup) {
   reg = await env.DB
     .prepare(
-      `SELECT id, first_name, email, status
+      `SELECT id, first_name, email, status, product_slug, amount_cents, currency
          FROM course_registrations
         WHERE ${lookup[0]} = ?`,
     )
@@ -35,6 +39,7 @@ if (lookup) {
 
 const isPaid = reg?.status === 'paid';
 const firstName = reg?.first_name?.trim() || null;
+const pixelId = env.META_PIXEL_ID ?? '';
 ---
 
 <SiteLayout
@@ -42,6 +47,14 @@ const firstName = reg?.first_name?.trim() || null;
   description="Your place on the Grief Course is confirmed."
   newsletter={false}
 >
+  <CoursePurchasePixel
+    pixelId={pixelId}
+    registrationId={reg?.id}
+    status={reg?.status}
+    amountCents={reg?.amount_cents}
+    currency={reg?.currency}
+    productSlug={reg?.product_slug}
+  />
   <div class="gr">
     <section class="gr-section" style="min-height:62vh; display:flex; align-items:center;">
       <div class="gr-inner gr-narrow" style="text-align:center;">

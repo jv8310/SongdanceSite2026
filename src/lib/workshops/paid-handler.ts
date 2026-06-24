@@ -218,6 +218,15 @@ export async function runWorkshopPaidSideEffects(
     env.META_PIXEL_ID &&
     env.META_ACCESS_TOKEN
   ) {
+    // The masterclass is also a product-catalog item (id `masterclass`), so its
+    // Purchase carries content_ids to bind to the catalog — same as the course
+    // purchases. Other workshops aren't in the catalog, so they send none.
+    // Detect it the same way /api/workshops/register does: the main product's
+    // slug contains "masterclass".
+    const ticketProduct = workshop.main_product_id
+      ? await getProductById(env.DB, workshop.main_product_id)
+      : null;
+    const isMasterclass = (ticketProduct?.slug ?? '').includes('masterclass');
     try {
       await sendPurchaseEvent(
         { pixelId: env.META_PIXEL_ID, accessToken: env.META_ACCESS_TOKEN },
@@ -227,6 +236,7 @@ export async function runWorkshopPaidSideEffects(
           value: args.valueMajor,
           currency: args.currency,
           orderId: `wreg-${reg.id}`,
+          contentIds: isMasterclass ? ['masterclass'] : undefined,
           clientIp: args.clientIp ?? null,
           clientUserAgent: args.clientUserAgent ?? null,
           eventSourceUrl:

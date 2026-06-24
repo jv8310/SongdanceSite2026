@@ -404,6 +404,17 @@ const countries = COUNTRIES;
           restore();
           return;
         }
+        // Meta Pixel: catalog product going to checkout (off to Stripe/PayPal).
+        const fbq = (window as any).fbq;
+        if (fbq) {
+          try {
+            fbq('track', 'AddToCart', {
+              content_ids: ['grief-course'],
+              content_type: 'product',
+              currency,
+            });
+          } catch (e) {}
+        }
         window.location.href = body.checkout_url;
       } catch {
         fail('We could not reach the server. Please try again.');

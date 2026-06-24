@@ -3,6 +3,7 @@ import '../../../styles/svh-twelve-week.css';
 import Layout from '../../../layouts/Layout.astro';
 import TWNav from '../../../components/svh-twelve-week/TWNav.astro';
 import TWFooter from '../../../components/svh-twelve-week/TWFooter.astro';
+import CoursePurchasePixel from '../../../components/CoursePurchasePixel.astro';
 
 export const prerender = false;
 
@@ -27,13 +28,16 @@ type Row = {
   email: string;
   status: string;
   payment_plan: string;
+  product_slug: string;
+  amount_cents: number;
+  currency: string;
 };
 
 let reg: Row | null = null;
 if (lookup) {
   reg = await env.DB
     .prepare(
-      `SELECT id, first_name, email, status, payment_plan
+      `SELECT id, first_name, email, status, payment_plan, product_slug, amount_cents, currency
          FROM course_registrations
         WHERE ${lookup[0]} = ?`,
     )
@@ -44,12 +48,21 @@ if (lookup) {
 const isPaid = reg?.status === 'paid';
 const firstName = reg?.first_name?.trim() || null;
 const is3x = reg?.payment_plan === '3x';
+const pixelId = env.META_PIXEL_ID ?? '';
 ---
 
 <Layout
   title="Thank you — The 12-Week Somatic Vocal Healing Course | Songdance"
   description="Your place on the 12-Week Somatic Vocal Healing Course is confirmed."
 >
+  <CoursePurchasePixel
+    pixelId={pixelId}
+    registrationId={reg?.id}
+    status={reg?.status}
+    amountCents={reg?.amount_cents}
+    currency={reg?.currency}
+    productSlug={reg?.product_slug}
+  />
   <div class="tw-site">
     <TWNav />
     <main class="tw-phil tw-section" style="min-height:70vh; display:flex; align-items:center;">

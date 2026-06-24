@@ -1340,6 +1340,19 @@ const countries = COUNTRIES;
         restore();
         return;
       }
+      // Meta Pixel: the catalog product is going to checkout (off to Stripe/
+      // PayPal next). content_ids = the chosen slug, matching the feed/Pixel.
+      const fbq = (window as any).fbq;
+      if (fbq) {
+        try {
+          // The bundle ("path") is the certification course in the catalog.
+          fbq('track', 'AddToCart', {
+            content_ids: ['cc-cert'],
+            content_type: 'product',
+            currency: decision.currency ?? 'EUR',
+          });
+        } catch (e) {}
+      }
       window.location.href = body.checkout_url;
     } catch {
       fail('We could not reach the server. Please try again.');

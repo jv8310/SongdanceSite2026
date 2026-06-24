@@ -79,7 +79,9 @@ const upcoming = reg
 // Only for a real, settled payment (free/coupon registrations have no payment
 // row, so nothing fires).
 const pixelId = env.META_PIXEL_ID ?? '';
-let purchase: { value: number; currency: string; eventId: string } | null = null;
+let purchase:
+  | { value: number; currency: string; eventId: string; contentIds: string[] }
+  | null = null;
 if (reg && paid && reg.payment_status === 'paid') {
   const pay = await getPaidPaymentForRegistration(env.DB, reg.id);
   if (pay && pay.amount_minor > 0) {
@@ -87,6 +89,10 @@ if (reg && paid && reg.payment_status === 'paid') {
       value: Number((pay.amount_minor / 100).toFixed(2)),
       currency: pay.currency.toUpperCase(),
       eventId: purchaseEventId(reg.id),
+      // The masterclass is a product-catalog item; bind its Purchase to the
+      // catalog so buyers are excluded from view-retargeting. Other workshops
+      // aren't in the catalog.
+      contentIds: currentIsMasterclass ? ['masterclass'] : [],
     };
   }
 }
@@ -95,7 +101,7 @@ if (reg && paid && reg.payment_status === 'paid') {
 <Layout title="You're registered — Songdance" description="">
   <MetaPixel pixelId={pixelId} />
   {pixelId && purchase && (
-    <script is:inline set:html={`window.fbq && window.fbq('track','Purchase',${JSON.stringify({ value: purchase.value, currency: purchase.currency })},{eventID:${JSON.stringify(purchase.eventId)}});`} />
+    <script is:inline set:html={`window.fbq && window.fbq('track','Purchase',${JSON.stringify({ value: purchase.value, currency: purchase.currency, ...(purchase.contentIds.length ? { content_ids: purchase.contentIds, content_type: 'product' } : {}) })},{eventID:${JSON.stringify(purchase.eventId)}});`} />
   )}
 
   <main class="ws">

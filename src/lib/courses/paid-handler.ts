@@ -23,12 +23,17 @@ import {
   TWELVE_WEEK_PRODUCT_SLUG,
 } from './twelve-week';
 import { isJourneySlug, journeyDrip } from './journeys';
+import { sendCoursePurchaseEvent } from './meta';
 
 type Env = {
   DB: D1Database;
   DRIP_API_TOKEN: string;
   DRIP_ACCOUNT_ID: string;
   DRIP_COURSE_EVENT?: string;
+  // Meta Conversions API (optional — Purchase only fires when both are set).
+  META_PIXEL_ID?: string;
+  META_ACCESS_TOKEN?: string;
+  PUBLIC_BASE_URL?: string;
 };
 
 export async function pushPaidCourseRegistrationToDrip(
@@ -140,5 +145,26 @@ export async function pushPaidCourseRegistrationToDrip(
         error: String(err),
       },
     });
+  }
+
+  // Meta CAPI Purchase — only for a real, paid order. Deduplicated against the
+  // browser Pixel Purchase on the thank-you page via the deterministic
+  // `cpur-{id}` event id, so the per-installment re-calls of this hook and the
+  // browser send all fold into one Meta event. Best-effort: never block
+  // fulfillment. (Free checkout calls this with amount 0 — guarded out.)
+  if (reg.amount_cents > 0 && env.META_PIXEL_ID && env.META_ACCESS_TOKEN) {
+    try {
+      await sendCoursePurchaseEvent(env, reg);
+    } catch (err) {
+      await logEvent(env.DB, {
+        registration_id: null,
+        kind: 'course.meta.error',
+        source: 'system',
+        payload: {
+          course_registration_id: courseRegistrationId,
+          error: String(err),
+        },
+      });
+    }
   }
 }

@@ -842,6 +842,21 @@ const includes = [
             restore();
             return;
           }
+          // Meta Pixel: catalog product going to checkout. The "path" offer is
+          // the bundle (cc-bundle); otherwise the standalone 12-week.
+          const fbq = (window as any).fbq;
+          if (fbq) {
+            try {
+              const isPath = selectedOffer === 'path' && status.path;
+              // The "path" offer is the bundle, which is the certification
+              // course in the catalog; otherwise the standalone 12-week.
+              fbq('track', 'AddToCart', {
+                content_ids: [isPath ? 'cc-cert' : 'svh-12week'],
+                content_type: 'product',
+                currency: isPath ? status.path!.currency : status.currency,
+              });
+            } catch (e) {}
+          }
           window.location.href = body.checkout_url;
         } catch {
           fail('We could not reach the server. Please try again.');

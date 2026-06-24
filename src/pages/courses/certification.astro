@@ -23,6 +23,13 @@ import CCAboutJacob from '../../components/certification-course/CCAboutJacob.ast
 import CCStillUnsure from '../../components/certification-course/CCStillUnsure.astro';
 import CCRegister from '../../components/certification-course/CCRegister.astro';
 import CCFooter from '../../components/certification-course/CCFooter.astro';
+import MetaProductView from '../../components/MetaProductView.astro';
+import { catalogItemById } from '../../lib/catalog/products';
+
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+const product = catalogItemById('cc-cert');
 ---
 
 <Layout
@@ -31,6 +38,12 @@ import CCFooter from '../../components/certification-course/CCFooter.astro';
   image="/media/library/svh-retreat-facilitator-jacob-seated.webp"
   imageAlt="Jacob holding space at a Somatic Vocal Healing retreat."
 >
+  <MetaProductView
+    pixelId={env.META_PIXEL_ID}
+    contentId={product.id}
+    contentName={product.title}
+    value={product.priceEur}
+  />
   <div class="cc-site">
     <PromoBanner />
     <CCNav />
