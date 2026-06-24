@@ -1002,18 +1002,28 @@ html, body { background: var(--paper); }
 }
 .jr-addon input[type="checkbox"] {
   appearance: none; -webkit-appearance: none;
+  position: relative;
   flex: 0 0 auto; width: 20px; height: 20px; margin: 0;
   border: 1.5px solid var(--ink-whisper); border-radius: 6px;
-  display: grid; place-items: center; cursor: pointer;
-  transition: border-color var(--d-base) var(--ease);
+  cursor: pointer;
+  transition: border-color var(--d-base) var(--ease), background var(--d-base) var(--ease);
 }
+.jr-addon input[type="checkbox"]:checked {
+  border-color: var(--jr-accent);
+  background: var(--jr-accent);
+}
+/* A real tick: a rotated L drawn from two borders, scaled in when checked. */
 .jr-addon input[type="checkbox"]::after {
-  content: ""; width: 11px; height: 11px; border-radius: 2px;
-  background: var(--jr-accent); transform: scale(0);
+  content: "";
+  position: absolute; left: 6px; top: 2px;
+  width: 5px; height: 10px;
+  border: solid var(--paper);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg) scale(0);
+  transform-origin: center;
   transition: transform var(--d-quick) var(--ease);
 }
-.jr-addon input[type="checkbox"]:checked { border-color: var(--jr-accent); }
-.jr-addon input[type="checkbox"]:checked::after { transform: scale(1); }
+.jr-addon input[type="checkbox"]:checked::after { transform: rotate(45deg) scale(1); }
 .jr-addon-thumb { flex: 0 0 auto; width: 48px; height: 48px; border-radius: var(--r-sm); overflow: hidden; }
 .jr-addon-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .jr-addon-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; }

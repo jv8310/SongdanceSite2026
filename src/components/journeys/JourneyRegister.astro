@@ -376,17 +376,20 @@ const THIS_LABEL: Record<Props['course'], string> = {
 
       const slug = selectedSlug();
       const sel = optionEls.find((e) => e.dataset.product === slug);
+      // Strip the "Save N%" badge text and the "for facilitators" tag out of a
+      // raw option title, and tidy whitespace.
+      const cleanTitle = (s: string) =>
+        s.replace(/\s*Save \d+%/g, '').replace(/\s*for facilitators/g, '').replace(/\s{2,}/g, ' ').trim();
       let title: string;
       if (sel) {
-        title = sel.querySelector<HTMLElement>('.jr-opt-title')!.textContent?.trim() ?? '';
+        title = cleanTitle(sel.querySelector<HTMLElement>('.jr-opt-title')!.textContent ?? '');
       } else {
         // bundle-pro has no option row of its own — it's the bundle + the add-on.
         const bundleOpt = optionEls.find((e) => e.dataset.product === 'journeys-bundle');
-        const base = bundleOpt?.querySelector<HTMLElement>('.jr-opt-title')!.textContent?.trim() ?? 'All three journeys';
+        const base = cleanTitle(bundleOpt?.querySelector<HTMLElement>('.jr-opt-title')!.textContent ?? 'All three journeys');
         title = `${base} + PRO mantra pack`;
       }
-      summaryLabelEl.textContent =
-        `${title.replace(/\s+Save \d+%$/, '').replace(/\s+for facilitators$/, '')} · one-time payment`;
+      summaryLabelEl.textContent = `${title} · one-time payment`;
       summaryEl.textContent = moneyCents(applyDiscountCents(productCents(slug, currency)), currency);
 
       if (currency === 'EUR') {
