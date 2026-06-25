@@ -174,9 +174,29 @@ export const POST: APIRoute = async ({ request, locals }) => {
     return json({ redirect_url: `${base}/workshop/success?t=${accessToken}` });
   }
 
-  // ── Paid path. ────────────────────────────────────────────────────────
   const base = env.PUBLIC_BASE_URL.replace(/\/$/, '');
   const totalMinor = ticketAmountMinor + (realBump ? bumpPrice!.amountMinor : 0);
+
+  // ── Free path: a fully-discounted ticket (100% off) with no paid bump. No
+  //    money changes hands, so skip Stripe/PayPal entirely — a €0 line item is
+  //    rejected by the gateways — and grant access immediately, the same as the
+  //    free-coupon path above (status 'coupon': access granted, nothing charged).
+  if (totalMinor === 0) {
+    await setRegistrationPaymentStatus(env.DB, registrationId, 'coupon');
+    await logEvent(env.DB, {
+      registration_id: null,
+      kind: 'workshop.free.granted',
+      external_id: `workshop-free-${registrationId}`,
+      payload: { workshop_id: workshop.id, registration_id: registrationId, discount_pct: discountPct || null },
+    });
+    const ctx: any = locals.runtime?.ctx;
+    const sideEffects = runWorkshopPaidSideEffects(env, { registrationId });
+    if (ctx?.waitUntil) ctx.waitUntil(sideEffects);
+    else await sideEffects.catch(() => {});
+    return json({ redirect_url: `${base}/workshop/success?t=${accessToken}` });
+  }
+
+  // ── Paid path. ────────────────────────────────────────────────────────
   const lineCurrency = ticketPrice.currency.toLowerCase();
 
   // ── PayPal branch (one-off ticket + optional bump). Item names feed the

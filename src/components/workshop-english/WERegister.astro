@@ -307,9 +307,11 @@ const leadTicket = items.find((it) => it.kind !== 'masterclass');
     var submitBtn = document.getElementById('we-submit');
     var paypalBtn = document.getElementById('we-paypal');
     // The page is static, so PayPal availability can't be known at build time —
-    // ask the server at runtime and reveal the button if the gateway is live.
+    // ask the server at runtime; recompute() then reveals the button when the
+    // gateway is live AND the order isn't free (a €0 order has nothing to pay).
+    var paypalAvailable = false;
     if (paypalBtn) {
-      fetch('/api/payments/availability').then(function (r) { return r.json(); }).then(function (d) { if (d && d.paypal) paypalBtn.hidden = false; }).catch(function () {});
+      fetch('/api/payments/availability').then(function (r) { return r.json(); }).then(function (d) { if (d && d.paypal) { paypalAvailable = true; if (current) recompute(); } }).catch(function () {});
     }
     var err = document.getElementById('we-err');
     var idField = document.getElementById('we-event-id');
@@ -567,7 +569,10 @@ const leadTicket = items.find((it) => it.kind !== 'masterclass');
       if (wantsBump && bumpLineAmount) bumpLineAmount.textContent = money(bumpMinor, cur);
 
       totalAmount.textContent = money(total, cur);
-      submitBtn.textContent = 'Register & pay ' + money(total, cur) + ' →';
+      // A free (fully-discounted) order is registered, not paid: drop "pay" from
+      // the button and hide PayPal — there's nothing to charge.
+      submitBtn.textContent = total === 0 ? 'Register for free →' : 'Register & pay ' + money(total, cur) + ' →';
+      if (paypalBtn) paypalBtn.hidden = !paypalAvailable || total === 0;
     }
 
     function selectItem(input) {
