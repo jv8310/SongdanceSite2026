@@ -67,6 +67,25 @@ export const MONTHLY: Record<TwelveWeekCurrency, number> = {
   DKK: 1700,
 };
 
+// 6-month installment plan for the 12-week line of the Certification path only
+// (the standalone 12-week course is sold full or 3×). The longer term carries a
+// slightly higher total than the 3-month plan — ≈0.54× the 3-month monthly, the
+// same step the certification ladder takes from its 3- to 6-month tier, landing
+// the 6-month total ~14–16% over pay-in-full. Edit these to reprice. ×6.
+export const INSTALLMENT_COUNT_6X = 6;
+export const MONTHLY_6X: Record<TwelveWeekCurrency, number> = {
+  EUR: 125,
+  USD: 125,
+  GBP: 105,
+  CAD: 180,
+  CHF: 120,
+  AUD: 210,
+  NZD: 230,
+  NOK: 1450,
+  SEK: 1400,
+  DKK: 925,
+};
+
 // Country (ISO-2) → the currency we price the course in. Reuses the workshop
 // resolver (which already falls back to EUR for everywhere we don't price).
 export function twelveWeekCurrencyForCountry(
@@ -81,6 +100,9 @@ export function priceCents(currency: TwelveWeekCurrency): number {
 }
 export function monthlyCents(currency: TwelveWeekCurrency): number {
   return MONTHLY[currency] * 100;
+}
+export function monthlyCents6x(currency: TwelveWeekCurrency): number {
+  return MONTHLY_6X[currency] * 100;
 }
 export function installmentTotalCents(currency: TwelveWeekCurrency): number {
   return monthlyCents(currency) * INSTALLMENT_COUNT;

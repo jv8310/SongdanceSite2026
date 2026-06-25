@@ -284,16 +284,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
         400,
       );
     }
-    // The Certification path (cc-bundle) is only offered in full or 3× — its
-    // 12-week portion has no 6/12-month ladder, so reject longer plans rather
-    // than mischarge against the old flat bundle ladder.
-    if (
-      productSlug === 'cc-bundle' &&
-      paymentPlan !== 'full' &&
-      paymentPlan !== '3x'
-    ) {
+    // The Certification path (cc-bundle) is offered in full, 3×, or 6× — both
+    // its lines carry a 3- and 6-month ladder, but no 12-month plan, so reject a
+    // 12× request rather than mischarge against the old flat bundle ladder.
+    if (productSlug === 'cc-bundle' && paymentPlan === '12x') {
       return json(
-        { error: 'The certification path is available in full or 3 monthly payments.' },
+        { error: 'The certification path is available in full, 3, or 6 monthly payments.' },
         400,
       );
     }
@@ -311,7 +307,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
       const eff = await deriveTwelveWeekDiscount(env.DB, email, discountPct);
       pathPricing = buildCertificationPathPricing(currency, eff);
       chargedPriceCents = pathPricing.total_cents;
-      chargedMonthlyCents = pathPricing.total_monthly_cents;
+      // 6× draws the longer-term monthly; 3× (and the unused full case) the
+      // standard one. installmentPlan below carries the matching count.
+      chargedMonthlyCents =
+        paymentPlan === '6x'
+          ? pathPricing.total_monthly_6x_cents
+          : pathPricing.total_monthly_cents;
     } else {
       chargedPriceCents = applyDiscount(offer.price_cents, discountPct);
       chargedMonthlyCents = installmentPlan
@@ -337,7 +338,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
         ? baseOffer.base_price * 100
         : offer.price_cents;
     const originalMonthlyCents = pathPricing
-      ? pathPricing.base_total_monthly_cents
+      ? paymentPlan === '6x'
+        ? pathPricing.base_total_monthly_6x_cents
+        : pathPricing.base_total_monthly_cents
       : certPromoApplied
         ? baseInstallmentPlan?.monthly_cents ?? 0
         : installmentPlan?.monthly_cents ?? 0;

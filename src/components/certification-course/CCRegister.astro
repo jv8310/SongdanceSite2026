@@ -254,6 +254,9 @@ const countries = COUNTRIES;
     base_total_cents: number;
     base_total_monthly_cents: number;
     installment_count: number;
+    total_monthly_6x_cents: number;
+    base_total_monthly_6x_cents: number;
+    installment_6x_count: number;
     discount: {
       eligible: boolean;
       percent: number;
@@ -976,28 +979,37 @@ const countries = COUNTRIES;
       allOptions.forEach((el) => planOptionsEl.appendChild(el));
     }
 
-    // Plan options for the path: full vs. 3x on the combined total. The 12-week
-    // portion is discounted; the certification portion is not. The struck base
-    // shows whenever the workshop discount is live.
+    // Plan options for the path: full vs. 3x vs. 6x on the combined total. The
+    // 12-week portion is discounted; the certification portion is not. The
+    // struck base shows whenever the workshop discount is live.
     function renderPathPlanOptions(p: PathPricing) {
       planPicker.style.display = '';
       const cur = p.currency;
-      const totalMonthly = p.total_monthly_cents * p.installment_count;
       const full = renderPlanOption({
         value: 'full',
         title: 'Pay in full',
         subtitle: 'One payment — both courses secured today.',
         amountHtml: strikeCents(p.base_total_cents, p.total_cents, cur),
       });
-      const inst = renderPlanOption({
-        value: '3x',
-        title: `Pay in ${p.installment_count} monthly installments`,
-        subtitle: `${moneyCents(p.total_monthly_cents, cur)}/mo for ${p.installment_count} months (${moneyCents(totalMonthly, cur)} total). Full access from the first payment.`,
-        amountHtml: p.discount.eligible
-          ? `<span class="cc-amount-strike">${escapeHtml(moneyCents(p.base_total_monthly_cents, cur))}/mo</span>${escapeHtml(moneyCents(p.total_monthly_cents, cur))}/mo`
-          : `${escapeHtml(moneyCents(p.total_monthly_cents, cur))}/mo`,
-      });
-      [full, inst].forEach((el) => {
+      // One installment row per available tier (3 monthly, then 6 monthly).
+      const instRow = (
+        value: PaymentPlan,
+        count: number,
+        monthlyCents: number,
+        baseMonthlyCents: number,
+      ) =>
+        renderPlanOption({
+          value,
+          title: `Pay in ${count} monthly installments`,
+          subtitle: `${moneyCents(monthlyCents, cur)}/mo for ${count} months (${moneyCents(monthlyCents * count, cur)} total). Full access from the first payment.`,
+          amountHtml: p.discount.eligible
+            ? `<span class="cc-amount-strike">${escapeHtml(moneyCents(baseMonthlyCents, cur))}/mo</span>${escapeHtml(moneyCents(monthlyCents, cur))}/mo`
+            : `${escapeHtml(moneyCents(monthlyCents, cur))}/mo`,
+        });
+      const inst3 = instRow('3x', p.installment_count, p.total_monthly_cents, p.base_total_monthly_cents);
+      const inst6 = instRow('6x', p.installment_6x_count, p.total_monthly_6x_cents, p.base_total_monthly_6x_cents);
+      const all = [full, inst3, inst6];
+      all.forEach((el) => {
         el.addEventListener('click', () => {
           selectedPlan = el.dataset.planValue as PaymentPlan;
           planOptionsEl
@@ -1013,8 +1025,7 @@ const countries = COUNTRIES;
       });
       full.classList.add('cc-plan-option--selected');
       selectedPlan = 'full';
-      planOptionsEl.appendChild(full);
-      planOptionsEl.appendChild(inst);
+      all.forEach((el) => planOptionsEl.appendChild(el));
     }
 
     // Summary line above the CTA: keeps the price visible right where the
@@ -1026,11 +1037,14 @@ const countries = COUNTRIES;
         const p = decision.path;
         const cur = p.currency;
         const off = p.discount.eligible ? ` (12-week ${p.discount.percent}% off)` : '';
-        if (selectedPlan === '3x') {
-          summaryLabel.textContent = `Certification path — ${p.installment_count} monthly payments${off}`;
+        if (selectedPlan === '3x' || selectedPlan === '6x') {
+          const count = selectedPlan === '6x' ? p.installment_6x_count : p.installment_count;
+          const monthly = selectedPlan === '6x' ? p.total_monthly_6x_cents : p.total_monthly_cents;
+          const baseMonthly = selectedPlan === '6x' ? p.base_total_monthly_6x_cents : p.base_total_monthly_cents;
+          summaryLabel.textContent = `Certification path — ${count} monthly payments${off}`;
           summaryAmount.innerHTML = p.discount.eligible
-            ? `<span class="cc-amount-strike">${escapeHtml(moneyCents(p.base_total_monthly_cents, cur))}/mo</span>${escapeHtml(moneyCents(p.total_monthly_cents, cur))}/mo`
-            : `${escapeHtml(moneyCents(p.total_monthly_cents, cur))}/mo`;
+            ? `<span class="cc-amount-strike">${escapeHtml(moneyCents(baseMonthly, cur))}/mo</span>${escapeHtml(moneyCents(monthly, cur))}/mo`
+            : `${escapeHtml(moneyCents(monthly, cur))}/mo`;
         } else {
           summaryLabel.textContent = `Certification path — one-time payment${off}`;
           summaryAmount.innerHTML = strikeCents(p.base_total_cents, p.total_cents, cur);
