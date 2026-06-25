@@ -16,6 +16,8 @@
 // claim so a later retry can still get through.
 
 import type { CourseRegistration } from '../courses/db';
+import { parsePurchasedBumps } from '../courses/db';
+import { BUMPS, isBumpSlug, type BumpSlug } from '../courses/bumps';
 import { LANGUAGE_CHOICE_LABEL } from '../courses/journeys';
 import type { Registration } from '../registrations/db';
 import { logEvent } from '../registrations/db';
@@ -67,6 +69,9 @@ export type OrderNotificationInput = {
   vatNumber?: string | null;
   amountCents: number;
   currency: string;
+  // One-time order bumps bought alongside a course (label + amount). Rendered as
+  // an "Add-ons" row plus an "Order total" (amountCents + bumps). Omit for none.
+  bumps?: Array<{ label: string; amountCents: number }>;
   paymentPlan?: string | null;
   installmentsTotal?: number | null;
   activateChoice?: string | null;
@@ -163,12 +168,27 @@ export function buildOrderNotificationEmail(
     ? PAYMENT_PLAN_LABELS[input.paymentPlan] ?? input.paymentPlan
     : null;
 
+  // One-time add-ons (order bumps): an itemised "Add-ons" row + an "Order total"
+  // (course + bumps). Both drop out when there are no bumps.
+  const bumps = input.bumps ?? [];
+  const bumpsTotal = bumps.reduce((s, b) => s + b.amountCents, 0);
+  const addonsValue = bumps.length
+    ? bumps
+        .map((b) => `${b.label} (${formatMoney(b.amountCents, input.currency)})`)
+        .join(', ')
+    : null;
+  const orderTotal = bumps.length
+    ? formatMoney(input.amountCents + bumpsTotal, input.currency)
+    : null;
+
   // Build the field list. Each entry is [label, value]; null/empty values are
   // dropped so the email only shows what's actually there.
   const fields: Array<[string, string | null | undefined]> = [
     ['Order', `#${input.orderId} · ${input.orderType === 'course' ? 'Course' : 'Retreat'}`],
     ['Product', input.tierName ? `${input.productName} — ${input.tierName}` : input.productName],
     ['Amount', planLabel ? `${amount} (${planLabel})` : amount],
+    ['Add-ons', addonsValue],
+    ['Order total', orderTotal],
     ['Gateway', input.provider === 'paypal' ? 'PayPal' : 'Stripe'],
     ['Name', input.customerName],
     ['Email', input.email],
@@ -341,6 +361,12 @@ export async function notifyCourseOrder(
   const fullName =
     [reg.first_name, reg.last_name].filter(Boolean).join(' ').trim() ||
     reg.email.split('@')[0];
+  const bumps = parsePurchasedBumps(reg.bumps)
+    .filter((b) => isBumpSlug(b.slug))
+    .map((b) => ({
+      label: BUMPS[b.slug as BumpSlug].label,
+      amountCents: b.amount_cents,
+    }));
   await sendOrderNotification(env, {
     orderType: 'course',
     orderId: reg.id,
@@ -355,6 +381,7 @@ export async function notifyCourseOrder(
     vatNumber: reg.vat_number,
     amountCents: reg.amount_cents,
     currency: reg.currency,
+    bumps: bumps.length ? bumps : undefined,
     paymentPlan: reg.payment_plan,
     installmentsTotal: reg.installments_total,
     activateChoice: reg.activate_choice,

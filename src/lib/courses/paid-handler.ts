@@ -13,7 +13,7 @@
 //     `prod_SVH_9m_status` is set to "12w ongoing, not activated". A Drip
 //     workflow can then gate cert content until the 12w finishes.
 
-import { getCourseRegistrationById } from './db';
+import { getCourseRegistrationById, parsePurchasedBumps } from './db';
 import { logEvent } from '../registrations/db';
 import { recordEvent, upsertSubscriber } from '../registrations/drip';
 import { GRIEF_DRIP_EVENT, GRIEF_DRIP_TAG, GRIEF_PRODUCT_SLUG } from './grief';
@@ -23,6 +23,7 @@ import {
   TWELVE_WEEK_PRODUCT_SLUG,
 } from './twelve-week';
 import { isJourneySlug, journeyDrip } from './journeys';
+import { BUMPS, isBumpSlug } from './bumps';
 import { sendCoursePurchaseEvent } from './meta';
 
 type Env = {
@@ -51,6 +52,9 @@ export async function pushPaidCourseRegistrationToDrip(
 
     const isGrief = reg.product_slug === GRIEF_PRODUCT_SLUG;
     const isTwelveWeek = reg.product_slug === TWELVE_WEEK_PRODUCT_SLUG;
+    // Order bumps recorded at checkout (12-week only) — granted below alongside
+    // the course's own tags + event.
+    const purchasedBumps = parsePurchasedBumps(reg.bumps);
 
     const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 
@@ -91,6 +95,11 @@ export async function pushPaidCourseRegistrationToDrip(
       // set it here.
       tags = [TWELVE_WEEK_DRIP_TAG];
       eventName = TWELVE_WEEK_DRIP_EVENT;
+      // Each purchased order bump's product tag, so this single upsert grants
+      // the 12-week course + every add-on at once (prod_ASJ / prod_Grief-sp).
+      for (const b of purchasedBumps) {
+        if (isBumpSlug(b.slug)) tags.push(BUMPS[b.slug].dripTag);
+      }
     } else {
       tags = ['prod_SVH_9m'];
       if (reg.product_slug === 'cc-bundle') tags.push('prod_SVH_12w');
@@ -135,6 +144,36 @@ export async function pushPaidCourseRegistrationToDrip(
         phone: reg.phone ?? '',
       },
     );
+
+    // Order bumps: fire each add-on's own completion event so the standalone
+    // enrolment automation grants it exactly as a direct purchase would (the
+    // product tag was already applied in the upsert above). Per-bump guarded so
+    // one hiccup never blocks the others or course access itself.
+    for (const b of purchasedBumps) {
+      if (!isBumpSlug(b.slug)) continue;
+      try {
+        await recordEvent(dripCfg, reg.email, BUMPS[b.slug].dripEvent, {
+          course_registration_id: reg.id,
+          product_slug: b.slug,
+          bump: 'yes',
+          amount: (b.amount_cents / 100).toFixed(2),
+          currency: reg.currency,
+          first_name: reg.first_name ?? '',
+          last_name: reg.last_name ?? '',
+        });
+      } catch (err) {
+        await logEvent(env.DB, {
+          registration_id: null,
+          kind: 'drip.course.bump.error',
+          source: 'system',
+          payload: {
+            course_registration_id: reg.id,
+            bump: b.slug,
+            error: String(err),
+          },
+        });
+      }
+    }
   } catch (err) {
     await logEvent(env.DB, {
       registration_id: null,

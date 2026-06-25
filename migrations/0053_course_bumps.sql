@@ -1,0 +1,17 @@
+-- Order bumps on the 12-Week SVH course checkout. Two optional one-time add-ons
+-- — the Authentic Singing Journey (€19, exactly the workshop bump) and the Grief
+-- Course (€49, half the standalone) — each offered only when the buyer doesn't
+-- already own it, decided from their Drip tags at "see your price" time (see
+-- src/lib/courses/bumps.ts).
+--
+-- The chosen bumps are recorded here as a JSON array of {slug, amount_cents}
+-- (e.g. [{"slug":"asj","amount_cents":1900},{"slug":"grief","amount_cents":4900}]).
+-- On payment the course paid-handler grants each one in Drip — its product tag
+-- plus its completion event — so the buyer is enrolled exactly like a standalone
+-- purchase. NULL / absent means no add-ons.
+--
+-- The course's own amount_cents stays the course price only, so the installment
+-- forecast's per-cycle math (amount_cents / installments_total) is unaffected:
+-- the bump is charged as a separate line item (pay in full) or added to the
+-- first installment invoice (3×), never folded into the recurring amount.
+ALTER TABLE course_registrations ADD COLUMN bumps TEXT;

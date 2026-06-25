@@ -387,6 +387,10 @@ export type CreateSubscriptionCheckoutInput = {
   installment_count: number; // typically 3
   metadata: Record<string, string>;
   idempotency_key?: string;
+  // One-off line items (e.g. order bumps) billed on the FIRST invoice only.
+  // Stripe Checkout in subscription mode accepts a mix of recurring + one-time
+  // prices; a price_data without `recurring` is one-time and lands on invoice 1.
+  one_time_line_items?: StripeLineItem[];
 };
 
 export async function createSubscriptionCheckoutSession(
@@ -445,6 +449,31 @@ export async function createSubscriptionCheckoutSession(
     );
   }
   form.set('line_items[0][quantity]', '1');
+
+  // One-off add-ons (order bumps): additional line_items WITHOUT `recurring`,
+  // so Stripe treats them as one-time and bills them on the first invoice
+  // alongside the opening installment. Indexed from 1 (the subscription is 0).
+  (input.one_time_line_items ?? []).forEach((li, idx) => {
+    const i = idx + 1;
+    form.set(`line_items[${i}][price_data][currency]`, li.currency);
+    form.set(`line_items[${i}][price_data][unit_amount]`, String(li.amount_cents));
+    form.set(`line_items[${i}][price_data][product_data][name]`, li.name);
+    if (li.description) {
+      form.set(
+        `line_items[${i}][price_data][product_data][description]`,
+        li.description,
+      );
+    }
+    if (li.product_metadata) {
+      Object.entries(li.product_metadata).forEach(([k, v]) =>
+        form.set(
+          `line_items[${i}][price_data][product_data][metadata][${k}]`,
+          v,
+        ),
+      );
+    }
+    form.set(`line_items[${i}][quantity]`, String(li.quantity));
+  });
 
   // Metadata lands on the Subscription itself (and is copied through to
   // each generated Invoice / PaymentIntent), which the webhook uses to

@@ -34,6 +34,8 @@ import {
 import type { Currency } from '../../../lib/courses/variant';
 import { buildCertificationPathPricing } from '../../../lib/courses/path';
 import type { EffectiveDiscount } from '../../../lib/courses/twelve-week';
+import { getSubscriber } from '../../../lib/registrations/drip';
+import { eligibleBumpOffers } from '../../../lib/courses/bumps';
 
 export const prerender = false;
 
@@ -68,6 +70,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const overridePercent = parseUrlDiscountPercent(payload.discount_percent);
 
   try {
+    // Best-effort, kicked off concurrently with the DB lookups: read the
+    // buyer's Drip tags so we only offer order bumps for products they don't
+    // already own. `null` (Drip unreachable OR unknown email) → offer all.
+    const subPromise = getSubscriber(
+      { apiToken: env.DRIP_API_TOKEN, accountId: env.DRIP_ACCOUNT_ID },
+      email,
+    ).catch(() => null);
+
     const links = await listSecuredWorkshopLinksByEmail(env.DB, email);
     const replayAnchors = await listReplayViewAnchorsByEmail(env.DB, email);
     // The 48h window restarts on the later of: workshop end, or replay view.
@@ -106,6 +116,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const [firstName, ...rest] = fullName ? fullName.split(/\s+/) : [];
     const lastName = rest.join(' ');
 
+    // Order bumps the buyer doesn't already own, priced in their currency.
+    const sub = await subPromise;
+    const bumps = eligibleBumpOffers(currency, sub ? sub.tags : null);
+
     return json({
       email,
       currency,
@@ -122,6 +136,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         monthly_cents: applyPercentCents(baseMonthly, eff.percent),
       },
       is_pro: isPro,
+      bumps,
       path,
       first_name: firstName || undefined,
       last_name: lastName || undefined,
@@ -156,6 +171,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
         monthly_cents: applyPercentCents(baseMonthly, overridePercent),
       },
       is_pro: isPro,
+      // Drip wasn't consulted on the degraded path → offer all bumps (fail open).
+      bumps: eligibleBumpOffers(currency, null),
       path: isPro
         ? buildCertificationPathPricing(certCurrencyFor(currency), degradedEff)
         : undefined,

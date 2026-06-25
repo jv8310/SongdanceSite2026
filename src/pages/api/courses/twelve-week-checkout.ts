@@ -58,6 +58,7 @@ import {
   isFreeCourseCheckout,
 } from '../../../lib/courses/discount';
 import { fulfilFreeCourseRegistration } from '../../../lib/courses/free-checkout';
+import { bumpOffer, isBumpSlug, BUMPS, type BumpSlug } from '../../../lib/courses/bumps';
 
 export const prerender = false;
 
@@ -77,6 +78,9 @@ type Body = {
   discount_percent?: number | string;
   adiscount_percent?: number | string;
   provider?: string; // 'stripe' (default) | 'paypal'
+  // Order-bump slugs the buyer ticked ('asj' | 'grief'). Validated + priced
+  // server-side; never discounted.
+  bumps?: string[];
 };
 
 export const POST: APIRoute = async ({ request, locals }) => {
@@ -216,6 +220,30 @@ export const POST: APIRoute = async ({ request, locals }) => {
           : `workshop-${discount.kind}`
       : 'direct';
 
+    // ── Order bumps (one-time add-ons) ─────────────────────────────────────
+    // Validate the ticked slugs, price them server-side (never discounted), and
+    // record them on the row so the paid-handler can grant each in Drip. They
+    // ride the charge — a separate line item (pay in full) or the first
+    // installment invoice (3×); amount_cents stays the course price only.
+    const selectedBumps: BumpSlug[] = Array.isArray(payload.bumps)
+      ? Array.from(new Set(payload.bumps.filter(isBumpSlug)))
+      : [];
+    const bumpOffers = selectedBumps.map((slug) => bumpOffer(slug, currency));
+    const bumpTotalCents = bumpOffers.reduce((sum, b) => sum + b.price_cents, 0);
+    const bumpRows = bumpOffers.map((b) => ({ slug: b.slug, amount_cents: b.price_cents }));
+    const stripeBumpLineItems = bumpOffers.map((b) => ({
+      name: BUMPS[b.slug].label,
+      amount_cents: b.price_cents,
+      currency: currency.toLowerCase(),
+      quantity: 1,
+      product_metadata: { tax_class: 'eservice', product_slug: BUMPS[b.slug].catalogSlug },
+    }));
+    const paypalBumpItems = bumpOffers.map((b) => ({
+      name: BUMPS[b.slug].label,
+      amountMinor: b.price_cents,
+      category: 'DIGITAL_GOODS' as const,
+    }));
+
     const registrationId = await createPendingCourseRegistration(env.DB, {
       email,
       first_name: firstName,
@@ -228,6 +256,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       product_slug: TWELVE_WEEK_PRODUCT_SLUG,
       activate_choice: null,
       source_variant: sourceVariant,
+      bumps: bumpRows.length ? bumpRows : null,
       amount_cents: totalAmountCents,
       currency,
       consent_terms: payload.consent_terms === true,
@@ -247,11 +276,17 @@ export const POST: APIRoute = async ({ request, locals }) => {
         const sub = await createPaypalSubscription({
           env,
           productName: LABEL,
-          productDescription: `${INSTALLMENT_COUNT} monthly installments of ${formatMoney(chargedMonthly, currency)}`,
+          productDescription: `${INSTALLMENT_COUNT} monthly installments of ${formatMoney(chargedMonthly, currency)}${
+            bumpOffers.length
+              ? ` + one-time add-ons (${formatMoney(bumpTotalCents, currency)})`
+              : ''
+          }`,
           planName: `${LABEL} — ${INSTALLMENT_COUNT}-month plan`,
           monthlyAmountMinor: chargedMonthly,
           currency,
           installmentCount: INSTALLMENT_COUNT,
+          // Order bumps ride the first charge as the plan setup fee.
+          setupFeeMinor: bumpTotalCents || undefined,
           customId: encodeCustomId('course', registrationId),
           returnUrl,
           cancelUrl,
@@ -286,6 +321,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
             amountMinor: chargedFull,
             category: 'DIGITAL_GOODS',
           },
+          ...paypalBumpItems,
         ],
         customId: encodeCustomId('course', registrationId),
         description: LABEL,
@@ -371,6 +407,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       phone: phoneE164,
       currency,
       tax_class: 'eservice',
+      ...(selectedBumps.length ? { bumps: selectedBumps.join(',') } : {}),
       ...(companyName ? { company_name: companyName } : {}),
       ...(vatNumber ? { vat_number: vatNumber } : {}),
       ...(eligible
@@ -405,6 +442,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
         monthly_amount_cents: chargedMonthly,
         currency: currency.toLowerCase(),
         installment_count: INSTALLMENT_COUNT,
+        // Order bumps ride the first invoice as one-time line items.
+        one_time_line_items: stripeBumpLineItems,
         metadata,
         idempotency_key: `tw-reg-${registrationId}-3x`,
       });
@@ -453,6 +492,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
           quantity: 1,
           product_metadata: productMetadata,
         },
+        ...stripeBumpLineItems,
       ],
       metadata,
       idempotency_key: `tw-reg-${registrationId}`,

@@ -357,6 +357,10 @@ export type CreateSubscriptionInput = {
   brandName?: string;
   subscriber?: PaypalPayer;
   requestId?: string;
+  // One-off charge taken at subscription start (PayPal's plan setup_fee) — the
+  // PayPal equivalent of a Stripe one-time line item on the first invoice. Used
+  // for order bumps bought alongside an installment plan. Omit / 0 for none.
+  setupFeeMinor?: number;
 };
 
 // Create product → plan → subscription, returning the subscription id + the
@@ -406,6 +410,17 @@ export async function createSubscription(
       ],
       payment_preferences: {
         auto_bill_outstanding: true,
+        // A non-zero setup_fee is charged once when the subscription is
+        // activated (the order bump). CONTINUE means a setup-fee hiccup never
+        // blocks the plan itself.
+        ...(input.setupFeeMinor && input.setupFeeMinor > 0
+          ? {
+              setup_fee: {
+                value: minorToPaypalAmount(input.setupFeeMinor),
+                currency_code: currency,
+              },
+            }
+          : {}),
         setup_fee_failure_action: 'CONTINUE',
         payment_failure_threshold: 2,
       },
