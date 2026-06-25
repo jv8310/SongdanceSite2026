@@ -84,6 +84,83 @@ const statusLabel: Record<string, string> = {
       <div class="adm-flash adm-flash--warn">{b.paused_reason}</div>
     )}
 
+    <section class="adm-section">
+      <h2>Send</h2>
+      {isDraft ? (
+        <div class="bc-launch">
+          <p>
+            This will queue <strong>{audience.toLocaleString()}</strong> contacts
+            ({hasAudienceFilter ? 'matching your audience filter' : 'the whole list'}, minus
+            unsubscribes). They'll be sent over the coming days, only inside each
+            recipient's local {b.window_start_hour}:00–{b.window_end_hour}:00, and
+            the send auto-pauses if bounces or spam complaints spike.
+          </p>
+          <button id="bc-launch" class="adm-btn" type="button" data-id={b.id}>Launch broadcast →</button>
+          <span id="bc-launch-msg" class="bc-msg"></span>
+        </div>
+      ) : (
+        <div>
+          <div class="bc-stats">
+            <div class="bc-stat"><span class="n">{counts.sent.toLocaleString()}</span><span class="l">sent</span></div>
+            <div class="bc-stat"><span class="n">{counts.pending.toLocaleString()}</span><span class="l">queued</span></div>
+            <div class="bc-stat"><span class="n">{counts.suppressed.toLocaleString()}</span><span class="l">skipped</span></div>
+            <div class="bc-stat"><span class="n">{counts.failed.toLocaleString()}</span><span class="l">failed</span></div>
+            <div class="bc-stat"><span class="n">{counts.total.toLocaleString()}</span><span class="l">total audience</span></div>
+          </div>
+          <div class="bc-stats bc-stats--eng">
+            <div class="bc-stat"><span class="n">{stats.delivered.toLocaleString()}</span><span class="l">delivered</span></div>
+            <div class="bc-stat"><span class="n">{pct(stats.openRate)}</span><span class="l">open rate ({stats.opened})</span></div>
+            <div class="bc-stat"><span class="n">{pct(stats.clickRate)}</span><span class="l">click rate ({stats.clicked})</span></div>
+            <div class="bc-stat"><span class="n">{stats.bounced.toLocaleString()}</span><span class="l">bounced ({stats.hardBounced.toLocaleString()} hard)</span></div>
+            <div class="bc-stat"><span class="n">{stats.complained.toLocaleString()}</span><span class="l">spam</span></div>
+          </div>
+          <p class="bc-note">
+            Open/click data flows in from the Resend webhook; it also appears on
+            <a href="/admin/emails/stats">email stats</a> under “Broadcasts”.
+          </p>
+
+          {(clean.deadDomain > 0 || clean.byTag > 0 || lastCleaned) && (
+            <p class="bc-note bc-cleanstatus">
+              <strong>Queue cleaned{lastCleaned ? ` · last run ${lastCleaned}` : ''}:</strong>
+              {' '}{clean.deadDomain.toLocaleString()} removed at dead domains ·
+              {' '}{clean.byTag.toLocaleString()} removed by tag
+              {' '}(part of the {counts.suppressed.toLocaleString()} skipped above).
+            </p>
+          )}
+
+          {counts.pending > 0 && (
+            <div class="bc-clean">
+              <strong>List health</strong>
+              <p>
+                Dead domains (no mail server / typo domains) are cleaned at the
+                list level now — run <a href="/admin/contacts">Clean dead domains on Contacts</a>
+                {' '}once and they're suppressed for this and every future broadcast.
+                For dead mailboxes at live providers (e.g. closed Gmail accounts),
+                <a href={`/api/admin/broadcasts/export?id=${b.id}`}>export the remaining list</a>
+                and run it through a validator, then re-import the verified-good addresses.
+              </p>
+
+              <div class="bc-clean-tags">
+                <label for="bc-extags">Remove queued contacts carrying tags <em>(comma-separated — e.g. a Drip “undeliverable” / “bounced” tag)</em></label>
+                <div class="bc-clean-tagrow">
+                  <input id="bc-extags" type="text" value={b.audience_exclude_tags ?? ''} placeholder="bounced, undeliverable" />
+                  <button id="bc-extags-btn" class="adm-btn adm-btn--ghost" type="button" data-id={b.id}>Remove from queue</button>
+                </div>
+                <span id="bc-extags-msg" class="bc-msg"></span>
+              </div>
+            </div>
+          )}
+
+          <div class="bc-actions">
+            {b.status === 'sending' && <button class="adm-btn adm-btn--ghost bc-ctl" type="button" data-id={b.id} data-action="pause">Pause</button>}
+            {b.status === 'paused' && <button class="adm-btn bc-ctl" type="button" data-id={b.id} data-action="resume">Resume</button>}
+            {b.status === 'paused' && <button class="adm-btn adm-btn--ghost bc-ctl" type="button" data-id={b.id} data-action="launch">Top up &amp; resume</button>}
+            <span id="bc-ctl-msg" class="bc-msg"></span>
+          </div>
+        </div>
+      )}
+    </section>
+
     <div class="bc-grid">
       <section class="adm-section">
         <h2>{isDraft ? 'Compose' : 'Email'}</h2>
@@ -172,83 +249,6 @@ const statusLabel: Record<string, string> = {
         </div>
       </section>
     </div>
-
-    <section class="adm-section">
-      <h2>Send</h2>
-      {isDraft ? (
-        <div class="bc-launch">
-          <p>
-            This will queue <strong>{audience.toLocaleString()}</strong> contacts
-            ({hasAudienceFilter ? 'matching your audience filter' : 'the whole list'}, minus
-            unsubscribes). They'll be sent over the coming days, only inside each
-            recipient's local {b.window_start_hour}:00–{b.window_end_hour}:00, and
-            the send auto-pauses if bounces or spam complaints spike.
-          </p>
-          <button id="bc-launch" class="adm-btn" type="button" data-id={b.id}>Launch broadcast →</button>
-          <span id="bc-launch-msg" class="bc-msg"></span>
-        </div>
-      ) : (
-        <div>
-          <div class="bc-stats">
-            <div class="bc-stat"><span class="n">{counts.sent.toLocaleString()}</span><span class="l">sent</span></div>
-            <div class="bc-stat"><span class="n">{counts.pending.toLocaleString()}</span><span class="l">queued</span></div>
-            <div class="bc-stat"><span class="n">{counts.suppressed.toLocaleString()}</span><span class="l">skipped</span></div>
-            <div class="bc-stat"><span class="n">{counts.failed.toLocaleString()}</span><span class="l">failed</span></div>
-            <div class="bc-stat"><span class="n">{counts.total.toLocaleString()}</span><span class="l">total audience</span></div>
-          </div>
-          <div class="bc-stats bc-stats--eng">
-            <div class="bc-stat"><span class="n">{stats.delivered.toLocaleString()}</span><span class="l">delivered</span></div>
-            <div class="bc-stat"><span class="n">{pct(stats.openRate)}</span><span class="l">open rate ({stats.opened})</span></div>
-            <div class="bc-stat"><span class="n">{pct(stats.clickRate)}</span><span class="l">click rate ({stats.clicked})</span></div>
-            <div class="bc-stat"><span class="n">{stats.bounced.toLocaleString()}</span><span class="l">bounced ({stats.hardBounced.toLocaleString()} hard)</span></div>
-            <div class="bc-stat"><span class="n">{stats.complained.toLocaleString()}</span><span class="l">spam</span></div>
-          </div>
-          <p class="bc-note">
-            Open/click data flows in from the Resend webhook; it also appears on
-            <a href="/admin/emails/stats">email stats</a> under “Broadcasts”.
-          </p>
-
-          {(clean.deadDomain > 0 || clean.byTag > 0 || lastCleaned) && (
-            <p class="bc-note bc-cleanstatus">
-              <strong>Queue cleaned{lastCleaned ? ` · last run ${lastCleaned}` : ''}:</strong>
-              {' '}{clean.deadDomain.toLocaleString()} removed at dead domains ·
-              {' '}{clean.byTag.toLocaleString()} removed by tag
-              {' '}(part of the {counts.suppressed.toLocaleString()} skipped above).
-            </p>
-          )}
-
-          {counts.pending > 0 && (
-            <div class="bc-clean">
-              <strong>List health</strong>
-              <p>
-                Dead domains (no mail server / typo domains) are cleaned at the
-                list level now — run <a href="/admin/contacts">Clean dead domains on Contacts</a>
-                {' '}once and they're suppressed for this and every future broadcast.
-                For dead mailboxes at live providers (e.g. closed Gmail accounts),
-                <a href={`/api/admin/broadcasts/export?id=${b.id}`}>export the remaining list</a>
-                and run it through a validator, then re-import the verified-good addresses.
-              </p>
-
-              <div class="bc-clean-tags">
-                <label for="bc-extags">Remove queued contacts carrying tags <em>(comma-separated — e.g. a Drip “undeliverable” / “bounced” tag)</em></label>
-                <div class="bc-clean-tagrow">
-                  <input id="bc-extags" type="text" value={b.audience_exclude_tags ?? ''} placeholder="bounced, undeliverable" />
-                  <button id="bc-extags-btn" class="adm-btn adm-btn--ghost" type="button" data-id={b.id}>Remove from queue</button>
-                </div>
-                <span id="bc-extags-msg" class="bc-msg"></span>
-              </div>
-            </div>
-          )}
-
-          <div class="bc-actions">
-            {b.status === 'sending' && <button class="adm-btn adm-btn--ghost bc-ctl" type="button" data-id={b.id} data-action="pause">Pause</button>}
-            {b.status === 'paused' && <button class="adm-btn bc-ctl" type="button" data-id={b.id} data-action="resume">Resume</button>}
-            {b.status === 'paused' && <button class="adm-btn adm-btn--ghost bc-ctl" type="button" data-id={b.id} data-action="launch">Top up &amp; resume</button>}
-            <span id="bc-ctl-msg" class="bc-msg"></span>
-          </div>
-        </div>
-      )}
-    </section>
   </main>
 
   <style>
