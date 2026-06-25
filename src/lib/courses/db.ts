@@ -41,6 +41,10 @@ export type CourseRegistration = {
   // journeyDrip in ./journeys.ts.
   language_choice: JourneyLanguageChoice | null;
   source_variant: string | null;
+  // Order bumps bought alongside the course, as a JSON array of
+  // {slug, amount_cents} (12-week only). NULL when none — see ./bumps.ts and
+  // parsePurchasedBumps below.
+  bumps: string | null;
   amount_cents: number;
   currency: string;
   status: 'pending' | 'paid' | 'cancelled' | 'refunded' | 'expired';
@@ -82,6 +86,8 @@ export type CreatePendingCourseRegistrationInput = {
   // ASJ language edition; null/omitted for everything else (English default).
   language_choice?: JourneyLanguageChoice | null;
   source_variant: string | null;
+  // Order bumps (12-week only); each {slug, amount_cents}. Omit / null for none.
+  bumps?: Array<{ slug: string; amount_cents: number }> | null;
   amount_cents: number;
   currency: string;
   consent_terms: boolean;
@@ -100,11 +106,11 @@ export async function createPendingCourseRegistration(
       `INSERT INTO course_registrations
        (email, first_name, last_name, country, phone, phone_country,
         company_name, vat_number,
-        product_slug, activate_choice, language_choice, source_variant,
+        product_slug, activate_choice, language_choice, source_variant, bumps,
         amount_cents, currency, status, provider,
         payment_plan, installments_total,
         consent_terms, consent_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?)`,
     )
     .bind(
       input.email,
@@ -119,6 +125,7 @@ export async function createPendingCourseRegistration(
       input.activate_choice,
       input.language_choice ?? null,
       input.source_variant,
+      input.bumps && input.bumps.length ? JSON.stringify(input.bumps) : null,
       input.amount_cents,
       input.currency,
       input.provider ?? 'stripe',
@@ -133,6 +140,30 @@ export async function createPendingCourseRegistration(
     throw new Error('Failed to create course_registration: no last_row_id');
   }
   return id;
+}
+
+// Parse the JSON `bumps` column into a validated list of purchased add-ons.
+// Returns [] for null / empty / malformed input, so callers (paid-handler,
+// order notification) can always iterate safely.
+export type PurchasedBump = { slug: string; amount_cents: number };
+export function parsePurchasedBumps(
+  raw: string | null | undefined,
+): PurchasedBump[] {
+  if (!raw) return [];
+  try {
+    const arr = JSON.parse(raw);
+    if (!Array.isArray(arr)) return [];
+    return arr
+      .filter(
+        (b) =>
+          b &&
+          typeof b.slug === 'string' &&
+          Number.isFinite(b.amount_cents),
+      )
+      .map((b) => ({ slug: b.slug as string, amount_cents: Math.round(b.amount_cents) }));
+  } catch {
+    return [];
+  }
 }
 
 export async function attachStripeSessionToCourse(

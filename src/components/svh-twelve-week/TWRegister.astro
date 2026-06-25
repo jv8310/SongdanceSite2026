@@ -117,6 +117,14 @@ const includes = [
         <div class="tw-reg-steplabel">How would you like to pay?</div>
         <div class="tw-reg-plans" data-slot="plans"></div>
 
+        <!-- Order bumps (standalone 12-week only): one-time add-ons for the
+             products the buyer doesn't already own. Populated from status.bumps;
+             selecting one adds it to the charge (or the first installment). -->
+        <div class="tw-reg-bumps-wrap" data-slot="bumps-wrap" hidden>
+          <div class="tw-reg-steplabel">Add to your journey</div>
+          <div class="tw-reg-bumps" data-slot="bumps"></div>
+        </div>
+
         <!-- Non-pro: a soft pointer to the certification path (not buyable
              here). Pro buyers get the selectable picker above instead. -->
         <aside class="tw-reg-pathteaser" data-slot="path-teaser" hidden>
@@ -193,10 +201,8 @@ const includes = [
           <span>I agree to the <a href="/terms" target="_blank" rel="noopener">terms and conditions</a>.</span>
         </label>
 
-        <div class="tw-reg-summary">
-          <span class="tw-reg-summary-label" data-slot="sum-label"></span>
-          <span class="tw-reg-summary-amount" data-slot="sum-amount"></span>
-        </div>
+        <!-- Course line + any selected bumps + total. Rebuilt by renderSummary. -->
+        <div class="tw-reg-summary" data-slot="summary"></div>
 
         <button type="button" class="tw-reg-cta" data-slot="cta">
           <span>Continue to payment</span>
@@ -267,6 +273,19 @@ const includes = [
       expires_at_ms: number | null;
     };
   };
+  // One order bump as returned by /api/courses/twelve-week-status (only the
+  // products the buyer doesn't already own; priced in their currency).
+  type BumpOffer = {
+    slug: string;
+    label: string;
+    blurb: string;
+    points: string[];
+    image: string;
+    currency: string;
+    price_cents: number;
+    compare_at_cents: number | null;
+    drip_tag: string;
+  };
   type Status = {
     email: string;
     currency: string;
@@ -283,6 +302,7 @@ const includes = [
       monthly_cents: number;
     };
     is_pro?: boolean;
+    bumps?: BumpOffer[];
     path?: PathPricing;
     first_name?: string;
     last_name?: string;
@@ -524,7 +544,7 @@ const includes = [
             selectedPlan = 'full';
             offersEl.querySelectorAll<HTMLElement>('.tw-reg-plan').forEach((p) =>
               p.classList.toggle('tw-reg-plan--selected', p.dataset.offer === selectedOffer));
-            renderPrice(); renderPlans(); renderSummary();
+            renderPrice(); renderPlans(); renderBumps(); renderSummary();
           });
           return el;
         };
@@ -677,23 +697,118 @@ const includes = [
         plansEl.replaceChildren(...plans);
       };
 
-      // ---- Summary line above the CTA
-      const sumLabel = q('[data-slot="sum-label"]') as HTMLElement;
-      const sumAmount = q('[data-slot="sum-amount"]') as HTMLElement;
+      // ---- Order bumps (standalone 12-week only) ------------------------------
+      // Optional one-time add-ons for products the buyer doesn't already own.
+      // Hidden on the Certification path (a separate, larger purchase). The
+      // selected set persists across plan/offer switches by slug.
+      const bumpsWrap = q('[data-slot="bumps-wrap"]') as HTMLElement;
+      const bumpsEl = q('[data-slot="bumps"]') as HTMLElement;
+      const selectedBumps = new Set<string>();
+      const availableBumps = (): BumpOffer[] =>
+        selectedOffer === '12week' ? status.bumps ?? [] : [];
+      const selectedBumpOffers = (): BumpOffer[] =>
+        availableBumps().filter((b) => selectedBumps.has(b.slug));
+
+      const renderBumps = () => {
+        const list = availableBumps();
+        if (!list.length) { bumpsWrap.hidden = true; return; }
+        bumpsWrap.hidden = false;
+        const cur = status.currency;
+        bumpsEl.replaceChildren(
+          ...list.map((b) => {
+            const checked = selectedBumps.has(b.slug);
+            const el = document.createElement('label');
+            el.className = 'tw-reg-bump' + (checked ? ' tw-reg-bump--selected' : '');
+            const hasStrike = !!b.compare_at_cents && b.compare_at_cents > b.price_cents;
+            const strike = hasStrike
+              ? `<span class="tw-amount-strike">${money(b.compare_at_cents as number, cur)}</span>`
+              : '';
+            const save = hasStrike
+              ? Math.round((1 - b.price_cents / (b.compare_at_cents as number)) * 100)
+              : 0;
+            el.innerHTML =
+              `<input type="checkbox" class="tw-reg-bump-check"${checked ? ' checked' : ''} />` +
+              `<span class="tw-reg-bump-box" aria-hidden="true"></span>` +
+              (b.image ? `<img class="tw-reg-bump-thumb" src="${b.image}" alt="" loading="lazy" />` : '') +
+              `<span class="tw-reg-bump-body">` +
+                `<span class="tw-reg-bump-head">` +
+                  `<span class="tw-reg-bump-title">${escapeHtml(b.label)}</span>` +
+                  `<span class="tw-reg-bump-price">${strike}${money(b.price_cents, cur)}` +
+                    (save ? ` <span class="tw-reg-bump-save">Save ${save}%</span>` : '') +
+                  `</span>` +
+                `</span>` +
+                `<span class="tw-reg-bump-points">` +
+                  b.points.map((p) => `<span class="tw-reg-bump-point">${escapeHtml(p)}</span>`).join('') +
+                `</span>` +
+                `<span class="tw-reg-bump-blurb">${escapeHtml(b.blurb)}</span>` +
+              `</span>`;
+            const input = el.querySelector('input') as HTMLInputElement;
+            input.addEventListener('change', () => {
+              if (input.checked) selectedBumps.add(b.slug);
+              else selectedBumps.delete(b.slug);
+              el.classList.toggle('tw-reg-bump--selected', input.checked);
+              renderSummary();
+            });
+            return el;
+          }),
+        );
+      };
+
+      // ---- Summary (course + any bumps) above the CTA
+      const summaryEl = q('[data-slot="summary"]') as HTMLElement;
+      const sumRow = (label: string, amountHtml: string, cls = '') =>
+        `<div class="tw-reg-sumrow${cls ? ' ' + cls : ''}">` +
+        `<span class="tw-reg-sumrow-label">${escapeHtml(label)}</span>` +
+        `<span class="tw-reg-sumrow-amt">${amountHtml}</span></div>`;
       const renderSummary = () => {
         const v = view();
         const cur = v.cur;
+        // Main course line for the selected plan.
+        let mainLabel: string;
+        let mainAmount: string;
+        let courseNowCents: number;
+        let perCount = v.count;
         if (selectedPlan === '6x' && selectedOffer === 'path' && status.path) {
-          const p = status.path;
-          sumLabel.textContent = `${v.offerName} · ${p.installment_6x_count} monthly payments${v.discountOff}`;
-          sumAmount.textContent = `${money(p.total_monthly_6x_cents, cur)}/mo`;
+          perCount = status.path.installment_6x_count;
+          mainLabel = `${v.offerName} · ${perCount} monthly payments${v.discountOff}`;
+          mainAmount = `${money(status.path.total_monthly_6x_cents, cur)}/mo`;
+          courseNowCents = status.path.total_monthly_6x_cents;
         } else if (selectedPlan === '3x') {
-          sumLabel.textContent = `${v.offerName} · ${v.count} monthly payments${v.discountOff}`;
-          sumAmount.textContent = `${money(v.monthlyNowCents, cur)}/mo`;
+          mainLabel = `${v.offerName} · ${v.count} monthly payments${v.discountOff}`;
+          mainAmount = `${money(v.monthlyNowCents, cur)}/mo`;
+          courseNowCents = v.monthlyNowCents;
         } else {
-          sumLabel.textContent = `${v.offerName} · one payment${v.discountOff}`;
-          sumAmount.textContent = money(v.nowCents, cur);
+          mainLabel = `${v.offerName} · one payment${v.discountOff}`;
+          mainAmount = money(v.nowCents, cur);
+          courseNowCents = v.nowCents;
         }
+
+        const bumps = selectedBumpOffers();
+        if (!bumps.length) {
+          // Unchanged single-line summary when no add-on is selected.
+          summaryEl.className = 'tw-reg-summary';
+          summaryEl.innerHTML =
+            `<span class="tw-reg-summary-label">${escapeHtml(mainLabel)}</span>` +
+            `<span class="tw-reg-summary-amount">${mainAmount}</span>`;
+          return;
+        }
+
+        // Itemised: course + each bump + a total (full) / due-today (installments).
+        summaryEl.className = 'tw-reg-summary tw-reg-summary--items';
+        const bumpTotal = bumps.reduce((s, b) => s + b.price_cents, 0);
+        const rows = [sumRow(mainLabel, mainAmount)];
+        for (const b of bumps) {
+          rows.push(sumRow(b.label, money(b.price_cents, cur), 'tw-reg-sumrow--bump'));
+        }
+        if (selectedPlan === 'full') {
+          rows.push(sumRow('Total', `<strong>${money(courseNowCents + bumpTotal, cur)}</strong>`, 'tw-reg-sumrow--total'));
+        } else {
+          rows.push(sumRow('Due today', `<strong>${money(courseNowCents + bumpTotal, cur)}</strong>`, 'tw-reg-sumrow--total'));
+          rows.push(
+            `<p class="tw-reg-sumnote">then ${mainAmount} × ${perCount - 1} · add-ons are one-time</p>`,
+          );
+        }
+        summaryEl.innerHTML = rows.join('');
       };
 
       // ---- Prefill name/country from the workshop registration / geo guess
@@ -769,7 +884,7 @@ const includes = [
             if ('currency' in fresh) {
               // Keep whatever the buyer has typed; just refresh prices.
               status = fresh;
-              renderOffers(); renderPrice(); renderPlans(); renderSummary();
+              renderOffers(); renderPrice(); renderPlans(); renderBumps(); renderSummary();
             }
           }, 300);
         } else {
@@ -856,6 +971,7 @@ const includes = [
                 provider,
                 discount_percent: urlDiscount || undefined,
                 adiscount_percent: urlAdiscount || undefined,
+                bumps: selectedBumpOffers().map((b) => b.slug),
               });
           let body: { checkout_url?: string; error?: string } = {};
           try { body = await res.json(); } catch {}
@@ -893,6 +1009,7 @@ const includes = [
       (q('[data-slot="path-teaser"]') as HTMLElement).hidden = hasPath;
       renderPrice();
       renderPlans();
+      renderBumps();
       renderSummary();
       stage!.replaceChildren(root);
     }

@@ -972,6 +972,71 @@ html, body { background: var(--paper); }
   color: rgba(244, 236, 223, 0.5); margin-right: 5px; font-size: 14px;
 }
 
+/* Order bumps — optional one-time add-on cards (standalone 12-week only) */
+.tw-reg-bumps-wrap[hidden] { display: none; }
+.tw-reg-bumps { display: grid; gap: var(--sp-2); }
+.tw-reg-bump {
+  position: relative; cursor: pointer; display: grid;
+  grid-template-columns: auto auto 1fr; gap: var(--sp-3); align-items: start;
+  background: rgba(244, 236, 223, 0.04);
+  border: 1px solid rgba(244, 236, 223, 0.18); border-radius: var(--r-md);
+  padding: 14px 18px; color: var(--paper);
+  transition: border-color var(--d-base) var(--ease), background var(--d-base) var(--ease);
+}
+.tw-reg-bump:hover { border-color: rgba(244, 236, 223, 0.4); background: rgba(244, 236, 223, 0.07); }
+.tw-reg-bump--selected { border-color: var(--ember); background: rgba(201, 96, 58, 0.1); box-shadow: 0 0 0 1px var(--ember) inset; }
+.tw-reg-bump-check { position: absolute; opacity: 0; width: 0; height: 0; }
+.tw-reg-bump-box {
+  margin-top: 2px; width: 18px; height: 18px; border-radius: 5px; flex: none;
+  border: 1px solid rgba(244, 236, 223, 0.45); position: relative;
+  transition: border-color var(--d-base) var(--ease), background var(--d-base) var(--ease);
+}
+.tw-reg-bump--selected .tw-reg-bump-box { border-color: var(--ember); background: var(--ember); }
+.tw-reg-bump--selected .tw-reg-bump-box::after {
+  content: ""; position: absolute; left: 5px; top: 1px; width: 5px; height: 10px;
+  border: solid var(--paper); border-width: 0 2px 2px 0; transform: rotate(45deg);
+}
+.tw-reg-bump-check:focus-visible + .tw-reg-bump-box { outline: 2px solid var(--ember); outline-offset: 2px; }
+.tw-reg-bump-thumb {
+  width: 54px; height: 54px; border-radius: var(--r-sm, 8px); object-fit: cover;
+  flex: none; border: 1px solid rgba(244, 236, 223, 0.14);
+}
+.tw-reg-bump-body { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.tw-reg-bump-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-3); flex-wrap: wrap; }
+.tw-reg-bump-title { font-family: var(--font-body); font-size: 15px; font-weight: 500; color: var(--paper); }
+.tw-reg-bump-price { font-family: var(--font-display); font-size: 18px; color: var(--paper); font-feature-settings: "tnum" 1; white-space: nowrap; }
+.tw-reg-bump-save {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em;
+  color: var(--ember-soft); background: rgba(201, 96, 58, 0.14);
+  border-radius: var(--r-pill); padding: 2px 8px; margin-left: 4px; white-space: nowrap;
+}
+.tw-reg-bump-points { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.tw-reg-bump-point {
+  font-family: var(--font-body); font-size: 12px; color: rgba(244, 236, 223, 0.7);
+  position: relative; padding-left: 14px;
+}
+.tw-reg-bump-point::before { content: "✓"; position: absolute; left: 0; color: var(--ember-soft); font-size: 11px; }
+.tw-reg-bump-blurb { font-family: var(--font-body); font-size: 12.5px; line-height: 1.5; color: rgba(244, 236, 223, 0.6); }
+@media (max-width: 520px) {
+  .tw-reg-bump { grid-template-columns: auto 1fr; }
+  .tw-reg-bump-thumb { display: none; }
+}
+
+/* Itemised summary (course + selected bumps + total). Two classes so this
+   beats the base `.tw-reg-summary { display:flex }` regardless of source order
+   (the base rule is defined later in the file). Rows stack vertically; each row
+   handles its own label-left / amount-right layout. */
+.tw-reg-summary.tw-reg-summary--items { display: block; }
+.tw-reg-sumrow { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-3); padding: 4px 0; }
+.tw-reg-sumrow-label { font-family: var(--font-body); font-size: 14px; color: rgba(244, 236, 223, 0.78); text-wrap: balance; }
+.tw-reg-sumrow-amt { font-family: var(--font-body); font-size: 14px; color: var(--paper); font-feature-settings: "tnum" 1; white-space: nowrap; }
+.tw-reg-sumrow--bump .tw-reg-sumrow-label { color: rgba(244, 236, 223, 0.62); }
+.tw-reg-sumrow--bump .tw-reg-sumrow-label::before { content: "+ "; color: var(--ember-soft); }
+.tw-reg-sumrow--total { margin-top: 6px; padding-top: 10px; border-top: 1px solid rgba(244, 236, 223, 0.16); }
+.tw-reg-sumrow--total .tw-reg-sumrow-label { font-size: 15px; color: var(--paper); }
+.tw-reg-sumrow--total .tw-reg-sumrow-amt { font-family: var(--font-display); font-size: 22px; color: var(--paper); }
+.tw-reg-sumnote { margin: 4px 0 0; font-family: var(--font-body); font-size: 12px; font-style: italic; color: rgba(244, 236, 223, 0.5); }
+
 /* Non-pro: soft pointer to the Certification path (informational, opens the
    cert page in a new tab — never competes with the 12-week "pay" button). */
 .tw-reg-pathteaser {
