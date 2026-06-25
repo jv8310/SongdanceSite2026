@@ -5,7 +5,7 @@
 // Variants:
 //   B1 — currently in the 12-week course               → cert only
 //   B2 — completed the 12-week course                  → cert only
-//   A  — old VSH client, no SVH tags                   → cert OR bundle
+//   A  — any legacy "vsh" tag, no SVH tags             → cert OR bundle
 //   D  — already in SVH ecosystem, no 12w / no 9m      → cert OR bundle
 //   E  — completely new                                → bundle only
 //   C  — already enrolled in the cert course           → portal link, plus
@@ -373,6 +373,17 @@ export function decideVariant(
     for (const t of tags) if (t.startsWith(prefix)) return true;
     return false;
   };
+  // Legacy "VSH" (Vocal Sound Healing — the trainings offered before the SVH
+  // lineage) marks someone who has already walked this work. Drip records it
+  // under many tag spellings — `prod_VSH`, but also free-form ones like `VSH`,
+  // `vsh-2021`, `VSH workshop` — so match any tag CONTAINING "vsh"
+  // case-insensitively rather than a single exact tag. (The current "svh"
+  // product tags do not contain the substring "vsh", so the SVH checks above
+  // are unaffected.)
+  const hasLegacyVsh = (() => {
+    for (const t of tags) if (t.toLowerCase().includes('vsh')) return true;
+    return false;
+  })();
 
   const svhWeek = parseSvhWeek(readWeekField(subscriber.custom_fields));
 
@@ -412,9 +423,10 @@ export function decideVariant(
   }
 
   // A — old VSH client, no SVH foundation
-  // (prod_VSH was the legacy course tag — these students return for the
-  // updated SVH lineage and may or may not want the 12w refresh.)
-  if (has('prod_VSH') && !hasAnyStartingWith('prod_SVH')) {
+  // (any "vsh"-containing tag marks the legacy course — these students return
+  // for the updated SVH lineage and may or may not want the 12w refresh. They
+  // are experienced in this work, never newcomers.)
+  if (hasLegacyVsh && !hasAnyStartingWith('prod_SVH')) {
     return { variant: 'A', currency, offers: offersFor('A', currency), ...personalia };
   }
 
