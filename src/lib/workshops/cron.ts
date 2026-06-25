@@ -96,6 +96,16 @@ const CADENCE: Array<{ type: string; lead: number }> = [
 // always go on schedule — they're never gated.
 const QUIET_HOURS_REMINDERS = new Set(['reminder_7d', 'reminder_2d', 'reminder_1d']);
 
+// An early "X to go" reminder (7d/2d/1d) is suppressed when it would land within
+// this much of the registration. Someone who books inside the 7-day window has
+// already crossed those buckets, so without this guard the "starts in one week /
+// tomorrow" reminder fires on the very next cron tick — seconds after the
+// confirmation — and the two arrive together, which reads as a glitch. The
+// confirmation already carries the date, join link and calendar; a calendar-
+// style reminder is only worth sending with real daylight after it. Imminent
+// reminders are exempt — a "starting now" nudge is never a confirmation dup.
+const REMINDER_MIN_LEAD_MS = 2 * H * MIN_MS;
+
 // Lifecycle sequence steps, anchored one hour after the start (minutes after).
 // `staleMin`: how long past due a step may still be sent — beyond that it's
 // skipped, never delivered embarrassingly late. `requires`: a step only
@@ -223,6 +233,21 @@ async function runReminders(env: CronEnv, now: number, result: CronResult) {
       if (idx < 0) continue; // nothing due yet (more than 7d out)
 
       const due = CADENCE[idx];
+      // An early "X to go" reminder only makes sense with real lead time after
+      // the person registered. If they booked so close to (or past) this
+      // bucket's natural send time that it would land right on top of the
+      // confirmation — the "reminder arrived with my receipt" glitch —
+      // reserve the slot silently (emailed=0) instead of firing it, and let a
+      // tighter, genuinely-ahead bucket be their first reminder. Imminent nudges
+      // (6h/1h/15m/at_time) are time-of-event and always go.
+      if (QUIET_HOURS_REMINDERS.has(due.type)) {
+        const dueAtMs = new Date(w.starts_at_utc).getTime() - due.lead * MIN_MS;
+        const regMs = sqliteMs(reg.created_at);
+        if (Number.isFinite(regMs) && regMs > dueAtMs - REMINDER_MIN_LEAD_MS) {
+          await claimNotification(env.DB, reg.id, due.type, false);
+          continue;
+        }
+      }
       // Non-urgent early reminders wait for the recipient's local send window;
       // skip this tick (without claiming) and the next ticks re-evaluate until
       // it's local daytime. Imminent reminders are never held.
