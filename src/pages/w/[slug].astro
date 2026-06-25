@@ -10,7 +10,7 @@ import { currencyForCountry, formatMoney } from '../../lib/workshops/currency';
 import { formatInTz } from '../../lib/workshops/time';
 import {
   applyDiscountPercent,
-  resolveDiscountPercent,
+  resolveTicketDiscountPercent,
 } from '../../lib/workshops/discount';
 
 export const prerender = false;
@@ -21,11 +21,13 @@ const cf = (Astro.locals.runtime as any)?.cf;
 
 const workshop = slug ? await getPublishedWorkshopBySlug(env.DB, slug) : null;
 
-// Ticket discount from the URL: ?discount=50 (public, 50 only) or
-// ?adiscount=N (owner secret, 1–100). Applies to the ticket, never the bump.
+// Ticket discount from the URL: ?discount=50 (public, 50 only) or ?adiscount=N
+// (owner secret, 1–100), with the launch promo folded in — a public ?discount=50
+// stacks on the promo (75% off while it runs), matching the charge. Ticket only,
+// never the bump.
 const discountRaw = (Astro.url.searchParams.get('discount') ?? '').trim();
 const adiscountRaw = (Astro.url.searchParams.get('adiscount') ?? '').trim();
-const discountPct = resolveDiscountPercent({ discount: discountRaw, adiscount: adiscountRaw });
+const discountPct = resolveTicketDiscountPercent({ discount: discountRaw, adiscount: adiscountRaw });
 
 // Cloudflare edge geo/timezone — no external API.
 const country: string = (cf?.country as string) || 'EU';

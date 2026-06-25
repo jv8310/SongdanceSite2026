@@ -23,9 +23,8 @@ import { currencyForCountry } from '../../../lib/workshops/currency';
 import { runWorkshopPaidSideEffects } from '../../../lib/workshops/paid-handler';
 import {
   applyDiscountPercent,
-  resolveDiscountPercent,
+  resolveTicketDiscountPercent,
 } from '../../../lib/workshops/discount';
-import { withLaunchPromo } from '../../../lib/promo';
 
 export const prerender = false;
 
@@ -86,15 +85,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const companyName = (payload.company_name ?? '').trim();
   const vatNumber = (payload.vat_number ?? '').trim().replace(/\s+/g, '');
   const coupon = (payload.coupon ?? '').trim();
-  // Launch promo: the ticket is at least 50% off during the window. A bespoke
-  // ?adiscount=N (owner) link can still go deeper — withLaunchPromo takes the
-  // better of the two. The order bump is never discounted (handled below).
-  const discountPct = withLaunchPromo(
-    resolveDiscountPercent({
-      discount: payload.discount,
-      adiscount: payload.adiscount,
-    }),
-  );
+  // Ticket discount, launch promo folded in: a public ?discount=50 "share with
+  // a friend" link STACKS on the promo (50% off the already-50% price = 75% off
+  // while it runs); a bespoke ?adiscount=N (owner) link is taken as the better
+  // of it and the promo. The order bump is never discounted (handled below).
+  const discountPct = resolveTicketDiscountPercent({
+    discount: payload.discount,
+    adiscount: payload.adiscount,
+  });
   const metaEventId = (payload.meta_event_id ?? '').trim() || null;
   const audience = normalizeAudience(payload.audience ?? '');
   const provider = parseProvider(payload.provider);

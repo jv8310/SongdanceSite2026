@@ -20,6 +20,7 @@ import {
 import {
   PUBLIC_DISCOUNT_PCT,
   PUBLIC_DISCOUNT_PARAM,
+  resolveTicketDiscountPercent,
 } from '../../lib/workshops/discount';
 
 export const prerender = false;
@@ -58,8 +59,12 @@ const hasReplay = !!(await getConfig(env.DB, 'replay_video_url'));
 const shareUrl = paid && reg && workshop
   ? `${base}/workshop?${PUBLIC_DISCOUNT_PARAM}=${PUBLIC_DISCOUNT_PCT}&friend=${encodeURIComponent(workshop.slug)}`
   : null;
+// What the friend who follows that link actually saves: the public ?discount=50
+// stacks on the launch promo, so it's 75% off while the promo runs and a plain
+// 50% off once it's over. Advertise the real figure, not a flat "50%".
+const friendPct = resolveTicketDiscountPercent({ discount: String(PUBLIC_DISCOUNT_PCT) });
 const shareText = workshop
-  ? `I just signed up for ${workshop.title} with Songdance — here's ${PUBLIC_DISCOUNT_PCT}% off your ticket if you'd like to join me:`
+  ? `I just signed up for ${workshop.title} with Songdance — here's ${friendPct}% off your ticket if you'd like to join me:`
   : '';
 
 // Other upcoming live dates they can move onto, free of charge. Masterclasses
@@ -200,7 +205,7 @@ if (reg && paid && reg.payment_status === 'paid') {
         {shareUrl && (
           <div class="ws-share" data-share-url={shareUrl} data-share-text={shareText} data-share-title={workshop.title}>
             <p class="ws-share-h">Share with a friend</p>
-            <p class="ws-share-sub">Send them this link and they get <strong>{PUBLIC_DISCOUNT_PCT}% off</strong> their ticket.</p>
+            <p class="ws-share-sub">Send them this link and they get <strong>{friendPct}% off</strong> their ticket.</p>
 
             <div class="ws-share-link">
               <input id="ws-share-input" type="text" readonly value={shareUrl} aria-label="Your share link" />
