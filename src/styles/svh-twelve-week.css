@@ -1022,8 +1022,11 @@ html, body { background: var(--paper); }
   .tw-reg-bump-thumb { display: none; }
 }
 
-/* Itemised summary (course + selected bumps + total) */
-.tw-reg-summary--items { display: block; }
+/* Itemised summary (course + selected bumps + total). Two classes so this
+   beats the base `.tw-reg-summary { display:flex }` regardless of source order
+   (the base rule is defined later in the file). Rows stack vertically; each row
+   handles its own label-left / amount-right layout. */
+.tw-reg-summary.tw-reg-summary--items { display: block; }
 .tw-reg-sumrow { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-3); padding: 4px 0; }
 .tw-reg-sumrow-label { font-family: var(--font-body); font-size: 14px; color: rgba(244, 236, 223, 0.78); text-wrap: balance; }
 .tw-reg-sumrow-amt { font-family: var(--font-body); font-size: 14px; color: var(--paper); font-feature-settings: "tnum" 1; white-space: nowrap; }
