@@ -13,6 +13,8 @@
 // checkout chokepoint); the page-level reads below only mirror the price so
 // the buyer sees what they'll pay.
 
+import { launchPromoPercent } from '../promo';
+
 export const PUBLIC_DISCOUNT_PCT = 50;
 export const PUBLIC_DISCOUNT_PARAM = 'discount';
 export const SECRET_DISCOUNT_PARAM = 'adiscount';
@@ -40,4 +42,37 @@ function clampPct(v: string | null | undefined): number {
 export function applyDiscountPercent(amountMinor: number, pct: number): number {
   if (!pct) return amountMinor;
   return Math.round((amountMinor * (100 - pct)) / 100);
+}
+
+// Compound two discount percents — e.g. a 50% promo and a 50% referral give
+// 75% off (50% off the already-half price), NOT 100%. Order-independent;
+// inputs are clamped to 0–100.
+export function compoundDiscountPercent(a: number, b: number): number {
+  const pa = Math.min(100, Math.max(0, a || 0));
+  const pb = Math.min(100, Math.max(0, b || 0));
+  return Math.round(100 - ((100 - pa) * (100 - pb)) / 100);
+}
+
+// Resolve the effective TICKET discount percent for a workshop checkout,
+// folding the launch promo into the URL params. Ticket only — the order bump is
+// never discounted.
+//
+//   - ?adiscount=N (owner secret): an intentional, absolute price — taken as the
+//     better of it and the promo (max), never stacked.
+//   - ?discount=50 (public "share with a friend"): STACKS on top of the launch
+//     promo, so a referred friend gets 50% off the already-50%-off price (75%
+//     total) while the promo runs, and a plain 50% off once it ends.
+//   - neither: just the promo (0 when it's over).
+//
+// Mirrored client-side in WERegister/MCRegister so the displayed price matches.
+export function resolveTicketDiscountPercent(
+  raw: { discount?: string | null; adiscount?: string | null },
+  nowMs: number = Date.now(),
+): number {
+  const promo = launchPromoPercent(nowMs);
+  const secret = clampPct(raw.adiscount);
+  if (secret) return Math.max(secret, promo);
+  const referral = clampPct(raw.discount) === PUBLIC_DISCOUNT_PCT ? PUBLIC_DISCOUNT_PCT : 0;
+  if (referral) return promo ? compoundDiscountPercent(promo, referral) : referral;
+  return promo;
 }
