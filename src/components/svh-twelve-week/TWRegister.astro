@@ -240,7 +240,7 @@ const includes = [
   import { COUNTRIES, findCountry } from '../../lib/countries';
   import { postJsonResilient } from '../../lib/client/resilient-fetch';
 
-  type Plan = 'full' | '3x';
+  type Plan = 'full' | '3x' | '6x';
   type OfferId = '12week' | 'path';
   // The Certification path = cert (standard price) + the workshop-discounted
   // 12-week, shown as two line items + a combined total. The discount only
@@ -257,6 +257,9 @@ const includes = [
     base_total_monthly_cents: number;
     total_monthly_cents: number;
     installment_count: number;
+    total_monthly_6x_cents: number;
+    base_total_monthly_6x_cents: number;
+    installment_6x_count: number;
     discount: {
       eligible: boolean;
       percent: number;
@@ -652,11 +655,26 @@ const includes = [
           return el;
         };
 
-        plansEl.replaceChildren(
+        const plans = [
           opt('full', 'Pay in full', 'One payment · lifetime access', fullAmount),
           opt('3x', `${v.count} monthly payments`,
             `${money(v.monthlyNowCents, cur)}/mo × ${v.count} (${money(v.monthlyNowCents * v.count, cur)} total)`, monAmount),
-        );
+        ];
+        // The Certification path also offers a 6-month tier (the standalone
+        // 12-week course is full or 3× only).
+        if (selectedOffer === 'path' && status.path) {
+          const p = status.path;
+          const now6 = p.total_monthly_6x_cents;
+          const was6 = p.base_total_monthly_6x_cents;
+          const amt6 = was6 > now6
+            ? `<span class="tw-amount-strike">${money(was6, cur)}/mo</span>${money(now6, cur)}/mo`
+            : `${money(now6, cur)}/mo`;
+          plans.push(
+            opt('6x', `${p.installment_6x_count} monthly payments`,
+              `${money(now6, cur)}/mo × ${p.installment_6x_count} (${money(now6 * p.installment_6x_count, cur)} total)`, amt6),
+          );
+        }
+        plansEl.replaceChildren(...plans);
       };
 
       // ---- Summary line above the CTA
@@ -665,7 +683,11 @@ const includes = [
       const renderSummary = () => {
         const v = view();
         const cur = v.cur;
-        if (selectedPlan === '3x') {
+        if (selectedPlan === '6x' && selectedOffer === 'path' && status.path) {
+          const p = status.path;
+          sumLabel.textContent = `${v.offerName} · ${p.installment_6x_count} monthly payments${v.discountOff}`;
+          sumAmount.textContent = `${money(p.total_monthly_6x_cents, cur)}/mo`;
+        } else if (selectedPlan === '3x') {
           sumLabel.textContent = `${v.offerName} · ${v.count} monthly payments${v.discountOff}`;
           sumAmount.textContent = `${money(v.monthlyNowCents, cur)}/mo`;
         } else {

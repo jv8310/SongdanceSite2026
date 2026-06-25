@@ -18,11 +18,13 @@ import { launchPromoActive } from '../promo';
 import {
   priceCents,
   monthlyCents,
+  monthlyCents6x,
   applyPercentCents,
   bestDiscountStatus,
   anchorMsFromWorkshop,
   effectiveTwelveWeekDiscount,
   INSTALLMENT_COUNT,
+  INSTALLMENT_COUNT_6X,
   type DiscountKind,
   type EffectiveDiscount,
 } from './twelve-week';
@@ -48,6 +50,10 @@ export type CertificationPathPricing = {
   base_total_cents: number; // pre-discount total (cert sticker + full 12-week)
   base_total_monthly_cents: number;
   installment_count: number;
+  // 6-month installment tier (longer term, a slightly higher total than 3×)
+  total_monthly_6x_cents: number;
+  base_total_monthly_6x_cents: number;
+  installment_6x_count: number;
   discount: {
     eligible: boolean;
     percent: number;
@@ -80,6 +86,13 @@ export function buildCertificationPathPricing(
   // one), so the path's monthly list price reads honestly. Equals certMonthly
   // when the promo isn't active.
   const certBaseMonthly = baseCert.installments?.monthly_cents ?? 0;
+  // Same composition for the 6-month tier: cert's 6-month ladder (promo-scaled)
+  // + the workshop-discounted 12-week 6-month monthly. The struck "before" is
+  // the full cert 6-month monthly + the full 12-week 6-month monthly.
+  const certMonthly6x = cert.installments_6x?.monthly_cents ?? 0;
+  const certBaseMonthly6x = baseCert.installments_6x?.monthly_cents ?? 0;
+  const twBaseMonthly6x = monthlyCents6x(currency);
+  const twMonthly6x = applyPercentCents(twBaseMonthly6x, eff.percent);
   return {
     currency,
     twelve_week_base_cents: twBase,
@@ -96,6 +109,9 @@ export function buildCertificationPathPricing(
     base_total_cents: certBase + twBase,
     base_total_monthly_cents: certBaseMonthly + twBaseMonthly,
     installment_count: INSTALLMENT_COUNT,
+    total_monthly_6x_cents: certMonthly6x + twMonthly6x,
+    base_total_monthly_6x_cents: certBaseMonthly6x + twBaseMonthly6x,
+    installment_6x_count: INSTALLMENT_COUNT_6X,
     discount: {
       eligible: eff.eligible,
       percent: eff.percent,
