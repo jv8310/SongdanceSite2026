@@ -40,6 +40,7 @@ import {
   attendedProEmail3,
   downsellEmail1,
   downsellEmail2,
+  downsellEmail3,
   noShowEmail1,
   noShowEmail2,
   noShowEmail3,
@@ -49,6 +50,11 @@ import {
   type EmailContent,
   type WorkshopEmailCtx,
 } from './emails';
+import {
+  eligibleDownsellOffers,
+  bundleEligible,
+  type Ownership,
+} from './downsell-offers';
 import { googleCalendarUrl } from './ics';
 import { formatInTz, minutesUntil, withinSendWindow } from './time';
 import { icsUrl, successUrl } from './paid-handler';
@@ -138,15 +144,18 @@ const NO_SHOW_STEPS: LifecycleStep[] = [
   { type: 'post_no_show_3', offsetMin: 6 * D, staleMin: 72 * H, requires: 'post_no_show_2' },
 ];
 
-// Only for non-pro attendees who didn't buy after the window closed.
+// Only for non-pro attendees who didn't buy (course or cert) after the window
+// closed. Three touches now — promoting the gentler doors (journeys + grief),
+// chosen per-recipient from what they don't already own.
 const DOWNSELL_STEPS: LifecycleStep[] = [
   { type: 'downsell_1', offsetMin: 4 * D, staleMin: 48 * H, requires: 'post_attended' },
   { type: 'downsell_2', offsetMin: 8 * D, staleMin: 72 * H, requires: 'downsell_1' },
+  { type: 'downsell_3', offsetMin: 12 * D, staleMin: 72 * H, requires: 'downsell_2' },
 ];
 
 // How far back the post-workshop scan reaches. Must cover the latest step
-// (+8d) plus its staleness.
-const POST_SCAN_DAYS = 14;
+// (+12d) plus its staleness (+72h → 15d).
+const POST_SCAN_DAYS = 16;
 
 // Abandoned-checkout timing (minutes after the registration was last touched).
 // Each nudge has a closing edge too: past it, the moment (and the copy's
@@ -390,6 +399,11 @@ async function runPostWorkshop(env: CronEnv, now: number, result: CronResult) {
   const suppressedCache = new Map<string, boolean>();
   const bought12wCache = new Map<string, boolean>();
   const boughtCertCache = new Map<string, boolean>();
+  // Ownership signals for downsell offer selection — what each email already
+  // owns (Drip product tags + paid product slugs), so we never pitch a product
+  // they have (including one bought as an order bump).
+  const dripTagCache = new Map<string, Set<string>>();
+  const paidSlugCache = new Map<string, Set<string>>();
 
   for (const w of wRes.results ?? []) {
     // Follow-up emails (and the no-show flip) are anchored exactly one hour
@@ -450,6 +464,9 @@ async function runPostWorkshop(env: CronEnv, now: number, result: CronResult) {
       const courseUrl = `${base}/courses/12-week?email=${encodeURIComponent(reg.email)}#register`;
       const certUrl = `${base}/courses/certification`;
       const hubUrl = successUrl(base, reg.access_token);
+      // The last-chance email's animated countdown ticks to the real deadline;
+      // the endpoint computes the remaining time when the image is fetched.
+      const countdownGifUrl = `${base}/api/countdown.gif?ends=${discountEndsMs}`;
 
       const dueSteps = (steps: LifecycleStep[]) =>
         steps.filter((s) => {
@@ -486,7 +503,7 @@ async function runPostWorkshop(env: CronEnv, now: number, result: CronResult) {
                 ? attendedEmail1({ ...lc, courseUrl, discountEndsLocal, hoursRemaining, alreadyBoughtCourse: bought })
                 : step.type === 'post_attended_2'
                   ? attendedEmail2({ ...lc, courseUrl, discountEndsLocal, hoursRemaining })
-                  : attendedEmail3({ ...lc, courseUrl, discountEndsLocal, hoursRemaining });
+                  : attendedEmail3({ ...lc, courseUrl, discountEndsLocal, hoursRemaining, countdownGifUrl });
           }
           // Non-urgent steps wait for the recipient's local send window; the
           // deadline-driven ones (urgent) go on schedule with an accurate
@@ -497,19 +514,40 @@ async function runPostWorkshop(env: CronEnv, now: number, result: CronResult) {
           if (sent) result.postSent += 1;
         }
 
-        // Downsell: non-pro attendees who let the window close unbought.
+        // Downsell: non-pro attendees who let the window close without buying
+        // the course OR the certification. Promotes the gentler doors (journeys
+        // + grief), each chosen from what this person doesn't already own.
         if (!isPro) {
           for (const step of dueSteps(DOWNSELL_STEPS)) {
             if (now < discountEndsMs) continue; // never while the window is open
             if (step.requires && !(await notificationExists(env.DB, reg.id, step.requires))) continue;
-            const bought = await cached(bought12wCache, email, () =>
-              hasBought12w(env.DB, email),
-            );
+            const bought = await cached(bought12wCache, email, () => hasBought12w(env.DB, email));
             if (bought) continue;
+            const boughtCert = await cached(boughtCertCache, email, () => hasBoughtCert(env.DB, email));
+            if (boughtCert) continue; // "didn't buy the course or cert course"
+
+            const owned: Ownership = {
+              tags: await cachedSet(dripTagCache, email, () => dripTagsForEmail(env.DB, email)),
+              slugs: await cachedSet(paidSlugCache, email, () => paidProductSlugs(env.DB, email)),
+            };
+            const offers = eligibleDownsellOffers(owned);
+            // Owns the lot → email 1 is a no-pitch wind-down; skip 2 & 3.
+            if (offers.length === 0 && step.type !== 'downsell_1') continue;
+
+            const dctx = {
+              ...lc,
+              base,
+              courseUrl,
+              calendarUrl: `${base}/workshop`,
+              offers,
+              bundleEligible: bundleEligible(owned),
+            };
             const content =
               step.type === 'downsell_1'
-                ? downsellEmail1({ ...lc, courseUrl })
-                : downsellEmail2({ ...lc, courseUrl, calendarUrl: `${base}/workshop` });
+                ? downsellEmail1(dctx)
+                : step.type === 'downsell_2'
+                  ? downsellEmail2(dctx)
+                  : downsellEmail3(dctx);
             if (!withinSendWindow(tz, now)) continue; // local-daytime only
             if (!(await claimNotification(env.DB, reg.id, step.type))) continue;
             const sent = await sendMarketing(env, reg.email, content, `workshop-${step.type}-${reg.id}`, secret, step.type, reg.id);
@@ -580,11 +618,65 @@ async function hasCoursePurchase(
   return !!viaWorkshops;
 }
 
+// All paid product slugs for an email — standalone course purchases
+// (course_registrations) plus workshop line items that grant a product
+// (workshop_purchases bump/course slugs, e.g. the workshop's `asj-bump` order
+// bump). Feeds the downsell ownership check so a bought product is never pitched.
+async function paidProductSlugs(db: D1Database, email: string): Promise<Set<string>> {
+  const set = new Set<string>();
+  const viaCourses = await db
+    .prepare(
+      `SELECT DISTINCT lower(product_slug) AS slug FROM course_registrations
+        WHERE lower(email) = lower(?) AND status = 'paid' AND product_slug IS NOT NULL`,
+    )
+    .bind(email)
+    .all<{ slug: string }>();
+  for (const r of viaCourses.results ?? []) if (r.slug) set.add(r.slug);
+
+  const viaWorkshops = await db
+    .prepare(
+      `SELECT DISTINCT lower(p.slug) AS slug
+         FROM workshop_purchases pur
+         JOIN workshop_registrations wr ON wr.id = pur.registration_id
+         JOIN workshop_products p ON p.id = pur.product_id
+        WHERE lower(wr.email) = lower(?) AND pur.product_type IN ('bump','course')`,
+    )
+    .bind(email)
+    .all<{ slug: string }>();
+  for (const r of viaWorkshops.results ?? []) if (r.slug) set.add(r.slug);
+  return set;
+}
+
+// The Drip product tags we hold locally for an email — the imported marketing
+// list (contact_tags). Lowercased. Catches ownership recorded in Drip (incl.
+// products granted as bumps) for anyone on the list.
+async function dripTagsForEmail(db: D1Database, email: string): Promise<Set<string>> {
+  const rows = await db
+    .prepare(`SELECT lower(tag) AS tag FROM contact_tags WHERE lower(email) = lower(?)`)
+    .bind(email)
+    .all<{ tag: string }>();
+  const set = new Set<string>();
+  for (const r of rows.results ?? []) if (r.tag) set.add(r.tag);
+  return set;
+}
+
 async function cached(
   cache: Map<string, boolean>,
   key: string,
   load: () => Promise<boolean>,
 ): Promise<boolean> {
+  const hit = cache.get(key);
+  if (hit !== undefined) return hit;
+  const v = await load();
+  cache.set(key, v);
+  return v;
+}
+
+async function cachedSet(
+  cache: Map<string, Set<string>>,
+  key: string,
+  load: () => Promise<Set<string>>,
+): Promise<Set<string>> {
   const hit = cache.get(key);
   if (hit !== undefined) return hit;
   const v = await load();
