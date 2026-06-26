@@ -23,21 +23,39 @@ if (!authed) {
 // Every installment plan across all course products. We project from the local
 // mirror of Stripe (installments_paid/total, subscription_status, paid_at) — no
 // live Stripe calls, so this stays fast and works against preview data.
-const q = await env.DB
-  .prepare(
-    `SELECT id, email, first_name, last_name, currency, country, vat_number,
+const BASE_COLS = `id, email, first_name, last_name, currency, country, vat_number,
             status, payment_plan, amount_cents,
-            installments_paid, installments_total, cancel_after_installment,
+            installments_paid, installments_total,
             paid_at, subscription_status, provider,
             stripe_subscription_id, stripe_payment_intent,
-            paypal_subscription_id, paypal_capture_id
-       FROM course_registrations
-      WHERE installments_total > 1
-      ORDER BY paid_at DESC`,
-  )
-  .all<InstallmentRow>();
+            paypal_subscription_id, paypal_capture_id`;
 
-const rows: InstallmentRow[] = q.results ?? [];
+let rows: InstallmentRow[];
+try {
+  const q = await env.DB
+    .prepare(
+      `SELECT ${BASE_COLS}, cancel_after_installment
+         FROM course_registrations
+        WHERE installments_total > 1
+        ORDER BY paid_at DESC`,
+    )
+    .all<InstallmentRow>();
+  rows = q.results ?? [];
+} catch {
+  // cancel_after_installment arrives with migration 0054. Until it's applied to
+  // this environment's D1 (e.g. a preview that shares production data before the
+  // PR merges), fall back to reading the plan with no scheduled stop so the page
+  // still renders — the Manage control will report the missing column on submit.
+  const q = await env.DB
+    .prepare(
+      `SELECT ${BASE_COLS}
+         FROM course_registrations
+        WHERE installments_total > 1
+        ORDER BY paid_at DESC`,
+    )
+    .all<Omit<InstallmentRow, 'cancel_after_installment'>>();
+  rows = (q.results ?? []).map((r) => ({ ...r, cancel_after_installment: null }));
+}
 
 // Resolve the VAT rate for each row so amounts can be reported NET of tax —
 // mirroring the workshop stats. Charged amounts are gross (tax-inclusive for
