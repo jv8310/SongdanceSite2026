@@ -51,14 +51,26 @@ type BroadcastCronEnv = {
   PUBLIC_BASE_URL: string;
 };
 
-// Pacing. ~200 sends per 5-minute tick → ~57k/day at full availability (a
-// cleaned, validated list earns the higher rate). At SEND_GAP_MS=550ms that's
-// ~110s of sending per tick — well inside the scheduled Worker's wall-clock
-// budget, and still under Resend's default 2 req/s. SEND_GAP_MS is the per-send
-// throttle; MAX_PER_RUN is the real throughput lever (widening a broadcast's
-// send window only helps at the edges). Mind your Resend plan's daily cap if you
-// push MAX_PER_RUN much higher.
-const MAX_PER_RUN = 200;
+// Pacing. ~350 sends per 5-minute tick → ~100k/day at full availability — an
+// aggressive rate a freshly cleaned, validated list has earned, so a big one-off
+// broadcast clears in well under a day. Recipients who are asleep right now
+// aren't rushed: the drain only mails inside each one's local window (see
+// drainBroadcast), so the night-side of the list naturally rolls to its own
+// morning instead of being blasted at 3am.
+//
+// At SEND_GAP_MS=550ms that's ~195s of paced sending per tick, plus per-send
+// Resend/D1 overhead — deliberately kept under the 5-minute (300s) cron interval
+// so a tick finishes before the next one fires. Two drains overlapping would
+// each pace under Resend's 2 req/s but together breach it; that 300s ceiling
+// (not the Worker's wall-clock budget) is why MAX_PER_RUN tops out around here.
+// Going meaningfully faster than this means raising Resend's account rate limit,
+// not this number.
+//
+// SEND_GAP_MS is the safety rail that keeps a single drain under Resend's default
+// 2 req/s — leave it put. MAX_PER_RUN is the throughput lever (widening a
+// broadcast's send window only helps at the edges). Mind your Resend plan's daily
+// cap before pushing higher.
+const MAX_PER_RUN = 350;
 const SEND_GAP_MS = 550;
 
 // Circuit breaker. Once a real sample has gone out, pause if complaints or

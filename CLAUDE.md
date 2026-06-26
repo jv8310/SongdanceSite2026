@@ -170,9 +170,12 @@ e.g. a Drip export) and one-off `broadcasts` sent to it. Lives in
   the words. Test-send before launch.
 - **Send window is per-broadcast** (`window_start_hour`/`window_end_hour`,
   default 08:00–21:00 local). Widen it to push faster — but the real throughput
-  lever is `MAX_PER_RUN` in `cron.ts` (currently **200**/tick ≈ 57k/day; ~110s of
-  sending per 5-min tick at `SEND_GAP_MS`=550ms, still under Resend's 2 req/s).
-  Each recipient is only mailed inside the window for their own timezone.
+  lever is `MAX_PER_RUN` in `cron.ts` (currently **350**/tick ≈ 100k/day; ~195s of
+  sending per 5-min tick at `SEND_GAP_MS`=550ms, kept under the 300s tick interval
+  so drains don't overlap, and a single drain stays under Resend's 2 req/s). That
+  300s ceiling is why it tops out around here — going faster means raising Resend's
+  account rate limit, not the constant. Each recipient is only mailed inside the
+  window for their own timezone.
 - **Launch → cron drain**: launch snapshots sendable contacts (minus
   suppressions) into `broadcast_recipients`; `runBroadcasts` (in
   `src/lib/broadcasts/cron.ts`, wired into the 5-min cron) claims a paced,
