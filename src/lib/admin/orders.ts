@@ -24,6 +24,7 @@
 
 import { DEFAULT_FX_TO_EUR } from './fx';
 import { getTaxRate, type QuadernoTaxConfig } from '../workshops/quaderno';
+import { LABEL_BY_SLUG, isJourneySlug } from '../courses/journeys';
 
 export type OrderSource = 'retreat' | 'course' | 'workshop';
 
@@ -126,7 +127,11 @@ const COURSE_LABELS: Record<string, string> = {
 };
 
 function courseLabel(slug: string): string {
-  return COURSE_LABELS[slug] ?? slug;
+  if (COURSE_LABELS[slug]) return COURSE_LABELS[slug];
+  // Journeys (asj / mmj / inner-child / bundles) carry their own friendly names
+  // in the journeys module — use them so the overview never shows a raw slug.
+  if (isJourneySlug(slug)) return LABEL_BY_SLUG[slug];
+  return slug;
 }
 
 // ── Money: FX + VAT ─────────────────────────────────────────────────────────

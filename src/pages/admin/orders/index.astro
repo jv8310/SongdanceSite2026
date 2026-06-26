@@ -240,11 +240,13 @@ const refundedTotal = orders.reduce((s, o) => s + o.refundedMinor, 0);
                   <td><span class={`adm-pill adm-pill--${o.statusClass}`}>{o.rawStatus}</span></td>
                   <td>
                     <div class="ord-actions">
-                      {link && (
-                        <a class="adm-btn adm-btn--tiny" href={link.href} target="_blank" rel="noopener">{link.label} ↗</a>
-                      )}
-                      <a class="adm-btn adm-btn--tiny" href={`/api/admin/drip-profile?email=${encodeURIComponent(o.email)}`} target="_blank" rel="noopener">Drip</a>
-                      <a class="adm-btn adm-btn--tiny" href={`/api/admin/quaderno-profile?email=${encodeURIComponent(o.email)}`} target="_blank" rel="noopener">Quaderno</a>
+                      <div class="ord-links">
+                        {link && (
+                          <a class="adm-btn adm-btn--tiny" href={link.href} target="_blank" rel="noopener">{link.label} ↗</a>
+                        )}
+                        <a class="adm-btn adm-btn--tiny" href={`/api/admin/drip-profile?email=${encodeURIComponent(o.email)}`} target="_blank" rel="noopener">Drip</a>
+                        <a class="adm-btn adm-btn--tiny" href={`/api/admin/quaderno-profile?email=${encodeURIComponent(o.email)}`} target="_blank" rel="noopener">Quaderno</a>
+                      </div>
                       {isRefundable(o) && (
                         <details class="ord-refund">
                           <summary class="adm-btn adm-btn--tiny">Refund</summary>
@@ -314,7 +316,11 @@ const refundedTotal = orders.reduce((s, o) => s + o.refundedMinor, 0);
     .adm-pill--other        { background:rgba(0,0,0,0.06); color:var(--adm-ink-soft); }
     .adm-pill + .adm-pill, .adm-mono + .adm-pill { margin-left:6px; }
 
-    .ord-actions { display:flex; gap:6px; align-items:flex-start; flex-wrap:wrap; }
+    /* Actions: view-links grouped on one row, the Refund control on its own
+       below — so the cluster reads cleanly instead of wrapping mid-row. */
+    .ord-actions { display:flex; flex-direction:column; gap:6px; align-items:flex-start; }
+    .ord-links { display:flex; gap:6px; flex-wrap:wrap; }
+    .ord-table .num { font-variant-numeric: tabular-nums; white-space:nowrap; }
     .ord-refund { position:relative; }
     .ord-refund > summary { list-style:none; cursor:pointer; }
     .ord-refund > summary::-webkit-details-marker { display:none; }
