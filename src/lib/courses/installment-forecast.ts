@@ -42,14 +42,32 @@ export type InstallmentRow = {
   amount_cents: number;
   installments_paid: number;
   installments_total: number;
+  // Admin-scheduled early stop (migration 0054): total installments to ever
+  // charge. NULL = full plan. Caps the projection + watch list so a scheduled
+  // cancellation drops the forgiven charges out of expected revenue.
+  cancel_after_installment: number | null;
   paid_at: string | null;
   subscription_status: string | null;
+  provider: 'stripe' | 'paypal';
   stripe_subscription_id: string | null;
+  stripe_payment_intent: string | null;
+  paypal_subscription_id: string | null;
+  paypal_capture_id: string | null;
   // VAT rate (decimal, e.g. 0.21) the page resolves from Quaderno for this
   // row's country before calling buildForecast. 0 = no VAT / reverse charge /
   // unknown, in which case net == gross. Defaults to 0 when absent.
   taxRate?: number;
 };
+
+// Effective plan length: the admin-scheduled stop if one is set (clamped into
+// [installments_paid, installments_total]), otherwise the full plan.
+export function effectiveTotal(row: InstallmentRow): number {
+  if (row.cancel_after_installment == null) return row.installments_total;
+  return Math.max(
+    row.installments_paid,
+    Math.min(row.cancel_after_installment, row.installments_total),
+  );
+}
 
 // Approximate EUR-per-1-unit fallback rates — same table the ad-spend import
 // uses (src/pages/api/admin/workshops/ad-spend-import.ts) so the two admin
@@ -149,17 +167,26 @@ export type ForecastPerson = {
   currency: string;
   plan: string;              // '3×' | '6×'
   installmentsPaid: number;
-  installmentsTotal: number;
-  remaining: number;
+  installmentsTotal: number;       // full plan length (original)
+  effectiveTotal: number;          // length after any scheduled early stop
+  cancelAfterInstallment: number | null; // admin schedule, null = full plan
+  remaining: number;               // charges still ahead (effective)
   perInstallmentMinor: number;     // NET, original currency
   perInstallmentEurMinor: number;  // NET, EUR-equivalent
   perInstallmentGrossMinor: number; // gross charge, original currency
+  perInstallmentGrossEurMinor: number; // gross charge, EUR-equivalent
   taxRatePct: number;              // VAT rate applied (e.g. 21), 0 if none
   remainingMinor: number;          // NET still owed, original currency
   remainingEurMinor: number;       // NET, EUR-equivalent
+  remainingGrossMinor: number;     // gross still to charge, original currency
   nextDueIso: string | null;       // next charge date (null if stopped/not started)
   subStatus: string | null;
   rowStatus: string;
+  provider: 'stripe' | 'paypal';
+  stripeSubscriptionId: string | null;
+  stripePaymentIntent: string | null;
+  paypalSubscriptionId: string | null;
+  paypalCaptureId: string | null;
   state: PlanState;
   attention: boolean;
 };
@@ -184,10 +211,11 @@ type Projection = { key: string; eurMinor: number; atRisk: boolean };
 
 // Project the remaining installments of one plan into month buckets.
 function projectRow(row: InstallmentRow, nowMs: number): Projection[] {
-  const total = row.installments_total;
+  // Bill only up to the effective (possibly admin-shortened) plan length.
+  const total = effectiveTotal(row);
   const paid = row.installments_paid;
   const remaining = total - paid;
-  if (total <= 1 || remaining <= 0) return [];
+  if (row.installments_total <= 1 || remaining <= 0) return [];
   if (isDead(row)) return [];
   if (!row.paid_at) return []; // plan hasn't started — no reliable schedule
 
@@ -287,7 +315,8 @@ export function buildForecast(
   const horizon30 = nowMs + 30 * 86400 * 1000;
   let next30 = 0;
   const people: ForecastPerson[] = plans.map((row) => {
-    const remaining = row.installments_total - row.installments_paid;
+    const effTotal = effectiveTotal(row);
+    const remaining = Math.max(0, effTotal - row.installments_paid);
     const grossMinor = grossPerInstallment(row);
     const netMinor = netPerInstallment(row);
     const state = planState(row);
@@ -312,16 +341,25 @@ export function buildForecast(
       plan: `${row.installments_total}×`,
       installmentsPaid: row.installments_paid,
       installmentsTotal: row.installments_total,
+      effectiveTotal: effTotal,
+      cancelAfterInstallment: row.cancel_after_installment,
       remaining,
       perInstallmentMinor: netMinor,
       perInstallmentEurMinor: toEurMinor(netMinor, row.currency),
       perInstallmentGrossMinor: grossMinor,
+      perInstallmentGrossEurMinor: toEurMinor(grossMinor, row.currency),
       taxRatePct: Math.round((row.taxRate ?? 0) * 100),
       remainingMinor: netMinor * remaining,
       remainingEurMinor: toEurMinor(netMinor * remaining, row.currency),
+      remainingGrossMinor: grossMinor * remaining,
       nextDueIso,
       subStatus: row.subscription_status,
       rowStatus: row.status,
+      provider: row.provider,
+      stripeSubscriptionId: row.stripe_subscription_id,
+      stripePaymentIntent: row.stripe_payment_intent,
+      paypalSubscriptionId: row.paypal_subscription_id,
+      paypalCaptureId: row.paypal_capture_id,
       state,
       attention: state === 'at_risk' || (state === 'stopped' && remaining > 0),
     };
@@ -346,7 +384,7 @@ export function buildForecast(
     (r) =>
       !isDead(r) &&
       r.paid_at != null &&
-      r.installments_total - r.installments_paid > 0,
+      effectiveTotal(r) - r.installments_paid > 0,
   ).length;
   const attentionCount = people.filter((p) => p.attention).length;
 

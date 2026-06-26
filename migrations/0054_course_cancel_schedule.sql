@@ -1,0 +1,23 @@
+-- Scheduled cancellation point for installment-plan course purchases.
+--
+-- An admin can stop an open plan early from the Future-revenue page: either
+-- "cancel all upcoming now" or "let it bill N more times, then stop" (e.g. on a
+-- 3× plan with one paid, charge once more and forgive the last). We record the
+-- intended stopping point here as the TOTAL number of installments that should
+-- ever be charged:
+--
+--   cancel_after_installment = installments_paid + (charges still allowed)
+--
+-- NULL (the default) means run the full plan — no early stop scheduled.
+--
+-- Enforcement is provider-native where possible:
+--   • Stripe — we move the subscription's cancel_at to just after the Nth charge
+--     (or cancel immediately for "stop now"), so Stripe stops billing on its own.
+--   • PayPal — the subscription can't be given a future partial-cancel date, so
+--     the PAYMENT.SALE.COMPLETED webhook cancels it the moment installments_paid
+--     reaches this target ("stop now" cancels straight away).
+--
+-- The forecast reads this column as the effective plan length, so a scheduled
+-- stop immediately drops the forgiven charges out of projected revenue and the
+-- plan no longer shows up as "needs an eye".
+ALTER TABLE course_registrations ADD COLUMN cancel_after_installment INTEGER;

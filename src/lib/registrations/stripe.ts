@@ -368,6 +368,27 @@ export async function setSubscriptionCancelAt(
   }
 }
 
+// Cancel a subscription immediately — no further invoices, effective now. Used
+// by the admin "stop all upcoming charges" action (the buyer keeps whatever
+// access the earlier installments granted; we're only forgiving the rest).
+// Stripe then fires `customer.subscription.deleted`, which our webhook folds
+// onto the row (status → cancelled). Idempotent: a 404 (already gone) is OK.
+export async function cancelSubscriptionNow(
+  secretKey: string,
+  subscriptionId: string,
+): Promise<void> {
+  const res = await fetch(`${STRIPE_BASE}/subscriptions/${subscriptionId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${secretKey}` },
+  });
+  if (!res.ok && res.status !== 404) {
+    const body = (await res.json()) as { error?: { message: string } };
+    throw new Error(
+      `Stripe subscriptions.cancel: ${body.error?.message ?? res.status}`,
+    );
+  }
+}
+
 export type CreateSubscriptionCheckoutInput = {
   secretKey: string;
   customer: string;

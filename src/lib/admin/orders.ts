@@ -24,6 +24,7 @@
 
 import { DEFAULT_FX_TO_EUR } from './fx';
 import { getTaxRate, type QuadernoTaxConfig } from '../workshops/quaderno';
+import { LABEL_BY_SLUG, isJourneySlug } from '../courses/journeys';
 
 export type OrderSource = 'retreat' | 'course' | 'workshop';
 
@@ -58,10 +59,21 @@ export type UnifiedOrder = {
   refundedMinor: number;
   // Which gateway charged this order.
   provider: 'stripe' | 'paypal';
+  // The specific method used (card / bancontact / ideal / sepa_debit / …).
+  // Captured for workshops (workshop_payments.method); null for courses &
+  // retreats, which don't store it — those show just the gateway.
+  paymentMethod: string | null;
   paymentIntent: string | null; // Stripe PaymentIntent (refund target)
+  stripeSubscriptionId: string | null; // set → a Stripe installment plan
   paypalCaptureId: string | null; // PayPal capture / sale id (refund target)
   paypalSubscriptionId: string | null; // set → a PayPal installment plan
   quadernoInvoiceId: string | null;
+  // Installment plan shape (course orders only; 'full' / total 1 elsewhere).
+  // originalAmountMinor is the WHOLE plan total; installmentsPaid/Total say how
+  // far along it is, so the overview can flag "paid in installments".
+  paymentPlan: string; // 'full' | '3x' | '6x' | '12x'
+  installmentsPaid: number;
+  installmentsTotal: number;
   createdAt: string;
   paidAt: string | null;
 };
@@ -119,7 +131,11 @@ const COURSE_LABELS: Record<string, string> = {
 };
 
 function courseLabel(slug: string): string {
-  return COURSE_LABELS[slug] ?? slug;
+  if (COURSE_LABELS[slug]) return COURSE_LABELS[slug];
+  // Journeys (asj / mmj / inner-child / bundles) carry their own friendly names
+  // in the journeys module — use them so the overview never shows a raw slug.
+  if (isJourneySlug(slug)) return LABEL_BY_SLUG[slug];
+  return slug;
 }
 
 // ── Money: FX + VAT ─────────────────────────────────────────────────────────
@@ -255,10 +271,15 @@ async function loadRetreatOrders(
       netKind,
       refundedMinor: r.refunded_amount_cents ?? 0,
       provider: r.provider === 'paypal' ? 'paypal' : 'stripe',
+      paymentMethod: null,
       paymentIntent: r.stripe_payment_intent,
+      stripeSubscriptionId: null,
       paypalCaptureId: r.paypal_capture_id,
       paypalSubscriptionId: null,
       quadernoInvoiceId: r.quaderno_invoice_id,
+      paymentPlan: 'full',
+      installmentsPaid: 0,
+      installmentsTotal: 1,
       createdAt: r.created_at,
       paidAt: r.paid_at,
     };
@@ -279,8 +300,12 @@ type CourseRow = {
   refunded_amount_cents: number;
   provider: string | null;
   stripe_payment_intent: string | null;
+  stripe_subscription_id: string | null;
   paypal_capture_id: string | null;
   paypal_subscription_id: string | null;
+  payment_plan: string;
+  installments_paid: number;
+  installments_total: number;
   product_slug: string;
   created_at: string;
   paid_at: string | null;
@@ -295,8 +320,10 @@ async function loadCourseOrders(
     .prepare(
       `SELECT id, first_name, last_name, email, country, status,
               amount_cents, currency, refunded_amount_cents,
-              provider, stripe_payment_intent, paypal_capture_id,
-              paypal_subscription_id, product_slug, created_at, paid_at
+              provider, stripe_payment_intent, stripe_subscription_id,
+              paypal_capture_id, paypal_subscription_id,
+              payment_plan, installments_paid, installments_total,
+              product_slug, created_at, paid_at
          FROM course_registrations
         ORDER BY created_at DESC`,
     )
@@ -335,10 +362,15 @@ async function loadCourseOrders(
       netKind,
       refundedMinor: r.refunded_amount_cents ?? 0,
       provider: r.provider === 'paypal' ? 'paypal' : 'stripe',
+      paymentMethod: null,
       paymentIntent: r.stripe_payment_intent,
+      stripeSubscriptionId: r.stripe_subscription_id,
       paypalCaptureId: r.paypal_capture_id,
       paypalSubscriptionId: r.paypal_subscription_id,
       quadernoInvoiceId: null,
+      paymentPlan: r.payment_plan || 'full',
+      installmentsPaid: r.installments_paid ?? 0,
+      installmentsTotal: r.installments_total ?? 1,
       createdAt: r.created_at,
       paidAt: r.paid_at,
     };
@@ -367,6 +399,7 @@ type WorkshopPayRow = {
   settlement_currency: string | null;
   subtotal_minor: number | null;
   provider: string | null;
+  method: string | null;
   stripe_payment_intent_id: string | null;
   paypal_capture_id: string | null;
   quaderno_invoice_id: string | null;
@@ -398,7 +431,7 @@ async function loadWorkshopOrders(
     .prepare(
       `SELECT registration_id, amount_minor, currency AS pay_currency,
               settlement_amount_minor, settlement_currency, subtotal_minor,
-              provider, stripe_payment_intent_id, paypal_capture_id,
+              provider, method, stripe_payment_intent_id, paypal_capture_id,
               quaderno_invoice_id, status
          FROM workshop_payments
         WHERE registration_id IN (${ph}) AND status IN ('paid','refunded')
@@ -481,10 +514,15 @@ async function loadWorkshopOrders(
       netKind,
       refundedMinor,
       provider: pay?.provider === 'paypal' ? 'paypal' : 'stripe',
+      paymentMethod: pay?.method ?? null,
       paymentIntent: pay?.stripe_payment_intent_id ?? null,
+      stripeSubscriptionId: null,
       paypalCaptureId: pay?.paypal_capture_id ?? null,
       paypalSubscriptionId: null,
       quadernoInvoiceId: pay?.quaderno_invoice_id ?? null,
+      paymentPlan: 'full',
+      installmentsPaid: 0,
+      installmentsTotal: 1,
       createdAt: r.created_at,
       paidAt: null,
     };

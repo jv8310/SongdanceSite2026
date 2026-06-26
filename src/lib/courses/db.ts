@@ -63,6 +63,10 @@ export type CourseRegistration = {
   payment_plan: PaymentPlan;
   installments_paid: number;
   installments_total: number;
+  // Admin-scheduled early stop: the total number of installments that should
+  // ever be charged (installments_paid + charges still allowed). NULL = run the
+  // full plan. See migration 0054 + src/lib/courses/installment-cancel.ts.
+  cancel_after_installment: number | null;
   consent_terms: number;
   consent_at: string | null;
   created_at: string;
@@ -257,6 +261,23 @@ export async function markCourseRegistrationPaid(
        WHERE id = ? AND status != 'paid'`,
     )
     .bind(paymentIntent, id)
+    .run();
+}
+
+// Record (or clear) an admin-scheduled early stop for an installment plan.
+// `n` is the TOTAL number of installments that should ever be charged
+// (installments_paid + the charges still allowed); null clears the schedule and
+// lets the plan run to its full length. See migration 0054 + installment-cancel.
+export async function setCourseCancelAfterInstallment(
+  db: D1Database,
+  id: number,
+  n: number | null,
+) {
+  await db
+    .prepare(
+      'UPDATE course_registrations SET cancel_after_installment = ? WHERE id = ?',
+    )
+    .bind(n, id)
     .run();
 }
 
