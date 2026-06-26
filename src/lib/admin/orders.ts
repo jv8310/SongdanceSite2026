@@ -59,6 +59,10 @@ export type UnifiedOrder = {
   refundedMinor: number;
   // Which gateway charged this order.
   provider: 'stripe' | 'paypal';
+  // The specific method used (card / bancontact / ideal / sepa_debit / …).
+  // Captured for workshops (workshop_payments.method); null for courses &
+  // retreats, which don't store it — those show just the gateway.
+  paymentMethod: string | null;
   paymentIntent: string | null; // Stripe PaymentIntent (refund target)
   stripeSubscriptionId: string | null; // set → a Stripe installment plan
   paypalCaptureId: string | null; // PayPal capture / sale id (refund target)
@@ -267,6 +271,7 @@ async function loadRetreatOrders(
       netKind,
       refundedMinor: r.refunded_amount_cents ?? 0,
       provider: r.provider === 'paypal' ? 'paypal' : 'stripe',
+      paymentMethod: null,
       paymentIntent: r.stripe_payment_intent,
       stripeSubscriptionId: null,
       paypalCaptureId: r.paypal_capture_id,
@@ -357,6 +362,7 @@ async function loadCourseOrders(
       netKind,
       refundedMinor: r.refunded_amount_cents ?? 0,
       provider: r.provider === 'paypal' ? 'paypal' : 'stripe',
+      paymentMethod: null,
       paymentIntent: r.stripe_payment_intent,
       stripeSubscriptionId: r.stripe_subscription_id,
       paypalCaptureId: r.paypal_capture_id,
@@ -393,6 +399,7 @@ type WorkshopPayRow = {
   settlement_currency: string | null;
   subtotal_minor: number | null;
   provider: string | null;
+  method: string | null;
   stripe_payment_intent_id: string | null;
   paypal_capture_id: string | null;
   quaderno_invoice_id: string | null;
@@ -424,7 +431,7 @@ async function loadWorkshopOrders(
     .prepare(
       `SELECT registration_id, amount_minor, currency AS pay_currency,
               settlement_amount_minor, settlement_currency, subtotal_minor,
-              provider, stripe_payment_intent_id, paypal_capture_id,
+              provider, method, stripe_payment_intent_id, paypal_capture_id,
               quaderno_invoice_id, status
          FROM workshop_payments
         WHERE registration_id IN (${ph}) AND status IN ('paid','refunded')
@@ -507,6 +514,7 @@ async function loadWorkshopOrders(
       netKind,
       refundedMinor,
       provider: pay?.provider === 'paypal' ? 'paypal' : 'stripe',
+      paymentMethod: pay?.method ?? null,
       paymentIntent: pay?.stripe_payment_intent_id ?? null,
       stripeSubscriptionId: null,
       paypalCaptureId: pay?.paypal_capture_id ?? null,
