@@ -6,7 +6,14 @@
 import '../../../styles/admin.css';
 import Layout from '../../../layouts/Layout.astro';
 import { readCookie, verifySession } from '../../../lib/registrations/auth';
-import { listBroadcasts, countSendable, availableTags } from '../../../lib/broadcasts/db';
+import {
+  listBroadcasts,
+  countSendable,
+  availableTags,
+  recipientCounts,
+  broadcastStats,
+  broadcastEmailType,
+} from '../../../lib/broadcasts/db';
 
 export const prerender = false;
 
@@ -18,6 +25,24 @@ if (!(await verifySession(env.ADMIN_SESSION_SECRET, readCookie(Astro.request))))
 const broadcasts = await listBroadcasts(env.DB);
 const sendable = await countSendable(env.DB);
 const tags = await availableTags(env.DB, 1000);
+
+// Per-broadcast send progress + engagement, for the table. A draft hasn't been
+// launched, so it has no recipients or sends yet — leave its figures blank.
+const rows = await Promise.all(
+  broadcasts.map(async (b) => {
+    if (b.status === 'draft') return { b, counts: null, stats: null };
+    const [counts, stats] = await Promise.all([
+      recipientCounts(env.DB, b.id),
+      broadcastStats(env.DB, broadcastEmailType(b.id)),
+    ]);
+    return { b, counts, stats };
+  }),
+);
+
+const pct = (r: number) => `${(r * 100).toFixed(1)}%`;
+// Bounce rate is bounces over tracked sends (the figure shown on the detail page
+// is the raw count; here we want a rate to scan the list at a glance).
+const bounceRate = (s: { bounced: number; sent: number }) => (s.sent ? s.bounced / s.sent : 0);
 
 const statusLabel: Record<string, string> = {
   draft: 'Draft', sending: 'Sending', paused: 'Paused', done: 'Done',
@@ -48,14 +73,25 @@ const statusLabel: Record<string, string> = {
         <p class="bc-empty">No broadcasts yet.</p>
       ) : (
         <table class="bc-table">
-          <thead><tr><th>Name</th><th>Subject</th><th>Format</th><th>Status</th><th>Created</th><th></th></tr></thead>
+          <thead><tr>
+            <th>Name</th><th>Status</th>
+            <th class="num">Sent</th><th class="num">Queued</th>
+            <th class="num">Open</th><th class="num">Click</th><th class="num">Bounce</th>
+            <th>Created</th><th></th>
+          </tr></thead>
           <tbody>
-            {broadcasts.map((b) => (
+            {rows.map(({ b, counts, stats }) => (
               <tr>
-                <td><strong>{b.name}</strong></td>
-                <td>{b.subject}</td>
-                <td>{b.format === 'html' ? 'HTML' : 'Simple'}</td>
+                <td>
+                  <strong>{b.name}</strong>
+                  {b.subject && b.subject !== b.name && <span class="bc-subj">{b.subject}</span>}
+                </td>
                 <td><span class={`bc-pill bc-pill--${b.status}`}>{statusLabel[b.status] ?? b.status}</span></td>
+                <td class="num">{counts ? counts.sent.toLocaleString() : '—'}</td>
+                <td class="num">{counts ? counts.pending.toLocaleString() : '—'}</td>
+                <td class="num">{stats && stats.sent ? pct(stats.openRate) : '—'}</td>
+                <td class="num">{stats && stats.sent ? pct(stats.clickRate) : '—'}</td>
+                <td class="num">{stats && stats.sent ? pct(bounceRate(stats)) : '—'}</td>
                 <td>{b.created_at?.slice(0, 10)}</td>
                 <td><a class="adm-btn adm-btn--ghost" href={`/admin/broadcasts/${b.id}`}>Open</a></td>
               </tr>
@@ -216,6 +252,9 @@ const statusLabel: Record<string, string> = {
     .bc-table th, .bc-table td { padding: 10px 14px; text-align: left; font-size: 14px; border-bottom: 1px solid rgba(161,72,38,0.12); vertical-align: middle; }
     .bc-table th { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.05em; color: #6f5f6d; }
     .bc-table tr:last-child td { border-bottom: none; }
+    .bc-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+    .bc-table td strong { display: block; }
+    .bc-subj { display: block; font-size: 12.5px; color: #6f5f6d; margin-top: 2px; }
     .bc-pill { font-size: 12px; padding: 2px 10px; border-radius: 999px; background: #ece0cf; color: #4a3848; }
     .bc-pill--sending { background: #d9ead0; color: #38601f; }
     .bc-pill--paused { background: #f4dcc9; color: #a14826; }
