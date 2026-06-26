@@ -59,9 +59,16 @@ export type UnifiedOrder = {
   // Which gateway charged this order.
   provider: 'stripe' | 'paypal';
   paymentIntent: string | null; // Stripe PaymentIntent (refund target)
+  stripeSubscriptionId: string | null; // set → a Stripe installment plan
   paypalCaptureId: string | null; // PayPal capture / sale id (refund target)
   paypalSubscriptionId: string | null; // set → a PayPal installment plan
   quadernoInvoiceId: string | null;
+  // Installment plan shape (course orders only; 'full' / total 1 elsewhere).
+  // originalAmountMinor is the WHOLE plan total; installmentsPaid/Total say how
+  // far along it is, so the overview can flag "paid in installments".
+  paymentPlan: string; // 'full' | '3x' | '6x' | '12x'
+  installmentsPaid: number;
+  installmentsTotal: number;
   createdAt: string;
   paidAt: string | null;
 };
@@ -256,9 +263,13 @@ async function loadRetreatOrders(
       refundedMinor: r.refunded_amount_cents ?? 0,
       provider: r.provider === 'paypal' ? 'paypal' : 'stripe',
       paymentIntent: r.stripe_payment_intent,
+      stripeSubscriptionId: null,
       paypalCaptureId: r.paypal_capture_id,
       paypalSubscriptionId: null,
       quadernoInvoiceId: r.quaderno_invoice_id,
+      paymentPlan: 'full',
+      installmentsPaid: 0,
+      installmentsTotal: 1,
       createdAt: r.created_at,
       paidAt: r.paid_at,
     };
@@ -279,8 +290,12 @@ type CourseRow = {
   refunded_amount_cents: number;
   provider: string | null;
   stripe_payment_intent: string | null;
+  stripe_subscription_id: string | null;
   paypal_capture_id: string | null;
   paypal_subscription_id: string | null;
+  payment_plan: string;
+  installments_paid: number;
+  installments_total: number;
   product_slug: string;
   created_at: string;
   paid_at: string | null;
@@ -295,8 +310,10 @@ async function loadCourseOrders(
     .prepare(
       `SELECT id, first_name, last_name, email, country, status,
               amount_cents, currency, refunded_amount_cents,
-              provider, stripe_payment_intent, paypal_capture_id,
-              paypal_subscription_id, product_slug, created_at, paid_at
+              provider, stripe_payment_intent, stripe_subscription_id,
+              paypal_capture_id, paypal_subscription_id,
+              payment_plan, installments_paid, installments_total,
+              product_slug, created_at, paid_at
          FROM course_registrations
         ORDER BY created_at DESC`,
     )
@@ -336,9 +353,13 @@ async function loadCourseOrders(
       refundedMinor: r.refunded_amount_cents ?? 0,
       provider: r.provider === 'paypal' ? 'paypal' : 'stripe',
       paymentIntent: r.stripe_payment_intent,
+      stripeSubscriptionId: r.stripe_subscription_id,
       paypalCaptureId: r.paypal_capture_id,
       paypalSubscriptionId: r.paypal_subscription_id,
       quadernoInvoiceId: null,
+      paymentPlan: r.payment_plan || 'full',
+      installmentsPaid: r.installments_paid ?? 0,
+      installmentsTotal: r.installments_total ?? 1,
       createdAt: r.created_at,
       paidAt: r.paid_at,
     };
@@ -482,9 +503,13 @@ async function loadWorkshopOrders(
       refundedMinor,
       provider: pay?.provider === 'paypal' ? 'paypal' : 'stripe',
       paymentIntent: pay?.stripe_payment_intent_id ?? null,
+      stripeSubscriptionId: null,
       paypalCaptureId: pay?.paypal_capture_id ?? null,
       paypalSubscriptionId: null,
       quadernoInvoiceId: pay?.quaderno_invoice_id ?? null,
+      paymentPlan: 'full',
+      installmentsPaid: 0,
+      installmentsTotal: 1,
       createdAt: r.created_at,
       paidAt: null,
     };

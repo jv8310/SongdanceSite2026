@@ -31,6 +31,7 @@ import {
   type CourseRegistration,
 } from '../courses/db';
 import { pushPaidCourseRegistrationToDrip } from '../courses/paid-handler';
+import { enforcePaypalScheduledCancel } from '../courses/installment-cancel';
 import { notifyCourseOrder, notifyRetreatOrder } from '../orders/notification';
 import {
   getRegistrationById as getWorkshopRegById,
@@ -136,6 +137,11 @@ export async function recordCoursePaypalInstallment(
       (await getCourseRegistrationById(env.DB, courseReg.id)) ?? courseReg;
     await notifyCourseOrder(env, fresh);
   }
+  // Enforce an admin-scheduled early stop: if this installment was the last one
+  // the host chose to allow, cancel the PayPal subscription now (no-op unless a
+  // partial schedule is set and reached). Re-read so installments_paid is fresh.
+  const afterInc = await getCourseRegistrationById(env.DB, courseReg.id);
+  if (afterInc) await enforcePaypalScheduledCancel(env as any, afterInc);
   return true;
 }
 

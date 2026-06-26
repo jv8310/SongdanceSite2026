@@ -11,6 +11,10 @@ import {
   type StatusClass,
 } from '../../../lib/admin/orders';
 import { getFxRatesToEur } from '../../../lib/admin/fx';
+import {
+  providerLinkFor,
+  resolveProviderModes,
+} from '../../../lib/admin/provider-links';
 
 export const prerender = false;
 
@@ -51,6 +55,9 @@ const orders = await listAllOrders(
   { fxRates, quaderno },
 );
 const returnTo = Astro.url.pathname + Astro.url.search;
+
+// Dashboard deep-link modes (Stripe test/live, PayPal sandbox/live).
+const providerModes = resolveProviderModes(env);
 
 // Build a filter URL from explicit source/status sets (+ the current search).
 function filterHref(sources: string[], statuses: string[], query: string): string {
@@ -193,6 +200,8 @@ const refundedTotal = orders.reduce((s, o) => s + o.refundedMinor, 0);
               const remainingMajor = (remaining / 100).toFixed(2);
               // Escape for safe interpolation into the inline confirm() JS string.
               const jsName = name.replace(/['\\]/g, '\\$&');
+              const isInstallment = o.installmentsTotal > 1;
+              const link = providerLinkFor(o, providerModes);
               return (
                 <tr>
                   <td>
@@ -200,6 +209,11 @@ const refundedTotal = orders.reduce((s, o) => s + o.refundedMinor, 0);
                     <span class={`adm-pill adm-pill--src-${o.source}`}>{SOURCE_LABEL[o.source]}</span>
                     {o.provider === 'paypal' && (
                       <span class="adm-pill" style="background:#003087;color:#fff;">PayPal</span>
+                    )}
+                    {isInstallment && (
+                      <span class="adm-pill adm-pill--plan" title="Paid in monthly installments">
+                        {o.paymentPlan} · {o.installmentsPaid}/{o.installmentsTotal}
+                      </span>
                     )}
                   </td>
                   <td>{o.productLabel}</td>
@@ -209,6 +223,9 @@ const refundedTotal = orders.reduce((s, o) => s + o.refundedMinor, 0);
                     {o.originalAmountMinor > 0
                       ? formatMoney(o.originalAmountMinor, o.originalCurrency)
                       : '—'}
+                    {isInstallment && (
+                      <><br /><small class="ord-plan-note">plan total · {o.installmentsPaid}/{o.installmentsTotal} charged</small></>
+                    )}
                     {o.refundedMinor > 0 && (
                       <><br /><small class="ord-refunded">−{formatMoney(o.refundedMinor, o.originalCurrency)} refunded</small></>
                     )}
@@ -223,6 +240,9 @@ const refundedTotal = orders.reduce((s, o) => s + o.refundedMinor, 0);
                   <td><span class={`adm-pill adm-pill--${o.statusClass}`}>{o.rawStatus}</span></td>
                   <td>
                     <div class="ord-actions">
+                      {link && (
+                        <a class="adm-btn adm-btn--tiny" href={link.href} target="_blank" rel="noopener">{link.label} ↗</a>
+                      )}
                       <a class="adm-btn adm-btn--tiny" href={`/api/admin/drip-profile?email=${encodeURIComponent(o.email)}`} target="_blank" rel="noopener">Drip</a>
                       <a class="adm-btn adm-btn--tiny" href={`/api/admin/quaderno-profile?email=${encodeURIComponent(o.email)}`} target="_blank" rel="noopener">Quaderno</a>
                       {isRefundable(o) && (
@@ -286,6 +306,8 @@ const refundedTotal = orders.reduce((s, o) => s + o.refundedMinor, 0);
 
     .ord-table td { vertical-align:top; }
     .ord-refunded { color:var(--adm-danger); }
+    .ord-plan-note { color:var(--adm-mute); }
+    .adm-pill--plan { background:#efe6d2; color:var(--adm-ink-soft); }
     .adm-pill--src-retreat  { background:rgba(201, 96, 58, 0.16); color:var(--adm-ember-deep); }
     .adm-pill--src-course   { background:#d6e4f0; color:#2a5a8a; }
     .adm-pill--src-workshop { background:#dcefdc; color:#2f7a4c; }

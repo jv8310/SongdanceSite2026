@@ -7,6 +7,10 @@ import {
   type InstallmentRow,
 } from '../../../lib/courses/installment-forecast';
 import { getTaxRate } from '../../../lib/workshops/quaderno';
+import {
+  providerLinkFor,
+  resolveProviderModes,
+} from '../../../lib/admin/provider-links';
 
 export const prerender = false;
 
@@ -23,8 +27,10 @@ const q = await env.DB
   .prepare(
     `SELECT id, email, first_name, last_name, currency, country, vat_number,
             status, payment_plan, amount_cents,
-            installments_paid, installments_total,
-            paid_at, subscription_status, stripe_subscription_id
+            installments_paid, installments_total, cancel_after_installment,
+            paid_at, subscription_status, provider,
+            stripe_subscription_id, stripe_payment_intent,
+            paypal_subscription_id, paypal_capture_id
        FROM course_registrations
       WHERE installments_total > 1
       ORDER BY paid_at DESC`,
@@ -72,6 +78,20 @@ const flaggedNoTax = !taxConfigured
 const forecast = buildForecast(rows, Date.now());
 const { months, people, totals } = forecast;
 
+// Dashboard deep-link modes (Stripe test/live, PayPal sandbox/live).
+const providerModes = resolveProviderModes(env);
+const returnTo = Astro.url.pathname + Astro.url.search;
+
+// Flash from the cancel-installments endpoint.
+const flash = Astro.url.searchParams.get('flash');
+const flashMsg = Astro.url.searchParams.get('msg');
+const flashBanner =
+  flash === 'cancel_ok'
+    ? { tone: 'ok' as const, text: flashMsg ?? 'Plan updated.' }
+  : flash === 'cancel_error'
+    ? { tone: 'err' as const, text: flashMsg ?? 'Could not update the plan.' }
+  : null;
+
 const eur = (minor: number) =>
   (minor / 100).toLocaleString('en-GB', { style: 'currency', currency: 'EUR' });
 const money = (minor: number, currency: string) =>
@@ -99,6 +119,17 @@ function stateLabel(state: string): string {
     : state === 'stopped' ? 'Stopped'
     : state === 'not_started' ? 'Not started'
     : 'On track';
+}
+// Label for one "keep N more charges" option in the cancel control.
+function keepLabel(k: number, origRemaining: number): string {
+  if (k === 0) {
+    return origRemaining === 1
+      ? 'Stop now · cancel the last charge'
+      : `Stop now · cancel all ${origRemaining} upcoming`;
+  }
+  if (k >= origRemaining) return `Keep full plan (${origRemaining} more)`;
+  const base = `Bill ${k} more, then stop`;
+  return k === origRemaining - 1 ? `${base} · only the last cancelled` : base;
 }
 
 // ── SVG line chart geometry ──
@@ -156,6 +187,10 @@ const hasAtRisk = months.some((m) => m.atRiskEurMinor > 0);
         <a class="adm-btn adm-btn--ghost" href="/admin/courses">← Courses</a>
       </div>
     </header>
+
+    {flashBanner && (
+      <div class={`adm-flash adm-flash--${flashBanner.tone}`}>{flashBanner.text}</div>
+    )}
 
     {flaggedNoTax > 0 && (
       <div class="adm-flash adm-flash--warn">
@@ -278,65 +313,142 @@ const hasAtRisk = months.some((m) => m.atRiskEurMinor > 0);
       )}
 
       {people.length > 0 && (
-        <table class="adm-table">
+        <table class="adm-table fr-people">
           <thead>
             <tr>
               <th>Person</th>
               <th>Plan</th>
               <th>Progress</th>
-              <th class="num">Per charge</th>
+              <th class="num">Per charge <span class="fr-th-sub">EUR · net</span></th>
+              <th class="num">Original <span class="fr-th-sub">as charged</span></th>
               <th>Next charge</th>
-              <th class="num">Remaining</th>
-              <th>Stripe</th>
+              <th class="num">Remaining <span class="fr-th-sub">EUR · net</span></th>
+              <th>Subscription</th>
               <th>State</th>
+              <th>Manage</th>
             </tr>
           </thead>
           <tbody>
-            {people.map((p) => (
-              <tr class={p.attention ? 'fr-row--watch' : ''}>
-                <td>
-                  <strong>{p.name}</strong><br />
-                  <a href={`mailto:${p.email}`} class="adm-sub" style="text-transform:none;letter-spacing:0;">{p.email}</a>
-                </td>
-                <td>{p.plan}</td>
-                <td>
-                  {p.installmentsPaid}/{p.installmentsTotal} paid
-                  {p.remaining > 0 && <span class="adm-sub" style="text-transform:none;letter-spacing:0;"> · {p.remaining} left</span>}
-                </td>
-                <td class="num">
-                  {money(p.perInstallmentMinor, p.currency)}
-                  <div class="adm-sub" style="text-transform:none;letter-spacing:0;">
-                    {p.taxRatePct > 0 ? `gross ${money(p.perInstallmentGrossMinor, p.currency)} · ${p.taxRatePct}% VAT` : 'no VAT'}
-                  </div>
-                  {p.currency !== 'EUR' && <div class="adm-sub" style="text-transform:none;letter-spacing:0;">≈ {eur(p.perInstallmentEurMinor)} net</div>}
-                </td>
-                <td>{p.state === 'stopped' ? '—' : prettyDate(p.nextDueIso)}</td>
-                <td class="num">
-                  {p.remaining > 0 ? money(p.remainingMinor, p.currency) : '—'}
-                  {p.currency !== 'EUR' && p.remaining > 0 && <div class="adm-sub" style="text-transform:none;letter-spacing:0;">≈ {eur(p.remainingEurMinor)} net</div>}
-                </td>
-                <td>
-                  {p.subStatus
-                    ? <span class={`adm-pill adm-pill--${subTone(p.subStatus)}`} title="Live Stripe subscription status">{p.subStatus}</span>
-                    : <span class="adm-sub" style="text-transform:none;letter-spacing:0;">—</span>}
-                </td>
-                <td>
-                  <span class={`fr-state fr-state--${p.state}`}>{stateLabel(p.state)}</span>
-                </td>
-              </tr>
-            ))}
+            {people.map((p) => {
+              const origRemaining = p.installmentsTotal - p.installmentsPaid;
+              const currentKeep = p.effectiveTotal - p.installmentsPaid;
+              const canManage =
+                p.state !== 'stopped' &&
+                origRemaining > 0 &&
+                (p.provider === 'paypal'
+                  ? !!p.paypalSubscriptionId
+                  : !!p.stripeSubscriptionId);
+              const link = providerLinkFor(p, providerModes);
+              const jsName = p.name.replace(/['\\]/g, '\\$&');
+              const keepOptions = Array.from({ length: origRemaining + 1 }, (_, k) => k);
+              return (
+                <tr class={p.attention ? 'fr-row--watch' : ''}>
+                  <td>
+                    <strong>{p.name}</strong><br />
+                    <a href={`mailto:${p.email}`} class="adm-sub" style="text-transform:none;letter-spacing:0;">{p.email}</a>
+                  </td>
+                  <td>
+                    {p.plan}
+                    {p.provider === 'paypal' && (
+                      <span class="adm-pill" style="background:#003087;color:#fff;margin-left:4px;">PayPal</span>
+                    )}
+                  </td>
+                  <td>
+                    {p.installmentsPaid}/{p.installmentsTotal} paid
+                    {p.remaining > 0 && <span class="adm-sub" style="text-transform:none;letter-spacing:0;"> · {p.remaining} left</span>}
+                    {p.cancelAfterInstallment != null && p.remaining > 0 && (
+                      <div class="fr-sched" title="Admin-scheduled early stop">
+                        ⏹ stops after charge {p.cancelAfterInstallment}
+                      </div>
+                    )}
+                  </td>
+                  <td class="num">
+                    {eur(p.perInstallmentEurMinor)}
+                    <div class="adm-sub" style="text-transform:none;letter-spacing:0;">
+                      {p.taxRatePct > 0
+                        ? `gross ${eur(p.perInstallmentGrossEurMinor)} · ${p.taxRatePct}% VAT`
+                        : 'no VAT'}
+                    </div>
+                  </td>
+                  <td class="num">
+                    {p.currency !== 'EUR' ? (
+                      <>
+                        {money(p.perInstallmentGrossMinor, p.currency)}
+                        {p.remaining > 0 && (
+                          <div class="adm-sub" style="text-transform:none;letter-spacing:0;">
+                            {p.remaining} left · {money(p.remainingGrossMinor, p.currency)}
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <span class="adm-sub" style="text-transform:none;letter-spacing:0;">— EUR</span>
+                    )}
+                  </td>
+                  <td>{p.state === 'stopped' ? '—' : prettyDate(p.nextDueIso)}</td>
+                  <td class="num">
+                    {p.remaining > 0 ? eur(p.remainingEurMinor) : '—'}
+                  </td>
+                  <td>
+                    {p.subStatus
+                      ? <span class={`adm-pill adm-pill--${subTone(p.subStatus)}`} title="Live subscription status">{p.subStatus}</span>
+                      : <span class="adm-sub" style="text-transform:none;letter-spacing:0;">—</span>}
+                    {link && (
+                      <div>
+                        <a class="fr-open" href={link.href} target="_blank" rel="noopener">Open in {link.label} ↗</a>
+                      </div>
+                    )}
+                  </td>
+                  <td>
+                    <span class={`fr-state fr-state--${p.state}`}>{stateLabel(p.state)}</span>
+                  </td>
+                  <td>
+                    {canManage ? (
+                      <details class="fr-cancel">
+                        <summary class="adm-btn adm-btn--tiny">Cancel…</summary>
+                        <form
+                          method="POST"
+                          action="/api/admin/courses/cancel-installments"
+                          class="fr-cancel-form"
+                          onsubmit={`return confirm('Change billing for ${jsName}\\'s ${p.plan} plan?\\nThis affects real charges (the buyer keeps access).')`}
+                        >
+                          <input type="hidden" name="course_registration_id" value={p.id} />
+                          <input type="hidden" name="return_to" value={returnTo} />
+                          <label>
+                            <span>Stop schedule</span>
+                            <select name="keep">
+                              {keepOptions.map((k) => (
+                                <option value={k} selected={k === currentKeep}>{keepLabel(k, origRemaining)}</option>
+                              ))}
+                            </select>
+                          </label>
+                          {p.provider === 'paypal' && (
+                            <p class="fr-cancel-hint">PayPal: a partial stop takes effect after the next charge is recorded.</p>
+                          )}
+                          <button type="submit" class="adm-btn adm-btn--danger adm-btn--tiny">Apply</button>
+                        </form>
+                      </details>
+                    ) : (
+                      <span class="adm-sub" style="text-transform:none;letter-spacing:0;">—</span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       )}
       <p class="adm-table-note">
-        Amounts are net of VAT — the gross charge with the buyer’s country VAT
-        removed (rate via Quaderno; reverse-charge B2B and non-EU carry no VAT,
-        so net&nbsp;=&nbsp;gross). “Watch” = Stripe subscription is retrying
-        (past&nbsp;due), unpaid, or cancelled with money still owed. Healthy
-        plans (active / trialing) keep billing on schedule; their remaining
-        charges make up the projection above. At-risk charges are owed but stuck
-        behind a failed payment, so they’re plotted separately and not banked as
-        healthy.
+        <strong>EUR figures are net of VAT</strong> — the gross charge with the
+        buyer’s country VAT removed (rate via Quaderno; reverse-charge B2B and
+        non-EU carry no VAT, so net&nbsp;=&nbsp;gross). The <em>Original</em>
+        column shows the amount actually charged in the buyer’s currency (EUR rows
+        are already in the EUR column). <strong>Open in Stripe / PayPal</strong>
+        jumps to the subscription in the gateway dashboard. <strong>Manage</strong>
+        schedules an early stop: “stop now” cancels all upcoming charges, or bill a
+        chosen number more and then stop (e.g. cancel only the last). The buyer
+        keeps access; only future charges stop — to give money back, use Refund on
+        the Orders page. “Watch” = the subscription is retrying (past&nbsp;due),
+        unpaid, or cancelled with money still owed.
       </p>
     </section>
   </main>
@@ -383,6 +495,40 @@ const hasAtRisk = months.some((m) => m.atRiskEurMinor > 0);
     .fr-state--at_risk  { background: rgba(181,61,61,0.15); color: var(--adm-danger); }
     .fr-state--stopped  { background: rgba(0,0,0,0.06); color: var(--adm-mute); }
     .fr-state--not_started { background: rgba(196,128,31,0.15); color: var(--adm-warn); }
+
+    /* EUR-first money table */
+    .fr-people { font-size: 13.5px; }
+    .fr-people td { vertical-align: top; }
+    .fr-th-sub {
+      display:block; font-weight:normal; font-size:10px; letter-spacing:0.04em;
+      text-transform:none; color: var(--adm-mute);
+    }
+    .fr-sched {
+      margin-top:4px; font-size:11px; color: var(--adm-ember-deep);
+      font-weight:600; letter-spacing:0.02em;
+    }
+    .fr-open {
+      display:inline-block; margin-top:4px; font-size:11px;
+      color: var(--adm-ember-deep); text-decoration:none;
+    }
+    .fr-open:hover { text-decoration:underline; }
+
+    /* Manage → schedule cancellation */
+    .fr-cancel { position:relative; }
+    .fr-cancel > summary { list-style:none; cursor:pointer; }
+    .fr-cancel > summary::-webkit-details-marker { display:none; }
+    .fr-cancel-form {
+      position:absolute; right:0; z-index:10; margin-top:6px; width:240px;
+      padding:12px; border:1px solid rgba(42,27,42,0.16); border-radius:10px;
+      background: var(--adm-paper); box-shadow:0 8px 24px rgba(0,0,0,0.14);
+      display:flex; flex-direction:column; gap:8px;
+    }
+    .fr-cancel-form label { display:flex; flex-direction:column; gap:4px; font-size:12px; }
+    .fr-cancel-form select {
+      padding:7px 9px; border:1px solid rgba(42,27,42,0.18); border-radius:7px;
+      font-size:13px; background: var(--adm-paper-soft);
+    }
+    .fr-cancel-hint { font-size:11px; color: var(--adm-mute); margin:0; }
 
     @media (max-width: 720px) {
       .adm-table { display:block; overflow-x:auto; }
