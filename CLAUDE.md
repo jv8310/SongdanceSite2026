@@ -286,3 +286,15 @@ pull it from the "Upload preview version" step log) and include the clickable
 preview link in your reply — Jacob expects one with every change. The preview
 shares production bindings (D1, R2), so it shows real data without touching
 the live deployment.
+
+**Deep-link the preview to the page that shows the change — not the bare root.**
+Append the most relevant path to the `*.workers.dev` origin so the link opens
+straight onto the work: e.g. `…workers.dev/admin/emails` for email/template
+work, `/admin/broadcasts` for a broadcast, the specific `/courses/<slug>` or
+landing page for a page edit, `/admin/…` for an admin tool. Only fall back to
+the root when the change is genuinely site-wide. (Most admin pages gate on
+login, but the deep link still lands Jacob in the right place after he signs in.)
+
+**If Jacob says "skip preview", skip the preview step entirely and instead open
+a PR and merge it** — no preview link needed. Otherwise the default stands:
+share the deep-linked preview, and only open a PR when asked.
