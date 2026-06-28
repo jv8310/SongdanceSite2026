@@ -146,15 +146,24 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput) {
   // We intentionally do NOT set tax_id_collection — we collect the VAT
   // number on our own form (and attach it to the Customer above for B2B),
   // so we don't make the buyer re-type it on Stripe.
-  // Common EU payment methods. Stripe filters by what's enabled on the account
-  // and by the billing country — so Bancontact only appears for BE addresses,
-  // iDEAL only for NL addresses, etc.
+  // Payment methods. `card` works in every currency; the EU-local methods
+  // (Bancontact, iDEAL, SEPA debit, Sofort) are EUR-only, and Stripe REJECTS
+  // the whole session if an explicitly-listed method doesn't support the
+  // session currency. Workshops are multi-currency (USD, GBP, CAD, …), so we
+  // only offer the EUR-only methods when the session is actually in EUR —
+  // otherwise a USD/GBP/… buyer would get a hard checkout failure. Within EUR,
+  // Stripe still filters by the billing country (Bancontact → BE, iDEAL → NL).
   // PayPal is appended only when the caller opts in (paypalEnabled) — and it
   // must also be activated in the Stripe Dashboard, otherwise Stripe rejects
-  // the whole session. It's offered on one-off payments only; the installment
-  // path (createSubscriptionCheckoutSession) deliberately omits it because
+  // the whole session. It supports non-EUR currencies, so it's not gated on
+  // EUR. It's offered on one-off payments only; the installment path
+  // (createSubscriptionCheckoutSession) deliberately omits it because
   // PayPal-via-Stripe can't authorise recurring debits.
-  const methods = ['card', 'bancontact', 'ideal', 'sepa_debit', 'sofort'];
+  const sessionCurrency = (input.line_items[0]?.currency ?? 'eur').toLowerCase();
+  const methods = ['card'];
+  if (sessionCurrency === 'eur') {
+    methods.push('bancontact', 'ideal', 'sepa_debit', 'sofort');
+  }
   if (input.enablePaypal) methods.push('paypal');
   methods.forEach((m, i) => form.set(`payment_method_types[${i}]`, m));
 
@@ -432,7 +441,12 @@ export async function createSubscriptionCheckoutSession(
   form.set('payment_method_types[0]', 'card');
   // SEPA Direct Debit *can* drive a recurring sub; opt in when the buyer
   // is in a SEPA country. Stripe filters by the customer's billing address.
-  form.set('payment_method_types[1]', 'sepa_debit');
+  // SEPA is EUR-only, though, and an explicitly-listed method that doesn't
+  // support the session currency makes Stripe reject the whole session — so
+  // only offer it on EUR plans (a USD/GBP/… installment buyer gets card).
+  if (input.currency.toLowerCase() === 'eur') {
+    form.set('payment_method_types[1]', 'sepa_debit');
+  }
 
   // Inline price_data: avoids needing to pre-create a Product / Price.
   form.set('line_items[0][price_data][currency]', input.currency);
