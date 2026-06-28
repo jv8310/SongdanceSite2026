@@ -16,6 +16,7 @@ import {
   confirmationEmail,
   downsellEmail1,
   downsellEmail2,
+  downsellEmail3,
   noShowEmail1,
   noShowEmail2,
   noShowEmail3,
@@ -23,6 +24,7 @@ import {
   verificationEmail,
   type EmailContent,
 } from './emails';
+import { DOWNSELL_OFFERS, DOWNSELL_ORDER } from './downsell-offers';
 import { buildOrderNotificationEmail } from '../orders/notification';
 
 export type EmailSample = {
@@ -49,6 +51,20 @@ export function buildEmailSamples(base: string): EmailSample[] {
   const calendarUrl = `${b}/workshop`;
   const unsubscribeUrl = `${b}/unsubscribe?e=maria%40example.com&t=preview`;
   const lc = { name, workshopTitle, unsubscribeUrl };
+  // Last-chance countdown points at a ~5h-ahead deadline so the preview clock
+  // shows real time remaining.
+  const countdownGifUrl = `${b}/api/countdown.gif?ends=${Date.now() + 5 * 60 * 60 * 1000}`;
+  // A sample downsell with everything eligible (owns nothing) — shows the
+  // feature card, the "also" mini-cards, and the bundle mention.
+  const sampleOffers = DOWNSELL_ORDER.map((k) => DOWNSELL_OFFERS[k]);
+  const downsellCtx = {
+    ...lc,
+    base: b,
+    courseUrl,
+    calendarUrl,
+    offers: sampleOffers,
+    bundleEligible: true,
+  };
 
   return [
     // ── Abandoned checkout ──────────────────────────────────────────────
@@ -157,7 +173,7 @@ export function buildEmailSamples(base: string): EmailSample[] {
       label: 'Email 3 — last chance',
       timing: '+42h (~6h before the discount ends)',
       audience: "Attended, hasn't bought",
-      content: attendedEmail3({ ...lc, courseUrl, discountEndsLocal, hoursRemaining: 5 }),
+      content: attendedEmail3({ ...lc, courseUrl, discountEndsLocal, hoursRemaining: 5, countdownGifUrl }),
     },
 
     // ── Attended, PRO → certification path ──────────────────────────────
@@ -212,22 +228,38 @@ export function buildEmailSamples(base: string): EmailSample[] {
       content: noShowEmail3({ ...lc, hubUrl: joinUrl }),
     },
 
-    // ── Downsell (window closed unbought) ───────────────────────────────
+    // ── Downsell (window closed unbought) — journeys + grief, Drip-aware ──
     {
       id: 'downsell_1',
       group: 'Downsell — after the window',
-      label: 'Email 1 — installments + the honest reply prompt',
+      label: 'Email 1 — a gentler door (features the top not-owned offer)',
       timing: '+4 days (discount closed at +48h)',
-      audience: "Attended (non-pro), didn't buy",
-      content: downsellEmail1({ ...lc, courseUrl }),
+      audience: "Attended (non-pro), didn't buy the course or cert",
+      content: downsellEmail1(downsellCtx),
     },
     {
       id: 'downsell_2',
       group: 'Downsell — after the window',
-      label: 'Email 2 — the free practice + live calendar; series ends',
+      label: 'Email 2 — in your own room (next offer + the rest as mini-cards)',
       timing: '+8 days',
-      audience: "Attended (non-pro), didn't buy — final touch",
-      content: downsellEmail2({ ...lc, courseUrl, calendarUrl }),
+      audience: 'Same — still no purchase',
+      content: downsellEmail2(downsellCtx),
+    },
+    {
+      id: 'downsell_3',
+      group: 'Downsell — after the window',
+      label: 'Email 3 — three breaths and a tone (free practice + live calendar); series ends',
+      timing: '+12 days',
+      audience: 'Same — final touch',
+      content: downsellEmail3(downsellCtx),
+    },
+    {
+      id: 'downsell_1_owned',
+      group: 'Downsell — after the window',
+      label: 'Email 1 — variant when they already own every journey + grief (no pitch)',
+      timing: '+4 days',
+      audience: 'Attended, owns the lot — only this wind-down goes out',
+      content: downsellEmail1({ ...downsellCtx, offers: [], bundleEligible: false }),
     },
 
     // ── Internal order notifications (SD-ORDER, ops only) ────────────────
