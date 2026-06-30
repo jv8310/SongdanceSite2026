@@ -152,8 +152,11 @@ const testimonials = [
     <!-- The ten sessions -->
     <MMJSessions />
 
-    <!-- Origin — set apart as a tinted band to break the page -->
+    <!-- Origin — a soft photographic band (real dance floors) to break the page -->
     <section class="jr-section mmj-origin">
+      <div class="mmj-origin-bg" aria-hidden="true">
+        <img src="/media/library/dolphin-guests-dancing-on-deck-at-sunset.jpg" alt="" loading="lazy" decoding="async" />
+      </div>
       <div class="mmj-origin-inner">
         <img class="mmj-origin-mark" src="/brand/symbol-orange.png" alt="" aria-hidden="true" />
         <div class="jr-eyebrow" style="justify-content:center;">Where it came from</div>
@@ -199,18 +202,6 @@ const testimonials = [
         <p class="jr-midcta-line">Let the body remember how — one session is all it takes to start.</p>
         <a href="#register" class="jr-midcta-btn">Begin the journey <i class="ph-light ph-arrow-right"></i></a>
         <p class="jr-midcta-note">Lifetime access · for every body · €49</p>
-      </div>
-    </section>
-
-    <!-- Lyric break -->
-    <section class="jr-lyric">
-      <div class="jr-lyric-bg" aria-hidden="true">
-        <img src="/media/library/movement-stillness.webp" alt="" />
-      </div>
-      <div class="jr-lyric-inner">
-        <img class="jr-lyric-mark" src="/brand/symbol-orange.png" alt="" aria-hidden="true" />
-        <p class="jr-lyric-text">The body remembers how.</p>
-        <div class="jr-lyric-by">Magical Movement Journey</div>
       </div>
     </section>
 
@@ -306,15 +297,42 @@ const testimonials = [
 </Layout>
 
 <style>
-  /* The origin moment, set apart from the cream sections around it: a soft
-     moss band (the movement theme's own green) with the brand mark, so the
-     page has a visual breath before the South-Africa clips. */
+  /* The origin moment — "real dance floors" — as a soft photographic wash
+     (a group letting the music move them at sunset) that fades into the cream
+     sections above and below, so there's no hard seam. Kept light and warm so
+     the dark text reads and it sits with the paper palette. */
   .mmj-origin {
-    background: linear-gradient(180deg, var(--jr-accent-glow) 0%, var(--jr-accent-soft) 100%);
-    border-top: 1px solid var(--line);
-    border-bottom: 1px solid var(--line);
+    position: relative;
+    overflow: hidden;
+    background: var(--paper);
+  }
+  .mmj-origin-bg {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+  }
+  .mmj-origin-bg img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center 42%;
+    opacity: 0.5;
+    filter: saturate(0.86) contrast(0.98) brightness(1.03);
+  }
+  /* Paper scrim: a soft pool of light behind the words, fading to solid paper
+     at the very top and bottom so the band blends seamlessly into the page. */
+  .mmj-origin-bg::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 78% 66% at 50% 48%, rgba(244, 236, 223, 0.6) 0%, rgba(244, 236, 223, 0) 72%),
+      linear-gradient(180deg, var(--paper) 0%, rgba(244, 236, 223, 0.4) 26%, rgba(244, 236, 223, 0.4) 74%, var(--paper) 100%);
   }
   .mmj-origin-inner {
+    position: relative;
+    z-index: 1;
     max-width: 720px;
     margin: 0 auto;
     text-align: center;
@@ -324,7 +342,7 @@ const testimonials = [
     height: 46px;
     display: block;
     margin: 0 auto var(--sp-5);
-    opacity: 0.9;
+    opacity: 0.92;
   }
   .mmj-origin .jr-prose-body {
     color: var(--ink-soft);
