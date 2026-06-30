@@ -352,20 +352,26 @@ function footerHtml(footer: DesignFooter): string {
 export function designShell(opts: {
   preheader: string;
   title: string;
-  heroImage?: { src: string; alt: string; href?: string };
+  // `objectPosition` aims the crop (e.g. 'center 35%' to keep a face) since the
+  // hero is rendered as a fixed-height landscape band, not at the image's own
+  // aspect — so a tall portrait photo no longer makes a giant header.
+  heroImage?: { src: string; alt: string; href?: string; objectPosition?: string };
   blocks: string;
   footer?: DesignFooter;
 }): string {
   const { preheader, title, heroImage, blocks, footer } = opts;
+  const heroImg = heroImage
+    ? `<img src="${heroImage.src}" width="600" alt="${escapeHtml(
+        heroImage.alt,
+      )}" class="hero" style="display:block;width:100%;height:300px;object-fit:cover;object-position:${
+        heroImage.objectPosition ?? 'center'
+      };background-color:${DPAL.ink};" />`
+    : '';
   const hero = heroImage
     ? `<tr><td style="padding:0;">${
         heroImage.href
-          ? `<a href="${heroImage.href}" style="text-decoration:none;display:block;">`
-          : ''
-      }<img src="${heroImage.src}" width="600" alt="${escapeHtml(
-        heroImage.alt,
-      )}" style="width:100%;height:auto;background-color:${DPAL.ink};" />${
-        heroImage.href ? '</a>' : ''
+          ? `<a href="${heroImage.href}" style="text-decoration:none;display:block;">${heroImg}</a>`
+          : heroImg
       }</td></tr>`
     : '';
   return `<!DOCTYPE html>
@@ -387,6 +393,7 @@ export function designShell(opts: {
     .wrapper { width:100% !important; }
     .pad { padding-left:26px !important; padding-right:26px !important; }
     .h1 { font-size:32px !important; line-height:1.15 !important; }
+    .hero { height:210px !important; }
   }
 </style>
 </head>

@@ -17,53 +17,170 @@
 // Palette is 4 colours (parchment bg, plum ink, ember, muted), so the global
 // colour table is the smallest GIF allows and the files stay light.
 
+// The clock is drawn as smooth, anti-aliased seven-segment digits rather than a
+// blocky pixel font: each lit segment is a rounded capsule rasterised from a
+// signed-distance field, and edges are feathered across a small colour ramp so
+// the numerals read clean and intentional (a designed timer, not dot-matrix).
+//
+// The palette is that ramp: index 0 is the parchment background, then a
+// background→ink gradient for the digits and a background→ember gradient for the
+// colons + baseline. The in-between shades are the anti-aliasing.
+const BG: [number, number, number] = [251, 246, 236]; // #FBF6EC parchment
+const INK: [number, number, number] = [42, 27, 42]; // #2A1B2A plum-ink
+const EMBER: [number, number, number] = [161, 72, 38]; // #A14826 terracotta
+
+const RAMP_STEPS = 12;
+function buildRamp(
+  from: [number, number, number],
+  to: [number, number, number],
+): Array<[number, number, number]> {
+  const out: Array<[number, number, number]> = [];
+  for (let i = 1; i <= RAMP_STEPS; i++) {
+    const t = i / RAMP_STEPS;
+    out.push([
+      Math.round(from[0] + (to[0] - from[0]) * t),
+      Math.round(from[1] + (to[1] - from[1]) * t),
+      Math.round(from[2] + (to[2] - from[2]) * t),
+    ]);
+  }
+  return out;
+}
+
+const INK_BASE = 1; // ink ramp occupies indices [1 .. RAMP_STEPS]
+const EMBER_BASE = 1 + RAMP_STEPS; // ember ramp follows it
+
+// index 0 = background, then the ink ramp, then the ember ramp.
 export const COUNTDOWN_PALETTE: Array<[number, number, number]> = [
-  [251, 246, 236], // 0 — panel background (#FBF6EC)
-  [42, 27, 42], // 1 — ink, the digits (#2A1B2A)
-  [161, 72, 38], // 2 — ember, the colons + baseline (#A14826)
-  [122, 106, 120], // 3 — muted (#7A6A78), reserved
+  BG,
+  ...buildRamp(BG, INK),
+  ...buildRamp(BG, EMBER),
 ];
 
-// 5×7 glyphs for the digits and the colon. Each glyph is seven rows of five
-// bits; a set bit paints a pixel. Only what a HH:MM:SS clock needs.
-const FONT: Record<string, string[]> = {
-  '0': ['01110', '10001', '10011', '10101', '11001', '10001', '01110'],
-  '1': ['00100', '01100', '00100', '00100', '00100', '00100', '01110'],
-  '2': ['01110', '10001', '00001', '00010', '00100', '01000', '11111'],
-  '3': ['11111', '00010', '00100', '00010', '00001', '10001', '01110'],
-  '4': ['00010', '00110', '01010', '10010', '11111', '00010', '00010'],
-  '5': ['11111', '10000', '11110', '00001', '00001', '10001', '01110'],
-  '6': ['00110', '01000', '10000', '11110', '10001', '10001', '01110'],
-  '7': ['11111', '00001', '00010', '00100', '01000', '01000', '01000'],
-  '8': ['01110', '10001', '10001', '01110', '10001', '10001', '01110'],
-  '9': ['01110', '10001', '10001', '01111', '00001', '00010', '01100'],
-  ':': ['00000', '00000', '00100', '00000', '00100', '00000', '00000'],
+// Coverage (0..1) → palette index within one of the two ramps.
+function rampIndex(coverage: number, base: number): number {
+  if (coverage <= 0) return 0;
+  const step = Math.min(RAMP_STEPS, Math.max(1, Math.round(coverage * RAMP_STEPS)));
+  return base + step - 1;
+}
+
+// Seven-segment map per digit (segments a,b,c,d,e,f,g):
+//    aaa
+//   f   b
+//    ggg
+//   e   c
+//    ddd
+const SEGMENTS: Record<string, string> = {
+  '0': 'abcdef',
+  '1': 'bc',
+  '2': 'abged',
+  '3': 'abgcd',
+  '4': 'fgbc',
+  '5': 'afgcd',
+  '6': 'afgecd',
+  '7': 'abc',
+  '8': 'abcdefg',
+  '9': 'abcdfg',
 };
 
-const GLYPH_W = 5;
-const GLYPH_H = 7;
-
-export type CountdownLayout = {
-  scale: number; // pixel size of one font bit
-  gap: number; // horizontal gap between glyphs, in pixels
-  width: number;
-  height: number;
-};
-
-// A clock string is always 8 chars: "HH:MM:SS".
-function layoutFor(scale: number, gap: number): CountdownLayout {
-  const chars = 8;
-  const blockW = chars * GLYPH_W * scale + (chars - 1) * gap;
-  const blockH = GLYPH_H * scale;
+// Geometry of one digit cell (W×H) — each segment is a line painted with a
+// rounded pen of radius t/2; ends are pulled back from the junctions so the
+// corners read as separate strokes.
+function digitGeometry(W: number, H: number, t: number): Record<string, [number, number, number, number]> {
+  const r = t / 2;
+  const m = r + 2; // margin from the cell edge
+  const midY = H / 2;
+  const inset = r + 1.5; // pull segment ends back from the corners
+  const L = m;
+  const R = W - m;
+  const T = m;
+  const B = H - m;
   return {
-    scale,
-    gap,
-    width: blockW + 2 * (6 * scale), // side padding
-    height: blockH + 2 * (4 * scale), // top/bottom padding (+ room for baseline)
+    a: [L + inset, T, R - inset, T],
+    b: [R, T + inset, R, midY - inset],
+    c: [R, midY + inset, R, B - inset],
+    d: [L + inset, B, R - inset, B],
+    e: [L, midY + inset, L, B - inset],
+    f: [L, T + inset, L, midY - inset],
+    g: [L + inset, midY, R - inset, midY],
   };
 }
 
-export const DEFAULT_LAYOUT = layoutFor(6, 6); // 360×96-ish, crisp at retina
+// Distance from a point to a line segment — the core of the rounded-capsule SDF.
+function distToSegment(
+  px: number,
+  py: number,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+): number {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const len2 = dx * dx + dy * dy;
+  let t = len2 ? ((px - x1) * dx + (py - y1) * dy) / len2 : 0;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
+}
+
+export type CountdownLayout = {
+  digitW: number; // digit cell width
+  digitH: number; // digit cell height
+  colonW: number; // colon cell width
+  gap: number; // horizontal gap between glyphs
+  thickness: number; // segment / pen thickness
+  padX: number;
+  padY: number;
+  width: number;
+  height: number;
+  glyphTop: number;
+  baselineY: number;
+  cells: Array<{ kind: 'digit' | 'colon'; x: number; w: number }>;
+};
+
+// Lay out the eight glyphs of "HH:MM:SS" and size the canvas around them.
+function layoutFor(digitW: number, digitH: number, thickness: number): CountdownLayout {
+  const colonW = Math.round(digitW * 0.58);
+  const gap = 6;
+  const padX = 26;
+  const padY = 22;
+  const order: Array<'digit' | 'colon'> = [
+    'digit',
+    'digit',
+    'colon',
+    'digit',
+    'digit',
+    'colon',
+    'digit',
+    'digit',
+  ];
+  const cells: CountdownLayout['cells'] = [];
+  let x = padX;
+  for (const kind of order) {
+    const w = kind === 'colon' ? colonW : digitW;
+    cells.push({ kind, x, w });
+    x += w + gap;
+  }
+  const width = x - gap + padX;
+  const glyphTop = padY;
+  const baselineY = glyphTop + digitH + 12;
+  const height = baselineY + 12 + padY;
+  return {
+    digitW,
+    digitH,
+    colonW,
+    gap,
+    thickness,
+    padX,
+    padY,
+    width,
+    height,
+    glyphTop,
+    baselineY,
+    cells,
+  };
+}
+
+export const DEFAULT_LAYOUT = layoutFor(38, 74, 8); // ~366×140
 
 function clampSeconds(totalSec: number): number {
   if (!Number.isFinite(totalSec) || totalSec < 0) return 0;
@@ -81,46 +198,79 @@ export function formatClock(totalSec: number): string {
 }
 
 // Paint one HH:MM:SS frame into a fresh index buffer (one byte per pixel, the
-// palette index). Digits in ink, colons + a thin baseline in ember.
+// palette index). Digits in the ink ramp, colons + baseline in the ember ramp,
+// edges anti-aliased across each ramp.
 function renderFrame(totalSec: number, layout: CountdownLayout): Uint8Array {
-  const { width, height, scale, gap } = layout;
+  const { width, height, digitW: W, digitH: H, thickness: t, glyphTop } = layout;
   const buf = new Uint8Array(width * height); // 0 = background everywhere
   const text = formatClock(totalSec);
+  const r = t / 2;
+  const feather = 1.4; // edge softness in pixels
 
-  const blockW = 8 * GLYPH_W * scale + 7 * gap;
-  const blockH = GLYPH_H * scale;
-  let x = Math.floor((width - blockW) / 2);
-  const y0 = Math.floor((height - blockH) / 2);
-
-  const put = (px: number, py: number, color: number) => {
+  // Keep the strongest coverage where strokes overlap.
+  const put = (px: number, py: number, idx: number) => {
     if (px < 0 || py < 0 || px >= width || py >= height) return;
-    buf[py * width + px] = color;
+    if (idx > buf[py * width + px]) buf[py * width + px] = idx;
   };
 
-  for (const ch of text) {
-    const glyph = FONT[ch] ?? FONT[':'];
-    const color = ch === ':' ? 2 : 1; // colon ember, digits ink
-    for (let row = 0; row < GLYPH_H; row++) {
-      const bits = glyph[row];
-      for (let col = 0; col < GLYPH_W; col++) {
-        if (bits[col] !== '1') continue;
-        // scale up each bit into a scale×scale block
-        for (let dy = 0; dy < scale; dy++) {
-          for (let dx = 0; dx < scale; dx++) {
-            put(x + col * scale + dx, y0 + row * scale + dy, color);
+  const geo = digitGeometry(W, H, t);
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    const cell = layout.cells[i];
+    if (!cell) continue;
+
+    if (ch === ':') {
+      const cx = cell.x + cell.w / 2;
+      const dotR = t * 0.6;
+      for (const cy of [glyphTop + H * 0.36, glyphTop + H * 0.66]) {
+        const x0 = Math.floor(cx - dotR - 2);
+        const x1 = Math.ceil(cx + dotR + 2);
+        const y0 = Math.floor(cy - dotR - 2);
+        const y1 = Math.ceil(cy + dotR + 2);
+        for (let y = y0; y <= y1; y++) {
+          for (let x = x0; x <= x1; x++) {
+            const d = Math.hypot(x + 0.5 - cx, y + 0.5 - cy);
+            const cov = Math.max(0, Math.min(1, (dotR + 0.5 - d) / feather));
+            if (cov > 0) put(x, y, rampIndex(cov, EMBER_BASE));
           }
         }
       }
+      continue;
     }
-    x += GLYPH_W * scale + gap;
+
+    const segs = SEGMENTS[ch];
+    if (!segs) continue;
+    const ox = cell.x;
+    const oy = glyphTop;
+    for (let y = -1; y <= H + 1; y++) {
+      for (let x = -1; x <= W + 1; x++) {
+        const px = x + 0.5;
+        const py = y + 0.5;
+        let best = 0;
+        for (const s of segs) {
+          const seg = geo[s];
+          const d = distToSegment(px, py, seg[0], seg[1], seg[2], seg[3]);
+          const cov = Math.max(0, Math.min(1, (r + 0.5 - d) / feather));
+          if (cov > best) best = cov;
+        }
+        if (best > 0) put(ox + x, oy + y, rampIndex(best, INK_BASE));
+      }
+    }
   }
 
-  // A thin ember baseline under the clock — a small designed touch.
-  const baseY = y0 + blockH + Math.max(2, Math.floor(scale / 2));
-  const baseThick = Math.max(2, Math.floor(scale / 3));
-  const baseX0 = Math.floor((width - blockW) / 2);
-  for (let t = 0; t < baseThick; t++) {
-    for (let bx = baseX0; bx < baseX0 + blockW; bx++) put(bx, baseY + t, 2);
+  // A soft ember baseline under the clock — a small designed touch, rounded ends.
+  const bx0 = layout.padX;
+  const bx1 = width - layout.padX;
+  const by = layout.baselineY;
+  const bt = 5;
+  const br = bt / 2;
+  for (let y = by - bt; y <= by + bt; y++) {
+    for (let x = bx0 - bt; x <= bx1 + bt; x++) {
+      const d = distToSegment(x + 0.5, y + 0.5, bx0 + br, by, bx1 - br, by);
+      const cov = Math.max(0, Math.min(1, (br + 0.5 - d) / feather));
+      if (cov > 0) put(x, y, rampIndex(cov, EMBER_BASE));
+    }
   }
 
   return buf;
