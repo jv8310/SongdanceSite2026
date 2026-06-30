@@ -323,6 +323,13 @@ const countries = COUNTRIES;
   const adiscountPct: number = readSecretDiscountFromUrl();
   const isFreeComp: boolean = adiscountPct === 100;
 
+  // The complimentary-place banner for a 100% ?adiscount link. Reused on the
+  // email-entry screen AND re-inserted into each rendered variant — the variant
+  // render replaces the stage's children, so a one-time insert would be wiped
+  // before the buyer ever reaches the form.
+  const COMP_BANNER_HTML =
+    '<div class="cc-comp-banner" style="margin:0 0 1.25rem;padding:0.85rem 1.1rem;border-radius:12px;background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.4);color:#065f46;font-size:0.95rem;line-height:1.45;">This link grants a complimentary place — you won’t be charged. Complete the form and confirm; your place is secured at no cost.</div>';
+
   // The 12-month installment ladder is hidden unless the visitor arrives with
   // `?installment=12`. It's a quieter, longer-financing option offered by
   // hand (e.g. over email) rather than shown to everyone. Any other value
@@ -403,13 +410,11 @@ const countries = COUNTRIES;
   };
 
   const stage = document.querySelector<HTMLElement>('[data-cc-stage]')!;
-  // Complimentary place (secret ?adiscount=100): the offer cards still show the
-  // standard figures, so make it unmistakable that nothing is charged.
+  // Complimentary place (secret ?adiscount=100): show the banner on the
+  // email-entry screen. `renderVariant` re-inserts it (and reflects the free
+  // price in the cards, summary and CTA) so the cue survives into the form.
   if (isFreeComp) {
-    stage.insertAdjacentHTML(
-      'afterbegin',
-      '<div style="margin:0 0 1.25rem;padding:0.85rem 1.1rem;border-radius:12px;background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.4);color:#065f46;font-size:0.95rem;line-height:1.45;">This link grants a complimentary place — you won’t be charged. Complete the form and continue; your place is confirmed at no cost.</div>',
-    );
+    stage.insertAdjacentHTML('afterbegin', COMP_BANNER_HTML);
   }
   const emailForm = stage.querySelector<HTMLFormElement>('[data-cc-email-form]')!;
   const errorEl = stage.querySelector<HTMLElement>('[data-cc-error]')!;
@@ -681,6 +686,14 @@ const countries = COUNTRIES;
       return;
     }
 
+    // Complimentary place (?adiscount=100): re-insert the banner into the
+    // rendered variant and mark the root, so the price treatment below reads as
+    // free rather than payable.
+    if (isFreeComp) {
+      root.classList.add('cc-variant--free');
+      root.insertAdjacentHTML('afterbegin', COMP_BANNER_HTML);
+    }
+
     // Pre-fill form from Drip and/or geolocation
     const firstNameInput = root.querySelector<HTMLInputElement>('[name="first_name"]')!;
     const lastNameInput = root.querySelector<HTMLInputElement>('[name="last_name"]')!;
@@ -862,6 +875,16 @@ const countries = COUNTRIES;
           decision.path,
         );
         card.dataset.offerSlug = offer.slug;
+        // For a complimentary place, annotate each card so its (still-shown)
+        // sticker price reads as the value of the gift, not a charge.
+        if (isFreeComp) {
+          const body = card.querySelector('.cc-offer-body') ?? card;
+          const free = document.createElement('div');
+          free.className = 'cc-offer-free';
+          free.textContent = 'Included free with your invitation';
+          free.style.cssText = 'margin-top:.6rem;font-weight:700;color:#065f46;';
+          body.appendChild(free);
+        }
         card.addEventListener('click', () => {
           selectedOfferSlug = offer.slug;
           offersEl.querySelectorAll<HTMLElement>('.cc-offer').forEach((el) => {
@@ -896,6 +919,13 @@ const countries = COUNTRIES;
     const planOptionsEl = root.querySelector('[data-slot="plan-options"]') as HTMLElement;
     function renderPlanOptions() {
       planOptionsEl.replaceChildren();
+      // A complimentary place is always a single €0 grant — installment choices
+      // are meaningless, so hide the picker entirely.
+      if (isFreeComp) {
+        planPicker.style.display = 'none';
+        selectedPlan = 'full';
+        return;
+      }
       if (selectedOfferSlug === 'cc-bundle' && decision.path) {
         renderPathPlanOptions(decision.path);
         return;
@@ -1033,6 +1063,23 @@ const countries = COUNTRIES;
     const summaryLabel = root.querySelector('[data-slot="summary-label"]') as HTMLElement;
     const summaryAmount = root.querySelector('[data-slot="summary-amount"]') as HTMLElement;
     function renderSummary() {
+      // Complimentary place: strike the would-be price and show "Free".
+      if (isFreeComp) {
+        const cur = decision.currency!;
+        if (selectedOfferSlug === 'cc-bundle' && decision.path) {
+          summaryLabel.textContent = 'Certification path — complimentary place';
+          summaryAmount.innerHTML = `<span class="cc-amount-strike">${escapeHtml(
+            moneyCents(decision.path.total_cents, decision.path.currency),
+          )}</span> Free`;
+        } else {
+          const offer = decision.offers.find((o) => o.slug === selectedOfferSlug);
+          summaryLabel.textContent = `${offer?.label ?? 'Your place'} — complimentary place`;
+          summaryAmount.innerHTML = offer
+            ? `<span class="cc-amount-strike">${escapeHtml(money(offer.price, cur))}</span> Free`
+            : 'Free';
+        }
+        return;
+      }
       if (selectedOfferSlug === 'cc-bundle' && decision.path) {
         const p = decision.path;
         const cur = p.currency;
@@ -1079,12 +1126,18 @@ const countries = COUNTRIES;
     // hands off to /api/courses/checkout.
     const checkoutCta = root.querySelector('[data-slot="checkout-cta"]') as HTMLButtonElement;
     const paypalCta = root.querySelector('[data-slot="checkout-paypal"]') as HTMLButtonElement | null;
-    // The page is static, so PayPal availability can't be known at build time —
-    // ask the server at runtime and reveal the button if the gateway is live.
-    fetch('/api/payments/availability')
-      .then((r) => r.json())
-      .then((d: any) => { if (d && d.paypal && paypalCta) paypalCta.hidden = false; })
-      .catch(() => {});
+    // A complimentary place is fulfilled without a gateway, so relabel the CTA
+    // and never offer PayPal. Otherwise reveal PayPal at runtime if it's live
+    // (the page is static, so availability can't be known at build time).
+    if (isFreeComp) {
+      checkoutCta.innerHTML =
+        '<span>Confirm your free place</span><i class="ph-light ph-arrow-right"></i>';
+    } else {
+      fetch('/api/payments/availability')
+        .then((r) => r.json())
+        .then((d: any) => { if (d && d.paypal && paypalCta) paypalCta.hidden = false; })
+        .catch(() => {});
+    }
     checkoutCta.addEventListener('click', () =>
       startCheckout(root, email, decision, selectedOfferSlug, selectedPlan, checkoutCta, paypalCta),
     );
@@ -1315,7 +1368,9 @@ const countries = COUNTRIES;
     const originalLabel = btn.innerHTML;
     btn.disabled = true;
     if (paypalBtn) paypalBtn.disabled = true;
-    btn.innerHTML = '<span>Opening secure checkout…</span>';
+    btn.innerHTML = isFreeComp
+      ? '<span>Confirming your place…</span>'
+      : '<span>Opening secure checkout…</span>';
     const restore = () => {
       btn.disabled = false;
       if (paypalBtn) paypalBtn.disabled = false;
