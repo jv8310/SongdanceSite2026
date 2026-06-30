@@ -16,7 +16,7 @@ import {
   setSubscriptionCancelAt,
   verifyStripeSignature,
 } from '../../../lib/registrations/stripe';
-import { pushPaidRegistrationToDrip } from '../../../lib/registrations/paid-handler';
+import { pushPaidRegistrationToDrip, recordRetreatOrder } from '../../../lib/registrations/paid-handler';
 import {
   attachStripeSubscriptionToCourse,
   type CourseRegistration,
@@ -164,7 +164,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // the registration_id. The registration is already 'paid' from the
     // deposit, so we only clear the outstanding balance here and stop —
     // letting it fall through to the normal routing would re-fire the
-    // "Completed registration" Drip event.
+    // "Completed registration" Drip event. We DO re-emit the idempotent Drip
+    // ecommerce order, though, so its grand total rises from deposit to full.
     if (session.metadata?.payment_kind === 'balance') {
       const balRegId = session.metadata?.registration_id
         ? parseInt(session.metadata.registration_id, 10)
@@ -174,6 +175,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
         : null;
       if (balReg && session.payment_intent) {
         await markBalancePaid(env.DB, balReg.id);
+        // Lift the Drip order to the now-full amount_cents (idempotent; no event).
+        await recordRetreatOrder(env, balReg.id);
         await logEvent(env.DB, {
           registration_id: balReg.id,
           kind: 'registration.balance.paid',

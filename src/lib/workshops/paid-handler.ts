@@ -9,6 +9,7 @@
 
 import { logEvent } from '../registrations/db';
 import { upsertSubscriber } from '../registrations/drip';
+import { recordPurchaseOrder } from '../orders/drip-order';
 import {
   claimNotification,
   getProductById,
@@ -76,6 +77,7 @@ async function tagInDrip(env: Env, reg: WorkshopRegistration, workshop: Workshop
       last_name: rest.join(' ') || undefined,
       country: reg.country,
       phone: reg.phone,
+      time_zone: reg.timezone,
       tags: tags.length ? tags : undefined,
       custom_fields: {
         workshop_id: String(workshop.id),
@@ -197,6 +199,38 @@ export async function runWorkshopPaidSideEffects(
   } catch (err) {
     await logEvent(env.DB, { registration_id: null, kind: 'workshop.drip.error', payload: { registration_id: reg.id, error: String(err) } });
   }
+
+  // 1b. Native Drip ecommerce order — so a workshop ticket counts toward the
+  // buyer's lifetime value just like a course/retreat (workshops previously
+  // only tagged the contact, never recording the purchase). A coupon-free seat
+  // records a €0 order so the registration still shows as purchase activity.
+  // Idempotent on order id `workshop-<registrationId>`.
+  await recordPurchaseOrder(
+    env,
+    {
+      type: 'workshop',
+      id: reg.id,
+      email: reg.email,
+      currency: args.currency || reg.currency || 'EUR',
+      grandTotalCents:
+        args.valueMajor && args.valueMajor > 0 ? Math.round(args.valueMajor * 100) : 0,
+      items: [
+        {
+          name: workshop.title,
+          slug: workshop.slug,
+          amountCents:
+            args.valueMajor && args.valueMajor > 0 ? Math.round(args.valueMajor * 100) : 0,
+        },
+      ],
+      properties: {
+        workshop_id: workshop.id,
+        workshop_slug: workshop.slug,
+        bump: reg.wants_bump ? 'yes' : 'no',
+        payment_status: reg.payment_status,
+      },
+    },
+    'drip.workshop.order.error',
+  );
 
   // 2. Confirmation email
   try {

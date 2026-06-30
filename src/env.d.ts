@@ -30,6 +30,11 @@ type Env = {
   QUADERNO_SANDBOX?: string;
   DRIP_API_TOKEN: string;
   DRIP_ACCOUNT_ID: string;
+  // Turns on the one-shot historical Drip order backfill (the cron drain in
+  // src/lib/orders/drip-backfill.ts). "1"/"true"/"yes"/"on" enables it; unset
+  // or anything else keeps it off, so deploying the feature never emits
+  // historical orders until the owner opts in. Flip it off once drained.
+  DRIP_BACKFILL_ENABLED?: string;
   // Workshop engine — Meta Conversions API (optional)
   META_PIXEL_ID?: string;
   META_ACCESS_TOKEN?: string;

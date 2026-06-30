@@ -10,6 +10,7 @@ import {
   getSpecialRoomByRole,
   type SpecialRole,
 } from '../../../lib/registrations/db';
+import { edgeTimezone } from '../../../lib/geo';
 import {
   createCheckoutSession,
   createCustomer,
@@ -236,6 +237,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     phone: phoneE164,
     phone_country: phoneCountryCode,
     country: countryCode,
+    timezone: edgeTimezone(locals),
     company_name: companyName || null,
     vat_number: vatNumber || null,
     address: null,

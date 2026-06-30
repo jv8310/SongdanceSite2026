@@ -48,6 +48,7 @@ import {
   isFreeCourseCheckout,
 } from '../../../lib/courses/discount';
 import { fulfilFreeCourseRegistration } from '../../../lib/courses/free-checkout';
+import { edgeTimezone } from '../../../lib/geo';
 
 export const prerender = false;
 
@@ -159,6 +160,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
           product_slug: 'grief-course',
           activate_choice: null,
           source_variant: 'free-comp',
+          timezone: edgeTimezone(locals),
           amount_cents: 0,
           currency,
           consent_terms: payload.consent_terms === true,
@@ -187,6 +189,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       product_slug: 'grief-course',
       activate_choice: null,
       source_variant: 'direct',
+      timezone: edgeTimezone(locals),
       amount_cents: chargedPriceCents,
       currency,
       consent_terms: payload.consent_terms === true,

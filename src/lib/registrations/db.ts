@@ -67,6 +67,9 @@ export type Registration = {
   phone: string | null;
   phone_country: string | null;
   country: string | null;
+  // IANA timezone, edge-detected (cf.timezone) at checkout. Forwarded to Drip
+  // as the subscriber's native time_zone. See migration 0057.
+  timezone: string | null;
   company_name: string | null;
   vat_number: string | null;
   address: string | null;
@@ -177,6 +180,7 @@ export async function createPendingRegistration(
     phone: string | null;
     phone_country: string | null;
     country: string | null;
+    timezone?: string | null;
     company_name: string | null;
     vat_number: string | null;
     address: string | null;
@@ -209,13 +213,13 @@ export async function createPendingRegistration(
     .prepare(
       `INSERT INTO registrations
         (product_id, tier_id, inventory_unit_id, name, first_name, last_name, email,
-         phone, phone_country, country,
+         phone, phone_country, country, timezone,
          company_name, vat_number, address,
          roommate_pref, dietary, notes,
          consent_framework, consent_terms, consent_at,
          role, role_discount_cents,
          status, amount_cents, currency, provider, hold_expires_at, balance_due_cents)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?)
        RETURNING id`,
     )
     .bind(
@@ -229,6 +233,7 @@ export async function createPendingRegistration(
       data.phone,
       data.phone_country,
       data.country,
+      data.timezone ?? null,
       data.company_name,
       data.vat_number,
       data.address,

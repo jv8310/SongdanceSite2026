@@ -32,6 +32,9 @@ export type CourseRegistration = {
   country: string | null;
   phone: string | null;
   phone_country: string | null;
+  // IANA timezone, edge-detected (cf.timezone) at checkout. Forwarded to Drip
+  // as the subscriber's native time_zone. See migration 0057.
+  timezone: string | null;
   company_name: string | null;
   vat_number: string | null;
   product_slug: CourseRegistrationSlug;
@@ -83,6 +86,8 @@ export type CreatePendingCourseRegistrationInput = {
   country: string | null;
   phone: string | null;
   phone_country: string | null;
+  // Edge-detected IANA timezone (cf.timezone), forwarded to Drip. Optional.
+  timezone?: string | null;
   company_name: string | null;
   vat_number: string | null;
   product_slug: CourseRegistrationSlug;
@@ -108,13 +113,13 @@ export async function createPendingCourseRegistration(
   const res = await db
     .prepare(
       `INSERT INTO course_registrations
-       (email, first_name, last_name, country, phone, phone_country,
+       (email, first_name, last_name, country, phone, phone_country, timezone,
         company_name, vat_number,
         product_slug, activate_choice, language_choice, source_variant, bumps,
         amount_cents, currency, status, provider,
         payment_plan, installments_total,
         consent_terms, consent_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?)`,
     )
     .bind(
       input.email,
@@ -123,6 +128,7 @@ export async function createPendingCourseRegistration(
       input.country,
       input.phone,
       input.phone_country,
+      input.timezone ?? null,
       input.company_name,
       input.vat_number,
       input.product_slug,
