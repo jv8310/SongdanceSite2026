@@ -188,7 +188,7 @@ export function buildEmailSamples(base: string): EmailSample[] {
       group: 'Attended PRO → certification path',
       label: 'Email 1 — thank you + the practitioner door',
       timing: 'Right after the session ends',
-      audience: 'Masterclass attendees (and is_pro once the column lands)',
+      audience: 'Masterclass attendees + practitioner-door (audience 3) sign-ups (and is_pro once the column lands)',
       content: attendedProEmail1({ ...lc, certUrl, courseUrl, hoursRemaining: 47 }),
     },
     {
