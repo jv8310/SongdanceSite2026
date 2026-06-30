@@ -25,6 +25,17 @@ import {
 import { isJourneySlug, journeyDrip } from './journeys';
 import { BUMPS, isBumpSlug } from './bumps';
 import { sendCoursePurchaseEvent } from './meta';
+import { recordPurchaseOrder, type PurchaseOrderItem } from '../orders/drip-order';
+
+// Readable order-item names for the known course products (Drip itemises the
+// order with these). Journeys fall back to their slug, which still carries the
+// product identity via the item's product_id.
+const COURSE_ITEM_LABELS: Record<string, string> = {
+  'cc-cert': 'SVH Certification',
+  'cc-bundle': 'SVH Certification + Foundation bundle',
+  'grief-course': 'The Grief Course',
+  'svh-12week': '12-Week SVH Foundation Course',
+};
 
 type Env = {
   DB: D1Database;
@@ -120,6 +131,7 @@ export async function pushPaidCourseRegistrationToDrip(
       last_name: reg.last_name ?? undefined,
       country: reg.country,
       phone: reg.phone,
+      time_zone: reg.timezone,
       custom_fields: customFields,
       tags,
     });
@@ -174,6 +186,45 @@ export async function pushPaidCourseRegistrationToDrip(
         });
       }
     }
+
+    // Native Drip ecommerce order — drives lifetime value + ecommerce segments.
+    // The order's grand total is the course price plus every bump (bumps are
+    // charged on top of amount_cents). Idempotent on order id `course-<id>`:
+    // installment re-calls and admin re-fires fold into one order.
+    const bumpItems: PurchaseOrderItem[] = purchasedBumps.map((b) => ({
+      name: isBumpSlug(b.slug) ? BUMPS[b.slug].label : b.slug,
+      slug: b.slug,
+      amountCents: b.amount_cents,
+    }));
+    const bumpTotalCents = purchasedBumps.reduce((s, b) => s + b.amount_cents, 0);
+    await recordPurchaseOrder(
+      env,
+      {
+        type: 'course',
+        id: reg.id,
+        email: reg.email,
+        currency: reg.currency,
+        grandTotalCents: reg.amount_cents + bumpTotalCents,
+        occurredAt: reg.paid_at,
+        items: [
+          {
+            name: COURSE_ITEM_LABELS[reg.product_slug] ?? reg.product_slug,
+            slug: reg.product_slug,
+            amountCents: reg.amount_cents,
+          },
+          ...bumpItems,
+        ],
+        properties: {
+          product_slug: reg.product_slug,
+          payment_plan: reg.payment_plan,
+          installments_total: reg.installments_total,
+          activate_choice: reg.activate_choice ?? '',
+          journey_language: reg.language_choice ?? '',
+          source_variant: reg.source_variant ?? '',
+        },
+      },
+      'drip.course.order.error',
+    );
   } catch (err) {
     await logEvent(env.DB, {
       registration_id: null,

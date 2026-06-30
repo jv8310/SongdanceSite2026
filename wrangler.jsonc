@@ -55,7 +55,14 @@
     // time — gating on the secrets would bake the button out of the HTML. Only
     // flip to "true" once the PAYPAL_CLIENT_ID/SECRET secrets are set, or the
     // button will appear but checkout will fall back with a "pay by card" error.
-    "PAYPAL_ENABLED": "true"
+    "PAYPAL_ENABLED": "true",
+    // One-shot historical Drip order backfill (src/lib/orders/drip-backfill.ts).
+    // "1"/"true" turns the paced cron drain on; "false"/unset keeps it off so a
+    // deploy never re-emits past purchases to Drip on its own. Flip to "1" to
+    // start it (ideally with any order-triggered Drip automations paused, since
+    // the drain emits back-dated orders for every past purchase), then back to
+    // "false" once it reports remaining=0.
+    "DRIP_BACKFILL_ENABLED": "false"
   },
   // Cron triggers → the worker's `scheduled` handler dispatches by cron string
   // (see src/worker-entrypoint.ts):

@@ -18,7 +18,7 @@ import {
   getRegistrationByPaypalCapture,
   type Registration,
 } from '../registrations/db';
-import { pushPaidRegistrationToDrip } from '../registrations/paid-handler';
+import { pushPaidRegistrationToDrip, recordRetreatOrder } from '../registrations/paid-handler';
 import {
   getCourseRegistrationById,
   getCourseRegistrationByPaypalCapture,
@@ -205,7 +205,9 @@ export async function fulfillRetreatPaypalOneOff(
   await notifyRetreatOrder(env, fresh);
 }
 
-// Settle the deposit balance (no Drip re-fire; the registration is already paid).
+// Settle the deposit balance. The registration is already 'paid', so the
+// "Completed registration" Drip event is NOT re-fired — but the idempotent Drip
+// ecommerce order is re-emitted so its grand total rises from deposit to full.
 export async function fulfillBalancePaypal(
   env: PaypalFulfillEnv,
   registrationId: number,
@@ -219,6 +221,8 @@ export async function fulfillBalancePaypal(
   if (!reg) return;
 
   await markBalancePaid(env.DB, reg.id);
+  // Lift the Drip order to the now-full amount_cents (idempotent; no event).
+  await recordRetreatOrder(env, reg.id);
   await logEvent(env.DB, {
     registration_id: reg.id,
     kind: 'paypal.balance.paid',

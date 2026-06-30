@@ -15,6 +15,7 @@ import { createExports as baseCreateExports } from '@astrojs/cloudflare/entrypoi
 import { assessPendingSubmissions } from './lib/intake/sweep';
 import { runWorkshopCron } from './lib/workshops/cron';
 import { runBroadcasts } from './lib/broadcasts/cron';
+import { runDripOrderBackfill } from './lib/orders/drip-backfill';
 import { runReports } from './lib/workshops/reports';
 import { fxRatesStale, refreshFxRates } from './lib/admin/fx';
 
@@ -109,6 +110,19 @@ export function createExports(manifest: unknown) {
           })
           .catch((err) => {
             console.error('[broadcasts/cron] run failed', err);
+          }),
+      );
+      // One-shot historical Drip order backfill (gated by DRIP_BACKFILL_ENABLED).
+      // No-ops entirely until the owner turns it on; self-stops when drained.
+      ctx.waitUntil(
+        runDripOrderBackfill(env)
+          .then((r) => {
+            if (!r.skipped && (r.sent || r.failed)) {
+              console.log(`[drip/backfill] sent=${r.sent} failed=${r.failed} remaining=${r.remaining}`);
+            }
+          })
+          .catch((err) => {
+            console.error('[drip/backfill] run failed', err);
           }),
       );
       return;

@@ -16,6 +16,10 @@ type UpsertSubscriberInput = {
   last_name?: string;
   country?: string | null;
   phone?: string | null;
+  // IANA timezone (e.g. "Europe/Brussels"). Drip stores it as the subscriber's
+  // native `time_zone`, which drives its local-time send scheduling. Null/blank
+  // is omitted so a known timezone is never wiped by a later tz-less upsert.
+  time_zone?: string | null;
   custom_fields?: Record<string, string | number | null>;
   tags?: string[];
 };
@@ -37,6 +41,7 @@ export async function upsertSubscriber(cfg: DripConfig, input: UpsertSubscriberI
         last_name: input.last_name,
         country: input.country ?? undefined,
         phone: input.phone ?? undefined,
+        time_zone: input.time_zone || undefined,
         custom_fields: scrubCustomFields(input.custom_fields ?? {}),
         tags: input.tags,
       },
@@ -172,6 +177,106 @@ export async function recordEvent(
   });
   if (!res.ok) {
     throw new Error(`Drip recordEvent: ${res.status} ${await res.text()}`);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+//  Shopper Activity (ecommerce) — record an order so Drip natively tracks
+//  the purchase and the subscriber's lifetime value.
+//
+//  Unlike the v2 events/subscribers endpoints above (vnd.api+json on /v2),
+//  Shopper Activity is /v3, plain application/json, and requires a User-Agent.
+//  An order is identified by (provider, order_id): re-sending the same
+//  order_id UPDATES that order rather than creating a new one, so this is
+//  naturally idempotent — webhook + admin double-fires, installment re-calls,
+//  and the historical backfill all fold into a single order and never
+//  double-count revenue. Drip derives "lifetime value" from these orders.
+//  https://developer.drip.com/#orders
+// ─────────────────────────────────────────────────────────────────────
+
+// One stable provider name groups every Songdance order under one store in
+// Drip. Order ids are namespaced per purchase type (retreat-/course-/workshop-)
+// so they never collide across the three tables.
+export const DRIP_ORDER_PROVIDER = 'songdance';
+const DRIP_USER_AGENT = 'Songdance (https://songdance.co)';
+
+export type DripOrderItem = {
+  name: string; // required by Drip
+  product_id?: string | null; // our product slug
+  sku?: string | null;
+  price?: number | null; // major units (per unit)
+  quantity?: number | null;
+  total?: number | null; // major units (line total)
+};
+
+export type DripOrderAction =
+  | 'placed'
+  | 'updated'
+  | 'paid'
+  | 'fulfilled'
+  | 'refunded'
+  | 'canceled';
+
+export type DripOrder = {
+  email: string;
+  action?: DripOrderAction; // defaults to 'placed'
+  order_id: string; // stable, idempotent key
+  order_public_id?: string | null;
+  grand_total?: number | null; // major units
+  total_taxes?: number | null;
+  total_discounts?: number | null;
+  currency?: string | null;
+  occurred_at?: string | null; // ISO-8601; defaults to now on Drip's side
+  order_url?: string | null;
+  items?: DripOrderItem[];
+  properties?: Record<string, string | number | null>;
+};
+
+export async function recordOrder(cfg: DripConfig, order: DripOrder): Promise<void> {
+  const items = (order.items ?? [])
+    .filter((it) => it.name)
+    .map((it) => ({
+      name: it.name,
+      product_id: it.product_id || undefined,
+      sku: it.sku || undefined,
+      price: it.price ?? undefined,
+      quantity: it.quantity ?? 1,
+      total: it.total ?? undefined,
+    }));
+  const body = {
+    provider: DRIP_ORDER_PROVIDER,
+    email: order.email,
+    // Create the subscriber as active if Drip hasn't seen them — a purchase is
+    // a consented relationship. Never resurrects an unsubscribed contact: Drip
+    // only applies initial_status to brand-new subscribers.
+    initial_status: 'active',
+    action: order.action ?? 'placed',
+    occurred_at: order.occurred_at || undefined,
+    order_id: order.order_id,
+    order_public_id: order.order_public_id || undefined,
+    grand_total: order.grand_total ?? undefined,
+    total_taxes: order.total_taxes ?? undefined,
+    total_discounts: order.total_discounts ?? undefined,
+    currency: order.currency || undefined,
+    order_url: order.order_url || undefined,
+    items: items.length ? items : undefined,
+    properties: order.properties ? scrubCustomFields(order.properties) : undefined,
+  };
+  const res = await fetch(
+    `https://api.getdrip.com/v3/${cfg.accountId}/shopper_activity/order`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: authHeader(cfg),
+        'Content-Type': 'application/json',
+        'User-Agent': DRIP_USER_AGENT,
+      },
+      body: JSON.stringify(body),
+    },
+  );
+  // 202 Accepted is the documented success; accept any 2xx.
+  if (!res.ok) {
+    throw new Error(`Drip recordOrder: ${res.status} ${await res.text()}`);
   }
 }
 

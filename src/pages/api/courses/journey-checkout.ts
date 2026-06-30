@@ -15,6 +15,7 @@ import {
   attachStripeSessionToCourse,
   attachPaypalOrderToCourse,
 } from '../../../lib/courses/db';
+import { edgeTimezone } from '../../../lib/geo';
 import { logEvent } from '../../../lib/registrations/db';
 import {
   createCheckoutSession,
@@ -168,6 +169,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
           activate_choice: null,
           language_choice: languageChoice,
           source_variant: 'free-comp',
+          timezone: edgeTimezone(locals),
           amount_cents: 0,
           currency,
           consent_terms: payload.consent_terms === true,
@@ -201,6 +203,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       activate_choice: null,
       language_choice: languageChoice,
       source_variant: 'direct',
+      timezone: edgeTimezone(locals),
       amount_cents: chargedPriceCents,
       currency,
       consent_terms: payload.consent_terms === true,

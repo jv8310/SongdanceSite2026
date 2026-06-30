@@ -58,6 +58,7 @@ import {
   isFreeCourseCheckout,
 } from '../../../lib/courses/discount';
 import { fulfilFreeCourseRegistration } from '../../../lib/courses/free-checkout';
+import { edgeTimezone } from '../../../lib/geo';
 import { bumpOffer, isBumpSlug, BUMPS, type BumpSlug } from '../../../lib/courses/bumps';
 
 export const prerender = false;
@@ -168,6 +169,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
           product_slug: TWELVE_WEEK_PRODUCT_SLUG,
           activate_choice: null,
           source_variant: 'free-comp',
+          timezone: edgeTimezone(locals),
           amount_cents: 0,
           currency,
           consent_terms: payload.consent_terms === true,
@@ -256,6 +258,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       product_slug: TWELVE_WEEK_PRODUCT_SLUG,
       activate_choice: null,
       source_variant: sourceVariant,
+      timezone: edgeTimezone(locals),
       bumps: bumpRows.length ? bumpRows : null,
       amount_cents: totalAmountCents,
       currency,

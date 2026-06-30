@@ -70,6 +70,7 @@ import {
   isFreeCourseCheckout,
 } from '../../../lib/courses/discount';
 import { fulfilFreeCourseRegistration } from '../../../lib/courses/free-checkout';
+import { edgeTimezone } from '../../../lib/geo';
 
 export const prerender = false;
 
@@ -248,6 +249,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
           product_slug: productSlug,
           activate_choice: activateChoice,
           source_variant: sourceVariant,
+          timezone: edgeTimezone(locals),
           amount_cents: 0,
           currency,
           consent_terms: payload.consent_terms === true,
@@ -365,6 +367,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       product_slug: productSlug,
       activate_choice: activateChoice,
       source_variant: sourceVariant,
+      timezone: edgeTimezone(locals),
       amount_cents: totalAmountCents,
       currency,
       consent_terms: payload.consent_terms === true,
