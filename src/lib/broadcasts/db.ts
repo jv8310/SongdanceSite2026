@@ -568,6 +568,37 @@ export async function resumeBroadcast(db: D1Database, id: number): Promise<void>
     .run();
 }
 
+// Requeue this broadcast's terminally-failed rows: reset them to 'pending' with a
+// clean slate (attempts/error/claim cleared) and re-arm the broadcast to 'sending'
+// with a fresh circuit-breaker baseline, so the cron drains them again. For rows
+// that failed on a transient/platform issue — e.g. the old "Too many subrequests
+// by single Worker invocation" per-tick cap, now fixed by batch sending — NOT a
+// re-send to already-sent recipients (those keep status 'sent' and are untouched).
+// Returns how many rows were requeued.
+export async function retryFailedRecipients(db: D1Database, broadcastId: number): Promise<number> {
+  const r = await db
+    .prepare(
+      `UPDATE broadcast_recipients
+          SET status = 'pending', attempts = 0, error = NULL, claimed_at = NULL
+        WHERE broadcast_id = ? AND status = 'failed'`,
+    )
+    .bind(broadcastId)
+    .run();
+  // Re-arm so the cron picks the queue back up, with a fresh breaker sample (the
+  // historical failures were a platform limit, not list health). No-op if the
+  // broadcast is still a draft.
+  await db
+    .prepare(
+      `UPDATE broadcasts
+          SET status = 'sending', paused_reason = NULL, completed_at = NULL,
+              breaker_baseline_at = datetime('now')
+        WHERE id = ? AND status IN ('sending', 'paused', 'done')`,
+    )
+    .bind(broadcastId)
+    .run();
+  return r.meta?.changes ?? 0;
+}
+
 // Flip a broadcast's "urgent" flag. When on, the cron ignores the per-recipient
 // local-time window and drains the queue as fast as the per-tick cap / Resend
 // rate allow — for a deadline send, where waiting on each timezone's local
