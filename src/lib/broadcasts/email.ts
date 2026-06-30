@@ -27,24 +27,34 @@ function defaultOf(filters: string): string {
 }
 
 // Substitute merge tags for one recipient. Recognises first name (ours +
-// Drip's), and the unsubscribe URL. Any OTHER merge tag resolves to its
-// `default:` value, or is dropped — so an unrecognised `{{ subscriber.x }}` is
-// never sent to a reader literally (custom fields aren't loaded at send time).
+// Drip's), the recipient email, and the unsubscribe URL. A `| url_encode` filter
+// is honoured (e.g. an email dropped into a query string, like the promo-only
+// unsubscribe link). Any OTHER merge tag resolves to its `default:` value, or is
+// dropped — so an unrecognised `{{ subscriber.x }}` is never sent to a reader
+// literally (custom fields aren't loaded at send time).
 export function personalize(
   s: string,
-  opts: { firstName?: string; unsubscribeUrl?: string } = {},
+  opts: { firstName?: string; unsubscribeUrl?: string; email?: string } = {},
 ): string {
   const fn = (opts.firstName || '').trim();
+  const email = (opts.email || '').trim();
   return s.replace(MERGE_RE, (_m, rawPath: string, filters: string) => {
     const key = rawPath.toLowerCase().replace(/^subscriber\./, '');
     const def = defaultOf(filters || '');
+    let val: string;
     if (['first_name', 'firstname', 'first', 'fname', 'name', 'full_name', 'fullname'].includes(key)) {
-      return fn || def || 'friend';
+      val = fn || def || 'friend';
+    } else if (['unsubscribe_url', 'unsubscribeurl', 'unsub_url'].includes(key)) {
+      val = opts.unsubscribeUrl || def || '';
+    } else if (['email', 'email_address', 'emailaddress'].includes(key)) {
+      val = email || def || '';
+    } else {
+      val = def || '';
     }
-    if (['unsubscribe_url', 'unsubscribeurl', 'unsub_url'].includes(key)) {
-      return opts.unsubscribeUrl || def || '';
-    }
-    return def || '';
+    // Honour a Liquid `| url_encode` filter — without it, an email with a '+'
+    // (or the unsubscribe URL's own query string) breaks the link it sits in.
+    if (/\|\s*url_encode\b/i.test(filters || '')) val = encodeURIComponent(val);
+    return val;
   });
 }
 
@@ -102,15 +112,16 @@ function ensureAddress(html: string): string {
 // footer link (the one-click RFC 8058 header is set separately on the send).
 export function renderBroadcast(
   b: Broadcast,
-  opts: { firstName?: string; unsubscribeUrl?: string } = {},
+  opts: { firstName?: string; unsubscribeUrl?: string; email?: string } = {},
 ): EmailContent {
   const fn = opts.firstName ?? '';
   const unsub = opts.unsubscribeUrl ?? '';
-  const subject = personalize(b.subject, { firstName: fn });
+  const em = opts.email ?? '';
+  const subject = personalize(b.subject, { firstName: fn, email: em });
 
   if (b.format === 'html') {
     const hadUnsub = hasUnsubToken(b.body);
-    let html = personalize(b.body, { firstName: fn, unsubscribeUrl: unsub });
+    let html = personalize(b.body, { firstName: fn, unsubscribeUrl: unsub, email: em });
     // Append a footer only if the author didn't place their own unsubscribe tag.
     if (unsub && !hadUnsub) html = appendUnsubFooter(html, unsub);
     // Ensure the legal postal address is present (unless the author's footer
@@ -118,18 +129,18 @@ export function renderBroadcast(
     // inherits the address without double-listing it.
     html = ensureAddress(html);
     const text = b.body_text
-      ? personalize(b.body_text, { firstName: fn, unsubscribeUrl: unsub })
+      ? personalize(b.body_text, { firstName: fn, unsubscribeUrl: unsub, email: em })
       : `${stripToText(html)}${unsub && !hadUnsub ? `\n\nUnsubscribe: ${unsub}` : ''}`;
     return { subject, html, text };
   }
 
   // simple
-  const heading = personalize(b.heading, { firstName: fn });
-  const bodyTokened = personalize(b.body, { firstName: fn, unsubscribeUrl: unsub });
+  const heading = personalize(b.heading, { firstName: fn, email: em });
+  const bodyTokened = personalize(b.body, { firstName: fn, unsubscribeUrl: unsub, email: em });
   const cta = b.cta_label && b.cta_href ? { label: b.cta_label, href: b.cta_href } : undefined;
 
   const html = shell({
-    preheader: personalize(b.preheader || b.subject, { firstName: fn }),
+    preheader: personalize(b.preheader || b.subject, { firstName: fn, email: em }),
     heading,
     bodyHtml: bodyToHtml(bodyTokened),
     heroImage: b.hero_image ? { src: b.hero_image, alt: heading } : undefined,
@@ -141,7 +152,7 @@ export function renderBroadcast(
 
   let text: string;
   if (b.body_text) {
-    text = personalize(b.body_text, { firstName: fn, unsubscribeUrl: unsub });
+    text = personalize(b.body_text, { firstName: fn, unsubscribeUrl: unsub, email: em });
   } else {
     const lines = [heading, '', stripToText(bodyToHtml(bodyTokened))];
     if (cta) lines.push('', `${cta.label}: ${cta.href}`);
@@ -157,6 +168,7 @@ export function renderBroadcast(
 export function previewBroadcast(b: Broadcast, base = 'https://songdance.co'): EmailContent {
   return renderBroadcast(b, {
     firstName: 'Maria',
+    email: 'maria@example.com',
     unsubscribeUrl: `${base.replace(/\/$/, '')}/unsubscribe?e=sample%40example.com&t=preview`,
   });
 }

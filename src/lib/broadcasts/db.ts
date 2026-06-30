@@ -19,6 +19,9 @@ export type Broadcast = {
   cta_href: string | null;
   window_start_hour: number;
   window_end_hour: number;
+  // When 1, the cron ignores the per-recipient local-time window and drains the
+  // queue as fast as the cap/Resend rate allow (a deadline send). Default 0.
+  urgent: number;
   audience_include_tags: string | null;
   audience_exclude_tags: string | null;
   audience_field: string | null;
@@ -565,6 +568,18 @@ export async function resumeBroadcast(db: D1Database, id: number): Promise<void>
     .run();
 }
 
+// Flip a broadcast's "urgent" flag. When on, the cron ignores the per-recipient
+// local-time window and drains the queue as fast as the per-tick cap / Resend
+// rate allow — for a deadline send, where waiting on each timezone's local
+// morning would stretch a big list over days. Independent of status, so it can
+// be turned on for a live 'sending' broadcast (takes effect on the next tick).
+export async function setBroadcastUrgent(db: D1Database, id: number, urgent: boolean): Promise<void> {
+  await db
+    .prepare(`UPDATE broadcasts SET urgent = ? WHERE id = ?`)
+    .bind(urgent ? 1 : 0, id)
+    .run();
+}
+
 // Record that the pending queue was just scrubbed (dead domains or by tag), so
 // the page can show when it last happened. Doesn't gate on status — cleaning is
 // allowed while sending or paused.
@@ -761,6 +776,30 @@ export async function pendingCount(db: D1Database, broadcastId: number): Promise
     .bind(broadcastId)
     .first<{ n: number }>();
   return r?.n ?? 0;
+}
+
+// Still-pending recipients grouped by their stored timezone (null included).
+// Distinct zones are few (dozens), so this is cheap. It exists to explain pacing:
+// the cron only mails a recipient inside their LOCAL send window, so a queue
+// concentrated in zones that are asleep right now (or all null → the default
+// zone) drips instead of draining — this is what makes that visible on the page.
+export async function pendingByTimezone(
+  db: D1Database,
+  broadcastId: number,
+): Promise<Array<{ timezone: string | null; n: number }>> {
+  try {
+    const r = await db
+      .prepare(
+        `SELECT timezone, COUNT(*) AS n FROM broadcast_recipients
+          WHERE broadcast_id = ? AND status = 'pending'
+          GROUP BY timezone ORDER BY n DESC`,
+      )
+      .bind(broadcastId)
+      .all<{ timezone: string | null; n: number }>();
+    return r.results ?? [];
+  } catch {
+    return [];
+  }
 }
 
 // ── List cleaning (dead-domain removal) ────────────────────────────────────────

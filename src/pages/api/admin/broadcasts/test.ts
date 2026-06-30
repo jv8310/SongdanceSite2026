@@ -40,7 +40,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const secret = unsubscribeSecret(env);
   const unsub = secret ? await unsubscribePageUrl(base, secret, to) : undefined;
   const firstName = to.split('@')[0] ?? 'friend';
-  const content = renderBroadcast(b, { firstName, unsubscribeUrl: unsub });
+  const content = renderBroadcast(b, { firstName, unsubscribeUrl: unsub, email: to });
 
   try {
     await sendEmail({

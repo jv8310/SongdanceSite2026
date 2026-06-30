@@ -1,0 +1,238 @@
+-- Update broadcast 1 ("A new website — and 50% off all courses") to the
+-- extended promo window: every "30 June" / "a few more days" reference becomes
+-- "15 July", and the Drip {{ html_postal_address }} tag (which the broadcast
+-- engine does not fill) is replaced with the literal postal line. format=html,
+-- so body IS the full email. The cron re-renders each batch from this row, so
+-- the new copy reaches every recipient not yet sent.
+--
+-- Targets id = 1 (the launch announcement); a no-op on any DB that does not
+-- have it. Runs once via wrangler migration tracking.
+UPDATE broadcasts
+   SET body = '<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
+<title>The new Songdance website is here</title>
+<link href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,500;1,400&family=Cormorant+Garamond:ital@1&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  body { margin: 0; padding: 0; background-color: #EADFCB; }
+  table { border-collapse: collapse; }
+  img { display: block; border: 0; line-height: 100%; outline: none; text-decoration: none; }
+  a { color: #A14826; text-decoration: none; }
+  .preheader { display: none !important; visibility: hidden; opacity: 0; max-height: 0; overflow: hidden; mso-hide: all; }
+  @media only screen and (max-width: 600px) {
+    .wrapper { width: 100% !important; }
+    .pad { padding-left: 26px !important; padding-right: 26px !important; }
+    .h1 { font-size: 34px !important; line-height: 1.15 !important; }
+    .h2 { font-size: 27px !important; line-height: 1.2 !important; }
+    .offer-h { font-size: 29px !important; line-height: 1.2 !important; }
+    .thumb { width: 72px !important; }
+    .thumb img { width: 72px !important; height: 72px !important; }
+  }
+</style>
+</head>
+<body style="margin: 0; padding: 0; background-color: #EADFCB; -webkit-font-smoothing: antialiased;">
+
+<span class="preheader">The new Songdance website is here — and the courses are half price until 15 July.</span>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #EADFCB;">
+<tr><td align="center" style="padding: 24px 12px;">
+
+<table role="presentation" class="wrapper" width="600" cellpadding="0" cellspacing="0" style="width: 600px; background-color: #F4ECDF; border-radius: 4px; overflow: hidden;">
+
+<!-- ANNOUNCEMENT RIBBON (commercial top bar) -->
+<tr><td align="center" style="background-color: #A14826; padding: 11px 24px; font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 11px; letter-spacing: 1.3px; color: #F4ECDF; font-weight: 600; text-transform: uppercase;">
+  &#10022;&nbsp;&nbsp;Launch offer &middot; courses half&nbsp;price &mdash; until 15&nbsp;July&nbsp;&nbsp;&#10022;
+</td></tr>
+
+<!-- HERO IMAGE (opens on the practice) -->
+<tr><td style="padding: 0;">
+  <a href="https://songdance.co/" style="text-decoration: none; display: block;">
+    <img src="https://songdance.co/email/svhgpt-01-hero-in-one-breath.jpg" width="600" alt="A woman sounding by candlelight, her throat softly lit." style="width: 100%; height: auto; background-color: #2A1B2A;">
+  </a>
+</td></tr>
+
+<!-- INTRO -->
+<tr><td class="pad" style="padding: 46px 44px 12px; font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif;">
+  <p style="margin: 0 0 26px; font-size: 11px; letter-spacing: 2.5px; color: #A14826; font-weight: 600; text-transform: uppercase;">
+    <span style="display: inline-block; width: 26px; height: 1px; background-color: #A14826; vertical-align: middle; margin-right: 12px;"></span>the new Songdance website
+  </p>
+  <h1 class="h1" style="font-family: ''Spectral'', Georgia, ''Times New Roman'', serif; font-weight: 400; font-size: 40px; line-height: 1.12; color: #2A1B2A; margin: 0 0 28px;">
+    A new <em style="font-family: ''Cormorant Garamond'', Georgia, serif; font-style: italic; font-size: 1.05em; color: #C9603A;">home</em> for the work.
+  </h1>
+  <p style="font-size: 16px; line-height: 1.65; color: #2A1B2A; margin: 0 0 20px;">
+    Hello {{ subscriber.first_name | default: "there" }},
+  </p>
+  <p style="font-size: 16px; line-height: 1.7; color: #2A1B2A; margin: 0 0 16px;">
+    The new Songdance website is here. It''s warmer and simpler, with new pages and much more space to show what this work really is. The design changed because the work has grown.
+  </p>
+  <p style="font-size: 16px; line-height: 1.7; color: #4A3848; margin: 0 0 0;">
+    Over the past few years, the practice has grown and changed. The old website no longer showed what it has become &mdash; so I rebuilt it from scratch. It''s calmer and warmer now, and much closer to what it actually feels like to sound.
+  </p>
+</td></tr>
+
+<!-- LYRIC PULL-QUOTE -->
+<tr><td class="pad" style="padding: 30px 44px 18px;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+    <tr><td style="border-left: 2px solid #C9603A; padding: 2px 0 2px 20px;">
+      <p style="font-family: ''Cormorant Garamond'', Georgia, serif; font-style: italic; font-size: 23px; line-height: 1.4; color: #4A3848; margin: 0;">
+        Not louder. Truer.
+      </p>
+    </td></tr>
+  </table>
+</td></tr>
+
+<!-- BAND IMAGE -->
+<tr><td style="padding: 14px 44px 6px;" class="pad">
+  <a href="https://songdance.co/what-is-svh" style="text-decoration: none; display: block;">
+    <img src="https://songdance.co/email/svhgpt-06-holding-space.jpg" width="512" alt="Two people seated, one sounding, one holding space, in warm light." style="width: 100%; height: auto; border-radius: 4px; background-color: #2A1B2A;">
+  </a>
+</td></tr>
+
+<!-- WHAT''S NEW -->
+<tr><td class="pad" style="padding: 28px 44px 8px; font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif;">
+  <p style="margin: 0 0 22px; font-size: 11px; letter-spacing: 2.5px; color: #A14826; font-weight: 600; text-transform: uppercase;">
+    <span style="display: inline-block; width: 26px; height: 1px; background-color: #A14826; vertical-align: middle; margin-right: 12px;"></span>a few pages worth a look
+  </p>
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+    <!-- Row 1 -->
+    <tr><td colspan="2" style="border-top: 1px solid #DCCBB4;"></td></tr>
+    <tr>
+      <td class="thumb" valign="top" width="96" style="padding: 18px 16px 18px 0;">
+        <a href="https://songdance.co/what-is-svh" style="text-decoration: none;"><img src="https://songdance.co/email/svhgpt-04-sound-of-not-for.jpg" width="84" height="84" alt="" style="width: 84px; height: 84px; border-radius: 6px; background-color: #2A1B2A;"></a>
+      </td>
+      <td valign="top" style="padding: 18px 0;">
+        <p style="margin: 0 0 5px; font-family: ''Spectral'', Georgia, serif; font-size: 20px; line-height: 1.25; color: #2A1B2A;">
+          <a href="https://songdance.co/what-is-svh" style="color: #2A1B2A; text-decoration: none;">What sounding actually is</a>
+        </p>
+        <p style="margin: 0 0 8px; font-size: 14px; line-height: 1.6; color: #7A6A78;">
+          The sound <em style="font-style: italic;">of</em> what is alive in you &mdash; made by you, not for you. A new page for anyone discovering the practice for the first time.
+        </p>
+        <a href="https://songdance.co/what-is-svh" style="font-family: ''Figtree'', Helvetica, Arial, sans-serif; font-size: 12px; letter-spacing: 1.2px; color: #A14826; text-decoration: none; text-transform: uppercase; font-weight: 600;">open &rarr;</a>
+      </td>
+    </tr>
+    <!-- Row 2 -->
+    <tr><td colspan="2" style="border-top: 1px solid #DCCBB4;"></td></tr>
+    <tr>
+      <td class="thumb" valign="top" width="96" style="padding: 18px 16px 18px 0;">
+        <a href="https://songdance.co/courses" style="text-decoration: none;"><img src="https://songdance.co/email/svh-retreat-circle-sunset-group-jacob-central.jpg" width="84" height="84" alt="" style="width: 84px; height: 84px; border-radius: 6px; background-color: #2A1B2A;"></a>
+      </td>
+      <td valign="top" style="padding: 18px 0;">
+        <p style="margin: 0 0 5px; font-family: ''Spectral'', Georgia, serif; font-size: 20px; line-height: 1.25; color: #2A1B2A;">
+          <a href="https://songdance.co/courses" style="color: #2A1B2A; text-decoration: none;">All the courses</a>
+        </p>
+        <p style="margin: 0 0 8px; font-size: 14px; line-height: 1.6; color: #7A6A78;">
+          Much more detail now, so you can see what each course involves before you join.
+        </p>
+        <a href="https://songdance.co/courses" style="font-family: ''Figtree'', Helvetica, Arial, sans-serif; font-size: 12px; letter-spacing: 1.2px; color: #A14826; text-decoration: none; text-transform: uppercase; font-weight: 600;">open &rarr;</a>
+      </td>
+    </tr>
+    <!-- Row 3 -->
+    <tr><td colspan="2" style="border-top: 1px solid #DCCBB4;"></td></tr>
+    <tr>
+      <td class="thumb" valign="top" width="96" style="padding: 18px 16px 18px 0;">
+        <a href="https://songdance.co/events" style="text-decoration: none;"><img src="https://songdance.co/email/svhgpt-03-sounding-not-singing.jpg" width="84" height="84" alt="" style="width: 84px; height: 84px; border-radius: 6px; background-color: #2A1B2A;"></a>
+      </td>
+      <td valign="top" style="padding: 18px 0;">
+        <p style="margin: 0 0 5px; font-family: ''Spectral'', Georgia, serif; font-size: 20px; line-height: 1.25; color: #2A1B2A;">
+          <a href="https://songdance.co/events" style="color: #2A1B2A; text-decoration: none;">Workshops &amp; gatherings</a>
+        </p>
+        <p style="margin: 0 0 8px; font-size: 14px; line-height: 1.6; color: #7A6A78;">
+          Simple ways to join in &mdash; an hour or an evening of sounding together, in a circle.
+        </p>
+        <a href="https://songdance.co/events" style="font-family: ''Figtree'', Helvetica, Arial, sans-serif; font-size: 12px; letter-spacing: 1.2px; color: #A14826; text-decoration: none; text-transform: uppercase; font-weight: 600;">open &rarr;</a>
+      </td>
+    </tr>
+    <tr><td colspan="2" style="border-top: 1px solid #DCCBB4;"></td></tr>
+  </table>
+</td></tr>
+
+<!-- THE OFFER -->
+<tr><td style="padding: 36px 44px 0;" class="pad">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #4A2540; border-radius: 4px;">
+    <tr><td style="padding: 40px 38px;" class="pad">
+
+      <!-- 50% badge + eyebrow -->
+      <table role="presentation" cellpadding="0" cellspacing="0" style="margin: 0 0 22px;">
+        <tr>
+          <td style="background-color: #C9603A; border-radius: 30px; padding: 9px 18px;">
+            <span style="font-family: ''Figtree'', Helvetica, Arial, sans-serif; font-size: 15px; font-weight: 700; letter-spacing: 0.5px; color: #F4ECDF;">50% OFF</span>
+          </td>
+          <td style="padding-left: 14px; font-family: ''Figtree'', Helvetica, Arial, sans-serif; font-size: 11px; letter-spacing: 2.5px; color: #F2DCC9; font-weight: 600; text-transform: uppercase;">
+            to celebrate<br>the launch
+          </td>
+        </tr>
+      </table>
+
+      <h2 class="offer-h" style="font-family: ''Spectral'', Georgia, ''Times New Roman'', serif; font-weight: 400; font-size: 32px; line-height: 1.18; color: #F4ECDF; margin: 0 0 20px;">
+        Half price, <em style="font-family: ''Cormorant Garamond'', Georgia, serif; font-style: italic; color: #F2DCC9;">until 15 July</em>.
+      </h2>
+      <p style="font-family: ''Figtree'', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #EADFCB; margin: 0 0 18px;">
+        To celebrate the new website, I''m offering all the <strong style="color: #F4ECDF; font-weight: 600;">courses</strong> at half the usual price for a little longer &mdash; until <strong style="color: #F4ECDF; font-weight: 600;">15 July</strong>.
+      </p>
+
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+        <tr><td style="border-top: 1px solid #5E3A56; padding-top: 18px;">
+          <p style="font-family: ''Figtree'', Helvetica, Arial, sans-serif; font-size: 15px; line-height: 1.7; color: #EADFCB; margin: 0;">
+            One more thing, said simply: this is the last <a href="https://songdance.co/courses/certification" style="color: #F2DCC9; text-decoration: underline;">certification group</a> I''ll teach live. After this, the course becomes self-paced. If you''ve been thinking about it, now is the time to join.
+          </p>
+        </td></tr>
+      </table>
+
+      <!-- Primary CTA -->
+      <table role="presentation" cellpadding="0" cellspacing="0" style="margin: 30px 0 6px;">
+        <tr><td style="background-color: #F4ECDF; border-radius: 32px;">
+          <a href="https://songdance.co/courses" style="display: inline-block; font-family: ''Figtree'', Helvetica, Arial, sans-serif; font-size: 14px; font-weight: 600; letter-spacing: 0.3px; color: #4A2540; padding: 15px 34px; text-decoration: none;">See the courses &rarr;</a>
+        </td></tr>
+      </table>
+      <p style="font-family: ''Figtree'', Helvetica, Arial, sans-serif; font-size: 13px; line-height: 1.6; color: #C9A8BE; margin: 12px 0 0;">
+        Or just come for an evening &mdash; <a href="https://songdance.co/events" style="color: #F2DCC9; text-decoration: underline;">workshops &amp; events</a>
+      </p>
+
+      <p style="font-family: ''Cormorant Garamond'', Georgia, serif; font-style: italic; font-size: 17px; line-height: 1.5; color: #F2DCC9; margin: 22px 0 0;">
+        No pressure either way &mdash; the work will be here when you''re ready.
+      </p>
+    </td></tr>
+  </table>
+</td></tr>
+
+<!-- SIGN-OFF -->
+<tr><td class="pad" style="padding: 36px 44px 40px; font-family: ''Cormorant Garamond'', Georgia, serif;">
+  <p style="font-style: italic; font-size: 18px; line-height: 1.5; color: #4A3848; margin: 0;">
+    With warmth,<br>Jacob
+  </p>
+</td></tr>
+
+<!-- FOOTER -->
+<tr><td style="background-color: #EADFCB; padding: 32px 44px 34px;" class="pad">
+  <img src="https://songdance.co/brand/logo-wordmark-dark.png" width="130" alt="Songdance" style="width: 130px; height: auto; margin: 0 0 18px;">
+  <p style="font-family: ''Cormorant Garamond'', Georgia, serif; font-style: italic; font-size: 16px; line-height: 1.5; color: #7A6A78; margin: 0 0 18px;">
+    The sound was always yours.
+  </p>
+  <p style="font-family: ''Figtree'', Helvetica, Arial, sans-serif; font-size: 12px; line-height: 1.9; color: #A14826; margin: 0 0 16px;">
+    <a href="https://songdance.co/what-is-svh" style="color: #A14826; text-decoration: none;">what is svh</a>&nbsp;&nbsp;&middot;&nbsp;&nbsp;<a href="https://songdance.co/courses" style="color: #A14826; text-decoration: none;">courses</a>&nbsp;&nbsp;&middot;&nbsp;&nbsp;<a href="https://songdance.co/events" style="color: #A14826; text-decoration: none;">events</a>&nbsp;&nbsp;&middot;&nbsp;&nbsp;<a href="https://songdance.co/about" style="color: #A14826; text-decoration: none;">about</a>&nbsp;&nbsp;&middot;&nbsp;&nbsp;<a href="https://songdance.co/reviews" style="color: #A14826; text-decoration: none;">reviews</a>
+  </p>
+  <p style="font-family: ''Figtree'', Helvetica, Arial, sans-serif; font-size: 11px; line-height: 1.7; color: #7A6A78; margin: 0 0 6px;">
+    A quiet list &mdash; about one email a month. A little more during the launch: between now and 15 July you''ll get a few emails about the new website and the courses.
+  </p>
+  <p style="font-family: ''Figtree'', Helvetica, Arial, sans-serif; font-size: 11px; line-height: 1.7; color: #7A6A78; margin: 0 0 6px;">
+    Want only the launch emails to stop? <a href="https://songdance.co/unsubscribe-promo?e={{ subscriber.email | url_encode }}" style="color: #7A6A78; text-decoration: underline;">Stop these</a> &mdash; you''ll stay on the regular monthly list. Or <a href="{{ unsubscribe_url }}" style="color: #7A6A78; text-decoration: underline;">unsubscribe from everything</a>.
+  </p>
+  <p style="font-family: ''Figtree'', Helvetica, Arial, sans-serif; font-size: 11px; line-height: 1.7; color: #9A8A78; margin: 0;">
+    Songdance BV &middot; Beaupréstraat 13, 8310 Bruges, Belgium<br>BE0743575076
+  </p>
+</td></tr>
+
+</table>
+
+</td></tr>
+</table>
+
+</body>
+</html>
+'
+ WHERE id = 1;

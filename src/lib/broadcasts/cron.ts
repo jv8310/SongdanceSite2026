@@ -39,6 +39,7 @@ import {
   pendingTimezones,
   reclaimStaleClaims,
   type Broadcast,
+  type DrainCandidate,
 } from './db';
 
 type BroadcastCronEnv = {
@@ -152,27 +153,36 @@ async function drainBroadcast(
   // Recover any rows orphaned in 'sending' by an earlier interrupted run.
   await reclaimStaleClaims(env.DB, b.id);
 
-  // Work out which still-pending timezones are inside the window right now, then
-  // fetch only recipients in those zones. This avoids a head-of-line stall where
-  // a big block of one (out-of-window) timezone at the front of the queue would
-  // otherwise starve everyone else.
-  const distinct = await pendingTimezones(env.DB, b.id);
-  const inWindowTzs: string[] = [];
-  let nullInWindow = false;
-  for (const tz of distinct) {
-    const h = localHour(tz || DEFAULT_SEND_TZ, now);
-    if (h < b.window_start_hour || h >= b.window_end_hour) continue;
-    if (tz == null) nullInWindow = true;
-    else inWindowTzs.push(tz);
-  }
-  if (inWindowTzs.length === 0 && !nullInWindow) return 0; // nobody is in-window yet
+  let candidates: DrainCandidate[];
+  if (b.urgent) {
+    // Urgent (deadline) send: ignore the per-recipient local-time window
+    // entirely and drain the queue as fast as the per-run cap allows. This is
+    // the difference between "clears today" and "trickles for days" when the
+    // list is concentrated in timezones that are mostly asleep right now.
+    candidates = await fetchDrainCandidates(env.DB, b.id, MAX_PER_RUN * 2);
+  } else {
+    // Work out which still-pending timezones are inside the window right now,
+    // then fetch only recipients in those zones. This avoids a head-of-line
+    // stall where a big block of one (out-of-window) timezone at the front of
+    // the queue would otherwise starve everyone else.
+    const distinct = await pendingTimezones(env.DB, b.id);
+    const inWindowTzs: string[] = [];
+    let nullInWindow = false;
+    for (const tz of distinct) {
+      const h = localHour(tz || DEFAULT_SEND_TZ, now);
+      if (h < b.window_start_hour || h >= b.window_end_hour) continue;
+      if (tz == null) nullInWindow = true;
+      else inWindowTzs.push(tz);
+    }
+    if (inWindowTzs.length === 0 && !nullInWindow) return 0; // nobody is in-window yet
 
-  // D1 caps bound params ~100; if nearly every zone is in-window, the IN list is
-  // pointless anyway — fall back to "everyone pending" (head-of-line is moot then).
-  const candidates =
-    inWindowTzs.length > 90
-      ? await fetchDrainCandidates(env.DB, b.id, MAX_PER_RUN * 2)
-      : await fetchDrainCandidatesForTz(env.DB, b.id, inWindowTzs, nullInWindow, MAX_PER_RUN * 2);
+    // D1 caps bound params ~100; if nearly every zone is in-window, the IN list
+    // is pointless anyway — fall back to "everyone pending" (head-of-line moot).
+    candidates =
+      inWindowTzs.length > 90
+        ? await fetchDrainCandidates(env.DB, b.id, MAX_PER_RUN * 2)
+        : await fetchDrainCandidatesForTz(env.DB, b.id, inWindowTzs, nullInWindow, MAX_PER_RUN * 2);
+  }
   let sent = 0;
 
   for (const c of candidates) {
@@ -195,7 +205,7 @@ async function drainBroadcast(
       const firstName = (c.name ?? '').trim().split(/\s+/)[0] ?? '';
       const footerUnsub = secret ? await unsubscribePageUrl(base, secret, c.email) : undefined;
       const oneClickUnsub = secret ? await oneClickUnsubscribeUrl(base, secret, c.email) : undefined;
-      const content = renderBroadcast(b, { firstName, unsubscribeUrl: footerUnsub });
+      const content = renderBroadcast(b, { firstName, unsubscribeUrl: footerUnsub, email: c.email });
 
       if (sent > 0) await sleep(SEND_GAP_MS);
       const { id } = await sendEmail({

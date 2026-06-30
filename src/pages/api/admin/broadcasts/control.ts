@@ -10,6 +10,7 @@ import {
   launchBroadcast,
   pauseBroadcast,
   resumeBroadcast,
+  setBroadcastUrgent,
 } from '../../../../lib/broadcasts/db';
 
 export const prerender = false;
@@ -47,6 +48,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
     case 'resume': {
       await resumeBroadcast(env.DB, id);
       return json({ ok: true, status: 'sending' });
+    }
+    case 'urgent_on':
+    case 'urgent_off': {
+      // Bypass (or restore) the per-recipient local-time window. Takes effect on
+      // the next cron tick — no relaunch needed, the queue is unchanged.
+      await setBroadcastUrgent(env.DB, id, payload.action === 'urgent_on');
+      return json({ ok: true, urgent: payload.action === 'urgent_on' });
     }
     default:
       return json({ error: 'Unknown action.' }, 400);
