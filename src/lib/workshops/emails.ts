@@ -9,9 +9,10 @@
 // framing. Lifecycle emails are written in Jacob's voice and sent from
 // MARKETING_FROM; transactional ones stay from the default Songdance sender.
 //
-// The redesigned post-workshop "attended" and "downsell" emails render through
-// the richer broadcast-quality toolkit in ./email-design (imported as `D`); the
-// transactional/other lifecycle emails keep the simpler `shell()` below.
+// The redesigned post-workshop "attended", "attended-PRO" and "downsell" emails
+// render through the richer broadcast-quality toolkit in ./email-design
+// (imported as `D`); the transactional/other lifecycle emails (confirmation,
+// reminders, abandoned, no-show) keep the simpler `shell()` below.
 
 import * as D from './email-design';
 import { type DownsellOffer, BUNDLE_PATH } from './downsell-offers';
@@ -71,7 +72,9 @@ export function shell(opts: {
   preheader: string;
   heading: string;
   bodyHtml: string;
-  heroImage?: { src: string; alt: string };
+  // The hero renders as a fixed-height landscape band (object-fit cover) so a
+  // tall portrait photo can't balloon the header; `objectPosition` aims the crop.
+  heroImage?: { src: string; alt: string; objectPosition?: string };
   cta?: ButtonLink;
   extras?: ButtonLink[];
   footerNote?: string;
@@ -97,7 +100,7 @@ export function shell(opts: {
         </td></tr>
         <tr><td style="padding:20px 24px 0;">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:${PALETTE.card};border:1px solid ${PALETTE.border};border-radius:14px;">
-            ${heroImage ? `<tr><td style="padding:0;"><img src="${heroImage.src}" alt="${escapeHtml(heroImage.alt)}" width="558" style="display:block;width:100%;height:auto;border-radius:13px 13px 0 0;" /></td></tr>` : ''}
+            ${heroImage ? `<tr><td style="padding:0;"><img src="${heroImage.src}" alt="${escapeHtml(heroImage.alt)}" width="558" style="display:block;width:100%;height:260px;object-fit:cover;object-position:${heroImage.objectPosition ?? 'center'};border-radius:13px 13px 0 0;" /></td></tr>` : ''}
             <tr><td style="padding:30px 34px;font-family:Georgia,serif;font-size:16px;line-height:1.65;color:${PALETTE.soft};">
               ${bodyHtml}
               ${cta ? `<div style="padding-top:22px;"><a href="${cta.href}" style="display:inline-block;background-color:${PALETTE.ink};color:${PALETTE.bg};font-family:Georgia,serif;font-size:15px;line-height:1;text-decoration:none;padding:14px 26px;border-radius:999px;">${escapeHtml(cta.label)}</a></div>` : ''}
@@ -152,12 +155,6 @@ function quoteLine(text: string): string {
 // An ember-dotted list row (email-safe bullet).
 function dot(html: string): string {
   return `<p style="margin:0 0 10px;"><span style="color:${PALETTE.ember};">&#9679;&nbsp;&nbsp;</span>${html}</p>`;
-}
-
-// A small uppercase ember section label (matches the confirmation email's
-// "What to expect" / "How to prepare" headers).
-function sectionLabel(text: string): string {
-  return `<p style="margin:20px 0 10px;font-size:14px;letter-spacing:0.08em;text-transform:uppercase;color:${PALETTE.ember};">${escapeHtml(text)}</p>`;
 }
 
 // ── Verification code ────────────────────────────────────────────────────
@@ -371,6 +368,13 @@ const COURSE_IMG = {
   oneBreath: 'https://songdance.co/media/library/svhgpt-01-hero-in-one-breath.webp',
 };
 
+// Imagery for the redesigned PRO / certification emails (verified, landscape):
+// Jacob facilitating a circle, and a giving/receiving glow between two people.
+const PRO_IMG = {
+  facilitating: 'https://songdance.co/media/library/jacob-holding-space.webp',
+  givingReceiving: 'https://songdance.co/media/library/svhgpt-06-holding-space.webp',
+};
+
 // ── Attended 1 (right after the session): thank-you + the 48h window ───────
 export function attendedEmail1(
   ctx: LifecycleCtx & {
@@ -579,30 +583,60 @@ export function attendedEmail3(
 }
 
 // ── Attended, PRO branch (masterclass / is_pro): the certification path ────
+// Rendered through the richer design toolkit (`D`), matching the redesigned
+// attended/downsell emails — a hero band, eyebrow, Spectral heading, bullets,
+// and a contained CTA. Copy-book voice unchanged (space-holder, not fixer).
 export function attendedProEmail1(
   ctx: LifecycleCtx & { certUrl: string; courseUrl: string; hoursRemaining: number },
 ): EmailContent {
   const left = hoursPhrase(ctx.hoursRemaining);
-  const html = shell({
+  const html = D.designShell({
     preheader: 'For the ones who hold space for others.',
-    heading: 'Thank you for sounding with us',
-    bodyHtml: `<p style="margin:0 0 14px;">${greeting(ctx.name)}</p>
-      <p style="margin:0 0 14px;">Thank you for being part of <strong>${escapeHtml(ctx.workshopTitle)}</strong>.</p>
-      ${figureRow(
-        IMG.jacobSounding,
-        'Jacob sounding — hand on chest, eyes closed',
-        `<p style="margin:0;">Because you work with people yourself, there's a path here that may matter more to you than the rest: the <strong>SVH Certification</strong> — learning to hold this space for others.</p>`,
-      )}
-      <p style="margin:0 0 14px;">Not healer, not fixer: space holder. Someone who keeps the room steady while another person does the one thing only they can do.</p>
-      ${sectionLabel('What the path involves')}
-      ${dot('Live classes, each with a written manual — and instant access to the ones already held, the moment you join.')}
-      ${dot('Weekly live Q&amp;A and monthly deepening sessions, so the learning stays live, not just recorded.')}
-      ${dot('Hosted practice sessions with peers — giving and receiving is the quiet heart of it, and where facilitation actually grows.')}
-      ${dot('The Somatic Vocal Healing app, a full replay library, a global community, and lifetime access.')}
-      <p style="margin:16px 0 0;">If that sounds like your work, have a look:</p>`,
-    cta: { label: 'Explore the certification path', href: ctx.certUrl },
-    extras: [{ label: `Your 12-week price (20% off, ${left})`, href: ctx.courseUrl }],
-    unsubscribeUrl: ctx.unsubscribeUrl,
+    title: 'Thank you for sounding with us',
+    heroImage: {
+      src: PRO_IMG.facilitating,
+      alt: 'Jacob facilitating a sounding circle',
+      href: ctx.certUrl,
+    },
+    blocks: [
+      D.eyebrow('For practitioners'),
+      D.displayHeading(`Thank you for ${D.accent('sounding')} with us`),
+      D.para(greeting(ctx.name)),
+      D.para(`Thank you for being part of <strong>${escapeHtml(ctx.workshopTitle)}</strong>.`),
+      D.para(
+        "Because you work with people yourself, there's a path here that may matter more to you than the rest: the <strong>SVH Certification</strong> — learning to hold this space for others.",
+      ),
+      D.para(
+        'Not healer, not fixer: space holder. Someone who keeps the room steady while another person does the one thing only they can do.',
+      ),
+      D.sectionLabel('What the path involves'),
+      D.bullet(
+        'Live classes, each with a written manual — and instant access to the ones already held, the moment you join.',
+      ),
+      D.bullet(
+        'Weekly live Q&amp;A and monthly deepening sessions, so the learning stays live, not just recorded.',
+      ),
+      D.bullet(
+        'Hosted practice sessions with peers — giving and receiving is the quiet heart of it, and where facilitation actually grows.',
+      ),
+      D.bullet(
+        'The Somatic Vocal Healing app, a full replay library, a global community, and lifetime access.',
+      ),
+      D.offerBox({
+        variant: 'cream',
+        badge: 'The practitioner path',
+        title: 'Learning to hold this space',
+        lines: [
+          'If that sounds like your work, the certification page has the full structure, the classes, and the honest small print.',
+        ],
+        button: { label: 'Explore the certification path', href: ctx.certUrl },
+        footnote: `Your 12-week participant price (20% off) is also live for the next ${escapeHtml(
+          left,
+        )} — ${D.secondaryLink('see your price', ctx.courseUrl)}.`,
+      }),
+      D.signoff('Warmly,'),
+    ].join(''),
+    footer: { unsubscribeUrl: ctx.unsubscribeUrl },
   });
   return {
     subject: 'Thank you — and a word for practitioners',
@@ -612,22 +646,57 @@ export function attendedProEmail1(
 }
 
 export function attendedProEmail2(ctx: LifecycleCtx & { certUrl: string }): EmailContent {
-  const html = shell({
+  const html = D.designShell({
     preheader: 'What a facilitator actually does here.',
-    heading: 'Holding space is a craft',
-    bodyHtml: `<p style="margin:0 0 14px;">${greeting(ctx.name)}</p>
-      <p style="margin:0 0 14px;">The facilitator's work in this practice is quiet: keep the room steady, ask the next honest question, hear what the other person can't hear yet — and then get out of the way.</p>
-      <p style="margin:0 0 14px;">When someone discovers a connection, you leave that gift to them. You're never the smart one who points it out. The healing is theirs; the space is yours.</p>
-      ${sectionLabel('What you learn to do')}
-      ${dot('Travel through the layers of a sound, and guide a whole session from the first tone to integration.')}
-      ${dot('Meet the core emotions in the voice — anger, fear, pain, grief — and stay with what is truly being expressed.')}
-      ${dot('Weave in systemic work: mother, father, the line behind a person; giving back what was never theirs to carry.')}
-      ${dot('The therapeutic craft — pacing, regulation, co-regulation, the volume button; knowing when to hold, when to wait, when to let silence do the work.')}
-      ${dot("Your own inner work — projection, transference, what stirs in you when another person's material touches your own.")}
-      <p style="margin:16px 0 14px;">And a great deal of practice: hosted sessions with peers, and a final supervised class where you lead in front of the group and get direct feedback. The method, the listening, the safety architecture — so you can bring sounding into the work you already do.</p>
-      <p style="margin:0;">If you have questions about whether it fits your practice, reply to this email and ask. A person answers.</p>`,
-    cta: { label: 'Explore the certification path', href: ctx.certUrl },
-    unsubscribeUrl: ctx.unsubscribeUrl,
+    title: 'Holding space is a craft',
+    heroImage: {
+      src: PRO_IMG.givingReceiving,
+      alt: 'One person sounding, another holding the space',
+      href: ctx.certUrl,
+    },
+    blocks: [
+      D.eyebrow("The facilitator's craft"),
+      D.displayHeading(`Holding space is a ${D.accent('craft')}`),
+      D.para(greeting(ctx.name)),
+      D.para(
+        "The facilitator's work in this practice is quiet: keep the room steady, ask the next honest question, hear what the other person can't hear yet — and then get out of the way.",
+      ),
+      D.para(
+        "When someone discovers a connection, you leave that gift to them. You're never the smart one who points it out.",
+      ),
+      D.pullQuote('The healing is theirs; the space is yours.'),
+      D.sectionLabel('What you learn to do'),
+      D.bullet(
+        'Travel through the layers of a sound, and guide a whole session from the first tone to integration.',
+      ),
+      D.bullet(
+        'Meet the core emotions in the voice — anger, fear, pain, grief — and stay with what is truly being expressed.',
+      ),
+      D.bullet(
+        'Weave in systemic work: mother, father, the line behind a person; giving back what was never theirs to carry.',
+      ),
+      D.bullet(
+        'The therapeutic craft — pacing, regulation, co-regulation, the volume button; knowing when to hold, when to wait, when to let silence do the work.',
+      ),
+      D.bullet(
+        "Your own inner work — projection, transference, what stirs in you when another person's material touches your own.",
+      ),
+      D.para(
+        'And a great deal of practice: hosted sessions with peers, and a final supervised class where you lead in front of the group and get direct feedback. The method, the listening, the safety architecture — so you can bring sounding into the work you already do.',
+      ),
+      D.para(
+        'If you have questions about whether it fits your practice, reply to this email and ask. A person answers.',
+        { tone: 'soft' },
+      ),
+      D.offerBox({
+        variant: 'plum',
+        title: 'The certification path',
+        lines: ['The full structure, the classes, and the honest small print — in one place.'],
+        button: { label: 'Explore the certification path', href: ctx.certUrl },
+      }),
+      D.signoff('Warmly,'),
+    ].join(''),
+    footer: { unsubscribeUrl: ctx.unsubscribeUrl },
   });
   return {
     subject: 'Holding space is a craft',
@@ -637,16 +706,36 @@ export function attendedProEmail2(ctx: LifecycleCtx & { certUrl: string }): Emai
 }
 
 export function attendedProEmail3(ctx: LifecycleCtx & { certUrl: string }): EmailContent {
-  const html = shell({
+  const html = D.designShell({
     preheader: 'No deadline here — just the door.',
-    heading: 'If the path is calling',
-    bodyHtml: `<p style="margin:0 0 14px;">${greeting(ctx.name)}</p>
-      <p style="margin:0 0 14px;">A last note on this — then we'll leave it with you.</p>
-      <p style="margin:0 0 14px;">If you've been circling the certification course, the page below has the structure, the classes, and the honest small print. There's no deadline attached and no spots-left theatre. Trees don't hurry, and neither does this.</p>
-      <p style="margin:0 0 14px;">Two honest things before we go: it isn't a full therapist training — if you'll work with clients, you bring your own ground for holding emotional process. And there's no obligation to practise professionally at all; many walk it simply to go fully in with their own voice. You can come out a certified practitioner, or just changed. Both are welcome.</p>
-      <p style="margin:0;">If it helps to talk it through first, reply here and say where you're standing. We'll answer plainly — including "not yet", if that's the truth.</p>`,
-    cta: { label: 'See the certification course', href: ctx.certUrl },
-    unsubscribeUrl: ctx.unsubscribeUrl,
+    title: 'If the certification path is calling',
+    heroImage: {
+      src: IMG.walkSunset,
+      alt: 'A figure walking toward the evening light',
+      href: ctx.certUrl,
+      objectPosition: 'center 62%',
+      height: 360,
+    },
+    blocks: [
+      D.eyebrow('No deadline — just the door'),
+      D.displayHeading(`If the path is ${D.accent('calling')}`),
+      D.para(greeting(ctx.name)),
+      D.para("A last note on this — then we'll leave it with you."),
+      D.para(
+        "If you've been circling the certification course, the page below has the structure, the classes, and the honest small print. There's no deadline attached and no spots-left theatre. Trees don't hurry, and neither does this.",
+      ),
+      D.pullQuote("Trees don't hurry, and neither does this."),
+      D.para(
+        "Two honest things before we go: it isn't a full therapist training — if you'll work with clients, you bring your own ground for holding emotional process. And there's no obligation to practise professionally at all; many walk it simply to go fully in with their own voice. You can come out a certified practitioner, or just changed. Both are welcome.",
+      ),
+      D.para(
+        `If it helps to talk it through first, reply here and say where you're standing. We'll answer plainly — including "not yet", if that's the truth.`,
+        { tone: 'soft' },
+      ),
+      D.pillButton('See the certification course', ctx.certUrl),
+      D.signoff('Warmly,'),
+    ].join(''),
+    footer: { unsubscribeUrl: ctx.unsubscribeUrl },
   });
   return {
     subject: 'If the certification path is calling',
@@ -779,7 +868,7 @@ export function downsellEmail1(ctx: DownsellCtx): EmailContent {
     const html = D.designShell({
       preheader: 'The practice that needs no purchase — and where to find us live.',
       title: 'The sound was always yours',
-      heroImage: { src: IMG.soundingYellow, alt: 'A participant sounding, hand on heart' },
+      heroImage: { src: IMG.soundingYellow, alt: 'A participant sounding, hand on heart', objectPosition: 'center 42%' },
       blocks: [
         D.eyebrow('After the window'),
         D.displayHeading(`The sound was always ${D.accent('yours')}`),
@@ -810,7 +899,7 @@ export function downsellEmail1(ctx: DownsellCtx): EmailContent {
   const html = D.designShell({
     preheader: 'The discount has closed — but a gentler door is open.',
     title: "If the timing wasn't right",
-    heroImage: { src: IMG.walkSunset, alt: 'A figure walking toward the evening light' },
+    // No hero — the featured product card lower down carries the image.
     blocks: [
       D.eyebrow('After the window'),
       D.displayHeading(`A ${D.accent('gentler')} door`),
@@ -860,7 +949,7 @@ export function downsellEmail2(ctx: DownsellCtx): EmailContent {
   const html = D.designShell({
     preheader: 'The practice that lives in your own room, between the live hours.',
     title: 'In your own room',
-    heroImage: { src: IMG.soundingBlue, alt: 'A participant mid-tone, hand on chest' },
+    // No hero — the featured product card lower down carries the image.
     blocks: [
       D.eyebrow('Between sessions'),
       D.displayHeading(`In your own ${D.accent('room')}`),
@@ -910,7 +999,7 @@ export function downsellEmail3(ctx: DownsellCtx): EmailContent {
   const html = D.designShell({
     preheader: 'The practice that needs no purchase — and where to find us live.',
     title: 'Three breaths and a tone',
-    heroImage: { src: IMG.soundingYellow, alt: 'A participant sounding, hand on heart' },
+    heroImage: { src: IMG.soundingYellow, alt: 'A participant sounding, hand on heart', objectPosition: 'center 42%' },
     blocks: [
       D.eyebrow('Last note'),
       D.displayHeading(`Three breaths and a ${D.accent('tone')}`),

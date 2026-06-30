@@ -53,7 +53,7 @@ export function buildEmailSamples(base: string): EmailSample[] {
   // Personalized: the course page reads ?email= and shows that person's
   // price (and any live discount) without them typing anything.
   const courseUrl = `${b}/courses/12-week?email=maria%40example.com#register`;
-  const certUrl = `${b}/courses/certification`;
+  const certUrl = `${b}/courses/certification?email=maria%40example.com`;
   const calendarUrl = `${b}/workshop`;
   const unsubscribeUrl = `${b}/unsubscribe?e=maria%40example.com&t=preview`;
   const lc = { name, workshopTitle, unsubscribeUrl };
