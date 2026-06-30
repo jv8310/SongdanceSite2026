@@ -149,25 +149,13 @@ const testimonials = [
       </div>
     </section>
 
-    <!-- One session highlight -->
-    <section class="jr-section jr-opening">
-      <div class="jr-opening-inner">
-        <div class="jr-eyebrow" style="justify-content:center;">One session</div>
-        <h2 class="jr-opening-head">Stepping Into <em>Your Power.</em></h2>
-        <p class="jr-prose-body">
-          One session, Stepping Into Your Power, plays with two of the body's oldest words —
-          <em>no</em> and <em>yes</em>. It's a way to feel, in movement, where your lines are and what
-          you want to open to. Quietly, it teaches boundaries.
-        </p>
-      </div>
-    </section>
-
     <!-- The ten sessions -->
     <MMJSessions />
 
-    <!-- Origin -->
-    <section class="jr-section jr-opening">
-      <div class="jr-opening-inner">
+    <!-- Origin — set apart as a tinted band to break the page -->
+    <section class="jr-section mmj-origin">
+      <div class="mmj-origin-inner">
+        <img class="mmj-origin-mark" src="/brand/symbol-orange.png" alt="" aria-hidden="true" />
         <div class="jr-eyebrow" style="justify-content:center;">Where it came from</div>
         <h2 class="jr-opening-head">It grew on real <em>dance floors.</em></h2>
         <p class="jr-prose-body">
@@ -316,3 +304,29 @@ const testimonials = [
     </footer>
   </div>
 </Layout>
+
+<style>
+  /* The origin moment, set apart from the cream sections around it: a soft
+     moss band (the movement theme's own green) with the brand mark, so the
+     page has a visual breath before the South-Africa clips. */
+  .mmj-origin {
+    background: linear-gradient(180deg, var(--jr-accent-glow) 0%, var(--jr-accent-soft) 100%);
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+  }
+  .mmj-origin-inner {
+    max-width: 720px;
+    margin: 0 auto;
+    text-align: center;
+  }
+  .mmj-origin-mark {
+    width: 46px;
+    height: 46px;
+    display: block;
+    margin: 0 auto var(--sp-5);
+    opacity: 0.9;
+  }
+  .mmj-origin .jr-prose-body {
+    color: var(--ink-soft);
+  }
+</style>

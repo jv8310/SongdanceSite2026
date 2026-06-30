@@ -163,10 +163,13 @@ const sessions: Session[] = [
   .mmj-card {
     display: flex;
     flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: var(--sp-5);
+    padding: var(--sp-6);
     background: var(--paper-soft);
     border: 1px solid var(--line);
     border-radius: var(--r-lg);
-    overflow: hidden;
     box-shadow: var(--shadow-1);
     transition: transform var(--d-base) var(--ease), box-shadow var(--d-base) var(--ease), border-color var(--d-base) var(--ease);
   }
@@ -178,24 +181,34 @@ const sessions: Session[] = [
     }
   }
 
+  /* The art is a circular medallion: zoom 2× and centre on the illustration
+     (band ~15–65% of the source) so the baked-in "Session N" / title text,
+     which sits in the fixed top and bottom margins, is cropped away. */
   .mmj-card-fig {
     margin: 0;
-    aspect-ratio: 1 / 1;
-    width: 100%;
-    background: var(--jr-accent-glow);
+    position: relative;
     flex: 0 0 auto;
+    width: clamp(132px, 30vw, 168px);
+    aspect-ratio: 1 / 1;
+    border-radius: 50%;
+    overflow: hidden;
+    background: var(--jr-accent-glow);
+    box-shadow: 0 0 0 1px rgba(var(--jr-accent-rgb), 0.22), 0 6px 16px -10px rgba(42, 27, 42, 0.28);
   }
   .mmj-card-fig img {
-    width: 100%;
-    height: 100%;
+    position: absolute;
+    width: 200%;
+    height: 200%;
+    left: -50%;
+    top: -30%;
     object-fit: cover;
     display: block;
   }
 
   .mmj-card-body {
-    padding: var(--sp-6);
     display: flex;
     flex-direction: column;
+    align-items: center;
     min-width: 0;
   }
 
@@ -241,6 +254,7 @@ const sessions: Session[] = [
     padding: 0;
     display: flex;
     flex-wrap: wrap;
+    justify-content: center;
     gap: var(--sp-2);
   }
   .mmj-benefits li {
@@ -254,15 +268,11 @@ const sessions: Session[] = [
     padding: 6px 12px;
   }
 
-  /* From phone to a comfortable width: lay the card out side-by-side, art left. */
+  /* From phone to a comfortable width: medallion left, text beside it. */
   @media (min-width: 560px) {
-    .mmj-card { flex-direction: row; align-items: flex-start; }
-    .mmj-card-fig { width: 42%; max-width: 248px; }
-    .mmj-card-body { flex: 1 1 auto; padding: var(--sp-6) var(--sp-6) var(--sp-6) var(--sp-6); }
-  }
-  /* Two columns on desktop → the art column can be a touch tighter. */
-  @media (min-width: 1080px) {
-    .mmj-card-fig { width: 40%; max-width: 220px; }
+    .mmj-card { flex-direction: row; align-items: center; text-align: left; gap: var(--sp-6); }
+    .mmj-card-body { flex: 1 1 auto; align-items: flex-start; }
+    .mmj-benefits { justify-content: flex-start; }
   }
 
   @media (prefers-reduced-motion: reduce) {
