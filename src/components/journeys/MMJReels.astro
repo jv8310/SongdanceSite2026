@@ -46,6 +46,9 @@ const reels: Reel[] = [
           <button class="mmj-reel-btn" type="button" data-mmj-playbtn aria-label="Play clip">
             <i class="ph-fill ph-play"></i>
           </button>
+          <a class="mmj-reel-open" href={r.src} target="_blank" rel="noopener" aria-label="Open this clip in a new tab">
+            <i class="ph-light ph-arrow-square-out"></i>
+          </a>
         </div>
       ))}
     </div>
@@ -118,6 +121,29 @@ const reels: Reel[] = [
     .mmj-reel:hover .mmj-reel-btn { transform: translate(-50%, -50%) scale(1.06); background: var(--paper-soft); }
   }
   .mmj-reel.is-playing .mmj-reel-btn { opacity: 0; pointer-events: none; }
+
+  /* A quiet escape hatch: if a browser can't play the clip inline
+     (e.g. Firefox with a .mov), open it directly. */
+  .mmj-reel-open {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    color: var(--paper);
+    background: rgba(42, 27, 42, 0.42);
+    text-decoration: none;
+    opacity: 0.75;
+    transition: opacity var(--d-base) var(--ease), background var(--d-base) var(--ease);
+  }
+  .mmj-reel-open i { font-size: 16px; }
+  @media (hover: hover) {
+    .mmj-reel-open:hover { opacity: 1; background: rgba(42, 27, 42, 0.66); }
+  }
+  .mmj-reel.is-playing .mmj-reel-open { opacity: 0; pointer-events: none; }
 
   .mmj-reels-foot {
     text-align: center;
