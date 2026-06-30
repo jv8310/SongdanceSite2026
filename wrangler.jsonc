@@ -62,7 +62,7 @@
     // start it (ideally with any order-triggered Drip automations paused, since
     // the drain emits back-dated orders for every past purchase), then back to
     // "false" once it reports remaining=0.
-    "DRIP_BACKFILL_ENABLED": "false"
+    "DRIP_BACKFILL_ENABLED": "1"
   },
   // Cron triggers → the worker's `scheduled` handler dispatches by cron string
   // (see src/worker-entrypoint.ts):
