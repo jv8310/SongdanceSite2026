@@ -15,6 +15,7 @@ import {
   LAUNCH_PROMO_PERCENT,
   LAUNCH_PROMO_END_LABEL,
   LAUNCH_PROMO_ENDS_AT_MS,
+  LAUNCH_PROMO_TAG,
 } from '../../lib/promo';
 
 interface Props {
@@ -35,12 +36,12 @@ const active = launchPromoActive();
     data-launch-offer
     data-ends={LAUNCH_PROMO_ENDS_AT_MS}
     role="note"
-    aria-label={`New-website launch offer — ${LAUNCH_PROMO_PERCENT}% off ${scope}, ends ${LAUNCH_PROMO_END_LABEL}`}
+    aria-label={`${LAUNCH_PROMO_TAG} — ${LAUNCH_PROMO_PERCENT}% off ${scope}, ends ${LAUNCH_PROMO_END_LABEL}`}
   >
     <div class="sd-launch-offer-main">
-      <span class="sd-launch-offer-tag">New-website launch offer</span>
+      <span class="sd-launch-offer-tag">{LAUNCH_PROMO_TAG}</span>
       <p class="sd-launch-offer-line">
-        <strong>{LAUNCH_PROMO_PERCENT}% off {scope}</strong> to celebrate our new home — ends {LAUNCH_PROMO_END_LABEL}.
+        <strong>{LAUNCH_PROMO_PERCENT}% off {scope}</strong> to celebrate our new home — extended through {LAUNCH_PROMO_END_LABEL}.
       </p>
       {note && <p class="sd-launch-offer-note">{note}</p>}
     </div>
