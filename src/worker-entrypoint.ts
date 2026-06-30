@@ -15,6 +15,7 @@ import { createExports as baseCreateExports } from '@astrojs/cloudflare/entrypoi
 import { assessPendingSubmissions } from './lib/intake/sweep';
 import { runWorkshopCron } from './lib/workshops/cron';
 import { runBroadcasts } from './lib/broadcasts/cron';
+import { runReports } from './lib/workshops/reports';
 import { fxRatesStale, refreshFxRates } from './lib/admin/fx';
 
 const WORKSHOP_CRON = '*/5 * * * *';
@@ -142,6 +143,21 @@ export function createExports(manifest: unknown) {
         )
         .catch((err) => {
           console.error('[fx] refresh failed', err);
+        }),
+    );
+
+    // Internal "SD-REPORT" digests: a daily registrations/sales/bumps snapshot
+    // every morning, plus a weekly one on Tuesdays. Rides the hourly trigger and
+    // self-gates to the first tick at/after 08:00 Brussels; idempotent per day.
+    ctx.waitUntil(
+      runReports(env)
+        .then((r) => {
+          if (r.daily || r.weekly) {
+            console.log(`[reports] daily=${r.daily} weekly=${r.weekly}`);
+          }
+        })
+        .catch((err) => {
+          console.error('[reports] run failed', err);
         }),
     );
   };

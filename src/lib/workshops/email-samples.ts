@@ -26,6 +26,12 @@ import {
 } from './emails';
 import { DOWNSELL_OFFERS, DOWNSELL_ORDER } from './downsell-offers';
 import { buildOrderNotificationEmail } from '../orders/notification';
+import {
+  buildDailyReportEmail,
+  buildWeeklyReportEmail,
+  sampleDailyReportData,
+  sampleWeeklyReportData,
+} from './reports';
 
 export type EmailSample = {
   id: string;
@@ -322,6 +328,24 @@ export function buildEmailSamples(base: string): EmailSample[] {
         },
         { quadernoAccount: 'songdance', dripAccountId: '0000000', dripSubscriberId: 'xyz789ghi012' },
       ),
+    },
+
+    // ── Internal reports (SD-REPORT, ops only) ───────────────────────────
+    {
+      id: 'report_daily',
+      group: 'Reports (internal)',
+      label: 'SD-REPORT — daily digest',
+      timing: 'Every morning (first hourly tick at/after 08:00 Brussels)',
+      audience: 'Team inbox (REPORTS_TO) — registrations, course sales, bumps, revenue for yesterday',
+      content: buildDailyReportEmail(sampleDailyReportData(), b),
+    },
+    {
+      id: 'report_weekly',
+      group: 'Reports (internal)',
+      label: 'SD-REPORT — weekly digest',
+      timing: 'Every Tuesday morning (the 7 days ending yesterday)',
+      audience: 'Team inbox (REPORTS_TO) — same sections + a revenue-by-day table',
+      content: buildWeeklyReportEmail(sampleWeeklyReportData(), b),
     },
   ];
 }
