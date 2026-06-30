@@ -118,6 +118,34 @@ All automated workshop email lives in the workshop engine:
   send. Keep it factual — no fake scarcity, no countdown theatrics. Marketing
   sends are from `MARKETING_FROM` (Jacob), reply-to `support@songdance.co`.
 
+## Internal reports — daily + weekly "SD-REPORT" digests
+
+Ops-only summary email (NOT customer-facing), sibling to the `SD-ORDER`
+notifications. Lives in [`src/lib/workshops/reports.ts`](src/lib/workshops/reports.ts).
+
+- **What it covers** for the window: new **workshop registrations** (paid/coupon,
+  per workshop), **course sales** (12-week / certification / grief, per product),
+  **bump offers** — both the workshop order bump (`workshop_purchases`) and the
+  12-week checkout order bumps (the `bumps` JSON on `course_registrations`) — and
+  a **revenue** breakdown that sums them. Numbers reuse the dashboard's own
+  `computeStats` + `computeCourseSales` (stats.ts), so a figure here matches
+  `/admin/workshops/stats` for the same window.
+- **Cadence**: a **daily** digest (covering *yesterday*) every morning, plus a
+  **weekly** digest (the 7 days ending yesterday, with a revenue-by-day table)
+  every **Tuesday**. Runs on the existing **hourly** cron (no new trigger):
+  `runReports` self-gates to the first tick at/after **08:00 Europe/Brussels**,
+  so it survives DST and a missed tick is caught up later the same day. Windows
+  resolve in Brussels time, matching the stats-page presets.
+- **Idempotency**: claims a unique `events` row (`external_id`
+  `report-daily-<date>` / `report-weekly-<date>`, kind `report.sent`) before
+  sending — once per day even if the cron double-fires; a send failure releases
+  the claim so a later tick retries.
+- **Recipients**: `REPORTS_TO` (comma/space-separated) → `ORDER_NOTIFICATIONS_TO`
+  → `ADMIN_EMAIL` → `jacob@songdance.co`. Sent transactionally (not gated by
+  suppression — it's internal).
+- **Review**: both digests preview with sample data on `/admin/emails` (group
+  "Reports (internal)") with a test-send, same as every other email.
+
 ## Broadcasts — one-off marketing to a standalone contact list
 
 Separate from the workshop lifecycle: a `contacts` list (imported from a CSV,
