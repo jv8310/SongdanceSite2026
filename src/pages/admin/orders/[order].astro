@@ -1,0 +1,318 @@
+---
+import '../../../styles/admin.css';
+import Layout from '../../../layouts/Layout.astro';
+import { readCookie, verifySession } from '../../../lib/registrations/auth';
+import { formatMoney } from '../../../lib/workshops/currency';
+import {
+  isRefundable,
+  refundableMinor,
+  type OrderSource,
+} from '../../../lib/admin/orders';
+import { getOrderDetail } from '../../../lib/admin/order-detail';
+import { getFxRatesToEur } from '../../../lib/admin/fx';
+import { providerLinkFor, resolveProviderModes } from '../../../lib/admin/provider-links';
+
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+const authed = await verifySession(env.ADMIN_SESSION_SECRET, readCookie(Astro.request));
+if (!authed) {
+  return Astro.redirect('/admin/login');
+}
+
+const orderNo = (Astro.params.order ?? '').toString();
+
+// Same money inputs as the list, so every figure here matches /admin/orders.
+const fxRates = await getFxRatesToEur(env.DB);
+const quaderno =
+  env.QUADERNO_API_KEY && env.QUADERNO_ACCOUNT
+    ? {
+        apiKey: env.QUADERNO_API_KEY,
+        account: env.QUADERNO_ACCOUNT,
+        sandbox: env.QUADERNO_SANDBOX === '1',
+      }
+    : undefined;
+
+const detail = await getOrderDetail(env.DB, orderNo, { fxRates, quaderno });
+
+// Where "Back" returns to — the filtered list the admin came from, falling
+// back to the bare orders page.
+const rawReturn = Astro.url.searchParams.get('return_to') ?? '';
+const backHref = rawReturn.startsWith('/admin/orders') ? rawReturn : '/admin/orders';
+// The refund form returns to THIS detail page (so the flash shows in context).
+const selfReturn = Astro.url.pathname + Astro.url.search;
+
+const providerModes = resolveProviderModes(env);
+
+// Flash from the refund endpoint.
+const flash = Astro.url.searchParams.get('flash');
+const flashMsg = Astro.url.searchParams.get('msg');
+const flashBanner =
+  flash === 'refund_ok'
+    ? { tone: 'ok' as const, text: flashMsg ?? 'Refund submitted.' }
+  : flash === 'refund_error'
+    ? { tone: 'err' as const, text: flashMsg ?? 'Refund failed.' }
+    : null;
+
+const SOURCE_LABEL: Record<OrderSource, string> = {
+  retreat: 'Retreat',
+  course: 'Course',
+  workshop: 'Workshop',
+};
+
+function eur(minor: number): string {
+  const major = minor / 100;
+  return `€${Number.isInteger(major) ? major : major.toFixed(2)}`;
+}
+
+const o = detail?.order ?? null;
+const name = o ? `${o.firstName ?? ''} ${o.lastName ?? ''}`.trim() || '—' : '';
+const link = o ? providerLinkFor(o, providerModes) : null;
+const remaining = o ? refundableMinor(o) : 0;
+const remainingMajor = (remaining / 100).toFixed(2);
+const jsName = name.replace(/['\\]/g, '\\$&');
+---
+
+<Layout title={`Admin — Order ${orderNo} — Songdance`} description="">
+  <main class="adm">
+    <header class="adm-header">
+      <div>
+        <p class="adm-breadcrumbs">
+          <a href="/admin">Admin</a>
+          <span class="sep">/</span>
+          <a href="/admin/orders">Orders</a>
+          <span class="sep">/</span>
+          {orderNo}
+        </p>
+        <h1>Order {orderNo}</h1>
+        {o && <p class="adm-sub">{o.productLabel}</p>}
+      </div>
+      <div class="adm-actions">
+        <a class="adm-btn adm-btn--ghost" href={backHref}>← Back to orders</a>
+      </div>
+    </header>
+
+    {flashBanner && (
+      <div class={`adm-flash adm-flash--${flashBanner.tone}`}>{flashBanner.text}</div>
+    )}
+
+    {!detail && (
+      <section class="adm-section">
+        <p class="adm-empty">No order found for “{orderNo}”.</p>
+      </section>
+    )}
+
+    {detail && o && (
+      <>
+        <!-- ─── Summary ─── -->
+        <section class="adm-section">
+          <div class="od-summary">
+            <div class="od-head">
+              <span class="adm-mono od-no">{o.orderNo}</span>
+              <span class={`od-tag od-tag--src-${o.source}`}>{SOURCE_LABEL[o.source]}</span>
+              <span class={`adm-pill adm-pill--${o.statusClass}`}>{o.rawStatus}</span>
+            </div>
+            <div class="od-grid">
+              <div class="od-stat"><span>Name</span><strong>{name}</strong></div>
+              <div class="od-stat">
+                <span>Email</span>
+                <strong><a href={`mailto:${o.email}`}>{o.email}</a></strong>
+              </div>
+              <div class="od-stat">
+                <span>Original</span>
+                <strong>{o.originalAmountMinor > 0 ? formatMoney(o.originalAmountMinor, o.originalCurrency) : '—'}</strong>
+              </div>
+              <div class="od-stat">
+                <span>Net (EUR)</span>
+                <strong>{o.netEurMinor != null && o.netKind !== 'none' ? eur(o.netEurMinor) : '—'}</strong>
+              </div>
+              {o.refundedMinor > 0 && (
+                <div class="od-stat">
+                  <span>Refunded</span>
+                  <strong class="od-refunded">−{formatMoney(o.refundedMinor, o.originalCurrency)}</strong>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <!-- The headline the admin came here for: which coupon/discount applied. -->
+          <div class={`od-coupon ${detail.couponNote ? 'od-coupon--on' : ''}`}>
+            <span class="od-coupon-label">Coupon / discount</span>
+            <strong>{detail.couponNote ?? 'None — full price'}</strong>
+          </div>
+        </section>
+
+        <!-- ─── Detail cards ─── -->
+        <section class="adm-section od-cards">
+          {detail.lineItems.length > 0 && (
+            <div class="od-card">
+              <h2>Price breakdown</h2>
+              <table class="od-lines">
+                <tbody>
+                  {detail.lineItems.map((li) => (
+                    <tr>
+                      <td>{li.label}</td>
+                      <td class="num">{li.amount}</td>
+                    </tr>
+                  ))}
+                  <tr class="od-lines-total">
+                    <td>Charged total</td>
+                    <td class="num">
+                      {o.originalAmountMinor > 0 ? formatMoney(o.originalAmountMinor, o.originalCurrency) : '—'}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {detail.customer.length > 0 && (
+            <div class="od-card">
+              <h2>Customer</h2>
+              <dl class="od-kv">
+                {detail.customer.map((f) => (
+                  <div class="od-kv-row">
+                    <dt>{f.label}</dt>
+                    <dd class={f.mono ? 'adm-mono' : ''}>{f.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          )}
+
+          {detail.payment.length > 0 && (
+            <div class="od-card">
+              <h2>Payment</h2>
+              <dl class="od-kv">
+                {detail.payment.map((f) => (
+                  <div class="od-kv-row">
+                    <dt>{f.label}</dt>
+                    <dd class={f.mono ? 'adm-mono' : ''}>{f.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          )}
+
+          {detail.extra.length > 0 && (
+            <div class="od-card">
+              <h2>Details</h2>
+              <dl class="od-kv">
+                {detail.extra.map((f) => (
+                  <div class="od-kv-row">
+                    <dt>{f.label}</dt>
+                    <dd class={f.mono ? 'adm-mono' : ''}>{f.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          )}
+        </section>
+
+        <!-- ─── Actions ─── -->
+        <section class="adm-section">
+          <div class="od-actions">
+            {link && (
+              <a class="adm-btn adm-btn--ghost" href={link.href} target="_blank" rel="noopener">Open in {link.label} ↗</a>
+            )}
+            <a class="adm-btn adm-btn--ghost" href={`/api/admin/drip-profile?email=${encodeURIComponent(o.email)}`} target="_blank" rel="noopener">Drip profile ↗</a>
+            <a class="adm-btn adm-btn--ghost" href={`/api/admin/quaderno-profile?email=${encodeURIComponent(o.email)}`} target="_blank" rel="noopener">Quaderno profile ↗</a>
+          </div>
+
+          {isRefundable(o) && (
+            <form
+              method="POST"
+              action="/api/admin/refund"
+              class="od-refund"
+              onsubmit={`return confirm('Refund ${o.orderNo} (${jsName}, ${o.email})?\\nBlank = full ${remainingMajor} ${o.originalCurrency}. This moves real money.')`}
+            >
+              <input type="hidden" name="order_no" value={o.orderNo} />
+              <input type="hidden" name="return_to" value={selfReturn} />
+              <label>
+                <span>Refund amount ({o.originalCurrency})</span>
+                <input
+                  type="number"
+                  name="amount"
+                  step="0.01"
+                  min="0.01"
+                  max={remainingMajor}
+                  placeholder={`full ${remainingMajor}`}
+                />
+              </label>
+              <button type="submit" class="adm-btn adm-btn--danger">Issue refund</button>
+              <p class="od-refund-hint">Blank = full refund of what’s left ({remainingMajor} {o.originalCurrency}).</p>
+            </form>
+          )}
+        </section>
+      </>
+    )}
+  </main>
+
+  <style>
+    .od-summary {
+      border: 1px solid var(--adm-line); border-radius: 12px;
+      background: var(--adm-paper-soft); padding: 16px 18px;
+    }
+    .od-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
+    .od-no { font-size:18px; font-weight:600; }
+    .od-tag {
+      font-size:10px; font-weight:600; letter-spacing:0.04em; text-transform:uppercase;
+      padding:1px 8px; border-radius:999px;
+      background:rgba(0,0,0,0.06); color:var(--adm-ink-soft);
+    }
+    .od-tag--src-retreat  { background:rgba(201, 96, 58, 0.16); color:var(--adm-ember-deep); }
+    .od-tag--src-course   { background:#d6e4f0; color:#2a5a8a; }
+    .od-tag--src-workshop { background:#dcefdc; color:#2f7a4c; }
+
+    .od-grid { display:flex; flex-wrap:wrap; gap:14px 28px; }
+    .od-stat { display:flex; flex-direction:column; gap:2px; min-width:120px; }
+    .od-stat span { font-size:11px; text-transform:uppercase; letter-spacing:0.04em; color:var(--adm-mute); }
+    .od-stat strong { font-size:16px; }
+    .od-stat a { color:var(--adm-ember-deep); text-decoration:none; }
+    .od-refunded { color:var(--adm-danger); }
+
+    /* Coupon / discount headline — the answer to "what brought the price down". */
+    .od-coupon {
+      margin-top:12px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+      padding:12px 16px; border:1px dashed var(--adm-line); border-radius:10px;
+      background:var(--adm-paper-soft);
+    }
+    .od-coupon--on { border-style:solid; border-color:#cbb27a; background:#f7f0dd; }
+    .od-coupon-label { font-size:11px; text-transform:uppercase; letter-spacing:0.04em; color:var(--adm-mute); }
+    .od-coupon strong { font-size:15px; }
+
+    .od-cards { display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:16px; }
+    .od-card {
+      border:1px solid var(--adm-line); border-radius:12px;
+      background:var(--adm-paper-soft); padding:14px 16px;
+    }
+    .od-card h2 {
+      font-size:12px; text-transform:uppercase; letter-spacing:0.06em;
+      color:var(--adm-ink-soft); margin:0 0 10px;
+    }
+
+    .od-lines { width:100%; border-collapse:collapse; }
+    .od-lines td { padding:6px 0; border-bottom:1px solid var(--adm-line); font-size:14px; }
+    .od-lines td.num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+    .od-lines tr:last-child td { border-bottom:none; }
+    .od-lines-total td { font-weight:600; padding-top:9px; }
+
+    .od-kv { margin:0; display:flex; flex-direction:column; gap:8px; }
+    .od-kv-row { display:flex; justify-content:space-between; gap:16px; align-items:baseline; }
+    .od-kv dt { font-size:12px; color:var(--adm-mute); flex:0 0 auto; }
+    .od-kv dd { margin:0; font-size:14px; text-align:right; word-break:break-word; }
+    .od-kv dd.adm-mono { font-size:12px; }
+
+    .od-actions { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px; }
+    .od-refund {
+      display:flex; flex-wrap:wrap; align-items:flex-end; gap:12px;
+      border:1px solid var(--adm-line); border-radius:12px;
+      background:var(--adm-paper-soft); padding:14px 16px;
+    }
+    .od-refund label { display:flex; flex-direction:column; gap:4px; font-size:12px; color:var(--adm-ink-soft); }
+    .od-refund input[type="number"] {
+      padding:8px 12px; border:1px solid rgba(42,27,42,0.18); border-radius:8px; font-size:14px; width:180px;
+    }
+    .od-refund-hint { flex-basis:100%; font-size:11px; color:var(--adm-mute); margin:0; }
+  </style>
+</Layout>
