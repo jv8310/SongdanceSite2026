@@ -810,6 +810,36 @@ export async function recipientCounts(db: D1Database, broadcastId: number): Prom
   }
 }
 
+// Why the failed rows failed — group the `error` text (set by markRecipientRetryOrFail
+// after a send exhausts its retries) so the admin can see the actual cause at a
+// glance: a 429/rate-limit reason is pre-fix overload wreckage, a 422/validation
+// reason is a bad address, etc. Grouped on the first 60 chars so the many variants
+// that share a prefix (e.g. every "Error: Resend: 429 {…}") collapse into one row
+// instead of fragmenting on the embedded JSON. Top reasons by count; defensive.
+export async function failedReasons(
+  db: D1Database,
+  broadcastId: number,
+  limit = 12,
+): Promise<Array<{ reason: string; n: number }>> {
+  try {
+    const r = await db
+      .prepare(
+        `SELECT COALESCE(NULLIF(substr(error, 1, 60), ''), '(no error text recorded)') AS reason,
+                COUNT(*) AS n
+           FROM broadcast_recipients
+          WHERE broadcast_id = ? AND status = 'failed'
+          GROUP BY reason
+          ORDER BY n DESC
+          LIMIT ?`,
+      )
+      .bind(broadcastId, limit)
+      .all<{ reason: string; n: number }>();
+    return r.results ?? [];
+  } catch {
+    return [];
+  }
+}
+
 export async function pendingCount(db: D1Database, broadcastId: number): Promise<number> {
   const r = await db
     .prepare(`SELECT COUNT(*) AS n FROM broadcast_recipients WHERE broadcast_id = ? AND status = 'pending'`)

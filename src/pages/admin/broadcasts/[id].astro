@@ -14,6 +14,7 @@ import {
   availableTags,
   cleaningCounts,
   pendingByTimezone,
+  failedReasons,
 } from '../../../lib/broadcasts/db';
 import { previewBroadcast } from '../../../lib/broadcasts/email';
 import { DEFAULT_SEND_TZ, localHour } from '../../../lib/workshops/time';
@@ -48,6 +49,10 @@ const preview = previewBroadcast(b, env.PUBLIC_BASE_URL);
 // How much the queue cleaning has removed (dead domains vs by tag), and when it
 // last ran — so "did I already clean this?" is answerable at a glance.
 const clean = isDraft ? { deadDomain: 0, byTag: 0 } : await cleaningCounts(env.DB, b.id);
+// Why the failed rows failed — grouped error text, so "what is that about?" is
+// answerable without a DB console. A 'failed' row is terminal (3 retries spent);
+// a 429/rate-limit reason is wreckage from before the batch-send fix.
+const failReasons = !isDraft && counts.failed > 0 ? await failedReasons(env.DB, b.id) : [];
 
 // Pacing breakdown — why a "Sending" broadcast with a full queue can still
 // trickle. The cron only mails a recipient inside their LOCAL send window
@@ -143,6 +148,26 @@ const statusLabel: Record<string, string> = {
             Open/click data flows in from the Resend webhook; it also appears on
             <a href="/admin/emails/stats">email stats</a> under “Broadcasts”.
           </p>
+
+          {failReasons.length > 0 && (
+            <details class="bc-fails">
+              <summary><strong>{counts.failed.toLocaleString()} failed</strong> — why they didn't send (top reasons)</summary>
+              <p class="bc-note">
+                A <em>failed</em> row is one whose send was attempted and exhausted its 3 retries — it's terminal
+                (never re-tried automatically, and a “top up &amp; resume” skips it). A <strong>429 / rate-limit</strong>
+                reason is wreckage from before the batch-send fix (the old sender overran Resend's request limit);
+                a <strong>422 / validation</strong> reason means a bad address.
+              </p>
+              <table class="bc-fail-tbl">
+                <thead><tr><th>Error (first 60 chars)</th><th>Count</th></tr></thead>
+                <tbody>
+                  {failReasons.map((f) => (
+                    <tr><td><code>{f.reason}</code></td><td>{f.n.toLocaleString()}</td></tr>
+                  ))}
+                </tbody>
+              </table>
+            </details>
+          )}
 
           {showPacing && (
             <div class={`bc-pace${b.urgent ? ' bc-pace--urgent' : ''}`}>
@@ -365,6 +390,14 @@ const statusLabel: Record<string, string> = {
     .bc-note { font-size: 12.5px; color: #6f5f6d; margin: 0 0 14px; }
     .bc-cleanstatus { background: #f4ecdf; border: 1px solid rgba(161,72,38,0.18); border-radius: 8px; padding: 8px 12px; }
     .bc-cleanstatus strong { color: #4a3848; }
+    .bc-fails { border: 1px solid rgba(161,72,38,0.22); border-radius: 10px; padding: 12px 16px; margin: 0 0 16px; }
+    .bc-fails summary { cursor: pointer; font-size: 13.5px; color: #4a3848; }
+    .bc-fails summary strong { color: #a14826; }
+    .bc-fail-tbl { width: 100%; border-collapse: collapse; font-size: 12.5px; margin: 8px 0 0; }
+    .bc-fail-tbl th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #6f5f6d; font-weight: 600; padding: 4px 10px 4px 0; border-bottom: 1px solid rgba(161,72,38,0.15); }
+    .bc-fail-tbl th:last-child, .bc-fail-tbl td:last-child { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .bc-fail-tbl td { padding: 5px 10px 5px 0; color: #2a1b2a; border-bottom: 1px solid rgba(161,72,38,0.08); vertical-align: top; }
+    .bc-fail-tbl code { font-size: 12px; color: #4a3848; word-break: break-all; }
     .bc-pace { border: 1px solid rgba(161,72,38,0.22); border-radius: 10px; padding: 14px 16px; margin: 0 0 16px; }
     .bc-pace--urgent { border-color: rgba(161,72,38,0.55); background: #f9efe2; }
     .bc-pace > strong { font-size: 13px; }
