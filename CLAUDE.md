@@ -198,17 +198,24 @@ e.g. a Drip export) and one-off `broadcasts` sent to it. Lives in
   the words. Test-send before launch.
 - **Send window is per-broadcast** (`window_start_hour`/`window_end_hour`,
   default 08:00–21:00 local). Widen it to push faster — but the real throughput
-  lever is `MAX_PER_RUN` in `cron.ts` (currently **350**/tick ≈ 100k/day; ~195s of
-  sending per 5-min tick at `SEND_GAP_MS`=550ms, kept under the 300s tick interval
-  so drains don't overlap, and a single drain stays under Resend's 2 req/s). That
-  300s ceiling is why it tops out around here — going faster means raising Resend's
-  account rate limit, not the constant. Each recipient is only mailed inside the
-  window for their own timezone.
+  lever is `MAX_PER_RUN` in `cron.ts` (currently **1000**/tick ≈ up to ~288k/day).
+  The drain sends in **`BATCH_SIZE`=90 chunks through Resend's batch endpoint**
+  (`sendEmailBatch`, `POST /emails/batch` — one HTTP request per chunk, not one
+  per recipient), with a short `BATCH_GAP_MS`=600 pause between chunks to stay
+  under Resend's 2 req/s. So a full tick clears in a few **seconds** and finishes
+  well inside the 300s tick interval — which is the point: two drains can never
+  overlap and double the request rate into Resend 429s (the old
+  one-send-every-550ms loop ran a tick ~300–400s, overlapped the next, and that
+  doubled rate is exactly what throttled it to a trickle). The ceiling now is
+  Resend's account rate limit + daily cap, not Worker wall-clock — raise those to
+  go higher. Each recipient is only mailed inside the window for their own
+  timezone.
 - **Launch → cron drain**: launch snapshots sendable contacts (minus
   suppressions) into `broadcast_recipients`; `runBroadcasts` (in
   `src/lib/broadcasts/cron.ts`, wired into the 5-min cron) claims a paced,
-  in-window batch each tick (`MAX_PER_RUN`/`SEND_GAP_MS`), so a big list spreads
-  over days rather than blasting at once. Idempotent atomic claims; transient
+  in-window batch each tick (`MAX_PER_RUN` total, `BATCH_SIZE` per Resend
+  request), so a big list spreads over hours rather than blasting at once.
+  Idempotent atomic claims (a whole chunk claimed in one `db.batch`); transient
   failures retry, then park as `failed`.
 - **Circuit breaker**: once a real sample is out, the cron auto-pauses a
   broadcast if complaint / **hard-bounce** rates cross threshold — a dormant list

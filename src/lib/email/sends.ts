@@ -85,6 +85,39 @@ export async function recordEmailSend(
   }
 }
 
+// Same record, as a prepared statement for the caller to compose into a
+// db.batch() — used by the broadcast drain, which sends a chunk via Resend's
+// batch endpoint and then writes all the email_sends rows in one round-trip.
+// Returns null when there's no id to key on (nothing to record). Keep in step
+// with recordEmailSend above.
+export function recordEmailSendStmt(
+  db: D1Database,
+  data: {
+    resendId: string | null;
+    type: string;
+    to: string;
+    subject?: string | null;
+    registrationId?: number | null;
+    variant?: string | null;
+  },
+): D1PreparedStatement | null {
+  if (!data.resendId) return null;
+  return db
+    .prepare(
+      `INSERT OR IGNORE INTO email_sends
+         (resend_id, email_type, variant, registration_id, to_email, subject)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    )
+    .bind(
+      data.resendId,
+      data.type,
+      data.variant ?? null,
+      data.registrationId ?? null,
+      data.to,
+      data.subject ?? null,
+    );
+}
+
 // Resend webhook event → the column(s) it touches on email_sends. Idempotent on
 // the once-only timestamps (COALESCE keeps the first); counts increment on each
 // open/click. Matched on resend_id; unknown ids (sends we didn't track) no-op.

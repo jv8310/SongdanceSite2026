@@ -677,14 +677,7 @@ export async function fetchDrainCandidates(
 // if THIS call moved it from 'pending' to 'sending' — so two overlapping runs
 // can never send to the same address twice.
 export async function claimRecipient(db: D1Database, id: number): Promise<boolean> {
-  const r = await db
-    .prepare(
-      `UPDATE broadcast_recipients
-          SET status = 'sending', attempts = attempts + 1, claimed_at = datetime('now')
-        WHERE id = ? AND status = 'pending'`,
-    )
-    .bind(id)
-    .run();
+  const r = await claimRecipientStmt(db, id).run();
   return (r.meta?.changes ?? 0) === 1;
 }
 
@@ -707,16 +700,11 @@ export async function reclaimStaleClaims(
 }
 
 export async function markRecipientSent(db: D1Database, id: number, resendId: string | null): Promise<void> {
-  await db
-    .prepare(
-      `UPDATE broadcast_recipients SET status = 'sent', resend_id = ?, sent_at = datetime('now'), error = NULL WHERE id = ?`,
-    )
-    .bind(resendId, id)
-    .run();
+  await markRecipientSentStmt(db, id, resendId).run();
 }
 
 export async function markRecipientSuppressed(db: D1Database, id: number): Promise<void> {
-  await db.prepare(`UPDATE broadcast_recipients SET status = 'suppressed' WHERE id = ?`).bind(id).run();
+  await markRecipientSuppressedStmt(db, id).run();
 }
 
 // A transient send failure releases the row back to 'pending' so a later run
@@ -728,15 +716,67 @@ export async function markRecipientRetryOrFail(
   error: string,
   maxAttempts = 3,
 ): Promise<void> {
-  await db
+  await markRecipientRetryOrFailStmt(db, id, error, maxAttempts).run();
+}
+
+// Statement builders for the batched drain (src/lib/broadcasts/cron.ts). The
+// cron sends a chunk of up to 100 recipients in one Resend batch request, then
+// composes every per-row status write into a single db.batch() round-trip
+// instead of one network call each — so a tick clears in seconds. The SQL mirrors
+// the run() helpers above; these just return the prepared statement unexecuted.
+
+// Claim, as a statement. db.batch() returns one result per statement; a
+// meta.changes of 1 means THIS run won the row (moved it pending → sending).
+export function claimRecipientStmt(db: D1Database, id: number): D1PreparedStatement {
+  return db
+    .prepare(
+      `UPDATE broadcast_recipients
+          SET status = 'sending', attempts = attempts + 1, claimed_at = datetime('now')
+        WHERE id = ? AND status = 'pending'`,
+    )
+    .bind(id);
+}
+
+export function markRecipientSentStmt(db: D1Database, id: number, resendId: string | null): D1PreparedStatement {
+  return db
+    .prepare(
+      `UPDATE broadcast_recipients SET status = 'sent', resend_id = ?, sent_at = datetime('now'), error = NULL WHERE id = ?`,
+    )
+    .bind(resendId, id);
+}
+
+export function markRecipientSuppressedStmt(db: D1Database, id: number): D1PreparedStatement {
+  return db.prepare(`UPDATE broadcast_recipients SET status = 'suppressed' WHERE id = ?`).bind(id);
+}
+
+export function markRecipientRetryOrFailStmt(
+  db: D1Database,
+  id: number,
+  error: string,
+  maxAttempts = 3,
+): D1PreparedStatement {
+  return db
     .prepare(
       `UPDATE broadcast_recipients
           SET status = CASE WHEN attempts >= ? THEN 'failed' ELSE 'pending' END,
               error = ?
         WHERE id = ?`,
     )
-    .bind(maxAttempts, error.slice(0, 300), id)
-    .run();
+    .bind(maxAttempts, error.slice(0, 300), id);
+}
+
+// Which of the given addresses are on the global suppression list — the chunk's
+// send-time re-check in one query (someone may have unsubscribed since launch)
+// instead of one round-trip per recipient. Caller keeps chunks ≤ ~90 so the IN
+// list stays under D1's 100-bound-param cap. Returns a set of lowercased emails.
+export async function suppressedEmailsIn(db: D1Database, emails: string[]): Promise<Set<string>> {
+  const clean = [...new Set(emails.map((e) => e.trim().toLowerCase()).filter(Boolean))];
+  if (clean.length === 0) return new Set();
+  const r = await db
+    .prepare(`SELECT email FROM email_suppressions WHERE email IN (${clean.map(() => '?').join(',')})`)
+    .bind(...clean)
+    .all<{ email: string }>();
+  return new Set((r.results ?? []).map((row) => row.email));
 }
 
 export type RecipientCounts = {
