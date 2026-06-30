@@ -1,7 +1,7 @@
 // Launch promo — single source of truth.
 //
 // 50% off all COURSES (and the workshop + masterclass tickets) for the new-site
-// launch, running through the end of June 2026. Retreats are deliberately
+// launch, now extended through 15 July 2026 (first run closed 30 June). Retreats are deliberately
 // excluded (a retreat is a physical event, priced/charged on its own path that
 // this module never touches).
 //
@@ -26,11 +26,16 @@
 
 export const LAUNCH_PROMO_PERCENT = 50;
 
-// 23:59 on 30 June 2026, Europe/Brussels (CEST = UTC+2) → midnight, 1 July local.
-export const LAUNCH_PROMO_ENDS_AT_MS = Date.parse('2026-07-01T00:00:00+02:00');
+// 23:59 on 15 July 2026, Europe/Brussels (CEST = UTC+2) → midnight, 16 July local.
+// Extended from the original 30 June close.
+export const LAUNCH_PROMO_ENDS_AT_MS = Date.parse('2026-07-16T00:00:00+02:00');
 
 // Human label for the deadline, used in banner + price copy.
-export const LAUNCH_PROMO_END_LABEL = 'June 30';
+export const LAUNCH_PROMO_END_LABEL = 'July 15';
+
+// Short badge shown on the promo banner + register callout. The launch sale ran
+// past its first end-of-June deadline, so it now reads as an "Extended sale".
+export const LAUNCH_PROMO_TAG = 'Extended sale';
 
 export function launchPromoActive(nowMs: number = Date.now()): boolean {
   return Number.isFinite(LAUNCH_PROMO_ENDS_AT_MS) && nowMs < LAUNCH_PROMO_ENDS_AT_MS;
@@ -65,5 +70,5 @@ export function launchPromoPayload(): PromoPayload {
 }
 
 // Banner copy (marketing mechanics — not governed by the copy book).
-export const LAUNCH_PROMO_HEADLINE = `Launch offer — ${LAUNCH_PROMO_PERCENT}% off all courses and online events`;
-export const LAUNCH_PROMO_SUBHEAD = `Our new website is here — every course and online event is half price through ${LAUNCH_PROMO_END_LABEL}.`;
+export const LAUNCH_PROMO_HEADLINE = `${LAUNCH_PROMO_PERCENT}% off all courses and online events`;
+export const LAUNCH_PROMO_SUBHEAD = `Our launch sale is extended — every course and online event is half price through ${LAUNCH_PROMO_END_LABEL}.`;
