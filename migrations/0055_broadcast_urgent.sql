@@ -1,0 +1,14 @@
+-- Broadcasts: an "urgent" flag that bypasses the per-recipient local-time send
+-- window.
+--
+-- Normal broadcasts only mail a contact inside their local send window
+-- (window_start_hour–window_end_hour), so a big list spreads over days — kind to
+-- a dormant list, but far too slow for a hard deadline, where a queue
+-- concentrated in one part of the world waits for that region's morning and the
+-- send stretches into weeks. When urgent = 1 the cron ignores the window and
+-- drains the queue as fast as the per-tick cap / Resend rate allow, so a deadline
+-- send clears in hours instead of weeks.
+--
+-- Default 0 — every existing broadcast keeps the considerate, window-gated
+-- behaviour until the owner explicitly flips it on for a given send.
+ALTER TABLE broadcasts ADD COLUMN urgent INTEGER NOT NULL DEFAULT 0;

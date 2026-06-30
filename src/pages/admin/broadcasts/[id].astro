@@ -98,7 +98,7 @@ const statusLabel: Record<string, string> = {
           <a href="/admin/broadcasts">Broadcasts</a> <span class="sep">/</span> {b.name}
         </p>
         <h1>{b.name} <span class={`bc-pill bc-pill--${b.status}`}>{statusLabel[b.status]}</span></h1>
-        <p class="adm-sub">Subject: {b.subject} · {b.format === 'html' ? 'HTML' : 'Simple'} · window {b.window_start_hour}:00–{b.window_end_hour}:00 local</p>
+        <p class="adm-sub">Subject: {b.subject} · {b.format === 'html' ? 'HTML' : 'Simple'} · {b.urgent ? '⚡ urgent — local-time windows ignored' : `window ${b.window_start_hour}:00–${b.window_end_hour}:00 local`}</p>
       </div>
       <div class="adm-actions">
         <a class="adm-btn adm-btn--ghost" href="/admin/broadcasts">← All broadcasts</a>
@@ -145,25 +145,34 @@ const statusLabel: Record<string, string> = {
           </p>
 
           {showPacing && (
-            <div class="bc-pace">
+            <div class={`bc-pace${b.urgent ? ' bc-pace--urgent' : ''}`}>
               <strong>Pacing — who's eligible right now</strong>
-              <p class="bc-pace-lead">
-                The cron only mails a recipient inside their local {b.window_start_hour}:00–{b.window_end_hour}:00 window.
-                Of the <strong>{counts.pending.toLocaleString()}</strong> still queued,
-                {' '}<strong>{inWindowNow.toLocaleString()}</strong> are inside that window right now (eligible this tick)
-                and <strong>{asleepNow.toLocaleString()}</strong> are outside it — those resume automatically at their
-                own local morning.
-                {noTimezone > 0 && <> {noTimezone.toLocaleString()} of the queue carry no timezone and ride {DEFAULT_SEND_TZ}.</>}
-              </p>
+              {b.urgent ? (
+                <p class="bc-pace-lead">
+                  <strong>⚡ Urgent mode is on</strong> — local-time windows are ignored, so all
+                  {' '}<strong>{counts.pending.toLocaleString()}</strong> still queued are eligible every tick and the
+                  send drains as fast as the cap allows (~350/tick ≈ a few thousand per hour, bounded by Resend's send
+                  rate). The breakdown below is just where the remaining queue is in the world.
+                </p>
+              ) : (
+                <p class="bc-pace-lead">
+                  The cron only mails a recipient inside their local {b.window_start_hour}:00–{b.window_end_hour}:00 window.
+                  Of the <strong>{counts.pending.toLocaleString()}</strong> still queued,
+                  {' '}<strong>{inWindowNow.toLocaleString()}</strong> are inside that window right now (eligible this tick)
+                  and <strong>{asleepNow.toLocaleString()}</strong> are outside it — those resume automatically at their
+                  own local morning.
+                  {noTimezone > 0 && <> {noTimezone.toLocaleString()} of the queue carry no timezone and ride {DEFAULT_SEND_TZ}.</>}
+                </p>
+              )}
               <table class="bc-pace-tz">
                 <thead><tr><th>Timezone</th><th>Local now</th><th>Queued</th><th></th></tr></thead>
                 <tbody>
                   {topTzRows.map((r) => (
-                    <tr class={r.inWindow ? 'in' : 'out'}>
+                    <tr class={b.urgent || r.inWindow ? 'in' : 'out'}>
                       <td>{r.label}</td>
                       <td>{`${String(r.hour).padStart(2, '0')}:00`}</td>
                       <td>{r.n.toLocaleString()}</td>
-                      <td>{r.inWindow ? 'eligible' : 'asleep'}</td>
+                      <td>{b.urgent ? 'eligible' : r.inWindow ? 'eligible' : 'asleep'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -171,12 +180,14 @@ const statusLabel: Record<string, string> = {
               {tzRows.length > topTzRows.length && (
                 <p class="bc-note">+ {(tzRows.length - topTzRows.length).toLocaleString()} more zones.</p>
               )}
-              <p class="bc-note">
-                Throughput tops out at ~350/tick, but only across the eligible slice — so when most of the queue is
-                asleep it paces slowly by design (nothing is failing). To push the whole list out now regardless of
-                local hour — e.g. for a same-day deadline — widen the send window toward <strong>0:00–24:00</strong> in
-                the email settings below; it takes effect on the next tick.
-              </p>
+              {!b.urgent && (
+                <p class="bc-note">
+                  Throughput tops out at ~350/tick, but only across the eligible slice — so when most of the queue is
+                  asleep it paces slowly by design (nothing is failing). To push the whole list out now regardless of
+                  local hour — e.g. for a same-day deadline — hit <strong>⚡ Send now</strong> above (or widen the send
+                  window toward 0:00–24:00 below); it takes effect on the next tick.
+                </p>
+              )}
             </div>
           )}
 
@@ -216,6 +227,11 @@ const statusLabel: Record<string, string> = {
             {b.status === 'sending' && <button class="adm-btn adm-btn--ghost bc-ctl" type="button" data-id={b.id} data-action="pause">Pause</button>}
             {b.status === 'paused' && <button class="adm-btn bc-ctl" type="button" data-id={b.id} data-action="resume">Resume</button>}
             {b.status === 'paused' && <button class="adm-btn adm-btn--ghost bc-ctl" type="button" data-id={b.id} data-action="launch">Top up &amp; resume</button>}
+            {(b.status === 'sending' || b.status === 'paused') && (b.urgent ? (
+              <button class="adm-btn adm-btn--ghost bc-ctl" type="button" data-id={b.id} data-action="urgent_off">Restore local-time windows</button>
+            ) : (
+              <button class="adm-btn bc-ctl" type="button" data-id={b.id} data-action="urgent_on" data-confirm="Send to the whole remaining queue as fast as possible, ignoring each recipient's local time-of-day window? Right for a hard deadline — but some people will receive it in the middle of their local night.">⚡ Send now — ignore time windows</button>
+            ))}
             <span id="bc-ctl-msg" class="bc-msg"></span>
           </div>
         </div>
@@ -350,6 +366,7 @@ const statusLabel: Record<string, string> = {
     .bc-cleanstatus { background: #f4ecdf; border: 1px solid rgba(161,72,38,0.18); border-radius: 8px; padding: 8px 12px; }
     .bc-cleanstatus strong { color: #4a3848; }
     .bc-pace { border: 1px solid rgba(161,72,38,0.22); border-radius: 10px; padding: 14px 16px; margin: 0 0 16px; }
+    .bc-pace--urgent { border-color: rgba(161,72,38,0.55); background: #f9efe2; }
     .bc-pace > strong { font-size: 13px; }
     .bc-pace-lead { font-size: 13px; color: #4a3848; line-height: 1.7; margin: 6px 0 12px; max-width: 74ch; }
     .bc-pace-lead strong { color: #2a1b2a; }
@@ -535,6 +552,7 @@ const statusLabel: Record<string, string> = {
     document.querySelectorAll('.bc-ctl').forEach((btn) => {
       btn.addEventListener('click', async () => {
         const m = document.getElementById('bc-ctl-msg');
+        if (btn.dataset.confirm && !confirm(btn.dataset.confirm)) return;
         m.textContent = '…';
         try {
           const res = await fetch('/api/admin/broadcasts/control', {

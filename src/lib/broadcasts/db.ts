@@ -19,6 +19,9 @@ export type Broadcast = {
   cta_href: string | null;
   window_start_hour: number;
   window_end_hour: number;
+  // When 1, the cron ignores the per-recipient local-time window and drains the
+  // queue as fast as the cap/Resend rate allow (a deadline send). Default 0.
+  urgent: number;
   audience_include_tags: string | null;
   audience_exclude_tags: string | null;
   audience_field: string | null;
@@ -562,6 +565,18 @@ export async function resumeBroadcast(db: D1Database, id: number): Promise<void>
         WHERE id = ? AND status = 'paused'`,
     )
     .bind(id)
+    .run();
+}
+
+// Flip a broadcast's "urgent" flag. When on, the cron ignores the per-recipient
+// local-time window and drains the queue as fast as the per-tick cap / Resend
+// rate allow — for a deadline send, where waiting on each timezone's local
+// morning would stretch a big list over days. Independent of status, so it can
+// be turned on for a live 'sending' broadcast (takes effect on the next tick).
+export async function setBroadcastUrgent(db: D1Database, id: number, urgent: boolean): Promise<void> {
+  await db
+    .prepare(`UPDATE broadcasts SET urgent = ? WHERE id = ?`)
+    .bind(urgent ? 1 : 0, id)
     .run();
 }
 
