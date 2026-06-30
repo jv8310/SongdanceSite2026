@@ -899,7 +899,7 @@ export function downsellEmail1(ctx: DownsellCtx): EmailContent {
   const html = D.designShell({
     preheader: 'The discount has closed — but a gentler door is open.',
     title: "If the timing wasn't right",
-    heroImage: { src: IMG.walkSunset, alt: 'A figure walking toward the evening light', objectPosition: 'center 62%', height: 360 },
+    // No hero — the featured product card lower down carries the image.
     blocks: [
       D.eyebrow('After the window'),
       D.displayHeading(`A ${D.accent('gentler')} door`),
@@ -949,7 +949,7 @@ export function downsellEmail2(ctx: DownsellCtx): EmailContent {
   const html = D.designShell({
     preheader: 'The practice that lives in your own room, between the live hours.',
     title: 'In your own room',
-    heroImage: { src: IMG.soundingBlue, alt: 'A participant mid-tone, hand on chest', objectPosition: 'center 36%', height: 360 },
+    // No hero — the featured product card lower down carries the image.
     blocks: [
       D.eyebrow('Between sessions'),
       D.displayHeading(`In your own ${D.accent('room')}`),
