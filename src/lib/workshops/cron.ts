@@ -22,6 +22,7 @@
 // confirmations are service messages and always go out.
 
 import {
+  audienceIsPro,
   claimNotification,
   notificationExists,
   workshopIsMasterclass,
@@ -445,11 +446,15 @@ async function runPostWorkshop(env: CronEnv, now: number, result: CronResult) {
       const email = reg.email.toLowerCase();
       if (await cached(suppressedCache, email, () => isEmailSuppressed(env.DB, email))) continue;
 
-      // PRO: a masterclass seat, or — once the pending is_pro migration
-      // lands — a registration flagged pro. Reading the field optionally
-      // keeps this forward-compatible without the column existing yet.
+      // PRO: a masterclass seat, the practitioner door (audience door 3) chosen
+      // on a regular workshop, or — once the pending is_pro migration lands — a
+      // registration flagged pro. Door 3 matches the same signal the 12-week
+      // page uses (emailIsProFromLinks); reading is_pro optionally keeps this
+      // forward-compatible without the column existing yet.
       const isPro =
-        isMasterclass || (reg as WorkshopRegistration & { is_pro?: number | null }).is_pro === 1;
+        isMasterclass ||
+        audienceIsPro(reg.audience) ||
+        (reg as WorkshopRegistration & { is_pro?: number | null }).is_pro === 1;
 
       const tz = reg.timezone || w.display_tz;
       const discountEndsLocal = formatInTz(new Date(discountEndsMs).toISOString(), tz);

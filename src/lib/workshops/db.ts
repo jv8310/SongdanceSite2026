@@ -426,19 +426,23 @@ export async function listSecuredWorkshopLinksByEmail(
   return r.results ?? [];
 }
 
+// "Pro" intent expressed in a chosen door-set: door 3 is the practitioner door.
+// The single source of truth for reading the `audience` string — used by the
+// 12-week page (via emailIsProFromLinks) and the post-workshop email cron, so
+// "practitioner door" means the same thing in both places.
+export function audienceIsPro(audience: string | null | undefined): boolean {
+  return (audience ?? '')
+    .split(',')
+    .map((d) => d.trim())
+    .includes('3');
+}
+
 // "Pro" intent expressed on any secured workshop seat: they picked the
 // practitioner door (audience door 3) or it was a masterclass. This is the
 // D1-only signal the 12-week page uses to reveal the certification option
 // (there is no single is_pro account column yet).
 export function emailIsProFromLinks(links: WorkshopLinkForEmail[]): boolean {
-  return links.some(
-    (l) =>
-      l.is_masterclass === 1 ||
-      (l.audience ?? '')
-        .split(',')
-        .map((d) => d.trim())
-        .includes('3'),
-  );
+  return links.some((l) => l.is_masterclass === 1 || audienceIsPro(l.audience));
 }
 
 // Epoch-ms timestamps of every replay this email has opened. Used alongside
