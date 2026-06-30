@@ -459,10 +459,12 @@ async function runPostWorkshop(env: CronEnv, now: number, result: CronResult) {
       const hoursRemaining = Math.max(1, Math.round((discountEndsMs - now) / (60 * 60 * 1000)));
       const unsubscribeUrl = secret ? await unsubscribePageUrl(base, secret, reg.email) : undefined;
       const lc = { name: reg.name, workshopTitle: w.title, unsubscribeUrl };
-      // The course page reads ?email= and reveals that person's price (and
-      // any live discount) immediately — no typing on arrival.
-      const courseUrl = `${base}/courses/12-week?email=${encodeURIComponent(reg.email)}#register`;
-      const certUrl = `${base}/courses/certification`;
+      // The course + certification pages read ?email= and reveal that person's
+      // price (and any live discount) immediately — prefilling the register
+      // form, no typing on arrival.
+      const emailQ = encodeURIComponent(reg.email);
+      const courseUrl = `${base}/courses/12-week?email=${emailQ}#register`;
+      const certUrl = `${base}/courses/certification?email=${emailQ}`;
       const hubUrl = successUrl(base, reg.access_token);
       // The last-chance email's animated countdown ticks to the real deadline;
       // the endpoint computes the remaining time when the image is fetched.

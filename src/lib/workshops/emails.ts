@@ -713,7 +713,8 @@ export function attendedProEmail3(ctx: LifecycleCtx & { certUrl: string }): Emai
       src: IMG.walkSunset,
       alt: 'A figure walking toward the evening light',
       href: ctx.certUrl,
-      objectPosition: 'center 45%',
+      objectPosition: 'center 62%',
+      height: 360,
     },
     blocks: [
       D.eyebrow('No deadline — just the door'),
@@ -867,7 +868,7 @@ export function downsellEmail1(ctx: DownsellCtx): EmailContent {
     const html = D.designShell({
       preheader: 'The practice that needs no purchase — and where to find us live.',
       title: 'The sound was always yours',
-      heroImage: { src: IMG.soundingYellow, alt: 'A participant sounding, hand on heart', objectPosition: 'center 32%' },
+      heroImage: { src: IMG.soundingYellow, alt: 'A participant sounding, hand on heart', objectPosition: 'center 42%' },
       blocks: [
         D.eyebrow('After the window'),
         D.displayHeading(`The sound was always ${D.accent('yours')}`),
@@ -898,7 +899,7 @@ export function downsellEmail1(ctx: DownsellCtx): EmailContent {
   const html = D.designShell({
     preheader: 'The discount has closed — but a gentler door is open.',
     title: "If the timing wasn't right",
-    heroImage: { src: IMG.walkSunset, alt: 'A figure walking toward the evening light' },
+    heroImage: { src: IMG.walkSunset, alt: 'A figure walking toward the evening light', objectPosition: 'center 62%', height: 360 },
     blocks: [
       D.eyebrow('After the window'),
       D.displayHeading(`A ${D.accent('gentler')} door`),
@@ -948,7 +949,7 @@ export function downsellEmail2(ctx: DownsellCtx): EmailContent {
   const html = D.designShell({
     preheader: 'The practice that lives in your own room, between the live hours.',
     title: 'In your own room',
-    heroImage: { src: IMG.soundingBlue, alt: 'A participant mid-tone, hand on chest', objectPosition: 'center 35%' },
+    heroImage: { src: IMG.soundingBlue, alt: 'A participant mid-tone, hand on chest', objectPosition: 'center 36%', height: 360 },
     blocks: [
       D.eyebrow('Between sessions'),
       D.displayHeading(`In your own ${D.accent('room')}`),
@@ -998,7 +999,7 @@ export function downsellEmail3(ctx: DownsellCtx): EmailContent {
   const html = D.designShell({
     preheader: 'The practice that needs no purchase — and where to find us live.',
     title: 'Three breaths and a tone',
-    heroImage: { src: IMG.soundingYellow, alt: 'A participant sounding, hand on heart' },
+    heroImage: { src: IMG.soundingYellow, alt: 'A participant sounding, hand on heart', objectPosition: 'center 42%' },
     blocks: [
       D.eyebrow('Last note'),
       D.displayHeading(`Three breaths and a ${D.accent('tone')}`),

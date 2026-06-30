@@ -352,10 +352,11 @@ function footerHtml(footer: DesignFooter): string {
 export function designShell(opts: {
   preheader: string;
   title: string;
-  // `objectPosition` aims the crop (e.g. 'center 35%' to keep a face) since the
-  // hero is rendered as a fixed-height landscape band, not at the image's own
+  // The hero renders as a fixed-height landscape band, not at the image's own
   // aspect — so a tall portrait photo no longer makes a giant header.
-  heroImage?: { src: string; alt: string; href?: string; objectPosition?: string };
+  // `objectPosition` aims the crop (e.g. 'center 35%' to keep a face); `height`
+  // overrides the default band height (px) when a subject wants more room.
+  heroImage?: { src: string; alt: string; href?: string; objectPosition?: string; height?: number };
   blocks: string;
   footer?: DesignFooter;
 }): string {
@@ -363,7 +364,9 @@ export function designShell(opts: {
   const heroImg = heroImage
     ? `<img src="${heroImage.src}" width="600" alt="${escapeHtml(
         heroImage.alt,
-      )}" class="hero" style="display:block;width:100%;height:300px;object-fit:cover;object-position:${
+      )}" class="hero" style="display:block;width:100%;height:${
+        heroImage.height ?? 300
+      }px;object-fit:cover;object-position:${
         heroImage.objectPosition ?? 'center'
       };background-color:${DPAL.ink};" />`
     : '';
@@ -393,7 +396,6 @@ export function designShell(opts: {
     .wrapper { width:100% !important; }
     .pad { padding-left:26px !important; padding-right:26px !important; }
     .h1 { font-size:32px !important; line-height:1.15 !important; }
-    .hero { height:210px !important; }
   }
 </style>
 </head>
