@@ -763,6 +763,30 @@ export async function pendingCount(db: D1Database, broadcastId: number): Promise
   return r?.n ?? 0;
 }
 
+// Still-pending recipients grouped by their stored timezone (null included).
+// Distinct zones are few (dozens), so this is cheap. It exists to explain pacing:
+// the cron only mails a recipient inside their LOCAL send window, so a queue
+// concentrated in zones that are asleep right now (or all null → the default
+// zone) drips instead of draining — this is what makes that visible on the page.
+export async function pendingByTimezone(
+  db: D1Database,
+  broadcastId: number,
+): Promise<Array<{ timezone: string | null; n: number }>> {
+  try {
+    const r = await db
+      .prepare(
+        `SELECT timezone, COUNT(*) AS n FROM broadcast_recipients
+          WHERE broadcast_id = ? AND status = 'pending'
+          GROUP BY timezone ORDER BY n DESC`,
+      )
+      .bind(broadcastId)
+      .all<{ timezone: string | null; n: number }>();
+    return r.results ?? [];
+  } catch {
+    return [];
+  }
+}
+
 // ── List cleaning (dead-domain removal) ────────────────────────────────────────
 // Dead-domain cleaning is a LIST-level operation: it scans every contact's
 // domain (the domain of an email is substr(email, instr(email,'@')+1)), caches

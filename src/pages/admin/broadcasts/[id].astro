@@ -13,9 +13,10 @@ import {
   countAudience,
   availableTags,
   cleaningCounts,
+  pendingByTimezone,
 } from '../../../lib/broadcasts/db';
 import { previewBroadcast } from '../../../lib/broadcasts/email';
-import { DEFAULT_SEND_TZ } from '../../../lib/workshops/time';
+import { DEFAULT_SEND_TZ, localHour } from '../../../lib/workshops/time';
 
 export const prerender = false;
 
@@ -47,6 +48,30 @@ const preview = previewBroadcast(b, env.PUBLIC_BASE_URL);
 // How much the queue cleaning has removed (dead domains vs by tag), and when it
 // last ran — so "did I already clean this?" is answerable at a glance.
 const clean = isDraft ? { deadDomain: 0, byTag: 0 } : await cleaningCounts(env.DB, b.id);
+
+// Pacing breakdown — why a "Sending" broadcast with a full queue can still
+// trickle. The cron only mails a recipient inside their LOCAL send window
+// (window_start_hour–window_end_hour), so the eligible-right-now slice of the
+// queue is what actually paces a tick — not the per-run cap. Bucket the pending
+// queue by stored timezone and compute, against the current instant, how many
+// are awake/in-window now vs asleep, plus how many carry no timezone (which ride
+// the default zone). Only worth computing while there's a live queue.
+const showPacing = (b.status === 'sending' || b.status === 'paused') && counts.pending > 0;
+const tzGroups = showPacing ? await pendingByTimezone(env.DB, b.id) : [];
+const nowMs = Date.now();
+let inWindowNow = 0;
+let asleepNow = 0;
+let noTimezone = 0;
+const tzRows = tzGroups.map((g) => {
+  const isNull = g.timezone == null;
+  const hour = localHour(g.timezone || DEFAULT_SEND_TZ, nowMs);
+  const inWindow = hour >= b.window_start_hour && hour < b.window_end_hour;
+  if (isNull) noTimezone += g.n;
+  if (inWindow) inWindowNow += g.n;
+  else asleepNow += g.n;
+  return { label: isNull ? `(no timezone → ${DEFAULT_SEND_TZ})` : g.timezone!, n: g.n, hour, inWindow, isNull };
+});
+const topTzRows = tzRows.slice(0, 12);
 
 const pct = (r: number) => `${(r * 100).toFixed(1)}%`;
 // SQLite datetime('now') is UTC, no zone marker — read it as UTC, show it local.
@@ -118,6 +143,42 @@ const statusLabel: Record<string, string> = {
             Open/click data flows in from the Resend webhook; it also appears on
             <a href="/admin/emails/stats">email stats</a> under “Broadcasts”.
           </p>
+
+          {showPacing && (
+            <div class="bc-pace">
+              <strong>Pacing — who's eligible right now</strong>
+              <p class="bc-pace-lead">
+                The cron only mails a recipient inside their local {b.window_start_hour}:00–{b.window_end_hour}:00 window.
+                Of the <strong>{counts.pending.toLocaleString()}</strong> still queued,
+                {' '}<strong>{inWindowNow.toLocaleString()}</strong> are inside that window right now (eligible this tick)
+                and <strong>{asleepNow.toLocaleString()}</strong> are outside it — those resume automatically at their
+                own local morning.
+                {noTimezone > 0 && <> {noTimezone.toLocaleString()} of the queue carry no timezone and ride {DEFAULT_SEND_TZ}.</>}
+              </p>
+              <table class="bc-pace-tz">
+                <thead><tr><th>Timezone</th><th>Local now</th><th>Queued</th><th></th></tr></thead>
+                <tbody>
+                  {topTzRows.map((r) => (
+                    <tr class={r.inWindow ? 'in' : 'out'}>
+                      <td>{r.label}</td>
+                      <td>{`${String(r.hour).padStart(2, '0')}:00`}</td>
+                      <td>{r.n.toLocaleString()}</td>
+                      <td>{r.inWindow ? 'eligible' : 'asleep'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {tzRows.length > topTzRows.length && (
+                <p class="bc-note">+ {(tzRows.length - topTzRows.length).toLocaleString()} more zones.</p>
+              )}
+              <p class="bc-note">
+                Throughput tops out at ~350/tick, but only across the eligible slice — so when most of the queue is
+                asleep it paces slowly by design (nothing is failing). To push the whole list out now regardless of
+                local hour — e.g. for a same-day deadline — widen the send window toward <strong>0:00–24:00</strong> in
+                the email settings below; it takes effect on the next tick.
+              </p>
+            </div>
+          )}
 
           {(clean.deadDomain > 0 || clean.byTag > 0 || lastCleaned) && (
             <p class="bc-note bc-cleanstatus">
@@ -288,6 +349,17 @@ const statusLabel: Record<string, string> = {
     .bc-note { font-size: 12.5px; color: #6f5f6d; margin: 0 0 14px; }
     .bc-cleanstatus { background: #f4ecdf; border: 1px solid rgba(161,72,38,0.18); border-radius: 8px; padding: 8px 12px; }
     .bc-cleanstatus strong { color: #4a3848; }
+    .bc-pace { border: 1px solid rgba(161,72,38,0.22); border-radius: 10px; padding: 14px 16px; margin: 0 0 16px; }
+    .bc-pace > strong { font-size: 13px; }
+    .bc-pace-lead { font-size: 13px; color: #4a3848; line-height: 1.7; margin: 6px 0 12px; max-width: 74ch; }
+    .bc-pace-lead strong { color: #2a1b2a; }
+    .bc-pace-tz { width: 100%; border-collapse: collapse; font-size: 13px; margin: 0 0 10px; }
+    .bc-pace-tz th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #6f5f6d; font-weight: 600; padding: 4px 10px 4px 0; border-bottom: 1px solid rgba(161,72,38,0.15); }
+    .bc-pace-tz td { padding: 5px 10px 5px 0; color: #2a1b2a; font-variant-numeric: tabular-nums; border-bottom: 1px solid rgba(161,72,38,0.08); }
+    .bc-pace-tz td:last-child { font-size: 12px; }
+    .bc-pace-tz tr.in td:last-child { color: #38601f; }
+    .bc-pace-tz tr.out td:last-child { color: #a14826; }
+    .bc-pace-tz tr.out td:first-child { color: #6f5f6d; }
     .bc-muted { color: #b6a8b4; }
     .bc-audience { border: 1px solid rgba(161,72,38,0.22); border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; margin: 0; }
     .bc-audience legend { font-size: 13px; color: #4a3848; padding: 0 6px; }
