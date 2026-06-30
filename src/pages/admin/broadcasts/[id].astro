@@ -257,6 +257,9 @@ const statusLabel: Record<string, string> = {
             ) : (
               <button class="adm-btn bc-ctl" type="button" data-id={b.id} data-action="urgent_on" data-confirm="Send to the whole remaining queue as fast as possible, ignoring each recipient's local time-of-day window? Right for a hard deadline — but some people will receive it in the middle of their local night.">⚡ Send now — ignore time windows</button>
             ))}
+            {counts.failed > 0 && (
+              <button class="adm-btn adm-btn--ghost bc-ctl" type="button" data-id={b.id} data-action="retry_failed" data-confirm={`Requeue all ${counts.failed.toLocaleString()} failed recipients and send to them under the fixed batch path? They failed on a platform limit (not bad addresses), so they should deliver — but this does re-send the email to those ${counts.failed.toLocaleString()} people.`}>↻ Retry {counts.failed.toLocaleString()} failed</button>
+            )}
             <span id="bc-ctl-msg" class="bc-msg"></span>
           </div>
         </div>

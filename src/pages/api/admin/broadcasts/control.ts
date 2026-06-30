@@ -10,6 +10,7 @@ import {
   launchBroadcast,
   pauseBroadcast,
   resumeBroadcast,
+  retryFailedRecipients,
   setBroadcastUrgent,
 } from '../../../../lib/broadcasts/db';
 
@@ -48,6 +49,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
     case 'resume': {
       await resumeBroadcast(env.DB, id);
       return json({ ok: true, status: 'sending' });
+    }
+    case 'retry_failed': {
+      // Requeue rows parked 'failed' (e.g. by the old per-tick subrequest cap) so
+      // the fixed batch sender re-drains them. Already-sent recipients are untouched.
+      if (!env.RESEND_API_KEY) return json({ error: 'RESEND_API_KEY is not configured.' }, 500);
+      const requeued = await retryFailedRecipients(env.DB, id);
+      return json({ ok: true, requeued, status: 'sending' });
     }
     case 'urgent_on':
     case 'urgent_off': {
