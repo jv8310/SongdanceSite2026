@@ -205,7 +205,7 @@ async function drainBroadcast(
       const firstName = (c.name ?? '').trim().split(/\s+/)[0] ?? '';
       const footerUnsub = secret ? await unsubscribePageUrl(base, secret, c.email) : undefined;
       const oneClickUnsub = secret ? await oneClickUnsubscribeUrl(base, secret, c.email) : undefined;
-      const content = renderBroadcast(b, { firstName, unsubscribeUrl: footerUnsub });
+      const content = renderBroadcast(b, { firstName, unsubscribeUrl: footerUnsub, email: c.email });
 
       if (sent > 0) await sleep(SEND_GAP_MS);
       const { id } = await sendEmail({
