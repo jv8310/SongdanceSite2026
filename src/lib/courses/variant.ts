@@ -27,6 +27,7 @@ import {
   launchPromoActive,
   LAUNCH_PROMO_PERCENT,
   LAUNCH_PROMO_END_LABEL,
+  LAUNCH_PROMO_TAG,
 } from '../promo';
 
 export type Variant = 'B1' | 'B2' | 'A' | 'D' | 'E' | 'C';
@@ -241,7 +242,7 @@ export function applyLaunchPromoToOffer(
     ...offer,
     price: Math.round(promoFullCents / 100),
     price_cents: promoFullCents,
-    save_note: `Launch offer — ${LAUNCH_PROMO_PERCENT}% off, through ${LAUNCH_PROMO_END_LABEL}`,
+    save_note: `${LAUNCH_PROMO_TAG} — ${LAUNCH_PROMO_PERCENT}% off, through ${LAUNCH_PROMO_END_LABEL}`,
     installments: reLadder(offer.installments),
     installments_6x: reLadder(offer.installments_6x),
     installments_12x: reLadder(offer.installments_12x),

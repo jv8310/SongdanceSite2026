@@ -59,6 +59,10 @@ type Env = {
   // Comma-separated recipients for the internal "SD-ORDER" purchase
   // notifications. Defaults to jacob@songdance.co + support@songdance.co.
   ORDER_NOTIFICATIONS_TO?: string;
+  // Comma-separated recipients for the internal "SD-REPORT" daily/weekly
+  // digests (src/lib/workshops/reports.ts). Falls back to
+  // ORDER_NOTIFICATIONS_TO, then ADMIN_EMAIL, then jacob@songdance.co.
+  REPORTS_TO?: string;
   ANTHROPIC_API_KEY?: string;
   SVH_CERT_PORTAL_URL?: string;
   // Admin login is email + password, multi-user. ADMIN_PASSWORD is the original
