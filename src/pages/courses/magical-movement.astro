@@ -4,6 +4,8 @@ import Layout from '../../layouts/Layout.astro';
 import PromoBanner from '../../components/PromoBanner.astro';
 import JourneyRegister from '../../components/journeys/JourneyRegister.astro';
 import JourneyCrossPromo from '../../components/journeys/JourneyCrossPromo.astro';
+import MMJSessions from '../../components/journeys/MMJSessions.astro';
+import MMJReels from '../../components/journeys/MMJReels.astro';
 import DiscoverMore from '../../components/DiscoverMore.astro';
 import MetaProductView from '../../components/MetaProductView.astro';
 import { catalogItemById } from '../../lib/catalog/products';
@@ -160,6 +162,9 @@ const testimonials = [
       </div>
     </section>
 
+    <!-- The ten sessions -->
+    <MMJSessions />
+
     <!-- Origin -->
     <section class="jr-section jr-opening">
       <div class="jr-opening-inner">
@@ -173,6 +178,9 @@ const testimonials = [
         </p>
       </div>
     </section>
+
+    <!-- See the music in action — South Africa, 2021 -->
+    <MMJReels />
 
     <!-- Mid-page CTA -->
     <section class="jr-midcta">

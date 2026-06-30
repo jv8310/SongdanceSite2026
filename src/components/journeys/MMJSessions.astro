@@ -1,0 +1,272 @@
+---
+// The Magical Movement Journey — the ten sessions, as readable cards.
+//
+// Each session shipped as three square Instagram cards in R2
+// (library/mmj-session-N-{1,2,3}.webp): a watercolor title card, a short
+// invitation, and a scattered "benefits" card. Baked-in image text is tiny and
+// unreadable on a phone (and invisible to search/screen readers), so we keep
+// the artwork (card -1) as the visual and lift the words out as real text.
+//
+// Copy-book note: a few of the original benefit words used "release" / "let go"
+// as the mechanism, which the site's voice never does (acknowledgment, not
+// release). Those five are gently reworded; everything else is verbatim.
+
+interface Session {
+  n: number;
+  name: string;     // the cursive subtitle on card -1 (the session's name)
+  phrase: string;   // the bold invitation on card -2
+  desc: string;     // the one-line description on card -2
+  benefits: string[]; // the words on card -3
+  art: string;      // what the watercolor shows (for alt text)
+}
+
+const sessions: Session[] = [
+  {
+    n: 1,
+    name: 'Creating Sanctuary',
+    phrase: 'Coming Home',
+    desc: 'Step onto your sacred dance floor and create your sanctuary within.',
+    benefits: ['Connection', 'Relaxation', 'Body and self awareness', 'Creating space', 'Prioritizing your needs', 'Cultivating peacefulness'],
+    art: 'A watercolor sunflower with a layered heart at its centre',
+  },
+  {
+    n: 2,
+    name: 'Your Inner Dancer',
+    phrase: 'Imagine',
+    desc: 'Set your inner dancer and your imagination free where anything and everything is possible!',
+    benefits: ['Expansion', 'Freedom', 'Expanding your movement potential', 'Visualising', 'Moving through fear', 'Breaking through mental boundaries'],
+    art: 'A watercolor figure dancing among leaves and stars, framed by a heart',
+  },
+  {
+    n: 3,
+    name: 'Sacred Bone Dance',
+    phrase: 'Dancing Your Bones',
+    desc: 'Leave your stress on the dance floor and have some fun with your sacred bone dance!',
+    benefits: ['Shaking off stress', 'Agility', 'Body awareness', 'Mobility', 'Positive body image', 'Structural foundation'],
+    art: 'A watercolor dancing skeleton inside a green-and-blue succulent rosette',
+  },
+  {
+    n: 4,
+    name: 'Dance Of Awareness',
+    phrase: 'Feel Your Body',
+    desc: 'A practice that breaks down barriers and ushers in freedom and joy into your dance.',
+    benefits: ['Grounded', 'Mindfulness', 'Breaks through limiting movement patterns', 'Creating space', 'Expanding movement', 'Sensory awareness'],
+    art: 'A smiling dancer with arms raised in joy, ringed by colourful watercolor crescents and a drum',
+  },
+  {
+    n: 5,
+    name: 'Stepping Into Your Power',
+    phrase: 'Yes! To Life',
+    desc: 'Empowering movement medicine as a catalyst for positive change.',
+    benefits: ['Empowering', 'Inner and outer strength', 'Self esteem', 'Body confidence', 'Positive change', 'Spaciousness'],
+    art: 'People dancing around a campfire',
+  },
+  {
+    n: 6,
+    name: 'The Dance of Trust',
+    phrase: 'Finding Your Balance',
+    desc: 'Expand movement boundaries by playing with balance and exploring your edges.',
+    benefits: ['Balance', 'Stability', 'Positive reinforcement', 'Positive body image', 'Playfulness', 'Expand movement potential'],
+    art: 'A woman lying back among stars within a circular celestial mandala',
+  },
+  {
+    n: 7,
+    name: 'I Am The Medicine',
+    phrase: 'Listen To The Whispers',
+    desc: 'Listen to the whispers of your body and choose to sound, move and dance with what is…',
+    benefits: ['Alchemy', 'Soothe', 'Creating space for your needs', 'Nurture', 'Wellbeing', 'Cultivating peace within'],
+    art: 'A kneeling figure in prayer pose with a glowing head, surrounded by green leaves',
+  },
+  {
+    n: 8,
+    name: 'Heart Dance',
+    phrase: 'Dance For Self-Love',
+    desc: 'Dance your heart wide open with this loving yet exhilarating heart awakening dance!',
+    benefits: ['Honouring', 'Liberation', 'Softening', 'Befriending fear', 'Heart opening', 'Emotional, physical and mental well-being'],
+    art: 'A smiling woman holding a heart, blooming from a flower, framed by a wreath of leaves and gemstones',
+  },
+  {
+    n: 9,
+    name: 'Be Moved By The Music',
+    phrase: 'Dance Your Soul',
+    desc: 'Relax your busy mind, open your heart and just LISTEN, trusting your body.',
+    benefits: ['Listening', 'Connection', 'Music and movement alchemy', 'Soulful groove', 'Loosening control', 'Music and sound connection'],
+    art: 'A watercolor lotus mandala with a glowing candle in a heart at its centre',
+  },
+  {
+    n: 10,
+    name: 'Welcome Home',
+    phrase: 'Embraced By The Earth',
+    desc: 'Stretch and flow, breathe and rest in Earth’s embrace. Just simply being YOU.',
+    benefits: ['Earth connection', 'Gratitude', 'Nurtures a sense of safety', 'Being held', 'Flexibility, strength, relaxation, ease'],
+    art: 'A watercolor flower with people holding hands in a circle around a heart-centred Earth',
+  },
+];
+---
+
+<section class="jr-section mmj">
+  <div class="jr-inner">
+    <div class="mmj-head">
+      <div class="jr-eyebrow" style="justify-content:center;">The sessions</div>
+      <h2 class="jr-h2">Ten sessions, ten ways <em>back into the body.</em></h2>
+      <p class="jr-lead">
+        Each one carries its own music and its own gentle invitation — somewhere to begin,
+        nothing to get right. Take them in order, or follow whichever one calls you today.
+      </p>
+    </div>
+
+    <ol class="mmj-grid">
+      {sessions.map((s) => (
+        <li class="mmj-card" id={`session-${s.n}`}>
+          <figure class="mmj-card-fig">
+            <img
+              src={`/media/library/mmj-session-${s.n}-1.webp`}
+              alt={`${s.name}: ${s.art}.`}
+              width="1080"
+              height="1080"
+              loading="lazy"
+              decoding="async"
+            />
+          </figure>
+          <div class="mmj-card-body">
+            <span class="mmj-card-num">Session {s.n}</span>
+            <h3 class="mmj-card-name">{s.name}</h3>
+            <p class="mmj-card-phrase">{s.phrase}</p>
+            <p class="mmj-card-desc">{s.desc}</p>
+            <ul class="mmj-benefits" aria-label={`What ${s.name} nurtures`}>
+              {s.benefits.map((b) => <li>{b}</li>)}
+            </ul>
+          </div>
+        </li>
+      ))}
+    </ol>
+  </div>
+</section>
+
+<style>
+  .mmj { background: var(--paper); }
+  .mmj-head { max-width: 760px; margin: 0 auto var(--sp-8); text-align: center; }
+  .mmj-head .jr-lead { margin-left: auto; margin-right: auto; }
+
+  .mmj-grid {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--sp-5);
+  }
+  @media (min-width: 1080px) {
+    .mmj-grid { grid-template-columns: 1fr 1fr; gap: var(--sp-6); }
+  }
+
+  .mmj-card {
+    display: flex;
+    flex-direction: column;
+    background: var(--paper-soft);
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    overflow: hidden;
+    box-shadow: var(--shadow-1);
+    transition: transform var(--d-base) var(--ease), box-shadow var(--d-base) var(--ease), border-color var(--d-base) var(--ease);
+  }
+  @media (hover: hover) {
+    .mmj-card:hover {
+      transform: translateY(-3px);
+      box-shadow: var(--shadow-2);
+      border-color: rgba(var(--jr-accent-rgb), 0.4);
+    }
+  }
+
+  .mmj-card-fig {
+    margin: 0;
+    aspect-ratio: 1 / 1;
+    width: 100%;
+    background: var(--jr-accent-glow);
+    flex: 0 0 auto;
+  }
+  .mmj-card-fig img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .mmj-card-body {
+    padding: var(--sp-6);
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .mmj-card-num {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    color: var(--jr-accent-deep);
+    font-weight: 500;
+  }
+  .mmj-card-name {
+    font-family: var(--font-display);
+    font-size: clamp(24px, 2.4vw, 30px);
+    line-height: 1.1;
+    letter-spacing: -0.01em;
+    color: var(--ink);
+    font-weight: 400;
+    margin: var(--sp-2) 0 0;
+    text-wrap: balance;
+  }
+  /* Cormorant reads small — size the lyric phrase up so it doesn't look shrunken. */
+  .mmj-card-phrase {
+    font-family: var(--font-lyric);
+    font-style: italic;
+    font-size: 1.45rem;
+    line-height: 1.2;
+    color: var(--jr-em);
+    margin: var(--sp-2) 0 0;
+  }
+  .mmj-card-desc {
+    font-family: var(--font-body);
+    font-size: 15px;
+    line-height: 1.6;
+    color: var(--ink-soft);
+    text-wrap: pretty;
+    margin: var(--sp-4) 0 0;
+  }
+
+  .mmj-benefits {
+    list-style: none;
+    margin: var(--sp-5) 0 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-2);
+  }
+  .mmj-benefits li {
+    font-family: var(--font-body);
+    font-size: 12.5px;
+    line-height: 1.3;
+    color: var(--jr-accent-deep);
+    background: rgba(var(--jr-accent-rgb), 0.1);
+    border: 1px solid rgba(var(--jr-accent-rgb), 0.18);
+    border-radius: var(--r-pill);
+    padding: 6px 12px;
+  }
+
+  /* From phone to a comfortable width: lay the card out side-by-side, art left. */
+  @media (min-width: 560px) {
+    .mmj-card { flex-direction: row; align-items: flex-start; }
+    .mmj-card-fig { width: 42%; max-width: 248px; }
+    .mmj-card-body { flex: 1 1 auto; padding: var(--sp-6) var(--sp-6) var(--sp-6) var(--sp-6); }
+  }
+  /* Two columns on desktop → the art column can be a touch tighter. */
+  @media (min-width: 1080px) {
+    .mmj-card-fig { width: 40%; max-width: 220px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .mmj-card { transition: none; }
+    .mmj-card:hover { transform: none; }
+  }
+</style>
