@@ -634,20 +634,22 @@ html, body { background: var(--paper); }
   font-size: 16.5px;
   line-height: 1.6;
   color: var(--ink-soft);
-  padding: var(--sp-4) 0;
+  padding: var(--sp-4) 0 var(--sp-4) 22px;
   border-bottom: 1px solid var(--line);
-  display: flex;
-  gap: 16px;
-  align-items: baseline;
+  position: relative;
 }
+/* Bullet as an absolute dot (not a flex item) so any inline <em> in the text
+   keeps flowing in the sentence instead of becoming its own flex column. */
 .jr-whom-list li::before {
   content: "";
-  flex: 0 0 auto;
+  position: absolute;
+  left: 0;
+  top: calc(var(--sp-4) + 0.7em);
   width: 6px; height: 6px;
   border-radius: 50%;
   background: var(--jr-accent);
-  transform: translateY(-2px);
 }
+.jr-whom-list li:first-child::before { top: 0.7em; }
 .jr-whom-list li em { font-family: var(--font-lyric); font-style: italic; color: var(--ink); font-size: 1.12em; }
 .jr-whom-foot {
   margin-top: var(--sp-5);
