@@ -15,6 +15,7 @@ import {
   type DripOrderItem,
 } from '../registrations/drip';
 import { logEvent } from '../registrations/db';
+import { FX_TO_EUR } from '../workshops/currency';
 
 export type PurchaseType = 'retreat' | 'course' | 'workshop';
 
@@ -60,30 +61,46 @@ function toIso(s: string | null | undefined): string | undefined {
 const major = (cents: number) => Math.round(cents) / 100;
 
 export function buildDripOrder(p: PurchaseOrder): DripOrder {
+  // Everything reaches Drip in EUR. Drip reads the order's number against the
+  // account currency, so sending a non-EUR amount raw makes "49" SEK land as
+  // €49 (a ~10x inflated lifetime value). Convert with the same fallback FX
+  // table the revenue stats use; EUR stays 1:1, and an unrecognised currency
+  // falls back to 1:1 (only the listed currencies are ever charged).
+  const cur = (p.currency || 'EUR').toUpperCase();
+  const rate = FX_TO_EUR[cur] ?? 1;
+  const toEurCents = (cents: number) => Math.round(cents * rate);
+
   const items: DripOrderItem[] = p.items
     .filter((it) => it.name)
     .map((it) => {
       const quantity = it.quantity && it.quantity > 0 ? it.quantity : 1;
+      const lineEurCents = toEurCents(it.amountCents);
       return {
         name: it.name,
         product_id: it.slug || undefined,
         sku: it.slug || undefined,
-        price: major(Math.round(it.amountCents / quantity)),
+        price: major(Math.round(lineEurCents / quantity)),
         quantity,
-        total: major(it.amountCents),
+        total: major(lineEurCents),
       };
     });
   return {
     email: p.email,
     action: 'placed',
     order_id: purchaseOrderId(p.type, p.id),
-    grand_total: major(p.grandTotalCents),
-    total_taxes: p.taxCents != null ? major(p.taxCents) : undefined,
-    currency: (p.currency || 'EUR').toUpperCase(),
+    grand_total: major(toEurCents(p.grandTotalCents)),
+    total_taxes: p.taxCents != null ? major(toEurCents(p.taxCents)) : undefined,
+    currency: 'EUR',
     occurred_at: toIso(p.occurredAt),
     order_url: p.orderUrl || undefined,
+    properties: {
+      purchase_type: p.type,
+      // Breadcrumb for support when an order was converted — a label only, no
+      // foreign monetary amount crosses into Drip.
+      ...(cur !== 'EUR' ? { original_currency: cur } : {}),
+      ...(p.properties ?? {}),
+    },
     items,
-    properties: { purchase_type: p.type, ...(p.properties ?? {}) },
   };
 }
 
