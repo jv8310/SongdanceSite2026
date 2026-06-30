@@ -348,6 +348,10 @@ const refundedTotal = orders.reduce((s, o) => s + o.refundedMinor, 0);
 
     /* Compact rows: single-line content + a pop-out actions menu instead of a
        stack of buttons, so each row stays short. */
+    /* The actions menu pops out below its row; admin.css gives .adm-table
+       `overflow:hidden` (for rounded corners), which would clip the panel and
+       make it unclickable. Let this table overflow so the menu shows in full. */
+    .ord-table { overflow: visible; }
     .ord-table td { vertical-align:middle; padding-top:9px; padding-bottom:9px; }
     .ord-table .num { font-variant-numeric: tabular-nums; white-space:nowrap; }
     .ord-refunded { color:var(--adm-danger); }
