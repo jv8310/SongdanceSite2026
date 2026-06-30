@@ -13,11 +13,11 @@
 // The per-run cap + local-window gating is exactly what spreads a big list over
 // several days instead of blasting it in one reputation-shredding burst.
 
-import { sendEmail } from '../workshops/resend';
+import { sendEmailBatch, type BatchEmailInput } from '../workshops/resend';
 import { MARKETING_FROM_DEFAULT, MARKETING_REPLY_TO_DEFAULT } from '../workshops/emails';
+import { recordEmailSendStmt } from '../email/sends';
 import { DEFAULT_SEND_TZ, localHour } from '../workshops/time';
 import {
-  isEmailSuppressed,
   oneClickUnsubscribeUrl,
   unsubscribePageUrl,
   unsubscribeSecret,
@@ -26,18 +26,19 @@ import { renderBroadcast } from './email';
 import {
   broadcastEmailType,
   broadcastStats,
-  claimRecipient,
+  claimRecipientStmt,
   fetchDrainCandidates,
   fetchDrainCandidatesForTz,
   listActiveBroadcasts,
   markBroadcastDone,
-  markRecipientRetryOrFail,
-  markRecipientSent,
-  markRecipientSuppressed,
+  markRecipientRetryOrFailStmt,
+  markRecipientSentStmt,
+  markRecipientSuppressedStmt,
   pauseBroadcast,
   pendingCount,
   pendingTimezones,
   reclaimStaleClaims,
+  suppressedEmailsIn,
   type Broadcast,
   type DrainCandidate,
 } from './db';
@@ -52,27 +53,31 @@ type BroadcastCronEnv = {
   PUBLIC_BASE_URL: string;
 };
 
-// Pacing. ~350 sends per 5-minute tick → ~100k/day at full availability — an
-// aggressive rate a freshly cleaned, validated list has earned, so a big one-off
-// broadcast clears in well under a day. Recipients who are asleep right now
-// aren't rushed: the drain only mails inside each one's local window (see
-// drainBroadcast), so the night-side of the list naturally rolls to its own
-// morning instead of being blasted at 3am.
+// Pacing. The drain sends in BATCH_SIZE chunks through Resend's batch endpoint
+// (one HTTP request per chunk, not one per recipient), so MAX_PER_RUN sends cost
+// ~MAX_PER_RUN/BATCH_SIZE requests instead of MAX_PER_RUN of them. That's the
+// whole reason this is fast and reliable: a tick clears in a few seconds and
+// finishes well inside the 5-minute (300s) cron interval, so two drains can't
+// overlap and pile onto Resend's request-rate limit (the old one-send-every-550ms
+// loop ran a single tick ~300-400s, overlapped the next tick, and the doubled
+// request rate tripped Resend's 2 req/s into 429s — which is what made it crawl).
 //
-// At SEND_GAP_MS=550ms that's ~195s of paced sending per tick, plus per-send
-// Resend/D1 overhead — deliberately kept under the 5-minute (300s) cron interval
-// so a tick finishes before the next one fires. Two drains overlapping would
-// each pace under Resend's 2 req/s but together breach it; that 300s ceiling
-// (not the Worker's wall-clock budget) is why MAX_PER_RUN tops out around here.
-// Going meaningfully faster than this means raising Resend's account rate limit,
-// not this number.
+// Recipients who are asleep right now still aren't rushed: the drain only mails
+// inside each one's local window (see drainBroadcast), so the night-side of the
+// list rolls to its own morning instead of being blasted at 3am.
 //
-// SEND_GAP_MS is the safety rail that keeps a single drain under Resend's default
-// 2 req/s — leave it put. MAX_PER_RUN is the throughput lever (widening a
-// broadcast's send window only helps at the edges). Mind your Resend plan's daily
-// cap before pushing higher.
-const MAX_PER_RUN = 350;
-const SEND_GAP_MS = 550;
+// Throughput levers:
+//   • MAX_PER_RUN — emails per tick. 1000/tick ≈ up to ~288k/day at full
+//     availability; a one-off blast to a ~55k list clears in a few hours of
+//     in-window time. The real ceiling now is Resend's account rate limit + daily
+//     cap, not Worker wall-clock — raise those to go higher.
+//   • BATCH_SIZE — emails per Resend request (max 100). Kept at 90 so the chunk's
+//     suppression re-check IN-list stays under D1's 100-bound-param cap.
+//   • BATCH_GAP_MS — pause between chunks, the safety rail that keeps the request
+//     rate (1 request per chunk) under Resend's default 2 req/s. Leave it put.
+const MAX_PER_RUN = 1000;
+const BATCH_SIZE = 90;
+const BATCH_GAP_MS = 600;
 
 // Circuit breaker. Once a real sample has gone out, pause if complaints or
 // HARD (permanent) bounces cross these lines — a dormant list that's gone sour
@@ -183,48 +188,112 @@ async function drainBroadcast(
         ? await fetchDrainCandidates(env.DB, b.id, MAX_PER_RUN * 2)
         : await fetchDrainCandidatesForTz(env.DB, b.id, inWindowTzs, nullInWindow, MAX_PER_RUN * 2);
   }
+
   let sent = 0;
-
-  for (const c of candidates) {
-    if (sent >= MAX_PER_RUN) break;
-
-    // Atomic claim — only one run can own this row.
-    if (!(await claimRecipient(env.DB, c.id))) continue;
-
-    // Re-check suppression at send time (someone may have unsubscribed from an
-    // earlier send while this drip was in flight).
-    if (await isEmailSuppressed(env.DB, c.email)) {
-      await markRecipientSuppressed(env.DB, c.id);
-      continue;
-    }
-
-    try {
-      // Build + send inside the try so a bad row (render/unsub-URL/Resend
-      // failure) is parked as retry/fail for THIS recipient, never thrown out of
-      // the loop where it would abort the whole drain with the row left claimed.
-      const firstName = (c.name ?? '').trim().split(/\s+/)[0] ?? '';
-      const footerUnsub = secret ? await unsubscribePageUrl(base, secret, c.email) : undefined;
-      const oneClickUnsub = secret ? await oneClickUnsubscribeUrl(base, secret, c.email) : undefined;
-      const content = renderBroadcast(b, { firstName, unsubscribeUrl: footerUnsub, email: c.email });
-
-      if (sent > 0) await sleep(SEND_GAP_MS);
-      const { id } = await sendEmail({
-        apiKey: env.RESEND_API_KEY!,
-        from,
-        replyTo,
-        to: c.email,
-        subject: content.subject,
-        html: content.html,
-        text: content.text,
-        listUnsubscribeUrl: oneClickUnsub,
-        track: { db: env.DB, type: emailType, registrationId: null, variant: null },
-      });
-      await markRecipientSent(env.DB, c.id, id);
-      sent += 1;
-    } catch (err) {
-      await markRecipientRetryOrFail(env.DB, c.id, String(err));
-    }
+  for (let i = 0; i < candidates.length && sent < MAX_PER_RUN; i += BATCH_SIZE) {
+    const chunk = candidates.slice(i, i + BATCH_SIZE).slice(0, MAX_PER_RUN - sent);
+    const justSent = await sendChunk(env, b, emailType, base, from, replyTo, secret, chunk);
+    sent += justSent;
+    // Pace between chunks (one Resend request each) to stay under the rate limit;
+    // skip the wait when there's nothing left to do this tick.
+    if (sent < MAX_PER_RUN && i + BATCH_SIZE < candidates.length) await sleep(BATCH_GAP_MS);
   }
 
   return sent;
+}
+
+// Send one chunk (≤ BATCH_SIZE) via Resend's batch endpoint. Claims the rows,
+// re-checks suppression, sends them all in a single request, and folds every
+// status write into one db.batch(). Returns how many were actually emailed.
+async function sendChunk(
+  env: BroadcastCronEnv,
+  b: Broadcast,
+  emailType: string,
+  base: string,
+  from: string,
+  replyTo: string,
+  secret: string | null,
+  chunk: DrainCandidate[],
+): Promise<number> {
+  if (chunk.length === 0) return 0;
+
+  // 1. Atomically claim the whole chunk in one round-trip. A per-statement
+  //    changes of 1 means this run won that row (pending → sending); 0 means a
+  //    concurrent run already owns it (skip it).
+  const claimResults = await env.DB.batch(chunk.map((c) => claimRecipientStmt(env.DB, c.id)));
+  const claimed = chunk.filter((_, idx) => (claimResults[idx]?.meta?.changes ?? 0) === 1);
+  if (claimed.length === 0) return 0;
+
+  // 2. One suppression re-check for the chunk (someone may have unsubscribed
+  //    since launch). Split the claimed rows into send vs. skip.
+  const suppressed = await suppressedEmailsIn(
+    env.DB,
+    claimed.map((c) => c.email),
+  );
+  const toSend = claimed.filter((c) => !suppressed.has(c.email.trim().toLowerCase()));
+  const toSkip = claimed.filter((c) => suppressed.has(c.email.trim().toLowerCase()));
+  const skipStmts = toSkip.map((c) => markRecipientSuppressedStmt(env.DB, c.id));
+
+  if (toSend.length === 0) {
+    if (skipStmts.length) await env.DB.batch(skipStmts);
+    return 0;
+  }
+
+  // 3. Render each recipient (per-recipient first name + one-click unsubscribe).
+  const payload: BatchEmailInput[] = [];
+  for (const c of toSend) {
+    const firstName = (c.name ?? '').trim().split(/\s+/)[0] ?? '';
+    const footerUnsub = secret ? await unsubscribePageUrl(base, secret, c.email) : undefined;
+    const oneClickUnsub = secret ? await oneClickUnsubscribeUrl(base, secret, c.email) : undefined;
+    const content = renderBroadcast(b, { firstName, unsubscribeUrl: footerUnsub, email: c.email });
+    payload.push({
+      from,
+      replyTo,
+      to: c.email,
+      subject: content.subject,
+      html: content.html,
+      text: content.text,
+      listUnsubscribeUrl: oneClickUnsub,
+    });
+  }
+
+  // 4. Send the batch. A whole-batch failure (after the internal retries) parks
+  //    every row in the chunk for a later tick — never thrown out where it would
+  //    abort the drain with rows left claimed. Suppressed rows are still recorded.
+  let ids: (string | null)[];
+  try {
+    ids = await sendEmailBatch(env.RESEND_API_KEY!, payload);
+  } catch (err) {
+    await env.DB.batch([
+      ...skipStmts,
+      ...toSend.map((c) => markRecipientRetryOrFailStmt(env.DB, c.id, String(err))),
+    ]);
+    return 0;
+  }
+
+  // 5. Mark the chunk sent in one round-trip (status writes are critical — they
+  //    prevent a resend on the next tick). Engagement recording (email_sends) is
+  //    a separate best-effort batch so a stats-write hiccup can never roll back
+  //    the sent-status and cause a duplicate send.
+  await env.DB.batch([...skipStmts, ...toSend.map((c, idx) => markRecipientSentStmt(env.DB, c.id, ids[idx] ?? null))]);
+
+  const sendRecords = toSend
+    .map((c, idx) =>
+      recordEmailSendStmt(env.DB, {
+        resendId: ids[idx] ?? null,
+        type: emailType,
+        to: c.email,
+        subject: payload[idx].subject,
+      }),
+    )
+    .filter((s): s is D1PreparedStatement => s !== null);
+  if (sendRecords.length) {
+    try {
+      await env.DB.batch(sendRecords);
+    } catch {
+      // Stats are best-effort; the mail already went out and the rows are 'sent'.
+    }
+  }
+
+  return toSend.length;
 }
