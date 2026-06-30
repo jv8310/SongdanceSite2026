@@ -4,6 +4,8 @@ import Layout from '../../layouts/Layout.astro';
 import PromoBanner from '../../components/PromoBanner.astro';
 import JourneyRegister from '../../components/journeys/JourneyRegister.astro';
 import JourneyCrossPromo from '../../components/journeys/JourneyCrossPromo.astro';
+import MMJSessions from '../../components/journeys/MMJSessions.astro';
+import MMJReels from '../../components/journeys/MMJReels.astro';
 import DiscoverMore from '../../components/DiscoverMore.astro';
 import MetaProductView from '../../components/MetaProductView.astro';
 import { catalogItemById } from '../../lib/catalog/products';
@@ -147,22 +149,16 @@ const testimonials = [
       </div>
     </section>
 
-    <!-- One session highlight -->
-    <section class="jr-section jr-opening">
-      <div class="jr-opening-inner">
-        <div class="jr-eyebrow" style="justify-content:center;">One session</div>
-        <h2 class="jr-opening-head">Stepping Into <em>Your Power.</em></h2>
-        <p class="jr-prose-body">
-          One session, Stepping Into Your Power, plays with two of the body's oldest words —
-          <em>no</em> and <em>yes</em>. It's a way to feel, in movement, where your lines are and what
-          you want to open to. Quietly, it teaches boundaries.
-        </p>
-      </div>
-    </section>
+    <!-- The ten sessions -->
+    <MMJSessions />
 
-    <!-- Origin -->
-    <section class="jr-section jr-opening">
-      <div class="jr-opening-inner">
+    <!-- Origin — a soft photographic band (real dance floors) to break the page -->
+    <section class="jr-section mmj-origin">
+      <div class="mmj-origin-bg" aria-hidden="true">
+        <img src="/media/library/dolphin-guests-dancing-on-deck-at-sunset.jpg" alt="" loading="lazy" decoding="async" />
+      </div>
+      <div class="mmj-origin-inner">
+        <img class="mmj-origin-mark" src="/brand/symbol-orange.png" alt="" aria-hidden="true" />
         <div class="jr-eyebrow" style="justify-content:center;">Where it came from</div>
         <h2 class="jr-opening-head">It grew on real <em>dance floors.</em></h2>
         <p class="jr-prose-body">
@@ -173,6 +169,9 @@ const testimonials = [
         </p>
       </div>
     </section>
+
+    <!-- See the music in action — South Africa, 2021 -->
+    <MMJReels />
 
     <!-- Mid-page CTA -->
     <section class="jr-midcta">
@@ -203,18 +202,6 @@ const testimonials = [
         <p class="jr-midcta-line">Let the body remember how — one session is all it takes to start.</p>
         <a href="#register" class="jr-midcta-btn">Begin the journey <i class="ph-light ph-arrow-right"></i></a>
         <p class="jr-midcta-note">Lifetime access · for every body · €49</p>
-      </div>
-    </section>
-
-    <!-- Lyric break -->
-    <section class="jr-lyric">
-      <div class="jr-lyric-bg" aria-hidden="true">
-        <img src="/media/library/movement-stillness.webp" alt="" />
-      </div>
-      <div class="jr-lyric-inner">
-        <img class="jr-lyric-mark" src="/brand/symbol-orange.png" alt="" aria-hidden="true" />
-        <p class="jr-lyric-text">The body remembers how.</p>
-        <div class="jr-lyric-by">Magical Movement Journey</div>
       </div>
     </section>
 
@@ -308,3 +295,56 @@ const testimonials = [
     </footer>
   </div>
 </Layout>
+
+<style>
+  /* The origin moment — "real dance floors" — as a soft photographic wash
+     (a group letting the music move them at sunset) that fades into the cream
+     sections above and below, so there's no hard seam. Kept light and warm so
+     the dark text reads and it sits with the paper palette. */
+  .mmj-origin {
+    position: relative;
+    overflow: hidden;
+    background: var(--paper);
+  }
+  .mmj-origin-bg {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+  }
+  .mmj-origin-bg img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center 42%;
+    opacity: 0.5;
+    filter: saturate(0.86) contrast(0.98) brightness(1.03);
+  }
+  /* Paper scrim: a soft pool of light behind the words, fading to solid paper
+     at the very top and bottom so the band blends seamlessly into the page. */
+  .mmj-origin-bg::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 78% 66% at 50% 48%, rgba(244, 236, 223, 0.6) 0%, rgba(244, 236, 223, 0) 72%),
+      linear-gradient(180deg, var(--paper) 0%, rgba(244, 236, 223, 0.4) 26%, rgba(244, 236, 223, 0.4) 74%, var(--paper) 100%);
+  }
+  .mmj-origin-inner {
+    position: relative;
+    z-index: 1;
+    max-width: 720px;
+    margin: 0 auto;
+    text-align: center;
+  }
+  .mmj-origin-mark {
+    width: 46px;
+    height: 46px;
+    display: block;
+    margin: 0 auto var(--sp-5);
+    opacity: 0.92;
+  }
+  .mmj-origin .jr-prose-body {
+    color: var(--ink-soft);
+  }
+</style>
