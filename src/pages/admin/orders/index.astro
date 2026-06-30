@@ -235,11 +235,12 @@ const refundedTotal = orders.reduce((s, o) => s + o.refundedMinor, 0);
               const isInstallment = o.installmentsTotal > 1;
               const link = providerLinkFor(o, providerModes);
               const pay = paymentDisplay(o);
+              const detailHref = `/admin/orders/${o.orderNo}?return_to=${encodeURIComponent(returnTo)}`;
               return (
                 <tr>
                   <td>
                     <div class="ord-id">
-                      <span class="adm-mono">{o.orderNo}</span>
+                      <a class="adm-mono ord-no-link" href={detailHref}>{o.orderNo}</a>
                       <span class={`ord-tag ord-tag--src-${o.source}`}>{SOURCE_LABEL[o.source]}</span>
                       {isInstallment && (
                         <span class="ord-tag ord-tag--plan" title="Paid in monthly installments">
@@ -278,6 +279,8 @@ const refundedTotal = orders.reduce((s, o) => s + o.refundedMinor, 0);
                     <details class="ord-menu">
                       <summary class="ord-menu-btn" title="Actions" aria-label="Actions">⋯</summary>
                       <div class="ord-menu-panel">
+                        <a class="ord-menu-item" href={detailHref}>View details →</a>
+                        <hr class="ord-menu-sep" />
                         {link && (
                           <a class="ord-menu-item" href={link.href} target="_blank" rel="noopener">Open in {link.label} ↗</a>
                         )}
@@ -345,6 +348,10 @@ const refundedTotal = orders.reduce((s, o) => s + o.refundedMinor, 0);
 
     /* Compact rows: single-line content + a pop-out actions menu instead of a
        stack of buttons, so each row stays short. */
+    /* The actions menu pops out below its row; admin.css gives .adm-table
+       `overflow:hidden` (for rounded corners), which would clip the panel and
+       make it unclickable. Let this table overflow so the menu shows in full. */
+    .ord-table { overflow: visible; }
     .ord-table td { vertical-align:middle; padding-top:9px; padding-bottom:9px; }
     .ord-table .num { font-variant-numeric: tabular-nums; white-space:nowrap; }
     .ord-refunded { color:var(--adm-danger); }
@@ -353,6 +360,8 @@ const refundedTotal = orders.reduce((s, o) => s + o.refundedMinor, 0);
 
     /* Order id + compact source / plan tags, kept together on one small line. */
     .ord-id { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+    .ord-no-link { color:var(--adm-ember-deep); text-decoration:none; font-weight:600; }
+    .ord-no-link:hover { text-decoration:underline; }
     .ord-tag {
       font-size:10px; font-weight:600; letter-spacing:0.04em; text-transform:uppercase;
       padding:1px 7px; border-radius:999px; white-space:nowrap;
