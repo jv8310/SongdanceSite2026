@@ -25,6 +25,7 @@ import {
   type EmailContent,
 } from './emails';
 import { DOWNSELL_OFFERS, DOWNSELL_ORDER } from './downsell-offers';
+import { LAUNCH_PROMO_PERCENT, LAUNCH_PROMO_END_LABEL } from '../promo';
 import { buildOrderNotificationEmail } from '../orders/notification';
 import {
   buildDailyReportEmail,
@@ -149,13 +150,24 @@ export function buildEmailSamples(base: string): EmailSample[] {
     },
 
     // ── Attended → 12-week course (48h / 20% window) ────────────────────
+    // The `promo: false` samples are the default 20%/48h participant window.
+    // The `promo: true` variants below show what actually goes out while the
+    // launch promo is live — the promo percent through its calendar deadline.
     {
       id: 'attended_1',
       group: 'Attended → 12-week course',
       label: 'Email 1 — thank you + the window opens',
       timing: 'Right after the session ends',
       audience: 'Attended (non-pro)',
-      content: attendedEmail1({ ...lc, courseUrl, discountEndsLocal, hoursRemaining: 47 }),
+      content: attendedEmail1({ ...lc, courseUrl, discountEndsLocal, hoursRemaining: 47, discountPercent: 20, promo: false }),
+    },
+    {
+      id: 'attended_1_promo',
+      group: 'Attended → 12-week course',
+      label: `Email 1 — during the launch promo (${LAUNCH_PROMO_PERCENT}% off)`,
+      timing: 'Right after the session ends, while the launch promo runs',
+      audience: 'Attended (non-pro), promo live',
+      content: attendedEmail1({ ...lc, courseUrl, discountEndsLocal: LAUNCH_PROMO_END_LABEL, hoursRemaining: 47, discountPercent: LAUNCH_PROMO_PERCENT, promo: true }),
     },
     {
       id: 'attended_1_bought',
@@ -163,7 +175,7 @@ export function buildEmailSamples(base: string): EmailSample[] {
       label: 'Email 1 — variant for people who already bought',
       timing: 'Right after the session ends',
       audience: 'Attended, already owns the course (no pitch)',
-      content: attendedEmail1({ ...lc, courseUrl, discountEndsLocal, hoursRemaining: 47, alreadyBoughtCourse: true }),
+      content: attendedEmail1({ ...lc, courseUrl, discountEndsLocal, hoursRemaining: 47, discountPercent: 20, promo: false, alreadyBoughtCourse: true }),
     },
     {
       id: 'attended_2',
@@ -171,7 +183,15 @@ export function buildEmailSamples(base: string): EmailSample[] {
       label: 'Email 2 — the case for the course',
       timing: '+24h (mid-window)',
       audience: "Attended, hasn't bought",
-      content: attendedEmail2({ ...lc, courseUrl, discountEndsLocal, hoursRemaining: 23 }),
+      content: attendedEmail2({ ...lc, courseUrl, discountEndsLocal, hoursRemaining: 23, discountPercent: 20, promo: false }),
+    },
+    {
+      id: 'attended_2_promo',
+      group: 'Attended → 12-week course',
+      label: `Email 2 — during the launch promo (${LAUNCH_PROMO_PERCENT}% off)`,
+      timing: '+24h, while the launch promo runs',
+      audience: "Attended, hasn't bought, promo live",
+      content: attendedEmail2({ ...lc, courseUrl, discountEndsLocal: LAUNCH_PROMO_END_LABEL, hoursRemaining: 23, discountPercent: LAUNCH_PROMO_PERCENT, promo: true }),
     },
     {
       id: 'attended_3',
@@ -179,7 +199,15 @@ export function buildEmailSamples(base: string): EmailSample[] {
       label: 'Email 3 — last chance',
       timing: '+42h (~6h before the discount ends)',
       audience: "Attended, hasn't bought",
-      content: attendedEmail3({ ...lc, courseUrl, discountEndsLocal, hoursRemaining: 5, countdownGifUrl }),
+      content: attendedEmail3({ ...lc, courseUrl, discountEndsLocal, hoursRemaining: 5, countdownGifUrl, discountPercent: 20, promo: false }),
+    },
+    {
+      id: 'attended_3_promo',
+      group: 'Attended → 12-week course',
+      label: `Email 3 — during the launch promo (${LAUNCH_PROMO_PERCENT}% off)`,
+      timing: 'Last touch, while the launch promo runs',
+      audience: "Attended, hasn't bought, promo live",
+      content: attendedEmail3({ ...lc, courseUrl, discountEndsLocal: LAUNCH_PROMO_END_LABEL, hoursRemaining: 5, countdownGifUrl, discountPercent: LAUNCH_PROMO_PERCENT, promo: true }),
     },
 
     // ── Attended, PRO → certification path ──────────────────────────────
@@ -189,7 +217,7 @@ export function buildEmailSamples(base: string): EmailSample[] {
       label: 'Email 1 — thank you + the practitioner door',
       timing: 'Right after the session ends',
       audience: 'Masterclass attendees + practitioner-door (audience 3) sign-ups (and is_pro once the column lands)',
-      content: attendedProEmail1({ ...lc, certUrl, courseUrl, hoursRemaining: 47 }),
+      content: attendedProEmail1({ ...lc, certUrl, courseUrl, hoursRemaining: 47, discountEndsLocal, discountPercent: 20, promo: false }),
     },
     {
       id: 'attended_pro_2',

@@ -381,10 +381,18 @@ export function attendedEmail1(
     courseUrl: string;
     discountEndsLocal: string;
     hoursRemaining: number;
+    discountPercent: number;
+    promo: boolean;
     alreadyBoughtCourse?: boolean;
   },
 ): EmailContent {
   const left = hoursPhrase(ctx.hoursRemaining);
+  const pct = ctx.discountPercent;
+  // Promo: the launch sale, named by its plain calendar deadline. Otherwise the
+  // 20% participant window on its 48h countdown. See postWorkshopEmailOffer.
+  const discountTextLine = ctx.promo
+    ? `Right now everything is ${pct}% off for our launch — through ${ctx.discountEndsLocal}. The link below already knows it's you: your discounted price is on the page, nothing to type.`
+    : `As a participant you have ${pct}% off — for the next ${left}, until ${ctx.discountEndsLocal}. The link below already knows it's you: your discounted price is on the page, nothing to type.`;
   const opener = [
     D.para(greeting(ctx.name)),
     D.para(
@@ -421,7 +429,9 @@ export function attendedEmail1(
   }
 
   const html = D.designShell({
-    preheader: `A note for the days after — and ${left} of 20% off the 12-week course.`,
+    preheader: ctx.promo
+      ? `A note for the days after — and ${pct}% off the 12-week course through ${ctx.discountEndsLocal}.`
+      : `A note for the days after — and ${left} of ${pct}% off the 12-week course.`,
     title: 'Thank you for sounding with us',
     heroImage: {
       src: COURSE_IMG.circleSunset,
@@ -449,15 +459,19 @@ export function attendedEmail1(
       D.bullet('A supportive student community — and, on joining, five of Jacob’s original mantras.'),
       D.offerBox({
         variant: 'cream',
-        badge: '20% off · for participants',
-        title: 'Your participant price is waiting',
+        badge: ctx.promo ? `${pct}% off · launch sale` : `${pct}% off · for participants`,
+        title: ctx.promo ? 'Your launch price is waiting' : 'Your participant price is waiting',
         lines: [
-          `As a participant you have <strong>20% off</strong> — for the next ${escapeHtml(
-            left,
-          )}, until ${escapeHtml(ctx.discountEndsLocal)}.`,
+          ctx.promo
+            ? `Right now everything is <strong>${pct}% off</strong> for our launch — through ${escapeHtml(
+                ctx.discountEndsLocal,
+              )}.`
+            : `As a participant you have <strong>${pct}% off</strong> — for the next ${escapeHtml(
+                left,
+              )}, until ${escapeHtml(ctx.discountEndsLocal)}.`,
           "The button below already knows it's you: your discounted price is on the page, nothing to type.",
         ],
-        button: { label: 'See my price — 20% off', href: ctx.courseUrl },
+        button: { label: `See my price — ${pct}% off`, href: ctx.courseUrl },
         footnote: 'Prefer to spread it out? A three-part monthly plan carries the discount too.',
       }),
       D.signoff(),
@@ -467,17 +481,26 @@ export function attendedEmail1(
   return {
     subject: 'Thank you for sounding with us',
     html,
-    text: `${textGreeting(ctx.name)}\n\nThank you for being part of ${ctx.workshopTitle}. Whatever sound you made today — it was the right one. You cannot do it wrong; it always expresses something.\n\nIn the day or two after a session the body sometimes keeps commenting — a yawn out of nowhere, tiredness, a feeling passing through. Nothing is wrong. Give it room, and when in doubt: one breath in, one tone out.\n\nIf you'd like to take this further, the 12-week course is where the practice becomes your own — twelve weeks, one layer at a time, in your own time, with live Q&A whenever you want company.\n\nWhat the twelve weeks hold:\n- 18+ hours of guided practice across twelve modules — chaptered, self-paced, yours to return to for life.\n- Weekly live Q&A with Jacob, on a rotating schedule for every timezone, with replays.\n- A path that moves one layer at a time — reading your own voice, working with the nervous system, the five core wounds, sounding toward essence.\n- A supportive student community — and, on joining, five of Jacob's original mantras.\n\nAs a participant you have 20% off — for the next ${left}, until ${ctx.discountEndsLocal}. The link below already knows it's you: your discounted price is on the page, nothing to type.\n\n${ctx.courseUrl}\n\nWith love,\nJacob${unsubText(ctx.unsubscribeUrl)}`,
+    text: `${textGreeting(ctx.name)}\n\nThank you for being part of ${ctx.workshopTitle}. Whatever sound you made today — it was the right one. You cannot do it wrong; it always expresses something.\n\nIn the day or two after a session the body sometimes keeps commenting — a yawn out of nowhere, tiredness, a feeling passing through. Nothing is wrong. Give it room, and when in doubt: one breath in, one tone out.\n\nIf you'd like to take this further, the 12-week course is where the practice becomes your own — twelve weeks, one layer at a time, in your own time, with live Q&A whenever you want company.\n\nWhat the twelve weeks hold:\n- 18+ hours of guided practice across twelve modules — chaptered, self-paced, yours to return to for life.\n- Weekly live Q&A with Jacob, on a rotating schedule for every timezone, with replays.\n- A path that moves one layer at a time — reading your own voice, working with the nervous system, the five core wounds, sounding toward essence.\n- A supportive student community — and, on joining, five of Jacob's original mantras.\n\n${discountTextLine}\n\n${ctx.courseUrl}\n\nWith love,\nJacob${unsubText(ctx.unsubscribeUrl)}`,
   };
 }
 
 // ── Attended 2 (+24h): the case for the course, factually ──────────────────
 export function attendedEmail2(
-  ctx: LifecycleCtx & { courseUrl: string; discountEndsLocal: string; hoursRemaining: number },
+  ctx: LifecycleCtx & {
+    courseUrl: string;
+    discountEndsLocal: string;
+    hoursRemaining: number;
+    discountPercent: number;
+    promo: boolean;
+  },
 ): EmailContent {
   const left = hoursPhrase(ctx.hoursRemaining);
+  const pct = ctx.discountPercent;
   const html = D.designShell({
-    preheader: `Your 20% ends in about ${left} — ${ctx.discountEndsLocal}.`,
+    preheader: ctx.promo
+      ? `${pct}% off the 12-week course — through ${ctx.discountEndsLocal}.`
+      : `Your ${pct}% ends in about ${left} — ${ctx.discountEndsLocal}.`,
     title: 'What is below that?',
     heroImage: { src: COURSE_IMG.oneBreath, alt: 'One breath in, one tone out' },
     blocks: [
@@ -504,15 +527,19 @@ export function attendedEmail2(
       D.pullQuote('Below every wound, another door.'),
       D.offerBox({
         variant: 'cream',
-        badge: `about ${left} left`,
-        title: 'Your 20% is still on',
+        badge: ctx.promo ? `${pct}% off · launch sale` : `about ${left} left`,
+        title: `Your ${pct}% is still on`,
         lines: [
-          `Your participant discount ends in about <strong>${escapeHtml(
-            left,
-          )} — ${escapeHtml(ctx.discountEndsLocal)}</strong>. After that, full price.`,
+          ctx.promo
+            ? `The launch sale runs <strong>through ${escapeHtml(
+                ctx.discountEndsLocal,
+              )}</strong>. After that, the regular price returns.`
+            : `Your participant discount ends in about <strong>${escapeHtml(
+                left,
+              )} — ${escapeHtml(ctx.discountEndsLocal)}</strong>. After that, full price.`,
           'The button opens the page with your price already showing — nothing to type.',
         ],
-        button: { label: 'See my price — 20% off', href: ctx.courseUrl },
+        button: { label: `See my price — ${pct}% off`, href: ctx.courseUrl },
       }),
       D.signoff(),
     ].join(''),
@@ -521,30 +548,90 @@ export function attendedEmail2(
   return {
     subject: 'What is below that?',
     html,
-    text: `${textGreeting(ctx.name)}\n\nIn the workshop you made the sound of the moment — one breath in, one tone out. That's the front door of this practice.\n\nBehind it sits a method. After the first tone you ask: what is below that? — and you make the sound of that. You only ever need to go one level deeper. Learning to do that kindly, at your own tempo, is what the twelve weeks are for.\n\nWhere the twelve weeks take you: it moves gently, one module at a time — from what sounding actually is (and how it differs from singing, toning, chanting), through hearing the feeling and the pattern inside your own voice and using sound to settle the nervous system, into the five core wounds met safely, sounding toward your own essence, and finally carrying the practice forward on your own.\n\nThe shape is built to fit a life: 18+ hours of video you take at your own pace, a weekly live hour with Jacob for questions (rotating timezones, with replays), a student community to practise with, and lifetime access to all of it.\n\nIt's not an eternal excavation — it's a tool you keep. Don't expect miracles; expect a real relationship with your own voice.\n\nA practical note: your 20% ends in about ${left} — ${ctx.discountEndsLocal}. The link below opens the page with your price already showing. After that, full price.\n\n${ctx.courseUrl}\n\n— Jacob${unsubText(ctx.unsubscribeUrl)}`,
+    text: `${textGreeting(ctx.name)}\n\nIn the workshop you made the sound of the moment — one breath in, one tone out. That's the front door of this practice.\n\nBehind it sits a method. After the first tone you ask: what is below that? — and you make the sound of that. You only ever need to go one level deeper. Learning to do that kindly, at your own tempo, is what the twelve weeks are for.\n\nWhere the twelve weeks take you: it moves gently, one module at a time — from what sounding actually is (and how it differs from singing, toning, chanting), through hearing the feeling and the pattern inside your own voice and using sound to settle the nervous system, into the five core wounds met safely, sounding toward your own essence, and finally carrying the practice forward on your own.\n\nThe shape is built to fit a life: 18+ hours of video you take at your own pace, a weekly live hour with Jacob for questions (rotating timezones, with replays), a student community to practise with, and lifetime access to all of it.\n\nIt's not an eternal excavation — it's a tool you keep. Don't expect miracles; expect a real relationship with your own voice.\n\n${
+      ctx.promo
+        ? `A practical note: the launch sale runs through ${ctx.discountEndsLocal}. The link below opens the page with your price already showing. After that, the regular price returns.`
+        : `A practical note: your ${pct}% ends in about ${left} — ${ctx.discountEndsLocal}. The link below opens the page with your price already showing. After that, full price.`
+    }\n\n${ctx.courseUrl}\n\n— Jacob${unsubText(ctx.unsubscribeUrl)}`,
   };
 }
 
-// ── Attended 3 (+42h): last chance — the one email that's allowed to push ──
+// ── Attended 3 (+42h): the third touch ─────────────────────────────────────
+// Two moods. Normally (20% participant window) this is the *last-chance* push —
+// the one email in the sequence allowed to press, with the ticking countdown,
+// because a real 48h window is genuinely about to shut. During the launch promo
+// there is no 48h cliff (the 50% runs to a fixed calendar date, days away), so
+// pressing "last chance" here would be false urgency — instead it becomes a
+// soft, no-countdown reminder that the sale is still on. Reverts to the tight
+// version automatically the moment the promo ends. See postWorkshopEmailOffer.
 export function attendedEmail3(
   ctx: LifecycleCtx & {
     courseUrl: string;
     discountEndsLocal: string;
     hoursRemaining: number;
     countdownGifUrl: string;
+    discountPercent: number;
+    promo: boolean;
   },
 ): EmailContent {
   const left = hoursPhrase(ctx.hoursRemaining);
+  const pct = ctx.discountPercent;
+
+  if (ctx.promo) {
+    // Soft reminder — no "last chance", no countdown. The sale is real and the
+    // deadline is named plainly, but the tone stays gentle.
+    const html = D.designShell({
+      preheader: `A gentle note — ${pct}% off the 12-week course runs through ${ctx.discountEndsLocal}.`,
+      title: "Still here when you're ready",
+      blocks: [
+        D.eyebrow('While the sale is on'),
+        D.displayHeading(`Still here when you're ${D.accent('ready')}`),
+        D.para(greeting(ctx.name)),
+        D.para(
+          `A gentle note, no countdown: the launch sale — <strong>${pct}% off</strong> the 12-week course — runs through <strong>${escapeHtml(
+            ctx.discountEndsLocal,
+          )}</strong>. If the practice has been on your mind, the door is open at that price until then; if now isn't the time, that's an honest answer too.`,
+        ),
+        D.para(
+          "What you'd be stepping into: eighteen-plus hours of guided practice across twelve modules, a weekly live hour with Jacob, a student community, and lifetime access.",
+        ),
+        D.offerBox({
+          variant: 'cream',
+          badge: `${pct}% off · launch sale`,
+          title: "Here when you're ready",
+          lines: [
+            `${pct}% off, already applied for you — the button opens the page with your price showing.`,
+            "If spreading it out helps, there's a three-part monthly plan; the discount counts there too.",
+          ],
+          button: { label: `See my price — ${pct}% off`, href: ctx.courseUrl },
+          footnote:
+            "If the answer is “not now”, that's an honest answer and nothing is lost — no pressure either way.",
+        }),
+        D.para(
+          "Unsure whether it's for you? Reply with your question any time; a person answers plainly. If it's not for you, we'll say so.",
+          { tone: 'soft' },
+        ),
+        D.signoff(),
+      ].join(''),
+      footer: { unsubscribeUrl: ctx.unsubscribeUrl },
+    });
+    return {
+      subject: 'Still here, if the 12-week course is calling',
+      html,
+      text: `${textGreeting(ctx.name)}\n\nA gentle note, no countdown: the launch sale — ${pct}% off the 12-week course — runs through ${ctx.discountEndsLocal}. If the practice has been on your mind, the door is open at that price until then; if now isn't the time, that's an honest answer too.\n\nWhat you'd be stepping into: eighteen-plus hours of guided practice across twelve modules, a weekly live hour with Jacob, a student community, and lifetime access. ${pct}% off is already applied for you — the link below opens the page with your price showing. If spreading it out helps, there's a three-part monthly plan; the discount counts there too.\n\nUnsure whether it's for you? Reply with your question any time; a person answers plainly. If it's not for you, we'll say so.\n\n${ctx.courseUrl}\n\nWith love,\nJacob${unsubText(ctx.unsubscribeUrl)}`,
+    };
+  }
+
   const html = D.designShell({
     preheader: `It ends ${ctx.discountEndsLocal}, about ${left} from now. After that, full price.`,
-    title: 'Last chance on your 20%',
+    title: `Last chance on your ${pct}%`,
     blocks: [
       D.eyebrow('The window is closing'),
-      D.displayHeading(`Last ${D.accent('chance')} on your 20%`),
+      D.displayHeading(`Last ${D.accent('chance')} on your ${pct}%`),
       D.para(greeting(ctx.name)),
       D.countdownPanel({
         gifUrl: ctx.countdownGifUrl,
-        altText: `Your 20% ends ${ctx.discountEndsLocal} — about ${left} left`,
+        altText: `Your ${pct}% ends ${ctx.discountEndsLocal} — about ${left} left`,
         caption: 'Time left on your participant discount',
       }),
       D.para(
@@ -557,13 +644,13 @@ export function attendedEmail3(
       ),
       D.offerBox({
         variant: 'plum',
-        badge: '20% off · ending',
+        badge: `${pct}% off · ending`,
         title: 'Take it before the window shuts',
         lines: [
-          '20% off, already applied for you — the button opens the page with your price showing.',
+          `${pct}% off, already applied for you — the button opens the page with your price showing.`,
           "If spreading it out helps, there's a three-part monthly plan; the discount counts there too.",
         ],
-        button: { label: 'Take the 20% before it ends', href: ctx.courseUrl },
+        button: { label: `Take ${pct}% off before it ends`, href: ctx.courseUrl },
         footnote:
           "If the answer is “not now”, that's an honest answer and nothing is lost. But if you've been meaning to — this is the moment it costs the least.",
       }),
@@ -576,9 +663,9 @@ export function attendedEmail3(
     footer: { unsubscribeUrl: ctx.unsubscribeUrl },
   });
   return {
-    subject: `Last chance — your 20% ends in about ${left}`,
+    subject: `Last chance — your ${pct}% ends in about ${left}`,
     html,
-    text: `${textGreeting(ctx.name)}\n\nThis is the last call I'll send about it: your participant discount on the 12-week course ends ${ctx.discountEndsLocal} — about ${left} from now. After that, full price.\n\nWhat you'd be stepping into: eighteen-plus hours of guided practice across twelve modules, a weekly live hour with Jacob, a student community, and lifetime access.\n\nThe facts, once more: 20% off, already applied for you — the link below opens the page with your price showing. If spreading it out helps, there's a three-part monthly plan; the discount counts there too.\n\nIf the answer is "not now", that's an honest answer and nothing is lost. But if you've been meaning to — this is the moment it costs the least.\n\nUnsure whether it's for you? Reply with your question before the window shuts; a person answers plainly. If it's not for you, we'll say so.\n\n${ctx.courseUrl}\n\nWith love,\nJacob${unsubText(ctx.unsubscribeUrl)}`,
+    text: `${textGreeting(ctx.name)}\n\nThis is the last call I'll send about it: your participant discount on the 12-week course ends ${ctx.discountEndsLocal} — about ${left} from now. After that, full price.\n\nWhat you'd be stepping into: eighteen-plus hours of guided practice across twelve modules, a weekly live hour with Jacob, a student community, and lifetime access.\n\nThe facts, once more: ${pct}% off, already applied for you — the link below opens the page with your price showing. If spreading it out helps, there's a three-part monthly plan; the discount counts there too.\n\nIf the answer is "not now", that's an honest answer and nothing is lost. But if you've been meaning to — this is the moment it costs the least.\n\nUnsure whether it's for you? Reply with your question before the window shuts; a person answers plainly. If it's not for you, we'll say so.\n\n${ctx.courseUrl}\n\nWith love,\nJacob${unsubText(ctx.unsubscribeUrl)}`,
   };
 }
 
@@ -587,9 +674,17 @@ export function attendedEmail3(
 // attended/downsell emails — a hero band, eyebrow, Spectral heading, bullets,
 // and a contained CTA. Copy-book voice unchanged (space-holder, not fixer).
 export function attendedProEmail1(
-  ctx: LifecycleCtx & { certUrl: string; courseUrl: string; hoursRemaining: number },
+  ctx: LifecycleCtx & {
+    certUrl: string;
+    courseUrl: string;
+    hoursRemaining: number;
+    discountEndsLocal: string;
+    discountPercent: number;
+    promo: boolean;
+  },
 ): EmailContent {
   const left = hoursPhrase(ctx.hoursRemaining);
+  const pct = ctx.discountPercent;
   const html = D.designShell({
     preheader: 'For the ones who hold space for others.',
     title: 'Thank you for sounding with us',
@@ -630,9 +725,13 @@ export function attendedProEmail1(
           'If that sounds like your work, the certification page has the full structure, the classes, and the honest small print.',
         ],
         button: { label: 'Explore the certification path', href: ctx.certUrl },
-        footnote: `Your 12-week participant price (20% off) is also live for the next ${escapeHtml(
-          left,
-        )} — ${D.secondaryLink('see your price', ctx.courseUrl)}.`,
+        footnote: ctx.promo
+          ? `Your 12-week price (${pct}% off) is also live through ${escapeHtml(
+              ctx.discountEndsLocal,
+            )} — ${D.secondaryLink('see your price', ctx.courseUrl)}.`
+          : `Your 12-week participant price (${pct}% off) is also live for the next ${escapeHtml(
+              left,
+            )} — ${D.secondaryLink('see your price', ctx.courseUrl)}.`,
       }),
       D.signoff('Warmly,'),
     ].join(''),
@@ -641,7 +740,11 @@ export function attendedProEmail1(
   return {
     subject: 'Thank you — and a word for practitioners',
     html,
-    text: `${textGreeting(ctx.name)}\n\nThank you for being part of ${ctx.workshopTitle}.\n\nBecause you work with people yourself, there's a path here that may matter more to you than the rest: the SVH Certification — learning to hold this space for others.\n\nNot healer, not fixer: space holder. Someone who keeps the room steady while another person does the one thing only they can do.\n\nWhat the path involves:\n- Live classes, each with a written manual — and instant access to the ones already held, the moment you join.\n- Weekly live Q&A and monthly deepening sessions, so the learning stays live, not just recorded.\n- Hosted practice sessions with peers — giving and receiving is the quiet heart of it, and where facilitation actually grows.\n- The Somatic Vocal Healing app, a full replay library, a global community, and lifetime access.\n\n${ctx.certUrl}\n\nPS — your 20% on the 12-week course is also live for the next ${left}; this link shows your price directly: ${ctx.courseUrl}\n\nWarmly,\nJacob${unsubText(ctx.unsubscribeUrl)}`,
+    text: `${textGreeting(ctx.name)}\n\nThank you for being part of ${ctx.workshopTitle}.\n\nBecause you work with people yourself, there's a path here that may matter more to you than the rest: the SVH Certification — learning to hold this space for others.\n\nNot healer, not fixer: space holder. Someone who keeps the room steady while another person does the one thing only they can do.\n\nWhat the path involves:\n- Live classes, each with a written manual — and instant access to the ones already held, the moment you join.\n- Weekly live Q&A and monthly deepening sessions, so the learning stays live, not just recorded.\n- Hosted practice sessions with peers — giving and receiving is the quiet heart of it, and where facilitation actually grows.\n- The Somatic Vocal Healing app, a full replay library, a global community, and lifetime access.\n\n${ctx.certUrl}\n\n${
+      ctx.promo
+        ? `PS — ${pct}% off the 12-week course is also live through ${ctx.discountEndsLocal}; this link shows your price directly: ${ctx.courseUrl}`
+        : `PS — your ${pct}% on the 12-week course is also live for the next ${left}; this link shows your price directly: ${ctx.courseUrl}`
+    }\n\nWarmly,\nJacob${unsubText(ctx.unsubscribeUrl)}`,
   };
 }
 
