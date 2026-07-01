@@ -1,0 +1,371 @@
+---
+import SiteLayout from '../../components/SiteLayout.astro';
+import { findPost } from '../../data/blog';
+
+const post = findPost('before-there-was-upala')!;
+---
+
+<SiteLayout
+  title={`${post.title} — Songdance`}
+  description={post.excerpt}
+  image={post.hero}
+  imageAlt={post.heroAlt}
+>
+  <article class="bp">
+    <header class="bp-head">
+      <p class="sd-eyebrow">Journal · The story behind the journey</p>
+      <h1 class="bp-title">Before any of this, there was <em class="lyric">Upala</em>.</h1>
+      <p class="bp-lede">
+        How the Authentic Singing Journey began — with no money, a borrowed year, and the voice of
+        the person who started it all.
+      </p>
+      <p class="bp-byline">
+        <time datetime={post.date}>{post.dateLabel}</time>
+        <span class="bp-dot" aria-hidden="true"></span>
+        {post.readingMinutes} min read
+      </p>
+    </header>
+
+    <figure class="bp-hero">
+      <img src={post.hero} alt={post.heroAlt} fetchpriority="high" />
+    </figure>
+
+    <div class="bp-body">
+      <p>
+        The Authentic Singing Journey will always have a special place in my heart. So let me tell
+        you how it began.
+      </p>
+      <p>
+        Upala — my late wife — was recovering from the surgery that saved her life after her brain
+        tumour. The doctors had given her one year. She didn't want to spend it resting. She wanted
+        to travel, and to share the power of authentic singing with the world.
+      </p>
+      <p>We had no money left in the bank. And I had never recorded anything like this before.</p>
+      <p>
+        This was before Covid. There weren't many online programs combining music and guided
+        sessions back then. It was new — to me, and to the first people who signed up.
+      </p>
+      <p>
+        I remember the self-doubt. Will this work? Will people believe me when I say
+        <em class="lyric">much love to you</em> at the end of a session? Will the music be good
+        enough? Will anyone actually pay for this?
+      </p>
+
+      <figure class="bp-figure">
+        <img
+          src="/media/library/jacob-upala-singing.webp"
+          alt="Jacob and Upala sounding together in a candle-lit cave while making the first recordings"
+          loading="lazy"
+        />
+        <figcaption>Authentic singing in a cave — where the first recordings were made.</figcaption>
+      </figure>
+
+      <p>
+        For those first recordings, Upala almost literally held my hand while I spoke into the mic
+        and played.
+      </p>
+      <p>
+        And then we did start travelling. And people did sign up. And they loved it. First came the
+        Dutch program, and later the English one. Our community grew from tens of people to
+        thousands, all over the world, discovering their own authentic voices.
+      </p>
+      <p>
+        As the months passed, Upala grew stronger, lighter, full of purpose. So we kept going
+        further. A community member in South Africa reached out and invited us to hold retreats
+        there. So we went.
+      </p>
+
+      <blockquote class="bp-pull">
+        <p>She mostly just taught by being. By living.</p>
+      </blockquote>
+
+      <p>
+        It grew into something I'm still proud of — forty weeks in Dutch, then another forty in
+        English, one session a week. Not a quick course; a slow path you walk a week at a time.
+      </p>
+      <p>
+        And people didn't come to it to learn to sing <em>better</em>. They came, week by week, and
+        met the voice they'd quietened somewhere along the way — not a prettier voice, an honest one.
+      </p>
+      <p>
+        Music and guided sessions, woven together, at your own pace, in your own room, for as long as
+        you need them. I still haven't found anything quite like it. Don't expect miracles from it;
+        expect a real relationship with your own voice.
+      </p>
+      <p>And of course, other programs followed. But that's a story for another day.</p>
+
+      <p class="bp-signoff">With love,<br />Jacob</p>
+    </div>
+
+    <aside class="bp-cta">
+      <p class="sd-eyebrow">The journey it became</p>
+      <h2 class="bp-cta-head">Forty weeks with your own <em class="lyric">voice.</em></h2>
+      <p class="bp-cta-body">
+        Self-paced, at home, begin anytime — the journey Upala and I started, still going, still
+        finding voices that had gone quiet.
+      </p>
+      <a href="/courses/authentic-singing" class="bp-cta-btn">
+        Discover the Authentic Singing Journey
+        <i class="ph-light ph-arrow-right"></i>
+      </a>
+    </aside>
+
+    <nav class="bp-back">
+      <a href="/blog"><i class="ph-light ph-arrow-left"></i> All journal entries</a>
+    </nav>
+  </article>
+</SiteLayout>
+
+<style>
+  .bp {
+    background: var(--paper);
+    color: var(--fg);
+  }
+
+  /* ---------- Header ---------- */
+  .bp-head {
+    max-width: var(--container-narrow);
+    margin: 0 auto;
+    padding: var(--sp-9) var(--sp-6) var(--sp-6);
+  }
+  .bp-title {
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: clamp(36px, 5.2vw, 60px);
+    line-height: 1.08;
+    letter-spacing: var(--tr-display);
+    color: var(--ink);
+    margin: var(--sp-4) 0 0;
+    text-wrap: balance;
+  }
+  /* Typography law: Cormorant italic reads small inside Spectral display — bump it. */
+  .bp-title em.lyric {
+    font-family: var(--font-lyric);
+    font-style: italic;
+    font-weight: 400;
+    font-size: 1.05em;
+    color: var(--ember);
+  }
+  .bp-lede {
+    font-family: var(--font-lyric);
+    font-style: italic;
+    font-size: clamp(21px, 2.6vw, 28px);
+    line-height: 1.35;
+    color: var(--ink-soft);
+    max-width: 36ch;
+    margin: var(--sp-5) 0 0;
+    text-wrap: balance;
+  }
+  .bp-byline {
+    font-family: var(--font-body);
+    font-size: var(--t-caption);
+    letter-spacing: 0.04em;
+    color: var(--ink-quiet);
+    margin: var(--sp-5) 0 0;
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+  }
+  .bp-byline .bp-dot {
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: var(--ink-whisper);
+  }
+
+  /* ---------- Hero image ---------- */
+  .bp-hero {
+    max-width: var(--container);
+    margin: var(--sp-6) auto 0;
+    padding: 0 var(--sp-6);
+  }
+  .bp-hero img {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: var(--r-md);
+    border: 1px solid var(--line);
+    filter: var(--sd-img-filter);
+  }
+
+  /* ---------- Body ---------- */
+  .bp-body {
+    max-width: var(--measure);
+    margin: 0 auto;
+    padding: var(--sp-7) var(--sp-6) 0;
+  }
+  .bp-body p {
+    font-family: var(--font-body);
+    font-size: var(--t-body-lg);
+    line-height: var(--lh-prose);
+    color: var(--ink);
+    margin: 0 0 var(--sp-5);
+    text-wrap: pretty;
+  }
+  /* Plain emphasis stays in the body italic (no lyric swap → no bump needed). */
+  .bp-body em {
+    font-style: italic;
+  }
+  /* A deliberate lyric flourish — swaps to Cormorant, so it must be sized up. */
+  .bp-body em.lyric {
+    font-family: var(--font-lyric);
+    font-style: italic;
+    font-size: 1.25em;
+    line-height: 1;
+    color: var(--ember-deep);
+  }
+
+  .bp-figure {
+    margin: var(--sp-7) 0;
+  }
+  .bp-figure img {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: var(--r-md);
+    border: 1px solid var(--line);
+    filter: var(--sd-img-filter);
+  }
+  .bp-figure figcaption {
+    margin: var(--sp-3) 0 0;
+    font-family: var(--font-lyric);
+    font-style: italic;
+    font-size: 16px;
+    line-height: 1.4;
+    color: var(--ink-quiet);
+    text-align: center;
+    text-wrap: balance;
+  }
+
+  .bp-pull {
+    margin: var(--sp-7) 0;
+    padding: var(--sp-1) 0 var(--sp-1) var(--sp-5);
+    border-left: 2px solid var(--ember);
+  }
+  .bp-pull p {
+    font-family: var(--font-lyric);
+    font-style: italic;
+    font-size: clamp(23px, 2.8vw, 30px);
+    line-height: 1.35;
+    color: var(--ink-soft);
+    margin: 0;
+    text-wrap: balance;
+  }
+
+  .bp-body p.bp-signoff {
+    font-family: var(--font-lyric);
+    font-style: italic;
+    font-size: 20px;
+    line-height: 1.5;
+    color: var(--ink-soft);
+    margin-top: var(--sp-7);
+  }
+
+  /* ---------- Closing CTA ---------- */
+  .bp-cta {
+    max-width: var(--container-narrow);
+    margin: var(--sp-8) auto 0;
+    padding: var(--sp-7) var(--sp-6);
+    box-sizing: border-box;
+    background: var(--paper-deep);
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+  }
+  .bp-cta-head {
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: var(--t-h2);
+    line-height: var(--lh-snug);
+    color: var(--ink);
+    margin: var(--sp-3) 0 0;
+    text-wrap: balance;
+  }
+  .bp-cta-head em.lyric {
+    font-family: var(--font-lyric);
+    font-style: italic;
+    font-weight: 400;
+    font-size: 1.05em;
+    color: var(--ember-deep);
+  }
+  .bp-cta-body {
+    font-family: var(--font-body);
+    font-size: var(--t-body);
+    line-height: var(--lh-prose);
+    color: var(--ink-soft);
+    margin: var(--sp-4) 0 0;
+    max-width: 48ch;
+  }
+  .bp-cta-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: var(--sp-6);
+    background: var(--ember-deep);
+    color: var(--paper);
+    font-family: var(--font-body);
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    text-decoration: none;
+    padding: 14px 28px;
+    border-radius: var(--r-pill);
+    transition: background var(--d-base) var(--ease);
+  }
+  .bp-cta-btn:hover {
+    background: var(--plum);
+  }
+  .bp-cta-btn i {
+    font-size: 17px;
+    transition: transform var(--d-base) var(--ease);
+  }
+  .bp-cta-btn:hover i {
+    transform: translateX(4px);
+  }
+
+  /* ---------- Back link ---------- */
+  .bp-back {
+    max-width: var(--measure);
+    margin: var(--sp-7) auto var(--sp-9);
+    padding: 0 var(--sp-6);
+  }
+  .bp-back a {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-body);
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--ink-soft);
+    text-decoration: none;
+  }
+  .bp-back a:hover {
+    color: var(--ember-deep);
+  }
+  .bp-back i {
+    font-size: 16px;
+    transition: transform var(--d-base) var(--ease);
+  }
+  .bp-back a:hover i {
+    transform: translateX(-4px);
+  }
+
+  @media (max-width: 720px) {
+    .bp-head {
+      padding: var(--sp-8) var(--sp-5) var(--sp-5);
+    }
+    .bp-hero {
+      padding: 0 var(--sp-5);
+    }
+    .bp-body {
+      padding: var(--sp-6) var(--sp-5) 0;
+    }
+    .bp-cta {
+      padding: var(--sp-6) var(--sp-5);
+      margin-left: var(--sp-5);
+      margin-right: var(--sp-5);
+    }
+    .bp-back {
+      padding: 0 var(--sp-5);
+    }
+  }
+</style>
