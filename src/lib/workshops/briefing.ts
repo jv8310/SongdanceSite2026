@@ -19,6 +19,7 @@ import {
   type Workshop,
 } from './db';
 import { formatInTz } from './time';
+import { countryName } from './countries';
 import type { EmailContent } from './emails';
 
 // The three doors on the workshop page (see WESelector.astro) → readable names.
@@ -217,7 +218,7 @@ function countriesSection(data: BriefingData): string {
   const chips = data.topCountries
     .map(
       (c) =>
-        `<span style="display:inline-block;margin:0 6px 6px 0;padding:5px 10px;background:#f9fafb;border:1px solid ${C.border};border-radius:999px;font-size:13px;color:${C.ink};">${escapeHtml(c.country)} · ${c.count}</span>`,
+        `<span style="display:inline-block;margin:0 6px 6px 0;padding:5px 10px;background:#f9fafb;border:1px solid ${C.border};border-radius:999px;font-size:13px;color:${C.ink};">${escapeHtml(countryName(c.country) || c.country)} · ${c.count}</span>`,
     )
     .join('');
   return sectionLabel('Where the room is joining from') + `<div>${chips}</div>`;
@@ -287,7 +288,7 @@ function renderBriefingText(data: BriefingData): string {
   lines.push('  (a registrant can hold more than one door, so shares can total over 100%)');
   if (data.topCountries.length > 0) {
     lines.push('', 'WHERE THE ROOM IS JOINING FROM');
-    for (const c of data.topCountries) lines.push(`  ${c.country}: ${c.count}`);
+    for (const c of data.topCountries) lines.push(`  ${countryName(c.country) || c.country}: ${c.count}`);
   }
   return lines.join('\n');
 }
