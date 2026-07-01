@@ -426,6 +426,48 @@ export async function listSecuredWorkshopLinksByEmail(
   return r.results ?? [];
 }
 
+export type CountdownLinkForEmail = {
+  // The per-registration token that stands in for the row id in the countdown
+  // (success) URL — `/workshop/success?t=<access_token>`.
+  access_token: string;
+  title: string;
+  slug: string;
+  starts_at_utc: string;
+  is_replay: number;
+  is_masterclass: number;
+  // The registrant's own IANA timezone (may be null → the workshop's display tz
+  // is used to format the local start time).
+  timezone: string | null;
+  display_tz: string;
+};
+
+// Every *secured* (paid or comped) workshop/masterclass seat an email holds,
+// with the token needed to deep-link into that registration's countdown page.
+// Powers the pre-purchase account lookup on /access: someone who registered for
+// a live session can jump straight to its countdown. Soonest first.
+export async function listCountdownLinksByEmail(
+  db: D1Database,
+  email: string,
+): Promise<CountdownLinkForEmail[]> {
+  const r = await db
+    .prepare(
+      `SELECT r.access_token, r.timezone, w.title, w.slug, w.starts_at_utc,
+              w.display_tz, w.is_replay,
+              CASE WHEN p.slug LIKE '%masterclass%' THEN 1 ELSE 0 END AS is_masterclass
+         FROM workshop_registrations r
+         JOIN workshops w ON w.id = r.workshop_id
+         LEFT JOIN products p ON p.id = w.main_product_id
+        WHERE lower(r.email) = lower(?)
+          AND w.deleted = 0
+          AND w.status = 'published'
+          AND r.payment_status IN ('paid', 'coupon')
+        ORDER BY w.starts_at_utc ASC`,
+    )
+    .bind(email)
+    .all<CountdownLinkForEmail>();
+  return r.results ?? [];
+}
+
 // "Pro" intent expressed in a chosen door-set: door 3 is the practitioner door.
 // The single source of truth for reading the `audience` string — used by the
 // 12-week page (via emailIsProFromLinks) and the post-workshop email cron, so
