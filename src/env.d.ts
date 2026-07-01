@@ -68,6 +68,10 @@ type Env = {
   // digests (src/lib/workshops/reports.ts). Falls back to
   // ORDER_NOTIFICATIONS_TO, then ADMIN_EMAIL, then jacob@songdance.co.
   REPORTS_TO?: string;
+  // Comma-separated recipients for the internal "SD-BRIEFING" pre-workshop
+  // roster (src/lib/workshops/cron.ts → briefing.ts), sent ~5 min before each
+  // live session. Falls back to REPORTS_TO, then ADMIN_EMAIL, then jacob@.
+  BRIEFING_TO?: string;
   ANTHROPIC_API_KEY?: string;
   SVH_CERT_PORTAL_URL?: string;
   // Admin login is email + password, multi-user. ADMIN_PASSWORD is the original

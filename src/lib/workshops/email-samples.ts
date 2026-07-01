@@ -32,6 +32,7 @@ import {
   sampleDailyReportData,
   sampleWeeklyReportData,
 } from './reports';
+import { buildBriefingEmail, sampleBriefingData } from './briefing';
 
 export type EmailSample = {
   id: string;
@@ -346,6 +347,16 @@ export function buildEmailSamples(base: string): EmailSample[] {
       timing: 'Every Tuesday morning (the 7 days ending yesterday)',
       audience: 'Team inbox (REPORTS_TO) — same sections + a revenue-by-day table',
       content: buildWeeklyReportEmail(sampleWeeklyReportData(), b),
+    },
+
+    // ── Pre-workshop briefing (SD-BRIEFING, ops only) ────────────────────
+    {
+      id: 'briefing',
+      group: 'Reports (internal)',
+      label: 'SD-BRIEFING — pre-workshop roster',
+      timing: 'About 5 minutes before each live workshop/masterclass',
+      audience: 'Jacob (BRIEFING_TO) — registered count, the three-door audience mix, practitioners, add-on uptake, countries',
+      content: buildBriefingEmail(sampleBriefingData(), b),
     },
   ];
 }

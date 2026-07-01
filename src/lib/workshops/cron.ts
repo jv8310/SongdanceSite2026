@@ -56,6 +56,7 @@ import {
   bundleEligible,
   type Ownership,
 } from './downsell-offers';
+import { gatherBriefingData, buildBriefingEmail } from './briefing';
 import { googleCalendarUrl } from './ics';
 import { formatInTz, minutesUntil, withinSendWindow } from './time';
 import { icsUrl, successUrl } from './paid-handler';
@@ -80,11 +81,24 @@ type CronEnv = {
   UNSUBSCRIBE_SECRET?: string;
   ADMIN_SESSION_SECRET?: string;
   PUBLIC_BASE_URL: string;
+  // Internal pre-workshop briefing recipients (see runPreWorkshopBriefing).
+  BRIEFING_TO?: string;
+  REPORTS_TO?: string;
+  ADMIN_EMAIL?: string;
 };
 
 const MIN_MS = 60_000;
 const H = 60; // minutes
 const D = 24 * H;
+
+// Pre-workshop briefing (internal ops email): fire when a live session starts
+// within the next BRIEFING_LEAD_MIN minutes — on the 5-minute cron this lands
+// 0–5 min before the start, i.e. "about five minutes before". A missed tick
+// (deploy/outage) can still catch a session up to BRIEFING_STALE_MIN after its
+// start; beyond that a "starting soon" heads-up is pointless, so it's skipped.
+const BRIEFING_LEAD_MIN = 5;
+const BRIEFING_STALE_MIN = 10;
+const BRIEFING_DEFAULT_RECIPIENT = 'jacob@songdance.co';
 
 // Reminder cadence: lead time before start, in minutes. Ordered loosest →
 // tightest. `at_time` (0) fires right at start.
@@ -171,15 +185,23 @@ export type CronResult = {
   abandonedSent: number;
   postSent: number;
   noShowsMarked: number;
+  briefingsSent: number;
 };
 
 export async function runWorkshopCron(env: CronEnv, now = Date.now()): Promise<CronResult> {
-  const result: CronResult = { remindersSent: 0, abandonedSent: 0, postSent: 0, noShowsMarked: 0 };
+  const result: CronResult = {
+    remindersSent: 0,
+    abandonedSent: 0,
+    postSent: 0,
+    noShowsMarked: 0,
+    briefingsSent: 0,
+  };
   if (!env.RESEND_API_KEY) return result;
 
   await runReminders(env, now, result);
   await runAbandonedCheckouts(env, now, result);
   await runPostWorkshop(env, now, result);
+  await runPreWorkshopBriefing(env, now, result);
   return result;
 }
 
@@ -578,6 +600,82 @@ async function runPostWorkshop(env: CronEnv, now: number, result: CronResult) {
       }
     }
   }
+}
+
+// ── Pre-workshop briefing (internal, ~5 min before) ─────────────────────────
+// An "SD-BRIEFING" ops email to Jacob just before each live session: how many
+// registered, the audience mix across the three doors, and a few signals that
+// shape the hour (practitioners present, order-bump uptake, countries). Once
+// per workshop, claimed in the `events` audit log like the SD-REPORT digests.
+async function runPreWorkshopBriefing(env: CronEnv, now: number, result: CronResult) {
+  // Live (non-replay) published sessions whose start is within the next
+  // BRIEFING_LEAD_MIN minutes, and no older than BRIEFING_STALE_MIN past start
+  // (so a missed tick still catches up, but a long-finished session doesn't).
+  const ceil = new Date(now + BRIEFING_LEAD_MIN * MIN_MS).toISOString();
+  const floor = new Date(now - BRIEFING_STALE_MIN * MIN_MS).toISOString();
+  const wRes = await env.DB
+    .prepare(
+      `SELECT * FROM workshops
+        WHERE status = 'published' AND deleted = 0 AND is_replay = 0
+          AND starts_at_utc <= ? AND starts_at_utc >= ?`,
+    )
+    .bind(ceil, floor)
+    .all<Workshop>();
+
+  const recipients = briefingRecipients(env);
+  for (const w of wRes.results ?? []) {
+    const externalId = `workshop-briefing-${w.id}`;
+    // Claim first (atomic) so overlapping ticks can't double-send; release on
+    // failure so a later tick retries while still inside the window.
+    if (!(await claimBriefing(env.DB, externalId))) continue;
+    try {
+      const data = await gatherBriefingData(env.DB, w);
+      const content = buildBriefingEmail(data, env.PUBLIC_BASE_URL);
+      await sendEmail({
+        apiKey: env.RESEND_API_KEY!,
+        to: recipients,
+        replyTo: env.RESEND_REPLY_TO,
+        subject: content.subject,
+        html: content.html,
+        text: content.text,
+        entityRefId: externalId,
+      });
+      result.briefingsSent += 1;
+    } catch {
+      await releaseBriefing(env.DB, externalId).catch(() => {});
+    }
+  }
+}
+
+// Internal recipients for the briefing. Defaults to Jacob; BRIEFING_TO (then the
+// shared REPORTS_TO / ADMIN_EMAIL) can override. Comma/space/semicolon-separated.
+function briefingRecipients(env: CronEnv): string[] {
+  const raw = (env.BRIEFING_TO ?? env.REPORTS_TO ?? env.ADMIN_EMAIL ?? '').trim();
+  const list = raw
+    .split(/[,;\s]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return list.length ? list : [BRIEFING_DEFAULT_RECIPIENT];
+}
+
+// Claim a briefing send in the `events` log (unique external_id). Returns true
+// if THIS call inserted the row (so the caller should send).
+async function claimBriefing(db: D1Database, externalId: string): Promise<boolean> {
+  const r = await db
+    .prepare(
+      `INSERT OR IGNORE INTO events (registration_id, kind, source, external_id)
+       VALUES (NULL, 'workshop.briefing.sent', 'system', ?)`,
+    )
+    .bind(externalId)
+    .run();
+  return (r.meta?.changes ?? 0) > 0;
+}
+
+async function releaseBriefing(db: D1Database, externalId: string): Promise<void> {
+  await db
+    .prepare(`DELETE FROM events WHERE external_id = ? AND kind = 'workshop.briefing.sent'`)
+    .bind(externalId)
+    .run();
 }
 
 // ── Purchase lookups (engine-wide, by email) ────────────────────────────────

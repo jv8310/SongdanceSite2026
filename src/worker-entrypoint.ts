@@ -92,7 +92,7 @@ export function createExports(manifest: unknown) {
         runWorkshopCron(env)
           .then((r) => {
             console.log(
-              `[workshops/cron] reminders=${r.remindersSent} abandoned=${r.abandonedSent} post=${r.postSent} no_shows=${r.noShowsMarked}`,
+              `[workshops/cron] reminders=${r.remindersSent} abandoned=${r.abandonedSent} post=${r.postSent} no_shows=${r.noShowsMarked} briefings=${r.briefingsSent}`,
             );
           })
           .catch((err) => {

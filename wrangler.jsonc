@@ -42,6 +42,10 @@
     // Internal "SD-ORDER" purchase notifications (retreat + course orders;
     // workshops/masterclasses are intentionally excluded). Comma-separated.
     "ORDER_NOTIFICATIONS_TO": "jacob@songdance.co, support@songdance.co",
+    // Internal "SD-REPORT" daily/weekly digests + the "SD-BRIEFING" pre-workshop
+    // roster go to Jacob only (not support@/info@). Set explicitly so the report
+    // recipients don't fall back to ORDER_NOTIFICATIONS_TO. Comma-separated.
+    "REPORTS_TO": "jacob@songdance.co",
     // Offer PayPal in Stripe Checkout (one-off payments). Flip to "true" ONLY
     // after activating PayPal in the Stripe Dashboard (Settings → Payment
     // methods) — listing an un-activated method makes Stripe reject the session.
