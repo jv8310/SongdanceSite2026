@@ -2,78 +2,33 @@
 import SiteLayout from '../components/SiteLayout.astro';
 import PageHero from '../components/PageHero.astro';
 
-// Account / product-access landing. Two paths: people who've already activated
-// their products step straight into the Songdance CiRCLE; people who are
-// missing products request activation, which tags them `prod_access` in Drip
-// (via /api/access-products) and triggers the activation email. The "activate"
-// button opens an email popup rather than navigating away.
+// Pre-purchase account lookup + product access. You enter the email you used
+// with Songdance and we run a check (see /api/access-lookup):
+//   • Live sessions — any workshop/masterclass seat you hold gets a direct link
+//     to its countdown page, so you can step back into it.
+//   • CiRCLE products — if you hold anything that lives in the Songdance CiRCLE
+//     (courses, journeys, …) we show the two paths: step inside if you're set
+//     up, or request activation (tags you `prod_access` in Drip via
+//     /api/access-products, which triggers the activation email).
+// If we find nothing under the address we still offer activation, so nobody is
+// left stuck.
 const CIRCLE_URL = 'https://circle.songdance.co/feed';
 ---
 
 <SiteLayout
   title="Log in & access your products"
-  description="All our Songdance products live on the Songdance CiRCLE. Step inside if you're already set up, or activate your products if anything is missing."
+  description="Enter your email to find your Songdance workshops, masterclasses and the products waiting for you in the Songdance CiRCLE."
 >
   <PageHero
     eyebrow="Your account"
     title="Log in &amp; access your&nbsp;products"
-    lede="Everything you hold with Songdance lives in one place — the Songdance CiRCLE. Here's how to get to it."
+    lede="Pop in the email you used with Songdance and we'll show you what's waiting — your live sessions and everything held for you in the Songdance CiRCLE."
   />
 
   <section class="sd-section access-paths">
-    <div class="access-grid">
-      <article class="access-card">
-        <span class="access-step">Already set up</span>
-        <h2 class="access-card-h">You're in — step inside.</h2>
-        <p class="access-card-p">
-          If you already have an account and have activated your products in the
-          Songdance CiRCLE, everything is waiting for you there.
-        </p>
-        <a
-          href={CIRCLE_URL}
-          class="sd-btn sd-btn-primary"
-          target="_blank"
-          rel="noopener"
-        >
-          Open the Songdance CiRCLE
-          <i class="ph-light ph-arrow-up-right"></i>
-        </a>
-      </article>
-
-      <article class="access-card">
-        <span class="access-step">Missing products</span>
-        <h2 class="access-card-h">Something's not there yet?</h2>
-        <p class="access-card-p">
-          If products are missing from your Songdance CiRCLE, they need to be
-          activated first. We'll email you the steps to set everything up.
-        </p>
-        <button type="button" class="sd-btn sd-btn-primary" data-access-open>
-          Activate all my products
-          <i class="ph-light ph-envelope-simple"></i>
-        </button>
-      </article>
-    </div>
-
-    <p class="access-fallback">
-      Still missing something after that? Do reach out — write to
-      <a href="mailto:support@songdance.co">support@songdance.co</a> and we'll
-      help you personally.
-    </p>
-  </section>
-
-  <!-- Activation email popup -->
-  <dialog class="access-modal" data-access-modal aria-labelledby="access-modal-title">
-    <button type="button" class="access-modal-close" aria-label="Close" data-access-close>
-      <i class="ph-light ph-x"></i>
-    </button>
-
-    <div class="access-modal-body" data-access-form-wrap>
-      <h2 class="access-modal-h" id="access-modal-title">Activate your products</h2>
-      <p class="access-modal-p">
-        Pop in the email you used with Songdance and we'll send you the steps to
-        activate everything in your CiRCLE.
-      </p>
-      <form class="access-form" data-access-form>
+    <!-- Step 1 — the email lookup -->
+    <div class="access-lookup" data-lookup>
+      <form class="access-form access-form-lg" data-lookup-form>
         <input
           type="text"
           name="hp"
@@ -82,37 +37,219 @@ const CIRCLE_URL = 'https://circle.songdance.co/feed';
           autocomplete="off"
           aria-hidden="true"
         />
-        <input
-          type="email"
-          name="email"
-          class="access-input"
-          placeholder="you@somewhere"
-          aria-label="Email address"
-          autocomplete="email"
-          required
-        />
-        <button type="submit" class="sd-btn sd-btn-primary" data-access-submit>
-          <span data-access-label>Send me the steps</span>
-          <i class="ph-light ph-arrow-right"></i>
-        </button>
+        <label class="access-label" for="access-email">The email you used with Songdance</label>
+        <div class="access-field-row">
+          <input
+            type="email"
+            id="access-email"
+            name="email"
+            class="access-input"
+            placeholder="you@somewhere"
+            aria-label="Email address"
+            autocomplete="email"
+            required
+          />
+          <button type="submit" class="sd-btn sd-btn-primary" data-lookup-submit>
+            <span data-lookup-label>Find my account</span>
+            <i class="ph-light ph-arrow-right"></i>
+          </button>
+        </div>
+        <p class="access-error" hidden role="alert" data-lookup-error></p>
       </form>
-      <p class="access-error" hidden role="alert" data-access-error></p>
     </div>
 
-    <div class="access-modal-body" hidden data-access-thanks>
-      <div class="access-thanks-mark"><i class="ph-light ph-envelope-open"></i></div>
-      <h2 class="access-modal-h">Please check your email</h2>
-      <p class="access-modal-p">
-        We've sent you a message with the steps to follow. Open it and activate
-        your products — then everything will be waiting in your Songdance CiRCLE.
+    <!-- Step 2 — results, populated by JS -->
+    <div class="access-results" hidden data-results>
+      <p class="access-greeting" data-greeting hidden></p>
+
+      <!-- Live sessions (workshops / masterclasses) -->
+      <div class="access-block" hidden data-live-block>
+        <h2 class="access-block-h">Your live sessions</h2>
+        <p class="access-block-p">
+          You're registered for these — step into the countdown whenever you like.
+        </p>
+        <div class="access-sessions" data-live-list></div>
+      </div>
+
+      <!-- Products in the Songdance CiRCLE -->
+      <div class="access-block" hidden data-circle-block>
+        <h2 class="access-block-h">Your Songdance CiRCLE</h2>
+        <p class="access-block-p" data-circle-list hidden></p>
+        <div class="access-grid">
+          <article class="access-card">
+            <span class="access-step">Already set up</span>
+            <h3 class="access-card-h">You're in — step inside.</h3>
+            <p class="access-card-p">
+              If you've already activated your products in the Songdance CiRCLE,
+              everything is waiting for you there.
+            </p>
+            <a
+              href={CIRCLE_URL}
+              class="sd-btn sd-btn-primary"
+              target="_blank"
+              rel="noopener"
+            >
+              Open the Songdance CiRCLE
+              <i class="ph-light ph-arrow-up-right"></i>
+            </a>
+          </article>
+
+          <article class="access-card" data-activate-card>
+            <span class="access-step">Missing products</span>
+            <h3 class="access-card-h">Something's not there yet?</h3>
+            <p class="access-card-p">
+              If products are missing from your Songdance CiRCLE, they need to be
+              activated first. We'll email you the steps to set everything up.
+            </p>
+            <button type="button" class="sd-btn sd-btn-primary" data-activate>
+              <span data-activate-label>Activate all my products</span>
+              <i class="ph-light ph-envelope-simple"></i>
+            </button>
+            <p class="access-activated" hidden data-activated>
+              <i class="ph-light ph-envelope-open"></i>
+              Sent — check your email for the steps to activate everything.
+            </p>
+            <p class="access-error" hidden role="alert" data-activate-error></p>
+          </article>
+        </div>
+      </div>
+
+      <!-- Nothing found under this address -->
+      <div class="access-block" hidden data-none-block>
+        <h2 class="access-block-h">We couldn't find anything under that email</h2>
+        <p class="access-block-p">
+          Double-check the address, or — if you've bought with us before — we can
+          send you the steps to activate your products in the Songdance CiRCLE.
+        </p>
+        <div class="access-none-actions">
+          <button type="button" class="sd-btn sd-btn-primary" data-activate>
+            <span data-activate-label>Email me the activation steps</span>
+            <i class="ph-light ph-envelope-simple"></i>
+          </button>
+          <p class="access-activated" hidden data-activated>
+            <i class="ph-light ph-envelope-open"></i>
+            Sent — check your email for the steps to activate everything.
+          </p>
+          <p class="access-error" hidden role="alert" data-activate-error></p>
+        </div>
+      </div>
+
+      <p class="access-reset">
+        Not you? <a href="#" data-reset>Use a different email</a>
       </p>
     </div>
-  </dialog>
+
+    <p class="access-fallback">
+      Still missing something? Do reach out — write to
+      <a href="mailto:support@songdance.co">support@songdance.co</a> and we'll
+      help you personally.
+    </p>
+  </section>
 </SiteLayout>
 
 <style>
   .access-paths { max-width: var(--sd-max); margin: 0 auto; }
 
+  /* ---------- Step 1: email lookup ---------- */
+  .access-lookup {
+    max-width: 560px;
+    margin: 0 auto;
+    padding: var(--sp-7) var(--sp-6);
+    background: var(--paper-soft);
+    border: 1px solid var(--line);
+    border-radius: var(--r-xl);
+    box-shadow: var(--shadow-2);
+  }
+  .access-label {
+    display: block;
+    font-family: var(--font-body);
+    font-size: var(--t-label);
+    text-transform: uppercase;
+    letter-spacing: var(--tr-label);
+    color: var(--ember-deep);
+    font-weight: 500;
+    margin-bottom: var(--sp-3);
+  }
+  .access-field-row { display: flex; gap: var(--sp-3); align-items: stretch; }
+  @media (max-width: 560px) {
+    .access-field-row { flex-direction: column; }
+  }
+  .access-field-row .access-input { flex: 1; min-width: 0; }
+  .access-field-row .sd-btn { justify-content: center; white-space: nowrap; }
+
+  .access-input {
+    font-family: var(--font-body);
+    font-size: var(--t-body);
+    padding: 13px 16px;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--r-md);
+    background: var(--paper);
+    color: var(--ink);
+  }
+  .access-input:focus {
+    outline: none;
+    border-color: var(--ember);
+    box-shadow: var(--shadow-glow);
+  }
+  .access-hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+
+  /* ---------- Step 2: results ---------- */
+  .access-results { max-width: var(--sd-max); margin: 0 auto; }
+  .access-greeting {
+    text-align: center;
+    font-family: var(--font-display);
+    font-size: var(--t-h3);
+    color: var(--ink);
+    font-weight: 400;
+    margin: 0 0 var(--sp-6);
+  }
+  .access-block { margin-bottom: var(--sp-8); }
+  .access-block-h {
+    font-family: var(--font-display);
+    font-size: var(--t-h2);
+    line-height: var(--lh-snug);
+    letter-spacing: var(--tr-display);
+    color: var(--ink);
+    font-weight: 400;
+    margin: 0 0 var(--sp-2);
+  }
+  .access-block-p { color: var(--ink-soft); margin: 0 0 var(--sp-5); max-width: 52ch; }
+
+  /* Live-session cards */
+  .access-sessions { display: flex; flex-direction: column; gap: var(--sp-4); }
+  .access-session {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-4);
+    padding: var(--sp-5) var(--sp-6);
+    background: var(--paper-soft);
+    border: 1px solid var(--line);
+    border-radius: var(--r-xl);
+    box-shadow: var(--shadow-1);
+  }
+  .access-session-meta { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .access-session-kind {
+    font-family: var(--font-body);
+    font-size: var(--t-label);
+    text-transform: uppercase;
+    letter-spacing: var(--tr-label);
+    color: var(--ember-deep);
+    font-weight: 500;
+  }
+  .access-session-title {
+    font-family: var(--font-display);
+    font-size: var(--t-h3);
+    line-height: var(--lh-snug);
+    color: var(--ink);
+    font-weight: 400;
+    margin: 0;
+  }
+  .access-session-when { color: var(--ink-soft); font-size: var(--t-body-sm); margin: 0; }
+  .access-session .sd-btn { white-space: nowrap; }
+
+  /* CiRCLE two-card grid (unchanged layout) */
   .access-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
@@ -122,7 +259,6 @@ const CIRCLE_URL = 'https://circle.songdance.co/feed';
   @media (max-width: 760px) {
     .access-grid { grid-template-columns: 1fr; }
   }
-
   .access-card {
     display: flex;
     flex-direction: column;
@@ -144,177 +280,235 @@ const CIRCLE_URL = 'https://circle.songdance.co/feed';
   }
   .access-card-h {
     font-family: var(--font-display);
-    font-size: var(--t-h2);
+    font-size: var(--t-h3);
     line-height: var(--lh-snug);
     letter-spacing: var(--tr-display);
     color: var(--ink);
     font-weight: 400;
   }
-  .access-card-p {
-    color: var(--ink-soft);
-    margin: 0;
-    max-width: 42ch;
-  }
+  .access-card-p { color: var(--ink-soft); margin: 0; max-width: 42ch; }
   .access-card .sd-btn { margin-top: var(--sp-3); }
+  .access-none-actions { display: flex; flex-direction: column; align-items: flex-start; gap: var(--sp-3); }
 
-  .access-fallback {
-    text-align: center;
-    color: var(--ink-quiet);
+  .access-activated {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--ember-deep);
     font-size: var(--t-body-sm);
-    margin: var(--sp-7) auto 0;
-    max-width: 52ch;
+    margin: var(--sp-3) 0 0;
   }
-
-  /* ---------- Email popup ---------- */
-  .access-modal {
-    border: none;
-    border-radius: var(--r-xl);
-    padding: var(--sp-8) var(--sp-7);
-    width: min(480px, calc(100vw - 32px));
-    background: var(--paper-soft);
-    color: var(--ink);
-    box-shadow: var(--shadow-3);
-    position: relative;
-    overflow: visible;
-  }
-  .access-modal::backdrop {
-    background: rgba(26, 16, 24, 0.55);
-    backdrop-filter: blur(3px);
-    -webkit-backdrop-filter: blur(3px);
-  }
-  .access-modal-close {
-    position: absolute;
-    top: 14px;
-    right: 14px;
-    background: none;
-    border: none;
-    font-size: 22px;
-    line-height: 1;
-    color: var(--ink-quiet);
-    cursor: pointer;
-    transition: color var(--d-quick) var(--ease);
-  }
-  .access-modal-close:hover { color: var(--ink); }
-
-  .access-modal-h {
-    font-family: var(--font-display);
-    font-size: var(--t-h3);
-    line-height: var(--lh-snug);
-    color: var(--ink);
-    font-weight: 400;
-    margin: 0 0 var(--sp-3);
-  }
-  .access-modal-p {
-    color: var(--ink-soft);
-    margin: 0 0 var(--sp-5);
-  }
-
-  .access-form { display: flex; flex-direction: column; gap: var(--sp-3); }
-  .access-hp {
-    position: absolute;
-    left: -9999px;
-    width: 1px;
-    height: 1px;
-    opacity: 0;
-  }
-  .access-input {
-    font-family: var(--font-body);
-    font-size: var(--t-body);
-    padding: 13px 16px;
-    border: 1px solid var(--line-strong);
-    border-radius: var(--r-md);
-    background: var(--paper);
-    color: var(--ink);
-  }
-  .access-input:focus {
-    outline: none;
-    border-color: var(--ember);
-    box-shadow: var(--shadow-glow);
-  }
-  .access-form .sd-btn { justify-content: center; }
-
   .access-error {
     color: var(--ember-deep);
     font-size: var(--t-body-sm);
     margin: var(--sp-3) 0 0;
   }
 
-  .access-thanks-mark {
-    font-size: 40px;
-    line-height: 1;
-    color: var(--ember-deep);
-    margin-bottom: var(--sp-4);
+  .access-reset {
+    text-align: center;
+    font-size: var(--t-body-sm);
+    color: var(--ink-quiet);
+    margin: var(--sp-6) 0 0;
+  }
+  .access-reset a { color: var(--ember-deep); }
+
+  .access-fallback {
+    text-align: center;
+    color: var(--ink-quiet);
+    font-size: var(--t-body-sm);
+    margin: var(--sp-8) auto 0;
+    max-width: 52ch;
   }
 </style>
 
 <script>
-  const modal = document.querySelector<HTMLDialogElement>('[data-access-modal]');
-  const openers = document.querySelectorAll<HTMLButtonElement>('[data-access-open]');
-  const form = document.querySelector<HTMLFormElement>('[data-access-form]');
-  const formWrap = document.querySelector<HTMLElement>('[data-access-form-wrap]');
-  const thanks = document.querySelector<HTMLElement>('[data-access-thanks]');
-  const errorEl = document.querySelector<HTMLElement>('[data-access-error]');
-  const label = document.querySelector<HTMLElement>('[data-access-label]');
-
-  const open = () => {
-    if (!modal) return;
-    // Reset to the form view each time it opens.
-    if (formWrap) formWrap.hidden = false;
-    if (thanks) thanks.hidden = true;
-    if (errorEl) errorEl.hidden = true;
-    if (typeof modal.showModal === 'function') modal.showModal();
-    else modal.setAttribute('open', '');
-    modal.querySelector<HTMLInputElement>('.access-input')?.focus();
+  type Session = {
+    title: string;
+    kind: 'Workshop' | 'Masterclass';
+    when: string;
+    url: string;
+    replay: boolean;
   };
-  const close = () => {
-    if (!modal) return;
-    if (typeof modal.close === 'function') modal.close();
-    else modal.removeAttribute('open');
+  type LookupResult = {
+    ok?: boolean;
+    email?: string;
+    first_name?: string;
+    sessions?: Session[];
+    circle?: { has?: boolean; products?: string[] };
   };
 
-  openers.forEach((b) => b.addEventListener('click', open));
-  modal?.querySelectorAll('[data-access-close]').forEach((el) =>
-    el.addEventListener('click', close),
-  );
-  // Click on the backdrop (outside the dialog box) closes it.
-  modal?.addEventListener('click', (e) => {
-    if (e.target === modal) close();
-  });
+  const lookupWrap = document.querySelector<HTMLElement>('[data-lookup]');
+  const lookupForm = document.querySelector<HTMLFormElement>('[data-lookup-form]');
+  const lookupLabel = document.querySelector<HTMLElement>('[data-lookup-label]');
+  const lookupError = document.querySelector<HTMLElement>('[data-lookup-error]');
+  const results = document.querySelector<HTMLElement>('[data-results]');
+  const greeting = document.querySelector<HTMLElement>('[data-greeting]');
+  const liveBlock = document.querySelector<HTMLElement>('[data-live-block]');
+  const liveList = document.querySelector<HTMLElement>('[data-live-list]');
+  const circleBlock = document.querySelector<HTMLElement>('[data-circle-block]');
+  const circleList = document.querySelector<HTMLElement>('[data-circle-list]');
+  const noneBlock = document.querySelector<HTMLElement>('[data-none-block]');
 
-  form?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    if (errorEl) errorEl.hidden = true;
+  // The looked-up email, reused for the activation request.
+  let currentEmail = '';
 
-    const data = new FormData(form);
-    const email = String(data.get('email') ?? '').trim();
-    if (!email) return;
+  const esc = (s: string) =>
+    s.replace(/[&<>"']/g, (c) =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] ?? c,
+    );
 
-    const btn = form.querySelector<HTMLButtonElement>('[data-access-submit]');
-    const original = label?.textContent ?? 'Send me the steps';
-    if (btn) btn.disabled = true;
-    if (label) label.textContent = 'Sending…';
+  function renderSessions(sessions: Session[]) {
+    if (!liveList) return;
+    liveList.innerHTML = sessions
+      .map((s) => {
+        const cta = s.replay ? 'Watch now' : 'Go to your countdown';
+        return `
+          <div class="access-session">
+            <div class="access-session-meta">
+              <span class="access-session-kind">${esc(s.kind)}</span>
+              <h3 class="access-session-title">${esc(s.title)}</h3>
+              <p class="access-session-when">${esc(s.when)}</p>
+            </div>
+            <a class="sd-btn sd-btn-primary" href="${esc(s.url)}">
+              ${cta}
+              <i class="ph-light ph-arrow-right"></i>
+            </a>
+          </div>`;
+      })
+      .join('');
+  }
 
-    try {
-      const res = await fetch('/api/access-products', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, hp: String(data.get('hp') ?? '') }),
-      });
-      const payload = (await res.json().catch(() => ({}))) as { ok?: boolean };
-      if (res.ok && payload?.ok) {
-        if (formWrap) formWrap.hidden = true;
-        if (thanks) thanks.hidden = false;
-        return;
-      }
-      throw new Error('request-failed');
-    } catch {
-      if (btn) btn.disabled = false;
-      if (label) label.textContent = original;
-      if (errorEl) {
-        errorEl.textContent =
-          "That didn't go through. Please check the address and try again.";
-        errorEl.hidden = false;
+  function renderResults(data: LookupResult) {
+    const sessions = data.sessions ?? [];
+    const circle = data.circle ?? { has: false, products: [] };
+    currentEmail = data.email ?? currentEmail;
+
+    // Greeting
+    if (greeting) {
+      if (data.first_name) {
+        greeting.textContent = `Welcome back, ${data.first_name}.`;
+        greeting.hidden = false;
+      } else {
+        greeting.hidden = true;
       }
     }
+
+    // Live sessions
+    const hasSessions = sessions.length > 0;
+    if (hasSessions) renderSessions(sessions);
+    if (liveBlock) liveBlock.hidden = !hasSessions;
+
+    // CiRCLE products
+    const hasCircle = !!circle.has;
+    if (circleBlock) circleBlock.hidden = !hasCircle;
+    if (circleList) {
+      const products = circle.products ?? [];
+      if (hasCircle && products.length) {
+        circleList.textContent = `We found: ${products.join(' · ')}.`;
+        circleList.hidden = false;
+      } else {
+        circleList.hidden = true;
+      }
+    }
+
+    // Nothing at all
+    if (noneBlock) noneBlock.hidden = hasSessions || hasCircle;
+
+    // Reset any activation states from a previous lookup.
+    document.querySelectorAll<HTMLElement>('[data-activated]').forEach((el) => (el.hidden = true));
+    document.querySelectorAll<HTMLElement>('[data-activate-error]').forEach((el) => (el.hidden = true));
+    document.querySelectorAll<HTMLButtonElement>('[data-activate]').forEach((b) => {
+      b.disabled = false;
+      b.hidden = false;
+      const lbl = b.querySelector<HTMLElement>('[data-activate-label]');
+      if (lbl && lbl.dataset.original) lbl.textContent = lbl.dataset.original;
+    });
+
+    if (lookupWrap) lookupWrap.hidden = true;
+    if (results) results.hidden = false;
+  }
+
+  function resetToLookup() {
+    if (results) results.hidden = true;
+    if (lookupWrap) lookupWrap.hidden = false;
+    if (lookupError) lookupError.hidden = true;
+    lookupForm?.reset();
+    lookupForm?.querySelector<HTMLInputElement>('.access-input')?.focus();
+  }
+
+  lookupForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (lookupError) lookupError.hidden = true;
+
+    const fd = new FormData(lookupForm);
+    const email = String(fd.get('email') ?? '').trim();
+    if (!email) return;
+
+    const btn = lookupForm.querySelector<HTMLButtonElement>('[data-lookup-submit]');
+    const original = lookupLabel?.textContent ?? 'Find my account';
+    if (btn) btn.disabled = true;
+    if (lookupLabel) lookupLabel.textContent = 'Checking…';
+
+    try {
+      const res = await fetch('/api/access-lookup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, hp: String(fd.get('hp') ?? '') }),
+      });
+      const payload = (await res.json().catch(() => ({}))) as LookupResult;
+      if (!res.ok || !payload?.ok) throw new Error('lookup-failed');
+      renderResults(payload);
+    } catch {
+      if (lookupError) {
+        lookupError.textContent =
+          "That didn't go through. Please check the address and try again.";
+        lookupError.hidden = false;
+      }
+    } finally {
+      if (btn) btn.disabled = false;
+      if (lookupLabel) lookupLabel.textContent = original;
+    }
   });
+
+  // Activation — reuses the already-entered email, so no second prompt. Wired on
+  // every [data-activate] button (the CiRCLE card + the nothing-found block).
+  document.querySelectorAll<HTMLButtonElement>('[data-activate]').forEach((btn) => {
+    const scope = btn.closest('[data-activate-card], .access-none-actions') ?? document;
+    const label = btn.querySelector<HTMLElement>('[data-activate-label]');
+    if (label) label.dataset.original = label.textContent ?? 'Activate all my products';
+    const done = scope.querySelector<HTMLElement>('[data-activated]');
+    const errEl = scope.querySelector<HTMLElement>('[data-activate-error]');
+
+    btn.addEventListener('click', async () => {
+      if (!currentEmail) return;
+      if (errEl) errEl.hidden = true;
+      btn.disabled = true;
+      if (label) label.textContent = 'Sending…';
+      try {
+        const res = await fetch('/api/access-products', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: currentEmail, hp: '' }),
+        });
+        const payload = (await res.json().catch(() => ({}))) as { ok?: boolean };
+        if (!res.ok || !payload?.ok) throw new Error('request-failed');
+        btn.hidden = true;
+        if (done) done.hidden = false;
+      } catch {
+        btn.disabled = false;
+        if (label && label.dataset.original) label.textContent = label.dataset.original;
+        if (errEl) {
+          errEl.textContent = "That didn't go through — please try again in a moment.";
+          errEl.hidden = false;
+        }
+      }
+    });
+  });
+
+  document.querySelectorAll<HTMLAnchorElement>('[data-reset]').forEach((a) =>
+    a.addEventListener('click', (e) => {
+      e.preventDefault();
+      resetToLookup();
+    }),
+  );
 </script>
