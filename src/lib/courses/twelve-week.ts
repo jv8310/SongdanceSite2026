@@ -21,7 +21,11 @@ import {
   isSupportedCurrency,
   type SupportedCurrency,
 } from '../workshops/currency';
-import { launchPromoPercent } from '../promo';
+import {
+  launchPromoPercent,
+  LAUNCH_PROMO_ENDS_AT_MS,
+  LAUNCH_PROMO_END_LABEL,
+} from '../promo';
 
 export type TwelveWeekCurrency = SupportedCurrency;
 
@@ -248,4 +252,45 @@ export function effectiveTwelveWeekDiscount(
     };
   }
   return { eligible: false, percent: 0, kind: 'none', expiresAtMs: null };
+}
+
+// The offer the after-workshop emails should actually quote — promo-aware.
+//
+// Normally that's the 20% participant discount on its real 48h countdown. But
+// while the launch promo is live it beats that discount site-wide (50% > 20%)
+// and runs to a fixed calendar date, so the same page an attendee lands on
+// shows 50% off through the promo deadline — not 20%, and not a 48h cliff.
+// The emails must match: quoting "20%, then full price in 48h" during the promo
+// both *undersells* the page and names a deadline that isn't real (they keep
+// 50% until the promo ends). This returns the percent + the deadline the copy
+// should name, and flips back to the 20%/48h window automatically the moment
+// the promo ends — nothing to unwind by hand later.
+export type PostWorkshopOffer = {
+  percent: number; // 20 normally; the promo percent while the promo is live
+  deadlineMs: number; // the 48h window end normally; the promo end while live
+  // A plain calendar label ('July 15') while the promo is live; null outside it,
+  // where the caller formats `deadlineMs` as the recipient's local 48h time.
+  deadlineLabel: string | null;
+  promo: boolean;
+};
+
+export function postWorkshopEmailOffer(
+  discountEndsMs: number,
+  nowMs: number = Date.now(),
+): PostWorkshopOffer {
+  const promo = launchPromoPercent(nowMs);
+  if (promo >= DISCOUNT_PERCENT && Number.isFinite(LAUNCH_PROMO_ENDS_AT_MS)) {
+    return {
+      percent: promo,
+      deadlineMs: LAUNCH_PROMO_ENDS_AT_MS,
+      deadlineLabel: LAUNCH_PROMO_END_LABEL,
+      promo: true,
+    };
+  }
+  return {
+    percent: DISCOUNT_PERCENT,
+    deadlineMs: discountEndsMs,
+    deadlineLabel: null,
+    promo: false,
+  };
 }

@@ -68,6 +68,7 @@ import {
 import {
   anchorMsFromWorkshop,
   DISCOUNT_WINDOW_HOURS,
+  postWorkshopEmailOffer,
 } from '../courses/twelve-week';
 
 type CronEnv = {
@@ -432,6 +433,13 @@ async function runPostWorkshop(env: CronEnv, now: number, result: CronResult) {
     // deadline the copy quotes; it is independent of when the emails fire.
     const discountAnchorMs = anchorMsFromWorkshop(w.starts_at_utc, w.ends_at_utc) ?? followUpAnchorMs;
     const discountEndsMs = discountAnchorMs + DISCOUNT_WINDOW_HOURS * H * MIN_MS;
+    // Promo-aware offer for the after-workshop emails: while the launch promo is
+    // live it beats the 20% participant discount and runs to a fixed date, so
+    // the copy quotes the promo (percent + its plain deadline) and the whole
+    // downstream deadline (countdown, hours-left, downsell gate) rides the promo
+    // end instead of the 48h window. Reverts to 20%/48h when the promo ends.
+    const offer = postWorkshopEmailOffer(discountEndsMs, now);
+    const effectiveDiscountEndsMs = offer.deadlineMs;
     const isMasterclass = await workshopIsMasterclass(env.DB, w);
 
     const regs = await env.DB
@@ -457,11 +465,15 @@ async function runPostWorkshop(env: CronEnv, now: number, result: CronResult) {
         (reg as WorkshopRegistration & { is_pro?: number | null }).is_pro === 1;
 
       const tz = reg.timezone || w.display_tz;
-      const discountEndsLocal = formatInTz(new Date(discountEndsMs).toISOString(), tz);
-      // Hours left on the 20% window at this exact send — so the copy is true
-      // even when the email was held for the recipient's local morning. Floored
-      // at 1 by the email builder (deadline emails always go before it shuts).
-      const hoursRemaining = Math.max(1, Math.round((discountEndsMs - now) / (60 * 60 * 1000)));
+      // Promo: a plain calendar label ('July 15'); otherwise the 48h window's
+      // local time. Either way this is the deadline the copy actually quotes.
+      const discountEndsLocal =
+        offer.deadlineLabel ?? formatInTz(new Date(effectiveDiscountEndsMs).toISOString(), tz);
+      // Hours left on the effective window at this exact send — so the copy is
+      // true even when the email was held for the recipient's local morning.
+      // Floored at 1 by the email builder (deadline emails always go before it
+      // shuts). Unused in promo copy, which names the calendar date instead.
+      const hoursRemaining = Math.max(1, Math.round((effectiveDiscountEndsMs - now) / (60 * 60 * 1000)));
       const unsubscribeUrl = secret ? await unsubscribePageUrl(base, secret, reg.email) : undefined;
       const lc = { name: reg.name, workshopTitle: w.title, unsubscribeUrl };
       // The course + certification pages read ?email= and reveal that person's
@@ -473,7 +485,7 @@ async function runPostWorkshop(env: CronEnv, now: number, result: CronResult) {
       const hubUrl = successUrl(base, reg.access_token);
       // The last-chance email's animated countdown ticks to the real deadline;
       // the endpoint computes the remaining time when the image is fetched.
-      const countdownGifUrl = `${base}/api/countdown.gif?ends=${discountEndsMs}`;
+      const countdownGifUrl = `${base}/api/countdown.gif?ends=${effectiveDiscountEndsMs}`;
 
       const dueSteps = (steps: LifecycleStep[]) =>
         steps.filter((s) => {
@@ -494,9 +506,9 @@ async function runPostWorkshop(env: CronEnv, now: number, result: CronResult) {
             );
             if (boughtCert && step.type !== 'post_attended') continue;
             content = boughtCert
-              ? attendedEmail1({ ...lc, courseUrl, discountEndsLocal, hoursRemaining, alreadyBoughtCourse: true })
+              ? attendedEmail1({ ...lc, courseUrl, discountEndsLocal, hoursRemaining, discountPercent: offer.percent, promo: offer.promo, alreadyBoughtCourse: true })
               : step.type === 'post_attended'
-                ? attendedProEmail1({ ...lc, certUrl, courseUrl, hoursRemaining })
+                ? attendedProEmail1({ ...lc, certUrl, courseUrl, hoursRemaining, discountEndsLocal, discountPercent: offer.percent, promo: offer.promo })
                 : step.type === 'post_attended_pro_2'
                   ? attendedProEmail2({ ...lc, certUrl })
                   : attendedProEmail3({ ...lc, certUrl });
@@ -507,10 +519,10 @@ async function runPostWorkshop(env: CronEnv, now: number, result: CronResult) {
             if (bought && step.type !== 'post_attended') continue;
             content =
               step.type === 'post_attended'
-                ? attendedEmail1({ ...lc, courseUrl, discountEndsLocal, hoursRemaining, alreadyBoughtCourse: bought })
+                ? attendedEmail1({ ...lc, courseUrl, discountEndsLocal, hoursRemaining, discountPercent: offer.percent, promo: offer.promo, alreadyBoughtCourse: bought })
                 : step.type === 'post_attended_2'
-                  ? attendedEmail2({ ...lc, courseUrl, discountEndsLocal, hoursRemaining })
-                  : attendedEmail3({ ...lc, courseUrl, discountEndsLocal, hoursRemaining, countdownGifUrl });
+                  ? attendedEmail2({ ...lc, courseUrl, discountEndsLocal, hoursRemaining, discountPercent: offer.percent, promo: offer.promo })
+                  : attendedEmail3({ ...lc, courseUrl, discountEndsLocal, hoursRemaining, countdownGifUrl, discountPercent: offer.percent, promo: offer.promo });
           }
           // Non-urgent steps wait for the recipient's local send window; the
           // deadline-driven ones (urgent) go on schedule with an accurate
@@ -526,7 +538,7 @@ async function runPostWorkshop(env: CronEnv, now: number, result: CronResult) {
         // + grief), each chosen from what this person doesn't already own.
         if (!isPro) {
           for (const step of dueSteps(DOWNSELL_STEPS)) {
-            if (now < discountEndsMs) continue; // never while the window is open
+            if (now < effectiveDiscountEndsMs) continue; // never while the discount is open (promo end while the promo runs)
             if (step.requires && !(await notificationExists(env.DB, reg.id, step.requires))) continue;
             const bought = await cached(bought12wCache, email, () => hasBought12w(env.DB, email));
             if (bought) continue;
