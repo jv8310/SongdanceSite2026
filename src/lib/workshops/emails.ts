@@ -556,7 +556,14 @@ export function attendedEmail2(
   };
 }
 
-// ── Attended 3 (+42h): last chance — the one email that's allowed to push ──
+// ── Attended 3 (+42h): the third touch ─────────────────────────────────────
+// Two moods. Normally (20% participant window) this is the *last-chance* push —
+// the one email in the sequence allowed to press, with the ticking countdown,
+// because a real 48h window is genuinely about to shut. During the launch promo
+// there is no 48h cliff (the 50% runs to a fixed calendar date, days away), so
+// pressing "last chance" here would be false urgency — instead it becomes a
+// soft, no-countdown reminder that the sale is still on. Reverts to the tight
+// version automatically the moment the promo ends. See postWorkshopEmailOffer.
 export function attendedEmail3(
   ctx: LifecycleCtx & {
     courseUrl: string;
@@ -569,32 +576,68 @@ export function attendedEmail3(
 ): EmailContent {
   const left = hoursPhrase(ctx.hoursRemaining);
   const pct = ctx.discountPercent;
+
+  if (ctx.promo) {
+    // Soft reminder — no "last chance", no countdown. The sale is real and the
+    // deadline is named plainly, but the tone stays gentle.
+    const html = D.designShell({
+      preheader: `A gentle note — ${pct}% off the 12-week course runs through ${ctx.discountEndsLocal}.`,
+      title: "Still here when you're ready",
+      blocks: [
+        D.eyebrow('While the sale is on'),
+        D.displayHeading(`Still here when you're ${D.accent('ready')}`),
+        D.para(greeting(ctx.name)),
+        D.para(
+          `A gentle note, no countdown: the launch sale — <strong>${pct}% off</strong> the 12-week course — runs through <strong>${escapeHtml(
+            ctx.discountEndsLocal,
+          )}</strong>. If the practice has been on your mind, the door is open at that price until then; if now isn't the time, that's an honest answer too.`,
+        ),
+        D.para(
+          "What you'd be stepping into: eighteen-plus hours of guided practice across twelve modules, a weekly live hour with Jacob, a student community, and lifetime access.",
+        ),
+        D.offerBox({
+          variant: 'cream',
+          badge: `${pct}% off · launch sale`,
+          title: "Here when you're ready",
+          lines: [
+            `${pct}% off, already applied for you — the button opens the page with your price showing.`,
+            "If spreading it out helps, there's a three-part monthly plan; the discount counts there too.",
+          ],
+          button: { label: `See my price — ${pct}% off`, href: ctx.courseUrl },
+          footnote:
+            "If the answer is “not now”, that's an honest answer and nothing is lost — no pressure either way.",
+        }),
+        D.para(
+          "Unsure whether it's for you? Reply with your question any time; a person answers plainly. If it's not for you, we'll say so.",
+          { tone: 'soft' },
+        ),
+        D.signoff(),
+      ].join(''),
+      footer: { unsubscribeUrl: ctx.unsubscribeUrl },
+    });
+    return {
+      subject: 'Still here, if the 12-week course is calling',
+      html,
+      text: `${textGreeting(ctx.name)}\n\nA gentle note, no countdown: the launch sale — ${pct}% off the 12-week course — runs through ${ctx.discountEndsLocal}. If the practice has been on your mind, the door is open at that price until then; if now isn't the time, that's an honest answer too.\n\nWhat you'd be stepping into: eighteen-plus hours of guided practice across twelve modules, a weekly live hour with Jacob, a student community, and lifetime access. ${pct}% off is already applied for you — the link below opens the page with your price showing. If spreading it out helps, there's a three-part monthly plan; the discount counts there too.\n\nUnsure whether it's for you? Reply with your question any time; a person answers plainly. If it's not for you, we'll say so.\n\n${ctx.courseUrl}\n\nWith love,\nJacob${unsubText(ctx.unsubscribeUrl)}`,
+    };
+  }
+
   const html = D.designShell({
-    preheader: ctx.promo
-      ? `The launch sale ends ${ctx.discountEndsLocal}. After that, the regular price returns.`
-      : `It ends ${ctx.discountEndsLocal}, about ${left} from now. After that, full price.`,
-    title: ctx.promo ? `Last chance at ${pct}% off` : `Last chance on your ${pct}%`,
+    preheader: `It ends ${ctx.discountEndsLocal}, about ${left} from now. After that, full price.`,
+    title: `Last chance on your ${pct}%`,
     blocks: [
-      D.eyebrow(ctx.promo ? 'Before the launch sale ends' : 'The window is closing'),
-      D.displayHeading(
-        ctx.promo ? `Last ${D.accent('call')} at ${pct}% off` : `Last ${D.accent('chance')} on your ${pct}%`,
-      ),
+      D.eyebrow('The window is closing'),
+      D.displayHeading(`Last ${D.accent('chance')} on your ${pct}%`),
       D.para(greeting(ctx.name)),
       D.countdownPanel({
         gifUrl: ctx.countdownGifUrl,
-        altText: ctx.promo
-          ? `The launch sale ends ${ctx.discountEndsLocal}`
-          : `Your ${pct}% ends ${ctx.discountEndsLocal} — about ${left} left`,
-        caption: ctx.promo ? 'Time left on the launch sale' : 'Time left on your participant discount',
+        altText: `Your ${pct}% ends ${ctx.discountEndsLocal} — about ${left} left`,
+        caption: 'Time left on your participant discount',
       }),
       D.para(
-        ctx.promo
-          ? `This is the last call I'll send about it: the launch sale on the 12-week course ends <strong>${escapeHtml(
-              ctx.discountEndsLocal,
-            )}</strong>. After that, the regular price returns.`
-          : `This is the last call I'll send about it: your participant discount on the 12-week course ends <strong>${escapeHtml(
-              ctx.discountEndsLocal,
-            )}</strong> — about ${escapeHtml(left)} from now. After that, full price.`,
+        `This is the last call I'll send about it: your participant discount on the 12-week course ends <strong>${escapeHtml(
+          ctx.discountEndsLocal,
+        )}</strong> — about ${escapeHtml(left)} from now. After that, full price.`,
       ),
       D.para(
         "What you'd be stepping into: eighteen-plus hours of guided practice across twelve modules, a weekly live hour with Jacob, a student community, and lifetime access.",
@@ -619,15 +662,10 @@ export function attendedEmail3(
     ].join(''),
     footer: { unsubscribeUrl: ctx.unsubscribeUrl },
   });
-  const closeLine = ctx.promo
-    ? `This is the last call I'll send about it: the launch sale on the 12-week course ends ${ctx.discountEndsLocal}. After that, the regular price returns.`
-    : `This is the last call I'll send about it: your participant discount on the 12-week course ends ${ctx.discountEndsLocal} — about ${left} from now. After that, full price.`;
   return {
-    subject: ctx.promo
-      ? `Last chance — ${pct}% off ends ${ctx.discountEndsLocal}`
-      : `Last chance — your ${pct}% ends in about ${left}`,
+    subject: `Last chance — your ${pct}% ends in about ${left}`,
     html,
-    text: `${textGreeting(ctx.name)}\n\n${closeLine}\n\nWhat you'd be stepping into: eighteen-plus hours of guided practice across twelve modules, a weekly live hour with Jacob, a student community, and lifetime access.\n\nThe facts, once more: ${pct}% off, already applied for you — the link below opens the page with your price showing. If spreading it out helps, there's a three-part monthly plan; the discount counts there too.\n\nIf the answer is "not now", that's an honest answer and nothing is lost. But if you've been meaning to — this is the moment it costs the least.\n\nUnsure whether it's for you? Reply with your question before the window shuts; a person answers plainly. If it's not for you, we'll say so.\n\n${ctx.courseUrl}\n\nWith love,\nJacob${unsubText(ctx.unsubscribeUrl)}`,
+    text: `${textGreeting(ctx.name)}\n\nThis is the last call I'll send about it: your participant discount on the 12-week course ends ${ctx.discountEndsLocal} — about ${left} from now. After that, full price.\n\nWhat you'd be stepping into: eighteen-plus hours of guided practice across twelve modules, a weekly live hour with Jacob, a student community, and lifetime access.\n\nThe facts, once more: ${pct}% off, already applied for you — the link below opens the page with your price showing. If spreading it out helps, there's a three-part monthly plan; the discount counts there too.\n\nIf the answer is "not now", that's an honest answer and nothing is lost. But if you've been meaning to — this is the moment it costs the least.\n\nUnsure whether it's for you? Reply with your question before the window shuts; a person answers plainly. If it's not for you, we'll say so.\n\n${ctx.courseUrl}\n\nWith love,\nJacob${unsubText(ctx.unsubscribeUrl)}`,
   };
 }
 
