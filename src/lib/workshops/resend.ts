@@ -29,7 +29,7 @@ export type SendEmailInput = {
 };
 
 const DEFAULT_FROM = 'Songdance <info@mail.songdance.co>';
-const DEFAULT_REPLY_TO = 'jacob@songdance.co';
+const DEFAULT_REPLY_TO = 'support@songdance.co';
 
 // Returns the Resend message id (when the API gives one) so callers can key
 // engagement tracking on it. Recording into email_sends is done here when a
