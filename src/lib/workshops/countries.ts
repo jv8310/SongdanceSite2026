@@ -40,6 +40,18 @@ export interface CountryOption {
 
 const regionNames = new Intl.DisplayNames(['en'], { type: 'region' });
 
+// The English country name for an ISO 3166-1 alpha-2 code (e.g. "BE" → "Belgium").
+// Falls back to the raw code for anything Intl doesn't recognise (or a blank).
+export function countryName(code: string | null | undefined): string {
+  const c = (code ?? '').trim().toUpperCase();
+  if (!c) return '';
+  try {
+    return regionNames.of(c) ?? c;
+  } catch {
+    return c;
+  }
+}
+
 // All countries, name-sorted, each with the currency we'd charge them in.
 export const ALL_COUNTRIES: CountryOption[] = ISO_CODES.map((code) => ({
   code,
