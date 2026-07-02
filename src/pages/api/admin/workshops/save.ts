@@ -26,7 +26,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const action = String(form.get('action') ?? '').trim();
 
   // Save the Zoom defaults for both event types (Workshop + Masterclass), their
-  // meeting-id/passcode fallbacks, and the fixed replay URL. Posted from the
+  // meeting-id/passcode fallbacks, and the per-type replay URLs. Posted from the
   // small form on /admin/settings/zoom (a `return` field carries the page back).
   if (action === 'zoom') {
     const workshopUrl = String(form.get('zoom_url_default') ?? '').trim();
@@ -39,7 +39,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
     await setConfig(env.DB, 'zoom_meeting_id_masterclass', String(form.get('zoom_meeting_id_masterclass') ?? '').trim());
     await setConfig(env.DB, 'zoom_passcode_masterclass', String(form.get('zoom_passcode_masterclass') ?? '').trim());
 
+    // Two replay videos: the workshop replay (also the masterclass fallback) and
+    // the masterclass replay. Blank masterclass field → the workshop replay is used.
     await setConfig(env.DB, 'replay_video_url', String(form.get('replay_video_url') ?? '').trim());
+    await setConfig(env.DB, 'replay_video_url_masterclass', String(form.get('replay_video_url_masterclass') ?? '').trim());
     const back = String(form.get('return') ?? '').trim() || RETURN_TO;
     return redirect(`${back}?flash=zoom`);
   }

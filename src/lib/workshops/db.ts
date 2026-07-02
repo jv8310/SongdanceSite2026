@@ -1020,6 +1020,19 @@ export async function resolveZoomDetails(
   return { url, meetingId, passcode };
 }
 
+// The fixed replay video for a workshop, resolved per type: a masterclass
+// prefers `replay_video_url_masterclass` and falls back to the workshop replay
+// (`replay_video_url`) when that's blank; everything else uses the workshop
+// replay. Mirrors the Zoom typed-default resolution — one video per event type,
+// with the masterclass free to point elsewhere. Returns null when nothing is set.
+export async function resolveReplayUrl(db: D1Database, workshop: Workshop): Promise<string | null> {
+  if (await workshopIsMasterclass(db, workshop)) {
+    const masterclass = await getConfig(db, 'replay_video_url_masterclass');
+    if (masterclass) return masterclass;
+  }
+  return getConfig(db, 'replay_video_url');
+}
+
 // ── Verification codes ──────────────────────────────────────────────────
 
 export async function setVerificationCode(db: D1Database, email: string, code: string, ttlMinutes = 15) {
