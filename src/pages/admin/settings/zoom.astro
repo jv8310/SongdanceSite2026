@@ -18,6 +18,7 @@ const mcUrl = (await getConfig(env.DB, 'zoom_url_masterclass')) ?? '';
 const mcMeetingId = (await getConfig(env.DB, 'zoom_meeting_id_masterclass')) ?? '';
 const mcPasscode = (await getConfig(env.DB, 'zoom_passcode_masterclass')) ?? '';
 const replayVideoUrl = (await getConfig(env.DB, 'replay_video_url')) ?? '';
+const replayVideoUrlMc = (await getConfig(env.DB, 'replay_video_url_masterclass')) ?? '';
 
 const flash = Astro.url.searchParams.get('flash');
 const flashText = flash === 'zoom' ? 'Zoom defaults saved.' : null;
@@ -29,7 +30,7 @@ const flashText = flash === 'zoom' ? 'Zoom defaults saved.' : null;
       <div>
         <p class="adm-breadcrumbs"><a href="/admin">Admin</a> <span class="sep">/</span> <a href="/admin/settings">Settings</a> <span class="sep">/</span> Zoom defaults</p>
         <h1>Zoom defaults &amp; replay</h1>
-        <p class="adm-sub">Per join, the link/ID/passcode resolve from the workshop first, then the default for its type. Workshops use the Workshop defaults; the masterclass uses the Masterclass defaults (falling back to the Workshop ones when blank). The meeting ID + passcode appear behind the “button doesn’t work for me” fallback. The replay is shown to people who missed the live window, gated by their personal link.</p>
+        <p class="adm-sub">Per join, the link/ID/passcode resolve from the workshop first, then the default for its type. Workshops use the Workshop defaults; the masterclass uses the Masterclass defaults (falling back to the Workshop ones when blank). The meeting ID + passcode appear behind the “button doesn’t work for me” fallback. The replay is shown to people who missed the live window, gated by their personal link — each type has its own replay, and the masterclass falls back to the Workshop replay when its field is blank.</p>
       </div>
       <div class="adm-actions"><a class="adm-btn adm-btn--ghost" href="/admin/settings">← Settings</a></div>
     </header>
@@ -46,6 +47,7 @@ const flashText = flash === 'zoom' ? 'Zoom defaults saved.' : null;
           <label class="span-2"><span>Zoom link</span><input type="url" name="zoom_url_default" value={zoomUrl} placeholder="https://…zoom.us/j/…" /></label>
           <label><span>Meeting ID</span><input type="text" name="zoom_meeting_id_default" value={zoomMeetingId} placeholder="850 1234 5678" /></label>
           <label><span>Passcode</span><input type="text" name="zoom_passcode_default" value={zoomPasscode} placeholder="123456" /></label>
+          <label class="span-2"><span>Replay video URL</span><input type="url" name="replay_video_url" value={replayVideoUrl} placeholder="https://… (YouTube, Vimeo, …)" /></label>
         </div>
       </section>
 
@@ -55,13 +57,12 @@ const flashText = flash === 'zoom' ? 'Zoom defaults saved.' : null;
           <label class="span-2"><span>Zoom link</span><input type="url" name="zoom_url_masterclass" value={mcUrl} placeholder="https://…zoom.us/j/…" /></label>
           <label><span>Meeting ID</span><input type="text" name="zoom_meeting_id_masterclass" value={mcMeetingId} placeholder="850 1234 5678" /></label>
           <label><span>Passcode</span><input type="text" name="zoom_passcode_masterclass" value={mcPasscode} placeholder="123456" /></label>
+          <label class="span-2"><span>Replay video URL</span><input type="url" name="replay_video_url_masterclass" value={replayVideoUrlMc} placeholder="Leave blank to reuse the Workshop replay" /></label>
         </div>
       </section>
 
       <section class="adm-section">
-        <h2>Replay</h2>
         <div class="adm-grid">
-          <label class="span-2"><span>Fixed replay video URL</span><input type="url" name="replay_video_url" value={replayVideoUrl} placeholder="https://… (YouTube, Vimeo, …)" /></label>
           <div class="span-2"><button type="submit" class="adm-btn adm-btn--solid">Save</button></div>
         </div>
       </section>

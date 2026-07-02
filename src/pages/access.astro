@@ -64,9 +64,10 @@ const CIRCLE_URL = 'https://circle.songdance.co/feed';
 
       <!-- Live sessions (workshops / masterclasses) -->
       <div class="access-block" hidden data-live-block>
-        <h2 class="access-block-h">Your live sessions</h2>
+        <h2 class="access-block-h">Your sessions</h2>
         <p class="access-block-p">
-          You're registered for these — step into the countdown whenever you like.
+          Step into an upcoming countdown, restart a replay — or, for a date
+          you've missed, watch the replay or move onto a new one for free.
         </p>
         <div class="access-sessions" data-live-list></div>
       </div>
@@ -247,6 +248,8 @@ const CIRCLE_URL = 'https://circle.songdance.co/feed';
     margin: 0;
   }
   .access-session-when { color: var(--ink-soft); font-size: var(--t-body-sm); margin: 0; }
+  .access-session-note { color: var(--ember-deep); font-size: var(--t-body-sm); margin: 4px 0 0; }
+  .access-session.is-missed { border-style: dashed; }
   .access-session .sd-btn { white-space: nowrap; }
 
   /* CiRCLE two-card grid (unchanged layout) */
@@ -327,7 +330,7 @@ const CIRCLE_URL = 'https://circle.songdance.co/feed';
     kind: 'Workshop' | 'Masterclass';
     when: string;
     url: string;
-    replay: boolean;
+    status: 'upcoming' | 'replay' | 'missed';
   };
   type LookupResult = {
     ok?: boolean;
@@ -361,13 +364,24 @@ const CIRCLE_URL = 'https://circle.songdance.co/feed';
     if (!liveList) return;
     liveList.innerHTML = sessions
       .map((s) => {
-        const cta = s.replay ? 'Watch now' : 'Go to your countdown';
+        const cta =
+          s.status === 'replay'
+            ? 'Watch now'
+            : s.status === 'missed'
+              ? 'Replay or new date'
+              : 'Go to your countdown';
+        // A missed date gets an extra line so it's clear why it's still here.
+        const note =
+          s.status === 'missed'
+            ? `<p class="access-session-note">This date has passed — watch the replay or pick a new one.</p>`
+            : '';
         return `
-          <div class="access-session">
+          <div class="access-session${s.status === 'missed' ? ' is-missed' : ''}">
             <div class="access-session-meta">
               <span class="access-session-kind">${esc(s.kind)}</span>
               <h3 class="access-session-title">${esc(s.title)}</h3>
               <p class="access-session-when">${esc(s.when)}</p>
+              ${note}
             </div>
             <a class="sd-btn sd-btn-primary" href="${esc(s.url)}">
               ${cta}

@@ -1,6 +1,6 @@
 // POST { email, hp } → {
 //   ok, email, first_name?,
-//   sessions: [{ title, kind, when, url, replay }],
+//   sessions: [{ title, kind, when, url, status }],
 //   circle: { has, products[] }
 // }
 //
@@ -10,7 +10,9 @@
 //      we can deep-link straight to each one's countdown page. The countdown
 //      URL is keyed on the per-registration access token, which only lives in
 //      D1 (never in Drip), so this lookup is what makes "go to your countdown"
-//      possible.
+//      possible. Past live dates the person missed are kept too — their link
+//      lands on the same page's "this session has passed" view, where they can
+//      watch the replay or move onto a new date for free.
 //   2. Drip — the subscriber's tags, to tell whether they hold any product that
 //      lives in the Songdance CiRCLE (courses, journeys, the grief course, …).
 //      Also grabs a first name to greet them.
@@ -89,32 +91,42 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
   // 1. Workshop / masterclass countdown links (D1). Never let this fail the
   //    whole lookup — an empty list just means "no live sessions".
+  //    status: 'upcoming' (live date ahead), 'replay' (on-demand), or 'missed'
+  //    (a past live date — the same page shows its replay + free rebook).
   let sessions: Array<{
     title: string;
     kind: 'Workshop' | 'Masterclass';
     when: string;
     url: string;
-    replay: boolean;
+    status: 'upcoming' | 'replay' | 'missed';
   }> = [];
   try {
     const links = await listCountdownLinksByEmail(env.DB, email);
     sessions = links
-      // Keep sessions that still have a live countdown: anything upcoming, plus
-      // on-demand replays (always watchable). A past live date without a replay
-      // has no countdown to send them to.
-      .filter((l) => l.is_replay === 1 || new Date(l.starts_at_utc).getTime() >= nowMs)
       .map((l) => {
         const tz = l.timezone || l.display_tz || 'Europe/Brussels';
+        const startMs = new Date(l.starts_at_utc).getTime();
+        const status: 'upcoming' | 'replay' | 'missed' =
+          l.is_replay === 1 ? 'replay' : startMs >= nowMs ? 'upcoming' : 'missed';
         return {
           title: l.title,
           kind: (l.is_masterclass === 1 ? 'Masterclass' : 'Workshop') as
             | 'Workshop'
             | 'Masterclass',
-          when: l.is_replay === 1 ? 'On demand — start anytime' : formatInTz(l.starts_at_utc, tz),
+          when: status === 'replay' ? 'On demand — start anytime' : formatInTz(l.starts_at_utc, tz),
           url: `/workshop/success?t=${encodeURIComponent(l.access_token)}`,
-          replay: l.is_replay === 1,
+          status,
+          _sort: startMs,
         };
-      });
+      })
+      // Upcoming first (soonest → furthest), then on-demand replays, then the
+      // missed dates (most recent first — the ones they're likeliest to revisit).
+      .sort((a, b) => {
+        const rank = { upcoming: 0, replay: 1, missed: 2 } as const;
+        if (rank[a.status] !== rank[b.status]) return rank[a.status] - rank[b.status];
+        return a.status === 'missed' ? b._sort - a._sort : a._sort - b._sort;
+      })
+      .map(({ _sort, ...s }) => s);
   } catch (err) {
     console.warn(`[access-lookup] countdown lookup failed: ${String(err)}`);
   }

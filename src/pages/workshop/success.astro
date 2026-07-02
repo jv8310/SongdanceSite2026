@@ -3,11 +3,11 @@ import Layout from '../../layouts/Layout.astro';
 import MetaPixel from '../../components/MetaPixel.astro';
 import { purchaseEventId } from '../../lib/workshops/meta';
 import {
-  getConfig,
   getPaidPaymentForRegistration,
   getRegistrationByAccessToken,
   getWorkshopById,
   listUpcomingPublishedWorkshops,
+  resolveReplayUrl,
   workshopIsMasterclass,
 } from '../../lib/workshops/db';
 import { googleCalendarUrl } from '../../lib/workshops/ics';
@@ -48,7 +48,9 @@ const started = startMs > 0 && Date.now() >= startMs;
 
 // Live join window state (drives which block shows first; JS keeps it live).
 const win = workshop && !workshop.is_replay ? joinWindow(workshop.starts_at_utc) : 'open';
-const hasReplay = !!(await getConfig(env.DB, 'replay_video_url'));
+// Is there a replay to offer someone who missed this session? Resolved per type
+// (a masterclass has its own replay, falling back to the workshop one).
+const hasReplay = workshop ? !!(await resolveReplayUrl(env.DB, workshop)) : false;
 
 // "Share with a friend" — a half-price link that lands on the full workshop
 // page (not a single date's form), so the friend can pick any upcoming date.

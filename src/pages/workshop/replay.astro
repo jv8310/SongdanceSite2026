@@ -1,13 +1,29 @@
 ---
 import Layout from '../../layouts/Layout.astro';
-import { getConfig, getRegistrationByAccessToken, getWorkshopById, markJoined } from '../../lib/workshops/db';
-import { logEvent } from '../../lib/registrations/db';
+import {
+  getRegistrationByAccessToken,
+  getWorkshopById,
+  markJoined,
+  resolveReplayUrl,
+  listSecuredWorkshopLinksByEmail,
+  listReplayViewAnchorsByEmail,
+} from '../../lib/workshops/db';
+import { eventExists, logEvent } from '../../lib/registrations/db';
+import {
+  bestDiscountStatus,
+  anchorMsFromWorkshop,
+  postWorkshopEmailOffer,
+  DISCOUNT_WINDOW_HOURS,
+} from '../../lib/courses/twelve-week';
+import { launchPromoActive } from '../../lib/promo';
 
 export const prerender = false;
 
 // The fixed replay, gated by a personal registration link (access token). Not
 // reachable without one — there's no public URL to the recording. Opening it
 // counts as attendance, so the post-workshop follow-up treats them as shown up.
+// The replay video itself is resolved per event type (a masterclass has its own
+// replay, falling back to the workshop one).
 const env = Astro.locals.runtime.env;
 const token = (Astro.url.searchParams.get('t') ?? '').trim();
 const reg = token ? await getRegistrationByAccessToken(env.DB, token) : null;
@@ -15,15 +31,54 @@ const ok = reg && (reg.payment_status === 'paid' || reg.payment_status === 'coup
 const workshop = reg ? await getWorkshopById(env.DB, reg.workshop_id) : null;
 
 let replayUrl: string | null = null;
-if (ok && reg) {
-  replayUrl = await getConfig(env.DB, 'replay_video_url');
+// The 12-week promo shown beneath the replay: opening a replay (re)starts the
+// same 48h participant-discount window the course honours, so we quote exactly
+// what the /courses/12-week page will grant this viewer — 20% for 48h, or 50%
+// while the launch promo runs (through July 15). See postWorkshopEmailOffer.
+let offer: { percent: number; deadlineMs: number; deadlineLabel: string | null; promo: boolean } | null = null;
+let showCountdown = false;
+
+if (ok && reg && workshop) {
+  replayUrl = await resolveReplayUrl(env.DB, workshop);
   await markJoined(env.DB, reg.id);
-  await logEvent(env.DB, {
-    registration_id: null,
-    kind: 'workshop.replay.viewed',
-    external_id: `workshop-replay-${reg.id}`,
-    payload: { workshop_id: reg.workshop_id, registration_id: reg.id },
-  });
+  // Log the view once (the events table uniques on external_id, so re-opening
+  // the replay would otherwise error). The FIRST view is the discount anchor.
+  const externalId = `workshop-replay-${reg.id}`;
+  if (!(await eventExists(env.DB, externalId))) {
+    await logEvent(env.DB, {
+      registration_id: null,
+      kind: 'workshop.replay.viewed',
+      external_id: externalId,
+      payload: { workshop_id: reg.workshop_id, registration_id: reg.id },
+    });
+  }
+
+  // Resolve the live participant-discount window the same way the course status
+  // endpoint does: the best of every secured-seat anchor + every replay view.
+  // (This view was logged just above, so it counts as a fresh anchor for a
+  // first-time viewer.) We only ever advertise a discount the course page will
+  // actually grant, so the countdown here matches the price they'll see there.
+  const now = Date.now();
+  const links = await listSecuredWorkshopLinksByEmail(env.DB, reg.email);
+  const replayAnchors = await listReplayViewAnchorsByEmail(env.DB, reg.email);
+  const anchors = [
+    ...links.map((l) => anchorMsFromWorkshop(l.starts_at_utc, l.ends_at_utc)),
+    ...replayAnchors,
+  ];
+  const status = bestDiscountStatus(anchors, now);
+  if (launchPromoActive(now)) {
+    // The launch promo is site-wide (not gated on attendance), so it's always
+    // grantable while live — 50% off through July 15, with a countdown to it.
+    offer = postWorkshopEmailOffer(now + DISCOUNT_WINDOW_HOURS * 3600_000, now);
+    showCountdown = true;
+  } else if (status.eligible) {
+    // No promo: the 20% participant window. A live "post" window counts down to
+    // its 48h expiry; a "pre" window (an upcoming workshop) has no deadline.
+    const windowEndsMs = status.expiresAtMs ?? now + DISCOUNT_WINDOW_HOURS * 3600_000;
+    offer = postWorkshopEmailOffer(windowEndsMs, now);
+    showCountdown = status.kind !== 'pre';
+  }
+  // else: no live discount → no promo block (the course page wouldn't grant one).
 }
 
 // Turn a YouTube / Vimeo watch URL into its embed form; otherwise use as-is.
@@ -63,6 +118,36 @@ function embedSrc(u: string): string {
             <p class="ws-next">When you’re ready to sound where others can hear you — the next live dates are at <a href="/workshop">the workshop page</a>.</p>
           </>
         )}
+
+        {offer && (
+          <div
+            class="ws-promo"
+            data-deadline={showCountdown ? String(offer.deadlineMs) : ''}
+          >
+            <p class="ws-promo-kicker">Continue the practice</p>
+            <h2 class="ws-promo-title">The 12-Week Somatic Vocal Healing Course</h2>
+            <p class="ws-promo-sub">
+              Go deeper, at your own pace — with <strong>{offer.percent}% off</strong>{' '}
+              {offer.promo && offer.deadlineLabel
+                ? <>through {offer.deadlineLabel}.</>
+                : showCountdown
+                  ? <>as a participant — before your window closes.</>
+                  : <>as a participant.</>}
+            </p>
+
+            {showCountdown && (
+              <div class="ws-promo-countdown" aria-label="Time remaining on your discount">
+                <div class="ws-clock"><span data-cd="d">–</span><small>days</small></div>
+                <div class="ws-clock"><span data-cd="h">–</span><small>hrs</small></div>
+                <div class="ws-clock"><span data-cd="m">–</span><small>min</small></div>
+                <div class="ws-clock"><span data-cd="s">–</span><small>sec</small></div>
+              </div>
+            )}
+
+            <a class="ws-promo-cta" href="/courses/12-week">Take {offer.percent}% off →</a>
+            <p class="ws-promo-fine">Enter the email you registered with and your discount is applied automatically.</p>
+          </div>
+        )}
       </section>
     )}
   </main>
@@ -78,5 +163,41 @@ function embedSrc(u: string): string {
     .ws-fine { margin:16px 0 0; color:#B6A8B4; font-size:13px; }
     .ws-next { margin:18px 0 0; color:#4A3848; font-size:15px; }
     .ws-next a { color:#A14826; }
+
+    /* 12-week course promo — marketing mechanics, not the practice copy. */
+    .ws-promo { margin-top:34px; padding-top:30px; border-top:1px solid rgba(42,27,42,0.12); }
+    .ws-promo-kicker { margin:0 0 8px; font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:#A14826; }
+    .ws-promo-title { margin:0 0 8px; font-size:23px; line-height:1.2; color:#2A1B2A; font-weight:400; }
+    .ws-promo-sub { margin:0 0 20px; font-size:15px; color:#4A3848; }
+    .ws-promo-sub strong { color:#A14826; }
+    .ws-promo-countdown { display:flex; justify-content:center; gap:12px; margin:0 0 22px; }
+    .ws-promo-countdown .ws-clock { background:#F4ECDF; border-radius:12px; padding:12px 10px; min-width:58px; }
+    .ws-promo-countdown .ws-clock span { display:block; font-size:26px; color:#2A1B2A; line-height:1; }
+    .ws-promo-countdown .ws-clock small { display:block; margin-top:6px; font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:#B6A8B4; }
+    .ws-promo-cta { display:inline-block; padding:15px 28px; border-radius:999px; background:#2A1B2A; color:#F4ECDF; text-decoration:none; font-size:16px; }
+    .ws-promo-fine { margin:14px 0 0; color:#B6A8B4; font-size:13px; }
   </style>
+
+  <script is:inline>
+    (function () {
+      var box = document.querySelector('.ws-promo[data-deadline]');
+      if (!box) return;
+      var deadline = parseInt(box.getAttribute('data-deadline'), 10);
+      if (!deadline) return;
+      var pad = function (n) { return n < 10 ? '0' + n : '' + n; };
+      var set = function (k, v) {
+        var n = box.querySelector('[data-cd="' + k + '"]');
+        if (n) n.textContent = v;
+      };
+      function tick() {
+        var s = Math.max(0, Math.floor((deadline - Date.now()) / 1000));
+        var d = Math.floor(s / 86400); s -= d * 86400;
+        var h = Math.floor(s / 3600); s -= h * 3600;
+        var m = Math.floor(s / 60); s -= m * 60;
+        set('d', String(d)); set('h', pad(h)); set('m', pad(m)); set('s', pad(s));
+      }
+      tick();
+      setInterval(tick, 1000);
+    })();
+  </script>
 </Layout>
