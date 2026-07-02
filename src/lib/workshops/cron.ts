@@ -154,8 +154,14 @@ const PRO_ATTENDED_STEPS: LifecycleStep[] = [
   { type: 'post_attended_pro_3', offsetMin: 5 * D, staleMin: 48 * H, requires: 'post_attended_pro_2' },
 ];
 
+// The first touch ("we missed you — your seat is safe") is urgent: it fires
+// ~1h after the start regardless of the recipient's local hour, so an evening
+// (8pm+) session doesn't slip its re-engagement to the next morning — the
+// anchor (start+1h) lands at/after 21:00, the send window's exclusive end, and
+// would otherwise be held overnight. Touches 2 & 3 are calm nudges days later,
+// so they stay held to local daytime.
 const NO_SHOW_STEPS: LifecycleStep[] = [
-  { type: 'post_no_show', offsetMin: 0, staleMin: 48 * H },
+  { type: 'post_no_show', offsetMin: 0, staleMin: 48 * H, urgent: true },
   { type: 'post_no_show_2', offsetMin: 2 * D, staleMin: 48 * H, requires: 'post_no_show' },
   { type: 'post_no_show_3', offsetMin: 6 * D, staleMin: 72 * H, requires: 'post_no_show_2' },
 ];
@@ -604,7 +610,9 @@ async function runPostWorkshop(env: CronEnv, now: number, result: CronResult) {
               : step.type === 'post_no_show_2'
                 ? noShowEmail2({ ...lc, hubUrl })
                 : noShowEmail3({ ...lc, hubUrl });
-          if (!withinSendWindow(tz, now)) continue; // local-daytime only
+          // The first touch is urgent (goes right after the session); the later
+          // nudges wait for the recipient's local daytime.
+          if (!step.urgent && !withinSendWindow(tz, now)) continue;
           if (!(await claimNotification(env.DB, reg.id, step.type))) continue;
           const sent = await sendMarketing(env, reg.email, content, `workshop-${step.type}-${reg.id}`, secret, step.type, reg.id);
           if (sent) result.postSent += 1;
