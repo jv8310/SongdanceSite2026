@@ -177,6 +177,39 @@ export async function resendConfirmation(
   return { ok: true };
 }
 
+// Side-effects when an existing registration is *moved* to a new date (the
+// countdown-page "change my date"). There's no purchase to record and no Meta
+// event — the seat already exists and no money changes hands — so this only
+// refreshes the Drip contact's workshop fields to the new date and sends a fresh
+// confirmation carrying the new date, join link and calendar. A unique
+// entity-ref keeps this confirmation from being deduped against the original
+// (they share a registration id, hence the same stable ref); the move already
+// cleared the 'confirmation' claim, so re-claiming here also stops the cron from
+// ever sending its own first-time confirmation for the new date.
+export async function runWorkshopDateChangeSideEffects(
+  env: Env,
+  registrationId: number,
+): Promise<void> {
+  const reg = await getRegistrationById(env.DB, registrationId);
+  if (!reg) return;
+  const workshop = await getWorkshopById(env.DB, reg.workshop_id);
+  if (!workshop) return;
+
+  try {
+    await tagInDrip(env, reg, workshop);
+  } catch (err) {
+    await logEvent(env.DB, { registration_id: null, kind: 'workshop.drip.error', payload: { registration_id: reg.id, error: String(err) } });
+  }
+
+  if (!env.RESEND_API_KEY) return;
+  try {
+    await claimNotification(env.DB, reg.id, 'confirmation');
+    await deliverConfirmation(env, reg, workshop, `workshop-confirm-${reg.id}-datechange-${Date.now()}`);
+  } catch (err) {
+    await logEvent(env.DB, { registration_id: null, kind: 'workshop.email.error', payload: { registration_id: reg.id, error: String(err) } });
+  }
+}
+
 export async function runWorkshopPaidSideEffects(
   env: Env,
   args: {

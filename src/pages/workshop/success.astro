@@ -173,6 +173,27 @@ if (reg && paid && reg.payment_status === 'paid') {
               {icsHref && <a href={icsHref}>Apple / Outlook</a>}
             </div>
 
+            {upcoming.length > 0 && (
+              <div class="ws-change" id="ws-change" hidden={win === 'closed' || started}>
+                <button type="button" class="ws-change-toggle" id="ws-change-toggle" aria-expanded="false" aria-controls="ws-change-panel">
+                  Can’t make this date? <span>Switch to another →</span>
+                </button>
+                <div class="ws-change-panel" id="ws-change-panel" hidden>
+                  <p class="ws-change-h">Move to another date — your spot comes with you.</p>
+                  <div class="ws-change-list" role="radiogroup" aria-label="Choose a new date">
+                    {upcoming.map((u) => (
+                      <label class="ws-change-item">
+                        <input type="radio" name="ws-changedate" value={u.slug} />
+                        <span class="ws-change-when">{u.whenLocal} <small>· {u.kind}</small></span>
+                      </label>
+                    ))}
+                  </div>
+                  <button type="button" class="ws-join ws-change-btn" id="ws-change-btn" disabled>Move me to this date →</button>
+                  <p class="ws-err" id="ws-change-err" hidden></p>
+                </div>
+              </div>
+            )}
+
             <div class="ws-missed" id="ws-missed" hidden={win !== 'closed'}>
               <p class="ws-missed-h">This session has passed</p>
               <p class="ws-missed-sub">Don't worry — pick one of the options below.</p>
@@ -280,6 +301,15 @@ if (reg && paid && reg.payment_status === 'paid') {
     .ws-rebook-when small { color:#B6A8B4; }
     .ws-err { margin:12px 0 0; color:#A14826; font-size:14px; }
 
+    .ws-change { margin-top:22px; }
+    .ws-change-toggle { display:inline-block; padding:0; border:0; background:none; cursor:pointer; font-family:inherit; font-size:14px; color:#4A3848; }
+    .ws-change-toggle span { color:#A14826; text-decoration:underline; }
+    .ws-change-panel { margin-top:18px; padding-top:22px; border-top:1px solid rgba(42,27,42,0.12); }
+    .ws-change-h { margin:0 0 14px; font-size:15px; color:#4A3848; }
+    .ws-change-list { display:flex; flex-direction:column; gap:8px; margin-bottom:18px; text-align:left; }
+    .ws-change-item { display:flex; align-items:center; gap:10px; padding:12px 14px; background:#F4ECDF; border-radius:10px; cursor:pointer; font-size:15px; color:#2A1B2A; }
+    .ws-change-when small { color:#B6A8B4; }
+
     .ws-share { margin-top:34px; padding-top:28px; border-top:1px solid rgba(42,27,42,0.12); }
     .ws-share-h { margin:0 0 4px; font-size:18px; color:#2A1B2A; }
     .ws-share-sub { margin:0 0 18px; font-size:14px; color:#4A3848; }
@@ -309,6 +339,7 @@ if (reg && paid && reg.payment_status === 'paid') {
       var early = document.getElementById('ws-early');
       var openBox = document.getElementById('ws-open');
       var cal = document.getElementById('ws-cal');
+      var change = document.getElementById('ws-change');
       var missed = document.getElementById('ws-missed');
 
       function pad(n) { return n < 10 ? '0' + n : '' + n; }
@@ -324,6 +355,8 @@ if (reg && paid && reg.payment_status === 'paid') {
         show(early, state === 'early');
         show(openBox, state === 'open');
         show(cal, state !== 'closed');
+        // Switching dates is offered right up until the session begins.
+        show(change, now < start);
         show(missed, state === 'closed');
 
         var s = Math.max(0, Math.floor((start - now) / 1000));
@@ -390,6 +423,44 @@ if (reg && paid && reg.payment_status === 'paid') {
           } catch (err) {
             if (rebookErr) { rebookErr.hidden = false; rebookErr.textContent = err.message || 'Something went wrong.'; }
             rebookBtn.disabled = false;
+          }
+        });
+      }
+
+      // Proactively move onto a chosen new date (before the session). Same seat,
+      // repointed at the new date — reachable while we're still counting down.
+      var changeToggle = document.getElementById('ws-change-toggle');
+      var changePanel = document.getElementById('ws-change-panel');
+      if (changeToggle && changePanel) {
+        changeToggle.addEventListener('click', function () {
+          var open = changePanel.hidden;
+          changePanel.hidden = !open;
+          changeToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        });
+      }
+      var changeBtn = document.getElementById('ws-change-btn');
+      var changeErr = document.getElementById('ws-change-err');
+      if (changeBtn) {
+        document.querySelectorAll('input[name="ws-changedate"]').forEach(function (r) {
+          r.addEventListener('change', function () { changeBtn.disabled = false; });
+        });
+        changeBtn.addEventListener('click', async function () {
+          var checked = document.querySelector('input[name="ws-changedate"]:checked');
+          if (!checked) return;
+          if (changeErr) { changeErr.hidden = true; changeErr.textContent = ''; }
+          changeBtn.disabled = true;
+          try {
+            var res = await fetch('/api/workshops/change-date', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ t: token, workshop_slug: checked.value }),
+            });
+            var data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Something went wrong.');
+            window.location.href = data.redirect_url;
+          } catch (err) {
+            if (changeErr) { changeErr.hidden = false; changeErr.textContent = err.message || 'Something went wrong.'; }
+            changeBtn.disabled = false;
           }
         });
       }
