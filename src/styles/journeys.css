@@ -1458,7 +1458,10 @@ html, body { background: var(--paper); }
 /* The lead carries the "how it works" copy now, so it stays visible on
    mobile; only very short (landscape) viewports drop it for stage room. */
 @media (max-width: 720px) {
-  .jr-forty.is-scrub .jr-forty-lead { font-size: 15px; }
+  /* Tighter header + edges so the deck itself gets the width. */
+  .jr-forty.is-scrub .jr-forty-head { top: clamp(72px, 9svh, 116px); left: var(--sp-3); right: var(--sp-3); }
+  .jr-forty.is-scrub .jr-forty-title { font-size: clamp(26px, 7.4vw, 34px); margin: var(--sp-3) 0 var(--sp-3); }
+  .jr-forty.is-scrub .jr-forty-lead { font-size: 15px; line-height: 1.55; }
 }
 @media (max-height: 560px) {
   .jr-forty.is-scrub .jr-forty-lead { display: none; }

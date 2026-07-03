@@ -368,9 +368,9 @@ const testimonials = [
         const H = pin!.clientHeight;
         const headB = head!.offsetTop + head!.offsetHeight;
         const small = W < 640;
-        const pad = small ? 12 : 28;
-        const top = headB + (small ? 10 : 18);
-        const bottom = H - (small ? 58 : 84);
+        const pad = small ? 6 : 28;
+        const top = headB + (small ? 8 : 18);
+        const bottom = H - (small ? 48 : 84);
         const availH = Math.max(160, bottom - top);
         const availW = Math.min(W - pad * 2, 1240);
         // 10x4 / 8x5 / 5x8 — always full rows, so the mosaic ends symmetric.
