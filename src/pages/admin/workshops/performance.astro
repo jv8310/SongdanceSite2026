@@ -159,13 +159,16 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
     .adm-table { width:100%; border-collapse:collapse; }
     .adm-table th, .adm-table td { text-align:left; padding:8px 10px; border-bottom:1px solid rgba(42,27,42,0.1); font-size:13px; white-space:nowrap; }
     .adm-inline-form { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
-    .wk-perf-scroll { overflow-x:auto; }
-    /* Frozen header: stays visible while the table scrolls, pinned just
-       below the sticky admin top bar (height measured in JS since it wraps
-       on narrow screens). */
+    /* The table scrolls inside its own box (both axes), so the sticky header
+       has a scroll container to pin against. Bounding the height to the
+       viewport (minus the sticky admin top bar, measured in JS) means the
+       body scrolls under a frozen header instead of the whole page moving —
+       the earlier page-level sticky never engaged because overflow-x already
+       made this div the vertical scroll context too. */
+    .wk-perf-scroll { overflow:auto; max-height:calc(100vh - var(--adm-topbar-h, 0px) - 24px); }
     .wk-perf thead th {
       position: sticky;
-      top: var(--adm-topbar-h, 0px);
+      top: 0;
       z-index: 5;
       background: var(--adm-paper-soft);
       box-shadow: 0 1px 0 rgba(42,27,42,0.1);
