@@ -17,6 +17,7 @@ import { runWorkshopCron } from './lib/workshops/cron';
 import { runBroadcasts } from './lib/broadcasts/cron';
 import { runDripOrderBackfill } from './lib/orders/drip-backfill';
 import { runReports } from './lib/workshops/reports';
+import { reconcileOrderNotifications } from './lib/orders/reconcile';
 import { fxRatesStale, refreshFxRates } from './lib/admin/fx';
 
 const WORKSHOP_CRON = '*/5 * * * *';
@@ -172,6 +173,21 @@ export function createExports(manifest: unknown) {
         })
         .catch((err) => {
           console.error('[reports] run failed', err);
+        }),
+    );
+
+    // Safety net: re-send any internal SD-ORDER notification (course/retreat)
+    // that never went out in the last week. Bounded + idempotent, so a steady
+    // state finds nothing; catches a webhook/Resend blip that dropped one.
+    ctx.waitUntil(
+      reconcileOrderNotifications(env)
+        .then((r) => {
+          if (r.course || r.retreat) {
+            console.log(`[orders/reconcile] resent course=${r.course} retreat=${r.retreat}`);
+          }
+        })
+        .catch((err) => {
+          console.error('[orders/reconcile] run failed', err);
         }),
     );
   };
