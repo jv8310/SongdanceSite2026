@@ -626,6 +626,59 @@ export async function setAttendance(
     .run();
 }
 
+// Move an existing (secured) registration onto a different workshop date — the
+// countdown-page "change my date", chosen *before* the session. Unlike the
+// post-miss free rebook (which comps a brand-new seat and leaves the original
+// paid row on the past date for accounting), here the single seat travels: this
+// same row — its access token, payment and Drip identity — is repointed at the
+// target, attendance is reset, and its reminder/confirmation claims are cleared
+// so the new date gets a fresh confirmation and its own clean cadence while the
+// old date stops reminding (and counting) them.
+//
+// Refuses to collide with an existing seat: if this email already holds a
+// separate registration on the target date, nothing moves — that seat's token
+// is returned (when it's a real secured seat) so the caller can point them there
+// instead of merging or stealing rows.
+export async function moveRegistrationToWorkshop(
+  db: D1Database,
+  registrationId: number,
+  targetWorkshopId: number,
+): Promise<
+  | { ok: true; token: string }
+  | { ok: false; reason: 'not_found' | 'already_on_target'; token?: string }
+> {
+  const reg = await getRegistrationById(db, registrationId);
+  if (!reg) return { ok: false, reason: 'not_found' };
+  // Already there — a no-op success on the same token (e.g. a double-submit).
+  if (reg.workshop_id === targetWorkshopId) return { ok: true, token: reg.access_token };
+
+  const existing = await getRegistrationByWorkshopEmail(db, targetWorkshopId, reg.email);
+  if (existing && existing.id !== registrationId) {
+    const secured = existing.payment_status === 'paid' || existing.payment_status === 'coupon';
+    return { ok: false, reason: 'already_on_target', token: secured ? existing.access_token : undefined };
+  }
+
+  await db
+    .prepare(
+      `UPDATE workshop_registrations
+          SET workshop_id = ?, attendance_status = 'registered', joined_at_utc = NULL,
+              updated_at = datetime('now')
+        WHERE id = ?`,
+    )
+    .bind(targetWorkshopId, registrationId)
+    .run();
+
+  // Clear the old date's reminder/confirmation claims: the sends are date-
+  // specific, so the new date must get its own confirmation and reminder cadence
+  // from scratch. (Pre-session there are no post-workshop claims to preserve.)
+  await db
+    .prepare('DELETE FROM workshop_sent_notifications WHERE registration_id = ?')
+    .bind(registrationId)
+    .run();
+
+  return { ok: true, token: reg.access_token };
+}
+
 export type RegistrationListRow = WorkshopRegistration & {
   amount_minor: number | null;
   pay_currency: string | null;

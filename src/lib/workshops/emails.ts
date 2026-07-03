@@ -210,6 +210,34 @@ export function confirmationEmail(ctx: WorkshopEmailCtx & { isReplay?: boolean }
   };
 }
 
+// ── Date-change confirmation ──────────────────────────────────────────────
+// Sent when a registrant moves their seat to a different live date from the
+// countdown page. Focused on the one thing that changed — the date — and hands
+// them fresh calendar links, since the old entry is now stale. Transactional
+// (a service message about their own booking; always delivered).
+export function dateChangedEmail(ctx: WorkshopEmailCtx): EmailContent {
+  const extras: ButtonLink[] = [];
+  if (ctx.googleCalUrl) extras.push({ label: 'Add to Google Calendar', href: ctx.googleCalUrl });
+  if (ctx.icsUrl) extras.push({ label: 'Apple / Outlook (.ics)', href: ctx.icsUrl });
+  const html = shell({
+    preheader: `Your new date for ${ctx.workshopTitle} is confirmed`,
+    heading: 'Your new date',
+    bodyHtml: `<p style="margin:0 0 14px;">${greeting(ctx.name)}</p>
+      <p style="margin:0 0 14px;">Done — your place in <strong>${escapeHtml(ctx.workshopTitle)}</strong> has moved. Same seat, new day:</p>
+      <p style="margin:0 0 4px;font-size:18px;color:${PALETTE.ink};">${escapeHtml(ctx.whenLocal)}</p>
+      <p style="margin:16px 0 0;">Your earlier calendar entry is out of date now — the links below add the new time. Nothing else changes, and there's nothing to prepare.</p>
+      ${quoteLine('Come as you sound.')}
+      <p style="margin:14px 0 0;">When the time comes, open your page below — the Join button appears 5 minutes before we begin.</p>`,
+    cta: { label: 'Open my countdown page', href: ctx.joinUrl },
+    extras,
+  });
+  return {
+    subject: `Your new date is confirmed — ${ctx.workshopTitle}`,
+    html,
+    text: `${greeting(ctx.name).replace(/<[^>]+>/g, '')}\n\nDone — your place in ${ctx.workshopTitle} has moved. Same seat, new day:\n\nWhen: ${ctx.whenLocal}\n\nYour earlier calendar entry is out of date now — re-add it from your countdown page. Nothing else changes, and there's nothing to prepare.\n\nYour countdown / join page: ${ctx.joinUrl}\n\nThe Join button appears 5 minutes before we begin.`,
+  };
+}
+
 // ── Reminders ──────────────────────────────────────────────────────────────
 const REMINDER_LEAD: Record<string, string> = {
   reminder_7d: 'in one week',
