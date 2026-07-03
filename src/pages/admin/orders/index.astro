@@ -88,6 +88,21 @@ function eur(minor: number): string {
   return `€${Number.isInteger(major) ? major : major.toFixed(2)}`;
 }
 
+// ── Date helpers (D1 stores 'YYYY-MM-DD HH:MM:SS' UTC) ──
+function fmtDate(s: string | null): string {
+  if (!s) return '—';
+  const iso = s.includes('T') ? s : `${s.replace(' ', 'T')}Z`;
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? '—' : d.toISOString().slice(0, 10);
+}
+function fmtDateTime(s: string | null): string | undefined {
+  if (!s) return undefined;
+  const iso = s.includes('T') ? s : `${s.replace(' ', 'T')}Z`;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return undefined;
+  return d.toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
+}
+
 const SOURCE_LABEL: Record<OrderSource, string> = {
   retreat: 'Retreat',
   course: 'Course',
@@ -215,6 +230,7 @@ const refundedTotal = orders.reduce((s, o) => s + o.refundedMinor, 0);
           <thead>
             <tr>
               <th>Order</th>
+              <th>Date</th>
               <th>Product(s)</th>
               <th>Name</th>
               <th>Email</th>
@@ -248,6 +264,12 @@ const refundedTotal = orders.reduce((s, o) => s + o.refundedMinor, 0);
                         </span>
                       )}
                     </div>
+                  </td>
+                  <td class="ord-date" title={fmtDateTime(o.createdAt)}>
+                    {fmtDate(o.createdAt)}
+                    {o.paidAt && fmtDate(o.paidAt) !== fmtDate(o.createdAt) && (
+                      <><br /><small class="ord-paid-date" title={fmtDateTime(o.paidAt)}>paid {fmtDate(o.paidAt)}</small></>
+                    )}
                   </td>
                   <td>{o.productLabel}</td>
                   <td>{name}</td>
@@ -356,6 +378,8 @@ const refundedTotal = orders.reduce((s, o) => s + o.refundedMinor, 0);
     .ord-table .num { font-variant-numeric: tabular-nums; white-space:nowrap; }
     .ord-refunded { color:var(--adm-danger); }
     .ord-plan-note { color:var(--adm-mute); }
+    .ord-date { white-space:nowrap; font-variant-numeric:tabular-nums; }
+    .ord-paid-date { color:var(--adm-mute); }
     .adm-pill--other { background:rgba(0,0,0,0.06); color:var(--adm-ink-soft); }
 
     /* Order id + compact source / plan tags, kept together on one small line. */
