@@ -159,13 +159,20 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
     .adm-table { width:100%; border-collapse:collapse; }
     .adm-table th, .adm-table td { text-align:left; padding:8px 10px; border-bottom:1px solid rgba(42,27,42,0.1); font-size:13px; white-space:nowrap; }
     .adm-inline-form { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
-    /* The table scrolls inside its own box (both axes), so the sticky header
-       has a scroll container to pin against. Bounding the height to the
-       viewport (minus the sticky admin top bar, measured in JS) means the
-       body scrolls under a frozen header instead of the whole page moving —
-       the earlier page-level sticky never engaged because overflow-x already
-       made this div the vertical scroll context too. */
-    .wk-perf-scroll { overflow:auto; max-height:calc(100vh - var(--adm-topbar-h, 0px) - 24px); }
+    /* Frozen header. The table scrolls inside its own box (both axes) so the
+       sticky header has a real scroll container to pin against — a plain
+       page-level sticky never engaged because overflow-x already made this
+       div the vertical scroll context. The box ALSO pins under the sticky
+       admin top bar (position:sticky + the same JS-measured height) and is
+       bounded to the viewport, so scrolling the page brings the box up, locks
+       it beneath the top bar, and every further scroll moves the body under a
+       header held exactly at the top bar's edge (no tuck-under, no gap). */
+    .wk-perf-scroll {
+      position: sticky;
+      top: var(--adm-topbar-h, 0px);
+      overflow: auto;
+      max-height: calc(100vh - var(--adm-topbar-h, 0px) - 16px);
+    }
     .wk-perf thead th {
       position: sticky;
       top: 0;
