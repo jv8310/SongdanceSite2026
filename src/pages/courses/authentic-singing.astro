@@ -109,8 +109,8 @@ const testimonials = [
         <div class="jr-eyebrow" style="justify-content:center;">What it is</div>
         <h2 class="jr-opening-head">Music, a mantra, and <em>your own voice.</em></h2>
         <p class="jr-prose-body">
-          Forty weekly sessions, each one a piece of music and a mantra, recorded to be done at home —
-          eyes closed if you like, no screen required. You sing along. That's the whole of it.
+          Forty weekly sessions, recorded to be done at home — eyes closed if you like, no screen
+          required. You sing along. That's the whole of it.
         </p>
         <p class="jr-prose-body">
           It is singing, but not the kind that asks you to be good at it. No right notes. No audition.
@@ -164,31 +164,16 @@ const testimonials = [
       </div>
     </section>
 
-    <!-- How it works -->
-    <section class="jr-section jr-opening">
-      <div class="jr-opening-inner">
-        <div class="jr-eyebrow" style="justify-content:center;">How it works</div>
-        <h2 class="jr-opening-head">One session a week. <em>Forty weeks.</em></h2>
-        <p class="jr-prose-body">
-          Go week by week, or at whatever pace suits you. Each session travels somewhere
-          different: another rhythm, another landscape, another mood. You never quite know
-          what's coming, and that's the point. The mind can't rehearse, so you arrive in the present
-          and sing from there.
-        </p>
-        <p class="jr-prose-body">
-          Some weeks are joyful. Some are quiet. Some go to the harder feelings and give them a tune
-          to ride out on. You sing all of it — not to get rid of anything, but to let it be heard.
-        </p>
-      </div>
-    </section>
-
-    <!-- The forty — scroll-scrubbed session deck -->
+    <!-- How it works — the scroll-scrubbed session deck -->
     <section class="jr-forty" aria-labelledby="jr-forty-head" data-jr-forty>
       <div class="jr-forty-pin" data-forty-pin>
         <div class="jr-forty-head">
-          <div class="jr-eyebrow" style="justify-content:center;">What you'll travel through</div>
-          <h2 class="jr-forty-title" id="jr-forty-head">One journey. <em>Forty worlds.</em></h2>
-          <p class="jr-forty-lead">Keep scrolling — every session, one by one.</p>
+          <div class="jr-eyebrow" style="justify-content:center;">How it works</div>
+          <h2 class="jr-forty-title" id="jr-forty-head">One session a week. <em>Forty worlds.</em></h2>
+          <p class="jr-forty-lead">
+            Each week travels somewhere different — another rhythm, another landscape, another
+            mood. You sing all of it.
+          </p>
         </div>
         <div class="jr-forty-stage" data-forty-stage>
           {sessionThumbs.map((src) => (
@@ -366,6 +351,7 @@ const testimonials = [
 
       let S = 140;                              // pile card size (px)
       let gScale = 0.6, fScale = 2.2, lift = 48;
+      let pileBig = 1.6, pileScale = 1;         // intro: pile starts big, shrinks by P0
       let slots: Array<[number, number]> = [];
       let cx = 0, cy = 0;
       let lastWeek = 0;
@@ -387,7 +373,8 @@ const testimonials = [
         const bottom = H - (small ? 58 : 84);
         const availH = Math.max(160, bottom - top);
         const availW = Math.min(W - pad * 2, 1240);
-        const cols = W >= 900 ? 10 : W >= 640 ? 8 : 6;
+        // 10x4 / 8x5 / 5x8 — always full rows, so the mosaic ends symmetric.
+        const cols = W >= 900 ? 10 : W >= 640 ? 8 : 5;
         const rows = Math.ceil(N / cols);
         const gap = small ? 5 : 10;
         const cell = Math.min((availW - gap * (cols - 1)) / cols, (availH - gap * (rows - 1)) / rows);
@@ -408,6 +395,7 @@ const testimonials = [
         S = Math.max(110, Math.min(170, cell * 1.5));
         gScale = cell / S;
         fScale = Math.min(availH * 0.72, W * 0.6, 460) / S;
+        pileBig = Math.max(1.6, fScale * 0.75);
         lift = Math.min(availH * 0.12, 60);
         stage!.style.setProperty('--forty-s', S.toFixed(1) + 'px');
       }
@@ -418,7 +406,7 @@ const testimonials = [
         const fx = cx + (i % 2 ? 1 : -1) * Math.min(28, cx * 0.06);
         let x: number, y: number, sc: number, r: number, z: number;
         if (t <= 0) {
-          x = cx + jx(i); y = cy + jy(i); sc = 1; r = rot(i); z = 400 - i;
+          x = cx + jx(i); y = cy + jy(i); sc = pileScale; r = rot(i); z = 400 - i;
         } else if (t < T1) {
           const k = easeIO(t / T1);
           x = cx + jx(i) * (1 - k) + (fx - cx) * k;
@@ -447,6 +435,9 @@ const testimonials = [
 
       function apply() {
         const p = progress();
+        // The pile opens large and condenses to flight size just as the
+        // riffle begins (continuous at p = P0, where flights start at 1).
+        pileScale = p < P0 ? 1 + (pileBig - 1) * (1 - easeIO(p / P0)) : 1;
         for (let i = 0; i < N; i++) pose(i, p);
         const wk = Math.min(N, Math.max(1, Math.round((p - P0 - L * T1) / step) + 1));
         if (wk !== lastWeek) { lastWeek = wk; weekEl!.textContent = 'Week ' + wk; }

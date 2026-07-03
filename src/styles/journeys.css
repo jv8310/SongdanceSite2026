@@ -315,6 +315,12 @@ html, body { background: var(--paper); }
 }
 .jr-prose-body:last-child { margin-bottom: 0; }
 .jr-prose-body em { font-family: var(--font-lyric); font-style: italic; color: var(--ink); font-size: 1.08em; }
+/* Mobile: tighter type so the centred heading + left-set prose read as one
+   composed block rather than a loose wall of text. */
+@media (max-width: 720px) {
+  .jr-opening-head { font-size: clamp(30px, 9.4vw, 40px); }
+  .jr-prose-body { font-size: 17px; line-height: 1.7; }
+}
 .jr-prose-pull {
   font-family: var(--font-lyric);
   font-style: italic;
@@ -389,7 +395,9 @@ html, body { background: var(--paper); }
 
 /* ---------- Stat strip ---------- */
 .jr-stat {
+  /* deep enough to read as its own band against the paper sections around it */
   background: var(--jr-accent-glow);
+  background: color-mix(in srgb, var(--jr-accent-soft) 55%, var(--jr-accent-glow));
   padding: var(--sp-9) var(--sp-7);
   position: relative;
   overflow: hidden;
@@ -1447,7 +1455,12 @@ html, body { background: var(--paper); }
   pointer-events: none;
 }
 .jr-forty.is-scrub .jr-forty-title { font-size: clamp(30px, 4vw, 52px); }
-@media (max-width: 720px), (max-height: 640px) {
+/* The lead carries the "how it works" copy now, so it stays visible on
+   mobile; only very short (landscape) viewports drop it for stage room. */
+@media (max-width: 720px) {
+  .jr-forty.is-scrub .jr-forty-lead { font-size: 15px; }
+}
+@media (max-height: 560px) {
   .jr-forty.is-scrub .jr-forty-lead { display: none; }
 }
 .jr-forty.is-scrub .jr-forty-stage {
