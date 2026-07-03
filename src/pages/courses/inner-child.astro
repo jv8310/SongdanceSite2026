@@ -97,7 +97,7 @@ const testimonials = [
 
     <!-- What it is -->
     <section class="jr-section jr-opening">
-      <div class="jr-opening-inner">
+      <div class="jr-opening-inner" data-reveal>
         <div class="jr-eyebrow" style="justify-content:center;">What it is</div>
         <h2 class="jr-opening-head">Turning back toward <em>that child.</em></h2>
         <p class="jr-prose-body">
@@ -116,7 +116,7 @@ const testimonials = [
 
     <!-- Gentle-approach split -->
     <section class="jr-section jr-split">
-      <div class="jr-split-inner">
+      <div class="jr-split-inner" data-reveal>
         <figure class="jr-split-figure">
           <img src="/media/library/inner-child-touch.webp" alt="An adult hand resting gently on a child's hair" loading="lazy" />
         </figure>
@@ -137,7 +137,7 @@ const testimonials = [
 
     <!-- How deep it goes — full-screen parallax -->
     <section class="jr-deep" style="background-image:url('/media/library/inner-child-beach.webp'); background-position: 42% 40%;">
-      <div class="jr-deep-inner">
+      <div class="jr-deep-inner" data-reveal>
         <div class="jr-eyebrow">Why it reaches so far</div>
         <h2 class="jr-deep-head">It begins earlier than <em>memory.</em></h2>
         <p class="jr-deep-body">
@@ -152,75 +152,142 @@ const testimonials = [
 
     <!-- Mid-page CTA -->
     <section class="jr-midcta">
-      <div class="jr-midcta-inner">
+      <div class="jr-midcta-inner" data-reveal>
         <p class="jr-midcta-line">Turn back toward the child you were — gently, at your own pace.</p>
         <a href="#register" class="jr-midcta-btn">Begin session one <i class="ph-light ph-arrow-right"></i></a>
         <p class="jr-midcta-note">5 sessions · gentle · €29</p>
       </div>
     </section>
 
-    <!-- The five sessions -->
+    <!-- The five sessions — illustrated chapters -->
     <section class="jr-section jr-sessions">
       <div class="jr-sessions-inner">
-        <div class="jr-sessions-head">
-          <div class="jr-eyebrow">The journey</div>
-          <h2 class="jr-h2">Five sessions.</h2>
+        <div class="jr-sessions-head" data-reveal>
+          <figure class="jr-sessions-art">
+            <img
+              src="/media/library/inner-child-drawing.webp"
+              alt="A watercolour of a mother singing to the small child held within her heart, cradled in a lotus and stars"
+              width="800"
+              height="800"
+              loading="lazy"
+            />
+          </figure>
+          <div class="jr-eyebrow" style="justify-content:center;">The journey</div>
+          <h2 class="jr-h2">Five sessions, <em>one at a time.</em></h2>
+          <p class="jr-sessions-lede">From first meeting to closing lullaby — each one a small step closer.</p>
         </div>
-        <div class="jr-session-row">
-          <div class="jr-session-num">01</div>
-          <div class="jr-session-body">
-            <h3 class="jr-session-title">Establishing connection.</h3>
-            <p class="jr-session-text">
-              You meet your inner child and begin, slowly, to build trust — a place where both your
-              voices are welcome, and the story of your life can be heard in your own sound.
-            </p>
-          </div>
-        </div>
-        <div class="jr-session-row">
-          <div class="jr-session-num">02</div>
-          <div class="jr-session-body">
-            <h3 class="jr-session-title">Reclaim your innocence.</h3>
-            <p class="jr-session-text">
-              An invitation to give sound to the pain, and to sing words of innocence and care to the
-              child who went without them. A soft mantra stays with you while you do.
-            </p>
-          </div>
-        </div>
-        <div class="jr-session-row">
-          <div class="jr-session-num">03</div>
-          <div class="jr-session-body">
-            <h3 class="jr-session-title">Take your life into your hands.</h3>
-            <p class="jr-session-text">
-              Here you give sound to anger — and set down what was never yours to carry. A stronger
-              mantra opens out into your own life, as it is now, with all its room to move.
-            </p>
-          </div>
-        </div>
-        <div class="jr-session-row">
-          <div class="jr-session-num">04</div>
-          <div class="jr-session-body">
-            <h3 class="jr-session-title">The Cherry Blossom Child.</h3>
-            <p class="jr-session-text">
-              A story, and a reminder: you were born as love, the same as every child. Your inner
-              child still knows it. You sing for that.
-            </p>
-          </div>
-        </div>
-        <div class="jr-session-row">
-          <div class="jr-session-num">05</div>
-          <div class="jr-session-body">
-            <h3 class="jr-session-title">Here with you.</h3>
-            <p class="jr-session-text">
-              A closing mantra — a lullaby for you both, to honour the connection you’ve made.
-            </p>
-          </div>
+
+        <div class="jr-chapters">
+          <article class="jr-chapter" data-reveal>
+            <figure class="jr-chapter-figure" data-jr-parallax>
+              <img
+                src="/media/library/inner-child-session1.webp"
+                alt="A small child, seen from behind, gently absorbed in play with soft toys"
+                loading="lazy"
+              />
+            </figure>
+            <div class="jr-chapter-text">
+              <div class="jr-chapter-head">
+                <span class="jr-chapter-num" aria-hidden="true">01</span>
+                <span class="jr-chapter-kicker">Session one</span>
+              </div>
+              <h3 class="jr-chapter-title">Establishing connection.</h3>
+              <p class="jr-chapter-body">
+                You meet your inner child and begin, slowly, to build trust — a place where both your
+                voices are welcome, and the story of your life can be heard in your own sound.
+              </p>
+            </div>
+          </article>
+
+          <article class="jr-chapter" data-reveal>
+            <figure class="jr-chapter-figure" data-jr-parallax>
+              <img
+                src="/media/library/inner-child-session2.webp"
+                alt="A young girl laughing in golden light, holding a single white flower"
+                loading="lazy"
+              />
+            </figure>
+            <div class="jr-chapter-text">
+              <div class="jr-chapter-head">
+                <span class="jr-chapter-num" aria-hidden="true">02</span>
+                <span class="jr-chapter-kicker">Session two</span>
+              </div>
+              <h3 class="jr-chapter-title">Reclaim your innocence.</h3>
+              <p class="jr-chapter-body">
+                An invitation to give sound to the pain, and to sing words of innocence and care to the
+                child who went without them. A soft mantra stays with you while you do.
+              </p>
+            </div>
+          </article>
+
+          <article class="jr-chapter" data-reveal>
+            <figure class="jr-chapter-figure" data-jr-parallax>
+              <img
+                src="/media/library/inner-child-session3.webp"
+                alt="A child looking out from behind a wire fence laced with dry vines"
+                loading="lazy"
+              />
+            </figure>
+            <div class="jr-chapter-text">
+              <div class="jr-chapter-head">
+                <span class="jr-chapter-num" aria-hidden="true">03</span>
+                <span class="jr-chapter-kicker">Session three</span>
+              </div>
+              <h3 class="jr-chapter-title">Take your life into your hands.</h3>
+              <p class="jr-chapter-body">
+                Here you give sound to anger — and set down what was never yours to carry. A stronger
+                mantra opens out into your own life, as it is now, with all its room to move.
+              </p>
+            </div>
+          </article>
+
+          <article class="jr-chapter" data-reveal>
+            <figure class="jr-chapter-figure" data-jr-parallax>
+              <img
+                src="/media/library/inner-child-session4.webp"
+                alt="Cherry blossom in full bloom against a soft spring sky"
+                loading="lazy"
+              />
+            </figure>
+            <div class="jr-chapter-text">
+              <div class="jr-chapter-head">
+                <span class="jr-chapter-num" aria-hidden="true">04</span>
+                <span class="jr-chapter-kicker">Session four</span>
+              </div>
+              <h3 class="jr-chapter-title">The Cherry Blossom Child.</h3>
+              <p class="jr-chapter-body">
+                A story, and a reminder: you were born as love, the same as every child. Your inner
+                child still knows it. You sing for that.
+              </p>
+            </div>
+          </article>
+
+          <article class="jr-chapter" data-reveal>
+            <figure class="jr-chapter-figure" data-jr-parallax>
+              <img
+                src="/media/library/inner-child-session5.webp"
+                alt="A woven basket of white silk-wrapped bundles and soft flowers"
+                loading="lazy"
+              />
+            </figure>
+            <div class="jr-chapter-text">
+              <div class="jr-chapter-head">
+                <span class="jr-chapter-num" aria-hidden="true">05</span>
+                <span class="jr-chapter-kicker">Session five</span>
+              </div>
+              <h3 class="jr-chapter-title">Here with you.</h3>
+              <p class="jr-chapter-body">
+                A closing mantra — a lullaby for you both, to honour the connection you’ve made.
+              </p>
+            </div>
+          </article>
         </div>
       </div>
     </section>
 
     <!-- Mid-page CTA -->
     <section class="jr-midcta">
-      <div class="jr-midcta-inner">
+      <div class="jr-midcta-inner" data-reveal>
         <p class="jr-midcta-line">Five sessions, no rush — begin whenever you're ready.</p>
         <a href="#register" class="jr-midcta-btn">Begin session one <i class="ph-light ph-arrow-right"></i></a>
         <p class="jr-midcta-note">Lifetime access · 1:1 support optional · €29</p>
@@ -238,7 +305,7 @@ const testimonials = [
 
     <!-- Two ways with the voice -->
     <section class="jr-section jr-split jr-split--rev">
-      <div class="jr-split-inner">
+      <div class="jr-split-inner" data-reveal>
         <figure class="jr-split-figure">
           <img src="/media/library/inner-child-scream.webp" alt="A child making a full, free sound" loading="lazy" />
         </figure>
@@ -258,7 +325,7 @@ const testimonials = [
 
     <!-- A note on pacing and care -->
     <section class="jr-section jr-note">
-      <div class="jr-note-inner">
+      <div class="jr-note-inner" data-reveal>
         <div class="jr-eyebrow">Take it slowly</div>
         <p>
           This is gentle work, but it can touch tender places. Take it slowly. Repeat a session as
@@ -276,7 +343,7 @@ const testimonials = [
       <div class="jr-lyric-bg" aria-hidden="true">
         <img src="/media/library/inner-child-glow.webp" alt="" />
       </div>
-      <div class="jr-lyric-inner">
+      <div class="jr-lyric-inner" data-reveal>
         <img class="jr-lyric-mark" src="/brand/symbol-orange.png" alt="" aria-hidden="true" />
         <p class="jr-lyric-text">Sing them what they never got to hear.</p>
         <div class="jr-lyric-by">Inner Child Healing Journey</div>
@@ -286,11 +353,11 @@ const testimonials = [
     <!-- Who it's for -->
     <section class="jr-section jr-whom">
       <div class="jr-whom-inner">
-        <div class="jr-whom-head">
+        <div class="jr-whom-head" data-reveal>
           <div class="jr-eyebrow" style="justify-content:center;">Who it's for</div>
           <h2 class="jr-h2">If some of today’s heaviness was packed a <em>long time ago.</em></h2>
         </div>
-        <div class="jr-whom-body">
+        <div class="jr-whom-body" data-reveal>
           <figure class="jr-whom-figure">
             <img src="/media/library/svhgpt-07-below-deeper-earlier.webp" alt="A figure with roots reaching deep into the earth, toward a small glow" loading="lazy" />
           </figure>
@@ -311,11 +378,11 @@ const testimonials = [
     <!-- Testimonials -->
     <section class="jr-section jr-testimonials">
       <div class="jr-testimonials-inner">
-        <div class="jr-testimonials-head">
+        <div class="jr-testimonials-head" data-reveal>
           <div class="jr-eyebrow">Voices from the journey</div>
           <h2 class="jr-h2">What it has been for others.</h2>
         </div>
-        <div class="jr-testimonials-grid">
+        <div class="jr-testimonials-grid" data-reveal>
           {testimonials.map((t) => (
             <article class="jr-testimonial">
               <div class="jr-testimonial-stars" aria-label="5 out of 5">
@@ -372,4 +439,89 @@ const testimonials = [
       </div>
     </footer>
   </div>
+
+  <script is:inline>
+    // Progressive enhancement for the Inner Child journey: reveal-on-scroll for
+    // the main blocks, plus a gentle intra-frame parallax on the session images.
+    // If JS or IntersectionObserver is missing, or motion is reduced, every
+    // element stays visible and still — nothing here is required to read the page.
+    (() => {
+      const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const revealEls = Array.from(document.querySelectorAll('[data-reveal]'));
+
+      // ---- Reveal on scroll ----
+      if (reduce || !('IntersectionObserver' in window)) {
+        revealEls.forEach((el) => el.classList.add('is-visible'));
+      } else {
+        document.documentElement.classList.add('jr-anim');
+        const io = new IntersectionObserver(
+          (entries, obs) => {
+            for (const entry of entries) {
+              if (entry.isIntersecting) {
+                entry.target.classList.add('is-visible');
+                obs.unobserve(entry.target);
+              }
+            }
+          },
+          { rootMargin: '0px 0px -8% 0px', threshold: 0.12 },
+        );
+        revealEls.forEach((el) => io.observe(el));
+        // Safety net: anything already in view after load reveals regardless.
+        window.addEventListener('load', () => {
+          revealEls.forEach((el) => {
+            if (!el.classList.contains('is-visible')) {
+              const r = el.getBoundingClientRect();
+              if (r.top < window.innerHeight) el.classList.add('is-visible');
+            }
+          });
+        });
+      }
+
+      // ---- Gentle parallax on the session images ----
+      if (!reduce && 'IntersectionObserver' in window) {
+        const figs = Array.from(document.querySelectorAll('[data-jr-parallax]'));
+        if (figs.length) {
+          const visible = new Set();
+          let ticking = false;
+
+          const update = () => {
+            ticking = false;
+            const vh = window.innerHeight || document.documentElement.clientHeight;
+            visible.forEach((fig) => {
+              const r = fig.getBoundingClientRect();
+              const center = r.top + r.height / 2;
+              // progress: 0 as it enters at the bottom → 1 as it leaves at the top
+              const progress = 1 - center / vh;
+              const t = Math.max(-0.5, Math.min(0.5, progress - 0.5));
+              const shift = -t * r.height * 0.1; // travels ±5% of the frame height
+              const img = fig.querySelector('img');
+              if (img) img.style.setProperty('--jr-py', shift.toFixed(1) + 'px');
+            });
+          };
+          const schedule = () => {
+            if (!ticking) {
+              ticking = true;
+              requestAnimationFrame(update);
+            }
+          };
+
+          const vio = new IntersectionObserver(
+            (entries) => {
+              for (const e of entries) {
+                if (e.isIntersecting) visible.add(e.target);
+                else visible.delete(e.target);
+              }
+              if (visible.size) schedule();
+            },
+            { threshold: 0 },
+          );
+          figs.forEach((fig) => vio.observe(fig));
+
+          window.addEventListener('scroll', schedule, { passive: true });
+          window.addEventListener('resize', schedule);
+          schedule();
+        }
+      }
+    })();
+  </script>
 </Layout>
