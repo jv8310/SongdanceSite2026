@@ -159,20 +159,16 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
     .adm-table { width:100%; border-collapse:collapse; }
     .adm-table th, .adm-table td { text-align:left; padding:8px 10px; border-bottom:1px solid rgba(42,27,42,0.1); font-size:13px; white-space:nowrap; }
     .adm-inline-form { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
-    /* Frozen header. The table scrolls inside its own box (both axes) so the
-       sticky header has a real scroll container to pin against — a plain
-       page-level sticky never engaged because overflow-x already made this
-       div the vertical scroll context. The box ALSO pins under the sticky
-       admin top bar (position:sticky + the same JS-measured height) and is
-       bounded to the viewport, so scrolling the page brings the box up, locks
-       it beneath the top bar, and every further scroll moves the body under a
-       header held exactly at the top bar's edge (no tuck-under, no gap). */
-    .wk-perf-scroll {
-      position: sticky;
-      top: var(--adm-topbar-h, 0px);
-      overflow: auto;
-      max-height: calc(100vh - var(--adm-topbar-h, 0px) - 16px);
-    }
+    /* Frozen header. The table scrolls inside its own box (max-height keeps it
+       short enough to sit in the viewport, so the wheel scrolls the box rather
+       than the page) and the header cells stick to the top of that box.
+       Crucially, the shared .adm-table sets `overflow: hidden` (to clip its
+       rounded corners) — that makes the *table* a scroll container and would
+       trap the sticky header against the table instead of the scroll box, so
+       we override it back to visible here. Without this the header just
+       scrolls away. */
+    .wk-perf-scroll { overflow: auto; max-height: 60vh; }
+    .wk-perf { overflow: visible; border-radius: 0; }
     .wk-perf thead th {
       position: sticky;
       top: 0;
@@ -185,20 +181,6 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
     .wk-perf__name span { display:block; font-size:11px; color:#9a8; }
     .wk-row--total td { border-top:2px solid rgba(42,27,42,0.25); }
   </style>
-
-  <script is:inline>
-    (function () {
-      var topbar = document.querySelector('.adm-topbar');
-      function syncTopbarHeight() {
-        document.documentElement.style.setProperty('--adm-topbar-h', (topbar ? topbar.offsetHeight : 0) + 'px');
-      }
-      if (topbar) {
-        syncTopbarHeight();
-        window.addEventListener('resize', syncTopbarHeight);
-        if (window.ResizeObserver) new ResizeObserver(syncTopbarHeight).observe(topbar);
-      }
-    })();
-  </script>
 
   <script is:inline>
     (function () {
