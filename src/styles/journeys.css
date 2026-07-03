@@ -1520,7 +1520,7 @@ html.jr-anim .jr-chapter-figure img {
 @media (max-width: 720px) { .jr-forty.is-scrub { height: 290vh; } }
 .jr-forty.is-scrub .jr-forty-pin {
   position: sticky; top: 0;
-  height: 100vh; height: 100svh;
+  height: 100vh; height: 100dvh;
   overflow: hidden;
 }
 .jr-forty.is-scrub .jr-forty-head {
@@ -1555,11 +1555,15 @@ html.jr-anim .jr-chapter-figure img {
 .jr-forty.is-scrub .jr-forty-counter {
   display: block;
   position: absolute; left: 0; right: 0;
-  bottom: clamp(18px, 5svh, 44px);
+  bottom: 0;
+  padding: 9px 0 10px;
   text-align: center;
   font-family: var(--font-mono);
   font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
   color: var(--ink-quiet);
+  /* sits in a reserved strip below the grid, on its own bg so it never
+     reads as text laid over the images */
+  background: linear-gradient(180deg, transparent, var(--paper-deep) 42%);
   opacity: 0;
   transition: opacity 300ms var(--ease);
   z-index: 6;
