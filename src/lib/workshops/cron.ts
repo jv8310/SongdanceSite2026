@@ -33,6 +33,8 @@ import { sendEmail } from './resend';
 import {
   abandonedEmail1,
   abandonedEmail2,
+  courseAbandonedEmail1,
+  courseAbandonedEmail2,
   attendedEmail1,
   attendedEmail2,
   attendedEmail3,
@@ -71,6 +73,12 @@ import {
   DISCOUNT_WINDOW_HOURS,
   postWorkshopEmailOffer,
 } from '../courses/twelve-week';
+import type { CourseRegistration } from '../courses/db';
+import {
+  ABANDONED_COURSE_SLUGS,
+  abandonedCourseMeta,
+  courseResumeUrl,
+} from '../courses/abandoned';
 
 type CronEnv = {
   DB: D1Database;
@@ -190,6 +198,7 @@ const ABANDONED_2_MAX_AGE_MIN = 36 * H;
 export type CronResult = {
   remindersSent: number;
   abandonedSent: number;
+  courseAbandonedSent: number;
   postSent: number;
   noShowsMarked: number;
   briefingsSent: number;
@@ -199,6 +208,7 @@ export async function runWorkshopCron(env: CronEnv, now = Date.now()): Promise<C
   const result: CronResult = {
     remindersSent: 0,
     abandonedSent: 0,
+    courseAbandonedSent: 0,
     postSent: 0,
     noShowsMarked: 0,
     briefingsSent: 0,
@@ -207,6 +217,7 @@ export async function runWorkshopCron(env: CronEnv, now = Date.now()): Promise<C
 
   await runReminders(env, now, result);
   await runAbandonedCheckouts(env, now, result);
+  await runCourseAbandonedCheckouts(env, now, result);
   await runPostWorkshop(env, now, result);
   await runPreWorkshopBriefing(env, now, result);
   return result;
@@ -405,6 +416,98 @@ async function runAbandonedCheckouts(env: CronEnv, now: number, result: CronResu
     const sent = await sendMarketing(env, r.email, content, `workshop-${due.type}-${r.id}`, secret, due.type, r.id);
     if (sent) result.abandonedSent += 1;
   }
+}
+
+// ── Abandoned course checkouts ──────────────────────────────────────────────
+// The considered-purchase courses (12-week, certification, grief) get the same
+// two-touch cart nudge as the workshops above, for checkouts that reached Stripe
+// and never paid. Course rows carry no live date and no updated_at re-arm, so
+// timing anchors on created_at; a pending row is swept to 'expired' at ~15 min
+// (expireStaleCoursePendings), so both statuses read as "started, never paid".
+// The resume link is the course page with an ?email= prefill. Impulse journeys
+// are excluded (see src/lib/courses/abandoned.ts).
+async function runCourseAbandonedCheckouts(env: CronEnv, now: number, result: CronResult) {
+  const base = env.PUBLIC_BASE_URL.replace(/\/$/, '');
+  const secret = unsubscribeSecret(env);
+
+  const ph = ABANDONED_COURSE_SLUGS.map(() => '?').join(',');
+  const rows = await env.DB
+    .prepare(
+      `SELECT * FROM course_registrations
+        WHERE status IN ('pending','expired')
+          AND product_slug IN (${ph})
+          AND created_at >= datetime('now', '-${ABANDONED_2_MAX_AGE_MIN} minutes')`,
+    )
+    .bind(...ABANDONED_COURSE_SLUGS)
+    .all<CourseRegistration>();
+
+  for (const r of rows.results ?? []) {
+    const ageMin = (now - sqliteMs(r.created_at)) / MIN_MS;
+    if (!Number.isFinite(ageMin) || ageMin < ABANDONED_1_AFTER_MIN) continue;
+
+    let due: { type: string; build: 'first' | 'second' } | null = null;
+    if (ageMin >= ABANDONED_2_AFTER_MIN && ageMin <= ABANDONED_2_MAX_AGE_MIN) {
+      due = { type: 'course_abandoned_2', build: 'second' };
+    } else if (ageMin < ABANDONED_2_AFTER_MIN) {
+      due = { type: 'course_abandoned_1', build: 'first' };
+    }
+    if (!due) continue;
+
+    // Marketing-flavoured, so honour the recipient's local send window: hold the
+    // nudge until local daytime (later ticks re-evaluate; the windows are wide
+    // enough to absorb an overnight wait). No course display tz → the send-window
+    // default applies for a null timezone.
+    if (!withinSendWindow(r.timezone, now)) continue;
+
+    // Quiet checks before burning the claim: unsubscribed, or this cart is moot.
+    if (await isEmailSuppressed(env.DB, r.email)) continue;
+
+    // Converted, or superseded by a fresh attempt: a paid course row anywhere for
+    // this email, or any newer course row (a later checkout re-arms on its own
+    // row and will be nudged from there), means this stale cart isn't nagged.
+    const moot = await env.DB
+      .prepare(
+        `SELECT 1 AS one FROM course_registrations
+          WHERE lower(email) = lower(?)
+            AND (status = 'paid' OR created_at > ?)
+          LIMIT 1`,
+      )
+      .bind(r.email, r.created_at)
+      .first<{ one: number }>();
+    if (moot) continue;
+
+    const meta = abandonedCourseMeta(r.product_slug);
+    const resumeUrl = courseResumeUrl(base, r.product_slug, r.email);
+    if (!meta || !resumeUrl) continue; // not a nudged product (guarded by the IN filter)
+
+    if (!(await claimCourseAbandoned(env.DB, r.id, due.type))) continue;
+
+    const ctx = {
+      name: r.first_name,
+      courseName: meta.name,
+      resumeUrl,
+      unsubscribeUrl: secret ? await unsubscribePageUrl(base, secret, r.email) : undefined,
+    };
+    const content = due.build === 'first' ? courseAbandonedEmail1(ctx) : courseAbandonedEmail2(ctx);
+    const sent = await sendMarketing(env, r.email, content, `course-${due.type}-${r.id}`, secret, due.type, r.id);
+    if (sent) result.courseAbandonedSent += 1;
+  }
+}
+
+// Claim a course abandoned-cart send in the `events` log (unique external_id).
+// Course rows have no workshop_sent_notifications slot, so idempotency rides the
+// same events-claim pattern as the briefing/report digests. registration_id is
+// NULL (that FK targets the retreat `registrations` table); the course id lives
+// in external_id. Returns true if THIS call inserted the row (so we should send).
+async function claimCourseAbandoned(db: D1Database, courseRegId: number, type: string): Promise<boolean> {
+  const r = await db
+    .prepare(
+      `INSERT OR IGNORE INTO events (registration_id, kind, source, external_id)
+       VALUES (NULL, 'course.abandoned.sent', 'system', ?)`,
+    )
+    .bind(`${type}-${courseRegId}`)
+    .run();
+  return (r.meta?.changes ?? 0) > 0;
 }
 
 // ── Post-workshop sequences ─────────────────────────────────────────────────

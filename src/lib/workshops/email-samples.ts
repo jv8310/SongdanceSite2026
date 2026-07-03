@@ -7,6 +7,8 @@
 import {
   abandonedEmail1,
   abandonedEmail2,
+  courseAbandonedEmail1,
+  courseAbandonedEmail2,
   attendedEmail1,
   attendedEmail2,
   attendedEmail3,
@@ -91,6 +93,34 @@ export function buildEmailSamples(base: string): EmailSample[] {
       timing: '~20h after, only while the date is still ahead',
       audience: 'Same — second and last touch',
       content: abandonedEmail2({ ...lc, whenLocal, resumeUrl }),
+    },
+
+    // ── Abandoned course checkout (12-week / certification / grief) ──────
+    {
+      id: 'course_abandoned_1',
+      group: 'Abandoned checkout (courses)',
+      label: 'Nudge 1 — the open door',
+      timing: '~45 min after checkout was left',
+      audience: "Started a course checkout, didn't pay (and hasn't bought since)",
+      content: courseAbandonedEmail1({
+        name,
+        courseName: 'the 12-Week Somatic Vocal Healing Course',
+        resumeUrl: courseUrl,
+        unsubscribeUrl,
+      }),
+    },
+    {
+      id: 'course_abandoned_2',
+      group: 'Abandoned checkout (courses)',
+      label: 'Nudge 2 — honest small print',
+      timing: '~20h after (up to 36h)',
+      audience: 'Same — second and last touch',
+      content: courseAbandonedEmail2({
+        name,
+        courseName: 'the 12-Week Somatic Vocal Healing Course',
+        resumeUrl: courseUrl,
+        unsubscribeUrl,
+      }),
     },
 
     // ── Registration + reminders (transactional) ────────────────────────
