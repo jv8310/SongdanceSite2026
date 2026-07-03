@@ -315,6 +315,12 @@ html, body { background: var(--paper); }
 }
 .jr-prose-body:last-child { margin-bottom: 0; }
 .jr-prose-body em { font-family: var(--font-lyric); font-style: italic; color: var(--ink); font-size: 1.08em; }
+/* Mobile: tighter type so the centred heading + left-set prose read as one
+   composed block rather than a loose wall of text. */
+@media (max-width: 720px) {
+  .jr-opening-head { font-size: clamp(30px, 9.4vw, 40px); }
+  .jr-prose-body { font-size: 17px; line-height: 1.7; }
+}
 .jr-prose-pull {
   font-family: var(--font-lyric);
   font-style: italic;
@@ -389,7 +395,9 @@ html, body { background: var(--paper); }
 
 /* ---------- Stat strip ---------- */
 .jr-stat {
+  /* deep enough to read as its own band against the paper sections around it */
   background: var(--jr-accent-glow);
+  background: color-mix(in srgb, var(--jr-accent-soft) 55%, var(--jr-accent-glow));
   padding: var(--sp-9) var(--sp-7);
   position: relative;
   overflow: hidden;
@@ -1460,6 +1468,105 @@ html.jr-anim .jr-chapter-figure img {
 @media (max-width: 820px) {
   .jr-deep { background-attachment: scroll; min-height: 78vh; }
 }
+
+/* ---------- The forty — scroll-scrubbed session deck (ASJ) ----------
+   The 40 session thumbnails as a pinned, scroll-scrubbed deck: a neat pile
+   that riffles past the viewer card by card (Week N / 40 counter ticking)
+   and settles into an ordered mosaic — all forty on one screen, ~3 viewports
+   of scroll in total. Baseline (no JS / reduced motion) is the static
+   contact sheet below; the script adds .is-scrub and takes over layout. */
+.jr-forty {
+  background: var(--paper-deep);
+  padding: var(--sp-10) var(--sp-7);
+  position: relative;
+}
+@media (max-width: 720px) { .jr-forty { padding: var(--sp-9) var(--sp-5); } }
+.jr-forty-head { max-width: 720px; margin: 0 auto var(--sp-7); text-align: center; }
+.jr-forty-head .jr-eyebrow { justify-content: center; }
+.jr-forty-title {
+  font-family: var(--font-display);
+  font-size: clamp(32px, 4.4vw, 56px);
+  line-height: 1.05; letter-spacing: -0.018em; font-weight: 400;
+  color: var(--ink);
+  margin: var(--sp-4) 0 var(--sp-3);
+  text-wrap: balance;
+}
+.jr-forty-title em { font-family: var(--font-lyric); font-style: italic; color: var(--jr-em); font-size: 1.05em; }
+.jr-forty-lead {
+  font-family: var(--font-body); font-size: 16px; line-height: 1.65;
+  color: var(--ink-soft); max-width: 46ch; margin: 0 auto; text-wrap: pretty;
+}
+.jr-forty-stage {
+  max-width: 1000px; margin: 0 auto;
+  display: grid; grid-template-columns: repeat(8, 1fr); gap: 10px;
+}
+@media (max-width: 720px) { .jr-forty-stage { grid-template-columns: repeat(5, 1fr); gap: 7px; } }
+.jr-forty-card {
+  margin: 0;
+  aspect-ratio: 1 / 1;
+  border-radius: var(--r-md);
+  overflow: hidden;
+  background: var(--night-soft);
+  box-shadow: var(--shadow-2);
+}
+.jr-forty-card img {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+  filter: var(--jr-img-filter);
+}
+.jr-forty-counter { display: none; }
+
+/* Scrub mode — the script owns geometry; CSS only pins and positions. */
+.jr-forty.is-scrub { padding: 0; height: 330vh; }
+@media (max-width: 720px) { .jr-forty.is-scrub { height: 290vh; } }
+.jr-forty.is-scrub .jr-forty-pin {
+  position: sticky; top: 0;
+  height: 100vh; height: 100svh;
+  overflow: hidden;
+}
+.jr-forty.is-scrub .jr-forty-head {
+  position: absolute;
+  top: clamp(104px, 14svh, 160px);
+  left: var(--sp-5); right: var(--sp-5);
+  margin: 0 auto;
+  z-index: 5;
+  pointer-events: none;
+}
+.jr-forty.is-scrub .jr-forty-title { font-size: clamp(30px, 4vw, 52px); }
+/* The lead carries the "how it works" copy now, so it stays visible on
+   mobile; only very short (landscape) viewports drop it for stage room. */
+@media (max-width: 720px) {
+  /* Tighter header + edges so the deck itself gets the width. */
+  .jr-forty.is-scrub .jr-forty-head { top: clamp(72px, 9svh, 116px); left: var(--sp-3); right: var(--sp-3); }
+  .jr-forty.is-scrub .jr-forty-title { font-size: clamp(26px, 7.4vw, 34px); margin: var(--sp-3) 0 var(--sp-3); }
+  .jr-forty.is-scrub .jr-forty-lead { font-size: 15px; line-height: 1.55; }
+}
+@media (max-height: 560px) {
+  .jr-forty.is-scrub .jr-forty-lead { display: none; }
+}
+.jr-forty.is-scrub .jr-forty-stage {
+  position: absolute; inset: 0;
+  max-width: none; display: block;
+}
+.jr-forty.is-scrub .jr-forty-card {
+  position: absolute; left: 0; top: 0;
+  width: var(--forty-s, 140px); height: var(--forty-s, 140px);
+  will-change: transform;
+}
+.jr-forty.is-scrub .jr-forty-counter {
+  display: block;
+  position: absolute; left: 0; right: 0;
+  bottom: clamp(18px, 5svh, 44px);
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
+  color: var(--ink-quiet);
+  opacity: 0;
+  transition: opacity 300ms var(--ease);
+  z-index: 6;
+  pointer-events: none;
+}
+.jr-forty.is-scrub .jr-forty-counter.is-on { opacity: 1; }
+.jr-forty.is-scrub .jr-forty-counter [data-forty-week] { color: var(--jr-accent-deep); }
 
 /* ---------- Inline lyric italic sizing ----------
    Cormorant Garamond italic reads smaller than the body/display it sits in;

@@ -15,6 +15,14 @@ export const prerender = false;
 const env = Astro.locals.runtime.env;
 const product = catalogItemById('asj');
 
+// The forty session thumbnails (ASJ-WeekX in the R2 library). Week 29 is the
+// English-edition file, hence the -en suffix; every other week is asj-weekN.
+const sessionThumbs = Array.from({ length: 40 }, (_, i) => {
+  const n = i + 1;
+  const key = n === 29 ? 'asj-week29en' : `asj-week${n}`;
+  return `/media/library/${key}.webp`;
+});
+
 const testimonials = [
   {
     body: 'I feel an opening up, a stronger voice on many levels — like someone holding my hand, showing me new ways.',
@@ -99,10 +107,10 @@ const testimonials = [
     <section class="jr-section jr-opening">
       <div class="jr-opening-inner">
         <div class="jr-eyebrow" style="justify-content:center;">What it is</div>
-        <h2 class="jr-opening-head">The course Songdance <em>started with.</em></h2>
+        <h2 class="jr-opening-head">Music, a mantra, and <em>your own voice.</em></h2>
         <p class="jr-prose-body">
-          Forty weekly sessions, each one a piece of music and a mantra, recorded to be done at home —
-          eyes closed if you like, no screen required. You sing along. That's the whole of it.
+          Forty weekly sessions, recorded to be done at home — eyes closed if you like, no screen
+          required. You sing along. That's the whole of it.
         </p>
         <p class="jr-prose-body">
           It is singing, but not the kind that asks you to be good at it. No right notes. No audition.
@@ -156,21 +164,27 @@ const testimonials = [
       </div>
     </section>
 
-    <!-- How it works -->
-    <section class="jr-section jr-opening">
-      <div class="jr-opening-inner">
-        <div class="jr-eyebrow" style="justify-content:center;">How it works</div>
-        <h2 class="jr-opening-head">One session a week. <em>Forty weeks.</em></h2>
-        <p class="jr-prose-body">
-          One session a week for forty weeks — or at whatever pace suits you. Each week travels
-          somewhere different: another rhythm, another landscape, another mood. You never quite know
-          what's coming, and that's the point. The mind can't rehearse, so you arrive in the present
-          and sing from there.
-        </p>
-        <p class="jr-prose-body">
-          Some weeks are joyful. Some are quiet. Some go to the harder feelings and give them a tune
-          to ride out on. You sing all of it — not to get rid of anything, but to let it be heard.
-        </p>
+    <!-- How it works — the scroll-scrubbed session deck -->
+    <section class="jr-forty" aria-labelledby="jr-forty-head" data-jr-forty>
+      <div class="jr-forty-pin" data-forty-pin>
+        <div class="jr-forty-head">
+          <div class="jr-eyebrow" style="justify-content:center;">How it works</div>
+          <h2 class="jr-forty-title" id="jr-forty-head">One session a week. <em>Forty worlds.</em></h2>
+          <p class="jr-forty-lead">
+            Each week travels somewhere different — another rhythm, another landscape, another
+            mood. You sing all of it.
+          </p>
+        </div>
+        <div class="jr-forty-stage" data-forty-stage>
+          {sessionThumbs.map((src) => (
+            <figure class="jr-forty-card" data-forty-card>
+              <img src={src} alt="" loading="lazy" decoding="async" width="591" height="591" />
+            </figure>
+          ))}
+        </div>
+        <div class="jr-forty-counter" data-forty-counter aria-hidden="true">
+          <span data-forty-week>Week 1</span>&nbsp;/&nbsp;40
+        </div>
       </div>
     </section>
 
@@ -189,15 +203,6 @@ const testimonials = [
       </div>
     </section>
 
-    <!-- Mid-page CTA -->
-    <section class="jr-midcta">
-      <div class="jr-midcta-inner">
-        <p class="jr-midcta-line">Ready to let your own voice make some sound again?</p>
-        <a href="#register" class="jr-midcta-btn">Begin the journey <i class="ph-light ph-arrow-right"></i></a>
-        <p class="jr-midcta-note">40 sessions · self-paced · €99</p>
-      </div>
-    </section>
-
     <!-- Video glimpse — custom square player -->
     <JourneyVideo
       src="/media/library/jacob-upala-singing.mov"
@@ -206,6 +211,15 @@ const testimonials = [
       title="Jacob and Upala, <em>singing.</em>"
       sub="A few minutes of the voice doing what this whole journey is for — sounding from itself, with nothing to prove."
     />
+
+    <!-- Mid-page CTA -->
+    <section class="jr-midcta">
+      <div class="jr-midcta-inner">
+        <p class="jr-midcta-line">You were loud once. It's still in there.</p>
+        <a href="#register" class="jr-midcta-btn">Begin the journey <i class="ph-light ph-arrow-right"></i></a>
+        <p class="jr-midcta-note">40 sessions · self-paced · €99</p>
+      </div>
+    </section>
 
     <!-- Lyric break -->
     <section class="jr-lyric">
@@ -307,4 +321,165 @@ const testimonials = [
       </div>
     </footer>
   </div>
+
+  <script>
+    // "One journey. Forty worlds." — a scroll-scrubbed deck of the 40 session
+    // thumbnails. The section pins; scrolling riffles through the deck: each
+    // card lifts off the pile, pops large for a beat (a Week N / 40 counter
+    // ticks along), then settles into its slot in an ordered mosaic — ending
+    // with all forty on one screen. Bounded scroll (~3 viewports). Baseline
+    // (no-JS / reduced-motion) is a static contact sheet; the scrub is a
+    // transform-only, rAF-driven enhancement.
+    (function () {
+      const section = document.querySelector<HTMLElement>('[data-jr-forty]');
+      if (!section) return;
+      const pin = section.querySelector<HTMLElement>('[data-forty-pin]');
+      const stage = section.querySelector<HTMLElement>('[data-forty-stage]');
+      const head = section.querySelector<HTMLElement>('.jr-forty-head');
+      const counter = section.querySelector<HTMLElement>('[data-forty-counter]');
+      const weekEl = section.querySelector<HTMLElement>('[data-forty-week]');
+      const cards = Array.from(section.querySelectorAll<HTMLElement>('[data-forty-card]'));
+      if (!pin || !stage || !head || !counter || !weekEl || !cards.length) return;
+
+      const N = cards.length;
+      const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
+      // Scrub timeline: cards fly between P0..P1; each card's flight lasts L
+      // (so ~6 are airborne at once); the first T1 of a flight is the "pop".
+      const P0 = 0.06, P1 = 0.94, T1 = 0.4;
+      const L = (P1 - P0) * 0.13;
+      const step = (P1 - P0 - L) / (N - 1);
+
+      let S = 140;                              // pile card size (px)
+      let gScale = 0.6, fScale = 2.2, lift = 48;
+      let pileBig = 1.6, pileScale = 1;         // intro: pile starts big, shrinks by P0
+      let slots: Array<[number, number]> = [];
+      let cx = 0, cy = 0;
+      let lastWeek = 0;
+      let on = false, active = false, ticking = false;
+
+      const easeIO = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+      // Deterministic per-card pile jitter (a hand-stacked deck, same every visit).
+      const rot = (i: number) => (((i * 47) % 21) - 10) * 0.55;
+      const jx = (i: number) => (((i * 31) % 13) - 6) * 0.9;
+      const jy = (i: number) => (((i * 53) % 11) - 5) * 0.9;
+
+      function layout() {
+        const W = pin!.clientWidth;
+        const H = pin!.clientHeight;
+        const headB = head!.offsetTop + head!.offsetHeight;
+        const small = W < 640;
+        const pad = small ? 6 : 28;
+        const top = headB + (small ? 8 : 18);
+        const bottom = H - (small ? 48 : 84);
+        const availH = Math.max(160, bottom - top);
+        const availW = Math.min(W - pad * 2, 1240);
+        // 10x4 / 8x5 / 5x8 — always full rows, so the mosaic ends symmetric.
+        const cols = W >= 900 ? 10 : W >= 640 ? 8 : 5;
+        const rows = Math.ceil(N / cols);
+        const gap = small ? 5 : 10;
+        const cell = Math.min((availW - gap * (cols - 1)) / cols, (availH - gap * (rows - 1)) / rows);
+        const gw = cols * cell + (cols - 1) * gap;
+        const gh = rows * cell + (rows - 1) * gap;
+        const gx0 = (W - gw) / 2;
+        const gy0 = top + (availH - gh) / 2;
+        slots = cards.map((_, i) => {
+          const r = Math.floor(i / cols);
+          const inRow = r === rows - 1 ? N - (rows - 1) * cols : cols;
+          const c = i % cols;
+          // centre a short final row instead of leaving it ragged-left
+          const rowShift = ((cols - inRow) * (cell + gap)) / 2;
+          return [gx0 + rowShift + c * (cell + gap) + cell / 2, gy0 + r * (cell + gap) + cell / 2];
+        });
+        cx = W / 2;
+        cy = top + availH / 2;
+        S = Math.max(110, Math.min(170, cell * 1.5));
+        gScale = cell / S;
+        fScale = Math.min(availH * 0.72, W * 0.6, 460) / S;
+        pileBig = Math.max(1.6, fScale * 0.75);
+        lift = Math.min(availH * 0.12, 60);
+        stage!.style.setProperty('--forty-s', S.toFixed(1) + 'px');
+      }
+
+      function pose(i: number, p: number) {
+        const t = Math.min(1, Math.max(0, (p - (P0 + step * i)) / L));
+        // featured cards alternate slightly left/right so consecutive pops don't stack
+        const fx = cx + (i % 2 ? 1 : -1) * Math.min(28, cx * 0.06);
+        let x: number, y: number, sc: number, r: number, z: number;
+        if (t <= 0) {
+          x = cx + jx(i); y = cy + jy(i); sc = pileScale; r = rot(i); z = 400 - i;
+        } else if (t < T1) {
+          const k = easeIO(t / T1);
+          x = cx + jx(i) * (1 - k) + (fx - cx) * k;
+          y = cy + jy(i) * (1 - k) - lift * k;
+          sc = 1 + (fScale - 1) * k; r = rot(i) * (1 - k); z = 900 + i;
+        } else if (t < 1) {
+          const k = easeIO((t - T1) / (1 - T1));
+          x = fx + (slots[i][0] - fx) * k;
+          y = cy - lift + (slots[i][1] - (cy - lift)) * k;
+          sc = fScale + (gScale - fScale) * k; r = 0; z = 900 + i;
+        } else {
+          x = slots[i][0]; y = slots[i][1]; sc = gScale; r = 0; z = 10 + i;
+        }
+        const card = cards[i];
+        card.style.zIndex = String(z);
+        card.style.transform =
+          'translate3d(' + (x - S / 2).toFixed(2) + 'px,' + (y - S / 2).toFixed(2) + 'px,0)' +
+          ' scale(' + sc.toFixed(4) + ')' + (r ? ' rotate(' + r.toFixed(2) + 'deg)' : '');
+      }
+
+      function progress() {
+        const rect = section!.getBoundingClientRect();
+        const total = rect.height - pin!.clientHeight;
+        return total > 0 ? Math.min(1, Math.max(0, -rect.top / total)) : 0;
+      }
+
+      function apply() {
+        const p = progress();
+        // The pile opens large and condenses to flight size just as the
+        // riffle begins (continuous at p = P0, where flights start at 1).
+        pileScale = p < P0 ? 1 + (pileBig - 1) * (1 - easeIO(p / P0)) : 1;
+        for (let i = 0; i < N; i++) pose(i, p);
+        const wk = Math.min(N, Math.max(1, Math.round((p - P0 - L * T1) / step) + 1));
+        if (wk !== lastWeek) { lastWeek = wk; weekEl!.textContent = 'Week ' + wk; }
+        counter!.classList.toggle('is-on', p > 0.03 && p < 0.985);
+      }
+
+      function onScroll() {
+        if (!on || !active || ticking) return;
+        ticking = true;
+        requestAnimationFrame(() => { apply(); ticking = false; });
+      }
+
+      function setup() {
+        if (reduce.matches) {
+          if (!on) return;
+          on = false;
+          section!.classList.remove('is-scrub');
+          cards.forEach((c) => { c.style.transform = ''; c.style.zIndex = ''; });
+          counter!.classList.remove('is-on');
+          return;
+        }
+        if (!on) { on = true; section!.classList.add('is-scrub'); }
+        layout();
+        apply();
+      }
+
+      let rt: ReturnType<typeof setTimeout>;
+      window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(setup, 150); });
+      window.addEventListener('scroll', onScroll, { passive: true });
+      if (reduce.addEventListener) reduce.addEventListener('change', setup);
+
+      if ('IntersectionObserver' in window) {
+        const io = new IntersectionObserver((entries) => {
+          active = entries[0].isIntersecting;
+          if (active) onScroll();
+        }, { rootMargin: '200px 0px' });
+        io.observe(section);
+      } else {
+        active = true;
+      }
+
+      setup();
+    })();
+  </script>
 </Layout>
