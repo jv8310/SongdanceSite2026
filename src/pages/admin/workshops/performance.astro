@@ -160,11 +160,35 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
     .adm-table th, .adm-table td { text-align:left; padding:8px 10px; border-bottom:1px solid rgba(42,27,42,0.1); font-size:13px; white-space:nowrap; }
     .adm-inline-form { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
     .wk-perf-scroll { overflow-x:auto; }
+    /* Frozen header: stays visible while the table scrolls, pinned just
+       below the sticky admin top bar (height measured in JS since it wraps
+       on narrow screens). */
+    .wk-perf thead th {
+      position: sticky;
+      top: var(--adm-topbar-h, 0px);
+      z-index: 5;
+      background: var(--adm-paper-soft);
+      box-shadow: 0 1px 0 rgba(42,27,42,0.1);
+    }
     .wk-perf__name a { color:#2A1B2A; font-weight:600; text-decoration:none; }
     .wk-perf__name a:hover { text-decoration:underline; }
     .wk-perf__name span { display:block; font-size:11px; color:#9a8; }
     .wk-row--total td { border-top:2px solid rgba(42,27,42,0.25); }
   </style>
+
+  <script is:inline>
+    (function () {
+      var topbar = document.querySelector('.adm-topbar');
+      function syncTopbarHeight() {
+        document.documentElement.style.setProperty('--adm-topbar-h', (topbar ? topbar.offsetHeight : 0) + 'px');
+      }
+      if (topbar) {
+        syncTopbarHeight();
+        window.addEventListener('resize', syncTopbarHeight);
+        if (window.ResizeObserver) new ResizeObserver(syncTopbarHeight).observe(topbar);
+      }
+    })();
+  </script>
 
   <script is:inline>
     (function () {
