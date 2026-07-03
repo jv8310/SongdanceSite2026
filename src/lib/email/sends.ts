@@ -26,6 +26,8 @@ export const EMAIL_TYPE_META: Record<string, { group: string; label: string }> =
   at_time: { group: 'Reminders', label: "Reminder — we're starting" },
   abandoned_1: { group: 'Abandoned checkout', label: 'Nudge 1 — the open door' },
   abandoned_2: { group: 'Abandoned checkout', label: 'Nudge 2 — honest small print' },
+  course_abandoned_1: { group: 'Abandoned checkout (courses)', label: 'Nudge 1 — the open door' },
+  course_abandoned_2: { group: 'Abandoned checkout (courses)', label: 'Nudge 2 — honest small print' },
   post_attended: { group: 'Attended → 12-week', label: 'Email 1 — thank you + window opens' },
   post_attended_2: { group: 'Attended → 12-week', label: 'Email 2 — the case for the course' },
   post_attended_3: { group: 'Attended → 12-week', label: 'Email 3 — last chance' },

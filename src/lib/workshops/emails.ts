@@ -361,6 +361,60 @@ export function abandonedEmail2(
   };
 }
 
+// ── Course abandoned checkout ──────────────────────────────────────────────
+// The considered-purchase courses (12-week, certification, grief) get the same
+// two-touch cart nudge as the workshops above. No live date, so no whenLocal;
+// the resume link is the course page with an ?email= prefill (see
+// src/lib/courses/abandoned.ts), not an access token.
+export type CourseAbandonedCtx = {
+  name?: string | null;
+  courseName: string; // e.g. "the 12-Week Somatic Vocal Healing Course"
+  resumeUrl: string;
+  unsubscribeUrl?: string;
+};
+
+// Course abandoned 1 (~45 min after they stopped).
+export function courseAbandonedEmail1(ctx: CourseAbandonedCtx): EmailContent {
+  const html = shell({
+    preheader: 'You started signing up — it takes a minute to finish.',
+    heading: 'Your place is still open',
+    bodyHtml: `<p style="margin:0 0 14px;">${greeting(ctx.name)}</p>
+      <p style="margin:0 0 14px;">You started signing up for <strong>${escapeHtml(ctx.courseName)}</strong> and stopped somewhere along the way. That happens — pages close, life interrupts.</p>
+      <p style="margin:0 0 14px;">Your details are saved. If you'd like to finish, this takes you straight back:</p>
+      <p style="margin:0;font-size:14px;color:${PALETTE.soft};">If something didn't work — a card refused, a page that wouldn't load — just reply to this email. A person reads it.</p>`,
+    cta: { label: 'Complete my sign-up', href: ctx.resumeUrl },
+    unsubscribeUrl: ctx.unsubscribeUrl,
+  });
+  return {
+    subject: 'Your place is still open',
+    html,
+    text: `${textGreeting(ctx.name)}\n\nYou started signing up for ${ctx.courseName} and stopped somewhere along the way. That happens.\n\nYour details are saved — finish here: ${ctx.resumeUrl}\n\nIf something didn't work on the page, just reply to this email. A person reads it.\n\nWarmly,\nJacob${unsubText(ctx.unsubscribeUrl)}`,
+  };
+}
+
+// Course abandoned 2 (~20h after; the honest small print).
+export function courseAbandonedEmail2(ctx: CourseAbandonedCtx): EmailContent {
+  const html = shell({
+    preheader: 'Honest small print, in case it helps.',
+    heading: 'Still thinking it over?',
+    bodyHtml: `<p style="margin:0 0 14px;">${greeting(ctx.name)}</p>
+      <p style="margin:0 0 14px;">Yesterday you almost joined <strong>${escapeHtml(ctx.courseName)}</strong>. Maybe life got in the way — or maybe you weren't sure it's for you.</p>
+      ${figureRow(
+        IMG.soundingYellow,
+        'A participant sounding — eyes closed, hand on heart',
+        `<p style="margin:0;">In case it's the second one, the honest small print: this is a practice of sounding, not singing. You don't need a good voice — you need an honest one. One tone, the tone of what's actually there. You go at your own pace, in your own room, and soft counts.</p>`,
+      )}
+      <p style="margin:0;">And if now simply isn't the time — that's an honest answer too. The door doesn't disappear.</p>`,
+    cta: { label: 'Finish signing up', href: ctx.resumeUrl },
+    unsubscribeUrl: ctx.unsubscribeUrl,
+  });
+  return {
+    subject: 'Still thinking it over?',
+    html,
+    text: `${textGreeting(ctx.name)}\n\nYesterday you almost joined ${ctx.courseName}. Maybe life got in the way — or maybe you weren't sure it's for you.\n\nIn case it's the second one, the honest small print: this is a practice of sounding, not singing. You don't need a good voice — you need an honest one. One tone, the tone of what's actually there. You go at your own pace, in your own room, and soft counts.\n\nAnd if now simply isn't the time — that's an honest answer too. The door doesn't disappear.\n\n— Jacob${unsubText(ctx.unsubscribeUrl)}`,
+  };
+}
+
 // Imagery for the redesigned course emails (verified R2 keys).
 const COURSE_IMG = {
   circleSunset:
