@@ -338,8 +338,10 @@ const testimonials = [
       const head = section.querySelector<HTMLElement>('.jr-forty-head');
       const counter = section.querySelector<HTMLElement>('[data-forty-counter]');
       const weekEl = section.querySelector<HTMLElement>('[data-forty-week]');
+      const title = section.querySelector<HTMLElement>('.jr-forty-title');
+      const lead = section.querySelector<HTMLElement>('.jr-forty-lead');
       const cards = Array.from(section.querySelectorAll<HTMLElement>('[data-forty-card]'));
-      if (!pin || !stage || !head || !counter || !weekEl || !cards.length) return;
+      if (!pin || !stage || !head || !title || !counter || !weekEl || !cards.length) return;
 
       const N = cards.length;
       const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -366,11 +368,15 @@ const testimonials = [
       function layout() {
         const W = pin!.clientWidth;
         const H = pin!.clientHeight;
-        const headB = head!.offsetTop + head!.offsetHeight;
         const small = W < 640;
-        const pad = small ? 6 : 28;
-        const top = headB + (small ? 8 : 18);
-        const bottom = H - (small ? 48 : 84);
+        // On mobile the lead fades out as the riffle begins, so the grid may
+        // claim its height — measure the header only down to the title.
+        const headB = small
+          ? head!.offsetTop + title!.offsetTop + title!.offsetHeight
+          : head!.offsetTop + head!.offsetHeight;
+        const pad = small ? 14 : 28;
+        const top = headB + (small ? 12 : 18);
+        const bottom = H - (small ? 34 : 84);
         const availH = Math.max(160, bottom - top);
         const availW = Math.min(W - pad * 2, 1240);
         // 10x4 / 8x5 / 5x8 — always full rows, so the mosaic ends symmetric.
@@ -439,6 +445,10 @@ const testimonials = [
         // riffle begins (continuous at p = P0, where flights start at 1).
         pileScale = p < P0 ? 1 + (pileBig - 1) * (1 - easeIO(p / P0)) : 1;
         for (let i = 0; i < N; i++) pose(i, p);
+        // Fade the lead out as the riffle takes over (mobile reclaims its room).
+        if (lead) lead.style.opacity = window.innerWidth < 640
+          ? String(Math.max(0, Math.min(1, (0.14 - p) / 0.14)))
+          : '';
         const wk = Math.min(N, Math.max(1, Math.round((p - P0 - L * T1) / step) + 1));
         if (wk !== lastWeek) { lastWeek = wk; weekEl!.textContent = 'Week ' + wk; }
         counter!.classList.toggle('is-on', p > 0.03 && p < 0.985);
