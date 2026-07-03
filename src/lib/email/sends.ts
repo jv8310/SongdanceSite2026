@@ -17,6 +17,7 @@ import { suppressEmailWithReason } from './unsubscribe';
 export const EMAIL_TYPE_META: Record<string, { group: string; label: string }> = {
   verification: { group: 'Transactional', label: 'Email verification code' },
   confirmation: { group: 'Transactional', label: 'Registration confirmation' },
+  date_changed: { group: 'Transactional', label: 'Date change — moved to a new date' },
   reminder_7d: { group: 'Reminders', label: 'Reminder — one week out' },
   reminder_2d: { group: 'Reminders', label: 'Reminder — two days out' },
   reminder_1d: { group: 'Reminders', label: 'Reminder — tomorrow' },

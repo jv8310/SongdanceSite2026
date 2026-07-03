@@ -19,7 +19,7 @@ import {
   type WorkshopRegistration,
 } from './db';
 import { sendEmail } from './resend';
-import { confirmationEmail } from './emails';
+import { confirmationEmail, dateChangedEmail } from './emails';
 import { googleCalendarUrl } from './ics';
 import { formatInTz } from './time';
 import { purchaseEventId, sendPurchaseEvent } from './meta';
@@ -132,6 +132,44 @@ async function deliverConfirmation(
   });
 }
 
+// Build + send the "your date changed" email (fresh calendar links for the new
+// date). Like deliverConfirmation, idempotency is the caller's call; the ref is
+// passed in so a unique one keeps it from being deduped against the original
+// confirmation (same registration id → same stable confirmation ref otherwise).
+async function deliverDateChanged(
+  env: Env,
+  reg: WorkshopRegistration,
+  workshop: Workshop,
+  entityRefId: string,
+) {
+  const baseUrl = env.PUBLIC_BASE_URL.replace(/\/$/, '');
+  const tz = reg.timezone || workshop.display_tz;
+  const join = successUrl(baseUrl, reg.access_token);
+  const content = dateChangedEmail({
+    name: reg.name,
+    workshopTitle: workshop.title,
+    whenLocal: formatInTz(workshop.starts_at_utc, tz),
+    joinUrl: join,
+    googleCalUrl: googleCalendarUrl({
+      title: workshop.title,
+      startsAtUtc: workshop.starts_at_utc,
+      endsAtUtc: workshop.ends_at_utc,
+      url: join,
+    }),
+    icsUrl: icsUrl(baseUrl, reg.access_token),
+  });
+  await sendEmail({
+    apiKey: env.RESEND_API_KEY!,
+    replyTo: env.RESEND_REPLY_TO,
+    to: reg.email,
+    subject: content.subject,
+    html: content.html,
+    text: content.text,
+    entityRefId,
+    track: { db: env.DB, type: 'date_changed', registrationId: reg.id },
+  });
+}
+
 async function sendConfirmation(env: Env, reg: WorkshopRegistration, workshop: Workshop) {
   if (!env.RESEND_API_KEY) return;
   // Idempotent: only the first caller to claim the slot actually sends.
@@ -180,12 +218,12 @@ export async function resendConfirmation(
 // Side-effects when an existing registration is *moved* to a new date (the
 // countdown-page "change my date"). There's no purchase to record and no Meta
 // event — the seat already exists and no money changes hands — so this only
-// refreshes the Drip contact's workshop fields to the new date and sends a fresh
-// confirmation carrying the new date, join link and calendar. A unique
-// entity-ref keeps this confirmation from being deduped against the original
-// (they share a registration id, hence the same stable ref); the move already
-// cleared the 'confirmation' claim, so re-claiming here also stops the cron from
-// ever sending its own first-time confirmation for the new date.
+// refreshes the Drip contact's workshop fields to the new date and sends a
+// dedicated "your date changed" email carrying the new date, join link and fresh
+// calendar links. A unique entity-ref keeps it from being deduped against the
+// original confirmation (they share a registration id, hence the same stable
+// confirmation ref); claiming the 'confirmation' slot here also stops any other
+// path from sending a first-time confirmation for the new date.
 export async function runWorkshopDateChangeSideEffects(
   env: Env,
   registrationId: number,
@@ -204,7 +242,7 @@ export async function runWorkshopDateChangeSideEffects(
   if (!env.RESEND_API_KEY) return;
   try {
     await claimNotification(env.DB, reg.id, 'confirmation');
-    await deliverConfirmation(env, reg, workshop, `workshop-confirm-${reg.id}-datechange-${Date.now()}`);
+    await deliverDateChanged(env, reg, workshop, `workshop-datechange-${reg.id}-${Date.now()}`);
   } catch (err) {
     await logEvent(env.DB, { registration_id: null, kind: 'workshop.email.error', payload: { registration_id: reg.id, error: String(err) } });
   }
