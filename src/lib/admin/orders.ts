@@ -25,6 +25,7 @@
 import { DEFAULT_FX_TO_EUR } from './fx';
 import { getTaxRate, type QuadernoTaxConfig } from '../workshops/quaderno';
 import { LABEL_BY_SLUG, isJourneySlug } from '../courses/journeys';
+import { selectByIdsChunked } from '../db/chunked';
 
 export type OrderSource = 'retreat' | 'course' | 'workshop';
 
@@ -425,10 +426,13 @@ async function loadWorkshopOrders(
   if (!regs.length) return [];
 
   // Latest paid/refunded payment per registration (ASC so the last write wins).
+  // Chunked by registration_id to stay under D1's 100-bound-param cap — all of a
+  // registration's payments land in the same batch, so last-write-wins holds.
   const ids = regs.map((r) => r.id);
-  const ph = ids.map(() => '?').join(',');
-  const payRes = await db
-    .prepare(
+  const payRows = await selectByIdsChunked<WorkshopPayRow>(
+    db,
+    ids,
+    (ph) =>
       `SELECT registration_id, amount_minor, currency AS pay_currency,
               settlement_amount_minor, settlement_currency, subtotal_minor,
               provider, method, stripe_payment_intent_id, paypal_capture_id,
@@ -436,11 +440,9 @@ async function loadWorkshopOrders(
          FROM workshop_payments
         WHERE registration_id IN (${ph}) AND status IN ('paid','refunded')
         ORDER BY created_at ASC`,
-    )
-    .bind(...ids)
-    .all<WorkshopPayRow>();
+  );
   const payByReg = new Map<number, WorkshopPayRow>();
-  for (const p of payRes.results ?? []) payByReg.set(p.registration_id, p);
+  for (const p of payRows) payByReg.set(p.registration_id, p);
 
   // Live eservice VAT for the rare paid rows with no stored tax split, so we
   // can still strip VAT from the gross instead of overstating net.

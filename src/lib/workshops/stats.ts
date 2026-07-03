@@ -13,6 +13,7 @@
 // (gross of any VAT), attributed to the day of `paid_at`.
 
 import { FX_TO_EUR } from './currency';
+import { selectByIdsChunked } from '../db/chunked';
 
 export const MASTERCLASS_PRODUCT_SLUG = 'svh-masterclass';
 
@@ -125,18 +126,20 @@ export async function computeStats(
   // tickets), grouped by payment_id.
   const byPayment = new Map<number, PurchaseRow[]>();
   if (payments.length) {
+    // Chunked by payment_id to stay under D1's 100-bound-param cap — a busy
+    // day/week can easily exceed 100 paid payments, which previously threw here
+    // and silently killed the SD-REPORT digest.
     const ids = payments.map((p) => p.id);
-    const placeholders = ids.map(() => '?').join(',');
-    const purRes = await db
-      .prepare(
+    const purchaseRows = await selectByIdsChunked<PurchaseRow>(
+      db,
+      ids,
+      (ph) =>
         `SELECT pur.payment_id, pur.product_type, pur.product_id, pur.amount_minor, prod.slug
            FROM workshop_purchases pur
            LEFT JOIN workshop_products prod ON prod.id = pur.product_id
-          WHERE pur.payment_id IN (${placeholders})`,
-      )
-      .bind(...ids)
-      .all<PurchaseRow>();
-    for (const pur of purRes.results ?? []) {
+          WHERE pur.payment_id IN (${ph})`,
+    );
+    for (const pur of purchaseRows) {
       if (pur.payment_id == null) continue;
       const arr = byPayment.get(pur.payment_id) ?? [];
       arr.push(pur);

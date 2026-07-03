@@ -145,6 +145,22 @@ notifications. Lives in [`src/lib/workshops/reports.ts`](src/lib/workshops/repor
   suppression — it's internal).
 - **Review**: both digests preview with sample data on `/admin/emails` (group
   "Reports (internal)") with a test-send, same as every other email.
+- **D1 param cap**: the stats queries feed `IN (…)` id lists to D1, which caps
+  bound params at **100/statement**. Anything binding a data-growing id list
+  (payments in a window, all workshop registrations) must chunk it —
+  [`src/lib/db/chunked.ts`](src/lib/db/chunked.ts) (`selectByIdsChunked`) is the
+  shared helper. Un-chunked, this silently killed the digest on busy days and
+  500'd `/admin/orders`.
+
+## SD-ORDER notifications — safety-net reconcile
+
+The internal per-purchase order emails (`src/lib/orders/notification.ts`, course
++ retreat only; workshops never notify) are idempotent on an `events` claim
+(`order-notify-<type>-<id>`). A missed webhook/Resend blip could drop one, so the
+hourly cron also runs `reconcileOrderNotifications`
+([`src/lib/orders/reconcile.ts`](src/lib/orders/reconcile.ts)): it re-sends any
+paid course/retreat order in the last 7 days that carries no sent-claim (bounded
+per run, idempotent, so steady state is a no-op).
 
 ## Broadcasts — one-off marketing to a standalone contact list
 

@@ -3,6 +3,7 @@
 // `workshop_`-prefixed (see migrations/0021_workshops.sql).
 
 import { BASE_CURRENCY } from './currency';
+import { selectByIdsChunked } from '../db/chunked';
 
 export type WorkshopProduct = {
   id: number;
@@ -648,19 +649,24 @@ export async function listRegistrationsForWorkshop(
   const regs = regRes.results ?? [];
   if (!regs.length) return [];
 
-  // Latest paid payment per registration.
+  // Latest paid payment per registration. Chunked to stay under D1's
+  // 100-bound-param cap for a big workshop (>100 registrations).
   const ids = regs.map((r) => r.id);
-  const ph = ids.map(() => '?').join(',');
-  const payRes = await db
-    .prepare(
+  const payRows = await selectByIdsChunked<{
+    registration_id: number;
+    amount_minor: number;
+    pay_currency: string;
+    settlement_amount_minor: number | null;
+  }>(
+    db,
+    ids,
+    (ph) =>
       `SELECT registration_id, amount_minor, currency AS pay_currency, settlement_amount_minor
          FROM workshop_payments
         WHERE registration_id IN (${ph}) AND status = 'paid'`,
-    )
-    .bind(...ids)
-    .all<{ registration_id: number; amount_minor: number; pay_currency: string; settlement_amount_minor: number | null }>();
+  );
   const payByReg = new Map<number, { amount_minor: number; pay_currency: string; settlement_amount_minor: number | null }>();
-  for (const p of payRes.results ?? []) payByReg.set(p.registration_id, p);
+  for (const p of payRows) payByReg.set(p.registration_id, p);
 
   // Emails that bought each course product (engine-wide, by email).
   const courseRes = await db
@@ -680,14 +686,14 @@ export async function listRegistrationsForWorkshop(
   }
 
   // Bump flag: either intent (wants_bump) or an actual bump purchase.
-  const bumpRes = await db
-    .prepare(
+  const bumpRows = await selectByIdsChunked<{ registration_id: number }>(
+    db,
+    ids,
+    (ph) =>
       `SELECT DISTINCT registration_id FROM workshop_purchases
         WHERE product_type = 'bump' AND registration_id IN (${ph})`,
-    )
-    .bind(...ids)
-    .all<{ registration_id: number }>();
-  const bumpRegs = new Set<number>((bumpRes.results ?? []).map((b) => b.registration_id));
+  );
+  const bumpRegs = new Set<number>(bumpRows.map((b) => b.registration_id));
 
   return regs.map((r) => {
     const pay = payByReg.get(r.id);
