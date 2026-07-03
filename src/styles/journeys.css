@@ -527,57 +527,134 @@ html, body { background: var(--paper); }
   color: var(--ink-quiet);
 }
 
-/* ---------- Numbered sessions / steps ---------- */
+/* ---------- The five sessions — illustrated chapters ---------- */
 .jr-sessions { background: var(--paper); }
 .jr-sessions-inner { max-width: var(--jr-max); margin: 0 auto; }
-.jr-sessions-head { margin-bottom: var(--sp-8); max-width: 40ch; }
-.jr-session-row {
-  display: grid;
-  grid-template-columns: 84px 1fr;
-  gap: var(--sp-7);
-  padding: var(--sp-7) 0;
-  border-top: 1px solid var(--line);
-  align-items: start;
+
+/* Section header, crowned by the course's own watercolour.
+   Kept in normal flow (not a centred flex column) so the heading and lede wrap
+   to the container instead of sizing to their max-content width and overflowing
+   on narrow screens; text-align centres them, margin:auto centres the figure. */
+.jr-sessions-head {
+  max-width: 46ch;
+  margin: 0 auto var(--sp-9);
+  text-align: center;
 }
-.jr-session-row:last-child { border-bottom: 1px solid var(--line); }
-.jr-session-num {
+.jr-sessions-art {
+  position: relative;
+  width: clamp(180px, 25vw, 280px);
+  margin: 0 auto var(--sp-5);
+}
+/* Soft plum halo behind the (transparent-background) illustration */
+.jr-sessions-art::before {
+  content: "";
+  position: absolute; inset: -16% -10%;
+  background: radial-gradient(ellipse at 50% 46%, rgba(var(--jr-accent-rgb), 0.20) 0%, transparent 70%);
+  z-index: -1; pointer-events: none;
+}
+.jr-sessions-art img {
+  width: 100%; height: auto; display: block;
+  animation: jr-float 8s ease-in-out infinite;
+}
+@keyframes jr-float {
+  0%, 100% { transform: translateY(0) rotate(-0.5deg); }
+  50%      { transform: translateY(-10px) rotate(0.5deg); }
+}
+.jr-sessions-lede {
+  font-family: var(--font-lyric); font-style: italic;
+  font-size: clamp(19px, 2.1vw, 25px); line-height: 1.4;
+  color: var(--ink-soft); margin: var(--sp-4) 0 0; text-wrap: balance;
+}
+
+/* Alternating image / text chapters */
+.jr-chapters { display: flex; flex-direction: column; gap: var(--sp-9); }
+.jr-chapter {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-8);
+  align-items: center;
+}
+/* Even chapters flip: text left, image right. Both text blocks hug the centre
+   gap (odd sits at the start of its right cell, even is pushed to the end of its
+   left cell) so each caption stays paired with its image. */
+.jr-chapter:nth-child(even) .jr-chapter-figure { order: 2; }
+.jr-chapter:nth-child(even) .jr-chapter-text { order: 1; justify-self: end; }
+
+.jr-chapter-figure {
+  position: relative;
+  aspect-ratio: 5 / 6;
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-3);
+  background: var(--paper-deep);
+}
+.jr-chapter-figure img {
+  width: 100%; height: 100%;
+  object-fit: cover; display: block;
+  filter: var(--jr-img-filter);
+}
+/* Gentle intra-frame parallax — only when motion is allowed (JS adds .jr-anim).
+   The extra scale gives the image room to travel without exposing an edge. */
+html.jr-anim .jr-chapter-figure img {
+  transform: translate3d(0, var(--jr-py, 0px), 0) scale(1.12);
+  will-change: transform;
+}
+
+.jr-chapter-text { max-width: 46ch; }
+.jr-chapter-head {
+  display: flex; align-items: baseline; gap: var(--sp-4);
+  margin-bottom: var(--sp-4);
+}
+.jr-chapter-num {
   font-family: var(--font-display);
-  font-size: clamp(36px, 4vw, 56px);
-  line-height: 1;
+  font-size: clamp(40px, 5vw, 66px);
+  line-height: 0.9;
   color: var(--jr-accent);
   letter-spacing: -0.02em;
   font-weight: 400;
-  padding-top: 2px;
 }
-.jr-session-num::after {
-  content: ""; display: block;
-  width: 24px; height: 1px; background: var(--ink-whisper);
-  margin-top: var(--sp-3);
+.jr-chapter-kicker {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  color: var(--ink-quiet);
+  position: relative;
+  padding-left: 34px;
 }
-.jr-session-body { display: grid; grid-template-columns: 0.9fr 1.1fr; gap: var(--sp-7); align-items: start; }
-@media (max-width: 880px) {
-  .jr-session-row { grid-template-columns: 56px 1fr; gap: var(--sp-4); }
-  .jr-session-body { grid-template-columns: 1fr; gap: var(--sp-3); }
+.jr-chapter-kicker::before {
+  content: ""; position: absolute; left: 0; top: 50%;
+  width: 24px; height: 1px; background: var(--jr-accent);
 }
-.jr-session-title {
+.jr-chapter-title {
   font-family: var(--font-display);
-  font-size: clamp(24px, 2.6vw, 32px);
-  line-height: 1.15;
-  letter-spacing: -0.008em;
+  font-size: clamp(26px, 2.9vw, 38px);
+  line-height: 1.12;
+  letter-spacing: -0.01em;
   font-weight: 400;
   color: var(--ink);
-  margin: 0;
+  margin: 0 0 var(--sp-4);
   text-wrap: balance;
 }
-.jr-session-title em { font-family: var(--font-lyric); font-style: italic; color: var(--jr-em); }
-.jr-session-text {
+.jr-chapter-title em { font-family: var(--font-lyric); font-style: italic; color: var(--jr-em); }
+.jr-chapter-body {
   font-family: var(--font-body);
-  font-size: 16px;
-  line-height: 1.7;
+  font-size: 17px;
+  line-height: 1.75;
   color: var(--ink-soft);
   margin: 0;
+  text-wrap: pretty;
 }
-.jr-session-text em { font-family: var(--font-lyric); font-style: italic; color: var(--ink); }
+.jr-chapter-body em { font-family: var(--font-lyric); font-style: italic; color: var(--ink); }
+
+@media (max-width: 880px) {
+  .jr-chapters { gap: var(--sp-8); }
+  .jr-chapter { grid-template-columns: 1fr; gap: var(--sp-5); }
+  /* Image always above text on narrow screens, regardless of odd/even order */
+  .jr-chapter .jr-chapter-figure { order: 0; }
+  .jr-chapter .jr-chapter-text { order: 1; justify-self: stretch; max-width: none; }
+  .jr-chapter-figure { aspect-ratio: 1 / 1; }
+}
 
 /* ---------- Care note (gentle aside) ---------- */
 .jr-note { background: var(--paper-soft); }
@@ -1389,7 +1466,7 @@ html, body { background: var(--paper); }
    bump every inline <em> up or it looks shrunken. See CLAUDE.md › Typography. */
 .jr-prose-body em,
 .jr-split-text p em,
-.jr-session-text em,
+.jr-chapter-body em,
 .jr-note-inner em { font-size: 1.22em; }
 .jr-whom-list li em { font-size: 1.34em; }
 .jr-opt-desc em { font-size: 1.14em; }
@@ -1397,15 +1474,30 @@ html, body { background: var(--paper); }
 .jr-h2 em,
 .jr-opening-head em,
 .jr-video-head em,
-.jr-session-title em,
+.jr-chapter-title em,
 .jr-closing-head em,
 .jr-register-title em,
 .jr-deep-head em { font-size: 1.05em; }
 
+/* ---------- Scroll reveal (progressive enhancement) ----------
+   The hidden state applies only once JS has confirmed motion is welcome and
+   added `html.jr-anim`; without JS (or with reduced motion) everything is
+   visible from the first paint. */
+html.jr-anim [data-reveal] {
+  opacity: 0;
+  transform: translateY(26px);
+  transition: opacity 0.9s var(--ease-out), transform 0.9s var(--ease-out);
+  will-change: opacity, transform;
+}
+html.jr-anim [data-reveal].is-visible { opacity: 1; transform: none; }
+
 /* ---------- Reduced motion ---------- */
 @media (prefers-reduced-motion: reduce) {
   .jr-hero-bg img { animation: none; }
+  .jr-sessions-art img { animation: none; }
   .jr-deep { background-attachment: scroll; }
+  html.jr-anim [data-reveal] { opacity: 1; transform: none; transition: none; }
+  html.jr-anim .jr-chapter-figure img { transform: none; }
   *, *::before, *::after {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
