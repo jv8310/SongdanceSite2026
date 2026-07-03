@@ -170,8 +170,8 @@ const testimonials = [
         <div class="jr-eyebrow" style="justify-content:center;">How it works</div>
         <h2 class="jr-opening-head">One session a week. <em>Forty weeks.</em></h2>
         <p class="jr-prose-body">
-          One session a week for forty weeks — or at whatever pace suits you. Each week travels
-          somewhere different: another rhythm, another landscape, another mood. You never quite know
+          Go week by week, or at whatever pace suits you. Each session travels somewhere
+          different: another rhythm, another landscape, another mood. You never quite know
           what's coming, and that's the point. The mind can't rehearse, so you arrive in the present
           and sing from there.
         </p>
@@ -182,21 +182,24 @@ const testimonials = [
       </div>
     </section>
 
-    <!-- The forty — parallax session grid -->
-    <section class="jr-section jr-forty" aria-labelledby="jr-forty-head">
-      <div class="jr-forty-head">
-        <div class="jr-eyebrow" style="justify-content:center;">What you'll travel through</div>
-        <h2 class="jr-forty-title" id="jr-forty-head">Forty weeks. <em>Forty worlds.</em></h2>
-        <p class="jr-forty-lead">
-          A glimpse of each session — the whole span of the journey, week by week.
-        </p>
-      </div>
-      <div class="jr-forty-grid is-flow" data-jr-forty>
-        {sessionThumbs.map((src, i) => (
-          <figure class="jr-forty-item" data-week={String(i + 1).padStart(2, '0')}>
-            <img src={src} alt="" loading="lazy" decoding="async" width="591" height="591" />
-          </figure>
-        ))}
+    <!-- The forty — scroll-scrubbed session deck -->
+    <section class="jr-forty" aria-labelledby="jr-forty-head" data-jr-forty>
+      <div class="jr-forty-pin" data-forty-pin>
+        <div class="jr-forty-head">
+          <div class="jr-eyebrow" style="justify-content:center;">What you'll travel through</div>
+          <h2 class="jr-forty-title" id="jr-forty-head">One journey. <em>Forty worlds.</em></h2>
+          <p class="jr-forty-lead">Keep scrolling — every session, week by week.</p>
+        </div>
+        <div class="jr-forty-stage" data-forty-stage>
+          {sessionThumbs.map((src) => (
+            <figure class="jr-forty-card" data-forty-card>
+              <img src={src} alt="" loading="lazy" decoding="async" width="591" height="591" />
+            </figure>
+          ))}
+        </div>
+        <div class="jr-forty-counter" data-forty-counter aria-hidden="true">
+          <span data-forty-week>Week 1</span>&nbsp;/&nbsp;40
+        </div>
       </div>
     </section>
 
@@ -227,7 +230,7 @@ const testimonials = [
     <!-- Mid-page CTA -->
     <section class="jr-midcta">
       <div class="jr-midcta-inner">
-        <p class="jr-midcta-line">Ready to let your own voice make some sound again?</p>
+        <p class="jr-midcta-line">You were loud once. It's still in there.</p>
         <a href="#register" class="jr-midcta-btn">Begin the journey <i class="ph-light ph-arrow-right"></i></a>
         <p class="jr-midcta-note">40 sessions · self-paced · €99</p>
       </div>
@@ -335,73 +338,138 @@ const testimonials = [
   </div>
 
   <script>
-    // "Forty weeks, forty worlds" — a light scroll-parallax grid of the 40
-    // session thumbnails. Baseline (no-JS / reduced-motion) is a responsive
-    // multi-column contact sheet; when motion is welcome we reflow the tiles
-    // into real columns that drift at slightly different speeds on scroll.
+    // "One journey. Forty worlds." — a scroll-scrubbed deck of the 40 session
+    // thumbnails. The section pins; scrolling riffles through the deck: each
+    // card lifts off the pile, pops large for a beat (a Week N / 40 counter
+    // ticks along), then settles into its slot in an ordered mosaic — ending
+    // with all forty on one screen. Bounded scroll (~3 viewports). Baseline
+    // (no-JS / reduced-motion) is a static contact sheet; the scrub is a
+    // transform-only, rAF-driven enhancement.
     (function () {
-      const grid = document.querySelector<HTMLElement>('[data-jr-forty]');
-      if (!grid) return;
+      const section = document.querySelector<HTMLElement>('[data-jr-forty]');
+      if (!section) return;
+      const pin = section.querySelector<HTMLElement>('[data-forty-pin]');
+      const stage = section.querySelector<HTMLElement>('[data-forty-stage]');
+      const head = section.querySelector<HTMLElement>('.jr-forty-head');
+      const counter = section.querySelector<HTMLElement>('[data-forty-counter]');
+      const weekEl = section.querySelector<HTMLElement>('[data-forty-week]');
+      const cards = Array.from(section.querySelectorAll<HTMLElement>('[data-forty-card]'));
+      if (!pin || !stage || !head || !counter || !weekEl || !cards.length) return;
+
+      const N = cards.length;
       const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
-      const figures = Array.from(grid.querySelectorAll<HTMLElement>('.jr-forty-item'));
-      let cols: HTMLElement[] = [];
-      let currentN = 0;
-      let inView = false;
-      let ticking = false;
+      // Scrub timeline: cards fly between P0..P1; each card's flight lasts L
+      // (so ~6 are airborne at once); the first T1 of a flight is the "pop".
+      const P0 = 0.06, P1 = 0.94, T1 = 0.4;
+      const L = (P1 - P0) * 0.13;
+      const step = (P1 - P0 - L) / (N - 1);
 
-      function colCount() {
-        const w = window.innerWidth;
-        if (w >= 1000) return 5;
-        if (w >= 640) return 4;
-        return 3;
+      let S = 140;                              // pile card size (px)
+      let gScale = 0.6, fScale = 2.2, lift = 48;
+      let slots: Array<[number, number]> = [];
+      let cx = 0, cy = 0;
+      let lastWeek = 0;
+      let on = false, active = false, ticking = false;
+
+      const easeIO = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+      // Deterministic per-card pile jitter (a hand-stacked deck, same every visit).
+      const rot = (i: number) => (((i * 47) % 21) - 10) * 0.55;
+      const jx = (i: number) => (((i * 31) % 13) - 6) * 0.9;
+      const jy = (i: number) => (((i * 53) % 11) - 5) * 0.9;
+
+      function layout() {
+        const W = pin!.clientWidth;
+        const H = pin!.clientHeight;
+        const headB = head!.offsetTop + head!.offsetHeight;
+        const small = W < 640;
+        const pad = small ? 12 : 28;
+        const top = headB + (small ? 10 : 18);
+        const bottom = H - (small ? 58 : 84);
+        const availH = Math.max(160, bottom - top);
+        const availW = Math.min(W - pad * 2, 1240);
+        const cols = W >= 900 ? 10 : W >= 640 ? 8 : 6;
+        const rows = Math.ceil(N / cols);
+        const gap = small ? 5 : 10;
+        const cell = Math.min((availW - gap * (cols - 1)) / cols, (availH - gap * (rows - 1)) / rows);
+        const gw = cols * cell + (cols - 1) * gap;
+        const gh = rows * cell + (rows - 1) * gap;
+        const gx0 = (W - gw) / 2;
+        const gy0 = top + (availH - gh) / 2;
+        slots = cards.map((_, i) => {
+          const r = Math.floor(i / cols);
+          const inRow = r === rows - 1 ? N - (rows - 1) * cols : cols;
+          const c = i % cols;
+          // centre a short final row instead of leaving it ragged-left
+          const rowShift = ((cols - inRow) * (cell + gap)) / 2;
+          return [gx0 + rowShift + c * (cell + gap) + cell / 2, gy0 + r * (cell + gap) + cell / 2];
+        });
+        cx = W / 2;
+        cy = top + availH / 2;
+        S = Math.max(110, Math.min(170, cell * 1.5));
+        gScale = cell / S;
+        fScale = Math.min(availH * 0.72, W * 0.6, 460) / S;
+        lift = Math.min(availH * 0.12, 60);
+        stage!.style.setProperty('--forty-s', S.toFixed(1) + 'px');
       }
 
-      function teardown() {
-        cols = [];
-        currentN = 0;
-        grid!.classList.remove('is-cols');
-        grid!.classList.add('is-flow');
-        figures.forEach((f) => { f.style.transform = ''; grid!.appendChild(f); });
-      }
-
-      function build(n: number) {
-        grid!.classList.remove('is-flow');
-        grid!.classList.add('is-cols');
-        grid!.textContent = '';
-        cols = [];
-        for (let i = 0; i < n; i++) {
-          const col = document.createElement('div');
-          col.className = 'jr-forty-col';
-          grid!.appendChild(col);
-          cols.push(col);
+      function pose(i: number, p: number) {
+        const t = Math.min(1, Math.max(0, (p - (P0 + step * i)) / L));
+        // featured cards alternate slightly left/right so consecutive pops don't stack
+        const fx = cx + (i % 2 ? 1 : -1) * Math.min(28, cx * 0.06);
+        let x: number, y: number, sc: number, r: number, z: number;
+        if (t <= 0) {
+          x = cx + jx(i); y = cy + jy(i); sc = 1; r = rot(i); z = 400 - i;
+        } else if (t < T1) {
+          const k = easeIO(t / T1);
+          x = cx + jx(i) * (1 - k) + (fx - cx) * k;
+          y = cy + jy(i) * (1 - k) - lift * k;
+          sc = 1 + (fScale - 1) * k; r = rot(i) * (1 - k); z = 900 + i;
+        } else if (t < 1) {
+          const k = easeIO((t - T1) / (1 - T1));
+          x = fx + (slots[i][0] - fx) * k;
+          y = cy - lift + (slots[i][1] - (cy - lift)) * k;
+          sc = fScale + (gScale - fScale) * k; r = 0; z = 900 + i;
+        } else {
+          x = slots[i][0]; y = slots[i][1]; sc = gScale; r = 0; z = 10 + i;
         }
-        figures.forEach((fig, i) => cols[i % n].appendChild(fig));
-        currentN = n;
+        const card = cards[i];
+        card.style.zIndex = String(z);
+        card.style.transform =
+          'translate3d(' + (x - S / 2).toFixed(2) + 'px,' + (y - S / 2).toFixed(2) + 'px,0)' +
+          ' scale(' + sc.toFixed(4) + ')' + (r ? ' rotate(' + r.toFixed(2) + 'deg)' : '');
+      }
+
+      function progress() {
+        const rect = section!.getBoundingClientRect();
+        const total = rect.height - pin!.clientHeight;
+        return total > 0 ? Math.min(1, Math.max(0, -rect.top / total)) : 0;
       }
 
       function apply() {
-        const rect = grid!.getBoundingClientRect();
-        const vh = window.innerHeight || document.documentElement.clientHeight;
-        const center = rect.top + rect.height / 2;
-        let p = (center - vh / 2) / (vh / 2 + rect.height / 2);
-        p = Math.max(-1, Math.min(1, p));
-        for (let i = 0; i < cols.length; i++) {
-          const dir = i % 2 === 0 ? 1 : -1;
-          const amp = 22 + (i % 3) * 14;
-          cols[i].style.transform = 'translate3d(0,' + (-p * amp * dir).toFixed(1) + 'px,0)';
-        }
+        const p = progress();
+        for (let i = 0; i < N; i++) pose(i, p);
+        const wk = Math.min(N, Math.max(1, Math.round((p - P0 - L * T1) / step) + 1));
+        if (wk !== lastWeek) { lastWeek = wk; weekEl!.textContent = 'Week ' + wk; }
+        counter!.classList.toggle('is-on', p > 0.03 && p < 0.985);
       }
 
       function onScroll() {
-        if (ticking || !inView || !cols.length) return;
+        if (!on || !active || ticking) return;
         ticking = true;
         requestAnimationFrame(() => { apply(); ticking = false; });
       }
 
       function setup() {
-        if (reduce.matches) { teardown(); return; }
-        const n = colCount();
-        if (n !== currentN) build(n);
+        if (reduce.matches) {
+          if (!on) return;
+          on = false;
+          section!.classList.remove('is-scrub');
+          cards.forEach((c) => { c.style.transform = ''; c.style.zIndex = ''; });
+          counter!.classList.remove('is-on');
+          return;
+        }
+        if (!on) { on = true; section!.classList.add('is-scrub'); }
+        layout();
         apply();
       }
 
@@ -412,12 +480,12 @@ const testimonials = [
 
       if ('IntersectionObserver' in window) {
         const io = new IntersectionObserver((entries) => {
-          inView = entries[0].isIntersecting;
-          if (inView) onScroll();
-        }, { rootMargin: '150px 0px' });
-        io.observe(grid);
+          active = entries[0].isIntersecting;
+          if (active) onScroll();
+        }, { rootMargin: '200px 0px' });
+        io.observe(section);
       } else {
-        inView = true;
+        active = true;
       }
 
       setup();

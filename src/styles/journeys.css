@@ -1384,76 +1384,96 @@ html, body { background: var(--paper); }
   .jr-deep { background-attachment: scroll; min-height: 78vh; }
 }
 
-/* ---------- The forty — parallax session grid (ASJ) ----------
-   40 square session thumbnails as a warm contact sheet. Baseline is a
-   responsive multi-column flow (all 40 shown, no JS needed); when motion is
-   welcome, a small script reflows the tiles into real columns and drifts them
-   at slightly different speeds on scroll. */
-.jr-forty { background: var(--paper-deep); }
-.jr-forty-head { max-width: 720px; margin: 0 auto var(--sp-8); text-align: center; }
+/* ---------- The forty — scroll-scrubbed session deck (ASJ) ----------
+   The 40 session thumbnails as a pinned, scroll-scrubbed deck: a neat pile
+   that riffles past the viewer card by card (Week N / 40 counter ticking)
+   and settles into an ordered mosaic — all forty on one screen, ~3 viewports
+   of scroll in total. Baseline (no JS / reduced motion) is the static
+   contact sheet below; the script adds .is-scrub and takes over layout. */
+.jr-forty {
+  background: var(--paper-deep);
+  padding: var(--sp-10) var(--sp-7);
+  position: relative;
+}
+@media (max-width: 720px) { .jr-forty { padding: var(--sp-9) var(--sp-5); } }
+.jr-forty-head { max-width: 720px; margin: 0 auto var(--sp-7); text-align: center; }
 .jr-forty-head .jr-eyebrow { justify-content: center; }
 .jr-forty-title {
   font-family: var(--font-display);
-  font-size: clamp(34px, 4.6vw, 60px);
+  font-size: clamp(32px, 4.4vw, 56px);
   line-height: 1.05; letter-spacing: -0.018em; font-weight: 400;
   color: var(--ink);
-  margin: var(--sp-4) 0 var(--sp-4);
+  margin: var(--sp-4) 0 var(--sp-3);
   text-wrap: balance;
 }
 .jr-forty-title em { font-family: var(--font-lyric); font-style: italic; color: var(--jr-em); font-size: 1.05em; }
 .jr-forty-lead {
-  font-family: var(--font-body); font-size: 17px; line-height: 1.7;
-  color: var(--ink-soft); max-width: 52ch; margin: 0 auto; text-wrap: pretty;
+  font-family: var(--font-body); font-size: 16px; line-height: 1.65;
+  color: var(--ink-soft); max-width: 46ch; margin: 0 auto; text-wrap: pretty;
 }
-
-.jr-forty-grid { max-width: 1400px; margin: 0 auto; }
-
-/* Baseline: responsive multi-column contact sheet (no JS / reduced motion). */
-.jr-forty-grid.is-flow { column-count: 3; column-gap: var(--sp-4); }
-@media (min-width: 640px)  { .jr-forty-grid.is-flow { column-count: 4; } }
-@media (min-width: 1000px) { .jr-forty-grid.is-flow { column-count: 5; column-gap: var(--sp-5); } }
-.jr-forty-grid.is-flow .jr-forty-item { break-inside: avoid; margin-bottom: var(--sp-4); }
-@media (min-width: 1000px) { .jr-forty-grid.is-flow .jr-forty-item { margin-bottom: var(--sp-5); } }
-
-/* Enhanced: real columns for the drift. */
-.jr-forty-grid.is-cols { display: flex; gap: var(--sp-4); align-items: flex-start; }
-@media (min-width: 1000px) { .jr-forty-grid.is-cols { gap: var(--sp-5); } }
-.jr-forty-col {
-  flex: 1 1 0; min-width: 0;
-  display: flex; flex-direction: column; gap: var(--sp-4);
-  will-change: transform;
+.jr-forty-stage {
+  max-width: 1000px; margin: 0 auto;
+  display: grid; grid-template-columns: repeat(8, 1fr); gap: 10px;
 }
-@media (min-width: 1000px) { .jr-forty-col { gap: var(--sp-5); } }
-/* Gentle masonry stagger so the drift reads as depth, not a sliding block. */
-.jr-forty-grid.is-cols .jr-forty-col:nth-child(even) { margin-top: var(--sp-8); }
-
-.jr-forty-item {
-  margin: 0; position: relative;
+@media (max-width: 720px) { .jr-forty-stage { grid-template-columns: repeat(5, 1fr); gap: 7px; } }
+.jr-forty-card {
+  margin: 0;
   aspect-ratio: 1 / 1;
   border-radius: var(--r-md);
   overflow: hidden;
   background: var(--night-soft);
   box-shadow: var(--shadow-2);
 }
-.jr-forty-item img {
+.jr-forty-card img {
   width: 100%; height: 100%; object-fit: cover; display: block;
   filter: var(--jr-img-filter);
-  transition: transform 900ms var(--ease);
 }
-@media (hover: hover) {
-  .jr-forty-item::after {
-    content: "Week " attr(data-week);
-    position: absolute; left: 10px; bottom: 8px;
-    font-family: var(--font-mono);
-    font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
-    color: rgba(244, 236, 223, 0.96);
-    text-shadow: 0 1px 6px rgba(15, 8, 14, 0.7);
-    opacity: 0; transition: opacity var(--d-base) var(--ease);
-    pointer-events: none;
-  }
-  .jr-forty-item:hover img { transform: scale(1.06); }
-  .jr-forty-item:hover::after { opacity: 1; }
+.jr-forty-counter { display: none; }
+
+/* Scrub mode — the script owns geometry; CSS only pins and positions. */
+.jr-forty.is-scrub { padding: 0; height: 330vh; }
+@media (max-width: 720px) { .jr-forty.is-scrub { height: 290vh; } }
+.jr-forty.is-scrub .jr-forty-pin {
+  position: sticky; top: 0;
+  height: 100vh; height: 100svh;
+  overflow: hidden;
 }
+.jr-forty.is-scrub .jr-forty-head {
+  position: absolute;
+  top: clamp(104px, 14svh, 160px);
+  left: var(--sp-5); right: var(--sp-5);
+  margin: 0 auto;
+  z-index: 5;
+  pointer-events: none;
+}
+.jr-forty.is-scrub .jr-forty-title { font-size: clamp(30px, 4vw, 52px); }
+@media (max-width: 720px), (max-height: 640px) {
+  .jr-forty.is-scrub .jr-forty-lead { display: none; }
+}
+.jr-forty.is-scrub .jr-forty-stage {
+  position: absolute; inset: 0;
+  max-width: none; display: block;
+}
+.jr-forty.is-scrub .jr-forty-card {
+  position: absolute; left: 0; top: 0;
+  width: var(--forty-s, 140px); height: var(--forty-s, 140px);
+  will-change: transform;
+}
+.jr-forty.is-scrub .jr-forty-counter {
+  display: block;
+  position: absolute; left: 0; right: 0;
+  bottom: clamp(18px, 5svh, 44px);
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
+  color: var(--ink-quiet);
+  opacity: 0;
+  transition: opacity 300ms var(--ease);
+  z-index: 6;
+  pointer-events: none;
+}
+.jr-forty.is-scrub .jr-forty-counter.is-on { opacity: 1; }
+.jr-forty.is-scrub .jr-forty-counter [data-forty-week] { color: var(--jr-accent-deep); }
 
 /* ---------- Inline lyric italic sizing ----------
    Cormorant Garamond italic reads smaller than the body/display it sits in;
