@@ -55,7 +55,7 @@ const includes = [
           <button type="button" class="tw-reg-emailchange" data-slot="change">change</button>
         </div>
 
-        <!-- Pro only: choose between the 12-week course and the full
+        <!-- Everyone: choose between the 12-week course and the full
              Certification path (12-Week Course + Certification Course). -->
         <div class="tw-reg-offers-wrap" data-slot="offers-wrap" hidden>
           <div class="tw-reg-steplabel">Choose your option</div>
@@ -125,8 +125,9 @@ const includes = [
           <div class="tw-reg-bumps" data-slot="bumps"></div>
         </div>
 
-        <!-- Non-pro: a soft pointer to the certification path (not buyable
-             here). Pro buyers get the selectable picker above instead. -->
+        <!-- Fallback pointer to the certification path (not buyable here),
+             shown only if the path wasn't priced. With the picker above now
+             offered to everyone, this stays hidden in the normal case. -->
         <aside class="tw-reg-pathteaser" data-slot="path-teaser" hidden>
           <div class="tw-reg-pathteaser-text">
             <p class="tw-reg-pathteaser-eyebrow">Take it further</p>
@@ -452,11 +453,12 @@ const includes = [
       (q('[data-slot="email"]') as HTMLElement).textContent = email;
       q<HTMLButtonElement>('[data-slot="change"]').addEventListener('click', () => showEmailForm(email));
 
-      // Pro emails (or ?audience=pro) can switch between the 12-week course and
-      // the full Certification path (12-Week Course + Certification Course). The
+      // Everyone can switch between the 12-week course and the full
+      // Certification path (12-Week Course + Certification Course) — the picker
+      // shows whenever the server priced the path (it always does now). The
       // discount only ever touches the 12-week price — inside the path, only its
       // 12-week portion; the certification course always shows its standard price.
-      const hasPath = !!(status.is_pro && status.path);
+      const hasPath = !!status.path;
       let selectedOffer: OfferId = '12week';
       let selectedPlan: Plan = 'full';
 
@@ -1003,9 +1005,8 @@ const includes = [
       });
 
       renderOffers();
-      // Non-pro (no buyable picker): reveal a soft pointer to the certification
-      // path — a "Tell me more" link through to the cert page. Pro buyers get
-      // the selectable offer cards instead, so the teaser stays hidden for them.
+      // The picker (offer cards) is shown to everyone now; the soft "Tell me
+      // more" teaser only appears as a fallback when the path wasn't priced.
       (q('[data-slot="path-teaser"]') as HTMLElement).hidden = hasPath;
       renderPrice();
       renderPlans();
