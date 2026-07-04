@@ -1,7 +1,8 @@
 // POST { email, country?, force_pro?, discount_percent? } → pricing for the
 // 12-Week SVH course, including the workshop-linked discount (auto-applied by
-// email match) and — for "pro" emails — the certification course as a second,
-// buyable offer.
+// email match) and the certification course as a second, buyable offer — now
+// offered to everyone, not just "pro" emails (`is_pro` is still reported for
+// analytics / segmentation).
 //
 // The price is revealed once an email is entered. If that email holds a secured
 // seat at a workshop (or has watched its replay), a 20% discount is live —
@@ -102,14 +103,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const baseFull = priceCents(currency);
     const baseMonthly = monthlyCents(currency);
 
-    // Pro → reveal the Certification path as a second option (forced via
-    // ?audience=pro on the client, or detected from a pro workshop door /
-    // masterclass seat). The path = cert (standard price) + the same
-    // workshop-discounted 12-week, in the certification currency (EUR/USD/GBP).
+    // The Certification path is offered to everyone now (not just pro), so it's
+    // always priced: cert (standard price) + the same workshop-discounted
+    // 12-week, in the certification currency (EUR/USD/GBP). `is_pro` is still
+    // reported (forced via ?audience=pro, or detected from a pro workshop door /
+    // masterclass seat) for analytics / segmentation, but no longer gates the
+    // offer.
     const isPro = payload.force_pro === true || emailIsProFromLinks(links);
-    const path = isPro
-      ? buildCertificationPathPricing(certCurrencyFor(currency), eff)
-      : undefined;
+    const path = buildCertificationPathPricing(certCurrencyFor(currency), eff);
 
     // Best-effort name prefill from the workshop registration.
     const fullName = (links[0]?.name ?? '').trim();
@@ -173,9 +174,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
       is_pro: isPro,
       // Drip wasn't consulted on the degraded path → offer all bumps (fail open).
       bumps: eligibleBumpOffers(currency, null),
-      path: isPro
-        ? buildCertificationPathPricing(certCurrencyFor(currency), degradedEff)
-        : undefined,
+      // The Certification path is offered to everyone — price it even here.
+      path: buildCertificationPathPricing(certCurrencyFor(currency), degradedEff),
       degraded: true,
       error: String(err),
     });
