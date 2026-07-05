@@ -51,6 +51,11 @@ export type CreateCustomerInput = {
     value: string;
   };
   metadata?: Record<string, string>;
+  // Stable per registration so a retry reuses the same Stripe customer instead
+  // of minting a fresh one each attempt — which both accumulates duplicate
+  // customers and, because the new customer id lands in the Checkout Session
+  // body, would otherwise trip Stripe's idempotency check on the session retry.
+  idempotencyKey?: string;
 };
 
 // Create a Stripe Customer ahead of the Checkout session so that B2B VAT
@@ -75,12 +80,15 @@ export async function createCustomer(input: CreateCustomerInput): Promise<{ id: 
     );
   }
 
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${input.secretKey}`,
+    'Content-Type': 'application/x-www-form-urlencoded',
+  };
+  if (input.idempotencyKey) headers['Idempotency-Key'] = input.idempotencyKey;
+
   const res = await fetch(`${STRIPE_BASE}/customers`, {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${input.secretKey}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
+    headers,
     body: form,
   });
   const body = (await res.json()) as
@@ -117,6 +125,123 @@ export function stripeTaxIdTypeFor(
 // so do not flip this on before enabling PayPal in the Dashboard.
 export function paypalEnabled(env: { STRIPE_ENABLE_PAYPAL?: string }): boolean {
   return env.STRIPE_ENABLE_PAYPAL === 'true';
+}
+
+// ── Stripe POST helper: transient retry + idempotency-conflict recovery ─────
+//
+// A single fetch to Stripe turns any momentary blip — a 429 rate-limit, a
+// Stripe 5xx, a dropped connection between the Worker and api.stripe.com — into
+// a user-facing "We couldn't start checkout" error. Because every mutating call
+// routed through here carries an Idempotency-Key, retrying the SAME request is
+// safe (Stripe replays the first result rather than acting twice), so we retry
+// transient failures a few times with a short backoff.
+//
+// Separately, Stripe REJECTS an Idempotency-Key reused with a DIFFERENT request
+// body (HTTP 400, error.type "idempotency_error"). Our checkout keys are stable
+// per registration+total, but the body legitimately varies between attempts — a
+// page reload mints a fresh meta_event_id, and the buyer may switch
+// country/timezone before retrying (e.g. after cancelling on Stripe and landing
+// back on ?canceled=1). That reused key then fails the very retry the error told
+// them to make. So on an idempotency_error we retry ONCE with a fresh key: a new
+// Checkout Session is created (an unused one simply expires — no double charge).
+const STRIPE_MAX_TRANSIENT_ATTEMPTS = 3;
+// Per-attempt ceiling. A half-open connection to Stripe (no RST, just silence)
+// would otherwise ride the Worker's wall-clock budget to exhaustion; instead we
+// abort and let the retry loop try again.
+const STRIPE_ATTEMPT_TIMEOUT_MS = 8000;
+
+function stripeBackoffMs(attempt: number): number {
+  return Math.min(1200, 200 * attempt) + Math.floor(Math.random() * 150);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function stripePostForm(
+  path: string,
+  form: URLSearchParams,
+  opts: { secretKey: string; idempotencyKey?: string; context: string },
+): Promise<Record<string, any>> {
+  // Serialize once so the body can be safely re-sent across retries.
+  const bodyStr = form.toString();
+  let idempotencyKey = opts.idempotencyKey;
+  let conflictRetried = false;
+  let transientAttempts = 0;
+
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${opts.secretKey}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    };
+    if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey;
+
+    let res: Response;
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), STRIPE_ATTEMPT_TIMEOUT_MS);
+      try {
+        res = await fetch(`${STRIPE_BASE}${path}`, {
+          method: 'POST',
+          headers,
+          body: bodyStr,
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timer);
+      }
+    } catch (err) {
+      // Network-level failure or per-attempt timeout (reset / TLS / DNS / hang).
+      // Safe to retry — same key.
+      transientAttempts++;
+      if (transientAttempts < STRIPE_MAX_TRANSIENT_ATTEMPTS) {
+        await sleep(stripeBackoffMs(transientAttempts));
+        continue;
+      }
+      throw new Error(
+        `Stripe ${opts.context}: network error after ${transientAttempts} attempts: ${String(err)}`,
+      );
+    }
+
+    let body: any = null;
+    try {
+      body = await res.json();
+    } catch {
+      body = null;
+    }
+
+    if (res.ok && body && !('error' in body)) return body as Record<string, any>;
+
+    const stripeError =
+      body && typeof body === 'object' && 'error' in body ? (body as any).error : null;
+
+    // Reused idempotency key with a changed body → retry once with a fresh key.
+    if (
+      res.status === 400 &&
+      stripeError?.type === 'idempotency_error' &&
+      idempotencyKey &&
+      !conflictRetried
+    ) {
+      conflictRetried = true;
+      idempotencyKey = `${idempotencyKey}-r${crypto.randomUUID().slice(0, 8)}`;
+      continue;
+    }
+
+    // Transient upstream failure → retry with the SAME key (idempotent, so no
+    // duplicate): 429 rate-limit, Stripe 5xx, or 409 (a concurrent request under
+    // the same key is still in flight — it finishes and the retry replays it).
+    if (res.status === 429 || res.status === 409 || res.status >= 500) {
+      transientAttempts++;
+      if (transientAttempts < STRIPE_MAX_TRANSIENT_ATTEMPTS) {
+        await sleep(stripeBackoffMs(transientAttempts));
+        continue;
+      }
+    }
+
+    const msg = stripeError?.message ?? `HTTP ${res.status}`;
+    throw new Error(`Stripe ${opts.context}: ${msg}`);
+  }
 }
 
 export async function createCheckoutSession(input: CreateCheckoutSessionInput) {
@@ -192,25 +317,11 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput) {
     form.set(`metadata[${k}]`, v),
   );
 
-  const headers: Record<string, string> = {
-    Authorization: `Bearer ${input.secretKey}`,
-    'Content-Type': 'application/x-www-form-urlencoded',
-  };
-  if (input.idempotency_key) headers['Idempotency-Key'] = input.idempotency_key;
-
-  const res = await fetch(`${STRIPE_BASE}/checkout/sessions`, {
-    method: 'POST',
-    headers,
-    body: form,
-  });
-  const body = (await res.json()) as
-    | { id: string; url: string; payment_intent: string | null }
-    | { error: { message: string; type?: string } };
-  if (!res.ok || 'error' in body) {
-    const msg = 'error' in body ? body.error.message : 'Stripe error';
-    throw new Error(`Stripe checkout.sessions: ${msg}`);
-  }
-  return body;
+  return (await stripePostForm('/checkout/sessions', form, {
+    secretKey: input.secretKey,
+    idempotencyKey: input.idempotency_key,
+    context: 'checkout.sessions',
+  })) as { id: string; url: string; payment_intent: string | null };
 }
 
 // Issue a refund against a PaymentIntent. Omit `amountMinor` for a full
@@ -525,25 +636,11 @@ export async function createSubscriptionCheckoutSession(
     form.set(`subscription_data[metadata][${k}]`, v);
   });
 
-  const headers: Record<string, string> = {
-    Authorization: `Bearer ${input.secretKey}`,
-    'Content-Type': 'application/x-www-form-urlencoded',
-  };
-  if (input.idempotency_key) headers['Idempotency-Key'] = input.idempotency_key;
-
-  const res = await fetch(`${STRIPE_BASE}/checkout/sessions`, {
-    method: 'POST',
-    headers,
-    body: form,
-  });
-  const body = (await res.json()) as
-    | { id: string; url: string; subscription: string | null }
-    | { error: { message: string; type?: string } };
-  if (!res.ok || 'error' in body) {
-    const msg = 'error' in body ? body.error.message : 'Stripe error';
-    throw new Error(`Stripe checkout.sessions (subscription): ${msg}`);
-  }
-  return body;
+  return (await stripePostForm('/checkout/sessions', form, {
+    secretKey: input.secretKey,
+    idempotencyKey: input.idempotency_key,
+    context: 'checkout.sessions (subscription)',
+  })) as { id: string; url: string; subscription: string | null };
 }
 
 // Verify the Stripe webhook signature using Web Crypto (Workers-compatible).

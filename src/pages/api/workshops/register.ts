@@ -272,6 +272,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
           workshop_registration_id: String(registrationId),
           ...(companyName ? { company_name: companyName } : {}),
         },
+        // Stable per registration: a retry reuses the same Stripe customer
+        // rather than minting a new id each attempt (which would both pile up
+        // duplicate customers and change the Checkout Session body, tripping
+        // Stripe's idempotency check on the session retry).
+        idempotencyKey: `wreg-cust-${registrationId}`,
       });
       customerId = cust.id;
     } catch (err) {
