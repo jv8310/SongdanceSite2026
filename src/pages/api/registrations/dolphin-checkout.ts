@@ -7,7 +7,7 @@ import {
   createPendingRegistration,
   attachStripeSession,
   attachPaypalOrder,
-  logEvent,
+  logEventSafe,
 } from '../../../lib/registrations/db';
 import { edgeTimezone } from '../../../lib/geo';
 import {
@@ -150,7 +150,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
   const product = await getProductBySlug(env.DB, PRODUCT_SLUG);
   if (!product) {
-    await logEvent(env.DB, {
+    await logEventSafe(env.DB, {
       registration_id: null,
       kind: 'checkout.product.unknown',
       payload: { product_slug: PRODUCT_SLUG },
@@ -174,7 +174,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const availability = await computeTierAvailability(env.DB, product.id);
   const tierAvail = availability.find((a) => a.tier.id === tier.id);
   if (!tierAvail || tierAvail.remaining <= 0) {
-    await logEvent(env.DB, {
+    await logEventSafe(env.DB, {
       registration_id: null,
       kind: 'checkout.tier.full',
       payload: { tier_slug: tierSlug },
@@ -273,7 +273,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       requestId: `reg-${registrationId}-pp`,
     });
     await attachPaypalOrder(env.DB, registrationId, order.id);
-    await logEvent(env.DB, {
+    await logEventSafe(env.DB, {
       registration_id: registrationId,
       kind: 'checkout.paypal.order.created',
       external_id: `local-checkout-pp-${registrationId}`,
@@ -318,7 +318,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     });
     customerId = cust.id;
   } catch (err) {
-    await logEvent(env.DB, {
+    await logEventSafe(env.DB, {
       registration_id: registrationId,
       kind: 'stripe.customer.error',
       payload: { error: String(err) },
@@ -358,7 +358,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
   });
 
   await attachStripeSession(env.DB, registrationId, session.id);
-  await logEvent(env.DB, {
+  await logEventSafe(env.DB, {
     registration_id: registrationId,
     kind: 'checkout.session.created',
     external_id: `local-checkout-${registrationId}`,

@@ -24,7 +24,7 @@ import {
   attachStripeSessionToCourse,
   attachPaypalOrderToCourse,
 } from '../../../lib/courses/db';
-import { logEvent } from '../../../lib/registrations/db';
+import { logEventSafe } from '../../../lib/registrations/db';
 import {
   createCheckoutSession,
   createCustomer,
@@ -226,7 +226,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         requestId: `grief-reg-${registrationId}-pp`,
       });
       await attachPaypalOrderToCourse(env.DB, registrationId, order.id);
-      await logEvent(env.DB, {
+      await logEventSafe(env.DB, {
         registration_id: null,
         kind: 'course.checkout.paypal.order.created',
         source: 'system',
@@ -279,7 +279,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     } catch (err) {
       // The customer is nice-to-have for a one-off payment but not required —
       // we can fall back to customer_email. Log and continue.
-      await logEvent(env.DB, {
+      await logEventSafe(env.DB, {
         registration_id: null,
         kind: 'stripe.customer.error',
         source: 'system',
@@ -343,7 +343,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     await attachStripeSessionToCourse(env.DB, registrationId, session.id);
 
-    await logEvent(env.DB, {
+    await logEventSafe(env.DB, {
       registration_id: null,
       kind: 'course.checkout.session.created',
       source: 'system',

@@ -10,7 +10,7 @@ import {
   createOrder as createPaypalOrder,
 } from '../../../lib/payments/paypal';
 import { encodeCustomId, parseProvider } from '../../../lib/payments/provider';
-import { logEvent } from '../../../lib/registrations/db';
+import { logEventSafe } from '../../../lib/registrations/db';
 import {
   getProductById,
   getProductBySlug,
@@ -114,7 +114,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const ticketProduct = await getProductById(env.DB, workshop.main_product_id);
   const ticketPrice = await resolvePrice(env.DB, workshop.main_product_id, currency);
   if (!ticketProduct || !ticketPrice) {
-    await logEvent(env.DB, { registration_id: null, kind: 'workshop.price.missing', payload: { slug, currency } });
+    await logEventSafe(env.DB, { registration_id: null, kind: 'workshop.price.missing', payload: { slug, currency } });
     return json({ error: 'Pricing isn’t available right now. Please email info@songdance.co.' }, 500);
   }
 
@@ -160,7 +160,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
   // ── Free-coupon path: skip Stripe, grant access immediately. ──────────
   if (coupon && workshop.free_coupon && coupon === workshop.free_coupon) {
     await setRegistrationPaymentStatus(env.DB, registrationId, 'coupon');
-    await logEvent(env.DB, {
+    await logEventSafe(env.DB, {
       registration_id: null,
       kind: 'workshop.coupon.redeemed',
       external_id: `workshop-coupon-${registrationId}`,
@@ -215,10 +215,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
         requestId: `wreg-${registrationId}-pp-${totalMinor}-${realBump ? 1 : 0}`,
       });
     } catch (err) {
-      await logEvent(env.DB, { registration_id: null, kind: 'workshop.checkout.paypal.error', payload: { registration_id: registrationId, error: String(err) } });
+      await logEventSafe(env.DB, { registration_id: null, kind: 'workshop.checkout.paypal.error', payload: { registration_id: registrationId, error: String(err) } });
       return json({ error: 'We couldn’t start PayPal checkout. Please try again, or pay by card.' }, 502);
     }
-    await logEvent(env.DB, {
+    await logEventSafe(env.DB, {
       registration_id: null,
       kind: 'workshop.checkout.paypal.created',
       external_id: `workshop-checkout-pp-${registrationId}`,
@@ -280,7 +280,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       });
       customerId = cust.id;
     } catch (err) {
-      await logEvent(env.DB, {
+      await logEventSafe(env.DB, {
         registration_id: null,
         kind: 'workshop.customer.error',
         payload: { registration_id: registrationId, error: String(err) },
@@ -314,11 +314,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
       idempotency_key: `wreg-${registrationId}-${totalMinor}-${realBump ? 1 : 0}`,
     });
   } catch (err) {
-    await logEvent(env.DB, { registration_id: null, kind: 'workshop.checkout.error', payload: { registration_id: registrationId, error: String(err) } });
+    await logEventSafe(env.DB, { registration_id: null, kind: 'workshop.checkout.error', payload: { registration_id: registrationId, error: String(err) } });
     return json({ error: 'We couldn’t start checkout. Please try again, or email info@songdance.co.' }, 502);
   }
 
-  await logEvent(env.DB, {
+  await logEventSafe(env.DB, {
     registration_id: null,
     kind: 'workshop.checkout.created',
     external_id: `workshop-checkout-${registrationId}`,
