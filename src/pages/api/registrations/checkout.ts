@@ -5,7 +5,7 @@ import {
   createPendingRegistration,
   attachStripeSession,
   attachPaypalOrder,
-  logEvent,
+  logEventSafe,
   pickRoomForTier,
   getSpecialRoomByRole,
   type SpecialRole,
@@ -117,7 +117,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
   const product = await getProductBySlug(env.DB, productSlug);
   if (!product) {
-    await logEvent(env.DB, {
+    await logEventSafe(env.DB, {
       registration_id: null,
       kind: 'checkout.product.unknown',
       payload: { product_slug: productSlug },
@@ -130,7 +130,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
   const tier = await getTierBySlug(env.DB, product.id, tierSlug);
   if (!tier) {
-    await logEvent(env.DB, {
+    await logEventSafe(env.DB, {
       registration_id: null,
       kind: 'checkout.tier.unknown',
       payload: { tier_slug: tierSlug, product_slug: productSlug },
@@ -281,7 +281,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       requestId: `reg-${registrationId}-pp`,
     });
     await attachPaypalOrder(env.DB, registrationId, order.id);
-    await logEvent(env.DB, {
+    await logEventSafe(env.DB, {
       registration_id: registrationId,
       kind: 'checkout.paypal.order.created',
       external_id: `local-checkout-pp-${registrationId}`,
@@ -339,7 +339,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
   } catch (err) {
     // Don't block the registration on customer creation — log and fall
     // back to customer_email. The VAT (if any) is still in our D1 row.
-    await logEvent(env.DB, {
+    await logEventSafe(env.DB, {
       registration_id: registrationId,
       kind: 'stripe.customer.error',
       payload: { error: String(err) },
@@ -382,7 +382,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
   });
 
   await attachStripeSession(env.DB, registrationId, session.id);
-  await logEvent(env.DB, {
+  await logEventSafe(env.DB, {
     registration_id: registrationId,
     kind: 'checkout.session.created',
     external_id: `local-checkout-${registrationId}`,

@@ -6,7 +6,7 @@ import {
   resolveZoomDetails,
 } from '../../../lib/workshops/db';
 import { joinWindow } from '../../../lib/workshops/time';
-import { logEvent } from '../../../lib/registrations/db';
+import { logEventSafe } from '../../../lib/registrations/db';
 
 export const prerender = false;
 
@@ -54,14 +54,14 @@ export const GET: APIRoute = async ({ url, locals }) => {
 
   const zoom = await resolveZoomDetails(env.DB, workshop);
   if (!zoom.url) {
-    await logEvent(env.DB, { registration_id: null, kind: 'workshop.zoom.missing', payload: { workshop_id: workshop.id } });
+    await logEventSafe(env.DB, { registration_id: null, kind: 'workshop.zoom.missing', payload: { workshop_id: workshop.id } });
     return reveal
       ? json({ error: 'no_zoom' }, 503)
       : redirect(`${base}/workshop/success?t=${token}&nozoom=1`);
   }
 
   await markJoined(env.DB, reg.id);
-  await logEvent(env.DB, {
+  await logEventSafe(env.DB, {
     registration_id: null,
     kind: 'workshop.joined',
     external_id: `workshop-join-${reg.id}`,

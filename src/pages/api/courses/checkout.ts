@@ -34,7 +34,7 @@ import {
   type CourseProductSlug,
   type PaymentPlan,
 } from '../../../lib/courses/db';
-import { logEvent } from '../../../lib/registrations/db';
+import { logEventSafe } from '../../../lib/registrations/db';
 import {
   createCheckoutSession,
   createCustomer,
@@ -407,7 +407,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
           requestId: `course-reg-${registrationId}-pp-${paymentPlan}`,
         });
         await attachPaypalSubscriptionToCourse(env.DB, registrationId, sub.subscriptionId);
-        await logEvent(env.DB, {
+        await logEventSafe(env.DB, {
           registration_id: null,
           kind: 'course.checkout.paypal.subscription.created',
           source: 'system',
@@ -445,7 +445,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         requestId: `course-reg-${registrationId}-pp`,
       });
       await attachPaypalOrderToCourse(env.DB, registrationId, order.id);
-      await logEvent(env.DB, {
+      await logEventSafe(env.DB, {
         registration_id: null,
         kind: 'course.checkout.paypal.order.created',
         source: 'system',
@@ -505,7 +505,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       });
       customerId = cust.id;
     } catch (err) {
-      await logEvent(env.DB, {
+      await logEventSafe(env.DB, {
         registration_id: null,
         kind: 'stripe.customer.error',
         source: 'system',
@@ -597,7 +597,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         );
       }
 
-      await logEvent(env.DB, {
+      await logEventSafe(env.DB, {
         registration_id: null,
         kind: 'course.checkout.subscription.created',
         source: 'system',
@@ -655,7 +655,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     await attachStripeSessionToCourse(env.DB, registrationId, session.id);
 
-    await logEvent(env.DB, {
+    await logEventSafe(env.DB, {
       registration_id: null,
       kind: 'course.checkout.session.created',
       source: 'system',

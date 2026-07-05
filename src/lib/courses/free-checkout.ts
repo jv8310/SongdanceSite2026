@@ -20,7 +20,7 @@ import {
 } from './db';
 import { pushPaidCourseRegistrationToDrip } from './paid-handler';
 import { notifyCourseOrder } from '../orders/notification';
-import { logEvent } from '../registrations/db';
+import { logEventSafe } from '../registrations/db';
 
 type FreeCheckoutEnv = {
   DB: D1Database;
@@ -64,7 +64,7 @@ export async function fulfilFreeCourseRegistration(
   // No real payment — mark paid with a synthetic, recognisable comp intent id.
   await markCourseRegistrationPaid(env.DB, registrationId, `free-100-${registrationId}`);
 
-  await logEvent(env.DB, {
+  await logEventSafe(env.DB, {
     registration_id: null,
     kind: 'course.free_checkout.fulfilled',
     source: 'system',

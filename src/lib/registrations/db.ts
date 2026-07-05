@@ -518,6 +518,24 @@ export async function logEvent(
     .run();
 }
 
+// Best-effort variant for telemetry inside customer-facing flows. events has a
+// UNIQUE index on external_id (it doubles as an idempotency claim elsewhere),
+// so a legitimate second pass — a retried checkout, a re-clicked join link —
+// makes the plain logEvent THROW on the duplicate insert, after the real work
+// succeeded but before the response is sent. A telemetry write must never take
+// down the flow it's describing: log the drop and move on. Keep logEvent itself
+// for callers that rely on the unique insert as a claim (cron, webhooks).
+export async function logEventSafe(
+  db: D1Database,
+  data: Parameters<typeof logEvent>[1],
+): Promise<void> {
+  try {
+    await logEvent(db, data);
+  } catch (err) {
+    console.error(`logEventSafe: dropped ${data.kind}: ${String(err)}`);
+  }
+}
+
 export async function eventExists(db: D1Database, externalId: string) {
   const r = await db
     .prepare('SELECT 1 AS one FROM events WHERE external_id = ?')

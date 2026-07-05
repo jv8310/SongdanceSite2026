@@ -637,11 +637,22 @@ const leadTicket = items.find((it) => it.kind !== 'masterclass');
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
         });
-        var data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Something went wrong.');
+        // Parse defensively: an edge/platform failure can answer with an
+        // empty or HTML body, and res.json() would throw browser-internal
+        // wording ("Unexpected end of JSON input") straight into the form.
+        var data = null;
+        try { data = await res.json(); } catch (e3) { data = null; }
+        if (!res.ok || !data || !(data.checkout_url || data.redirect_url)) {
+          throw new Error((data && data.error) ||
+            'We couldn’t start checkout (error ' + res.status + '). Please try again, or email info@songdance.co.');
+        }
         window.location.href = data.checkout_url || data.redirect_url;
       } catch (e2) {
-        if (err) { err.hidden = false; err.textContent = e2.message || 'Something went wrong.'; }
+        // A TypeError here is fetch itself failing (offline, blocked).
+        var msg = (e2 && e2.name === 'TypeError')
+          ? 'We couldn’t reach the server. Please check your connection and try again — or email info@songdance.co.'
+          : ((e2 && e2.message) || 'Something went wrong.');
+        if (err) { err.hidden = false; err.textContent = msg; }
         submitBtn.disabled = false;
         if (paypalBtn) paypalBtn.disabled = false;
       }

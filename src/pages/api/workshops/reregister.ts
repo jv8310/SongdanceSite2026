@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { logEvent } from '../../../lib/registrations/db';
+import { logEventSafe } from '../../../lib/registrations/db';
 import {
   getPublishedWorkshopBySlug,
   getRegistrationByAccessToken,
@@ -57,7 +57,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
   });
   await setRegistrationPaymentStatus(env.DB, registrationId, 'coupon');
 
-  await logEvent(env.DB, {
+  await logEventSafe(env.DB, {
     registration_id: null,
     kind: 'workshop.rebooked',
     external_id: `workshop-rebook-${origin.id}-to-${registrationId}`,
