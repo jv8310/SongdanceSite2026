@@ -215,12 +215,31 @@ export async function runWorkshopCron(env: CronEnv, now = Date.now()): Promise<C
   };
   if (!env.RESEND_API_KEY) return result;
 
-  await runReminders(env, now, result);
-  await runAbandonedCheckouts(env, now, result);
-  await runCourseAbandonedCheckouts(env, now, result);
-  await runPostWorkshop(env, now, result);
-  await runPreWorkshopBriefing(env, now, result);
+  // Each step is isolated so a failure in one can never abort the others. This
+  // matters most for the pre-workshop briefing: it has a narrow (~15-min)
+  // catch-up window, so if a heavier earlier step (e.g. the 16-day
+  // post-workshop scan) threw on one bad row, the briefing would be skipped on
+  // every tick until its window closed and the mail would silently never
+  // arrive — while reminders (which ran first) kept going out. So run the
+  // time-critical steps (reminders, then the briefing) before the heavier
+  // rolling-window scans, and wrap each in its own guard.
+  await safeStep('reminders', () => runReminders(env, now, result));
+  await safeStep('briefing', () => runPreWorkshopBriefing(env, now, result));
+  await safeStep('abandoned', () => runAbandonedCheckouts(env, now, result));
+  await safeStep('course_abandoned', () => runCourseAbandonedCheckouts(env, now, result));
+  await safeStep('post', () => runPostWorkshop(env, now, result));
   return result;
+}
+
+// Run one cron step, swallowing (and logging) any error so a single step's
+// failure never cascades into skipping the steps after it. The step name is
+// logged so a persistently-failing step is identifiable in the tail.
+async function safeStep(name: string, fn: () => Promise<void>): Promise<void> {
+  try {
+    await fn();
+  } catch (err) {
+    console.error(`[workshops/cron] step ${name} failed`, err);
+  }
 }
 
 function emailCtx(env: CronEnv, reg: WorkshopRegistration, w: Workshop): WorkshopEmailCtx {
@@ -745,28 +764,58 @@ async function runPreWorkshopBriefing(env: CronEnv, now: number, result: CronRes
     .bind(ceil, floor)
     .all<Workshop>();
 
-  const recipients = briefingRecipients(env);
   for (const w of wRes.results ?? []) {
-    const externalId = `workshop-briefing-${w.id}`;
-    // Claim first (atomic) so overlapping ticks can't double-send; release on
-    // failure so a later tick retries while still inside the window.
-    if (!(await claimBriefing(env.DB, externalId))) continue;
+    // Per-workshop guard: one workshop's briefing failing (already released
+    // inside sendWorkshopBriefing so a later in-window tick retries) must not
+    // stop the others due in the same tick.
     try {
-      const data = await gatherBriefingData(env.DB, w);
-      const content = buildBriefingEmail(data, env.PUBLIC_BASE_URL);
-      await sendEmail({
-        apiKey: env.RESEND_API_KEY!,
-        to: recipients,
-        replyTo: env.RESEND_REPLY_TO,
-        subject: content.subject,
-        html: content.html,
-        text: content.text,
-        entityRefId: externalId,
-      });
-      result.briefingsSent += 1;
-    } catch {
-      await releaseBriefing(env.DB, externalId).catch(() => {});
+      const r = await sendWorkshopBriefing(env, w);
+      if (r.sent) result.briefingsSent += 1;
+    } catch (err) {
+      console.error(`[workshops/cron] briefing for workshop ${w.id} failed`, err);
     }
+  }
+}
+
+// Gather + render + send one workshop's SD-BRIEFING to the internal recipients.
+// Shared by the cron (force omitted → claim-gated, once per workshop) and the
+// admin "Send briefing now" action (force → send even if already claimed, e.g.
+// to re-send or fire it by hand). Returns whether a mail actually went out
+// (the cron path reports `sent: false` when the claim was already taken).
+export async function sendWorkshopBriefing(
+  env: CronEnv,
+  w: Workshop,
+  opts: { force?: boolean } = {},
+): Promise<{ sent: boolean; registered: number; recipients: string[] }> {
+  const externalId = `workshop-briefing-${w.id}`;
+  const recipients = briefingRecipients(env);
+
+  // Automatic path: claim first (atomic) so overlapping ticks can't double-send.
+  // Forced (manual) path: skip the gate so it always goes, then stamp the claim
+  // afterwards so the cron won't also fire it.
+  if (!opts.force && !(await claimBriefing(env.DB, externalId))) {
+    return { sent: false, registered: 0, recipients };
+  }
+
+  try {
+    const data = await gatherBriefingData(env.DB, w);
+    const content = buildBriefingEmail(data, env.PUBLIC_BASE_URL);
+    await sendEmail({
+      apiKey: env.RESEND_API_KEY!,
+      to: recipients,
+      replyTo: env.RESEND_REPLY_TO,
+      subject: content.subject,
+      html: content.html,
+      text: content.text,
+      entityRefId: externalId,
+    });
+    if (opts.force) await claimBriefing(env.DB, externalId).catch(() => {});
+    return { sent: true, registered: data.registered, recipients };
+  } catch (err) {
+    // Automatic path releases the claim so a later in-window tick retries; the
+    // forced path never claimed up front, so there is nothing to release.
+    if (!opts.force) await releaseBriefing(env.DB, externalId).catch(() => {});
+    throw err;
   }
 }
 

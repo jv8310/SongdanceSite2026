@@ -35,8 +35,10 @@ const flashText =
   : flash === 'attendance' ? 'Attendance updated.'
   : flash === 'resent' ? 'Confirmation email re-sent — it carries a fresh join link.'
   : flash === 'resend_error' ? 'Couldn’t re-send the confirmation email — check the event log.'
+  : flash === 'briefing_sent' ? 'SD-BRIEFING sent to the internal recipients.'
+  : flash === 'briefing_error' ? 'Couldn’t send the SD-BRIEFING — check the logs.'
   : null;
-const flashErr = flash === 'resend_error';
+const flashErr = flash === 'resend_error' || flash === 'briefing_error';
 
 const paidCount = regs.filter((r) => r.payment_status === 'paid' || r.payment_status === 'coupon').length;
 const attendedCount = regs.filter((r) => r.attendance_status === 'attended').length;
@@ -63,6 +65,12 @@ const STATUS_LABEL: Record<string, string> = { draft: 'Draft', published: 'Publi
         </p>
       </div>
       <div class="adm-actions">
+        {!workshop.is_replay && (
+          <form method="POST" action="/api/admin/workshops/send-briefing" class="adm-inline-form">
+            <input type="hidden" name="workshop_id" value={workshop.id} />
+            <button type="submit" class="adm-btn adm-btn--ghost" onclick="return confirm('Send the internal SD-BRIEFING for this session now? It goes to the internal recipients, not the registrants.')">Send briefing now</button>
+          </form>
+        )}
         <a class="adm-btn adm-btn--ghost" href={`/w/${workshop.slug}`} target="_blank" rel="noopener">Open registration page</a>
         <a class="adm-btn adm-btn--ghost" href="/admin/workshops">← All workshops</a>
       </div>
