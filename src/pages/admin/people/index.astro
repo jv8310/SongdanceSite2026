@@ -10,6 +10,7 @@ import {
   listPeople,
   filterPeople,
   summarisePeople,
+  suppressionBreakdown,
   type PeopleFilter,
 } from '../../../lib/admin/people';
 
@@ -37,6 +38,28 @@ const all = await listPeople(env.DB);
 const summary = summarisePeople(all);
 const filtered = filterPeople(all, filter);
 
+// Where the unsubscribe list actually came from (single source of truth:
+// email_suppressions — the People tab and the broadcasts "sendable" count both
+// read it). Surfacing this makes a mass import that suppressed a whole segment
+// visible, and separable from genuine unsubscribes / bounces / complaints.
+const suppr = await suppressionBreakdown(env.DB);
+const importUnsub =
+  suppr.find((g) => g.source === 'import' && g.reason === 'unsubscribe')?.count ?? 0;
+
+// Friendly label for a (source, reason) suppression group.
+function supprLabel(source: string, reason: string): string {
+  if (source === 'import' && reason === 'unsubscribe')
+    return 'Drip import — CSV “status” column said “unsubscribed”';
+  if (reason === 'invalid_domain') return 'Dead domain (no mail server)';
+  if (reason === 'invalid_address') return 'Email verifier — invalid address';
+  if (reason === 'bounced') return 'Hard bounce';
+  if (reason === 'complaint') return 'Spam complaint';
+  if (source === 'one_click' || source === 'link')
+    return 'Unsubscribed via an email link';
+  if (source === 'admin') return 'Unsubscribed by admin';
+  return `${reason}${source && source !== '(unknown)' ? ` · ${source}` : ''}`;
+}
+
 // Paginate the render. The aggregated set can be tens of thousands of rows —
 // the suppression list now carries the imported marketing contacts — and
 // building every row in one request trips Cloudflare's per-request limit
@@ -58,6 +81,10 @@ const flashBanner =
     ? { tone: 'ok' as const, text: `Resubscribed ${params.get('email') ?? ''} — lifted the suppression and reactivated them in Drip.` }
   : flash === 'resub_error'
     ? { tone: 'err' as const, text: params.get('msg') ?? 'Resubscribe failed.' }
+  : flash === 'lift_ok'
+    ? { tone: 'ok' as const, text: `Lifted ${Number(params.get('n') ?? 0).toLocaleString()} import-created unsubscribes — those contacts can receive marketing again. Genuine unsubscribes, bounces and complaints were left in place.` }
+  : flash === 'lift_error'
+    ? { tone: 'err' as const, text: params.get('msg') ?? 'Lift failed.' }
   : null;
 
 // Build a filter URL from explicit values (preserving the search box).
@@ -139,9 +166,63 @@ function fmtDate(s: string | null): string {
         unsubscribe list. Transactional email (confirmations, reminders) always
         sends regardless. &ldquo;Customer&rdquo; = secured a workshop seat or
         bought a course/retreat; everyone else is a lead (form or unfinished
-        checkout).
+        checkout). This page surfaces everyone who has engaged <em>plus</em>
+        everyone on the unsubscribe list — not your full contact list — so a big
+        imported suppression set makes the unsubscribed share look larger here
+        than across your whole audience.
       </p>
     </section>
+
+    {suppr.length > 0 && (
+      <section class="adm-section">
+        <h2 class="ppl-h2">Where the unsubscribes came from</h2>
+        <p class="adm-table-note">
+          The unsubscribe list (<code>email_suppressions</code>) is the single
+          gate every marketing send checks — the People tab and the broadcasts
+          &ldquo;sendable&rdquo; count both read it, so they can&rsquo;t actually
+          disagree. Here is exactly what put each address on it.
+        </p>
+        <table class="adm-table ppl-suppr">
+          <thead>
+            <tr><th>Source</th><th class="num">Addresses</th><th>Raw</th></tr>
+          </thead>
+          <tbody>
+            {suppr.map((g) => (
+              <tr class={g.source === 'import' && g.reason === 'unsubscribe' ? 'is-import' : ''}>
+                <td>{supprLabel(g.source, g.reason)}</td>
+                <td class="num">{g.count.toLocaleString()}</td>
+                <td><code>{g.reason} · {g.source}</code></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {importUnsub > 0 && (
+          <div class="ppl-reconcile">
+            <p class="adm-table-note">
+              <strong>{importUnsub.toLocaleString()}</strong> addresses were
+              suppressed by the contact import because their CSV
+              <code>status</code> column read <code>unsubscribed</code>. If that
+              column reflected genuine opt-outs, leave them. If it was a Drip
+              export artifact (e.g. an account marked as unsubscribed on
+              migration) and these people are really subscribed, lift them here —
+              it removes <em>only</em> this import-created group and leaves real
+              unsubscribes, bounces and complaints in place. No email is sent.
+            </p>
+            <form
+              method="POST"
+              action="/api/admin/people/lift-import-suppressions"
+              onsubmit={`return confirm('Lift ${importUnsub.toLocaleString()} import-created unsubscribes? These addresses will be able to receive marketing again. Real unsubscribes, bounces and complaints are NOT touched. Only do this if that CSV status column did not reflect genuine opt-outs.')`}
+            >
+              <input type="hidden" name="return_to" value={returnTo} />
+              <button type="submit" class="adm-btn adm-btn--solid">
+                Lift {importUnsub.toLocaleString()} import-created unsubscribes
+              </button>
+            </form>
+          </div>
+        )}
+      </section>
+    )}
 
     <section class="adm-section">
       <span class="adm-filters" role="group" aria-label="Subscription">
@@ -278,6 +359,14 @@ function fmtDate(s: string | null): string {
     }
     .ord-stat span { font-size:11px; text-transform:uppercase; letter-spacing:0.04em; color:var(--adm-mute); }
     .ord-stat strong { font-size:20px; font-variant-numeric:tabular-nums; }
+
+    .ppl-h2 { font-size:16px; margin:0 0 4px; }
+    .ppl-suppr { max-width:640px; }
+    .ppl-suppr code { font-size:12px; color:var(--adm-mute); }
+    .ppl-suppr tr.is-import td { background:rgba(201, 96, 58, 0.08); }
+    .ppl-reconcile { margin-top:14px; max-width:640px; }
+    .ppl-reconcile form { margin-top:6px; }
+    .ppl-reconcile code { background:var(--adm-paper-soft); padding:1px 5px; border-radius:4px; }
 
     .ppl-toggle.is-on::before { content:'✓ '; }
     .ord-search { display:flex; gap:8px; margin-top:12px; align-items:center; flex-wrap:wrap; }
