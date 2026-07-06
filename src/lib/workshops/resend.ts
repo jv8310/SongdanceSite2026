@@ -99,6 +99,9 @@ export type BatchEmailInput = {
   text?: string;
   from?: string;
   replyTo?: string;
+  // A stable reference so Gmail threads/dedups and treats it as transactional —
+  // set on batched transactional sends (reminders) to match the single-send path.
+  entityRefId?: string;
   listUnsubscribeUrl?: string;
 };
 
@@ -137,6 +140,7 @@ export async function sendEmailBatch(
         headers: {
           'Auto-Submitted': 'auto-generated',
           'X-Auto-Response-Suppress': 'All',
+          ...(e.entityRefId ? { 'X-Entity-Ref-ID': e.entityRefId } : {}),
           ...(e.listUnsubscribeUrl
             ? {
                 'List-Unsubscribe': `<${e.listUnsubscribeUrl}>`,
