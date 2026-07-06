@@ -1,0 +1,139 @@
+---
+// Standalone layout for the private SpeelWijs client landing page (/speelwijs).
+//
+// This page has NOTHING to do with Songdance — it is a bespoke landing page
+// built for an external client (EigenWijs / SpeelWijs, a small-scale play &
+// care space in Belgium) to preview privately. Deliberately NOT the main
+// Songdance site layout:
+//   • no Songdance nav, footer, PriceSync, promo bar or any site chrome
+//   • noindex, nofollow  — plus /speelwijs is Disallow-ed in robots.txt and
+//     is intentionally absent from sitemap.xml, so no crawler/Google finds it
+//   • its own warm, earthy aesthetic (see docs/speelwijs-handover/HANDOVER.md)
+//
+// The Songdance copy-book (Somatic Vocal Healing voice, "sounding not singing",
+// etc.) does NOT apply here — this is a separate brand in Dutch.
+
+interface Props {
+  title?: string;
+  description?: string;
+  image?: string;
+  imageAlt?: string;
+}
+
+const {
+  title = 'SpeelWijs — de plek tussen opvang en school',
+  description =
+    'SpeelWijs — een kleinschalige plek tussen opvang en school, waar kinderen op hun eigen tempo mogen spelen, vertragen en groeien.',
+  image = '/speelwijs/photos/01-cover-boy-and-stone.webp',
+  imageAlt = 'Een kind dat aandachtig een grote steen in het gras bekijkt.',
+} = Astro.props;
+
+const origin = Astro.site ?? Astro.url.origin;
+const ogImage = new URL(image, origin).href;
+---
+
+<!doctype html>
+<html lang="nl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    {/* Private client preview: keep it out of every index. */}
+    <meta name="robots" content="noindex, nofollow, noarchive" />
+    <meta name="googlebot" content="noindex, nofollow" />
+    <meta name="description" content={description} />
+    <link rel="icon" href="/favicon.png" type="image/png" />
+
+    {/* Fonts. Cormorant Garamond is a confident match for the brochure's
+        elegant heading + body serif; Fraunces stands in for the warm, chunky
+        "SpeelWijs" ball-terminal slab wordmark (swap for the real brand font
+        or Recoleta if licensed — see HANDOVER.md). Figtree covers UI/labels. */}
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Figtree:wght@300;400;500;600&display=swap"
+    />
+
+    {/* Open Graph so a shared preview link renders a warm card (still noindex).
+        Deliberately branded SpeelWijs. */}
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="SpeelWijs" />
+    <meta property="og:locale" content="nl_BE" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:image:alt" content={imageAlt} />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <title>{title}</title>
+
+    <style is:global>
+      /* ---- SpeelWijs design tokens (extracted from the 2025 brochure) ----
+         Palette sampled from the PDF; fonts identified from the source.
+         Fable: treat these as the starting system — extend freely. */
+      :root {
+        /* Warm earthy palette */
+        --sw-terracotta: #b87060; /* dusty terracotta-rose — headings */
+        --sw-terracotta-deep: #a5594a; /* deeper rose for emphasis/links */
+        --sw-wine: #6b3a48; /* deep plum-wine — body text */
+        --sw-ink: #4a2f2c; /* soft warm near-black */
+        --sw-cream: #fbf7f1; /* warm off-white page ground */
+        --sw-cream-2: #f3e9dd; /* slightly deeper cream for alternating bands */
+        --sw-sand: #efe6d8; /* soft sand panel */
+        --sw-white: #ffffff;
+        --sw-leaf: #6f7d55; /* muted garden green accent (from photos) */
+
+        /* Type */
+        --sw-serif: "Cormorant Garamond", Georgia, "Times New Roman", serif;
+        --sw-display: "Fraunces", "Cormorant Garamond", Georgia, serif;
+        --sw-ui: "Figtree", -apple-system, "Segoe UI", system-ui, sans-serif;
+
+        /* Rhythm */
+        --sw-maxw: 1180px;
+        --sw-gutter: clamp(1.25rem, 5vw, 4rem);
+      }
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+        -webkit-text-size-adjust: 100%;
+      }
+      body {
+        margin: 0;
+        background: var(--sw-cream);
+        color: var(--sw-wine);
+        font-family: var(--sw-serif);
+        font-size: clamp(1.05rem, 1.6vw, 1.2rem);
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+        text-rendering: optimizeLegibility;
+        min-height: 100vh;
+      }
+      img,
+      picture,
+      video {
+        max-width: 100%;
+        display: block;
+      }
+      a {
+        color: var(--sw-terracotta-deep);
+        text-decoration: none;
+      }
+      h1,
+      h2,
+      h3 {
+        font-family: var(--sw-display);
+        color: var(--sw-terracotta);
+        font-weight: 500;
+        line-height: 1.08;
+      }
+    </style>
+  </head>
+  <body>
+    <slot />
+  </body>
+</html>

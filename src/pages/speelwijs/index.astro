@@ -1,0 +1,140 @@
+---
+// ─────────────────────────────────────────────────────────────────────────
+//  /speelwijs — bespoke landing page for the SpeelWijs client (EigenWijs, BE)
+//
+//  FABLE: this is your canvas. Everything you need to build the real page is
+//  gathered and ready:
+//     • Full brief + design system ....... docs/speelwijs-handover/HANDOVER.md
+//     • Verbatim Dutch copy (all sections) docs/speelwijs-handover/copy-nl.md
+//     • 13 optimized photos .............. public/speelwijs/photos/  (webp)
+//     • Photo map + captions ............. docs/speelwijs-handover/photos.md
+//     • Reference imagery (wordmark, palette, contact sheet)
+//                                          docs/speelwijs-handover/reference/
+//
+//  The plumbing is done for you: standalone layout (no Songdance chrome),
+//  noindex+nofollow, robots.txt Disallow, and no sitemap entry — so this URL
+//  stays private. Just design. This holding hero can be replaced wholesale.
+//
+//  NOT Songdance. The SVH copy-book does not apply. Dutch, brand = SpeelWijs.
+// ─────────────────────────────────────────────────────────────────────────
+import SpeelWijs from '../../layouts/SpeelWijs.astro';
+---
+
+<SpeelWijs>
+  <main class="holding">
+    <section class="hero">
+      <img
+        class="hero__photo"
+        src="/speelwijs/photos/01-cover-boy-and-stone.webp"
+        alt="Een kind dat aandachtig een grote steen in het gras bekijkt."
+        fetchpriority="high"
+      />
+      <div class="hero__scrim"></div>
+      <div class="hero__inner">
+        <p class="hero__eyebrow">De plek tussen opvang en school</p>
+        <h1 class="hero__word">SpeelWijs</h1>
+        <p class="hero__tag">Als ik het mag zeggen</p>
+      </div>
+    </section>
+
+    <section class="note">
+      <p class="note__kicker">Privé voorvertoning</p>
+      <p class="note__lead">
+        Deze pagina wordt met zorg voor jullie gemaakt — een rustige,
+        warme plek online, net als SpeelWijs zelf.
+      </p>
+      <p class="note__sub">Binnenkort hier te zien.</p>
+    </section>
+  </main>
+</SpeelWijs>
+
+<style>
+  .holding {
+    display: block;
+  }
+
+  /* ---- Hero ---- */
+  .hero {
+    position: relative;
+    min-height: 100svh;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    text-align: center;
+  }
+  .hero__photo {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: 60% 35%;
+  }
+  .hero__scrim {
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(180deg, rgba(40, 26, 22, 0.35) 0%, rgba(40, 26, 22, 0.05) 40%, rgba(40, 26, 22, 0.45) 100%);
+  }
+  .hero__inner {
+    position: relative;
+    padding: var(--sw-gutter);
+    color: var(--sw-white);
+  }
+  .hero__eyebrow {
+    font-family: var(--sw-serif);
+    text-transform: uppercase;
+    letter-spacing: 0.28em;
+    font-size: clamp(0.72rem, 1.8vw, 0.95rem);
+    margin: 0 0 0.6rem;
+    opacity: 0.92;
+  }
+  .hero__word {
+    font-family: var(--sw-display);
+    color: var(--sw-white);
+    font-weight: 600;
+    font-size: clamp(3.4rem, 13vw, 8rem);
+    margin: 0;
+    letter-spacing: -0.01em;
+    text-shadow: 0 2px 30px rgba(40, 26, 22, 0.35);
+  }
+  .hero__tag {
+    font-family: var(--sw-serif);
+    font-style: italic;
+    text-transform: uppercase;
+    letter-spacing: 0.22em;
+    font-size: clamp(0.8rem, 2vw, 1.05rem);
+    margin: 0.4rem 0 0;
+    opacity: 0.95;
+  }
+
+  /* ---- Holding note ---- */
+  .note {
+    max-width: 44rem;
+    margin: 0 auto;
+    padding: clamp(3.5rem, 9vw, 7rem) var(--sw-gutter);
+    text-align: center;
+  }
+  .note__kicker {
+    font-family: var(--sw-ui);
+    text-transform: uppercase;
+    letter-spacing: 0.24em;
+    font-size: 0.72rem;
+    color: var(--sw-terracotta);
+    margin: 0 0 1.2rem;
+  }
+  .note__lead {
+    font-family: var(--sw-display);
+    color: var(--sw-terracotta);
+    font-size: clamp(1.6rem, 4.5vw, 2.5rem);
+    line-height: 1.25;
+    margin: 0 0 1.2rem;
+  }
+  .note__sub {
+    font-family: var(--sw-serif);
+    font-style: italic;
+    color: var(--sw-wine);
+    opacity: 0.75;
+    margin: 0;
+  }
+</style>

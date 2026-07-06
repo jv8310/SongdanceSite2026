@@ -1,13 +1,14 @@
 # Songdance — https://songdance.co
-# Public site is open to crawlers. Admin, API, and the private sr26 area
-# are off-limits. AI answer engines are welcome to read and cite us
-# (see the explicit group below).
+# Public site is open to crawlers. Admin, API, and the private sr26 and
+# speelwijs areas are off-limits. AI answer engines are welcome to read and
+# cite us (see the explicit group below).
 
 User-agent: *
 Allow: /
 Disallow: /admin
 Disallow: /api
 Disallow: /sr26
+Disallow: /speelwijs
 
 # AI crawlers — search/citation and training agents. Welcomed deliberately so
 # Songdance can be read and cited by ChatGPT, Perplexity, Claude, Google AI,
@@ -28,5 +29,6 @@ Allow: /
 Disallow: /admin
 Disallow: /api
 Disallow: /sr26
+Disallow: /speelwijs
 
 Sitemap: https://songdance.co/sitemap.xml
