@@ -19,11 +19,15 @@
 // "yesterday" / "last 7 days" line up with the dashboard's own presets.
 //
 // Timing & idempotency: runReports rides the existing hourly cron. The first
-// tick at/after 08:00 Brussels each day claims a unique row in the `events`
-// audit log (external_id `report-daily-<date>` / `report-weekly-<date>`) and,
-// having claimed it, sends — so the report goes out once per day even if the
+// tick at/after 08:00 Brussels each day stakes a unique `pending` row in the
+// `events` audit log (external_id `report-daily-<date>` / `report-weekly-<date>`)
+// and, having claimed it, sends — so the report goes out once per day even if the
 // cron fires several times, and a missed 08:00 tick is caught up later the same
-// day. A send failure releases the claim so a later tick can retry.
+// day. The claim is a two-phase mark: `pending` before the send, promoted to
+// `sent` only once Resend accepts it. A send failure drops the pending claim so
+// a later tick retries; and a claim that was staked but never confirmed (the
+// isolate died mid-send, stranding a `pending` row) is reclaimed by a later tick
+// once it goes stale — so a dropped report is retried, never lost for the day.
 
 import {
   computeStats,
@@ -512,20 +516,67 @@ function reportRecipients(env: ReportEnv): string[] {
   return [DEFAULT_RECIPIENT];
 }
 
+// A claim is a two-phase mark so a report that is claimed but never actually
+// delivered can't be lost for the day. The claim row is written `pending`
+// before the send and promoted to `sent` (confirmReport) only once Resend has
+// accepted it. If the isolate is evicted between the claim commit and the send
+// completing — the hourly cron fires several concurrent waitUntil tasks on a
+// limited budget — the row is stranded `pending`; a later tick reclaims it
+// (STALE_CLAIM_MINUTES after it was staked) and retries, instead of skipping
+// the day forever because a row simply exists. A confirmed `sent` row is never
+// reclaimed, so a delivered report is never duplicated by the retry path.
+const STALE_CLAIM_MINUTES = 30; // < the hourly tick interval, ≫ a normal send
+
 async function claimReport(db: D1Database, externalId: string): Promise<boolean> {
-  const r = await db
+  // Fresh claim: nobody has staked this date yet.
+  const ins = await db
     .prepare(
-      `INSERT OR IGNORE INTO events (registration_id, kind, source, external_id)
-       VALUES (NULL, 'report.sent', 'system', ?)`,
+      `INSERT OR IGNORE INTO events (registration_id, kind, source, external_id, payload_json)
+       VALUES (NULL, 'report.sent', 'system', ?, 'pending')`,
     )
     .bind(externalId)
     .run();
-  return (r.meta?.changes ?? 0) > 0;
+  if ((ins.meta?.changes ?? 0) > 0) return true;
+
+  // A row already exists. Take it over only if a previous tick staked it but
+  // never confirmed the send (still `pending`) and it has gone stale — i.e. the
+  // send was dropped, not delivered. A `sent` row (or a fresh pending one still
+  // in flight) is left alone. Re-stamping created_at re-arms the staleness
+  // window for this attempt.
+  const takeover = await db
+    .prepare(
+      `UPDATE events
+          SET created_at = datetime('now')
+        WHERE external_id = ? AND kind = 'report.sent'
+          AND payload_json = 'pending'
+          AND created_at <= datetime('now', ?)`,
+    )
+    .bind(externalId, `-${STALE_CLAIM_MINUTES} minutes`)
+    .run();
+  return (takeover.meta?.changes ?? 0) > 0;
 }
 
+// Promote a claim to `sent` once the email is actually out, so the retry path
+// never reclaims it. Best-effort: if this write is lost the row stays `pending`
+// and a later tick may re-send (a rare duplicate is preferable to a silent miss).
+async function confirmReport(db: D1Database, externalId: string): Promise<void> {
+  await db
+    .prepare(
+      `UPDATE events SET payload_json = 'sent'
+        WHERE external_id = ? AND kind = 'report.sent'`,
+    )
+    .bind(externalId)
+    .run();
+}
+
+// Drop an unconfirmed claim so the next tick retries promptly. Only removes a
+// still-`pending` row — never a confirmed send.
 async function releaseReport(db: D1Database, externalId: string): Promise<void> {
   await db
-    .prepare(`DELETE FROM events WHERE external_id = ? AND kind = 'report.sent'`)
+    .prepare(
+      `DELETE FROM events
+        WHERE external_id = ? AND kind = 'report.sent' AND payload_json = 'pending'`,
+    )
     .bind(externalId)
     .run();
 }
@@ -706,7 +757,7 @@ async function sendOne(
   let claimed = false;
   try {
     claimed = await claimReport(env.DB, externalId);
-    if (!claimed) return false; // already sent today
+    if (!claimed) return false; // already sent (or in flight) today
     const data = await gather();
     const content = build(data);
     await sendEmail({
@@ -718,9 +769,13 @@ async function sendOne(
       text: content.text,
       entityRefId: externalId,
     });
+    // Delivered — promote the claim so the stale-claim retry never re-sends it.
+    await confirmReport(env.DB, externalId).catch(() => {});
     return true;
-  } catch {
-    // Release so a later hourly tick can retry this same day.
+  } catch (err) {
+    // Surface the reason (the caller only logs on success) and drop the
+    // unconfirmed claim so a later hourly tick retries this same day.
+    console.error(`[reports] send failed for ${externalId}`, err);
     if (claimed) await releaseReport(env.DB, externalId).catch(() => {});
     return false;
   }
