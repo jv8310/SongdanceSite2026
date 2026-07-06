@@ -1,59 +1,881 @@
 ---
-// ─────────────────────────────────────────────────────────────────────────
-//  /speelwijs — bespoke landing page for the SpeelWijs client (EigenWijs, BE)
-//
-//  FABLE: this is your canvas. Everything you need to build the real page is
-//  gathered and ready:
-//     • Full brief + design system ....... docs/speelwijs-handover/HANDOVER.md
-//     • Verbatim Dutch copy (all sections) docs/speelwijs-handover/copy-nl.md
-//     • 13 optimized photos .............. public/speelwijs/photos/  (webp)
-//     • Photo map + captions ............. docs/speelwijs-handover/photos.md
-//     • Reference imagery (wordmark, palette, contact sheet)
-//                                          docs/speelwijs-handover/reference/
-//
-//  The plumbing is done for you: standalone layout (no Songdance chrome),
-//  noindex+nofollow, robots.txt Disallow, and no sitemap entry — so this URL
-//  stays private. Just design. This holding hero can be replaced wholesale.
-//
-//  NOT Songdance. The SVH copy-book does not apply. Dutch, brand = SpeelWijs.
-// ─────────────────────────────────────────────────────────────────────────
+// /speelwijs — bespoke landing page for the SpeelWijs client (EigenWijs, BE).
+// Private preview: standalone noindex layout, robots-Disallowed, no sitemap
+// entry, no Songdance chrome. Copy is verbatim from the client's brochure —
+// see docs/speelwijs-handover/ (HANDOVER.md, copy-nl.md, photos.md).
 import SpeelWijs from '../../layouts/SpeelWijs.astro';
+
+const P = '/speelwijs/photos';
 ---
 
 <SpeelWijs>
-  <main class="holding">
-    <section class="hero">
-      <img
-        class="hero__photo"
-        src="/speelwijs/photos/01-cover-boy-and-stone.webp"
-        alt="Een kind dat aandachtig een grote steen in het gras bekijkt."
-        fetchpriority="high"
-      />
-      <div class="hero__scrim"></div>
-      <div class="hero__inner">
-        <p class="hero__eyebrow">De plek tussen opvang en school</p>
-        <h1 class="hero__word">SpeelWijs</h1>
-        <p class="hero__tag">Als ik het mag zeggen</p>
-      </div>
-    </section>
+  <nav id="swnav" aria-label="SpeelWijs">
+    <a class="nav-brand" href="#top">SpeelWijs</a>
+    <div class="nav-links">
+      <a href="#visie">Onze visie</a>
+      <a href="#praktisch">Praktisch</a>
+      <a href="#vragen">Vragen</a>
+      <a class="nav-cta" href="#contact">Contact</a>
+    </div>
+  </nav>
 
-    <section class="note">
-      <p class="note__kicker">Privé voorvertoning</p>
-      <p class="note__lead">
-        Deze pagina wordt met zorg voor jullie gemaakt — een rustige,
-        warme plek online, net als SpeelWijs zelf.
+  <header class="hero" id="top">
+    <img
+      class="hero-photo"
+      src={`${P}/01-cover-boy-and-stone.webp`}
+      alt="Een kind dat aandachtig een grote steen in het gras bekijkt."
+      width="1125"
+      height="1500"
+      fetchpriority="high"
+    />
+    <div class="hero-scrim" aria-hidden="true"></div>
+    <div class="hero-center">
+      <h1 class="hero-word">SpeelWijs</h1>
+      <p class="hero-sub">De plek tussen opvang en school</p>
+    </div>
+    <div class="hero-foot">
+      <div class="orn orn--light" aria-hidden="true"></div>
+      <p class="hero-tag">Als ik het mag zeggen</p>
+    </div>
+  </header>
+
+  <section class="welcome">
+    <div class="orn rv" aria-hidden="true"></div>
+    <p class="welcome-line rv">
+      Welkom bij <strong>SpeelWijs</strong> — de plek tussen opvang en school.
+    </p>
+    <p class="welcome-hook rv">Ben jij net als wij…</p>
+  </section>
+
+  <!-- ch 1 · het innerlijke kompas -->
+  <section class="chapter" id="visie">
+    <div class="chapter-text rv">
+      <div class="orn orn--left" aria-hidden="true"></div>
+      <h2>&lsquo;Weet je wat ik&nbsp;wil?&rsquo;</h2>
+      <p class="lead">
+        Elk kind wordt geboren met een natuurlijke wijsheid.<br />
+        Een aangeboren vermogen om gezond te zijn, te verbinden en te
+        ontwikkelen.<br />
+        Een innerlijk kompas.
       </p>
-      <p class="note__sub">Binnenkort hier te zien.</p>
-    </section>
-  </main>
+      <p>
+        De kunst is niet om dat kompas te overschrijven —<br />
+        maar om het te volgen.<br />
+        Dat is waar SpeelWijs voor staat.<br />
+        <strong>Wij vertrekken vanuit de eigen innerlijke wijsheid van het kind.</strong>
+      </p>
+      <p>
+        Het grootste deel van onze gedachten, gedragingen, gewoontes en
+        overtuigingen wordt gevormd in de eerste zeven levensjaren. Niet enkel
+        door aanleg, maar vooral door omgeving. Door wat een kind dagelijks
+        ervaart. Door sfeer, ritme, relaties en veiligheid.
+      </p>
+      <p>
+        In onze maatschappij verwachten we vaak dat kinderen zich aanpassen aan
+        hun omgeving.<br />
+        Bij SpeelWijs draaien we dat om.<br />
+        Wij passen de omgeving aan aan het kind.
+      </p>
+      <p>
+        Want als het kind het voor het zeggen had —<br />
+        dan zou het ons vertellen wat het nodig heeft.<br />
+        Daarom vertrekken wij vanuit luisteren en echt kijken.
+      </p>
+      <p>
+        Hoe de wereld verwacht dat kinderen zich ontwikkelen, staat vaak haaks
+        op hoe kinderen van nature groeien. Ontwikkeling is geen rechte lijn.
+        Het is een organisch proces dat ruimte, rust en vertrouwen vraagt.
+      </p>
+      <p>
+        Juist omdat de eerste levensjaren zo bepalend zijn, willen wij een
+        omgeving bieden met passende gewoontes, gezonde ritmes, voedende
+        relaties en echte aandacht. Een plek waar een kind kan openbloeien.
+        Waar het zijn leven mag starten met een stevige, warme fundering.
+        SpeelWijs is geen voorbereiding op school.
+      </p>
+      <p class="close">Het is een voorbereiding op het leven — het is het leven.</p>
+    </div>
+    <figure class="chapter-media rv">
+      <img
+        src={`${P}/03-two-boys-in-bushes.webp`}
+        alt="Twee kinderen ontdekken diep tussen de groene struiken."
+        width="1125"
+        height="1500"
+        loading="lazy"
+        decoding="async"
+      />
+    </figure>
+  </section>
+
+  <!-- ch 2 · de pedagogiek van het luisteren -->
+  <section class="chapter chapter--flip">
+    <div class="chapter-text rv">
+      <div class="orn orn--left" aria-hidden="true"></div>
+      <h2>&lsquo;Als ik het mag&nbsp;zeggen&rsquo;</h2>
+      <p class="lead">
+        De pedagogiek van het luisteren.<br />
+        Bij SpeelWijs begint alles met luisteren en echt kijken.
+      </p>
+      <p>
+        Luisteren is voor ons meer dan horen wat een kind zegt.<br />
+        Het is kijken en weten wat we zien.<br />
+        Het is wachten en vertragen.<br />
+        Het is ruimte laten en vertrouwen.<br />
+        Het is het kind zien als samenwerkingspartner.
+      </p>
+      <p>
+        Bij SpeelWijs volgen we het kind in wat het kan — niet in wat wij denken
+        dat het zou moeten kunnen. We vertrekken niet vanuit verwachtingen of
+        mijlpalen, maar vanuit het kind zelf.
+      </p>
+      <p>
+        Wij geloven dat kinderen geboren worden met honderd talen — honderd
+        manieren om te onderzoeken, te ontdekken en zich uit te drukken. Ze zijn
+        van nature nieuwsgierig, leergierig en onderzoekend.<br />
+        Het is aan ons om hun verwondering te beschermen.<br />
+        Om hun proces te respecteren en te vertrouwen op wat komt.
+      </p>
+      <p>
+        Echte ontwikkeling ontstaat wanneer kinderen zelf mogen ontdekken.
+        Wanneer hun spel niet wordt versneld. Wanneer hun beweging niet wordt
+        overgenomen. Wanneer wij vertrouwen dat groei van binnenuit komt.
+      </p>
+      <p>
+        Zelfstandigheid leren wij niet aan.<br />
+        Wij geven haar ruimte en vertrouwen om te groeien.
+      </p>
+      <p>
+        Vertragen als basis.<br />
+        Pas wanneer we vertragen, kunnen we echt zien.<br />
+        Pas wanneer we vertragen, kunnen we echt luisteren.
+      </p>
+      <p class="close">Want wat gezien en gehoord wordt, groeit en komt tot bloei.</p>
+    </div>
+    <figure class="chapter-media rv">
+      <img
+        src={`${P}/04-wooden-blocks-indoor.webp`}
+        alt="Een kind bouwt geconcentreerd met houten blokken op de vloer."
+        width="1125"
+        height="1500"
+        loading="lazy"
+        decoding="async"
+      />
+    </figure>
+  </section>
+
+  <!-- adem · vrij spel -->
+  <section class="breath">
+    <img
+      src={`${P}/02-tree-climb-seaside.webp`}
+      alt="Een kind klimt in een lage boom aan zee."
+      width="1440"
+      height="1920"
+      loading="lazy"
+      decoding="async"
+    />
+    <div class="breath-wash" aria-hidden="true"></div>
+    <p class="breath-line rv">Spelen is het werk van het&nbsp;kind.</p>
+  </section>
+
+  <!-- ch 3 · vrij spel -->
+  <section class="chapter">
+    <div class="chapter-text rv">
+      <div class="orn orn--left" aria-hidden="true"></div>
+      <h2>&lsquo;Spelen is mijn&nbsp;werk&rsquo;</h2>
+      <p class="lead">
+        Spel is niet zomaar een activiteit, het is hoe een kind denkt, voelt,
+        ontdekt en groeit — het is het leven zelf.
+      </p>
+      <p>
+        Spelen is het werk van het kind. Wij laten de omgeving aansluiten aan
+        dat wat kinderen nodig hebben. Wanneer een omgeving aansluit bij de
+        innerlijke natuur van een kind, zien we wat eigenlijk altijd al aanwezig
+        was: openheid, nieuwsgierigheid, betrokkenheid en een natuurlijke drang
+        om te leren.
+      </p>
+      <p>
+        Kinderen leren het meest van hun eigen vrije, creatieve spel.<br />
+        Vrij spel ontstaat vanuit intrinsieke motivatie.<br />
+        Het sluit aan bij de ontwikkeling van dat moment.<br />
+        Het maakt gelukkig van binnenuit.
+      </p>
+      <p>
+        In vrij spel leren kinderen zelfstandig denken.<br />
+        Ze geven betekenis aan wat ze ervaren.<br />
+        Ze leren zichzelf en de anderen kennen.
+      </p>
+      <p><em>Het vrije spel is onvervangbaar.</em></p>
+      <p>
+        Bij SpeelWijs vertrekken we vanuit het eigen Wijze Spel van ieder kind.
+        Wij zorgen voor emotionele veiligheid door een diepe, respectvolle
+        verbinding met elk kind. Vanuit die veiligheid komt een kind vanzelf in
+        beweging en ontstaat verdiepend, betrokken spel.
+      </p>
+      <p>
+        In een rijke, huiselijke, rustige omgeving met open en uitdagende
+        materialen die aansluiten bij de leeftijd en ontwikkeling van de
+        kinderen, wordt vrij spel meer dan spelen.
+      </p>
+      <p>
+        Het wordt leren.<br />
+        Het wordt groeien.
+      </p>
+      <p class="close">Vrij spelen vormt het fundament van SpeelWijs.</p>
+    </div>
+    <figure class="chapter-media rv">
+      <img
+        src={`${P}/05-sandplay-with-cone.webp`}
+        alt="Een kind graaft verzonken in het zand, met een papieren kroon op."
+        width="1125"
+        height="1500"
+        loading="lazy"
+        decoding="async"
+      />
+    </figure>
+  </section>
+
+  <!-- ch 4 · buiten in elk seizoen -->
+  <section class="chapter chapter--flip">
+    <div class="chapter-text rv">
+      <div class="orn orn--left" aria-hidden="true"></div>
+      <h2>&lsquo;Joepie, het&nbsp;regent&rsquo;</h2>
+      <p class="lead">
+        Bij SpeelWijs geloven we in de kracht van buiten zijn. Meeleven met de
+        natuur in ieder seizoen hoort bij het leven van een kind. Buiten is er
+        altijd iets te ontdekken, te voelen en te ervaren.
+      </p>
+      <p>
+        Voor ons bestaat er geen slecht weer.<br />
+        Met de juiste kleren kan een kind altijd naar buiten, en is buiten zijn
+        altijd fijn.
+      </p>
+      <p>
+        Buiten zijn betekent letterlijk en figuurlijk ruimte: geen muren, geen
+        plafonds, vrijheid om te bewegen, te spelen en te ontdekken.<br />
+        Ons motto: <em>Alles wat binnen kan, kan buiten ook.</em>
+      </p>
+      <p>
+        Wij zijn deel van de natuur — en dat willen we ook aan de kinderen
+        meegeven.
+      </p>
+      <p>
+        Net als de natuur hebben kinderen een zelfherstellend vermogen. Daar
+        geloven wij in, en we stimuleren dat door kinderen de ruimte en vrijheid
+        te geven om buiten te zijn.
+      </p>
+      <p>
+        We beschikken over een grote ontdektuin en verschillende weides. Ook
+        dieren maken deel uit van ons dagelijks leven. Kinderen leren voor ze te
+        zorgen, ervaren verantwoordelijkheid en zien hoe leven en natuur met
+        elkaar verbonden zijn.
+      </p>
+      <p>
+        Buiten spelen gaat verder dan fysieke activiteit. Het is een manier om
+        de seizoenen te beleven, de wereld te ontdekken en je eigen lichaam en
+        geest te verbinden met de natuur.
+      </p>
+      <p>
+        Ook binnen laten we de seizoenen spreken. We eten zoveel mogelijk
+        seizoensgebonden en lokaal voedsel. Wat een lichaam nodig heeft in de
+        winter verschilt van wat het in de zomer nodig heeft — en daar stemmen
+        we ons op af.
+      </p>
+      <p class="close">Bij SpeelWijs is buiten zijn onze manier van leven.</p>
+    </div>
+    <figure class="chapter-media rv">
+      <img
+        src={`${P}/06-mud-play-raincoat-truck.webp`}
+        alt="Een kind in een rood regenpak schept modder in een speelgoedtruck."
+        width="1012"
+        height="1392"
+        loading="lazy"
+        decoding="async"
+      />
+    </figure>
+  </section>
+
+  <!-- ch 5 · ritme & ritueel -->
+  <section class="chapter">
+    <div class="chapter-text rv">
+      <div class="orn orn--left" aria-hidden="true"></div>
+      <h2>&lsquo;Nog een keer&hellip;&rsquo;</h2>
+      <p class="lead">
+        Zoals de natuur haar eigen ritmes kent, zo werken wij bij SpeelWijs ook
+        volgens ritmes en rituelen. Jonge kinderen leren door herhaling. Ritme
+        geeft emotionele veiligheid, rust en houvast.
+      </p>
+      <p>
+        Het helpt hen zich te oriënteren in de dag, de week, de seizoenen en het
+        jaar. Binnen dit bekende ritme kunnen kinderen tot bloei komen.
+      </p>
+      <p>
+        In de eerste plaats volgen wij het ritme van het kind. Het innerlijke
+        kompas van ieder kind is de wijsheid die wij zoveel mogelijk proberen te
+        respecteren en te volgen. Daarnaast volgen we ook het ritme van de
+        natuur. De natuur kent momenten van inademen en uitademen: momenten van
+        rust en van activiteit, van bij jezelf komen en van naar buiten treden.
+        Net zoals bloemen in de lente bloeien en vogels zonder wekker in de
+        ochtend hun lied fluiten, laten wij het natuurlijke ritme van de
+        kinderen en de seizoenen spreken.
+      </p>
+      <p>
+        De dag bij SpeelWijs kent vaste ritmes: er is ruimte om vrij te spelen
+        en te bewegen, maar ook momenten van tot jezelf komen, rust en samen
+        eten. Door deze natuurlijke afwisseling raken kinderen niet uit balans.
+        Een kind dat zijn natuurlijke ritme niet kan volgen, raakt snel
+        overprikkeld en kan moeilijk tot rust komen.
+      </p>
+      <p>
+        Ook binnenruimtes zijn bewust ingericht. Licht, kleuren en materialen
+        ondersteunen het natuurlijke ritme van het kind. Wij werken met zachte
+        verlichting en zoveel mogelijk daglicht, omdat fel onnatuurlijk blauw
+        licht ons uit balans brengt.
+      </p>
+      <p>
+        Ritmes geven ook rituelen en terugkerende jaarfeesten. Die rituelen zijn
+        momenten van verbinding, niet alleen voor de kinderen, maar ook voor
+        ouders. Samen iets vieren creëert plezier, verbinding en betekenisvolle
+        herinneringen.
+      </p>
+      <p>Bij SpeelWijs staan ritmes en rituelen centraal.</p>
+      <p class="close">
+        Ze vormen de zachte, stabiele basis waarin kinderen zichzelf kunnen
+        zijn, ontdekken en groeien.
+      </p>
+    </div>
+    <figure class="chapter-media rv">
+      <img
+        src={`${P}/07-napping-rest.webp`}
+        alt="Een kind slaapt onder een roze deken in zacht licht."
+        width="1125"
+        height="1500"
+        loading="lazy"
+        decoding="async"
+      />
+    </figure>
+  </section>
+
+  <!-- adem · samen -->
+  <section class="breath">
+    <img
+      src={`${P}/08-gemstone-mandala.webp`}
+      alt="Een kind legt gekleurde edelsteentjes in een houten mandala."
+      width="1125"
+      height="1500"
+      loading="lazy"
+      decoding="async"
+    />
+    <div class="breath-wash" aria-hidden="true"></div>
+    <p class="breath-line breath-line--quote rv">
+      It takes a village to raise a&nbsp;child.
+    </p>
+  </section>
+
+  <!-- ch 6 · ouders als partners -->
+  <section class="chapter chapter--flip">
+    <div class="chapter-text rv">
+      <div class="orn orn--left" aria-hidden="true"></div>
+      <h2>&lsquo;Mama, ga je&nbsp;mee&rsquo;</h2>
+      <p class="lead">
+        Bij SpeelWijs is niet alleen je kind welkom — ook jij als ouder bent
+        welkom. Ouders zijn geen bezoekers, maar partners.
+      </p>
+      <p>
+        Samen vieren we jaarfeesten, creëren we plezier en maken we
+        betekenisvolle herinneringen. We nemen de tijd om te luisteren, te delen
+        en samen te kijken naar wat een kind nodig heeft.
+      </p>
+      <p>
+        Jullie verhaal over jullie kind is voor ons van onschatbare waarde;
+        vanuit die kennis kunnen wij het beste voor elk kind zorgen. Wij creëren
+        een plek waar iedere ouder zich thuis voelt, en waar elk kind wordt
+        gezien als een uniek persoon.
+      </p>
+      <p>
+        We bouwen bewust aan een hechte gemeenschap, een warme ontmoetingsplek
+        waar families elkaar kunnen vinden, inspireren en ondersteunen. Zoals
+        men zegt: <em>It takes a village to raise a child.</em>
+      </p>
+      <p>
+        Ook organiseren we oudercirkels, waarin zowel interne als externe ouders
+        welkom zijn. In de cirkel ontmoeten ouders elkaar op gelijkwaardige
+        wijze, wisselen ervaringen uit en dragen gezamenlijk bij aan de
+        opvoeding en ontwikkeling van kinderen, juist in een maatschappij die
+        steeds individualistischer wordt.
+      </p>
+      <p>
+        Wij van SpeelWijs staan klaar voor ouders: om te luisteren, vragen te
+        beantwoorden of desgewenst advies te geven over opvoedingskwesties.
+      </p>
+      <p class="close">
+        Samen dragen we.<br />
+        Samen groeien we.<br />
+        Samen creëren we een gemeenschap waarin kinderen en ouders zich gezien
+        en gesteund voelen.
+      </p>
+    </div>
+    <figure class="chapter-media rv">
+      <img
+        src={`${P}/10-chalk-drawing-group.webp`}
+        alt="Kinderen tekenen samen met stoepkrijt op de binnenplaats."
+        width="1125"
+        height="1500"
+        loading="lazy"
+        decoding="async"
+      />
+    </figure>
+  </section>
+
+  <!-- ch 7 · de oprichters -->
+  <section class="chapter">
+    <div class="chapter-text rv">
+      <div class="orn orn--left" aria-hidden="true"></div>
+      <h2>&lsquo;Wie zorgt er voor&nbsp;mij&rsquo;</h2>
+      <p class="lead">
+        Achter SpeelWijs staan wij:<br />
+        <strong>Machteld Verheyde en Moniek Neumann.</strong>
+      </p>
+      <p>
+        Twee pedagogisch geschoolde vrouwen.<br />
+        Twee mama&rsquo;s van energieke, spelende kinderen.
+      </p>
+      <p>
+        Toen we zelf moeder werden, begonnen we anders te kijken. Wat ooit
+        vanzelfsprekend leek binnen het systeem, voelde plots niet meer
+        vanzelfsprekend. We voelden steeds sterker dat het bestaande aanbod niet
+        altijd vertrekt vanuit wat jonge kinderen echt nodig hebben.
+      </p>
+      <p>
+        Onze eigen kinderen zijn dan ook onze grootste drijfveer. Zij deden ons
+        de vraag stellen:
+      </p>
+      <p>
+        <em>Moet een kind zich aanpassen aan het systeem?<br />
+        Of mogen wij het systeem aanpassen aan het kind?</em>
+      </p>
+      <p>Vanuit die vraag is SpeelWijs gegroeid.</p>
+      <p>
+        Wij willen geen plek waar kinderen moeten passen.<br />
+        Wij willen een plek die past bij kinderen.<br />
+        Bij hun tempo.<br />
+        Hun natuur.<br />
+        Hun wijsheid.
+      </p>
+      <p>
+        Samen dromen we van een paradijs waarin kinderen vrij, veilig en
+        verbonden kunnen opgroeien. SpeelWijs is een eerste zaadje van die
+        droom.
+      </p>
+      <p class="close">En met elke dag die we bouwen, groeit dat zaadje verder.</p>
+    </div>
+    <figure class="chapter-media rv">
+      <img
+        src={`${P}/09-facilitator-in-garden.webp`}
+        alt="Een begeleidster knielt tussen de kinderen in de zonnige tuin."
+        width="1286"
+        height="1714"
+        loading="lazy"
+        decoding="async"
+      />
+    </figure>
+  </section>
+
+  <!-- praktisch -->
+  <section class="practical" id="praktisch">
+    <div class="practical-inner">
+      <div class="practical-head rv">
+        <p class="kicker">Praktisch</p>
+        <div class="orn" aria-hidden="true"></div>
+        <h2>&lsquo;Hoe zit dat nu&nbsp;precies?&rsquo;</h2>
+        <p class="practical-lead">
+          Bij SpeelWijs werken we met maximaal 8 kinderen per dag. Zo krijgt elk
+          kind de rust, aandacht en begeleiding die het nodig heeft. Onze
+          tarieven weerspiegelen deze kleinschaligheid en persoonlijke aanpak —
+          een bewuste investering in een warme en stevige basis.
+        </p>
+      </div>
+
+      <div class="stats rv">
+        <div class="stat">
+          <span class="stat-num">max.&nbsp;8</span>
+          <span class="stat-label">kinderen per dag</span>
+        </div>
+        <div class="stat">
+          <span class="stat-num">2</span>
+          <span class="stat-label">dagen per week</span>
+        </div>
+        <div class="stat">
+          <span class="stat-num">40</span>
+          <span class="stat-label">weken per jaar</span>
+        </div>
+      </div>
+
+      <div class="cards rv">
+        <div class="card card--rates">
+          <h3>Keuze &amp; tarieven</h3>
+          <p class="card-note">Je kiest voor 1 of 2 vaste dagen per week.</p>
+          <div class="rate">
+            <div class="rate-what">1 dag per week</div>
+            <div class="rate-price"><span class="rate-eur">€&thinsp;240</span> per maand</div>
+            <div class="rate-fine">betaling in 10 maanden – juli &amp; augustus vrij</div>
+          </div>
+          <div class="rate">
+            <div class="rate-what">2 dagen per week</div>
+            <div class="rate-price"><span class="rate-eur">€&thinsp;480</span> per maand</div>
+            <div class="rate-fine">betaling in 10 maanden</div>
+          </div>
+          <p class="card-fine">
+            Alle prijzen zijn inclusief tussendoortjes en exclusief lunch.
+          </p>
+        </div>
+
+        <div class="card">
+          <h3>Openingsuren</h3>
+          <p>
+            SpeelWijs is 2 dagen per week geopend van 8:30 tot 16:30 uur. We
+            zijn 40 weken per jaar open — tijdens de schoolweken.
+          </p>
+          <p class="card-fine">
+            Tijdens vakantieperiodes organiseren we optionele SpeelKampjes voor
+            interne en externe kinderen (apart gefactureerd).
+          </p>
+        </div>
+
+        <div class="card">
+          <h3>Contract</h3>
+          <p>
+            Minimumduur: 6 maanden of tot je kind 5 jaar wordt. Verlenging is
+            afhankelijk van beschikbare plaatsen.
+          </p>
+        </div>
+
+        <div class="card">
+          <h3>Extra dag SpeelWijs</h3>
+          <p>Indien plaats beschikbaar: €&thinsp;60 per extra dag.</p>
+        </div>
+      </div>
+
+      <p class="practical-contact rv">
+        Voor vragen of persoonlijke toelichting kan je ons altijd contacteren.
+        We denken graag met jullie mee. <a href="#contact">Neem contact op&nbsp;↓</a>
+      </p>
+    </div>
+  </section>
+
+  <!-- veelgestelde vragen -->
+  <section class="faq" id="vragen">
+    <div class="faq-text rv">
+      <p class="kicker">Veelgestelde vragen</p>
+      <div class="orn orn--left" aria-hidden="true"></div>
+      <h2>&lsquo;Ja, ik kom naar&nbsp;SpeelWijs&rsquo;</h2>
+
+      <details>
+        <summary>Waarom niet gewoon naar school?</summary>
+        <p>
+          Ouders kiezen voor SpeelWijs om hun kind tijd en rust te geven om op
+          eigen tempo te groeien, in kleine groepen met vaste begeleiders, veel
+          spelruimte en zonder prestatiedruk. Zo wordt de overstap naar school
+          later makkelijker.
+        </p>
+      </details>
+      <details>
+        <summary>Is dit alleen voor rijke ouders?</summary>
+        <p>
+          Onze aanpak vraagt een investering vanwege kleinschaligheid,
+          persoonlijke aandacht en ontwikkelingsgericht spelen. Ouders kiezen
+          hiervoor bewust voor het welzijn en de ontwikkeling van hun kind.
+        </p>
+      </details>
+      <details>
+        <summary>Gaan jullie schoolse dingen leren?</summary>
+        <p>
+          Kinderen leren spelenderwijs door ontdekken, bewegen en creativiteit.
+          We volgen hun tempo en ondersteunen zelfstandigheid, sociale
+          vaardigheden en zelfvertrouwen.
+        </p>
+      </details>
+      <details>
+        <summary>Concurreren jullie met scholen of kinderopvang?</summary>
+        <p>
+          Nee. SpeelWijs is geen school en geen kinderdagverblijf, maar een plek
+          waar kinderen rustig kunnen groeien, spelen en ontdekken.
+        </p>
+      </details>
+      <details>
+        <summary>Gaan de kinderen wel genoeg leren?</summary>
+        <p>
+          Ja. Spelend leren stimuleert zelfstandigheid, sociale vaardigheden,
+          taal, motoriek, zelfvertrouwen en probleemoplossend denken — precies
+          wat jonge kinderen nodig hebben.
+        </p>
+      </details>
+      <details>
+        <summary>Hoe verloopt de overstap naar school?</summary>
+        <p>
+          Door kleine groepen, persoonlijke begeleiding en veel spel ontwikkelen
+          kinderen zelfvertrouwen, zelfstandigheid en sociale vaardigheden. Zo
+          maken ze de overgang naar school met plezier en vertrouwen.
+        </p>
+      </details>
+    </div>
+    <figure class="faq-media rv">
+      <img
+        src={`${P}/11-rainbow-arch-blocks.webp`}
+        alt="Een kind zet houten regenboogbogen in een lange rij op de vloer."
+        width="1125"
+        height="1500"
+        loading="lazy"
+        decoding="async"
+      />
+    </figure>
+  </section>
+
+  <!-- slot -->
+  <section class="chapter chapter--flip chapter--closing">
+    <div class="chapter-text rv">
+      <div class="orn orn--left" aria-hidden="true"></div>
+      <h2>&lsquo;Voel jij het&nbsp;ook?&rsquo;</h2>
+      <p class="lead">
+        Misschien voelde je tijdens het lezen herkenning.<br />
+        Misschien heb je vragen.<br />
+        Misschien voel je gewoon een stille &ldquo;ja&rdquo;.
+      </p>
+      <p>
+        SpeelWijs is ontstaan vanuit een verlangen.<br />
+        Een verlangen naar meer rust.<br />
+        Meer aandacht.<br />
+        Meer ruimte om kind te mogen zijn.
+      </p>
+      <p>
+        Wij geloven dat de eerste levensjaren geen wachtkamer zijn naar
+        &ldquo;later&rdquo;. Ze zijn waardevol op zichzelf. Ze zijn het
+        fundament waarop alles verder groeit.
+      </p>
+      <p>
+        SpeelWijs is een plek waar kinderen niet hoeven te passen.<br />
+        Waar ze mogen vertragen.<br />
+        Waar hun spel serieus wordt genomen.<br />
+        Waar hun innerlijke wijsheid richting mag geven.
+      </p>
+      <p>
+        En waar ook jij als ouder welkom bent.<br />
+        Met je vragen.<br />
+        Je twijfels.<br />
+        Je verhaal.
+      </p>
+    </div>
+    <figure class="chapter-media rv">
+      <img
+        src={`${P}/12-pikler-climbing.webp`}
+        alt="Een peuter klimt op een houten klimrek bij het raam."
+        width="1125"
+        height="1500"
+        loading="lazy"
+        decoding="async"
+      />
+    </figure>
+  </section>
+
+  <!-- contact -->
+  <section class="contact" id="contact">
+    <img
+      class="contact-photo"
+      src={`${P}/13-feeding-donkey-and-sheep.webp`}
+      alt="Een kind voert een ezel en een schaap aan de weide."
+      width="1125"
+      height="1500"
+      loading="lazy"
+      decoding="async"
+    />
+    <div class="contact-scrim" aria-hidden="true"></div>
+    <div class="contact-card rv">
+      <div class="orn" aria-hidden="true"></div>
+      <h2>Voelt het alsof dit bij jullie past?</h2>
+      <p class="contact-lead">Dan ontmoeten we jullie graag.</p>
+      <p class="contact-seed"><em>Samen laten we dat kleine zaadje groeien.</em></p>
+      <p class="contact-sign">
+        Lieve groet<br />
+        <strong>Machteld en Moniek</strong><br />
+        <span class="contact-brand">SpeelWijs</span>
+      </p>
+      <div class="contact-actions">
+        <a class="btn btn--primary" href="tel:+32491324742">Bel 0491 324742</a>
+        <a class="btn btn--ghost" href="mailto:info@eigenwijze.be">info@eigenwijze.be</a>
+      </div>
+    </div>
+  </section>
+
+  <footer class="foot">
+    <p class="foot-brand">SpeelWijs</p>
+    <p class="foot-sub">De plek tussen opvang en school</p>
+    <p class="foot-contact">
+      Tel. <a href="tel:+32491324742">0491 324742</a> &nbsp;·&nbsp;
+      <a href="mailto:info@eigenwijze.be">info@eigenwijze.be</a>
+    </p>
+  </footer>
+
+  <script is:inline>
+    document.documentElement.classList.add('sw-js');
+
+    // Scroll reveals — gentle, once, and off entirely for reduced motion.
+    var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (!reduce && 'IntersectionObserver' in window) {
+      var io = new IntersectionObserver(
+        function (entries) {
+          entries.forEach(function (e) {
+            if (e.isIntersecting) {
+              e.target.classList.add('in');
+              io.unobserve(e.target);
+            }
+          });
+        },
+        { threshold: 0.1, rootMargin: '0px 0px -8% 0px' }
+      );
+      document.querySelectorAll('.rv').forEach(function (el) { io.observe(el); });
+    } else {
+      document.querySelectorAll('.rv').forEach(function (el) { el.classList.add('in'); });
+    }
+
+    // Mini-nav slides in once the hero has scrolled past.
+    var nav = document.getElementById('swnav');
+    var hero = document.querySelector('.hero');
+    if (nav && hero && 'IntersectionObserver' in window) {
+      new IntersectionObserver(
+        function (entries) {
+          nav.classList.toggle('show', !entries[0].isIntersecting);
+        },
+        { rootMargin: '-64px 0px 0px 0px' }
+      ).observe(hero);
+    }
+  </script>
 </SpeelWijs>
 
 <style>
-  .holding {
-    display: block;
+  /* ---------- reveals ---------- */
+  :global(html.sw-js) .rv {
+    opacity: 0;
+    transform: translateY(26px);
+    transition:
+      opacity 0.85s ease,
+      transform 0.85s cubic-bezier(0.2, 0.7, 0.3, 1);
+  }
+  :global(html.sw-js) .rv.in {
+    opacity: 1;
+    transform: none;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    :global(html.sw-js) .rv {
+      opacity: 1;
+      transform: none;
+      transition: none;
+    }
   }
 
-  /* ---- Hero ---- */
+  ::selection {
+    background: var(--sw-terracotta);
+    color: #fff;
+  }
+  a:focus-visible,
+  summary:focus-visible,
+  .btn:focus-visible {
+    outline: 2px solid var(--sw-terracotta-deep);
+    outline-offset: 3px;
+    border-radius: 4px;
+  }
+
+  /* ---------- ornament: the brochure's two small bars ---------- */
+  .orn {
+    display: flex;
+    gap: 7px;
+    justify-content: center;
+    margin-bottom: 1.4rem;
+  }
+  .orn::before,
+  .orn::after {
+    content: '';
+    width: 2px;
+    height: 20px;
+    background: var(--sw-terracotta);
+  }
+  .orn--left {
+    justify-content: flex-start;
+  }
+  .orn--light::before,
+  .orn--light::after {
+    background: rgba(255, 255, 255, 0.85);
+  }
+
+  .kicker {
+    font-family: var(--sw-ui);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.26em;
+    text-transform: uppercase;
+    color: var(--sw-terracotta-deep);
+    margin: 0 0 0.9rem;
+  }
+
+  /* ---------- mini nav ---------- */
+  #swnav {
+    position: fixed;
+    inset-inline: 0;
+    top: 0;
+    z-index: 60;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.7rem clamp(1.1rem, 4vw, 2.4rem);
+    background: rgba(251, 247, 241, 0.92);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid rgba(107, 58, 72, 0.09);
+    transform: translateY(-110%);
+    transition: transform 0.45s cubic-bezier(0.2, 0.7, 0.3, 1);
+  }
+  #swnav.show {
+    transform: translateY(0);
+  }
+  .nav-brand {
+    font-family: var(--sw-display);
+    font-weight: 600;
+    font-size: 1.12rem;
+    color: var(--sw-terracotta-deep);
+    letter-spacing: 0.01em;
+  }
+  .nav-links {
+    display: flex;
+    align-items: center;
+    gap: clamp(0.9rem, 2.5vw, 1.8rem);
+  }
+  .nav-links a {
+    font-family: var(--sw-ui);
+    font-size: 0.78rem;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--sw-wine);
+  }
+  .nav-links a:hover {
+    color: var(--sw-terracotta-deep);
+  }
+  .nav-cta {
+    padding: 0.42rem 0.95rem;
+    border: 1px solid var(--sw-terracotta-deep);
+    border-radius: 999px;
+    color: var(--sw-terracotta-deep) !important;
+  }
+  .nav-cta:hover {
+    background: var(--sw-terracotta-deep);
+    color: #fff !important;
+  }
+  @media (max-width: 640px) {
+    .nav-links a:not(.nav-cta) {
+      display: none;
+    }
+  }
+
+  /* ---------- hero ---------- */
   .hero {
     position: relative;
     min-height: 100svh;
@@ -62,7 +884,7 @@ import SpeelWijs from '../../layouts/SpeelWijs.astro';
     overflow: hidden;
     text-align: center;
   }
-  .hero__photo {
+  .hero-photo {
     position: absolute;
     inset: 0;
     width: 100%;
@@ -70,71 +892,585 @@ import SpeelWijs from '../../layouts/SpeelWijs.astro';
     object-fit: cover;
     object-position: 60% 35%;
   }
-  .hero__scrim {
+  .hero-scrim {
     position: absolute;
     inset: 0;
-    background:
-      linear-gradient(180deg, rgba(40, 26, 22, 0.35) 0%, rgba(40, 26, 22, 0.05) 40%, rgba(40, 26, 22, 0.45) 100%);
+    background: linear-gradient(
+      180deg,
+      rgba(40, 26, 22, 0.38) 0%,
+      rgba(40, 26, 22, 0.08) 42%,
+      rgba(40, 26, 22, 0.5) 100%
+    );
   }
-  .hero__inner {
+  .hero-center {
     position: relative;
     padding: var(--sw-gutter);
-    color: var(--sw-white);
+    color: #fff;
+    animation: hero-in 1.4s cubic-bezier(0.2, 0.7, 0.3, 1) both;
   }
-  .hero__eyebrow {
+  @keyframes hero-in {
+    from {
+      opacity: 0;
+      transform: translateY(18px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .hero-center {
+      animation: none;
+    }
+  }
+  .hero-word {
+    font-family: var(--sw-display);
+    font-weight: 600;
+    font-size: clamp(3.6rem, 13vw, 8.5rem);
+    letter-spacing: -0.01em;
+    color: #fff;
+    margin: 0;
+    text-shadow: 0 2px 34px rgba(40, 26, 22, 0.4);
+    line-height: 1;
+  }
+  .hero-sub {
     font-family: var(--sw-serif);
     text-transform: uppercase;
-    letter-spacing: 0.28em;
-    font-size: clamp(0.72rem, 1.8vw, 0.95rem);
-    margin: 0 0 0.6rem;
-    opacity: 0.92;
+    letter-spacing: 0.3em;
+    font-size: clamp(0.74rem, 1.9vw, 1.02rem);
+    margin: 1.1rem 0 0;
+    opacity: 0.94;
   }
-  .hero__word {
-    font-family: var(--sw-display);
-    color: var(--sw-white);
-    font-weight: 600;
-    font-size: clamp(3.4rem, 13vw, 8rem);
-    margin: 0;
-    letter-spacing: -0.01em;
-    text-shadow: 0 2px 30px rgba(40, 26, 22, 0.35);
+  .hero-foot {
+    position: absolute;
+    inset-inline: 0;
+    bottom: clamp(1.6rem, 4.5vh, 3rem);
+    text-align: center;
+    color: #fff;
   }
-  .hero__tag {
+  .hero-foot .orn {
+    margin-bottom: 0.7rem;
+  }
+  .hero-tag {
     font-family: var(--sw-serif);
     font-style: italic;
     text-transform: uppercase;
-    letter-spacing: 0.22em;
-    font-size: clamp(0.8rem, 2vw, 1.05rem);
-    margin: 0.4rem 0 0;
+    letter-spacing: 0.24em;
+    font-size: clamp(0.76rem, 1.9vw, 0.98rem);
+    margin: 0;
     opacity: 0.95;
   }
 
-  /* ---- Holding note ---- */
-  .note {
-    max-width: 44rem;
+  /* ---------- welcome ---------- */
+  .welcome {
+    max-width: 46rem;
     margin: 0 auto;
-    padding: clamp(3.5rem, 9vw, 7rem) var(--sw-gutter);
+    padding: clamp(4.5rem, 11vw, 8.5rem) var(--sw-gutter) clamp(2.5rem, 6vw, 4.5rem);
     text-align: center;
   }
-  .note__kicker {
-    font-family: var(--sw-ui);
-    text-transform: uppercase;
-    letter-spacing: 0.24em;
-    font-size: 0.72rem;
-    color: var(--sw-terracotta);
-    margin: 0 0 1.2rem;
-  }
-  .note__lead {
+  .welcome-line {
     font-family: var(--sw-display);
+    font-weight: 400;
     color: var(--sw-terracotta);
-    font-size: clamp(1.6rem, 4.5vw, 2.5rem);
-    line-height: 1.25;
-    margin: 0 0 1.2rem;
+    font-size: clamp(1.75rem, 4.6vw, 2.7rem);
+    line-height: 1.22;
+    margin: 0 0 1.1rem;
+    text-wrap: balance;
   }
-  .note__sub {
+  .welcome-line strong {
+    font-weight: 600;
+  }
+  .welcome-hook {
+    font-style: italic;
+    font-size: clamp(1.15rem, 2.6vw, 1.4rem);
+    color: var(--sw-wine);
+    opacity: 0.82;
+    margin: 0;
+  }
+
+  /* ---------- chapters ---------- */
+  .chapter {
+    max-width: var(--sw-maxw);
+    margin: 0 auto;
+    padding: clamp(3.5rem, 8vw, 6.5rem) var(--sw-gutter);
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: clamp(2.2rem, 5vw, 4.5rem);
+    align-items: start;
+    scroll-margin-top: 4.5rem;
+  }
+  @media (min-width: 900px) {
+    .chapter {
+      grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+    }
+    .chapter--flip .chapter-media {
+      order: -1;
+    }
+  }
+  .chapter-text {
+    max-width: 36rem;
+  }
+  @media (min-width: 900px) {
+    .chapter--flip .chapter-text {
+      justify-self: end;
+    }
+  }
+  .chapter h2 {
+    font-family: var(--sw-serif);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.13em;
+    font-size: clamp(1.85rem, 3.8vw, 2.55rem);
+    line-height: 1.16;
+    color: var(--sw-terracotta);
+    margin: 0 0 1.6rem;
+    text-wrap: balance;
+  }
+  .chapter p {
+    margin: 0 0 1.25rem;
+    hyphens: auto;
+  }
+  .chapter .lead {
+    font-size: 1.22em;
+    line-height: 1.5;
+    color: var(--sw-wine);
+    font-weight: 500;
+  }
+  .chapter .close {
+    margin-top: 1.9rem;
+    font-weight: 600;
+    font-size: 1.18em;
+    line-height: 1.4;
+    color: var(--sw-terracotta-deep);
+  }
+  .chapter-media {
+    margin: 0;
+  }
+  .chapter-media img {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 3 / 4;
+    object-fit: cover;
+    /* a true arch: horizontal radius = half the width, vertical = 3/8 height */
+    border-radius: 50% 50% 1.4rem 1.4rem / 37.5% 37.5% 1.4rem 1.4rem;
+    box-shadow: 0 28px 60px -34px rgba(74, 47, 44, 0.45);
+  }
+  @media (min-width: 900px) {
+    .chapter-media {
+      position: sticky;
+      top: 6rem;
+    }
+  }
+
+  /* ---------- breath interludes ---------- */
+  .breath {
+    position: relative;
+    min-height: min(68vh, 620px);
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    text-align: center;
+    padding: clamp(5rem, 12vw, 8rem) var(--sw-gutter);
+  }
+  .breath img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: 50% 38%;
+  }
+  .breath-wash {
+    position: absolute;
+    inset: 0;
+    background: rgba(251, 247, 241, 0.72);
+  }
+  .breath-line {
+    position: relative;
     font-family: var(--sw-serif);
     font-style: italic;
+    font-size: clamp(1.6rem, 4vw, 2.5rem);
+    line-height: 1.3;
     color: var(--sw-wine);
-    opacity: 0.75;
+    max-width: 24ch;
     margin: 0;
+    text-wrap: balance;
+  }
+  .breath-line--quote::before {
+    content: '\201C';
+    display: block;
+    font-family: var(--sw-display);
+    font-style: normal;
+    font-size: 2.2em;
+    line-height: 0.4;
+    color: var(--sw-terracotta);
+    margin-bottom: 0.35em;
+  }
+
+  /* ---------- praktisch ---------- */
+  .practical {
+    background: var(--sw-sand);
+    padding: clamp(4.5rem, 10vw, 7.5rem) var(--sw-gutter);
+    scroll-margin-top: 3.2rem;
+  }
+  .practical-inner {
+    max-width: var(--sw-maxw);
+    margin: 0 auto;
+  }
+  .practical-head {
+    text-align: center;
+    max-width: 42rem;
+    margin: 0 auto clamp(2.5rem, 6vw, 4rem);
+  }
+  .practical-head h2 {
+    font-family: var(--sw-serif);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.13em;
+    font-size: clamp(1.85rem, 3.8vw, 2.55rem);
+    color: var(--sw-terracotta);
+    margin: 0 0 1.3rem;
+  }
+  .practical-lead {
+    margin: 0;
+    color: var(--sw-wine);
+  }
+  .stats {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: clamp(1.5rem, 5vw, 4.5rem);
+    margin: 0 auto clamp(2.8rem, 6vw, 4.2rem);
+    text-align: center;
+  }
+  @media (max-width: 560px) {
+    .stats {
+      flex-direction: column;
+      gap: 1.6rem;
+    }
+  }
+  .stat-num {
+    display: block;
+    font-family: var(--sw-display);
+    font-weight: 600;
+    font-size: clamp(2.4rem, 6vw, 3.6rem);
+    color: var(--sw-terracotta-deep);
+    line-height: 1;
+  }
+  .stat-label {
+    display: block;
+    font-family: var(--sw-ui);
+    font-size: 0.78rem;
+    font-weight: 500;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--sw-wine);
+    margin-top: 0.55rem;
+  }
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr));
+    gap: 1.1rem;
+  }
+  .card {
+    background: #fffdf9;
+    border: 1px solid rgba(184, 112, 96, 0.2);
+    border-radius: 1.3rem;
+    padding: 1.7rem 1.6rem;
+  }
+  .card--rates {
+    grid-row: span 2;
+    background: #fff;
+    border-color: rgba(184, 112, 96, 0.38);
+  }
+  .card h3 {
+    font-family: var(--sw-ui);
+    font-size: 0.76rem;
+    font-weight: 600;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--sw-terracotta-deep);
+    margin: 0 0 0.9rem;
+  }
+  .card p {
+    margin: 0 0 0.8rem;
+    font-size: 1.02rem;
+    line-height: 1.55;
+  }
+  .card p:last-child {
+    margin-bottom: 0;
+  }
+  .card-note {
+    color: var(--sw-wine);
+  }
+  .card-fine,
+  .rate-fine {
+    font-size: 0.92rem;
+    opacity: 0.75;
+  }
+  .rate {
+    padding: 1rem 0;
+    border-top: 1px solid rgba(107, 58, 72, 0.12);
+  }
+  .rate-what {
+    font-family: var(--sw-ui);
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--sw-wine);
+    margin-bottom: 0.25rem;
+  }
+  .rate-price {
+    color: var(--sw-wine);
+  }
+  .rate-eur {
+    font-family: var(--sw-display);
+    font-weight: 600;
+    font-size: 1.9rem;
+    color: var(--sw-terracotta-deep);
+    margin-right: 0.2rem;
+  }
+  .rate-fine {
+    margin-top: 0.15rem;
+  }
+  .practical-contact {
+    text-align: center;
+    max-width: 34rem;
+    margin: clamp(2.5rem, 6vw, 3.8rem) auto 0;
+    color: var(--sw-wine);
+  }
+  .practical-contact a {
+    font-weight: 600;
+    color: var(--sw-terracotta-deep);
+    border-bottom: 1px solid currentColor;
+  }
+
+  /* ---------- faq ---------- */
+  .faq {
+    max-width: var(--sw-maxw);
+    margin: 0 auto;
+    padding: clamp(4.5rem, 10vw, 7.5rem) var(--sw-gutter);
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: clamp(2.2rem, 5vw, 4.5rem);
+    align-items: start;
+    scroll-margin-top: 3.2rem;
+  }
+  @media (min-width: 940px) {
+    .faq {
+      grid-template-columns: minmax(0, 7fr) minmax(0, 4fr);
+    }
+  }
+  .faq h2 {
+    font-family: var(--sw-serif);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.13em;
+    font-size: clamp(1.85rem, 3.8vw, 2.55rem);
+    color: var(--sw-terracotta);
+    margin: 0 0 1.8rem;
+  }
+  .faq details {
+    border-bottom: 1px solid rgba(107, 58, 72, 0.14);
+  }
+  .faq details:first-of-type {
+    border-top: 1px solid rgba(107, 58, 72, 0.14);
+  }
+  .faq summary {
+    list-style: none;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 1rem;
+    padding: 1.1rem 0.15rem;
+    font-weight: 600;
+    font-size: 1.12rem;
+    color: var(--sw-wine);
+  }
+  .faq summary::-webkit-details-marker {
+    display: none;
+  }
+  .faq summary::after {
+    content: '+';
+    font-family: var(--sw-display);
+    font-weight: 400;
+    font-size: 1.3rem;
+    color: var(--sw-terracotta-deep);
+    flex: none;
+    transition: transform 0.25s ease;
+  }
+  .faq details[open] summary::after {
+    content: '−';
+  }
+  .faq summary:hover {
+    color: var(--sw-terracotta-deep);
+  }
+  .faq details p {
+    margin: 0 0 1.2rem;
+    padding: 0 0.15rem;
+    max-width: 56ch;
+  }
+  .faq-media {
+    margin: 0;
+  }
+  .faq-media img {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 3 / 4;
+    object-fit: cover;
+    border-radius: 1.4rem;
+    box-shadow: 0 28px 60px -34px rgba(74, 47, 44, 0.45);
+  }
+  @media (min-width: 940px) {
+    .faq-media {
+      position: sticky;
+      top: 6rem;
+    }
+  }
+
+  /* ---------- closing chapter tweak ---------- */
+  .chapter--closing {
+    padding-bottom: clamp(4rem, 9vw, 7rem);
+  }
+
+  /* ---------- contact ---------- */
+  .contact {
+    position: relative;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    padding: clamp(5rem, 12vw, 9rem) var(--sw-gutter);
+    scroll-margin-top: 3.2rem;
+  }
+  .contact-photo {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: 45% 40%;
+  }
+  .contact-scrim {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      180deg,
+      rgba(40, 26, 22, 0.12),
+      rgba(40, 26, 22, 0.32)
+    );
+  }
+  .contact-card {
+    position: relative;
+    background: rgba(251, 247, 241, 0.96);
+    border-radius: 1.8rem;
+    padding: clamp(2.2rem, 6vw, 3.4rem) clamp(1.6rem, 5vw, 3rem);
+    width: min(100%, 37rem);
+    text-align: center;
+    box-shadow: 0 40px 90px -40px rgba(40, 26, 22, 0.55);
+  }
+  .contact-card h2 {
+    font-family: var(--sw-serif);
+    font-weight: 500;
+    font-size: clamp(1.7rem, 4.4vw, 2.4rem);
+    line-height: 1.2;
+    color: var(--sw-terracotta);
+    margin: 0 0 0.7rem;
+    text-wrap: balance;
+  }
+  .contact-lead {
+    font-size: clamp(1.15rem, 2.6vw, 1.35rem);
+    color: var(--sw-wine);
+    margin: 0 0 1rem;
+  }
+  .contact-seed {
+    font-size: 1.08rem;
+    color: var(--sw-wine);
+    opacity: 0.85;
+    margin: 0 0 1.8rem;
+  }
+  .contact-sign {
+    font-family: var(--sw-serif);
+    font-style: italic;
+    font-size: 1.15rem;
+    line-height: 1.55;
+    color: var(--sw-wine);
+    margin: 0 0 1.9rem;
+  }
+  .contact-sign strong {
+    font-style: normal;
+    font-weight: 600;
+    font-size: 1.18em;
+  }
+  .contact-brand {
+    font-family: var(--sw-ui);
+    font-style: normal;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.26em;
+    text-transform: uppercase;
+    color: var(--sw-terracotta-deep);
+  }
+  .contact-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.75rem;
+  }
+  .btn {
+    font-family: var(--sw-ui);
+    font-size: 0.95rem;
+    font-weight: 500;
+    padding: 0.8rem 1.6rem;
+    border-radius: 999px;
+    transition:
+      background 0.25s ease,
+      color 0.25s ease,
+      border-color 0.25s ease;
+  }
+  .btn--primary {
+    background: var(--sw-terracotta-deep);
+    color: #fff;
+  }
+  .btn--primary:hover {
+    background: var(--sw-wine);
+  }
+  .btn--ghost {
+    border: 1px solid var(--sw-terracotta-deep);
+    color: var(--sw-terracotta-deep);
+  }
+  .btn--ghost:hover {
+    background: var(--sw-terracotta-deep);
+    color: #fff;
+  }
+
+  /* ---------- footer ---------- */
+  .foot {
+    text-align: center;
+    padding: clamp(2.8rem, 6vw, 4rem) var(--sw-gutter);
+    background: var(--sw-cream);
+  }
+  .foot-brand {
+    font-family: var(--sw-display);
+    font-weight: 600;
+    font-size: 1.5rem;
+    color: var(--sw-terracotta-deep);
+    margin: 0 0 0.3rem;
+  }
+  .foot-sub {
+    font-family: var(--sw-serif);
+    font-style: italic;
+    font-size: 1rem;
+    color: var(--sw-wine);
+    opacity: 0.8;
+    margin: 0 0 1rem;
+  }
+  .foot-contact {
+    font-family: var(--sw-ui);
+    font-size: 0.88rem;
+    color: var(--sw-wine);
+    margin: 0;
+  }
+  .foot-contact a {
+    color: var(--sw-terracotta-deep);
   }
 </style>

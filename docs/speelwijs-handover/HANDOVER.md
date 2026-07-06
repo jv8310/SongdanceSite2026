@@ -1,5 +1,10 @@
 # SpeelWijs landing page — handover brief for Fable
 
+> **Status (July 2026): the page is built.** `src/pages/speelwijs/index.astro`
+> now carries the full landing page (hero, all chapters, practical, FAQ,
+> contact) following this brief. This document remains the reference for any
+> revision: the copy source, photo map, palette, and rules below still govern.
+
 **Read this first.** Everything you need to build a beautiful bespoke landing
 page for the SpeelWijs client is gathered here. The heavy lifting — extracting
 copy and graphics, sampling the palette, identifying the type, and wiring the
