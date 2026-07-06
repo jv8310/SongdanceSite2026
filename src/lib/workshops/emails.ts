@@ -245,8 +245,8 @@ const REMINDER_LEAD: Record<string, string> = {
   reminder_1d: 'tomorrow',
   reminder_6h: 'in a few hours',
   reminder_1h: 'in one hour',
-  reminder_15m: 'in 15 minutes',
-  at_time: 'now',
+  reminder_20m: 'in 20 minutes',
+  reminder_5m: 'in a few minutes',
 };
 
 // The early reminders each carry their own beat, so the seven-touch cadence
@@ -287,24 +287,40 @@ function reminderWarmth(type: string): { html: string; text: string } {
 
 export function reminderEmail(type: string, ctx: WorkshopEmailCtx): EmailContent {
   const lead = REMINDER_LEAD[type] ?? 'soon';
-  const isImminent = type === 'reminder_15m' || type === 'at_time' || type === 'reminder_1h';
+  // `reminder_5m` is the terminal "we're live now" touch — it goes ~5 min before
+  // start (when the Join window opens) and also catches up if its tick is missed,
+  // so its copy must read true right up to and just after the start.
+  const isLive = type === 'reminder_5m';
+  // Imminent = the Join button is open (within the 5-min join window). The live
+  // touch qualifies; reminder_1h keeps its long-standing lean "just the door" copy.
+  const isImminent = isLive || type === 'reminder_1h';
   const warm = reminderWarmth(type);
   const html = shell({
-    preheader: `${ctx.workshopTitle} starts ${lead}`,
-    heading: type === 'at_time' ? "We're starting" : `Starting ${lead}`,
+    preheader: isLive
+      ? `${ctx.workshopTitle} — the room is open now`
+      : `${ctx.workshopTitle} starts ${lead}`,
+    heading: isLive ? "We're live now" : `Starting ${lead}`,
     bodyHtml: `<p style="margin:0 0 14px;">${greeting(ctx.name)}</p>
-      <p style="margin:0 0 14px;"><strong>${escapeHtml(ctx.workshopTitle)}</strong> starts ${lead}.</p>
+      <p style="margin:0 0 14px;">${
+        isLive
+          ? `<strong>${escapeHtml(ctx.workshopTitle)}</strong> is starting — the room is open now, come on in.`
+          : `<strong>${escapeHtml(ctx.workshopTitle)}</strong> starts ${lead}.`
+      }</p>
       <p style="margin:0 0 4px;font-size:18px;color:${PALETTE.ink};">${escapeHtml(ctx.whenLocal)}</p>
       ${warm.html}
       <p style="margin:14px 0 0;">${isImminent ? 'Open your page now — the Join button is ready.' : 'Open your countdown page below; the Join button appears 5 minutes before we begin.'}</p>`,
     cta: { label: isImminent ? 'Join now' : 'Open my countdown page', href: ctx.joinUrl },
   });
   return {
-    subject: type === 'at_time'
-      ? `We're starting — ${ctx.workshopTitle}`
+    subject: isLive
+      ? `We're live now — ${ctx.workshopTitle}`
       : `Reminder: ${ctx.workshopTitle} starts ${lead}`,
     html,
-    text: `${greeting(ctx.name).replace(/<[^>]+>/g, '')}\n\n${ctx.workshopTitle} starts ${lead}.\nWhen: ${ctx.whenLocal}\n${warm.text}\nYour join page: ${ctx.joinUrl}`,
+    text: `${greeting(ctx.name).replace(/<[^>]+>/g, '')}\n\n${
+      isLive
+        ? `${ctx.workshopTitle} is starting — the room is open now, come on in.`
+        : `${ctx.workshopTitle} starts ${lead}.`
+    }\nWhen: ${ctx.whenLocal}\n${warm.text}\nYour join page: ${ctx.joinUrl}`,
   };
 }
 

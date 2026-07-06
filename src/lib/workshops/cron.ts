@@ -104,27 +104,33 @@ const D = 24 * H;
 
 // Pre-workshop briefing (internal ops email): fire when a live session starts
 // within the next BRIEFING_LEAD_MIN minutes — on the 5-minute cron this lands
-// 0–5 min before the start, i.e. "about five minutes before". A missed tick
-// (deploy/outage) can still catch a session up to BRIEFING_STALE_MIN after its
-// start; beyond that a "starting soon" heads-up is pointless, so it's skipped.
-const BRIEFING_LEAD_MIN = 5;
+// ~7–12 min before the start, i.e. "about twelve minutes before", so there's
+// real time to prep. The wider lead also spans 2–3 cron ticks, so a single
+// disrupted/skipped tick (deploy/outage) no longer drops the briefing. A missed
+// tick can still catch a session up to BRIEFING_STALE_MIN after its start;
+// beyond that a "starting soon" heads-up is pointless, so it's skipped.
+const BRIEFING_LEAD_MIN = 12;
 const BRIEFING_STALE_MIN = 10;
 const BRIEFING_DEFAULT_RECIPIENT = 'jacob@songdance.co';
 
 // Reminder cadence: lead time before start, in minutes. Ordered loosest →
-// tightest. `at_time` (0) fires right at start.
+// tightest. The final touch `reminder_5m` (5) is the terminal bucket: it's the
+// "we're live now" message — it goes ~5 min before start (when the Join window
+// opens) and, having the smallest lead, it's also selected for any tick at/after
+// start, so a missed 5-min tick still catches up as a truthful "we're live".
+// The earlier "starts in N" reminders are never back-sent once they'd read false.
 const CADENCE: Array<{ type: string; lead: number }> = [
   { type: 'reminder_7d', lead: 7 * D },
   { type: 'reminder_2d', lead: 2 * D },
   { type: 'reminder_1d', lead: 1 * D },
   { type: 'reminder_6h', lead: 6 * H },
   { type: 'reminder_1h', lead: 1 * H },
-  { type: 'reminder_15m', lead: 15 },
-  { type: 'at_time', lead: 0 },
+  { type: 'reminder_20m', lead: 20 },
+  { type: 'reminder_5m', lead: 5 },
 ];
 
 // The early, non-urgent reminders held to the recipient's local send window
-// (08:00–21:00). The imminent ones (6h, 1h, 15m, at_time) are time-critical and
+// (08:00–21:00). The imminent ones (6h, 1h, 20m, 5m) are time-critical and
 // always go on schedule — they're never gated.
 const QUIET_HOURS_REMINDERS = new Set(['reminder_7d', 'reminder_2d', 'reminder_1d']);
 
@@ -273,7 +279,7 @@ function sqliteMs(s: string): number {
 // ── Reminders ──────────────────────────────────────────────────────────────
 async function runReminders(env: CronEnv, now: number, result: CronResult) {
   // Live workshops starting within the next 7 days (plus a 30-minute grace
-  // after start so `at_time` still fires). Replays have no live time.
+  // after start so the terminal `reminder_5m` still fires). Replays have no live time.
   const horizon = new Date(now + 7 * D * MIN_MS + 60000).toISOString();
   const floor = new Date(now - 30 * MIN_MS).toISOString();
   const wRes = await env.DB
@@ -317,7 +323,7 @@ async function runReminders(env: CronEnv, now: number, result: CronResult) {
       // confirmation — the "reminder arrived with my receipt" glitch —
       // reserve the slot silently (emailed=0) instead of firing it, and let a
       // tighter, genuinely-ahead bucket be their first reminder. Imminent nudges
-      // (6h/1h/15m/at_time) are time-of-event and always go.
+      // (6h/1h/20m/5m) are time-of-event and always go.
       if (QUIET_HOURS_REMINDERS.has(due.type)) {
         const dueAtMs = new Date(w.starts_at_utc).getTime() - due.lead * MIN_MS;
         const regMs = sqliteMs(reg.created_at);

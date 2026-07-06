@@ -32,6 +32,8 @@ const TRANSACTIONAL_TYPES = new Set<string>([
   'reminder_1d',
   'reminder_6h',
   'reminder_1h',
+  'reminder_20m',
+  'reminder_5m',
   'reminder_15m',
   'at_time',
 ]);
@@ -43,6 +45,8 @@ const NOTIFICATION_LABELS: Record<string, string> = {
   reminder_1d: 'Reminder · 1 day',
   reminder_6h: 'Reminder · 6 hours',
   reminder_1h: 'Reminder · 1 hour',
+  reminder_20m: 'Reminder · 20 min',
+  reminder_5m: "Reminder · we're live",
   reminder_15m: 'Reminder · 15 min',
   at_time: 'Reminder · at start',
   abandoned_1: 'Abandoned checkout · 1',

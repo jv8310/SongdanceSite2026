@@ -23,6 +23,9 @@ export const EMAIL_TYPE_META: Record<string, { group: string; label: string }> =
   reminder_1d: { group: 'Reminders', label: 'Reminder — tomorrow' },
   reminder_6h: { group: 'Reminders', label: 'Reminder — six hours' },
   reminder_1h: { group: 'Reminders', label: 'Reminder — one hour' },
+  reminder_20m: { group: 'Reminders', label: 'Reminder — 20 minutes' },
+  reminder_5m: { group: 'Reminders', label: "Reminder — we're live" },
+  // Retired cadence (kept so historical sends still label in stats).
   reminder_15m: { group: 'Reminders', label: 'Reminder — 15 minutes' },
   at_time: { group: 'Reminders', label: "Reminder — we're starting" },
   abandoned_1: { group: 'Abandoned checkout', label: 'Nudge 1 — the open door' },
