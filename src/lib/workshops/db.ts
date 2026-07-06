@@ -1008,6 +1008,22 @@ export async function claimNotification(
   }
 }
 
+// Release a previously-claimed notification slot (see claimNotification).
+// Used when a send fails *after* the slot was claimed, so a later cron tick can
+// retry it instead of the claim permanently swallowing the email. Deletes only
+// the exact (registration, type) slot; safe to call for a slot that no longer
+// exists. Doesn't touch the `emailed` column, so it works pre- and post-0041.
+export async function releaseNotification(
+  db: D1Database,
+  registrationId: number,
+  type: string,
+): Promise<void> {
+  await db
+    .prepare('DELETE FROM workshop_sent_notifications WHERE registration_id = ? AND type = ?')
+    .bind(registrationId, type)
+    .run();
+}
+
 // ── Config / Zoom ─────────────────────────────────────────────────────────
 
 export async function getConfig(db: D1Database, key: string): Promise<string | null> {

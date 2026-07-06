@@ -25,11 +25,13 @@ import {
   audienceIsPro,
   claimNotification,
   notificationExists,
+  releaseNotification,
   workshopIsMasterclass,
   type Workshop,
   type WorkshopRegistration,
 } from './db';
-import { sendEmail } from './resend';
+import { sendEmail, sendEmailBatch, type BatchEmailInput } from './resend';
+import { recordEmailSendStmt } from '../email/sends';
 import {
   abandonedEmail1,
   abandonedEmail2,
@@ -283,6 +285,13 @@ async function runReminders(env: CronEnv, now: number, result: CronResult) {
     .bind(floor, horizon)
     .all<Workshop>();
 
+  // Due reminders across every workshop this tick, collected here and flushed
+  // through Resend's batch endpoint below (see flushReminders). A whole roster
+  // can cross the same cadence bucket on one tick; sending those one bare fetch
+  // at a time outran Resend's ~2 req/s limit, the overflow 429'd, and — because
+  // the slot was claimed before the send — those reminders were dropped for good.
+  const pending: PendingReminder[] = [];
+
   for (const w of wRes.results ?? []) {
     const regs = await env.DB
       .prepare(
@@ -334,27 +343,104 @@ async function runReminders(env: CronEnv, now: number, result: CronResult) {
       for (let i = 0; i < idx; i++) {
         await claimNotification(env.DB, reg.id, CADENCE[i].type, false);
       }
-      const shouldSend = await claimNotification(env.DB, reg.id, due.type);
-      if (!shouldSend) continue;
+      // Collect the single tightest due reminder. The atomic claim and the send
+      // happen together, per chunk, in the batched flush below — so an imminent
+      // workshop's whole roster goes out in one or two Resend requests instead of
+      // dozens of un-paced single sends, and a hard failure releases the claim to
+      // retry next tick rather than silently swallowing the reminder.
+      pending.push({
+        registrationId: reg.id,
+        to: reg.email,
+        dueType: due.type,
+        content: reminderEmail(due.type, emailCtx(env, reg, w)),
+      });
+    }
+  }
 
-      const content = reminderEmail(due.type, emailCtx(env, reg, w));
+  await flushReminders(env, pending, result);
+}
+
+// A reminder due this tick, gathered during the scan above and sent in the
+// batched flush below. The slot is NOT claimed here — the claim is taken
+// per-chunk right before the send, so a slot is never marked sent while the
+// actual send is still pending.
+type PendingReminder = {
+  registrationId: number;
+  to: string;
+  dueType: string;
+  content: EmailContent;
+};
+
+// Reminders are transactional and fan out to a whole workshop's roster the
+// moment it crosses a cadence bucket — dozens of addresses on one tick. Batch
+// them through Resend's batch endpoint (one request per chunk, with the
+// endpoint's own 429/5xx retry) exactly as the broadcast drain does, pacing
+// between chunks to stay under the ~2 req/s account limit. Claim each slot right
+// before its send and RELEASE it on a hard failure, so a throttled/failed chunk
+// is retried on the next tick instead of being dropped for good.
+const REMINDER_BATCH_SIZE = 90; // ≤100 (Resend batch cap); also the D1 100-param ceiling
+const REMINDER_BATCH_GAP_MS = 600; // one request per chunk → keeps request rate under 2/s
+const reminderSleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+async function flushReminders(env: CronEnv, pending: PendingReminder[], result: CronResult) {
+  for (let i = 0; i < pending.length; i += REMINDER_BATCH_SIZE) {
+    const chunk = pending.slice(i, i + REMINDER_BATCH_SIZE);
+
+    // Atomically claim each slot right before sending. Only rows THIS run won
+    // the claim on are sent; a row an overlapping tick already claimed returns
+    // false and is skipped here, so there's no double-send.
+    const claimed: PendingReminder[] = [];
+    for (const p of chunk) {
+      if (await claimNotification(env.DB, p.registrationId, p.dueType)) claimed.push(p);
+    }
+    if (claimed.length === 0) continue;
+
+    const payload: BatchEmailInput[] = claimed.map((p) => ({
+      replyTo: env.RESEND_REPLY_TO,
+      to: p.to,
+      subject: p.content.subject,
+      html: p.content.html,
+      text: p.content.text,
+      entityRefId: `workshop-${p.dueType}-${p.registrationId}`,
+    }));
+
+    let ids: (string | null)[];
+    try {
+      ids = await sendEmailBatch(env.RESEND_API_KEY!, payload);
+    } catch (err) {
+      // Hard failure after the batch endpoint's own retries — release the claims
+      // so a later tick tries again instead of losing the reminder for good.
+      for (const p of claimed) await releaseNotification(env.DB, p.registrationId, p.dueType);
+      console.error('[workshops/cron] reminder batch failed; released claims for retry', err);
+      continue;
+    }
+
+    result.remindersSent += claimed.length;
+
+    // Engagement tracking (email_sends) — best-effort, mirrors sendEmail's
+    // `track`. A stats hiccup must never undo the send: the mail is already out
+    // and the slot is claimed, so a failure here is swallowed.
+    const records = claimed
+      .map((p, idx) =>
+        recordEmailSendStmt(env.DB, {
+          resendId: ids[idx] ?? null,
+          type: p.dueType,
+          to: p.to,
+          subject: p.content.subject,
+          registrationId: p.registrationId,
+        }),
+      )
+      .filter((s): s is D1PreparedStatement => s !== null);
+    if (records.length) {
       try {
-        await sendEmail({
-          apiKey: env.RESEND_API_KEY!,
-          replyTo: env.RESEND_REPLY_TO,
-          to: reg.email,
-          subject: content.subject,
-          html: content.html,
-          text: content.text,
-          entityRefId: `workshop-${due.type}-${reg.id}`,
-          track: { db: env.DB, type: due.type, registrationId: reg.id },
-        });
-        result.remindersSent += 1;
+        await env.DB.batch(records);
       } catch {
-        // Already claimed; a transient failure means this cadence is skipped
-        // rather than retried. The next tighter bucket will still reach them.
+        // Stats are best-effort; the reminders already went out.
       }
     }
+
+    // Pace between chunks (one Resend request each) to stay under the rate limit.
+    if (i + REMINDER_BATCH_SIZE < pending.length) await reminderSleep(REMINDER_BATCH_GAP_MS);
   }
 }
 
