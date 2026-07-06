@@ -630,6 +630,49 @@ export async function runReports(env: ReportEnv, now = Date.now()): Promise<RunR
   return result;
 }
 
+// ── Manual on-demand send (admin "Send now" from /admin/emails) ─────────────
+// Force-send a report for a given date with REAL data — the escape hatch for a
+// digest the cron dropped (e.g. an isolate evicted mid-send before the retry
+// path shipped). Unlike runReports this ignores the once-per-day `events` claim
+// and the 08:00 hold: it always builds and sends, so it can never be silently
+// no-op'd by a stale claim. Windows resolve in Brussels time, same as the cron.
+//   • daily  — the single day `date` (default: yesterday).
+//   • weekly — the 7 days ending on `date` (default: yesterday).
+// `to` overrides the recipients (else the usual REPORTS_TO chain). Throws on a
+// send failure so the caller can surface the reason.
+export async function sendReportNow(
+  env: ReportEnv,
+  opts: { kind: 'daily' | 'weekly'; date?: string; to?: string[]; now?: number },
+): Promise<{ subject: string; recipients: string[]; from: string; to: string }> {
+  if (!env.RESEND_API_KEY) throw new Error('RESEND_API_KEY is not configured.');
+  const now = opts.now ?? Date.now();
+  const baseUrl = (env.PUBLIC_BASE_URL && env.PUBLIC_BASE_URL.trim()) || DEFAULT_BASE_URL;
+  const defaultDate = shiftDays(businessDate(now), -1); // yesterday, Brussels
+  const target = (opts.date && opts.date.trim()) || defaultDate;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(target)) throw new Error(`Bad date: ${target}`);
+
+  const from = opts.kind === 'weekly' ? shiftDays(target, -6) : target;
+  const to = target;
+  const data = await gatherReportData(env.DB, from, to);
+  const content =
+    opts.kind === 'weekly'
+      ? buildWeeklyReportEmail(data, baseUrl)
+      : buildDailyReportEmail(data, baseUrl);
+
+  const recipients = opts.to && opts.to.length ? opts.to : reportRecipients(env);
+  await sendEmail({
+    apiKey: env.RESEND_API_KEY,
+    to: recipients,
+    replyTo: env.RESEND_REPLY_TO,
+    subject: content.subject,
+    html: content.html,
+    text: content.text,
+    // Distinct ref so a manual send never collides with the cron's daily claim.
+    entityRefId: `report-${opts.kind}-manual-${target}`,
+  });
+  return { subject: content.subject, recipients, from, to };
+}
+
 // ── Sample data (drives the /admin/emails preview + test-send) ──────────────
 
 export function sampleDailyReportData(): ReportData {

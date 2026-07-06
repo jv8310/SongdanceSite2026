@@ -39,6 +39,32 @@ const groups = [...new Set(samples.map((s) => s.group))];
       </div>
     </header>
 
+    <section class="adm-section em-realsend">
+      <h2>Reports (internal) — send with real data</h2>
+      <p class="adm-sub">
+        The cards below preview with sample data. This sends the actual
+        SD-REPORT digest for a chosen window — the escape hatch for a digest the
+        cron dropped. Leave the date blank for <strong>yesterday</strong>; blank
+        recipient sends to the usual reports list (REPORTS_TO).
+      </p>
+      <div class="em-realsend-row">
+        <label>Kind
+          <select id="rpt-kind">
+            <option value="daily">Daily (one day)</option>
+            <option value="weekly">Weekly (7 days ending on date)</option>
+          </select>
+        </label>
+        <label>Date (end of window)
+          <input id="rpt-date" type="date" />
+        </label>
+        <label>Recipient override (optional)
+          <input id="rpt-to" type="text" placeholder="defaults to REPORTS_TO" />
+        </label>
+        <button id="rpt-send" class="adm-btn" type="button">Send now (real data)</button>
+      </div>
+      <p id="rpt-status" class="em-realsend-status"></p>
+    </section>
+
     {groups.map((group) => (
       <section class="adm-section">
         <h2>{group}</h2>
@@ -73,6 +99,18 @@ const groups = [...new Set(samples.map((s) => s.group))];
       border: 1px solid rgba(161, 72, 38, 0.3); border-radius: 8px;
       background: #fbf6ec; min-width: 220px;
     }
+    .em-realsend-row {
+      display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; margin-top: 10px;
+    }
+    .em-realsend-row label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: #6f5f6d; }
+    .em-realsend-row select, .em-realsend-row input {
+      font: inherit; font-size: 14px; padding: 8px 12px;
+      border: 1px solid rgba(161, 72, 38, 0.3); border-radius: 8px; background: #fbf6ec;
+    }
+    .em-realsend-row #rpt-to { min-width: 240px; }
+    .em-realsend-status { margin: 10px 0 0; font-size: 13px; min-height: 1.2em; }
+    .em-realsend-status[data-state='ok'] { color: #2f6b34; }
+    .em-realsend-status[data-state='error'] { color: #a03636; }
     .em-grid { display: grid; gap: 22px; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); }
     .em-card {
       background: #fbf6ec; border: 1px solid rgba(161, 72, 38, 0.22);
@@ -96,6 +134,48 @@ const groups = [...new Set(samples.map((s) => s.group))];
   </style>
 
   <script>
+    // "Send now (real data)" — force-send the real SD-REPORT digest for a window.
+    const rptSend = document.getElementById('rpt-send') as HTMLButtonElement | null;
+    if (rptSend) {
+      // A <select> exposes `.value` like an input; cast to the type this inline
+      // script's DOM lib recognises (HTMLSelectElement isn't resolved here).
+      const kindEl = document.getElementById('rpt-kind') as HTMLInputElement;
+      const dateEl = document.getElementById('rpt-date') as HTMLInputElement;
+      const toEl = document.getElementById('rpt-to') as HTMLInputElement;
+      const statusEl = document.getElementById('rpt-status') as HTMLElement;
+      rptSend.addEventListener('click', async () => {
+        rptSend.disabled = true;
+        statusEl.removeAttribute('data-state');
+        statusEl.textContent = 'Sending…';
+        try {
+          const res = await fetch('/api/admin/emails/report-send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              kind: kindEl.value,
+              date: dateEl.value || undefined,
+              to: toEl.value.trim() || undefined,
+            }),
+          });
+          const data = (await res.json()) as {
+            ok?: boolean; error?: string; recipients?: string[]; from?: string; to?: string;
+          };
+          if (res.ok && data.ok) {
+            statusEl.dataset.state = 'ok';
+            const window = data.from === data.to ? data.to : `${data.from} → ${data.to}`;
+            statusEl.textContent = `Sent ✓ (${window}) to ${(data.recipients ?? []).join(', ')}`;
+          } else {
+            statusEl.dataset.state = 'error';
+            statusEl.textContent = data.error ?? 'Failed';
+          }
+        } catch {
+          statusEl.dataset.state = 'error';
+          statusEl.textContent = 'Failed';
+        }
+        rptSend.disabled = false;
+      });
+    }
+
     const toInput = document.getElementById('test-to') as HTMLInputElement;
     document.querySelectorAll<HTMLButtonElement>('.em-send').forEach((btn) => {
       btn.addEventListener('click', async () => {
