@@ -1,0 +1,341 @@
+---
+// Admin — Person detail: everything the site knows about one email address —
+// engagement summary (src/lib/admin/people.ts), every order across retreats/
+// courses/workshops (src/lib/admin/orders.ts), tracked email sends with
+// open/click data (src/lib/email/sends.ts), and Drip-imported contact tags
+// (src/lib/broadcasts/db.ts). Read-only, assembled live — no `people` table.
+import '../../../styles/admin.css';
+import Layout from '../../../layouts/Layout.astro';
+import { readCookie, verifySession } from '../../../lib/registrations/auth';
+import { listPeople } from '../../../lib/admin/people';
+import { listAllOrders, refundableMinor, type OrderSource } from '../../../lib/admin/orders';
+import { getFxRatesToEur } from '../../../lib/admin/fx';
+import { formatMoney } from '../../../lib/workshops/currency';
+import { emailSendsForAddress } from '../../../lib/email/sends';
+import { getContact, listBroadcasts } from '../../../lib/broadcasts/db';
+
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+if (!(await verifySession(env.ADMIN_SESSION_SECRET, readCookie(Astro.request)))) {
+  return Astro.redirect('/admin/login');
+}
+
+const email = (Astro.params.email ?? '').toString().trim().toLowerCase();
+
+const rawReturn = Astro.url.searchParams.get('return_to') ?? '';
+const backHref = rawReturn.startsWith('/admin/people') ? rawReturn : '/admin/people';
+const selfReturn = Astro.url.pathname + Astro.url.search;
+
+const fxRates = await getFxRatesToEur(env.DB);
+const quaderno =
+  env.QUADERNO_API_KEY && env.QUADERNO_ACCOUNT
+    ? {
+        apiKey: env.QUADERNO_API_KEY,
+        account: env.QUADERNO_ACCOUNT,
+        sandbox: env.QUADERNO_SANDBOX === '1',
+      }
+    : undefined;
+
+const [allPeople, allOrders, sends, contact, broadcasts] = await Promise.all([
+  listPeople(env.DB),
+  listAllOrders(env.DB, {}, { fxRates, quaderno }),
+  emailSendsForAddress(env.DB, email),
+  getContact(env.DB, email),
+  listBroadcasts(env.DB),
+]);
+
+const person = allPeople.find((p) => p.email === email) ?? null;
+const orders = allOrders.filter((o) => o.email.toLowerCase() === email);
+
+// Swap the generic "Broadcast #<id>" label for the real name, same as
+// /admin/emails/stats.
+const bcNames = new Map(broadcasts.map((b) => [`broadcast_${b.id}`, b.name]));
+for (const s of sends) {
+  const name = bcNames.get(s.type);
+  if (name) s.label = name;
+}
+
+const exists = !!person || orders.length > 0 || sends.length > 0 || !!contact;
+
+const SOURCE_LABEL: Record<OrderSource, string> = {
+  retreat: 'Retreat',
+  course: 'Course',
+  workshop: 'Workshop',
+};
+
+function eur(minor: number): string {
+  const major = minor / 100;
+  return `€${Number.isInteger(major) ? major : major.toFixed(2)}`;
+}
+function fmtDate(s: string | null): string {
+  if (!s) return '—';
+  const iso = s.includes('T') ? s : `${s.replace(' ', 'T')}Z`;
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? '—' : d.toISOString().slice(0, 10);
+}
+function fmtDateTime(s: string | null): string | undefined {
+  if (!s) return undefined;
+  const iso = s.includes('T') ? s : `${s.replace(' ', 'T')}Z`;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return undefined;
+  return d.toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
+}
+
+const sendGroups = [...new Set(sends.map((s) => s.group))];
+const jsEmail = email.replace(/['\\]/g, '\\$&');
+---
+
+<Layout title={`Admin — ${email || 'Person'} — Songdance`} description="">
+  <main class="adm">
+    <header class="adm-header">
+      <div>
+        <p class="adm-breadcrumbs">
+          <a href="/admin">Admin</a>
+          <span class="sep">/</span>
+          <a href="/admin/people">People</a>
+          <span class="sep">/</span>
+          {email}
+        </p>
+        <h1>{person?.name || email}</h1>
+        {person?.name && <p class="adm-sub">{email}</p>}
+      </div>
+      <div class="adm-actions">
+        <a class="adm-btn adm-btn--ghost" href={`mailto:${email}`}>Email</a>
+        <a class="adm-btn adm-btn--ghost" href={`/api/admin/drip-profile?email=${encodeURIComponent(email)}`} target="_blank" rel="noopener">Drip profile ↗</a>
+        <a class="adm-btn adm-btn--ghost" href={backHref}>← Back to people</a>
+      </div>
+    </header>
+
+    {!exists && (
+      <section class="adm-section">
+        <p class="adm-empty">No record found for “{email}”.</p>
+      </section>
+    )}
+
+    {exists && (
+      <>
+        <!-- ─── Overview ─── -->
+        <section class="adm-section">
+          <div class="pd-summary">
+            <div class="pd-head">
+              {person?.subscribed
+                ? <span class="adm-pill adm-pill--paid">subscribed</span>
+                : person && <span class="adm-pill adm-pill--cancelled" title={`Unsubscribed ${fmtDate(person.unsubscribedAt)}${person.unsubscribeSource ? ` (${person.unsubscribeSource})` : ''}`}>unsubscribed</span>}
+              {person?.isCustomer && <span class="adm-pill adm-pill--paid">customer</span>}
+              {person && !person.isCustomer && <span class="adm-pill adm-pill--pending">lead</span>}
+              {person?.isPro && <span class="adm-pill adm-pill--pro">pro</span>}
+            </div>
+            <div class="pd-grid">
+              {person && (
+                <div class="pd-stat">
+                  <span>Workshops</span>
+                  <strong>
+                    {person.workshopsSecured > 0
+                      ? `${person.workshopsAttended}/${person.workshopsSecured} attended${person.workshopsNoShow > 0 ? `, ${person.workshopsNoShow} missed` : ''}`
+                      : person.workshopsAbandoned > 0
+                        ? `${person.workshopsAbandoned} unfinished`
+                        : '—'}
+                  </strong>
+                </div>
+              )}
+              {person && person.country && (
+                <div class="pd-stat"><span>Country</span><strong>{person.country}</strong></div>
+              )}
+              {person && (
+                <div class="pd-stat"><span>First seen</span><strong>{fmtDate(person.firstSeen)}</strong></div>
+              )}
+              {person && (
+                <div class="pd-stat"><span>Last activity</span><strong>{fmtDate(person.lastActivity)}</strong></div>
+              )}
+              <div class="pd-stat"><span>Orders</span><strong>{orders.length}</strong></div>
+              <div class="pd-stat"><span>Tracked sends</span><strong>{sends.length}</strong></div>
+            </div>
+            {person && person.purchases.length > 0 && (
+              <p class="pd-purchases">
+                {person.bought12w && <span class="adm-pill adm-pill--src-course">12-week</span>}
+                {person.boughtCert && <span class="adm-pill adm-pill--src-course">Cert</span>}
+                {person.retreatsBought > 0 && <span class="adm-pill adm-pill--src-retreat">Retreat{person.retreatsBought > 1 ? `×${person.retreatsBought}` : ''}</span>}
+              </p>
+            )}
+          </div>
+
+          {person && !person.subscribed && (
+            <form
+              method="POST"
+              action="/api/admin/resubscribe"
+              class="pd-resub"
+              onsubmit={`return confirm('Resubscribe ${jsEmail}? This opts them back into marketing and reactivates them in Drip.')`}
+            >
+              <input type="hidden" name="email" value={email} />
+              <input type="hidden" name="return_to" value={selfReturn} />
+              <button type="submit" class="adm-btn adm-btn--solid">Resubscribe</button>
+            </form>
+          )}
+        </section>
+
+        <!-- ─── Tags (Drip) ─── -->
+        <section class="adm-section">
+          <h2>Tags</h2>
+          {!contact && <p class="adm-empty">Not in the imported contacts list.</p>}
+          {contact && (
+            <div class="pd-contact">
+              {contact.tags.length === 0 && <p class="pd-mute">No tags recorded.</p>}
+              {contact.tags.length > 0 && (
+                <div class="pd-tags">
+                  {contact.tags.map((t) => <span class="adm-pill pd-tag">{t}</span>)}
+                </div>
+              )}
+              <dl class="pd-contact-kv">
+                {contact.timezone && <><dt>Timezone</dt><dd>{contact.timezone}</dd></>}
+                {contact.country && <><dt>Country</dt><dd>{contact.country}</dd></>}
+              </dl>
+            </div>
+          )}
+        </section>
+
+        <!-- ─── Orders ─── -->
+        <section class="adm-section">
+          <h2>Orders</h2>
+          {orders.length === 0 && <p class="adm-empty">No orders on file.</p>}
+          {orders.length > 0 && (
+            <table class="adm-table pd-orders">
+              <thead>
+                <tr>
+                  <th>Order</th>
+                  <th>Date</th>
+                  <th>Product</th>
+                  <th class="num">Original</th>
+                  <th class="num">Net (EUR)</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {orders.map((o) => {
+                  const remaining = refundableMinor(o);
+                  return (
+                    <tr>
+                      <td>
+                        <a class="adm-mono" href={`/admin/orders/${o.orderNo}?return_to=${encodeURIComponent(selfReturn)}`}>{o.orderNo}</a>
+                        <span class={`pd-src pd-src--${o.source}`}>{SOURCE_LABEL[o.source]}</span>
+                      </td>
+                      <td title={fmtDateTime(o.createdAt)}>{fmtDate(o.createdAt)}</td>
+                      <td>{o.productLabel}</td>
+                      <td class="num">
+                        {o.originalAmountMinor > 0 ? formatMoney(o.originalAmountMinor, o.originalCurrency) : '—'}
+                        {o.refundedMinor > 0 && (
+                          <><br /><small class="pd-refunded">−{formatMoney(o.refundedMinor, o.originalCurrency)} refunded{remaining === 0 ? ' (full)' : ''}</small></>
+                        )}
+                      </td>
+                      <td class="num">
+                        {o.netKind !== 'none' && o.netEurMinor != null ? eur(o.netEurMinor) : '—'}
+                      </td>
+                      <td><span class={`adm-pill adm-pill--${o.statusClass}`}>{o.rawStatus}</span></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </section>
+
+        <!-- ─── Emails sent ─── -->
+        <section class="adm-section">
+          <h2>Emails sent</h2>
+          <p class="adm-table-note">
+            Tracked sends only (from Resend delivery events, migration 0046
+            onward) — older history may only show in the workshop reminder log
+            on the People list. Open rate is soft (Apple Mail Privacy Protection
+            pre-fetches the pixel) — click is the signal to trust.
+          </p>
+          {sends.length === 0 && <p class="adm-empty">No tracked sends.</p>}
+          {sends.length > 0 &&
+            sendGroups.map((group) => (
+              <table class="adm-table pd-sends">
+                <thead>
+                  <tr>
+                    <th>{group}</th>
+                    <th>Sent</th>
+                    <th>Delivered</th>
+                    <th>Opened</th>
+                    <th>Clicked</th>
+                    <th>Bounced</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sends
+                    .filter((s) => s.group === group)
+                    .map((s) => (
+                      <tr>
+                        <td>{s.label}</td>
+                        <td title={fmtDateTime(s.sentAt)}>{fmtDate(s.sentAt)}</td>
+                        <td>{s.deliveredAt ? '✓' : '—'}</td>
+                        <td>
+                          {s.openedAt
+                            ? <>✓ <span class="pd-mute">{fmtDate(s.openedAt)}{s.openCount > 1 ? ` ×${s.openCount}` : ''}</span></>
+                            : '—'}
+                        </td>
+                        <td>
+                          {s.clickedAt
+                            ? <>✓ <span class="pd-mute">{fmtDate(s.clickedAt)}{s.clickCount > 1 ? ` ×${s.clickCount}` : ''}</span></>
+                            : '—'}
+                        </td>
+                        <td>
+                          {s.complainedAt
+                            ? <span class="pd-danger">spam</span>
+                            : s.hardBouncedAt
+                              ? <span class="pd-danger">hard</span>
+                              : s.bouncedAt
+                                ? <span class="pd-mute">soft</span>
+                                : '—'}
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            ))}
+        </section>
+      </>
+    )}
+  </main>
+
+  <style>
+    .pd-summary {
+      border: 1px solid var(--adm-line); border-radius: 12px;
+      background: var(--adm-paper-soft); padding: 16px 18px;
+    }
+    .pd-head { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
+    .pd-grid { display:flex; flex-wrap:wrap; gap:14px 28px; }
+    .pd-stat { display:flex; flex-direction:column; gap:2px; min-width:120px; }
+    .pd-stat span { font-size:11px; text-transform:uppercase; letter-spacing:0.04em; color:var(--adm-mute); }
+    .pd-stat strong { font-size:15px; }
+    .pd-purchases { margin:14px 0 0; }
+    .pd-resub { margin-top:12px; }
+
+    .adm-pill--pro { background:#efe3d2; color:var(--adm-ember-deep); }
+    .adm-pill--src-course { background:#d6e4f0; color:#2a5a8a; margin-right:6px; }
+    .adm-pill--src-retreat { background:rgba(201, 96, 58, 0.16); color:var(--adm-ember-deep); }
+
+    .pd-contact { border: 1px solid var(--adm-line); border-radius: 12px; background: var(--adm-paper-soft); padding: 14px 16px; }
+    .pd-tags { display:flex; flex-wrap:wrap; gap:6px; }
+    .pd-tag { background: rgba(154, 142, 117, 0.16); color: var(--adm-ink-soft); }
+    .pd-contact-kv { display:flex; gap:20px; margin:10px 0 0; font-size:13px; }
+    .pd-contact-kv dt { color: var(--adm-mute); display:inline; }
+    .pd-contact-kv dd { display:inline; margin:0 0 0 4px; }
+
+    .pd-orders, .pd-sends { margin-bottom: 14px; }
+    .pd-orders:last-child, .pd-sends:last-child { margin-bottom: 0; }
+    .pd-src {
+      font-size:10px; font-weight:600; letter-spacing:0.04em; text-transform:uppercase;
+      padding:1px 8px; border-radius:999px; margin-left:8px;
+      background:rgba(0,0,0,0.06); color:var(--adm-ink-soft);
+    }
+    .pd-src--retreat  { background:rgba(201, 96, 58, 0.16); color:var(--adm-ember-deep); }
+    .pd-src--course   { background:#d6e4f0; color:#2a5a8a; }
+    .pd-src--workshop { background:#dcefdc; color:#2f7a4c; }
+    .pd-refunded { color: var(--adm-danger); }
+
+    .pd-mute { color: var(--adm-mute); font-size: 12px; margin: 0; }
+    .pd-danger { color: var(--adm-danger); font-weight: 600; font-size: 12px; text-transform: uppercase; }
+  </style>
+</Layout>

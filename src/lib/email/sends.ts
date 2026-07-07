@@ -220,6 +220,81 @@ export async function applyResendEvent(
   }
 }
 
+export type EmailSendRow = {
+  id: number;
+  type: string;
+  group: string;
+  label: string;
+  variant: string | null;
+  subject: string | null;
+  sentAt: string;
+  deliveredAt: string | null;
+  openedAt: string | null;
+  openCount: number;
+  clickedAt: string | null;
+  clickCount: number;
+  bouncedAt: string | null;
+  hardBouncedAt: string | null;
+  complainedAt: string | null;
+};
+
+// Every tracked send to one address, newest first — the People detail page's
+// "emails sent" panel. Distinct from (and not a superset of)
+// workshop_sent_notifications: this table only has rows from migration 0046
+// onward and is Resend-webhook-driven, but it's the only place open/click/
+// bounce data lives. Falls back to empty when the table isn't migrated yet.
+export async function emailSendsForAddress(db: D1Database, email: string): Promise<EmailSendRow[]> {
+  try {
+    const r = await db
+      .prepare(
+        `SELECT id, email_type, variant, subject, sent_at, delivered_at,
+                first_opened_at, open_count, first_clicked_at, click_count,
+                bounced_at, hard_bounced_at, complained_at
+           FROM email_sends
+          WHERE lower(to_email) = ?
+          ORDER BY sent_at DESC`,
+      )
+      .bind(email.trim().toLowerCase())
+      .all<{
+        id: number;
+        email_type: string;
+        variant: string | null;
+        subject: string | null;
+        sent_at: string;
+        delivered_at: string | null;
+        first_opened_at: string | null;
+        open_count: number | null;
+        first_clicked_at: string | null;
+        click_count: number | null;
+        bounced_at: string | null;
+        hard_bounced_at: string | null;
+        complained_at: string | null;
+      }>();
+    return (r.results ?? []).map((row) => {
+      const meta = emailTypeMeta(row.email_type);
+      return {
+        id: row.id,
+        type: row.email_type,
+        group: meta.group,
+        label: meta.label,
+        variant: row.variant,
+        subject: row.subject,
+        sentAt: row.sent_at,
+        deliveredAt: row.delivered_at,
+        openedAt: row.first_opened_at,
+        openCount: row.open_count ?? 0,
+        clickedAt: row.first_clicked_at,
+        clickCount: row.click_count ?? 0,
+        bouncedAt: row.bounced_at,
+        hardBouncedAt: row.hard_bounced_at,
+        complainedAt: row.complained_at,
+      };
+    });
+  } catch {
+    return [];
+  }
+}
+
 export type EmailTypeStats = {
   type: string;
   group: string;

@@ -402,33 +402,6 @@ export async function listPeople(db: D1Database): Promise<Person[]> {
   );
 }
 
-// ── Suppression provenance ──────────────────────────────────────────────────
-// Where the unsubscribe list actually came from, grouped by (source, reason).
-// The People tab and the broadcasts "sendable" count read the SAME
-// email_suppressions table — it's the single gate — so a mass import that
-// suppressed a whole segment shows up here, separable from genuine one-by-one
-// unsubscribes, hard bounces and spam complaints. The bulk Drip-import path
-// stamps (source 'import', reason 'unsubscribe') for every CSV row whose
-// `status` column read "unsubscribed"; that's the group the reconcile action
-// on the People page can lift.
-export type SuppressionGroup = { source: string; reason: string; count: number };
-
-export async function suppressionBreakdown(db: D1Database): Promise<SuppressionGroup[]> {
-  const r = await db
-    .prepare(
-      `SELECT source, reason, COUNT(*) AS count
-         FROM email_suppressions
-        GROUP BY source, reason
-        ORDER BY count DESC`,
-    )
-    .all<{ source: string | null; reason: string | null; count: number }>();
-  return (r.results ?? []).map((g) => ({
-    source: (g.source ?? '').trim() || '(unknown)',
-    reason: (g.reason ?? '').trim() || 'unsubscribe',
-    count: g.count ?? 0,
-  }));
-}
-
 // ── Filtering (in memory; the merged set is small) ──────────────────────────
 
 export type PeopleFilter = {
