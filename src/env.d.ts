@@ -35,6 +35,13 @@ type Env = {
   // or anything else keeps it off, so deploying the feature never emits
   // historical orders until the owner opts in. Flip it off once drained.
   DRIP_BACKFILL_ENABLED?: string;
+  // Turns on the one-shot masterclass seat move (the cron drain in
+  // src/lib/workshops/masterclass-move.ts): move secured seats from
+  // masterclass-4 onto masterclass-5 and email each person their seat has
+  // moved. "1"/"true"/"yes"/"on" enables it; unset or anything else keeps it
+  // off, so merging/deploying the feature never moves or emails anyone until
+  // the owner opts in. Flip it back off once it reports remaining=0.
+  MASTERCLASS_MOVE_ENABLED?: string;
   // Workshop engine — Meta Conversions API (optional)
   META_PIXEL_ID?: string;
   META_ACCESS_TOKEN?: string;

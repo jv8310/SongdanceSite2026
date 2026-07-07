@@ -16,6 +16,7 @@ import { assessPendingSubmissions } from './lib/intake/sweep';
 import { runWorkshopCron } from './lib/workshops/cron';
 import { runBroadcasts } from './lib/broadcasts/cron';
 import { runDripOrderBackfill } from './lib/orders/drip-backfill';
+import { runMasterclassSeatMove } from './lib/workshops/masterclass-move';
 import { runReports } from './lib/workshops/reports';
 import { reconcileOrderNotifications } from './lib/orders/reconcile';
 import { fxRatesStale, refreshFxRates } from './lib/admin/fx';
@@ -141,6 +142,23 @@ export function createExports(manifest: unknown) {
           })
           .catch((err) => {
             console.error('[drip/backfill] run failed', err);
+          }),
+      );
+      // One-shot masterclass seat move (gated by MASTERCLASS_MOVE_ENABLED):
+      // move secured seats from masterclass-4 onto masterclass-5 and email each
+      // person their seat has moved. No-ops entirely until enabled; self-stops
+      // once the seeded queue (migration 0059) is drained.
+      ctx.waitUntil(
+        runMasterclassSeatMove(env)
+          .then((r) => {
+            if (!r.skipped && (r.moved || r.failed || r.noop)) {
+              console.log(
+                `[masterclass/move] moved=${r.moved} noop=${r.noop} failed=${r.failed} remaining=${r.remaining}`,
+              );
+            }
+          })
+          .catch((err) => {
+            console.error('[masterclass/move] run failed', err);
           }),
       );
       return;

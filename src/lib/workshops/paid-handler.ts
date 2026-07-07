@@ -248,6 +248,38 @@ export async function runWorkshopDateChangeSideEffects(
   }
 }
 
+// Move-driven variant of the above, used by the one-shot masterclass seat-move
+// drain (src/lib/workshops/masterclass-move.ts). Same side-effects — Drip
+// re-tag, claim the 'confirmation' slot so the cron won't also send a plain
+// first-time confirmation for the new date, then the "your place has moved"
+// email — with two differences that matter for a retriable bulk driver:
+//   • a caller-supplied STABLE entityRef (`masterclass-move-<id>`), so if the
+//     drain ever resends the same row the recipient's client threads/dedups it
+//     rather than seeing two loose copies;
+//   • it RETHROWS a send failure (Drip stays best-effort/swallowed) so the
+//     drain can leave the row pending and retry, instead of marking a
+//     moved-but-never-emailed seat as done.
+export async function sendWorkshopDateChangedForMove(
+  env: Env,
+  registrationId: number,
+  entityRef: string,
+): Promise<void> {
+  const reg = await getRegistrationById(env.DB, registrationId);
+  if (!reg) return;
+  const workshop = await getWorkshopById(env.DB, reg.workshop_id);
+  if (!workshop) return;
+
+  try {
+    await tagInDrip(env, reg, workshop);
+  } catch (err) {
+    await logEvent(env.DB, { registration_id: null, kind: 'workshop.drip.error', payload: { registration_id: reg.id, error: String(err) } });
+  }
+
+  if (!env.RESEND_API_KEY) return;
+  await claimNotification(env.DB, reg.id, 'confirmation');
+  await deliverDateChanged(env, reg, workshop, entityRef);
+}
+
 export async function runWorkshopPaidSideEffects(
   env: Env,
   args: {
