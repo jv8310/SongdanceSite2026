@@ -42,6 +42,7 @@ const flashErr = flash === 'resend_error' || flash === 'briefing_error';
 
 const paidCount = regs.filter((r) => r.payment_status === 'paid' || r.payment_status === 'coupon').length;
 const attendedCount = regs.filter((r) => r.attendance_status === 'attended').length;
+const noShowCount = regs.filter((r) => r.attendance_status === 'no_show').length;
 
 // "…Z" → "YYYY-MM-DDTHH:MM" for datetime-local.
 function dtLocal(iso: string | null): string {
@@ -125,7 +126,19 @@ const STATUS_LABEL: Record<string, string> = { draft: 'Draft', published: 'Publi
     </section>
 
     <section class="adm-section">
-      <h2>Registrations ({regs.length})</h2>
+      <div class="adm-section-head">
+        <h2>Registrations ({regs.length})</h2>
+        {regs.length > 0 && (
+          <details class="wsx-export">
+            <summary class="adm-btn adm-btn--ghost">Export CSV ▾</summary>
+            <div class="wsx-export-panel">
+              <a class="wsx-export-item" href={`/api/admin/workshops/registrations.csv?id=${workshop.id}&filter=all`}>Export all ({regs.length})</a>
+              <a class="wsx-export-item" href={`/api/admin/workshops/registrations.csv?id=${workshop.id}&filter=attended`}>Export attended only ({attendedCount})</a>
+              <a class="wsx-export-item" href={`/api/admin/workshops/registrations.csv?id=${workshop.id}&filter=no_show`}>Export no-show only ({noShowCount})</a>
+            </div>
+          </details>
+        )}
+      </div>
       {regs.length === 0 && <p class="adm-empty">No registrations yet.</p>}
       {regs.length > 0 && (
         <table class="adm-table">
@@ -181,5 +194,22 @@ const STATUS_LABEL: Record<string, string> = { draft: 'Draft', published: 'Publi
     .adm-resend { margin-top:6px; display:inline-block; font-size:12px; padding:3px 9px; border-radius:999px; border:1px solid rgba(42,27,42,0.2); background:#fff; color:#2A1B2A; cursor:pointer; font-family:inherit; }
     .adm-resend:hover { background:#F4ECDF; }
     .adm-flash--err { background:#f0d8d8; }
+
+    /* Export CSV pop-out menu */
+    .wsx-export { position:relative; }
+    .wsx-export > summary { list-style:none; }
+    .wsx-export > summary::-webkit-details-marker { display:none; }
+    .wsx-export[open] > summary { background:#f0e8d6; border-color:#d5cab1; }
+    .wsx-export-panel {
+      position:absolute; right:0; z-index:20; margin-top:6px; min-width:220px;
+      padding:6px; border:1px solid rgba(42,27,42,0.16); border-radius:10px;
+      background:var(--adm-paper); box-shadow:0 10px 28px rgba(0,0,0,0.18);
+      display:flex; flex-direction:column; gap:2px;
+    }
+    .wsx-export-item {
+      display:block; padding:7px 10px; border-radius:7px; font-size:13px;
+      color:#2A1B2A; text-decoration:none; white-space:nowrap;
+    }
+    .wsx-export-item:hover { background:#F4ECDF; }
   </style>
 </Layout>
