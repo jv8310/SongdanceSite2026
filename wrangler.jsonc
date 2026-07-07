@@ -100,6 +100,8 @@
   //   ADMIN_USERS            (optional — extra admins; one "email:password" per line,
   //                           or a JSON array. See src/lib/registrations/auth.ts)
   //   ADMIN_SESSION_SECRET   (any random 32+ char string)
+  //   ADS_DASHBOARD_PASSWORD (optional — password for the read-only /ads dashboard;
+  //                           falls back to the default in src/lib/ads/auth.ts)
   //   UNSUBSCRIBE_SECRET     (optional — unsubscribe-link HMACs; falls back to ADMIN_SESSION_SECRET)
   //   META_PIXEL_ID, META_ACCESS_TOKEN          (workshop Meta CAPI — optional)
   //   QUADERNO_ACCOUNT (var), QUADERNO_SANDBOX  (workshop tax lookup)

@@ -1,0 +1,93 @@
+---
+import { hasAdsAccess } from '../../lib/ads/auth';
+
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+// Already in? Skip the gate.
+if (await hasAdsAccess(env, Astro.request)) {
+  return Astro.redirect('/ads');
+}
+
+const error = Astro.url.searchParams.get('error');
+const next = Astro.url.searchParams.get('next') ?? '/ads';
+const safeNext = next.startsWith('/ads') ? next : '/ads';
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow" />
+    <link rel="icon" href="/favicon.png" type="image/png" />
+    <title>Songdance — Ads dashboard</title>
+    <style>
+      :root {
+        --paper: #f6efe1;
+        --paper-soft: #fbf6ea;
+        --ink: #2b2519;
+        --ink-soft: #6f6757;
+        --line: #e3dac4;
+        --ember: #c9603a;
+        --ember-deep: #9d3f1f;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: var(--paper);
+        color: var(--ink);
+        font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        padding: 24px;
+      }
+      .card {
+        width: 100%;
+        max-width: 380px;
+        background: var(--paper-soft);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 32px 28px;
+        box-shadow: 0 12px 40px rgba(43, 37, 25, 0.08);
+      }
+      .brand { font-size: 13px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-soft); margin: 0 0 6px; }
+      h1 { font-family: Georgia, serif; font-weight: 500; font-size: 1.55rem; margin: 0 0 4px; }
+      p.sub { margin: 0 0 22px; color: var(--ink-soft); font-size: 13px; line-height: 1.5; }
+      form { display: flex; flex-direction: column; gap: 12px; }
+      input[type='password'] {
+        padding: 12px 14px; font-size: 15px;
+        border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink);
+      }
+      input[type='password']:focus { outline: none; border-color: var(--ember); box-shadow: 0 0 0 3px rgba(201, 96, 58, 0.15); }
+      button {
+        padding: 12px 16px; font-size: 15px; font-weight: 600; cursor: pointer;
+        border: 1px solid var(--ember-deep); border-radius: 8px;
+        background: var(--ember); color: var(--paper); font-family: inherit;
+      }
+      button:hover { background: var(--ember-deep); }
+      .err { color: #b53d3d; font-size: 13px; margin: 0 0 14px; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <p class="brand">Songdance</p>
+      <h1>Ads dashboard</h1>
+      <p class="sub">Enter the access password to view workshop &amp; course performance.</p>
+      {error && <p class="err">Incorrect password. Please try again.</p>}
+      <form method="POST" action="/api/ads/login">
+        <input type="hidden" name="next" value={safeNext} />
+        <input
+          type="password"
+          name="password"
+          placeholder="Access password"
+          required
+          autocomplete="current-password"
+          autofocus
+        />
+        <button type="submit">View dashboard</button>
+      </form>
+    </div>
+  </body>
+</html>
