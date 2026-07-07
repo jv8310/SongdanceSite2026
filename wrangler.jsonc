@@ -66,7 +66,15 @@
     // start it (ideally with any order-triggered Drip automations paused, since
     // the drain emits back-dated orders for every past purchase), then back to
     // "false" once it reports remaining=0.
-    "DRIP_BACKFILL_ENABLED": "false"
+    "DRIP_BACKFILL_ENABLED": "false",
+    // One-shot masterclass seat move (src/lib/workshops/masterclass-move.ts).
+    // "1"/"true" turns the gated cron drain on: it moves secured seats from
+    // 'somatic-vocal-healing-masterclass-4' onto '…-masterclass-5' (queue
+    // seeded by migration 0059) and emails each person their seat has moved.
+    // "false"/unset keeps it off so a deploy never moves or emails anyone on
+    // its own. Flip to "1" once masterclass-5's date is final, then back to
+    // "false" after it reports remaining=0 (a drained queue is a no-op anyway).
+    "MASTERCLASS_MOVE_ENABLED": "false"
   },
   // Cron triggers → the worker's `scheduled` handler dispatches by cron string
   // (see src/worker-entrypoint.ts):
