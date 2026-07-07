@@ -1,0 +1,154 @@
+-- Seed the "MMJ · The story continues" broadcast as a DRAFT, in the launch-email
+-- design (Spectral / Cormorant / Figtree, ember ribbon, plum offer box). It is
+-- part two of the origin-story arc that began with the ASJ broadcast (0051):
+-- what came after the Authentic Singing Journey, and the way Upala moved — the
+-- spirit at the heart of the Magical Movement Journey. Shows up in
+-- /admin/broadcasts ready to review, test-send, and launch; nothing sends until
+-- you launch it.
+--
+-- Audience is left blank on purpose: this one goes to EVERYONE on the sendable
+-- list (minus suppressions), unlike the owner/non-owner ASJ split.
+--
+-- Adapted from docs/emails/mmj-story-continues.drip.html for the site renderer:
+--   • utm_source=drip → utm_source=broadcast
+--   • the Drip two-tier promo unsubscribe → the site's single one-click
+--     {{ unsubscribe_url }} (the contact list has no promo tier)
+--   • the {{ html_postal_address }} Drip tag → the literal postal line
+-- format='html': body IS the full email. The renderer still substitutes
+-- {{ subscriber.first_name | default: "there" }} and {{ unsubscribe_url }}, and
+-- leaves the literal postal address in place (it won't double it). Idempotent
+-- via the NOT EXISTS name guard, so a re-run won't duplicate the draft.
+
+INSERT INTO broadcasts (name, subject, preheader, heading, body, format, status)
+SELECT 'MMJ · The story continues',
+       'The story wasn''t over',
+       'What we made next — and the part of it that was all Upala.',
+       'The story wasn''t over',
+       '<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
+<title>The story wasn&rsquo;t over</title>
+<link href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,500;1,400&family=Cormorant+Garamond:ital@1&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  body { margin: 0; padding: 0; background-color: #EADFCB; }
+  table { border-collapse: collapse; }
+  img { display: block; border: 0; line-height: 100%; outline: none; text-decoration: none; }
+  a { color: #A14826; text-decoration: none; }
+  .preheader { display: none !important; visibility: hidden; opacity: 0; max-height: 0; overflow: hidden; mso-hide: all; }
+  @media only screen and (max-width: 600px) {
+    .wrapper { width: 100% !important; }
+    .pad { padding-left: 26px !important; padding-right: 26px !important; }
+    .h1 { font-size: 34px !important; line-height: 1.15 !important; }
+    .offer-h { font-size: 29px !important; line-height: 1.2 !important; }
+    .band img { width: 100% !important; }
+  }
+</style>
+</head>
+<body style="margin: 0; padding: 0; background-color: #EADFCB; -webkit-font-smoothing: antialiased;">
+
+<span class="preheader">What we made next &mdash; and the part of it that was all Upala.</span>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #EADFCB;">
+<tr><td align="center" style="padding: 24px 12px;">
+
+<table role="presentation" class="wrapper" width="600" cellpadding="0" cellspacing="0" style="width: 600px; background-color: #F4ECDF; border-radius: 4px; overflow: hidden;">
+
+<tr><td align="center" style="background-color: #A14826; padding: 11px 24px; font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 11px; letter-spacing: 1.3px; color: #F4ECDF; font-weight: 600; text-transform: uppercase;">&#10022;&nbsp;&nbsp;Sale extended &middot; half&nbsp;price until 15&nbsp;July&nbsp;&nbsp;&#10022;</td></tr>
+
+<!-- HERO (landscape, kept short) -->
+<tr><td style="padding: 0;">
+  <a href="https://songdance.co/courses/magical-movement?utm_source=broadcast&amp;utm_medium=email&amp;utm_campaign=mmj_story_continues&amp;utm_content=hero" style="text-decoration: none; display: block;"><img src="https://songdance.co/media/library/jacob-jumps.webp" width="600" alt="Jacob leaping by the river, arms flung open" style="width: 100%; height: auto; background-color: #2A1B2A;"></a>
+</td></tr>
+
+<!-- INTRO -->
+<tr><td class="pad" style="padding: 46px 44px 12px;">
+  <p style="margin: 0 0 22px; font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 11px; letter-spacing: 2.5px; color: #A14826; font-weight: 600; text-transform: uppercase;"><span style="display: inline-block; width: 26px; height: 1px; background-color: #A14826; vertical-align: middle; margin-right: 12px;"></span>How it all began (part 2)</p>
+  <h1 class="h1" style="font-family: ''Spectral'', Georgia, ''Times New Roman'', serif; font-weight: 400; font-size: 40px; line-height: 1.12; color: #2A1B2A; margin: 0 0 28px;">The story isn&rsquo;t <em style="font-family: ''Cormorant Garamond'', Georgia, serif; font-style: italic; font-size: 1.05em; color: #C9603A;">over</em>.</h1>
+  <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #2A1B2A; margin: 0 0 16px;">Hello {{ subscriber.first_name | default: "there" }},</p>
+  <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 15px; line-height: 1.7; color: #6A5868; margin: 0 0 20px;">This is the next chapter of a story I began in my last email. If you missed it, you can read where the Songdance story starts <a href="https://songdance.co/blog/before-there-was-upala/?utm_source=broadcast&amp;utm_medium=email&amp;utm_campaign=mmj_story_continues&amp;utm_content=blog_asj" style="color: #A14826; text-decoration: underline; text-underline-offset: 2px;">here</a>.</p>
+  <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #2A1B2A; margin: 0 0 16px;">When Upala and I finished the Authentic Singing Journey, we honestly had no idea what would come next.</p>
+  <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #2A1B2A; margin: 0 0 16px;">And for a while, we lost the thread of it. We slipped into managing the <em style="font-style: italic;">business</em> of Songdance far more than we were creating or inspiring anything &mdash; and the irony wasn&rsquo;t lost on us: the harder we pushed to promote the course, the harder it all seemed to become.</p>
+  <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #4A3848; margin: 0;">So we made a decision. We had to get back to what Songdance really is &mdash; to create content that inspires expression and healing.</p>
+</td></tr>
+
+<!-- NARRATIVE -->
+<tr><td class="pad" style="padding: 22px 44px 6px;">
+  <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #2A1B2A; margin: 0 0 16px;">In the time that followed, two new programs came: the <strong style="font-weight: 600;">Inner Child Healing Journey</strong> &mdash; the smallest of our three journeys, and quietly one of the most loved &mdash; and the <strong style="font-weight: 600;">Magical Movement Journey</strong>.</p>
+  <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #2A1B2A; margin: 0;">And at the very heart of the movement journey is the way Upala moved.</p>
+</td></tr>
+
+<!-- LYRIC PULL-QUOTE -->
+<tr><td class="pad" style="padding: 26px 44px 14px;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+    <td style="border-left: 2px solid #C9603A; padding: 2px 0 2px 20px;"><p style="font-family: ''Cormorant Garamond'', Georgia, serif; font-style: italic; font-size: 23px; line-height: 1.4; color: #4A3848; margin: 0;">Just as she did with her sounding, she moved as a free spirit &mdash; never to a script, only ever following what her body was asking for in the moment.</p></td>
+  </tr></table>
+</td></tr>
+
+<tr><td class="pad" style="padding: 12px 44px 6px;">
+  <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #2A1B2A; margin: 0;">I&rsquo;ve even tucked three old videos onto the page &mdash; I think you&rsquo;ll love watching Upala move to the music of the program.</p>
+</td></tr>
+
+<!-- CLIP THUMBNAIL (play button baked into the image so it renders in Gmail/Outlook) -> link -->
+<tr><td style="padding: 20px 44px 4px;" class="pad band">
+  <a href="https://songdance.co/courses/magical-movement?utm_source=broadcast&amp;utm_medium=email&amp;utm_campaign=mmj_story_continues&amp;utm_content=clip" style="text-decoration: none; display: block;">
+    <img src="https://songdance.co/email/mmj-upala-clip.jpg" width="512" alt="Play — Upala and Jacob moving to the music on a lakeside deck in South Africa" style="width: 100%; height: auto; border-radius: 4px; background-color: #2A1B2A;">
+  </a>
+  <p style="font-family: ''Cormorant Garamond'', Georgia, serif; font-style: italic; font-size: 16px; line-height: 1.5; color: #7A6A78; text-align: center; margin: 12px 0 0;"><a href="https://songdance.co/courses/magical-movement?utm_source=broadcast&amp;utm_medium=email&amp;utm_campaign=mmj_story_continues&amp;utm_content=clip" style="color: #A14826; text-decoration: none;">Watch Upala move &rarr;</a></p>
+</td></tr>
+
+<tr><td class="pad" style="padding: 24px 44px 6px;">
+  <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #2A1B2A; margin: 0 0 16px;">We had so much fun with it &mdash; dancing and moving to it on our own, or with friends out in South Africa.</p>
+  <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #2A1B2A; margin: 0;">My hope is a simple one &mdash; that it does for you what it did for us. A real rejuvenation: your own creativity waking and flowing again, just from coming back into your body and letting these ten pieces of music move you.</p>
+</td></tr>
+
+<tr><td class="pad" style="padding: 24px 44px 6px;">
+  <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #2A1B2A; margin: 0 0 16px;">Have a look if you feel like it &mdash; the Magical Movement Journey and the Inner Child Healing Journey are both in the sale.</p>
+  <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #4A3848; margin: 0;">And about that sale: I&rsquo;d meant to close it a few days ago. I&rsquo;ve moved it to the 15th of July instead &mdash; and I&rsquo;ll be honest about why. I want to tell you the whole story of Songdance, and I simply ran out of time. There&rsquo;s more still to come over the next few days. So I&rsquo;ve given the story &mdash; and you &mdash; a little more room.</p>
+</td></tr>
+
+<!-- OFFER BOX -->
+<tr><td style="padding: 38px 44px 0;" class="pad">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #4A2540; border-radius: 4px;">
+    <tr><td style="padding: 40px 38px;" class="pad">
+      <table role="presentation" cellpadding="0" cellspacing="0" style="margin: 0 0 22px;"><tr>
+        <td style="background-color: #C9603A; border-radius: 30px; padding: 9px 18px;"><span style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 15px; font-weight: 700; letter-spacing: 0.5px; color: #F4ECDF;">50% OFF</span></td>
+        <td style="padding-left: 14px; font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 11px; letter-spacing: 2.5px; color: #F2DCC9; font-weight: 600; text-transform: uppercase;">the sale,<br>extended</td>
+      </tr></table>
+      <h2 class="offer-h" style="font-family: ''Spectral'', Georgia, ''Times New Roman'', serif; font-weight: 400; font-size: 32px; line-height: 1.18; color: #F4ECDF; margin: 0 0 20px;">Both journeys, at <em style="font-family: ''Cormorant Garamond'', Georgia, serif; font-style: italic; font-size: 1.05em; color: #F2DCC9;">half price</em>.</h2>
+      <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #EADFCB; margin: 0 0 4px;">The Magical Movement Journey and the Inner Child Healing Journey &mdash; like all the courses &mdash; are half price until <strong style="color: #F4ECDF; font-weight: 600;">15 July</strong>.</p>
+      <table role="presentation" cellpadding="0" cellspacing="0" style="margin: 28px 0 6px;"><tr>
+        <td style="background-color: #F4ECDF; border-radius: 32px;"><a href="https://songdance.co/courses/magical-movement?utm_source=broadcast&amp;utm_medium=email&amp;utm_campaign=mmj_story_continues&amp;utm_content=discover" style="display: inline-block; font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 14px; font-weight: 600; letter-spacing: 0.3px; color: #4A2540; padding: 15px 34px; text-decoration: none;">Discover the Magical Movement Journey &rarr;</a></td>
+      </tr></table>
+      <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 13px; line-height: 1.6; color: #E7C9B8; margin: 18px 0 0;">Or meet <a href="https://songdance.co/courses/inner-child?utm_source=broadcast&amp;utm_medium=email&amp;utm_campaign=mmj_story_continues&amp;utm_content=inner_child" style="color: #F4ECDF; text-decoration: underline; text-underline-offset: 2px;">the Inner Child Healing Journey &rarr;</a></p>
+      <p style="font-family: ''Cormorant Garamond'', Georgia, serif; font-style: italic; font-size: 17px; line-height: 1.5; color: #F2DCC9; margin: 22px 0 0;">No pressure either way &mdash; the work will be here when you&rsquo;re ready.</p>
+    </td></tr>
+  </table>
+</td></tr>
+
+<!-- SIGN-OFF -->
+<tr><td class="pad" style="padding: 34px 44px 40px;">
+  <p style="font-family: ''Cormorant Garamond'', Georgia, serif; font-style: italic; font-size: 18px; line-height: 1.5; color: #4A3848; margin: 0;">With love,<br>Jacob</p>
+</td></tr>
+
+<tr><td style="background-color: #EADFCB; padding: 32px 44px 34px;" class="pad">
+  <img src="https://songdance.co/brand/logo-wordmark-dark.png" width="130" alt="Songdance" style="width: 130px; height: auto; margin: 0 0 18px;">
+  <p style="font-family: ''Cormorant Garamond'', Georgia, serif; font-style: italic; font-size: 16px; line-height: 1.5; color: #7A6A78; margin: 0 0 18px;">The body remembers how.</p>
+  <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 12px; line-height: 1.9; color: #A14826; margin: 0 0 16px;"><a href="https://songdance.co/what-is-svh" style="color: #A14826; text-decoration: none;">what is svh</a>&nbsp;&nbsp;&middot;&nbsp;&nbsp;<a href="https://songdance.co/courses" style="color: #A14826; text-decoration: none;">courses</a>&nbsp;&nbsp;&middot;&nbsp;&nbsp;<a href="https://songdance.co/events" style="color: #A14826; text-decoration: none;">events</a>&nbsp;&nbsp;&middot;&nbsp;&nbsp;<a href="https://songdance.co/about" style="color: #A14826; text-decoration: none;">about</a>&nbsp;&nbsp;&middot;&nbsp;&nbsp;<a href="https://songdance.co/reviews" style="color: #A14826; text-decoration: none;">reviews</a></p>
+  <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 11px; line-height: 1.7; color: #7A6A78; margin: 0 0 6px;">A quiet list &mdash; about one email a month. A little more during the launch: between now and 15 July you&rsquo;ll get a few emails about the new website and the courses.</p>
+  <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 11px; line-height: 1.7; color: #7A6A78; margin: 0 0 6px;">Not for you? <a href="{{ unsubscribe_url }}" style="color: #7A6A78; text-decoration: underline;">Unsubscribe</a> &mdash; you won&rsquo;t hear from this list again.</p>
+  <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 11px; line-height: 1.7; color: #9A8A78; margin: 0;">Songdance BV &middot; Beaupréstraat 13, 8310 Bruges, Belgium<br>BE0743575076</p>
+</td></tr>
+
+</table>
+
+</td></tr>
+</table>
+
+</body>
+</html>',
+       'html', 'draft'
+WHERE NOT EXISTS (SELECT 1 FROM broadcasts WHERE name = 'MMJ · The story continues');
