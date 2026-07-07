@@ -312,6 +312,45 @@ export async function recentContacts(db: D1Database, limit = 10): Promise<Contac
   }
 }
 
+// A single contact plus its normalized tags (contact_tags is the source of
+// truth; `tags` on the row is just a denormalized display string) — for the
+// People detail page's "tags from Drip" panel. Null when the address was
+// never imported as a contact.
+export async function getContact(
+  db: D1Database,
+  email: string,
+): Promise<(Omit<ContactRow, 'tags'> & { tags: string[] }) | null> {
+  const e = email.trim().toLowerCase();
+  try {
+    const [contact, tagRows] = await Promise.all([
+      db
+        .prepare('SELECT email, name, timezone, country, custom FROM contacts WHERE email = ?')
+        .bind(e)
+        .first<{ email: string; name: string | null; timezone: string | null; country: string | null; custom: string | null }>(),
+      db.prepare('SELECT tag FROM contact_tags WHERE email = ? ORDER BY tag').bind(e).all<{ tag: string }>(),
+    ]);
+    if (!contact) return null;
+    let custom: Record<string, unknown> | null = null;
+    if (contact.custom) {
+      try {
+        custom = JSON.parse(contact.custom);
+      } catch {
+        custom = null;
+      }
+    }
+    return {
+      email: contact.email,
+      name: contact.name,
+      timezone: contact.timezone,
+      country: contact.country,
+      custom,
+      tags: (tagRows.results ?? []).map((t) => t.tag),
+    };
+  } catch {
+    return null;
+  }
+}
+
 // ── Audience targeting ──────────────────────────────────────────────────────
 
 // Build the WHERE additions (and their binds) for a set of audience criteria,
