@@ -1,8 +1,9 @@
 // Single source of truth for the Journal (blog). Each article lives in its own
 // bespoke page under src/pages/blog/<slug>.astro; this list is the metadata the
 // index (/blog) renders from and the place other pages cross-link to. Add an
-// article = add its page + one entry here (newest first is handled by sorting
-// on `date`, so order in the array doesn't matter).
+// article = add its page + one entry here. The index shows them oldest → newest
+// by `date`; entries that share a date fall back to this array's order, so keep
+// the array itself in chronological (oldest-first) order.
 
 export interface BlogPost {
   slug: string;
@@ -23,18 +24,6 @@ export interface BlogPost {
 }
 
 export const blogPosts: BlogPost[] = [
-  {
-    slug: 'the-part-ive-never-told',
-    href: '/blog/the-part-ive-never-told',
-    title: "The part I've never told",
-    excerpt:
-      "The chapter about Upala I've kept mostly to myself — her longing for something freer, the loss, and the Grief Course that grew from meeting grief in the body, through sound.",
-    date: '2026-07-07',
-    dateLabel: '7 July 2026',
-    hero: '/media/library/upala-on-rock.webp',
-    heroAlt: 'Upala sounding, barefoot on a rock by a mountain river.',
-    readingMinutes: 4,
-  },
   {
     slug: 'before-there-was-upala',
     href: '/blog/before-there-was-upala',
@@ -59,11 +48,25 @@ export const blogPosts: BlogPost[] = [
     heroAlt: 'Jacob leaping beside a mountain river at golden hour, arms flung wide.',
     readingMinutes: 3,
   },
+  {
+    slug: 'the-part-ive-never-told',
+    href: '/blog/the-part-ive-never-told',
+    title: "The part I've never told",
+    excerpt:
+      "The chapter about Upala I've kept mostly to myself — her longing for something freer, the loss, and the Grief Course that grew from meeting grief in the body, through sound.",
+    date: '2026-07-07',
+    dateLabel: '7 July 2026',
+    hero: '/media/library/upala-on-rock.webp',
+    heroAlt: 'Upala sounding, barefoot on a rock by a mountain river.',
+    readingMinutes: 4,
+  },
 ];
 
-// Newest first — the order the index and any "latest" listings should use.
-export const blogPostsByDate: BlogPost[] = [...blogPosts].sort((a, b) =>
-  b.date.localeCompare(a.date),
+// Oldest first — the reading order the Journal index uses (part one → the latest
+// chapter). Stable sort, so posts sharing a date keep the chronological order of
+// the array above.
+export const blogPostsByDateAsc: BlogPost[] = [...blogPosts].sort((a, b) =>
+  a.date.localeCompare(b.date),
 );
 
 export function findPost(slug: string): BlogPost | undefined {
