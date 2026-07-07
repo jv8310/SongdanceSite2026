@@ -70,11 +70,18 @@
   },
   // Cron triggers → the worker's `scheduled` handler dispatches by cron string
   // (see src/worker-entrypoint.ts):
-  //   "0 * * * *"   hourly — assess intake submissions still at "No assessment"
-  //   "*/5 * * * *" 5-min  — workshop reminder cadence + post-workshop emails
+  //   "0 * * * *"   hourly — assess intake submissions, refresh FX, reconcile orders
+  //   "*/5 * * * *" 5-min  — workshop reminders + post-workshop emails + broadcasts,
+  //                          and the internal SD-REPORT digests (idempotent, self-
+  //                          gated to 08:00 Brussels; the frequent cadence means a
+  //                          failed 08:00 attempt retries in minutes, not an hour)
   "triggers": {
     "crons": ["0 * * * *", "*/5 * * * *"]
-  }
+  },
+  // Workers Logs — retain the scheduled handler's console output (the [reports],
+  // [workshops/cron], [broadcasts/cron] lines) so a missed or late send can be
+  // diagnosed after the fact, not only via a live `wrangler tail`.
+  "observability": { "enabled": true }
   // Secrets (set in Cloudflare dashboard → Workers → Settings → Variables and Secrets,
   // or via `wrangler secret put <NAME>`):
   //   STRIPE_SECRET_KEY

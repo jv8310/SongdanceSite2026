@@ -132,10 +132,13 @@ notifications. Lives in [`src/lib/workshops/reports.ts`](src/lib/workshops/repor
   `/admin/workshops/stats` for the same window.
 - **Cadence**: a **daily** digest (covering *yesterday*) every morning, plus a
   **weekly** digest (the 7 days ending yesterday, with a revenue-by-day table)
-  every **Tuesday**. Runs on the existing **hourly** cron (no new trigger):
+  every **Tuesday**. Runs on the existing **5-minute** cron (no new trigger):
   `runReports` self-gates to the first tick at/after **08:00 Europe/Brussels**,
-  so it survives DST and a missed tick is caught up later the same day. Windows
-  resolve in Brussels time, matching the stats-page presets.
+  so it survives DST. Because it rides the 5-minute cadence, a missed or failed
+  08:00 attempt is retried on the next tick **minutes later** (not a whole hour —
+  a coarse hourly retry once slipped the digest to 10:00), and is still caught up
+  later the same day. Windows resolve in Brussels time, matching the stats-page
+  presets.
 - **Idempotency**: claims a unique `events` row (`external_id`
   `report-daily-<date>` / `report-weekly-<date>`, kind `report.sent`) before
   sending — once per day even if the cron double-fires; a send failure releases

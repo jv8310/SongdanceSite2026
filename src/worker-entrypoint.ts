@@ -86,8 +86,9 @@ export function createExports(manifest: unknown) {
 
   const scheduled: ExportedHandlerScheduledHandler<Env> = (event, env, ctx) => {
     // Dispatch by cron string (see wrangler.jsonc triggers). The 5-minute
-    // trigger drives the workshop reminder cadence + post-workshop emails;
-    // the hourly trigger keeps sweeping unassessed intake submissions.
+    // trigger drives the workshop reminder cadence + post-workshop emails +
+    // marketing broadcasts + the internal SD-REPORT digests; the hourly trigger
+    // sweeps unassessed intake submissions, refreshes FX, and reconciles orders.
     if (event.cron === WORKSHOP_CRON) {
       ctx.waitUntil(
         runWorkshopCron(env)
@@ -126,6 +127,23 @@ export function createExports(manifest: unknown) {
             console.error('[drip/backfill] run failed', err);
           }),
       );
+      // Internal "SD-REPORT" digests: a daily registrations/sales/bumps snapshot
+      // every morning, plus a weekly one on Tuesdays. Self-gates to the first
+      // tick at/after 08:00 Brussels; idempotent per day, so the dozens of extra
+      // ticks are cheap no-ops once the report is out. On the 5-minute cadence a
+      // missed/failed 08:00 attempt retries within minutes instead of slipping a
+      // whole hour — why a stumble used to land the digest at 10:00, not 08:00.
+      ctx.waitUntil(
+        runReports(env)
+          .then((r) => {
+            if (r.daily || r.weekly) {
+              console.log(`[reports] daily=${r.daily} weekly=${r.weekly}`);
+            }
+          })
+          .catch((err) => {
+            console.error('[reports] run failed', err);
+          }),
+      );
       return;
     }
 
@@ -158,21 +176,6 @@ export function createExports(manifest: unknown) {
         )
         .catch((err) => {
           console.error('[fx] refresh failed', err);
-        }),
-    );
-
-    // Internal "SD-REPORT" digests: a daily registrations/sales/bumps snapshot
-    // every morning, plus a weekly one on Tuesdays. Rides the hourly trigger and
-    // self-gates to the first tick at/after 08:00 Brussels; idempotent per day.
-    ctx.waitUntil(
-      runReports(env)
-        .then((r) => {
-          if (r.daily || r.weekly) {
-            console.log(`[reports] daily=${r.daily} weekly=${r.weekly}`);
-          }
-        })
-        .catch((err) => {
-          console.error('[reports] run failed', err);
         }),
     );
 

@@ -18,16 +18,17 @@
 // business timezone (Europe/Brussels) just like the stats-page presets, so
 // "yesterday" / "last 7 days" line up with the dashboard's own presets.
 //
-// Timing & idempotency: runReports rides the existing hourly cron. The first
+// Timing & idempotency: runReports rides the existing 5-minute cron. The first
 // tick at/after 08:00 Brussels each day stakes a unique `pending` row in the
 // `events` audit log (external_id `report-daily-<date>` / `report-weekly-<date>`)
-// and, having claimed it, sends — so the report goes out once per day even if the
-// cron fires several times, and a missed 08:00 tick is caught up later the same
-// day. The claim is a two-phase mark: `pending` before the send, promoted to
-// `sent` only once Resend accepts it. A send failure drops the pending claim so
-// a later tick retries; and a claim that was staked but never confirmed (the
-// isolate died mid-send, stranding a `pending` row) is reclaimed by a later tick
-// once it goes stale — so a dropped report is retried, never lost for the day.
+// and, having claimed it, sends — so the report goes out once per day even though
+// the cron fires every five minutes, and a missed/failed 08:00 attempt is retried
+// on the very next tick (minutes later, not a whole hour). The claim is a
+// two-phase mark: `pending` before the send, promoted to `sent` only once Resend
+// accepts it. A send failure drops the pending claim so the next tick retries;
+// and a claim that was staked but never confirmed (the isolate died mid-send,
+// stranding a `pending` row) is reclaimed by a later tick once it goes stale —
+// so a dropped report is retried, never lost for the day.
 
 import {
   computeStats,
@@ -520,12 +521,14 @@ function reportRecipients(env: ReportEnv): string[] {
 // delivered can't be lost for the day. The claim row is written `pending`
 // before the send and promoted to `sent` (confirmReport) only once Resend has
 // accepted it. If the isolate is evicted between the claim commit and the send
-// completing — the hourly cron fires several concurrent waitUntil tasks on a
-// limited budget — the row is stranded `pending`; a later tick reclaims it
+// completing — the cron fires several concurrent waitUntil tasks on a limited
+// budget — the row is stranded `pending`; a later tick reclaims it
 // (STALE_CLAIM_MINUTES after it was staked) and retries, instead of skipping
 // the day forever because a row simply exists. A confirmed `sent` row is never
 // reclaimed, so a delivered report is never duplicated by the retry path.
-const STALE_CLAIM_MINUTES = 30; // < the hourly tick interval, ≫ a normal send
+// Sized well above a real send (~1s) yet only a couple of 5-minute ticks, so an
+// evicted attempt recovers in minutes rather than waiting out a longer window.
+const STALE_CLAIM_MINUTES = 10;
 
 async function claimReport(db: D1Database, externalId: string): Promise<boolean> {
   // Fresh claim: nobody has staked this date yet.
@@ -593,10 +596,10 @@ function dayOfWeek(ymd: string): number {
 
 export type RunReportsResult = { daily: boolean; weekly: boolean };
 
-// Called from the hourly cron. Sends the daily digest (for "yesterday") once
+// Called from the 5-minute cron. Sends the daily digest (for "yesterday") once
 // per day from the first tick at/after 08:00 Brussels, and additionally the
 // weekly digest (the 7 days ending yesterday) on Tuesdays. Idempotent and
-// best-effort: never throws, releases its claim on failure so a later tick
+// best-effort: never throws, releases its claim on failure so the next tick
 // retries.
 export async function runReports(env: ReportEnv, now = Date.now()): Promise<RunReportsResult> {
   const result: RunReportsResult = { daily: false, weekly: false };
@@ -817,7 +820,7 @@ async function sendOne(
     return true;
   } catch (err) {
     // Surface the reason (the caller only logs on success) and drop the
-    // unconfirmed claim so a later hourly tick retries this same day.
+    // unconfirmed claim so the next tick retries this same day.
     console.error(`[reports] send failed for ${externalId}`, err);
     if (claimed) await releaseReport(env.DB, externalId).catch(() => {});
     return false;
