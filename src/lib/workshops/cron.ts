@@ -740,6 +740,10 @@ async function runPostWorkshop(env: CronEnv, now: number, result: CronResult) {
         for (const step of steps) {
           if (step.requires && !(await notificationExists(env.DB, reg.id, step.requires))) continue;
           let content: EmailContent;
+          // Stats label for this send (email_sends.email_type). Defaults to the
+          // step/claim type; the PRO branch overrides email 1 below so it reports
+          // on its own "Attended PRO" line rather than the shared 12-week one.
+          let trackType = step.type;
           if (isPro) {
             // Cert promos stop once they've bought the certification — the
             // thank-you still goes out, in its product-neutral variant.
@@ -754,6 +758,14 @@ async function runPostWorkshop(env: CronEnv, now: number, result: CronResult) {
                 : step.type === 'post_attended_pro_2'
                   ? attendedProEmail2({ ...lc, certUrl })
                   : attendedProEmail3({ ...lc, certUrl });
+            // The practitioner email 1 (attendedProEmail1) is a distinct email
+            // from the 12-week email 1, so track it under its own type — the PRO
+            // stats group gets its own "Email 1" line. The idempotency CLAIM
+            // stays `post_attended` (shared requires-chain anchor, and safe
+            // across the deploy: no in-flight sequence re-sends), so this only
+            // relabels the stat. The bought-cert fallback sends the generic
+            // thank-you, so it keeps the base type.
+            if (step.type === 'post_attended' && !boughtCert) trackType = 'post_attended_pro';
           } else {
             const bought = await cached(bought12wCache, email, () =>
               hasBought12w(env.DB, email),
@@ -771,7 +783,7 @@ async function runPostWorkshop(env: CronEnv, now: number, result: CronResult) {
           // hours-remaining figure.
           if (!step.urgent && !withinSendWindow(tz, now)) continue;
           if (!(await claimNotification(env.DB, reg.id, step.type))) continue;
-          const sent = await sendMarketing(env, reg.email, content, `workshop-${step.type}-${reg.id}`, secret, step.type, reg.id);
+          const sent = await sendMarketing(env, reg.email, content, `workshop-${step.type}-${reg.id}`, secret, trackType, reg.id);
           if (sent) result.postSent += 1;
         }
 
