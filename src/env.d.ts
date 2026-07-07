@@ -90,6 +90,11 @@ type Env = {
   ADMIN_EMAIL?: string;
   ADMIN_USERS?: string;
   ADMIN_SESSION_SECRET: string;
+  // Single shared password for the read-only ads-manager dashboard (/ads),
+  // separate from the admin login. Unset → falls back to the owner-supplied
+  // default in src/lib/ads/auth.ts. Set/rotate with
+  // `wrangler secret put ADS_DASHBOARD_PASSWORD`.
+  ADS_DASHBOARD_PASSWORD?: string;
   // Optional dedicated secret for unsubscribe-link HMACs; falls back to
   // ADMIN_SESSION_SECRET (see src/lib/email/unsubscribe.ts).
   UNSUBSCRIBE_SECRET?: string;
