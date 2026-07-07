@@ -58,9 +58,26 @@ const MOVED_URLS: Record<string, string> = {
 const CANONICAL_HOST = 'songdance.co';
 const LEGACY_HOSTS = new Set(['site.songdance.co', 'www.songdance.co']);
 
+// Paths that must be served on the legacy host rather than redirected to the
+// apex. A *prerendered* page (e.g. /access, the retreat landing pages) is served
+// straight from Cloudflare's static-asset layer WITHOUT invoking this worker, so
+// on www./site. it loads without ever getting the host redirect. Its in-page
+// fetch()/XHR calls to /api/* then DO reach the worker (they aren't static
+// assets) — and a 308 to the apex turns that same-origin call into a cross-origin
+// one, which the browser's CORS/preflight rules block. That surfaces as
+// "That didn't go through" on /access and dead checkout buttons on the retreat
+// pages. Serving these on the legacy host (same worker, same D1/R2) lets the call
+// succeed same-origin; checkout success/cancel URLs are built from
+// PUBLIC_BASE_URL, so the visitor still lands back on the apex afterwards. Page
+// navigations keep redirecting to the apex below. (The complete fix is a
+// zone-level redirect rule that never serves the legacy host at all; this keeps
+// every form working until then, and is a harmless belt-and-suspenders after.)
+const HOST_REDIRECT_EXEMPT = ['/api/', '/media/'];
+
 function hostRedirect(request: Request): Response | null {
   const url = new URL(request.url);
   if (!LEGACY_HOSTS.has(url.hostname)) return null;
+  if (HOST_REDIRECT_EXEMPT.some((p) => url.pathname.startsWith(p))) return null;
   url.hostname = CANONICAL_HOST;
   return Response.redirect(url.toString(), 308);
 }
