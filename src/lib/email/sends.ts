@@ -35,6 +35,7 @@ export const EMAIL_TYPE_META: Record<string, { group: string; label: string }> =
   post_attended: { group: 'Attended → 12-week', label: 'Email 1 — thank you + window opens' },
   post_attended_2: { group: 'Attended → 12-week', label: 'Email 2 — the case for the course' },
   post_attended_3: { group: 'Attended → 12-week', label: 'Email 3 — last chance' },
+  post_attended_pro: { group: 'Attended PRO → certification', label: 'Email 1 — thank you + practitioner door' },
   post_attended_pro_2: { group: 'Attended PRO → certification', label: 'Email 2 — holding space is a craft' },
   post_attended_pro_3: { group: 'Attended PRO → certification', label: 'Email 3 — last note' },
   post_no_show: { group: 'Missed the workshop', label: 'Email 1 — seat is safe' },
