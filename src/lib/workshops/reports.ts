@@ -69,7 +69,7 @@ export type ReportData = {
   to: string; // YYYY-MM-DD inclusive
   registrations: {
     total: number; // new paid/coupon seats in the window
-    byWorkshop: Array<{ title: string; count: number }>;
+    byWorkshop: Array<{ title: string; count: number; date: string }>;
   };
   courseSales: {
     total: number;
@@ -109,10 +109,14 @@ export async function gatherReportData(
   const stats = await computeStats(db, { from, to });
   const courses = await computeCourseSales(db, { from, to });
 
-  // New registrations (secured seats) per workshop in the window.
+  // New registrations (secured seats) per workshop in the window. Grouped by
+  // workshop id (not just title), since the same title (e.g. "Somatic Vocal
+  // Healing Workshop") recurs across many scheduled instances — the date is
+  // what tells two rows apart.
   const regRes = await db
     .prepare(
-      `SELECT w.title AS title, COUNT(*) AS n
+      `SELECT w.title AS title, w.starts_at_utc AS starts_at_utc,
+              w.display_tz AS display_tz, w.is_replay AS is_replay, COUNT(*) AS n
          FROM workshop_registrations r
          JOIN workshops w ON w.id = r.workshop_id
         WHERE r.payment_status IN ('paid','coupon')
@@ -121,8 +125,18 @@ export async function gatherReportData(
         ORDER BY n DESC, w.title`,
     )
     .bind(from, toEnd(to))
-    .all<{ title: string; n: number }>();
-  const byWorkshop = (regRes.results ?? []).map((r) => ({ title: r.title, count: r.n }));
+    .all<{
+      title: string;
+      starts_at_utc: string;
+      display_tz: string;
+      is_replay: number;
+      n: number;
+    }>();
+  const byWorkshop = (regRes.results ?? []).map((r) => ({
+    title: r.title,
+    count: r.n,
+    date: r.is_replay ? 'On demand' : workshopDateLabel(r.starts_at_utc, r.display_tz),
+  }));
   const regTotal = byWorkshop.reduce((s, r) => s + r.count, 0);
 
   // 12-week checkout order bumps: parse the JSON on course rows paid in the
@@ -234,6 +248,28 @@ function shortDay(ymd: string): string {
   }).format(new Date(`${ymd}T12:00:00Z`));
 }
 
+// "Mon 15 Jun 2026" for a scheduled workshop instance, in its own display
+// timezone (falls back to UTC if the tz is bad/unknown).
+function workshopDateLabel(startsAtUtc: string, displayTz: string): string {
+  try {
+    return new Intl.DateTimeFormat('en-GB', {
+      timeZone: displayTz,
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    }).format(new Date(startsAtUtc));
+  } catch {
+    return new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'UTC',
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    }).format(new Date(startsAtUtc));
+  }
+}
+
 const C = {
   bg: '#f3f4f6',
   card: '#ffffff',
@@ -329,8 +365,8 @@ function renderReport(opts: {
     sectionLabel('Workshop registrations') +
     (data.registrations.byWorkshop.length
       ? dataTable(
-          ['Workshop', 'New seats'],
-          data.registrations.byWorkshop.map((w) => [w.title, String(w.count)]),
+          ['Workshop', 'Date', 'New seats'],
+          data.registrations.byWorkshop.map((w) => [w.title, w.date, String(w.count)]),
         )
       : emptyNote('No new registrations in this window.'));
 
@@ -425,7 +461,8 @@ function renderReportText(kindLabel: string, rangeLabel: string, data: ReportDat
     'WORKSHOP REGISTRATIONS',
   );
   if (data.registrations.byWorkshop.length) {
-    for (const w of data.registrations.byWorkshop) lines.push(`  ${w.title}: ${w.count}`);
+    for (const w of data.registrations.byWorkshop)
+      lines.push(`  ${w.title} (${w.date}): ${w.count}`);
   } else lines.push('  (none)');
   lines.push('', 'COURSE SALES');
   if (data.courseSales.byProduct.length) {
@@ -682,8 +719,8 @@ export function sampleDailyReportData(): ReportData {
     registrations: {
       total: 7,
       byWorkshop: [
-        { title: 'Somatic Vocal Healing Workshop', count: 5 },
-        { title: 'SVH Masterclass', count: 2 },
+        { title: 'Somatic Vocal Healing Workshop', count: 5, date: 'Mon 29 Jun 2026' },
+        { title: 'SVH Masterclass', count: 2, date: 'Wed 1 Jul 2026' },
       ],
     },
     courseSales: {
@@ -754,8 +791,9 @@ export function sampleWeeklyReportData(): ReportData {
     registrations: {
       total: 38,
       byWorkshop: [
-        { title: 'Somatic Vocal Healing Workshop', count: 29 },
-        { title: 'SVH Masterclass', count: 9 },
+        { title: 'Somatic Vocal Healing Workshop', count: 18, date: 'Mon 22 Jun 2026' },
+        { title: 'Somatic Vocal Healing Workshop', count: 11, date: 'Fri 26 Jun 2026' },
+        { title: 'SVH Masterclass', count: 9, date: 'Thu 25 Jun 2026' },
       ],
     },
     courseSales: {
