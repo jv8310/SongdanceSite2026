@@ -577,7 +577,10 @@ export function attendedEmail1(
     footer: { unsubscribeUrl: ctx.unsubscribeUrl },
   });
   return {
-    subject: 'Thank you for sounding with us',
+    // The email's heading stays "Thank you for sounding with us"; the subject
+    // points at the next step (the 12-week course) so the inbox line earns the
+    // open on its own terms rather than reading as a bare thank-you.
+    subject: 'How to continue this practice',
     html,
     text: `${textGreeting(ctx.name)}\n\nThank you for being part of ${ctx.workshopTitle}. Whatever sound you made today — it was the right one. You cannot do it wrong; it always expresses something.\n\nIn the day or two after a session the body sometimes keeps commenting — a yawn out of nowhere, tiredness, a feeling passing through. Nothing is wrong. Give it room, and when in doubt: one breath in, one tone out.\n\nIf you'd like to take this further, the 12-week course is where the practice becomes your own — twelve weeks, one layer at a time, in your own time, with live Q&A whenever you want company.\n\nWhat the twelve weeks hold:\n- 18+ hours of guided practice across twelve modules — chaptered, self-paced, yours to return to for life.\n- Weekly live Q&A with Jacob, on a rotating schedule for every timezone, with replays.\n- A path that moves one layer at a time — reading your own voice, working with the nervous system, the five core wounds, sounding toward essence.\n- A supportive student community — and, on joining, five of Jacob's original mantras.\n\n${discountTextLine}\n\n${ctx.courseUrl}\n\nWith love,\nJacob${unsubText(ctx.unsubscribeUrl)}`,
   };
