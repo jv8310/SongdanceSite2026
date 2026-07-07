@@ -61,6 +61,7 @@ export const topLink: NavLink = { href: '/what-is-svh', label: 'What is SVH' };
 export const tailLinks: NavLink[] = [
   { href: '/events', label: 'Events' },
   { href: '/courses/songdeck', label: 'Songdeck' },
+  { href: '/blog', label: 'Journal' },
   { href: '/about', label: 'About' },
   { href: '/access', label: 'Login' },
 ];

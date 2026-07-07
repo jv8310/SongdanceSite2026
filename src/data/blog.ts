@@ -24,6 +24,18 @@ export interface BlogPost {
 
 export const blogPosts: BlogPost[] = [
   {
+    slug: 'the-part-ive-never-told',
+    href: '/blog/the-part-ive-never-told',
+    title: "The part I've never told",
+    excerpt:
+      "The chapter about Upala I've kept mostly to myself — her longing for something freer, the loss, and the Grief Course that grew from meeting grief in the body, through sound.",
+    date: '2026-07-07',
+    dateLabel: '7 July 2026',
+    hero: '/media/library/upala-on-rock.webp',
+    heroAlt: 'Upala sounding, barefoot on a rock by a mountain river.',
+    readingMinutes: 4,
+  },
+  {
     slug: 'before-there-was-upala',
     href: '/blog/before-there-was-upala',
     title: 'Before any of this, there was Upala',
