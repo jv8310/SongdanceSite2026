@@ -35,6 +35,18 @@ export const blogPosts: BlogPost[] = [
     heroAlt: 'Jacob and Upala together at golden hour, mid-song, on a rooftop.',
     readingMinutes: 3,
   },
+  {
+    slug: 'the-story-wasnt-over',
+    href: '/blog/the-story-wasnt-over',
+    title: "The story wasn't over",
+    excerpt:
+      'What came after the Authentic Singing Journey — losing the thread, finding it again, and the two journeys that followed. At the heart of the movement journey: the way Upala moved.',
+    date: '2026-07-07',
+    dateLabel: '7 July 2026',
+    hero: '/media/library/jacob-jumps.webp',
+    heroAlt: 'Jacob leaping beside a mountain river at golden hour, arms flung wide.',
+    readingMinutes: 3,
+  },
 ];
 
 // Newest first — the order the index and any "latest" listings should use.
