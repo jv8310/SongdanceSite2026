@@ -179,6 +179,34 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const totalMinor = ticketAmountMinor + (realBump ? bumpPrice!.amountMinor : 0);
   const lineCurrency = ticketPrice.currency.toLowerCase();
 
+  // ── Fully-discounted (£0) path: comp the seat, skip the gateway. ───────
+  // A 100% ticket discount (e.g. ?adiscount=100) with no paid bump leaves
+  // nothing to charge. Both Stripe and PayPal REJECT a zero-amount checkout, so
+  // the gateway call would throw and surface "We couldn't start checkout" —
+  // exactly what a fully-comped registrant hit. So when there's nothing to
+  // charge, grant access immediately, the same way the free-coupon path above
+  // does. (Ticking the order bump pushes totalMinor above zero, so a paid bump
+  // still goes through checkout normally — which is why it worked with the
+  // journey added but failed on the bare free ticket.)
+  if (totalMinor === 0) {
+    await setRegistrationPaymentStatus(env.DB, registrationId, 'coupon');
+    await logEventSafe(env.DB, {
+      registration_id: null,
+      kind: 'workshop.free.granted',
+      external_id: `workshop-free-${registrationId}`,
+      payload: {
+        workshop_id: workshop.id,
+        registration_id: registrationId,
+        discount_pct: discountPct || null,
+      },
+    });
+    const ctx: any = locals.runtime?.ctx;
+    const sideEffects = runWorkshopPaidSideEffects(env, { registrationId });
+    if (ctx?.waitUntil) ctx.waitUntil(sideEffects);
+    else await sideEffects.catch(() => {});
+    return json({ redirect_url: `${base}/workshop/success?t=${accessToken}` });
+  }
+
   // ── PayPal branch (one-off ticket + optional bump). Item names feed the
   //    PayPal→Quaderno connector; success lands on the same /workshop/success.
   if (provider === 'paypal') {
