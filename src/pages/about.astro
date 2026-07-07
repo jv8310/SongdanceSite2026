@@ -1,6 +1,11 @@
 ---
 import SiteLayout from '../components/SiteLayout.astro';
 import SoftCta from '../components/SoftCta.astro';
+import { blogPostsByDateAsc } from '../data/blog';
+
+// The origin-story series, oldest → newest (part one → the latest chapter).
+const journalPosts = blogPostsByDateAsc;
+const partWords = ['one', 'two', 'three', 'four', 'five', 'six'];
 ---
 
 <SiteLayout
@@ -73,6 +78,36 @@ import SoftCta from '../components/SoftCta.astro';
     </div>
   </section>
 
+  <section class="sd-section sd-about-journal">
+    <div class="sd-about-journal-inner">
+      <div class="sd-eyebrow">The story behind it</div>
+      <h2 class="sd-about-journal-title">How it all began — in three parts.</h2>
+      <p class="sd-about-journal-lede">
+        The longer version — Upala, the journeys we made together, and what grew from the loss —
+        lives in the Journal.
+      </p>
+      <ol class="sd-about-journal-list">
+        {
+          journalPosts.map((post, i) => (
+            <li class="sd-about-journal-item">
+              <a href={post.href}>
+                <span class="sd-about-journal-part">Part {partWords[i] ?? String(i + 1)}</span>
+                <span class="sd-about-journal-text">
+                  <span class="sd-about-journal-t">{post.title}</span>
+                  <span class="sd-about-journal-x">{post.excerpt}</span>
+                </span>
+                <i class="ph-light ph-arrow-right" aria-hidden="true" />
+              </a>
+            </li>
+          ))
+        }
+      </ol>
+      <a class="sd-about-journal-all" href="/blog">
+        All journal entries <i class="ph-light ph-arrow-right" aria-hidden="true"></i>
+      </a>
+    </div>
+  </section>
+
   <section class="sd-section sd-prose">
     <div class="sd-prose-inner">
       <p class="sd-about-facts">
@@ -92,3 +127,130 @@ import SoftCta from '../components/SoftCta.astro';
     altHref="/what-is-svh"
   />
 </SiteLayout>
+
+<style>
+  /* "The story behind it" — the three-part origin story, linked from the Journal. */
+  .sd-about-journal-inner {
+    max-width: var(--container-narrow);
+    margin: 0 auto;
+  }
+  .sd-about-journal-title {
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: var(--t-h2);
+    line-height: var(--lh-snug);
+    color: var(--ink);
+    margin: var(--sp-3) 0 0;
+    text-wrap: balance;
+  }
+  .sd-about-journal-lede {
+    font-family: var(--font-body);
+    font-size: var(--t-body);
+    line-height: var(--lh-prose);
+    color: var(--ink-soft);
+    margin: var(--sp-4) 0 var(--sp-6);
+    max-width: 52ch;
+  }
+  .sd-about-journal-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border-top: 1px solid var(--line);
+  }
+  .sd-about-journal-item {
+    border-bottom: 1px solid var(--line);
+  }
+  .sd-about-journal-item a {
+    display: flex;
+    align-items: baseline;
+    gap: var(--sp-5);
+    padding: var(--sp-5) var(--sp-2);
+    text-decoration: none;
+    transition: background var(--d-base) var(--ease);
+  }
+  .sd-about-journal-item a:hover {
+    background: var(--paper-deep);
+  }
+  .sd-about-journal-part {
+    flex: none;
+    width: 5.5rem;
+    font-family: var(--font-body);
+    font-size: var(--t-caption);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-quiet);
+    padding-top: 0.35em;
+  }
+  .sd-about-journal-text {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .sd-about-journal-t {
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: var(--t-h3);
+    line-height: var(--lh-snug);
+    color: var(--ink);
+    text-wrap: balance;
+  }
+  .sd-about-journal-item a:hover .sd-about-journal-t {
+    color: var(--ember-deep);
+  }
+  .sd-about-journal-x {
+    font-family: var(--font-body);
+    font-size: 15px;
+    line-height: var(--lh-body);
+    color: var(--ink-soft);
+    text-wrap: pretty;
+  }
+  .sd-about-journal-item a > i {
+    flex: none;
+    align-self: center;
+    font-size: 18px;
+    color: var(--ink-quiet);
+    transition:
+      transform var(--d-base) var(--ease),
+      color var(--d-base) var(--ease);
+  }
+  .sd-about-journal-item a:hover > i {
+    color: var(--ember-deep);
+    transform: translateX(4px);
+  }
+  .sd-about-journal-all {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: var(--sp-6);
+    font-family: var(--font-body);
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--ink-soft);
+    text-decoration: none;
+  }
+  .sd-about-journal-all:hover {
+    color: var(--ember-deep);
+  }
+  .sd-about-journal-all i {
+    font-size: 15px;
+    transition: transform var(--d-base) var(--ease);
+  }
+  .sd-about-journal-all:hover i {
+    transform: translateX(3px);
+  }
+
+  @media (max-width: 560px) {
+    .sd-about-journal-item a {
+      flex-wrap: wrap;
+      gap: var(--sp-2) var(--sp-4);
+    }
+    .sd-about-journal-part {
+      width: auto;
+      padding-top: 0;
+    }
+    .sd-about-journal-item a > i {
+      display: none;
+    }
+  }
+</style>

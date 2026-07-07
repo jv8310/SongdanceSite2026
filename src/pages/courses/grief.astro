@@ -269,6 +269,12 @@ const product = catalogItemById('grief-course');
             </p>
           </article>
         </div>
+        <p class="gr-storyline">
+          <a class="gr-storylink" href="/blog/the-part-ive-never-told">
+            Read the story of how this course came to be
+            <i class="ph-light ph-arrow-right"></i>
+          </a>
+        </p>
       </div>
     </section>
 
@@ -324,3 +330,38 @@ const product = catalogItemById('grief-course');
     <DiscoverMore currentHref="/courses/grief" />
   </div>
 </SiteLayout>
+
+<style>
+  /* Editorial link into the Journal — the story of how this course came to be,
+     centred under the guides. */
+  .gr-storyline {
+    margin: var(--sp-6) 0 0;
+    text-align: center;
+  }
+  .gr-storylink {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-family: var(--font-body);
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--ember-deep);
+    text-decoration: none;
+    border-bottom: 1px solid var(--ember);
+    padding-bottom: 3px;
+    transition:
+      color var(--d-base) var(--ease),
+      border-color var(--d-base) var(--ease);
+  }
+  .gr-storylink:hover {
+    color: var(--plum);
+    border-color: var(--plum);
+  }
+  .gr-storylink i {
+    font-size: 17px;
+    transition: transform var(--d-base) var(--ease);
+  }
+  .gr-storylink:hover i {
+    transform: translateX(4px);
+  }
+</style>
