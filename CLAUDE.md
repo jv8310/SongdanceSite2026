@@ -162,6 +162,38 @@ hourly cron also runs `reconcileOrderNotifications`
 paid course/retreat order in the last 7 days that carries no sent-claim (bounded
 per run, idempotent, so steady state is a no-op).
 
+## PayPal payment recognition — safety-net reconcile
+
+Direct-PayPal course orders (`src/lib/payments/paypal.ts` + `paypal-fulfill.ts`)
+have an asymmetry: a **one-off** PayPal payment is fulfilled *synchronously* by
+the buyer-return handler (`/api/payments/paypal-return`), but an **installment
+subscription's** (3×/6×/12×) installments are recorded *only* by the `PAYMENT.SALE.COMPLETED`
+webhook — the return handler deliberately skips them (it just mirrors the
+subscription's status). So a dropped or unverified webhook (e.g. a missing/wrong
+`PAYPAL_WEBHOOK_ID` makes `verifyPaypalWebhook` fail-closed → the endpoint 400s
+*every* event, silently) leaves a subscription stuck at `status='pending'`,
+`0/N` while PayPal keeps charging the customer — no access, no SD-ORDER,
+no Drip. Because verification rejects *before* any `events` row is written, the
+only server-side trace is 400s in PayPal's own webhook dashboard.
+
+The hourly cron therefore also runs `reconcilePaypalCourseOrders`
+([`src/lib/payments/paypal-reconcile.ts`](src/lib/payments/paypal-reconcile.ts)):
+it finds pending PayPal course rows and polls PayPal directly — for an
+**installment subscription** (3×/6×/12×) it reads the subscription's transactions
+(`listSubscriptionTransactions`, `GET /v1/billing/subscriptions/{id}/transactions`)
+and records each COMPLETED cycle; for a **one-off** it reads the order and, *only
+if a capture already COMPLETED*, fulfils it (never captures — that would charge a
+genuinely abandoned checkout). Everything funnels through the same idempotent
+fulfillment the webhook uses (`recordCoursePaypalInstallment` /
+`fulfillCoursePaypalOneOff`, guarded on the capture/sale id in `events`), so it
+converges with the webhook and can't double-count; steady state (webhook healthy)
+is a no-op, and it no-ops entirely until the PayPal secrets are set. Subscription
+window is 120 days (a 3× monthly plan runs ~90d); one-offs 7 days. This is a
+*backstop*, not the fix — if PayPal subscriptions stall, first check that the
+webhook endpoint is registered in the PayPal app, subscribed to
+`PAYMENT.SALE.COMPLETED` + `BILLING.SUBSCRIPTION.*`, and that `PAYPAL_WEBHOOK_ID`
+matches that same live app.
+
 ## Broadcasts — one-off marketing to a standalone contact list
 
 Separate from the workshop lifecycle: a `contacts` list (imported from a CSV,

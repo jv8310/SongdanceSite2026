@@ -506,6 +506,52 @@ export async function getSubscription(
   };
 }
 
+// A settled (or refunded) cycle payment on a subscription. `id` is the sale
+// transaction id — the SAME value the PAYMENT.SALE.COMPLETED webhook delivers as
+// `resource.id` — so recording off this list produces the identical events-log
+// idempotency key as the webhook path, and the two converge without double-count.
+export type PaypalSubscriptionTransaction = {
+  id: string;
+  status: string; // COMPLETED / DENIED / PARTIALLY_REFUNDED / REFUNDED / PENDING
+  amountMinor: number | null;
+  currency: string | null;
+  time: string | null; // RFC-3339
+};
+
+// List a subscription's transactions (Subscriptions API v1). `start_time` and
+// `end_time` are REQUIRED by PayPal (RFC-3339 with a trailing Z) — omitting them
+// is a VALIDATION_ERROR, not "return everything". Used by the reconcile sweep to
+// recover cycles a missed/unverified webhook never recorded.
+export async function listSubscriptionTransactions(
+  env: PaypalEnv,
+  subscriptionId: string,
+  startTimeIso: string,
+  endTimeIso: string,
+): Promise<PaypalSubscriptionTransaction[]> {
+  const qs = `start_time=${encodeURIComponent(startTimeIso)}&end_time=${encodeURIComponent(endTimeIso)}`;
+  const res = await ppFetch<{
+    transactions?: Array<{
+      id?: string;
+      status?: string;
+      amount_with_breakdown?: {
+        gross_amount?: { value?: string; currency_code?: string };
+      };
+      time?: string;
+    }>;
+  }>(env, 'GET', `/v1/billing/subscriptions/${subscriptionId}/transactions?${qs}`);
+  return (res.transactions ?? [])
+    .filter((t) => t.id)
+    .map((t) => ({
+      id: t.id!,
+      status: (t.status ?? '').toUpperCase(),
+      amountMinor: t.amount_with_breakdown?.gross_amount?.value
+        ? Math.round(parseFloat(t.amount_with_breakdown.gross_amount.value) * 100)
+        : null,
+      currency: t.amount_with_breakdown?.gross_amount?.currency_code ?? null,
+      time: t.time ?? null,
+    }));
+}
+
 export async function cancelSubscription(
   env: PaypalEnv,
   subscriptionId: string,
