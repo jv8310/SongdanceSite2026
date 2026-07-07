@@ -722,6 +722,11 @@ export async function listRegistrationsForWorkshop(
   for (const p of payRows) payByReg.set(p.registration_id, p);
 
   // Emails that bought each course product (engine-wide, by email).
+  const bought12w = new Set<string>();
+  const boughtCert = new Set<string>();
+
+  // Path 1 — course bought as an upsell *inside a workshop checkout*
+  // (workshop_purchases, product_type='course').
   const courseRes = await db
     .prepare(
       `SELECT lower(r.email) AS email, prod.slug AS slug
@@ -731,11 +736,25 @@ export async function listRegistrationsForWorkshop(
         WHERE pur.product_type = 'course'`,
     )
     .all<{ email: string; slug: string }>();
-  const bought12w = new Set<string>();
-  const boughtCert = new Set<string>();
   for (const c of courseRes.results ?? []) {
     if (c.slug === '12w-course') bought12w.add(c.email);
     if (c.slug === 'cert-course') boughtCert.add(c.email);
+  }
+
+  // Path 2 — course bought through the main course checkout, which lands in
+  // course_registrations (where almost every 12-week / certification sale
+  // actually is). Same "real sale" filter and slug grouping the stats/reports
+  // use (computeCourseSales): has a payment, not pending/expired.
+  const stdRes = await db
+    .prepare(
+      `SELECT lower(email) AS email, product_slug AS slug
+         FROM course_registrations
+        WHERE paid_at IS NOT NULL AND status NOT IN ('pending','expired')`,
+    )
+    .all<{ email: string; slug: string }>();
+  for (const c of stdRes.results ?? []) {
+    if (c.slug === 'svh-12week') bought12w.add(c.email);
+    if (c.slug === 'cc-cert' || c.slug === 'cc-bundle') boughtCert.add(c.email);
   }
 
   // Bump flag: either intent (wants_bump) or an actual bump purchase.
