@@ -181,7 +181,10 @@ the `events` log instead of only in PayPal's own webhook dashboard.
 
 The hourly cron therefore also runs `reconcilePaypalCourseOrders`
 ([`src/lib/payments/paypal-reconcile.ts`](src/lib/payments/paypal-reconcile.ts)):
-it finds pending PayPal course rows and polls PayPal directly — for an
+it finds stranded PayPal course rows — status `pending` **or** `expired` (a
+stranded pending row is auto-flipped to `expired` after 15 min by
+`expireStaleCoursePendings` on admin page load, so live-but-unrecorded
+subscriptions usually sit in `expired`) — and polls PayPal directly — for an
 **installment subscription** (3×/6×/12×) it reads the subscription's transactions
 (`listSubscriptionTransactions`, `GET /v1/billing/subscriptions/{id}/transactions`)
 and records each COMPLETED cycle; for a **one-off** it reads the order and, *only
