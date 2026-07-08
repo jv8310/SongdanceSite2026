@@ -506,6 +506,52 @@ export async function getSubscription(
   };
 }
 
+// A settled (or refunded) cycle payment on a subscription. `id` is the sale
+// transaction id — the SAME value the PAYMENT.SALE.COMPLETED webhook delivers as
+// `resource.id` — so recording off this list produces the identical events-log
+// idempotency key as the webhook path, and the two converge without double-count.
+export type PaypalSubscriptionTransaction = {
+  id: string;
+  status: string; // COMPLETED / DENIED / PARTIALLY_REFUNDED / REFUNDED / PENDING
+  amountMinor: number | null;
+  currency: string | null;
+  time: string | null; // RFC-3339
+};
+
+// List a subscription's transactions (Subscriptions API v1). `start_time` and
+// `end_time` are REQUIRED by PayPal (RFC-3339 with a trailing Z) — omitting them
+// is a VALIDATION_ERROR, not "return everything". Used by the reconcile sweep to
+// recover cycles a missed/unverified webhook never recorded.
+export async function listSubscriptionTransactions(
+  env: PaypalEnv,
+  subscriptionId: string,
+  startTimeIso: string,
+  endTimeIso: string,
+): Promise<PaypalSubscriptionTransaction[]> {
+  const qs = `start_time=${encodeURIComponent(startTimeIso)}&end_time=${encodeURIComponent(endTimeIso)}`;
+  const res = await ppFetch<{
+    transactions?: Array<{
+      id?: string;
+      status?: string;
+      amount_with_breakdown?: {
+        gross_amount?: { value?: string; currency_code?: string };
+      };
+      time?: string;
+    }>;
+  }>(env, 'GET', `/v1/billing/subscriptions/${subscriptionId}/transactions?${qs}`);
+  return (res.transactions ?? [])
+    .filter((t) => t.id)
+    .map((t) => ({
+      id: t.id!,
+      status: (t.status ?? '').toUpperCase(),
+      amountMinor: t.amount_with_breakdown?.gross_amount?.value
+        ? Math.round(parseFloat(t.amount_with_breakdown.gross_amount.value) * 100)
+        : null,
+      currency: t.amount_with_breakdown?.gross_amount?.currency_code ?? null,
+      time: t.time ?? null,
+    }));
+}
+
 export async function cancelSubscription(
   env: PaypalEnv,
   subscriptionId: string,
@@ -618,26 +664,38 @@ export async function refundSale(input: {
 // ── Webhook signature verification ────────────────────────────────────────
 // PayPal's recommended path: POST the transmission headers + the parsed event
 // back to /v1/notifications/verify-webhook-signature with our webhook id.
-// Returns true only on verification_status === 'SUCCESS'. Fails closed.
+// Verified only on verification_status === 'SUCCESS'. Fails closed.
+//
+// Returns a reason alongside the boolean so the caller can log WHY a real PayPal
+// delivery was rejected — otherwise a bad/missing PAYPAL_WEBHOOK_ID (or a webhook
+// registered on a different app than the client credentials) silently 400s every
+// event with no server-side trace, the exact failure mode that stranded a paid
+// subscription. Reasons: no_webhook_id · missing_headers · bad_json ·
+// FAILURE (verify API said so — wrong webhook id / app mismatch / body
+// mismatch) · verify_error:<msg> (the verify call itself threw).
+export type PaypalWebhookVerification = { verified: boolean; reason: string };
+
 export async function verifyPaypalWebhook(
   env: PaypalEnv,
   headers: Headers,
   rawBody: string,
-): Promise<boolean> {
-  if (!env.PAYPAL_WEBHOOK_ID) return false;
+): Promise<PaypalWebhookVerification> {
+  if (!env.PAYPAL_WEBHOOK_ID) return { verified: false, reason: 'no_webhook_id' };
   const h = (name: string) => headers.get(name) ?? '';
   const transmissionId = h('paypal-transmission-id');
   const transmissionTime = h('paypal-transmission-time');
   const transmissionSig = h('paypal-transmission-sig');
   const certUrl = h('paypal-cert-url');
   const authAlgo = h('paypal-auth-algo');
-  if (!transmissionId || !transmissionSig || !certUrl) return false;
+  if (!transmissionId || !transmissionSig || !certUrl) {
+    return { verified: false, reason: 'missing_headers' };
+  }
 
   let webhookEvent: unknown;
   try {
     webhookEvent = JSON.parse(rawBody);
   } catch {
-    return false;
+    return { verified: false, reason: 'bad_json' };
   }
 
   try {
@@ -655,8 +713,9 @@ export async function verifyPaypalWebhook(
         webhook_event: webhookEvent,
       },
     );
-    return res.verification_status === 'SUCCESS';
-  } catch {
-    return false;
+    const status = res.verification_status ?? 'NO_STATUS';
+    return { verified: status === 'SUCCESS', reason: status };
+  } catch (err) {
+    return { verified: false, reason: `verify_error:${String(err).slice(0, 160)}` };
   }
 }

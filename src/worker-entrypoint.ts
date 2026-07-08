@@ -19,6 +19,7 @@ import { runDripOrderBackfill } from './lib/orders/drip-backfill';
 import { runMasterclassSeatMove } from './lib/workshops/masterclass-move';
 import { runReports } from './lib/workshops/reports';
 import { reconcileOrderNotifications } from './lib/orders/reconcile';
+import { reconcilePaypalCourseOrders } from './lib/payments/paypal-reconcile';
 import { fxRatesStale, refreshFxRates } from './lib/admin/fx';
 
 const WORKSHOP_CRON = '*/5 * * * *';
@@ -223,6 +224,27 @@ export function createExports(manifest: unknown) {
         })
         .catch((err) => {
           console.error('[orders/reconcile] run failed', err);
+        }),
+    );
+
+    // Safety net: recover PayPal course orders a dropped/unverified webhook left
+    // stuck at PENDING. An installment subscription's cycles are recorded only by
+    // the PAYMENT.SALE.COMPLETED webhook (the return handler skips them), so a missed
+    // webhook = money charged but order pending forever. This polls PayPal for
+    // pending PayPal course rows and records what already settled. Bounded +
+    // idempotent (same events-log guard as the webhook), so steady state is a
+    // no-op; no-ops entirely until the PayPal secrets are set.
+    ctx.waitUntil(
+      reconcilePaypalCourseOrders(env)
+        .then((r) => {
+          if (r.subscriptions || r.installments || r.oneOffs) {
+            console.log(
+              `[paypal/reconcile] subs=${r.subscriptions} installments=${r.installments} oneoffs=${r.oneOffs}`,
+            );
+          }
+        })
+        .catch((err) => {
+          console.error('[paypal/reconcile] run failed', err);
         }),
     );
   };

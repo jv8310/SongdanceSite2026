@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { eventExists, logEvent } from '../../../lib/registrations/db';
+import { eventExists, logEvent, logEventSafe } from '../../../lib/registrations/db';
 import {
   captureOrder,
   getOrder,
@@ -67,8 +67,41 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
   const body = await request.text();
 
-  const verified = await verifyPaypalWebhook(env as any, request.headers, body);
-  if (!verified) return new Response('Bad signature', { status: 400 });
+  const verification = await verifyPaypalWebhook(env as any, request.headers, body);
+  if (!verification.verified) {
+    // Leave a server-side breadcrumb for a REAL PayPal delivery that failed
+    // verification (has a transmission id) — a bad/missing PAYPAL_WEBHOOK_ID or
+    // an app mismatch otherwise 400s every event with no trace but PayPal's own
+    // dashboard. Best-effort + guarded so random unsigned POSTs can't spam the log.
+    const transmissionId = request.headers.get('paypal-transmission-id');
+    if (transmissionId) {
+      let evt: { id?: string; event_type?: string } = {};
+      try {
+        evt = JSON.parse(body) as { id?: string; event_type?: string };
+      } catch {
+        /* body not JSON — reason will be bad_json */
+      }
+      await logEventSafe(env.DB, {
+        registration_id: null,
+        kind: 'paypal.webhook.verify_failed',
+        source: 'paypal',
+        // Keyed on PayPal's stable event id (constant across delivery retries;
+        // the transmission id changes per attempt) so a retried failure logs
+        // one row, not one per retry. logEventSafe swallows the dup-key throw.
+        external_id: `paypal-verify-failed-${evt.id ?? transmissionId}`,
+        payload: {
+          reason: verification.reason,
+          event_id: evt.id ?? null,
+          event_type: evt.event_type ?? null,
+          transmission_id: transmissionId,
+          webhook_id_present: !!(env as any).PAYPAL_WEBHOOK_ID,
+        },
+      });
+    }
+    // Still 400 so PayPal keeps retrying — once the secret is fixed, the retry
+    // (or a manual Resend) delivers and fulfils through the normal path.
+    return new Response('Bad signature', { status: 400 });
+  }
 
   const event = JSON.parse(body) as {
     id: string;
