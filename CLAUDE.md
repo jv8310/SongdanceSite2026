@@ -190,10 +190,20 @@ subscriptions usually sit in `expired`) — and polls PayPal directly — for an
 and records each COMPLETED cycle; for a **one-off** it reads the order and, *only
 if a capture already COMPLETED*, fulfils it (never captures — that would charge a
 genuinely abandoned checkout). Everything funnels through the same idempotent
-fulfillment the webhook uses (`recordCoursePaypalInstallment` /
+fulfillment the webhook uses (`recordCoursePaypalSubscriptionSale` /
 `fulfillCoursePaypalOneOff`, guarded on the capture/sale id in `events`), so it
 converges with the webhook and can't double-count; steady state (webhook healthy)
-is a no-op, and it no-ops entirely until the PayPal secrets are set. Subscription
+is a no-op, and it no-ops entirely until the PayPal secrets are set.
+**Setup-fee routing**: order bumps on a PayPal plan charge as the subscription's
+`setup_fee`, which PayPal settles as its *own sale* on the same subscription
+(alongside cycle 1, same minute — e.g. a £45 grief bump next to the £97.50
+cycle). Both the webhook and the reconcile route every subscription sale by
+amount (`recordCoursePaypalSubscriptionSale`): only a sale equal to the expected
+monthly amount (`amount_cents / installments_total`) bumps `installments_paid`;
+anything else is logged as `paypal.course.setup_fee` under the same
+`paypal.course.installment.<saleId>` claim so no path ever counts it as a cycle.
+Two same-minute PayPal charges on a plan with a bump are therefore *correct*,
+not a double charge. Subscription
 window is 120 days (a 3× monthly plan runs ~90d); one-offs 7 days. This is a
 *backstop*, not the fix — if PayPal subscriptions stall, first check that the
 webhook endpoint is registered in the PayPal app, subscribed to
