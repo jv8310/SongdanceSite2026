@@ -228,10 +228,11 @@ export function createExports(manifest: unknown) {
     );
 
     // Safety net: recover PayPal course orders a dropped/unverified webhook left
-    // stuck at PENDING. An installment subscription's cycles are recorded only by
-    // the PAYMENT.SALE.COMPLETED webhook (the return handler skips them), so a missed
-    // webhook = money charged but order pending forever. This polls PayPal for
-    // pending PayPal course rows and records what already settled. Bounded +
+    // stuck at PENDING (or EXPIRED — a stranded pending row is auto-expired after
+    // 15 min). An installment subscription's cycles are recorded only by the
+    // PAYMENT.SALE.COMPLETED webhook (the return handler skips them), so a missed
+    // webhook = money charged but order never recorded. This polls PayPal for
+    // stranded PayPal course rows and records what already settled. Bounded +
     // idempotent (same events-log guard as the webhook), so steady state is a
     // no-op; no-ops entirely until the PayPal secrets are set.
     ctx.waitUntil(

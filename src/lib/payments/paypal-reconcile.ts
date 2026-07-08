@@ -14,8 +14,11 @@
 // synchronously); only subscriptions do.
 //
 // WHAT IT DOES. Wired into the hourly cron (like src/lib/orders/reconcile.ts),
-// each tick it finds PENDING PayPal *course* rows in a recent window and polls
-// PayPal directly:
+// each tick it finds stranded PayPal *course* rows — status 'pending' OR
+// 'expired' — in a recent window and polls PayPal directly. ('expired' matters:
+// expireStaleCoursePendings flips any pending course row to 'expired' after just
+// 15 minutes, on admin page load, so a subscription whose webhook never landed is
+// usually 'expired', not 'pending', while PayPal keeps charging it.)
 //   (A) installment subscriptions → read the subscription's transactions and
 //       record every COMPLETED cycle via recordCoursePaypalInstallment.
 //   (B) full-payment one-offs → read the order and, ONLY if a capture already
@@ -53,12 +56,13 @@ export type PaypalReconcileResult = {
   oneOffs: number; // pending one-off orders fulfilled this run
 };
 
-// A subscription row leaves 'pending' the moment its first cycle is recorded, so
-// this window governs how far back we still look for a row stuck pending — wide
-// (120 days) so a stall that went unnoticed for weeks is still recovered; the
-// first cycle it needs always settled within days of checkout, regardless of
-// plan length (3×/6×/12×). One-off orders that never captured within days are
-// dead (PayPal purges the order resource anyway), so theirs is short.
+// A subscription row leaves the stranded set (pending/expired) the moment its
+// first cycle is recorded, so this window governs how far back we still look for
+// one — wide (120 days) so a stall that went unnoticed for weeks is still
+// recovered; the first cycle it needs always settled within days of checkout,
+// regardless of plan length (3×/6×/12×). One-off orders that never captured
+// within days are dead (PayPal purges the order resource anyway), so theirs is
+// short.
 const SUB_DAYS = 120;
 const ONEOFF_DAYS = 7;
 const DEFAULT_CAP = 25;
@@ -70,19 +74,24 @@ function toRfc3339(sqliteTs: string): string {
   return Number.isFinite(ms) ? new Date(ms).toISOString() : new Date().toISOString();
 }
 
-async function pendingPaypalCourseRows(
+async function strandedPaypalCourseRows(
   db: D1Database,
   extraWhere: string,
   dayModifier: string,
   cap: number,
 ): Promise<CourseRegistration[]> {
-  // `provider = 'paypal'` is essential: pending *Stripe* rows also have
-  // paid_at IS NULL and must never be polled against PayPal.
+  // status IN ('pending','expired'): a stranded PayPal row is 'pending' only
+  // briefly — expireStaleCoursePendings flips it to 'expired' after 15 minutes —
+  // so 'expired' is where most live-but-unrecorded subscriptions actually sit.
+  // `provider = 'paypal'` is essential: unpaid *Stripe* rows also land in these
+  // statuses and must never be polled against PayPal. Recording is safe on either
+  // status (recordPaypalInstallmentPaid / markCourseRegistrationPaidPaypal flip it
+  // to 'paid'), and a genuinely abandoned row simply has no PayPal money to find.
   const res = await db
     .prepare(
       `SELECT * FROM course_registrations
         WHERE provider = 'paypal'
-          AND status = 'pending'
+          AND status IN ('pending', 'expired')
           ${extraWhere}
           AND created_at >= datetime('now', ?)
         ORDER BY created_at ASC
@@ -109,7 +118,7 @@ export async function reconcilePaypalCourseOrders(
   //    Any non-full plan is a PayPal subscription — 12-week is 3× only, but the
   //    certification checkout offers 3×/6×/12× (checkout.ts gates on
   //    `paymentPlan !== 'full'`), and the record loop below is generic over N.
-  const subRows = await pendingPaypalCourseRows(
+  const subRows = await strandedPaypalCourseRows(
     env.DB,
     "AND payment_plan <> 'full' AND paypal_subscription_id IS NOT NULL",
     subMod,
@@ -181,7 +190,7 @@ export async function reconcilePaypalCourseOrders(
   // ── (B) full-payment one-offs that captured but never fulfilled ─────────────
   //    (buyer closed the tab AND the webhook was missed). Read-only: only fulfil
   //    an order that ALREADY has a COMPLETED capture — never call captureOrder.
-  const oneOffRows = await pendingPaypalCourseRows(
+  const oneOffRows = await strandedPaypalCourseRows(
     env.DB,
     "AND payment_plan = 'full' AND paypal_order_id IS NOT NULL AND paypal_capture_id IS NULL",
     oneOffMod,
