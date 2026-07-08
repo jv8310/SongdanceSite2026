@@ -74,7 +74,7 @@
     // "false"/unset keeps it off so a deploy never moves or emails anyone on
     // its own. Flip to "1" once masterclass-5's date is final, then back to
     // "false" after it reports remaining=0 (a drained queue is a no-op anyway).
-    "MASTERCLASS_MOVE_ENABLED": "false"
+    "MASTERCLASS_MOVE_ENABLED": "1"
   },
   // Cron triggers → the worker's `scheduled` handler dispatches by cron string
   // (see src/worker-entrypoint.ts):
