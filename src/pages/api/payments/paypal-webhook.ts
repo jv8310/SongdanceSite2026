@@ -13,7 +13,7 @@ import {
   fulfillCoursePaypalOneOff,
   fulfillRetreatPaypalOneOff,
   fulfillWorkshopPaypalCapture,
-  recordCoursePaypalInstallment,
+  recordCoursePaypalSubscriptionSale,
   recordPaypalRefund,
   type PaypalFulfillEnv,
 } from '../../../lib/payments/paypal-fulfill';
@@ -162,7 +162,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
       return new Response('OK', { status: 200 });
     }
 
-    // ── Subscription cycle settled → record an installment.
+    // ── Subscription cycle settled → record an installment. The sale amount
+    //    (v1 sale: amount.total, major units) routes it — a plan's order-bump
+    //    setup fee settles as its own sale on the same subscription and must
+    //    not bump the installment counter.
     if (type === 'PAYMENT.SALE.COMPLETED') {
       const subscriptionId = resource.billing_agreement_id as
         | string
@@ -174,7 +177,16 @@ export const POST: APIRoute = async ({ request, locals }) => {
           subscriptionId,
         );
         if (courseReg) {
-          await recordCoursePaypalInstallment(env, courseReg, saleId, saleId);
+          const saleMinor = resource?.amount?.total
+            ? Math.round(parseFloat(resource.amount.total) * 100)
+            : null;
+          await recordCoursePaypalSubscriptionSale(
+            env,
+            courseReg,
+            saleId,
+            saleId,
+            saleMinor,
+          );
         }
       }
       return new Response('OK', { status: 200 });

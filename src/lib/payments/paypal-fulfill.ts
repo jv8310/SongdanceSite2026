@@ -145,6 +145,52 @@ export async function recordCoursePaypalInstallment(
   return true;
 }
 
+// Route a settled subscription sale by its AMOUNT before counting it. A plan
+// whose checkout carried order bumps charges them as the PayPal setup_fee —
+// which PayPal settles as its own sale on the subscription, same
+// billing_agreement_id, alongside cycle 1 (e.g. £45 grief bump + £97.50 cycle in
+// the same minute). It hits both PAYMENT.SALE.COMPLETED and the subscription's
+// transactions list, so counting every sale as an installment would show 2/N
+// after one real cycle (wrong counter, forecast, and scheduled-cancel math —
+// the money itself is right). Only a sale matching the expected monthly amount
+// (amount_cents / installments_total — exact, since checkout stores
+// monthly × N) bumps the counter; anything else is logged as a setup-fee charge
+// under the SAME external_id namespace, so webhook and reconcile alike can
+// never count it later. An unknown amount (null) falls through as an
+// installment — the pre-existing behaviour.
+export async function recordCoursePaypalSubscriptionSale(
+  env: PaypalFulfillEnv,
+  courseReg: CourseRegistration,
+  saleId: string,
+  captureId: string | null,
+  amountMinor: number | null,
+): Promise<boolean> {
+  const externalId = `paypal.course.installment.${saleId}`;
+  if (await eventExists(env.DB, externalId)) return false;
+
+  const monthly =
+    courseReg.installments_total > 0
+      ? Math.round(courseReg.amount_cents / courseReg.installments_total)
+      : null;
+  if (amountMinor != null && monthly != null && monthly > 0 && amountMinor !== monthly) {
+    await logEvent(env.DB, {
+      registration_id: null,
+      kind: 'paypal.course.setup_fee',
+      source: 'paypal',
+      external_id: externalId,
+      payload: {
+        course_registration_id: courseReg.id,
+        sale_id: saleId,
+        amount_minor: amountMinor,
+        expected_monthly_minor: monthly,
+      },
+    });
+    return false;
+  }
+
+  return recordCoursePaypalInstallment(env, courseReg, saleId, captureId);
+}
+
 // Mirror a PayPal subscription status onto the row (normalised to the Stripe
 // vocabulary so the forecast/badge stay provider-agnostic). On a terminal end
 // (cancelled / completed-expired) flip the coarse status to 'cancelled' too —

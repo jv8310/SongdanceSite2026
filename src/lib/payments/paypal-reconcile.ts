@@ -20,13 +20,15 @@
 // 15 minutes, on admin page load, so a subscription whose webhook never landed is
 // usually 'expired', not 'pending', while PayPal keeps charging it.)
 //   (A) installment subscriptions → read the subscription's transactions and
-//       record every COMPLETED cycle via recordCoursePaypalInstallment.
+//       record every COMPLETED cycle via recordCoursePaypalSubscriptionSale
+//       (amount-routed: a bump's setup-fee sale is logged, never counted as a
+//       cycle).
 //   (B) full-payment one-offs → read the order and, ONLY if a capture already
 //       COMPLETED, fulfil it (never captures — capturing here would charge a
 //       genuinely abandoned checkout days later).
 //
 // SAFETY. Everything funnels through the same idempotent fulfilment the webhook
-// uses (recordCoursePaypalInstallment / fulfillCoursePaypalOneOff, both guarded
+// uses (recordCoursePaypalSubscriptionSale / fulfillCoursePaypalOneOff, guarded
 // on the capture/sale id in the events log), so a later-arriving webhook can
 // never double-count, and steady state (webhook healthy) finds nothing. It is
 // read-only against PayPal, never performs the terminal EXPIRED/CANCELLED coarse
@@ -41,7 +43,7 @@ import {
   type PaypalEnv,
 } from './paypal';
 import {
-  recordCoursePaypalInstallment,
+  recordCoursePaypalSubscriptionSale,
   fulfillCoursePaypalOneOff,
   applyPaypalSubscriptionStatus,
   type PaypalFulfillEnv,
@@ -151,13 +153,20 @@ export async function reconcilePaypalCourseOrders(
       let recorded = 0;
       for (const t of settled) {
         // Re-fetch each iteration so installments_paid (and thus the "was this
-        // the first cycle?" test inside recordCoursePaypalInstallment) is fresh
-        // across a multi-cycle backlog — otherwise every cycle looks like #1.
+        // the first cycle?" test inside the recorder) is fresh across a
+        // multi-cycle backlog — otherwise every cycle looks like #1.
         const fresh = await getCourseRegistrationById(env.DB, row.id);
         if (!fresh) break;
         // Respect a genuine admin cancel / refund — never resurrect it.
         if (fresh.status === 'cancelled' || fresh.status === 'refunded') break;
-        const did = await recordCoursePaypalInstallment(env, fresh, t.id, t.id);
+        // Amount-routed: a bump's setup-fee sale is logged, not counted.
+        const did = await recordCoursePaypalSubscriptionSale(
+          env,
+          fresh,
+          t.id,
+          t.id,
+          t.amountMinor,
+        );
         if (did) {
           recorded += 1;
           result.installments += 1;
