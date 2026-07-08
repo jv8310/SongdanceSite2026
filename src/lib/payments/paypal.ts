@@ -664,26 +664,38 @@ export async function refundSale(input: {
 // ── Webhook signature verification ────────────────────────────────────────
 // PayPal's recommended path: POST the transmission headers + the parsed event
 // back to /v1/notifications/verify-webhook-signature with our webhook id.
-// Returns true only on verification_status === 'SUCCESS'. Fails closed.
+// Verified only on verification_status === 'SUCCESS'. Fails closed.
+//
+// Returns a reason alongside the boolean so the caller can log WHY a real PayPal
+// delivery was rejected — otherwise a bad/missing PAYPAL_WEBHOOK_ID (or a webhook
+// registered on a different app than the client credentials) silently 400s every
+// event with no server-side trace, the exact failure mode that stranded a paid
+// subscription. Reasons: no_webhook_id · missing_headers · bad_json ·
+// FAILURE (verify API said so — wrong webhook id / app mismatch / body
+// mismatch) · verify_error:<msg> (the verify call itself threw).
+export type PaypalWebhookVerification = { verified: boolean; reason: string };
+
 export async function verifyPaypalWebhook(
   env: PaypalEnv,
   headers: Headers,
   rawBody: string,
-): Promise<boolean> {
-  if (!env.PAYPAL_WEBHOOK_ID) return false;
+): Promise<PaypalWebhookVerification> {
+  if (!env.PAYPAL_WEBHOOK_ID) return { verified: false, reason: 'no_webhook_id' };
   const h = (name: string) => headers.get(name) ?? '';
   const transmissionId = h('paypal-transmission-id');
   const transmissionTime = h('paypal-transmission-time');
   const transmissionSig = h('paypal-transmission-sig');
   const certUrl = h('paypal-cert-url');
   const authAlgo = h('paypal-auth-algo');
-  if (!transmissionId || !transmissionSig || !certUrl) return false;
+  if (!transmissionId || !transmissionSig || !certUrl) {
+    return { verified: false, reason: 'missing_headers' };
+  }
 
   let webhookEvent: unknown;
   try {
     webhookEvent = JSON.parse(rawBody);
   } catch {
-    return false;
+    return { verified: false, reason: 'bad_json' };
   }
 
   try {
@@ -701,8 +713,9 @@ export async function verifyPaypalWebhook(
         webhook_event: webhookEvent,
       },
     );
-    return res.verification_status === 'SUCCESS';
-  } catch {
-    return false;
+    const status = res.verification_status ?? 'NO_STATUS';
+    return { verified: status === 'SUCCESS', reason: status };
+  } catch (err) {
+    return { verified: false, reason: `verify_error:${String(err).slice(0, 160)}` };
   }
 }

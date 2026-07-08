@@ -173,8 +173,11 @@ subscription's status). So a dropped or unverified webhook (e.g. a missing/wrong
 `PAYPAL_WEBHOOK_ID` makes `verifyPaypalWebhook` fail-closed → the endpoint 400s
 *every* event, silently) leaves a subscription stuck at `status='pending'`,
 `0/N` while PayPal keeps charging the customer — no access, no SD-ORDER,
-no Drip. Because verification rejects *before* any `events` row is written, the
-only server-side trace is 400s in PayPal's own webhook dashboard.
+no Drip. The webhook still 400s so PayPal keeps retrying, but a real delivery
+that fails verification now writes a `paypal.webhook.verify_failed` event
+(external_id `paypal-verify-failed-<event id>`, with the `reason` —
+`no_webhook_id` / `FAILURE` / `verify_error:…`), so the failure is visible in
+the `events` log instead of only in PayPal's own webhook dashboard.
 
 The hourly cron therefore also runs `reconcilePaypalCourseOrders`
 ([`src/lib/payments/paypal-reconcile.ts`](src/lib/payments/paypal-reconcile.ts)):
