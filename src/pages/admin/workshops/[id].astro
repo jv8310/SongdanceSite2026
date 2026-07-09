@@ -30,6 +30,7 @@ const bumpProduct = workshop.bump_product_id ? await getProductById(env.DB, work
 const regs = await listRegistrationsForWorkshop(env.DB, workshop.id);
 
 const flash = Astro.url.searchParams.get('flash');
+const liveSentMatch = flash?.match(/^live_sent_(\d+)$/);
 const flashText =
   flash === 'saved' ? 'Workshop saved.'
   : flash === 'attendance' ? 'Attendance updated.'
@@ -37,8 +38,10 @@ const flashText =
   : flash === 'resend_error' ? 'Couldn’t re-send the confirmation email — check the event log.'
   : flash === 'briefing_sent' ? 'SD-BRIEFING sent to the internal recipients.'
   : flash === 'briefing_error' ? 'Couldn’t send the SD-BRIEFING — check the logs.'
+  : liveSentMatch ? `“We’re live now” sent to ${liveSentMatch[1]} registrant${liveSentMatch[1] === '1' ? '' : 's'} — each with their join link.`
+  : flash === 'live_error' ? 'Couldn’t send the “We’re live now” email — check the logs.'
   : null;
-const flashErr = flash === 'resend_error' || flash === 'briefing_error';
+const flashErr = flash === 'resend_error' || flash === 'briefing_error' || flash === 'live_error';
 
 const paidCount = regs.filter((r) => r.payment_status === 'paid' || r.payment_status === 'coupon').length;
 const attendedCount = regs.filter((r) => r.attendance_status === 'attended').length;
@@ -66,6 +69,12 @@ const STATUS_LABEL: Record<string, string> = { draft: 'Draft', published: 'Publi
         </p>
       </div>
       <div class="adm-actions">
+        {!workshop.is_replay && (
+          <form method="POST" action="/api/admin/workshops/send-live-now" class="adm-inline-form">
+            <input type="hidden" name="workshop_id" value={workshop.id} />
+            <button type="submit" class="adm-btn adm-btn--solid" onclick={`return confirm('Email the “We’re live now” message — with the join link — to all ${paidCount} registrant${paidCount === 1 ? '' : 's'} right now?')`}>Send “we’re live” now</button>
+          </form>
+        )}
         {!workshop.is_replay && (
           <form method="POST" action="/api/admin/workshops/send-briefing" class="adm-inline-form">
             <input type="hidden" name="workshop_id" value={workshop.id} />

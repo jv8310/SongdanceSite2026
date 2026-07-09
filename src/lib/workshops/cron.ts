@@ -450,6 +450,94 @@ async function flushReminders(env: CronEnv, pending: PendingReminder[], result: 
   }
 }
 
+// ── Manual "we're live now" blast (admin button) ────────────────────────────
+// Send the terminal `reminder_5m` "We're live now" email to a workshop's whole
+// paid/coupon roster immediately, from the admin workshop page. This is the
+// manual lever for when a session has gone live but the automatic reminder
+// never landed — a cron gap, a late publish, or a start already past the 30-min
+// catch-up floor the reminder scan uses. It sends unconditionally (idempotency
+// is bypassed here on purpose, like resendConfirmation), then claims each
+// `reminder_5m` slot so the automatic cron can never pile a second copy on top.
+// Batched + paced through Resend's batch endpoint exactly like the cron's own
+// reminder flush, so a full roster clears in a couple of requests.
+export async function sendLiveNowReminders(
+  env: CronEnv,
+  workshopId: number,
+): Promise<{ ok: boolean; sent: number; error?: string }> {
+  if (!env.RESEND_API_KEY) return { ok: false, sent: 0, error: 'email_not_configured' };
+
+  const w = await env.DB
+    .prepare(`SELECT * FROM workshops WHERE id = ? AND deleted = 0`)
+    .bind(workshopId)
+    .first<Workshop>();
+  if (!w) return { ok: false, sent: 0, error: 'not_found' };
+  if (w.is_replay === 1) return { ok: false, sent: 0, error: 'is_replay' }; // replays have no live time
+
+  const regs = await env.DB
+    .prepare(
+      `SELECT * FROM workshop_registrations
+        WHERE workshop_id = ? AND payment_status IN ('paid','coupon')`,
+    )
+    .bind(workshopId)
+    .all<WorkshopRegistration>();
+  const roster = regs.results ?? [];
+  if (roster.length === 0) return { ok: true, sent: 0 };
+
+  let sent = 0;
+  try {
+    for (let i = 0; i < roster.length; i += REMINDER_BATCH_SIZE) {
+      const chunk = roster.slice(i, i + REMINDER_BATCH_SIZE);
+      const contents = chunk.map((reg) => reminderEmail('reminder_5m', emailCtx(env, reg, w)));
+      const payload: BatchEmailInput[] = chunk.map((reg, j) => ({
+        replyTo: env.RESEND_REPLY_TO,
+        to: reg.email,
+        subject: contents[j].subject,
+        html: contents[j].html,
+        text: contents[j].text,
+        // A distinct ref (…-live-<ts>) so this manual copy isn't threaded or
+        // deduped by Gmail onto an earlier automatic reminder to the same person.
+        entityRefId: `workshop-reminder_5m-${reg.id}-live-${Date.now()}`,
+      }));
+
+      const ids = await sendEmailBatch(env.RESEND_API_KEY!, payload);
+      sent += chunk.length;
+
+      // Reserve the slot for anyone not already sent it, so the automatic cron
+      // won't also fire a "we're live" on its next tick. This send is the
+      // intentional, unguarded one, so the claim result is ignored.
+      for (const reg of chunk) await claimNotification(env.DB, reg.id, 'reminder_5m');
+
+      // Engagement tracking (email_sends) — best-effort, mirrors the cron flush.
+      const records = chunk
+        .map((reg, j) =>
+          recordEmailSendStmt(env.DB, {
+            resendId: ids[j] ?? null,
+            type: 'reminder_5m',
+            to: reg.email,
+            subject: contents[j].subject,
+            registrationId: reg.id,
+          }),
+        )
+        .filter((s): s is D1PreparedStatement => s !== null);
+      if (records.length) {
+        try {
+          await env.DB.batch(records);
+        } catch {
+          // Stats are best-effort; the emails already went out.
+        }
+      }
+
+      // Pace between chunks (one Resend request each) to stay under the rate limit.
+      if (i + REMINDER_BATCH_SIZE < roster.length) await reminderSleep(REMINDER_BATCH_GAP_MS);
+    }
+  } catch (err) {
+    console.error('[workshops/cron] live-now blast failed', err);
+    return { ok: false, sent, error: 'send_failed' };
+  }
+
+  return { ok: true, sent };
+}
+
 // ── Abandoned checkouts ─────────────────────────────────────────────────────
 // Registrations that reached Stripe but never paid ('prepared', or an
 // outright 'failed' attempt) on a workshop people can still join. Two nudges,
