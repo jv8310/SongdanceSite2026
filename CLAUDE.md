@@ -210,6 +210,52 @@ webhook endpoint is registered in the PayPal app, subscribed to
 `PAYMENT.SALE.COMPLETED` + `BILLING.SUBSCRIPTION.*`, and that `PAYPAL_WEBHOOK_ID`
 matches that same live app.
 
+## Meta ad spend — direct pull from the Marketing API
+
+Ad spend feeds `/ads` (cost-per-registration, ROAS) and `/admin/workshops/stats`
+straight from one table: `workshop_ad_spend` (migration 0021). Two paths write
+it, both idempotent and interchangeable:
+
+- **Direct pull** ([`src/lib/ads/meta-insights.ts`](src/lib/ads/meta-insights.ts)):
+  `runMetaAdSpendSync` reads the ad account's daily `spend` from the Graph
+  Marketing API (`GET /act_<id>/insights?level=account&time_increment=1`,
+  sibling to the Conversions API *send* in `src/lib/workshops/meta.ts`) and
+  writes it via `replaceMetaAdSpend` (`workshops/db.ts`) — an atomic
+  delete-then-insert over a **rolling 14-day window**, so Meta is the single
+  source of truth for its channel inside that window and can't double-count
+  against a CSV import. A 14-day window (not just yesterday) absorbs Meta's
+  retroactive spend revisions; a day Meta reports as zero correctly clears. The
+  replace only runs on a *successful* fetch (a transient API error never wipes
+  data). Spend is converted to EUR with the live `fx_rates` table
+  (`getFxRatesToEur`), stored in `amount_eur_minor`.
+- **CSV import** (`/api/admin/workshops/ad-spend-import`, the old export→import
+  flow) still works as a manual fallback/backfill; both write the same daily
+  rows.
+
+**Cadence**: rides the existing **hourly** cron (`worker-entrypoint.ts`),
+self-gating to ~once a day via a `meta_ad_spend_synced_at` marker in
+`workshop_config` (20h staleness, mirroring the FX refresh); a failed run leaves
+the marker untouched so the next tick retries. **No-ops entirely** until the
+secrets are set, so deploying it changes nothing until the owner opts in.
+
+**Setup** (Meta side is the only real work):
+- **`META_AD_ACCOUNT_ID`** — the ad account, `act_1234567890` or bare
+  `1234567890`.
+- **`META_ADS_TOKEN`** — a token with the **`ads_read`** permission on that
+  account. A **non-expiring System User token** (Business Settings → System
+  Users) is ideal for a server cron. Falls back to `META_ACCESS_TOKEN`, but the
+  Conversions API token usually lacks `ads_read`, so set this one explicitly.
+- Optional **`META_API_VERSION`** overrides the Graph version (default `v21.0`).
+
+**Manual trigger**: `/admin/workshops/stats` → "Pull from Meta now" button
+(`/api/admin/workshops/ad-spend-sync`, admin-gated) forces a sync (bypasses the
+daily gate) so the token/account can be verified and today's spend land at once.
+
+Caveats: Meta's daily buckets are in the ad account's timezone (registrations
+bucket by `created_at` UTC — the same minor imprecision the CSV import already
+had, no regression); if the account currency has no EUR rate, `amount_eur_minor`
+is null and the sync flags `fxMissing`.
+
 ## Broadcasts — one-off marketing to a standalone contact list
 
 Separate from the workshop lifecycle: a `contacts` list (imported from a CSV,

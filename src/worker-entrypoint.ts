@@ -21,6 +21,7 @@ import { runReports } from './lib/workshops/reports';
 import { reconcileOrderNotifications } from './lib/orders/reconcile';
 import { reconcilePaypalCourseOrders } from './lib/payments/paypal-reconcile';
 import { fxRatesStale, refreshFxRates } from './lib/admin/fx';
+import { runMetaAdSpendSync } from './lib/ads/meta-insights';
 
 const WORKSHOP_CRON = '*/5 * * * *';
 
@@ -194,6 +195,25 @@ export function createExports(manifest: unknown) {
         )
         .catch((err) => {
           console.error('[fx] refresh failed', err);
+        }),
+    );
+
+    // Pull Meta ad spend straight from the Marketing API into workshop_ad_spend,
+    // so /ads + /admin/workshops/stats ROAS need no manual CSV import. Rides the
+    // hourly trigger, self-gates to ~once a day, re-syncs a rolling 14-day window
+    // (to absorb Meta's retroactive spend revisions), and no-ops entirely until
+    // META_AD_ACCOUNT_ID + an ads_read token are set.
+    ctx.waitUntil(
+      runMetaAdSpendSync(env)
+        .then((r) => {
+          if (!r.skipped) {
+            console.log(
+              `[ads/meta] synced ${r.days} day(s) ${r.from}→${r.to} in ${r.currency}${r.fxMissing ? ' (no EUR rate)' : ''}`,
+            );
+          }
+        })
+        .catch((err) => {
+          console.error('[ads/meta] sync failed', err);
         }),
     );
 

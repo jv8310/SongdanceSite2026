@@ -392,12 +392,20 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
     </section>
 
     <section class="adm-section">
-      <h2>Import Meta ad-spend CSV</h2>
-      <p class="adm-sub">Tolerant of column order; we look for a date and an amount column. Non-EUR rows are converted with a fallback rate table. Re-uploads are idempotent per (date, campaign).</p>
+      <h2>Ad spend</h2>
+      <p class="adm-sub">Pull spend straight from the Meta Marketing API, or import a CSV export as a fallback. Both write the same daily figures; the direct pull re-syncs a rolling 14&#8209;day window and is the source of truth for those days.</p>
+
+      <p class="adm-sub" style="margin-top:12px;"><strong>Pull from Meta</strong> — needs <code>META_AD_ACCOUNT_ID</code> + an <code>ads_read</code> token set as secrets. Runs automatically about once a day; use this to sync now.</p>
+      <form id="spend-sync-form" class="adm-inline-form">
+        <button type="submit" class="adm-btn adm-btn--solid">Pull from Meta now</button>
+      </form>
+      <div id="spend-sync-result" class="adm-sub" style="margin-top:10px;"></div>
+
+      <p class="adm-sub" style="margin-top:20px;"><strong>Import CSV</strong> — tolerant of column order; we look for a date and an amount column. Non-EUR rows are converted with a fallback rate table. Re-uploads are idempotent per (date, campaign).</p>
       <form id="spend-form" class="adm-inline-form" enctype="multipart/form-data">
         <input type="file" name="csv" accept=".csv,text/csv" required />
         <label>Fallback currency <input type="text" name="currency" placeholder="EUR" maxlength="3" style="width:80px;" /></label>
-        <button type="submit" class="adm-btn adm-btn--solid">Upload</button>
+        <button type="submit" class="adm-btn adm-btn--ghost">Upload</button>
       </form>
       <div id="spend-result" class="adm-sub" style="margin-top:14px;"></div>
     </section>
@@ -661,6 +669,32 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
       window.addEventListener('resize', function () {
         clearTimeout(rt);
         rt = setTimeout(drawAll, 150);
+      });
+    })();
+  </script>
+
+  <script is:inline>
+    (function () {
+      var form = document.getElementById('spend-sync-form');
+      var out = document.getElementById('spend-sync-result');
+      if (!form) return;
+      var btn = form.querySelector('button');
+      form.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        btn.disabled = true;
+        out.textContent = 'Pulling from Meta…';
+        try {
+          var res = await fetch('/api/admin/workshops/ad-spend-sync', { method: 'POST' });
+          var data = await res.json();
+          if (!res.ok) { out.textContent = data.error || 'Failed.'; btn.disabled = false; return; }
+          var eur = data.currency === 'EUR' || data.fxMissing ? '' :
+            ' (converted to EUR' + (data.fxMissing ? ' — no rate for ' + data.currency : '') + ')';
+          var spend = data.totalSpendMinor != null
+            ? ' — ' + (data.totalSpendMinor / 100).toLocaleString('en-IE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ' + (data.currency || '') + eur
+            : '';
+          out.textContent = 'Synced ' + data.days + ' day(s), ' + data.from + ' → ' + data.to + spend + '. Reloading…';
+          setTimeout(function () { location.href = '/admin/workshops/stats?flash=spend'; }, 1100);
+        } catch (e2) { out.textContent = 'Error: ' + (e2.message || e2); btn.disabled = false; }
       });
     })();
   </script>
