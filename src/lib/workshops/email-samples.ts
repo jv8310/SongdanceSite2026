@@ -381,7 +381,7 @@ export function buildEmailSamples(base: string): EmailSample[] {
           stripePaymentIntent: 'pi_3QExample0001',
           stripeSubscriptionId: 'sub_1QExample0001',
         },
-        { quadernoAccount: 'songdance', dripAccountId: '0000000', dripSubscriberId: 'abc123def456' },
+        { quadernoAccount: 'songdance', dripAccountId: '0000000', dripSubscriberId: 'abc123def456', baseUrl: b },
       ),
     },
     {
@@ -409,7 +409,7 @@ export function buildEmailSamples(base: string): EmailSample[] {
           paidAt: '2026-06-12 10:02:00',
           stripePaymentIntent: 'pi_3QExample0002',
         },
-        { quadernoAccount: 'songdance', dripAccountId: '0000000', dripSubscriberId: 'xyz789ghi012' },
+        { quadernoAccount: 'songdance', dripAccountId: '0000000', dripSubscriberId: 'xyz789ghi012', baseUrl: b },
       ),
     },
 

@@ -22,6 +22,7 @@ import { LANGUAGE_CHOICE_LABEL } from '../courses/journeys';
 import type { Registration } from '../registrations/db';
 import { logEvent } from '../registrations/db';
 import { getSubscriber } from '../registrations/drip';
+import { makeOrderNo } from '../admin/orders';
 import { formatMoney } from '../workshops/currency';
 import { sendEmail } from '../workshops/resend';
 import type { EmailContent } from '../workshops/emails';
@@ -33,10 +34,15 @@ export type OrderEnv = {
   DRIP_API_TOKEN?: string;
   DRIP_ACCOUNT_ID?: string;
   ORDER_NOTIFICATIONS_TO?: string;
+  PUBLIC_BASE_URL?: string;
 };
 
 // Where SD-ORDER notifications land when ORDER_NOTIFICATIONS_TO is unset.
 const DEFAULT_RECIPIENTS = ['jacob@songdance.co', 'support@songdance.co'];
+
+// Origin for the admin order-detail deep link when PUBLIC_BASE_URL is unset
+// (matches the SD-REPORT digest fallback).
+const DEFAULT_BASE_URL = 'https://songdance.co';
 
 // Course product slug → human label (matches the labels used on the course
 // pages — see src/lib/courses/variant.ts, grief.ts, twelve-week.ts).
@@ -93,6 +99,8 @@ type LinkContext = {
   quadernoAccount?: string | null;
   dripAccountId?: string | null;
   dripSubscriberId?: string | null;
+  // Site origin (PUBLIC_BASE_URL) for the admin order-detail deep link.
+  baseUrl?: string | null;
 };
 
 function escapeHtml(s: string): string {
@@ -155,6 +163,15 @@ function dripUrl(ctx: LinkContext): string | null {
   return `https://www.getdrip.com/${ctx.dripAccountId}/subscribers`;
 }
 
+// Deep link into the site's own admin order-detail view for this order — the
+// same page the orders overview opens (order number is namespaced by source:
+// C-<id> for courses, R-<id> for retreats).
+function adminOrderUrl(ctx: LinkContext, input: OrderNotificationInput): string | null {
+  const base = (ctx.baseUrl ?? '').replace(/\/$/, '');
+  if (!base) return null;
+  return `${base}/admin/orders/${makeOrderNo(input.orderType, input.orderId)}`;
+}
+
 // ── The email itself ───────────────────────────────────────────────────────
 export function buildOrderNotificationEmail(
   input: OrderNotificationInput,
@@ -212,6 +229,7 @@ export function buildOrderNotificationEmail(
   ];
 
   const links: Array<[string, string | null]> = [
+    ['Order details (admin)', adminOrderUrl(ctx, input)],
     ['Quaderno invoice', quadernoUrl(ctx, input.email)],
     [input.provider === 'paypal' ? 'PayPal payment' : 'Stripe payment', paymentUrl(input)],
     ['Drip subscriber', dripUrl(ctx)],
@@ -327,6 +345,7 @@ export async function sendOrderNotification(
       quadernoAccount: env.QUADERNO_ACCOUNT ?? null,
       dripAccountId: env.DRIP_ACCOUNT_ID ?? null,
       dripSubscriberId,
+      baseUrl: (env.PUBLIC_BASE_URL && env.PUBLIC_BASE_URL.trim()) || DEFAULT_BASE_URL,
     });
 
     await sendEmail({

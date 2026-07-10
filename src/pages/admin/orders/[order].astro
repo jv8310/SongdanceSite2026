@@ -209,6 +209,54 @@ const jsName = name.replace(/['\\]/g, '\\$&');
           )}
         </section>
 
+        <!-- ─── Other orders by this customer ─── -->
+        {detail.customerOrders.length > 0 && (
+          <section class="adm-section">
+            <div class="od-card">
+              <h2>Other orders by this customer ({detail.customerOrders.length})</h2>
+              <div class="od-orders-wrap">
+                <table class="od-orders">
+                  <thead>
+                    <tr>
+                      <th>Order</th>
+                      <th>Type</th>
+                      <th>Product</th>
+                      <th>Status</th>
+                      <th class="num">Amount</th>
+                      <th>Date</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {detail.customerOrders.map((co) => (
+                      <tr>
+                        <td>
+                          <a
+                            class="adm-mono"
+                            href={`/admin/orders/${co.orderNo}?return_to=${encodeURIComponent(selfReturn)}`}
+                          >{co.orderNo}</a>
+                        </td>
+                        <td>
+                          <span class={`od-tag od-tag--src-${co.source}`}>{SOURCE_LABEL[co.source]}</span>
+                        </td>
+                        <td>{co.productLabel}</td>
+                        <td>
+                          <span class={`adm-pill adm-pill--${co.statusClass}`}>{co.rawStatus}</span>
+                        </td>
+                        <td class="num">
+                          {co.originalAmountMinor > 0
+                            ? formatMoney(co.originalAmountMinor, co.originalCurrency)
+                            : '—'}
+                        </td>
+                        <td class="od-date">{(co.createdAt ?? '').slice(0, 10) || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+        )}
+
         <!-- ─── Actions ─── -->
         <section class="adm-section">
           <div class="od-actions">
@@ -296,6 +344,21 @@ const jsName = name.replace(/['\\]/g, '\\$&');
     .od-lines td.num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
     .od-lines tr:last-child td { border-bottom:none; }
     .od-lines-total td { font-weight:600; padding-top:9px; }
+
+    /* Other orders by this customer — a compact cross-source table. */
+    .od-orders-wrap { overflow-x:auto; }
+    .od-orders { width:100%; border-collapse:collapse; font-size:14px; }
+    .od-orders th {
+      text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:0.04em;
+      color:var(--adm-mute); font-weight:600; padding:0 12px 8px 0; white-space:nowrap;
+    }
+    .od-orders td { padding:8px 12px 8px 0; border-top:1px solid var(--adm-line); vertical-align:middle; }
+    .od-orders th.num, .od-orders td.num {
+      text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; padding-right:0;
+    }
+    .od-orders a { color:var(--adm-ember-deep); text-decoration:none; }
+    .od-orders a:hover { text-decoration:underline; }
+    .od-orders .od-date { white-space:nowrap; color:var(--adm-ink-soft); }
 
     .od-kv { margin:0; display:flex; flex-direction:column; gap:8px; }
     .od-kv-row { display:flex; justify-content:space-between; gap:16px; align-items:baseline; }

@@ -44,7 +44,14 @@ export type OrderDetail = {
   payment: DetailField[];
   // Source-specific extras (dates, plan, attendance, room, …).
   extra: DetailField[];
+  // Every other order (any product) placed by the same customer — matched on
+  // email, newest first, this order excluded. Empty when it's their only one.
+  customerOrders: UnifiedOrder[];
 };
+
+// What the per-source enrichers build — everything but the cross-order
+// `customerOrders`, which getOrderDetail attaches from the full order list.
+type EnrichedOrder = Omit<OrderDetail, 'customerOrders'>;
 
 // Drop empty fields so a card never shows "Phone: —" for data we don't have.
 function fields(rows: Array<DetailField | null | undefined>): DetailField[] {
@@ -93,14 +100,25 @@ export async function getOrderDetail(
   );
   if (!order) return null;
 
-  switch (parsed.source) {
-    case 'workshop':
-      return enrichWorkshop(db, order, parsed.id);
-    case 'course':
-      return enrichCourse(db, order, parsed.id);
-    case 'retreat':
-      return enrichRetreat(db, order, parsed.id);
-  }
+  // Other orders by the same customer (matched on email, case-insensitive),
+  // this one excluded. `all` is already newest-first, so this list is too.
+  const email = order.email.trim().toLowerCase();
+  const customerOrders = email
+    ? all.filter(
+        (o) =>
+          !(o.source === order.source && o.rowId === order.rowId) &&
+          o.email.trim().toLowerCase() === email,
+      )
+    : [];
+
+  const detail =
+    parsed.source === 'workshop'
+      ? await enrichWorkshop(db, order, parsed.id)
+      : parsed.source === 'course'
+        ? await enrichCourse(db, order, parsed.id)
+        : await enrichRetreat(db, order, parsed.id);
+
+  return { ...detail, customerOrders };
 }
 
 // Pull a discount percentage out of one of an order's checkout `events` rows.
@@ -182,7 +200,7 @@ async function enrichWorkshop(
   db: D1Database,
   order: UnifiedOrder,
   id: number,
-): Promise<OrderDetail> {
+): Promise<EnrichedOrder> {
   const reg = await db
     .prepare(
       `SELECT r.name, r.email, r.phone, r.country, r.currency, r.timezone, r.locale,
@@ -356,7 +374,7 @@ async function enrichCourse(
   db: D1Database,
   order: UnifiedOrder,
   id: number,
-): Promise<OrderDetail> {
+): Promise<EnrichedOrder> {
   const reg = await db
     .prepare(
       `SELECT first_name, last_name, email, country, phone, phone_country,
@@ -485,7 +503,7 @@ async function enrichRetreat(
   db: D1Database,
   order: UnifiedOrder,
   id: number,
-): Promise<OrderDetail> {
+): Promise<EnrichedOrder> {
   const reg = await db
     .prepare(
       `SELECT r.first_name, r.last_name, r.name, r.email, r.phone, r.phone_country,
