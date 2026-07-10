@@ -18,6 +18,7 @@
 // keep it in mind in every string passed in.
 
 import { escapeHtml } from './emails';
+import { guarantee } from '../guarantee';
 
 // Palette — the parchment / plum-ink / ember system, extended with the broadcast
 // tones (a warmer outer wash, the brighter ember accent, the muted caption grey,
@@ -201,6 +202,32 @@ export function offerBox(opts: {
   </tr></table>`;
 }
 
+// The 30-day money-back guarantee note — an email-safe "stamp" (a round ember
+// badge; degrades to a square chip in Outlook's Word engine) beside the promise.
+// The words come from src/lib/guarantee.ts, so this stays in sync with the
+// on-page seal and the Terms. Risk-reversal beside a course CTA.
+export function guaranteeNote(opts: { line?: string } = {}): string {
+  const line = opts.line ?? guarantee.line;
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:22px 0;background-color:${DPAL.panel};border:1px solid ${DPAL.line};border-radius:6px;"><tr>
+    <td width="94" valign="middle" align="center" style="padding:16px 8px 16px 18px;">
+      <table role="presentation" cellpadding="0" cellspacing="0" style="width:64px;"><tr>
+        <td align="center" valign="middle" style="width:64px;height:64px;background-color:${DPAL.ember};border-radius:50%;line-height:1;">
+          <div style="font-family:${FONT_DISPLAY};font-size:23px;font-weight:500;color:#FFFFFF;">${guarantee.days}</div>
+          <div style="font-family:${FONT_BODY};font-size:8px;font-weight:700;letter-spacing:2.5px;color:#FFFFFF;padding-top:3px;">DAYS</div>
+        </td>
+      </tr></table>
+    </td>
+    <td valign="middle" style="padding:16px 20px 16px 6px;">
+      <p style="font-family:${FONT_BODY};font-size:14px;font-weight:700;color:${DPAL.ink};margin:0 0 4px;">${escapeHtml(
+        guarantee.title,
+      )}</p>
+      <p style="font-family:${FONT_BODY};font-size:13.5px;line-height:1.6;color:${DPAL.soft};margin:0;">${escapeHtml(
+        line,
+      )}</p>
+    </td>
+  </tr></table>`;
+}
+
 // The full-width "feature" product card — image on top, then copy + CTA. The
 // primary promoted product in a downsell email.
 export function featureCard(opts: {
@@ -279,12 +306,12 @@ export function countdownPanel(opts: {
   altText: string;
   caption: string;
 }): string {
-  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:28px 0;background-color:${DPAL.panel};border:1px solid ${DPAL.line};border-radius:6px;"><tr>
-    <td align="center" style="padding:26px 20px 18px;">
-      <img src="${opts.gifUrl}" width="354" alt="${escapeHtml(
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:24px 0;background-color:${DPAL.panel};border:1px solid ${DPAL.line};border-radius:6px;"><tr>
+    <td align="center" style="padding:20px 20px 14px;">
+      <img src="${opts.gifUrl}" width="220" alt="${escapeHtml(
         opts.altText,
-      )}" style="display:block;width:354px;max-width:100%;height:auto;margin:0 auto;" />
-      <p style="font-family:${FONT_BODY};font-size:12px;letter-spacing:2px;text-transform:uppercase;color:${DPAL.ember};font-weight:600;margin:14px 0 0;">${escapeHtml(
+      )}" style="display:block;width:220px;max-width:70%;height:auto;margin:0 auto;" />
+      <p style="font-family:${FONT_BODY};font-size:11px;letter-spacing:2px;text-transform:uppercase;color:${DPAL.ember};font-weight:600;margin:12px 0 0;">${escapeHtml(
         opts.caption,
       )}</p>
     </td>

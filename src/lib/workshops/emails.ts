@@ -16,6 +16,11 @@
 
 import * as D from './email-design';
 import { type DownsellOffer, BUNDLE_PATH } from './downsell-offers';
+import { guarantee } from '../guarantee';
+
+// Plain-text line for the 30-day money-back guarantee (the text/plain part of
+// the course-promoting lifecycle emails). The HTML part uses D.guaranteeNote().
+const GUARANTEE_TEXT = `And there's a ${guarantee.days}-day money-back guarantee: give the course a real try, and if it isn't for you, write to ${guarantee.email} within ${guarantee.days} days for a full refund.`;
 
 const PALETTE = {
   bg: '#F4ECDF',
@@ -572,6 +577,7 @@ export function attendedEmail1(
         button: { label: `See my price — ${pct}% off`, href: ctx.courseUrl },
         footnote: 'Prefer to spread it out? A three-part monthly plan carries the discount too.',
       }),
+      D.guaranteeNote(),
       D.signoff(),
     ].join(''),
     footer: { unsubscribeUrl: ctx.unsubscribeUrl },
@@ -582,7 +588,7 @@ export function attendedEmail1(
     // open on its own terms rather than reading as a bare thank-you.
     subject: 'How to continue this practice',
     html,
-    text: `${textGreeting(ctx.name)}\n\nThank you for being part of ${ctx.workshopTitle}. Whatever sound you made today — it was the right one. You cannot do it wrong; it always expresses something.\n\nIn the day or two after a session the body sometimes keeps commenting — a yawn out of nowhere, tiredness, a feeling passing through. Nothing is wrong. Give it room, and when in doubt: one breath in, one tone out.\n\nIf you'd like to take this further, the 12-week course is where the practice becomes your own — twelve weeks, one layer at a time, in your own time, with live Q&A whenever you want company.\n\nWhat the twelve weeks hold:\n- 18+ hours of guided practice across twelve modules — chaptered, self-paced, yours to return to for life.\n- Weekly live Q&A with Jacob, on a rotating schedule for every timezone, with replays.\n- A path that moves one layer at a time — reading your own voice, working with the nervous system, the five core wounds, sounding toward essence.\n- A supportive student community — and, on joining, five of Jacob's original mantras.\n\n${discountTextLine}\n\n${ctx.courseUrl}\n\nWith love,\nJacob${unsubText(ctx.unsubscribeUrl)}`,
+    text: `${textGreeting(ctx.name)}\n\nThank you for being part of ${ctx.workshopTitle}. Whatever sound you made today — it was the right one. You cannot do it wrong; it always expresses something.\n\nIn the day or two after a session the body sometimes keeps commenting — a yawn out of nowhere, tiredness, a feeling passing through. Nothing is wrong. Give it room, and when in doubt: one breath in, one tone out.\n\nIf you'd like to take this further, the 12-week course is where the practice becomes your own — twelve weeks, one layer at a time, in your own time, with live Q&A whenever you want company.\n\nWhat the twelve weeks hold:\n- 18+ hours of guided practice across twelve modules — chaptered, self-paced, yours to return to for life.\n- Weekly live Q&A with Jacob, on a rotating schedule for every timezone, with replays.\n- A path that moves one layer at a time — reading your own voice, working with the nervous system, the five core wounds, sounding toward essence.\n- A supportive student community — and, on joining, five of Jacob's original mantras.\n\n${discountTextLine}\n\n${GUARANTEE_TEXT}\n\n${ctx.courseUrl}\n\nWith love,\nJacob${unsubText(ctx.unsubscribeUrl)}`,
   };
 }
 
@@ -642,6 +648,7 @@ export function attendedEmail2(
         ],
         button: { label: `See my price — ${pct}% off`, href: ctx.courseUrl },
       }),
+      D.guaranteeNote(),
       D.signoff(),
     ].join(''),
     footer: { unsubscribeUrl: ctx.unsubscribeUrl },
@@ -653,7 +660,7 @@ export function attendedEmail2(
       ctx.promo
         ? `A practical note: the launch sale runs through ${ctx.discountEndsLocal}. The link below opens the page with your price already showing. After that, the regular price returns.`
         : `A practical note: your ${pct}% ends in about ${left} — ${ctx.discountEndsLocal}. The link below opens the page with your price already showing. After that, full price.`
-    }\n\n${ctx.courseUrl}\n\n— Jacob${unsubText(ctx.unsubscribeUrl)}`,
+    }\n\n${GUARANTEE_TEXT}\n\n${ctx.courseUrl}\n\n— Jacob${unsubText(ctx.unsubscribeUrl)}`,
   };
 }
 
@@ -708,6 +715,7 @@ export function attendedEmail3(
           footnote:
             "If the answer is “not now”, that's an honest answer and nothing is lost — no pressure either way.",
         }),
+        D.guaranteeNote(),
         D.para(
           "Unsure whether it's for you? Reply with your question any time; a person answers plainly. If it's not for you, we'll say so.",
           { tone: 'soft' },
@@ -719,7 +727,7 @@ export function attendedEmail3(
     return {
       subject: 'Still here, if the 12-week course is calling',
       html,
-      text: `${textGreeting(ctx.name)}\n\nA gentle note, no countdown: the launch sale — ${pct}% off the 12-week course — runs through ${ctx.discountEndsLocal}. If the practice has been on your mind, the door is open at that price until then; if now isn't the time, that's an honest answer too.\n\nWhat you'd be stepping into: eighteen-plus hours of guided practice across twelve modules, a weekly live hour with Jacob, a student community, and lifetime access. ${pct}% off is already applied for you — the link below opens the page with your price showing. If spreading it out helps, there's a three-part monthly plan; the discount counts there too.\n\nUnsure whether it's for you? Reply with your question any time; a person answers plainly. If it's not for you, we'll say so.\n\n${ctx.courseUrl}\n\nWith love,\nJacob${unsubText(ctx.unsubscribeUrl)}`,
+      text: `${textGreeting(ctx.name)}\n\nA gentle note, no countdown: the launch sale — ${pct}% off the 12-week course — runs through ${ctx.discountEndsLocal}. If the practice has been on your mind, the door is open at that price until then; if now isn't the time, that's an honest answer too.\n\nWhat you'd be stepping into: eighteen-plus hours of guided practice across twelve modules, a weekly live hour with Jacob, a student community, and lifetime access. ${pct}% off is already applied for you — the link below opens the page with your price showing. If spreading it out helps, there's a three-part monthly plan; the discount counts there too.\n\nUnsure whether it's for you? Reply with your question any time; a person answers plainly. If it's not for you, we'll say so.\n\n${GUARANTEE_TEXT}\n\n${ctx.courseUrl}\n\nWith love,\nJacob${unsubText(ctx.unsubscribeUrl)}`,
     };
   }
 
@@ -755,6 +763,7 @@ export function attendedEmail3(
         footnote:
           "If the answer is “not now”, that's an honest answer and nothing is lost. But if you've been meaning to — this is the moment it costs the least.",
       }),
+      D.guaranteeNote(),
       D.para(
         "Unsure whether it's for you? Reply with your question before the window shuts; a person answers plainly. If it's not for you, we'll say so.",
         { tone: 'soft' },
@@ -766,7 +775,7 @@ export function attendedEmail3(
   return {
     subject: `Last chance — your ${pct}% ends in about ${left}`,
     html,
-    text: `${textGreeting(ctx.name)}\n\nThis is the last call I'll send about it: your participant discount on the 12-week course ends ${ctx.discountEndsLocal} — about ${left} from now. After that, full price.\n\nWhat you'd be stepping into: eighteen-plus hours of guided practice across twelve modules, a weekly live hour with Jacob, a student community, and lifetime access.\n\nThe facts, once more: ${pct}% off, already applied for you — the link below opens the page with your price showing. If spreading it out helps, there's a three-part monthly plan; the discount counts there too.\n\nIf the answer is "not now", that's an honest answer and nothing is lost. But if you've been meaning to — this is the moment it costs the least.\n\nUnsure whether it's for you? Reply with your question before the window shuts; a person answers plainly. If it's not for you, we'll say so.\n\n${ctx.courseUrl}\n\nWith love,\nJacob${unsubText(ctx.unsubscribeUrl)}`,
+    text: `${textGreeting(ctx.name)}\n\nThis is the last call I'll send about it: your participant discount on the 12-week course ends ${ctx.discountEndsLocal} — about ${left} from now. After that, full price.\n\nWhat you'd be stepping into: eighteen-plus hours of guided practice across twelve modules, a weekly live hour with Jacob, a student community, and lifetime access.\n\nThe facts, once more: ${pct}% off, already applied for you — the link below opens the page with your price showing. If spreading it out helps, there's a three-part monthly plan; the discount counts there too.\n\nIf the answer is "not now", that's an honest answer and nothing is lost. But if you've been meaning to — this is the moment it costs the least.\n\nUnsure whether it's for you? Reply with your question before the window shuts; a person answers plainly. If it's not for you, we'll say so.\n\n${GUARANTEE_TEXT}\n\n${ctx.courseUrl}\n\nWith love,\nJacob${unsubText(ctx.unsubscribeUrl)}`,
   };
 }
 
@@ -834,6 +843,7 @@ export function attendedProEmail1(
               left,
             )} — ${D.secondaryLink('see your price', ctx.courseUrl)}.`,
       }),
+      D.guaranteeNote(),
       D.signoff('Warmly,'),
     ].join(''),
     footer: { unsubscribeUrl: ctx.unsubscribeUrl },
@@ -845,7 +855,7 @@ export function attendedProEmail1(
       ctx.promo
         ? `PS — ${pct}% off the 12-week course is also live through ${ctx.discountEndsLocal}; this link shows your price directly: ${ctx.courseUrl}`
         : `PS — your ${pct}% on the 12-week course is also live for the next ${left}; this link shows your price directly: ${ctx.courseUrl}`
-    }\n\nWarmly,\nJacob${unsubText(ctx.unsubscribeUrl)}`,
+    }\n\n${GUARANTEE_TEXT}\n\nWarmly,\nJacob${unsubText(ctx.unsubscribeUrl)}`,
   };
 }
 

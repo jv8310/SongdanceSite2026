@@ -2,6 +2,7 @@
 import { SESSION_URL } from './config';
 import { COUNTRIES } from '../../lib/countries';
 import LaunchOfferCallout from '../promo/LaunchOfferCallout.astro';
+import GuaranteeBadge from '../GuaranteeBadge.astro';
 
 const includes = [
   '18+ hours of video across 12 modules, full of guided practices',
@@ -235,6 +236,10 @@ const includes = [
         <option value={`+${c.dial} ${c.name}`}>{c.flag}</option>
       ))}
     </datalist>
+
+    <div class="tw-reg-guarantee" data-reveal style="max-width:560px;margin:28px auto 0;">
+      <GuaranteeBadge variant="card" />
+    </div>
 
     <p class="tw-reg-fine" data-reveal>
       Not sure yet?

@@ -1,6 +1,7 @@
 ---
 import { COUNTRIES } from '../../lib/countries';
 import LaunchOfferCallout from '../promo/LaunchOfferCallout.astro';
+import GuaranteeBadge from '../GuaranteeBadge.astro';
 
 const countries = COUNTRIES;
 ---
@@ -113,6 +114,10 @@ const countries = COUNTRIES;
           Secure checkout by Stripe. Invoice by Quaderno.
         </p>
       </form>
+    </div>
+
+    <div class="gr-register-guarantee" style="max-width:560px;margin:24px auto 0;text-align:left;">
+      <GuaranteeBadge variant="card" />
     </div>
 
     <datalist id="gr-country-list">
