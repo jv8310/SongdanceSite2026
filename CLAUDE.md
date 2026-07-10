@@ -217,20 +217,37 @@ straight from one table: `workshop_ad_spend` (migration 0021). Two paths write
 it, both idempotent and interchangeable:
 
 - **Direct pull** ([`src/lib/ads/meta-insights.ts`](src/lib/ads/meta-insights.ts)):
-  `runMetaAdSpendSync` reads the ad account's daily `spend` from the Graph
-  Marketing API (`GET /act_<id>/insights?level=account&time_increment=1`,
-  sibling to the Conversions API *send* in `src/lib/workshops/meta.ts`) and
-  writes it via `replaceMetaAdSpend` (`workshops/db.ts`) — an atomic
-  delete-then-insert over a **rolling 14-day window**, so Meta is the single
-  source of truth for its channel inside that window and can't double-count
-  against a CSV import. A 14-day window (not just yesterday) absorbs Meta's
-  retroactive spend revisions; a day Meta reports as zero correctly clears. The
-  replace only runs on a *successful* fetch (a transient API error never wipes
-  data). Spend is converted to EUR with the live `fx_rates` table
-  (`getFxRatesToEur`), stored in `amount_eur_minor`.
+  `runMetaAdSpendSync` reads the ad account's daily `spend` **per campaign** from
+  the Graph Marketing API (`GET /act_<id>/insights?level=campaign&fields=spend,
+  account_currency,campaign_name&time_increment=1`, sibling to the Conversions
+  API *send* in `src/lib/workshops/meta.ts`) and writes one row per
+  (`spend_date`, `campaign`) via `replaceMetaAdSpend` (`workshops/db.ts`) — an
+  atomic delete-then-insert over a **rolling 14-day window**, so Meta is the
+  single source of truth for its channel inside that window and can't
+  double-count against a CSV import. A 14-day window (not just yesterday) absorbs
+  Meta's retroactive spend revisions; a (day, campaign) Meta reports as zero
+  correctly clears. The replace only runs on a *successful* fetch (a transient
+  API error never wipes data). Spend is converted to EUR with the live
+  `fx_rates` table (`getFxRatesToEur`), stored in `amount_eur_minor`.
 - **CSV import** (`/api/admin/workshops/ad-spend-import`, the old export→import
   flow) still works as a manual fallback/backfill; both write the same daily
-  rows.
+  rows (it already reads a `campaign` column when present).
+
+**Prospecting (TOF) vs retargeting** ([`src/lib/ads/campaigns.ts`](src/lib/ads/campaigns.ts)):
+now that spend is per-campaign, **cost per registration** is charged against the
+**prospecting** campaign only — the one that actually buys new registrations.
+The convention: a campaign with **`TOF`** in its name (as a token, delimiter-
+tolerant) is prospecting/acquisition; everything else is retargeting.
+`isAcquisitionCampaign` classifies it (a **blank** campaign name — legacy
+account-level rows, or a CSV with no campaign column — counts as acquisition, so
+pre-breakdown windows keep the old "all spend ÷ regs" figure). Cost per
+registration = prospecting spend ÷ registrations; **total** ad spend and
+**blended ROAS** still count every campaign, and the per-workshop Meta-cost
+allocation still divides *total* spend by registration share (so that column +
+blended ROAS reconcile). `/admin/workshops/stats` shows a **By campaign** table
+(spend + prospecting/retargeting tag) so the split is verifiable; `/ads` labels
+its "Cost / registration" as prospecting-based and breaks the "Ad spend" tile
+into prospecting · retargeting.
 
 **Cadence**: rides the existing **hourly** cron (`worker-entrypoint.ts`),
 self-gating to ~once a day via a `meta_ad_spend_synced_at` marker in

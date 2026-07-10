@@ -24,6 +24,7 @@
 
 import { getConfig, setConfig, replaceMetaAdSpend } from '../workshops/db';
 import { getFxRatesToEur } from '../admin/fx';
+import { isAcquisitionCampaign } from './campaigns';
 
 export type MetaInsightsEnv = {
   DB: D1Database;
@@ -42,24 +43,33 @@ const SYNC_WINDOW_DAYS = 14;
 // tick retries.
 const MIN_SYNC_INTERVAL_MS = 20 * 3_600_000;
 const SYNC_MARKER_KEY = 'meta_ad_spend_synced_at';
-const MAX_PAGES = 12; // safety cap; a 14-day account-level pull is one page
+// Safety cap. A 14-day per-campaign pull is days × campaigns rows; at 500 rows
+// a page that's ~35 campaigns before a second page, so 12 pages covers a very
+// large account.
+const MAX_PAGES = 12;
 
 const DEFAULT_API_VERSION = 'v21.0';
 
 export type MetaSyncResult = {
   skipped: boolean;
   reason?: string; // why skipped, when skipped
-  days: number; // day rows written
+  days: number; // distinct spend days written
+  rows?: number; // day × campaign rows written
+  campaigns?: number; // distinct campaigns seen
   from?: string;
   to?: string;
   currency?: string;
   totalSpendMinor?: number; // in the account currency
+  acquisitionSpendMinor?: number; // TOF/prospecting share (account currency)
+  retargetingSpendMinor?: number; // everything else (account currency)
   fxMissing?: boolean; // account currency had no EUR rate → amount_eur_minor null
 };
 
 type InsightsRow = {
   spend?: string;
   account_currency?: string;
+  campaign_name?: string;
+  campaign_id?: string;
   date_start?: string;
   date_stop?: string;
 };
@@ -94,8 +104,11 @@ async function fetchInsights(
   to: string,
 ): Promise<InsightsRow[]> {
   const params = new URLSearchParams({
-    level: 'account',
-    fields: 'spend,account_currency',
+    // Per-campaign, per-day: so spend can be split by funnel intent (the "TOF"
+    // prospecting campaign vs retargeting). Summing every campaign for a day
+    // still reconciles with the old account-level total.
+    level: 'campaign',
+    fields: 'spend,account_currency,campaign_name,campaign_id',
     time_increment: '1',
     time_range: JSON.stringify({ since: from, until: to }),
     limit: '500',
@@ -159,43 +172,57 @@ export async function runMetaAdSpendSync(
 
   const insightRows = await fetchInsights(version, accountId, token, from, to);
 
-  // Aggregate to one row per day (level=account + time_increment=1 already is,
-  // but summing is defensive against any duplicate date_start). Spend is a major-
-  // unit string in the account currency.
+  // Aggregate to one row per (day, campaign). time_increment=1 + level=campaign
+  // already is one row each, but summing is defensive against duplicates. Spend
+  // is a major-unit string in the account currency.
   let currency = 'EUR';
-  const minorByDate = new Map<string, number>();
+  const minorByKey = new Map<string, { spend_date: string; campaign: string; amount_minor: number }>();
+  const campaigns = new Set<string>();
   let totalSpendMinor = 0;
+  let acquisitionSpendMinor = 0;
   for (const r of insightRows) {
     const date = (r.date_start ?? '').slice(0, 10);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
     const spend = parseFloat(r.spend ?? '');
     if (!Number.isFinite(spend)) continue;
     if (r.account_currency) currency = r.account_currency.toUpperCase();
+    const campaign = (r.campaign_name ?? '').trim();
     const minor = Math.round(spend * 100);
-    minorByDate.set(date, (minorByDate.get(date) ?? 0) + minor);
+    const key = `${date} ${campaign}`;
+    const existing = minorByKey.get(key);
+    if (existing) existing.amount_minor += minor;
+    else minorByKey.set(key, { spend_date: date, campaign, amount_minor: minor });
+    campaigns.add(campaign);
     totalSpendMinor += minor;
+    if (isAcquisitionCampaign(campaign)) acquisitionSpendMinor += minor;
   }
 
   // Convert to EUR with the live fx_rates table (falls back to the seed rates).
   const rates = await getFxRatesToEur(db);
   const rate = rates[currency] ?? null;
-  const rows = [...minorByDate.entries()].map(([spend_date, amount_minor]) => ({
-    spend_date,
-    amount_minor,
+  const rows = [...minorByKey.values()].map((r) => ({
+    spend_date: r.spend_date,
+    campaign: r.campaign,
+    amount_minor: r.amount_minor,
     currency,
-    amount_eur_minor: rate != null ? Math.round(amount_minor * rate) : null,
+    amount_eur_minor: rate != null ? Math.round(r.amount_minor * rate) : null,
   }));
 
   await replaceMetaAdSpend(db, { from, to }, rows);
   await setConfig(db, SYNC_MARKER_KEY, new Date().toISOString());
 
+  const days = new Set(rows.map((r) => r.spend_date)).size;
   return {
     skipped: false,
-    days: rows.length,
+    days,
+    rows: rows.length,
+    campaigns: campaigns.size,
     from,
     to,
     currency,
     totalSpendMinor,
+    acquisitionSpendMinor,
+    retargetingSpendMinor: totalSpendMinor - acquisitionSpendMinor,
     fxMissing: rate == null,
   };
 }

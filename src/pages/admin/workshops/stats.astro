@@ -6,6 +6,7 @@ import {
   computeStats,
   computeCourseSales,
   mergeDailyStreams,
+  computeAdSpendByCampaign,
 } from '../../../lib/workshops/stats';
 import { listWorkshops, getProductById } from '../../../lib/workshops/db';
 import {
@@ -51,6 +52,7 @@ const workshops = await listWorkshops(env.DB);
 const report = await computeStats(env.DB, { from, to, workshopId });
 const courses = await computeCourseSales(env.DB, { from, to });
 const days = mergeDailyStreams(report, courses, from, to);
+const campaignSpend = await computeAdSpendByCampaign(env.DB, { from, to });
 
 let cmp: {
   report: Awaited<ReturnType<typeof computeStats>>;
@@ -395,6 +397,28 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
       <h2>Ad spend</h2>
       <p class="adm-sub">Pull spend straight from the Meta Marketing API, or import a CSV export as a fallback. Both write the same daily figures; the direct pull re-syncs a rolling 14&#8209;day window and is the source of truth for those days.</p>
 
+      {campaignSpend.length > 0 && (
+        <div style="margin:12px 0 4px;">
+          <p class="adm-sub"><strong>By campaign</strong> — this window. Cost per registration counts <strong>prospecting</strong> (a campaign with “TOF” in its name) only; the rest is retargeting and is excluded from it (but still in total spend + blended ROAS).</p>
+          <table class="adm-table" style="max-width:640px;">
+            <thead><tr><th>Campaign</th><th>Type</th><th style="text-align:right;">Spend (EUR)</th></tr></thead>
+            <tbody>
+              {campaignSpend.map((c) => (
+                <tr>
+                  <td>{c.campaign || <em>(no campaign name)</em>}</td>
+                  <td>{c.kind === 'acquisition' ? 'Prospecting' : 'Retargeting'}</td>
+                  <td style="text-align:right;">{eur(c.eurMinor)}</td>
+                </tr>
+              ))}
+              <tr>
+                <td colspan="2"><strong>Total</strong> <span class="adm-sub" style="font-weight:400;">· {eur(campaignSpend.filter((c) => c.kind === 'acquisition').reduce((s, c) => s + c.eurMinor, 0))} prospecting · {eur(campaignSpend.filter((c) => c.kind === 'retargeting').reduce((s, c) => s + c.eurMinor, 0))} retargeting</span></td>
+                <td style="text-align:right;"><strong>{eur(campaignSpend.reduce((s, c) => s + c.eurMinor, 0))}</strong></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
+
       <p class="adm-sub" style="margin-top:12px;"><strong>Pull from Meta</strong> — needs <code>META_AD_ACCOUNT_ID</code> + an <code>ads_read</code> token set as secrets. Runs automatically about once a day; use this to sync now.</p>
       <form id="spend-sync-form" class="adm-inline-form">
         <button type="submit" class="adm-btn adm-btn--solid">Pull from Meta now</button>
@@ -692,7 +716,14 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
           var spend = data.totalSpendMinor != null
             ? ' — ' + (data.totalSpendMinor / 100).toLocaleString('en-IE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ' + (data.currency || '') + eur
             : '';
-          out.textContent = 'Synced ' + data.days + ' day(s), ' + data.from + ' → ' + data.to + spend + '. Reloading…';
+          var money = function (m) { return (m / 100).toLocaleString('en-IE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
+          var campaigns = data.campaigns != null
+            ? ' across ' + data.campaigns + ' campaign(s)' +
+              (data.acquisitionSpendMinor != null
+                ? ' (' + money(data.acquisitionSpendMinor) + ' prospecting · ' + money(data.retargetingSpendMinor) + ' retargeting)'
+                : '')
+            : '';
+          out.textContent = 'Synced ' + data.days + ' day(s)' + campaigns + ', ' + data.from + ' → ' + data.to + spend + '. Reloading…';
           setTimeout(function () { location.href = '/admin/workshops/stats?flash=spend'; }, 1100);
         } catch (e2) { out.textContent = 'Error: ' + (e2.message || e2); btn.disabled = false; }
       });

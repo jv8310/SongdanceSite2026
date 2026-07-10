@@ -79,7 +79,9 @@ const tiles: Array<{ label: string; value: string; sub?: string; d: Delta }> = [
   {
     label: 'Ad spend',
     value: d.hasAdSpend ? eur0(d.adSpendEurMinor) : '—',
-    sub: d.hasAdSpend ? undefined : 'no spend imported',
+    sub: d.hasAdSpend
+      ? `${eur0(d.acquisitionSpendEurMinor)} prospecting · ${eur0(d.retargetingSpendEurMinor)} retargeting`
+      : 'no spend imported',
     d: delta(d.adSpendEurMinor, cmp?.adSpendEurMinor),
   },
   {
@@ -91,7 +93,7 @@ const tiles: Array<{ label: string; value: string; sub?: string; d: Delta }> = [
   {
     label: 'Cost / registration',
     value: d.costPerRegistrationEurMinor != null ? eur(Math.round(d.costPerRegistrationEurMinor)) : '—',
-    sub: 'ad spend ÷ regs',
+    sub: 'prospecting spend ÷ regs',
     d: delta(d.costPerRegistrationEurMinor, cmp?.costPerRegistrationEurMinor, true),
   },
   {
@@ -332,7 +334,7 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
       </form>
       <p class="rangenote">
         Showing <strong>{rangeLabel}</strong>{cmp && cmpFrom && cmpTo && <> · vs <strong>{dateLabel(cmpFrom)} → {dateLabel(cmpTo)}</strong></>}.
-        {d.hasAdSpend && <> Ad spend {eur0(d.adSpendEurMinor)} ÷ {int(d.registrations)} registrations = <strong>{d.costPerRegistrationEurMinor != null ? eur(Math.round(d.costPerRegistrationEurMinor)) : '—'}</strong> per registration.</>}
+        {d.hasAdSpend && <> Prospecting spend {eur0(d.acquisitionSpendEurMinor)} ÷ {int(d.registrations)} registrations = <strong>{d.costPerRegistrationEurMinor != null ? eur(Math.round(d.costPerRegistrationEurMinor)) : '—'}</strong> per registration{d.retargetingSpendEurMinor > 0 && <> · {eur0(d.retargetingSpendEurMinor)} retargeting excluded</>}.</>}
         {!(from && to) && <span class="sub-muted"> Pick a bounded period to compare against the previous one.</span>}
       </p>
 
@@ -398,7 +400,7 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
               </div>
               <div class="chart-block">
                 <h3>Cost per registration</h3>
-                <p class="ch-sub">Ad spend ÷ registrations, per day{!d.hasAdSpend && ' — needs imported spend'}</p>
+                <p class="ch-sub">Prospecting (TOF) spend ÷ registrations, per day{!d.hasAdSpend && ' — needs imported spend'}</p>
                 <div class="chart" id="ch-cpa"></div>
               </div>
             </div>
@@ -546,7 +548,7 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
       </div>
 
       <div class="flags">
-        <p>Money in EUR. Workshop-engine figures are net of tax where tax data exists; standalone course sales (12-week, certification) are amounts charged so far (installments count paid installments only, refunds subtracted), gross of VAT, converted at fallback FX. Meta cost per workshop = average cost per registration × that workshop’s registrations (ad spend isn’t tracked per workshop). Figures reconcile with /admin/workshops/stats for the same window.</p>
+        <p>Money in EUR. Workshop-engine figures are net of tax where tax data exists; standalone course sales (12-week, certification) are amounts charged so far (installments count paid installments only, refunds subtracted), gross of VAT, converted at fallback FX. Cost per registration uses <strong>prospecting (TOF) spend only</strong> — the campaign that buys new registrations; retargeting spend is excluded from it (but still counts in total ad spend + blended ROAS). Meta cost per workshop allocates <strong>total</strong> ad spend by each workshop’s share of registrations (spend isn’t tracked per workshop). Figures reconcile with /admin/workshops/stats for the same window.</p>
         {d.flaggedNoTax > 0 && <p>⚠ {d.flaggedNoTax} workshop payment(s) had no tax data — net taken equal to gross for those.</p>}
         {d.fxConverted > 0 && <p>⚠ {d.fxConverted} course sale(s) charged in a non-EUR currency, converted with the fallback rate table.</p>}
       </div>

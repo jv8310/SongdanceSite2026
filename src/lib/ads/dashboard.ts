@@ -29,9 +29,10 @@ import { BUMPS, isBumpSlug } from '../courses/bumps';
 export type AcquisitionDay = {
   date: string; // YYYY-MM-DD
   registrations: number;
-  adSpendEurMinor: number;
+  adSpendEurMinor: number; // all campaigns
+  acquisitionSpendEurMinor: number; // prospecting (TOF) campaigns only
   revenueEurMinor: number;
-  cpaEurMinor: number | null; // ad spend ÷ registrations that day
+  cpaEurMinor: number | null; // prospecting spend ÷ registrations that day
 };
 
 export type BumpLabel = { label: string; count: number; eurMinor: number };
@@ -41,9 +42,11 @@ export type AdsDashboard = {
   to: string | null;
 
   // Headline (ads-manager KPIs) ------------------------------------------
-  adSpendEurMinor: number;
+  adSpendEurMinor: number; // all campaigns
+  acquisitionSpendEurMinor: number; // prospecting (TOF) campaigns
+  retargetingSpendEurMinor: number; // everything else
   registrations: number;
-  costPerRegistrationEurMinor: number | null; // ad spend ÷ registrations
+  costPerRegistrationEurMinor: number | null; // prospecting spend ÷ registrations
   attendedLive: number;
   replayViews: number;
   noShows: number;
@@ -223,13 +226,16 @@ export async function computeAdsDashboard(
     const s = streamByDate.get(date);
     const regs = dailyRegs.get(date) ?? 0;
     const spend = s?.adSpendEurMinor ?? 0;
+    const acqSpend = s?.acquisitionAdSpendEurMinor ?? 0;
     const rev = s?.totalEurMinor ?? 0;
     return {
       date,
       registrations: regs,
       adSpendEurMinor: spend,
+      acquisitionSpendEurMinor: acqSpend,
       revenueEurMinor: rev,
-      cpaEurMinor: regs > 0 && spend > 0 ? Math.round(spend / regs) : null,
+      // Cost per registration = prospecting (TOF) spend ÷ registrations.
+      cpaEurMinor: regs > 0 && acqSpend > 0 ? Math.round(acqSpend / regs) : null,
     };
   });
 
@@ -254,6 +260,8 @@ export async function computeAdsDashboard(
     to,
 
     adSpendEurMinor,
+    acquisitionSpendEurMinor: perf.acquisitionSpendEurMinor,
+    retargetingSpendEurMinor: perf.retargetingSpendEurMinor,
     registrations,
     costPerRegistrationEurMinor: perf.costPerRegistrationEurMinor,
     attendedLive,
