@@ -1,6 +1,7 @@
 ---
 import { COUNTRIES } from '../../lib/countries';
 import LaunchOfferCallout from '../promo/LaunchOfferCallout.astro';
+import GuaranteeBadge from '../GuaranteeBadge.astro';
 
 const countries = COUNTRIES;
 ---
@@ -38,6 +39,10 @@ const countries = COUNTRIES;
         <span class="cc-register-status-text" data-cc-status-text>Finding your profile…</span>
       </div>
       <p class="cc-register-error" data-cc-error></p>
+    </div>
+
+    <div class="cc-register-guarantee" style="max-width:560px;margin:26px auto 0;">
+      <GuaranteeBadge variant="card" />
     </div>
 
     <!-- Variant template — cloned and filled in by the script below.

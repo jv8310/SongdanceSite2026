@@ -2,6 +2,7 @@
 import { SESSION_URL } from './config';
 import { COUNTRIES } from '../../lib/countries';
 import LaunchOfferCallout from '../promo/LaunchOfferCallout.astro';
+import GuaranteeBadge from '../GuaranteeBadge.astro';
 
 const includes = [
   '18+ hours of video across 12 modules, full of guided practices',
@@ -33,6 +34,10 @@ const includes = [
           </li>
         ))}
       </ul>
+    </div>
+
+    <div class="tw-reg-guarantee" data-reveal style="max-width:560px;margin:22px auto 0;">
+      <GuaranteeBadge variant="card" />
     </div>
 
     <div class="tw-reg-gate" data-tw-stage data-reveal>
