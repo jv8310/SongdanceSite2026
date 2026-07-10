@@ -14,6 +14,7 @@
 
 import { FX_TO_EUR } from './currency';
 import { selectByIdsChunked } from '../db/chunked';
+import { isAcquisitionCampaign, campaignKind, type CampaignKind } from '../ads/campaigns';
 
 export const MASTERCLASS_PRODUCT_SLUG = 'svh-masterclass';
 
@@ -63,14 +64,17 @@ export type DailyStat = {
   masterclassNetEurMinor: number;
   bumpNetEurMinor: number;
   courseNetEurMinor: number;
-  adSpendEurMinor: number;
+  adSpendEurMinor: number; // all campaigns
+  acquisitionAdSpendEurMinor: number; // prospecting (TOF) campaigns only
   roas: number | null;
 };
 
 export type StatsReport = {
   totals: StatsTotals;
   daily: DailyStat[];
-  adSpendEurMinor: number;
+  adSpendEurMinor: number; // all campaigns (drives blended ROAS)
+  acquisitionAdSpendEurMinor: number; // prospecting (TOF) share
+  retargetingAdSpendEurMinor: number; // everything else
   roas: number | null;
   courseBreakdown: Array<{ product_id: number; count: number; netEurMinor: number }>;
 };
@@ -211,18 +215,26 @@ export async function computeStats(
   if (opts.to) { adWhere.push('spend_date <= ?'); adBinds.push(opts.to); }
   const adRes = await db
     .prepare(
-      `SELECT spend_date, amount_eur_minor, amount_minor, currency FROM workshop_ad_spend
+      `SELECT spend_date, campaign, amount_eur_minor, amount_minor, currency FROM workshop_ad_spend
         ${adWhere.length ? 'WHERE ' + adWhere.join(' AND ') : ''}`,
     )
     .bind(...adBinds)
-    .all<{ spend_date: string; amount_eur_minor: number | null; amount_minor: number; currency: string }>();
+    .all<{ spend_date: string; campaign: string; amount_eur_minor: number | null; amount_minor: number; currency: string }>();
 
+  // Total spend drives blended ROAS; the acquisition (TOF/prospecting) share
+  // drives cost per registration. Split both overall and per day.
   let adSpendEurMinor = 0;
+  let acquisitionAdSpendEurMinor = 0;
   const adByDate = new Map<string, number>();
+  const acqByDate = new Map<string, number>();
   for (const a of adRes.results ?? []) {
     const eur = a.amount_eur_minor ?? (a.currency === 'EUR' ? a.amount_minor : 0);
     adSpendEurMinor += eur;
     adByDate.set(a.spend_date, (adByDate.get(a.spend_date) ?? 0) + eur);
+    if (isAcquisitionCampaign(a.campaign)) {
+      acquisitionAdSpendEurMinor += eur;
+      acqByDate.set(a.spend_date, (acqByDate.get(a.spend_date) ?? 0) + eur);
+    }
   }
 
   // Daily table merges revenue + ad spend dates.
@@ -241,6 +253,7 @@ export async function computeStats(
         bumpNetEurMinor: rev.bump,
         courseNetEurMinor: rev.course,
         adSpendEurMinor: spend,
+        acquisitionAdSpendEurMinor: acqByDate.get(date) ?? 0,
         roas: spend > 0 ? rev.net / spend : null,
       };
     });
@@ -249,6 +262,8 @@ export async function computeStats(
     totals,
     daily,
     adSpendEurMinor,
+    acquisitionAdSpendEurMinor,
+    retargetingAdSpendEurMinor: adSpendEurMinor - acquisitionAdSpendEurMinor,
     roas: adSpendEurMinor > 0 ? totals.netEurMinor / adSpendEurMinor : null,
     courseBreakdown: [...courseMap.entries()].map(([product_id, v]) => ({
       product_id,
@@ -423,8 +438,13 @@ export type WorkshopPerformanceRow = {
 
 export type WorkshopPerformanceReport = {
   rows: WorkshopPerformanceRow[];
-  adSpendEurMinor: number;
+  adSpendEurMinor: number; // all campaigns
+  acquisitionSpendEurMinor: number; // prospecting (TOF) campaigns
+  retargetingSpendEurMinor: number; // everything else
   totalRegistrations: number;
+  // Cost per registration is charged against prospecting spend only — the
+  // campaign that actually buys registrations. (Retargeting re-touches people
+  // already in the funnel, so counting it would overstate acquisition cost.)
   costPerRegistrationEurMinor: number | null;
 };
 
@@ -544,21 +564,26 @@ export async function computeWorkshopPerformance(
     standalone.set(r.email, s);
   }
 
-  // Ad spend over the window → average cost per completed registration.
+  // Ad spend over the window. Total drives the per-workshop Meta-cost
+  // allocation + blended ROAS; the acquisition (TOF/prospecting) share drives
+  // cost per registration.
   const adBinds: unknown[] = [];
   const adWhere: string[] = [];
   if (opts.from) { adWhere.push('spend_date >= ?'); adBinds.push(opts.from); }
   if (opts.to) { adWhere.push('spend_date <= ?'); adBinds.push(opts.to); }
   const adRes = await db
     .prepare(
-      `SELECT amount_eur_minor, amount_minor, currency FROM workshop_ad_spend
+      `SELECT campaign, amount_eur_minor, amount_minor, currency FROM workshop_ad_spend
         ${adWhere.length ? 'WHERE ' + adWhere.join(' AND ') : ''}`,
     )
     .bind(...adBinds)
-    .all<{ amount_eur_minor: number | null; amount_minor: number; currency: string }>();
+    .all<{ campaign: string; amount_eur_minor: number | null; amount_minor: number; currency: string }>();
   let adSpendEurMinor = 0;
+  let acquisitionSpendEurMinor = 0;
   for (const a of adRes.results ?? []) {
-    adSpendEurMinor += a.amount_eur_minor ?? (a.currency === 'EUR' ? a.amount_minor : 0);
+    const eur = a.amount_eur_minor ?? (a.currency === 'EUR' ? a.amount_minor : 0);
+    adSpendEurMinor += eur;
+    if (isAcquisitionCampaign(a.campaign)) acquisitionSpendEurMinor += eur;
   }
 
   // ---- Aggregate per workshop ----
@@ -612,7 +637,15 @@ export async function computeWorkshopPerformance(
   }
 
   const totalRegistrations = [...accs.values()].reduce((s, a) => s + a.regs, 0);
+  // Cost per registration = prospecting (TOF) spend ÷ registrations.
   const costPerRegistrationEurMinor =
+    acquisitionSpendEurMinor > 0 && totalRegistrations > 0
+      ? acquisitionSpendEurMinor / totalRegistrations
+      : null;
+  // Per-workshop Meta cost allocates *total* spend by registration share, so
+  // the column + total row reconcile with the total ad-spend figure and blended
+  // ROAS. (This is deliberately not the prospecting-only cost above.)
+  const blendedCostPerRegistrationEurMinor =
     adSpendEurMinor > 0 && totalRegistrations > 0 ? adSpendEurMinor / totalRegistrations : null;
 
   // One row per non-deleted workshop — including those with no activity yet,
@@ -634,7 +667,9 @@ export async function computeWorkshopPerformance(
     const attended = a.live + a.replay;
     const totalEurMinor = a.netEurMinor + attributedEur;
     const metaCostEurMinor =
-      costPerRegistrationEurMinor != null ? Math.round(costPerRegistrationEurMinor * a.regs) : null;
+      blendedCostPerRegistrationEurMinor != null
+        ? Math.round(blendedCostPerRegistrationEurMinor * a.regs)
+        : null;
     return {
       workshopId: w.id,
       title: w.title,
@@ -658,7 +693,45 @@ export async function computeWorkshopPerformance(
     };
   });
 
-  return { rows, adSpendEurMinor, totalRegistrations, costPerRegistrationEurMinor };
+  return {
+    rows,
+    adSpendEurMinor,
+    acquisitionSpendEurMinor,
+    retargetingSpendEurMinor: adSpendEurMinor - acquisitionSpendEurMinor,
+    totalRegistrations,
+    costPerRegistrationEurMinor,
+  };
+}
+
+// Ad spend grouped by campaign for a window, EUR-converted, tagged with its
+// funnel intent — for the admin "By campaign" breakdown so the TOF/retargeting
+// split is verifiable at a glance.
+export type CampaignSpend = { campaign: string; kind: CampaignKind; eurMinor: number };
+
+export async function computeAdSpendByCampaign(
+  db: D1Database,
+  opts: { from?: string | null; to?: string | null } = {},
+): Promise<CampaignSpend[]> {
+  const where: string[] = [];
+  const binds: unknown[] = [];
+  if (opts.from) { where.push('spend_date >= ?'); binds.push(opts.from); }
+  if (opts.to) { where.push('spend_date <= ?'); binds.push(opts.to); }
+  const res = await db
+    .prepare(
+      `SELECT campaign, amount_eur_minor, amount_minor, currency FROM workshop_ad_spend
+        ${where.length ? 'WHERE ' + where.join(' AND ') : ''}`,
+    )
+    .bind(...binds)
+    .all<{ campaign: string; amount_eur_minor: number | null; amount_minor: number; currency: string }>();
+  const byCampaign = new Map<string, number>();
+  for (const a of res.results ?? []) {
+    const eur = a.amount_eur_minor ?? (a.currency === 'EUR' ? a.amount_minor : 0);
+    const name = (a.campaign ?? '').trim();
+    byCampaign.set(name, (byCampaign.get(name) ?? 0) + eur);
+  }
+  return [...byCampaign.entries()]
+    .map(([campaign, eurMinor]) => ({ campaign, kind: campaignKind(campaign), eurMinor }))
+    .sort((a, b) => b.eurMinor - a.eurMinor);
 }
 
 // ---------------------------------------------------------------------------
@@ -674,7 +747,8 @@ export type StreamDay = {
   certificationEurMinor: number;
   otherCoursesEurMinor: number;
   totalEurMinor: number;
-  adSpendEurMinor: number;
+  adSpendEurMinor: number; // all campaigns
+  acquisitionAdSpendEurMinor: number; // prospecting (TOF) campaigns only
 };
 
 function addDays(ymd: string, n: number): string {
@@ -713,6 +787,7 @@ export function mergeDailyStreams(
       otherCoursesEurMinor: other,
       totalEurMinor: workshopsNet + masterclass + tw + cert + other,
       adSpendEurMinor: w?.adSpendEurMinor ?? 0,
+      acquisitionAdSpendEurMinor: w?.acquisitionAdSpendEurMinor ?? 0,
     });
     if (out.length > 3700) break; // hard cap ≈ 10 years; keeps "all time" sane
   }

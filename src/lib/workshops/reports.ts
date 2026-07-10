@@ -782,6 +782,7 @@ export function sampleWeeklyReportData(): ReportData {
         certificationEurMinor +
         otherCoursesEurMinor,
       adSpendEurMinor: 0,
+      acquisitionAdSpendEurMinor: 0,
     };
   });
 

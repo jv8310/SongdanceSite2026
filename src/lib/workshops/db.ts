@@ -1171,15 +1171,16 @@ export async function upsertAdSpend(
 // Replace the Meta channel's spend for a date window in one atomic batch: clear
 // every existing meta row in [from, to] — any campaign, since the CSV importer
 // may have left blank- or per-campaign rows there — then insert the freshly
-// pulled account-level day rows. Making Meta authoritative for its own channel
+// pulled per-campaign day rows. Making Meta authoritative for its own channel
 // inside the sync window means the direct pull (src/lib/ads/meta-insights.ts)
-// can never double-count against a stale CSV import, and a day Meta reports as
-// zero-spend correctly clears. Only call this AFTER a successful Insights
-// fetch — an empty `rows` from a failed fetch would otherwise wipe real data.
+// can never double-count against a stale CSV import, and a (day, campaign) Meta
+// reports as zero-spend correctly clears. Only call this AFTER a successful
+// Insights fetch — an empty `rows` from a failed fetch would otherwise wipe real
+// data.
 export async function replaceMetaAdSpend(
   db: D1Database,
   window: { from: string; to: string },
-  rows: Array<{ spend_date: string; amount_minor: number; currency: string; amount_eur_minor: number | null }>,
+  rows: Array<{ spend_date: string; campaign: string; amount_minor: number; currency: string; amount_eur_minor: number | null }>,
 ): Promise<void> {
   const stmts: D1PreparedStatement[] = [
     db
@@ -1194,9 +1195,9 @@ export async function replaceMetaAdSpend(
       db
         .prepare(
           `INSERT INTO workshop_ad_spend (spend_date, channel, campaign, amount_minor, currency, amount_eur_minor)
-           VALUES (?, 'meta', '', ?, ?, ?)`,
+           VALUES (?, 'meta', ?, ?, ?, ?)`,
         )
-        .bind(r.spend_date, r.amount_minor, r.currency, r.amount_eur_minor),
+        .bind(r.spend_date, r.campaign, r.amount_minor, r.currency, r.amount_eur_minor),
     );
   }
   await db.batch(stmts);
