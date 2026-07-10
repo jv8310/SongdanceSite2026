@@ -45,6 +45,17 @@ type Env = {
   // Workshop engine — Meta Conversions API (optional)
   META_PIXEL_ID?: string;
   META_ACCESS_TOKEN?: string;
+  // Meta Marketing API — pull daily ad spend straight into workshop_ad_spend
+  // (src/lib/ads/meta-insights.ts), so /ads + stats ROAS need no CSV import.
+  // Both required to activate; the cron no-ops until they're set.
+  //   • META_AD_ACCOUNT_ID — "act_1234567890" or bare "1234567890".
+  //   • META_ADS_TOKEN — a token with `ads_read` on that account (a non-expiring
+  //     System User token is ideal). Falls back to META_ACCESS_TOKEN, but the
+  //     CAPI token usually lacks ads_read, so set this explicitly.
+  META_AD_ACCOUNT_ID?: string;
+  META_ADS_TOKEN?: string;
+  // Optional Graph API version override for the ad-spend pull; default v21.0.
+  META_API_VERSION?: string;
   // Workshop engine — Google Calendar import (optional; one auth path)
   GOOGLE_SA_JSON?: string;
   GOOGLE_OAUTH_CLIENT_ID?: string;
