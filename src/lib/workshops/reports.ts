@@ -94,6 +94,7 @@ export type ReportData = {
     totalEurMinor: number;
     adSpendEurMinor: number;
     roas: number | null; // matches the dashboard's blended ROAS (excludes course bumps)
+    costPerRegEurMinor: number | null; // ad spend ÷ workshop registrations (null if no spend/regs)
   };
   daily: StreamDay[]; // per-day streams over the window (used by the weekly digest)
 };
@@ -208,6 +209,12 @@ export async function gatherReportData(
       totalEurMinor,
       adSpendEurMinor: stats.adSpendEurMinor,
       roas: stats.adSpendEurMinor > 0 ? roasNet / stats.adSpendEurMinor : null,
+      // Ad spend ÷ new workshop registrations — same definition the stats page
+      // and /ads dashboard use (cost per registration). Null with no spend/regs.
+      costPerRegEurMinor:
+        stats.adSpendEurMinor > 0 && regTotal > 0
+          ? Math.round(stats.adSpendEurMinor / regTotal)
+          : null,
     },
     daily: mergeDailyStreams(stats, courses, from, to),
   };
@@ -361,6 +368,16 @@ function renderReport(opts: {
     { label: 'Total revenue', value: eur(r.totalEurMinor) },
   ]);
 
+  // Ad-efficiency headline — cost per workshop registration + blended ROAS,
+  // shown as their own boxes at the top ('—' when there's no ad spend to divide).
+  const adEfficiency = statCards([
+    {
+      label: 'Cost / workshop registration',
+      value: r.costPerRegEurMinor != null ? eur(r.costPerRegEurMinor) : '—',
+    },
+    { label: 'Blended ROAS', value: r.roas != null ? r.roas.toFixed(2) + '×' : '—' },
+  ]);
+
   const regSection =
     sectionLabel('Workshop registrations') +
     (data.registrations.byWorkshop.length
@@ -431,6 +448,7 @@ function renderReport(opts: {
           <p style="margin:4px 0 0;font-size:14px;color:${C.muted};">${escapeHtml(rangeLabel)}</p>
         </td></tr>
         <tr><td style="padding:16px 20px 0;">${snapshot}</td></tr>
+        <tr><td style="padding:6px 20px 0;">${adEfficiency}</td></tr>
         <tr><td style="padding:0 26px;">
           ${regSection}
           ${courseSection}
@@ -457,6 +475,9 @@ function renderReportText(kindLabel: string, rangeLabel: string, data: ReportDat
     `Registrations: ${data.registrations.total} · Course sales: ${data.courseSales.total} · Total revenue: ${eur(
       r.totalEurMinor,
     )}`,
+    `Cost / workshop registration: ${
+      r.costPerRegEurMinor != null ? eur(r.costPerRegEurMinor) : '—'
+    } · Blended ROAS: ${r.roas != null ? r.roas.toFixed(2) + '×' : '—'}`,
     '',
     'WORKSHOP REGISTRATIONS',
   );
@@ -747,6 +768,7 @@ export function sampleDailyReportData(): ReportData {
       totalEurMinor: 235300,
       adSpendEurMinor: 8500,
       roas: 27.46,
+      costPerRegEurMinor: 1214,
     },
     daily: [],
   };
@@ -824,6 +846,7 @@ export function sampleWeeklyReportData(): ReportData {
       totalEurMinor: 785000,
       adSpendEurMinor: 62000,
       roas: 12.41,
+      costPerRegEurMinor: 1632,
     },
     daily,
   };
