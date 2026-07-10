@@ -306,12 +306,12 @@ export function countdownPanel(opts: {
   altText: string;
   caption: string;
 }): string {
-  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:28px 0;background-color:${DPAL.panel};border:1px solid ${DPAL.line};border-radius:6px;"><tr>
-    <td align="center" style="padding:26px 20px 18px;">
-      <img src="${opts.gifUrl}" width="354" alt="${escapeHtml(
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:24px 0;background-color:${DPAL.panel};border:1px solid ${DPAL.line};border-radius:6px;"><tr>
+    <td align="center" style="padding:20px 20px 14px;">
+      <img src="${opts.gifUrl}" width="220" alt="${escapeHtml(
         opts.altText,
-      )}" style="display:block;width:354px;max-width:100%;height:auto;margin:0 auto;" />
-      <p style="font-family:${FONT_BODY};font-size:12px;letter-spacing:2px;text-transform:uppercase;color:${DPAL.ember};font-weight:600;margin:14px 0 0;">${escapeHtml(
+      )}" style="display:block;width:220px;max-width:70%;height:auto;margin:0 auto;" />
+      <p style="font-family:${FONT_BODY};font-size:11px;letter-spacing:2px;text-transform:uppercase;color:${DPAL.ember};font-weight:600;margin:12px 0 0;">${escapeHtml(
         opts.caption,
       )}</p>
     </td>

@@ -36,10 +36,6 @@ const includes = [
       </ul>
     </div>
 
-    <div class="tw-reg-guarantee" data-reveal style="max-width:560px;margin:22px auto 0;">
-      <GuaranteeBadge variant="card" />
-    </div>
-
     <div class="tw-reg-gate" data-tw-stage data-reveal>
       <form class="tw-reg-emailform" data-tw-email-form>
         <input type="email" name="email" placeholder="Your email" autocomplete="email" required />
@@ -240,6 +236,10 @@ const includes = [
         <option value={`+${c.dial} ${c.name}`}>{c.flag}</option>
       ))}
     </datalist>
+
+    <div class="tw-reg-guarantee" data-reveal style="max-width:560px;margin:28px auto 0;">
+      <GuaranteeBadge variant="card" />
+    </div>
 
     <p class="tw-reg-fine" data-reveal>
       Not sure yet?
