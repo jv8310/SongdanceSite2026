@@ -32,6 +32,7 @@ import {
 } from './db';
 import { sendEmail, sendEmailBatch, type BatchEmailInput } from './resend';
 import { recordEmailSendStmt } from '../email/sends';
+import { logEmailDrop } from '../email/drops';
 import {
   abandonedEmail1,
   abandonedEmail2,
@@ -239,6 +240,36 @@ export async function runWorkshopCron(env: CronEnv, now = Date.now()): Promise<C
   return result;
 }
 
+// How wide a live session's "reminder-critical" window is, either side of its
+// start. Inside it, the imminent 1h/20m/5m/we're-live reminders are firing (or
+// catching up), and the bulk broadcast drain must yield the Resend rate limit so
+// those transactional sends aren't starved — which is exactly what dropped every
+// 1h and 20m reminder for the 9 Jul session while a 10k-email broadcast ran.
+const BROADCAST_YIELD_LEAD_MIN = 30; // before start (covers 20m + 5m + slack)
+const BROADCAST_YIELD_TRAIL_MIN = 30; // after start (covers the we're-live catch-up)
+
+// True when a published, live (non-replay) session is within its
+// reminder-critical window right now. The 5-minute cron uses this to PAUSE the
+// broadcast drain for that tick so imminent reminders own Resend's throughput.
+// A read-only single-row check; cheap enough to run every tick.
+export async function liveWorkshopImminent(
+  env: { DB: D1Database },
+  now = Date.now(),
+): Promise<boolean> {
+  const ceil = new Date(now + BROADCAST_YIELD_LEAD_MIN * MIN_MS).toISOString();
+  const floor = new Date(now - BROADCAST_YIELD_TRAIL_MIN * MIN_MS).toISOString();
+  const row = await env.DB
+    .prepare(
+      `SELECT 1 AS one FROM workshops
+        WHERE status = 'published' AND deleted = 0 AND is_replay = 0
+          AND starts_at_utc <= ? AND starts_at_utc >= ?
+        LIMIT 1`,
+    )
+    .bind(ceil, floor)
+    .first<{ one: number }>();
+  return !!row;
+}
+
 // Run one cron step, swallowing (and logging) any error so a single step's
 // failure never cascades into skipping the steps after it. The step name is
 // logged so a persistently-failing step is identifiable in the tail.
@@ -415,8 +446,17 @@ async function flushReminders(env: CronEnv, pending: PendingReminder[], result: 
       ids = await sendEmailBatch(env.RESEND_API_KEY!, payload);
     } catch (err) {
       // Hard failure after the batch endpoint's own retries — release the claims
-      // so a later tick tries again instead of losing the reminder for good.
+      // so a later tick tries again instead of losing the reminder for good, and
+      // record the drop so a starved reminder window (e.g. a broadcast eating the
+      // Resend rate limit) is visible on /admin/emails/failures rather than only
+      // inferable from Resend's dashboard after the fact.
       for (const p of claimed) await releaseNotification(env.DB, p.registrationId, p.dueType);
+      await logEmailDrop(env.DB, {
+        stream: 'reminders',
+        emailType: [...new Set(claimed.map((p) => p.dueType))].join(','),
+        count: claimed.length,
+        detail: String(err),
+      });
       console.error('[workshops/cron] reminder batch failed; released claims for retry', err);
       continue;
     }

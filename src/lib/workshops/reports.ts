@@ -39,6 +39,7 @@ import { FX_TO_EUR, formatMoney } from './currency';
 import { shiftDays } from './periods';
 import { localHour } from './time';
 import { sendEmail } from './resend';
+import { logEmailDrop } from '../email/drops';
 import { parsePurchasedBumps } from '../courses/db';
 import { BUMPS, isBumpSlug } from '../courses/bumps';
 import type { EmailContent } from './emails';
@@ -855,9 +856,15 @@ async function sendOne(
     return true;
   } catch (err) {
     // Surface the reason (the caller only logs on success) and drop the
-    // unconfirmed claim so a later hourly tick retries this same day.
+    // unconfirmed claim so a later hourly tick retries this same day. Record the
+    // drop so a digest the cron keeps losing (repeatedly torn down by the
+    // concurrent Anthropic intake sweep) is visible on /admin/emails/failures
+    // instead of only surfacing as "it never arrived".
     console.error(`[reports] send failed for ${externalId}`, err);
-    if (claimed) await releaseReport(env.DB, externalId).catch(() => {});
+    if (claimed) {
+      await releaseReport(env.DB, externalId).catch(() => {});
+      await logEmailDrop(env.DB, { stream: 'report', emailType: externalId, count: 1, detail: String(err) });
+    }
     return false;
   }
 }

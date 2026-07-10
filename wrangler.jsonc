@@ -83,6 +83,18 @@
   "triggers": {
     "crons": ["0 * * * *", "*/5 * * * *"]
   }
+  // CAPACITY NOTE — this account is on the Cloudflare Workers **Free** plan,
+  // which caps each invocation at **50 subrequests** (a subrequest = every
+  // fetch to Resend AND every D1 query). A cron tick that drains a broadcast,
+  // flushes reminders and runs the reconciles can blow past 50 and start
+  // throwing "Too many subrequests", silently dropping mail — a real
+  // contributor to the missed reminders/report. The code now runs those steps
+  // sequentially and yields the broadcast around live workshops, which keeps
+  // each step's subrequest use far lower, but the durable fix for headroom is
+  // the **Workers Paid plan ($5/mo)**: 1000 subrequests/invocation (20×) and it
+  // unlocks a configurable CPU ceiling. Once on Paid, add back:
+  //   "limits": { "cpu_ms": 300000 }
+  // (rejected on Free — see error code 100328 — so it is intentionally omitted).
   // Secrets (set in Cloudflare dashboard → Workers → Settings → Variables and Secrets,
   // or via `wrangler secret put <NAME>`):
   //   STRIPE_SECRET_KEY

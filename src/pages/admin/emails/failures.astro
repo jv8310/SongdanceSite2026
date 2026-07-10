@@ -1,0 +1,157 @@
+---
+// Admin — dropped mail. A plain log of transactional/marketing sends that were
+// ATTEMPTED but did not go out (Resend rate-limited them, the cron isolate was
+// torn down mid-flight, or a batch errored) and were released for retry. Fed by
+// logEmailDrop (src/lib/email/drops.ts) writing `events` rows; this is the view
+// that would have surfaced the 9 Jul missing-reminder gap in real time.
+import '../../../styles/admin.css';
+import Layout from '../../../layouts/Layout.astro';
+import { readCookie, verifySession } from '../../../lib/registrations/auth';
+import { recentEmailDrops, type EmailDropRow } from '../../../lib/email/drops';
+
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+if (!(await verifySession(env.ADMIN_SESSION_SECRET, readCookie(Astro.request)))) {
+  return Astro.redirect('/admin/login');
+}
+
+const drops = await recentEmailDrops(env.DB, 300);
+
+// Group by UTC day for a scannable timeline.
+function dayKey(at: string): string {
+  return (at || '').slice(0, 10);
+}
+const byDay = new Map<string, EmailDropRow[]>();
+for (const d of drops) {
+  const k = dayKey(d.at);
+  if (!byDay.has(k)) byDay.set(k, []);
+  byDay.get(k)!.push(d);
+}
+const days = [...byDay.keys()].sort((a, b) => b.localeCompare(a));
+
+// A per-stream count for the header summary.
+const streamCounts = new Map<string, number>();
+for (const d of drops) {
+  const s = d.drop.stream || 'unknown';
+  streamCounts.set(s, (streamCounts.get(s) ?? 0) + (d.drop.count ?? 1));
+}
+const streamSummary = [...streamCounts.entries()].sort((a, b) => b[1] - a[1]);
+
+const STREAM_LABEL: Record<string, string> = {
+  reminders: 'Workshop reminder',
+  report: 'SD-REPORT digest',
+  broadcast: 'Broadcast',
+  briefing: 'SD-BRIEFING',
+};
+const streamLabel = (s: string) => STREAM_LABEL[s] ?? s;
+
+function timeUtc(at: string): string {
+  return (at || '').slice(11, 19) || '—';
+}
+---
+
+<Layout title="Admin — Dropped mail — Songdance" description="">
+  <main class="adm">
+    <header class="adm-header">
+      <div>
+        <p class="adm-breadcrumbs">
+          <a href="/admin">Admin</a> <span class="sep">/</span>
+          <a href="/admin/emails">Emails</a> <span class="sep">/</span> Dropped mail
+        </p>
+        <h1>Dropped mail</h1>
+        <p class="adm-sub">
+          Sends that were attempted but did <strong>not</strong> go out — Resend
+          rate-limited them, the cron isolate was torn down mid-flight, or a
+          batch errored — and were released for a later retry. Reminder and
+          report drops are the ones to watch (they have a narrow window and can
+          be missed for good); broadcast drops self-heal on the next tick but a
+          run of them means Resend is throttling. Times are UTC.
+        </p>
+      </div>
+      <div class="adm-actions">
+        <a class="adm-btn adm-btn--ghost" href="/admin/emails">← Previews</a>
+        <a class="adm-btn adm-btn--ghost" href="/admin/emails/stats">Open &amp; click rates →</a>
+      </div>
+    </header>
+
+    {drops.length > 0 && (
+      <section class="adm-section">
+        <div class="df-summary">
+          {streamSummary.map(([s, n]) => (
+            <span class="df-chip"><strong>{n.toLocaleString()}</strong> {streamLabel(s)}{n === 1 ? '' : 's'}</span>
+          ))}
+        </div>
+      </section>
+    )}
+
+    {drops.length === 0 ? (
+      <section class="adm-section">
+        <p class="df-empty">
+          No dropped mail recorded. This is the good state — every attempted
+          reminder, digest and broadcast chunk went out on its first try. Entries
+          appear here automatically the moment a send is rate-limited or torn
+          down and released for retry.
+        </p>
+      </section>
+    ) : (
+      days.map((day) => (
+        <section class="adm-section">
+          <h2>{day}</h2>
+          <table class="df-table">
+            <thead>
+              <tr>
+                <th>Time (UTC)</th>
+                <th>Stream</th>
+                <th>Type</th>
+                <th class="df-num">Recipients</th>
+                <th>Reason</th>
+              </tr>
+            </thead>
+            <tbody>
+              {byDay.get(day)!.map((d) => (
+                <tr class={`df-row df-${d.drop.stream}`}>
+                  <td class="df-mono">{timeUtc(d.at)}</td>
+                  <td>{streamLabel(d.drop.stream)}</td>
+                  <td class="df-mono">{d.drop.emailType ?? '—'}</td>
+                  <td class="df-num">{(d.drop.count ?? 1).toLocaleString()}</td>
+                  <td class="df-reason">{d.drop.detail ?? '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      ))
+    )}
+  </main>
+
+  <style>
+    .df-summary { display: flex; flex-wrap: wrap; gap: 8px; }
+    .df-chip {
+      font-size: 13px; color: #6f5f6d; background: #fbf6ec;
+      border: 1px solid rgba(161, 72, 38, 0.22); border-radius: 999px;
+      padding: 5px 12px;
+    }
+    .df-chip strong { color: #a14826; }
+    .df-empty {
+      font-size: 14px; color: #6f5f6d; line-height: 1.6;
+      background: #fbf6ec; border: 1px solid rgba(161, 72, 38, 0.22);
+      border-radius: 12px; padding: 18px 20px;
+    }
+    .df-table {
+      width: 100%; border-collapse: collapse; background: #fbf6ec;
+      border: 1px solid rgba(161, 72, 38, 0.22); border-radius: 12px; overflow: hidden;
+    }
+    .df-table th, .df-table td {
+      padding: 9px 14px; text-align: left; font-size: 13.5px;
+      border-bottom: 1px solid rgba(161, 72, 38, 0.12); vertical-align: top;
+    }
+    .df-table th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: #6f5f6d; }
+    .df-table tr:last-child td { border-bottom: none; }
+    .df-num { text-align: right; font-variant-numeric: tabular-nums; }
+    .df-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }
+    .df-reason { color: #8a7a88; font-size: 12.5px; max-width: 420px; word-break: break-word; }
+    /* Reminder + report drops are the serious ones — tint them. */
+    .df-reminders td, .df-report td { background: rgba(161, 72, 38, 0.05); }
+  </style>
+</Layout>

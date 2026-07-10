@@ -13,7 +13,7 @@
 
 import { createExports as baseCreateExports } from '@astrojs/cloudflare/entrypoints/server.js';
 import { assessPendingSubmissions } from './lib/intake/sweep';
-import { runWorkshopCron } from './lib/workshops/cron';
+import { runWorkshopCron, liveWorkshopImminent } from './lib/workshops/cron';
 import { runBroadcasts } from './lib/broadcasts/cron';
 import { runDripOrderBackfill } from './lib/orders/drip-backfill';
 import { runMasterclassSeatMove } from './lib/workshops/masterclass-move';
@@ -107,146 +107,163 @@ export function createExports(manifest: unknown) {
     // Dispatch by cron string (see wrangler.jsonc triggers). The 5-minute
     // trigger drives the workshop reminder cadence + post-workshop emails;
     // the hourly trigger keeps sweeping unassessed intake submissions.
+    //
+    // Each branch runs its steps SEQUENTIALLY inside a single waitUntil, in
+    // priority order — NOT as several concurrent waitUntil tasks. That ordering
+    // is the fix for the email drops: every task in one cron firing shares the
+    // same invocation budget (CPU, subrequests) and the same Resend account rate
+    // limit (~2 req/s). When they ran concurrently, a bulk job (a 10k-email
+    // broadcast; the 12-minute Anthropic intake sweep) would win that shared
+    // budget and starve the time-critical transactional mail — which is how the
+    // 9 Jul workshop lost every 1h/20m reminder, and why the SD-REPORT digest
+    // kept not arriving. Running the important, cheap work FIRST and to
+    // completion guarantees it gets the budget before any bulk job starts.
     if (event.cron === WORKSHOP_CRON) {
       ctx.waitUntil(
-        runWorkshopCron(env)
-          .then((r) => {
+        (async () => {
+          // 1. Transactional workshop mail FIRST (reminders, briefing,
+          //    post-workshop). Awaited to completion so it owns the Resend rate
+          //    limit before any broadcast chunk is sent this tick.
+          try {
+            const r = await runWorkshopCron(env);
             console.log(
               `[workshops/cron] reminders=${r.remindersSent} abandoned=${r.abandonedSent} course_abandoned=${r.courseAbandonedSent} post=${r.postSent} no_shows=${r.noShowsMarked} briefings=${r.briefingsSent}`,
             );
-          })
-          .catch((err) => {
+          } catch (err) {
             console.error('[workshops/cron] run failed', err);
-          }),
-      );
-      // Drain any in-flight marketing broadcast on the same tick — paced, held
-      // to each recipient's local window, auto-paused on bounce/complaint spikes.
-      ctx.waitUntil(
-        runBroadcasts(env)
-          .then((r) => {
-            if (r.sent || r.paused || r.done) {
-              console.log(`[broadcasts/cron] sent=${r.sent} paused=${r.paused} done=${r.done}`);
+          }
+
+          // 2. Bulk marketing broadcast — paced, held to each recipient's local
+          //    window, auto-paused on bounce/complaint spikes. But YIELD the
+          //    whole tick when a live session is inside its reminder-critical
+          //    window: don't blast marketing on top of the imminent 20m/5m/
+          //    we're-live reminders (that contention is exactly what dropped
+          //    them on 9 Jul). The broadcast is a multi-day drain, so pausing it
+          //    for the ~1h around a workshop costs nothing.
+          try {
+            if (await liveWorkshopImminent(env)) {
+              console.log(
+                '[broadcasts/cron] skipped this tick — live workshop imminent, yielding Resend throughput to reminders',
+              );
+            } else {
+              const r = await runBroadcasts(env);
+              if (r.sent || r.paused || r.done) {
+                console.log(`[broadcasts/cron] sent=${r.sent} paused=${r.paused} done=${r.done}`);
+              }
             }
-          })
-          .catch((err) => {
+          } catch (err) {
             console.error('[broadcasts/cron] run failed', err);
-          }),
-      );
-      // One-shot historical Drip order backfill (gated by DRIP_BACKFILL_ENABLED).
-      // No-ops entirely until the owner turns it on; self-stops when drained.
-      ctx.waitUntil(
-        runDripOrderBackfill(env)
-          .then((r) => {
+          }
+
+          // 3. One-shot historical Drip order backfill (gated by
+          //    DRIP_BACKFILL_ENABLED). No-ops until the owner turns it on;
+          //    self-stops when drained. Last, so it can never delay mail.
+          try {
+            const r = await runDripOrderBackfill(env);
             if (!r.skipped && (r.sent || r.failed)) {
               console.log(`[drip/backfill] sent=${r.sent} failed=${r.failed} remaining=${r.remaining}`);
             }
-          })
-          .catch((err) => {
+          } catch (err) {
             console.error('[drip/backfill] run failed', err);
-          }),
-      );
-      // One-shot masterclass seat move (gated by MASTERCLASS_MOVE_ENABLED):
-      // move secured seats from masterclass-4 onto masterclass-5 and email each
-      // person their seat has moved. No-ops entirely until enabled; self-stops
-      // once the seeded queue (migration 0059) is drained.
-      ctx.waitUntil(
-        runMasterclassSeatMove(env)
-          .then((r) => {
+          }
+
+          // 4. One-shot masterclass seat move (gated by MASTERCLASS_MOVE_ENABLED):
+          //    move secured seats from masterclass-4 onto masterclass-5 and email
+          //    each person their seat has moved. No-ops until enabled; self-stops
+          //    once the seeded queue (migration 0059) is drained.
+          try {
+            const r = await runMasterclassSeatMove(env);
             if (!r.skipped && (r.moved || r.failed || r.noop)) {
               console.log(
                 `[masterclass/move] moved=${r.moved} noop=${r.noop} failed=${r.failed} remaining=${r.remaining}`,
               );
             }
-          })
-          .catch((err) => {
+          } catch (err) {
             console.error('[masterclass/move] run failed', err);
-          }),
+          }
+        })(),
       );
       return;
     }
 
+    // Hourly trigger. Same rule as the 5-minute branch: run the important,
+    // cheap work FIRST and to completion, then the heavy Anthropic intake sweep
+    // LAST — all sequentially in one waitUntil. The sweep runs up to 8 Claude
+    // calls (30–90s each) on a 12-minute budget and, by its own admission, is
+    // "frequently torn down before the Claude call finishes". When it shared the
+    // invocation concurrently with runReports, that teardown took the SD-REPORT
+    // digest down with it after it had claimed the day (stranding it) — which is
+    // why the report kept not arriving. Ordering it last means a teardown only
+    // ever loses the resumable sweep; the report, order safety-nets and FX have
+    // already completed.
     ctx.waitUntil(
-      assessPendingSubmissions({
-        db: env.DB,
-        apiKey: env.ANTHROPIC_API_KEY,
-      })
-        .then((r) => {
-          console.log(
-            `[intake/sweep] cron run — found ${r.found}, assessed ${r.assessed}, failed ${r.failed}, skipped ${r.skipped}`,
-          );
-        })
-        .catch((err) => {
-          console.error('[intake/sweep] cron run failed', err);
-        }),
-    );
-
-    // Daily FX refresh for the order overview's EUR net column. Riding the
-    // hourly trigger and guarded by staleness, so it actually hits the ECB
-    // (via frankfurter.app) about once a day.
-    ctx.waitUntil(
-      fxRatesStale(env.DB)
-        .then((stale) =>
-          stale
-            ? refreshFxRates(env.DB).then((r) =>
-                console.log(`[fx] refreshed ${r.updated} rates`),
-              )
-            : undefined,
-        )
-        .catch((err) => {
-          console.error('[fx] refresh failed', err);
-        }),
-    );
-
-    // Internal "SD-REPORT" digests: a daily registrations/sales/bumps snapshot
-    // every morning, plus a weekly one on Tuesdays. Rides the hourly trigger and
-    // self-gates to the first tick at/after 08:00 Brussels; idempotent per day.
-    ctx.waitUntil(
-      runReports(env)
-        .then((r) => {
+      (async () => {
+        // 1. Internal "SD-REPORT" digests FIRST (daily every morning + weekly on
+        //    Tuesdays). Self-gates to the first tick at/after 08:00 Brussels;
+        //    idempotent per day. Cheap, and the one that kept getting dropped.
+        try {
+          const r = await runReports(env);
           if (r.daily || r.weekly) {
             console.log(`[reports] daily=${r.daily} weekly=${r.weekly}`);
           }
-        })
-        .catch((err) => {
+        } catch (err) {
           console.error('[reports] run failed', err);
-        }),
-    );
+        }
 
-    // Safety net: re-send any internal SD-ORDER notification (course/retreat)
-    // that never went out in the last week. Bounded + idempotent, so a steady
-    // state finds nothing; catches a webhook/Resend blip that dropped one.
-    ctx.waitUntil(
-      reconcileOrderNotifications(env)
-        .then((r) => {
+        // 2. Safety net: re-send any internal SD-ORDER notification
+        //    (course/retreat) that never went out in the last week. Bounded +
+        //    idempotent, so a steady state finds nothing.
+        try {
+          const r = await reconcileOrderNotifications(env);
           if (r.course || r.retreat) {
             console.log(`[orders/reconcile] resent course=${r.course} retreat=${r.retreat}`);
           }
-        })
-        .catch((err) => {
+        } catch (err) {
           console.error('[orders/reconcile] run failed', err);
-        }),
-    );
+        }
 
-    // Safety net: recover PayPal course orders a dropped/unverified webhook left
-    // stuck at PENDING (or EXPIRED — a stranded pending row is auto-expired after
-    // 15 min). An installment subscription's cycles are recorded only by the
-    // PAYMENT.SALE.COMPLETED webhook (the return handler skips them), so a missed
-    // webhook = money charged but order never recorded. This polls PayPal for
-    // stranded PayPal course rows and records what already settled. Bounded +
-    // idempotent (same events-log guard as the webhook), so steady state is a
-    // no-op; no-ops entirely until the PayPal secrets are set.
-    ctx.waitUntil(
-      reconcilePaypalCourseOrders(env)
-        .then((r) => {
+        // 3. Safety net: recover PayPal course orders a dropped/unverified
+        //    webhook left stuck at PENDING/EXPIRED. Bounded + idempotent (same
+        //    events-log guard as the webhook); no-ops until the PayPal secrets
+        //    are set.
+        try {
+          const r = await reconcilePaypalCourseOrders(env);
           if (r.subscriptions || r.installments || r.oneOffs) {
             console.log(
               `[paypal/reconcile] subs=${r.subscriptions} installments=${r.installments} oneoffs=${r.oneOffs}`,
             );
           }
-        })
-        .catch((err) => {
+        } catch (err) {
           console.error('[paypal/reconcile] run failed', err);
-        }),
+        }
+
+        // 4. Daily FX refresh for the order overview's EUR net column. Guarded
+        //    by staleness, so it actually hits the ECB (via frankfurter.app)
+        //    about once a day.
+        try {
+          if (await fxRatesStale(env.DB)) {
+            const r = await refreshFxRates(env.DB);
+            console.log(`[fx] refreshed ${r.updated} rates`);
+          }
+        } catch (err) {
+          console.error('[fx] refresh failed', err);
+        }
+
+        // 5. Intake assessment sweep LAST — the heavy, resumable Anthropic loop.
+        //    Placed here so its frequent mid-flight teardown can never take down
+        //    the report/reconciles above (which have already completed).
+        try {
+          const r = await assessPendingSubmissions({
+            db: env.DB,
+            apiKey: env.ANTHROPIC_API_KEY,
+          });
+          console.log(
+            `[intake/sweep] cron run — found ${r.found}, assessed ${r.assessed}, failed ${r.failed}, skipped ${r.skipped}`,
+          );
+        } catch (err) {
+          console.error('[intake/sweep] cron run failed', err);
+        }
+      })(),
     );
   };
 

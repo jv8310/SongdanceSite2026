@@ -16,6 +16,7 @@
 import { sendEmailBatch, type BatchEmailInput } from '../workshops/resend';
 import { MARKETING_FROM_DEFAULT, MARKETING_REPLY_TO_DEFAULT } from '../workshops/emails';
 import { recordEmailSendStmt } from '../email/sends';
+import { logEmailDrop } from '../email/drops';
 import { DEFAULT_SEND_TZ, localHour } from '../workshops/time';
 import {
   oneClickUnsubscribeUrl,
@@ -268,6 +269,15 @@ async function sendChunk(
       ...skipStmts,
       ...toSend.map((c) => markRecipientRetryOrFailStmt(env.DB, c.id, String(err))),
     ]);
+    // Surface the parked chunk on /admin/emails/failures. The rows are retried,
+    // so this is informational — but a run of these is the early warning that
+    // Resend is throttling (raise the account rate limit / daily cap).
+    await logEmailDrop(env.DB, {
+      stream: 'broadcast',
+      emailType: emailType,
+      count: toSend.length,
+      detail: String(err),
+    });
     return 0;
   }
 
