@@ -1,0 +1,136 @@
+-- Update the part-4 broadcast body with the two copy edits made to
+-- docs/emails/svh-birth-story.drip.html: clearer wording of the "somatic
+-- sounding is…" definition (for non-native readers), and the ego passage
+-- reframed as a MORE MATURE ego rather than a bigger one. 0062 already seeded
+-- the draft, so this UPDATEs it in place. Guarded on status='draft' so it can't
+-- rewrite a broadcast that has already been launched. Idempotent.
+
+UPDATE broadcasts
+SET body = '<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
+<title>The birth of somatic sounding</title>
+<link href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,500;1,400&family=Cormorant+Garamond:ital@1&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  body { margin: 0; padding: 0; background-color: #EADFCB; }
+  table { border-collapse: collapse; }
+  img { display: block; border: 0; line-height: 100%; outline: none; text-decoration: none; }
+  a { color: #A14826; text-decoration: none; }
+  .preheader { display: none !important; visibility: hidden; opacity: 0; max-height: 0; overflow: hidden; mso-hide: all; }
+  @media only screen and (max-width: 600px) {
+    .wrapper { width: 100% !important; }
+    .pad { padding-left: 26px !important; padding-right: 26px !important; }
+    .h1 { font-size: 34px !important; line-height: 1.15 !important; }
+    .offer-h { font-size: 29px !important; line-height: 1.2 !important; }
+    .band img { width: 100% !important; }
+  }
+</style>
+</head>
+<body style="margin: 0; padding: 0; background-color: #EADFCB; -webkit-font-smoothing: antialiased;">
+
+<span class="preheader">How the sounding began &mdash; the last chapter of the Songdance story.</span>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #EADFCB;">
+<tr><td align="center" style="padding: 24px 12px;">
+
+<table role="presentation" class="wrapper" width="600" cellpadding="0" cellspacing="0" style="width: 600px; background-color: #F4ECDF; border-radius: 4px; overflow: hidden;">
+
+<!-- HERO — Jacob, hands on heart, sounding at golden hour -->
+<tr><td style="padding: 0;">
+  <img src="https://songdance.co/email/jacob-sounding-heart.jpg" width="600" alt="Jacob with his hands on his heart, sounding, golden trees behind him" style="width: 100%; height: auto; background-color: #2A1B2A;">
+</td></tr>
+
+<!-- INTRO -->
+<tr><td class="pad" style="padding: 46px 44px 12px;">
+  <p style="margin: 0 0 22px; font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 11px; letter-spacing: 2.5px; color: #A14826; font-weight: 600; text-transform: uppercase;"><span style="display: inline-block; width: 26px; height: 1px; background-color: #A14826; vertical-align: middle; margin-right: 12px;"></span>How it all began (part 4 &middot; the last chapter)</p>
+  <h1 class="h1" style="font-family: ''Spectral'', Georgia, ''Times New Roman'', serif; font-weight: 400; font-size: 40px; line-height: 1.12; color: #2A1B2A; margin: 0 0 28px;">The birth of <em style="font-family: ''Cormorant Garamond'', Georgia, serif; font-style: italic; font-size: 1.05em; color: #C9603A;">somatic sounding</em>.</h1>
+  <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #2A1B2A; margin: 0 0 16px;">Hello {{ subscriber.first_name | default: "there" }},</p>
+  <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 15px; line-height: 1.7; color: #6A5868; margin: 0 0 20px;">This is the last chapter of the story I&rsquo;ve been telling you. If you missed the beginning, it starts <a href="https://songdance.co/blog/before-there-was-upala/?utm_source=broadcast&amp;utm_medium=email&amp;utm_campaign=svh_birth_story&amp;utm_content=blog_asj" style="color: #A14826; text-decoration: underline; text-underline-offset: 2px;">here</a>.</p>
+  <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #2A1B2A; margin: 0 0 16px;">After Upala&rsquo;s death, I grieved. I sounded. I howled.</p>
+  <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #2A1B2A; margin: 0 0 16px;">I used my voice for all of it &mdash; the heartache, the wrenching pain, the gratitude for what had been, the love, the sheer devastation. My voice held it all in a safe expression: it let me truly acknowledge what I was feeling, and in that acknowledgment the pain could finally move.</p>
+  <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #4A3848; margin: 0;">And only then &mdash; through this sounding of my own &mdash; did I begin to understand what Upala had been showing me all those times when her speech left her, and she would simply sound what she felt. After more than a decade as a singing facilitator, I saw it: there was a way to use the voice in a fundamentally different way. A different modality entirely.</p>
+</td></tr>
+
+<!-- NARRATIVE -->
+<tr><td class="pad" style="padding: 22px 44px 6px;">
+  <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #2A1B2A; margin: 0 0 16px;">The problem? It had taken <em style="font-style: italic;">me</em> over ten years to see the obvious &mdash; and the people I tried to explain it to were often just as bewildered as I had been. Our society looks for healing from the outside in: we <em style="font-style: italic;">receive</em> sound healing, we chant a mantra and feel better. And yes &mdash; both work wonders. And still, there is something else. Something much simpler, much closer to our human evolution:</p>
+  <p style="font-family: ''Cormorant Garamond'', Georgia, serif; font-style: italic; font-size: 24px; line-height: 1.4; color: #A14826; margin: 0 0 16px;">Making the sound of the body.</p>
+  <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #2A1B2A; margin: 0;">The body holds so much, and every day we live the effects of everything it has stored. That, in itself, is perfect &mdash; unless somewhere in all that stored energy there is unattended pain, buried grief, withheld anger, amplified fear. Then we&rsquo;re no longer living from what the present moment offers. We&rsquo;re living from a body that is reacting from the past.</p>
+</td></tr>
+
+<!-- LYRIC PULL-QUOTE -->
+<tr><td class="pad" style="padding: 26px 44px 14px;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+    <td style="border-left: 2px solid #C9603A; padding: 2px 0 2px 20px;"><p style="font-family: ''Cormorant Garamond'', Georgia, serif; font-style: italic; font-size: 23px; line-height: 1.4; color: #4A3848; margin: 0;">Good luck being in the now if your body is stuck in the past. You can&rsquo;t think your way out of it &mdash; but you can sound your way toward it.</p></td>
+  </tr></table>
+</td></tr>
+
+<tr><td class="pad" style="padding: 12px 44px 6px;">
+  <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #2A1B2A; margin: 0 0 16px;">That is what somatic sounding is: giving a voice to what your body is holding. When you sound it, that stored energy is finally met &mdash; truly acknowledged, instead of pushed away. And little by little, you begin to feel whole again, and to live from that wholeness, instead of from the past.</p>
+  <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #2A1B2A; margin: 0 0 16px;">It&rsquo;s a more precise way of describing what healing work actually is: making a new <em style="font-style: italic;">wholeness</em>, by integrating the parts of yourself that had been cast into the shadow &mdash; still steering your daily actions, feelings and thoughts from there. Bringing them into the light doesn&rsquo;t rid you of the pain. It acknowledges it &mdash; and so the pain becomes a small part of a new, bigger whole, and instantly carries less weight.</p>
+  <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #4A3848; margin: 0;">Even the ego belongs in this story &mdash; the ego is really just your body&rsquo;s stored memory, in action. You don&rsquo;t get rid of it; you help it grow up. And a more mature ego is exactly what you want &mdash; mature enough that, one day, from lived and embodied experience, it realises that you are the whole universe. And then, only then, does it move beyond itself. I&rsquo;m drifting far now &mdash; but that&rsquo;s exactly the point. Somatic Vocal Healing touches all of these layers. It isn&rsquo;t only about healing. It&rsquo;s about growing up into a more conscious human being.</p>
+</td></tr>
+
+<tr><td class="pad" style="padding: 24px 44px 6px;">
+  <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #2A1B2A; margin: 0 0 14px;">There is so much more I could write you &mdash; enough to fill a book:</p>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+    <tr><td style="padding: 0 0 10px 4px;"><p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 15.5px; line-height: 1.6; color: #4A3848; margin: 0;"><span style="color: #C9603A;">&#10022;</span>&nbsp;&nbsp;How the voice is the spokesperson of the nervous system</p></td></tr>
+    <tr><td style="padding: 0 0 10px 4px;"><p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 15.5px; line-height: 1.6; color: #4A3848; margin: 0;"><span style="color: #C9603A;">&#10022;</span>&nbsp;&nbsp;How the somatic voice can steady you in a stressful moment, right as it happens</p></td></tr>
+    <tr><td style="padding: 0 0 10px 4px;"><p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 15.5px; line-height: 1.6; color: #4A3848; margin: 0;"><span style="color: #C9603A;">&#10022;</span>&nbsp;&nbsp;How it can serve constellation work &mdash; even done by yourself, at home</p></td></tr>
+    <tr><td style="padding: 0 0 2px 4px;"><p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 15.5px; line-height: 1.6; color: #4A3848; margin: 0;"><span style="color: #C9603A;">&#10022;</span>&nbsp;&nbsp;How it taps into our most primal, most instinctive way of regulating and expressing ourselves</p></td></tr>
+  </table>
+  <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #2A1B2A; margin: 18px 0 0;">All of it lives in the <strong style="font-weight: 600;">12-week course</strong> &mdash; everything Upala showed me, everything the grief taught me, laid out step by step over twelve weeks, until you can hold the practice yourself.</p>
+</td></tr>
+
+<!-- BAND — the sounding circle at golden hour -->
+<tr><td style="padding: 26px 44px 4px;" class="pad band">
+  <a href="https://songdance.co/courses/12-week?utm_source=broadcast&amp;utm_medium=email&amp;utm_campaign=svh_birth_story&amp;utm_content=band" style="text-decoration: none; display: block;"><img src="https://songdance.co/email/svh-circle-sunset.jpg" width="512" alt="A sounding circle at golden hour, hills behind" style="width: 100%; height: auto; border-radius: 4px; background-color: #2A1B2A;"></a>
+</td></tr>
+
+<!-- OFFER BOX -->
+<tr><td style="padding: 34px 44px 0;" class="pad">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #4A2540; border-radius: 4px;">
+    <tr><td style="padding: 40px 38px;" class="pad">
+      <table role="presentation" cellpadding="0" cellspacing="0" style="margin: 0 0 22px;"><tr>
+        <td style="background-color: #C9603A; border-radius: 30px; padding: 9px 18px;"><span style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 15px; font-weight: 700; letter-spacing: 0.5px; color: #F4ECDF;">50% OFF</span></td>
+        <td style="padding-left: 14px; font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 11px; letter-spacing: 2.5px; color: #F2DCC9; font-weight: 600; text-transform: uppercase;">final days<br>of the sale</td>
+      </tr></table>
+      <h2 class="offer-h" style="font-family: ''Spectral'', Georgia, ''Times New Roman'', serif; font-weight: 400; font-size: 32px; line-height: 1.18; color: #F4ECDF; margin: 0 0 20px;">The whole practice, at <em style="font-family: ''Cormorant Garamond'', Georgia, serif; font-style: italic; font-size: 1.05em; color: #F2DCC9;">half price</em>.</h2>
+      <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #EADFCB; margin: 0 0 4px;">The 12-week course &mdash; twelve modules, 18+ hours of guided practice, live weekly Q&amp;A, lifetime access &mdash; is half price until <strong style="color: #F4ECDF; font-weight: 600;">15 July</strong>, like every course on the site. These are the sale&rsquo;s final days.</p>
+      <table role="presentation" cellpadding="0" cellspacing="0" style="margin: 28px 0 6px;"><tr>
+        <td style="background-color: #F4ECDF; border-radius: 32px;"><a href="https://songdance.co/courses/12-week?utm_source=broadcast&amp;utm_medium=email&amp;utm_campaign=svh_birth_story&amp;utm_content=discover" style="display: inline-block; font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 14px; font-weight: 600; letter-spacing: 0.3px; color: #4A2540; padding: 15px 34px; text-decoration: none;">Discover the 12-Week Course &rarr;</a></td>
+      </tr></table>
+      <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 13px; line-height: 1.6; color: #E7C9B8; margin: 18px 0 0;">Or browse <a href="https://songdance.co/courses?utm_source=broadcast&amp;utm_medium=email&amp;utm_campaign=svh_birth_story&amp;utm_content=all_courses" style="color: #F4ECDF; text-decoration: underline; text-underline-offset: 2px;">all the courses &rarr;</a></p>
+      <p style="font-family: ''Cormorant Garamond'', Georgia, serif; font-style: italic; font-size: 17px; line-height: 1.5; color: #F2DCC9; margin: 22px 0 0;">No pressure either way &mdash; the work will be here when you&rsquo;re ready.</p>
+    </td></tr>
+  </table>
+</td></tr>
+
+<!-- CLOSING + SIGN-OFF -->
+<tr><td class="pad" style="padding: 34px 44px 40px;">
+  <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #4A3848; margin: 0 0 18px;">Thank you for reading this story with me &mdash; all four chapters of it. It&rsquo;s the story of my life, and it felt right that you should have the whole of it.</p>
+  <p style="font-family: ''Cormorant Garamond'', Georgia, serif; font-style: italic; font-size: 18px; line-height: 1.5; color: #4A3848; margin: 0;">With love,<br>Jacob</p>
+</td></tr>
+
+<tr><td style="background-color: #EADFCB; padding: 32px 44px 34px;" class="pad">
+  <img src="https://songdance.co/brand/logo-wordmark-dark.png" width="130" alt="Songdance" style="width: 130px; height: auto; margin: 0 0 18px;">
+  <p style="font-family: ''Cormorant Garamond'', Georgia, serif; font-style: italic; font-size: 16px; line-height: 1.5; color: #7A6A78; margin: 0 0 18px;">The sound was always yours.</p>
+  <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 12px; line-height: 1.9; color: #A14826; margin: 0 0 16px;"><a href="https://songdance.co/what-is-svh" style="color: #A14826; text-decoration: none;">what is svh</a>&nbsp;&nbsp;&middot;&nbsp;&nbsp;<a href="https://songdance.co/courses" style="color: #A14826; text-decoration: none;">courses</a>&nbsp;&nbsp;&middot;&nbsp;&nbsp;<a href="https://songdance.co/events" style="color: #A14826; text-decoration: none;">events</a>&nbsp;&nbsp;&middot;&nbsp;&nbsp;<a href="https://songdance.co/about" style="color: #A14826; text-decoration: none;">about</a>&nbsp;&nbsp;&middot;&nbsp;&nbsp;<a href="https://songdance.co/reviews" style="color: #A14826; text-decoration: none;">reviews</a></p>
+  <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 11px; line-height: 1.7; color: #7A6A78; margin: 0 0 6px;">A quiet list &mdash; about one email a month. A little more during the launch: between now and 15 July you&rsquo;ll get a few emails about the new website and the courses.</p>
+  <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 11px; line-height: 1.7; color: #7A6A78; margin: 0 0 6px;">Not for you? <a href="{{ unsubscribe_url }}" style="color: #7A6A78; text-decoration: underline;">Unsubscribe</a> &mdash; you won&rsquo;t hear from this list again.</p>
+  <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 11px; line-height: 1.7; color: #9A8A78; margin: 0;">Songdance BV &middot; Beaupréstraat 13, 8310 Bruges, Belgium<br>BE0743575076</p>
+</td></tr>
+
+</table>
+
+</td></tr>
+</table>
+
+</body>
+</html>
+'
+WHERE name = 'Songdance Story · Part 4 — The Birth of Somatic Sounding' AND status = 'draft';
