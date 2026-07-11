@@ -1,0 +1,440 @@
+---
+import SiteLayout from '../../components/SiteLayout.astro';
+import { findPost } from '../../data/blog';
+
+const post = findPost('the-birth-of-somatic-sounding')!;
+---
+
+<SiteLayout
+  title={`${post.title} — Songdance`}
+  description={post.excerpt}
+  image={post.hero}
+  imageAlt={post.heroAlt}
+>
+  <article class="bp">
+    <header class="bp-head">
+      <p class="sd-eyebrow">Journal · The story behind the journey · Part four</p>
+      <h1 class="bp-title">The birth of somatic <em class="lyric">sounding</em>.</h1>
+      <p class="bp-lede">
+        Where the story becomes a practice — grieving out loud after Upala, and the way of using the
+        voice that grew from it.
+      </p>
+      <p class="bp-byline">
+        <time datetime={post.date}>{post.dateLabel}</time>
+        <span class="bp-dot" aria-hidden="true"></span>
+        {post.readingMinutes} min read
+      </p>
+    </header>
+
+    <figure class="bp-hero">
+      <img src={post.hero} alt={post.heroAlt} fetchpriority="high" />
+    </figure>
+
+    <div class="bp-body">
+      <p>
+        This is the final part of a longer story. It began with how the
+        <a href="/blog/before-there-was-upala">Authentic Singing Journey started</a>, moved on to
+        <a href="/blog/the-story-wasnt-over">the journeys that followed</a>, and then to
+        <a href="/blog/the-part-ive-never-told">the chapter I'd never told</a> — losing Upala, and the
+        Grief Course that grew from it. This is where it all became a practice.
+      </p>
+      <p>After Upala's death, I grieved. I sounded. I howled.</p>
+      <p>
+        I used my voice for all of it — the heartache, the wrenching pain, the gratitude for what had
+        been, the love, the sheer devastation. My voice held it all in a safe expression: it let me
+        truly acknowledge what I was feeling, and in that acknowledgment the pain could finally move.
+      </p>
+      <p>
+        And only then — through this sounding of my own — did I begin to understand what Upala had been
+        showing me all those times when her speech left her, and she would simply sound what she felt.
+        After more than a decade as a singing facilitator, I saw it: there was a way to use the voice in
+        a fundamentally different way. A different modality entirely.
+      </p>
+      <p>
+        The problem? It had taken <em>me</em> over ten years to see the obvious — and the people I tried
+        to explain it to were often just as bewildered as I had been. Our society looks for healing from
+        the outside in: we <em>receive</em> sound healing, we chant a mantra and feel better. And yes —
+        both work wonders. And still, there is something else. Something much simpler, much closer to our
+        human evolution:
+      </p>
+
+      <p class="bp-turn">Making the sound of the body.</p>
+
+      <p>
+        The body holds so much, and every day we live the effects of everything it has stored. That, in
+        itself, is perfect — unless somewhere in all that stored energy there is unattended pain, buried
+        grief, withheld anger, amplified fear. Then we're no longer living from what the present moment
+        offers. We're living from a body that is reacting from the past.
+      </p>
+
+      <blockquote class="bp-pull">
+        <p>
+          Good luck being in the now if your body is stuck in the past. You can't think your way out of
+          it — but you can sound your way toward it.
+        </p>
+      </blockquote>
+
+      <p>
+        That is what somatic sounding is: giving a voice to what your body is holding. When you sound it,
+        that stored energy is finally met — truly acknowledged, instead of pushed away. And little by
+        little, you begin to feel whole again, and to live from that wholeness, instead of from the past.
+      </p>
+      <p>
+        It's a more precise way of describing what healing work actually is: making a new
+        <em>wholeness</em>, by integrating the parts of yourself that had been cast into the shadow —
+        still steering your daily actions, feelings and thoughts from there. Bringing them into the light
+        doesn't rid you of the pain. It acknowledges it — and so the pain becomes a small part of a new,
+        bigger whole, and instantly carries less weight.
+      </p>
+      <p>
+        Even the ego belongs in this story — the ego is really just your body's stored memory, in action.
+        You don't get rid of it; you help it grow up. And a more mature ego is exactly what you want —
+        mature enough that, one day, from lived and embodied experience, it realises that you are the
+        whole universe. And then, only then, does it move beyond itself. I'm drifting far now — but that's
+        exactly the point. Somatic Vocal Healing touches all of these layers. It isn't only about healing.
+        It's also about growing up into a more conscious human being.
+      </p>
+
+      <figure class="bp-figure">
+        <img
+          src="/media/library/svh-retreat-circle-sunset-group-jacob-central.webp"
+          alt="A sounding circle at golden hour, hills behind"
+          loading="lazy"
+        />
+        <figcaption>The practice, in a circle — making the sound of what the body holds.</figcaption>
+      </figure>
+
+      <p>There is so much more I could write you — enough to fill a book:</p>
+      <ul class="bp-list">
+        <li>How the voice is the spokesperson of the nervous system</li>
+        <li>How the somatic voice can steady you in a stressful moment, right as it happens</li>
+        <li>How it can serve constellation work — even done by yourself, at home</li>
+        <li>How it taps into our most primal, most instinctive way of regulating and expressing ourselves</li>
+      </ul>
+      <p>
+        All of it lives in the <strong>12-week course</strong> — everything Upala showed me, everything
+        the grief taught me, laid out step by step over twelve weeks, until you can hold the practice
+        yourself.
+      </p>
+
+      <p class="bp-signoff">The sound was always yours.<br />With love,<br />Jacob</p>
+    </div>
+
+    <aside class="bp-cta">
+      <p class="sd-eyebrow">Where it all leads</p>
+      <h2 class="bp-cta-head">Learn the whole <em class="lyric">practice.</em></h2>
+      <p class="bp-cta-body">
+        The 12-week course lays out Somatic Vocal Healing step by step — twelve modules, 18+ hours of
+        guided practice, live weekly Q&amp;A, lifetime access — until you can hold it yourself.
+      </p>
+      <a href="/courses/12-week" class="bp-cta-btn">
+        Discover the 12-Week Course
+        <i class="ph-light ph-arrow-right"></i>
+      </a>
+    </aside>
+
+    <nav class="bp-back">
+      <a href="/blog"><i class="ph-light ph-arrow-left"></i> All journal entries</a>
+    </nav>
+  </article>
+</SiteLayout>
+
+<style>
+  .bp {
+    background: var(--paper);
+    color: var(--fg);
+  }
+
+  /* ---------- Header ---------- */
+  .bp-head {
+    max-width: var(--container-narrow);
+    margin: 0 auto;
+    padding: var(--sp-9) var(--sp-6) var(--sp-6);
+  }
+  .bp-title {
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: clamp(36px, 5.2vw, 60px);
+    line-height: 1.08;
+    letter-spacing: var(--tr-display);
+    color: var(--ink);
+    margin: var(--sp-4) 0 0;
+    text-wrap: balance;
+  }
+  /* Typography law: Cormorant italic reads small inside Spectral display — bump it. */
+  .bp-title em.lyric {
+    font-family: var(--font-lyric);
+    font-style: italic;
+    font-weight: 400;
+    font-size: 1.05em;
+    color: var(--ember);
+  }
+  .bp-lede {
+    font-family: var(--font-lyric);
+    font-style: italic;
+    font-size: clamp(21px, 2.6vw, 28px);
+    line-height: 1.35;
+    color: var(--ink-soft);
+    max-width: 36ch;
+    margin: var(--sp-5) 0 0;
+    text-wrap: balance;
+  }
+  .bp-byline {
+    font-family: var(--font-body);
+    font-size: var(--t-caption);
+    letter-spacing: 0.04em;
+    color: var(--ink-quiet);
+    margin: var(--sp-5) 0 0;
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+  }
+  .bp-byline .bp-dot {
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: var(--ink-whisper);
+  }
+
+  /* ---------- Hero image ---------- */
+  .bp-hero {
+    max-width: var(--container);
+    margin: var(--sp-6) auto 0;
+    padding: 0 var(--sp-6);
+  }
+  .bp-hero img {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: var(--r-md);
+    border: 1px solid var(--line);
+    filter: var(--sd-img-filter);
+  }
+
+  /* ---------- Body ---------- */
+  .bp-body {
+    max-width: var(--measure);
+    margin: 0 auto;
+    padding: var(--sp-7) var(--sp-6) 0;
+  }
+  .bp-body p {
+    font-family: var(--font-body);
+    font-size: var(--t-body-lg);
+    line-height: var(--lh-prose);
+    color: var(--ink);
+    margin: 0 0 var(--sp-5);
+    text-wrap: pretty;
+  }
+  /* Plain emphasis stays in the body italic (no lyric swap → no bump needed). */
+  .bp-body em {
+    font-style: italic;
+  }
+  /* A deliberate lyric flourish — swaps to Cormorant, so it must be sized up. */
+  .bp-body em.lyric {
+    font-family: var(--font-lyric);
+    font-style: italic;
+    font-size: 1.25em;
+    line-height: 1;
+    color: var(--ember-deep);
+  }
+  /* In-prose links — an ember underline that reads as part of the sentence. */
+  .bp-body a {
+    color: var(--ember-deep);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    text-decoration-thickness: 1px;
+    transition: color var(--d-base) var(--ease);
+  }
+  .bp-body a:hover {
+    color: var(--plum);
+  }
+
+  /* The pivot line — set apart, in the lyric hand, quiet and heavy. */
+  .bp-body p.bp-turn {
+    font-family: var(--font-lyric);
+    font-style: italic;
+    font-size: clamp(22px, 2.6vw, 27px);
+    line-height: 1.4;
+    color: var(--ink-soft);
+    margin: var(--sp-6) 0 var(--sp-6);
+    text-wrap: balance;
+  }
+
+  /* The "fill a book" list — ember stars, in the body hand. */
+  .bp-body ul.bp-list {
+    list-style: none;
+    margin: var(--sp-5) 0;
+    padding: 0;
+  }
+  .bp-body ul.bp-list li {
+    position: relative;
+    font-family: var(--font-body);
+    font-size: var(--t-body-lg);
+    line-height: var(--lh-prose);
+    color: var(--ink);
+    padding-left: 1.7em;
+    margin: 0 0 var(--sp-3);
+    text-wrap: pretty;
+  }
+  .bp-body ul.bp-list li::before {
+    content: "\2726";
+    position: absolute;
+    left: 0;
+    top: 0;
+    color: var(--ember);
+  }
+
+  .bp-figure {
+    margin: var(--sp-7) 0;
+  }
+  .bp-figure img {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: var(--r-md);
+    border: 1px solid var(--line);
+    filter: var(--sd-img-filter);
+  }
+  .bp-figure figcaption {
+    margin: var(--sp-3) 0 0;
+    font-family: var(--font-lyric);
+    font-style: italic;
+    font-size: 16px;
+    line-height: 1.4;
+    color: var(--ink-quiet);
+    text-align: center;
+    text-wrap: balance;
+  }
+
+  .bp-pull {
+    margin: var(--sp-7) 0;
+    padding: var(--sp-1) 0 var(--sp-1) var(--sp-5);
+    border-left: 2px solid var(--ember);
+  }
+  .bp-pull p {
+    font-family: var(--font-lyric);
+    font-style: italic;
+    font-size: clamp(23px, 2.8vw, 30px);
+    line-height: 1.35;
+    color: var(--ink-soft);
+    margin: 0;
+    text-wrap: balance;
+  }
+
+  .bp-body p.bp-signoff {
+    font-family: var(--font-lyric);
+    font-style: italic;
+    font-size: 20px;
+    line-height: 1.5;
+    color: var(--ink-soft);
+    margin-top: var(--sp-7);
+  }
+
+  /* ---------- Closing CTA ---------- */
+  .bp-cta {
+    max-width: var(--container-narrow);
+    margin: var(--sp-8) auto 0;
+    padding: var(--sp-7) var(--sp-6);
+    box-sizing: border-box;
+    background: var(--paper-deep);
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+  }
+  .bp-cta-head {
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: var(--t-h2);
+    line-height: var(--lh-snug);
+    color: var(--ink);
+    margin: var(--sp-3) 0 0;
+    text-wrap: balance;
+  }
+  .bp-cta-head em.lyric {
+    font-family: var(--font-lyric);
+    font-style: italic;
+    font-weight: 400;
+    font-size: 1.05em;
+    color: var(--ember-deep);
+  }
+  .bp-cta-body {
+    font-family: var(--font-body);
+    font-size: var(--t-body);
+    line-height: var(--lh-prose);
+    color: var(--ink-soft);
+    margin: var(--sp-4) 0 0;
+    max-width: 48ch;
+  }
+  .bp-cta-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: var(--sp-6);
+    background: var(--ember-deep);
+    color: var(--paper);
+    font-family: var(--font-body);
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    text-decoration: none;
+    padding: 14px 28px;
+    border-radius: var(--r-pill);
+    transition: background var(--d-base) var(--ease);
+  }
+  .bp-cta-btn:hover {
+    background: var(--plum);
+  }
+  .bp-cta-btn i {
+    font-size: 17px;
+    transition: transform var(--d-base) var(--ease);
+  }
+  .bp-cta-btn:hover i {
+    transform: translateX(4px);
+  }
+
+  /* ---------- Back link ---------- */
+  .bp-back {
+    max-width: var(--measure);
+    margin: var(--sp-7) auto var(--sp-9);
+    padding: 0 var(--sp-6);
+  }
+  .bp-back a {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-body);
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--ink-soft);
+    text-decoration: none;
+  }
+  .bp-back a:hover {
+    color: var(--ember-deep);
+  }
+  .bp-back i {
+    font-size: 16px;
+    transition: transform var(--d-base) var(--ease);
+  }
+  .bp-back a:hover i {
+    transform: translateX(-4px);
+  }
+
+  @media (max-width: 720px) {
+    .bp-head {
+      padding: var(--sp-8) var(--sp-5) var(--sp-5);
+    }
+    .bp-hero {
+      padding: 0 var(--sp-5);
+    }
+    .bp-body {
+      padding: var(--sp-6) var(--sp-5) 0;
+    }
+    .bp-cta {
+      padding: var(--sp-6) var(--sp-5);
+      margin-left: var(--sp-5);
+      margin-right: var(--sp-5);
+    }
+    .bp-back {
+      padding: 0 var(--sp-5);
+    }
+  }
+</style>

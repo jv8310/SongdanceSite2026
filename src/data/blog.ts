@@ -60,6 +60,18 @@ export const blogPosts: BlogPost[] = [
     heroAlt: 'Upala sounding, barefoot on a rock by a mountain river.',
     readingMinutes: 4,
   },
+  {
+    slug: 'the-birth-of-somatic-sounding',
+    href: '/blog/the-birth-of-somatic-sounding',
+    title: 'The birth of somatic sounding',
+    excerpt:
+      'The last chapter — grieving out loud after Upala, and the practice that grew from it: making the sound of what the body holds. How Somatic Vocal Healing was born.',
+    date: '2026-07-11',
+    dateLabel: '11 July 2026',
+    hero: '/media/library/svh-retreat-sounding-jacob-sunset.webp',
+    heroAlt: 'Jacob with his hands on his heart, sounding at golden hour.',
+    readingMinutes: 5,
+  },
 ];
 
 // Oldest first — the reading order the Journal index uses (part one → the latest
