@@ -46,12 +46,16 @@ import {
   twelveWeekCurrencyForCountry,
   priceCents,
   monthlyCents,
+  monthlyCents6x,
+  monthlyCents12x,
   applyPercentCents,
   bestDiscountStatus,
   anchorMsFromWorkshop,
   effectiveTwelveWeekDiscount,
   TWELVE_WEEK_PRODUCT_SLUG,
   INSTALLMENT_COUNT,
+  INSTALLMENT_COUNT_6X,
+  INSTALLMENT_COUNT_12X,
 } from '../../../lib/courses/twelve-week';
 import {
   resolveCourseDiscountPercent,
@@ -104,7 +108,17 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const companyName = (payload.company_name ?? '').trim() || null;
     const vatNumberRaw = (payload.vat_number ?? '').trim().replace(/\s+/g, '');
     const vatNumber = vatNumberRaw ? vatNumberRaw.toUpperCase() : null;
-    const paymentPlan: PaymentPlan = payload.payment_plan === '3x' ? '3x' : 'full';
+    // full · 3× (shown to everyone) · 6× / 12× (unlocked by a hand-shared
+    // ?installment= link on the page, but a valid, server-priced plan either
+    // way — the URL only governs whether the option is *shown*, not honoured).
+    const paymentPlan: PaymentPlan =
+      payload.payment_plan === '3x'
+        ? '3x'
+        : payload.payment_plan === '6x'
+          ? '6x'
+          : payload.payment_plan === '12x'
+            ? '12x'
+            : 'full';
     const provider = parseProvider(payload.provider);
     if (provider === 'paypal' && !paypalConfigured(env)) {
       return json({ error: 'PayPal is not available right now. Please pay by card.' }, 400);
@@ -206,14 +220,30 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const eligible = discount.eligible;
     const discountPercent = discount.percent;
 
+    // Resolve the installment ladder (monthly amount + count) for the chosen
+    // plan. 'full' has no ladder. The workshop/URL discount applies to each
+    // installment just as it does the pay-in-full price.
+    const installmentCount =
+      paymentPlan === '3x'
+        ? INSTALLMENT_COUNT
+        : paymentPlan === '6x'
+          ? INSTALLMENT_COUNT_6X
+          : paymentPlan === '12x'
+            ? INSTALLMENT_COUNT_12X
+            : 1;
     const baseFull = priceCents(currency);
-    const baseMonthly = monthlyCents(currency);
+    const baseMonthly =
+      paymentPlan === '6x'
+        ? monthlyCents6x(currency)
+        : paymentPlan === '12x'
+          ? monthlyCents12x(currency)
+          : monthlyCents(currency);
     const chargedFull = applyPercentCents(baseFull, discountPercent);
     const chargedMonthly = applyPercentCents(baseMonthly, discountPercent);
 
-    const totalAmountCents =
-      paymentPlan === '3x' ? chargedMonthly * INSTALLMENT_COUNT : chargedFull;
-    const installmentsTotal = paymentPlan === '3x' ? INSTALLMENT_COUNT : 1;
+    const isInstallment = paymentPlan !== 'full';
+    const totalAmountCents = isInstallment ? chargedMonthly * installmentCount : chargedFull;
+    const installmentsTotal = isInstallment ? installmentCount : 1;
     const sourceVariant = eligible
       ? discount.kind === 'override'
         ? `override-${discountPercent}`
@@ -270,24 +300,30 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     const baseUrl = env.PUBLIC_BASE_URL.replace(/\/$/, '');
 
+    // Preserve a 6×/12× unlock on the cancel URL so a buyer who bails out of the
+    // gateway returns to the page with the longer plans still shown (they arrived
+    // via a hand-shared ?installment= link that the bounce would otherwise drop).
+    const cancelQuery =
+      paymentPlan === '6x' ? '?installment=6' : paymentPlan === '12x' ? '?installment=12' : '';
+    const cancelUrl = `${baseUrl}/courses/12-week${cancelQuery}#register`;
+
     // ── PayPal branch (direct gateway). Mirrors the Stripe amounts/metadata;
     //    the line item name + buyer info feed PayPal's Quaderno connector.
     if (provider === 'paypal') {
       const returnUrl = `${baseUrl}/api/payments/paypal-return?dest=${encodeURIComponent('/courses/12-week/thanks')}`;
-      const cancelUrl = `${baseUrl}/courses/12-week#register`;
-      if (paymentPlan === '3x') {
+      if (isInstallment) {
         const sub = await createPaypalSubscription({
           env,
           productName: LABEL,
-          productDescription: `${INSTALLMENT_COUNT} monthly installments of ${formatMoney(chargedMonthly, currency)}${
+          productDescription: `${installmentCount} monthly installments of ${formatMoney(chargedMonthly, currency)}${
             bumpOffers.length
               ? ` + one-time add-ons (${formatMoney(bumpTotalCents, currency)})`
               : ''
           }`,
-          planName: `${LABEL} — ${INSTALLMENT_COUNT}-month plan`,
+          planName: `${LABEL} — ${installmentCount}-month plan`,
           monthlyAmountMinor: chargedMonthly,
           currency,
-          installmentCount: INSTALLMENT_COUNT,
+          installmentCount,
           // Order bumps ride the first charge as the plan setup fee.
           setupFeeMinor: bumpTotalCents || undefined,
           customId: encodeCustomId('course', registrationId),
@@ -295,21 +331,21 @@ export const POST: APIRoute = async ({ request, locals }) => {
           cancelUrl,
           brandName: 'Songdance',
           subscriber: { email, firstName, lastName },
-          requestId: `tw-reg-${registrationId}-pp3x`,
+          requestId: `tw-reg-${registrationId}-pp${paymentPlan}`,
         });
         await attachPaypalSubscriptionToCourse(env.DB, registrationId, sub.subscriptionId);
         await logEventSafe(env.DB, {
           registration_id: null,
           kind: 'course.checkout.paypal.subscription.created',
           source: 'system',
-          external_id: `local-course-pp-${registrationId}-3x`,
+          external_id: `local-course-pp-${registrationId}-${paymentPlan}`,
           payload: {
             course_registration_id: registrationId,
             subscription_id: sub.subscriptionId,
             product_slug: TWELVE_WEEK_PRODUCT_SLUG,
             currency,
             monthly_amount_cents: chargedMonthly,
-            installments_total: INSTALLMENT_COUNT,
+            installments_total: installmentCount,
           },
         });
         return json({ checkout_url: sub.approveUrl, course_registration_id: registrationId });
@@ -389,7 +425,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         source: 'system',
         payload: { course_registration_id: registrationId, error: String(err) },
       });
-      if (paymentPlan === '3x') {
+      if (isInstallment) {
         return json(
           {
             error:
@@ -418,37 +454,36 @@ export const POST: APIRoute = async ({ request, locals }) => {
             discount_percent: String(discountPercent),
             discount_kind: discount.kind,
             original_amount_cents: String(
-              paymentPlan === '3x' ? baseMonthly * INSTALLMENT_COUNT : baseFull,
+              isInstallment ? baseMonthly * installmentCount : baseFull,
             ),
           }
         : {}),
     };
 
     const successUrl = `${baseUrl}/courses/12-week/thanks?session_id={CHECKOUT_SESSION_ID}`;
-    const cancelUrl = `${baseUrl}/courses/12-week#register`;
 
     const productMetadata: Record<string, string> = {
       tax_class: 'eservice',
       product_slug: TWELVE_WEEK_PRODUCT_SLUG,
     };
 
-    if (paymentPlan === '3x' && customerId) {
+    if (isInstallment && customerId) {
       const session = await createSubscriptionCheckoutSession({
         secretKey: env.STRIPE_SECRET_KEY,
         customer: customerId,
         success_url: successUrl,
         cancel_url: cancelUrl,
         product_name: LABEL,
-        product_description: `${INSTALLMENT_COUNT} monthly installments of ${formatMoney(chargedMonthly, currency)}`,
+        product_description: `${installmentCount} monthly installments of ${formatMoney(chargedMonthly, currency)}`,
         payment_intent_description: LABEL,
         product_metadata: productMetadata,
         monthly_amount_cents: chargedMonthly,
         currency: currency.toLowerCase(),
-        installment_count: INSTALLMENT_COUNT,
+        installment_count: installmentCount,
         // Order bumps ride the first invoice as one-time line items.
         one_time_line_items: stripeBumpLineItems,
         metadata,
-        idempotency_key: `tw-reg-${registrationId}-3x`,
+        idempotency_key: `tw-reg-${registrationId}-${paymentPlan}`,
       });
 
       await attachStripeSessionToCourse(env.DB, registrationId, session.id);
@@ -460,7 +495,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         registration_id: null,
         kind: 'course.checkout.subscription.created',
         source: 'system',
-        external_id: `local-course-${registrationId}-3x`,
+        external_id: `local-course-${registrationId}-${paymentPlan}`,
         payload: {
           course_registration_id: registrationId,
           session_id: session.id,
@@ -468,7 +503,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
           product_slug: TWELVE_WEEK_PRODUCT_SLUG,
           currency,
           monthly_amount_cents: chargedMonthly,
-          installments_total: INSTALLMENT_COUNT,
+          installments_total: installmentCount,
           discount_kind: eligible ? discount.kind : null,
           discount_percent: eligible ? discountPercent : 0,
           original_monthly_amount_cents: baseMonthly,

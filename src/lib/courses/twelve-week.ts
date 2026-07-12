@@ -71,11 +71,13 @@ export const MONTHLY: Record<TwelveWeekCurrency, number> = {
   DKK: 1700,
 };
 
-// 6-month installment plan for the 12-week line of the Certification path only
-// (the standalone 12-week course is sold full or 3×). The longer term carries a
-// slightly higher total than the 3-month plan — ≈0.54× the 3-month monthly, the
-// same step the certification ladder takes from its 3- to 6-month tier, landing
-// the 6-month total ~14–16% over pay-in-full. Edit these to reprice. ×6.
+// 6-month installment plan. Used by the 12-week line of the Certification path,
+// and — unlocked by a hand-shared `?installment=6` (or `=12`) link — on the
+// standalone 12-week course too (it's hidden by default; the page only shows
+// full + 3× unless the visitor arrives with that param). The longer term
+// carries a slightly higher total than the 3-month plan — ≈0.54× the 3-month
+// monthly, the same step the certification ladder takes from its 3- to 6-month
+// tier, landing the 6-month total ~14–16% over pay-in-full. Edit to reprice. ×6.
 export const INSTALLMENT_COUNT_6X = 6;
 export const MONTHLY_6X: Record<TwelveWeekCurrency, number> = {
   EUR: 125,
@@ -88,6 +90,24 @@ export const MONTHLY_6X: Record<TwelveWeekCurrency, number> = {
   NOK: 1450,
   SEK: 1400,
   DKK: 925,
+};
+
+// 12-month installment plan for the standalone 12-week course, unlocked only by
+// a hand-shared `?installment=12` link (never shown to everyone). The longest
+// term carries the largest convenience premium — set at a clean ~20% over
+// pay-in-full across every market. Edit these to reprice. ×12.
+export const INSTALLMENT_COUNT_12X = 12;
+export const MONTHLY_12X: Record<TwelveWeekCurrency, number> = {
+  EUR: 65,
+  USD: 65,
+  GBP: 55,
+  CAD: 95,
+  CHF: 62,
+  AUD: 109,
+  NZD: 119,
+  NOK: 750,
+  SEK: 730,
+  DKK: 480,
 };
 
 // Country (ISO-2) → the currency we price the course in. Reuses the workshop
@@ -107,6 +127,9 @@ export function monthlyCents(currency: TwelveWeekCurrency): number {
 }
 export function monthlyCents6x(currency: TwelveWeekCurrency): number {
   return MONTHLY_6X[currency] * 100;
+}
+export function monthlyCents12x(currency: TwelveWeekCurrency): number {
+  return MONTHLY_12X[currency] * 100;
 }
 export function installmentTotalCents(currency: TwelveWeekCurrency): number {
   return monthlyCents(currency) * INSTALLMENT_COUNT;

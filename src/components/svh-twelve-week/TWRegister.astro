@@ -252,7 +252,7 @@ const includes = [
   import { COUNTRIES, findCountry } from '../../lib/countries';
   import { postJsonResilient } from '../../lib/client/resilient-fetch';
 
-  type Plan = 'full' | '3x' | '6x';
+  type Plan = 'full' | '3x' | '6x' | '12x';
   type OfferId = '12week' | 'path';
   // The Certification path = cert (standard price) + the workshop-discounted
   // 12-week, shown as two line items + a combined total. The discount only
@@ -299,6 +299,11 @@ const includes = [
     installment_count: number;
     installment_monthly_cents: number;
     installment_total_cents: number;
+    // Longer ladders, unlocked only by ?installment=6/12 (always priced).
+    installment_6x_count: number;
+    installment_monthly_6x_cents: number;
+    installment_12x_count: number;
+    installment_monthly_12x_cents: number;
     discount: {
       eligible: boolean;
       kind: 'pre' | 'post' | 'none' | 'promo' | 'override';
@@ -306,6 +311,8 @@ const includes = [
       expires_at_ms: number | null;
       price_cents: number;
       monthly_cents: number;
+      monthly_6x_cents: number;
+      monthly_12x_cents: number;
     };
     is_pro?: boolean;
     bumps?: BumpOffer[];
@@ -331,6 +338,18 @@ const includes = [
     return Number.isInteger(n) && n >= 1 && n <= 100 ? n : 0;
   })();
   const isFreeComp = urlAdiscount === 100;
+
+  // Longer installment ladders for the standalone 12-week course are hidden by
+  // default — quieter, longer-financing options offered by hand (e.g. over
+  // email), not shown to everyone. `?installment=6` reveals the 6-month plan;
+  // `?installment=12` reveals both the 6- and 12-month plans. Any other value
+  // leaves them hidden. The checkout still prices/validates the plan itself.
+  const urlInstallment = (() => {
+    const n = parseInt(urlParams.get('installment') ?? '', 10);
+    return n === 6 || n === 12 ? n : 0;
+  })();
+  const show6x = urlInstallment === 6 || urlInstallment === 12;
+  const show12x = urlInstallment === 12;
 
   const SYM: Record<string, string> = {
     EUR: '€', USD: '$', GBP: '£', CAD: 'CA$', CHF: 'CHF ',
@@ -687,8 +706,7 @@ const includes = [
           opt('3x', `${v.count} monthly payments`,
             `${money(v.monthlyNowCents, cur)}/mo × ${v.count} (${money(v.monthlyNowCents * v.count, cur)} total)`, monAmount),
         ];
-        // The Certification path also offers a 6-month tier (the standalone
-        // 12-week course is full or 3× only).
+        // The Certification path also offers a 6-month tier.
         if (selectedOffer === 'path' && status.path) {
           const p = status.path;
           const now6 = p.total_monthly_6x_cents;
@@ -700,6 +718,31 @@ const includes = [
             opt('6x', `${p.installment_6x_count} monthly payments`,
               `${money(now6, cur)}/mo × ${p.installment_6x_count} (${money(now6 * p.installment_6x_count, cur)} total)`, amt6),
           );
+        }
+        // The standalone 12-week course carries longer ladders (6× / 12×) too,
+        // but they're hidden unless unlocked by a hand-shared ?installment= link.
+        const d = status.discount;
+        const longPlan = (
+          plan: '6x' | '12x',
+          count: number,
+          wasMonthly: number,
+          nowMonthly: number,
+        ) => {
+          const amt = wasMonthly > nowMonthly
+            ? `<span class="tw-amount-strike">${money(wasMonthly, cur)}/mo</span>${money(nowMonthly, cur)}/mo`
+            : `${money(nowMonthly, cur)}/mo`;
+          plans.push(
+            opt(plan, `${count} monthly payments`,
+              `${money(nowMonthly, cur)}/mo × ${count} (${money(nowMonthly * count, cur)} total)`, amt),
+          );
+        };
+        if (selectedOffer === '12week' && show6x) {
+          longPlan('6x', status.installment_6x_count, status.installment_monthly_6x_cents,
+            d.eligible ? d.monthly_6x_cents : status.installment_monthly_6x_cents);
+        }
+        if (selectedOffer === '12week' && show12x) {
+          longPlan('12x', status.installment_12x_count, status.installment_monthly_12x_cents,
+            d.eligible ? d.monthly_12x_cents : status.installment_monthly_12x_cents);
         }
         plansEl.replaceChildren(...plans);
       };
@@ -775,11 +818,22 @@ const includes = [
         let mainAmount: string;
         let courseNowCents: number;
         let perCount = v.count;
+        const d = status.discount;
         if (selectedPlan === '6x' && selectedOffer === 'path' && status.path) {
           perCount = status.path.installment_6x_count;
           mainLabel = `${v.offerName} · ${perCount} monthly payments${v.discountOff}`;
           mainAmount = `${money(status.path.total_monthly_6x_cents, cur)}/mo`;
           courseNowCents = status.path.total_monthly_6x_cents;
+        } else if (selectedPlan === '6x' && selectedOffer === '12week') {
+          perCount = status.installment_6x_count;
+          courseNowCents = d.eligible ? d.monthly_6x_cents : status.installment_monthly_6x_cents;
+          mainLabel = `${v.offerName} · ${perCount} monthly payments${v.discountOff}`;
+          mainAmount = `${money(courseNowCents, cur)}/mo`;
+        } else if (selectedPlan === '12x' && selectedOffer === '12week') {
+          perCount = status.installment_12x_count;
+          courseNowCents = d.eligible ? d.monthly_12x_cents : status.installment_monthly_12x_cents;
+          mainLabel = `${v.offerName} · ${perCount} monthly payments${v.discountOff}`;
+          mainAmount = `${money(courseNowCents, cur)}/mo`;
         } else if (selectedPlan === '3x') {
           mainLabel = `${v.offerName} · ${v.count} monthly payments${v.discountOff}`;
           mainAmount = `${money(v.monthlyNowCents, cur)}/mo`;
