@@ -3,31 +3,50 @@ import SiteLayout from '../components/SiteLayout.astro';
 import PageHero from '../components/PageHero.astro';
 import SoftCta from '../components/SoftCta.astro';
 
-// Anonymous quotes carry no avatar — a real face under anonymised words
+// The featured line — the one that says what this page actually is:
+// honest, unstaged. It opens the page so the reviews read as real words,
+// not a wall of five-star theatre.
+const featured = {
+  quote: 'The honesty of it is the point. Nothing here is performance.',
+  name: 'Monike',
+  place: 'Netherlands',
+};
+
+// The rest — real words, shared with permission, lightly edited for length.
+// Anonymous quotes carry no avatar: a real face under anonymised words
 // would defeat the anonymisation (copy book: consent before publishing).
 const reviews = [
   ['Rebecca Lucy', 'USA', 'I came for the voice and left with something steadier underneath it.', '/media/library/ritual-rebecca.jpg'],
-  ['Monike', 'Netherlands', 'The honesty of it is the point. Nothing here is performance.', ''],
   ['Dr. Karen Evans', 'USA', 'A rigorous, kind way of working that fits beside clinical practice.', '/media/library/workshop-karen.webp'],
   ['Gwenola Emilia Enciu', 'Romania', 'I finally have a practice I can return to on my own, for life.', '/media/library/workshop-gwenola.jpg'],
   ['Workshop participant', 'Belgium', 'An hour in, I made a sound I’d been holding for years. Then I could breathe.', ''],
-  ['Course student', 'Germany', 'Since learning this, I catch myself the moment I’m not being fully honest — I hear it in my own voice.', ''],
 ];
+
+// A longer, narrative one to close the grid full-width.
+const wide = ['Course student', 'Germany', 'Since learning this, I catch myself the moment I’m not being fully honest — I hear it in my own voice.'];
 ---
 
 <SiteLayout
   title="Reviews — Songdance"
-  description="In their words. A few words from people who've done the work — and verified reviews on Trustpilot."
+  description="In their words — honest reflections from people who’ve done the work, plus verified reviews on Trustpilot."
 >
   <PageHero
     eyebrow="Reviews"
     title="In their words"
     lede="A few words from people who’ve done the work."
-    image="/media/library/svh-retreat-circle-yurt-wide.webp"
+    image="/media/library/svh-retreat-group-indoor.webp"
   />
 
-  <section class="sd-section sd-prose">
-    <div class="sd-prose-inner">
+  <section class="sd-section sd-reviews-featured">
+    <figure data-anim="reveal">
+      <div class="sd-reviews-mark" aria-hidden="true"></div>
+      <blockquote>{featured.quote}</blockquote>
+      <figcaption>{featured.name} · <span>{featured.place}</span></figcaption>
+    </figure>
+  </section>
+
+  <section class="sd-section sd-reviews-list">
+    <div class="sd-reviews-inner" data-anim="reveal">
       <div class="sd-quotes">
         {reviews.map(([name, place, quote, avatar]) => (
           <figure class="sd-quote-card">
@@ -38,23 +57,105 @@ const reviews = [
             </figcaption>
           </figure>
         ))}
+        <figure class="sd-quote-card sd-quote-card--wide">
+          <blockquote>{wide[2]}</blockquote>
+          <figcaption>
+            <span class="sd-quote-who">{wide[0]} · <span>{wide[1]}</span></span>
+          </figcaption>
+        </figure>
       </div>
+
+      <p class="sd-reviews-note">Real words — shared with permission, lightly edited for length.</p>
       <p class="sd-quotes-link">
         <a href="https://www.trustpilot.com/review/songdance.co" target="_blank" rel="noopener">
-          Read verified reviews on Trustpilot →
+          Verified reviews on Trustpilot →
         </a>
       </p>
     </div>
   </section>
 
-  <section class="sd-section sd-about-quote">
-    <div class="sd-eyebrow" style="text-align:center; margin-bottom: var(--sp-4);">No miracles, on purpose</div>
-    <p class="t-lyric sd-about-quote-text">
-      “You might first feel worse rather than better. What’s on the other end is a
-      different flavor of peace — more lasting, more structurally embedded.”
-    </p>
-    <p class="sd-quotes-attrib">— Jacob</p>
+  <section class="sd-section sd-about-quote sd-reviews-closer">
+    <p class="t-lyric sd-about-quote-text">“It’s not a course. It’s a practice.”</p>
+    <p class="sd-quotes-attrib">— a participant</p>
   </section>
 
   <SoftCta />
 </SiteLayout>
+
+<style>
+  /* Featured opening quote — sets the register before the grid. */
+  .sd-section.sd-reviews-featured {
+    text-align: center;
+    padding-top: var(--sp-8);
+    padding-bottom: var(--sp-7);
+  }
+  .sd-reviews-featured figure {
+    margin: 0;
+  }
+  .sd-reviews-mark {
+    width: 44px;
+    height: 2px;
+    margin: 0 auto var(--sp-6);
+    background: var(--ember);
+    opacity: 0.85;
+  }
+  .sd-reviews-featured blockquote {
+    margin: 0 auto;
+    max-width: 22ch;
+    font-family: var(--font-lyric);
+    font-style: italic;
+    font-weight: 400;
+    font-size: clamp(30px, 4.6vw, 52px);
+    line-height: 1.16;
+    letter-spacing: 0.005em;
+    color: var(--ink);
+    text-wrap: balance;
+  }
+  .sd-reviews-featured figcaption {
+    margin-top: var(--sp-5);
+    font-family: var(--font-body);
+    font-size: var(--t-caption);
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--ink-quiet);
+  }
+  .sd-reviews-featured figcaption span {
+    color: var(--ember-deep);
+  }
+
+  /* The grid — roomier than the default prose measure so two cards breathe. */
+  .sd-section.sd-reviews-list {
+    padding-top: var(--sp-5);
+  }
+  .sd-reviews-inner {
+    max-width: 920px;
+    margin: 0 auto;
+  }
+  .sd-reviews-inner .sd-quotes {
+    margin-top: 0;
+  }
+  .sd-quote-card--wide {
+    grid-column: 1 / -1;
+  }
+  .sd-quote-card--wide blockquote {
+    font-size: 22px;
+  }
+
+  .sd-reviews-note {
+    margin: var(--sp-6) 0 0;
+    text-align: center;
+    font-family: var(--font-mono);
+    font-size: var(--t-caption);
+    letter-spacing: 0.03em;
+    color: var(--ink-quiet);
+  }
+  .sd-reviews-list .sd-quotes-link {
+    margin-top: var(--sp-3);
+    text-align: center;
+  }
+
+  /* Closer band inherits .sd-about-quote (plum, centred). */
+  .sd-reviews-closer .sd-about-quote-text {
+    max-width: 20ch;
+  }
+</style>
