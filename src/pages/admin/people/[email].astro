@@ -21,7 +21,19 @@ if (!(await verifySession(env.ADMIN_SESSION_SECRET, readCookie(Astro.request))))
   return Astro.redirect('/admin/login');
 }
 
-const email = (Astro.params.email ?? '').toString().trim().toLowerCase();
+// The Cloudflare adapter hands `Astro.params` the raw, still-percent-encoded
+// path segment, so an email arrives as `name%40gmail.com` (the `@` never
+// decoded) and every lookup below misses. Decode it once — defensively, since a
+// stray unescaped `%` would otherwise throw — before normalising. Already-
+// decoded values have no `%` sequences and pass through unchanged.
+const rawEmailParam = (Astro.params.email ?? '').toString();
+let decodedEmailParam = rawEmailParam;
+try {
+  decodedEmailParam = decodeURIComponent(rawEmailParam);
+} catch {
+  // Not valid percent-encoding — use the segment as-is.
+}
+const email = decodedEmailParam.trim().toLowerCase();
 
 const rawReturn = Astro.url.searchParams.get('return_to') ?? '';
 const backHref = rawReturn.startsWith('/admin/people') ? rawReturn : '/admin/people';
