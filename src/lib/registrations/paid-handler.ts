@@ -9,6 +9,8 @@
 
 import { getRegistrationById, logEvent } from './db';
 import { recordEvent, upsertSubscriber } from './drip';
+import { retreatDripTags } from './drip-tags';
+import { mirrorTagsToContact } from '../contacts/mirror';
 import { recordPurchaseOrder } from '../orders/drip-order';
 
 type Env = {
@@ -46,9 +48,21 @@ export async function pushPaidRegistrationToDrip(
       accountId: env.DRIP_ACCOUNT_ID,
     };
 
-    const tags: string[] = [];
-    if (product) tags.push(`product:${product.slug}`);
-    if (product?.drip_tag) tags.push(product.drip_tag);
+    // `product:<slug>` + the product's drip_tag. Shared with the historical
+    // backfill so the two compute an identical set.
+    const tags = retreatDripTags(product);
+
+    // Mirror those tags onto the local People/contacts list — a local write,
+    // independent of the Drip push below (so it happens even if Drip is down).
+    // Best-effort; never blocks fulfilment.
+    await mirrorTagsToContact(env, {
+      email: reg.email,
+      name: reg.name,
+      timezone: reg.timezone,
+      country: reg.country,
+      tags,
+      source: 'retreat-order',
+    });
 
     await upsertSubscriber(dripCfg, {
       email: reg.email,

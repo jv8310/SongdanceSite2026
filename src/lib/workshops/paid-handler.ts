@@ -10,6 +10,8 @@
 import { logEvent } from '../registrations/db';
 import { upsertSubscriber } from '../registrations/drip';
 import { recordPurchaseOrder } from '../orders/drip-order';
+import { workshopDripTags, audienceLensesFor } from './drip-tags';
+import { mirrorTagsToContact } from '../contacts/mirror';
 import {
   claimNotification,
   getProductById,
@@ -44,30 +46,33 @@ export function icsUrl(baseUrl: string, token: string): string {
   return `${baseUrl.replace(/\/$/, '')}/api/workshops/ics?t=${token}`;
 }
 
-// The page's audience doors → readable lens names, used for Drip segmentation.
-const AUDIENCE_LENSES: Record<string, string> = { '1': 'healing', '2': 'freedom', '3': 'pro' };
-
-function audienceLenses(reg: WorkshopRegistration): string[] {
-  return (reg.audience ?? '')
-    .split(',')
-    .map((d) => AUDIENCE_LENSES[d.trim()])
-    .filter(Boolean);
-}
-
 async function tagInDrip(env: Env, reg: WorkshopRegistration, workshop: Workshop) {
+  // The bump's product row (for its Drip tag), fetched only when it applies.
+  const bump =
+    reg.wants_bump && workshop.bump_product_id
+      ? await getProductById(env.DB, workshop.bump_product_id)
+      : null;
+  // The exact tags this registration earns: source tag, bump tag, audience
+  // lenses. Shared with the historical backfill so the two can't drift.
+  const tags = workshopDripTags(reg, workshop, bump);
+  // Audience doors → lens names, also carried as the `audience` custom field.
+  const lenses = audienceLensesFor(reg.audience);
+
+  // Mirror those tags onto the local People/contacts list — ALWAYS, independent
+  // of Drip creds: this is a local write, and it's the whole point of the fix
+  // (an order's tags must be searchable/targetable on the contacts list, not
+  // only in Drip). Best-effort; never blocks the confirmation or the Drip push.
+  await mirrorTagsToContact(env, {
+    email: reg.email,
+    name: reg.name,
+    timezone: reg.timezone,
+    country: reg.country,
+    tags,
+    source: 'workshop-order',
+  });
+
+  // Push to Drip (only when configured).
   if (!env.DRIP_API_TOKEN || !env.DRIP_ACCOUNT_ID) return;
-  const tags: string[] = [];
-  if (reg.source_tag) tags.push(reg.source_tag);
-  else if (workshop.source_tag) tags.push(workshop.source_tag);
-  if (reg.wants_bump && workshop.bump_product_id) {
-    const bump = await getProductById(env.DB, workshop.bump_product_id);
-    if (bump) tags.push(bump.drip_tag || `prod_${bump.slug}`);
-  }
-  // Audience doors chosen on the workshop page → one tag per lens
-  // (svh_audience_pro, …) plus an `audience` custom field. Null audience
-  // sends nothing, so a lens learned earlier is never erased.
-  const lenses = audienceLenses(reg);
-  for (const lens of lenses) tags.push(`svh_audience_${lens}`);
   const [firstName, ...rest] = (reg.name ?? '').trim().split(' ');
   await upsertSubscriber(
     { apiToken: env.DRIP_API_TOKEN, accountId: env.DRIP_ACCOUNT_ID },
