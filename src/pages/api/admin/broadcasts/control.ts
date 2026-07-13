@@ -11,6 +11,7 @@ import {
   pauseBroadcast,
   resumeBroadcast,
   retryFailedRecipients,
+  setBroadcastStopAt,
   setBroadcastUrgent,
 } from '../../../../lib/broadcasts/db';
 
@@ -22,9 +23,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
     return json({ error: 'Unauthorized' }, 401);
   }
 
-  let payload: { id?: number; action?: string };
+  let payload: { id?: number; action?: string; stop_at?: string };
   try {
-    payload = (await request.json()) as { id?: number; action?: string };
+    payload = (await request.json()) as { id?: number; action?: string; stop_at?: string };
   } catch {
     return json({ error: 'Invalid request.' }, 400);
   }
@@ -63,6 +64,22 @@ export const POST: APIRoute = async ({ request, locals }) => {
       // the next cron tick — no relaunch needed, the queue is unchanged.
       await setBroadcastUrgent(env.DB, id, payload.action === 'urgent_on');
       return json({ ok: true, urgent: payload.action === 'urgent_on' });
+    }
+    case 'set_stop_at': {
+      // Arm the auto-stop deadline. The client sends an absolute ISO-8601 instant
+      // (a datetime-local converted through the admin's own timezone), which we
+      // store verbatim after a parse sanity-check. Takes effect next tick.
+      const raw = String(payload.stop_at ?? '').trim();
+      const ms = Date.parse(raw);
+      if (!raw || !Number.isFinite(ms)) {
+        return json({ error: 'Provide a valid stop time.' }, 400);
+      }
+      await setBroadcastStopAt(env.DB, id, new Date(ms).toISOString());
+      return json({ ok: true, stop_at: new Date(ms).toISOString() });
+    }
+    case 'clear_stop_at': {
+      await setBroadcastStopAt(env.DB, id, null);
+      return json({ ok: true, stop_at: null });
     }
     default:
       return json({ error: 'Unknown action.' }, 400);

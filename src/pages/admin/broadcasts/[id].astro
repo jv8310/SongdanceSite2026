@@ -48,6 +48,21 @@ const tags = isEditable ? await availableTags(env.DB, 1000) : [];
 const hasAudienceFilter = !!(b.audience_include_tags || b.audience_exclude_tags || b.audience_field);
 const preview = previewBroadcast(b, env.PUBLIC_BASE_URL);
 const dripHtml = dripHtmlForBroadcast(b);
+// A human label for an armed auto-stop, formatted in the business timezone so
+// "midnight Brussels" reads plainly regardless of where the admin is sitting.
+const stopAtLabel =
+  b.stop_at && Number.isFinite(Date.parse(b.stop_at))
+    ? new Date(b.stop_at).toLocaleString('en-GB', {
+        timeZone: 'Europe/Brussels',
+        weekday: 'short',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      }) + ' (Brussels)'
+    : '';
 // How much the queue cleaning has removed (dead domains vs by tag), and when it
 // last ran — so "did I already clean this?" is answerable at a glance.
 const clean = isDraft ? { deadDomain: 0, byTag: 0 } : await cleaningCounts(env.DB, b.id);
@@ -178,7 +193,7 @@ const statusLabel: Record<string, string> = {
                 <p class="bc-pace-lead">
                   <strong>⚡ Urgent mode is on</strong> — local-time windows are ignored, so all
                   {' '}<strong>{counts.pending.toLocaleString()}</strong> still queued are eligible every tick and the
-                  send drains as fast as the cap allows (~350/tick ≈ a few thousand per hour, bounded by Resend's send
+                  send drains as fast as the cap allows (~3,000/tick ≈ tens of thousands per hour, bounded by Resend's send
                   rate). The breakdown below is just where the remaining queue is in the world.
                 </p>
               ) : (
@@ -264,6 +279,25 @@ const statusLabel: Record<string, string> = {
             )}
             <span id="bc-ctl-msg" class="bc-msg"></span>
           </div>
+        </div>
+      )}
+
+      {b.status !== 'done' && (
+        <div class="bc-stopat">
+          <strong>Auto-stop (deadline)</strong>
+          <p class="bc-stopat-note">
+            {b.stop_at ? (
+              <>⏱ Armed — this broadcast ends itself at <strong>{stopAtLabel}</strong>, and nothing is sent after that. Any recipients still queued at that moment are left unsent.</>
+            ) : (
+              <>Off. Set a moment (entered in <em>your</em> local time) for the send to end itself — e.g. the instant a sale closes — so a "closes tonight" mail never lands after the deadline. Pairs with ⚡ Send now for a hard cut-off.</>
+            )}
+          </p>
+          <div class="bc-stopat-row">
+            <input id="bc-stopat-input" type="datetime-local" />
+            <button id="bc-stopat-set" class="adm-btn adm-btn--ghost" type="button" data-id={b.id}>{b.stop_at ? 'Change' : 'Set auto-stop'}</button>
+            {b.stop_at && <button id="bc-stopat-clear" class="adm-btn adm-btn--ghost" type="button" data-id={b.id}>Clear</button>}
+          </div>
+          <span id="bc-stopat-msg" class="bc-msg"></span>
         </div>
       )}
     </section>
@@ -386,6 +420,11 @@ const statusLabel: Record<string, string> = {
     .bc-row .bc-field { flex: 1; }
     .bc-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
     .bc-msg { font-size: 13px; color: #6f5f6d; }
+    .bc-stopat { border: 1px solid rgba(161,72,38,0.22); border-radius: 10px; padding: 14px 16px; margin: 16px 0 0; }
+    .bc-stopat-note { font-size: 13px; color: #4a3848; line-height: 1.7; margin: 6px 0 12px; max-width: 74ch; }
+    .bc-stopat-note strong { color: #2a1b2a; }
+    .bc-stopat-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .bc-stopat-row input { padding: 7px 10px; border: 1px solid rgba(161,72,38,0.3); border-radius: 8px; font: inherit; }
     .bc-readonly dt { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.05em; color: #6f5f6d; margin-top: 12px; }
     .bc-readonly dd { margin: 3px 0 0; font-size: 14px; color: #2a1b2a; }
     .bc-pre { white-space: pre-wrap; line-height: 1.6; word-break: break-word; }
@@ -635,6 +674,39 @@ const statusLabel: Record<string, string> = {
           msg.textContent = 'Failed: ' + (err.message || err);
         }
         btn.disabled = false;
+      });
+    })();
+
+    // Auto-stop (deadline): arm or clear the stop_at instant. The datetime-local
+    // is read in the admin's own timezone (that's how the browser parses it) and
+    // converted to an absolute ISO instant the cron can compare anywhere.
+    (function () {
+      const setBtn = document.getElementById('bc-stopat-set');
+      const clearBtn = document.getElementById('bc-stopat-clear');
+      const input = document.getElementById('bc-stopat-input');
+      const msg = document.getElementById('bc-stopat-msg');
+      const post = async (body) => {
+        const res = await fetch('/api/admin/broadcasts/control', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed');
+        return data;
+      };
+      if (setBtn) setBtn.addEventListener('click', async () => {
+        const v = input && input.value ? input.value.trim() : '';
+        if (!v) { msg.textContent = 'Pick a date and time first.'; return; }
+        const d = new Date(v);
+        if (isNaN(d.getTime())) { msg.textContent = 'That time is not valid.'; return; }
+        setBtn.disabled = true; msg.textContent = 'Saving…';
+        try { await post({ id: Number(setBtn.dataset.id), action: 'set_stop_at', stop_at: d.toISOString() }); window.location.reload(); }
+        catch (err) { msg.textContent = 'Failed: ' + (err.message || err); setBtn.disabled = false; }
+      });
+      if (clearBtn) clearBtn.addEventListener('click', async () => {
+        if (!confirm('Remove the auto-stop? The broadcast will keep sending until its queue is empty.')) return;
+        clearBtn.disabled = true; msg.textContent = 'Clearing…';
+        try { await post({ id: Number(clearBtn.dataset.id), action: 'clear_stop_at' }); window.location.reload(); }
+        catch (err) { msg.textContent = 'Failed: ' + (err.message || err); clearBtn.disabled = false; }
       });
     })();
 

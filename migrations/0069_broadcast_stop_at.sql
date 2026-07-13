@@ -1,0 +1,16 @@
+-- Auto-stop a broadcast at a fixed instant — a "deadline" control.
+--
+-- Why: a sale/deadline broadcast (e.g. "half price closes at midnight tonight")
+-- must NOT keep delivering after the deadline it names. Two things make that a
+-- real risk: the per-recipient local-time window holds part of the list to its
+-- own next morning (which, for the Asia/Pacific side of an evening-Brussels
+-- send, is AFTER the deadline), and even an urgent (window-ignoring) drain can
+-- trail if the list is very large. `stop_at` lets the owner set the exact moment
+-- the send should end; the cron (src/lib/broadcasts/cron.ts) marks the broadcast
+-- 'done' on the first tick at/after it, leaving any still-pending recipients
+-- unsent rather than mailing them a now-false "last chance".
+--
+-- Stored as an ISO-8601 instant in UTC (e.g. '2026-07-15T22:00:00Z'), compared
+-- with Date.parse() in the cron. NULL (the default, and every existing row) =
+-- no auto-stop, exactly today's behaviour.
+ALTER TABLE broadcasts ADD COLUMN stop_at TEXT;

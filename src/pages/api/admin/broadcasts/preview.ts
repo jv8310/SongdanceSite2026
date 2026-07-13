@@ -37,6 +37,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
     cta_href: str(p.cta_href),
     window_start_hour: 8,
     window_end_hour: 21,
+    urgent: 0,
+    stop_at: null,
     audience_include_tags: null,
     audience_exclude_tags: null,
     audience_field: null,

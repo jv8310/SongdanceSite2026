@@ -38,6 +38,7 @@ import {
   pendingCount,
   pendingTimezones,
   reclaimStaleClaims,
+  stopBroadcastAtDeadline,
   suppressedEmailsIn,
   type Broadcast,
   type DrainCandidate,
@@ -67,15 +68,18 @@ type BroadcastCronEnv = {
 // list rolls to its own morning instead of being blasted at 3am.
 //
 // Throughput levers:
-//   • MAX_PER_RUN — emails per tick. 1000/tick ≈ up to ~288k/day at full
-//     availability; a one-off blast to a ~55k list clears in a few hours of
-//     in-window time. The real ceiling now is Resend's account rate limit + daily
-//     cap, not Worker wall-clock — raise those to go higher.
+//   • MAX_PER_RUN — emails per tick. 3000/tick ≈ a full ~55k list cleared in
+//     ~90 min of in-window (or urgent) sending, so an evening-launched deadline
+//     mail lands well before midnight; the tick itself still finishes in ~40s
+//     (≈34 chunks × the ~0.6s gap + send latency) — far inside the 300s cron
+//     interval, so two drains can't overlap and double the request rate. The
+//     real ceiling now is Resend's account rate limit + daily cap, not Worker
+//     wall-clock — raise this (and those) together to go higher still.
 //   • BATCH_SIZE — emails per Resend request (max 100). Kept at 90 so the chunk's
 //     suppression re-check IN-list stays under D1's 100-bound-param cap.
 //   • BATCH_GAP_MS — pause between chunks, the safety rail that keeps the request
 //     rate (1 request per chunk) under Resend's default 2 req/s. Leave it put.
-const MAX_PER_RUN = 1000;
+const MAX_PER_RUN = 3000;
 const BATCH_SIZE = 90;
 const BATCH_GAP_MS = 600;
 
@@ -107,6 +111,24 @@ export async function runBroadcasts(
     // tick. Log it and carry on to the next.
     try {
       const emailType = broadcastEmailType(b.id);
+
+      // 0. Deadline guard — if this broadcast has a stop_at and we've reached it,
+      // end it now (mark done, stop draining) so a "closes tonight" mail never
+      // delivers after the deadline it names. Any still-pending recipients are
+      // left unsent. Runs before the drain, and before the breaker, so it can't
+      // be starved by either.
+      if (b.stop_at) {
+        const stopMs = Date.parse(b.stop_at);
+        if (Number.isFinite(stopMs) && now >= stopMs) {
+          await stopBroadcastAtDeadline(
+            env.DB,
+            b.id,
+            `Auto-stopped at its scheduled stop time (${b.stop_at}).`,
+          );
+          result.done += 1;
+          continue;
+        }
+      }
 
       // 1. Circuit breaker — over sends made SINCE the last launch/resume, so a
       // cleaned-and-resumed queue is judged on its own fresh sample rather than a
