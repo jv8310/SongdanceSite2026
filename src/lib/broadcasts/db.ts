@@ -22,6 +22,10 @@ export type Broadcast = {
   // When 1, the cron ignores the per-recipient local-time window and drains the
   // queue as fast as the cap/Resend rate allow (a deadline send). Default 0.
   urgent: number;
+  // ISO-8601 UTC instant (e.g. '2026-07-15T22:00:00Z') at/after which the cron
+  // auto-marks this broadcast 'done' and stops sending — a hard deadline guard
+  // so a "closes tonight" mail never delivers after the deadline. null = never.
+  stop_at: string | null;
   audience_include_tags: string | null;
   audience_exclude_tags: string | null;
   audience_field: string | null;
@@ -647,6 +651,40 @@ export async function setBroadcastUrgent(db: D1Database, id: number, urgent: boo
   await db
     .prepare(`UPDATE broadcasts SET urgent = ? WHERE id = ?`)
     .bind(urgent ? 1 : 0, id)
+    .run();
+}
+
+// Set (or clear, with null) the auto-stop instant. Stored as an ISO-8601 UTC
+// string the cron compares with Date.parse(); independent of status, so it can
+// be armed on a live 'sending' broadcast and takes effect on the next tick.
+export async function setBroadcastStopAt(
+  db: D1Database,
+  id: number,
+  stopAtIso: string | null,
+): Promise<void> {
+  await db
+    .prepare(`UPDATE broadcasts SET stop_at = ? WHERE id = ?`)
+    .bind(stopAtIso, id)
+    .run();
+}
+
+// Terminal stop when a broadcast reaches its stop_at deadline: flip 'sending' →
+// 'done' (so the cron stops draining it — listActiveBroadcasts is status =
+// 'sending' only) and record why on paused_reason so it's visible in the admin.
+// Any still-pending recipients are simply left unsent. Idempotent via the
+// status guard, mirroring markBroadcastDone.
+export async function stopBroadcastAtDeadline(
+  db: D1Database,
+  id: number,
+  reason: string,
+): Promise<void> {
+  await db
+    .prepare(
+      `UPDATE broadcasts
+          SET status = 'done', completed_at = datetime('now'), paused_reason = ?
+        WHERE id = ? AND status = 'sending'`,
+    )
+    .bind(reason, id)
     .run();
 }
 
