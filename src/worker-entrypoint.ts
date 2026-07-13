@@ -200,9 +200,10 @@ export function createExports(manifest: unknown) {
 
     // Pull Meta ad spend straight from the Marketing API into workshop_ad_spend,
     // so /ads + /admin/workshops/stats ROAS need no manual CSV import. Rides the
-    // hourly trigger, self-gates to ~once a day, re-syncs a rolling 14-day window
-    // (to absorb Meta's retroactive spend revisions), and no-ops entirely until
-    // META_AD_ACCOUNT_ID + an ads_read token are set.
+    // hourly trigger, self-gates to the first tick at/after 06:00 Brussels (at
+    // most once a day), re-syncs a rolling 14-day window (to absorb Meta's
+    // retroactive spend revisions), and no-ops entirely until META_AD_ACCOUNT_ID
+    // + an ads_read token are set.
     ctx.waitUntil(
       runMetaAdSpendSync(env)
         .then((r) => {

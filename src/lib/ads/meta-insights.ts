@@ -25,6 +25,7 @@
 import { getConfig, setConfig, replaceMetaAdSpend } from '../workshops/db';
 import { getFxRatesToEur } from '../admin/fx';
 import { isAcquisitionCampaign } from './campaigns';
+import { localHour } from '../workshops/time';
 
 export type MetaInsightsEnv = {
   DB: D1Database;
@@ -37,11 +38,13 @@ export type MetaInsightsEnv = {
 // How many trailing days to re-pull each sync — long enough to absorb Meta's
 // retroactive spend revisions, short enough to stay one small API call.
 const SYNC_WINDOW_DAYS = 14;
-// Once-a-day cadence, mirroring the FX refresh's 20h staleness gate: the hourly
-// cron calls this every tick, but it only hits Meta when the last success is
-// older than this — and a failed run leaves the marker untouched so the next
-// tick retries.
-const MIN_SYNC_INTERVAL_MS = 20 * 3_600_000;
+// Once-a-day cadence, anchored to a fixed local time (mirroring the SD-REPORT
+// digest's 08:00 Brussels hold): the hourly cron calls this every tick, but it
+// only hits Meta from the first tick at/after 06:00 in SYNC_TZ, and at most
+// once per Brussels calendar day — a failed run leaves the marker untouched so
+// the next tick retries (same day, so it's caught up later that morning).
+const SYNC_LOCAL_HOUR = 6;
+const SYNC_TZ = 'Europe/Brussels';
 const SYNC_MARKER_KEY = 'meta_ad_spend_synced_at';
 // Safety cap. A 14-day per-campaign pull is days × campaigns rows; at 500 rows
 // a page that's ~35 campaigns before a second page, so 12 pages covers a very
@@ -91,6 +94,12 @@ function ymdUTC(d: Date): string {
 function addDaysUTC(ymd: string, n: number): string {
   const [y, m, d] = ymd.split('-').map((s) => parseInt(s, 10));
   return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
+}
+
+// The calendar date (YYYY-MM-DD) in `tz` at `now` — used to cap the sync at
+// once per local day regardless of how many hourly ticks land after 06:00.
+function businessDateIn(tz: string, now: number): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date(now));
 }
 
 // Fetch every daily insights row for the window, following pagination. Throws on
@@ -154,12 +163,17 @@ export async function runMetaAdSpendSync(
     return { skipped: true, reason: 'not_configured', days: 0 };
   }
 
-  // Daily gate (unless forced by the manual trigger).
+  // Daily gate (unless forced by the manual trigger): hold until the first
+  // tick at/after 06:00 Brussels, then at most once per Brussels calendar day.
   if (!opts.force) {
+    const now = Date.now();
+    if (localHour(SYNC_TZ, now) < SYNC_LOCAL_HOUR) {
+      return { skipped: true, reason: 'not_due', days: 0 };
+    }
     const last = await getConfig(db, SYNC_MARKER_KEY);
     if (last) {
       const lastMs = new Date(last.replace(' ', 'T')).getTime();
-      if (Number.isFinite(lastMs) && Date.now() - lastMs < MIN_SYNC_INTERVAL_MS) {
+      if (Number.isFinite(lastMs) && businessDateIn(SYNC_TZ, lastMs) === businessDateIn(SYNC_TZ, now)) {
         return { skipped: true, reason: 'not_due', days: 0 };
       }
     }

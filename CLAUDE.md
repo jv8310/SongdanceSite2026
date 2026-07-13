@@ -250,10 +250,12 @@ its "Cost / registration" as prospecting-based and breaks the "Ad spend" tile
 into prospecting · retargeting.
 
 **Cadence**: rides the existing **hourly** cron (`worker-entrypoint.ts`),
-self-gating to ~once a day via a `meta_ad_spend_synced_at` marker in
-`workshop_config` (20h staleness, mirroring the FX refresh); a failed run leaves
-the marker untouched so the next tick retries. **No-ops entirely** until the
-secrets are set, so deploying it changes nothing until the owner opts in.
+self-gating via a `meta_ad_spend_synced_at` marker in `workshop_config` to the
+first tick at/after **06:00 Europe/Brussels**, at most once per Brussels
+calendar day (mirroring the SD-REPORT digest's 08:00 hold); a failed run
+leaves the marker untouched so the next tick retries later the same morning.
+**No-ops entirely** until the secrets are set, so deploying it changes nothing
+until the owner opts in.
 
 **Setup** (Meta side is the only real work):
 - **`META_AD_ACCOUNT_ID`** — the ad account, `act_1234567890` or bare
