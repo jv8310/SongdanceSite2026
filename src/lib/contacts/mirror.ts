@@ -9,6 +9,13 @@
 // list, couldn't be targeted in a broadcast, and didn't appear on the People
 // detail page. This closes that gap — every order's tags are written locally too.
 //
+// Every mirrored contact also gets a single `in-drip` marker tag (IN_DRIP_TAG).
+// Because ONLY purchases flow through here, it's a buyer-only flag a pure
+// CSV-imported row can never carry — and every purchase also pushes the buyer to
+// Drip. So `in-drip` == "this contact is also in Drip", the exact tag a broadcast
+// puts in its exclude list to avoid double-sending to people Drip already mails.
+// Historical buyers are tagged by migration 0069; new ones are tagged here.
+//
 // Idempotent by construction, so it's safe to call on every (re-)fulfilment and
 // from the historical backfill: the contact upsert only fills missing fields
 // (COALESCE), and tags are INSERT OR IGNORE on the (email, tag) primary key.
@@ -17,6 +24,12 @@
 
 import { logEventSafe } from '../registrations/db';
 import { normalizeTimezone } from '../broadcasts/db';
+
+// The buyer-only marker every purchase mirror stamps onto its contact — see the
+// module header. Deliberately a value Drip would never emit itself, so it can't
+// collide with a tag carried in from the Drip CSV export. Exclude it in a
+// broadcast to skip contacts who are also in Drip.
+export const IN_DRIP_TAG = 'in-drip';
 
 export type MirrorContactInput = {
   email: string;
@@ -49,7 +62,11 @@ export async function writeContactTags(
 ): Promise<void> {
   const email = input.email.trim().toLowerCase();
   if (!email) return;
-  const tags = normalizeContactTags(input.tags);
+  // Always stamp the buyer-only `in-drip` marker alongside the order's own tags,
+  // so every purchase-mirrored contact is flagged as also-in-Drip (and therefore
+  // excludable from broadcasts). normalizeContactTags de-dupes, so re-runs and a
+  // contact that already carries it are no-ops.
+  const tags = normalizeContactTags([...input.tags, IN_DRIP_TAG]);
   const name = (input.name ?? '').trim() || null;
   const timezone = normalizeTimezone(input.timezone);
   const country = (input.country ?? '').trim() || null;
