@@ -17,6 +17,7 @@ import {
   failedReasons,
 } from '../../../lib/broadcasts/db';
 import { previewBroadcast } from '../../../lib/broadcasts/email';
+import { dripHtmlForBroadcast } from '../../../lib/broadcasts/drip';
 import { DEFAULT_SEND_TZ, localHour } from '../../../lib/workshops/time';
 
 export const prerender = false;
@@ -46,6 +47,7 @@ const audience = await countAudience(env.DB, {
 const tags = isEditable ? await availableTags(env.DB, 1000) : [];
 const hasAudienceFilter = !!(b.audience_include_tags || b.audience_exclude_tags || b.audience_field);
 const preview = previewBroadcast(b, env.PUBLIC_BASE_URL);
+const dripHtml = dripHtmlForBroadcast(b);
 // How much the queue cleaning has removed (dead domains vs by tag), and when it
 // last ran — so "did I already clean this?" is answerable at a glance.
 const clean = isDraft ? { deadDomain: 0, byTag: 0 } : await cleaningCounts(env.DB, b.id);
@@ -352,6 +354,12 @@ const statusLabel: Record<string, string> = {
           <button id="bc-test-btn" class="adm-btn" type="button" data-id={b.id}>Send test</button>
           <span id="bc-test-msg" class="bc-msg"></span>
         </div>
+        <div class="bc-driprow">
+          <button id="bc-drip-btn" class="adm-btn adm-btn--ghost" type="button">Copy Drip HTML</button>
+          <span id="bc-drip-msg" class="bc-msg"></span>
+          <span class="bc-driphint">Paste into Drip — footer tags &amp; <code>utm_source=drip</code> are set for you.</span>
+        </div>
+        <textarea id="bc-drip-src" hidden readonly aria-hidden="true">{dripHtml}</textarea>
       </section>
     </div>
   </main>
@@ -384,6 +392,9 @@ const statusLabel: Record<string, string> = {
     .bc-frame { width: 100%; height: 560px; border: 1px solid rgba(161,72,38,0.22); border-radius: 12px; background: #fff; }
     .bc-test { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
     .bc-test input { font: inherit; font-size: 14px; padding: 8px 11px; border: 1px solid rgba(161,72,38,0.3); border-radius: 8px; }
+    .bc-driprow { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+    .bc-driphint { font-size: 12px; color: #9a8ba6; }
+    .bc-driphint code { font-size: 11px; background: #ece0cf; padding: 1px 5px; border-radius: 4px; }
     .bc-launch p { font-size: 14px; color: #4a3848; line-height: 1.7; max-width: 64ch; }
     .bc-stats { display: flex; gap: 26px; flex-wrap: wrap; margin-bottom: 16px; }
     .bc-stats--eng { padding-top: 14px; border-top: 1px solid rgba(161,72,38,0.15); }
@@ -636,5 +647,33 @@ const statusLabel: Record<string, string> = {
       };
       setTimeout(tick, 20000);
     }
+  </script>
+
+  <script is:inline>
+    // Copy the Drip-ready HTML to the clipboard.
+    (function () {
+      const btn = document.getElementById('bc-drip-btn');
+      const src = document.getElementById('bc-drip-src');
+      const msg = document.getElementById('bc-drip-msg');
+      if (!btn || !src) return;
+      const flash = (t) => { if (msg) { msg.textContent = t; setTimeout(() => { msg.textContent = ''; }, 4000); } };
+      const fallback = () => {
+        src.hidden = false;
+        src.focus();
+        src.select();
+        let ok = false;
+        try { ok = document.execCommand('copy'); } catch (_) { ok = false; }
+        src.hidden = true;
+        flash(ok ? 'Copied — paste into Drip' : 'Select the box and press ⌘/Ctrl-C');
+      };
+      btn.addEventListener('click', () => {
+        const text = src.value;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(() => flash('Copied — paste into Drip'), fallback);
+        } else {
+          fallback();
+        }
+      });
+    })();
   </script>
 </Layout>
