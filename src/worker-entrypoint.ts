@@ -16,6 +16,7 @@ import { assessPendingSubmissions } from './lib/intake/sweep';
 import { runWorkshopCron } from './lib/workshops/cron';
 import { runBroadcasts } from './lib/broadcasts/cron';
 import { runDripOrderBackfill } from './lib/orders/drip-backfill';
+import { runContactTagBackfill } from './lib/contacts/tag-backfill';
 import { runMasterclassSeatMove } from './lib/workshops/masterclass-move';
 import { runReports } from './lib/workshops/reports';
 import { reconcileOrderNotifications } from './lib/orders/reconcile';
@@ -144,6 +145,21 @@ export function createExports(manifest: unknown) {
           })
           .catch((err) => {
             console.error('[drip/backfill] run failed', err);
+          }),
+      );
+      // One-shot historical backfill of order → contact tags (migration 0068).
+      // Mirrors every past paid order's Drip tags onto the local People/contacts
+      // list so they're searchable/targetable there, not just in Drip. Local
+      // writes only, so ungated; self-stops once the seeded queue is drained.
+      ctx.waitUntil(
+        runContactTagBackfill(env)
+          .then((r) => {
+            if (r.done || r.failed) {
+              console.log(`[contacts/tag-backfill] done=${r.done} failed=${r.failed} remaining=${r.remaining}`);
+            }
+          })
+          .catch((err) => {
+            console.error('[contacts/tag-backfill] run failed', err);
           }),
       );
       // One-shot masterclass seat move (gated by MASTERCLASS_MOVE_ENABLED):

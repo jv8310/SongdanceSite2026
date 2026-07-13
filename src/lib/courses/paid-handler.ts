@@ -16,14 +16,12 @@
 import { getCourseRegistrationById, parsePurchasedBumps } from './db';
 import { logEvent } from '../registrations/db';
 import { recordEvent, upsertSubscriber } from '../registrations/drip';
-import { GRIEF_DRIP_EVENT, GRIEF_DRIP_TAG, GRIEF_PRODUCT_SLUG } from './grief';
-import {
-  TWELVE_WEEK_DRIP_EVENT,
-  TWELVE_WEEK_DRIP_TAG,
-  TWELVE_WEEK_PRODUCT_SLUG,
-} from './twelve-week';
+import { GRIEF_DRIP_EVENT, GRIEF_PRODUCT_SLUG } from './grief';
+import { TWELVE_WEEK_DRIP_EVENT, TWELVE_WEEK_PRODUCT_SLUG } from './twelve-week';
 import { isJourneySlug, journeyDrip } from './journeys';
 import { BUMPS, isBumpSlug } from './bumps';
+import { courseDripTags } from './drip-tags';
+import { mirrorTagsToContact } from '../contacts/mirror';
 import { sendCoursePurchaseEvent } from './meta';
 import { recordPurchaseOrder, type PurchaseOrderItem } from '../orders/drip-order';
 
@@ -80,40 +78,40 @@ export async function pushPaidCourseRegistrationToDrip(
       source_variant: reg.source_variant,
     };
 
-    // Tagging differs by course. The grief course is a standalone thematic
-    // product — a single tag, no SVH activation state. The SVH cert/bundle
-    // carries the path-of-becoming tags plus the 12-week activation fields.
-    let tags: string[];
+    // The exact tags this registration earns — grief / journeys (honouring the
+    // Dutch-edition choice) / 12-week + its order bumps / cert (+ bundle).
+    // Extracted so the historical backfill computes an identical set. The Drip
+    // EVENT name and the activation custom fields still branch by product below;
+    // those aren't mirrored onto the local contacts list.
+    const tags = courseDripTags(reg);
+
+    // Mirror those tags onto the local People/contacts list — a local write,
+    // independent of the Drip push below (so it happens even if Drip is down).
+    // Best-effort; never blocks fulfilment.
+    await mirrorTagsToContact(env, {
+      email: reg.email,
+      name: [reg.first_name, reg.last_name].filter(Boolean).join(' ') || null,
+      timezone: reg.timezone,
+      country: reg.country,
+      tags,
+      source: 'course-order',
+    });
+
     let eventName: string;
     if (isGrief) {
-      tags = [GRIEF_DRIP_TAG];
       eventName = GRIEF_DRIP_EVENT;
     } else if (isJourneySlug(reg.product_slug)) {
-      // The Three Journeys (+ ASJ PRO mantra pack, + all-three bundle). The slug
-      // maps to its own set of product tags — e.g. asj-pro grants both
-      // prod_ASJ and prod_ASJ_PRO; the bundle grants all three journey tags,
-      // and the bundle-PRO adds prod_ASJ_PRO on top. The Authentic Singing
-      // component additionally honours the buyer's Dutch / English / both
-      // language choice (prod_JAZ[/_PRO] in place of prod_ASJ[/_PRO]).
-      const drip = journeyDrip(reg.product_slug, reg.language_choice);
-      tags = drip.tags;
-      eventName = drip.event;
+      // The Three Journeys (+ ASJ PRO mantra pack, + all-three bundle) — the
+      // event carries the same identity the tags do; the buyer's Dutch/English
+      // choice rides along as a `journey_language` custom field.
+      eventName = journeyDrip(reg.product_slug, reg.language_choice).event;
       if (reg.language_choice) customFields.journey_language = reg.language_choice;
     } else if (isTwelveWeek) {
-      // The standalone 12-week foundation course. `prod_SVH_12w` is the same
-      // foundation-access tag the cert bundle grants — Jacob's existing Drip
-      // automation drives the per-week `svh_week` field from there, so we don't
-      // set it here.
-      tags = [TWELVE_WEEK_DRIP_TAG];
+      // The standalone 12-week foundation course. `prod_SVH_12w` (applied above)
+      // is the same foundation-access tag the cert bundle grants — Jacob's
+      // existing Drip automation drives the per-week `svh_week` field from there.
       eventName = TWELVE_WEEK_DRIP_EVENT;
-      // Each purchased order bump's product tag, so this single upsert grants
-      // the 12-week course + every add-on at once (prod_ASJ / prod_Grief-sp).
-      for (const b of purchasedBumps) {
-        if (isBumpSlug(b.slug)) tags.push(BUMPS[b.slug].dripTag);
-      }
     } else {
-      tags = ['prod_SVH_9m'];
-      if (reg.product_slug === 'cc-bundle') tags.push('prod_SVH_12w');
       eventName = env.DRIP_COURSE_EVENT || 'Completed SVH course registration';
 
       if (reg.activate_choice === 'now') {
