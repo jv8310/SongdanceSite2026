@@ -313,6 +313,17 @@ e.g. a Drip export) and one-off `broadcasts` sent to it. Lives in
   live "X contacts match" estimate (`/api/admin/broadcasts/audience`); the launch
   snapshot applies the same `audienceWhere` criteria. Blank = the whole sendable
   list. (Tag fields are free text too — any tag works, listed or not.)
+  - **Don't double-send with Drip** (`in-drip` tag): the contacts list was a CSV
+    import from a Drip export (those people are no longer in Drip), but every site
+    **buyer** is pushed to Drip *and* mirrored into contacts — so buyers live in
+    both lists. The purchase mirror stamps every buyer with a single `in-drip`
+    tag (`IN_DRIP_TAG`, `src/lib/contacts/mirror.ts`; migration 0069 backfilled
+    the history) — a marker a pure CSV row can never carry, so it cleanly
+    separates "also in Drip" from the shared product tags (which the CSV also
+    carried). Put `in-drip` in a broadcast's **exclude tags** to mail buyers from
+    Drip only and the CSV cohort from here — nobody twice. (Edge: someone who
+    re-entered Drip via a newsletter opt-in rather than a purchase isn't mirrored,
+    so isn't tagged.)
 - **Compose / preview / test**: a broadcast is a draft with a **live preview**
   (the compose pages POST to `/api/admin/broadcasts/preview`, which renders the
   unsaved fields server-side). Two `format`s: `simple` (subject, heading,
