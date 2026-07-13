@@ -72,6 +72,17 @@ export type OrderNotificationInput = {
   // One-time order bumps bought alongside a course (label + amount). Rendered as
   // an "Add-ons" row plus an "Order total" (amountCents + bumps). Omit for none.
   bumps?: Array<{ label: string; amountCents: number }>;
+  // The workshop this buyer came through, if any — looked up by email against
+  // paid/coupon workshop registrations (prefer the one they attended, else the
+  // most recent). Lets the ops inbox see which workshop a course sale traces to.
+  // `moreCount` = additional matching workshops beyond the one shown.
+  attendedWorkshop?: {
+    title: string;
+    startsAtUtc: string | null;
+    isReplay: boolean;
+    attendanceStatus: string; // 'registered' | 'attended' | 'no_show'
+    moreCount?: number;
+  } | null;
   paymentPlan?: string | null;
   installmentsTotal?: number | null;
   activateChoice?: string | null;
@@ -107,6 +118,39 @@ function escapeHtml(s: string): string {
 function firstNameOf(first: string | null | undefined, fallback: string): string {
   const f = (first ?? '').trim().split(' ')[0];
   return f || fallback;
+}
+
+// "12 Jun 2026" in the workshop's home timezone. Accepts both ISO ("…Z") and
+// SQLite "YYYY-MM-DD HH:MM:SS" (also UTC).
+function workshopDateLabel(iso: string): string {
+  const ms = Date.parse(iso.includes('T') ? iso : iso.replace(' ', 'T') + 'Z');
+  if (!Number.isFinite(ms)) return iso;
+  return new Intl.DateTimeFormat('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'Europe/Brussels',
+  }).format(new Date(ms));
+}
+
+// One-line summary of the workshop a course buyer came through, for the
+// "Workshop attended" row: "SVH Workshop · 12 Jun 2026 · attended (+1 more)".
+function attendedWorkshopValue(aw: OrderNotificationInput['attendedWorkshop']): string | null {
+  if (!aw) return null;
+  const title = aw.title.replace(/Somatic Vocal Healing/gi, 'SVH');
+  const when = aw.isReplay
+    ? 'on-demand'
+    : aw.startsAtUtc
+      ? workshopDateLabel(aw.startsAtUtc)
+      : null;
+  const attend =
+    aw.attendanceStatus === 'attended'
+      ? 'attended'
+      : aw.attendanceStatus === 'no_show'
+        ? 'registered · no-show'
+        : 'registered';
+  const more = aw.moreCount && aw.moreCount > 0 ? ` (+${aw.moreCount} more)` : '';
+  return [title, when, attend].filter(Boolean).join(' · ') + more;
 }
 
 function resolveRecipients(env: OrderEnv): string[] {
@@ -186,6 +230,7 @@ export function buildOrderNotificationEmail(
   const fields: Array<[string, string | null | undefined]> = [
     ['Order', `#${input.orderId} · ${input.orderType === 'course' ? 'Course' : 'Retreat'}`],
     ['Product', input.tierName ? `${input.productName} — ${input.tierName}` : input.productName],
+    ['Workshop attended', attendedWorkshopValue(input.attendedWorkshop)],
     ['Amount', planLabel ? `${amount} (${planLabel})` : amount],
     ['Add-ons', addonsValue],
     ['Order total', orderTotal],
@@ -351,6 +396,41 @@ export async function sendOrderNotification(
   }
 }
 
+// Which workshop a buyer came through, matched by email against completed
+// (paid/coupon) workshop registrations. Prefers a workshop they *attended*,
+// then the most recent by start date; `moreCount` counts the rest. Returns null
+// when the buyer never registered for a workshop — a pure course purchase.
+export async function findAttendedWorkshopForEmail(
+  db: D1Database,
+  email: string,
+): Promise<OrderNotificationInput['attendedWorkshop']> {
+  const e = (email ?? '').trim().toLowerCase();
+  if (!e) return null;
+  const res = await db
+    .prepare(
+      `SELECT w.title AS title, w.starts_at_utc AS starts_at_utc,
+              w.is_replay AS is_replay, r.attendance_status AS attendance_status
+         FROM workshop_registrations r
+         JOIN workshops w ON w.id = r.workshop_id
+        WHERE lower(r.email) = ?
+          AND r.payment_status IN ('paid','coupon')
+          AND w.deleted = 0
+        ORDER BY (r.attendance_status = 'attended') DESC, w.starts_at_utc DESC`,
+    )
+    .bind(e)
+    .all<{ title: string; starts_at_utc: string; is_replay: number; attendance_status: string }>();
+  const rows = res.results ?? [];
+  if (!rows.length) return null;
+  const top = rows[0];
+  return {
+    title: top.title,
+    startsAtUtc: top.starts_at_utc ?? null,
+    isReplay: top.is_replay === 1,
+    attendanceStatus: top.attendance_status,
+    moreCount: rows.length - 1,
+  };
+}
+
 // ── Thin adapters that gather the data from a paid registration row ─────────
 export async function notifyCourseOrder(
   env: OrderEnv,
@@ -358,6 +438,13 @@ export async function notifyCourseOrder(
   opts?: { stripePaymentIntent?: string | null; stripeSubscriptionId?: string | null },
 ): Promise<void> {
   const productName = COURSE_PRODUCT_LABELS[reg.product_slug] ?? reg.product_slug;
+  // Best-effort: which workshop did this buyer come through? Never blocks send.
+  let attendedWorkshop: OrderNotificationInput['attendedWorkshop'] = null;
+  try {
+    attendedWorkshop = await findAttendedWorkshopForEmail(env.DB, reg.email);
+  } catch {
+    /* leave null — the notification still goes out */
+  }
   const fullName =
     [reg.first_name, reg.last_name].filter(Boolean).join(' ').trim() ||
     reg.email.split('@')[0];
@@ -372,6 +459,7 @@ export async function notifyCourseOrder(
     orderId: reg.id,
     productName,
     productSlug: reg.product_slug,
+    attendedWorkshop,
     firstName: firstNameOf(reg.first_name, reg.email.split('@')[0]),
     customerName: fullName,
     email: reg.email,

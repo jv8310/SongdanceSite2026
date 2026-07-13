@@ -55,7 +55,12 @@ export type AdsDashboard = {
   certBuyers: number; // distinct certification buyers, summed per workshop
   conversionPct: number | null; // (course + cert buyers) ÷ registrations
   totalRevenueEurMinor: number; // engine net + standalone course sales
-  blendedRoas: number | null; // total revenue ÷ ad spend
+  blendedRoas: number | null; // total revenue ÷ ad spend (all campaigns)
+  // Workshop-only ROAS: income traceable to workshop registrants (engine net +
+  // standalone course revenue from those emails, distinct) ÷ prospecting (TOF)
+  // spend. The acquisition-true return on the workshop funnel.
+  workshopRevenueEurMinor: number;
+  workshopRoas: number | null;
 
   // Focus products -------------------------------------------------------
   workshops: { ticketCount: number; netEurMinor: number };
@@ -273,6 +278,8 @@ export async function computeAdsDashboard(
     conversionPct: registrations > 0 ? ((courseBuyers + certBuyers) / registrations) * 100 : null,
     totalRevenueEurMinor,
     blendedRoas: adSpendEurMinor > 0 ? totalRevenueEurMinor / adSpendEurMinor : null,
+    workshopRevenueEurMinor: perf.workshopRevenueEurMinor,
+    workshopRoas: perf.workshopRoas,
 
     workshops: { ticketCount: t.ticketCount, netEurMinor: t.ticketNetEurMinor },
     masterclass: { count: t.masterclassCount, netEurMinor: t.masterclassNetEurMinor },

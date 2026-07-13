@@ -5,10 +5,12 @@ import { readCookie, verifySession } from '../../../lib/registrations/auth';
 import {
   computeStats,
   computeCourseSales,
+  computeWorkshopPerformance,
   mergeDailyStreams,
   computeAdSpendByCampaign,
 } from '../../../lib/workshops/stats';
 import { listWorkshops, getProductById } from '../../../lib/workshops/db';
+import ChartKit from '../../../components/charts/ChartKit.astro';
 import {
   PERIOD_PRESETS,
   resolvePeriod,
@@ -53,6 +55,9 @@ const report = await computeStats(env.DB, { from, to, workshopId });
 const courses = await computeCourseSales(env.DB, { from, to });
 const days = mergeDailyStreams(report, courses, from, to);
 const campaignSpend = await computeAdSpendByCampaign(env.DB, { from, to });
+// Per-workshop funnel + workshop-only (TOF) ROAS. Not narrowed by the workshop
+// filter — this is the acquisition view across every workshop in the window.
+const perf = await computeWorkshopPerformance(env.DB, { from, to });
 
 let cmp: {
   report: Awaited<ReturnType<typeof computeStats>>;
@@ -96,6 +101,21 @@ function delta(cur: number, prev: number | null | undefined): Delta {
 
 const eur = (minor: number) =>
   '€' + (minor / 100).toLocaleString('en-IE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const eur0 = (minor: number) => '€' + Math.round(minor / 100).toLocaleString('en-IE');
+const int = (v: number) => v.toLocaleString('en-IE');
+const pct = (v: number | null) => (v != null ? v.toFixed(1) + '%' : '—');
+const roasStr = (v: number | null) => (v != null ? v.toFixed(2) + '×' : '—');
+const shortTitle = (t: string) => t.replace(/Somatic Vocal Healing/gi, 'SVH');
+const wkDateLabel = (iso: string) =>
+  new Intl.DateTimeFormat('en-GB', {
+    day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/Brussels',
+  }).format(new Date(iso));
+const roasTone = (v: number | null): 'good' | 'bad' | 'flat' =>
+  v == null ? 'flat' : v >= 1 ? 'good' : 'bad';
+
+// The five most recent workshops with activity (perf.rows arrive newest-first),
+// scored on workshop-only (TOF) economics for the highlight cards.
+const recentWorkshops = perf.rows.filter((r) => r.registrations > 0).slice(0, 5);
 
 // Workshop dropdown labels: date-stamped and shortened, so ten near-identical
 // titles stay tellable apart.
@@ -181,11 +201,11 @@ const cmpCumulative = cmp ? cmp.days.map((d) => toMajor((cmpCum += d.totalEurMin
 const chartData = {
   labels: days.map((d) => d.date),
   streams: [
-    { name: 'Workshops', color: '#7c5c9e', values: days.map((d) => toMajor(d.workshopsEurMinor)) },
-    ...(anyMasterclass ? [{ name: 'Masterclass', color: '#c2703e', values: days.map((d) => toMajor(d.masterclassEurMinor)) }] : []),
-    ...(anyTwelveWeek ? [{ name: '12-Week Course', color: '#2f7d5a', values: days.map((d) => toMajor(d.twelveWeekEurMinor)) }] : []),
-    ...(anyCert ? [{ name: 'Certification', color: '#b04a6e', values: days.map((d) => toMajor(d.certificationEurMinor)) }] : []),
-    ...(anyOther ? [{ name: 'Other courses', color: '#8a8a64', values: days.map((d) => toMajor(d.otherCoursesEurMinor)) }] : []),
+    { name: 'Workshops', color: '#2a78d6', values: days.map((d) => toMajor(d.workshopsEurMinor)) },
+    ...(anyMasterclass ? [{ name: 'Masterclass', color: '#eb6834', values: days.map((d) => toMajor(d.masterclassEurMinor)) }] : []),
+    ...(anyTwelveWeek ? [{ name: '12-Week Course', color: '#1baf7a', values: days.map((d) => toMajor(d.twelveWeekEurMinor)) }] : []),
+    ...(anyCert ? [{ name: 'Certification', color: '#4a3aa7', values: days.map((d) => toMajor(d.certificationEurMinor)) }] : []),
+    ...(anyOther ? [{ name: 'Other courses', color: '#008300', values: days.map((d) => toMajor(d.otherCoursesEurMinor)) }] : []),
   ],
   total: days.map((d) => toMajor(d.totalEurMinor)),
   adSpend: days.map((d) => toMajor(d.adSpendEurMinor)),
@@ -283,6 +303,39 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
       {courses.fxConverted > 0 && (
         <p class="adm-sub">⚠ {courses.fxConverted} course sale(s) were charged in a non-EUR currency and converted with the fallback rate table.</p>
       )}
+    </section>
+
+    <section class="adm-section">
+      <h2>Workshop ROAS (TOF)</h2>
+      <p class="adm-sub">
+        Workshop-only economics — income from each workshop’s registrants (tickets, order bumps, and the 12-Week / certification sales they later bought) against the prospecting (TOF) spend those registrations pulled. Distinct from blended ROAS above (all revenue ÷ all spend).
+        {perf.workshopRoas != null && <> Weighted average <strong>{roasStr(perf.workshopRoas)}</strong> · {eur0(perf.workshopRevenueEurMinor)} income ÷ {eur0(perf.acquisitionSpendEurMinor)} TOF spend.</>}
+      </p>
+      {recentWorkshops.length === 0 && <p class="adm-empty">No workshop activity in this window.</p>}
+      {recentWorkshops.length > 0 && (
+        <div class="wk-boxes">
+          {recentWorkshops.map((r) => {
+            const income = r.totalEurMinor;
+            const cost = r.acquisitionCostEurMinor ?? 0;
+            const mx = Math.max(income, cost, 1);
+            return (
+              <div class="wk-box">
+                <div class="wk-head">
+                  <div class="wk-title">{shortTitle(r.title)}</div>
+                  <div class="wk-when">{r.isReplay ? 'On-demand' : wkDateLabel(r.startsAtUtc)}{r.status !== 'published' ? ` · ${r.status}` : ''}</div>
+                </div>
+                <div class="wk-roas"><b class={roasTone(r.workshopRoas)}>{roasStr(r.workshopRoas)}</b><span>ROAS · workshop-only</span></div>
+                <div class="wk-mini">
+                  <div class="wk-bar"><span class="wk-key">In</span><span class="wk-track"><span class="wk-fill" style={`width:${(income / mx) * 100}%;background:#1baf7a;`}></span></span><span class="wk-amt">{eur0(income)}</span></div>
+                  <div class="wk-bar"><span class="wk-key">TOF</span><span class="wk-track"><span class="wk-fill" style={`width:${(cost / mx) * 100}%;background:#eb6834;`}></span></span><span class="wk-amt">{r.acquisitionCostEurMinor != null ? eur0(cost) : '—'}</span></div>
+                </div>
+                <div class="wk-foot"><span><b>{int(r.registrations)}</b> regs</span><span><b>{pct(r.conversionPct)}</b> conv</span><span><b>{pct(r.attendancePct)}</b> att</span></div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      <p class="adm-sub" style="margin-top:10px;">Per-workshop TOF cost = that workshop’s share of prospecting spend by registration count (spend isn’t tracked per workshop). The weighted average counts each course buyer’s revenue once, so a multi-workshop buyer isn’t double-counted. See per-workshop detail on <a href="/admin/workshops/performance">Per-workshop performance</a>.</p>
     </section>
 
     <section class="adm-section">
@@ -435,6 +488,8 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
     </section>
   </main>
 
+  <ChartKit />
+
   <script is:inline type="application/json" id="stats-chart-data" set:html={chartJson} />
   <script is:inline type="application/json" id="stats-preset-ranges" set:html={presetRangesJson} />
 
@@ -448,10 +503,30 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
     .wk-delta--up { color:#1d6b38; background:#e2f3e7; }
     .wk-delta--down { color:#9c2b3f; background:#f9e4e8; }
     .wk-delta--flat { color:#6b6258; background:#efece7; }
+
+    /* recent-workshop highlight boxes */
+    .wk-boxes { display:grid; grid-template-columns:repeat(auto-fit,minmax(224px,1fr)); gap:14px; }
+    .wk-box { background:#fff; border:1px solid rgba(42,27,42,0.12); border-radius:12px; padding:15px 16px 16px; display:flex; flex-direction:column; }
+    .wk-box .wk-head { min-height:34px; margin-bottom:8px; }
+    .wk-box .wk-title { font-size:13.5px; font-weight:600; line-height:1.25; color:#2A1B2A; }
+    .wk-box .wk-when { font-size:11px; color:#8a8076; margin-top:2px; }
+    .wk-box .wk-roas { display:flex; align-items:baseline; gap:7px; }
+    .wk-box .wk-roas b { font-size:32px; font-weight:650; letter-spacing:-0.02em; line-height:1; }
+    .wk-box .wk-roas b.good { color:#1d6b38; }
+    .wk-box .wk-roas b.bad { color:#9c2b3f; }
+    .wk-box .wk-roas b.flat { color:#8a8076; }
+    .wk-box .wk-roas span { font-size:11.5px; color:#8a8076; }
+    .wk-box .wk-mini { margin:12px 0 11px; display:flex; flex-direction:column; gap:5px; }
+    .wk-box .wk-bar { display:flex; align-items:center; gap:8px; font-size:11px; color:#5c5248; }
+    .wk-box .wk-bar .wk-key { width:34px; flex:none; color:#8a8076; }
+    .wk-box .wk-bar .wk-track { flex:1; height:8px; background:rgba(42,27,42,0.07); border-radius:4px; overflow:hidden; }
+    .wk-box .wk-bar .wk-fill { display:block; height:100%; border-radius:4px; min-width:2px; }
+    .wk-box .wk-bar .wk-amt { width:52px; flex:none; text-align:right; font-variant-numeric:tabular-nums; }
+    .wk-box .wk-foot { display:flex; justify-content:space-between; gap:8px; margin-top:auto; padding-top:10px; border-top:1px solid rgba(42,27,42,0.1); font-size:11.5px; color:#5c5248; }
+    .wk-box .wk-foot b { color:#2A1B2A; font-weight:600; }
     .wk-chart-block { margin-bottom:26px; }
     .wk-chart-block h3 { font-size:14px; margin:0 0 8px; color:#2A1B2A; }
     .wk-chart { position:relative; background:#fff; border:1px solid rgba(42,27,42,0.12); border-radius:10px; padding:10px 8px 4px; }
-    .wk-chart svg text { font-size:11px; fill:#8a8076; }
     .wk-chart .wk-legend { display:flex; flex-wrap:wrap; gap:8px 16px; padding:4px 10px 8px; font-size:12px; color:#5c5248; }
     .wk-chart .wk-legend-item { display:inline-flex; align-items:center; gap:6px; }
     .wk-chart .wk-legend label.wk-legend-item { cursor:pointer; user-select:none; }
@@ -464,6 +539,19 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
     .adm-table { width:100%; border-collapse:collapse; }
     .adm-table th, .adm-table td { text-align:left; padding:8px 10px; border-bottom:1px solid rgba(42,27,42,0.1); font-size:13px; }
     .adm-inline-form { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+  </style>
+
+  <style is:global>
+    /* Chrome colours for the shared SDChart runtime, in the admin plum palette. */
+    :root {
+      --chart-grid: rgba(42, 27, 42, 0.08);
+      --chart-axis: #8a8076;
+      --chart-surface: #ffffff;
+      --chart-ink: #2A1B2A;
+      --chart-baseline: rgba(42, 27, 42, 0.28);
+      --chart-tip-bg: #2A1B2A;
+      --chart-tip-ink: #ffffff;
+    }
   </style>
 
   <script is:inline>
@@ -496,204 +584,33 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
       toIn.addEventListener('change', toCustom);
     })();
 
-    // Hand-rolled SVG line charts (no external deps). Hover shows a tooltip
-    // with every series' value for the nearest day.
+    // Charts drawn by the shared SDChart runtime (see ChartKit): smooth lines
+    // with a crosshair tooltip, one value scale each. Compare overlays ride in
+    // as extra dashed series; single-series charts carry an end-of-line value
+    // label. Redrawn on resize.
     (function () {
       var dataEl = document.getElementById('stats-chart-data');
-      if (!dataEl) return;
+      if (!dataEl || !window.SDChart) return;
       var data = JSON.parse(dataEl.textContent);
       if (!data.labels || !data.labels.length) return;
-
-      var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-      function shortDate(ymd) {
-        return parseInt(ymd.slice(8, 10), 10) + ' ' + MONTHS[parseInt(ymd.slice(5, 7), 10) - 1] +
-          (data.labels.length > 370 ? ' ’' + ymd.slice(2, 4) : '');
-      }
-      function fmt(v) { return '€' + v.toLocaleString('en-IE', { maximumFractionDigits: 0 }); }
-      function fmtAxis(v) {
-        if (v >= 10000) return '€' + Math.round(v / 1000) + 'k';
-        if (v >= 1000) return '€' + (v / 1000).toFixed(1) + 'k';
-        return '€' + Math.round(v);
-      }
-      function niceMax(v) {
-        var pow = Math.pow(10, Math.floor(Math.log(v) / Math.LN10));
-        var u = v / pow;
-        var nice = u <= 1 ? 1 : u <= 2 ? 2 : u <= 2.5 ? 2.5 : u <= 5 ? 5 : 10;
-        return nice * pow;
-      }
-      var NS = 'http://www.w3.org/2000/svg';
-      function elNS(tag, attrs) {
-        var e = document.createElementNS(NS, tag);
-        for (var k in attrs) e.setAttribute(k, attrs[k]);
-        return e;
-      }
-
-      // series: [{ name, color, values, dashed? }] — all aligned to data.labels
-      // (compare overlays are aligned by day index). opts.hidden is an optional
-      // { name: true } map of series toggled off via the legend checkboxes;
-      // when present the legend becomes interactive and only the checked series
-      // are plotted and scaled.
-      function draw(mountId, series, opts) {
-        opts = opts || {};
-        var hidden = opts.hidden || null;
-        var mount = document.getElementById(mountId);
-        if (!mount) return;
-        mount.innerHTML = '';
-        var labels = data.labels;
-        var n = labels.length;
-        var W = Math.max(mount.clientWidth || 760, 320);
-        var H = 260, padL = 56, padR = 14, padT = 12, padB = 26;
-
-        // Legend lists every series; swatches mirror the line (colour + solid/
-        // dashed) so it reads like the chart. When interactive, each item is a
-        // checkbox that toggles its series and redraws.
-        var legend = document.createElement('div');
-        legend.className = 'wk-legend';
-        series.forEach(function (s) {
-          var off = !!(hidden && hidden[s.name]);
-          var item, cb;
-          if (hidden) {
-            item = document.createElement('label');
-            item.className = 'wk-legend-item' + (off ? ' wk-legend-item--off' : '');
-            cb = document.createElement('input');
-            cb.type = 'checkbox';
-            cb.checked = !off;
-            cb.addEventListener('change', function () {
-              if (cb.checked) delete hidden[s.name];
-              else hidden[s.name] = true;
-              draw(mountId, series, opts);
-            });
-            item.appendChild(cb);
-          } else {
-            item = document.createElement('span');
-            item.className = 'wk-legend-item';
-          }
-          var sw = document.createElement('i');
-          sw.className = 'wk-swatch' + (s.dashed ? ' wk-swatch--dashed' : '');
-          sw.style.borderTopColor = s.color;
-          item.appendChild(sw);
-          item.appendChild(document.createTextNode(s.name));
-          legend.appendChild(item);
-        });
-        mount.appendChild(legend);
-
-        // Only the checked series are plotted, and the y-axis fits them — so
-        // hiding a big stream lets the smaller ones breathe.
-        var visible = hidden ? series.filter(function (s) { return !hidden[s.name]; }) : series;
-        var max = 1;
-        visible.forEach(function (s) {
-          s.values.forEach(function (v) { if (v > max) max = v; });
-        });
-        max = niceMax(max);
-        function x(i) { return n === 1 ? (padL + W - padR) / 2 : padL + (W - padL - padR) * (i / (n - 1)); }
-        function y(v) { return H - padB - (H - padT - padB) * (v / max); }
-
-        var svg = elNS('svg', { viewBox: '0 0 ' + W + ' ' + H, width: '100%', height: H });
-        for (var g = 0; g <= 4; g++) {
-          var gy = H - padB - (H - padT - padB) * (g / 4);
-          svg.appendChild(elNS('line', { x1: padL, y1: gy, x2: W - padR, y2: gy, stroke: 'rgba(42,27,42,0.08)' }));
-          var t = elNS('text', { x: padL - 7, y: gy + 4, 'text-anchor': 'end' });
-          t.textContent = fmtAxis(max * g / 4);
-          svg.appendChild(t);
-        }
-        var step = Math.max(1, Math.ceil(n / 7));
-        for (var i = 0; i < n; i += step) {
-          var tx = elNS('text', { x: x(i), y: H - padB + 17, 'text-anchor': 'middle' });
-          tx.textContent = shortDate(labels[i]);
-          svg.appendChild(tx);
-        }
-        visible.forEach(function (s) {
-          if (n === 1) {
-            svg.appendChild(elNS('circle', { cx: x(0), cy: y(s.values[0] || 0), r: 4, fill: s.color }));
-            return;
-          }
-          var pts = s.values.map(function (v, i) { return x(i) + ',' + y(v || 0); }).join(' ');
-          var pl = elNS('polyline', { points: pts, fill: 'none', stroke: s.color, 'stroke-width': 2, 'stroke-linejoin': 'round' });
-          if (s.dashed) pl.setAttribute('stroke-dasharray', '5 4');
-          svg.appendChild(pl);
-        });
-
-        // Hover: vertical guide + per-series dots + tooltip. Listeners hang off
-        // the freshly-built svg, so a redraw (toggle/resize) drops the old ones
-        // with it rather than stacking up.
-        var guide = elNS('line', { y1: padT, y2: H - padB, stroke: 'rgba(42,27,42,0.3)', 'stroke-width': 1, visibility: 'hidden' });
-        svg.appendChild(guide);
-        var dots = visible.map(function (s) {
-          var c = elNS('circle', { r: 3.5, fill: s.color, visibility: 'hidden' });
-          svg.appendChild(c);
-          return c;
-        });
-        mount.appendChild(svg);
-        var tip = document.createElement('div');
-        tip.className = 'wk-tip';
-        mount.appendChild(tip);
-
-        svg.addEventListener('mousemove', function (ev) {
-          var rect = svg.getBoundingClientRect();
-          var sx = W / rect.width;
-          var mx = (ev.clientX - rect.left) * sx;
-          var i = n === 1 ? 0 : Math.round(((mx - padL) / (W - padL - padR)) * (n - 1));
-          if (i < 0) i = 0;
-          if (i > n - 1) i = n - 1;
-          guide.setAttribute('x1', x(i));
-          guide.setAttribute('x2', x(i));
-          guide.setAttribute('visibility', 'visible');
-          var html = '<strong>' + labels[i] + '</strong>';
-          visible.forEach(function (s, k) {
-            var v = s.values[i];
-            dots[k].setAttribute('cx', x(i));
-            dots[k].setAttribute('cy', y(v || 0));
-            dots[k].setAttribute('visibility', v == null ? 'hidden' : 'visible');
-            if (v != null) html += '<br>' + s.name + ': ' + fmt(v);
-          });
-          tip.innerHTML = html;
-          var mountRect = mount.getBoundingClientRect();
-          var left = ev.clientX - mountRect.left + 14;
-          tip.style.opacity = '1';
-          tip.style.top = (ev.clientY - mountRect.top + 14) + 'px';
-          tip.style.left = left + 'px';
-          var over = left + tip.offsetWidth - mountRect.width + 8;
-          if (over > 0) tip.style.left = (left - tip.offsetWidth - 28) + 'px';
-        });
-        svg.addEventListener('mouseleave', function () {
-          tip.style.opacity = '0';
-          guide.setAttribute('visibility', 'hidden');
-          dots.forEach(function (d) { d.setAttribute('visibility', 'hidden'); });
-        });
-      }
-
-      // Series toggled off in the by-stream chart, persisted across redraws
-      // (legend checkboxes + window resize) by name.
+      var nLabels = data.labels.length;
       var hiddenStreams = {};
-
       function drawAll() {
-        var streamSeries = data.streams.concat([
-          { name: 'Total', color: 'rgba(42,27,42,0.45)', values: data.total, dashed: true },
-        ]);
-        draw('chart-streams', streamSeries, { hidden: hiddenStreams });
+        var streamSeries = data.streams.concat([{ name: 'Total', color: '#8a8076', values: data.total, dashed: true }]);
+        SDChart.line('chart-streams', { labels: data.labels, fmt: 'eur', interactive: true, hidden: hiddenStreams, series: streamSeries });
         var spendSeries = [
-          { name: 'Total revenue', color: '#2A1B2A', values: data.total },
-          { name: 'Ad spend', color: '#5b7fb0', values: data.adSpend },
+          { name: 'Total revenue', color: '#2a78d6', values: data.total },
+          { name: 'Ad spend', color: '#eb6834', values: data.adSpend },
         ];
-        // Compare overlays align by day index; a YoY window spanning a leap
-        // day can be one day longer, so trim to the current window's length.
-        var nLabels = data.labels.length;
-        if (data.compare) {
-          spendSeries.push({ name: data.compare.label, color: 'rgba(42,27,42,0.4)', values: data.compare.total.slice(0, nLabels), dashed: true });
-        }
-        draw('chart-spend', spendSeries);
-        var cumSeries = [{ name: 'Cumulative revenue', color: '#2f7d5a', values: data.cumulative }];
-        if (data.compare) {
-          cumSeries.push({ name: data.compare.label, color: 'rgba(42,27,42,0.4)', values: data.compare.cumulative.slice(0, nLabels), dashed: true });
-        }
-        draw('chart-cumulative', cumSeries);
+        if (data.compare) spendSeries.push({ name: data.compare.label, color: '#b8b0a4', values: data.compare.total.slice(0, nLabels), dashed: true });
+        SDChart.line('chart-spend', { labels: data.labels, fmt: 'eur', series: spendSeries });
+        var cumSeries = [{ name: 'Cumulative revenue', color: '#1baf7a', values: data.cumulative }];
+        if (data.compare) cumSeries.push({ name: data.compare.label, color: '#b8b0a4', values: data.compare.cumulative.slice(0, nLabels), dashed: true });
+        SDChart.line('chart-cumulative', { labels: data.labels, fmt: 'eur', area: true, labelLast: true, series: cumSeries });
       }
       drawAll();
       var rt;
-      window.addEventListener('resize', function () {
-        clearTimeout(rt);
-        rt = setTimeout(drawAll, 150);
-      });
+      window.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(drawAll, 160); });
     })();
   </script>
 

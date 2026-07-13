@@ -1,0 +1,397 @@
+---
+// Shared client-side chart runtime — one high-quality, dependency-free SVG
+// renderer used by every dashboard chart (so /ads and /admin/workshops/stats
+// look like one system). Exposes `window.SDChart` with two entry points:
+//
+//   SDChart.line(mountId, opts)    — smooth (monotone-cubic) line / area chart
+//   SDChart.column(mountId, opts)  — capped, rounded-top column chart
+//
+// Design (per the dataviz method): 2px round-cap lines, a ~12%→0 gradient
+// area wash (never a saturated block), hairline SOLID gridlines one step off
+// the surface, columns capped at 24px with a 2px surface gap and 4px rounded
+// caps, ≥8px end-dots ringed in the surface colour, a crosshair + rich tooltip
+// with colour swatches, an optional interactive legend, and a reduced-motion-
+// aware fade-in on first paint. Series colours are passed per-series (a raw hex
+// or a `var-token` resolved against :root). Chrome colours read from CSS custom
+// properties the host page sets (--chart-grid / --chart-axis / --chart-surface
+// / --chart-ink / --chart-tip-bg / --chart-tip-ink), each with a safe fallback.
+//
+// Include ONCE on a page, before that page's own bootstrap script that reads
+// its JSON data and calls SDChart.line()/column(). Both are `is:inline`, so
+// document order guarantees SDChart exists when the bootstrap runs.
+---
+
+<style is:global>
+  .sdc-svg { display: block; width: 100%; }
+  .sdc-svg--in { animation: sdc-fade 0.5s ease-out both; }
+  @keyframes sdc-fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  .sdc-axis { fill: var(--chart-axis, #8a8076); font-size: 11px; }
+  .sdc-axis--val { fill: var(--chart-axis, #8a8076); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .sdc-endlabel { fill: var(--chart-ink, #0b0b0b); font-size: 11.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .sdc-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; padding: 2px 4px 10px; font-size: 12px; color: var(--chart-ink, inherit); }
+  .sdc-legend-item { display: inline-flex; align-items: center; gap: 7px; }
+  label.sdc-legend-item { cursor: pointer; user-select: none; }
+  .sdc-legend-item--off { opacity: 0.4; }
+  .sdc-legend input { margin: 0; cursor: pointer; }
+  .sdc-legend i.sdc-sw { display: inline-block; width: 15px; height: 0; border-top: 3px solid; border-radius: 2px; }
+  .sdc-legend i.sdc-sw--dash { border-top-style: dashed; }
+  .sdc-legend i.sdc-sw--box { height: 11px; border-top: none; border-radius: 3px; }
+  .sdc-tip {
+    position: absolute; pointer-events: none; opacity: 0; transition: opacity 0.1s;
+    background: var(--chart-tip-bg, #0b0b0b); color: var(--chart-tip-ink, #fff);
+    font-size: 12px; line-height: 1.55; border-radius: 10px; padding: 9px 11px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22); z-index: 20; white-space: nowrap;
+    min-width: 116px;
+  }
+  .sdc-tip-title { font-weight: 600; font-size: 11px; opacity: 0.82; margin-bottom: 4px; }
+  .sdc-tip-row { display: flex; align-items: center; gap: 8px; }
+  .sdc-tip-row i { width: 9px; height: 9px; border-radius: 2px; flex: none; }
+  .sdc-tip-row b { margin-left: auto; padding-left: 16px; font-variant-numeric: tabular-nums; }
+</style>
+
+<script is:inline>
+  (function () {
+    if (window.SDChart) return;
+    var NS = 'http://www.w3.org/2000/svg';
+    var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    var reduceMotion = false;
+    try { reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+
+    function elNS(t, a) {
+      var e = document.createElementNS(NS, t);
+      for (var k in a) e.setAttribute(k, a[k]);
+      return e;
+    }
+    function cssVar(name, fb) {
+      var v = getComputedStyle(document.documentElement).getPropertyValue(name);
+      v = v && v.trim();
+      return v || fb;
+    }
+    function resolveColor(c) {
+      if (!c) return '#888888';
+      if (c.indexOf('var-') === 0) return (getComputedStyle(document.documentElement).getPropertyValue('--' + c.slice(4)) || '').trim() || '#888888';
+      if (c.indexOf('--') === 0) return (getComputedStyle(document.documentElement).getPropertyValue(c) || '').trim() || '#888888';
+      return c;
+    }
+    function theme() {
+      return {
+        grid: cssVar('--chart-grid', 'rgba(17,17,17,0.08)'),
+        axis: cssVar('--chart-axis', '#8a8076'),
+        surface: cssVar('--chart-surface', '#ffffff'),
+        baseline: cssVar('--chart-baseline', 'rgba(17,17,17,0.26)'),
+      };
+    }
+
+    function fmtInt(v) { return Number(v).toLocaleString('en-IE'); }
+    function fmtEur(v) { return '€' + Number(v).toLocaleString('en-IE', { maximumFractionDigits: 0 }); }
+    function fmtEurAxis(v) {
+      if (v >= 10000) return '€' + Math.round(v / 1000) + 'k';
+      if (v >= 1000) return '€' + (v / 1000).toFixed(1) + 'k';
+      return '€' + Math.round(v);
+    }
+    function niceMax(v) {
+      if (v <= 0) return 1;
+      var pow = Math.pow(10, Math.floor(Math.log(v) / Math.LN10));
+      var u = v / pow;
+      var nice = u <= 1 ? 1 : u <= 2 ? 2 : u <= 2.5 ? 2.5 : u <= 5 ? 5 : 10;
+      return nice * pow;
+    }
+    function shortDate(ymd, many) {
+      return parseInt(ymd.slice(8, 10), 10) + ' ' + MONTHS[parseInt(ymd.slice(5, 7), 10) - 1] + (many ? " '" + ymd.slice(2, 4) : '');
+    }
+    function pickFmt(f) { return f === 'eur' ? fmtEur : fmtInt; }
+    function pickAxisFmt(f) { return f === 'eur' ? fmtEurAxis : fmtInt; }
+
+    // Contiguous non-null runs → arrays of {i,x,y}; a null breaks the line.
+    function runs(values, x, y) {
+      var out = [], cur = [], i;
+      for (i = 0; i < values.length; i++) {
+        var v = values[i];
+        if (v == null) { if (cur.length) { out.push(cur); cur = []; } }
+        else cur.push({ i: i, x: x(i), y: y(v) });
+      }
+      if (cur.length) out.push(cur);
+      return out;
+    }
+
+    // Monotone-cubic tangents (Fritsch–Carlson) → no overshoot, so the curve
+    // never invents a value outside the data range.
+    function tangents(pts) {
+      var n = pts.length, d = [], m = [], i;
+      for (i = 0; i < n - 1; i++) d[i] = (pts[i + 1].y - pts[i].y) / (pts[i + 1].x - pts[i].x);
+      m[0] = d[0]; m[n - 1] = d[n - 2];
+      for (i = 1; i < n - 1; i++) m[i] = d[i - 1] * d[i] <= 0 ? 0 : (d[i - 1] + d[i]) / 2;
+      for (i = 0; i < n - 1; i++) {
+        if (d[i] === 0) { m[i] = 0; m[i + 1] = 0; }
+        else {
+          var a = m[i] / d[i], b = m[i + 1] / d[i], s = a * a + b * b;
+          if (s > 9) { var t = 3 / Math.sqrt(s); m[i] = t * a * d[i]; m[i + 1] = t * b * d[i]; }
+        }
+      }
+      return m;
+    }
+    // The " C…"/" L…" command string after the opening move, for a run.
+    function segTail(pts, smooth) {
+      var n = pts.length, i, out = '';
+      if (n < 2) return '';
+      if (n === 2 || !smooth) {
+        for (i = 1; i < n; i++) out += ' L' + pts[i].x + ',' + pts[i].y;
+        return out;
+      }
+      var m = tangents(pts);
+      for (i = 0; i < n - 1; i++) {
+        var dx = (pts[i + 1].x - pts[i].x) / 3;
+        out += ' C' + (pts[i].x + dx) + ',' + (pts[i].y + m[i] * dx) + ' ' +
+          (pts[i + 1].x - dx) + ',' + (pts[i + 1].y - m[i + 1] * dx) + ' ' +
+          pts[i + 1].x + ',' + pts[i + 1].y;
+      }
+      return out;
+    }
+    function linePath(pts, smooth) { return 'M' + pts[0].x + ',' + pts[0].y + segTail(pts, smooth); }
+    function areaPath(pts, smooth, baseY) {
+      var last = pts[pts.length - 1];
+      return 'M' + pts[0].x + ',' + baseY + ' L' + pts[0].x + ',' + pts[0].y +
+        segTail(pts, smooth) + ' L' + last.x + ',' + baseY + ' Z';
+    }
+    function barPath(x, y, w, h, r) {
+      r = Math.max(0, Math.min(r, w / 2, h));
+      return 'M' + x + ',' + (y + h) + ' L' + x + ',' + (y + r) +
+        ' Q' + x + ',' + y + ' ' + (x + r) + ',' + y +
+        ' L' + (x + w - r) + ',' + y + ' Q' + (x + w) + ',' + y + ' ' + (x + w) + ',' + (y + r) +
+        ' L' + (x + w) + ',' + (y + h) + ' Z';
+    }
+
+    function buildLegend(mount, series, opts, redraw) {
+      if (!(series.length >= 2 || opts.interactive)) return;
+      var hidden = opts.hidden || null;
+      var legend = document.createElement('div');
+      legend.className = 'sdc-legend';
+      series.forEach(function (s) {
+        var off = !!(hidden && hidden[s.name]);
+        var item;
+        if (opts.interactive && hidden) {
+          item = document.createElement('label');
+          item.className = 'sdc-legend-item' + (off ? ' sdc-legend-item--off' : '');
+          var cb = document.createElement('input');
+          cb.type = 'checkbox'; cb.checked = !off;
+          cb.addEventListener('change', function () {
+            if (cb.checked) delete hidden[s.name]; else hidden[s.name] = true;
+            redraw();
+          });
+          item.appendChild(cb);
+        } else {
+          item = document.createElement('span');
+          item.className = 'sdc-legend-item';
+        }
+        var sw = document.createElement('i');
+        sw.className = 'sdc-sw' + (s.bar ? ' sdc-sw--box' : s.dashed ? ' sdc-sw--dash' : '');
+        if (s.bar) sw.style.background = resolveColor(s.color); else sw.style.borderTopColor = resolveColor(s.color);
+        item.appendChild(sw);
+        item.appendChild(document.createTextNode(s.name));
+        legend.appendChild(item);
+      });
+      mount.appendChild(legend);
+    }
+
+    function tooltipRow(color, name, valStr) {
+      return '<span class="sdc-tip-row"><i style="background:' + color + '"></i>' + name + ' <b>' + valStr + '</b></span>';
+    }
+    function placeTip(tip, mount, ev) {
+      var mr = mount.getBoundingClientRect();
+      var left = ev.clientX - mr.left + 16;
+      tip.style.opacity = '1';
+      tip.style.top = (ev.clientY - mr.top + 16) + 'px';
+      tip.style.left = left + 'px';
+      var over = left + tip.offsetWidth - mr.width + 6;
+      if (over > 0) tip.style.left = (left - tip.offsetWidth - 32) + 'px';
+    }
+    function animate(svg) { if (!reduceMotion) svg.classList.add('sdc-svg--in'); }
+
+    // ---- Line / area chart -------------------------------------------------
+    // opts: { labels, series:[{name,color,values,dashed?}], fmt:'eur'|'int',
+    //         area?, smooth?(default true), interactive?, hidden?, labelLast? }
+    function line(mountId, opts) {
+      var mount = document.getElementById(mountId);
+      if (!mount) return;
+      var t = theme();
+      var series = opts.series, labels = opts.labels, n = labels.length;
+      var fmt = pickFmt(opts.fmt), fmtAxis = pickAxisFmt(opts.fmt);
+      var smooth = opts.smooth !== false;
+
+      function render() {
+        mount.innerHTML = '';
+        buildLegend(mount, series, opts, render);
+        var hidden = opts.hidden || null;
+        var visible = hidden ? series.filter(function (s) { return !hidden[s.name]; }) : series;
+        var single = visible.length === 1;
+        var wantArea = opts.area && single;
+        var labelLast = opts.labelLast && single;
+
+        var W = Math.max(mount.clientWidth || 700, 320), H = 262;
+        var padL = 56, padR = labelLast ? 52 : 18, padT = 16, padB = 28;
+        var max = 1;
+        visible.forEach(function (s) { s.values.forEach(function (v) { if (v != null && v > max) max = v; }); });
+        max = niceMax(max);
+        function x(i) { return n === 1 ? (padL + W - padR) / 2 : padL + (W - padL - padR) * (i / (n - 1)); }
+        function y(v) { return H - padB - (H - padT - padB) * (v / max); }
+        var baseY = H - padB;
+
+        var svg = elNS('svg', { viewBox: '0 0 ' + W + ' ' + H, class: 'sdc-svg', height: H, preserveAspectRatio: 'none' });
+        // gridlines + y ticks
+        for (var g = 0; g <= 4; g++) {
+          var gy = baseY - (H - padT - padB) * (g / 4);
+          svg.appendChild(elNS('line', { x1: padL, y1: gy, x2: W - padR, y2: gy, stroke: t.grid, 'stroke-width': 1 }));
+          var tk = elNS('text', { x: padL - 8, y: gy + 4, 'text-anchor': 'end', class: 'sdc-axis--val' });
+          tk.textContent = fmtAxis(max * g / 4);
+          svg.appendChild(tk);
+        }
+        // x ticks (~7)
+        var step = Math.max(1, Math.ceil(n / 7)), many = n > 370;
+        for (var i = 0; i < n; i += step) {
+          var tx = elNS('text', { x: x(i), y: baseY + 18, 'text-anchor': 'middle', class: 'sdc-axis' });
+          tx.textContent = shortDate(labels[i], many);
+          svg.appendChild(tx);
+        }
+
+        visible.forEach(function (s, si) {
+          var col = resolveColor(s.color);
+          var rr = runs(s.values, x, y);
+          if (wantArea) {
+            var gid = 'sdc-grad-' + mountId + '-' + si;
+            var defs = elNS('defs', {});
+            var grad = elNS('linearGradient', { id: gid, x1: 0, y1: 0, x2: 0, y2: 1 });
+            grad.appendChild(elNS('stop', { offset: '0%', 'stop-color': col, 'stop-opacity': 0.18 }));
+            grad.appendChild(elNS('stop', { offset: '100%', 'stop-color': col, 'stop-opacity': 0 }));
+            defs.appendChild(grad); svg.appendChild(defs);
+            rr.forEach(function (run) {
+              if (run.length < 2) return;
+              svg.appendChild(elNS('path', { d: areaPath(run, smooth, baseY), fill: 'url(#' + gid + ')', stroke: 'none' }));
+            });
+          }
+          rr.forEach(function (run) {
+            if (run.length === 1) {
+              svg.appendChild(elNS('circle', { cx: run[0].x, cy: run[0].y, r: 3.4, fill: col }));
+              return;
+            }
+            var pl = elNS('path', { d: linePath(run, smooth), fill: 'none', stroke: col, 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' });
+            if (s.dashed) pl.setAttribute('stroke-dasharray', '5 4');
+            svg.appendChild(pl);
+          });
+          // end dot (last non-null) + optional value label — ring in surface colour
+          if (rr.length) {
+            var lastRun = rr[rr.length - 1], p = lastRun[lastRun.length - 1];
+            svg.appendChild(elNS('circle', { cx: p.x, cy: p.y, r: 4, fill: col, stroke: t.surface, 'stroke-width': 2 }));
+            if (labelLast) {
+              var lbl = elNS('text', { x: p.x + 9, y: p.y + 4, 'text-anchor': 'start', class: 'sdc-endlabel' });
+              lbl.textContent = fmt(s.values[p.i]);
+              svg.appendChild(lbl);
+            }
+          }
+        });
+
+        // hover: crosshair + per-series dots + tooltip
+        var guide = elNS('line', { y1: padT, y2: baseY, stroke: t.baseline, 'stroke-width': 1, visibility: 'hidden' });
+        svg.appendChild(guide);
+        var dots = visible.map(function (s) {
+          var c = elNS('circle', { r: 4, fill: resolveColor(s.color), stroke: t.surface, 'stroke-width': 2, visibility: 'hidden' });
+          svg.appendChild(c); return c;
+        });
+        mount.appendChild(svg);
+        var tip = document.createElement('div'); tip.className = 'sdc-tip'; mount.appendChild(tip);
+        svg.addEventListener('mousemove', function (ev) {
+          var rect = svg.getBoundingClientRect(), sx = W / rect.width;
+          var mx = (ev.clientX - rect.left) * sx;
+          var i = n === 1 ? 0 : Math.round(((mx - padL) / (W - padL - padR)) * (n - 1));
+          if (i < 0) i = 0; if (i > n - 1) i = n - 1;
+          guide.setAttribute('x1', x(i)); guide.setAttribute('x2', x(i)); guide.setAttribute('visibility', 'visible');
+          var html = '<div class="sdc-tip-title">' + shortDate(labels[i], many) + '</div>';
+          visible.forEach(function (s, k) {
+            var v = s.values[i];
+            if (v == null) { dots[k].setAttribute('visibility', 'hidden'); html += tooltipRow(resolveColor(s.color), s.name, '—'); }
+            else {
+              dots[k].setAttribute('cx', x(i)); dots[k].setAttribute('cy', y(v)); dots[k].setAttribute('visibility', 'visible');
+              html += tooltipRow(resolveColor(s.color), s.name, fmt(v));
+            }
+          });
+          tip.innerHTML = html; placeTip(tip, mount, ev);
+        });
+        svg.addEventListener('mouseleave', function () {
+          tip.style.opacity = '0'; guide.setAttribute('visibility', 'hidden');
+          dots.forEach(function (d) { d.setAttribute('visibility', 'hidden'); });
+        });
+        if (!mount.dataset.sdcDrawn) { animate(svg); mount.dataset.sdcDrawn = '1'; }
+      }
+      render();
+    }
+
+    // ---- Column chart ------------------------------------------------------
+    // opts: { labels, values, color, fmt:'eur'|'int', name }
+    function column(mountId, opts) {
+      var mount = document.getElementById(mountId);
+      if (!mount) return;
+      var t = theme();
+      var labels = opts.labels, values = opts.values, n = labels.length;
+      var col = resolveColor(opts.color);
+      var fmt = pickFmt(opts.fmt), fmtAxis = pickAxisFmt(opts.fmt);
+      var name = opts.name || 'Value';
+
+      function render() {
+        mount.innerHTML = '';
+        var W = Math.max(mount.clientWidth || 700, 320), H = 250;
+        var padL = 56, padR = 16, padT = 16, padB = 28;
+        var max = 1, i;
+        for (i = 0; i < n; i++) if (values[i] != null && values[i] > max) max = values[i];
+        max = niceMax(max);
+        var plotW = W - padL - padR, baseY = H - padB;
+        var band = plotW / Math.max(n, 1);
+        var barW = Math.max(1, Math.min(24, band - 2));
+        function bx(i) { return padL + band * i + (band - barW) / 2; }
+        function y(v) { return baseY - (H - padT - padB) * (v / max); }
+
+        var svg = elNS('svg', { viewBox: '0 0 ' + W + ' ' + H, class: 'sdc-svg', height: H, preserveAspectRatio: 'none' });
+        for (var g = 0; g <= 4; g++) {
+          var gy = baseY - (H - padT - padB) * (g / 4);
+          svg.appendChild(elNS('line', { x1: padL, y1: gy, x2: W - padR, y2: gy, stroke: t.grid, 'stroke-width': 1 }));
+          var tk = elNS('text', { x: padL - 8, y: gy + 4, 'text-anchor': 'end', class: 'sdc-axis--val' });
+          tk.textContent = fmtAxis(max * g / 4);
+          svg.appendChild(tk);
+        }
+        var step = Math.max(1, Math.ceil(n / 7)), many = n > 370;
+        for (i = 0; i < n; i += step) {
+          var tx = elNS('text', { x: bx(i) + barW / 2, y: baseY + 18, 'text-anchor': 'middle', class: 'sdc-axis' });
+          tx.textContent = shortDate(labels[i], many);
+          svg.appendChild(tx);
+        }
+        var bars = [];
+        for (i = 0; i < n; i++) {
+          var v = values[i] || 0;
+          if (v <= 0) { bars.push(null); continue; }
+          var yy = y(v), h = baseY - yy;
+          var p = elNS('path', { d: barPath(bx(i), yy, barW, h, 4), fill: col });
+          p.style.transition = 'fill-opacity 0.08s';
+          svg.appendChild(p); bars.push(p);
+        }
+        mount.appendChild(svg);
+        var tip = document.createElement('div'); tip.className = 'sdc-tip'; mount.appendChild(tip);
+        svg.addEventListener('mousemove', function (ev) {
+          var rect = svg.getBoundingClientRect(), sx = W / rect.width;
+          var mx = (ev.clientX - rect.left) * sx;
+          var idx = Math.floor((mx - padL) / band);
+          if (idx < 0) idx = 0; if (idx > n - 1) idx = n - 1;
+          bars.forEach(function (b, k) { if (b) b.setAttribute('fill-opacity', k === idx ? '1' : '0.42'); });
+          tip.innerHTML = '<div class="sdc-tip-title">' + shortDate(labels[idx], many) + '</div>' +
+            tooltipRow(col, name, fmt(values[idx] || 0));
+          placeTip(tip, mount, ev);
+        });
+        svg.addEventListener('mouseleave', function () {
+          tip.style.opacity = '0';
+          bars.forEach(function (b) { if (b) b.setAttribute('fill-opacity', '1'); });
+        });
+        if (!mount.dataset.sdcDrawn) { animate(svg); mount.dataset.sdcDrawn = '1'; }
+      }
+      render();
+    }
+
+    window.SDChart = { line: line, column: column };
+  })();
+</script>

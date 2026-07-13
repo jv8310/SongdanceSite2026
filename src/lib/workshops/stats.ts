@@ -431,8 +431,14 @@ export type WorkshopPerformanceRow = {
   engineNetEurMinor: number; // tickets + bumps + add-ons through this workshop
   attributedCourseEurMinor: number; // standalone 12-week/cert revenue by registrant email
   totalEurMinor: number;
-  metaCostEurMinor: number | null;
-  roas: number | null; // total revenue ÷ Meta cost
+  metaCostEurMinor: number | null; // total ad spend allocated by registration share
+  roas: number | null; // total revenue ÷ Meta cost (blended, all campaigns)
+  // Workshop-only economics: the prospecting (TOF) spend this workshop's
+  // registrations pulled (its share of TOF spend), and revenue ÷ that cost.
+  // This is the acquisition-true ROAS — income from a workshop's registrants
+  // against the spend that actually bought those registrations.
+  acquisitionCostEurMinor: number | null;
+  workshopRoas: number | null;
   conversionPct: number | null; // distinct course/cert buyers ÷ registrations
 };
 
@@ -446,6 +452,14 @@ export type WorkshopPerformanceReport = {
   // campaign that actually buys registrations. (Retargeting re-touches people
   // already in the funnel, so counting it would overstate acquisition cost.)
   costPerRegistrationEurMinor: number | null;
+  // Workshop-only ROAS (weighted average): every euro of income that traces to
+  // a workshop registrant — workshop-engine net (tickets + bumps + add-ons)
+  // plus standalone 12-week/certification revenue from registrant emails,
+  // counted ONCE across workshops (no per-workshop double count) — divided by
+  // total prospecting (TOF) spend. This is "what the workshop funnel returns on
+  // acquisition spend", distinct from the blended ROAS (all revenue ÷ all spend).
+  workshopRevenueEurMinor: number;
+  workshopRoas: number | null;
 };
 
 // Stored datetimes come in two shapes: ISO with "Z" (workshop times) and
@@ -609,10 +623,15 @@ export async function computeWorkshopPerformance(
     endMsByWorkshop.set(w.id, { endMs, isReplay: w.is_replay === 1 });
   }
 
+  // Every distinct email that completed a workshop registration in the window —
+  // the denominator for "did this course buyer come through a workshop?", used
+  // to count standalone course revenue once (not once per workshop attended).
+  const allRegEmails = new Set<string>();
   for (const r of regRes.results ?? []) {
     const a = acc(r.workshop_id);
     a.regs += 1;
     a.emails.add(r.email);
+    allRegEmails.add(r.email);
     if (r.attendance_status === 'no_show') {
       a.noShow += 1;
     } else if (r.attendance_status === 'attended') {
@@ -670,6 +689,12 @@ export async function computeWorkshopPerformance(
       blendedCostPerRegistrationEurMinor != null
         ? Math.round(blendedCostPerRegistrationEurMinor * a.regs)
         : null;
+    // Workshop-only (TOF) cost: this workshop's share of prospecting spend, by
+    // registration count — the acquisition dollars its registrations pulled.
+    const acquisitionCostEurMinor =
+      costPerRegistrationEurMinor != null
+        ? Math.round(costPerRegistrationEurMinor * a.regs)
+        : null;
     return {
       workshopId: w.id,
       title: w.title,
@@ -689,9 +714,25 @@ export async function computeWorkshopPerformance(
       totalEurMinor,
       metaCostEurMinor,
       roas: metaCostEurMinor != null && metaCostEurMinor > 0 ? totalEurMinor / metaCostEurMinor : null,
+      acquisitionCostEurMinor,
+      workshopRoas:
+        acquisitionCostEurMinor != null && acquisitionCostEurMinor > 0
+          ? totalEurMinor / acquisitionCostEurMinor
+          : null,
       conversionPct: a.regs > 0 ? (buyers.size / a.regs) * 100 : null,
     };
   });
+
+  // Workshop-only revenue for the weighted-average ROAS: engine net across all
+  // workshops (each payment counted once) + standalone course revenue from
+  // emails that registered for ANY workshop (each buyer counted once, so a
+  // multi-workshop buyer isn't double-counted the way per-row figures are).
+  const engineNetTotal = [...accs.values()].reduce((s, a) => s + a.netEurMinor, 0);
+  let attributedDistinctEurMinor = 0;
+  for (const [email, s] of standalone) {
+    if (allRegEmails.has(email)) attributedDistinctEurMinor += s.eurMinor;
+  }
+  const workshopRevenueEurMinor = engineNetTotal + attributedDistinctEurMinor;
 
   return {
     rows,
@@ -700,6 +741,9 @@ export async function computeWorkshopPerformance(
     retargetingSpendEurMinor: adSpendEurMinor - acquisitionSpendEurMinor,
     totalRegistrations,
     costPerRegistrationEurMinor,
+    workshopRevenueEurMinor,
+    workshopRoas:
+      acquisitionSpendEurMinor > 0 ? workshopRevenueEurMinor / acquisitionSpendEurMinor : null,
   };
 }
 
