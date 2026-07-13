@@ -19,6 +19,8 @@ import {
   twelveWeekCurrencyForCountry,
   priceCents,
   monthlyCents,
+  monthlyCents6x,
+  monthlyCents12x,
   installmentTotalCents,
   applyPercentCents,
   bestDiscountStatus,
@@ -26,6 +28,8 @@ import {
   effectiveTwelveWeekDiscount,
   parseUrlDiscountPercent,
   INSTALLMENT_COUNT,
+  INSTALLMENT_COUNT_6X,
+  INSTALLMENT_COUNT_12X,
 } from '../../../lib/courses/twelve-week';
 import {
   listSecuredWorkshopLinksByEmail,
@@ -121,6 +125,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const sub = await subPromise;
     const bumps = eligibleBumpOffers(currency, sub ? sub.tags : null);
 
+    const baseMonthly6x = monthlyCents6x(currency);
+    const baseMonthly12x = monthlyCents12x(currency);
+
     return json({
       email,
       currency,
@@ -128,6 +135,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
       installment_count: INSTALLMENT_COUNT,
       installment_monthly_cents: baseMonthly,
       installment_total_cents: installmentTotalCents(currency),
+      // Longer installment ladders (6× / 12×). Shown on the page only when
+      // unlocked by a hand-shared ?installment=6/12 link; always priced here so
+      // the client has the figures ready when it is.
+      installment_6x_count: INSTALLMENT_COUNT_6X,
+      installment_monthly_6x_cents: baseMonthly6x,
+      installment_12x_count: INSTALLMENT_COUNT_12X,
+      installment_monthly_12x_cents: baseMonthly12x,
       discount: {
         eligible: eff.eligible,
         kind: eff.kind,
@@ -135,6 +149,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
         expires_at_ms: eff.expiresAtMs,
         price_cents: applyPercentCents(baseFull, eff.percent),
         monthly_cents: applyPercentCents(baseMonthly, eff.percent),
+        monthly_6x_cents: applyPercentCents(baseMonthly6x, eff.percent),
+        monthly_12x_cents: applyPercentCents(baseMonthly12x, eff.percent),
       },
       is_pro: isPro,
       bumps,
@@ -156,6 +172,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
       kind: overridePercent > 0 ? 'override' : 'none',
       expiresAtMs: null,
     };
+    const baseMonthly6x = monthlyCents6x(currency);
+    const baseMonthly12x = monthlyCents12x(currency);
     return json({
       email,
       currency,
@@ -163,6 +181,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
       installment_count: INSTALLMENT_COUNT,
       installment_monthly_cents: baseMonthly,
       installment_total_cents: installmentTotalCents(currency),
+      installment_6x_count: INSTALLMENT_COUNT_6X,
+      installment_monthly_6x_cents: baseMonthly6x,
+      installment_12x_count: INSTALLMENT_COUNT_12X,
+      installment_monthly_12x_cents: baseMonthly12x,
       discount: {
         eligible: overridePercent > 0,
         kind: overridePercent > 0 ? 'override' : 'none',
@@ -170,6 +192,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
         expires_at_ms: null,
         price_cents: applyPercentCents(baseFull, overridePercent),
         monthly_cents: applyPercentCents(baseMonthly, overridePercent),
+        monthly_6x_cents: applyPercentCents(baseMonthly6x, overridePercent),
+        monthly_12x_cents: applyPercentCents(baseMonthly12x, overridePercent),
       },
       is_pro: isPro,
       // Drip wasn't consulted on the degraded path → offer all bumps (fail open).
