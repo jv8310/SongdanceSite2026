@@ -364,6 +364,13 @@ export function buildEmailSamples(base: string): EmailSample[] {
           orderId: 128,
           productName: 'SVH Certification Course',
           productSlug: 'cc-cert',
+          attendedWorkshop: {
+            title: 'Somatic Vocal Healing Workshop',
+            startsAtUtc: '2026-06-05T18:00:00Z',
+            isReplay: false,
+            attendanceStatus: 'attended',
+            moreCount: 1,
+          },
           firstName: 'Maria',
           customerName: 'Maria Voss',
           email: 'maria@example.com',
