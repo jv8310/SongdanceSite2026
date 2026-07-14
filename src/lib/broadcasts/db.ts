@@ -545,6 +545,35 @@ export async function updateBroadcast(db: D1Database, id: number, b: BroadcastIn
     .run();
 }
 
+// Clone an existing broadcast's content + audience into a brand-new draft, so a
+// follow-up send can start from a proven one (e.g. "same sale email, different
+// audience"). Copies only the composable fields — NOT the send state: the copy
+// starts as a fresh 'draft' with no recipients, no urgent/stop_at, no engagement
+// history. Returns the new id (0 if the source is missing). The name is prefixed
+// "Copy of …" so the two are distinguishable in the list.
+export async function duplicateBroadcast(db: D1Database, sourceId: number): Promise<number> {
+  const src = await getBroadcast(db, sourceId);
+  if (!src) return 0;
+  return createBroadcast(db, {
+    name: `Copy of ${src.name}`,
+    subject: src.subject,
+    preheader: src.preheader,
+    heading: src.heading,
+    body: src.body,
+    format: src.format,
+    body_text: src.body_text,
+    hero_image: src.hero_image,
+    cta_label: src.cta_label,
+    cta_href: src.cta_href,
+    window_start_hour: src.window_start_hour,
+    window_end_hour: src.window_end_hour,
+    audience_include_tags: src.audience_include_tags,
+    audience_exclude_tags: src.audience_exclude_tags,
+    audience_field: src.audience_field,
+    audience_field_value: src.audience_field_value,
+  });
+}
+
 // ── Launch / queue ────────────────────────────────────────────────────────────
 
 // Snapshot the contacts matching the broadcast's audience into the queue.
