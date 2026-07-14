@@ -113,9 +113,13 @@ const wkDateLabel = (iso: string) =>
 const roasTone = (v: number | null): 'good' | 'bad' | 'flat' =>
   v == null ? 'flat' : v >= 1 ? 'good' : 'bad';
 
-// The five most recent workshops with activity (perf.rows arrive newest-first),
-// scored on workshop-only (TOF) economics for the highlight cards.
-const recentWorkshops = perf.rows.filter((r) => r.registrations > 0).slice(0, 5);
+// The five most recent workshops that have already happened (perf.rows arrive
+// newest-first) — upcoming/future-dated workshops are excluded; on-demand
+// replays always count — scored on workshop-only (TOF) economics for the cards.
+const nowIso = new Date().toISOString();
+const isPastWorkshop = (r: (typeof perf.rows)[number]) =>
+  r.isReplay || (!!r.startsAtUtc && r.startsAtUtc <= nowIso);
+const recentWorkshops = perf.rows.filter((r) => r.registrations > 0 && isPastWorkshop(r)).slice(0, 5);
 
 // Workshop dropdown labels: date-stamped and shortened, so ten near-identical
 // titles stay tellable apart.
