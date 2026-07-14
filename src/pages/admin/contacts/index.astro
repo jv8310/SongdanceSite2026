@@ -84,6 +84,32 @@ const bounceSuppressed = await countBounceSuppressions(env.DB);
     </section>
 
     <section class="adm-section">
+      <h2>Workshop follow-up segment</h2>
+      <p class="ct-help">
+        Tag everyone who <strong>registered for a workshop whose date has already
+        passed</strong> and <strong>hasn't bought the 12-week or certification
+        course</strong> — the exact audience for a post-workshop sale follow-up.
+        A broadcast can only target tags, and it has no notion of a workshop's
+        date, so people registered for a still-open <em>upcoming</em> session
+        can't be told apart from past attendees by tag alone (they share the same
+        source tag). This computes the cohort from the registration dates and
+        writes it as one tag you can then include in a broadcast. Idempotent —
+        re-run it right before you send and it picks up newly-passed workshops and
+        drops anyone who has since bought. (Belt-and-suspenders: also keep
+        <code>prod_SVH_12w, prod_SVH_9m</code> in the broadcast's <em>exclude</em>
+        tags so any last-minute buyers are dropped at launch too.)
+      </p>
+      <div class="ct-actions">
+        <label class="ct-inline-label">Tag
+          <input id="seg-tag" type="text" value="workshop-passed-nonbuyer"
+                 class="ct-input" spellcheck="false" />
+        </label>
+        <button id="seg-run" class="adm-btn" type="button">Build segment</button>
+        <span id="seg-msg" class="ct-progress"></span>
+      </div>
+    </section>
+
+    <section class="adm-section">
       <h2>Bounce check (mailbox-level)</h2>
       <p class="ct-help">
         Dead-domain cleaning can't catch a dead mailbox at a live provider (a
@@ -179,8 +205,10 @@ const bounceSuppressed = await countBounceSuppressions(env.DB);
     }
     .ct-detected .warn { color: #a14826; }
     .ct-detected code { background: #f4ecdf; padding: 1px 5px; border-radius: 4px; }
-    .ct-actions { display: flex; align-items: center; gap: 14px; }
+    .ct-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
     .ct-progress { font-size: 13px; color: #6f5f6d; }
+    .ct-inline-label { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: #6f5f6d; }
+    .ct-input { font: inherit; font-size: 13.5px; padding: 6px 10px; border: 1px solid rgba(161,72,38,0.3); border-radius: 8px; background: #fff; min-width: 220px; }
     .ct-bar-wrap { margin-top: 12px; height: 8px; background: #ece0cf; border-radius: 999px; overflow: hidden; max-width: 460px; }
     .ct-bar { height: 100%; width: 0; background: #a14826; transition: width 0.2s ease; }
     .ct-table { width: 100%; border-collapse: collapse; background: #fbf6ec; border: 1px solid rgba(161,72,38,0.22); border-radius: 12px; overflow: hidden; }
@@ -438,6 +466,35 @@ const bounceSuppressed = await countBounceSuppressions(env.DB);
           }
           msg.textContent =
             `Done — ${removed.toLocaleString()} addresses at dead domains suppressed. Reload to update counts.`;
+        } catch (err) {
+          msg.textContent = 'Failed: ' + (err && err.message ? err.message : String(err));
+        }
+        btn.disabled = false;
+      });
+    })();
+
+    // Workshop follow-up segment — tag past-workshop registrants who haven't
+    // bought the course, so a broadcast can target that one tag.
+    (function () {
+      const btn = document.getElementById('seg-run');
+      if (!btn) return;
+      const tagInput = document.getElementById('seg-tag');
+      const msg = document.getElementById('seg-msg');
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        msg.textContent = 'Building segment…';
+        try {
+          const res = await fetch('/api/admin/contacts/segment-workshop', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tag: (tagInput && tagInput.value) || undefined }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Segment build failed');
+          msg.textContent =
+            `Done — ${Number(data.sendable).toLocaleString()} contacts tagged “${data.tag}” ` +
+            `(${Number(data.added).toLocaleString()} new this run). ` +
+            `Include that tag in a broadcast to send to them.`;
         } catch (err) {
           msg.textContent = 'Failed: ' + (err && err.message ? err.message : String(err));
         }

@@ -6,6 +6,7 @@
 import type { APIRoute } from 'astro';
 import { readCookie, verifySession } from '../../../../lib/registrations/auth';
 import {
+  duplicateBroadcast,
   getBroadcast,
   launchBroadcast,
   pauseBroadcast,
@@ -42,6 +43,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
       if (!env.RESEND_API_KEY) return json({ error: 'RESEND_API_KEY is not configured.' }, 500);
       const recipients = await launchBroadcast(env.DB, id);
       return json({ ok: true, status: 'sending', recipients });
+    }
+    case 'duplicate': {
+      // Clone content + audience into a fresh draft (any status can be copied).
+      // The client redirects to the new draft to edit/retarget then launch.
+      const newId = await duplicateBroadcast(env.DB, id);
+      if (!newId) return json({ error: 'Could not duplicate.' }, 500);
+      return json({ ok: true, id: newId });
     }
     case 'pause': {
       await pauseBroadcast(env.DB, id, 'Paused by admin.');

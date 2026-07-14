@@ -93,7 +93,10 @@ const statusLabel: Record<string, string> = {
                 <td class="num">{stats && stats.sent ? pct(stats.clickRate) : '—'}</td>
                 <td class="num">{stats && stats.sent ? pct(bounceRate(stats)) : '—'}</td>
                 <td>{b.created_at?.slice(0, 10)}</td>
-                <td><a class="adm-btn adm-btn--ghost" href={`/admin/broadcasts/${b.id}`}>Open</a></td>
+                <td class="bc-rowactions">
+                  <a class="adm-btn adm-btn--ghost" href={`/admin/broadcasts/${b.id}`}>Open</a>
+                  <button class="adm-btn adm-btn--ghost bc-dup" type="button" data-id={b.id} title="Clone into a new draft you can retarget">Duplicate</button>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -255,6 +258,8 @@ const statusLabel: Record<string, string> = {
     .bc-table .num { text-align: right; font-variant-numeric: tabular-nums; }
     .bc-table td strong { display: block; }
     .bc-subj { display: block; font-size: 12.5px; color: #6f5f6d; margin-top: 2px; }
+    .bc-rowactions { white-space: nowrap; }
+    .bc-rowactions .bc-dup { margin-left: 6px; }
     .bc-pill { font-size: 12px; padding: 2px 10px; border-radius: 999px; background: #ece0cf; color: #4a3848; }
     .bc-pill--sending { background: #d9ead0; color: #38601f; }
     .bc-pill--paused { background: #f4dcc9; color: #a14826; }
@@ -364,6 +369,31 @@ const statusLabel: Record<string, string> = {
       } catch (err) {
         msg.textContent = 'Failed: ' + (err && err.message ? err.message : String(err));
       }
+    });
+
+    // Duplicate — clone a broadcast's content + audience into a fresh draft, then
+    // open it so you can retarget (e.g. a follow-up to a different audience).
+    document.querySelectorAll('.bc-dup').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const id = btn.getAttribute('data-id');
+        const original = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = 'Duplicating…';
+        try {
+          const res = await fetch('/api/admin/broadcasts/control', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: Number(id), action: 'duplicate' }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Duplicate failed');
+          window.location.href = '/admin/broadcasts/' + data.id;
+        } catch (err) {
+          btn.textContent = original;
+          btn.disabled = false;
+          alert('Could not duplicate: ' + (err && err.message ? err.message : String(err)));
+        }
+      });
     });
   </script>
 </Layout>
