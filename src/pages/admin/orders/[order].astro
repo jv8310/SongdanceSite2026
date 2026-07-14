@@ -68,6 +68,11 @@ function eur(minor: number): string {
 const o = detail?.order ?? null;
 const name = o ? `${o.firstName ?? ''} ${o.lastName ?? ''}`.trim() || '—' : '';
 const link = o ? providerLinkFor(o, providerModes) : null;
+
+// Workshops carry a personal countdown / join page — surface the full,
+// shareable link so Jacob can re-send it (e.g. a registrant who lost the email).
+const siteBase = (env.PUBLIC_BASE_URL || Astro.url.origin).replace(/\/$/, '');
+const countdownUrl = detail?.countdownPath ? `${siteBase}${detail.countdownPath}` : null;
 const remaining = o ? refundableMinor(o) : 0;
 const remainingMajor = (remaining / 100).toFixed(2);
 const jsName = name.replace(/['\\]/g, '\\$&');
@@ -211,6 +216,17 @@ const jsName = name.replace(/['\\]/g, '\\$&');
 
         <!-- ─── Actions ─── -->
         <section class="adm-section">
+          {countdownUrl && (
+            <div class="od-countdown">
+              <span class="od-countdown-label">Countdown / join page</span>
+              <div class="od-countdown-row">
+                <a class="od-countdown-url adm-mono" href={countdownUrl} target="_blank" rel="noopener">{countdownUrl}</a>
+                <button type="button" class="adm-btn adm-btn--ghost od-copy" data-copy data-url={countdownUrl}>Copy link</button>
+              </div>
+              <p class="od-countdown-hint">The registrant’s personal page — countdown, calendar links, and the Join button 5 min before start. Same link the confirmation &amp; reminder emails carry.</p>
+            </div>
+          )}
+
           <div class="od-actions">
             {link && (
               <a class="adm-btn adm-btn--ghost" href={link.href} target="_blank" rel="noopener">Open in {link.label} ↗</a>
@@ -247,6 +263,26 @@ const jsName = name.replace(/['\\]/g, '\\$&');
       </>
     )}
   </main>
+
+  <script>
+    // Copy-to-clipboard for the countdown / join link (same pattern as the
+    // image manager). Falls back to a prompt where the async clipboard API is
+    // unavailable (older browsers / insecure context).
+    document.querySelectorAll<HTMLButtonElement>('[data-copy]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const url = btn.dataset.url || '';
+        if (!url) return;
+        try {
+          await navigator.clipboard.writeText(url);
+          const prev = btn.textContent;
+          btn.textContent = 'Copied!';
+          setTimeout(() => { btn.textContent = prev; }, 1200);
+        } catch {
+          window.prompt('Copy this link:', url);
+        }
+      });
+    });
+  </script>
 
   <style>
     .od-summary {
@@ -302,6 +338,21 @@ const jsName = name.replace(/['\\]/g, '\\$&');
     .od-kv dt { font-size:12px; color:var(--adm-mute); flex:0 0 auto; }
     .od-kv dd { margin:0; font-size:14px; text-align:right; word-break:break-word; }
     .od-kv dd.adm-mono { font-size:12px; }
+
+    /* Countdown / join page — a shareable per-registrant link with a copy button. */
+    .od-countdown {
+      margin-bottom:14px; padding:14px 16px;
+      border:1px solid var(--adm-line); border-radius:12px; background:var(--adm-paper-soft);
+    }
+    .od-countdown-label { font-size:11px; text-transform:uppercase; letter-spacing:0.04em; color:var(--adm-mute); }
+    .od-countdown-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:8px; }
+    .od-countdown-url {
+      flex:1 1 320px; min-width:0; font-size:12px; word-break:break-all;
+      color:var(--adm-ember-deep); text-decoration:none;
+    }
+    .od-countdown-url:hover { text-decoration:underline; }
+    .od-copy { flex:0 0 auto; }
+    .od-countdown-hint { margin:8px 0 0; font-size:11px; color:var(--adm-mute); }
 
     .od-actions { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px; }
     .od-refund {

@@ -44,6 +44,11 @@ export type OrderDetail = {
   payment: DetailField[];
   // Source-specific extras (dates, plan, attendance, room, …).
   extra: DetailField[];
+  // Workshops only: the site-relative path to the registrant's personal
+  // countdown / join page (`/workshop/success?t=<access_token>`). Null for
+  // courses/retreats (they have no such page). The admin page prefixes the base
+  // URL to make it shareable.
+  countdownPath: string | null;
 };
 
 // Drop empty fields so a card never shows "Phone: —" for data we don't have.
@@ -138,6 +143,7 @@ async function discountPctFromEvents(
 type WReg = {
   name: string | null;
   email: string;
+  access_token: string | null;
   phone: string | null;
   country: string | null;
   currency: string | null;
@@ -185,7 +191,7 @@ async function enrichWorkshop(
 ): Promise<OrderDetail> {
   const reg = await db
     .prepare(
-      `SELECT r.name, r.email, r.phone, r.country, r.currency, r.timezone, r.locale,
+      `SELECT r.name, r.email, r.access_token, r.phone, r.country, r.currency, r.timezone, r.locale,
               r.company_name, r.vat_number, r.wants_bump, r.attendance_status,
               r.joined_at_utc, r.payment_status, r.source_tag, r.audience, r.created_at,
               w.title AS workshop_title, w.starts_at_utc, w.free_coupon
@@ -318,7 +324,13 @@ async function enrichWorkshop(
     field('Registered', fmtTs(reg?.created_at ?? order.createdAt)),
   ]);
 
-  return { order, couponNote, lineItems, customer, payment, extra };
+  // The registrant's personal countdown / join page — the same link the
+  // confirmation + reminder emails carry, so the admin can re-share it.
+  const countdownPath = reg?.access_token
+    ? `/workshop/success?t=${reg.access_token}`
+    : null;
+
+  return { order, couponNote, lineItems, customer, payment, extra, countdownPath };
 }
 
 // ── Courses ────────────────────────────────────────────────────────────────
@@ -445,7 +457,7 @@ async function enrichCourse(
     field('Paid at', fmtTs(reg?.paid_at ?? order.paidAt)),
   ]);
 
-  return { order, couponNote, lineItems, customer, payment, extra };
+  return { order, couponNote, lineItems, customer, payment, extra, countdownPath: null };
 }
 
 // ── Retreats ────────────────────────────────────────────────────────────────
@@ -548,5 +560,5 @@ async function enrichRetreat(
     field('Paid at', fmtTs(reg?.paid_at ?? order.paidAt)),
   ]);
 
-  return { order, couponNote, lineItems, customer, payment, extra };
+  return { order, couponNote, lineItems, customer, payment, extra, countdownPath: null };
 }
