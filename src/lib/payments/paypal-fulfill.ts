@@ -9,6 +9,7 @@
 // right table + row.
 
 import {
+  assignRoomOnPaid,
   eventExists,
   getRegistrationById as getRetreatRegById,
   logEvent,
@@ -232,6 +233,8 @@ export async function fulfillRetreatPaypalOneOff(
   if (!reg) return;
 
   await markRegistrationPaidPaypal(env.DB, reg.id, capture.captureId);
+  // Place the guest in a cabin now they've paid (no-op if already assigned).
+  await assignRoomOnPaid(env.DB, reg.id);
   await logEvent(env.DB, {
     registration_id: reg.id,
     kind: 'paypal.retreat.captured',

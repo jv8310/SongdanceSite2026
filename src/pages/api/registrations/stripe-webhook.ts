@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import {
+  assignRoomOnPaid,
   eventExists,
   getRegistrationById,
   getRegistrationByPaymentIntent,
@@ -316,6 +317,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
     if (reg.status !== 'paid' && session.payment_intent) {
       await markRegistrationPaid(env.DB, reg.id, session.payment_intent);
     }
+
+    // Place the guest in a cabin now that they've paid (no-op if they were
+    // already assigned — e.g. a seeded/held booking). Pending rows carry no
+    // room, so this is where a checkout booking first gets one.
+    await assignRoomOnPaid(env.DB, reg.id);
 
     // Drip: upsert subscriber + fire the "Completed retreat registration"
     // event so the confirmation email (and any follow-up sequence) is sent
