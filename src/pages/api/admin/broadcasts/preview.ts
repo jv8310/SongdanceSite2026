@@ -39,6 +39,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     window_end_hour: 21,
     urgent: 0,
     stop_at: null,
+    scheduled_at: null,
     audience_include_tags: null,
     audience_exclude_tags: null,
     audience_field: null,

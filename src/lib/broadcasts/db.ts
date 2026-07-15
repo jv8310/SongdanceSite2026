@@ -26,6 +26,11 @@ export type Broadcast = {
   // auto-marks this broadcast 'done' and stops sending — a hard deadline guard
   // so a "closes tonight" mail never delivers after the deadline. null = never.
   stop_at: string | null;
+  // ISO-8601 UTC instant at/after which the cron auto-launches this draft (the
+  // complement to stop_at): it snapshots the audience and flips it to 'sending'
+  // exactly as a manual Launch would. Only meaningful while status = 'draft';
+  // cleared on launch. null = not scheduled (launches only when clicked).
+  scheduled_at: string | null;
   audience_include_tags: string | null;
   audience_exclude_tags: string | null;
   audience_field: string | null;
@@ -606,6 +611,7 @@ export async function launchBroadcast(db: D1Database, id: number): Promise<numbe
               started_at = COALESCE(started_at, datetime('now')),
               completed_at = NULL,
               paused_reason = NULL,
+              scheduled_at = NULL,
               breaker_baseline_at = datetime('now')
         WHERE id = ? AND status IN ('draft', 'paused')`,
     )
@@ -695,6 +701,63 @@ export async function setBroadcastStopAt(
     .prepare(`UPDATE broadcasts SET stop_at = ? WHERE id = ?`)
     .bind(stopAtIso, id)
     .run();
+}
+
+// Set (or clear, with null) the scheduled auto-launch instant. Only a draft can
+// be scheduled — a sending/paused/done broadcast has already been launched, so
+// the status guard makes scheduling it a no-op. Stored as an ISO-8601 UTC string
+// the cron compares with Date.parse(); launchBroadcast clears it.
+export async function setBroadcastScheduledAt(
+  db: D1Database,
+  id: number,
+  scheduledAtIso: string | null,
+): Promise<void> {
+  await db
+    .prepare(`UPDATE broadcasts SET scheduled_at = ? WHERE id = ? AND status = 'draft'`)
+    .bind(scheduledAtIso, id)
+    .run();
+}
+
+// Drafts whose scheduled_at has arrived (<= now), for the cron to auto-launch.
+// The SQL bound comparison is against an ISO-8601 UTC string (same format we
+// store), which orders lexicographically; a defensive Date.parse re-check guards
+// against any legacy row whose format differs. Only drafts qualify — once a
+// broadcast is launched its scheduled_at is cleared, so it can't re-fire.
+export async function listDueScheduledBroadcasts(
+  db: D1Database,
+  now: number,
+): Promise<Broadcast[]> {
+  const nowIso = new Date(now).toISOString();
+  try {
+    const r = await db
+      .prepare(
+        `SELECT * FROM broadcasts
+          WHERE status = 'draft' AND scheduled_at IS NOT NULL AND scheduled_at <= ?
+          ORDER BY id ASC`,
+      )
+      .bind(nowIso)
+      .all<Broadcast>();
+    return (r.results ?? []).filter((b) => {
+      const ms = b.scheduled_at ? Date.parse(b.scheduled_at) : NaN;
+      return Number.isFinite(ms) && ms <= now;
+    });
+  } catch {
+    return [];
+  }
+}
+
+// Permanently delete a broadcast and its send queue. Runs both deletes in one
+// db.batch (a transaction) so a half-delete can't leave orphaned recipients.
+// Engagement rows in email_sends (keyed on email_type 'broadcast_<id>') are NOT
+// touched — they're historical send records; the stats page already falls back
+// to a generic "Broadcast #<id>" label when the name row is gone. Deleting the
+// broadcast row also removes it from listActiveBroadcasts, so the cron stops
+// draining it even if a send was in flight (in-flight row claims simply no-op).
+export async function deleteBroadcast(db: D1Database, id: number): Promise<void> {
+  await db.batch([
+    db.prepare('DELETE FROM broadcast_recipients WHERE broadcast_id = ?').bind(id),
+    db.prepare('DELETE FROM broadcasts WHERE id = ?').bind(id),
+  ]);
 }
 
 // Terminal stop when a broadcast reaches its stop_at deadline: flip 'sending' →

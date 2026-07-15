@@ -1,0 +1,15 @@
+-- Schedule a broadcast to auto-launch at a fixed instant — the complement to
+-- stop_at (which auto-ENDS a send).
+--
+-- Why: composing a broadcast and launching it are two moments the owner may want
+-- to separate — write it now, have it go out at 09:00 tomorrow (or the minute a
+-- sale opens) without being at the keyboard. `scheduled_at` lets a *draft* carry
+-- the instant it should launch itself; the cron (src/lib/broadcasts/cron.ts)
+-- snapshots the audience and flips it to 'sending' on the first tick at/after it,
+-- exactly as a manual Launch would (which also clears this field). A manual
+-- launch, edit, or "cancel schedule" clears or overrides it at any time.
+--
+-- Stored as an ISO-8601 instant in UTC (e.g. '2026-07-16T07:00:00Z'), compared
+-- with Date.parse() in the cron. NULL (the default, and every existing row) =
+-- not scheduled — a draft that only launches when the owner clicks Launch.
+ALTER TABLE broadcasts ADD COLUMN scheduled_at TEXT;

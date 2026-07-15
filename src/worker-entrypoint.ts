@@ -126,8 +126,10 @@ export function createExports(manifest: unknown) {
       ctx.waitUntil(
         runBroadcasts(env)
           .then((r) => {
-            if (r.sent || r.paused || r.done) {
-              console.log(`[broadcasts/cron] sent=${r.sent} paused=${r.paused} done=${r.done}`);
+            if (r.sent || r.paused || r.done || r.launched) {
+              console.log(
+                `[broadcasts/cron] sent=${r.sent} paused=${r.paused} done=${r.done} launched=${r.launched}`,
+              );
             }
           })
           .catch((err) => {

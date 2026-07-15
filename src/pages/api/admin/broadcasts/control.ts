@@ -6,12 +6,14 @@
 import type { APIRoute } from 'astro';
 import { readCookie, verifySession } from '../../../../lib/registrations/auth';
 import {
+  deleteBroadcast,
   duplicateBroadcast,
   getBroadcast,
   launchBroadcast,
   pauseBroadcast,
   resumeBroadcast,
   retryFailedRecipients,
+  setBroadcastScheduledAt,
   setBroadcastStopAt,
   setBroadcastUrgent,
 } from '../../../../lib/broadcasts/db';
@@ -24,9 +26,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
     return json({ error: 'Unauthorized' }, 401);
   }
 
-  let payload: { id?: number; action?: string; stop_at?: string };
+  let payload: { id?: number; action?: string; stop_at?: string; scheduled_at?: string };
   try {
-    payload = (await request.json()) as { id?: number; action?: string; stop_at?: string };
+    payload = (await request.json()) as {
+      id?: number;
+      action?: string;
+      stop_at?: string;
+      scheduled_at?: string;
+    };
   } catch {
     return json({ error: 'Invalid request.' }, 400);
   }
@@ -88,6 +95,39 @@ export const POST: APIRoute = async ({ request, locals }) => {
     case 'clear_stop_at': {
       await setBroadcastStopAt(env.DB, id, null);
       return json({ ok: true, stop_at: null });
+    }
+    case 'schedule': {
+      // Arm the scheduled auto-launch. Only a draft can be scheduled; the client
+      // sends an absolute ISO-8601 instant (a datetime-local converted through
+      // the admin's own timezone), which must be in the future. The cron needs a
+      // Resend key to send when it fires, so require it now rather than let a
+      // scheduled send silently never go out.
+      if (b.status !== 'draft') {
+        return json({ error: `Only a draft can be scheduled (this one is ${b.status}).` }, 409);
+      }
+      if (!env.RESEND_API_KEY) return json({ error: 'RESEND_API_KEY is not configured.' }, 500);
+      const raw = String(payload.scheduled_at ?? '').trim();
+      const ms = Date.parse(raw);
+      if (!raw || !Number.isFinite(ms)) {
+        return json({ error: 'Provide a valid launch time.' }, 400);
+      }
+      if (ms <= Date.now()) {
+        return json({ error: 'Pick a launch time in the future.' }, 400);
+      }
+      await setBroadcastScheduledAt(env.DB, id, new Date(ms).toISOString());
+      return json({ ok: true, scheduled_at: new Date(ms).toISOString() });
+    }
+    case 'unschedule': {
+      await setBroadcastScheduledAt(env.DB, id, null);
+      return json({ ok: true, scheduled_at: null });
+    }
+    case 'delete': {
+      // Permanently remove the broadcast and its send queue. Allowed from any
+      // status — the client confirms (extra-strongly for one that already sent).
+      // Historical email_sends rows are kept; the stats page falls back to a
+      // generic label for the now-missing name.
+      await deleteBroadcast(env.DB, id);
+      return json({ ok: true, deleted: true });
     }
     default:
       return json({ error: 'Unknown action.' }, 400);
