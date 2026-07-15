@@ -3,7 +3,6 @@ import {
   getProductBySlug,
   getTierBySlug,
   computeTierAvailability,
-  pickRoomForTier,
   createPendingRegistration,
   attachStripeSession,
   attachPaypalOrder,
@@ -185,14 +184,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
     );
   }
 
-  // Auto-assign a specific cabin for this tier.
-  const room = await pickRoomForTier(env.DB, product.id, tierSlug);
-  if (!room) {
-    return json(
-      { error: 'That cabin was just taken. Please choose another, or email info@songdance.co.' },
-      409,
-    );
-  }
+  // No cabin is assigned yet. Policy ("free until paid"): a pending/unpaid
+  // registration must not hold a cabin — the place stays open for others
+  // until the deposit/payment actually lands, at which point the paid path
+  // (Stripe webhook / PayPal fulfilment / admin "Mark paid") places the guest
+  // via assignRoomOnPaid. The capacity guard above still blocks a genuinely
+  // sold-out tier (counted from paid + held bookings).
 
   // Deposit = 50% now, balance settled before the cut-off. The balance is
   // tracked on the registration (balance_due_cents) so the admin can later
@@ -223,7 +220,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const registrationId = await createPendingRegistration(env.DB, {
     product_id: product.id,
     tier_id: tier.id,
-    inventory_unit_id: room.id,
+    inventory_unit_id: null,
     first_name: firstName,
     last_name: lastName,
     email,
@@ -280,8 +277,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       payload: {
         order_id: order.id,
         tier: tier.slug,
-        auto_assigned_room: room.name,
-        auto_assigned_room_id: room.id,
+        room_assignment: 'deferred-until-paid',
         payment_mode: isDeposit ? 'deposit' : 'full',
         amount_cents: amountCents,
         deposit_balance_cents: balanceCents,
@@ -365,8 +361,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     payload: {
       session_id: session.id,
       tier: tier.slug,
-      auto_assigned_room: room.name,
-      auto_assigned_room_id: room.id,
+      room_assignment: 'deferred-until-paid',
       payment_mode: isDeposit ? 'deposit' : 'full',
       amount_cents: amountCents,
       deposit_balance_cents: balanceCents,

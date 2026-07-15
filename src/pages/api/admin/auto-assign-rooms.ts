@@ -10,11 +10,13 @@ import {
 
 export const prerender = false;
 
-// Auto-assign every unassigned active registration to a room matching what
+// Auto-assign every unassigned *paid* registration to a room matching what
 // they purchased. Walks one registration at a time and persists each pick
 // before the next, so pickRoomForTier sees the updated occupancy and fills
 // rooms correctly (and never double-books a bed). Already-assigned people
-// (hosts, cook, anyone manually placed) are left untouched.
+// (hosts, cook, anyone manually placed) are left untouched. Pending/unpaid
+// holds are deliberately skipped — under the "free until paid" policy an
+// unpaid registration must not occupy a cabin (it's placed when it pays).
 export const POST: APIRoute = async ({ request, locals }) => {
   const env = locals.runtime.env;
   if (!(await verifySession(env.ADMIN_SESSION_SECRET, readCookie(request)))) {
@@ -28,17 +30,15 @@ export const POST: APIRoute = async ({ request, locals }) => {
     return new Response('Unknown product', { status: 404 });
   }
 
-  // Unassigned + active (paid, or pending with a live hold), oldest first.
+  // Unassigned + paid, oldest first. Unpaid pending holds are intentionally
+  // excluded (see "free until paid" above) — they get a room only once paid.
   const res = await env.DB.prepare(
     `SELECT r.id, r.role, t.slug AS tier_slug
        FROM registrations r
        JOIN tiers t ON t.id = r.tier_id
       WHERE r.product_id = ?
         AND r.inventory_unit_id IS NULL
-        AND r.status IN ('paid','pending')
-        AND (r.status = 'paid'
-             OR r.hold_expires_at IS NULL
-             OR r.hold_expires_at > datetime('now'))
+        AND r.status = 'paid'
       ORDER BY r.created_at, r.id`,
   )
     .bind(product.id)

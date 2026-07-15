@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { readCookie, verifySession } from '../../../lib/registrations/auth';
 import {
+  assignRoomOnPaid,
   getRegistrationById,
   logEvent,
   markRegistrationPaid,
@@ -31,6 +32,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
     registrationId,
     `manual-${registrationId}`,
   );
+  // Place the guest in a cabin now they're marked paid (no-op if the row
+  // already has a room — e.g. a seeded/held booking).
+  await assignRoomOnPaid(env.DB, registrationId);
   await logEvent(env.DB, {
     registration_id: registrationId,
     kind: 'admin.mark_paid',

@@ -621,7 +621,7 @@ const flash = (() => {
           method="POST"
           action="/api/admin/auto-assign-rooms"
           class="adm-autoassign"
-          onsubmit={`return confirm('Auto-assign every unassigned paid/held guest to a room matching what they purchased? Already-assigned people are left as-is.')`}
+          onsubmit={`return confirm('Auto-assign every unassigned paid guest to a room matching what they purchased? Pending/unpaid holds are skipped (placed when they pay); already-assigned people are left as-is.')`}
         >
           <input type="hidden" name="product_slug" value={productSlug} />
           <input type="hidden" name="return_to" value={returnTo} />

@@ -872,6 +872,75 @@ export async function getSpecialRoomByRole(
   return room;
 }
 
+// Assign a cabin/room to a registration at the moment it becomes paid.
+//
+// Policy ("free until paid"): a pending/unpaid registration must NOT hold a
+// room — the place stays open for others until money actually lands. The
+// dolphin checkout therefore creates the pending row with no
+// inventory_unit_id, and every paid path (Stripe webhook, PayPal fulfilment,
+// admin "Mark paid") calls this to place the guest once they've paid.
+//
+// Safe + idempotent:
+//   • no-op if the row is missing, not yet paid, or already has a room
+//     (so a manual/seed placement — or a second webhook — is never disturbed);
+//   • picks the room the same way checkout used to (role room, else the tier's
+//     auto-pick), and only writes when inventory_unit_id is still NULL;
+//   • if nothing is free it leaves the guest roomless (paid, for the admin to
+//     place) and logs `registration.room.unavailable`; a retreat with no room
+//     inventory at all is skipped silently.
+export async function assignRoomOnPaid(
+  db: D1Database,
+  registrationId: number,
+): Promise<void> {
+  const reg = await getRegistrationById(db, registrationId);
+  if (!reg) return;
+  if (reg.status !== 'paid') return;
+  if (reg.inventory_unit_id != null) return;
+
+  // Retreats without an inventory_units model (flat-capacity) have no rooms
+  // to assign — don't log a spurious "unavailable" for every paid guest.
+  const rooms = await getRoomsWithMode(db, reg.product_id);
+  if (rooms.length === 0) return;
+
+  let room: RoomWithMode | null = null;
+  if (reg.role) {
+    room = await getSpecialRoomByRole(db, reg.product_id, reg.role, reg.id);
+  } else {
+    const tier = await db
+      .prepare('SELECT slug FROM tiers WHERE id = ?')
+      .bind(reg.tier_id)
+      .first<{ slug: string }>();
+    if (tier) room = await pickRoomForTier(db, reg.product_id, tier.slug);
+  }
+
+  if (!room) {
+    await logEvent(db, {
+      registration_id: reg.id,
+      kind: 'registration.room.unavailable',
+      source: 'system',
+      payload: { tier_id: reg.tier_id, role: reg.role ?? null },
+    });
+    return;
+  }
+
+  // Guard the write on inventory_unit_id IS NULL so two concurrent paid paths
+  // (webhook + admin) can't both place the same person into different rooms.
+  const res = await db
+    .prepare(
+      'UPDATE registrations SET inventory_unit_id = ? WHERE id = ? AND inventory_unit_id IS NULL',
+    )
+    .bind(room.id, reg.id)
+    .run();
+  if ((res.meta?.changes ?? 0) > 0) {
+    await logEvent(db, {
+      registration_id: reg.id,
+      kind: 'registration.room.assigned',
+      source: 'system',
+      payload: { inventory_unit_id: room.id, room: room.name },
+    });
+  }
+}
+
 // Per-role availability flags for the registration form so it knows
 // whether to render the fire-keeper / cook-help checkboxes.
 export async function getSpecialRoomAvailability(
