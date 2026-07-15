@@ -281,6 +281,30 @@ const tzOptions = tzOptionsFor(detectedTz);
       history.replaceState(null, '', url.toString());
     }
 
+    // Read the currently-ticked doors as a sorted list (1–3).
+    function currentDoors(form) {
+      var checked = form.querySelectorAll('input[name="door"]:checked');
+      var picked = [];
+      for (var i = 0; i < checked.length; i++) picked.push(parseInt(checked[i].value, 10));
+      picked.sort();
+      return picked;
+    }
+
+    // Commit a door-set: reflect it into the URL + page — the same swap the
+    // "Show me" button does, so the lens rides the URL into checkout. `navigate`
+    // adds the collapse + scroll (on for a real click; off for the idle
+    // auto-capture, which must not yank a reader down the page).
+    function commit(picked, navigate) {
+      writeState(picked);
+      apply(picked, true);
+      announce(picked);
+      if (!navigate) return;
+      var sel = document.getElementById('why');
+      if (sel) sel.classList.add('is-collapsed');
+      var opening = document.querySelector('.we-opening');
+      if (opening) opening.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
     function init() {
       var doors = parseState();
       apply(doors, false);
@@ -289,17 +313,28 @@ const tzOptions = tzOptionsFor(detectedTz);
       if (form) {
         form.addEventListener('submit', function (e) {
           e.preventDefault();
-          var checked = form.querySelectorAll('input[name="door"]:checked');
-          var picked = [];
-          for (var i = 0; i < checked.length; i++) picked.push(parseInt(checked[i].value, 10));
-          picked.sort();
-          writeState(picked);
-          apply(picked, true);
-          announce(picked);
-          var sel = document.getElementById('why');
-          if (sel) sel.classList.add('is-collapsed');
-          var opening = document.querySelector('.we-opening');
-          if (opening) opening.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          cancelAuto();
+          commit(currentDoors(form), true);
+        });
+
+        // Auto-capture: many people tick a door but never press "Show me", so
+        // their choice never reaches the URL and the registration is stored with
+        // no lens. If a box is ticked and then left untouched for ~3s, commit it
+        // anyway (no scroll/collapse) so the door is still recorded at checkout.
+        // Each change re-arms the timer; unticking back to nothing cancels it.
+        var AUTO_MS = 3000;
+        var autoTimer = null;
+        var cancelAuto = function () {
+          if (autoTimer) { window.clearTimeout(autoTimer); autoTimer = null; }
+        };
+        form.addEventListener('change', function (e) {
+          if (!e.target || e.target.name !== 'door') return;
+          cancelAuto();
+          if (!currentDoors(form).length) return;
+          autoTimer = window.setTimeout(function () {
+            autoTimer = null;
+            commit(currentDoors(form), false);
+          }, AUTO_MS);
         });
       }
 
