@@ -29,7 +29,9 @@ import {
   claimRecipientStmt,
   fetchDrainCandidates,
   fetchDrainCandidatesForTz,
+  launchBroadcast,
   listActiveBroadcasts,
+  listDueScheduledBroadcasts,
   markBroadcastDone,
   markRecipientRetryOrFailStmt,
   markRecipientSentStmt,
@@ -95,14 +97,29 @@ const CB_MAX_BOUNCE_RATE = 0.06; // 6% (permanent bounces)
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-export type BroadcastRunResult = { sent: number; paused: number; done: number };
+export type BroadcastRunResult = { sent: number; paused: number; done: number; launched: number };
 
 export async function runBroadcasts(
   env: BroadcastCronEnv,
   now = Date.now(),
 ): Promise<BroadcastRunResult> {
-  const result: BroadcastRunResult = { sent: 0, paused: 0, done: 0 };
+  const result: BroadcastRunResult = { sent: 0, paused: 0, done: 0, launched: 0 };
   if (!env.RESEND_API_KEY) return result;
+
+  // 0. Auto-launch any scheduled drafts whose time has come. launchBroadcast
+  //    snapshots the audience and flips them to 'sending', clearing scheduled_at
+  //    so they can't re-fire; because it runs before listActiveBroadcasts below,
+  //    a just-launched broadcast is drained on this same tick. A failure here is
+  //    isolated per-broadcast so one bad row can't block the rest.
+  const due = await listDueScheduledBroadcasts(env.DB, now);
+  for (const d of due) {
+    try {
+      await launchBroadcast(env.DB, d.id);
+      result.launched += 1;
+    } catch (err) {
+      console.error(`[broadcasts/cron] scheduled launch of ${d.id} failed`, err);
+    }
+  }
 
   const active = await listActiveBroadcasts(env.DB);
   for (const b of active) {

@@ -47,6 +47,14 @@ const bounceRate = (s: { bounced: number; sent: number }) => (s.sent ? s.bounced
 const statusLabel: Record<string, string> = {
   draft: 'Draft', sending: 'Sending', paused: 'Paused', done: 'Done',
 };
+
+// Compact label for a draft's armed scheduled launch, in the business timezone.
+const fmtSched = (s: string | null): string | null => {
+  if (!s || !Number.isFinite(Date.parse(s))) return null;
+  return new Date(s).toLocaleString('en-GB', {
+    timeZone: 'Europe/Brussels', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false,
+  });
+};
 ---
 
 <Layout title="Admin — Broadcasts — Songdance" description="">
@@ -86,7 +94,12 @@ const statusLabel: Record<string, string> = {
                   <strong>{b.name}</strong>
                   {b.subject && b.subject !== b.name && <span class="bc-subj">{b.subject}</span>}
                 </td>
-                <td><span class={`bc-pill bc-pill--${b.status}`}>{statusLabel[b.status] ?? b.status}</span></td>
+                <td>
+                  <span class={`bc-pill bc-pill--${b.status}`}>{statusLabel[b.status] ?? b.status}</span>
+                  {b.status === 'draft' && fmtSched(b.scheduled_at) && (
+                    <span class="bc-sched-tag" title="Scheduled to auto-launch">⏰ {fmtSched(b.scheduled_at)}</span>
+                  )}
+                </td>
                 <td class="num">{counts ? counts.sent.toLocaleString() : '—'}</td>
                 <td class="num">{counts ? counts.pending.toLocaleString() : '—'}</td>
                 <td class="num">{stats && stats.sent ? pct(stats.openRate) : '—'}</td>
@@ -96,6 +109,7 @@ const statusLabel: Record<string, string> = {
                 <td class="bc-rowactions">
                   <a class="adm-btn adm-btn--ghost" href={`/admin/broadcasts/${b.id}`}>Open</a>
                   <button class="adm-btn adm-btn--ghost bc-dup" type="button" data-id={b.id} title="Clone into a new draft you can retarget">Duplicate</button>
+                  <button class="adm-btn adm-btn--ghost bc-del" type="button" data-id={b.id} data-name={b.name} data-status={b.status} title="Delete this broadcast">Delete</button>
                 </td>
               </tr>
             ))}
@@ -259,7 +273,10 @@ const statusLabel: Record<string, string> = {
     .bc-table td strong { display: block; }
     .bc-subj { display: block; font-size: 12.5px; color: #6f5f6d; margin-top: 2px; }
     .bc-rowactions { white-space: nowrap; }
-    .bc-rowactions .bc-dup { margin-left: 6px; }
+    .bc-rowactions .bc-dup, .bc-rowactions .bc-del { margin-left: 6px; }
+    .bc-rowactions .bc-del { color: #b23422; border-color: rgba(178,52,34,0.4); }
+    .bc-rowactions .bc-del:hover { background: #fbeeea; }
+    .bc-sched-tag { display: block; font-size: 11.5px; color: #335; margin-top: 4px; font-variant-numeric: tabular-nums; }
     .bc-pill { font-size: 12px; padding: 2px 10px; border-radius: 999px; background: #ece0cf; color: #4a3848; }
     .bc-pill--sending { background: #d9ead0; color: #38601f; }
     .bc-pill--paused { background: #f4dcc9; color: #a14826; }
@@ -392,6 +409,37 @@ const statusLabel: Record<string, string> = {
           btn.textContent = original;
           btn.disabled = false;
           alert('Could not duplicate: ' + (err && err.message ? err.message : String(err)));
+        }
+      });
+    });
+
+    // Delete — permanently remove a broadcast and its send queue. Extra-strong
+    // confirmation for one that has already sent / is sending; reload on success.
+    document.querySelectorAll('.bc-del').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const id = btn.getAttribute('data-id');
+        const name = btn.getAttribute('data-name') || 'this broadcast';
+        const status = btn.getAttribute('data-status');
+        const strong = (status === 'sending' || status === 'done')
+          ? `“${name}” has already sent (or is still sending). Delete it and its send queue permanently? Engagement history in email stats is kept. This cannot be undone.`
+          : `Delete “${name}” permanently? This cannot be undone.`;
+        if (!confirm(strong)) return;
+        const original = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = 'Deleting…';
+        try {
+          const res = await fetch('/api/admin/broadcasts/control', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: Number(id), action: 'delete' }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Delete failed');
+          window.location.reload();
+        } catch (err) {
+          btn.textContent = original;
+          btn.disabled = false;
+          alert('Could not delete: ' + (err && err.message ? err.message : String(err)));
         }
       });
     });
