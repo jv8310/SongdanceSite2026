@@ -84,16 +84,33 @@ const nowMs = Date.now();
 let inWindowNow = 0;
 let asleepNow = 0;
 let noTimezone = 0;
-const tzRows = tzGroups.map((g) => {
+// Roll the pending queue up by IANA region (the part before the first "/", e.g.
+// "Europe", "America", "Asia") for a high-level overview — a region spans many
+// local hours, so instead of a per-zone "local now" we show how much of each
+// region is eligible-now vs asleep. Eligibility is still decided per underlying
+// timezone (each has its own local clock) and then summed into its region.
+// No-timezone recipients ride DEFAULT_SEND_TZ but get their own row — an unknown
+// zone is semantically distinct from a real region.
+type PaceRegion = { region: string; n: number; eligible: number; isNull: boolean };
+const regionMap = new Map<string, PaceRegion>();
+for (const g of tzGroups) {
   const isNull = g.timezone == null;
   const hour = localHour(g.timezone || DEFAULT_SEND_TZ, nowMs);
   const inWindow = hour >= b.window_start_hour && hour < b.window_end_hour;
   if (isNull) noTimezone += g.n;
   if (inWindow) inWindowNow += g.n;
   else asleepNow += g.n;
-  return { label: isNull ? `(no timezone → ${DEFAULT_SEND_TZ})` : g.timezone!, n: g.n, hour, inWindow, isNull };
-});
-const topTzRows = tzRows.slice(0, 12);
+  const key = isNull ? '~none' : g.timezone!.split('/')[0];
+  const label = isNull ? `(no timezone → ${DEFAULT_SEND_TZ})` : key;
+  const cur = regionMap.get(key) ?? { region: label, n: 0, eligible: 0, isNull };
+  cur.n += g.n;
+  if (inWindow) cur.eligible += g.n;
+  regionMap.set(key, cur);
+}
+// A handful of regions, so show them all — no-timezone row last, rest by size.
+const regionRows = [...regionMap.values()].sort((a, c) =>
+  a.isNull === c.isNull ? c.n - a.n : a.isNull ? 1 : -1,
+);
 
 const pct = (r: number) => `${(r * 100).toFixed(1)}%`;
 // SQLite datetime('now') is UTC, no zone marker — read it as UTC, show it local.
@@ -207,21 +224,22 @@ const statusLabel: Record<string, string> = {
                 </p>
               )}
               <table class="bc-pace-tz">
-                <thead><tr><th>Timezone</th><th>Local now</th><th>Queued</th><th></th></tr></thead>
+                <thead><tr><th>Region</th><th>Queued</th><th>Eligible now</th><th>Asleep</th></tr></thead>
                 <tbody>
-                  {topTzRows.map((r) => (
-                    <tr class={b.urgent || r.inWindow ? 'in' : 'out'}>
-                      <td>{r.label}</td>
-                      <td>{`${String(r.hour).padStart(2, '0')}:00`}</td>
-                      <td>{r.n.toLocaleString()}</td>
-                      <td>{b.urgent ? 'eligible' : r.inWindow ? 'eligible' : 'asleep'}</td>
-                    </tr>
-                  ))}
+                  {regionRows.map((r) => {
+                    const elig = b.urgent ? r.n : r.eligible;
+                    const asleep = r.n - elig;
+                    return (
+                      <tr class={b.urgent || elig >= asleep ? 'in' : 'out'}>
+                        <td>{r.region}</td>
+                        <td>{r.n.toLocaleString()}</td>
+                        <td class={elig > 0 ? 'elig' : 'zero'}>{elig.toLocaleString()}</td>
+                        <td class={asleep > 0 ? 'slept' : 'zero'}>{asleep.toLocaleString()}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
-              {tzRows.length > topTzRows.length && (
-                <p class="bc-note">+ {(tzRows.length - topTzRows.length).toLocaleString()} more zones.</p>
-              )}
               {!b.urgent && (
                 <p class="bc-note">
                   Throughput tops out at ~350/tick, but only across the eligible slice — so when most of the queue is
@@ -459,9 +477,9 @@ const statusLabel: Record<string, string> = {
     .bc-pace-tz { width: 100%; border-collapse: collapse; font-size: 13px; margin: 0 0 10px; }
     .bc-pace-tz th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #6f5f6d; font-weight: 600; padding: 4px 10px 4px 0; border-bottom: 1px solid rgba(161,72,38,0.15); }
     .bc-pace-tz td { padding: 5px 10px 5px 0; color: #2a1b2a; font-variant-numeric: tabular-nums; border-bottom: 1px solid rgba(161,72,38,0.08); }
-    .bc-pace-tz td:last-child { font-size: 12px; }
-    .bc-pace-tz tr.in td:last-child { color: #38601f; }
-    .bc-pace-tz tr.out td:last-child { color: #a14826; }
+    .bc-pace-tz td.elig { color: #38601f; }
+    .bc-pace-tz td.slept { color: #a14826; }
+    .bc-pace-tz td.zero { color: #b7a9b4; }
     .bc-pace-tz tr.out td:first-child { color: #6f5f6d; }
     .bc-muted { color: #b6a8b4; }
     .bc-audience { border: 1px solid rgba(161,72,38,0.22); border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; margin: 0; }
