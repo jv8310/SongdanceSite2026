@@ -337,25 +337,26 @@ const leadTicket = items.find((it) => it.kind !== 'masterclass');
     // Render a price with the live promo applied: the struck full price next to
     // the discounted figure (matching the summary line), or just the price when
     // no discount is active.
-    function priceHtml(fullMinor, cur) {
-      var disc = ticketAfterDiscount(fullMinor);
-      return (discountPct && disc !== fullMinor)
+    function priceHtml(fullMinor, cur, kind) {
+      var disc = ticketAfterDiscount(fullMinor, kind);
+      return (disc !== fullMinor)
         ? '<span class="we-line-was">' + money(fullMinor, cur) + '</span> ' + money(disc, cur)
         : money(fullMinor, cur);
     }
     // Repaint every visible price for `cur`: the per-row chips and the stated-
-    // once lead, each carrying the promo strike.
+    // once lead. Each row strikes by its own kind, so a masterclass row carries
+    // the masterclass offer while the workshop lead + rows revert with the sale.
     function renderPrices(cur) {
       for (var i = 0; i < radios.length; i++) {
         var r = radios[i];
         var minor = priceFor(parse(r.dataset.prices), cur, parseInt(r.dataset.priceMinor, 10) || 0);
         var priceEl = r.closest('.we-cal-item').querySelector('.we-cal-price');
-        if (priceEl) priceEl.innerHTML = priceHtml(minor, cur);
+        if (priceEl) priceEl.innerHTML = priceHtml(minor, cur, r.dataset.kind);
       }
       var lead = document.getElementById('we-price-lead');
       if (lead) {
         var lm = priceFor(parse(lead.dataset.prices), cur, parseInt(lead.dataset.priceMinor, 10) || 0);
-        lead.innerHTML = priceHtml(lm, cur);
+        lead.innerHTML = priceHtml(lm, cur, 'workshop');
       }
     }
 
@@ -425,29 +426,40 @@ const leadTicket = items.find((it) => it.kind !== 'masterclass');
     var rawAdiscount = (discParams.get('adiscount') || '').trim();
     function clampPct(v) { var n = parseInt(v, 10); return (isFinite(n) && n >= 1 && n <= 100) ? n : 0; }
     function compoundPct(a, b) { return Math.round(100 - ((100 - a) * (100 - b)) / 100); }
-    // Launch promo (from window.__SD_PROMO__, set in the base Layout head). A
-    // public ?discount=50 "share with a friend" link STACKS on the promo (50%
-    // off the already-50% price = 75% while it runs); a bespoke ?adiscount=N
-    // link is the better of it and the promo. The server re-derives the same.
-    var promoPct = (window.__SD_PROMO__ && window.__SD_PROMO__.active) ? (window.__SD_PROMO__.percent || 0) : 0;
+    // Promo(s), mirrored from the base Layout head. The launch sale
+    // (window.__SD_PROMO__) applies to every row; the standalone masterclass
+    // launch offer (window.__SD_MC_PROMO__) applies to the masterclass rows only,
+    // so those keep 50% after the launch sale closes while the workshop tickets
+    // return to full price. A public ?discount=50 "share with a friend" link
+    // STACKS on the promo (75% while it runs); a bespoke ?adiscount=N link is the
+    // better of it and the promo. The server re-derives the same, per product.
+    var launchPct = (window.__SD_PROMO__ && window.__SD_PROMO__.active) ? (window.__SD_PROMO__.percent || 0) : 0;
+    var mcPct = (window.__SD_MC_PROMO__ && window.__SD_MC_PROMO__.active) ? (window.__SD_MC_PROMO__.percent || 0) : 0;
     var secretPct = clampPct(rawAdiscount);
     var referralPct = (clampPct(rawDiscount) === 50) ? 50 : 0;
-    var discountPct = secretPct
-      ? Math.max(secretPct, promoPct)
-      : (referralPct ? (promoPct ? compoundPct(promoPct, referralPct) : referralPct) : promoPct);
+    function promoForKind(kind) { return Math.max(launchPct, kind === 'masterclass' ? mcPct : 0); }
+    function discountForKind(kind) {
+      var promo = promoForKind(kind);
+      if (secretPct) return Math.max(secretPct, promo);
+      if (referralPct) return promo ? compoundPct(promo, referralPct) : referralPct;
+      return promo;
+    }
     var discField = document.getElementById('we-discount');
     var adiscField = document.getElementById('we-adiscount');
     if (discField) discField.value = rawDiscount;
     if (adiscField) adiscField.value = rawAdiscount;
-    if (discountPct) {
+    // This page leads with the workshop ticket, so the note reflects that.
+    var pageDiscount = discountForKind('workshop');
+    if (pageDiscount) {
       // The launch-offer callout already states the promo + "applied at checkout",
-      // so skip this note when the promo is what's driving the discount — only show
+      // so skip this note when a promo is what's driving the discount — only show
       // it for a larger, non-promo URL discount (?adiscount=N).
-      var promoDriven = promoPct > 0 && discountPct === promoPct;
+      var pagePromo = promoForKind('workshop');
+      var promoDriven = pagePromo > 0 && pageDiscount === pagePromo;
       var note = document.getElementById('we-discount-note');
-      if (note && !promoDriven) { note.textContent = discountPct + '% off your ticket — applied at checkout.'; note.hidden = false; }
+      if (note && !promoDriven) { note.textContent = pageDiscount + '% off your ticket — applied at checkout.'; note.hidden = false; }
     }
-    function ticketAfterDiscount(minor) { return discountPct ? Math.round(minor * (100 - discountPct) / 100) : minor; }
+    function ticketAfterDiscount(minor, kind) { var d = discountForKind(kind); return d ? Math.round(minor * (100 - d) / 100) : minor; }
 
     // Seed the active currency from the first radio (server-rendered for the
     // detected country), so a no-change submit stays consistent.
@@ -547,7 +559,7 @@ const leadTicket = items.find((it) => it.kind !== 'masterclass');
     function recompute() {
       if (!current) return;
       var fullPriceMinor = parseInt(current.priceMinor, 10) || 0;
-      var priceMinor = ticketAfterDiscount(fullPriceMinor);
+      var priceMinor = ticketAfterDiscount(fullPriceMinor, current.kind);
       var cur = current.currency || curCurrency;
       var hasBump = current.hasBump === '1';
       var wantsBump = hasBump && bumpInput.checked;
@@ -557,7 +569,7 @@ const leadTicket = items.find((it) => it.kind !== 'masterclass');
       // Workshop line (struck full price shown when a discount is active).
       if (workshopLineLabel) workshopLineLabel.textContent = workshopLineText();
       if (workshopLineAmount) {
-        workshopLineAmount.innerHTML = discountPct
+        workshopLineAmount.innerHTML = (priceMinor !== fullPriceMinor)
           ? '<span class="we-line-was">' + money(fullPriceMinor, cur) + '</span> ' + money(priceMinor, cur)
           : money(priceMinor, cur);
       }

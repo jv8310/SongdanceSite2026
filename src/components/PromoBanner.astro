@@ -10,6 +10,7 @@
 // nav's normal sticky behaviour returns automatically. The charge is gated
 // server-side regardless.
 import {
+  launchPromoActive,
   launchPromoPayload,
   LAUNCH_PROMO_HEADLINE,
   LAUNCH_PROMO_END_LABEL,
@@ -17,8 +18,17 @@ import {
 } from '../lib/promo';
 
 const { endsAtMs } = launchPromoPayload();
+
+// Server-gate the render on the promo window (belt to the client guard's
+// braces): on the SSR pages this drops the bar from the HTML the instant the
+// sale ends — no flash, nothing for crawlers/no-JS to see — and on the
+// statically-built pages a rebuild after the deadline drops it too. The inline
+// guard below still removes it from any already-built/cached HTML served in the
+// gap before a rebuild, so the bar can never outlive the sale on any page.
+const active = launchPromoActive();
 ---
 
+{active && (
 <aside class="sd-promo" data-sd-promo data-ends={endsAtMs} aria-label="Extended launch sale">
   <a class="sd-promo-inner" href="/courses">
     <span class="sd-promo-tag">{LAUNCH_PROMO_TAG}</span>
@@ -30,6 +40,7 @@ const { endsAtMs } = launchPromoPayload();
     <span class="sd-promo-cta">Browse courses →</span>
   </a>
 </aside>
+)}
 
 <script is:inline>
   (function () {

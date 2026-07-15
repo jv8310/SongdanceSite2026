@@ -11,6 +11,11 @@
 // posted country is authoritative — the server re-resolves the price for it.
 import type { CalItem } from '../workshop-english/types';
 import LaunchOfferCallout from '../promo/LaunchOfferCallout.astro';
+import {
+  masterclassPromoActive,
+  MASTERCLASS_PROMO_PERCENT,
+  MASTERCLASS_PROMO_TAG,
+} from '../../lib/masterclass-promo';
 import MetaPixel from '../MetaPixel.astro';
 interface Props {
   items: CalItem[];
@@ -90,7 +95,14 @@ const pixelId = Astro.locals.runtime.env.META_PIXEL_ID ?? '';
     <p class="we-register-note">Live · Online · 90 min · Replay included</p>
     <p class="we-discount-note" id="mc-discount-note" hidden></p>
 
-    <LaunchOfferCallout scope="your seat" note="Applied automatically at checkout — no code needed." />
+    <LaunchOfferCallout
+      scope="your seat"
+      active={masterclassPromoActive()}
+      tag={MASTERCLASS_PROMO_TAG}
+      percent={MASTERCLASS_PROMO_PERCENT}
+      countdown={false}
+      note="Applied automatically at checkout — no code needed."
+    ><strong>{MASTERCLASS_PROMO_PERCENT}% off your seat</strong> — our launch offer for this masterclass.</LaunchOfferCallout>
 
     <div class="we-booking">
       {visible.length === 0 && (
@@ -338,25 +350,27 @@ const pixelId = Astro.locals.runtime.env.META_PIXEL_ID ?? '';
     // Render a price with the live promo applied: the struck full price next to
     // the discounted figure (matching the summary line), or just the price when
     // no discount is active.
-    function priceHtml(fullMinor, cur) {
-      var disc = ticketAfterDiscount(fullMinor);
-      return (discountPct && disc !== fullMinor)
+    function priceHtml(fullMinor, cur, kind) {
+      var disc = ticketAfterDiscount(fullMinor, kind);
+      return (disc !== fullMinor)
         ? '<span class="we-line-was">' + money(fullMinor, cur) + '</span> ' + money(disc, cur)
         : money(fullMinor, cur);
     }
     // Repaint every visible price for `cur`: the per-row chips (the kept fallback
-    // rows) and the stated-once lead, each carrying the promo strike.
+    // rows) and the stated-once lead. Each row strikes by its own kind, so the
+    // masterclass rows carry the masterclass offer while a full-price workshop
+    // fallback stays full price.
     function renderPrices(cur) {
       for (var i = 0; i < radios.length; i++) {
         var r = radios[i];
         var minor = priceFor(parse(r.dataset.prices), cur, parseInt(r.dataset.priceMinor, 10) || 0);
         var priceEl = r.closest('.we-cal-item').querySelector('.we-cal-price');
-        if (priceEl) priceEl.innerHTML = priceHtml(minor, cur);
+        if (priceEl) priceEl.innerHTML = priceHtml(minor, cur, r.dataset.kind);
       }
       var lead = document.getElementById('mc-price-lead');
       if (lead) {
         var lm = priceFor(parse(lead.dataset.prices), cur, parseInt(lead.dataset.priceMinor, 10) || 0);
-        lead.innerHTML = priceHtml(lm, cur);
+        lead.innerHTML = priceHtml(lm, cur, 'masterclass');
       }
     }
 
@@ -377,29 +391,41 @@ const pixelId = Astro.locals.runtime.env.META_PIXEL_ID ?? '';
     var rawAdiscount = (discParams.get('adiscount') || '').trim();
     function clampPct(v) { var n = parseInt(v, 10); return (isFinite(n) && n >= 1 && n <= 100) ? n : 0; }
     function compoundPct(a, b) { return Math.round(100 - ((100 - a) * (100 - b)) / 100); }
-    // Launch promo (from window.__SD_PROMO__, set in the base Layout head). A
-    // public ?discount=50 "share with a friend" link STACKS on the promo (50%
-    // off the already-50% seat = 75% while it runs); a bespoke ?adiscount=N link
-    // is the better of it and the promo. The server re-derives the same.
-    var promoPct = (window.__SD_PROMO__ && window.__SD_PROMO__.active) ? (window.__SD_PROMO__.percent || 0) : 0;
+    // Promo(s), mirrored from the base Layout head. The launch sale
+    // (window.__SD_PROMO__) applies to every row; the standalone masterclass
+    // launch offer (window.__SD_MC_PROMO__) applies to the masterclass rows only
+    // (live dates + the replay — kind 'masterclass'), so it keeps them at 50%
+    // after the launch sale closes while the €9 intro-workshop fallback returns
+    // to full price. A public ?discount=50 "share with a friend" link STACKS on
+    // the promo (75% while it runs); a bespoke ?adiscount=N link is the better of
+    // it and the promo. The server re-derives the same, per product.
+    var launchPct = (window.__SD_PROMO__ && window.__SD_PROMO__.active) ? (window.__SD_PROMO__.percent || 0) : 0;
+    var mcPct = (window.__SD_MC_PROMO__ && window.__SD_MC_PROMO__.active) ? (window.__SD_MC_PROMO__.percent || 0) : 0;
     var secretPct = clampPct(rawAdiscount);
     var referralPct = (clampPct(rawDiscount) === 50) ? 50 : 0;
-    var discountPct = secretPct
-      ? Math.max(secretPct, promoPct)
-      : (referralPct ? (promoPct ? compoundPct(promoPct, referralPct) : referralPct) : promoPct);
+    function promoForKind(kind) { return Math.max(launchPct, kind === 'masterclass' ? mcPct : 0); }
+    function discountForKind(kind) {
+      var promo = promoForKind(kind);
+      if (secretPct) return Math.max(secretPct, promo);
+      if (referralPct) return promo ? compoundPct(promo, referralPct) : referralPct;
+      return promo;
+    }
     var discField = document.getElementById('mc-discount');
     var adiscField = document.getElementById('mc-adiscount');
     if (discField) discField.value = rawDiscount;
     if (adiscField) adiscField.value = rawAdiscount;
-    if (discountPct) {
+    // This page is the masterclass, so the note reflects the masterclass discount.
+    var pageDiscount = discountForKind('masterclass');
+    if (pageDiscount) {
       // The launch-offer callout already states the promo + "applied at checkout",
-      // so skip this note when the promo is driving the discount — only show it for
+      // so skip this note when a promo is driving the discount — only show it for
       // a larger, non-promo URL discount (?adiscount=N).
-      var promoDriven = promoPct > 0 && discountPct === promoPct;
+      var pagePromo = promoForKind('masterclass');
+      var promoDriven = pagePromo > 0 && pageDiscount === pagePromo;
       var note = document.getElementById('mc-discount-note');
-      if (note && !promoDriven) { note.textContent = discountPct + '% off your seat — applied at checkout.'; note.hidden = false; }
+      if (note && !promoDriven) { note.textContent = pageDiscount + '% off your seat — applied at checkout.'; note.hidden = false; }
     }
-    function ticketAfterDiscount(minor) { return discountPct ? Math.round(minor * (100 - discountPct) / 100) : minor; }
+    function ticketAfterDiscount(minor, kind) { var d = discountForKind(kind); return d ? Math.round(minor * (100 - d) / 100) : minor; }
 
     // Seed the active currency from the first radio (server-rendered for the
     // detected country), so a no-change submit stays consistent.
@@ -434,10 +460,10 @@ const pixelId = Astro.locals.runtime.env.META_PIXEL_ID ?? '';
     function recompute() {
       if (!current) return;
       var fullPriceMinor = parseInt(current.priceMinor, 10) || 0;
-      var priceMinor = ticketAfterDiscount(fullPriceMinor);
+      var priceMinor = ticketAfterDiscount(fullPriceMinor, current.kind);
       var cur = current.currency || curCurrency;
       totalLabel.textContent = current.kind === 'masterclass' ? 'Masterclass seat' : 'Workshop ticket';
-      totalAmount.innerHTML = discountPct
+      totalAmount.innerHTML = (priceMinor !== fullPriceMinor)
         ? '<span class="we-line-was">' + money(fullPriceMinor, cur) + '</span> ' + money(priceMinor, cur)
         : money(priceMinor, cur);
       submitBtn.textContent = 'Register & pay ' + money(priceMinor, cur) + ' →';

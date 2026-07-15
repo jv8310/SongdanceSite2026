@@ -8,8 +8,15 @@
 // book; the owner has sanctioned naming the deadline plainly (see CLAUDE.md).
 // Keep it factual — no fake scarcity.
 //
-// Server-gated on launchPromoActive() so it never renders once the window has
-// closed; the inline countdown also self-removes at the deadline (no rebuild).
+// Server-gated on `active` (defaults to launchPromoActive()) so it never
+// renders once the window has closed; when a countdown is shown, the inline
+// clock also self-removes at the deadline (no rebuild).
+//
+// Parametrizable: it defaults to the site-wide launch sale, but any promo can
+// drive it by passing the overrides below — used by the masterclass page to
+// carry its standalone launch offer (open-ended, no clock) after the launch
+// sale ends. With `countdown={false}` it's purely server-gated, so use it on an
+// SSR page (the masterclass page is), where `active` re-evaluates per request.
 import {
   launchPromoActive,
   LAUNCH_PROMO_PERCENT,
@@ -25,32 +32,58 @@ interface Props {
   scope?: string;
   /** Small reassurance line under the offer (e.g. "Applied at checkout"). */
   note?: string;
+  /** Whether to render at all. Defaults to the launch sale being live. */
+  active?: boolean;
+  /** Badge text. Defaults to the launch-sale tag. */
+  tag?: string;
+  /** Headline percent. Defaults to the launch-sale percent. */
+  percent?: number;
+  /** Deadline label named in the default line. Launch-sale label by default. */
+  endLabel?: string;
+  /** Deadline epoch ms for the countdown clock. Launch-sale deadline by default. */
+  endsAtMs?: number;
+  /** Show the live countdown clock. Off for an open-ended offer. */
+  countdown?: boolean;
 }
-const { class: className, scope = 'every course', note } = Astro.props;
-const active = launchPromoActive();
+const {
+  class: className,
+  scope = 'every course',
+  note,
+  active = launchPromoActive(),
+  tag = LAUNCH_PROMO_TAG,
+  percent = LAUNCH_PROMO_PERCENT,
+  endLabel = LAUNCH_PROMO_END_LABEL,
+  endsAtMs = LAUNCH_PROMO_ENDS_AT_MS,
+  countdown = true,
+} = Astro.props;
+const ariaLabel = countdown
+  ? `${tag} — ${percent}% off ${scope}, ends ${endLabel}`
+  : `${tag} — ${percent}% off ${scope}`;
 ---
 
 {active && (
   <div
     class:list={['sd-launch-offer', className]}
-    data-launch-offer
-    data-ends={LAUNCH_PROMO_ENDS_AT_MS}
+    data-launch-offer={countdown ? '' : undefined}
+    data-ends={countdown ? endsAtMs : undefined}
     role="note"
-    aria-label={`${LAUNCH_PROMO_TAG} — ${LAUNCH_PROMO_PERCENT}% off ${scope}, ends ${LAUNCH_PROMO_END_LABEL}`}
+    aria-label={ariaLabel}
   >
     <div class="sd-launch-offer-main">
-      <span class="sd-launch-offer-tag">{LAUNCH_PROMO_TAG}</span>
+      <span class="sd-launch-offer-tag">{tag}</span>
       <p class="sd-launch-offer-line">
-        <strong>{LAUNCH_PROMO_PERCENT}% off {scope}</strong> to celebrate our new home — extended through {LAUNCH_PROMO_END_LABEL}.
+        <slot><strong>{percent}% off {scope}</strong> to celebrate our new home — extended through {endLabel}.</slot>
       </p>
       {note && <p class="sd-launch-offer-note">{note}</p>}
     </div>
-    <div class="sd-launch-offer-clock" data-launch-countdown aria-hidden="true">
-      <span class="sd-lo-unit"><b data-d>0</b><i>days</i></span>
-      <span class="sd-lo-unit"><b data-h>00</b><i>hrs</i></span>
-      <span class="sd-lo-unit"><b data-m>00</b><i>min</i></span>
-      <span class="sd-lo-unit"><b data-s>00</b><i>sec</i></span>
-    </div>
+    {countdown && (
+      <div class="sd-launch-offer-clock" data-launch-countdown aria-hidden="true">
+        <span class="sd-lo-unit"><b data-d>0</b><i>days</i></span>
+        <span class="sd-lo-unit"><b data-h>00</b><i>hrs</i></span>
+        <span class="sd-lo-unit"><b data-m>00</b><i>min</i></span>
+        <span class="sd-lo-unit"><b data-s>00</b><i>sec</i></span>
+      </div>
+    )}
   </div>
 )}
 

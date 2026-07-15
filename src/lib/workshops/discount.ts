@@ -14,6 +14,7 @@
 // the buyer sees what they'll pay.
 
 import { launchPromoPercent } from '../promo';
+import { masterclassPromoPercent } from '../masterclass-promo';
 
 export const PUBLIC_DISCOUNT_PCT = 50;
 export const PUBLIC_DISCOUNT_PARAM = 'discount';
@@ -54,22 +55,32 @@ export function compoundDiscountPercent(a: number, b: number): number {
 }
 
 // Resolve the effective TICKET discount percent for a workshop checkout,
-// folding the launch promo into the URL params. Ticket only — the order bump is
+// folding the promo(s) into the URL params. Ticket only — the order bump is
 // never discounted.
+//
+// "the promo" is the launch sale (all tickets) OR — for a masterclass ticket —
+// the better of the launch sale and the standalone masterclass launch offer
+// (src/lib/masterclass-promo.ts), which keeps the masterclass at 50% after the
+// launch sale closes. `opts.isMasterclass` must be set by the caller once the
+// ticket product is known (its slug contains "masterclass").
 //
 //   - ?adiscount=N (owner secret): an intentional, absolute price — taken as the
 //     better of it and the promo (max), never stacked.
-//   - ?discount=50 (public "share with a friend"): STACKS on top of the launch
-//     promo, so a referred friend gets 50% off the already-50%-off price (75%
-//     total) while the promo runs, and a plain 50% off once it ends.
-//   - neither: just the promo (0 when it's over).
+//   - ?discount=50 (public "share with a friend"): STACKS on top of the promo,
+//     so a referred friend gets 50% off the already-50%-off price (75% total)
+//     while a promo runs, and a plain 50% off once it ends.
+//   - neither: just the promo (0 when none applies).
 //
 // Mirrored client-side in WERegister/MCRegister so the displayed price matches.
 export function resolveTicketDiscountPercent(
   raw: { discount?: string | null; adiscount?: string | null },
   nowMs: number = Date.now(),
+  opts: { isMasterclass?: boolean } = {},
 ): number {
-  const promo = launchPromoPercent(nowMs);
+  const promo = Math.max(
+    launchPromoPercent(nowMs),
+    opts.isMasterclass ? masterclassPromoPercent(nowMs) : 0,
+  );
   const secret = clampPct(raw.adiscount);
   if (secret) return Math.max(secret, promo);
   const referral = clampPct(raw.discount) === PUBLIC_DISCOUNT_PCT ? PUBLIC_DISCOUNT_PCT : 0;

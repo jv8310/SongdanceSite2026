@@ -4,12 +4,19 @@ import '../styles/site.css';
 import PriceSync from '../components/PriceSync.astro';
 import AdminTopBar from '../components/admin/AdminTopBar.astro';
 import { launchPromoPayload } from '../lib/promo';
+import { masterclassPromoPayload } from '../lib/masterclass-promo';
 import { organizationSchema } from '../lib/seo';
 
 // Launch-promo facts, exposed to inline (non-bundled) scripts via a global. The
 // `active` flag is derived client-side from the deadline so the promo (and its
 // price strikes) switch off automatically when the window closes — no rebuild.
 const promoPayload = launchPromoPayload();
+
+// The standalone masterclass launch offer, exposed the same way. Only the
+// masterclass + workshop register scripts read it (to keep the masterclass
+// ticket at 50% after the launch sale closes); everything else ignores it, so
+// the grid/nav prices still revert with the launch sale. Same self-expiry.
+const mcPromoPayload = masterclassPromoPayload();
 
 interface Props {
   title?: string;
@@ -82,9 +89,11 @@ const showAdminBar = (path === '/admin' || path.startsWith('/admin/')) && !path.
     <meta name="twitter:image:alt" content={imageAlt} />
     <script type="application/ld+json" set:html={orgLd} />
     <title>{title}</title>
-    <script is:inline define:vars={{ promoPayload }}>
+    <script is:inline define:vars={{ promoPayload, mcPromoPayload }}>
       window.__SD_PROMO__ = promoPayload;
       window.__SD_PROMO__.active = Date.now() < promoPayload.endsAtMs;
+      window.__SD_MC_PROMO__ = mcPromoPayload;
+      window.__SD_MC_PROMO__.active = Date.now() < mcPromoPayload.endsAtMs;
     </script>
     <!-- Review aid: highlights the June-2026 copy-pass changes when the URL
          has ?changes. No-op otherwise. Remove with public/preview-changes.js

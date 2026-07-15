@@ -85,14 +85,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const companyName = (payload.company_name ?? '').trim();
   const vatNumber = (payload.vat_number ?? '').trim().replace(/\s+/g, '');
   const coupon = (payload.coupon ?? '').trim();
-  // Ticket discount, launch promo folded in: a public ?discount=50 "share with
-  // a friend" link STACKS on the promo (50% off the already-50% price = 75% off
-  // while it runs); a bespoke ?adiscount=N (owner) link is taken as the better
-  // of it and the promo. The order bump is never discounted (handled below).
-  const discountPct = resolveTicketDiscountPercent({
-    discount: payload.discount,
-    adiscount: payload.adiscount,
-  });
   const metaEventId = (payload.meta_event_id ?? '').trim() || null;
   const audience = normalizeAudience(payload.audience ?? '');
   const provider = parseProvider(payload.provider);
@@ -121,7 +113,17 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const isMasterclass = (ticketProduct.slug ?? '').includes('masterclass');
 
   // ── Ticket discount (?discount=50 public · ?adiscount=N owner) ─────────
-  // Applies to the TICKET only; the order bump is never discounted.
+  // Applies to the TICKET only; the order bump is never discounted. The
+  // promo(s) are folded in here, now that we know the product: the launch sale
+  // for any ticket, plus — for a masterclass — its standalone launch offer,
+  // which keeps the masterclass at 50% after the launch sale closes. A public
+  // ?discount=50 "share with a friend" link STACKS on the promo (75% while it
+  // runs); a bespoke ?adiscount=N (owner) link is the better of it and the promo.
+  const discountPct = resolveTicketDiscountPercent(
+    { discount: payload.discount, adiscount: payload.adiscount },
+    Date.now(),
+    { isMasterclass },
+  );
   const ticketAmountMinor = applyDiscountPercent(ticketPrice.amountMinor, discountPct);
 
   // The bump: the workshop's own, or — for a masterclass without one — the
