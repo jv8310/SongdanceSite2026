@@ -46,6 +46,15 @@ const audience = await countAudience(env.DB, {
 });
 const tags = isEditable ? await availableTags(env.DB, 1000) : [];
 const hasAudienceFilter = !!(b.audience_include_tags || b.audience_exclude_tags || b.audience_field);
+// Does this broadcast target a segment that's recomputed at launch (and can be
+// refreshed by hand)? Gate the "Refresh segments" control on it — matches
+// refreshBroadcastSegments' own gating.
+const audienceTags = [
+  ...(b.audience_include_tags ?? '').split(','),
+  ...(b.audience_exclude_tags ?? '').split(','),
+].map((t) => t.trim().toLowerCase());
+const usesRefreshableSegment =
+  audienceTags.includes('workshop-passed-nonbuyer') || audienceTags.includes('in-drip');
 const preview = previewBroadcast(b, env.PUBLIC_BASE_URL);
 const dripHtml = dripHtmlForBroadcast(b);
 // A human label for an armed auto-stop, formatted in the business timezone so
@@ -167,12 +176,21 @@ const statusLabel: Record<string, string> = {
       {isDraft ? (
         <div class="bc-launch">
           <p>
-            This will queue <strong>{audience.toLocaleString()}</strong> contacts
+            This will queue <strong id="bc-audience-count">{audience.toLocaleString()}</strong> contacts
             ({hasAudienceFilter ? 'matching your audience filter' : 'the whole list'}, minus
             unsubscribes). They'll be sent over the coming days, only inside each
             recipient's local {b.window_start_hour}:00–{b.window_end_hour}:00, and
             the send auto-pauses if bounces or spam complaints spike.
           </p>
+          {usesRefreshableSegment && (
+            <p class="bc-refresh-seg">
+              <button id="bc-refresh-seg" class="adm-btn adm-btn--ghost" type="button"
+                data-include={b.audience_include_tags ?? ''} data-exclude={b.audience_exclude_tags ?? ''}
+                data-field={b.audience_field ?? ''} data-field-value={b.audience_field_value ?? ''}>↻ Refresh segments &amp; recount</button>
+              <span id="bc-refresh-msg" class="bc-msg"></span>
+              <br /><small class="bc-muted">Rebuilds <code>workshop-passed-nonbuyer</code> and re-syncs the <code>in-drip</code> marker from live registrations/purchases, then recounts. This also runs automatically the moment you launch.</small>
+            </p>
+          )}
           {b.scheduled_at && (
             <p class="bc-scheduled-note">
               ⏰ <strong>Scheduled</strong> — this broadcast will auto-launch at
@@ -519,6 +537,9 @@ const statusLabel: Record<string, string> = {
     .bc-driphint { font-size: 12px; color: #9a8ba6; }
     .bc-driphint code { font-size: 11px; background: #ece0cf; padding: 1px 5px; border-radius: 4px; }
     .bc-launch p { font-size: 14px; color: #4a3848; line-height: 1.7; max-width: 64ch; }
+    .bc-refresh-seg { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 14px; }
+    .bc-refresh-seg small { flex-basis: 100%; font-size: 12px; line-height: 1.6; }
+    .bc-refresh-seg code { font-size: 12px; background: rgba(161,72,38,0.08); border-radius: 4px; padding: 1px 5px; }
     .bc-stats { display: flex; gap: 26px; flex-wrap: wrap; margin-bottom: 16px; }
     .bc-stats--eng { padding-top: 14px; border-top: 1px solid rgba(161,72,38,0.15); }
     .bc-stat { display: flex; flex-direction: column; }
@@ -694,6 +715,45 @@ const statusLabel: Record<string, string> = {
           if (!res.ok) throw new Error(data.error || 'Send failed');
           m.textContent = 'Sent ✓';
         } catch (err) { m.textContent = 'Failed: ' + (err.message || err); }
+      });
+    })();
+
+    // Refresh segments & recount — rebuild the tag-segments this broadcast
+    // targets (workshop-passed-nonbuyer / in-drip) from live data, then update
+    // the shown audience count so it matches what a launch would queue. Uses the
+    // SAVED audience criteria (the same ones the launch snapshot reads), so the
+    // number is honest even if there are unsaved edits in the form below.
+    (function () {
+      const btn = document.getElementById('bc-refresh-seg');
+      if (!btn) return;
+      btn.addEventListener('click', async () => {
+        const msg = document.getElementById('bc-refresh-msg');
+        const orig = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = 'Refreshing…';
+        if (msg) msg.textContent = '';
+        try {
+          const res = await fetch('/api/admin/broadcasts/audience', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              refresh: true,
+              audience_include_tags: btn.dataset.include || '',
+              audience_exclude_tags: btn.dataset.exclude || '',
+              audience_field: btn.dataset.field || '',
+              audience_field_value: btn.dataset.fieldValue || '',
+            }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Refresh failed');
+          const el = document.getElementById('bc-audience-count');
+          if (el) el.textContent = Number(data.count).toLocaleString();
+          if (msg) msg.textContent = `Segments refreshed — ${Number(data.count).toLocaleString()} contacts would be queued now.`;
+        } catch (err) {
+          if (msg) msg.textContent = 'Failed: ' + (err.message || err);
+        } finally {
+          btn.textContent = orig;
+          btn.disabled = false;
+        }
       });
     })();
 

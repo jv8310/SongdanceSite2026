@@ -5,6 +5,8 @@
 // broadcast email_type, so /admin/emails/stats and the broadcast detail page
 // both read the same numbers.
 
+import { refreshBroadcastSegments } from './segment-refresh';
+
 export type Broadcast = {
   id: number;
   name: string;
@@ -603,6 +605,17 @@ export async function snapshotRecipients(db: D1Database, broadcastId: number): P
 // Snapshot the audience and flip the broadcast to 'sending'. Returns the total
 // recipient count (not just the rows added this call).
 export async function launchBroadcast(db: D1Database, id: number): Promise<number> {
+  // Freshen any tag-segments this broadcast targets (workshop-passed-nonbuyer,
+  // in-drip) BEFORE the snapshot, so the queue reflects current data rather than
+  // tags last built by hand. Gated to the tags actually used and best-effort
+  // (never blocks the launch) — see refreshBroadcastSegments. Runs here so both
+  // the manual launch (control.ts) and the scheduled/cron auto-launch get it.
+  const b = await getBroadcast(db, id);
+  if (b) {
+    const criteria = criteriaOf(b);
+    const tags = new Set([...splitTags(criteria.includeTags), ...splitTags(criteria.excludeTags)]);
+    if (tags.size) await refreshBroadcastSegments(db, tags);
+  }
   await snapshotRecipients(db, id);
   await db
     .prepare(

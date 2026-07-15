@@ -121,6 +121,71 @@ export async function writeContactTags(
   await db.batch(statements);
 }
 
+// Re-runnable, trim-correct sync of the buyer-only `in-drip` marker (see
+// IN_DRIP_TAG above). The live mirror stamps it on every new purchase, but its
+// HISTORY came from a one-time migration (0069) that (a) only tagged emails
+// already present in `contacts` at that instant and (b) matched with plain
+// `lower(email)` — no TRIM. So a contact whose row appeared later (e.g. a
+// re-import), or whose registration email carries stray whitespace, silently
+// never got the tag even though they went through a Drip-pushing purchase. That
+// gap is exactly why a `workshop-passed-nonbuyer` could lack `in-drip` and slip a
+// broadcast's exclude. This recomputes the marker from the same three purchase
+// sources the migration used — retreats, courses, workshops — but LOWER(TRIM())-
+// matched and safe to re-run before every send, so it converges. Idempotent
+// (INSERT OR IGNORE on the (email, tag) PK); returns how many rows it newly
+// tagged this run (0 in steady state). Local-only: never touches Drip.
+export async function syncInDripTag(db: D1Database): Promise<number> {
+  const sources = [
+    // Retreats that ever paid (paid_at set, incl. later-refunded — they did
+    // transact and were pushed to Drip). Mirrors migration 0069.
+    `INSERT OR IGNORE INTO contact_tags (email, tag)
+       SELECT DISTINCT LOWER(TRIM(r.email)), ?
+         FROM registrations r
+        WHERE r.paid_at IS NOT NULL
+          AND EXISTS (SELECT 1 FROM contacts c WHERE c.email = LOWER(TRIM(r.email)))`,
+    // Course registrations that ever collected money (paid_at set, not a
+    // pending/expired session). Includes free comps — they were pushed too.
+    `INSERT OR IGNORE INTO contact_tags (email, tag)
+       SELECT DISTINCT LOWER(TRIM(cr.email)), ?
+         FROM course_registrations cr
+        WHERE cr.paid_at IS NOT NULL
+          AND cr.status NOT IN ('pending', 'expired')
+          AND EXISTS (SELECT 1 FROM contacts c WHERE c.email = LOWER(TRIM(cr.email)))`,
+    // Workshop registrations that completed (paid or coupon-free) — the paths
+    // that run the paid side-effects and therefore push to Drip.
+    `INSERT OR IGNORE INTO contact_tags (email, tag)
+       SELECT DISTINCT LOWER(TRIM(wr.email)), ?
+         FROM workshop_registrations wr
+        WHERE wr.payment_status IN ('paid', 'coupon')
+          AND EXISTS (SELECT 1 FROM contacts c WHERE c.email = LOWER(TRIM(wr.email)))`,
+  ];
+  let added = 0;
+  for (const sql of sources) {
+    const res = await db.prepare(sql).bind(IN_DRIP_TAG).run();
+    added += Number(res.meta?.changes ?? 0);
+  }
+
+  // Resync the denormalized display `tags` column for rows that just gained the
+  // marker (targeting reads contact_tags, so this is cosmetic parity with the
+  // People page). Self-limiting: the instr() guard skips rows whose display
+  // string already carries `in-drip`, so a steady-state re-run writes nothing.
+  await db
+    .prepare(
+      `UPDATE contacts
+          SET tags = (
+                SELECT group_concat(tag, ', ')
+                  FROM (SELECT tag FROM contact_tags WHERE email = contacts.email ORDER BY tag)
+              ),
+              updated_at = datetime('now')
+        WHERE email IN (SELECT email FROM contact_tags WHERE tag = ?1)
+          AND instr(',' || REPLACE(COALESCE(tags, ''), ' ', '') || ',', ',' || ?1 || ',') = 0`,
+    )
+    .bind(IN_DRIP_TAG)
+    .run();
+
+  return added;
+}
+
 // Best-effort wrapper for the live paid-handlers: never throws, so a mirror
 // hiccup can't block fulfilment or the Drip push. A failure is logged to the
 // `events` audit table (kind `contact.mirror.error`).
