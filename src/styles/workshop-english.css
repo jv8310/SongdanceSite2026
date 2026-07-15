@@ -971,13 +971,14 @@ html, body { background: var(--paper); }
 /* During the promo the lead shows the struck list price beside the live one —
    keep the struck figure secondary so the discounted price leads. */
 .we-price-lead-amount .we-line-was { font-size: 0.68em; }
-/* Rows in a lead-priced list drop their per-row chip. The workshop page's
-   pro-only masterclass rows are priced differently, so they keep theirs. */
+/* Rows in a lead-priced list drop their per-row chip. The masterclass rows are
+   priced differently (€118, not the €9 ticket), so they keep theirs. */
 .we-cal--lead-priced .we-cal-price { display: none; }
 .we-cal--lead-priced .we-cal-item--masterclass .we-cal-price { display: block; }
-/* Masterclass calendar entries — hidden unless pro, made distinct when shown. */
-.we-cal-item--masterclass { display: none; }
-.we-register.is-pro .we-cal-item--masterclass { display: flex; }
+/* Masterclass calendar entries — always shown (the practitioner date belongs in
+   the list for everyone, not only the pro lens), made distinct with the plum
+   accent. */
+.we-cal-item--masterclass { display: flex; }
 .we-cal-item--masterclass {
   border-color: var(--plum-soft);
   background: #efe3ea;

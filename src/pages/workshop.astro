@@ -319,10 +319,10 @@ const tzOptions = tzOptionsFor(detectedTz);
 
         // Auto-capture: many people tick a door but never press "Show me", so
         // their choice never reaches the URL and the registration is stored with
-        // no lens. If a box is ticked and then left untouched for ~10s, commit it
+        // no lens. If a box is ticked and then left untouched for ~3s, commit it
         // anyway (no scroll/collapse) so the door is still recorded at checkout.
         // Each change re-arms the timer; unticking back to nothing cancels it.
-        var AUTO_MS = 10000;
+        var AUTO_MS = 3000;
         var autoTimer = null;
         var cancelAuto = function () {
           if (autoTimer) { window.clearTimeout(autoTimer); autoTimer = null; }

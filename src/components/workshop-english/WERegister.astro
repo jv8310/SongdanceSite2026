@@ -8,8 +8,9 @@
 // instant. The posted country is authoritative — the server re-resolves the
 // fixed price for it at checkout.
 //
-// Masterclass entries (€118) are rendered too but hidden by CSS until the page
-// is in pro state (.we-register.is-pro), where they're shown and highlighted.
+// Masterclass entries (€118) are always shown in the list too — highlighted with
+// the plum accent and their own per-row price — so the practitioner date is
+// bookable for everyone, not only the pro (door 3) lens.
 import type { CalItem } from './types';
 import { ALL_COUNTRIES } from '../../lib/workshops/countries';
 import LaunchOfferCallout from '../promo/LaunchOfferCallout.astro';
