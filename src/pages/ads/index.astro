@@ -144,11 +144,16 @@ const rows = d.workshopRows.slice().sort((a, b) => {
 });
 const activeRows = rows.filter((r) => r.registrations > 0 || r.totalEurMinor > 0);
 
-// Recent-workshop highlight cards: the five most recent workshops with activity
-// (workshopRows arrive newest-first). Each is scored on workshop-only economics
-// — income from its registrants ÷ the prospecting (TOF) spend they pulled.
+// Recent-workshop highlight cards: the five most recent workshops that have
+// already happened (workshopRows arrive newest-first) — upcoming/future-dated
+// workshops are excluded; on-demand replays always count. Each is scored on
+// workshop-only economics — income from its registrants ÷ the prospecting (TOF)
+// spend they pulled.
+const nowIso = new Date().toISOString();
+const isPastWorkshop = (r: (typeof d.workshopRows)[number]) =>
+  r.isReplay || (!!r.startsAtUtc && r.startsAtUtc <= nowIso);
 const recentWorkshops = d.workshopRows
-  .filter((r) => r.registrations > 0)
+  .filter((r) => r.registrations > 0 && isPastWorkshop(r))
   .slice(0, 5);
 const roasTone = (v: number | null): 'good' | 'bad' | 'flat' =>
   v == null ? 'flat' : v >= 1 ? 'good' : 'bad';
