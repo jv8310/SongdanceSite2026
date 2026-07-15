@@ -219,6 +219,7 @@ const countries = COUNTRIES;
 <script>
   import { COUNTRIES } from '../../lib/countries';
   import { postJsonResilient } from '../../lib/client/resilient-fetch';
+  import { launchPromoActive, LAUNCH_PROMO_TAG } from '../../lib/promo';
 
   type Currency =
     | 'EUR' | 'USD' | 'GBP' | 'CAD' | 'CHF'
@@ -1484,12 +1485,62 @@ const countries = COUNTRIES;
     } catch {}
     return false;
   }
+  // A cached decision priced during the launch sale — the path's 12-week line
+  // carries discount.kind 'promo' (with no expiry, so no countdown ever clears
+  // it), and/or a cert/bundle offer carries the promo-tagged save_note. Once the
+  // sale closes, that pricing is stale: the server no longer honours it and
+  // checkout re-derives the current (non-sale) price. So a visitor who checked
+  // their email while the sale was live would otherwise keep seeing the struck
+  // sale prices + "Extended sale" line from localStorage after it ended.
+  function decisionIsPromoPriced(decision: Decision): boolean {
+    if (decision?.path?.discount?.kind === 'promo') return true;
+    for (const o of decision?.offers ?? []) {
+      if (typeof o?.save_note === 'string' && o.save_note.startsWith(LAUNCH_PROMO_TAG)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // Silent re-check against the server for a cached email, replacing a stale
+  // cached decision with fresh pricing. On any failure we drop to the email
+  // form (prefilled) rather than showing the stale card.
+  async function recheckAndRender(email: string) {
+    startStatus();
+    try {
+      const res = await postJsonResilient(
+        '/api/courses/subscriber-status',
+        { email, discount_percent: discountPct || undefined },
+        { onAttempt: (attempt) => { if (attempt > 1) setStatus('Reconnecting…'); } },
+      );
+      const body = (await res.json()) as Decision | { error: string };
+      if (!res.ok || !('variant' in body)) {
+        stopStatus();
+        showEmailForm(email);
+        return;
+      }
+      stopStatus();
+      saveDecision(email, body);
+      renderVariant(email, body);
+    } catch {
+      stopStatus();
+      showEmailForm(email);
+    }
+  }
+
   function rehydrateFromStorage() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return false;
       const parsed = JSON.parse(raw) as { email?: string; decision?: Decision };
       if (parsed?.email && parsed?.decision?.variant) {
+        // Stale launch-sale price frozen in the cache after the sale closed —
+        // discard it and fetch the current price instead of flashing the old one.
+        if (decisionIsPromoPriced(parsed.decision) && !launchPromoActive()) {
+          try { localStorage.removeItem(STORAGE_KEY); } catch {}
+          recheckAndRender(parsed.email);
+          return true;
+        }
         renderVariant(parsed.email, parsed.decision);
         return true;
       }
