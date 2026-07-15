@@ -508,26 +508,26 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
     .wk-delta--down { color:#9c2b3f; background:#f9e4e8; }
     .wk-delta--flat { color:#6b6258; background:#efece7; }
 
-    /* recent-workshop highlight boxes */
+    /* recent-workshop highlight boxes — the warm paper palette, matching /ads */
     .wk-boxes { display:grid; grid-template-columns:repeat(auto-fit,minmax(224px,1fr)); gap:14px; }
-    .wk-box { background:#fff; border:1px solid rgba(42,27,42,0.12); border-radius:12px; padding:15px 16px 16px; display:flex; flex-direction:column; }
+    .wk-box { background:#fff; border:1px solid var(--adm-line); border-radius:14px; padding:15px 16px 16px; display:flex; flex-direction:column; }
     .wk-box .wk-head { min-height:34px; margin-bottom:8px; }
-    .wk-box .wk-title { font-size:13.5px; font-weight:600; line-height:1.25; color:#2A1B2A; }
-    .wk-box .wk-when { font-size:11px; color:#8a8076; margin-top:2px; }
+    .wk-box .wk-title { font-size:13.5px; font-weight:600; line-height:1.25; color:var(--adm-ink); }
+    .wk-box .wk-when { font-size:11px; color:var(--adm-mute); margin-top:2px; }
     .wk-box .wk-roas { display:flex; align-items:baseline; gap:7px; }
-    .wk-box .wk-roas b { font-size:32px; font-weight:650; letter-spacing:-0.02em; line-height:1; }
-    .wk-box .wk-roas b.good { color:#1d6b38; }
-    .wk-box .wk-roas b.bad { color:#9c2b3f; }
-    .wk-box .wk-roas b.flat { color:#8a8076; }
-    .wk-box .wk-roas span { font-size:11.5px; color:#8a8076; }
+    .wk-box .wk-roas b { font-size:33px; font-weight:650; letter-spacing:-0.02em; line-height:1; }
+    .wk-box .wk-roas b.good { color:var(--adm-success); }
+    .wk-box .wk-roas b.bad { color:var(--adm-ember-deep); }
+    .wk-box .wk-roas b.flat { color:var(--adm-mute); }
+    .wk-box .wk-roas span { font-size:11.5px; color:var(--adm-mute); }
     .wk-box .wk-mini { margin:12px 0 11px; display:flex; flex-direction:column; gap:5px; }
-    .wk-box .wk-bar { display:flex; align-items:center; gap:8px; font-size:11px; color:#5c5248; }
-    .wk-box .wk-bar .wk-key { width:34px; flex:none; color:#8a8076; }
-    .wk-box .wk-bar .wk-track { flex:1; height:8px; background:rgba(42,27,42,0.07); border-radius:4px; overflow:hidden; }
+    .wk-box .wk-bar { display:flex; align-items:center; gap:8px; font-size:11px; color:var(--adm-ink-soft); }
+    .wk-box .wk-bar .wk-key { width:34px; flex:none; color:var(--adm-mute); }
+    .wk-box .wk-bar .wk-track { flex:1; height:8px; background:var(--adm-paper-soft); border-radius:4px; overflow:hidden; }
     .wk-box .wk-bar .wk-fill { display:block; height:100%; border-radius:4px; min-width:2px; }
     .wk-box .wk-bar .wk-amt { width:52px; flex:none; text-align:right; font-variant-numeric:tabular-nums; }
-    .wk-box .wk-foot { display:flex; justify-content:space-between; gap:8px; margin-top:auto; padding-top:10px; border-top:1px solid rgba(42,27,42,0.1); font-size:11.5px; color:#5c5248; }
-    .wk-box .wk-foot b { color:#2A1B2A; font-weight:600; }
+    .wk-box .wk-foot { display:flex; justify-content:space-between; gap:8px; margin-top:auto; padding-top:10px; border-top:1px solid var(--adm-line); font-size:11.5px; color:var(--adm-ink-soft); }
+    .wk-box .wk-foot b { color:var(--adm-ink); font-weight:600; }
     .wk-chart-block { margin-bottom:26px; }
     .wk-chart-block h3 { font-size:14px; margin:0 0 8px; color:#2A1B2A; }
     .wk-chart { position:relative; background:#fff; border:1px solid rgba(42,27,42,0.12); border-radius:10px; padding:10px 8px 4px; }
@@ -546,14 +546,14 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
   </style>
 
   <style is:global>
-    /* Chrome colours for the shared SDChart runtime, in the admin plum palette. */
+    /* Chrome colours for the shared SDChart runtime, in the admin paper palette. */
     :root {
-      --chart-grid: rgba(42, 27, 42, 0.08);
-      --chart-axis: #8a8076;
+      --chart-grid: rgba(43, 37, 25, 0.09);
+      --chart-axis: #9a8e75;
       --chart-surface: #ffffff;
-      --chart-ink: #2A1B2A;
-      --chart-baseline: rgba(42, 27, 42, 0.28);
-      --chart-tip-bg: #2A1B2A;
+      --chart-ink: #2b2519;
+      --chart-baseline: rgba(43, 37, 25, 0.28);
+      --chart-tip-bg: #2b2519;
       --chart-tip-ink: #ffffff;
     }
   </style>
