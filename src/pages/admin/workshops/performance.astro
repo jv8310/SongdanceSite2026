@@ -44,6 +44,7 @@ const totCourse = sum((r) => r.courseBuys);
 const totCert = sum((r) => r.certBuys);
 const totRev = sum((r) => r.totalEurMinor);
 const totMeta = sum((r) => r.metaCostEurMinor ?? 0);
+const totTof = sum((r) => r.acquisitionCostEurMinor ?? 0);
 const totRoas = totMeta > 0 ? totRev / totMeta : null;
 
 const presetRangesJson = JSON.stringify(presetRangesMap()).replace(/</g, '\\u003c');
@@ -100,6 +101,7 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
                 <th>Course</th>
                 <th>Cert path</th>
                 <th>Revenue (net)</th>
+                <th>TOF cost</th>
                 <th>Meta cost</th>
                 <th>ROAS</th>
                 <th>Conv %</th>
@@ -122,6 +124,7 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
                   <td>{r.courseBuys}</td>
                   <td>{r.certBuys}</td>
                   <td title={`Workshop checkout ${eur(r.engineNetEurMinor)} + attributed courses ${eur(r.attributedCourseEurMinor)}`}>{eur(r.totalEurMinor)}</td>
+                  <td title="This workshop's share of prospecting (TOF) spend, by registration count">{r.acquisitionCostEurMinor != null ? eur(r.acquisitionCostEurMinor) : '—'}</td>
                   <td>{r.metaCostEurMinor != null ? eur(r.metaCostEurMinor) : '—'}</td>
                   <td>{r.roas != null ? r.roas.toFixed(2) + '×' : '—'}</td>
                   <td>{pct(r.conversionPct)}</td>
@@ -139,6 +142,7 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
                 <td><strong>{totCourse}</strong></td>
                 <td><strong>{totCert}</strong></td>
                 <td><strong>{eur(totRev)}</strong></td>
+                <td><strong>{eur(totTof)}</strong></td>
                 <td><strong>{eur(totMeta)}</strong></td>
                 <td><strong>{totRoas != null ? totRoas.toFixed(2) + '×' : '—'}</strong></td>
                 <td><strong>{totRegs > 0 ? (((totCourse + totCert) / totRegs) * 100).toFixed(1) + '%' : '—'}</strong></td>
@@ -151,7 +155,7 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
       <p class="adm-sub" style="margin-top:12px;">
         Regs = completed registrations (paid or coupon). Live vs Replay splits attendees by whether they joined before or after the live slot ended; admin-marked attendance without a join time counts as live.
         Course = 12-Week buyers, Cert path = certification buyers (cert-only or bundle) — both as distinct people, hovering Revenue shows the workshop-checkout vs attributed-course split.
-        Meta cost = blended cost per registration (total ad spend ÷ registrations) × this workshop's registrations. ROAS = revenue ÷ Meta cost. Conv % = distinct course/cert buyers ÷ registrations; Conv/att % = the same buyers ÷ attendees (live + replay), so it measures conversion of people who actually showed up. (Cost per registration in the summary above uses prospecting/TOF spend only.)
+        TOF cost = this workshop's share of prospecting (TOF) spend by registration count — the acquisition-only ad spend it pulled. Meta cost = blended cost per registration (total ad spend ÷ registrations) × this workshop's registrations. ROAS = revenue ÷ Meta cost. Conv % = distinct course/cert buyers ÷ registrations; Conv/att % = the same buyers ÷ attendees (live + replay), so it measures conversion of people who actually showed up. (Cost per registration in the summary above uses prospecting/TOF spend only.)
       </p>
     </section>
   </main>

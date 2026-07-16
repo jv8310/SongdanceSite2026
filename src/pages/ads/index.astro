@@ -523,7 +523,7 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
 
       <section>
         <h2>Results per workshop</h2>
-        <p class="note">The funnel for every workshop: registrations → attendance → course/cert conversion, with allocated Meta cost and ROAS. Course/Cert buys are matched by email across checkouts and standalone sales, so a buyer counts toward each workshop they attended. <strong>Conv %</strong> is buyers ÷ registrations; <strong>Conv/att %</strong> is buyers ÷ attendees (of the people who actually showed up).</p>
+        <p class="note">The funnel for every workshop: registrations → attendance → course/cert conversion, with allocated Meta cost and ROAS. Course/Cert buys are matched by email across checkouts and standalone sales, so a buyer counts toward each workshop they attended. <strong>TOF cost</strong> is this workshop's share of prospecting spend; <strong>Meta cost</strong> allocates total spend. <strong>Conv %</strong> is buyers ÷ registrations; <strong>Conv/att %</strong> is buyers ÷ attendees (of the people who actually showed up).</p>
         {activeRows.length === 0 && <p class="empty">No workshop activity in this window.</p>}
         {activeRows.length > 0 && (
           <div class="card-tbl">
@@ -541,6 +541,7 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
                     <th class="num">Course</th>
                     <th class="num">Cert</th>
                     <th class="num">Revenue</th>
+                    <th class="num">TOF cost</th>
                     <th class="num">Meta cost</th>
                     <th class="num">ROAS</th>
                     <th class="num">Conv %</th>
@@ -563,6 +564,7 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
                       <td class="num">{int(r.courseBuys)}</td>
                       <td class="num">{int(r.certBuys)}</td>
                       <td class="num" title={`Checkout ${eur(r.engineNetEurMinor)} + attributed courses ${eur(r.attributedCourseEurMinor)}`}>{eur0(r.totalEurMinor)}</td>
+                      <td class="num" title="This workshop's share of prospecting (TOF) spend, by registration count">{r.acquisitionCostEurMinor != null ? eur0(r.acquisitionCostEurMinor) : '—'}</td>
                       <td class="num">{r.metaCostEurMinor != null ? eur0(r.metaCostEurMinor) : '—'}</td>
                       <td class="num">{roasStr(r.roas)}</td>
                       <td class="num">{pct(r.conversionPct)}</td>
@@ -580,6 +582,7 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
                     <td class="num">{int(d.courseBuyers)}</td>
                     <td class="num">{int(d.certBuyers)}</td>
                     <td class="num">{eur0(d.workshopRows.reduce((s, r) => s + r.totalEurMinor, 0))}</td>
+                    <td class="num">{d.hasAdSpend ? eur0(d.workshopRows.reduce((s, r) => s + (r.acquisitionCostEurMinor ?? 0), 0)) : '—'}</td>
                     <td class="num">{d.hasAdSpend ? eur0(d.workshopRows.reduce((s, r) => s + (r.metaCostEurMinor ?? 0), 0)) : '—'}</td>
                     <td class="num">—</td>
                     <td class="num">{pct(d.conversionPct)}</td>

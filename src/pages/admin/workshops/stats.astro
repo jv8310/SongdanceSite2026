@@ -149,6 +149,11 @@ const funnelConversionPerAttendeePct =
 
 const funnelCards: Array<{ label: string; value: string; sub: string }> = [
   {
+    label: 'Ad spend (workshop)',
+    value: eur(perf.acquisitionSpendEurMinor),
+    sub: `prospecting (TOF) · ${eur(perf.adSpendEurMinor)} all campaigns`,
+  },
+  {
     label: 'Cost / registration',
     value:
       perf.costPerRegistrationEurMinor != null
