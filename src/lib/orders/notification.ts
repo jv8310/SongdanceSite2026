@@ -18,6 +18,7 @@
 import type { CourseRegistration } from '../courses/db';
 import { parsePurchasedBumps } from '../courses/db';
 import { BUMPS, isBumpSlug, type BumpSlug } from '../courses/bumps';
+import { DECK_GIFT_BUMP_SLUG, DECK_GIFT_LABEL } from '../courses/deck-promo';
 import { LANGUAGE_CHOICE_LABEL } from '../courses/journeys';
 import type { Registration } from '../registrations/db';
 import { logEvent } from '../registrations/db';
@@ -449,9 +450,13 @@ export async function notifyCourseOrder(
     [reg.first_name, reg.last_name].filter(Boolean).join(' ').trim() ||
     reg.email.split('@')[0];
   const bumps = parsePurchasedBumps(reg.bumps)
-    .filter((b) => isBumpSlug(b.slug))
+    .filter((b) => isBumpSlug(b.slug) || b.slug === DECK_GIFT_BUMP_SLUG)
     .map((b) => ({
-      label: BUMPS[b.slug as BumpSlug].label,
+      // The Song Deck gift is a zero-amount physical add-on — label it loudly
+      // so the ops inbox knows a deck has to SHIP (address on the payment).
+      label: isBumpSlug(b.slug)
+        ? BUMPS[b.slug as BumpSlug].label
+        : `🎁 ${DECK_GIFT_LABEL} — SHIP IT (address on the ${reg.provider === 'paypal' ? 'PayPal' : 'Stripe'} payment)`,
       amountCents: b.amount_cents,
     }));
   await sendOrderNotification(env, {

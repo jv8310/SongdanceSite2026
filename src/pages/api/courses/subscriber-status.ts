@@ -8,10 +8,10 @@
 // to follow their billing country, not their IP).
 //
 // `path`: when the buyer's variant is offered the Certification path (the
-// `cc-bundle` product), we attach its two-line-item pricing — cert at its
-// standard price + the workshop-discounted 12-week, in the same currency. The
-// discount only ever touches the 12-week portion; the cert/bundle sticker
-// prices are unaffected. This is the same pricing the checkout re-derives.
+// `cc-bundle` product), we attach its two-line-item pricing in the same
+// currency. During a live workshop window the whole path is 30% off (both
+// lines — see path.ts); a ?discount=N override only ever touches the 12-week
+// portion. This is the same pricing the checkout re-derives.
 //
 // Failure mode: if Drip is unreachable, return variant E (newcomer) rather
 // than blocking the visitor — better to show *some* offer than nothing.
@@ -20,7 +20,6 @@ import type { APIRoute } from 'astro';
 import { getSubscriber } from '../../../lib/registrations/drip';
 import {
   currencyForCountry,
-  formatMoney,
   isSupportedCurrency,
 } from '../../../lib/workshops/currency';
 import {
@@ -36,6 +35,7 @@ import {
   buildCertificationPathPricing,
   deriveTwelveWeekDiscount,
 } from '../../../lib/courses/path';
+import { deriveDeckGift } from '../../../lib/courses/deck-promo';
 
 export const prerender = false;
 
@@ -115,17 +115,22 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const path = offersHaveBundle
       ? await pathPricingFor(decision.currency)
       : undefined;
-    return json({ ...decision, offers: promoOffers(decision.offers), path });
+    // Post-workshop Song Deck gift window (display truth; checkout re-derives).
+    const deckGift = await deriveDeckGift(env.DB, email);
+    return json({
+      ...decision,
+      offers: promoOffers(decision.offers),
+      path,
+      deck_gift: deckGift,
+    });
   } catch (err) {
-    // Soft failure — treat as newcomer so the page still works. Derive the
-    // save amount from the offer itself so we don't drift when prices move.
+    // Soft failure — treat as newcomer so the page still works.
     const bundle = getBundleOffer(currency);
-    const save = (bundle.base_price - bundle.price) * 100;
     const fallbackOffer = promoForCert
       ? applyLaunchPromoToOffer(bundle)
       : {
           ...bundle,
-          save_note: `Save ${formatMoney(save, currency)} — mid-cohort discount applied`,
+          save_note: 'Includes the complete refreshed 12-week foundational course',
         };
     return json({
       variant: 'E',

@@ -34,6 +34,10 @@ export type CreateCheckoutSessionInput = {
   // Caller decides via paypalEnabled(env); see the note there for why this
   // is gated rather than always-on.
   enablePaypal?: boolean;
+  // Collect a shipping address on the Checkout page (a physical add-on rides
+  // the order, e.g. the post-workshop Song Deck gift). Stripe requires the
+  // allowed countries enumerated explicitly — pass ISO-2 codes.
+  shipping_countries?: string[];
 };
 
 export type CreateCustomerInput = {
@@ -268,6 +272,16 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput) {
     );
   }
   form.set('billing_address_collection', 'required');
+  // Shipping address (physical add-on riding the order). Stripe wants the
+  // allowed countries enumerated one by one — and, when the session reuses a
+  // pre-created customer, explicit permission to write the collected address
+  // onto that customer.
+  if (input.shipping_countries?.length) {
+    if (input.customer) form.set('customer_update[shipping]', 'auto');
+    input.shipping_countries.forEach((code, i) =>
+      form.set(`shipping_address_collection[allowed_countries][${i}]`, code),
+    );
+  }
   // We intentionally do NOT set tax_id_collection — we collect the VAT
   // number on our own form (and attach it to the Customer above for B2B),
   // so we don't make the buyer re-type it on Stripe.
@@ -532,6 +546,8 @@ export type CreateSubscriptionCheckoutInput = {
   // Stripe Checkout in subscription mode accepts a mix of recurring + one-time
   // prices; a price_data without `recurring` is one-time and lands on invoice 1.
   one_time_line_items?: StripeLineItem[];
+  // Collect a shipping address on the Checkout page (see the one-off input).
+  shipping_countries?: string[];
 };
 
 export async function createSubscriptionCheckoutSession(
@@ -544,6 +560,15 @@ export async function createSubscriptionCheckoutSession(
   form.set('customer', input.customer);
   form.set('customer_update[address]', 'auto');
   form.set('billing_address_collection', 'required');
+  // Shipping address (physical add-on riding the order) — countries must be
+  // enumerated. Checkout in subscription mode also needs permission to write
+  // the collected shipping address onto the customer.
+  if (input.shipping_countries?.length) {
+    form.set('customer_update[shipping]', 'auto');
+    input.shipping_countries.forEach((code, i) =>
+      form.set(`shipping_address_collection[allowed_countries][${i}]`, code),
+    );
+  }
 
   // Card only for now — most non-card EU methods (Bancontact, iDEAL) are
   // single-charge instruments that can't authorise a recurring debit

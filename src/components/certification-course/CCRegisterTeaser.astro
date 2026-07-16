@@ -9,9 +9,8 @@
         See your <em>price.</em>
       </h2>
       <p class="cc-teaser-lead">
-        The certification course has already begun, so your price depends on
-        where you already are with this work. Enter your email and we'll show
-        you the right offer further down the page.
+        Your price depends on where you already are with this work. Enter
+        your email and we'll show you the right offer further down the page.
       </p>
     </div>
 
@@ -96,7 +95,8 @@
     phone?: string;
   };
 
-  const STORAGE_KEY = 'cc:decision:v2';
+  // Keep in sync with CCRegister's STORAGE_KEY — they share the cache.
+  const STORAGE_KEY = 'cc:decision:v3';
 
   function teaserCopyFor(d: Decision): {
     badge: string;
@@ -134,16 +134,16 @@
         };
       case 'D':
         return {
-          badge: 'Mid-course price',
+          badge: 'Your price',
           greeting: name ? `Good to see you, ${name}.` : 'Good to see you.',
           body: `You've already found this work. You can step straight into the certification — or take the full path, including the 12-week foundation, if you haven't walked it yet.`,
           ctaLabel: 'See your options',
         };
       case 'E':
         return {
-          badge: 'Mid-course price',
+          badge: 'The full path',
           greeting: name ? `Welcome, ${name}.` : 'Welcome.',
-          body: `For someone new to this work, the full path is the way in — the 12-week foundation and the certification course as one continuous journey.`,
+          body: `For someone new to this work, the full path is the way in — the 12-week foundation and the certification course as one continuous journey, self-paced from the day you join.`,
           ctaLabel: 'See the full path',
         };
       case 'C':

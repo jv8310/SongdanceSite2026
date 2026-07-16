@@ -32,6 +32,27 @@ export function endsAtOrDefault(startsAtUtc: string, endsAtUtc: string | null): 
   return new Date(new Date(startsAtUtc).getTime() + DEFAULT_DURATION_MS).toISOString();
 }
 
+// Rejoin window: someone who already joined once (clicked Join — attendance
+// recorded) must be able to get back in for the WHOLE session — a Zoom drop
+// mid-workshop must never lock them out behind the 20-minute latecomer gate.
+// Their window closes only at the session's real end — the full 60 minutes of
+// a workshop, the full 90 of a masterclass (from ends_at_utc, defaulting to
+// start+60min) — plus a small grace for sessions that run over. Fresh joins
+// keep the original start+20min gate.
+export const REJOIN_GRACE_AFTER_END_SECONDS = 10 * 60;
+
+export function joinWindowFor(
+  startsAtUtc: string,
+  endsAtUtc: string | null,
+  hasJoined: boolean,
+  now = Date.now(),
+): JoinWindow {
+  const fresh = joinWindow(startsAtUtc, now);
+  if (fresh !== 'closed' || !hasJoined) return fresh;
+  const end = new Date(endsAtOrDefault(startsAtUtc, endsAtUtc)).getTime();
+  return now <= end + REJOIN_GRACE_AFTER_END_SECONDS * 1000 ? 'open' : 'closed';
+}
+
 // Format an instant in a given IANA timezone, e.g. "Sun 15 Jun 2026, 20:00 CEST".
 export function formatInTz(
   utcIso: string,

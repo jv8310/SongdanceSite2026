@@ -1,63 +1,37 @@
 ---
+// The class curriculum, presented as a self-paced library. Classes already
+// held show as instant-access recordings with their manuals; the few still to
+// come are shown quietly as upcoming additions to the library (they are held
+// live and recorded, but the page deliberately doesn't build countdown
+// theatrics around them — the course sells as self-paced). Server-rendered
+// per request (the page is SSR), so no client ticker is needed.
 import {
   SVH_CERT_CLASSES,
   computeCardState,
-  getNextUpcoming,
-  formatDateLabel,
-  type CardState,
   type ScheduledItem,
 } from '../../lib/courses/svh-cert-classes';
 
 const now = new Date();
-const nextUpcoming = getNextUpcoming(SVH_CERT_CLASSES, now);
 
-type DisplayState = CardState | 'up-next';
-
-function serverIcon(state: DisplayState): string {
-  switch (state) {
-    case 'past': return '🎧';
-    case 'live': return '';
-    case 'almost-live':
-    case 'tomorrow': return '⏳';
-    case 'up-next': return '⭐';
-    case 'tbc': return '📅';
-    default: return '📍';
-  }
+// Collapse the date-aware states to the two this page tells apart: in the
+// library now, or joining it soon. (A class that is literally live right now
+// simply still reads as "joins the library soon" — the students who attend
+// live are inside the portal, not on this sales page.)
+function inLibrary(item: ScheduledItem): boolean {
+  const s = computeCardState(item, now);
+  return s === 'past';
 }
 
-function serverLabel(_item: ScheduledItem, state: DisplayState): string {
-  switch (state) {
-    case 'past': return 'Instant Access + Manual';
-    case 'live': return 'Live now';
-    case 'almost-live': return 'Starts soon';
-    case 'tomorrow': return 'Tomorrow';
-    case 'up-next': return 'Up next · Live on';
-    case 'tbc': return 'Date TBC';
-    default: return 'Live on';
-  }
+function monthLabel(item: ScheduledItem): string {
+  if (!item.datetime) return item.monthLabel ?? 'Date to come';
+  return new Date(item.datetime).toLocaleDateString('en-US', {
+    month: 'long',
+    year: 'numeric',
+  });
 }
 
-function serverWhen(item: ScheduledItem, state: DisplayState): string {
-  if (!item.datetime) return '';
-  const d = new Date(item.datetime);
-  switch (state) {
-    case 'past': return `· Held ${formatDateLabel(d)}`;
-    case 'live':
-    case 'almost-live':
-    case 'tomorrow': return ` · ${item.timeLabel ?? ''}`;
-    case 'up-next':
-    default: return `${formatDateLabel(d)} · ${item.timeLabel ?? ''}`;
-  }
-}
-
-const cards = SVH_CERT_CLASSES.map((item) => {
-  const base = computeCardState(item, now);
-  const state: DisplayState =
-    base === 'upcoming' && nextUpcoming?.number === item.number
-      ? 'up-next'
-      : base;
-  return { item, state };
-});
+const cards = SVH_CERT_CLASSES.map((item) => ({ item, ready: inLibrary(item) }));
+const readyCount = cards.filter((c) => c.ready).length;
 ---
 
 <section class="cc-classes" id="classes">
@@ -65,199 +39,32 @@ const cards = SVH_CERT_CLASSES.map((item) => {
     <div class="cc-classes-head">
       <div class="cc-eyebrow cc-eyebrow--center">The classes</div>
       <h2 class="cc-h2" style="margin-top: var(--sp-4); max-width: 24ch; margin-left: auto; margin-right: auto;">
-        The arc <em>of the year.</em>
+        The full arc, <em>at your own pace.</em>
       </h2>
     </div>
 
     <div class="cc-classes-grid">
-      {cards.map(({ item, state }) => (
-        <article
-          class="cc-card"
-          data-state={state}
-          data-datetime={item.datetime ?? ''}
-          data-duration={item.durationMinutes ?? 120}
-          data-time-label={item.timeLabel ?? ''}
-          data-number={item.number}
-        >
-          {state === 'up-next' && <div class="cc-card-pill">Up next</div>}
+      {cards.map(({ item, ready }) => (
+        <article class="cc-card" data-state={ready ? 'past' : 'upcoming'}>
           <div class="cc-card-num">{String(item.number).padStart(2, '0')}</div>
           <h3 class="cc-card-title">{item.title}</h3>
           <p class="cc-card-desc">{item.description}</p>
-          <div class="cc-card-status" data-slot="status">
-            <span class="icon" data-slot="icon" aria-hidden="true">{serverIcon(state)}</span>
-            <span class="label" data-slot="label">{serverLabel(item, state)}</span>
-            <span class="when" data-slot="when">{serverWhen(item, state)}</span>
+          <div class="cc-card-status">
+            <span class="icon" aria-hidden="true">{ready ? '🎧' : '📅'}</span>
+            <span class="label">{ready ? 'Instant Access + Manual' : 'Joins the library'}</span>
+            <span class="when">{ready ? '' : `· ${monthLabel(item)}`}</span>
           </div>
         </article>
       ))}
     </div>
 
     <p class="cc-classes-foot">
-      The classes already held are available the moment you join — full
-      recording and written manual. Every live class is recorded too, so if
-      you can't make a session live, the replay and its manual follow soon
-      after. Class topics may shift slightly to honour what the group is
+      {readyCount} of the {cards.length} classes are in the library today —
+      full recording and written manual, yours the moment you join, to walk
+      at your own rhythm. The remaining classes join the library as they are
+      completed (and as a student you're welcome to sit in live when one is
+      held). Class topics may shift slightly to honour what the group is
       asking for.
     </p>
   </div>
 </section>
-
-<script>
-  // Client-side date logic: re-derives card state on a 1-second tick so the
-  // 'almost-live' / 'tomorrow' countdowns update smoothly and a card flips
-  // to 'live' / 'past' the instant it should.
-
-  type State =
-    | 'past' | 'upcoming' | 'up-next' | 'tomorrow' | 'almost-live' | 'live' | 'tbc';
-
-  function compute(dtIso: string, durMin: number, now: Date): State {
-    if (!dtIso) return 'tbc';
-    const start = new Date(dtIso);
-    const end = new Date(start.getTime() + durMin * 60_000);
-    const hourBefore = new Date(start.getTime() - 60 * 60_000);
-    const dayBefore = new Date(start.getTime() - 24 * 60 * 60_000);
-    if (now >= start && now < end) return 'live';
-    if (now >= hourBefore && now < start) return 'almost-live';
-    if (now >= dayBefore && now < hourBefore) return 'tomorrow';
-    if (now >= end) return 'past';
-    return 'upcoming';
-  }
-
-  function iconFor(state: State): string {
-    switch (state) {
-      case 'past': return '🎧';
-      case 'live': return '';
-      case 'almost-live':
-      case 'tomorrow': return '⏳';
-      case 'up-next': return '⭐';
-      case 'tbc': return '📅';
-      default: return '📍';
-    }
-  }
-
-  const userTz =
-    Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Brussels';
-
-  function tzAbbrev(d: Date): string {
-    try {
-      const parts = new Intl.DateTimeFormat('en-US', {
-        timeZone: userTz, timeZoneName: 'short',
-      }).formatToParts(d);
-      return parts.find((p) => p.type === 'timeZoneName')?.value ?? '';
-    } catch { return ''; }
-  }
-
-  function fmtDate(d: Date): string {
-    return d.toLocaleDateString(undefined, {
-      timeZone: userTz,
-      weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
-    });
-  }
-  function fmtTime(d: Date): string {
-    const time = d.toLocaleTimeString(undefined, {
-      timeZone: userTz, hour: 'numeric', minute: '2-digit',
-    });
-    const tz = tzAbbrev(d);
-    return tz ? `${time} ${tz}` : time;
-  }
-
-  function pad(n: number) {
-    return n.toString().padStart(2, '0');
-  }
-
-  function refresh() {
-    const now = new Date();
-    const cards = Array.from(
-      document.querySelectorAll<HTMLElement>('.cc-classes .cc-card'),
-    );
-
-    const computed = cards.map((card) => {
-      const dt = card.dataset.datetime ?? '';
-      const dur = parseInt(card.dataset.duration ?? '120', 10);
-      return { card, dt, dur, state: compute(dt, dur, now) };
-    });
-
-    const upcoming = computed
-      .filter(
-        (c) =>
-          c.state === 'live' ||
-          c.state === 'almost-live' ||
-          c.state === 'tomorrow' ||
-          c.state === 'upcoming',
-      )
-      .sort((a, b) => new Date(a.dt).getTime() - new Date(b.dt).getTime());
-    const nextNumber = upcoming[0]?.card.dataset.number;
-
-    for (const { card, dt, state } of computed) {
-      const finalState: State =
-        state === 'upcoming' && card.dataset.number === nextNumber
-          ? 'up-next'
-          : state;
-
-      if (card.dataset.state !== finalState) {
-        card.dataset.state = finalState;
-        const existingPill = card.querySelector('.cc-card-pill');
-        if (finalState === 'up-next' && !existingPill) {
-          const p = document.createElement('div');
-          p.className = 'cc-card-pill';
-          p.textContent = 'Up next';
-          card.insertBefore(p, card.firstChild);
-        } else if (finalState !== 'up-next' && existingPill) {
-          existingPill.remove();
-        }
-      }
-
-      const iconEl = card.querySelector<HTMLElement>('[data-slot="icon"]')!;
-      const labelEl = card.querySelector<HTMLElement>('[data-slot="label"]')!;
-      const whenEl = card.querySelector<HTMLElement>('[data-slot="when"]')!;
-      const start = dt ? new Date(dt) : null;
-      const localTime = start ? fmtTime(start) : '';
-
-      iconEl.textContent = iconFor(finalState);
-
-      switch (finalState) {
-        case 'past':
-          labelEl.textContent = 'Instant Access + Manual';
-          whenEl.textContent = start ? `· Held ${fmtDate(start)}` : '';
-          break;
-        case 'live':
-          iconEl.innerHTML = '<span class="live-dot"></span>';
-          labelEl.textContent = 'Live now';
-          whenEl.textContent = '';
-          break;
-        case 'almost-live': {
-          const diff = start ? start.getTime() - now.getTime() : 0;
-          const mins = Math.max(0, Math.floor(diff / 60_000));
-          const secs = Math.max(0, Math.floor((diff % 60_000) / 1000));
-          labelEl.textContent = 'Starts in';
-          whenEl.innerHTML = `<span class="cc-countdown">${pad(mins)}:${pad(secs)}</span>`;
-          break;
-        }
-        case 'tomorrow': {
-          const diff = start ? start.getTime() - now.getTime() : 0;
-          const hours = Math.max(0, Math.floor(diff / 3_600_000));
-          const mins = Math.max(0, Math.floor((diff % 3_600_000) / 60_000));
-          labelEl.textContent = 'Tomorrow';
-          whenEl.innerHTML = ` · ${localTime} <span class="cc-countdown">${hours}h ${mins}m</span>`;
-          break;
-        }
-        case 'up-next':
-          labelEl.textContent = 'Up next · Live on';
-          whenEl.textContent = start ? `${fmtDate(start)} · ${localTime}` : '';
-          break;
-        case 'tbc':
-          labelEl.textContent = 'Date TBC';
-          whenEl.textContent = '';
-          break;
-        case 'upcoming':
-        default:
-          labelEl.textContent = 'Live on';
-          whenEl.textContent = start ? `${fmtDate(start)} · ${localTime}` : '';
-          break;
-      }
-    }
-  }
-
-  refresh();
-  setInterval(refresh, 1000);
-</script>

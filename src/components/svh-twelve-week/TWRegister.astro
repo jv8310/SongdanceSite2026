@@ -95,6 +95,40 @@ const includes = [
           <span>Your discount ends in <span class="clock" data-slot="clock">--:--:--</span></span>
         </div>
 
+        <!-- Post-workshop Song Deck gift: shown only inside the 1-hour window
+             after the buyer's live workshop (status.deck_gift). Its countdown
+             replaces the 48h discount countdown while it's live. -->
+        <div class="tw-reg-gift" data-slot="gift" hidden>
+          <div class="tw-reg-gift-head">
+            <span class="tw-reg-gift-pill">Free gift · free global shipping</span>
+            <span class="tw-reg-gift-count">
+              <i class="ph-light ph-hourglass-medium" aria-hidden="true"></i>
+              Gift leaves in <span class="clock" data-slot="gift-clock">--:--</span>
+            </span>
+          </div>
+          <div class="tw-reg-gift-body">
+            <img
+              class="tw-reg-gift-thumb"
+              src="https://songdeck.shop/cdn/shop/files/Open_Box_Mockup.jpg?v=1728399000&width=520"
+              alt="The Songdeck box open, showing the illustrated song cards inside"
+              loading="lazy"
+            />
+            <div class="tw-reg-gift-text">
+              <p class="tw-reg-gift-title">The Songdeck ships to you — our gift</p>
+              <p class="tw-reg-gift-sub">
+                To honour your momentum and celebrate your yes: join within the
+                hour and the deck is yours, shipped free, anywhere in the world.
+              </p>
+              <ul class="tw-reg-gift-points">
+                <li>36 illustrated song cards — each with its own written message</li>
+                <li>A QR code on every card: scan it and that card's own song plays</li>
+                <li>The free Songdeck app with all 36 songs, mantras and soundscapes</li>
+                <li>€44 in the shop — free with your course today</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
         <!-- Certification path only: when does the certification course open? -->
         <fieldset class="tw-reg-activate" data-slot="activate" hidden>
           <legend>Activate the certification course</legend>
@@ -134,7 +168,7 @@ const includes = [
             <p class="tw-reg-pathteaser-eyebrow">Take it further</p>
             <p class="tw-reg-pathteaser-h">Want to go deeper, or hold this work for <em>others?</em></p>
             <p class="tw-reg-pathteaser-p">
-              After the twelve weeks, continue into the live, deepening Practitioner
+              After the twelve weeks, continue into the deepening Practitioner
               Training — to be certified, or simply to master the practice for yourself.
             </p>
           </div>
@@ -317,6 +351,9 @@ const includes = [
     is_pro?: boolean;
     bumps?: BumpOffer[];
     path?: PathPricing;
+    // Post-workshop Song Deck gift window (free deck + free shipping, live
+    // from the buyer's workshop start until 1h after it ends).
+    deck_gift?: { active: boolean; ends_at_ms: number | null };
     first_name?: string;
     last_name?: string;
     country?: string;
@@ -479,12 +516,19 @@ const includes = [
 
       // Everyone can switch between the 12-week course and the full
       // Certification path (12-Week Course + Certification Course) — the picker
-      // shows whenever the server priced the path (it always does now). The
-      // discount only ever touches the 12-week price — inside the path, only its
-      // 12-week portion; the certification course always shows its standard price.
+      // shows whenever the server priced the path (it always does now). During
+      // a live workshop window the whole path is 30% off (both line items); a
+      // ?discount=N override only ever touches the 12-week portion.
       const hasPath = !!status.path;
       let selectedOffer: OfferId = '12week';
       let selectedPlan: Plan = 'full';
+
+      // Post-workshop Song Deck gift — live right now? (Re-checked at render
+      // and on every countdown tick; the checkout re-derives it server-side.)
+      const deckGiftLive = () => {
+        const g = status.deck_gift;
+        return !!(g && g.active && g.ends_at_ms && g.ends_at_ms > Date.now());
+      };
 
       // The pricing "view" for whichever offer is currently selected.
       function view() {
@@ -492,8 +536,8 @@ const includes = [
           const p = status.path;
           const dd = p.discount;
           return {
-            // The total is always struck: the cert sits at its mid-cohort
-            // price, and the 12-week may carry the workshop discount on top.
+            // Struck while discounted: the workshop sale takes 30% off both
+            // lines; an override reduces only the 12-week portion.
             cur: p.currency,
             hasStrike: p.base_total_cents > p.total_cents,
             wasCents: p.base_total_cents,
@@ -505,11 +549,15 @@ const includes = [
               ? (dd.kind === 'override'
                   ? `${dd.percent}% off the 12-week`
                   : dd.kind === 'promo'
-                    ? `Extended sale — ${dd.percent}% off the 12-week`
-                    : `Workshop discount — ${dd.percent}% off the 12-week`)
-              : 'Mid-cohort discount applied',
+                    ? `Extended sale — ${dd.percent}% off`
+                    : `Workshop discount — ${dd.percent}% off the whole path`)
+              : '',
             offerName: 'Certification path',
-            discountOff: dd.eligible ? ` (12-week ${dd.percent}% off)` : '',
+            discountOff: dd.eligible
+              ? dd.kind === 'override'
+                ? ` (12-week ${dd.percent}% off)`
+                : ` (${dd.percent}% off)`
+              : '',
             showCountdown: dd.eligible && dd.kind === 'post' && !!dd.expires_at_ms,
             expiresAtMs: dd.expires_at_ms,
           };
@@ -603,9 +651,8 @@ const includes = [
         }
 
         if (isPath) {
-          // Two transparent line items + a combined total. The cert shows its
-          // sticker struck to the mid-cohort price; the 12-week shows the
-          // workshop discount on top when it's live.
+          // Two transparent line items + a combined total, each struck while
+          // the workshop sale (30% off both lines) or an override is live.
           const p = status.path!;
           pricebox.hidden = true;
           pathbox.hidden = false;
@@ -642,29 +689,51 @@ const includes = [
           pricenote.textContent = `One payment · or ${v.count} monthly payments of ${money(v.monthlyNowCents, v.cur)}`;
         }
 
-        // Post-workshop 48h window → live countdown; on expiry, re-price.
+        // Countdowns. While the post-workshop Song Deck gift window is live,
+        // its 1-hour clock REPLACES the 48h discount countdown (the discount
+        // itself stays); when the gift window closes the panel drops away and
+        // the 48h countdown returns on the re-render. Either clock hitting
+        // zero re-fetches + re-prices.
         window.clearInterval(countdownTimer);
-        if (v.showCountdown && v.expiresAtMs) {
+        const fmtClock = (leftMs: number) => {
+          const s = Math.floor(leftMs / 1000);
+          const hh = String(Math.floor(s / 3600)).padStart(2, '0');
+          const mm = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
+          const ss = String(s % 60).padStart(2, '0');
+          return `${hh}:${mm}:${ss}`;
+        };
+        const refetch = async () => {
+          window.clearInterval(countdownTimer);
+          const fresh = await fetchStatus(email, status.country);
+          if ('currency' in fresh) render(email, fresh);
+        };
+        const gift = q('[data-slot="gift"]') as HTMLElement;
+        if (deckGiftLive()) {
+          const ends = status.deck_gift!.ends_at_ms!;
+          gift.hidden = false;
+          countdown.hidden = true;
+          const giftClock = q('[data-slot="gift-clock"]') as HTMLElement;
+          const tick = () => {
+            const left = ends - Date.now();
+            if (left <= 0) { void refetch(); return; }
+            giftClock.textContent = fmtClock(left);
+          };
+          tick();
+          countdownTimer = window.setInterval(tick, 1000);
+        } else if (v.showCountdown && v.expiresAtMs) {
           const expires = v.expiresAtMs;
+          gift.hidden = true;
           countdown.hidden = false;
           const clock = q('[data-slot="clock"]') as HTMLElement;
-          const tick = async () => {
+          const tick = () => {
             const left = expires - Date.now();
-            if (left <= 0) {
-              window.clearInterval(countdownTimer);
-              const fresh = await fetchStatus(email, status.country);
-              if ('currency' in fresh) render(email, fresh);
-              return;
-            }
-            const s = Math.floor(left / 1000);
-            const hh = String(Math.floor(s / 3600)).padStart(2, '0');
-            const mm = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
-            const ss = String(s % 60).padStart(2, '0');
-            clock.textContent = `${hh}:${mm}:${ss}`;
+            if (left <= 0) { void refetch(); return; }
+            clock.textContent = fmtClock(left);
           };
           tick();
           countdownTimer = window.setInterval(tick, 1000);
         } else {
+          gift.hidden = true;
           countdown.hidden = true;
         }
       };
@@ -845,7 +914,8 @@ const includes = [
         }
 
         const bumps = selectedBumpOffers();
-        if (!bumps.length) {
+        const giftRow = deckGiftLive();
+        if (!bumps.length && !giftRow) {
           // Unchanged single-line summary when no add-on is selected.
           summaryEl.className = 'tw-reg-summary';
           summaryEl.innerHTML =
@@ -860,6 +930,9 @@ const includes = [
         const rows = [sumRow(mainLabel, mainAmount)];
         for (const b of bumps) {
           rows.push(sumRow(b.label, money(b.price_cents, cur), 'tw-reg-sumrow--bump'));
+        }
+        if (giftRow) {
+          rows.push(sumRow('Songdeck — free gift, ships free', 'FREE', 'tw-reg-sumrow--bump'));
         }
         if (selectedPlan === 'full') {
           rows.push(sumRow('Total', `<strong>${money(courseNowCents + bumpTotal, cur)}</strong>`, 'tw-reg-sumrow--total'));

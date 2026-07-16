@@ -17,6 +17,7 @@
 import * as D from './email-design';
 import { type DownsellOffer, BUNDLE_PATH } from './downsell-offers';
 import { guarantee } from '../guarantee';
+import { CERT_PATH_DISCOUNT_PERCENT } from '../courses/path';
 
 // Plain-text line for the 30-day money-back guarantee (the text/plain part of
 // the course-promoting lifecycle emails). The HTML part uses D.guaranteeNote().
@@ -816,10 +817,10 @@ export function attendedProEmail1(
       ),
       D.sectionLabel('What the path involves'),
       D.bullet(
-        'Live classes, each with a written manual — and instant access to the ones already held, the moment you join.',
+        'The complete class library, each class with a written manual — self-paced, instant access the moment you join.',
       ),
       D.bullet(
-        'Weekly live Q&amp;A and monthly deepening sessions, so the learning stays live, not just recorded.',
+        'Weekly live Q&amp;A and monthly deepening sessions through the end of 2026, so the learning stays live, not just recorded.',
       ),
       D.bullet(
         'Hosted practice sessions with peers — giving and receiving is the quiet heart of it, and where facilitation actually grows.',
@@ -839,9 +840,9 @@ export function attendedProEmail1(
           ? `Your 12-week price (${pct}% off) is also live through ${escapeHtml(
               ctx.discountEndsLocal,
             )} — ${D.secondaryLink('see your price', ctx.courseUrl)}.`
-          : `Your 12-week participant price (${pct}% off) is also live for the next ${escapeHtml(
+          : `Your participant window is live for the next ${escapeHtml(
               left,
-            )} — ${D.secondaryLink('see your price', ctx.courseUrl)}.`,
+            )}: ${CERT_PATH_DISCOUNT_PERCENT}% off the whole certification path, or ${pct}% off the 12-week course alone — ${D.secondaryLink('see your price', ctx.courseUrl)}.`,
       }),
       D.guaranteeNote(),
       D.signoff('Warmly,'),
@@ -851,10 +852,10 @@ export function attendedProEmail1(
   return {
     subject: 'Thank you — and a word for practitioners',
     html,
-    text: `${textGreeting(ctx.name)}\n\nThank you for being part of ${ctx.workshopTitle}.\n\nBecause you work with people yourself, there's a path here that may matter more to you than the rest: the SVH Certification — learning to hold this space for others.\n\nNot healer, not fixer: space holder. Someone who keeps the room steady while another person does the one thing only they can do.\n\nWhat the path involves:\n- Live classes, each with a written manual — and instant access to the ones already held, the moment you join.\n- Weekly live Q&A and monthly deepening sessions, so the learning stays live, not just recorded.\n- Hosted practice sessions with peers — giving and receiving is the quiet heart of it, and where facilitation actually grows.\n- The Somatic Vocal Healing app, a full replay library, a global community, and lifetime access.\n\n${ctx.certUrl}\n\n${
+    text: `${textGreeting(ctx.name)}\n\nThank you for being part of ${ctx.workshopTitle}.\n\nBecause you work with people yourself, there's a path here that may matter more to you than the rest: the SVH Certification — learning to hold this space for others.\n\nNot healer, not fixer: space holder. Someone who keeps the room steady while another person does the one thing only they can do.\n\nWhat the path involves:\n- The complete class library, each class with a written manual — self-paced, instant access the moment you join.\n- Weekly live Q&A and monthly deepening sessions through the end of 2026, so the learning stays live, not just recorded.\n- Hosted practice sessions with peers — giving and receiving is the quiet heart of it, and where facilitation actually grows.\n- The Somatic Vocal Healing app, a full replay library, a global community, and lifetime access.\n\n${ctx.certUrl}\n\n${
       ctx.promo
         ? `PS — ${pct}% off the 12-week course is also live through ${ctx.discountEndsLocal}; this link shows your price directly: ${ctx.courseUrl}`
-        : `PS — your ${pct}% on the 12-week course is also live for the next ${left}; this link shows your price directly: ${ctx.courseUrl}`
+        : `PS — your participant window is live for the next ${left}: ${CERT_PATH_DISCOUNT_PERCENT}% off the whole certification path, or ${pct}% off the 12-week course alone. This link shows your price directly: ${ctx.courseUrl}`
     }\n\n${GUARANTEE_TEXT}\n\nWarmly,\nJacob${unsubText(ctx.unsubscribeUrl)}`,
   };
 }

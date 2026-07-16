@@ -68,17 +68,19 @@ export type Offer = {
 
 // Currency map.
 //
-// EUR/USD/GBP are the original cert-form price points and are kept exactly as
-// they were. USD reuses the EUR numbers 1-for-1 ($999 / $1,499 etc.) — US
-// buyers aren't paying EU VAT, so the merchant can absorb the FX gap and the
-// price story stays simple. GBP is EUR × ~0.85, rounded to neat headline
-// amounts.
+// The certification now charges its normal (former list) price — the
+// "mid-cohort" discount is retired along with the cohort model (the course is
+// fully self-paced now, so `full` equals `base` and nothing renders struck
+// through). The workshop-sale discount on the certification path lives in
+// src/lib/courses/path.ts, not here.
 //
-// The remaining markets (CAD/CHF/AUD/NZD/NOK/SEK/DKK) mirror the same
-// EUR-relative ratios the 12-week course already uses (see
-// src/lib/courses/twelve-week.ts), rounded to clean headline numbers. They
-// exist so a 12-week participant upgrading to the certification path is billed
-// in their own currency.
+// EUR/USD share price points 1-for-1 — US buyers aren't paying EU VAT, so the
+// merchant can absorb the FX gap and the price story stays simple. GBP is
+// EUR × ~0.85, rounded to neat headline amounts. The remaining markets
+// (CAD/CHF/AUD/NZD/NOK/SEK/DKK) mirror the same EUR-relative ratios the
+// 12-week course already uses (see src/lib/courses/twelve-week.ts), rounded to
+// clean headline numbers. They exist so a 12-week participant upgrading to the
+// certification path is billed in their own currency.
 //
 // `monthly3` is the 3-month installment; `monthly6` the 6-month one;
 // `monthly12` the hidden 12-month one. Each longer ladder totals more (a
@@ -92,64 +94,46 @@ const PRICES: Record<
   }
 > = {
   EUR: {
-    cert:   { full: 999,  base: 1500, monthly3: 349, monthly6: 189, monthly12: 99 },
-    bundle: { full: 1499, base: 2150, monthly3: 525, monthly6: 285, monthly12: 149 },
+    cert:   { full: 1500, base: 1500, monthly3: 525, monthly6: 285, monthly12: 149 },
+    bundle: { full: 2150, base: 2150, monthly3: 750, monthly6: 405, monthly12: 215 },
   },
   USD: {
-    cert:   { full: 999,  base: 1500, monthly3: 349, monthly6: 189, monthly12: 99 },
-    bundle: { full: 1499, base: 2150, monthly3: 525, monthly6: 285, monthly12: 149 },
+    cert:   { full: 1500, base: 1500, monthly3: 525, monthly6: 285, monthly12: 149 },
+    bundle: { full: 2150, base: 2150, monthly3: 750, monthly6: 405, monthly12: 215 },
   },
   GBP: {
-    cert:   { full: 849,  base: 1299, monthly3: 299, monthly6: 159, monthly12: 85 },
-    bundle: { full: 1299, base: 1849, monthly3: 459, monthly6: 245, monthly12: 129 },
+    cert:   { full: 1299, base: 1299, monthly3: 459, monthly6: 245, monthly12: 129 },
+    bundle: { full: 1849, base: 1849, monthly3: 650, monthly6: 349, monthly12: 185 },
   },
   CAD: {
-    cert:   { full: 1450, base: 2150, monthly3: 510, monthly6: 275, monthly12: 145 },
-    bundle: { full: 2190, base: 3150, monthly3: 765, monthly6: 415, monthly12: 219 },
+    cert:   { full: 2150, base: 2150, monthly3: 750, monthly6: 405, monthly12: 215 },
+    bundle: { full: 3150, base: 3150, monthly3: 1100, monthly6: 595, monthly12: 315 },
   },
   CHF: {
-    cert:   { full: 950,  base: 1450, monthly3: 335, monthly6: 180, monthly12: 95 },
-    bundle: { full: 1430, base: 2050, monthly3: 500, monthly6: 270, monthly12: 142 },
+    cert:   { full: 1450, base: 1450, monthly3: 510, monthly6: 275, monthly12: 145 },
+    bundle: { full: 2050, base: 2050, monthly3: 715, monthly6: 385, monthly12: 205 },
   },
   AUD: {
-    cert:   { full: 1690, base: 2550, monthly3: 595, monthly6: 320, monthly12: 170 },
-    bundle: { full: 2550, base: 3650, monthly3: 895, monthly6: 485, monthly12: 255 },
+    cert:   { full: 2550, base: 2550, monthly3: 895, monthly6: 485, monthly12: 255 },
+    bundle: { full: 3650, base: 3650, monthly3: 1275, monthly6: 690, monthly12: 365 },
   },
   NZD: {
-    cert:   { full: 1890, base: 2850, monthly3: 665, monthly6: 355, monthly12: 189 },
-    bundle: { full: 2850, base: 4090, monthly3: 999, monthly6: 540, monthly12: 285 },
+    cert:   { full: 2850, base: 2850, monthly3: 999, monthly6: 540, monthly12: 285 },
+    bundle: { full: 4090, base: 4090, monthly3: 1430, monthly6: 770, monthly12: 409 },
   },
   NOK: {
-    cert:   { full: 11500, base: 17500, monthly3: 4050, monthly6: 2150, monthly12: 1150 },
-    bundle: { full: 17500, base: 25000, monthly3: 6150, monthly6: 3300, monthly12: 1750 },
+    cert:   { full: 17500, base: 17500, monthly3: 6150, monthly6: 3300, monthly12: 1750 },
+    bundle: { full: 25000, base: 25000, monthly3: 8750, monthly6: 4700, monthly12: 2500 },
   },
   SEK: {
-    cert:   { full: 11300, base: 17000, monthly3: 3950, monthly6: 2125, monthly12: 1125 },
-    bundle: { full: 16900, base: 24000, monthly3: 5900, monthly6: 3200, monthly12: 1690 },
+    cert:   { full: 17000, base: 17000, monthly3: 5950, monthly6: 3200, monthly12: 1700 },
+    bundle: { full: 24000, base: 24000, monthly3: 8400, monthly6: 4500, monthly12: 2400 },
   },
   DKK: {
-    cert:   { full: 7400,  base: 11000, monthly3: 2590, monthly6: 1400, monthly12: 740 },
-    bundle: { full: 11100, base: 15900, monthly3: 3900, monthly6: 2100, monthly12: 1100 },
+    cert:   { full: 11000, base: 11000, monthly3: 3850, monthly6: 2100, monthly12: 1100 },
+    bundle: { full: 15900, base: 15900, monthly3: 5550, monthly6: 3000, monthly12: 1590 },
   },
 };
-
-function symbol(c: Currency): string {
-  switch (c) {
-    case 'USD': return '$';
-    case 'GBP': return '£';
-    case 'CAD': return 'CA$';
-    case 'CHF': return 'CHF ';
-    case 'AUD': return 'A$';
-    case 'NZD': return 'NZ$';
-    case 'NOK':
-    case 'SEK':
-    case 'DKK': return 'kr ';
-    default: return '€';
-  }
-}
-function money(amount: number, currency: Currency): string {
-  return `${symbol(currency)}${amount.toLocaleString('en-US')}`;
-}
 
 function plan(currency: Currency, monthly: number, count: number): InstallmentPlan {
   return {
@@ -196,25 +180,25 @@ function bundleOffer(currency: Currency): Omit<Offer, 'save_note'> {
 // the checkout handler can validate {product_slug, currency} → offer.
 export function getCertOffer(currency: Currency): Offer {
   const base = certOffer(currency);
-  return { ...base, save_note: 'Mid-cohort discount applied' };
+  return { ...base, save_note: '' };
 }
 export function getBundleOffer(currency: Currency): Offer {
   const base = bundleOffer(currency);
-  return { ...base, save_note: 'Mid-cohort discount applied' };
+  return { ...base, save_note: '' };
 }
 
 // Back-compat exports (EUR) — still imported by older code paths.
 export const CERT_OFFER: Offer = getCertOffer('EUR');
 export const BUNDLE_OFFER: Offer = getBundleOffer('EUR');
 
-// During the launch promo, the certification's "mid-cohort" discount is paused
-// and the price becomes the launch percent off the LIST/base price (e.g. €1500
-// → €750). The base stays as the struck "before" figure. Each installment
-// ladder keeps its existing premium-over-pay-in-full ratio, scaled to the promo
-// price and rounded to clean whole units so the monthly figures stay tidy.
-// Returns the offer unchanged when the promo isn't live. A `?discount=N`
-// override should NOT be combined with this (the override wins outright) — the
-// callers only apply this when no override is present.
+// During a launch promo, the certification price becomes the launch percent
+// off the LIST/base price (e.g. €1500 → €750). The base stays as the struck
+// "before" figure. Each installment ladder keeps its existing
+// premium-over-pay-in-full ratio, scaled to the promo price and rounded to
+// clean whole units so the monthly figures stay tidy. Returns the offer
+// unchanged when the promo isn't live. A `?discount=N` override should NOT be
+// combined with this (the override wins outright) — the callers only apply
+// this when no override is present.
 export function applyLaunchPromoToOffer(
   offer: Offer,
   nowMs: number = Date.now(),
@@ -223,7 +207,7 @@ export function applyLaunchPromoToOffer(
   const promoFullCents = Math.round(
     (offer.base_price * 100 * (100 - LAUNCH_PROMO_PERCENT)) / 100,
   );
-  const oldFullCents = offer.price_cents; // mid-cohort full; ladders are relative to it
+  const oldFullCents = offer.price_cents; // normal full; ladders are relative to it
   const reLadder = (p?: InstallmentPlan): InstallmentPlan | undefined => {
     if (!p) return undefined;
     const ratio = oldFullCents > 0 ? (p.monthly_cents * p.count) / oldFullCents : 1;
@@ -318,33 +302,23 @@ function offersFor(variant: Variant, currency: Currency): Offer[] {
     ...bundleOffer(currency),
     save_note,
   });
-  // "Save" amounts are derived from base − full so the copy stays correct
-  // in either currency.
-  const certSave = money(
-    PRICES[currency].cert.base - PRICES[currency].cert.full,
-    currency,
-  );
-  const bundleSave = money(
-    PRICES[currency].bundle.base - PRICES[currency].bundle.full,
-    currency,
-  );
   switch (variant) {
     case 'B1':
-      return [cert(`Save ${certSave} — upgrading from the 12-week course, mid-cohort discount applied`)];
+      return [cert('Upgrading from the 12-week course — self-paced, start today')];
     case 'B2':
-      return [cert(`Save ${certSave} — graduate of the 12-week course, mid-cohort discount applied`)];
+      return [cert('Graduate of the 12-week course — self-paced, start today')];
     case 'A':
       return [
-        cert('Welcome-back price, mid-cohort discount applied'),
-        bundle(`Save ${bundleSave} — includes the complete refreshed 12-week foundational course`),
+        cert('Welcome back — self-paced, start today'),
+        bundle('Includes the complete refreshed 12-week foundational course'),
       ];
     case 'D':
       return [
-        cert('Mid-cohort discount applied'),
-        bundle(`Save ${bundleSave} — includes the complete refreshed 12-week foundational course`),
+        cert('Self-paced — start today'),
+        bundle('Includes the complete refreshed 12-week foundational course'),
       ];
     case 'E':
-      return [bundle(`Save ${bundleSave} — mid-cohort discount applied`)];
+      return [bundle('Includes the complete refreshed 12-week foundational course')];
     case 'C':
       return [];
   }

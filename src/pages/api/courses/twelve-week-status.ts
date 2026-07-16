@@ -41,6 +41,7 @@ import { buildCertificationPathPricing } from '../../../lib/courses/path';
 import type { EffectiveDiscount } from '../../../lib/courses/twelve-week';
 import { getSubscriber } from '../../../lib/registrations/drip';
 import { eligibleBumpOffers } from '../../../lib/courses/bumps';
+import { deckGiftStatus, DECK_GIFT_INACTIVE } from '../../../lib/courses/deck-promo';
 
 export const prerender = false;
 
@@ -155,6 +156,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
       is_pro: isPro,
       bumps,
       path,
+      // The post-workshop Song Deck gift window (start → end + 1h of the
+      // buyer's live session). The checkout re-derives it, so this is display
+      // truth only.
+      deck_gift: deckGiftStatus(links),
       first_name: firstName || undefined,
       last_name: lastName || undefined,
       country: countryCode || undefined,
@@ -200,6 +205,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       bumps: eligibleBumpOffers(currency, null),
       // The Certification path is offered to everyone — price it even here.
       path: buildCertificationPathPricing(certCurrencyFor(currency), degradedEff),
+      deck_gift: DECK_GIFT_INACTIVE,
       degraded: true,
       error: String(err),
     });
