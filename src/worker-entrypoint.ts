@@ -101,7 +101,7 @@ function movedRedirect(request: Request): Response | null {
 }
 
 export function createExports(manifest: unknown) {
-  const base = baseCreateExports(manifest as never) as {
+  const base = baseCreateExports(manifest as never) as unknown as {
     default: { fetch: ExportedHandlerFetchHandler };
   };
 

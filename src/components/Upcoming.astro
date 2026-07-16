@@ -92,7 +92,7 @@
     try {
       const res = await fetch('/api/events.json?limit=3');
       if (!res.ok) return;
-      const data = await res.json();
+      const data = (await res.json()) as { events?: EventCard[] };
       const events: EventCard[] = data.events ?? [];
       if (!events.length) return;
       grid.innerHTML = events.map(card).join('');

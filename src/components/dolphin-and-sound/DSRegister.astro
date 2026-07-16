@@ -194,8 +194,8 @@ import { COUNTRIES } from '../../lib/countries';
     });
     const companyInput = form.querySelector('input[name="company_name"]') as HTMLInputElement;
     const bizField = form.querySelector('.ds-field--biz') as HTMLElement;
-    const countrySelect = form.querySelector('select[name="country"]') as HTMLSelectElement;
-    const phoneCountrySelect = form.querySelector('select[name="phone_country"]') as HTMLSelectElement;
+    const countrySelect = form.querySelector('select[name="country"]') as unknown as HTMLSelectElement;
+    const phoneCountrySelect = form.querySelector('select[name="phone_country"]') as unknown as HTMLSelectElement;
     const placesEl = document.querySelector('[data-places]') as HTMLElement | null;
     const roomInputs = Array.from(
       form.querySelectorAll('input[name="tier_slug"]'),

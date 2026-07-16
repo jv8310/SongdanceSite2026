@@ -37,7 +37,7 @@ export const GET: APIRoute = async ({ url }) => {
 
   const bytes = countdownGif({ deadlineMs, nowMs: now, frames });
 
-  return new Response(bytes, {
+  return new Response(bytes as BodyInit, {
     status: 200,
     headers: {
       'Content-Type': 'image/gif',
