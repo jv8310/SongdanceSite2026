@@ -58,6 +58,41 @@ const countries = COUNTRIES;
           <div data-slot="offer-cards" class="cc-offers"></div>
         </div>
 
+        <!-- Post-workshop Song Deck gift: shown only inside the 1-hour window
+             after the buyer's live workshop (deck_gift on the status). Its
+             countdown replaces the 48h discount countdown while it's live. -->
+        <div class="cc-gift" data-slot="gift" hidden>
+          <div class="cc-gift-head">
+            <span class="cc-gift-pill">Free gift · free global shipping</span>
+            <span class="cc-gift-count">
+              <i class="ph-light ph-hourglass-medium" aria-hidden="true"></i>
+              Gift leaves in <span class="clock" data-slot="gift-clock">--:--</span>
+            </span>
+          </div>
+          <div class="cc-gift-body">
+            <img
+              class="cc-gift-thumb"
+              src="https://songdeck.shop/cdn/shop/files/Open_Box_Mockup.jpg?v=1728399000&width=520"
+              alt="The Songdeck box open, showing the illustrated song cards inside"
+              loading="lazy"
+            />
+            <div class="cc-gift-text">
+              <p class="cc-gift-title">The Songdeck ships to you — our gift</p>
+              <p class="cc-gift-sub">
+                To honour your momentum and celebrate your yes: join within the
+                hour and the deck is yours. Right after checkout we email you a
+                one-tap claim — shipped free, anywhere in the world.
+              </p>
+              <ul class="cc-gift-points">
+                <li>36 illustrated song cards — each with its own written message</li>
+                <li>A QR code on every card: scan it and that card's own song plays</li>
+                <li>The free Songdeck app with all 36 songs, mantras and soundscapes</li>
+                <li>€44 in the shop — free with your course today</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
         <div data-slot="plan-picker" class="cc-plan-picker" style="display:none">
           <div class="cc-step-label">How would you like to pay?</div>
           <div class="cc-plan-options" data-slot="plan-options"></div>
@@ -245,10 +280,10 @@ const countries = COUNTRIES;
     installments_12x?: InstallmentPlan; // 12 monthly payments (hidden by default)
   };
   type Variant = 'B1' | 'B2' | 'A' | 'D' | 'E' | 'C';
-  // The Certification path (the `cc-bundle` product) = cert at its standard
-  // price + the workshop-discounted 12-week, shown as two line items + a
-  // combined total. The discount only ever touches the 12-week portion. Priced
-  // in EUR/USD/GBP. Mirrors CertificationPathPricing on the server.
+  // The Certification path (the `cc-bundle` product), shown as two line items
+  // + a combined total. During a live workshop window the whole path is 30%
+  // off (both lines); a ?discount=N override only ever touches the 12-week
+  // portion. Mirrors CertificationPathPricing on the server.
   type PathPricing = {
     currency: Currency;
     twelve_week_base_cents: number;
@@ -278,6 +313,9 @@ const countries = COUNTRIES;
     can_activate_now?: boolean;
     course_portal_url?: string;
     path?: PathPricing;
+    // Post-workshop Song Deck gift window (free deck + free shipping, live
+    // from the buyer's workshop start until 1h after it ends).
+    deck_gift?: { active: boolean; ends_at_ms: number | null };
     first_name?: string;
     last_name?: string;
     country?: string;
@@ -286,6 +324,7 @@ const countries = COUNTRIES;
   type PaymentPlan = 'full' | '3x' | '6x' | '12x';
 
   let pathCountdownTimer: number | undefined;
+  let giftCountdownTimer: number | undefined;
 
   // Which gateway the next checkout uses. The PayPal button flips it for one
   // submit; everything else stays on Stripe. Captured + reset inside
@@ -297,9 +336,10 @@ const countries = COUNTRIES;
     firstName?: string,
   ) => { greeting: string; title: string; body: string };
 
-  // v2: the cached decision now carries `path` pricing; ignore pre-path caches
-  // so a stale flat bundle price can never be shown against the new path charge.
-  const STORAGE_KEY = 'cc:decision:v2';
+  // v3: the mid-cohort discount is retired (normal prices, 30% workshop sale
+  // on the path) and the decision carries `deck_gift` — ignore older caches so
+  // a stale discounted price can never be shown against the new charge.
+  const STORAGE_KEY = 'cc:decision:v3';
 
   // URL-driven discount. `?discount=N` (any integer 1–99) strikes through
   // the displayed price and tells the server to charge a discounted amount
@@ -391,7 +431,7 @@ const countries = COUNTRIES;
     B2: (_w, name) => ({
       greeting: greetingFor(name, 'Welcome back'),
       title: `The foundation is set.`,
-      body: `You've completed the 12-week course. The certification course continues the work — live classes, practice sessions, the monthly deepening field, and the path of becoming a certified practitioner. Because you've already walked the foundation, your price honours both.`,
+      body: `You've completed the 12-week course. The certification course continues the work — the full class library with written manuals, hosted practice sessions, weekly live Q&As and the monthly deepening field through the end of 2026, and the path of becoming a certified practitioner. Fully self-paced: begin the moment you join.`,
     }),
     A: (_w, name) => ({
       greeting: greetingFor(name, 'Welcome back'),
@@ -406,7 +446,7 @@ const countries = COUNTRIES;
     E: (_w, name) => ({
       greeting: greetingFor(name, 'Welcome'),
       title: `This is the full path.`,
-      body: `The certification course is a nine-month deepening journey. The 12-week course is the foundation it rests on. Because the certification has already begun, the full path is offered with a single mid-course discount.`,
+      body: `The certification course is a deepening journey — fully self-paced, with live weekly Q&As and monthly deepening sessions through the end of 2026. The 12-week course is the foundation it rests on. The full path holds both, and you can begin the moment you join.`,
     }),
     C: (_w, name) => ({
       greeting: greetingFor(name, 'You’re already in'),
@@ -770,6 +810,7 @@ const countries = COUNTRIES;
         decision.currency = next.currency;
         decision.offers = next.offers;
         decision.path = (next as Decision).path;
+        decision.deck_gift = (next as Decision).deck_gift;
         try {
           localStorage.setItem(
             STORAGE_KEY,
@@ -777,6 +818,7 @@ const countries = COUNTRIES;
           );
         } catch {}
         renderOfferCards();
+        renderGift();
         renderPlanOptions();
         renderSummary();
       } catch {
@@ -828,12 +870,26 @@ const countries = COUNTRIES;
     // currency switches). Clicking a card flips selectedOfferSlug.
     const offersEl = root.querySelector('[data-slot="offer-cards"]') as HTMLElement;
     const offerPickerLabel = root.querySelector('[data-slot="offer-picker-label"]') as HTMLElement;
-    // The path card carries the 12-week discount's 48h countdown. Re-armed on
+    // Post-workshop Song Deck gift — live right now?
+    const giftLive = () => {
+      const g = decision.deck_gift;
+      return !!(g && g.active && g.ends_at_ms && g.ends_at_ms > Date.now());
+    };
+
+    // The path card carries the workshop sale's 48h countdown. Re-armed on
     // each card render; on expiry we re-fetch so the now-full price re-renders.
+    // While the Song Deck gift window is live, the gift panel's own 1-hour
+    // clock REPLACES this one (the discount itself stays).
     function startPathCountdown() {
       window.clearInterval(pathCountdownTimer);
       const p = decision.path;
+      const clockWrap = offersEl.querySelector<HTMLElement>('[data-cd]');
       const clock = offersEl.querySelector<HTMLElement>('[data-clock]');
+      if (giftLive()) {
+        if (clockWrap) clockWrap.hidden = true;
+        return;
+      }
+      if (clockWrap) clockWrap.hidden = false;
       if (
         !p ||
         !clock ||
@@ -859,6 +915,38 @@ const countries = COUNTRIES;
       };
       tick();
       pathCountdownTimer = window.setInterval(tick, 1000);
+    }
+
+    // The gift panel: shown only while the window is live, ticking down to its
+    // close; on expiry we re-fetch, the panel drops away and the 48h discount
+    // countdown returns.
+    const giftEl = root.querySelector('[data-slot="gift"]') as HTMLElement;
+    function renderGift() {
+      window.clearInterval(giftCountdownTimer);
+      if (!giftEl) return;
+      if (!giftLive()) {
+        giftEl.hidden = true;
+        return;
+      }
+      giftEl.hidden = false;
+      const clock = giftEl.querySelector<HTMLElement>('[data-slot="gift-clock"]')!;
+      const ends = decision.deck_gift!.ends_at_ms!;
+      const tick = () => {
+        const left = ends - Date.now();
+        if (left <= 0) {
+          window.clearInterval(giftCountdownTimer);
+          giftEl.hidden = true;
+          refreshForCountry(lastCountry || decision.country || '');
+          return;
+        }
+        const s = Math.floor(left / 1000);
+        const hh = String(Math.floor(s / 3600)).padStart(2, '0');
+        const mm = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
+        const ss = String(s % 60).padStart(2, '0');
+        clock.textContent = `${hh}:${mm}:${ss}`;
+      };
+      tick();
+      giftCountdownTimer = window.setInterval(tick, 1000);
     }
 
     function renderOfferCards() {
@@ -910,6 +998,7 @@ const countries = COUNTRIES;
       startPathCountdown();
     }
     renderOfferCards();
+    renderGift();
 
     // The installment ladder for a given plan on the current offer.
     function ladderFor(offer: Offer, plan: PaymentPlan): InstallmentPlan | undefined {
@@ -1089,7 +1178,11 @@ const countries = COUNTRIES;
       if (selectedOfferSlug === 'cc-bundle' && decision.path) {
         const p = decision.path;
         const cur = p.currency;
-        const off = p.discount.eligible ? ` (12-week ${p.discount.percent}% off)` : '';
+        const off = p.discount.eligible
+          ? p.discount.kind === 'override'
+            ? ` (12-week ${p.discount.percent}% off)`
+            : ` (${p.discount.percent}% off)`
+          : '';
         if (selectedPlan === '3x' || selectedPlan === '6x') {
           const count = selectedPlan === '6x' ? p.installment_6x_count : p.installment_count;
           const monthly = selectedPlan === '6x' ? p.total_monthly_6x_cents : p.total_monthly_cents;
@@ -1181,25 +1274,25 @@ const countries = COUNTRIES;
       ? `<span class="cc-offer-radio" aria-hidden="true"></span>`
       : '';
 
-    // The path: two transparent line items + a combined total. The 12-week line
-    // carries the workshop discount (struck base) and its 48h countdown; the
-    // certification line shows its sticker struck to the mid-cohort price.
+    // The path: two transparent line items + a combined total. During a live
+    // workshop window the whole path (both lines) is struck 30% off, with the
+    // 48h countdown; an override strikes only the 12-week line.
     if (offer.slug === 'cc-bundle' && path) {
       const cur = path.currency;
       const d = path.discount;
       const twAmt = d.eligible
         ? `<span class="cc-amount-strike">${escapeHtml(moneyCents(path.twelve_week_base_cents, cur))}</span>${escapeHtml(moneyCents(path.twelve_week_price_cents, cur))}`
         : escapeHtml(moneyCents(path.twelve_week_base_cents, cur));
-      // The cert mid-cohort discount always applies on the path; a workshop /
-      // override discount on the 12-week portion replaces the badge text when live.
       const badgeText = d.eligible
         ? d.kind === 'override'
           ? `${d.percent}% off the 12-week`
           : d.kind === 'promo'
-            ? `Extended sale — ${d.percent}% off the 12-week`
-            : `Workshop discount — ${d.percent}% off the 12-week`
-        : 'Mid-cohort discount applied';
-      const badge = `<div class="cc-offer-badge"><span class="dot" aria-hidden="true"></span><span>${escapeHtml(badgeText)}</span></div>`;
+            ? `Extended sale — ${d.percent}% off`
+            : `Workshop discount — ${d.percent}% off the whole path`
+        : '';
+      const badge = badgeText
+        ? `<div class="cc-offer-badge"><span class="dot" aria-hidden="true"></span><span>${escapeHtml(badgeText)}</span></div>`
+        : '';
       const countdown =
         d.eligible && d.kind === 'post' && d.expires_at_ms
           ? `<div class="cc-offer-countdown" data-cd><i class="ph-light ph-hourglass-medium" aria-hidden="true"></i><span>Discount ends in <span class="clock" data-clock>--:--:--</span></span></div>`
@@ -1247,15 +1340,23 @@ const countries = COUNTRIES;
           </div>`
         : '';
 
+    // A separate struck "Base price" row only renders while a promo prices the
+    // offer under its list (base > price) — with the mid-cohort discount
+    // retired, the normal card shows a single "Your price" row.
+    const baseRow =
+      offer.base_price > offer.price
+        ? `
+          <div class="cc-offer-row">
+            <span class="cc-offer-row-label">Base price</span>
+            <span class="cc-offer-row-value cc-offer-base">${money(offer.base_price, offer.currency)}</span>
+          </div>`
+        : '';
     card.innerHTML = `
       ${radioMark}
       <div class="cc-offer-body">
         <div class="cc-offer-name">${escapeHtml(offer.label)}</div>
         <div class="cc-offer-prices">
-          <div class="cc-offer-row">
-            <span class="cc-offer-row-label">Base price</span>
-            <span class="cc-offer-row-value cc-offer-base">${money(offer.base_price, offer.currency)}</span>
-          </div>
+          ${baseRow}
           <div class="${yourRowClass}">
             <span class="cc-offer-row-label">Your price</span>
             <span class="${yourValueClass}">${money(offer.price, offer.currency)}</span>

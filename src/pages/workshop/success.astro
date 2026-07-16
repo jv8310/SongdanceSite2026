@@ -13,9 +13,11 @@ import {
 import { googleCalendarUrl } from '../../lib/workshops/ics';
 import {
   formatInTz,
-  joinWindow,
+  joinWindowFor,
+  endsAtOrDefault,
   JOIN_OPEN_BEFORE_SECONDS,
   JOIN_CLOSE_AFTER_SECONDS,
+  REJOIN_GRACE_AFTER_END_SECONDS,
 } from '../../lib/workshops/time';
 import {
   PUBLIC_DISCOUNT_PCT,
@@ -43,11 +45,23 @@ const gcalUrl = workshop && !workshop.is_replay
   : null;
 const icsHref = reg ? `/api/workshops/ics?t=${reg.access_token}` : null;
 const startMs = workshop ? new Date(workshop.starts_at_utc).getTime() : 0;
+// Real session end (60-min default; a masterclass carries its 90-min end) —
+// the rejoin window for someone who already joined runs to this + grace.
+const endMs = workshop
+  ? new Date(endsAtOrDefault(workshop.starts_at_utc, workshop.ends_at_utc)).getTime()
+  : 0;
 // The countdown counts down to the start, then disappears once we've begun.
 const started = startMs > 0 && Date.now() >= startMs;
 
+// Has this registration already joined once? Then the Join button stays
+// available for the whole session, so a Zoom drop never locks them out.
+const hasJoined = !!reg?.joined_at_utc;
+
 // Live join window state (drives which block shows first; JS keeps it live).
-const win = workshop && !workshop.is_replay ? joinWindow(workshop.starts_at_utc) : 'open';
+const win =
+  workshop && !workshop.is_replay
+    ? joinWindowFor(workshop.starts_at_utc, workshop.ends_at_utc, hasJoined)
+    : 'open';
 // Is there a replay to offer someone who missed this session? Resolved per type
 // (a masterclass has its own replay, falling back to the workshop one).
 const hasReplay = workshop ? !!(await resolveReplayUrl(env.DB, workshop)) : false;
@@ -129,8 +143,11 @@ if (reg && paid && reg.payment_status === 'paid') {
         id="ws-root"
         data-token={reg.access_token}
         data-start={String(startMs)}
+        data-end={String(endMs)}
         data-open-before={String(JOIN_OPEN_BEFORE_SECONDS)}
         data-close-after={String(JOIN_CLOSE_AFTER_SECONDS)}
+        data-rejoin-grace={String(REJOIN_GRACE_AFTER_END_SECONDS)}
+        data-joined={hasJoined ? '1' : '0'}
         data-replay={workshop.is_replay === 1 ? '1' : '0'}
       >
         <p class="ws-kicker">You’re in</p>
@@ -331,9 +348,25 @@ if (reg && paid && reg.payment_status === 'paid') {
       if (!root || root.getAttribute('data-replay') === '1') return;
 
       var start = parseInt(root.getAttribute('data-start'), 10);
+      var end = parseInt(root.getAttribute('data-end'), 10) || start;
       var openBefore = parseInt(root.getAttribute('data-open-before'), 10) * 1000;
       var closeAfter = parseInt(root.getAttribute('data-close-after'), 10) * 1000;
+      var rejoinGrace = (parseInt(root.getAttribute('data-rejoin-grace'), 10) || 0) * 1000;
       var token = root.getAttribute('data-token');
+
+      // Someone who already joined once may rejoin for the whole session (a
+      // Zoom drop must never lock them out). The server says whether this
+      // registration has joined; a click on Join (or the manual fallback)
+      // flips it locally too — remembered per token so the still-open page
+      // and a reload both keep the button live past the 20-minute gate.
+      var joinedKey = 'ws-joined:' + token;
+      var joined = root.getAttribute('data-joined') === '1';
+      try { joined = joined || localStorage.getItem(joinedKey) === '1'; } catch (e) {}
+      function markJoinedLocally() {
+        joined = true;
+        try { localStorage.setItem(joinedKey, '1'); } catch (e) {}
+        tick();
+      }
 
       var countdown = document.getElementById('ws-countdown');
       var early = document.getElementById('ws-early');
@@ -347,9 +380,14 @@ if (reg && paid && reg.payment_status === 'paid') {
 
       function tick() {
         var now = Date.now();
-        // Open from 5 min before the start until 20 min after it; past that the
+        // Open from 5 min before the start until 20 min after it for a first
+        // join; someone who already joined keeps the door open for the whole
+        // session (until its real end + a short grace). Past that, the
         // session has passed.
-        var state = now < start - openBefore ? 'early' : (now > start + closeAfter ? 'closed' : 'open');
+        var closeAt = joined
+          ? Math.max(start + closeAfter, end + rejoinGrace)
+          : start + closeAfter;
+        var state = now < start - openBefore ? 'early' : (now > closeAt ? 'closed' : 'open');
         // Countdown counts down to the start, then disappears once we begin.
         show(countdown, now < start);
         show(early, state === 'early');
@@ -358,6 +396,13 @@ if (reg && paid && reg.payment_status === 'paid') {
         // Switching dates is offered right up until the session begins.
         show(change, now < start);
         show(missed, state === 'closed');
+
+        // Once the session is underway, a joined attendee is re-entering, not
+        // arriving — say so on the button.
+        var joinLink = document.getElementById('ws-join');
+        if (joinLink && joined && now >= start) {
+          joinLink.textContent = 'Rejoin the workshop →';
+        }
 
         var s = Math.max(0, Math.floor((start - now) / 1000));
         var d = Math.floor(s / 86400); s -= d * 86400;
@@ -368,6 +413,12 @@ if (reg && paid && reg.payment_status === 'paid') {
       }
       tick();
       setInterval(tick, 1000);
+
+      // Clicking Join marks this registration as joined on the server (the API
+      // records attendance) — mirror it locally so the button survives the
+      // 20-minute latecomer gate without a reload.
+      var joinBtn = document.getElementById('ws-join');
+      if (joinBtn) joinBtn.addEventListener('click', markJoinedLocally);
 
       // "The above button doesn't work for me" → reveal raw Zoom details
       // (this also marks attendance, exactly like clicking Join).
@@ -388,6 +439,8 @@ if (reg && paid && reg.payment_status === 'paid') {
             var panel = document.getElementById('ws-reveal');
             if (panel) panel.hidden = false;
             fallback.style.display = 'none';
+            // The reveal marks attendance server-side, same as clicking Join.
+            markJoinedLocally();
           } catch (err) {
             var m = (err && err.message) || '';
             fallback.textContent =

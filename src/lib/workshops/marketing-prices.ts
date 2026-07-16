@@ -42,16 +42,17 @@ const toMinor = (m: Record<string, number>): Record<string, number> => {
 };
 
 // The certification is variant-priced; on the grid we surface the cert-only
-// (cc-cert) line, which always shows its €1500 sticker struck through. Pull the
-// full (normal) and base (struck) figures per currency from the cert offer so
-// they track variant.ts. The launch promo halves the BASE (matching the cert
-// page + checkout), so 'cert' carries its own compare anchor (below).
+// (cc-cert) line. Pull the full (normal) and base (compare anchor) figures per
+// currency from the cert offer so they track variant.ts — they're equal now
+// that the mid-cohort discount is retired (no permanent strike). A launch
+// promo halves the BASE (matching the cert page + checkout), so 'cert' keeps
+// its own compare anchor (below).
 const certFull: Record<string, number> = {};
 const certBase: Record<string, number> = {};
 for (const cur of SUPPORTED_CURRENCIES) {
   const o = getCertOffer(cur);
-  certFull[cur] = o.price; // major, e.g. 999 (mid-cohort full price)
-  certBase[cur] = o.base_price; // major, e.g. 1500 (struck sticker)
+  certFull[cur] = o.price; // major, e.g. 1500 (normal price)
+  certBase[cur] = o.base_price; // major — equals the full price now
 }
 
 // Fixed per-currency price points in minor units (900 = €9.00). No FX — these
@@ -72,7 +73,7 @@ export const MARKETING_PRICES_MINOR: Record<MarketingProduct, Record<string, num
   mmj: toMinor(PRICE_BY_SLUG.mmj!),
   'inner-child': toMinor(PRICE_BY_SLUG['inner-child']!),
   'twelve-week': toMinor(TWELVE_WEEK_PRICE),
-  cert: toMinor(certFull), // normal (mid-cohort) current price; €1500 sticker struck via compare
+  cert: toMinor(certFull), // normal current price (no permanent strike)
 };
 
 // The struck "anchor" price per product. For most products this IS the list

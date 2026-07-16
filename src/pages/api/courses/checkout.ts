@@ -71,6 +71,7 @@ import {
 } from '../../../lib/courses/discount';
 import { fulfilFreeCourseRegistration } from '../../../lib/courses/free-checkout';
 import { edgeTimezone } from '../../../lib/geo';
+import { deriveDeckGift, DECK_GIFT_BUMP_SLUG } from '../../../lib/courses/deck-promo';
 
 export const prerender = false;
 
@@ -296,12 +297,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
       );
     }
 
-    // Price the order. The bundle IS the "Certification path": cert at its
-    // standard price + the workshop-discounted 12-week, re-derived server-side
-    // from the email so the charge always matches eligibility. The discount
-    // (and any ?discount=N override) only ever touches the 12-week portion —
-    // never the certification line. For cc-cert, the URL ?discount=N still
-    // reduces the cert price as before; every monthly installment is discounted.
+    // Price the order. The bundle IS the "Certification path": both lines
+    // re-derived server-side from the email so the charge always matches
+    // eligibility — during a live workshop window the whole path takes 30%
+    // off (CERT_PATH_DISCOUNT_PERCENT in path.ts); a ?discount=N override
+    // still only touches the 12-week portion. For cc-cert, the URL
+    // ?discount=N still reduces the cert price as before; every monthly
+    // installment is discounted.
     let pathPricing: CertificationPathPricing | null = null;
     let chargedPriceCents: number;
     let chargedMonthlyCents: number;
@@ -355,6 +357,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
         ? '12-Week Course + Certification Course'
         : offer.label;
 
+    // Post-workshop Song Deck gift: live from the buyer's workshop start until
+    // 1h after it ends (re-derived server-side, same links as the discount).
+    // Recorded as a zero-amount bumps row; on payment the buyer receives the
+    // SVH-BONUS claim email and orders the deck free on songdeck.shop (which
+    // collects the shipping address) — see src/lib/courses/deck-promo.ts.
+    const deckGift = await deriveDeckGift(env.DB, email);
+
     const registrationId = await createPendingCourseRegistration(env.DB, {
       email,
       first_name: firstName,
@@ -368,6 +377,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
       activate_choice: activateChoice,
       source_variant: sourceVariant,
       timezone: edgeTimezone(locals),
+      bumps: deckGift.active
+        ? [{ slug: DECK_GIFT_BUMP_SLUG, amount_cents: 0 }]
+        : null,
       amount_cents: totalAmountCents,
       currency,
       consent_terms: payload.consent_terms === true,
@@ -539,6 +551,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       phone: phoneE164,
       currency,
       tax_class: 'eservice',
+      ...(deckGift.active ? { deck_gift: '1' } : {}),
       ...(companyName ? { company_name: companyName } : {}),
       ...(vatNumber ? { vat_number: vatNumber } : {}),
       ...(effectiveDiscountPct > 0

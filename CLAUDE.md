@@ -76,6 +76,42 @@ Marketing mechanics (discounts, deadlines, seat counters, "X places left",
 and a measure of genuine urgency) are a separate craft from the copy: allowed
 in moderation, not governed by the copy book.
 
+## Course pricing — certification, workshop sale, Song Deck gift (July 2026)
+
+- **The certification course is sold as fully self-paced** (class library +
+  written manuals, instant access) with live components through end of 2026:
+  weekly Q&As and monthly deepening sessions. The last couple of live classes
+  still happen but are deliberately NOT emphasized on the page (they read as
+  "joins the library"). The **"mid-cohort discount" is retired**: cert charges
+  its normal price (€1500 EUR; `full === base` in `variant.ts`, so nothing
+  renders struck through), the path/bundle €2150.
+- **Workshop sale**: a live workshop window (same pre/post-48h rule as always)
+  gives **30% off the whole certification path** — both line items
+  (`CERT_PATH_DISCOUNT_PERCENT` in `src/lib/courses/path.ts`) → €1505 —
+  while the standalone 12-week course keeps its 20%. A `?discount=N` override
+  still wins outright and still only touches the 12-week line.
+- **Post-workshop Song Deck gift** (`src/lib/courses/deck-promo.ts`): anyone
+  with a secured workshop/masterclass seat sees, on both course checkouts
+  (12-week + certification), a **free Song Deck with free worldwide shipping**
+  from their session's start until **1 hour after it ends**. The panel's 1-hour
+  countdown replaces the 48h discount countdown while live (the % discount
+  itself stays). Server re-derives the window at checkout; when live it records
+  a zero-amount `songdeck-gift` row in the registration's `bumps` JSON.
+  **Fulfilment goes through Shopify**: on payment the buyer gets a transactional
+  claim email (`deckGiftClaimEmail`, sent from
+  `src/lib/orders/notification.ts` on every fulfilment path + the hourly
+  reconcile; idempotent on `deck-gift-claim-<id>`; tracks as
+  `deck_gift_claim`) whose button opens songdeck.shop with the **`SVH-BONUS`**
+  coupon pre-applied (Shopify's `/discount/CODE?redirect=…` deep link) — deck +
+  shipping land at €0 and Shopify collects the address and ships. The coupon
+  must exist/stay active in the Shopify admin. SD-ORDER notes the gift; a
+  direct Shopify API integration (auto-placing the order) is a planned later
+  stage.
+- **Zoom rejoin fix** (`joinWindowFor` in `src/lib/workshops/time.ts`): a fresh
+  join still gates at start+20min, but anyone who already clicked Join can
+  REJOIN until the session's real end (60-min default / 90-min masterclass from
+  `ends_at_utc`) + 10-min grace — a connectivity drop never locks them out.
+
 ## Email lifecycle (workshops)
 
 All automated workshop email lives in the workshop engine:

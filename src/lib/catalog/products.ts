@@ -190,7 +190,7 @@ const META: CatalogMeta[] = [
     id: 'cc-cert',
     title: 'The Somatic Vocal Healing Certification Course',
     description:
-      'A deepening journey with Jacob Vermeulen. Live classes and instant-access recordings, weekly Q&As, hosted practice sessions, monthly live deepening sessions, the Somatic Vocal Healing app, and a global community walking it together. Become a certified Somatic Vocal Healing practitioner — or simply go fully in with your own voice.',
+      'A deepening journey with Jacob Vermeulen. Fully self-paced — instant access to the class library with written manuals — with weekly live Q&As, hosted practice sessions and monthly live deepening sessions through the end of 2026, the Somatic Vocal Healing app, and a global community walking it together. Become a certified Somatic Vocal Healing practitioner — or simply go fully in with your own voice.',
     link: '/courses/certification',
     imageKey: 'library/svh-retreat-facilitator-jacob-seated.webp',
     additionalImageKeys: [

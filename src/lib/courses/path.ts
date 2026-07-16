@@ -1,10 +1,13 @@
 // The "Certification path" = the 12-Week Course + the Certification Course,
 // presented (and sold) as two transparent line items with one combined total.
 //
-//   - The certification line is always its standard price.
-//   - The 12-week line carries the workshop discount (and its 48h countdown)
-//     when the buyer's email sits in a live workshop window — exactly the same
-//     rule as the standalone 12-week course. No workshop link → full 12-week.
+//   - The workshop sale: when the buyer's email sits in a live workshop window
+//     (same pre/post-48h rule as the standalone 12-week course), the WHOLE
+//     path is 30% off — both line items (CERT_PATH_DISCOUNT_PERCENT below).
+//     The standalone 12-week course keeps its own 20%.
+//   - No workshop link → both lines at their normal price.
+//   - A `?discount=N` override still wins outright and, as before, only ever
+//     touches the 12-week line.
 //   - Both portions are charged together in one currency, so the path is only
 //     ever priced in the certification currencies (EUR/USD/GBP).
 //
@@ -33,6 +36,11 @@ import {
   listReplayViewAnchorsByEmail,
 } from '../workshops/db';
 
+// The workshop-sale discount on the certification path: 30% off the whole
+// path (both line items) while the buyer's workshop window is live. Sibling
+// of the standalone 12-week course's 20% (DISCOUNT_PERCENT in twelve-week.ts).
+export const CERT_PATH_DISCOUNT_PERCENT = 30;
+
 export type CertificationPathPricing = {
   currency: Currency;
   // 12-week line (workshop-discounted)
@@ -40,7 +48,7 @@ export type CertificationPathPricing = {
   twelve_week_price_cents: number;
   twelve_week_base_monthly_cents: number;
   twelve_week_monthly_cents: number;
-  // certification line (sticker → standard mid-cohort price)
+  // certification line (workshop-discounted on the path)
   cert_base_price_cents: number;
   cert_price_cents: number;
   cert_monthly_cents: number;
@@ -62,37 +70,53 @@ export type CertificationPathPricing = {
   };
 };
 
+// Apply a percent off a cents amount, rounded to a whole major unit (…00
+// cents) so the discounted line items and monthlies read as tidy figures.
+function pctMajor(cents: number, percent: number): number {
+  return Math.round(applyPercentCents(cents, percent) / 100) * 100;
+}
+
 // Compose the path's two line items + total from a currency and the 12-week
-// discount that applies to the buyer. The cert price is taken straight from the
-// certification offer; the 12-week price is the regional price with the discount.
+// discount that applies to the buyer. During a live workshop window the whole
+// path (both lines) takes CERT_PATH_DISCOUNT_PERCENT off; a URL override or
+// the launch promo keep their existing shapes (see below).
 export function buildCertificationPathPricing(
   currency: Currency,
   eff: EffectiveDiscount,
   nowMs: number = Date.now(),
 ): CertificationPathPricing {
   const baseCert = getCertOffer(currency);
-  // The cert line takes the launch promo (50% off its list/base price), pausing
-  // its mid-cohort discount — UNLESS a hand-crafted ?discount=N override is in
-  // play, which wins outright and only ever touches the 12-week line.
+  // The cert line takes the launch promo (50% off its list/base price) when a
+  // promo is live — UNLESS a hand-crafted ?discount=N override is in play,
+  // which wins outright and only ever touches the 12-week line.
   const certPromo = eff.kind !== 'override' && launchPromoActive(nowMs);
   const cert = certPromo ? applyLaunchPromoToOffer(baseCert, nowMs) : baseCert;
-  const certBase = baseCert.base_price * 100; // sticker (e.g. €1500), shown struck
+  // The workshop sale: eff.kind 'pre'/'post' means the buyer's workshop window
+  // is live — the path takes 30% off BOTH lines (the promo path above wins
+  // while a site-wide promo runs; effectiveTwelveWeekDiscount already resolves
+  // promo-vs-workshop upstream). Override/promo keep the old shape: the
+  // percent lands on the 12-week line only.
+  const workshopSale = !certPromo && (eff.kind === 'pre' || eff.kind === 'post');
+  const twPercent = workshopSale ? CERT_PATH_DISCOUNT_PERCENT : eff.percent;
+  const certPercent = workshopSale ? CERT_PATH_DISCOUNT_PERCENT : 0;
+  const certBase = baseCert.base_price * 100; // normal price, shown struck while discounted
   const twBase = priceCents(currency);
   const twBaseMonthly = monthlyCents(currency);
-  const twPrice = applyPercentCents(twBase, eff.percent);
-  const twMonthly = applyPercentCents(twBaseMonthly, eff.percent);
-  const certMonthly = cert.installments?.monthly_cents ?? 0;
-  // The struck "before" monthly is always the FULL cert monthly (not the promo
-  // one), so the path's monthly list price reads honestly. Equals certMonthly
-  // when the promo isn't active.
+  const twPrice = pctMajor(twBase, twPercent);
+  const twMonthly = pctMajor(twBaseMonthly, twPercent);
+  const certPrice = pctMajor(cert.price_cents, certPercent);
+  const certMonthly = pctMajor(cert.installments?.monthly_cents ?? 0, certPercent);
+  // The struck "before" monthly is always the FULL cert monthly (not the
+  // discounted one), so the path's monthly list price reads honestly. Equals
+  // certMonthly when no discount is live.
   const certBaseMonthly = baseCert.installments?.monthly_cents ?? 0;
-  // Same composition for the 6-month tier: cert's 6-month ladder (promo-scaled)
-  // + the workshop-discounted 12-week 6-month monthly. The struck "before" is
-  // the full cert 6-month monthly + the full 12-week 6-month monthly.
-  const certMonthly6x = cert.installments_6x?.monthly_cents ?? 0;
+  // Same composition for the 6-month tier: cert's 6-month ladder (discounted
+  // the same way) + the discounted 12-week 6-month monthly. The struck
+  // "before" is the full cert 6-month monthly + the full 12-week 6-month one.
+  const certMonthly6x = pctMajor(cert.installments_6x?.monthly_cents ?? 0, certPercent);
   const certBaseMonthly6x = baseCert.installments_6x?.monthly_cents ?? 0;
   const twBaseMonthly6x = monthlyCents6x(currency);
-  const twMonthly6x = applyPercentCents(twBaseMonthly6x, eff.percent);
+  const twMonthly6x = pctMajor(twBaseMonthly6x, twPercent);
   return {
     currency,
     twelve_week_base_cents: twBase,
@@ -100,12 +124,12 @@ export function buildCertificationPathPricing(
     twelve_week_base_monthly_cents: twBaseMonthly,
     twelve_week_monthly_cents: twMonthly,
     cert_base_price_cents: certBase,
-    cert_price_cents: cert.price_cents,
+    cert_price_cents: certPrice,
     cert_monthly_cents: certMonthly,
-    total_cents: cert.price_cents + twPrice,
+    total_cents: certPrice + twPrice,
     total_monthly_cents: certMonthly + twMonthly,
-    // List total: cert sticker + full 12-week. The charged total still applies
-    // the cert mid-cohort discount and the 12-week workshop discount.
+    // List total: normal cert + full 12-week, shown struck while a discount
+    // (workshop sale / promo / override) reduces the charged total.
     base_total_cents: certBase + twBase,
     base_total_monthly_cents: certBaseMonthly + twBaseMonthly,
     installment_count: INSTALLMENT_COUNT,
@@ -114,7 +138,9 @@ export function buildCertificationPathPricing(
     installment_6x_count: INSTALLMENT_COUNT_6X,
     discount: {
       eligible: eff.eligible,
-      percent: eff.percent,
+      // The percent the path actually applies — 30 during the workshop
+      // window, the override/promo percent otherwise.
+      percent: eff.eligible ? (workshopSale ? CERT_PATH_DISCOUNT_PERCENT : eff.percent) : 0,
       kind: eff.kind,
       expires_at_ms: eff.expiresAtMs,
     },

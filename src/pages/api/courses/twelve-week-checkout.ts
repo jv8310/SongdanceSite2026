@@ -64,6 +64,7 @@ import {
 import { fulfilFreeCourseRegistration } from '../../../lib/courses/free-checkout';
 import { edgeTimezone } from '../../../lib/geo';
 import { bumpOffer, isBumpSlug, BUMPS, type BumpSlug } from '../../../lib/courses/bumps';
+import { deckGiftStatus, DECK_GIFT_BUMP_SLUG } from '../../../lib/courses/deck-promo';
 
 export const prerender = false;
 
@@ -262,7 +263,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
       : [];
     const bumpOffers = selectedBumps.map((slug) => bumpOffer(slug, currency));
     const bumpTotalCents = bumpOffers.reduce((sum, b) => sum + b.price_cents, 0);
-    const bumpRows = bumpOffers.map((b) => ({ slug: b.slug, amount_cents: b.price_cents }));
+    // Widened to string: the zero-amount Song Deck gift row (below) shares
+    // this list but is not a purchasable bump slug.
+    const bumpRows: Array<{ slug: string; amount_cents: number }> = bumpOffers.map(
+      (b) => ({ slug: b.slug, amount_cents: b.price_cents }),
+    );
     const stripeBumpLineItems = bumpOffers.map((b) => ({
       name: BUMPS[b.slug].label,
       amount_cents: b.price_cents,
@@ -275,6 +280,17 @@ export const POST: APIRoute = async ({ request, locals }) => {
       amountMinor: b.price_cents,
       category: 'DIGITAL_GOODS' as const,
     }));
+
+    // ── Post-workshop Song Deck gift ───────────────────────────────────────
+    // Re-derived server-side from the same workshop links as the discount:
+    // live from the buyer's session start until 1h after it ends. Recorded as
+    // a zero-amount bumps row; on payment the buyer receives the SVH-BONUS
+    // claim email and orders the deck free on songdeck.shop (which collects
+    // the shipping address) — see src/lib/courses/deck-promo.ts.
+    const deckGift = deckGiftStatus(links);
+    if (deckGift.active) {
+      bumpRows.push({ slug: DECK_GIFT_BUMP_SLUG, amount_cents: 0 });
+    }
 
     const registrationId = await createPendingCourseRegistration(env.DB, {
       email,
@@ -447,6 +463,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       currency,
       tax_class: 'eservice',
       ...(selectedBumps.length ? { bumps: selectedBumps.join(',') } : {}),
+      ...(deckGift.active ? { deck_gift: '1' } : {}),
       ...(companyName ? { company_name: companyName } : {}),
       ...(vatNumber ? { vat_number: vatNumber } : {}),
       ...(eligible

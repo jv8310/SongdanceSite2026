@@ -15,11 +15,16 @@
 // registrations never send SD-ORDER emails (high-volume, by design).
 
 import type { OrderEnv } from './notification';
-import { notifyCourseOrder, notifyRetreatOrder } from './notification';
+import {
+  notifyCourseOrder,
+  notifyRetreatOrder,
+  sendDeckGiftClaimEmail,
+} from './notification';
 import { getCourseRegistrationById } from '../courses/db';
 import { getRegistrationById } from '../registrations/db';
+import { DECK_GIFT_BUMP_SLUG } from '../courses/deck-promo';
 
-export type ReconcileResult = { course: number; retreat: number };
+export type ReconcileResult = { course: number; retreat: number; deckGift: number };
 
 // Rows paid this recently, with no `order.notification.sent` claim, are
 // considered missed. The window bounds any first-run catch-up; the cap bounds a
@@ -60,7 +65,7 @@ export async function reconcileOrderNotifications(
   env: OrderEnv,
   opts: { days?: number; cap?: number } = {},
 ): Promise<ReconcileResult> {
-  const result: ReconcileResult = { course: 0, retreat: 0 };
+  const result: ReconcileResult = { course: 0, retreat: 0, deckGift: 0 };
   if (!env.RESEND_API_KEY) return result;
 
   const days = Math.max(1, Math.floor(opts.days ?? DEFAULT_DAYS));
@@ -85,6 +90,35 @@ export async function reconcileOrderNotifications(
     if (!reg) continue;
     await notifyRetreatOrder(env, reg);
     result.retreat += 1;
+  }
+
+  // Song Deck gift claims: a paid course order can have had its SD-ORDER go
+  // out while the buyer's claim email failed (its claim releases on failure),
+  // which the order-notify sweep above would never revisit. Find gift-carrying
+  // paid orders in the window with no `deck.gift.claim.sent` claim and re-send;
+  // sendDeckGiftClaimEmail claims-then-sends, so this can't double up.
+  const giftRes = await env.DB
+    .prepare(
+      `SELECT o.id AS id
+         FROM course_registrations o
+         LEFT JOIN events e
+           ON e.external_id = ('deck-gift-claim-' || o.id)
+          AND e.kind = 'deck.gift.claim.sent'
+        WHERE o.status = 'paid'
+          AND o.paid_at IS NOT NULL
+          AND o.paid_at >= datetime('now', ?)
+          AND o.bumps LIKE ?
+          AND e.id IS NULL
+        ORDER BY o.paid_at ASC
+        LIMIT ?`,
+    )
+    .bind(dayModifier, `%${DECK_GIFT_BUMP_SLUG}%`, cap)
+    .all<{ id: number }>();
+  for (const row of giftRes.results ?? []) {
+    const reg = await getCourseRegistrationById(env.DB, row.id);
+    if (!reg) continue;
+    await sendDeckGiftClaimEmail(env, reg);
+    result.deckGift += 1;
   }
 
   return result;
