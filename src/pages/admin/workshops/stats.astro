@@ -132,6 +132,47 @@ const workshopOptionLabel = (w: { title: string; starts_at_utc: string; is_repla
   return `${d} — ${title}`;
 };
 
+// Workshop funnel + acquisition efficiency (window-wide across every workshop,
+// like the ROAS section below — not narrowed by the workshop filter). Totals are
+// summed across the per-workshop rows, then the rates recomputed from the sums,
+// matching the per-workshop page (a buyer who attended several workshops counts
+// toward each).
+const funnelSum = (f: (r: (typeof perf.rows)[number]) => number) =>
+  perf.rows.reduce((s, r) => s + f(r), 0);
+const funnelRegs = perf.totalRegistrations;
+const funnelAttended = funnelSum((r) => r.attendedLive) + funnelSum((r) => r.replayViews);
+const funnelBuyers = funnelSum((r) => r.courseBuys) + funnelSum((r) => r.certBuys);
+const funnelAttendancePct = funnelRegs > 0 ? (funnelAttended / funnelRegs) * 100 : null;
+const funnelConversionPct = funnelRegs > 0 ? (funnelBuyers / funnelRegs) * 100 : null;
+const funnelConversionPerAttendeePct =
+  funnelAttended > 0 ? (funnelBuyers / funnelAttended) * 100 : null;
+
+const funnelCards: Array<{ label: string; value: string; sub: string }> = [
+  {
+    label: 'Cost / registration',
+    value:
+      perf.costPerRegistrationEurMinor != null
+        ? eur(Math.round(perf.costPerRegistrationEurMinor))
+        : '—',
+    sub: 'prospecting spend ÷ regs',
+  },
+  {
+    label: 'Attendance rate',
+    value: pct(funnelAttendancePct),
+    sub: `${int(funnelAttended)} of ${int(funnelRegs)} regs`,
+  },
+  {
+    label: 'Conversion rate',
+    value: pct(funnelConversionPct),
+    sub: 'regs → course / cert',
+  },
+  {
+    label: 'Conversion / attendee',
+    value: pct(funnelConversionPerAttendeePct),
+    sub: 'attendees → course / cert',
+  },
+];
+
 // Headline cards: one per revenue stream + spend + blended ROAS.
 const cards: Array<{ label: string; value: string; d: Delta; hl?: boolean }> = [
   { label: 'Total revenue (EUR)', value: eur(totalNet), d: delta(totalNet, cmpTotalNet), hl: true },
@@ -307,6 +348,20 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
       {courses.fxConverted > 0 && (
         <p class="adm-sub">⚠ {courses.fxConverted} course sale(s) were charged in a non-EUR currency and converted with the fallback rate table.</p>
       )}
+    </section>
+
+    <section class="adm-section">
+      <h2>Workshop funnel</h2>
+      <p class="adm-sub">Acquisition cost and the registration → attendance → conversion funnel, across every workshop in this window (not narrowed by the workshop filter above). <strong>Conversion rate</strong> is buyers ÷ registrations; <strong>Conversion / attendee</strong> is the same buyers ÷ the people who actually attended.</p>
+      <div class="wk-stats">
+        {funnelCards.map((c) => (
+          <div class="wk-stat">
+            <span>{c.label}</span>
+            <strong>{c.value}</strong>
+            <em class="wk-sub">{c.sub}</em>
+          </div>
+        ))}
+      </div>
     </section>
 
     <section class="adm-section">
@@ -502,6 +557,7 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
     .wk-stat { background:#fff; border:1px solid rgba(42,27,42,0.12); border-radius:10px; padding:14px 16px; }
     .wk-stat span { display:block; font-size:12px; color:#9a8; }
     .wk-stat strong { font-size:22px; color:#2A1B2A; }
+    .wk-stat em.wk-sub { display:block; margin-top:4px; font-size:11px; font-style:normal; color:#9a8; }
     .wk-stat--hl { background:#dcefdc; }
     .wk-delta { display:inline-block; margin-top:4px; font-size:12px; font-style:normal; font-weight:600; border-radius:6px; padding:1px 7px; }
     .wk-delta--up { color:#1d6b38; background:#e2f3e7; }

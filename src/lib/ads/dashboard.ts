@@ -54,6 +54,7 @@ export type AdsDashboard = {
   courseBuyers: number; // distinct 12-week buyers, summed per workshop
   certBuyers: number; // distinct certification buyers, summed per workshop
   conversionPct: number | null; // (course + cert buyers) ÷ registrations
+  conversionPerAttendeePct: number | null; // (course + cert buyers) ÷ attendees (live + replay)
   totalRevenueEurMinor: number; // engine net + standalone course sales
   blendedRoas: number | null; // total revenue ÷ ad spend (all campaigns)
   // Workshop-only ROAS: income traceable to workshop registrants (engine net +
@@ -276,6 +277,7 @@ export async function computeAdsDashboard(
     courseBuyers,
     certBuyers,
     conversionPct: registrations > 0 ? ((courseBuyers + certBuyers) / registrations) * 100 : null,
+    conversionPerAttendeePct: attended > 0 ? ((courseBuyers + certBuyers) / attended) * 100 : null,
     totalRevenueEurMinor,
     blendedRoas: adSpendEurMinor > 0 ? totalRevenueEurMinor / adSpendEurMinor : null,
     workshopRevenueEurMinor: perf.workshopRevenueEurMinor,

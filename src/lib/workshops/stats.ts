@@ -440,6 +440,7 @@ export type WorkshopPerformanceRow = {
   acquisitionCostEurMinor: number | null;
   workshopRoas: number | null;
   conversionPct: number | null; // distinct course/cert buyers ÷ registrations
+  conversionPerAttendeePct: number | null; // distinct course/cert buyers ÷ attendees (live + replay)
 };
 
 export type WorkshopPerformanceReport = {
@@ -720,6 +721,9 @@ export async function computeWorkshopPerformance(
           ? totalEurMinor / acquisitionCostEurMinor
           : null,
       conversionPct: a.regs > 0 ? (buyers.size / a.regs) * 100 : null,
+      // Conversion of people who actually attended (not just registered) — the
+      // next funnel step down. Denominator is live + replay attendees.
+      conversionPerAttendeePct: attended > 0 ? (buyers.size / attended) * 100 : null,
     };
   });
 

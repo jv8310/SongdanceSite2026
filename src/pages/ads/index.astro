@@ -122,6 +122,12 @@ const tiles: Array<{ label: string; value: string; sub?: string; d: Delta }> = [
     d: delta(d.conversionPct, cmp?.conversionPct),
   },
   {
+    label: 'Conversion / attendee',
+    value: pct(d.conversionPerAttendeePct),
+    sub: 'attendees → course / cert',
+    d: delta(d.conversionPerAttendeePct, cmp?.conversionPerAttendeePct),
+  },
+  {
     label: 'Bump take-rate',
     value: pct(d.bumpTakeRatePct),
     sub: `${int(d.workshopBumps.count)} order bumps`,
@@ -517,7 +523,7 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
 
       <section>
         <h2>Results per workshop</h2>
-        <p class="note">The funnel for every workshop: registrations → attendance → course/cert conversion, with allocated Meta cost and ROAS. Course/Cert buys are matched by email across checkouts and standalone sales, so a buyer counts toward each workshop they attended.</p>
+        <p class="note">The funnel for every workshop: registrations → attendance → course/cert conversion, with allocated Meta cost and ROAS. Course/Cert buys are matched by email across checkouts and standalone sales, so a buyer counts toward each workshop they attended. <strong>Conv %</strong> is buyers ÷ registrations; <strong>Conv/att %</strong> is buyers ÷ attendees (of the people who actually showed up).</p>
         {activeRows.length === 0 && <p class="empty">No workshop activity in this window.</p>}
         {activeRows.length > 0 && (
           <div class="card-tbl">
@@ -538,6 +544,7 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
                     <th class="num">Meta cost</th>
                     <th class="num">ROAS</th>
                     <th class="num">Conv %</th>
+                    <th class="num">Conv/att %</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -559,6 +566,7 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
                       <td class="num">{r.metaCostEurMinor != null ? eur0(r.metaCostEurMinor) : '—'}</td>
                       <td class="num">{roasStr(r.roas)}</td>
                       <td class="num">{pct(r.conversionPct)}</td>
+                      <td class="num">{pct(r.conversionPerAttendeePct)}</td>
                     </tr>
                   ))}
                   <tr class="total">
@@ -575,6 +583,7 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
                     <td class="num">{d.hasAdSpend ? eur0(d.workshopRows.reduce((s, r) => s + (r.metaCostEurMinor ?? 0), 0)) : '—'}</td>
                     <td class="num">—</td>
                     <td class="num">{pct(d.conversionPct)}</td>
+                    <td class="num">{pct(d.conversionPerAttendeePct)}</td>
                   </tr>
                 </tbody>
               </table>

@@ -103,6 +103,7 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
                 <th>Meta cost</th>
                 <th>ROAS</th>
                 <th>Conv %</th>
+                <th>Conv/att %</th>
               </tr>
             </thead>
             <tbody>
@@ -124,6 +125,7 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
                   <td>{r.metaCostEurMinor != null ? eur(r.metaCostEurMinor) : '—'}</td>
                   <td>{r.roas != null ? r.roas.toFixed(2) + '×' : '—'}</td>
                   <td>{pct(r.conversionPct)}</td>
+                  <td>{pct(r.conversionPerAttendeePct)}</td>
                 </tr>
               ))}
               <tr class="wk-row--total">
@@ -140,6 +142,7 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
                 <td><strong>{eur(totMeta)}</strong></td>
                 <td><strong>{totRoas != null ? totRoas.toFixed(2) + '×' : '—'}</strong></td>
                 <td><strong>{totRegs > 0 ? (((totCourse + totCert) / totRegs) * 100).toFixed(1) + '%' : '—'}</strong></td>
+                <td><strong>{totLive + totReplay > 0 ? (((totCourse + totCert) / (totLive + totReplay)) * 100).toFixed(1) + '%' : '—'}</strong></td>
               </tr>
             </tbody>
           </table>
@@ -148,7 +151,7 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
       <p class="adm-sub" style="margin-top:12px;">
         Regs = completed registrations (paid or coupon). Live vs Replay splits attendees by whether they joined before or after the live slot ended; admin-marked attendance without a join time counts as live.
         Course = 12-Week buyers, Cert path = certification buyers (cert-only or bundle) — both as distinct people, hovering Revenue shows the workshop-checkout vs attributed-course split.
-        Meta cost = blended cost per registration (total ad spend ÷ registrations) × this workshop's registrations. ROAS = revenue ÷ Meta cost. Conv % = distinct course/cert buyers ÷ registrations. (Cost per registration in the summary above uses prospecting/TOF spend only.)
+        Meta cost = blended cost per registration (total ad spend ÷ registrations) × this workshop's registrations. ROAS = revenue ÷ Meta cost. Conv % = distinct course/cert buyers ÷ registrations; Conv/att % = the same buyers ÷ attendees (live + replay), so it measures conversion of people who actually showed up. (Cost per registration in the summary above uses prospecting/TOF spend only.)
       </p>
     </section>
   </main>
