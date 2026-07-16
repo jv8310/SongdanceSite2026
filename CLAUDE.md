@@ -96,9 +96,17 @@ in moderation, not governed by the copy book.
   from their session's start until **1 hour after it ends**. The panel's 1-hour
   countdown replaces the 48h discount countdown while live (the % discount
   itself stays). Server re-derives the window at checkout; when live it records
-  a zero-amount `songdeck-gift` row in the registration's `bumps` JSON, turns on
-  Stripe `shipping_address_collection`, and the SD-ORDER email shouts "SHIP IT"
-  (PayPal buyers: address on the PayPal payment). Fulfilment is manual.
+  a zero-amount `songdeck-gift` row in the registration's `bumps` JSON.
+  **Fulfilment goes through Shopify**: on payment the buyer gets a transactional
+  claim email (`deckGiftClaimEmail`, sent from
+  `src/lib/orders/notification.ts` on every fulfilment path + the hourly
+  reconcile; idempotent on `deck-gift-claim-<id>`; tracks as
+  `deck_gift_claim`) whose button opens songdeck.shop with the **`SVH-BONUS`**
+  coupon pre-applied (Shopify's `/discount/CODE?redirect=…` deep link) — deck +
+  shipping land at €0 and Shopify collects the address and ships. The coupon
+  must exist/stay active in the Shopify admin. SD-ORDER notes the gift; a
+  direct Shopify API integration (auto-placing the order) is a planned later
+  stage.
 - **Zoom rejoin fix** (`joinWindowFor` in `src/lib/workshops/time.ts`): a fresh
   join still gates at start+20min, but anyone who already clicked Join can
   REJOIN until the session's real end (60-min default / 90-min masterclass from

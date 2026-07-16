@@ -72,7 +72,6 @@ import {
 import { fulfilFreeCourseRegistration } from '../../../lib/courses/free-checkout';
 import { edgeTimezone } from '../../../lib/geo';
 import { deriveDeckGift, DECK_GIFT_BUMP_SLUG } from '../../../lib/courses/deck-promo';
-import { COUNTRIES } from '../../../lib/countries';
 
 export const prerender = false;
 
@@ -360,12 +359,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     // Post-workshop Song Deck gift: live from the buyer's workshop start until
     // 1h after it ends (re-derived server-side, same links as the discount).
-    // Recorded as a zero-amount bumps row so SD-ORDER calls out the shipping;
-    // on Stripe the Checkout collects a shipping address.
+    // Recorded as a zero-amount bumps row; on payment the buyer receives the
+    // SVH-BONUS claim email and orders the deck free on songdeck.shop (which
+    // collects the shipping address) — see src/lib/courses/deck-promo.ts.
     const deckGift = await deriveDeckGift(env.DB, email);
-    const shippingCountries = deckGift.active
-      ? COUNTRIES.map((c) => c.code)
-      : undefined;
 
     const registrationId = await createPendingCourseRegistration(env.DB, {
       email,
@@ -600,7 +597,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
         monthly_amount_cents: chargedMonthlyCents,
         currency: currency.toLowerCase(),
         installment_count: installmentPlan.count,
-        shipping_countries: shippingCountries,
         metadata,
         idempotency_key: `course-reg-${registrationId}-${paymentPlan}${discountPct > 0 ? `-d${discountPct}` : ''}`,
       });
@@ -666,7 +662,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
           product_metadata: productMetadata,
         },
       ],
-      shipping_countries: shippingCountries,
       metadata,
       idempotency_key: `course-reg-${registrationId}${discountPct > 0 ? `-d${discountPct}` : ''}`,
     });

@@ -257,8 +257,10 @@ export function createExports(manifest: unknown) {
     ctx.waitUntil(
       reconcileOrderNotifications(env)
         .then((r) => {
-          if (r.course || r.retreat) {
-            console.log(`[orders/reconcile] resent course=${r.course} retreat=${r.retreat}`);
+          if (r.course || r.retreat || r.deckGift) {
+            console.log(
+              `[orders/reconcile] resent course=${r.course} retreat=${r.retreat} deckGift=${r.deckGift}`,
+            );
           }
         })
         .catch((err) => {

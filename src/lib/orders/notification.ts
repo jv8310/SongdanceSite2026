@@ -18,7 +18,14 @@
 import type { CourseRegistration } from '../courses/db';
 import { parsePurchasedBumps } from '../courses/db';
 import { BUMPS, isBumpSlug, type BumpSlug } from '../courses/bumps';
-import { DECK_GIFT_BUMP_SLUG, DECK_GIFT_LABEL } from '../courses/deck-promo';
+import {
+  DECK_GIFT_BUMP_SLUG,
+  DECK_GIFT_LABEL,
+  DECK_GIFT_COUPON_CODE,
+  DECK_GIFT_SHOP_ORIGIN,
+  deckGiftClaimUrl,
+} from '../courses/deck-promo';
+import { deckGiftClaimEmail } from '../workshops/emails';
 import { LANGUAGE_CHOICE_LABEL } from '../courses/journeys';
 import type { Registration } from '../registrations/db';
 import { logEvent } from '../registrations/db';
@@ -452,11 +459,12 @@ export async function notifyCourseOrder(
   const bumps = parsePurchasedBumps(reg.bumps)
     .filter((b) => isBumpSlug(b.slug) || b.slug === DECK_GIFT_BUMP_SLUG)
     .map((b) => ({
-      // The Song Deck gift is a zero-amount physical add-on — label it loudly
-      // so the ops inbox knows a deck has to SHIP (address on the payment).
+      // The Song Deck gift is a zero-amount add-on fulfilled through the
+      // Shopify coupon: the buyer gets a claim email (sent below) and orders
+      // the deck free on songdeck.shop, which collects the address and ships.
       label: isBumpSlug(b.slug)
         ? BUMPS[b.slug as BumpSlug].label
-        : `🎁 ${DECK_GIFT_LABEL} — SHIP IT (address on the ${reg.provider === 'paypal' ? 'PayPal' : 'Stripe'} payment)`,
+        : `🎁 ${DECK_GIFT_LABEL} (claim email with ${DECK_GIFT_COUPON_CODE} sent; ships via the songdeck.shop order)`,
       amountCents: b.amount_cents,
     }));
   await sendOrderNotification(env, {
@@ -489,6 +497,70 @@ export async function notifyCourseOrder(
     paypalCaptureId: reg.paypal_capture_id,
     paypalSubscriptionId: reg.paypal_subscription_id,
   });
+
+  // Song Deck gift claim: a buyer whose registration carries the zero-amount
+  // gift row gets their SVH-BONUS claim email. Riding notifyCourseOrder means
+  // every fulfilment path triggers it — Stripe webhook, PayPal, free checkout,
+  // admin mark-paid, and the hourly order-notification reconcile.
+  await sendDeckGiftClaimEmail(env, reg);
+}
+
+// Buyer-facing, transactional (part of the purchase — never suppression-gated).
+// Idempotent on its own events claim, released on failure so a webhook
+// redelivery / reconcile pass can retry. Never throws into the caller.
+export async function sendDeckGiftClaimEmail(
+  env: OrderEnv,
+  reg: CourseRegistration,
+): Promise<void> {
+  if (!env.RESEND_API_KEY) return;
+  const hasGift = parsePurchasedBumps(reg.bumps).some(
+    (b) => b.slug === DECK_GIFT_BUMP_SLUG,
+  );
+  if (!hasGift) return;
+
+  const externalId = `deck-gift-claim-${reg.id}`;
+  let claimed = false;
+  try {
+    const r = await env.DB
+      .prepare(
+        `INSERT OR IGNORE INTO events (registration_id, kind, source, external_id)
+         VALUES (NULL, 'deck.gift.claim.sent', 'system', ?)`,
+      )
+      .bind(externalId)
+      .run();
+    claimed = (r.meta?.changes ?? 0) > 0;
+    if (!claimed) return; // already sent for this order
+
+    const content = deckGiftClaimEmail({
+      name: reg.first_name,
+      claimUrl: deckGiftClaimUrl(),
+      couponCode: DECK_GIFT_COUPON_CODE,
+      shopUrl: DECK_GIFT_SHOP_ORIGIN,
+    });
+    await sendEmail({
+      apiKey: env.RESEND_API_KEY,
+      to: reg.email,
+      subject: content.subject,
+      html: content.html,
+      text: content.text,
+      entityRefId: externalId,
+      track: { db: env.DB, type: 'deck_gift_claim' },
+    });
+  } catch (err) {
+    if (claimed) {
+      await env.DB
+        .prepare(`DELETE FROM events WHERE external_id = ? AND kind = 'deck.gift.claim.sent'`)
+        .bind(externalId)
+        .run()
+        .catch(() => {});
+    }
+    await logEvent(env.DB, {
+      registration_id: null,
+      kind: 'deck.gift.claim.error',
+      source: 'system',
+      payload: { course_registration_id: reg.id, error: String(err) },
+    }).catch(() => {});
+  }
 }
 
 export async function notifyRetreatOrder(

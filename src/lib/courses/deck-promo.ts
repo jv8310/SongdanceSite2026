@@ -12,11 +12,14 @@
 //
 // The window is re-derived server-side at checkout time from the same
 // email↔workshop link the discount uses, so the gift can't be spoofed by a
-// tampered client. Fulfilment is manual: the gift is recorded as a zero-amount
-// row in the registration's `bumps` JSON, the Stripe Checkout collects a
-// shipping address, and the SD-ORDER email calls out the deck so it gets
-// shipped. (PayPal buyers: the shipping address lives on the PayPal
-// transaction.)
+// tampered client. Fulfilment goes through the Songdeck Shopify shop: the gift
+// is recorded as a zero-amount row in the registration's `bumps` JSON, and on
+// payment the buyer receives a claim email (see deckGiftClaimEmail in
+// src/lib/workshops/emails.ts, sent from src/lib/orders/notification.ts) whose
+// button opens songdeck.shop with the SVH-BONUS coupon pre-applied — deck +
+// worldwide shipping at €0, with Shopify collecting the shipping address and
+// placing the order. (A direct Shopify API integration that places the order
+// automatically is a later stage.)
 
 import { DEFAULT_DURATION_MS } from '../workshops/time';
 import { listSecuredWorkshopLinksByEmail } from '../workshops/db';
@@ -26,10 +29,26 @@ export const DECK_GIFT_AFTER_END_MS = 60 * 60 * 1000;
 
 // The zero-amount `bumps` row that marks a registration as carrying the gift.
 // NOT a real order bump (no price, no Drip tag) — parsePurchasedBumps carries
-// it through and the SD-ORDER notification labels it for fulfilment; every
-// bump consumer that grants access filters on isBumpSlug and so skips it.
+// it through, the SD-ORDER notification labels it, and the claim email keys on
+// it; every bump consumer that grants access filters on isBumpSlug and so
+// skips it.
 export const DECK_GIFT_BUMP_SLUG = 'songdeck-gift';
 export const DECK_GIFT_LABEL = 'Song Deck — free gift, ships free worldwide';
+
+// The Shopify coupon that makes the deck + worldwide shipping free. The code
+// must exist (and stay active) in the songdeck.shop Shopify admin.
+export const DECK_GIFT_COUPON_CODE = 'SVH-BONUS';
+export const DECK_GIFT_SHOP_ORIGIN = 'https://songdeck.shop';
+export const DECK_GIFT_SHOP_PRODUCT_PATH =
+  '/products/songdeck-authentic-singing-36-song-cards-with-accompanying-app';
+
+// Shopify's discount deep link: opening it stores the coupon on the visitor's
+// cart and redirects to the product page, so the buyer never types the code.
+export function deckGiftClaimUrl(): string {
+  return `${DECK_GIFT_SHOP_ORIGIN}/discount/${DECK_GIFT_COUPON_CODE}?redirect=${encodeURIComponent(
+    DECK_GIFT_SHOP_PRODUCT_PATH,
+  )}`;
+}
 
 export type DeckGiftStatus = {
   active: boolean;

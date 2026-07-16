@@ -65,7 +65,6 @@ import { fulfilFreeCourseRegistration } from '../../../lib/courses/free-checkout
 import { edgeTimezone } from '../../../lib/geo';
 import { bumpOffer, isBumpSlug, BUMPS, type BumpSlug } from '../../../lib/courses/bumps';
 import { deckGiftStatus, DECK_GIFT_BUMP_SLUG } from '../../../lib/courses/deck-promo';
-import { COUNTRIES } from '../../../lib/countries';
 
 export const prerender = false;
 
@@ -285,15 +284,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // ── Post-workshop Song Deck gift ───────────────────────────────────────
     // Re-derived server-side from the same workshop links as the discount:
     // live from the buyer's session start until 1h after it ends. Recorded as
-    // a zero-amount bumps row (SD-ORDER calls it out for shipping) and, on
-    // Stripe, the Checkout collects a shipping address.
+    // a zero-amount bumps row; on payment the buyer receives the SVH-BONUS
+    // claim email and orders the deck free on songdeck.shop (which collects
+    // the shipping address) — see src/lib/courses/deck-promo.ts.
     const deckGift = deckGiftStatus(links);
     if (deckGift.active) {
       bumpRows.push({ slug: DECK_GIFT_BUMP_SLUG, amount_cents: 0 });
     }
-    const shippingCountries = deckGift.active
-      ? COUNTRIES.map((c) => c.code)
-      : undefined;
 
     const registrationId = await createPendingCourseRegistration(env.DB, {
       email,
@@ -502,7 +499,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
         installment_count: installmentCount,
         // Order bumps ride the first invoice as one-time line items.
         one_time_line_items: stripeBumpLineItems,
-        shipping_countries: shippingCountries,
         metadata,
         idempotency_key: `tw-reg-${registrationId}-${paymentPlan}`,
       });
@@ -553,7 +549,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
         },
         ...stripeBumpLineItems,
       ],
-      shipping_countries: shippingCountries,
       metadata,
       idempotency_key: `tw-reg-${registrationId}`,
     });

@@ -959,6 +959,37 @@ export function attendedProEmail3(ctx: LifecycleCtx & { certUrl: string }): Emai
   };
 }
 
+// ── Song Deck gift claim (transactional) ────────────────────────────────────
+// Sent once when a course purchase that carries the post-workshop Song Deck
+// gift is fulfilled (the zero-amount `songdeck-gift` bumps row — see
+// src/lib/courses/deck-promo.ts; the send lives in
+// src/lib/orders/notification.ts). The button opens songdeck.shop with the
+// SVH-BONUS coupon already applied, so deck + worldwide shipping land at €0;
+// Shopify collects the shipping address and places the order. Transactional:
+// part of the purchase, so no unsubscribe gating.
+export function deckGiftClaimEmail(ctx: {
+  name?: string | null;
+  claimUrl: string;
+  couponCode: string;
+  shopUrl: string;
+}): EmailContent {
+  const html = shell({
+    preheader: 'Your free Songdeck — one tap, shipped free, anywhere.',
+    heading: 'Your Songdeck is waiting',
+    bodyHtml: `<p style="margin:0 0 14px;">${greeting(ctx.name)}</p>
+      <p style="margin:0 0 14px;">You said yes within the hour — so the <strong>Songdeck</strong> is our gift, to honour your momentum: thirty-six illustrated song cards, each with its own written message and its own music, in a sturdy magnetic box.</p>
+      <p style="margin:0 0 14px;">The button below opens the Songdeck shop with your coupon already applied — the deck and worldwide shipping come to <strong>€0</strong> at checkout. Fill in your shipping address there and it's on its way to you.</p>
+      <p style="margin:0;">If the code doesn't carry over for any reason, enter <strong>${escapeHtml(ctx.couponCode)}</strong> at checkout yourself.</p>`,
+    cta: { label: 'Claim your free Songdeck →', href: ctx.claimUrl },
+    footerNote: 'This gift came with your course registration — no strings attached to it.',
+  });
+  return {
+    subject: 'Your free Songdeck — claim it here',
+    html,
+    text: `${textGreeting(ctx.name)}\n\nYou said yes within the hour — so the Songdeck is our gift, to honour your momentum: thirty-six illustrated song cards, each with its own written message and its own music, in a sturdy magnetic box.\n\nThis link opens the Songdeck shop with your coupon already applied — the deck and worldwide shipping come to €0 at checkout. Fill in your shipping address there and it's on its way to you:\n\n${ctx.claimUrl}\n\nIf the code doesn't carry over for any reason, enter ${ctx.couponCode} at checkout yourself: ${ctx.shopUrl}\n\nWarmly,\nJacob`,
+  };
+}
+
 // ── No-show 1 (right after): seat is safe ──────────────────────────────────
 export function noShowEmail1(ctx: LifecycleCtx & { hubUrl: string }): EmailContent {
   const html = shell({

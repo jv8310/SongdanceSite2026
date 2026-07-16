@@ -25,8 +25,14 @@ import {
   noShowEmail3,
   reminderEmail,
   verificationEmail,
+  deckGiftClaimEmail,
   type EmailContent,
 } from './emails';
+import {
+  deckGiftClaimUrl,
+  DECK_GIFT_COUPON_CODE,
+  DECK_GIFT_SHOP_ORIGIN,
+} from '../courses/deck-promo';
 import { DOWNSELL_OFFERS, DOWNSELL_ORDER } from './downsell-offers';
 import { LAUNCH_PROMO_PERCENT, LAUNCH_PROMO_END_LABEL } from '../promo';
 import { buildOrderNotificationEmail } from '../orders/notification';
@@ -121,6 +127,21 @@ export function buildEmailSamples(base: string): EmailSample[] {
         courseName: 'the 12-Week Somatic Vocal Healing Course',
         resumeUrl: courseUrl,
         unsubscribeUrl,
+      }),
+    },
+
+    // ── Song Deck gift claim (transactional) ─────────────────────────────
+    {
+      id: 'deck_gift_claim',
+      group: 'Registration & reminders (transactional)',
+      label: 'Song Deck gift — SVH-BONUS claim',
+      timing: 'On course fulfilment, when the purchase carries the post-workshop gift',
+      audience: 'Course buyers who joined within the hour after their live workshop',
+      content: deckGiftClaimEmail({
+        name,
+        claimUrl: deckGiftClaimUrl(),
+        couponCode: DECK_GIFT_COUPON_CODE,
+        shopUrl: DECK_GIFT_SHOP_ORIGIN,
       }),
     },
 
