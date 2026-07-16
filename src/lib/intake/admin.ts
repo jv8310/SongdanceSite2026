@@ -196,7 +196,7 @@ export interface QAItem {
 export function buildQAList(payload: Record<string, unknown>): QAItem[] {
   const out: QAItem[] = [];
   for (const step of STEPS) {
-    if (step.type === 'intro' || step.type === 'pause' || step.type === 'closing') continue;
+    if (step.type === 'intro' || step.type === 'pause') continue;
     const nl = STEP_COPY.nl[step.key];
     const heading = nl?.title ?? step.key;
     out.push({

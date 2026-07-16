@@ -3,7 +3,17 @@ import { COUNTRIES } from '../../lib/countries';
 
 // Mirrors active tiers in D1 (see migrations/0004_room_type_catalog.sql).
 // Slugs MUST match the DB tier slugs — the server re-validates on submit.
-const roomTypes = [
+// `closed` is undefined at render; the availability fetch toggles fully-booked
+// state client-side, so it's an optional flag on every tier.
+type RoomType = {
+  slug: string;
+  label: string;
+  description: string;
+  price: number;
+  adminOnly?: boolean;
+  closed?: boolean;
+};
+const roomTypes: RoomType[] = [
   {
     slug: 'private-ensuite',
     label: 'Private En-suite',
@@ -408,13 +418,13 @@ const roomTypes = [
     // is in our list of options.
     const countrySelect = form.querySelector(
       'select[name="country"]',
-    ) as HTMLSelectElement;
+    ) as unknown as HTMLSelectElement;
     const phoneCountrySelect = form.querySelector(
       'select[name="phone_country"]',
-    ) as HTMLSelectElement;
+    ) as unknown as HTMLSelectElement;
     fetch('/api/geo', { headers: { Accept: 'application/json' } })
       .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
+      .then((data: any) => {
         const detected = data?.country as string | undefined;
         if (!detected) return;
         const hasOption = (sel: HTMLSelectElement, code: string) =>
@@ -528,7 +538,7 @@ const roomTypes = [
       headers: { Accept: 'application/json' },
     })
       .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
+      .then((data: any) => {
         if (!data || !Array.isArray(data.tiers)) return;
         fireKeeperAvail = !!data.fire_keeper_available;
         cookHelpAvail = !!data.cook_help_available;
@@ -730,7 +740,10 @@ const roomTypes = [
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(data),
         });
-        const body = await res.json().catch(() => ({} as any));
+        const body = (await res.json().catch(() => ({}))) as {
+          error?: string;
+          checkout_url?: string;
+        };
         if (!res.ok) {
           errBox.textContent =
             body?.error ?? 'Something went wrong. Please try again or email us.';
@@ -781,7 +794,9 @@ const roomTypes = [
         const now = document.createElement('span');
         now.className = 'rb-price-now';
         now.textContent = fmtEur(applyEgg(base));
-        priceEl.append(was, document.createTextNode(' '), now);
+        priceEl.appendChild(was);
+        priceEl.appendChild(document.createTextNode(' '));
+        priceEl.appendChild(now);
       });
       // Refresh the cook-help copy and both recap chips with the new prices.
       updateSpecials();

@@ -57,7 +57,7 @@
     try {
       const res = await fetch('/api/events.json?category=retreat&limit=1');
       if (!res.ok) return;
-      const { events } = await res.json();
+      const { events } = (await res.json()) as { events?: any[] };
       const r = events?.[0];
       if (!r) return;
       const set = (sel: string, val: string) => {

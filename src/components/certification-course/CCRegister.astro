@@ -705,7 +705,7 @@ const countries = COUNTRIES;
     const lastNameInput = root.querySelector<HTMLInputElement>('[name="last_name"]')!;
     const countryInput = root.querySelector<HTMLInputElement>('[name="country_search"]')!;
     const countryHidden = root.querySelector<HTMLInputElement>('[name="country"]')!;
-    const phoneCountrySelect = root.querySelector<HTMLSelectElement>('[name="phone_country"]')!;
+    const phoneCountrySelect = root.querySelector('[name="phone_country"]') as unknown as HTMLSelectElement;
     const phoneInput = root.querySelector<HTMLInputElement>('[name="phone"]')!;
     const companyInput = root.querySelector<HTMLInputElement>('[name="company_name"]')!;
     const vatField = root.querySelector<HTMLElement>('[data-slot="vat-field"]')!;
