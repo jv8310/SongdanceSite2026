@@ -10,7 +10,9 @@
 //
 // Course rows carry no access token, so "resume" is the course page with an
 // ?email= prefill — the same link the post-workshop emails use, which reveals
-// the person's price and fills the register form. #register scrolls to it.
+// the person's price and fills the register form once they reach it. No
+// #register anchor: the link lands at the top of the page so people get to
+// (re)read the landing page rather than being dropped on the form.
 
 export type AbandonedCourseMeta = { path: string; name: string };
 
@@ -31,10 +33,10 @@ export function abandonedCourseMeta(slug: string): AbandonedCourseMeta | null {
 }
 
 // The resume link for an abandoned course checkout: the course landing page with
-// the buyer's email prefilled, scrolled to the register form. Returns null for a
-// slug we don't nudge (a journey), so the caller can skip it.
+// the buyer's email prefilled, landing at the top of the page. Returns null for
+// a slug we don't nudge (a journey), so the caller can skip it.
 export function courseResumeUrl(base: string, slug: string, email: string): string | null {
   const meta = abandonedCourseMeta(slug);
   if (!meta) return null;
-  return `${base.replace(/\/$/, '')}${meta.path}?email=${encodeURIComponent(email)}#register`;
+  return `${base.replace(/\/$/, '')}${meta.path}?email=${encodeURIComponent(email)}`;
 }
