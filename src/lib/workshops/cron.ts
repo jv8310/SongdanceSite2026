@@ -807,10 +807,11 @@ async function runPostWorkshop(env: CronEnv, now: number, result: CronResult) {
       const unsubscribeUrl = secret ? await unsubscribePageUrl(base, secret, reg.email) : undefined;
       const lc = { name: reg.name, workshopTitle: w.title, unsubscribeUrl };
       // The course + certification pages read ?email= and reveal that person's
-      // price (and any live discount) immediately — prefilling the register
-      // form, no typing on arrival.
+      // price (and any live discount) immediately — the register form is
+      // prefilled when they reach it. No #register anchor: the link lands at
+      // the top so people read the landing page before the sign-up form.
       const emailQ = encodeURIComponent(reg.email);
-      const courseUrl = `${base}/courses/12-week?email=${emailQ}#register`;
+      const courseUrl = `${base}/courses/12-week?email=${emailQ}`;
       const certUrl = `${base}/courses/certification?email=${emailQ}`;
       const hubUrl = successUrl(base, reg.access_token);
       // The last-chance email's animated countdown ticks to the real deadline;
