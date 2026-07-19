@@ -922,7 +922,7 @@ export function attendedProEmail2(ctx: LifecycleCtx & { certUrl: string }): Emai
 
 export function attendedProEmail3(ctx: LifecycleCtx & { certUrl: string }): EmailContent {
   const html = D.designShell({
-    preheader: 'No deadline here — just the door.',
+    preheader: "The work isn't something you do — it's something you become.",
     title: 'If the certification path is calling',
     heroImage: {
       src: IMG.walkSunset,
@@ -936,12 +936,27 @@ export function attendedProEmail3(ctx: LifecycleCtx & { certUrl: string }): Emai
       D.displayHeading(`If the path is ${D.accent('calling')}`),
       D.para(greeting(ctx.name)),
       D.para("A last note on this — then we'll leave it with you."),
-      D.para(
-        "If you've been circling the certification course, the page below has the structure, the classes, and the honest small print. There's no deadline attached and no spots-left theatre. Trees don't hurry, and neither does this.",
+      D.para('Two of our students said something that has stayed with me. The first is a therapist:'),
+      D.pullQuote(
+        'SVH has added so much to what I can offer people. As a healthcare practitioner, it was the missing piece.',
       ),
-      D.pullQuote("Trees don't hurry, and neither does this."),
+      D.para(`The ${D.lyric('missing piece')}.`),
+      D.para('Another put it this way:'),
+      D.pullQuote(
+        'You think you are learning how to work with others, but what really happens is that you come home to yourself — deeply connected to who you are, to why you are here, and quietly confident in holding space for others.',
+      ),
       D.para(
-        "Two honest things before we go: it isn't a full therapist training — if you'll work with clients, you bring your own ground for holding emotional process. And there's no obligation to practise professionally at all; many walk it simply to go fully in with their own voice. You can come out a certified practitioner, or just changed. Both are welcome.",
+        'Again and again, this is what we witness. People arrive believing they are learning a method. They leave realising they have been changed by the very work they hoped to share. What begins as professional training becomes a deeply personal journey — and that inner shift, quietly, becomes the greatest thing they can offer anyone else.',
+      ),
+      D.pullQuote("This work isn't something you do. It's something you become."),
+      D.para(
+        "If you've been circling the certification course, the page below has the structure, the classes, and the honest small print. One honest thing before you decide: it isn't a full therapist training — if you'll work with clients, you bring your own ground for holding emotional process. There's no deadline attached either, and no spots-left theatre. Trees don't hurry, and neither does this.",
+      ),
+      D.para(
+        'Not everyone who walks this path is meant to facilitate, and that is right. Some come simply to go all the way in with their own voice — a beautiful calling in its own right. You can come out a certified practitioner, or just changed. Both are welcome here.',
+      ),
+      D.para(
+        "But if something quietly comes alive in you when you imagine guiding another person — if your heart says yes, even softly — don't dismiss that. Sometimes the soul recognises its path long before the mind understands it.",
       ),
       D.para(
         `If it helps to talk it through first, reply here and say where you're standing. We'll answer plainly — including "not yet", if that's the truth.`,
@@ -955,7 +970,7 @@ export function attendedProEmail3(ctx: LifecycleCtx & { certUrl: string }): Emai
   return {
     subject: 'If the certification path is calling',
     html,
-    text: `${textGreeting(ctx.name)}\n\nA last note on this — then we'll leave it with you.\n\nIf you've been circling the certification course, the page below has the structure, the classes, and the honest small print. There's no deadline attached and no spots-left theatre. Trees don't hurry, and neither does this.\n\nTwo honest things before we go: it isn't a full therapist training — if you'll work with clients, you bring your own ground for holding emotional process. And there's no obligation to practise professionally at all; many walk it simply to go fully in with their own voice. You can come out a certified practitioner, or just changed. Both are welcome.\n\nIf it helps to talk it through first, reply here and say where you're standing. We'll answer plainly — including "not yet", if that's the truth.\n\n${ctx.certUrl}\n\nWarmly,\nJacob${unsubText(ctx.unsubscribeUrl)}`,
+    text: `${textGreeting(ctx.name)}\n\nA last note on this — then we'll leave it with you.\n\nTwo of our students said something that has stayed with me. The first is a therapist:\n\n"SVH has added so much to what I can offer people. As a healthcare practitioner, it was the missing piece."\n\nThe missing piece.\n\nAnother put it this way:\n\n"You think you are learning how to work with others, but what really happens is that you come home to yourself — deeply connected to who you are, to why you are here, and quietly confident in holding space for others."\n\nAgain and again, this is what we witness. People arrive believing they are learning a method. They leave realising they have been changed by the very work they hoped to share. What begins as professional training becomes a deeply personal journey — and that inner shift, quietly, becomes the greatest thing they can offer anyone else.\n\nThis work isn't something you do. It's something you become.\n\nIf you've been circling the certification course, the page below has the structure, the classes, and the honest small print. One honest thing before you decide: it isn't a full therapist training — if you'll work with clients, you bring your own ground for holding emotional process. There's no deadline attached either, and no spots-left theatre. Trees don't hurry, and neither does this.\n\nNot everyone who walks this path is meant to facilitate, and that is right. Some come simply to go all the way in with their own voice — a beautiful calling in its own right. You can come out a certified practitioner, or just changed. Both are welcome here.\n\nBut if something quietly comes alive in you when you imagine guiding another person — if your heart says yes, even softly — don't dismiss that. Sometimes the soul recognises its path long before the mind understands it.\n\nIf it helps to talk it through first, reply here and say where you're standing. We'll answer plainly — including "not yet", if that's the truth.\n\n${ctx.certUrl}\n\nWarmly,\nJacob${unsubText(ctx.unsubscribeUrl)}`,
   };
 }
 
