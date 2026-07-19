@@ -1,0 +1,915 @@
+---
+// Jorn's World Cup — a fun, scroll-driven tribute page for a good friend.
+//
+// Standalone from the site's marketing surface on purpose: it's a personal
+// gift page (a football/World Cup celebration for Jorn), so it carries its own
+// self-contained document, palette and cinematic scroll animations rather than
+// the usual SiteLayout / copy-book voice. No runtime data — prerendered static.
+export const prerender = true;
+
+const ogImage = new URL('/media/library/jorn.jpg', Astro.site ?? Astro.url.origin).href;
+const canonical = new URL('/jorn', Astro.site ?? Astro.url.origin).href;
+
+// Broadcast-style count-up stats (fun, entirely fictional numbers).
+const stats = [
+  { to: 64, label: 'Matches Watched', suffix: '' },
+  { to: 173, label: 'Goals Celebrated', suffix: '' },
+  { to: 291, label: 'Shouts at the Ref', suffix: '' },
+  { to: 12, label: 'Halftime Naps', suffix: '' },
+  { to: 100, label: 'Snack Success Rate', suffix: '%' },
+  { infinite: true, label: 'Passion', display: '∞' },
+];
+
+// The sacred match-day ritual.
+const ritual = [
+  'Claim the couch — the good spot, dead centre, non-negotiable.',
+  'Charge the remote. Test the volume. Then test it again.',
+  'Deploy snacks within arm\'s reach. Standing up is for amateurs.',
+  'Group chat: loud. Predictions: bold. Confidence: entirely unearned.',
+  'Kick-off whistle blows. The world outside quietly stops existing.',
+];
+
+// Jorn's match-day starting XI — a 4-3-3 of everything a great watch needs,
+// with the man himself up top wearing the 10 and the armband.
+const lineup = [
+  { n: 1, pos: 'GK', name: 'The Comfy Couch', x: 50, y: 90 },
+  { n: 3, pos: 'LB', name: 'The Blanket', x: 18, y: 72 },
+  { n: 4, pos: 'CB', name: 'Nachos', x: 38, y: 77 },
+  { n: 5, pos: 'CB', name: 'Guacamole', x: 62, y: 77 },
+  { n: 2, pos: 'RB', name: 'Cold Beer', x: 82, y: 72 },
+  { n: 6, pos: 'CM', name: 'The Remote', x: 28, y: 53 },
+  { n: 8, pos: 'CM', name: 'The Group Chat', x: 50, y: 57 },
+  { n: 7, pos: 'CM', name: 'Halftime Nap', x: 72, y: 53 },
+  { n: 9, pos: 'LW', name: 'Full-Volume TV', x: 22, y: 28 },
+  { n: 10, pos: 'ST', name: 'JORN', x: 50, y: 19, captain: true },
+  { n: 11, pos: 'RW', name: 'Air Horn', x: 78, y: 28 },
+];
+
+// Broadcast ticker phrases.
+const ticker = [
+  'JORN FC', 'MAN OF THE MATCH', 'COUCH DERBY CHAMPION', 'UNDEFEATED SINCE KICK-OFF',
+  'SNACK COORDINATION — ELITE', 'VOLUME: MAXIMUM', 'WORLD CUP 2026', 'CERTIFIED LEGEND',
+];
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Jorn's World Cup — The Official Fan Page</title>
+    <meta
+      name="description"
+      content="One page, one legend. A World Cup 2026 tribute to Jorn — the greatest football fan the couch has ever known."
+    />
+    <link rel="canonical" href={canonical} />
+    <link rel="icon" href="/favicon.png" type="image/png" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Anton&family=Oswald:wght@400;500;600;700&family=Figtree:wght@300;400;500;600;700;800&family=Spectral:ital,wght@1,400;1,500&display=swap"
+    />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Jorn's World Cup — The Official Fan Page" />
+    <meta
+      property="og:description"
+      content="One page, one legend. A World Cup 2026 tribute to the greatest football fan the couch has ever known."
+    />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:url" content={canonical} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Jorn's World Cup — The Official Fan Page" />
+    <meta name="twitter:image" content={ogImage} />
+  </head>
+
+  <body>
+    <div class="jrn-root">
+      <!-- scroll progress -->
+      <div class="jrn-progress" aria-hidden="true"><span data-progress></span></div>
+      <!-- confetti overlay -->
+      <canvas class="jrn-confetti" data-confetti aria-hidden="true"></canvas>
+
+      <!-- ═══════════════════ HERO ═══════════════════ -->
+      <header class="jrn-hero">
+        <div class="jrn-hero-bg" aria-hidden="true">
+          <span class="jrn-sky" data-parallax="0.2"></span>
+          <span class="jrn-beam jrn-beam--l" data-parallax="0.08"></span>
+          <span class="jrn-beam jrn-beam--r" data-parallax="0.08"></span>
+          <span class="jrn-crowd" data-parallax="0.05"></span>
+          <span class="jrn-spark" style="left:14%;top:60%"></span>
+          <span class="jrn-spark" style="left:82%;top:52%"></span>
+          <span class="jrn-spark" style="left:47%;top:70%"></span>
+          <span class="jrn-spark" style="left:66%;top:44%"></span>
+          <span class="jrn-spark" style="left:28%;top:38%"></span>
+        </div>
+
+        <div class="jrn-broadcast" data-parallax="-0.06">
+          <span class="jrn-live"><i></i>LIVE</span>
+          <span class="jrn-broadcast-sep"></span>
+          <span class="jrn-broadcast-label">FIFA WORLD CUP 2026 · FINAL</span>
+          <span class="jrn-clock" data-clock>90:00</span>
+        </div>
+
+        <div class="jrn-hero-inner">
+          <p class="jrn-eyebrow">The official fan page of</p>
+          <h1 class="jrn-name" data-parallax="-0.12">JORN</h1>
+          <p class="jrn-tagline">Certified football legend · Champion of the couch · World Cup 2026</p>
+
+          <div class="jrn-ball" data-parallax="-0.18" aria-hidden="true">
+            <svg viewBox="0 0 200 200" role="img">
+              <circle cx="100" cy="100" r="94" fill="#fbfdfb" stroke="#0c1710" stroke-width="3" />
+              <polygon points="100,66 132,89 120,127 80,127 68,89" fill="#0c1710" />
+              <g stroke="#0c1710" stroke-width="6" stroke-linecap="round" fill="none">
+                <path d="M100 66 L100 20" />
+                <path d="M132 89 L176 74" />
+                <path d="M120 127 L150 164" />
+                <path d="M80 127 L50 164" />
+                <path d="M68 89 L24 74" />
+              </g>
+              <g fill="#0c1710">
+                <path d="M100 20 l14 10 -6 16 -16 0 -6 -16 z" opacity="0.9" />
+                <path d="M176 74 l4 17 -13 11 -14 -9 5 -17 z" opacity="0.9" />
+                <path d="M150 164 l-17 3 -11 -13 9 -14 17 5 z" opacity="0.9" />
+                <path d="M50 164 l-4 -17 13 -11 14 9 -5 17 z" opacity="0.9" />
+                <path d="M24 74 l17 -3 11 13 -9 14 -17 -5 z" opacity="0.9" />
+              </g>
+            </svg>
+          </div>
+
+          <a class="jrn-scrollcue" href="#kickoff">
+            <span>Scroll — kick-off</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v14M6 13l6 6 6-6" /></svg>
+          </a>
+        </div>
+      </header>
+
+      <!-- ═══════════════════ KICK-OFF (rolling ball) ═══════════════════ -->
+      <section class="jrn-kickoff" id="kickoff" data-ballband>
+        <div class="jrn-pitch-stripes" aria-hidden="true"></div>
+        <div class="jrn-rollball" data-ball aria-hidden="true">
+          <svg viewBox="0 0 200 200" role="img">
+            <circle cx="100" cy="100" r="94" fill="#fbfdfb" stroke="#0c1710" stroke-width="3" />
+            <polygon points="100,66 132,89 120,127 80,127 68,89" fill="#0c1710" />
+            <g stroke="#0c1710" stroke-width="6" stroke-linecap="round" fill="none">
+              <path d="M100 66 L100 20" /><path d="M132 89 L176 74" />
+              <path d="M120 127 L150 164" /><path d="M80 127 L50 164" /><path d="M68 89 L24 74" />
+            </g>
+          </svg>
+        </div>
+        <div class="jrn-kickoff-copy jrn-reveal">
+          <p class="jrn-kicker">Every four years</p>
+          <h2>The whole world stops.<br />And so does Jorn.</h2>
+          <p class="jrn-lede">
+            No calls. No plans. No "can it wait?" For one glorious month the fixtures
+            <em>are</em> the calendar — and nobody watches football quite like this man.
+          </p>
+        </div>
+      </section>
+
+      <!-- ═══════════════════ SCOREBOARD ═══════════════════ -->
+      <section class="jrn-board">
+        <p class="jrn-section-eyebrow jrn-reveal">The numbers don't lie</p>
+        <h2 class="jrn-section-title jrn-reveal">This tournament, so far</h2>
+        <div class="jrn-stats">
+          {stats.map((s) => (
+            <div class="jrn-stat jrn-reveal">
+              <span
+                class="jrn-stat-num"
+                data-count={s.infinite ? undefined : String(s.to)}
+                data-suffix={s.suffix}
+              >{s.infinite ? s.display : '0'}{s.infinite ? '' : s.suffix}</span>
+              <span class="jrn-stat-label">{s.label}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <!-- broadcast ticker -->
+      <div class="jrn-ticker" aria-hidden="true">
+        <div class="jrn-ticker-track">
+          {[0, 1].map(() => (
+            <span class="jrn-ticker-group">
+              {ticker.map((t) => (<span class="jrn-ticker-item">{t}<i>⚽</i></span>))}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <!-- ═══════════════════ THE RITUAL ═══════════════════ -->
+      <section class="jrn-ritual">
+        <p class="jrn-section-eyebrow jrn-reveal">Do not disturb</p>
+        <h2 class="jrn-section-title jrn-reveal">The match-day ritual</h2>
+        <ol class="jrn-steps">
+          {ritual.map((step, i) => (
+            <li class="jrn-step jrn-reveal">
+              <span class="jrn-step-num">{String(i + 1).padStart(2, '0')}</span>
+              <p>{step}</p>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      <!-- ═══════════════════ THE PHOTO ═══════════════════ -->
+      <section class="jrn-portrait">
+        <div class="jrn-portrait-glow" aria-hidden="true"></div>
+        <figure class="jrn-poster jrn-reveal">
+          <div class="jrn-poster-frame">
+            <img src="/media/library/jorn.jpg" alt="Jorn, mid match-day, throwing up the two-fingered salute." loading="lazy" />
+            <span class="jrn-poster-badge">No.&nbsp;10</span>
+          </div>
+          <figcaption>
+            <strong>Jorn</strong>
+            <span>"Two fingers up — two more games till the final. Obviously."</span>
+          </figcaption>
+        </figure>
+      </section>
+
+      <!-- ═══════════════════ GOAL! ═══════════════════ -->
+      <section class="jrn-goal" data-burst>
+        <div class="jrn-goal-net" aria-hidden="true"></div>
+        <h2 class="jrn-goal-word" data-goal>GOAAAAL!</h2>
+        <p class="jrn-goal-sub jrn-reveal">
+          Jorn is on his feet. The neighbours know. The snacks are airborne. The couch,
+          somehow, survives. This — <em>this</em> — is what he lives for.
+        </p>
+      </section>
+
+      <!-- ═══════════════════ STARTING XI ═══════════════════ -->
+      <section class="jrn-xi">
+        <p class="jrn-section-eyebrow jrn-reveal">Tactical breakdown</p>
+        <h2 class="jrn-section-title jrn-reveal">Jorn's match-day starting XI</h2>
+        <p class="jrn-xi-formation jrn-reveal">4—3—3 · The perfect watch</p>
+        <div class="jrn-field jrn-reveal">
+          <div class="jrn-field-lines" aria-hidden="true">
+            <span class="jrn-field-circle"></span>
+            <span class="jrn-field-halfway"></span>
+            <span class="jrn-field-box jrn-field-box--top"></span>
+            <span class="jrn-field-box jrn-field-box--bottom"></span>
+            <span class="jrn-field-spot jrn-field-spot--top"></span>
+            <span class="jrn-field-spot jrn-field-spot--bottom"></span>
+          </div>
+          {lineup.map((p) => (
+            <div class={`jrn-chip${p.captain ? ' is-captain' : ''}`} style={`left:${p.x}%;top:${p.y}%`}>
+              <span class="jrn-chip-dot">
+                <span class="jrn-chip-n">{p.n}</span>
+                {p.captain && <span class="jrn-chip-c">C</span>}
+              </span>
+              <span class="jrn-chip-name">{p.name}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <!-- ═══════════════════ TROPHY / FINALE ═══════════════════ -->
+      <section class="jrn-finale" data-burst>
+        <div class="jrn-finale-rays" aria-hidden="true"></div>
+        <div class="jrn-trophy jrn-reveal" aria-hidden="true">
+          <svg viewBox="0 0 120 152" role="img">
+            <defs>
+              <linearGradient id="jrnGold" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="#ffe9a8" />
+                <stop offset="0.5" stop-color="#f4c95d" />
+                <stop offset="1" stop-color="#c98d1f" />
+              </linearGradient>
+            </defs>
+            <path d="M30 24 C12 24 12 54 36 58" fill="none" stroke="url(#jrnGold)" stroke-width="7" stroke-linecap="round" />
+            <path d="M90 24 C108 24 108 54 84 58" fill="none" stroke="url(#jrnGold)" stroke-width="7" stroke-linecap="round" />
+            <path d="M28 16 H92 V40 C92 66 78 86 60 86 C42 86 28 66 28 40 Z" fill="url(#jrnGold)" />
+            <rect x="54" y="86" width="12" height="18" fill="url(#jrnGold)" />
+            <path d="M40 104 H80 L86 120 H34 Z" fill="url(#jrnGold)" />
+            <rect x="30" y="120" width="60" height="10" rx="3" fill="url(#jrnGold)" />
+            <path d="M60 34 l4.6 9.3 10.3 1.5 -7.4 7.3 1.7 10.2 -9.2 -4.8 -9.2 4.8 1.7 -10.2 -7.4 -7.3 10.3 -1.5 z" fill="#8a5a10" opacity="0.55" />
+          </svg>
+        </div>
+        <p class="jrn-finale-eyebrow jrn-reveal">Man of the tournament</p>
+        <h2 class="jrn-finale-title jrn-reveal">Champion<br />of the couch</h2>
+        <p class="jrn-finale-note jrn-reveal">
+          Every squad needs its heart. Ours turns up with the snacks, calls every offside
+          from three metres away, and can make a nil–nil in the group stage feel like a
+          cup final. <em>This one's for you, Jorn.</em>
+        </p>
+        <p class="jrn-signoff jrn-reveal">— From your mate, with the volume up</p>
+      </section>
+
+      <footer class="jrn-footer">
+        <span>Made with ⚽ &amp; a lot of noise · 2026</span>
+        <a href="/">songdance.co →</a>
+      </footer>
+    </div>
+
+    <style is:global>
+      /* ── Reset + base ────────────────────────────────────────────────── */
+      * { box-sizing: border-box; }
+      html { scroll-behavior: smooth; }
+      body { margin: 0; }
+
+      .jrn-root {
+        --grass: #1fa25a;
+        --grass-deep: #0f6b39;
+        --grass-dark: #0a3f24;
+        --night: #050f0a;
+        --night-2: #08160e;
+        --ink: #06110b;
+        --gold: #f4c95d;
+        --gold-hi: #ffe9a8;
+        --gold-deep: #c98d1f;
+        --white: #f4f9f4;
+        --mist: rgba(244, 249, 244, 0.66);
+        --whisper: rgba(244, 249, 244, 0.42);
+
+        --f-disp: 'Anton', 'Arial Narrow', system-ui, sans-serif;
+        --f-cond: 'Oswald', system-ui, sans-serif;
+        --f-body: 'Figtree', system-ui, -apple-system, sans-serif;
+        --f-serif: 'Spectral', Georgia, serif;
+
+        position: relative;
+        background: var(--ink);
+        color: var(--white);
+        font-family: var(--f-body);
+        line-height: 1.6;
+        overflow-x: clip;
+        -webkit-font-smoothing: antialiased;
+      }
+      .jrn-root em { font-style: normal; color: var(--gold); }
+      .jrn-root svg { display: block; }
+
+      /* ── Scroll progress ─────────────────────────────────────────────── */
+      .jrn-progress {
+        position: fixed; inset: 0 0 auto 0; height: 4px; z-index: 60;
+        background: rgba(0, 0, 0, 0.35);
+      }
+      .jrn-progress span {
+        display: block; height: 100%; transform: scaleX(0); transform-origin: 0 50%;
+        background: linear-gradient(90deg, var(--grass), var(--gold));
+        box-shadow: 0 0 12px rgba(244, 201, 93, 0.6);
+      }
+
+      .jrn-confetti {
+        position: fixed; inset: 0; width: 100%; height: 100%;
+        pointer-events: none; z-index: 55;
+      }
+
+      /* ── Shared section furniture ────────────────────────────────────── */
+      .jrn-section-eyebrow {
+        font-family: var(--f-cond); text-transform: uppercase; letter-spacing: 0.32em;
+        font-size: clamp(11px, 1.4vw, 13px); font-weight: 600; color: var(--gold);
+        text-align: center; margin: 0 0 14px;
+      }
+      .jrn-section-title {
+        font-family: var(--f-disp); text-align: center; margin: 0 auto;
+        font-size: clamp(34px, 6vw, 76px); line-height: 0.98; letter-spacing: 0.01em;
+        text-transform: uppercase; max-width: 16ch;
+      }
+
+      .jrn-reveal {
+        opacity: 0; transform: translate3d(0, 28px, 0);
+        transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+                    transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+        will-change: opacity, transform;
+      }
+      .jrn-reveal.is-in { opacity: 1; transform: none; }
+
+      /* ═══ HERO ═══ */
+      .jrn-hero {
+        position: relative; min-height: 100svh; overflow: hidden;
+        display: flex; flex-direction: column; justify-content: center; align-items: center;
+        text-align: center; padding: 96px 20px 40px;
+        background: radial-gradient(120% 90% at 50% 8%, #123a26 0%, var(--night-2) 42%, var(--night) 100%);
+      }
+      .jrn-hero-bg { position: absolute; inset: 0; pointer-events: none; }
+      .jrn-sky {
+        position: absolute; inset: -10% 0 auto 0; height: 70%;
+        background:
+          radial-gradient(60% 42% at 50% 0%, rgba(244, 201, 93, 0.16), transparent 70%),
+          radial-gradient(40% 30% at 18% 6%, rgba(80, 200, 140, 0.18), transparent 70%),
+          radial-gradient(40% 30% at 82% 6%, rgba(80, 200, 140, 0.18), transparent 70%);
+      }
+      .jrn-beam {
+        position: absolute; top: -12%; width: 46vw; height: 92vh; filter: blur(14px);
+        mix-blend-mode: screen; opacity: 0.5; animation: jrnFlicker 5.5s ease-in-out infinite;
+        background: linear-gradient(to bottom, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0.02) 62%, transparent 78%);
+      }
+      .jrn-beam--l { left: -14vw; transform: rotate(19deg); transform-origin: top center; }
+      .jrn-beam--r { right: -14vw; transform: rotate(-19deg); transform-origin: top center; animation-delay: -2.5s; }
+      .jrn-crowd {
+        position: absolute; inset: auto 0 0 0; height: 40%;
+        background:
+          radial-gradient(circle at 50% 0%, transparent, rgba(3, 8, 5, 0.9) 78%),
+          radial-gradient(1.6px 1.6px at 12px 10px, rgba(255, 255, 255, 0.35) 40%, transparent 42%) 0 0 / 26px 22px,
+          radial-gradient(1.6px 1.6px at 4px 16px, rgba(120, 220, 170, 0.32) 40%, transparent 42%) 0 0 / 20px 18px;
+        opacity: 0.55; -webkit-mask-image: linear-gradient(to top, #000 30%, transparent);
+        mask-image: linear-gradient(to top, #000 30%, transparent);
+      }
+      .jrn-spark {
+        position: absolute; width: 4px; height: 4px; border-radius: 999px;
+        background: var(--gold); box-shadow: 0 0 10px 2px rgba(244, 201, 93, 0.7);
+        opacity: 0; animation: jrnRise 6s ease-in infinite;
+      }
+      .jrn-spark:nth-child(5) { animation-delay: 1.2s; }
+      .jrn-spark:nth-child(6) { animation-delay: 2.4s; }
+      .jrn-spark:nth-child(7) { animation-delay: 3.1s; }
+      .jrn-spark:nth-child(8) { animation-delay: 4.3s; }
+      @keyframes jrnRise {
+        0% { opacity: 0; transform: translateY(0) scale(0.6); }
+        20% { opacity: 1; }
+        100% { opacity: 0; transform: translateY(-160px) scale(1); }
+      }
+      @keyframes jrnFlicker {
+        0%, 100% { opacity: 0.5; } 45% { opacity: 0.62; } 55% { opacity: 0.4; } 70% { opacity: 0.58; }
+      }
+
+      .jrn-broadcast {
+        position: absolute; top: 22px; left: 50%; transform: translateX(-50%);
+        display: flex; align-items: center; gap: 12px; z-index: 3;
+        padding: 8px 16px; border-radius: 999px;
+        background: rgba(5, 15, 10, 0.6); border: 1px solid rgba(244, 249, 244, 0.14);
+        backdrop-filter: blur(8px); font-family: var(--f-cond); white-space: nowrap;
+        max-width: calc(100vw - 32px);
+      }
+      .jrn-live {
+        display: inline-flex; align-items: center; gap: 7px; font-weight: 700;
+        letter-spacing: 0.14em; font-size: 12px; color: #ff5a5a;
+      }
+      .jrn-live i {
+        width: 8px; height: 8px; border-radius: 999px; background: #ff3b3b;
+        box-shadow: 0 0 0 0 rgba(255, 59, 59, 0.6); animation: jrnPulse 1.6s ease-out infinite;
+      }
+      @keyframes jrnPulse {
+        0% { box-shadow: 0 0 0 0 rgba(255, 59, 59, 0.55); }
+        100% { box-shadow: 0 0 0 9px rgba(255, 59, 59, 0); }
+      }
+      .jrn-broadcast-sep { width: 1px; height: 16px; background: rgba(244, 249, 244, 0.22); }
+      .jrn-broadcast-label {
+        font-size: 12px; letter-spacing: 0.18em; font-weight: 500; color: var(--mist);
+        overflow: hidden; text-overflow: ellipsis;
+      }
+      .jrn-clock {
+        font-size: 12px; font-weight: 700; letter-spacing: 0.1em; color: var(--gold);
+        font-variant-numeric: tabular-nums;
+      }
+
+      .jrn-hero-inner { position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; }
+      .jrn-eyebrow {
+        font-family: var(--f-cond); text-transform: uppercase; letter-spacing: 0.42em;
+        font-size: clamp(11px, 1.6vw, 14px); color: var(--mist); margin: 0 0 6px; padding-left: 0.42em;
+      }
+      .jrn-name {
+        font-family: var(--f-disp); margin: 0; line-height: 0.82;
+        font-size: clamp(96px, 30vw, 340px); letter-spacing: 0.02em;
+        background: linear-gradient(180deg, #fff7e0 0%, var(--gold) 48%, var(--gold-deep) 100%);
+        -webkit-background-clip: text; background-clip: text; color: transparent;
+        filter: drop-shadow(0 10px 40px rgba(244, 201, 93, 0.28));
+      }
+      .jrn-name::after {
+        content: 'JORN'; position: absolute; inset: 0;
+        background: linear-gradient(105deg, transparent 38%, rgba(255, 255, 255, 0.85) 50%, transparent 62%);
+        -webkit-background-clip: text; background-clip: text; color: transparent;
+        background-size: 250% 100%; animation: jrnShine 4.5s ease-in-out infinite;
+      }
+      .jrn-name { position: relative; }
+      @keyframes jrnShine {
+        0%, 100% { background-position: 180% 0; } 55% { background-position: -60% 0; }
+      }
+      .jrn-tagline {
+        font-family: var(--f-cond); text-transform: uppercase; letter-spacing: 0.16em;
+        font-size: clamp(12px, 2vw, 17px); color: var(--white); margin: 14px 0 0; font-weight: 500;
+      }
+      .jrn-ball { width: clamp(64px, 10vw, 104px); margin: 30px 0 0; animation: jrnBob 3.4s ease-in-out infinite; }
+      @keyframes jrnBob { 0%, 100% { transform: translateY(0) rotate(-8deg); } 50% { transform: translateY(-14px) rotate(8deg); } }
+
+      .jrn-scrollcue {
+        position: absolute; bottom: 26px; left: 50%; transform: translateX(-50%);
+        display: inline-flex; flex-direction: column; align-items: center; gap: 8px;
+        text-decoration: none; color: var(--mist); font-family: var(--f-cond);
+        text-transform: uppercase; letter-spacing: 0.24em; font-size: 12px; z-index: 3;
+      }
+      .jrn-scrollcue svg { width: 20px; height: 20px; stroke: var(--gold); stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round; animation: jrnNudge 1.8s ease-in-out infinite; }
+      @keyframes jrnNudge { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(6px); } }
+
+      /* ═══ KICK-OFF ═══ */
+      .jrn-kickoff {
+        position: relative; overflow: hidden; padding: clamp(90px, 16vh, 180px) 20px;
+        background: linear-gradient(180deg, var(--grass-deep), var(--grass-dark));
+      }
+      .jrn-pitch-stripes {
+        position: absolute; inset: 0; opacity: 0.5;
+        background: repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.05) 0 8%, rgba(0, 0, 0, 0.05) 8% 16%);
+        -webkit-mask-image: linear-gradient(to bottom, transparent, #000 30%, #000 70%, transparent);
+        mask-image: linear-gradient(to bottom, transparent, #000 30%, #000 70%, transparent);
+      }
+      .jrn-rollball {
+        position: absolute; top: 40px; left: 0; width: clamp(52px, 8vw, 88px);
+        transform: translateX(calc(var(--p, 0) * (100vw + 88px) - 88px)) rotate(calc(var(--p, 0) * 1440deg));
+        filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.35));
+      }
+      .jrn-kickoff-copy { position: relative; max-width: 760px; margin: 60px auto 0; text-align: center; }
+      .jrn-kicker {
+        font-family: var(--f-cond); text-transform: uppercase; letter-spacing: 0.3em;
+        font-size: 13px; color: var(--gold-hi); margin: 0 0 12px; font-weight: 600;
+      }
+      .jrn-kickoff-copy h2 {
+        font-family: var(--f-disp); text-transform: uppercase; margin: 0;
+        font-size: clamp(30px, 6vw, 66px); line-height: 0.98; letter-spacing: 0.01em;
+      }
+      .jrn-lede { font-size: clamp(16px, 2.4vw, 21px); color: rgba(244, 249, 244, 0.9); margin: 22px auto 0; max-width: 58ch; }
+
+      /* ═══ SCOREBOARD ═══ */
+      .jrn-board { padding: clamp(80px, 12vh, 140px) 20px; background: var(--night-2); }
+      .jrn-stats {
+        display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;
+        max-width: 980px; margin: 46px auto 0;
+      }
+      .jrn-stat {
+        border: 1px solid rgba(244, 249, 244, 0.12); border-radius: 16px; padding: 30px 18px;
+        text-align: center; background:
+          linear-gradient(180deg, rgba(31, 162, 90, 0.12), rgba(5, 15, 10, 0.2));
+        position: relative; overflow: hidden;
+      }
+      .jrn-stat::before {
+        content: ''; position: absolute; inset: 0 0 auto 0; height: 3px;
+        background: linear-gradient(90deg, var(--grass), var(--gold));
+      }
+      .jrn-stat-num {
+        display: block; font-family: var(--f-disp); font-size: clamp(44px, 8vw, 76px);
+        line-height: 1; color: var(--gold); font-variant-numeric: tabular-nums;
+        filter: drop-shadow(0 6px 18px rgba(244, 201, 93, 0.22));
+      }
+      .jrn-stat-label {
+        display: block; margin-top: 12px; font-family: var(--f-cond); text-transform: uppercase;
+        letter-spacing: 0.16em; font-size: clamp(11px, 1.6vw, 13px); color: var(--mist); font-weight: 500;
+      }
+
+      /* ═══ TICKER ═══ */
+      .jrn-ticker {
+        overflow: hidden; background: var(--gold); color: var(--ink);
+        border-top: 2px solid var(--ink); border-bottom: 2px solid var(--ink);
+      }
+      .jrn-ticker-track { display: inline-flex; white-space: nowrap; animation: jrnTicker 26s linear infinite; }
+      .jrn-ticker-group { display: inline-flex; }
+      .jrn-ticker-item {
+        display: inline-flex; align-items: center; gap: 18px; padding: 12px 0;
+        font-family: var(--f-disp); text-transform: uppercase; letter-spacing: 0.04em;
+        font-size: clamp(15px, 2.2vw, 22px);
+      }
+      .jrn-ticker-item i { font-style: normal; margin: 0 26px; font-size: 0.8em; }
+      @keyframes jrnTicker { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+
+      /* ═══ RITUAL ═══ */
+      .jrn-ritual { padding: clamp(80px, 12vh, 140px) 20px; background: var(--night); }
+      .jrn-steps { list-style: none; max-width: 820px; margin: 46px auto 0; padding: 0; }
+      .jrn-step {
+        display: flex; align-items: center; gap: clamp(16px, 3vw, 34px);
+        padding: clamp(18px, 3vw, 26px) 4px; border-bottom: 1px solid rgba(244, 249, 244, 0.1);
+      }
+      .jrn-step:last-child { border-bottom: 0; }
+      .jrn-step-num {
+        flex: none; font-family: var(--f-disp); font-size: clamp(34px, 7vw, 62px);
+        line-height: 1; color: transparent; -webkit-text-stroke: 1.5px var(--gold);
+        min-width: 1.6em;
+      }
+      .jrn-step p { margin: 0; font-size: clamp(16px, 2.4vw, 22px); color: var(--white); }
+
+      /* ═══ PORTRAIT ═══ */
+      .jrn-portrait {
+        position: relative; overflow: hidden; padding: clamp(80px, 12vh, 150px) 20px;
+        background: radial-gradient(90% 70% at 50% 30%, #13341f, var(--night) 72%);
+        display: flex; justify-content: center;
+      }
+      .jrn-portrait-glow {
+        position: absolute; top: 6%; left: 50%; transform: translateX(-50%);
+        width: 70vw; height: 70vw; max-width: 640px; max-height: 640px; border-radius: 999px;
+        background: radial-gradient(circle, rgba(244, 201, 93, 0.22), transparent 62%); filter: blur(10px);
+      }
+      .jrn-poster { position: relative; margin: 0; max-width: 380px; width: 100%; }
+      .jrn-poster-frame {
+        position: relative; border-radius: 18px; overflow: hidden;
+        border: 1px solid rgba(244, 201, 93, 0.5);
+        box-shadow: 0 30px 80px -30px rgba(0, 0, 0, 0.8), 0 0 0 6px rgba(244, 201, 93, 0.08);
+      }
+      .jrn-poster-frame img { display: block; width: 100%; height: auto; }
+      .jrn-poster-badge {
+        position: absolute; top: 14px; left: 14px; font-family: var(--f-disp);
+        text-transform: uppercase; letter-spacing: 0.06em; font-size: 15px; color: var(--ink);
+        background: var(--gold); padding: 5px 12px; border-radius: 999px;
+      }
+      .jrn-poster figcaption { text-align: center; margin-top: 22px; }
+      .jrn-poster figcaption strong {
+        display: block; font-family: var(--f-disp); text-transform: uppercase;
+        font-size: clamp(24px, 4vw, 34px); letter-spacing: 0.04em; color: var(--gold);
+      }
+      .jrn-poster figcaption span {
+        display: block; margin-top: 8px; font-family: var(--f-serif); font-style: italic;
+        font-size: clamp(16px, 2.6vw, 20px); color: var(--mist);
+      }
+
+      /* ═══ GOAL ═══ */
+      .jrn-goal {
+        position: relative; overflow: hidden; text-align: center;
+        padding: clamp(100px, 20vh, 220px) 20px;
+        background: linear-gradient(180deg, var(--grass-dark), var(--night));
+      }
+      .jrn-goal-net {
+        position: absolute; inset: 0; opacity: 0.16;
+        background:
+          repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.6) 0 1px, transparent 1px 16px),
+          repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.6) 0 1px, transparent 1px 16px);
+        -webkit-mask-image: radial-gradient(circle at 50% 50%, #000, transparent 72%);
+        mask-image: radial-gradient(circle at 50% 50%, #000, transparent 72%);
+      }
+      .jrn-goal-word {
+        position: relative; font-family: var(--f-disp); text-transform: uppercase;
+        margin: 0; font-size: clamp(58px, 17vw, 220px); line-height: 0.9; letter-spacing: 0.02em;
+        background: linear-gradient(180deg, #fff, var(--gold) 55%, var(--gold-deep));
+        -webkit-background-clip: text; background-clip: text; color: transparent;
+        filter: drop-shadow(0 8px 30px rgba(244, 201, 93, 0.4));
+        transform: scale(0.7); opacity: 0;
+      }
+      .jrn-goal-word.is-fired { animation: jrnGoalPop 0.9s cubic-bezier(0.2, 1.4, 0.4, 1) forwards; }
+      @keyframes jrnGoalPop {
+        0% { transform: scale(0.5) rotate(-3deg); opacity: 0; }
+        60% { transform: scale(1.08) rotate(1.5deg); opacity: 1; }
+        75% { transform: scale(0.98) rotate(-1deg); }
+        100% { transform: scale(1) rotate(0); opacity: 1; }
+      }
+      .jrn-goal-sub {
+        position: relative; max-width: 52ch; margin: 30px auto 0;
+        font-size: clamp(17px, 2.6vw, 23px); color: rgba(244, 249, 244, 0.9);
+      }
+
+      /* ═══ STARTING XI ═══ */
+      .jrn-xi { padding: clamp(80px, 12vh, 140px) 20px clamp(90px, 14vh, 160px); background: var(--night-2); }
+      .jrn-xi-formation {
+        text-align: center; font-family: var(--f-cond); text-transform: uppercase;
+        letter-spacing: 0.24em; font-size: 13px; color: var(--mist); margin: 12px 0 0; font-weight: 500;
+      }
+      .jrn-field {
+        position: relative; width: min(560px, 100%); margin: 40px auto 0; aspect-ratio: 68 / 105;
+        border: 2px solid rgba(255, 255, 255, 0.35); border-radius: 14px;
+        background:
+          repeating-linear-gradient(180deg, #17924f 0 9.09%, #148047 9.09% 18.18%);
+        box-shadow: inset 0 0 60px rgba(0, 0, 0, 0.4), 0 30px 70px -40px rgba(0, 0, 0, 0.9);
+        overflow: hidden;
+      }
+      .jrn-field-lines { position: absolute; inset: 0; }
+      .jrn-field-lines span { position: absolute; border: 2px solid rgba(255, 255, 255, 0.35); }
+      .jrn-field-circle {
+        width: 26%; aspect-ratio: 1; border-radius: 999px; top: 50%; left: 50%;
+        transform: translate(-50%, -50%);
+      }
+      .jrn-field-halfway { left: 0; right: 0; top: 50%; height: 0; border-width: 2px 0 0 0; }
+      .jrn-field-box { left: 50%; transform: translateX(-50%); width: 46%; height: 14%; }
+      .jrn-field-box--top { top: -2px; border-top: 0; border-radius: 0 0 6px 6px; }
+      .jrn-field-box--bottom { bottom: -2px; border-bottom: 0; border-radius: 6px 6px 0 0; }
+      .jrn-field-spot { width: 5px; height: 5px; border-radius: 999px; background: rgba(255, 255, 255, 0.6); border: 0; left: 50%; transform: translateX(-50%); }
+      .jrn-field-spot--top { top: 11%; } .jrn-field-spot--bottom { bottom: 11%; }
+
+      .jrn-chip {
+        position: absolute; transform: translate(-50%, -50%);
+        display: flex; flex-direction: column; align-items: center; gap: 6px; width: max-content;
+      }
+      .jrn-chip-dot {
+        position: relative; width: clamp(34px, 7vw, 46px); aspect-ratio: 1; border-radius: 999px;
+        display: grid; place-items: center; font-family: var(--f-disp); color: var(--ink);
+        background: radial-gradient(circle at 35% 30%, #fff, #dfe7df);
+        border: 2px solid var(--ink); box-shadow: 0 6px 14px rgba(0, 0, 0, 0.4);
+        font-size: clamp(15px, 2.6vw, 20px);
+      }
+      .jrn-chip.is-captain .jrn-chip-dot {
+        background: radial-gradient(circle at 35% 30%, var(--gold-hi), var(--gold));
+        box-shadow: 0 0 0 4px rgba(244, 201, 93, 0.28), 0 6px 16px rgba(0, 0, 0, 0.5);
+      }
+      .jrn-chip-c {
+        position: absolute; top: -6px; right: -6px; width: 18px; height: 18px; border-radius: 999px;
+        background: var(--ink); color: var(--gold); font-family: var(--f-cond); font-weight: 700;
+        font-size: 10px; display: grid; place-items: center; border: 1px solid var(--gold);
+      }
+      .jrn-chip-name {
+        font-family: var(--f-cond); text-transform: uppercase; letter-spacing: 0.06em;
+        font-size: clamp(10px, 1.7vw, 13px); font-weight: 600; color: #fff;
+        text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8); text-align: center; max-width: 15ch;
+      }
+      .jrn-chip.is-captain .jrn-chip-name { color: var(--gold-hi); }
+
+      /* ═══ FINALE ═══ */
+      .jrn-finale {
+        position: relative; overflow: hidden; text-align: center;
+        padding: clamp(90px, 16vh, 180px) 20px clamp(70px, 10vh, 120px);
+        background: radial-gradient(90% 80% at 50% 20%, #1a3f26, var(--night) 70%);
+      }
+      .jrn-finale-rays {
+        position: absolute; top: -20%; left: 50%; transform: translateX(-50%);
+        width: 120vw; height: 90vh;
+        background: repeating-conic-gradient(from 0deg at 50% 30%, rgba(244, 201, 93, 0.09) 0 6deg, transparent 6deg 14deg);
+        -webkit-mask-image: radial-gradient(circle at 50% 30%, #000, transparent 60%);
+        mask-image: radial-gradient(circle at 50% 30%, #000, transparent 60%);
+        animation: jrnSpin 60s linear infinite;
+      }
+      @keyframes jrnSpin { to { transform: translateX(-50%) rotate(360deg); } }
+      .jrn-trophy { position: relative; width: clamp(84px, 14vw, 130px); margin: 0 auto 18px; animation: jrnBob 3.8s ease-in-out infinite; }
+      .jrn-finale-eyebrow {
+        position: relative; font-family: var(--f-cond); text-transform: uppercase;
+        letter-spacing: 0.3em; font-size: 13px; color: var(--gold); margin: 0 0 12px; font-weight: 600;
+      }
+      .jrn-finale-title {
+        position: relative; font-family: var(--f-disp); text-transform: uppercase; margin: 0;
+        font-size: clamp(44px, 10vw, 120px); line-height: 0.9; letter-spacing: 0.01em;
+        background: linear-gradient(180deg, #fff7e0, var(--gold) 55%, var(--gold-deep));
+        -webkit-background-clip: text; background-clip: text; color: transparent;
+      }
+      .jrn-finale-note {
+        position: relative; max-width: 56ch; margin: 28px auto 0;
+        font-size: clamp(17px, 2.6vw, 22px); color: rgba(244, 249, 244, 0.92);
+      }
+      .jrn-signoff {
+        position: relative; font-family: var(--f-serif); font-style: italic;
+        font-size: clamp(17px, 2.6vw, 22px); color: var(--gold); margin: 26px 0 0;
+      }
+
+      .jrn-footer {
+        display: flex; flex-wrap: wrap; gap: 10px 24px; justify-content: center; align-items: center;
+        padding: 34px 20px 48px; background: var(--night); text-align: center;
+        font-family: var(--f-cond); text-transform: uppercase; letter-spacing: 0.16em;
+        font-size: 12px; color: var(--whisper);
+      }
+      .jrn-footer a { color: var(--gold); text-decoration: none; }
+      .jrn-footer a:hover { text-decoration: underline; }
+
+      /* ── Responsive ──────────────────────────────────────────────────── */
+      @media (max-width: 560px) {
+        .jrn-stats { grid-template-columns: repeat(2, 1fr); }
+        .jrn-step { gap: 14px; }
+        .jrn-broadcast-label { display: none; }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        html { scroll-behavior: auto; }
+        .jrn-root *, .jrn-root *::before, .jrn-root *::after {
+          animation-duration: 0.001ms !important; animation-iteration-count: 1 !important;
+          transition-duration: 0.001ms !important;
+        }
+        .jrn-reveal { opacity: 1; transform: none; }
+        .jrn-goal-word { opacity: 1; transform: none; }
+        .jrn-name::after { display: none; }
+      }
+    </style>
+
+    <script is:inline>
+      (function () {
+        var root = document.querySelector('.jrn-root');
+        if (!root) return;
+        var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+        // ── Live "match clock" in the broadcast chip ──────────────────────
+        var clockEl = document.querySelector('[data-clock]');
+        if (clockEl) {
+          var tick = function () {
+            var d = new Date();
+            var p = function (n) { return String(n).padStart(2, '0'); };
+            clockEl.textContent = p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+          };
+          tick();
+          setInterval(tick, 1000);
+        }
+
+        // ── Reveals + count-up + scroll-triggered bursts ──────────────────
+        var progress = document.querySelector('[data-progress]');
+        var band = document.querySelector('[data-ballband]');
+        var ball = document.querySelector('[data-ball]');
+        var parallax = [].slice.call(document.querySelectorAll('[data-parallax]'));
+
+        function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+        function easeOut(t) { return 1 - Math.pow(1 - t, 3); }
+
+        function countUp(el) {
+          var target = parseInt(el.getAttribute('data-count'), 10);
+          if (isNaN(target)) return;
+          var suffix = el.getAttribute('data-suffix') || '';
+          if (reduce) { el.textContent = target + suffix; return; }
+          var start = null;
+          var dur = 1500;
+          function step(ts) {
+            if (start === null) start = ts;
+            var t = clamp((ts - start) / dur, 0, 1);
+            el.textContent = Math.round(easeOut(t) * target) + suffix;
+            if (t < 1) requestAnimationFrame(step);
+          }
+          requestAnimationFrame(step);
+        }
+
+        var io = new IntersectionObserver(function (entries) {
+          entries.forEach(function (e) {
+            if (!e.isIntersecting) return;
+            var el = e.target;
+            el.classList.add('is-in');
+            if (el.hasAttribute('data-count')) countUp(el);
+            if (el.hasAttribute('data-goal')) el.classList.add('is-fired');
+            if (el.hasAttribute('data-burst')) burst();
+            io.unobserve(el);
+          });
+        }, { threshold: 0.25 });
+
+        [].slice.call(
+          document.querySelectorAll('.jrn-reveal, [data-count], [data-goal], [data-burst]')
+        ).forEach(function (el) { io.observe(el); });
+
+        // ── One rAF scroll loop: progress bar + parallax + rolling ball ───
+        var ticking = false;
+        function onScroll() {
+          if (ticking) return;
+          ticking = true;
+          requestAnimationFrame(update);
+        }
+        function update() {
+          ticking = false;
+          var sy = window.scrollY || window.pageYOffset;
+          var doc = document.documentElement;
+          var dh = (doc.scrollHeight - window.innerHeight) || 1;
+          if (progress) progress.style.transform = 'scaleX(' + clamp(sy / dh, 0, 1) + ')';
+          if (reduce) return;
+
+          for (var i = 0; i < parallax.length; i++) {
+            var el = parallax[i];
+            var s = parseFloat(el.getAttribute('data-parallax')) || 0;
+            el.style.transform = 'translate3d(0,' + (sy * s).toFixed(1) + 'px,0)';
+          }
+
+          if (band && ball) {
+            var r = band.getBoundingClientRect();
+            var p = clamp((window.innerHeight - r.top) / (window.innerHeight + r.height), 0, 1);
+            ball.style.setProperty('--p', p.toFixed(4));
+          }
+        }
+        window.addEventListener('scroll', onScroll, { passive: true });
+        window.addEventListener('resize', onScroll);
+        update();
+
+        // ── Confetti burst (canvas) ───────────────────────────────────────
+        var canvas = document.querySelector('[data-confetti]');
+        var ctx = canvas && canvas.getContext ? canvas.getContext('2d') : null;
+        var parts = [];
+        var raf = null;
+        var COLORS = ['#f4c95d', '#ff5a5a', '#2f8fed', '#34c759', '#ffffff', '#ff8c42'];
+
+        function sizeCanvas() {
+          if (!canvas) return;
+          var dpr = Math.min(window.devicePixelRatio || 1, 2);
+          canvas.width = window.innerWidth * dpr;
+          canvas.height = window.innerHeight * dpr;
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        }
+        if (canvas) { sizeCanvas(); window.addEventListener('resize', sizeCanvas); }
+
+        function burst() {
+          if (reduce || !ctx) return;
+          var W = window.innerWidth;
+          var n = W < 640 ? 90 : 150;
+          for (var i = 0; i < n; i++) {
+            parts.push({
+              x: W * (0.15 + Math.random() * 0.7),
+              y: -20 - Math.random() * 120,
+              vx: (Math.random() - 0.5) * 6,
+              vy: 3 + Math.random() * 5,
+              g: 0.12 + Math.random() * 0.1,
+              size: 5 + Math.random() * 7,
+              rot: Math.random() * Math.PI,
+              vr: (Math.random() - 0.5) * 0.3,
+              color: COLORS[(Math.random() * COLORS.length) | 0],
+              life: 0
+            });
+          }
+          if (!raf) raf = requestAnimationFrame(drawConfetti);
+        }
+
+        function drawConfetti() {
+          ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+          var H = window.innerHeight;
+          for (var i = parts.length - 1; i >= 0; i--) {
+            var p = parts[i];
+            p.vy += p.g;
+            p.x += p.vx;
+            p.y += p.vy;
+            p.rot += p.vr;
+            p.life++;
+            ctx.save();
+            ctx.translate(p.x, p.y);
+            ctx.rotate(p.rot);
+            ctx.globalAlpha = clamp(1 - (p.y - H * 0.7) / (H * 0.4), 0, 1);
+            ctx.fillStyle = p.color;
+            ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.62);
+            ctx.restore();
+            if (p.y > H + 40 || p.life > 400) parts.splice(i, 1);
+          }
+          if (parts.length) {
+            raf = requestAnimationFrame(drawConfetti);
+          } else {
+            ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+            raf = null;
+          }
+        }
+      })();
+    </script>
+  </body>
+</html>
