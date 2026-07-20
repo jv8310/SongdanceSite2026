@@ -362,12 +362,28 @@ export function shopifyPresence(env: ShopifyEnv): ShopifyPresence {
   };
 }
 
+// The ACTUAL env binding names the Worker exposes that mention "shopify" (names
+// only, never values). Reveals a mis-typed secret name — a trailing space or a
+// homoglyph — that the presence booleans can't (e.g. a binding actually called
+// "SHOPIFY_CLIENT_ID " won't satisfy env.SHOPIFY_CLIENT_ID, but shows up here).
+function shopifyEnvKeys(env: ShopifyEnv): string[] {
+  try {
+    return Object.keys(env as Record<string, unknown>)
+      .filter((k) => /shopify/i.test(k))
+      .sort();
+  } catch {
+    return [];
+  }
+}
+
 export type DeckGiftTestResult = {
   ok: boolean;
   configured: boolean;
   // What the Worker sees (booleans only). Present on both success and the
   // not-configured error so the admin can spot exactly which secret is missing.
   present?: ShopifyPresence;
+  // The real Shopify-related binding names the Worker exposes (names only).
+  envKeys?: string[];
   shop?: string;
   variantId?: string;
   placed?: { orderName: string; orderGid: string; adminUrl: string } | null;
@@ -401,6 +417,7 @@ export async function testDeckGiftShopify(
       ok: false,
       configured: false,
       present,
+      envKeys: shopifyEnvKeys(env),
       error: `This Worker isn't seeing: ${missing.join(', ')}. Set them on the songdance-site Worker and run this on production (songdance.co), not a *.workers.dev preview URL — preview versions don't carry the live secrets.`,
     };
   }
