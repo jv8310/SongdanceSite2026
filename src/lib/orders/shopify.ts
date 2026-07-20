@@ -146,12 +146,23 @@ async function shopifyAdminToken(env: ShopifyEnv): Promise<string> {
   });
   const res = await fetch(`https://${shopDomain(env)}/admin/oauth/access_token`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Accept: 'application/json',
+      'User-Agent': 'Songdance-Worker',
+    },
     body,
   });
   const text = await res.text();
   if (!res.ok) {
-    throw new Error(`Shopify token HTTP ${res.status}: ${text.slice(0, 200)}`);
+    // An HTML "Verifying your connection…" body (not JSON) means we hit a
+    // bot-protected page — almost always the public storefront instead of the
+    // *.myshopify.com admin domain. Flag that plainly.
+    const looksLikeChallenge = /<html|verifying your connection|<!doctype/i.test(text);
+    const detail = looksLikeChallenge
+      ? 'a bot-challenge HTML page (not the OAuth endpoint) — SHOPIFY_STORE_DOMAIN is very likely the public storefront (songdeck.shop) instead of the *.myshopify.com admin domain'
+      : text.slice(0, 200);
+    throw new Error(`Shopify token HTTP ${res.status}: ${detail}`);
   }
   const token = JSON.parse(text)?.access_token;
   if (!token || typeof token !== 'string') {
@@ -172,6 +183,7 @@ async function shopifyGraphQL(
     headers: {
       'Content-Type': 'application/json',
       'X-Shopify-Access-Token': token,
+      'User-Agent': 'Songdance-Worker',
     },
     body: JSON.stringify({ query, variables }),
   });
@@ -476,6 +488,12 @@ export async function testDeckGiftShopify(
     const adminUrl = `https://${shop}/admin/orders/${numId}`;
     return { ok: true, configured: true, shop, variantId, placed: { orderName, orderGid, adminUrl } };
   } catch (err) {
-    return { ok: false, configured: true, shop, error: err instanceof Error ? err.message : String(err) };
+    const base = err instanceof Error ? err.message : String(err);
+    // If the configured domain isn't a *.myshopify.com admin domain, that's the
+    // usual root cause of an auth/challenge failure — say so explicitly.
+    const domainHint = !/\.myshopify\.com$/i.test(shop)
+      ? ` — SHOPIFY_STORE_DOMAIN is "${shop}", which is NOT a *.myshopify.com admin domain. Set it to your admin domain (e.g. songdeck.myshopify.com), not the public storefront (songdeck.shop).`
+      : '';
+    return { ok: false, configured: true, shop, envKeys: shopifyEnvKeys(env), error: base + domainHint };
   }
 }
