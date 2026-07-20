@@ -91,16 +91,21 @@ type Env = {
   // live session. Falls back to REPORTS_TO, then ADMIN_EMAIL, then jacob@.
   BRIEFING_TO?: string;
   ANTHROPIC_API_KEY?: string;
-  // Post-workshop Song Deck gift — direct Shopify fulfilment (optional). When
-  // all three are set, the course checkout places the free €0 deck order on the
-  // Songdeck Shopify shop via the Admin API instead of emailing the SVH-BONUS
-  // coupon (see src/lib/orders/shopify.ts). No-ops until set → the claim email.
+  // Post-workshop Songdeck gift — direct Shopify fulfilment (optional). When the
+  // store domain + token + product id are set, the course checkout places the
+  // free €0 deck order on the Songdeck Shopify shop via the Admin API instead of
+  // emailing the SVH-BONUS coupon (see src/lib/orders/shopify.ts). No-ops until
+  // set → the claim email.
   //   • SHOPIFY_STORE_DOMAIN    — the *.myshopify.com admin domain (NOT songdeck.shop)
   //   • SHOPIFY_ADMIN_TOKEN     — Admin API access token with write_draft_orders
-  //   • SHOPIFY_DECK_VARIANT_ID — the deck product's variant id (numeric or gid)
+  //   • SHOPIFY_DECK_PRODUCT_ID — the Songdeck product id (numeric, from the admin
+  //     URL /admin/products/<id>, or a product gid). The Songdeck is the only
+  //     product without variants, so its single variant is resolved automatically.
+  //   • SHOPIFY_DECK_VARIANT_ID — optional: pin the variant id directly instead
   //   • SHOPIFY_API_VERSION     — optional Graph version override (default 2024-10)
   SHOPIFY_STORE_DOMAIN?: string;
   SHOPIFY_ADMIN_TOKEN?: string;
+  SHOPIFY_DECK_PRODUCT_ID?: string;
   SHOPIFY_DECK_VARIANT_ID?: string;
   SHOPIFY_API_VERSION?: string;
   // Google Address Validation API key (optional) — used to catch spelling

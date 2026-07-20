@@ -150,7 +150,7 @@ export function buildEmailSamples(base: string): EmailSample[] {
     {
       id: 'deck_gift_confirmed',
       group: 'Registration & reminders (transactional)',
-      label: 'Song Deck gift — order placed, on its way',
+      label: 'Songdeck gift — order placed, on its way',
       timing: 'On course fulfilment, when the gift order was placed on Shopify from the checkout address',
       audience: 'Course buyers who gave a shipping address within the hour after their live workshop',
       content: deckGiftConfirmedEmail({

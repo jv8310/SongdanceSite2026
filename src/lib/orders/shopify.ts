@@ -17,7 +17,11 @@
 // until the owner provisions the Shopify custom-app credentials:
 //   • SHOPIFY_STORE_DOMAIN     — the *.myshopify.com admin domain (NOT songdeck.shop)
 //   • SHOPIFY_ADMIN_TOKEN      — an Admin API access token with write_draft_orders
-//   • SHOPIFY_DECK_VARIANT_ID  — the deck product's variant id (numeric or gid)
+//   • SHOPIFY_DECK_PRODUCT_ID  — the Songdeck product id (numeric, e.g. from the
+//                                admin URL /admin/products/<id>, or a product gid).
+//                                The Songdeck is the only product with no variants,
+//                                so its single default variant is resolved for us.
+//   • SHOPIFY_DECK_VARIANT_ID  — optional: pin the variant id directly instead
 //   • SHOPIFY_API_VERSION      — optional Graph version override (default 2024-10)
 
 import type { CourseRegistration } from '../courses/db';
@@ -37,6 +41,7 @@ export type ShopifyEnv = {
   SHOPIFY_STORE_DOMAIN?: string;
   SHOPIFY_ADMIN_TOKEN?: string;
   SHOPIFY_API_VERSION?: string;
+  SHOPIFY_DECK_PRODUCT_ID?: string;
   SHOPIFY_DECK_VARIANT_ID?: string;
 };
 
@@ -44,7 +49,7 @@ export function shopifyConfigured(env: ShopifyEnv): boolean {
   return !!(
     (env.SHOPIFY_STORE_DOMAIN ?? '').trim() &&
     (env.SHOPIFY_ADMIN_TOKEN ?? '').trim() &&
-    (env.SHOPIFY_DECK_VARIANT_ID ?? '').trim()
+    ((env.SHOPIFY_DECK_PRODUCT_ID ?? '').trim() || (env.SHOPIFY_DECK_VARIANT_ID ?? '').trim())
   );
 }
 
@@ -137,6 +142,31 @@ mutation deckGiftDraftComplete($id: ID!) {
   }
 }`;
 
+const DECK_VARIANT_QUERY = `
+query deckVariant($id: ID!) {
+  product(id: $id) { variants(first: 1) { nodes { id } } }
+}`;
+
+// A draft-order line item needs a variant id. The Songdeck is the only Shopify
+// product without variants, so rather than make the owner dig out a variant id
+// we take the (easy-to-find) product id and resolve its single default variant.
+// An explicit SHOPIFY_DECK_VARIANT_ID still wins if set. Throws when neither
+// resolves — the caller catches it and falls back to the coupon claim email.
+async function resolveDeckVariantId(env: ShopifyEnv): Promise<string> {
+  const variantRaw = (env.SHOPIFY_DECK_VARIANT_ID ?? '').trim();
+  if (variantRaw) return variantGid(variantRaw);
+
+  const productRaw = (env.SHOPIFY_DECK_PRODUCT_ID ?? '').trim();
+  if (!productRaw) throw new Error('Set SHOPIFY_DECK_PRODUCT_ID (or SHOPIFY_DECK_VARIANT_ID)');
+  const productGid = productRaw.startsWith('gid://')
+    ? productRaw
+    : `gid://shopify/Product/${productRaw.replace(/[^0-9]/g, '')}`;
+  const data = await shopifyGraphQL(env, DECK_VARIANT_QUERY, { id: productGid });
+  const id: string | undefined = data?.product?.variants?.nodes?.[0]?.id;
+  if (!id) throw new Error(`Shopify product ${productGid} has no variant to order`);
+  return id;
+}
+
 async function claim(db: D1Database, externalId: string): Promise<boolean> {
   const r = await db
     .prepare(
@@ -176,15 +206,16 @@ export async function placeDeckGiftShopifyOrder(
     claimed = await claim(env.DB, externalId);
     if (!claimed) return { status: 'already' };
 
+    const variantId = await resolveDeckVariantId(env);
     const input = {
       email: reg.email,
-      note: `Song Deck gift — course registration #${reg.id} (${reg.email})`,
-      tags: [DECK_GIFT_COUPON_CODE, 'song-deck-gift', 'svh-course'],
+      note: `Songdeck gift — course registration #${reg.id} (${reg.email})`,
+      tags: [DECK_GIFT_COUPON_CODE, 'songdeck-gift', 'svh-course'],
       useCustomerDefaultAddress: false,
-      lineItems: [{ variantId: variantGid(env.SHOPIFY_DECK_VARIANT_ID as string), quantity: 1 }],
+      lineItems: [{ variantId, quantity: 1 }],
       appliedDiscount: {
         title: DECK_GIFT_COUPON_CODE,
-        description: 'Post-workshop Song Deck gift',
+        description: 'Post-workshop Songdeck gift',
         valueType: 'PERCENTAGE',
         value: 100.0,
       },

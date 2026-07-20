@@ -122,9 +122,11 @@ in moderation, not governed by the copy book.
   coupon must exist/stay active in the Shopify admin (it's still the fallback).
   SD-ORDER notes the gift. **Setup (no-ops until set):** `SHOPIFY_STORE_DOMAIN`
   (the `*.myshopify.com` admin domain, NOT songdeck.shop), `SHOPIFY_ADMIN_TOKEN`
-  (custom-app Admin API token with `write_draft_orders`), `SHOPIFY_DECK_VARIANT_ID`
-  (the deck's variant id), optional `SHOPIFY_API_VERSION` (default `2024-10`),
-  and `GOOGLE_ADDRESS_VALIDATION_KEY` (Address Validation API enabled).
+  (custom-app Admin API token with `write_draft_orders`), `SHOPIFY_DECK_PRODUCT_ID`
+  (the Songdeck product id — it's the only product without variants, so its single
+  variant is resolved automatically; `SHOPIFY_DECK_VARIANT_ID` optionally pins it),
+  optional `SHOPIFY_API_VERSION` (default `2024-10`), and
+  `GOOGLE_ADDRESS_VALIDATION_KEY` (Address Validation API enabled).
 - **Zoom rejoin fix** (`joinWindowFor` in `src/lib/workshops/time.ts`): a fresh
   join still gates at start+20min, but anyone who already clicked Join can
   REJOIN until the session's real end (60-min default / 90-min masterclass from
