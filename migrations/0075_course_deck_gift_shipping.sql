@@ -1,0 +1,19 @@
+-- Post-workshop Song Deck gift — direct Shopify fulfilment.
+--
+-- The gift used to be self-serve: the buyer got a claim email with the SVH-BONUS
+-- coupon and placed the free order on songdeck.shop themselves (Shopify collected
+-- the address). Now the course checkout collects a shipping address inline while
+-- the gift window is live, verifies it through Google's Address Validation API,
+-- and — on payment — places a €0 order on Shopify directly through the Admin API
+-- (see src/lib/orders/shopify.ts). The coupon/claim email stays as the fallback
+-- when Shopify isn't configured, no address was collected, or the API call fails.
+--
+-- The collected (Google-standardised) shipping address is stored here as a JSON
+-- blob, e.g.
+--   {"name":"Jane Doe","line1":"1600 Amphitheatre Pkwy","line2":"",
+--    "city":"Mountain View","region":"CA","postal_code":"94043",
+--    "country":"US","phone":"+1…","verified":true}
+-- so every fulfilment path (Stripe webhook, PayPal, free checkout, admin
+-- mark-paid, and the hourly reconcile) can read it off the registration row and
+-- place the order. NULL / absent means no address was collected for this order.
+ALTER TABLE course_registrations ADD COLUMN deck_gift_shipping TEXT;

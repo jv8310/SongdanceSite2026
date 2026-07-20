@@ -57,6 +57,71 @@ export type DeckGiftStatus = {
   ends_at_ms: number | null;
 };
 
+// The shipping address the buyer enters on the course checkout while the gift
+// window is live, so the free Song Deck can be shipped to them. Stored as JSON
+// on course_registrations.deck_gift_shipping (migration 0075) and read at
+// fulfilment time to place the €0 Shopify order. `verified` records whether the
+// address passed (or was standardised by) Google's Address Validation API.
+export type DeckGiftShipping = {
+  name: string;
+  line1: string;
+  line2: string;
+  city: string;
+  region: string; // state / province — optional for many countries
+  postal_code: string;
+  country: string; // ISO-2
+  phone: string;
+  verified: boolean;
+};
+
+// The minimum an address needs to be worth shipping to: a recipient, a street,
+// a city and a country. (Region/postal vary too much by country to hard-require.)
+export function deckGiftShippingComplete(s: DeckGiftShipping | null): s is DeckGiftShipping {
+  return !!s && !!s.name.trim() && !!s.line1.trim() && !!s.city.trim() && !!s.country.trim();
+}
+
+// Build a DeckGiftShipping from loose checkout-request fields, trimming and
+// upper-casing the country. Returns null when nothing shippable was provided
+// (so a blank address never records a row and never blocks the sale).
+export function normalizeDeckGiftShipping(input: {
+  name?: unknown;
+  line1?: unknown;
+  line2?: unknown;
+  city?: unknown;
+  region?: unknown;
+  postal_code?: unknown;
+  country?: unknown;
+  phone?: unknown;
+  verified?: unknown;
+}): DeckGiftShipping | null {
+  const str = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
+  const s: DeckGiftShipping = {
+    name: str(input.name),
+    line1: str(input.line1),
+    line2: str(input.line2),
+    city: str(input.city),
+    region: str(input.region),
+    postal_code: str(input.postal_code),
+    country: str(input.country).toUpperCase(),
+    phone: str(input.phone),
+    verified: input.verified === true,
+  };
+  return deckGiftShippingComplete(s) ? s : null;
+}
+
+// Parse the JSON `deck_gift_shipping` column back into a validated address, or
+// null for empty / malformed input.
+export function parseDeckGiftShipping(raw: string | null | undefined): DeckGiftShipping | null {
+  if (!raw) return null;
+  try {
+    const o = JSON.parse(raw);
+    if (!o || typeof o !== 'object') return null;
+    return normalizeDeckGiftShipping(o as Record<string, unknown>);
+  } catch {
+    return null;
+  }
+}
+
 export const DECK_GIFT_INACTIVE: DeckGiftStatus = { active: false, ends_at_ms: null };
 
 // Decide the gift window from a person's secured workshop seats: live from

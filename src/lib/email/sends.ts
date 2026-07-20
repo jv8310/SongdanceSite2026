@@ -44,6 +44,7 @@ export const EMAIL_TYPE_META: Record<string, { group: string; label: string }> =
   downsell_1: { group: 'Downsell — after the window', label: 'Email 1 — installments + reply prompt' },
   downsell_2: { group: 'Downsell — after the window', label: 'Email 2 — free practice + calendar' },
   deck_gift_claim: { group: 'Song Deck gift', label: 'SVH-BONUS claim — free deck' },
+  deck_gift_confirmed: { group: 'Song Deck gift', label: 'Order placed — on its way' },
 };
 
 export function emailTypeMeta(type: string): { group: string; label: string } {

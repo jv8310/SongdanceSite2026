@@ -26,6 +26,7 @@ import {
   reminderEmail,
   verificationEmail,
   deckGiftClaimEmail,
+  deckGiftConfirmedEmail,
   type EmailContent,
 } from './emails';
 import {
@@ -142,6 +143,25 @@ export function buildEmailSamples(base: string): EmailSample[] {
         claimUrl: deckGiftClaimUrl(),
         couponCode: DECK_GIFT_COUPON_CODE,
         shopUrl: DECK_GIFT_SHOP_ORIGIN,
+      }),
+    },
+
+    // ── Song Deck gift confirmed — order placed on Shopify (transactional) ──
+    {
+      id: 'deck_gift_confirmed',
+      group: 'Registration & reminders (transactional)',
+      label: 'Song Deck gift — order placed, on its way',
+      timing: 'On course fulfilment, when the gift order was placed on Shopify from the checkout address',
+      audience: 'Course buyers who gave a shipping address within the hour after their live workshop',
+      content: deckGiftConfirmedEmail({
+        name,
+        addressLines: [
+          `${name} Example`,
+          '1600 Amphitheatre Parkway',
+          '94043 Mountain View',
+          'CA',
+          'US',
+        ],
       }),
     },
 

@@ -64,7 +64,11 @@ import {
 import { fulfilFreeCourseRegistration } from '../../../lib/courses/free-checkout';
 import { edgeTimezone } from '../../../lib/geo';
 import { bumpOffer, isBumpSlug, BUMPS, type BumpSlug } from '../../../lib/courses/bumps';
-import { deckGiftStatus, DECK_GIFT_BUMP_SLUG } from '../../../lib/courses/deck-promo';
+import {
+  deckGiftStatus,
+  DECK_GIFT_BUMP_SLUG,
+  normalizeDeckGiftShipping,
+} from '../../../lib/courses/deck-promo';
 
 export const prerender = false;
 
@@ -87,6 +91,17 @@ type Body = {
   // Order-bump slugs the buyer ticked ('asj' | 'grief'). Validated + priced
   // server-side; never discounted.
   bumps?: string[];
+  // Song Deck gift shipping address (only meaningful while the gift window is
+  // live; ignored otherwise). Verified client-side via /api/courses/verify-address.
+  shipping_name?: string;
+  shipping_line1?: string;
+  shipping_line2?: string;
+  shipping_city?: string;
+  shipping_region?: string;
+  shipping_postal_code?: string;
+  shipping_country?: string; // ISO-2
+  shipping_phone?: string;
+  shipping_verified?: boolean;
 };
 
 export const POST: APIRoute = async ({ request, locals }) => {
@@ -284,10 +299,24 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // ── Post-workshop Song Deck gift ───────────────────────────────────────
     // Re-derived server-side from the same workshop links as the discount:
     // live from the buyer's session start until 1h after it ends. Recorded as
-    // a zero-amount bumps row; on payment the buyer receives the SVH-BONUS
-    // claim email and orders the deck free on songdeck.shop (which collects
-    // the shipping address) — see src/lib/courses/deck-promo.ts.
+    // a zero-amount bumps row; while live the checkout also collects a shipping
+    // address so, on payment, the free deck order is placed directly on Shopify
+    // (falling back to the SVH-BONUS claim email when Shopify isn't configured
+    // or no address was given) — see src/lib/courses/deck-promo.ts.
     const deckGift = deckGiftStatus(links);
+    const deckShipping = deckGift.active
+      ? normalizeDeckGiftShipping({
+          name: payload.shipping_name || `${firstName} ${lastName}`,
+          line1: payload.shipping_line1,
+          line2: payload.shipping_line2,
+          city: payload.shipping_city,
+          region: payload.shipping_region,
+          postal_code: payload.shipping_postal_code,
+          country: payload.shipping_country || countryCode,
+          phone: payload.shipping_phone || phoneE164,
+          verified: payload.shipping_verified,
+        })
+      : null;
     if (deckGift.active) {
       bumpRows.push({ slug: DECK_GIFT_BUMP_SLUG, amount_cents: 0 });
     }
@@ -306,6 +335,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       source_variant: sourceVariant,
       timezone: edgeTimezone(locals),
       bumps: bumpRows.length ? bumpRows : null,
+      deck_gift_shipping: deckShipping,
       amount_cents: totalAmountCents,
       currency,
       consent_terms: payload.consent_terms === true,

@@ -80,8 +80,8 @@ const countries = COUNTRIES;
               <p class="cc-gift-title">The Songdeck ships to you — our gift</p>
               <p class="cc-gift-sub">
                 To honour your momentum and celebrate your yes: join within the
-                hour and the deck is yours. Right after checkout we email you a
-                one-tap claim — shipped free, anywhere in the world.
+                hour and the deck is yours. Add your address below and we'll ship
+                it to you — free, anywhere in the world.
               </p>
               <ul class="cc-gift-points">
                 <li>36 illustrated song cards — each with its own written message</li>
@@ -90,6 +90,49 @@ const countries = COUNTRIES;
                 <li>€44 in the shop — free with your course today</li>
               </ul>
             </div>
+          </div>
+
+          <!-- Shipping address for the free deck (optional; verified via Google).
+               Left blank → the buyer gets the emailed SVH-BONUS claim link. -->
+          <div class="cc-gift-ship" data-slot="gift-ship">
+            <div class="cc-gift-ship-label">Ship your free Songdeck to</div>
+            <div class="cc-variant-fields">
+              <label class="cc-variant-field cc-variant-field--full">
+                <span>Recipient name</span>
+                <input type="text" name="shipping_name" autocomplete="name" placeholder="Who's it going to?" />
+              </label>
+              <label class="cc-variant-field cc-variant-field--full">
+                <span>Address</span>
+                <input type="text" name="shipping_line1" autocomplete="address-line1" placeholder="Street and number" />
+              </label>
+              <label class="cc-variant-field cc-variant-field--full">
+                <span>Apartment, suite, etc. <span class="cc-field-note">— optional</span></span>
+                <input type="text" name="shipping_line2" autocomplete="address-line2" />
+              </label>
+              <label class="cc-variant-field">
+                <span>City</span>
+                <input type="text" name="shipping_city" autocomplete="address-level2" />
+              </label>
+              <label class="cc-variant-field">
+                <span>Postal code</span>
+                <input type="text" name="shipping_postal_code" autocomplete="postal-code" />
+              </label>
+              <label class="cc-variant-field">
+                <span>State / Province <span class="cc-field-note">— optional</span></span>
+                <input type="text" name="shipping_region" autocomplete="address-level1" />
+              </label>
+              <label class="cc-variant-field">
+                <span>Country</span>
+                <select name="shipping_country" autocomplete="country">
+                  <option value="">—</option>
+                  {countries.map((c) => (
+                    <option value={c.code}>{c.flag} {c.name}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <div data-slot="gift-verify"></div>
+            <p class="cc-gift-ship-note">Optional — leave blank and we'll email you a one-tap claim link instead.</p>
           </div>
         </div>
 
@@ -255,6 +298,11 @@ const countries = COUNTRIES;
   import { COUNTRIES } from '../../lib/countries';
   import { postJsonResilient } from '../../lib/client/resilient-fetch';
   import { launchPromoActive, LAUNCH_PROMO_TAG } from '../../lib/promo';
+  import {
+    prefillShipping,
+    wireShippingReset,
+    resolveShipping,
+  } from '../../lib/client/deck-gift-shipping';
 
   type Currency =
     | 'EUR' | 'USD' | 'GBP' | 'CAD' | 'CHF'
@@ -764,6 +812,16 @@ const countries = COUNTRIES;
       }
     }
     if (decision.phone) phoneInput.value = decision.phone;
+
+    // Song Deck gift shipping (only visible while the gift window is live):
+    // prefill the recipient/country from the billing details and re-verify on
+    // any edit. The verify + suggestion flow runs at submit (see startCheckout).
+    prefillShipping(root, {
+      first: firstNameInput.value,
+      last: lastNameInput.value,
+      billingCountry: countryHidden.value,
+    });
+    wireShippingReset(root);
 
     // VAT field appears as soon as a company name has been entered, so any
     // business can add its VAT number. Keeps the form tidy for the B2C majority.
@@ -1456,6 +1514,26 @@ const countries = COUNTRIES;
     if (vat_number && !company_name) return fail('Please add your company name to use a VAT number.');
     if (!consent_terms) return fail('Please agree to the terms to continue.');
 
+    // Post-workshop Song Deck gift shipping (optional). While the gift panel is
+    // live we collect + Google-verify a shipping address so the free deck order
+    // is placed automatically; blank / a Shopify miss falls back to the emailed
+    // claim link. A 'pending' result means a "did you mean" suggestion is showing
+    // and its buttons will re-invoke this checkout — so we stop here.
+    let shippingPayload: Record<string, string | boolean> = {};
+    const giftPanel = root.querySelector<HTMLElement>('[data-slot="gift"]');
+    if (giftPanel && !giftPanel.hidden) {
+      const ship = await resolveShipping(root, {
+        billingCountry: country,
+        first: first_name,
+        last: last_name,
+        resubmit: () =>
+          startCheckout(root, email, decision, productSlug, paymentPlan, btn, paypalBtn),
+      });
+      if (ship.status === 'error') return fail(ship.message);
+      if (ship.status === 'pending') return;
+      if (ship.status === 'ok') shippingPayload = ship.payload;
+    }
+
     // Activate choice is only meaningful for B1 + bundle buyers; default to
     // 'now' when the toggle was never shown so the server has something
     // explicit to record.
@@ -1501,6 +1579,7 @@ const countries = COUNTRIES;
         source_variant: decision.variant,
         consent_terms: true,
         provider,
+        ...shippingPayload,
         ...(discountPct > 0 ? { discount_percent: discountPct } : {}),
         ...(adiscountPct > 0 ? { adiscount_percent: adiscountPct } : {}),
       });

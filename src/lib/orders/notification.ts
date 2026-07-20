@@ -24,8 +24,15 @@ import {
   DECK_GIFT_COUPON_CODE,
   DECK_GIFT_SHOP_ORIGIN,
   deckGiftClaimUrl,
+  parseDeckGiftShipping,
+  type DeckGiftShipping,
 } from '../courses/deck-promo';
-import { deckGiftClaimEmail } from '../workshops/emails';
+import {
+  placeDeckGiftShopifyOrder,
+  shopifyConfigured,
+  type ShopifyEnv,
+} from './shopify';
+import { deckGiftClaimEmail, deckGiftConfirmedEmail } from '../workshops/emails';
 import { LANGUAGE_CHOICE_LABEL } from '../courses/journeys';
 import type { Registration } from '../registrations/db';
 import { logEvent } from '../registrations/db';
@@ -41,7 +48,7 @@ export type OrderEnv = {
   DRIP_API_TOKEN?: string;
   DRIP_ACCOUNT_ID?: string;
   ORDER_NOTIFICATIONS_TO?: string;
-};
+} & ShopifyEnv;
 
 // Where SD-ORDER notifications land when ORDER_NOTIFICATIONS_TO is unset.
 const DEFAULT_RECIPIENTS = ['jacob@songdance.co', 'support@songdance.co'];
@@ -459,12 +466,13 @@ export async function notifyCourseOrder(
   const bumps = parsePurchasedBumps(reg.bumps)
     .filter((b) => isBumpSlug(b.slug) || b.slug === DECK_GIFT_BUMP_SLUG)
     .map((b) => ({
-      // The Song Deck gift is a zero-amount add-on fulfilled through the
-      // Shopify coupon: the buyer gets a claim email (sent below) and orders
-      // the deck free on songdeck.shop, which collects the address and ships.
+      // The Song Deck gift is a zero-amount add-on fulfilled via Shopify: when a
+      // shipping address was collected + Shopify is configured, the €0 order is
+      // placed automatically (fulfilDeckGift, below); otherwise the buyer gets
+      // the SVH-BONUS claim email to self-order the deck free on songdeck.shop.
       label: isBumpSlug(b.slug)
         ? BUMPS[b.slug as BumpSlug].label
-        : `🎁 ${DECK_GIFT_LABEL} (claim email with ${DECK_GIFT_COUPON_CODE} sent; ships via the songdeck.shop order)`,
+        : `🎁 ${DECK_GIFT_LABEL} (auto-placed on Shopify when a shipping address was given, else ${DECK_GIFT_COUPON_CODE} claim email)`,
       amountCents: b.amount_cents,
     }));
   await sendOrderNotification(env, {
@@ -498,11 +506,107 @@ export async function notifyCourseOrder(
     paypalSubscriptionId: reg.paypal_subscription_id,
   });
 
-  // Song Deck gift claim: a buyer whose registration carries the zero-amount
-  // gift row gets their SVH-BONUS claim email. Riding notifyCourseOrder means
-  // every fulfilment path triggers it — Stripe webhook, PayPal, free checkout,
-  // admin mark-paid, and the hourly order-notification reconcile.
+  // Song Deck gift: a buyer whose registration carries the zero-amount gift row
+  // is fulfilled — either the deck order is placed on Shopify (when configured +
+  // a shipping address was collected) and a confirmation email goes out, or the
+  // buyer gets the SVH-BONUS claim email to self-order. Riding notifyCourseOrder
+  // means every fulfilment path triggers it — Stripe webhook, PayPal, free
+  // checkout, admin mark-paid, and the hourly order-notification reconcile.
+  await fulfilDeckGift(env, reg);
+}
+
+// Turn the stored shipping address into the display lines the confirmation email
+// echoes back to the buyer.
+export function deckGiftAddressLines(ship: DeckGiftShipping): string[] {
+  const cityLine = [ship.postal_code, ship.city].filter(Boolean).join(' ');
+  const regionLine = [ship.region].filter(Boolean).join('');
+  return [
+    ship.name,
+    ship.line1,
+    ship.line2,
+    cityLine,
+    regionLine,
+    ship.country,
+  ].filter((l) => (l ?? '').trim());
+}
+
+// Orchestrate deck-gift fulfilment. Never throws into the caller. Each branch is
+// independently idempotent (its own `events` claim), so it's safe to re-run from
+// the reconcile: a placed order won't re-place, a sent email won't re-send.
+//
+//   Shopify configured + address on file → place the €0 order, then confirm.
+//   otherwise (or on a Shopify failure)   → send the SVH-BONUS claim email.
+export async function fulfilDeckGift(env: OrderEnv, reg: CourseRegistration): Promise<void> {
+  const hasGift = parsePurchasedBumps(reg.bumps).some((b) => b.slug === DECK_GIFT_BUMP_SLUG);
+  if (!hasGift) return;
+
+  const ship = parseDeckGiftShipping(reg.deck_gift_shipping);
+
+  if (shopifyConfigured(env) && ship) {
+    const result = await placeDeckGiftShopifyOrder(env, reg);
+    // 'placed'/'already' → the order exists; confirm it (idempotent). Any other
+    // status (failed, or skipped for a reason other than a missing address) →
+    // fall back to the self-serve coupon so the buyer still gets their deck.
+    if (result.status === 'placed' || result.status === 'already') {
+      await sendDeckGiftConfirmedEmail(env, reg, ship);
+      return;
+    }
+  }
+
   await sendDeckGiftClaimEmail(env, reg);
+}
+
+// Buyer-facing, transactional (part of the purchase — never suppression-gated).
+// Idempotent on its own events claim, released on failure so a redelivery /
+// reconcile can retry. Never throws into the caller.
+export async function sendDeckGiftConfirmedEmail(
+  env: OrderEnv,
+  reg: CourseRegistration,
+  ship: DeckGiftShipping,
+): Promise<void> {
+  if (!env.RESEND_API_KEY) return;
+
+  const externalId = `deck-gift-confirmed-${reg.id}`;
+  let claimed = false;
+  try {
+    const r = await env.DB
+      .prepare(
+        `INSERT OR IGNORE INTO events (registration_id, kind, source, external_id)
+         VALUES (NULL, 'deck.gift.confirmed.sent', 'system', ?)`,
+      )
+      .bind(externalId)
+      .run();
+    claimed = (r.meta?.changes ?? 0) > 0;
+    if (!claimed) return; // already sent for this order
+
+    const content = deckGiftConfirmedEmail({
+      name: reg.first_name,
+      addressLines: deckGiftAddressLines(ship),
+    });
+    await sendEmail({
+      apiKey: env.RESEND_API_KEY,
+      to: reg.email,
+      subject: content.subject,
+      html: content.html,
+      text: content.text,
+      entityRefId: externalId,
+      track: { db: env.DB, type: 'deck_gift_confirmed' },
+    });
+  } catch (err) {
+    if (claimed) {
+      await env.DB
+        .prepare(`DELETE FROM events WHERE external_id = ? AND kind = 'deck.gift.confirmed.sent'`)
+        .bind(externalId)
+        .run()
+        .catch(() => {});
+    }
+    await logEvent(env.DB, {
+      registration_id: null,
+      kind: 'deck.gift.confirmed.error',
+      source: 'system',
+      payload: { course_registration_id: reg.id, error: String(err) },
+    }).catch(() => {});
+  }
 }
 
 // Buyer-facing, transactional (part of the purchase — never suppression-gated).

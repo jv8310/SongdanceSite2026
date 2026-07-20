@@ -929,6 +929,20 @@ html, body { background: var(--paper); }
   .tw-reg-gift-body { flex-direction: column; }
   .tw-reg-gift-thumb { width: 100%; height: 150px; }
 }
+/* Shipping-address group inside the gift panel (reuses .tw-reg-field). */
+.tw-reg-gift-ship {
+  margin-top: var(--sp-3); padding-top: var(--sp-3);
+  border-top: 1px solid rgba(244, 236, 223, 0.18);
+}
+.tw-reg-gift-ship-label {
+  font-family: var(--font-mono); font-size: 10px;
+  text-transform: uppercase; letter-spacing: 0.16em;
+  color: var(--ember-soft); margin-bottom: var(--sp-2);
+}
+.tw-reg-gift-ship-note {
+  margin: 8px 0 0; font-family: var(--font-body); font-size: 12px;
+  color: rgba(244, 236, 223, 0.6); line-height: 1.45;
+}
 
 /* Certification path: two transparent line items + a combined total */
 .tw-reg-pricebox[hidden] { display: none; }

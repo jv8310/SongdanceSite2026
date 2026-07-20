@@ -1005,6 +1005,38 @@ export function deckGiftClaimEmail(ctx: {
   };
 }
 
+// ── Song Deck gift — order placed, on its way ───────────────────────────────
+// Sent instead of the claim email when we placed the free deck order on Shopify
+// directly (the buyer gave a shipping address at checkout). Confirms it's on its
+// way to the address they gave, so there's nothing left for them to do.
+// Transactional: part of the purchase, so no unsubscribe gating.
+export function deckGiftConfirmedEmail(ctx: {
+  name?: string | null;
+  // Pre-formatted multi-line address to echo back (already escaped-safe text).
+  addressLines: string[];
+}): EmailContent {
+  const addrHtml = ctx.addressLines
+    .filter((l) => l.trim())
+    .map((l) => escapeHtml(l))
+    .join('<br />');
+  const addrText = ctx.addressLines.filter((l) => l.trim()).join('\n');
+  const html = shell({
+    preheader: 'Your free Songdeck is on its way — nothing left to do.',
+    heading: 'Your Songdeck is on its way',
+    bodyHtml: `<p style="margin:0 0 14px;">${greeting(ctx.name)}</p>
+      <p style="margin:0 0 14px;">You said yes within the hour — so the <strong>Songdeck</strong> is our gift, to honour your momentum: thirty-six illustrated song cards, each with its own written message and its own music, in a sturdy magnetic box.</p>
+      <p style="margin:0 0 14px;">We've placed the order for you and it ships free, worldwide — there's nothing left to do. It's on its way to:</p>
+      <p style="margin:0 0 14px;padding:14px 16px;background-color:${PALETTE.bg};border:1px solid ${PALETTE.border};border-radius:10px;font-size:15px;line-height:1.6;color:${PALETTE.ink};">${addrHtml}</p>
+      <p style="margin:0;">If anything there looks off, just reply to this email and we'll fix it before it ships.</p>`,
+    footerNote: 'This gift came with your course registration — no strings attached to it.',
+  });
+  return {
+    subject: 'Your free Songdeck is on its way',
+    html,
+    text: `${textGreeting(ctx.name)}\n\nYou said yes within the hour — so the Songdeck is our gift, to honour your momentum: thirty-six illustrated song cards, each with its own written message and its own music, in a sturdy magnetic box.\n\nWe've placed the order for you and it ships free, worldwide — there's nothing left to do. It's on its way to:\n\n${addrText}\n\nIf anything there looks off, just reply to this email and we'll fix it before it ships.\n\nWarmly,\nJacob`,
+  };
+}
+
 // ── No-show 1 (right after): seat is safe ──────────────────────────────────
 export function noShowEmail1(ctx: LifecycleCtx & { hubUrl: string }): EmailContent {
   const html = shell({

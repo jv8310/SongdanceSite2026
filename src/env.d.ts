@@ -91,6 +91,23 @@ type Env = {
   // live session. Falls back to REPORTS_TO, then ADMIN_EMAIL, then jacob@.
   BRIEFING_TO?: string;
   ANTHROPIC_API_KEY?: string;
+  // Post-workshop Song Deck gift — direct Shopify fulfilment (optional). When
+  // all three are set, the course checkout places the free €0 deck order on the
+  // Songdeck Shopify shop via the Admin API instead of emailing the SVH-BONUS
+  // coupon (see src/lib/orders/shopify.ts). No-ops until set → the claim email.
+  //   • SHOPIFY_STORE_DOMAIN    — the *.myshopify.com admin domain (NOT songdeck.shop)
+  //   • SHOPIFY_ADMIN_TOKEN     — Admin API access token with write_draft_orders
+  //   • SHOPIFY_DECK_VARIANT_ID — the deck product's variant id (numeric or gid)
+  //   • SHOPIFY_API_VERSION     — optional Graph version override (default 2024-10)
+  SHOPIFY_STORE_DOMAIN?: string;
+  SHOPIFY_ADMIN_TOKEN?: string;
+  SHOPIFY_DECK_VARIANT_ID?: string;
+  SHOPIFY_API_VERSION?: string;
+  // Google Address Validation API key (optional) — used to catch spelling
+  // mistakes / missing parts in the deck-gift shipping address before the order
+  // is placed (see src/lib/address/google-validate.ts). Unset → verification is
+  // skipped and the typed address is used as-is (the sale is never blocked).
+  GOOGLE_ADDRESS_VALIDATION_KEY?: string;
   SVH_CERT_PORTAL_URL?: string;
   // Admin login is email + password, multi-user. ADMIN_PASSWORD is the original
   // owner login (paired with ADMIN_EMAIL, default jacob@songdance.co). Add
