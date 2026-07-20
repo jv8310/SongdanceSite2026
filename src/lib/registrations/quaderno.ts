@@ -24,17 +24,41 @@ type ContactInput = {
   name: string;
   email: string;
   country?: string | null;
+  // Optional B2B details. `company` promotes the contact to a company and
+  // `vat_number` becomes its tax_id — which is what lets Quaderno apply EU
+  // reverse-charge (0% VAT) to a valid cross-border business.
+  company?: string | null;
+  vat_number?: string | null;
 };
 
 type InvoiceItem = {
   description: string;
   // Gross unit price (tax inclusive) — the site prices are tax-inclusive, so we
-  // pass gross and let Quaderno back the destination VAT out of it via tax_1.
+  // pass gross and let Quaderno back the tax out of it.
   unit_price: number;
   quantity: number;
+  // Preferred: let Quaderno auto-calculate the tax from the contact (country +
+  // VAT number) for this tax class (e.g. 'eservice'). Requires automatic tax
+  // calculation to be enabled on the account (it is — the Stripe connector
+  // relies on it). Leave tax_1_* unset when using this.
+  tax_class?: string;
   tax_1_name?: string;
   tax_1_rate?: number; // percentage, e.g. 21
 };
+
+// Build a Quaderno contact body. A `company` makes it a company contact (its
+// name lives in first_name); otherwise a person. `vat_number` → tax_id.
+function contactBody(c: ContactInput): Record<string, unknown> {
+  const isCompany = !!(c.company && c.company.trim());
+  return {
+    kind: isCompany ? 'company' : 'person',
+    first_name: isCompany ? c.company : c.name,
+    contact_name: c.name,
+    email: c.email,
+    country: c.country || undefined,
+    tax_id: c.vat_number || undefined,
+  };
+}
 
 type CreateInvoiceInput = {
   contact_id: string;
@@ -81,15 +105,33 @@ export async function findContactIdByEmail(
 }
 
 export async function upsertContact(cfg: QuadernoConfig, c: ContactInput) {
-  // Quaderno doesn't have a true upsert; we attempt to find by email first.
-  const search = await fetch(
-    `${baseUrl(cfg)}/contacts.json?q=${encodeURIComponent(c.email)}`,
-    { headers: { Authorization: authHeader(cfg) } },
-  );
-  if (search.ok) {
-    const arr = (await search.json()) as Array<{ id: string; email: string }>;
-    const found = arr.find((x) => x.email?.toLowerCase() === c.email.toLowerCase());
-    if (found) return String(found.id);
+  // Quaderno doesn't have a true upsert; find by email first.
+  const existingId = await findContactIdByEmail(cfg, c.email);
+  if (existingId) {
+    // Attach any newly-provided details (country / company / VAT number) so a
+    // B2B order gets the right reverse-charge tax and the invoice shows the
+    // company. Best-effort, and only fields we were given — never blank
+    // existing data.
+    const update: Record<string, unknown> = {};
+    if (c.country) update.country = c.country;
+    if (c.vat_number) update.tax_id = c.vat_number;
+    if (c.company && c.company.trim()) {
+      update.kind = 'company';
+      update.first_name = c.company;
+    }
+    if (Object.keys(update).length) {
+      await fetch(`${baseUrl(cfg)}/contacts/${existingId}.json`, {
+        method: 'PUT',
+        headers: {
+          Authorization: authHeader(cfg),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(update),
+      }).catch(() => {
+        /* best-effort — a paid invoice on the existing contact still lands */
+      });
+    }
+    return existingId;
   }
 
   const res = await fetch(`${baseUrl(cfg)}/contacts.json`, {
@@ -98,13 +140,7 @@ export async function upsertContact(cfg: QuadernoConfig, c: ContactInput) {
       Authorization: authHeader(cfg),
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      kind: 'person',
-      first_name: c.name,
-      contact_name: c.name,
-      email: c.email,
-      country: c.country ?? undefined,
-    }),
+    body: JSON.stringify(contactBody(c)),
   });
   if (!res.ok) {
     throw new Error(`Quaderno contact create failed: ${res.status} ${await res.text()}`);
@@ -134,11 +170,11 @@ export async function createInvoice(
         description: i.description,
         unit_price: i.unit_price,
         quantity: i.quantity,
+        tax_class: i.tax_class,
         tax_1_name: i.tax_1_name,
         tax_1_rate: i.tax_1_rate,
       })),
       notes: input.notes,
-      tax_id: '',
     }),
   });
   if (!res.ok) {

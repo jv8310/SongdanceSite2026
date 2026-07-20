@@ -345,6 +345,8 @@ type CReg = {
   product_slug: string;
   activate_choice: string | null;
   source_variant: string | null;
+  company_name: string | null;
+  vat_number: string | null;
   amount_cents: number;
   currency: string;
   status: string;
@@ -373,7 +375,8 @@ async function enrichCourse(
   const reg = await db
     .prepare(
       `SELECT first_name, last_name, email, country, phone, phone_country,
-              product_slug, activate_choice, source_variant, amount_cents, currency,
+              product_slug, activate_choice, source_variant, company_name, vat_number,
+              amount_cents, currency,
               status, payment_plan, installments_paid, installments_total,
               stripe_session_id, stripe_payment_intent, stripe_subscription_id,
               paypal_capture_id, paypal_subscription_id, quaderno_invoice_id,
@@ -430,6 +433,8 @@ async function enrichCourse(
   const customer = fields([
     field('Phone', reg?.phone ? `${reg.phone}${reg.phone_country ? ` (${reg.phone_country})` : ''}` : null),
     field('Country', reg?.country),
+    field('Company', reg?.company_name),
+    field('VAT number', reg?.vat_number, { mono: true }),
     field('Currency', reg?.currency),
     field('Language', reg?.language_choice),
     field('Source variant', reg?.source_variant, { mono: true }),

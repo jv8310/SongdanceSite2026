@@ -109,6 +109,15 @@ const initialAmount = PRICES['cc-cert'].EUR;
           </label>
 
           <label>
+            <span>Company name <em>(optional)</em></span>
+            <input type="text" name="company_name" maxlength="200" placeholder="Acme BV" />
+          </label>
+          <label>
+            <span>VAT number <em>(optional)</em></span>
+            <input type="text" name="vat_number" maxlength="40" placeholder="NL123456789B01" style="text-transform:uppercase" />
+          </label>
+
+          <label>
             <span>Payment date (bank transfer)</span>
             <input type="date" name="paid_date" value={today} max={today} required />
           </label>
@@ -133,10 +142,11 @@ const initialAmount = PRICES['cc-cert'].EUR;
 
         <p class="adm-table-note">
           The amount is treated as the <strong>gross</strong> total received (VAT
-          included); the buyer-country e-service VAT is split out on the Quaderno
-          invoice. The order syncs to Drip like any paid course (tags, event, and a
-          native Drip order dated by the payment date). Bumps, installments and
-          discounts aren't supported here — full payment only.
+          included); Quaderno works out the tax on the invoice from the customer —
+          destination VAT for a consumer, or <strong>reverse-charge 0%</strong> for
+          a valid EU business VAT number. The order syncs to Drip like any paid
+          course (tags, event, and a native Drip order dated by the payment date).
+          Bumps, installments and discounts aren't supported here — full payment only.
         </p>
       </form>
     </section>
