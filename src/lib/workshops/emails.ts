@@ -1021,19 +1021,19 @@ export function deckGiftConfirmedEmail(ctx: {
     .join('<br />');
   const addrText = ctx.addressLines.filter((l) => l.trim()).join('\n');
   const html = shell({
-    preheader: 'Your free Songdeck is on its way — nothing left to do.',
-    heading: 'Your Songdeck is on its way',
+    preheader: "Ordered and paid for — we'll email you the moment it ships.",
+    heading: "We're on it — your Songdeck is coming",
     bodyHtml: `<p style="margin:0 0 14px;">${greeting(ctx.name)}</p>
       <p style="margin:0 0 14px;">You said yes within the hour — so the <strong>Songdeck</strong> is our gift, to honour your momentum: thirty-six illustrated song cards, each with its own written message and its own music, in a sturdy magnetic box.</p>
-      <p style="margin:0 0 14px;">We've placed the order for you and it ships free, worldwide — there's nothing left to do. It's on its way to:</p>
+      <p style="margin:0 0 14px;">We're on it — the order is placed and paid for, and it ships free, worldwide, so there's nothing left to do on your end. Each deck is made and sent with care, so it can take up to 30 days to reach you. We'll email you the moment it ships. Here's where it's headed:</p>
       <p style="margin:0 0 14px;padding:14px 16px;background-color:${PALETTE.bg};border:1px solid ${PALETTE.border};border-radius:10px;font-size:15px;line-height:1.6;color:${PALETTE.ink};">${addrHtml}</p>
       <p style="margin:0;">If anything there looks off, just reply to this email and we'll fix it before it ships.</p>`,
     footerNote: 'This gift came with your course registration — no strings attached to it.',
   });
   return {
-    subject: 'Your free Songdeck is on its way',
+    subject: "We're on it — your free Songdeck is coming",
     html,
-    text: `${textGreeting(ctx.name)}\n\nYou said yes within the hour — so the Songdeck is our gift, to honour your momentum: thirty-six illustrated song cards, each with its own written message and its own music, in a sturdy magnetic box.\n\nWe've placed the order for you and it ships free, worldwide — there's nothing left to do. It's on its way to:\n\n${addrText}\n\nIf anything there looks off, just reply to this email and we'll fix it before it ships.\n\nWarmly,\nJacob`,
+    text: `${textGreeting(ctx.name)}\n\nYou said yes within the hour — so the Songdeck is our gift, to honour your momentum: thirty-six illustrated song cards, each with its own written message and its own music, in a sturdy magnetic box.\n\nWe're on it — the order is placed and paid for, and it ships free, worldwide, so there's nothing left to do on your end. Each deck is made and sent with care, so it can take up to 30 days to reach you. We'll email you the moment it ships. Here's where it's headed:\n\n${addrText}\n\nIf anything there looks off, just reply to this email and we'll fix it before it ships.\n\nWarmly,\nJacob`,
   };
 }
 
