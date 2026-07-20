@@ -206,10 +206,13 @@ mutation deckGiftDraftCreate($input: DraftOrderInput!) {
   }
 }`;
 
+// Deliberately does NOT read back the completed `order` field — that requires
+// the read_orders scope, which the gift app doesn't need. Completing the draft
+// only needs write_draft_orders; we just take the draft id back.
 const DRAFT_ORDER_COMPLETE = `
 mutation deckGiftDraftComplete($id: ID!) {
   draftOrderComplete(id: $id, paymentPending: false) {
-    draftOrder { id order { id name } }
+    draftOrder { id name }
     userErrors { field message }
   }
 }`;
@@ -310,9 +313,11 @@ export async function placeDeckGiftShopifyOrder(
     if (completeErr.length) {
       throw new Error(`draftOrderComplete: ${JSON.stringify(completeErr).slice(0, 300)}`);
     }
-    const order = completed?.draftOrderComplete?.draftOrder?.order;
-    const orderGid: string = order?.id ?? draftId;
-    const orderName: string = order?.name ?? '(order)';
+    // We don't read the resulting order (needs read_orders); the completed draft
+    // is enough to confirm success and to reference in the audit log.
+    const draft = completed?.draftOrderComplete?.draftOrder;
+    const orderGid: string = draft?.id ?? draftId;
+    const orderName: string = draft?.name ?? '(draft)';
 
     await logEvent(env.DB, {
       registration_id: null,
@@ -481,12 +486,14 @@ export async function testDeckGiftShopify(
     if (compErr.length) {
       return { ok: false, configured: true, shop, variantId, error: `draftOrderComplete: ${JSON.stringify(compErr)}` };
     }
-    const order = completed?.draftOrderComplete?.draftOrder?.order;
-    const orderGid: string = order?.id ?? draftId;
-    const orderName: string = order?.name ?? '(order)';
-    const numId = String(orderGid).split('/').pop();
-    const adminUrl = `https://${shop}/admin/orders/${numId}`;
-    return { ok: true, configured: true, shop, variantId, placed: { orderName, orderGid, adminUrl } };
+    // We don't read the resulting order (needs read_orders) — link to the
+    // completed draft order, which shows (and links to) the order it created.
+    const draft = completed?.draftOrderComplete?.draftOrder;
+    const draftGid: string = draft?.id ?? draftId;
+    const orderName: string = draft?.name ?? '(draft)';
+    const numId = String(draftGid).split('/').pop();
+    const adminUrl = `https://${shop}/admin/draft_orders/${numId}`;
+    return { ok: true, configured: true, shop, variantId, placed: { orderName, orderGid: draftGid, adminUrl } };
   } catch (err) {
     const base = err instanceof Error ? err.message : String(err);
     // If the configured domain isn't a *.myshopify.com admin domain, that's the
