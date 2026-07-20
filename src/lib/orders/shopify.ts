@@ -146,12 +146,23 @@ async function shopifyAdminToken(env: ShopifyEnv): Promise<string> {
   });
   const res = await fetch(`https://${shopDomain(env)}/admin/oauth/access_token`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Accept: 'application/json',
+      'User-Agent': 'Songdance-Worker',
+    },
     body,
   });
   const text = await res.text();
   if (!res.ok) {
-    throw new Error(`Shopify token HTTP ${res.status}: ${text.slice(0, 200)}`);
+    // An HTML "Verifying your connection…" body (not JSON) means we hit a
+    // bot-protected page — almost always the public storefront instead of the
+    // *.myshopify.com admin domain. Flag that plainly.
+    const looksLikeChallenge = /<html|verifying your connection|<!doctype/i.test(text);
+    const detail = looksLikeChallenge
+      ? 'a bot-challenge HTML page (not the OAuth endpoint) — SHOPIFY_STORE_DOMAIN is very likely the public storefront (songdeck.shop) instead of the *.myshopify.com admin domain'
+      : text.slice(0, 200);
+    throw new Error(`Shopify token HTTP ${res.status}: ${detail}`);
   }
   const token = JSON.parse(text)?.access_token;
   if (!token || typeof token !== 'string') {
@@ -172,6 +183,7 @@ async function shopifyGraphQL(
     headers: {
       'Content-Type': 'application/json',
       'X-Shopify-Access-Token': token,
+      'User-Agent': 'Songdance-Worker',
     },
     body: JSON.stringify({ query, variables }),
   });
@@ -362,12 +374,28 @@ export function shopifyPresence(env: ShopifyEnv): ShopifyPresence {
   };
 }
 
+// The ACTUAL env binding names the Worker exposes that mention "shopify" (names
+// only, never values). Reveals a mis-typed secret name — a trailing space or a
+// homoglyph — that the presence booleans can't (e.g. a binding actually called
+// "SHOPIFY_CLIENT_ID " won't satisfy env.SHOPIFY_CLIENT_ID, but shows up here).
+function shopifyEnvKeys(env: ShopifyEnv): string[] {
+  try {
+    return Object.keys(env as Record<string, unknown>)
+      .filter((k) => /shopify/i.test(k))
+      .sort();
+  } catch {
+    return [];
+  }
+}
+
 export type DeckGiftTestResult = {
   ok: boolean;
   configured: boolean;
   // What the Worker sees (booleans only). Present on both success and the
   // not-configured error so the admin can spot exactly which secret is missing.
   present?: ShopifyPresence;
+  // The real Shopify-related binding names the Worker exposes (names only).
+  envKeys?: string[];
   shop?: string;
   variantId?: string;
   placed?: { orderName: string; orderGid: string; adminUrl: string } | null;
@@ -401,6 +429,7 @@ export async function testDeckGiftShopify(
       ok: false,
       configured: false,
       present,
+      envKeys: shopifyEnvKeys(env),
       error: `This Worker isn't seeing: ${missing.join(', ')}. Set them on the songdance-site Worker and run this on production (songdance.co), not a *.workers.dev preview URL — preview versions don't carry the live secrets.`,
     };
   }
@@ -459,6 +488,12 @@ export async function testDeckGiftShopify(
     const adminUrl = `https://${shop}/admin/orders/${numId}`;
     return { ok: true, configured: true, shop, variantId, placed: { orderName, orderGid, adminUrl } };
   } catch (err) {
-    return { ok: false, configured: true, shop, error: err instanceof Error ? err.message : String(err) };
+    const base = err instanceof Error ? err.message : String(err);
+    // If the configured domain isn't a *.myshopify.com admin domain, that's the
+    // usual root cause of an auth/challenge failure — say so explicitly.
+    const domainHint = !/\.myshopify\.com$/i.test(shop)
+      ? ` — SHOPIFY_STORE_DOMAIN is "${shop}", which is NOT a *.myshopify.com admin domain. Set it to your admin domain (e.g. songdeck.myshopify.com), not the public storefront (songdeck.shop).`
+      : '';
+    return { ok: false, configured: true, shop, envKeys: shopifyEnvKeys(env), error: base + domainHint };
   }
 }

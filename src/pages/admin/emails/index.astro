@@ -212,8 +212,10 @@ const groups = [...new Set(samples.map((s) => s.group))];
         });
         const data = (await res.json()) as {
           ok?: boolean; error?: string; shop?: string; variantId?: string;
+          envKeys?: string[];
           placed?: { orderName?: string; adminUrl?: string } | null;
         };
+        const shopNote = data.shop ? `  ·  domain: ${data.shop}` : '';
         if (res.ok && data.ok) {
           sdStatus.dataset.state = 'ok';
           if (data.placed && data.placed.adminUrl) {
@@ -225,7 +227,14 @@ const groups = [...new Set(samples.map((s) => s.group))];
           }
         } else {
           sdStatus.dataset.state = 'error';
-          sdStatus.textContent = data.error ?? 'Failed';
+          // Show the actual Shopify binding names the Worker sees (as JSON, so a
+          // trailing space or typo in a secret name is visible), to pinpoint a
+          // mis-named secret.
+          const keys = Array.isArray(data.envKeys) ? data.envKeys : [];
+          sdStatus.textContent =
+            (data.error ?? 'Failed') +
+            shopNote +
+            (keys.length ? `  ·  Shopify bindings the Worker sees: ${JSON.stringify(keys)}` : '');
         }
       } catch {
         sdStatus.dataset.state = 'error';
