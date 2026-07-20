@@ -117,8 +117,8 @@ const includes = [
               <p class="tw-reg-gift-title">The Songdeck ships to you — our gift</p>
               <p class="tw-reg-gift-sub">
                 To honour your momentum and celebrate your yes: join within the
-                hour and the deck is yours. Right after checkout we email you a
-                one-tap claim — shipped free, anywhere in the world.
+                hour and the deck is yours. Add your address below and we'll ship
+                it to you — free, anywhere in the world.
               </p>
               <ul class="tw-reg-gift-points">
                 <li>36 illustrated song cards — each with its own written message</li>
@@ -127,6 +127,49 @@ const includes = [
                 <li>€44 in the shop — free with your course today</li>
               </ul>
             </div>
+          </div>
+
+          <!-- Shipping address for the free deck (optional; verified via Google).
+               Left blank → the buyer gets the emailed SVH-BONUS claim link. -->
+          <div class="tw-reg-gift-ship" data-slot="gift-ship">
+            <div class="tw-reg-gift-ship-label">Ship your free Songdeck to</div>
+            <div class="tw-reg-fields">
+              <label class="tw-reg-field tw-reg-field--full">
+                <span>Recipient name</span>
+                <input type="text" name="shipping_name" autocomplete="name" placeholder="Who's it going to?" />
+              </label>
+              <label class="tw-reg-field tw-reg-field--full">
+                <span>Address</span>
+                <input type="text" name="shipping_line1" autocomplete="address-line1" placeholder="Street and number" />
+              </label>
+              <label class="tw-reg-field tw-reg-field--full">
+                <span>Apartment, suite, etc. <span class="tw-reg-fieldnote">— optional</span></span>
+                <input type="text" name="shipping_line2" autocomplete="address-line2" />
+              </label>
+              <label class="tw-reg-field">
+                <span>City</span>
+                <input type="text" name="shipping_city" autocomplete="address-level2" />
+              </label>
+              <label class="tw-reg-field">
+                <span>Postal code</span>
+                <input type="text" name="shipping_postal_code" autocomplete="postal-code" />
+              </label>
+              <label class="tw-reg-field">
+                <span>State / Province <span class="tw-reg-fieldnote">— optional</span></span>
+                <input type="text" name="shipping_region" autocomplete="address-level1" />
+              </label>
+              <label class="tw-reg-field">
+                <span>Country</span>
+                <select name="shipping_country" autocomplete="country">
+                  <option value="">—</option>
+                  {COUNTRIES.map((c) => (
+                    <option value={c.code}>{c.flag} {c.name}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <div data-slot="gift-verify"></div>
+            <p class="tw-reg-gift-ship-note">Optional — leave blank and we'll email you a one-tap claim link instead.</p>
           </div>
         </div>
 
@@ -286,6 +329,11 @@ const includes = [
 <script>
   import { COUNTRIES, findCountry } from '../../lib/countries';
   import { postJsonResilient } from '../../lib/client/resilient-fetch';
+  import {
+    prefillShipping,
+    wireShippingReset,
+    resolveShipping,
+  } from '../../lib/client/deck-gift-shipping';
 
   type Plan = 'full' | '3x' | '6x' | '12x';
   type OfferId = '12week' | 'path';
@@ -1004,6 +1052,16 @@ const includes = [
       companyI.addEventListener('input', toggleVat);
       toggleVat();
 
+      // Song Deck gift shipping (only visible while the gift window is live):
+      // prefill recipient/country from the billing details and re-verify on any
+      // edit. The verify + suggestion flow runs at submit (see the CTA handler).
+      prefillShipping(root, {
+        first: firstI.value,
+        last: lastI.value,
+        billingCountry: countryHidden.value,
+      });
+      wireShippingReset(root);
+
       // Changing country re-prices (currency may change). Debounced.
       let repriceTimer: number | undefined;
       const resolveCountry = () => {
@@ -1063,6 +1121,26 @@ const includes = [
         if (vat && !company) return fail('Please add your company name to use a VAT number.');
         if (!consent) return fail('Please agree to the terms to continue.');
 
+        // Post-workshop Song Deck gift shipping (optional). While the gift panel
+        // is live, collect + Google-verify a shipping address so the free deck
+        // order is placed automatically; blank falls back to the emailed claim
+        // link. A 'pending' result means a "did you mean" suggestion is showing
+        // (its buttons re-invoke this checkout) — stop here before we touch the
+        // gateway choice.
+        let shippingPayload: Record<string, string | boolean> = {};
+        const giftPanel = q('[data-slot="gift"]') as HTMLElement | null;
+        if (giftPanel && !giftPanel.hidden) {
+          const ship = await resolveShipping(root, {
+            billingCountry: country,
+            first,
+            last,
+            resubmit: () => cta.click(),
+          });
+          if (ship.status === 'error') return fail(ship.message);
+          if (ship.status === 'pending') return;
+          if (ship.status === 'ok') shippingPayload = ship.payload;
+        }
+
         // Certification path only: when should the certification open?
         const activateChoice = String(
           root.querySelector<HTMLInputElement>('[name="activate_choice"]:checked')?.value ?? 'wait',
@@ -1095,6 +1173,7 @@ const includes = [
                 source_variant: 'twelveweek',
                 consent_terms: true,
                 provider,
+                ...shippingPayload,
                 discount_percent: urlDiscount || undefined,
                 adiscount_percent: urlAdiscount || undefined,
               })
@@ -1104,6 +1183,7 @@ const includes = [
                 company_name: company || undefined, vat_number: vat || undefined,
                 payment_plan: selectedPlan, consent_terms: true,
                 provider,
+                ...shippingPayload,
                 discount_percent: urlDiscount || undefined,
                 adiscount_percent: urlAdiscount || undefined,
                 bumps: selectedBumpOffers().map((b) => b.slug),

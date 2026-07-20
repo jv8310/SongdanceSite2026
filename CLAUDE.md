@@ -97,16 +97,39 @@ in moderation, not governed by the copy book.
   countdown replaces the 48h discount countdown while live (the % discount
   itself stays). Server re-derives the window at checkout; when live it records
   a zero-amount `songdeck-gift` row in the registration's `bumps` JSON.
-  **Fulfilment goes through Shopify**: on payment the buyer gets a transactional
-  claim email (`deckGiftClaimEmail`, sent from
-  `src/lib/orders/notification.ts` on every fulfilment path + the hourly
-  reconcile; idempotent on `deck-gift-claim-<id>`; tracks as
-  `deck_gift_claim`) whose button opens songdeck.shop with the **`SVH-BONUS`**
-  coupon pre-applied (Shopify's `/discount/CODE?redirect=…` deep link) — deck +
-  shipping land at €0 and Shopify collects the address and ships. The coupon
-  must exist/stay active in the Shopify admin. SD-ORDER notes the gift; a
-  direct Shopify API integration (auto-placing the order) is a planned later
-  stage.
+  **Fulfilment — direct Shopify API (with the coupon email as fallback)**: while
+  the window is live the course checkout also shows a **shipping-address** field
+  group (both the 12-week + certification checkouts; markup in `CCRegister.astro`
+  / `TWRegister.astro`, shared client logic in
+  [`src/lib/client/deck-gift-shipping.ts`](src/lib/client/deck-gift-shipping.ts)).
+  The address is **optional** — a free gift never blocks a paid sale. Before
+  submit it is verified through **Google's Address Validation API**
+  ([`src/lib/address/google-validate.ts`](src/lib/address/google-validate.ts) via
+  `/api/courses/verify-address`); if Google tidied it, the buyer sees a "did you
+  mean …" suggestion to accept or keep theirs. The chosen address is stored on
+  `course_registrations.deck_gift_shipping` (JSON, migration 0075). On payment,
+  `fulfilDeckGift` (`src/lib/orders/notification.ts`, on every fulfilment path +
+  the hourly reconcile) routes the gift: **Shopify configured + address on file**
+  → [`placeDeckGiftShopifyOrder`](src/lib/orders/shopify.ts) creates a draft
+  order for the deck variant with a **100% discount** + free shipping line and
+  completes it (`draftOrderComplete`, `paymentPending:false`) into a **paid €0
+  order** Shopify ships (idempotent on `deck-gift-shopify-<id>`), then a
+  `deckGiftConfirmedEmail` ("on its way to …", tracks as `deck_gift_confirmed`)
+  goes out. **Otherwise** (Shopify unset, no address, or the API errored — the
+  claim releases so the reconcile retries) → the original transactional
+  `deckGiftClaimEmail` with the **`SVH-BONUS`** coupon deep link
+  (`/discount/CODE?redirect=…`) so the buyer self-orders at €0. The `SVH-BONUS`
+  coupon must exist/stay active in the Shopify admin (it's still the fallback).
+  SD-ORDER notes the gift. **Setup (no-ops until set):** `SHOPIFY_STORE_DOMAIN`
+  (the `*.myshopify.com` admin domain, NOT songdeck.shop); **auth** — either a
+  permanent `SHOPIFY_ADMIN_TOKEN` (Admin API token with `write_draft_orders`) **or**
+  `SHOPIFY_CLIENT_ID` + `SHOPIFY_CLIENT_SECRET` (the worker exchanges them for a
+  short-lived token via the client-credentials grant per call, for apps that only
+  expose an expiring, non-copyable token); `SHOPIFY_DECK_PRODUCT_ID` (the Songdeck
+  product id — it's the only product without variants, so its single variant is
+  resolved automatically; `SHOPIFY_DECK_VARIANT_ID` optionally pins it), optional
+  `SHOPIFY_API_VERSION` (default `2024-10`), and `GOOGLE_ADDRESS_VALIDATION_KEY`
+  (Address Validation API enabled).
 - **Zoom rejoin fix** (`joinWindowFor` in `src/lib/workshops/time.ts`): a fresh
   join still gates at start+20min, but anyone who already clicked Join can
   REJOIN until the session's real end (60-min default / 90-min masterclass from

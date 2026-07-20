@@ -2,6 +2,7 @@
 // src/lib/registrations/db.ts that the course flow needs.
 
 import type { JourneyLanguageChoice, JourneySlug } from './journeys';
+import type { DeckGiftShipping } from './deck-promo';
 
 // The thematic SVH course products. Journeys (asj/mmj/inner-child + PRO/bundle)
 // are also stored on course_registrations, so the registration's product_slug
@@ -48,6 +49,11 @@ export type CourseRegistration = {
   // {slug, amount_cents} (12-week only). NULL when none — see ./bumps.ts and
   // parsePurchasedBumps below.
   bumps: string | null;
+  // The Song Deck gift shipping address, collected inline while the gift window
+  // is live, as a JSON DeckGiftShipping blob (see ./deck-promo.ts). NULL when no
+  // address was collected — then the buyer gets the self-serve claim email
+  // instead. Migration 0075.
+  deck_gift_shipping: string | null;
   amount_cents: number;
   currency: string;
   status: 'pending' | 'paid' | 'cancelled' | 'refunded' | 'expired';
@@ -101,6 +107,8 @@ export type CreatePendingCourseRegistrationInput = {
   source_variant: string | null;
   // Order bumps (12-week only); each {slug, amount_cents}. Omit / null for none.
   bumps?: Array<{ slug: string; amount_cents: number }> | null;
+  // Song Deck gift shipping address (see ./deck-promo.ts). Omit / null for none.
+  deck_gift_shipping?: DeckGiftShipping | null;
   amount_cents: number;
   currency: string;
   consent_terms: boolean;
@@ -120,10 +128,11 @@ export async function createPendingCourseRegistration(
        (email, first_name, last_name, country, phone, phone_country, timezone,
         company_name, vat_number,
         product_slug, activate_choice, language_choice, source_variant, bumps,
+        deck_gift_shipping,
         amount_cents, currency, status, provider,
         payment_plan, installments_total,
         consent_terms, consent_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?)`,
     )
     .bind(
       input.email,
@@ -140,6 +149,7 @@ export async function createPendingCourseRegistration(
       input.language_choice ?? null,
       input.source_variant,
       input.bumps && input.bumps.length ? JSON.stringify(input.bumps) : null,
+      input.deck_gift_shipping ? JSON.stringify(input.deck_gift_shipping) : null,
       input.amount_cents,
       input.currency,
       input.provider ?? 'stripe',

@@ -65,6 +65,24 @@ const groups = [...new Set(samples.map((s) => s.group))];
       <p id="rpt-status" class="em-realsend-status"></p>
     </section>
 
+    <section class="adm-section em-realsend">
+      <h2>Songdeck gift → Shopify (integration test)</h2>
+      <p class="adm-sub">
+        Check the Shopify wiring for the post-workshop Songdeck gift.
+        <strong>Check connection</strong> is read-only — it mints a token and
+        resolves the deck variant, confirming the domain, credentials, scopes
+        (<code>write_draft_orders</code> + <code>read_products</code>) and product
+        id. <strong>Place €0 test order</strong> creates a real order in Shopify
+        (tagged <code>TEST</code>) so you can confirm the full path — cancel it
+        in Shopify afterwards.
+      </p>
+      <div class="em-realsend-row">
+        <button id="sd-check" class="adm-btn" type="button">Check connection</button>
+        <button id="sd-place" class="adm-btn adm-btn--ghost" type="button">Place €0 test order</button>
+      </div>
+      <p id="sd-status" class="em-realsend-status"></p>
+    </section>
+
     {groups.map((group) => (
       <section class="adm-section">
         <h2>{group}</h2>
@@ -175,6 +193,55 @@ const groups = [...new Set(samples.map((s) => s.group))];
         rptSend.disabled = false;
       });
     }
+
+    // Songdeck → Shopify integration test (read-only check, or a real €0 order).
+    const sdCheck = document.getElementById('sd-check') as HTMLButtonElement | null;
+    const sdPlace = document.getElementById('sd-place') as HTMLButtonElement | null;
+    const sdStatus = document.getElementById('sd-status') as HTMLElement | null;
+    async function sdRun(place: boolean) {
+      if (!sdStatus) return;
+      if (sdCheck) sdCheck.disabled = true;
+      if (sdPlace) sdPlace.disabled = true;
+      sdStatus.removeAttribute('data-state');
+      sdStatus.textContent = place ? 'Placing a €0 test order…' : 'Checking connection…';
+      try {
+        const res = await fetch('/api/admin/courses/deck-gift-test', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ place }),
+        });
+        const data = (await res.json()) as {
+          ok?: boolean; error?: string; shop?: string; variantId?: string;
+          placed?: { orderName?: string; adminUrl?: string } | null;
+        };
+        if (res.ok && data.ok) {
+          sdStatus.dataset.state = 'ok';
+          if (data.placed && data.placed.adminUrl) {
+            sdStatus.innerHTML =
+              `Placed test order ${data.placed.orderName ?? ''} ✓ — ` +
+              `<a href="${data.placed.adminUrl}" target="_blank" rel="noopener">open in Shopify</a> and cancel it.`;
+          } else {
+            sdStatus.textContent = `Connection OK ✓ — ${data.shop ?? ''}, deck variant resolved. Ready to place orders.`;
+          }
+        } else {
+          sdStatus.dataset.state = 'error';
+          sdStatus.textContent = data.error ?? 'Failed';
+        }
+      } catch {
+        sdStatus.dataset.state = 'error';
+        sdStatus.textContent = 'Failed';
+      }
+      if (sdCheck) sdCheck.disabled = false;
+      if (sdPlace) sdPlace.disabled = false;
+    }
+    sdCheck?.addEventListener('click', () => sdRun(false));
+    sdPlace?.addEventListener('click', () => {
+      if (
+        confirm('Place a real €0 test order in Shopify? It will be tagged TEST — cancel it in Shopify afterwards.')
+      ) {
+        sdRun(true);
+      }
+    });
 
     const toInput = document.getElementById('test-to') as HTMLInputElement;
     document.querySelectorAll<HTMLButtonElement>('.em-send').forEach((btn) => {
