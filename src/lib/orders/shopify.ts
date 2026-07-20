@@ -16,7 +16,12 @@
 // No-ops entirely until the secrets are set, so deploying it changes nothing
 // until the owner provisions the Shopify custom-app credentials:
 //   • SHOPIFY_STORE_DOMAIN     — the *.myshopify.com admin domain (NOT songdeck.shop)
-//   • SHOPIFY_ADMIN_TOKEN      — an Admin API access token with write_draft_orders
+//   • Auth — EITHER a static token OR a client id + secret we exchange for one:
+//       · SHOPIFY_ADMIN_TOKEN                    — a permanent Admin API token, OR
+//       · SHOPIFY_CLIENT_ID + SHOPIFY_CLIENT_SECRET — the app's credentials; we
+//         mint a short-lived token via the client-credentials grant per call
+//         (some Shopify apps only expose this — no copyable, non-expiring token).
+//       Either way the token/app needs the write_draft_orders scope.
 //   • SHOPIFY_DECK_PRODUCT_ID  — the Songdeck product id (numeric, e.g. from the
 //                                admin URL /admin/products/<id>, or a product gid).
 //                                The Songdeck is the only product with no variants,
@@ -39,16 +44,29 @@ const DEFAULT_API_VERSION = '2024-10';
 export type ShopifyEnv = {
   DB: D1Database;
   SHOPIFY_STORE_DOMAIN?: string;
+  // Auth — either a static Admin API token, OR a client id + secret that we
+  // exchange for a short-lived token on demand (Shopify's client-credentials
+  // grant, whose tokens expire ~24h). The token override wins when both are set.
   SHOPIFY_ADMIN_TOKEN?: string;
+  SHOPIFY_CLIENT_ID?: string;
+  SHOPIFY_CLIENT_SECRET?: string;
   SHOPIFY_API_VERSION?: string;
   SHOPIFY_DECK_PRODUCT_ID?: string;
   SHOPIFY_DECK_VARIANT_ID?: string;
 };
 
+// Auth is present when there's a static token OR a client id + secret to mint one.
+function hasShopifyAuth(env: ShopifyEnv): boolean {
+  return !!(
+    (env.SHOPIFY_ADMIN_TOKEN ?? '').trim() ||
+    ((env.SHOPIFY_CLIENT_ID ?? '').trim() && (env.SHOPIFY_CLIENT_SECRET ?? '').trim())
+  );
+}
+
 export function shopifyConfigured(env: ShopifyEnv): boolean {
   return !!(
     (env.SHOPIFY_STORE_DOMAIN ?? '').trim() &&
-    (env.SHOPIFY_ADMIN_TOKEN ?? '').trim() &&
+    hasShopifyAuth(env) &&
     ((env.SHOPIFY_DECK_PRODUCT_ID ?? '').trim() || (env.SHOPIFY_DECK_VARIANT_ID ?? '').trim())
   );
 }
@@ -100,18 +118,60 @@ function mailingAddress(ship: DeckGiftShipping): Record<string, unknown> {
   return addr;
 }
 
+function shopDomain(env: ShopifyEnv): string {
+  return (env.SHOPIFY_STORE_DOMAIN ?? '').trim().replace(/^https?:\/\//, '').replace(/\/$/, '');
+}
+
+// Resolve an Admin API access token. A static SHOPIFY_ADMIN_TOKEN wins; otherwise
+// exchange the client id + secret for one via Shopify's client-credentials grant
+// (POST /admin/oauth/access_token). Those tokens expire (~24h), so we mint a
+// fresh one per fulfilment call rather than store it — deck-gift orders are
+// low-volume, so this is at most a couple of extra token requests per event and
+// never a token sitting in the database. Throws when no auth is configured or the
+// exchange fails (the caller falls back to the coupon claim email).
+async function shopifyAdminToken(env: ShopifyEnv): Promise<string> {
+  const staticToken = (env.SHOPIFY_ADMIN_TOKEN ?? '').trim();
+  if (staticToken) return staticToken;
+
+  const clientId = (env.SHOPIFY_CLIENT_ID ?? '').trim();
+  const clientSecret = (env.SHOPIFY_CLIENT_SECRET ?? '').trim();
+  if (!clientId || !clientSecret) {
+    throw new Error('Shopify auth not configured (need SHOPIFY_ADMIN_TOKEN or client id + secret)');
+  }
+
+  const body = new URLSearchParams({
+    grant_type: 'client_credentials',
+    client_id: clientId,
+    client_secret: clientSecret,
+  });
+  const res = await fetch(`https://${shopDomain(env)}/admin/oauth/access_token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
+    body,
+  });
+  const text = await res.text();
+  if (!res.ok) {
+    throw new Error(`Shopify token HTTP ${res.status}: ${text.slice(0, 200)}`);
+  }
+  const token = JSON.parse(text)?.access_token;
+  if (!token || typeof token !== 'string') {
+    throw new Error('Shopify token exchange returned no access_token');
+  }
+  return token;
+}
+
 async function shopifyGraphQL(
   env: ShopifyEnv,
+  token: string,
   query: string,
   variables: Record<string, unknown>,
 ): Promise<any> {
-  const domain = (env.SHOPIFY_STORE_DOMAIN ?? '').trim().replace(/^https?:\/\//, '').replace(/\/$/, '');
   const version = (env.SHOPIFY_API_VERSION ?? '').trim() || DEFAULT_API_VERSION;
-  const res = await fetch(`https://${domain}/admin/api/${version}/graphql.json`, {
+  const res = await fetch(`https://${shopDomain(env)}/admin/api/${version}/graphql.json`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'X-Shopify-Access-Token': (env.SHOPIFY_ADMIN_TOKEN ?? '').trim(),
+      'X-Shopify-Access-Token': token,
     },
     body: JSON.stringify({ query, variables }),
   });
@@ -152,7 +212,7 @@ query deckVariant($id: ID!) {
 // we take the (easy-to-find) product id and resolve its single default variant.
 // An explicit SHOPIFY_DECK_VARIANT_ID still wins if set. Throws when neither
 // resolves — the caller catches it and falls back to the coupon claim email.
-async function resolveDeckVariantId(env: ShopifyEnv): Promise<string> {
+async function resolveDeckVariantId(env: ShopifyEnv, token: string): Promise<string> {
   const variantRaw = (env.SHOPIFY_DECK_VARIANT_ID ?? '').trim();
   if (variantRaw) return variantGid(variantRaw);
 
@@ -161,7 +221,7 @@ async function resolveDeckVariantId(env: ShopifyEnv): Promise<string> {
   const productGid = productRaw.startsWith('gid://')
     ? productRaw
     : `gid://shopify/Product/${productRaw.replace(/[^0-9]/g, '')}`;
-  const data = await shopifyGraphQL(env, DECK_VARIANT_QUERY, { id: productGid });
+  const data = await shopifyGraphQL(env, token, DECK_VARIANT_QUERY, { id: productGid });
   const id: string | undefined = data?.product?.variants?.nodes?.[0]?.id;
   if (!id) throw new Error(`Shopify product ${productGid} has no variant to order`);
   return id;
@@ -206,7 +266,9 @@ export async function placeDeckGiftShopifyOrder(
     claimed = await claim(env.DB, externalId);
     if (!claimed) return { status: 'already' };
 
-    const variantId = await resolveDeckVariantId(env);
+    // Mint (or read the static) token once and reuse it for every call below.
+    const token = await shopifyAdminToken(env);
+    const variantId = await resolveDeckVariantId(env, token);
     const input = {
       email: reg.email,
       note: `Songdeck gift — course registration #${reg.id} (${reg.email})`,
@@ -223,7 +285,7 @@ export async function placeDeckGiftShopifyOrder(
       shippingAddress: mailingAddress(ship),
     };
 
-    const created = await shopifyGraphQL(env, DRAFT_ORDER_CREATE, { input });
+    const created = await shopifyGraphQL(env, token, DRAFT_ORDER_CREATE, { input });
     const createErr = created?.draftOrderCreate?.userErrors ?? [];
     if (createErr.length) {
       throw new Error(`draftOrderCreate: ${JSON.stringify(createErr).slice(0, 300)}`);
@@ -231,7 +293,7 @@ export async function placeDeckGiftShopifyOrder(
     const draftId: string | undefined = created?.draftOrderCreate?.draftOrder?.id;
     if (!draftId) throw new Error('draftOrderCreate returned no draft order id');
 
-    const completed = await shopifyGraphQL(env, DRAFT_ORDER_COMPLETE, { id: draftId });
+    const completed = await shopifyGraphQL(env, token, DRAFT_ORDER_COMPLETE, { id: draftId });
     const completeErr = completed?.draftOrderComplete?.userErrors ?? [];
     if (completeErr.length) {
       throw new Error(`draftOrderComplete: ${JSON.stringify(completeErr).slice(0, 300)}`);

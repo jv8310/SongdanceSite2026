@@ -97,7 +97,11 @@ type Env = {
   // emailing the SVH-BONUS coupon (see src/lib/orders/shopify.ts). No-ops until
   // set → the claim email.
   //   • SHOPIFY_STORE_DOMAIN    — the *.myshopify.com admin domain (NOT songdeck.shop)
-  //   • SHOPIFY_ADMIN_TOKEN     — Admin API access token with write_draft_orders
+  //   • Auth — set EITHER a static token OR a client id + secret (write_draft_orders):
+  //       · SHOPIFY_ADMIN_TOKEN — a permanent Admin API token, OR
+  //       · SHOPIFY_CLIENT_ID + SHOPIFY_CLIENT_SECRET — the worker exchanges these
+  //         for a short-lived token via the client-credentials grant per call
+  //         (for apps that only expose an expiring, non-copyable token).
   //   • SHOPIFY_DECK_PRODUCT_ID — the Songdeck product id (numeric, from the admin
   //     URL /admin/products/<id>, or a product gid). The Songdeck is the only
   //     product without variants, so its single variant is resolved automatically.
@@ -105,6 +109,8 @@ type Env = {
   //   • SHOPIFY_API_VERSION     — optional Graph version override (default 2024-10)
   SHOPIFY_STORE_DOMAIN?: string;
   SHOPIFY_ADMIN_TOKEN?: string;
+  SHOPIFY_CLIENT_ID?: string;
+  SHOPIFY_CLIENT_SECRET?: string;
   SHOPIFY_DECK_PRODUCT_ID?: string;
   SHOPIFY_DECK_VARIANT_ID?: string;
   SHOPIFY_API_VERSION?: string;
