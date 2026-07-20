@@ -865,6 +865,8 @@ body { background: var(--adm-paper); }
   color: var(--adm-ink-soft);
 }
 .adm-grid input[type="text"],
+.adm-grid input[type="email"],
+.adm-grid input[type="tel"],
 .adm-grid input[type="date"],
 .adm-grid input[type="number"],
 .adm-grid input[type="file"],

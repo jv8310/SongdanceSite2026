@@ -356,6 +356,7 @@ type CReg = {
   stripe_subscription_id: string | null;
   paypal_capture_id: string | null;
   paypal_subscription_id: string | null;
+  quaderno_invoice_id: string | null;
   consent_terms: number;
   consent_at: string | null;
   created_at: string;
@@ -375,7 +376,7 @@ async function enrichCourse(
               product_slug, activate_choice, source_variant, amount_cents, currency,
               status, payment_plan, installments_paid, installments_total,
               stripe_session_id, stripe_payment_intent, stripe_subscription_id,
-              paypal_capture_id, paypal_subscription_id,
+              paypal_capture_id, paypal_subscription_id, quaderno_invoice_id,
               consent_terms, consent_at, created_at, paid_at, bumps, language_choice
          FROM course_registrations WHERE id = ?`,
     )
@@ -440,15 +441,28 @@ async function enrichCourse(
     reg && reg.installments_total > 1
       ? `${plan} · ${reg.installments_paid}/${reg.installments_total} charged`
       : plan;
+  // Manual bank-transfer orders carry a synthetic `manual-<id>` payment intent
+  // (see src/lib/orders/manual-order.ts) and never touched Stripe/PayPal.
+  const isManual = reg?.stripe_payment_intent?.startsWith('manual-') ?? false;
+  const gateway = isManual
+    ? 'Bank transfer (manual)'
+    : order.provider === 'paypal'
+      ? 'PayPal'
+      : 'Stripe';
   const payment = fields([
-    field('Gateway', order.provider === 'paypal' ? 'PayPal' : 'Stripe'),
+    field('Gateway', gateway),
     field('Plan', planLabel),
     field('Payment status', reg?.status),
-    field('Stripe session', reg?.stripe_session_id, { mono: true }),
-    field('Stripe PaymentIntent', reg?.stripe_payment_intent, { mono: true }),
-    field('Stripe subscription', reg?.stripe_subscription_id, { mono: true }),
-    field('PayPal capture', reg?.paypal_capture_id, { mono: true }),
-    field('PayPal subscription', reg?.paypal_subscription_id, { mono: true }),
+    ...(isManual
+      ? []
+      : [
+          field('Stripe session', reg?.stripe_session_id, { mono: true }),
+          field('Stripe PaymentIntent', reg?.stripe_payment_intent, { mono: true }),
+          field('Stripe subscription', reg?.stripe_subscription_id, { mono: true }),
+          field('PayPal capture', reg?.paypal_capture_id, { mono: true }),
+          field('PayPal subscription', reg?.paypal_subscription_id, { mono: true }),
+        ]),
+    field('Quaderno invoice', reg?.quaderno_invoice_id, { mono: true }),
   ]);
 
   const extra = fields([

@@ -72,6 +72,10 @@ export type CourseRegistration = {
   cancel_after_installment: number | null;
   consent_terms: number;
   consent_at: string | null;
+  // Set only for manual bank-transfer orders — the Quaderno invoice the admin
+  // flow creates itself (no Stripe payment → no native-connector invoice).
+  // NULL for every Stripe/PayPal row (their invoice is made by the connector).
+  quaderno_invoice_id: string | null;
   created_at: string;
   paid_at: string | null;
   cancelled_at: string | null;
@@ -184,6 +188,34 @@ export async function attachStripeSessionToCourse(
   await db
     .prepare('UPDATE course_registrations SET stripe_session_id = ? WHERE id = ?')
     .bind(sessionId, id)
+    .run();
+}
+
+// Persist the Quaderno invoice id created for a manual bank-transfer order.
+export async function attachQuadernoInvoiceToCourse(
+  db: D1Database,
+  id: number,
+  invoiceId: string,
+) {
+  await db
+    .prepare('UPDATE course_registrations SET quaderno_invoice_id = ? WHERE id = ?')
+    .bind(invoiceId, id)
+    .run();
+}
+
+// Override paid_at with the real payment date. markCourseRegistrationPaid stamps
+// datetime('now'); a manual bank-transfer order backdates it to the day the
+// money actually landed, so the Quaderno invoice and the Drip order (which times
+// itself by paid_at) both carry the true payment date. `iso` is a
+// 'YYYY-MM-DD HH:MM:SS' UTC string.
+export async function setCoursePaidAt(
+  db: D1Database,
+  id: number,
+  iso: string,
+) {
+  await db
+    .prepare("UPDATE course_registrations SET paid_at = ? WHERE id = ?")
+    .bind(iso, id)
     .run();
 }
 

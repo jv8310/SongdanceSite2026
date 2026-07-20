@@ -80,6 +80,12 @@ const flashBanner =
     ? { tone: 'ok' as const, text: flashMsg ?? 'Refund submitted.' }
   : flash === 'refund_error'
     ? { tone: 'err' as const, text: flashMsg ?? 'Refund failed.' }
+  : flash === 'order_ok'
+    ? { tone: 'ok' as const, text: flashMsg ?? 'Manual order created.' }
+  : flash === 'order_warn'
+    ? { tone: 'warn' as const, text: flashMsg ?? 'Manual order created with a warning.' }
+  : flash === 'order_error'
+    ? { tone: 'err' as const, text: flashMsg ?? 'Manual order failed.' }
   : null;
 
 // ── Money helpers ──
@@ -132,7 +138,12 @@ function methodLabel(m: string | null): string | null {
 }
 // Gateway + (where known) the specific method, e.g. {gateway:'Stripe',
 // method:'Bancontact'} or {gateway:'PayPal', method:null}.
-function paymentDisplay(o: { provider: 'stripe' | 'paypal'; paymentMethod: string | null }) {
+function paymentDisplay(o: { provider: 'stripe' | 'paypal'; paymentMethod: string | null; paymentIntent?: string | null }) {
+  // Manual bank-transfer orders carry a synthetic `manual-…` payment intent and
+  // never touched a gateway (see src/lib/orders/manual-order.ts).
+  if (o.paymentIntent?.startsWith('manual-')) {
+    return { gateway: 'Bank transfer', method: null as string | null };
+  }
   if (o.provider === 'paypal') return { gateway: 'PayPal', method: null as string | null };
   const method = methodLabel(o.paymentMethod);
   // 'paypal' via Stripe would duplicate; fold it into the gateway name.
@@ -161,6 +172,7 @@ const refundedTotal = orders.reduce((s, o) => s + o.refundedMinor, 0);
         <p class="adm-sub">Every order across retreats, courses &amp; workshops</p>
       </div>
       <div class="adm-actions">
+        <a class="adm-btn adm-btn--solid" href="/admin/orders/new">＋ Manual order</a>
         <a class="adm-btn adm-btn--ghost" href="/admin">← Admin</a>
         <form method="POST" action="/api/admin/login?_method=DELETE">
           <input type="hidden" name="_method" value="DELETE" />
