@@ -339,9 +339,35 @@ export async function placeDeckGiftShopifyOrder(
 // that usually go wrong — without creating anything. With place=true it creates
 // a real €0 test order (tagged TEST) so the full path can be confirmed end to
 // end; that order is safe to cancel in Shopify afterwards.
+export type ShopifyPresence = {
+  store_domain: boolean;
+  admin_token: boolean;
+  client_id: boolean;
+  client_secret: boolean;
+  deck_product_id: boolean;
+  deck_variant_id: boolean;
+};
+
+// Which Shopify secrets the Worker actually sees (booleans only — never the
+// values). Powers the admin test's "which var is missing?" diagnosis.
+export function shopifyPresence(env: ShopifyEnv): ShopifyPresence {
+  const has = (v: unknown) => !!(typeof v === 'string' ? v.trim() : v);
+  return {
+    store_domain: has(env.SHOPIFY_STORE_DOMAIN),
+    admin_token: has(env.SHOPIFY_ADMIN_TOKEN),
+    client_id: has(env.SHOPIFY_CLIENT_ID),
+    client_secret: has(env.SHOPIFY_CLIENT_SECRET),
+    deck_product_id: has(env.SHOPIFY_DECK_PRODUCT_ID),
+    deck_variant_id: has(env.SHOPIFY_DECK_VARIANT_ID),
+  };
+}
+
 export type DeckGiftTestResult = {
   ok: boolean;
   configured: boolean;
+  // What the Worker sees (booleans only). Present on both success and the
+  // not-configured error so the admin can spot exactly which secret is missing.
+  present?: ShopifyPresence;
   shop?: string;
   variantId?: string;
   placed?: { orderName: string; orderGid: string; adminUrl: string } | null;
@@ -352,12 +378,30 @@ export async function testDeckGiftShopify(
   env: ShopifyEnv,
   opts: { place?: boolean; email?: string; address?: Partial<DeckGiftShipping> } = {},
 ): Promise<DeckGiftTestResult> {
+  const present = shopifyPresence(env);
   if (!shopifyConfigured(env)) {
+    // Name exactly which required secret the running Worker isn't seeing.
+    const missing: string[] = [];
+    if (!present.store_domain) missing.push('SHOPIFY_STORE_DOMAIN');
+    if (!present.admin_token && !(present.client_id && present.client_secret)) {
+      const authMissing = [
+        !present.client_id ? 'SHOPIFY_CLIENT_ID' : null,
+        !present.client_secret ? 'SHOPIFY_CLIENT_SECRET' : null,
+      ].filter(Boolean);
+      missing.push(
+        authMissing.length
+          ? authMissing.join(' + ')
+          : 'SHOPIFY_ADMIN_TOKEN (or SHOPIFY_CLIENT_ID + SHOPIFY_CLIENT_SECRET)',
+      );
+    }
+    if (!present.deck_product_id && !present.deck_variant_id) {
+      missing.push('SHOPIFY_DECK_PRODUCT_ID');
+    }
     return {
       ok: false,
       configured: false,
-      error:
-        'Shopify is not configured. Set SHOPIFY_STORE_DOMAIN, a token (SHOPIFY_ADMIN_TOKEN) or client id + secret (SHOPIFY_CLIENT_ID / SHOPIFY_CLIENT_SECRET), and SHOPIFY_DECK_PRODUCT_ID.',
+      present,
+      error: `This Worker isn't seeing: ${missing.join(', ')}. Set them on the songdance-site Worker and run this on production (songdance.co), not a *.workers.dev preview URL — preview versions don't carry the live secrets.`,
     };
   }
   const shop = shopDomain(env);
@@ -365,7 +409,7 @@ export async function testDeckGiftShopify(
     const token = await shopifyAdminToken(env);
     const variantId = await resolveDeckVariantId(env, token);
     if (!opts.place) {
-      return { ok: true, configured: true, shop, variantId, placed: null };
+      return { ok: true, configured: true, present, shop, variantId, placed: null };
     }
 
     const ship: DeckGiftShipping = {
