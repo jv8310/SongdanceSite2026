@@ -102,7 +102,10 @@ export function providerLinkFor(
     };
   }
   const paymentIntent = o.stripePaymentIntent ?? o.paymentIntent;
-  if (paymentIntent) {
+  // Synthetic ids never existed in Stripe — a bank-transfer manual order
+  // (`manual-…`) or a 100%-off comp (`free-…`). A dashboard link would 404, so
+  // point at nothing instead.
+  if (paymentIntent && !/^(manual|free)-/.test(paymentIntent)) {
     return {
       href: stripePaymentUrl(modes.stripe, paymentIntent),
       label: 'Stripe',

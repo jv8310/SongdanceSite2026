@@ -1,0 +1,181 @@
+---
+import '../../../styles/admin.css';
+import Layout from '../../../layouts/Layout.astro';
+import { readCookie, verifySession } from '../../../lib/registrations/auth';
+import { MANUAL_ORDER_PRODUCTS } from '../../../lib/orders/manual-order';
+
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+const authed = await verifySession(env.ADMIN_SESSION_SECRET, readCookie(Astro.request));
+if (!authed) {
+  return Astro.redirect('/admin/login');
+}
+
+const error = Astro.url.searchParams.get('error');
+const today = new Date().toISOString().slice(0, 10);
+
+// Sticker prices (major units) used to pre-fill the amount when the product /
+// currency changes. Edit points live in variant.ts / grief.ts / twelve-week.ts;
+// this is only a convenience default — the amount is always editable.
+const PRICES: Record<string, Record<string, number>> = {
+  'cc-cert': { EUR: 1500, USD: 1500, GBP: 1299, CAD: 2150, CHF: 1450 },
+  'cc-bundle': { EUR: 2150, USD: 2150, GBP: 1849, CAD: 3150, CHF: 2050 },
+  'svh-12week': { EUR: 650, USD: 650, GBP: 550, CAD: 950 },
+  'grief-course': { EUR: 99, USD: 99, GBP: 89, CAD: 145, CHF: 95 },
+};
+const CURRENCIES = ['EUR', 'USD', 'GBP', 'CAD', 'CHF', 'AUD', 'NZD', 'NOK', 'SEK', 'DKK'];
+const initialAmount = PRICES['cc-cert'].EUR;
+---
+
+<Layout title="Admin — New manual order — Songdance" description="">
+  <main class="adm">
+    <header class="adm-header">
+      <div>
+        <p class="adm-breadcrumbs">
+          <a href="/admin">Admin</a>
+          <span class="sep">/</span>
+          <a href="/admin/orders">Orders</a>
+          <span class="sep">/</span>
+          New manual order
+        </p>
+        <h1>New manual order</h1>
+        <p class="adm-sub">
+          Record a course paid by <strong>bank transfer</strong>. Creates the order,
+          makes a paid invoice in Quaderno, and syncs the customer to Drip.
+        </p>
+      </div>
+      <div class="adm-actions">
+        <a class="adm-btn adm-btn--ghost" href="/admin/orders">← Orders</a>
+      </div>
+    </header>
+
+    {error && <div class="adm-flash adm-flash--err">{error}</div>}
+
+    <section class="adm-section">
+      <form method="POST" action="/api/admin/manual-order" class="mo-form">
+        <div class="adm-grid">
+          <label class="span-2">
+            <span>Product</span>
+            <select name="product_slug" id="mo-product" required>
+              {MANUAL_ORDER_PRODUCTS.map((p) => (
+                <option value={p.slug}>{p.label}</option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            <span>Currency</span>
+            <select name="currency" id="mo-currency">
+              {CURRENCIES.map((c) => (
+                <option value={c} selected={c === 'EUR'}>{c}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>Amount (gross, incl. VAT)</span>
+            <input
+              type="number"
+              name="amount"
+              id="mo-amount"
+              value={initialAmount}
+              min="0"
+              step="0.01"
+              required
+            />
+          </label>
+
+          <label>
+            <span>First name</span>
+            <input type="text" name="first_name" maxlength="120" />
+          </label>
+          <label>
+            <span>Last name</span>
+            <input type="text" name="last_name" maxlength="120" />
+          </label>
+
+          <label class="span-2">
+            <span>Customer email</span>
+            <input type="email" name="email" required maxlength="200" placeholder="name@example.com" />
+          </label>
+
+          <label>
+            <span>Country (ISO-2, for VAT)</span>
+            <input type="text" name="country" maxlength="2" placeholder="NL" pattern="[A-Za-z]{2}" style="text-transform:uppercase" />
+          </label>
+          <label>
+            <span>Phone (optional)</span>
+            <input type="text" name="phone" maxlength="40" placeholder="+31…" />
+          </label>
+
+          <label>
+            <span>Payment date (bank transfer)</span>
+            <input type="date" name="paid_date" value={today} max={today} required />
+          </label>
+          <label>
+            <span>Cert activation <em>(cert / bundle only)</em></span>
+            <select name="activate_choice">
+              <option value="now">Activate now</option>
+              <option value="wait">Wait (12w ongoing)</option>
+            </select>
+          </label>
+
+          <label class="span-full mo-check">
+            <input type="checkbox" name="email_invoice" value="1" />
+            <span>Email the paid invoice to the customer from Quaderno</span>
+          </label>
+        </div>
+
+        <div class="mo-actions">
+          <button type="submit" class="adm-btn adm-btn--solid">Create order &amp; invoice</button>
+          <a class="adm-btn adm-btn--ghost" href="/admin/orders">Cancel</a>
+        </div>
+
+        <p class="adm-table-note">
+          The amount is treated as the <strong>gross</strong> total received (VAT
+          included); the buyer-country e-service VAT is split out on the Quaderno
+          invoice. The order syncs to Drip like any paid course (tags, event, and a
+          native Drip order dated by the payment date). Bumps, installments and
+          discounts aren't supported here — full payment only.
+        </p>
+      </form>
+    </section>
+  </main>
+
+  <script define:vars={{ PRICES }}>
+    const product = document.getElementById('mo-product');
+    const currency = document.getElementById('mo-currency');
+    const amount = document.getElementById('mo-amount');
+    function syncPrice() {
+      const p = PRICES[product.value];
+      const val = p && p[currency.value];
+      if (typeof val === 'number') amount.value = String(val);
+    }
+    product.addEventListener('change', syncPrice);
+    currency.addEventListener('change', syncPrice);
+  </script>
+</Layout>
+
+<style>
+  .mo-form {
+    padding: 1.25rem;
+    border: 1px solid var(--adm-line);
+    border-radius: 10px;
+    background: var(--adm-panel, #fff);
+  }
+  .mo-check {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-direction: row !important;
+  }
+  .mo-check input { width: auto; margin: 0; }
+  .mo-check span { font-weight: 400; }
+  .mo-actions {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    margin-top: 1.25rem;
+  }
+  .mo-form label em { font-style: italic; opacity: 0.7; font-weight: 400; }
+</style>
