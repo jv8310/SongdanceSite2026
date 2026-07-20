@@ -330,3 +330,91 @@ export async function placeDeckGiftShopifyOrder(
     return { status: 'failed', error: String(err) };
   }
 }
+
+// ── Admin self-test ─────────────────────────────────────────────────────────
+// Verify the Shopify wiring from /admin without waiting for a real gift buyer.
+// The default (place=false) is READ-ONLY: it mints a token and resolves the deck
+// variant, which exercises the domain, auth (token or client id+secret), the
+// write_draft_orders/read_products scopes, and the product id — the four things
+// that usually go wrong — without creating anything. With place=true it creates
+// a real €0 test order (tagged TEST) so the full path can be confirmed end to
+// end; that order is safe to cancel in Shopify afterwards.
+export type DeckGiftTestResult = {
+  ok: boolean;
+  configured: boolean;
+  shop?: string;
+  variantId?: string;
+  placed?: { orderName: string; orderGid: string; adminUrl: string } | null;
+  error?: string;
+};
+
+export async function testDeckGiftShopify(
+  env: ShopifyEnv,
+  opts: { place?: boolean; email?: string; address?: Partial<DeckGiftShipping> } = {},
+): Promise<DeckGiftTestResult> {
+  if (!shopifyConfigured(env)) {
+    return {
+      ok: false,
+      configured: false,
+      error:
+        'Shopify is not configured. Set SHOPIFY_STORE_DOMAIN, a token (SHOPIFY_ADMIN_TOKEN) or client id + secret (SHOPIFY_CLIENT_ID / SHOPIFY_CLIENT_SECRET), and SHOPIFY_DECK_PRODUCT_ID.',
+    };
+  }
+  const shop = shopDomain(env);
+  try {
+    const token = await shopifyAdminToken(env);
+    const variantId = await resolveDeckVariantId(env, token);
+    if (!opts.place) {
+      return { ok: true, configured: true, shop, variantId, placed: null };
+    }
+
+    const ship: DeckGiftShipping = {
+      name: (opts.address?.name ?? '').trim() || 'Songdance Test',
+      line1: (opts.address?.line1 ?? '').trim() || 'Beaupréstraat 13',
+      line2: (opts.address?.line2 ?? '').trim(),
+      city: (opts.address?.city ?? '').trim() || 'Bruges',
+      region: (opts.address?.region ?? '').trim(),
+      postal_code: (opts.address?.postal_code ?? '').trim() || '8310',
+      country: ((opts.address?.country ?? '').trim() || 'BE').toUpperCase(),
+      phone: (opts.address?.phone ?? '').trim(),
+      verified: false,
+    };
+    const input = {
+      email: (opts.email ?? '').trim() || 'test@songdance.co',
+      note: 'Songdeck gift — TEST order (safe to cancel)',
+      tags: [DECK_GIFT_COUPON_CODE, 'songdeck-gift', 'svh-course', 'TEST'],
+      useCustomerDefaultAddress: false,
+      lineItems: [{ variantId, quantity: 1 }],
+      appliedDiscount: {
+        title: DECK_GIFT_COUPON_CODE,
+        description: 'Songdeck gift — TEST',
+        valueType: 'PERCENTAGE',
+        value: 100.0,
+      },
+      shippingLine: { title: 'Free worldwide shipping', price: '0' },
+      shippingAddress: mailingAddress(ship),
+    };
+    const created = await shopifyGraphQL(env, token, DRAFT_ORDER_CREATE, { input });
+    const cErr = created?.draftOrderCreate?.userErrors ?? [];
+    if (cErr.length) {
+      return { ok: false, configured: true, shop, variantId, error: `draftOrderCreate: ${JSON.stringify(cErr)}` };
+    }
+    const draftId: string | undefined = created?.draftOrderCreate?.draftOrder?.id;
+    if (!draftId) {
+      return { ok: false, configured: true, shop, variantId, error: 'draftOrderCreate returned no draft order id' };
+    }
+    const completed = await shopifyGraphQL(env, token, DRAFT_ORDER_COMPLETE, { id: draftId });
+    const compErr = completed?.draftOrderComplete?.userErrors ?? [];
+    if (compErr.length) {
+      return { ok: false, configured: true, shop, variantId, error: `draftOrderComplete: ${JSON.stringify(compErr)}` };
+    }
+    const order = completed?.draftOrderComplete?.draftOrder?.order;
+    const orderGid: string = order?.id ?? draftId;
+    const orderName: string = order?.name ?? '(order)';
+    const numId = String(orderGid).split('/').pop();
+    const adminUrl = `https://${shop}/admin/orders/${numId}`;
+    return { ok: true, configured: true, shop, variantId, placed: { orderName, orderGid, adminUrl } };
+  } catch (err) {
+    return { ok: false, configured: true, shop, error: err instanceof Error ? err.message : String(err) };
+  }
+}
