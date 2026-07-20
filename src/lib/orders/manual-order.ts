@@ -29,7 +29,6 @@ import {
   sendInvoiceByEmail,
   type QuadernoConfig,
 } from '../registrations/quaderno';
-import { getTaxRate } from '../workshops/quaderno';
 
 // The course products a manual order can be entered for — the high-ticket items
 // people actually pay by bank transfer. Each flows cleanly through the course
@@ -73,8 +72,10 @@ export type ManualOrderInput = {
   email: string;
   first_name: string | null;
   last_name: string | null;
-  country: string | null; // ISO-2, used for the Quaderno VAT lookup
+  country: string | null; // ISO-2, sets the contact's country for VAT
   phone: string | null;
+  company_name: string | null; // optional — makes it a B2B invoice
+  vat_number: string | null; // optional — a valid EU number → reverse charge
   product_slug: CourseProductSlug;
   amount_cents: number; // gross (tax-inclusive), the sum actually received
   currency: string;
@@ -108,10 +109,16 @@ function quadernoConfig(env: ManualOrderEnv): QuadernoConfig | null {
 
 // Create the Quaderno invoice for a manual order and mark it paid. Best-effort:
 // returns a result object rather than throwing, so a Quaderno hiccup never
-// blocks the order/Drip (which are already committed). The gross amount is
-// treated as tax-inclusive; the destination e-service VAT for the buyer country
-// is looked up and passed so the invoice shows the correct net + VAT split
-// (matching how the site prices — and its revenue stats — treat course prices).
+// blocks the order/Drip (which are already committed).
+//
+// Tax is left to Quaderno's automatic calculation via the item `tax_class`
+// ('eservice') — the same mechanism the Stripe→Quaderno connector relies on.
+// Quaderno derives the correct tax from the CONTACT: destination VAT for an EU
+// consumer (by the contact's country, even if the admin left the form country
+// blank) and reverse-charge 0% for a valid cross-border EU business (by the
+// contact's VAT number). The gross amount is treated as tax-inclusive so the
+// invoice total equals what the customer paid — matching how the site prices
+// (and its revenue stats) treat course prices.
 async function createManualInvoice(
   env: ManualOrderEnv,
   input: ManualOrderInput,
@@ -125,18 +132,12 @@ async function createManualInvoice(
       [input.first_name, input.last_name].filter(Boolean).join(' ').trim() ||
       input.email.split('@')[0];
 
-    // Destination e-service VAT for the buyer country (0 when unknown → no tax
-    // line, net = gross). Same tax class the checkout/stats use.
-    let taxRatePct = 0;
-    if (input.country) {
-      const rate = await getTaxRate(cfg, input.country, 'eservice');
-      taxRatePct = Math.round(rate * 10000) / 100; // decimal → percentage
-    }
-
     const contactId = await upsertContact(cfg, {
       name,
       email: input.email,
       country: input.country,
+      company: input.company_name,
+      vat_number: input.vat_number,
     });
 
     const invoice = await createInvoice(cfg, {
@@ -149,9 +150,9 @@ async function createManualInvoice(
           description: PRODUCT_LABELS[input.product_slug] ?? input.product_slug,
           unit_price: grossMajor,
           quantity: 1,
-          ...(taxRatePct > 0
-            ? { tax_1_name: 'VAT', tax_1_rate: taxRatePct }
-            : {}),
+          // Digital course → e-service VAT class; Quaderno auto-calculates the
+          // rate (or reverse-charge) from the contact.
+          tax_class: 'eservice',
         },
       ],
     });
@@ -214,8 +215,8 @@ export async function createManualCourseOrder(
     country: input.country,
     phone: input.phone,
     phone_country: null,
-    company_name: null,
-    vat_number: null,
+    company_name: input.company_name,
+    vat_number: input.vat_number,
     product_slug: input.product_slug,
     activate_choice: input.activate_choice,
     source_variant: 'manual',

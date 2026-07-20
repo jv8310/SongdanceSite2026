@@ -86,6 +86,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
     last_name: str('last_name') || null,
     country,
     phone: str('phone') || null,
+    company_name: str('company_name') || null,
+    vat_number: str('vat_number') || null,
     product_slug: productSlug,
     amount_cents: amountCents,
     currency,
