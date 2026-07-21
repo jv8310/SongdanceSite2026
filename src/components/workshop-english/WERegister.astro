@@ -209,7 +209,7 @@ const leadTicket = items.find((it) => it.kind !== 'masterclass');
               <span class="we-bump-row">
                 <input type="checkbox" name="bump" id="we-bump-input" />
                 <span class="we-bump-checkbox" aria-hidden="true"></span>
-                <span class="we-bump-title" id="we-bump-title">Yes — add the mantra pack</span>
+                <span class="we-bump-title" id="we-bump-title">Yes — add the “Empowering You” mantra pack</span>
               </span>
               <span class="we-bump-media">
                 <img src="/media/music-covers/empowering-you-1784623795605.png" alt="Empowering You mantra pack" loading="lazy" />
@@ -523,7 +523,11 @@ const leadTicket = items.find((it) => it.kind !== 'masterclass');
       if (current && current.hasBump === '1') {
         bumpRow.hidden = false;
         var bName = current.bumpName || 'Empowering You mantra pack';
-        if (bumpTitle) bumpTitle.textContent = 'Yes — add the ' + bName;
+        // The title quotes the album name for clarity (so "Empowering You" reads
+        // as the record's title, not a verb phrase); the summary line below keeps
+        // the plain product name (bName) as the line-item label.
+        var bTitle = bName.replace(/^(.*?)\s+mantra pack$/i, '“$1” mantra pack');
+        if (bumpTitle) bumpTitle.textContent = 'Yes — add the ' + bTitle;
         if (bumpLineLabel) bumpLineLabel.textContent = bName;
         var offer = parseInt(current.bumpMinor, 10) || 0;
         if (bumpNowEl) bumpNowEl.textContent = money(offer, curCurrency);

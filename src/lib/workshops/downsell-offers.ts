@@ -122,7 +122,7 @@ export const DOWNSELL_OFFERS: Record<DownsellKey, DownsellOffer> = {
       'Original music & mantras to sound along with',
       'Stream anytime — yours to keep',
     ],
-    priceNote: '€99 · 40 sessions · yours to keep',
+    priceNote: '€150 · 40 sessions · yours to keep',
     miniLine: 'Forty weeks of mantras to free the voice you already have.',
     quote: 'The voice you already have — not trained into something else.',
     ownedTags: ['prod_asj', 'prod_jaz'],

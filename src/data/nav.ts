@@ -46,7 +46,7 @@ export const courseMenu: NavCourseGroup[] = [
   {
     title: 'Guided Musical Journeys',
     items: [
-      { href: '/courses/authentic-singing', label: 'Authentic Singing Journey — €99', price: 'asj' },
+      { href: '/courses/authentic-singing', label: 'Authentic Singing Journey — €150', price: 'asj' },
       { href: '/courses/magical-movement', label: 'Magical Movement Journey — €49', price: 'mmj' },
       { href: '/courses/inner-child', label: 'Inner Child Journey — €29', price: 'inner-child' },
     ],
