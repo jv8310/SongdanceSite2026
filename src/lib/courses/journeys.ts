@@ -1,8 +1,8 @@
 // The Three Journeys — self-paced thematic courses sold as flat-price products,
 // in the same multi-currency model as the Grief course (see ./grief.ts).
 //
-//   asj                  — Authentic Singing Journey            €99   → prod_ASJ
-//   asj-pro              — ASJ + the PRO mantra pack (license)  €149  → prod_ASJ + prod_ASJ_PRO
+//   asj                  — Authentic Singing Journey            €150  → prod_ASJ
+//   asj-pro              — ASJ + the PRO mantra pack (license)  €200  → prod_ASJ + prod_ASJ_PRO
 //   mmj                  — Magical Movement Journey             €49   → prod_MMJ
 //   inner-child          — Inner Child Healing Journey          €29   → prod_InnerChild
 //   journeys-bundle      — all three journeys, 20% off the sum  →      prod_ASJ + prod_MMJ + prod_InnerChild
@@ -39,8 +39,8 @@ export type JourneySlug =
 type PriceMap = Record<JourneyCurrency, number>;
 
 const ASJ_PRICE: PriceMap = {
-  EUR: 99, USD: 99, GBP: 89, CAD: 145, CHF: 95,
-  AUD: 165, NZD: 185, NOK: 1150, SEK: 1100, DKK: 745,
+  EUR: 150, USD: 150, GBP: 135, CAD: 219, CHF: 145,
+  AUD: 249, NZD: 279, NOK: 1750, SEK: 1650, DKK: 1125,
 };
 const MMJ_PRICE: PriceMap = {
   EUR: 49, USD: 49, GBP: 45, CAD: 72, CHF: 49,
@@ -53,8 +53,8 @@ const INNER_CHILD_PRICE: PriceMap = {
 // PRO = the Authentic Singing Journey plus the downloadable mantra pack
 // (professional licence). Roughly ASJ + €50 across the board.
 const ASJ_PRO_PRICE: PriceMap = {
-  EUR: 149, USD: 149, GBP: 135, CAD: 219, CHF: 145,
-  AUD: 249, NZD: 279, NOK: 1725, SEK: 1649, DKK: 1115,
+  EUR: 200, USD: 200, GBP: 181, CAD: 293, CHF: 195,
+  AUD: 333, NZD: 373, NOK: 2325, SEK: 2199, DKK: 1495,
 };
 // The mantra-pack premium: what PRO adds on top of the plain journey
 // (ASJ_PRO − ASJ, per currency). The same flat add-on turns the all-three

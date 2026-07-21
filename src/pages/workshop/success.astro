@@ -45,7 +45,7 @@ const gcalUrl = workshop && !workshop.is_replay
   : null;
 const icsHref = reg ? `/api/workshops/ics?t=${reg.access_token}` : null;
 const startMs = workshop ? new Date(workshop.starts_at_utc).getTime() : 0;
-// Real session end (60-min default; a masterclass carries its 90-min end) —
+// Real session end (70-min default; a masterclass carries its 100-min end) —
 // the rejoin window for someone who already joined runs to this + grace.
 const endMs = workshop
   ? new Date(endsAtOrDefault(workshop.starts_at_utc, workshop.ends_at_utc)).getTime()

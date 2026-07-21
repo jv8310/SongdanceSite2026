@@ -2206,3 +2206,60 @@ html, body { background: var(--paper); }
   margin: 6px 6px 0; font-family: var(--font-body); font-size: 12px;
   color: rgba(244,236,223,0.5); font-style: italic;
 }
+
+/* Order bumps (ASJ / Grief add-ons) on the cert / path checkout. Mirrors the
+   12-week checkout's bump cards, in the cert (dark checkout) palette. */
+.cc-bumps-wrap[hidden] { display: none; }
+.cc-bumps { display: grid; gap: var(--sp-2); }
+.cc-bump {
+  position: relative; cursor: pointer; display: grid;
+  grid-template-columns: auto auto 1fr; gap: var(--sp-3); align-items: start;
+  background: rgba(244, 236, 223, 0.04);
+  border: 1px solid rgba(244, 236, 223, 0.18); border-radius: var(--r-md);
+  padding: 14px 18px; color: var(--paper);
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+.cc-bump:hover { border-color: rgba(244, 236, 223, 0.4); background: rgba(244, 236, 223, 0.07); }
+.cc-bump--selected { border-color: var(--ember); background: rgba(201, 96, 58, 0.1); box-shadow: 0 0 0 1px var(--ember) inset; }
+.cc-bump-check { position: absolute; opacity: 0; width: 0; height: 0; }
+.cc-bump-box {
+  margin-top: 2px; width: 18px; height: 18px; border-radius: 5px; flex: none;
+  border: 1px solid rgba(244, 236, 223, 0.45); position: relative;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+.cc-bump--selected .cc-bump-box { border-color: var(--ember); background: var(--ember); }
+.cc-bump--selected .cc-bump-box::after {
+  content: ""; position: absolute; left: 5px; top: 1px; width: 5px; height: 10px;
+  border: solid var(--paper); border-width: 0 2px 2px 0; transform: rotate(45deg);
+}
+.cc-bump-check:focus-visible + .cc-bump-box { outline: 2px solid var(--ember); outline-offset: 2px; }
+.cc-bump-thumb {
+  width: 54px; height: 54px; border-radius: 8px; object-fit: cover;
+  flex: none; border: 1px solid rgba(244, 236, 223, 0.14);
+}
+.cc-bump-body { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.cc-bump-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-3); flex-wrap: wrap; }
+.cc-bump-title { font-family: var(--font-body); font-size: 15px; font-weight: 500; color: var(--paper); }
+.cc-bump-price { font-family: var(--font-display); font-size: 18px; color: var(--paper); font-feature-settings: "tnum" 1; white-space: nowrap; }
+.cc-bump-was { opacity: 0.5; margin-right: 4px; text-decoration: line-through; font-size: 14px; }
+.cc-bump-save {
+  font-family: var(--font-body); font-size: 10px; letter-spacing: 0.08em;
+  color: var(--paper); background: rgba(201, 96, 58, 0.24);
+  border-radius: var(--r-pill); padding: 2px 8px; margin-left: 4px; white-space: nowrap;
+}
+.cc-bump-points { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.cc-bump-point {
+  font-family: var(--font-body); font-size: 12px; color: rgba(244, 236, 223, 0.7);
+  position: relative; padding-left: 14px;
+}
+.cc-bump-point::before { content: "✓"; position: absolute; left: 0; color: var(--ember-soft); font-size: 11px; }
+.cc-bump-blurb { font-family: var(--font-body); font-size: 12.5px; line-height: 1.5; color: rgba(244, 236, 223, 0.6); }
+.cc-checkout-addons {
+  margin: calc(-1 * var(--sp-3)) 0 var(--sp-4); font-family: var(--font-body);
+  font-size: 12.5px; color: rgba(244, 236, 223, 0.62); text-align: right;
+}
+.cc-checkout-addons[hidden] { display: none; }
+@media (max-width: 520px) {
+  .cc-bump { grid-template-columns: auto 1fr; }
+  .cc-bump-thumb { display: none; }
+}

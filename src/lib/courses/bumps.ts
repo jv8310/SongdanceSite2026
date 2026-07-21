@@ -3,18 +3,18 @@
 // don't already own it (eligibility decided in twelve-week-status.ts). Two
 // bumps:
 //
-//   asj   — The Authentic Singing Journey   €19  → prod_ASJ
-//           Exactly the workshop's order bump: same product, same rock-bottom
-//           €19 add-on price (migration 0021 / WERegister.astro), an ~80% cut
-//           off the €99 standalone.
+//   asj   — The Authentic Singing Journey   €99  → prod_ASJ
+//           A ~33% cut off the €150 standalone (its former standalone price),
+//           shown struck through against that €150 sticker.
 //   grief — The Grief Course                €49  → prod_Grief-sp
 //           Half the €99 standalone, co-taught with Daniela Hess.
 //
-// Prices are per-currency price points (NOT runtime FX): ASJ mirrors the
-// workshop bump's points verbatim; grief is scaled on the standalone grief
-// course's own EUR-relative ratios (grief.ts), rounded to clean numbers. The
-// struck "was" figure is the real standalone price, pulled from the journey /
-// grief modules so it can never drift from what those products actually cost.
+// Prices are per-currency price points (NOT runtime FX): ASJ is the former
+// standalone journey price (now a bump alongside the higher €150 sticker);
+// grief is scaled on the standalone grief course's own EUR-relative ratios
+// (grief.ts), rounded to clean numbers. The struck "was" figure is the real
+// standalone price, pulled from the journey / grief modules so it can never
+// drift from what those products actually cost.
 //
 // Fulfilment is provider-agnostic: the checkout records the chosen bumps on the
 // course_registration row; on payment the course paid-handler applies each
@@ -31,10 +31,11 @@ export type BumpSlug = 'asj' | 'grief';
 
 type PriceMap = Record<SupportedCurrency, number>; // major units
 
-// ASJ — the workshop's asj-bump price points, verbatim (migration 0021).
+// ASJ — €99, the former standalone journey price, now offered as a bump
+// alongside the higher €150 sticker (struck via compareAtCents below).
 const ASJ_BUMP_PRICE: PriceMap = {
-  EUR: 19, USD: 19, GBP: 16, CAD: 28, CHF: 18,
-  AUD: 28, NZD: 32, NOK: 199, SEK: 199, DKK: 139,
+  EUR: 99, USD: 99, GBP: 89, CAD: 145, CHF: 95,
+  AUD: 165, NZD: 185, NOK: 1150, SEK: 1100, DKK: 745,
 };
 // Grief — €49, half the €99 standalone, scaled to each market on the standalone
 // grief course's ratios (grief.ts) and rounded to clean headline numbers.

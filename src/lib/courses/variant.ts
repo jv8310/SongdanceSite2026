@@ -94,44 +94,44 @@ const PRICES: Record<
   }
 > = {
   EUR: {
-    cert:   { full: 1500, base: 1500, monthly3: 525, monthly6: 285, monthly12: 149 },
-    bundle: { full: 2150, base: 2150, monthly3: 750, monthly6: 405, monthly12: 215 },
+    cert:   { full: 797, base: 797, monthly3: 280, monthly6: 150, monthly12: 80 },
+    bundle: { full: 1277, base: 1277, monthly3: 450, monthly6: 240, monthly12: 128 },
   },
   USD: {
-    cert:   { full: 1500, base: 1500, monthly3: 525, monthly6: 285, monthly12: 149 },
-    bundle: { full: 2150, base: 2150, monthly3: 750, monthly6: 405, monthly12: 215 },
+    cert:   { full: 797, base: 797, monthly3: 280, monthly6: 150, monthly12: 80 },
+    bundle: { full: 1277, base: 1277, monthly3: 450, monthly6: 240, monthly12: 128 },
   },
   GBP: {
-    cert:   { full: 1299, base: 1299, monthly3: 459, monthly6: 245, monthly12: 129 },
-    bundle: { full: 1849, base: 1849, monthly3: 650, monthly6: 349, monthly12: 185 },
+    cert:   { full: 690, base: 690, monthly3: 240, monthly6: 130, monthly12: 70 },
+    bundle: { full: 1090, base: 1090, monthly3: 380, monthly6: 205, monthly12: 110 },
   },
   CAD: {
-    cert:   { full: 2150, base: 2150, monthly3: 750, monthly6: 405, monthly12: 215 },
-    bundle: { full: 3150, base: 3150, monthly3: 1100, monthly6: 595, monthly12: 315 },
+    cert:   { full: 1150, base: 1150, monthly3: 400, monthly6: 220, monthly12: 115 },
+    bundle: { full: 1850, base: 1850, monthly3: 650, monthly6: 350, monthly12: 185 },
   },
   CHF: {
-    cert:   { full: 1450, base: 1450, monthly3: 510, monthly6: 275, monthly12: 145 },
-    bundle: { full: 2050, base: 2050, monthly3: 715, monthly6: 385, monthly12: 205 },
+    cert:   { full: 770, base: 770, monthly3: 270, monthly6: 145, monthly12: 75 },
+    bundle: { full: 1230, base: 1230, monthly3: 430, monthly6: 230, monthly12: 125 },
   },
   AUD: {
-    cert:   { full: 2550, base: 2550, monthly3: 895, monthly6: 485, monthly12: 255 },
-    bundle: { full: 3650, base: 3650, monthly3: 1275, monthly6: 690, monthly12: 365 },
+    cert:   { full: 1350, base: 1350, monthly3: 475, monthly6: 255, monthly12: 135 },
+    bundle: { full: 2150, base: 2150, monthly3: 750, monthly6: 405, monthly12: 215 },
   },
   NZD: {
-    cert:   { full: 2850, base: 2850, monthly3: 999, monthly6: 540, monthly12: 285 },
-    bundle: { full: 4090, base: 4090, monthly3: 1430, monthly6: 770, monthly12: 409 },
+    cert:   { full: 1500, base: 1500, monthly3: 525, monthly6: 285, monthly12: 150 },
+    bundle: { full: 2380, base: 2380, monthly3: 830, monthly6: 450, monthly12: 240 },
   },
   NOK: {
-    cert:   { full: 17500, base: 17500, monthly3: 6150, monthly6: 3300, monthly12: 1750 },
-    bundle: { full: 25000, base: 25000, monthly3: 8750, monthly6: 4700, monthly12: 2500 },
+    cert:   { full: 9300, base: 9300, monthly3: 3250, monthly6: 1750, monthly12: 925 },
+    bundle: { full: 14800, base: 14800, monthly3: 5150, monthly6: 2800, monthly12: 1500 },
   },
   SEK: {
-    cert:   { full: 17000, base: 17000, monthly3: 5950, monthly6: 3200, monthly12: 1700 },
-    bundle: { full: 24000, base: 24000, monthly3: 8400, monthly6: 4500, monthly12: 2400 },
+    cert:   { full: 9000, base: 9000, monthly3: 3150, monthly6: 1700, monthly12: 900 },
+    bundle: { full: 14400, base: 14400, monthly3: 5000, monthly6: 2700, monthly12: 1450 },
   },
   DKK: {
-    cert:   { full: 11000, base: 11000, monthly3: 3850, monthly6: 2100, monthly12: 1100 },
-    bundle: { full: 15900, base: 15900, monthly3: 5550, monthly6: 3000, monthly12: 1590 },
+    cert:   { full: 5850, base: 5850, monthly3: 2050, monthly6: 1100, monthly12: 585 },
+    bundle: { full: 9400, base: 9400, monthly3: 3300, monthly6: 1770, monthly12: 940 },
   },
 };
 
@@ -192,7 +192,7 @@ export const CERT_OFFER: Offer = getCertOffer('EUR');
 export const BUNDLE_OFFER: Offer = getBundleOffer('EUR');
 
 // During a launch promo, the certification price becomes the launch percent
-// off the LIST/base price (e.g. €1500 → €750). The base stays as the struck
+// off the LIST/base price (e.g. €797 → €399). The base stays as the struck
 // "before" figure. Each installment ladder keeps its existing
 // premium-over-pay-in-full ratio, scaled to the promo price and rounded to
 // clean whole units so the monthly figures stay tidy. Returns the offer

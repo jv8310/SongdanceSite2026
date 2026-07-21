@@ -1,6 +1,6 @@
 // Checkout for the 12-Week Somatic Vocal Healing Course.
 //
-//   - Email-gated, regional pricing (~€650 across the workshop currencies).
+//   - Email-gated, regional pricing (~€480 across the workshop currencies).
 //   - payment_plan 'full' → one-off Stripe Checkout (mode=payment).
 //     payment_plan '3x'   → monthly Subscription that cancels after 3 invoices.
 //   - The 20% workshop discount is re-derived here from the email↔workshop link

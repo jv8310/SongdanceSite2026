@@ -42,10 +42,10 @@ export const SYNC_MAPPINGS: SyncMapping[] = [
     eventTitle: 'Somatic Vocal Healing Workshop',
     kind: 'workshop',
     productSlug: 'svh-ticket',
-    bumpSlug: 'asj-bump',
+    bumpSlug: 'mantra-empower-bump',
     sourceTag: 'svh_workshop_live',
     teacher: 'Jacob',
-    defaultDurationMin: 60,
+    defaultDurationMin: 70,
   },
   {
     calendarTitle: 'SVH Masterclass',
@@ -55,7 +55,7 @@ export const SYNC_MAPPINGS: SyncMapping[] = [
     bumpSlug: null,
     sourceTag: 'svh_masterclass_live',
     teacher: 'Jacob',
-    defaultDurationMin: 90,
+    defaultDurationMin: 100,
   },
 ];
 
