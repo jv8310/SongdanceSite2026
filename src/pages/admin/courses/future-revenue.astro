@@ -202,6 +202,15 @@ const hasAtRisk = months.some((m) => m.atRiskEurMinor > 0);
         </p>
       </div>
       <div class="adm-actions">
+        <form
+          method="POST"
+          action="/api/admin/courses/stripe-reconcile"
+          style="display:inline"
+          title="Poll Stripe for any installment plan stuck at 0/N (paid in Stripe but not recorded here) and record the settled charges. Idempotent."
+        >
+          <input type="hidden" name="return_to" value={returnTo} />
+          <button type="submit" class="adm-btn adm-btn--ghost">↻ Sync from Stripe now</button>
+        </form>
         <a class="adm-btn adm-btn--ghost" href="/admin/courses">← Courses</a>
       </div>
     </header>

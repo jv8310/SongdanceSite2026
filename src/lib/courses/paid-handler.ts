@@ -35,7 +35,7 @@ const COURSE_ITEM_LABELS: Record<string, string> = {
   'svh-12week': '12-Week SVH Foundation Course',
 };
 
-type Env = {
+export type CoursePaidHandlerEnv = {
   DB: D1Database;
   DRIP_API_TOKEN: string;
   DRIP_ACCOUNT_ID: string;
@@ -47,7 +47,7 @@ type Env = {
 };
 
 export async function pushPaidCourseRegistrationToDrip(
-  env: Env,
+  env: CoursePaidHandlerEnv,
   courseRegistrationId: number,
 ): Promise<void> {
   const reg = await getCourseRegistrationById(env.DB, courseRegistrationId);
