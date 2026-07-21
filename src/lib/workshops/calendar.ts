@@ -20,10 +20,13 @@ import { formatInTz } from './time';
 // this default — the bump is offered on every date.
 const DEFAULT_BUMP_SLUG = 'mantra-empower-bump';
 
-// The mantra pack is a flat €9 add-on with no higher "regular price" to anchor
-// against, so no struck-through compare-at is shown (an empty map means the
-// register card renders just the €9, with no strike).
-const BUMP_COMPARE_BY_CURRENCY: Record<string, number> = {};
+// The "Empowering You" mantra-pack album lists at €12; the €9 bump is a
+// discount off that, so the register card strikes the €12 sticker → €9 (≈25%).
+// Minor units per currency (compared against the bump's own minor price).
+const BUMP_COMPARE_BY_CURRENCY: Record<string, number> = {
+  EUR: 1200, USD: 1200, GBP: 1100, CHF: 1200, CAD: 1700,
+  AUD: 2000, NZD: 2100, NOK: 13200, SEK: 13200, DKK: 9200,
+};
 
 // Turn the per-currency price rows into a { CUR: amountMinor } map.
 const priceMap = (rows: { currency: string; amount_minor: number }[]) =>
