@@ -1,7 +1,8 @@
 // Single source of truth for the SVH Certification Course class schedule
-// and the CEEE deepening session schedule. Imported by the date-aware
-// grid components (CCClasses, CCCeee) and by the variant-gate API when it
-// needs to report the "next upcoming" class to a returning student.
+// and the CEEE deepening session schedule. The sales page now presents the
+// course as a self-paced library (CCClasses renders the module numbers,
+// titles and blurbs; CCCeee no longer itemizes sessions), but the schedules
+// and date helpers stay here as the ops record of when each is held live.
 //
 // All ISO datetimes carry an explicit offset (CET = +01:00, CEST = +02:00)
 // so the date logic works the same on the server and the client.
@@ -9,7 +10,8 @@
 export type ScheduledItem = {
   number: number;
   title?: string;
-  description?: string;
+  description?: string;          // full description (kept for reference/reuse)
+  blurb?: string;                // one-line text shown on the module card
   datetime: string | null;       // ISO 8601 with explicit offset, or null for TBC
   durationMinutes?: number;
   timeLabel?: string;            // human label, e.g. "7:00pm CEST"
@@ -22,6 +24,8 @@ export const SVH_CERT_CLASSES: ScheduledItem[] = [
     title: 'A Healing Journey',
     description:
       'The architecture of a session. Mapping, the journey, and the rare transpersonal layer. Sounding vs. singing. Why we welcome the imperfections.',
+    blurb:
+      'The architecture of a session — mapping, the journey, and why sounding is not singing.',
     datetime: '2026-01-30T19:00:00+01:00',
     durationMinutes: 120,
     timeLabel: '7:00pm CET',
@@ -31,6 +35,8 @@ export const SVH_CERT_CLASSES: ScheduledItem[] = [
     title: 'Receiving Information from Sound',
     description:
       'The art of listening. Context and the relational field. Shadow, fixation, and projection. Ego tears vs. authentic grief. Self-care after deep work.',
+    blurb:
+      'The art of listening: context, the relational field, and what a sound carries underneath.',
     datetime: '2026-02-22T19:00:00+01:00',
     durationMinutes: 120,
     timeLabel: '7:00pm CET',
@@ -40,6 +46,8 @@ export const SVH_CERT_CLASSES: ScheduledItem[] = [
     title: 'Emotional Expertise: Grief & Pain',
     description:
       'A deep dive into the core emotions, with grief and pain at the centre. Why grief oscillates and pain does not. How to hold space for each — and when one is hiding the other.',
+    blurb:
+      'A deep dive into grief and pain — how each moves, and how to hold space for both.',
     datetime: '2026-03-25T09:30:00+01:00',
     durationMinutes: 120,
     timeLabel: '9:30am CET',
@@ -49,6 +57,8 @@ export const SVH_CERT_CLASSES: ScheduledItem[] = [
     title: 'Shock & the Body',
     description:
       "A different way of looking at how the body responds to life. The phenomenon of shock as a primary feeling. How to work with shock through sounding — and where the responsible practitioner draws a clear line. Held with care; offered as inquiry, not medicine.",
+    blurb:
+      'Shock as a primary feeling — and how to work with it through sounding, with care.',
     datetime: '2026-04-19T19:00:00+02:00',
     durationMinutes: 120,
     timeLabel: '7:00pm CEST',
@@ -58,6 +68,8 @@ export const SVH_CERT_CLASSES: ScheduledItem[] = [
     title: 'The ABC of Healing: Working with the Layers',
     description:
       'The ABC framework — the child, the child grown to adult, and the now. How to untangle compassion and anger toward a parent. How to give back what does not belong with you. Templates for systemic and family constellation work woven into a sounding session.',
+    blurb:
+      'The child, the adult, the now — working the layers, giving back what was never yours.',
     datetime: '2026-05-26T19:00:00+02:00',
     durationMinutes: 120,
     timeLabel: '7:00pm CEST',
@@ -67,6 +79,8 @@ export const SVH_CERT_CLASSES: ScheduledItem[] = [
     title: 'Therapeutic Foundations',
     description:
       'Safe and responsible facilitation. Space holding. The volume button, co-regulation, and what to do when a client goes into overwhelm. The ethical container of the work.',
+    blurb:
+      'Safe, responsible facilitation: space holding, co-regulation, the ethical container.',
     datetime: '2026-06-28T19:00:00+02:00',
     durationMinutes: 120,
     timeLabel: '7:00pm CEST',
@@ -76,6 +90,8 @@ export const SVH_CERT_CLASSES: ScheduledItem[] = [
     title: 'Healing Templates',
     description:
       "Practical templates for working with the most common patterns clients bring. Inner-child work, ancestral work, working with the body's signals.",
+    blurb:
+      'Practical templates for what clients bring most: inner-child work, ancestral work, the body\'s signals.',
     datetime: '2026-07-08T09:30:00+02:00',
     durationMinutes: 120,
     timeLabel: '9:30am CEST',
@@ -85,6 +101,8 @@ export const SVH_CERT_CLASSES: ScheduledItem[] = [
     title: 'Emotional Expertise: Anger & Fear',
     description:
       'The second deep dive into the core emotions, with anger and fear at the centre. How anger moves and where it points. How fear contracts and what it is protecting. How to meet each one in sound — and how they so often hide behind one another.',
+    blurb:
+      'Anger and fear — how they move, what they protect, and how to meet them in sound.',
     datetime: '2026-09-06T19:00:00+02:00',
     durationMinutes: 120,
     timeLabel: '7:00pm CEST',
@@ -94,6 +112,8 @@ export const SVH_CERT_CLASSES: ScheduledItem[] = [
     title: 'Integration & Certification',
     description:
       'Bringing it all together. Reflection, integration, next steps — and the door to becoming a certified practitioner.',
+    blurb:
+      'Bringing it all together — and the door to becoming a certified practitioner.',
     datetime: '2026-10-04T19:00:00+02:00',
     durationMinutes: 120,
     timeLabel: '7:00pm CEST',

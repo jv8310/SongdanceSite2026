@@ -1,70 +1,37 @@
 ---
-// The class curriculum, presented as a self-paced library. Classes already
-// held show as instant-access recordings with their manuals; the few still to
-// come are shown quietly as upcoming additions to the library (they are held
-// live and recorded, but the page deliberately doesn't build countdown
-// theatrics around them — the course sells as self-paced). Server-rendered
-// per request (the page is SSR), so no client ticker is needed.
-import {
-  SVH_CERT_CLASSES,
-  computeCardState,
-  type ScheduledItem,
-} from '../../lib/courses/svh-cert-classes';
-
-const now = new Date();
-
-// Collapse the date-aware states to the two this page tells apart: in the
-// library now, or joining it soon. (A class that is literally live right now
-// simply still reads as "joins the library soon" — the students who attend
-// live are inside the portal, not on this sales page.)
-function inLibrary(item: ScheduledItem): boolean {
-  const s = computeCardState(item, now);
-  return s === 'past';
-}
-
-function monthLabel(item: ScheduledItem): string {
-  if (!item.datetime) return item.monthLabel ?? 'Date to come';
-  return new Date(item.datetime).toLocaleDateString('en-US', {
-    month: 'long',
-    year: 'numeric',
-  });
-}
-
-const cards = SVH_CERT_CLASSES.map((item) => ({ item, ready: inLibrary(item) }));
-const readyCount = cards.filter((c) => c.ready).length;
+// The class curriculum, presented as a self-paced library of modules — each
+// title with a one-line text. The page sells the library, not a schedule,
+// so there is no date logic here; the prominent promise below the grid
+// carries what every module is (fully edited video + thorough manual).
+import { SVH_CERT_CLASSES } from '../../lib/courses/svh-cert-classes';
 ---
 
 <section class="cc-classes" id="classes">
   <div class="cc-classes-inner">
     <div class="cc-classes-head">
-      <div class="cc-eyebrow cc-eyebrow--center">The classes</div>
+      <div class="cc-eyebrow cc-eyebrow--center">The modules</div>
       <h2 class="cc-h2" style="margin-top: var(--sp-4); max-width: 24ch; margin-left: auto; margin-right: auto;">
         The full arc, <em>at your own pace.</em>
       </h2>
     </div>
 
     <div class="cc-classes-grid">
-      {cards.map(({ item, ready }) => (
-        <article class="cc-card" data-state={ready ? 'past' : 'upcoming'}>
-          <div class="cc-card-num">{String(item.number).padStart(2, '0')}</div>
+      {SVH_CERT_CLASSES.map((item) => (
+        <article class="cc-card">
+          <div class="cc-card-num">Module {String(item.number).padStart(2, '0')}</div>
           <h3 class="cc-card-title">{item.title}</h3>
-          <p class="cc-card-desc">{item.description}</p>
-          <div class="cc-card-status">
-            <span class="icon" aria-hidden="true">{ready ? '🎧' : '📅'}</span>
-            <span class="label">{ready ? 'Instant Access + Manual' : 'Joins the library'}</span>
-            <span class="when">{ready ? '' : `· ${monthLabel(item)}`}</span>
-          </div>
+          <p class="cc-card-blurb">{item.blurb}</p>
         </article>
       ))}
     </div>
 
-    <p class="cc-classes-foot">
-      {readyCount} of the {cards.length} classes are in the library today —
-      full recording and written manual, yours the moment you join, to walk
-      at your own rhythm. The remaining classes join the library as they are
-      completed (and as a student you're welcome to sit in live when one is
-      held). Class topics may shift slightly to honour what the group is
-      asking for.
-    </p>
+    <div class="cc-classes-promise">
+      <div class="cc-promise-items">
+        <span class="item"><span class="icon" aria-hidden="true">🎬</span> Fully edited video classes</span>
+        <span class="dot" aria-hidden="true"></span>
+        <span class="item"><span class="icon" aria-hidden="true">📖</span> A thorough written manual per class</span>
+      </div>
+      <p class="cc-promise-sub">Instant access to all of it, from the moment you join.</p>
+    </div>
   </div>
 </section>
