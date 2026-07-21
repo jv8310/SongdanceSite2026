@@ -168,7 +168,7 @@ export async function listWorkshops(db: D1Database, includeDeleted = false) {
 
 // A published workshop joined with its main product's slug/name, so callers
 // (e.g. the /workshop landing-page calendar) can classify an entry — a regular
-// €9 workshop vs. the €118 masterclass — without a second query per row.
+// €22 workshop vs. the €44 masterclass — without a second query per row.
 export type UpcomingWorkshop = Workshop & {
   product_slug: string | null;
   product_name: string | null;
@@ -1062,7 +1062,7 @@ export async function deleteConfig(db: D1Database, key: string) {
 }
 
 // Is this workshop a masterclass? Classified by its main product slug, the same
-// way the /workshop landing-page calendar tells a €9 workshop from the €118
+// way the /workshop landing-page calendar tells a €22 workshop from the €44
 // masterclass. Masterclasses resolve their own Zoom defaults.
 export async function workshopIsMasterclass(db: D1Database, workshop: Workshop): Promise<boolean> {
   if (!workshop.main_product_id) return false;
