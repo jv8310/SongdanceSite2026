@@ -9,7 +9,7 @@
 //
 // `path`: when the buyer's variant is offered the Certification path (the
 // `cc-bundle` product), we attach its two-line-item pricing in the same
-// currency. During a live workshop window the whole path is 30% off (both
+// currency. During a live workshop window the whole path is 25% off (both
 // lines — see path.ts); a ?discount=N override only ever touches the 12-week
 // portion. This is the same pricing the checkout re-derives.
 //
@@ -36,6 +36,7 @@ import {
   deriveTwelveWeekDiscount,
 } from '../../../lib/courses/path';
 import { deriveDeckGift } from '../../../lib/courses/deck-promo';
+import { eligibleBumpOffers } from '../../../lib/courses/bumps';
 
 export const prerender = false;
 
@@ -117,11 +118,15 @@ export const POST: APIRoute = async ({ request, locals }) => {
       : undefined;
     // Post-workshop Song Deck gift window (display truth; checkout re-derives).
     const deckGift = await deriveDeckGift(env.DB, email);
+    // Order bumps the buyer doesn't already own, priced in their currency —
+    // the same ASJ + Grief add-ons the 12-week checkout offers.
+    const bumps = eligibleBumpOffers(decision.currency, sub?.tags ?? null);
     return json({
       ...decision,
       offers: promoOffers(decision.offers),
       path,
       deck_gift: deckGift,
+      bumps,
     });
   } catch (err) {
     // Soft failure — treat as newcomer so the page still works.
@@ -137,6 +142,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
       currency,
       offers: [fallbackOffer],
       path: await pathPricingFor(currency),
+      // Drip wasn't consulted on the degraded path → offer all bumps (fail open).
+      bumps: eligibleBumpOffers(currency, null),
       degraded: true,
       error: String(err),
     });

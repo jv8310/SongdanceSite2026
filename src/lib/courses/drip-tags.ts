@@ -18,7 +18,7 @@ import { isAlbumProductSlug } from '../music/product';
 //   album-<id>   → [] here — the tag lives on the music_albums row (D1), so the
 //                  paid-handler looks it up itself; this pure function must not
 //                  fall through to the cert tags for an album purchase
-//   cert/bundle  → prod_SVH_9m (+ prod_SVH_12w for the bundle)
+//   cert/bundle  → prod_SVH_9m (+ prod_SVH_12w for the bundle) + each order bump's tag
 export function courseDripTags(reg: {
   product_slug: string;
   language_choice: JourneyLanguageChoice | null;
@@ -32,16 +32,21 @@ export function courseDripTags(reg: {
     return journeyDrip(reg.product_slug, reg.language_choice).tags;
   }
 
+  // Purchased order bumps (ASJ / Grief) grant their product tag, on both the
+  // 12-week and the cert/bundle checkouts. The zero-amount Song Deck gift row
+  // isn't a bump slug, so isBumpSlug skips it.
+  const bumpTags: string[] = [];
+  for (const b of parsePurchasedBumps(reg.bumps)) {
+    if (isBumpSlug(b.slug)) bumpTags.push(BUMPS[b.slug].dripTag);
+  }
+
   if (reg.product_slug === TWELVE_WEEK_PRODUCT_SLUG) {
-    const tags = [TWELVE_WEEK_DRIP_TAG];
-    for (const b of parsePurchasedBumps(reg.bumps)) {
-      if (isBumpSlug(b.slug)) tags.push(BUMPS[b.slug].dripTag);
-    }
-    return tags;
+    return [TWELVE_WEEK_DRIP_TAG, ...bumpTags];
   }
 
   // cert (cc-cert) / bundle (cc-bundle).
   const tags = ['prod_SVH_9m'];
   if (reg.product_slug === 'cc-bundle') tags.push('prod_SVH_12w');
+  tags.push(...bumpTags);
   return tags;
 }

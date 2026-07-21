@@ -11,7 +11,7 @@
 // Stripe-backed enrolment form.
 export const REGISTER_ANCHOR = '#register';
 
-// Secondary CTA — sit in on a live Vocal Healing Session first, 9€.
+// Secondary CTA — sit in on a live Vocal Healing Session first, 22€.
 export const SESSION_URL = '/workshop';
 
 // Practitioner path — the live, deepening training after the 12 weeks.

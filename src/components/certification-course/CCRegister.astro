@@ -228,10 +228,19 @@ const countries = COUNTRIES;
             <span>I agree to the <a href="/terms" target="_blank" rel="noopener">terms and conditions</a>.</span>
           </label>
 
+          <!-- Order bumps (ASJ / Grief add-ons): one-time extras for the products
+               the buyer doesn't already own. Populated from status.bumps; ticked
+               ones ride the charge as separate line items. -->
+          <div class="cc-bumps-wrap" data-slot="bumps-wrap" hidden>
+            <div class="cc-step-label">Add to your enrolment</div>
+            <div class="cc-bumps" data-slot="bumps"></div>
+          </div>
+
           <div class="cc-checkout-summary" data-slot="summary">
             <span class="cc-checkout-summary-label" data-slot="summary-label"></span>
             <span class="cc-checkout-summary-amount" data-slot="summary-amount"></span>
           </div>
+          <p class="cc-checkout-addons" data-slot="bumps-total" hidden></p>
 
           <button type="button" class="cc-checkout-cta" data-slot="checkout-cta">
             <span>Continue to payment</span>
@@ -328,8 +337,21 @@ const countries = COUNTRIES;
     installments_12x?: InstallmentPlan; // 12 monthly payments (hidden by default)
   };
   type Variant = 'B1' | 'B2' | 'A' | 'D' | 'E' | 'C';
+  // One order bump as returned by /api/courses/subscriber-status (the same
+  // ASJ / Grief add-ons the 12-week checkout offers).
+  type BumpOffer = {
+    slug: string;
+    label: string;
+    blurb: string;
+    points: string[];
+    image: string;
+    currency: Currency;
+    price_cents: number;
+    compare_at_cents: number | null;
+    drip_tag: string;
+  };
   // The Certification path (the `cc-bundle` product), shown as two line items
-  // + a combined total. During a live workshop window the whole path is 30%
+  // + a combined total. During a live workshop window the whole path is 25%
   // off (both lines); a ?discount=N override only ever touches the 12-week
   // portion. Mirrors CertificationPathPricing on the server.
   type PathPricing = {
@@ -361,6 +383,9 @@ const countries = COUNTRIES;
     can_activate_now?: boolean;
     course_portal_url?: string;
     path?: PathPricing;
+    // Order bumps the buyer doesn't already own (ASJ / Grief), priced in their
+    // currency. Offered on both the cert-only and path checkouts.
+    bumps?: BumpOffer[];
     // Post-workshop Song Deck gift window (free deck + free shipping, live
     // from the buyer's workshop start until 1h after it ends).
     deck_gift?: { active: boolean; ends_at_ms: number | null };
@@ -384,7 +409,7 @@ const countries = COUNTRIES;
     firstName?: string,
   ) => { greeting: string; title: string; body: string };
 
-  // v3: the mid-cohort discount is retired (normal prices, 30% workshop sale
+  // v3: the mid-cohort discount is retired (normal prices, 25% workshop sale
   // on the path) and the decision carries `deck_gift` — ignore older caches so
   // a stale discounted price can never be shown against the new charge.
   const STORAGE_KEY = 'cc:decision:v3';
@@ -868,6 +893,7 @@ const countries = COUNTRIES;
         decision.currency = next.currency;
         decision.offers = next.offers;
         decision.path = (next as Decision).path;
+        decision.bumps = (next as Decision).bumps;
         decision.deck_gift = (next as Decision).deck_gift;
         try {
           localStorage.setItem(
@@ -876,6 +902,7 @@ const countries = COUNTRIES;
           );
         } catch {}
         renderOfferCards();
+        renderBumps();
         renderGift();
         renderPlanOptions();
         renderSummary();
@@ -923,6 +950,80 @@ const countries = COUNTRIES;
     // ── Selection state — the single source of truth for the bottom CTA.
     let selectedOfferSlug: Offer['slug'] = decision.offers[0]?.slug ?? 'cc-cert';
     let selectedPlan: PaymentPlan = 'full';
+
+    // ── Order bumps (ASJ / Grief add-ons) ──────────────────────────────────
+    // The same eligible add-ons the 12-week checkout offers, on both the cert
+    // and path checkouts. Ticked ones are collected from the DOM at submit and
+    // ride the charge as separate line items (see /api/courses/checkout).
+    const selectedBumps = new Set<string>();
+    const bumpsWrap = root.querySelector('[data-slot="bumps-wrap"]') as HTMLElement;
+    const bumpsEl = root.querySelector('[data-slot="bumps"]') as HTMLElement;
+    const bumpsTotalEl = root.querySelector('[data-slot="bumps-total"]') as HTMLElement;
+    function updateBumpsTotal() {
+      const list = (decision.bumps ?? []) as BumpOffer[];
+      const cur = decision.currency ?? 'EUR';
+      const chosen = list.filter((b) => selectedBumps.has(b.slug));
+      const total = chosen.reduce((s, b) => s + b.price_cents, 0);
+      if (!chosen.length) {
+        bumpsTotalEl.hidden = true;
+        bumpsTotalEl.textContent = '';
+        return;
+      }
+      bumpsTotalEl.hidden = false;
+      bumpsTotalEl.textContent = `+ ${moneyCents(total, cur)} in add-ons, added at checkout`;
+    }
+    function renderBumps() {
+      // Offered whenever the checkout form is live (any variant with offers);
+      // variant C (portal only) has no offers, so nothing shows.
+      const list = (decision.offers.length ? decision.bumps ?? [] : []) as BumpOffer[];
+      const cur = decision.currency ?? 'EUR';
+      if (!list.length) {
+        bumpsWrap.hidden = true;
+        updateBumpsTotal();
+        return;
+      }
+      bumpsWrap.hidden = false;
+      bumpsEl.replaceChildren(
+        ...list.map((b) => {
+          const checked = selectedBumps.has(b.slug);
+          const el = document.createElement('label');
+          el.className = 'cc-bump' + (checked ? ' cc-bump--selected' : '');
+          el.dataset.bumpSlug = b.slug;
+          const hasCompare = !!b.compare_at_cents && b.compare_at_cents > b.price_cents;
+          const strike = hasCompare
+            ? `<s class="cc-bump-was">${moneyCents(b.compare_at_cents as number, cur)}</s> `
+            : '';
+          const save = hasCompare
+            ? Math.round((1 - b.price_cents / (b.compare_at_cents as number)) * 100)
+            : 0;
+          el.innerHTML =
+            `<input type="checkbox" class="cc-bump-check"${checked ? ' checked' : ''} />` +
+            `<span class="cc-bump-box" aria-hidden="true"></span>` +
+            (b.image ? `<img class="cc-bump-thumb" src="${b.image}" alt="" loading="lazy" />` : '') +
+            `<span class="cc-bump-body">` +
+              `<span class="cc-bump-head">` +
+                `<span class="cc-bump-title">${escapeHtml(b.label)}</span>` +
+                `<span class="cc-bump-price">${strike}${moneyCents(b.price_cents, cur)}` +
+                  (save ? ` <span class="cc-bump-save">Save ${save}%</span>` : '') +
+                `</span>` +
+              `</span>` +
+              `<span class="cc-bump-points">` +
+                b.points.map((p) => `<span class="cc-bump-point">${escapeHtml(p)}</span>`).join('') +
+              `</span>` +
+              `<span class="cc-bump-blurb">${escapeHtml(b.blurb)}</span>` +
+            `</span>`;
+          const input = el.querySelector('input') as HTMLInputElement;
+          input.addEventListener('change', () => {
+            if (input.checked) selectedBumps.add(b.slug);
+            else selectedBumps.delete(b.slug);
+            el.classList.toggle('cc-bump--selected', input.checked);
+            updateBumpsTotal();
+          });
+          return el;
+        }),
+      );
+      updateBumpsTotal();
+    }
 
     // Offer cards (re-rendered when the buyer changes country and the
     // currency switches). Clicking a card flips selectedOfferSlug.
@@ -1056,6 +1157,7 @@ const countries = COUNTRIES;
       startPathCountdown();
     }
     renderOfferCards();
+    renderBumps();
     renderGift();
 
     // The installment ladder for a given plan on the current offer.
@@ -1333,7 +1435,7 @@ const countries = COUNTRIES;
       : '';
 
     // The path: two transparent line items + a combined total. During a live
-    // workshop window the whole path (both lines) is struck 30% off, with the
+    // workshop window the whole path (both lines) is struck 25% off, with the
     // 48h countdown; an override strikes only the 12-week line.
     if (offer.slug === 'cc-bundle' && path) {
       const cur = path.currency;
@@ -1562,6 +1664,15 @@ const countries = COUNTRIES;
       btn.innerHTML = originalLabel;
     };
 
+    // Ticked order bumps (ASJ / Grief) — read from the DOM so the exact set the
+    // buyer sees is what's sent. Priced + validated again server-side.
+    const bumpSlugs = Array.from(
+      root.querySelectorAll('[data-slot="bumps"] .cc-bump'),
+    )
+      .filter((el) => (el.querySelector('input') as HTMLInputElement | null)?.checked)
+      .map((el) => (el as HTMLElement).dataset.bumpSlug)
+      .filter((s): s is string => !!s);
+
     try {
       const res = await postJsonResilient('/api/courses/checkout', {
         product_slug: productSlug,
@@ -1580,6 +1691,7 @@ const countries = COUNTRIES;
         consent_terms: true,
         provider,
         ...shippingPayload,
+        ...(bumpSlugs.length ? { bumps: bumpSlugs } : {}),
         ...(discountPct > 0 ? { discount_percent: discountPct } : {}),
         ...(adiscountPct > 0 ? { adiscount_percent: adiscountPct } : {}),
       });

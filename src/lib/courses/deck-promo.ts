@@ -4,7 +4,7 @@
 // Anyone holding a secured (paid/coupon) seat at a workshop or masterclass
 // sees, on both course checkouts, a free Song Deck with free worldwide
 // shipping — from the moment their session starts until ONE HOUR after it
-// ends. A 60-minute workshop at 20:00 runs the gift 20:00–22:00; a 90-minute
+// ends. A 70-minute workshop at 20:00 runs the gift 20:00–22:10; a 100-minute
 // masterclass runs it 30 minutes longer. While the gift window is live the
 // checkout swaps its 48h discount countdown for the gift's own countdown; the
 // window closing simply reveals the 48h countdown again (the 20%/30% course

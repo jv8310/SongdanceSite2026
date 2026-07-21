@@ -71,8 +71,8 @@ export async function pushPaidCourseRegistrationToDrip(
     if (isAlbumProductSlug(reg.product_slug)) {
       album = await getAlbum(env.DB, albumIdFromProductSlug(reg.product_slug));
     }
-    // Order bumps recorded at checkout (12-week only) — granted below alongside
-    // the course's own tags + event.
+    // Order bumps recorded at checkout (12-week + certification) — granted below
+    // alongside the course's own tags + event.
     const purchasedBumps = parsePurchasedBumps(reg.bumps);
 
     const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD

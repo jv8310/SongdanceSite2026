@@ -8,7 +8,7 @@
 // instant. The posted country is authoritative — the server re-resolves the
 // fixed price for it at checkout.
 //
-// Masterclass entries (€118) are always shown in the list too — highlighted with
+// Masterclass entries (€44) are always shown in the list too — highlighted with
 // the plum accent and their own per-row price — so the practitioner date is
 // bookable for everyone, not only the pro (door 3) lens.
 import type { CalItem } from './types';
@@ -209,22 +209,22 @@ const leadTicket = items.find((it) => it.kind !== 'masterclass');
               <span class="we-bump-row">
                 <input type="checkbox" name="bump" id="we-bump-input" />
                 <span class="we-bump-checkbox" aria-hidden="true"></span>
-                <span class="we-bump-title" id="we-bump-title">Yes — add the journey</span>
+                <span class="we-bump-title" id="we-bump-title">Yes — add the mantra pack</span>
               </span>
               <span class="we-bump-media">
                 <img src="/media/library/collage-mantrapakket-klein.webp" alt="" loading="lazy" />
                 <span class="we-bump-info">
                   <span class="we-bump-points">
-                    <span class="we-bump-point"><strong>40 guided singing journeys</strong></span>
-                    <span class="we-bump-point">Original music &amp; mantras by Jacob</span>
-                    <span class="we-bump-point">Stream anytime — yours to keep</span>
+                    <span class="we-bump-point"><strong>5 original mantras with a South African choir</strong></span>
+                    <span class="we-bump-point">For healing &amp; self-empowerment</span>
+                    <span class="we-bump-point">Yours to keep — sound along anytime</span>
                   </span>
                 </span>
               </span>
               <span class="we-bump-blurb">
-                These are the giving direction — music made for you, the tea and
-                the blanket after the hour's questions. Somewhere to keep
-                practising, long after the workshop.
+                Five original mantras, recorded with a choir in South Africa for
+                healing and self-empowerment. Let your voice be heard and
+                cultivate self-love as you sound along with the powerful tunes.
               </span>
               <span class="we-bump-foot">
                 <span class="we-bump-prices">
@@ -242,7 +242,7 @@ const leadTicket = items.find((it) => it.kind !== 'masterclass');
               <span id="we-line-workshop-amount"></span>
             </div>
             <div class="we-summary-line" id="we-line-bump" hidden>
-              <span id="we-line-bump-label">Authentic Singing Journey</span>
+              <span id="we-line-bump-label">Empowering You mantra pack</span>
               <span id="we-line-bump-amount"></span>
             </div>
             <div class="we-total">
@@ -522,7 +522,7 @@ const leadTicket = items.find((it) => it.kind !== 'masterclass');
     function refreshBump() {
       if (current && current.hasBump === '1') {
         bumpRow.hidden = false;
-        var bName = current.bumpName || 'Authentic Singing Journey';
+        var bName = current.bumpName || 'Empowering You mantra pack';
         if (bumpTitle) bumpTitle.textContent = 'Yes — add the ' + bName;
         if (bumpLineLabel) bumpLineLabel.textContent = bName;
         var offer = parseInt(current.bumpMinor, 10) || 0;

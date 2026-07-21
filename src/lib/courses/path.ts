@@ -3,8 +3,8 @@
 //
 //   - The workshop sale: when the buyer's email sits in a live workshop window
 //     (same pre/post-48h rule as the standalone 12-week course), the WHOLE
-//     path is 30% off — both line items (CERT_PATH_DISCOUNT_PERCENT below).
-//     The standalone 12-week course keeps its own 20%.
+//     path is 25% off — both line items (CERT_PATH_DISCOUNT_PERCENT below).
+//     The standalone 12-week course keeps its own 25%.
 //   - No workshop link → both lines at their normal price.
 //   - A `?discount=N` override still wins outright and, as before, only ever
 //     touches the 12-week line.
@@ -36,10 +36,10 @@ import {
   listReplayViewAnchorsByEmail,
 } from '../workshops/db';
 
-// The workshop-sale discount on the certification path: 30% off the whole
+// The workshop-sale discount on the certification path: 25% off the whole
 // path (both line items) while the buyer's workshop window is live. Sibling
-// of the standalone 12-week course's 20% (DISCOUNT_PERCENT in twelve-week.ts).
-export const CERT_PATH_DISCOUNT_PERCENT = 30;
+// of the standalone 12-week course's 25% (DISCOUNT_PERCENT in twelve-week.ts).
+export const CERT_PATH_DISCOUNT_PERCENT = 25;
 
 export type CertificationPathPricing = {
   currency: Currency;
@@ -92,7 +92,7 @@ export function buildCertificationPathPricing(
   const certPromo = eff.kind !== 'override' && launchPromoActive(nowMs);
   const cert = certPromo ? applyLaunchPromoToOffer(baseCert, nowMs) : baseCert;
   // The workshop sale: eff.kind 'pre'/'post' means the buyer's workshop window
-  // is live — the path takes 30% off BOTH lines (the promo path above wins
+  // is live — the path takes 25% off BOTH lines (the promo path above wins
   // while a site-wide promo runs; effectiveTwelveWeekDiscount already resolves
   // promo-vs-workshop upstream). Override/promo keep the old shape: the
   // percent lands on the 12-week line only.
@@ -138,7 +138,7 @@ export function buildCertificationPathPricing(
     installment_6x_count: INSTALLMENT_COUNT_6X,
     discount: {
       eligible: eff.eligible,
-      // The percent the path actually applies — 30 during the workshop
+      // The percent the path actually applies — 25 during the workshop
       // window, the override/promo percent otherwise.
       percent: eff.eligible ? (workshopSale ? CERT_PATH_DISCOUNT_PERCENT : eff.percent) : 0,
       kind: eff.kind,

@@ -83,13 +83,25 @@ in moderation, not governed by the copy book.
   weekly Q&As and monthly deepening sessions. The last couple of live classes
   still happen but are deliberately NOT emphasized on the page (they read as
   "joins the library"). The **"mid-cohort discount" is retired**: cert charges
-  its normal price (€1500 EUR; `full === base` in `variant.ts`, so nothing
-  renders struck through), the path/bundle €2150.
+  its normal price (€797 EUR; `full === base` in `variant.ts`, so nothing
+  renders struck through), the path/bundle €1277 (= cert €797 + 12-week €480).
 - **Workshop sale**: a live workshop window (same pre/post-48h rule as always)
-  gives **30% off the whole certification path** — both line items
-  (`CERT_PATH_DISCOUNT_PERCENT` in `src/lib/courses/path.ts`) → €1505 —
-  while the standalone 12-week course keeps its 20%. A `?discount=N` override
-  still wins outright and still only touches the 12-week line.
+  gives **25% off the whole certification path** — both line items
+  (`CERT_PATH_DISCOUNT_PERCENT` in `src/lib/courses/path.ts`) → ≈€958 —
+  while the standalone 12-week course keeps its own 25% (€480 → €360). A
+  `?discount=N` override still wins outright and still only touches the
+  12-week line.
+- **Top-of-funnel + order bumps** (July 2026): workshop ticket **€22** (70-min
+  session), masterclass **€44** (100-min). The workshop/masterclass order bump
+  is now the **"Empowering You" mantra pack** (€9, product `mantra-empower-bump`,
+  Drip tag `prod_MantraEmpower`) — set up the matching Drip automation +
+  delivery owner-side. The **Authentic Singing Journey** moved to a **€99 course
+  bump** (struck against its new **€150** standalone) shown on BOTH the 12-week
+  and the certification checkouts, alongside the €49 Grief bump
+  (`src/lib/courses/bumps.ts`; cert-checkout bump wiring in `checkout.ts` +
+  `subscriber-status.ts` + `CCRegister.astro`). Charged workshop/masterclass/
+  bump prices live in the DB (**migration 0076**); the static marketing labels
+  are in `src/lib/workshops/marketing-prices.ts` and course copy.
 - **Post-workshop Song Deck gift** (`src/lib/courses/deck-promo.ts`): anyone
   with a secured workshop/masterclass seat sees, on both course checkouts
   (12-week + certification), a **free Song Deck with free worldwide shipping**
@@ -132,7 +144,7 @@ in moderation, not governed by the copy book.
   (Address Validation API enabled).
 - **Zoom rejoin fix** (`joinWindowFor` in `src/lib/workshops/time.ts`): a fresh
   join still gates at start+20min, but anyone who already clicked Join can
-  REJOIN until the session's real end (60-min default / 90-min masterclass from
+  REJOIN until the session's real end (70-min default / 100-min masterclass from
   `ends_at_utc`) + 10-min grace — a connectivity drop never locks them out.
 
 ## Email lifecycle (workshops)
@@ -143,7 +155,7 @@ All automated workshop email lives in the workshop engine:
 - **Cadence**: `src/lib/workshops/cron.ts` (5-min cron; idempotent claims, staleness
   guards, sequence chaining, suppression checks)
 - **Sequences**: abandoned checkout ×2 · confirmation + 7 reminders · attended ×3
-  (12-week course, riding the 48h/20% participant-discount window from
+  (12-week course, riding the 48h/25% participant-discount window from
   `src/lib/courses/twelve-week.ts`) · attended-PRO ×3 (certification path;
   masterclass attendees now, `is_pro` column when it lands) · no-show ×3 ·
   downsell ×2

@@ -33,7 +33,7 @@ const workshop = reg ? await getWorkshopById(env.DB, reg.workshop_id) : null;
 let replayUrl: string | null = null;
 // The 12-week promo shown beneath the replay: opening a replay (re)starts the
 // same 48h participant-discount window the course honours, so we quote exactly
-// what the /courses/12-week page will grant this viewer — 20% for 48h, or 50%
+// what the /courses/12-week page will grant this viewer — 25% for 48h, or 50%
 // while the launch promo runs (through July 15). See postWorkshopEmailOffer.
 let offer: { percent: number; deadlineMs: number; deadlineLabel: string | null; promo: boolean } | null = null;
 let showCountdown = false;
@@ -72,7 +72,7 @@ if (ok && reg && workshop) {
     offer = postWorkshopEmailOffer(now + DISCOUNT_WINDOW_HOURS * 3600_000, now);
     showCountdown = true;
   } else if (status.eligible) {
-    // No promo: the 20% participant window. A live "post" window counts down to
+    // No promo: the 25% participant window. A live "post" window counts down to
     // its 48h expiry; a "pre" window (an upcoming workshop) has no deadline.
     const windowEndsMs = status.expiresAtMs ?? now + DISCOUNT_WINDOW_HOURS * 3600_000;
     offer = postWorkshopEmailOffer(windowEndsMs, now);

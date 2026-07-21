@@ -3,18 +3,17 @@
 // don't already own it (eligibility decided in twelve-week-status.ts). Two
 // bumps:
 //
-//   asj   — The Authentic Singing Journey   €19  → prod_ASJ
-//           Exactly the workshop's order bump: same product, same rock-bottom
-//           €19 add-on price (migration 0021 / WERegister.astro), an ~80% cut
-//           off the €99 standalone.
+//   asj   — The Authentic Singing Journey   €99  → prod_ASJ
+//           Struck 33% off a €148 sticker (the €99 bump is its former
+//           standalone price; the journey page keeps its €150 standalone).
 //   grief — The Grief Course                €49  → prod_Grief-sp
 //           Half the €99 standalone, co-taught with Daniela Hess.
 //
-// Prices are per-currency price points (NOT runtime FX): ASJ mirrors the
-// workshop bump's points verbatim; grief is scaled on the standalone grief
-// course's own EUR-relative ratios (grief.ts), rounded to clean numbers. The
-// struck "was" figure is the real standalone price, pulled from the journey /
-// grief modules so it can never drift from what those products actually cost.
+// Prices are per-currency price points (NOT runtime FX): ASJ's €99 bump strikes
+// a dedicated €148 sticker (ASJ_BUMP_COMPARE_AT) so it reads as a clean 33% off;
+// grief is scaled on the standalone grief course's own EUR-relative ratios
+// (grief.ts), rounded to clean numbers, and its struck "was" is the real €99
+// standalone pulled from grief.ts so it can never drift.
 //
 // Fulfilment is provider-agnostic: the checkout records the chosen bumps on the
 // course_registration row; on payment the course paid-handler applies each
@@ -24,17 +23,23 @@
 // is a separate charge (full payment) or rides the first installment invoice.
 
 import { type SupportedCurrency } from '../workshops/currency';
-import { priceCents as journeyPriceCents, DRIP_BY_SLUG } from './journeys';
+import { DRIP_BY_SLUG } from './journeys';
 import { GRIEF_PRICE, GRIEF_DRIP_TAG, GRIEF_DRIP_EVENT } from './grief';
 
 export type BumpSlug = 'asj' | 'grief';
 
 type PriceMap = Record<SupportedCurrency, number>; // major units
 
-// ASJ — the workshop's asj-bump price points, verbatim (migration 0021).
+// ASJ — €99, offered as a bump struck through against a €148 sticker so it
+// reads as a clean 33% off (the €99 bump is the former standalone price; the
+// journey page keeps its own €150 standalone). Per-currency ≈ 4/3 × the bump.
 const ASJ_BUMP_PRICE: PriceMap = {
-  EUR: 19, USD: 19, GBP: 16, CAD: 28, CHF: 18,
-  AUD: 28, NZD: 32, NOK: 199, SEK: 199, DKK: 139,
+  EUR: 99, USD: 99, GBP: 89, CAD: 145, CHF: 95,
+  AUD: 165, NZD: 185, NOK: 1150, SEK: 1100, DKK: 745,
+};
+const ASJ_BUMP_COMPARE_AT: PriceMap = {
+  EUR: 148, USD: 148, GBP: 133, CAD: 216, CHF: 142,
+  AUD: 246, NZD: 276, NOK: 1720, SEK: 1640, DKK: 1110,
 };
 // Grief — €49, half the €99 standalone, scaled to each market on the standalone
 // grief course's ratios (grief.ts) and rounded to clean headline numbers.
@@ -80,7 +85,7 @@ export const BUMPS: Record<BumpSlug, BumpDef> = {
     // prod_ASJ (English edition) or prod_JAZ (Dutch edition) → already owned.
     ownedTags: ['prod_ASJ', 'prod_JAZ'],
     price: ASJ_BUMP_PRICE,
-    compareAtCents: (c) => journeyPriceCents('asj', c),
+    compareAtCents: (c) => ASJ_BUMP_COMPARE_AT[c] * 100,
   },
   grief: {
     slug: 'grief',

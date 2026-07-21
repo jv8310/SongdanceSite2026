@@ -61,12 +61,12 @@ for (const cur of SUPPORTED_CURRENCIES) {
 // own price maps so the label and the charge can never drift apart.
 export const MARKETING_PRICES_MINOR: Record<MarketingProduct, Record<string, number>> = {
   ticket: {
-    EUR: 900, USD: 900, GBP: 800, CHF: 900, CAD: 1300,
-    AUD: 1500, NZD: 1600, NOK: 9900, SEK: 9900, DKK: 6900,
+    EUR: 2200, USD: 2200, GBP: 1900, CHF: 2200, CAD: 3200,
+    AUD: 3700, NZD: 3900, NOK: 23900, SEK: 23900, DKK: 16900,
   },
   masterclass: {
-    EUR: 11800, USD: 11800, GBP: 9800, CHF: 11800, CAD: 15800,
-    AUD: 15800, NZD: 19800, NOK: 119800, SEK: 119800, DKK: 79800,
+    EUR: 4400, USD: 4400, GBP: 3800, CHF: 4400, CAD: 5900,
+    AUD: 5900, NZD: 7400, NOK: 44900, SEK: 44900, DKK: 29800,
   },
   grief: toMinor(GRIEF_PRICE),
   asj: toMinor(PRICE_BY_SLUG.asj!),
@@ -90,8 +90,8 @@ export const MARKETING_COMPARE_MINOR: Record<MarketingProduct, Record<string, nu
 // number ("9€"); the courses write it before ("€99"), matching formatMoney and
 // the hand-written note text on the cards/menu (e.g. "with Daniela · €99").
 export const EUR_COPY_LABEL: Record<MarketingProduct, string> = {
-  ticket: '9€',
-  masterclass: '118€',
+  ticket: '22€',
+  masterclass: '44€',
   grief: `€${GRIEF_PRICE.EUR}`,
   asj: `€${PRICE_BY_SLUG.asj!.EUR}`,
   mmj: `€${PRICE_BY_SLUG.mmj!.EUR}`,

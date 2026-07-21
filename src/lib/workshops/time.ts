@@ -24,8 +24,10 @@ export function joinWindow(startsAtUtc: string, now = Date.now()): JoinWindow {
   return 'open';
 }
 
-// Default calendar event duration when a workshop has no explicit end time.
-export const DEFAULT_DURATION_MS = 60 * 60 * 1000;
+// Default calendar event duration when a workshop has no explicit end time
+// (70 minutes — the standard workshop length; masterclasses carry an explicit
+// 100-minute end, so this fallback rarely applies to them).
+export const DEFAULT_DURATION_MS = 70 * 60 * 1000;
 
 export function endsAtOrDefault(startsAtUtc: string, endsAtUtc: string | null): string {
   if (endsAtUtc) return endsAtUtc;
@@ -35,9 +37,9 @@ export function endsAtOrDefault(startsAtUtc: string, endsAtUtc: string | null): 
 // Rejoin window: someone who already joined once (clicked Join — attendance
 // recorded) must be able to get back in for the WHOLE session — a Zoom drop
 // mid-workshop must never lock them out behind the 20-minute latecomer gate.
-// Their window closes only at the session's real end — the full 60 minutes of
-// a workshop, the full 90 of a masterclass (from ends_at_utc, defaulting to
-// start+60min) — plus a small grace for sessions that run over. Fresh joins
+// Their window closes only at the session's real end — the full 70 minutes of
+// a workshop, the full 100 of a masterclass (from ends_at_utc, defaulting to
+// start+70min) — plus a small grace for sessions that run over. Fresh joins
 // keep the original start+20min gate.
 export const REJOIN_GRACE_AFTER_END_SECONDS = 10 * 60;
 

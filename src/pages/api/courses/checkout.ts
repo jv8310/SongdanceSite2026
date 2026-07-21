@@ -76,6 +76,7 @@ import {
   DECK_GIFT_BUMP_SLUG,
   normalizeDeckGiftShipping,
 } from '../../../lib/courses/deck-promo';
+import { bumpOffer, isBumpSlug, BUMPS, type BumpSlug } from '../../../lib/courses/bumps';
 
 export const prerender = false;
 
@@ -109,6 +110,9 @@ type Body = {
   discount_percent?: number | string;
   adiscount_percent?: number | string;
   provider?: string; // 'stripe' (default) | 'paypal'
+  // Order-bump slugs the buyer ticked ('asj' | 'grief'). Validated + priced
+  // server-side; never discounted.
+  bumps?: string[];
   // Song Deck gift shipping address (only meaningful while the gift window is
   // live; ignored otherwise). Verified client-side via /api/courses/verify-address.
   shipping_name?: string;
@@ -314,7 +318,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     // Price the order. The bundle IS the "Certification path": both lines
     // re-derived server-side from the email so the charge always matches
-    // eligibility — during a live workshop window the whole path takes 30%
+    // eligibility — during a live workshop window the whole path takes 25%
     // off (CERT_PATH_DISCOUNT_PERCENT in path.ts); a ?discount=N override
     // still only touches the 12-week portion. For cc-cert, the URL
     // ?discount=N still reduces the cert price as before; every monthly
@@ -372,6 +376,34 @@ export const POST: APIRoute = async ({ request, locals }) => {
         ? '12-Week Course + Certification Course'
         : offer.label;
 
+    // ── Order bumps (one-time add-ons: ASJ / Grief) ────────────────────────
+    // Validate the ticked slugs, price them server-side (never discounted), and
+    // record them on the row so the paid-handler grants each in Drip. They ride
+    // the charge as a separate line item (pay in full) or the first installment
+    // invoice; amount_cents stays the course/path price only.
+    const selectedBumps: BumpSlug[] = Array.isArray(payload.bumps)
+      ? Array.from(new Set(payload.bumps.filter(isBumpSlug)))
+      : [];
+    const bumpOffers = selectedBumps.map((slug) => bumpOffer(slug, currency));
+    const bumpTotalCents = bumpOffers.reduce((sum, b) => sum + b.price_cents, 0);
+    // Widened to string: the zero-amount Song Deck gift row (below) shares this
+    // list but is not a purchasable bump slug.
+    const bumpRows: Array<{ slug: string; amount_cents: number }> = bumpOffers.map(
+      (b) => ({ slug: b.slug, amount_cents: b.price_cents }),
+    );
+    const stripeBumpLineItems = bumpOffers.map((b) => ({
+      name: BUMPS[b.slug].label,
+      amount_cents: b.price_cents,
+      currency: currency.toLowerCase(),
+      quantity: 1,
+      product_metadata: { tax_class: 'eservice', product_slug: BUMPS[b.slug].catalogSlug },
+    }));
+    const paypalBumpItems = bumpOffers.map((b) => ({
+      name: BUMPS[b.slug].label,
+      amountMinor: b.price_cents,
+      category: 'DIGITAL_GOODS' as const,
+    }));
+
     // Post-workshop Song Deck gift: live from the buyer's workshop start until
     // 1h after it ends (re-derived server-side, same links as the discount).
     // Recorded as a zero-amount bumps row; while live the checkout also collects
@@ -392,6 +424,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
           verified: payload.shipping_verified,
         })
       : null;
+    if (deckGift.active) {
+      bumpRows.push({ slug: DECK_GIFT_BUMP_SLUG, amount_cents: 0 });
+    }
 
     const registrationId = await createPendingCourseRegistration(env.DB, {
       email,
@@ -406,9 +441,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       activate_choice: activateChoice,
       source_variant: sourceVariant,
       timezone: edgeTimezone(locals),
-      bumps: deckGift.active
-        ? [{ slug: DECK_GIFT_BUMP_SLUG, amount_cents: 0 }]
-        : null,
+      bumps: bumpRows.length ? bumpRows : null,
       deck_gift_shipping: deckShipping,
       amount_cents: totalAmountCents,
       currency,
@@ -436,11 +469,17 @@ export const POST: APIRoute = async ({ request, locals }) => {
         const sub = await createPaypalSubscription({
           env,
           productName: lineItemLabel,
-          productDescription: `${installmentPlan.count} monthly installments of ${formatMoney(chargedMonthlyCents, currency)}`,
+          productDescription: `${installmentPlan.count} monthly installments of ${formatMoney(chargedMonthlyCents, currency)}${
+            bumpOffers.length
+              ? ` + one-time add-ons (${formatMoney(bumpTotalCents, currency)})`
+              : ''
+          }`,
           planName: `${lineItemLabel} — ${installmentPlan.count}-month plan`,
           monthlyAmountMinor: chargedMonthlyCents,
           currency,
           installmentCount: installmentPlan.count,
+          // Order bumps ride the first charge as the plan setup fee.
+          setupFeeMinor: bumpTotalCents || undefined,
           customId: encodeCustomId('course', registrationId),
           returnUrl,
           cancelUrl,
@@ -475,6 +514,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
             amountMinor: chargedPriceCents,
             category: 'DIGITAL_GOODS',
           },
+          ...paypalBumpItems,
         ],
         customId: encodeCustomId('course', registrationId),
         description: lineItemLabel,
@@ -581,6 +621,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       phone: phoneE164,
       currency,
       tax_class: 'eservice',
+      ...(selectedBumps.length ? { bumps: selectedBumps.join(',') } : {}),
       ...(deckGift.active ? { deck_gift: '1' } : {}),
       ...(companyName ? { company_name: companyName } : {}),
       ...(vatNumber ? { vat_number: vatNumber } : {}),
@@ -627,6 +668,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
         monthly_amount_cents: chargedMonthlyCents,
         currency: currency.toLowerCase(),
         installment_count: installmentPlan.count,
+        // Order bumps ride the first invoice as one-time line items.
+        one_time_line_items: stripeBumpLineItems,
         metadata,
         idempotency_key: `course-reg-${registrationId}-${paymentPlan}${discountPct > 0 ? `-d${discountPct}` : ''}`,
       });
@@ -691,6 +734,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
           quantity: 1,
           product_metadata: productMetadata,
         },
+        ...stripeBumpLineItems,
       ],
       metadata,
       idempotency_key: `course-reg-${registrationId}${discountPct > 0 ? `-d${discountPct}` : ''}`,

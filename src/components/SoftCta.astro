@@ -1,6 +1,6 @@
 ---
 // Recurring soft CTA band (content brief §2). Default variant points to the
-// 9€ workshop — the primary top-of-funnel across the site. Pages with their
+// 22€ workshop — the primary top-of-funnel across the site. Pages with their
 // own primary action can override the copy/links via props.
 interface Props {
   text?: string;
@@ -10,13 +10,13 @@ interface Props {
   altHref?: string;
   subtext?: string | false;
   // Which product's price the ctaLabel quotes, so the client enhancer can
-  // localize it. Defaults to the workshop ticket (the standard 9€ taster CTA).
+  // localize it. Defaults to the workshop ticket (the standard 22€ taster CTA).
   // Pass null on CTAs whose label has no price to localize.
   priceProduct?: 'ticket' | 'masterclass' | null;
 }
 const {
   text = 'Curious how this actually feels?',
-  ctaLabel = 'Try a live workshop — 9€',
+  ctaLabel = 'Try a live workshop — 22€',
   ctaHref = '/workshop',
   altLabel,
   altHref,

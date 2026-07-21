@@ -15,18 +15,17 @@ import {
 import { formatMoney } from './currency';
 import { formatInTz } from './time';
 
-// The order bump (the Authentic Singing Journey recording pack). Workshops
-// carry it via bump_product_id; masterclasses don't define their own, so they
-// fall back to this default — the bump is offered on every date.
-const DEFAULT_BUMP_SLUG = 'asj-bump';
+// The order bump (the "Empowering You" mantra pack). Workshops carry it via
+// bump_product_id; masterclasses don't define their own, so they fall back to
+// this default — the bump is offered on every date.
+const DEFAULT_BUMP_SLUG = 'mantra-empower-bump';
 
-// Marketing "regular price" anchor for the bump, used only to show a struck-
-// through compare-at price next to the one-time offer (the amount actually
-// charged is always the bump's real price). The standalone Authentic Singing
-// Journey is €99; equivalents are kept in clean round numbers.
+// The "Empowering You" mantra-pack album lists at €12; the €9 bump is a
+// discount off that, so the register card strikes the €12 sticker → €9 (≈25%).
+// Minor units per currency (compared against the bump's own minor price).
 const BUMP_COMPARE_BY_CURRENCY: Record<string, number> = {
-  EUR: 9900, USD: 9900, GBP: 8900, CHF: 9900, CAD: 14900,
-  AUD: 15900, NZD: 16900, NOK: 99900, SEK: 99900, DKK: 69900,
+  EUR: 1200, USD: 1200, GBP: 1100, CHF: 1200, CAD: 1700,
+  AUD: 2000, NZD: 2100, NOK: 13200, SEK: 13200, DKK: 9200,
 };
 
 // Turn the per-currency price rows into a { CUR: amountMinor } map.
@@ -88,7 +87,7 @@ export async function buildCalendarItems(
       startsAtUtc: w.is_replay ? null : w.starts_at_utc,
       isReplay: w.is_replay === 1,
       title: w.title,
-      durationMin: isMasterclass ? 90 : 60,
+      durationMin: isMasterclass ? 100 : 70,
       priceLabel: formatMoney(price.amountMinor, price.currency),
       priceMinor: price.amountMinor,
       currency: price.currency,

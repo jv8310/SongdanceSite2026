@@ -5,10 +5,10 @@
 // analytics / segmentation).
 //
 // The price is revealed once an email is entered. If that email holds a secured
-// seat at a workshop (or has watched its replay), a 20% discount is live —
+// seat at a workshop (or has watched its replay), a 25% discount is live —
 // before the workshop (no countdown) and for 48h after the later of the
 // workshop end / last replay view (with a countdown). A `?discount=N` URL
-// override (1–99) replaces that 20% with N% and carries no countdown.
+// override (1–99) replaces that 25% with N% and carries no countdown.
 //
 // The discount only ever reduces the 12-week price — never the certification.
 // All of it is re-derived in the checkout endpoint, so the displayed price can
