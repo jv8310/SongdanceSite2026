@@ -447,6 +447,61 @@ export async function retrieveSubscriptionWithLatestInvoice(
   return (await res.json()) as any;
 }
 
+// List the invoices Stripe has generated for a subscription, newest-first
+// (Stripe's default order). Used by the hourly safety-net reconcile
+// (src/lib/payments/stripe-reconcile.ts) to find every already-settled
+// installment cycle when the invoice.paid webhook was never delivered — the
+// same class of hole reconcilePaypalCourseOrders closes for PayPal. `status`
+// filters server-side ('paid' = money in the bank); `payment_intent` is the
+// refund/first-installment anchor we persist on the row, mirroring the shape
+// retrieveSubscriptionWithLatestInvoice already returns.
+export async function listSubscriptionInvoices(
+  secretKey: string,
+  subscriptionId: string,
+  opts: { status?: 'paid' | 'open' | 'draft' | 'uncollectible' | 'void'; limit?: number } = {},
+): Promise<
+  Array<{
+    id: string;
+    status: string;
+    paid: boolean;
+    payment_intent: string | null;
+    amount_paid: number;
+    created: number;
+  }>
+> {
+  const params = new URLSearchParams();
+  params.set('subscription', subscriptionId);
+  params.set('limit', String(Math.max(1, Math.min(100, opts.limit ?? 100))));
+  if (opts.status) params.set('status', opts.status);
+  const res = await fetch(`${STRIPE_BASE}/invoices?${params.toString()}`, {
+    headers: { Authorization: `Bearer ${secretKey}` },
+  });
+  if (!res.ok) {
+    const body = (await res.json()) as { error?: { message: string } };
+    throw new Error(
+      `Stripe invoices.list: ${body.error?.message ?? res.status}`,
+    );
+  }
+  const body = (await res.json()) as {
+    data?: Array<{
+      id: string;
+      status?: string;
+      paid?: boolean;
+      payment_intent?: string | null;
+      amount_paid?: number;
+      created?: number;
+    }>;
+  };
+  return (body.data ?? []).map((inv) => ({
+    id: inv.id,
+    status: inv.status ?? '',
+    paid: inv.paid ?? inv.status === 'paid',
+    payment_intent: inv.payment_intent ?? null,
+    amount_paid: inv.amount_paid ?? 0,
+    created: inv.created ?? 0,
+  }));
+}
+
 // Retrieve a charge, with its invoice expanded. Used by the `charge.refunded`
 // webhook to resolve a refunded subscription-installment back to the
 // subscription id (and from there to the course_registration). For one-off

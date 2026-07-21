@@ -21,6 +21,7 @@ import { runMasterclassSeatMove } from './lib/workshops/masterclass-move';
 import { runReports } from './lib/workshops/reports';
 import { reconcileOrderNotifications } from './lib/orders/reconcile';
 import { reconcilePaypalCourseOrders } from './lib/payments/paypal-reconcile';
+import { reconcileStripeCourseOrders } from './lib/payments/stripe-reconcile';
 import { fxRatesStale, refreshFxRates } from './lib/admin/fx';
 import { runMetaAdSpendSync } from './lib/ads/meta-insights';
 
@@ -287,6 +288,26 @@ export function createExports(manifest: unknown) {
         })
         .catch((err) => {
           console.error('[paypal/reconcile] run failed', err);
+        }),
+    );
+
+    // Safety net: recover Stripe course installment plans a dropped/undelivered
+    // invoice.paid webhook left stuck at 0/N — "ACTIVE" in Stripe, "Not started"
+    // for us — while Stripe keeps charging monthly. Polls Stripe for stranded
+    // pending/expired course subscription rows and records what already settled,
+    // through the same idempotent path (invoice-id guard) as the webhook, so
+    // steady state is a no-op; no-ops entirely until STRIPE_SECRET_KEY is set.
+    ctx.waitUntil(
+      reconcileStripeCourseOrders(env)
+        .then((r) => {
+          if (r.subscriptions || r.installments) {
+            console.log(
+              `[stripe/reconcile] subs=${r.subscriptions} installments=${r.installments}`,
+            );
+          }
+        })
+        .catch((err) => {
+          console.error('[stripe/reconcile] run failed', err);
         }),
     );
   };

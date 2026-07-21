@@ -221,6 +221,63 @@ hourly cron also runs `reconcileOrderNotifications`
 paid course/retreat order in the last 7 days that carries no sent-claim (bounded
 per run, idempotent, so steady state is a no-op).
 
+## Stripe course-installment recognition — safety-net reconcile
+
+Stripe **course installment plans** (3×/6×/12× subscriptions) record each cycle
+from the `invoice.paid` webhook, with one backstop at
+`checkout.session.completed` (the webhook reads the subscription's
+`latest_invoice` and records it if already paid). Both can miss the *first*
+charge: the checkout backstop fires only once, at completion — if the opening
+invoice hadn't settled *at that instant* (an async method like SEPA debit, or a
+few seconds' delay) it records nothing; and if the endpoint isn't subscribed to
+`invoice.paid` (or a delivery drops), nothing else ever bumps the count.
+Meanwhile `customer.subscription.updated` still flips the row's
+`subscription_status` to `active`, so the plan sits at **0/N, `paid_at` NULL,
+coarse status `pending`/`expired`** — "ACTIVE" in Stripe, "Not started" on
+`/admin/courses/future-revenue` — while Stripe keeps charging monthly. No access,
+no SD-ORDER, no Drip. (This is the exact Stripe twin of the PayPal hole below.)
+
+The single idempotent fulfilment step —
+[`recordCourseInvoiceIfNew`](src/lib/courses/stripe-fulfill.ts) (bump
+`installments_paid`, grant access + Drip + SD-ORDER on the first cycle, guarded
+on the Stripe **invoice id** in the `events` log via
+`course.installment.recorded`) — is shared by the webhook and the reconcile, so
+they converge and can't double-count.
+
+The hourly cron therefore also runs `reconcileStripeCourseOrders`
+([`src/lib/payments/stripe-reconcile.ts`](src/lib/payments/stripe-reconcile.ts)),
+the Stripe sibling of `reconcilePaypalCourseOrders`: it finds stranded Stripe
+course **subscription** rows — `provider='stripe'`, non-full plan with a
+`stripe_subscription_id`, status `pending` **or** `expired` (a stranded pending
+row is auto-flipped to `expired` after 15 min by `expireStaleCoursePendings`) in
+a 120-day window — lists each subscription's **paid** invoices
+(`listSubscriptionInvoices`, `GET /v1/invoices?subscription=…&status=paid`,
+oldest-first) and records every settled cycle through
+`recordCourseInvoiceIfNew`. It's **read-only** against Stripe (never creates a
+charge or subscription), respects an admin cancel/refund (never resurrects such a
+row), never performs the terminal cancelled flip itself (the webhook's job), and
+tolerates per-row errors. Steady state (webhook healthy) is a no-op; it **no-ops
+entirely until `STRIPE_SECRET_KEY` is set**. A manual **"Sync from Stripe now"**
+button on `/admin/courses/future-revenue`
+(`/api/admin/courses/stripe-reconcile`, admin-gated, wider cap) forces the same
+sweep so a stuck plan can be recovered on the spot. This is a *backstop*, not the
+fix — if Stripe subscriptions stall, first check the webhook endpoint is
+subscribed to `invoice.paid` (plus `customer.subscription.*`).
+
+**Removing a dead not-started plan.** A plan stuck at 0/N whose gateway
+subscription no longer exists (e.g. an abandoned PayPal checkout PayPal has since
+purged) can't be paid or cancelled the normal way (`isCancellablePlan` requires
+`status='paid'`), so it just clutters the watch list. `/admin/courses/future-revenue`
+shows a **Remove** button on any **Not started** plan →
+`/api/admin/courses/dismiss-plan` (admin-gated): it deletes the stranded row, but
+**only after the gateway confirms no money and no live subscription** — any
+settled charge or an ACTIVE/APPROVED (PayPal) / active/trialing/past_due (Stripe)
+subscription makes it refuse (a not-started row can look identical to the
+ACTIVE-but-unrecorded bug above, so removal is guarded; the reconcile records a
+real one instead). It best-effort cancels any lingering approval first
+(`cancelSubscriptionIfPresent`, tolerant of PayPal 404/422 via `PaypalApiError`),
+logs a snapshot, then deletes. A verification error refuses (fail safe).
+
 ## PayPal payment recognition — safety-net reconcile
 
 Direct-PayPal course orders (`src/lib/payments/paypal.ts` + `paypal-fulfill.ts`)
