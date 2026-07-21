@@ -1584,19 +1584,19 @@ html, body { background: var(--paper); }
   max-width: 60ch; margin: var(--sp-4) auto 0;
   text-wrap: pretty;
 }
-.cc-ceee-duo {
+.cc-ceee-trio {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: var(--sp-4);
-  max-width: 880px;
+  max-width: 1080px;
   margin: 0 auto;
 }
-@media (max-width: 760px) { .cc-ceee-duo { grid-template-columns: 1fr; } }
+@media (max-width: 900px) { .cc-ceee-trio { grid-template-columns: 1fr; max-width: 560px; } }
 .cc-ceee-panel {
   background: var(--paper-soft);
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
-  padding: var(--sp-6);
+  padding: var(--sp-6) var(--sp-5);
   display: flex; flex-direction: column; gap: var(--sp-3);
 }
 .cc-ceee-panel .ceee-tag {
@@ -1607,7 +1607,7 @@ html, body { background: var(--paper); }
 }
 .cc-ceee-panel h3 {
   font-family: var(--font-display);
-  font-size: 24px; line-height: 1.2;
+  font-size: 21px; line-height: 1.25;
   color: var(--ink); font-weight: 500;
   margin: 0;
   text-wrap: balance;
