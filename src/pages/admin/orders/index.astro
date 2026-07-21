@@ -244,8 +244,7 @@ const refundedTotal = orders.reduce((s, o) => s + o.refundedMinor, 0);
               <th>Order</th>
               <th>Date</th>
               <th>Product(s)</th>
-              <th>Name</th>
-              <th>Email</th>
+              <th>Customer</th>
               <th>Payment</th>
               <th class="num">Original</th>
               <th class="num">Net (EUR)</th>
@@ -283,9 +282,15 @@ const refundedTotal = orders.reduce((s, o) => s + o.refundedMinor, 0);
                       <><br /><small class="ord-paid-date" title={fmtDateTime(o.paidAt)}>paid {fmtDate(o.paidAt)}</small></>
                     )}
                   </td>
-                  <td>{o.productLabel}</td>
-                  <td>{name}</td>
-                  <td><a href={`mailto:${o.email}`}>{o.email}</a></td>
+                  <td class="ord-product">
+                    <span class="ord-product-name" title={o.productLabel}>{o.productLabel}</span>
+                  </td>
+                  <td class="ord-cust">
+                    <span class={`ord-cust-name${name === '—' ? ' is-empty' : ''}`}>
+                      {name === '—' ? 'No name' : name}
+                    </span>
+                    <a class="ord-cust-email" href={`mailto:${o.email}`} title={o.email}>{o.email}</a>
+                  </td>
                   <td class="ord-pay">
                     <span class={`ord-pay-gw ord-pay-gw--${o.provider}`}>{pay.gateway}</span>
                     {pay.method && <span class="ord-pay-method"> · {pay.method}</span>}
@@ -393,6 +398,26 @@ const refundedTotal = orders.reduce((s, o) => s + o.refundedMinor, 0);
     .ord-date { white-space:nowrap; font-variant-numeric:tabular-nums; }
     .ord-paid-date { color:var(--adm-mute); }
     .adm-pill--other { background:rgba(0,0,0,0.06); color:var(--adm-ink-soft); }
+
+    /* Product: give it room, but clamp very long names to two lines so a
+       "Somatic Vocal Healing Masterclass" no longer stacks four rows tall and
+       every row stays short + even. Full name on hover via title. */
+    .ord-product { min-width:170px; max-width:280px; }
+    .ord-product-name {
+      display:-webkit-box; -webkit-line-clamp:2; line-clamp:2;
+      -webkit-box-orient:vertical; overflow:hidden; line-height:1.3;
+    }
+
+    /* Customer: name stacked over a muted email, reclaiming the width the two
+       separate columns used to spend — so Product can breathe. */
+    .ord-cust { min-width:190px; line-height:1.35; }
+    .ord-cust-name { display:block; font-weight:600; color:var(--adm-ink); }
+    .ord-cust-name.is-empty { color:var(--adm-mute); font-weight:500; }
+    .ord-cust-email {
+      display:block; max-width:250px; font-size:12px; color:var(--adm-ink-soft);
+      text-decoration:none; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    }
+    .ord-cust-email:hover { color:var(--adm-ember-deep); text-decoration:underline; }
 
     /* Order id + compact source / plan tags, kept together on one small line. */
     .ord-id { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
