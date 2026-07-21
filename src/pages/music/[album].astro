@@ -14,6 +14,9 @@ import {
   listTracks,
   type MusicTrackRow,
 } from '../../lib/music/db';
+import { formatAlbumPrice } from '../../lib/music/product';
+import { paypalConfigured } from '../../lib/payments/paypal';
+import { COUNTRIES } from '../../lib/countries';
 
 export const prerender = false;
 
@@ -34,7 +37,18 @@ const listenerEmail = await verifyListener(
   env.ADMIN_SESSION_SECRET,
   readListenerCookie(Astro.request),
 );
-const granted = isAdmin || (listenerEmail ? await hasAlbumAccess(env, listenerEmail, album) : false);
+const granted =
+  isAdmin || (listenerEmail ? await hasAlbumAccess(env, env.DB, listenerEmail, album) : false);
+
+// Purchasable? (price set in admin). `?welcome=1` is the return leg from a
+// successful checkout: the gate then leads with "payment received — enter the
+// email you paid with" (the paid registration row grants instantly, no Drip
+// round-trip needed).
+const priceCents = album.price_eur_cents ?? 0;
+const forSale = priceCents > 0;
+const priceLabel = forSale ? formatAlbumPrice(priceCents) : null;
+const welcome = Astro.url.searchParams.get('welcome') === '1';
+const paypalOk = paypalConfigured(env) && env.PAYPAL_ENABLED === 'true';
 
 const cover = albumCoverUrl(album);
 let tracks: MusicTrackRow[] = [];
@@ -160,12 +174,18 @@ const totalLabel =
     <section class="mp-gate sd-section">
       <div class="mp-gate-card">
         {cover && <img class="mp-gate-cover" src={cover} alt={`${album.title} — cover`} />}
-        <p class="mp-eyebrow">Your album</p>
+        <p class="mp-eyebrow">{welcome ? 'Payment received' : 'Your album'}</p>
         <h1 class="mp-gate-title">{album.title}</h1>
-        <p class="mp-gate-p">
-          This album belongs with your order. Enter the email you used at checkout and it opens
-          right here.
-        </p>
+        {welcome ? (
+          <p class="mp-gate-p">
+            Thank you — the album is yours. Enter the email you just paid with and it opens
+            right here.
+          </p>
+        ) : (
+          <p class="mp-gate-p">
+            Already yours? Enter the email you used at checkout and the album opens right here.
+          </p>
+        )}
         <form class="mp-gate-form" data-gate-form>
           <input type="text" name="hp" class="mp-hp" tabindex="-1" autocomplete="off" aria-hidden="true" />
           <div class="mp-gate-row">
@@ -190,6 +210,49 @@ const totalLabel =
           <a href="mailto:support@songdance.co">support@songdance.co</a> and we'll help you personally.
         </p>
       </div>
+
+      {forSale && !welcome && (
+        <div class="mp-gate-card mp-buy" id="get">
+          <p class="mp-eyebrow">Not yours yet?</p>
+          <h2 class="mp-buy-title">Get the album — {priceLabel}</h2>
+          {album.description && <p class="mp-gate-p">{album.description}</p>}
+          <p class="mp-gate-p">
+            Yours to keep: stream it anytime, on any device, with the email you order with.
+          </p>
+          <form class="mp-buy-form" data-buy-form>
+            <div class="mp-buy-grid">
+              <input type="text" name="first_name" placeholder="First name" autocomplete="given-name" required maxlength="100" />
+              <input type="text" name="last_name" placeholder="Last name" autocomplete="family-name" required maxlength="100" />
+              <input type="email" name="email" placeholder="you@somewhere" autocomplete="email" required maxlength="254" class="mp-buy-span" />
+              <select name="country" required class="mp-buy-span" aria-label="Country">
+                <option value="" disabled selected>Your country</option>
+                {COUNTRIES.map((c) => (
+                  <option value={c.code}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+            <label class="mp-buy-terms">
+              <input type="checkbox" name="consent_terms" required />
+              <span>
+                I agree to the <a href="/terms" target="_blank" rel="noopener">terms</a> &amp;{' '}
+                <a href="/privacy" target="_blank" rel="noopener">privacy policy</a>.
+              </span>
+            </label>
+            <div class="mp-buy-actions">
+              <button type="submit" class="sd-btn sd-btn-primary" data-buy-submit data-provider="stripe">
+                <span data-buy-label>Pay by card — {priceLabel}</span>
+                <i class="ph-light ph-arrow-right"></i>
+              </button>
+              {paypalOk && (
+                <button type="submit" class="sd-btn mp-buy-paypal" data-buy-submit data-provider="paypal">
+                  Pay with PayPal
+                </button>
+              )}
+            </div>
+            <p class="mp-gate-error" hidden role="alert" data-buy-error></p>
+          </form>
+        </div>
+      )}
     </section>
   )}
 </SiteLayout>
@@ -365,7 +428,12 @@ const totalLabel =
   }
 
   /* ---------- Email gate ---------- */
-  .mp-gate { display: flex; justify-content: center; }
+  .mp-gate {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--sp-6);
+  }
   .mp-gate-card {
     max-width: 520px;
     width: 100%;
@@ -416,6 +484,62 @@ const totalLabel =
   .mp-gate-help { color: var(--ink-quiet); font-size: var(--t-body-sm); margin: var(--sp-5) 0 0; }
   .mp-gate-help a { color: var(--ember-deep); }
   .mp-hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+
+  /* ---------- Buy card ---------- */
+  .mp-buy-title {
+    font-family: var(--font-display);
+    font-size: var(--t-h3);
+    line-height: var(--lh-snug);
+    letter-spacing: var(--tr-display);
+    color: var(--ink);
+    font-weight: 400;
+    margin: 0 0 var(--sp-3);
+  }
+  .mp-buy-form { text-align: left; }
+  .mp-buy-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--sp-3);
+    margin-bottom: var(--sp-4);
+  }
+  @media (max-width: 480px) {
+    .mp-buy-grid { grid-template-columns: 1fr; }
+    .mp-buy-span { grid-column: auto; }
+  }
+  .mp-buy-span { grid-column: 1 / -1; }
+  .mp-buy-grid input,
+  .mp-buy-grid select {
+    font-family: var(--font-body);
+    font-size: var(--t-body);
+    padding: 13px 16px;
+    border: 1px solid var(--line-strong, var(--line));
+    border-radius: var(--r-md);
+    background: var(--paper);
+    color: var(--ink);
+    min-width: 0;
+    width: 100%;
+  }
+  .mp-buy-grid input:focus,
+  .mp-buy-grid select:focus { outline: none; border-color: var(--ember); box-shadow: var(--shadow-glow); }
+  .mp-buy-terms {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: var(--t-body-sm);
+    color: var(--ink-soft);
+    margin-bottom: var(--sp-4);
+    cursor: pointer;
+  }
+  .mp-buy-terms input { margin-top: 3px; accent-color: var(--ember); }
+  .mp-buy-terms a { color: var(--ember-deep); }
+  .mp-buy-actions { display: flex; flex-direction: column; gap: var(--sp-3); }
+  .mp-buy-actions .sd-btn { justify-content: center; }
+  .mp-buy-paypal {
+    background: transparent;
+    border: 1px solid var(--line-strong, var(--line));
+    color: var(--ink);
+  }
+  .mp-buy-paypal:hover { border-color: var(--ember); color: var(--ember-deep); }
 </style>
 
 <script>
@@ -460,6 +584,56 @@ const totalLabel =
       } finally {
         if (btn) btn.disabled = false;
         if (label) label.textContent = original;
+      }
+    });
+  }
+
+  // ---------- Buy form → checkout ----------
+  const buyForm = document.querySelector<HTMLFormElement>('[data-buy-form]');
+  if (buyForm) {
+    const errEl = buyForm.querySelector<HTMLElement>('[data-buy-error]');
+    const buttons = Array.from(buyForm.querySelectorAll<HTMLButtonElement>('[data-buy-submit]'));
+    const albumId = location.pathname.split('/').pop() ?? '';
+    // Two submit buttons, one per provider — remember which one was pressed.
+    let provider: 'stripe' | 'paypal' = 'stripe';
+    buttons.forEach((b) =>
+      b.addEventListener('click', () => {
+        provider = b.dataset.provider === 'paypal' ? 'paypal' : 'stripe';
+      }),
+    );
+    buyForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (errEl) errEl.hidden = true;
+      const fd = new FormData(buyForm);
+      buttons.forEach((b) => { b.disabled = true; });
+      try {
+        const res = await fetch('/api/music/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            album: albumId,
+            first_name: String(fd.get('first_name') ?? '').trim(),
+            last_name: String(fd.get('last_name') ?? '').trim(),
+            email: String(fd.get('email') ?? '').trim(),
+            country: String(fd.get('country') ?? '').trim(),
+            consent_terms: fd.get('consent_terms') === 'on',
+            provider,
+          }),
+        });
+        const data = (await res.json().catch(() => ({}))) as {
+          checkout_url?: string;
+          error?: string;
+        };
+        if (!res.ok || !data.checkout_url) {
+          throw new Error(data.error || 'Could not start checkout.');
+        }
+        location.href = data.checkout_url;
+      } catch (err) {
+        if (errEl) {
+          errEl.textContent = (err as Error).message || 'Could not start checkout — please try again.';
+          errEl.hidden = false;
+        }
+        buttons.forEach((b) => { b.disabled = false; });
       }
     });
   }

@@ -22,6 +22,9 @@ export interface MusicAlbumRow {
   description: string | null;
   cover_key: string | null;
   drip_tag: string | null;
+  // EUR cents; NULL/0 = not for sale on its own (login-only page). See
+  // src/lib/music/product.ts for the purchase path.
+  price_eur_cents: number | null;
   published: number;
   sort_order: number;
   created_at: string;
@@ -83,6 +86,7 @@ export interface AlbumInput {
   title: string;
   description: string | null;
   drip_tag: string | null;
+  price_eur_cents: number | null;
   published: number;
   cover_key?: string | null; // undefined = leave the existing cover untouched
 }
@@ -99,13 +103,14 @@ export async function upsertAlbum(
       db
         .prepare(
           `UPDATE music_albums SET
-             id = ?, title = ?, description = ?, drip_tag = ?, published = ?,
+             id = ?, title = ?, description = ?, drip_tag = ?, price_eur_cents = ?, published = ?,
              ${input.cover_key !== undefined ? 'cover_key = ?,' : ''}
              updated_at = datetime('now')
            WHERE id = ?`,
         )
         .bind(
-          input.id, input.title, input.description, input.drip_tag, input.published,
+          input.id, input.title, input.description, input.drip_tag,
+          input.price_eur_cents, input.published,
           ...(input.cover_key !== undefined ? [input.cover_key] : []),
           originalId,
         ),
@@ -116,18 +121,20 @@ export async function upsertAlbum(
 
   await db
     .prepare(
-      `INSERT INTO music_albums (id, title, description, drip_tag, published, cover_key)
-       VALUES (?, ?, ?, ?, ?, ?)
+      `INSERT INTO music_albums (id, title, description, drip_tag, price_eur_cents, published, cover_key)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET
          title = excluded.title,
          description = excluded.description,
          drip_tag = excluded.drip_tag,
+         price_eur_cents = excluded.price_eur_cents,
          published = excluded.published,
          ${input.cover_key !== undefined ? 'cover_key = excluded.cover_key,' : ''}
          updated_at = datetime('now')`,
     )
     .bind(
-      input.id, input.title, input.description, input.drip_tag, input.published,
+      input.id, input.title, input.description, input.drip_tag,
+      input.price_eur_cents, input.published,
       input.cover_key ?? null,
     )
     .run();

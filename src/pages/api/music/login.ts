@@ -40,7 +40,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const album = albumId ? await getAlbum(env.DB, albumId) : null;
   if (!album || album.published !== 1) return json(404, { ok: false, error: 'unknown-album' });
 
-  const granted = await hasAlbumAccess(env, email, album);
+  const granted = await hasAlbumAccess(env, env.DB, email, album);
   if (!granted) return json(200, { ok: true, granted: false });
 
   const token = await signListener(env.ADMIN_SESSION_SECRET, email);
