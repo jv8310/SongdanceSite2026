@@ -7,6 +7,7 @@ import {
   listAllOrders,
   isRefundable,
   refundableMinor,
+  shortProductLabel,
   type OrderSource,
   type StatusClass,
 } from '../../../lib/admin/orders';
@@ -283,7 +284,7 @@ const refundedTotal = orders.reduce((s, o) => s + o.refundedMinor, 0);
                     )}
                   </td>
                   <td class="ord-product">
-                    <span class="ord-product-name" title={o.productLabel}>{o.productLabel}</span>
+                    <span class="ord-product-name" title={o.productLabel}>{shortProductLabel(o.productLabel, o.source)}</span>
                   </td>
                   <td class="ord-cust">
                     <span class={`ord-cust-name${name === '—' ? ' is-empty' : ''}`}>
@@ -433,8 +434,8 @@ const refundedTotal = orders.reduce((s, o) => s + o.refundedMinor, 0);
     .ord-tag--src-workshop { background:#dcefdc; color:#2f7a4c; }
     .ord-tag--plan         { background:#efe6d2; color:var(--adm-ink-soft); text-transform:none; }
 
-    /* Payment-method column */
-    .ord-pay { white-space:nowrap; }
+    /* Payment column — kept compact so Product gets the room. */
+    .ord-pay { white-space:nowrap; width:1%; font-size:12.5px; }
     .ord-pay-gw { font-weight:600; }
     .ord-pay-gw--stripe { color:#4a3aa0; }
     .ord-pay-gw--paypal { color:#003087; }

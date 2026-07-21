@@ -139,6 +139,39 @@ function courseLabel(slug: string): string {
   return slug;
 }
 
+// Compact display name for the orders table. The full marketing titles ("Somatic
+// Vocal Healing Masterclass", "Ritual of Belonging Retreat, Nov 2026") are too
+// long to scan in a table column, so we abbreviate to a short two-word form
+// (SVH Masterclass, Ritual Retreat). The full label is still shown on hover.
+export function shortProductLabel(label: string, source: OrderSource): string {
+  let s = (label ?? '').trim();
+  if (!s) return s;
+
+  // Peel a trailing "+ bump" so we shorten only the product name, then re-add it.
+  let suffix = '';
+  const bump = /\s*\+\s*bump\s*$/i.exec(s);
+  if (bump) {
+    suffix = ' + bump';
+    s = s.slice(0, bump.index).trim();
+  }
+
+  // The site's core brand phrase → initials; drop a leading article.
+  s = s.replace(/\bsomatic\s+vocal\s+healing\b/gi, 'SVH').replace(/^the\s+/i, '');
+
+  // Retreats: strip a trailing date qualifier ("…, Nov 2026") and compress
+  // "<Theme> Retreat" down to "<FirstWord> Retreat".
+  if (source === 'retreat') {
+    s = s.replace(/,.*$/, '').trim();
+    const m = /^(.*?)\bretreat\b/i.exec(s);
+    if (m) {
+      const first = m[1].trim().split(/\s+/)[0] ?? '';
+      s = first ? `${first} Retreat` : 'Retreat';
+    }
+  }
+
+  return (s + suffix).trim();
+}
+
 // ── Money: FX + VAT ─────────────────────────────────────────────────────────
 
 // Options threaded into the loaders to money-up each order:
