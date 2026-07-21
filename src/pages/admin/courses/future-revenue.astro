@@ -202,6 +202,15 @@ const hasAtRisk = months.some((m) => m.atRiskEurMinor > 0);
         </p>
       </div>
       <div class="adm-actions">
+        <form
+          method="POST"
+          action="/api/admin/courses/stripe-reconcile"
+          style="display:inline"
+          title="Poll Stripe for any installment plan stuck at 0/N (paid in Stripe but not recorded here) and record the settled charges. Idempotent."
+        >
+          <input type="hidden" name="return_to" value={returnTo} />
+          <button type="submit" class="adm-btn adm-btn--ghost">↻ Sync from Stripe now</button>
+        </form>
         <a class="adm-btn adm-btn--ghost" href="/admin/courses">← Courses</a>
       </div>
     </header>
@@ -420,7 +429,17 @@ const hasAtRisk = months.some((m) => m.atRiskEurMinor > 0);
                     <span class={`fr-state fr-state--${p.state}`}>{stateLabel(p.state)}</span>
                   </td>
                   <td>
-                    {canManage ? (
+                    {p.state === 'not_started' ? (
+                      <form
+                        method="POST"
+                        action="/api/admin/courses/dismiss-plan"
+                        onsubmit={`return confirm('Remove ${jsName}\\'s not-started ${p.plan} plan?\\nThe subscription never started charging, so this just deletes the stranded row. Verified against ${p.provider === 'paypal' ? 'PayPal' : 'Stripe'} first — it will refuse if any money is found.')`}
+                      >
+                        <input type="hidden" name="course_registration_id" value={p.id} />
+                        <input type="hidden" name="return_to" value={returnTo} />
+                        <button type="submit" class="adm-btn adm-btn--danger adm-btn--tiny">Remove</button>
+                      </form>
+                    ) : canManage ? (
                       <details class="fr-cancel">
                         <summary class="adm-btn adm-btn--tiny">Cancel…</summary>
                         <form
@@ -466,7 +485,12 @@ const hasAtRisk = months.some((m) => m.atRiskEurMinor > 0);
         chosen number more and then stop (e.g. cancel only the last). The buyer
         keeps access; only future charges stop — to give money back, use Refund on
         the Orders page. “Watch” = the subscription is retrying (past&nbsp;due),
-        unpaid, or cancelled with money still owed.
+        unpaid, or cancelled with money still owed. A <strong>Not started</strong>
+        plan (0 charges, no payments) shows <strong>Remove</strong> instead: it
+        deletes the stranded row after checking the gateway confirms no money was
+        taken and the subscription isn’t live (otherwise it refuses and the hourly
+        reconcile records the charge). Use it for a plan whose subscription no
+        longer exists in Stripe/PayPal.
       </p>
     </section>
   </main>

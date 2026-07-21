@@ -287,7 +287,7 @@ const META: CatalogMeta[] = [
     title: 'Songdeck — Authentic Singing',
     description:
       'A deck of 36 illustrated cards, each with a written message and its own song, mantra, or soundscape. Draw a card, scan it with the free Songdeck app, and the music plays.',
-    link: '/courses/songdeck',
+    link: '/music/songdeck',
     // Physical product fulfilled on songdeck.shop; its canonical product photo
     // lives on that store's CDN (same image used on the page + structured data).
     imageUrl:

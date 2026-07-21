@@ -28,6 +28,21 @@ export type PaypalEnv = {
 const LIVE_BASE = 'https://api-m.paypal.com';
 const SANDBOX_BASE = 'https://api-m.sandbox.paypal.com';
 
+// Error thrown by ppFetch on a non-2xx PayPal response, carrying the HTTP
+// `status` and PayPal's error `name` (e.g. RESOURCE_NOT_FOUND) so callers can
+// distinguish "the subscription is gone" (404) or "already inactive" (422) from
+// a transient failure — instead of parsing the message string.
+export class PaypalApiError extends Error {
+  status: number;
+  paypalName: string | null;
+  constructor(message: string, status: number, paypalName: string | null) {
+    super(message);
+    this.name = 'PaypalApiError';
+    this.status = status;
+    this.paypalName = paypalName;
+  }
+}
+
 // Whether the direct PayPal gateway is wired up. Both id + secret required.
 // This is the RUNTIME guard (secrets exist at request time) — use it in API
 // endpoints / webhooks / the return handler.
@@ -120,7 +135,11 @@ async function ppFetch<T>(
       : data?.name
         ? ` (${data.name})`
         : '';
-    throw new Error(`PayPal ${method} ${path}: ${msg}${detail}`);
+    throw new PaypalApiError(
+      `PayPal ${method} ${path}: ${msg}${detail}`,
+      res.status,
+      typeof data?.name === 'string' ? data.name : null,
+    );
   }
   return data as T;
 }
@@ -563,6 +582,28 @@ export async function cancelSubscription(
     `/v1/billing/subscriptions/${subscriptionId}/cancel`,
     { reason },
   );
+}
+
+// Cancel a subscription, tolerating one PayPal no longer has (404
+// RESOURCE_NOT_FOUND) or that's already inactive/terminal (422 — e.g. already
+// cancelled/expired). Mirrors Stripe's cancelSubscriptionNow, which treats a 404
+// as success. Returns whether PayPal still had a live subscription to cancel, so
+// a caller cleaning up a stranded plan can proceed even when the subscription is
+// already gone. A transient/other error still throws.
+export async function cancelSubscriptionIfPresent(
+  env: PaypalEnv,
+  subscriptionId: string,
+  reason = 'Cancelled by Songdance',
+): Promise<{ existed: boolean }> {
+  try {
+    await cancelSubscription(env, subscriptionId, reason);
+    return { existed: true };
+  } catch (err) {
+    if (err instanceof PaypalApiError && (err.status === 404 || err.status === 422)) {
+      return { existed: false };
+    }
+    throw err;
+  }
 }
 
 // Map a PayPal subscription status onto the Stripe vocabulary stored in

@@ -1,0 +1,173 @@
+---
+import SiteLayout from '../../components/SiteLayout.astro';
+import PageHero from '../../components/PageHero.astro';
+import { albumCoverUrl, albumUrl, listAlbums } from '../../lib/music/db';
+import { formatAlbumPrice } from '../../lib/music/product';
+import { catalogItemById } from '../../lib/catalog/products';
+
+export const prerender = false;
+
+// The music home — the "Music" tab in the site menu lands here. It holds the
+// Songdeck (the physical deck + app, moved out from under /courses) and every
+// published mantra album (/music/<slug> players). Priced albums can be bought
+// on their own page; unpriced ones are course/bump bonuses, listed so owners
+// can find their player.
+const env = Astro.locals.runtime.env;
+const albums = (await listAlbums(env.DB)).filter((a) => a.published === 1);
+const songdeck = catalogItemById('songdeck');
+---
+
+<SiteLayout
+  title="Music — Songdance"
+  description="Original music from the practice — mantra albums to stream anywhere, and the Songdeck: 36 illustrated cards, each with its own song."
+>
+  <PageHero
+    eyebrow="Music"
+    title="Music to sound&nbsp;with"
+    lede="Original music from the practice — mantra albums to stream anywhere, and the Songdeck: 36 illustrated cards, each with its own song."
+  />
+
+  <section class="sd-section mu">
+    <div class="mu-grid">
+      <!-- The Songdeck — physical deck + app -->
+      <article class="mu-card">
+        <a class="mu-thumb" href={songdeck.link} aria-hidden="true" tabindex="-1">
+          <img src={songdeck.imageUrl} alt="" loading="lazy" />
+        </a>
+        <div class="mu-body">
+          <span class="mu-kind">Card deck + app</span>
+          <h2 class="mu-title"><a href={songdeck.link}>{songdeck.title}</a></h2>
+          <p class="mu-desc">{songdeck.description}</p>
+          <div class="mu-foot">
+            <span class="mu-price">€{songdeck.priceEur}</span>
+            <a class="sd-btn sd-btn-primary" href={songdeck.link}>
+              See the deck
+              <i class="ph-light ph-arrow-right"></i>
+            </a>
+          </div>
+        </div>
+      </article>
+
+      {albums.map((a) => (
+        <article class="mu-card">
+          <a class="mu-thumb" href={albumUrl(a)} aria-hidden="true" tabindex="-1">
+            {albumCoverUrl(a) ? (
+              <img src={albumCoverUrl(a)} alt="" loading="lazy" />
+            ) : (
+              <span class="mu-thumb-empty"><i class="ph-light ph-music-notes"></i></span>
+            )}
+          </a>
+          <div class="mu-body">
+            <span class="mu-kind">
+              Album · {a.track_count} track{a.track_count === 1 ? '' : 's'}
+            </span>
+            <h2 class="mu-title"><a href={albumUrl(a)}>{a.title}</a></h2>
+            {a.description && <p class="mu-desc">{a.description}</p>}
+            <div class="mu-foot">
+              {a.price_eur_cents ? (
+                <span class="mu-price">{formatAlbumPrice(a.price_eur_cents)}</span>
+              ) : (
+                <span class="mu-price mu-price--soft">With your course</span>
+              )}
+              <a class="sd-btn sd-btn-primary" href={albumUrl(a)}>
+                Open the album
+                <i class="ph-light ph-play"></i>
+              </a>
+            </div>
+          </div>
+        </article>
+      ))}
+    </div>
+
+    <p class="mu-note">
+      Already yours? Every album opens with the email you used at checkout — here or via
+      <a href="/access">your account</a>.
+    </p>
+  </section>
+</SiteLayout>
+
+<style>
+  .mu { max-width: var(--sd-max); margin: 0 auto; }
+  .mu-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: var(--sp-5);
+    align-items: stretch;
+  }
+  .mu-card {
+    display: flex;
+    flex-direction: column;
+    background: var(--paper-soft);
+    border: 1px solid var(--line);
+    border-radius: var(--r-xl);
+    box-shadow: var(--shadow-1);
+    overflow: hidden;
+  }
+  .mu-thumb {
+    display: block;
+    aspect-ratio: 1 / 1;
+    background: var(--paper-deep);
+  }
+  .mu-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .mu-thumb-empty {
+    width: 100%;
+    height: 100%;
+    display: grid;
+    place-items: center;
+    font-size: 44px;
+    color: var(--ink-quiet);
+  }
+  .mu-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+    padding: var(--sp-5) var(--sp-5) var(--sp-6);
+    flex: 1;
+  }
+  .mu-kind {
+    font-family: var(--font-body);
+    font-size: var(--t-label);
+    text-transform: uppercase;
+    letter-spacing: var(--tr-label);
+    color: var(--ember-deep);
+    font-weight: 500;
+  }
+  .mu-title {
+    font-family: var(--font-display);
+    font-size: var(--t-h3);
+    line-height: var(--lh-snug);
+    letter-spacing: var(--tr-display);
+    font-weight: 400;
+    margin: 0;
+  }
+  .mu-title a { color: var(--ink); text-decoration: none; }
+  .mu-title a:hover { color: var(--ember-deep); }
+  .mu-desc { color: var(--ink-soft); font-size: var(--t-body-sm); margin: 0; }
+  .mu-foot {
+    margin-top: auto;
+    padding-top: var(--sp-4);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-3);
+    flex-wrap: wrap;
+  }
+  .mu-price {
+    font-family: var(--font-display);
+    font-size: var(--t-h3);
+    color: var(--ink);
+  }
+  .mu-price--soft {
+    font-family: var(--font-body);
+    font-size: var(--t-body-sm);
+    color: var(--ink-quiet);
+  }
+  .mu-note {
+    text-align: center;
+    color: var(--ink-quiet);
+    font-size: var(--t-body-sm);
+    margin: var(--sp-8) auto 0;
+    max-width: 52ch;
+  }
+  .mu-note a { color: var(--ember-deep); }
+</style>

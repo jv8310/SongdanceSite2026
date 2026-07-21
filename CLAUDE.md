@@ -233,6 +233,63 @@ hourly cron also runs `reconcileOrderNotifications`
 paid course/retreat order in the last 7 days that carries no sent-claim (bounded
 per run, idempotent, so steady state is a no-op).
 
+## Stripe course-installment recognition — safety-net reconcile
+
+Stripe **course installment plans** (3×/6×/12× subscriptions) record each cycle
+from the `invoice.paid` webhook, with one backstop at
+`checkout.session.completed` (the webhook reads the subscription's
+`latest_invoice` and records it if already paid). Both can miss the *first*
+charge: the checkout backstop fires only once, at completion — if the opening
+invoice hadn't settled *at that instant* (an async method like SEPA debit, or a
+few seconds' delay) it records nothing; and if the endpoint isn't subscribed to
+`invoice.paid` (or a delivery drops), nothing else ever bumps the count.
+Meanwhile `customer.subscription.updated` still flips the row's
+`subscription_status` to `active`, so the plan sits at **0/N, `paid_at` NULL,
+coarse status `pending`/`expired`** — "ACTIVE" in Stripe, "Not started" on
+`/admin/courses/future-revenue` — while Stripe keeps charging monthly. No access,
+no SD-ORDER, no Drip. (This is the exact Stripe twin of the PayPal hole below.)
+
+The single idempotent fulfilment step —
+[`recordCourseInvoiceIfNew`](src/lib/courses/stripe-fulfill.ts) (bump
+`installments_paid`, grant access + Drip + SD-ORDER on the first cycle, guarded
+on the Stripe **invoice id** in the `events` log via
+`course.installment.recorded`) — is shared by the webhook and the reconcile, so
+they converge and can't double-count.
+
+The hourly cron therefore also runs `reconcileStripeCourseOrders`
+([`src/lib/payments/stripe-reconcile.ts`](src/lib/payments/stripe-reconcile.ts)),
+the Stripe sibling of `reconcilePaypalCourseOrders`: it finds stranded Stripe
+course **subscription** rows — `provider='stripe'`, non-full plan with a
+`stripe_subscription_id`, status `pending` **or** `expired` (a stranded pending
+row is auto-flipped to `expired` after 15 min by `expireStaleCoursePendings`) in
+a 120-day window — lists each subscription's **paid** invoices
+(`listSubscriptionInvoices`, `GET /v1/invoices?subscription=…&status=paid`,
+oldest-first) and records every settled cycle through
+`recordCourseInvoiceIfNew`. It's **read-only** against Stripe (never creates a
+charge or subscription), respects an admin cancel/refund (never resurrects such a
+row), never performs the terminal cancelled flip itself (the webhook's job), and
+tolerates per-row errors. Steady state (webhook healthy) is a no-op; it **no-ops
+entirely until `STRIPE_SECRET_KEY` is set**. A manual **"Sync from Stripe now"**
+button on `/admin/courses/future-revenue`
+(`/api/admin/courses/stripe-reconcile`, admin-gated, wider cap) forces the same
+sweep so a stuck plan can be recovered on the spot. This is a *backstop*, not the
+fix — if Stripe subscriptions stall, first check the webhook endpoint is
+subscribed to `invoice.paid` (plus `customer.subscription.*`).
+
+**Removing a dead not-started plan.** A plan stuck at 0/N whose gateway
+subscription no longer exists (e.g. an abandoned PayPal checkout PayPal has since
+purged) can't be paid or cancelled the normal way (`isCancellablePlan` requires
+`status='paid'`), so it just clutters the watch list. `/admin/courses/future-revenue`
+shows a **Remove** button on any **Not started** plan →
+`/api/admin/courses/dismiss-plan` (admin-gated): it deletes the stranded row, but
+**only after the gateway confirms no money and no live subscription** — any
+settled charge or an ACTIVE/APPROVED (PayPal) / active/trialing/past_due (Stripe)
+subscription makes it refuse (a not-started row can look identical to the
+ACTIVE-but-unrecorded bug above, so removal is guarded; the reconcile records a
+real one instead). It best-effort cancels any lingering approval first
+(`cancelSubscriptionIfPresent`, tolerant of PayPal 404/422 via `PaypalApiError`),
+logs a snapshot, then deletes. A verification error refuses (fail safe).
+
 ## PayPal payment recognition — safety-net reconcile
 
 Direct-PayPal course orders (`src/lib/payments/paypal.ts` + `paypal-fulfill.ts`)
@@ -476,6 +533,63 @@ e.g. a Drip export) and one-off `broadcasts` sent to it. Lives in
   (not just `draft`) — the cron re-renders each batch from the row, so content
   edits reach recipients not yet sent. Stats label broadcasts by their real name
   (`/admin/emails/stats` looks the name up from the id).
+
+## Music albums — buyer-only mantra players
+
+Gated audio albums (e.g. the mantra album sold as a checkout bump), managed at
+the bottom of `/admin` → **Music albums** (`/admin/music`). Tables
+`music_albums` + `music_tracks` (migration 0076); logic in
+[`src/lib/music/`](src/lib/music/) (`db.ts` CRUD, `access.ts` signing/entitlement).
+
+- **Admin**: `/admin/music` lists/creates albums; `/admin/music/<id>` is the
+  workspace — cover (drag/click, public R2 `music-covers/`), title/slug/
+  description, **Drip tag** (the access key), published toggle, audio dropzone
+  (MP3/M4A/WAV/FLAC/OGG, ≤90 MB per file, one request per file), track
+  rename/reorder/delete with inline preview players, and the copyable public
+  player link.
+- **Access model — email is the login** (same trust model as `/access`): each
+  album stores a `drip_tag`; the product/bump automation applies that tag on
+  payment, so the buyer's checkout email carries it in Drip. The player page
+  `/music/<slug>` shows an email gate → `/api/music/login` checks the tag via
+  `getSubscriber` and sets the **`sd_music` cookie** (HMAC-signed email, 30
+  days, domain-separated from the admin session's MAC so the tokens are never
+  interchangeable). Admin sessions always pass (and are the only way to see an
+  unpublished album). No tag configured / Drip unset / Drip error → deny
+  (fail closed; support@ is the fallback in the gate copy).
+- **Audio is never public**: tracks live under the R2 **`music-audio/`** prefix,
+  which `/media/[...key]` refuses to serve. Playback uses **short-lived signed
+  URLs** (`/api/music/stream/<track>?e=…&s=…`, 12h HMAC) minted server-side
+  only after the entitlement check — so seeking (many Range requests) never
+  hits Drip. Range serving is shared with `/media` via `parseRange` /
+  `r2RangeResponse` in `src/lib/media.ts`. Covers are ordinary public media.
+- **/access integration**: the `/access` lookup matches the subscriber's tags
+  against published albums (`listAlbumsForTags`) and shows a "Your music"
+  block with player links; finding any also sets the `sd_music` cookie so the
+  links open straight into the player.
+- **Player** (`/music/[album].astro`, SiteLayout): cover + description, track
+  list, sticky bottom bar (play/pause/prev/next/seek), auto-advance, and Media
+  Session metadata for phone lock screens.
+- **Selling an album** (migration 0077 + [`src/lib/music/product.ts`](src/lib/music/product.ts)):
+  set a **price (EUR)** in the album settings and the player's gate grows a
+  checkout ("Get the album") next to the email login; blank price = login-only
+  (bump/course bonus). The purchase rides the ordinary **course machinery** as
+  product slug `album-<id>` — `/api/music/checkout` (journey-checkout sibling:
+  EUR-only, full payment, B2C, Stripe + direct PayPal) → `course_registrations`
+  → the shared paid-handler, which looks the album up and applies its
+  `drip_tag` (`courseDripTags` returns `[]` for album slugs so they can never
+  fall through to the cert tags). Every fulfilment backstop (webhooks, PayPal
+  return, reconciles, admin mark-paid, SD-ORDER, Drip order mirror, Meta CAPI)
+  works unchanged. **Entitlement is two-path** (`hasAlbumAccess`): the Drip tag
+  *or* a paid `album-<id>` registration row — so a fresh buyer returning via
+  `?welcome=1` plays immediately, before Drip has seen the order, and a Drip
+  outage never locks paying buyers out.
+- **/music is the music home** (`/music/index.astro`), the **"Music" tab** in
+  the site menu (`src/data/nav.ts` tail links — it replaced the Songdeck link):
+  lists the Songdeck + every published album with cover/price. **The Songdeck
+  page moved** from `/courses/songdeck` to `/music/songdeck` (it's a music
+  product, not a course); 301s for the old paths live in the `MOVED_URLS` map
+  in `src/worker-entrypoint.ts`. Album slugs `songdeck`/`index`/`stream` are
+  reserved (static routes shadow `/music/[album]`).
 
 ## R2 image library — how to view and use images
 

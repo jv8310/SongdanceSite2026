@@ -8,7 +8,9 @@ import type { DeckGiftShipping } from './deck-promo';
 // are also stored on course_registrations, so the registration's product_slug
 // is the union of both.
 export type CourseProductSlug = 'cc-cert' | 'cc-bundle' | 'grief-course' | 'svh-12week';
-export type CourseRegistrationSlug = CourseProductSlug | JourneySlug;
+// `album-<id>` = a music album bought on its own (src/lib/music/product.ts);
+// the id half is the dynamic music_albums row key, hence the template type.
+export type CourseRegistrationSlug = CourseProductSlug | JourneySlug | `album-${string}`;
 export type ActivateChoice = 'now' | 'wait';
 export type PaymentPlan = 'full' | '3x' | '6x' | '12x';
 

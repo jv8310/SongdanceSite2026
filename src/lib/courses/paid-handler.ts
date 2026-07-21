@@ -24,6 +24,8 @@ import { courseDripTags } from './drip-tags';
 import { mirrorTagsToContact } from '../contacts/mirror';
 import { sendCoursePurchaseEvent } from './meta';
 import { recordPurchaseOrder, type PurchaseOrderItem } from '../orders/drip-order';
+import { getAlbum, type MusicAlbumRow } from '../music/db';
+import { albumIdFromProductSlug, isAlbumProductSlug } from '../music/product';
 
 // Readable order-item names for the known course products (Drip itemises the
 // order with these). Journeys fall back to their slug, which still carries the
@@ -35,7 +37,7 @@ const COURSE_ITEM_LABELS: Record<string, string> = {
   'svh-12week': '12-Week SVH Foundation Course',
 };
 
-type Env = {
+export type CoursePaidHandlerEnv = {
   DB: D1Database;
   DRIP_API_TOKEN: string;
   DRIP_ACCOUNT_ID: string;
@@ -47,7 +49,7 @@ type Env = {
 };
 
 export async function pushPaidCourseRegistrationToDrip(
-  env: Env,
+  env: CoursePaidHandlerEnv,
   courseRegistrationId: number,
 ): Promise<void> {
   const reg = await getCourseRegistrationById(env.DB, courseRegistrationId);
@@ -61,6 +63,14 @@ export async function pushPaidCourseRegistrationToDrip(
 
     const isGrief = reg.product_slug === GRIEF_PRODUCT_SLUG;
     const isTwelveWeek = reg.product_slug === TWELVE_WEEK_PRODUCT_SLUG;
+    // A direct music-album purchase (product slug `album-<id>`): the album's
+    // access tag lives on its music_albums row, not in code — look it up so the
+    // tag set below carries it. A deleted/renamed album leaves tags empty; the
+    // buyer still has access via their paid registration row (music/access.ts).
+    let album: MusicAlbumRow | null = null;
+    if (isAlbumProductSlug(reg.product_slug)) {
+      album = await getAlbum(env.DB, albumIdFromProductSlug(reg.product_slug));
+    }
     // Order bumps recorded at checkout (12-week + certification) — granted below
     // alongside the course's own tags + event.
     const purchasedBumps = parsePurchasedBumps(reg.bumps);
@@ -82,8 +92,10 @@ export async function pushPaidCourseRegistrationToDrip(
     // Dutch-edition choice) / 12-week + its order bumps / cert (+ bundle).
     // Extracted so the historical backfill computes an identical set. The Drip
     // EVENT name and the activation custom fields still branch by product below;
-    // those aren't mirrored onto the local contacts list.
+    // those aren't mirrored onto the local contacts list. Album purchases get
+    // their tag from the album row (courseDripTags returns [] for them).
     const tags = courseDripTags(reg);
+    if (album?.drip_tag?.trim()) tags.push(album.drip_tag.trim());
 
     // Mirror those tags onto the local People/contacts list — a local write,
     // independent of the Drip push below (so it happens even if Drip is down).
@@ -111,6 +123,11 @@ export async function pushPaidCourseRegistrationToDrip(
       // is the same foundation-access tag the cert bundle grants — Jacob's
       // existing Drip automation drives the per-week `svh_week` field from there.
       eventName = TWELVE_WEEK_DRIP_EVENT;
+    } else if (isAlbumProductSlug(reg.product_slug)) {
+      // Direct music-album purchase. The tag (applied above) is the access key;
+      // the event carries which album for any automation that wants it.
+      eventName = 'Completed music album purchase';
+      customFields.last_album = album?.title ?? reg.product_slug;
     } else {
       eventName = env.DRIP_COURSE_EVENT || 'Completed SVH course registration';
 
@@ -206,7 +223,8 @@ export async function pushPaidCourseRegistrationToDrip(
         occurredAt: reg.paid_at,
         items: [
           {
-            name: COURSE_ITEM_LABELS[reg.product_slug] ?? reg.product_slug,
+            // Albums itemise under their real title (the slug is `album-<id>`).
+            name: album?.title ?? COURSE_ITEM_LABELS[reg.product_slug] ?? reg.product_slug,
             slug: reg.product_slug,
             amountCents: reg.amount_cents,
           },

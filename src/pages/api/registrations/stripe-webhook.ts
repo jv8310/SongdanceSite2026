@@ -20,7 +20,6 @@ import {
 import { pushPaidRegistrationToDrip, recordRetreatOrder } from '../../../lib/registrations/paid-handler';
 import {
   attachStripeSubscriptionToCourse,
-  type CourseRegistration,
   getCourseRegistrationById,
   getCourseRegistrationByPaymentIntent,
   getCourseRegistrationBySession,
@@ -28,11 +27,11 @@ import {
   markCourseRegistrationCancelled,
   markCourseRegistrationPaid,
   markCourseRegistrationRefunded,
-  recordInstallmentPaid,
   type SubscriptionStatus,
   updateCourseSubscriptionStatus,
 } from '../../../lib/courses/db';
 import { pushPaidCourseRegistrationToDrip } from '../../../lib/courses/paid-handler';
+import { recordCourseInvoiceIfNew } from '../../../lib/courses/stripe-fulfill';
 import {
   handleWorkshopCheckoutCompleted,
   handleWorkshopDispute,
@@ -42,59 +41,6 @@ import {
   notifyCourseOrder,
   notifyRetreatOrder,
 } from '../../../lib/orders/notification';
-
-// Dedup-on-invoice-id wrapper around recordInstallmentPaid. Both
-// `invoice.paid` and the `checkout.session.completed` subscription backstop
-// can land on the same first invoice; we log a `course.installment.recorded`
-// event with the Stripe invoice id as `external_id` so the second caller
-// becomes a no-op. Returns true if this call actually bumped the count.
-async function recordCourseInvoiceIfNew(
-  env: {
-    DB: D1Database;
-    DRIP_API_TOKEN: string;
-    DRIP_ACCOUNT_ID: string;
-    DRIP_COURSE_EVENT?: string;
-    RESEND_API_KEY?: string;
-    QUADERNO_ACCOUNT?: string;
-    ORDER_NOTIFICATIONS_TO?: string;
-  },
-  courseReg: CourseRegistration,
-  invoiceId: string,
-  paymentIntent: string | null,
-): Promise<boolean> {
-  const already = await env.DB
-    .prepare(
-      `SELECT 1 AS one FROM events
-        WHERE kind = 'course.installment.recorded'
-          AND external_id = ?`,
-    )
-    .bind(invoiceId)
-    .first<{ one: number }>();
-  if (already) return false;
-
-  const wasFirstPayment = courseReg.installments_paid === 0;
-  await recordInstallmentPaid(env.DB, courseReg.id, paymentIntent);
-  await logEvent(env.DB, {
-    registration_id: null,
-    kind: 'course.installment.recorded',
-    source: 'system',
-    external_id: invoiceId,
-    payload: {
-      course_registration_id: courseReg.id,
-      invoice_id: invoiceId,
-      payment_intent: paymentIntent,
-    },
-  });
-  if (wasFirstPayment) {
-    await pushPaidCourseRegistrationToDrip(env, courseReg.id);
-    // Internal SD-ORDER notification (idempotent; never blocks the webhook).
-    await notifyCourseOrder(env, courseReg, {
-      stripePaymentIntent: paymentIntent,
-      stripeSubscriptionId: courseReg.stripe_subscription_id,
-    });
-  }
-  return true;
-}
 
 // Invoicing note: Quaderno is connected to Stripe via Quaderno's own Stripe
 // integration, so invoices are created automatically by Quaderno when a
