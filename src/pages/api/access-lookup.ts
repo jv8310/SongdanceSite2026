@@ -1,7 +1,8 @@
 // POST { email, hp } → {
 //   ok, email, first_name?,
 //   sessions: [{ title, kind, when, url, status }],
-//   circle: { has, products[] }
+//   circle: { has, products[] },
+//   music: [{ title, url, cover }]
 // }
 //
 // The pre-purchase account lookup behind /access. Given an email we run two
@@ -15,7 +16,10 @@
 //      watch the replay or move onto a new date for free.
 //   2. Drip — the subscriber's tags, to tell whether they hold any product that
 //      lives in the Songdance CiRCLE (courses, journeys, the grief course, …).
-//      Also grabs a first name to greet them.
+//      Also grabs a first name to greet them. The same tag set decides which
+//      gated music albums (src/lib/music/) the email holds — those come back in
+//      `music`, each with its player link, and finding any also sets the signed
+//      sd_music cookie so the linked player opens without asking again.
 //
 // Nothing here writes: it's a read-only "what do you have with us?" probe. The
 // actual activation request stays on /api/access-products.
@@ -24,15 +28,17 @@ import type { APIRoute } from 'astro';
 import { getSubscriber } from '../../lib/registrations/drip';
 import { listCountdownLinksByEmail } from '../../lib/workshops/db';
 import { formatInTz } from '../../lib/workshops/time';
+import { albumCoverUrl, albumUrl, listAlbumsForTags } from '../../lib/music/db';
+import { listenerCookieHeader, signListener } from '../../lib/music/access';
 
 export const prerender = false;
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-const json = (status: number, body: Record<string, unknown>) =>
+const json = (status: number, body: Record<string, unknown>, headers: Record<string, string> = {}) =>
   new Response(JSON.stringify(body), {
     status,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...headers },
   });
 
 // Tags that mean "owns something that lives in the Songdance CiRCLE" → a nice
@@ -135,6 +141,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
   //    unreachable we simply report no products rather than failing the lookup.
   let circle = { has: false, products: [] as string[] };
   let firstName: string | undefined;
+  let subscriberTags: string[] = [];
   if (env.DRIP_API_TOKEN && env.DRIP_ACCOUNT_ID) {
     try {
       const sub = await getSubscriber(
@@ -142,7 +149,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
         email,
       );
       if (sub) {
-        circle = circleProductsFromTags(sub.tags ?? []);
+        subscriberTags = sub.tags ?? [];
+        circle = circleProductsFromTags(subscriberTags);
         firstName = sub.first_name || undefined;
       }
     } catch (err) {
@@ -150,5 +158,22 @@ export const POST: APIRoute = async ({ request, locals }) => {
     }
   }
 
-  return json(200, { ok: true, email, first_name: firstName, sessions, circle });
+  // 3. Gated music albums the tag set holds (src/lib/music/). Finding any also
+  //    sets the signed listener cookie, so the player links open straight into
+  //    the music instead of asking for the email a second time.
+  let music: Array<{ title: string; url: string; cover: string | null }> = [];
+  const extraHeaders: Record<string, string> = {};
+  try {
+    const albums = await listAlbumsForTags(env.DB, subscriberTags);
+    music = albums.map((a) => ({ title: a.title, url: albumUrl(a), cover: albumCoverUrl(a) }));
+    if (albums.length > 0) {
+      extraHeaders['Set-Cookie'] = listenerCookieHeader(
+        await signListener(env.ADMIN_SESSION_SECRET, email),
+      );
+    }
+  } catch (err) {
+    console.warn(`[access-lookup] music lookup failed: ${String(err)}`);
+  }
+
+  return json(200, { ok: true, email, first_name: firstName, sessions, circle, music }, extraHeaders);
 };

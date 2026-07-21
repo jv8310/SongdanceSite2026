@@ -1,0 +1,542 @@
+---
+import '../../../styles/admin.css';
+import Layout from '../../../layouts/Layout.astro';
+import { readCookie, verifySession } from '../../../lib/registrations/auth';
+import { albumCoverUrl, albumUrl, formatDuration, getAlbum, listTracks } from '../../../lib/music/db';
+import { signedStreamUrl } from '../../../lib/music/access';
+
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+const authed = await verifySession(env.ADMIN_SESSION_SECRET, readCookie(Astro.request));
+if (!authed) {
+  return Astro.redirect('/admin/login');
+}
+
+const id = Astro.params.id ?? '';
+const album = await getAlbum(env.DB, id);
+if (!album) {
+  return Astro.redirect('/admin/music');
+}
+
+const tracks = await listTracks(env.DB, album.id);
+// Signed preview URLs so the admin can listen right here (12h validity — the
+// same URLs the public player embeds for buyers).
+const previews = await Promise.all(
+  tracks.map((t) => signedStreamUrl(env.ADMIN_SESSION_SECRET, t.id)),
+);
+
+const publicPath = albumUrl(album);
+const publicUrl = new URL(publicPath, Astro.url.origin).href;
+const cover = albumCoverUrl(album);
+
+const flash = Astro.url.searchParams.get('flash');
+const flashText = flash === 'saved' ? { tone: 'ok' as const, text: 'Album saved.' } : null;
+
+function fmtBytes(n: number | null): string {
+  if (!n) return '';
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+---
+
+<Layout title={`Admin — ${album.title} — Music — Songdance`} description="">
+  <main class="adm">
+    <header class="adm-header">
+      <div>
+        <p class="adm-breadcrumbs">
+          <a href="/admin">Admin</a>
+          <span class="sep">/</span>
+          <a href="/admin/music">Music albums</a>
+          <span class="sep">/</span>
+          {album.title}
+        </p>
+        <h1>{album.title}</h1>
+        <p class="adm-sub">
+          Drop audio files below to add tracks; drag an image onto the cover frame. The player
+          opens for any email whose Drip profile carries the album's tag — buyers get the tag from
+          the product/bump automation on payment.
+        </p>
+      </div>
+      <div class="adm-actions">
+        <a class="adm-btn adm-btn--ghost" href={publicPath} target="_blank" rel="noopener">Open player ↗</a>
+        <a class="adm-btn adm-btn--ghost" href="/admin/music">← All albums</a>
+      </div>
+    </header>
+
+    {flashText && <div class={`adm-flash adm-flash--${flashText.tone}`}>{flashText.text}</div>}
+
+    <section class="adm-section">
+      <h2>Player link</h2>
+      <div class="music-link-row">
+        <code data-public-url>{publicUrl}</code>
+        <button type="button" class="adm-btn adm-btn--tiny" data-copy-url>Copy link</button>
+      </div>
+      {!album.drip_tag && (
+        <p class="music-note music-note--warn">
+          No Drip tag set yet — only signed-in admins can open the player. Add the tag below to
+          let buyers in.
+        </p>
+      )}
+      {!album.published && (
+        <p class="music-note music-note--warn">
+          This album is <strong>hidden</strong> — the player page 404s for everyone but admins.
+        </p>
+      )}
+    </section>
+
+    <section class="adm-section">
+      <h2>Album settings</h2>
+      <form method="POST" action="/api/admin/music/save-album" enctype="multipart/form-data" class="music-settings">
+        <input type="hidden" name="original_id" value={album.id} />
+        <input type="hidden" name="remove_cover" value="" data-remove-cover />
+        <div class="music-settings-cover">
+          <div class="music-cover-frame" data-cover-drop title="Drag an image here, or click to choose">
+            {cover ? (
+              <img src={cover} alt="" data-cover-img />
+            ) : (
+              <img src="" alt="" data-cover-img hidden />
+            )}
+            <span class="music-cover-empty" data-cover-empty hidden={!!cover}>
+              drag cover image<br />or click
+            </span>
+          </div>
+          <input type="file" name="cover" accept="image/*" hidden data-cover-input />
+          <button type="button" class="adm-btn adm-btn--tiny" data-cover-clear disabled={!cover}>
+            Remove cover
+          </button>
+        </div>
+        <div class="adm-grid music-settings-fields">
+          <label class="span-2">
+            <span>Title</span>
+            <input type="text" name="title" value={album.title} required maxlength="200" />
+          </label>
+          <label>
+            <span>URL id (slug)</span>
+            <input type="text" name="id" value={album.id} required maxlength="80" pattern="[a-z0-9-]+" />
+          </label>
+          <label>
+            <span>Drip tag (grants access)</span>
+            <input type="text" name="drip_tag" value={album.drip_tag ?? ''} maxlength="100" placeholder="prod_MANTRA" />
+          </label>
+          <label class="span-2">
+            <span>Description (shown on the player page)</span>
+            <textarea name="description" rows="3" maxlength="2000">{album.description ?? ''}</textarea>
+          </label>
+          <label class="music-check">
+            <input type="checkbox" name="published" checked={album.published === 1} />
+            <span>Published</span>
+          </label>
+          <div class="span-full music-settings-actions">
+            <button type="submit" class="adm-btn adm-btn--solid">Save album</button>
+          </div>
+        </div>
+      </form>
+      <form
+        method="POST"
+        action="/api/admin/music/save-album"
+        class="music-delete"
+        data-delete-album
+        data-title={album.title}
+      >
+        <input type="hidden" name="action" value="delete" />
+        <input type="hidden" name="id" value={album.id} />
+        <button type="submit" class="adm-btn adm-btn--tiny adm-btn--danger">Delete album &amp; its audio</button>
+      </form>
+    </section>
+
+    <section class="adm-section">
+      <div
+        class="media-dropzone"
+        data-audio-drop
+        role="button"
+        tabindex="0"
+        aria-label="Upload tracks"
+      >
+        <input type="file" accept="audio/*" multiple hidden data-audio-input />
+        <div class="media-dropzone-inner">
+          <strong>Drop audio tracks here</strong>
+          <span>or click to choose — MP3, M4A, WAV, FLAC, OGG · multiple at once · up to 90 MB each</span>
+        </div>
+        <div class="media-dropzone-progress" data-audio-progress hidden></div>
+      </div>
+    </section>
+
+    <section class="adm-section">
+      <h2>Tracks <small data-track-count>{tracks.length}</small></h2>
+      <p class="adm-empty" data-tracks-empty hidden={tracks.length > 0}>
+        No tracks yet. Drop audio files above.
+      </p>
+      <div class="music-tracks" data-tracks>
+        {tracks.map((t, i) => (
+          <div class="music-track" data-track data-id={t.id}>
+            <span class="music-track-n" data-n>{i + 1}</span>
+            <div class="music-track-main">
+              <div class="music-track-name-row">
+                <input class="music-track-name" value={t.title} data-name aria-label="Track title" maxlength="200" />
+                <button type="button" class="adm-btn adm-btn--tiny" data-rename>Rename</button>
+              </div>
+              <div class="music-track-meta">
+                <span>{formatDuration(t.duration_seconds)}</span>
+                <span>{fmtBytes(t.size_bytes)}</span>
+              </div>
+              <audio controls preload="none" src={previews[i]}></audio>
+            </div>
+            <div class="music-track-actions">
+              <button type="button" class="adm-btn adm-btn--tiny" data-move="up" title="Move up">↑</button>
+              <button type="button" class="adm-btn adm-btn--tiny" data-move="down" title="Move down">↓</button>
+              <button type="button" class="adm-btn adm-btn--tiny adm-btn--danger" data-delete>Delete</button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  </main>
+</Layout>
+
+<template id="music-track-template">
+  <div class="music-track" data-track>
+    <span class="music-track-n" data-n></span>
+    <div class="music-track-main">
+      <div class="music-track-name-row">
+        <input class="music-track-name" data-name aria-label="Track title" maxlength="200" />
+        <button type="button" class="adm-btn adm-btn--tiny" data-rename>Rename</button>
+      </div>
+      <div class="music-track-meta">
+        <span data-duration></span>
+        <span data-size></span>
+      </div>
+      <audio controls preload="none"></audio>
+    </div>
+    <div class="music-track-actions">
+      <button type="button" class="adm-btn adm-btn--tiny" data-move="up" title="Move up">↑</button>
+      <button type="button" class="adm-btn adm-btn--tiny" data-move="down" title="Move down">↓</button>
+      <button type="button" class="adm-btn adm-btn--tiny adm-btn--danger" data-delete>Delete</button>
+    </div>
+  </div>
+</template>
+
+<style>
+  .music-link-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .music-link-row code {
+    padding: 8px 12px;
+    background: #fff;
+    border: 1px solid var(--adm-line, #e3dbc8);
+    border-radius: 8px;
+    font-size: 13px;
+    word-break: break-all;
+  }
+  .music-note { font-size: 13px; margin: 10px 0 0; }
+  .music-note--warn { color: #a3542f; }
+
+  .music-settings { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
+  .music-settings-fields { flex: 1; min-width: 280px; }
+  .music-settings-cover { display: flex; flex-direction: column; gap: 8px; align-items: center; }
+  .music-cover-frame {
+    width: 180px;
+    height: 180px;
+    border: 1.5px dashed #cfc6ad;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #f6f1e4;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    position: relative;
+  }
+  .music-cover-frame.is-drop { border-color: var(--adm-ember, #c96f4a); }
+  .music-cover-frame img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .music-cover-empty { font-size: 12px; color: #8a8272; text-align: center; line-height: 1.5; }
+  .music-check { display: flex; flex-direction: row !important; align-items: center; gap: 8px; }
+  .music-settings-actions { margin-top: 4px; }
+  .music-delete { margin-top: 14px; }
+
+  .music-tracks { display: flex; flex-direction: column; gap: 10px; }
+  .music-track {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    padding: 12px 14px;
+    background: #fff;
+    border: 1px solid var(--adm-line, #e3dbc8);
+    border-radius: 12px;
+  }
+  .music-track-n {
+    flex: 0 0 auto;
+    width: 26px;
+    height: 26px;
+    display: grid;
+    place-items: center;
+    border-radius: 999px;
+    background: #f0e8d6;
+    font-size: 12px;
+    color: #6f6a5d;
+    margin-top: 4px;
+  }
+  .music-track-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+  .music-track-name-row { display: flex; gap: 8px; }
+  .music-track-name {
+    flex: 1;
+    min-width: 0;
+    padding: 7px 10px;
+    border: 1px solid var(--adm-line, #e3dbc8);
+    border-radius: 8px;
+    font-size: 13.5px;
+    background: #fffdf7;
+  }
+  .music-track-name:focus { outline: none; border-color: var(--adm-ember, #c96f4a); }
+  .music-track-meta { display: flex; gap: 12px; font-size: 12px; color: #6f6a5d; }
+  .music-track-main audio { width: 100%; max-width: 480px; height: 34px; }
+  .music-track-actions { display: flex; flex-direction: column; gap: 6px; }
+</style>
+
+<script>
+  import { MAX_AUDIO_BYTES } from '../../../lib/media';
+
+  type UploadedTrack = {
+    id: string;
+    title: string;
+    size_bytes: number | null;
+    duration_seconds: number | null;
+    stream_url: string;
+  };
+  type UploadResponse = { uploaded?: UploadedTrack[]; error?: string; errors?: string[] };
+
+  const albumId = location.pathname.split('/').pop() ?? '';
+
+  // ---- Copy the public player link ----
+  document.querySelector('[data-copy-url]')?.addEventListener('click', async (e) => {
+    const btn = e.currentTarget as HTMLButtonElement;
+    const url = document.querySelector('[data-public-url]')?.textContent ?? '';
+    try {
+      await navigator.clipboard.writeText(url);
+      const prev = btn.textContent;
+      btn.textContent = 'Copied!';
+      setTimeout(() => { btn.textContent = prev; }, 1200);
+    } catch {
+      window.prompt('Copy this URL:', url);
+    }
+  });
+
+  // ---- Cover picker (click or drag onto the frame; uploads on Save) ----
+  const coverDrop = document.querySelector<HTMLElement>('[data-cover-drop]');
+  const coverInput = document.querySelector<HTMLInputElement>('[data-cover-input]');
+  const coverImg = document.querySelector<HTMLImageElement>('[data-cover-img]');
+  const coverEmpty = document.querySelector<HTMLElement>('[data-cover-empty]');
+  const coverClear = document.querySelector<HTMLButtonElement>('[data-cover-clear]');
+  const removeCover = document.querySelector<HTMLInputElement>('[data-remove-cover]');
+
+  function showCover(file: File) {
+    if (!coverImg) return;
+    coverImg.src = URL.createObjectURL(file);
+    coverImg.hidden = false;
+    if (coverEmpty) coverEmpty.hidden = true;
+    if (coverClear) coverClear.disabled = false;
+    if (removeCover) removeCover.value = '';
+  }
+  coverDrop?.addEventListener('click', () => coverInput?.click());
+  coverInput?.addEventListener('change', () => {
+    const f = coverInput.files?.[0];
+    if (f && f.type.startsWith('image/')) showCover(f);
+  });
+  ['dragenter', 'dragover'].forEach((ev) =>
+    coverDrop?.addEventListener(ev, (e) => { e.preventDefault(); coverDrop.classList.add('is-drop'); }),
+  );
+  ['dragleave', 'dragend', 'drop'].forEach((ev) =>
+    coverDrop?.addEventListener(ev, () => coverDrop.classList.remove('is-drop')),
+  );
+  coverDrop?.addEventListener('drop', (e) => {
+    e.preventDefault();
+    const f = (e as DragEvent).dataTransfer?.files?.[0];
+    if (f && f.type.startsWith('image/') && coverInput) {
+      const dt = new DataTransfer();
+      dt.items.add(f);
+      coverInput.files = dt.files;
+      showCover(f);
+    }
+  });
+  coverClear?.addEventListener('click', () => {
+    if (coverInput) coverInput.value = '';
+    if (coverImg) { coverImg.hidden = true; coverImg.src = ''; }
+    if (coverEmpty) coverEmpty.hidden = false;
+    if (removeCover) removeCover.value = '1';
+    coverClear.disabled = true;
+  });
+
+  // ---- Delete album (confirm) ----
+  document.querySelector<HTMLFormElement>('[data-delete-album]')?.addEventListener('submit', (e) => {
+    const form = e.currentTarget as HTMLFormElement;
+    const title = form.dataset.title ?? 'this album';
+    if (!confirm(`Delete "${title}" and all of its audio files? This can't be undone.`)) {
+      e.preventDefault();
+    }
+  });
+
+  // ---- Track list helpers ----
+  const list = document.querySelector<HTMLElement>('[data-tracks]');
+  const tmpl = document.querySelector<HTMLTemplateElement>('#music-track-template');
+  const countEl = document.querySelector<HTMLElement>('[data-track-count]');
+  const emptyEl = document.querySelector<HTMLElement>('[data-tracks-empty]');
+
+  function fmtDuration(seconds: number | null): string {
+    if (!seconds || !Number.isFinite(seconds) || seconds <= 0) return '';
+    const s = Math.round(seconds);
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  }
+  function fmtBytesJs(n: number | null): string {
+    if (!n) return '';
+    if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
+    return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+  }
+  function renumber() {
+    const rows = Array.from(list?.querySelectorAll<HTMLElement>('[data-track]') ?? []);
+    rows.forEach((row, i) => {
+      const n = row.querySelector<HTMLElement>('[data-n]');
+      if (n) n.textContent = String(i + 1);
+    });
+    if (countEl) countEl.textContent = String(rows.length);
+    if (emptyEl) emptyEl.hidden = rows.length > 0;
+  }
+
+  function wireTrack(row: HTMLElement) {
+    const id = () => row.dataset.id || '';
+    const post = (fields: Record<string, string>) => {
+      const body = new FormData();
+      body.append('id', id());
+      for (const [k, v] of Object.entries(fields)) body.append(k, v);
+      return fetch('/api/admin/music/track', { method: 'POST', body });
+    };
+
+    row.querySelector('[data-rename]')?.addEventListener('click', async (e) => {
+      const btn = e.currentTarget as HTMLButtonElement;
+      const input = row.querySelector<HTMLInputElement>('[data-name]');
+      const title = input?.value.trim();
+      if (!title) return;
+      const res = await post({ action: 'rename', title });
+      if (!res.ok) { alert('Rename failed'); return; }
+      const prev = btn.textContent;
+      btn.textContent = 'Saved!';
+      setTimeout(() => { btn.textContent = prev; }, 1200);
+    });
+
+    row.querySelector('[data-delete]')?.addEventListener('click', async () => {
+      const name = row.querySelector<HTMLInputElement>('[data-name]')?.value ?? 'this track';
+      if (!confirm(`Delete "${name}"? This can't be undone.`)) return;
+      const res = await post({ action: 'delete' });
+      if (!res.ok) { alert('Delete failed'); return; }
+      row.remove();
+      renumber();
+    });
+
+    row.querySelectorAll<HTMLButtonElement>('[data-move]').forEach((btn) =>
+      btn.addEventListener('click', async () => {
+        const dir = btn.dataset.move === 'up' ? 'up' : 'down';
+        const sibling = dir === 'up' ? row.previousElementSibling : row.nextElementSibling;
+        if (!sibling || !list) return;
+        const res = await post({ action: 'move', dir });
+        if (!res.ok) { alert('Reorder failed'); return; }
+        if (dir === 'up') list.insertBefore(row, sibling);
+        else list.insertBefore(sibling, row);
+        renumber();
+      }),
+    );
+  }
+
+  function appendTrack(t: UploadedTrack) {
+    if (!tmpl || !list) return;
+    const row = tmpl.content.firstElementChild!.cloneNode(true) as HTMLElement;
+    row.dataset.id = t.id;
+    (row.querySelector('[data-name]') as HTMLInputElement).value = t.title;
+    (row.querySelector('[data-duration]') as HTMLElement).textContent = fmtDuration(t.duration_seconds);
+    (row.querySelector('[data-size]') as HTMLElement).textContent = fmtBytesJs(t.size_bytes);
+    (row.querySelector('audio') as HTMLAudioElement).src = t.stream_url;
+    wireTrack(row);
+    list.appendChild(row);
+    renumber();
+  }
+
+  document.querySelectorAll<HTMLElement>('[data-track]').forEach(wireTrack);
+
+  // ---- Audio upload: one file per request (progress + stays under the body cap) ----
+  const audioDrop = document.querySelector<HTMLElement>('[data-audio-drop]');
+  const audioInput = document.querySelector<HTMLInputElement>('[data-audio-input]');
+  const progress = document.querySelector<HTMLElement>('[data-audio-progress]');
+
+  // Read a file's duration via a throwaway <audio> element — best-effort.
+  function readDuration(file: File): Promise<number | null> {
+    return new Promise((resolve) => {
+      const url = URL.createObjectURL(file);
+      const probe = document.createElement('audio');
+      probe.preload = 'metadata';
+      const done = (v: number | null) => { URL.revokeObjectURL(url); resolve(v); };
+      probe.onloadedmetadata = () =>
+        done(Number.isFinite(probe.duration) && probe.duration > 0 ? probe.duration : null);
+      probe.onerror = () => done(null);
+      setTimeout(() => done(null), 5000);
+      probe.src = url;
+    });
+  }
+
+  async function uploadAudio(fileList: FileList | File[]) {
+    if (!progress) return;
+    const files = Array.from(fileList).filter((f) => f.type.startsWith('audio/'));
+    const tooBig = files.filter((f) => f.size > MAX_AUDIO_BYTES);
+    const ok = files.filter((f) => !tooBig.includes(f));
+    if (!ok.length) {
+      progress.hidden = false;
+      progress.textContent = tooBig.length
+        ? `Skipped ${tooBig.length} file${tooBig.length === 1 ? '' : 's'} over ${Math.round(MAX_AUDIO_BYTES / (1024 * 1024))} MB.`
+        : 'No audio files found in that drop.';
+      setTimeout(() => { if (progress) progress.hidden = true; }, 4000);
+      return;
+    }
+
+    progress.hidden = false;
+    let done = 0;
+    const failed: string[] = [];
+    for (const file of ok) {
+      progress.textContent = `Uploading ${done + 1}/${ok.length} — ${file.name}…`;
+      try {
+        const duration = await readDuration(file);
+        const body = new FormData();
+        body.append('album_id', albumId);
+        body.append('files', file, file.name);
+        if (duration) body.append('durations', JSON.stringify({ [file.name]: duration }));
+        const res = await fetch('/api/admin/music/upload-tracks', { method: 'POST', body });
+        const data = (await res.json()) as UploadResponse;
+        if (!res.ok) throw new Error(data?.error || 'Upload failed');
+        for (const t of data.uploaded ?? []) appendTrack(t);
+        done++;
+      } catch (err) {
+        failed.push(`${file.name} (${(err as Error).message})`);
+      }
+    }
+    progress.textContent =
+      `Uploaded ${done} track${done === 1 ? '' : 's'}.` +
+      (failed.length ? ` Failed: ${failed[0]}${failed.length > 1 ? ` +${failed.length - 1} more` : ''}.` : '') +
+      (tooBig.length ? ` Skipped ${tooBig.length} over the size limit.` : '');
+    setTimeout(() => { if (progress) progress.hidden = true; }, 6000);
+  }
+
+  if (audioDrop && audioInput) {
+    audioDrop.addEventListener('click', () => audioInput.click());
+    audioDrop.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); audioInput.click(); }
+    });
+    audioInput.addEventListener('change', () => {
+      if (audioInput.files?.length) uploadAudio(audioInput.files);
+      audioInput.value = '';
+    });
+    ['dragenter', 'dragover'].forEach((ev) =>
+      audioDrop.addEventListener(ev, (e) => { e.preventDefault(); audioDrop.classList.add('is-drop'); }),
+    );
+    ['dragleave', 'dragend', 'drop'].forEach((ev) =>
+      audioDrop.addEventListener(ev, () => audioDrop.classList.remove('is-drop')),
+    );
+    audioDrop.addEventListener('drop', (e) => {
+      e.preventDefault();
+      const files = (e as DragEvent).dataTransfer?.files;
+      if (files?.length) uploadAudio(files);
+    });
+  }
+</script>

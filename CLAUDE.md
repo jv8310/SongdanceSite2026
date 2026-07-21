@@ -522,6 +522,42 @@ e.g. a Drip export) and one-off `broadcasts` sent to it. Lives in
   edits reach recipients not yet sent. Stats label broadcasts by their real name
   (`/admin/emails/stats` looks the name up from the id).
 
+## Music albums — buyer-only mantra players
+
+Gated audio albums (e.g. the mantra album sold as a checkout bump), managed at
+the bottom of `/admin` → **Music albums** (`/admin/music`). Tables
+`music_albums` + `music_tracks` (migration 0076); logic in
+[`src/lib/music/`](src/lib/music/) (`db.ts` CRUD, `access.ts` signing/entitlement).
+
+- **Admin**: `/admin/music` lists/creates albums; `/admin/music/<id>` is the
+  workspace — cover (drag/click, public R2 `music-covers/`), title/slug/
+  description, **Drip tag** (the access key), published toggle, audio dropzone
+  (MP3/M4A/WAV/FLAC/OGG, ≤90 MB per file, one request per file), track
+  rename/reorder/delete with inline preview players, and the copyable public
+  player link.
+- **Access model — email is the login** (same trust model as `/access`): each
+  album stores a `drip_tag`; the product/bump automation applies that tag on
+  payment, so the buyer's checkout email carries it in Drip. The player page
+  `/music/<slug>` shows an email gate → `/api/music/login` checks the tag via
+  `getSubscriber` and sets the **`sd_music` cookie** (HMAC-signed email, 30
+  days, domain-separated from the admin session's MAC so the tokens are never
+  interchangeable). Admin sessions always pass (and are the only way to see an
+  unpublished album). No tag configured / Drip unset / Drip error → deny
+  (fail closed; support@ is the fallback in the gate copy).
+- **Audio is never public**: tracks live under the R2 **`music-audio/`** prefix,
+  which `/media/[...key]` refuses to serve. Playback uses **short-lived signed
+  URLs** (`/api/music/stream/<track>?e=…&s=…`, 12h HMAC) minted server-side
+  only after the entitlement check — so seeking (many Range requests) never
+  hits Drip. Range serving is shared with `/media` via `parseRange` /
+  `r2RangeResponse` in `src/lib/media.ts`. Covers are ordinary public media.
+- **/access integration**: the `/access` lookup matches the subscriber's tags
+  against published albums (`listAlbumsForTags`) and shows a "Your music"
+  block with player links; finding any also sets the `sd_music` cookie so the
+  links open straight into the player.
+- **Player** (`/music/[album].astro`, SiteLayout): cover + description, track
+  list, sticky bottom bar (play/pause/prev/next/seek), auto-advance, and Media
+  Session metadata for phone lock screens.
+
 ## R2 image library — how to view and use images
 
 The bucket holds two kinds of images:

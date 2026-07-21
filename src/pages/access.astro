@@ -6,6 +6,8 @@ import PageHero from '../components/PageHero.astro';
 // with Songdance and we run a check (see /api/access-lookup):
 //   • Live sessions — any workshop/masterclass seat you hold gets a direct link
 //     to its countdown page, so you can step back into it.
+//   • Music albums — gated album players (src/lib/music/) the email's Drip tags
+//     hold; the lookup also sets the listener cookie so each link plays at once.
 //   • CiRCLE products — if you hold anything that lives in the Songdance CiRCLE
 //     (courses, journeys, …) we show the two paths: step inside if you're set
 //     up, or request activation (tags you `prod_access` in Drip via
@@ -22,7 +24,7 @@ const CIRCLE_URL = 'https://circle.songdance.co/feed';
   <PageHero
     eyebrow="Your account"
     title="Log in &amp; access your&nbsp;products"
-    lede="Pop in the email you used with Songdance and we'll show you what's waiting — your live sessions and everything held for you in the Songdance CiRCLE."
+    lede="Pop in the email you used with Songdance and we'll show you what's waiting — your live sessions, your music, and everything held for you in the Songdance CiRCLE."
   />
 
   <section class="sd-section access-paths">
@@ -70,6 +72,15 @@ const CIRCLE_URL = 'https://circle.songdance.co/feed';
           you've missed, watch the replay or move onto a new one for free.
         </p>
         <div class="access-sessions" data-live-list></div>
+      </div>
+
+      <!-- Gated music albums (the player pages open with this same email) -->
+      <div class="access-block" hidden data-music-block>
+        <h2 class="access-block-h">Your music</h2>
+        <p class="access-block-p">
+          Albums that came with your orders — press play right where you are.
+        </p>
+        <div class="access-sessions" data-music-list></div>
       </div>
 
       <!-- Products in the Songdance CiRCLE -->
@@ -252,6 +263,17 @@ const CIRCLE_URL = 'https://circle.songdance.co/feed';
   .access-session.is-missed { border-style: dashed; }
   .access-session .sd-btn { white-space: nowrap; }
 
+  /* Music album rows reuse the session-card frame, plus a cover thumb. */
+  .access-album-cover {
+    flex: 0 0 auto;
+    width: 64px;
+    height: 64px;
+    object-fit: cover;
+    border-radius: var(--r-md);
+    box-shadow: var(--shadow-1);
+  }
+  .access-session-meta.has-cover { flex-direction: row; align-items: center; gap: var(--sp-4); }
+
   /* CiRCLE two-card grid (unchanged layout) */
   .access-grid {
     display: grid;
@@ -332,12 +354,14 @@ const CIRCLE_URL = 'https://circle.songdance.co/feed';
     url: string;
     status: 'upcoming' | 'replay' | 'missed';
   };
+  type MusicAlbum = { title: string; url: string; cover: string | null };
   type LookupResult = {
     ok?: boolean;
     email?: string;
     first_name?: string;
     sessions?: Session[];
     circle?: { has?: boolean; products?: string[] };
+    music?: MusicAlbum[];
   };
 
   const lookupWrap = document.querySelector<HTMLElement>('[data-lookup]');
@@ -350,6 +374,8 @@ const CIRCLE_URL = 'https://circle.songdance.co/feed';
   const liveList = document.querySelector<HTMLElement>('[data-live-list]');
   const circleBlock = document.querySelector<HTMLElement>('[data-circle-block]');
   const circleList = document.querySelector<HTMLElement>('[data-circle-list]');
+  const musicBlock = document.querySelector<HTMLElement>('[data-music-block]');
+  const musicList = document.querySelector<HTMLElement>('[data-music-list]');
   const noneBlock = document.querySelector<HTMLElement>('[data-none-block]');
 
   // The looked-up email, reused for the activation request.
@@ -392,9 +418,32 @@ const CIRCLE_URL = 'https://circle.songdance.co/feed';
       .join('');
   }
 
+  function renderMusic(albums: MusicAlbum[]) {
+    if (!musicList) return;
+    musicList.innerHTML = albums
+      .map(
+        (a) => `
+          <div class="access-session">
+            <div class="access-session-meta${a.cover ? ' has-cover' : ''}">
+              ${a.cover ? `<img class="access-album-cover" src="${esc(a.cover)}" alt="" loading="lazy" />` : ''}
+              <div>
+                <span class="access-session-kind">Album</span>
+                <h3 class="access-session-title">${esc(a.title)}</h3>
+              </div>
+            </div>
+            <a class="sd-btn sd-btn-primary" href="${esc(a.url)}">
+              Open the album
+              <i class="ph-light ph-play"></i>
+            </a>
+          </div>`,
+      )
+      .join('');
+  }
+
   function renderResults(data: LookupResult) {
     const sessions = data.sessions ?? [];
     const circle = data.circle ?? { has: false, products: [] };
+    const music = data.music ?? [];
     currentEmail = data.email ?? currentEmail;
 
     // Greeting
@@ -412,6 +461,11 @@ const CIRCLE_URL = 'https://circle.songdance.co/feed';
     if (hasSessions) renderSessions(sessions);
     if (liveBlock) liveBlock.hidden = !hasSessions;
 
+    // Music albums
+    const hasMusic = music.length > 0;
+    if (hasMusic) renderMusic(music);
+    if (musicBlock) musicBlock.hidden = !hasMusic;
+
     // CiRCLE products
     const hasCircle = !!circle.has;
     if (circleBlock) circleBlock.hidden = !hasCircle;
@@ -426,7 +480,7 @@ const CIRCLE_URL = 'https://circle.songdance.co/feed';
     }
 
     // Nothing at all
-    if (noneBlock) noneBlock.hidden = hasSessions || hasCircle;
+    if (noneBlock) noneBlock.hidden = hasSessions || hasCircle || hasMusic;
 
     // Reset any activation states from a previous lookup.
     document.querySelectorAll<HTMLElement>('[data-activated]').forEach((el) => (el.hidden = true));
