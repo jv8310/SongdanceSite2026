@@ -264,6 +264,20 @@ sweep so a stuck plan can be recovered on the spot. This is a *backstop*, not th
 fix — if Stripe subscriptions stall, first check the webhook endpoint is
 subscribed to `invoice.paid` (plus `customer.subscription.*`).
 
+**Removing a dead not-started plan.** A plan stuck at 0/N whose gateway
+subscription no longer exists (e.g. an abandoned PayPal checkout PayPal has since
+purged) can't be paid or cancelled the normal way (`isCancellablePlan` requires
+`status='paid'`), so it just clutters the watch list. `/admin/courses/future-revenue`
+shows a **Remove** button on any **Not started** plan →
+`/api/admin/courses/dismiss-plan` (admin-gated): it deletes the stranded row, but
+**only after the gateway confirms no money and no live subscription** — any
+settled charge or an ACTIVE/APPROVED (PayPal) / active/trialing/past_due (Stripe)
+subscription makes it refuse (a not-started row can look identical to the
+ACTIVE-but-unrecorded bug above, so removal is guarded; the reconcile records a
+real one instead). It best-effort cancels any lingering approval first
+(`cancelSubscriptionIfPresent`, tolerant of PayPal 404/422 via `PaypalApiError`),
+logs a snapshot, then deletes. A verification error refuses (fail safe).
+
 ## PayPal payment recognition — safety-net reconcile
 
 Direct-PayPal course orders (`src/lib/payments/paypal.ts` + `paypal-fulfill.ts`)
