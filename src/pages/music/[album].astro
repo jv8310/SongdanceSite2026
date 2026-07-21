@@ -1,0 +1,606 @@
+---
+import SiteLayout from '../../components/SiteLayout.astro';
+import { readCookie, verifySession } from '../../lib/registrations/auth';
+import {
+  hasAlbumAccess,
+  readListenerCookie,
+  signedStreamUrl,
+  verifyListener,
+} from '../../lib/music/access';
+import {
+  albumCoverUrl,
+  formatDuration,
+  getAlbum,
+  listTracks,
+  type MusicTrackRow,
+} from '../../lib/music/db';
+
+export const prerender = false;
+
+// The buyer-only album player. Access is the email used at checkout — the
+// buyer carries the album's Drip tag, so the gate below checks the tag and
+// sets the signed sd_music cookie (see src/lib/music/access.ts). Admins are
+// always let in (and are the only ones who can see an unpublished album).
+const env = Astro.locals.runtime.env;
+const slug = Astro.params.album ?? '';
+const album = await getAlbum(env.DB, slug);
+
+const isAdmin = await verifySession(env.ADMIN_SESSION_SECRET, readCookie(Astro.request));
+if (!album || (album.published !== 1 && !isAdmin)) {
+  return new Response('Not found', { status: 404 });
+}
+
+const listenerEmail = await verifyListener(
+  env.ADMIN_SESSION_SECRET,
+  readListenerCookie(Astro.request),
+);
+const granted = isAdmin || (listenerEmail ? await hasAlbumAccess(env, listenerEmail, album) : false);
+
+const cover = albumCoverUrl(album);
+let tracks: MusicTrackRow[] = [];
+let payload: Array<{ id: string; title: string; duration: number | null; url: string }> = [];
+if (granted) {
+  tracks = await listTracks(env.DB, album.id);
+  payload = await Promise.all(
+    tracks.map(async (t) => ({
+      id: t.id,
+      title: t.title,
+      duration: t.duration_seconds,
+      url: await signedStreamUrl(env.ADMIN_SESSION_SECRET, t.id),
+    })),
+  );
+}
+
+const totalSeconds = tracks.reduce((sum, t) => sum + (t.duration_seconds ?? 0), 0);
+const totalLabel =
+  totalSeconds > 0
+    ? totalSeconds >= 3600
+      ? `${Math.floor(totalSeconds / 3600)} h ${Math.round((totalSeconds % 3600) / 60)} min`
+      : `${Math.round(totalSeconds / 60)} min`
+    : '';
+---
+
+<SiteLayout
+  title={`${album.title} — Songdance`}
+  description="Your album, ready to play."
+  image={cover ?? undefined}
+  newsletter={false}
+  promo={false}
+>
+  {granted ? (
+    <Fragment>
+    <section class="mp sd-section">
+      {isAdmin && album.published !== 1 && (
+        <p class="mp-adminnote">Hidden album — only admins can see this page right now.</p>
+      )}
+      {isAdmin && !listenerEmail && (
+        <p class="mp-adminnote">Admin preview — buyers see exactly this once their email carries the album's tag.</p>
+      )}
+      <header class="mp-head">
+        {cover && <img class="mp-cover" src={cover} alt={`${album.title} — cover`} />}
+        <div class="mp-head-text">
+          <p class="mp-eyebrow">Album</p>
+          <h1 class="mp-title">{album.title}</h1>
+          {album.description && <p class="mp-desc">{album.description}</p>}
+          <p class="mp-facts">
+            {tracks.length} track{tracks.length === 1 ? '' : 's'}{totalLabel && ` · ${totalLabel}`}
+          </p>
+          <button type="button" class="sd-btn sd-btn-primary mp-playall" data-play-all disabled={tracks.length === 0}>
+            <i class="ph-light ph-play"></i>
+            Play
+          </button>
+        </div>
+      </header>
+
+      {tracks.length === 0 ? (
+        <p class="mp-empty">The tracks are still on their way — check back shortly.</p>
+      ) : (
+        <ol class="mp-list" data-list>
+          {tracks.map((t, i) => (
+            <li>
+              <button type="button" class="mp-row" data-row data-index={i}>
+                <span class="mp-row-n" data-row-n>{i + 1}</span>
+                <span class="mp-row-play" aria-hidden="true">
+                  <i class="ph-light ph-play" data-row-icon></i>
+                </span>
+                <span class="mp-row-title">{t.title}</span>
+                <span class="mp-row-time" data-row-time>{formatDuration(t.duration_seconds)}</span>
+              </button>
+            </li>
+          ))}
+        </ol>
+      )}
+
+      <p class="mp-note">
+        This page is yours — it opens with the email you used at checkout, on any device.
+      </p>
+    </section>
+
+    <div class="mp-bar" data-bar hidden>
+      <div class="mp-bar-inner">
+        <div class="mp-bar-meta">
+          {cover && <img src={cover} alt="" class="mp-bar-cover" />}
+          <span class="mp-bar-title" data-bar-title></span>
+        </div>
+        <div class="mp-bar-controls">
+          <button type="button" class="mp-ctl" data-prev aria-label="Previous track">
+            <i class="ph-light ph-skip-back"></i>
+          </button>
+          <button type="button" class="mp-ctl mp-ctl-play" data-toggle aria-label="Play or pause">
+            <i class="ph-light ph-play" data-toggle-icon></i>
+          </button>
+          <button type="button" class="mp-ctl" data-next aria-label="Next track">
+            <i class="ph-light ph-skip-forward"></i>
+          </button>
+        </div>
+        <div class="mp-bar-seek">
+          <span class="mp-time" data-time-now>0:00</span>
+          <input
+            type="range"
+            class="mp-seek"
+            data-seek
+            min="0"
+            max="1000"
+            value="0"
+            step="1"
+            aria-label="Seek"
+          />
+          <span class="mp-time" data-time-total>0:00</span>
+        </div>
+      </div>
+    </div>
+
+    <script
+      type="application/json"
+      id="mp-data"
+      set:html={JSON.stringify({ title: album.title, cover, tracks: payload }).replace(/</g, '\\u003c')}
+    />
+    </Fragment>
+  ) : (
+    <section class="mp-gate sd-section">
+      <div class="mp-gate-card">
+        {cover && <img class="mp-gate-cover" src={cover} alt={`${album.title} — cover`} />}
+        <p class="mp-eyebrow">Your album</p>
+        <h1 class="mp-gate-title">{album.title}</h1>
+        <p class="mp-gate-p">
+          This album belongs with your order. Enter the email you used at checkout and it opens
+          right here.
+        </p>
+        <form class="mp-gate-form" data-gate-form>
+          <input type="text" name="hp" class="mp-hp" tabindex="-1" autocomplete="off" aria-hidden="true" />
+          <div class="mp-gate-row">
+            <input
+              type="email"
+              name="email"
+              class="mp-gate-input"
+              placeholder="you@somewhere"
+              aria-label="Email address"
+              autocomplete="email"
+              required
+            />
+            <button type="submit" class="sd-btn sd-btn-primary" data-gate-submit>
+              <span data-gate-label>Open the album</span>
+              <i class="ph-light ph-arrow-right"></i>
+            </button>
+          </div>
+          <p class="mp-gate-error" hidden role="alert" data-gate-error></p>
+        </form>
+        <p class="mp-gate-help">
+          Not opening? Try the email you used at checkout — or write to
+          <a href="mailto:support@songdance.co">support@songdance.co</a> and we'll help you personally.
+        </p>
+      </div>
+    </section>
+  )}
+</SiteLayout>
+
+<style>
+  /* ---------- Player ---------- */
+  .mp { max-width: 760px; margin: 0 auto; padding-bottom: 120px; }
+  .mp-adminnote {
+    font-size: var(--t-body-sm);
+    color: var(--ember-deep);
+    background: var(--ember-glow);
+    border: 1px solid var(--ember-soft);
+    border-radius: var(--r-md);
+    padding: 10px 14px;
+    margin: 0 0 var(--sp-5);
+  }
+  .mp-head {
+    display: flex;
+    gap: var(--sp-6);
+    align-items: flex-end;
+    margin-bottom: var(--sp-7);
+  }
+  @media (max-width: 640px) {
+    .mp-head { flex-direction: column; align-items: flex-start; gap: var(--sp-5); }
+  }
+  .mp-cover {
+    width: 220px;
+    height: 220px;
+    object-fit: cover;
+    border-radius: var(--r-xl);
+    box-shadow: var(--shadow-2);
+    flex: 0 0 auto;
+  }
+  .mp-eyebrow {
+    font-family: var(--font-body);
+    font-size: var(--t-label);
+    text-transform: uppercase;
+    letter-spacing: var(--tr-label);
+    color: var(--ember-deep);
+    font-weight: 500;
+    margin: 0 0 var(--sp-2);
+  }
+  .mp-title {
+    font-family: var(--font-display);
+    font-size: var(--t-h1, var(--t-h2));
+    line-height: var(--lh-snug);
+    letter-spacing: var(--tr-display);
+    color: var(--ink);
+    font-weight: 400;
+    margin: 0 0 var(--sp-3);
+  }
+  .mp-desc { color: var(--ink-soft); margin: 0 0 var(--sp-3); max-width: 52ch; }
+  .mp-facts { color: var(--ink-quiet); font-size: var(--t-body-sm); margin: 0 0 var(--sp-4); }
+  .mp-playall { gap: 8px; }
+
+  .mp-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  .mp-row {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-4);
+    width: 100%;
+    padding: 14px var(--sp-5);
+    background: var(--paper-soft);
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg, var(--r-md));
+    cursor: pointer;
+    font: inherit;
+    text-align: left;
+    color: var(--ink);
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+  .mp-row:hover { border-color: var(--ember); }
+  .mp-row.is-current { border-color: var(--ember); background: var(--ember-glow); }
+  .mp-row-n {
+    flex: 0 0 22px;
+    text-align: right;
+    color: var(--ink-quiet);
+    font-size: var(--t-body-sm);
+    font-variant-numeric: tabular-nums;
+  }
+  .mp-row-play {
+    flex: 0 0 auto;
+    width: 34px;
+    height: 34px;
+    display: grid;
+    place-items: center;
+    border-radius: 999px;
+    border: 1px solid var(--line-strong, var(--line));
+    color: var(--ember-deep);
+    background: var(--paper);
+  }
+  .mp-row.is-current .mp-row-play { background: var(--ember); color: #fff; border-color: var(--ember); }
+  .mp-row-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mp-row-time { color: var(--ink-quiet); font-size: var(--t-body-sm); font-variant-numeric: tabular-nums; }
+  .mp-empty { color: var(--ink-soft); }
+  .mp-note {
+    color: var(--ink-quiet);
+    font-size: var(--t-body-sm);
+    margin: var(--sp-6) 0 0;
+    text-align: center;
+  }
+
+  /* ---------- Sticky player bar ---------- */
+  .mp-bar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 60;
+    background: color-mix(in srgb, var(--paper-soft) 92%, transparent);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-top: 1px solid var(--line);
+  }
+  .mp-bar-inner {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 10px var(--sp-5) calc(10px + env(safe-area-inset-bottom));
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: var(--sp-4);
+  }
+  @media (max-width: 640px) {
+    .mp-bar-inner { grid-template-columns: 1fr auto; }
+    .mp-bar-seek { grid-column: 1 / -1; }
+  }
+  .mp-bar-meta { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .mp-bar-cover { width: 40px; height: 40px; border-radius: 8px; object-fit: cover; }
+  .mp-bar-title {
+    font-size: var(--t-body-sm);
+    color: var(--ink);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .mp-bar-controls { display: flex; align-items: center; gap: 6px; }
+  .mp-ctl {
+    width: 40px;
+    height: 40px;
+    display: grid;
+    place-items: center;
+    border-radius: 999px;
+    border: 1px solid var(--line-strong, var(--line));
+    background: var(--paper);
+    color: var(--ink);
+    cursor: pointer;
+    font-size: 18px;
+  }
+  .mp-ctl:hover { border-color: var(--ember); color: var(--ember-deep); }
+  .mp-ctl-play {
+    width: 48px;
+    height: 48px;
+    background: var(--ember);
+    border-color: var(--ember);
+    color: #fff;
+    font-size: 22px;
+  }
+  .mp-ctl-play:hover { background: var(--ember-deep); color: #fff; }
+  .mp-bar-seek { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .mp-time {
+    font-size: 12px;
+    color: var(--ink-quiet);
+    font-variant-numeric: tabular-nums;
+    flex: 0 0 auto;
+  }
+  .mp-seek {
+    flex: 1;
+    min-width: 0;
+    accent-color: var(--ember);
+    height: 4px;
+    cursor: pointer;
+  }
+
+  /* ---------- Email gate ---------- */
+  .mp-gate { display: flex; justify-content: center; }
+  .mp-gate-card {
+    max-width: 520px;
+    width: 100%;
+    padding: var(--sp-7) var(--sp-6);
+    background: var(--paper-soft);
+    border: 1px solid var(--line);
+    border-radius: var(--r-xl);
+    box-shadow: var(--shadow-2);
+    text-align: center;
+  }
+  .mp-gate-cover {
+    width: 160px;
+    height: 160px;
+    object-fit: cover;
+    border-radius: var(--r-lg, var(--r-md));
+    box-shadow: var(--shadow-1);
+    margin: 0 auto var(--sp-5);
+    display: block;
+  }
+  .mp-gate-title {
+    font-family: var(--font-display);
+    font-size: var(--t-h2);
+    line-height: var(--lh-snug);
+    letter-spacing: var(--tr-display);
+    color: var(--ink);
+    font-weight: 400;
+    margin: 0 0 var(--sp-3);
+  }
+  .mp-gate-p { color: var(--ink-soft); margin: 0 0 var(--sp-5); }
+  .mp-gate-row { display: flex; gap: var(--sp-3); }
+  @media (max-width: 480px) {
+    .mp-gate-row { flex-direction: column; }
+  }
+  .mp-gate-input {
+    flex: 1;
+    min-width: 0;
+    font-family: var(--font-body);
+    font-size: var(--t-body);
+    padding: 13px 16px;
+    border: 1px solid var(--line-strong, var(--line));
+    border-radius: var(--r-md);
+    background: var(--paper);
+    color: var(--ink);
+  }
+  .mp-gate-input:focus { outline: none; border-color: var(--ember); box-shadow: var(--shadow-glow); }
+  .mp-gate-row .sd-btn { justify-content: center; white-space: nowrap; }
+  .mp-gate-error { color: var(--ember-deep); font-size: var(--t-body-sm); margin: var(--sp-3) 0 0; }
+  .mp-gate-help { color: var(--ink-quiet); font-size: var(--t-body-sm); margin: var(--sp-5) 0 0; }
+  .mp-gate-help a { color: var(--ember-deep); }
+  .mp-hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+</style>
+
+<script>
+  // ---------- Email gate ----------
+  const gateForm = document.querySelector<HTMLFormElement>('[data-gate-form]');
+  if (gateForm) {
+    const label = document.querySelector<HTMLElement>('[data-gate-label]');
+    const errEl = document.querySelector<HTMLElement>('[data-gate-error]');
+    const albumId = location.pathname.split('/').pop() ?? '';
+    gateForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (errEl) errEl.hidden = true;
+      const fd = new FormData(gateForm);
+      const email = String(fd.get('email') ?? '').trim();
+      if (!email) return;
+      const btn = gateForm.querySelector<HTMLButtonElement>('[data-gate-submit]');
+      const original = label?.textContent ?? 'Open the album';
+      if (btn) btn.disabled = true;
+      if (label) label.textContent = 'Checking…';
+      try {
+        const res = await fetch('/api/music/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ album: albumId, email, hp: String(fd.get('hp') ?? '') }),
+        });
+        const data = (await res.json().catch(() => ({}))) as { ok?: boolean; granted?: boolean };
+        if (!res.ok || !data?.ok) throw new Error('failed');
+        if (data.granted) {
+          location.reload();
+          return;
+        }
+        if (errEl) {
+          errEl.textContent =
+            "We couldn't find this album under that address. Try the email you used at checkout — or write to support@songdance.co.";
+          errEl.hidden = false;
+        }
+      } catch {
+        if (errEl) {
+          errEl.textContent = "That didn't go through — please try again in a moment.";
+          errEl.hidden = false;
+        }
+      } finally {
+        if (btn) btn.disabled = false;
+        if (label) label.textContent = original;
+      }
+    });
+  }
+
+  // ---------- Player ----------
+  type Track = { id: string; title: string; duration: number | null; url: string };
+  const dataEl = document.getElementById('mp-data');
+  if (dataEl) {
+    const data = JSON.parse(dataEl.textContent || '{}') as {
+      title: string;
+      cover: string | null;
+      tracks: Track[];
+    };
+    const tracks = data.tracks ?? [];
+
+    const rows = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-row]'));
+    const bar = document.querySelector<HTMLElement>('[data-bar]');
+    const barTitle = document.querySelector<HTMLElement>('[data-bar-title]');
+    const toggleBtn = document.querySelector<HTMLButtonElement>('[data-toggle]');
+    const toggleIcon = document.querySelector<HTMLElement>('[data-toggle-icon]');
+    const prevBtn = document.querySelector<HTMLButtonElement>('[data-prev]');
+    const nextBtn = document.querySelector<HTMLButtonElement>('[data-next]');
+    const seek = document.querySelector<HTMLInputElement>('[data-seek]');
+    const timeNow = document.querySelector<HTMLElement>('[data-time-now]');
+    const timeTotal = document.querySelector<HTMLElement>('[data-time-total]');
+    const playAll = document.querySelector<HTMLButtonElement>('[data-play-all]');
+
+    const audio = new Audio();
+    audio.preload = 'metadata';
+    let current = -1;
+    let scrubbing = false;
+
+    const fmt = (s: number): string => {
+      if (!Number.isFinite(s) || s < 0) return '0:00';
+      const t = Math.round(s);
+      return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
+    };
+    const trackDuration = (): number =>
+      Number.isFinite(audio.duration) && audio.duration > 0
+        ? audio.duration
+        : (tracks[current]?.duration ?? 0);
+
+    function paintRows() {
+      rows.forEach((row, i) => {
+        const isCurrent = i === current;
+        row.classList.toggle('is-current', isCurrent);
+        const icon = row.querySelector<HTMLElement>('[data-row-icon]');
+        if (icon) {
+          icon.className =
+            isCurrent && !audio.paused ? 'ph-light ph-pause' : 'ph-light ph-play';
+        }
+      });
+      if (toggleIcon) {
+        toggleIcon.className = audio.paused ? 'ph-light ph-play' : 'ph-light ph-pause';
+      }
+    }
+
+    function load(i: number, autoplay = true) {
+      if (i < 0 || i >= tracks.length) return;
+      current = i;
+      audio.src = tracks[i].url;
+      if (bar) bar.hidden = false;
+      if (barTitle) barTitle.textContent = tracks[i].title;
+      if (timeTotal) timeTotal.textContent = fmt(tracks[i].duration ?? 0);
+      if (timeNow) timeNow.textContent = '0:00';
+      if (seek) seek.value = '0';
+      if (autoplay) void audio.play().catch(() => {});
+      paintRows();
+      // Lock-screen / notification metadata on phones — where a mantra album
+      // is most likely to be playing.
+      if ('mediaSession' in navigator) {
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: tracks[i].title,
+          artist: 'Songdance',
+          album: data.title,
+          artwork: data.cover ? [{ src: data.cover, sizes: '512x512' }] : [],
+        });
+      }
+    }
+
+    const next = () => load(current + 1 < tracks.length ? current + 1 : -1);
+    const prev = () => {
+      // Standard player behaviour: restart the track unless we're at its start.
+      if (audio.currentTime > 3) {
+        audio.currentTime = 0;
+        return;
+      }
+      if (current > 0) load(current - 1);
+      else audio.currentTime = 0;
+    };
+    const toggle = () => {
+      if (current < 0) { load(0); return; }
+      if (audio.paused) void audio.play().catch(() => {});
+      else audio.pause();
+    };
+
+    rows.forEach((row, i) =>
+      row.addEventListener('click', () => {
+        if (i === current) toggle();
+        else load(i);
+      }),
+    );
+    playAll?.addEventListener('click', () => {
+      if (current < 0) load(0);
+      else toggle();
+    });
+    toggleBtn?.addEventListener('click', toggle);
+    nextBtn?.addEventListener('click', () => { if (current + 1 < tracks.length) next(); });
+    prevBtn?.addEventListener('click', prev);
+
+    audio.addEventListener('play', paintRows);
+    audio.addEventListener('pause', paintRows);
+    audio.addEventListener('ended', next);
+    audio.addEventListener('loadedmetadata', () => {
+      if (timeTotal) timeTotal.textContent = fmt(trackDuration());
+    });
+    audio.addEventListener('timeupdate', () => {
+      if (scrubbing) return;
+      if (timeNow) timeNow.textContent = fmt(audio.currentTime);
+      const d = trackDuration();
+      if (seek && d > 0) seek.value = String(Math.round((audio.currentTime / d) * 1000));
+    });
+
+    seek?.addEventListener('input', () => {
+      scrubbing = true;
+      const d = trackDuration();
+      if (timeNow && d > 0) timeNow.textContent = fmt((Number(seek.value) / 1000) * d);
+    });
+    seek?.addEventListener('change', () => {
+      const d = trackDuration();
+      if (d > 0) audio.currentTime = (Number(seek.value) / 1000) * d;
+      scrubbing = false;
+    });
+
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.setActionHandler('play', () => void audio.play().catch(() => {}));
+      navigator.mediaSession.setActionHandler('pause', () => audio.pause());
+      navigator.mediaSession.setActionHandler('previoustrack', prev);
+      navigator.mediaSession.setActionHandler('nexttrack', () => {
+        if (current + 1 < tracks.length) next();
+      });
+    }
+  }
+</script>
