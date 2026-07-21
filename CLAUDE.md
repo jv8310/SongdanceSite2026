@@ -84,13 +84,19 @@ in moderation, not governed by the copy book.
   still happen but are deliberately NOT emphasized on the page (they read as
   "joins the library"). The **"mid-cohort discount" is retired**: cert charges
   its normal price (€797 EUR; `full === base` in `variant.ts`, so nothing
-  renders struck through), the path/bundle €1277 (= cert €797 + 12-week €480).
-- **Workshop sale**: a live workshop window (same pre/post-48h rule as always)
-  gives **25% off the whole certification path** — both line items
-  (`CERT_PATH_DISCOUNT_PERCENT` in `src/lib/courses/path.ts`) → ≈€958 —
-  while the standalone 12-week course keeps its own 25% (€480 → €360). A
-  `?discount=N` override still wins outright and still only touches the
-  12-week line.
+  renders struck through), the path/bundle €1347 (= cert €797 + 12-week €550).
+- **Workshop sale — one 20% everywhere** (July 2026 reprice): a live workshop
+  window (same pre/post-48h rule as always) gives **20% off the whole
+  certification path** — both line items (`CERT_PATH_DISCOUNT_PERCENT` in
+  `src/lib/courses/path.ts`) — and the standalone 12-week course carries the
+  same 20% (`DISCOUNT_PERCENT` in `twelve-week.ts`; €550 → €440), so the
+  lifecycle emails quote one number for both. The path's discounted figures
+  are floored to the nearest 5 (`pctMajor`), so the sale reads in round
+  prices — EUR path €1,347 → **€1,075** (cert €635 + 12-week €440), 3×
+  €375/mo, 6× €200/mo — and the advertised percent is never under-delivered.
+  A `?discount=N` override still wins outright and still only touches the
+  12-week line. `variant.ts` bundle rows must stay = cert + 12-week per
+  component (invariant noted in the file).
 - **Top-of-funnel + order bumps** (July 2026): workshop ticket **€22** (70-min
   session), masterclass **€44** (100-min). The workshop/masterclass order bump
   is now the **"Empowering You" mantra pack** (€9, product `mantra-empower-bump`,
@@ -155,7 +161,7 @@ All automated workshop email lives in the workshop engine:
 - **Cadence**: `src/lib/workshops/cron.ts` (5-min cron; idempotent claims, staleness
   guards, sequence chaining, suppression checks)
 - **Sequences**: abandoned checkout ×2 · confirmation + 7 reminders · attended ×3
-  (12-week course, riding the 48h/25% participant-discount window from
+  (12-week course, riding the 48h/20% participant-discount window from
   `src/lib/courses/twelve-week.ts`) · attended-PRO ×3 (certification path;
   masterclass attendees now, `is_pro` column when it lands) · no-show ×3 ·
   downsell ×2

@@ -566,7 +566,7 @@ const includes = [
       // Everyone can switch between the 12-week course and the full
       // Certification path (12-Week Course + Certification Course) — the picker
       // shows whenever the server priced the path (it always does now). During
-      // a live workshop window the whole path is 25% off (both line items); a
+      // a live workshop window the whole path is 20% off (both line items); a
       // ?discount=N override only ever touches the 12-week portion.
       const hasPath = !!status.path;
       let selectedOffer: OfferId = '12week';
@@ -585,7 +585,7 @@ const includes = [
           const p = status.path;
           const dd = p.discount;
           return {
-            // Struck while discounted: the workshop sale takes 25% off both
+            // Struck while discounted: the workshop sale takes 20% off both
             // lines; an override reduces only the 12-week portion.
             cur: p.currency,
             hasStrike: p.base_total_cents > p.total_cents,
@@ -701,7 +701,7 @@ const includes = [
 
         if (isPath) {
           // Two transparent line items + a combined total, each struck while
-          // the workshop sale (25% off both lines) or an override is live.
+          // the workshop sale (20% off both lines) or an override is live.
           const p = status.path!;
           pricebox.hidden = true;
           pathbox.hidden = false;
