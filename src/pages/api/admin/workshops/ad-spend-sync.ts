@@ -4,7 +4,7 @@ import { runMetaAdSpendSync } from '../../../../lib/ads/meta-insights';
 
 export const prerender = false;
 
-// Manual "pull ad spend from Meta now" trigger for /admin/workshops/stats — the
+// Manual "pull ad spend from Meta now" trigger for /admin/stats — the
 // same sync the hourly cron runs, but forced (bypasses the once-a-day gate) so
 // the owner can verify the token/account are wired and see today's spend land
 // immediately. The scheduled cron keeps it fresh from then on.

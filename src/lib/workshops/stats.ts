@@ -8,15 +8,123 @@
 // (`svh-masterclass`) and split out of the regular ticket bucket.
 //
 // Standalone course sales (12-week, certification, grief) live in
-// `course_registrations`, which has no Stripe settlement or tax data — those
-// figures are the charged amount converted with the FX_TO_EUR fallback table
-// (gross of any VAT), attributed to the day of `paid_at`.
+// `course_registrations`, which has no Stripe settlement or tax data. By
+// default those figures are the charged amount at fallback FX rates (gross of
+// any VAT). Callers that pass a `MoneyOpts` (see resolveMoneyOpts) get the
+// true figure instead: VAT stripped per buyer country via Quaderno — the same
+// treatment /admin/courses/future-revenue applies — and EUR conversion at the
+// live `fx_rates` table. Attributed to the day of `paid_at` either way.
 
 import { FX_TO_EUR } from './currency';
 import { selectByIdsChunked } from '../db/chunked';
 import { isAcquisitionCampaign, campaignKind, type CampaignKind } from '../ads/campaigns';
+import { getTaxRate, netFromGross, type QuadernoTaxConfig } from './quaderno';
+import { getFxRatesToEur } from '../admin/fx';
 
 export const MASTERCLASS_PRODUCT_SLUG = 'svh-masterclass';
+
+// ---------------------------------------------------------------------------
+// Money context for standalone course figures: live FX rates + a Quaderno tax
+// config so charged (gross) amounts can be reported net of VAT in true EUR.
+// Optional everywhere it's accepted — callers that don't pass it keep the old
+// behaviour (fallback FX, gross of VAT), so nothing breaks where precision
+// doesn't matter.
+
+export type MoneyOpts = {
+  fxRates?: Record<string, number>; // currency → EUR; falls back to FX_TO_EUR
+  taxCfg?: QuadernoTaxConfig | null; // when set, VAT is stripped per country
+};
+
+export async function resolveMoneyOpts(
+  db: D1Database,
+  env: {
+    QUADERNO_API_KEY?: string;
+    QUADERNO_ACCOUNT?: string;
+    QUADERNO_SANDBOX?: string;
+  },
+): Promise<MoneyOpts> {
+  return {
+    fxRates: await getFxRatesToEur(db),
+    taxCfg:
+      env.QUADERNO_API_KEY && env.QUADERNO_ACCOUNT
+        ? {
+            apiKey: env.QUADERNO_API_KEY,
+            account: env.QUADERNO_ACCOUNT,
+            sandbox: env.QUADERNO_SANDBOX === '1',
+          }
+        : null,
+  };
+}
+
+// The country we charge eservice VAT against: the buyer's, or Belgium (home
+// market) when it's an EUR charge with no country on file — the same
+// convention /admin/orders uses (orders.ts eserviceCountry), so the two admin
+// views agree on net figures.
+function courseTaxCountry(
+  country: string | null | undefined,
+  currency: string | null | undefined,
+): string | null {
+  const c = (country ?? '').toUpperCase();
+  if (c) return c;
+  return (currency || 'EUR').toUpperCase() === 'EUR' ? 'BE' : null;
+}
+
+// Per-country VAT rates for a set of course rows (skipping B2B reverse-charge
+// rows — a VAT number means 0%). getTaxRate caches per isolate, so repeated
+// windows/pages re-resolve for free. No config → empty map → net = gross.
+async function resolveCourseTaxRates(
+  rows: Array<{ country?: string | null; vat_number?: string | null; currency?: string | null }>,
+  taxCfg: QuadernoTaxConfig | null | undefined,
+): Promise<Map<string, number>> {
+  const rates = new Map<string, number>();
+  if (!taxCfg) return rates;
+  const countries = new Set<string>();
+  for (const r of rows) {
+    if (r.vat_number) continue;
+    const c = courseTaxCountry(r.country, r.currency);
+    if (c) countries.add(c);
+  }
+  await Promise.all(
+    [...countries].map(async (c) => {
+      rates.set(c, await getTaxRate(taxCfg, c, 'eservice'));
+    }),
+  );
+  return rates;
+}
+
+// Collected gross (original currency) → net-of-VAT EUR minor units.
+function courseNetEur(
+  collectedMinor: number,
+  row: { country?: string | null; vat_number?: string | null; currency?: string | null },
+  taxRates: Map<string, number>,
+  fxRates: Record<string, number> | undefined,
+): { eurMinor: number; grossEurMinor: number } {
+  const country = row.vat_number ? null : courseTaxCountry(row.country, row.currency);
+  const rate = (country ? taxRates.get(country) : 0) ?? 0; // VAT number → reverse charge (0)
+  const net = netFromGross(collectedMinor, rate).subtotalMinor;
+  const cur = (row.currency || 'EUR').toUpperCase();
+  const fx = fxRates?.[cur] ?? FX_TO_EUR[cur] ?? 1;
+  return { eurMinor: Math.round(net * fx), grossEurMinor: Math.round(collectedMinor * fx) };
+}
+
+// Amount actually collected on a row so far: installment plans (3×/6×/12×)
+// bill monthly, so scale the plan total by installments paid; one-off plans
+// collected the full amount. Refunds (full or partial) come straight off.
+// (Scaling keys on installments_total, not payment_plan === '3x' — 6×/12×
+// plans used to slip through and count their FULL plan value at first charge.)
+function collectedMinorOf(r: {
+  payment_plan: string;
+  installments_total: number;
+  installments_paid: number;
+  amount_cents: number;
+  refunded_amount_cents: number | null;
+}): number {
+  const expected =
+    r.installments_total > 1
+      ? Math.round(r.amount_cents * (r.installments_paid / r.installments_total))
+      : r.amount_cents;
+  return Math.max(0, expected - (r.refunded_amount_cents ?? 0));
+}
 
 type PaymentRow = {
   id: number;
@@ -302,13 +410,17 @@ export type CourseSalesReport = {
   totalNetEurMinor: number;
   byProduct: Array<{ slug: string; label: string; group: CourseGroup; count: number; netEurMinor: number }>;
   daily: CourseDailyStat[];
-  fxConverted: number; // rows converted to EUR with the fallback rate table
+  fxConverted: number; // rows converted to EUR (fallback table unless MoneyOpts gave live rates)
+  taxApplied: boolean; // true when VAT was stripped per country (Quaderno configured)
+  taxEurMinor: number; // estimated VAT removed from the figures, EUR
 };
 
 type CourseRegRow = {
   product_slug: string;
   amount_cents: number;
   currency: string;
+  country: string | null;
+  vat_number: string | null;
   payment_plan: string;
   installments_paid: number;
   installments_total: number;
@@ -318,7 +430,7 @@ type CourseRegRow = {
 
 export async function computeCourseSales(
   db: D1Database,
-  opts: { from?: string | null; to?: string | null } = {},
+  opts: { from?: string | null; to?: string | null; money?: MoneyOpts } = {},
 ): Promise<CourseSalesReport> {
   // Anything that ever collected money: paid, plus refunded/cancelled rows
   // (a cancelled 3x sub keeps the installments it already collected; the
@@ -330,13 +442,15 @@ export async function computeCourseSales(
 
   const res = await db
     .prepare(
-      `SELECT product_slug, amount_cents, currency, payment_plan,
+      `SELECT product_slug, amount_cents, currency, country, vat_number, payment_plan,
               installments_paid, installments_total, refunded_amount_cents, paid_at
          FROM course_registrations
         WHERE ${where.join(' AND ')}`,
     )
     .bind(...binds)
     .all<CourseRegRow>();
+  const regRows = res.results ?? [];
+  const taxRates = await resolveCourseTaxRates(regRows, opts.money?.taxCfg);
 
   const report: CourseSalesReport = {
     twelveWeek: { count: 0, netEurMinor: 0 },
@@ -347,24 +461,21 @@ export async function computeCourseSales(
     byProduct: [],
     daily: [],
     fxConverted: 0,
+    taxApplied: Boolean(opts.money?.taxCfg),
+    taxEurMinor: 0,
   };
   const productMap = new Map<string, { count: number; net: number }>();
   const dailyMap = new Map<string, { tw: number; cert: number; other: number }>();
 
-  for (const r of res.results ?? []) {
-    // Amount actually collected: 3x plans bill monthly, so scale the total by
-    // installments paid; one-off plans collected the full amount. Refunds
-    // (full or partial) come straight off.
-    const expected =
-      r.payment_plan === '3x' && r.installments_total > 0
-        ? Math.round(r.amount_cents * (r.installments_paid / r.installments_total))
-        : r.amount_cents;
-    const collected = Math.max(0, expected - (r.refunded_amount_cents ?? 0));
+  for (const r of regRows) {
+    const collected = collectedMinorOf(r);
 
     const cur = (r.currency || 'EUR').toUpperCase();
-    const rate = FX_TO_EUR[cur] ?? 1;
     if (cur !== 'EUR') report.fxConverted += 1;
-    const eurMinor = Math.round(collected * rate);
+    const { eurMinor, grossEurMinor: rowGrossEur } = courseNetEur(
+      collected, r, taxRates, opts.money?.fxRates,
+    );
+    report.taxEurMinor += rowGrossEur - eurMinor;
 
     const info = COURSE_PRODUCT_INFO[r.product_slug] ?? { group: 'other' as const, label: r.product_slug };
     const bucket =
@@ -473,7 +584,7 @@ function parseUtcMs(s: string | null | undefined): number | null {
 
 export async function computeWorkshopPerformance(
   db: D1Database,
-  opts: { from?: string | null; to?: string | null } = {},
+  opts: { from?: string | null; to?: string | null; money?: MoneyOpts } = {},
 ): Promise<WorkshopPerformanceReport> {
   const winFrom = opts.from ?? null;
   const winTo = opts.to ? `${opts.to} 23:59:59` : null;
@@ -554,24 +665,24 @@ export async function computeWorkshopPerformance(
   const crsBinds: unknown[] = [];
   const crsRes = await db
     .prepare(
-      `SELECT lower(email) AS email, product_slug, amount_cents, currency, payment_plan,
-              installments_paid, installments_total, refunded_amount_cents
+      `SELECT lower(email) AS email, product_slug, amount_cents, currency, country,
+              vat_number, payment_plan, installments_paid, installments_total,
+              refunded_amount_cents
          FROM course_registrations
         WHERE paid_at IS NOT NULL AND status NOT IN ('pending','expired')${win('paid_at', crsBinds)}`,
     )
     .bind(...crsBinds)
     .all<CourseRegRow & { email: string }>();
+  const crsRows = crsRes.results ?? [];
+  const crsTaxRates = await resolveCourseTaxRates(crsRows, opts.money?.taxCfg);
   const standalone = new Map<string, { tw: boolean; cert: boolean; eurMinor: number }>();
-  for (const r of crsRes.results ?? []) {
+  for (const r of crsRows) {
     const isTw = r.product_slug === 'svh-12week';
     const isCert = r.product_slug === 'cc-cert' || r.product_slug === 'cc-bundle';
     if (!isTw && !isCert) continue;
-    const expected =
-      r.payment_plan === '3x' && r.installments_total > 0
-        ? Math.round(r.amount_cents * (r.installments_paid / r.installments_total))
-        : r.amount_cents;
-    const collected = Math.max(0, expected - (r.refunded_amount_cents ?? 0));
-    const eurMinor = Math.round(collected * (FX_TO_EUR[(r.currency || 'EUR').toUpperCase()] ?? 1));
+    const { eurMinor } = courseNetEur(
+      collectedMinorOf(r), r, crsTaxRates, opts.money?.fxRates,
+    );
     const s = standalone.get(r.email) ?? { tw: false, cert: false, eurMinor: 0 };
     if (isTw) s.tw = true;
     if (isCert) s.cert = true;
@@ -749,6 +860,37 @@ export async function computeWorkshopPerformance(
     workshopRoas:
       acquisitionSpendEurMinor > 0 ? workshopRevenueEurMinor / acquisitionSpendEurMinor : null,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Completed workshop registrations (paid or coupon) per day — the acquisition
+// pulse the dashboard plots next to ad spend. Buckets by created_at (UTC),
+// same as every other daily figure here.
+
+export type RegistrationsByDay = {
+  days: Array<{ date: string; count: number }>;
+  total: number;
+};
+
+export async function computeRegistrationsByDay(
+  db: D1Database,
+  opts: { from?: string | null; to?: string | null } = {},
+): Promise<RegistrationsByDay> {
+  const where: string[] = ["payment_status IN ('paid','coupon')"];
+  const binds: unknown[] = [];
+  if (opts.from) { where.push('created_at >= ?'); binds.push(opts.from); }
+  if (opts.to) { where.push('created_at <= ?'); binds.push(`${opts.to} 23:59:59`); }
+  const res = await db
+    .prepare(
+      `SELECT substr(created_at, 1, 10) AS date, COUNT(*) AS n
+         FROM workshop_registrations
+        WHERE ${where.join(' AND ')}
+        GROUP BY 1 ORDER BY 1`,
+    )
+    .bind(...binds)
+    .all<{ date: string; n: number }>();
+  const days = (res.results ?? []).map((r) => ({ date: r.date, count: r.n }));
+  return { days, total: days.reduce((s, d) => s + d.count, 0) };
 }
 
 // Ad spend grouped by campaign for a window, EUR-converted, tagged with its

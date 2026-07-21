@@ -1,5 +1,5 @@
 // Meta Marketing API — pull daily ad spend straight from the ad account, so the
-// /ads dashboard and /admin/workshops/stats ROAS light up without the manual CSV
+// /ads dashboard and /admin/stats ROAS light up without the manual CSV
 // export/import round-trip. Sibling to src/lib/workshops/meta.ts (the Conversions
 // API *send*): same Graph API host and token plumbing, opposite direction (read).
 //

@@ -1,0 +1,1285 @@
+---
+import '../../styles/admin.css';
+import Layout from '../../layouts/Layout.astro';
+import { readCookie, verifySession } from '../../lib/registrations/auth';
+import {
+  computeStats,
+  computeCourseSales,
+  computeWorkshopPerformance,
+  computeRegistrationsByDay,
+  computeAdSpendByCampaign,
+  mergeDailyStreams,
+  resolveMoneyOpts,
+  type StreamDay,
+} from '../../lib/workshops/stats';
+import { listWorkshops, getProductById } from '../../lib/workshops/db';
+import ChartKit from '../../components/charts/ChartKit.astro';
+import {
+  PERIOD_PRESETS,
+  resolvePeriod,
+  presetRangesMap,
+  brusselsToday,
+  shiftDays,
+  shiftYears,
+  daysBetween,
+} from '../../lib/workshops/periods';
+import {
+  buildForecast,
+  type Forecast,
+  type InstallmentRow,
+} from '../../lib/courses/installment-forecast';
+import { getTaxRate } from '../../lib/workshops/quaderno';
+
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+if (!(await verifySession(env.ADMIN_SESSION_SECRET, readCookie(Astro.request)))) {
+  return Astro.redirect('/admin/login');
+}
+
+const { preset, from, to } = resolvePeriod(Astro.url.searchParams);
+
+// ---- Compare window (needs a bounded current window) ----
+
+const rawCompare = Astro.url.searchParams.get('compare');
+const compare =
+  (rawCompare === 'prev' || rawCompare === 'yoy') && from && to ? rawCompare : null;
+let cmpFrom: string | null = null;
+let cmpTo: string | null = null;
+if (compare === 'prev' && from && to) {
+  const len = daysBetween(from, to) + 1;
+  cmpTo = shiftDays(from, -1);
+  cmpFrom = shiftDays(from, -len);
+} else if (compare === 'yoy' && from && to) {
+  cmpFrom = shiftYears(from, -1);
+  cmpTo = shiftYears(to, -1);
+}
+
+const wid = parseInt(Astro.url.searchParams.get('workshop_id') ?? '', 10);
+const workshopId = Number.isFinite(wid) ? wid : null;
+
+// ---- Reports ----
+// One money context for the whole page: live FX rates + Quaderno VAT config,
+// so every standalone-course figure is true EUR, net of tax.
+
+const money = await resolveMoneyOpts(env.DB, env);
+const workshops = await listWorkshops(env.DB);
+const report = await computeStats(env.DB, { from, to, workshopId });
+const courses = await computeCourseSales(env.DB, { from, to, money });
+const days = mergeDailyStreams(report, courses, from, to);
+const campaignSpend = await computeAdSpendByCampaign(env.DB, { from, to });
+// Per-workshop funnel + workshop-only (TOF) ROAS. Not narrowed by the workshop
+// filter — this is the acquisition view across every workshop in the window.
+const perf = await computeWorkshopPerformance(env.DB, { from, to, money });
+const regs = await computeRegistrationsByDay(env.DB, { from, to });
+
+let cmp: {
+  report: Awaited<ReturnType<typeof computeStats>>;
+  courses: Awaited<ReturnType<typeof computeCourseSales>>;
+  days: ReturnType<typeof mergeDailyStreams>;
+  regsTotal: number;
+} | null = null;
+if (compare && cmpFrom && cmpTo) {
+  const r = await computeStats(env.DB, { from: cmpFrom, to: cmpTo, workshopId });
+  const c = await computeCourseSales(env.DB, { from: cmpFrom, to: cmpTo, money });
+  const rg = await computeRegistrationsByDay(env.DB, { from: cmpFrom, to: cmpTo });
+  cmp = { report: r, courses: c, days: mergeDailyStreams(r, c, cmpFrom, cmpTo), regsTotal: rg.total };
+}
+
+// All-time daily streams for the records box (best day / best month / pace).
+// When the window already IS all-time, reuse it instead of recomputing.
+let allDays: StreamDay[] = days;
+if (from || to || workshopId) {
+  const ra = await computeStats(env.DB, {});
+  const ca = await computeCourseSales(env.DB, { money });
+  allDays = mergeDailyStreams(ra, ca, null, null);
+}
+
+// Resolve course product names for the workshop-checkout add-on breakdown.
+const courseNames = new Map<number, string>();
+for (const c of report.courseBreakdown) {
+  const p = await getProductById(env.DB, c.product_id);
+  courseNames.set(c.product_id, p?.name ?? `Product #${c.product_id}`);
+}
+
+// ---- Future-revenue forecast (open installment plans, all products) ----
+// Same projection as /admin/courses/future-revenue: VAT netted per country
+// when Quaderno is configured. Never breaks the page — box hides on error.
+
+let forecast: Forecast | null = null;
+try {
+  const q = await env.DB
+    .prepare(
+      `SELECT id, email, first_name, last_name, currency, country, vat_number,
+              status, payment_plan, amount_cents,
+              installments_paid, installments_total,
+              paid_at, subscription_status, provider,
+              stripe_subscription_id, stripe_payment_intent,
+              paypal_subscription_id, paypal_capture_id, cancel_after_installment
+         FROM course_registrations
+        WHERE installments_total > 1
+        ORDER BY paid_at DESC`,
+    )
+    .all<InstallmentRow>();
+  const rows = q.results ?? [];
+  if (money.taxCfg) {
+    const countries = [
+      ...new Set(
+        rows
+          .filter((r) => !r.vat_number && r.country)
+          .map((r) => (r.country as string).toUpperCase()),
+      ),
+    ];
+    const rateByCountry = new Map<string, number>();
+    await Promise.all(
+      countries.map(async (c) => {
+        rateByCountry.set(c, await getTaxRate(money.taxCfg!, c, 'eservice'));
+      }),
+    );
+    for (const r of rows) {
+      r.taxRate = r.vat_number ? 0 : rateByCountry.get((r.country ?? '').toUpperCase()) ?? 0;
+    }
+  }
+  forecast = buildForecast(rows, Date.now());
+} catch {
+  forecast = null;
+}
+
+// ---- Upcoming workshops (published, future-dated) with seats sold so far ----
+
+const nowIso = new Date().toISOString();
+const upcoming = workshops
+  .filter((w) => w.status === 'published' && !w.is_replay && w.starts_at_utc > nowIso)
+  .sort((a, b) => (a.starts_at_utc < b.starts_at_utc ? -1 : 1))
+  .slice(0, 5);
+let seatsByWorkshop = new Map<number, number>();
+if (upcoming.length) {
+  const seatRes = await env.DB
+    .prepare(
+      `SELECT workshop_id, COUNT(*) AS n FROM workshop_registrations
+        WHERE payment_status IN ('paid','coupon') GROUP BY workshop_id`,
+    )
+    .all<{ workshop_id: number; n: number }>();
+  seatsByWorkshop = new Map((seatRes.results ?? []).map((r) => [r.workshop_id, r.n]));
+}
+
+// ---- Derived figures ----
+
+const workshopsNet = report.totals.netEurMinor - report.totals.masterclassNetEurMinor;
+const totalNet = report.totals.netEurMinor + courses.totalNetEurMinor;
+const netAfterAds = totalNet - report.adSpendEurMinor;
+const blendedRoas = report.adSpendEurMinor > 0 ? totalNet / report.adSpendEurMinor : null;
+const salesCount =
+  report.totals.ticketCount + report.totals.masterclassCount + report.totals.bumpCount +
+  report.totals.courseCount + courses.totalCount;
+const aovEurMinor = salesCount > 0 ? Math.round(totalNet / salesCount) : null;
+
+const cmpWorkshopsNet = cmp ? cmp.report.totals.netEurMinor - cmp.report.totals.masterclassNetEurMinor : null;
+const cmpTotalNet = cmp ? cmp.report.totals.netEurMinor + cmp.courses.totalNetEurMinor : null;
+const cmpNetAfterAds = cmp && cmpTotalNet != null ? cmpTotalNet - cmp.report.adSpendEurMinor : null;
+const cmpBlendedRoas =
+  cmp && cmp.report.adSpendEurMinor > 0 && cmpTotalNet != null
+    ? cmpTotalNet / cmp.report.adSpendEurMinor
+    : null;
+
+// Delta chip vs the comparison window. `goodWhenUp:false` flips the colour
+// semantics for cost metrics (ad spend rising = red, falling = green).
+type Delta = { cls: 'good' | 'bad' | 'flat'; text: string; arrow: string } | null;
+function delta(cur: number, prev: number | null | undefined, goodWhenUp = true): Delta {
+  if (!cmp || prev == null) return null;
+  if (prev === 0 && cur === 0) return { cls: 'flat', text: '±0%', arrow: '' };
+  if (prev === 0) return { cls: goodWhenUp ? 'good' : 'bad', text: 'new', arrow: '' };
+  const p = ((cur - prev) / Math.abs(prev)) * 100;
+  const up = p > 0.5;
+  const down = p < -0.5;
+  const cls = !up && !down ? 'flat' : (up ? goodWhenUp : !goodWhenUp) ? 'good' : 'bad';
+  const arrow = up ? '▲' : down ? '▼' : '';
+  return { cls, text: `${p > 0 ? '+' : ''}${p.toFixed(1)}%`, arrow };
+}
+
+const eur = (minor: number) =>
+  '€' + (minor / 100).toLocaleString('en-IE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const eur0 = (minor: number) => '€' + Math.round(minor / 100).toLocaleString('en-IE');
+const int = (v: number) => v.toLocaleString('en-IE');
+const pct = (v: number | null) => (v != null ? v.toFixed(1) + '%' : '—');
+const roasStr = (v: number | null) => (v != null ? v.toFixed(2) + '×' : '—');
+const shortTitle = (t: string) => t.replace(/Somatic Vocal Healing/gi, 'SVH');
+const wkDateLabel = (iso: string) =>
+  new Intl.DateTimeFormat('en-GB', {
+    day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/Brussels',
+  }).format(new Date(iso));
+const wkDayLabel = (iso: string) =>
+  new Intl.DateTimeFormat('en-GB', {
+    weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Brussels',
+  }).format(new Date(iso));
+const prettyYmd = (ymd: string) =>
+  new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
+    .format(new Date(`${ymd}T12:00:00Z`));
+const monthName = (key: string) => {
+  const [y, m] = key.split('-').map(Number);
+  return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][m - 1] + ' ' + y;
+};
+const roasTone = (v: number | null): 'good' | 'bad' | 'flat' =>
+  v == null ? 'flat' : v >= 1 ? 'good' : 'bad';
+
+// ---- Records & month pace (from the all-time daily streams) ----
+
+let bestDay: { date: string; eurMinor: number } | null = null;
+const monthTotals = new Map<string, number>();
+let allTimeEurMinor = 0;
+for (const d of allDays) {
+  allTimeEurMinor += d.totalEurMinor;
+  if (d.totalEurMinor > 0 && (!bestDay || d.totalEurMinor > bestDay.eurMinor)) {
+    bestDay = { date: d.date, eurMinor: d.totalEurMinor };
+  }
+  const mk = d.date.slice(0, 7);
+  monthTotals.set(mk, (monthTotals.get(mk) ?? 0) + d.totalEurMinor);
+}
+let bestMonth: { key: string; eurMinor: number } | null = null;
+for (const [key, v] of monthTotals) {
+  if (v > 0 && (!bestMonth || v > bestMonth.eurMinor)) bestMonth = { key, eurMinor: v };
+}
+// Month pace: MTD (Brussels calendar) extrapolated to a full-month projection,
+// next to the previous month's actual.
+const bizToday = brusselsToday();
+const curMonthKey = bizToday.slice(0, 7);
+const dayOfMonth = parseInt(bizToday.slice(8, 10), 10);
+const [bizY, bizM] = [parseInt(bizToday.slice(0, 4), 10), parseInt(bizToday.slice(5, 7), 10)];
+const daysInMonth = new Date(Date.UTC(bizY, bizM, 0)).getUTCDate();
+const prevMonthKey = new Date(Date.UTC(bizY, bizM - 2, 1)).toISOString().slice(0, 7);
+const mtdEurMinor = monthTotals.get(curMonthKey) ?? 0;
+const prevMonthEurMinor = monthTotals.get(prevMonthKey) ?? 0;
+const paceEurMinor = dayOfMonth > 0 ? Math.round((mtdEurMinor / dayOfMonth) * daysInMonth) : 0;
+const pacePct =
+  prevMonthEurMinor > 0 ? ((paceEurMinor - prevMonthEurMinor) / prevMonthEurMinor) * 100 : null;
+
+// ---- Workshop funnel (window-wide across every workshop) ----
+
+const isPastWorkshop = (r: (typeof perf.rows)[number]) =>
+  r.isReplay || (!!r.startsAtUtc && r.startsAtUtc <= nowIso);
+const recentWorkshops = perf.rows.filter((r) => r.registrations > 0 && isPastWorkshop(r)).slice(0, 5);
+
+const workshopOptionLabel = (w: { title: string; starts_at_utc: string; is_replay: number }) => {
+  const title = w.title.replace(/Somatic Vocal Healing/gi, 'SVH');
+  if (w.is_replay) return `On-demand — ${title}`;
+  return `${wkDateLabel(w.starts_at_utc)} — ${title}`;
+};
+
+const funnelSum = (f: (r: (typeof perf.rows)[number]) => number) =>
+  perf.rows.reduce((s, r) => s + f(r), 0);
+const funnelRegs = perf.totalRegistrations;
+const funnelAttended = funnelSum((r) => r.attendedLive) + funnelSum((r) => r.replayViews);
+const funnelBuyers = funnelSum((r) => r.courseBuys) + funnelSum((r) => r.certBuys);
+const funnelAttendancePct = funnelRegs > 0 ? (funnelAttended / funnelRegs) * 100 : null;
+const funnelConversionPct = funnelRegs > 0 ? (funnelBuyers / funnelRegs) * 100 : null;
+const funnelConversionPerAttendeePct =
+  funnelAttended > 0 ? (funnelBuyers / funnelAttended) * 100 : null;
+
+const funnelCards: Array<{ label: string; value: string; sub: string; d?: Delta }> = [
+  {
+    label: 'Registrations',
+    value: int(funnelRegs),
+    sub: 'paid + coupon seats secured',
+    d: delta(regs.total, cmp?.regsTotal),
+  },
+  {
+    label: 'Ad spend (workshop)',
+    value: eur0(perf.acquisitionSpendEurMinor),
+    sub: `prospecting (TOF) · ${eur0(perf.adSpendEurMinor)} all campaigns`,
+  },
+  {
+    label: 'Cost / registration',
+    value:
+      perf.costPerRegistrationEurMinor != null
+        ? eur(Math.round(perf.costPerRegistrationEurMinor))
+        : '—',
+    sub: 'prospecting spend ÷ regs',
+  },
+  {
+    label: 'Attendance rate',
+    value: pct(funnelAttendancePct),
+    sub: `${int(funnelAttended)} of ${int(funnelRegs)} regs`,
+  },
+  {
+    label: 'Conversion rate',
+    value: pct(funnelConversionPct),
+    sub: 'regs → course / cert',
+  },
+  {
+    label: 'Conversion / attendee',
+    value: pct(funnelConversionPerAttendeePct),
+    sub: 'attendees → course / cert',
+  },
+];
+
+// ---- Stream tiles (with per-stream sparklines) ----
+
+// Categorical palette — fixed order, validated (CVD-safe on the paper surface).
+const C = {
+  workshops: '#2a78d6',
+  masterclass: '#d95f28',
+  twelveWeek: '#0f9a66',
+  certification: '#4a3aa7',
+  other: '#b0468c',
+  total: '#8a8076',
+  spend: '#c9603a',
+  compare: '#b8b0a4',
+};
+
+// Compress a daily series into ≤ maxPts buckets (summing) so sparklines stay
+// smooth on long windows.
+function bucketize(vals: number[], maxPts = 28): number[] {
+  if (vals.length <= maxPts) return vals;
+  const size = Math.ceil(vals.length / maxPts);
+  const out: number[] = [];
+  for (let i = 0; i < vals.length; i += size) {
+    let s = 0;
+    for (let j = i; j < Math.min(i + size, vals.length); j++) s += vals[j];
+    out.push(s);
+  }
+  return out;
+}
+
+// Tiny server-rendered sparkline paths (line + area + end dot).
+function spark(valsRaw: number[], w = 132, h = 34) {
+  const vals = bucketize(valsRaw);
+  if (vals.length < 2 || !vals.some((v) => v > 0)) return null;
+  const max = Math.max(...vals, 1);
+  const step = w / (vals.length - 1);
+  const pt = (v: number, i: number): [number, number] =>
+    [i * step, h - 2.5 - (h - 6) * (v / max)];
+  const line = vals
+    .map((v, i) => { const [x, y] = pt(v, i); return `${i ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`; })
+    .join('');
+  const [ex, ey] = pt(vals[vals.length - 1], vals.length - 1);
+  return { line, area: `${line}L${w},${h}L0,${h}Z`, ex: ex.toFixed(1), ey: ey.toFixed(1), w, h };
+}
+
+const heroSpark = spark(days.map((d) => d.totalEurMinor), 600, 52);
+
+type StreamTile = {
+  name: string; color: string; count: number; eurMinor: number; d: Delta;
+  sp: ReturnType<typeof spark>;
+};
+const streamTiles: StreamTile[] = [
+  {
+    name: 'Workshops', color: C.workshops,
+    count: report.totals.ticketCount + report.totals.bumpCount + report.totals.courseCount,
+    eurMinor: workshopsNet,
+    d: delta(workshopsNet, cmpWorkshopsNet),
+    sp: spark(days.map((d) => d.workshopsEurMinor)),
+  },
+  {
+    name: 'Masterclass', color: C.masterclass,
+    count: report.totals.masterclassCount,
+    eurMinor: report.totals.masterclassNetEurMinor,
+    d: delta(report.totals.masterclassNetEurMinor, cmp?.report.totals.masterclassNetEurMinor),
+    sp: spark(days.map((d) => d.masterclassEurMinor)),
+  },
+  {
+    name: '12-Week Course', color: C.twelveWeek,
+    count: courses.twelveWeek.count,
+    eurMinor: courses.twelveWeek.netEurMinor,
+    d: delta(courses.twelveWeek.netEurMinor, cmp?.courses.twelveWeek.netEurMinor),
+    sp: spark(days.map((d) => d.twelveWeekEurMinor)),
+  },
+  {
+    name: 'Certification', color: C.certification,
+    count: courses.certification.count,
+    eurMinor: courses.certification.netEurMinor,
+    d: delta(courses.certification.netEurMinor, cmp?.courses.certification.netEurMinor),
+    sp: spark(days.map((d) => d.certificationEurMinor)),
+  },
+  ...(courses.other.count > 0 || (cmp?.courses.other.count ?? 0) > 0
+    ? [{
+        name: 'Other products', color: C.other,
+        count: courses.other.count,
+        eurMinor: courses.other.netEurMinor,
+        d: delta(courses.other.netEurMinor, cmp?.courses.other.netEurMinor),
+        sp: spark(days.map((d) => d.otherCoursesEurMinor)),
+      }]
+    : []),
+];
+
+// Revenue-streams table (with share of total and compare deltas).
+const streamRows = [
+  { name: 'Workshop tickets', count: report.totals.ticketCount, eurMinor: report.totals.ticketNetEurMinor, prev: cmp?.report.totals.ticketNetEurMinor },
+  { name: 'Order bumps', count: report.totals.bumpCount, eurMinor: report.totals.bumpNetEurMinor, prev: cmp?.report.totals.bumpNetEurMinor },
+  { name: 'Course add-ons (workshop checkout)', count: report.totals.courseCount, eurMinor: report.totals.courseNetEurMinor, prev: cmp?.report.totals.courseNetEurMinor },
+  { name: 'Masterclass tickets', count: report.totals.masterclassCount, eurMinor: report.totals.masterclassNetEurMinor, prev: cmp?.report.totals.masterclassNetEurMinor },
+  { name: '12-Week Course', count: courses.twelveWeek.count, eurMinor: courses.twelveWeek.netEurMinor, prev: cmp?.courses.twelveWeek.netEurMinor },
+  { name: 'Certification Course', count: courses.certification.count, eurMinor: courses.certification.netEurMinor, prev: cmp?.courses.certification.netEurMinor },
+  ...(courses.other.count > 0
+    ? [{ name: 'Other products', count: courses.other.count, eurMinor: courses.other.netEurMinor, prev: cmp?.courses.other.netEurMinor }]
+    : []),
+];
+const streamSum = streamRows.reduce((s, r) => s + r.eurMinor, 0);
+const streamMax = Math.max(...streamRows.map((r) => r.eurMinor), 1);
+
+// ---- Chart data (EUR major units) ----
+
+const toMajor = (m: number) => Math.round(m) / 100;
+const anyMasterclass = days.some((d) => d.masterclassEurMinor > 0);
+const anyTwelveWeek = days.some((d) => d.twelveWeekEurMinor > 0);
+const anyCert = days.some((d) => d.certificationEurMinor > 0);
+const anyOther = days.some((d) => d.otherCoursesEurMinor > 0);
+
+let cum = 0;
+const cumulative = days.map((d) => toMajor((cum += d.totalEurMinor)));
+let cumSpend = 0;
+const cumulativeSpend = days.map((d) => toMajor((cumSpend += d.adSpendEurMinor)));
+let cmpCum = 0;
+const cmpCumulative = cmp ? cmp.days.map((d) => toMajor((cmpCum += d.totalEurMinor))) : null;
+
+// Trailing 7-day average of daily revenue — the trend under the spikes.
+const avg7 = days.map((_, i) => {
+  const lo = Math.max(0, i - 6);
+  let s = 0;
+  for (let j = lo; j <= i; j++) s += days[j].totalEurMinor;
+  return toMajor(Math.round(s / (i - lo + 1)));
+});
+
+const regsByDate = new Map(regs.days.map((r) => [r.date, r.count]));
+const regsSeries = days.map((d) => regsByDate.get(d.date) ?? 0);
+
+const chartData = {
+  labels: days.map((d) => d.date),
+  streams: [
+    { name: 'Workshops', color: C.workshops, values: days.map((d) => toMajor(d.workshopsEurMinor)) },
+    ...(anyMasterclass ? [{ name: 'Masterclass', color: C.masterclass, values: days.map((d) => toMajor(d.masterclassEurMinor)) }] : []),
+    ...(anyTwelveWeek ? [{ name: '12-Week Course', color: C.twelveWeek, values: days.map((d) => toMajor(d.twelveWeekEurMinor)) }] : []),
+    ...(anyCert ? [{ name: 'Certification', color: C.certification, values: days.map((d) => toMajor(d.certificationEurMinor)) }] : []),
+    ...(anyOther ? [{ name: 'Other products', color: C.other, values: days.map((d) => toMajor(d.otherCoursesEurMinor)) }] : []),
+  ],
+  colors: C,
+  total: days.map((d) => toMajor(d.totalEurMinor)),
+  adSpend: days.map((d) => toMajor(d.adSpendEurMinor)),
+  avg7,
+  cumulative,
+  cumulativeSpend,
+  regs: regsSeries,
+  compare: cmp && cmpCumulative
+    ? {
+        label: compare === 'yoy' ? 'Same period last year' : 'Previous period',
+        total: cmp.days.map((d) => toMajor(d.totalEurMinor)),
+        cumulative: cmpCumulative,
+      }
+    : null,
+};
+const chartJson = JSON.stringify(chartData).replace(/</g, '\\u003c');
+const presetRangesJson = JSON.stringify(presetRangesMap()).replace(/</g, '\\u003c');
+
+// By-day table: only days with any activity. Charts render only when the
+// window saw money move at all (an all-zero window would plot flat lines).
+const activeDays = days.filter((d) => d.totalEurMinor > 0 || d.adSpendEurMinor > 0);
+const hasActivity = activeDays.length > 0;
+
+const flash = Astro.url.searchParams.get('flash');
+
+// Preserve resolved filters on the CSV export link.
+const exportQs = new URLSearchParams();
+if (from) exportQs.set('from', from);
+if (to) exportQs.set('to', to);
+if (workshopId) exportQs.set('workshop_id', String(workshopId));
+
+const rangeLabel =
+  from && to ? `${prettyYmd(from)} → ${prettyYmd(to)}` : 'all time';
+
+// Forecast mini-bars: the next 8 projected months.
+const fcMonths = forecast ? forecast.months.slice(0, 8) : [];
+const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
+---
+
+<Layout title="Admin — Statistics — Songdance" description="">
+  <main class="adm st">
+    <header class="adm-header">
+      <div>
+        <p class="adm-breadcrumbs"><a href="/admin">Admin</a> <span class="sep">/</span> Statistics</p>
+        <h1>Statistics</h1>
+        <p class="adm-sub">The whole business in EUR, net of tax — workshops, masterclass, courses &amp; bumps vs Meta ad spend.</p>
+      </div>
+      <div class="adm-actions">
+        <a class="adm-btn adm-btn--ghost" href="/admin/workshops/performance">Per-workshop performance</a>
+        <a class="adm-btn adm-btn--ghost" href="/admin/courses/future-revenue">Future revenue</a>
+        <a class="adm-btn adm-btn--ghost" href={`/api/admin/workshops/stats.csv?${exportQs.toString()}`}>Export CSV</a>
+      </div>
+    </header>
+
+    {flash === 'spend' && <div class="adm-flash adm-flash--ok">Ad spend imported.</div>}
+
+    <section class="adm-section st-filterbar">
+      <form method="GET" class="st-filters" id="stats-filter">
+        <label>Period
+          <select name="preset" id="f-preset">
+            {PERIOD_PRESETS.map(([v, l]) => <option value={v} selected={preset === v}>{l}</option>)}
+          </select>
+        </label>
+        <label>From <input type="date" name="from" id="f-from" value={from ?? ''} /></label>
+        <label>To <input type="date" name="to" id="f-to" value={to ?? ''} /></label>
+        <label>Compare
+          <select name="compare" id="f-compare" disabled={preset === 'all'}>
+            <option value="">Off</option>
+            <option value="prev" selected={compare === 'prev'}>Previous period</option>
+            <option value="yoy" selected={compare === 'yoy'}>Same period last year</option>
+          </select>
+        </label>
+        <label>Workshop
+          <select name="workshop_id">
+            <option value="">All</option>
+            {workshops.map((w) => <option value={w.id} selected={workshopId === w.id}>{workshopOptionLabel(w)}</option>)}
+          </select>
+        </label>
+        <button type="submit" class="adm-btn adm-btn--solid">Apply</button>
+      </form>
+      <p class="st-rangenote">
+        Showing <strong>{rangeLabel}</strong>{cmp && cmpFrom && cmpTo && <> · vs <strong>{prettyYmd(cmpFrom)} → {prettyYmd(cmpTo)}</strong></>}.
+        {workshopId && <> Standalone course sales are site-wide — the workshop filter only narrows workshop-engine figures.</>}
+        {preset === 'all' && <> Compare needs a bounded period — pick a preset or a custom range.</>}
+      </p>
+    </section>
+
+    <!-- ─── Hero band ─── -->
+    <section class="adm-section">
+      <div class="st-hero">
+        <div class="st-hero-main">
+          <span class="st-hero-label">Total revenue · net EUR</span>
+          <div class="st-hero-row">
+            <strong class="st-hero-value">{eur0(totalNet)}</strong>
+            {(() => { const d = delta(totalNet, cmpTotalNet); return d && <em class={`st-hd st-hd--${d.cls}`}>{d.arrow} {d.text}</em>; })()}
+          </div>
+          <span class="st-hero-sub">
+            {int(salesCount)} sales{aovEurMinor != null && <> · {eur0(aovEurMinor)} avg</>} · {rangeLabel}
+          </span>
+          {heroSpark && (
+            <svg class="st-hero-spark" viewBox={`0 0 ${heroSpark.w} ${heroSpark.h}`} preserveAspectRatio="none" aria-hidden="true">
+              <path d={heroSpark.area} fill="rgba(243,234,216,0.12)"></path>
+              <path d={heroSpark.line} fill="none" stroke="rgba(243,234,216,0.85)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path>
+              <circle cx={heroSpark.ex} cy={heroSpark.ey} r="3.5" fill="#e8a06a" stroke="#2f2417" stroke-width="1.5" vector-effect="non-scaling-stroke"></circle>
+            </svg>
+          )}
+        </div>
+        <div class="st-hero-cell">
+          <span class="st-hero-label">Ad spend</span>
+          <strong class="st-hero-num">{eur0(report.adSpendEurMinor)}</strong>
+          {(() => { const d = delta(report.adSpendEurMinor, cmp?.report.adSpendEurMinor, false); return d && <em class={`st-hd st-hd--${d.cls}`}>{d.arrow} {d.text}</em>; })()}
+          <span class="st-hero-mini">{eur0(report.acquisitionAdSpendEurMinor)} prospecting · {eur0(report.retargetingAdSpendEurMinor)} retargeting</span>
+        </div>
+        <div class="st-hero-cell">
+          <span class="st-hero-label">Net after ads</span>
+          <strong class={`st-hero-num ${netAfterAds >= 0 ? 'st-pos' : 'st-neg'}`}>{eur0(netAfterAds)}</strong>
+          {(() => { const d = delta(netAfterAds, cmpNetAfterAds); return d && <em class={`st-hd st-hd--${d.cls}`}>{d.arrow} {d.text}</em>; })()}
+          <span class="st-hero-mini">revenue − total ad spend</span>
+        </div>
+        <div class="st-hero-cell">
+          <span class="st-hero-label">Blended ROAS</span>
+          <strong class="st-hero-num">{roasStr(blendedRoas)}</strong>
+          {(() => {
+            const d = blendedRoas != null && cmpBlendedRoas != null ? delta(blendedRoas * 100, cmpBlendedRoas * 100) : null;
+            return d && <em class={`st-hd st-hd--${d.cls}`}>{d.arrow} {d.text}</em>;
+          })()}
+          <span class="st-hero-mini">all revenue ÷ all ad spend</span>
+        </div>
+      </div>
+      {(report.totals.flaggedNoTax > 0 || courses.fxConverted > 0 || !courses.taxApplied) && (
+        <p class="adm-sub" style="margin-top:10px;">
+          {!courses.taxApplied && <>⚠ Quaderno isn’t configured in this environment — standalone course figures are shown gross of VAT. </>}
+          {courses.taxApplied && courses.taxEurMinor > 0 && <>{eur0(courses.taxEurMinor)} VAT stripped from course sales. </>}
+          {report.totals.flaggedNoTax > 0 && <>⚠ {report.totals.flaggedNoTax} workshop payment(s) had no tax data — net taken equal to gross. </>}
+          {courses.fxConverted > 0 && <>{courses.fxConverted} course sale(s) in a non-EUR currency converted at the daily ECB rate.</>}
+        </p>
+      )}
+    </section>
+
+    <!-- ─── Stream tiles ─── -->
+    <section class="adm-section">
+      <div class="st-tiles">
+        {streamTiles.map((t) => (
+          <div class="st-tile">
+            <div class="st-tile-head">
+              <span class="st-dot" style={`background:${t.color};`}></span>
+              <span class="st-tile-name">{t.name}</span>
+              {t.d && <em class={`st-delta st-delta--${t.d.cls}`}>{t.d.arrow} {t.d.text}</em>}
+            </div>
+            <strong class="st-tile-value">{eur0(t.eurMinor)}</strong>
+            <span class="st-tile-sub">{int(t.count)} {t.count === 1 ? 'sale' : 'sales'}</span>
+            {t.sp && (
+              <svg class="st-tile-spark" viewBox={`0 0 ${t.sp.w} ${t.sp.h}`} preserveAspectRatio="none" aria-hidden="true">
+                <path d={t.sp.area} fill={t.color} opacity="0.09"></path>
+                <path d={t.sp.line} fill="none" stroke={t.color} stroke-width="1.8" opacity="0.8" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path>
+                <circle cx={t.sp.ex} cy={t.sp.ey} r="2.8" fill={t.color} stroke="var(--adm-paper-soft)" stroke-width="1.5" vector-effect="non-scaling-stroke"></circle>
+              </svg>
+            )}
+          </div>
+        ))}
+      </div>
+    </section>
+
+    <!-- ─── Ops boxes: future revenue · upcoming · records ─── -->
+    <section class="adm-section">
+      <div class="st-boxes">
+        {forecast && (
+          <div class="st-box">
+            <div class="st-box-head">
+              <h3>Future revenue</h3>
+              <a href="/admin/courses/future-revenue" class="st-box-link">Open →</a>
+            </div>
+            <div class="st-box-big">
+              <strong>{eur0(forecast.totals.totalEurMinor)}</strong>
+              <span>still to collect from {int(forecast.totals.activePlans)} open installment plan(s)</span>
+            </div>
+            <div class="st-box-rows">
+              <div><span>Due next 30 days</span><b>{eur0(forecast.totals.next30EurMinor)}</b></div>
+              <div><span>At risk (retrying / unpaid)</span><b class={forecast.totals.atRiskEurMinor > 0 ? 'st-neg-ink' : ''}>{forecast.totals.atRiskEurMinor > 0 ? eur0(forecast.totals.atRiskEurMinor) : '—'}</b></div>
+              <div><span>Needs an eye</span><b class={forecast.totals.attentionCount > 0 ? 'st-neg-ink' : ''}>{forecast.totals.attentionCount || '—'}</b></div>
+            </div>
+            {fcMonths.length > 0 && (
+              <div class="st-fc">
+                <div class="st-fc-bars">
+                  {fcMonths.map((m) => (
+                    <div class="st-fc-bar" title={`${m.label}: ${eur0(m.totalEurMinor)}`}>
+                      <span style={`height:${Math.max(4, (m.totalEurMinor / fcMax) * 100)}%;`}></span>
+                    </div>
+                  ))}
+                </div>
+                <div class="st-fc-axis"><span>{fcMonths[0].label}</span><span>{fcMonths[fcMonths.length - 1].label}</span></div>
+              </div>
+            )}
+            <p class="st-box-note">Net of VAT · healthy + at-risk installments, by due month.</p>
+          </div>
+        )}
+
+        <div class="st-box">
+          <div class="st-box-head">
+            <h3>Upcoming workshops</h3>
+            <a href="/admin/workshops" class="st-box-link">All workshops →</a>
+          </div>
+          {upcoming.length === 0 && <p class="st-box-empty">Nothing scheduled ahead right now.</p>}
+          {upcoming.length > 0 && (
+            <ul class="st-up">
+              {upcoming.map((w) => (
+                <li>
+                  <a href={`/admin/workshops/${w.id}`}>
+                    <span class="st-up-date">{wkDayLabel(w.starts_at_utc)}</span>
+                    <span class="st-up-title">{shortTitle(w.title)}</span>
+                    <span class="st-up-seats"><b>{int(seatsByWorkshop.get(w.id) ?? 0)}</b> seats</span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p class="st-box-note">Seats = paid + coupon registrations so far.</p>
+        </div>
+
+        <div class="st-box">
+          <div class="st-box-head">
+            <h3>Records &amp; pace</h3>
+          </div>
+          <div class="st-box-rows st-box-rows--roomy">
+            <div><span>Best day ever</span><b>{bestDay ? eur0(bestDay.eurMinor) : '—'}</b>{bestDay && <i>{prettyYmd(bestDay.date)}</i>}</div>
+            <div><span>Best month</span><b>{bestMonth ? eur0(bestMonth.eurMinor) : '—'}</b>{bestMonth && <i>{monthName(bestMonth.key)}</i>}</div>
+            <div><span>All-time revenue</span><b>{eur0(allTimeEurMinor)}</b></div>
+            <div>
+              <span>This month, on pace for</span>
+              <b>{mtdEurMinor > 0 ? eur0(paceEurMinor) : '—'}</b>
+              {mtdEurMinor > 0 && pacePct != null && (
+                <em class={`st-delta st-delta--${pacePct > 0.5 ? 'good' : pacePct < -0.5 ? 'bad' : 'flat'}`}>{pacePct > 0 ? '▲ +' : pacePct < 0 ? '▼ ' : ''}{pacePct.toFixed(0)}%</em>
+              )}
+              <i>{eur0(mtdEurMinor)} by day {dayOfMonth} of {daysInMonth}{prevMonthEurMinor > 0 && ` · ${monthName(prevMonthKey)} ${eur0(prevMonthEurMinor)}`}</i>
+            </div>
+          </div>
+          <p class="st-box-note">Records span all time, whatever the filter above.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── Charts ─── -->
+    <section class="adm-section">
+      <h2>Revenue over time</h2>
+      {!hasActivity && <p class="adm-empty">No revenue or ad spend in this window.</p>}
+      {hasActivity && (
+        <>
+          <div class="st-chart-block">
+            <h3>Daily revenue by stream</h3>
+            <p class="adm-sub" style="margin:-2px 0 8px;">Tick a series in the legend to show or hide it — the scale fits what’s shown.</p>
+            <div class="st-chart" id="chart-streams"></div>
+          </div>
+          <div class="st-chart-grid">
+            <div class="st-chart-block">
+              <h3>Cumulative revenue vs cumulative ad spend</h3>
+              <p class="adm-sub" style="margin:-2px 0 8px;">The gap between the lines is the window’s net after ads{cmp ? ' · dashed = comparison revenue' : ''}.</p>
+              <div class="st-chart" id="chart-cumulative"></div>
+            </div>
+            <div class="st-chart-block">
+              <h3>Daily revenue vs ad spend</h3>
+              <p class="adm-sub" style="margin:-2px 0 8px;">With a 7-day average to show the trend under the spikes.</p>
+              <div class="st-chart" id="chart-spend"></div>
+            </div>
+          </div>
+        </>
+      )}
+    </section>
+
+    <!-- ─── Workshop engine ─── -->
+    <section class="adm-section">
+      <h2>Workshop funnel</h2>
+      <p class="adm-sub">Acquisition cost and the registration → attendance → conversion funnel, across every workshop in this window (not narrowed by the workshop filter above). <strong>Conversion rate</strong> is buyers ÷ registrations; <strong>Conversion / attendee</strong> is the same buyers ÷ the people who actually attended.</p>
+      <div class="st-funnel">
+        {funnelCards.map((c) => (
+          <div class="st-stat">
+            <span>{c.label}</span>
+            <strong>{c.value}</strong>
+            {c.d && <em class={`st-delta st-delta--${c.d.cls}`}>{c.d.arrow} {c.d.text}</em>}
+            <em class="st-stat-sub">{c.sub}</em>
+          </div>
+        ))}
+      </div>
+      {regsSeries.some((v) => v > 0) && (
+        <div class="st-chart-block" style="margin-top:16px;">
+          <h3>Registrations per day</h3>
+          <div class="st-chart" id="chart-regs"></div>
+        </div>
+      )}
+    </section>
+
+    <section class="adm-section">
+      <h2>Workshop ROAS (TOF)</h2>
+      <p class="adm-sub">
+        Workshop-only economics — income from each workshop’s registrants (tickets, order bumps, and the 12-Week / certification sales they later bought) against the prospecting (TOF) spend those registrations pulled. Distinct from blended ROAS above (all revenue ÷ all spend).
+        {perf.workshopRoas != null && <> Weighted average <strong>{roasStr(perf.workshopRoas)}</strong> · {eur0(perf.workshopRevenueEurMinor)} income ÷ {eur0(perf.acquisitionSpendEurMinor)} TOF spend.</>}
+      </p>
+      {recentWorkshops.length === 0 && <p class="adm-empty">No workshop activity in this window.</p>}
+      {recentWorkshops.length > 0 && (
+        <div class="wk-boxes">
+          {recentWorkshops.map((r) => {
+            const income = r.totalEurMinor;
+            const cost = r.acquisitionCostEurMinor ?? 0;
+            const mx = Math.max(income, cost, 1);
+            return (
+              <div class="wk-box">
+                <div class="wk-head">
+                  <div class="wk-title">{shortTitle(r.title)}</div>
+                  <div class="wk-when">{r.isReplay ? 'On-demand' : wkDateLabel(r.startsAtUtc)}{r.status !== 'published' ? ` · ${r.status}` : ''}</div>
+                </div>
+                <div class="wk-roas"><b class={roasTone(r.workshopRoas)}>{roasStr(r.workshopRoas)}</b><span>ROAS · workshop-only</span></div>
+                <div class="wk-mini">
+                  <div class="wk-bar"><span class="wk-key">In</span><span class="wk-track"><span class="wk-fill" style={`width:${(income / mx) * 100}%;background:${C.twelveWeek};`}></span></span><span class="wk-amt">{eur0(income)}</span></div>
+                  <div class="wk-bar"><span class="wk-key">TOF</span><span class="wk-track"><span class="wk-fill" style={`width:${(cost / mx) * 100}%;background:${C.spend};`}></span></span><span class="wk-amt">{r.acquisitionCostEurMinor != null ? eur0(cost) : '—'}</span></div>
+                </div>
+                <div class="wk-foot"><span><b>{int(r.registrations)}</b> regs</span><span><b>{pct(r.conversionPct)}</b> conv</span><span><b>{pct(r.attendancePct)}</b> att</span></div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      <p class="adm-sub" style="margin-top:10px;">Per-workshop TOF cost = that workshop’s share of prospecting spend by registration count (spend isn’t tracked per workshop). The weighted average counts each course buyer’s revenue once, so a multi-workshop buyer isn’t double-counted. See per-workshop detail on <a href="/admin/workshops/performance">Per-workshop performance</a>.</p>
+    </section>
+
+    <!-- ─── Tables ─── -->
+    <section class="adm-section">
+      <h2>Revenue streams</h2>
+      <table class="adm-table st-table">
+        <thead>
+          <tr><th>Stream</th><th class="num">Sales</th><th class="num">Net (EUR)</th><th>Share</th>{cmp && <th>vs comparison</th>}</tr>
+        </thead>
+        <tbody>
+          {streamRows.map((r) => {
+            const d = delta(r.eurMinor, r.prev);
+            const share = streamSum > 0 ? (r.eurMinor / streamSum) * 100 : 0;
+            return (
+              <tr>
+                <td>{r.name}</td>
+                <td class="num">{r.count}</td>
+                <td class="num">{eur(r.eurMinor)}</td>
+                <td class="st-share-cell">
+                  <span class="st-share-track"><span class="st-share-fill" style={`width:${(r.eurMinor / streamMax) * 100}%;`}></span></span>
+                  <span class="st-share-pct">{streamSum > 0 ? share.toFixed(1) + '%' : '—'}</span>
+                </td>
+                {cmp && <td>{d ? <em class={`st-delta st-delta--${d.cls}`}>{d.arrow} {d.text}</em> : '—'}</td>}
+              </tr>
+            );
+          })}
+          <tr class="st-row--total">
+            <td><strong>Total</strong></td>
+            <td class="num"><strong>{streamRows.reduce((s, r) => s + r.count, 0)}</strong></td>
+            <td class="num"><strong>{eur(streamSum)}</strong></td>
+            <td>100%</td>
+            {cmp && <td />}
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    {courses.byProduct.length > 0 && (
+      <section class="adm-section">
+        <h2>Standalone course sales</h2>
+        <table class="adm-table st-table">
+          <thead><tr><th>Product</th><th class="num">Sales</th><th class="num">Collected (EUR)</th></tr></thead>
+          <tbody>
+            {courses.byProduct.map((c) => (
+              <tr><td>{c.label}</td><td class="num">{c.count}</td><td class="num">{eur(c.netEurMinor)}</td></tr>
+            ))}
+          </tbody>
+        </table>
+        <p class="adm-sub">Collected = what was actually charged so far (installment plans count paid installments only, refunds subtracted), net of VAT, attributed to the day of first payment.</p>
+      </section>
+    )}
+
+    {report.courseBreakdown.length > 0 && (
+      <section class="adm-section">
+        <h2>Course add-ons sold through workshop checkout</h2>
+        <table class="adm-table st-table">
+          <thead><tr><th>Course</th><th class="num">Count</th><th class="num">Net (EUR)</th></tr></thead>
+          <tbody>
+            {report.courseBreakdown.map((c) => (
+              <tr><td>{courseNames.get(c.product_id)}</td><td class="num">{c.count}</td><td class="num">{eur(c.netEurMinor)}</td></tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+    )}
+
+    <section class="adm-section">
+      <details class="st-details">
+        <summary><h2>By day</h2><span class="adm-sub">{activeDays.length} active day(s) — expand</span></summary>
+        {activeDays.length === 0 && <p class="adm-empty">No data in this window.</p>}
+        {activeDays.length > 0 && (
+          <table class="adm-table st-table" style="margin-top:12px;">
+            <thead><tr><th>Date</th><th class="num">Workshops</th><th class="num">Masterclass</th><th class="num">Courses</th><th class="num">Total</th><th class="num">Ad spend</th><th class="num">ROAS</th></tr></thead>
+            <tbody>
+              {activeDays.map((d) => {
+                const coursesEur = d.twelveWeekEurMinor + d.certificationEurMinor + d.otherCoursesEurMinor;
+                const dayRoas = d.adSpendEurMinor > 0 ? d.totalEurMinor / d.adSpendEurMinor : null;
+                return (
+                  <tr>
+                    <td>{d.date}</td>
+                    <td class="num">{eur(d.workshopsEurMinor)}</td>
+                    <td class="num">{eur(d.masterclassEurMinor)}</td>
+                    <td class="num">{eur(coursesEur)}</td>
+                    <td class="num">{eur(d.totalEurMinor)}</td>
+                    <td class="num">{eur(d.adSpendEurMinor)}</td>
+                    <td class="num">{dayRoas != null ? dayRoas.toFixed(2) + '×' : '—'}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </details>
+    </section>
+
+    <!-- ─── Ad spend ops ─── -->
+    <section class="adm-section">
+      <h2>Ad spend</h2>
+      <p class="adm-sub">Pull spend straight from the Meta Marketing API, or import a CSV export as a fallback. Both write the same daily figures; the direct pull re-syncs a rolling 14&#8209;day window and is the source of truth for those days.</p>
+
+      <div class="st-ads">
+        {campaignSpend.length > 0 && (
+          <div class="st-ads-col">
+            <p class="adm-sub"><strong>By campaign</strong> — this window. Cost per registration counts <strong>prospecting</strong> (a campaign with “TOF” in its name) only; the rest is retargeting and is excluded from it (but still in total spend + blended ROAS).</p>
+            <table class="adm-table st-table">
+              <thead><tr><th>Campaign</th><th>Type</th><th class="num">Spend (EUR)</th></tr></thead>
+              <tbody>
+                {campaignSpend.map((c) => (
+                  <tr>
+                    <td>{c.campaign || <em>(no campaign name)</em>}</td>
+                    <td><span class={`st-pill ${c.kind === 'acquisition' ? 'st-pill--tof' : 'st-pill--rt'}`}>{c.kind === 'acquisition' ? 'Prospecting' : 'Retargeting'}</span></td>
+                    <td class="num">{eur(c.eurMinor)}</td>
+                  </tr>
+                ))}
+                <tr class="st-row--total">
+                  <td colspan="2"><strong>Total</strong> <span class="adm-sub" style="font-weight:400;">· {eur0(campaignSpend.filter((c) => c.kind === 'acquisition').reduce((s, c) => s + c.eurMinor, 0))} prospecting · {eur0(campaignSpend.filter((c) => c.kind === 'retargeting').reduce((s, c) => s + c.eurMinor, 0))} retargeting</span></td>
+                  <td class="num"><strong>{eur(campaignSpend.reduce((s, c) => s + c.eurMinor, 0))}</strong></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <div class="st-ads-col">
+          <p class="adm-sub"><strong>Pull from Meta</strong> — needs <code>META_AD_ACCOUNT_ID</code> + an <code>ads_read</code> token set as secrets. Runs automatically about once a day; use this to sync now.</p>
+          <form id="spend-sync-form" class="st-inline-form">
+            <button type="submit" class="adm-btn adm-btn--solid">Pull from Meta now</button>
+          </form>
+          <div id="spend-sync-result" class="adm-sub" style="margin-top:10px;"></div>
+
+          <p class="adm-sub" style="margin-top:20px;"><strong>Import CSV</strong> — tolerant of column order; we look for a date and an amount column. Non-EUR rows are converted with a fallback rate table. Re-uploads are idempotent per (date, campaign).</p>
+          <form id="spend-form" class="st-inline-form" enctype="multipart/form-data">
+            <input type="file" name="csv" accept=".csv,text/csv" required />
+            <label>Fallback currency <input type="text" name="currency" placeholder="EUR" maxlength="3" style="width:80px;" /></label>
+            <button type="submit" class="adm-btn adm-btn--ghost">Upload</button>
+          </form>
+          <div id="spend-result" class="adm-sub" style="margin-top:14px;"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <ChartKit />
+
+  <script is:inline type="application/json" id="stats-chart-data" set:html={chartJson} />
+  <script is:inline type="application/json" id="stats-preset-ranges" set:html={presetRangesJson} />
+
+  <style>
+    /* ── Filter toolbar ── */
+    .st-filterbar { margin-bottom: 24px; }
+    .st-filters {
+      display: flex; gap: 12px 14px; align-items: flex-end; flex-wrap: wrap;
+      background: var(--adm-paper-soft); border: 1px solid var(--adm-line);
+      border-radius: 12px; padding: 12px 14px;
+    }
+    .st-filters label {
+      display: flex; flex-direction: column; gap: 4px;
+      font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
+      color: var(--adm-ink-soft);
+    }
+    .st-filters select, .st-filters input {
+      padding: 7px 9px; border: 1px solid var(--adm-line); border-radius: 7px;
+      background: #fff; color: var(--adm-ink); font-family: inherit; font-size: 13px;
+    }
+    .st-filters select:focus, .st-filters input:focus { outline: none; border-color: var(--adm-ember); }
+    .st-filters .adm-btn { padding: 8px 16px; }
+    .st-rangenote { margin: 10px 2px 0; font-size: 12.5px; color: var(--adm-ink-soft); }
+
+    /* ── Hero band ── */
+    .st-hero {
+      display: grid; grid-template-columns: minmax(250px, 1.5fr) repeat(3, minmax(150px, 1fr));
+      gap: 0; overflow: hidden; border-radius: 14px;
+      background: linear-gradient(130deg, #241d12 0%, #33271a 58%, #41301b 100%);
+      border: 1px solid #1c160d;
+      color: #f3ead8;
+      box-shadow: 0 10px 30px rgba(43, 37, 25, 0.18);
+    }
+    .st-hero-main { padding: 20px 24px 16px; display: flex; flex-direction: column; min-width: 0; }
+    .st-hero-cell {
+      padding: 20px 20px 16px; display: flex; flex-direction: column; gap: 3px;
+      border-left: 1px solid rgba(243, 234, 216, 0.12); min-width: 0;
+    }
+    .st-hero-label {
+      font-size: 11px; letter-spacing: 0.09em; text-transform: uppercase;
+      color: rgba(243, 234, 216, 0.62); margin-bottom: 4px;
+    }
+    .st-hero-row { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+    .st-hero-value { font-size: 46px; font-weight: 650; letter-spacing: -0.02em; line-height: 1.02; }
+    .st-hero-num { font-size: 24px; font-weight: 650; letter-spacing: -0.01em; line-height: 1.1; }
+    .st-hero-sub { margin-top: 6px; font-size: 12.5px; color: rgba(243, 234, 216, 0.72); }
+    .st-hero-mini { margin-top: auto; padding-top: 8px; font-size: 11px; color: rgba(243, 234, 216, 0.55); line-height: 1.45; }
+    .st-hero-spark { width: 100%; height: 52px; margin-top: 14px; display: block; }
+    .st-pos { color: #97dcae; }
+    .st-neg { color: #f2a9a0; }
+    .st-hd {
+      display: inline-block; font-size: 12px; font-style: normal; font-weight: 650;
+      border-radius: 999px; padding: 2px 9px; white-space: nowrap;
+    }
+    .st-hd--good { color: #a9e6bd; background: rgba(151, 220, 174, 0.16); }
+    .st-hd--bad { color: #f2b3ab; background: rgba(242, 169, 160, 0.16); }
+    .st-hd--flat { color: rgba(243, 234, 216, 0.65); background: rgba(243, 234, 216, 0.1); }
+
+    /* ── Stream tiles ── */
+    .st-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(185px, 1fr)); gap: 12px; }
+    .st-tile {
+      background: var(--adm-paper-soft); border: 1px solid var(--adm-line);
+      border-radius: 12px; padding: 13px 15px 11px;
+      display: flex; flex-direction: column;
+      transition: border-color 0.15s ease, transform 0.15s ease;
+    }
+    .st-tile:hover { border-color: #d5cab1; transform: translateY(-1px); }
+    .st-tile-head { display: flex; align-items: center; gap: 7px; margin-bottom: 7px; }
+    .st-dot { width: 9px; height: 9px; border-radius: 3px; flex: none; }
+    .st-tile-name {
+      font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
+      color: var(--adm-ink-soft); min-width: 0;
+    }
+    .st-tile-head .st-delta { margin-left: auto; }
+    .st-tile-value { font-size: 23px; font-weight: 650; letter-spacing: -0.01em; color: var(--adm-ink); }
+    .st-tile-sub { font-size: 11.5px; color: var(--adm-mute); margin-top: 2px; }
+    .st-tile-spark { width: 100%; height: 34px; margin-top: 9px; display: block; }
+
+    .st-delta {
+      display: inline-block; font-size: 11.5px; font-style: normal; font-weight: 650;
+      border-radius: 999px; padding: 1px 8px; white-space: nowrap;
+    }
+    .st-delta--good { color: var(--adm-success); background: rgba(47, 122, 76, 0.12); }
+    .st-delta--bad { color: var(--adm-danger); background: rgba(181, 61, 61, 0.11); }
+    .st-delta--flat { color: var(--adm-ink-soft); background: rgba(0, 0, 0, 0.05); }
+
+    /* ── Ops boxes ── */
+    .st-boxes { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 14px; }
+    .st-box {
+      background: var(--adm-paper-soft); border: 1px solid var(--adm-line);
+      border-radius: 12px; padding: 16px 18px 13px; display: flex; flex-direction: column;
+    }
+    .st-box-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+    .st-box-head h3 { margin: 0; font-family: Georgia, serif; font-weight: 500; font-size: 1.02rem; color: var(--adm-ink); }
+    .st-box-link { font-size: 12px; color: var(--adm-ember-deep); text-decoration: none; white-space: nowrap; }
+    .st-box-link:hover { text-decoration: underline; }
+    .st-box-big { margin: 2px 0 10px; }
+    .st-box-big strong { display: block; font-size: 27px; font-weight: 650; letter-spacing: -0.01em; color: var(--adm-ink); }
+    .st-box-big span { display: block; font-size: 12px; color: var(--adm-ink-soft); margin-top: 2px; }
+    .st-box-rows { display: flex; flex-direction: column; gap: 6px; }
+    .st-box-rows > div {
+      display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+      font-size: 12.5px; color: var(--adm-ink-soft);
+      padding: 4px 0; border-top: 1px dashed var(--adm-line);
+    }
+    .st-box-rows > div > span { flex: 1 1 auto; }
+    .st-box-rows > div > b { color: var(--adm-ink); font-variant-numeric: tabular-nums; }
+    .st-box-rows > div > i { flex-basis: 100%; font-style: normal; font-size: 11px; color: var(--adm-mute); }
+    .st-box-rows--roomy > div { padding: 6px 0; }
+    .st-neg-ink { color: var(--adm-danger) !important; }
+    .st-box-note { margin: 10px 0 0; font-size: 11px; color: var(--adm-mute); }
+    .st-box-empty { margin: 4px 0 8px; font-size: 13px; color: var(--adm-ink-soft); }
+
+    .st-fc { margin-top: 12px; }
+    .st-fc-bars { display: flex; align-items: flex-end; gap: 5px; height: 52px; }
+    .st-fc-bar { flex: 1; height: 100%; display: flex; align-items: flex-end; }
+    .st-fc-bar span {
+      display: block; width: 100%; max-width: 24px; margin: 0 auto;
+      background: var(--adm-ember); opacity: 0.85; border-radius: 4px 4px 0 0; min-height: 3px;
+    }
+    .st-fc-axis { display: flex; justify-content: space-between; margin-top: 4px; font-size: 10.5px; color: var(--adm-mute); }
+
+    .st-up { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+    .st-up li { border-top: 1px dashed var(--adm-line); }
+    .st-up li:first-child { border-top: none; }
+    .st-up a {
+      display: flex; align-items: baseline; gap: 10px; padding: 7px 2px;
+      text-decoration: none; color: inherit; border-radius: 6px;
+    }
+    .st-up a:hover .st-up-title { color: var(--adm-ember-deep); }
+    .st-up-date {
+      flex: none; width: 92px; font-family: ui-monospace, Menlo, monospace;
+      font-size: 11px; color: var(--adm-ink-soft);
+    }
+    .st-up-title { flex: 1; min-width: 0; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .st-up-seats { flex: none; font-size: 12px; color: var(--adm-ink-soft); }
+    .st-up-seats b { color: var(--adm-ink); font-variant-numeric: tabular-nums; }
+
+    /* ── Charts ── */
+    .st-chart-block { margin-bottom: 24px; }
+    .st-chart-block h3 { font-size: 14px; margin: 0 0 8px; color: var(--adm-ink); }
+    .st-chart {
+      position: relative; background: var(--adm-paper-soft);
+      border: 1px solid var(--adm-line); border-radius: 12px; padding: 12px 10px 6px;
+    }
+    .st-chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 980px) { .st-chart-grid { grid-template-columns: 1fr; } }
+
+    /* ── Funnel stats ── */
+    .st-funnel { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+    .st-stat {
+      background: var(--adm-paper-soft); border: 1px solid var(--adm-line);
+      border-radius: 12px; padding: 13px 15px;
+    }
+    .st-stat > span {
+      display: block; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
+      color: var(--adm-ink-soft); margin-bottom: 4px;
+    }
+    .st-stat > strong { font-size: 22px; font-weight: 650; letter-spacing: -0.01em; color: var(--adm-ink); margin-right: 8px; }
+    .st-stat .st-stat-sub { display: block; margin-top: 4px; font-size: 11px; font-style: normal; color: var(--adm-mute); }
+
+    /* ── Recent-workshop ROAS boxes ── */
+    .wk-boxes { display: grid; grid-template-columns: repeat(auto-fit, minmax(224px, 1fr)); gap: 14px; }
+    .wk-box {
+      background: var(--adm-paper-soft); border: 1px solid var(--adm-line);
+      border-radius: 12px; padding: 15px 16px 16px; display: flex; flex-direction: column;
+      transition: border-color 0.15s ease;
+    }
+    .wk-box:hover { border-color: #d5cab1; }
+    .wk-box .wk-head { min-height: 34px; margin-bottom: 8px; }
+    .wk-box .wk-title { font-size: 13.5px; font-weight: 600; line-height: 1.25; color: var(--adm-ink); }
+    .wk-box .wk-when { font-size: 11px; color: var(--adm-mute); margin-top: 2px; }
+    .wk-box .wk-roas { display: flex; align-items: baseline; gap: 7px; }
+    .wk-box .wk-roas b { font-size: 32px; font-weight: 650; letter-spacing: -0.02em; line-height: 1; }
+    .wk-box .wk-roas b.good { color: var(--adm-success); }
+    .wk-box .wk-roas b.bad { color: var(--adm-danger); }
+    .wk-box .wk-roas b.flat { color: var(--adm-mute); }
+    .wk-box .wk-roas span { font-size: 11.5px; color: var(--adm-mute); }
+    .wk-box .wk-mini { margin: 12px 0 11px; display: flex; flex-direction: column; gap: 5px; }
+    .wk-box .wk-bar { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--adm-ink-soft); }
+    .wk-box .wk-bar .wk-key { width: 34px; flex: none; color: var(--adm-mute); }
+    .wk-box .wk-bar .wk-track { flex: 1; height: 8px; background: rgba(43, 37, 25, 0.08); border-radius: 4px; overflow: hidden; }
+    .wk-box .wk-bar .wk-fill { display: block; height: 100%; border-radius: 4px; min-width: 2px; }
+    .wk-box .wk-bar .wk-amt { width: 52px; flex: none; text-align: right; font-variant-numeric: tabular-nums; }
+    .wk-box .wk-foot { display: flex; justify-content: space-between; gap: 8px; margin-top: auto; padding-top: 10px; border-top: 1px solid var(--adm-line); font-size: 11.5px; color: var(--adm-ink-soft); }
+    .wk-box .wk-foot b { color: var(--adm-ink); font-weight: 600; }
+
+    /* ── Tables ── */
+    .st-table th, .st-table td { font-size: 13px; }
+    .st-row--total td { border-top: 2px solid var(--adm-line); font-weight: 600; }
+    .st-share-cell { min-width: 170px; }
+    .st-share-track {
+      display: inline-block; vertical-align: middle; width: 110px; height: 8px;
+      background: rgba(43, 37, 25, 0.08); border-radius: 4px; overflow: hidden; margin-right: 9px;
+    }
+    .st-share-fill { display: block; height: 100%; background: var(--adm-ember); border-radius: 4px; min-width: 2px; }
+    .st-share-pct { font-size: 12px; color: var(--adm-ink-soft); font-variant-numeric: tabular-nums; }
+
+    .st-details > summary { list-style: none; cursor: pointer; display: flex; align-items: baseline; gap: 12px; }
+    .st-details > summary::-webkit-details-marker { display: none; }
+    .st-details > summary h2 { margin: 0; }
+    .st-details > summary::after { content: '▸'; color: var(--adm-mute); font-size: 13px; transition: transform 0.15s ease; }
+    .st-details[open] > summary::after { transform: rotate(90deg); }
+
+    .st-pill {
+      display: inline-block; padding: 2px 9px; border-radius: 999px;
+      font-size: 10.5px; font-weight: 650; letter-spacing: 0.05em; text-transform: uppercase;
+    }
+    .st-pill--tof { background: rgba(201, 96, 58, 0.14); color: var(--adm-ember-deep); }
+    .st-pill--rt { background: rgba(43, 37, 25, 0.07); color: var(--adm-ink-soft); }
+
+    .st-ads { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 24px; margin-top: 10px; }
+    @media (max-width: 900px) { .st-ads { grid-template-columns: 1fr; } }
+    .st-inline-form { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+
+    @media (max-width: 900px) {
+      .st-hero { grid-template-columns: 1fr 1fr; }
+      .st-hero-main { grid-column: 1 / -1; border-bottom: 1px solid rgba(243, 234, 216, 0.12); }
+      .st-hero-cell:first-of-type { border-left: none; }
+      .st-hero-value { font-size: 38px; }
+    }
+    @media (max-width: 540px) {
+      .st-hero { grid-template-columns: 1fr; }
+      .st-hero-cell { border-left: none; border-top: 1px solid rgba(243, 234, 216, 0.12); }
+      .st-share-cell { min-width: 0; }
+      .st-share-track { width: 64px; }
+    }
+    @media (max-width: 720px) {
+      .st-table { display: block; overflow-x: auto; }
+    }
+  </style>
+
+  <style is:global>
+    /* Chrome colours for the shared SDChart runtime, in the admin palette. */
+    :root {
+      --chart-grid: rgba(43, 37, 25, 0.08);
+      --chart-axis: #9a8e75;
+      --chart-surface: #fbf6ea;
+      --chart-ink: #2b2519;
+      --chart-baseline: rgba(43, 37, 25, 0.28);
+      --chart-tip-bg: #2b2519;
+      --chart-tip-ink: #f6efe1;
+    }
+  </style>
+
+  <script is:inline>
+    // Filter form: presets fill the date inputs and auto-apply; editing a
+    // date flips the preset to "custom"; compare is only meaningful with a
+    // bounded period.
+    (function () {
+      var ranges = JSON.parse(document.getElementById('stats-preset-ranges').textContent);
+      var form = document.getElementById('stats-filter');
+      var presetSel = document.getElementById('f-preset');
+      var fromIn = document.getElementById('f-from');
+      var toIn = document.getElementById('f-to');
+      var compareSel = document.getElementById('f-compare');
+
+      presetSel.addEventListener('change', function () {
+        var v = presetSel.value;
+        compareSel.disabled = v === 'all';
+        if (v === 'custom') return;
+        var r = ranges[v] || { from: null, to: null };
+        fromIn.value = r.from || '';
+        toIn.value = r.to || '';
+        if (v === 'all') compareSel.value = '';
+        form.submit();
+      });
+      function toCustom() {
+        presetSel.value = 'custom';
+        compareSel.disabled = !(fromIn.value && toIn.value);
+      }
+      fromIn.addEventListener('change', toCustom);
+      toIn.addEventListener('change', toCustom);
+    })();
+
+    // Charts drawn by the shared SDChart runtime (see ChartKit): smooth lines
+    // with a crosshair tooltip, one value scale each. The compare overlay rides
+    // the cumulative chart as a dashed series. Redrawn on resize.
+    (function () {
+      var dataEl = document.getElementById('stats-chart-data');
+      if (!dataEl || !window.SDChart) return;
+      var data = JSON.parse(dataEl.textContent);
+      if (!data.labels || !data.labels.length) return;
+      var nLabels = data.labels.length;
+      var C = data.colors;
+      var hiddenStreams = {};
+      function drawAll() {
+        var streamSeries = data.streams.concat([{ name: 'Total', color: C.total, values: data.total, dashed: true }]);
+        SDChart.line('chart-streams', { labels: data.labels, fmt: 'eur', interactive: true, hidden: hiddenStreams, series: streamSeries });
+
+        var cumSeries = [
+          { name: 'Cumulative revenue', color: C.twelveWeek, values: data.cumulative },
+          { name: 'Cumulative ad spend', color: C.spend, values: data.cumulativeSpend },
+        ];
+        if (data.compare) cumSeries.push({ name: data.compare.label, color: C.compare || '#b8b0a4', values: data.compare.cumulative.slice(0, nLabels), dashed: true });
+        SDChart.line('chart-cumulative', { labels: data.labels, fmt: 'eur', series: cumSeries });
+
+        var spendSeries = [
+          { name: 'Total revenue', color: C.workshops, values: data.total },
+          { name: '7-day average', color: C.total, values: data.avg7, dashed: true },
+          { name: 'Ad spend', color: C.spend, values: data.adSpend },
+        ];
+        SDChart.line('chart-spend', { labels: data.labels, fmt: 'eur', series: spendSeries });
+
+        if (document.getElementById('chart-regs')) {
+          SDChart.column('chart-regs', { labels: data.labels, values: data.regs, color: C.workshops, fmt: 'int', name: 'Registrations' });
+        }
+      }
+      drawAll();
+      var rt;
+      window.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(drawAll, 160); });
+    })();
+  </script>
+
+  <script is:inline>
+    (function () {
+      var form = document.getElementById('spend-sync-form');
+      var out = document.getElementById('spend-sync-result');
+      if (!form) return;
+      var btn = form.querySelector('button');
+      form.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        btn.disabled = true;
+        out.textContent = 'Pulling from Meta…';
+        try {
+          var res = await fetch('/api/admin/workshops/ad-spend-sync', { method: 'POST' });
+          var data = await res.json();
+          if (!res.ok) { out.textContent = data.error || 'Failed.'; btn.disabled = false; return; }
+          var eur = data.currency === 'EUR' || data.fxMissing ? '' :
+            ' (converted to EUR' + (data.fxMissing ? ' — no rate for ' + data.currency : '') + ')';
+          var spend = data.totalSpendMinor != null
+            ? ' — ' + (data.totalSpendMinor / 100).toLocaleString('en-IE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ' + (data.currency || '') + eur
+            : '';
+          var money = function (m) { return (m / 100).toLocaleString('en-IE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
+          var campaigns = data.campaigns != null
+            ? ' across ' + data.campaigns + ' campaign(s)' +
+              (data.acquisitionSpendMinor != null
+                ? ' (' + money(data.acquisitionSpendMinor) + ' prospecting · ' + money(data.retargetingSpendMinor) + ' retargeting)'
+                : '')
+            : '';
+          out.textContent = 'Synced ' + data.days + ' day(s)' + campaigns + ', ' + data.from + ' → ' + data.to + spend + '. Reloading…';
+          setTimeout(function () { location.href = '/admin/stats?flash=spend'; }, 1100);
+        } catch (e2) { out.textContent = 'Error: ' + (e2.message || e2); btn.disabled = false; }
+      });
+    })();
+  </script>
+
+  <script is:inline>
+    (function () {
+      var form = document.getElementById('spend-form');
+      var out = document.getElementById('spend-result');
+      form.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        out.textContent = 'Uploading…';
+        try {
+          var res = await fetch('/api/admin/workshops/ad-spend-import', { method: 'POST', body: new FormData(form) });
+          var data = await res.json();
+          if (!res.ok) { out.textContent = data.error || 'Failed.'; return; }
+          var msg = 'Imported ' + data.imported + ' row(s).';
+          if (data.skipped && data.skipped.length) msg += ' Skipped ' + data.skipped.length + ' row(s).';
+          out.textContent = msg + ' Reloading…';
+          setTimeout(function () { location.href = '/admin/stats?flash=spend'; }, 900);
+        } catch (e2) { out.textContent = 'Error: ' + (e2.message || e2); }
+      });
+    })();
+  </script>
+</Layout>

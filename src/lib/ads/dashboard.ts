@@ -1,6 +1,6 @@
 // Data for the ads-manager dashboard (/ads). A single read-only snapshot for a
 // date window, composed from the same figures the admin stats pages use so
-// numbers reconcile with /admin/workshops/stats and .../performance:
+// numbers reconcile with /admin/stats and /admin/workshops/performance:
 //
 //   • computeStats           — workshop-engine revenue (tickets, masterclass,
 //                              order bumps, course add-ons) + ad spend + ROAS.
