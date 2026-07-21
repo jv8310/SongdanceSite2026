@@ -972,7 +972,7 @@ html, body { background: var(--paper); }
    keep the struck figure secondary so the discounted price leads. */
 .we-price-lead-amount .we-line-was { font-size: 0.68em; }
 /* Rows in a lead-priced list drop their per-row chip. The masterclass rows are
-   priced differently (€118, not the €9 ticket), so they keep theirs. */
+   priced differently (€44, not the €22 ticket), so they keep theirs. */
 .we-cal--lead-priced .we-cal-price { display: none; }
 .we-cal--lead-priced .we-cal-item--masterclass .we-cal-price { display: block; }
 /* Masterclass calendar entries — always shown (the practitioner date belongs in

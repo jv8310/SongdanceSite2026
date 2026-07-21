@@ -30,10 +30,10 @@ export const courseMenu: NavCourseGroup[] = [
   {
     title: 'Somatic Vocal Healing',
     items: [
-      { href: '/workshop', label: 'Vocal Healing Workshop — 9€', price: 'ticket' },
+      { href: '/workshop', label: 'Vocal Healing Workshop — 22€', price: 'ticket' },
       { href: '/courses/12-week', label: '12-Week Course' },
       { href: '/courses/certification', label: 'Practitioner Training' },
-      { href: '/courses/masterclass', label: 'Professional Masterclass — 118€', price: 'masterclass' },
+      { href: '/courses/masterclass', label: 'Professional Masterclass — 44€', price: 'masterclass' },
     ],
   },
   {
@@ -67,4 +67,4 @@ export const tailLinks: NavLink[] = [
   { href: '/access', label: 'Login' },
 ];
 
-export const navCta: NavCourse = { href: '/workshop', label: 'Try a workshop — 9€', price: 'ticket' };
+export const navCta: NavCourse = { href: '/workshop', label: 'Try a workshop — 22€', price: 'ticket' };
