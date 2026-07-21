@@ -10,6 +10,7 @@
 // currency; each date carries its full price map so the swap is instant. The
 // posted country is authoritative — the server re-resolves the price for it.
 import type { CalItem } from '../workshop-english/types';
+import { ALL_COUNTRIES } from '../../lib/workshops/countries';
 import LaunchOfferCallout from '../promo/LaunchOfferCallout.astro';
 import {
   masterclassPromoActive,
@@ -49,30 +50,14 @@ const altSub =
       ? 'Choose instant access to the masterclass replay — watch it anytime, starting today.'
       : 'Get to know this work in general first, at a live one-hour workshop — the gentlest introduction to Somatic Vocal Healing.';
 
-// Country list driving the currency switch. EU members fall through to EUR;
-// only the markets we hold dedicated price points for get their own currency.
-const COUNTRIES: { code: string; name: string; currency: string }[] = [
-  { code: 'BE', name: 'Belgium', currency: 'EUR' },
-  { code: 'NL', name: 'Netherlands', currency: 'EUR' },
-  { code: 'DE', name: 'Germany', currency: 'EUR' },
-  { code: 'FR', name: 'France', currency: 'EUR' },
-  { code: 'ES', name: 'Spain', currency: 'EUR' },
-  { code: 'IT', name: 'Italy', currency: 'EUR' },
-  { code: 'IE', name: 'Ireland', currency: 'EUR' },
-  { code: 'AT', name: 'Austria', currency: 'EUR' },
-  { code: 'PT', name: 'Portugal', currency: 'EUR' },
-  { code: 'GB', name: 'United Kingdom', currency: 'GBP' },
-  { code: 'US', name: 'United States', currency: 'USD' },
-  { code: 'CA', name: 'Canada', currency: 'CAD' },
-  { code: 'CH', name: 'Switzerland', currency: 'CHF' },
-  { code: 'NO', name: 'Norway', currency: 'NOK' },
-  { code: 'SE', name: 'Sweden', currency: 'SEK' },
-  { code: 'DK', name: 'Denmark', currency: 'DKK' },
-  { code: 'AU', name: 'Australia', currency: 'AUD' },
-  { code: 'NZ', name: 'New Zealand', currency: 'NZD' },
-  { code: '', name: 'Elsewhere (Euro)', currency: 'EUR' },
-];
-const selectedCode = COUNTRIES.some((c) => c.code === country) ? country : '';
+// The full country list — the visitor can type/search any country, not just the
+// markets we price for (mirrors the workshop form). Currency comes from
+// countries.ts (currencyForCountry): anything outside our priced markets falls
+// through to EUR.
+const COUNTRIES = ALL_COUNTRIES;
+const detected = COUNTRIES.find((c) => c.code === country);
+const selectedCode = detected?.code ?? '';
+const selectedName = detected?.name ?? '';
 
 // Meta Pixel: the base code is loaded here (this is the real, advertised
 // registration page) so PageView + InitiateCheckout fire. Empty → renders
@@ -116,16 +101,6 @@ const pixelId = Astro.locals.runtime.env.META_PIXEL_ID ?? '';
       {visible.length > 0 && (
         <div class="we-booking-head">
           <p class="we-booking-label">{masterclasses.length > 0 ? 'Choose a masterclass date' : 'Choose an option'}</p>
-          <label class="we-country">
-            <span>Showing prices for</span>
-            <select id="mc-country-select" aria-label="Country for pricing">
-              {COUNTRIES.map((c) => (
-                <option value={c.code} data-currency={c.currency} selected={c.code === selectedCode}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </label>
         </div>
       )}
 
@@ -228,14 +203,37 @@ const pixelId = Astro.locals.runtime.env.META_PIXEL_ID ?? '';
           <input type="hidden" name="adiscount" id="mc-adiscount" value="" />
           <input type="hidden" name="meta_event_id" id="mc-event-id" value="" />
 
-          <label class="we-field">
-            <span>Your name</span>
-            <input type="text" name="name" required autocomplete="name" />
-          </label>
+          <div class="we-field-row">
+            <label class="we-field">
+              <span>First name</span>
+              <input type="text" name="first_name" required autocomplete="given-name" />
+            </label>
+            <label class="we-field">
+              <span>Last name</span>
+              <input type="text" name="last_name" required autocomplete="family-name" />
+            </label>
+          </div>
 
           <label class="we-field">
             <span>Email</span>
             <input type="email" name="email" required autocomplete="email" />
+          </label>
+
+          <label class="we-field">
+            <span>Country</span>
+            <input
+              type="text"
+              id="mc-country-input"
+              list="mc-country-list"
+              autocomplete="country-name"
+              placeholder="Start typing your country…"
+              value={selectedName}
+            />
+            <datalist id="mc-country-list">
+              {COUNTRIES.map((c) => (
+                <option value={c.name} data-code={c.code} data-currency={c.currency}></option>
+              ))}
+            </datalist>
           </label>
 
           <label class="we-field" id="mc-tz-field">
@@ -291,7 +289,8 @@ const pixelId = Astro.locals.runtime.env.META_PIXEL_ID ?? '';
 
     var slugField = document.getElementById('mc-slug');
     var countryField = document.getElementById('mc-country');
-    var countrySelect = document.getElementById('mc-country-select');
+    var countryInput = document.getElementById('mc-country-input');
+    var countryList = document.getElementById('mc-country-list');
     var tzField = document.getElementById('mc-tz-field');
     var bizField = document.getElementById('mc-biz');
     var vatField = document.getElementById('mc-vat');
@@ -450,11 +449,30 @@ const pixelId = Astro.locals.runtime.env.META_PIXEL_ID ?? '';
       toggleVat();
     }
 
-    if (countrySelect) {
-      countrySelect.addEventListener('change', function () {
-        var opt = countrySelect.options[countrySelect.selectedIndex];
-        applyCurrency(opt.getAttribute('data-currency') || 'EUR', countrySelect.value);
-      });
+    // Resolve a typed/picked country name to its option (code + currency).
+    function findCountryOption(name) {
+      if (!countryList || !name) return null;
+      var wanted = name.trim().toLowerCase();
+      var opts = countryList.options;
+      for (var i = 0; i < opts.length; i++) {
+        if ((opts[i].value || '').toLowerCase() === wanted) return opts[i];
+      }
+      return null;
+    }
+    function onCountryChange() {
+      var opt = findCountryOption(countryInput && countryInput.value);
+      if (opt) {
+        // Known country → its currency (countries.ts maps the long tail to EUR),
+        // and store the ISO code for the server.
+        applyCurrency(opt.getAttribute('data-currency') || 'EUR', opt.getAttribute('data-code') || '');
+      } else {
+        // Unrecognised entry → charge in EUR, no country code yet.
+        applyCurrency('EUR', '');
+      }
+    }
+    if (countryInput) {
+      countryInput.addEventListener('change', onCountryChange);
+      countryInput.addEventListener('input', onCountryChange);
     }
 
     function recompute() {
@@ -503,9 +521,12 @@ const pixelId = Astro.locals.runtime.env.META_PIXEL_ID ?? '';
       }
       var fd = new FormData(form);
       var isMasterclass = current.kind === 'masterclass';
+      var fullName = ((fd.get('first_name') || '') + ' ' + (fd.get('last_name') || '')).trim();
       var body = {
         workshop_slug: fd.get('workshop_slug'),
-        name: fd.get('name'),
+        name: fullName,
+        first_name: fd.get('first_name') || '',
+        last_name: fd.get('last_name') || '',
         email: fd.get('email'),
         timezone: current.isReplay === '1' ? '' : (fd.get('timezone') || ''),
         country: fd.get('country') || '',
