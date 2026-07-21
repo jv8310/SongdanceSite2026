@@ -2,8 +2,9 @@
 import SiteLayout from '../../components/SiteLayout.astro';
 import PageHero from '../../components/PageHero.astro';
 import { albumCoverUrl, albumUrl, listAlbums } from '../../lib/music/db';
-import { formatAlbumPrice } from '../../lib/music/product';
+import { albumCurrencyForCountry, albumPriceLabel } from '../../lib/music/product';
 import { catalogItemById } from '../../lib/catalog/products';
+import { edgeCountry } from '../../lib/geo';
 
 export const prerender = false;
 
@@ -15,6 +16,10 @@ export const prerender = false;
 const env = Astro.locals.runtime.env;
 const albums = (await listAlbums(env.DB)).filter((a) => a.published === 1);
 const songdeck = catalogItemById('songdeck');
+// Album prices localize to the visitor's edge-detected market (same ratio
+// table the album page + checkout use). The Songdeck stays EUR-only — it's a
+// physical product fulfilled on songdeck.shop.
+const currency = albumCurrencyForCountry(edgeCountry(Astro.locals));
 ---
 
 <SiteLayout
@@ -65,13 +70,13 @@ const songdeck = catalogItemById('songdeck');
             {a.description && <p class="mu-desc">{a.description}</p>}
             <div class="mu-foot">
               {a.price_eur_cents ? (
-                <span class="mu-price">{formatAlbumPrice(a.price_eur_cents)}</span>
+                <span class="mu-price">{albumPriceLabel(a.price_eur_cents, currency)}</span>
               ) : (
                 <span class="mu-price mu-price--soft">With your course</span>
               )}
               <a class="sd-btn sd-btn-primary" href={albumUrl(a)}>
-                Open the album
-                <i class="ph-light ph-play"></i>
+                {a.price_eur_cents ? 'See the album' : 'Open the album'}
+                <i class={`ph-light ${a.price_eur_cents ? 'ph-arrow-right' : 'ph-play'}`}></i>
               </a>
             </div>
           </div>

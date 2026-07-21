@@ -14,3 +14,12 @@ export function edgeTimezone(locals: App.Locals): string | null {
   const tz = cf?.timezone;
   return typeof tz === 'string' && tz.trim() ? tz.trim() : null;
 }
+
+// The edge-detected ISO-2 country ("BE", "US", …), or null. Used to pre-pick
+// the visitor's country/currency on SSR pages (e.g. the album sales page) —
+// always overridable by the buyer's own country choice in the form.
+export function edgeCountry(locals: App.Locals): string | null {
+  const cf = locals.runtime?.cf as { country?: unknown } | undefined;
+  const c = cf?.country;
+  return typeof c === 'string' && /^[A-Za-z]{2}$/.test(c.trim()) ? c.trim().toUpperCase() : null;
+}

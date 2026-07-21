@@ -18,15 +18,20 @@ import {
 import { encodeCustomId, parseProvider } from '../../../lib/payments/provider';
 import { findCountry } from '../../../lib/countries';
 import { getAlbum } from '../../../lib/music/db';
-import { albumProductSlug } from '../../../lib/music/product';
+import {
+  albumCurrencyForCountry,
+  albumPriceCents,
+  albumProductSlug,
+} from '../../../lib/music/product';
 
 export const prerender = false;
 
 // Checkout for a music album bought on its own (from /music/<slug> or the
 // /music listing). Simplest sibling of the journey checkout: one product, one
-// EUR price (admin-set on the album row — no per-market price map, so the
-// headline and the charge agree by being the same figure), full payment only,
-// B2C. The registration rides the ordinary course_registrations machinery
+// price, full payment only, B2C. The buyer's country picks the currency and
+// the amount scales from the admin-set EUR price via albumPriceCents — the
+// same function the sales page uses, so the headline and the charge always
+// agree. The registration rides the ordinary course_registrations machinery
 // under product slug `album-<id>`; on payment the shared paid-handler applies
 // the album's Drip tag, and the buyer's paid row itself is a second access key
 // (src/lib/music/access.ts) — so the album plays the moment they return.
@@ -53,8 +58,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     const albumId = (payload.album ?? '').trim().slice(0, 80);
     const album = albumId ? await getAlbum(env.DB, albumId) : null;
-    const priceCents = album?.price_eur_cents ?? 0;
-    if (!album || album.published !== 1 || priceCents <= 0) {
+    const priceEurCents = album?.price_eur_cents ?? 0;
+    if (!album || album.published !== 1 || priceEurCents <= 0) {
       return json({ error: 'This album is not available for purchase right now.' }, 400);
     }
     const slug = albumProductSlug(album.id);
@@ -81,6 +86,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
       return json({ error: 'Please agree to the terms to continue.' }, 400);
     }
 
+    // Country → currency → charged amount, the same derivation the sales page
+    // renders with.
+    const currency = albumCurrencyForCountry(countryCode);
+    const priceCents = albumPriceCents(priceEurCents, currency);
+
     const label = `${album.title} — album`;
     const registrationId = await createPendingCourseRegistration(env.DB, {
       email,
@@ -97,7 +107,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       source_variant: 'direct',
       timezone: edgeTimezone(locals),
       amount_cents: priceCents,
-      currency: 'EUR',
+      currency,
       consent_terms: payload.consent_terms === true,
       payment_plan: 'full',
       installments_total: 1,
@@ -115,7 +125,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     if (provider === 'paypal') {
       const order = await createPaypalOrder({
         env,
-        currency: 'EUR',
+        currency,
         items: [
           {
             name: label,
@@ -143,7 +153,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
           course_registration_id: registrationId,
           order_id: order.id,
           product_slug: slug,
-          currency: 'EUR',
+          currency,
           amount_cents: priceCents,
         },
       });
@@ -189,7 +199,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         {
           name: label,
           amount_cents: priceCents,
-          currency: 'eur',
+          currency: currency.toLowerCase(),
           quantity: 1,
           product_metadata: { tax_class: 'eservice', product_slug: slug },
         },
@@ -202,7 +212,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         first_name: firstName,
         last_name: lastName,
         country: countryCode,
-        currency: 'EUR',
+        currency,
         tax_class: 'eservice',
       },
       idempotency_key: `album-${album.id}-reg-${registrationId}`,
@@ -219,7 +229,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         course_registration_id: registrationId,
         session_id: session.id,
         product_slug: slug,
-        currency: 'EUR',
+        currency,
         amount_cents: priceCents,
       },
     });

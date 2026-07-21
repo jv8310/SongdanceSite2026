@@ -14,9 +14,10 @@ import {
   listTracks,
   type MusicTrackRow,
 } from '../../lib/music/db';
-import { formatAlbumPrice } from '../../lib/music/product';
+import { albumCurrencyForCountry, albumPriceLabel } from '../../lib/music/product';
 import { paypalConfigured } from '../../lib/payments/paypal';
 import { COUNTRIES } from '../../lib/countries';
+import { edgeCountry } from '../../lib/geo';
 
 export const prerender = false;
 
@@ -40,21 +41,28 @@ const listenerEmail = await verifyListener(
 const granted =
   isAdmin || (listenerEmail ? await hasAlbumAccess(env, env.DB, listenerEmail, album) : false);
 
-// Purchasable? (price set in admin). `?welcome=1` is the return leg from a
-// successful checkout: the gate then leads with "payment received — enter the
-// email you paid with" (the paid registration row grants instantly, no Drip
-// round-trip needed).
-const priceCents = album.price_eur_cents ?? 0;
-const forSale = priceCents > 0;
-const priceLabel = forSale ? formatAlbumPrice(priceCents) : null;
+// Purchasable? (price set in admin). The buyer's edge-detected country picks
+// the opening currency; the checkout form's own country select re-derives it
+// client-side from the same ratios, and the server derives it a third time at
+// charge — all through albumPriceCents, so the three can never disagree.
+// `?welcome=1` is the return leg from a successful checkout: the page then
+// leads with "payment received — enter the email you paid with" (the paid
+// registration row grants instantly, no Drip round-trip needed).
+const priceEurCents = album.price_eur_cents ?? 0;
+const forSale = priceEurCents > 0;
+const geoCountry = edgeCountry(Astro.locals);
+const currency = albumCurrencyForCountry(geoCountry);
+const priceLabel = forSale ? albumPriceLabel(priceEurCents, currency) : null;
 const welcome = Astro.url.searchParams.get('welcome') === '1';
 const paypalOk = paypalConfigured(env) && env.PAYPAL_ENABLED === 'true';
 
 const cover = albumCoverUrl(album);
-let tracks: MusicTrackRow[] = [];
+// Track titles show to everyone (the sales page lists them as the contents of
+// the album); the signed stream URLs — the actual audio — only mint for
+// entitled listeners.
+const tracks: MusicTrackRow[] = await listTracks(env.DB, album.id);
 let payload: Array<{ id: string; title: string; duration: number | null; url: string }> = [];
 if (granted) {
-  tracks = await listTracks(env.DB, album.id);
   payload = await Promise.all(
     tracks.map(async (t) => ({
       id: t.id,
@@ -76,7 +84,12 @@ const totalLabel =
 
 <SiteLayout
   title={`${album.title} — Songdance`}
-  description="Your album, ready to play."
+  description={
+    granted
+      ? 'Your album, ready to play.'
+      : album.description ??
+        `${album.title} — original music from the practice, streaming on any device.`
+  }
   image={cover ?? undefined}
   newsletter={false}
   promo={false}
@@ -170,6 +183,131 @@ const totalLabel =
       set:html={JSON.stringify({ title: album.title, cover, tracks: payload }).replace(/</g, '\\u003c')}
     />
     </Fragment>
+  ) : forSale && !welcome ? (
+    <Fragment>
+    <section class="ms sd-section" data-price-eur={priceEurCents}>
+      <!-- Hero: the album as a product -->
+      <header class="ms-hero">
+        {cover && <img class="ms-cover" src={cover} alt={`${album.title} — cover`} />}
+        <div class="ms-hero-text">
+          <p class="mp-eyebrow">Album</p>
+          <h1 class="ms-title">{album.title}</h1>
+          {album.description && <p class="ms-desc">{album.description}</p>}
+          <p class="ms-facts">
+            {tracks.length} track{tracks.length === 1 ? '' : 's'}{totalLabel && ` · ${totalLabel}`}
+            · streaming, on any device · yours to keep
+          </p>
+          <div class="ms-hero-buy">
+            <span class="ms-price" data-price-current>{priceLabel}</span>
+            <a class="sd-btn sd-btn-primary" href="#get">
+              Get the album
+              <i class="ph-light ph-arrow-down"></i>
+            </a>
+          </div>
+          <p class="ms-own-hint">
+            Already own this album? <a href="#open">Open it with your email</a>
+          </p>
+        </div>
+      </header>
+
+      <!-- The tracks -->
+      {tracks.length > 0 && (
+        <div class="ms-tracks">
+          <h2 class="ms-h2">On this album</h2>
+          <ol class="ms-tracklist">
+            {tracks.map((t, i) => (
+              <li class="ms-track">
+                <span class="ms-track-n">{i + 1}</span>
+                <span class="ms-track-title">{t.title}</span>
+                <span class="ms-track-time">{formatDuration(t.duration_seconds)}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+
+      <!-- Checkout -->
+      <div class="ms-checkout" id="get">
+        <div class="ms-checkout-card">
+          <p class="mp-eyebrow">Get the album</p>
+          <h2 class="ms-checkout-title">
+            {album.title} — <span data-price-current>{priceLabel}</span>
+          </h2>
+          <ul class="ms-points">
+            <li><i class="ph-light ph-device-mobile-speaker"></i> Stream it anywhere — phone, tablet, computer</li>
+            <li><i class="ph-light ph-infinity"></i> Yours to keep, no subscription</li>
+            <li><i class="ph-light ph-envelope-simple"></i> Opens with your email right after payment</li>
+          </ul>
+          <form class="mp-buy-form" data-buy-form>
+            <div class="mp-buy-grid">
+              <input type="text" name="first_name" placeholder="First name" autocomplete="given-name" required maxlength="100" />
+              <input type="text" name="last_name" placeholder="Last name" autocomplete="family-name" required maxlength="100" />
+              <input type="email" name="email" placeholder="you@somewhere" autocomplete="email" required maxlength="254" class="mp-buy-span" />
+              <select name="country" required class="mp-buy-span" aria-label="Country" data-buy-country>
+                <option value="" disabled selected={!geoCountry}>Your country</option>
+                {COUNTRIES.map((c) => (
+                  <option value={c.code} selected={c.code === geoCountry}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+            <label class="mp-buy-terms">
+              <input type="checkbox" name="consent_terms" required />
+              <span>
+                I agree to the <a href="/terms" target="_blank" rel="noopener">terms</a> &amp;{' '}
+                <a href="/privacy" target="_blank" rel="noopener">privacy policy</a>.
+              </span>
+            </label>
+            <div class="mp-buy-actions">
+              <button type="submit" class="sd-btn sd-btn-primary" data-buy-submit data-provider="stripe">
+                <span>Pay by card — <span data-price-current>{priceLabel}</span></span>
+                <i class="ph-light ph-arrow-right"></i>
+              </button>
+              {paypalOk && (
+                <button type="submit" class="sd-btn mp-buy-paypal" data-buy-submit data-provider="paypal">
+                  Pay with PayPal
+                </button>
+              )}
+            </div>
+            <p class="ms-currency-note">
+              Charged in your local currency — pick your country above and the price follows.
+            </p>
+            <p class="mp-gate-error" hidden role="alert" data-buy-error></p>
+          </form>
+        </div>
+      </div>
+
+      <!-- Already own it -->
+      <div class="ms-own" id="open">
+        <h2 class="ms-h2">Already own this album?</h2>
+        <p class="ms-own-p">
+          It opens with the email from your order — nothing else needed.
+        </p>
+        <form class="mp-gate-form ms-own-form" data-gate-form>
+          <input type="text" name="hp" class="mp-hp" tabindex="-1" autocomplete="off" aria-hidden="true" />
+          <div class="mp-gate-row">
+            <input
+              type="email"
+              name="email"
+              class="mp-gate-input"
+              placeholder="you@somewhere"
+              aria-label="Email address"
+              autocomplete="email"
+              required
+            />
+            <button type="submit" class="sd-btn sd-btn-primary" data-gate-submit>
+              <span data-gate-label>Open the album</span>
+              <i class="ph-light ph-arrow-right"></i>
+            </button>
+          </div>
+          <p class="mp-gate-error" hidden role="alert" data-gate-error></p>
+        </form>
+        <p class="mp-gate-help">
+          Not opening? Try the email you used at checkout — or write to
+          <a href="mailto:support@songdance.co">support@songdance.co</a> and we'll help you personally.
+        </p>
+      </div>
+    </section>
+    </Fragment>
   ) : (
     <section class="mp-gate sd-section">
       <div class="mp-gate-card">
@@ -211,48 +349,6 @@ const totalLabel =
         </p>
       </div>
 
-      {forSale && !welcome && (
-        <div class="mp-gate-card mp-buy" id="get">
-          <p class="mp-eyebrow">Not yours yet?</p>
-          <h2 class="mp-buy-title">Get the album — {priceLabel}</h2>
-          {album.description && <p class="mp-gate-p">{album.description}</p>}
-          <p class="mp-gate-p">
-            Yours to keep: stream it anytime, on any device, with the email you order with.
-          </p>
-          <form class="mp-buy-form" data-buy-form>
-            <div class="mp-buy-grid">
-              <input type="text" name="first_name" placeholder="First name" autocomplete="given-name" required maxlength="100" />
-              <input type="text" name="last_name" placeholder="Last name" autocomplete="family-name" required maxlength="100" />
-              <input type="email" name="email" placeholder="you@somewhere" autocomplete="email" required maxlength="254" class="mp-buy-span" />
-              <select name="country" required class="mp-buy-span" aria-label="Country">
-                <option value="" disabled selected>Your country</option>
-                {COUNTRIES.map((c) => (
-                  <option value={c.code}>{c.name}</option>
-                ))}
-              </select>
-            </div>
-            <label class="mp-buy-terms">
-              <input type="checkbox" name="consent_terms" required />
-              <span>
-                I agree to the <a href="/terms" target="_blank" rel="noopener">terms</a> &amp;{' '}
-                <a href="/privacy" target="_blank" rel="noopener">privacy policy</a>.
-              </span>
-            </label>
-            <div class="mp-buy-actions">
-              <button type="submit" class="sd-btn sd-btn-primary" data-buy-submit data-provider="stripe">
-                <span data-buy-label>Pay by card — {priceLabel}</span>
-                <i class="ph-light ph-arrow-right"></i>
-              </button>
-              {paypalOk && (
-                <button type="submit" class="sd-btn mp-buy-paypal" data-buy-submit data-provider="paypal">
-                  Pay with PayPal
-                </button>
-              )}
-            </div>
-            <p class="mp-gate-error" hidden role="alert" data-buy-error></p>
-          </form>
-        </div>
-      )}
     </section>
   )}
 </SiteLayout>
@@ -485,6 +581,122 @@ const totalLabel =
   .mp-gate-help a { color: var(--ember-deep); }
   .mp-hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
 
+  /* ---------- Sales page (priced album, not yet owned) ---------- */
+  .ms { max-width: 880px; margin: 0 auto; }
+  .ms-hero {
+    display: flex;
+    gap: var(--sp-7);
+    align-items: center;
+    margin-bottom: var(--sp-8);
+  }
+  @media (max-width: 700px) {
+    .ms-hero { flex-direction: column; align-items: flex-start; gap: var(--sp-5); }
+  }
+  .ms-cover {
+    width: 300px;
+    height: 300px;
+    object-fit: cover;
+    border-radius: var(--r-xl);
+    box-shadow: var(--shadow-2);
+    flex: 0 0 auto;
+  }
+  @media (max-width: 700px) {
+    .ms-cover { width: 220px; height: 220px; }
+  }
+  .ms-hero-text { min-width: 0; }
+  .ms-title {
+    font-family: var(--font-display);
+    font-size: var(--t-h1, var(--t-h2));
+    line-height: var(--lh-snug);
+    letter-spacing: var(--tr-display);
+    color: var(--ink);
+    font-weight: 400;
+    margin: 0 0 var(--sp-3);
+  }
+  .ms-desc { color: var(--ink-soft); margin: 0 0 var(--sp-3); max-width: 52ch; }
+  .ms-facts { color: var(--ink-quiet); font-size: var(--t-body-sm); margin: 0 0 var(--sp-5); }
+  .ms-hero-buy { display: flex; align-items: center; gap: var(--sp-5); flex-wrap: wrap; }
+  .ms-price {
+    font-family: var(--font-display);
+    font-size: var(--t-h2);
+    color: var(--ink);
+  }
+  .ms-own-hint { margin: var(--sp-4) 0 0; font-size: var(--t-body-sm); color: var(--ink-quiet); }
+  .ms-own-hint a { color: var(--ember-deep); }
+
+  .ms-h2 {
+    font-family: var(--font-display);
+    font-size: var(--t-h3);
+    line-height: var(--lh-snug);
+    letter-spacing: var(--tr-display);
+    color: var(--ink);
+    font-weight: 400;
+    margin: 0 0 var(--sp-4);
+  }
+  .ms-tracks { margin-bottom: var(--sp-8); }
+  .ms-tracklist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  .ms-track {
+    display: flex;
+    gap: var(--sp-4);
+    align-items: baseline;
+    padding: 13px var(--sp-5);
+    background: var(--paper-soft);
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg, var(--r-md));
+  }
+  .ms-track-n {
+    flex: 0 0 22px;
+    text-align: right;
+    color: var(--ink-quiet);
+    font-size: var(--t-body-sm);
+    font-variant-numeric: tabular-nums;
+  }
+  .ms-track-title { flex: 1; min-width: 0; color: var(--ink); }
+  .ms-track-time { color: var(--ink-quiet); font-size: var(--t-body-sm); font-variant-numeric: tabular-nums; }
+
+  .ms-checkout { display: flex; justify-content: center; margin-bottom: var(--sp-8); scroll-margin-top: 90px; }
+  .ms-checkout-card {
+    max-width: 560px;
+    width: 100%;
+    padding: var(--sp-7) var(--sp-6);
+    background: var(--paper-soft);
+    border: 1px solid var(--line);
+    border-radius: var(--r-xl);
+    box-shadow: var(--shadow-2);
+  }
+  .ms-checkout-title {
+    font-family: var(--font-display);
+    font-size: var(--t-h3);
+    line-height: var(--lh-snug);
+    letter-spacing: var(--tr-display);
+    color: var(--ink);
+    font-weight: 400;
+    margin: 0 0 var(--sp-4);
+  }
+  .ms-points {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 var(--sp-5);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    color: var(--ink-soft);
+    font-size: var(--t-body-sm);
+  }
+  .ms-points i { color: var(--ember-deep); margin-right: 8px; }
+  .ms-currency-note { color: var(--ink-quiet); font-size: 12.5px; margin: var(--sp-3) 0 0; }
+
+  .ms-own {
+    max-width: 560px;
+    margin: 0 auto;
+    text-align: center;
+    padding-top: var(--sp-6);
+    border-top: 1px solid var(--line);
+    scroll-margin-top: 90px;
+  }
+  .ms-own-p { color: var(--ink-soft); margin: 0 0 var(--sp-4); }
+  .ms-own-form { text-align: left; }
+
   /* ---------- Buy card ---------- */
   .mp-buy-title {
     font-family: var(--font-display);
@@ -589,8 +801,28 @@ const totalLabel =
   }
 
   // ---------- Buy form → checkout ----------
+  import { albumCurrencyForCountry, albumPriceCents } from '../../lib/music/product';
+  import { formatMoney } from '../../lib/workshops/currency';
+
   const buyForm = document.querySelector<HTMLFormElement>('[data-buy-form]');
   if (buyForm) {
+    // Live multi-currency: the buyer's country choice re-derives the price from
+    // the same ratio table the server charges with, and repaints every price on
+    // the page (hero, checkout title, pay button).
+    const priceEur = Number(
+      document.querySelector<HTMLElement>('[data-price-eur]')?.dataset.priceEur ?? 0,
+    );
+    const countrySel = buyForm.querySelector<HTMLSelectElement>('[data-buy-country]');
+    const priceEls = Array.from(document.querySelectorAll<HTMLElement>('[data-price-current]'));
+    const repaintPrice = () => {
+      if (!priceEur || !countrySel?.value) return;
+      const cur = albumCurrencyForCountry(countrySel.value);
+      const label = formatMoney(albumPriceCents(priceEur, cur), cur);
+      priceEls.forEach((el) => { el.textContent = label; });
+    };
+    countrySel?.addEventListener('change', repaintPrice);
+    repaintPrice();
+
     const errEl = buyForm.querySelector<HTMLElement>('[data-buy-error]');
     const buttons = Array.from(buyForm.querySelectorAll<HTMLButtonElement>('[data-buy-submit]'));
     const albumId = location.pathname.split('/').pop() ?? '';

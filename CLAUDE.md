@@ -558,11 +558,19 @@ the bottom of `/admin` → **Music albums** (`/admin/music`). Tables
   list, sticky bottom bar (play/pause/prev/next/seek), auto-advance, and Media
   Session metadata for phone lock screens.
 - **Selling an album** (migration 0077 + [`src/lib/music/product.ts`](src/lib/music/product.ts)):
-  set a **price (EUR)** in the album settings and the player's gate grows a
-  checkout ("Get the album") next to the email login; blank price = login-only
-  (bump/course bonus). The purchase rides the ordinary **course machinery** as
+  set a **price (EUR)** in the album settings and `/music/<slug>` renders a
+  full **sales page** for non-owners — cover/description hero, the track list
+  (names + durations; the audio itself stays gated), a checkout card, and an
+  "Already own this album?" email-login section at the bottom; blank price =
+  login-only gate (bump/course bonus). **Multi-currency**: the one EUR price
+  scales to each market with the journeys' EUR-relative ratios
+  (`albumPriceCents`, clean-rounded; kr currencies to the nearest 5). The
+  visitor's edge country picks the opening currency, the form's country select
+  repaints every price client-side, and the checkout re-derives it server-side
+  from the same function, so headline and charge always agree. The purchase
+  rides the ordinary **course machinery** as
   product slug `album-<id>` — `/api/music/checkout` (journey-checkout sibling:
-  EUR-only, full payment, B2C, Stripe + direct PayPal) → `course_registrations`
+  full payment, B2C, Stripe + direct PayPal) → `course_registrations`
   → the shared paid-handler, which looks the album up and applies its
   `drip_tag` (`courseDripTags` returns `[]` for album slugs so they can never
   fall through to the cert tags). Every fulfilment backstop (webhooks, PayPal
