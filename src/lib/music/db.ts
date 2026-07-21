@@ -9,6 +9,13 @@
 
 export const MUSIC_COVER_PREFIX = 'music-covers/';
 
+// Migration 0076 lands on merge to main, but branch previews share production
+// D1 — so until then every read here would 500 the page. Treat exactly that
+// one error ("no such table") as an empty library; anything else still throws.
+function isMissingTable(err: unknown): boolean {
+  return String(err).includes('no such table');
+}
+
 export interface MusicAlbumRow {
   id: string;
   title: string;
@@ -46,19 +53,29 @@ export function albumUrl(album: Pick<MusicAlbumRow, 'id'>): string {
 export async function listAlbums(
   db: D1Database,
 ): Promise<Array<MusicAlbumRow & { track_count: number }>> {
-  const q = await db
-    .prepare(
-      `SELECT a.*, (SELECT COUNT(*) FROM music_tracks t WHERE t.album_id = a.id) AS track_count
-         FROM music_albums a
-        ORDER BY a.sort_order ASC, a.created_at DESC`,
-    )
-    .all<MusicAlbumRow & { track_count: number }>();
-  return q.results ?? [];
+  try {
+    const q = await db
+      .prepare(
+        `SELECT a.*, (SELECT COUNT(*) FROM music_tracks t WHERE t.album_id = a.id) AS track_count
+           FROM music_albums a
+          ORDER BY a.sort_order ASC, a.created_at DESC`,
+      )
+      .all<MusicAlbumRow & { track_count: number }>();
+    return q.results ?? [];
+  } catch (err) {
+    if (isMissingTable(err)) return [];
+    throw err;
+  }
 }
 
 export async function getAlbum(db: D1Database, id: string): Promise<MusicAlbumRow | null> {
-  const row = await db.prepare(`SELECT * FROM music_albums WHERE id = ?`).bind(id).first<MusicAlbumRow>();
-  return row ?? null;
+  try {
+    const row = await db.prepare(`SELECT * FROM music_albums WHERE id = ?`).bind(id).first<MusicAlbumRow>();
+    return row ?? null;
+  } catch (err) {
+    if (isMissingTable(err)) return null;
+    throw err;
+  }
 }
 
 export interface AlbumInput {
@@ -132,32 +149,47 @@ export async function listAlbumsForTags(
 ): Promise<MusicAlbumRow[]> {
   if (!tags.length) return [];
   const owned = new Set(tags.map((t) => t.trim().toLowerCase()).filter(Boolean));
-  const q = await db
-    .prepare(
-      `SELECT * FROM music_albums
-        WHERE published = 1 AND drip_tag IS NOT NULL AND drip_tag != ''
-        ORDER BY sort_order ASC, created_at DESC`,
-    )
-    .all<MusicAlbumRow>();
-  return (q.results ?? []).filter((a) => owned.has((a.drip_tag ?? '').trim().toLowerCase()));
+  try {
+    const q = await db
+      .prepare(
+        `SELECT * FROM music_albums
+          WHERE published = 1 AND drip_tag IS NOT NULL AND drip_tag != ''
+          ORDER BY sort_order ASC, created_at DESC`,
+      )
+      .all<MusicAlbumRow>();
+    return (q.results ?? []).filter((a) => owned.has((a.drip_tag ?? '').trim().toLowerCase()));
+  } catch (err) {
+    if (isMissingTable(err)) return [];
+    throw err;
+  }
 }
 
 // ---- Tracks ----
 
 export async function listTracks(db: D1Database, albumId: string): Promise<MusicTrackRow[]> {
-  const q = await db
-    .prepare(
-      `SELECT * FROM music_tracks WHERE album_id = ?
-        ORDER BY sort_order ASC, created_at ASC`,
-    )
-    .bind(albumId)
-    .all<MusicTrackRow>();
-  return q.results ?? [];
+  try {
+    const q = await db
+      .prepare(
+        `SELECT * FROM music_tracks WHERE album_id = ?
+          ORDER BY sort_order ASC, created_at ASC`,
+      )
+      .bind(albumId)
+      .all<MusicTrackRow>();
+    return q.results ?? [];
+  } catch (err) {
+    if (isMissingTable(err)) return [];
+    throw err;
+  }
 }
 
 export async function getTrack(db: D1Database, id: string): Promise<MusicTrackRow | null> {
-  const row = await db.prepare(`SELECT * FROM music_tracks WHERE id = ?`).bind(id).first<MusicTrackRow>();
-  return row ?? null;
+  try {
+    const row = await db.prepare(`SELECT * FROM music_tracks WHERE id = ?`).bind(id).first<MusicTrackRow>();
+    return row ?? null;
+  } catch (err) {
+    if (isMissingTable(err)) return null;
+    throw err;
+  }
 }
 
 export async function insertTrack(
