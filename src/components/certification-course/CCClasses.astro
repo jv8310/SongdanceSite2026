@@ -1,8 +1,8 @@
 ---
 // The class curriculum, presented as a self-paced library of modules — each
-// title with its instant replay. The page sells the library, not a schedule,
-// so there is no date logic here; the live field around it is promised
-// generally (live sessions and Q&As every month through the end of 2026).
+// title with a one-line text. The page sells the library, not a schedule,
+// so there is no date logic here; the prominent promise below the grid
+// carries what every module is (fully edited video + thorough manual).
 import { SVH_CERT_CLASSES } from '../../lib/courses/svh-cert-classes';
 ---
 
@@ -20,19 +20,18 @@ import { SVH_CERT_CLASSES } from '../../lib/courses/svh-cert-classes';
         <article class="cc-card">
           <div class="cc-card-num">Module {String(item.number).padStart(2, '0')}</div>
           <h3 class="cc-card-title">{item.title}</h3>
-          <div class="cc-card-status">
-            <span class="icon" aria-hidden="true">🎧</span>
-            <span class="label">Instant replay</span>
-          </div>
+          <p class="cc-card-blurb">{item.blurb}</p>
         </article>
       ))}
     </div>
 
-    <p class="cc-classes-foot">
-      Every module is a full two-hour class with its own detailed written
-      manual — instant access from the moment you join, at your own rhythm.
-      And the field around the library stays live: sessions and Q&amp;As
-      every month through the end of 2026.
-    </p>
+    <div class="cc-classes-promise">
+      <div class="cc-promise-items">
+        <span class="item"><span class="icon" aria-hidden="true">🎬</span> Fully edited video classes</span>
+        <span class="dot" aria-hidden="true"></span>
+        <span class="item"><span class="icon" aria-hidden="true">📖</span> A thorough written manual per class</span>
+      </div>
+      <p class="cc-promise-sub">Instant access to all of it, from the moment you join.</p>
+    </div>
   </div>
 </section>
