@@ -3,7 +3,7 @@
 //   - Email-gated, regional pricing (~€480 across the workshop currencies).
 //   - payment_plan 'full' → one-off Stripe Checkout (mode=payment).
 //     payment_plan '3x'   → monthly Subscription that cancels after 3 invoices.
-//   - The 20% workshop discount is re-derived here from the email↔workshop link
+//   - The 25% workshop discount is re-derived here from the email↔workshop link
 //     (NOT trusted from the client), so the charge always matches eligibility.
 //   - B2C by default; an EU/UK VAT number (shown once a company is named) is
 //     attached to the Stripe Customer as tax_id_data for reverse-charge.

@@ -5,7 +5,7 @@
 //   2. Abandoned-checkout nudges for registrations stuck at 'prepared'.
 //   3. Post-workshop sequences anchored one hour after the start:
 //        attended      → thank-you + 12-week course, riding the existing
-//                        48h / 20% participant-discount window
+//                        48h / 25% participant-discount window
 //        attended PRO  → certification path (masterclass attendees, and —
 //                        once the pending is_pro column lands — anyone
 //                        flagged pro at registration)
@@ -764,7 +764,7 @@ async function runPostWorkshop(env: CronEnv, now: number, result: CronResult) {
     const discountAnchorMs = anchorMsFromWorkshop(w.starts_at_utc, w.ends_at_utc) ?? followUpAnchorMs;
     const discountEndsMs = discountAnchorMs + DISCOUNT_WINDOW_HOURS * H * MIN_MS;
     // Promo-aware offer for the after-workshop emails: while the launch promo is
-    // live it beats the 20% participant discount and runs to a fixed date, so
+    // live it beats the 25% participant discount and runs to a fixed date, so
     // the copy quotes the promo (percent + its plain deadline) and the whole
     // downstream deadline (countdown, hours-left, downsell gate) rides the promo
     // end instead of the 48h window. Reverts to 20%/48h when the promo ends.

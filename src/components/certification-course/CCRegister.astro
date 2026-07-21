@@ -351,7 +351,7 @@ const countries = COUNTRIES;
     drip_tag: string;
   };
   // The Certification path (the `cc-bundle` product), shown as two line items
-  // + a combined total. During a live workshop window the whole path is 30%
+  // + a combined total. During a live workshop window the whole path is 25%
   // off (both lines); a ?discount=N override only ever touches the 12-week
   // portion. Mirrors CertificationPathPricing on the server.
   type PathPricing = {
@@ -409,7 +409,7 @@ const countries = COUNTRIES;
     firstName?: string,
   ) => { greeting: string; title: string; body: string };
 
-  // v3: the mid-cohort discount is retired (normal prices, 30% workshop sale
+  // v3: the mid-cohort discount is retired (normal prices, 25% workshop sale
   // on the path) and the decision carries `deck_gift` — ignore older caches so
   // a stale discounted price can never be shown against the new charge.
   const STORAGE_KEY = 'cc:decision:v3';
@@ -1435,7 +1435,7 @@ const countries = COUNTRIES;
       : '';
 
     // The path: two transparent line items + a combined total. During a live
-    // workshop window the whole path (both lines) is struck 30% off, with the
+    // workshop window the whole path (both lines) is struck 25% off, with the
     // 48h countdown; an override strikes only the 12-week line.
     if (offer.slug === 'cc-bundle' && path) {
       const cur = path.currency;

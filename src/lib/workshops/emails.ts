@@ -493,7 +493,7 @@ export function attendedEmail1(
   const left = hoursPhrase(ctx.hoursRemaining);
   const pct = ctx.discountPercent;
   // Promo: the launch sale, named by its plain calendar deadline. Otherwise the
-  // 20% participant window on its 48h countdown. See postWorkshopEmailOffer.
+  // 25% participant window on its 48h countdown. See postWorkshopEmailOffer.
   const discountTextLine = ctx.promo
     ? `Right now everything is ${pct}% off for our launch — through ${ctx.discountEndsLocal}. The link below already knows it's you: your discounted price is on the page, nothing to type.`
     : `As a participant you have ${pct}% off — for the next ${left}, until ${ctx.discountEndsLocal}. The link below already knows it's you: your discounted price is on the page, nothing to type.`;
@@ -666,7 +666,7 @@ export function attendedEmail2(
 }
 
 // ── Attended 3 (+42h): the third touch ─────────────────────────────────────
-// Two moods. Normally (20% participant window) this is the *last-chance* push —
+// Two moods. Normally (25% participant window) this is the *last-chance* push —
 // the one email in the sequence allowed to press, with the ticking countdown,
 // because a real 48h window is genuinely about to shut. During the launch promo
 // there is no 48h cliff (the 50% runs to a fixed calendar date, days away), so
@@ -1098,7 +1098,7 @@ export function noShowEmail3(ctx: LifecycleCtx & { hubUrl: string }): EmailConte
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Downsell — reworked. After the 20% window closes unbought, we stop nagging
+// Downsell — reworked. After the 25% window closes unbought, we stop nagging
 // about the €650 course and offer the gentler doors instead: the journeys and
 // the grief course. WHICH offers a person sees is chosen per-recipient by the
 // cron from what they don't already own (Drip product tags + paid purchases,

@@ -318,7 +318,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     // Price the order. The bundle IS the "Certification path": both lines
     // re-derived server-side from the email so the charge always matches
-    // eligibility — during a live workshop window the whole path takes 30%
+    // eligibility — during a live workshop window the whole path takes 25%
     // off (CERT_PATH_DISCOUNT_PERCENT in path.ts); a ?discount=N override
     // still only touches the 12-week portion. For cc-cert, the URL
     // ?discount=N still reduces the cert price as before; every monthly
