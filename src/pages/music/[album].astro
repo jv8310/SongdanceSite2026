@@ -16,7 +16,7 @@ import {
 } from '../../lib/music/db';
 import { albumCurrencyForCountry, albumPriceLabel } from '../../lib/music/product';
 import { paypalConfigured } from '../../lib/payments/paypal';
-import { COUNTRIES } from '../../lib/countries';
+import { COUNTRIES, findCountry } from '../../lib/countries';
 import { edgeCountry } from '../../lib/geo';
 
 export const prerender = false;
@@ -51,6 +51,7 @@ const granted =
 const priceEurCents = album.price_eur_cents ?? 0;
 const forSale = priceEurCents > 0;
 const geoCountry = edgeCountry(Astro.locals);
+const geoCountryMatch = geoCountry ? findCountry(geoCountry) : undefined;
 const currency = albumCurrencyForCountry(geoCountry);
 const priceLabel = forSale ? albumPriceLabel(priceEurCents, currency) : null;
 const welcome = Astro.url.searchParams.get('welcome') === '1';
@@ -238,17 +239,34 @@ const totalLabel =
             <li><i class="ph-light ph-infinity"></i> Yours to keep, no subscription</li>
             <li><i class="ph-light ph-envelope-simple"></i> Opens with your email right after payment</li>
           </ul>
-          <form class="mp-buy-form" data-buy-form>
-            <div class="mp-buy-grid">
-              <input type="text" name="first_name" placeholder="First name" autocomplete="given-name" required maxlength="100" />
-              <input type="text" name="last_name" placeholder="Last name" autocomplete="family-name" required maxlength="100" />
-              <input type="email" name="email" placeholder="you@somewhere" autocomplete="email" required maxlength="254" class="mp-buy-span" />
-              <select name="country" required class="mp-buy-span" aria-label="Country" data-buy-country>
-                <option value="" disabled selected={!geoCountry}>Your country</option>
-                {COUNTRIES.map((c) => (
-                  <option value={c.code} selected={c.code === geoCountry}>{c.name}</option>
-                ))}
-              </select>
+          <form class="ms-form" data-buy-form>
+            <div class="ms-fields">
+              <label class="ms-field">
+                <span>First name</span>
+                <input type="text" name="first_name" autocomplete="given-name" required maxlength="100" />
+              </label>
+              <label class="ms-field">
+                <span>Last name</span>
+                <input type="text" name="last_name" autocomplete="family-name" required maxlength="100" />
+              </label>
+              <label class="ms-field ms-field--full">
+                <span>Email</span>
+                <input type="email" name="email" placeholder="you@somewhere" autocomplete="email" required maxlength="254" />
+              </label>
+              <label class="ms-field ms-field--full">
+                <span>Country</span>
+                <input
+                  type="text"
+                  name="country_search"
+                  list="ms-country-list"
+                  autocomplete="country-name"
+                  placeholder="Start typing…"
+                  required
+                  value={geoCountryMatch?.name ?? ''}
+                  data-buy-country-search
+                />
+                <input type="hidden" name="country" value={geoCountryMatch?.code ?? ''} data-buy-country />
+              </label>
             </div>
             <label class="mp-buy-terms">
               <input type="checkbox" name="consent_terms" required />
@@ -269,10 +287,15 @@ const totalLabel =
               )}
             </div>
             <p class="ms-currency-note">
-              Charged in your local currency — pick your country above and the price follows.
+              Charged in your local currency — the price follows your country.
             </p>
             <p class="mp-gate-error" hidden role="alert" data-buy-error></p>
           </form>
+          <datalist id="ms-country-list">
+            {COUNTRIES.map((c) => (
+              <option value={c.name} data-code={c.code}>{c.flag} {c.name}</option>
+            ))}
+          </datalist>
         </div>
       </div>
 
@@ -302,7 +325,7 @@ const totalLabel =
           <p class="mp-gate-error" hidden role="alert" data-gate-error></p>
         </form>
         <p class="mp-gate-help">
-          Not opening? Try the email you used at checkout — or write to
+          Trouble opening it? Write to
           <a href="mailto:support@songdance.co">support@songdance.co</a> and we'll help you personally.
         </p>
       </div>
@@ -344,7 +367,7 @@ const totalLabel =
           <p class="mp-gate-error" hidden role="alert" data-gate-error></p>
         </form>
         <p class="mp-gate-help">
-          Not opening? Try the email you used at checkout — or write to
+          Trouble opening it? Write to
           <a href="mailto:support@songdance.co">support@songdance.co</a> and we'll help you personally.
         </p>
       </div>
@@ -564,6 +587,7 @@ const totalLabel =
     .mp-gate-row { flex-direction: column; }
   }
   .mp-gate-input {
+    box-sizing: border-box;
     flex: 1;
     min-width: 0;
     font-family: var(--font-body);
@@ -707,32 +731,39 @@ const totalLabel =
     font-weight: 400;
     margin: 0 0 var(--sp-3);
   }
-  .mp-buy-form { text-align: left; }
-  .mp-buy-grid {
+  .ms-form { text-align: left; }
+  .ms-fields {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: var(--sp-3);
-    margin-bottom: var(--sp-4);
+    gap: var(--sp-4) var(--sp-3);
+    margin-bottom: var(--sp-5);
   }
   @media (max-width: 480px) {
-    .mp-buy-grid { grid-template-columns: 1fr; }
-    .mp-buy-span { grid-column: auto; }
+    .ms-fields { grid-template-columns: 1fr; }
   }
-  .mp-buy-span { grid-column: 1 / -1; }
-  .mp-buy-grid input,
-  .mp-buy-grid select {
+  .ms-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .ms-field--full { grid-column: 1 / -1; }
+  .ms-field > span {
+    font-family: var(--font-body);
+    font-size: var(--t-label);
+    text-transform: uppercase;
+    letter-spacing: var(--tr-label);
+    color: var(--ember-deep);
+    font-weight: 500;
+  }
+  .ms-field input {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
     font-family: var(--font-body);
     font-size: var(--t-body);
-    padding: 13px 16px;
+    padding: 12px 14px;
     border: 1px solid var(--line-strong, var(--line));
     border-radius: var(--r-md);
     background: var(--paper);
     color: var(--ink);
-    min-width: 0;
-    width: 100%;
   }
-  .mp-buy-grid input:focus,
-  .mp-buy-grid select:focus { outline: none; border-color: var(--ember); box-shadow: var(--shadow-glow); }
+  .ms-field input:focus { outline: none; border-color: var(--ember); box-shadow: var(--shadow-glow); }
   .mp-buy-terms {
     display: flex;
     align-items: flex-start;
@@ -785,7 +816,7 @@ const totalLabel =
         }
         if (errEl) {
           errEl.textContent =
-            "We couldn't find this album under that address. Try the email you used at checkout — or write to support@songdance.co.";
+            "We couldn't find this album under that address — double-check it's the one from your order.";
           errEl.hidden = false;
         }
       } catch {
@@ -803,24 +834,38 @@ const totalLabel =
   // ---------- Buy form → checkout ----------
   import { albumCurrencyForCountry, albumPriceCents } from '../../lib/music/product';
   import { formatMoney } from '../../lib/workshops/currency';
+  import { COUNTRIES } from '../../lib/countries';
 
   const buyForm = document.querySelector<HTMLFormElement>('[data-buy-form]');
   if (buyForm) {
-    // Live multi-currency: the buyer's country choice re-derives the price from
-    // the same ratio table the server charges with, and repaints every price on
-    // the page (hero, checkout title, pay button).
+    // Country: a searchable text field (datalist) backed by a hidden ISO code,
+    // same pattern as the journey register forms. The server pre-fills it from
+    // the edge geo; typing re-resolves the code — and with it the currency:
+    // the price re-derives from the same ratio table the server charges with
+    // and repaints everywhere on the page (hero, checkout title, pay button).
     const priceEur = Number(
       document.querySelector<HTMLElement>('[data-price-eur]')?.dataset.priceEur ?? 0,
     );
-    const countrySel = buyForm.querySelector<HTMLSelectElement>('[data-buy-country]');
+    const countrySearch = buyForm.querySelector<HTMLInputElement>('[data-buy-country-search]');
+    const countryHidden = buyForm.querySelector<HTMLInputElement>('[data-buy-country]');
     const priceEls = Array.from(document.querySelectorAll<HTMLElement>('[data-price-current]'));
     const repaintPrice = () => {
-      if (!priceEur || !countrySel?.value) return;
-      const cur = albumCurrencyForCountry(countrySel.value);
+      if (!priceEur) return;
+      const cur = albumCurrencyForCountry(countryHidden?.value || null);
       const label = formatMoney(albumPriceCents(priceEur, cur), cur);
       priceEls.forEach((el) => { el.textContent = label; });
     };
-    countrySel?.addEventListener('change', repaintPrice);
+    const resolveCountry = () => {
+      const typed = (countrySearch?.value ?? '').trim().toLowerCase();
+      const match = COUNTRIES.find(
+        (c) => c.name.toLowerCase() === typed || c.code.toLowerCase() === typed,
+      );
+      if (countryHidden) countryHidden.value = match?.code ?? '';
+      repaintPrice();
+    };
+    (['input', 'change', 'blur'] as const).forEach((ev) =>
+      countrySearch?.addEventListener(ev, resolveCountry),
+    );
     repaintPrice();
 
     const errEl = buyForm.querySelector<HTMLElement>('[data-buy-error]');
@@ -837,6 +882,14 @@ const totalLabel =
       e.preventDefault();
       if (errEl) errEl.hidden = true;
       const fd = new FormData(buyForm);
+      if (!String(fd.get('country') ?? '').trim()) {
+        if (errEl) {
+          errEl.textContent = 'Please pick your country from the list.';
+          errEl.hidden = false;
+        }
+        countrySearch?.focus();
+        return;
+      }
       buttons.forEach((b) => { b.disabled = true; });
       try {
         const res = await fetch('/api/music/checkout', {
