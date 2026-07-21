@@ -9,7 +9,7 @@
 //
 // `path`: when the buyer's variant is offered the Certification path (the
 // `cc-bundle` product), we attach its two-line-item pricing in the same
-// currency. During a live workshop window the whole path is 25% off (both
+// currency. During a live workshop window the whole path is 20% off (both
 // lines — see path.ts); a ?discount=N override only ever touches the 12-week
 // portion. This is the same pricing the checkout re-derives.
 //

@@ -3,8 +3,8 @@
 //
 //   - The workshop sale: when the buyer's email sits in a live workshop window
 //     (same pre/post-48h rule as the standalone 12-week course), the WHOLE
-//     path is 25% off — both line items (CERT_PATH_DISCOUNT_PERCENT below).
-//     The standalone 12-week course keeps its own 25%.
+//     path is 20% off — both line items (CERT_PATH_DISCOUNT_PERCENT below).
+//     The standalone 12-week course keeps its own 20%.
 //   - No workshop link → both lines at their normal price.
 //   - A `?discount=N` override still wins outright and, as before, only ever
 //     touches the 12-week line.
@@ -36,10 +36,11 @@ import {
   listReplayViewAnchorsByEmail,
 } from '../workshops/db';
 
-// The workshop-sale discount on the certification path: 25% off the whole
-// path (both line items) while the buyer's workshop window is live. Sibling
-// of the standalone 12-week course's 25% (DISCOUNT_PERCENT in twelve-week.ts).
-export const CERT_PATH_DISCOUNT_PERCENT = 25;
+// The workshop-sale discount on the certification path: 20% off the whole
+// path (both line items) while the buyer's workshop window is live. Twin
+// of the standalone 12-week course's 20% (DISCOUNT_PERCENT in twelve-week.ts),
+// so the lifecycle emails can quote a single "20%" for both offers.
+export const CERT_PATH_DISCOUNT_PERCENT = 20;
 
 export type CertificationPathPricing = {
   currency: Currency;
@@ -70,10 +71,16 @@ export type CertificationPathPricing = {
   };
 };
 
-// Apply a percent off a cents amount, rounded to a whole major unit (…00
-// cents) so the discounted line items and monthlies read as tidy figures.
+// Apply a percent off a cents amount. A discounted figure is floored to the
+// nearest 5 major units (…500 cents), so every sale line item, monthly and
+// total reads as a round price (EUR at 20%: cert 797 → 635, 12-week 550 → 440,
+// path 1347 → 1075) — flooring, never rounding up, so the advertised percent
+// is always honoured or slightly bettered. Undiscounted amounts just normalize
+// to a whole major unit (identity for the price tables, which are already
+// multiples of 5).
 function pctMajor(cents: number, percent: number): number {
-  return Math.round(applyPercentCents(cents, percent) / 100) * 100;
+  if (percent <= 0) return Math.round(cents / 100) * 100;
+  return Math.floor(applyPercentCents(cents, percent) / 500) * 500;
 }
 
 // Compose the path's two line items + total from a currency and the 12-week
@@ -92,7 +99,7 @@ export function buildCertificationPathPricing(
   const certPromo = eff.kind !== 'override' && launchPromoActive(nowMs);
   const cert = certPromo ? applyLaunchPromoToOffer(baseCert, nowMs) : baseCert;
   // The workshop sale: eff.kind 'pre'/'post' means the buyer's workshop window
-  // is live — the path takes 25% off BOTH lines (the promo path above wins
+  // is live — the path takes 20% off BOTH lines (the promo path above wins
   // while a site-wide promo runs; effectiveTwelveWeekDiscount already resolves
   // promo-vs-workshop upstream). Override/promo keep the old shape: the
   // percent lands on the 12-week line only.
@@ -138,7 +145,7 @@ export function buildCertificationPathPricing(
     installment_6x_count: INSTALLMENT_COUNT_6X,
     discount: {
       eligible: eff.eligible,
-      // The percent the path actually applies — 25 during the workshop
+      // The percent the path actually applies — 20 during the workshop
       // window, the override/promo percent otherwise.
       percent: eff.eligible ? (workshopSale ? CERT_PATH_DISCOUNT_PERCENT : eff.percent) : 0,
       kind: eff.kind,

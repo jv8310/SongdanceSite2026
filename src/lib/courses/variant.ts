@@ -86,6 +86,12 @@ export type Offer = {
 // `monthly12` the hidden 12-month one. Each longer ladder totals more (a
 // higher premium over pay-in-full: ~5% at 3×, ~13% at 6×, ~20% at 12×) in
 // exchange for a lower monthly figure.
+//
+// INVARIANT: every bundle figure = the cert figure + the matching 12-week
+// figure (PRICE/MONTHLY/MONTHLY_6X/MONTHLY_12X in twelve-week.ts) — the path
+// page derives its two line items from those sources, so a bundle row that
+// drifts from the sum would contradict the on-page breakdown. Reprice the
+// 12-week course ⇒ re-sum these rows.
 const PRICES: Record<
   Currency,
   {
@@ -95,43 +101,43 @@ const PRICES: Record<
 > = {
   EUR: {
     cert:   { full: 797, base: 797, monthly3: 280, monthly6: 150, monthly12: 80 },
-    bundle: { full: 1277, base: 1277, monthly3: 450, monthly6: 240, monthly12: 128 },
+    bundle: { full: 1347, base: 1347, monthly3: 475, monthly6: 255, monthly12: 135 },
   },
   USD: {
     cert:   { full: 797, base: 797, monthly3: 280, monthly6: 150, monthly12: 80 },
-    bundle: { full: 1277, base: 1277, monthly3: 450, monthly6: 240, monthly12: 128 },
+    bundle: { full: 1347, base: 1347, monthly3: 475, monthly6: 255, monthly12: 135 },
   },
   GBP: {
     cert:   { full: 690, base: 690, monthly3: 240, monthly6: 130, monthly12: 70 },
-    bundle: { full: 1090, base: 1090, monthly3: 380, monthly6: 205, monthly12: 110 },
+    bundle: { full: 1140, base: 1140, monthly3: 400, monthly6: 215, monthly12: 115 },
   },
   CAD: {
     cert:   { full: 1150, base: 1150, monthly3: 400, monthly6: 220, monthly12: 115 },
-    bundle: { full: 1850, base: 1850, monthly3: 650, monthly6: 350, monthly12: 185 },
+    bundle: { full: 1950, base: 1950, monthly3: 685, monthly6: 370, monthly12: 195 },
   },
   CHF: {
     cert:   { full: 770, base: 770, monthly3: 270, monthly6: 145, monthly12: 75 },
-    bundle: { full: 1230, base: 1230, monthly3: 430, monthly6: 230, monthly12: 125 },
+    bundle: { full: 1295, base: 1295, monthly3: 455, monthly6: 245, monthly12: 127 },
   },
   AUD: {
     cert:   { full: 1350, base: 1350, monthly3: 475, monthly6: 255, monthly12: 135 },
-    bundle: { full: 2150, base: 2150, monthly3: 750, monthly6: 405, monthly12: 215 },
+    bundle: { full: 2250, base: 2250, monthly3: 795, monthly6: 425, monthly12: 225 },
   },
   NZD: {
     cert:   { full: 1500, base: 1500, monthly3: 525, monthly6: 285, monthly12: 150 },
-    bundle: { full: 2380, base: 2380, monthly3: 830, monthly6: 450, monthly12: 240 },
+    bundle: { full: 2500, base: 2500, monthly3: 875, monthly6: 475, monthly12: 250 },
   },
   NOK: {
     cert:   { full: 9300, base: 9300, monthly3: 3250, monthly6: 1750, monthly12: 925 },
-    bundle: { full: 14800, base: 14800, monthly3: 5150, monthly6: 2800, monthly12: 1500 },
+    bundle: { full: 15600, base: 15600, monthly3: 5500, monthly6: 2950, monthly12: 1555 },
   },
   SEK: {
     cert:   { full: 9000, base: 9000, monthly3: 3150, monthly6: 1700, monthly12: 900 },
-    bundle: { full: 14400, base: 14400, monthly3: 5000, monthly6: 2700, monthly12: 1450 },
+    bundle: { full: 15200, base: 15200, monthly3: 5325, monthly6: 2875, monthly12: 1520 },
   },
   DKK: {
     cert:   { full: 5850, base: 5850, monthly3: 2050, monthly6: 1100, monthly12: 585 },
-    bundle: { full: 9400, base: 9400, monthly3: 3300, monthly6: 1770, monthly12: 940 },
+    bundle: { full: 9900, base: 9900, monthly3: 3475, monthly6: 1870, monthly12: 990 },
   },
 };
 

@@ -3,10 +3,10 @@
 //
 // Sales model (set by Jacob):
 //   - Email-gated. Entering an email reveals the price.
-//   - Base price is a fixed per-region price point, ~€480 across the same
+//   - Base price is a fixed per-region price point, ~€550 across the same
 //     currencies the workshop engine prices in (NOT runtime FX).
 //   - Anyone whose email matches a workshop registration gets a personal
-//     25% discount, auto-applied — no code to type. It is live *before* their
+//     20% discount, auto-applied — no code to type. It is live *before* their
 //     workshop (no countdown) and for 48 hours *after* it (with a countdown);
 //     after that the price returns to normal.
 //   - A 3-month installment plan is available (a small premium over paying in
@@ -33,42 +33,46 @@ export const TWELVE_WEEK_PRODUCT_SLUG = 'svh-12week';
 export const TWELVE_WEEK_DRIP_TAG = 'prod_SVH_12w';
 export const TWELVE_WEEK_DRIP_EVENT = 'Completed 12-Week SVH course registration';
 
-// Workshop-attendee discount.
-export const DISCOUNT_PERCENT = 25;
+// Workshop-attendee discount. 20% keeps every sale price round (€550 → €440)
+// and matches the certification path's CERT_PATH_DISCOUNT_PERCENT, so emails
+// can quote one number for both.
+export const DISCOUNT_PERCENT = 20;
 // Hours the discount stays live after a workshop has taken place.
 export const DISCOUNT_WINDOW_HOURS = 48;
 // Installments.
 export const INSTALLMENT_COUNT = 3;
 
-// Fixed price points (major units), chosen to sit close to €480 in each market
-// and round cleanly. EUR/USD are pinned at 480; the rest are sensible
-// equivalents. Edit these numbers to change a region's price.
+// Fixed price points (major units), chosen to sit close to €550 in each market
+// and round cleanly — every figure is a multiple of 5, so the 20% workshop
+// discount lands on whole, tidy amounts (550 → 440, 450 → 360, …). EUR/USD are
+// pinned at 550; the rest are sensible equivalents. Edit these numbers to
+// change a region's price.
 export const PRICE: Record<TwelveWeekCurrency, number> = {
-  EUR: 480,
-  USD: 480,
-  GBP: 400,
-  CAD: 700,
-  CHF: 460,
-  AUD: 800,
-  NZD: 880,
-  NOK: 5500,
-  SEK: 5400,
-  DKK: 3550,
+  EUR: 550,
+  USD: 550,
+  GBP: 450,
+  CAD: 800,
+  CHF: 525,
+  AUD: 900,
+  NZD: 1000,
+  NOK: 6300,
+  SEK: 6200,
+  DKK: 4050,
 };
 
 // Per-month installment amount (major units), ×3. Carries a small premium over
 // paying in full (≈5–8%) for the convenience of spreading it out.
 export const MONTHLY: Record<TwelveWeekCurrency, number> = {
-  EUR: 170,
-  USD: 170,
-  GBP: 140,
-  CAD: 250,
-  CHF: 165,
-  AUD: 285,
-  NZD: 310,
-  NOK: 1950,
-  SEK: 1900,
-  DKK: 1250,
+  EUR: 195,
+  USD: 195,
+  GBP: 160,
+  CAD: 285,
+  CHF: 185,
+  AUD: 320,
+  NZD: 350,
+  NOK: 2250,
+  SEK: 2175,
+  DKK: 1425,
 };
 
 // 6-month installment plan. Used by the 12-week line of the Certification path,
@@ -80,16 +84,16 @@ export const MONTHLY: Record<TwelveWeekCurrency, number> = {
 // tier, landing the 6-month total ~14–16% over pay-in-full. Edit to reprice. ×6.
 export const INSTALLMENT_COUNT_6X = 6;
 export const MONTHLY_6X: Record<TwelveWeekCurrency, number> = {
-  EUR: 90,
-  USD: 90,
-  GBP: 75,
-  CAD: 130,
-  CHF: 85,
-  AUD: 150,
-  NZD: 165,
-  NOK: 1050,
-  SEK: 1025,
-  DKK: 670,
+  EUR: 105,
+  USD: 105,
+  GBP: 85,
+  CAD: 150,
+  CHF: 100,
+  AUD: 170,
+  NZD: 190,
+  NOK: 1200,
+  SEK: 1175,
+  DKK: 770,
 };
 
 // 12-month installment plan for the standalone 12-week course, unlocked only by
@@ -98,16 +102,16 @@ export const MONTHLY_6X: Record<TwelveWeekCurrency, number> = {
 // pay-in-full across every market. Edit these to reprice. ×12.
 export const INSTALLMENT_COUNT_12X = 12;
 export const MONTHLY_12X: Record<TwelveWeekCurrency, number> = {
-  EUR: 48,
-  USD: 48,
-  GBP: 40,
-  CAD: 70,
-  CHF: 46,
-  AUD: 80,
-  NZD: 88,
-  NOK: 550,
-  SEK: 540,
-  DKK: 355,
+  EUR: 55,
+  USD: 55,
+  GBP: 45,
+  CAD: 80,
+  CHF: 52,
+  AUD: 90,
+  NZD: 100,
+  NOK: 630,
+  SEK: 620,
+  DKK: 405,
 };
 
 // Country (ISO-2) → the currency we price the course in. Reuses the workshop
@@ -135,7 +139,7 @@ export function installmentTotalCents(currency: TwelveWeekCurrency): number {
   return monthlyCents(currency) * INSTALLMENT_COUNT;
 }
 
-// Apply the 25% discount to a cents amount (rounded to the nearest cent).
+// Apply the 20% discount to a cents amount (rounded to the nearest cent).
 export function applyDiscountCents(cents: number): number {
   return Math.round((cents * (100 - DISCOUNT_PERCENT)) / 100);
 }
@@ -238,7 +242,7 @@ export function anchorMsFromWorkshop(
 // The discount that actually applies to the 12-week price, after a possible
 // URL override. A `?discount=N` override (1–99) always wins over the automatic
 // workshop discount and carries no countdown; otherwise the workshop window
-// decides (25% off, with the 48h countdown only for the post-workshop window).
+// decides (20% off, with the 48h countdown only for the post-workshop window).
 // The override percent is the source of truth for the charge, so the server
 // re-derives it the same way the status endpoint reports it.
 export type EffectiveDiscount = {
@@ -279,17 +283,17 @@ export function effectiveTwelveWeekDiscount(
 
 // The offer the after-workshop emails should actually quote — promo-aware.
 //
-// Normally that's the 25% participant discount on its real 48h countdown. But
-// while the launch promo is live it beats that discount site-wide (50% > 25%)
+// Normally that's the 20% participant discount on its real 48h countdown. But
+// while the launch promo is live it beats that discount site-wide (50% > 20%)
 // and runs to a fixed calendar date, so the same page an attendee lands on
-// shows 50% off through the promo deadline — not 25%, and not a 48h cliff.
-// The emails must match: quoting "25%, then full price in 48h" during the promo
+// shows 50% off through the promo deadline — not 20%, and not a 48h cliff.
+// The emails must match: quoting "20%, then full price in 48h" during the promo
 // both *undersells* the page and names a deadline that isn't real (they keep
 // 50% until the promo ends). This returns the percent + the deadline the copy
-// should name, and flips back to the 25%/48h window automatically the moment
+// should name, and flips back to the 20%/48h window automatically the moment
 // the promo ends — nothing to unwind by hand later.
 export type PostWorkshopOffer = {
-  percent: number; // 25 normally; the promo percent while the promo is live
+  percent: number; // 20 normally; the promo percent while the promo is live
   deadlineMs: number; // the 48h window end normally; the promo end while live
   // A plain calendar label ('July 15') while the promo is live; null outside it,
   // where the caller formats `deadlineMs` as the recipient's local 48h time.
