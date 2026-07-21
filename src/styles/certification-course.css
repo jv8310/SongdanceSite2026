@@ -81,6 +81,7 @@ html, body { background: var(--paper); }
 .cc-h2 em {
   font-family: var(--font-lyric);
   font-style: italic;
+  font-size: 1.05em; /* Cormorant reads optically smaller than Spectral */
   color: var(--plum);
   font-weight: 400;
 }
@@ -1490,14 +1491,14 @@ html, body { background: var(--paper); }
   margin: 0;
 }
 
-/* ---------- Classes grid (date-aware) ---------- */
+/* ---------- Modules grid (self-paced library) ---------- */
 .cc-classes { background: var(--paper); padding: var(--sp-10) var(--sp-7); }
 .cc-classes-inner { max-width: var(--cc-max); margin: 0 auto; }
 .cc-classes-head { text-align: center; margin-bottom: var(--sp-8); }
 .cc-classes-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: var(--sp-5);
+  gap: var(--sp-4);
 }
 @media (max-width: 980px) { .cc-classes-grid { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 640px) { .cc-classes-grid { grid-template-columns: 1fr; } }
@@ -1507,36 +1508,27 @@ html, body { background: var(--paper); }
   background: var(--paper-soft);
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
-  padding: var(--sp-6) var(--sp-5) var(--sp-5);
-  display: flex; flex-direction: column;
+  padding: var(--sp-5);
+  display: flex; flex-direction: column; gap: var(--sp-3);
   transition: box-shadow var(--d-base) var(--ease), transform var(--d-base) var(--ease), border-color var(--d-base) var(--ease);
 }
 .cc-card:hover { box-shadow: var(--shadow-2); transform: translateY(-2px); }
 
 .cc-card-num {
-  font-family: var(--font-display);
-  font-size: 42px;
-  line-height: 1;
-  color: var(--ember);
-  letter-spacing: -0.02em;
-  font-weight: 400;
-  margin-bottom: var(--sp-3);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--ember-deep);
 }
 .cc-card-title {
   font-family: var(--font-display);
-  font-size: 22px;
-  line-height: 1.2;
+  font-size: 20px;
+  line-height: 1.25;
   color: var(--ink);
   font-weight: 500;
-  margin: 0 0 var(--sp-3);
+  margin: 0;
   text-wrap: balance;
-}
-.cc-card-desc {
-  font-family: var(--font-body);
-  font-size: 14.5px;
-  line-height: 1.6;
-  color: var(--ink-soft);
-  margin: 0 0 var(--sp-5);
   flex: 1;
 }
 .cc-card-status {
@@ -1545,29 +1537,13 @@ html, body { background: var(--paper); }
   border-top: 1px solid var(--line);
   display: flex; align-items: center; gap: 8px;
   font-family: var(--font-body); font-size: 13px; font-weight: 500;
-  color: var(--ink);
+  color: var(--moss-deep);
 }
 .cc-card-status .label { letter-spacing: 0.01em; }
-.cc-card-status .when {
-  color: var(--ink-quiet); font-weight: 400;
-  margin-left: 4px;
-}
-
-/* State visual treatments — the library IS the course now, so classes already
-   in it read full-strength; the few still to come sit quietly dimmed. */
-.cc-card[data-state="past"] .cc-card-status { color: var(--moss-deep); }
-.cc-card[data-state="upcoming"] { opacity: 0.78; }
-.cc-card[data-state="upcoming"] .cc-card-status { color: var(--ink-quiet); font-style: italic; }
 
 @keyframes cc-pulse {
   0%, 100% { opacity: 1; transform: scale(1); }
   50%      { opacity: 0.55; transform: scale(0.85); }
-}
-
-.cc-countdown {
-  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
-  font-size: 13px; color: var(--ember-deep);
-  margin-left: 4px;
 }
 
 .cc-classes-foot {
@@ -1576,9 +1552,11 @@ html, body { background: var(--paper); }
   font-family: var(--font-body); font-size: 13px;
   color: var(--ink-quiet);
   font-style: italic;
+  max-width: 64ch;
+  margin-left: auto; margin-right: auto;
 }
 
-/* ---------- CEEE (compact variant of the classes grid) ---------- */
+/* ---------- Deepening sessions (library + monthly live) ---------- */
 .cc-ceee { background: var(--paper-deep); padding: var(--sp-9) var(--sp-7); }
 .cc-ceee-inner { max-width: var(--cc-max); margin: 0 auto; }
 .cc-ceee-head { text-align: center; margin-bottom: var(--sp-7); }
@@ -1588,58 +1566,48 @@ html, body { background: var(--paper); }
   max-width: 60ch; margin: var(--sp-4) auto 0;
   text-wrap: pretty;
 }
-.cc-ceee-grid {
+.cc-ceee-duo {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--sp-3);
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-4);
+  max-width: 880px;
+  margin: 0 auto;
 }
-@media (max-width: 980px) { .cc-ceee-grid { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 540px) { .cc-ceee-grid { grid-template-columns: 1fr; } }
-.cc-ceee-card {
-  position: relative;
-  padding: var(--sp-4) var(--sp-4);
+@media (max-width: 760px) { .cc-ceee-duo { grid-template-columns: 1fr; } }
+.cc-ceee-panel {
   background: var(--paper-soft);
   border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  display: flex; flex-direction: column; gap: 6px;
-  font-family: var(--font-body);
-  transition: border-color var(--d-base) var(--ease);
+  border-radius: var(--r-lg);
+  padding: var(--sp-6);
+  display: flex; flex-direction: column; gap: var(--sp-3);
 }
-.cc-ceee-card .ceee-num {
+.cc-ceee-panel .ceee-tag {
   font-family: var(--font-mono); font-size: 11px;
   text-transform: uppercase; letter-spacing: 0.18em;
   color: var(--ember-deep);
+  display: inline-flex; align-items: center; gap: 8px;
 }
-.cc-ceee-card .ceee-date {
+.cc-ceee-panel h3 {
   font-family: var(--font-display);
-  font-size: 16px; color: var(--ink); font-weight: 500;
+  font-size: 24px; line-height: 1.2;
+  color: var(--ink); font-weight: 500;
+  margin: 0;
+  text-wrap: balance;
 }
-.cc-ceee-card .ceee-duration {
-  font-family: var(--font-mono);
-  font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase;
-  color: var(--ink-whisper);
+.cc-ceee-panel p {
+  font-family: var(--font-body); font-size: 15px;
+  line-height: 1.65; color: var(--ink-soft);
+  margin: 0;
 }
-.cc-ceee-card .ceee-status {
-  font-size: 12px; color: var(--ink-quiet);
-}
-.cc-ceee-card[data-state="past"] { opacity: 0.7; }
-.cc-ceee-card[data-state="up-next"] {
+.cc-ceee-panel--live {
   border-color: var(--ember);
   box-shadow: 0 0 0 2px rgba(201,96,58,0.1);
 }
-.cc-ceee-card[data-state="tomorrow"],
-.cc-ceee-card[data-state="almost-live"] { border-color: var(--ember); }
-.cc-ceee-card[data-state="live"] {
+.ceee-live-dot {
+  width: 8px; height: 8px; border-radius: 50%;
   background: var(--ember);
-  border-color: var(--ember-deep);
+  animation: cc-pulse 2.2s var(--ease) infinite;
 }
-.cc-ceee-card[data-state="live"] .ceee-num,
-.cc-ceee-card[data-state="live"] .ceee-date,
-.cc-ceee-card[data-state="live"] .ceee-status { color: var(--paper); }
-.cc-ceee-card[data-state="tbc"] {
-  border-style: dashed; opacity: 0.7;
-}
-.cc-ceee-card[data-state="tbc"] .ceee-date { font-style: italic; color: var(--ink-quiet); }
 
 /* ---------- The app ---------- */
 .cc-app {
@@ -2078,7 +2046,7 @@ html, body { background: var(--paper); }
 /* ---------- Reduced motion ---------- */
 @media (prefers-reduced-motion: reduce) {
   .cc-hero-bg img { animation: none; }
-  .cc-card[data-state="live"] .live-dot { animation: none; }
+  .ceee-live-dot { animation: none; }
   *, *::before, *::after {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;

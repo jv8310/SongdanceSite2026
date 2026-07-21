@@ -1,7 +1,8 @@
 // Single source of truth for the SVH Certification Course class schedule
-// and the CEEE deepening session schedule. Imported by the date-aware
-// grid components (CCClasses, CCCeee) and by the variant-gate API when it
-// needs to report the "next upcoming" class to a returning student.
+// and the CEEE deepening session schedule. The sales page now presents the
+// course as a self-paced library (CCClasses renders only the module numbers
+// and titles; CCCeee no longer itemizes sessions), but the schedules and
+// date helpers stay here as the ops record of when each is held live.
 //
 // All ISO datetimes carry an explicit offset (CET = +01:00, CEST = +02:00)
 // so the date logic works the same on the server and the client.
