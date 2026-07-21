@@ -43,7 +43,10 @@ const MOVED_URLS: Record<string, string> = {
   '/masterclass': '/courses/masterclass',
   '/forgiveness': '/courses/forgiveness',
   '/svh-german': '/courses/12-week-de',
-  '/songdeck': '/courses/songdeck',
+  '/songdeck': '/music/songdeck',
+  // Songdeck used to live under /courses — it's a music product, so it moved
+  // to /music alongside the album players (July 2026).
+  '/courses/songdeck': '/music/songdeck',
   '/ritual-of-belonging': '/retreats/ritual-of-belonging',
   '/dolphin-retreat': '/retreats/dolphin-and-sound',
   '/workshop-deutsch': '/workshop/deutsch',

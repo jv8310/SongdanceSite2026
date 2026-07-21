@@ -20,6 +20,7 @@
 
 import { getSubscriber } from '../registrations/drip';
 import type { MusicAlbumRow } from './db';
+import { hasPaidAlbumRegistration } from './product';
 
 const COOKIE_NAME = 'sd_music';
 const LISTENER_DAYS = 30;
@@ -62,27 +63,34 @@ export function listenerCookieHeader(token: string): string {
 
 // ---- Entitlement (Drip tag) ----
 
-// Does this email hold the album? True when the album has a Drip tag and the
-// subscriber carries it (case-insensitive). Fails closed: no tag configured,
-// Drip unset, unknown email, or a Drip error all deny — the player page offers
-// support@ as the human fallback, and admins always pass upstream of this.
+// Does this email hold the album? Two independent paths grant:
+//   1. The album's Drip tag on the subscriber (case-insensitive) — how bump /
+//      course-bonus buyers get in.
+//   2. A *paid* direct purchase of the album in course_registrations — so a
+//      fresh buyer plays immediately (before Drip has processed the order),
+//      and a Drip outage never locks paying customers out.
+// Everything else fails closed: no tag configured + no purchase, unknown
+// email, or a Drip error all deny — the player page offers support@ as the
+// human fallback, and admins always pass upstream of this.
 export async function hasAlbumAccess(
   env: { DRIP_API_TOKEN?: string; DRIP_ACCOUNT_ID?: string },
+  db: D1Database,
   email: string,
-  album: Pick<MusicAlbumRow, 'drip_tag'>,
+  album: Pick<MusicAlbumRow, 'id' | 'drip_tag'>,
 ): Promise<boolean> {
   const tag = (album.drip_tag ?? '').trim().toLowerCase();
-  if (!tag || !env.DRIP_API_TOKEN || !env.DRIP_ACCOUNT_ID) return false;
-  try {
-    const sub = await getSubscriber(
-      { apiToken: env.DRIP_API_TOKEN, accountId: env.DRIP_ACCOUNT_ID },
-      email,
-    );
-    return (sub?.tags ?? []).some((t) => (t ?? '').trim().toLowerCase() === tag);
-  } catch (err) {
-    console.warn(`[music-access] drip lookup failed: ${String(err)}`);
-    return false;
+  if (tag && env.DRIP_API_TOKEN && env.DRIP_ACCOUNT_ID) {
+    try {
+      const sub = await getSubscriber(
+        { apiToken: env.DRIP_API_TOKEN, accountId: env.DRIP_ACCOUNT_ID },
+        email,
+      );
+      if ((sub?.tags ?? []).some((t) => (t ?? '').trim().toLowerCase() === tag)) return true;
+    } catch (err) {
+      console.warn(`[music-access] drip lookup failed: ${String(err)}`);
+    }
   }
+  return hasPaidAlbumRegistration(db, email, album.id);
 }
 
 // ---- Signed stream URLs ----

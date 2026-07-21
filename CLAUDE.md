@@ -557,6 +557,27 @@ the bottom of `/admin` → **Music albums** (`/admin/music`). Tables
 - **Player** (`/music/[album].astro`, SiteLayout): cover + description, track
   list, sticky bottom bar (play/pause/prev/next/seek), auto-advance, and Media
   Session metadata for phone lock screens.
+- **Selling an album** (migration 0077 + [`src/lib/music/product.ts`](src/lib/music/product.ts)):
+  set a **price (EUR)** in the album settings and the player's gate grows a
+  checkout ("Get the album") next to the email login; blank price = login-only
+  (bump/course bonus). The purchase rides the ordinary **course machinery** as
+  product slug `album-<id>` — `/api/music/checkout` (journey-checkout sibling:
+  EUR-only, full payment, B2C, Stripe + direct PayPal) → `course_registrations`
+  → the shared paid-handler, which looks the album up and applies its
+  `drip_tag` (`courseDripTags` returns `[]` for album slugs so they can never
+  fall through to the cert tags). Every fulfilment backstop (webhooks, PayPal
+  return, reconciles, admin mark-paid, SD-ORDER, Drip order mirror, Meta CAPI)
+  works unchanged. **Entitlement is two-path** (`hasAlbumAccess`): the Drip tag
+  *or* a paid `album-<id>` registration row — so a fresh buyer returning via
+  `?welcome=1` plays immediately, before Drip has seen the order, and a Drip
+  outage never locks paying buyers out.
+- **/music is the music home** (`/music/index.astro`), the **"Music" tab** in
+  the site menu (`src/data/nav.ts` tail links — it replaced the Songdeck link):
+  lists the Songdeck + every published album with cover/price. **The Songdeck
+  page moved** from `/courses/songdeck` to `/music/songdeck` (it's a music
+  product, not a course); 301s for the old paths live in the `MOVED_URLS` map
+  in `src/worker-entrypoint.ts`. Album slugs `songdeck`/`index`/`stream` are
+  reserved (static routes shadow `/music/[album]`).
 
 ## R2 image library — how to view and use images
 

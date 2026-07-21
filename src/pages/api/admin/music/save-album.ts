@@ -42,6 +42,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const id = normaliseSlug(String(form.get('id') ?? '').trim());
   const title = String(form.get('title') ?? '').trim();
   if (!id || !title) return new Response('Title and URL id are required', { status: 400 });
+  // /music/<static page> routes shadow /music/[album] — don't let an album
+  // claim one of those slugs and become unreachable.
+  if (RESERVED_SLUGS.has(id)) {
+    return new Response(`"${id}" is a reserved URL — pick a different id`, { status: 400 });
+  }
 
   // A create must not silently overwrite an existing album's settings.
   if (!originalId && (await getAlbum(env.DB, id))) {
@@ -75,6 +80,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       title,
       description: nullable(form.get('description')),
       drip_tag: nullable(form.get('drip_tag')),
+      price_eur_cents: parsePriceEur(form.get('price_eur')),
       published: form.get('published') === 'on' || form.get('published') === '1' ? 1 : 0,
       cover_key,
     },
@@ -84,8 +90,19 @@ export const POST: APIRoute = async ({ request, locals }) => {
   return redirect(`/admin/music/${id}?flash=saved`);
 };
 
+const RESERVED_SLUGS = new Set(['songdeck', 'index', 'stream']);
+
 function redirect(to: string): Response {
   return new Response(null, { status: 302, headers: { Location: to } });
+}
+
+// "22", "22.5", "€22,50" → cents; blank/zero/garbage → null (not for sale).
+function parsePriceEur(v: FormDataEntryValue | null): number | null {
+  const s = String(v ?? '').trim().replace(/[€\s]/g, '').replace(',', '.');
+  if (!s) return null;
+  const major = Number(s);
+  if (!Number.isFinite(major) || major <= 0) return null;
+  return Math.round(major * 100);
 }
 
 function nullable(v: FormDataEntryValue | null): string | null {

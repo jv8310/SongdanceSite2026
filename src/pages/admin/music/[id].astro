@@ -74,8 +74,20 @@ function fmtBytes(n: number | null): string {
       </div>
       {!album.drip_tag && (
         <p class="music-note music-note--warn">
-          No Drip tag set yet — only signed-in admins can open the player. Add the tag below to
-          let buyers in.
+          No Drip tag set yet — only signed-in admins and direct buyers can open the player. Add
+          the tag below to let bump/course buyers in.
+        </p>
+      )}
+      {album.price_eur_cents ? (
+        <p class="music-note">
+          For sale at <strong>€{(album.price_eur_cents / 100).toFixed(2).replace(/\.00$/, '')}</strong> —
+          the player page offers a checkout to visitors who don't own it, and the album is listed
+          on <a href="/music" target="_blank" rel="noopener">/music</a>.
+        </p>
+      ) : (
+        <p class="music-note">
+          No price set — the player page only offers the email login (set a price below to sell
+          it directly).
         </p>
       )}
       {!album.published && (
@@ -118,6 +130,17 @@ function fmtBytes(n: number | null): string {
           <label>
             <span>Drip tag (grants access)</span>
             <input type="text" name="drip_tag" value={album.drip_tag ?? ''} maxlength="100" placeholder="prod_MANTRA" />
+          </label>
+          <label>
+            <span>Price (EUR — blank = not for sale)</span>
+            <input
+              type="text"
+              name="price_eur"
+              value={album.price_eur_cents ? (album.price_eur_cents / 100).toString() : ''}
+              inputmode="decimal"
+              placeholder="22"
+              maxlength="10"
+            />
           </label>
           <label class="span-2">
             <span>Description (shown on the player page)</span>

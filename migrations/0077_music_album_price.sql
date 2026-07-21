@@ -1,0 +1,11 @@
+-- Music albums learn a price, so a listener who doesn't own one yet can buy it
+-- right on the player page (and from the /music listing).
+--
+-- The price is set per album in /admin/music/<id>, in EUR cents. NULL (or 0)
+-- means the album is not for sale on its own — the page only offers the email
+-- login (e.g. an album that exists purely as a checkout bump or course bonus).
+-- A purchase runs through the ordinary course checkout machinery as product
+-- slug `album-<id>` (see src/lib/music/product.ts), charged in EUR; on payment
+-- the shared course paid-handler applies the album's drip_tag, which is the
+-- same access key the bump automation grants.
+ALTER TABLE music_albums ADD COLUMN price_eur_cents INTEGER;
