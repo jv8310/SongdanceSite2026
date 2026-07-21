@@ -12,7 +12,7 @@
 //                               JSON on course_registrations).
 //   • Revenue                 — the streams above, summed.
 //
-// Numbers reuse the exact same compute functions as /admin/workshops/stats
+// Numbers reuse the exact same compute functions as /admin/stats
 // (computeStats + computeCourseSales), so a figure here matches what the
 // dashboard shows for the same window. Windows are resolved against the
 // business timezone (Europe/Brussels) just like the stats-page presets, so
@@ -33,6 +33,8 @@ import {
   computeStats,
   computeCourseSales,
   mergeDailyStreams,
+  resolveMoneyOpts,
+  type MoneyOpts,
   type StreamDay,
 } from './stats';
 import { FX_TO_EUR, formatMoney } from './currency';
@@ -57,6 +59,11 @@ export type ReportEnv = {
   ADMIN_EMAIL?: string;
   RESEND_REPLY_TO?: string;
   PUBLIC_BASE_URL?: string;
+  // Quaderno (VAT netting for standalone course figures — same as the
+  // dashboard). Absent → those figures fall back to gross, as before.
+  QUADERNO_API_KEY?: string;
+  QUADERNO_ACCOUNT?: string;
+  QUADERNO_SANDBOX?: string;
 };
 
 const DEFAULT_RECIPIENT = 'jacob@songdance.co';
@@ -102,13 +109,16 @@ export type ReportData = {
 const toEnd = (to: string) => `${to} 23:59:59`;
 
 // Gather every figure for [from, to]. Pure read; safe to call for a preview.
+// `money` (live FX + Quaderno VAT netting) keeps the digest's course figures
+// identical to the dashboard's — omit it and they fall back to gross/fallback.
 export async function gatherReportData(
   db: D1Database,
   from: string,
   to: string,
+  money?: MoneyOpts,
 ): Promise<ReportData> {
   const stats = await computeStats(db, { from, to });
-  const courses = await computeCourseSales(db, { from, to });
+  const courses = await computeCourseSales(db, { from, to, money });
 
   // New registrations (secured seats) per workshop in the window. Grouped by
   // workshop id (not just title), since the same title (e.g. "Somatic Vocal
@@ -177,7 +187,7 @@ export async function gatherReportData(
   // workshop course add-ons) + standalone course sales + course order bumps.
   const totalEurMinor = t.netEurMinor + courses.totalNetEurMinor + courseBumpEurMinor;
   // ROAS mirrors the dashboard's blended figure (engine net + course sales),
-  // so it reconciles with /admin/workshops/stats.
+  // so it reconciles with /admin/stats.
   const roasNet = t.netEurMinor + courses.totalNetEurMinor;
 
   return {
@@ -457,7 +467,7 @@ function renderReport(opts: {
           ${extraSectionsHtml ?? ''}
         </td></tr>
         <tr><td style="padding:18px 26px 26px;">
-          <a href="${b}/admin/workshops/stats" style="display:inline-block;padding:9px 16px;background:${C.ink};color:#ffffff;font-size:13px;text-decoration:none;border-radius:8px;">Open dashboard →</a>
+          <a href="${b}/admin/stats" style="display:inline-block;padding:9px 16px;background:${C.ink};color:#ffffff;font-size:13px;text-decoration:none;border-radius:8px;">Open dashboard →</a>
         </td></tr>
       </table>
       <p style="margin:14px 0 0;font-size:11px;color:${C.faint};line-height:1.6;max-width:560px;">Automated report · Songdance. Workshop figures are net of tax; course-sale figures are the amount collected (gross of VAT), converted to EUR at fallback rates — same conventions as the stats dashboard.</p>
@@ -666,11 +676,12 @@ export async function runReports(env: ReportEnv, now = Date.now()): Promise<RunR
   const today = businessDate(now);
   const yesterday = shiftDays(today, -1);
   const baseUrl = (env.PUBLIC_BASE_URL && env.PUBLIC_BASE_URL.trim()) || DEFAULT_BASE_URL;
+  const money = await resolveMoneyOpts(env.DB, env);
 
   result.daily = await sendOne(
     env,
     `report-daily-${yesterday}`,
-    () => gatherReportData(env.DB, yesterday, yesterday),
+    () => gatherReportData(env.DB, yesterday, yesterday, money),
     (data) => buildDailyReportEmail(data, baseUrl),
   );
 
@@ -680,7 +691,7 @@ export async function runReports(env: ReportEnv, now = Date.now()): Promise<RunR
     result.weekly = await sendOne(
       env,
       `report-weekly-${weekTo}`,
-      () => gatherReportData(env.DB, weekFrom, weekTo),
+      () => gatherReportData(env.DB, weekFrom, weekTo, money),
       (data) => buildWeeklyReportEmail(data, baseUrl),
     );
   }
@@ -711,7 +722,7 @@ export async function sendReportNow(
 
   const from = opts.kind === 'weekly' ? shiftDays(target, -6) : target;
   const to = target;
-  const data = await gatherReportData(env.DB, from, to);
+  const data = await gatherReportData(env.DB, from, to, await resolveMoneyOpts(env.DB, env));
   const content =
     opts.kind === 'weekly'
       ? buildWeeklyReportEmail(data, baseUrl)

@@ -200,7 +200,7 @@ notifications. Lives in [`src/lib/workshops/reports.ts`](src/lib/workshops/repor
   12-week checkout order bumps (the `bumps` JSON on `course_registrations`) — and
   a **revenue** breakdown that sums them. Numbers reuse the dashboard's own
   `computeStats` + `computeCourseSales` (stats.ts), so a figure here matches
-  `/admin/workshops/stats` for the same window.
+  `/admin/stats` for the same window.
 - **Cadence**: a **daily** digest (covering *yesterday*) every morning, plus a
   **weekly** digest (the 7 days ending yesterday, with a revenue-by-day table)
   every **Tuesday**. Runs on the existing **hourly** cron (no new trigger):
@@ -340,7 +340,7 @@ matches that same live app.
 
 ## Meta ad spend — direct pull from the Marketing API
 
-Ad spend feeds `/ads` (cost-per-registration, ROAS) and `/admin/workshops/stats`
+Ad spend feeds `/ads` (cost-per-registration, ROAS) and `/admin/stats`
 straight from one table: `workshop_ad_spend` (migration 0021). Two paths write
 it, both idempotent and interchangeable:
 
@@ -372,7 +372,7 @@ pre-breakdown windows keep the old "all spend ÷ regs" figure). Cost per
 registration = prospecting spend ÷ registrations; **total** ad spend and
 **blended ROAS** still count every campaign, and the per-workshop Meta-cost
 allocation still divides *total* spend by registration share (so that column +
-blended ROAS reconcile). `/admin/workshops/stats` shows a **By campaign** table
+blended ROAS reconcile). `/admin/stats` shows a **By campaign** table
 (spend + prospecting/retargeting tag) so the split is verifiable; `/ads` labels
 its "Cost / registration" as prospecting-based and breaks the "Ad spend" tile
 into prospecting · retargeting.
@@ -394,7 +394,7 @@ until the owner opts in.
   Conversions API token usually lacks `ads_read`, so set this one explicitly.
 - Optional **`META_API_VERSION`** overrides the Graph version (default `v21.0`).
 
-**Manual trigger**: `/admin/workshops/stats` → "Pull from Meta now" button
+**Manual trigger**: `/admin/stats` → "Pull from Meta now" button
 (`/api/admin/workshops/ad-spend-sync`, admin-gated) forces a sync (bypasses the
 daily gate) so the token/account can be verified and today's spend land at once.
 

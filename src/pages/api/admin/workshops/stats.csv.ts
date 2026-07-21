@@ -4,12 +4,15 @@ import {
   computeStats,
   computeCourseSales,
   mergeDailyStreams,
+  resolveMoneyOpts,
 } from '../../../../lib/workshops/stats';
 
 export const prerender = false;
 
 // GET /api/admin/workshops/stats.csv?from=&to=&workshop_id= → daily stats CSV,
 // split per revenue stream (workshops / masterclass / standalone courses).
+// Course figures ride the same money context as /admin/stats (live FX, VAT
+// netted when Quaderno is configured), so the export matches the page.
 export const GET: APIRoute = async ({ request, url, locals }) => {
   const env = locals.runtime.env;
   if (!(await verifySession(env.ADMIN_SESSION_SECRET, readCookie(request)))) {
@@ -21,8 +24,9 @@ export const GET: APIRoute = async ({ request, url, locals }) => {
   const wid = parseInt(url.searchParams.get('workshop_id') ?? '', 10);
   const workshopId = Number.isFinite(wid) ? wid : null;
 
+  const money = await resolveMoneyOpts(env.DB, env);
   const report = await computeStats(env.DB, { from, to, workshopId });
-  const courses = await computeCourseSales(env.DB, { from, to });
+  const courses = await computeCourseSales(env.DB, { from, to, money });
   const days = mergeDailyStreams(report, courses, from, to);
 
   const eur = (minor: number) => (minor / 100).toFixed(2);

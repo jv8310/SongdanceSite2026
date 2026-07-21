@@ -50,6 +50,10 @@ const MOVED_URLS: Record<string, string> = {
   '/ritual-of-belonging': '/retreats/ritual-of-belonging',
   '/dolphin-retreat': '/retreats/dolphin-and-sound',
   '/workshop-deutsch': '/workshop/deutsch',
+  // The stats dashboard covers the whole business (courses, music, ads), so it
+  // moved out of the workshops nest (July 2026). Query string (filters) rides
+  // along on the redirect.
+  '/admin/workshops/stats': '/admin/stats',
 };
 
 // Canonical host for the site (June 2026 move off the site.* subdomain). The
@@ -221,7 +225,7 @@ export function createExports(manifest: unknown) {
     );
 
     // Pull Meta ad spend straight from the Marketing API into workshop_ad_spend,
-    // so /ads + /admin/workshops/stats ROAS need no manual CSV import. Rides the
+    // so /ads + /admin/stats ROAS need no manual CSV import. Rides the
     // hourly trigger, self-gates to the first tick at/after 06:00 Brussels (at
     // most once a day), re-syncs a rolling 14-day window (to absorb Meta's
     // retroactive spend revisions), and no-ops entirely until META_AD_ACCOUNT_ID

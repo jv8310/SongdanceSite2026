@@ -396,7 +396,7 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
       {!d.hasAdSpend && (
         <div class="banner">
           No Meta ad spend has been recorded for this window, so <strong>cost&nbsp;per&nbsp;registration</strong> and <strong>ROAS</strong> show “—”.
-          Pull spend from Meta (or import the CSV) on <code>/admin/workshops/stats</code> to light these up. Registrations, attendance, conversion &amp; revenue are shown regardless.
+          Pull spend from Meta (or import the CSV) on <code>/admin/stats</code> to light these up. Registrations, attendance, conversion &amp; revenue are shown regardless.
         </div>
       )}
 
@@ -657,7 +657,7 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
       </div>
 
       <div class="flags">
-        <p>Money in EUR. Workshop-engine figures are net of tax where tax data exists; standalone course sales (12-week, certification) are amounts charged so far (installments count paid installments only, refunds subtracted), gross of VAT, converted at fallback FX. Cost per registration uses <strong>prospecting (TOF) spend only</strong> — the campaign that buys new registrations; retargeting spend is excluded from it (but still counts in total ad spend + blended ROAS). <strong>Workshop ROAS</strong> (the tile + the recent-workshop cards) charges each workshop’s income — its registrants’ tickets, order bumps and later 12-Week/certification sales — against that workshop’s share of prospecting (TOF) spend; the weighted-average tile counts each buyer’s course revenue once. The full table below instead allocates <strong>total</strong> ad spend by registration share for its Meta-cost/ROAS columns, so those reconcile with total spend + blended ROAS (spend isn’t tracked per workshop). Figures reconcile with /admin/workshops/stats for the same window.</p>
+        <p>Money in EUR. Workshop-engine figures are net of tax where tax data exists; standalone course sales (12-week, certification) are amounts charged so far (installments count paid installments only, refunds subtracted), gross of VAT, converted at fallback FX. Cost per registration uses <strong>prospecting (TOF) spend only</strong> — the campaign that buys new registrations; retargeting spend is excluded from it (but still counts in total ad spend + blended ROAS). <strong>Workshop ROAS</strong> (the tile + the recent-workshop cards) charges each workshop’s income — its registrants’ tickets, order bumps and later 12-Week/certification sales — against that workshop’s share of prospecting (TOF) spend; the weighted-average tile counts each buyer’s course revenue once. The full table below instead allocates <strong>total</strong> ad spend by registration share for its Meta-cost/ROAS columns, so those reconcile with total spend + blended ROAS (spend isn’t tracked per workshop). Figures reconcile with /admin/stats for the same window.</p>
         {d.flaggedNoTax > 0 && <p>⚠ {d.flaggedNoTax} workshop payment(s) had no tax data — net taken equal to gross for those.</p>}
         {d.fxConverted > 0 && <p>⚠ {d.fxConverted} course sale(s) charged in a non-EUR currency, converted with the fallback rate table.</p>}
       </div>
