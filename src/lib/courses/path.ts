@@ -16,7 +16,13 @@
 // Fulfilment is unchanged: the path is the existing `cc-bundle` product, which
 // already tags both `prod_SVH_12w` + `prod_SVH_9m` and honours `activate_choice`.
 
-import { getCertOffer, applyLaunchPromoToOffer, type Currency } from './variant';
+import {
+  getCertOffer,
+  applyLaunchPromoToOffer,
+  type Currency,
+  type Offer,
+  type InstallmentPlan,
+} from './variant';
 import { launchPromoActive } from '../promo';
 import {
   priceCents,
@@ -42,6 +48,16 @@ import {
 // so the lifecycle emails can quote a single "20%" for both offers.
 export const CERT_PATH_DISCOUNT_PERCENT = 20;
 
+// The German 12-week graduate cross-sell (buyers tagged prodG_SVH_12w in Drip —
+// see variant.ts, variant G). They've completed the German edition of the
+// 12-week course, so on the cert page the certification is offered at the
+// standard workshop-sale 20%, and the path pairs it with the ENGLISH 12-week
+// course at a deep graduate discount. Verified server-side from the Drip tag in
+// both the status endpoint (display) and the checkout (charge), so the price
+// can't be spoofed.
+export const GERMAN_CERT_DISCOUNT_PERCENT = CERT_PATH_DISCOUNT_PERCENT; // 20% off the cert line
+export const GERMAN_TWELVE_WEEK_DISCOUNT_PERCENT = 75; // 75% off the English 12-week line
+
 export type CertificationPathPricing = {
   currency: Currency;
   // 12-week line (workshop-discounted)
@@ -66,7 +82,9 @@ export type CertificationPathPricing = {
   discount: {
     eligible: boolean;
     percent: number;
-    kind: DiscountKind | 'override';
+    // 'german' = the German-12-week-graduate cross-sell (cert 20% + English
+    // 12-week 75%); it has no expiry, so no countdown ever clears it.
+    kind: DiscountKind | 'override' | 'german';
     expires_at_ms: number | null;
   };
 };
@@ -150,6 +168,97 @@ export function buildCertificationPathPricing(
       percent: eff.eligible ? (workshopSale ? CERT_PATH_DISCOUNT_PERCENT : eff.percent) : 0,
       kind: eff.kind,
       expires_at_ms: eff.expiresAtMs,
+    },
+  };
+}
+
+// The certification offer, discounted 20% for a German 12-week graduate. The
+// list price stays as base_price (shown struck on the card); price + every
+// installment ladder are floored to clean prices with the SAME pctMajor rule
+// the path's cert line uses, so the cert-only card and the path's cert row
+// always agree on the number (EUR: €797 → €635). Shared by subscriber-status
+// (display) and the checkout (charge).
+export function germanCertOffer(currency: Currency): Offer {
+  const base = getCertOffer(currency);
+  const disc = (cents: number) => pctMajor(cents, GERMAN_CERT_DISCOUNT_PERCENT);
+  const ladder = (p?: InstallmentPlan): InstallmentPlan | undefined => {
+    if (!p) return undefined;
+    const monthly_cents = disc(p.monthly_cents);
+    return {
+      currency: p.currency,
+      monthly: monthly_cents / 100,
+      monthly_cents,
+      count: p.count,
+      total: (monthly_cents * p.count) / 100,
+      total_cents: monthly_cents * p.count,
+    };
+  };
+  const certPriceCents = disc(base.price_cents);
+  return {
+    ...base,
+    price: certPriceCents / 100,
+    price_cents: certPriceCents,
+    // base_price stays the list price so the card strikes it through.
+    save_note: 'Graduate of the German 12-week course — 20% off, self-paced',
+    installments: ladder(base.installments),
+    installments_6x: ladder(base.installments_6x),
+    installments_12x: ladder(base.installments_12x),
+  };
+}
+
+// The certification path for a German 12-week graduate: the ENGLISH 12-week
+// course at GERMAN_TWELVE_WEEK_DISCOUNT_PERCENT off, paired with the cert at
+// GERMAN_CERT_DISCOUNT_PERCENT off. Same shape + flooring as
+// buildCertificationPathPricing, so the on-page breakdown and the charge match;
+// no workshop window is consulted (the discount is the graduate offer itself,
+// so kind is 'german' with no expiry / countdown). The cert line here equals
+// germanCertOffer's price by construction (both pctMajor(cert, 20%)).
+export function buildGermanCertificationPathPricing(
+  currency: Currency,
+): CertificationPathPricing {
+  const baseCert = getCertOffer(currency);
+  const certBase = baseCert.base_price * 100;
+  const twBase = priceCents(currency);
+  const twBaseMonthly = monthlyCents(currency);
+  const twBaseMonthly6x = monthlyCents6x(currency);
+  const certBaseMonthly = baseCert.installments?.monthly_cents ?? 0;
+  const certBaseMonthly6x = baseCert.installments_6x?.monthly_cents ?? 0;
+
+  const twPrice = pctMajor(twBase, GERMAN_TWELVE_WEEK_DISCOUNT_PERCENT);
+  const twMonthly = pctMajor(twBaseMonthly, GERMAN_TWELVE_WEEK_DISCOUNT_PERCENT);
+  const twMonthly6x = pctMajor(twBaseMonthly6x, GERMAN_TWELVE_WEEK_DISCOUNT_PERCENT);
+  const certPrice = pctMajor(baseCert.price_cents, GERMAN_CERT_DISCOUNT_PERCENT);
+  const certMonthly = pctMajor(certBaseMonthly, GERMAN_CERT_DISCOUNT_PERCENT);
+  const certMonthly6x = pctMajor(certBaseMonthly6x, GERMAN_CERT_DISCOUNT_PERCENT);
+
+  // Blended percent off the combined list total — for the receipt/metadata
+  // audit only (each line carries its own percent on the page).
+  const blended = Math.round(
+    (1 - (certPrice + twPrice) / (certBase + twBase)) * 100,
+  );
+
+  return {
+    currency,
+    twelve_week_base_cents: twBase,
+    twelve_week_price_cents: twPrice,
+    twelve_week_base_monthly_cents: twBaseMonthly,
+    twelve_week_monthly_cents: twMonthly,
+    cert_base_price_cents: certBase,
+    cert_price_cents: certPrice,
+    cert_monthly_cents: certMonthly,
+    total_cents: certPrice + twPrice,
+    total_monthly_cents: certMonthly + twMonthly,
+    base_total_cents: certBase + twBase,
+    base_total_monthly_cents: certBaseMonthly + twBaseMonthly,
+    installment_count: INSTALLMENT_COUNT,
+    total_monthly_6x_cents: certMonthly6x + twMonthly6x,
+    base_total_monthly_6x_cents: certBaseMonthly6x + twBaseMonthly6x,
+    installment_6x_count: INSTALLMENT_COUNT_6X,
+    discount: {
+      eligible: true,
+      percent: blended,
+      kind: 'german',
+      expires_at_ms: null,
     },
   };
 }

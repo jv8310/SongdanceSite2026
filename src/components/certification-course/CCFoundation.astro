@@ -97,7 +97,7 @@ const able = [
   // re-fetch — we listen to the decision the teaser / register blocks already
   // broadcast, and read the cached one on load. Same contract: `cc:decision`
   // in localStorage, `cc:decision-updated` / `cc:decision-cleared` events.
-  type Variant = 'B1' | 'B2' | 'A' | 'D' | 'E' | 'C';
+  type Variant = 'B1' | 'B2' | 'G' | 'A' | 'D' | 'E' | 'C';
   type Decision = { variant?: Variant; offers?: { slug?: string }[] };
 
   const STORAGE_KEY = 'cc:decision';

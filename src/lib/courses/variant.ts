@@ -5,6 +5,9 @@
 // Variants:
 //   B1 — currently in the 12-week course               → cert only
 //   B2 — completed the 12-week course                  → cert only
+//   G  — completed the GERMAN 12-week course           → cert (20% off) OR the
+//        (Drip tag prodG_SVH_12w), no English 12w/cert   path with the English
+//                                                        12-week at 75% off
 //   A  — any legacy "vsh" tag, no SVH tags             → cert OR bundle
 //   D  — already in SVH ecosystem, no 12w / no 9m      → cert OR bundle
 //   E  — completely new                                → bundle only
@@ -30,7 +33,15 @@ import {
   LAUNCH_PROMO_TAG,
 } from '../promo';
 
-export type Variant = 'B1' | 'B2' | 'A' | 'D' | 'E' | 'C';
+export type Variant = 'B1' | 'B2' | 'G' | 'A' | 'D' | 'E' | 'C';
+
+// The Drip tag applied to buyers of the German edition of the 12-week course.
+// It never starts with `prod_SVH` (it's `prodG_…`), so it is invisible to the
+// `has12w` / `prod_SVH`-prefix checks below — variant G matches it explicitly.
+// The cert-page cross-sell for this segment (cert 20% off, English 12-week 75%
+// off on the path) is priced in src/lib/courses/path.ts and verified from this
+// tag both at display (subscriber-status) and at charge (checkout).
+export const GERMAN_12W_DRIP_TAG = 'prodG_SVH_12w';
 
 // The cert path prices in the same currencies the rest of the site is enabled
 // for (workshops + the 12-week course), so a 12-week participant upgrading to
@@ -313,6 +324,14 @@ function offersFor(variant: Variant, currency: Currency): Offer[] {
       return [cert('Upgrading from the 12-week course — self-paced, start today')];
     case 'B2':
       return [cert('Graduate of the 12-week course — self-paced, start today')];
+    case 'G':
+      // Cert first (their natural next step; priced 20% off — the discounted
+      // offer is substituted by subscriber-status, see germanCertOffer), then
+      // the path pairing it with the English 12-week at a graduate's 75% off.
+      return [
+        cert('Graduate of the German 12-week course — self-paced, start today'),
+        bundle('Add the English 12-week course at a graduate’s price'),
+      ];
     case 'A':
       return [
         cert('Welcome back — self-paced, start today'),
@@ -401,6 +420,16 @@ export function decideVariant(
   // with no usable week value)
   if (has12w) {
     return { variant: 'B2', currency, offers: offersFor('B2', currency), ...personalia };
+  }
+
+  // G — graduate of the GERMAN 12-week course (prodG_SVH_12w), without the
+  // English 12-week or the cert. Checked after B1/B2 (someone who also owns the
+  // English 12-week gets that cert-only offer — the English cross-sell is moot)
+  // and before A/D/E (the German-graduate offer is the most specific one for
+  // them). They walked the foundation once, so the cert is 20% off and the path
+  // adds the English 12-week at a graduate's 75% off (priced in path.ts).
+  if (has(GERMAN_12W_DRIP_TAG)) {
+    return { variant: 'G', currency, offers: offersFor('G', currency), ...personalia };
   }
 
   // A — old VSH client, no SVH foundation

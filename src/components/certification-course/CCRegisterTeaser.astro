@@ -60,7 +60,7 @@
 <script>
   import { postJsonResilient } from '../../lib/client/resilient-fetch';
 
-  type Variant = 'B1' | 'B2' | 'A' | 'D' | 'E' | 'C';
+  type Variant = 'B1' | 'B2' | 'G' | 'A' | 'D' | 'E' | 'C';
   type Currency =
     | 'EUR' | 'USD' | 'GBP' | 'CAD' | 'CHF'
     | 'AUD' | 'NZD' | 'NOK' | 'SEK' | 'DKK';
@@ -123,6 +123,13 @@
           badge: 'A price for where you are',
           greeting: name ? `Welcome back, ${name}.` : 'Welcome back.',
           body: `You've completed the 12-week course. The certification course continues from where that foundation ends — and your price honours what you've already done.`,
+          ctaLabel: 'See your offer',
+        };
+      case 'G':
+        return {
+          badge: 'Graduate price',
+          greeting: name ? `Welcome back, ${name}.` : 'Welcome back.',
+          body: `You've completed the 12-week course in German. Step into the certification at a graduate's price — or add the English 12-week course alongside it, deeply discounted.`,
           ctaLabel: 'See your offer',
         };
       case 'A':
