@@ -336,7 +336,7 @@ const countries = COUNTRIES;
     installments_6x?: InstallmentPlan;  // 6 monthly payments
     installments_12x?: InstallmentPlan; // 12 monthly payments (hidden by default)
   };
-  type Variant = 'B1' | 'B2' | 'A' | 'D' | 'E' | 'C';
+  type Variant = 'B1' | 'B2' | 'G' | 'A' | 'D' | 'E' | 'C';
   // One order bump as returned by /api/courses/subscriber-status (the same
   // ASJ / Grief add-ons the 12-week checkout offers).
   type BumpOffer = {
@@ -371,7 +371,10 @@ const countries = COUNTRIES;
     discount: {
       eligible: boolean;
       percent: number;
-      kind: 'pre' | 'post' | 'none' | 'promo' | 'override';
+      // 'german' = the German-12-week-graduate pairing (cert 20% + English
+      // 12-week 75%); each line carries its own percent, so the badge/summary
+      // compute the two rates from the cents rather than reading `percent`.
+      kind: 'pre' | 'post' | 'none' | 'promo' | 'override' | 'german';
       expires_at_ms: number | null;
     };
   };
@@ -505,6 +508,11 @@ const countries = COUNTRIES;
       greeting: greetingFor(name, 'Welcome back'),
       title: `The foundation is set.`,
       body: `You've completed the 12-week course. The certification course continues the work — the full class library with written manuals, hosted practice sessions, weekly live Q&As and monthly deepening sessions through the end of 2026, and the path of becoming a certified practitioner. Fully self-paced: begin the moment you join.`,
+    }),
+    G: (_w, name) => ({
+      greeting: greetingFor(name, 'Welcome back'),
+      title: `You've walked the foundation.`,
+      body: `You've completed the 12-week course in German — the foundation is already yours. The certification course continues from there, self-paced, the moment you join. If you'd like the English-language 12-week course alongside it, you can add it here at a graduate's price.`,
     }),
     A: (_w, name) => ({
       greeting: greetingFor(name, 'Welcome back'),
@@ -1339,9 +1347,11 @@ const countries = COUNTRIES;
         const p = decision.path;
         const cur = p.currency;
         const off = p.discount.eligible
-          ? p.discount.kind === 'override'
-            ? ` (12-week ${p.discount.percent}% off)`
-            : ` (${p.discount.percent}% off)`
+          ? p.discount.kind === 'german'
+            ? ` (12-week ${pctOff(p.twelve_week_base_cents, p.twelve_week_price_cents)}% off · cert ${pctOff(p.cert_base_price_cents, p.cert_price_cents)}% off)`
+            : p.discount.kind === 'override'
+              ? ` (12-week ${p.discount.percent}% off)`
+              : ` (${p.discount.percent}% off)`
           : '';
         if (selectedPlan === '3x' || selectedPlan === '6x') {
           const count = selectedPlan === '6x' ? p.installment_6x_count : p.installment_count;
@@ -1440,15 +1450,21 @@ const countries = COUNTRIES;
     if (offer.slug === 'cc-bundle' && path) {
       const cur = path.currency;
       const d = path.discount;
+      // The German pairing carries a different rate on each line, so compute
+      // both from the cents rather than the single `percent`.
+      const twPct = pctOff(path.twelve_week_base_cents, path.twelve_week_price_cents);
+      const certPct = pctOff(path.cert_base_price_cents, path.cert_price_cents);
       const twAmt = d.eligible
         ? `<span class="cc-amount-strike">${escapeHtml(moneyCents(path.twelve_week_base_cents, cur))}</span>${escapeHtml(moneyCents(path.twelve_week_price_cents, cur))}`
         : escapeHtml(moneyCents(path.twelve_week_base_cents, cur));
       const badgeText = d.eligible
-        ? d.kind === 'override'
-          ? `${d.percent}% off the 12-week`
-          : d.kind === 'promo'
-            ? `Extended sale — ${d.percent}% off`
-            : `Workshop discount — ${d.percent}% off the whole path`
+        ? d.kind === 'german'
+          ? `German graduate — 12-week ${twPct}% off · certification ${certPct}% off`
+          : d.kind === 'override'
+            ? `${d.percent}% off the 12-week`
+            : d.kind === 'promo'
+              ? `Extended sale — ${d.percent}% off`
+              : `Workshop discount — ${d.percent}% off the whole path`
         : '';
       const badge = badgeText
         ? `<div class="cc-offer-badge"><span class="dot" aria-hidden="true"></span><span>${escapeHtml(badgeText)}</span></div>`
@@ -1555,6 +1571,14 @@ const countries = COUNTRIES;
   function amountWithStrike(original: string, discounted: string): string {
     if (discountPct === 0) return escapeHtml(original);
     return `<span class="cc-amount-strike">${escapeHtml(original)}</span> ${escapeHtml(discounted)}`;
+  }
+
+  // Percent off, from a base + discounted cents pair. Used to label the German
+  // pairing's two lines (cert 20% · English 12-week 75%), each computed from its
+  // own struck→net figures rather than a single blended `discount.percent`.
+  function pctOff(baseCents: number, nowCents: number): number {
+    if (baseCents <= 0 || nowCents >= baseCents) return 0;
+    return Math.round((1 - nowCents / baseCents) * 100);
   }
 
   // Strike the base amount before the discounted one, in cents — used by the

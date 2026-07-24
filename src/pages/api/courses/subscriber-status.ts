@@ -33,7 +33,9 @@ import { parseUrlDiscountPercent } from '../../../lib/courses/twelve-week';
 import { launchPromoActive } from '../../../lib/promo';
 import {
   buildCertificationPathPricing,
+  buildGermanCertificationPathPricing,
   deriveTwelveWeekDiscount,
+  germanCertOffer,
 } from '../../../lib/courses/path';
 import { deriveDeckGift } from '../../../lib/courses/deck-promo';
 import { eligibleBumpOffers } from '../../../lib/courses/bumps';
@@ -111,11 +113,21 @@ export const POST: APIRoute = async ({ request, locals }) => {
       coursePortalUrl: env.SVH_CERT_PORTAL_URL,
       currency,
     });
-    // Attach path pricing whenever the path (cc-bundle) is one of the offers.
-    const offersHaveBundle = decision.offers.some((o) => o.slug === 'cc-bundle');
-    const path = offersHaveBundle
-      ? await pathPricingFor(decision.currency)
-      : undefined;
+    // German 12-week graduate (variant G): the cert-only offer is 20% off and
+    // the path pairs the cert (20% off) with the English 12-week at 75% off.
+    // Both are re-derived from the same Drip tag at checkout, so display ==
+    // charge. Everyone else keeps the workshop-window path pricing.
+    const isGerman = decision.variant === 'G';
+    const offers = isGerman
+      ? decision.offers.map((o) =>
+          o.slug === 'cc-cert' ? germanCertOffer(decision.currency) : o,
+        )
+      : promoOffers(decision.offers);
+    const path = isGerman
+      ? buildGermanCertificationPathPricing(decision.currency)
+      : decision.offers.some((o) => o.slug === 'cc-bundle')
+        ? await pathPricingFor(decision.currency)
+        : undefined;
     // Post-workshop Song Deck gift window (display truth; checkout re-derives).
     const deckGift = await deriveDeckGift(env.DB, email);
     // Order bumps the buyer doesn't already own, priced in their currency —
@@ -123,7 +135,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const bumps = eligibleBumpOffers(decision.currency, sub?.tags ?? null);
     return json({
       ...decision,
-      offers: promoOffers(decision.offers),
+      offers,
       path,
       deck_gift: deckGift,
       bumps,

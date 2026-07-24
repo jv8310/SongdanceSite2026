@@ -54,15 +54,20 @@ import {
   getBundleOffer,
   getCertOffer,
   applyLaunchPromoToOffer,
+  decideVariant,
   type Currency,
   type InstallmentPlan,
   type Offer,
   type Variant,
 } from '../../../lib/courses/variant';
+import { getSubscriber } from '../../../lib/registrations/drip';
 import { launchPromoActive, LAUNCH_PROMO_PERCENT } from '../../../lib/promo';
 import {
   buildCertificationPathPricing,
+  buildGermanCertificationPathPricing,
   deriveTwelveWeekDiscount,
+  germanCertOffer,
+  GERMAN_CERT_DISCOUNT_PERCENT,
   type CertificationPathPricing,
 } from '../../../lib/courses/path';
 import {
@@ -284,14 +289,49 @@ export const POST: APIRoute = async ({ request, locals }) => {
       return json(result);
     }
 
+    // German 12-week graduate cross-sell (variant G): a buyer tagged
+    // prodG_SVH_12w in Drip is offered the cert at 20% off and, on the path, the
+    // English 12-week course at 75% off. Eligibility is a Drip tag, so we verify
+    // it server-side here — never trusting the client's source_variant — exactly
+    // as subscriber-status derived it, so the charge matches what was shown.
+    // Only pay the Drip round-trip when the client actually claims variant G
+    // (every other checkout is untouched). A tag miss / Drip hiccup falls back
+    // to normal pricing: fail-closed, we never grant the discount unverified.
+    let germanGrad = false;
+    if (sourceVariant === 'G') {
+      try {
+        const sub = await getSubscriber(
+          { apiToken: env.DRIP_API_TOKEN, accountId: env.DRIP_ACCOUNT_ID },
+          email,
+        );
+        germanGrad = decideVariant(sub, { currency }).variant === 'G';
+      } catch {
+        germanGrad = false;
+      }
+      if (!germanGrad) {
+        await logEventSafe(env.DB, {
+          registration_id: null,
+          kind: 'course.checkout.german_unverified',
+          source: 'system',
+          payload: { email, product_slug: productSlug },
+        });
+      }
+    }
+
     const baseOffer = offerFor(productSlug, currency);
     // Launch promo (cc-cert only here — the cc-bundle path is priced in path.ts):
     // pause the mid-cohort discount and price at 50% off the list/base. A
     // ?discount=N override wins outright, so only apply the promo when there's
-    // no override. The bundle/path applies its own promo inside path.ts.
+    // no override. The bundle/path applies its own promo inside path.ts. A
+    // verified German graduate is priced by germanCertOffer instead (below).
     const certPromoApplied =
-      productSlug === 'cc-cert' && discountPct === 0 && launchPromoActive();
-    const offer = certPromoApplied ? applyLaunchPromoToOffer(baseOffer) : baseOffer;
+      productSlug === 'cc-cert' && !germanGrad && discountPct === 0 && launchPromoActive();
+    const offer =
+      germanGrad && productSlug === 'cc-cert'
+        ? germanCertOffer(currency)
+        : certPromoApplied
+          ? applyLaunchPromoToOffer(baseOffer)
+          : baseOffer;
 
     // The installment ladder for the chosen plan (3 or 6 monthly payments),
     // or undefined for pay-in-full.
@@ -327,8 +367,16 @@ export const POST: APIRoute = async ({ request, locals }) => {
     let chargedPriceCents: number;
     let chargedMonthlyCents: number;
     if (productSlug === 'cc-bundle') {
-      const eff = await deriveTwelveWeekDiscount(env.DB, email, discountPct);
-      pathPricing = buildCertificationPathPricing(currency, eff);
+      // A verified German graduate gets the cert (20% off) + English 12-week
+      // (75% off) pairing; everyone else gets the workshop-window pricing (whole
+      // path 20% off during a live window; a ?discount override touches only the
+      // 12-week line).
+      if (germanGrad) {
+        pathPricing = buildGermanCertificationPathPricing(currency);
+      } else {
+        const eff = await deriveTwelveWeekDiscount(env.DB, email, discountPct);
+        pathPricing = buildCertificationPathPricing(currency, eff);
+      }
       chargedPriceCents = pathPricing.total_cents;
       // 6× draws the longer-term monthly; 3× (and the unused full case) the
       // standard one. installmentPlan below carries the matching count.
@@ -337,9 +385,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
           ? pathPricing.total_monthly_6x_cents
           : pathPricing.total_monthly_cents;
     } else {
-      chargedPriceCents = applyDiscount(offer.price_cents, discountPct);
+      // cc-cert. A verified German graduate's `offer` is already the 20%-off
+      // cert (its list price stays as base_price for the receipt), so no URL
+      // discount stacks on top; everyone else gets the ?discount / promo price.
+      const certPct = germanGrad ? 0 : discountPct;
+      chargedPriceCents = applyDiscount(offer.price_cents, certPct);
       chargedMonthlyCents = installmentPlan
-        ? applyDiscount(installmentPlan.monthly_cents, discountPct)
+        ? applyDiscount(installmentPlan.monthly_cents, certPct)
         : 0;
     }
     const totalAmountCents = installmentPlan
@@ -350,23 +402,31 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // Discount facts for metadata + logging, unified across cert and path.
     // For the promo'd cc-cert, the "original" is the struck list/base price.
     const baseInstallmentPlan = installmentPlanFor(baseOffer, paymentPlan);
+    // cc-cert German graduate: the struck "original" is the full cert list price
+    // + full ladder (baseOffer), and the effective discount is the flat 20%.
     const effectiveDiscountPct = pathPricing
       ? pathPricing.discount.percent
-      : certPromoApplied
-        ? LAUNCH_PROMO_PERCENT
-        : discountPct;
+      : germanGrad
+        ? GERMAN_CERT_DISCOUNT_PERCENT
+        : certPromoApplied
+          ? LAUNCH_PROMO_PERCENT
+          : discountPct;
     const originalFullCents = pathPricing
       ? pathPricing.base_total_cents
-      : certPromoApplied
+      : germanGrad
         ? baseOffer.base_price * 100
-        : offer.price_cents;
+        : certPromoApplied
+          ? baseOffer.base_price * 100
+          : offer.price_cents;
     const originalMonthlyCents = pathPricing
       ? paymentPlan === '6x'
         ? pathPricing.base_total_monthly_6x_cents
         : pathPricing.base_total_monthly_cents
-      : certPromoApplied
+      : germanGrad
         ? baseInstallmentPlan?.monthly_cents ?? 0
-        : installmentPlan?.monthly_cents ?? 0;
+        : certPromoApplied
+          ? baseInstallmentPlan?.monthly_cents ?? 0
+          : installmentPlan?.monthly_cents ?? 0;
     const originalAmountForPlan = installmentPlan
       ? originalMonthlyCents * installmentsTotal
       : originalFullCents;
@@ -630,9 +690,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
             discount_percent: String(effectiveDiscountPct),
             ...(pathPricing
               ? { discount_kind: pathPricing.discount.kind }
-              : certPromoApplied
-                ? { discount_kind: 'promo' }
-                : {}),
+              : germanGrad
+                ? { discount_kind: 'german' }
+                : certPromoApplied
+                  ? { discount_kind: 'promo' }
+                  : {}),
             original_amount_cents: String(originalAmountForPlan),
           }
         : {}),
@@ -788,7 +850,15 @@ export const POST: APIRoute = async ({ request, locals }) => {
 };
 
 function isVariant(v: unknown): v is Variant {
-  return v === 'B1' || v === 'B2' || v === 'A' || v === 'D' || v === 'E' || v === 'C';
+  return (
+    v === 'B1' ||
+    v === 'B2' ||
+    v === 'G' ||
+    v === 'A' ||
+    v === 'D' ||
+    v === 'E' ||
+    v === 'C'
+  );
 }
 
 function json(body: unknown, status = 200) {
