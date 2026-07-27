@@ -6,12 +6,37 @@ import '../../../styles/admin.css';
 import Layout from '../../../layouts/Layout.astro';
 import { readCookie, verifySession } from '../../../lib/registrations/auth';
 import { buildEmailSamples } from '../../../lib/workshops/email-samples';
+import {
+  pendingMantraPackCount,
+  resolveMantraPackTarget,
+} from '../../../lib/workshops/mantra-pack';
 
 export const prerender = false;
 
 const env = Astro.locals.runtime.env;
 if (!(await verifySession(env.ADMIN_SESSION_SECRET, readCookie(Astro.request)))) {
   return Astro.redirect('/admin/login');
+}
+
+// Mantra-pack delivery status: which album the bump's Drip tag opens, and how
+// many paid bump buyers are still waiting for the player link. Best-effort —
+// this panel must never take the preview page down.
+let mantra: { album: string | null; albumId: string | null; pending: number } = {
+  album: null,
+  albumId: null,
+  pending: 0,
+};
+try {
+  const target = await resolveMantraPackTarget(env.DB);
+  if (target) {
+    mantra = {
+      album: target.album.title,
+      albumId: target.album.id,
+      pending: await pendingMantraPackCount(env.DB, target.productId),
+    };
+  }
+} catch {
+  // leave the defaults — the panel explains the unconfigured state
 }
 
 const samples = buildEmailSamples(env.PUBLIC_BASE_URL);
@@ -81,6 +106,38 @@ const groups = [...new Set(samples.map((s) => s.group))];
         <button id="sd-place" class="adm-btn adm-btn--ghost" type="button">Place €0 test order</button>
       </div>
       <p id="sd-status" class="em-realsend-status"></p>
+    </section>
+
+    <section class="adm-section em-realsend">
+      <h2>Mantra pack — deliver to buyers</h2>
+      <p class="adm-sub">
+        Everyone who takes the <strong>Empowering You</strong> order bump now
+        gets the player link by email the moment they pay, and a sweep on the
+        5-minute cron catches anyone the live send missed — including everyone
+        who bought it before this existed. This button forces that sweep now
+        (bigger batch), so the backlog clears in one go. One email per buyer,
+        ever — pressing it twice is harmless.
+        {mantra.album ? (
+          <span>
+            {' '}Delivering: <strong>{mantra.album}</strong>{' '}
+            (<a href={`/music/${mantra.albumId}`} target="_blank" rel="noopener">/music/{mantra.albumId}</a>).
+            {' '}<strong>{mantra.pending}</strong> buyer{mantra.pending === 1 ? '' : 's'} still waiting.
+          </span>
+        ) : (
+          <span>
+            {' '}<strong>Not deliverable yet:</strong> no published album on
+            {' '}<a href="/admin/music">/admin/music</a> carries the bump's Drip
+            tag (<code>prod_MantraEmpower</code>), so there'd be nothing to link
+            to. Nothing is sent until one does.
+          </span>
+        )}
+      </p>
+      <div class="em-realsend-row">
+        <button id="mp-send" class="adm-btn" type="button" disabled={!mantra.album}>
+          Send to waiting buyers now
+        </button>
+      </div>
+      <p id="mp-status" class="em-realsend-status"></p>
     </section>
 
     {groups.map((group) => (
@@ -250,6 +307,38 @@ const groups = [...new Set(samples.map((s) => s.group))];
       ) {
         sdRun(true);
       }
+    });
+
+    // Mantra pack — force the catch-up sweep for past bump buyers.
+    const mpSend = document.getElementById('mp-send') as HTMLButtonElement | null;
+    const mpStatus = document.getElementById('mp-status') as HTMLElement | null;
+    mpSend?.addEventListener('click', async () => {
+      if (!mpStatus) return;
+      if (!confirm('Send the mantra-pack player link to every paid bump buyer who has not had it yet?')) return;
+      mpSend.disabled = true;
+      mpStatus.removeAttribute('data-state');
+      mpStatus.textContent = 'Sending…';
+      try {
+        const res = await fetch('/api/admin/workshops/mantra-pack-send', { method: 'POST' });
+        const data = (await res.json()) as {
+          sent?: number; deduped?: number; failed?: number; remaining?: number; error?: string;
+        };
+        if (res.ok && !data.error) {
+          mpStatus.dataset.state = 'ok';
+          mpStatus.textContent =
+            `Sent ${data.sent ?? 0} ✓` +
+            (data.deduped ? `  ·  ${data.deduped} skipped (same buyer already had it)` : '') +
+            (data.failed ? `  ·  ${data.failed} failed (retried on the next tick)` : '') +
+            `  ·  ${data.remaining ?? 0} still waiting`;
+        } else {
+          mpStatus.dataset.state = 'error';
+          mpStatus.textContent = data.error ?? 'Failed';
+        }
+      } catch {
+        mpStatus.dataset.state = 'error';
+        mpStatus.textContent = 'Failed';
+      }
+      mpSend.disabled = false;
     });
 
     const toInput = document.getElementById('test-to') as HTMLInputElement;

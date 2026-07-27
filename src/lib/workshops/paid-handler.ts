@@ -22,6 +22,7 @@ import {
 } from './db';
 import { sendEmail } from './resend';
 import { confirmationEmail, dateChangedEmail } from './emails';
+import { deliverMantraPack } from './mantra-pack';
 import { googleCalendarUrl } from './ics';
 import { formatInTz } from './time';
 import { purchaseEventId, sendPurchaseEvent } from './meta';
@@ -345,6 +346,17 @@ export async function runWorkshopPaidSideEffects(
     await sendConfirmation(env, reg, workshop);
   } catch (err) {
     await logEvent(env.DB, { registration_id: null, kind: 'workshop.email.error', payload: { registration_id: reg.id, error: String(err) } });
+  }
+
+  // 2b. Order-bump delivery — the "Empowering You" mantra pack. The bump's
+  // Drip tag already opens the gated album player, but nothing told the buyer
+  // that, so this hands them the link. A no-op for a registration without the
+  // bump; idempotent (claims its own notification slot), and the cron sweep in
+  // mantra-pack.ts catches anything this misses.
+  try {
+    await deliverMantraPack(env, reg.id);
+  } catch (err) {
+    await logEvent(env.DB, { registration_id: null, kind: 'workshop.mantra_pack.error', payload: { registration_id: reg.id, error: String(err) } });
   }
 
   // 3. Meta CAPI Purchase (only for real, paid value). The event_id is

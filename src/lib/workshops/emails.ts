@@ -1037,6 +1037,56 @@ export function deckGiftConfirmedEmail(ctx: {
   };
 }
 
+// ── Mantra pack delivery (transactional) ───────────────────────────────────
+// Sent when a workshop/masterclass order carries the "Empowering You" mantra
+// pack order bump. The pack lives as a gated music album (src/lib/music/), so
+// this email hands over the player link and names the email that opens it —
+// the buyer's own address, which is the login there.
+//
+// Copy note: mantras are deliberately NOT framed as the practice. The copy book
+// (ch. 6) keeps them apart — a mantra hands you a chosen quality to lean on,
+// sounding asks what's here. So this says "a different door", never blurs the
+// two, and promises nothing beyond what the recordings are.
+export function mantraPackEmail(ctx: {
+  name?: string | null;
+  loginEmail: string;
+  albumTitle: string;
+  albumUrl: string;
+  trackTitles: string[];
+  coverUrl?: string | null;
+}): EmailContent {
+  const trackHtml = ctx.trackTitles.length
+    ? `<p style="margin:20px 0 10px;font-size:14px;letter-spacing:0.08em;text-transform:uppercase;color:${PALETTE.ember};">What's inside</p>
+       ${ctx.trackTitles.map((t) => dot(escapeHtml(t))).join('')}`
+    : '';
+  const trackText = ctx.trackTitles.length
+    ? `\nWhat's inside:\n${ctx.trackTitles.map((t) => `- ${t}`).join('\n')}\n`
+    : '';
+  const intro = `<p style="margin:0 0 14px;">These are five mantras, recorded live with a choir in South Africa and set to original music. Not tracks to sit back and listen to — lines to carry with your own voice, as loudly or as quietly as you like.</p>`;
+  const introBlock = ctx.coverUrl
+    ? figureRow(ctx.coverUrl, `${ctx.albumTitle} — album cover`, intro)
+    : intro;
+  const html = shell({
+    preheader: `Your mantras are ready — open the player any time.`,
+    heading: 'Your mantras are ready',
+    bodyHtml: `<p style="margin:0 0 14px;">${greeting(ctx.name)}</p>
+      <p style="margin:0 0 14px;">You added the <strong>${escapeHtml(ctx.albumTitle)}</strong> mantra pack to your order — thank you. It's yours now, and it stays yours: open it whenever you want, on any device, as often as you like.</p>
+      ${introBlock}
+      ${trackHtml}
+      <p style="margin:20px 0 10px;font-size:14px;letter-spacing:0.08em;text-transform:uppercase;color:${PALETTE.ember};">How to open it</p>
+      <p style="margin:0 0 14px;">The button below takes you to your player. If it asks who you are, enter <strong>${escapeHtml(ctx.loginEmail)}</strong> — the address you ordered with — and it opens. Nothing to download, nothing to install; bookmark the page and it's there for good.</p>
+      <p style="margin:0 0 14px;">A mantra is a different door from the sounding we do together. Sounding asks what's here today and lets that out, unedited; a mantra hands you a line and lets the music carry it. Both belong. Some days one is what you want, some days the other.</p>
+      ${quoteLine('Words worth repeating, in your own voice.')}`,
+    cta: { label: 'Open my mantra player →', href: ctx.albumUrl },
+    footerNote: "This came with your order — it's yours to keep.",
+  });
+  return {
+    subject: `Your mantras are ready — ${ctx.albumTitle}`,
+    html,
+    text: `${textGreeting(ctx.name)}\n\nYou added the ${ctx.albumTitle} mantra pack to your order — thank you. It's yours now, and it stays yours: open it whenever you want, on any device, as often as you like.\n\nThese are five mantras, recorded live with a choir in South Africa and set to original music. Not tracks to sit back and listen to — lines to carry with your own voice, as loudly or as quietly as you like.\n${trackText}\nHow to open it:\n${ctx.albumUrl}\n\nIf it asks who you are, enter ${ctx.loginEmail} — the address you ordered with — and it opens. Nothing to download, nothing to install; bookmark the page and it's there for good.\n\nA mantra is a different door from the sounding we do together. Sounding asks what's here today and lets that out, unedited; a mantra hands you a line and lets the music carry it. Both belong.\n\nWarmly,\nJacob`,
+  };
+}
+
 // ── No-show 1 (right after): seat is safe ──────────────────────────────────
 export function noShowEmail1(ctx: LifecycleCtx & { hubUrl: string }): EmailContent {
   const html = shell({

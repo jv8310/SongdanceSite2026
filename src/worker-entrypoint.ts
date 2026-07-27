@@ -18,6 +18,7 @@ import { runBroadcasts } from './lib/broadcasts/cron';
 import { runDripOrderBackfill } from './lib/orders/drip-backfill';
 import { runContactTagBackfill } from './lib/contacts/tag-backfill';
 import { runMasterclassSeatMove } from './lib/workshops/masterclass-move';
+import { runMantraPackBackfill } from './lib/workshops/mantra-pack';
 import { runReports } from './lib/workshops/reports';
 import { reconcileOrderNotifications } from './lib/orders/reconcile';
 import { reconcilePaypalCourseOrders } from './lib/payments/paypal-reconcile';
@@ -187,6 +188,23 @@ export function createExports(manifest: unknown) {
           })
           .catch((err) => {
             console.error('[masterclass/move] run failed', err);
+          }),
+      );
+      // "Empowering You" mantra-pack delivery — catch-up sweep for every paid
+      // bump buyer who never got the player link (the bump only ever applied
+      // its Drip tag), and the safety net for a live send that failed. Paced +
+      // idempotent; a drained list makes every later tick a single query.
+      ctx.waitUntil(
+        runMantraPackBackfill(env)
+          .then((r) => {
+            if (!r.skipped && (r.sent || r.deduped || r.failed)) {
+              console.log(
+                `[mantra-pack] sent=${r.sent} deduped=${r.deduped} failed=${r.failed} remaining=${r.remaining}`,
+              );
+            }
+          })
+          .catch((err) => {
+            console.error('[mantra-pack] run failed', err);
           }),
       );
       return;
