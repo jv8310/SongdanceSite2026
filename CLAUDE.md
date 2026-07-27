@@ -196,7 +196,31 @@ All automated workshop email lives in the workshop engine:
   send. Keep it factual — no fake scarcity, no countdown theatrics. Marketing
   sends are from `MARKETING_FROM` (Jacob), reply-to `support@songdance.co`.
 
-## Mantra pack delivery — the order bump emails itself
+## Album delivery — buyers get their player link by email
+
+Two ways to own a music album, one delivery shape
+([`src/lib/music/delivery.ts`](src/lib/music/delivery.ts)):
+
+- **As an order bump** — the mantra pack, below.
+- **Bought on its own** (`album-<id>`, from `/music/<album>`) — `notifyCourseOrder`
+  calls `sendAlbumPurchaseEmail`, so every fulfilment path delivers it (Stripe
+  webhook, PayPal, free checkout, admin mark-paid, hourly reconcile). The
+  template (`albumPurchaseEmail`) is **generic over the album**: title, cover,
+  tracks and the blurb all come from the `music_albums` row, so a second album
+  needs no new code. Transactional, idempotent on an `events` claim
+  (`album-delivery-<id>`), released on failure so a retry gets through.
+
+**The link opens signed in.** `albumPlayerUrl` puts the buyer's own address on
+the player link (`/music/<album>?email=…`), and `/music/[album].astro` reads it,
+checks entitlement, sets the `sd_music` cookie and **302s to the clean URL** — so
+the buyer never types an address we already know, and it sits in the address bar
+(and any referrer) for one hop only. The email *is* the credential in this system
+(same as `/access` and the gate form), so the link grants nothing typing it
+wouldn't, and entitlement is still re-checked on every render — a refund or a
+removed tag closes the door as before. An address that doesn't match falls
+through to the ordinary gate with the field **prefilled**.
+
+### The mantra pack — the order bump emails itself
 
 The €9 **"Empowering You"** workshop/masterclass order bump
 (`mantra-empower-bump`) only ever applied its Drip tag, and the matching Drip

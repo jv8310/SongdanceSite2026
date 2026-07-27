@@ -3,7 +3,9 @@ import SiteLayout from '../../components/SiteLayout.astro';
 import { readCookie, verifySession } from '../../lib/registrations/auth';
 import {
   hasAlbumAccess,
+  listenerCookieHeader,
   readListenerCookie,
+  signListener,
   signedStreamUrl,
   verifyListener,
 } from '../../lib/music/access';
@@ -38,8 +40,43 @@ const listenerEmail = await verifyListener(
   env.ADMIN_SESSION_SECRET,
   readListenerCookie(Astro.request),
 );
-const granted =
-  isAdmin || (listenerEmail ? await hasAlbumAccess(env, env.DB, listenerEmail, album) : false);
+const cookieGranted = listenerEmail
+  ? await hasAlbumAccess(env, env.DB, listenerEmail, album)
+  : false;
+
+// One-click open from a delivery email: /music/<album>?email=<their address>.
+// The email IS the credential here (same trust model as the gate form below and
+// as /access), so carrying it in the link weakens nothing — it just spares the
+// buyer typing an address we already know. Entitlement is still checked on
+// every render, so a refund or a removed tag closes the door exactly as before.
+//
+// On a match we set the listener cookie and redirect to the clean URL, so the
+// address sits in the address bar (and any outgoing referrer) for one hop only,
+// and a copied/shared link from the player carries no email. A miss falls
+// through to the gate with the address prefilled — one click, not typing.
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const emailParam = (Astro.url.searchParams.get('email') ?? '')
+  .trim()
+  .slice(0, 254)
+  .toLowerCase();
+const emailParamValid = EMAIL_RE.test(emailParam);
+if (!isAdmin && !cookieGranted && emailParamValid) {
+  if (await hasAlbumAccess(env, env.DB, emailParam, album)) {
+    const clean = new URL(Astro.url);
+    clean.searchParams.delete('email');
+    return new Response(null, {
+      status: 302,
+      headers: {
+        Location: `${clean.pathname}${clean.search}`,
+        'Set-Cookie': listenerCookieHeader(
+          await signListener(env.ADMIN_SESSION_SECRET, emailParam),
+        ),
+      },
+    });
+  }
+}
+
+const granted = isAdmin || cookieGranted;
 
 // Purchasable? (price set in admin). The buyer's edge-detected country picks
 // the opening currency; the checkout form's own country select re-derives it
@@ -199,7 +236,7 @@ const totalLabel =
       set:html={JSON.stringify({ title: album.title, cover, tracks: payload }).replace(/</g, '\\u003c')}
     />
     </Fragment>
-  ) : forSale && !welcome ? (
+  ) : forSale && !welcome && !emailParamValid ? (
     <Fragment>
     <section class="ms sd-section" data-price-eur={priceEurCents}>
       <!-- Hero: the album as a product -->
@@ -330,6 +367,7 @@ const totalLabel =
               placeholder="you@somewhere"
               aria-label="Email address"
               autocomplete="email"
+              value={emailParamValid ? emailParam : undefined}
               required
             />
             <button type="submit" class="sd-btn sd-btn-primary" data-gate-submit>
@@ -352,7 +390,13 @@ const totalLabel =
         {cover && <img class="mp-gate-cover" src={cover} alt={`${album.title} — cover`} />}
         <p class="mp-eyebrow">{welcome ? 'Payment received' : 'Your album'}</p>
         <h1 class="mp-gate-title">{album.title}</h1>
-        {welcome ? (
+        {emailParamValid ? (
+          <p class="mp-gate-p">
+            We couldn't open the album under <strong>{emailParam}</strong> just yet — a new
+            order can take a few minutes to land. Try it again below, or use another address
+            you may have ordered with.
+          </p>
+        ) : welcome ? (
           <p class="mp-gate-p">
             Thank you — the album is yours. Enter the email you just paid with and it opens
             right here.
@@ -372,6 +416,7 @@ const totalLabel =
               placeholder="you@somewhere"
               aria-label="Email address"
               autocomplete="email"
+              value={emailParamValid ? emailParam : undefined}
               required
             />
             <button type="submit" class="sd-btn sd-btn-primary" data-gate-submit>

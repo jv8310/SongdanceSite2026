@@ -33,12 +33,11 @@
 
 import { logEvent } from '../registrations/db';
 import {
-  albumCoverUrl,
-  albumUrl,
   listAlbumsForTags,
   listTracks,
   type MusicAlbumRow,
 } from '../music/db';
+import { albumBaseUrl, albumCoverEmailUrl, albumPlayerUrl } from '../music/delivery';
 import {
   claimNotification,
   getProductBySlug,
@@ -173,15 +172,15 @@ async function deliver(
   target: MantraPackTarget,
   entityRefId: string,
 ) {
-  const base = env.PUBLIC_BASE_URL.replace(/\/$/, '');
-  const cover = albumCoverUrl(target.album);
+  const base = albumBaseUrl(env);
   const content = mantraPackEmail({
     name: reg.name,
     loginEmail: reg.email,
     albumTitle: target.album.title,
-    albumUrl: `${base}${albumUrl(target.album)}`,
+    // Carries ?email= so the button opens straight into the player.
+    albumUrl: albumPlayerUrl(base, target.album.id, reg.email),
     trackTitles: target.trackTitles,
-    coverUrl: cover ? `${base}${cover}` : null,
+    coverUrl: albumCoverEmailUrl(base, target.album),
   });
   await sendEmail({
     apiKey: env.RESEND_API_KEY!,
