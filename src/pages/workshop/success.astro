@@ -83,17 +83,25 @@ const shareText = workshop
   ? `I just signed up for ${workshop.title} with Songdance — here's ${friendPct}% off your ticket if you'd like to join me:`
   : '';
 
-// Other upcoming live dates they can move onto, free of charge. Masterclasses
-// (the higher-priced, pro-facing dates) only appear to someone who actually
-// booked a masterclass — a regular-workshop registrant is never offered a free
-// masterclass seat.
+// Other upcoming live dates they can move onto, free of charge. Two lists,
+// because the two doors differ in what they should offer:
+//
+//  · `switchDates` — the *pre-session* "can't make this date?" panel. Changing
+//    your mind before the session shouldn't be a free upgrade, so a
+//    masterclass (the higher-priced, pro-facing date) is only offered to
+//    someone who actually booked a masterclass.
+//  · `rebookDates` — the *post-miss* free re-registration. The no-show emails
+//    promise "any upcoming date", so this one means it: every upcoming live
+//    date, masterclass included, whatever they originally booked.
 const currentIsMasterclass = workshop ? await workshopIsMasterclass(env.DB, workshop) : false;
-const upcoming = reg
+const isMasterclassDate = (w: { product_slug: string | null }) =>
+  (w.product_slug ?? '').includes('masterclass');
+const rebookDates = reg
   ? (await listUpcomingPublishedWorkshops(env.DB, new Date().toISOString()))
       .filter((w) => w.is_replay !== 1 && w.id !== reg.workshop_id)
-      .filter((w) => currentIsMasterclass || !(w.product_slug ?? '').includes('masterclass'))
-      .map((w) => ({ slug: w.slug, whenLocal: formatInTz(w.starts_at_utc, tz), kind: (w.product_slug ?? '').includes('masterclass') ? 'Masterclass' : 'Workshop' }))
+      .map((w) => ({ slug: w.slug, whenLocal: formatInTz(w.starts_at_utc, tz), kind: isMasterclassDate(w) ? 'Masterclass' : 'Workshop', isMasterclass: isMasterclassDate(w) }))
   : [];
+const switchDates = rebookDates.filter((d) => currentIsMasterclass || !d.isMasterclass);
 
 // Meta Pixel Purchase — fired here in the browser, deduplicated against the
 // server-side CAPI Purchase via the deterministic per-registration event id.
@@ -190,7 +198,7 @@ if (reg && paid && reg.payment_status === 'paid') {
               {icsHref && <a href={icsHref}>Apple / Outlook</a>}
             </div>
 
-            {upcoming.length > 0 && (
+            {switchDates.length > 0 && (
               <div class="ws-change" id="ws-change" hidden={win === 'closed' || started}>
                 <button type="button" class="ws-change-toggle" id="ws-change-toggle" aria-expanded="false" aria-controls="ws-change-panel">
                   Can’t make this date? <span>Switch to another →</span>
@@ -198,7 +206,7 @@ if (reg && paid && reg.payment_status === 'paid') {
                 <div class="ws-change-panel" id="ws-change-panel" hidden>
                   <p class="ws-change-h">Move to another date — your spot comes with you.</p>
                   <div class="ws-change-list" role="radiogroup" aria-label="Choose a new date">
-                    {upcoming.map((u) => (
+                    {switchDates.map((u) => (
                       <label class="ws-change-item">
                         <input type="radio" name="ws-changedate" value={u.slug} />
                         <span class="ws-change-when">{u.whenLocal} <small>· {u.kind}</small></span>
@@ -221,15 +229,15 @@ if (reg && paid && reg.payment_status === 'paid') {
 
               <div class="ws-rebook">
                 <p class="ws-rebook-h">…or come to another date, for free</p>
-                {upcoming.length === 0 ? (
+                {rebookDates.length === 0 ? (
                   <p class="ws-note">No new dates are open just yet — email <a href="mailto:info@songdance.co">info@songdance.co</a> and we’ll let you know.</p>
                 ) : (
                   <>
                     <div class="ws-rebook-list" role="radiogroup" aria-label="Choose a new date">
-                      {upcoming.map((u) => (
+                      {rebookDates.map((u) => (
                         <label class="ws-rebook-item">
                           <input type="radio" name="ws-newdate" value={u.slug} />
-                          <span class="ws-rebook-when">{u.whenLocal} <small>· {u.kind}</small></span>
+                          <span class="ws-rebook-when">{u.whenLocal} <small>· {u.kind}{u.isMasterclass ? ' · 100 min' : ''}</small></span>
                         </label>
                       ))}
                     </div>
