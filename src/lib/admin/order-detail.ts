@@ -4,7 +4,7 @@
 // that brought the price down, the line-item breakdown (ticket + bump, course +
 // add-ons), the gateway/charge ids, tax split, and the buyer's contact details.
 //
-// This module re-uses listAllOrders() for the money-exact UnifiedOrder summary
+// This module re-uses findOrder() for the money-exact UnifiedOrder summary
 // (so a figure here always matches the list), then enriches that single order
 // with the extra columns + the audit-log discount trail from its source table.
 //
@@ -17,7 +17,7 @@
 
 import { formatMoney } from '../workshops/currency';
 import {
-  listAllOrders,
+  findOrder,
   parseOrderNo,
   type OrderMoneyOpts,
   type UnifiedOrder,
@@ -92,10 +92,7 @@ export async function getOrderDetail(
   const parsed = parseOrderNo(orderNo);
   if (!parsed) return null;
 
-  const all = await listAllOrders(db, {}, money);
-  const order = all.find(
-    (o) => o.source === parsed.source && o.rowId === parsed.id,
-  );
+  const order = await findOrder(db, orderNo, money);
   if (!order) return null;
 
   switch (parsed.source) {

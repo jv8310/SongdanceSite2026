@@ -229,6 +229,33 @@ notifications. Lives in [`src/lib/workshops/reports.ts`](src/lib/workshops/repor
   shared helper. Un-chunked, this silently killed the digest on busy days and
   500'd `/admin/orders`.
 
+## Order overview — paginated, filtered in SQL
+
+`/admin/orders` used to load **every** row of `registrations` +
+`course_registrations` + `workshop_registrations`, money-up the lot in JS and
+render all of it — plus one extra `workshop_payments` query per 90
+registrations (the D1 bound-param cap), i.e. dozens of sequential round-trips.
+[`src/lib/admin/orders.ts`](src/lib/admin/orders.ts) now works in two passes:
+
+- **Index pass** — one narrow query per source (`?page`/`?per`-independent),
+  carrying only what the page needs to sort, count and money-total a row.
+  Source / status / search / email compile to **SQL WHERE fragments**
+  (`listOrdersPage`'s `OrderFilter`), so a filtered view scans far less. A
+  course search maps the typed words back to product **slugs** (labels only
+  exist in JS) and the order number is matched as `'c-' || id`; LIKE wildcards
+  in the search term are escaped.
+- **Hydration pass** — only the ~50 rows of the requested page are loaded in
+  full (gateway ids, plan, names) and rendered. `?page` + `?per`
+  (25/50/100/200, default 50) drive it; changing a filter resets to page 1.
+- The workshop money join is now a single **`ROW_NUMBER() OVER (PARTITION BY
+  registration_id …)`** sub-select ("latest paid/refunded payment per
+  registration") instead of the chunked id-list queries.
+- The summary tiles still cover the **whole filtered set** (they read the index
+  pass, not the page), so a figure never silently means "just this page".
+- `findOrder(db, 'C-12')` (order detail + the refund route) and
+  `listAllOrders(db, { email })` (the person page) read only their own rows —
+  those three pages used to load every order to find one.
+
 ## SD-ORDER notifications — safety-net reconcile
 
 The internal per-purchase order emails (`src/lib/orders/notification.ts`, course

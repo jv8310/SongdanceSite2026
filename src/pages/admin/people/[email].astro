@@ -49,16 +49,15 @@ const quaderno =
       }
     : undefined;
 
-const [allPeople, allOrders, sends, contact, broadcasts] = await Promise.all([
+const [allPeople, orders, sends, contact, broadcasts] = await Promise.all([
   listPeople(env.DB),
-  listAllOrders(env.DB, {}, { fxRates, quaderno }),
+  listAllOrders(env.DB, { email }, { fxRates, quaderno }),
   emailSendsForAddress(env.DB, email),
   getContact(env.DB, email),
   listBroadcasts(env.DB),
 ]);
 
 const person = allPeople.find((p) => p.email === email) ?? null;
-const orders = allOrders.filter((o) => o.email.toLowerCase() === email);
 
 // Swap the generic "Broadcast #<id>" label for the real name, same as
 // /admin/emails/stats.

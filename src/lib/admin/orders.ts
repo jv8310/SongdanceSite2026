@@ -25,7 +25,6 @@
 import { DEFAULT_FX_TO_EUR } from './fx';
 import { getTaxRate, type QuadernoTaxConfig } from '../workshops/quaderno';
 import { LABEL_BY_SLUG, isJourneySlug } from '../courses/journeys';
-import { selectByIdsChunked } from '../db/chunked';
 
 export type OrderSource = 'retreat' | 'course' | 'workshop';
 
@@ -240,46 +239,196 @@ function netEurFrom(
   return { netEurMinor, netKind: eur.fx ? 'approx' : 'exact' };
 }
 
+// ── Filtering: pushed down into SQL ────────────────────────────────────────
+//
+// The overview used to load every row of all three stores and filter the merged
+// array in memory. That is fine at a few hundred orders and ruinous at tens of
+// thousands (the workshop side alone fanned out into one extra query per 90
+// registrations). Source / status / search / email now compile to SQL WHERE
+// fragments, so each store returns only rows that can actually show up.
+
+type Clause = { sql: string; binds: unknown[] };
+
+// Raw DB statuses behind each display class (mirror of statusClassOf).
+const RAW_STATUS_BY_CLASS: Record<Exclude<StatusClass, 'other'>, string[]> = {
+  paid: ['paid', 'coupon'],
+  pending: ['pending', 'prepared'],
+  refunded: ['refunded'],
+  cancelled: ['cancelled', 'canceled'],
+  expired: ['expired'],
+};
+// Everything statusClassOf() recognises; anything else classes as 'other'.
+const KNOWN_RAW_STATUSES = Object.values(RAW_STATUS_BY_CLASS).flat();
+
+function statusClause(col: string, statuses: StatusClass[]): Clause | null {
+  if (!statuses.length) return null;
+  const parts: string[] = [];
+  const binds: unknown[] = [];
+  const raws = statuses
+    .filter((s): s is Exclude<StatusClass, 'other'> => s !== 'other')
+    .flatMap((s) => RAW_STATUS_BY_CLASS[s]);
+  if (raws.length) {
+    parts.push(`LOWER(${col}) IN (${raws.map(() => '?').join(',')})`);
+    binds.push(...raws);
+  }
+  if (statuses.includes('other')) {
+    parts.push(
+      `LOWER(${col}) NOT IN (${KNOWN_RAW_STATUSES.map(() => '?').join(',')})`,
+    );
+    binds.push(...KNOWN_RAW_STATUSES);
+  }
+  return { sql: `(${parts.join(' OR ')})`, binds };
+}
+
+// The search box is a plain "contains", so LIKE's own wildcards have to be
+// neutralised or a stray % would match everything.
+function likeTerm(q: string): string {
+  return `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+}
+
+// OR of case-insensitive "contains" over the given columns.
+function likeAny(cols: string[], q: string): Clause {
+  const term = likeTerm(q);
+  const binds: unknown[] = [];
+  const parts = cols.map((c) => {
+    binds.push(term);
+    return `LOWER(${c}) LIKE ? ESCAPE '\\'`;
+  });
+  return { sql: parts.join(' OR '), binds };
+}
+
+function andWhere(parts: Array<Clause | null>): Clause {
+  const on = parts.filter((p): p is Clause => !!p && p.sql.trim() !== '');
+  if (!on.length) return { sql: '', binds: [] };
+  return {
+    sql: `WHERE ${on.map((p) => `(${p.sql})`).join(' AND ')}`,
+    binds: on.flatMap((p) => p.binds),
+  };
+}
+
+function idsClause(col: string, ids: number[]): Clause {
+  return { sql: `${col} IN (${ids.map(() => '?').join(',')})`, binds: ids };
+}
+
+function emailClause(col: string, email: string): Clause {
+  return { sql: `LOWER(${col}) = ?`, binds: [email.trim().toLowerCase()] };
+}
+
+// The table shows "<first> <last>", so a search for a full name has to see the
+// two columns joined (and NULL-safe — 'x' || NULL is NULL in SQLite).
+function fullName(first: string, last: string): string {
+  return `COALESCE(${first},'') || ' ' || COALESCE(${last},'')`;
+}
+
+// What a loader is allowed to return: either an explicit id list (hydrating one
+// page of the index) or the user's filter.
+type Scope = { ids?: number[]; filter?: OrderFilter };
+
+function scopeQuery(scope: Scope): string | null {
+  const q = (scope.filter?.query ?? '').trim().toLowerCase();
+  return q || null;
+}
+
+function run<T>(db: D1Database, sql: string, binds: unknown[]) {
+  const stmt = db.prepare(sql);
+  return (binds.length ? stmt.bind(...binds) : stmt).all<T>();
+}
+
 // ── Retreats / registrations ──────────────────────────────────────────────
 
-type RetreatRow = {
+const RETREAT_FROM = `FROM registrations r
+         LEFT JOIN products p ON p.id = r.product_id`;
+
+// Columns every retreat path needs to money-up a row.
+const RETREAT_MONEY_COLS = `r.id, r.created_at, r.status,
+              r.amount_cents, r.currency, r.refunded_amount_cents,
+              p.vat_rate AS vat_rate`;
+
+type RetreatMoneyRow = {
   id: number;
-  first_name: string | null;
-  last_name: string | null;
-  name: string | null;
-  email: string;
+  created_at: string;
   status: string;
   amount_cents: number;
   currency: string;
   refunded_amount_cents: number;
+  vat_rate: number | null;
+};
+
+type RetreatRow = RetreatMoneyRow & {
+  first_name: string | null;
+  last_name: string | null;
+  name: string | null;
+  email: string;
   provider: string | null;
   stripe_payment_intent: string | null;
   paypal_capture_id: string | null;
   quaderno_invoice_id: string | null;
-  created_at: string;
   paid_at: string | null;
   product_name: string | null;
-  vat_rate: number | null;
 };
+
+function retreatWhere(scope: Scope): Clause {
+  if (scope.ids) return andWhere([idsClause('r.id', scope.ids)]);
+  const f = scope.filter ?? {};
+  const q = scopeQuery(scope);
+  return andWhere([
+    statusClause('r.status', f.statuses ?? []),
+    f.email ? emailClause('r.email', f.email) : null,
+    q
+      ? likeAny(
+          [
+            'r.email',
+            fullName('r.first_name', 'r.last_name'),
+            'r.name',
+            'p.name',
+            `'r-' || r.id`,
+          ],
+          q,
+        )
+      : null,
+  ]);
+}
+
+async function loadRetreatIndex(
+  db: D1Database,
+  opts: OrderMoneyOpts,
+  scope: Scope,
+): Promise<OrderIndexRow[]> {
+  const fxRates = opts.fxRates ?? DEFAULT_FX_TO_EUR;
+  const w = retreatWhere(scope);
+  const res = await run<RetreatMoneyRow>(
+    db,
+    `SELECT ${RETREAT_MONEY_COLS} ${RETREAT_FROM} ${w.sql}`,
+    w.binds,
+  );
+  return (res.results ?? []).map((r) => ({
+    source: 'retreat' as const,
+    rowId: r.id,
+    createdAt: r.created_at,
+    statusClass: statusClassOf(r.status),
+    netEurMinor: netEurFrom(r.amount_cents, r.currency, r.vat_rate ?? 0, fxRates)
+      .netEurMinor,
+    refundedMinor: r.refunded_amount_cents ?? 0,
+  }));
+}
 
 async function loadRetreatOrders(
   db: D1Database,
   opts: OrderMoneyOpts,
+  scope: Scope,
 ): Promise<UnifiedOrder[]> {
   const fxRates = opts.fxRates ?? DEFAULT_FX_TO_EUR;
-  const res = await db
-    .prepare(
-      `SELECT r.id, r.first_name, r.last_name, r.name, r.email, r.status,
-              r.amount_cents, r.currency, r.refunded_amount_cents,
+  const w = retreatWhere(scope);
+  const res = await run<RetreatRow>(
+    db,
+    `SELECT ${RETREAT_MONEY_COLS},
+              r.first_name, r.last_name, r.name, r.email,
               r.provider, r.stripe_payment_intent, r.paypal_capture_id,
-              r.quaderno_invoice_id,
-              r.created_at, r.paid_at,
-              p.name AS product_name, p.vat_rate AS vat_rate
-         FROM registrations r
-         LEFT JOIN products p ON p.id = r.product_id
-        ORDER BY r.created_at DESC`,
-    )
-    .all<RetreatRow>();
+              r.quaderno_invoice_id, r.paid_at,
+              p.name AS product_name
+         ${RETREAT_FROM} ${w.sql}`,
+    w.binds,
+  );
 
   return (res.results ?? []).map((r) => {
     const fallback = splitName(r.name);
@@ -322,16 +471,24 @@ async function loadRetreatOrders(
 
 // ── Courses ────────────────────────────────────────────────────────────────
 
-type CourseRow = {
+// Columns every course path needs to money-up a row.
+const COURSE_MONEY_COLS = `id, created_at, status, country,
+              amount_cents, currency, refunded_amount_cents`;
+
+type CourseMoneyRow = {
   id: number;
-  first_name: string | null;
-  last_name: string | null;
-  email: string;
-  country: string | null;
+  created_at: string;
   status: string;
+  country: string | null;
   amount_cents: number;
   currency: string;
   refunded_amount_cents: number;
+};
+
+type CourseRow = CourseMoneyRow & {
+  first_name: string | null;
+  last_name: string | null;
+  email: string;
   provider: string | null;
   stripe_payment_intent: string | null;
   stripe_subscription_id: string | null;
@@ -341,35 +498,108 @@ type CourseRow = {
   installments_paid: number;
   installments_total: number;
   product_slug: string;
-  created_at: string;
   paid_at: string | null;
 };
+
+// A course row stores a slug; the table shows the friendly label courseLabel()
+// derives from it. So a product search has to translate back: any known slug
+// whose label contains the term matches, plus a plain slug LIKE for the ones
+// that show their slug verbatim (albums, unmapped products).
+const KNOWN_COURSE_SLUGS = [
+  ...new Set([...Object.keys(COURSE_LABELS), ...Object.keys(LABEL_BY_SLUG)]),
+];
+function courseSlugsMatching(q: string): string[] {
+  return KNOWN_COURSE_SLUGS.filter((s) => courseLabel(s).toLowerCase().includes(q));
+}
+
+function courseWhere(scope: Scope): Clause {
+  if (scope.ids) return andWhere([idsClause('id', scope.ids)]);
+  const f = scope.filter ?? {};
+  const q = scopeQuery(scope);
+  let search: Clause | null = null;
+  if (q) {
+    search = likeAny(
+      [
+        'email',
+        fullName('first_name', 'last_name'),
+        'product_slug',
+        `'c-' || id`,
+      ],
+      q,
+    );
+    const slugs = courseSlugsMatching(q);
+    if (slugs.length) {
+      search = {
+        sql: `${search.sql} OR product_slug IN (${slugs.map(() => '?').join(',')})`,
+        binds: [...search.binds, ...slugs],
+      };
+    }
+  }
+  return andWhere([
+    statusClause('status', f.statuses ?? []),
+    f.email ? emailClause('email', f.email) : null,
+    search,
+  ]);
+}
+
+// Live destination VAT per buyer country, from Quaderno (eservice — the same
+// tax class the course checkout sends).
+function courseRates(rows: CourseMoneyRow[], opts: OrderMoneyOpts) {
+  return resolveEserviceRates(
+    rows.map((r) => eserviceCountry(r.country, r.currency)),
+    opts.quaderno,
+  );
+}
+
+async function loadCourseIndex(
+  db: D1Database,
+  opts: OrderMoneyOpts,
+  scope: Scope,
+): Promise<OrderIndexRow[]> {
+  const fxRates = opts.fxRates ?? DEFAULT_FX_TO_EUR;
+  const w = courseWhere(scope);
+  const res = await run<CourseMoneyRow>(
+    db,
+    `SELECT ${COURSE_MONEY_COLS} FROM course_registrations ${w.sql}`,
+    w.binds,
+  );
+  const rows = res.results ?? [];
+  const rateByCountry = await courseRates(rows, opts);
+  return rows.map((r) => {
+    const country = eserviceCountry(r.country, r.currency);
+    const vatRate = country ? rateByCountry.get(country) ?? 0 : 0;
+    return {
+      source: 'course' as const,
+      rowId: r.id,
+      createdAt: r.created_at,
+      statusClass: statusClassOf(r.status),
+      netEurMinor: netEurFrom(r.amount_cents, r.currency, vatRate, fxRates)
+        .netEurMinor,
+      refundedMinor: r.refunded_amount_cents ?? 0,
+    };
+  });
+}
 
 async function loadCourseOrders(
   db: D1Database,
   opts: OrderMoneyOpts,
+  scope: Scope,
 ): Promise<UnifiedOrder[]> {
   const fxRates = opts.fxRates ?? DEFAULT_FX_TO_EUR;
-  const res = await db
-    .prepare(
-      `SELECT id, first_name, last_name, email, country, status,
-              amount_cents, currency, refunded_amount_cents,
+  const w = courseWhere(scope);
+  const res = await run<CourseRow>(
+    db,
+    `SELECT ${COURSE_MONEY_COLS},
+              first_name, last_name, email,
               provider, stripe_payment_intent, stripe_subscription_id,
               paypal_capture_id, paypal_subscription_id,
               payment_plan, installments_paid, installments_total,
-              product_slug, created_at, paid_at
-         FROM course_registrations
-        ORDER BY created_at DESC`,
-    )
-    .all<CourseRow>();
-  const rows = res.results ?? [];
-
-  // Live destination VAT per buyer country, from Quaderno (eservice — the same
-  // tax class the course checkout sends).
-  const rateByCountry = await resolveEserviceRates(
-    rows.map((r) => eserviceCountry(r.country, r.currency)),
-    opts.quaderno,
+              product_slug, paid_at
+         FROM course_registrations ${w.sql}`,
+    w.binds,
   );
+  const rows = res.results ?? [];
+  const rateByCountry = await courseRates(rows, opts);
 
   return rows.map((r) => {
     const country = eserviceCountry(r.country, r.currency);
@@ -413,125 +643,194 @@ async function loadCourseOrders(
 
 // ── Workshops ────────────────────────────────────────────────────────────
 
-type WorkshopRegRow = {
+// The registration's money lives on its latest paid/refunded payment row. That
+// used to be a second query per 90 registrations (D1's bound-parameter cap),
+// i.e. dozens of sequential round-trips on a busy account — the single biggest
+// cost of the old overview. One window-function join replaces the lot: rank the
+// payments per registration and keep the newest.
+const WORKSHOP_FROM = `FROM workshop_registrations r
+         LEFT JOIN workshops w ON w.id = r.workshop_id
+         LEFT JOIN (
+           SELECT registration_id, amount_minor, currency AS pay_currency,
+                  settlement_amount_minor, settlement_currency, subtotal_minor,
+                  provider, method, stripe_payment_intent_id, paypal_capture_id,
+                  quaderno_invoice_id, status AS pay_status,
+                  ROW_NUMBER() OVER (
+                    PARTITION BY registration_id
+                    ORDER BY created_at DESC, id DESC
+                  ) AS rn
+             FROM workshop_payments
+            WHERE status IN ('paid','refunded')
+         ) p ON p.registration_id = r.id AND p.rn = 1`;
+
+// Columns every workshop path needs to money-up a row.
+const WORKSHOP_MONEY_COLS = `r.id, r.created_at, r.payment_status, r.country,
+              r.currency AS reg_currency,
+              p.amount_minor, p.pay_currency, p.settlement_amount_minor,
+              p.settlement_currency, p.subtotal_minor, p.pay_status`;
+
+type WorkshopMoneyRow = {
   id: number;
-  name: string | null;
-  email: string;
+  created_at: string;
+  payment_status: string;
   country: string | null;
   reg_currency: string | null;
-  payment_status: string;
-  wants_bump: number;
-  created_at: string;
-  workshop_title: string | null;
-};
-
-type WorkshopPayRow = {
-  registration_id: number;
-  amount_minor: number;
-  pay_currency: string;
+  // Joined payment (all null when the registration never paid).
+  amount_minor: number | null;
+  pay_currency: string | null;
   settlement_amount_minor: number | null;
   settlement_currency: string | null;
   subtotal_minor: number | null;
+  pay_status: string | null;
+};
+
+type WorkshopRow = WorkshopMoneyRow & {
+  name: string | null;
+  email: string;
+  wants_bump: number;
+  workshop_title: string | null;
   provider: string | null;
   method: string | null;
   stripe_payment_intent_id: string | null;
   paypal_capture_id: string | null;
   quaderno_invoice_id: string | null;
-  status: string;
 };
+
+function workshopWhere(scope: Scope): Clause {
+  if (scope.ids) return andWhere([idsClause('r.id', scope.ids)]);
+  const f = scope.filter ?? {};
+  const q = scopeQuery(scope);
+  let search: Clause | null = null;
+  if (q) {
+    search = likeAny(['r.email', 'r.name', 'w.title', `'w-' || r.id`], q);
+    // The label a bump order shows is "<title> + bump", which exists only in JS.
+    if ('+ bump'.includes(q)) search = { sql: `${search.sql} OR r.wants_bump = 1`, binds: search.binds };
+  }
+  return andWhere([
+    statusClause('r.payment_status', f.statuses ?? []),
+    f.email ? emailClause('r.email', f.email) : null,
+    search,
+  ]);
+}
+
+// Live eservice VAT for the rare paid rows with no stored tax split, so we can
+// still strip VAT from the gross instead of overstating net.
+function workshopRates(rows: WorkshopMoneyRow[], opts: OrderMoneyOpts) {
+  return resolveEserviceRates(
+    rows
+      .filter((r) => r.pay_status != null && r.subtotal_minor == null)
+      .map((r) => eserviceCountry(r.country, 'EUR')),
+    opts.quaderno,
+  );
+}
+
+// Gross → EUR net for one workshop row, shared by the index + full loaders.
+function workshopMoney(
+  r: WorkshopMoneyRow,
+  rateByCountry: Map<string, number>,
+  fxRates: Record<string, number>,
+): {
+  originalAmountMinor: number;
+  originalCurrency: string;
+  netEurMinor: number | null;
+  netKind: NetKind;
+  refundedMinor: number;
+} {
+  let originalAmountMinor = 0;
+  let originalCurrency = (r.reg_currency || 'EUR').toUpperCase();
+  let netEurMinor: number | null = null;
+  let netKind: NetKind = 'none';
+  let refundedMinor = 0;
+
+  if (r.pay_status != null) {
+    const amountMinor = r.amount_minor ?? 0;
+    originalAmountMinor = amountMinor;
+    originalCurrency = (r.pay_currency || originalCurrency).toUpperCase();
+    // Gross in EUR: prefer the exact EUR settlement, else convert the charge.
+    let fx = false;
+    let grossEur: number | null = null;
+    if (r.settlement_currency === 'EUR' && r.settlement_amount_minor != null) {
+      grossEur = r.settlement_amount_minor;
+    } else {
+      const eur = toEurMinor(amountMinor, r.pay_currency ?? 'EUR', fxRates);
+      if (eur) {
+        grossEur = eur.minor;
+        fx = eur.fx;
+      }
+    }
+    if (grossEur != null) {
+      if (r.subtotal_minor != null && amountMinor > 0) {
+        // Exact tax split captured at checkout, scaled to the EUR gross.
+        netEurMinor = Math.round(r.subtotal_minor * (grossEur / amountMinor));
+      } else {
+        // Fall back to the live buyer-country eservice VAT rate.
+        const country = eserviceCountry(r.country, 'EUR');
+        const vatRate = country ? rateByCountry.get(country) ?? 0 : 0;
+        netEurMinor = Math.round(grossEur / (1 + vatRate));
+      }
+      netKind = fx ? 'approx' : 'exact';
+    }
+    // We don't store a partial-refund figure for workshops — a refunded
+    // payment is treated as fully refunded for the running total.
+    if (r.pay_status === 'refunded') refundedMinor = amountMinor;
+  }
+
+  return { originalAmountMinor, originalCurrency, netEurMinor, netKind, refundedMinor };
+}
+
+async function loadWorkshopIndex(
+  db: D1Database,
+  opts: OrderMoneyOpts,
+  scope: Scope,
+): Promise<OrderIndexRow[]> {
+  const fxRates = opts.fxRates ?? DEFAULT_FX_TO_EUR;
+  const w = workshopWhere(scope);
+  const res = await run<WorkshopMoneyRow>(
+    db,
+    `SELECT ${WORKSHOP_MONEY_COLS} ${WORKSHOP_FROM} ${w.sql}`,
+    w.binds,
+  );
+  const rows = res.results ?? [];
+  const rateByCountry = await workshopRates(rows, opts);
+  return rows.map((r) => {
+    const money = workshopMoney(r, rateByCountry, fxRates);
+    return {
+      source: 'workshop' as const,
+      rowId: r.id,
+      createdAt: r.created_at,
+      statusClass: statusClassOf(r.payment_status),
+      netEurMinor: money.netEurMinor,
+      refundedMinor: money.refundedMinor,
+    };
+  });
+}
 
 async function loadWorkshopOrders(
   db: D1Database,
   opts: OrderMoneyOpts,
+  scope: Scope,
 ): Promise<UnifiedOrder[]> {
   const fxRates = opts.fxRates ?? DEFAULT_FX_TO_EUR;
-  const regRes = await db
-    .prepare(
-      `SELECT r.id, r.name, r.email, r.country, r.currency AS reg_currency,
-              r.payment_status, r.wants_bump, r.created_at,
-              w.title AS workshop_title
-         FROM workshop_registrations r
-         LEFT JOIN workshops w ON w.id = r.workshop_id
-        ORDER BY r.created_at DESC`,
-    )
-    .all<WorkshopRegRow>();
-  const regs = regRes.results ?? [];
-  if (!regs.length) return [];
-
-  // Latest paid/refunded payment per registration (ASC so the last write wins).
-  // Chunked by registration_id to stay under D1's 100-bound-param cap — all of a
-  // registration's payments land in the same batch, so last-write-wins holds.
-  const ids = regs.map((r) => r.id);
-  const payRows = await selectByIdsChunked<WorkshopPayRow>(
+  const w = workshopWhere(scope);
+  const res = await run<WorkshopRow>(
     db,
-    ids,
-    (ph) =>
-      `SELECT registration_id, amount_minor, currency AS pay_currency,
-              settlement_amount_minor, settlement_currency, subtotal_minor,
-              provider, method, stripe_payment_intent_id, paypal_capture_id,
-              quaderno_invoice_id, status
-         FROM workshop_payments
-        WHERE registration_id IN (${ph}) AND status IN ('paid','refunded')
-        ORDER BY created_at ASC`,
+    `SELECT ${WORKSHOP_MONEY_COLS},
+              r.name, r.email, r.wants_bump, w.title AS workshop_title,
+              p.provider, p.method, p.stripe_payment_intent_id,
+              p.paypal_capture_id, p.quaderno_invoice_id
+         ${WORKSHOP_FROM} ${w.sql}`,
+    w.binds,
   );
-  const payByReg = new Map<number, WorkshopPayRow>();
-  for (const p of payRows) payByReg.set(p.registration_id, p);
-
-  // Live eservice VAT for the rare paid rows with no stored tax split, so we
-  // can still strip VAT from the gross instead of overstating net.
-  const fallbackCountries = regs
-    .filter((r) => {
-      const pay = payByReg.get(r.id);
-      return pay && pay.subtotal_minor == null;
-    })
-    .map((r) => eserviceCountry(r.country, 'EUR'));
-  const rateByCountry = await resolveEserviceRates(fallbackCountries, opts.quaderno);
+  const regs = res.results ?? [];
+  if (!regs.length) return [];
+  const rateByCountry = await workshopRates(regs, opts);
 
   return regs.map((r) => {
-    const pay = payByReg.get(r.id);
     const { first, last } = splitName(r.name);
     const label =
       (r.workshop_title ?? 'Workshop') + (r.wants_bump === 1 ? ' + bump' : '');
-
-    let originalAmountMinor = 0;
-    let originalCurrency = (r.reg_currency || 'EUR').toUpperCase();
-    let netEurMinor: number | null = null;
-    let netKind: NetKind = 'none';
-    let refundedMinor = 0;
-
-    if (pay) {
-      originalAmountMinor = pay.amount_minor;
-      originalCurrency = (pay.pay_currency || originalCurrency).toUpperCase();
-      // Gross in EUR: prefer the exact EUR settlement, else convert the charge.
-      let fx = false;
-      let grossEur: number | null = null;
-      if (pay.settlement_currency === 'EUR' && pay.settlement_amount_minor != null) {
-        grossEur = pay.settlement_amount_minor;
-      } else {
-        const eur = toEurMinor(pay.amount_minor, pay.pay_currency, fxRates);
-        if (eur) {
-          grossEur = eur.minor;
-          fx = eur.fx;
-        }
-      }
-      if (grossEur != null) {
-        if (pay.subtotal_minor != null && pay.amount_minor > 0) {
-          // Exact tax split captured at checkout, scaled to the EUR gross.
-          netEurMinor = Math.round(
-            pay.subtotal_minor * (grossEur / pay.amount_minor),
-          );
-        } else {
-          // Fall back to the live buyer-country eservice VAT rate.
-          const country = eserviceCountry(r.country, 'EUR');
-          const vatRate = country ? rateByCountry.get(country) ?? 0 : 0;
-          netEurMinor = Math.round(grossEur / (1 + vatRate));
-        }
-        netKind = fx ? 'approx' : 'exact';
-      }
-      // We don't store a partial-refund figure for workshops — a refunded
-      // payment is treated as fully refunded for the running total.
-      if (pay.status === 'refunded') refundedMinor = pay.amount_minor;
-    }
+    const { originalAmountMinor, originalCurrency, netEurMinor, netKind, refundedMinor } =
+      workshopMoney(r, rateByCountry, fxRates);
 
     return {
       source: 'workshop' as const,
@@ -548,13 +847,13 @@ async function loadWorkshopOrders(
       netEurMinor,
       netKind,
       refundedMinor,
-      provider: pay?.provider === 'paypal' ? 'paypal' : 'stripe',
-      paymentMethod: pay?.method ?? null,
-      paymentIntent: pay?.stripe_payment_intent_id ?? null,
+      provider: r.provider === 'paypal' ? 'paypal' : 'stripe',
+      paymentMethod: r.method ?? null,
+      paymentIntent: r.stripe_payment_intent_id ?? null,
       stripeSubscriptionId: null,
-      paypalCaptureId: pay?.paypal_capture_id ?? null,
+      paypalCaptureId: r.paypal_capture_id ?? null,
       paypalSubscriptionId: null,
-      quadernoInvoiceId: pay?.quaderno_invoice_id ?? null,
+      quadernoInvoiceId: r.quaderno_invoice_id ?? null,
       paymentPlan: 'full',
       installmentsPaid: 0,
       installmentsTotal: 1,
@@ -572,47 +871,179 @@ export type OrderFilter = {
   sources?: OrderSource[] | null;
   statuses?: StatusClass[] | null;
   query?: string | null;
+  // Exact (case-insensitive) buyer address — the /admin/people view.
+  email?: string | null;
 };
 
-// Every order across the three stores, newest first. Filtering is applied in
-// memory (the merged set is small at this stage and a single sort keeps the
-// timeline honest across sources). `money` supplies the FX rates + Quaderno
-// config used to compute each order's EUR net; omit it (e.g. the refund route,
-// which only needs amounts in the charge currency) and net falls back to the
-// seed FX table with no VAT lookups.
+// One row per matching order, carrying only what the overview needs to sort,
+// count and money-total it. Cheap enough to pull for the whole filtered set;
+// the page then hydrates just the slice it renders.
+export type OrderIndexRow = {
+  source: OrderSource;
+  rowId: number;
+  createdAt: string;
+  statusClass: StatusClass;
+  netEurMinor: number | null;
+  refundedMinor: number;
+};
+
+const ALL_SOURCES: OrderSource[] = ['retreat', 'course', 'workshop'];
+
+function sourcesOf(filter: OrderFilter): OrderSource[] {
+  const wanted = filter.sources ?? [];
+  return wanted.length ? ALL_SOURCES.filter((s) => wanted.includes(s)) : ALL_SOURCES;
+}
+
+// Newest first, with a stable tie-break so page boundaries can't wobble between
+// requests when two orders share a timestamp.
+function byNewest(
+  a: { createdAt: string; source: OrderSource; rowId: number },
+  b: { createdAt: string; source: OrderSource; rowId: number },
+): number {
+  const t = (b.createdAt || '').localeCompare(a.createdAt || '');
+  if (t !== 0) return t;
+  if (a.source !== b.source) return a.source < b.source ? -1 : 1;
+  return b.rowId - a.rowId;
+}
+
+const INDEX_LOADERS: Record<
+  OrderSource,
+  (db: D1Database, opts: OrderMoneyOpts, scope: Scope) => Promise<OrderIndexRow[]>
+> = {
+  retreat: loadRetreatIndex,
+  course: loadCourseIndex,
+  workshop: loadWorkshopIndex,
+};
+
+const FULL_LOADERS: Record<
+  OrderSource,
+  (db: D1Database, opts: OrderMoneyOpts, scope: Scope) => Promise<UnifiedOrder[]>
+> = {
+  retreat: loadRetreatOrders,
+  course: loadCourseOrders,
+  workshop: loadWorkshopOrders,
+};
+
+// D1 caps a statement at 100 bound parameters, so hydrate ids in batches.
+const ID_CHUNK = 90;
+
+async function hydrate(
+  db: D1Database,
+  source: OrderSource,
+  ids: number[],
+  money: OrderMoneyOpts,
+): Promise<UnifiedOrder[]> {
+  const out: UnifiedOrder[] = [];
+  for (let i = 0; i < ids.length; i += ID_CHUNK) {
+    out.push(
+      ...(await FULL_LOADERS[source](db, money, { ids: ids.slice(i, i + ID_CHUNK) })),
+    );
+  }
+  return out;
+}
+
+export type OrdersPage = {
+  // Just the requested page, newest first.
+  orders: UnifiedOrder[];
+  page: number;
+  perPage: number;
+  pageCount: number;
+  // Totals over the WHOLE filtered set, not the page — so the summary tiles
+  // keep meaning what they always meant.
+  total: number;
+  paidCount: number;
+  netEurPaidMinor: number;
+  refundedMinor: number;
+};
+
+export const ORDERS_PER_PAGE_OPTIONS = [25, 50, 100, 200] as const;
+export const DEFAULT_ORDERS_PER_PAGE = 50;
+
+// One page of the order overview. Two passes: a narrow index over every
+// matching row (for the count, the sort and the money totals), then a full
+// hydration of only the rows on this page — instead of loading, mapping and
+// rendering every order the site has ever taken.
+export async function listOrdersPage(
+  db: D1Database,
+  filter: OrderFilter = {},
+  money: OrderMoneyOpts = {},
+  paging: { page?: number; perPage?: number } = {},
+): Promise<OrdersPage> {
+  const perPage = Math.min(
+    200,
+    Math.max(10, Math.floor(paging.perPage ?? DEFAULT_ORDERS_PER_PAGE)),
+  );
+  const sources = sourcesOf(filter);
+  const index = (
+    await Promise.all(
+      sources.map((s) => INDEX_LOADERS[s](db, money, { filter })),
+    )
+  ).flat();
+  index.sort(byNewest);
+
+  const total = index.length;
+  const pageCount = Math.max(1, Math.ceil(total / perPage));
+  const page = Math.min(pageCount, Math.max(1, Math.floor(paging.page ?? 1)));
+  const slice = index.slice((page - 1) * perPage, page * perPage);
+
+  const idsBySource = new Map<OrderSource, number[]>();
+  for (const row of slice) {
+    const list = idsBySource.get(row.source);
+    if (list) list.push(row.rowId);
+    else idsBySource.set(row.source, [row.rowId]);
+  }
+  const hydrated = (
+    await Promise.all(
+      [...idsBySource].map(([source, ids]) => hydrate(db, source, ids, money)),
+    )
+  ).flat();
+  const bySourceId = new Map(hydrated.map((o) => [`${o.source}:${o.rowId}`, o]));
+
+  return {
+    orders: slice
+      .map((r) => bySourceId.get(`${r.source}:${r.rowId}`))
+      .filter((o): o is UnifiedOrder => !!o),
+    page,
+    perPage,
+    pageCount,
+    total,
+    paidCount: index.filter((r) => r.statusClass === 'paid').length,
+    netEurPaidMinor: index.reduce(
+      (s, r) => s + (r.statusClass === 'paid' ? r.netEurMinor ?? 0 : 0),
+      0,
+    ),
+    refundedMinor: index.reduce((s, r) => s + r.refundedMinor, 0),
+  };
+}
+
+// Every matching order across the three stores, newest first. Filtering happens
+// in SQL; `money` supplies the FX rates + Quaderno config used to compute each
+// order's EUR net — omit it (e.g. the refund route, which only needs amounts in
+// the charge currency) and net falls back to the seed FX table with no VAT
+// lookups. Prefer `listOrdersPage` for anything user-facing: this walks the
+// whole result set.
 export async function listAllOrders(
   db: D1Database,
   filter: OrderFilter = {},
   money: OrderMoneyOpts = {},
 ): Promise<UnifiedOrder[]> {
-  const [retreats, courses, workshops] = await Promise.all([
-    loadRetreatOrders(db, money),
-    loadCourseOrders(db, money),
-    loadWorkshopOrders(db, money),
-  ]);
-  let all = [...retreats, ...courses, ...workshops].sort((a, b) =>
-    (b.createdAt || '').localeCompare(a.createdAt || ''),
+  const loaded = await Promise.all(
+    sourcesOf(filter).map((s) => FULL_LOADERS[s](db, money, { filter })),
   );
+  return loaded.flat().sort(byNewest);
+}
 
-  const sources = filter.sources ?? [];
-  const statuses = filter.statuses ?? [];
-  if (sources.length) all = all.filter((o) => sources.includes(o.source));
-  if (statuses.length) all = all.filter((o) => statuses.includes(o.statusClass));
-  if (filter.query) {
-    const q = filter.query.trim().toLowerCase();
-    if (q) {
-      all = all.filter((o) => {
-        const name = `${o.firstName ?? ''} ${o.lastName ?? ''}`.toLowerCase();
-        return (
-          o.email.toLowerCase().includes(q) ||
-          name.includes(q) ||
-          o.orderNo.toLowerCase().includes(q) ||
-          o.productLabel.toLowerCase().includes(q)
-        );
-      });
-    }
-  }
-  return all;
+// A single order by its "R-12" / "C-7" / "W-90" number — one indexed row read,
+// never the whole table.
+export async function findOrder(
+  db: D1Database,
+  orderNo: string,
+  money: OrderMoneyOpts = {},
+): Promise<UnifiedOrder | null> {
+  const parsed = parseOrderNo(orderNo);
+  if (!parsed) return null;
+  const rows = await FULL_LOADERS[parsed.source](db, money, { ids: [parsed.id] });
+  return rows[0] ?? null;
 }
 
 // Remaining refundable amount (minor units, in the order's own currency).
