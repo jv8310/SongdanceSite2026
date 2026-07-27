@@ -236,7 +236,7 @@ const totalLabel =
       set:html={JSON.stringify({ title: album.title, cover, tracks: payload }).replace(/</g, '\\u003c')}
     />
     </Fragment>
-  ) : forSale && !welcome ? (
+  ) : forSale && !welcome && !emailParamValid ? (
     <Fragment>
     <section class="ms sd-section" data-price-eur={priceEurCents}>
       <!-- Hero: the album as a product -->
@@ -390,7 +390,13 @@ const totalLabel =
         {cover && <img class="mp-gate-cover" src={cover} alt={`${album.title} — cover`} />}
         <p class="mp-eyebrow">{welcome ? 'Payment received' : 'Your album'}</p>
         <h1 class="mp-gate-title">{album.title}</h1>
-        {welcome ? (
+        {emailParamValid ? (
+          <p class="mp-gate-p">
+            We couldn't open the album under <strong>{emailParam}</strong> just yet — a new
+            order can take a few minutes to land. Try it again below, or use another address
+            you may have ordered with.
+          </p>
+        ) : welcome ? (
           <p class="mp-gate-p">
             Thank you — the album is yours. Enter the email you just paid with and it opens
             right here.
