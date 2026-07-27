@@ -121,38 +121,50 @@ async function alreadySentToEmail(
 
 // Does this registration actually carry the mantra bump? Two independent
 // signals, because a coupon seat has no purchase ledger row:
-//   • a recorded purchase line for the bump product (Stripe + PayPal both
-//     write one), or
+//   • a recorded purchase line for the bump product — the ledger, written by
+//     both the Stripe and the PayPal path at payment; or
 //   • the intent flag, when the registration's workshop offers exactly this
-//     product as its bump.
+//     product as its bump AND the ledger holds no bump line at all.
+//
+// That last clause matters. Migration 0076 repointed every *upcoming* workshop
+// from the old ASJ bump onto the mantra pack, so a session that has since taken
+// place can name the mantra pack today while its earlier buyers actually bought
+// the ASJ bump. Their ledger line names ASJ and settles it — intent only speaks
+// when nothing was recorded, which is exactly the coupon-seat case. It is also
+// the same pair of signals workshopDripTags uses to grant `prod_MantraEmpower`,
+// so this email can never disagree with the access the buyer already holds.
 async function registrationHasMantraBump(
   db: D1Database,
   reg: WorkshopRegistration,
   productId: number,
 ): Promise<boolean> {
   const row = await db
-    .prepare(
-      `SELECT 1 AS one
-         FROM workshop_registrations r
-        WHERE r.id = ?
-          AND (
+    .prepare(bumpBuyerPredicate('SELECT 1 AS one FROM workshop_registrations r WHERE r.id = ? AND ') + ' LIMIT 1')
+    .bind(reg.id, productId, productId)
+    .first<{ one: number }>();
+  return !!row;
+}
+
+// Shared "this registration carries the mantra bump" predicate, so the
+// per-registration check and the sweep can never drift apart.
+function bumpBuyerPredicate(prefix: string): string {
+  return `${prefix}(
             EXISTS (
               SELECT 1 FROM workshop_purchases p
                WHERE p.registration_id = r.id AND p.product_id = ?
             )
             OR (
               r.wants_bump = 1
+              AND NOT EXISTS (
+                SELECT 1 FROM workshop_purchases p2
+                 WHERE p2.registration_id = r.id AND p2.product_type = 'bump'
+              )
               AND EXISTS (
                 SELECT 1 FROM workshops w
                  WHERE w.id = r.workshop_id AND w.bump_product_id = ?
               )
             )
-          )
-        LIMIT 1`,
-    )
-    .bind(reg.id, productId, productId)
-    .first<{ one: number }>();
-  return !!row;
+          )`;
 }
 
 async function deliver(
@@ -252,22 +264,12 @@ export async function pendingMantraPackCount(
 // Paid registrations carrying the bump with no send on record. Oldest first,
 // so a big catch-up drains in purchase order.
 function candidateSql(limitClause: string): string {
-  return `SELECT r.id, r.email, r.name
+  return `${bumpBuyerPredicate(
+    `SELECT r.id, r.email, r.name
             FROM workshop_registrations r
            WHERE r.payment_status IN ('paid', 'coupon')
-             AND (
-               EXISTS (
-                 SELECT 1 FROM workshop_purchases p
-                  WHERE p.registration_id = r.id AND p.product_id = ?
-               )
-               OR (
-                 r.wants_bump = 1
-                 AND EXISTS (
-                   SELECT 1 FROM workshops w
-                    WHERE w.id = r.workshop_id AND w.bump_product_id = ?
-                 )
-               )
-             )
+             AND `,
+  )}
              AND NOT EXISTS (
                SELECT 1 FROM workshop_sent_notifications n
                 WHERE n.registration_id = r.id AND n.type = ?

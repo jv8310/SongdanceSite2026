@@ -221,9 +221,14 @@ gated player) but no email telling them so. Delivery now lives in the site, in
   for a live send that failed.
 - **Who counts as a buyer**: a recorded `workshop_purchases` line for the bump
   product, **or** `wants_bump = 1` on a paid/coupon registration whose workshop
-  offers that product as its bump (a coupon seat has no purchase row) — the same
-  pair of signals `workshopDripTags` uses to grant the tag, so the email and the
-  access can't disagree.
+  offers that product as its bump **and whose ledger holds no bump line at
+  all**. That last clause is load-bearing: migration 0076 repointed every
+  *upcoming* workshop from the old ASJ bump onto the mantra pack, so a session
+  that has since taken place names the mantra pack today while its earlier
+  buyers actually bought ASJ — their ledger line settles it, and intent only
+  speaks for the coupon seats that have no ledger. Same pair of signals
+  `workshopDripTags` uses to grant the tag, so the email and the access can't
+  disagree.
 - **One email per buyer, ever**: claimed atomically on
   (`registration_id`, `mantra_pack`) in `workshop_sent_notifications`, released
   if the send throws so it retries; and deduped by **email**, so taking the bump
