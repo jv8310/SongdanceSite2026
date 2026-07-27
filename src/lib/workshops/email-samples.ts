@@ -28,6 +28,7 @@ import {
   deckGiftClaimEmail,
   deckGiftConfirmedEmail,
   mantraPackEmail,
+  albumPurchaseEmail,
   type EmailContent,
 } from './emails';
 import {
@@ -54,6 +55,27 @@ export type EmailSample = {
   audience: string;
   content: EmailContent;
 };
+
+// Shared preview data for the two album-delivery emails. The player link here
+// carries `?email=` exactly as the real sends do, so the preview shows the
+// one-click button the buyer actually gets.
+function sampleAlbum(b: string) {
+  const email = 'maria@example.com';
+  return {
+    name: 'Maria Voss',
+    loginEmail: email,
+    albumTitle: 'Empowering You',
+    albumUrl: `${b}/music/empowering-you?email=${encodeURIComponent(email)}`,
+    coverUrl: 'https://songdance.co/media/music-covers/empowering-you-1784623795605.png',
+    trackTitles: [
+      'I Can Speak My Truth',
+      "There's A Joy In My Voice",
+      'Everything Will Be Alright',
+      'This Is My Voice',
+      "Let's keep going",
+    ],
+  };
+}
 
 export function buildEmailSamples(base: string): EmailSample[] {
   const b = base.replace(/\/$/, '');
@@ -175,19 +197,22 @@ export function buildEmailSamples(base: string): EmailSample[] {
       label: 'Mantra pack — your player is ready',
       timing: 'On payment, when the order carries the mantra-pack bump (plus an hourly catch-up sweep)',
       audience: 'Workshop / masterclass buyers who added the "Empowering You" mantra pack',
-      content: mantraPackEmail({
-        name,
-        loginEmail: 'maria@example.com',
-        albumTitle: 'Empowering You',
-        albumUrl: `${b}/music/empowering-you`,
-        coverUrl: 'https://songdance.co/media/music-covers/empowering-you-1784623795605.png',
-        trackTitles: [
-          'I Can Speak My Truth',
-          "There's A Joy In My Voice",
-          'Everything Will Be Alright',
-          'This Is My Voice',
-          "Let's keep going",
-        ],
+      content: mantraPackEmail(sampleAlbum(b)),
+    },
+
+    // ── Album bought on its own — delivery (transactional) ───────────────
+    // Generic over the album: the real send pulls title, description, cover and
+    // tracks from the music_albums row — see src/lib/music/delivery.ts.
+    {
+      id: 'album_delivery',
+      group: 'Registration & reminders (transactional)',
+      label: 'Album purchase — your album is ready',
+      timing: 'On payment for a standalone album (every fulfilment path + the hourly reconcile)',
+      audience: 'Anyone who buys a music album on its own from /music/<album>',
+      content: albumPurchaseEmail({
+        ...sampleAlbum(b),
+        albumDescription:
+          'Five mantras, recorded live with a choir in South Africa, set to original music. Not songs to listen to — lines to sound with your own voice. Simple enough to carry with you, strong enough to lean on.',
       }),
     },
 

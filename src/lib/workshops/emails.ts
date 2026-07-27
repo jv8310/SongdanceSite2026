@@ -1047,21 +1047,45 @@ export function deckGiftConfirmedEmail(ctx: {
 // (ch. 6) keeps them apart — a mantra hands you a chosen quality to lean on,
 // sounding asks what's here. So this says "a different door", never blurs the
 // two, and promises nothing beyond what the recordings are.
-export function mantraPackEmail(ctx: {
+// Shared pieces for the two album-delivery emails — the mantra-pack bump here
+// and a standalone album purchase below. The player link both hand over already
+// carries the buyer's address (`?email=`), so the page opens *signed in*; the
+// address is still named because that's what opens it on another device, and
+// because a forwarded/expired link should leave them knowing the way in.
+type AlbumEmailCtx = {
   name?: string | null;
   loginEmail: string;
   albumTitle: string;
-  albumUrl: string;
+  albumUrl: string; // already carries ?email= — see src/lib/music/delivery.ts
   trackTitles: string[];
   coverUrl?: string | null;
-}): EmailContent {
-  const trackHtml = ctx.trackTitles.length
-    ? `<p style="margin:20px 0 10px;font-size:14px;letter-spacing:0.08em;text-transform:uppercase;color:${PALETTE.ember};">What's inside</p>
-       ${ctx.trackTitles.map((t) => dot(escapeHtml(t))).join('')}`
-    : '';
-  const trackText = ctx.trackTitles.length
-    ? `\nWhat's inside:\n${ctx.trackTitles.map((t) => `- ${t}`).join('\n')}\n`
-    : '';
+};
+
+function albumSectionHead(label: string): string {
+  return `<p style="margin:20px 0 10px;font-size:14px;letter-spacing:0.08em;text-transform:uppercase;color:${PALETTE.ember};">${escapeHtml(label)}</p>`;
+}
+
+function albumTracksHtml(titles: string[]): string {
+  if (!titles.length) return '';
+  return `${albumSectionHead("What's inside")}${titles.map((t) => dot(escapeHtml(t))).join('')}`;
+}
+
+function albumTracksText(titles: string[]): string {
+  if (!titles.length) return '';
+  return `\nWhat's inside:\n${titles.map((t) => `- ${t}`).join('\n')}\n`;
+}
+
+function albumOpenHtml(loginEmail: string): string {
+  return `${albumSectionHead('How to open it')}
+      <p style="margin:0 0 14px;">Just press the button — the link knows it's you, so it opens straight into the player. Nothing to download, nothing to install; bookmark the page and it's there for good.</p>
+      <p style="margin:0 0 14px;font-size:14px;color:${PALETTE.soft};">On another device, or if you ever land on the email box: it opens with <strong>${escapeHtml(loginEmail)}</strong>, the address you ordered with.</p>`;
+}
+
+function albumOpenText(loginEmail: string, albumUrl: string): string {
+  return `\nHow to open it — this link knows it's you, so it opens straight into the player:\n${albumUrl}\n\nNothing to download, nothing to install; bookmark the page and it's there for good. On another device, or if you ever land on the email box, it opens with ${loginEmail} — the address you ordered with.\n`;
+}
+
+export function mantraPackEmail(ctx: AlbumEmailCtx): EmailContent {
   const intro = `<p style="margin:0 0 14px;">These are five mantras, recorded live with a choir in South Africa and set to original music. Not tracks to sit back and listen to — lines to carry with your own voice, as loudly or as quietly as you like.</p>`;
   const introBlock = ctx.coverUrl
     ? figureRow(ctx.coverUrl, `${ctx.albumTitle} — album cover`, intro)
@@ -1072,9 +1096,8 @@ export function mantraPackEmail(ctx: {
     bodyHtml: `<p style="margin:0 0 14px;">${greeting(ctx.name)}</p>
       <p style="margin:0 0 14px;">You added the <strong>${escapeHtml(ctx.albumTitle)}</strong> mantra pack to your order — thank you. It's yours now, and it stays yours: open it whenever you want, on any device, as often as you like.</p>
       ${introBlock}
-      ${trackHtml}
-      <p style="margin:20px 0 10px;font-size:14px;letter-spacing:0.08em;text-transform:uppercase;color:${PALETTE.ember};">How to open it</p>
-      <p style="margin:0 0 14px;">The button below takes you to your player. If it asks who you are, enter <strong>${escapeHtml(ctx.loginEmail)}</strong> — the address you ordered with — and it opens. Nothing to download, nothing to install; bookmark the page and it's there for good.</p>
+      ${albumTracksHtml(ctx.trackTitles)}
+      ${albumOpenHtml(ctx.loginEmail)}
       <p style="margin:0 0 14px;">A mantra is a different door from the sounding we do together. Sounding asks what's here today and lets that out, unedited; a mantra hands you a line and lets the music carry it. Both belong. Some days one is what you want, some days the other.</p>
       ${quoteLine('Words worth repeating, in your own voice.')}`,
     cta: { label: 'Open my mantra player →', href: ctx.albumUrl },
@@ -1083,7 +1106,42 @@ export function mantraPackEmail(ctx: {
   return {
     subject: `Your mantras are ready — ${ctx.albumTitle}`,
     html,
-    text: `${textGreeting(ctx.name)}\n\nYou added the ${ctx.albumTitle} mantra pack to your order — thank you. It's yours now, and it stays yours: open it whenever you want, on any device, as often as you like.\n\nThese are five mantras, recorded live with a choir in South Africa and set to original music. Not tracks to sit back and listen to — lines to carry with your own voice, as loudly or as quietly as you like.\n${trackText}\nHow to open it:\n${ctx.albumUrl}\n\nIf it asks who you are, enter ${ctx.loginEmail} — the address you ordered with — and it opens. Nothing to download, nothing to install; bookmark the page and it's there for good.\n\nA mantra is a different door from the sounding we do together. Sounding asks what's here today and lets that out, unedited; a mantra hands you a line and lets the music carry it. Both belong.\n\nWarmly,\nJacob`,
+    text: `${textGreeting(ctx.name)}\n\nYou added the ${ctx.albumTitle} mantra pack to your order — thank you. It's yours now, and it stays yours: open it whenever you want, on any device, as often as you like.\n\nThese are five mantras, recorded live with a choir in South Africa and set to original music. Not tracks to sit back and listen to — lines to carry with your own voice, as loudly or as quietly as you like.\n${albumTracksText(ctx.trackTitles)}${albumOpenText(ctx.loginEmail, ctx.albumUrl)}\nA mantra is a different door from the sounding we do together. Sounding asks what's here today and lets that out, unedited; a mantra hands you a line and lets the music carry it. Both belong.\n\nWarmly,\nJacob`,
+  };
+}
+
+// ── Album purchase delivery (transactional) ────────────────────────────────
+// Sent when someone buys a music album on its own (product slug `album-<id>`,
+// src/lib/music/product.ts) rather than getting it as an order bump. Deliberately
+// generic over the album: the character comes from the album's own description
+// on its `music_albums` row, so a second album needs no new template — and a
+// standalone mantra-pack sale reads true without borrowing the bump's framing.
+export function albumPurchaseEmail(
+  ctx: AlbumEmailCtx & { albumDescription?: string | null },
+): EmailContent {
+  const desc = (ctx.albumDescription ?? '').trim();
+  const intro = desc
+    ? `<p style="margin:0 0 14px;">${escapeHtml(desc)}</p>`
+    : `<p style="margin:0 0 14px;">It's yours to keep — play it whenever you want, on any device, as often as you like.</p>`;
+  const introBlock = ctx.coverUrl
+    ? figureRow(ctx.coverUrl, `${ctx.albumTitle} — album cover`, intro)
+    : intro;
+  const html = shell({
+    preheader: `${ctx.albumTitle} is yours — open the player any time.`,
+    heading: 'Your album is ready',
+    bodyHtml: `<p style="margin:0 0 14px;">${greeting(ctx.name)}</p>
+      <p style="margin:0 0 14px;">Thank you — <strong>${escapeHtml(ctx.albumTitle)}</strong> is yours. It stays yours: no subscription, no expiry, nothing to renew.</p>
+      ${introBlock}
+      ${albumTracksHtml(ctx.trackTitles)}
+      ${albumOpenHtml(ctx.loginEmail)}
+      <p style="margin:0 0 14px;">If anything doesn't play, or you'd rather have the files another way, just reply to this email — a person reads it.</p>`,
+    cta: { label: 'Open my album →', href: ctx.albumUrl },
+    footerNote: "Your album — yours to keep.",
+  });
+  return {
+    subject: `Your album is ready — ${ctx.albumTitle}`,
+    html,
+    text: `${textGreeting(ctx.name)}\n\nThank you — ${ctx.albumTitle} is yours. It stays yours: no subscription, no expiry, nothing to renew.\n${desc ? `\n${desc}\n` : ''}${albumTracksText(ctx.trackTitles)}${albumOpenText(ctx.loginEmail, ctx.albumUrl)}\nIf anything doesn't play, or you'd rather have the files another way, just reply to this email — a person reads it.\n\nWarmly,\nJacob`,
   };
 }
 

@@ -33,6 +33,7 @@ import {
   type ShopifyEnv,
 } from './shopify';
 import { deckGiftClaimEmail, deckGiftConfirmedEmail } from '../workshops/emails';
+import { sendAlbumPurchaseEmail } from '../music/delivery';
 import { LANGUAGE_CHOICE_LABEL } from '../courses/journeys';
 import type { Registration } from '../registrations/db';
 import { logEvent } from '../registrations/db';
@@ -44,10 +45,13 @@ import type { EmailContent } from '../workshops/emails';
 export type OrderEnv = {
   DB: D1Database;
   RESEND_API_KEY?: string;
+  RESEND_REPLY_TO?: string;
   QUADERNO_ACCOUNT?: string;
   DRIP_API_TOKEN?: string;
   DRIP_ACCOUNT_ID?: string;
   ORDER_NOTIFICATIONS_TO?: string;
+  // Used to build the album player link in the buyer's delivery email.
+  PUBLIC_BASE_URL?: string;
 } & ShopifyEnv;
 
 // Where SD-ORDER notifications land when ORDER_NOTIFICATIONS_TO is unset.
@@ -513,6 +517,13 @@ export async function notifyCourseOrder(
   // means every fulfilment path triggers it — Stripe webhook, PayPal, free
   // checkout, admin mark-paid, and the hourly order-notification reconcile.
   await fulfilDeckGift(env, reg);
+
+  // A music album bought on its own (product slug `album-<id>`): hand the buyer
+  // their player link. Same reasoning as the deck gift above — riding
+  // notifyCourseOrder means every fulfilment path delivers it, including the
+  // hourly reconcile if a webhook was ever dropped. No-op for every other
+  // product; idempotent on its own claim.
+  await sendAlbumPurchaseEmail(env, reg);
 }
 
 // Turn the stored shipping address into the display lines the confirmation email
