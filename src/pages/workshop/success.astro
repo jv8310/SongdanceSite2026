@@ -7,9 +7,11 @@ import {
   getRegistrationByAccessToken,
   getWorkshopById,
   listUpcomingPublishedWorkshops,
+  masterclassByNaming,
   resolveReplayUrl,
   workshopIsMasterclass,
 } from '../../lib/workshops/db';
+import type { UpcomingWorkshop } from '../../lib/workshops/db';
 import { googleCalendarUrl } from '../../lib/workshops/ics';
 import {
   formatInTz,
@@ -94,8 +96,8 @@ const shareText = workshop
 //    promise "any upcoming date", so this one means it: every upcoming live
 //    date, masterclass included, whatever they originally booked.
 const currentIsMasterclass = workshop ? await workshopIsMasterclass(env.DB, workshop) : false;
-const isMasterclassDate = (w: { product_slug: string | null }) =>
-  (w.product_slug ?? '').includes('masterclass');
+const isMasterclassDate = (w: UpcomingWorkshop) =>
+  (w.product_slug ?? '').includes('masterclass') || masterclassByNaming(w);
 const rebookDates = reg
   ? (await listUpcomingPublishedWorkshops(env.DB, new Date().toISOString()))
       .filter((w) => w.is_replay !== 1 && w.id !== reg.workshop_id)

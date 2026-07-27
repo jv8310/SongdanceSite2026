@@ -7,6 +7,7 @@
 import type { CalItem } from '../../components/workshop-english/types';
 import {
   listUpcomingPublishedWorkshops,
+  masterclassByNaming,
   getProductById,
   getProductBySlug,
   resolvePrice,
@@ -50,10 +51,12 @@ export async function buildCalendarItems(
   for (const w of upcoming) {
     if (!w.main_product_id) continue;
 
-    // A masterclass is any entry whose main product slug contains "masterclass".
+    // A masterclass is any entry whose main product slug contains "masterclass",
+    // or whose own naming does (same rule as `workshopIsMasterclass`, so the
+    // landing calendar and the countdown page never disagree about a date).
     // Masterclasses are always shown; workshops are capped at MAX_WORKSHOPS (the
     // soonest ones, since the source list is ordered soonest-first).
-    const isMasterclass = (w.product_slug ?? '').includes('masterclass');
+    const isMasterclass = (w.product_slug ?? '').includes('masterclass') || masterclassByNaming(w);
     if (!isMasterclass && workshopCount >= MAX_WORKSHOPS) continue;
 
     const price = await resolvePrice(db, w.main_product_id, currency);

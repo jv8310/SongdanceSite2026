@@ -413,7 +413,11 @@ export async function listSecuredWorkshopLinksByEmail(
   const r = await db
     .prepare(
       `SELECT w.starts_at_utc, w.ends_at_utc, r.country, r.name, r.audience,
-              CASE WHEN p.slug LIKE '%masterclass%' THEN 1 ELSE 0 END AS is_masterclass
+              CASE WHEN p.slug LIKE '%masterclass%'
+                     OR w.slug LIKE '%masterclass%'
+                     OR w.title LIKE '%masterclass%'
+                     OR coalesce(w.source_tag, '') LIKE '%masterclass%'
+                   THEN 1 ELSE 0 END AS is_masterclass
          FROM workshop_registrations r
          JOIN workshops w ON w.id = r.workshop_id
          LEFT JOIN workshop_products p ON p.id = w.main_product_id
@@ -454,7 +458,11 @@ export async function listCountdownLinksByEmail(
     .prepare(
       `SELECT r.access_token, r.timezone, w.title, w.slug, w.starts_at_utc,
               w.display_tz, w.is_replay,
-              CASE WHEN p.slug LIKE '%masterclass%' THEN 1 ELSE 0 END AS is_masterclass
+              CASE WHEN p.slug LIKE '%masterclass%'
+                     OR w.slug LIKE '%masterclass%'
+                     OR w.title LIKE '%masterclass%'
+                     OR coalesce(w.source_tag, '') LIKE '%masterclass%'
+                   THEN 1 ELSE 0 END AS is_masterclass
          FROM workshop_registrations r
          JOIN workshops w ON w.id = r.workshop_id
          LEFT JOIN workshop_products p ON p.id = w.main_product_id
@@ -1061,13 +1069,32 @@ export async function deleteConfig(db: D1Database, key: string) {
   await db.prepare('DELETE FROM workshop_config WHERE key = ?').bind(key).run();
 }
 
+// Does the row's own naming say masterclass? The main product slug is the
+// primary classifier (below), but a date whose main product was never set — or
+// was set to a plain ticket — would otherwise be read as a regular workshop,
+// which silently costs its registrants everything that keys off the type: the
+// masterclass Zoom default, the masterclass replay, pro-facing lifecycle mail,
+// and the masterclass dates offered on their countdown page. By convention the
+// slug (`…-masterclass-6`), the Drip source tag (`m26_SVH_Masterclass`) and the
+// title all carry the word, and no regular workshop does.
+export function masterclassByNaming(w: {
+  slug?: string | null;
+  title?: string | null;
+  source_tag?: string | null;
+}): boolean {
+  return [w.slug, w.title, w.source_tag].some((v) => (v ?? '').toLowerCase().includes('masterclass'));
+}
+
 // Is this workshop a masterclass? Classified by its main product slug, the same
 // way the /workshop landing-page calendar tells a €22 workshop from the €44
-// masterclass. Masterclasses resolve their own Zoom defaults.
+// masterclass, falling back to the row's own naming when the product doesn't
+// say. Masterclasses resolve their own Zoom defaults.
 export async function workshopIsMasterclass(db: D1Database, workshop: Workshop): Promise<boolean> {
-  if (!workshop.main_product_id) return false;
-  const product = await getProductById(db, workshop.main_product_id);
-  return (product?.slug ?? '').includes('masterclass');
+  if (workshop.main_product_id) {
+    const product = await getProductById(db, workshop.main_product_id);
+    if ((product?.slug ?? '').includes('masterclass')) return true;
+  }
+  return masterclassByNaming(workshop);
 }
 
 // A typed config default: masterclasses prefer the `<key>_masterclass` value and
