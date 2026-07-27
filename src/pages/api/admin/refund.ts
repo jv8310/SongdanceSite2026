@@ -5,8 +5,8 @@ import { createRefund } from '../../../lib/registrations/stripe';
 import { refundCapture, refundSale } from '../../../lib/payments/paypal';
 import { recordPaypalRefund } from '../../../lib/payments/paypal-fulfill';
 import {
+  findOrder,
   isRefundable,
-  listAllOrders,
   parseOrderNo,
   refundableMinor,
 } from '../../../lib/admin/orders';
@@ -36,8 +36,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
   // Re-derive the order from the source of truth so amount/currency/PI can't
   // be tampered with via the form.
-  const orders = await listAllOrders(env.DB);
-  const order = orders.find((o) => o.orderNo === orderNo);
+  const order = await findOrder(env.DB, orderNo);
   if (!order) {
     return redirect(returnTo, { flash: 'refund_error', msg: 'Order not found' });
   }

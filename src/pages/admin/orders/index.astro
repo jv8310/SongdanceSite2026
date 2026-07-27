@@ -4,10 +4,12 @@ import Layout from '../../../layouts/Layout.astro';
 import { readCookie, verifySession } from '../../../lib/registrations/auth';
 import { formatMoney } from '../../../lib/workshops/currency';
 import {
-  listAllOrders,
+  listOrdersPage,
   isRefundable,
   refundableMinor,
   shortProductLabel,
+  DEFAULT_ORDERS_PER_PAGE,
+  ORDERS_PER_PAGE_OPTIONS,
   type OrderSource,
   type StatusClass,
 } from '../../../lib/admin/orders';
@@ -38,6 +40,19 @@ const selectedSources = parseList(Astro.url.searchParams.get('source'), SOURCES)
 const selectedStatuses = parseList(Astro.url.searchParams.get('status'), STATUSES);
 const q = Astro.url.searchParams.get('q') ?? '';
 
+// ── Paging — the table used to render every order the site has ever taken ──
+const parseNum = (raw: string | null): number | null => {
+  const n = Number(raw);
+  return raw && Number.isFinite(n) ? Math.floor(n) : null;
+};
+const requestedPage = Math.max(1, parseNum(Astro.url.searchParams.get('page')) ?? 1);
+const requestedPerPage = parseNum(Astro.url.searchParams.get('per'));
+const perPage = (ORDERS_PER_PAGE_OPTIONS as readonly number[]).includes(
+  requestedPerPage ?? -1,
+)
+  ? (requestedPerPage as number)
+  : DEFAULT_ORDERS_PER_PAGE;
+
 // EUR net relies on the daily-refreshed FX store + a live Quaderno VAT lookup
 // for course rows (eservice destination VAT — the same the checkout uses).
 const fxRates = await getFxRatesToEur(env.DB);
@@ -50,22 +65,52 @@ const quaderno =
       }
     : undefined;
 
-const orders = await listAllOrders(
+const result = await listOrdersPage(
   env.DB,
   { sources: selectedSources, statuses: selectedStatuses, query: q },
   { fxRates, quaderno },
+  { page: requestedPage, perPage },
 );
+const orders = result.orders;
 const returnTo = Astro.url.pathname + Astro.url.search;
+
+// "Showing 51–100 of 3,204"
+const firstOnPage = result.total === 0 ? 0 : (result.page - 1) * result.perPage + 1;
+const lastOnPage = Math.min(result.total, result.page * result.perPage);
+const num = (n: number) => n.toLocaleString('en-US');
 
 // Dashboard deep-link modes (Stripe test/live, PayPal sandbox/live).
 const providerModes = resolveProviderModes(env);
 
 // Build a filter URL from explicit source/status sets (+ the current search).
-function filterHref(sources: string[], statuses: string[], query: string): string {
+// Changing a filter always returns to page 1 — the old page number would point
+// at a different slice of a different set.
+function filterHref(
+  sources: string[],
+  statuses: string[],
+  query: string,
+  page = 1,
+): string {
   const params = new URLSearchParams();
   if (sources.length) params.set('source', sources.join(','));
   if (statuses.length) params.set('status', statuses.join(','));
   if (query) params.set('q', query);
+  if (perPage !== DEFAULT_ORDERS_PER_PAGE) params.set('per', String(perPage));
+  if (page > 1) params.set('page', String(page));
+  const qs = params.toString();
+  return '/admin/orders' + (qs ? `?${qs}` : '');
+}
+// Same filters, a different page of them.
+function pageHref(page: number): string {
+  return filterHref(selectedSources, selectedStatuses, q, page);
+}
+// Same filters + page 1, a different page size.
+function perPageHref(per: number): string {
+  const params = new URLSearchParams();
+  if (selectedSources.length) params.set('source', selectedSources.join(','));
+  if (selectedStatuses.length) params.set('status', selectedStatuses.join(','));
+  if (q) params.set('q', q);
+  if (per !== DEFAULT_ORDERS_PER_PAGE) params.set('per', String(per));
   const qs = params.toString();
   return '/admin/orders' + (qs ? `?${qs}` : '');
 }
@@ -152,10 +197,26 @@ function paymentDisplay(o: { provider: 'stripe' | 'paypal'; paymentMethod: strin
   return { gateway: 'Stripe', method };
 }
 
-// ── Summary (over the filtered set) ──
-const paidOrders = orders.filter((o) => o.statusClass === 'paid');
-const netEurPaid = paidOrders.reduce((s, o) => s + (o.netEurMinor ?? 0), 0);
-const refundedTotal = orders.reduce((s, o) => s + o.refundedMinor, 0);
+// A compact page list: 1 … 4 5 [6] 7 8 … 42
+function pageNumbers(current: number, count: number): Array<number | '…'> {
+  const wanted = new Set<number>([1, count, current]);
+  for (let d = 1; d <= 2; d++) {
+    wanted.add(current - d);
+    wanted.add(current + d);
+  }
+  const sorted = [...wanted]
+    .filter((n) => n >= 1 && n <= count)
+    .sort((a, b) => a - b);
+  const out: Array<number | '…'> = [];
+  let prev = 0;
+  for (const n of sorted) {
+    if (prev && n - prev > 1) out.push('…');
+    out.push(n);
+    prev = n;
+  }
+  return out;
+}
+const pages = pageNumbers(result.page, result.pageCount);
 
 // Preserve the source/status filter on the search form via hidden inputs.
 ---
@@ -189,18 +250,19 @@ const refundedTotal = orders.reduce((s, o) => s + o.refundedMinor, 0);
     <!-- ─── Summary ─── -->
     <section class="adm-section">
       <div class="ord-summary">
-        <div class="ord-stat"><span>Showing</span><strong>{orders.length}</strong></div>
-        <div class="ord-stat"><span>Paid</span><strong>{paidOrders.length}</strong></div>
-        <div class="ord-stat"><span>Paid net (EUR)*</span><strong>{eur(netEurPaid)}</strong></div>
-        {refundedTotal > 0 && (
-          <div class="ord-stat"><span>Refunded</span><strong>{eur(refundedTotal)}</strong></div>
+        <div class="ord-stat"><span>Matching</span><strong>{num(result.total)}</strong></div>
+        <div class="ord-stat"><span>Paid</span><strong>{num(result.paidCount)}</strong></div>
+        <div class="ord-stat"><span>Paid net (EUR)*</span><strong>{eur(result.netEurPaidMinor)}</strong></div>
+        {result.refundedMinor > 0 && (
+          <div class="ord-stat"><span>Refunded</span><strong>{eur(result.refundedMinor)}</strong></div>
         )}
       </div>
       <p class="adm-table-note">
-        *Net is tax-excluded in EUR: workshops use the exact Stripe settlement +
-        VAT split; retreats strip the product VAT; courses strip the buyer-country
-        VAT looked up live from Quaderno (eservice). Non-EUR charges are converted
-        to EUR at ECB rates (refreshed daily).
+        Totals cover every order matching the current filters, not just the page
+        below. *Net is tax-excluded in EUR: workshops use the exact Stripe
+        settlement + VAT split; retreats strip the product VAT; courses strip the
+        buyer-country VAT looked up live from Quaderno (eservice). Non-EUR charges
+        are converted to EUR at ECB rates (refreshed daily).
       </p>
     </section>
 
@@ -228,6 +290,7 @@ const refundedTotal = orders.reduce((s, o) => s + o.refundedMinor, 0);
       <form method="GET" action="/admin/orders" class="ord-search">
         {selectedSources.length > 0 && <input type="hidden" name="source" value={selectedSources.join(',')} />}
         {selectedStatuses.length > 0 && <input type="hidden" name="status" value={selectedStatuses.join(',')} />}
+        {perPage !== DEFAULT_ORDERS_PER_PAGE && <input type="hidden" name="per" value={String(perPage)} />}
         <input type="search" name="q" value={q} placeholder="Search name, email, order # or product…" />
         <button type="submit" class="adm-btn adm-btn--solid">Search</button>
         {q && <a class="adm-btn adm-btn--ghost" href={filterHref(selectedSources, selectedStatuses, '')}>Clear</a>}
@@ -237,6 +300,20 @@ const refundedTotal = orders.reduce((s, o) => s + o.refundedMinor, 0);
     <!-- ─── Orders ─── -->
     <section class="adm-section">
       {orders.length === 0 && <p class="adm-empty">No orders match these filters.</p>}
+
+      {orders.length > 0 && (
+        <div class="ord-pagebar">
+          <p class="ord-range">
+            Showing <strong>{num(firstOnPage)}–{num(lastOnPage)}</strong> of {num(result.total)}
+          </p>
+          <span class="ord-perpage">
+            Per page:
+            {ORDERS_PER_PAGE_OPTIONS.map((n) => (
+              <a href={perPageHref(n)} class={n === result.perPage ? 'is-on' : ''}>{n}</a>
+            ))}
+          </span>
+        </div>
+      )}
 
       {orders.length > 0 && (
         <table class="adm-table ord-table">
@@ -362,6 +439,32 @@ const refundedTotal = orders.reduce((s, o) => s + o.refundedMinor, 0);
           </tbody>
         </table>
       )}
+
+      {result.pageCount > 1 && (
+        <nav class="ord-pager" aria-label="Order pages">
+          {result.page > 1 ? (
+            <a class="ord-pager-step" href={pageHref(result.page - 1)} rel="prev">← Prev</a>
+          ) : (
+            <span class="ord-pager-step is-off">← Prev</span>
+          )}
+          <span class="ord-pager-nums">
+            {pages.map((p) =>
+              p === '…' ? (
+                <span class="ord-pager-gap">…</span>
+              ) : p === result.page ? (
+                <span class="ord-pager-num is-on" aria-current="page">{p}</span>
+              ) : (
+                <a class="ord-pager-num" href={pageHref(p)}>{p}</a>
+              ),
+            )}
+          </span>
+          {result.page < result.pageCount ? (
+            <a class="ord-pager-step" href={pageHref(result.page + 1)} rel="next">Next →</a>
+          ) : (
+            <span class="ord-pager-step is-off">Next →</span>
+          )}
+        </nav>
+      )}
     </section>
   </main>
 
@@ -385,6 +488,42 @@ const refundedTotal = orders.reduce((s, o) => s + o.refundedMinor, 0);
       flex:1; min-width:240px; padding:8px 12px;
       border:1px solid rgba(42,27,42,0.18); border-radius:8px; font-size:14px;
     }
+
+    /* Paging: a range + page-size line above the table, page steps below it. */
+    .ord-pagebar {
+      display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between;
+      gap:10px; margin-bottom:10px;
+    }
+    .ord-range { margin:0; font-size:13px; color:var(--adm-ink-soft); }
+    .ord-range strong { font-variant-numeric:tabular-nums; }
+    .ord-perpage { font-size:12px; color:var(--adm-mute); display:flex; align-items:center; gap:6px; }
+    .ord-perpage a {
+      padding:2px 8px; border:1px solid var(--adm-line); border-radius:999px;
+      color:var(--adm-ink-soft); text-decoration:none; font-variant-numeric:tabular-nums;
+    }
+    .ord-perpage a:hover { background:var(--adm-paper-soft); }
+    .ord-perpage a.is-on { background:#efe6d2; border-color:#d5cab1; color:var(--adm-ink); font-weight:600; }
+
+    .ord-pager {
+      display:flex; flex-wrap:wrap; align-items:center; justify-content:center;
+      gap:6px; margin-top:16px;
+    }
+    .ord-pager-nums { display:flex; flex-wrap:wrap; align-items:center; gap:4px; }
+    .ord-pager-step, .ord-pager-num {
+      display:inline-flex; align-items:center; justify-content:center;
+      min-width:32px; padding:6px 10px; border:1px solid var(--adm-line);
+      border-radius:8px; font-size:13px; text-decoration:none;
+      color:var(--adm-ink-soft); background:var(--adm-paper-soft);
+      font-variant-numeric:tabular-nums;
+    }
+    .ord-pager-step:hover, .ord-pager-num:hover { background:#f0e8d6; border-color:#d5cab1; }
+    .ord-pager-num.is-on {
+      background:var(--adm-ember-deep); border-color:var(--adm-ember-deep);
+      color:#fff; font-weight:600;
+    }
+    .ord-pager-step.is-off { opacity:0.4; }
+    .ord-pager-step.is-off:hover { background:var(--adm-paper-soft); border-color:var(--adm-line); }
+    .ord-pager-gap { padding:0 2px; color:var(--adm-mute); }
 
     /* Compact rows: single-line content + a pop-out actions menu instead of a
        stack of buttons, so each row stays short. */
