@@ -27,6 +27,7 @@ import {
   verificationEmail,
   deckGiftClaimEmail,
   deckGiftConfirmedEmail,
+  mantraPackEmail,
   type EmailContent,
 } from './emails';
 import {
@@ -161,6 +162,31 @@ export function buildEmailSamples(base: string): EmailSample[] {
           '94043 Mountain View',
           'CA',
           'US',
+        ],
+      }),
+    },
+
+    // ── Mantra pack order bump — delivery (transactional) ────────────────
+    // Preview data only; the real send resolves the album (title, cover,
+    // tracks) from the bump's Drip tag at send time — see mantra-pack.ts.
+    {
+      id: 'mantra_pack',
+      group: 'Registration & reminders (transactional)',
+      label: 'Mantra pack — your player is ready',
+      timing: 'On payment, when the order carries the mantra-pack bump (plus an hourly catch-up sweep)',
+      audience: 'Workshop / masterclass buyers who added the "Empowering You" mantra pack',
+      content: mantraPackEmail({
+        name,
+        loginEmail: 'maria@example.com',
+        albumTitle: 'Empowering You',
+        albumUrl: `${b}/music/empowering-you`,
+        coverUrl: 'https://songdance.co/media/music-covers/empowering-you-1784623795605.png',
+        trackTitles: [
+          'I Can Speak My Truth',
+          "There's A Joy In My Voice",
+          'Everything Will Be Alright',
+          'This Is My Voice',
+          "Let's keep going",
         ],
       }),
     },

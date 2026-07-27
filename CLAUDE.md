@@ -100,8 +100,9 @@ in moderation, not governed by the copy book.
 - **Top-of-funnel + order bumps** (July 2026): workshop ticket **€22** (70-min
   session), masterclass **€44** (100-min). The workshop/masterclass order bump
   is now the **"Empowering You" mantra pack** (€9, product `mantra-empower-bump`,
-  Drip tag `prod_MantraEmpower`) — set up the matching Drip automation +
-  delivery owner-side. The **Authentic Singing Journey** moved to a **€99 course
+  Drip tag `prod_MantraEmpower`) — **delivered by us, not by Drip**
+  ([`src/lib/workshops/mantra-pack.ts`](src/lib/workshops/mantra-pack.ts), see
+  "Mantra pack delivery" below). The **Authentic Singing Journey** moved to a **€99 course
   bump** (struck against its new **€150** standalone) shown on BOTH the 12-week
   and the certification checkouts, alongside the €49 Grief bump
   (`src/lib/courses/bumps.ts`; cert-checkout bump wiring in `checkout.ts` +
@@ -194,6 +195,44 @@ All automated workshop email lives in the workshop engine:
   emails may name the deadline plainly and the final one may be a "last chance"
   send. Keep it factual — no fake scarcity, no countdown theatrics. Marketing
   sends are from `MARKETING_FROM` (Jacob), reply-to `support@songdance.co`.
+
+## Mantra pack delivery — the order bump emails itself
+
+The €9 **"Empowering You"** workshop/masterclass order bump
+(`mantra-empower-bump`) only ever applied its Drip tag, and the matching Drip
+automation was never built — so buyers got the tag (which silently opens the
+gated player) but no email telling them so. Delivery now lives in the site, in
+[`src/lib/workshops/mantra-pack.ts`](src/lib/workshops/mantra-pack.ts):
+
+- **What it sends**: `mantraPackEmail` (`emails.ts`) — transactional, so it
+  ignores suppression, like the seat confirmation. It carries the album cover,
+  the track list, the player link and the address that opens it (the buyer's
+  own — email *is* the login there). Copy keeps mantra and sounding apart, as
+  the copy book does (ch. 6): "a different door", never the practice.
+- **What it links to**: whatever **published** music album carries the bump
+  product's `drip_tag` — resolved at send time (`resolveMantraPackTarget`), so
+  renaming/re-covering the album on `/admin/music` updates future emails with
+  no code change. **No published album with that tag → nothing is sent** (there
+  would be nothing to link to); the sweep just retries later.
+- **When**: live, from `runWorkshopPaidSideEffects` right after the confirmation
+  — *plus* a catch-up sweep (`runMantraPackBackfill`) on the 5-minute cron that
+  mails every paid bump buyer with no send on record. That sweep is what caught
+  up the people who bought before this existed, and it doubles as the safety net
+  for a live send that failed.
+- **Who counts as a buyer**: a recorded `workshop_purchases` line for the bump
+  product, **or** `wants_bump = 1` on a paid/coupon registration whose workshop
+  offers that product as its bump (a coupon seat has no purchase row) — the same
+  pair of signals `workshopDripTags` uses to grant the tag, so the email and the
+  access can't disagree.
+- **One email per buyer, ever**: claimed atomically on
+  (`registration_id`, `mantra_pack`) in `workshop_sent_notifications`, released
+  if the send throws so it retries; and deduped by **email**, so taking the bump
+  on two sessions doesn't mail the same album twice.
+- **Admin**: previews on `/admin/emails` with the other transactional mail, and
+  that page carries a **"Mantra pack — deliver to buyers"** panel showing which
+  album is being delivered, how many buyers are still waiting, and a button
+  (`/api/admin/workshops/mantra-pack-send`) that forces the sweep with a wider
+  cap. Pressing it twice is harmless.
 
 ## Internal reports — daily + weekly "SD-REPORT" digests
 
