@@ -12,10 +12,14 @@ import {
 } from '../../../lib/registrations/db';
 import {
   computeInstallmentCancelAt,
+  paymentIntentFromInvoice,
   retrieveChargeWithInvoice,
   retrieveSubscriptionWithLatestInvoice,
   setSubscriptionCancelAt,
+  subscriptionIdFromInvoice,
+  subscriptionMetadataFromInvoice,
   verifyStripeSignature,
+  type StripeInvoiceLike,
 } from '../../../lib/registrations/stripe';
 import { pushPaidRegistrationToDrip, recordRetreatOrder } from '../../../lib/registrations/paid-handler';
 import {
@@ -31,6 +35,7 @@ import {
   updateCourseSubscriptionStatus,
 } from '../../../lib/courses/db';
 import { pushPaidCourseRegistrationToDrip } from '../../../lib/courses/paid-handler';
+import { effectiveTotal } from '../../../lib/courses/installment-forecast';
 import { recordCourseInvoiceIfNew } from '../../../lib/courses/stripe-fulfill';
 import {
   handleWorkshopCheckoutCompleted,
@@ -173,12 +178,50 @@ export const POST: APIRoute = async ({ request, locals }) => {
             session.metadata?.installment_count ?? '',
             10,
           );
-          if (Number.isFinite(installmentCount) && installmentCount > 0) {
+
+          // Read the subscription once: it carries both the billing anchor the
+          // cancellation must be pinned to and the first invoice we backstop
+          // from. The anchor is not optional — a cancel_at computed from our
+          // own clock lands a minute past the boundary (an extra charge) or,
+          // as the +30-day math used to, a fortnight inside the final period
+          // (a prorated last installment). If this fetch fails we set no
+          // cancel_at at all and let the hourly reconcile's schedule repair
+          // fix it; the first unwanted charge is a month away.
+          let sub: Awaited<
+            ReturnType<typeof retrieveSubscriptionWithLatestInvoice>
+          > | null = null;
+          try {
+            sub = await retrieveSubscriptionWithLatestInvoice(
+              env.STRIPE_SECRET_KEY,
+              session.subscription,
+            );
+          } catch (err) {
+            await logEvent(env.DB, {
+              registration_id: null,
+              kind: 'course.subscription.backstop.failed',
+              source: 'stripe',
+              external_id: event.id,
+              payload: {
+                course_registration_id: courseReg.id,
+                subscription_id: session.subscription,
+                error: String(err),
+              },
+            });
+          }
+
+          if (
+            Number.isFinite(installmentCount) &&
+            installmentCount > 0 &&
+            sub?.billing_cycle_anchor
+          ) {
             try {
               await setSubscriptionCancelAt(
                 env.STRIPE_SECRET_KEY,
                 session.subscription,
-                computeInstallmentCancelAt(installmentCount),
+                computeInstallmentCancelAt(
+                  installmentCount,
+                  sub.billing_cycle_anchor,
+                ),
               );
             } catch (err) {
               await logEvent(env.DB, {
@@ -195,38 +238,20 @@ export const POST: APIRoute = async ({ request, locals }) => {
             }
           }
 
-          try {
-            const sub = await retrieveSubscriptionWithLatestInvoice(
-              env.STRIPE_SECRET_KEY,
-              session.subscription,
+          const inv = sub?.latest_invoice ?? null;
+          if (inv && (inv.paid || inv.status === 'paid')) {
+            const refreshed = await getCourseRegistrationById(
+              env.DB,
+              courseReg.id,
             );
-            const inv = sub.latest_invoice;
-            if (inv && (inv.paid || inv.status === 'paid')) {
-              const refreshed = await getCourseRegistrationById(
-                env.DB,
-                courseReg.id,
+            if (refreshed) {
+              await recordCourseInvoiceIfNew(
+                env,
+                refreshed,
+                inv.id,
+                inv.payment_intent,
               );
-              if (refreshed) {
-                await recordCourseInvoiceIfNew(
-                  env,
-                  refreshed,
-                  inv.id,
-                  inv.payment_intent,
-                );
-              }
             }
-          } catch (err) {
-            await logEvent(env.DB, {
-              registration_id: null,
-              kind: 'course.subscription.backstop.failed',
-              source: 'stripe',
-              external_id: event.id,
-              payload: {
-                course_registration_id: courseReg.id,
-                subscription_id: session.subscription,
-                error: String(err),
-              },
-            });
           }
           return new Response('OK (subscription created)', { status: 200 });
         }
@@ -316,36 +341,40 @@ export const POST: APIRoute = async ({ request, locals }) => {
   // invoice.paid event. The first one is the "you're in" moment for the
   // student — that's when we grant access (mark paid + Drip handoff).
   // Subsequent ones just bump installments_paid for the admin view.
+  //
+  // Every field this handler needs (the subscription id, the routing
+  // metadata, the PaymentIntent) sits somewhere different depending on the
+  // API version the ENDPOINT is pinned to — Stripe's 2025-04-30 "basil"
+  // release moved them under `parent` / `payments`. Reading only the legacy
+  // shape means a newer endpoint yields no subscription id, the handler
+  // returns 200, and the installment is never recorded while Stripe's
+  // dashboard reports a healthy delivery. The helpers in registrations/stripe
+  // read every shape; an invoice we still can't route is logged rather than
+  // silently dropped.
   if (event.type === 'invoice.paid') {
-    const invoice = event.data.object as {
+    const invoice = event.data.object as StripeInvoiceLike & {
       id: string;
-      subscription: string | null;
-      payment_intent: string | null;
       billing_reason?: string;
       amount_paid: number;
       customer?: string;
-      metadata?: Record<string, string>;
-      subscription_details?: { metadata?: Record<string, string> };
     };
-    const subscriptionId = invoice.subscription;
-    if (!subscriptionId) return new Response('OK (no subscription)', { status: 200 });
+    const subscriptionId = subscriptionIdFromInvoice(invoice);
+    const meta = subscriptionMetadataFromInvoice(invoice);
+    const paymentIntent = paymentIntentFromInvoice(invoice);
 
     // Try the dedicated subscription-id lookup first; fall back to the
     // metadata that Stripe copies onto the subscription (and invoice)
     // for the very first invoice, before our attach happened.
-    let courseReg = await getCourseRegistrationBySubscription(
-      env.DB,
-      subscriptionId,
-    );
-    const metaCourseRegId =
-      invoice.subscription_details?.metadata?.course_registration_id ??
-      invoice.metadata?.course_registration_id;
+    let courseReg = subscriptionId
+      ? await getCourseRegistrationBySubscription(env.DB, subscriptionId)
+      : null;
+    const metaCourseRegId = meta.course_registration_id;
     if (!courseReg && metaCourseRegId) {
       courseReg = await getCourseRegistrationById(
         env.DB,
         parseInt(metaCourseRegId, 10),
       );
-      if (courseReg) {
+      if (courseReg && subscriptionId) {
         await attachStripeSubscriptionToCourse(
           env.DB,
           courseReg.id,
@@ -354,15 +383,27 @@ export const POST: APIRoute = async ({ request, locals }) => {
       }
     }
     if (!courseReg) {
+      // Not ours (a workshop/retreat invoice, another product on the same
+      // account) — or a routing failure we need to see. Either way, leave a
+      // trace: a silently-unrouted invoice.paid is exactly how an installment
+      // plan stalls at 1/3 while Stripe keeps charging.
+      await logEvent(env.DB, {
+        registration_id: null,
+        kind: 'course.invoice.unlinked',
+        source: 'stripe',
+        external_id: `${event.id}.unlinked`,
+        payload: {
+          invoice_id: invoice.id,
+          subscription_id: subscriptionId,
+          billing_reason: invoice.billing_reason ?? null,
+          amount_paid: invoice.amount_paid,
+          had_metadata: Boolean(metaCourseRegId),
+        },
+      });
       return new Response('Subscription not linked', { status: 200 });
     }
 
-    await recordCourseInvoiceIfNew(
-      env,
-      courseReg,
-      invoice.id,
-      invoice.payment_intent,
-    );
+    await recordCourseInvoiceIfNew(env, courseReg, invoice.id, paymentIntent);
 
     return new Response('OK', { status: 200 });
   }
@@ -371,15 +412,15 @@ export const POST: APIRoute = async ({ request, locals }) => {
   // first payment) but logs the failure so the admin sees it. We don't
   // auto-revoke access here — that's a business call, handled manually.
   if (event.type === 'invoice.payment_failed') {
-    const invoice = event.data.object as {
+    const invoice = event.data.object as StripeInvoiceLike & {
       id: string;
-      subscription: string | null;
       attempt_count?: number;
     };
-    if (invoice.subscription) {
+    const failedSubscriptionId = subscriptionIdFromInvoice(invoice);
+    if (failedSubscriptionId) {
       const courseReg = await getCourseRegistrationBySubscription(
         env.DB,
-        invoice.subscription,
+        failedSubscriptionId,
       );
       if (courseReg) {
         await logEvent(env.DB, {
@@ -439,11 +480,17 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
   // Terminal subscription end (cancel_at hit, or admin clicked Cancel
   // in the Stripe dashboard, or every retry attempt for unpaid was
-  // exhausted). Flip the row to 'cancelled' so the admin view stops
-  // showing 'paid'. We do NOT push to Drip on cancel: Drip already has
+  // exhausted). We do NOT push to Drip on cancel: Drip already has
   // the original "paid" event, and cancelling a course subscription is
   // a business question (refund? keep access? talk to them?) that the
   // host handles manually.
+  //
+  // A plan that has taken every installment it owed ends here too — that's
+  // how an installment plan is *supposed* to finish (cancel_at / the
+  // period-end flip). Flipping a fully-paid plan to 'cancelled' would
+  // misreport it as a lost customer on the orders page and in the sales
+  // digests, so a completed plan just records the ended subscription and
+  // stays 'paid'.
   if (event.type === 'customer.subscription.deleted') {
     const sub = event.data.object as {
       id: string;
@@ -454,16 +501,27 @@ export const POST: APIRoute = async ({ request, locals }) => {
       sub.id,
     );
     if (courseReg) {
-      await markCourseRegistrationCancelled(env.DB, courseReg.id);
+      const completed =
+        courseReg.installments_total > 1 &&
+        courseReg.installments_paid >= effectiveTotal(courseReg);
+      if (completed) {
+        await updateCourseSubscriptionStatus(env.DB, sub.id, 'canceled');
+      } else {
+        await markCourseRegistrationCancelled(env.DB, courseReg.id);
+      }
       await logEvent(env.DB, {
         registration_id: null,
-        kind: 'course.subscription.cancelled',
+        kind: completed
+          ? 'course.subscription.plan.completed'
+          : 'course.subscription.cancelled',
         source: 'stripe',
         external_id: `${event.id}.applied`,
         payload: {
           course_registration_id: courseReg.id,
           subscription_id: sub.id,
           final_status: sub.status,
+          installments_paid: courseReg.installments_paid,
+          installments_total: courseReg.installments_total,
         },
       });
     }

@@ -60,8 +60,14 @@ export type InstallmentRow = {
 };
 
 // Effective plan length: the admin-scheduled stop if one is set (clamped into
-// [installments_paid, installments_total]), otherwise the full plan.
-export function effectiveTotal(row: InstallmentRow): number {
+// [installments_paid, installments_total]), otherwise the full plan. Typed
+// structurally so a full `CourseRegistration` (the webhook / reconcile side)
+// can be measured with the same rule as a forecast row.
+export function effectiveTotal(row: {
+  installments_paid: number;
+  installments_total: number;
+  cancel_after_installment: number | null;
+}): number {
   if (row.cancel_after_installment == null) return row.installments_total;
   return Math.max(
     row.installments_paid,

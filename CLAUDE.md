@@ -367,6 +367,52 @@ hourly cron also runs `reconcileOrderNotifications`
 paid course/retreat order in the last 7 days that carries no sent-claim (bounded
 per run, idempotent, so steady state is a no-op).
 
+## Installment plans — the stop must sit exactly on the billing boundary
+
+An N-installment Stripe plan is an ordinary monthly subscription bounded by a
+`cancel_at` on the subscription (Checkout won't accept
+`subscription_data[cancel_at]`, so the webhook sets it right after creation).
+**Stripe prorates the invoice of any period the cancellation falls inside**, so
+that timestamp has exactly one correct value: the instant the (N+1)th charge
+would fall due — `billing_cycle_anchor + N calendar months`. Earlier, and the
+final installment is charged for only the days before the stop; later, and the
+plan bills one more time. There is no safe margin in either direction.
+
+Until July 2026 `computeInstallmentCancelAt` used `now + (N-1)×30d + 15d` —
+30-day months against Stripe's calendar-month billing, off our own clock. That
+always landed ~10–16 days *into* the final period, so **every plan's last
+installment was prorated**: 3× billed 43–53% of it, 6× 39–48%, 12× 29–36%. It
+surfaced as a €349×3 certification plan whose third invoice came out at
+**€157.62** ("Time on … after 27 Jul 2026" = 14 days of a 31-day period).
+
+The rules now, all in [`src/lib/registrations/stripe.ts`](src/lib/registrations/stripe.ts):
+
+- `addMonthsUnix` mirrors Stripe's own anchor arithmetic (every period is
+  `anchor + k months`, clamped: a 31st anchor bills Feb 28 then **Mar 31 again**).
+- `computeInstallmentCancelAt(n, anchorUnix)` **requires** the anchor, and the
+  webhook reads it from the subscription (`billing_cycle_anchor`) before
+  scheduling. If Stripe can't be read, we set **no** cancel_at and let the
+  hourly repair do it — never a guess from our clock.
+- When the final installment settles, `recordCourseInvoiceIfNew` flips
+  `cancel_at_period_end` — the canonical proration-free stop, which also bounds
+  a plan whose cancel_at never got set.
+- `installment-cancel.ts` (the admin early stop) uses the same boundary, and
+  `cancel_at_period_end` when the boundary is already behind us.
+- The hourly reconcile **repairs live plans**: it re-pins cancel_at to the
+  boundary — but only when the current value is *recognisably* the old math
+  (`looksLikeLegacyCancelAt`), so a stop the owner set by hand in the Stripe
+  dashboard is never pushed back out.
+
+**Audit** (`/admin/courses/future-revenue` → **🔎 Audit plans**,
+[`src/lib/payments/stripe-audit.ts`](src/lib/payments/stripe-audit.ts)):
+read-only, checks every Stripe plan against Stripe's own paid invoices and
+reports cycles charged **short** (with the invoice numbers), cycles charged but
+**not recorded** here, stop dates off the boundary, and **webhook health** — how
+many `invoice.paid` events actually arrived vs installments recorded. Zero
+`invoice.paid` alongside live subscription events means the endpoint isn't
+subscribed to that event, which is otherwise invisible. A short cycle is money
+Stripe never took: it can't be fixed retroactively, only invoiced or waived.
+
 ## Stripe course-installment recognition — safety-net reconcile
 
 Stripe **course installment plans** (3×/6×/12× subscriptions) record each cycle
@@ -390,25 +436,60 @@ on the Stripe **invoice id** in the `events` log via
 `course.installment.recorded`) — is shared by the webhook and the reconcile, so
 they converge and can't double-count.
 
+**The same hole opens mid-plan**, and that one was live until July 2026: the
+sweep only ever looked at rows stuck at **0/N**. A plan whose first cycle *was*
+recorded (by the checkout backstop) and whose later cycles were not sits at
+status `paid`, so nothing re-checked it — the €349×3 plan above read "1/3 paid ·
+2 left" on the future-revenue page (and counted a third of its revenue in
+`/admin/stats` + the SD-REPORT digests, since `collectedMinorOf` prorates by
+`installments_paid`) while Stripe had charged all three.
+
+`invoice.paid` itself has a silent failure mode worth knowing: Stripe's
+**2025-04-30 "basil"** API version moved `invoice.subscription` →
+`invoice.parent.subscription_details.subscription` (same for the metadata, and
+`payment_intent` → `payments.data[].payment.payment_intent`), and webhook
+payloads render at the **endpoint's** pinned version. Reading only the old shape
+means a newer endpoint yields no subscription id, the handler 200s, and nothing
+is recorded — with Stripe's dashboard still showing a healthy delivery.
+`subscriptionIdFromInvoice` / `subscriptionMetadataFromInvoice` /
+`paymentIntentFromInvoice` read every shape, and an invoice.paid we still can't
+route is logged as `course.invoice.unlinked` instead of vanishing.
+
 The hourly cron therefore also runs `reconcileStripeCourseOrders`
 ([`src/lib/payments/stripe-reconcile.ts`](src/lib/payments/stripe-reconcile.ts)),
-the Stripe sibling of `reconcilePaypalCourseOrders`: it finds stranded Stripe
-course **subscription** rows — `provider='stripe'`, non-full plan with a
-`stripe_subscription_id`, status `pending` **or** `expired` (a stranded pending
-row is auto-flipped to `expired` after 15 min by `expireStaleCoursePendings`) in
-a 120-day window — lists each subscription's **paid** invoices
-(`listSubscriptionInvoices`, `GET /v1/invoices?subscription=…&status=paid`,
-oldest-first) and records every settled cycle through
-`recordCourseInvoiceIfNew`. It's **read-only** against Stripe (never creates a
-charge or subscription), respects an admin cancel/refund (never resurrects such a
-row), never performs the terminal cancelled flip itself (the webhook's job), and
-tolerates per-row errors. Steady state (webhook healthy) is a no-op; it **no-ops
-entirely until `STRIPE_SECRET_KEY` is set**. A manual **"Sync from Stripe now"**
-button on `/admin/courses/future-revenue`
+the Stripe sibling of `reconcilePaypalCourseOrders`, in **two passes**:
+
+1. **Stranded rows** — `provider='stripe'`, non-full plan with a
+   `stripe_subscription_id`, status `pending` **or** `expired` (a stranded
+   pending row is auto-flipped to `expired` after 15 min by
+   `expireStaleCoursePendings`) in a 120-day window.
+2. **Open plans** — `installments_paid` between 1 and the effective total, whose
+   **next installment is ≥2 days overdue** (same calendar-month schedule the
+   forecast projects). A healthy plan is filtered out in SQL/JS before any
+   Stripe call, so this costs nothing in steady state.
+
+Both list each subscription's **paid** invoices (`listSubscriptionInvoices`,
+`GET /v1/invoices?subscription=…&status=paid`, oldest-first), record every
+settled cycle through `recordCourseInvoiceIfNew`, and **repair the schedule**
+(above). It's otherwise **read-only** against Stripe (never creates a charge or
+subscription), respects an admin cancel/refund (a `refunded` row is skipped; a
+`cancelled` one may count up but is never granted access — recording only ever
+happens for rows that already hold ≥1 installment), never performs the terminal
+cancelled flip itself (the webhook's job), and tolerates per-row errors. It
+**no-ops entirely until `STRIPE_SECRET_KEY` is set**. A manual **"Sync from
+Stripe now"** button on `/admin/courses/future-revenue`
 (`/api/admin/courses/stripe-reconcile`, admin-gated, wider cap) forces the same
 sweep so a stuck plan can be recovered on the spot. This is a *backstop*, not the
 fix — if Stripe subscriptions stall, first check the webhook endpoint is
-subscribed to `invoice.paid` (plus `customer.subscription.*`).
+subscribed to `invoice.paid` (plus `customer.subscription.*`); the audit panel
+tells you whether it is.
+
+**A finished plan is not a cancelled one.** Every installment plan ends via
+`cancel_at`, which fires `customer.subscription.deleted` — and that handler used
+to flip the row to `status='cancelled'`, so *every* completed plan read as
+cancelled on the orders page and in the sales digests. It now only cancels a plan
+that ended **owing** charges; one that took everything it owed keeps
+`status='paid'` and just records `subscription_status='canceled'`.
 
 **Removing a dead not-started plan.** A plan stuck at 0/N whose gateway
 subscription no longer exists (e.g. an abandoned PayPal checkout PayPal has since
