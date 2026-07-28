@@ -32,12 +32,14 @@
 //     marketing suppression list, exactly like the seat confirmation.
 
 import { logEvent } from '../registrations/db';
+import { upsertSubscriber } from '../registrations/drip';
 import {
   listAlbumsForTags,
   listTracks,
   type MusicAlbumRow,
 } from '../music/db';
 import { albumBaseUrl, albumCoverEmailUrl, albumPlayerUrl } from '../music/delivery';
+import { workshopOffersBumpSql } from './bump';
 import {
   claimNotification,
   getProductBySlug,
@@ -64,6 +66,8 @@ type MantraEnv = {
   DB: D1Database;
   RESEND_API_KEY?: string;
   RESEND_REPLY_TO?: string;
+  DRIP_API_TOKEN?: string;
+  DRIP_ACCOUNT_ID?: string;
   PUBLIC_BASE_URL: string;
 } & Record<string, unknown>;
 
@@ -71,6 +75,9 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export type MantraPackTarget = {
   productId: number;
+  // The bump product's Drip tag — the key that opens the album. Carried here so
+  // delivery can also (re-)apply it, see ensureDripTag below.
+  dripTag: string;
   album: MusicAlbumRow;
   trackTitles: string[];
 };
@@ -91,9 +98,34 @@ export async function resolveMantraPackTarget(
   const tracks = await listTracks(db, album.id);
   return {
     productId: product.id,
+    dripTag: tag,
     album,
     trackTitles: tracks.map((t) => t.title),
   };
+}
+
+// Re-apply the bump's Drip tag to the buyer as part of delivering the pack.
+//
+// Tagging normally happens once, in the paid-handler, and is never retried — so
+// a Drip blip at payment time (or a bump the tagging didn't cover) left a payer
+// permanently untagged. Delivery is the natural place to heal that: if we're
+// handing someone their album, they hold it. Drip tags are additive, so this is
+// idempotent, and it is strictly best-effort — access no longer depends on it
+// (hasAlbumAccess reads D1 too), and it must never block the email.
+async function ensureDripTag(env: MantraEnv, reg: WorkshopRegistration, tag: string) {
+  const apiToken = typeof env.DRIP_API_TOKEN === 'string' ? env.DRIP_API_TOKEN : '';
+  const accountId = typeof env.DRIP_ACCOUNT_ID === 'string' ? env.DRIP_ACCOUNT_ID : '';
+  if (!apiToken || !accountId || !tag) return;
+  const [firstName, ...rest] = (reg.name ?? '').trim().split(' ');
+  await upsertSubscriber(
+    { apiToken, accountId },
+    {
+      email: reg.email,
+      first_name: firstName || undefined,
+      last_name: rest.join(' ') || undefined,
+      tags: [tag],
+    },
+  );
 }
 
 // Did this buyer's address already receive the pack on some OTHER registration?
@@ -139,13 +171,18 @@ async function registrationHasMantraBump(
 ): Promise<boolean> {
   const row = await db
     .prepare(bumpBuyerPredicate('SELECT 1 AS one FROM workshop_registrations r WHERE r.id = ? AND ') + ' LIMIT 1')
-    .bind(reg.id, productId, productId)
+    .bind(reg.id, ...bumpBuyerBinds(productId))
     .first<{ one: number }>();
   return !!row;
 }
 
 // Shared "this registration carries the mantra bump" predicate, so the
 // per-registration check and the sweep can never drift apart.
+//
+// The "which session offers this bump" half is workshopOffersBumpSql (see
+// workshops/bump.ts) rather than a bare `w.bump_product_id = ?`: a masterclass
+// names no bump of its own and falls back to the default one, so keying on the
+// column alone excluded every masterclass bump buyer from delivery.
 function bumpBuyerPredicate(prefix: string): string {
   return `${prefix}(
             EXISTS (
@@ -158,12 +195,15 @@ function bumpBuyerPredicate(prefix: string): string {
                 SELECT 1 FROM workshop_purchases p2
                  WHERE p2.registration_id = r.id AND p2.product_type = 'bump'
               )
-              AND EXISTS (
-                SELECT 1 FROM workshops w
-                 WHERE w.id = r.workshop_id AND w.bump_product_id = ?
-              )
+              AND ${workshopOffersBumpSql()}
             )
           )`;
+}
+
+// The binds bumpBuyerPredicate expects, in order. Kept next to the SQL so a
+// change to either can't silently shift the other's parameter positions.
+function bumpBuyerBinds(productId: number): number[] {
+  return [productId, productId, productId];
 }
 
 async function deliver(
@@ -235,6 +275,15 @@ export async function deliverMantraPack(
     await releaseNotification(env.DB, reg.id, MANTRA_PACK_NOTIFICATION).catch(() => {});
     throw err;
   }
+  // Heal the Drip tag after the email is safely out, never before: a Drip
+  // failure must not cost the buyer their delivery.
+  await ensureDripTag(env, reg, resolved.dripTag).catch(async (err) => {
+    await logEvent(env.DB, {
+      registration_id: null,
+      kind: 'workshop.mantra_pack.drip_error',
+      payload: { registration_id: reg.id, error: String(err) },
+    }).catch(() => {});
+  });
   return 'sent';
 }
 
@@ -255,7 +304,7 @@ export async function pendingMantraPackCount(
 ): Promise<number> {
   const row = await db
     .prepare(`SELECT COUNT(*) AS n FROM (${candidateSql('')}) x`)
-    .bind(productId, productId, MANTRA_PACK_NOTIFICATION)
+    .bind(...bumpBuyerBinds(productId), MANTRA_PACK_NOTIFICATION)
     .first<{ n: number }>();
   return row?.n ?? 0;
 }
@@ -300,7 +349,7 @@ export async function runMantraPackBackfill(
   let rows: Array<{ id: number; email: string; name: string | null }>;
   try {
     const q = await env.DB.prepare(candidateSql(' LIMIT ?'))
-      .bind(target.productId, target.productId, MANTRA_PACK_NOTIFICATION, limit)
+      .bind(...bumpBuyerBinds(target.productId), MANTRA_PACK_NOTIFICATION, limit)
       .all<{ id: number; email: string; name: string | null }>();
     rows = q.results ?? [];
   } catch {

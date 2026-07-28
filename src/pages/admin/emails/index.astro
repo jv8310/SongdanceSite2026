@@ -7,9 +7,12 @@ import Layout from '../../../layouts/Layout.astro';
 import { readCookie, verifySession } from '../../../lib/registrations/auth';
 import { buildEmailSamples } from '../../../lib/workshops/email-samples';
 import {
+  MANTRA_BUMP_SLUG,
   pendingMantraPackCount,
   resolveMantraPackTarget,
 } from '../../../lib/workshops/mantra-pack';
+import { getProductBySlug } from '../../../lib/workshops/db';
+import { listAlbums } from '../../../lib/music/db';
 
 export const prerender = false;
 
@@ -21,11 +24,19 @@ if (!(await verifySession(env.ADMIN_SESSION_SECRET, readCookie(Astro.request))))
 // Mantra-pack delivery status: which album the bump's Drip tag opens, and how
 // many paid bump buyers are still waiting for the player link. Best-effort —
 // this panel must never take the preview page down.
-let mantra: { album: string | null; albumId: string | null; pending: number } = {
-  album: null,
-  albumId: null,
-  pending: 0,
-};
+//
+// When nothing is deliverable the panel names BOTH sides of the match — the tag
+// the bump product grants, and the tag each published album asks for. Delivery
+// hinges on those two strings being equal, and a mismatch (a typo, a blank
+// field, an album left unpublished) is otherwise completely silent: no email
+// goes out, nothing appears under "Your music", and no error is raised anywhere.
+let mantra: {
+  album: string | null;
+  albumId: string | null;
+  pending: number;
+  bumpTag: string | null;
+  albumTags: Array<{ id: string; title: string; tag: string | null; published: number }>;
+} = { album: null, albumId: null, pending: 0, bumpTag: null, albumTags: [] };
 try {
   const target = await resolveMantraPackTarget(env.DB);
   if (target) {
@@ -33,7 +44,20 @@ try {
       album: target.album.title,
       albumId: target.album.id,
       pending: await pendingMantraPackCount(env.DB, target.productId),
+      bumpTag: target.dripTag,
+      albumTags: [],
     };
+  } else {
+    // Nothing to link to — gather what the two sides actually say, so the
+    // reason is on the page rather than in someone's head.
+    const bump = await getProductBySlug(env.DB, MANTRA_BUMP_SLUG);
+    mantra.bumpTag = (bump?.drip_tag ?? '').trim() || null;
+    mantra.albumTags = (await listAlbums(env.DB)).map((a) => ({
+      id: a.id,
+      title: a.title,
+      tag: (a.drip_tag ?? '').trim() || null,
+      published: a.published,
+    }));
   }
 } catch {
   // leave the defaults — the panel explains the unconfigured state
@@ -125,13 +149,35 @@ const groups = [...new Set(samples.map((s) => s.group))];
           </span>
         ) : (
           <span>
-            {' '}<strong>Not deliverable yet:</strong> no published album on
+            {' '}<strong>Not deliverable:</strong> no <em>published</em> album on
             {' '}<a href="/admin/music">/admin/music</a> carries the bump's Drip
-            tag (<code>prod_MantraEmpower</code>), so there'd be nothing to link
-            to. Nothing is sent until one does.
+            tag, so there'd be nothing to link to — and nothing is sent, and
+            nothing shows under "Your music" on <code>/access</code>, until one
+            does. The two strings below must match exactly.
           </span>
         )}
       </p>
+      {!mantra.album && (
+        <p class="adm-sub">
+          The bump grants:{' '}
+          {mantra.bumpTag
+            ? <code>{mantra.bumpTag}</code>
+            : <em>nothing — the {MANTRA_BUMP_SLUG} product has no Drip tag set.</em>}
+          {mantra.albumTags.length > 0 && (
+            <span>
+              {' '}· Albums ask for:{' '}
+              {mantra.albumTags.map((a, i) => (
+                <span>
+                  {i > 0 ? ', ' : ''}
+                  <a href={`/admin/music/${a.id}`}>{a.title}</a>{' '}
+                  {a.tag ? <code>{a.tag}</code> : <em>(no tag)</em>}
+                  {a.published !== 1 ? <strong> — not published</strong> : ''}
+                </span>
+              ))}
+            </span>
+          )}
+        </p>
+      )}
       <div class="em-realsend-row">
         <button id="mp-send" class="adm-btn" type="button" disabled={!mantra.album}>
           Send to waiting buyers now

@@ -19,6 +19,7 @@
 //     signature, so seeking (many Range requests) never hammers Drip.
 
 import { getSubscriber } from '../registrations/drip';
+import { workshopBumpTagsForEmail } from '../workshops/bump';
 import type { MusicAlbumRow } from './db';
 import { hasPaidAlbumRegistration } from './product';
 
@@ -63,12 +64,18 @@ export function listenerCookieHeader(token: string): string {
 
 // ---- Entitlement (Drip tag) ----
 
-// Does this email hold the album? Two independent paths grant:
+// Does this email hold the album? Three independent paths grant:
 //   1. The album's Drip tag on the subscriber (case-insensitive) — how bump /
-//      course-bonus buyers get in.
+//      course-bonus buyers get in once Drip knows about them.
 //   2. A *paid* direct purchase of the album in course_registrations — so a
-//      fresh buyer plays immediately (before Drip has processed the order),
-//      and a Drip outage never locks paying customers out.
+//      fresh buyer plays immediately (before Drip has processed the order).
+//   3. A *paid* workshop order bump whose product carries the album's tag —
+//      read from D1 with the same signals that grant the tag in the first
+//      place (workshopBumpTagsForEmail).
+// Paths 2 and 3 are why Drip is not a single point of failure here: tagging is
+// best-effort and never retried, so without a local path one API blip — or a
+// bump the tagging never covered — permanently locked a paying buyer out of
+// something they own.
 // Everything else fails closed: no tag configured + no purchase, unknown
 // email, or a Drip error all deny — the player page offers support@ as the
 // human fallback, and admins always pass upstream of this.
@@ -90,6 +97,7 @@ export async function hasAlbumAccess(
       console.warn(`[music-access] drip lookup failed: ${String(err)}`);
     }
   }
+  if (tag && (await workshopBumpTagsForEmail(db, email)).includes(tag)) return true;
   return hasPaidAlbumRegistration(db, email, album.id);
 }
 

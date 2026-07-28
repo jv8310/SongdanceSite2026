@@ -6,6 +6,7 @@ import {
   getProductById,
   resolvePrice,
 } from '../../lib/workshops/db';
+import { resolveWorkshopBumpProductId } from '../../lib/workshops/bump';
 import { currencyForCountry, formatMoney } from '../../lib/workshops/currency';
 import { formatInTz } from '../../lib/workshops/time';
 import {
@@ -61,9 +62,13 @@ if (workshop?.main_product_id) {
       ? formatMoney(applyDiscountPercent(price.amountMinor, discountPct), price.currency)
       : ticketFullLabel;
   }
-  if (workshop.bump_product_id) {
-    const bumpProduct = await getProductById(env.DB, workshop.bump_product_id);
-    const bumpPrice = await resolvePrice(env.DB, workshop.bump_product_id, currency);
+  // The bump this date offers — its own, or the default for a masterclass that
+  // names none. Same resolver the /workshop calendar and the checkout use, so a
+  // direct link to a date offers exactly what it will charge.
+  const bumpProductId = await resolveWorkshopBumpProductId(env.DB, workshop);
+  if (bumpProductId) {
+    const bumpProduct = await getProductById(env.DB, bumpProductId);
+    const bumpPrice = await resolvePrice(env.DB, bumpProductId, currency);
     if (bumpProduct && bumpPrice) {
       bumpName = bumpProduct.name;
       bumpLabel = formatMoney(bumpPrice.amountMinor, bumpPrice.currency);

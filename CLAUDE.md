@@ -154,6 +154,33 @@ in moderation, not governed by the copy book.
   REJOIN until the session's real end (70-min default / 100-min masterclass from
   `ends_at_utc`) + 10-min grace — a connectivity drop never locks them out.
 
+## The workshop order bump — one resolver, no exceptions
+
+**Never read `workshops.bump_product_id` directly.** A workshop names its bump
+in that column; a **masterclass never does** (`SYNC_MAPPINGS` in
+`calendar-sync.ts` carries `bumpSlug: null`), so the bump it offers comes from a
+default — and every caller used to apply its own. They drifted, and on
+2026-07-21 that drift shipped: the registration calendar advertised the
+€9 "Empowering You mantra pack" on masterclass dates while the checkout charged
+the old `asj-bump` (€19), the ledger recorded ASJ, and `tagInDrip` — gating on
+the NULL column — granted **no product tag at all**. Those buyers paid for a
+bump and got nothing: no delivery email, nothing under "Your music", a locked
+player. Migration `0078` repairs the rows.
+
+Everything now goes through [`src/lib/workshops/bump.ts`](src/lib/workshops/bump.ts):
+
+- `DEFAULT_BUMP_SLUG` (`mantra-empower-bump`) — the single default.
+- `resolveWorkshopBumpProductId` / `resolveWorkshopBumpProduct` — the session's
+  own bump, else the default for a masterclass. Used by the pages
+  (`calendar.ts`, `/w/<slug>`), the checkout (`register.ts`), **both**
+  fulfilment paths (Stripe webhook via the ledger, `paypal-fulfill.ts`) and the
+  tagging (`paid-handler.tagInDrip`, `contacts/tag-backfill.ts`).
+- `workshopOffersBumpSql` — the same rule as a SQL fragment, for D1 sweeps.
+- `workshopBumpTagsForEmail` — what a buyer holds, per D1 (see music access).
+
+So what is advertised, charged, recorded and granted are one decision. Adding a
+caller that re-derives the bump re-opens this exact bug.
+
 ## Email lifecycle (workshops)
 
 All automated workshop email lives in the workshop engine:
@@ -252,7 +279,13 @@ gated player) but no email telling them so. Delivery now lives in the site, in
   buyers actually bought ASJ — their ledger line settles it, and intent only
   speaks for the coupon seats that have no ledger. Same pair of signals
   `workshopDripTags` uses to grant the tag, so the email and the access can't
-  disagree.
+  disagree. "Whose workshop offers that product" is
+  `workshopOffersBumpSql` — the session's own `bump_product_id` **or** the
+  masterclass fallback (below), never the column alone.
+- **Admin**: when nothing is deliverable, the `/admin/emails` panel prints both
+  sides of the match — the tag the bump product grants and the tag each album
+  asks for. Delivery hinges on those two strings being equal and a mismatch is
+  otherwise completely silent (no email, nothing under "Your music", no error).
 - **One email per buyer, ever**: claimed atomically on
   (`registration_id`, `mantra_pack`) in `workshop_sent_notifications`, released
   if the send throws so it retries; and deduped by **email**, so taking the bump
@@ -657,6 +690,16 @@ the bottom of `/admin` → **Music albums** (`/admin/music`). Tables
   interchangeable). Admin sessions always pass (and are the only way to see an
   unpublished album). No tag configured / Drip unset / Drip error → deny
   (fail closed; support@ is the fallback in the gate copy).
+  **Drip is never the only path.** Tagging on a paid registration is
+  best-effort and never retried, so one API blip used to hide a paid album
+  forever. `hasAlbumAccess` therefore also grants from D1 —
+  `workshopBumpTagsForEmail` ([`src/lib/workshops/bump.ts`](src/lib/workshops/bump.ts)):
+  every order-bump Drip tag this email has actually paid for, read from the same
+  two signals that grant the tag (a `workshop_purchases` bump line, or
+  `wants_bump` on a paid/coupon seat with no bump line). `/access` merges those
+  tags into its own lookup, so **"Your music" appears whether or not Drip
+  agrees.** Anything that gates on a music album must use these paths, not
+  `getSubscriber` alone.
 - **Audio is never public**: tracks live under the R2 **`music-audio/`** prefix,
   which `/media/[...key]` refuses to serve. Playback uses **short-lived signed
   URLs** (`/api/music/stream/<track>?e=…&s=…`, 12h HMAC) minted server-side

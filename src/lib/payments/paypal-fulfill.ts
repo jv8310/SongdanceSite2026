@@ -38,7 +38,6 @@ import {
   getRegistrationById as getWorkshopRegById,
   getWorkshopById,
   getProductById,
-  getProductBySlug,
   resolvePrice,
   upsertPaypalPayment,
   purchasesExistForPayment,
@@ -50,8 +49,7 @@ import {
 import { getTaxRate, netFromGross } from '../workshops/quaderno';
 import { runWorkshopPaidSideEffects } from '../workshops/paid-handler';
 import { normalizePaypalSubStatus, type PaypalCapture } from './paypal';
-
-const DEFAULT_BUMP_SLUG = 'asj-bump';
+import { resolveWorkshopBumpProductId } from '../workshops/bump';
 
 export type PaypalFulfillEnv = {
   DB: D1Database;
@@ -313,14 +311,10 @@ export async function fulfillWorkshopPaypalCapture(
 
   // Resolve the bump (only when the buyer opted in) to split ticket vs bump in
   // the purchase ledger: ticket = captured total − bump price. wants_bump is
-  // only 1 when register.ts actually resolved + charged a bump (the workshop's
-  // own, or the asj-bump fallback for a masterclass), so the same fallback here
-  // reconstructs the right split.
-  let bumpProductId = workshop.bump_product_id ?? null;
-  if (!bumpProductId) {
-    const def = await getProductBySlug(env.DB, DEFAULT_BUMP_SLUG);
-    bumpProductId = def?.id ?? null;
-  }
+  // only 1 when register.ts actually resolved + charged a bump, so resolving it
+  // through the SAME shared helper reconstructs exactly what was charged — and
+  // records the ledger line against the product the buyer actually bought.
+  const bumpProductId = await resolveWorkshopBumpProductId(env.DB, workshop);
   let bumpProduct = null;
   let bumpPrice = null;
   if (reg.wants_bump === 1 && bumpProductId) {
