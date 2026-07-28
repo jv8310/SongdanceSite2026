@@ -27,6 +27,7 @@
 import type { APIRoute } from 'astro';
 import { getSubscriber } from '../../lib/registrations/drip';
 import { listCountdownLinksByEmail } from '../../lib/workshops/db';
+import { workshopBumpTagsForEmail } from '../../lib/workshops/bump';
 import { formatInTz } from '../../lib/workshops/time';
 import { albumCoverUrl, albumUrl, listAlbumsForTags } from '../../lib/music/db';
 import { listenerCookieHeader, signListener } from '../../lib/music/access';
@@ -161,10 +162,17 @@ export const POST: APIRoute = async ({ request, locals }) => {
   // 3. Gated music albums the tag set holds (src/lib/music/). Finding any also
   //    sets the signed listener cookie, so the player links open straight into
   //    the music instead of asking for the email a second time.
+  //
+  //    The tag set is Drip's PLUS the order-bump tags this email has actually
+  //    paid for in D1 (workshopBumpTagsForEmail). Drip alone was a single point
+  //    of failure: tagging on a paid registration is best-effort and never
+  //    retried, so a buyer whose tag never landed saw no "Your music" block at
+  //    all — for something they'd paid for. The local read settles it.
   let music: Array<{ title: string; url: string; cover: string | null }> = [];
   const extraHeaders: Record<string, string> = {};
   try {
-    const albums = await listAlbumsForTags(env.DB, subscriberTags);
+    const localTags = await workshopBumpTagsForEmail(env.DB, email);
+    const albums = await listAlbumsForTags(env.DB, [...subscriberTags, ...localTags]);
     music = albums.map((a) => ({ title: a.title, url: albumUrl(a), cover: albumCoverUrl(a) }));
     if (albums.length > 0) {
       extraHeaders['Set-Cookie'] = listenerCookieHeader(

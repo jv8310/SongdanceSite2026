@@ -54,7 +54,7 @@ const upcoming = await listUpcomingPublishedWorkshops(env.DB, new Date().toISOSt
 const priceMap = (rows: { currency: string; amount_minor: number }[]) =>
   Object.fromEntries(rows.map((r) => [r.currency.toUpperCase(), r.amount_minor]));
 
-const DEFAULT_BUMP_SLUG = 'asj-bump';
+const DEFAULT_BUMP_SLUG = 'mantra-empower-bump';
 const defaultBump = await getProductBySlug(env.DB, DEFAULT_BUMP_SLUG);
 
 const BUMP_COMPARE_BY_CURRENCY: Record<string, number> = {

@@ -3,6 +3,7 @@ import '../../../styles/admin.css';
 import Layout from '../../../layouts/Layout.astro';
 import { readCookie, verifySession } from '../../../lib/registrations/auth';
 import { albumCoverUrl, albumUrl, formatDuration, getAlbum, listTracks } from '../../../lib/music/db';
+import { listProducts } from '../../../lib/workshops/db';
 import { signedStreamUrl } from '../../../lib/music/access';
 
 export const prerender = false;
@@ -28,6 +29,22 @@ const previews = await Promise.all(
 
 const publicPath = albumUrl(album);
 const publicUrl = new URL(publicPath, Astro.url.origin).href;
+
+// Which product actually grants this album's tag? The tag is free text on both
+// sides — a product's `drip_tag` and this field — and if the two strings don't
+// match exactly, nothing anywhere says so: buyers simply never get in and no
+// delivery email is sent. So name the match (or the miss) on the page, and
+// offer the tags of the products that grant nothing yet.
+const products = await listProducts(env.DB);
+const productTag = (p: { drip_tag: string | null; slug: string }) =>
+  (p.drip_tag ?? '').trim() || `prod_${p.slug}`;
+const albumTag = (album.drip_tag ?? '').trim().toLowerCase();
+const grantedBy = albumTag
+  ? products.filter((p) => productTag(p).toLowerCase() === albumTag)
+  : [];
+// Bumps are the ones sold alongside a workshop seat — the usual way an album
+// is given — so they're the useful suggestions when the tag matches nothing.
+const bumpTagSuggestions = products.filter((p) => p.type === 'bump').map(productTag);
 const cover = albumCoverUrl(album);
 
 const flash = Astro.url.searchParams.get('flash');
@@ -76,6 +93,26 @@ function fmtBytes(n: number | null): string {
         <p class="music-note music-note--warn">
           No Drip tag set yet — only signed-in admins and direct buyers can open the player. Add
           the tag below to let bump/course buyers in.
+        </p>
+      )}
+      {album.drip_tag && grantedBy.length > 0 && (
+        <p class="music-note">
+          Granted by{' '}
+          {grantedBy.map((p, i) => (
+            <span>{i > 0 ? ', ' : ''}<strong>{p.name}</strong> (<code>{p.slug}</code>)</span>
+          ))}
+          {' '}— buying that opens this album, and (for the workshop order bump) triggers the
+          delivery email on <a href="/admin/emails">/admin/emails</a>.
+        </p>
+      )}
+      {album.drip_tag && grantedBy.length === 0 && (
+        <p class="music-note music-note--warn">
+          <strong>Nothing grants <code>{album.drip_tag}</code>.</strong> No product carries that
+          tag, so no purchase will ever open this album and no delivery email is sent — the tag
+          has to match a product's exactly. Order-bump tags available:{' '}
+          {bumpTagSuggestions.map((t, i) => (
+            <span>{i > 0 ? ', ' : ''}<code>{t}</code></span>
+          ))}.
         </p>
       )}
       {album.price_eur_cents ? (
@@ -129,7 +166,7 @@ function fmtBytes(n: number | null): string {
           </label>
           <label>
             <span>Drip tag (grants access)</span>
-            <input type="text" name="drip_tag" value={album.drip_tag ?? ''} maxlength="100" placeholder="prod_MANTRA" />
+            <input type="text" name="drip_tag" value={album.drip_tag ?? ''} maxlength="100" placeholder="prod_MantraEmpower" />
           </label>
           <label>
             <span>Price (EUR — blank = not for sale)</span>

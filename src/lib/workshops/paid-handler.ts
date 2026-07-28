@@ -11,6 +11,7 @@ import { logEvent } from '../registrations/db';
 import { upsertSubscriber } from '../registrations/drip';
 import { recordPurchaseOrder } from '../orders/drip-order';
 import { workshopDripTags, audienceLensesFor } from './drip-tags';
+import { resolveWorkshopBumpProduct } from './bump';
 import { mirrorTagsToContact } from '../contacts/mirror';
 import {
   claimNotification,
@@ -49,10 +50,11 @@ export function icsUrl(baseUrl: string, token: string): string {
 
 async function tagInDrip(env: Env, reg: WorkshopRegistration, workshop: Workshop) {
   // The bump's product row (for its Drip tag), fetched only when it applies.
-  const bump =
-    reg.wants_bump && workshop.bump_product_id
-      ? await getProductById(env.DB, workshop.bump_product_id)
-      : null;
+  // Resolved through the shared helper — NOT off `workshop.bump_product_id`
+  // alone: a masterclass names no bump of its own, so gating on that column
+  // charged those buyers for the default bump and then tagged them for
+  // nothing at all (no product access, no delivery email).
+  const bump = reg.wants_bump ? await resolveWorkshopBumpProduct(env.DB, workshop) : null;
   // The exact tags this registration earns: source tag, bump tag, audience
   // lenses. Shared with the historical backfill so the two can't drift.
   const tags = workshopDripTags(reg, workshop, bump);

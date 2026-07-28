@@ -12,13 +12,14 @@ import {
   resolvePrice,
   listPricesForProduct,
 } from './db';
+import { DEFAULT_BUMP_SLUG } from './bump';
 import { formatMoney } from './currency';
 import { formatInTz } from './time';
 
 // The order bump (the "Empowering You" mantra pack). Workshops carry it via
 // bump_product_id; masterclasses don't define their own, so they fall back to
-// this default — the bump is offered on every date.
-const DEFAULT_BUMP_SLUG = 'mantra-empower-bump';
+// this default — the bump is offered on every date. Imported, not re-declared:
+// the checkout and the Drip tagging resolve it from the same constant.
 
 // The "Empowering You" mantra-pack album lists at €12; the €9 bump is a
 // discount off that, so the register card strikes the €12 sticker → €9 (≈25%).

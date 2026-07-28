@@ -13,13 +13,13 @@ import { encodeCustomId, parseProvider } from '../../../lib/payments/provider';
 import { logEventSafe } from '../../../lib/registrations/db';
 import {
   getProductById,
-  getProductBySlug,
   getPublishedWorkshopBySlug,
   resolvePrice,
   upsertRegistration,
   setRegistrationPaymentStatus,
 } from '../../../lib/workshops/db';
 import { currencyForCountry } from '../../../lib/workshops/currency';
+import { isMasterclassSlug, resolveWorkshopBumpProductId } from '../../../lib/workshops/bump';
 import { runWorkshopPaidSideEffects } from '../../../lib/workshops/paid-handler';
 import {
   applyDiscountPercent,
@@ -61,11 +61,6 @@ function normalizeAudience(raw: string): string | null {
   ).sort();
   return doors.length ? doors.join(',') : null;
 }
-
-// Default order bump (the Authentic Singing Journey recording pack). Workshops
-// reference it via bump_product_id; masterclasses fall back to this slug so the
-// bump is offered — and chargeable — on those dates too.
-const DEFAULT_BUMP_SLUG = 'asj-bump';
 
 export const POST: APIRoute = async ({ request, locals }) => {
   const env = locals.runtime.env;
@@ -110,7 +105,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     return json({ error: 'Pricing isn’t available right now. Please email info@songdance.co.' }, 500);
   }
 
-  const isMasterclass = (ticketProduct.slug ?? '').includes('masterclass');
+  const isMasterclass = isMasterclassSlug(ticketProduct.slug);
 
   // ── Ticket discount (?discount=50 public · ?adiscount=N owner) ─────────
   // Applies to the TICKET only; the order bump is never discounted. The
@@ -127,13 +122,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const ticketAmountMinor = applyDiscountPercent(ticketPrice.amountMinor, discountPct);
 
   // The bump: the workshop's own, or — for a masterclass without one — the
-  // default Authentic Singing Journey pack, so it's offered (and chargeable)
-  // on masterclass dates too.
-  let bumpProductId = workshop.bump_product_id ?? null;
-  if (!bumpProductId && isMasterclass) {
-    const def = await getProductBySlug(env.DB, DEFAULT_BUMP_SLUG);
-    bumpProductId = def?.id ?? null;
-  }
+  // default pack, so it's offered (and chargeable) on masterclass dates too.
+  // Resolved through the shared helper, which is also what the registration
+  // calendar prices and what paid-handler tags, so the three can't drift.
+  const bumpProductId = await resolveWorkshopBumpProductId(
+    env.DB,
+    workshop,
+    ticketProduct.slug,
+  );
 
   // Resolve the bump only if there is one and the buyer opted in.
   let bumpProduct = null;

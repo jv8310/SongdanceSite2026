@@ -26,9 +26,9 @@ import { courseDripTags } from '../courses/drip-tags';
 import {
   getRegistrationById as getWorkshopRegistration,
   getWorkshopById,
-  getProductById,
 } from '../workshops/db';
 import { workshopDripTags } from '../workshops/drip-tags';
+import { resolveWorkshopBumpProduct } from '../workshops/bump';
 
 type BackfillEnv = { DB: D1Database };
 
@@ -135,10 +135,9 @@ async function mirrorWorkshop(db: D1Database, id: number): Promise<boolean> {
   if (!reg) return false;
   const workshop = await getWorkshopById(db, reg.workshop_id);
   if (!workshop) return false;
-  const bump =
-    reg.wants_bump && workshop.bump_product_id
-      ? await getProductById(db, workshop.bump_product_id)
-      : null;
+  // Same resolver the live paid-handler uses, so the backfilled tag set and the
+  // one granted at payment can't drift (a masterclass names no bump of its own).
+  const bump = reg.wants_bump ? await resolveWorkshopBumpProduct(db, workshop) : null;
   const tags = workshopDripTags(reg, workshop, bump);
   await writeContactTags(db, {
     email: reg.email,
