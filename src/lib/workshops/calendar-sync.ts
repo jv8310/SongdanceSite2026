@@ -52,7 +52,11 @@ export const SYNC_MAPPINGS: SyncMapping[] = [
     eventTitle: 'Somatic Vocal Healing Masterclass',
     kind: 'masterclass',
     productSlug: 'svh-masterclass',
-    bumpSlug: null,
+    // Named explicitly, not left to the fallback in workshops/bump.ts. A NULL
+    // here is what let the pages, the checkout and the Drip tagging each apply
+    // their own default and drift apart (see migration 0078); the fallback
+    // stays as a safety net, but nothing should depend on it.
+    bumpSlug: 'mantra-empower-bump',
     sourceTag: 'svh_masterclass_live',
     teacher: 'Jacob',
     defaultDurationMin: 100,
