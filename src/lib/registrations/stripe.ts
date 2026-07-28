@@ -394,38 +394,164 @@ export async function retrieveSession(secretKey: string, sessionId: string) {
 // Subscription mode for 3-monthly-installment course purchases.
 //
 // We create an ad-hoc monthly Price (no Product object pre-required —
-// Stripe accepts `price_data` inline). Stripe charges immediately,
-// then at +30 days, +60 days. After the subscription is created we
-// call `setSubscriptionCancelAt` from the webhook to schedule it to
-// cancel at ~day 75 (between charge 3 and the would-be charge 4),
-// yielding exactly 3 monthly charges without juggling subscription
-// schedules — and working inside a regular Stripe Checkout flow.
+// Stripe accepts `price_data` inline). Stripe charges immediately, then
+// once per calendar month. After the subscription is created we call
+// `setSubscriptionCancelAt` from the webhook to schedule it to cancel the
+// instant the (N+1)th charge would fall due, yielding exactly N monthly
+// charges without juggling subscription schedules — and working inside a
+// regular Stripe Checkout flow.
 //
 // (`subscription_data[cancel_at]` on Checkout Sessions is not accepted
 // by the current Stripe API, so we set it via the Subscriptions API.)
+//
+// THE BOUNDARY IS THE WHOLE POINT (bug fixed July 2026). Stripe prorates
+// the invoice of any period the cancellation falls *inside*: a cancel_at
+// strictly between charge N and charge N+1 bills the Nth installment only
+// for the days before it. This code used to compute cancel_at as
+// `now + (N-1)×30d + 15d` — 30-day months against Stripe's calendar-month
+// billing — which always landed ~10-16 days INTO the final period, so every
+// plan's last installment was charged at roughly a third to a half:
+//
+//   3× plan  — final installment billed at 43-53% of its amount
+//   6× plan  — 39-48%
+//   12× plan — 29-36%
+//
+// (A real case: a €349×3 certification plan whose third invoice came out at
+// €157.62 — exactly 14 days of a 31-day period — €191.38 short.)
+//
+// The only cancel_at that bills N full installments and never an (N+1)th is
+// EXACTLY the (N+1)th billing instant: the final period is then covered in
+// full (nothing to prorate) and no further invoice is ever generated. There
+// is no safe margin in either direction — earlier prorates, later bills
+// again — so the timestamp must come from Stripe's own billing anchor, not
+// from our clock. `recordCourseInvoiceIfNew` additionally flips
+// `cancel_at_period_end` once the last installment settles, which is the
+// canonical (also proration-free) stop and covers the boundary instant.
 
-// Compute the cancel_at unix timestamp for an N-installment plan: just
-// after the Nth monthly charge, comfortably before the would-be (N+1)th.
-export function computeInstallmentCancelAt(installmentCount: number): number {
+// Add `n` calendar months to a unix-seconds instant, preserving the time of
+// day and clamping the day-of-month to the target month's length. Mirrors how
+// Stripe derives every billing period from `billing_cycle_anchor` — each
+// period is `anchor + k months`, so an anchor on the 31st bills Feb 28 and
+// then Mar 31 again (it never drifts down to the 28th).
+export function addMonthsUnix(unixSeconds: number, n: number): number {
+  const d = new Date(unixSeconds * 1000);
+  const day = d.getUTCDate();
+  const target = new Date(
+    Date.UTC(
+      d.getUTCFullYear(),
+      d.getUTCMonth() + n,
+      1,
+      d.getUTCHours(),
+      d.getUTCMinutes(),
+      d.getUTCSeconds(),
+    ),
+  );
+  const daysInTarget = new Date(
+    Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0),
+  ).getUTCDate();
+  target.setUTCDate(Math.min(day, daysInTarget));
+  return Math.floor(target.getTime() / 1000);
+}
+
+// The cancel_at unix timestamp that allows exactly `installmentCount` full
+// monthly charges: the instant the next one would fall due. `anchorUnix` MUST
+// be the subscription's own `billing_cycle_anchor` (see the note above — our
+// wall clock is a minute or so late, which would put cancel_at *past* the
+// boundary and buy the customer an extra charge).
+export function computeInstallmentCancelAt(
+  installmentCount: number,
+  anchorUnix: number,
+): number {
+  return addMonthsUnix(anchorUnix, installmentCount);
+}
+
+// ── Invoice shape normalisation ────────────────────────────────────────
+// Stripe's 2025-04-30 ("basil") API version moved three fields we depend on
+// off the Invoice object: `subscription` → `parent.subscription_details.
+// subscription`, the subscription metadata alongside it, and `payment_intent`
+// → `payments.data[].payment.payment_intent`. Webhook payloads are rendered
+// at the ENDPOINT's pinned API version, so an endpoint on a newer version
+// hands us an invoice with none of the old fields — the handler finds no
+// subscription, returns 200, and the installment is silently never recorded
+// (Stripe's dashboard still shows the delivery as successful). We therefore
+// read every known shape everywhere an invoice is inspected.
+
+// A Stripe reference is either a bare id or an expanded object.
+function idOf(v: unknown): string | null {
+  if (typeof v === 'string') return v || null;
+  if (v && typeof v === 'object' && typeof (v as any).id === 'string') {
+    return (v as any).id;
+  }
+  return null;
+}
+
+export type StripeInvoiceLike = {
+  subscription?: unknown;
+  payment_intent?: unknown;
+  metadata?: Record<string, string> | null;
+  subscription_details?: { metadata?: Record<string, string> | null } | null;
+  parent?: {
+    subscription_details?: {
+      subscription?: unknown;
+      metadata?: Record<string, string> | null;
+    } | null;
+  } | null;
+  payments?: {
+    data?: Array<{ payment?: { payment_intent?: unknown } | null } | null>;
+  } | null;
+};
+
+// The subscription this invoice belongs to, across API versions.
+export function subscriptionIdFromInvoice(
+  inv: StripeInvoiceLike | null | undefined,
+): string | null {
+  if (!inv) return null;
   return (
-    Math.floor(Date.now() / 1000) +
-    (installmentCount - 1) * 30 * 86400 +
-    15 * 86400
+    idOf(inv.subscription) ??
+    idOf(inv.parent?.subscription_details?.subscription) ??
+    null
   );
 }
 
-// Fetch a subscription with its latest invoice expanded. Used by the webhook
-// to backstop a missing or delayed invoice.paid event: we can read the
-// already-paid first invoice straight off the subscription on
-// checkout.session.completed instead of waiting for Stripe to fire
-// invoice.paid (which, if the webhook endpoint isn't subscribed to it, never
-// arrives at all).
-export async function retrieveSubscriptionWithLatestInvoice(
-  secretKey: string,
-  subscriptionId: string,
-): Promise<{
+// The subscription metadata Stripe copies onto the invoice (our routing
+// fallback for the very first invoice, before the subscription is attached).
+export function subscriptionMetadataFromInvoice(
+  inv: StripeInvoiceLike | null | undefined,
+): Record<string, string> {
+  if (!inv) return {};
+  return (
+    inv.subscription_details?.metadata ??
+    inv.parent?.subscription_details?.metadata ??
+    inv.metadata ??
+    {}
+  );
+}
+
+// The PaymentIntent that settled this invoice, across API versions. Only used
+// as the refund anchor we persist, so a null is survivable.
+export function paymentIntentFromInvoice(
+  inv: StripeInvoiceLike | null | undefined,
+): string | null {
+  if (!inv) return null;
+  const direct = idOf(inv.payment_intent);
+  if (direct) return direct;
+  for (const p of inv.payments?.data ?? []) {
+    const pi = idOf(p?.payment?.payment_intent);
+    if (pi) return pi;
+  }
+  return null;
+}
+
+export type StripeSubscriptionSnapshot = {
   id: string;
   status: string;
+  // Unix seconds. Every billing period is `billing_cycle_anchor + k months`,
+  // so this is the one true anchor for scheduling the cancellation. Present
+  // in every API version (unlike current_period_end, which basil moved onto
+  // the subscription items).
+  billing_cycle_anchor: number | null;
+  cancel_at: number | null;
+  cancel_at_period_end: boolean;
   latest_invoice: {
     id: string;
     status: string;
@@ -433,7 +559,19 @@ export async function retrieveSubscriptionWithLatestInvoice(
     payment_intent: string | null;
     amount_paid: number;
   } | null;
-}> {
+};
+
+// Fetch a subscription with its latest invoice expanded. Used by the webhook
+// to backstop a missing or delayed invoice.paid event (we read the
+// already-paid first invoice straight off the subscription on
+// checkout.session.completed instead of waiting for Stripe to fire
+// invoice.paid, which — if the endpoint isn't subscribed to it — never
+// arrives at all), and to read `billing_cycle_anchor` for the cancel_at
+// schedule.
+export async function retrieveSubscriptionWithLatestInvoice(
+  secretKey: string,
+  subscriptionId: string,
+): Promise<StripeSubscriptionSnapshot> {
   const res = await fetch(
     `${STRIPE_BASE}/subscriptions/${subscriptionId}?expand[]=latest_invoice`,
     { headers: { Authorization: `Bearer ${secretKey}` } },
@@ -444,7 +582,30 @@ export async function retrieveSubscriptionWithLatestInvoice(
       `Stripe subscriptions.retrieve: ${body.error?.message ?? res.status}`,
     );
   }
-  return (await res.json()) as any;
+  const sub = (await res.json()) as any;
+  const inv = sub.latest_invoice ?? null;
+  return {
+    id: sub.id,
+    status: sub.status,
+    billing_cycle_anchor:
+      typeof sub.billing_cycle_anchor === 'number'
+        ? sub.billing_cycle_anchor
+        : typeof sub.start_date === 'number'
+          ? sub.start_date
+          : null,
+    cancel_at: typeof sub.cancel_at === 'number' ? sub.cancel_at : null,
+    cancel_at_period_end: Boolean(sub.cancel_at_period_end),
+    latest_invoice:
+      inv && typeof inv === 'object'
+        ? {
+            id: inv.id,
+            status: inv.status ?? '',
+            paid: inv.paid ?? inv.status === 'paid',
+            payment_intent: paymentIntentFromInvoice(inv),
+            amount_paid: inv.amount_paid ?? 0,
+          }
+        : null,
+  };
 }
 
 // List the invoices Stripe has generated for a subscription, newest-first
@@ -462,10 +623,15 @@ export async function listSubscriptionInvoices(
 ): Promise<
   Array<{
     id: string;
+    number: string | null;
     status: string;
     paid: boolean;
     payment_intent: string | null;
+    // Gross amount actually settled, in the invoice currency's minor units.
+    // The installment audit compares this against the plan's per-installment
+    // amount to spot a prorated (short) cycle.
     amount_paid: number;
+    currency: string;
     created: number;
   }>
 > {
@@ -483,21 +649,26 @@ export async function listSubscriptionInvoices(
     );
   }
   const body = (await res.json()) as {
-    data?: Array<{
-      id: string;
-      status?: string;
-      paid?: boolean;
-      payment_intent?: string | null;
-      amount_paid?: number;
-      created?: number;
-    }>;
+    data?: Array<
+      StripeInvoiceLike & {
+        id: string;
+        number?: string | null;
+        status?: string;
+        paid?: boolean;
+        amount_paid?: number;
+        currency?: string;
+        created?: number;
+      }
+    >;
   };
   return (body.data ?? []).map((inv) => ({
     id: inv.id,
+    number: inv.number ?? null,
     status: inv.status ?? '',
     paid: inv.paid ?? inv.status === 'paid',
-    payment_intent: inv.payment_intent ?? null,
+    payment_intent: paymentIntentFromInvoice(inv),
     amount_paid: inv.amount_paid ?? 0,
+    currency: (inv.currency ?? '').toUpperCase(),
     created: inv.created ?? 0,
   }));
 }
@@ -518,6 +689,7 @@ export async function retrieveChargeWithInvoice(
   refunded: boolean;
   invoice: {
     id: string;
+    // Resolved across API versions (basil moved it under `parent`).
     subscription: string | null;
   } | null;
 }> {
@@ -531,16 +703,22 @@ export async function retrieveChargeWithInvoice(
       `Stripe charges.retrieve: ${body.error?.message ?? res.status}`,
     );
   }
-  return (await res.json()) as any;
+  const charge = (await res.json()) as any;
+  const inv = charge.invoice;
+  return {
+    ...charge,
+    invoice:
+      inv && typeof inv === 'object'
+        ? { id: inv.id, subscription: subscriptionIdFromInvoice(inv) }
+        : null,
+  };
 }
 
-export async function setSubscriptionCancelAt(
+async function updateSubscription(
   secretKey: string,
   subscriptionId: string,
-  cancelAt: number,
+  form: URLSearchParams,
 ): Promise<void> {
-  const form = new URLSearchParams();
-  form.set('cancel_at', String(cancelAt));
   const res = await fetch(`${STRIPE_BASE}/subscriptions/${subscriptionId}`, {
     method: 'POST',
     headers: {
@@ -555,6 +733,31 @@ export async function setSubscriptionCancelAt(
       `Stripe subscriptions.update: ${body.error?.message ?? res.status}`,
     );
   }
+}
+
+export async function setSubscriptionCancelAt(
+  secretKey: string,
+  subscriptionId: string,
+  cancelAt: number,
+): Promise<void> {
+  const form = new URLSearchParams();
+  form.set('cancel_at', String(cancelAt));
+  await updateSubscription(secretKey, subscriptionId, form);
+}
+
+// Stop the subscription at the end of the period it is currently in — Stripe's
+// own "cancel at period end" flag. Unlike a cancel_at timestamp this can never
+// land inside a period, so the invoice already issued for that period is never
+// prorated and no further one is generated. Called once the final installment
+// settles (see recordCourseInvoiceIfNew), which makes the plan's stop exact
+// even if the scheduled cancel_at was wrong or never applied.
+export async function setSubscriptionCancelAtPeriodEnd(
+  secretKey: string,
+  subscriptionId: string,
+): Promise<void> {
+  const form = new URLSearchParams();
+  form.set('cancel_at_period_end', 'true');
+  await updateSubscription(secretKey, subscriptionId, form);
 }
 
 // Cancel a subscription immediately — no further invoices, effective now. Used

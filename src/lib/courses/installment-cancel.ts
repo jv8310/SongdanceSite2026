@@ -22,8 +22,11 @@
 // future charges; it never refunds or revokes.
 
 import {
+  addMonthsUnix,
   cancelSubscriptionNow,
+  retrieveSubscriptionWithLatestInvoice,
   setSubscriptionCancelAt,
+  setSubscriptionCancelAtPeriodEnd,
 } from '../registrations/stripe';
 import { cancelSubscription, paypalConfigured } from '../payments/paypal';
 import {
@@ -41,28 +44,35 @@ export type CancelEnv = {
   PAYPAL_ENV?: string;
 } & Record<string, unknown>;
 
-// Add `n` calendar months to a UTC timestamp, clamping the day to the target
-// month's length (Jan 31 + 1mo → Feb 28). Mirrors installment-forecast's anchor
-// math so the scheduled stop lines up with how the plan is actually billed.
-function addMonths(ms: number, n: number): number {
-  const d = new Date(ms);
-  const day = d.getUTCDate();
-  const target = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + n, 1));
-  const daysInTarget = new Date(
-    Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0),
-  ).getUTCDate();
-  target.setUTCDate(Math.min(day, daysInTarget));
-  return target.getTime();
+// Unix-seconds cancel_at that allows exactly `total` full charges: the instant
+// the (total+1)th would fall due. It has to be that boundary exactly — Stripe
+// prorates the invoice of any period the cancellation lands inside, so a stop
+// placed "a couple of weeks after the last charge" bills that last charge at a
+// fraction (the bug this file used to share with the checkout webhook), while
+// a stop past the boundary buys one more charge. Returns null when the boundary
+// is not in the future: Stripe rejects a past cancel_at, and the caller stops
+// the plan at the current period end instead (also proration-free).
+function cancelAtForTotal(anchorUnix: number, total: number): number | null {
+  const at = addMonthsUnix(anchorUnix, total);
+  return at > Math.floor(Date.now() / 1000) + 60 ? at : null;
 }
 
-// Unix-seconds cancel_at that allows exactly `total` charges: ~15 days after the
-// last allowed charge (index total-1) and comfortably before the next one. Never
-// in the past (Stripe rejects that) — clamped to at least a day out.
-function cancelAtForTotal(anchorMs: number, total: number): number {
-  const lastChargeMs = addMonths(anchorMs, total - 1);
-  const at = Math.floor((lastChargeMs + 15 * 86400 * 1000) / 1000);
-  const floor = Math.floor(Date.now() / 1000) + 86400;
-  return Math.max(at, floor);
+// Stripe's own billing anchor for a subscription (unix seconds), or null if it
+// can't be read. Every billing period is `anchor + k months`, so this is the
+// only timestamp a cancellation can be pinned to exactly.
+async function stripeBillingAnchor(
+  env: CancelEnv,
+  subscriptionId: string,
+): Promise<number | null> {
+  try {
+    const sub = await retrieveSubscriptionWithLatestInvoice(
+      env.STRIPE_SECRET_KEY,
+      subscriptionId,
+    );
+    return sub.billing_cycle_anchor;
+  } catch {
+    return null;
+  }
 }
 
 export type CancelResult =
@@ -125,13 +135,36 @@ export async function scheduleInstallmentCancellation(
     if (immediate) {
       await cancelSubscriptionNow(env.STRIPE_SECRET_KEY, reg.stripe_subscription_id);
     } else {
-      // Schedule (or restore) cancel_at to just after the chosen last charge.
-      // Restoring the full plan re-points it at the natural end.
-      await setSubscriptionCancelAt(
-        env.STRIPE_SECRET_KEY,
-        reg.stripe_subscription_id,
-        cancelAtForTotal(anchor, cleared ? reg.installments_total : target),
+      // Schedule (or restore) cancel_at to the billing boundary right after the
+      // chosen last charge. Restoring the full plan re-points it at the natural
+      // end. The boundary must come from Stripe's own billing_cycle_anchor: our
+      // `paid_at` is stamped when the first invoice was *recorded*, which can be
+      // minutes late, and a cancel_at even slightly past the boundary buys an
+      // extra charge. If Stripe won't tell us, fall back to paid_at pulled an
+      // hour back — the safe direction (at worst a ~0.1% proration on the final
+      // charge), and the hourly reconcile re-pins it to the exact boundary.
+      const anchorUnix =
+        (await stripeBillingAnchor(env, reg.stripe_subscription_id)) ??
+        Math.floor(anchor / 1000) - 3600;
+      const at = cancelAtForTotal(
+        anchorUnix,
+        cleared ? reg.installments_total : target,
       );
+      if (at == null) {
+        // The boundary is already behind us (the last allowed charge has been
+        // taken). Stop at the end of the current period — same instant, and
+        // Stripe accepts it where a past timestamp would be rejected.
+        await setSubscriptionCancelAtPeriodEnd(
+          env.STRIPE_SECRET_KEY,
+          reg.stripe_subscription_id,
+        );
+      } else {
+        await setSubscriptionCancelAt(
+          env.STRIPE_SECRET_KEY,
+          reg.stripe_subscription_id,
+          at,
+        );
+      }
     }
   }
 

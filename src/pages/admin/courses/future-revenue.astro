@@ -202,11 +202,15 @@ const hasAtRisk = months.some((m) => m.atRiskEurMinor > 0);
         </p>
       </div>
       <div class="adm-actions">
+        <button type="button" class="adm-btn adm-btn--ghost" id="fr-audit-btn"
+          title="Read-only check of every Stripe installment plan against Stripe's own paid invoices: charges we never recorded, cycles charged for less than the plan's installment, and stop dates that aren't on the billing boundary.">
+          🔎 Audit plans
+        </button>
         <form
           method="POST"
           action="/api/admin/courses/stripe-reconcile"
           style="display:inline"
-          title="Poll Stripe for any installment plan stuck at 0/N (paid in Stripe but not recorded here) and record the settled charges. Idempotent."
+          title="Poll Stripe for any installment plan whose charges aren't recorded here (stuck at 0/N, or stalled mid-plan), record the settled ones, and re-pin each open plan's cancellation to the correct billing boundary. Idempotent."
         >
           <input type="hidden" name="return_to" value={returnTo} />
           <button type="submit" class="adm-btn adm-btn--ghost">↻ Sync from Stripe now</button>
@@ -225,6 +229,17 @@ const hasAtRisk = months.some((m) => m.atRiskEurMinor > 0);
         shown at gross (net taken equal to gross).
       </div>
     )}
+
+    <!-- ─── Installment audit (fetched on demand) ─── -->
+    <section class="adm-section fr-audit" id="fr-audit" hidden>
+      <h2>Installment audit — plans vs Stripe</h2>
+      <p class="adm-sub">
+        Every Stripe payment plan checked against Stripe’s own paid invoices.
+        Read-only — use “Sync from Stripe now” to record what’s missing and
+        re-pin the stop dates.
+      </p>
+      <div id="fr-audit-body"></div>
+    </section>
 
     <!-- ─── Headline numbers ─── -->
     <section class="adm-section">
@@ -572,8 +587,142 @@ const hasAtRisk = months.some((m) => m.atRiskEurMinor > 0);
     }
     .fr-cancel-hint { font-size:11px; color: var(--adm-mute); margin:0; }
 
+    /* Installment audit panel */
+    .fr-audit-sum {
+      display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
+      gap:12px; margin-bottom:14px;
+    }
+    .fr-issue {
+      display:inline-block; margin-right:5px; padding:2px 8px; border-radius:999px;
+      font-size:10.5px; font-weight:600; letter-spacing:0.04em; text-transform:uppercase;
+    }
+    .fr-issue--undercharged { background: rgba(181,61,61,0.15); color: var(--adm-danger); }
+    .fr-issue--unrecorded { background: rgba(196,128,31,0.18); color: var(--adm-warn); }
+    .fr-issue--schedule { background: rgba(201,96,58,0.14); color: var(--adm-ember-deep); }
+    .fr-issue--ok { background: rgba(47,122,76,0.13); color: var(--adm-success); }
+    .fr-audit-note { font-size:11.5px; color: var(--adm-mute); margin-top:3px; }
+
     @media (max-width: 720px) {
       .adm-table { display:block; overflow-x:auto; }
     }
   </style>
+
+  <script>
+    // Installment audit — fetch on demand and render. Read-only; the endpoint
+    // polls Stripe per plan, so it can take a few seconds on a long list.
+    import type { InstallmentAudit } from '../../../lib/payments/stripe-audit';
+
+    const btn = document.getElementById('fr-audit-btn') as HTMLButtonElement | null;
+    const panel = document.getElementById('fr-audit');
+    const body = document.getElementById('fr-audit-body');
+
+    const ESCAPES: Record<string, string> = {
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    };
+    const esc = (s: unknown): string =>
+      String(s ?? '').replace(/[&<>"']/g, (c) => ESCAPES[c] ?? c);
+    const money = (minor: number, currency: string): string =>
+      (minor / 100).toLocaleString('en-GB', { style: 'currency', currency: currency || 'EUR' });
+    const day = (unix: number | null): string =>
+      unix ? new Date(unix * 1000).toLocaleDateString('en-GB',
+        { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }) : '—';
+
+    btn?.addEventListener('click', async () => {
+      if (!panel || !body) return;
+      panel.hidden = false;
+      body.innerHTML = '<p class="adm-sub">Checking every plan against Stripe…</p>';
+      panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      btn.disabled = true;
+      try {
+        const res = await fetch('/api/admin/courses/installment-audit', { method: 'POST' });
+        const data = (await res.json()) as InstallmentAudit & { error?: string };
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+        body.innerHTML = render(data);
+      } catch (err) {
+        body.innerHTML = `<div class="adm-flash adm-flash--err">Could not audit: ${esc(
+          err instanceof Error ? err.message : err,
+        )}</div>`;
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    function render(a: InstallmentAudit): string {
+      if (!a.configured) {
+        return '<div class="adm-flash adm-flash--warn">Stripe is not configured in this environment — nothing to audit against.</div>';
+      }
+      const w = a.webhook;
+      // The decisive webhook signal: installments only get recorded live by
+      // invoice.paid, so zero deliveries while subscriptions are active means
+      // the endpoint isn't subscribed to that event.
+      const webhookBad = w.invoicePaidEvents === 0 && w.subscriptionEvents > 0;
+      const shortfall = Object.entries(a.totalShortfallByCurrency);
+
+      let html = '';
+      if (webhookBad) {
+        html += `<div class="adm-flash adm-flash--err">
+          <strong>No <code>invoice.paid</code> events in the last ${w.windowDays} days</strong>,
+          but ${w.subscriptionEvents} subscription event(s) arrived — so the endpoint is live
+          and simply isn’t subscribed to <code>invoice.paid</code>. Add it in the Stripe
+          dashboard (Developers → Webhooks → your endpoint → “Select events”); until then every
+          installment after the first depends on the hourly reconcile.
+        </div>`;
+      }
+      if (w.unlinkedInvoices > 0) {
+        html += `<div class="adm-flash adm-flash--warn">
+          ${w.unlinkedInvoices} <code>invoice.paid</code> event(s) in the last ${w.windowDays} days
+          could not be matched to a plan.
+        </div>`;
+      }
+
+      html += `<div class="fr-audit-sum">
+        <div class="fr-stat"><span>Plans checked</span><strong>${a.checked}</strong></div>
+        <div class="fr-stat${a.withIssues ? ' ' : ' fr-stat--hl'}"><span>With issues</span><strong>${a.withIssues}</strong></div>
+        <div class="fr-stat"><span>Charges not recorded</span><strong>${a.unrecordedInstallments}</strong></div>
+        <div class="fr-stat"><span>Under-charged</span><strong${shortfall.length ? ' class="fr-risk"' : ''}>${
+          shortfall.length ? shortfall.map(([c, v]) => money(v, c)).join(' · ') : '—'
+        }</strong></div>
+        <div class="fr-stat"><span>invoice.paid delivered</span><strong>${w.invoicePaidEvents}</strong>
+          <div class="fr-audit-note">${w.installmentsRecorded} installment(s) recorded · ${w.windowDays}d</div></div>
+      </div>`;
+
+      if (!a.plans.length) return html + '<p class="adm-sub">No Stripe installment plans in the window.</p>';
+
+      html += `<table class="adm-table fr-people"><thead><tr>
+        <th>Person</th><th>Plan</th><th>Recorded / Stripe</th>
+        <th class="num">Charged</th><th class="num">Shortfall</th>
+        <th>Stops</th><th>Findings</th></tr></thead><tbody>`;
+
+      for (const p of a.plans) {
+        const cls = p.issues.length ? ' class="fr-row--watch"' : '';
+        const badges = p.error
+          ? `<span class="fr-issue fr-issue--undercharged">error</span> <span class="adm-sub">${esc(p.error)}</span>`
+          : p.issues.length
+            ? p.issues.map((i: string) => `<span class="fr-issue fr-issue--${i}">${
+                i === 'undercharged' ? 'under-charged' : i === 'unrecorded' ? 'not recorded' : 'stop date'
+              }</span>`).join('')
+            : '<span class="fr-issue fr-issue--ok">ok</span>';
+        const shortLines = p.shortInvoices.map((inv) =>
+          `<div class="fr-audit-note">${esc(inv.number || inv.id)} · ${esc(inv.date)} · paid ${
+            money(inv.paidMinor, p.currency)} of ${money(inv.expectedMinor, p.currency)}</div>`).join('');
+        const stops = p.scheduleOk
+          ? day(p.cancelAt)
+          : `<span class="fr-risk">${day(p.cancelAt)}</span>${
+              p.correctCancelAt ? `<div class="fr-audit-note">should be ${day(p.correctCancelAt)}</div>` : ''}`;
+
+        html += `<tr${cls}>
+          <td><strong>${esc(p.name)}</strong><br /><span class="adm-sub" style="text-transform:none;letter-spacing:0;">${esc(p.email)}</span></td>
+          <td>${esc(p.plan)}<div class="fr-audit-note">${money(p.perInstallmentMinor, p.currency)} / charge</div></td>
+          <td>${p.recorded} / ${p.settled}${
+            p.settled > p.recorded ? ` <span class="fr-risk">(+${p.settled - p.recorded})</span>` : ''
+          }<div class="fr-audit-note">of ${p.expectedTotal} · ${esc(p.subscriptionStatus || '—')}</div></td>
+          <td class="num">${money(p.chargedMinor, p.currency)}<div class="fr-audit-note">expected ${money(p.expectedChargedMinor, p.currency)}</div></td>
+          <td class="num">${p.shortfallMinor > 0 ? `<span class="fr-risk">${money(p.shortfallMinor, p.currency)}</span>${shortLines}` : '—'}</td>
+          <td>${stops}</td>
+          <td>${badges}</td>
+        </tr>`;
+      }
+      return html + '</tbody></table>';
+    }
+  </script>
 </Layout>
