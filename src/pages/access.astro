@@ -227,9 +227,12 @@ const CIRCLE_URL = 'https://circle.songdance.co/feed';
   }
   .access-block-p { color: var(--ink-soft); margin: 0 0 var(--sp-5); max-width: 52ch; }
 
-  /* Live-session cards */
+  /* Live-session + music-album rows are rendered client-side (innerHTML in
+     the <script> below), so they never receive Astro's scoping attribute —
+     every rule that styles them has to be :global() or it silently no-ops
+     (the bug behind the oversized, unstyled album cover). */
   .access-sessions { display: flex; flex-direction: column; gap: var(--sp-4); }
-  .access-session {
+  :global(.access-session) {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
@@ -241,8 +244,8 @@ const CIRCLE_URL = 'https://circle.songdance.co/feed';
     border-radius: var(--r-xl);
     box-shadow: var(--shadow-1);
   }
-  .access-session-meta { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-  .access-session-kind {
+  :global(.access-session-meta) { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  :global(.access-session-kind) {
     font-family: var(--font-body);
     font-size: var(--t-label);
     text-transform: uppercase;
@@ -250,7 +253,7 @@ const CIRCLE_URL = 'https://circle.songdance.co/feed';
     color: var(--ember-deep);
     font-weight: 500;
   }
-  .access-session-title {
+  :global(.access-session-title) {
     font-family: var(--font-display);
     font-size: var(--t-h3);
     line-height: var(--lh-snug);
@@ -258,13 +261,13 @@ const CIRCLE_URL = 'https://circle.songdance.co/feed';
     font-weight: 400;
     margin: 0;
   }
-  .access-session-when { color: var(--ink-soft); font-size: var(--t-body-sm); margin: 0; }
-  .access-session-note { color: var(--ember-deep); font-size: var(--t-body-sm); margin: 4px 0 0; }
-  .access-session.is-missed { border-style: dashed; }
-  .access-session .sd-btn { white-space: nowrap; }
+  :global(.access-session-when) { color: var(--ink-soft); font-size: var(--t-body-sm); margin: 0; }
+  :global(.access-session-note) { color: var(--ember-deep); font-size: var(--t-body-sm); margin: 4px 0 0; }
+  :global(.access-session.is-missed) { border-style: dashed; }
+  :global(.access-session .sd-btn) { white-space: nowrap; }
 
   /* Music album rows reuse the session-card frame, plus a cover thumb. */
-  .access-album-cover {
+  :global(.access-album-cover) {
     flex: 0 0 auto;
     width: 64px;
     height: 64px;
@@ -272,7 +275,7 @@ const CIRCLE_URL = 'https://circle.songdance.co/feed';
     border-radius: var(--r-md);
     box-shadow: var(--shadow-1);
   }
-  .access-session-meta.has-cover { flex-direction: row; align-items: center; gap: var(--sp-4); }
+  :global(.access-session-meta.has-cover) { flex-direction: row; align-items: center; gap: var(--sp-4); }
 
   /* CiRCLE two-card grid (unchanged layout) */
   .access-grid {
