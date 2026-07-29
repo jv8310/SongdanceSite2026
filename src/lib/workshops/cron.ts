@@ -22,9 +22,9 @@
 // confirmations are service messages and always go out.
 
 import {
-  audienceIsPro,
   claimNotification,
   notificationExists,
+  registrationIsPro,
   releaseNotification,
   workshopIsMasterclass,
   type Workshop,
@@ -785,14 +785,10 @@ async function runPostWorkshop(env: CronEnv, now: number, result: CronResult) {
       if (await cached(suppressedCache, email, () => isEmailSuppressed(env.DB, email))) continue;
 
       // PRO: a masterclass seat, the practitioner door (audience door 3) chosen
-      // on a regular workshop, or — once the pending is_pro migration lands — a
-      // registration flagged pro. Door 3 matches the same signal the 12-week
-      // page uses (emailIsProFromLinks); reading is_pro optionally keeps this
-      // forward-compatible without the column existing yet.
-      const isPro =
-        isMasterclass ||
-        audienceIsPro(reg.audience) ||
-        (reg as WorkshopRegistration & { is_pro?: number | null }).is_pro === 1;
+      // on a regular workshop, or a registration flagged pro. Shared with the
+      // replay page's course CTA (registrationIsPro), so the mail and the page
+      // point at the same door.
+      const isPro = registrationIsPro(reg, isMasterclass);
 
       const tz = reg.timezone || w.display_tz;
       // Promo: a plain calendar label ('July 15'); otherwise the 48h window's
