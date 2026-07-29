@@ -2,7 +2,7 @@
 import '../../../styles/admin.css';
 import Layout from '../../../layouts/Layout.astro';
 import { readCookie, verifySession } from '../../../lib/registrations/auth';
-import { computeWorkshopPerformance } from '../../../lib/workshops/stats';
+import { computeWorkshopPerformance, type WorkshopPerformanceRow } from '../../../lib/workshops/stats';
 import { PERIOD_PRESETS, resolvePeriod, presetRangesMap } from '../../../lib/workshops/periods';
 
 export const prerender = false;
@@ -14,17 +14,26 @@ if (!(await verifySession(env.ADMIN_SESSION_SECRET, readCookie(Astro.request))))
 
 const { preset, from, to } = resolvePeriod(Astro.url.searchParams);
 const report = await computeWorkshopPerformance(env.DB, { from, to });
-// Every non-deleted workshop is listed (zeros when it has no activity yet);
-// drafts are pushed to the bottom so live/past workshops lead.
+// Drafts last, so live/past workshops lead.
 const rows = report.rows.slice().sort((a, b) => {
   const ad = a.status === 'draft' ? 1 : 0;
   const bd = b.status === 'draft' ? 1 : 0;
   return ad - bd;
 });
+// A card each for the workshops that actually did something in this window; the
+// rest (drafts, not-yet-open sessions) collapse into a one-line list at the
+// bottom rather than filling the page with empty cards.
+const activeRows = rows.filter((r) => r.registrations > 0 || r.totalEurMinor > 0);
+const idleRows = rows.filter((r) => !(r.registrations > 0 || r.totalEurMinor > 0));
 
 const eur = (minor: number) =>
   '€' + (minor / 100).toLocaleString('en-IE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const eur0 = (minor: number) =>
+  '€' + Math.round(minor / 100).toLocaleString('en-IE');
 const pct = (v: number | null) => (v != null ? v.toFixed(1) + '%' : '—');
+const roasStr = (v: number | null) => (v != null ? v.toFixed(2) + '×' : '—');
+const roasTone = (v: number | null): 'good' | 'bad' | 'flat' =>
+  v == null ? 'flat' : v >= 1 ? 'good' : 'bad';
 
 // The day-by-day acquisition ledger the per-workshop costs are built from —
 // only days that actually saw spend or a registration.
@@ -38,9 +47,9 @@ const dateLabel = (iso: string) =>
   }).format(new Date(iso));
 const shortTitle = (t: string) => t.replace(/Somatic Vocal Healing/gi, 'SVH');
 
-// Totals row. Attendance/conversion recomputed from the sums rather than
-// averaging the per-row percentages.
-const sum = (f: (r: (typeof rows)[number]) => number) => rows.reduce((s, r) => s + f(r), 0);
+// Totals. Attendance/conversion recomputed from the sums rather than averaging
+// the per-row percentages.
+const sum = (f: (r: WorkshopPerformanceRow) => number) => rows.reduce((s, r) => s + f(r), 0);
 const totRegs = sum((r) => r.registrations);
 const totLive = sum((r) => r.attendedLive);
 const totReplay = sum((r) => r.replayViews);
@@ -52,6 +61,32 @@ const totRev = sum((r) => r.totalEurMinor);
 const totMeta = sum((r) => r.metaCostEurMinor ?? 0);
 const totTof = sum((r) => r.acquisitionCostEurMinor ?? 0);
 const totRoas = totMeta > 0 ? totRev / totMeta : null;
+const totAttended = totLive + totReplay;
+
+// Money bars share one scale across every card, so bar lengths are comparable
+// workshop to workshop rather than each card telling its own story.
+const moneyMax = Math.max(
+  1,
+  ...activeRows.map((r) => Math.max(r.totalEurMinor, r.metaCostEurMinor ?? 0)),
+);
+const barPct = (v: number, max: number) => (max > 0 ? Math.min(100, (v / max) * 100) : 0);
+
+// Attendance is one segmented bar per card: live · replay · no-show · the
+// remainder (registered, nothing recorded yet — upcoming sessions live here).
+type Attendance = { registrations: number; attendedLive: number; replayViews: number; noShows: number };
+type Seg = { key: string; label: string; n: number };
+const segments = (r: Attendance): Seg[] => {
+  const open = Math.max(0, r.registrations - r.attendedLive - r.replayViews - r.noShows);
+  return [
+    { key: 'live', label: 'live', n: r.attendedLive },
+    { key: 'replay', label: 'replay', n: r.replayViews },
+    { key: 'noshow', label: 'no-show', n: r.noShows },
+    { key: 'open', label: 'not marked', n: open },
+  ].filter((s) => s.n > 0);
+};
+// Nothing recorded at all — an upcoming session. Showing the bar and a row of
+// zeros there reads as "nobody came"; it hasn't happened yet.
+const anyAttendance = (r: Attendance) => r.attendedLive + r.replayViews + r.noShows > 0;
 
 const presetRangesJson = JSON.stringify(presetRangesMap()).replace(/</g, '\\u003c');
 const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
@@ -93,89 +128,166 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
     </section>
 
     <section class="adm-section">
-      {rows.length === 0 && <p class="adm-empty">No workshops yet.</p>}
-      {rows.length > 0 && (
-        <div class="wk-perf-scroll">
-          <table class="adm-table wk-perf">
-            <thead>
-              <tr>
-                <th>Workshop</th>
-                <th>Regs</th>
-                <th>Live</th>
-                <th>Replay</th>
-                <th>No-show</th>
-                <th>Attend %</th>
-                <th>Bumps</th>
-                <th>Course</th>
-                <th>Cert path</th>
-                <th>Revenue (net)</th>
-                <th>TOF cost</th>
-                <th>Cost / reg</th>
-                <th>Meta cost</th>
-                <th>ROAS</th>
-                <th>Conv %</th>
-                <th>Conv/att %</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr>
-                  <td class="wk-perf__name">
-                    <a href={`/admin/workshops/${r.workshopId}`}>{shortTitle(r.title)}</a>
-                    <span>{r.isReplay ? 'On-demand' : dateLabel(r.startsAtUtc)}{r.status !== 'published' ? ` · ${r.status}` : ''}</span>
-                  </td>
-                  <td>{r.registrations}</td>
-                  <td>{r.attendedLive}</td>
-                  <td>{r.replayViews}</td>
-                  <td>{r.noShows}</td>
-                  <td>{pct(r.attendancePct)}</td>
-                  <td>{r.bumpBuys}</td>
-                  <td>{r.courseBuys}</td>
-                  <td>{r.certBuys}</td>
-                  <td title={`Workshop checkout ${eur(r.engineNetEurMinor)} + attributed courses ${eur(r.attributedCourseEurMinor)}`}>{eur(r.totalEurMinor)}</td>
-                  <td title="Prospecting (TOF) spend charged to this workshop, summed day by day over the days its registrations came in">{r.acquisitionCostEurMinor != null ? eur(r.acquisitionCostEurMinor) : '—'}</td>
-                  <td title="This workshop's own cost per registration — its TOF cost ÷ its registrations">{r.costPerRegistrationEurMinor != null ? eur(Math.round(r.costPerRegistrationEurMinor)) : '—'}</td>
-                  <td>{r.metaCostEurMinor != null ? eur(r.metaCostEurMinor) : '—'}</td>
-                  <td>{r.roas != null ? r.roas.toFixed(2) + '×' : '—'}</td>
-                  <td>{pct(r.conversionPct)}</td>
-                  <td>{pct(r.conversionPerAttendeePct)}</td>
-                </tr>
-              ))}
-              <tr class="wk-row--total">
-                <td><strong>Total</strong></td>
-                <td><strong>{totRegs}</strong></td>
-                <td><strong>{totLive}</strong></td>
-                <td><strong>{totReplay}</strong></td>
-                <td><strong>{totNoShow}</strong></td>
-                <td><strong>{totRegs > 0 ? (((totLive + totReplay) / totRegs) * 100).toFixed(1) + '%' : '—'}</strong></td>
-                <td><strong>{totBumps}</strong></td>
-                <td><strong>{totCourse}</strong></td>
-                <td><strong>{totCert}</strong></td>
-                <td><strong>{eur(totRev)}</strong></td>
-                <td><strong>{eur(totTof)}</strong></td>
-                <td><strong>{report.costPerRegistrationEurMinor != null ? eur(Math.round(report.costPerRegistrationEurMinor)) : '—'}</strong></td>
-                <td><strong>{eur(totMeta)}</strong></td>
-                <td><strong>{totRoas != null ? totRoas.toFixed(2) + '×' : '—'}</strong></td>
-                <td><strong>{totRegs > 0 ? (((totCourse + totCert) / totRegs) * 100).toFixed(1) + '%' : '—'}</strong></td>
-                <td><strong>{totLive + totReplay > 0 ? (((totCourse + totCert) / (totLive + totReplay)) * 100).toFixed(1) + '%' : '—'}</strong></td>
-              </tr>
-            </tbody>
-          </table>
+      {/* ── Summary band: the same card shape, totalled ── */}
+      <article class="pf-card pf-card--total">
+        <div class="pf-id">
+          <div class="pf-name">All workshops</div>
+          <div class="pf-when">{rangeLabel} · {activeRows.length} with activity</div>
+        </div>
+
+        <div class="pf-roas">
+          <b class={roasTone(report.workshopRoas)}>{roasStr(report.workshopRoas)}</b>
+          <span>ROAS<br />income ÷ TOF spend</span>
+        </div>
+
+        <div class="pf-money">
+          <div class="pf-bar">
+            <span class="pf-bar-key">Revenue</span>
+            <span class="pf-track"><span class="pf-fill pf-fill--rev" style={`width:${barPct(totRev, Math.max(totRev, totMeta, 1))}%`}></span></span>
+            <span class="pf-bar-amt">{eur0(totRev)}</span>
+          </div>
+          <div class="pf-bar">
+            <span class="pf-bar-key">TOF cost</span>
+            <span class="pf-track"><span class="pf-fill pf-fill--cost" style={`width:${barPct(totTof, Math.max(totRev, totMeta, 1))}%`}></span></span>
+            <span class="pf-bar-amt">{eur0(totTof)}</span>
+          </div>
+          <p class="pf-money-note">
+            {report.costPerRegistrationEurMinor != null ? eur(Math.round(report.costPerRegistrationEurMinor)) : '—'} per registration · {eur0(totMeta)} total Meta cost
+          </p>
+        </div>
+
+        <div class="pf-funnel">
+          <div class="pf-funnel-top"><b>{totRegs}</b> registrations · <b>{pct(totRegs > 0 ? (totAttended / totRegs) * 100 : null)}</b> attended</div>
+          <div class="pf-seg">
+            {segments({ registrations: totRegs, attendedLive: totLive, replayViews: totReplay, noShows: totNoShow }).map((s) => (
+              <span class={`pf-seg-part pf-seg-part--${s.key}`} style={`width:${(s.n / Math.max(1, totRegs)) * 100}%`} title={`${s.n} ${s.label}`}></span>
+            ))}
+          </div>
+          <div class="pf-legend">
+            <span><i class="pf-dot pf-dot--live"></i>{totLive} live</span>
+            <span><i class="pf-dot pf-dot--replay"></i>{totReplay} replay</span>
+            <span><i class="pf-dot pf-dot--noshow"></i>{totNoShow} no-show</span>
+          </div>
+        </div>
+
+        <div class="pf-chips">
+          <span class="pf-chip"><b>{totBumps}</b> bumps</span>
+          <span class="pf-chip"><b>{totCourse}</b> course</span>
+          <span class="pf-chip"><b>{totCert}</b> cert path</span>
+          <span class="pf-chip"><b>{pct(totRegs > 0 ? ((totCourse + totCert) / totRegs) * 100 : null)}</b> conv</span>
+          <span class="pf-chip"><b>{pct(totAttended > 0 ? ((totCourse + totCert) / totAttended) * 100 : null)}</b> conv / attendee</span>
+          <span class="pf-chip"><b>{roasStr(totRoas)}</b> blended ROAS</span>
+        </div>
+      </article>
+
+      {activeRows.length === 0 && <p class="adm-empty">No workshop activity in this window.</p>}
+
+      {/* ── One card per workshop, one card per row ── */}
+      <div class="pf-list">
+        {activeRows.map((r) => {
+          const segs = segments(r);
+          const held = anyAttendance(r);
+          const cost = r.acquisitionCostEurMinor;
+          return (
+            <article class="pf-card">
+              <div class="pf-id">
+                <a class="pf-name" href={`/admin/workshops/${r.workshopId}`}>{shortTitle(r.title)}</a>
+                <div class="pf-when">
+                  {r.isReplay ? 'On-demand' : dateLabel(r.startsAtUtc)}
+                  {r.status !== 'published' && <span class="pf-status">{r.status}</span>}
+                </div>
+              </div>
+
+              <div class="pf-roas">
+                <b class={roasTone(r.workshopRoas)}>{roasStr(r.workshopRoas)}</b>
+                <span>ROAS<br />revenue ÷ TOF cost</span>
+              </div>
+
+              <div class="pf-money">
+                <div class="pf-bar" title={`Workshop checkout ${eur(r.engineNetEurMinor)} + attributed courses ${eur(r.attributedCourseEurMinor)}`}>
+                  <span class="pf-bar-key">Revenue</span>
+                  <span class="pf-track"><span class="pf-fill pf-fill--rev" style={`width:${barPct(r.totalEurMinor, moneyMax)}%`}></span></span>
+                  <span class="pf-bar-amt">{eur0(r.totalEurMinor)}</span>
+                </div>
+                <div class="pf-bar" title="Prospecting (TOF) spend charged to this workshop, summed day by day over the days its registrations came in">
+                  <span class="pf-bar-key">TOF cost</span>
+                  <span class="pf-track"><span class="pf-fill pf-fill--cost" style={`width:${barPct(cost ?? 0, moneyMax)}%`}></span></span>
+                  <span class="pf-bar-amt">{cost != null ? eur0(cost) : '—'}</span>
+                </div>
+                <p class="pf-money-note">
+                  {r.costPerRegistrationEurMinor != null
+                    ? <><b>{eur(Math.round(r.costPerRegistrationEurMinor))}</b> per registration</>
+                    : <>no ad spend to charge</>}
+                  {r.metaCostEurMinor != null && <> · {eur0(r.metaCostEurMinor)} Meta cost</>}
+                </p>
+              </div>
+
+              <div class="pf-funnel">
+                <div class="pf-funnel-top">
+                  <b>{r.registrations}</b> registrations
+                  {held && <> · <b>{pct(r.attendancePct)}</b> attended</>}
+                </div>
+                {held ? (
+                  <>
+                    <div class="pf-seg">
+                      {segs.map((s) => (
+                        <span
+                          class={`pf-seg-part pf-seg-part--${s.key}`}
+                          style={`width:${(s.n / Math.max(1, r.registrations)) * 100}%`}
+                          title={`${s.n} ${s.label}`}
+                        ></span>
+                      ))}
+                    </div>
+                    <div class="pf-legend">
+                      <span><i class="pf-dot pf-dot--live"></i>{r.attendedLive} live</span>
+                      <span><i class="pf-dot pf-dot--replay"></i>{r.replayViews} replay</span>
+                      <span><i class="pf-dot pf-dot--noshow"></i>{r.noShows} no-show</span>
+                    </div>
+                  </>
+                ) : (
+                  <p class="pf-pending">Seats sold · no attendance recorded yet</p>
+                )}
+              </div>
+
+              <div class="pf-chips">
+                <span class="pf-chip"><b>{r.bumpBuys}</b> bumps</span>
+                <span class="pf-chip"><b>{r.courseBuys}</b> course</span>
+                <span class="pf-chip"><b>{r.certBuys}</b> cert path</span>
+                <span class="pf-chip"><b>{pct(r.conversionPct)}</b> conv</span>
+                <span class="pf-chip" title="Buyers ÷ attendees — conversion of the people who actually showed up"><b>{pct(r.conversionPerAttendeePct)}</b> conv / attendee</span>
+                <span class="pf-chip"><b>{roasStr(r.roas)}</b> blended ROAS</span>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+
+      {idleRows.length > 0 && (
+        <div class="pf-idle">
+          <p class="pf-idle-head">No activity in this window ({idleRows.length})</p>
+          <div class="pf-idle-list">
+            {idleRows.map((r) => (
+              <a class="pf-idle-item" href={`/admin/workshops/${r.workshopId}`}>
+                {shortTitle(r.title)}
+                <span>{r.isReplay ? 'On-demand' : dateLabel(r.startsAtUtc)}{r.status !== 'published' ? ` · ${r.status}` : ''}</span>
+              </a>
+            ))}
+          </div>
         </div>
       )}
-      <p class="adm-sub" style="margin-top:12px;">
-        Regs = completed registrations (paid or coupon). Live vs Replay splits attendees by whether they joined before or after the live slot ended; admin-marked attendance without a join time counts as live.
-        Course = 12-Week buyers, Cert path = certification buyers (cert-only or bundle) — both as distinct people, hovering Revenue shows the workshop-checkout vs attributed-course split.
-        TOF cost = the prospecting spend this workshop's registrations pulled, priced day by day — each registration costs what a registration cost on the day it came in. Cost / reg = that TOF cost ÷ this workshop's registrations, so it differs from the window average when its seats filled on cheaper or dearer days. Meta cost = the same day-by-day allocation of <em>total</em> ad spend (prospecting + retargeting). ROAS = revenue ÷ Meta cost. Conv % = distinct course/cert buyers ÷ registrations; Conv/att % = the same buyers ÷ attendees (live + replay), so it measures conversion of people who actually showed up.
+
+      <p class="adm-sub" style="margin-top:14px;">
+        Registrations = completed (paid or coupon). The bar splits them into live · replay · no-show — live vs replay is whether they joined before or after the live slot ended, and admin-marked attendance without a join time counts as live; any remainder is registered with nothing recorded yet.
+        TOF cost = the prospecting spend this workshop’s registrations pulled, priced day by day — each registration costs what a registration cost on the day it came in — and the per-registration figure is that ÷ this workshop’s registrations, so it differs from the window average when its seats filled on cheaper or dearer days. Meta cost is the same day-by-day allocation of <em>total</em> ad spend (prospecting + retargeting); blended ROAS is revenue ÷ Meta cost. Revenue hovers to show the workshop-checkout vs attributed-course split. Conv = distinct course/cert buyers ÷ registrations.
       </p>
     </section>
 
     <section class="adm-section">
       <h2 style="margin:0 0 6px;font-size:18px;">Cost per registration, day by day</h2>
       <p class="adm-sub" style="margin-top:0;">
-        The prices every workshop's cost above is built from: each day's prospecting (TOF) spend ÷ the registrations that came in that day.
+        The prices every workshop’s cost above is built from: each day’s prospecting (TOF) spend ÷ the registrations that came in that day.
         {report.unattributedAcquisitionSpendEurMinor > 0 && (
-          <> <strong>{eur(report.unattributedAcquisitionSpendEurMinor)}</strong> of prospecting spend fell on days with no registration at all — it can't be priced against a registration, so it's spread evenly across every registration in the window (which keeps the TOF column summing to the {eur(report.acquisitionSpendEurMinor)} actually spent).</>
+          <> <strong>{eur(report.unattributedAcquisitionSpendEurMinor)}</strong> of prospecting spend fell on days with no registration at all — it can’t be priced against a registration, so it’s spread evenly across every registration in the window (which keeps the TOF figures summing to the {eur(report.acquisitionSpendEurMinor)} actually spent).</>
         )}
       </p>
       {costDays.length === 0 && <p class="adm-empty">No ad spend or registrations in this window.</p>}
@@ -219,27 +331,152 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
     .adm-table { width:100%; border-collapse:collapse; }
     .adm-table th, .adm-table td { text-align:left; padding:8px 10px; border-bottom:1px solid rgba(42,27,42,0.1); font-size:13px; white-space:nowrap; }
     .adm-inline-form { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
-    /* Frozen header. The table scrolls inside its own box (max-height keeps it
-       short enough to sit in the viewport, so the wheel scrolls the box rather
-       than the page) and the header cells stick to the top of that box.
-       Crucially, the shared .adm-table sets `overflow: hidden` (to clip its
-       rounded corners) — that makes the *table* a scroll container and would
-       trap the sticky header against the table instead of the scroll box, so
-       we override it back to visible here. Without this the header just
-       scrolls away. */
-    .wk-perf-scroll { overflow: auto; max-height: 60vh; }
+
+    /* The daily ledger stays a table — it *is* a ledger. Frozen header: the
+       table scrolls inside its own box and the header cells stick to the top of
+       that box. The shared .adm-table sets `overflow: hidden` (to clip its
+       rounded corners), which would make the *table* the scroll container and
+       trap the sticky header against it, so we override that back to visible. */
+    .wk-perf-scroll { overflow: auto; max-height: 52vh; }
     .wk-perf { overflow: visible; border-radius: 0; }
     .wk-perf thead th {
-      position: sticky;
-      top: 0;
-      z-index: 5;
+      position: sticky; top: 0; z-index: 5;
       background: var(--adm-paper-soft);
       box-shadow: 0 1px 0 rgba(42,27,42,0.1);
     }
-    .wk-perf__name a { color:#2A1B2A; font-weight:600; text-decoration:none; }
-    .wk-perf__name a:hover { text-decoration:underline; }
-    .wk-perf__name span { display:block; font-size:11px; color:#9a8; }
-    .wk-row--total td { border-top:2px solid rgba(42,27,42,0.25); }
+
+    /* ── One card per workshop, one card per row ──────────────────────────
+       Everything a row of the old table held, laid out so it fits the page
+       width at any size: identity, the ROAS it earned, money in vs money out,
+       the attendance bar, then the rest as chips. */
+    .pf-list { display: flex; flex-direction: column; gap: 10px; }
+    .pf-card {
+      display: grid;
+      grid-template-columns: minmax(190px, 1.05fr) 118px minmax(210px, 1.25fr) minmax(210px, 1.2fr);
+      gap: 11px 24px;
+      align-items: center;
+      background: var(--adm-paper-soft);
+      border: 1px solid var(--adm-line);
+      border-radius: 12px;
+      padding: 14px 18px;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    .pf-card:hover { border-color: #d5cab1; box-shadow: 0 2px 10px rgba(43, 37, 25, 0.05); }
+    .pf-card--total {
+      background: linear-gradient(180deg, rgba(201, 96, 58, 0.055), rgba(201, 96, 58, 0.015));
+      border-color: rgba(201, 96, 58, 0.3);
+      margin-bottom: 16px;
+    }
+    .pf-card--total:hover { border-color: rgba(201, 96, 58, 0.45); }
+
+    /* Identity */
+    .pf-name {
+      display: block; font-size: 14.5px; font-weight: 650; line-height: 1.25;
+      color: var(--adm-ink); text-decoration: none; letter-spacing: -0.005em;
+    }
+    a.pf-name:hover { color: var(--adm-ember-deep); text-decoration: underline; }
+    .pf-when { margin-top: 3px; font-size: 11.5px; color: var(--adm-mute); }
+    .pf-status {
+      display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px;
+      background: rgba(43, 37, 25, 0.07); color: var(--adm-ink-soft);
+      font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em;
+    }
+
+    /* The number that matters */
+    .pf-roas b {
+      display: block; font-size: 30px; font-weight: 650;
+      letter-spacing: -0.025em; line-height: 1; font-variant-numeric: tabular-nums;
+    }
+    .pf-roas b.good { color: var(--adm-success); }
+    .pf-roas b.bad { color: var(--adm-danger); }
+    .pf-roas b.flat { color: var(--adm-mute); }
+    .pf-roas span { display: block; margin-top: 5px; font-size: 10.5px; line-height: 1.35; color: var(--adm-mute); }
+
+    /* Money in vs money out — one scale across every card, so the bars are
+       comparable workshop to workshop. */
+    .pf-money { display: flex; flex-direction: column; gap: 6px; }
+    .pf-bar { display: flex; align-items: center; gap: 9px; font-size: 11.5px; }
+    .pf-bar-key { width: 56px; flex: none; color: var(--adm-mute); }
+    .pf-track {
+      flex: 1; height: 9px; border-radius: 5px; overflow: hidden;
+      background: rgba(43, 37, 25, 0.08);
+    }
+    .pf-fill { display: block; height: 100%; border-radius: 5px; min-width: 2px; }
+    .pf-fill--rev { background: var(--adm-success); }
+    .pf-fill--cost { background: var(--adm-ember); }
+    .pf-bar-amt {
+      width: 66px; flex: none; text-align: right;
+      font-variant-numeric: tabular-nums; color: var(--adm-ink); font-weight: 600;
+    }
+    .pf-money-note { margin: 3px 0 0; font-size: 11px; color: var(--adm-mute); }
+    .pf-money-note b { color: var(--adm-ink-soft); font-weight: 600; }
+
+    /* Attendance as one segmented bar */
+    .pf-funnel { display: flex; flex-direction: column; gap: 6px; }
+    .pf-funnel-top { font-size: 11.5px; color: var(--adm-ink-soft); }
+    .pf-funnel-top b { color: var(--adm-ink); font-weight: 650; }
+    .pf-seg {
+      display: flex; height: 11px; border-radius: 5px; overflow: hidden;
+      background: rgba(43, 37, 25, 0.08);
+    }
+    .pf-seg-part { display: block; height: 100%; }
+    .pf-seg-part--live { background: #2f7a4c; }
+    .pf-seg-part--replay { background: #86b295; }
+    .pf-seg-part--noshow { background: #b53d3d; }
+    .pf-seg-part--open { background: rgba(43, 37, 25, 0.16); }
+    .pf-legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 10.5px; color: var(--adm-mute); }
+    .pf-dot {
+      display: inline-block; width: 7px; height: 7px; border-radius: 2px;
+      margin-right: 5px; vertical-align: baseline;
+    }
+    .pf-dot--live { background: #2f7a4c; }
+    .pf-dot--replay { background: #86b295; }
+    .pf-dot--noshow { background: #b53d3d; }
+    /* Not held yet — an empty bar plus a row of zeros would read as "nobody came". */
+    .pf-pending {
+      margin: 2px 0 0; padding: 5px 0 6px; font-size: 11px; font-style: italic;
+      color: var(--adm-mute); border-top: 1px dashed var(--adm-line);
+    }
+
+    /* Everything else, as chips on their own row */
+    .pf-chips {
+      grid-column: 1 / -1;
+      display: flex; flex-wrap: wrap; gap: 6px;
+      padding-top: 10px; border-top: 1px solid var(--adm-line);
+    }
+    .pf-card--total .pf-chips { border-top-color: rgba(201, 96, 58, 0.22); }
+    .pf-chip {
+      padding: 4px 10px; border-radius: 999px;
+      background: rgba(43, 37, 25, 0.045);
+      font-size: 11.5px; color: var(--adm-ink-soft); white-space: nowrap;
+    }
+    .pf-chip b { color: var(--adm-ink); font-weight: 650; font-variant-numeric: tabular-nums; }
+
+    /* Workshops with nothing in this window */
+    .pf-idle { margin-top: 18px; }
+    .pf-idle-head {
+      margin: 0 0 8px; font-size: 11.5px; text-transform: uppercase;
+      letter-spacing: 0.07em; color: var(--adm-mute);
+    }
+    .pf-idle-list { display: flex; flex-wrap: wrap; gap: 8px; }
+    .pf-idle-item {
+      padding: 6px 11px; border: 1px dashed var(--adm-line); border-radius: 9px;
+      font-size: 12px; color: var(--adm-ink-soft); text-decoration: none;
+      background: rgba(251, 246, 234, 0.6);
+    }
+    .pf-idle-item:hover { border-style: solid; color: var(--adm-ember-deep); }
+    .pf-idle-item span { display: block; font-size: 10.5px; color: var(--adm-mute); }
+
+    @media (max-width: 1080px) {
+      .pf-card { grid-template-columns: minmax(170px, 1fr) 104px; }
+      .pf-money, .pf-funnel { grid-column: 1 / -1; }
+    }
+    @media (max-width: 560px) {
+      .pf-card { grid-template-columns: 1fr; gap: 12px; }
+      .pf-roas { display: flex; align-items: baseline; gap: 10px; }
+      .pf-roas b { font-size: 26px; }
+      .pf-roas span { margin-top: 0; }
+    }
   </style>
 
   <script is:inline>
