@@ -4,7 +4,9 @@ import {
   getRegistrationByAccessToken,
   getWorkshopById,
   markJoined,
+  registrationIsPro,
   resolveReplayUrl,
+  workshopIsMasterclass,
   listSecuredWorkshopLinksByEmail,
   listReplayViewAnchorsByEmail,
 } from '../../lib/workshops/db';
@@ -15,6 +17,7 @@ import {
   postWorkshopEmailOffer,
   DISCOUNT_WINDOW_HOURS,
 } from '../../lib/courses/twelve-week';
+import { CERT_PATH_DISCOUNT_PERCENT } from '../../lib/courses/path';
 import { launchPromoActive } from '../../lib/promo';
 
 export const prerender = false;
@@ -31,15 +34,22 @@ const ok = reg && (reg.payment_status === 'paid' || reg.payment_status === 'coup
 const workshop = reg ? await getWorkshopById(env.DB, reg.workshop_id) : null;
 
 let replayUrl: string | null = null;
-// The 12-week promo shown beneath the replay: opening a replay (re)starts the
-// same 48h participant-discount window the course honours, so we quote exactly
-// what the /courses/12-week page will grant this viewer — 20% for 48h, or 50%
-// while the launch promo runs (through July 15). See postWorkshopEmailOffer.
+// The course promo shown beneath the replay: opening a replay (re)starts the
+// same 48h participant-discount window the courses honour, so we quote exactly
+// what the landing page will grant this viewer — 20% for 48h, or 50% while the
+// launch promo runs (through July 15). See postWorkshopEmailOffer. Which course
+// that is depends on the door below (12-week, or the certification path).
 let offer: { percent: number; deadlineMs: number; deadlineLabel: string | null; promo: boolean } | null = null;
 let showCountdown = false;
+// Which door this viewer is pointed at. A masterclass seat — or the practitioner
+// door on a regular workshop — is a practitioner, and the post-workshop emails
+// send those people to the certification path, so the CTA here must agree.
+// Same registrationIsPro signal the cron uses, so the two can't drift.
+let isPro = false;
 
 if (ok && reg && workshop) {
   replayUrl = await resolveReplayUrl(env.DB, workshop);
+  isPro = registrationIsPro(reg, await workshopIsMasterclass(env.DB, workshop));
   await markJoined(env.DB, reg.id);
   // Log the view once (the events table uniques on external_id, so re-opening
   // the replay would otherwise error). The FIRST view is the discount anchor.
@@ -80,6 +90,23 @@ if (ok && reg && workshop) {
   }
   // else: no live discount → no promo block (the course page wouldn't grant one).
 }
+
+// Where the CTA goes: the certification path for practitioners, the 12-week
+// course for everyone else — the same split the post-workshop emails make. It
+// carries the viewer's own address, so the page skips its email gate and opens
+// straight on their price + live discount (the ?email= link the lifecycle
+// emails already send; both register forms prefill and reveal it on arrival).
+const ctaPath = isPro ? '/courses/certification' : '/courses/12-week';
+const ctaUrl = reg?.email ? `${ctaPath}?email=${encodeURIComponent(reg.email)}` : ctaPath;
+// What a live workshop window takes off the whole path is the path's own
+// constant (both line items), not the 12-week percent; a site-wide launch promo
+// is quoted as-is. Mirrors attendedProEmail1's footnote, so the page and the
+// mail that follows it name one number.
+const ctaPercent = !offer
+  ? 0
+  : isPro && !offer.promo
+    ? CERT_PATH_DISCOUNT_PERCENT
+    : offer.percent;
 
 // Turn a YouTube / Vimeo watch URL into its embed form; otherwise use as-is.
 function embedSrc(u: string): string {
@@ -123,10 +150,14 @@ function embedSrc(u: string): string {
             class="ws-promo"
             data-deadline={showCountdown ? String(offer.deadlineMs) : ''}
           >
-            <p class="ws-promo-kicker">Continue the practice</p>
-            <h2 class="ws-promo-title">The 12-Week Somatic Vocal Healing Course</h2>
+            <p class="ws-promo-kicker">{isPro ? 'For practitioners' : 'Continue the practice'}</p>
+            <h2 class="ws-promo-title">
+              {isPro ? 'The SVH Certification Path' : 'The 12-Week Somatic Vocal Healing Course'}
+            </h2>
             <p class="ws-promo-sub">
-              Go deeper, at your own pace — with <strong>{offer.percent}% off</strong>{' '}
+              {isPro
+                ? <>Learn to hold this space for others — with <strong>{ctaPercent}% off the whole path</strong>{' '}</>
+                : <>Go deeper, at your own pace — with <strong>{ctaPercent}% off</strong>{' '}</>}
               {offer.promo && offer.deadlineLabel
                 ? <>through {offer.deadlineLabel}.</>
                 : showCountdown
@@ -143,8 +174,8 @@ function embedSrc(u: string): string {
               </div>
             )}
 
-            <a class="ws-promo-cta" href="/courses/12-week">Take {offer.percent}% off →</a>
-            <p class="ws-promo-fine">Enter the email you registered with and your discount is applied automatically.</p>
+            <a class="ws-promo-cta" href={ctaUrl}>Take {ctaPercent}% off →</a>
+            <p class="ws-promo-fine">Your discount is applied automatically — no need to enter your email.</p>
           </div>
         )}
       </section>

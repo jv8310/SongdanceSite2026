@@ -488,6 +488,19 @@ export function emailIsProFromLinks(links: WorkshopLinkForEmail[]): boolean {
   return links.some((l) => l.is_masterclass === 1 || audienceIsPro(l.audience));
 }
 
+// "Pro" on one registration: a masterclass seat, the practitioner door chosen
+// on a regular workshop, or — once the pending is_pro migration lands — a
+// registration flagged pro (read optionally, so this stays forward-compatible
+// without the column existing). The post-workshop email cron and the replay
+// page's course CTA both read it, so what someone is *mailed* and where the
+// replay *sends* them can't drift apart. Re-deriving it elsewhere re-opens that.
+export function registrationIsPro(
+  reg: Pick<WorkshopRegistration, 'audience'> & { is_pro?: number | null },
+  isMasterclass: boolean,
+): boolean {
+  return isMasterclass || audienceIsPro(reg.audience) || reg.is_pro === 1;
+}
+
 // Epoch-ms timestamps of every replay this email has opened. Used alongside
 // the workshop time so the 48h discount window also (re)starts when someone
 // watches the replay. Replay views are logged as `workshop.replay.viewed`
