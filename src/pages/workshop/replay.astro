@@ -81,6 +81,13 @@ if (ok && reg && workshop) {
   // else: no live discount → no promo block (the course page wouldn't grant one).
 }
 
+// The promo CTA carries the viewer's own address, so /courses/12-week skips its
+// email gate and opens straight on their price + live discount (same ?email=
+// link the lifecycle emails send — TWRegister prefills and auto-submits it).
+const courseUrl = reg?.email
+  ? `/courses/12-week?email=${encodeURIComponent(reg.email)}`
+  : '/courses/12-week';
+
 // Turn a YouTube / Vimeo watch URL into its embed form; otherwise use as-is.
 function embedSrc(u: string): string {
   const yt = /(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/))([\w-]{6,})/.exec(u);
@@ -143,8 +150,8 @@ function embedSrc(u: string): string {
               </div>
             )}
 
-            <a class="ws-promo-cta" href="/courses/12-week">Take {offer.percent}% off →</a>
-            <p class="ws-promo-fine">Enter the email you registered with and your discount is applied automatically.</p>
+            <a class="ws-promo-cta" href={courseUrl}>Take {offer.percent}% off →</a>
+            <p class="ws-promo-fine">Your discount is applied automatically — we already know it’s you.</p>
           </div>
         )}
       </section>
