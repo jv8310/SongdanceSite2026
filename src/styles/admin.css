@@ -280,6 +280,12 @@ body { background: var(--adm-paper); }
   background: var(--adm-paper-soft); color: inherit;
   max-width: 130px;
 }
+/* Status cell: the derived pill + the reserve/open switch next to it. */
+.adm-room-status {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+}
+.adm-room-status-form { margin: 0; }
+
 .vh {
   position: absolute; width: 1px; height: 1px;
   padding: 0; margin: -1px; overflow: hidden;

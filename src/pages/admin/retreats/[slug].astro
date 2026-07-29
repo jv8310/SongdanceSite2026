@@ -393,6 +393,16 @@ const roomBreakdown = roomsWithMode
     // the locked label instead of a dropdown.
     const canPinMode = isMulti && r.status === 'available' && r.beds_sold === 0;
     const forcedMode: 'solo' | 'shared' | '' = r.forced_mode ?? '';
+    // Reserved ⇄ open is switchable from the table; inactive rooms aren't
+    // part of the retreat at all, so they carry no switch (see
+    // /api/admin/set-room-status).
+    const canSetStatus = r.status !== 'inactive';
+    const isReserved = r.status === 'reserved';
+    const roleLabel = r.role === 'fire_keeper'
+      ? 'fire keeper'
+      : r.role === 'cook_help'
+        ? 'cook help'
+        : null;
     return {
       id: r.id,
       building: r.building,
@@ -411,6 +421,9 @@ const roomBreakdown = roomsWithMode
       available,
       state: s.state,
       stateLabel: s.label,
+      canSetStatus,
+      isReserved,
+      roleLabel,
       showCounts: r.status !== 'inactive',
       guests: guestsByRoom.get(r.id) ?? [],
     };
@@ -680,7 +693,44 @@ const flash = (() => {
                   <td class="num">{r.showCounts ? r.booked : '—'}</td>
                   <td class="num">{r.showCounts ? r.capacity : '—'}</td>
                   <td class="num">{r.showCounts ? r.available : '—'}</td>
-                  <td><span class={`adm-pill adm-pill--${stateTone[r.state]}`}>{r.stateLabel}</span></td>
+                  <td>
+                    <div class="adm-room-status">
+                      <span class={`adm-pill adm-pill--${stateTone[r.state]}`}>{r.stateLabel}</span>
+                      {r.canSetStatus && (
+                        <form
+                          method="POST"
+                          action="/api/admin/set-room-status"
+                          class="adm-room-status-form"
+                          onsubmit={`return confirm(${JSON.stringify(
+                            r.isReserved
+                              ? `Open ${r.code} for bookings? Its free beds go back on sale on the public form; anyone already placed there stays.${
+                                  r.roleLabel
+                                    ? ` Note: this is the ${r.roleLabel} bed — once a guest takes it the ${r.roleLabel} option closes.`
+                                    : ''
+                                }`
+                              : `Reserve ${r.code}? Its free beds stop being offered on the public form (and are skipped by auto-assign); anyone already placed there stays.`,
+                          )})`}
+                        >
+                          <input type="hidden" name="inventory_unit_id" value={r.id} />
+                          <input type="hidden" name="return_to" value={returnTo} />
+                          <input
+                            type="hidden"
+                            name="status"
+                            value={r.isReserved ? 'available' : 'reserved'}
+                          />
+                          <button
+                            type="submit"
+                            class="adm-btn adm-btn--tiny"
+                            title={r.isReserved
+                              ? `Put ${r.code} back on sale`
+                              : `Hold ${r.code} back from sale`}
+                          >
+                            {r.isReserved ? 'Open' : 'Reserve'}
+                          </button>
+                        </form>
+                      )}
+                    </div>
+                  </td>
                   <td class="adm-room-guests">
                     {r.guests.length === 0 ? '—' : r.guests.join(', ')}
                   </td>
@@ -699,7 +749,7 @@ const flash = (() => {
           </tr>
         </tfoot>
       </table>
-      <p class="adm-table-note">Rooms are grouped and sorted by building. <strong>Category</strong> is the price band (tier) the room is sold under. <strong>Sell as</strong>: <em>Single</em> — whole room, one booking locks it. <em>Multi</em> — sold bed by bed. <em>Either</em> — multi-mode; one whole-room booking locks the rest of the beds. Empty multi rooms show a dropdown: <em>Either</em> (auto), <em>Single only</em>, or <em>Multi only</em> — pin a mode to pre-decide how the room is offered on the public form. <strong>Booked</strong> counts active paid + pending registrations (incl. pre-allocated hosts/cook). <strong>Available</strong> is 0 for inactive rooms and for the empty beds in a locked whole-room booking; for a role-reserved bed it reflects whether the fire-keeper / cook-help seat is still open. The totals row is the retreat-wide paying figure (same as the Capacity section): every active bed minus the non-paying hosts + cook, and excluding the hidden admin-test bed — so it won't equal a plain sum of the room rows above.</p>
+      <p class="adm-table-note">Rooms are grouped and sorted by building. <strong>Category</strong> is the price band (tier) the room is sold under. <strong>Sell as</strong>: <em>Single</em> — whole room, one booking locks it. <em>Multi</em> — sold bed by bed. <em>Either</em> — multi-mode; one whole-room booking locks the rest of the beds. Empty multi rooms show a dropdown: <em>Either</em> (auto), <em>Single only</em>, or <em>Multi only</em> — pin a mode to pre-decide how the room is offered on the public form. <strong>Booked</strong> counts active paid + pending registrations (incl. pre-allocated hosts/cook). <strong>Available</strong> is 0 for inactive rooms and for the empty beds in a locked whole-room booking; for a role-reserved bed it reflects whether the fire-keeper / cook-help seat is still open. <strong>Status</strong> carries a switch: <em>Reserve</em> holds a room back — its free beds stop being offered on the public form and auto-assign skips it — and <em>Open</em> puts it back on sale, so a reserved room keeps taking new bookings for its remaining beds. Either way, guests already placed in the room stay where they are. The totals row is the retreat-wide paying figure (same as the Capacity section): every active bed minus the non-paying hosts + cook, and excluding the hidden admin-test bed — so it won't equal a plain sum of the room rows above.</p>
     </section>
 
     <!-- ─── Balance due (deposit-payers) ─── -->
