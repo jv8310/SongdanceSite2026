@@ -95,6 +95,7 @@ const tiles: Array<{ label: string; value: string; sub?: string; d: Delta }> = [
     label: 'Cost / registration',
     value: d.costPerRegistrationEurMinor != null ? eur(Math.round(d.costPerRegistrationEurMinor)) : '—',
     sub: 'prospecting spend ÷ regs',
+    // Per-workshop costs are priced day by day; this tile is their average.
     d: delta(d.costPerRegistrationEurMinor, cmp?.costPerRegistrationEurMinor, true),
   },
   {
@@ -149,6 +150,43 @@ const rows = d.workshopRows.slice().sort((a, b) => {
   return ad - bd;
 });
 const activeRows = rows.filter((r) => r.registrations > 0 || r.totalEurMinor > 0);
+
+// ---- per-workshop cards ----
+// Money bars share one scale across every card, so bar lengths compare
+// workshop to workshop rather than each card telling its own story.
+const wkMoneyMax = Math.max(
+  1,
+  ...activeRows.map((r) => Math.max(r.totalEurMinor, r.metaCostEurMinor ?? 0)),
+);
+const barPct = (v: number, max: number) => (max > 0 ? Math.min(100, (v / max) * 100) : 0);
+
+// Attendance is one segmented bar per card: live · replay · no-show · the
+// remainder (registered, nothing recorded yet — upcoming sessions live here).
+type Attendance = { registrations: number; attendedLive: number; replayViews: number; noShows: number };
+const segments = (r: Attendance) => {
+  const open = Math.max(0, r.registrations - r.attendedLive - r.replayViews - r.noShows);
+  return [
+    { key: 'live', label: 'live', n: r.attendedLive },
+    { key: 'replay', label: 'replay', n: r.replayViews },
+    { key: 'noshow', label: 'no-show', n: r.noShows },
+    { key: 'open', label: 'not marked', n: open },
+  ].filter((s) => s.n > 0);
+};
+// Nothing recorded at all — an upcoming session. Drawing the bar and a row of
+// zeros there reads as "nobody came"; it hasn't happened yet.
+const anyAttendance = (r: Attendance) => r.attendedLive + r.replayViews + r.noShows > 0;
+
+// The totals card, in the same shape as a workshop's.
+const wkTotals = {
+  registrations: d.registrations,
+  attendedLive: d.attendedLive,
+  replayViews: d.replayViews,
+  noShows: d.noShows,
+  revenueEurMinor: d.workshopRows.reduce((s, r) => s + r.totalEurMinor, 0),
+  tofEurMinor: d.workshopRows.reduce((s, r) => s + (r.acquisitionCostEurMinor ?? 0), 0),
+  metaEurMinor: d.workshopRows.reduce((s, r) => s + (r.metaCostEurMinor ?? 0), 0),
+};
+const wkTotalsMax = Math.max(1, wkTotals.revenueEurMinor, wkTotals.metaEurMinor);
 
 // Recent-workshop highlight cards: the five most recent workshops that have
 // already happened (workshopRows arrive newest-first) — upcoming/future-dated
@@ -321,6 +359,103 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
       .wk-box .wk-foot { display: flex; justify-content: space-between; gap: 8px; margin-top: auto; padding-top: 10px; border-top: 1px solid var(--hair); font-size: 11.5px; color: var(--ink-2); }
       .wk-box .wk-foot b { color: var(--ink); font-weight: 600; }
 
+      /* ── Results per workshop: one card per workshop, one card per row ──
+         Everything the old 16-column table held, laid out so it fits the page
+         width at any size: identity, the ROAS it earned, money in vs money
+         out, the attendance bar, then the rest as chips. */
+      .pf-list { display: flex; flex-direction: column; gap: 10px; }
+      .pf-card {
+        display: grid;
+        grid-template-columns: minmax(190px, 1.05fr) 118px minmax(210px, 1.25fr) minmax(210px, 1.2fr);
+        gap: 11px 24px;
+        align-items: center;
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 14px 18px;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease;
+      }
+      .pf-card:hover { border-color: #cfc3a6; box-shadow: 0 2px 10px rgba(11, 11, 11, 0.05); }
+      .pf-card--total {
+        background: linear-gradient(180deg, rgba(201, 96, 58, 0.06), rgba(201, 96, 58, 0.015));
+        border-color: rgba(201, 96, 58, 0.32);
+        margin-bottom: 16px;
+      }
+
+      .pf-name { font-size: 14.5px; font-weight: 650; line-height: 1.25; color: var(--ink); letter-spacing: -0.005em; }
+      .pf-when { margin-top: 3px; font-size: 11.5px; color: var(--muted); }
+      .pf-status {
+        display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px;
+        background: var(--surface); color: var(--ink-2);
+        font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em;
+      }
+
+      .pf-roas b {
+        display: block; font-size: 30px; font-weight: 650;
+        letter-spacing: -0.025em; line-height: 1; font-variant-numeric: tabular-nums;
+      }
+      .pf-roas b.good { color: var(--good); }
+      .pf-roas b.bad { color: var(--ember-deep); }
+      .pf-roas b.flat { color: var(--muted); }
+      .pf-roas span { display: block; margin-top: 5px; font-size: 10.5px; line-height: 1.35; color: var(--muted); }
+
+      .pf-money { display: flex; flex-direction: column; gap: 6px; }
+      .pf-bar { display: flex; align-items: center; gap: 9px; font-size: 11.5px; }
+      .pf-bar-key { width: 56px; flex: none; color: var(--muted); }
+      .pf-track { flex: 1; height: 9px; border-radius: 5px; overflow: hidden; background: var(--surface); }
+      .pf-fill { display: block; height: 100%; border-radius: 5px; min-width: 2px; }
+      .pf-fill--rev { background: var(--s3); }
+      .pf-fill--cost { background: var(--s2); }
+      .pf-bar-amt {
+        width: 66px; flex: none; text-align: right;
+        font-variant-numeric: tabular-nums; color: var(--ink); font-weight: 600;
+      }
+      .pf-money-note { margin: 3px 0 0; font-size: 11px; color: var(--muted); }
+      .pf-money-note b { color: var(--ink-2); font-weight: 600; }
+
+      .pf-funnel { display: flex; flex-direction: column; gap: 6px; }
+      .pf-funnel-top { font-size: 11.5px; color: var(--ink-2); }
+      .pf-funnel-top b { color: var(--ink); font-weight: 650; }
+      .pf-seg { display: flex; height: 11px; border-radius: 5px; overflow: hidden; background: var(--surface); }
+      .pf-seg-part { display: block; height: 100%; }
+      .pf-seg-part--live { background: var(--s1); }
+      .pf-seg-part--replay { background: #8ab6e8; }
+      .pf-seg-part--noshow { background: var(--bad); }
+      .pf-seg-part--open { background: rgba(11, 11, 11, 0.13); }
+      .pf-legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 10.5px; color: var(--muted); }
+      .pf-dot { display: inline-block; width: 7px; height: 7px; border-radius: 2px; margin-right: 5px; }
+      .pf-dot--live { background: var(--s1); }
+      .pf-dot--replay { background: #8ab6e8; }
+      .pf-dot--noshow { background: var(--bad); }
+      /* Not held yet — an empty bar plus a row of zeros would read as "nobody came". */
+      .pf-pending {
+        margin: 2px 0 0; padding: 5px 0 6px; font-size: 11px; font-style: italic;
+        color: var(--muted); border-top: 1px dashed var(--line);
+      }
+
+      .pf-chips {
+        grid-column: 1 / -1;
+        display: flex; flex-wrap: wrap; gap: 6px;
+        padding-top: 10px; border-top: 1px solid var(--hair);
+      }
+      .pf-card--total .pf-chips { border-top-color: rgba(201, 96, 58, 0.22); }
+      .pf-chip {
+        padding: 4px 10px; border-radius: 999px; background: var(--surface);
+        font-size: 11.5px; color: var(--ink-2); white-space: nowrap;
+      }
+      .pf-chip b { color: var(--ink); font-weight: 650; font-variant-numeric: tabular-nums; }
+
+      @media (max-width: 1080px) {
+        .pf-card { grid-template-columns: minmax(170px, 1fr) 104px; }
+        .pf-money, .pf-funnel { grid-column: 1 / -1; }
+      }
+      @media (max-width: 560px) {
+        .pf-card { grid-template-columns: 1fr; gap: 12px; }
+        .pf-roas { display: flex; align-items: baseline; gap: 10px; }
+        .pf-roas b { font-size: 26px; }
+        .pf-roas span { margin-top: 0; }
+      }
+
       /* charts */
       .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
       @media (max-width: 820px) { .chart-grid { grid-template-columns: 1fr; } }
@@ -347,10 +482,6 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
       td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
       .card-tbl { background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
       .card-tbl table th { background: var(--surface); position: sticky; top: 0; }
-      .perf-scroll { max-height: 62vh; overflow: auto; }
-      .name a { color: var(--ink); font-weight: 600; text-decoration: none; }
-      .name a:hover { text-decoration: underline; }
-      .name span { display: block; font-size: 10.5px; color: var(--muted); font-weight: 400; }
       tr.total td { border-top: 2px solid rgba(11,11,11,0.2); font-weight: 600; }
       .cols-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
       @media (max-width: 820px) { .cols-2 { grid-template-columns: 1fr; } }
@@ -389,7 +520,7 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
       </form>
       <p class="rangenote">
         Showing <strong>{rangeLabel}</strong>{cmp && cmpFrom && cmpTo && <> · vs <strong>{dateLabel(cmpFrom)} → {dateLabel(cmpTo)}</strong></>}.
-        {d.hasAdSpend && <> Prospecting spend {eur0(d.acquisitionSpendEurMinor)} ÷ {int(d.registrations)} registrations = <strong>{d.costPerRegistrationEurMinor != null ? eur(Math.round(d.costPerRegistrationEurMinor)) : '—'}</strong> per registration{d.retargetingSpendEurMinor > 0 && <> · {eur0(d.retargetingSpendEurMinor)} retargeting excluded</>}.</>}
+        {d.hasAdSpend && <> Prospecting spend {eur0(d.acquisitionSpendEurMinor)} ÷ {int(d.registrations)} registrations = <strong>{d.costPerRegistrationEurMinor != null ? eur(Math.round(d.costPerRegistrationEurMinor)) : '—'}</strong> per registration on average{d.retargetingSpendEurMinor > 0 && <> · {eur0(d.retargetingSpendEurMinor)} retargeting excluded</>}. Each workshop is charged day by day — every registration at the price of a registration on the day it came in.</>}
         {!(from && to) && <span class="sub-muted"> Pick a bounded period to compare against the previous one.</span>}
       </p>
 
@@ -523,75 +654,142 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
 
       <section>
         <h2>Results per workshop</h2>
-        <p class="note">The funnel for every workshop: registrations → attendance → course/cert conversion, with allocated Meta cost and ROAS. Course/Cert buys are matched by email across checkouts and standalone sales, so a buyer counts toward each workshop they attended. <strong>TOF cost</strong> is this workshop's share of prospecting spend; <strong>Meta cost</strong> allocates total spend. <strong>Conv %</strong> is buyers ÷ registrations; <strong>Conv/att %</strong> is buyers ÷ attendees (of the people who actually showed up).</p>
+        <p class="note">One card per workshop: what it earned against what its registrations cost, and the funnel behind it. Course/Cert buys are matched by email across checkouts and standalone sales, so a buyer counts toward each workshop they attended. Ad spend is charged <strong>day by day</strong> — every registration carries the price of a registration on the day it came in (that day's spend ÷ that day's registrations). <strong>TOF cost</strong> prices it against prospecting spend and the per-registration figure is that ÷ this workshop's registrations; <strong>Meta cost</strong> is the same allocation of total spend, and <strong>blended ROAS</strong> is revenue ÷ that. Revenue bars share one scale across every card, so their lengths compare workshop to workshop.{d.unattributedAcquisitionSpendEurMinor > 0 && <> {eur0(d.unattributedAcquisitionSpendEurMinor)} of prospecting spend fell on days with no registration and is spread evenly across the window instead.</>}</p>
         {activeRows.length === 0 && <p class="empty">No workshop activity in this window.</p>}
         {activeRows.length > 0 && (
-          <div class="card-tbl">
-            <div class="perf-scroll">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Workshop</th>
-                    <th class="num">Regs</th>
-                    <th class="num">Live</th>
-                    <th class="num">Replay</th>
-                    <th class="num">No-show</th>
-                    <th class="num">Attend %</th>
-                    <th class="num">Bumps</th>
-                    <th class="num">Course</th>
-                    <th class="num">Cert</th>
-                    <th class="num">Revenue</th>
-                    <th class="num">TOF cost</th>
-                    <th class="num">Meta cost</th>
-                    <th class="num">ROAS</th>
-                    <th class="num">Conv %</th>
-                    <th class="num">Conv/att %</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {activeRows.map((r) => (
-                    <tr>
-                      <td class="name">
-                        {shortTitle(r.title)}
-                        <span>{r.isReplay ? 'On-demand' : dateLabel(r.startsAtUtc)}{r.status !== 'published' ? ` · ${r.status}` : ''}</span>
-                      </td>
-                      <td class="num">{int(r.registrations)}</td>
-                      <td class="num">{int(r.attendedLive)}</td>
-                      <td class="num">{int(r.replayViews)}</td>
-                      <td class="num">{int(r.noShows)}</td>
-                      <td class="num">{pct(r.attendancePct)}</td>
-                      <td class="num">{int(r.bumpBuys)}</td>
-                      <td class="num">{int(r.courseBuys)}</td>
-                      <td class="num">{int(r.certBuys)}</td>
-                      <td class="num" title={`Checkout ${eur(r.engineNetEurMinor)} + attributed courses ${eur(r.attributedCourseEurMinor)}`}>{eur0(r.totalEurMinor)}</td>
-                      <td class="num" title="This workshop's share of prospecting (TOF) spend, by registration count">{r.acquisitionCostEurMinor != null ? eur0(r.acquisitionCostEurMinor) : '—'}</td>
-                      <td class="num">{r.metaCostEurMinor != null ? eur0(r.metaCostEurMinor) : '—'}</td>
-                      <td class="num">{roasStr(r.roas)}</td>
-                      <td class="num">{pct(r.conversionPct)}</td>
-                      <td class="num">{pct(r.conversionPerAttendeePct)}</td>
-                    </tr>
+          <>
+            {/* Summary band: the same card shape, totalled */}
+            <article class="pf-card pf-card--total">
+              <div class="pf-id">
+                <div class="pf-name">All workshops</div>
+                <div class="pf-when">{rangeLabel} · {activeRows.length} with activity</div>
+              </div>
+
+              <div class="pf-roas">
+                <b class={roasTone(d.workshopRoas)}>{roasStr(d.workshopRoas)}</b>
+                <span>ROAS<br />income ÷ TOF spend</span>
+              </div>
+
+              <div class="pf-money">
+                <div class="pf-bar">
+                  <span class="pf-bar-key">Revenue</span>
+                  <span class="pf-track"><span class="pf-fill pf-fill--rev" style={`width:${barPct(wkTotals.revenueEurMinor, wkTotalsMax)}%`}></span></span>
+                  <span class="pf-bar-amt">{eur0(wkTotals.revenueEurMinor)}</span>
+                </div>
+                <div class="pf-bar">
+                  <span class="pf-bar-key">TOF cost</span>
+                  <span class="pf-track"><span class="pf-fill pf-fill--cost" style={`width:${barPct(wkTotals.tofEurMinor, wkTotalsMax)}%`}></span></span>
+                  <span class="pf-bar-amt">{d.hasAdSpend ? eur0(wkTotals.tofEurMinor) : '—'}</span>
+                </div>
+                <p class="pf-money-note">
+                  {d.costPerRegistrationEurMinor != null ? eur(Math.round(d.costPerRegistrationEurMinor)) : '—'} per registration · {d.hasAdSpend ? eur0(wkTotals.metaEurMinor) : '—'} total Meta cost
+                </p>
+              </div>
+
+              <div class="pf-funnel">
+                <div class="pf-funnel-top"><b>{int(wkTotals.registrations)}</b> registrations · <b>{pct(d.attendancePct)}</b> attended</div>
+                <div class="pf-seg">
+                  {segments(wkTotals).map((s) => (
+                    <span class={`pf-seg-part pf-seg-part--${s.key}`} style={`width:${(s.n / Math.max(1, wkTotals.registrations)) * 100}%`} title={`${s.n} ${s.label}`}></span>
                   ))}
-                  <tr class="total">
-                    <td>Total</td>
-                    <td class="num">{int(d.registrations)}</td>
-                    <td class="num">{int(d.attendedLive)}</td>
-                    <td class="num">{int(d.replayViews)}</td>
-                    <td class="num">{int(d.noShows)}</td>
-                    <td class="num">{pct(d.attendancePct)}</td>
-                    <td class="num">{int(d.workshopBumps.count)}</td>
-                    <td class="num">{int(d.courseBuyers)}</td>
-                    <td class="num">{int(d.certBuyers)}</td>
-                    <td class="num">{eur0(d.workshopRows.reduce((s, r) => s + r.totalEurMinor, 0))}</td>
-                    <td class="num">{d.hasAdSpend ? eur0(d.workshopRows.reduce((s, r) => s + (r.acquisitionCostEurMinor ?? 0), 0)) : '—'}</td>
-                    <td class="num">{d.hasAdSpend ? eur0(d.workshopRows.reduce((s, r) => s + (r.metaCostEurMinor ?? 0), 0)) : '—'}</td>
-                    <td class="num">—</td>
-                    <td class="num">{pct(d.conversionPct)}</td>
-                    <td class="num">{pct(d.conversionPerAttendeePct)}</td>
-                  </tr>
-                </tbody>
-              </table>
+                </div>
+                <div class="pf-legend">
+                  <span><i class="pf-dot pf-dot--live"></i>{int(wkTotals.attendedLive)} live</span>
+                  <span><i class="pf-dot pf-dot--replay"></i>{int(wkTotals.replayViews)} replay</span>
+                  <span><i class="pf-dot pf-dot--noshow"></i>{int(wkTotals.noShows)} no-show</span>
+                </div>
+              </div>
+
+              <div class="pf-chips">
+                <span class="pf-chip"><b>{int(d.workshopBumps.count)}</b> bumps</span>
+                <span class="pf-chip"><b>{int(d.courseBuyers)}</b> course</span>
+                <span class="pf-chip"><b>{int(d.certBuyers)}</b> cert path</span>
+                <span class="pf-chip"><b>{pct(d.conversionPct)}</b> conv</span>
+                <span class="pf-chip"><b>{pct(d.conversionPerAttendeePct)}</b> conv / attendee</span>
+                <span class="pf-chip"><b>{roasStr(d.blendedRoas)}</b> blended ROAS</span>
+              </div>
+            </article>
+
+            {/* One card per workshop, one card per row */}
+            <div class="pf-list">
+              {activeRows.map((r) => {
+                const segs = segments(r);
+                const held = anyAttendance(r);
+                const cost = r.acquisitionCostEurMinor;
+                return (
+                  <article class="pf-card">
+                    <div class="pf-id">
+                      <div class="pf-name">{shortTitle(r.title)}</div>
+                      <div class="pf-when">
+                        {r.isReplay ? 'On-demand' : dateLabel(r.startsAtUtc)}
+                        {r.status !== 'published' && <span class="pf-status">{r.status}</span>}
+                      </div>
+                    </div>
+
+                    <div class="pf-roas">
+                      <b class={roasTone(r.workshopRoas)}>{roasStr(r.workshopRoas)}</b>
+                      <span>ROAS<br />revenue ÷ TOF cost</span>
+                    </div>
+
+                    <div class="pf-money">
+                      <div class="pf-bar" title={`Checkout ${eur(r.engineNetEurMinor)} + attributed courses ${eur(r.attributedCourseEurMinor)}`}>
+                        <span class="pf-bar-key">Revenue</span>
+                        <span class="pf-track"><span class="pf-fill pf-fill--rev" style={`width:${barPct(r.totalEurMinor, wkMoneyMax)}%`}></span></span>
+                        <span class="pf-bar-amt">{eur0(r.totalEurMinor)}</span>
+                      </div>
+                      <div class="pf-bar" title="Prospecting (TOF) spend charged to this workshop, summed day by day over the days its registrations came in">
+                        <span class="pf-bar-key">TOF cost</span>
+                        <span class="pf-track"><span class="pf-fill pf-fill--cost" style={`width:${barPct(cost ?? 0, wkMoneyMax)}%`}></span></span>
+                        <span class="pf-bar-amt">{cost != null ? eur0(cost) : '—'}</span>
+                      </div>
+                      <p class="pf-money-note">
+                        {r.costPerRegistrationEurMinor != null
+                          ? <><b>{eur(Math.round(r.costPerRegistrationEurMinor))}</b> per registration</>
+                          : <>no ad spend to charge</>}
+                        {r.metaCostEurMinor != null && <> · {eur0(r.metaCostEurMinor)} Meta cost</>}
+                      </p>
+                    </div>
+
+                    <div class="pf-funnel">
+                      <div class="pf-funnel-top">
+                        <b>{int(r.registrations)}</b> registrations
+                        {held && <> · <b>{pct(r.attendancePct)}</b> attended</>}
+                      </div>
+                      {held ? (
+                        <>
+                          <div class="pf-seg">
+                            {segs.map((s) => (
+                              <span
+                                class={`pf-seg-part pf-seg-part--${s.key}`}
+                                style={`width:${(s.n / Math.max(1, r.registrations)) * 100}%`}
+                                title={`${s.n} ${s.label}`}
+                              ></span>
+                            ))}
+                          </div>
+                          <div class="pf-legend">
+                            <span><i class="pf-dot pf-dot--live"></i>{int(r.attendedLive)} live</span>
+                            <span><i class="pf-dot pf-dot--replay"></i>{int(r.replayViews)} replay</span>
+                            <span><i class="pf-dot pf-dot--noshow"></i>{int(r.noShows)} no-show</span>
+                          </div>
+                        </>
+                      ) : (
+                        <p class="pf-pending">Seats sold · no attendance recorded yet</p>
+                      )}
+                    </div>
+
+                    <div class="pf-chips">
+                      <span class="pf-chip"><b>{int(r.bumpBuys)}</b> bumps</span>
+                      <span class="pf-chip"><b>{int(r.courseBuys)}</b> course</span>
+                      <span class="pf-chip"><b>{int(r.certBuys)}</b> cert path</span>
+                      <span class="pf-chip"><b>{pct(r.conversionPct)}</b> conv</span>
+                      <span class="pf-chip" title="Buyers ÷ attendees — conversion of the people who actually showed up"><b>{pct(r.conversionPerAttendeePct)}</b> conv / attendee</span>
+                      <span class="pf-chip"><b>{roasStr(r.roas)}</b> blended ROAS</span>
+                    </div>
+                  </article>
+                );
+              })}
             </div>
-          </div>
+          </>
         )}
       </section>
 

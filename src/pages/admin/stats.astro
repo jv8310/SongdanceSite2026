@@ -293,7 +293,7 @@ const funnelCards: Array<{ label: string; value: string; sub: string; d?: Delta 
       perf.costPerRegistrationEurMinor != null
         ? eur(Math.round(perf.costPerRegistrationEurMinor))
         : '—',
-    sub: 'prospecting spend ÷ regs',
+    sub: 'prospecting spend ÷ regs (avg)',
   },
   {
     label: 'Attendance rate',
@@ -771,7 +771,7 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
           })}
         </div>
       )}
-      <p class="adm-sub" style="margin-top:10px;">Per-workshop TOF cost = that workshop’s share of prospecting spend by registration count (spend isn’t tracked per workshop). The weighted average counts each course buyer’s revenue once, so a multi-workshop buyer isn’t double-counted. See per-workshop detail on <a href="/admin/workshops/performance">Per-workshop performance</a>.</p>
+      <p class="adm-sub" style="margin-top:10px;">Per-workshop TOF cost is priced <strong>day by day</strong> (spend isn’t tracked per workshop): each registration costs what a registration cost on the day it came in — that day’s prospecting spend ÷ that day’s registrations — and a workshop pays the sum of its own. So a workshop that filled on expensive days carries a higher cost, and a lower ROAS, than the window average.{perf.unattributedAcquisitionSpendEurMinor > 0 && <> {eur0(perf.unattributedAcquisitionSpendEurMinor)} of prospecting spend fell on days with no registration at all and is spread evenly across the window instead.</>} The weighted average counts each course buyer’s revenue once, so a multi-workshop buyer isn’t double-counted. See the daily prices and per-workshop detail on <a href="/admin/workshops/performance">Per-workshop performance</a>.</p>
     </section>
 
     <!-- ─── Tables ─── -->

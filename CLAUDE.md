@@ -585,12 +585,33 @@ tolerant) is prospecting/acquisition; everything else is retargeting.
 account-level rows, or a CSV with no campaign column — counts as acquisition, so
 pre-breakdown windows keep the old "all spend ÷ regs" figure). Cost per
 registration = prospecting spend ÷ registrations; **total** ad spend and
-**blended ROAS** still count every campaign, and the per-workshop Meta-cost
-allocation still divides *total* spend by registration share (so that column +
-blended ROAS reconcile). `/admin/stats` shows a **By campaign** table
-(spend + prospecting/retargeting tag) so the split is verifiable; `/ads` labels
-its "Cost / registration" as prospecting-based and breaks the "Ad spend" tile
-into prospecting · retargeting.
+**blended ROAS** still count every campaign. `/admin/stats` shows a **By
+campaign** table (spend + prospecting/retargeting tag) so the split is
+verifiable; `/ads` labels its "Cost / registration" as prospecting-based and
+breaks the "Ad spend" tile into prospecting · retargeting.
+
+**A registration costs what it cost *that day*** ([`src/lib/ads/allocation.ts`](src/lib/ads/allocation.ts),
+July 2026): the per-workshop ad cost used to be one window-wide average — total
+spend ÷ total registrations, charged flat to every workshop by registration
+count — which smears an expensive week over a cheap one, so a workshop that
+filled at €50/seat looked identical to one that filled at €2/seat. Spend is
+priced **per day** instead: that day's spend ÷ that day's registrations = the
+price of a registration bought that day; every registration carries the price of
+the day it came in, and a workshop's cost is the sum of what its own
+registrations cost (`allocateSpendByDay`, run twice — prospecting spend for the
+**TOF cost / workshop ROAS**, total spend for the **Meta cost / blended ROAS**).
+Registrations on a day with no spend are free, as before. **Spend on a day with
+no registrations at all** can't be priced against a registration, so it is spread
+evenly over the window's registrations — the old flat treatment, applied only to
+the part the daily model can't place; that keeps the per-workshop columns summing
+to the spend actually made, so the window figures (`costPerRegistrationEurMinor`
+= total prospecting spend ÷ total registrations) are **unchanged** and still
+reconcile. Only the *distribution across workshops* moves — which is the point.
+`WorkshopPerformanceRow.costPerRegistrationEurMinor` is a workshop's own
+day-weighted seat price; `dailyCosts` on the report is the day-by-day ledger
+(shown as a table on `/admin/workshops/performance`, and already the `/ads`
+cost-per-registration chart), and `unattributedAcquisitionSpendEurMinor` is the
+spread residue, footnoted wherever it's non-zero.
 
 **Cadence**: rides the existing **hourly** cron (`worker-entrypoint.ts`),
 self-gating via a `meta_ad_spend_synced_at` marker in `workshop_config` to the
