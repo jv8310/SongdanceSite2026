@@ -18,6 +18,7 @@
 import { FX_TO_EUR } from './currency';
 import { selectByIdsChunked } from '../db/chunked';
 import { isAcquisitionCampaign, campaignKind, type CampaignKind } from '../ads/campaigns';
+import { allocateSpendByDay } from '../ads/allocation';
 import { getTaxRate, netFromGross, type QuadernoTaxConfig } from './quaderno';
 import { getFxRatesToEur } from '../admin/fx';
 
@@ -542,16 +543,36 @@ export type WorkshopPerformanceRow = {
   engineNetEurMinor: number; // tickets + bumps + add-ons through this workshop
   attributedCourseEurMinor: number; // standalone 12-week/cert revenue by registrant email
   totalEurMinor: number;
-  metaCostEurMinor: number | null; // total ad spend allocated by registration share
+  // Ad spend charged to this workshop, allocated day by day: each of its
+  // registrations carries the cost of a registration on the day it came in
+  // (that day's spend ÷ that day's registrations). See lib/ads/allocation.ts.
+  metaCostEurMinor: number | null; // all campaigns
   roas: number | null; // total revenue ÷ Meta cost (blended, all campaigns)
   // Workshop-only economics: the prospecting (TOF) spend this workshop's
-  // registrations pulled (its share of TOF spend), and revenue ÷ that cost.
-  // This is the acquisition-true ROAS — income from a workshop's registrants
-  // against the spend that actually bought those registrations.
+  // registrations actually pulled, day by day, and revenue ÷ that cost. This is
+  // the acquisition-true ROAS — income from a workshop's registrants against
+  // the spend that bought those registrations on the days they registered.
   acquisitionCostEurMinor: number | null;
   workshopRoas: number | null;
+  // This workshop's own cost per registration (its TOF cost ÷ its
+  // registrations) — the day-weighted price of a seat here, which differs from
+  // the window average when its registrations landed on cheaper/dearer days.
+  costPerRegistrationEurMinor: number | null;
   conversionPct: number | null; // distinct course/cert buyers ÷ registrations
   conversionPerAttendeePct: number | null; // distinct course/cert buyers ÷ attendees (live + replay)
+};
+
+// One day of the acquisition ledger: what was spent, how many registrations it
+// bought, and therefore what a registration cost that day. This per-day price
+// is what each workshop's cost is built from (lib/ads/allocation.ts).
+export type DailyAcquisitionCost = {
+  date: string; // YYYY-MM-DD (UTC)
+  registrations: number;
+  adSpendEurMinor: number; // all campaigns
+  acquisitionSpendEurMinor: number; // prospecting (TOF) campaigns
+  // Prospecting spend ÷ registrations that day. null = spend but no
+  // registrations (nothing to price); 0 = registrations that cost nothing.
+  costPerRegistrationEurMinor: number | null;
 };
 
 export type WorkshopPerformanceReport = {
@@ -563,7 +584,15 @@ export type WorkshopPerformanceReport = {
   // Cost per registration is charged against prospecting spend only — the
   // campaign that actually buys registrations. (Retargeting re-touches people
   // already in the funnel, so counting it would overstate acquisition cost.)
+  // This window figure is the weighted average of the daily prices below —
+  // total prospecting spend ÷ total registrations — which is exactly what the
+  // per-workshop day-by-day costs sum back to.
   costPerRegistrationEurMinor: number | null;
+  // The day-by-day ledger the per-workshop costs are built from.
+  dailyCosts: DailyAcquisitionCost[];
+  // Prospecting spend on days that produced no registration at all: it can't be
+  // priced day-by-day, so it's spread evenly over the window's registrations.
+  unattributedAcquisitionSpendEurMinor: number;
   // Workshop-only ROAS (weighted average): every euro of income that traces to
   // a workshop registrant — workshop-engine net (tickets + bumps + add-ons)
   // plus standalone 12-week/certification revenue from registrant emails,
@@ -603,16 +632,21 @@ export async function computeWorkshopPerformance(
     .all<{ id: number; title: string; starts_at_utc: string; ends_at_utc: string | null; is_replay: number; status: string }>();
   const workshopRows = wRes.results ?? [];
 
-  // Completed registrations (paid or coupon) in the window.
+  // Completed registrations (paid or coupon) in the window. `reg_date` is the
+  // UTC day the registration came in — the day whose ad spend bought it.
   const regBinds: unknown[] = [];
   const regRes = await db
     .prepare(
-      `SELECT workshop_id, lower(email) AS email, attendance_status, joined_at_utc
+      `SELECT workshop_id, lower(email) AS email, attendance_status, joined_at_utc,
+              substr(created_at, 1, 10) AS reg_date
          FROM workshop_registrations
         WHERE payment_status IN ('paid','coupon')${win('created_at', regBinds)}`,
     )
     .bind(...regBinds)
-    .all<{ workshop_id: number; email: string; attendance_status: string; joined_at_utc: string | null }>();
+    .all<{
+      workshop_id: number; email: string; attendance_status: string;
+      joined_at_utc: string | null; reg_date: string;
+    }>();
 
   // Bump purchases (paid) per workshop.
   const bumpBinds: unknown[] = [];
@@ -690,7 +724,8 @@ export async function computeWorkshopPerformance(
     standalone.set(r.email, s);
   }
 
-  // Ad spend over the window. Total drives the per-workshop Meta-cost
+  // Ad spend over the window, kept **per day** — the day is the unit the cost
+  // of a registration is priced in. Total drives the per-workshop Meta-cost
   // allocation + blended ROAS; the acquisition (TOF/prospecting) share drives
   // cost per registration.
   const adBinds: unknown[] = [];
@@ -699,17 +734,23 @@ export async function computeWorkshopPerformance(
   if (opts.to) { adWhere.push('spend_date <= ?'); adBinds.push(opts.to); }
   const adRes = await db
     .prepare(
-      `SELECT campaign, amount_eur_minor, amount_minor, currency FROM workshop_ad_spend
+      `SELECT spend_date, campaign, amount_eur_minor, amount_minor, currency FROM workshop_ad_spend
         ${adWhere.length ? 'WHERE ' + adWhere.join(' AND ') : ''}`,
     )
     .bind(...adBinds)
-    .all<{ campaign: string; amount_eur_minor: number | null; amount_minor: number; currency: string }>();
+    .all<{ spend_date: string; campaign: string; amount_eur_minor: number | null; amount_minor: number; currency: string }>();
   let adSpendEurMinor = 0;
   let acquisitionSpendEurMinor = 0;
+  const adByDate = new Map<string, number>();
+  const acqByDate = new Map<string, number>();
   for (const a of adRes.results ?? []) {
     const eur = a.amount_eur_minor ?? (a.currency === 'EUR' ? a.amount_minor : 0);
     adSpendEurMinor += eur;
-    if (isAcquisitionCampaign(a.campaign)) acquisitionSpendEurMinor += eur;
+    adByDate.set(a.spend_date, (adByDate.get(a.spend_date) ?? 0) + eur);
+    if (isAcquisitionCampaign(a.campaign)) {
+      acquisitionSpendEurMinor += eur;
+      acqByDate.set(a.spend_date, (acqByDate.get(a.spend_date) ?? 0) + eur);
+    }
   }
 
   // ---- Aggregate per workshop ----
@@ -739,11 +780,17 @@ export async function computeWorkshopPerformance(
   // the denominator for "did this course buyer come through a workshop?", used
   // to count standalone course revenue once (not once per workshop attended).
   const allRegEmails = new Set<string>();
+  // Registrations per day per workshop — the grid the daily ad-spend allocation
+  // is charged against.
+  const regsByDateWorkshop = new Map<string, Map<number, number>>();
   for (const r of regRes.results ?? []) {
     const a = acc(r.workshop_id);
     a.regs += 1;
     a.emails.add(r.email);
     allRegEmails.add(r.email);
+    let perDay = regsByDateWorkshop.get(r.reg_date);
+    if (!perDay) { perDay = new Map(); regsByDateWorkshop.set(r.reg_date, perDay); }
+    perDay.set(r.workshop_id, (perDay.get(r.workshop_id) ?? 0) + 1);
     if (r.attendance_status === 'no_show') {
       a.noShow += 1;
     } else if (r.attendance_status === 'attended') {
@@ -768,16 +815,38 @@ export async function computeWorkshopPerformance(
   }
 
   const totalRegistrations = [...accs.values()].reduce((s, a) => s + a.regs, 0);
-  // Cost per registration = prospecting (TOF) spend ÷ registrations.
+  // Window-wide cost per registration = prospecting (TOF) spend ÷
+  // registrations. This is the weighted average of the daily prices below, and
+  // the per-workshop day-by-day costs sum back to exactly this.
   const costPerRegistrationEurMinor =
     acquisitionSpendEurMinor > 0 && totalRegistrations > 0
       ? acquisitionSpendEurMinor / totalRegistrations
       : null;
-  // Per-workshop Meta cost allocates *total* spend by registration share, so
-  // the column + total row reconcile with the total ad-spend figure and blended
-  // ROAS. (This is deliberately not the prospecting-only cost above.)
-  const blendedCostPerRegistrationEurMinor =
-    adSpendEurMinor > 0 && totalRegistrations > 0 ? adSpendEurMinor / totalRegistrations : null;
+
+  // Day-by-day allocation: every registration carries the price of a
+  // registration on the day it came in (that day's spend ÷ that day's
+  // registrations), and a workshop's cost is the sum of what its own
+  // registrations cost. Run twice — once for prospecting spend (the TOF cost /
+  // workshop ROAS) and once for total spend (the blended Meta cost / ROAS) — so
+  // both columns still reconcile with their spend totals.
+  const regsByWorkshop = new Map<number, number>([...accs].map(([id, a]) => [id, a.regs]));
+  const acqAllocation = allocateSpendByDay(acqByDate, regsByDateWorkshop, regsByWorkshop);
+  const totalAllocation = allocateSpendByDay(adByDate, regsByDateWorkshop, regsByWorkshop);
+
+  // The daily ledger, over every day that saw spend or a registration.
+  const costDates = [...new Set([...adByDate.keys(), ...acqByDate.keys(), ...regsByDateWorkshop.keys()])].sort();
+  const dailyCosts: DailyAcquisitionCost[] = costDates.map((date) => {
+    let registrations = 0;
+    const perDay = regsByDateWorkshop.get(date);
+    if (perDay) for (const n of perDay.values()) registrations += n;
+    return {
+      date,
+      registrations,
+      adSpendEurMinor: adByDate.get(date) ?? 0,
+      acquisitionSpendEurMinor: acqByDate.get(date) ?? 0,
+      costPerRegistrationEurMinor: acqAllocation.costPerRegistrationByDate.get(date) ?? 0,
+    };
+  });
 
   // One row per non-deleted workshop — including those with no activity yet,
   // so the page mirrors the workshop list rather than hiding empty ones.
@@ -797,16 +866,15 @@ export async function computeWorkshopPerformance(
     const buyers = new Set([...courseBuyers, ...certBuyers]);
     const attended = a.live + a.replay;
     const totalEurMinor = a.netEurMinor + attributedEur;
+    // Costs are day-by-day sums; a workshop with no spend on any of its
+    // registration days legitimately costs 0. `null` means there was no spend
+    // in the window at all, so there is nothing to charge (column reads "—").
     const metaCostEurMinor =
-      blendedCostPerRegistrationEurMinor != null
-        ? Math.round(blendedCostPerRegistrationEurMinor * a.regs)
-        : null;
-    // Workshop-only (TOF) cost: this workshop's share of prospecting spend, by
-    // registration count — the acquisition dollars its registrations pulled.
+      adSpendEurMinor > 0 ? Math.round(totalAllocation.byWorkshop.get(w.id) ?? 0) : null;
+    // Workshop-only (TOF) cost: what its registrations cost on the days they
+    // came in — the acquisition euros those registrations actually pulled.
     const acquisitionCostEurMinor =
-      costPerRegistrationEurMinor != null
-        ? Math.round(costPerRegistrationEurMinor * a.regs)
-        : null;
+      acquisitionSpendEurMinor > 0 ? Math.round(acqAllocation.byWorkshop.get(w.id) ?? 0) : null;
     return {
       workshopId: w.id,
       title: w.title,
@@ -831,6 +899,8 @@ export async function computeWorkshopPerformance(
         acquisitionCostEurMinor != null && acquisitionCostEurMinor > 0
           ? totalEurMinor / acquisitionCostEurMinor
           : null,
+      costPerRegistrationEurMinor:
+        acquisitionCostEurMinor != null && a.regs > 0 ? acquisitionCostEurMinor / a.regs : null,
       conversionPct: a.regs > 0 ? (buyers.size / a.regs) * 100 : null,
       // Conversion of people who actually attended (not just registered) — the
       // next funnel step down. Denominator is live + replay attendees.
@@ -856,6 +926,8 @@ export async function computeWorkshopPerformance(
     retargetingSpendEurMinor: adSpendEurMinor - acquisitionSpendEurMinor,
     totalRegistrations,
     costPerRegistrationEurMinor,
+    dailyCosts,
+    unattributedAcquisitionSpendEurMinor: acqAllocation.unattributedEurMinor,
     workshopRevenueEurMinor,
     workshopRoas:
       acquisitionSpendEurMinor > 0 ? workshopRevenueEurMinor / acquisitionSpendEurMinor : null,

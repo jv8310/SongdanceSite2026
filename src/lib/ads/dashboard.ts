@@ -7,7 +7,8 @@
 //   • computeCourseSales     — standalone 12-week / certification / other sales.
 //   • computeWorkshopPerformance — the per-workshop funnel: registrations →
 //                              attendance → course/cert conversion, plus the
-//                              allocated Meta cost + cost-per-registration.
+//                              day-by-day allocated Meta cost + the
+//                              cost-per-registration each workshop actually paid.
 //   • mergeDailyStreams      — per-day revenue streams + ad spend for the charts.
 //
 // Plus two ads-specific extras this file adds: the 12-week checkout order bumps
@@ -32,7 +33,9 @@ export type AcquisitionDay = {
   adSpendEurMinor: number; // all campaigns
   acquisitionSpendEurMinor: number; // prospecting (TOF) campaigns only
   revenueEurMinor: number;
-  cpaEurMinor: number | null; // prospecting spend ÷ registrations that day
+  // Prospecting spend ÷ registrations that day — the price each of that day's
+  // registrations is charged at in the per-workshop cost allocation.
+  cpaEurMinor: number | null;
 };
 
 export type BumpLabel = { label: string; count: number; eurMinor: number };
@@ -46,7 +49,10 @@ export type AdsDashboard = {
   acquisitionSpendEurMinor: number; // prospecting (TOF) campaigns
   retargetingSpendEurMinor: number; // everything else
   registrations: number;
-  costPerRegistrationEurMinor: number | null; // prospecting spend ÷ registrations
+  costPerRegistrationEurMinor: number | null; // prospecting spend ÷ registrations (window average)
+  // Prospecting spend on days that produced no registration: it can't be priced
+  // day-by-day, so it's spread evenly over the window's registrations instead.
+  unattributedAcquisitionSpendEurMinor: number;
   attendedLive: number;
   replayViews: number;
   noShows: number;
@@ -270,6 +276,7 @@ export async function computeAdsDashboard(
     retargetingSpendEurMinor: perf.retargetingSpendEurMinor,
     registrations,
     costPerRegistrationEurMinor: perf.costPerRegistrationEurMinor,
+    unattributedAcquisitionSpendEurMinor: perf.unattributedAcquisitionSpendEurMinor,
     attendedLive,
     replayViews,
     noShows,

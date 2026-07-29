@@ -26,6 +26,12 @@ const eur = (minor: number) =>
   '€' + (minor / 100).toLocaleString('en-IE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const pct = (v: number | null) => (v != null ? v.toFixed(1) + '%' : '—');
 
+// The day-by-day acquisition ledger the per-workshop costs are built from —
+// only days that actually saw spend or a registration.
+const costDays = report.dailyCosts.filter(
+  (dc) => dc.adSpendEurMinor > 0 || dc.registrations > 0,
+).slice().reverse();
+
 const dateLabel = (iso: string) =>
   new Intl.DateTimeFormat('en-GB', {
     day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/Brussels',
@@ -79,8 +85,10 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
       <p class="adm-sub" style="margin-top:10px;">
         Showing <strong>{rangeLabel}</strong> ·
         prospecting (TOF) spend {eur(report.acquisitionSpendEurMinor)} ÷ {report.totalRegistrations} registrations =
-        <strong>{report.costPerRegistrationEurMinor != null ? eur(Math.round(report.costPerRegistrationEurMinor)) : '—'}</strong> cost per registration.
+        <strong>{report.costPerRegistrationEurMinor != null ? eur(Math.round(report.costPerRegistrationEurMinor)) : '—'}</strong> cost per registration on average.
         {report.retargetingSpendEurMinor > 0 && <> Retargeting {eur(report.retargetingSpendEurMinor)} is excluded from that (total ad spend {eur(report.adSpendEurMinor)}).</>}
+        <br />
+        Each workshop is charged <strong>day by day</strong>: every registration carries the price of a registration on the day it came in (that day’s TOF spend ÷ that day’s registrations), so a workshop that filled on expensive days costs more per seat than the average — see the daily table below.
       </p>
     </section>
 
@@ -102,6 +110,7 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
                 <th>Cert path</th>
                 <th>Revenue (net)</th>
                 <th>TOF cost</th>
+                <th>Cost / reg</th>
                 <th>Meta cost</th>
                 <th>ROAS</th>
                 <th>Conv %</th>
@@ -124,7 +133,8 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
                   <td>{r.courseBuys}</td>
                   <td>{r.certBuys}</td>
                   <td title={`Workshop checkout ${eur(r.engineNetEurMinor)} + attributed courses ${eur(r.attributedCourseEurMinor)}`}>{eur(r.totalEurMinor)}</td>
-                  <td title="This workshop's share of prospecting (TOF) spend, by registration count">{r.acquisitionCostEurMinor != null ? eur(r.acquisitionCostEurMinor) : '—'}</td>
+                  <td title="Prospecting (TOF) spend charged to this workshop, summed day by day over the days its registrations came in">{r.acquisitionCostEurMinor != null ? eur(r.acquisitionCostEurMinor) : '—'}</td>
+                  <td title="This workshop's own cost per registration — its TOF cost ÷ its registrations">{r.costPerRegistrationEurMinor != null ? eur(Math.round(r.costPerRegistrationEurMinor)) : '—'}</td>
                   <td>{r.metaCostEurMinor != null ? eur(r.metaCostEurMinor) : '—'}</td>
                   <td>{r.roas != null ? r.roas.toFixed(2) + '×' : '—'}</td>
                   <td>{pct(r.conversionPct)}</td>
@@ -143,6 +153,7 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
                 <td><strong>{totCert}</strong></td>
                 <td><strong>{eur(totRev)}</strong></td>
                 <td><strong>{eur(totTof)}</strong></td>
+                <td><strong>{report.costPerRegistrationEurMinor != null ? eur(Math.round(report.costPerRegistrationEurMinor)) : '—'}</strong></td>
                 <td><strong>{eur(totMeta)}</strong></td>
                 <td><strong>{totRoas != null ? totRoas.toFixed(2) + '×' : '—'}</strong></td>
                 <td><strong>{totRegs > 0 ? (((totCourse + totCert) / totRegs) * 100).toFixed(1) + '%' : '—'}</strong></td>
@@ -155,8 +166,49 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
       <p class="adm-sub" style="margin-top:12px;">
         Regs = completed registrations (paid or coupon). Live vs Replay splits attendees by whether they joined before or after the live slot ended; admin-marked attendance without a join time counts as live.
         Course = 12-Week buyers, Cert path = certification buyers (cert-only or bundle) — both as distinct people, hovering Revenue shows the workshop-checkout vs attributed-course split.
-        TOF cost = this workshop's share of prospecting (TOF) spend by registration count — the acquisition-only ad spend it pulled. Meta cost = blended cost per registration (total ad spend ÷ registrations) × this workshop's registrations. ROAS = revenue ÷ Meta cost. Conv % = distinct course/cert buyers ÷ registrations; Conv/att % = the same buyers ÷ attendees (live + replay), so it measures conversion of people who actually showed up. (Cost per registration in the summary above uses prospecting/TOF spend only.)
+        TOF cost = the prospecting spend this workshop's registrations pulled, priced day by day — each registration costs what a registration cost on the day it came in. Cost / reg = that TOF cost ÷ this workshop's registrations, so it differs from the window average when its seats filled on cheaper or dearer days. Meta cost = the same day-by-day allocation of <em>total</em> ad spend (prospecting + retargeting). ROAS = revenue ÷ Meta cost. Conv % = distinct course/cert buyers ÷ registrations; Conv/att % = the same buyers ÷ attendees (live + replay), so it measures conversion of people who actually showed up.
       </p>
+    </section>
+
+    <section class="adm-section">
+      <h2 style="margin:0 0 6px;font-size:18px;">Cost per registration, day by day</h2>
+      <p class="adm-sub" style="margin-top:0;">
+        The prices every workshop's cost above is built from: each day's prospecting (TOF) spend ÷ the registrations that came in that day.
+        {report.unattributedAcquisitionSpendEurMinor > 0 && (
+          <> <strong>{eur(report.unattributedAcquisitionSpendEurMinor)}</strong> of prospecting spend fell on days with no registration at all — it can't be priced against a registration, so it's spread evenly across every registration in the window (which keeps the TOF column summing to the {eur(report.acquisitionSpendEurMinor)} actually spent).</>
+        )}
+      </p>
+      {costDays.length === 0 && <p class="adm-empty">No ad spend or registrations in this window.</p>}
+      {costDays.length > 0 && (
+        <div class="wk-perf-scroll">
+          <table class="adm-table wk-perf">
+            <thead>
+              <tr>
+                <th>Day</th>
+                <th>Registrations</th>
+                <th>TOF spend</th>
+                <th>Cost / registration</th>
+                <th>Total ad spend</th>
+              </tr>
+            </thead>
+            <tbody>
+              {costDays.map((dc) => (
+                <tr>
+                  <td>{dc.date}</td>
+                  <td>{dc.registrations}</td>
+                  <td>{eur(dc.acquisitionSpendEurMinor)}</td>
+                  <td title={dc.costPerRegistrationEurMinor == null ? 'Spend but no registrations — spread across the window instead' : ''}>
+                    {dc.costPerRegistrationEurMinor == null
+                      ? '— unattributed'
+                      : eur(Math.round(dc.costPerRegistrationEurMinor))}
+                  </td>
+                  <td>{eur(dc.adSpendEurMinor)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </section>
   </main>
 

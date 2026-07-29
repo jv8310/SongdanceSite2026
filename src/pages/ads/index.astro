@@ -95,6 +95,7 @@ const tiles: Array<{ label: string; value: string; sub?: string; d: Delta }> = [
     label: 'Cost / registration',
     value: d.costPerRegistrationEurMinor != null ? eur(Math.round(d.costPerRegistrationEurMinor)) : '—',
     sub: 'prospecting spend ÷ regs',
+    // Per-workshop costs are priced day by day; this tile is their average.
     d: delta(d.costPerRegistrationEurMinor, cmp?.costPerRegistrationEurMinor, true),
   },
   {
@@ -389,7 +390,7 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
       </form>
       <p class="rangenote">
         Showing <strong>{rangeLabel}</strong>{cmp && cmpFrom && cmpTo && <> · vs <strong>{dateLabel(cmpFrom)} → {dateLabel(cmpTo)}</strong></>}.
-        {d.hasAdSpend && <> Prospecting spend {eur0(d.acquisitionSpendEurMinor)} ÷ {int(d.registrations)} registrations = <strong>{d.costPerRegistrationEurMinor != null ? eur(Math.round(d.costPerRegistrationEurMinor)) : '—'}</strong> per registration{d.retargetingSpendEurMinor > 0 && <> · {eur0(d.retargetingSpendEurMinor)} retargeting excluded</>}.</>}
+        {d.hasAdSpend && <> Prospecting spend {eur0(d.acquisitionSpendEurMinor)} ÷ {int(d.registrations)} registrations = <strong>{d.costPerRegistrationEurMinor != null ? eur(Math.round(d.costPerRegistrationEurMinor)) : '—'}</strong> per registration on average{d.retargetingSpendEurMinor > 0 && <> · {eur0(d.retargetingSpendEurMinor)} retargeting excluded</>}. Each workshop is charged day by day — every registration at the price of a registration on the day it came in.</>}
         {!(from && to) && <span class="sub-muted"> Pick a bounded period to compare against the previous one.</span>}
       </p>
 
@@ -523,7 +524,7 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
 
       <section>
         <h2>Results per workshop</h2>
-        <p class="note">The funnel for every workshop: registrations → attendance → course/cert conversion, with allocated Meta cost and ROAS. Course/Cert buys are matched by email across checkouts and standalone sales, so a buyer counts toward each workshop they attended. <strong>TOF cost</strong> is this workshop's share of prospecting spend; <strong>Meta cost</strong> allocates total spend. <strong>Conv %</strong> is buyers ÷ registrations; <strong>Conv/att %</strong> is buyers ÷ attendees (of the people who actually showed up).</p>
+        <p class="note">The funnel for every workshop: registrations → attendance → course/cert conversion, with allocated Meta cost and ROAS. Course/Cert buys are matched by email across checkouts and standalone sales, so a buyer counts toward each workshop they attended. Ad spend is charged <strong>day by day</strong> — every registration carries the price of a registration on the day it came in (that day's spend ÷ that day's registrations). <strong>TOF cost</strong> prices it against prospecting spend, <strong>Cost / reg</strong> is that ÷ this workshop's registrations, and <strong>Meta cost</strong> does the same with total spend. <strong>Conv %</strong> is buyers ÷ registrations; <strong>Conv/att %</strong> is buyers ÷ attendees (of the people who actually showed up).{d.unattributedAcquisitionSpendEurMinor > 0 && <> {eur0(d.unattributedAcquisitionSpendEurMinor)} of prospecting spend fell on days with no registration and is spread evenly across the window instead.</>}</p>
         {activeRows.length === 0 && <p class="empty">No workshop activity in this window.</p>}
         {activeRows.length > 0 && (
           <div class="card-tbl">
@@ -542,6 +543,7 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
                     <th class="num">Cert</th>
                     <th class="num">Revenue</th>
                     <th class="num">TOF cost</th>
+                    <th class="num">Cost / reg</th>
                     <th class="num">Meta cost</th>
                     <th class="num">ROAS</th>
                     <th class="num">Conv %</th>
@@ -564,7 +566,8 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
                       <td class="num">{int(r.courseBuys)}</td>
                       <td class="num">{int(r.certBuys)}</td>
                       <td class="num" title={`Checkout ${eur(r.engineNetEurMinor)} + attributed courses ${eur(r.attributedCourseEurMinor)}`}>{eur0(r.totalEurMinor)}</td>
-                      <td class="num" title="This workshop's share of prospecting (TOF) spend, by registration count">{r.acquisitionCostEurMinor != null ? eur0(r.acquisitionCostEurMinor) : '—'}</td>
+                      <td class="num" title="Prospecting (TOF) spend charged to this workshop, summed day by day over the days its registrations came in">{r.acquisitionCostEurMinor != null ? eur0(r.acquisitionCostEurMinor) : '—'}</td>
+                      <td class="num" title="This workshop's own cost per registration — its TOF cost ÷ its registrations">{r.costPerRegistrationEurMinor != null ? eur(Math.round(r.costPerRegistrationEurMinor)) : '—'}</td>
                       <td class="num">{r.metaCostEurMinor != null ? eur0(r.metaCostEurMinor) : '—'}</td>
                       <td class="num">{roasStr(r.roas)}</td>
                       <td class="num">{pct(r.conversionPct)}</td>
@@ -583,6 +586,7 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
                     <td class="num">{int(d.certBuyers)}</td>
                     <td class="num">{eur0(d.workshopRows.reduce((s, r) => s + r.totalEurMinor, 0))}</td>
                     <td class="num">{d.hasAdSpend ? eur0(d.workshopRows.reduce((s, r) => s + (r.acquisitionCostEurMinor ?? 0), 0)) : '—'}</td>
+                    <td class="num">{d.costPerRegistrationEurMinor != null ? eur(Math.round(d.costPerRegistrationEurMinor)) : '—'}</td>
                     <td class="num">{d.hasAdSpend ? eur0(d.workshopRows.reduce((s, r) => s + (r.metaCostEurMinor ?? 0), 0)) : '—'}</td>
                     <td class="num">—</td>
                     <td class="num">{pct(d.conversionPct)}</td>
