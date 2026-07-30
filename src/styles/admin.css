@@ -958,6 +958,21 @@ body { background: var(--adm-paper); }
   font-size: 12.5px;
   color: var(--adm-ink-soft);
 }
+.media-dropzone-progress-track {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--adm-line);
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+.media-dropzone-progress-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: inherit;
+  background: var(--adm-ember);
+  transition: width 0.15s ease-out;
+}
+.media-dropzone-progress-text { display: block; }
 .media-toolbar {
   display: flex; align-items: center; justify-content: space-between;
   gap: 12px; flex-wrap: wrap; margin-bottom: 12px;

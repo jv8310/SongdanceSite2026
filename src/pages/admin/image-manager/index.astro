@@ -58,7 +58,7 @@ function folder(key: string): string {
           they render in mail clients that don’t support WebP.
         </p>
         <p class="adm-sub">
-          <strong>Short videos:</strong> MP4 or WebM up to 70 MB — for background/accent clips. Drop
+          <strong>Short videos:</strong> MP4 or WebM up to 150 MB — for background/accent clips. Drop
           one in and use it on a page with <code>&lt;video src="/media/…" muted loop playsinline&gt;</code>.
           Anything longer or watched with sound belongs on Vimeo, not here.
         </p>
@@ -94,7 +94,12 @@ function folder(key: string): string {
           <strong>Drop images or short videos here</strong>
           <span>or click to choose — JPG, PNG, WebP, GIF, SVG, MP4, WebM · multiple at once</span>
         </div>
-        <div class="media-dropzone-progress" data-progress hidden></div>
+        <div class="media-dropzone-progress" data-progress hidden>
+          <div class="media-dropzone-progress-track">
+            <div class="media-dropzone-progress-fill" data-progress-fill></div>
+          </div>
+          <span class="media-dropzone-progress-text" data-progress-text></span>
+        </div>
       </div>
     </section>
 
@@ -185,6 +190,8 @@ function folder(key: string): string {
   const fileInput = document.querySelector<HTMLInputElement>('[data-file-input]');
   const grid = document.querySelector<HTMLElement>('[data-grid]');
   const progress = document.querySelector<HTMLElement>('[data-progress]');
+  const progressFill = document.querySelector<HTMLElement>('[data-progress-fill]');
+  const progressText = document.querySelector<HTMLElement>('[data-progress-text]');
   const countEl = document.querySelector<HTMLElement>('[data-count]');
   const emptyEl = document.querySelector<HTMLElement>('[data-empty]');
   const noResultsEl = document.querySelector<HTMLElement>('[data-noresults]');
@@ -221,6 +228,35 @@ function folder(key: string): string {
     return ALLOWED_VIDEO_TYPES.has(f.type);
   }
 
+  // Update the status line and, when a fraction is given, the fill bar's width.
+  function setProgress(text: string, fraction?: number) {
+    if (progressText) progressText.textContent = text;
+    if (progressFill && fraction != null) {
+      progressFill.style.width = `${Math.max(0, Math.min(1, fraction)) * 100}%`;
+    }
+  }
+
+  // POST via XMLHttpRequest (not fetch) so we get real upload-progress events —
+  // fetch has no way to observe bytes sent, which matters once videos can run
+  // to 150 MB and a bare "uploading…" label sits still for a long time.
+  function uploadFormData(url: string, body: FormData, onProgress: (fraction: number) => void) {
+    return new Promise<UploadResponse>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', url);
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable) onProgress(e.loaded / e.total);
+      });
+      xhr.addEventListener('load', () => {
+        let data: UploadResponse = {};
+        try { data = JSON.parse(xhr.responseText || '{}'); } catch { /* leave data empty */ }
+        if (xhr.status >= 200 && xhr.status < 300) resolve(data);
+        else reject(new Error(data.error || `Upload failed (${xhr.status})`));
+      });
+      xhr.addEventListener('error', () => reject(new Error('Network error during upload')));
+      xhr.send(body);
+    });
+  }
+
   // ---- Upload (drag-drop + click) ----
   async function uploadFiles(fileList: FileList | File[]) {
     const accepted = Array.from(fileList).filter(
@@ -234,14 +270,14 @@ function folder(key: string): string {
     if (!files.length) {
       if (tooBig.length) {
         progress.hidden = false;
-        progress.textContent = `Skipped ${tooBig.length} video${tooBig.length === 1 ? '' : 's'} over ${Math.round(MAX_VIDEO_BYTES / (1024 * 1024))} MB.`;
+        setProgress(`Skipped ${tooBig.length} video${tooBig.length === 1 ? '' : 's'} over ${Math.round(MAX_VIDEO_BYTES / (1024 * 1024))} MB.`, 0);
         setTimeout(() => { if (progress) progress.hidden = true; }, 4000);
       }
       return;
     }
     progress.hidden = false;
     let done = 0;
-    progress.textContent = `Optimising & uploading 0/${files.length}…`;
+    setProgress(`Optimising ${files.length} file${files.length === 1 ? '' : 's'}…`, 0);
 
     // Images with "email" in the name are stored as-is (no WebP re-encode):
     // many mail clients (Outlook etc.) can't render WebP, so email artwork
@@ -258,20 +294,22 @@ function folder(key: string): string {
     for (const f of optimised) body.append('files', f, f.name);
 
     try {
-      const res = await fetch('/api/admin/media/upload', { method: 'POST', body });
-      const data = (await res.json()) as UploadResponse;
-      if (!res.ok) throw new Error(data?.error || 'Upload failed');
+      const data = await uploadFormData('/api/admin/media/upload', body, (fraction) => {
+        setProgress(`Uploading… ${Math.round(fraction * 100)}%`, fraction);
+      });
       for (const item of data.uploaded ?? []) {
         prependCard(item);
         done++;
       }
       const skipped = (data.errors?.length ?? 0) + tooBig.length;
-      progress.textContent =
+      setProgress(
         `Uploaded ${done} file${done === 1 ? '' : 's'}.` +
-        (skipped ? ` Skipped ${skipped} (${data.errors?.[0] ?? 'too large'}).` : '');
+          (skipped ? ` Skipped ${skipped} (${data.errors?.[0] ?? 'too large'}).` : ''),
+        1,
+      );
       applyFilter();
     } catch (err) {
-      progress.textContent = `Upload failed: ${(err as Error).message}`;
+      setProgress(`Upload failed: ${(err as Error).message}`, 0);
     }
     setTimeout(() => { if (progress) progress.hidden = true; }, 4000);
   }

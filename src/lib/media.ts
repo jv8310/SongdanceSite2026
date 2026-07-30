@@ -32,8 +32,8 @@ export const ALLOWED_VIDEO_TYPES = new Set([
 ]);
 
 // Short clips only. Workers' request-body limit is generous, but the library is
-// for accent video — not a video host — so we draw the line at 70 MB.
-export const MAX_VIDEO_BYTES = 70 * 1024 * 1024;
+// for accent video — not a video host — so we draw the line at 150 MB.
+export const MAX_VIDEO_BYTES = 150 * 1024 * 1024;
 
 // Audio the music-album uploader accepts (admin/music). Mantra tracks can run
 // long, so the cap is higher than video — but each file uploads in its own
