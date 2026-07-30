@@ -58,7 +58,7 @@ function folder(key: string): string {
           they render in mail clients that don’t support WebP.
         </p>
         <p class="adm-sub">
-          <strong>Short videos:</strong> MP4 or WebM up to 150 MB — for background/accent clips. Drop
+          <strong>Short videos:</strong> MP4 or WebM up to 90 MB — for background/accent clips. Drop
           one in and use it on a page with <code>&lt;video src="/media/…" muted loop playsinline&gt;</code>.
           Anything longer or watched with sound belongs on Vimeo, not here.
         </p>
@@ -237,12 +237,17 @@ function folder(key: string): string {
   }
 
   // POST via XMLHttpRequest (not fetch) so we get real upload-progress events —
-  // fetch has no way to observe bytes sent, which matters once videos can run
-  // to 150 MB and a bare "uploading…" label sits still for a long time.
+  // fetch has no way to observe bytes sent, which matters once a video can run
+  // to 90 MB and a bare "uploading…" label sits still for a long time. A
+  // 5-minute timeout means a stalled connection fails visibly instead of
+  // leaving the bar stuck forever (this Cloudflare zone has been seen to hang
+  // an upload rather than closing it cleanly once a request body crosses its
+  // ~100 MB limit).
   function uploadFormData(url: string, body: FormData, onProgress: (fraction: number) => void) {
     return new Promise<UploadResponse>((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       xhr.open('POST', url);
+      xhr.timeout = 5 * 60 * 1000;
       xhr.upload.addEventListener('progress', (e) => {
         if (e.lengthComputable) onProgress(e.loaded / e.total);
       });
@@ -253,6 +258,7 @@ function folder(key: string): string {
         else reject(new Error(data.error || `Upload failed (${xhr.status})`));
       });
       xhr.addEventListener('error', () => reject(new Error('Network error during upload')));
+      xhr.addEventListener('timeout', () => reject(new Error('Upload timed out — check your connection and try again')));
       xhr.send(body);
     });
   }
@@ -290,27 +296,38 @@ function folder(key: string): string {
       ),
     );
 
-    const body = new FormData();
-    for (const f of optimised) body.append('files', f, f.name);
-
-    try {
-      const data = await uploadFormData('/api/admin/media/upload', body, (fraction) => {
-        setProgress(`Uploading… ${Math.round(fraction * 100)}%`, fraction);
-      });
-      for (const item of data.uploaded ?? []) {
-        prependCard(item);
-        done++;
+    // One file per request — not one shared FormData for the whole batch.
+    // Cloudflare rejects (or, worse, silently hangs on) any request body over
+    // ~100 MB, so bundling e.g. two 60 MB videos together would fail even
+    // though each is comfortably under the per-file cap. Mirrors the
+    // music-track uploader, which learned this the same way.
+    const errors: string[] = [...(tooBig.length ? [`${tooBig.length} too large`] : [])];
+    for (let i = 0; i < optimised.length; i++) {
+      const f = optimised[i];
+      const body = new FormData();
+      body.append('files', f, f.name);
+      try {
+        const data = await uploadFormData('/api/admin/media/upload', body, (fraction) => {
+          const overall = (i + fraction) / optimised.length;
+          setProgress(`Uploading ${i + 1}/${optimised.length}… ${Math.round(fraction * 100)}%`, overall);
+        });
+        for (const item of data.uploaded ?? []) {
+          prependCard(item);
+          done++;
+        }
+        if (data.errors?.length) errors.push(...data.errors);
+      } catch (err) {
+        errors.push(`${f.name}: ${(err as Error).message}`);
       }
-      const skipped = (data.errors?.length ?? 0) + tooBig.length;
-      setProgress(
-        `Uploaded ${done} file${done === 1 ? '' : 's'}.` +
-          (skipped ? ` Skipped ${skipped} (${data.errors?.[0] ?? 'too large'}).` : ''),
-        1,
-      );
-      applyFilter();
-    } catch (err) {
-      setProgress(`Upload failed: ${(err as Error).message}`, 0);
     }
+
+    const skipped = errors.length;
+    setProgress(
+      `Uploaded ${done} file${done === 1 ? '' : 's'}.` +
+        (skipped ? ` Skipped ${skipped} (${errors[0]}).` : ''),
+      1,
+    );
+    applyFilter();
     setTimeout(() => { if (progress) progress.hidden = true; }, 4000);
   }
 

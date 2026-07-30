@@ -31,9 +31,14 @@ export const ALLOWED_VIDEO_TYPES = new Set([
   'video/ogg',
 ]);
 
-// Short clips only. Workers' request-body limit is generous, but the library is
-// for accent video — not a video host — so we draw the line at 150 MB.
-export const MAX_VIDEO_BYTES = 150 * 1024 * 1024;
+// Short clips only. This Cloudflare zone hard-rejects any request body at/over
+// 100 MiB with a 413 before the Worker even runs (confirmed directly against
+// the deployed preview: 99 MB got through, 100 MB got a 413) — same wall the
+// music-track uploader stays under. So 90 MB, not the library's nominal "give
+// it some room" number, is the real ceiling here; raising this requires either
+// a Cloudflare plan that allows a higher zone "Maximum Upload Size", or moving
+// video off the single-POST path onto a direct-to-R2 (presigned URL) upload.
+export const MAX_VIDEO_BYTES = 90 * 1024 * 1024;
 
 // Audio the music-album uploader accepts (admin/music). Mantra tracks can run
 // long, so the cap is higher than video — but each file uploads in its own
