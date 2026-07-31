@@ -7,6 +7,13 @@
 // still on sale keeps the ordinary form as the first thing you meet; this sits
 // under it.
 //
+// When EVERY room is gone the waiting list takes the booking form's place
+// (`replaces`, default the `#register` section): the form is hidden and this
+// section inherits the `#register` anchor, so every "Register" link on the
+// page lands here instead of on a form that can't sell anything. A visitor
+// arriving on a claim link is the exception — the place kept for them reads as
+// open, so the form stays exactly where it is.
+//
 // Joining writes a row and sends a confirmation; when a place frees up the
 // admin offers it from /admin/retreats/<slug> and the person comes back with a
 // claim link. See src/lib/registrations/waitlist.ts.
@@ -23,9 +30,18 @@ interface Props {
   variant?: string;
   /** What a place is called here — "room" at the château, "cabin" on the boat. */
   noun?: string;
+  /** The booking form this stands in for once every room is gone. */
+  replaces?: string;
 }
 
-const { product, tiers, when, variant = '', noun = 'room' } = Astro.props;
+const {
+  product,
+  tiers,
+  when,
+  variant = '',
+  noun = 'room',
+  replaces = '#register',
+} = Astro.props;
 ---
 
 <section
@@ -35,6 +51,7 @@ const { product, tiers, when, variant = '', noun = 'room' } = Astro.props;
   data-product={product}
   data-tiers={JSON.stringify(tiers.map((t) => t.slug))}
   data-noun={noun}
+  data-replaces={replaces}
   hidden
 >
   <div class="rwl-inner">
@@ -93,7 +110,7 @@ const { product, tiers, when, variant = '', noun = 'room' } = Astro.props;
 
         <label class="rwl-field rwl-field--full">
           <span>Anything we should know? <em>(optional)</em></span>
-          <input type="text" name="notes" placeholder="e.g. travelling with Sam, or only the first weekend" />
+          <input type="text" name="notes" />
         </label>
       </div>
 
@@ -105,6 +122,7 @@ const { product, tiers, when, variant = '', noun = 'room' } = Astro.props;
 
       <p class="rwl-fine">
         One email to confirm, one if a place opens. Nothing else, and no charge.
+        Questions? Email <a href="mailto:info@songdance.co">info@songdance.co</a>.
       </p>
     </form>
 
@@ -143,6 +161,8 @@ const { product, tiers, when, variant = '', noun = 'room' } = Astro.props;
     --rwl-input-bg: #fff;
   }
   .rwl-inner { max-width: 640px; margin: 0 auto; }
+  /* Stands in for the retired form's #register anchor; clears the sticky nav. */
+  .rwl-anchor { display: block; height: 0; scroll-margin-top: 90px; }
   .rwl-eyebrow {
     margin: 0 0 10px;
     font-size: 12px;
@@ -273,9 +293,41 @@ const { product, tiers, when, variant = '', noun = 'room' } = Astro.props;
 
     // Show the panel as soon as anything is full — the whole retreat, or the
     // one room a visitor had their heart set on.
-    fetch(`/api/registrations/availability?product=${encodeURIComponent(product)}`, {
-      headers: { Accept: 'application/json' },
-    })
+    // Retire the booking form and inherit its anchor, so every "Register" link
+    // on the page arrives here.
+    const panel: HTMLElement = section;
+    const takeOverFrom = (selector: string) => {
+      const target = selector
+        ? (document.querySelector(selector) as HTMLElement | null)
+        : null;
+      if (!target || target === panel || target.contains(panel)) return;
+      const anchor = target.id;
+      target.hidden = true;
+      target.style.display = 'none';
+      if (anchor) {
+        target.removeAttribute('id');
+        const jump = document.createElement('span');
+        jump.id = anchor;
+        jump.className = 'rwl-anchor';
+        panel.insertBefore(jump, panel.firstChild);
+      }
+    };
+
+    // A claim link carries its own held place, so ask with the token: the room
+    // kept for that visitor reads as open and the booking form stays put.
+    let claim = '';
+    try {
+      claim = new URL(window.location.href).searchParams.get('claim')?.trim() ?? '';
+    } catch {
+      claim = '';
+    }
+
+    fetch(
+      `/api/registrations/availability?product=${encodeURIComponent(product)}${
+        claim ? `&claim=${encodeURIComponent(claim)}` : ''
+      }`,
+      { headers: { Accept: 'application/json' } },
+    )
       .then((r) => (r.ok ? r.json() : null))
       .then((data: any) => {
         if (!data || !Array.isArray(data.tiers)) return;
@@ -295,6 +347,9 @@ const { product, tiers, when, variant = '', noun = 'room' } = Astro.props;
           // Default the preference to the first sold-out room.
           const pref = form.querySelector('[name="tier_slug"]') as HTMLSelectElement | null;
           if (pref) pref.value = full[0].slug;
+        } else {
+          // Nothing left to sell: the waiting list stands in for the form.
+          takeOverFrom(section.dataset.replaces || '');
         }
         section.hidden = false;
       })
