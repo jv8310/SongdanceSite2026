@@ -355,3 +355,24 @@
 
 a.ds-textlink { color: var(--ds-teal); text-decoration-color: var(--ds-aqua); }
 .ds-section--deep a, .ds-section--abyss a { color: var(--ds-aqua-lt); text-decoration-color: var(--ds-aqua); }
+
+/* ---------- Waiting-list claim banner ---------- */
+/* Shown above the form when the page is opened from an offer email
+   (?claim=<token>) — see src/lib/client/retreat-claim.ts. */
+.ds-claim {
+  max-width: 720px;
+  margin: 0 auto 20px;
+  padding: 16px 20px;
+  border: 1px solid var(--ds-teal);
+  border-left-width: 4px;
+  border-radius: var(--r-lg);
+  background: var(--ds-foam);
+  color: var(--ds-ink);
+  font-size: var(--t-body-sm);
+  line-height: 1.65;
+}
+.ds-claim.is-lapsed {
+  border-color: var(--ds-coral-d);
+  background: rgba(226, 113, 74, 0.10);
+}
+.ds-room-avail a { color: inherit; text-decoration: underline; }

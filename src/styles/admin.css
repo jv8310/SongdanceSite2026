@@ -1034,3 +1034,111 @@ body { background: var(--adm-paper); }
 .media-folder--events { background: rgba(196, 128, 31, 0.16); color: var(--adm-warn); }
 .media-actions { display: flex; gap: 6px; }
 .media-actions .adm-btn--tiny { flex: 1; text-align: center; }
+
+/* ─── Retreat waiting list (/admin/retreats/<slug>) ─── */
+.adm-wl-counts {
+  font-size: 12px;
+  color: var(--adm-ink-soft);
+  display: flex;
+  gap: 4px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+.adm-table--waitlist { width: 100%; font-size: 13px; }
+.adm-table--waitlist th { font-size: 11px; }
+.adm-table--waitlist td { vertical-align: top; }
+.adm-wl-row--booked td,
+.adm-wl-row--removed td,
+.adm-wl-row--declined td { opacity: 0.62; }
+.adm-wl-who { display: flex; flex-direction: column; gap: 1px; min-width: 180px; }
+.adm-wl-who a { font-size: 12px; }
+.adm-wl-meta { font-size: 11px; color: var(--adm-ink-soft); }
+.adm-wl-note {
+  font-size: 11px;
+  color: var(--adm-ink-soft);
+  font-style: italic;
+  max-width: 260px;
+}
+.adm-wl-offer-meta {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--adm-ink-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.adm-wl-link {
+  width: 100%;
+  max-width: 240px;
+  padding: 3px 5px;
+  border: 1px solid var(--adm-line);
+  border-radius: 4px;
+  background: var(--adm-paper-soft);
+  color: var(--adm-ink-soft);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+}
+.adm-wl-offer {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 0;
+}
+.adm-wl-offer select {
+  padding: 4px 6px;
+  border: 1px solid var(--adm-line);
+  border-radius: 5px;
+  background: #fff;
+  color: var(--adm-ink);
+  font-family: inherit;
+  font-size: 12px;
+  max-width: 190px;
+}
+.adm-wl-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: stretch;
+}
+.adm-wl-actions form { margin: 0; }
+.adm-wl-actions button { width: 100%; }
+.adm-wl-add { margin-top: 14px; }
+.adm-wl-add > summary {
+  cursor: pointer;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--adm-ink-soft);
+}
+.adm-wl-add-form {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-end;
+}
+.adm-wl-add-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--adm-ink-soft);
+}
+.adm-wl-add-form input,
+.adm-wl-add-form select {
+  padding: 6px 8px;
+  border: 1px solid var(--adm-line);
+  border-radius: 5px;
+  background: #fff;
+  color: var(--adm-ink);
+  font-family: inherit;
+  font-size: 13px;
+  text-transform: none;
+  letter-spacing: normal;
+}
+.adm-wl-add-notes { flex: 1; min-width: 220px; }
+.adm-wl-add-notes input { width: 100%; }
+.adm-mute { color: var(--adm-mute); }

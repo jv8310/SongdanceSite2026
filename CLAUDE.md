@@ -296,6 +296,60 @@ gated player) but no email telling them so. Delivery now lives in the site, in
   (`/api/admin/workshops/mantra-pack-send`) that forces the sweep with a wider
   cap. Pressing it twice is harmless.
 
+## Retreat waiting list — and the offer that holds a place
+
+A sold-out retreat used to be a dead end. Now the page offers a waiting list,
+and when a place frees up the admin offers it to someone from
+**`/admin/retreats/<slug>` → "Waiting list"**. Table `retreat_waitlist`
+(migration 0080), logic in
+[`src/lib/registrations/waitlist.ts`](src/lib/registrations/waitlist.ts).
+
+- **Joining** — [`RetreatWaitlist.astro`](src/components/RetreatWaitlist.astro)
+  sits under the registration form on both retreat pages and **reveals itself**
+  when any of the rooms it lists is full (all of them, or just the one someone
+  wanted); the sold-out badges link to it (`#waiting-list`). `POST
+  /api/registrations/waitlist` upserts on (retreat, email) — joining twice
+  updates, never duplicates — and confirms by email. Someone who left the list
+  and comes back rejoins at the **back** of the queue; the people who waited
+  through keep their place.
+- **Offering** — the admin picks the room and a window (default 48h) and the
+  button emails a **claim link**
+  (`/retreats/<page>?claim=<token>#register`, `RETREAT_PAGE_PATHS` maps the
+  slug → page; a retreat missing from that map can't be offered). The send is
+  what makes it real: **a failed email rolls the hold back**
+  ([`waitlist-offer.ts`](src/lib/registrations/waitlist-offer.ts)).
+- **An offer is a real hold, not just an email.** While it stands, that place
+  stops being sold: `countActiveOffersByTier` is subtracted from public
+  availability everywhere a visitor is shown or sold a place —
+  `/api/registrations/availability`, the dolphin GET, and both checkout
+  capacity guards. The claim link passes its token, which excludes **its own**
+  hold, so the room reads open for the person it's kept for and for nobody
+  else. Holds are per **tier**: in the château's room model two tiers can share
+  a physical room, so a booking on a *different* tier can still consume the bed
+  — the same coupling that already exists between two ordinary bookings.
+- **The hold lifts exactly when the booking takes the place instead** — never
+  both at once, never neither. Paid → lifted. Pending **with a room assigned**
+  (the château, where checkout takes the room immediately) → lifted. Pending
+  **with no room** (the boat: "free until paid", migration 0074) → the hold
+  stands, or the promised place would go back on sale while the guest is on the
+  payment page. Starting a second checkout on the same claim link releases the
+  first (`releaseClaimCheckoutHold`), so one offer never holds two rooms — the
+  second of which could be the next person's place.
+- **Closing the loop** — the checkout records the booking on the entry
+  (`attachRegistration`) and `settleWaitlistOnPaid` flips it to `booked` when
+  the money lands. It is called from **every** paid path (Stripe webhook,
+  PayPal fulfilment, admin "Mark paid"), alongside `assignRoomOnPaid`.
+  Offers that run out are swept to `expired` by the **hourly cron**
+  (`expireLapsedOffers`) — but never while the guest's own checkout is still in
+  flight.
+- **Admin** — the section lists the queue (position = join order among the
+  people still waiting), each person's preference, notes and contact details,
+  the live offer with its expiry and copyable claim link, and the booking it
+  produced. Per row: offer / re-offer, withdraw, mark declined, put back on the
+  list, delete. Plus "Add someone by hand" for the ones who ask by email (no
+  confirmation email — you're already in the conversation). The retreats index
+  shows "N waiting" per retreat.
+
 ## Internal reports — daily + weekly "SD-REPORT" digests
 
 Ops-only summary email (NOT customer-facing), sibling to the `SD-ORDER`

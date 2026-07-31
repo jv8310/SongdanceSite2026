@@ -7,6 +7,15 @@ import {
   getRoomsWithMode,
   getRegistrationsWithBalanceDue,
 } from '../../../lib/registrations/db';
+import {
+  listWaitlist,
+  countActiveOffersByTier,
+  claimUrl,
+  sqliteToIso,
+  waitlistDisplayName,
+  DEFAULT_OFFER_HOURS,
+  OFFER_HOUR_CHOICES,
+} from '../../../lib/registrations/waitlist';
 
 export const prerender = false;
 
@@ -494,7 +503,52 @@ const incomeRows = [
   { label: 'Still to receive', cents: toReceiveCents },
 ];
 
-// Flash banner after a send action (set by the balance/* endpoints).
+// ─── Waiting list ───
+// Everyone who put their name down for this retreat, plus the places each
+// live offer is currently holding back from sale (see
+// src/lib/registrations/waitlist.ts).
+const waitlist = await listWaitlist(env.DB, product.id);
+const waitlistHolds = await countActiveOffersByTier(env.DB, product.id);
+const waitingCount = waitlist.filter((w) => w.status === 'waiting').length;
+const invitedCount = waitlist.filter((w) => w.offer_live).length;
+const heldTotal = [...waitlistHolds.values()].reduce((n, v) => n + v, 0);
+
+// What can be offered, and how much of it is actually free right now:
+// remaining beds in the tier, minus the ones already promised to someone.
+const offerTiers = ta
+  .filter(({ tier }) => !/admin|test/i.test(tier.slug))
+  .map(({ tier, remaining }) => {
+    const held = waitlistHolds.get(tier.id) ?? 0;
+    return {
+      id: tier.id,
+      name: tier.name,
+      remaining,
+      held,
+      free: Math.max(0, remaining - held),
+    };
+  });
+const anyFree = offerTiers.some((t) => t.free > 0);
+
+const publicBase = (env.PUBLIC_BASE_URL || Astro.url.origin).replace(/\/+$/, '');
+
+function waitlistTone(w: { status: string; offer_live: boolean }): string {
+  if (w.status === 'invited') return w.offer_live ? 'low' : 'cancelled';
+  if (w.status === 'waiting') return 'waitlist';
+  if (w.status === 'booked') return 'paid';
+  return 'cancelled';
+}
+
+function waitlistStatusLabel(w: { status: string; offer_live: boolean }): string {
+  if (w.status === 'invited') return w.offer_live ? 'Offered' : 'Offer lapsed';
+  if (w.status === 'waiting') return 'Waiting';
+  if (w.status === 'booked') return 'Booked';
+  if (w.status === 'declined') return 'Declined';
+  if (w.status === 'expired') return 'Offer expired';
+  return 'Removed';
+}
+
+// Flash banner after a send action (set by the balance/* + waitlist/*
+// endpoints).
 const flash = (() => {
   const p = Astro.url.searchParams;
   if (p.get('bal_bulk')) {
@@ -502,6 +556,28 @@ const flash = (() => {
   }
   if (p.get('bal_sent')) return { tone: 'ok' as const, msg: 'Balance email sent.' };
   if (p.get('bal_failed')) return { tone: 'err' as const, msg: `Balance email failed${p.get('bal_error') ? `: ${p.get('bal_error')}` : ''}.` };
+  if (p.get('wl_offered')) {
+    return { tone: 'ok' as const, msg: 'Place offered — the claim link is on its way, and the place is held until it expires.' };
+  }
+  if (p.get('wl_added')) return { tone: 'ok' as const, msg: 'Added to the waiting list.' };
+  if (p.get('wl_updated')) return { tone: 'ok' as const, msg: 'Waiting list updated.' };
+  if (p.get('wl_failed')) {
+    const reason = p.get('wl_failed') ?? '';
+    const readable: Record<string, string> = {
+      'pick-a-room': 'Choose which room to offer first.',
+      'name-and-email': 'A first name and an email address are needed.',
+      'bad-email': 'That email address does not look right.',
+      'unknown-retreat': 'That retreat could not be found.',
+      'resend-key-missing': 'No Resend API key is configured, so no email could be sent.',
+      'no-claim-page': 'This retreat has no public booking page mapped (RETREAT_PAGE_PATHS in waitlist.ts).',
+      'already-booked': 'That person has already booked.',
+      'not-found': 'That waiting-list entry no longer exists.',
+    };
+    return {
+      tone: 'err' as const,
+      msg: `Nothing was sent — ${readable[reason] ?? reason}`,
+    };
+  }
   return null;
 })();
 ---
@@ -750,6 +826,228 @@ const flash = (() => {
         </tfoot>
       </table>
       <p class="adm-table-note">Rooms are grouped and sorted by building. <strong>Category</strong> is the price band (tier) the room is sold under. <strong>Sell as</strong>: <em>Single</em> — whole room, one booking locks it. <em>Multi</em> — sold bed by bed. <em>Either</em> — multi-mode; one whole-room booking locks the rest of the beds. Empty multi rooms show a dropdown: <em>Either</em> (auto), <em>Single only</em>, or <em>Multi only</em> — pin a mode to pre-decide how the room is offered on the public form. <strong>Booked</strong> counts active paid + pending registrations (incl. pre-allocated hosts/cook). <strong>Available</strong> is 0 for inactive rooms and for the empty beds in a locked whole-room booking; for a role-reserved bed it reflects whether the fire-keeper / cook-help seat is still open. <strong>Status</strong> carries a switch: <em>Reserve</em> holds a room back — its free beds stop being offered on the public form and auto-assign skips it — and <em>Open</em> puts it back on sale, so a reserved room keeps taking new bookings for its remaining beds. Either way, guests already placed in the room stay where they are. The totals row is the retreat-wide paying figure (same as the Capacity section): every active bed minus the non-paying hosts + cook, and excluding the hidden admin-test bed — so it won't equal a plain sum of the room rows above.</p>
+    </section>
+
+    <!-- ─── Waiting list ─── -->
+    <section class="adm-section" id="waiting-list">
+      <div class="adm-section-head">
+        <h2>
+          Waiting list
+          <small>(people waiting for a place to come free)</small>
+        </h2>
+        <div class="adm-wl-counts">
+          <span><strong>{waitingCount}</strong> waiting</span>
+          {invitedCount > 0 && (
+            <span>· <strong>{invitedCount}</strong> offered</span>
+          )}
+          {heldTotal > 0 && (
+            <span>· <strong>{heldTotal}</strong> {heldTotal === 1 ? 'place' : 'places'} held</span>
+          )}
+        </div>
+      </div>
+
+      {waitlist.length === 0 ? (
+        <p class="adm-empty">Nobody on the waiting list yet. The join form appears on the retreat page as soon as a room sells out.</p>
+      ) : (
+        <table class="adm-table adm-table--waitlist">
+          <thead>
+            <tr>
+              <th class="num">#</th>
+              <th>Who</th>
+              <th>Wants</th>
+              <th>Joined</th>
+              <th>Status</th>
+              <th>Offer a place</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {waitlist.map((w) => {
+              const name = waitlistDisplayName(w);
+              const expiresIso = sqliteToIso(w.offer_expires_at);
+              const link = w.claim_token && w.offer_live
+                ? claimUrl(publicBase, productSlug, w.claim_token)
+                : null;
+              const defaultTier =
+                w.offered_tier_id ??
+                w.tier_id ??
+                offerTiers.find((t) => t.free > 0)?.id ??
+                offerTiers[0]?.id;
+              const closed = w.status === 'booked' || w.status === 'removed';
+              return (
+                <tr class={`adm-wl-row adm-wl-row--${w.status}`}>
+                  <td class="num">{w.position ?? '—'}</td>
+                  <td class="adm-wl-who">
+                    <strong>{name}</strong>
+                    <a href={`mailto:${w.email}`}>{w.email}</a>
+                    {w.phone && <span class="adm-wl-meta">{w.phone}</span>}
+                    {w.country && <span class="adm-wl-meta">{w.country}</span>}
+                    {w.party_size > 1 && (
+                      <span class="adm-wl-meta">for {w.party_size} people</span>
+                    )}
+                    {w.notes && <span class="adm-wl-note">{w.notes}</span>}
+                  </td>
+                  <td>{w.tier_name ?? <em class="adm-mute">anything</em>}</td>
+                  <td class="adm-mono">{ymd(w.created_at)}</td>
+                  <td>
+                    <span class={`adm-pill adm-pill--${waitlistTone(w)}`}>{waitlistStatusLabel(w)}</span>
+                    {w.status === 'invited' && (
+                      <div class="adm-wl-offer-meta">
+                        <div>{w.offered_tier_name ?? '—'}</div>
+                        <div>
+                          {w.offer_live
+                            ? `until ${ymd(w.offer_expires_at)}`
+                            : `lapsed ${ymd(w.offer_expires_at)}`}
+                        </div>
+                        {w.registration_id && (
+                          <div>
+                            booking #{w.registration_id}
+                            {w.registration_status ? ` · ${w.registration_status}` : ''}
+                          </div>
+                        )}
+                        {link && (
+                          <input
+                            class="adm-wl-link"
+                            type="text"
+                            readonly
+                            value={link}
+                            onclick="this.select()"
+                            aria-label={`Claim link for ${name}`}
+                          />
+                        )}
+                      </div>
+                    )}
+                    {w.status === 'booked' && w.registration_id && (
+                      <div class="adm-wl-offer-meta">booking #{w.registration_id}</div>
+                    )}
+                  </td>
+                  <td>
+                    {closed ? (
+                      <span class="adm-mute">—</span>
+                    ) : (
+                      <form
+                        method="POST"
+                        action="/api/admin/waitlist/offer"
+                        class="adm-wl-offer"
+                        onsubmit={`return confirm(${JSON.stringify(
+                          `Offer a place to ${name} (${w.email})? They get an email with a link that books it, and the place is held for them until the offer expires.`,
+                        )})`}
+                      >
+                        <input type="hidden" name="waitlist_id" value={w.id} />
+                        <input type="hidden" name="return_to" value={returnTo} />
+                        <label class="vh" for={`wl-tier-${w.id}`}>Room to offer</label>
+                        <select id={`wl-tier-${w.id}`} name="tier_id">
+                          {offerTiers.map((t) => (
+                            <option value={t.id} selected={t.id === defaultTier}>
+                              {t.name} — {t.free > 0 ? `${t.free} free` : 'none free'}
+                            </option>
+                          ))}
+                        </select>
+                        <label class="vh" for={`wl-hours-${w.id}`}>Hold for</label>
+                        <select id={`wl-hours-${w.id}`} name="hours">
+                          {OFFER_HOUR_CHOICES.map((h) => (
+                            <option value={h} selected={h === DEFAULT_OFFER_HOURS}>
+                              {h < 48 ? `${h} hours` : `${Math.round(h / 24)} days`}
+                            </option>
+                          ))}
+                        </select>
+                        <button type="submit" class="adm-btn adm-btn--solid adm-btn--tiny">
+                          {w.status === 'invited' ? 'Re-offer' : 'Offer place'}
+                        </button>
+                      </form>
+                    )}
+                  </td>
+                  <td class="adm-wl-actions">
+                    {w.status === 'invited' && (
+                      <form method="POST" action="/api/admin/waitlist/status">
+                        <input type="hidden" name="waitlist_id" value={w.id} />
+                        <input type="hidden" name="action" value="withdraw" />
+                        <input type="hidden" name="return_to" value={returnTo} />
+                        <button type="submit" class="adm-btn adm-btn--ghost adm-btn--tiny" title="Take the offer back and free the place">Withdraw</button>
+                      </form>
+                    )}
+                    {(w.status === 'waiting' || w.status === 'invited') && (
+                      <form method="POST" action="/api/admin/waitlist/status">
+                        <input type="hidden" name="waitlist_id" value={w.id} />
+                        <input type="hidden" name="action" value="declined" />
+                        <input type="hidden" name="return_to" value={returnTo} />
+                        <button type="submit" class="adm-btn adm-btn--ghost adm-btn--tiny" title="They said no thank you">Declined</button>
+                      </form>
+                    )}
+                    {w.status !== 'waiting' && w.status !== 'booked' && (
+                      <form method="POST" action="/api/admin/waitlist/status">
+                        <input type="hidden" name="waitlist_id" value={w.id} />
+                        <input type="hidden" name="action" value="waiting" />
+                        <input type="hidden" name="return_to" value={returnTo} />
+                        <button type="submit" class="adm-btn adm-btn--ghost adm-btn--tiny" title="Put them back on the list">Back on list</button>
+                      </form>
+                    )}
+                    <form
+                      method="POST"
+                      action="/api/admin/waitlist/status"
+                      onsubmit={`return confirm(${JSON.stringify(
+                        `Remove ${name} (${w.email}) from the waiting list? The entry is deleted.`,
+                      )})`}
+                    >
+                      <input type="hidden" name="waitlist_id" value={w.id} />
+                      <input type="hidden" name="action" value="delete" />
+                      <input type="hidden" name="return_to" value={returnTo} />
+                      <button type="submit" class="adm-btn adm-btn--danger adm-btn--tiny">Delete</button>
+                    </form>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+
+      <p class="adm-table-note">
+        <strong>Offer place</strong> emails that person a link that books the room you picked — and <strong>holds it</strong>: while the offer stands, that place stops being sold on the public form, so nobody can take it from under them. If they don't book before the window closes, the offer lapses on its own, the place goes back on sale, and you can offer it to the next person. <strong>Withdraw</strong> takes the offer back straight away.
+        {!anyFree && offerTiers.length > 0 && (
+          <> Nothing is free right now — you can still make an offer (useful the moment you know a cancellation is coming), it simply holds a place the retreat doesn't have yet.</>
+        )}
+        {' '}The <strong>#</strong> column is the queue, in the order people joined.
+      </p>
+
+      <details class="adm-wl-add">
+        <summary>Add someone by hand</summary>
+        <form method="POST" action="/api/admin/waitlist/add" class="adm-wl-add-form">
+          <input type="hidden" name="product_slug" value={productSlug} />
+          <input type="hidden" name="return_to" value={returnTo} />
+          <label>
+            <span>First name</span>
+            <input type="text" name="first_name" required />
+          </label>
+          <label>
+            <span>Last name</span>
+            <input type="text" name="last_name" />
+          </label>
+          <label>
+            <span>Email</span>
+            <input type="email" name="email" required />
+          </label>
+          <label>
+            <span>Phone</span>
+            <input type="text" name="phone" />
+          </label>
+          <label>
+            <span>Wants</span>
+            <select name="tier_id">
+              <option value="">anything</option>
+              {offerTiers.map((t) => (
+                <option value={t.id}>{t.name}</option>
+              ))}
+            </select>
+          </label>
+          <label class="adm-wl-add-notes">
+            <span>Note</span>
+            <input type="text" name="notes" placeholder="e.g. asked by email, travelling with Sam" />
+          </label>
+          <button type="submit" class="adm-btn adm-btn--solid">Add to waiting list</button>
+        </form>
+        <p class="adm-table-note">No email goes out when you add someone here — you're already in touch with them.</p>
+      </details>
     </section>
 
     <!-- ─── Balance due (deposit-payers) ─── -->

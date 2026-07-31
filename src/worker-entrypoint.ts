@@ -23,6 +23,7 @@ import { runReports } from './lib/workshops/reports';
 import { reconcileOrderNotifications } from './lib/orders/reconcile';
 import { reconcilePaypalCourseOrders } from './lib/payments/paypal-reconcile';
 import { reconcileStripeCourseOrders } from './lib/payments/stripe-reconcile';
+import { expireLapsedOffers } from './lib/registrations/waitlist';
 import { fxRatesStale, refreshFxRates } from './lib/admin/fx';
 import { runMetaAdSpendSync } from './lib/ads/meta-insights';
 
@@ -222,6 +223,20 @@ export function createExports(manifest: unknown) {
         })
         .catch((err) => {
           console.error('[intake/sweep] cron run failed', err);
+        }),
+    );
+
+    // Retreat waiting list: an offered place is held for the person it was
+    // offered to, and only until its window closes. This lets the lapsed ones
+    // go — the place goes back on sale and the entry reads `expired` in the
+    // admin list, ready to be offered to the next person. Steady state: 0.
+    ctx.waitUntil(
+      expireLapsedOffers(env.DB)
+        .then((n) => {
+          if (n > 0) console.log(`[waitlist] ${n} offer(s) lapsed`);
+        })
+        .catch((err) => {
+          console.error('[waitlist] expiry sweep failed', err);
         }),
     );
 

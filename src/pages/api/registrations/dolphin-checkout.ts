@@ -8,6 +8,12 @@ import {
   attachPaypalOrder,
   logEventSafe,
 } from '../../../lib/registrations/db';
+import {
+  attachRegistration,
+  countActiveOffersByTier,
+  getLiveOfferByToken,
+  releaseClaimCheckoutHold,
+} from '../../../lib/registrations/waitlist';
 import { edgeTimezone } from '../../../lib/geo';
 import {
   createCheckoutSession,
@@ -48,26 +54,35 @@ function unitLabel(slug: string): string {
 }
 
 // GET → per-cabin prices + live availability for the registration form.
-export const GET: APIRoute = async ({ locals }) => {
+//
+// `?claim=<token>` is a waiting-list claim link: it excludes that person's own
+// hold, so the cabin being kept for them reads as open — for them only.
+export const GET: APIRoute = async ({ url, locals }) => {
   const env = locals.runtime.env;
   const product = await getProductBySlug(env.DB, PRODUCT_SLUG);
   if (!product) return json({ error: 'Unknown product' }, 404);
 
-  const availability = await computeTierAvailability(env.DB, product.id);
-  const bySlug = new Map(availability.map((a) => [a.tier.slug, a]));
+  const claim = await resolveClaim(env.DB, product.id, url.searchParams.get('claim'));
+  const [rawAvailability, holds] = await Promise.all([
+    computeTierAvailability(env.DB, product.id),
+    countActiveOffersByTier(env.DB, product.id, { exceptEntryId: claim?.id ?? null }),
+  ]);
+  const bySlug = new Map(rawAvailability.map((a) => [a.tier.slug, a]));
 
   const tiers = PUBLIC_TIER_SLUGS.map((slug) => {
     const a = bySlug.get(slug);
     if (!a) return null;
     const price = a.tier.price_cents;
+    // Places promised to people on the waiting list are not on sale.
+    const remaining = Math.max(0, a.remaining - (holds.get(a.tier.id) ?? 0));
     return {
       slug,
       name: a.tier.name,
       price_cents: price,
       deposit_cents: Math.round(price * DEPOSIT_FRACTION),
-      remaining: a.remaining,
+      remaining,
       capacity: a.capacity,
-      sold_out: a.remaining <= 0,
+      sold_out: remaining <= 0,
       unit_label: unitLabel(slug),
     };
   }).filter((t): t is NonNullable<typeof t> => t !== null);
@@ -96,7 +111,19 @@ type Body = {
   payment_mode?: 'full' | 'deposit';
   consent_terms?: boolean;
   provider?: string; // 'stripe' (default) | 'paypal'
+  claim_token?: string; // waiting-list claim link
 };
+
+// A waiting-list claim link, if it's real, live, and for this retreat.
+async function resolveClaim(
+  db: D1Database,
+  productId: number,
+  token: string | null | undefined,
+) {
+  if (!token) return null;
+  const entry = await getLiveOfferByToken(db, token);
+  return entry && entry.product_id === productId ? entry : null;
+}
 
 export const POST: APIRoute = async ({ request, locals }) => {
   const env = locals.runtime.env;
@@ -169,17 +196,32 @@ export const POST: APIRoute = async ({ request, locals }) => {
   }
 
   // Capacity guard — computed from the room model so cross-cabin coupling
-  // (a solo-locked double, the reserved host cabin) is respected.
-  const availability = await computeTierAvailability(env.DB, product.id);
+  // (a solo-locked double, the reserved host cabin) is respected, then minus
+  // any place currently promised to someone on the waiting list. A claim link
+  // excludes its own hold, so the invited guest can book what's kept for them.
+  const claim = await resolveClaim(env.DB, product.id, payload.claim_token);
+  // A second run at the same claim link replaces the first, rather than
+  // holding a second place alongside it.
+  await releaseClaimCheckoutHold(env.DB, claim);
+  const [availability, holds] = await Promise.all([
+    computeTierAvailability(env.DB, product.id),
+    countActiveOffersByTier(env.DB, product.id, { exceptEntryId: claim?.id ?? null }),
+  ]);
   const tierAvail = availability.find((a) => a.tier.id === tier.id);
-  if (!tierAvail || tierAvail.remaining <= 0) {
+  const heldForWaitlist = holds.get(tier.id) ?? 0;
+  if (!tierAvail || tierAvail.remaining - heldForWaitlist <= 0) {
     await logEventSafe(env.DB, {
       registration_id: null,
       kind: 'checkout.tier.full',
-      payload: { tier_slug: tierSlug },
+      payload: { tier_slug: tierSlug, held_for_waitlist: heldForWaitlist },
     });
+    const heldOut = !!tierAvail && tierAvail.remaining > 0;
     return json(
-      { error: 'That cabin is fully booked. Please choose another, or email info@songdance.co for the waiting list.' },
+      {
+        error: heldOut
+          ? 'That cabin is being held for someone on the waiting list. Please choose another, or put your name down and we\'ll come back to you.'
+          : 'That cabin is fully booked. Please choose another, or join the waiting list below.',
+      },
       409,
     );
   }
@@ -242,6 +284,18 @@ export const POST: APIRoute = async ({ request, locals }) => {
     balance_due_cents: balanceCents,
     provider,
   });
+
+  // A claimed place: remember which booking came out of the offer. The entry
+  // stays `invited` — so the hold follows them through checkout — until the
+  // payment lands (settleWaitlistOnPaid closes it).
+  if (claim) {
+    await attachRegistration(env.DB, claim.id, registrationId);
+    await logEventSafe(env.DB, {
+      registration_id: registrationId,
+      kind: 'waitlist.claim.checkout',
+      payload: { waitlist_id: claim.id, tier_slug: tier.slug },
+    });
+  }
 
   const baseUrl = env.PUBLIC_BASE_URL.replace(/\/$/, '');
 

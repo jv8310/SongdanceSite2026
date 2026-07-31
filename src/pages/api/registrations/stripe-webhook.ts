@@ -10,6 +10,7 @@ import {
   markRegistrationPaid,
   markRegistrationRefunded,
 } from '../../../lib/registrations/db';
+import { settleWaitlistOnPaid } from '../../../lib/registrations/waitlist';
 import {
   computeInstallmentCancelAt,
   paymentIntentFromInvoice,
@@ -293,6 +294,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // already assigned — e.g. a seeded/held booking). Pending rows carry no
     // room, so this is where a checkout booking first gets one.
     await assignRoomOnPaid(env.DB, reg.id);
+
+    // If this booking came off the waiting list, close that entry (and
+    // release the place it was holding). No-op for an ordinary booking.
+    await settleWaitlistOnPaid(env.DB, reg.id);
 
     // Drip: upsert subscriber + fire the "Completed retreat registration"
     // event so the confirmation email (and any follow-up sequence) is sent

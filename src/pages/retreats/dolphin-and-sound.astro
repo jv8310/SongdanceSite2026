@@ -11,6 +11,7 @@ import DSJacob from '../../components/dolphin-and-sound/DSJacob.astro';
 import DSPractical from '../../components/dolphin-and-sound/DSPractical.astro';
 import DSFAQ from '../../components/dolphin-and-sound/DSFAQ.astro';
 import DSRegister from '../../components/dolphin-and-sound/DSRegister.astro';
+import RetreatWaitlist from '../../components/RetreatWaitlist.astro';
 import DSFooter from '../../components/dolphin-and-sound/DSFooter.astro';
 import DiscoverMore from '../../components/DiscoverMore.astro';
 ---
@@ -31,6 +32,17 @@ import DiscoverMore from '../../components/DiscoverMore.astro';
     <DSPractical />
     <DSFAQ />
     <DSRegister />
+    <RetreatWaitlist
+      product="dolphin-and-sound-2026"
+      when="1–8 November 2026 · Sataya Reef, Egypt"
+      variant="rwl--ds"
+      noun="cabin"
+      tiers={[
+        { slug: 'twin-lower', label: 'Twin cabin – lower deck with porthole' },
+        { slug: 'twin-upper', label: 'Twin cabin – upper deck with sea views' },
+        { slug: 'double-lower', label: 'Cabin with double bed – lower deck' },
+      ]}
+    />
     <DiscoverMore currentHref="/retreats/dolphin-and-sound" />
     <DSFooter />
   </div>

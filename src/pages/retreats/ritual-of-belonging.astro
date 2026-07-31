@@ -14,6 +14,7 @@ import RBPractical from '../../components/ritual-of-belonging/RBPractical.astro'
 import RBTogether from '../../components/ritual-of-belonging/RBTogether.astro';
 import RBFramework from '../../components/ritual-of-belonging/RBFramework.astro';
 import RBRegister from '../../components/ritual-of-belonging/RBRegister.astro';
+import RetreatWaitlist from '../../components/RetreatWaitlist.astro';
 import RBFooter from '../../components/ritual-of-belonging/RBFooter.astro';
 import DiscoverMore from '../../components/DiscoverMore.astro';
 ---
@@ -38,6 +39,18 @@ import DiscoverMore from '../../components/DiscoverMore.astro';
     <RBFramework />
     <RBPractical />
     <RBRegister />
+    <RetreatWaitlist
+      product="ritual-of-belonging-2026"
+      when="27–29 November 2026 · Château Cortils, Belgium"
+      variant="rwl--rb"
+      tiers={[
+        { slug: 'private-ensuite', label: 'Private En-suite' },
+        { slug: 'private-shared-bath', label: 'Private Shared-bath' },
+        { slug: 'private-double', label: 'Private Double (couple)' },
+        { slug: 'shared-bedroom', label: 'Shared Room' },
+        { slug: 'common-space', label: 'Budget Room' },
+      ]}
+    />
     <DiscoverMore currentHref="/retreats/ritual-of-belonging" />
     <RBFooter />
   </div>

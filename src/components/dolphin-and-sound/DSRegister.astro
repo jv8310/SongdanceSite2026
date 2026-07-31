@@ -18,6 +18,10 @@ import { COUNTRIES } from '../../lib/countries';
       </div>
     </div>
 
+    <!-- Waiting-list claim: filled in by the script when the page is opened
+         with ?claim=<token> from an offer email. -->
+    <div class="ds-claim" id="ds-claim" hidden></div>
+
     <form id="ds-reg-form" class="ds-card" novalidate>
       <fieldset class="ds-rooms" aria-label="Cabin">
         <legend class="ds-rooms-legend">Choose your cabin</legend>
@@ -174,6 +178,14 @@ import { COUNTRIES } from '../../lib/countries';
 </section>
 
 <script>
+  import {
+    claimTokenFromUrl,
+    loadRetreatClaim,
+    prefillFromClaim,
+    renderClaimBanner,
+    type RetreatClaim,
+  } from '../../lib/client/retreat-claim';
+
   const form = document.getElementById('ds-reg-form') as HTMLFormElement | null;
   if (form) {
     const errBox = form.querySelector('#ds-reg-error') as HTMLElement;
@@ -244,8 +256,31 @@ import { COUNTRIES } from '../../lib/countries';
       if (firstOpen) firstOpen.checked = true;
     }
 
-    // Live availability + authoritative prices from the server.
-    fetch('/api/registrations/dolphin-checkout', { headers: { Accept: 'application/json' } })
+    // ── Waiting-list claim ──
+    // Opened from an offer email (?claim=<token>): the cabin held for this
+    // person reads as open (the server excludes their own hold), the banner
+    // says so, and their details are already in the form.
+    const claimToken = claimTokenFromUrl();
+    let claim: RetreatClaim | null = null;
+    const claimBanner = document.getElementById('ds-claim') as HTMLElement | null;
+    const claimReady = claimToken
+      ? loadRetreatClaim(claimToken).then((c) => {
+          claim = c;
+          if (claimBanner) renderClaimBanner(claimBanner, c, { hadToken: true });
+          if (c) prefillFromClaim(form!, c);
+          return c;
+        })
+      : Promise.resolve(null);
+
+    // Live availability + authoritative prices from the server. The claim token
+    // rides along so the held cabin isn't shown as sold out to its own guest.
+    claimReady
+      .then((c) =>
+        fetch(
+          `/api/registrations/dolphin-checkout${c ? `?claim=${encodeURIComponent(c.token)}` : ''}`,
+          { headers: { Accept: 'application/json' } },
+        ),
+      )
       .then((r) => (r.ok ? r.json() : null))
       .then((data: any) => {
         if (!data || !Array.isArray(data.tiers)) return;
@@ -265,7 +300,11 @@ import { COUNTRIES } from '../../lib/countries';
           if (t.sold_out) {
             label.classList.add('is-soldout');
             input.disabled = true;
-            if (avail) { avail.textContent = 'Fully booked'; avail.hidden = false; }
+            if (avail) {
+              avail.innerHTML =
+                'Fully booked — <a href="#waiting-list">join the waiting list</a>';
+              avail.hidden = false;
+            }
           } else if (t.remaining <= 4) {
             if (avail) {
               avail.textContent = t.remaining === 1 ? 'Only 1 place left' : `Only ${t.remaining} places left`;
@@ -273,12 +312,25 @@ import { COUNTRIES } from '../../lib/countries';
             }
           }
         }
+        // A claimed cabin is the one place that IS free for this visitor —
+        // select it, whatever the rest of the boat looks like.
+        if (claim) {
+          const claimed = form!.querySelector(
+            `.ds-room[data-slug="${claim.tier_slug}"] input`,
+          ) as HTMLInputElement | null;
+          if (claimed) {
+            claimed.disabled = false;
+            claimed.closest('.ds-room')?.classList.remove('is-soldout');
+            claimed.checked = true;
+          }
+        }
         ensureSelectable();
         renderPayment();
 
         if (placesEl && typeof data.total_remaining === 'number') {
           if (data.total_remaining <= 0) {
-            placesEl.textContent = 'Fully booked — join the waiting list';
+            placesEl.innerHTML =
+              'Fully booked — <a href="#waiting-list">join the waiting list</a>';
             placesEl.hidden = false;
           } else if (data.total_remaining <= 6) {
             placesEl.textContent =
@@ -321,7 +373,10 @@ import { COUNTRIES } from '../../lib/countries';
 
       const fd = new FormData(form);
       const tierSlug = String(fd.get('tier_slug') ?? '').trim();
-      if (!tierSlug || tiers.get(tierSlug)?.sold_out) {
+      // A cabin held on a claim link reads sold out to everyone else — but not
+      // to the person it's held for.
+      const claimedTier = claim && claim.tier_slug === tierSlug;
+      if (!tierSlug || (tiers.get(tierSlug)?.sold_out && !claimedTier)) {
         errBox.textContent = 'Please choose an available cabin.';
         errBox.hidden = false;
         return;
@@ -365,6 +420,9 @@ import { COUNTRIES } from '../../lib/countries';
         payment_mode: fd.get('payment_mode') === 'deposit' ? 'deposit' : 'full',
         consent_terms: fd.get('consent_terms') === 'on',
         provider,
+        // Present only when they came from an offer email; the server
+        // re-validates it and lets them book the place kept for them.
+        claim_token: claim ? claim.token : undefined,
       };
 
       const original = submitBtn.innerHTML;

@@ -77,6 +77,10 @@ const roomTypes: RoomType[] = [
       assignment.
     </p>
 
+    <!-- Waiting-list claim: filled in by the script when the page is opened
+         with ?claim=<token> from an offer email. -->
+    <div class="rb-claim" id="rb-claim" hidden></div>
+
     <form id="rb-reg-form" class="rb-reg-form-v2" novalidate data-step="1">
       <input type="hidden" name="product_slug" value="ritual-of-belonging-2026" />
       <input type="hidden" name="tier_slug" id="rb-tier-slug" value="" />
@@ -330,6 +334,14 @@ const roomTypes: RoomType[] = [
 </section>
 
 <script>
+  import {
+    claimTokenFromUrl,
+    loadRetreatClaim,
+    prefillFromClaim,
+    renderClaimBanner,
+    type RetreatClaim,
+  } from '../../lib/client/retreat-claim';
+
   type StepNum = 1 | 2 | 3;
 
   const form = document.getElementById('rb-reg-form') as HTMLFormElement | null;
@@ -533,10 +545,32 @@ const roomTypes: RoomType[] = [
       window.scrollTo({ top, behavior: 'smooth' });
     }
 
+    // ───────── Waiting-list claim ─────────
+    // Opened from an offer email (?claim=<token>): the room held for this
+    // person reads as open (the server excludes their own hold), the banner
+    // says so, and their details are already in the form.
+    const claimToken = claimTokenFromUrl();
+    let claim: RetreatClaim | null = null;
+    const claimBanner = document.getElementById('rb-claim') as HTMLElement | null;
+    const claimReady = claimToken
+      ? loadRetreatClaim(claimToken).then((c) => {
+          claim = c;
+          if (claimBanner) renderClaimBanner(claimBanner, c, { hadToken: true });
+          if (c) prefillFromClaim(form!, c);
+          return c;
+        })
+      : Promise.resolve(null);
+
     // ───────── Availability: fetch on load, show "X spots left" badges ─────────
-    fetch('/api/registrations/availability?product=ritual-of-belonging-2026', {
-      headers: { Accept: 'application/json' },
-    })
+    claimReady
+      .then((c) =>
+        fetch(
+          `/api/registrations/availability?product=ritual-of-belonging-2026${
+            c ? `&claim=${encodeURIComponent(c.token)}` : ''
+          }`,
+          { headers: { Accept: 'application/json' } },
+        ),
+      )
       .then((r) => (r.ok ? r.json() : null))
       .then((data: any) => {
         if (!data || !Array.isArray(data.tiers)) return;
@@ -555,7 +589,7 @@ const roomTypes: RoomType[] = [
           // let the live availability data unlock them.
           if (card.dataset.tierClosed === 'true') continue;
           if (t.remaining === 0) {
-            badge.textContent = 'Fully booked';
+            badge.innerHTML = 'Fully booked — <a href="#waiting-list">waiting list</a>';
             badge.classList.add('rb-roomcard-avail--full');
             badge.hidden = false;
             card.disabled = true;
@@ -566,6 +600,38 @@ const roomTypes: RoomType[] = [
               t.remaining === 1
                 ? 'Only 1 spot left'
                 : `Only ${t.remaining} spots left`;
+            badge.classList.add('rb-roomcard-avail--low');
+            badge.hidden = false;
+          }
+        }
+        // A claimed room is the one place that IS free for this visitor —
+        // unlock it and pre-select it, whatever the rest of the house reads.
+        if (claim) {
+          const card = form!.querySelector(
+            `[data-tier-slug="${claim.tier_slug}"]`,
+          ) as HTMLButtonElement | null;
+          const badge = form!.querySelector(
+            `[data-avail-for="${claim.tier_slug}"]`,
+          ) as HTMLElement | null;
+          if (card) {
+            card.disabled = false;
+            card.hidden = false;
+            card.classList.remove('is-fullybooked');
+            card.classList.add('is-selected');
+            card.setAttribute('aria-disabled', 'false');
+            card.setAttribute('aria-checked', 'true');
+            rooms.forEach((b) => {
+              if (b !== card) {
+                b.classList.remove('is-selected');
+                b.setAttribute('aria-checked', 'false');
+              }
+            });
+            tierSlug.value = claim.tier_slug;
+            updateSpecials();
+          }
+          if (badge) {
+            badge.textContent = 'Held for you';
+            badge.classList.remove('rb-roomcard-avail--full');
             badge.classList.add('rb-roomcard-avail--low');
             badge.hidden = false;
           }
@@ -717,6 +783,9 @@ const roomTypes: RoomType[] = [
         // Payment gateway for this checkout: 'stripe' (default) or 'paypal'.
         // The response shape is identical, so the redirect below is unchanged.
         provider,
+        // Present only when they came from an offer email; the server
+        // re-validates it and lets them book the place kept for them.
+        claim_token: claim ? claim.token : undefined,
       };
 
       if (!data.consent_framework || !data.consent_terms) {
