@@ -6,6 +6,7 @@ import {
   logEvent,
   markRegistrationPaid,
 } from '../../../lib/registrations/db';
+import { settleWaitlistOnPaid } from '../../../lib/registrations/waitlist';
 import { pushPaidRegistrationToDrip } from '../../../lib/registrations/paid-handler';
 import { notifyRetreatOrder } from '../../../lib/orders/notification';
 
@@ -35,6 +36,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
   // Place the guest in a cabin now they're marked paid (no-op if the row
   // already has a room — e.g. a seeded/held booking).
   await assignRoomOnPaid(env.DB, registrationId);
+  // If this booking came off the waiting list, close that entry (and release
+  // the place it was holding). No-op for an ordinary booking.
+  await settleWaitlistOnPaid(env.DB, registrationId);
   await logEvent(env.DB, {
     registration_id: registrationId,
     kind: 'admin.mark_paid',

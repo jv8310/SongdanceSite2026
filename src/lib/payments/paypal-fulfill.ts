@@ -19,6 +19,7 @@ import {
   getRegistrationByPaypalCapture,
   type Registration,
 } from '../registrations/db';
+import { settleWaitlistOnPaid } from '../registrations/waitlist';
 import { pushPaidRegistrationToDrip, recordRetreatOrder } from '../registrations/paid-handler';
 import {
   getCourseRegistrationById,
@@ -233,6 +234,9 @@ export async function fulfillRetreatPaypalOneOff(
   await markRegistrationPaidPaypal(env.DB, reg.id, capture.captureId);
   // Place the guest in a cabin now they've paid (no-op if already assigned).
   await assignRoomOnPaid(env.DB, reg.id);
+  // If this booking came off the waiting list, close that entry (and release
+  // the place it was holding). No-op for an ordinary booking.
+  await settleWaitlistOnPaid(env.DB, reg.id);
   await logEvent(env.DB, {
     registration_id: reg.id,
     kind: 'paypal.retreat.captured',

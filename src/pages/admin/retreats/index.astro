@@ -16,12 +16,22 @@ const products = (
     .prepare(
       `SELECT p.slug, p.name, p.starts_at, p.ends_at,
               (SELECT COUNT(*) FROM registrations r WHERE r.product_id = p.id) AS total,
-              (SELECT COUNT(*) FROM registrations r WHERE r.product_id = p.id AND r.status = 'paid' AND r.host = 0) AS paid
+              (SELECT COUNT(*) FROM registrations r WHERE r.product_id = p.id AND r.status = 'paid' AND r.host = 0) AS paid,
+              (SELECT COUNT(*) FROM retreat_waitlist w
+                WHERE w.product_id = p.id AND w.status = 'waiting') AS waiting
          FROM products p
         WHERE p.type = 'retreat' AND p.active = 1
         ORDER BY p.starts_at`,
     )
-    .all<{ slug: string; name: string; starts_at: string | null; ends_at: string | null; total: number; paid: number }>()
+    .all<{
+      slug: string;
+      name: string;
+      starts_at: string | null;
+      ends_at: string | null;
+      total: number;
+      paid: number;
+      waiting: number;
+    }>()
 ).results ?? [];
 ---
 
@@ -52,6 +62,7 @@ const products = (
             <span>
               {p.starts_at ? `${p.starts_at}${p.ends_at ? ` → ${p.ends_at}` : ''} · ` : ''}
               {p.paid} paid · {p.total} total
+              {p.waiting > 0 ? ` · ${p.waiting} waiting` : ''}
             </span>
           </a>
         ))}

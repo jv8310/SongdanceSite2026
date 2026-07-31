@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import {
   getProductBySlug,
   getTierBySlug,
+  computeTierAvailability,
   createPendingRegistration,
   attachStripeSession,
   attachPaypalOrder,
@@ -10,6 +11,12 @@ import {
   getSpecialRoomByRole,
   type SpecialRole,
 } from '../../../lib/registrations/db';
+import {
+  attachRegistration,
+  countActiveOffersByTier,
+  getLiveOfferByToken,
+  releaseClaimCheckoutHold,
+} from '../../../lib/registrations/waitlist';
 import { edgeTimezone } from '../../../lib/geo';
 import {
   createCheckoutSession,
@@ -58,6 +65,7 @@ type Body = {
   role?: SpecialRole | null;
   easter_egg_discount?: boolean;
   provider?: string; // 'stripe' (default) | 'paypal'
+  claim_token?: string; // waiting-list claim link
 };
 
 export const POST: APIRoute = async ({ request, locals }) => {
@@ -163,6 +171,36 @@ export const POST: APIRoute = async ({ request, locals }) => {
     );
   }
 
+  // A place promised to someone on the waiting list is off sale until their
+  // offer lapses. Their own claim link excludes their own hold, so the room
+  // kept for them is bookable — by them.
+  const claim = await resolveClaim(env.DB, product.id, payload.claim_token);
+  // A second run at the same claim link replaces the first, rather than
+  // holding a second room alongside it.
+  await releaseClaimCheckoutHold(env.DB, claim);
+  const waitlistHolds = await countActiveOffersByTier(env.DB, product.id, {
+    exceptEntryId: claim?.id ?? null,
+  });
+  const heldForWaitlist = waitlistHolds.get(tier.id) ?? 0;
+  if (heldForWaitlist > 0) {
+    const availability = await computeTierAvailability(env.DB, product.id);
+    const tierAvail = availability.find((a) => a.tier.id === tier.id);
+    if (!tierAvail || tierAvail.remaining - heldForWaitlist <= 0) {
+      await logEventSafe(env.DB, {
+        registration_id: null,
+        kind: 'checkout.tier.held_for_waitlist',
+        payload: { tier_slug: tierSlug, held_for_waitlist: heldForWaitlist },
+      });
+      return json(
+        {
+          error:
+            'That room is being held for someone on the waiting list. Please choose another, or put your name down and we\'ll come back to you.',
+        },
+        409,
+      );
+    }
+  }
+
   // Pick the room: special role overrides the auto-pick.
   let room;
   if (role === 'fire_keeper') {
@@ -252,6 +290,18 @@ export const POST: APIRoute = async ({ request, locals }) => {
     hold_minutes: HOLD_MINUTES,
     provider,
   });
+
+  // A claimed place: remember which booking came out of the offer. The entry
+  // stays `invited` — so the hold follows them through checkout — until the
+  // payment lands (settleWaitlistOnPaid closes it).
+  if (claim) {
+    await attachRegistration(env.DB, claim.id, registrationId);
+    await logEventSafe(env.DB, {
+      registration_id: registrationId,
+      kind: 'waitlist.claim.checkout',
+      payload: { waitlist_id: claim.id, tier_slug: tier.slug },
+    });
+  }
 
   const baseUrl = env.PUBLIC_BASE_URL.replace(/\/$/, '');
 
@@ -400,6 +450,17 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
   return json({ checkout_url: session.url, registration_id: registrationId });
 };
+
+// A waiting-list claim link, if it's real, live, and for this retreat.
+async function resolveClaim(
+  db: D1Database,
+  productId: number,
+  token: string | null | undefined,
+) {
+  if (!token) return null;
+  const entry = await getLiveOfferByToken(db, token);
+  return entry && entry.product_id === productId ? entry : null;
+}
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {

@@ -1,0 +1,368 @@
+---
+// The waiting list on a retreat page.
+//
+// It appears by itself: on load it asks /api/registrations/availability what's
+// left, and reveals itself as soon as any of the listed rooms is full — the
+// whole retreat sold out, or just the one room someone had in mind. Anything
+// still on sale keeps the ordinary form as the first thing you meet; this sits
+// under it.
+//
+// Joining writes a row and sends a confirmation; when a place frees up the
+// admin offers it from /admin/retreats/<slug> and the person comes back with a
+// claim link. See src/lib/registrations/waitlist.ts.
+import { COUNTRIES } from '../lib/countries';
+
+interface Props {
+  /** DB product slug, e.g. 'dolphin-and-sound-2026'. */
+  product: string;
+  /** Public room/cabin options: DB tier slug + the label to show. */
+  tiers: { slug: string; label: string }[];
+  /** "1–8 November 2026 · Sataya Reef, Egypt" — shown under the heading. */
+  when?: string;
+  /** Extra class on the section, so a bespoke page can tune the colours. */
+  variant?: string;
+  /** What a place is called here — "room" at the château, "cabin" on the boat. */
+  noun?: string;
+}
+
+const { product, tiers, when, variant = '', noun = 'room' } = Astro.props;
+---
+
+<section
+  class={`rwl ${variant}`}
+  id="waiting-list"
+  data-rwl
+  data-product={product}
+  data-tiers={JSON.stringify(tiers.map((t) => t.slug))}
+  data-noun={noun}
+  hidden
+>
+  <div class="rwl-inner">
+    <p class="rwl-eyebrow">Waiting list</p>
+    <h2 class="rwl-h2" data-rwl-title>Every place is taken</h2>
+    <p class="rwl-lede" data-rwl-lede>
+      Plans change more often than you'd think. Put your name down and if a
+      place comes free we'll offer it to you, in the order people joined.
+      Nothing is charged, and you're free to say no.
+    </p>
+    {when && <p class="rwl-when">{when}</p>}
+
+    <form class="rwl-form" data-rwl-form novalidate>
+      <div class="rwl-grid">
+        <label class="rwl-field">
+          <span>First name</span>
+          <input type="text" name="first_name" autocomplete="given-name" required />
+        </label>
+        <label class="rwl-field">
+          <span>Last name</span>
+          <input type="text" name="last_name" autocomplete="family-name" />
+        </label>
+        <label class="rwl-field rwl-field--full">
+          <span>Email address</span>
+          <input type="email" name="email" autocomplete="email" required />
+        </label>
+
+        {tiers.length > 1 && (
+          <label class="rwl-field rwl-field--full">
+            <span>Which {noun} would you like? <em>(we'll offer whatever opens first if you don't mind)</em></span>
+            <select name="tier_slug">
+              <option value="">Anything that comes free</option>
+              {tiers.map((t) => (<option value={t.slug}>{t.label}</option>))}
+            </select>
+          </label>
+        )}
+
+        <label class="rwl-field">
+          <span>Country <em>(optional)</em></span>
+          <select name="country">
+            <option value="">— select —</option>
+            {COUNTRIES.map((c) => (<option value={c.code}>{c.name} {c.flag}</option>))}
+          </select>
+        </label>
+
+        <div class="rwl-field">
+          <span>Phone <em>(optional)</em></span>
+          <div class="rwl-phone">
+            <select name="phone_country" aria-label="Phone country code">
+              <option value="">—</option>
+              {COUNTRIES.map((c) => (<option value={c.code} data-dial={c.dial}>{c.code} +{c.dial}</option>))}
+            </select>
+            <input type="tel" name="phone" autocomplete="tel-national" inputmode="tel" placeholder="470 12 34 56" />
+          </div>
+        </div>
+
+        <label class="rwl-field rwl-field--full">
+          <span>Anything we should know? <em>(optional)</em></span>
+          <input type="text" name="notes" placeholder="e.g. travelling with Sam, or only the first weekend" />
+        </label>
+      </div>
+
+      <div class="rwl-error" data-rwl-error hidden></div>
+
+      <button type="submit" class="rwl-btn" data-rwl-submit>
+        Put me on the waiting list
+      </button>
+
+      <p class="rwl-fine">
+        One email to confirm, one if a place opens. Nothing else, and no charge.
+      </p>
+    </form>
+
+    <div class="rwl-done" data-rwl-done hidden>
+      <p class="rwl-done-h">You're on the list.</p>
+      <p class="rwl-done-p" data-rwl-done-p></p>
+    </div>
+  </div>
+</section>
+
+<style>
+  /* Neutral by design: the section takes its colours from the page it sits on
+     (both retreat pages set --rwl-* or fall back to these). */
+  .rwl {
+    --rwl-ink: var(--rwl-ink-override, #2a1b2a);
+    --rwl-soft: color-mix(in srgb, var(--rwl-ink) 62%, transparent);
+    --rwl-line: color-mix(in srgb, var(--rwl-ink) 18%, transparent);
+    padding: clamp(48px, 8vw, 96px) 20px;
+    background: var(--rwl-bg, #f4ecdf);
+    color: var(--rwl-ink);
+  }
+  /* Dolphin & Sound — sand paper, sea-teal button, to match the page above. */
+  .rwl--ds {
+    --rwl-bg: var(--ds-sand, #f4ecdf);
+    --rwl-ink-override: var(--ds-ink, #0c2330);
+    --rwl-btn-bg: var(--ds-teal, #157a8c);
+    --rwl-btn-ink: #fff;
+    --rwl-input-bg: #fff;
+  }
+  /* Ritual of Belonging — the château's paper and ember. */
+  .rwl--rb {
+    --rwl-bg: var(--paper, #f4ecdf);
+    --rwl-ink-override: var(--ink, #2a1b2a);
+    --rwl-btn-bg: var(--ember, #c9603a);
+    --rwl-btn-ink: #fff;
+    --rwl-input-bg: #fff;
+  }
+  .rwl-inner { max-width: 640px; margin: 0 auto; }
+  .rwl-eyebrow {
+    margin: 0 0 10px;
+    font-size: 12px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--rwl-soft);
+    text-align: center;
+  }
+  .rwl-h2 {
+    margin: 0 0 14px;
+    font-family: var(--font-display, Georgia, serif);
+    font-size: clamp(28px, 5vw, 40px);
+    font-weight: 400;
+    line-height: 1.15;
+    text-align: center;
+  }
+  .rwl-lede,
+  .rwl-when {
+    margin: 0 auto 10px;
+    max-width: 52ch;
+    text-align: center;
+    font-size: 16px;
+    line-height: 1.7;
+    color: var(--rwl-soft);
+  }
+  .rwl-when { font-size: 14px; letter-spacing: 0.04em; }
+  .rwl-form { margin-top: 28px; }
+  .rwl-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+  .rwl-field { display: flex; flex-direction: column; gap: 6px; }
+  .rwl-field--full { grid-column: 1 / -1; }
+  .rwl-field > span {
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--rwl-soft);
+  }
+  .rwl-field em {
+    font-style: italic;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+  .rwl-field input,
+  .rwl-field select,
+  .rwl-phone select,
+  .rwl-phone input {
+    width: 100%;
+    padding: 11px 12px;
+    border: 1px solid var(--rwl-line);
+    border-radius: 8px;
+    background: var(--rwl-input-bg, rgba(255, 255, 255, 0.7));
+    color: var(--rwl-ink);
+    font-family: inherit;
+    font-size: 15px;
+  }
+  .rwl-field input:focus,
+  .rwl-field select:focus,
+  .rwl-phone select:focus,
+  .rwl-phone input:focus {
+    outline: none;
+    border-color: color-mix(in srgb, var(--rwl-ink) 45%, transparent);
+  }
+  .rwl-phone { display: grid; grid-template-columns: 120px 1fr; gap: 8px; }
+  .rwl-error {
+    margin-top: 14px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: rgba(181, 61, 61, 0.12);
+    color: #8c2f2f;
+    font-size: 14px;
+  }
+  .rwl-btn {
+    margin-top: 20px;
+    width: 100%;
+    padding: 15px 22px;
+    border: 0;
+    border-radius: 999px;
+    background: var(--rwl-btn-bg, #2a1b2a);
+    color: var(--rwl-btn-ink, #f4ecdf);
+    font-family: inherit;
+    font-size: 15px;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    transition: opacity 0.15s ease;
+  }
+  .rwl-btn:hover { opacity: 0.88; }
+  .rwl-btn[disabled] { opacity: 0.6; cursor: default; }
+  .rwl-fine {
+    margin: 14px 0 0;
+    text-align: center;
+    font-size: 13px;
+    color: var(--rwl-soft);
+  }
+  .rwl-done { margin-top: 28px; text-align: center; }
+  .rwl-done-h {
+    margin: 0 0 8px;
+    font-family: var(--font-display, Georgia, serif);
+    font-size: 24px;
+  }
+  .rwl-done-p { margin: 0; color: var(--rwl-soft); line-height: 1.7; }
+
+  @media (max-width: 560px) {
+    .rwl-grid { grid-template-columns: 1fr; }
+    .rwl-phone { grid-template-columns: 104px 1fr; }
+  }
+</style>
+
+<script>
+  const section = document.querySelector('[data-rwl]') as HTMLElement | null;
+  if (section) {
+    const product = section.dataset.product ?? '';
+    let watched: string[] = [];
+    try {
+      watched = JSON.parse(section.dataset.tiers ?? '[]');
+    } catch {
+      watched = [];
+    }
+    const form = section.querySelector('[data-rwl-form]') as HTMLFormElement;
+    const errBox = section.querySelector('[data-rwl-error]') as HTMLElement;
+    const submitBtn = section.querySelector('[data-rwl-submit]') as HTMLButtonElement;
+    const titleEl = section.querySelector('[data-rwl-title]') as HTMLElement;
+    const ledeEl = section.querySelector('[data-rwl-lede]') as HTMLElement;
+    const doneBox = section.querySelector('[data-rwl-done]') as HTMLElement;
+    const donePara = section.querySelector('[data-rwl-done-p]') as HTMLElement;
+
+    // Show the panel as soon as anything is full — the whole retreat, or the
+    // one room a visitor had their heart set on.
+    fetch(`/api/registrations/availability?product=${encodeURIComponent(product)}`, {
+      headers: { Accept: 'application/json' },
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: any) => {
+        if (!data || !Array.isArray(data.tiers)) return;
+        const listed = data.tiers.filter((t: any) =>
+          watched.length === 0 ? true : watched.includes(t.slug),
+        );
+        if (listed.length === 0) return;
+        const full = listed.filter((t: any) => (t.remaining ?? 0) <= 0);
+        if (full.length === 0) return;
+        if (full.length < listed.length) {
+          const noun = section.dataset.noun || 'room';
+          titleEl.textContent = `Some ${noun}s are already full`;
+          ledeEl.textContent =
+            `The ${noun} you wanted may be gone, but plans change more often than you'd think. ` +
+            'Put your name down for it and we\'ll offer it to you if it frees up — in the order people joined. ' +
+            'Nothing is charged, and you\'re free to say no.';
+          // Default the preference to the first sold-out room.
+          const pref = form.querySelector('[name="tier_slug"]') as HTMLSelectElement | null;
+          if (pref) pref.value = full[0].slug;
+        }
+        section.hidden = false;
+      })
+      .catch(() => {});
+
+    // A link anywhere on the page (e.g. a "join the waiting list" badge on a
+    // sold-out room) can open it directly.
+    document.addEventListener('click', (ev) => {
+      const el = (ev.target as HTMLElement | null)?.closest('a[href="#waiting-list"], [data-open-waitlist]');
+      if (!el) return;
+      section.hidden = false;
+      window.setTimeout(() => {
+        section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 20);
+    });
+
+    form.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      errBox.hidden = true;
+      const fd = new FormData(form);
+      const first = String(fd.get('first_name') ?? '').trim();
+      const email = String(fd.get('email') ?? '').trim();
+      if (!first || !email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        errBox.textContent = 'Please add your first name and a valid email address.';
+        errBox.hidden = false;
+        return;
+      }
+
+      const original = submitBtn.textContent;
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'One moment…';
+      try {
+        const res = await fetch('/api/registrations/waitlist', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            product_slug: product,
+            tier_slug: fd.get('tier_slug') ?? '',
+            first_name: first,
+            last_name: fd.get('last_name'),
+            email,
+            country: fd.get('country'),
+            phone_country: fd.get('phone_country'),
+            phone: fd.get('phone'),
+            notes: fd.get('notes'),
+          }),
+        });
+        const body: any = await res.json().catch(() => ({}));
+        if (!res.ok || !body?.ok) {
+          errBox.textContent =
+            body?.error ?? 'Something went wrong. Please try again, or email info@songdance.co.';
+          errBox.hidden = false;
+          submitBtn.disabled = false;
+          submitBtn.textContent = original;
+          return;
+        }
+        form.hidden = true;
+        donePara.textContent = body.position
+          ? `You're number ${body.position} on the list. We've sent a note to ${email} to confirm it. If a place opens we'll email you a link that holds it for a couple of days — and you decide then.`
+          : `We've sent a note to ${email} to confirm it. If a place opens we'll email you a link that holds it for a couple of days — and you decide then.`;
+        doneBox.hidden = false;
+        doneBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } catch {
+        errBox.textContent = 'Network error. Please try again, or email info@songdance.co.';
+        errBox.hidden = false;
+        submitBtn.disabled = false;
+        submitBtn.textContent = original;
+      }
+    });
+  }
+</script>
