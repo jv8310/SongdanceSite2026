@@ -164,6 +164,8 @@ export type JoinResult = {
   entry: WaitlistEntry;
   /** false when this email was already on the list (we updated it instead). */
   created: boolean;
+  /** true when a closed entry (declined / removed / lapsed) went back on. */
+  rejoined: boolean;
 };
 
 // Put someone on the list, or refresh what we know about them if they're
@@ -216,7 +218,7 @@ export async function joinWaitlist(
       )
       .run();
     const entry = await getEntry(db, existing.id);
-    return { entry: entry ?? existing, created: false };
+    return { entry: entry ?? existing, created: false, rejoined: rejoining };
   }
 
   const row = await db
@@ -242,7 +244,7 @@ export async function joinWaitlist(
     )
     .first<WaitlistEntry>();
   if (!row) throw new Error('Failed to write waiting-list entry');
-  return { entry: row, created: true };
+  return { entry: row, created: true, rejoined: false };
 }
 
 // ─────────────────────────── reading ───────────────────────────

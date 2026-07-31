@@ -138,7 +138,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     ? Math.max(1, Math.min(2, Math.round(Number(payload.party_size))))
     : 1;
 
-  const { entry, created } = await joinWaitlist(env.DB, {
+  const { entry, created, rejoined } = await joinWaitlist(env.DB, {
     product_id: product.id,
     tier_id: tierId,
     first_name: firstName,
@@ -166,9 +166,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
     },
   });
 
-  // Confirmation is best-effort: being on the list is what matters, and the
-  // row is already written. A failed send is logged, never surfaced.
-  if (env.RESEND_API_KEY) {
+  // Confirmed once per joining, not once per submit: re-posting the same
+  // address only refreshes the row (and must not turn this into a way to mail
+  // someone repeatedly). Best-effort either way — being on the list is what
+  // matters, and the row is already written; a failed send is logged, never
+  // surfaced.
+  if (env.RESEND_API_KEY && (created || rejoined)) {
     const mail = buildWaitlistJoinedEmail({
       first_name: entry.first_name || null,
       retreat_name: product.name,
