@@ -133,6 +133,30 @@ export function waitlistDisplayName(e: {
   return name || e.email;
 }
 
+// The schema and the code ship on two workflows (d1-migrate + deploy), and a
+// preview version runs against production D1 — so there are windows where this
+// code is live and `retreat_waitlist` isn't there yet. Nothing about a waiting
+// list is worth 500-ing a checkout over: reads and side-effects degrade to
+// "nobody is on the list, nothing is held", which is exactly how the site
+// behaved before this feature. A real SQL error still throws.
+function isMissingTable(err: unknown): boolean {
+  return /no such table:\s*retreat_waitlist/i.test(
+    err instanceof Error ? err.message : String(err),
+  );
+}
+
+async function tolerant<T>(run: () => Promise<T>, fallback: T): Promise<T> {
+  try {
+    return await run();
+  } catch (err) {
+    if (isMissingTable(err)) {
+      console.warn('[waitlist] retreat_waitlist missing — migration 0080 not applied yet');
+      return fallback;
+    }
+    throw err;
+  }
+}
+
 function newToken(): string {
   const bytes = new Uint8Array(24);
   crypto.getRandomValues(bytes);
@@ -269,20 +293,29 @@ export async function getLiveOfferByToken(
 ): Promise<WaitlistEntry | null> {
   const clean = token.trim();
   if (!clean) return null;
-  const row = await db
-    .prepare(
-      `SELECT ${SELECT_COLS} FROM retreat_waitlist
-        WHERE claim_token = ?
-          AND status = 'invited'
-          AND (offer_expires_at IS NULL OR offer_expires_at > datetime('now'))`,
-    )
-    .bind(clean)
-    .first<WaitlistEntry>();
-  return row ?? null;
+  return tolerant(async () => {
+    const row = await db
+      .prepare(
+        `SELECT ${SELECT_COLS} FROM retreat_waitlist
+          WHERE claim_token = ?
+            AND status = 'invited'
+            AND (offer_expires_at IS NULL OR offer_expires_at > datetime('now'))`,
+      )
+      .bind(clean)
+      .first<WaitlistEntry>();
+    return row ?? null;
+  }, null);
 }
 
 // Everyone on a retreat's list, newest offers first, then queue order.
 export async function listWaitlist(
+  db: D1Database,
+  productId: number,
+): Promise<WaitlistEntryView[]> {
+  return tolerant(() => listWaitlistRows(db, productId), []);
+}
+
+async function listWaitlistRows(
   db: D1Database,
   productId: number,
 ): Promise<WaitlistEntryView[]> {
@@ -338,19 +371,39 @@ export async function countWaiting(
   db: D1Database,
   productId: number,
 ): Promise<{ waiting: number; invited: number }> {
-  const row = await db
-    .prepare(
-      `SELECT
-         COALESCE(SUM(CASE WHEN status = 'waiting' THEN 1 ELSE 0 END), 0) AS waiting,
-         COALESCE(SUM(CASE WHEN status = 'invited'
-                            AND (offer_expires_at IS NULL OR offer_expires_at > datetime('now'))
-                           THEN 1 ELSE 0 END), 0) AS invited
-         FROM retreat_waitlist
-        WHERE product_id = ?`,
-    )
-    .bind(productId)
-    .first<{ waiting: number; invited: number }>();
-  return { waiting: row?.waiting ?? 0, invited: row?.invited ?? 0 };
+  return tolerant(async () => {
+    const row = await db
+      .prepare(
+        `SELECT
+           COALESCE(SUM(CASE WHEN status = 'waiting' THEN 1 ELSE 0 END), 0) AS waiting,
+           COALESCE(SUM(CASE WHEN status = 'invited'
+                              AND (offer_expires_at IS NULL OR offer_expires_at > datetime('now'))
+                             THEN 1 ELSE 0 END), 0) AS invited
+           FROM retreat_waitlist
+          WHERE product_id = ?`,
+      )
+      .bind(productId)
+      .first<{ waiting: number; invited: number }>();
+    return { waiting: row?.waiting ?? 0, invited: row?.invited ?? 0 };
+  }, { waiting: 0, invited: 0 });
+}
+
+// Waiting counts for several retreats at once (the retreats index).
+export async function countWaitingByProduct(
+  db: D1Database,
+): Promise<Map<number, number>> {
+  return tolerant(async () => {
+    const q = await db
+      .prepare(
+        `SELECT product_id, COUNT(*) AS n FROM retreat_waitlist
+          WHERE status = 'waiting'
+          GROUP BY product_id`,
+      )
+      .all<{ product_id: number; n: number }>();
+    const map = new Map<number, number>();
+    for (const row of q.results ?? []) map.set(row.product_id, row.n);
+    return map;
+  }, new Map<number, number>());
 }
 
 // Where someone sits in the queue right now (1-based), or null if they're not
@@ -393,6 +446,17 @@ export async function countActiveOffersByTier(
   productId: number,
   opts: { exceptEntryId?: number | null } = {},
 ): Promise<Map<number, number>> {
+  return tolerant(
+    () => activeOffersByTier(db, productId, opts),
+    new Map<number, number>(),
+  );
+}
+
+async function activeOffersByTier(
+  db: D1Database,
+  productId: number,
+  opts: { exceptEntryId?: number | null },
+): Promise<Map<number, number>> {
   const q = await db
     .prepare(
       `SELECT w.offered_tier_id AS tier_id, COUNT(*) AS n
@@ -434,6 +498,7 @@ export async function releaseClaimCheckoutHold(
   claim: WaitlistEntry | null,
 ): Promise<void> {
   if (!claim?.registration_id) return;
+  // registrations always exists; no table guard needed here.
   await db
     .prepare(
       `UPDATE registrations
@@ -577,14 +642,18 @@ export async function attachRegistration(
   entryId: number,
   registrationId: number,
 ): Promise<void> {
-  await db
-    .prepare(
-      `UPDATE retreat_waitlist
-          SET registration_id = ?, updated_at = datetime('now')
-        WHERE id = ?`,
-    )
-    .bind(registrationId, entryId)
-    .run();
+  await tolerant(
+    () =>
+      db
+        .prepare(
+          `UPDATE retreat_waitlist
+              SET registration_id = ?, updated_at = datetime('now')
+            WHERE id = ?`,
+        )
+        .bind(registrationId, entryId)
+        .run(),
+    undefined,
+  );
 }
 
 // Called from every paid path (Stripe webhook, PayPal fulfilment, admin
@@ -595,30 +664,36 @@ export async function settleWaitlistOnPaid(
   db: D1Database,
   registrationId: number,
 ): Promise<void> {
-  const res = await db
-    .prepare(
-      `UPDATE retreat_waitlist
-          SET status = 'booked', claim_token = NULL,
-              responded_at = COALESCE(responded_at, datetime('now')),
-              updated_at = datetime('now')
-        WHERE registration_id = ? AND status <> 'booked'`,
-    )
-    .bind(registrationId)
-    .run();
-  if ((res.meta?.changes ?? 0) > 0) {
-    await logEvent(db, {
-      registration_id: registrationId,
-      kind: 'waitlist.booked',
-      source: 'system',
-      payload: { registration_id: registrationId },
-    });
-  }
+  await tolerant(async () => {
+    const res = await db
+      .prepare(
+        `UPDATE retreat_waitlist
+            SET status = 'booked', claim_token = NULL,
+                responded_at = COALESCE(responded_at, datetime('now')),
+                updated_at = datetime('now')
+          WHERE registration_id = ? AND status <> 'booked'`,
+      )
+      .bind(registrationId)
+      .run();
+    if ((res.meta?.changes ?? 0) > 0) {
+      await logEvent(db, {
+        registration_id: registrationId,
+        kind: 'waitlist.booked',
+        source: 'system',
+        payload: { registration_id: registrationId },
+      });
+    }
+  }, undefined);
 }
 
 // Sweep: offers whose window has closed stop holding their place and read as
 // `expired` in the admin list, so the next person can be offered it. Runs on
 // the hourly cron; also safe to call ad hoc.
 export async function expireLapsedOffers(db: D1Database): Promise<number> {
+  return tolerant(() => expireLapsed(db), 0);
+}
+
+async function expireLapsed(db: D1Database): Promise<number> {
   const res = await db
     .prepare(
       `UPDATE retreat_waitlist
