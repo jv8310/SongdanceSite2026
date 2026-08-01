@@ -318,10 +318,8 @@ const tzOptions = Array.from(new Set([detectedTz, ...COMMON_TZS]));
       var reg = document.querySelector('.we-register');
       if (reg) reg.classList.toggle('is-pro', pro);
 
-      var mc = document.getElementById('masterclass');
-      var hasMc = mc && mc.getAttribute('data-has-masterclass') === '1';
-      if (mc) mc.hidden = !(pro && hasMc);
-
+      // The masterclass section is shown to everyone now (see WEMasterclass) —
+      // only its bridge line stays lens-specific.
       var bridge = document.getElementById('we-masterclass-bridge');
       var personal = doors.indexOf(1) !== -1 || doors.indexOf(2) !== -1;
       if (bridge) bridge.hidden = !(pro && personal);
