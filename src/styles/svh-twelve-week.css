@@ -22,7 +22,7 @@ html, body { background: var(--paper); }
 .tw-section { padding: var(--sp-10) var(--sp-7); }
 @media (max-width: 720px) { .tw-section { padding: var(--sp-9) var(--sp-5); } }
 /* Sticky nav offset for in-page anchor jumps. */
-#top, #modules, #certification, #register { scroll-margin-top: 84px; }
+#top, #modules, #intuition, #certification, #register { scroll-margin-top: 84px; }
 .tw-wrap { max-width: var(--tw-max); margin: 0 auto; }
 .tw-narrow { max-width: var(--tw-narrow); margin: 0 auto; }
 
@@ -63,9 +63,13 @@ html, body { background: var(--paper); }
   margin: var(--sp-4) 0 0;
   text-wrap: balance;
 }
+/* Cormorant (--font-lyric) reads optically smaller than the Spectral display
+   and the Figtree body it sits inside, so every inline swap to it is sized up:
+   ~1.05em inside a display heading, ~1.2em inside body text. */
 .tw-h2 em, .tw-em {
   font-family: var(--font-lyric);
   font-style: italic;
+  font-size: 1.05em;
   color: var(--plum);
   font-weight: 400;
 }
@@ -81,7 +85,7 @@ html, body { background: var(--paper); }
 .tw-p:last-child { margin-bottom: 0; }
 .tw-p strong { color: var(--ink); font-weight: 500; }
 .tw-p em {
-  font-family: var(--font-lyric); font-style: italic; color: var(--plum);
+  font-family: var(--font-lyric); font-style: italic; font-size: 1.22em; color: var(--plum);
 }
 .tw-p a {
   color: var(--ink);
@@ -216,7 +220,7 @@ html, body { background: var(--paper); }
   text-wrap: balance;
 }
 .tw-hero-head em {
-  font-family: var(--font-lyric); font-style: italic;
+  font-family: var(--font-lyric); font-style: italic; font-size: 1.05em;
   color: var(--ember-soft); font-weight: 400;
 }
 .tw-hero-sub {
@@ -263,6 +267,10 @@ html, body { background: var(--paper); }
   aspect-ratio: 4 / 5;
 }
 .tw-move-media--wide { aspect-ratio: 5 / 4; }
+/* Square crop of a 16:9 artwork (the intuition movement): keeps the figure and
+   the rings, and stands tall enough beside a longer text column. */
+.tw-move-media--square { aspect-ratio: 1 / 1; }
+.tw-move-media--square .tw-move-img { object-position: 35% center; }
 /* Full-height illustration (the roots-and-ember image, 941x1672): keep the
    intrinsic ratio so the bottom of the artwork isn't cropped, capped so it
    doesn't tower over the text column. */
@@ -322,7 +330,7 @@ html, body { background: var(--paper); }
   font-family: var(--font-body); font-size: 16.5px; line-height: 1.6; color: var(--ink-soft);
 }
 .tw-list li strong { color: var(--ink); font-weight: 500; }
-.tw-list li em { font-family: var(--font-lyric); font-style: italic; color: var(--plum); }
+.tw-list li em { font-family: var(--font-lyric); font-style: italic; font-size: 1.2em; color: var(--plum); }
 .tw-list .mark {
   flex-shrink: 0; margin-top: 3px;
   width: 20px; height: 20px; border-radius: 50%;
@@ -362,7 +370,7 @@ html, body { background: var(--paper); }
   font-family: var(--font-body); font-size: 15px; line-height: 1.6;
   color: var(--ink-soft); margin: 0;
 }
-.tw-mod-d em { font-family: var(--font-lyric); font-style: italic; color: var(--plum); }
+.tw-mod-d em { font-family: var(--font-lyric); font-style: italic; font-size: 1.2em; color: var(--plum); }
 
 /* ---------- Sounding-wave divider ---------- */
 /* A full-bleed band carrying the painterly waveform. The artwork's own warm
@@ -597,14 +605,14 @@ html, body { background: var(--paper); }
   line-height: 1.16; font-weight: 400; color: var(--paper);
   letter-spacing: -0.01em; margin: 0 0 var(--sp-5); text-wrap: balance;
 }
-.tw-cert-sub em { font-family: var(--font-lyric); font-style: italic; color: var(--ember-soft); }
+.tw-cert-sub em { font-family: var(--font-lyric); font-style: italic; font-size: 1.05em; color: var(--ember-soft); }
 .tw-cert-p {
   font-family: var(--font-body); font-size: 16.5px; line-height: 1.76;
   color: rgba(244, 236, 223, 0.84); margin: 0 0 var(--sp-4);
 }
 .tw-cert-p:last-child { margin-bottom: 0; }
 .tw-cert-p strong { color: var(--paper); font-weight: 500; }
-.tw-cert-p em { font-family: var(--font-lyric); font-style: italic; color: var(--plum-soft); }
+.tw-cert-p em { font-family: var(--font-lyric); font-style: italic; font-size: 1.22em; color: var(--plum-soft); }
 
 /* What the path holds — card grid */
 .tw-cert-holds-h {
@@ -743,7 +751,7 @@ html, body { background: var(--paper); }
   font-size: clamp(38px, 5.2vw, 66px); line-height: 1.05; letter-spacing: -0.018em;
   color: var(--paper); font-weight: 400; margin: 0 0 var(--sp-5); text-wrap: balance;
 }
-.tw-reg-h2 em { font-family: var(--font-lyric); font-style: italic; color: var(--ember-soft); }
+.tw-reg-h2 em { font-family: var(--font-lyric); font-style: italic; font-size: 1.05em; color: var(--ember-soft); }
 .tw-reg-sub {
   font-family: var(--font-lyric); font-style: italic;
   font-size: clamp(19px, 2vw, 24px); line-height: 1.4;

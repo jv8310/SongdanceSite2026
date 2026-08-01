@@ -1,0 +1,104 @@
+---
+// Intuition on the certification page: the counterpart to the 12-week
+// section (/courses/12-week → TWIntuition). There it's something you
+// experience more and more; here it's trained on purpose — an ear for
+// another person's sound, plus the inner work that keeps what you receive
+// theirs and not yours. Copy book: ch. 13 (receiving), quote bank A·49 +
+// A·23; "the Cup" discipline, as on the workshop page.
+const trained = [
+  {
+    tag: 'Module 02',
+    title: 'A whole class on receiving',
+    body:
+      'Receiving Information from Sound — the art of listening, context and the relational field, ego tears next to authentic grief, and what to do with what arrives. With its written manual, yours from the moment you join.',
+  },
+  {
+    tag: 'Every practice session',
+    title: 'Reps, and finding out',
+    body:
+      "You facilitate. You say what you heard. You find out whether it was there. There is no way to train an ear in theory — and being wrong out loud, early, in a room where it costs nothing, is the fastest part of it.",
+  },
+  {
+    tag: 'Live, with Jacob & Karen',
+    title: 'Checked against what happened',
+    body:
+      'In the weekly Q&As, in the hosted sessions, and in the final supervised class where you lead in front of the group and get direct feedback. Calibration is the whole thing: an ear that is never checked drifts.',
+  },
+];
+---
+
+<section class="cc-intu" id="intuition">
+  <div class="cc-intu-inner">
+    <div class="cc-intu-head">
+      <div class="cc-eyebrow cc-eyebrow--center">Intuition training</div>
+      <h2 class="cc-h2">
+        Intuition isn't a gift. <em>It's a trained ear.</em>
+      </h2>
+      <p class="cc-intu-lead">
+        Underneath every sound there is information, and most of it never
+        becomes a sentence. You don't reason your way to it — you receive it.
+        And receiving is a skill: it can be trained, and on this course it is
+        trained on purpose.
+      </p>
+    </div>
+
+    <div class="cc-intu-split">
+      <figure class="cc-intu-media">
+        <img
+          src="/media/library/svhgpt-06-holding-space.webp"
+          alt="Two people seated facing each other by candlelight — one sounding, a warm light at the throat, the other receiving with open, cupped hands."
+          loading="lazy"
+        />
+      </figure>
+
+      <div class="cc-intu-body">
+        <p>
+          In the 12-week course, intuition simply grows: you experience it more
+          and more in your own voice. Here you turn toward it deliberately —
+          because now the sound you are receiving is someone else's, and what
+          you do with it matters to them.
+        </p>
+        <p>
+          <strong>The ear comes first.</strong> A tightening a beat before the
+          tone arrives. Grief that turns out to be pain wearing grief's clothes.
+          Fear and overwhelm, which never sound the same once you've heard them
+          side by side. A sound that belongs to a grandmother and not to the
+          person making it. These are patterns, and patterns become hearable by
+          hearing them many times, with someone naming them as they pass.
+        </p>
+        <p>
+          <strong>The inner work is the other half</strong>, and it is not
+          optional — the instrument doing the receiving is you. Shadow,
+          fixation, projection, transference: your own material can arrive
+          beautifully disguised as insight about someone else. So you keep
+          doing your own work, which is also why nothing you learn here is
+          only for other people.
+        </p>
+        <p class="cc-intu-quote">It is the brave who receive.</p>
+        <p>
+          And one discipline keeps it honest. The impulse that lands can be
+          trusted; its <em>translation</em> through your trained mind is
+          fallible. What you receive is an offer, never a verdict — you hold it
+          lightly, ask rather than announce, and let the person in front of you
+          confirm it or correct it. <em>Don't be the smart one who points it
+          out. Leave that gift to them.</em>
+        </p>
+      </div>
+    </div>
+
+    <div class="cc-intu-trio">
+      {trained.map((t) => (
+        <article class="cc-intu-panel">
+          <div class="cc-intu-tag">{t.tag}</div>
+          <h3>{t.title}</h3>
+          <p>{t.body}</p>
+        </article>
+      ))}
+    </div>
+
+    <p class="cc-intu-foot">
+      Nobody hands you this in a weekend. It grows the way a musician's ear
+      grows — by repetition, and by being corrected.
+    </p>
+  </div>
+</section>

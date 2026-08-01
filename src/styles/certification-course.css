@@ -1436,6 +1436,107 @@ html, body { background: var(--paper); }
   .cc-learn-card--feature { padding-left: var(--sp-5); padding-right: var(--sp-5); }
 }
 
+/* ---------- Intuition training ----------
+   Sits between "What you'll learn" (paper) and "Structure" (paper-soft),
+   so it takes the deeper paper to read as its own movement. */
+.cc-intu { background: var(--paper-deep); padding: var(--sp-10) var(--sp-7); }
+.cc-intu-inner { max-width: var(--cc-max); margin: 0 auto; }
+.cc-intu-head { text-align: center; margin-bottom: var(--sp-8); }
+.cc-intu-head .cc-h2 { max-width: 20ch; margin-left: auto; margin-right: auto; }
+.cc-intu-lead {
+  font-family: var(--font-body); font-size: 17px;
+  line-height: 1.75; color: var(--ink-soft);
+  max-width: 62ch; margin: var(--sp-5) auto 0;
+  text-wrap: pretty;
+}
+.cc-intu-split {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1fr);
+  gap: clamp(var(--sp-6), 4vw, var(--sp-8));
+  align-items: center;
+  margin-bottom: var(--sp-9);
+}
+@media (max-width: 900px) {
+  .cc-intu-split { grid-template-columns: 1fr; gap: var(--sp-6); }
+}
+.cc-intu-media {
+  margin: 0;
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-3);
+  background: var(--night-soft);
+  aspect-ratio: 4 / 3;
+}
+.cc-intu-media img {
+  display: block; width: 100%; height: 100%;
+  object-fit: cover;
+  filter: var(--cc-img-filter);
+}
+.cc-intu-body { max-width: 58ch; }
+.cc-intu-body p {
+  font-family: var(--font-body); font-size: 17px;
+  line-height: 1.75; color: var(--ink-soft);
+  margin: 0 0 var(--sp-4);
+  text-wrap: pretty;
+}
+.cc-intu-body p:last-child { margin-bottom: 0; }
+.cc-intu-body strong { color: var(--ink); font-weight: 500; }
+/* Cormorant reads optically smaller than Figtree — size inline italics up. */
+.cc-intu-body em {
+  font-family: var(--font-lyric); font-style: italic;
+  font-size: 1.22em; color: var(--plum);
+}
+.cc-intu-body .cc-intu-quote {
+  font-family: var(--font-lyric); font-style: italic;
+  font-size: clamp(21px, 2.2vw, 27px);
+  line-height: 1.35;
+  color: var(--ink);
+  padding-left: var(--sp-5);
+  border-left: 2px solid var(--ember);
+  margin: var(--sp-6) 0;
+  text-wrap: balance;
+}
+.cc-intu-trio {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--sp-4);
+}
+@media (max-width: 900px) { .cc-intu-trio { grid-template-columns: 1fr; max-width: 560px; margin: 0 auto; } }
+.cc-intu-panel {
+  background: var(--paper-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: var(--sp-6) var(--sp-5);
+  display: flex; flex-direction: column; gap: var(--sp-3);
+}
+.cc-intu-tag {
+  font-family: var(--font-mono); font-size: 11px;
+  text-transform: uppercase; letter-spacing: 0.18em;
+  color: var(--ember-deep);
+}
+.cc-intu-panel h3 {
+  font-family: var(--font-display);
+  font-size: 21px; line-height: 1.25;
+  color: var(--ink); font-weight: 500;
+  margin: 0;
+  text-wrap: balance;
+}
+.cc-intu-panel p {
+  font-family: var(--font-body); font-size: 15px;
+  line-height: 1.65; color: var(--ink-soft);
+  margin: 0;
+}
+.cc-intu-foot {
+  font-family: var(--font-lyric); font-style: italic;
+  font-size: clamp(20px, 2.1vw, 26px);
+  line-height: 1.4;
+  color: var(--ink-quiet);
+  text-align: center;
+  max-width: 44ch;
+  margin: var(--sp-8) auto 0;
+  text-wrap: balance;
+}
+
 /* ---------- Structure ---------- */
 .cc-structure {
   background: var(--paper-soft);

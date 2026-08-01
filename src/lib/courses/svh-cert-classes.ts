@@ -36,7 +36,7 @@ export const SVH_CERT_CLASSES: ScheduledItem[] = [
     description:
       'The art of listening. Context and the relational field. Shadow, fixation, and projection. Ego tears vs. authentic grief. Self-care after deep work.',
     blurb:
-      'The art of listening: context, the relational field, and what a sound carries underneath.',
+      'Training the intuition — the art of listening: context, the relational field, and what a sound carries underneath.',
     datetime: '2026-02-22T19:00:00+01:00',
     durationMinutes: 120,
     timeLabel: '7:00pm CET',
