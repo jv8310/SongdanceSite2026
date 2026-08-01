@@ -1,19 +1,15 @@
 ---
-// Pro state only (§15). Hidden by default; the controller reveals it when
-// door 3 is active AND a masterclass is actually scheduled. If none is
-// scheduled, `hasMasterclass` is false and the controller leaves it hidden.
+// Shown to everyone (§15). It used to be pro-state only — revealed when door 3
+// was active AND a masterclass was scheduled — so practically nobody ever saw
+// it. Now it is always in the page; only the CTA changes: to the date on this
+// page's calendar when one is scheduled, otherwise to the masterclass page.
 interface Props {
   hasMasterclass: boolean;
 }
 const { hasMasterclass } = Astro.props;
 ---
 
-<section
-  class="we-masterclass"
-  id="masterclass"
-  hidden
-  data-has-masterclass={hasMasterclass ? '1' : '0'}
->
+<section class="we-masterclass" id="masterclass">
   <div class="we-masterclass-inner">
     <p class="we-masterclass-bridge" id="we-masterclass-bridge" hidden>
       You can't hold this for someone else until you've let it work on you first.
@@ -31,8 +27,9 @@ const { hasMasterclass } = Astro.props;
     </p>
     <div class="we-masterclass-detail">100 minutes · Live · €44</div>
     <div class="we-masterclass-cta-wrap">
-      <a href="#register" class="we-link-cta">
-        See the next masterclass <i class="ph-light ph-arrow-right"></i>
+      <a href={hasMasterclass ? '#register' : '/courses/masterclass'} class="we-link-cta">
+        {hasMasterclass ? 'See the next masterclass' : 'About the masterclass'}
+        <i class="ph-light ph-arrow-right"></i>
       </a>
     </div>
   </div>

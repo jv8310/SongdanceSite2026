@@ -4,7 +4,6 @@ import Layout from '../layouts/Layout.astro';
 import PromoBanner from '../components/PromoBanner.astro';
 import WENav from '../components/workshop-english/WENav.astro';
 import WEHero from '../components/workshop-english/WEHero.astro';
-import WESelector from '../components/workshop-english/WESelector.astro';
 import WEOpening from '../components/workshop-english/WEOpening.astro';
 import WEWhat from '../components/workshop-english/WEWhat.astro';
 import WELyric from '../components/workshop-english/WELyric.astro';
@@ -71,10 +70,8 @@ const tzOptions = tzOptionsFor(detectedTz);
 >
   <div class="we-site">
     <PromoBanner />
-    <p class="sr-only" id="we-live" role="status" aria-live="polite"></p>
     <WENav />
     <WEHero />
-    <WESelector />
     <WEOpening />
     <WEWhat />
     <WELyric />
@@ -95,20 +92,18 @@ const tzOptions = tzOptionsFor(detectedTz);
   </div>
 </Layout>
 
-<style is:global>
-  .sr-only {
-    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
-    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
-  }
-</style>
-
 <script is:inline>
   // ── Personalization controller (§2) ──────────────────────────────────────
-  // State = URL. Door-set comes from ?audience=1,3 or a ?campaign= alias.
-  // Switch A (lead lens, priority 1→2→3) supplies H1 / sub / opening accent /
-  // reg line + page title. Switch B (pro = door 3 active) reveals the
-  // masterclass + highlights its calendar entries. Each active door lights its
-  // "What you'll experience" card. Tailoring is a content swap, not a page swap.
+  // State = URL, read once on load. The door-set comes from ?audience=1,3 or a
+  // ?campaign= alias — the on-page "Why are you here?" selector is gone (too
+  // few people used it), so nothing writes the state back any more; ad and
+  // email links carry it, and WERegister reads the same parameter at checkout
+  // so a registration is still segmented by lens.
+  //
+  // The lead lens (priority 1→2→3) supplies H1 / sub / opening accent / reg
+  // line + page title, and re-voices the "What you'll experience" cards.
+  // Tailoring is a content swap, not a page swap: the masterclass section is
+  // shown to everyone regardless of lens.
   (function () {
     var LENS = {
       neutral: {
@@ -213,138 +208,46 @@ const tzOptions = tzOptionsFor(detectedTz);
       return 'neutral';
     }
 
-    function setSwap(id, html, animate) {
+    function setSwap(id, html) {
       var el = document.getElementById(id);
-      if (!el) return;
-      if (!animate) { el.innerHTML = html; return; }
-      el.classList.add('is-swapping');
-      window.setTimeout(function () {
-        el.innerHTML = html;
-        el.classList.remove('is-swapping');
-      }, 320);
+      if (el) el.innerHTML = html;
     }
 
-    function announce(doors) {
-      var live = document.getElementById('we-live');
-      if (!live) return;
-      live.textContent = doors.length
-        ? 'The page has been tailored to what you chose.'
-        : 'Showing the page for everyone.';
-    }
+    function apply(doors) {
+      // No parameter → the page as rendered already *is* the neutral lens, so
+      // there is nothing to swap (and no flash for the visitors who arrive
+      // without one, which is most of them).
+      if (!doors.length) return;
 
-    function apply(doors, animate) {
       var lens = leadLens(doors);
       var data = LENS[lens] || LENS.neutral;
 
-      setSwap('we-h1', data.h1, animate);
-      setSwap('we-hero-sub', data.sub, animate);
-      setSwap('we-opening-head', data.openHead, animate);
-      setSwap('we-opening-accent', data.accent, animate);
-      setSwap('we-reg-body', data.reg, animate);
+      setSwap('we-h1', data.h1);
+      setSwap('we-hero-sub', data.sub);
+      setSwap('we-opening-head', data.openHead);
+      setSwap('we-opening-accent', data.accent);
+      setSwap('we-reg-body', data.reg);
       document.title = data.title;
 
-      // Card copy — every card is rewritten to the lead lens (neutral when none),
-      // so the whole "What you'll experience" set is tailored to what they chose.
+      // Card copy — every card is rewritten to the lead lens, so the whole
+      // "What you'll experience" set speaks in the same voice as the headline.
       var cardSet = CARDS[lens] || CARDS.neutral;
       for (var i = 0; i < cardSet.length; i++) {
-        setSwap('we-card-title-' + i, cardSet[i].t, animate);
-        setSwap('we-card-body-' + i, cardSet[i].b, animate);
+        setSwap('we-card-title-' + i, cardSet[i].t);
+        setSwap('we-card-body-' + i, cardSet[i].b);
       }
 
-      // Switch B — pro state.
-      var pro = doors.indexOf(3) !== -1;
-      var reg = document.querySelector('.we-register');
-      if (reg) reg.classList.toggle('is-pro', pro);
-
-      var mc = document.getElementById('masterclass');
-      var hasMc = mc && mc.getAttribute('data-has-masterclass') === '1';
-      if (mc) mc.hidden = !(pro && hasMc);
-
+      // The masterclass section itself is always in the page, for everyone.
+      // Only its bridge line is lens-specific: it speaks to someone who came
+      // through a personal door as well as the practitioner one.
       var bridge = document.getElementById('we-masterclass-bridge');
+      var pro = doors.indexOf(3) !== -1;
       var personal = doors.indexOf(1) !== -1 || doors.indexOf(2) !== -1;
       if (bridge) bridge.hidden = !(pro && personal);
-
-      // Reflect into the selector checkboxes + prominence.
-      var boxes = document.querySelectorAll('#we-selector-form input[name="door"]');
-      for (var j = 0; j < boxes.length; j++) {
-        boxes[j].checked = doors.indexOf(parseInt(boxes[j].value, 10)) !== -1;
-      }
-      var sel = document.getElementById('why');
-      if (sel) sel.classList.toggle('is-quiet', doors.length > 0);
-    }
-
-    function writeState(doors) {
-      var url = new URL(location.href);
-      url.searchParams.delete('campaign');
-      if (doors.length) url.searchParams.set('audience', doors.join(','));
-      else url.searchParams.delete('audience');
-      history.replaceState(null, '', url.toString());
-    }
-
-    // Read the currently-ticked doors as a sorted list (1–3).
-    function currentDoors(form) {
-      var checked = form.querySelectorAll('input[name="door"]:checked');
-      var picked = [];
-      for (var i = 0; i < checked.length; i++) picked.push(parseInt(checked[i].value, 10));
-      picked.sort();
-      return picked;
-    }
-
-    // Commit a door-set: reflect it into the URL + page — the same swap the
-    // "Show me" button does, so the lens rides the URL into checkout. `navigate`
-    // adds the collapse + scroll (on for a real click; off for the idle
-    // auto-capture, which must not yank a reader down the page).
-    function commit(picked, navigate) {
-      writeState(picked);
-      apply(picked, true);
-      announce(picked);
-      if (!navigate) return;
-      var sel = document.getElementById('why');
-      if (sel) sel.classList.add('is-collapsed');
-      var opening = document.querySelector('.we-opening');
-      if (opening) opening.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
     function init() {
-      var doors = parseState();
-      apply(doors, false);
-
-      var form = document.getElementById('we-selector-form');
-      if (form) {
-        form.addEventListener('submit', function (e) {
-          e.preventDefault();
-          cancelAuto();
-          commit(currentDoors(form), true);
-        });
-
-        // Auto-capture: many people tick a door but never press "Show me", so
-        // their choice never reaches the URL and the registration is stored with
-        // no lens. If a box is ticked and then left untouched for ~3s, commit it
-        // anyway (no scroll/collapse) so the door is still recorded at checkout.
-        // Each change re-arms the timer; unticking back to nothing cancels it.
-        var AUTO_MS = 3000;
-        var autoTimer = null;
-        var cancelAuto = function () {
-          if (autoTimer) { window.clearTimeout(autoTimer); autoTimer = null; }
-        };
-        form.addEventListener('change', function (e) {
-          if (!e.target || e.target.name !== 'door') return;
-          cancelAuto();
-          if (!currentDoors(form).length) return;
-          autoTimer = window.setTimeout(function () {
-            autoTimer = null;
-            commit(currentDoors(form), false);
-          }, AUTO_MS);
-        });
-      }
-
-      var reopen = document.getElementById('we-selector-reopen');
-      if (reopen) {
-        reopen.addEventListener('click', function () {
-          var sel = document.getElementById('why');
-          if (sel) sel.classList.remove('is-collapsed');
-        });
-      }
+      apply(parseState());
     }
 
     if (document.readyState === 'loading') {
