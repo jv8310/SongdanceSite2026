@@ -25,7 +25,11 @@ const { hasMasterclass } = Astro.props;
       the space, how to read what a sound is telling you, and how to let
       someone find their own way in without steering it for them.
     </p>
-    <div class="we-masterclass-detail">100 minutes · Live · €44</div>
+    <!-- data-sd-price: PriceSync swaps the EUR token for the visitor's market
+         label after load, so this band doesn't say € while the calendar below
+         it prices in their own currency. The token must stay in the site's
+         euro-after copy style (44€) — that's what marketing-prices.ts matches. -->
+    <div class="we-masterclass-detail" data-sd-price="masterclass">100 minutes · Live · 44€</div>
     <div class="we-masterclass-cta-wrap">
       <a href={hasMasterclass ? '#register' : '/courses/masterclass'} class="we-link-cta">
         {hasMasterclass ? 'See the next masterclass' : 'About the masterclass'}
