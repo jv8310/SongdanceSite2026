@@ -444,6 +444,25 @@ html, body { background: var(--paper); }
 .tw-quotes-head .tw-eyebrow--center::before, .tw-quotes-head .tw-eyebrow--center::after { background: var(--ember); }
 .tw-quotes-head .tw-h2 { color: var(--paper); margin-left: auto; margin-right: auto; }
 .tw-quotes-head .tw-h2 em { color: rgba(244, 236, 223, 0.66); }
+/* A filmed testimonial, above the written ones. The clip is square (1:1). */
+.tw-quotes-video { margin: 0 auto var(--sp-8); max-width: 460px; }
+.tw-quotes-video-frame {
+  position: relative; aspect-ratio: 1 / 1;
+  border: 1px solid rgba(244, 236, 223, 0.14);
+  border-radius: var(--r-lg);
+  background: rgba(244, 236, 223, 0.045);
+  overflow: hidden;
+}
+.tw-quotes-video-frame iframe {
+  position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: block;
+}
+.tw-quotes-video-cap {
+  margin-top: var(--sp-4); text-align: center;
+  font-family: var(--font-mono);
+  font-size: 11px; text-transform: uppercase; letter-spacing: 0.16em;
+  color: rgba(244, 236, 223, 0.62);
+}
+
 .tw-quotes-grid {
   display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-5);
 }
