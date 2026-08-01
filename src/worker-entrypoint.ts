@@ -23,6 +23,7 @@ import { runReports } from './lib/workshops/reports';
 import { reconcileOrderNotifications } from './lib/orders/reconcile';
 import { reconcilePaypalCourseOrders } from './lib/payments/paypal-reconcile';
 import { reconcileStripeCourseOrders } from './lib/payments/stripe-reconcile';
+import { runCourseWeekSync } from './lib/courses/week-sync';
 import { expireLapsedOffers } from './lib/registrations/waitlist';
 import { fxRatesStale, refreshFxRates } from './lib/admin/fx';
 import { runMetaAdSpendSync } from './lib/ads/meta-insights';
@@ -348,6 +349,24 @@ export function createExports(manifest: unknown) {
         })
         .catch((err) => {
           console.error('[stripe/reconcile] run failed', err);
+        }),
+    );
+
+    // The 12-week counter: publish each student's current week onto the Drip
+    // profile field `prod_SVH_week` as they cross into a new one. The count
+    // itself is derived from their start date, so this only ever writes on a
+    // change — a quiet hour finds nobody. No-ops until Drip is configured.
+    ctx.waitUntil(
+      runCourseWeekSync(env)
+        .then((r) => {
+          if (r.pushed || r.failed) {
+            console.log(
+              `[courses/week] checked=${r.checked} pushed=${r.pushed} failed=${r.failed}`,
+            );
+          }
+        })
+        .catch((err) => {
+          console.error('[courses/week] sync failed', err);
         }),
     );
   };

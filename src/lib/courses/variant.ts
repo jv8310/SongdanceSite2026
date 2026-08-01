@@ -290,8 +290,10 @@ function readWeekField(
 }
 
 // Parse Drip's `svh_week` custom field. While the 12-week course is running,
-// it's a number 1-12. Once the course ends, Jacob's automation sets it to
-// "Ended since YYYY-MM-DD" (or similar). Anything else is treated as "no 12w".
+// it's a number 1-12 (published by src/lib/courses/week-progress.ts as the
+// weeks turn over). Once the run ends it reads "Ended since YYYY-MM-DD"; once
+// the person moves onto the certification course it reads "Ongoing
+// Certification". Anything else is treated as "no 12w".
 function parseSvhWeek(raw: string | undefined): {
   ongoing: boolean;
   ended: boolean;
@@ -301,6 +303,9 @@ function parseSvhWeek(raw: string | undefined): {
   const trimmed = raw.trim();
   if (!trimmed) return { ongoing: false, ended: false };
   if (/^ended\b/i.test(trimmed)) return { ongoing: false, ended: true };
+  // On the certification course — past the foundation lane either way, and
+  // never a candidate for the "activate now" offer (it's already activated).
+  if (/^ongoing\s+certification/i.test(trimmed)) return { ongoing: false, ended: true };
   const m = trimmed.match(/^(\d{1,2})/);
   if (m) {
     const n = parseInt(m[1], 10);

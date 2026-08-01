@@ -223,6 +223,59 @@ All automated workshop email lives in the workshop engine:
   send. Keep it factual — no fake scarcity, no countdown theatrics. Marketing
   sends are from `MARKETING_FROM` (Jacob), reply-to `support@songdance.co`.
 
+## The 12-week counter — which week a student is in
+
+Every 12-week buyer now has a **week counter** on their profile, and the site
+owns it. Table `course_week_progress` (migration 0081), logic in
+[`src/lib/courses/week-progress.ts`](src/lib/courses/week-progress.ts),
+publishing in [`src/lib/courses/week-sync.ts`](src/lib/courses/week-sync.ts).
+
+- **One row per email, and the week is never stored** — it is derived from
+  `started_at` (the payment): week 1 = days 0-6, week 12 = days 77-83, day 84+ =
+  `Ended since YYYY-MM-DD`. So the field is true at every read and a cron that
+  misses a night can't strand someone in week 4. The other state is
+  `certification` → **`Ongoing Certification`**, which stops the count.
+- **Who starts it** — `pushPaidCourseRegistrationToDrip` (so *every* fulfilment
+  path: Stripe, PayPal, free, admin mark-paid, both reconciles), written
+  **before and outside** the Drip block so an outage can't leave a paying
+  student without a week. Idempotent by contract: installment plans re-call the
+  handler once per cycle and none of that may move a start date.
+    - `svh-12week` → a run begins.
+    - `cc-bundle` + **Activate later** → the same: the path is walked slowly.
+    - `cc-cert` + **Activate later** → bought *mid*-foundation, so it rides the
+      run already under way; it never starts or restarts a clock (`carriesTwelveWeek`).
+    - cert / path + **Activate now** (or no choice — cert-only) → `Ongoing Certification`.
+    - A finished run *is* restarted by a later order that carries the course.
+- **The profile field is `prod_SVH_week`** — the same Drip custom field the cert
+  page's variant gate reads (`parseSvhWeek` in `variant.ts`, which now also
+  understands "Ongoing Certification"). The paid-handler writes it inline with
+  the purchase upsert; after that the **hourly cron** (`runCourseWeekSync`)
+  publishes each change. Selection is done in SQL by comparing the week *bucket*
+  at now against the bucket at the last push (clamped at 12), so it writes once
+  per person per week and a quiet hour finds nobody. No-ops until Drip is set.
+  **Note for Drip:** "Activate now" used to write `Ended since <today>` into this
+  field; it now writes `Ongoing Certification`. Any automation that triggered off
+  the *ended* wording should key on `prod_SVH_9m_status = activated` instead —
+  that field is set on the same paths, unchanged.
+- **Activating the certification early** — `/api/courses/activate-now` flips the
+  row to `certification`, publishes the field and sets
+  `prod_SVH_9m_status = activated`. Entitlement is checked on **two** paths
+  (`prod_SVH_9m` **or** a paid `cc-cert`/`cc-bundle` row), never Drip alone — a
+  tag that never landed must not lock a buyer out of what they paid for.
+- **Where it shows** — `/access` renders "Your course" with the week, a
+  twelve-segment bar, and (only when the server says `can_activate_cert`: inside
+  weeks 1-12 **and** holds the certification) the two-step "Activate the
+  certification course now" button, which repaints the block as
+  `Ongoing Certification`. `/admin/people/<email>` carries it as the **Course
+  week** stat. The cert page's variant-C activation button posts to the same
+  endpoint.
+- **Backfill**: migration 0081 seeds the table from paid orders (earliest
+  12-week-bearing order per email wins), and marks each row **already synced at
+  its current value** — so the sweep never retro-writes history into Drip (which
+  could fire an automation for hundreds of past buyers). Those rows start
+  publishing only when a week genuinely turns over, which for anyone past the 12
+  weeks is never.
+
 ## Album delivery — buyers get their player link by email
 
 Two ways to own a music album, one delivery shape

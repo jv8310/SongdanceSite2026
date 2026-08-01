@@ -13,6 +13,10 @@ import { getFxRatesToEur } from '../../../lib/admin/fx';
 import { formatMoney } from '../../../lib/workshops/currency';
 import { emailSendsForAddress } from '../../../lib/email/sends';
 import { getContact, listBroadcasts } from '../../../lib/broadcasts/db';
+import {
+  describeWeekProgress,
+  getWeekProgress,
+} from '../../../lib/courses/week-progress';
 
 export const prerender = false;
 
@@ -49,15 +53,21 @@ const quaderno =
       }
     : undefined;
 
-const [allPeople, orders, sends, contact, broadcasts] = await Promise.all([
+const [allPeople, orders, sends, contact, broadcasts, weekRow] = await Promise.all([
   listPeople(env.DB),
   listAllOrders(env.DB, { email }, { fxRates, quaderno }),
   emailSendsForAddress(env.DB, email),
   getContact(env.DB, email),
   listBroadcasts(env.DB),
+  getWeekProgress(env.DB, email),
 ]);
 
 const person = allPeople.find((p) => p.email === email) ?? null;
+
+// The 12-week counter (src/lib/courses/week-progress.ts) — the same value this
+// person's profile field carries in Drip: which week of the foundation they're
+// in, or "Ongoing Certification" once they've moved on.
+const weekProgress = weekRow ? describeWeekProgress(weekRow) : null;
 
 // Swap the generic "Broadcast #<id>" label for the real name, same as
 // /admin/emails/stats.
@@ -67,7 +77,8 @@ for (const s of sends) {
   if (name) s.label = name;
 }
 
-const exists = !!person || orders.length > 0 || sends.length > 0 || !!contact;
+const exists =
+  !!person || orders.length > 0 || sends.length > 0 || !!contact || !!weekProgress;
 
 const SOURCE_LABEL: Record<OrderSource, string> = {
   retreat: 'Retreat',
@@ -138,6 +149,19 @@ const jsEmail = email.replace(/['\\]/g, '\\$&');
               {person?.isPro && <span class="adm-pill adm-pill--pro">pro</span>}
             </div>
             <div class="pd-grid">
+              {weekProgress && (
+                <div
+                  class="pd-stat pd-stat--week"
+                  title={`Started ${fmtDate(weekProgress.startedAt)}${
+                    weekProgress.state === 'certification'
+                      ? ` · certification since ${fmtDate(weekRow?.cert_activated_at ?? null)}`
+                      : ` · 12 weeks end ${weekProgress.endsOn}`
+                  }`}
+                >
+                  <span>Course week</span>
+                  <strong>{weekProgress.label}</strong>
+                </div>
+              )}
               {person && (
                 <div class="pd-stat">
                   <span>Workshops</span>
@@ -320,6 +344,7 @@ const jsEmail = email.replace(/['\\]/g, '\\$&');
     .pd-stat { display:flex; flex-direction:column; gap:2px; min-width:120px; }
     .pd-stat span { font-size:11px; text-transform:uppercase; letter-spacing:0.04em; color:var(--adm-mute); }
     .pd-stat strong { font-size:15px; }
+    .pd-stat--week strong { color: var(--adm-ember-deep); }
     .pd-purchases { margin:14px 0 0; }
     .pd-resub { margin-top:12px; }
 

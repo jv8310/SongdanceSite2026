@@ -2,7 +2,8 @@
 //   ok, email, first_name?,
 //   sessions: [{ title, kind, when, url, status }],
 //   circle: { has, products[] },
-//   music: [{ title, url, cover }]
+//   music: [{ title, url, cover }],
+//   progress: { state, week, total_weeks, label, can_activate_cert } | null
 // }
 //
 // The pre-purchase account lookup behind /access. Given an email we run two
@@ -14,6 +15,10 @@
 //      possible. Past live dates the person missed are kept too — their link
 //      lands on the same page's "this session has passed" view, where they can
 //      watch the replay or move onto a new date for free.
+//   1b. D1 — their 12-week counter (src/lib/courses/week-progress.ts): which
+//      week of the foundation course they're in, or "Ongoing Certification".
+//      Someone inside weeks 1-12 who also holds the certification gets
+//      `can_activate_cert`, which puts the "open it now" button on the page.
 //   2. Drip — the subscriber's tags, to tell whether they hold any product that
 //      lives in the Songdance CiRCLE (courses, journeys, the grief course, …).
 //      Also grabs a first name to greet them. The same tag set decides which
@@ -31,6 +36,7 @@ import { workshopBumpTagsForEmail } from '../../lib/workshops/bump';
 import { formatInTz } from '../../lib/workshops/time';
 import { albumCoverUrl, albumUrl, listAlbumsForTags } from '../../lib/music/db';
 import { listenerCookieHeader, signListener } from '../../lib/music/access';
+import { describeWeekProgress, getWeekProgress } from '../../lib/courses/week-progress';
 
 export const prerender = false;
 
@@ -183,5 +189,58 @@ export const POST: APIRoute = async ({ request, locals }) => {
     console.warn(`[access-lookup] music lookup failed: ${String(err)}`);
   }
 
-  return json(200, { ok: true, email, first_name: firstName, sessions, circle, music }, extraHeaders);
+  // 4. The 12-week counter. Read from D1, so it survives a Drip outage — and
+  //    so does the activation offer beside it: owning the certification is
+  //    settled by the `prod_SVH_9m` tag OR a paid cert/path order here.
+  let progress: {
+    state: string;
+    week: number | null;
+    total_weeks: number;
+    label: string;
+    can_activate_cert: boolean;
+  } | null = null;
+  try {
+    const row = await getWeekProgress(env.DB, email);
+    if (row) {
+      const status = describeWeekProgress(row);
+      const ownsCert =
+        subscriberTags.includes('prod_SVH_9m') ||
+        (await ownsCertificationLocally(env.DB, email));
+      progress = {
+        state: status.state,
+        week: status.week,
+        total_weeks: status.totalWeeks,
+        label: status.label,
+        can_activate_cert: status.inTwelveWeek && ownsCert,
+      };
+    }
+  } catch (err) {
+    console.warn(`[access-lookup] week progress lookup failed: ${String(err)}`);
+  }
+
+  return json(
+    200,
+    { ok: true, email, first_name: firstName, sessions, circle, music, progress },
+    extraHeaders,
+  );
 };
+
+// A paid certification / certification-path order under this address. The local
+// half of "do they own the certification?" — see /api/courses/activate-now,
+// which re-checks both halves before it moves anyone.
+async function ownsCertificationLocally(
+  db: D1Database,
+  email: string,
+): Promise<boolean> {
+  const row = await db
+    .prepare(
+      `SELECT 1 AS ok FROM course_registrations
+        WHERE LOWER(TRIM(email)) = ?
+          AND product_slug IN ('cc-cert','cc-bundle')
+          AND status = 'paid'
+        LIMIT 1`,
+    )
+    .bind(email)
+    .first<{ ok: number }>();
+  return !!row;
+}

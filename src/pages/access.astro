@@ -8,6 +8,10 @@ import PageHero from '../components/PageHero.astro';
 //     to its countdown page, so you can step back into it.
 //   • Music albums — gated album players (src/lib/music/) the email's Drip tags
 //     hold; the lookup also sets the listener cookie so each link plays at once.
+//   • Where you are in the 12-week course — the week counter
+//     (src/lib/courses/week-progress.ts). Someone inside weeks 1-12 who also
+//     holds the certification can open it right here: the button posts to
+//     /api/courses/activate-now and the counter becomes "Ongoing Certification".
 //   • CiRCLE products — if you hold anything that lives in the Songdance CiRCLE
 //     (courses, journeys, …) we show the two paths: step inside if you're set
 //     up, or request activation (tags you `prod_access` in Drip via
@@ -63,6 +67,52 @@ const CIRCLE_URL = 'https://circle.songdance.co/feed';
     <!-- Step 2 — results, populated by JS -->
     <div class="access-results" hidden data-results>
       <p class="access-greeting" data-greeting hidden></p>
+
+      <!-- Where you are in the 12-week course (and, if it's yours, the door
+           into the certification course) -->
+      <div class="access-block" hidden data-progress-block>
+        <h2 class="access-block-h">Your course</h2>
+        <div class="access-progress">
+          <div class="access-progress-head">
+            <span class="access-session-kind" data-progress-kind>12-week course</span>
+            <p class="access-progress-week" data-progress-label></p>
+            <p class="access-progress-when" data-progress-note></p>
+          </div>
+          <!-- Twelve segments, filled client-side (see renderProgress) -->
+          <div class="access-progress-bar" data-progress-bar hidden aria-hidden="true"></div>
+
+          <div class="access-progress-activate" hidden data-progress-activate>
+            <p class="access-block-p" data-cert-intro>
+              You also hold the certification course. You're welcome to walk the
+              foundation to the end first — or step into the certification now,
+              whenever you're ready.
+            </p>
+            <button type="button" class="sd-btn sd-btn-primary" data-cert-activate>
+              <span>Activate the certification course now</span>
+              <i class="ph-light ph-arrow-right"></i>
+            </button>
+            <div class="access-progress-confirm" hidden data-cert-confirm>
+              <p class="access-block-p" data-cert-confirm-body></p>
+              <div class="access-progress-confirm-actions">
+                <button type="button" class="sd-btn sd-btn-primary" data-cert-confirm-yes>
+                  <span>Yes, activate</span>
+                  <i class="ph-light ph-arrow-right"></i>
+                </button>
+                <button type="button" class="access-progress-cancel" data-cert-confirm-no>
+                  Not yet
+                </button>
+              </div>
+            </div>
+            <p class="access-activated" hidden data-cert-done>
+              <i class="ph-light ph-check-circle"></i>
+              Activated — your course now reads
+              <strong>Ongoing Certification</strong>. Everything is waiting for
+              you in the Songdance CiRCLE.
+            </p>
+            <p class="access-error" hidden role="alert" data-cert-error></p>
+          </div>
+        </div>
+      </div>
 
       <!-- Live sessions (workshops / masterclasses) -->
       <div class="access-block" hidden data-live-block>
@@ -266,6 +316,65 @@ const CIRCLE_URL = 'https://circle.songdance.co/feed';
   :global(.access-session.is-missed) { border-style: dashed; }
   :global(.access-session .sd-btn) { white-space: nowrap; }
 
+  /* ---------- The 12-week counter ---------- */
+  .access-progress {
+    padding: var(--sp-6);
+    background: var(--paper-soft);
+    border: 1px solid var(--line);
+    border-radius: var(--r-xl);
+    box-shadow: var(--shadow-1);
+  }
+  .access-progress-head { display: flex; flex-direction: column; gap: 6px; }
+  .access-progress-week {
+    font-family: var(--font-display);
+    font-size: var(--t-h3);
+    line-height: var(--lh-snug);
+    color: var(--ink);
+    font-weight: 400;
+    margin: 0;
+  }
+  .access-progress-when { color: var(--ink-soft); font-size: var(--t-body-sm); margin: 0; }
+
+  .access-progress-bar {
+    display: flex;
+    gap: 4px;
+    margin-top: var(--sp-4);
+  }
+  /* The week segments are injected client-side, so they never carry Astro's
+     scoping attribute — these rules must be :global() or they silently no-op
+     (the same trap as the album rows below). */
+  :global(.access-progress-bar span) {
+    flex: 1;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--line);
+  }
+  :global(.access-progress-bar span[data-done]) { background: var(--ember); }
+
+  .access-progress-activate {
+    margin-top: var(--sp-5);
+    padding-top: var(--sp-5);
+    border-top: 1px solid var(--line);
+  }
+  .access-progress-activate .access-block-p { margin-bottom: var(--sp-4); }
+  .access-progress-confirm { margin-top: var(--sp-4); }
+  .access-progress-confirm-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--sp-3);
+  }
+  .access-progress-cancel {
+    background: none;
+    border: none;
+    padding: 0;
+    font-family: var(--font-body);
+    font-size: var(--t-body-sm);
+    color: var(--ink-quiet);
+    text-decoration: underline;
+    cursor: pointer;
+  }
+
   /* Music album rows reuse the session-card frame, plus a cover thumb. */
   :global(.access-album-cover) {
     flex: 0 0 auto;
@@ -358,6 +467,16 @@ const CIRCLE_URL = 'https://circle.songdance.co/feed';
     status: 'upcoming' | 'replay' | 'missed';
   };
   type MusicAlbum = { title: string; url: string; cover: string | null };
+  // Where they are in the 12-week course. `can_activate_cert` is the server's
+  // decision (inside weeks 1-12 AND holds the certification) — the page never
+  // infers it, and /api/courses/activate-now re-checks it before moving anyone.
+  type Progress = {
+    state: 'twelve_week' | 'completed' | 'certification';
+    week: number | null;
+    total_weeks: number;
+    label: string;
+    can_activate_cert: boolean;
+  };
   type LookupResult = {
     ok?: boolean;
     email?: string;
@@ -365,6 +484,7 @@ const CIRCLE_URL = 'https://circle.songdance.co/feed';
     sessions?: Session[];
     circle?: { has?: boolean; products?: string[] };
     music?: MusicAlbum[];
+    progress?: Progress | null;
   };
 
   const lookupWrap = document.querySelector<HTMLElement>('[data-lookup]');
@@ -380,6 +500,20 @@ const CIRCLE_URL = 'https://circle.songdance.co/feed';
   const musicBlock = document.querySelector<HTMLElement>('[data-music-block]');
   const musicList = document.querySelector<HTMLElement>('[data-music-list]');
   const noneBlock = document.querySelector<HTMLElement>('[data-none-block]');
+  const progressBlock = document.querySelector<HTMLElement>('[data-progress-block]');
+  const progressKind = document.querySelector<HTMLElement>('[data-progress-kind]');
+  const progressLabel = document.querySelector<HTMLElement>('[data-progress-label]');
+  const progressNote = document.querySelector<HTMLElement>('[data-progress-note]');
+  const progressBar = document.querySelector<HTMLElement>('[data-progress-bar]');
+  const certActivate = document.querySelector<HTMLElement>('[data-progress-activate]');
+  const certBtn = document.querySelector<HTMLButtonElement>('[data-cert-activate]');
+  const certConfirm = document.querySelector<HTMLElement>('[data-cert-confirm]');
+  const certConfirmBody = document.querySelector<HTMLElement>('[data-cert-confirm-body]');
+  const certConfirmYes = document.querySelector<HTMLButtonElement>('[data-cert-confirm-yes]');
+  const certConfirmNo = document.querySelector<HTMLButtonElement>('[data-cert-confirm-no]');
+  const certIntro = document.querySelector<HTMLElement>('[data-cert-intro]');
+  const certDone = document.querySelector<HTMLElement>('[data-cert-done]');
+  const certError = document.querySelector<HTMLElement>('[data-cert-error]');
 
   // The looked-up email, reused for the activation request.
   let currentEmail = '';
@@ -443,6 +577,57 @@ const CIRCLE_URL = 'https://circle.songdance.co/feed';
       .join('');
   }
 
+  // The counter: a headline ("Week 3 of 12" / "Ongoing Certification"), a
+  // twelve-segment bar while the foundation runs, and — only when the server
+  // says so — the door into the certification course.
+  function renderProgress(p: Progress | null | undefined) {
+    if (!progressBlock) return;
+    if (!p) {
+      progressBlock.hidden = true;
+      return;
+    }
+    progressBlock.hidden = false;
+
+    const onCert = p.state === 'certification';
+    if (progressKind) {
+      progressKind.textContent = onCert ? 'Certification course' : '12-week course';
+    }
+    if (progressLabel) progressLabel.textContent = p.label;
+    if (progressNote) {
+      progressNote.textContent = onCert
+        ? 'Your certification course is open — everything lives in the Songdance CiRCLE.'
+        : p.state === 'completed'
+          ? 'You walked the whole foundation. The materials stay yours.'
+          : 'Your own pace. The materials are there whenever you come to them.';
+    }
+
+    // Twelve segments, one per week, filled up to where they are.
+    if (progressBar) {
+      const show = p.state === 'twelve_week' && p.week != null;
+      progressBar.hidden = !show;
+      if (show) {
+        const total = p.total_weeks || 12;
+        progressBar.innerHTML = Array.from({ length: total }, (_, i) =>
+          i < (p.week ?? 0) ? '<span data-done></span>' : '<span></span>',
+        ).join('');
+      }
+    }
+
+    // Reset the activation UI for this lookup.
+    if (certConfirm) certConfirm.hidden = true;
+    if (certIntro) certIntro.hidden = false;
+    if (certDone) certDone.hidden = true;
+    if (certError) certError.hidden = true;
+    if (certBtn) certBtn.hidden = false;
+    if (certBtn) certBtn.disabled = false;
+    if (certActivate) certActivate.hidden = !p.can_activate_cert;
+    if (certConfirmBody) {
+      certConfirmBody.textContent = p.week
+        ? `You're in week ${p.week} of ${p.total_weeks}. Activating moves you on to the certification course — your foundation materials stay yours either way. Ready?`
+        : 'Activating moves you on to the certification course — your foundation materials stay yours either way. Ready?';
+    }
+  }
+
   function renderResults(data: LookupResult) {
     const sessions = data.sessions ?? [];
     const circle = data.circle ?? { has: false, products: [] };
@@ -469,6 +654,10 @@ const CIRCLE_URL = 'https://circle.songdance.co/feed';
     if (hasMusic) renderMusic(music);
     if (musicBlock) musicBlock.hidden = !hasMusic;
 
+    // Where they are in the 12-week course
+    const progress = data.progress ?? null;
+    renderProgress(progress);
+
     // CiRCLE products
     const hasCircle = !!circle.has;
     if (circleBlock) circleBlock.hidden = !hasCircle;
@@ -483,7 +672,7 @@ const CIRCLE_URL = 'https://circle.songdance.co/feed';
     }
 
     // Nothing at all
-    if (noneBlock) noneBlock.hidden = hasSessions || hasCircle || hasMusic;
+    if (noneBlock) noneBlock.hidden = hasSessions || hasCircle || hasMusic || !!progress;
 
     // Reset any activation states from a previous lookup.
     document.querySelectorAll<HTMLElement>('[data-activated]').forEach((el) => (el.hidden = true));
@@ -574,6 +763,69 @@ const CIRCLE_URL = 'https://circle.songdance.co/feed';
         }
       }
     });
+  });
+
+  // Activating the certification course from here. Two steps — the move is
+  // one-way, so it asks first. The server re-checks that the course is
+  // theirs and that they're still inside the 12 weeks.
+  certBtn?.addEventListener('click', () => {
+    if (certError) certError.hidden = true;
+    if (certConfirm) certConfirm.hidden = false;
+    certBtn.hidden = true;
+    certConfirmYes?.focus();
+  });
+
+  certConfirmNo?.addEventListener('click', () => {
+    if (certConfirm) certConfirm.hidden = true;
+    if (certBtn) certBtn.hidden = false;
+  });
+
+  certConfirmYes?.addEventListener('click', async () => {
+    if (!currentEmail) return;
+    if (certError) certError.hidden = true;
+    certConfirmYes.disabled = true;
+    const original = certConfirmYes.innerHTML;
+    certConfirmYes.innerHTML = '<span>Activating…</span>';
+    try {
+      const res = await fetch('/api/courses/activate-now', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: currentEmail }),
+      });
+      const payload = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        error?: string;
+        progress?: { label?: string } | null;
+      };
+      if (!res.ok || !payload?.ok) throw new Error(payload?.error || 'activate-failed');
+      if (certConfirm) certConfirm.hidden = true;
+      if (certIntro) certIntro.hidden = true;
+      if (certDone) certDone.hidden = false;
+      // The counter now reads "Ongoing Certification" — say so where the week was.
+      if (progressKind) progressKind.textContent = 'Certification course';
+      if (progressLabel) {
+        progressLabel.textContent = payload.progress?.label || 'Ongoing Certification';
+      }
+      if (progressNote) {
+        progressNote.textContent =
+          'Your certification course is open — everything lives in the Songdance CiRCLE.';
+      }
+      if (progressBar) progressBar.hidden = true;
+    } catch (err) {
+      if (certConfirm) certConfirm.hidden = true;
+      if (certBtn) certBtn.hidden = false;
+      if (certError) {
+        const msg = err instanceof Error ? err.message : '';
+        certError.textContent =
+          msg && msg !== 'activate-failed'
+            ? msg
+            : "That didn't go through — please try again in a moment, or write to support@songdance.co.";
+        certError.hidden = false;
+      }
+    } finally {
+      certConfirmYes.disabled = false;
+      certConfirmYes.innerHTML = original;
+    }
   });
 
   document.querySelectorAll<HTMLAnchorElement>('[data-reset]').forEach((a) =>
