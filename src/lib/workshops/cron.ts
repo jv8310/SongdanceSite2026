@@ -824,6 +824,14 @@ async function runPostWorkshop(env: CronEnv, now: number, result: CronResult) {
         const steps = dueSteps(isPro ? PRO_ATTENDED_STEPS : ATTENDED_STEPS);
         for (const step of steps) {
           if (step.requires && !(await notificationExists(env.DB, reg.id, step.requires))) continue;
+          // Already mailed on an earlier tick → nothing left to do. This is the
+          // same answer claimNotification gives below, asked BEFORE the ownership
+          // lookups instead of after: dueSteps keeps a step "due" for its whole
+          // staleness window (48–72h), so without this gate every already-sent
+          // registration re-ran those lookups on all ~576–864 ticks of that
+          // window. One indexed read on UNIQUE(registration_id, type) replaces
+          // them. See the downsell loop below for the same guard.
+          if (await notificationExists(env.DB, reg.id, step.type)) continue;
           let content: EmailContent;
           // Stats label for this send (email_sends.email_type). Defaults to the
           // step/claim type; the PRO branch overrides email 1 below so it reports
@@ -879,6 +887,16 @@ async function runPostWorkshop(env: CronEnv, now: number, result: CronResult) {
           for (const step of dueSteps(DOWNSELL_STEPS)) {
             if (now < effectiveDiscountEndsMs) continue; // never while the discount is open (promo end while the promo runs)
             if (step.requires && !(await notificationExists(env.DB, reg.id, step.requires))) continue;
+            // Already mailed → skip before the four ownership lookups below.
+            // They are the most expensive thing this cron does (hasBought12w /
+            // hasBoughtCert / dripTagsForEmail / paidProductSlugs), and the claim
+            // that would have stopped them sits at the BOTTOM of this loop — so
+            // for the 2–3 days a step stays "due" they were re-run every 5
+            // minutes for people who were mailed on the very first tick. The
+            // claim below still owns correctness; this is purely the cheap
+            // question asked first. (Can't simply hoist claimNotification: the
+            // branches below legitimately bail, and that would burn the claim.)
+            if (await notificationExists(env.DB, reg.id, step.type)) continue;
             const bought = await cached(bought12wCache, email, () => hasBought12w(env.DB, email));
             if (bought) continue;
             const boughtCert = await cached(boughtCertCache, email, () => hasBoughtCert(env.DB, email));
