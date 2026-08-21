@@ -1019,13 +1019,6 @@ export async function upsertPaypalPayment(
   return r.id;
 }
 
-export async function setPaymentStatusByPaypalCapture(db: D1Database, captureId: string, status: string) {
-  await db
-    .prepare("UPDATE workshop_payments SET status = ?, updated_at = datetime('now') WHERE paypal_capture_id = ?")
-    .bind(status, captureId)
-    .run();
-}
-
 export async function insertPurchase(
   db: D1Database,
   data: {
