@@ -1,0 +1,106 @@
+---
+// What a professional tangibly takes home — in their work and in themselves.
+// Deliberately concrete: tools, questions and moves, never outcome promises
+// (copy book: no miracles, on purpose). The closing quote is quote bank #72.
+const work = [
+  {
+    lead: 'A next move for the stuck moment.',
+    body: '“What is the sound of it?” — something to do rather than one more thing to know, without leaving the chair. You can spend an hour explaining a heartache, or make its sound and be standing inside it. It asks the body instead of the story.',
+  },
+  {
+    lead: 'A second channel besides self-report.',
+    body: 'Words can hide; a tone can’t. You leave with a first map for listening — fear is a short, fast wave, grief a longer one, anger carries a metallic edge — including an ear for what’s missing from a voice.',
+  },
+  {
+    lead: 'A move for when emotion actually arrives.',
+    body: 'The flood, or the shutdown: the energy goes into the voice while the body stays soft. And why this stays workable — the voice is a careful gatekeeper. It doesn’t hand a person more than they can be with.',
+  },
+  {
+    lead: 'Something to give between sessions.',
+    body: 'Three breaths and a tone — a practice people can actually do on an ordinary Tuesday, with no equipment and no appointment. Feelings don’t keep office hours.',
+  },
+];
+const you = [
+  {
+    lead: 'A thirty-second practice between sessions.',
+    body: 'One breath in, one honest tone out — first aid for your own system between one person and the next. It fits in the gap you already have.',
+  },
+  {
+    lead: 'A door out of your own head.',
+    body: 'You spend your working life in language. A minute of sounding quiets the narrating mind and puts you back in your body — before the next person walks in.',
+  },
+  {
+    lead: 'Somewhere to put the day down.',
+    body: 'You hear heavy things all week. Sound what the day left in you — in the car, on the doorstep — so it doesn’t walk into the house with you.',
+  },
+  {
+    lead: 'Relief from being the one who has to know.',
+    body: 'The information comes from their sound, not your interpretation, and the discovery belongs to them. That’s less projection to manage — and noticeably less to carry.',
+  },
+];
+---
+
+<section class="mc-benefits" id="benefits">
+  <div class="mc-benefits-inner">
+    <div class="mc-benefits-head">
+      <div class="we-eyebrow" style="justify-content: center;">What you take home</div>
+      <h2 class="we-h2">
+        Useful the same week —<br />
+        <em>in your work, and in you.</em>
+      </h2>
+      <p class="mc-benefits-sub">
+        Nothing here needs a good voice, new equipment, or a change of
+        profession. These are the things practitioners actually leave these
+        100 minutes with.
+      </p>
+    </div>
+
+    <figure class="mc-benefits-figure">
+      <img
+        src="/media/library/jacob-holding-space.webp"
+        alt="Jacob guiding a session while a participant stands behind him, head bowed"
+        loading="lazy"
+        decoding="async"
+      />
+      <figcaption>Holding the room while it happens — present, steady, out of the way.</figcaption>
+    </figure>
+
+    <div class="mc-benefits-grid">
+      <div class="mc-benefits-col">
+        <h3 class="mc-benefits-kicker">In your work</h3>
+        <ul>
+          {
+            work.map((b) => (
+              <li>
+                <strong>{b.lead}</strong> {b.body}
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+      <div class="mc-benefits-col">
+        <h3 class="mc-benefits-kicker">In you</h3>
+        <ul>
+          {
+            you.map((b) => (
+              <li>
+                <strong>{b.lead}</strong> {b.body}
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+    </div>
+
+    <p class="mc-benefits-honest">
+      "Don't expect miracles — expect a real relationship with your own
+      voice." — Jacob
+    </p>
+
+    <div class="mc-benefits-cta-wrap">
+      <a href="#register" class="we-link-cta">
+        Reserve your seat <i class="ph-light ph-arrow-right"></i>
+      </a>
+    </div>
+  </div>
+</section>

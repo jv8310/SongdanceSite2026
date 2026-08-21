@@ -1,0 +1,36 @@
+---
+// Photo band — the practice as it actually looks. Three real moments from
+// Jacob's retreats (R2 library), sitting between the recognition section and
+// the "inside the 100 minutes" breakdown so the page shows the work before it
+// explains it. On narrow screens the band becomes a swipeable strip.
+const moments = [
+  {
+    img: '/media/library/svh-retreat-sounding-shawl.webp',
+    alt: 'A woman sounding outdoors at golden hour, hands crossed over her chest',
+    caption: 'One honest tone — the sound of what’s actually there.',
+  },
+  {
+    img: '/media/library/svh-retreat-sounding-man-sweater.webp',
+    alt: 'A man sounding with one hand on his chest and one on his belly, evening light behind him',
+    caption: 'The body stays soft. The voice does the expressing.',
+  },
+  {
+    img: '/media/library/svh-retreat-sounding-pink-shirt.webp',
+    alt: 'A woman sounding with open hands and closed eyes, in a green landscape',
+    caption: '“You cannot do it wrong. It will always express something.” — Jacob',
+  },
+];
+---
+
+<section class="mc-moments" aria-label="The practice, in pictures">
+  <div class="mc-moments-inner">
+    {
+      moments.map((m) => (
+        <figure class="mc-moment">
+          <img src={m.img} alt={m.alt} loading="lazy" decoding="async" />
+          <figcaption>{m.caption}</figcaption>
+        </figure>
+      ))
+    }
+  </div>
+</section>
