@@ -2,6 +2,12 @@
 // Bespoke landing page for the Professional Masterclass — the practitioner-
 // facing sibling of /workshop. Same candle-lit build (workshop-english.css)
 // with masterclass deltas in masterclass.css; copy per docs/svh-copy-book.md.
+//
+// This page is deliberately self-contained: no body links into other courses
+// (owner's call, Aug 2026 — DiscoverMore removed, MCPath's certification link
+// dropped). The slide-in SiteMenu keeps the full site reachable. Note:
+// PromoBanner links /courses whenever a launch promo window is live — inert
+// today; reconsider here if a promo is ever reopened.
 import '../../styles/workshop-english.css';
 import '../../styles/masterclass.css';
 import Layout from '../../layouts/Layout.astro';
@@ -9,7 +15,9 @@ import PromoBanner from '../../components/PromoBanner.astro';
 import MCNav from '../../components/masterclass/MCNav.astro';
 import MCHero from '../../components/masterclass/MCHero.astro';
 import MCOpening from '../../components/masterclass/MCOpening.astro';
+import MCMoments from '../../components/masterclass/MCMoments.astro';
 import MCWhat from '../../components/masterclass/MCWhat.astro';
+import MCBenefits from '../../components/masterclass/MCBenefits.astro';
 import MCWho from '../../components/masterclass/MCWho.astro';
 import MCLyric from '../../components/masterclass/MCLyric.astro';
 import MCTestimonials from '../../components/masterclass/MCTestimonials.astro';
@@ -17,7 +25,6 @@ import MCAbout from '../../components/masterclass/MCAbout.astro';
 import MCPath from '../../components/masterclass/MCPath.astro';
 import MCRegister from '../../components/masterclass/MCRegister.astro';
 import WEFooter from '../../components/workshop-english/WEFooter.astro';
-import DiscoverMore from '../../components/DiscoverMore.astro';
 import { buildCalendarItems, tzOptionsFor } from '../../lib/workshops/calendar';
 import { currencyForCountry } from '../../lib/workshops/currency';
 import MetaProductView from '../../components/MetaProductView.astro';
@@ -54,7 +61,9 @@ const product = catalogItemById('masterclass');
     <MCNav />
     <MCHero />
     <MCOpening />
+    <MCMoments />
     <MCWhat />
+    <MCBenefits />
     <MCWho />
     <MCLyric />
     <MCTestimonials />
@@ -67,7 +76,6 @@ const product = catalogItemById('masterclass');
       detectedTz={detectedTz}
       tzOptions={tzOptions}
     />
-    <DiscoverMore currentHref="/courses/masterclass" />
     <WEFooter />
   </div>
   <MetaProductView

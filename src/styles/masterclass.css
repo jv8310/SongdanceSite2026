@@ -5,6 +5,189 @@
    the masterclass-specific deltas under the `mc-` prefix.
    ========================================================= */
 
+/* ---------- Typography law (see CLAUDE.md) ----------
+   Cormorant (--font-lyric) reads optically smaller than the Spectral display
+   it sits inside, so every inline lyric `em` in a display heading is sized up.
+   Scoped here so only the masterclass page is touched. */
+.we-hero-head em,
+.we-opening-head em,
+.we-h2 em,
+.we-masterclass-h2 em,
+.we-register-h2 em {
+  font-size: 1.05em;
+}
+
+/* ---------- The practice, in pictures (photo band) ---------- */
+.mc-moments {
+  background: var(--paper);
+  padding: 0 var(--sp-7) var(--sp-9);
+}
+.mc-moments-inner {
+  max-width: var(--we-max);
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--sp-5);
+}
+.mc-moment { margin: 0; }
+.mc-moment img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  object-fit: cover;
+  border-radius: var(--r-lg);
+  filter: var(--we-img-filter);
+  box-shadow: var(--shadow-2);
+}
+.mc-moment figcaption {
+  font-family: var(--font-body);
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--ink-quiet);
+  margin-top: 10px;
+}
+@media (max-width: 760px) {
+  .mc-moments { padding: 0 0 var(--sp-8); }
+  .mc-moments-inner {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    gap: var(--sp-4);
+    padding: 0 var(--sp-4) var(--sp-2);
+    -webkit-overflow-scrolling: touch;
+  }
+  .mc-moment { flex: 0 0 76vw; scroll-snap-align: center; }
+}
+
+/* ---------- Inside: the method-with-a-map figure ---------- */
+.mc-inside-figure {
+  max-width: 480px;
+  margin: 0 auto var(--sp-9);
+}
+.mc-inside-figure img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  object-fit: cover;
+  object-position: center 22%;
+  border-radius: var(--r-lg);
+  filter: var(--we-img-filter);
+  box-shadow: var(--shadow-3);
+}
+.mc-inside-figure figcaption {
+  font-family: var(--font-body);
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--ink-quiet);
+  margin-top: 10px;
+  text-align: center;
+}
+
+/* ---------- What you take home (benefits) ---------- */
+.mc-benefits {
+  background: var(--paper);
+  padding: var(--sp-10) var(--sp-7);
+  border-top: 1px solid var(--line);
+}
+.mc-benefits-inner { max-width: 980px; margin: 0 auto; }
+.mc-benefits-head {
+  text-align: center;
+  max-width: 640px;
+  margin: 0 auto var(--sp-7);
+}
+.mc-benefits-sub {
+  font-family: var(--font-body);
+  font-size: 16.5px;
+  line-height: 1.7;
+  color: var(--ink-quiet);
+  max-width: 52ch;
+  margin: var(--sp-4) auto 0;
+  text-wrap: balance;
+}
+.mc-benefits-figure { margin: 0 0 var(--sp-7); }
+.mc-benefits-figure img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 21 / 10;
+  object-fit: cover;
+  object-position: center 30%;
+  border-radius: var(--r-lg);
+  filter: var(--we-img-filter);
+  box-shadow: var(--shadow-2);
+}
+.mc-benefits-figure figcaption {
+  font-family: var(--font-body);
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--ink-quiet);
+  margin-top: 10px;
+  text-align: center;
+}
+.mc-benefits-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-5);
+  margin-bottom: var(--sp-8);
+}
+@media (max-width: 760px) { .mc-benefits-grid { grid-template-columns: 1fr; } }
+.mc-benefits-col {
+  background: var(--paper-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: var(--sp-6);
+}
+.mc-benefits-kicker {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  color: var(--ember-deep);
+  font-weight: 500;
+  margin: 0 0 var(--sp-5);
+}
+.mc-benefits-col ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+.mc-benefits-col li {
+  position: relative;
+  padding-left: 24px;
+  font-family: var(--font-body);
+  font-size: 15.5px;
+  line-height: 1.65;
+  color: var(--ink-soft);
+}
+.mc-benefits-col li::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 9px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ember);
+}
+.mc-benefits-col li strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+.mc-benefits-honest {
+  font-family: var(--font-lyric);
+  font-style: italic;
+  font-size: clamp(20px, 2.1vw, 26px);
+  line-height: 1.45;
+  color: var(--ink);
+  text-align: center;
+  max-width: 44ch;
+  margin: 0 auto;
+  text-wrap: balance;
+}
+.mc-benefits-cta-wrap { text-align: center; margin-top: var(--sp-6); }
+
 /* ---------- Who it's for (chip band) ---------- */
 .mc-who {
   background: var(--paper);
