@@ -577,8 +577,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
       return newest?.amount ?? charge.amount_refunded;
     })();
 
-    // 0. Workshop lookup by PaymentIntent (own payment table).
-    if (await handleWorkshopRefund(env, charge)) {
+    // 0. Workshop lookup by PaymentIntent (own payment table). The delta is
+    //    this refund's amount, so partials accumulate on the payment row
+    //    instead of writing the whole charge off (migration 0082).
+    if (await handleWorkshopRefund(env, { ...charge, refund_delta: refundDelta })) {
       return new Response('OK (workshop refund)', { status: 200 });
     }
 

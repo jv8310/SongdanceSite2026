@@ -5,6 +5,7 @@ import { readCookie, verifySession } from '../../lib/registrations/auth';
 import {
   computeStats,
   computeCourseSales,
+  computeRefunds,
   computeWorkshopPerformance,
   computeRegistrationsByDay,
   computeAdSpendByCampaign,
@@ -66,6 +67,9 @@ const money = await resolveMoneyOpts(env.DB, env);
 const workshops = await listWorkshops(env.DB);
 const report = await computeStats(env.DB, { from, to, workshopId });
 const courses = await computeCourseSales(env.DB, { from, to, money });
+// Refunds dated by the day the money went back (everything above is dated by
+// the sale, with its refunds already netted off) — see computeRefunds.
+const refunds = await computeRefunds(env.DB, { from, to, money });
 const days = mergeDailyStreams(report, courses, from, to);
 const campaignSpend = await computeAdSpendByCampaign(env.DB, { from, to });
 // Per-workshop funnel + workshop-only (TOF) ROAS. Not narrowed by the workshop
@@ -820,7 +824,58 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
             ))}
           </tbody>
         </table>
-        <p class="adm-sub">Collected = what was actually charged so far (installment plans count paid installments only, refunds subtracted), net of VAT, attributed to the day of first payment.</p>
+        <p class="adm-sub">
+          Collected = what was actually charged so far (installment plans count paid installments only, refunds subtracted),
+          net of VAT, attributed to the day of first payment.
+          {courses.fullyRefundedCount > 0 && (
+            <> <strong>{courses.fullyRefundedCount}</strong> fully refunded {courses.fullyRefundedCount === 1 ? 'order is' : 'orders are'} excluded — see Refunds below.</>
+          )}
+        </p>
+      </section>
+    )}
+
+    {courses.bumps.count > 0 && (
+      <section class="adm-section">
+        <h2>Order bumps on course checkouts</h2>
+        <table class="adm-table st-table">
+          <thead><tr><th>Bump</th><th class="num">Taken</th><th class="num">Collected (EUR)</th></tr></thead>
+          <tbody>
+            {courses.bumps.byLabel.map((b) => (
+              <tr><td>{b.label}</td><td class="num">{b.count}</td><td class="num">{eur(b.eurMinor)}</td></tr>
+            ))}
+            <tr class="st-total">
+              <td>Total</td>
+              <td class="num">{courses.bumps.count}</td>
+              <td class="num">{eur(courses.bumps.eurMinor)}</td>
+            </tr>
+          </tbody>
+        </table>
+        <p class="adm-sub">Add-ons taken alongside a 12-week or certification purchase, charged as their own line. Not part of the course figures above, nor of the totals and ROAS at the top of this page.</p>
+      </section>
+    )}
+
+    {refunds.count > 0 && (
+      <section class="adm-section">
+        <h2>Refunds issued</h2>
+        <table class="adm-table st-table">
+          <thead><tr><th>Product</th><th class="num">Refunds</th><th class="num">Given back (EUR)</th></tr></thead>
+          <tbody>
+            {refunds.byLabel.map((x) => (
+              <tr><td>{x.label}</td><td class="num">{x.count}</td><td class="num st-neg-ink">−{eur(x.eurMinor)}</td></tr>
+            ))}
+            <tr class="st-total">
+              <td>Total</td>
+              <td class="num">{refunds.count}</td>
+              <td class="num st-neg-ink">−{eur(refunds.eurMinor)}</td>
+            </tr>
+          </tbody>
+        </table>
+        <p class="adm-sub">
+          Dated by the day the money went back — everything else on this page is dated by the sale.
+          <strong> {eur(refunds.againstWindowSalesEurMinor)}</strong> of this is against sales inside this window and is already deducted from the figures above;
+          <strong> {eur(refunds.againstEarlierSalesEurMinor)}</strong> is against earlier sales, so no other figure here reflects it.
+          Retreat refunds are excluded (retreat revenue isn't on this page either).
+        </p>
       </section>
     )}
 
@@ -1026,6 +1081,7 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
     .st-box-rows > div > i { flex-basis: 100%; font-style: normal; font-size: 11px; color: var(--adm-mute); }
     .st-box-rows--roomy > div { padding: 6px 0; }
     .st-neg-ink { color: var(--adm-danger) !important; }
+    .st-total td { font-weight: 650; border-top: 1px solid var(--adm-line); }
     .st-box-note { margin: 10px 0 0; font-size: 11px; color: var(--adm-mute); }
     .st-box-empty { margin: 4px 0 8px; font-size: 13px; color: var(--adm-ink-soft); }
 

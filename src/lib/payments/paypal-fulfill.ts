@@ -44,7 +44,7 @@ import {
   purchasesExistForPayment,
   insertPurchase,
   getPaymentByPaypalCapture,
-  setPaymentStatusByPaypalCapture,
+  recordWorkshopPaymentRefund,
   setRegistrationPaymentStatus,
 } from '../workshops/db';
 import { getTaxRate, netFromGross } from '../workshops/quaderno';
@@ -414,6 +414,31 @@ export async function fulfillWorkshopPaypalCapture(
 
 // ── Refunds ─────────────────────────────────────────────────────────────
 
+// Resolve a PayPal sale id back to the course plan that recorded it.
+//
+// A subscription's cycles each settle as their own sale, but the row keeps only
+// the first one (`paypal_capture_id = COALESCE(paypal_capture_id, ?)`), so
+// there is no column to match cycle 2+ against. Every recorded cycle — and
+// every setup-fee sale — writes an events row keyed `paypal.course.installment.
+// <saleId>` carrying the plan's id, so that ledger is the lookup table.
+async function courseRegIdForPaypalSale(
+  db: D1Database,
+  saleId: string,
+): Promise<number | null> {
+  const row = await db
+    .prepare('SELECT payload_json FROM events WHERE external_id = ? LIMIT 1')
+    .bind(`paypal.course.installment.${saleId}`)
+    .first<{ payload_json: string | null }>();
+  if (!row?.payload_json) return null;
+  try {
+    const id = (JSON.parse(row.payload_json) as { course_registration_id?: unknown })
+      .course_registration_id;
+    return typeof id === 'number' ? id : null;
+  } catch {
+    return null;
+  }
+}
+
 // Record a PayPal refund against whichever row owns the capture. Idempotent on
 // the refund id, so the admin endpoint (which has the refund response in hand)
 // and the webhook can both call this without double-counting. PayPal sends the
@@ -466,17 +491,51 @@ export async function recordPaypalRefund(
     return 'course';
   }
 
-  // 3. Workshop
+  // 3. Course subscription installment 2+. The row only ever stores the FIRST
+  //    sale id (paypal_capture_id is COALESCE'd on later cycles), so a refund
+  //    issued against cycle 2 or 3 — e.g. straight from the PayPal dashboard —
+  //    misses the lookup above and used to be logged as unmatched, leaving the
+  //    money on the books. Every recorded cycle wrote an events row keyed on
+  //    its own sale id, so that ledger resolves the sale back to the plan.
+  const installmentOwner = await courseRegIdForPaypalSale(env.DB, args.captureId);
+  if (installmentOwner != null) {
+    await markCourseRegistrationRefunded(env.DB, installmentOwner, delta);
+    await logEvent(env.DB, {
+      registration_id: null,
+      kind: 'paypal.course.refunded',
+      source: 'paypal',
+      external_id: externalId,
+      payload: {
+        course_registration_id: installmentOwner,
+        lookup: 'installment_sale_ledger',
+        ...args,
+      },
+    });
+    return 'course';
+  }
+
+  // 4. Workshop
   const wpay = await getPaymentByPaypalCapture(env.DB, args.captureId);
   if (wpay) {
-    await setPaymentStatusByPaypalCapture(env.DB, args.captureId, 'refunded');
-    await setRegistrationPaymentStatus(env.DB, wpay.registration_id, 'refunded');
+    const { refundedTotalMinor, fullyRefunded } = await recordWorkshopPaymentRefund(
+      env.DB,
+      wpay.id,
+      args.amountMinor,
+    );
+    if (fullyRefunded) {
+      await setRegistrationPaymentStatus(env.DB, wpay.registration_id, 'refunded');
+    }
     await logEvent(env.DB, {
       registration_id: null,
       kind: 'paypal.workshop.refunded',
       source: 'paypal',
       external_id: externalId,
-      payload: { registration_id: wpay.registration_id, ...args },
+      payload: {
+        registration_id: wpay.registration_id,
+        refunded_total_minor: refundedTotalMinor,
+        full: fullyRefunded,
+        ...args,
+      },
     });
     return 'workshop';
   }

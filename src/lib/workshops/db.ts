@@ -85,6 +85,10 @@ export type WorkshopPayment = {
   tax_minor: number | null;
   quaderno_invoice_id: string | null;
   quaderno_invoice_number: string | null;
+  // Running refund total (migration 0082). `status` is 'refunded' only once
+  // this covers `amount_minor`; a partial refund leaves the row 'paid'.
+  refunded_amount_minor: number;
+  refunded_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -882,6 +886,66 @@ export async function upsertPayment(
     .first<{ id: number }>();
   if (!r) throw new Error('Failed to upsert payment');
   return r.id;
+}
+
+// Record a refund against a workshop payment, accumulating so a sequence of
+// partial refunds adds up (Stripe and PayPal both send the individual refund
+// amount, not the running total). `status` flips to 'refunded' only once the
+// total covers the charge: a partially refunded payment stays 'paid' and
+// carries the amount in `refunded_amount_minor`, which is what lets the
+// `status = 'paid'` readers (stats, orders) keep the row and subtract what came
+// back, instead of erasing the whole charge over a €5 refund.
+//
+// A null/unknown amount is treated as a FULL refund — that is the old
+// all-or-nothing behaviour, and the safe reading when the gateway didn't tell
+// us how much went back.
+export async function recordWorkshopPaymentRefund(
+  db: D1Database,
+  paymentId: number,
+  refundedMinor: number | null,
+): Promise<{ refundedTotalMinor: number; fullyRefunded: boolean }> {
+  if (refundedMinor == null || refundedMinor <= 0) {
+    await db
+      .prepare(
+        `UPDATE workshop_payments
+            SET refunded_amount_minor = amount_minor,
+                refunded_at = COALESCE(refunded_at, datetime('now')),
+                status = 'refunded',
+                updated_at = datetime('now')
+          WHERE id = ?`,
+      )
+      .bind(paymentId)
+      .run();
+    const full = await db
+      .prepare('SELECT amount_minor FROM workshop_payments WHERE id = ?')
+      .bind(paymentId)
+      .first<{ amount_minor: number }>();
+    return { refundedTotalMinor: full?.amount_minor ?? 0, fullyRefunded: true };
+  }
+
+  const delta = Math.round(refundedMinor);
+  await db
+    .prepare(
+      `UPDATE workshop_payments
+          SET refunded_amount_minor = MIN(amount_minor, refunded_amount_minor + ?),
+              refunded_at = COALESCE(refunded_at, datetime('now')),
+              status = CASE WHEN refunded_amount_minor + ? >= amount_minor
+                            THEN 'refunded' ELSE status END,
+              updated_at = datetime('now')
+        WHERE id = ?`,
+    )
+    .bind(delta, delta, paymentId)
+    .run();
+
+  const row = await db
+    .prepare('SELECT amount_minor, refunded_amount_minor FROM workshop_payments WHERE id = ?')
+    .bind(paymentId)
+    .first<{ amount_minor: number; refunded_amount_minor: number }>();
+  const total = row?.refunded_amount_minor ?? delta;
+  return {
+    refundedTotalMinor: total,
+    fullyRefunded: !!row && total >= row.amount_minor,
+  };
 }
 
 export async function setPaymentStatusByIntent(db: D1Database, paymentIntentId: string, status: string) {

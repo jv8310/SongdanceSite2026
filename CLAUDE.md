@@ -384,6 +384,54 @@ notifications. Lives in [`src/lib/workshops/reports.ts`](src/lib/workshops/repor
   shared helper. Un-chunked, this silently killed the digest on busy days and
   500'd `/admin/orders`.
 
+## Refunds in the stats — netted at the sale, reported at the refund
+
+Every revenue figure (`/admin/stats`, `/ads`, the SD-REPORT digests) is dated by
+the **sale** and carries its refunds netted off. That is the right way to judge a
+product — a refunded sale must not read as a good one — but on its own it hides
+the money: with a 30-day guarantee the refund usually lands in a *later* month
+than the sale, so it silently rewrote the month sold and never appeared in the
+month paid out. Four rules now, and code that touches money must keep them:
+
+- **One splitter, never re-derive.** `collectedSplitOf`
+  ([`src/lib/workshops/stats.ts`](src/lib/workshops/stats.ts)) is the only place
+  that says what a course row collected. `amount_cents` is the **course price
+  only** — order bumps (ASJ €99, Grief €49) are charged as their own line and
+  live in the `bumps` JSON — so the refund is allocated **pro-rata across course
+  + bumps**. Subtracting it from the course line alone drove that line negative
+  and `max(0, …)` ate the difference, while a separate un-refund-aware query
+  still billed the bump at full price. `computeCourseSales` returns the bumps
+  breakdown (`courses.bumps`); the digest and `/ads` **read that** — the two
+  copies of the bump aggregation they each carried are gone.
+- **A fully refunded order is not a sale.** It's skipped from counts *and*
+  revenue (surfaced as `fullyRefundedCount`), instead of reading "1 sale, €0".
+- **`computeRefunds` is the refund view**, dated by `refunded_at`, split into
+  `againstWindowSalesEurMinor` (already deducted from the revenue above) and
+  `againstEarlierSalesEurMinor` (**reflected nowhere else** — the number that
+  was invisible). It is reported *beside* revenue, never folded into it: netting
+  it there would double-count the in-window part. Caveat: `refunded_at` is
+  stamped on the first refund, so a refund given in two parts months apart is
+  dated wholly to the first — the total is right, its placement can be early.
+  Retreats are excluded (retreat revenue isn't in these figures either).
+- **Workshop refunds are partial-capable** (migration 0082:
+  `workshop_payments.refunded_amount_minor` + `refunded_at`). `status =
+  'refunded'` now means **fully** refunded; a partial stays `'paid'` and carries
+  the amount, so the existing `status = 'paid'` readers keep the row and
+  subtract only what came back (`collectedShareOf`). Before this, refunding €5
+  of a €22 ticket erased the whole €22 and left the order un-refundable for the
+  rest. Both writers — `handleWorkshopRefund` (Stripe, passed the per-refund
+  delta) and `recordPaypalRefund` — accumulate through
+  `recordWorkshopPaymentRefund`, and only a full refund marks the **seat**
+  refunded (so a partial keeps its bump/music access).
+
+**PayPal installment refunds**: a plan row stores only the *first* sale id
+(`paypal_capture_id = COALESCE(…)`), so a refund against cycle 2/3 — e.g. issued
+in the PayPal dashboard — matched nothing and was logged
+`paypal.refund.unmatched`, money still on the books. `recordPaypalRefund` now
+falls back to the **events ledger** (`paypal.course.installment.<saleId>`, which
+every recorded cycle and setup-fee sale writes with its plan id) before trying
+the workshop tables.
+
 ## Order overview — paginated, filtered in SQL
 
 `/admin/orders` used to load **every** row of `registrations` +

@@ -32,17 +32,16 @@
 import {
   computeStats,
   computeCourseSales,
+  computeRefunds,
   mergeDailyStreams,
   resolveMoneyOpts,
   type MoneyOpts,
   type StreamDay,
 } from './stats';
-import { FX_TO_EUR, formatMoney } from './currency';
+import { formatMoney } from './currency';
 import { shiftDays } from './periods';
 import { localHour } from './time';
 import { sendEmail } from './resend';
-import { parsePurchasedBumps } from '../courses/db';
-import { BUMPS, isBumpSlug } from '../courses/bumps';
 import type { EmailContent } from './emails';
 
 // The business timezone — the same one the stats-page presets resolve "today"
@@ -91,6 +90,18 @@ export type ReportData = {
     eurMinor: number;
     byLabel: Array<{ label: string; count: number; eurMinor: number }>;
   };
+  // Money given back IN this window, dated by the refund rather than the sale.
+  // Kept out of the revenue figures on purpose: the part refunded against a
+  // sale in this window is already deducted there, and netting it again would
+  // count it twice. `againstEarlierSalesEurMinor` is the part that no other
+  // figure in this report reflects.
+  refunds: {
+    count: number;
+    eurMinor: number;
+    againstWindowSalesEurMinor: number;
+    againstEarlierSalesEurMinor: number;
+    byLabel: Array<{ label: string; count: number; eurMinor: number }>;
+  };
   revenue: {
     ticketsNetEurMinor: number; // workshop tickets, masterclass excluded
     masterclassNetEurMinor: number;
@@ -119,6 +130,7 @@ export async function gatherReportData(
 ): Promise<ReportData> {
   const stats = await computeStats(db, { from, to });
   const courses = await computeCourseSales(db, { from, to, money });
+  const refunds = await computeRefunds(db, { from, to, money });
 
   // New registrations (secured seats) per workshop in the window. Grouped by
   // workshop id (not just title), since the same title (e.g. "Somatic Vocal
@@ -150,44 +162,22 @@ export async function gatherReportData(
   }));
   const regTotal = byWorkshop.reduce((s, r) => s + r.count, 0);
 
-  // 12-week checkout order bumps: parse the JSON on course rows paid in the
-  // window, convert to EUR with the fallback table (the bump's currency is the
-  // course row's currency), aggregate by product label.
-  const cbRes = await db
-    .prepare(
-      `SELECT bumps, currency FROM course_registrations
-        WHERE paid_at IS NOT NULL AND status NOT IN ('pending','expired')
-          AND bumps IS NOT NULL
-          AND paid_at >= ? AND paid_at <= ?`,
-    )
-    .bind(from, toEnd(to))
-    .all<{ bumps: string; currency: string }>();
-  const bumpMap = new Map<string, { count: number; eurMinor: number }>();
-  let courseBumpCount = 0;
-  let courseBumpEurMinor = 0;
-  for (const row of cbRes.results ?? []) {
-    const rate = FX_TO_EUR[(row.currency || 'EUR').toUpperCase()] ?? 1;
-    for (const b of parsePurchasedBumps(row.bumps)) {
-      const eur = Math.round(b.amount_cents * rate);
-      const label = isBumpSlug(b.slug) ? BUMPS[b.slug].label : b.slug;
-      const e = bumpMap.get(label) ?? { count: 0, eurMinor: 0 };
-      e.count += 1;
-      e.eurMinor += eur;
-      bumpMap.set(label, e);
-      courseBumpCount += 1;
-      courseBumpEurMinor += eur;
-    }
-  }
-  const courseBumpsByLabel = [...bumpMap.entries()]
-    .map(([label, v]) => ({ label, count: v.count, eurMinor: v.eurMinor }))
-    .sort((a, b) => b.eurMinor - a.eurMinor);
+  // 12-week / certification checkout order bumps. computeCourseSales works
+  // these out from the same rows it prices the courses on, so they carry the
+  // same live FX, the same VAT netting — and their share of any refund. (They
+  // used to be re-counted here from the `bumps` JSON with a query that never
+  // looked at refunds, so a fully refunded bump still billed itself as
+  // revenue.)
+  const courseBumpCount = courses.bumps.count;
+  const courseBumpEurMinor = courses.bumps.eurMinor;
+  const courseBumpsByLabel = courses.bumps.byLabel;
 
   const t = stats.totals;
   // Total = workshop-engine net (tickets + masterclass + workshop bumps +
   // workshop course add-ons) + standalone course sales + course order bumps.
   const totalEurMinor = t.netEurMinor + courses.totalNetEurMinor + courseBumpEurMinor;
   // ROAS mirrors the dashboard's blended figure (engine net + course sales),
-  // so it reconciles with /admin/stats.
+  // so it reconciles with /admin/stats and /ads.
   const roasNet = t.netEurMinor + courses.totalNetEurMinor;
 
   return {
@@ -208,6 +198,13 @@ export async function gatherReportData(
       count: courseBumpCount,
       eurMinor: courseBumpEurMinor,
       byLabel: courseBumpsByLabel,
+    },
+    refunds: {
+      count: refunds.count,
+      eurMinor: refunds.eurMinor,
+      againstWindowSalesEurMinor: refunds.againstWindowSalesEurMinor,
+      againstEarlierSalesEurMinor: refunds.againstEarlierSalesEurMinor,
+      byLabel: refunds.byLabel,
     },
     revenue: {
       ticketsNetEurMinor: t.ticketNetEurMinor,
@@ -444,6 +441,24 @@ function renderReport(opts: {
         )} · blended ROAS ${r.roas != null ? r.roas.toFixed(2) + '×' : '—'}</p>`
       : '');
 
+  // Refunds — dated by the day the money went back, not the day of the sale.
+  // Only shown when there were any; a clean window shouldn't carry a zero row.
+  const refundSection =
+    data.refunds.count > 0
+      ? sectionLabel('Refunds issued') +
+        dataTable(
+          ['Product', 'Refunds', 'Given back'],
+          data.refunds.byLabel.map((x) => [x.label, String(x.count), `−${eur(x.eurMinor)}`]),
+        ) +
+        `<p style="margin:8px 0 0;font-size:12px;color:${C.muted};line-height:1.6;">` +
+        `−${eur(data.refunds.eurMinor)} in total. ${eur(
+          data.refunds.againstWindowSalesEurMinor,
+        )} of that is against sales in this window and is already deducted from the revenue above; ` +
+        `<strong>${eur(
+          data.refunds.againstEarlierSalesEurMinor,
+        )} is against earlier sales</strong> and is not reflected in any figure above.</p>`
+      : '';
+
   const html = `<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>${escapeHtml(
     kindLabel,
@@ -464,6 +479,7 @@ function renderReport(opts: {
           ${courseSection}
           ${bumpSection}
           ${revenueSection}
+          ${refundSection}
           ${extraSectionsHtml ?? ''}
         </td></tr>
         <tr><td style="padding:18px 26px 26px;">
@@ -523,6 +539,20 @@ function renderReportText(kindLabel: string, rangeLabel: string, data: ReportDat
   if (r.adSpendEurMinor > 0) {
     lines.push(
       `  Ad spend: ${eur(r.adSpendEurMinor)} · blended ROAS ${r.roas != null ? r.roas.toFixed(2) + '×' : '—'}`,
+    );
+  }
+  if (data.refunds.count > 0) {
+    lines.push('', 'REFUNDS ISSUED (dated by the refund, not the sale)');
+    for (const x of data.refunds.byLabel)
+      lines.push(`  ${x.label}: ${x.count} · −${eur(x.eurMinor)}`);
+    lines.push(
+      `  Total given back: −${eur(data.refunds.eurMinor)}`,
+      `  Against sales in this window (already deducted above): ${eur(
+        data.refunds.againstWindowSalesEurMinor,
+      )}`,
+      `  Against earlier sales (not in any figure above): ${eur(
+        data.refunds.againstEarlierSalesEurMinor,
+      )}`,
     );
   }
   return lines.join('\n');
@@ -769,6 +799,14 @@ export function sampleDailyReportData(): ReportData {
       eurMinor: 1900,
       byLabel: [{ label: 'The Authentic Singing Journey', count: 1, eurMinor: 1900 }],
     },
+    refunds: {
+      count: 1,
+      eurMinor: 39700,
+      // Sold last month, refunded today — the case no other figure here shows.
+      againstWindowSalesEurMinor: 0,
+      againstEarlierSalesEurMinor: 39700,
+      byLabel: [{ label: '12-Week SVH Course', count: 1, eurMinor: 39700 }],
+    },
     revenue: {
       ticketsNetEurMinor: 3600,
       masterclassNetEurMinor: 19400,
@@ -846,6 +884,17 @@ export function sampleWeeklyReportData(): ReportData {
       byLabel: [
         { label: 'The Grief Course', count: 2, eurMinor: 9800 },
         { label: 'The Authentic Singing Journey', count: 3, eurMinor: 5700 },
+      ],
+    },
+    refunds: {
+      count: 3,
+      eurMinor: 84700,
+      againstWindowSalesEurMinor: 22000,
+      againstEarlierSalesEurMinor: 62700,
+      byLabel: [
+        { label: 'Certification — cert only', count: 1, eurMinor: 62700 },
+        { label: '12-Week SVH Course', count: 1, eurMinor: 19800 },
+        { label: 'Workshop & masterclass tickets', count: 1, eurMinor: 2200 },
       ],
     },
     revenue: {

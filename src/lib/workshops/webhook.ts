@@ -14,6 +14,7 @@ import {
   purchasesExistForPayment,
   resolvePrice,
   setPaymentStatusByIntent,
+  recordWorkshopPaymentRefund,
   setRegistrationPaymentStatus,
   upsertPayment,
 } from './db';
@@ -188,21 +189,42 @@ export async function handleWorkshopCheckoutCompleted(
   return true;
 }
 
-// charge.refunded → flip workshop payment + registration to refunded.
+// charge.refunded → record the refund against the workshop payment.
+//
+// `refundDelta` is THIS refund's amount in the charge currency (Stripe fires
+// the event once per refund operation, partials included), so it accumulates
+// on the row. Only a refund that covers the whole charge marks the payment —
+// and the seat — 'refunded': a partial refund leaves both 'paid', so the
+// registration still counts as a seat, keeps its music/bump access, and the
+// stats subtract just the part that went back. A null delta means Stripe
+// didn't tell us how much, and is treated as a full refund.
 export async function handleWorkshopRefund(
   env: Env,
-  charge: { payment_intent: string | null },
+  charge: { payment_intent: string | null; refund_delta?: number | null },
 ): Promise<boolean> {
   if (!charge.payment_intent) return false;
   const payment = await getPaymentByIntent(env.DB, charge.payment_intent);
   if (!payment) return false;
-  await setPaymentStatusByIntent(env.DB, charge.payment_intent, 'refunded');
-  await setRegistrationPaymentStatus(env.DB, payment.registration_id, 'refunded');
+  const { refundedTotalMinor, fullyRefunded } = await recordWorkshopPaymentRefund(
+    env.DB,
+    payment.id,
+    charge.refund_delta ?? null,
+  );
+  if (fullyRefunded) {
+    await setRegistrationPaymentStatus(env.DB, payment.registration_id, 'refunded');
+  }
   await logEvent(env.DB, {
     registration_id: null,
     kind: 'workshop.refunded',
-    external_id: `workshop-refund-${payment.id}`,
-    payload: { registration_id: payment.registration_id, payment_intent: charge.payment_intent },
+    external_id: `workshop-refund-${payment.id}-${refundedTotalMinor}`,
+    payload: {
+      registration_id: payment.registration_id,
+      payment_intent: charge.payment_intent,
+      refund_delta_minor: charge.refund_delta ?? null,
+      refunded_total_minor: refundedTotalMinor,
+      currency: payment.currency,
+      full: fullyRefunded,
+    },
   });
   return true;
 }

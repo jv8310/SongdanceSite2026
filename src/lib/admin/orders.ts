@@ -654,7 +654,7 @@ const WORKSHOP_FROM = `FROM workshop_registrations r
            SELECT registration_id, amount_minor, currency AS pay_currency,
                   settlement_amount_minor, settlement_currency, subtotal_minor,
                   provider, method, stripe_payment_intent_id, paypal_capture_id,
-                  quaderno_invoice_id, status AS pay_status,
+                  quaderno_invoice_id, status AS pay_status, refunded_amount_minor,
                   ROW_NUMBER() OVER (
                     PARTITION BY registration_id
                     ORDER BY created_at DESC, id DESC
@@ -667,7 +667,8 @@ const WORKSHOP_FROM = `FROM workshop_registrations r
 const WORKSHOP_MONEY_COLS = `r.id, r.created_at, r.payment_status, r.country,
               r.currency AS reg_currency,
               p.amount_minor, p.pay_currency, p.settlement_amount_minor,
-              p.settlement_currency, p.subtotal_minor, p.pay_status`;
+              p.settlement_currency, p.subtotal_minor, p.pay_status,
+              p.refunded_amount_minor`;
 
 type WorkshopMoneyRow = {
   id: number;
@@ -682,6 +683,7 @@ type WorkshopMoneyRow = {
   settlement_currency: string | null;
   subtotal_minor: number | null;
   pay_status: string | null;
+  refunded_amount_minor: number | null;
 };
 
 type WorkshopRow = WorkshopMoneyRow & {
@@ -770,9 +772,12 @@ function workshopMoney(
       }
       netKind = fx ? 'approx' : 'exact';
     }
-    // We don't store a partial-refund figure for workshops — a refunded
-    // payment is treated as fully refunded for the running total.
-    if (r.pay_status === 'refunded') refundedMinor = amountMinor;
+    // Running refund total on the payment (migration 0082), so a partial
+    // refund reports what actually went back and the order stays refundable
+    // for the rest. Rows refunded before that column existed were backfilled
+    // to the full charge; the pay_status fallback covers anything missed.
+    refundedMinor =
+      r.refunded_amount_minor ?? (r.pay_status === 'refunded' ? amountMinor : 0);
   }
 
   return { originalAmountMinor, originalCurrency, netEurMinor, netKind, refundedMinor };

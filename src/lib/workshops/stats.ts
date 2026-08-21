@@ -21,6 +21,8 @@ import { isAcquisitionCampaign, campaignKind, type CampaignKind } from '../ads/c
 import { allocateSpendByDay } from '../ads/allocation';
 import { getTaxRate, netFromGross, type QuadernoTaxConfig } from './quaderno';
 import { getFxRatesToEur } from '../admin/fx';
+import { parsePurchasedBumps } from '../courses/db';
+import { BUMPS, isBumpSlug } from '../courses/bumps';
 
 export const MASTERCLASS_PRODUCT_SLUG = 'svh-masterclass';
 
@@ -108,23 +110,106 @@ function courseNetEur(
   return { eurMinor: Math.round(net * fx), grossEurMinor: Math.round(collectedMinor * fx) };
 }
 
-// Amount actually collected on a row so far: installment plans (3×/6×/12×)
-// bill monthly, so scale the plan total by installments paid; one-off plans
-// collected the full amount. Refunds (full or partial) come straight off.
-// (Scaling keys on installments_total, not payment_plan === '3x' — 6×/12×
-// plans used to slip through and count their FULL plan value at first charge.)
-function collectedMinorOf(r: {
-  payment_plan: string;
+// What a course row actually collected, split across the lines it was charged
+// on — and what a refund took back off each of them.
+//
+// `amount_cents` is the COURSE price only: order bumps (the €99 Authentic
+// Singing Journey, the €49 Grief course) are charged alongside it as their own
+// line — a Stripe line item on a pay-in-full checkout, the subscription setup
+// fee on a plan — and recorded in the `bumps` JSON. So the money that actually
+// left the buyer's card is course + bumps, and that is the base a refund is
+// measured against.
+//
+// Two things follow, and both used to be wrong:
+//
+//   • A refund is allocated PRO-RATA across the lines it covered. Subtracting
+//     it from the course line alone meant a full refund of a €550 course + €49
+//     bump drove the course line to −€49, which `max(0, …)` then quietly
+//     swallowed — while the bump line, counted from the JSON by a separate
+//     query that never looked at refunds, still reported its full €49.
+//   • A row whose entire charge came back is not a sale. It stays in the query
+//     (its refund still has to be reported) but callers skip it, so a refunded
+//     order no longer reads as "1 sale, €0".
+//
+// Installment plans bill monthly, so the course line is the plan total scaled
+// by installments paid. (Scaling keys on installments_total, not
+// payment_plan === '3x' — 6×/12× plans used to slip through and count their
+// FULL plan value at first charge.) Bumps ride the first charge, so they count
+// as collected as soon as any cycle has settled.
+
+export type CourseCollected = {
+  courseMinor: number; // collected on the course itself, after refunds
+  bumpsMinor: number; // collected across the order bumps, after refunds
+  bumps: Array<{ slug: string; label: string; amountMinor: number }>;
+  chargedMinor: number; // course + bumps, before refunds
+  refundedMinor: number; // clamped to what was actually charged
+  fullyRefunded: boolean; // the whole charge came back — not a sale
+};
+
+type CourseCollectedInput = {
   installments_total: number;
   installments_paid: number;
   amount_cents: number;
   refunded_amount_cents: number | null;
-}): number {
-  const expected =
+  bumps?: string | null;
+};
+
+function bumpLabelOf(slug: string): string {
+  return isBumpSlug(slug) ? BUMPS[slug].label : slug;
+}
+
+export function collectedSplitOf(r: CourseCollectedInput): CourseCollected {
+  const courseCharged =
     r.installments_total > 1
       ? Math.round(r.amount_cents * (r.installments_paid / r.installments_total))
       : r.amount_cents;
-  return Math.max(0, expected - (r.refunded_amount_cents ?? 0));
+
+  // Bumps are taken on the first charge, so they're collected once any cycle
+  // has settled (a plan sitting at 0/N has taken nothing at all).
+  const anyCycleSettled = r.installments_total <= 1 || r.installments_paid >= 1;
+  const lines = anyCycleSettled ? parsePurchasedBumps(r.bumps) : [];
+  const bumpsCharged = lines.reduce((sum, b) => sum + Math.max(0, b.amount_cents), 0);
+
+  const chargedMinor = courseCharged + bumpsCharged;
+  const refundedMinor = Math.min(
+    Math.max(0, r.refunded_amount_cents ?? 0),
+    Math.max(0, chargedMinor),
+  );
+  const fullyRefunded = refundedMinor > 0 && refundedMinor >= chargedMinor;
+
+  // Pro-rata split of the refund. The course line takes its share; the bumps
+  // absorb the rest, so the two always sum back to the refund exactly.
+  const courseRefund =
+    chargedMinor > 0 ? Math.round((refundedMinor * courseCharged) / chargedMinor) : 0;
+  let bumpsRefundLeft = refundedMinor - courseRefund;
+
+  const bumps: CourseCollected['bumps'] = [];
+  let bumpsMinor = 0;
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    const amount = Math.max(0, line.amount_cents);
+    // Last line absorbs the rounding so the parts sum to the whole.
+    const cut =
+      i === lines.length - 1
+        ? bumpsRefundLeft
+        : bumpsCharged > 0
+          ? Math.round((refundedMinor - courseRefund) * (amount / bumpsCharged))
+          : 0;
+    const taken = Math.min(amount, Math.max(0, cut));
+    bumpsRefundLeft -= taken;
+    const net = amount - taken;
+    bumpsMinor += net;
+    bumps.push({ slug: line.slug, label: bumpLabelOf(line.slug), amountMinor: net });
+  }
+
+  return {
+    courseMinor: Math.max(0, courseCharged - courseRefund),
+    bumpsMinor,
+    bumps,
+    chargedMinor,
+    refundedMinor,
+    fullyRefunded,
+  };
 }
 
 type PaymentRow = {
@@ -132,6 +217,7 @@ type PaymentRow = {
   registration_id: number;
   status: string;
   amount_minor: number;
+  refunded_amount_minor: number | null;
   currency: string;
   settlement_amount_minor: number | null;
   settlement_currency: string | null;
@@ -187,6 +273,17 @@ export type StatsReport = {
   roas: number | null;
   courseBreakdown: Array<{ product_id: number; count: number; netEurMinor: number }>;
 };
+
+// The share of a workshop payment the buyer actually kept: 1 with no refund,
+// 0 when it all came back, the remainder after a partial. `status = 'refunded'`
+// now means *fully* refunded (migration 0082), so those rows are filtered out
+// upstream anyway; this catches the partials, which stay 'paid'.
+function collectedShareOf(p: { amount_minor: number; refunded_amount_minor: number | null }): number {
+  const refunded = Math.max(0, p.refunded_amount_minor ?? 0);
+  if (refunded <= 0) return 1;
+  if (p.amount_minor <= 0) return 0;
+  return Math.max(0, (p.amount_minor - refunded) / p.amount_minor);
+}
 
 // Gross EUR for a payment: prefer the EUR settlement; otherwise best-effort.
 function grossEurMinor(p: PaymentRow): number {
@@ -271,7 +368,14 @@ export async function computeStats(
   const courseMap = new Map<number, { count: number; net: number }>();
 
   for (const p of payments) {
-    const gross = grossEurMinor(p);
+    // A partial refund takes back part of the charge, not all of it. Scale the
+    // payment (and with it every line item below) by what the buyer actually
+    // kept — before migration 0082 there was nowhere to record a partial, so
+    // any refund flipped the row to 'refunded' and the WHERE above dropped the
+    // whole charge, erasing €22 of ticket over a €5 refund.
+    const kept = collectedShareOf(p);
+    if (kept <= 0) continue; // fully refunded — not a sale
+    const gross = Math.round(grossEurMinor(p) * kept);
     const { net, flagged } = netEurMinor(p, gross);
     totals.grossEurMinor += gross;
     totals.netEurMinor += net;
@@ -411,6 +515,13 @@ export type CourseSalesReport = {
   totalNetEurMinor: number;
   byProduct: Array<{ slug: string; label: string; group: CourseGroup; count: number; netEurMinor: number }>;
   daily: CourseDailyStat[];
+  // Order bumps taken on a course checkout (the €99 Authentic Singing Journey,
+  // the €49 Grief course). Charged as their own line beside the course, so they
+  // are NOT part of the figures above — and, like them, net of refunds.
+  bumps: { count: number; eurMinor: number; byLabel: Array<{ label: string; count: number; eurMinor: number }> };
+  // Orders in this window whose whole charge was refunded: skipped entirely
+  // above (not a sale), surfaced here so the omission is visible.
+  fullyRefundedCount: number;
   fxConverted: number; // rows converted to EUR (fallback table unless MoneyOpts gave live rates)
   taxApplied: boolean; // true when VAT was stripped per country (Quaderno configured)
   taxEurMinor: number; // estimated VAT removed from the figures, EUR
@@ -426,6 +537,7 @@ type CourseRegRow = {
   installments_paid: number;
   installments_total: number;
   refunded_amount_cents: number;
+  bumps: string | null;
   paid_at: string;
 };
 
@@ -444,7 +556,7 @@ export async function computeCourseSales(
   const res = await db
     .prepare(
       `SELECT product_slug, amount_cents, currency, country, vat_number, payment_plan,
-              installments_paid, installments_total, refunded_amount_cents, paid_at
+              installments_paid, installments_total, refunded_amount_cents, bumps, paid_at
          FROM course_registrations
         WHERE ${where.join(' AND ')}`,
     )
@@ -461,22 +573,48 @@ export async function computeCourseSales(
     totalNetEurMinor: 0,
     byProduct: [],
     daily: [],
+    bumps: { count: 0, eurMinor: 0, byLabel: [] },
+    fullyRefundedCount: 0,
     fxConverted: 0,
     taxApplied: Boolean(opts.money?.taxCfg),
     taxEurMinor: 0,
   };
   const productMap = new Map<string, { count: number; net: number }>();
   const dailyMap = new Map<string, { tw: number; cert: number; other: number }>();
+  const bumpMap = new Map<string, { count: number; eurMinor: number }>();
 
   for (const r of regRows) {
-    const collected = collectedMinorOf(r);
+    const split = collectedSplitOf(r);
+
+    // Every penny came back: it isn't a sale, and counting it as one (at €0)
+    // is how a refunded order used to keep inflating the sale count. Its
+    // refund is reported by computeRefunds, dated to the day it was given.
+    if (split.fullyRefunded) {
+      report.fullyRefundedCount += 1;
+      continue;
+    }
 
     const cur = (r.currency || 'EUR').toUpperCase();
     if (cur !== 'EUR') report.fxConverted += 1;
     const { eurMinor, grossEurMinor: rowGrossEur } = courseNetEur(
-      collected, r, taxRates, opts.money?.fxRates,
+      split.courseMinor, r, taxRates, opts.money?.fxRates,
     );
     report.taxEurMinor += rowGrossEur - eurMinor;
+
+    // Order bumps: same VAT netting and live FX as the course line they rode
+    // in on, and carrying their share of any refund.
+    for (const b of split.bumps) {
+      const { eurMinor: bumpEur, grossEurMinor: bumpGross } = courseNetEur(
+        b.amountMinor, r, taxRates, opts.money?.fxRates,
+      );
+      report.taxEurMinor += bumpGross - bumpEur;
+      const e = bumpMap.get(b.label) ?? { count: 0, eurMinor: 0 };
+      e.count += 1;
+      e.eurMinor += bumpEur;
+      bumpMap.set(b.label, e);
+      report.bumps.count += 1;
+      report.bumps.eurMinor += bumpEur;
+    }
 
     const info = COURSE_PRODUCT_INFO[r.product_slug] ?? { group: 'other' as const, label: r.product_slug };
     const bucket =
@@ -515,6 +653,165 @@ export async function computeCourseSales(
       certificationEurMinor: v.cert,
       otherEurMinor: v.other,
     }));
+
+  report.bumps.byLabel = [...bumpMap.entries()]
+    .map(([label, v]) => ({ label, count: v.count, eurMinor: v.eurMinor }))
+    .sort((a, b) => b.eurMinor - a.eurMinor);
+
+  return report;
+}
+
+// ---------------------------------------------------------------------------
+// Refunds, dated by the day the money went BACK.
+//
+// Every revenue figure on this page is dated by the sale (`paid_at` for a
+// course, the payment date for a workshop) and carries its refunds netted off.
+// That is the right way to read a product's performance — a refunded sale
+// should not look like a good one — but it leaves a blind spot, and with a
+// 30-day money-back guarantee it is not a small one: a refund is usually given
+// in a LATER month than the sale. So it silently rewrites the month it was sold
+// in, and never appears in the month it was actually paid out. "How much did we
+// give back in August" had no answer anywhere.
+//
+// This is that answer, and it is deliberately reported SEPARATELY rather than
+// folded into the revenue total — netting it there would double-count the part
+// already deducted from an in-window sale. The split says which is which:
+//
+//   • againstWindowSalesEurMinor — the sale is in this window too, so the
+//     revenue figures above have already had this taken off.
+//   • againstEarlierSalesEurMinor — the sale predates the window. NOT in any
+//     figure above; this is money that left in this window and was invisible.
+//
+// Caveat, worth knowing when reading a day: `refunded_at` is stamped on the
+// FIRST refund and the row carries one running total, so a refund given in two
+// parts months apart is dated wholly to the first. Partial refunds are rare and
+// second ones rarer; the total is always right, only its placement on a day can
+// be early. Retreats are excluded because retreat revenue isn't in these
+// figures in the first place.
+
+export type RefundsReport = {
+  count: number; // orders refunded in the window
+  eurMinor: number; // total given back, net of VAT, EUR
+  againstWindowSalesEurMinor: number; // already deducted from the revenue above
+  againstEarlierSalesEurMinor: number; // not reflected in it at all
+  courseEurMinor: number;
+  workshopEurMinor: number;
+  byLabel: Array<{ label: string; count: number; eurMinor: number }>;
+  daily: Array<{ date: string; eurMinor: number }>;
+};
+
+const WORKSHOP_REFUND_LABEL = 'Workshop & masterclass tickets';
+
+export async function computeRefunds(
+  db: D1Database,
+  opts: { from?: string | null; to?: string | null; money?: MoneyOpts } = {},
+): Promise<RefundsReport> {
+  const from = opts.from ?? null;
+  const to = opts.to ?? null;
+  const bounded = Boolean(from || to);
+  // Was the SALE inside the window too? Unbounded window → everything is.
+  const soldInWindow = (saleDate: string | null | undefined): boolean => {
+    if (!bounded) return true;
+    const d = (saleDate ?? '').slice(0, 10);
+    if (!d) return false;
+    if (from && d < from) return false;
+    if (to && d > to) return false;
+    return true;
+  };
+
+  const win = (col: string, binds: unknown[]): string => {
+    const parts: string[] = [];
+    if (from) { parts.push(`${col} >= ?`); binds.push(from); }
+    if (to) { parts.push(`${col} <= ?`); binds.push(`${to} 23:59:59`); }
+    return parts.length ? ' AND ' + parts.join(' AND ') : '';
+  };
+
+  const report: RefundsReport = {
+    count: 0,
+    eurMinor: 0,
+    againstWindowSalesEurMinor: 0,
+    againstEarlierSalesEurMinor: 0,
+    courseEurMinor: 0,
+    workshopEurMinor: 0,
+    byLabel: [],
+    daily: [],
+  };
+  const labelMap = new Map<string, { count: number; eurMinor: number }>();
+  const dailyMap = new Map<string, number>();
+  const add = (label: string, date: string, eurMinor: number, saleDate: string | null) => {
+    report.count += 1;
+    report.eurMinor += eurMinor;
+    if (soldInWindow(saleDate)) report.againstWindowSalesEurMinor += eurMinor;
+    else report.againstEarlierSalesEurMinor += eurMinor;
+    const l = labelMap.get(label) ?? { count: 0, eurMinor: 0 };
+    l.count += 1;
+    l.eurMinor += eurMinor;
+    labelMap.set(label, l);
+    if (date) dailyMap.set(date, (dailyMap.get(date) ?? 0) + eurMinor);
+  };
+
+  // ── Courses (course_registrations: 12-week, certification, grief, albums).
+  const crsBinds: unknown[] = [];
+  const crsRes = await db
+    .prepare(
+      `SELECT product_slug, currency, country, vat_number, refunded_amount_cents,
+              substr(refunded_at, 1, 10) AS refund_date, paid_at
+         FROM course_registrations
+        WHERE refunded_at IS NOT NULL
+          AND refunded_amount_cents > 0${win('refunded_at', crsBinds)}`,
+    )
+    .bind(...crsBinds)
+    .all<{
+      product_slug: string; currency: string; country: string | null;
+      vat_number: string | null; refunded_amount_cents: number;
+      refund_date: string; paid_at: string | null;
+    }>();
+  const crsRows = crsRes.results ?? [];
+  const taxRates = await resolveCourseTaxRates(crsRows, opts.money?.taxCfg);
+  for (const r of crsRows) {
+    const { eurMinor } = courseNetEur(
+      r.refunded_amount_cents, r, taxRates, opts.money?.fxRates,
+    );
+    const label =
+      COURSE_PRODUCT_INFO[r.product_slug]?.label ?? r.product_slug;
+    report.courseEurMinor += eurMinor;
+    add(label, r.refund_date, eurMinor, r.paid_at);
+  }
+
+  // ── Workshops (workshop_payments). The refunded share of the charge, run
+  //    through the same settlement/VAT conversion the revenue figures use.
+  const wBinds: unknown[] = [];
+  const wRes = await db
+    .prepare(
+      `SELECT p.amount_minor, p.refunded_amount_minor, p.currency,
+              p.settlement_amount_minor, p.settlement_currency, p.subtotal_minor,
+              substr(p.refunded_at, 1, 10) AS refund_date, p.created_at
+         FROM workshop_payments p
+        WHERE p.refunded_at IS NOT NULL
+          AND p.refunded_amount_minor > 0${win('p.refunded_at', wBinds)}`,
+    )
+    .bind(...wBinds)
+    .all<{
+      amount_minor: number; refunded_amount_minor: number; currency: string;
+      settlement_amount_minor: number | null; settlement_currency: string | null;
+      subtotal_minor: number | null; refund_date: string; created_at: string;
+    }>();
+  for (const p of wRes.results ?? []) {
+    if (p.amount_minor <= 0) continue;
+    const share = Math.min(1, p.refunded_amount_minor / p.amount_minor);
+    const slim = p as unknown as PaymentRow;
+    const gross = Math.round(grossEurMinor(slim) * share);
+    const { net } = netEurMinor(slim, gross);
+    report.workshopEurMinor += net;
+    add(WORKSHOP_REFUND_LABEL, p.refund_date, net, p.created_at);
+  }
+
+  report.byLabel = [...labelMap.entries()]
+    .map(([label, v]) => ({ label, count: v.count, eurMinor: v.eurMinor }))
+    .sort((a, b) => b.eurMinor - a.eurMinor);
+  report.daily = [...dailyMap.entries()]
+    .sort(([a], [b]) => (a < b ? -1 : 1))
+    .map(([date, eurMinor]) => ({ date, eurMinor }));
 
   return report;
 }
@@ -681,27 +978,29 @@ export async function computeWorkshopPerformance(
   const payBinds: unknown[] = [];
   const payRes = await db
     .prepare(
-      `SELECT r.workshop_id, p.amount_minor, p.currency, p.settlement_amount_minor,
-              p.settlement_currency, p.subtotal_minor
+      `SELECT r.workshop_id, p.amount_minor, p.refunded_amount_minor, p.currency,
+              p.settlement_amount_minor, p.settlement_currency, p.subtotal_minor
          FROM workshop_payments p
          JOIN workshop_registrations r ON r.id = p.registration_id
         WHERE p.status = 'paid'${win('p.created_at', payBinds)}`,
     )
     .bind(...payBinds)
     .all<{
-      workshop_id: number; amount_minor: number; currency: string;
+      workshop_id: number; amount_minor: number; refunded_amount_minor: number | null;
+      currency: string;
       settlement_amount_minor: number | null; settlement_currency: string | null;
       subtotal_minor: number | null;
     }>();
 
   // Standalone course buyers by email: 12-week + certification path, with
-  // collected EUR (installments paid only, refunds off, fallback FX).
+  // collected EUR (installments paid only, refunds off, fallback FX). A wholly
+  // refunded order isn't a purchase, so it doesn't make its registrant a buyer.
   const crsBinds: unknown[] = [];
   const crsRes = await db
     .prepare(
       `SELECT lower(email) AS email, product_slug, amount_cents, currency, country,
               vat_number, payment_plan, installments_paid, installments_total,
-              refunded_amount_cents
+              refunded_amount_cents, bumps
          FROM course_registrations
         WHERE paid_at IS NOT NULL AND status NOT IN ('pending','expired')${win('paid_at', crsBinds)}`,
     )
@@ -714,8 +1013,10 @@ export async function computeWorkshopPerformance(
     const isTw = r.product_slug === 'svh-12week';
     const isCert = r.product_slug === 'cc-cert' || r.product_slug === 'cc-bundle';
     if (!isTw && !isCert) continue;
+    const crsSplit = collectedSplitOf(r);
+    if (crsSplit.fullyRefunded) continue;
     const { eurMinor } = courseNetEur(
-      collectedMinorOf(r), r, crsTaxRates, opts.money?.fxRates,
+      crsSplit.courseMinor, r, crsTaxRates, opts.money?.fxRates,
     );
     const s = standalone.get(r.email) ?? { tw: false, cert: false, eurMinor: 0 };
     if (isTw) s.tw = true;
@@ -810,7 +1111,9 @@ export async function computeWorkshopPerformance(
   }
   for (const p of payRes.results ?? []) {
     const slim = p as unknown as PaymentRow;
-    const gross = grossEurMinor(slim);
+    const kept = collectedShareOf(p); // partial refunds come off (migration 0082)
+    if (kept <= 0) continue;
+    const gross = Math.round(grossEurMinor(slim) * kept);
     acc(p.workshop_id).netEurMinor += netEurMinor(slim, gross).net;
   }
 
