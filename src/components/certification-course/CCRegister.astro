@@ -445,6 +445,15 @@ const countries = COUNTRIES;
   const adiscountPct: number = readSecretDiscountFromUrl();
   const isFreeComp: boolean = adiscountPct === 100;
 
+  // What the page must SHOW. The secret `?adiscount=N` is a real charge-side
+  // discount — the checkout resolves it exactly like `?discount=N` (the secret
+  // simply also reaches 100) — so every price on the page has to move with it
+  // too. Otherwise the owner's link looks inert and the buyer meets a different
+  // number at Stripe. 100 is the complimentary place: it has its own banner and
+  // free-price branches, so it never feeds this price math.
+  const shownDiscountPct: number =
+    adiscountPct > 0 && adiscountPct < 100 ? adiscountPct : discountPct;
+
   // The complimentary-place banner for a 100% ?adiscount link. Reused on the
   // email-entry screen AND re-inserted into each rendered variant — the variant
   // render replaces the stage's children, so a one-time insert would be wiped
@@ -466,8 +475,8 @@ const countries = COUNTRIES;
   const show12x: boolean = showTwelveMonthPlan();
 
   function applyDiscountCents(cents: number): number {
-    if (discountPct <= 0) return cents;
-    return Math.round((cents * (100 - discountPct)) / 100);
+    if (shownDiscountPct <= 0) return cents;
+    return Math.round((cents * (100 - shownDiscountPct)) / 100);
   }
 
   const SYMBOLS: Record<Currency, string> = {
@@ -632,7 +641,7 @@ const countries = COUNTRIES;
     try {
       const res = await postJsonResilient(
         '/api/courses/subscriber-status',
-        { email, discount_percent: discountPct || undefined },
+        { email, discount_percent: shownDiscountPct || undefined },
         {
           onAttempt: (attempt) => {
             if (attempt > 1) setStatus('Reconnecting…');
@@ -887,7 +896,7 @@ const countries = COUNTRIES;
             email,
             currency: target,
             country: code,
-            discount_percent: discountPct || undefined,
+            discount_percent: shownDiscountPct || undefined,
           },
           // Background price refresh — keep it snappy and quiet; on failure we
           // simply leave the existing prices in place.
@@ -1234,8 +1243,8 @@ const countries = COUNTRIES;
               value,
               title: `Pay in ${ladder.count} monthly installments`,
               subtitle:
-                discountPct > 0
-                  ? `${moneyCents(monthlyDiscCents, cur)}/mo for ${ladder.count} months (${moneyCents(totalDiscCents, cur)} total, ${discountPct}% off). Full access from the first payment.`
+                shownDiscountPct > 0
+                  ? `${moneyCents(monthlyDiscCents, cur)}/mo for ${ladder.count} months (${moneyCents(totalDiscCents, cur)} total, ${shownDiscountPct}% off). Full access from the first payment.`
                   : `${money(ladder.monthly, cur)}/mo for ${ladder.count} months (${money(ladder.total, cur)} total). Full access from the first payment.`,
               amountHtml: amountWithStrike(
                 `${money(ladder.monthly, cur)}/mo`,
@@ -1375,14 +1384,14 @@ const countries = COUNTRIES;
         const monthly = `${money(ladder.monthly, cur)}/mo`;
         const monthlyDisc = `${moneyCents(applyDiscountCents(ladder.monthly_cents), cur)}/mo`;
         summaryLabel.textContent = `${offer.label} — ${ladder.count} monthly payments${
-          discountPct > 0 ? ` (${discountPct}% off)` : ''
+          shownDiscountPct > 0 ? ` (${shownDiscountPct}% off)` : ''
         }`;
         summaryAmount.innerHTML = amountWithStrike(monthly, monthlyDisc);
       } else {
         const full = money(offer.price, cur);
         const fullDisc = moneyCents(applyDiscountCents(offer.price_cents), cur);
         summaryLabel.textContent = `${offer.label} — one-time payment${
-          discountPct > 0 ? ` (${discountPct}% off)` : ''
+          shownDiscountPct > 0 ? ` (${shownDiscountPct}% off)` : ''
         }`;
         summaryAmount.innerHTML = amountWithStrike(full, fullDisc);
       }
@@ -1501,14 +1510,14 @@ const countries = COUNTRIES;
 
     // With a discount, the "Your price" row stops being the prominent one —
     // it gets struck through, and a new "After N% off" row takes the spotlight.
-    const yourRowClass = discountPct > 0 ? 'cc-offer-row' : 'cc-offer-row cc-offer-row--your';
+    const yourRowClass = shownDiscountPct > 0 ? 'cc-offer-row' : 'cc-offer-row cc-offer-row--your';
     const yourValueClass =
-      discountPct > 0 ? 'cc-offer-row-value cc-offer-strike' : 'cc-offer-row-value cc-offer-your';
+      shownDiscountPct > 0 ? 'cc-offer-row-value cc-offer-strike' : 'cc-offer-row-value cc-offer-your';
     const discountedRow =
-      discountPct > 0
+      shownDiscountPct > 0
         ? `
           <div class="cc-offer-row cc-offer-row--your">
-            <span class="cc-offer-row-label">After ${discountPct}% off</span>
+            <span class="cc-offer-row-label">After ${shownDiscountPct}% off</span>
             <span class="cc-offer-row-value cc-offer-your">${moneyCents(
               applyDiscountCents(offer.price_cents),
               offer.currency,
@@ -1569,7 +1578,7 @@ const countries = COUNTRIES;
   // When a discount is active, render the original amount struck through
   // alongside the discounted amount. Otherwise just render the amount.
   function amountWithStrike(original: string, discounted: string): string {
-    if (discountPct === 0) return escapeHtml(original);
+    if (shownDiscountPct === 0) return escapeHtml(original);
     return `<span class="cc-amount-strike">${escapeHtml(original)}</span> ${escapeHtml(discounted)}`;
   }
 
@@ -1826,7 +1835,7 @@ const countries = COUNTRIES;
     try {
       const res = await postJsonResilient(
         '/api/courses/subscriber-status',
-        { email, discount_percent: discountPct || undefined },
+        { email, discount_percent: shownDiscountPct || undefined },
         { onAttempt: (attempt) => { if (attempt > 1) setStatus('Reconnecting…'); } },
       );
       const body = (await res.json()) as Decision | { error: string };
