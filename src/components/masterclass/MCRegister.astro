@@ -45,10 +45,10 @@ const hasMcReplay = alternatives.some((it) => it.kind === 'masterclass');
 const hasWsLive = alternatives.some((it) => it.kind === 'workshop');
 const altSub =
   hasMcReplay && hasWsLive
-    ? 'Choose instant access to the masterclass replay — watch it anytime, starting today — or get to know this work in general first, at a live one-hour workshop.'
+    ? 'Choose instant access to the masterclass replay — watch it anytime, starting today — or get to know the practice first, at a live 70-minute workshop for the general public.'
     : hasMcReplay
       ? 'Choose instant access to the masterclass replay — watch it anytime, starting today.'
-      : 'Get to know this work in general first, at a live one-hour workshop — the gentlest introduction to Somatic Vocal Healing.';
+      : 'Get to know the practice first, at a live 70-minute workshop for the general public — the gentlest introduction to Somatic Vocal Healing.';
 
 // The full country list — the visitor can type/search any country, not just the
 // markets we price for (mirrors the workshop form). Currency comes from
@@ -75,7 +75,7 @@ const pixelId = Astro.locals.runtime.env.META_PIXEL_ID ?? '';
     <p class="we-register-body">
       One hundred minutes, live, online — with a replay if the time doesn't work for you.<br />
       Come as a professional. Come, also, as a person.<br />
-      The method makes no distinction — that's exactly the point of it.
+      The method makes no distinction between the two — that's exactly the point of it.
     </p>
     <p class="we-register-note">Live · Online · 100 min · Replay included</p>
     <p class="we-discount-note" id="mc-discount-note" hidden></p>

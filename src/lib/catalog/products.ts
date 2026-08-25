@@ -270,7 +270,7 @@ const META: CatalogMeta[] = [
     id: 'masterclass',
     title: 'Professional Masterclass — Somatic Vocal Healing in Your Work',
     description:
-      'A 90-minute live masterclass for therapists, coaches, bodyworkers, facilitators, teachers, and leaders — what sound can do in your work when words run out. Online, with replay.',
+      'A 100-minute live masterclass for therapists, coaches, bodyworkers, facilitators, teachers, and leaders — when words can\'t reach it, sound can. Online, with replay.',
     link: '/courses/masterclass',
     imageKey: 'library/jacob-teaching.webp',
     additionalImageKeys: [
