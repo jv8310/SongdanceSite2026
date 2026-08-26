@@ -13,6 +13,7 @@ import {
   type StreamDay,
 } from '../../lib/workshops/stats';
 import { listWorkshops, getProductById } from '../../lib/workshops/db';
+import { CAMPAIGN_AUDIENCE_LABEL } from '../../lib/ads/campaigns';
 import ChartKit from '../../components/charts/ChartKit.astro';
 import {
   PERIOD_PRESETS,
@@ -288,12 +289,20 @@ const funnelCards: Array<{ label: string; value: string; sub: string; d?: Delta 
     sub: `prospecting (TOF) · ${eur0(perf.adSpendEurMinor)} all campaigns`,
   },
   {
-    label: 'Cost / registration',
+    label: 'Cost / workshop reg',
     value:
-      perf.costPerRegistrationEurMinor != null
-        ? eur(Math.round(perf.costPerRegistrationEurMinor))
+      perf.audiences.workshop.costPerRegistrationEurMinor != null
+        ? eur(Math.round(perf.audiences.workshop.costPerRegistrationEurMinor))
         : '—',
-    sub: 'prospecting spend ÷ regs (avg)',
+    sub: `workshop campaigns ÷ ${int(perf.audiences.workshop.registrations)} regs`,
+  },
+  {
+    label: 'Cost / masterclass reg',
+    value:
+      perf.audiences.masterclass.costPerRegistrationEurMinor != null
+        ? eur(Math.round(perf.audiences.masterclass.costPerRegistrationEurMinor))
+        : '—',
+    sub: `masterclass campaigns ÷ ${int(perf.audiences.masterclass.registrations)} regs`,
   },
   {
     label: 'Attendance rate',
@@ -758,7 +767,7 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
               <div class="wk-box">
                 <div class="wk-head">
                   <div class="wk-title">{shortTitle(r.title)}</div>
-                  <div class="wk-when">{r.isReplay ? 'On-demand' : wkDateLabel(r.startsAtUtc)}{r.status !== 'published' ? ` · ${r.status}` : ''}</div>
+                  <div class="wk-when">{r.isReplay ? 'On-demand' : wkDateLabel(r.startsAtUtc)}{r.isMasterclass ? ' · masterclass' : ''}{r.status !== 'published' ? ` · ${r.status}` : ''}</div>
                 </div>
                 <div class="wk-roas"><b class={roasTone(r.workshopRoas)}>{roasStr(r.workshopRoas)}</b><span>ROAS · workshop-only</span></div>
                 <div class="wk-mini">
@@ -771,7 +780,7 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
           })}
         </div>
       )}
-      <p class="adm-sub" style="margin-top:10px;">Per-workshop TOF cost is priced <strong>day by day</strong> (spend isn’t tracked per workshop): each registration costs what a registration cost on the day it came in — that day’s prospecting spend ÷ that day’s registrations — and a workshop pays the sum of its own. So a workshop that filled on expensive days carries a higher cost, and a lower ROAS, than the window average.{perf.unattributedAcquisitionSpendEurMinor > 0 && <> {eur0(perf.unattributedAcquisitionSpendEurMinor)} of prospecting spend fell on days with no registration at all and is spread evenly across the window instead.</>} The weighted average counts each course buyer’s revenue once, so a multi-workshop buyer isn’t double-counted. See the daily prices and per-workshop detail on <a href="/admin/workshops/performance">Per-workshop performance</a>.</p>
+      <p class="adm-sub" style="margin-top:10px;">Per-session TOF cost is priced <strong>per product, day by day</strong> (spend isn’t tracked per session): a masterclass is charged only from the masterclass campaigns and a workshop only from the workshop ones, and inside that each registration costs what a registration of its kind cost on the day it came in — that day’s spend for that product ÷ that day’s registrations for it — with each session paying the sum of its own. So a session that filled on expensive days carries a higher cost, and a lower ROAS, than the average.{perf.unattributedAcquisitionSpendEurMinor > 0 && <> {eur0(perf.unattributedAcquisitionSpendEurMinor)} of prospecting spend fell on days with no registration of the product it was buying and is spread over that product’s registrations instead.</>}{perf.unallocatedAcquisitionSpendEurMinor > 0 && <> {eur0(perf.unallocatedAcquisitionSpendEurMinor)} is charged to nothing — its product took no registration in this window.</>} The weighted average counts each course buyer’s revenue once, so a multi-workshop buyer isn’t double-counted. See the daily prices and per-workshop detail on <a href="/admin/workshops/performance">Per-workshop performance</a>.</p>
     </section>
 
     <!-- ─── Tables ─── -->
@@ -875,19 +884,20 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
       <div class="st-ads">
         {campaignSpend.length > 0 && (
           <div class="st-ads-col">
-            <p class="adm-sub"><strong>By campaign</strong> — this window. Cost per registration counts <strong>prospecting</strong> (a campaign with “TOF” in its name) only; the rest is retargeting and is excluded from it (but still in total spend + blended ROAS).</p>
+            <p class="adm-sub"><strong>By campaign</strong> — this window. Cost per registration counts <strong>prospecting</strong> (a campaign with “TOF” in its name) only; the rest is retargeting and is excluded from it (but still in total spend + blended ROAS). <strong>Charged to</strong> is the product a campaign buys registrations for, taken from its name — its money is only ever charged to those sessions, so the workshop and masterclass seat prices stay each other’s business. A campaign naming neither is charged across both.</p>
             <table class="adm-table st-table">
-              <thead><tr><th>Campaign</th><th>Type</th><th class="num">Spend (EUR)</th></tr></thead>
+              <thead><tr><th>Campaign</th><th>Type</th><th>Charged to</th><th class="num">Spend (EUR)</th></tr></thead>
               <tbody>
                 {campaignSpend.map((c) => (
                   <tr>
                     <td>{c.campaign || <em>(no campaign name)</em>}</td>
                     <td><span class={`st-pill ${c.kind === 'acquisition' ? 'st-pill--tof' : 'st-pill--rt'}`}>{c.kind === 'acquisition' ? 'Prospecting' : 'Retargeting'}</span></td>
+                    <td>{CAMPAIGN_AUDIENCE_LABEL[c.audience]}</td>
                     <td class="num">{eur(c.eurMinor)}</td>
                   </tr>
                 ))}
                 <tr class="st-row--total">
-                  <td colspan="2"><strong>Total</strong> <span class="adm-sub" style="font-weight:400;">· {eur0(campaignSpend.filter((c) => c.kind === 'acquisition').reduce((s, c) => s + c.eurMinor, 0))} prospecting · {eur0(campaignSpend.filter((c) => c.kind === 'retargeting').reduce((s, c) => s + c.eurMinor, 0))} retargeting</span></td>
+                  <td colspan="3"><strong>Total</strong> <span class="adm-sub" style="font-weight:400;">· {eur0(campaignSpend.filter((c) => c.kind === 'acquisition').reduce((s, c) => s + c.eurMinor, 0))} prospecting · {eur0(campaignSpend.filter((c) => c.kind === 'retargeting').reduce((s, c) => s + c.eurMinor, 0))} retargeting</span></td>
                   <td class="num"><strong>{eur(campaignSpend.reduce((s, c) => s + c.eurMinor, 0))}</strong></td>
                 </tr>
               </tbody>

@@ -21,6 +21,7 @@ import {
   computeWorkshopPerformance,
   mergeDailyStreams,
   type WorkshopPerformanceRow,
+  type AudienceAcquisition,
   type StreamDay,
 } from '../workshops/stats';
 import { FX_TO_EUR } from '../workshops/currency';
@@ -49,10 +50,20 @@ export type AdsDashboard = {
   acquisitionSpendEurMinor: number; // prospecting (TOF) campaigns
   retargetingSpendEurMinor: number; // everything else
   registrations: number;
-  costPerRegistrationEurMinor: number | null; // prospecting spend ÷ registrations (window average)
-  // Prospecting spend on days that produced no registration: it can't be priced
-  // day-by-day, so it's spread evenly over the window's registrations instead.
+  costPerRegistrationEurMinor: number | null; // prospecting spend ÷ registrations (window average, both products)
+  // The same figure per product: the workshop campaigns' money against workshop
+  // registrations, the masterclass campaigns' against masterclass ones. The
+  // blended figure above mixes two products bought at different prices.
+  audiences: { workshop: AudienceAcquisition; masterclass: AudienceAcquisition };
+  // Prospecting spend by campaigns naming neither product (charged across both).
+  generalAcquisitionSpendEurMinor: number;
+  // Prospecting spend on days that produced no registration of the product its
+  // campaign names: it can't be priced day-by-day, so it's spread evenly over
+  // that product's registrations in the window instead.
   unattributedAcquisitionSpendEurMinor: number;
+  // Prospecting spend whose product took no registration at all in the window —
+  // charged to nothing rather than to the other product's seats.
+  unallocatedAcquisitionSpendEurMinor: number;
   attendedLive: number;
   replayViews: number;
   noShows: number;
@@ -276,7 +287,10 @@ export async function computeAdsDashboard(
     retargetingSpendEurMinor: perf.retargetingSpendEurMinor,
     registrations,
     costPerRegistrationEurMinor: perf.costPerRegistrationEurMinor,
+    audiences: perf.audiences,
+    generalAcquisitionSpendEurMinor: perf.generalAcquisitionSpendEurMinor,
     unattributedAcquisitionSpendEurMinor: perf.unattributedAcquisitionSpendEurMinor,
+    unallocatedAcquisitionSpendEurMinor: perf.unallocatedAcquisitionSpendEurMinor,
     attendedLive,
     replayViews,
     noShows,

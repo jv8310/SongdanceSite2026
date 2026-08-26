@@ -92,11 +92,33 @@ const tiles: Array<{ label: string; value: string; sub?: string; d: Delta }> = [
     d: delta(d.registrations, cmp?.registrations),
   },
   {
-    label: 'Cost / registration',
-    value: d.costPerRegistrationEurMinor != null ? eur(Math.round(d.costPerRegistrationEurMinor)) : '—',
-    sub: 'prospecting spend ÷ regs',
-    // Per-workshop costs are priced day by day; this tile is their average.
-    d: delta(d.costPerRegistrationEurMinor, cmp?.costPerRegistrationEurMinor, true),
+    // Split by product: the workshop campaigns buy workshop seats and the
+    // masterclass campaigns buy masterclass seats, so one blended figure would
+    // price each of them partly out of the other's budget.
+    label: 'Cost / workshop reg',
+    value:
+      d.audiences.workshop.costPerRegistrationEurMinor != null
+        ? eur(Math.round(d.audiences.workshop.costPerRegistrationEurMinor))
+        : '—',
+    sub: `workshop campaigns ÷ ${int(d.audiences.workshop.registrations)} regs`,
+    d: delta(
+      d.audiences.workshop.costPerRegistrationEurMinor,
+      cmp?.audiences.workshop.costPerRegistrationEurMinor,
+      true,
+    ),
+  },
+  {
+    label: 'Cost / masterclass reg',
+    value:
+      d.audiences.masterclass.costPerRegistrationEurMinor != null
+        ? eur(Math.round(d.audiences.masterclass.costPerRegistrationEurMinor))
+        : '—',
+    sub: `masterclass campaigns ÷ ${int(d.audiences.masterclass.registrations)} regs`,
+    d: delta(
+      d.audiences.masterclass.costPerRegistrationEurMinor,
+      cmp?.audiences.masterclass.costPerRegistrationEurMinor,
+      true,
+    ),
   },
   {
     label: 'Workshop ROAS',
@@ -389,6 +411,12 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
         background: var(--surface); color: var(--ink-2);
         font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em;
       }
+      /* Which campaigns' money can be charged to this session. */
+      .wk-kind {
+        display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px;
+        background: rgba(201, 96, 58, 0.12); color: var(--ink-2);
+        font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em;
+      }
 
       .pf-roas b {
         display: block; font-size: 30px; font-weight: 650;
@@ -520,7 +548,7 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
       </form>
       <p class="rangenote">
         Showing <strong>{rangeLabel}</strong>{cmp && cmpFrom && cmpTo && <> · vs <strong>{dateLabel(cmpFrom)} → {dateLabel(cmpTo)}</strong></>}.
-        {d.hasAdSpend && <> Prospecting spend {eur0(d.acquisitionSpendEurMinor)} ÷ {int(d.registrations)} registrations = <strong>{d.costPerRegistrationEurMinor != null ? eur(Math.round(d.costPerRegistrationEurMinor)) : '—'}</strong> per registration on average{d.retargetingSpendEurMinor > 0 && <> · {eur0(d.retargetingSpendEurMinor)} retargeting excluded</>}. Each workshop is charged day by day — every registration at the price of a registration on the day it came in.</>}
+        {d.hasAdSpend && <> Prospecting spend {eur0(d.acquisitionSpendEurMinor)} ÷ {int(d.registrations)} registrations = <strong>{d.costPerRegistrationEurMinor != null ? eur(Math.round(d.costPerRegistrationEurMinor)) : '—'}</strong> per registration blended — <strong>{d.audiences.workshop.costPerRegistrationEurMinor != null ? eur(Math.round(d.audiences.workshop.costPerRegistrationEurMinor)) : '—'}</strong> per workshop registration, <strong>{d.audiences.masterclass.costPerRegistrationEurMinor != null ? eur(Math.round(d.audiences.masterclass.costPerRegistrationEurMinor)) : '—'}</strong> per masterclass registration{d.retargetingSpendEurMinor > 0 && <> · {eur0(d.retargetingSpendEurMinor)} retargeting excluded</>}. Each product is charged its own campaigns’ money, day by day — every registration at the price of a registration of its kind on the day it came in.</>}
         {!(from && to) && <span class="sub-muted"> Pick a bounded period to compare against the previous one.</span>}
       </p>
 
@@ -570,7 +598,7 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
                 <div class="wk-box">
                   <div class="wk-head">
                     <div class="wk-title">{shortTitle(r.title)}</div>
-                    <div class="wk-when">{r.isReplay ? 'On-demand' : dateLabel(r.startsAtUtc)}{r.status !== 'published' ? ` · ${r.status}` : ''}</div>
+                    <div class="wk-when">{r.isReplay ? 'On-demand' : dateLabel(r.startsAtUtc)}{r.isMasterclass ? ' · masterclass' : ''}{r.status !== 'published' ? ` · ${r.status}` : ''}</div>
                   </div>
                   <div class="wk-roas">
                     <b class={tone}>{roasStr(r.workshopRoas)}</b>
@@ -654,7 +682,7 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
 
       <section>
         <h2>Results per workshop</h2>
-        <p class="note">One card per workshop: what it earned against what its registrations cost, and the funnel behind it. Course/Cert buys are matched by email across checkouts and standalone sales, so a buyer counts toward each workshop they attended. Ad spend is charged <strong>day by day</strong> — every registration carries the price of a registration on the day it came in (that day's spend ÷ that day's registrations). <strong>TOF cost</strong> prices it against prospecting spend and the per-registration figure is that ÷ this workshop's registrations; <strong>Meta cost</strong> is the same allocation of total spend, and <strong>blended ROAS</strong> is revenue ÷ that. Revenue bars share one scale across every card, so their lengths compare workshop to workshop.{d.unattributedAcquisitionSpendEurMinor > 0 && <> {eur0(d.unattributedAcquisitionSpendEurMinor)} of prospecting spend fell on days with no registration and is spread evenly across the window instead.</>}</p>
+        <p class="note">One card per workshop: what it earned against what its registrations cost, and the funnel behind it. Course/Cert buys are matched by email across checkouts and standalone sales, so a buyer counts toward each workshop they attended. Ad spend is charged <strong>day by day</strong> — every registration carries the price of a registration on the day it came in (that day's spend ÷ that day's registrations). <strong>TOF cost</strong> prices it against the prospecting spend of the campaigns buying registrations for <em>its</em> product — a masterclass is never charged workshop-campaign money, or the other way round — and the per-registration figure is that ÷ this session's registrations; <strong>Meta cost</strong> is the same allocation of total spend, and <strong>blended ROAS</strong> is revenue ÷ that. Revenue bars share one scale across every card, so their lengths compare workshop to workshop.{d.unattributedAcquisitionSpendEurMinor > 0 && <> {eur0(d.unattributedAcquisitionSpendEurMinor)} of prospecting spend fell on days with no registration of the product it was buying and is spread over that product's registrations instead.</>}{d.unallocatedAcquisitionSpendEurMinor > 0 && <> {eur0(d.unallocatedAcquisitionSpendEurMinor)} is charged to nothing — its product took no registration in this window.</>}</p>
         {activeRows.length === 0 && <p class="empty">No workshop activity in this window.</p>}
         {activeRows.length > 0 && (
           <>
@@ -682,7 +710,9 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
                   <span class="pf-bar-amt">{d.hasAdSpend ? eur0(wkTotals.tofEurMinor) : '—'}</span>
                 </div>
                 <p class="pf-money-note">
-                  {d.costPerRegistrationEurMinor != null ? eur(Math.round(d.costPerRegistrationEurMinor)) : '—'} per registration · {d.hasAdSpend ? eur0(wkTotals.metaEurMinor) : '—'} total Meta cost
+                  {d.audiences.workshop.costPerRegistrationEurMinor != null && <>{eur(Math.round(d.audiences.workshop.costPerRegistrationEurMinor))} / workshop reg · </>}
+                  {d.audiences.masterclass.costPerRegistrationEurMinor != null && <>{eur(Math.round(d.audiences.masterclass.costPerRegistrationEurMinor))} / masterclass reg · </>}
+                  {d.hasAdSpend ? eur0(wkTotals.metaEurMinor) : '—'} total Meta cost
                 </p>
               </div>
 
@@ -722,6 +752,7 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
                       <div class="pf-name">{shortTitle(r.title)}</div>
                       <div class="pf-when">
                         {r.isReplay ? 'On-demand' : dateLabel(r.startsAtUtc)}
+                        {r.isMasterclass && <span class="wk-kind">masterclass</span>}
                         {r.status !== 'published' && <span class="pf-status">{r.status}</span>}
                       </div>
                     </div>
