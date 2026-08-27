@@ -1,6 +1,7 @@
 ---
 import { hasAdsAccess } from '../../lib/ads/auth';
 import { computeAdsDashboard } from '../../lib/ads/dashboard';
+import { syncTodayAdSpend } from '../../lib/ads/meta-insights';
 import {
   PERIOD_PRESETS,
   resolvePeriod,
@@ -19,7 +20,14 @@ if (!(await hasAdsAccess(env, Astro.request))) {
   return Astro.redirect('/ads/login?next=' + encodeURIComponent(next));
 }
 
-const { preset, from, to } = resolvePeriod(Astro.url.searchParams);
+// Opens on **today** — this dashboard answers "how is today's spend doing";
+// any other window is one click away in the period picker.
+const { preset, from, to } = resolvePeriod(Astro.url.searchParams, 'today');
+
+// Today's Meta spend, pulled inline before the figures are computed, so what
+// you see is minutes old. Throttled, hard-timed-out and never throws; a no-op
+// until the Meta secrets are set.
+const liveSpend = await syncTodayAdSpend(env);
 
 // Compare window (needs a bounded current window), mirroring the admin stats page.
 const rawCompare = Astro.url.searchParams.get('compare');
@@ -48,6 +56,22 @@ const eur0 = (minor: number) =>
   '€' + Math.round(minor / 100).toLocaleString('en-IE');
 const pct = (v: number | null) => (v != null ? v.toFixed(1) + '%' : '—');
 const int = (v: number) => v.toLocaleString('en-IE');
+
+// How fresh the spend is: this page pulls today's Meta spend on load, so say
+// whether these euros are live — and say it loudly when the pull failed, since
+// the figures then silently lag a day behind.
+const spendClock = (iso: string | undefined): string =>
+  iso
+    ? new Intl.DateTimeFormat('en-GB', {
+        hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels',
+      }).format(new Date(iso))
+    : '';
+const spendFreshness: string | null =
+  liveSpend.reason === 'error'
+    ? '⚠ live Meta sync failed, spend may lag'
+    : liveSpend.ran || liveSpend.reason === 'throttled'
+      ? `spend live from Meta ${spendClock(liveSpend.at)}`
+      : null; // Meta not configured — nothing to claim
 const roasStr = (v: number | null) => (v != null ? v.toFixed(2) + '×' : '—');
 const dateLabel = (iso: string) =>
   new Intl.DateTimeFormat('en-GB', {
@@ -159,10 +183,33 @@ const tiles: Array<{ label: string; value: string; sub?: string; d: Delta }> = [
 ];
 
 // ---- focus products (workshop · 12-week · certification lead) ----
+// "€12.34 per registration", or null when there's nothing to price (no spend,
+// or no registrations of that product in the window).
+const seatPrice = (a: { costPerRegistrationEurMinor: number | null }) =>
+  a.costPerRegistrationEurMinor != null
+    ? `${eur(Math.round(a.costPerRegistrationEurMinor))} ad cost / registration`
+    : null;
 const focus = [
-  { name: 'Workshops', count: d.workshops.ticketCount, eurMinor: d.workshops.netEurMinor, prev: cmp?.workshops.netEurMinor, unit: 'tickets' },
-  { name: '12-Week Course', count: d.twelveWeek.count, eurMinor: d.twelveWeek.netEurMinor, prev: cmp?.twelveWeek.netEurMinor, unit: 'sales' },
-  { name: 'Certification', count: d.certification.count, eurMinor: d.certification.netEurMinor, prev: cmp?.certification.netEurMinor, unit: 'sales' },
+  {
+    name: 'Workshops', count: d.workshops.ticketCount, eurMinor: d.workshops.netEurMinor,
+    prev: cmp?.workshops.netEurMinor, unit: 'tickets', accent: 's1',
+    cost: seatPrice(d.audiences.workshop),
+  },
+  {
+    // The other top-of-funnel product ads are bought for — it earns its own
+    // card here because it has its own campaigns and its own seat price.
+    name: 'Masterclass', count: d.masterclass.count, eurMinor: d.masterclass.netEurMinor,
+    prev: cmp?.masterclass.netEurMinor, unit: 'tickets', accent: 's2',
+    cost: seatPrice(d.audiences.masterclass),
+  },
+  {
+    name: '12-Week Course', count: d.twelveWeek.count, eurMinor: d.twelveWeek.netEurMinor,
+    prev: cmp?.twelveWeek.netEurMinor, unit: 'sales', accent: 's3', cost: null,
+  },
+  {
+    name: 'Certification', count: d.certification.count, eurMinor: d.certification.netEurMinor,
+    prev: cmp?.certification.netEurMinor, unit: 'sales', accent: 's4', cost: null,
+  },
 ];
 
 // ---- per-workshop rows: live/past first, drafts last ----
@@ -358,6 +405,9 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
       .fcard h3 { margin: 0 0 8px; font-size: 14px; font-weight: 600; }
       .fcard .big { font-size: 27px; font-weight: 640; letter-spacing: -0.01em; }
       .fcard .cnt { font-size: 12.5px; color: var(--ink-2); margin-top: 3px; }
+      /* What a registration for this ticket cost in ads — its own campaigns'
+         money, never the other product's. */
+      .fcard .cost { font-size: 12.5px; color: var(--ink); margin-top: 6px; font-variant-numeric: tabular-nums; }
       .secondary { margin-top: 12px; color: var(--ink-2); font-size: 12.5px; }
 
       /* recent-workshop highlight boxes */
@@ -547,7 +597,7 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
         <button type="submit" class="apply">Apply</button>
       </form>
       <p class="rangenote">
-        Showing <strong>{rangeLabel}</strong>{cmp && cmpFrom && cmpTo && <> · vs <strong>{dateLabel(cmpFrom)} → {dateLabel(cmpTo)}</strong></>}.
+        Showing <strong>{rangeLabel}</strong>{cmp && cmpFrom && cmpTo && <> · vs <strong>{dateLabel(cmpFrom)} → {dateLabel(cmpTo)}</strong></>}{spendFreshness && <> · {spendFreshness}</>}.
         {d.hasAdSpend && <> Prospecting spend {eur0(d.acquisitionSpendEurMinor)} ÷ {int(d.registrations)} registrations = <strong>{d.costPerRegistrationEurMinor != null ? eur(Math.round(d.costPerRegistrationEurMinor)) : '—'}</strong> per registration blended — <strong>{d.audiences.workshop.costPerRegistrationEurMinor != null ? eur(Math.round(d.audiences.workshop.costPerRegistrationEurMinor)) : '—'}</strong> per workshop registration, <strong>{d.audiences.masterclass.costPerRegistrationEurMinor != null ? eur(Math.round(d.audiences.masterclass.costPerRegistrationEurMinor)) : '—'}</strong> per masterclass registration{d.retargetingSpendEurMinor > 0 && <> · {eur0(d.retargetingSpendEurMinor)} retargeting excluded</>}. Each product is charged its own campaigns’ money, day by day — every registration at the price of a registration of its kind on the day it came in.</>}
         {!(from && to) && <span class="sub-muted"> Pick a bounded period to compare against the previous one.</span>}
       </p>
@@ -630,22 +680,25 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
 
       <section>
         <h2>Focus products</h2>
-        <p class="note">Where the ads spend is pointed: the workshop, the 12-Week course, and the certification path. Revenue is net of tax where known.</p>
+        <p class="note">Where the ads spend is pointed: the two top-of-funnel tickets (workshop, masterclass) and what they feed — the 12-Week course and the certification path. Revenue is net of tax where known; the ad cost under each ticket is what one of its registrations cost, out of that product’s own campaigns.</p>
         <div class="focus">
-          {focus.map((f, i) => {
+          {focus.map((f) => {
             const fd = delta(f.eurMinor, f.prev);
             return (
-              <div class="fcard" style={`--accent: var(--s${i === 0 ? 1 : i === 1 ? 3 : 4})`}>
+              <div class="fcard" style={`--accent: var(--${f.accent})`}>
                 <h3>{f.name}</h3>
                 <div class="big">{eur0(f.eurMinor)}</div>
                 <div class="cnt">{int(f.count)} {f.unit}{fd ? <> · <span style={`color: var(--${fd.tone === 'good' ? 'good' : fd.tone === 'bad' ? 'bad' : 'muted'})`}>{fd.arrow} {fd.text}</span></> : null}</div>
+                {f.cost && <div class="cost">{f.cost}</div>}
               </div>
             );
           })}
         </div>
-        <p class="secondary">
-          Also in window — Masterclass: <strong>{eur0(d.masterclass.netEurMinor)}</strong> ({int(d.masterclass.count)}){d.otherCourses.count > 0 && <> · Other courses: <strong>{eur0(d.otherCourses.netEurMinor)}</strong> ({int(d.otherCourses.count)})</>}.
-        </p>
+        {d.otherCourses.count > 0 && (
+          <p class="secondary">
+            Also in window — Other courses: <strong>{eur0(d.otherCourses.netEurMinor)}</strong> ({int(d.otherCourses.count)}).
+          </p>
+        )}
       </section>
 
       <section>

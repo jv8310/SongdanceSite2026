@@ -46,6 +46,23 @@ const SYNC_WINDOW_DAYS = 14;
 const SYNC_LOCAL_HOUR = 6;
 const SYNC_TZ = 'Europe/Brussels';
 const SYNC_MARKER_KEY = 'meta_ad_spend_synced_at';
+
+// The "open the dashboard and see today's spend" sync (`syncTodayAdSpend`).
+// It pulls only the current day rather than the full 14-day window, so it is
+// one small call that can run inline on a page render:
+//   • TWO days, not one — Meta buckets spend in the *ad account's* timezone,
+//     which can be a day behind/ahead of UTC, so "today" needs yesterday's UTC
+//     day alongside it to be certain the account's current day is covered.
+//     Both days are replaced from Meta, exactly as the rolling window does.
+//   • Its own marker key, so it never satisfies (or starves) the daily
+//     14-day sync above — the two are independent.
+//   • A short throttle, so reloading the page in a loop can't hammer the API,
+//     and a hard timeout so a slow Graph call never hangs the page. The marker
+//     is written at *attempt* time, so a failing token backs off too.
+const LIVE_WINDOW_DAYS = 2;
+const LIVE_MARKER_KEY = 'meta_ad_spend_live_synced_at';
+const LIVE_MIN_INTERVAL_MS = 60_000;
+const LIVE_TIMEOUT_MS = 8_000;
 // Safety cap. A 14-day per-campaign pull is days × campaigns rows; at 500 rows
 // a page that's ~35 campaigns before a second page, so 12 pages covers a very
 // large account.
@@ -111,6 +128,7 @@ async function fetchInsights(
   token: string,
   from: string,
   to: string,
+  timeoutMs?: number,
 ): Promise<InsightsRow[]> {
   const params = new URLSearchParams({
     // Per-campaign, per-day: so spend can be split by funnel intent (the "TOF"
@@ -127,7 +145,7 @@ async function fetchInsights(
 
   const out: InsightsRow[] = [];
   for (let page = 0; page < MAX_PAGES; page++) {
-    const res = await fetch(url);
+    const res = await fetch(url, timeoutMs ? { signal: AbortSignal.timeout(timeoutMs) } : {});
     const text = await res.text();
     let body: InsightsResponse;
     try {
@@ -154,7 +172,15 @@ async function fetchInsights(
 // Meta/API error to the caller by throwing.
 export async function runMetaAdSpendSync(
   env: MetaInsightsEnv,
-  opts: { force?: boolean } = {},
+  opts: {
+    force?: boolean;
+    /** Trailing days to re-pull (default the 14-day rolling window). */
+    windowDays?: number;
+    /** Where to stamp the success marker (default the daily-gate key). */
+    markerKey?: string;
+    /** Abort the Graph call after this long (default: no timeout). */
+    timeoutMs?: number;
+  } = {},
 ): Promise<MetaSyncResult> {
   const db = env.DB;
   const accountRaw = (env.META_AD_ACCOUNT_ID ?? '').trim();
@@ -181,10 +207,11 @@ export async function runMetaAdSpendSync(
 
   const version = (env.META_API_VERSION ?? '').trim() || DEFAULT_API_VERSION;
   const accountId = normaliseAccountId(accountRaw);
+  const windowDays = Math.max(1, opts.windowDays ?? SYNC_WINDOW_DAYS);
   const to = ymdUTC(new Date());
-  const from = addDaysUTC(to, -(SYNC_WINDOW_DAYS - 1));
+  const from = addDaysUTC(to, -(windowDays - 1));
 
-  const insightRows = await fetchInsights(version, accountId, token, from, to);
+  const insightRows = await fetchInsights(version, accountId, token, from, to, opts.timeoutMs);
 
   // Aggregate to one row per (day, campaign). time_increment=1 + level=campaign
   // already is one row each, but summing is defensive against duplicates. Spend
@@ -223,7 +250,7 @@ export async function runMetaAdSpendSync(
   }));
 
   await replaceMetaAdSpend(db, { from, to }, rows);
-  await setConfig(db, SYNC_MARKER_KEY, new Date().toISOString());
+  await setConfig(db, opts.markerKey ?? SYNC_MARKER_KEY, new Date().toISOString());
 
   const days = new Set(rows.map((r) => r.spend_date)).size;
   return {
@@ -239,4 +266,67 @@ export async function runMetaAdSpendSync(
     retargetingSpendMinor: totalSpendMinor - acquisitionSpendMinor,
     fxMissing: rate == null,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Live "today" sync — what makes the dashboards show *today's* spend.
+//
+// The daily cron sync backfills the rolling window once each morning, which is
+// right for history and useless for "what has today cost me so far". So opening
+// /admin/stats (or /ads) pulls the current day inline, before the page's figures
+// are computed, and the page renders against spend that is minutes old.
+//
+// It is deliberately cheap and unfailable:
+//   • one small Graph call (today + the previous UTC day, per LIVE_WINDOW_DAYS)
+//   • throttled to once per LIVE_MIN_INTERVAL_MS across all viewers, and the
+//     marker is stamped at attempt time so a broken token backs off too
+//   • hard-timeout on the call, and every error is swallowed into the result —
+//     a Meta outage must never 500 an admin page or make it hang. The page then
+//     just shows the spend it already had.
+export type LiveAdSpendSync = {
+  ran: boolean; // a Graph call was actually made
+  reason?: string; // why it wasn't: not_configured | throttled | error
+  error?: string; // the Meta/network error, when reason === 'error'
+  at?: string; // ISO timestamp of the sync that produced the current figures
+};
+
+export async function syncTodayAdSpend(env: MetaInsightsEnv): Promise<LiveAdSpendSync> {
+  const db = env.DB;
+  const accountRaw = (env.META_AD_ACCOUNT_ID ?? '').trim();
+  const token = (env.META_ADS_TOKEN ?? env.META_ACCESS_TOKEN ?? '').trim();
+  if (!accountRaw || !token) return { ran: false, reason: 'not_configured' };
+
+  let last: string | null = null;
+  try {
+    last = await getConfig(db, LIVE_MARKER_KEY);
+  } catch {
+    last = null;
+  }
+  if (last) {
+    const lastMs = new Date(last.replace(' ', 'T')).getTime();
+    if (Number.isFinite(lastMs) && Date.now() - lastMs < LIVE_MIN_INTERVAL_MS) {
+      return { ran: false, reason: 'throttled', at: last };
+    }
+  }
+
+  // Stamp the attempt before the call: a failing token then backs off for the
+  // same interval instead of retrying on every single page view.
+  const startedAt = new Date().toISOString();
+  try {
+    await setConfig(db, LIVE_MARKER_KEY, startedAt);
+  } catch {
+    // A marker we couldn't write only costs us the throttle; carry on.
+  }
+
+  try {
+    await runMetaAdSpendSync(env, {
+      force: true,
+      windowDays: LIVE_WINDOW_DAYS,
+      markerKey: LIVE_MARKER_KEY,
+      timeoutMs: LIVE_TIMEOUT_MS,
+    });
+    return { ran: true, at: startedAt };
+  } catch (err) {
+    return { ran: false, reason: 'error', error: String(err), at: last ?? undefined };
+  }
 }

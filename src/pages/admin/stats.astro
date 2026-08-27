@@ -14,6 +14,7 @@ import {
 } from '../../lib/workshops/stats';
 import { listWorkshops, getProductById } from '../../lib/workshops/db';
 import { CAMPAIGN_AUDIENCE_LABEL } from '../../lib/ads/campaigns';
+import { syncTodayAdSpend } from '../../lib/ads/meta-insights';
 import ChartKit from '../../components/charts/ChartKit.astro';
 import {
   PERIOD_PRESETS,
@@ -38,7 +39,15 @@ if (!(await verifySession(env.ADMIN_SESSION_SECRET, readCookie(Astro.request))))
   return Astro.redirect('/admin/login');
 }
 
-const { preset, from, to } = resolvePeriod(Astro.url.searchParams);
+// Opens on **today** — this page is read to see how today is going; an
+// all-time default buries that. Any other window is one click away.
+const { preset, from, to } = resolvePeriod(Astro.url.searchParams, 'today');
+
+// Today's Meta spend, pulled inline before anything is computed, so the ROAS
+// and cost-per-registration figures below are minutes old rather than a day
+// old. Throttled + hard-timed-out + never throws (see syncTodayAdSpend); when
+// Meta isn't configured it is a no-op.
+const liveSpend = await syncTodayAdSpend(env);
 
 // ---- Compare window (needs a bounded current window) ----
 
@@ -366,10 +375,38 @@ function spark(valsRaw: number[], w = 132, h = 34) {
 
 const heroSpark = spark(days.map((d) => d.totalEurMinor), 600, 52);
 
+// How fresh the ad spend is. The page pulls today's spend from Meta on every
+// load (throttled), so say plainly whether these euros are live — and say it
+// loudly when the pull failed, since the figures then silently lag.
+const spendClock = (iso: string | undefined): string =>
+  iso
+    ? new Intl.DateTimeFormat('en-GB', {
+        hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels',
+      }).format(new Date(iso))
+    : '';
+const spendFreshness: string | null =
+  liveSpend.reason === 'error'
+    ? '⚠ live Meta sync failed — spend may lag'
+    : liveSpend.ran
+      ? `live from Meta · ${spendClock(liveSpend.at)}`
+      : liveSpend.reason === 'throttled'
+        ? `live from Meta · ${spendClock(liveSpend.at)}`
+        : null; // not configured — nothing to claim
+
 type StreamTile = {
   name: string; color: string; count: number; eurMinor: number; d: Delta;
   sp: ReturnType<typeof spark>;
+  // What a registration for this product cost in ads, from its own campaigns'
+  // budget (see lib/ads/campaigns.ts). Only the two top-of-funnel products
+  // are bought with ads, so only they carry it.
+  cost?: string;
 };
+// "€12.34 per registration" for one audience, or null when there's nothing to
+// price (no spend, or no registrations of that product in the window).
+const audienceCost = (a: { costPerRegistrationEurMinor: number | null; registrations: number }) =>
+  a.costPerRegistrationEurMinor != null
+    ? `${eur(Math.round(a.costPerRegistrationEurMinor))} ad cost / registration`
+    : undefined;
 const streamTiles: StreamTile[] = [
   {
     name: 'Workshops', color: C.workshops,
@@ -377,6 +414,7 @@ const streamTiles: StreamTile[] = [
     eurMinor: workshopsNet,
     d: delta(workshopsNet, cmpWorkshopsNet),
     sp: spark(days.map((d) => d.workshopsEurMinor)),
+    cost: audienceCost(perf.audiences.workshop),
   },
   {
     name: 'Masterclass', color: C.masterclass,
@@ -384,6 +422,7 @@ const streamTiles: StreamTile[] = [
     eurMinor: report.totals.masterclassNetEurMinor,
     d: delta(report.totals.masterclassNetEurMinor, cmp?.report.totals.masterclassNetEurMinor),
     sp: spark(days.map((d) => d.masterclassEurMinor)),
+    cost: audienceCost(perf.audiences.masterclass),
   },
   {
     name: '12-Week Course', color: C.twelveWeek,
@@ -572,6 +611,15 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
           <strong class="st-hero-num">{eur0(report.adSpendEurMinor)}</strong>
           {(() => { const d = delta(report.adSpendEurMinor, cmp?.report.adSpendEurMinor, false); return d && <em class={`st-hd st-hd--${d.cls}`}>{d.arrow} {d.text}</em>; })()}
           <span class="st-hero-mini">{eur0(report.acquisitionAdSpendEurMinor)} prospecting · {eur0(report.retargetingAdSpendEurMinor)} retargeting</span>
+          <span class="st-hero-mini st-hero-mini--cost">
+            {perf.audiences.workshop.costPerRegistrationEurMinor != null
+              ? eur(Math.round(perf.audiences.workshop.costPerRegistrationEurMinor))
+              : '—'} / workshop reg ·
+            {' '}{perf.audiences.masterclass.costPerRegistrationEurMinor != null
+              ? eur(Math.round(perf.audiences.masterclass.costPerRegistrationEurMinor))
+              : '—'} / masterclass reg
+          </span>
+          {spendFreshness && <span class="st-hero-mini">{spendFreshness}</span>}
         </div>
         <div class="st-hero-cell">
           <span class="st-hero-label">Net after ads</span>
@@ -611,6 +659,7 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
             </div>
             <strong class="st-tile-value">{eur0(t.eurMinor)}</strong>
             <span class="st-tile-sub">{int(t.count)} {t.count === 1 ? 'sale' : 'sales'}</span>
+            {t.cost && <span class="st-tile-cost">{t.cost}</span>}
             {t.sp && (
               <svg class="st-tile-spark" viewBox={`0 0 ${t.sp.w} ${t.sp.h}`} preserveAspectRatio="none" aria-hidden="true">
                 <path d={t.sp.area} fill={t.color} opacity="0.09"></path>
@@ -960,6 +1009,9 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
       box-shadow: 0 10px 30px rgba(43, 37, 25, 0.18);
     }
     .st-hero-main { padding: 20px 24px 16px; display: flex; flex-direction: column; min-width: 0; }
+    /* The two seat prices sit brighter than the other minis: on an ads page
+       they are the point, not a footnote. */
+    .st-hero-mini--cost { color: rgba(243, 234, 216, 0.92) !important; font-variant-numeric: tabular-nums; }
     .st-hero-cell {
       padding: 20px 20px 16px; display: flex; flex-direction: column; gap: 3px;
       border-left: 1px solid rgba(243, 234, 216, 0.12); min-width: 0;
@@ -973,6 +1025,9 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
     .st-hero-num { font-size: 24px; font-weight: 650; letter-spacing: -0.01em; line-height: 1.1; }
     .st-hero-sub { margin-top: 6px; font-size: 12.5px; color: rgba(243, 234, 216, 0.72); }
     .st-hero-mini { margin-top: auto; padding-top: 8px; font-size: 11px; color: rgba(243, 234, 216, 0.55); line-height: 1.45; }
+    /* Only the first mini pushes to the bottom of the cell; the rest stack
+       directly under it (auto margins on each would space them apart). */
+    .st-hero-mini + .st-hero-mini { margin-top: 0; padding-top: 3px; }
     .st-hero-spark { width: 100%; height: 52px; margin-top: 14px; display: block; }
     .st-pos { color: #97dcae; }
     .st-neg { color: #f2a9a0; }
@@ -1002,6 +1057,12 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
     .st-tile-head .st-delta { margin-left: auto; }
     .st-tile-value { font-size: 23px; font-weight: 650; letter-spacing: -0.01em; color: var(--adm-ink); }
     .st-tile-sub { font-size: 11.5px; color: var(--adm-mute); margin-top: 2px; }
+    /* What a registration for this product cost in ads — the figure that says
+       whether the revenue above it was bought well. */
+    .st-tile-cost {
+      font-size: 11.5px; color: var(--adm-ink-soft); margin-top: 4px;
+      font-variant-numeric: tabular-nums;
+    }
     .st-tile-spark { width: 100%; height: 34px; margin-top: 9px; display: block; }
 
     .st-delta {

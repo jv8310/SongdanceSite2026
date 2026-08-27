@@ -416,7 +416,7 @@ export async function listSecuredWorkshopLinksByEmail(
               CASE WHEN p.slug LIKE '%masterclass%' THEN 1 ELSE 0 END AS is_masterclass
          FROM workshop_registrations r
          JOIN workshops w ON w.id = r.workshop_id
-         LEFT JOIN products p ON p.id = w.main_product_id
+         LEFT JOIN workshop_products p ON p.id = w.main_product_id
         WHERE lower(r.email) = lower(?)
           AND w.deleted = 0
           AND r.payment_status IN ('paid', 'coupon')
@@ -457,7 +457,7 @@ export async function listCountdownLinksByEmail(
               CASE WHEN p.slug LIKE '%masterclass%' THEN 1 ELSE 0 END AS is_masterclass
          FROM workshop_registrations r
          JOIN workshops w ON w.id = r.workshop_id
-         LEFT JOIN products p ON p.id = w.main_product_id
+         LEFT JOIN workshop_products p ON p.id = w.main_product_id
         WHERE lower(r.email) = lower(?)
           AND w.deleted = 0
           AND w.status = 'published'

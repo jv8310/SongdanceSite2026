@@ -659,8 +659,10 @@ before. A session is a masterclass when its main product slug contains
 bucket is only ever charged to its own sessions, so
 `/admin/workshops/performance`, `/admin/stats` and `/ads` all report **cost per
 workshop registration** and **cost per masterclass registration** side by side
-(`report.audiences.{workshop,masterclass}`), and the blended
-`costPerRegistrationEurMinor` stays only as the mixed headline. Adding a third
+(`report.audiences.{workshop,masterclass}`) — on the stats hero and on each
+product's own card/tile, where the seat price sits next to the revenue it
+bought — and the blended `costPerRegistrationEurMinor` stays only as the mixed
+headline. Adding a third
 TOF product = add its token here and its scope in `computeWorkshopPerformance`.
 
 **A registration costs what it cost *that day*** ([`src/lib/ads/allocation.ts`](src/lib/ads/allocation.ts),
@@ -700,6 +702,19 @@ calendar day (mirroring the SD-REPORT digest's 08:00 hold); a failed run
 leaves the marker untouched so the next tick retries later the same morning.
 **No-ops entirely** until the secrets are set, so deploying it changes nothing
 until the owner opts in.
+
+**Today's spend is live** (`syncTodayAdSpend`, August 2026): the daily cron is
+right for history and useless for "what has today cost me so far", so opening
+**`/admin/stats`** or **`/ads`** pulls the current day from Meta *inline*,
+before the page's figures are computed — the ROAS and seat prices you read are
+minutes old. It is deliberately cheap and unfailable: **2 days** only (today +
+the previous UTC day, since Meta buckets in the ad account's timezone), its own
+`meta_ad_spend_live_synced_at` marker (never satisfies or starves the daily
+14-day sync), throttled to once a minute across all viewers with the marker
+stamped at *attempt* time (a broken token backs off too), an 8s hard timeout,
+and every error swallowed into a result the page reports as "⚠ live Meta sync
+failed" rather than a 500. Both pages also **open on today** (`resolvePeriod`
+takes a fallback preset; everything else still defaults to all-time).
 
 **Setup** (Meta side is the only real work):
 - **`META_AD_ACCOUNT_ID`** — the ad account, `act_1234567890` or bare
