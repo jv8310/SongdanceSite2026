@@ -611,14 +611,6 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
           <strong class="st-hero-num">{eur0(report.adSpendEurMinor)}</strong>
           {(() => { const d = delta(report.adSpendEurMinor, cmp?.report.adSpendEurMinor, false); return d && <em class={`st-hd st-hd--${d.cls}`}>{d.arrow} {d.text}</em>; })()}
           <span class="st-hero-mini">{eur0(report.acquisitionAdSpendEurMinor)} prospecting · {eur0(report.retargetingAdSpendEurMinor)} retargeting</span>
-          <span class="st-hero-mini st-hero-mini--cost">
-            {perf.audiences.workshop.costPerRegistrationEurMinor != null
-              ? eur(Math.round(perf.audiences.workshop.costPerRegistrationEurMinor))
-              : '—'} / workshop reg ·
-            {' '}{perf.audiences.masterclass.costPerRegistrationEurMinor != null
-              ? eur(Math.round(perf.audiences.masterclass.costPerRegistrationEurMinor))
-              : '—'} / masterclass reg
-          </span>
           {spendFreshness && <span class="st-hero-mini">{spendFreshness}</span>}
         </div>
         <div class="st-hero-cell">
@@ -1009,9 +1001,6 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
       box-shadow: 0 10px 30px rgba(43, 37, 25, 0.18);
     }
     .st-hero-main { padding: 20px 24px 16px; display: flex; flex-direction: column; min-width: 0; }
-    /* The two seat prices sit brighter than the other minis: on an ads page
-       they are the point, not a footnote. */
-    .st-hero-mini--cost { color: rgba(243, 234, 216, 0.92) !important; font-variant-numeric: tabular-nums; }
     .st-hero-cell {
       padding: 20px 20px 16px; display: flex; flex-direction: column; gap: 3px;
       border-left: 1px solid rgba(243, 234, 216, 0.12); min-width: 0;
