@@ -201,6 +201,13 @@ export type PaypalCapture = {
   currency: string | null;
   customId: string | null;
   payerEmail: string | null;
+  // Settlement / FX, when PayPal converted the charge into a holding currency
+  // (the sibling of Stripe's balance transaction — see workshops/stripe.ts).
+  // Null when no conversion happened, i.e. PayPal kept the money in the
+  // currency it was charged in.
+  settlementAmountMinor: number | null; // gross, converted to the holding currency
+  settlementCurrency: string | null;
+  fxRate: number | null; // holding-currency units per 1 charged unit
 };
 
 type PaypalOrderResource = {
@@ -215,6 +222,13 @@ type PaypalOrderResource = {
         status?: string;
         custom_id?: string;
         amount?: { value?: string; currency_code?: string };
+        seller_receivable_breakdown?: {
+          exchange_rate?: {
+            source_currency?: string;
+            target_currency?: string;
+            value?: string;
+          };
+        };
       }>;
     };
   }>;
@@ -306,20 +320,50 @@ export async function createOrder(
   return { id: order.id, approveUrl };
 }
 
+// Settlement / FX of one capture resource — from the v2 order we capture
+// ourselves, or the same object delivered as a PAYMENT.CAPTURE.COMPLETED
+// webhook. PayPal reports an exchange rate only when it converted the charge
+// into the account's holding currency; `value` is target-currency units per 1
+// source unit, so the gross in the holding currency is amount x value. That is
+// the same shape as Stripe's balance-transaction amount, and what the stats
+// read as the exact EUR figure instead of an fx_rates estimate. No conversion
+// (PayPal kept the money in the charged currency) → all null, and the stats
+// convert the charged amount themselves.
+//
+// `seller_receivable_breakdown.receivable_amount` is deliberately NOT used: it
+// is net of PayPal's fee, so it would understate gross next to Stripe rows.
+export function captureSettlement(
+  cap: { seller_receivable_breakdown?: { exchange_rate?: { target_currency?: string; value?: string } } } | null | undefined,
+  amountMinor: number | null,
+): { settlementAmountMinor: number | null; settlementCurrency: string | null; fxRate: number | null } {
+  const xr = cap?.seller_receivable_breakdown?.exchange_rate;
+  const rate = xr?.value ? parseFloat(xr.value) : NaN;
+  if (!Number.isFinite(rate) || rate <= 0 || !xr?.target_currency || amountMinor == null) {
+    return { settlementAmountMinor: null, settlementCurrency: null, fxRate: null };
+  }
+  return {
+    settlementAmountMinor: Math.round(amountMinor * rate),
+    settlementCurrency: xr.target_currency.toUpperCase(),
+    fxRate: rate,
+  };
+}
+
 function extractCapture(order: PaypalOrderResource): PaypalCapture {
   const pu = order.purchase_units?.[0];
   const cap = pu?.payments?.captures?.[0];
+  const amountMinor = cap?.amount?.value
+    ? Math.round(parseFloat(cap.amount.value) * 100)
+    : null;
   return {
     orderId: order.id,
     status: order.status,
     captureId: cap?.id ?? null,
     captureStatus: cap?.status ?? null,
-    amountMinor: cap?.amount?.value
-      ? Math.round(parseFloat(cap.amount.value) * 100)
-      : null,
+    amountMinor,
     currency: cap?.amount?.currency_code ?? null,
     customId: cap?.custom_id ?? pu?.custom_id ?? null,
     payerEmail: order.payer?.email_address ?? null,
+    ...captureSettlement(cap, amountMinor),
   };
 }
 
