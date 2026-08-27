@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { eventExists, logEvent, logEventSafe } from '../../../lib/registrations/db';
 import {
   captureOrder,
+  captureSettlement,
   getOrder,
   verifyPaypalWebhook,
   type PaypalCapture,
@@ -146,17 +147,21 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // ── One-off capture completed (card/PayPal balance). Main confirmation
     //    path if the return endpoint didn't fulfill.
     if (type === 'PAYMENT.CAPTURE.COMPLETED') {
+      const amountMinor = resource?.amount?.value
+        ? Math.round(parseFloat(resource.amount.value) * 100)
+        : null;
       const capture: PaypalCapture = {
         orderId: resource?.supplementary_data?.related_ids?.order_id ?? '',
         status: 'COMPLETED',
         captureId: resource.id ?? null,
         captureStatus: resource.status ?? 'COMPLETED',
-        amountMinor: resource?.amount?.value
-          ? Math.round(parseFloat(resource.amount.value) * 100)
-          : null,
+        amountMinor,
         currency: resource?.amount?.currency_code ?? null,
         customId: resource.custom_id ?? null,
         payerEmail: null,
+        // The webhook resource IS a capture, so it carries the same
+        // seller_receivable_breakdown the captured order does.
+        ...captureSettlement(resource, amountMinor),
       };
       await fulfillOneOff(env, capture, ctx);
       return new Response('OK', { status: 200 });

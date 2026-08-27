@@ -194,15 +194,28 @@ export type StatsReport = {
   courseBreakdown: Array<{ product_id: number; count: number; netEurMinor: number }>;
 };
 
-// Gross EUR for a payment: prefer the EUR settlement; otherwise best-effort.
-function grossEurMinor(p: PaymentRow): number {
-  if (p.settlement_amount_minor != null && p.settlement_currency === 'EUR') {
-    return p.settlement_amount_minor;
+// Gross of a workshop payment in EUR. An exact settlement figure wins (Stripe's
+// balance transaction, PayPal's converted gross); otherwise the charged amount
+// is CONVERTED at the live `fx_rates` table — never taken at face value.
+//
+// That fallback used to return the raw minor units, so a 239 kr NOK/SEK ticket
+// counted as €239 rather than ~€21 (and a 99 kr bump as €99): one such seat put
+// a 4-registration workshop at €333 revenue / 1.15x ROAS. It is not an edge
+// case — PayPal records no settlement unless it converted the money, and a
+// Stripe row misses one whenever the balance transaction couldn't be read
+// (`workshop.webhook.settlement_failed`). /admin/orders has always converted
+// here (lib/admin/orders.ts); this is the same treatment, so the pages agree.
+function grossEurMinor(p: PaymentRow, fx?: Record<string, number>): number {
+  const toEur = (minor: number, currency: string | null): number => {
+    const cur = (currency || 'EUR').toUpperCase();
+    if (cur === 'EUR') return minor;
+    const rate = fx?.[cur] ?? FX_TO_EUR[cur] ?? 1;
+    return Math.round(minor * rate);
+  };
+  if (p.settlement_amount_minor != null && p.settlement_currency) {
+    return toEur(p.settlement_amount_minor, p.settlement_currency);
   }
-  if (p.currency === 'EUR') return p.amount_minor;
-  // Settlement in a non-EUR payout currency, or missing — fall back to the
-  // charged amount. (Single-payout-currency accounts never hit this.)
-  return p.settlement_amount_minor ?? p.amount_minor;
+  return toEur(p.amount_minor, p.currency);
 }
 
 function netEurMinor(p: PaymentRow, grossEur: number): { net: number; flagged: boolean } {
@@ -214,8 +227,17 @@ function netEurMinor(p: PaymentRow, grossEur: number): { net: number; flagged: b
 
 export async function computeStats(
   db: D1Database,
-  opts: { from?: string | null; to?: string | null; workshopId?: number | null } = {},
+  opts: {
+    from?: string | null;
+    to?: string | null;
+    workshopId?: number | null;
+    money?: MoneyOpts;
+  } = {},
 ): Promise<StatsReport> {
+  // Currency→EUR for charges with no EUR settlement figure. Resolved here when
+  // the caller didn't pass one, so no call site can silently fall back to
+  // counting kroner as euros.
+  const fxRates = opts.money?.fxRates ?? (await getFxRatesToEur(db));
   const where: string[] = ["p.status = 'paid'"];
   const binds: unknown[] = [];
   if (opts.from) {
@@ -277,7 +299,7 @@ export async function computeStats(
   const courseMap = new Map<number, { count: number; net: number }>();
 
   for (const p of payments) {
-    const gross = grossEurMinor(p);
+    const gross = grossEurMinor(p, fxRates);
     const { net, flagged } = netEurMinor(p, gross);
     totals.grossEurMinor += gross;
     totals.netEurMinor += net;
@@ -699,6 +721,8 @@ export async function computeWorkshopPerformance(
   db: D1Database,
   opts: { from?: string | null; to?: string | null; money?: MoneyOpts } = {},
 ): Promise<WorkshopPerformanceReport> {
+  // See computeStats: never count a non-EUR charge at face value.
+  const fxRates = opts.money?.fxRates ?? (await getFxRatesToEur(db));
   const winFrom = opts.from ?? null;
   const winTo = opts.to ? `${opts.to} 23:59:59` : null;
   const win = (col: string, binds: unknown[]): string => {
@@ -816,7 +840,7 @@ export async function computeWorkshopPerformance(
     const isCert = r.product_slug === 'cc-cert' || r.product_slug === 'cc-bundle';
     if (!isTw && !isCert) continue;
     const { eurMinor } = courseNetEur(
-      collectedMinorOf(r), r, crsTaxRates, opts.money?.fxRates,
+      collectedMinorOf(r), r, crsTaxRates, fxRates,
     );
     const s = standalone.get(r.email) ?? { tw: false, cert: false, eurMinor: 0 };
     if (isTw) s.tw = true;
@@ -924,7 +948,7 @@ export async function computeWorkshopPerformance(
   }
   for (const p of payRes.results ?? []) {
     const slim = p as unknown as PaymentRow;
-    const gross = grossEurMinor(slim);
+    const gross = grossEurMinor(slim, fxRates);
     acc(p.workshop_id).netEurMinor += netEurMinor(slim, gross).net;
   }
 

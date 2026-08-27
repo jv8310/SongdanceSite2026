@@ -911,6 +911,13 @@ export async function upsertPaypalPayment(
     status: string;
     amount_minor: number;
     currency: string;
+    // Set only when PayPal converted the charge into the holding currency —
+    // the sibling of Stripe's balance transaction. Without it the stats have
+    // to convert the charged amount at the fx_rates table, which is an
+    // estimate; with it the EUR figure is exact.
+    settlement_amount_minor?: number | null;
+    settlement_currency?: string | null;
+    fx_rate?: number | null;
     tax_rate?: number | null;
     tax_country?: string | null;
     subtotal_minor?: number | null;
@@ -924,13 +931,18 @@ export async function upsertPaypalPayment(
       .prepare(
         `UPDATE workshop_payments SET
            status = ?, paypal_order_id = COALESCE(?, paypal_order_id),
+           settlement_amount_minor = COALESCE(?, settlement_amount_minor),
+           settlement_currency = COALESCE(?, settlement_currency),
+           fx_rate = COALESCE(?, fx_rate),
            tax_rate = COALESCE(?, tax_rate), tax_country = COALESCE(?, tax_country),
            subtotal_minor = COALESCE(?, subtotal_minor), tax_minor = COALESCE(?, tax_minor),
            updated_at = datetime('now')
          WHERE id = ?`,
       )
       .bind(
-        p.status, p.paypal_order_id, p.tax_rate ?? null, p.tax_country ?? null,
+        p.status, p.paypal_order_id,
+        p.settlement_amount_minor ?? null, p.settlement_currency ?? null, p.fx_rate ?? null,
+        p.tax_rate ?? null, p.tax_country ?? null,
         p.subtotal_minor ?? null, p.tax_minor ?? null, existing.id,
       )
       .run();
@@ -941,12 +953,14 @@ export async function upsertPaypalPayment(
       `INSERT INTO workshop_payments
         (registration_id, provider, paypal_order_id, paypal_capture_id,
          status, method, amount_minor, currency,
+         settlement_amount_minor, settlement_currency, fx_rate,
          tax_rate, tax_country, subtotal_minor, tax_minor, raw_event)
-       VALUES (?, 'paypal', ?, ?, ?, 'paypal', ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+       VALUES (?, 'paypal', ?, ?, ?, 'paypal', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
     )
     .bind(
       p.registration_id, p.paypal_order_id, p.paypal_capture_id,
       p.status, p.amount_minor, p.currency,
+      p.settlement_amount_minor ?? null, p.settlement_currency ?? null, p.fx_rate ?? null,
       p.tax_rate ?? null, p.tax_country ?? null, p.subtotal_minor ?? null, p.tax_minor ?? null,
       p.raw_event ? JSON.stringify(p.raw_event) : null,
     )

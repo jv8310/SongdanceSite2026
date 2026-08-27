@@ -350,6 +350,38 @@ and when a place frees up the admin offers it to someone from
   confirmation email — you're already in the conversation). The retreats index
   shows "N waiting" per retreat.
 
+## Workshop revenue in EUR — never count a charge at face value
+
+Tickets are charged in the buyer's currency (`workshop_product_prices`), and a
+Nordic ticket is **239 kr** with a **99 kr** bump. So a workshop payment's
+`amount_minor` is only euros when `currency = 'EUR'` — every euro figure the
+site reports has to convert.
+
+`grossEurMinor` ([`src/lib/workshops/stats.ts`](src/lib/workshops/stats.ts))
+used to fall back to the raw minor units when there was no EUR settlement
+figure, i.e. it read 239 kr as **€239** (~11× for NOK/SEK, ~7.5× for DKK). One
+such seat made a 4-registration workshop read **€333** of revenue and a 1.15×
+ROAS on `/admin/workshops/performance` (real: ~€70, ~0.25×) — and the same
+number fed `/admin/stats`, `/ads` and the SD-REPORT digests. It now converts at
+the live `fx_rates` table (`getFxRatesToEur`, `FX_TO_EUR` as the fallback),
+which is what `/admin/orders` always did — so the two pages agree.
+
+The fallback is not an edge case, because a settlement figure is often absent:
+
+- **PayPal** workshop payments only carry one when PayPal actually converted
+  the money. `captureSettlement` (`src/lib/payments/paypal.ts`) reads the
+  capture's `seller_receivable_breakdown.exchange_rate` and stores gross ×
+  rate — the same shape as Stripe's `balance_transaction.amount`, on both the
+  return and webhook paths. (Not `receivable_amount`: that is net of PayPal's
+  fee and would understate gross next to the Stripe rows.) No conversion → the
+  columns stay NULL and the FX conversion above does the work.
+- **Stripe** rows miss one whenever the balance transaction couldn't be read
+  (logged as `workshop.webhook.settlement_failed`).
+
+So: an exact EUR settlement wins, otherwise convert. Anything summing money out
+of `workshop_payments` must go through `grossEurMinor` — reading `amount_minor`
+as euros is this bug again.
+
 ## Internal reports — daily + weekly "SD-REPORT" digests
 
 Ops-only summary email (NOT customer-facing), sibling to the `SD-ORDER`
