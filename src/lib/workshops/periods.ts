@@ -70,7 +70,15 @@ const isYmd = (s: string | null): s is string => !!s && /^\d{4}-\d{2}-\d{2}$/.te
 // Resolve ?preset=&from=&to= into a concrete window. A preset wins over the
 // date inputs (they're just prefilled for transparency); bare from/to without
 // a preset reads as a custom range.
-export function resolvePeriod(params: URLSearchParams): {
+//
+// `fallback` is what an unparameterised URL means. It defaults to 'all' (every
+// page that just wants the whole history), but the live dashboards open on
+// 'today' — they are read to answer "how is today going", and an all-time
+// figure buries that under a year of history.
+export function resolvePeriod(
+  params: URLSearchParams,
+  fallback: string = 'all',
+): {
   preset: string;
   from: string | null;
   to: string | null;
@@ -83,7 +91,7 @@ export function resolvePeriod(params: URLSearchParams): {
       ? rawPreset
       : isYmd(qFrom) || isYmd(qTo)
         ? 'custom'
-        : 'all';
+        : fallback;
   if (preset === 'custom') {
     return { preset, from: isYmd(qFrom) ? qFrom : null, to: isYmd(qTo) ? qTo : null };
   }

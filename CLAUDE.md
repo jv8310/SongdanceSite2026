@@ -640,9 +640,35 @@ account-level rows, or a CSV with no campaign column — counts as acquisition, 
 pre-breakdown windows keep the old "all spend ÷ regs" figure). Cost per
 registration = prospecting spend ÷ registrations; **total** ad spend and
 **blended ROAS** still count every campaign. `/admin/stats` shows a **By
-campaign** table (spend + prospecting/retargeting tag) so the split is
-verifiable; `/ads` labels its "Cost / registration" as prospecting-based and
-breaks the "Ad spend" tile into prospecting · retargeting.
+campaign** table (spend + prospecting/retargeting tag + the product it's charged
+to) so the split is verifiable; `/ads` labels its cost-per-registration tiles as
+prospecting-based and breaks the "Ad spend" tile into prospecting · retargeting.
+
+**A campaign's money only buys its own product** ([`campaignAudience`](src/lib/ads/campaigns.ts),
+August 2026): prospecting runs one campaign per top-of-funnel product —
+`… SVH Workshop` and `… SVH Masterclass`. Pooling the two and pricing every
+registration off the pool charged masterclass euros to €22 workshop seats and
+workshop euros to €44 masterclass seats, so **neither cost per registration was
+real** (one blended number for two products bought at different prices). A
+campaign is now bucketed by the product its **name** carries — `masterclass`
+(tested first, delimiter-tolerant, "master class"/"masterclasses" too) →
+masterclass, `workshop`/`workshops` → workshop, anything naming neither (a broad
+brand campaign, a blank legacy/CSV name) → **general**, charged across both as
+before. A session is a masterclass when its main product slug contains
+"masterclass" — the same test the calendar and the bump resolver use. Each
+bucket is only ever charged to its own sessions, so
+`/admin/workshops/performance`, `/admin/stats` and `/ads` all report **cost per
+workshop registration** and **cost per masterclass registration** side by side
+(`report.audiences.{workshop,masterclass}`), and the blended
+`costPerRegistrationEurMinor` stays only as the mixed headline. On `/admin/stats`
+and `/ads` that audience block is rendered as the **ad-economics card** per
+product — *spend → made back → ROAS so far*, plus **how much more revenue it
+needs to reach 2×** (`ROAS_TARGET` / `roasGapEurMinor` in `stats.ts`). An
+audience's `revenueEurMinor` is its own sessions' checkout net **plus** the
+standalone 12-week/cert revenue of the people who registered for them, each
+buyer counted **once** (summing the per-session rows would count a buyer again
+for every session they attended). Adding a third
+TOF product = add its token here and its scope in `computeWorkshopPerformance`.
 
 **A registration costs what it cost *that day*** ([`src/lib/ads/allocation.ts`](src/lib/ads/allocation.ts),
 July 2026): the per-workshop ad cost used to be one window-wide average — total
@@ -652,20 +678,27 @@ filled at €50/seat looked identical to one that filled at €2/seat. Spend is
 priced **per day** instead: that day's spend ÷ that day's registrations = the
 price of a registration bought that day; every registration carries the price of
 the day it came in, and a workshop's cost is the sum of what its own
-registrations cost (`allocateSpendByDay`, run twice — prospecting spend for the
+registrations cost (`allocateSpendPools`, run twice — prospecting spend for the
 **TOF cost / workshop ROAS**, total spend for the **Meta cost / blended ROAS**).
-Registrations on a day with no spend are free, as before. **Spend on a day with
-no registrations at all** can't be priced against a registration, so it is spread
-evenly over the window's registrations — the old flat treatment, applied only to
-the part the daily model can't place; that keeps the per-workshop columns summing
-to the spend actually made, so the window figures (`costPerRegistrationEurMinor`
-= total prospecting spend ÷ total registrations) are **unchanged** and still
-reconcile. Only the *distribution across workshops* moves — which is the point.
-`WorkshopPerformanceRow.costPerRegistrationEurMinor` is a workshop's own
-day-weighted seat price; `dailyCosts` on the report is the day-by-day ledger
-(shown as a table on `/admin/workshops/performance`, and already the `/ads`
-cost-per-registration chart), and `unattributedAcquisitionSpendEurMinor` is the
-spread residue, footnoted wherever it's non-zero.
+Registrations on a day with no spend are free, as before. Each run allocates
+**one pool per campaign audience** (workshop / masterclass / general, above),
+priced day by day against the registrations **in that pool's scope** — so a
+day's masterclass price is that day's masterclass spend ÷ that day's masterclass
+registrations, and a session's cost is the sum of its own registrations' prices
+plus its share of any general campaign. **Spend on a day with no registrations
+of its own product** can't be priced against a registration, so it is spread
+evenly over that product's registrations in the window
+(`unattributedAcquisitionSpendEurMinor` — the old flat treatment, now applied
+inside the pool). A pool whose product took **no registration at all** in the
+window is reported as `unallocatedAcquisitionSpendEurMinor` and charged to
+nothing: smearing it onto the other product's seats is precisely the
+mis-attribution the split removes, so the per-workshop columns intentionally
+stop summing to total prospecting spend by exactly that amount (footnoted
+wherever non-zero). `WorkshopPerformanceRow.costPerRegistrationEurMinor` is a
+session's own day-weighted seat price, out of its own product's budget;
+`dailyCosts` on the report is the day-by-day ledger with a price *per product*
+(shown as a table on `/admin/workshops/performance`, and the `/ads`
+cost-per-registration chart, which stays blended).
 
 **Cadence**: rides the existing **hourly** cron (`worker-entrypoint.ts`),
 self-gating via a `meta_ad_spend_synced_at` marker in `workshop_config` to the
@@ -674,6 +707,19 @@ calendar day (mirroring the SD-REPORT digest's 08:00 hold); a failed run
 leaves the marker untouched so the next tick retries later the same morning.
 **No-ops entirely** until the secrets are set, so deploying it changes nothing
 until the owner opts in.
+
+**Today's spend is live** (`syncTodayAdSpend`, August 2026): the daily cron is
+right for history and useless for "what has today cost me so far", so opening
+**`/admin/stats`** or **`/ads`** pulls the current day from Meta *inline*,
+before the page's figures are computed — the ROAS and seat prices you read are
+minutes old. It is deliberately cheap and unfailable: **2 days** only (today +
+the previous UTC day, since Meta buckets in the ad account's timezone), its own
+`meta_ad_spend_live_synced_at` marker (never satisfies or starves the daily
+14-day sync), throttled to once a minute across all viewers with the marker
+stamped at *attempt* time (a broken token backs off too), an 8s hard timeout,
+and every error swallowed into a result the page reports as "⚠ live Meta sync
+failed" rather than a 500. Both pages also **open on today** (`resolvePeriod`
+takes a fallback preset; everything else still defaults to all-time).
 
 **Setup** (Meta side is the only real work):
 - **`META_AD_ACCOUNT_ID`** — the ad account, `act_1234567890` or bare

@@ -22,6 +22,10 @@ try {
       <span>Admin</span>
     </a>
     <nav class="adm-actions" aria-label="Admin">
+      <a class="adm-btn adm-btn--ghost adm-btn--nav" href="/admin/stats">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        <span>Stats</span>
+      </a>
       <form method="POST" action="/api/admin/workshops/calendar-sync">
         <input type="hidden" name="return" value="/admin" />
         <button class="adm-btn adm-btn--ghost adm-btn--nav" type="submit">
