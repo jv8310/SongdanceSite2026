@@ -10,6 +10,9 @@ import {
   computeAdSpendByCampaign,
   mergeDailyStreams,
   resolveMoneyOpts,
+  ROAS_TARGET,
+  roasGapEurMinor,
+  type AudienceAcquisition,
   type StreamDay,
 } from '../../lib/workshops/stats';
 import { listWorkshops, getProductById } from '../../lib/workshops/db';
@@ -298,22 +301,6 @@ const funnelCards: Array<{ label: string; value: string; sub: string; d?: Delta 
     sub: `prospecting (TOF) · ${eur0(perf.adSpendEurMinor)} all campaigns`,
   },
   {
-    label: 'Cost / workshop reg',
-    value:
-      perf.audiences.workshop.costPerRegistrationEurMinor != null
-        ? eur(Math.round(perf.audiences.workshop.costPerRegistrationEurMinor))
-        : '—',
-    sub: `workshop campaigns ÷ ${int(perf.audiences.workshop.registrations)} regs`,
-  },
-  {
-    label: 'Cost / masterclass reg',
-    value:
-      perf.audiences.masterclass.costPerRegistrationEurMinor != null
-        ? eur(Math.round(perf.audiences.masterclass.costPerRegistrationEurMinor))
-        : '—',
-    sub: `masterclass campaigns ÷ ${int(perf.audiences.masterclass.registrations)} regs`,
-  },
-  {
     label: 'Attendance rate',
     value: pct(funnelAttendancePct),
     sub: `${int(funnelAttended)} of ${int(funnelRegs)} regs`,
@@ -375,6 +362,22 @@ function spark(valsRaw: number[], w = 132, h = 34) {
 
 const heroSpark = spark(days.map((d) => d.totalEurMinor), 600, 52);
 
+// ---- Ad economics, per top-of-funnel product ----
+// The question a running campaign actually asks: what did this product cost me,
+// what has it made back, and how much more does it need to make to be worth 2×
+// the spend. Each product is measured against its OWN campaigns' money (see
+// lib/ads/campaigns.ts) — a masterclass is never charged workshop budget.
+type EconCard = {
+  name: string; color: string; a: AudienceAcquisition;
+  gapEurMinor: number; // >0 = still needed for the target, <0 = already past it
+};
+const econCards: EconCard[] = [
+  { name: 'Workshop', color: C.workshops, a: perf.audiences.workshop, gapEurMinor: roasGapEurMinor(perf.audiences.workshop) },
+  { name: 'Masterclass', color: C.masterclass, a: perf.audiences.masterclass, gapEurMinor: roasGapEurMinor(perf.audiences.masterclass) },
+];
+const econRoasTone = (roas: number | null): 'good' | 'bad' | 'flat' =>
+  roas == null ? 'flat' : roas >= ROAS_TARGET ? 'good' : roas >= 1 ? 'flat' : 'bad';
+
 // How fresh the ad spend is. The page pulls today's spend from Meta on every
 // load (throttled), so say plainly whether these euros are live — and say it
 // loudly when the pull failed, since the figures then silently lag.
@@ -396,17 +399,7 @@ const spendFreshness: string | null =
 type StreamTile = {
   name: string; color: string; count: number; eurMinor: number; d: Delta;
   sp: ReturnType<typeof spark>;
-  // What a registration for this product cost in ads, from its own campaigns'
-  // budget (see lib/ads/campaigns.ts). Only the two top-of-funnel products
-  // are bought with ads, so only they carry it.
-  cost?: string;
 };
-// "€12.34 per registration" for one audience, or null when there's nothing to
-// price (no spend, or no registrations of that product in the window).
-const audienceCost = (a: { costPerRegistrationEurMinor: number | null; registrations: number }) =>
-  a.costPerRegistrationEurMinor != null
-    ? `${eur(Math.round(a.costPerRegistrationEurMinor))} ad cost / registration`
-    : undefined;
 const streamTiles: StreamTile[] = [
   {
     name: 'Workshops', color: C.workshops,
@@ -414,7 +407,6 @@ const streamTiles: StreamTile[] = [
     eurMinor: workshopsNet,
     d: delta(workshopsNet, cmpWorkshopsNet),
     sp: spark(days.map((d) => d.workshopsEurMinor)),
-    cost: audienceCost(perf.audiences.workshop),
   },
   {
     name: 'Masterclass', color: C.masterclass,
@@ -422,7 +414,6 @@ const streamTiles: StreamTile[] = [
     eurMinor: report.totals.masterclassNetEurMinor,
     d: delta(report.totals.masterclassNetEurMinor, cmp?.report.totals.masterclassNetEurMinor),
     sp: spark(days.map((d) => d.masterclassEurMinor)),
-    cost: audienceCost(perf.audiences.masterclass),
   },
   {
     name: '12-Week Course', color: C.twelveWeek,
@@ -639,6 +630,58 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
       )}
     </section>
 
+    <!-- ─── Ad economics per product: spend → revenue → ROAS → the gap ─── -->
+    <section class="adm-section">
+      <div class="st-econ">
+        {econCards.map((c) => (
+          <article class="st-econ-card">
+            <div class="st-econ-head">
+              <span class="st-dot" style={`background:${c.color};`}></span>
+              <span class="st-econ-name">{c.name}</span>
+              <span class="st-econ-regs">{int(c.a.registrations)} registration{c.a.registrations === 1 ? '' : 's'}</span>
+            </div>
+
+            <div class="st-econ-roas">
+              <strong class={`st-econ-roas-val st-econ--${econRoasTone(c.a.roas)}`}>
+                {c.a.roas != null ? c.a.roas.toFixed(2) + '×' : '—'}
+              </strong>
+              <span class="st-econ-roas-lbl">ROAS so far<br />revenue ÷ ad spend</span>
+            </div>
+
+            <div class="st-econ-flow">
+              <div class="st-econ-fig">
+                <span>Ad spend</span>
+                <b>{eur(Math.round(c.a.allocatedCostEurMinor))}</b>
+                <em>{c.a.costPerRegistrationEurMinor != null ? `${eur(Math.round(c.a.costPerRegistrationEurMinor))} per registration` : 'nothing charged here'}</em>
+              </div>
+              <span class="st-econ-arrow" aria-hidden="true">→</span>
+              <div class="st-econ-fig">
+                <span>Made back</span>
+                <b>{eur(c.a.revenueEurMinor)}</b>
+                <em>tickets, bumps &amp; the courses these people bought</em>
+              </div>
+            </div>
+
+            <p class="st-econ-goal">
+              {c.a.allocatedCostEurMinor <= 0 ? (
+                <>No ad spend charged to the {c.name.toLowerCase()} in this window — nothing to return yet.</>
+              ) : c.gapEurMinor > 0 ? (
+                <>
+                  <strong>{eur(Math.round(c.gapEurMinor))}</strong> more revenue from these registrations to reach <strong>{ROAS_TARGET}×</strong>
+                  {' '}(that would be {eur(Math.round(ROAS_TARGET * c.a.allocatedCostEurMinor))} in total).
+                </>
+              ) : (
+                <>Past <strong>{ROAS_TARGET}×</strong> — <strong>{eur(Math.round(-c.gapEurMinor))}</strong> above the line.</>
+              )}
+            </p>
+          </article>
+        ))}
+      </div>
+      <p class="adm-sub" style="margin-top:10px;">
+        Each product is charged only its own campaigns’ prospecting spend (a campaign named <em>Masterclass</em> never pays for workshop seats, or the other way round), priced day by day. Revenue is everything traceable to those registrations — the checkout itself plus the 12-Week / certification sales those people went on to buy, each buyer counted once. Course sales land weeks after the ad spend, so a young window reads low.
+      </p>
+    </section>
+
     <!-- ─── Stream tiles ─── -->
     <section class="adm-section">
       <div class="st-tiles">
@@ -651,7 +694,6 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
             </div>
             <strong class="st-tile-value">{eur0(t.eurMinor)}</strong>
             <span class="st-tile-sub">{int(t.count)} {t.count === 1 ? 'sale' : 'sales'}</span>
-            {t.cost && <span class="st-tile-cost">{t.cost}</span>}
             {t.sp && (
               <svg class="st-tile-spark" viewBox={`0 0 ${t.sp.w} ${t.sp.h}`} preserveAspectRatio="none" aria-hidden="true">
                 <path d={t.sp.area} fill={t.color} opacity="0.09"></path>
@@ -1029,6 +1071,41 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
     .st-hd--flat { color: rgba(243, 234, 216, 0.65); background: rgba(243, 234, 216, 0.1); }
 
     /* ── Stream tiles ── */
+    /* ── Ad economics: spend → made back → ROAS → what's still missing ── */
+    .st-econ { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 12px; }
+    .st-econ-card {
+      background: var(--adm-paper-soft); border: 1px solid var(--adm-line);
+      border-radius: 14px; padding: 16px 18px 14px;
+      display: grid; grid-template-columns: 1fr auto; gap: 4px 18px; align-items: start;
+    }
+    .st-econ-head { grid-column: 1; display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .st-econ-name { font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; }
+    .st-econ-regs { font-size: 11.5px; color: var(--adm-mute); }
+    /* The verdict sits in the top-right of the card, biggest thing on it. */
+    .st-econ-roas { grid-column: 2; grid-row: 1 / span 2; text-align: right; }
+    .st-econ-roas-val {
+      display: block; font-size: 34px; line-height: 1; font-weight: 650;
+      letter-spacing: -0.02em; font-variant-numeric: tabular-nums;
+    }
+    .st-econ-roas-lbl { display: block; margin-top: 5px; font-size: 10.5px; color: var(--adm-mute); line-height: 1.35; }
+    .st-econ--good { color: #2f7d52; }
+    .st-econ--bad { color: #a8412f; }
+    .st-econ--flat { color: var(--adm-ink); }
+    .st-econ-flow { grid-column: 1; display: flex; align-items: baseline; gap: 12px; margin-top: 10px; }
+    .st-econ-fig { display: flex; flex-direction: column; min-width: 0; }
+    .st-econ-fig span { font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--adm-mute); }
+    .st-econ-fig b { font-size: 24px; font-weight: 640; letter-spacing: -0.015em; font-variant-numeric: tabular-nums; margin-top: 1px; }
+    .st-econ-fig em { font-style: normal; font-size: 11.5px; color: var(--adm-mute); margin-top: 3px; line-height: 1.4; }
+    .st-econ-arrow { font-size: 18px; color: var(--adm-mute); align-self: center; }
+    .st-econ-goal {
+      grid-column: 1 / -1; margin: 12px 0 0; padding-top: 10px;
+      border-top: 1px solid var(--adm-line); font-size: 13px; line-height: 1.5;
+    }
+    @media (max-width: 560px) {
+      .st-econ-card { grid-template-columns: 1fr; }
+      .st-econ-roas { grid-column: 1; grid-row: auto; text-align: left; margin-top: 10px; }
+    }
+
     .st-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(185px, 1fr)); gap: 12px; }
     .st-tile {
       background: var(--adm-paper-soft); border: 1px solid var(--adm-line);
@@ -1046,12 +1123,6 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
     .st-tile-head .st-delta { margin-left: auto; }
     .st-tile-value { font-size: 23px; font-weight: 650; letter-spacing: -0.01em; color: var(--adm-ink); }
     .st-tile-sub { font-size: 11.5px; color: var(--adm-mute); margin-top: 2px; }
-    /* What a registration for this product cost in ads — the figure that says
-       whether the revenue above it was bought well. */
-    .st-tile-cost {
-      font-size: 11.5px; color: var(--adm-ink-soft); margin-top: 4px;
-      font-variant-numeric: tabular-nums;
-    }
     .st-tile-spark { width: 100%; height: 34px; margin-top: 9px; display: block; }
 
     .st-delta {

@@ -659,10 +659,15 @@ before. A session is a masterclass when its main product slug contains
 bucket is only ever charged to its own sessions, so
 `/admin/workshops/performance`, `/admin/stats` and `/ads` all report **cost per
 workshop registration** and **cost per masterclass registration** side by side
-(`report.audiences.{workshop,masterclass}`) — on the stats hero and on each
-product's own card/tile, where the seat price sits next to the revenue it
-bought — and the blended `costPerRegistrationEurMinor` stays only as the mixed
-headline. Adding a third
+(`report.audiences.{workshop,masterclass}`), and the blended
+`costPerRegistrationEurMinor` stays only as the mixed headline. On `/admin/stats`
+and `/ads` that audience block is rendered as the **ad-economics card** per
+product — *spend → made back → ROAS so far*, plus **how much more revenue it
+needs to reach 2×** (`ROAS_TARGET` / `roasGapEurMinor` in `stats.ts`). An
+audience's `revenueEurMinor` is its own sessions' checkout net **plus** the
+standalone 12-week/cert revenue of the people who registered for them, each
+buyer counted **once** (summing the per-session rows would count a buyer again
+for every session they attended). Adding a third
 TOF product = add its token here and its scope in `computeWorkshopPerformance`.
 
 **A registration costs what it cost *that day*** ([`src/lib/ads/allocation.ts`](src/lib/ads/allocation.ts),

@@ -2,6 +2,7 @@
 import { hasAdsAccess } from '../../lib/ads/auth';
 import { computeAdsDashboard } from '../../lib/ads/dashboard';
 import { syncTodayAdSpend } from '../../lib/ads/meta-insights';
+import { ROAS_TARGET, roasGapEurMinor, type AudienceAcquisition } from '../../lib/workshops/stats';
 import {
   PERIOD_PRESETS,
   resolvePeriod,
@@ -116,33 +117,12 @@ const tiles: Array<{ label: string; value: string; sub?: string; d: Delta }> = [
     d: delta(d.registrations, cmp?.registrations),
   },
   {
-    // Split by product: the workshop campaigns buy workshop seats and the
-    // masterclass campaigns buy masterclass seats, so one blended figure would
-    // price each of them partly out of the other's budget.
-    label: 'Cost / workshop reg',
-    value:
-      d.audiences.workshop.costPerRegistrationEurMinor != null
-        ? eur(Math.round(d.audiences.workshop.costPerRegistrationEurMinor))
-        : '—',
-    sub: `workshop campaigns ÷ ${int(d.audiences.workshop.registrations)} regs`,
-    d: delta(
-      d.audiences.workshop.costPerRegistrationEurMinor,
-      cmp?.audiences.workshop.costPerRegistrationEurMinor,
-      true,
-    ),
-  },
-  {
-    label: 'Cost / masterclass reg',
-    value:
-      d.audiences.masterclass.costPerRegistrationEurMinor != null
-        ? eur(Math.round(d.audiences.masterclass.costPerRegistrationEurMinor))
-        : '—',
-    sub: `masterclass campaigns ÷ ${int(d.audiences.masterclass.registrations)} regs`,
-    d: delta(
-      d.audiences.masterclass.costPerRegistrationEurMinor,
-      cmp?.audiences.masterclass.costPerRegistrationEurMinor,
-      true,
-    ),
+    // Blended headline only — the honest per-product prices live in the ad
+    // economics cards below, where they sit next to what each product made.
+    label: 'Cost / registration',
+    value: d.costPerRegistrationEurMinor != null ? eur(Math.round(d.costPerRegistrationEurMinor)) : '—',
+    sub: 'prospecting spend ÷ regs (blended)',
+    d: delta(d.costPerRegistrationEurMinor, cmp?.costPerRegistrationEurMinor, true),
   },
   {
     label: 'Workshop ROAS',
@@ -183,32 +163,38 @@ const tiles: Array<{ label: string; value: string; sub?: string; d: Delta }> = [
 ];
 
 // ---- focus products (workshop · 12-week · certification lead) ----
-// "€12.34 per registration", or null when there's nothing to price (no spend,
-// or no registrations of that product in the window).
-const seatPrice = (a: { costPerRegistrationEurMinor: number | null }) =>
-  a.costPerRegistrationEurMinor != null
-    ? `${eur(Math.round(a.costPerRegistrationEurMinor))} ad cost / registration`
-    : null;
+// ---- Ad economics, per top-of-funnel product ----
+// What a running campaign actually asks: what did this product cost, what has
+// it made back, and how much more must it make to be worth 2× the spend. Each
+// product is measured against its OWN campaigns' money (lib/ads/campaigns.ts).
+type EconCard = {
+  name: string; accent: string; a: AudienceAcquisition; gapEurMinor: number;
+};
+const econCards: EconCard[] = [
+  { name: 'Workshop', accent: 's1', a: d.audiences.workshop, gapEurMinor: roasGapEurMinor(d.audiences.workshop) },
+  { name: 'Masterclass', accent: 's2', a: d.audiences.masterclass, gapEurMinor: roasGapEurMinor(d.audiences.masterclass) },
+];
+const econTone = (roas: number | null): 'good' | 'bad' | 'flat' =>
+  roas == null ? 'flat' : roas >= ROAS_TARGET ? 'good' : roas >= 1 ? 'flat' : 'bad';
+
 const focus = [
   {
     name: 'Workshops', count: d.workshops.ticketCount, eurMinor: d.workshops.netEurMinor,
     prev: cmp?.workshops.netEurMinor, unit: 'tickets', accent: 's1',
-    cost: seatPrice(d.audiences.workshop),
   },
   {
     // The other top-of-funnel product ads are bought for — it earns its own
     // card here because it has its own campaigns and its own seat price.
     name: 'Masterclass', count: d.masterclass.count, eurMinor: d.masterclass.netEurMinor,
     prev: cmp?.masterclass.netEurMinor, unit: 'tickets', accent: 's2',
-    cost: seatPrice(d.audiences.masterclass),
   },
   {
     name: '12-Week Course', count: d.twelveWeek.count, eurMinor: d.twelveWeek.netEurMinor,
-    prev: cmp?.twelveWeek.netEurMinor, unit: 'sales', accent: 's3', cost: null,
+    prev: cmp?.twelveWeek.netEurMinor, unit: 'sales', accent: 's3',
   },
   {
     name: 'Certification', count: d.certification.count, eurMinor: d.certification.netEurMinor,
-    prev: cmp?.certification.netEurMinor, unit: 'sales', accent: 's4', cost: null,
+    prev: cmp?.certification.netEurMinor, unit: 'sales', accent: 's4',
   },
 ];
 
@@ -400,14 +386,33 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
       .sub-muted { color: var(--muted); font-size: 11.5px; }
 
       /* focus cards */
+      /* Ad economics: spend → made back → ROAS → what's still missing. */
+      .econ { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 14px; }
+      .ecard { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px 14px; border-top: 3px solid var(--accent); }
+      .ehead { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+      .ehead h3 { margin: 0; font-size: 14px; font-weight: 600; }
+      .eregs { font-size: 12px; color: var(--muted); }
+      .ebody { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-top: 12px; }
+      .eflow { display: flex; align-items: baseline; gap: 12px; min-width: 0; }
+      .efig { display: flex; flex-direction: column; min-width: 0; }
+      .efig span { font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+      .efig b { font-size: 24px; font-weight: 640; letter-spacing: -0.015em; color: var(--ink); font-variant-numeric: tabular-nums; margin-top: 2px; }
+      .efig em { font-style: normal; font-size: 11.5px; color: var(--muted); margin-top: 3px; line-height: 1.4; }
+      .earrow { color: var(--muted); font-size: 18px; align-self: center; }
+      .eroas { text-align: right; flex: none; }
+      .eroas b { display: block; font-size: 32px; line-height: 1; font-weight: 650; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+      .eroas span { display: block; margin-top: 5px; font-size: 10.5px; color: var(--muted); }
+      .e-good { color: var(--good); }
+      .e-bad { color: var(--bad); }
+      .e-flat { color: var(--ink); }
+      .egoal { margin: 12px 0 0; padding-top: 10px; border-top: 1px solid var(--line); font-size: 13px; line-height: 1.5; color: var(--ink-2); }
+      .egoal strong { color: var(--ink); }
+
       .focus { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
       .fcard { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; border-top: 3px solid var(--accent); }
       .fcard h3 { margin: 0 0 8px; font-size: 14px; font-weight: 600; }
       .fcard .big { font-size: 27px; font-weight: 640; letter-spacing: -0.01em; }
       .fcard .cnt { font-size: 12.5px; color: var(--ink-2); margin-top: 3px; }
-      /* What a registration for this ticket cost in ads — its own campaigns'
-         money, never the other product's. */
-      .fcard .cost { font-size: 12.5px; color: var(--ink); margin-top: 6px; font-variant-numeric: tabular-nums; }
       .secondary { margin-top: 12px; color: var(--ink-2); font-size: 12.5px; }
 
       /* recent-workshop highlight boxes */
@@ -631,6 +636,48 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
       </div>
 
       <section>
+        <h2>Ad economics, per product</h2>
+        <p class="note">What each top-of-funnel product cost in ads, what it has made back, and how far it still is from paying {ROAS_TARGET}× on that spend. Each is charged only its own campaigns’ money — a campaign named <em>Masterclass</em> never pays for workshop seats, or the other way round.</p>
+        <div class="econ">
+          {econCards.map((c) => (
+            <div class="ecard" style={`--accent: var(--${c.accent})`}>
+              <div class="ehead">
+                <h3>{c.name}</h3>
+                <span class="eregs">{int(c.a.registrations)} registration{c.a.registrations === 1 ? '' : 's'}</span>
+              </div>
+              <div class="ebody">
+                <div class="eflow">
+                  <div class="efig">
+                    <span>Ad spend</span>
+                    <b>{eur(Math.round(c.a.allocatedCostEurMinor))}</b>
+                    <em>{c.a.costPerRegistrationEurMinor != null ? `${eur(Math.round(c.a.costPerRegistrationEurMinor))} per registration` : 'nothing charged here'}</em>
+                  </div>
+                  <span class="earrow" aria-hidden="true">→</span>
+                  <div class="efig">
+                    <span>Made back</span>
+                    <b>{eur(c.a.revenueEurMinor)}</b>
+                    <em>tickets, bumps &amp; the courses these people bought</em>
+                  </div>
+                </div>
+                <div class="eroas">
+                  <b class={`e-${econTone(c.a.roas)}`}>{c.a.roas != null ? c.a.roas.toFixed(2) + '×' : '—'}</b>
+                  <span>ROAS so far</span>
+                </div>
+              </div>
+              <p class="egoal">
+                {c.a.allocatedCostEurMinor <= 0
+                  ? <>No ad spend charged to the {c.name.toLowerCase()} in this window — nothing to return yet.</>
+                  : c.gapEurMinor > 0
+                    ? <><strong>{eur(Math.round(c.gapEurMinor))}</strong> more revenue from these registrations to reach <strong>{ROAS_TARGET}×</strong> ({eur(Math.round(ROAS_TARGET * c.a.allocatedCostEurMinor))} in total).</>
+                    : <>Past <strong>{ROAS_TARGET}×</strong> — <strong>{eur(Math.round(-c.gapEurMinor))}</strong> above the line.</>}
+              </p>
+            </div>
+          ))}
+        </div>
+        <p class="secondary">Revenue is everything traceable to those registrations — the checkout itself plus the 12-Week / certification sales those people went on to buy, each buyer counted once. Course sales land weeks after the ad spend, so a young window reads low.</p>
+      </section>
+
+      <section>
         <h2>Recent workshops</h2>
         <p class="note">
           The five most recent workshops as workshop-only economics — income from each one’s registrants (tickets, order bumps, and the 12-Week / certification sales they later bought) against the prospecting (TOF) spend those registrations pulled.
@@ -680,7 +727,7 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
 
       <section>
         <h2>Focus products</h2>
-        <p class="note">Where the ads spend is pointed: the two top-of-funnel tickets (workshop, masterclass) and what they feed — the 12-Week course and the certification path. Revenue is net of tax where known; the ad cost under each ticket is what one of its registrations cost, out of that product’s own campaigns.</p>
+        <p class="note">Where the ads spend is pointed: the two top-of-funnel tickets (workshop, masterclass) and what they feed — the 12-Week course and the certification path. Revenue is net of tax where known.</p>
         <div class="focus">
           {focus.map((f) => {
             const fd = delta(f.eurMinor, f.prev);
@@ -689,7 +736,6 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
                 <h3>{f.name}</h3>
                 <div class="big">{eur0(f.eurMinor)}</div>
                 <div class="cnt">{int(f.count)} {f.unit}{fd ? <> · <span style={`color: var(--${fd.tone === 'good' ? 'good' : fd.tone === 'bad' ? 'bad' : 'muted'})`}>{fd.arrow} {fd.text}</span></> : null}</div>
-                {f.cost && <div class="cost">{f.cost}</div>}
               </div>
             );
           })}

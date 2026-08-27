@@ -617,6 +617,16 @@ export type AudienceAcquisition = {
   // product, which is what "cost per workshop registration" / "cost per
   // masterclass registration" mean.
   costPerRegistrationEurMinor: number | null;
+  // Income traceable to this product: what its own sessions took at checkout
+  // (tickets, bumps, add-ons) plus the standalone 12-week / certification
+  // revenue from people who registered for one — each buyer counted ONCE, so a
+  // multi-session buyer isn't counted again per session. (Someone who took both
+  // a workshop and a masterclass does count toward both products; there is no
+  // way to split one purchase between the two funnels that fed it.)
+  revenueEurMinor: number;
+  // revenueEurMinor ÷ allocatedCostEurMinor — what this product returned on the
+  // ad money spent to fill it. null when no spend is charged to it.
+  roas: number | null;
 };
 
 export type WorkshopPerformanceReport = {
@@ -663,6 +673,19 @@ export type WorkshopPerformanceReport = {
   workshopRevenueEurMinor: number;
   workshopRoas: number | null;
 };
+
+// The ROAS every product is steered toward: two euros back for every euro of
+// ad spend. Used for the "how much more do we need to make" figure on the
+// dashboards — the question a mid-flight campaign is actually asking.
+export const ROAS_TARGET = 2;
+
+/**
+ * Revenue still needed for this product to reach `target` ROAS. Negative means
+ * it is already past the line by that much.
+ */
+export function roasGapEurMinor(a: AudienceAcquisition, target: number = ROAS_TARGET): number {
+  return target * a.allocatedCostEurMinor - a.revenueEurMinor;
+}
 
 // Stored datetimes come in two shapes: ISO with "Z" (workshop times) and
 // SQLite's "YYYY-MM-DD HH:MM:SS" (row timestamps, also UTC).
@@ -1064,6 +1087,7 @@ export async function computeWorkshopPerformance(
   // from what each session was charged: a product's cost is the sum of its
   // sessions' costs, and its cost per registration is that ÷ its registrations.
   const audienceTotals = (isMasterclass: boolean): AudienceAcquisition => {
+    const ids = isMasterclass ? masterclassIds : workshopIds;
     let registrations = 0;
     let allocatedCostEurMinor = 0;
     for (const r of rows) {
@@ -1071,11 +1095,27 @@ export async function computeWorkshopPerformance(
       registrations += r.registrations;
       allocatedCostEurMinor += r.acquisitionCostEurMinor ?? 0;
     }
+    // Revenue is built from the accumulators, not by summing the rows: a
+    // buyer's standalone course revenue is attributed to every session they
+    // registered for, so summing rows would count it once per session. Here
+    // each email pays in once.
+    let engineNetEurMinor = 0;
+    const emails = new Set<string>();
+    for (const [id, a] of accs) {
+      if (!ids.has(id)) continue;
+      engineNetEurMinor += a.netEurMinor;
+      for (const e of a.emails) emails.add(e);
+    }
+    let attributedEurMinor = 0;
+    for (const e of emails) attributedEurMinor += standalone.get(e)?.eurMinor ?? 0;
+    const revenueEurMinor = engineNetEurMinor + attributedEurMinor;
     return {
       registrations,
       acquisitionSpendEurMinor: acqSpendByAudience[isMasterclass ? 'masterclass' : 'workshop'],
       allocatedCostEurMinor,
       costPerRegistrationEurMinor: registrations > 0 ? allocatedCostEurMinor / registrations : null,
+      revenueEurMinor,
+      roas: allocatedCostEurMinor > 0 ? revenueEurMinor / allocatedCostEurMinor : null,
     };
   };
 
