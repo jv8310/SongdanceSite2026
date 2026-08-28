@@ -27,6 +27,8 @@ import {
 import { allocateSpendPools, type SpendPool } from '../ads/allocation';
 import { getTaxRate, netFromGross, type QuadernoTaxConfig } from './quaderno';
 import { getFxRatesToEur } from '../admin/fx';
+import { parsePurchasedBumps } from '../courses/db';
+import { effectiveTotal } from '../courses/installment-forecast';
 
 export const MASTERCLASS_PRODUCT_SLUG = 'svh-masterclass';
 
@@ -114,23 +116,81 @@ function courseNetEur(
   return { eurMinor: Math.round(net * fx), grossEurMinor: Math.round(collectedMinor * fx) };
 }
 
-// Amount actually collected on a row so far: installment plans (3×/6×/12×)
-// bill monthly, so scale the plan total by installments paid; one-off plans
-// collected the full amount. Refunds (full or partial) come straight off.
-// (Scaling keys on installments_total, not payment_plan === '3x' — 6×/12×
-// plans used to slip through and count their FULL plan value at first charge.)
-function collectedMinorOf(r: {
+// A course row, as far as the money questions below care about it. `bumps` and
+// `cancel_after_installment` are optional so a caller that never selected them
+// (computeCourseSales) reads exactly as it always did.
+type CourseMoneyRow = {
   payment_plan: string;
   installments_total: number;
   installments_paid: number;
   amount_cents: number;
   refunded_amount_cents: number | null;
-}): number {
-  const expected =
-    r.installments_total > 1
-      ? Math.round(r.amount_cents * (r.installments_paid / r.installments_total))
-      : r.amount_cents;
-  return Math.max(0, expected - (r.refunded_amount_cents ?? 0));
+  status?: string;
+  cancel_after_installment?: number | null;
+  // Raw `bumps` JSON column (order bumps bought on the same checkout).
+  bumps?: string | null;
+};
+
+// Gross value of `cycles` billing cycles of a row, in its own currency. A
+// one-off plan is its whole amount whatever the cycle count says.
+function cyclesValueMinor(r: CourseMoneyRow, cycles: number): number {
+  if (r.installments_total > 1) {
+    const n = Math.max(0, Math.min(cycles, r.installments_total));
+    return Math.round(r.amount_cents * (n / r.installments_total));
+  }
+  return r.amount_cents;
+}
+
+// Order bumps ride the charge as their own line item (or the first
+// installment's invoice), so they are collected in full on any row that took
+// money — `amount_cents` deliberately holds the course price only. Counted
+// only where the row actually carries the column.
+function bumpsMinorOf(r: CourseMoneyRow): number {
+  if (!(r.installments_paid > 0 || r.installments_total <= 1)) return 0;
+  return parsePurchasedBumps(r.bumps ?? null)
+    .reduce((sum, b) => sum + Math.max(0, b.amount_cents), 0);
+}
+
+function netOfRefundMinor(grossMinor: number, r: CourseMoneyRow): number {
+  return Math.max(0, grossMinor - (r.refunded_amount_cents ?? 0));
+}
+
+// Amount actually collected on a row so far: installment plans (3×/6×/12×)
+// bill monthly, so scale the plan total by installments paid; one-off plans
+// collected the full amount. Refunds (full or partial) come straight off.
+// (Scaling keys on installments_total, not payment_plan === '3x' — 6×/12×
+// plans used to slip through and count their FULL plan value at first charge.)
+function collectedMinorOf(r: CourseMoneyRow): number {
+  return netOfRefundMinor(cyclesValueMinor(r, r.installments_paid) + bumpsMinorOf(r), r);
+}
+
+// What the sale is worth in FULL — the whole plan, not the slice billed so far.
+//
+// An installment plan is ONE purchase: all N charges are the price of the thing
+// that was bought. So every question of the form "what did this sale produce"
+// — ad attribution, ROAS, cost per acquisition — has to count the whole plan.
+// Counting the collected slice instead read a €1,200 6× certification path as
+// €200 on the day it was bought, which is what made a masterclass that had
+// just sold one look like it barely broke even (1.06× instead of ~2.4×). It is
+// also the figure we already hand Meta for the same order
+// (src/lib/courses/meta.ts sends `amount_cents` in full), so our own ROAS was
+// reading ~6× worse than Meta's for the very same purchase.
+//
+// Honest ceilings, so this can never promise money that will not arrive:
+// an admin-scheduled early stop (`cancel_after_installment`, via
+// `effectiveTotal`) caps the plan at the charges it will actually take, a
+// cancelled/refunded row is worth only what it already took, and refunds come
+// off either way.
+function contractedMinorOf(r: CourseMoneyRow): number {
+  const stopped = r.status === 'cancelled' || r.status === 'refunded';
+  const cycles = stopped
+    ? r.installments_paid
+    : effectiveTotal({
+        installments_paid: r.installments_paid,
+        installments_total: r.installments_total,
+        cancel_after_installment: r.cancel_after_installment ?? null,
+      });
+  return netOfRefundMinor(cyclesValueMinor(r, cycles) + bumpsMinorOf(r), r);
 }
 
 type PaymentRow = {
@@ -457,6 +517,16 @@ type CourseRegRow = {
   paid_at: string;
 };
 
+// The same row as the workshop attribution reads it: it also needs whatever
+// bounds the full value of the sale (an admin early stop, a cancelled plan)
+// and the order bumps bought on the same checkout.
+type AttributedCourseRow = Omit<CourseRegRow, 'paid_at'> & {
+  email: string;
+  status: string;
+  cancel_after_installment: number | null;
+  bumps: string | null;
+};
+
 export async function computeCourseSales(
   db: D1Database,
   opts: { from?: string | null; to?: string | null; money?: MoneyOpts } = {},
@@ -573,8 +643,16 @@ export type WorkshopPerformanceRow = {
   courseBuys: number; // 12-week (engine add-on + standalone, distinct emails)
   certBuys: number; // certification path (engine cert add-on + standalone cc-*)
   engineNetEurMinor: number; // tickets + bumps + add-ons through this workshop
-  attributedCourseEurMinor: number; // standalone 12-week/cert revenue by registrant email
+  // Standalone 12-week/cert sales by registrant email, at the FULL value of
+  // each sale — an installment plan counts all its charges, plus the order
+  // bumps bought on the same checkout. That is what the ad bought; billing it
+  // one month at a time is a cash-flow fact, not an attribution one.
+  attributedCourseEurMinor: number;
+  // The part of that which has actually been charged so far, for the pages
+  // that want to show both ("€1,449 · €636 collected so far").
+  attributedCourseCollectedEurMinor: number;
   totalEurMinor: number;
+  totalCollectedEurMinor: number;
   // Ad spend charged to this workshop, allocated day by day *within its own
   // audience*: only campaigns naming its product (plus campaigns naming none)
   // can be charged to it, and each of its registrations carries the cost of a
@@ -644,8 +722,14 @@ export type AudienceAcquisition = {
   // revenue from people who registered for one — each buyer counted ONCE, so a
   // multi-session buyer isn't counted again per session. (Someone who took both
   // a workshop and a masterclass does count toward both products; there is no
-  // way to split one purchase between the two funnels that fed it.)
+  // way to split one purchase between the two funnels that fed it.) Course
+  // sales count at their FULL value — a 6× plan is one purchase the ad bought,
+  // not a sixth of one — bounded by what will really be charged (see
+  // contractedMinorOf).
   revenueEurMinor: number;
+  // The share of `revenueEurMinor` already collected; the rest is installments
+  // still to bill on plans this product's registrants bought.
+  collectedRevenueEurMinor: number;
   // revenueEurMinor ÷ allocatedCostEurMinor — what this product returned on the
   // ad money spent to fill it. null when no spend is charged to it.
   roas: number | null;
@@ -693,6 +777,9 @@ export type WorkshopPerformanceReport = {
   // total prospecting (TOF) spend. This is "what the workshop funnel returns on
   // acquisition spend", distinct from the blended ROAS (all revenue ÷ all spend).
   workshopRevenueEurMinor: number;
+  // Same figure counting only what has been charged so far — the two differ by
+  // the installments still to bill on plans workshop registrants bought.
+  workshopCollectedRevenueEurMinor: number;
   workshopRoas: number | null;
 };
 
@@ -819,33 +906,41 @@ export async function computeWorkshopPerformance(
       subtotal_minor: number | null;
     }>();
 
-  // Standalone course buyers by email: 12-week + certification path, with
-  // collected EUR (installments paid only, refunds off, fallback FX).
+  // Standalone course buyers by email: 12-week + certification path.
+  //
+  // Attribution counts the WHOLE sale (`contractedMinorOf`) — an installment
+  // plan is one purchase, and the ad that produced it bought all of it, not
+  // just the first month. The collected-so-far figure is carried alongside so
+  // the pages can show what has actually landed of it; nothing here recognises
+  // revenue (that stays `computeCourseSales`, which is still collected-only).
   const crsBinds: unknown[] = [];
   const crsRes = await db
     .prepare(
       `SELECT lower(email) AS email, product_slug, amount_cents, currency, country,
               vat_number, payment_plan, installments_paid, installments_total,
-              refunded_amount_cents
+              cancel_after_installment, refunded_amount_cents, status, bumps
          FROM course_registrations
         WHERE paid_at IS NOT NULL AND status NOT IN ('pending','expired')${win('paid_at', crsBinds)}`,
     )
     .bind(...crsBinds)
-    .all<CourseRegRow & { email: string }>();
+    .all<AttributedCourseRow>();
   const crsRows = crsRes.results ?? [];
   const crsTaxRates = await resolveCourseTaxRates(crsRows, opts.money?.taxCfg);
-  const standalone = new Map<string, { tw: boolean; cert: boolean; eurMinor: number }>();
+  const standalone = new Map<
+    string,
+    { tw: boolean; cert: boolean; eurMinor: number; collectedEurMinor: number }
+  >();
   for (const r of crsRows) {
     const isTw = r.product_slug === 'svh-12week';
     const isCert = r.product_slug === 'cc-cert' || r.product_slug === 'cc-bundle';
     if (!isTw && !isCert) continue;
-    const { eurMinor } = courseNetEur(
-      collectedMinorOf(r), r, crsTaxRates, fxRates,
-    );
-    const s = standalone.get(r.email) ?? { tw: false, cert: false, eurMinor: 0 };
+    const { eurMinor } = courseNetEur(contractedMinorOf(r), r, crsTaxRates, fxRates);
+    const collected = courseNetEur(collectedMinorOf(r), r, crsTaxRates, fxRates).eurMinor;
+    const s = standalone.get(r.email) ?? { tw: false, cert: false, eurMinor: 0, collectedEurMinor: 0 };
     if (isTw) s.tw = true;
     if (isCert) s.cert = true;
     s.eurMinor += eurMinor;
+    s.collectedEurMinor += collected;
     standalone.set(r.email, s);
   }
 
@@ -1042,16 +1137,19 @@ export async function computeWorkshopPerformance(
     const courseBuyers = new Set(a.engineTw);
     const certBuyers = new Set(a.engineCert);
     let attributedEur = 0;
+    let attributedCollectedEur = 0;
     for (const email of a.emails) {
       const s = standalone.get(email);
       if (!s) continue;
       if (s.tw) courseBuyers.add(email);
       if (s.cert) certBuyers.add(email);
       attributedEur += s.eurMinor;
+      attributedCollectedEur += s.collectedEurMinor;
     }
     const buyers = new Set([...courseBuyers, ...certBuyers]);
     const attended = a.live + a.replay;
     const totalEurMinor = a.netEurMinor + attributedEur;
+    const totalCollectedEurMinor = a.netEurMinor + attributedCollectedEur;
     // Costs are day-by-day sums; a workshop with no spend on any of its
     // registration days legitimately costs 0. `null` means there was no spend
     // in the window at all, so there is nothing to charge (column reads "—").
@@ -1079,7 +1177,9 @@ export async function computeWorkshopPerformance(
       certBuys: certBuyers.size,
       engineNetEurMinor: a.netEurMinor,
       attributedCourseEurMinor: attributedEur,
+      attributedCourseCollectedEurMinor: attributedCollectedEur,
       totalEurMinor,
+      totalCollectedEurMinor,
       metaCostEurMinor,
       roas: metaCostEurMinor != null && metaCostEurMinor > 0 ? totalEurMinor / metaCostEurMinor : null,
       acquisitionCostEurMinor,
@@ -1102,10 +1202,14 @@ export async function computeWorkshopPerformance(
   // multi-workshop buyer isn't double-counted the way per-row figures are).
   const engineNetTotal = [...accs.values()].reduce((s, a) => s + a.netEurMinor, 0);
   let attributedDistinctEurMinor = 0;
+  let attributedDistinctCollectedEurMinor = 0;
   for (const [email, s] of standalone) {
-    if (allRegEmails.has(email)) attributedDistinctEurMinor += s.eurMinor;
+    if (!allRegEmails.has(email)) continue;
+    attributedDistinctEurMinor += s.eurMinor;
+    attributedDistinctCollectedEurMinor += s.collectedEurMinor;
   }
   const workshopRevenueEurMinor = engineNetTotal + attributedDistinctEurMinor;
+  const workshopCollectedRevenueEurMinor = engineNetTotal + attributedDistinctCollectedEurMinor;
 
   // Per-audience window figures, read straight off the rows so they can't drift
   // from what each session was charged: a product's cost is the sum of its
@@ -1131,7 +1235,13 @@ export async function computeWorkshopPerformance(
       for (const e of a.emails) emails.add(e);
     }
     let attributedEurMinor = 0;
-    for (const e of emails) attributedEurMinor += standalone.get(e)?.eurMinor ?? 0;
+    let attributedCollectedEurMinor = 0;
+    for (const e of emails) {
+      const s = standalone.get(e);
+      if (!s) continue;
+      attributedEurMinor += s.eurMinor;
+      attributedCollectedEurMinor += s.collectedEurMinor;
+    }
     const revenueEurMinor = engineNetEurMinor + attributedEurMinor;
     return {
       registrations,
@@ -1139,6 +1249,7 @@ export async function computeWorkshopPerformance(
       allocatedCostEurMinor,
       costPerRegistrationEurMinor: registrations > 0 ? allocatedCostEurMinor / registrations : null,
       revenueEurMinor,
+      collectedRevenueEurMinor: engineNetEurMinor + attributedCollectedEurMinor,
       roas: allocatedCostEurMinor > 0 ? revenueEurMinor / allocatedCostEurMinor : null,
     };
   };
@@ -1157,6 +1268,7 @@ export async function computeWorkshopPerformance(
     audiences: { workshop: audienceTotals(false), masterclass: audienceTotals(true) },
     generalAcquisitionSpendEurMinor: acqSpendByAudience.general,
     workshopRevenueEurMinor,
+    workshopCollectedRevenueEurMinor,
     workshopRoas:
       acquisitionSpendEurMinor > 0 ? workshopRevenueEurMinor / acquisitionSpendEurMinor : null,
   };

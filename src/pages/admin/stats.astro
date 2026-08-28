@@ -658,7 +658,12 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
               <div class="st-econ-fig">
                 <span>Made back</span>
                 <b>{eur(c.a.revenueEurMinor)}</b>
-                <em>tickets, bumps &amp; the courses these people bought</em>
+                <em>
+                  tickets, bumps &amp; the courses these people bought
+                  {c.a.collectedRevenueEurMinor < c.a.revenueEurMinor && (
+                    <> — {eur(c.a.collectedRevenueEurMinor)} charged so far, the rest still to bill on their payment plans</>
+                  )}
+                </em>
               </div>
             </div>
 
@@ -678,7 +683,7 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
         ))}
       </div>
       <p class="adm-sub" style="margin-top:10px;">
-        Each product is charged only its own campaigns’ prospecting spend (a campaign named <em>Masterclass</em> never pays for workshop seats, or the other way round), priced day by day. Revenue is everything traceable to those registrations — the checkout itself plus the 12-Week / certification sales those people went on to buy, each buyer counted once. Course sales land weeks after the ad spend, so a young window reads low.
+        Each product is charged only its own campaigns’ prospecting spend (a campaign named <em>Masterclass</em> never pays for workshop seats, or the other way round), priced day by day. Revenue is everything traceable to those registrations — the checkout itself plus the 12-Week / certification sales those people went on to buy, each buyer counted once, and each of those sales counted <strong>in full</strong>: a 3×/6×/12× plan is one purchase the ad bought, so the whole plan counts on the day it was sold (capped at what will really be charged — a cancelled or scheduled-to-stop plan counts only its actual charges). Course sales land weeks after the ad spend, so a young window reads low.
       </p>
     </section>
 
@@ -836,8 +841,8 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
     <section class="adm-section">
       <h2>Workshop ROAS (TOF)</h2>
       <p class="adm-sub">
-        Workshop-only economics — income from each workshop’s registrants (tickets, order bumps, and the 12-Week / certification sales they later bought) against the prospecting (TOF) spend those registrations pulled. Distinct from blended ROAS above (all revenue ÷ all spend).
-        {perf.workshopRoas != null && <> Weighted average <strong>{roasStr(perf.workshopRoas)}</strong> · {eur0(perf.workshopRevenueEurMinor)} income ÷ {eur0(perf.acquisitionSpendEurMinor)} TOF spend.</>}
+        Workshop-only economics — income from each workshop’s registrants (tickets, order bumps, and the 12-Week / certification sales they later bought, each of those sales counted in full: a payment plan is one purchase, so all of its installments count on the day it was sold) against the prospecting (TOF) spend those registrations pulled. Distinct from blended ROAS above (all revenue ÷ all spend).
+        {perf.workshopRoas != null && <> Weighted average <strong>{roasStr(perf.workshopRoas)}</strong> · {eur0(perf.workshopRevenueEurMinor)} income ÷ {eur0(perf.acquisitionSpendEurMinor)} TOF spend{perf.workshopCollectedRevenueEurMinor < perf.workshopRevenueEurMinor && <> ({eur0(perf.workshopCollectedRevenueEurMinor)} of that income charged so far)</>}.</>}
       </p>
       {recentWorkshops.length === 0 && <p class="adm-empty">No workshop activity in this window.</p>}
       {recentWorkshops.length > 0 && (

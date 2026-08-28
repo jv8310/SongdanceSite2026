@@ -656,7 +656,12 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
                   <div class="efig">
                     <span>Made back</span>
                     <b>{eur(c.a.revenueEurMinor)}</b>
-                    <em>tickets, bumps &amp; the courses these people bought</em>
+                    <em>
+                      tickets, bumps &amp; the courses these people bought
+                      {c.a.collectedRevenueEurMinor < c.a.revenueEurMinor && (
+                        <> — {eur(c.a.collectedRevenueEurMinor)} charged so far, rest on their payment plans</>
+                      )}
+                    </em>
                   </div>
                 </div>
                 <div class="eroas">
@@ -674,13 +679,13 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
             </div>
           ))}
         </div>
-        <p class="secondary">Revenue is everything traceable to those registrations — the checkout itself plus the 12-Week / certification sales those people went on to buy, each buyer counted once. Course sales land weeks after the ad spend, so a young window reads low.</p>
+        <p class="secondary">Revenue is everything traceable to those registrations — the checkout itself plus the 12-Week / certification sales those people went on to buy, each buyer counted once, and each sale counted in full: a 3×/6×/12× payment plan is one purchase the ad bought, so the whole plan counts on the day it was sold (capped at what will really be charged). Course sales land weeks after the ad spend, so a young window reads low.</p>
       </section>
 
       <section>
         <h2>Recent workshops</h2>
         <p class="note">
-          The five most recent workshops as workshop-only economics — income from each one’s registrants (tickets, order bumps, and the 12-Week / certification sales they later bought) against the prospecting (TOF) spend those registrations pulled.
+          The five most recent workshops as workshop-only economics — income from each one’s registrants (tickets, order bumps, and the 12-Week / certification sales they later bought, each sale counted in full — a payment plan is one purchase) against the prospecting (TOF) spend those registrations pulled.
           {d.hasAdSpend && d.workshopRoas != null && <> Weighted average <strong>{roasStr(d.workshopRoas)}</strong> · {eur0(d.workshopRevenueEurMinor)} income ÷ {eur0(d.acquisitionSpendEurMinor)} TOF spend.</>}
         </p>
         {recentWorkshops.length === 0 && <p class="empty">No workshop activity in this window.</p>}

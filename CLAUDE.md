@@ -382,6 +382,55 @@ So: an exact EUR settlement wins, otherwise convert. Anything summing money out
 of `workshop_payments` must go through `grossEurMinor` — reading `amount_minor`
 as euros is this bug again.
 
+## Ad attribution — a payment plan is ONE sale, counted in full
+
+`/admin/workshops/performance`, the ad-economics cards on `/admin/stats` and
+`/ads`, and every ROAS on them ask one question: *what did this ad money buy?*
+The answer is the whole purchase. A €1,200 certification path bought on a 6×
+plan is a €1,200 sale on the day it was sold — the buyer signed for all six
+charges — even though only €200 has been billed.
+
+Until August 2026 the attribution counted `collectedMinorOf` (plan total ×
+installments paid *so far*), so that sale entered its masterclass at €200 and
+the 27 Aug masterclass read **1.06× ROAS** on ~€598 of spend instead of ~2.4×.
+It also contradicted what we tell Meta: `sendCoursePurchaseEvent`
+([`src/lib/courses/meta.ts`](src/lib/courses/meta.ts)) has always reported the
+full `amount_cents` to the Conversions API, so Meta's ROAS for the very same
+order was ~6× ours.
+
+`contractedMinorOf` ([`src/lib/workshops/stats.ts`](src/lib/workshops/stats.ts))
+is the attribution figure now:
+
+- the **whole plan** — `amount_cents` is always the plan *total* (every course
+  checkout stores monthly × count) — **plus the order bumps on the same
+  checkout** (the `bumps` JSON; `amount_cents` deliberately holds the course
+  line only, so leaving them out under-counted the same sale a second time);
+- capped at what will really be charged, so it can never promise money that
+  won't arrive: an admin-scheduled early stop (`cancel_after_installment`, via
+  `effectiveTotal`) and a cancelled/refunded row are worth only their actual
+  charges;
+- refunds off, VAT stripped per country and FX-converted exactly as before.
+
+`collectedMinorOf` stays the **cash** figure and still drives
+`computeCourseSales`, so the `/admin/stats` revenue tiles, the daily streams
+and the SD-REPORT digests are untouched — nothing recognises revenue before it
+is charged. The two travel together through the performance report
+(`attributedCourseEurMinor` / `attributedCourseCollectedEurMinor`,
+`totalEurMinor` / `totalCollectedEurMinor`, and
+`AudienceAcquisition.revenueEurMinor` / `collectedRevenueEurMinor`) and both are
+on screen: the revenue bar is two-tone — pale = the full value of the sales that
+session produced, solid = charged so far — with the split spelled out beside it.
+
+**No data migration was needed, and none exists.** Every figure on those pages
+is recomputed from `course_registrations` on each page load, and `amount_cents`
+has held the plan total since the first installment checkout, so the fix
+restates *all* history the moment it deploys — past workshops included. (A
+stale `installments_paid` can still under-state the *collected* half; "Sync
+from Stripe now" on `/admin/courses/future-revenue` is what repairs that.)
+Anything new that attributes a course sale to a campaign, a session or a
+channel must use `contractedMinorOf` — reading the collected slice is this bug
+again.
+
 ## Internal reports — daily + weekly "SD-REPORT" digests
 
 Ops-only summary email (NOT customer-facing), sibling to the `SD-ORDER`
