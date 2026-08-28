@@ -34,10 +34,11 @@ import {
   computeCourseSales,
   mergeDailyStreams,
   resolveMoneyOpts,
+  fxRateToEur,
   type MoneyOpts,
   type StreamDay,
 } from './stats';
-import { FX_TO_EUR, formatMoney } from './currency';
+import { formatMoney } from './currency';
 import { shiftDays } from './periods';
 import { localHour } from './time';
 import { sendEmail } from './resend';
@@ -151,8 +152,8 @@ export async function gatherReportData(
   const regTotal = byWorkshop.reduce((s, r) => s + r.count, 0);
 
   // 12-week checkout order bumps: parse the JSON on course rows paid in the
-  // window, convert to EUR with the fallback table (the bump's currency is the
-  // course row's currency), aggregate by product label.
+  // window, convert to EUR at the live rates the rest of the digest uses (the
+  // bump's currency is the course row's currency), aggregate by product label.
   const cbRes = await db
     .prepare(
       `SELECT bumps, currency FROM course_registrations
@@ -166,7 +167,7 @@ export async function gatherReportData(
   let courseBumpCount = 0;
   let courseBumpEurMinor = 0;
   for (const row of cbRes.results ?? []) {
-    const rate = FX_TO_EUR[(row.currency || 'EUR').toUpperCase()] ?? 1;
+    const rate = fxRateToEur(row.currency, money?.fxRates);
     for (const b of parsePurchasedBumps(row.bumps)) {
       const eur = Math.round(b.amount_cents * rate);
       const label = isBumpSlug(b.slug) ? BUMPS[b.slug].label : b.slug;

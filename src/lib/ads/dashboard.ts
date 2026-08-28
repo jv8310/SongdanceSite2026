@@ -20,11 +20,13 @@ import {
   computeCourseSales,
   computeWorkshopPerformance,
   mergeDailyStreams,
+  fxRateToEur,
+  type MoneyOpts,
   type WorkshopPerformanceRow,
   type AudienceAcquisition,
   type StreamDay,
 } from '../workshops/stats';
-import { FX_TO_EUR } from '../workshops/currency';
+import { getFxRatesToEur } from '../admin/fx';
 import { parsePurchasedBumps } from '../courses/db';
 import { BUMPS, isBumpSlug } from '../courses/bumps';
 
@@ -124,6 +126,7 @@ async function computeCourseBumps(
   db: D1Database,
   from: string | null,
   to: string | null,
+  fxRates: Record<string, number> | undefined,
 ): Promise<{ count: number; eurMinor: number; byLabel: BumpLabel[] }> {
   const where: string[] = [
     'paid_at IS NOT NULL',
@@ -148,7 +151,7 @@ async function computeCourseBumps(
   let count = 0;
   let eurMinor = 0;
   for (const row of res.results ?? []) {
-    const rate = FX_TO_EUR[(row.currency || 'EUR').toUpperCase()] ?? 1;
+    const rate = fxRateToEur(row.currency, fxRates);
     for (const b of parsePurchasedBumps(row.bumps)) {
       const eur = Math.round(b.amount_cents * rate);
       const label = isBumpSlug(b.slug) ? BUMPS[b.slug].label : b.slug;
@@ -199,16 +202,25 @@ async function computeDailyRegistrations(
 
 export async function computeAdsDashboard(
   db: D1Database,
-  opts: { from?: string | null; to?: string | null } = {},
+  opts: { from?: string | null; to?: string | null; money?: MoneyOpts } = {},
 ): Promise<AdsDashboard> {
   const from = opts.from ?? null;
   const to = opts.to ?? null;
+  // One money context for the whole snapshot — live `fx_rates` (resolved here
+  // if the page didn't) and, when the page passed one, the Quaderno VAT config.
+  // Without it every course figure here read gross of VAT and converted at the
+  // static fallback table, so /ads disagreed with /admin/stats on the same
+  // window. Every compute below now gets the same context.
+  const money: MoneyOpts = {
+    fxRates: opts.money?.fxRates ?? (await getFxRatesToEur(db)),
+    taxCfg: opts.money?.taxCfg ?? null,
+  };
 
   const [stats, courses, perf, courseBumps, dailyRegs] = await Promise.all([
-    computeStats(db, { from, to }),
-    computeCourseSales(db, { from, to }),
-    computeWorkshopPerformance(db, { from, to }),
-    computeCourseBumps(db, from, to),
+    computeStats(db, { from, to, money }),
+    computeCourseSales(db, { from, to, money }),
+    computeWorkshopPerformance(db, { from, to, money }),
+    computeCourseBumps(db, from, to, money.fxRates),
     computeDailyRegistrations(db, from, to),
   ]);
 

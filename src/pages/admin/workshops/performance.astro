@@ -2,7 +2,7 @@
 import '../../../styles/admin.css';
 import Layout from '../../../layouts/Layout.astro';
 import { readCookie, verifySession } from '../../../lib/registrations/auth';
-import { computeWorkshopPerformance, type WorkshopPerformanceRow } from '../../../lib/workshops/stats';
+import { computeWorkshopPerformance, resolveMoneyOpts, type WorkshopPerformanceRow } from '../../../lib/workshops/stats';
 import { PERIOD_PRESETS, resolvePeriod, presetRangesMap } from '../../../lib/workshops/periods';
 
 export const prerender = false;
@@ -13,7 +13,11 @@ if (!(await verifySession(env.ADMIN_SESSION_SECRET, readCookie(Astro.request))))
 }
 
 const { preset, from, to } = resolvePeriod(Astro.url.searchParams);
-const report = await computeWorkshopPerformance(env.DB, { from, to });
+// Same money context /admin/stats uses: live `fx_rates` (never the static
+// approximations) and the Quaderno VAT config, so a course sale is counted net
+// of VAT and in true euros — and this page's figures match that one's.
+const money = await resolveMoneyOpts(env.DB, env);
+const report = await computeWorkshopPerformance(env.DB, { from, to, money });
 // Drafts last, so live/past workshops lead.
 const rows = report.rows.slice().sort((a, b) => {
   const ad = a.status === 'draft' ? 1 : 0;
@@ -58,6 +62,10 @@ const totBumps = sum((r) => r.bumpBuys);
 const totCourse = sum((r) => r.courseBuys);
 const totCert = sum((r) => r.certBuys);
 const totRev = sum((r) => r.totalEurMinor);
+// The part of that already charged. Course plans bill monthly, so a window
+// with a fresh 6x path shows a large gap between the two — the sale is real,
+// the cash arrives over the next months.
+const totRevCollected = sum((r) => r.totalCollectedEurMinor);
 const totMeta = sum((r) => r.metaCostEurMinor ?? 0);
 const totTof = sum((r) => r.acquisitionCostEurMinor ?? 0);
 const totRoas = totMeta > 0 ? totRev / totMeta : null;
@@ -98,7 +106,7 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
       <div>
         <p class="adm-breadcrumbs"><a href="/admin">Admin</a> <span class="sep">/</span> <a href="/admin/workshops">Workshops</a> <span class="sep">/</span> Performance</p>
         <h1>Per-workshop performance</h1>
-        <p class="adm-sub">The funnel per workshop: registrations → attendance → course purchases. Course / Cert buys are matched by email across workshop checkouts and standalone course sales, so someone who registered for several workshops counts toward each.</p>
+        <p class="adm-sub">The funnel per workshop: registrations → attendance → course purchases. Course / Cert buys are matched by email across workshop checkouts and standalone course sales, so someone who registered for several workshops counts toward each. Revenue counts each course sale <strong>in full</strong> — a 3×/6×/12× plan is one purchase the ad bought, so all of its installments count on the day it was sold; the lighter part of the revenue bar is what has actually been charged so far.</p>
       </div>
       <div class="adm-actions">
         <a class="adm-btn adm-btn--ghost" href="/admin/stats">← Statistics</a>
@@ -159,9 +167,13 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
         </div>
 
         <div class="pf-money">
-          <div class="pf-bar">
+          <div class="pf-bar" title={`${eur(totRevCollected)} of this has been charged so far; the rest is installments still to bill`}>
             <span class="pf-bar-key">Revenue</span>
-            <span class="pf-track"><span class="pf-fill pf-fill--rev" style={`width:${barPct(totRev, Math.max(totRev, totMeta, 1))}%`}></span></span>
+            <span class="pf-track">
+              <span class="pf-fill pf-fill--rev" style={`width:${barPct(totRev, Math.max(totRev, totMeta, 1))}%`}>
+                <span class="pf-fill-paid" style={`width:${totRev > 0 ? (totRevCollected / totRev) * 100 : 100}%`}></span>
+              </span>
+            </span>
             <span class="pf-bar-amt">{eur0(totRev)}</span>
           </div>
           <div class="pf-bar">
@@ -173,6 +185,7 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
             {report.audiences.workshop.costPerRegistrationEurMinor != null && <>{eur(Math.round(report.audiences.workshop.costPerRegistrationEurMinor))} / workshop reg · </>}
             {report.audiences.masterclass.costPerRegistrationEurMinor != null && <>{eur(Math.round(report.audiences.masterclass.costPerRegistrationEurMinor))} / masterclass reg · </>}
             {eur0(totMeta)} total Meta cost
+            {totRevCollected < totRev && <> · {eur0(totRevCollected)} of the revenue charged so far</>}
           </p>
         </div>
 
@@ -225,9 +238,16 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
               </div>
 
               <div class="pf-money">
-                <div class="pf-bar" title={`Workshop checkout ${eur(r.engineNetEurMinor)} + attributed courses ${eur(r.attributedCourseEurMinor)}`}>
+                <div class="pf-bar" title={`Workshop checkout ${eur(r.engineNetEurMinor)} + courses its registrants bought ${eur(r.attributedCourseEurMinor)} (full sale value; ${eur(r.attributedCourseCollectedEurMinor)} of that charged so far)`}>
                   <span class="pf-bar-key">Revenue</span>
-                  <span class="pf-track"><span class="pf-fill pf-fill--rev" style={`width:${barPct(r.totalEurMinor, moneyMax)}%`}></span></span>
+                  <span class="pf-track">
+                    <span class="pf-fill pf-fill--rev" style={`width:${barPct(r.totalEurMinor, moneyMax)}%`}>
+                      <span
+                        class="pf-fill-paid"
+                        style={`width:${r.totalEurMinor > 0 ? (r.totalCollectedEurMinor / r.totalEurMinor) * 100 : 100}%`}
+                      ></span>
+                    </span>
+                  </span>
                   <span class="pf-bar-amt">{eur0(r.totalEurMinor)}</span>
                 </div>
                 <div class="pf-bar" title={`Prospecting (TOF) spend charged to this session from the ${r.isMasterclass ? 'masterclass' : 'workshop'} campaigns (plus any campaign naming no product), summed day by day over the days its registrations came in`}>
@@ -240,6 +260,9 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
                     ? <><b>{eur(Math.round(r.costPerRegistrationEurMinor))}</b> per registration</>
                     : <>no ad spend to charge</>}
                   {r.metaCostEurMinor != null && <> · {eur0(r.metaCostEurMinor)} Meta cost</>}
+                  {r.totalCollectedEurMinor < r.totalEurMinor && (
+                    <> · {eur0(r.totalCollectedEurMinor)} charged so far, rest on payment plans</>
+                  )}
                 </p>
               </div>
 
@@ -456,7 +479,11 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
       background: rgba(43, 37, 25, 0.08);
     }
     .pf-fill { display: block; height: 100%; border-radius: 5px; min-width: 2px; }
-    .pf-fill--rev { background: var(--adm-success); }
+    /* Revenue bar reads in two tones: the pale whole is the full value of the
+       sales this session produced (a payment plan counts in full — see the
+       note above the list), the solid part is what has been charged so far. */
+    .pf-fill--rev { background: rgba(47, 122, 76, 0.34); }
+    .pf-fill-paid { display: block; height: 100%; border-radius: 5px; background: var(--adm-success); }
     .pf-fill--cost { background: var(--adm-ember); }
     .pf-bar-amt {
       width: 66px; flex: none; text-align: right;
