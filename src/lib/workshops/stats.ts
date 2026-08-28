@@ -101,6 +101,17 @@ async function resolveCourseTaxRates(
   return rates;
 }
 
+// One currency → EUR rate, everywhere: the live `fx_rates` table when the
+// caller resolved one, the static approximations only as a last resort. Never
+// read a rate any other way — a missing conversion counts 239 kr as €239.
+export function fxRateToEur(
+  currency: string | null | undefined,
+  fxRates: Record<string, number> | undefined,
+): number {
+  const cur = (currency || 'EUR').toUpperCase();
+  return fxRates?.[cur] ?? FX_TO_EUR[cur] ?? 1;
+}
+
 // Collected gross (original currency) → net-of-VAT EUR minor units.
 function courseNetEur(
   collectedMinor: number,
@@ -111,8 +122,7 @@ function courseNetEur(
   const country = row.vat_number ? null : courseTaxCountry(row.country, row.currency);
   const rate = (country ? taxRates.get(country) : 0) ?? 0; // VAT number → reverse charge (0)
   const net = netFromGross(collectedMinor, rate).subtotalMinor;
-  const cur = (row.currency || 'EUR').toUpperCase();
-  const fx = fxRates?.[cur] ?? FX_TO_EUR[cur] ?? 1;
+  const fx = fxRateToEur(row.currency, fxRates);
   return { eurMinor: Math.round(net * fx), grossEurMinor: Math.round(collectedMinor * fx) };
 }
 
@@ -549,6 +559,9 @@ export async function computeCourseSales(
     .bind(...binds)
     .all<CourseRegRow>();
   const regRows = res.results ?? [];
+  // See computeStats: resolved here when the caller passed none, so no call
+  // site can silently price a non-EUR course sale off the static table.
+  const fxRates = opts.money?.fxRates ?? (await getFxRatesToEur(db));
   const taxRates = await resolveCourseTaxRates(regRows, opts.money?.taxCfg);
 
   const report: CourseSalesReport = {
@@ -572,7 +585,7 @@ export async function computeCourseSales(
     const cur = (r.currency || 'EUR').toUpperCase();
     if (cur !== 'EUR') report.fxConverted += 1;
     const { eurMinor, grossEurMinor: rowGrossEur } = courseNetEur(
-      collected, r, taxRates, opts.money?.fxRates,
+      collected, r, taxRates, fxRates,
     );
     report.taxEurMinor += rowGrossEur - eurMinor;
 

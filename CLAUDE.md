@@ -431,6 +431,22 @@ Anything new that attributes a course sale to a campaign, a session or a
 channel must use `contractedMinorOf` — reading the collected slice is this bug
 again.
 
+**Every course figure converts and nets the same way, on every page.** The
+attribution above only reads true if the money underneath it does, and two
+pages were computing without a money context: `/admin/workshops/performance`
+passed none at all (course revenue **gross of VAT**, so the same session read
+higher there than on `/admin/stats`), and `computeAdsDashboard` passed none to
+anything (so all of `/ads` also priced non-EUR course sales off the **static**
+`FX_TO_EUR` approximations instead of the live `fx_rates` table — the course
+twin of the kroner bug above). Now: `computeCourseSales` resolves live rates
+itself when the caller passes none (as `computeStats` and
+`computeWorkshopPerformance` already did, so no call site can silently fall
+back), `computeAdsDashboard` takes a `MoneyOpts` and hands the same one to all
+three computes plus its bump tally, and both pages build it with
+`resolveMoneyOpts`. `fxRateToEur(currency, fxRates)` is the single
+currency→EUR rule (live table, then the static fallback) — use it rather than
+reaching for `FX_TO_EUR`; the SD-REPORT's course-bump tally now does too.
+
 ## Internal reports — daily + weekly "SD-REPORT" digests
 
 Ops-only summary email (NOT customer-facing), sibling to the `SD-ORDER`

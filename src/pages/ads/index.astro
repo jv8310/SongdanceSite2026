@@ -2,7 +2,7 @@
 import { hasAdsAccess } from '../../lib/ads/auth';
 import { computeAdsDashboard } from '../../lib/ads/dashboard';
 import { syncTodayAdSpend } from '../../lib/ads/meta-insights';
-import { ROAS_TARGET, roasGapEurMinor, type AudienceAcquisition } from '../../lib/workshops/stats';
+import { ROAS_TARGET, roasGapEurMinor, resolveMoneyOpts, type AudienceAcquisition } from '../../lib/workshops/stats';
 import {
   PERIOD_PRESETS,
   resolvePeriod,
@@ -45,9 +45,13 @@ if (compare === 'prev' && from && to) {
   cmpTo = shiftYears(to, -1);
 }
 
-const d = await computeAdsDashboard(env.DB, { from, to });
+// One money context for the page, as on /admin/stats: live `fx_rates` + the
+// Quaderno VAT config, so course revenue here is net of VAT and converted at
+// real rates rather than the static fallbacks.
+const money = await resolveMoneyOpts(env.DB, env);
+const d = await computeAdsDashboard(env.DB, { from, to, money });
 const cmp = compare && cmpFrom && cmpTo
-  ? await computeAdsDashboard(env.DB, { from: cmpFrom, to: cmpTo })
+  ? await computeAdsDashboard(env.DB, { from: cmpFrom, to: cmpTo, money })
   : null;
 
 // ---- formatters ----

@@ -2,7 +2,7 @@
 import '../../../styles/admin.css';
 import Layout from '../../../layouts/Layout.astro';
 import { readCookie, verifySession } from '../../../lib/registrations/auth';
-import { computeWorkshopPerformance, type WorkshopPerformanceRow } from '../../../lib/workshops/stats';
+import { computeWorkshopPerformance, resolveMoneyOpts, type WorkshopPerformanceRow } from '../../../lib/workshops/stats';
 import { PERIOD_PRESETS, resolvePeriod, presetRangesMap } from '../../../lib/workshops/periods';
 
 export const prerender = false;
@@ -13,7 +13,11 @@ if (!(await verifySession(env.ADMIN_SESSION_SECRET, readCookie(Astro.request))))
 }
 
 const { preset, from, to } = resolvePeriod(Astro.url.searchParams);
-const report = await computeWorkshopPerformance(env.DB, { from, to });
+// Same money context /admin/stats uses: live `fx_rates` (never the static
+// approximations) and the Quaderno VAT config, so a course sale is counted net
+// of VAT and in true euros — and this page's figures match that one's.
+const money = await resolveMoneyOpts(env.DB, env);
+const report = await computeWorkshopPerformance(env.DB, { from, to, money });
 // Drafts last, so live/past workshops lead.
 const rows = report.rows.slice().sort((a, b) => {
   const ad = a.status === 'draft' ? 1 : 0;
