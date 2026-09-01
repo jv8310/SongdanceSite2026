@@ -307,6 +307,7 @@ const countries = COUNTRIES;
   import { COUNTRIES } from '../../lib/countries';
   import { postJsonResilient } from '../../lib/client/resilient-fetch';
   import { launchPromoActive, LAUNCH_PROMO_TAG } from '../../lib/promo';
+  import { readCourseUrlDiscount } from '../../lib/courses/discount';
   import {
     prefillShipping,
     wireShippingReset,
@@ -417,42 +418,19 @@ const countries = COUNTRIES;
   // stale discounted price can never be shown against the new charge.
   const STORAGE_KEY = 'cc:decision:v4';
 
-  // URL-driven discount. `?discount=N` (any integer 1–99) strikes through
-  // the displayed price and tells the server to charge a discounted amount
-  // — both for the one-time payment and every installment of the 3x plan.
-  // Anything outside 1–99 is silently ignored. The server re-validates
-  // against the same range.
-  function readDiscountFromUrl(): number {
-    try {
-      const raw = new URLSearchParams(window.location.search).get('discount');
-      const n = raw ? parseInt(raw, 10) : 0;
-      if (Number.isInteger(n) && n >= 1 && n <= 99) return n;
-    } catch {}
-    return 0;
-  }
-  const discountPct: number = readDiscountFromUrl();
-
-  // Owner's secret ?adiscount=N (1–100). 100 grants a free (complimentary)
-  // place — the server fulfils it without Stripe. The server re-validates.
-  function readSecretDiscountFromUrl(): number {
-    try {
-      const raw = new URLSearchParams(window.location.search).get('adiscount');
-      const n = raw ? parseInt(raw, 10) : 0;
-      if (Number.isInteger(n) && n >= 1 && n <= 100) return n;
-    } catch {}
-    return 0;
-  }
-  const adiscountPct: number = readSecretDiscountFromUrl();
-  const isFreeComp: boolean = adiscountPct === 100;
-
-  // What the page must SHOW. The secret `?adiscount=N` is a real charge-side
-  // discount — the checkout resolves it exactly like `?discount=N` (the secret
-  // simply also reaches 100) — so every price on the page has to move with it
-  // too. Otherwise the owner's link looks inert and the buyer meets a different
-  // number at Stripe. 100 is the complimentary place: it has its own banner and
-  // free-price branches, so it never feeds this price math.
-  const shownDiscountPct: number =
-    adiscountPct > 0 && adiscountPct < 100 ? adiscountPct : discountPct;
+  // URL-driven discount, read once through the shared reader so this page and
+  // the teaser can never disagree about the price (see readCourseUrlDiscount).
+  // `?discount=N` (1–99) strikes through the displayed price and tells the
+  // server to charge the discounted amount — the one-time payment and every
+  // installment alike. `?adiscount=N` is the owner's secret param: it prices
+  // the page the same way at 1–99, and 100 grants a free (complimentary) place
+  // the server fulfils without Stripe. The server re-validates both.
+  const {
+    discountPct,
+    adiscountPct,
+    shownPct: shownDiscountPct,
+    isFreeComp,
+  } = readCourseUrlDiscount(window.location.search);
 
   // The complimentary-place banner for a 100% ?adiscount link. Reused on the
   // email-entry screen AND re-inserted into each rendered variant — the variant
@@ -1859,6 +1837,15 @@ const countries = COUNTRIES;
       if (!raw) return false;
       const parsed = JSON.parse(raw) as { email?: string; decision?: Decision };
       if (parsed?.email && parsed?.decision?.variant) {
+        // A cached decision was priced WITHOUT this link's override (the cache
+        // is shared with the teaser and keyed on the email alone), so a
+        // returning visitor opening a `?discount=N` link would be shown the
+        // undiscounted path price while the checkout charged the discount.
+        // Re-derive instead of rendering the cache.
+        if (shownDiscountPct > 0) {
+          recheckAndRender(parsed.email);
+          return true;
+        }
         // Stale launch-sale price frozen in the cache after the sale closed —
         // discard it and fetch the current price instead of flashing the old one.
         if (decisionIsPromoPriced(parsed.decision) && !launchPromoActive()) {

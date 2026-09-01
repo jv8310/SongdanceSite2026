@@ -49,3 +49,37 @@ export function isFreeCourseCheckout(raw: {
 }): boolean {
   return clampCoursePct(raw.adiscount, 100) === 100;
 }
+
+// ── Client side ────────────────────────────────────────────────────────────
+// Both course pricing surfaces read the SAME two params from the URL, and both
+// must ask the pricing endpoints for the same percent — the certification page
+// resolves its decision either from its own lookup or from the teaser's
+// (whichever runs; with `?email=` in the URL only the teaser does). When one of
+// them forgot to pass the override, the page priced at full price while the
+// checkout charged the discount — the link looked inert. So the reading lives
+// here, once.
+//
+// `shownPct` is what the page displays and sends to the pricing endpoints:
+// the secret param wins at 1–99, else the public one. 100 is the complimentary
+// place — it has its own banner and free-checkout path and never feeds price
+// math (the endpoints only honour 1–99 anyway).
+export function readCourseUrlDiscount(search: string): {
+  discountPct: number;
+  adiscountPct: number;
+  shownPct: number;
+  isFreeComp: boolean;
+} {
+  let discountPct = 0;
+  let adiscountPct = 0;
+  try {
+    const params = new URLSearchParams(search);
+    discountPct = clampCoursePct(params.get(COURSE_PUBLIC_DISCOUNT_PARAM), 99);
+    adiscountPct = clampCoursePct(params.get(COURSE_SECRET_DISCOUNT_PARAM), 100);
+  } catch {}
+  return {
+    discountPct,
+    adiscountPct,
+    shownPct: adiscountPct > 0 && adiscountPct < 100 ? adiscountPct : discountPct,
+    isFreeComp: adiscountPct === 100,
+  };
+}
