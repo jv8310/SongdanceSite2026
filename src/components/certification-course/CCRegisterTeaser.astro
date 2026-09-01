@@ -59,6 +59,15 @@
 
 <script>
   import { postJsonResilient } from '../../lib/client/resilient-fetch';
+  import { readCourseUrlDiscount } from '../../lib/courses/discount';
+
+  // The same URL discount the register block reads. It matters here because
+  // this lookup is often the ONLY one that runs: with `?email=` in the URL the
+  // register block skips its own fetch and renders whatever decision this form
+  // dispatches. Sending no override priced the page at full price while the
+  // checkout charged the discount — so a `?discount=N` link looked inert to
+  // anyone who arrived from a campaign link carrying their address.
+  const { shownPct: urlDiscountPct } = readCourseUrlDiscount(window.location.search);
 
   type Variant = 'B1' | 'B2' | 'G' | 'A' | 'D' | 'E' | 'C';
   type Currency =
@@ -280,7 +289,7 @@
       try {
         const res = await postJsonResilient(
           '/api/courses/subscriber-status',
-          { email },
+          { email, discount_percent: urlDiscountPct || undefined },
           {
             onAttempt: (attempt) => {
               if (attempt > 1) setStatus('Reconnecting…');

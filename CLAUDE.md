@@ -94,8 +94,10 @@ in moderation, not governed by the copy book.
   are floored to the nearest 5 (`pctMajor`), so the sale reads in round
   prices — EUR path €1,347 → **€1,075** (cert €635 + 12-week €440), 3×
   €375/mo, 6× €200/mo — and the advertised percent is never under-delivered.
-  A `?discount=N` override still wins outright and still only touches the
-  12-week line. `variant.ts` bundle rows must stay = cert + 12-week per
+  A `?discount=N` / `?adiscount=N` override still wins outright and, since
+  September 2026, takes its percent off the **whole path** — both lines, the
+  same shape as the workshop sale (EUR path €1,347 at 50% → **€670**). The
+  standalone cert offer is discounted by the same percent as before. `variant.ts` bundle rows must stay = cert + 12-week per
   component (invariant noted in the file).
 - **Top-of-funnel + order bumps** (July 2026): workshop ticket **€22** (70-min
   session), masterclass **€44** (100-min). The workshop/masterclass order bump

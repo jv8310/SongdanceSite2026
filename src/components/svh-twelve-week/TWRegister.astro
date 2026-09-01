@@ -566,8 +566,9 @@ const includes = [
       // Everyone can switch between the 12-week course and the full
       // Certification path (12-Week Course + Certification Course) — the picker
       // shows whenever the server priced the path (it always does now). During
-      // a live workshop window the whole path is 20% off (both line items); a
-      // ?discount=N override only ever touches the 12-week portion.
+      // a live workshop window the whole path is 20% off (both line items),
+      // and a ?discount=N / ?adiscount=N override takes its own percent off
+      // both line items the same way.
       const hasPath = !!status.path;
       let selectedOffer: OfferId = '12week';
       let selectedPlan: Plan = 'full';
