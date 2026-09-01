@@ -2,6 +2,11 @@
 import '../../../styles/admin.css';
 import Layout from '../../../layouts/Layout.astro';
 import { readCookie, verifySession } from '../../../lib/registrations/auth';
+import { BANK_TRANSFER } from '../../../lib/payments/provider';
+import {
+  BANK_ACCOUNT,
+  bankTransferReference,
+} from '../../../lib/registrations/bank-transfer';
 import {
   computeTierAvailability,
   getRoomsWithMode,
@@ -64,6 +69,8 @@ type Row = {
   tier_slug: string;
   inventory_unit_name: string | null;
   status: string;
+  provider: string | null;
+  hold_expires_at: string | null;
   amount_cents: number;
   currency: string;
   role: 'fire_keeper' | 'cook_help' | null;
@@ -91,7 +98,8 @@ if (statusFilter) {
 const q = await env.DB.prepare(
   `SELECT r.id, r.name, r.first_name, r.last_name, r.email,
           r.phone, r.phone_country, r.country, r.company_name, r.vat_number,
-          r.status, r.amount_cents, r.currency,
+          r.status, r.provider, r.hold_expires_at,
+          r.amount_cents, r.currency,
           r.role, r.role_discount_cents,
           r.roommate_pref, r.dietary, r.notes,
           r.created_at, r.paid_at, r.cancelled_at,
@@ -258,6 +266,13 @@ function eur(cents: number, currency: string) {
     style: 'currency',
     currency: currency || 'EUR',
   });
+}
+
+// Inline a value into an onsubmit="…confirm('…')" string. An email may
+// legally contain an apostrophe, which would otherwise close the JS string
+// and break the confirmation.
+function jsStr(s: string): string {
+  return s.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\r?\n/g, ' ');
 }
 
 function ymd(s: string | null) {
@@ -1174,6 +1189,13 @@ const flash = (() => {
           const phoneDisplay = r.phone
             ? r.phone_country ? `${r.phone} (${r.phone_country})` : r.phone
             : null;
+          // Someone who chose "pay by IBAN bank transfer" and hasn't paid yet.
+          // No webhook is ever coming for these — the money lands in the bank
+          // and you mark them paid below, which runs the same side-effects a
+          // webhook would (room, waiting list, Drip, SD-ORDER).
+          const awaitingTransfer =
+            r.provider === BANK_TRANSFER &&
+            (r.status === 'pending' || r.status === 'expired');
           return (
             <article class={`adm-reg adm-reg--${r.status}`}>
               <div class="adm-reg-head">
@@ -1203,6 +1225,12 @@ const flash = (() => {
                   {r.host
                     ? <span class="adm-pill adm-pill--host">host</span>
                     : <span class={`adm-pill adm-pill--${r.status}`}>{r.status}</span>}
+                  {awaitingTransfer && (
+                    <span class="adm-pill adm-pill--awaiting-transfer">awaiting transfer</span>
+                  )}
+                  {r.provider === BANK_TRANSFER && r.status === 'paid' && (
+                    <span class="adm-pill adm-pill--bank">bank transfer</span>
+                  )}
                 </div>
                 <div class="adm-reg-dates">
                   <div><span>Created</span> {ymd(r.created_at)}</div>
@@ -1235,6 +1263,19 @@ const flash = (() => {
                 {r.roommate_pref && (
                   <div class="adm-reg-detail--full"><dt>Roommate pref</dt><dd>{r.roommate_pref}</dd></div>
                 )}
+                {awaitingTransfer && (
+                  <div class="adm-reg-detail--full">
+                    <dt>Bank transfer</dt>
+                    <dd>
+                      <strong>{eur(r.amount_cents, r.currency)}</strong> to{' '}
+                      {BANK_ACCOUNT.iban} ({BANK_ACCOUNT.beneficiary}), reference{' '}
+                      <strong>{bankTransferReference(r.id)}</strong>
+                      {r.hold_expires_at
+                        ? ` · place held until ${ymd(r.hold_expires_at)}`
+                        : ''}
+                    </dd>
+                  </div>
+                )}
                 {r.balance_due_cents > 0 && !r.balance_paid_at && (
                   <div><dt>Balance due</dt><dd>{eur(r.balance_due_cents, r.currency)}{r.balance_invite_sent_at ? ` · invited ${ymd(r.balance_invite_sent_at)}` : ''}</dd></div>
                 )}
@@ -1263,10 +1304,14 @@ const flash = (() => {
 
                 {(r.status === 'pending' || r.status === 'expired') && (
                   <form method="POST" action="/api/admin/mark-paid" class="adm-reg-markpaid"
-                        onsubmit={`return confirm('Mark registration #${r.id} as paid and push to Drip?')`}>
+                        onsubmit={awaitingTransfer
+                          ? `return confirm('Transfer of ${jsStr(eur(r.amount_cents, r.currency))} (ref ${bankTransferReference(r.id)}) received from ${jsStr(r.email)}? This confirms the place and pushes to Drip.')`
+                          : `return confirm('Mark registration #${r.id} as paid and push to Drip?')`}>
                     <input type="hidden" name="registration_id" value={r.id} />
                     <input type="hidden" name="return_to" value={returnTo} />
-                    <button type="submit" class="adm-btn adm-btn--solid">Mark paid + Drip</button>
+                    <button type="submit" class="adm-btn adm-btn--solid">
+                      {awaitingTransfer ? 'Transfer received — mark paid' : 'Mark paid + Drip'}
+                    </button>
                   </form>
                 )}
 

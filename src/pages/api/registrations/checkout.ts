@@ -14,6 +14,7 @@ import {
 import {
   attachRegistration,
   countActiveOffersByTier,
+  dateRangeLabel,
   getLiveOfferByToken,
   releaseClaimCheckoutHold,
 } from '../../../lib/registrations/waitlist';
@@ -28,7 +29,18 @@ import {
   paypalConfigured,
   createOrder as createPaypalOrder,
 } from '../../../lib/payments/paypal';
-import { encodeCustomId, parseProvider } from '../../../lib/payments/provider';
+import {
+  BANK_TRANSFER,
+  encodeCustomId,
+  parseProvider,
+  wantsBankTransfer,
+} from '../../../lib/payments/provider';
+import {
+  BANK_TRANSFER_HOLD_DAYS,
+  BANK_TRANSFER_HOLD_MINUTES,
+  bankTransferDetails,
+  sendBankTransferInstructions,
+} from '../../../lib/registrations/bank-transfer';
 import { findCountry } from '../../../lib/countries';
 
 export const prerender = false;
@@ -64,7 +76,7 @@ type Body = {
   consent_terms?: boolean;
   role?: SpecialRole | null;
   easter_egg_discount?: boolean;
-  provider?: string; // 'stripe' (default) | 'paypal'
+  provider?: string; // 'stripe' (default) | 'paypal' | 'bank_transfer'
   claim_token?: string; // waiting-list claim link
 };
 
@@ -87,7 +99,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const phoneLocal = (payload.phone ?? '').trim();
   const companyName = (payload.company_name ?? '').trim();
   const vatNumber = (payload.vat_number ?? '').trim();
-  const provider = parseProvider(payload.provider);
+  // Three ways to pay. Bank transfer is not a gateway, so it is read
+  // separately from parseProvider (which only ever yields stripe/paypal) and
+  // short-circuits the whole gateway half of this handler further down.
+  const byBankTransfer = wantsBankTransfer(payload.provider);
+  const provider = byBankTransfer ? BANK_TRANSFER : parseProvider(payload.provider);
   if (provider === 'paypal' && !paypalConfigured(env)) {
     return json({ error: 'PayPal is not available right now. Please pay by card.' }, 400);
   }
@@ -287,7 +303,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
     role_discount_cents: roleDiscountCents,
     amount_cents: finalAmountCents,
     currency: product.currency,
-    hold_minutes: HOLD_MINUTES,
+    // A transfer takes days to arrive, so the room is held for days — at 30
+    // minutes it would be resold under someone who has already sent the money.
+    hold_minutes: byBankTransfer ? BANK_TRANSFER_HOLD_MINUTES : HOLD_MINUTES,
     provider,
   });
 
@@ -300,6 +318,54 @@ export const POST: APIRoute = async ({ request, locals }) => {
       registration_id: registrationId,
       kind: 'waitlist.claim.checkout',
       payload: { waitlist_id: claim.id, tier_slug: tier.slug },
+    });
+  }
+
+  // ── Bank-transfer branch. No gateway is touched at all: the booking is
+  //    written (pending, held for BANK_TRANSFER_HOLD_DAYS above), the guest
+  //    is emailed the account details, and the place is confirmed by hand
+  //    from /admin/retreats/<slug> once the money lands. The same details go
+  //    back in the response so the form can show them immediately — the
+  //    email is the copy they keep, not the only copy they get.
+  if (byBankTransfer) {
+    const details = bankTransferDetails({
+      registrationId,
+      amountCents: finalAmountCents,
+      currency: product.currency,
+      email,
+    });
+    await logEventSafe(env.DB, {
+      registration_id: registrationId,
+      kind: 'checkout.bank_transfer.created',
+      external_id: `local-checkout-bt-${registrationId}`,
+      payload: {
+        tier: tier.slug,
+        auto_assigned_room: room.name,
+        auto_assigned_room_id: room.id,
+        role: role ?? null,
+        amount_cents: finalAmountCents,
+        reference: details.reference,
+        hold_days: BANK_TRANSFER_HOLD_DAYS,
+      },
+    });
+    // A failed send is logged, not fatal — the booking stands and the details
+    // are on screen either way.
+    await sendBankTransferInstructions(env, {
+      registration: {
+        id: registrationId,
+        email,
+        first_name: firstName,
+        name: `${firstName} ${lastName}`.trim(),
+        amount_cents: finalAmountCents,
+        currency: product.currency,
+      },
+      retreat_name: product.name,
+      when_label: dateRangeLabel(product.starts_at, product.ends_at),
+      tier_name: tier.name,
+    });
+    return json({
+      bank_transfer: { ...details, hold_days: BANK_TRANSFER_HOLD_DAYS },
+      registration_id: registrationId,
     });
   }
 

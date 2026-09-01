@@ -23,6 +23,7 @@
 //     EUR charges with no country on file.
 
 import { DEFAULT_FX_TO_EUR } from './fx';
+import { BANK_TRANSFER, type OrderProvider } from '../payments/provider';
 import { getTaxRate, type QuadernoTaxConfig } from '../workshops/quaderno';
 import { LABEL_BY_SLUG, isJourneySlug } from '../courses/journeys';
 
@@ -57,8 +58,9 @@ export type UnifiedOrder = {
   netEurMinor: number | null;
   netKind: NetKind;
   refundedMinor: number;
-  // Which gateway charged this order.
-  provider: 'stripe' | 'paypal';
+  // Which gateway charged this order — or 'bank_transfer', which is no
+  // gateway at all (a manual IBAN transfer, confirmed by hand in the admin).
+  provider: OrderProvider;
   // The specific method used (card / bancontact / ideal / sepa_debit / …).
   // Captured for workshops (workshop_payments.method); null for courses &
   // retreats, which don't store it — those show just the gateway.
@@ -453,7 +455,7 @@ async function loadRetreatOrders(
       netEurMinor,
       netKind,
       refundedMinor: r.refunded_amount_cents ?? 0,
-      provider: r.provider === 'paypal' ? 'paypal' : 'stripe',
+      provider: orderProviderOf(r.provider),
       paymentMethod: null,
       paymentIntent: r.stripe_payment_intent,
       stripeSubscriptionId: null,
@@ -1046,6 +1048,14 @@ export async function findOrder(
   return rows[0] ?? null;
 }
 
+// Normalise the stored provider string. Only the retreat checkouts write
+// 'bank_transfer'; anything unrecognised stays Stripe, as it always did.
+function orderProviderOf(raw: string | null | undefined): OrderProvider {
+  if (raw === 'paypal') return 'paypal';
+  if (raw === BANK_TRANSFER) return BANK_TRANSFER;
+  return 'stripe';
+}
+
 // Remaining refundable amount (minor units, in the order's own currency).
 export function refundableMinor(o: UnifiedOrder): number {
   return Math.max(0, o.originalAmountMinor - o.refundedMinor);
@@ -1055,6 +1065,11 @@ export function refundableMinor(o: UnifiedOrder): number {
 // PaymentIntent or a PayPal capture/sale id), a positive amount, and money still
 // left to give back.
 export function isRefundable(o: UnifiedOrder): boolean {
+  // A manual IBAN transfer has no charge to reverse — the refund goes back
+  // out of the bank account by hand, not through this button. (Its
+  // payment_intent is the synthetic `manual-<id>` the admin mark-paid
+  // stamps, which no gateway would recognise.)
+  if (o.provider === BANK_TRANSFER) return false;
   const hasTarget =
     o.provider === 'paypal' ? !!o.paypalCaptureId : !!o.paymentIntent;
   return (

@@ -1,3 +1,5 @@
+import type { OrderProvider } from '../payments/provider';
+
 export type Product = {
   id: number;
   slug: string;
@@ -91,7 +93,9 @@ export type Registration = {
   amount_cents: number;
   currency: string;
   // Which gateway owns this row. 'stripe' for every legacy row (default).
-  provider: 'stripe' | 'paypal';
+  // 'bank_transfer' is not a gateway at all — the guest transfers to our IBAN
+  // and an admin marks the row paid (see lib/registrations/bank-transfer.ts).
+  provider: OrderProvider;
   stripe_session_id: string | null;
   stripe_payment_intent: string | null;
   // PayPal counterparts (see migration 0049).
@@ -198,7 +202,7 @@ export async function createPendingRegistration(
     // (paid in full). Surfaced later via the "pay the balance" admin flow.
     balance_due_cents?: number;
     // Defaults to 'stripe' when omitted (every legacy caller).
-    provider?: 'stripe' | 'paypal';
+    provider?: OrderProvider;
   },
 ) {
   const holdExpires = new Date(

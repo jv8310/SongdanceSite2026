@@ -276,7 +276,7 @@ const roomTypes: RoomType[] = [
             <i class="ph-light ph-arrow-left"></i> Back
           </button>
           <button type="submit" class="rb-btn rb-btn--ember rb-btn--lg" id="rb-reg-submit">
-            Proceed to payment <i class="ph-light ph-arrow-right"></i>
+            Pay online <i class="ph-light ph-arrow-right"></i>
           </button>
         </div>
 
@@ -291,6 +291,22 @@ const roomTypes: RoomType[] = [
             Pay with <strong>PayPal</strong>
           </button>
         </div>
+
+        <div class="rb-step-actions rb-step-actions--bank">
+          <button
+            type="button"
+            class="rb-btn rb-btn--ghost rb-btn--lg"
+            id="rb-reg-bank"
+            style="margin-top:10px;"
+          >
+            Pay by manual IBAN bank transfer
+          </button>
+        </div>
+
+        <p class="rb-reg-fine">
+          Paying by transfer? We'll email you the account details and hold your
+          room while the money is on its way.
+        </p>
       </fieldset>
     </form>
 
@@ -341,6 +357,10 @@ const roomTypes: RoomType[] = [
     renderClaimBanner,
     type RetreatClaim,
   } from '../../lib/client/retreat-claim';
+  import {
+    showBankTransferPanel,
+    type BankTransferDetails,
+  } from '../../lib/client/bank-transfer-panel';
 
   type StepNum = 1 | 2 | 3;
 
@@ -377,11 +397,19 @@ const roomTypes: RoomType[] = [
       .then((r) => r.json())
       .then((d: any) => { if (d && d.paypal && paypalBtn) paypalBtn.hidden = false; })
       .catch(() => {});
-    // Which gateway the next submit uses. The PayPal button flips it for one
-    // submit; everything else (incl. the Enter key) stays on Stripe.
-    let nextProvider: 'stripe' | 'paypal' = 'stripe';
+    const bankBtn = form.querySelector('#rb-reg-bank') as HTMLButtonElement | null;
+    // How the next submit is paid. The PayPal and bank-transfer buttons each
+    // flip it for one submit; everything else (incl. the Enter key) stays on
+    // Stripe. Bank transfer isn't a gateway — the server writes the booking,
+    // emails the account details and answers with them instead of a
+    // checkout_url, so there is no redirect (see the submit handler).
+    let nextProvider: 'stripe' | 'paypal' | 'bank_transfer' = 'stripe';
     paypalBtn?.addEventListener('click', () => {
       nextProvider = 'paypal';
+      form.requestSubmit();
+    });
+    bankBtn?.addEventListener('click', () => {
+      nextProvider = 'bank_transfer';
       form.requestSubmit();
     });
     const companyInput = form.querySelector(
@@ -797,10 +825,12 @@ const roomTypes: RoomType[] = [
       const original = submitBtn.innerHTML;
       submitBtn.disabled = true;
       if (paypalBtn) paypalBtn.disabled = true;
+      if (bankBtn) bankBtn.disabled = true;
       submitBtn.innerHTML = 'One moment…';
       const restore = () => {
         submitBtn.disabled = false;
         if (paypalBtn) paypalBtn.disabled = false;
+        if (bankBtn) bankBtn.disabled = false;
         submitBtn.innerHTML = original;
       };
       try {
@@ -812,6 +842,9 @@ const roomTypes: RoomType[] = [
         const body = (await res.json().catch(() => ({}))) as {
           error?: string;
           checkout_url?: string;
+          // Bank transfer answers with the account details instead of a
+          // gateway URL — there is nowhere to redirect to.
+          bank_transfer?: BankTransferDetails;
         };
         if (!res.ok) {
           errBox.textContent =
@@ -822,6 +855,12 @@ const roomTypes: RoomType[] = [
         }
         if (body?.checkout_url) {
           window.location.href = body.checkout_url;
+          return;
+        }
+        // Bank transfer: no gateway to go to. The booking is already written,
+        // so swap the form for the account details.
+        if (body?.bank_transfer) {
+          showBankTransferPanel(form!, body.bank_transfer);
           return;
         }
         errBox.textContent =

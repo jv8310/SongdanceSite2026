@@ -155,7 +155,7 @@ import { COUNTRIES } from '../../lib/countries';
 
       <div class="ds-reg-actions">
         <button type="submit" class="ds-btn ds-btn--primary ds-btn--lg ds-btn--block" id="ds-reg-submit">
-          Proceed to payment <i class="ph-light ph-arrow-right"></i>
+          Pay online <i class="ph-light ph-arrow-right"></i>
         </button>
 
         <button
@@ -167,11 +167,21 @@ import { COUNTRIES } from '../../lib/countries';
         >
           Pay with <strong>PayPal</strong>
         </button>
+
+        <button
+          type="button"
+          class="ds-btn ds-btn--ghost ds-btn--lg ds-btn--block"
+          id="ds-reg-bank"
+          style="margin-top:10px;"
+        >
+          Pay by manual IBAN bank transfer
+        </button>
       </div>
 
       <p class="ds-fine">
-        Secure payment by card via Stripe. Questions? Email
-        <a href="mailto:info@songdance.co">info@songdance.co</a>.
+        Secure payment by card via Stripe. Paying by transfer? We'll email you
+        the account details and hold your cabin while it's on its way.
+        Questions? Email <a href="mailto:info@songdance.co">info@songdance.co</a>.
       </p>
     </form>
   </div>
@@ -185,6 +195,10 @@ import { COUNTRIES } from '../../lib/countries';
     renderClaimBanner,
     type RetreatClaim,
   } from '../../lib/client/retreat-claim';
+  import {
+    showBankTransferPanel,
+    type BankTransferDetails,
+  } from '../../lib/client/bank-transfer-panel';
 
   const form = document.getElementById('ds-reg-form') as HTMLFormElement | null;
   if (form) {
@@ -197,11 +211,19 @@ import { COUNTRIES } from '../../lib/countries';
       .then((r) => r.json())
       .then((d: any) => { if (d && d.paypal && paypalBtn) paypalBtn.hidden = false; })
       .catch(() => {});
-    // Which gateway the next submit uses. The PayPal button flips it for one
-    // submit; everything else (incl. the Enter key) stays on Stripe.
-    let nextProvider: 'stripe' | 'paypal' = 'stripe';
+    const bankBtn = form.querySelector('#ds-reg-bank') as HTMLButtonElement | null;
+    // How the next submit is paid. The PayPal and bank-transfer buttons each
+    // flip it for one submit; everything else (incl. the Enter key) stays on
+    // Stripe. Bank transfer isn't a gateway — the server writes the booking,
+    // emails the account details and answers with them instead of a
+    // checkout_url, so there is no redirect (see the submit handler).
+    let nextProvider: 'stripe' | 'paypal' | 'bank_transfer' = 'stripe';
     paypalBtn?.addEventListener('click', () => {
       nextProvider = 'paypal';
+      form.requestSubmit();
+    });
+    bankBtn?.addEventListener('click', () => {
+      nextProvider = 'bank_transfer';
       form.requestSubmit();
     });
     const companyInput = form.querySelector('input[name="company_name"]') as HTMLInputElement;
@@ -428,10 +450,12 @@ import { COUNTRIES } from '../../lib/countries';
       const original = submitBtn.innerHTML;
       submitBtn.disabled = true;
       if (paypalBtn) paypalBtn.disabled = true;
+      if (bankBtn) bankBtn.disabled = true;
       submitBtn.innerHTML = 'One moment…';
       const restore = () => {
         submitBtn.disabled = false;
         if (paypalBtn) paypalBtn.disabled = false;
+        if (bankBtn) bankBtn.disabled = false;
         submitBtn.innerHTML = original;
       };
       try {
@@ -449,6 +473,12 @@ import { COUNTRIES } from '../../lib/countries';
         }
         if (body?.checkout_url) {
           window.location.href = body.checkout_url;
+          return;
+        }
+        // Bank transfer: no gateway to go to. The booking is already written,
+        // so swap the form for the account details.
+        if (body?.bank_transfer) {
+          showBankTransferPanel(form!, body.bank_transfer as BankTransferDetails);
           return;
         }
         errBox.textContent = 'We could not start checkout. Please try again or email us.';

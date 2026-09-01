@@ -35,6 +35,7 @@ import {
 import { deckGiftClaimEmail, deckGiftConfirmedEmail } from '../workshops/emails';
 import { sendAlbumPurchaseEmail } from '../music/delivery';
 import { LANGUAGE_CHOICE_LABEL } from '../courses/journeys';
+import { BANK_TRANSFER, type OrderProvider } from '../payments/provider';
 import type { Registration } from '../registrations/db';
 import { logEvent } from '../registrations/db';
 import { getSubscriber } from '../registrations/drip';
@@ -110,7 +111,7 @@ export type OrderNotificationInput = {
   dietary?: string | null;
   notes?: string | null;
   paidAt?: string | null;
-  provider?: 'stripe' | 'paypal';
+  provider?: OrderProvider;
   stripePaymentIntent?: string | null;
   stripeSubscriptionId?: string | null;
   paypalCaptureId?: string | null;
@@ -190,8 +191,16 @@ function quadernoUrl(ctx: LinkContext, email: string): string | null {
   return `https://${ctx.quadernoAccount}.quadernoapp.com/invoices?q=${encodeURIComponent(email)}`;
 }
 
+function gatewayLabel(provider: OrderProvider | undefined): string {
+  if (provider === BANK_TRANSFER) return 'Bank transfer';
+  return provider === 'paypal' ? 'PayPal' : 'Stripe';
+}
+
 // Provider-aware deep link into the gateway dashboard for this payment.
 function paymentUrl(input: OrderNotificationInput): string | null {
+  // A manual IBAN transfer never touched a gateway, so there is nothing to
+  // link to — the money is in the bank statement.
+  if (input.provider === BANK_TRANSFER) return null;
   if (input.provider === 'paypal') {
     if (input.paypalSubscriptionId) {
       return `https://www.paypal.com/billing/subscriptions/${input.paypalSubscriptionId}`;
@@ -253,7 +262,7 @@ export function buildOrderNotificationEmail(
     ['Amount', planLabel ? `${amount} (${planLabel})` : amount],
     ['Add-ons', addonsValue],
     ['Order total', orderTotal],
-    ['Gateway', input.provider === 'paypal' ? 'PayPal' : 'Stripe'],
+    ['Gateway', gatewayLabel(input.provider)],
     ['Name', input.customerName],
     ['Email', input.email],
     ['Phone', input.phone],
@@ -277,7 +286,7 @@ export function buildOrderNotificationEmail(
 
   const links: Array<[string, string | null]> = [
     ['Quaderno invoice', quadernoUrl(ctx, input.email)],
-    [input.provider === 'paypal' ? 'PayPal payment' : 'Stripe payment', paymentUrl(input)],
+    [`${gatewayLabel(input.provider)} payment`, paymentUrl(input)],
     ['Drip subscriber', dripUrl(ctx)],
   ];
 

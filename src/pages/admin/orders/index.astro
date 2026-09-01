@@ -14,6 +14,7 @@ import {
   type StatusClass,
 } from '../../../lib/admin/orders';
 import { getFxRatesToEur } from '../../../lib/admin/fx';
+import { BANK_TRANSFER, type OrderProvider } from '../../../lib/payments/provider';
 import {
   providerLinkFor,
   resolveProviderModes,
@@ -184,10 +185,12 @@ function methodLabel(m: string | null): string | null {
 }
 // Gateway + (where known) the specific method, e.g. {gateway:'Stripe',
 // method:'Bancontact'} or {gateway:'PayPal', method:null}.
-function paymentDisplay(o: { provider: 'stripe' | 'paypal'; paymentMethod: string | null; paymentIntent?: string | null }) {
+function paymentDisplay(o: { provider: OrderProvider; paymentMethod: string | null; paymentIntent?: string | null }) {
   // Manual bank-transfer orders carry a synthetic `manual-…` payment intent and
-  // never touched a gateway (see src/lib/orders/manual-order.ts).
-  if (o.paymentIntent?.startsWith('manual-')) {
+  // never touched a gateway (see src/lib/orders/manual-order.ts). A retreat
+  // booked with the "pay by IBAN" button says so from the moment it is made,
+  // before any payment intent exists.
+  if (o.provider === BANK_TRANSFER || o.paymentIntent?.startsWith('manual-')) {
     return { gateway: 'Bank transfer', method: null as string | null };
   }
   if (o.provider === 'paypal') return { gateway: 'PayPal', method: null as string | null };
