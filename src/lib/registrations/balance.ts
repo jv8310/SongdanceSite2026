@@ -1,6 +1,9 @@
 // "Pay the remainder" flow: for a registration that was paid with a 50%
 // deposit, create a Stripe Checkout Session for the outstanding balance and
-// email the buyer a link to settle it.
+// email the buyer their two ways to settle it — a bank transfer to the
+// Songdance account (preferred; the guest replies and an admin marks it paid
+// on /admin/retreats/<slug>) or that checkout link, which settles itself.
+// The words live in balance-email.ts, so /admin/emails can preview them.
 //
 // Shared by the admin per-person send (api/admin/balance/send) and the bulk
 // send (api/admin/balance/send-bulk). Mirrors the intake-invitation sender:
@@ -18,6 +21,22 @@ import {
   createOrder as createPaypalOrder,
 } from '../payments/paypal';
 import { encodeCustomId } from '../payments/provider';
+import {
+  BALANCE_DUE_LABEL,
+  BALANCE_REPLY_TO,
+  balancePaymentReference,
+  buildBalanceEmail,
+} from './balance-email';
+
+// Re-exported so the existing import surface (balance.ts) keeps working.
+export {
+  BALANCE_DUE_LABEL,
+  BALANCE_REPLY_TO,
+  BANK_TRANSFER,
+  balancePaymentReference,
+  buildBalanceEmail,
+} from './balance-email';
+export type { BalanceEmailContent } from './balance-email';
 
 export type BalanceEnv = {
   DB: D1Database;
@@ -32,80 +51,12 @@ export type BalanceEnv = {
 };
 
 const DEFAULT_FROM = 'Songdance <intakes@mail.songdance.co>';
-const REPLY_TO = 'jacob@songdance.co';
-
-// When the balance is due. Kept in sync with the deposit copy on the
-// registration form + checkout.
-export const BALANCE_DUE_LABEL = 'before 1 September 2026';
+// The email asks the guest to reply once they have transferred, so the
+// Reply-To and the address named in the copy must be the same one.
+const REPLY_TO = BALANCE_REPLY_TO;
 
 function eur(cents: number): string {
   return `€${(cents / 100).toFixed(2).replace(/\.00$/, '')}`;
-}
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-export interface BalanceEmailContent {
-  subject: string;
-  text: string;
-  html: string;
-}
-
-export function buildBalanceEmail(args: {
-  first_name: string | null;
-  event_name: string;
-  amount_label: string;
-  due_label: string;
-  link: string;
-}): BalanceEmailContent {
-  const { first_name, event_name, amount_label, due_label, link } = args;
-  const greet = first_name ? `Hi ${first_name},` : 'Hi,';
-  const subject = `Your remaining balance for ${event_name}`;
-  const body =
-    `Thank you for reserving your place on ${event_name} with a deposit. ` +
-    `Your remaining balance of ${amount_label} is now due (${due_label}). ` +
-    `You can settle it securely by card below — it only takes a minute.`;
-  const cta = 'Pay your remaining balance:';
-  const ctaBtn = `Pay ${amount_label}`;
-  const sig = 'With warmth,\nJacob';
-
-  const text = `${greet}\n\n${body}\n\n${cta}\n${link}\n\n${sig}`;
-
-  const html = `<!DOCTYPE html>
-<html><head><meta charset="UTF-8" /><title>${escapeHtml(subject)}</title></head>
-<body style="margin:0;padding:0;background:#F4ECDF;font-family:Georgia,serif;color:#2A1B2A;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-  <tr><td align="center" style="padding:48px 16px;">
-    <table role="presentation" width="540" cellpadding="0" cellspacing="0" border="0">
-      <tr><td align="center" style="padding:0 8px 28px;">
-        <span style="font-family:Georgia,'Times New Roman',serif;font-size:13px;letter-spacing:0.22em;text-transform:uppercase;color:#7A6A78;">Songdance</span>
-      </td></tr>
-      <tr><td style="padding:0 8px;">
-        <p style="margin:0;font-family:Georgia,serif;font-size:16px;line-height:1.7;color:#2A1B2A;">${escapeHtml(greet)}</p>
-        <p style="margin:18px 0 0;font-family:Georgia,serif;font-size:16px;line-height:1.75;color:#2A1B2A;white-space:pre-line;">${escapeHtml(body)}</p>
-        <p style="margin:28px 0 14px;font-family:Georgia,serif;font-size:15px;color:#4A3848;">${escapeHtml(cta)}</p>
-        <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0;">
-          <tr><td align="center" bgcolor="#2A1B2A" style="border-radius:999px;">
-            <a href="${escapeHtml(link)}" style="display:inline-block;padding:14px 30px;font-family:Helvetica,Arial,sans-serif;font-size:15px;font-weight:500;letter-spacing:0.01em;color:#F4ECDF;text-decoration:none;border-radius:999px;">${escapeHtml(ctaBtn)} &rarr;</a>
-          </td></tr>
-        </table>
-        <p style="margin:36px 0 0;font-family:Georgia,serif;font-size:16px;line-height:1.7;color:#2A1B2A;white-space:pre-line;">${escapeHtml(sig)}</p>
-      </td></tr>
-      <tr><td align="center" style="padding:36px 8px 0;">
-        <p style="margin:0;font-family:Georgia,serif;font-size:11px;color:#B6A8B4;">songdance.co</p>
-      </td></tr>
-    </table>
-  </td></tr>
-</table>
-</body></html>`;
-
-  return { subject, html, text };
 }
 
 // Create the balance Checkout Session, email the link, and (on a successful
@@ -211,6 +162,7 @@ export async function sendBalanceInvite(
     amount_label: eur(balance),
     due_label: BALANCE_DUE_LABEL,
     link,
+    reference: balancePaymentReference(reg.id),
   });
 
   const sent = await sendViaResend({
