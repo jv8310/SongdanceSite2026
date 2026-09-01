@@ -12,6 +12,8 @@ import {
   type SpecialRole,
 } from '../../../lib/registrations/db';
 import {
+  applyClaim,
+  applyHolds,
   attachRegistration,
   countActiveOffersByTier,
   getLiveOfferByToken,
