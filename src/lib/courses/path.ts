@@ -103,27 +103,37 @@ function pctMajor(cents: number, percent: number): number {
 
 // Compose the path's two line items + total from a currency and the 12-week
 // discount that applies to the buyer. During a live workshop window the whole
-// path (both lines) takes CERT_PATH_DISCOUNT_PERCENT off; a URL override or
-// the launch promo keep their existing shapes (see below).
+// path (both lines) takes CERT_PATH_DISCOUNT_PERCENT off, and a URL override
+// takes its own percent off both lines the same way; the launch promo keeps
+// its own shape (see below).
 export function buildCertificationPathPricing(
   currency: Currency,
   eff: EffectiveDiscount,
   nowMs: number = Date.now(),
 ): CertificationPathPricing {
   const baseCert = getCertOffer(currency);
-  // The cert line takes the launch promo (50% off its list/base price) when a
-  // promo is live — UNLESS a hand-crafted ?discount=N override is in play,
-  // which wins outright and only ever touches the 12-week line.
-  const certPromo = eff.kind !== 'override' && launchPromoActive(nowMs);
+  // A hand-crafted ?discount=N / ?adiscount=N override wins outright, so the
+  // launch promo steps aside for it.
+  const override = eff.kind === 'override';
+  const certPromo = !override && launchPromoActive(nowMs);
   const cert = certPromo ? applyLaunchPromoToOffer(baseCert, nowMs) : baseCert;
   // The workshop sale: eff.kind 'pre'/'post' means the buyer's workshop window
   // is live — the path takes 20% off BOTH lines (the promo path above wins
   // while a site-wide promo runs; effectiveTwelveWeekDiscount already resolves
-  // promo-vs-workshop upstream). Override/promo keep the old shape: the
-  // percent lands on the 12-week line only.
+  // promo-vs-workshop upstream).
   const workshopSale = !certPromo && (eff.kind === 'pre' || eff.kind === 'post');
+  // An override is an intentional, hand-made price for THIS buyer, so it takes
+  // its percent off the WHOLE path — both lines — the same way the workshop
+  // sale does (owner's call, Sept 2026; it used to touch the 12-week line
+  // only, which made a 50% link read as ~20% off the path and looked broken).
+  // A site-wide promo keeps the old shape: its percent is already in the cert
+  // line via applyLaunchPromoToOffer, so eff.percent lands on 12-week only.
   const twPercent = workshopSale ? CERT_PATH_DISCOUNT_PERCENT : eff.percent;
-  const certPercent = workshopSale ? CERT_PATH_DISCOUNT_PERCENT : 0;
+  const certPercent = workshopSale
+    ? CERT_PATH_DISCOUNT_PERCENT
+    : override
+      ? eff.percent
+      : 0;
   const certBase = baseCert.base_price * 100; // normal price, shown struck while discounted
   const twBase = priceCents(currency);
   const twBaseMonthly = monthlyCents(currency);

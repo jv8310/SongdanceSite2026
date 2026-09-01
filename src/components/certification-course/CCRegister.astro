@@ -353,8 +353,9 @@ const countries = COUNTRIES;
   };
   // The Certification path (the `cc-bundle` product), shown as two line items
   // + a combined total. During a live workshop window the whole path is 20%
-  // off (both lines); a ?discount=N override only ever touches the 12-week
-  // portion. Mirrors CertificationPathPricing on the server.
+  // off (both lines), and a ?discount=N / ?adiscount=N override takes its own
+  // percent off both lines the same way. Mirrors CertificationPathPricing on
+  // the server.
   type PathPricing = {
     currency: Currency;
     twelve_week_base_cents: number;
