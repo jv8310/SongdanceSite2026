@@ -587,7 +587,7 @@ const includes = [
           const dd = p.discount;
           return {
             // Struck while discounted: the workshop sale takes 20% off both
-            // lines; an override reduces only the 12-week portion.
+            // lines, and an override its own percent off both.
             cur: p.currency,
             hasStrike: p.base_total_cents > p.total_cents,
             wasCents: p.base_total_cents,
@@ -597,17 +597,13 @@ const includes = [
             count: p.installment_count,
             badgeText: dd.eligible
               ? (dd.kind === 'override'
-                  ? `${dd.percent}% off the 12-week`
+                  ? `${dd.percent}% off the whole path`
                   : dd.kind === 'promo'
                     ? `Extended sale — ${dd.percent}% off`
                     : `Workshop discount — ${dd.percent}% off the whole path`)
               : '',
             offerName: 'Certification path',
-            discountOff: dd.eligible
-              ? dd.kind === 'override'
-                ? ` (12-week ${dd.percent}% off)`
-                : ` (${dd.percent}% off)`
-              : '',
+            discountOff: dd.eligible ? ` (${dd.percent}% off)` : '',
             showCountdown: dd.eligible && dd.kind === 'post' && !!dd.expires_at_ms,
             expiresAtMs: dd.expires_at_ms,
           };
