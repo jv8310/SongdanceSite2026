@@ -27,32 +27,60 @@ function escapeHtml(s: string): string {
     .replace(/'/g, '&#39;');
 }
 
-// Shared shell: greeting, paragraphs, optional button, signature.
-function retreatEmail(args: {
+// Shared shell: greeting, paragraphs, optional button, signature. Exported so
+// the other retreat mail (bank-transfer.ts) is visibly the same family.
+export function retreatEmail(args: {
   subject: string;
   greet: string;
   paragraphs: string[];
+  // An optional boxed label/value panel — the bank details on the transfer
+  // email. Rendered plainly ("Label: value") in the text part. Paragraphs
+  // that read *after* the panel ("put this reference in the communication
+  // field") go in paragraphsAfter, so the box lands where the prose points
+  // at it rather than at the very end.
+  details?: { label: string; value: string }[];
+  paragraphsAfter?: string[];
   cta?: { intro: string; label: string; href: string };
   sig?: string;
   footnote?: string;
 }): RetreatEmailContent {
   const sig = args.sig ?? 'With warmth,\nJacob';
+  const detailLines = (args.details ?? []).map((d) => `${d.label}: ${d.value}`);
+  const after = args.paragraphsAfter ?? [];
   const text = [
     args.greet,
     '',
     args.paragraphs.join('\n\n'),
+    ...(detailLines.length ? ['', ...detailLines] : []),
+    ...(after.length ? ['', after.join('\n\n')] : []),
     ...(args.cta ? ['', args.cta.intro, args.cta.href] : []),
     ...(args.footnote ? ['', args.footnote] : []),
     '',
     sig,
   ].join('\n');
 
-  const paras = args.paragraphs
-    .map(
-      (p) =>
-        `<p style="margin:18px 0 0;font-family:Georgia,serif;font-size:16px;line-height:1.75;color:#2A1B2A;white-space:pre-line;">${escapeHtml(p)}</p>`,
-    )
-    .join('');
+  const para = (p: string) =>
+    `<p style="margin:18px 0 0;font-family:Georgia,serif;font-size:16px;line-height:1.75;color:#2A1B2A;white-space:pre-line;">${escapeHtml(p)}</p>`;
+  const paras = args.paragraphs.map(para).join('');
+  const parasAfter = after.map(para).join('');
+
+  const details = args.details?.length
+    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:26px 0 0;border:1px solid #DCCFC1;border-radius:10px;background:#FBF6EE;">
+        <tr><td style="padding:18px 20px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+            ${args.details
+              .map(
+                (d) =>
+                  `<tr>
+                <td style="padding:6px 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:#7A6A78;white-space:nowrap;vertical-align:top;">${escapeHtml(d.label)}</td>
+                <td style="padding:6px 0 6px 18px;font-family:Helvetica,Arial,sans-serif;font-size:16px;color:#2A1B2A;text-align:right;">${escapeHtml(d.value)}</td>
+              </tr>`,
+              )
+              .join('')}
+          </table>
+        </td></tr>
+      </table>`
+    : '';
 
   const cta = args.cta
     ? `<p style="margin:28px 0 14px;font-family:Georgia,serif;font-size:15px;color:#4A3848;">${escapeHtml(args.cta.intro)}</p>
@@ -79,6 +107,8 @@ function retreatEmail(args: {
       <tr><td style="padding:0 8px;">
         <p style="margin:0;font-family:Georgia,serif;font-size:16px;line-height:1.7;color:#2A1B2A;">${escapeHtml(args.greet)}</p>
         ${paras}
+        ${details}
+        ${parasAfter}
         ${cta}
         ${footnote}
         <p style="margin:36px 0 0;font-family:Georgia,serif;font-size:16px;line-height:1.7;color:#2A1B2A;white-space:pre-line;">${escapeHtml(sig)}</p>

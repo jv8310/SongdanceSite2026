@@ -298,6 +298,58 @@ gated player) but no email telling them so. Delivery now lives in the site, in
   (`/api/admin/workshops/mantra-pack-send`) that forces the sweep with a wider
   cap. Pressing it twice is harmless.
 
+## Retreat payment — three buttons, one of them not a gateway
+
+Both retreat forms (`RBRegister` château, `DSRegister` boat) offer **Pay
+online** (Stripe), **Pay with PayPal**, and **Pay by manual IBAN bank
+transfer**. The third is not a gateway and must never be treated as one:
+nothing is created at Stripe or PayPal, no webhook will ever fire, and the
+money appears in the bank days later. Logic in
+[`src/lib/registrations/bank-transfer.ts`](src/lib/registrations/bank-transfer.ts)
+(account, reference, email) and
+[`src/lib/client/bank-transfer-panel.ts`](src/lib/client/bank-transfer-panel.ts)
+(the on-screen panel).
+
+- **`parseProvider` deliberately never returns `bank_transfer`.** Most
+  checkouts only branch on `=== 'paypal'`, so a widened return value would
+  fall straight through to the Stripe path and open a card session on a row
+  stamped bank_transfer. A checkout that offers the transfer opts in ahead of
+  that call with **`wantsBankTransfer(payload.provider)`** — only the two
+  retreat checkouts do. `OrderProvider` (= `PaymentProvider | 'bank_transfer'`)
+  is what the `provider` **column** may hold; `PaymentProvider` stays "a
+  gateway". No migration: the column has no CHECK constraint.
+- **The hold is days, not minutes.** The row is an ordinary `pending`
+  registration, but with `hold_minutes = BANK_TRANSFER_HOLD_MINUTES` (7 days)
+  instead of 30 — at 30 minutes the room would go back on sale under someone
+  who has already sent the money. Everything downstream (availability,
+  `beds_sold`, the waiting-list hold) already keys on `hold_expires_at`, so
+  nothing else changed. When it lapses the row is *not* deleted: a late
+  transfer can still be marked paid by hand.
+- **The reference is `SD-<registration id>`** (`bankTransferReference`),
+  derived not stored, and is what the guest puts in the communication field
+  and what Jacob matches the bank line against.
+- **No redirect.** The checkout answers with `{ bank_transfer: {…} }` instead
+  of a `checkout_url`, and the form swaps itself for the details panel — so
+  the account details are on screen *and* in the email, and nothing about the
+  booking is guessable from a URL.
+- **Confirming it is the admin's job**: `/admin/retreats/<slug>` shows an
+  **awaiting transfer** pill plus the amount, IBAN, reference and hold expiry
+  on the row, and the ordinary **Mark paid** button (relabelled "Transfer
+  received — mark paid") does the rest — it already runs every side-effect a
+  webhook would: `assignRoomOnPaid`, `settleWaitlistOnPaid`, Drip, SD-ORDER.
+  It also stamps the synthetic `manual-<id>` payment intent, which is why
+  `/admin/orders` has always read such a row as "Bank transfer"; the provider
+  column now says so from the moment of booking, before any payment intent
+  exists. A bank-transfer order is **never refundable from the admin**
+  (`isRefundable`) — the money goes back out of the bank by hand.
+- **The email** (`buildBankTransferEmail`) is transactional, uses the shared
+  retreat shell (`retreatEmail` in `waitlist-emails.ts`, which grew an
+  optional `details` panel for it), and asks the guest to **reply when they've
+  transferred** — a SEPA credit carries no callback, so that reply is the only
+  signal that the booking has become payable. A failed send is logged
+  (`registration.bank_transfer.email_error`) and never fails the checkout: the
+  booking stands and the details are on screen either way.
+
 ## Retreat waiting list — and the offer that holds a place
 
 A sold-out retreat used to be a dead end. Now the page offers a waiting list,

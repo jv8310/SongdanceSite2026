@@ -199,6 +199,16 @@ body { background: var(--adm-paper); }
   margin-left: 6px;
   background: rgba(201, 96, 58, 0.13); color: var(--adm-ember-deep);
 }
+/* A booking paid by manual IBAN transfer: waiting for the money to land
+   (nothing is coming automatically — you mark it paid), then settled. */
+.adm-pill--awaiting-transfer {
+  margin-left: 6px;
+  background: rgba(196, 128, 31, 0.15); color: var(--adm-warn);
+}
+.adm-pill--bank {
+  margin-left: 6px;
+  background: #d6e4f0; color: #2a5a8a;
+}
 .adm-pill--full { background: rgba(181, 61, 61, 0.13); color: var(--adm-danger); }
 .adm-pill--low { background: rgba(196, 128, 31, 0.15); color: var(--adm-warn); }
 .adm-pill--open { background: rgba(47, 122, 76, 0.10); color: var(--adm-success); }

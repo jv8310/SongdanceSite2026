@@ -9,6 +9,8 @@
 // We keep these as plain string builders (no network calls) so any admin page
 // can compute them in its frontmatter from the row ids it already has.
 
+import { BANK_TRANSFER, type OrderProvider } from '../payments/provider';
+
 export type StripeMode = 'live' | 'test';
 export type PaypalMode = 'live' | 'sandbox';
 
@@ -69,7 +71,7 @@ export type ProviderLink = { href: string; label: string } | null;
 // when there's nothing to point at (e.g. an unpaid / free row).
 export function providerLinkFor(
   o: {
-    provider: 'stripe' | 'paypal';
+    provider: OrderProvider;
     stripeSubscriptionId?: string | null;
     // The Stripe PaymentIntent. Accept both names so the helper works for a
     // ForecastPerson (stripePaymentIntent) and a UnifiedOrder (paymentIntent).
@@ -80,6 +82,9 @@ export function providerLinkFor(
   },
   modes: ProviderModes,
 ): ProviderLink {
+  // A manual IBAN transfer never touched a gateway — there is no dashboard
+  // page for it, the money is a line on the bank statement.
+  if (o.provider === BANK_TRANSFER) return null;
   if (o.provider === 'paypal') {
     if (o.paypalSubscriptionId) {
       return {
