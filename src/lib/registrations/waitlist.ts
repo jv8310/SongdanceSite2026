@@ -8,10 +8,11 @@
 //   2. A place frees up (cancellation, a room put back on sale). The admin
 //      offers it to someone from /admin/retreats/<slug> → the row flips to
 //      `invited`, carrying a claim token and an expiry.
-//   3. That offer HOLDS the place: `countActiveOffersByTier` is subtracted
-//      from public availability for the offered tier, so a walk-in can't take
-//      the seat that was promised — while the invited person, arriving with
-//      their token, has their own hold excluded and can book it.
+//   3. That offer HOLDS the place, and GIVES it: `countActiveOffersByTier` is
+//      subtracted from public availability for the offered tier, so a walk-in
+//      can't take the seat that was promised — while for the invited person,
+//      arriving with their token, that tier reads open (`applyClaim`), so the
+//      link that invited them can actually buy the place it names.
 //   4. They book through the ordinary checkout. The row records the
 //      registration and flips to `booked` when the money lands
 //      (settleWaitlistOnPaid, called from every paid path).
@@ -524,7 +525,39 @@ export function applyHolds(
   }));
 }
 
-// The two together: what a visitor may book right now on this retreat.
+// An offer is a place, not only a hold. Excluding the claimant's own hold is
+// half the rule: it hands the place back only when the room model already had
+// it free. It usually doesn't — a retreat is offered from its waiting list
+// precisely because it is sold out, and the admin may offer the moment a
+// cancellation is *known* ("you can still make an offer … it simply holds a
+// place the retreat doesn't have yet", /admin/retreats/<slug>), before the
+// booking that frees the bed has actually gone.
+//
+// So for the person holding a live claim, their offered tier reads open —
+// whatever the rest of the retreat looks like. `Math.max(remaining, 1)`, not
+// `+1`: their own hold was already excluded, so this promises the one place
+// they were offered and never a second one. Everybody else still sees the
+// tier full, because their holds are still subtracted.
+//
+// Without it the invited guest is turned away by the very link that invited
+// them: the booking form refuses the cabin at checkout, and the waiting-list
+// panel replaces the form altogether with "Every place is taken".
+export function applyClaim(
+  availability: TierAvailability[],
+  claim: WaitlistEntry | null,
+): TierAvailability[] {
+  const tierId = claim?.offered_tier_id;
+  if (!tierId) return availability;
+  return availability.map((a) =>
+    a.tier.id === tierId ? { ...a, remaining: Math.max(a.remaining, 1) } : a,
+  );
+}
+
+// The three together — the one answer to "what may this visitor book right
+// now": the room model, minus the places promised to other people, plus the
+// place promised to this one. Every public availability read goes through
+// here (the availability endpoint and both retreat checkouts), so what a
+// claim link shows and what it is allowed to buy can't drift apart.
 export async function availabilityForVisitor(
   db: D1Database,
   productId: number,
@@ -534,7 +567,7 @@ export async function availabilityForVisitor(
     computeTierAvailability(db, productId),
     countActiveOffersByTier(db, productId, { exceptEntryId: claim?.id ?? null }),
   ]);
-  return applyHolds(availability, holds);
+  return applyClaim(applyHolds(availability, holds), claim);
 }
 
 // ─────────────────────────── offering ───────────────────────────

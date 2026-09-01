@@ -172,8 +172,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
   }
 
   // A place promised to someone on the waiting list is off sale until their
-  // offer lapses. Their own claim link excludes their own hold, so the room
-  // kept for them is bookable — by them.
+  // offer lapses. The person holding the claim link is the exception: their
+  // own hold is excluded and the room their offer names is granted to them
+  // (applyClaim) — the same rule the form drew its availability from. Whether
+  // the house physically has that room is settled by pickRoomForTier below.
   const claim = await resolveClaim(env.DB, product.id, payload.claim_token);
   // A second run at the same claim link replaces the first, rather than
   // holding a second room alongside it.
@@ -183,9 +185,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
   });
   const heldForWaitlist = waitlistHolds.get(tier.id) ?? 0;
   if (heldForWaitlist > 0) {
-    const availability = await computeTierAvailability(env.DB, product.id);
+    const rawAvailability = await computeTierAvailability(env.DB, product.id);
+    const availability = applyClaim(applyHolds(rawAvailability, waitlistHolds), claim);
     const tierAvail = availability.find((a) => a.tier.id === tier.id);
-    if (!tierAvail || tierAvail.remaining - heldForWaitlist <= 0) {
+    if (!tierAvail || tierAvail.remaining <= 0) {
       await logEventSafe(env.DB, {
         registration_id: null,
         kind: 'checkout.tier.held_for_waitlist',

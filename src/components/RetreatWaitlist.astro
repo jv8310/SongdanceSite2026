@@ -10,9 +10,18 @@
 // When EVERY room is gone the waiting list takes the booking form's place
 // (`replaces`, default the `#register` section): the form is hidden and this
 // section inherits the `#register` anchor, so every "Register" link on the
-// page lands here instead of on a form that can't sell anything. A visitor
-// arriving on a claim link is the exception — the place kept for them reads as
-// open, so the form stays exactly where it is.
+// page lands here instead of on a form that can't sell anything.
+//
+// A visitor arriving on a live claim link is the exception, and an absolute
+// one: they were invited to book, so the form stays exactly where it is and
+// this panel stays out of their way — never revealed on its own, never in
+// place of the form. It is still one click away (the sold-out badges link to
+// #waiting-list) if they'd rather wait for a different room. The exception
+// keys on the offer itself, not on the count it produces: a retreat is
+// offered from its waiting list precisely because it is full, and an offer may
+// be made before the cancellation that frees the place has landed — so
+// "everything reads sold out" is the normal state of a claim link, not a
+// reason to take the form away from the one person we asked to use it.
 //
 // Joining writes a row and sends a confirmation; when a place frees up the
 // admin offers it from /admin/retreats/<slug> and the person comes back with a
@@ -314,7 +323,8 @@ const {
     };
 
     // A claim link carries its own held place, so ask with the token: the room
-    // kept for that visitor reads as open and the booking form stays put.
+    // kept for that visitor reads as open, and the response says whose offer
+    // it is (`claim`) — which is what keeps the booking form on the page.
     let claim = '';
     try {
       claim = new URL(window.location.href).searchParams.get('claim')?.trim() ?? '';
@@ -331,6 +341,10 @@ const {
       .then((r) => (r.ok ? r.json() : null))
       .then((data: any) => {
         if (!data || !Array.isArray(data.tiers)) return;
+        // A live offer for this retreat (the endpoint only says so for this
+        // visitor's own token): they have a place kept for them, so the
+        // booking form is exactly what they need to meet.
+        const invited = !!data.claim;
         const listed = data.tiers.filter((t: any) =>
           watched.length === 0 ? true : watched.includes(t.slug),
         );
@@ -347,10 +361,14 @@ const {
           // Default the preference to the first sold-out room.
           const pref = form.querySelector('[name="tier_slug"]') as HTMLSelectElement | null;
           if (pref) pref.value = full[0].slug;
-        } else {
+        } else if (!invited) {
           // Nothing left to sell: the waiting list stands in for the form.
           takeOverFrom(section.dataset.replaces || '');
         }
+        // The invited guest is left with the form and no panel in the way. The
+        // copy above is still set, so a "join the waiting list" link (they may
+        // want a different room too) opens it reading right.
+        if (invited) return;
         section.hidden = false;
       })
       .catch(() => {});

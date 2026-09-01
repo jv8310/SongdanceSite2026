@@ -9,7 +9,10 @@ import {
   logEventSafe,
 } from '../../../lib/registrations/db';
 import {
+  applyClaim,
+  applyHolds,
   attachRegistration,
+  availabilityForVisitor,
   countActiveOffersByTier,
   getLiveOfferByToken,
   releaseClaimCheckoutHold,
@@ -55,34 +58,31 @@ function unitLabel(slug: string): string {
 
 // GET → per-cabin prices + live availability for the registration form.
 //
-// `?claim=<token>` is a waiting-list claim link: it excludes that person's own
-// hold, so the cabin being kept for them reads as open — for them only.
+// `?claim=<token>` is a waiting-list claim link: the cabin being kept for that
+// person reads as open — for them only. Places promised to *other* people on
+// the list are subtracted, and the cabin this offer names is granted its one
+// place, so the guest we invited meets a form that can sell it to them.
 export const GET: APIRoute = async ({ url, locals }) => {
   const env = locals.runtime.env;
   const product = await getProductBySlug(env.DB, PRODUCT_SLUG);
   if (!product) return json({ error: 'Unknown product' }, 404);
 
   const claim = await resolveClaim(env.DB, product.id, url.searchParams.get('claim'));
-  const [rawAvailability, holds] = await Promise.all([
-    computeTierAvailability(env.DB, product.id),
-    countActiveOffersByTier(env.DB, product.id, { exceptEntryId: claim?.id ?? null }),
-  ]);
-  const bySlug = new Map(rawAvailability.map((a) => [a.tier.slug, a]));
+  const availability = await availabilityForVisitor(env.DB, product.id, claim);
+  const bySlug = new Map(availability.map((a) => [a.tier.slug, a]));
 
   const tiers = PUBLIC_TIER_SLUGS.map((slug) => {
     const a = bySlug.get(slug);
     if (!a) return null;
     const price = a.tier.price_cents;
-    // Places promised to people on the waiting list are not on sale.
-    const remaining = Math.max(0, a.remaining - (holds.get(a.tier.id) ?? 0));
     return {
       slug,
       name: a.tier.name,
       price_cents: price,
       deposit_cents: Math.round(price * DEPOSIT_FRACTION),
-      remaining,
+      remaining: a.remaining,
       capacity: a.capacity,
-      sold_out: remaining <= 0,
+      sold_out: a.remaining <= 0,
       unit_label: unitLabel(slug),
     };
   }).filter((t): t is NonNullable<typeof t> => t !== null);
@@ -197,25 +197,30 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
   // Capacity guard — computed from the room model so cross-cabin coupling
   // (a solo-locked double, the reserved host cabin) is respected, then minus
-  // any place currently promised to someone on the waiting list. A claim link
-  // excludes its own hold, so the invited guest can book what's kept for them.
+  // any place currently promised to someone on the waiting list, plus the one
+  // this visitor's own claim link promises them. Exactly the numbers the form
+  // was drawn from (availabilityForVisitor), so what the page offered is what
+  // the checkout will sell.
   const claim = await resolveClaim(env.DB, product.id, payload.claim_token);
   // A second run at the same claim link replaces the first, rather than
   // holding a second place alongside it.
   await releaseClaimCheckoutHold(env.DB, claim);
-  const [availability, holds] = await Promise.all([
+  const [rawAvailability, holds] = await Promise.all([
     computeTierAvailability(env.DB, product.id),
     countActiveOffersByTier(env.DB, product.id, { exceptEntryId: claim?.id ?? null }),
   ]);
+  const availability = applyClaim(applyHolds(rawAvailability, holds), claim);
   const tierAvail = availability.find((a) => a.tier.id === tier.id);
+  const rawForTier = rawAvailability.find((a) => a.tier.id === tier.id);
   const heldForWaitlist = holds.get(tier.id) ?? 0;
-  if (!tierAvail || tierAvail.remaining - heldForWaitlist <= 0) {
+  if (!tierAvail || tierAvail.remaining <= 0) {
     await logEventSafe(env.DB, {
       registration_id: null,
       kind: 'checkout.tier.full',
       payload: { tier_slug: tierSlug, held_for_waitlist: heldForWaitlist },
     });
-    const heldOut = !!tierAvail && tierAvail.remaining > 0;
+    // Free beds exist but every one of them is promised to someone else.
+    const heldOut = !!rawForTier && rawForTier.remaining > 0;
     return json(
       {
         error: heldOut
@@ -224,6 +229,18 @@ export const POST: APIRoute = async ({ request, locals }) => {
       },
       409,
     );
+  }
+
+  // The offer was made before the place existed (the admin may offer the
+  // moment a cancellation is known). Nothing is broken — the boat assigns
+  // cabins on payment, not now — but say so in the log, because this guest
+  // needs placing by hand until the bed they were promised comes free.
+  if (claim && (rawForTier?.remaining ?? 0) - heldForWaitlist <= 0) {
+    await logEventSafe(env.DB, {
+      registration_id: null,
+      kind: 'waitlist.claim.beyond_capacity',
+      payload: { waitlist_id: claim.id, tier_slug: tierSlug, held_for_waitlist: heldForWaitlist },
+    });
   }
 
   // No cabin is assigned yet. Policy ("free until paid"): a pending/unpaid

@@ -320,15 +320,41 @@ and when a place frees up the admin offers it to someone from
   slug → page; a retreat missing from that map can't be offered). The send is
   what makes it real: **a failed email rolls the hold back**
   ([`waitlist-offer.ts`](src/lib/registrations/waitlist-offer.ts)).
-- **An offer is a real hold, not just an email.** While it stands, that place
+- **An offer both holds a place and gives it.** While it stands, that place
   stops being sold: `countActiveOffersByTier` is subtracted from public
   availability everywhere a visitor is shown or sold a place —
   `/api/registrations/availability`, the dolphin GET, and both checkout
-  capacity guards. The claim link passes its token, which excludes **its own**
-  hold, so the room reads open for the person it's kept for and for nobody
-  else. Holds are per **tier**: in the château's room model two tiers can share
-  a physical room, so a booking on a *different* tier can still consume the bed
-  — the same coupling that already exists between two ordinary bookings.
+  capacity guards. Holds are per **tier**: in the château's room model two
+  tiers can share a physical room, so a booking on a *different* tier can still
+  consume the bed — the same coupling that already exists between two ordinary
+  bookings.
+  **Excluding the claimant's own hold is only half the rule**, and until
+  September 2026 it was the whole of it — which made an offer on a full retreat
+  worthless, i.e. nearly every offer: a place is offered *because* the retreat
+  sold out, and the admin may offer the moment a cancellation is known ("you
+  can still make an offer … it simply holds a place the retreat doesn't have
+  yet", `/admin/retreats/<slug>`), before the booking that frees the bed is
+  gone. Handing back a hold on a bed that was never free changes nothing, so
+  the invited guest met a form that refused their cabin at checkout — and,
+  worse, a waiting-list panel that replaced the booking form with "Every place
+  is taken" a second after the page loaded. So `applyClaim`
+  ([`waitlist.ts`](src/lib/registrations/waitlist.ts)) *grants* the offered
+  tier its one place — `Math.max(remaining, 1)`, never `+1`, since their own
+  hold is already excluded — and `availabilityForVisitor` (room model − other
+  people's holds + this visitor's own offer) is the single answer every public
+  read and both checkout guards use, so what a claim link shows and what it may
+  buy can't drift apart. The room reads open for the person it's kept for and
+  for nobody else. If the place genuinely isn't there yet the boat still books
+  it (cabins are assigned on payment) and logs `waitlist.claim.beyond_capacity`
+  so the guest can be placed by hand; the château needs a physical room and
+  says so plainly if there is none.
+  **The waiting-list panel stands down for a live claim, on the offer itself —
+  never on the count**: `/api/registrations/availability` echoes the visitor's
+  own offer back as `claim`, and `RetreatWaitlist` then neither reveals itself
+  nor takes the form's place (it stays one click from the sold-out badges).
+  "Everything reads sold out" is the *normal* state of a claim link, so it must
+  never be the reason to take the form away from the one person invited to use
+  it.
 - **The hold lifts exactly when the booking takes the place instead** — never
   both at once, never neither. Paid → lifted. Pending **with a room assigned**
   (the château, where checkout takes the room immediately) → lifted. Pending

@@ -1,12 +1,10 @@
 import type { APIRoute } from 'astro';
 import {
   getProductBySlug,
-  computeTierAvailability,
   getSpecialRoomAvailability,
 } from '../../../lib/registrations/db';
 import {
-  applyHolds,
-  countActiveOffersByTier,
+  availabilityForVisitor,
   getLiveOfferByToken,
 } from '../../../lib/registrations/waitlist';
 
@@ -21,8 +19,11 @@ export const prerender = false;
 // Shared Bedroom availability automatically. Places currently promised to
 // someone on the waiting list are then subtracted — they aren't on sale.
 //
-// `?claim=<token>` is a waiting-list claim link: it excludes that person's own
-// hold, so the room being kept for them reads as open, for them only.
+// `?claim=<token>` is a waiting-list claim link: the room being kept for that
+// person reads as open, for them only — their own hold is excluded and the
+// offered tier is granted its one place (availabilityForVisitor). The response
+// echoes the offer back as `claim`, so a page can tell "this visitor holds a
+// live offer" from the same request rather than asking a second time.
 export const GET: APIRoute = async ({ url, locals }) => {
   const env = locals.runtime.env;
   const productSlug = url.searchParams.get('product');
@@ -39,12 +40,10 @@ export const GET: APIRoute = async ({ url, locals }) => {
   const found = claimToken ? await getLiveOfferByToken(env.DB, claimToken) : null;
   const claim = found && found.product_id === product.id ? found : null;
 
-  const [rawAvailability, special, holds] = await Promise.all([
-    computeTierAvailability(env.DB, product.id),
+  const [availability, special] = await Promise.all([
+    availabilityForVisitor(env.DB, product.id, claim),
     getSpecialRoomAvailability(env.DB, product.id),
-    countActiveOffersByTier(env.DB, product.id, { exceptEntryId: claim?.id ?? null }),
   ]);
-  const availability = applyHolds(rawAvailability, holds);
   const tiers = availability.map(({ tier, remaining, capacity }) => ({
     slug: tier.slug,
     name: tier.name,
@@ -52,8 +51,15 @@ export const GET: APIRoute = async ({ url, locals }) => {
     remaining,
     capacity,
   }));
+  const claimedTier = claim
+    ? (availability.find((a) => a.tier.id === claim.offered_tier_id)?.tier ?? null)
+    : null;
 
-  return new Response(JSON.stringify({ tiers, ...special }), {
+  return new Response(JSON.stringify({
+    tiers,
+    ...special,
+    claim: claimedTier ? { tier_slug: claimedTier.slug, tier_name: claimedTier.name } : null,
+  }), {
     status: 200,
     headers: {
       'Content-Type': 'application/json',
