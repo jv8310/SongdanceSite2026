@@ -1,7 +1,9 @@
 ---
-// Admin email preview — every lifecycle + transactional workshop email,
-// rendered with sample data, with one-click "send me a test". The cadence
-// notes mirror src/lib/workshops/cron.ts; the words live in emails.ts.
+// Admin email preview — every lifecycle + transactional workshop email (plus
+// the retreat balance email, which an admin sends by hand from
+// /admin/retreats/<slug>), rendered with sample data, with one-click "send me
+// a test". The cadence notes mirror src/lib/workshops/cron.ts; the words live
+// in emails.ts, and the balance one in registrations/balance-email.ts.
 import '../../../styles/admin.css';
 import Layout from '../../../layouts/Layout.astro';
 import { readCookie, verifySession } from '../../../lib/registrations/auth';
@@ -74,9 +76,10 @@ const groups = [...new Set(samples.map((s) => s.group))];
         <p class="adm-breadcrumbs"><a href="/admin">Admin</a> <span class="sep">/</span> Emails</p>
         <h1>Email sequences</h1>
         <p class="adm-sub">
-          Every automated workshop email, rendered with sample data. Cadence
-          runs from the 5-minute cron; sends are one-per-person
-          (idempotent), and the marketing ones respect the unsubscribe list.
+          Every automated workshop email — plus the retreat balance email you
+          send by hand — rendered with sample data. Cadence runs from the
+          5-minute cron; sends are one-per-person (idempotent), and the
+          marketing ones respect the unsubscribe list.
         </p>
       </div>
       <div class="adm-actions">

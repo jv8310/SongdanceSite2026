@@ -16,6 +16,10 @@ import {
   DEFAULT_OFFER_HOURS,
   OFFER_HOUR_CHOICES,
 } from '../../../lib/registrations/waitlist';
+import {
+  BANK_TRANSFER,
+  balancePaymentReference,
+} from '../../../lib/registrations/balance-email';
 
 export const prerender = false;
 
@@ -556,6 +560,21 @@ const flash = (() => {
   }
   if (p.get('bal_sent')) return { tone: 'ok' as const, msg: 'Balance email sent.' };
   if (p.get('bal_failed')) return { tone: 'err' as const, msg: `Balance email failed${p.get('bal_error') ? `: ${p.get('bal_error')}` : ''}.` };
+  if (p.get('bal_marked')) {
+    return { tone: 'ok' as const, msg: 'Balance marked as paid — the booking is now settled in full.' };
+  }
+  if (p.get('bal_mark_failed')) {
+    const reason = p.get('bal_error') ?? '';
+    const readable: Record<string, string> = {
+      'not-paid': 'that booking is not paid, so there is no deposit to top up.',
+      'already-settled': 'that balance was already settled.',
+      'no-balance': 'nothing is outstanding on that booking.',
+    };
+    return {
+      tone: 'err' as const,
+      msg: `Nothing changed — ${readable[reason] ?? reason}`,
+    };
+  }
   if (p.get('wl_offered')) {
     return { tone: 'ok' as const, msg: 'Place offered — the claim link is on its way, and the place is held until it expires.' };
   }
@@ -1080,6 +1099,7 @@ const flash = (() => {
                 <th>Name</th>
                 <th>Email</th>
                 <th class="num">Balance due</th>
+                <th>Transfer ref</th>
                 <th>Last invited</th>
                 <th></th>
               </tr>
@@ -1095,22 +1115,34 @@ const flash = (() => {
                     <td>{displayName}</td>
                     <td><a href={`mailto:${r.email}`}>{r.email}</a></td>
                     <td class="num">{eur(r.balance_due_cents, r.currency)}</td>
+                    <td><code>{balancePaymentReference(r.id)}</code></td>
                     <td>{r.balance_invite_sent_at ? ymd(r.balance_invite_sent_at) : '—'}</td>
                     <td>
-                      <form method="POST" action="/api/admin/balance/send">
-                        <input type="hidden" name="registration_id" value={r.id} />
-                        <input type="hidden" name="return_to" value={returnTo} />
-                        <button type="submit" class="adm-btn adm-btn--ghost">
-                          {r.balance_invite_sent_at ? 'Resend link' : 'Send link'}
-                        </button>
-                      </form>
+                      <div class="adm-balance-actions">
+                        <form method="POST" action="/api/admin/balance/send">
+                          <input type="hidden" name="registration_id" value={r.id} />
+                          <input type="hidden" name="return_to" value={returnTo} />
+                          <button type="submit" class="adm-btn adm-btn--ghost">
+                            {r.balance_invite_sent_at ? 'Resend link' : 'Send link'}
+                          </button>
+                        </form>
+                        <form method="POST" action="/api/admin/balance/mark-paid"
+                              onsubmit={`return confirm(${JSON.stringify(
+                                `Mark ${eur(r.balance_due_cents, r.currency)} from ${displayName} as received? Use this once their bank transfer has landed — it settles the booking in full.`,
+                              )})`}>
+                          <input type="hidden" name="registration_id" value={r.id} />
+                          <input type="hidden" name="return_to" value={returnTo} />
+                          <input type="hidden" name="method" value="bank-transfer" />
+                          <button type="submit" class="adm-btn adm-btn--ghost">Mark paid</button>
+                        </form>
+                      </div>
                     </td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
-          <p class="adm-table-note">Each link is a checkout for that person's exact remaining balance, on the same gateway (Stripe or PayPal) they paid the deposit with. When they pay, the balance is cleared automatically (via the payment webhook) and they drop off this list. “Last invited” shows when the email was last sent — use <strong>Resend link</strong> for a reminder.</p>
+          <p class="adm-table-note">The email offers two ways to settle. A <strong>bank transfer</strong> to {BANK_TRANSFER.accountName} ({BANK_TRANSFER.iban}) is put first, quoting the <strong>transfer ref</strong> in this table, and the guest is asked to reply once they have sent it — that transfer has no webhook, so press <strong>Mark paid</strong> here when it lands and the booking is settled in full. Otherwise the <strong>link</strong> is a checkout for that person's exact remaining balance, on the same gateway (Stripe or PayPal) they paid the deposit with, and clears itself automatically when they pay. Either way they drop off this list. “Last invited” shows when the email was last sent — use <strong>Resend link</strong> for a reminder.</p>
         </>
       )}
     </section>

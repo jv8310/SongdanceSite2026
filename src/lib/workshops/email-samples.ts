@@ -1,8 +1,9 @@
-// Sample renders of every lifecycle + transactional workshop email, with
-// fixed example data. Drives the /admin/emails preview page and the
-// "send me a test" endpoint, so the words can be reviewed exactly as a
-// recipient would see them. Timing/audience strings here are documentation —
-// the real cadence lives in cron.ts.
+// Sample renders of every lifecycle + transactional workshop email — plus the
+// retreat balance email, which an admin sends by hand — with fixed example
+// data. Drives the /admin/emails preview page and the "send me a test"
+// endpoint, so the words can be reviewed exactly as a recipient would see
+// them. Timing/audience strings here are documentation — the real cadence
+// lives in cron.ts.
 
 import {
   abandonedEmail1,
@@ -46,6 +47,11 @@ import {
   sampleWeeklyReportData,
 } from './reports';
 import { buildBriefingEmail, sampleBriefingData } from './briefing';
+import {
+  BALANCE_DUE_LABEL,
+  balancePaymentReference,
+  buildBalanceEmail,
+} from '../registrations/balance-email';
 
 export type EmailSample = {
   id: string;
@@ -510,6 +516,27 @@ export function buildEmailSamples(base: string): EmailSample[] {
         },
         { quadernoAccount: 'songdance', dripAccountId: '0000000', dripSubscriberId: 'xyz789ghi012' },
       ),
+    },
+
+    // ── Retreat balance (deposit-payers settling the remainder) ──────────
+    {
+      id: 'retreat_balance',
+      group: 'Retreat balance (transactional)',
+      label: 'Pay the remaining balance — bank transfer first, card link second',
+      timing:
+        'Sent by hand from /admin/retreats/<slug> → "Balance due" (one person, or everyone at once)',
+      audience:
+        'Booked with a 50% deposit and still owes the remainder. Bank transfers come back by reply and are marked paid on that same page; the card link clears itself.',
+      content: buildBalanceEmail({
+        first_name: 'Maria',
+        event_name: 'Dolphin & Sound Retreat',
+        amount_label: '€725',
+        due_label: BALANCE_DUE_LABEL,
+        // The real link is the Stripe (or PayPal) checkout for that person's
+        // exact balance; this is the shape one takes.
+        link: 'https://checkout.stripe.com/c/pay/cs_test_sample0123456789',
+        reference: balancePaymentReference(54),
+      }),
     },
 
     // ── Internal reports (SD-REPORT, ops only) ───────────────────────────

@@ -352,6 +352,34 @@ and when a place frees up the admin offers it to someone from
   confirmation email — you're already in the conversation). The retreats index
   shows "N waiting" per retreat.
 
+## Retreat balance — bank transfer first, and a hand to close it
+
+A retreat booked with a 50% deposit owes the rest before the retreat. The
+"pay the remainder" email is sent by hand from **`/admin/retreats/<slug>` →
+"Balance due"** (one person, or everyone at once); the sender lives in
+[`src/lib/registrations/balance.ts`](src/lib/registrations/balance.ts), the
+**words in [`balance-email.ts`](src/lib/registrations/balance-email.ts)** so
+`/admin/emails` can preview and test-send it beside the lifecycle mail.
+
+- **Two ways to settle, bank transfer first.** The email leads with the
+  Songdance account (`BANK_TRANSFER` — Songdance BV, `BE43 0689 3690 1001`; a
+  SEPA transfer needs the IBAN alone, so no BIC is quoted), the amount, and a
+  **transfer reference** — `balancePaymentReference(id)` = the same `R-<id>`
+  order number `/admin/orders` searches on. It asks the guest to **reply**
+  once they have sent it (`BALANCE_REPLY_TO`, which is also the send's
+  Reply-To — they must not drift). The Stripe/PayPal checkout link follows as
+  the alternative, on the gateway the deposit was paid with.
+- **A bank transfer has no webhook**, so the balance table carries a **Mark
+  paid** button per row (`/api/admin/balance/mark-paid`, admin-gated) next to
+  Send/Resend link, and the transfer ref beside the amount so a statement line
+  maps to a person. It does exactly what the two paid paths do
+  (`markBalancePaid` → roll the balance into `amount_cents`, `recordRetreatOrder`
+  to lift the Drip order from deposit to full, log
+  `registration.balance.paid`) — **no** re-fired "Completed registration" Drip
+  event and no SD-ORDER, same as the Stripe/PayPal balance handlers. It
+  refuses a row that is not paid, already settled, or owes nothing, so a
+  double-click can't log twice.
+
 ## Workshop revenue in EUR — never count a charge at face value
 
 Tickets are charged in the buyer's currency (`workshop_product_prices`), and a

@@ -828,6 +828,14 @@ body { background: var(--adm-paper); }
   font-size: 14px;
 }
 .adm-balance-bar form { margin: 0; }
+/* Per-row actions: send/resend the link, or mark a bank transfer received. */
+.adm-balance-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+.adm-balance-actions form { margin: 0; }
 @media (max-width: 760px) {
   .adm-table--invitees { display: block; overflow-x: auto; }
 }
