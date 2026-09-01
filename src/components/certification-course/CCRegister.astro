@@ -1434,7 +1434,7 @@ const countries = COUNTRIES;
 
     // The path: two transparent line items + a combined total. During a live
     // workshop window the whole path (both lines) is struck 20% off, with the
-    // 48h countdown; an override strikes only the 12-week line.
+    // 48h countdown; an override strikes both lines at its own percent.
     if (offer.slug === 'cc-bundle' && path) {
       const cur = path.currency;
       const d = path.discount;
@@ -1449,7 +1449,7 @@ const countries = COUNTRIES;
         ? d.kind === 'german'
           ? `German graduate — 12-week ${twPct}% off · certification ${certPct}% off`
           : d.kind === 'override'
-            ? `${d.percent}% off the 12-week`
+            ? `${d.percent}% off the whole path`
             : d.kind === 'promo'
               ? `Extended sale — ${d.percent}% off`
               : `Workshop discount — ${d.percent}% off the whole path`
