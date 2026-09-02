@@ -22,7 +22,10 @@ import {
   OFFER_HOUR_CHOICES,
 } from '../../../lib/registrations/waitlist';
 import {
-  BANK_TRANSFER,
+  // The account the balance email quotes. Aliased because BANK_TRANSFER on
+  // this page is the provider constant above — the value the `provider`
+  // column holds — and the two are compared/rendered a few lines apart.
+  BANK_TRANSFER as BALANCE_BANK_ACCOUNT,
   balancePaymentReference,
 } from '../../../lib/registrations/balance-email';
 
@@ -1157,7 +1160,7 @@ const flash = (() => {
               })}
             </tbody>
           </table>
-          <p class="adm-table-note">The email offers two ways to settle. A <strong>bank transfer</strong> to {BANK_TRANSFER.accountName} ({BANK_TRANSFER.iban}) is put first, quoting the <strong>transfer ref</strong> in this table, and the guest is asked to reply once they have sent it — that transfer has no webhook, so press <strong>Mark paid</strong> here when it lands and the booking is settled in full. Otherwise the <strong>link</strong> is a checkout for that person's exact remaining balance, on the same gateway (Stripe or PayPal) they paid the deposit with, and clears itself automatically when they pay. Either way they drop off this list. “Last invited” shows when the email was last sent — use <strong>Resend link</strong> for a reminder.</p>
+          <p class="adm-table-note">The email offers two ways to settle. A <strong>bank transfer</strong> to {BALANCE_BANK_ACCOUNT.accountName} ({BALANCE_BANK_ACCOUNT.iban}) is put first, quoting the <strong>transfer ref</strong> in this table, and the guest is asked to reply once they have sent it — that transfer has no webhook, so press <strong>Mark paid</strong> here when it lands and the booking is settled in full. Otherwise the <strong>link</strong> is a checkout for that person's exact remaining balance, on the same gateway (Stripe or PayPal) they paid the deposit with, and clears itself automatically when they pay. Either way they drop off this list. “Last invited” shows when the email was last sent — use <strong>Resend link</strong> for a reminder.</p>
         </>
       )}
     </section>
