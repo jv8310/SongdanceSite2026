@@ -25,6 +25,7 @@ import {
   applyDiscountPercent,
   resolveTicketDiscountPercent,
 } from '../../../lib/workshops/discount';
+import { resolveReferralForCheckout } from '../../../lib/workshops/share';
 
 export const prerender = false;
 
@@ -140,6 +141,17 @@ export const POST: APIRoute = async ({ request, locals }) => {
   }
   const realBump = !!(bumpProduct && bumpPrice);
 
+  // Did a friend's share link bring them here? The sd_ref cookie was set when
+  // they landed on it (see src/middleware.ts) and outlives that visit, so this
+  // credits the sale even when they came back days later on a bare URL. Never
+  // credits the sharer their own re-registration.
+  const referral = await resolveReferralForCheckout(
+    env.DB,
+    env.ADMIN_SESSION_SECRET,
+    request,
+    email,
+  );
+
   const { id: registrationId, token: accessToken } = await upsertRegistration(env.DB, {
     workshop_id: workshop.id,
     name,
@@ -153,6 +165,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
     wants_bump: realBump,
     source_tag: workshop.source_tag,
     audience,
+    referred_by_id: referral?.referredById ?? null,
+    referral_channel: referral?.channel ?? null,
   });
 
   // ── Free-coupon path: skip Stripe, grant access immediately. ──────────

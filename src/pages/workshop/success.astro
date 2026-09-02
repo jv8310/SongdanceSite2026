@@ -24,6 +24,12 @@ import {
   PUBLIC_DISCOUNT_PARAM,
   resolveTicketDiscountPercent,
 } from '../../lib/workshops/discount';
+import {
+  buildShareUrl,
+  recordSharePanelView,
+  signShareToken,
+  SHARE_CHANNEL_PARAM,
+} from '../../lib/workshops/share';
 
 export const prerender = false;
 
@@ -66,28 +72,64 @@ const win =
 // (a masterclass has its own replay, falling back to the workshop one).
 const hasReplay = workshop ? !!(await resolveReplayUrl(env.DB, workshop)) : false;
 
-// "Share with a friend" — a half-price link that lands on the full workshop
-// page (not a single date's form), so the friend can pick any upcoming date.
+// Is this a masterclass? It decides the free-rebooking list below AND which
+// page a shared link lands on, so it's resolved once, up here.
+const currentIsMasterclass = workshop ? await workshopIsMasterclass(env.DB, workshop) : false;
+
+// "Share with a friend" — a half-price link that lands on the full landing page
+// for what they booked (not a single date's form), so the friend can pick any
+// upcoming date. A masterclass shares /courses/masterclass and a workshop
+// shares /workshop: until September 2026 both shared /workshop, so masterclass
+// attendees were sending friends to a different session at a different price.
+// `buildShareUrl` is the only place that decides this.
+//
 // The public ?discount=50 param is the one publicly-honored value, so the link
 // is safe to pass anywhere; it takes 50% off the ticket (never the bump).
 // ?friend=<slug> stars the date the sharer is attending, while leaving every
-// other date open at the same discount.
-const shareUrl = paid && reg && workshop
-  ? `${base}/workshop?${PUBLIC_DISCOUNT_PARAM}=${PUBLIC_DISCOUNT_PCT}&friend=${encodeURIComponent(workshop.slug)}`
-  : null;
+// other date open at the same discount. ?ref=<signed id> is what makes the
+// referral measurable — see src/lib/workshops/share.ts.
+const shareToken =
+  paid && reg && workshop
+    ? await signShareToken(env.ADMIN_SESSION_SECRET, reg.id)
+    : null;
+const shareUrl =
+  shareToken && workshop
+    ? buildShareUrl({
+        base,
+        isMasterclass: currentIsMasterclass,
+        workshopSlug: workshop.slug,
+        discountParam: PUBLIC_DISCOUNT_PARAM,
+        discountPct: PUBLIC_DISCOUNT_PCT,
+        token: shareToken,
+      })
+    : null;
+// The share panel is about to be rendered for this registrant — the first step
+// of the funnel. Recorded once per registrant (the page is reloaded constantly
+// while they wait for the join button), off the response's critical path.
+if (shareUrl && reg && workshop) {
+  const ctx: any = Astro.locals.runtime?.ctx;
+  const view = recordSharePanelView(env.DB, reg.id, workshop.id);
+  if (ctx?.waitUntil) ctx.waitUntil(view);
+  else await view;
+}
 // What the friend who follows that link actually saves: the public ?discount=50
 // stacks on the launch promo, so it's 75% off while the promo runs and a plain
-// 50% off once it's over. Advertise the real figure, not a flat "50%".
-const friendPct = resolveTicketDiscountPercent({ discount: String(PUBLIC_DISCOUNT_PCT) });
+// 50% off once it's over — and a masterclass keeps its own launch offer after
+// the launch sale closes, so the figure is resolved for the ticket they'll
+// actually be buying. Advertise the real figure, not a flat "50%".
+const friendPct = resolveTicketDiscountPercent(
+  { discount: String(PUBLIC_DISCOUNT_PCT) },
+  Date.now(),
+  { isMasterclass: currentIsMasterclass },
+);
 const shareText = workshop
-  ? `I just signed up for ${workshop.title} with Songdance — here's ${friendPct}% off your ticket if you'd like to join me:`
+  ? `I just signed up for ${workshop.title} with Songdance — here's ${friendPct}% off your ${currentIsMasterclass ? 'seat' : 'ticket'} if you'd like to join me:`
   : '';
 
 // Other upcoming live dates they can move onto, free of charge. Masterclasses
 // (the higher-priced, pro-facing dates) only appear to someone who actually
 // booked a masterclass — a regular-workshop registrant is never offered a free
 // masterclass seat.
-const currentIsMasterclass = workshop ? await workshopIsMasterclass(env.DB, workshop) : false;
 const upcoming = reg
   ? (await listUpcomingPublishedWorkshops(env.DB, new Date().toISOString()))
       .filter((w) => w.is_replay !== 1 && w.id !== reg.workshop_id)
@@ -243,7 +285,14 @@ if (reg && paid && reg.payment_status === 'paid') {
         )}
 
         {shareUrl && (
-          <div class="ws-share" data-share-url={shareUrl} data-share-text={shareText} data-share-title={workshop.title}>
+          <div
+            class="ws-share"
+            data-share-url={shareUrl}
+            data-share-text={shareText}
+            data-share-title={workshop.title}
+            data-share-token={shareToken}
+            data-share-channel-param={SHARE_CHANNEL_PARAM}
+          >
             <p class="ws-share-h">Share with a friend</p>
             <p class="ws-share-sub">Send them this link and they get <strong>{friendPct}% off</strong> their ticket.</p>
 
@@ -521,21 +570,60 @@ if (reg && paid && reg.payment_status === 'paid') {
   </script>
 
   <script is:inline>
-    // "Share with a friend" — copy link + prebuilt social share targets.
+    // "Share with a friend" — copy link + prebuilt social share targets, each
+    // carrying its own channel tag so a WhatsApp share can be told from a
+    // pasted link all the way through to the friend's registration.
     (function () {
       var box = document.querySelector('.ws-share');
       if (!box) return;
       var url = box.getAttribute('data-share-url') || '';
       var text = box.getAttribute('data-share-text') || '';
       var title = box.getAttribute('data-share-title') || '';
-      var msg = (text ? text + ' ' : '') + url;
+      var token = box.getAttribute('data-share-token') || '';
+      var channelParam = box.getAttribute('data-share-channel-param') || 'rc';
 
       var enc = encodeURIComponent;
-      var set = function (id, href) { var a = document.getElementById(id); if (a) a.href = href; };
-      set('ws-share-wa', 'https://wa.me/?text=' + enc(msg));
-      set('ws-share-fb', 'https://www.facebook.com/sharer/sharer.php?u=' + enc(url) + '&quote=' + enc(text));
-      set('ws-share-tg', 'https://t.me/share/url?url=' + enc(url) + '&text=' + enc(text));
-      set('ws-share-email', 'mailto:?subject=' + enc(title || 'A gift for you') + '&body=' + enc(msg));
+      // The link as posted through a given button. The copy field keeps the
+      // untagged URL as its visible value but copies the tagged one.
+      function linkFor(channel) {
+        return url + '&' + channelParam + '=' + enc(channel);
+      }
+      // Tell the site a share button was pressed. Fire-and-forget: sendBeacon
+      // survives the navigation a share target triggers; the keepalive fetch is
+      // the fallback where it isn't available. Failure is silent — a share must
+      // never be blocked by its own measurement.
+      function track(channel) {
+        if (!token) return;
+        var body = JSON.stringify({ ref: token, channel: channel });
+        try {
+          if (navigator.sendBeacon) {
+            navigator.sendBeacon('/api/workshops/share', new Blob([body], { type: 'application/json' }));
+            return;
+          }
+        } catch (e) {}
+        try {
+          fetch('/api/workshops/share', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: body,
+            keepalive: true,
+          }).catch(function () {});
+        } catch (e) {}
+      }
+
+      var set = function (id, href, channel) {
+        var a = document.getElementById(id);
+        if (!a) return;
+        a.href = href;
+        a.addEventListener('click', function () { track(channel); });
+      };
+      var waMsg = (text ? text + ' ' : '') + linkFor('whatsapp');
+      var tgLink = linkFor('telegram');
+      var mailMsg = (text ? text + ' ' : '') + linkFor('email');
+      set('ws-share-wa', 'https://wa.me/?text=' + enc(waMsg), 'whatsapp');
+      set('ws-share-fb', 'https://www.facebook.com/sharer/sharer.php?u=' + enc(linkFor('facebook')) + '&quote=' + enc(text), 'facebook');
+      set('ws-share-tg', 'https://t.me/share/url?url=' + enc(tgLink) + '&text=' + enc(text), 'telegram');
+      set('ws-share-email', 'mailto:?subject=' + enc(title || 'A gift for you') + '&body=' + enc(mailMsg), 'email');
 
       // Copy link.
       var input = document.getElementById('ws-share-input');
@@ -549,12 +637,17 @@ if (reg && paid && reg.payment_status === 'paid') {
         }, 2500);
       }
       function doCopy() {
+        track('copy');
+        var copyUrl = linkFor('copy');
         if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(url).then(copied).catch(selectFallback);
+          navigator.clipboard.writeText(copyUrl).then(copied).catch(selectFallback);
         } else {
           selectFallback();
         }
       }
+      // Clipboard API unavailable (old browser, insecure context): fall back to
+      // selecting the field. It holds the untagged link, so the channel tag is
+      // lost — the visit still counts, just as an untagged one.
       function selectFallback() {
         if (!input) return;
         input.focus(); input.select();
@@ -568,7 +661,8 @@ if (reg && paid && reg.payment_status === 'paid') {
       if (moreBtn && navigator.share) {
         moreBtn.hidden = false;
         moreBtn.addEventListener('click', function () {
-          navigator.share({ title: title, text: text, url: url }).catch(function () {});
+          track('native');
+          navigator.share({ title: title, text: text, url: linkFor('native') }).catch(function () {});
         });
       }
     })();

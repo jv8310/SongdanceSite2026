@@ -262,6 +262,16 @@
 .mc-cal-item--masterclass:hover { border-color: var(--plum); }
 .mc-cal-item--masterclass .we-cal-price { color: var(--plum); }
 
+/* The date a friend shared (?friend=<slug> on a share link) keeps its ember
+   highlight here too — this file loads after workshop-english.css, so the plum
+   masterclass row would otherwise win on equal specificity. */
+.mc-cal-item--masterclass.we-cal-item--friend {
+  border-color: var(--ember);
+  background: var(--ember-glow);
+  border-left: 3px solid var(--ember);
+}
+.mc-cal-item--masterclass.we-cal-item--friend:hover { border-color: var(--ember); }
+
 /* The stated-once seat price leads in the page's plum accent. */
 .we-price-lead--plum .we-price-lead-amount { color: var(--plum); }
 
