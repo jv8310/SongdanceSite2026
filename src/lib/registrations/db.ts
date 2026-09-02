@@ -116,6 +116,10 @@ export type Registration = {
   balance_stripe_session_id: string | null;
   // The balance ("pay the remainder") order, when settled via PayPal.
   balance_paypal_order_id: string | null;
+  // Quaderno invoice for the balance payment, when we made it ourselves —
+  // i.e. a manual bank transfer, which no gateway connector would invoice
+  // (see lib/orders/retreat-invoice.ts, migration 0082).
+  balance_quaderno_invoice_id: string | null;
 };
 
 export async function getProductBySlug(db: D1Database, slug: string) {

@@ -10,6 +10,15 @@
 // notified — both route through the workshop engine, which never calls this.
 // That's deliberate: those are high-volume and would flood the inbox.
 //
+// A retreat booked on a 50% deposit produces TWO of these: the booking, and
+// the remaining balance landing weeks later (notifyRetreatBalanceOrder, sent
+// from all three settling paths — Stripe, PayPal, and the admin "Mark paid"
+// for a bank transfer). They claim separate ids, so neither suppresses the
+// other. Where the money came by bank transfer the notification also carries
+// the Quaderno invoice we raised for it (lib/orders/retreat-invoice.ts) — a
+// gateway payment has no such line, because the Stripe↔Quaderno connector
+// raises that one on its own clock.
+//
 // Idempotency: each order claims a unique row in the `events` audit log
 // (external_id `order-notify-<type>-<id>`) before sending, so re-delivered
 // Stripe events never produce a second email. A send failure releases the
@@ -77,6 +86,11 @@ const PAYMENT_PLAN_LABELS: Record<string, string> = {
 export type OrderNotificationInput = {
   orderType: 'course' | 'retreat';
   orderId: number;
+  // Which receipt of money this is. 'balance' is the second half of a retreat
+  // booked on a 50% deposit — a real payment landing weeks after the booking,
+  // so it gets its own notification (and its own idempotency claim) rather
+  // than being folded into the original order's.
+  orderKind?: 'purchase' | 'balance';
   productName: string;
   productSlug?: string | null;
   tierName?: string | null;
@@ -116,6 +130,10 @@ export type OrderNotificationInput = {
   stripeSubscriptionId?: string | null;
   paypalCaptureId?: string | null;
   paypalSubscriptionId?: string | null;
+  // The Quaderno invoice WE created for this payment (bank transfers only —
+  // a gateway payment is invoiced by the Stripe↔Quaderno connector, which
+  // runs on its own clock). Shown as a row and linked directly when present.
+  quadernoInvoice?: { number?: string | null; permalink?: string | null } | null;
 };
 
 // Link config resolved from env at send time (kept out of the pure builder so
@@ -186,7 +204,14 @@ function resolveRecipients(env: OrderEnv): string[] {
 // The Quaderno invoice is created asynchronously by the Stripe↔Quaderno sync,
 // so we don't know its id at webhook time — we link to the invoices list
 // filtered by the buyer's email, which lands on (or right beside) it.
-function quadernoUrl(ctx: LinkContext, email: string): string | null {
+function quadernoUrl(
+  ctx: LinkContext,
+  email: string,
+  invoice?: OrderNotificationInput['quadernoInvoice'],
+): string | null {
+  // A bank transfer's invoice is created by us, right before this email, so
+  // its permalink is known and we can link the document itself.
+  if (invoice?.permalink) return invoice.permalink;
   if (!ctx.quadernoAccount) return null;
   return `https://${ctx.quadernoAccount}.quadernoapp.com/invoices?q=${encodeURIComponent(email)}`;
 }
@@ -233,7 +258,10 @@ export function buildOrderNotificationEmail(
   ctx: LinkContext = {},
 ): EmailContent {
   const first = firstNameOf(input.firstName, input.customerName || input.email);
-  const subject = `SD-ORDER: ${input.productName} by ${first} (#${input.orderId})`;
+  const isBalance = input.orderKind === 'balance';
+  const subject = isBalance
+    ? `SD-ORDER: balance — ${input.productName} by ${first} (#${input.orderId})`
+    : `SD-ORDER: ${input.productName} by ${first} (#${input.orderId})`;
 
   const amount = formatMoney(input.amountCents, input.currency);
   const planLabel = input.paymentPlan
@@ -256,10 +284,17 @@ export function buildOrderNotificationEmail(
   // Build the field list. Each entry is [label, value]; null/empty values are
   // dropped so the email only shows what's actually there.
   const fields: Array<[string, string | null | undefined]> = [
-    ['Order', `#${input.orderId} · ${input.orderType === 'course' ? 'Course' : 'Retreat'}`],
+    [
+      'Order',
+      `#${input.orderId} · ${input.orderType === 'course' ? 'Course' : 'Retreat'}` +
+        (isBalance ? ' · remaining balance' : ''),
+    ],
     ['Product', input.tierName ? `${input.productName} — ${input.tierName}` : input.productName],
     ['Workshop attended', attendedWorkshopValue(input.attendedWorkshop)],
-    ['Amount', planLabel ? `${amount} (${planLabel})` : amount],
+    [
+      isBalance ? 'Balance received' : 'Amount',
+      planLabel ? `${amount} (${planLabel})` : amount,
+    ],
     ['Add-ons', addonsValue],
     ['Order total', orderTotal],
     ['Gateway', gatewayLabel(input.provider)],
@@ -282,10 +317,11 @@ export function buildOrderNotificationEmail(
     ['Notes', input.notes],
     ['Source', input.sourceVariant],
     ['Paid at', input.paidAt],
+    ['Quaderno invoice', input.quadernoInvoice?.number ?? null],
   ];
 
   const links: Array<[string, string | null]> = [
-    ['Quaderno invoice', quadernoUrl(ctx, input.email)],
+    ['Quaderno invoice', quadernoUrl(ctx, input.email, input.quadernoInvoice)],
     [`${gatewayLabel(input.provider)} payment`, paymentUrl(input)],
     ['Drip subscriber', dripUrl(ctx)],
   ];
@@ -317,7 +353,7 @@ export function buildOrderNotificationEmail(
     <tr><td align="center" style="padding:28px 16px;">
       <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:100%;background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;">
         <tr><td style="padding:22px 26px 6px;">
-          <p style="margin:0 0 2px;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:#9ca3af;">New order · ${escapeHtml(input.orderType === 'course' ? 'Course' : 'Retreat')}</p>
+          <p style="margin:0 0 2px;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:#9ca3af;">${escapeHtml(isBalance ? 'Balance paid' : 'New order')} · ${escapeHtml(input.orderType === 'course' ? 'Course' : 'Retreat')}</p>
           <h1 style="margin:0;font-size:20px;font-weight:600;color:#111827;">${escapeHtml(input.productName)}</h1>
           <p style="margin:4px 0 0;font-size:14px;color:#6b7280;">by ${escapeHtml(input.customerName)} · #${input.orderId}</p>
         </td></tr>
@@ -375,7 +411,10 @@ export async function sendOrderNotification(
 ): Promise<void> {
   if (!env.RESEND_API_KEY) return;
 
-  const externalId = `order-notify-${input.orderType}-${input.orderId}`;
+  const externalId =
+    input.orderKind === 'balance'
+      ? `order-notify-${input.orderType}-${input.orderId}-balance`
+      : `order-notify-${input.orderType}-${input.orderId}`;
   let claimed = false;
   try {
     claimed = await claimOrderNotification(env.DB, externalId);
@@ -690,7 +729,10 @@ export async function sendDeckGiftClaimEmail(
 export async function notifyRetreatOrder(
   env: OrderEnv,
   reg: Registration,
-  opts?: { stripePaymentIntent?: string | null },
+  opts?: {
+    stripePaymentIntent?: string | null;
+    quadernoInvoice?: OrderNotificationInput['quadernoInvoice'];
+  },
 ): Promise<void> {
   const product = await env.DB.prepare('SELECT name, slug FROM products WHERE id = ?')
     .bind(reg.product_id)
@@ -719,5 +761,56 @@ export async function notifyRetreatOrder(
     provider: reg.provider,
     stripePaymentIntent: opts?.stripePaymentIntent ?? reg.stripe_payment_intent,
     paypalCaptureId: reg.paypal_capture_id,
+    quadernoInvoice: opts?.quadernoInvoice ?? null,
+  });
+}
+
+// The SECOND half of a deposit booking: the remaining balance landing weeks
+// later. It is a real payment — money in the account, an invoice to raise —
+// so the ops inbox gets its own notification for it, claimed separately from
+// the booking's (`order-notify-retreat-<id>-balance`) and therefore safe to
+// call from every path that settles a balance: the Stripe webhook, the PayPal
+// fulfilment, and the admin "Mark paid" for a bank transfer.
+//
+// `amountCents` is the balance just received — read it BEFORE markBalancePaid,
+// which rolls it into the row's amount_cents.
+export async function notifyRetreatBalanceOrder(
+  env: OrderEnv,
+  reg: Registration,
+  opts: {
+    amountCents: number;
+    provider?: OrderProvider;
+    quadernoInvoice?: OrderNotificationInput['quadernoInvoice'];
+    stripePaymentIntent?: string | null;
+  },
+): Promise<void> {
+  if (!(opts.amountCents > 0)) return;
+  const product = await env.DB.prepare('SELECT name, slug FROM products WHERE id = ?')
+    .bind(reg.product_id)
+    .first<{ name: string; slug: string }>();
+  const tier = await env.DB.prepare('SELECT name FROM tiers WHERE id = ?')
+    .bind(reg.tier_id)
+    .first<{ name: string }>();
+  await sendOrderNotification(env, {
+    orderType: 'retreat',
+    orderKind: 'balance',
+    orderId: reg.id,
+    productName: product?.name ?? `Product #${reg.product_id}`,
+    productSlug: product?.slug ?? null,
+    tierName: tier?.name ?? null,
+    firstName: firstNameOf(reg.first_name ?? reg.name, reg.email.split('@')[0]),
+    customerName: reg.name,
+    email: reg.email,
+    phone: reg.phone,
+    country: reg.country,
+    companyName: reg.company_name,
+    vatNumber: reg.vat_number,
+    amountCents: opts.amountCents,
+    currency: reg.currency,
+    notes: reg.notes,
+    paidAt: reg.balance_paid_at ?? new Date().toISOString(),
+    provider: opts.provider ?? reg.provider,
+    stripePaymentIntent: opts.stripePaymentIntent ?? null,
+    quadernoInvoice: opts.quadernoInvoice ?? null,
   });
 }

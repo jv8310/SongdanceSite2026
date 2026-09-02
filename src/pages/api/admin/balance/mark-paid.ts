@@ -6,6 +6,9 @@ import {
   markBalancePaid,
 } from '../../../../lib/registrations/db';
 import { recordRetreatOrder } from '../../../../lib/registrations/paid-handler';
+import { notifyRetreatBalanceOrder } from '../../../../lib/orders/notification';
+import { createRetreatInvoice } from '../../../../lib/orders/retreat-invoice';
+import { BANK_TRANSFER } from '../../../../lib/payments/provider';
 
 export const prerender = false;
 
@@ -17,9 +20,13 @@ export const prerender = false;
 // It does exactly what the Stripe/PayPal balance handlers do when the money
 // lands (stripe-webhook.ts `payment_kind=balance`, paypal-fulfill.ts
 // `fulfillBalancePaypal`): roll the balance into amount_cents, lift the Drip
-// ecommerce order from deposit to full, and log it. The registration is already
-// 'paid' from the deposit, so no Drip "Completed registration" event is
-// re-fired and no SD-ORDER goes out — same as those two paths.
+// ecommerce order from deposit to full, log it, and send the internal SD-ORDER
+// for the balance. The registration is already 'paid' from the deposit, so no
+// Drip "Completed registration" event is re-fired — same as those two paths.
+//
+// It does one thing they don't: raise the Quaderno invoice. This path exists
+// precisely because the money came by bank transfer, and a transfer has no
+// Stripe→Quaderno connector behind it to invoice the payment.
 //
 // Idempotent: markBalancePaid adds nothing once balance_due_cents is 0, and an
 // already-settled row is refused outright so a double-click can't log twice.
@@ -60,6 +67,26 @@ export const POST: APIRoute = async ({ request, locals }) => {
       source: 'admin',
       payload: { method, balance_cents: balance, marked_by: 'admin' },
     });
+
+    // Its own Quaderno invoice, for the balance amount, marked paid by wire
+    // transfer on the day it landed. Best-effort — the booking is settled
+    // either way, and the row's invoice button can retry.
+    const invoice = await createRetreatInvoice(env, registrationId, {
+      kind: 'balance',
+      amountCents: balance,
+      by: 'admin',
+    });
+
+    // And the internal SD-ORDER for it: money arriving weeks after the
+    // booking is its own event in the ops inbox.
+    const settled = await getRegistrationById(env.DB, registrationId);
+    if (settled) {
+      await notifyRetreatBalanceOrder(env, settled, {
+        amountCents: balance,
+        provider: BANK_TRANSFER,
+        quadernoInvoice: invoice.ok === true ? invoice : null,
+      });
+    }
   }
 
   const params = new URLSearchParams();

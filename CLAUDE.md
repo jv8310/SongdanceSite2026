@@ -336,12 +336,13 @@ money appears in the bank days later. Logic in
   **awaiting transfer** pill plus the amount, IBAN, reference and hold expiry
   on the row, and the ordinary **Mark paid** button (relabelled "Transfer
   received — mark paid") does the rest — it already runs every side-effect a
-  webhook would: `assignRoomOnPaid`, `settleWaitlistOnPaid`, Drip, SD-ORDER.
-  It also stamps the synthetic `manual-<id>` payment intent, which is why
-  `/admin/orders` has always read such a row as "Bank transfer"; the provider
-  column now says so from the moment of booking, before any payment intent
-  exists. A bank-transfer order is **never refundable from the admin**
-  (`isRefundable`) — the money goes back out of the bank by hand.
+  webhook would: `assignRoomOnPaid`, `settleWaitlistOnPaid`, Drip, SD-ORDER,
+  **and the Quaderno invoice** (below). It also stamps the synthetic
+  `manual-<id>` payment intent, which is why `/admin/orders` has always read
+  such a row as "Bank transfer"; the provider column now says so from the
+  moment of booking, before any payment intent exists. A bank-transfer order is
+  **never refundable from the admin** (`isRefundable`) — the money goes back
+  out of the bank by hand.
 - **The email** (`buildBankTransferEmail`) is transactional, uses the shared
   retreat shell (`retreatEmail` in `waitlist-emails.ts`, which grew an
   optional `details` panel for it), and asks the guest to **reply when they've
@@ -349,6 +350,44 @@ money appears in the bank days later. Logic in
   signal that the booking has become payable. A failed send is logged
   (`registration.bank_transfer.email_error`) and never fails the checkout: the
   booking stands and the details are on screen either way.
+
+## Retreat invoices — a transfer has no connector, so we raise it ourselves
+
+A Stripe payment is invoiced by the **Stripe→Quaderno native connector**; that
+is why nothing here ever created a retreat invoice. A manual IBAN transfer has
+no connector and no webhook, so a booking confirmed by hand used to leave no
+accounting document anywhere. [`src/lib/orders/retreat-invoice.ts`](src/lib/orders/retreat-invoice.ts)
+fills that hole — contact + invoice + a `wire_transfer` payment, so the invoice
+reads PAID, same shape as the manual course order (`orders/manual-order.ts`).
+
+- **Two moments, two invoices.** A booking and its later balance are separate
+  receipts of money, so each gets its own: `registrations.quaderno_invoice_id`
+  and `balance_quaderno_invoice_id` (migration 0082). Both show on the admin
+  row and on `/admin/orders/R-<id>`.
+- **VAT follows the venue, not the buyer.** A retreat is not an e-service, so
+  the invoice carries `products.vat_rate` explicitly (0.21 Belgian château,
+  0.00 Red Sea boat) rather than the destination rate Quaderno would derive
+  from the contact for a `tax_class` line. That is the same rate every revenue
+  figure on the site nets by, so invoice and dashboard agree. Prices are
+  tax-inclusive, as everywhere: the line's `unit_price` is the gross paid.
+- **Automatic only where a gateway certainly isn't involved**: the booking
+  invoice on "Transfer received — mark paid" (skipped by
+  `retreatPaidByGateway`, read *before* `markRegistrationPaid` overwrites the
+  payment intent), and the balance invoice on the Balance-due table's **Mark
+  paid** — which exists precisely because a transfer has no webhook.
+- **Everything else is a button.** `/admin/retreats/<slug>` shows **Create
+  Quaderno invoice** on any paid row with none, and **Invoice the balance** on
+  a settled balance with none (`/api/admin/retreat-invoice`). Only a person
+  knows a given payment did *not* come through Stripe, and inventing a second
+  invoice for money the connector already invoiced is worse than having none.
+  It is also the retry after a Quaderno error, and how a **PayPal** retreat
+  (PayPal has no Quaderno connector) gets an invoice. A settled balance's
+  amount is recovered from the events log (`settledBalanceCents`) — by then
+  `markBalancePaid` has folded it into `amount_cents`.
+- **Never throws, never double-invoices**: claimed in `events`
+  (`quaderno-retreat-<id>` / `quaderno-retreat-balance-<id>`, released on
+  failure), refuses a row that already carries an invoice id, and returns a
+  result the admin banner reports instead of failing the booking.
 
 ## Retreat waiting list — and the offer that holds a place
 
@@ -428,9 +467,16 @@ A retreat booked with a 50% deposit owes the rest before the retreat. The
   (`markBalancePaid` → roll the balance into `amount_cents`, `recordRetreatOrder`
   to lift the Drip order from deposit to full, log
   `registration.balance.paid`) — **no** re-fired "Completed registration" Drip
-  event and no SD-ORDER, same as the Stripe/PayPal balance handlers. It
-  refuses a row that is not paid, already settled, or owes nothing, so a
-  double-click can't log twice.
+  event, same as the Stripe/PayPal balance handlers. It refuses a row that is
+  not paid, already settled, or owes nothing, so a double-click can't log
+  twice.
+- **A balance is its own order.** Money landing weeks after the booking gets
+  its own SD-ORDER (`notifyRetreatBalanceOrder`, claimed on
+  `order-notify-retreat-<id>-balance` so it never collides with the booking's),
+  sent from **all three** settling paths — Stripe webhook, PayPal fulfilment,
+  and the admin button. The admin button additionally raises the **Quaderno
+  invoice** for the balance, since that path is by definition a bank transfer
+  (see "Retreat invoices" above).
 
 ## Workshop revenue in EUR — never count a charge at face value
 

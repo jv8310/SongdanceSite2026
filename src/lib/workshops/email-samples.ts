@@ -517,6 +517,62 @@ export function buildEmailSamples(base: string): EmailSample[] {
         { quadernoAccount: 'songdance', dripAccountId: '0000000', dripSubscriberId: 'xyz789ghi012' },
       ),
     },
+    {
+      id: 'order_retreat_bank_transfer',
+      group: 'Order notifications (internal)',
+      label: 'SD-ORDER — retreat paid by bank transfer',
+      timing: 'When "Transfer received — mark paid" is pressed on /admin/retreats/<slug>',
+      audience: 'Team inbox (jacob@ + support@) — not the customer',
+      content: buildOrderNotificationEmail(
+        {
+          orderType: 'retreat',
+          orderId: 50,
+          productName: 'Dolphin & Sound Retreat',
+          productSlug: 'dolphin-and-sound-2026',
+          tierName: 'Twin cabin — lower deck with porthole',
+          firstName: 'Veronique',
+          customerName: 'Veronique Van Malder',
+          email: 'veronique@example.com',
+          phone: '+32 479 85 02 19',
+          country: 'BE',
+          amountCents: 199500,
+          currency: 'EUR',
+          paidAt: '2026-09-01 17:07:00',
+          provider: 'bank_transfer',
+          // No gateway link on a transfer; the invoice we raised links instead.
+          quadernoInvoice: { number: 'INV-2026-0142', permalink: null },
+        },
+        { quadernoAccount: 'songdance', dripAccountId: '0000000', dripSubscriberId: 'xyz789ghi012' },
+      ),
+    },
+    {
+      id: 'order_retreat_balance',
+      group: 'Order notifications (internal)',
+      label: 'SD-ORDER — retreat balance received',
+      timing:
+        'When a deposit-payer settles the remainder — the Stripe/PayPal link, or "Mark paid" for a bank transfer',
+      audience: 'Team inbox (jacob@ + support@) — not the customer',
+      content: buildOrderNotificationEmail(
+        {
+          orderType: 'retreat',
+          orderKind: 'balance',
+          orderId: 47,
+          productName: 'Dolphin & Sound Retreat',
+          productSlug: 'dolphin-and-sound-2026',
+          tierName: 'Twin cabin — upper deck',
+          firstName: 'Maria',
+          customerName: 'Maria Voss',
+          email: 'maria@example.com',
+          country: 'NL',
+          amountCents: 99750,
+          currency: 'EUR',
+          paidAt: '2026-09-20 11:31:00',
+          provider: 'bank_transfer',
+          quadernoInvoice: { number: 'INV-2026-0163', permalink: null },
+        },
+        { quadernoAccount: 'songdance', dripAccountId: '0000000', dripSubscriberId: 'xyz789ghi012' },
+      ),
+    },
 
     // ── Retreat balance (deposit-payers settling the remainder) ──────────
     {

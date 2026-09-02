@@ -46,6 +46,7 @@ import {
 import {
   notifyCourseOrder,
   notifyRetreatOrder,
+  notifyRetreatBalanceOrder,
 } from '../../../lib/orders/notification';
 
 // Invoicing note: Quaderno is connected to Stripe via Quaderno's own Stripe
@@ -127,9 +128,22 @@ export const POST: APIRoute = async ({ request, locals }) => {
         ? await getRegistrationById(env.DB, balRegId)
         : null;
       if (balReg && session.payment_intent) {
+        const balanceCents = balReg.balance_due_cents ?? 0;
         await markBalancePaid(env.DB, balReg.id);
         // Lift the Drip order to the now-full amount_cents (idempotent; no event).
         await recordRetreatOrder(env, balReg.id);
+        // Its own SD-ORDER — the balance is a real payment landing weeks after
+        // the booking, so the ops inbox sees it as its own line. No Quaderno
+        // invoice from us: this money went through Stripe, so the
+        // Stripe→Quaderno connector raises it, exactly as for the deposit.
+        const balSettled = await getRegistrationById(env.DB, balReg.id);
+        if (balSettled) {
+          await notifyRetreatBalanceOrder(env, balSettled, {
+            amountCents: balanceCents,
+            provider: 'stripe',
+            stripePaymentIntent: String(session.payment_intent),
+          });
+        }
         await logEvent(env.DB, {
           registration_id: balReg.id,
           kind: 'registration.balance.paid',

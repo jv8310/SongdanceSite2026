@@ -16,6 +16,7 @@
 // We surface whichever applies as a single human-readable note.
 
 import { formatMoney } from '../workshops/currency';
+import { BANK_TRANSFER } from '../payments/provider';
 import {
   findOrder,
   parseOrderNo,
@@ -502,6 +503,9 @@ type RReg = {
   stripe_payment_intent: string | null;
   paypal_capture_id: string | null;
   quaderno_invoice_id: string | null;
+  balance_quaderno_invoice_id: string | null;
+  balance_due_cents: number;
+  balance_paid_at: string | null;
   created_at: string;
   paid_at: string | null;
   product_name: string | null;
@@ -521,7 +525,9 @@ async function enrichRetreat(
               r.dietary, r.notes, r.status, r.amount_cents, r.currency,
               r.role, r.role_discount_cents, r.provider,
               r.stripe_session_id, r.stripe_payment_intent, r.paypal_capture_id,
-              r.quaderno_invoice_id, r.created_at, r.paid_at,
+              r.quaderno_invoice_id, r.balance_quaderno_invoice_id,
+              r.balance_due_cents, r.balance_paid_at,
+              r.created_at, r.paid_at,
               p.name AS product_name, t.name AS tier_name, iu.name AS room_name
          FROM registrations r
          LEFT JOIN products p ON p.id = r.product_id
@@ -559,19 +565,45 @@ async function enrichRetreat(
     field('Notes', reg?.notes),
   ]);
 
+  // A manual IBAN transfer never touched a gateway, so its gateway ids are
+  // meaningless (the payment intent is the synthetic `manual-<id>` the admin
+  // "Mark paid" stamps) — don't print them as if a charge existed.
+  const isBankTransfer =
+    order.provider === BANK_TRANSFER ||
+    (reg?.stripe_payment_intent?.startsWith('manual-') ?? false);
   const payment = fields([
-    field('Gateway', order.provider === 'paypal' ? 'PayPal' : 'Stripe'),
+    field(
+      'Gateway',
+      isBankTransfer
+        ? 'Bank transfer'
+        : order.provider === 'paypal'
+          ? 'PayPal'
+          : 'Stripe',
+    ),
     field('Payment status', reg?.status),
-    field('Stripe session', reg?.stripe_session_id, { mono: true }),
-    field('Stripe PaymentIntent', reg?.stripe_payment_intent, { mono: true }),
-    field('PayPal capture', reg?.paypal_capture_id, { mono: true }),
+    ...(isBankTransfer
+      ? []
+      : [
+          field('Stripe session', reg?.stripe_session_id, { mono: true }),
+          field('Stripe PaymentIntent', reg?.stripe_payment_intent, { mono: true }),
+          field('PayPal capture', reg?.paypal_capture_id, { mono: true }),
+        ]),
     field('Quaderno invoice', reg?.quaderno_invoice_id, { mono: true }),
+    field('Balance invoice', reg?.balance_quaderno_invoice_id, { mono: true }),
   ]);
 
   const extra = fields([
     field('Tier', reg?.tier_name),
     field('Room', reg?.room_name),
     field('Role', reg?.role),
+    field(
+      'Balance',
+      reg?.balance_paid_at
+        ? `Settled ${fmtTs(reg.balance_paid_at)}`
+        : (reg?.balance_due_cents ?? 0) > 0
+          ? `${formatMoney(reg!.balance_due_cents, reg!.currency || order.originalCurrency)} outstanding`
+          : null,
+    ),
     field('Registered', fmtTs(reg?.created_at ?? order.createdAt)),
     field('Paid at', fmtTs(reg?.paid_at ?? order.paidAt)),
   ]);

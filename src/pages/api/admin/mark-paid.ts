@@ -9,6 +9,11 @@ import {
 import { settleWaitlistOnPaid } from '../../../lib/registrations/waitlist';
 import { pushPaidRegistrationToDrip } from '../../../lib/registrations/paid-handler';
 import { notifyRetreatOrder } from '../../../lib/orders/notification';
+import {
+  createRetreatInvoice,
+  retreatPaidByGateway,
+  type RetreatInvoiceResult,
+} from '../../../lib/orders/retreat-invoice';
 
 export const prerender = false;
 
@@ -17,6 +22,13 @@ export const prerender = false;
 // Drip side-effects the webhook would have. Idempotent — re-running on
 // an already-paid row is a no-op except for re-firing the Drip event,
 // which Drip itself dedupes server-side.
+//
+// It is also the button that confirms a manual IBAN transfer. That money
+// never touched Stripe, so the Stripe→Quaderno connector will never invoice
+// it — we create the invoice ourselves here. Only for rows the guest actually
+// chose to pay by transfer: a row that already carries a gateway charge is
+// left alone (double-invoicing a Stripe payment is worse than the admin
+// pressing "Create Quaderno invoice" on the row afterwards).
 export const POST: APIRoute = async ({ request, locals }) => {
   const env = locals.runtime.env;
   if (!(await verifySession(env.ADMIN_SESSION_SECRET, readCookie(request)))) {
@@ -27,6 +39,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
   if (!Number.isFinite(registrationId)) {
     return new Response('Bad registration_id', { status: 400 });
   }
+
+  // Read the row first: markRegistrationPaid stamps the synthetic
+  // `manual-<id>` payment intent over whatever gateway reference was there,
+  // which is the very thing that tells us whether a gateway already invoiced
+  // this booking.
+  const before = await getRegistrationById(env.DB, registrationId);
+  const needsOwnInvoice = !!before && !retreatPaidByGateway(before);
 
   await markRegistrationPaid(
     env.DB,
@@ -48,12 +67,21 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
   await pushPaidRegistrationToDrip(env, registrationId);
 
+  // Quaderno invoice for money that never touched a gateway — marked paid by
+  // wire transfer, at the retreat's own VAT rate. Best-effort and idempotent:
+  // a failure is logged and the booking stands, and the row's "Create Quaderno
+  // invoice" button can retry it.
+  const invoice: RetreatInvoiceResult | null = needsOwnInvoice
+    ? await createRetreatInvoice(env, registrationId, { kind: 'booking' })
+    : null;
+
   // Internal SD-ORDER notification (idempotent: a no-op if the webhook
   // already sent it for this order).
   const reg = await getRegistrationById(env.DB, registrationId);
   if (reg) {
     await notifyRetreatOrder(env, reg, {
       stripePaymentIntent: reg.stripe_payment_intent,
+      quadernoInvoice: invoice?.ok === true ? invoice : null,
     });
   }
 

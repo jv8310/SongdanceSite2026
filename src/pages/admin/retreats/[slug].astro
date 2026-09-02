@@ -21,10 +21,7 @@ import {
   DEFAULT_OFFER_HOURS,
   OFFER_HOUR_CHOICES,
 } from '../../../lib/registrations/waitlist';
-import {
-  BANK_TRANSFER,
-  balancePaymentReference,
-} from '../../../lib/registrations/balance-email';
+import { balancePaymentReference } from '../../../lib/registrations/balance-email';
 
 export const prerender = false;
 
@@ -37,6 +34,12 @@ if (!authed) {
 const productSlug = Astro.params.slug ?? '';
 const statusFilter = Astro.url.searchParams.get('status') ?? '';
 const returnTo = `/admin/retreats/${productSlug}${statusFilter ? `?status=${statusFilter}` : ''}`;
+
+// Deep-link base for a Quaderno invoice raised on a booking (bank transfers —
+// a gateway payment is invoiced by the Stripe↔Quaderno connector instead).
+const quadernoBase = env.QUADERNO_ACCOUNT
+  ? `https://${env.QUADERNO_ACCOUNT}${env.QUADERNO_SANDBOX === '1' ? '.sandbox-quadernoapp.com' : '.quadernoapp.com'}`
+  : null;
 
 const product = await env.DB
   .prepare('SELECT id, name, starts_at, ends_at, currency, vat_rate FROM products WHERE slug = ? AND type = ?')
@@ -86,6 +89,10 @@ type Row = {
   balance_due_cents: number;
   balance_invite_sent_at: string | null;
   balance_paid_at: string | null;
+  quaderno_invoice_id: string | null;
+  balance_quaderno_invoice_id: string | null;
+  stripe_payment_intent: string | null;
+  paypal_capture_id: string | null;
   host: number;
 };
 
@@ -105,6 +112,8 @@ const q = await env.DB.prepare(
           r.created_at, r.paid_at, r.cancelled_at,
           r.refunded_at, r.refunded_amount_cents,
           r.balance_due_cents, r.balance_invite_sent_at, r.balance_paid_at,
+          r.quaderno_invoice_id, r.balance_quaderno_invoice_id,
+          r.stripe_payment_intent, r.paypal_capture_id,
           r.host,
           t.name AS tier_name, t.slug AS tier_slug,
           iu.name AS inventory_unit_name
@@ -588,6 +597,34 @@ const flash = (() => {
     return {
       tone: 'err' as const,
       msg: `Nothing changed — ${readable[reason] ?? reason}`,
+    };
+  }
+  if (p.get('inv_created')) {
+    const n = p.get('inv_number');
+    if (p.get('inv_unpaid')) {
+      return {
+        tone: 'err' as const,
+        msg: `Quaderno invoice${n ? ` ${n}` : ''} was created but could not be marked paid — register the payment in Quaderno by hand.`,
+      };
+    }
+    return {
+      tone: 'ok' as const,
+      msg: `Quaderno invoice created${n ? ` (${n})` : ''}, marked paid by bank transfer.`,
+    };
+  }
+  if (p.get('inv_failed')) {
+    const reason = p.get('inv_error') ?? '';
+    const readable: Record<string, string> = {
+      'quaderno-not-configured': 'Quaderno is not configured (QUADERNO_API_KEY / QUADERNO_ACCOUNT).',
+      'registration-missing': 'that booking no longer exists.',
+      'not-paid': 'that booking is not paid yet.',
+      'nothing-to-invoice': 'there is no amount to invoice on that booking.',
+      'already-invoiced': 'that payment already has an invoice.',
+      'balance-amount-unknown': 'the balance amount could not be recovered from the log — raise that one in Quaderno by hand.',
+    };
+    return {
+      tone: 'err' as const,
+      msg: `No invoice created — ${readable[reason] ?? reason}`,
     };
   }
   if (p.get('wl_offered')) {
@@ -1157,7 +1194,7 @@ const flash = (() => {
               })}
             </tbody>
           </table>
-          <p class="adm-table-note">The email offers two ways to settle. A <strong>bank transfer</strong> to {BANK_TRANSFER.accountName} ({BANK_TRANSFER.iban}) is put first, quoting the <strong>transfer ref</strong> in this table, and the guest is asked to reply once they have sent it — that transfer has no webhook, so press <strong>Mark paid</strong> here when it lands and the booking is settled in full. Otherwise the <strong>link</strong> is a checkout for that person's exact remaining balance, on the same gateway (Stripe or PayPal) they paid the deposit with, and clears itself automatically when they pay. Either way they drop off this list. “Last invited” shows when the email was last sent — use <strong>Resend link</strong> for a reminder.</p>
+          <p class="adm-table-note">The email offers two ways to settle. A <strong>bank transfer</strong> to {BANK_ACCOUNT.beneficiary} ({BANK_ACCOUNT.iban}) is put first, quoting the <strong>transfer ref</strong> in this table, and the guest is asked to reply once they have sent it — that transfer has no webhook, so press <strong>Mark paid</strong> here when it lands and the booking is settled in full. Otherwise the <strong>link</strong> is a checkout for that person's exact remaining balance, on the same gateway (Stripe or PayPal) they paid the deposit with, and clears itself automatically when they pay. Either way they drop off this list. “Last invited” shows when the email was last sent — use <strong>Resend link</strong> for a reminder.</p>
         </>
       )}
     </section>
@@ -1196,6 +1233,38 @@ const flash = (() => {
           const awaitingTransfer =
             r.provider === BANK_TRANSFER &&
             (r.status === 'pending' || r.status === 'expired');
+          // Did a gateway take this money — and therefore already raise its
+          // invoice through the Stripe→Quaderno connector? Mirrors
+          // retreatPaidByGateway() in lib/orders/retreat-invoice.ts, except
+          // that "Mark paid" has by now overwritten the payment intent with
+          // `manual-<id>`, which is exactly what marks a hand-settled row.
+          const paidByGateway =
+            r.provider !== BANK_TRANSFER &&
+            (!!r.paypal_capture_id ||
+              (!!r.stripe_payment_intent &&
+                !r.stripe_payment_intent.startsWith('manual-')));
+          const invoiceUrl = (id: string) =>
+            quadernoBase ? `${quadernoBase}/invoices/${id}` : null;
+          const bookingInvoiceUrl = r.quaderno_invoice_id
+            ? invoiceUrl(r.quaderno_invoice_id)
+            : null;
+          const balanceInvoiceUrl = r.balance_quaderno_invoice_id
+            ? invoiceUrl(r.balance_quaderno_invoice_id)
+            : null;
+          // Offer to raise the invoice by hand only where no gateway will
+          // raise one for us: a Stripe (or PayPal) charge
+          // is invoiced by the Quaderno connector, and we never learn that
+          // invoice's id — so an empty column there means "not ours", not
+          // "missing". `manual-<id>` is the mark-paid stamp, i.e. hand-settled.
+          const canInvoiceBooking =
+            r.status === 'paid' &&
+            !paidByGateway &&
+            !r.quaderno_invoice_id &&
+            r.amount_cents > 0;
+          const canInvoiceBalance =
+            r.status === 'paid' &&
+            !!r.balance_paid_at &&
+            !r.balance_quaderno_invoice_id;
           return (
             <article class={`adm-reg adm-reg--${r.status}`}>
               <div class="adm-reg-head">
@@ -1282,6 +1351,30 @@ const flash = (() => {
                 {r.balance_paid_at && (
                   <div><dt>Balance</dt><dd>Paid {ymd(r.balance_paid_at)}</dd></div>
                 )}
+                {r.quaderno_invoice_id && (
+                  <div>
+                    <dt>Invoice</dt>
+                    <dd>
+                      {bookingInvoiceUrl ? (
+                        <a href={bookingInvoiceUrl} target="_blank" rel="noopener">Quaderno ↗</a>
+                      ) : (
+                        <code>{r.quaderno_invoice_id}</code>
+                      )}
+                    </dd>
+                  </div>
+                )}
+                {r.balance_quaderno_invoice_id && (
+                  <div>
+                    <dt>Balance invoice</dt>
+                    <dd>
+                      {balanceInvoiceUrl ? (
+                        <a href={balanceInvoiceUrl} target="_blank" rel="noopener">Quaderno ↗</a>
+                      ) : (
+                        <code>{r.balance_quaderno_invoice_id}</code>
+                      )}
+                    </dd>
+                  </div>
+                )}
               </dl>
 
               <div class="adm-reg-actions">
@@ -1321,6 +1414,30 @@ const flash = (() => {
                     <input type="hidden" name="registration_id" value={r.id} />
                     <input type="hidden" name="return_to" value={returnTo} />
                     <button type="submit" class="adm-btn adm-btn--ghost">Resend to Drip</button>
+                  </form>
+                )}
+
+                {canInvoiceBooking && (
+                  <form method="POST" action="/api/admin/retreat-invoice"
+                        onsubmit={`return confirm(${JSON.stringify(
+                          `Raise a Quaderno invoice for ${eur(r.amount_cents, r.currency)} from ${displayName}, marked paid by bank transfer? Only for money that did NOT come through Stripe or PayPal — those are invoiced automatically.`,
+                        )}`}>
+                    <input type="hidden" name="registration_id" value={r.id} />
+                    <input type="hidden" name="kind" value="booking" />
+                    <input type="hidden" name="return_to" value={returnTo} />
+                    <button type="submit" class="adm-btn adm-btn--ghost">Create Quaderno invoice</button>
+                  </form>
+                )}
+
+                {canInvoiceBalance && (
+                  <form method="POST" action="/api/admin/retreat-invoice"
+                        onsubmit={`return confirm(${JSON.stringify(
+                          `Raise a Quaderno invoice for the balance #${r.id} paid on ${ymd(r.balance_paid_at)}, marked paid by bank transfer? Only for money that did NOT come through Stripe or PayPal.`,
+                        )}`}>
+                    <input type="hidden" name="registration_id" value={r.id} />
+                    <input type="hidden" name="kind" value="balance" />
+                    <input type="hidden" name="return_to" value={returnTo} />
+                    <button type="submit" class="adm-btn adm-btn--ghost">Invoice the balance</button>
                   </form>
                 )}
 

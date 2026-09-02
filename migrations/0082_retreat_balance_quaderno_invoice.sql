@@ -1,0 +1,11 @@
+-- Retreat balance payments: their own Quaderno invoice id.
+--
+-- A retreat booked on a 50% deposit produces TWO receipts of money: the
+-- deposit at checkout and the remainder weeks later. `quaderno_invoice_id`
+-- (migration 0001) holds the invoice for the first; this column holds the one
+-- for the balance, so a booking settled in two parts carries both.
+--
+-- It only ever fills for money that never touched a gateway — a manual SEPA
+-- transfer marked paid on /admin/retreats/<slug>. A Stripe balance is invoiced
+-- by the Stripe→Quaderno native connector, exactly as the deposit is.
+ALTER TABLE registrations ADD COLUMN balance_quaderno_invoice_id TEXT;

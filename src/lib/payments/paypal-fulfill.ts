@@ -34,7 +34,11 @@ import {
 } from '../courses/db';
 import { pushPaidCourseRegistrationToDrip } from '../courses/paid-handler';
 import { enforcePaypalScheduledCancel } from '../courses/installment-cancel';
-import { notifyCourseOrder, notifyRetreatOrder } from '../orders/notification';
+import {
+  notifyCourseOrder,
+  notifyRetreatOrder,
+  notifyRetreatBalanceOrder,
+} from '../orders/notification';
 import {
   getRegistrationById as getWorkshopRegById,
   getWorkshopById,
@@ -271,9 +275,18 @@ export async function fulfillBalancePaypal(
   const reg = await getRetreatRegById(env.DB, registrationId);
   if (!reg) return;
 
+  const balanceCents = reg.balance_due_cents ?? 0;
   await markBalancePaid(env.DB, reg.id);
   // Lift the Drip order to the now-full amount_cents (idempotent; no event).
   await recordRetreatOrder(env, reg.id);
+  // Its own SD-ORDER — money landing weeks after the booking is its own line
+  // in the ops inbox. (No Quaderno invoice from us on a gateway payment; see
+  // lib/orders/retreat-invoice.ts.)
+  const settled = (await getRetreatRegById(env.DB, reg.id)) ?? reg;
+  await notifyRetreatBalanceOrder(env, settled, {
+    amountCents: balanceCents,
+    provider: 'paypal',
+  });
   await logEvent(env.DB, {
     registration_id: reg.id,
     kind: 'paypal.balance.paid',
