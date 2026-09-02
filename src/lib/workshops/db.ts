@@ -549,6 +549,11 @@ export async function upsertRegistration(
     source_tag: string | null;
     audience?: string | null;
     payment_status?: WorkshopRegistration['payment_status'];
+    // Who this registration came from, when it arrived on a "share with a
+    // friend" link (src/lib/workshops/share.ts). First referral on the row
+    // wins — the person who actually brought them.
+    referred_by_id?: number | null;
+    referral_channel?: string | null;
   },
 ): Promise<{ id: number; token: string }> {
   const email = data.email.toLowerCase();
@@ -563,6 +568,8 @@ export async function upsertRegistration(
            wants_bump = ?, source_tag = COALESCE(?, source_tag),
            audience = COALESCE(?, audience),
            payment_status = COALESCE(?, payment_status),
+           referred_by_id = COALESCE(referred_by_id, ?),
+           referral_channel = COALESCE(referral_channel, ?),
            updated_at = datetime('now')
          WHERE id = ?`,
       )
@@ -570,7 +577,9 @@ export async function upsertRegistration(
         data.name, data.phone, data.country, data.currency, data.timezone,
         data.company_name ?? null, data.vat_number ?? null,
         data.wants_bump ? 1 : 0, data.source_tag, data.audience ?? null,
-        data.payment_status ?? null, existing.id,
+        data.payment_status ?? null,
+        data.referred_by_id ?? null, data.referral_channel ?? null,
+        existing.id,
       )
       .run();
     // Re-registering the same person keeps their existing token (so any link
@@ -591,14 +600,16 @@ export async function upsertRegistration(
     .prepare(
       `INSERT INTO workshop_registrations
          (workshop_id, name, email, phone, country, currency, timezone,
-          company_name, vat_number, wants_bump, source_tag, audience, payment_status, access_token)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+          company_name, vat_number, wants_bump, source_tag, audience, payment_status, access_token,
+          referred_by_id, referral_channel)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
     )
     .bind(
       data.workshop_id, data.name, email, data.phone, data.country, data.currency,
       data.timezone, data.company_name ?? null, data.vat_number ?? null,
       data.wants_bump ? 1 : 0, data.source_tag, data.audience ?? null,
       data.payment_status ?? 'prepared', token,
+      data.referred_by_id ?? null, data.referral_channel ?? null,
     )
     .first<{ id: number }>();
   if (!r) throw new Error('Failed to create registration');

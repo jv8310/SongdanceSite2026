@@ -275,7 +275,10 @@ export type StatsReport = {
 // Stripe row misses one whenever the balance transaction couldn't be read
 // (`workshop.webhook.settlement_failed`). /admin/orders has always converted
 // here (lib/admin/orders.ts); this is the same treatment, so the pages agree.
-function grossEurMinor(p: PaymentRow, fx?: Record<string, number>): number {
+export function grossEurMinor(
+  p: Pick<PaymentRow, 'amount_minor' | 'currency' | 'settlement_amount_minor' | 'settlement_currency'>,
+  fx?: Record<string, number>,
+): number {
   const toEur = (minor: number, currency: string | null): number => {
     const cur = (currency || 'EUR').toUpperCase();
     if (cur === 'EUR') return minor;

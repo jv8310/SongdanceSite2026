@@ -183,6 +183,51 @@ Everything now goes through [`src/lib/workshops/bump.ts`](src/lib/workshops/bump
 So what is advertised, charged, recorded and granted are one decision. Adding a
 caller that re-derives the bump re-opens this exact bug.
 
+## Share with a friend — one link builder, and the funnel behind it
+
+The countdown page (`/workshop/success`) offers every secured registrant a link
+to pass on, carrying the public `?discount=50`. Two things about it:
+
+- **The landing page is decided in exactly one place** —
+  `shareLandingPath` / `buildShareUrl`
+  ([`src/lib/workshops/share.ts`](src/lib/workshops/share.ts)). A **masterclass
+  shares `/courses/masterclass`**, a workshop shares `/workshop`. Until
+  September 2026 the page hard-coded `/workshop` for both, so every masterclass
+  attendee sent their friends to a different session at a different price, and
+  the `?friend=<slug>` ★ marker pointed at a date that page didn't list.
+  `MCRegister` now honours `?friend=` the way `WERegister` always did. Anything
+  building a share link must call `buildShareUrl` — a caller that re-derives the
+  path re-opens this bug.
+- **It is measured.** The link carries `?ref=<registration id>.<sig>` (HMAC over
+  `ADMIN_SESSION_SECRET`, domain-separated `sd-share:` — the sharer's
+  `access_token` is a credential and never rides a public link) and `?rc=<channel>`
+  per button, so a WhatsApp share is told from a paste all the way to the sale.
+
+Four steps, three of them rows in `workshop_share_events` (migration 0082):
+
+| step | recorded by | counted as |
+| --- | --- | --- |
+| panel shown | `/workshop/success` render | one row per registrant, ever (partial unique index + `INSERT OR IGNORE`) |
+| button pressed | `/api/workshops/share` (sendBeacon) | every press — totals and distinct sharers |
+| friend opened it | [`src/middleware.ts`](src/middleware.ts) | first landing per browser |
+| friend registered | `referred_by_id` / `referral_channel` on the registration | joins straight to payment status and revenue |
+
+- **Capture lives in the middleware**, not on the two landing pages: the link is
+  public and gets pasted anywhere, and the `sd_ref` cookie (30d, HttpOnly) is
+  what lets `/api/workshops/register` credit a friend who comes back days later
+  on a bare URL. `share.ts` therefore stays free of heavy imports — the report
+  lives in [`share-report.ts`](src/lib/workshops/share-report.ts) so the stats
+  module isn't pulled into every request.
+- **Two things would otherwise make the numbers lies**, and both are handled:
+  WhatsApp/Facebook/Telegram fetch a shared URL themselves to build the preview
+  card (`looksLikeShareBot` filters them, so the count moves when a link is
+  *opened*, not when it is posted), and the countdown page is reloaded
+  constantly while people wait for the Join button (hence the once-ever view).
+  A checkout on your own link is never a self-referral.
+- **Where to read it**: `/admin/workshops/performance` → "Share with a friend" —
+  the funnel, a per-button table, and who is actually sending people. Money goes
+  through `grossEurMinor` like every other euro on that page.
+
 ## Email lifecycle (workshops)
 
 All automated workshop email lives in the workshop engine:

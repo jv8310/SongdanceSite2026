@@ -63,6 +63,13 @@ const selectedName = detected?.name ?? '';
 // registration page) so PageView + InitiateCheckout fire. Empty → renders
 // nothing.
 const pixelId = Astro.locals.runtime.env.META_PIXEL_ID ?? '';
+
+// A shared half-price link carries ?friend=<slug> — the date the sharer is
+// attending. We star it so a friend can spot "the one they're going to", while
+// every other date stays open at the same discount. Same treatment as
+// WERegister; a masterclass link now lands here rather than on /workshop, so
+// the starred date is one this page actually lists.
+const friendSlug = (Astro.url.searchParams.get('friend') ?? '').trim();
 ---
 
 <section class="we-register" id="register">
@@ -128,7 +135,7 @@ const pixelId = Astro.locals.runtime.env.META_PIXEL_ID ?? '';
       {masterclasses.length > 0 && (
         <div class="we-cal we-cal--lead-priced" role="radiogroup" aria-label="Masterclass dates">
           {masterclasses.map((it) => (
-            <label class="we-cal-item mc-cal-item--masterclass">
+            <label class={`we-cal-item mc-cal-item--masterclass${it.slug === friendSlug ? ' we-cal-item--friend' : ''}`}>
               <input
                 type="radio"
                 name="mc-date"
@@ -142,6 +149,9 @@ const pixelId = Astro.locals.runtime.env.META_PIXEL_ID ?? '';
               />
               <span class="we-cal-radio" aria-hidden="true"></span>
               <span class="we-cal-main">
+                {it.slug === friendSlug && (
+                  <span class="we-cal-friend"><span class="we-cal-friend-star" aria-hidden="true">★</span> Your friend is going to this one</span>
+                )}
                 <span class="we-cal-kind">Masterclass</span>
                 <span class="we-cal-when">
                   {it.whenLocal}<span class="we-cal-tz"> · your time</span>
