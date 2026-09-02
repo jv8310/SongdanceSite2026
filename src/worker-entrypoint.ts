@@ -43,6 +43,9 @@ const MOVED_URLS: Record<string, string> = {
   '/certification-course': '/courses/certification',
   '/certification-course/thanks': '/courses/certification/thanks',
   '/masterclass': '/courses/masterclass',
+  // The heal-the-healer door of the same masterclass (Sept 2026 campaign) —
+  // a short ad-friendly URL, like /masterclass above.
+  '/heal-the-healer': '/courses/heal-the-healer',
   '/forgiveness': '/courses/forgiveness',
   '/svh-german': '/courses/12-week-de',
   '/songdeck': '/music/songdeck',

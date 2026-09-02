@@ -2,26 +2,33 @@
 // The plum panel: the masterclass stands on its own, and for some people it's
 // the first step toward deeper training. Deliberately self-contained — the
 // page keeps its visitors (no links to other courses); the CTA goes to the
-// register section below.
+// register section below. Bridge / heading / body are slots so the
+// heal-the-healer door can turn the same panel toward the person; the
+// defaults are the professional door's lines.
 ---
 
 <section class="we-masterclass" id="path">
   <div class="we-masterclass-inner">
     <p class="we-masterclass-bridge">
-      You can't hold this for someone else until you've let it work on you first.
+      <slot name="bridge">You can't hold this for someone else until you've let it work on you first.</slot>
     </p>
     <div class="we-eyebrow">Where this leads</div>
     <h2 class="we-masterclass-h2">
-      The doorway to <em>the practitioner path.</em>
+      <slot name="heading">The doorway to <em>the practitioner path.</em></slot>
     </h2>
     <p class="we-masterclass-body">
-      The masterclass stands on its own — come, take what's useful, bring it
-      home to your work. For some people it also turns out to be a doorway:
-      the first honest look at whether holding this work for others belongs in
-      your future. These 100 minutes are the inexpensive way to find out — and
-      if they're as far as you go, they'll still have earned their keep.
+      <slot name="body">
+        The masterclass stands on its own — come, take what's useful, bring it
+        home to your work. For some people it also turns out to be a doorway:
+        the first honest look at whether holding this work for others belongs in
+        your future. These 100 minutes are the inexpensive way to find out — and
+        if they're as far as you go, they'll still have earned their keep.
+      </slot>
     </p>
-    <div class="we-masterclass-detail">100 minutes · Live · €44 · Replay included</div>
+    <!-- data-sd-price: PriceSync swaps the euro token for the visitor's market
+         label after load. The token must stay in the site's euro-after copy
+         style (44€) — that's what marketing-prices.ts matches. -->
+    <div class="we-masterclass-detail" data-sd-price="masterclass">100 minutes · Live · 44€ · Replay included</div>
     <div class="we-masterclass-cta-wrap">
       <a href="#register" class="we-link-cta">
         Reserve your seat <i class="ph-light ph-arrow-right"></i>

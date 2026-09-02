@@ -9,6 +9,15 @@
 // Prices are fixed per currency (no FX). The country selector switches the
 // currency; each date carries its full price map so the swap is instant. The
 // posted country is authoritative — the server re-resolves the price for it.
+//
+// Shared by both masterclass doors (/courses/masterclass and
+// /courses/heal-the-healer): the heading copy comes in through the `eyebrow`,
+// `heading` and `body` slots (defaults = the professional door), and the
+// booking machinery is identical — one event, one checkout, one ledger.
+//
+// Times: the "Times shown in" selector above the calendar re-renders every
+// live date (and the hero's next-date line, tagged data-mc-live-when) in the
+// chosen timezone, and that timezone is what gets posted — mirrors WERegister.
 import type { CalItem } from '../workshop-english/types';
 import { ALL_COUNTRIES } from '../../lib/workshops/countries';
 import LaunchOfferCallout from '../promo/LaunchOfferCallout.astro';
@@ -35,6 +44,8 @@ const alternatives = [
   ...items.filter((it) => it.kind === 'workshop' && !it.isReplay),
 ];
 const visible = [...masterclasses, ...alternatives];
+// Any live date on the list → show the timezone selector above it.
+const hasLive = visible.some((it) => !it.isReplay);
 
 // Every live masterclass date is the same price, so state it once above the
 // list rather than repeating it on each row. The fallback options below
@@ -68,14 +79,16 @@ const pixelId = Astro.locals.runtime.env.META_PIXEL_ID ?? '';
 <section class="we-register" id="register">
   <MetaPixel pixelId={pixelId} />
   <div class="we-register-inner">
-    <div class="we-eyebrow">Reserve your seat</div>
+    <div class="we-eyebrow"><slot name="eyebrow">Reserve your seat</slot></div>
     <h2 class="we-register-h2">
-      Come feel it<br /><em>from the inside.</em>
+      <slot name="heading">Come feel it<br /><em>from the inside.</em></slot>
     </h2>
     <p class="we-register-body">
-      One hundred minutes, live, online — with a replay if the time doesn't work for you.<br />
-      Come as a professional. Come, also, as a person.<br />
-      The method makes no distinction between the two — that's exactly the point of it.
+      <slot name="body">
+        One hundred minutes, live, online — with a replay if the time doesn't work for you.<br />
+        Come as a professional. Come, also, as a person.<br />
+        The method makes no distinction between the two — that's exactly the point of it.
+      </slot>
     </p>
     <p class="we-register-note">Live · Online · 100 min · Replay included</p>
     <p class="we-discount-note" id="mc-discount-note" hidden></p>
@@ -101,6 +114,16 @@ const pixelId = Astro.locals.runtime.env.META_PIXEL_ID ?? '';
       {visible.length > 0 && (
         <div class="we-booking-head">
           <p class="we-booking-label">{masterclasses.length > 0 ? 'Choose a masterclass date' : 'Choose an option'}</p>
+          {hasLive && (
+            <label class="we-tz-head">
+              <span>Times shown in</span>
+              <select id="mc-tz-select" name="timezone" aria-label="Your timezone">
+                {tzOptions.map((tz) => (
+                  <option value={tz} selected={tz === detectedTz}>{tz.replace(/_/g, ' ')}</option>
+                ))}
+              </select>
+            </label>
+          )}
         </div>
       )}
 
@@ -138,6 +161,7 @@ const pixelId = Astro.locals.runtime.env.META_PIXEL_ID ?? '';
                 data-price-minor={String(it.priceMinor)}
                 data-currency={it.currency}
                 data-prices={JSON.stringify(it.pricesByCurrency)}
+                data-starts-at={it.startsAtUtc ?? ''}
                 data-is-replay="0"
               />
               <span class="we-cal-radio" aria-hidden="true"></span>
@@ -173,6 +197,7 @@ const pixelId = Astro.locals.runtime.env.META_PIXEL_ID ?? '';
                   data-price-minor={String(it.priceMinor)}
                   data-currency={it.currency}
                   data-prices={JSON.stringify(it.pricesByCurrency)}
+                  data-starts-at={it.startsAtUtc ?? ''}
                   data-is-replay={it.isReplay ? '1' : '0'}
                 />
                 <span class="we-cal-radio" aria-hidden="true"></span>
@@ -236,15 +261,6 @@ const pixelId = Astro.locals.runtime.env.META_PIXEL_ID ?? '';
             </datalist>
           </label>
 
-          <label class="we-field" id="mc-tz-field">
-            <span>Your timezone</span>
-            <select name="timezone">
-              {tzOptions.map((tz) => (
-                <option value={tz} selected={tz === detectedTz}>{tz.replace(/_/g, ' ')}</option>
-              ))}
-            </select>
-          </label>
-
           <div class="we-biz" id="mc-biz" hidden>
             <label class="we-field">
               <span>Company <em>(optional)</em></span>
@@ -274,7 +290,7 @@ const pixelId = Astro.locals.runtime.env.META_PIXEL_ID ?? '';
           </button>
 
           <p class="we-err" id="mc-err" hidden></p>
-          <p class="we-fine" id="mc-fine">Secure checkout via Stripe.</p>
+          <p class="we-fine" id="mc-fine">Secure checkout via Stripe. The Zoom link and a calendar invite arrive by email right after. Something comes up? There's a replay, and your seat can move to another masterclass date for free.</p>
         </form>
       )}
     </div>
@@ -291,7 +307,7 @@ const pixelId = Astro.locals.runtime.env.META_PIXEL_ID ?? '';
     var countryField = document.getElementById('mc-country');
     var countryInput = document.getElementById('mc-country-input');
     var countryList = document.getElementById('mc-country-list');
-    var tzField = document.getElementById('mc-tz-field');
+    var tzSelect = document.getElementById('mc-tz-select');
     var bizField = document.getElementById('mc-biz');
     var vatField = document.getElementById('mc-vat');
     var companyInput = form.querySelector('input[name="company_name"]');
@@ -371,6 +387,44 @@ const pixelId = Astro.locals.runtime.env.META_PIXEL_ID ?? '';
         var lm = priceFor(parse(lead.dataset.prices), cur, parseInt(lead.dataset.priceMinor, 10) || 0);
         lead.innerHTML = priceHtml(lm, cur, 'masterclass');
       }
+    }
+
+    var activeTz = (tzSelect && tzSelect.value) || 'Europe/Brussels';
+
+    // Format a UTC instant in the active timezone, mirroring lib/workshops/time.ts:
+    // "Sun 15 Jun 2026, 20:00 CEST".
+    function formatInTz(utcIso, tz) {
+      if (!utcIso) return '';
+      var opts = { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' };
+      try {
+        opts.timeZone = tz;
+        return new Intl.DateTimeFormat('en-GB', opts).format(new Date(utcIso));
+      } catch (e) {
+        opts.timeZone = 'UTC';
+        return new Intl.DateTimeFormat('en-GB', opts).format(new Date(utcIso));
+      }
+    }
+
+    // Re-render every live date — the calendar rows and the hero's next-date
+    // line (data-mc-live-when) — when the visitor switches timezone, so the
+    // page never shows the same session at two different times.
+    function applyTimezone(tz) {
+      activeTz = tz;
+      for (var i = 0; i < radios.length; i++) {
+        var r = radios[i];
+        if (r.dataset.isReplay === '1' || !r.dataset.startsAt) continue;
+        var whenEl = r.closest('.we-cal-item').querySelector('.we-cal-when');
+        if (!whenEl) continue;
+        whenEl.innerHTML = formatInTz(r.dataset.startsAt, tz) + '<span class="we-cal-tz"> · your time</span>';
+      }
+      var heroWhens = document.querySelectorAll('[data-mc-live-when]');
+      for (var j = 0; j < heroWhens.length; j++) {
+        var el = heroWhens[j];
+        if (el.dataset.startsAt) el.textContent = formatInTz(el.dataset.startsAt, tz);
+      }
+    }
+    if (tzSelect) {
+      tzSelect.addEventListener('change', function () { applyTimezone(tzSelect.value); });
     }
 
     // Dedup id shared by the client Pixel + server CAPI (if a pixel is set).
@@ -490,7 +544,6 @@ const pixelId = Astro.locals.runtime.env.META_PIXEL_ID ?? '';
     function selectItem(input) {
       current = input.dataset;
       slugField.value = current.slug;
-      tzField.style.display = current.isReplay === '1' ? 'none' : '';
       // Company / VAT only for the masterclass (B2B — practitioners invoicing).
       if (bizField) bizField.hidden = current.kind !== 'masterclass';
       toggleVat();
@@ -528,7 +581,9 @@ const pixelId = Astro.locals.runtime.env.META_PIXEL_ID ?? '';
         first_name: fd.get('first_name') || '',
         last_name: fd.get('last_name') || '',
         email: fd.get('email'),
-        timezone: current.isReplay === '1' ? '' : (fd.get('timezone') || ''),
+        // The timezone the visitor chose above the calendar (the one the
+        // dates are displayed in) — a replay has no time, so none is sent.
+        timezone: current.isReplay === '1' ? '' : activeTz,
         country: fd.get('country') || '',
         bump: false,
         company_name: isMasterclass ? (fd.get('company_name') || '') : '',

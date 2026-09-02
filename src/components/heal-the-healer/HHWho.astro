@@ -1,0 +1,29 @@
+---
+// Who it's for — the same professions as the professional door (the chips),
+// with the note turned toward the person rather than the toolkit: this door
+// is for somewhere to put down what the toolkit can't.
+const audiences = [
+  'Psychotherapists & counsellors',
+  'Coaches & facilitators',
+  'Body- & breathworkers',
+  'Yoga & meditation teachers',
+  'Nurses, carers & social workers',
+  'Teachers & leaders',
+];
+---
+
+<section class="mc-who">
+  <div class="mc-who-inner">
+    <div class="we-eyebrow" style="justify-content: center;">Who it's for</div>
+    <h2 class="we-h2">For the people <em>others turn to.</em></h2>
+    <div class="mc-who-chips">
+      {audiences.map((a) => <span class="mc-who-chip">{a}</span>)}
+    </div>
+    <p class="mc-who-note">
+      Whatever the title on your door — if part of your work is staying
+      steady while someone else finds their way, this was built for you. Not
+      as one more thing to add to your toolkit. As somewhere to put down what
+      the toolkit can't.
+    </p>
+  </div>
+</section>

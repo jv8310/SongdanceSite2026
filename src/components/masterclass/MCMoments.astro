@@ -2,8 +2,18 @@
 // Photo band — the practice as it actually looks. Three real moments from
 // Jacob's retreats (R2 library), sitting between the recognition section and
 // the "inside the 100 minutes" breakdown so the page shows the work before it
-// explains it. On narrow screens the band becomes a swipeable strip.
-const moments = [
+// explains it. On narrow screens the band becomes a swipeable strip. A page
+// can pass its own three through `moments`; the defaults are the
+// professional door's set.
+export interface Moment {
+  img: string;
+  alt: string;
+  caption: string;
+}
+interface Props {
+  moments?: Moment[];
+}
+const DEFAULT_MOMENTS: Moment[] = [
   {
     img: '/media/library/svh-retreat-sounding-shawl.webp',
     alt: 'A woman sounding outdoors at golden hour, hands crossed over her chest',
@@ -20,6 +30,7 @@ const moments = [
     caption: '“You cannot do it wrong. It will always express something.” — Jacob',
   },
 ];
+const { moments = DEFAULT_MOMENTS } = Astro.props;
 ---
 
 <section class="mc-moments" aria-label="The practice, in pictures">

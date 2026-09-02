@@ -156,6 +156,43 @@ in moderation, not governed by the copy book.
   REJOIN until the session's real end (70-min default / 100-min masterclass from
   `ends_at_utc`) + 10-min grace — a connectivity drop never locks them out.
 
+## Masterclass — one event, two doors
+
+`/courses/masterclass` and `/courses/heal-the-healer` (short: `/masterclass`,
+`/heal-the-healer`) sell the **same** live masterclass — same €44 seat, same
+dates, the same `MCRegister` → `/api/workshops/register` checkout, one ledger.
+They differ only in the door: the professional page is the **"missing tool"**
+(Somatic Vocal Healing in your work with clients); the heal-the-healer page is
+**"who holds space for the healer?"** (the practice for the space holder
+themselves). Each is the landing page of its own top-of-funnel campaign.
+
+- **Shared chrome, slotted copy**: `MCNav`, `MCHero`, `MCVideo`, `MCMoments`,
+  `MCLyric`, `MCTestimonials`, `MCAbout`, `MCPath`, `MCFaq`, `MCRegister`
+  (`src/components/masterclass/`) render both pages; the lines that differ come
+  in through named slots / props, and every default is the professional door's
+  own copy, so that page renders unchanged when nothing is passed. The
+  copy-heavy sections of the healer door (`HHOpening`, `HHWhat`, `HHBenefits`,
+  `HHWho`) live in `src/components/heal-the-healer/`. A copy change that
+  belongs to *the event* (dates, price, FAQ facts, what's inside) goes in the
+  shared component; a change to *the angle* goes in the door's own file.
+- **The ads say "release"; the pages never do.** The healer campaign's creative
+  runs on "release it / clear your energy". On the page the mechanism is
+  acknowledgment — *not letting go, letting in* (copy book law 2). Keep it that
+  way when new creative arrives; message-match the *situation* ("you hold space
+  for everyone but yourself"), not the ad's verb.
+- **Both pages show the next live date in the hero** (`MCHero`'s `nextWhen`),
+  and `MCRegister`'s "Times shown in" selector re-renders every live date *and*
+  that hero line (`data-mc-live-when`) — so a page never shows one session at
+  two times. The chosen timezone is what gets posted.
+- **Attribution**: no per-landing-page column in D1. The ad-spend split works
+  by campaign *name* (`campaignAudience` — the name must carry "Masterclass",
+  plus "TOF" for prospecting), so both doors' spend and seats pool as
+  masterclass on `/admin/workshops/performance`; per-door results are read per
+  campaign in Ads Manager (the Pixel/CAPI Purchase events carry through).
+- **Price tokens** on these pages (`44€` in `MCWhat`, `MCPath`, `HHWhat`) carry
+  `data-sd-price="masterclass"` so `PriceSync` localizes them; keep the
+  euro-after `44€` form or the swap silently stops matching.
+
 ## The workshop order bump — one resolver, no exceptions
 
 **Never read `workshops.bump_product_id` directly.** A workshop names its bump

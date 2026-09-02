@@ -3,6 +3,11 @@
 // facing sibling of /workshop. Same candle-lit build (workshop-english.css)
 // with masterclass deltas in masterclass.css; copy per docs/svh-copy-book.md.
 //
+// This is the "missing tool" door (Somatic Vocal Healing in your work with
+// clients). The same event has a second door at /courses/heal-the-healer —
+// the practice for the space holder themselves — sharing this page's chrome
+// (hero, path, FAQ, register …) through slots/props. Same seat, same checkout.
+//
 // This page is deliberately self-contained: no body links into other courses
 // (owner's call, Aug 2026 — DiscoverMore removed, MCPath's certification link
 // dropped). The slide-in SiteMenu keeps the full site reachable. Note:
@@ -24,6 +29,7 @@ import MCLyric from '../../components/masterclass/MCLyric.astro';
 import MCTestimonials from '../../components/masterclass/MCTestimonials.astro';
 import MCAbout from '../../components/masterclass/MCAbout.astro';
 import MCPath from '../../components/masterclass/MCPath.astro';
+import MCFaq from '../../components/masterclass/MCFaq.astro';
 import MCRegister from '../../components/masterclass/MCRegister.astro';
 import WEFooter from '../../components/workshop-english/WEFooter.astro';
 import { buildCalendarItems, tzOptionsFor } from '../../lib/workshops/calendar';
@@ -48,6 +54,9 @@ const currency = currencyForCountry(country === 'EU' ? null : country);
 const items = await buildCalendarItems(env.DB, currency, detectedTz);
 const tzOptions = tzOptionsFor(detectedTz);
 
+// The next live masterclass, for the hero's date line (none → no line).
+const nextMc = items.find((it) => it.kind === 'masterclass' && !it.isReplay) ?? null;
+
 const product = catalogItemById('masterclass');
 ---
 
@@ -60,7 +69,7 @@ const product = catalogItemById('masterclass');
   <div class="we-site">
     <PromoBanner />
     <MCNav />
-    <MCHero />
+    <MCHero nextWhen={nextMc?.whenLocal ?? null} nextStartsAt={nextMc?.startsAtUtc ?? null} />
     <MCVideo />
     <MCOpening />
     <MCMoments />
@@ -71,6 +80,7 @@ const product = catalogItemById('masterclass');
     <MCTestimonials />
     <MCAbout />
     <MCPath />
+    <MCFaq />
     <MCRegister
       items={items}
       country={country}

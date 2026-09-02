@@ -300,3 +300,110 @@
   border: 1px dashed var(--line-strong);
   border-radius: var(--r-md);
 }
+
+/* ---------- Hero: the next live date (both doors) ----------
+   A concrete anchor under the sub, before the first CTA. The register block's
+   timezone selector re-renders the date in place (data-mc-live-when). */
+.mc-hero-next {
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px 10px;
+  margin: calc(-1 * var(--sp-4)) auto var(--sp-6);
+  padding: 9px 18px;
+  border: 1px solid var(--plum-soft);
+  border-radius: var(--r-pill);
+  background: rgba(250, 245, 234, 0.72);
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--ink-soft);
+}
+.mc-hero-next-k {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--plum);
+}
+.mc-hero-next strong { font-weight: 600; color: var(--ink); }
+.mc-hero-next-tz { font-style: italic; color: var(--ink-quiet); }
+
+/* ---------- Heal-the-healer door: hero photo ----------
+   A portrait photo (hands on the chest, golden hour) — keep the face in the
+   frame on wide screens rather than the default centre crop. */
+.we-hero--hh .we-hero-bg img { object-position: center 28%; }
+
+/* ---------- FAQ (both doors) ---------- */
+.mc-faq {
+  background: var(--paper-deep);
+  padding: var(--sp-10) var(--sp-7);
+  border-top: 1px solid var(--line);
+}
+.mc-faq-inner { max-width: 760px; margin: 0 auto; }
+.mc-faq-head { text-align: center; margin-bottom: var(--sp-7); }
+.mc-faq-head .we-h2 { margin-left: auto; margin-right: auto; }
+.mc-faq-list { display: flex; flex-direction: column; gap: var(--sp-3); }
+.mc-faq-item {
+  background: var(--paper-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 0 var(--sp-5);
+  transition: border-color var(--d-base) var(--ease), box-shadow var(--d-base) var(--ease);
+}
+.mc-faq-item:hover { border-color: var(--ember-soft); }
+.mc-faq-item[open] { border-color: var(--ember-soft); box-shadow: var(--shadow-2); }
+.mc-faq-item summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  padding: 18px 0;
+  font-family: var(--font-display);
+  font-size: 19px;
+  line-height: 1.3;
+  color: var(--ink);
+}
+.mc-faq-item summary::-webkit-details-marker { display: none; }
+.mc-faq-item summary::after {
+  content: "+";
+  flex-shrink: 0;
+  font-family: var(--font-body);
+  font-size: 22px;
+  line-height: 1;
+  color: var(--ember);
+  transition: transform var(--d-base) var(--ease);
+}
+.mc-faq-item[open] summary::after { transform: rotate(45deg); }
+.mc-faq-item summary:focus-visible { outline: 2px solid var(--ember); outline-offset: 4px; border-radius: 4px; }
+.mc-faq-a {
+  padding: 0 0 var(--sp-5);
+  font-family: var(--font-body);
+  font-size: 15.5px;
+  line-height: 1.7;
+  color: var(--ink-soft);
+  max-width: 62ch;
+}
+.mc-faq-a p { margin: 0 0 var(--sp-3); }
+.mc-faq-a p:last-child { margin-bottom: 0; }
+.mc-faq-more {
+  margin: var(--sp-6) 0 0;
+  text-align: center;
+  font-family: var(--font-body);
+  font-size: 14.5px;
+  color: var(--ink-quiet);
+}
+.mc-faq-more a {
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--ember);
+  text-underline-offset: 4px;
+}
+@media (max-width: 720px) {
+  .mc-faq { padding: var(--sp-9) var(--sp-4); }
+  .mc-faq-item { padding: 0 var(--sp-4); }
+  .mc-faq-item summary { font-size: 17px; padding: 16px 0; }
+  .mc-hero-next { font-size: 13px; padding: 8px 14px; }
+}

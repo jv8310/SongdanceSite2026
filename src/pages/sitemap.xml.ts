@@ -19,6 +19,7 @@ const PAGES: Entry[] = [
   { path: '/courses/12-week-de', priority: 0.6, changefreq: 'monthly' },
   { path: '/courses/certification', priority: 0.8, changefreq: 'monthly' },
   { path: '/courses/masterclass', priority: 0.7, changefreq: 'monthly' },
+  { path: '/courses/heal-the-healer', priority: 0.6, changefreq: 'monthly' },
   { path: '/courses/grief', priority: 0.7, changefreq: 'monthly' },
   { path: '/courses/forgiveness', priority: 0.7, changefreq: 'monthly' },
   { path: '/courses/authentic-singing', priority: 0.6, changefreq: 'monthly' },
