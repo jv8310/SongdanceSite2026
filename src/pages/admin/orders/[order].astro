@@ -9,6 +9,12 @@ import {
   type OrderSource,
 } from '../../../lib/admin/orders';
 import { getOrderDetail } from '../../../lib/admin/order-detail';
+import {
+  hasInstallmentLedger,
+  installmentRefundableMinor,
+  listOrderInstallments,
+  perChargeRefundableMinor,
+} from '../../../lib/admin/installments';
 import { getFxRatesToEur } from '../../../lib/admin/fx';
 import { providerLinkFor, resolveProviderModes } from '../../../lib/admin/provider-links';
 
@@ -69,13 +75,37 @@ const o = detail?.order ?? null;
 const name = o ? `${o.firstName ?? ''} ${o.lastName ?? ''}`.trim() || '—' : '';
 const link = o ? providerLinkFor(o, providerModes) : null;
 
+// An installment plan is N charges at the gateway, and the row only remembers
+// the first — so read the cycles live and offer a refund per cycle. The gateway
+// is the source of truth here; a mirror in D1 could only be as fresh as the
+// last webhook, which is the very thing that goes missing.
+const ledger = o ? await listOrderInstallments(env, o) : null;
+const isPlan = o ? hasInstallmentLedger(o) : false;
+// The single charge stored on the row — what the whole-order form targets.
+// Null on a plan whose first PaymentIntent was never captured, in which case
+// that form has nothing to aim at and only the per-installment panel works.
+const rowChargeTarget = o
+  ? o.provider === 'paypal'
+    ? o.paypalCaptureId
+    : o.paymentIntent
+  : null;
+
 // Workshops carry a personal countdown / join page — surface the full,
 // shareable link so Jacob can re-send it (e.g. a registrant who lost the email).
 const siteBase = (env.PUBLIC_BASE_URL || Astro.url.origin).replace(/\/$/, '');
 const countdownUrl = detail?.countdownPath ? `${siteBase}${detail.countdownPath}` : null;
-const remaining = o ? refundableMinor(o) : 0;
+// What the whole-order form can actually refund: it targets the row's single
+// stored charge, so on a plan that is ONE installment — never the plan total.
+const remaining = o ? perChargeRefundableMinor(o) : 0;
 const remainingMajor = (remaining / 100).toFixed(2);
+const wholeOrderRemaining = o ? refundableMinor(o) : 0;
 const jsName = name.replace(/['\\]/g, '\\$&');
+
+function ymdhm(iso: string | null): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? '—' : d.toISOString().slice(0, 10);
+}
 ---
 
 <Layout title={`Admin — Order ${orderNo} — Songdance`} description="">
@@ -214,6 +244,109 @@ const jsName = name.replace(/['\\]/g, '\\$&');
           )}
         </section>
 
+        <!-- ─── Installments (course plans only) ─── -->
+        {isPlan && (
+          <section class="adm-section">
+            <div class="od-inst">
+              <div class="od-inst-head">
+                <h2>Installments</h2>
+                <span class="od-inst-sub">
+                  {o.paymentPlan} · {o.installmentsPaid}/{o.installmentsTotal} charged ·
+                  live from {ledger?.provider === 'paypal' ? 'PayPal' : 'Stripe'}
+                </span>
+              </div>
+
+              {ledger?.error && (
+                <p class="od-inst-warn">
+                  Couldn’t read the plan from {ledger.provider === 'paypal' ? 'PayPal' : 'Stripe'} —
+                  {' '}refund one installment from the gateway, or retry. ({ledger.error})
+                </p>
+              )}
+
+              {ledger && !ledger.error && ledger.rows.length === 0 && (
+                <p class="od-inst-warn">No charges on this plan yet.</p>
+              )}
+
+              {ledger && ledger.rows.length > 0 && (
+                <table class="od-inst-table">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Charged</th>
+                      <th>Reference</th>
+                      <th class="num">Amount</th>
+                      <th class="num">Refunded</th>
+                      <th>Status</th>
+                      <th><span class="sr-only">Refund</span></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ledger.rows.map((inst) => {
+                      const left = installmentRefundableMinor(inst);
+                      const leftMajor = (left / 100).toFixed(2);
+                      const cur = inst.currency || o.originalCurrency;
+                      return (
+                        <tr class={left <= 0 ? 'od-inst-done' : ''}>
+                          <td>{inst.seq}</td>
+                          <td>{ymdhm(inst.paidAt)}</td>
+                          <td class="adm-mono od-inst-ref">{inst.reference}</td>
+                          <td class="num">{formatMoney(inst.amountMinor, cur)}</td>
+                          <td class="num">
+                            {inst.refundedMinor == null
+                              ? '?'
+                              : inst.refundedMinor > 0
+                                ? `−${formatMoney(inst.refundedMinor, cur)}`
+                                : '—'}
+                          </td>
+                          <td><span class="od-inst-status">{inst.status}</span></td>
+                          <td>
+                            {inst.refundTarget && left > 0 ? (
+                              <form
+                                method="POST"
+                                action="/api/admin/refund"
+                                class="od-inst-refund"
+                                onsubmit={`return confirm('Refund installment ${inst.seq} of ${o.orderNo} (${jsName}, ${o.email})?\\nBlank = the whole installment, ${leftMajor} ${cur}. This moves real money.')`}
+                              >
+                                <input type="hidden" name="order_no" value={o.orderNo} />
+                                <input type="hidden" name="return_to" value={selfReturn} />
+                                <input type="hidden" name="installment" value={inst.id} />
+                                <input
+                                  type="number"
+                                  name="amount"
+                                  step="0.01"
+                                  min="0.01"
+                                  max={leftMajor}
+                                  placeholder={`full ${leftMajor}`}
+                                  aria-label={`Refund amount for installment ${inst.seq} (${cur})`}
+                                />
+                                <button type="submit" class="adm-btn adm-btn--danger adm-btn--tiny">Refund</button>
+                              </form>
+                            ) : (
+                              <span class="od-inst-none">
+                                {inst.refundTarget ? 'fully refunded' : 'no charge id'}
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+
+              <p class="od-inst-hint">
+                Each row is its own charge — refunding one leaves the others alone, and the
+                plan keeps billing. Refunds are subtracted from the order total; the order
+                only reads <strong>refunded</strong> once everything collected has gone back.
+                {ledger?.provider === 'paypal' && ' PayPal reports a refunded state per cycle but not the amount, so the “Refunded” column shows ? — the order total above is the reliable figure.'}
+                {' '}To stop the charges still to come, use
+                {' '}<a href="/admin/courses/future-revenue">Future revenue → stop the plan early</a>
+                {' '}— that forgives future charges without refunding past ones.
+              </p>
+            </div>
+          </section>
+        )}
+
         <!-- ─── Actions ─── -->
         <section class="adm-section">
           {countdownUrl && (
@@ -235,12 +368,18 @@ const jsName = name.replace(/['\\]/g, '\\$&');
             <a class="adm-btn adm-btn--ghost" href={`/api/admin/quaderno-profile?email=${encodeURIComponent(o.email)}`} target="_blank" rel="noopener">Quaderno profile ↗</a>
           </div>
 
-          {isRefundable(o) && (
+          {/*
+            The whole-order form targets the ONE charge stored on the row. On a
+            plan that is the first installment, so it stays hidden while the
+            per-installment panel above is usable, and only reappears as the
+            fallback when the gateway couldn't be read.
+          */}
+          {isRefundable(o) && (!isPlan || !!ledger?.error) && !!rowChargeTarget && (
             <form
               method="POST"
               action="/api/admin/refund"
               class="od-refund"
-              onsubmit={`return confirm('Refund ${o.orderNo} (${jsName}, ${o.email})?\\nBlank = full ${remainingMajor} ${o.originalCurrency}. This moves real money.')`}
+              onsubmit={`return confirm('Refund ${o.orderNo} (${jsName}, ${o.email})?\\nBlank = ${isPlan ? 'the first installment' : 'the full'} ${remainingMajor} ${o.originalCurrency}. This moves real money.')`}
             >
               <input type="hidden" name="order_no" value={o.orderNo} />
               <input type="hidden" name="return_to" value={selfReturn} />
@@ -256,7 +395,19 @@ const jsName = name.replace(/['\\]/g, '\\$&');
                 />
               </label>
               <button type="submit" class="adm-btn adm-btn--danger">Issue refund</button>
-              <p class="od-refund-hint">Blank = full refund of what’s left ({remainingMajor} {o.originalCurrency}).</p>
+              <p class="od-refund-hint">
+                {isPlan ? (
+                  <>
+                    Blank = the <strong>first installment</strong> ({remainingMajor} {o.originalCurrency}) —
+                    the only charge recorded on this order. The other{' '}
+                    {o.installmentsTotal - 1} are refundable individually once{' '}
+                    {ledger?.provider === 'paypal' ? 'PayPal' : 'Stripe'} can be read again;
+                    {' '}{formatMoney(wholeOrderRemaining, o.originalCurrency)} is outstanding across the plan.
+                  </>
+                ) : (
+                  <>Blank = full refund of what’s left ({remainingMajor} {o.originalCurrency}).</>
+                )}
+              </p>
             </form>
           )}
         </section>
@@ -355,6 +506,47 @@ const jsName = name.replace(/['\\]/g, '\\$&');
     .od-countdown-hint { margin:8px 0 0; font-size:11px; color:var(--adm-mute); }
 
     .od-actions { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px; }
+    .sr-only {
+      position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+      overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0;
+    }
+
+    /* ─── Installments panel ─── */
+    .od-inst {
+      border:1px solid var(--adm-line); border-radius:12px;
+      background:var(--adm-paper-soft); padding:16px 18px;
+    }
+    .od-inst-head { display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
+    .od-inst-head h2 { font-size:15px; margin:0; }
+    .od-inst-sub { font-size:12px; color:var(--adm-mute); }
+    .od-inst-warn {
+      margin:0 0 10px; font-size:12px; color:var(--adm-danger);
+    }
+    .od-inst-table { width:100%; border-collapse:collapse; font-size:13px; }
+    .od-inst-table th {
+      text-align:left; font-size:10px; letter-spacing:0.05em; text-transform:uppercase;
+      color:var(--adm-mute); font-weight:600; padding:0 8px 6px 0; border-bottom:1px solid var(--adm-line);
+    }
+    .od-inst-table td { padding:8px 8px 8px 0; border-bottom:1px solid var(--adm-line); vertical-align:middle; }
+    .od-inst-table .num { text-align:right; }
+    .od-inst-ref { font-size:11px; color:var(--adm-ink-soft); }
+    .od-inst-done td { opacity:0.6; }
+    .od-inst-status { font-size:11px; color:var(--adm-ink-soft); text-transform:capitalize; }
+    .od-inst-none { font-size:11px; color:var(--adm-mute); }
+    .od-inst-refund { display:flex; gap:6px; align-items:center; justify-content:flex-end; }
+    .od-inst-refund input[type="number"] {
+      width:96px; padding:5px 7px; border:1px solid var(--adm-line); border-radius:7px;
+      font:inherit; font-size:12px;
+    }
+    .od-inst-hint { margin:12px 0 0; font-size:11px; color:var(--adm-mute); line-height:1.5; }
+    @media (max-width: 640px) {
+      .od-inst-table thead { display:none; }
+      .od-inst-table tr { display:grid; grid-template-columns:1fr 1fr; gap:2px 10px; padding:8px 0; border-bottom:1px solid var(--adm-line); }
+      .od-inst-table td { border:0; padding:2px 0; }
+      .od-inst-table td:last-child { grid-column:1 / -1; }
+      .od-inst-refund { justify-content:flex-start; }
+    }
+
     .od-refund {
       display:flex; flex-wrap:wrap; align-items:flex-end; gap:12px;
       border:1px solid var(--adm-line); border-radius:12px;

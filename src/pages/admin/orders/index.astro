@@ -6,7 +6,6 @@ import { formatMoney } from '../../../lib/workshops/currency';
 import {
   listOrdersPage,
   isRefundable,
-  refundableMinor,
   shortProductLabel,
   DEFAULT_ORDERS_PER_PAGE,
   ORDERS_PER_PAGE_OPTIONS,
@@ -14,6 +13,7 @@ import {
   type StatusClass,
 } from '../../../lib/admin/orders';
 import { getFxRatesToEur } from '../../../lib/admin/fx';
+import { perChargeRefundableMinor } from '../../../lib/admin/installments';
 import { BANK_TRANSFER, type OrderProvider } from '../../../lib/payments/provider';
 import {
   providerLinkFor,
@@ -336,7 +336,11 @@ const pages = pageNumbers(result.page, result.pageCount);
           <tbody>
             {orders.map((o) => {
               const name = `${o.firstName ?? ''} ${o.lastName ?? ''}`.trim() || '—';
-              const remaining = refundableMinor(o);
+              // The inline form targets the ONE charge stored on the row, so on a
+              // plan it can only ever refund the first installment — never the
+              // plan total it used to advertise. Plans go to the detail page
+              // instead, where every cycle is listed and refundable.
+              const remaining = perChargeRefundableMinor(o);
               const remainingMajor = (remaining / 100).toFixed(2);
               // Escape for safe interpolation into the inline confirm() JS string.
               const jsName = name.replace(/['\\]/g, '\\$&');
@@ -406,7 +410,13 @@ const pages = pageNumbers(result.page, result.pageCount);
                         )}
                         <a class="ord-menu-item" href={`/api/admin/drip-profile?email=${encodeURIComponent(o.email)}`} target="_blank" rel="noopener">Drip profile ↗</a>
                         <a class="ord-menu-item" href={`/api/admin/quaderno-profile?email=${encodeURIComponent(o.email)}`} target="_blank" rel="noopener">Quaderno profile ↗</a>
-                        {isRefundable(o) && (
+                        {isRefundable(o) && isInstallment && (
+                          <>
+                            <hr class="ord-menu-sep" />
+                            <a class="ord-menu-item" href={detailHref}>Refund an installment →</a>
+                          </>
+                        )}
+                        {isRefundable(o) && !isInstallment && (
                           <>
                             <hr class="ord-menu-sep" />
                             <form

@@ -428,10 +428,58 @@ export async function markCourseRegistrationCancelled(
     .run();
 }
 
-// Flip the row to 'refunded' and accumulate the refunded amount. Stripe
-// fires `charge.refunded` once per refund operation (including partials);
-// we add to the running total so a sequence of partial refunds finally
-// summing to the full charge still reads correctly.
+// Gross money this row has actually taken, in its own currency: an installment
+// plan bills monthly, so scale the plan total (`amount_cents` is always the
+// WHOLE plan) by the cycles charged, and add the order bumps, which ride the
+// first charge in full. Mirrors collectedMinorOf in workshops/stats.ts — the
+// two must agree, or the status below would contradict the revenue figures.
+export function collectedGrossMinor(r: {
+  amount_cents: number;
+  installments_paid: number;
+  installments_total: number;
+  bumps?: string | null;
+}): number {
+  const cycles =
+    r.installments_total > 1
+      ? Math.round(
+          r.amount_cents *
+            (Math.max(0, Math.min(r.installments_paid, r.installments_total)) /
+              r.installments_total),
+        )
+      : r.amount_cents;
+  const bumps =
+    r.installments_paid > 0 || r.installments_total <= 1
+      ? parsePurchasedBumps(r.bumps ?? null).reduce(
+          (sum, b) => sum + Math.max(0, b.amount_cents),
+          0,
+        )
+      : 0;
+  return cycles + bumps;
+}
+
+// Accumulate a refund on the row, and flip `status` to 'refunded' only once the
+// refunds reach everything the row has actually collected.
+//
+// Both refund paths land here: the `charge.refunded` webhook (whichever cycle
+// Stripe refunded, including one refunded by hand in the Stripe dashboard) and
+// the admin's per-installment refund. Stripe fires once per refund operation,
+// so we add to a running total and a sequence of partials still sums correctly.
+//
+// WHY NOT ALWAYS 'refunded'. It used to flip on any refund, however small. But
+// `status` is not "some money went back" — the revenue stack reads it as "this
+// plan has stopped": contractedMinorOf (workshops/stats.ts) counts a refunded
+// row at `installments_paid` cycles instead of its contracted total, and the
+// future-revenue forecast (courses/installment-forecast.ts) drops it entirely.
+// So giving one installment of a six back as a goodwill gesture silently wrote
+// off the four still to bill — on a plan Stripe was still happily charging.
+// Below the threshold the row keeps the status it had and only
+// `refunded_amount_cents` moves; every figure already nets refunds off that
+// (netOfRefundMinor), so the money stays right either way.
+//
+// Two statements rather than one, so the threshold can reuse the shared
+// collected-gross rule instead of being re-derived in SQL. Safe under
+// concurrency: the increment is atomic, the total only ever grows, and the flip
+// is idempotent — whichever writer reads last does it.
 export async function markCourseRegistrationRefunded(
   db: D1Database,
   id: number,
@@ -440,12 +488,37 @@ export async function markCourseRegistrationRefunded(
   await db
     .prepare(
       `UPDATE course_registrations
-         SET status = 'refunded',
-             refunded_amount_cents = refunded_amount_cents + ?,
+         SET refunded_amount_cents = refunded_amount_cents + ?,
              refunded_at = COALESCE(refunded_at, datetime('now'))
        WHERE id = ?`,
     )
     .bind(refundedAmountCents, id)
+    .run();
+
+  const row = await db
+    .prepare(
+      `SELECT amount_cents, refunded_amount_cents, installments_paid,
+              installments_total, bumps
+         FROM course_registrations WHERE id = ?`,
+    )
+    .bind(id)
+    .first<{
+      amount_cents: number;
+      refunded_amount_cents: number;
+      installments_paid: number;
+      installments_total: number;
+      bumps: string | null;
+    }>();
+  if (!row) return;
+
+  const collected = collectedGrossMinor(row);
+  if (collected > 0 && (row.refunded_amount_cents ?? 0) < collected) return;
+
+  await db
+    .prepare(
+      `UPDATE course_registrations SET status = 'refunded' WHERE id = ?`,
+    )
+    .bind(id)
     .run();
 }
 
