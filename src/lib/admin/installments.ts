@@ -266,7 +266,8 @@ async function paypalLedger(
         seq: idx + 1,
         id: t.id,
         reference: t.id,
-        // A subscription cycle is a v1 "sale"; the sale id IS the refund target.
+        // The cycle's own id IS the refund target: it is a capture in the
+        // current Payments API, which is what refundSubscriptionCycle reverses.
         refundTarget: t.id,
         amountMinor: t.amountMinor ?? 0,
         currency: t.currency ?? '',

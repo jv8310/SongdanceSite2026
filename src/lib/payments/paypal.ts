@@ -35,11 +35,22 @@ const SANDBOX_BASE = 'https://api-m.sandbox.paypal.com';
 export class PaypalApiError extends Error {
   status: number;
   paypalName: string | null;
-  constructor(message: string, status: number, paypalName: string | null) {
+  // The `issue` codes out of PayPal's `details[]` (e.g.
+  // REFUND_FAILED_INSUFFICIENT_FUNDS). `name` is only ever the broad class
+  // (UNPROCESSABLE_ENTITY); the issue is the part that says what to DO, so it
+  // is kept as data rather than left buried in the message string.
+  issues: string[];
+  constructor(
+    message: string,
+    status: number,
+    paypalName: string | null,
+    issues: string[] = [],
+  ) {
     super(message);
     this.name = 'PaypalApiError';
     this.status = status;
     this.paypalName = paypalName;
+    this.issues = issues;
   }
 }
 
@@ -139,6 +150,9 @@ async function ppFetch<T>(
       `PayPal ${method} ${path}: ${msg}${detail}`,
       res.status,
       typeof data?.name === 'string' ? data.name : null,
+      (Array.isArray(data?.details) ? data.details : [])
+        .map((d: { issue?: unknown }) => d?.issue)
+        .filter((i: unknown): i is string => typeof i === 'string' && !!i),
     );
   }
   return data as T;
@@ -713,9 +727,9 @@ export async function refundCapture(input: {
   };
 }
 
-// Refund a subscription cycle payment (a v1 "sale" object — installment
-// charges fire PAYMENT.SALE.COMPLETED, refunded via the v1 sale endpoint, not
-// the v2 captures endpoint). Used when refunding a PayPal installment plan.
+// Refund a subscription cycle payment through the DEPRECATED v1 Payments API.
+// Kept only as the fallback inside refundSubscriptionCycle (below) — nothing
+// should call it directly.
 export async function refundSale(input: {
   env: PaypalEnv;
   saleId: string;
@@ -744,6 +758,102 @@ export async function refundSale(input: {
       ? Math.round(parseFloat(refund.amount.total) * 100)
       : null,
   };
+}
+
+// When the v2 refund answers with one of these, it never reached the charge —
+// the resource wasn't there, or the app isn't allowed at it — so nothing moved
+// and the deprecated v1 endpoint may be tried without any risk of handing the
+// same cycle back twice. Anything else (422 CAPTURE_FULLY_REFUNDED, a
+// validation error, a 5xx) is a real answer about this charge, and is raised as
+// it stands.
+const REFUND_FALLBACK_STATUSES = new Set([401, 403, 404]);
+
+// Refund ONE cycle of a subscription plan.
+//
+// A cycle arrives as a v1-shaped PAYMENT.SALE.COMPLETED event and lists under
+// GET /v1/billing/subscriptions/{id}/transactions, which made
+// `/v1/payments/sale/{id}/refund` look like its natural reversal. It is not:
+// the whole /v1/payments API is deprecated, and a current REST app answers that
+// path with 404 RESOURCE_NOT_FOUND — so every per-installment PayPal refund
+// died at the gateway with the money untouched and the admin told only to "see
+// logs". The id PayPal hands out for a cycle IS a capture in the current
+// Payments API, so v2 is what reverses it.
+//
+// v1 stays behind it for an id that really is only a classic sale (an older
+// account), tried only on the statuses above.
+export async function refundSubscriptionCycle(input: {
+  env: PaypalEnv;
+  saleId: string;
+  amountMinor?: number | null; // omit for a full refund of the cycle
+  currency?: string | null; // required when amountMinor is given
+  noteToPayer?: string;
+  customId?: string;
+}): Promise<{
+  id: string;
+  status: string;
+  amountMinor: number | null;
+  via: 'capture' | 'sale';
+}> {
+  try {
+    const refund = await refundCapture({
+      env: input.env,
+      captureId: input.saleId,
+      amountMinor: input.amountMinor,
+      currency: input.currency,
+      noteToPayer: input.noteToPayer,
+      customId: input.customId,
+    });
+    return { ...refund, via: 'capture' };
+  } catch (err) {
+    if (!(err instanceof PaypalApiError) || !REFUND_FALLBACK_STATUSES.has(err.status)) {
+      throw err;
+    }
+    try {
+      const refund = await refundSale({
+        env: input.env,
+        saleId: input.saleId,
+        amountMinor: input.amountMinor,
+        currency: input.currency,
+        noteToPayer: input.noteToPayer,
+      });
+      return { ...refund, via: 'sale' };
+    } catch (saleErr) {
+      // Report BOTH attempts — a bare v1 error would send whoever reads it
+      // hunting in the deprecated API instead of at the capture. Keep the v1
+      // error's TYPE, so its issue codes still reach paypalRefundHint.
+      const combined = `${saleErr instanceof Error ? saleErr.message : String(saleErr)} — and the v2 capture refund first said: ${err.message}`;
+      throw saleErr instanceof PaypalApiError
+        ? new PaypalApiError(combined, saleErr.status, saleErr.paypalName, saleErr.issues)
+        : new Error(combined);
+    }
+  }
+}
+
+// What a refund rejection actually means, in words that name the next move.
+//
+// PayPal answers a refused refund with a broad `name` (UNPROCESSABLE_ENTITY)
+// and a long `description` — the sentence that matters sits at the end of it,
+// which is exactly the part a trimmed error message loses. These are the issues
+// a refund realistically hits; anything else falls through to PayPal's own text.
+const REFUND_ISSUE_HINTS: Record<string, string> = {
+  REFUND_FAILED_INSUFFICIENT_FUNDS:
+    'the PayPal balance does not cover it. PayPal takes a refund from the balance first and then from a linked, confirmed bank account — top the account up (or link/verify a bank account) and press Refund again. Nothing was refunded.',
+  CAPTURE_FULLY_REFUNDED: 'that charge has already been refunded in full.',
+  REFUND_AMOUNT_EXCEEDED: 'that is more than is left on that charge.',
+  REFUND_TIME_LIMIT_EXCEEDED:
+    'the charge is older than PayPal allows a refund on (180 days) — it has to go back another way.',
+  REFUND_NOT_ALLOWED: 'PayPal does not allow this charge to be refunded.',
+};
+
+// The plain sentence for a refund failure, or null when PayPal's own words are
+// all there is. Takes `unknown` so a caller can hand it any thrown value.
+export function paypalRefundHint(err: unknown): string | null {
+  if (!(err instanceof PaypalApiError)) return null;
+  for (const issue of err.issues) {
+    const hint = REFUND_ISSUE_HINTS[issue];
+    if (hint) return hint;
+  }
+  return null;
 }
 
 // ── Webhook signature verification ────────────────────────────────────────

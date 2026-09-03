@@ -1,8 +1,12 @@
 import type { APIRoute } from 'astro';
 import { readCookie, verifySession } from '../../../lib/registrations/auth';
-import { logEvent } from '../../../lib/registrations/db';
+import { logEventSafe } from '../../../lib/registrations/db';
 import { createRefund } from '../../../lib/registrations/stripe';
-import { refundCapture, refundSale } from '../../../lib/payments/paypal';
+import {
+  paypalRefundHint,
+  refundCapture,
+  refundSubscriptionCycle,
+} from '../../../lib/payments/paypal';
 import { recordPaypalRefund } from '../../../lib/payments/paypal-fulfill';
 import {
   findOrder,
@@ -75,6 +79,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
   let paypalTarget = order.paypalCaptureId;
   let remaining = perChargeRefundableMinor(order);
   let cycleNote = '';
+  // What the GATEWAY charged, which is what a partial refund must be expressed
+  // in. Normally the order's own currency; a cycle answers for itself, so an
+  // order row that disagrees with the charge can't send PayPal a mismatched
+  // amount.
+  let chargeCurrency = order.originalCurrency;
 
   if (installmentId) {
     if (!hasInstallmentLedger(order)) {
@@ -91,7 +100,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
           : found.reason === 'not_found'
             ? 'That installment is not on this order’s plan'
             : 'This order has no installment plan';
-      await logEvent(env.DB, {
+      await logEventSafe(env.DB, {
         registration_id: null,
         kind: 'admin.refund.failed',
         source: 'admin',
@@ -117,6 +126,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       stripeTarget = cycle.refundTarget;
     }
     remaining = installmentRefundableMinor(cycle);
+    if (cycle.currency) chargeCurrency = cycle.currency.toUpperCase();
     cycleNote = ` · installment ${cycle.seq}`;
     if (remaining <= 0) {
       return redirect(returnTo, {
@@ -148,23 +158,37 @@ export const POST: APIRoute = async ({ request, locals }) => {
     }
   }
 
-  // ── PayPal refund. Subscription installments are v1 "sale" objects (refund
-  //    via the sale endpoint); one-off captures use the v2 captures endpoint.
+  // ── PayPal refund. A subscription cycle is refunded through the v2 captures
+  //    endpoint (refundSubscriptionCycle knows why, and keeps the deprecated v1
+  //    sale path behind it); a one-off capture goes straight to v2.
   //    Unlike Stripe (webhook is the single writer), we record the refund here
   //    too — idempotent on the refund id, so a later webhook never re-counts it.
   if (order.provider === 'paypal') {
     if (!paypalTarget) {
       return redirect(returnTo, { flash: 'refund_error', msg: 'No PayPal payment to refund' });
     }
+    const currency = chargeCurrency;
+
+    // THE GATEWAY CALL STANDS ALONE. Everything after it runs against money
+    // that has already moved, so only this try may answer "failed" — see the
+    // note below.
+    // `via` says which PayPal endpoint actually took the refund — worth
+    // knowing while the deprecated v1 path is still there as a fallback.
+    let refund: {
+      id: string;
+      status: string;
+      amountMinor: number | null;
+      via?: 'capture' | 'sale';
+    };
     try {
-      const currency = order.originalCurrency;
-      const refund = order.paypalSubscriptionId
-        ? await refundSale({
+      refund = order.paypalSubscriptionId
+        ? await refundSubscriptionCycle({
             env,
             saleId: paypalTarget,
             amountMinor,
             currency,
             noteToPayer: `Refund for ${order.orderNo}`,
+            customId: order.orderNo,
           })
         : await refundCapture({
             env,
@@ -174,7 +198,35 @@ export const POST: APIRoute = async ({ request, locals }) => {
             noteToPayer: `Refund for ${order.orderNo}`,
             customId: order.orderNo,
           });
-      const delta = refund.amountMinor ?? amountMinor ?? remaining;
+    } catch (err) {
+      await logEventSafe(env.DB, {
+        registration_id: null,
+        kind: 'admin.refund.failed',
+        source: 'admin',
+        payload: {
+          order_no: order.orderNo,
+          provider: 'paypal',
+          capture_id: paypalTarget,
+          installment: installmentId || null,
+          amount_minor: amountMinor,
+          currency,
+          error: String(err),
+        },
+      });
+      return redirect(returnTo, {
+        flash: 'refund_error',
+        msg: `PayPal refund failed — ${gatewayDetail(err)}`,
+      });
+    }
+
+    // PayPal has moved the money. From here on nothing may report a plain
+    // failure: "PayPal refund failed" would be read as "nothing happened" and
+    // the next press would hand the same cycle back a second time. Bookkeeping
+    // trouble is a WARNING that names the refund and says not to retry.
+    const delta = refund.amountMinor ?? amountMinor ?? remaining;
+    const amtMajor = (delta / 100).toFixed(2);
+    let bookkeepingError: string | null = null;
+    try {
       await recordPaypalRefund(env as any, {
         refundId: refund.id,
         captureId: paypalTarget,
@@ -186,51 +238,50 @@ export const POST: APIRoute = async ({ request, locals }) => {
         subscriptionId: order.paypalSubscriptionId,
         courseRegistrationId: order.source === 'course' ? order.rowId : null,
       });
-      await logEvent(env.DB, {
-        registration_id: order.source === 'retreat' ? order.rowId : null,
-        kind: 'admin.refund.requested',
-        source: 'admin',
-        external_id: `paypal-refund-${refund.id}`,
-        payload: {
-          order_no: order.orderNo,
-          source: order.source,
-          row_id: order.rowId,
-          provider: 'paypal',
-          capture_id: paypalTarget,
-          installment: installmentId || null,
-          refund_id: refund.id,
-          amount_minor: delta,
-          currency,
-          full: amountMinor == null,
-        },
-      });
-      const amtMajor = (delta / 100).toFixed(2);
-      return redirect(returnTo, {
-        flash: 'refund_ok',
-        msg: `PayPal refund of ${amtMajor} ${currency} submitted for ${order.orderNo}${cycleNote}`,
-      });
     } catch (err) {
-      await logEvent(env.DB, {
-        registration_id: null,
-        kind: 'admin.refund.failed',
-        source: 'admin',
-        payload: {
-          order_no: order.orderNo,
-          provider: 'paypal',
-          installment: installmentId || null,
-          error: String(err),
-        },
-      });
-      return redirect(returnTo, { flash: 'refund_error', msg: 'PayPal refund failed — see logs' });
+      bookkeepingError = gatewayDetail(err);
     }
+    await logEventSafe(env.DB, {
+      registration_id: order.source === 'retreat' ? order.rowId : null,
+      kind: 'admin.refund.requested',
+      source: 'admin',
+      external_id: `paypal-refund-${refund.id}`,
+      payload: {
+        order_no: order.orderNo,
+        source: order.source,
+        row_id: order.rowId,
+        provider: 'paypal',
+        capture_id: paypalTarget,
+        installment: installmentId || null,
+        refund_id: refund.id,
+        amount_minor: delta,
+        currency,
+        full: amountMinor == null,
+        via: refund.via ?? 'capture',
+        record_error: bookkeepingError,
+      },
+    });
+    if (bookkeepingError) {
+      return redirect(returnTo, {
+        flash: 'refund_warn',
+        msg: `PayPal DID refund ${amtMajor} ${currency} for ${order.orderNo}${cycleNote} (refund ${refund.id}) — but recording it here failed, so this page still shows the old figures. Do not refund again. ${bookkeepingError}`,
+      });
+    }
+    return redirect(returnTo, {
+      flash: 'refund_ok',
+      msg: `PayPal refund of ${amtMajor} ${currency} submitted for ${order.orderNo}${cycleNote}`,
+    });
   }
 
   if (!stripeTarget) {
     return redirect(returnTo, { flash: 'refund_error', msg: 'Order is not refundable' });
   }
 
+  // The Stripe side splits the same way: the gateway call alone may answer
+  // "failed", because a refund Stripe accepted is money already on its way back.
+  let refund: { id: string; amount: number; currency: string };
   try {
-    const refund = await createRefund({
+    refund = await createRefund({
       secretKey: env.STRIPE_SECRET_KEY,
       paymentIntent: stripeTarget,
       amountMinor,
@@ -241,47 +292,73 @@ export const POST: APIRoute = async ({ request, locals }) => {
         ...(installmentId ? { installment: installmentId } : {}),
       },
     });
-
-    await logEvent(env.DB, {
-      registration_id: order.source === 'retreat' ? order.rowId : null,
-      kind: 'admin.refund.requested',
-      source: 'admin',
-      external_id: `refund-${refund.id}`,
-      payload: {
-        order_no: order.orderNo,
-        source: order.source,
-        row_id: order.rowId,
-        payment_intent: stripeTarget,
-        installment: installmentId || null,
-        refund_id: refund.id,
-        amount_minor: refund.amount,
-        currency: refund.currency,
-        full: amountMinor == null,
-      },
-    });
-
-    const amtMajor = (refund.amount / 100).toFixed(2);
-    return redirect(returnTo, {
-      flash: 'refund_ok',
-      msg: `Refund of ${amtMajor} ${refund.currency.toUpperCase()} submitted for ${order.orderNo}${cycleNote}`,
-    });
   } catch (err) {
-    await logEvent(env.DB, {
+    await logEventSafe(env.DB, {
       registration_id: null,
       kind: 'admin.refund.failed',
       source: 'admin',
       payload: {
         order_no: order.orderNo,
+        provider: 'stripe',
+        payment_intent: stripeTarget,
         installment: installmentId || null,
+        amount_minor: amountMinor,
         error: String(err),
       },
     });
     return redirect(returnTo, {
       flash: 'refund_error',
-      msg: 'Stripe refund failed — see logs',
+      msg: `Stripe refund failed — ${gatewayDetail(err)}`,
     });
   }
+
+  // Our row is written by the `charge.refunded` webhook — the single writer —
+  // so there is no bookkeeping here to fail, only this note.
+  await logEventSafe(env.DB, {
+    registration_id: order.source === 'retreat' ? order.rowId : null,
+    kind: 'admin.refund.requested',
+    source: 'admin',
+    external_id: `refund-${refund.id}`,
+    payload: {
+      order_no: order.orderNo,
+      source: order.source,
+      row_id: order.rowId,
+      payment_intent: stripeTarget,
+      installment: installmentId || null,
+      refund_id: refund.id,
+      amount_minor: refund.amount,
+      currency: refund.currency,
+      full: amountMinor == null,
+    },
+  });
+
+  const amtMajor = (refund.amount / 100).toFixed(2);
+  return redirect(returnTo, {
+    flash: 'refund_ok',
+    msg: `Refund of ${amtMajor} ${refund.currency.toUpperCase()} submitted for ${order.orderNo}${cycleNote}`,
+  });
 };
+
+// The admin has no log viewer, so "see logs" was a dead end — a refund that
+// failed said only that it had. Put the gateway's own words on screen instead,
+// flattened to something a redirect URL can carry.
+//
+// The plain sentence goes FIRST. PayPal buries the actionable half at the end
+// of a long description ("…please check to see if you have sufficient funds"),
+// which is precisely what the trim below cuts off, so leading with the hint is
+// what makes the banner worth reading.
+function gatewayDetail(err: unknown): string {
+  const raw = String(err instanceof Error ? err.message : err)
+    .replace(/\s+/g, ' ')
+    .trim();
+  const hint = paypalRefundHint(err);
+  if (!raw) return hint ?? 'no detail from the gateway';
+  return hint ? `${hint} (${trim(raw, 300)})` : trim(raw, 400);
+}
+
+function trim(raw: string, max: number): string {
+  return raw.length > max ? `${raw.slice(0, max - 1)}…` : raw;
+}
 
 function redirect(
   base: string,
