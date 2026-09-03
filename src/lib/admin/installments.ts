@@ -84,13 +84,22 @@ export type InstallmentLedger = {
   error: string | null;
 };
 
+// The subscription whose cycles we can enumerate, keyed on the SAME `provider`
+// the refund endpoint branches on — so the ledger and the gateway call can
+// never disagree about which API a cycle id belongs to. A row whose provider
+// column contradicts the ids it carries simply has no ledger, and the page
+// falls back to the ordinary single-charge form, exactly as before.
+function ledgerSubscriptionOf(o: UnifiedOrder): string | null {
+  if (o.source !== 'course') return null;
+  if (o.installmentsTotal <= 1) return null;
+  return o.provider === 'paypal' ? o.paypalSubscriptionId : o.stripeSubscriptionId;
+}
+
 // Is this order a multi-installment plan held at a gateway we can enumerate?
 // A `full` course payment, a workshop, a retreat and a manual bank transfer all
 // answer no — they have exactly one charge, which the ordinary form handles.
 export function hasInstallmentLedger(o: UnifiedOrder): boolean {
-  if (o.source !== 'course') return false;
-  if (o.installmentsTotal <= 1) return false;
-  return !!(o.stripeSubscriptionId || o.paypalSubscriptionId);
+  return !!ledgerSubscriptionOf(o);
 }
 
 // The cycles of an installment plan, oldest first. Returns null for an order
@@ -99,14 +108,11 @@ export async function listOrderInstallments(
   env: InstallmentsEnv,
   o: UnifiedOrder,
 ): Promise<InstallmentLedger | null> {
-  if (!hasInstallmentLedger(o)) return null;
-  if (o.stripeSubscriptionId) {
-    return stripeLedger(env, o.stripeSubscriptionId);
-  }
-  if (o.paypalSubscriptionId) {
-    return paypalLedger(env, o.paypalSubscriptionId, o.createdAt);
-  }
-  return null;
+  const subscriptionId = ledgerSubscriptionOf(o);
+  if (!subscriptionId) return null;
+  return o.provider === 'paypal'
+    ? paypalLedger(env, subscriptionId, o.createdAt)
+    : stripeLedger(env, subscriptionId);
 }
 
 // Find one cycle in an order's own ledger. This is the whole authorisation

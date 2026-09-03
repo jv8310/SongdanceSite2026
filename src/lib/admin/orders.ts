@@ -1079,7 +1079,7 @@ export function isRefundable(o: UnifiedOrder): boolean {
   const hasPlan =
     o.source === 'course' &&
     o.installmentsTotal > 1 &&
-    !!(o.stripeSubscriptionId || o.paypalSubscriptionId);
+    !!(o.provider === 'paypal' ? o.paypalSubscriptionId : o.stripeSubscriptionId);
   const hasTarget =
     hasPlan || (o.provider === 'paypal' ? !!o.paypalCaptureId : !!o.paymentIntent);
   return (
