@@ -17,6 +17,7 @@
 import * as D from './email-design';
 import { type DownsellOffer, BUNDLE_PATH } from './downsell-offers';
 import { guarantee } from '../guarantee';
+import { tidyFirstName } from '../email/names';
 import { CERT_PATH_DISCOUNT_PERCENT } from '../courses/path';
 
 // Plain-text line for the 30-day money-back guarantee (the text/plain part of
@@ -139,7 +140,7 @@ export type WorkshopEmailCtx = {
 };
 
 function greeting(name?: string | null): string {
-  const first = (name ?? '').trim().split(' ')[0];
+  const first = tidyFirstName(name);
   return first ? `Dear ${escapeHtml(first)},` : 'Hello,';
 }
 

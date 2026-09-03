@@ -15,6 +15,7 @@
 
 import { shell, MAILING_ADDRESS, type EmailContent } from '../workshops/emails';
 import type { Broadcast } from './db';
+import { tidyName } from '../email/names';
 
 // Any {{ field | filters }} merge tag. The field allows a `subscriber.` prefix
 // and dots; filters (`| default: "x" | upcase` …) are captured so we can read a
@@ -36,7 +37,7 @@ export function personalize(
   s: string,
   opts: { firstName?: string; unsubscribeUrl?: string; email?: string } = {},
 ): string {
-  const fn = (opts.firstName || '').trim();
+  const fn = tidyName(opts.firstName);
   const email = (opts.email || '').trim();
   return s.replace(MERGE_RE, (_m, rawPath: string, filters: string) => {
     const key = rawPath.toLowerCase().replace(/^subscriber\./, '');

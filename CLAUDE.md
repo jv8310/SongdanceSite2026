@@ -279,6 +279,19 @@ All automated workshop email lives in the workshop engine:
   label says whose clock it is, the "· your time" markers that sat beside these
   times on the pages are gone — anything rendering a session time should call
   `formatInTz` and print what it returns, not re-qualify it.
+- **A name is printed as a name** (September 2026): checkout stores the name
+  exactly as typed, so "Dear felicia," went out in the seat confirmation.
+  `tidyFirstName` / `tidyName` ([`src/lib/email/names.ts`](src/lib/email/names.ts))
+  case it for display — used by the workshop `greeting` (so every lifecycle and
+  transactional mail), the three retreat greetings (waiting list, balance, bank
+  transfer) and the broadcast `{{first_name}}` merge tag. The rule is
+  deliberately timid: a name carrying **both** cases has already told us how it
+  is written ("McDonald", "de Vries") and is never touched; only a name written
+  in one case throughout is re-cased, each letter-run capitalised so
+  "mary-jane" → "Mary-Jane" and "o'brien" → "O'Brien"; and a two-letter capital
+  ("JD") stays as typed rather than becoming "Jd". Display only — nothing is
+  written back, so the row keeps what the buyer typed and history reads right
+  too. Greeting someone by name anywhere new should go through it.
 - **Sanctioned urgency exception** (owner's call, June 2026): discount-deadline
   emails may name the deadline plainly and the final one may be a "last chance"
   send. Keep it factual — no fake scarcity, no countdown theatrics. Marketing
