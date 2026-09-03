@@ -646,6 +646,7 @@ const leadTicket = items.find((it) => it.kind !== 'masterclass');
         adiscount: fd.get('adiscount') || '',
         meta_event_id: fd.get('meta_event_id') || '',
         audience: audienceState(),
+        page: location.pathname,
         provider: provider,
       };
       try {
