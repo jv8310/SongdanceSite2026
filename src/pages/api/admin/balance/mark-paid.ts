@@ -6,6 +6,7 @@ import {
   markBalancePaid,
 } from '../../../../lib/registrations/db';
 import { recordRetreatOrder } from '../../../../lib/registrations/paid-handler';
+import { invoiceRetreatBalance } from '../../../../lib/registrations/retreat-invoice';
 
 export const prerender = false;
 
@@ -50,7 +51,16 @@ export const POST: APIRoute = async ({ request, locals }) => {
           ? 'no-balance'
           : null;
 
+  let invoiced: 'ok' | 'failed' | null = null;
   if (!error) {
+    // Raise the balance's own Quaderno invoice BEFORE settling the row, while
+    // balance_due_cents still says what was owed. This money arrived by
+    // transfer (that is why this button exists), so no gateway reported it and
+    // the native connector never invoices it.
+    const invoice = await invoiceRetreatBalance(env, reg, balance);
+    if (invoice.ok === true) invoiced = 'ok';
+    else if (invoice.ok === false) invoiced = 'failed';
+
     await markBalancePaid(env.DB, registrationId);
     // Lift the Drip order to the now-full amount_cents (idempotent; no event).
     await recordRetreatOrder(env, registrationId);
@@ -68,6 +78,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
     params.set('bal_error', error);
   } else {
     params.set('bal_marked', '1');
+    // Say so when the invoice didn't come out, rather than leaving the books
+    // quietly short. The booking is settled either way.
+    if (invoiced === 'failed') params.set('bal_invoice_failed', '1');
+    if (invoiced === 'ok') params.set('bal_invoiced', '1');
   }
   const sep = returnTo.includes('?') ? '&' : '?';
   return new Response(null, {

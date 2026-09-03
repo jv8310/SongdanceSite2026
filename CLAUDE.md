@@ -387,6 +387,33 @@ money appears in the bank days later. Logic in
   column now says so from the moment of booking, before any payment intent
   exists. A bank-transfer order is **never refundable from the admin**
   (`isRefundable`) — the money goes back out of the bank by hand.
+- **We raise the invoice, because Quaderno cannot.** Almost every retreat
+  invoice comes from the native Stripe/PayPal→Quaderno connector: the gateway
+  reports the charge and Quaderno makes the document. A transfer has no
+  gateway, so nothing invoiced it at all — the money landed and the books
+  stayed empty. [`retreat-invoice.ts`](src/lib/registrations/retreat-invoice.ts)
+  fills that gap on both mark-paid paths, and **only** for money no gateway
+  saw: `invoiceRetreatBooking` refuses anything that is not a `bank_transfer`
+  row (a Stripe row marked paid by hand is the connector's to invoice, and a
+  second document would bill the guest twice on paper), `invoiceRetreatBalance`
+  is for the hand-settled balance whatever gateway took the deposit. Both are
+  idempotent on an `events` claim (`retreat-invoice-<id>` /
+  `retreat-balance-invoice-<id>`, kind `retreat.invoice.created`), release it
+  on failure so the button retries, and never throw into the admin action.
+  **The tax is not the course rule**: a course passes `tax_class: 'eservice'`
+  and lets Quaderno derive destination VAT or reverse-charge from the contact
+  — for a retreat that is wrong both ways. A physical event's place of supply
+  is where it is held (Art. 53), B2C and B2B alike, so the rate comes from
+  `products.vat_rate` and is passed explicitly as `tax_1_rate`. That column
+  really varies: **0.21** for the château in Belgium, **0.0** for the boat in
+  Egypt. `amount_cents` holds only what has been *charged* (the deposit on a
+  deposit booking; `markBalancePaid` adds the balance to it later), so it is
+  the sum to invoice as it stands — never a total to subtract the outstanding
+  balance from. A row already marked paid before this existed can still get
+  its invoice: `/admin/retreats/<slug>` shows **Create Quaderno invoice** /
+  **Invoice the balance** on exactly the rows that are missing one
+  (`/api/admin/quaderno-invoice`, which re-derives eligibility from the row
+  and trusts nothing in the form).
 - **The email** (`buildBankTransferEmail`) is transactional, uses the shared
   retreat shell (`retreatEmail` in `waitlist-emails.ts`, which grew an
   optional `details` panel for it), and asks the guest to **reply when they've

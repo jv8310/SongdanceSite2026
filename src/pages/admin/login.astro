@@ -1,9 +1,14 @@
 ---
 import Layout from '../../layouts/Layout.astro';
+import { safeAdminNext } from '../../lib/registrations/auth';
 
 export const prerender = false;
 
 const error = Astro.url.searchParams.get('error');
+// Where to go after signing in. Set when an admin was bounced here mid-task
+// (a form POST on a lapsed session — see src/middleware.ts), so they land back
+// on the page they pressed the button on. Sanitised to an in-site admin path.
+const next = safeAdminNext(Astro.url.searchParams.get('next'));
 ---
 
 <Layout title="Admin login — Songdance" description="">
@@ -12,7 +17,13 @@ const error = Astro.url.searchParams.get('error');
     {error && (
       <p style="color: #b22; margin-bottom: 16px;">Incorrect email or password.</p>
     )}
+    {next !== '/admin' && (
+      <p style="margin-bottom: 16px; color: #6b6257;">
+        Your session had expired. Sign in and we'll take you back to what you were doing.
+      </p>
+    )}
     <form method="POST" action="/api/admin/login" style="display: flex; flex-direction: column; gap: 12px;">
+      <input type="hidden" name="next" value={next} />
       <input
         type="email"
         name="email"
