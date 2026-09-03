@@ -61,6 +61,8 @@ const flashBanner =
     ? { tone: 'ok' as const, text: flashMsg ?? 'Refund submitted.' }
   : flash === 'refund_error'
     ? { tone: 'err' as const, text: flashMsg ?? 'Refund failed.' }
+  : flash === 'refund_warn'
+    ? { tone: 'warn' as const, text: flashMsg ?? 'Refund went through, but was not recorded here.' }
   : flash === 'cancel_ok'
     ? { tone: 'ok' as const, text: flashMsg ?? 'Plan updated.' }
   : flash === 'cancel_error'

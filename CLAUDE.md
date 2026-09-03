@@ -753,6 +753,27 @@ id / PayPal sale id):
   `billing_agreement_id`) or an explicit `courseRegistrationId` (the admin path).
 - Both gateway reads are capped at **8s** and degrade to the fallback form; the
   page never 500s on a Stripe blip.
+- **A PayPal cycle is refunded through v2 captures, never the v1 sale endpoint.**
+  A cycle arrives as a v1-shaped `PAYMENT.SALE.COMPLETED` and lists under
+  `GET /v1/billing/subscriptions/{id}/transactions`, which made
+  `/v1/payments/sale/{id}/refund` look like its reversal. It is not: all of
+  `/v1/payments` is deprecated and a current REST app answers it **404
+  RESOURCE_NOT_FOUND**, so every per-installment PayPal refund died at the
+  gateway with the money untouched. The id PayPal gives a cycle IS a capture, so
+  `refundSubscriptionCycle` ([`paypal.ts`](src/lib/payments/paypal.ts)) refunds
+  it at `/v2/payments/captures/{id}/refund`, keeping v1 behind it only for a
+  401/403/404 — statuses that prove nothing moved, so the fallback can never
+  refund twice. `via` on the `admin.refund.requested` event records which one
+  took it.
+- **Only the gateway call may report "failed".** Everything after it —
+  `recordPaypalRefund`, the audit note — runs against money that has already
+  moved, so a throw there used to render "PayPal refund failed", which reads as
+  *nothing happened* and invites a second press that refunds the cycle twice.
+  The bookkeeping now reports a **warning** naming the refund id and saying not
+  to retry, and the notes go through `logEventSafe`.
+- **The failure says what the gateway said.** There is no events viewer in the
+  admin, so "see logs" was a dead end; the flash now carries PayPal's/Stripe's
+  own message (`gatewayDetail`, trimmed to 300 chars).
 - **Stopping the plan sits in the same panel** — refunding a cycle and forgiving
   the ones still to come are two halves of one decision. It posts to the same
   `/api/admin/courses/cancel-installments` the Future-revenue table uses (which
