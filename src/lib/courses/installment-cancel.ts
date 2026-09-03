@@ -90,6 +90,20 @@ export function isCancellablePlan(reg: CourseRegistration): boolean {
   );
 }
 
+// The wording for one "keep N more charges" option, so the Future-revenue table
+// and the per-order installments panel offer the same choices in the same
+// words. `origRemaining` is how many charges the plan has left to make.
+export function keepLabel(k: number, origRemaining: number): string {
+  if (k === 0) {
+    return origRemaining === 1
+      ? 'Stop now · cancel the last charge'
+      : `Stop now · cancel all ${origRemaining} upcoming`;
+  }
+  if (k >= origRemaining) return `Keep full plan (${origRemaining} more)`;
+  const base = `Bill ${k} more, then stop`;
+  return k === origRemaining - 1 ? `${base} · only the last cancelled` : base;
+}
+
 export async function scheduleInstallmentCancellation(
   env: CancelEnv,
   regId: number,

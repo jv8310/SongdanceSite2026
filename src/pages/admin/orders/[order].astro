@@ -15,6 +15,9 @@ import {
   listOrderInstallments,
   perChargeRefundableMinor,
 } from '../../../lib/admin/installments';
+import { getCourseRegistrationById } from '../../../lib/courses/db';
+import { effectiveTotal } from '../../../lib/courses/installment-forecast';
+import { isCancellablePlan, keepLabel } from '../../../lib/courses/installment-cancel';
 import { getFxRatesToEur } from '../../../lib/admin/fx';
 import { providerLinkFor, resolveProviderModes } from '../../../lib/admin/provider-links';
 
@@ -58,6 +61,10 @@ const flashBanner =
     ? { tone: 'ok' as const, text: flashMsg ?? 'Refund submitted.' }
   : flash === 'refund_error'
     ? { tone: 'err' as const, text: flashMsg ?? 'Refund failed.' }
+  : flash === 'cancel_ok'
+    ? { tone: 'ok' as const, text: flashMsg ?? 'Plan updated.' }
+  : flash === 'cancel_error'
+    ? { tone: 'err' as const, text: flashMsg ?? 'Could not update the plan.' }
     : null;
 
 const SOURCE_LABEL: Record<OrderSource, string> = {
@@ -81,6 +88,45 @@ const link = o ? providerLinkFor(o, providerModes) : null;
 // last webhook, which is the very thing that goes missing.
 const ledger = o ? await listOrderInstallments(env, o) : null;
 const isPlan = o ? hasInstallmentLedger(o) : false;
+// Stopping the plan lives beside refunding a cycle, because they are the two
+// halves of the same conversation ("give this one back, and don't charge the
+// rest"). Same row, same rules, same endpoint as Future revenue — this is a
+// second doorway to that control, not a second implementation of it.
+const planReg = isPlan && o ? await getCourseRegistrationById(env.DB, o.rowId) : null;
+const planRemaining = planReg
+  ? planReg.installments_total - planReg.installments_paid
+  : 0;
+const canStopPlan =
+  !!planReg &&
+  isCancellablePlan(planReg) &&
+  !!(planReg.provider === 'paypal'
+    ? planReg.paypal_subscription_id
+    : planReg.stripe_subscription_id);
+// Which option is already in force, so the select opens on the current schedule
+// rather than silently proposing a change.
+const currentKeep = planReg ? effectiveTotal(planReg) - planReg.installments_paid : 0;
+const keepOptions = Array.from({ length: planRemaining + 1 }, (_, k) => k);
+// Say WHY there is nothing to stop, rather than a flat "unavailable".
+const stopBlockedReason = (() => {
+  if (canStopPlan || !planReg) return null;
+  if (planRemaining <= 0) {
+    return 'Every charge on this plan has been made — there is nothing left to stop.';
+  }
+  if (
+    planReg.subscription_status === 'canceled' ||
+    planReg.subscription_status === 'incomplete_expired'
+  ) {
+    return 'This plan has already stopped — the subscription is closed at the gateway.';
+  }
+  if (planReg.status === 'refunded') {
+    return 'This order is fully refunded, so the plan is already closed.';
+  }
+  if (planReg.status !== 'paid') {
+    return `This plan is “${planReg.status}” — only a live, paid plan can be stopped from here.`;
+  }
+  return 'No gateway subscription on this row — check the plan in the gateway.';
+})();
+
 // The single charge stored on the row — what the whole-order form targets.
 // Null on a plan whose first PaymentIntent was never captured, in which case
 // that form has nothing to aim at and only the per-installment panel works.
@@ -334,14 +380,51 @@ function ymdhm(iso: string | null): string {
                 </table>
               )}
 
+              {/*
+                Stopping the plan sits with the refunds because they are the two
+                halves of one decision. Posts to the same endpoint the
+                Future-revenue table uses, which re-derives everything from the
+                row — nothing about the schedule is trusted from this form.
+              */}
+              <div class="od-inst-stop">
+                {canStopPlan ? (
+                  <form
+                    method="POST"
+                    action="/api/admin/courses/cancel-installments"
+                    class="od-inst-stop-form"
+                    onsubmit={`return confirm('Change billing for ${jsName}\\'s ${o.paymentPlan} plan?\\nThis affects real charges still to come. It does NOT refund anything already taken, and the buyer keeps access.')`}
+                  >
+                    <input type="hidden" name="course_registration_id" value={o.rowId} />
+                    <input type="hidden" name="return_to" value={selfReturn} />
+                    <label>
+                      <span>Charges still to come ({planRemaining} left)</span>
+                      <select name="keep">
+                        {keepOptions.map((k) => (
+                          <option value={k} selected={k === currentKeep}>{keepLabel(k, planRemaining)}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <button type="submit" class="adm-btn adm-btn--danger adm-btn--tiny">Apply</button>
+                    {o.provider === 'paypal' && (
+                      <p class="od-inst-stop-hint">
+                        PayPal: “stop now” takes effect immediately; a partial stop is
+                        applied once the next charge is recorded.
+                      </p>
+                    )}
+                  </form>
+                ) : (
+                  <p class="od-inst-stop-none">{stopBlockedReason}</p>
+                )}
+              </div>
+
               <p class="od-inst-hint">
                 Each row is its own charge — refunding one leaves the others alone, and the
                 plan keeps billing. Refunds are subtracted from the order total; the order
                 only reads <strong>refunded</strong> once everything collected has gone back.
                 {ledger?.provider === 'paypal' && ' PayPal reports a refunded state per cycle but not the amount, so the “Refunded” column shows ? — the order total above is the reliable figure.'}
-                {' '}To stop the charges still to come, use
-                {' '}<a href="/admin/courses/future-revenue">Future revenue → stop the plan early</a>
-                {' '}— that forgives future charges without refunding past ones.
+                {' '}<strong>Stopping the plan forgives future charges only</strong> — it never
+                gives money back, and the buyer keeps access either way. The same control is on
+                {' '}<a href="/admin/courses/future-revenue">Future revenue</a>, across all plans.
               </p>
             </div>
           </section>
@@ -539,6 +622,21 @@ function ymdhm(iso: string | null): string {
       font:inherit; font-size:12px;
     }
     .od-inst-hint { margin:12px 0 0; font-size:11px; color:var(--adm-mute); line-height:1.5; }
+    .od-inst-stop {
+      margin-top:14px; padding-top:12px; border-top:1px solid var(--adm-line);
+    }
+    .od-inst-stop-form { display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; }
+    .od-inst-stop-form label {
+      display:flex; flex-direction:column; gap:4px;
+      font-size:12px; color:var(--adm-ink-soft);
+    }
+    .od-inst-stop-form select {
+      padding:6px 8px; border:1px solid var(--adm-line); border-radius:7px;
+      font:inherit; font-size:12px; background:var(--adm-paper);
+    }
+    .od-inst-stop-hint, .od-inst-stop-none {
+      flex-basis:100%; margin:0; font-size:11px; color:var(--adm-mute);
+    }
     @media (max-width: 640px) {
       .od-inst-table thead { display:none; }
       .od-inst-table tr { display:grid; grid-template-columns:1fr 1fr; gap:2px 10px; padding:8px 0; border-bottom:1px solid var(--adm-line); }

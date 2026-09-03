@@ -726,6 +726,17 @@ id / PayPal sale id):
   `billing_agreement_id`) or an explicit `courseRegistrationId` (the admin path).
 - Both gateway reads are capped at **8s** and degrade to the fallback form; the
   page never 500s on a Stripe blip.
+- **Stopping the plan sits in the same panel** — refunding a cycle and forgiving
+  the ones still to come are two halves of one decision. It posts to the same
+  `/api/admin/courses/cancel-installments` the Future-revenue table uses (which
+  re-derives everything from the row), and both offer the same options in the
+  same words via the shared `keepLabel`
+  ([`installment-cancel.ts`](src/lib/courses/installment-cancel.ts)) — a second
+  doorway to that control, never a second implementation. Stopping never
+  refunds and never revokes access. It needs a live plan, so it depends on the
+  status rule below: before it, refunding one cycle flipped the row to
+  `refunded` and `isCancellablePlan` then refused — "refund one, stop the rest"
+  was impossible in that order.
 
 **A partial refund is no longer "this plan has stopped."**
 `markCourseRegistrationRefunded` used to flip `status='refunded'` on any refund,

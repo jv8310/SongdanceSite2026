@@ -7,6 +7,7 @@ import {
   type InstallmentRow,
 } from '../../../lib/courses/installment-forecast';
 import { getTaxRate } from '../../../lib/workshops/quaderno';
+import { keepLabel } from '../../../lib/courses/installment-cancel';
 import {
   providerLinkFor,
   resolveProviderModes,
@@ -138,18 +139,6 @@ function stateLabel(state: string): string {
     : state === 'not_started' ? 'Not started'
     : 'On track';
 }
-// Label for one "keep N more charges" option in the cancel control.
-function keepLabel(k: number, origRemaining: number): string {
-  if (k === 0) {
-    return origRemaining === 1
-      ? 'Stop now · cancel the last charge'
-      : `Stop now · cancel all ${origRemaining} upcoming`;
-  }
-  if (k >= origRemaining) return `Keep full plan (${origRemaining} more)`;
-  const base = `Bill ${k} more, then stop`;
-  return k === origRemaining - 1 ? `${base} · only the last cancelled` : base;
-}
-
 // ── SVG line chart geometry ──
 // Two series: total expected income (solid) and the at-risk slice (dashed),
 // plotted across the projected months. Pure SVG — no chart library.
@@ -498,8 +487,9 @@ const hasAtRisk = months.some((m) => m.atRiskEurMinor > 0);
         jumps to the subscription in the gateway dashboard. <strong>Manage</strong>
         schedules an early stop: “stop now” cancels all upcoming charges, or bill a
         chosen number more and then stop (e.g. cancel only the last). The buyer
-        keeps access; only future charges stop — to give money back, use Refund on
-        the Orders page. “Watch” = the subscription is retrying (past&nbsp;due),
+        keeps access; only future charges stop — to give money back, open the order
+        (<strong>C-&lt;id&gt;</strong>) and refund the installments you mean to
+        return; the same stop control is on that page too. “Watch” = the subscription is retrying (past&nbsp;due),
         unpaid, or cancelled with money still owed. A <strong>Not started</strong>
         plan (0 charges, no payments) shows <strong>Remove</strong> instead: it
         deletes the stranded row after checking the gateway confirms no money was
