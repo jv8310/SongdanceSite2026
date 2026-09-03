@@ -691,6 +691,68 @@ many `invoice.paid` events actually arrived vs installments recorded. Zero
 subscribed to that event, which is otherwise invisible. A short cycle is money
 Stripe never took: it can't be fixed retroactively, only invoiced or waived.
 
+## Refunding a course installment plan — one cycle at a time
+
+A plan's charges live at the **gateway**, not on our row: `amount_cents` is the
+whole plan total, and the row only ever keeps the **first** charge id
+(`stripe_payment_intent` / `paypal_capture_id` are both written with
+`COALESCE(…)`). So the admin refund button used to target installment 1 for
+every plan — a blank ("full") refund quietly gave back one cycle while the
+dialog promised the plan total, any larger amount was rejected by the gateway,
+and cycle 2+ could only be refunded from the Stripe dashboard.
+
+[`src/lib/admin/installments.ts`](src/lib/admin/installments.ts) reads the
+cycles live (`listSubscriptionInvoices` for Stripe, `listSubscriptionTransactions`
+for PayPal) and `/admin/orders/C-<id>` renders one row per installment —
+date, invoice/sale reference, amount, already-refunded, and its own Refund
+button. `/api/admin/refund` takes an optional **`installment`** (a Stripe invoice
+id / PayPal sale id):
+
+- **The id is never trusted.** It is looked up in the ledger built from *this
+  row's own* subscription id — that lookup is both the resolution and the
+  authorisation check — and the amount is clamped to that cycle, not the plan.
+- **The whole-order form's ceiling is ONE charge** (`perChargeRefundableMinor`),
+  because that is all it can reach. It only appears for a plan as the fallback
+  when the gateway can't be read; the panel is the normal path. Anything
+  offering `refundableMinor` (the plan total) as refundable against a single
+  charge is the original bug.
+- **Two gateway holes had to be closed for cycle 2+ to record at all.** Stripe's
+  basil API version hides the invoice's PaymentIntent behind an `expand`, so
+  `listSubscriptionInvoices` asks for `data.payments` and falls back to a bare
+  list on the 400; where it still comes back null, the anchor is recovered from
+  our own `course.installment.recorded` events. On PayPal, a refund of cycle 2+
+  matched no row and died as `paypal.refund.unmatched` — `recordPaypalRefund`
+  now also routes by `subscriptionId` (the webhook passes the sale's
+  `billing_agreement_id`) or an explicit `courseRegistrationId` (the admin path).
+- Both gateway reads are capped at **8s** and degrade to the fallback form; the
+  page never 500s on a Stripe blip.
+- **Stopping the plan sits in the same panel** — refunding a cycle and forgiving
+  the ones still to come are two halves of one decision. It posts to the same
+  `/api/admin/courses/cancel-installments` the Future-revenue table uses (which
+  re-derives everything from the row), and both offer the same options in the
+  same words via the shared `keepLabel`
+  ([`installment-cancel.ts`](src/lib/courses/installment-cancel.ts)) — a second
+  doorway to that control, never a second implementation. Stopping never
+  refunds and never revokes access. It needs a live plan, so it depends on the
+  status rule below: before it, refunding one cycle flipped the row to
+  `refunded` and `isCancellablePlan` then refused — "refund one, stop the rest"
+  was impossible in that order.
+
+**A partial refund is no longer "this plan has stopped."**
+`markCourseRegistrationRefunded` used to flip `status='refunded'` on any refund,
+however small — and the revenue stack reads that status as terminal
+(`contractedMinorOf` counts a refunded row at `installments_paid` instead of its
+contracted total; the future-revenue forecast drops it entirely). So handing one
+installment of six back wrote off the four still to bill, on a plan Stripe was
+still charging. It now flips only once refunds reach everything the row has
+**collected** (`collectedGrossMinor`, the mirror of `collectedMinorOf` in
+stats.ts — the two must agree); below that the row keeps its status and only
+`refunded_amount_cents` moves, which every figure already nets off. This governs
+a Stripe-dashboard refund too, since the `charge.refunded` webhook shares the
+writer. Side effect worth knowing: album entitlement gates on `status='paid'`
+([`music/product.ts`](src/lib/music/product.ts)), so a *partial* refund of an
+album now keeps access and only a full one revokes it.
+
 ## Stripe course-installment recognition — safety-net reconcile
 
 Stripe **course installment plans** (3×/6×/12× subscriptions) record each cycle

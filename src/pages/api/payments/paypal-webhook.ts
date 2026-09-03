@@ -255,6 +255,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
               : null,
           currency:
             resource?.amount?.currency_code ?? resource?.amount?.currency ?? null,
+          // A subscription cycle refund carries the plan on the sale. We only
+          // store the FIRST cycle's sale id on the row, so without this a
+          // refund of cycle 2+ matches nothing and is logged as unmatched.
+          subscriptionId: (resource?.billing_agreement_id as string) ?? null,
         });
       }
       return new Response('OK', { status: 200 });
