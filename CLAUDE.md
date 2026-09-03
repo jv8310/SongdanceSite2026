@@ -183,6 +183,41 @@ Everything now goes through [`src/lib/workshops/bump.ts`](src/lib/workshops/bump
 So what is advertised, charged, recorded and granted are one decision. Adding a
 caller that re-derives the bump re-opens this exact bug.
 
+## Page changes are bookmarked, and registrations remember their page
+
+Two small pieces of instrumentation that only make sense together.
+
+- **`signup_page` on a registration** (migration 0083,
+  [`src/lib/workshops/signup-page.ts`](src/lib/workshops/signup-page.ts)):
+  `/workshop`, `/courses/masterclass` and a direct `/w/<slug>` link all POST the
+  same `/api/workshops/register`, so nothing ever recorded *which page* sold a
+  seat — "how many workshop tickets did the masterclass page sell?" had no
+  answer in the data. Each form now sends its own `location.pathname`; the
+  server normalizes it (`masterclass` / `workshop` / `w`, else the cleaned path,
+  query and hash dropped — they carry discounts, referral ids and emails) and
+  writes it with `recordSignupPage`, **after** the row exists and wrapped in a
+  try/catch: it is analytics, and a preview deploy runs against the live
+  database *before* its migration is applied, so a checkout must never 500 over
+  a reporting column. First page on a row wins. Rows created before this are
+  NULL — **unknown, not zero**, and every readout must say so.
+- **Bookmarked page changes** ([`src/lib/workshops/experiments.ts`](src/lib/workshops/experiments.ts)):
+  the site has no page-view analytics, so "did conversion go up?" can only be
+  answered by comparing like windows of registrations either side of a change —
+  which is worthless without the exact date. Record one here whenever you change
+  what a landing page offers. `MC_WORKSHOP_ALTERNATIVES` (2026-09-03) is the
+  first: the masterclass page stopped listing the live €22 workshop dates under
+  "in case the masterclass doesn't fit your schedule" (`MC_PAGE_OFFERS_WORKSHOPS`
+  in `MCRegister` — flip it to put them back, and bookmark *that* date too). The
+  masterclass **replay** stays: same product, same price.
+- **Where to read it**: `/admin/workshops/performance` → the panel named after
+  the change ([`mc-page-report.ts`](src/lib/workshops/mc-page-report.ts)). It
+  deliberately **ignores the period picker** — it runs the days since the change
+  against the same number of days immediately before it, which is what makes the
+  halves comparable. The conversion rate is **started → secured**: a
+  registration row is written at `prepared` the moment the form is submitted
+  (before the gateway) and flips to `paid`/`coupon` when the seat is secured, so
+  that ratio is a real funnel and the only one this database can offer.
+
 ## Share with a friend — one link builder, and the funnel behind it
 
 The countdown page (`/workshop/success`) offers every secured registrant a link

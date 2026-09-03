@@ -16,6 +16,7 @@ import {
   getPublishedWorkshopBySlug,
   resolvePrice,
   upsertRegistration,
+  recordSignupPage,
   setRegistrationPaymentStatus,
 } from '../../../lib/workshops/db';
 import { currencyForCountry } from '../../../lib/workshops/currency';
@@ -26,6 +27,7 @@ import {
   resolveTicketDiscountPercent,
 } from '../../../lib/workshops/discount';
 import { resolveReferralForCheckout } from '../../../lib/workshops/share';
+import { normalizeSignupPage } from '../../../lib/workshops/signup-page';
 
 export const prerender = false;
 
@@ -46,6 +48,7 @@ type Body = {
   adiscount?: string; // owner secret ticket discount — any 1–100
   meta_event_id?: string;
   audience?: string; // door-set from the workshop page, e.g. "3" or "1,3"
+  page?: string; // pathname the checkout was started on (see signup-page.ts)
   provider?: string; // 'stripe' (default) | 'paypal'
 };
 
@@ -152,6 +155,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
     email,
   );
 
+  // Which page sold this seat. The form sends its own pathname; the Referer is
+  // the fallback for a client that stripped it (and for anything posting here
+  // that predates the field). Unknown stays NULL rather than guessing.
+  const signupPage =
+    normalizeSignupPage(payload.page) ?? normalizeSignupPage(request.headers.get('referer'));
+
   const { id: registrationId, token: accessToken } = await upsertRegistration(env.DB, {
     workshop_id: workshop.id,
     name,
@@ -168,6 +177,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
     referred_by_id: referral?.referredById ?? null,
     referral_channel: referral?.channel ?? null,
   });
+
+  await recordSignupPage(env.DB, registrationId, signupPage);
 
   // ── Free-coupon path: skip Stripe, grant access immediately. ──────────
   if (coupon && workshop.free_coupon && coupon === workshop.free_coupon) {

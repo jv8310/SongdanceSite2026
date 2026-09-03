@@ -262,6 +262,7 @@ const tzOptions = Array.from(new Set([detectedTz, ...COMMON_TZS]));
           adiscount: fd.get('adiscount') || '',
           bump: fd.get('bump') === 'on',
           meta_event_id: fd.get('meta_event_id') || '',
+          page: location.pathname,
           provider: provider,
         };
         try {
