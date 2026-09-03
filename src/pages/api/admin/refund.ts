@@ -2,7 +2,11 @@ import type { APIRoute } from 'astro';
 import { readCookie, verifySession } from '../../../lib/registrations/auth';
 import { logEventSafe } from '../../../lib/registrations/db';
 import { createRefund } from '../../../lib/registrations/stripe';
-import { refundCapture, refundSubscriptionCycle } from '../../../lib/payments/paypal';
+import {
+  paypalRefundHint,
+  refundCapture,
+  refundSubscriptionCycle,
+} from '../../../lib/payments/paypal';
 import { recordPaypalRefund } from '../../../lib/payments/paypal-fulfill';
 import {
   findOrder,
@@ -338,12 +342,22 @@ export const POST: APIRoute = async ({ request, locals }) => {
 // The admin has no log viewer, so "see logs" was a dead end — a refund that
 // failed said only that it had. Put the gateway's own words on screen instead,
 // flattened to something a redirect URL can carry.
+//
+// The plain sentence goes FIRST. PayPal buries the actionable half at the end
+// of a long description ("…please check to see if you have sufficient funds"),
+// which is precisely what the trim below cuts off, so leading with the hint is
+// what makes the banner worth reading.
 function gatewayDetail(err: unknown): string {
   const raw = String(err instanceof Error ? err.message : err)
     .replace(/\s+/g, ' ')
     .trim();
-  if (!raw) return 'no detail from the gateway';
-  return raw.length > 300 ? `${raw.slice(0, 299)}…` : raw;
+  const hint = paypalRefundHint(err);
+  if (!raw) return hint ?? 'no detail from the gateway';
+  return hint ? `${hint} (${trim(raw, 300)})` : trim(raw, 400);
+}
+
+function trim(raw: string, max: number): string {
+  return raw.length > max ? `${raw.slice(0, max - 1)}…` : raw;
 }
 
 function redirect(

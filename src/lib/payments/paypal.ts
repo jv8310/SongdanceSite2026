@@ -35,11 +35,22 @@ const SANDBOX_BASE = 'https://api-m.sandbox.paypal.com';
 export class PaypalApiError extends Error {
   status: number;
   paypalName: string | null;
-  constructor(message: string, status: number, paypalName: string | null) {
+  // The `issue` codes out of PayPal's `details[]` (e.g.
+  // REFUND_FAILED_INSUFFICIENT_FUNDS). `name` is only ever the broad class
+  // (UNPROCESSABLE_ENTITY); the issue is the part that says what to DO, so it
+  // is kept as data rather than left buried in the message string.
+  issues: string[];
+  constructor(
+    message: string,
+    status: number,
+    paypalName: string | null,
+    issues: string[] = [],
+  ) {
     super(message);
     this.name = 'PaypalApiError';
     this.status = status;
     this.paypalName = paypalName;
+    this.issues = issues;
   }
 }
 
@@ -139,6 +150,9 @@ async function ppFetch<T>(
       `PayPal ${method} ${path}: ${msg}${detail}`,
       res.status,
       typeof data?.name === 'string' ? data.name : null,
+      (Array.isArray(data?.details) ? data.details : [])
+        .map((d: { issue?: unknown }) => d?.issue)
+        .filter((i: unknown): i is string => typeof i === 'string' && !!i),
     );
   }
   return data as T;
@@ -805,12 +819,41 @@ export async function refundSubscriptionCycle(input: {
       return { ...refund, via: 'sale' };
     } catch (saleErr) {
       // Report BOTH attempts — a bare v1 error would send whoever reads it
-      // hunting in the deprecated API instead of at the capture.
-      throw new Error(
-        `${saleErr instanceof Error ? saleErr.message : String(saleErr)} — and the v2 capture refund first said: ${err.message}`,
-      );
+      // hunting in the deprecated API instead of at the capture. Keep the v1
+      // error's TYPE, so its issue codes still reach paypalRefundHint.
+      const combined = `${saleErr instanceof Error ? saleErr.message : String(saleErr)} — and the v2 capture refund first said: ${err.message}`;
+      throw saleErr instanceof PaypalApiError
+        ? new PaypalApiError(combined, saleErr.status, saleErr.paypalName, saleErr.issues)
+        : new Error(combined);
     }
   }
+}
+
+// What a refund rejection actually means, in words that name the next move.
+//
+// PayPal answers a refused refund with a broad `name` (UNPROCESSABLE_ENTITY)
+// and a long `description` — the sentence that matters sits at the end of it,
+// which is exactly the part a trimmed error message loses. These are the issues
+// a refund realistically hits; anything else falls through to PayPal's own text.
+const REFUND_ISSUE_HINTS: Record<string, string> = {
+  REFUND_FAILED_INSUFFICIENT_FUNDS:
+    'the PayPal balance does not cover it. PayPal takes a refund from the balance first and then from a linked, confirmed bank account — top the account up (or link/verify a bank account) and press Refund again. Nothing was refunded.',
+  CAPTURE_FULLY_REFUNDED: 'that charge has already been refunded in full.',
+  REFUND_AMOUNT_EXCEEDED: 'that is more than is left on that charge.',
+  REFUND_TIME_LIMIT_EXCEEDED:
+    'the charge is older than PayPal allows a refund on (180 days) — it has to go back another way.',
+  REFUND_NOT_ALLOWED: 'PayPal does not allow this charge to be refunded.',
+};
+
+// The plain sentence for a refund failure, or null when PayPal's own words are
+// all there is. Takes `unknown` so a caller can hand it any thrown value.
+export function paypalRefundHint(err: unknown): string | null {
+  if (!(err instanceof PaypalApiError)) return null;
+  for (const issue of err.issues) {
+    const hint = REFUND_ISSUE_HINTS[issue];
+    if (hint) return hint;
+  }
+  return null;
 }
 
 // ── Webhook signature verification ────────────────────────────────────────

@@ -771,9 +771,16 @@ id / PayPal sale id):
   *nothing happened* and invites a second press that refunds the cycle twice.
   The bookkeeping now reports a **warning** naming the refund id and saying not
   to retry, and the notes go through `logEventSafe`.
-- **The failure says what the gateway said.** There is no events viewer in the
-  admin, so "see logs" was a dead end; the flash now carries PayPal's/Stripe's
-  own message (`gatewayDetail`, trimmed to 300 chars).
+- **The failure says what the gateway said, and what to do about it.** There is
+  no events viewer in the admin, so "see logs" was a dead end; the flash now
+  carries PayPal's/Stripe's own message (`gatewayDetail`). PayPal buries the
+  actionable half at the END of a long description — the part a trim cuts off —
+  so `paypalRefundHint` leads with one plain sentence per known refund `issue`
+  (carried on `PaypalApiError.issues`) and the raw text follows.
+  **`REFUND_FAILED_INSUFFICIENT_FUNDS` is not a bug**: PayPal draws a refund
+  from the account balance, then a linked confirmed bank account, and refuses —
+  changing nothing — when neither covers it. Top the account up and press
+  Refund again.
 - **Stopping the plan sits in the same panel** — refunding a cycle and forgiving
   the ones still to come are two halves of one decision. It posts to the same
   `/api/admin/courses/cancel-installments` the Future-revenue table uses (which
