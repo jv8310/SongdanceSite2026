@@ -161,7 +161,7 @@ const friendSlug = (Astro.url.searchParams.get('friend') ?? '').trim();
                 )}
                 <span class="we-cal-kind">Masterclass</span>
                 <span class="we-cal-when">
-                  {it.whenLocal}<span class="we-cal-tz"> · your time</span>
+                  {it.whenLocal}
                 </span>
                 <span class="we-cal-meta">
                   {`${it.durationMin} min`}
@@ -197,7 +197,6 @@ const friendSlug = (Astro.url.searchParams.get('friend') ?? '').trim();
                   <span class="we-cal-kind">{it.kind === 'masterclass' ? 'Masterclass' : 'Workshop'}</span>
                   <span class="we-cal-when">
                     {it.isReplay ? 'Instant access — watch anytime' : it.whenLocal}
-                    {!it.isReplay && <span class="we-cal-tz"> · your time</span>}
                   </span>
                   <span class="we-cal-meta">
                     {it.kind === 'masterclass'

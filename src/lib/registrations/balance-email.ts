@@ -9,6 +9,7 @@
 //   2. the online checkout link, which settles itself through the webhook.
 
 import { makeOrderNo } from '../admin/orders';
+import { tidyFirstName } from '../email/names';
 
 export interface BalanceEmailContent {
   subject: string;
@@ -55,7 +56,8 @@ export function buildBalanceEmail(args: {
   reference: string;
 }): BalanceEmailContent {
   const { first_name, event_name, amount_label, due_label, link, reference } = args;
-  const greet = first_name ? `Hi ${first_name},` : 'Hi,';
+  const greetName = tidyFirstName(first_name);
+  const greet = greetName ? `Hi ${greetName},` : 'Hi,';
   const subject = `Your remaining balance for ${event_name}`;
 
   const intro =

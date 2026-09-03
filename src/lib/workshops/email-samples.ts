@@ -47,6 +47,7 @@ import {
   sampleWeeklyReportData,
 } from './reports';
 import { buildBriefingEmail, sampleBriefingData } from './briefing';
+import { formatInTz } from './time';
 import {
   BALANCE_DUE_LABEL,
   balancePaymentReference,
@@ -87,8 +88,10 @@ export function buildEmailSamples(base: string): EmailSample[] {
   const b = base.replace(/\/$/, '');
   const name = 'Maria Voss';
   const workshopTitle = 'Somatic Vocal Healing Workshop';
-  const whenLocal = 'Monday 15 June 2026, 20:00 (CEST)';
-  const discountEndsLocal = 'Wednesday 17 June 2026, 21:00 (CEST)';
+  // Formatted the way a real send is, so the preview shows the timezone exactly
+  // as the recipient reads it ("… 20:00 Brussels time", never "GMT+2").
+  const whenLocal = formatInTz('2026-06-15T18:00:00Z', 'Europe/Brussels');
+  const discountEndsLocal = formatInTz('2026-06-17T19:00:00Z', 'Europe/Brussels');
   const resumeUrl = `${b}/workshop?resume=sample0123456789abcdef0123456789ab#register`;
   const joinUrl = `${b}/workshop/success?t=sample0123456789abcdef0123456789ab`;
   // Personalized: the course page reads ?email= and shows that person's

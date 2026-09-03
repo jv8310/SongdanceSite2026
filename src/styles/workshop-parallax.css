@@ -534,7 +534,6 @@ html.wp-anim .wp-fade { opacity: 0; }
   color: var(--ink);
   letter-spacing: -0.01em;
 }
-.wp-reserve-tz { color: var(--ink-quiet); font-family: var(--font-body); font-size: 0.7em; }
 .wp-reserve-action { display: flex; align-items: center; gap: var(--sp-5); }
 .wp-reserve-price {
   font-family: var(--font-display);

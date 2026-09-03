@@ -24,6 +24,7 @@
 import { logEventSafe, type Registration } from './db';
 import { retreatEmail, type RetreatEmailContent } from './waitlist-emails';
 import { sendViaResend } from './balance';
+import { tidyFirstName } from '../email/names';
 
 const DEFAULT_FROM = 'Songdance <intakes@mail.songdance.co>';
 const REPLY_TO = 'jacob@songdance.co';
@@ -115,7 +116,8 @@ export function buildBankTransferEmail(args: {
     hold_days,
     deposit_note,
   } = args;
-  const greet = first_name ? `Hi ${first_name},` : 'Hi,';
+  const greetName = tidyFirstName(first_name);
+  const greet = greetName ? `Hi ${greetName},` : 'Hi,';
   const when = when_label ? ` (${when_label})` : '';
 
   return retreatEmail({
