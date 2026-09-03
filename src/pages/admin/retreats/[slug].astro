@@ -3,6 +3,7 @@ import '../../../styles/admin.css';
 import Layout from '../../../layouts/Layout.astro';
 import { readCookie, verifySession } from '../../../lib/registrations/auth';
 import { BANK_TRANSFER } from '../../../lib/payments/provider';
+import { invoicedRegistrationIds } from '../../../lib/registrations/retreat-invoice';
 import {
   BANK_ACCOUNT,
   bankTransferReference,
@@ -74,6 +75,7 @@ type Row = {
   status: string;
   provider: string | null;
   hold_expires_at: string | null;
+  quaderno_invoice_id: string | null;
   amount_cents: number;
   currency: string;
   role: 'fire_keeper' | 'cook_help' | null;
@@ -102,6 +104,7 @@ const q = await env.DB.prepare(
   `SELECT r.id, r.name, r.first_name, r.last_name, r.email,
           r.phone, r.phone_country, r.country, r.company_name, r.vat_number,
           r.status, r.provider, r.hold_expires_at,
+          r.quaderno_invoice_id,
           r.amount_cents, r.currency,
           r.role, r.role_discount_cents,
           r.roommate_pref, r.dietary, r.notes,
@@ -276,6 +279,27 @@ function eur(cents: number, currency: string) {
 // and break the confirmation.
 function jsStr(s: string): string {
   return s.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\r?\n/g, ' ');
+}
+
+// Registrations whose remaining balance was settled with the admin button
+// (rather than by the guest paying the emailed gateway link). Only those have
+// a balance invoice to raise.
+async function handSettledBalanceIds(
+  db: D1Database,
+  productId: number,
+): Promise<Set<number>> {
+  const res = await db
+    .prepare(
+      `SELECT DISTINCT e.registration_id AS id
+         FROM events e
+         JOIN registrations r ON r.id = e.registration_id
+        WHERE e.kind = 'registration.balance.paid'
+          AND e.source = 'admin'
+          AND r.product_id = ?`,
+    )
+    .bind(productId)
+    .all<{ id: number }>();
+  return new Set((res.results ?? []).map((r) => r.id));
 }
 
 function ymd(s: string | null) {
@@ -474,6 +498,20 @@ for (const r of roomBreakdown) {
   else roomsByBuilding.push({ building: label, rooms: [r] });
 }
 
+// ─── Retreat money no gateway ever saw ───
+//
+// A booking paid by IBAN transfer, and a balance settled by hand, are invoiced
+// by us rather than by Quaderno's Stripe/PayPal connector (see
+// lib/registrations/retreat-invoice.ts). These two sets say which of them
+// already have their invoice, so the recovery button below is offered only
+// where one is genuinely missing — never on a gateway payment, whose invoice
+// the connector raised without telling us its id.
+const [bookingInvoiced, balanceInvoiced, handSettledBalances] = await Promise.all([
+  invoicedRegistrationIds(env.DB, 'booking'),
+  invoicedRegistrationIds(env.DB, 'balance'),
+  handSettledBalanceIds(env.DB, product.id),
+]);
+
 // ─── Balance due (deposit-payers who still owe the remainder) ───
 const balanceDue = await getRegistrationsWithBalanceDue(env.DB, product.id);
 const balanceDueTotalCents = balanceDue.reduce((n, r) => n + (r.balance_due_cents ?? 0), 0);
@@ -579,7 +617,45 @@ const flash = (() => {
   if (p.get('bal_sent')) return { tone: 'ok' as const, msg: 'Balance email sent.' };
   if (p.get('bal_failed')) return { tone: 'err' as const, msg: `Balance email failed${p.get('bal_error') ? `: ${p.get('bal_error')}` : ''}.` };
   if (p.get('bal_marked')) {
-    return { tone: 'ok' as const, msg: 'Balance marked as paid — the booking is now settled in full.' };
+    const settled = 'Balance marked as paid — the booking is now settled in full.';
+    if (p.get('bal_invoice_failed')) {
+      return {
+        tone: 'err' as const,
+        msg: `${settled} The Quaderno invoice could NOT be raised — use "Invoice the balance" on that row to try again.`,
+      };
+    }
+    if (p.get('bal_invoiced')) {
+      return { tone: 'ok' as const, msg: `${settled} Quaderno invoice raised.` };
+    }
+    return { tone: 'ok' as const, msg: settled };
+  }
+  if (p.get('inv_created')) {
+    const number = p.get('inv_number');
+    return {
+      tone: 'ok' as const,
+      msg: `Quaderno invoice raised${number ? ` (${number})` : ''}.`,
+    };
+  }
+  if (p.get('inv_failed')) {
+    return {
+      tone: 'err' as const,
+      msg: `Quaderno invoice failed: ${p.get('inv_error') ?? 'unknown error'}. Nothing was billed — press it again to retry.`,
+    };
+  }
+  if (p.get('inv_skipped')) {
+    const reason = p.get('inv_error') ?? '';
+    const readable: Record<string, string> = {
+      'not-configured': 'Quaderno is not connected (QUADERNO_API_KEY / QUADERNO_ACCOUNT unset).',
+      'already-invoiced': 'that payment already has an invoice.',
+      'gateway-owns-it': 'that payment went through Stripe or PayPal — Quaderno raises its invoice itself.',
+      'not-paid': 'that booking is not paid.',
+      'nothing-to-invoice': 'there is no amount to invoice.',
+      'row-missing': 'the retreat or room for that booking could not be read.',
+    };
+    return {
+      tone: 'err' as const,
+      msg: `No invoice raised — ${readable[reason] ?? reason}`,
+    };
   }
   if (p.get('bal_mark_failed')) {
     const reason = p.get('bal_error') ?? '';
@@ -1199,6 +1275,20 @@ const flash = (() => {
           const awaitingTransfer =
             r.provider === BANK_TRANSFER &&
             (r.status === 'pending' || r.status === 'expired');
+          // Money we invoice ourselves, still without its invoice. Anything
+          // paid through Stripe or PayPal is deliberately absent: Quaderno's
+          // connector already raised that one, so a button here would bill the
+          // guest twice on paper.
+          const missingInvoice: 'booking' | 'balance' | null =
+            r.status !== 'paid'
+              ? null
+              : r.provider === BANK_TRANSFER &&
+                  !r.quaderno_invoice_id &&
+                  !bookingInvoiced.has(r.id)
+                ? 'booking'
+                : handSettledBalances.has(r.id) && !balanceInvoiced.has(r.id)
+                  ? 'balance'
+                  : null;
           return (
             <article class={`adm-reg adm-reg--${r.status}`}>
               <div class="adm-reg-head">
@@ -1314,6 +1404,24 @@ const flash = (() => {
                     <input type="hidden" name="return_to" value={returnTo} />
                     <button type="submit" class="adm-btn adm-btn--solid">
                       {awaitingTransfer ? 'Transfer received — mark paid' : 'Mark paid + Drip'}
+                    </button>
+                  </form>
+                )}
+
+                {missingInvoice && (
+                  <form method="POST" action="/api/admin/quaderno-invoice"
+                        onsubmit={`return confirm(${JSON.stringify(
+                          missingInvoice === 'balance'
+                            ? `Raise the Quaderno invoice for ${displayName}'s remaining balance? This payment came by transfer, so Quaderno never saw it.`
+                            : `Raise the Quaderno invoice for ${displayName} (${eur(r.amount_cents, r.currency)})? This booking was paid by transfer, so Quaderno never saw it.`,
+                        )})`}>
+                    <input type="hidden" name="registration_id" value={r.id} />
+                    <input type="hidden" name="which" value={missingInvoice} />
+                    <input type="hidden" name="return_to" value={returnTo} />
+                    <button type="submit" class="adm-btn adm-btn--ghost">
+                      {missingInvoice === 'balance'
+                        ? 'Invoice the balance'
+                        : 'Create Quaderno invoice'}
                     </button>
                   </form>
                 )}
