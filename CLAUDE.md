@@ -265,6 +265,20 @@ All automated workshop email lives in the workshop engine:
   deadline emails (`urgent` steps). The discount emails compute their
   hours-remaining figure at send time, so the number is true even after an
   overnight hold.
+- **A time names its place, never an offset** (September 2026): every session
+  time we print — the confirmation and every reminder, the countdown page, the
+  date calendar, `/access` — goes through `formatInTz`
+  (`src/lib/workshops/time.ts`), which now ends on the timezone's **city**
+  ("Tue, 22 Sept 2026, 10:00 **New York time**"). It used to print Intl's short
+  name, which for most of the world is a raw offset — a US registrant read
+  "10:00 GMT-4" and had to work out both the number and whose clock it was.
+  `timezoneLabel` derives the city from the IANA id the registrant's browser
+  gave us (so there's no table to maintain); an id that names no honest place
+  (the `Etc/GMT+5` family, whose sign is inverted) falls back to the short name.
+  The zone is only appended when the format actually carries a time. Because the
+  label says whose clock it is, the "· your time" markers that sat beside these
+  times on the pages are gone — anything rendering a session time should call
+  `formatInTz` and print what it returns, not re-qualify it.
 - **Sanctioned urgency exception** (owner's call, June 2026): discount-deadline
   emails may name the deadline plainly and the final one may be a "last chance"
   send. Keep it factual — no fake scarcity, no countdown theatrics. Marketing

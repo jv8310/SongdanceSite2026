@@ -136,7 +136,6 @@ const leadTicket = items.find((it) => it.kind !== 'masterclass');
                 {it.kind === 'masterclass' && <span class="we-cal-kind">Masterclass</span>}
                 <span class="we-cal-when">
                   {it.isReplay ? 'Watch anytime' : it.whenLocal}
-                  {!it.isReplay && <span class="we-cal-tz"> · your time</span>}
                 </span>
                 <span class="we-cal-meta">
                   {`${it.durationMin} min`}
@@ -363,17 +362,38 @@ const leadTicket = items.find((it) => it.kind !== 'masterclass');
 
     var activeTz = (tzSelect && tzSelect.value) || 'Europe/Brussels';
 
+    // The timezone as a place rather than an offset ("New York", not "GMT-4"),
+    // mirroring timezoneLabel() in lib/workshops/time.ts. Null = no place we can
+    // print honestly, so Intl's own short name is used instead.
+    function tzPlace(tz) {
+      var id = (tz || '').trim();
+      if (!id) return null;
+      if (/^(utc|gmt|z|etc\/(utc|gmt|zulu|greenwich|universal))$/i.test(id)) return 'UTC';
+      if (/^etc\//i.test(id)) return null;
+      var city = (id.split('/').pop() || '').replace(/_/g, ' ').trim();
+      if (!/^[A-Za-z][A-Za-z '.-]*$/.test(city)) return null;
+      var aliases = { Calcutta: 'Kolkata', 'Ho Chi Minh': 'Ho Chi Minh City', Kiev: 'Kyiv', Rangoon: 'Yangon', Saigon: 'Ho Chi Minh City', Katmandu: 'Kathmandu' };
+      return aliases[city] || city;
+    }
+
     // Format a UTC instant in the active timezone, mirroring lib/workshops/time.ts.
-    // `withTime` true → "Sun 15 Jun 2026, 20:00 CEST"; false → "Sun 15 Jun 2026".
+    // `withTime` true → "Sun 15 Jun 2026, 20:00 Brussels time"; false → "Sun 15 Jun 2026".
     function formatInTz(utcIso, tz, withTime) {
       if (!utcIso) return '';
+      var place = tzPlace(tz);
       var opts = { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' };
-      if (withTime) { opts.hour = '2-digit'; opts.minute = '2-digit'; opts.timeZoneName = 'short'; }
+      if (withTime) {
+        opts.hour = '2-digit';
+        opts.minute = '2-digit';
+        if (!place) opts.timeZoneName = 'short';
+      }
+      var suffix = withTime && place ? (place === 'UTC' ? ' UTC' : ' ' + place + ' time') : '';
       try {
         opts.timeZone = tz;
-        return new Intl.DateTimeFormat('en-GB', opts).format(new Date(utcIso));
+        return new Intl.DateTimeFormat('en-GB', opts).format(new Date(utcIso)) + suffix;
       } catch (e) {
         opts.timeZone = 'UTC';
+        if (withTime) opts.timeZoneName = 'short';
         return new Intl.DateTimeFormat('en-GB', opts).format(new Date(utcIso));
       }
     }
@@ -387,8 +407,7 @@ const leadTicket = items.find((it) => it.kind !== 'masterclass');
         if (r.dataset.isReplay === '1' || !r.dataset.startsAt) continue;
         var whenEl = r.closest('.we-cal-item').querySelector('.we-cal-when');
         if (!whenEl) continue;
-        whenEl.innerHTML = formatInTz(r.dataset.startsAt, tz, true) +
-          '<span class="we-cal-tz"> · your time</span>';
+        whenEl.innerHTML = formatInTz(r.dataset.startsAt, tz, true);
       }
       if (current) recompute();
     }
