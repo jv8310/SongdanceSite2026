@@ -12,6 +12,8 @@
 // The look mirrors the balance email (registrations/balance.ts) so retreat
 // mail from Songdance is one family.
 
+import { tidyFirstName } from '../email/names';
+
 export interface RetreatEmailContent {
   subject: string;
   text: string;
@@ -133,7 +135,8 @@ export function buildWaitlistJoinedEmail(args: {
   position: number | null;
 }): RetreatEmailContent {
   const { first_name, retreat_name, when_label, tier_name, position } = args;
-  const greet = first_name ? `Hi ${first_name},` : 'Hi,';
+  const greetName = tidyFirstName(first_name);
+  const greet = greetName ? `Hi ${greetName},` : 'Hi,';
   const when = when_label ? ` (${when_label})` : '';
 
   const paragraphs = [
@@ -177,7 +180,8 @@ export function buildWaitlistOfferEmail(args: {
     link,
     message,
   } = args;
-  const greet = first_name ? `Hi ${first_name},` : 'Hi,';
+  const greetName = tidyFirstName(first_name);
+  const greet = greetName ? `Hi ${greetName},` : 'Hi,';
   const when = when_label ? ` (${when_label})` : '';
 
   const paragraphs = [

@@ -56,6 +56,7 @@ export type WorkshopRegistration = {
   payment_status: 'prepared' | 'paid' | 'coupon' | 'refunded' | 'chargeback' | 'failed';
   source_tag: string | null;
   audience: string | null; // door-set chosen on the page: "3", "1,3", … (3 = pro)
+  signup_page: string | null; // page the checkout started on (migration 0083)
   access_token: string; // unguessable token used in all user-facing links
   created_at: string;
   updated_at: string;
@@ -614,6 +615,27 @@ export async function upsertRegistration(
     .first<{ id: number }>();
   if (!r) throw new Error('Failed to create registration');
   return { id: r.id, token };
+}
+
+// Which page the checkout was started on ("masterclass", "workshop", "w"),
+// normalized by signup-page.ts. Written on its own, after the row exists, and
+// deliberately best-effort: this is analytics, and it must never be the reason
+// a seat can't be booked — a preview deploy runs against the live database
+// before migration 0083 has been applied there, and a checkout that 500s over
+// a reporting column would be a far worse bug than a missing data point.
+//
+// The first page recorded on a row wins, so re-registering never rewrites
+// where the person actually came from.
+export async function recordSignupPage(db: D1Database, id: number, page: string | null) {
+  if (!page) return;
+  try {
+    await db
+      .prepare('UPDATE workshop_registrations SET signup_page = COALESCE(signup_page, ?) WHERE id = ?')
+      .bind(page, id)
+      .run();
+  } catch {
+    // Column not there yet (or D1 hiccuped) — nothing downstream depends on it.
+  }
 }
 
 export async function setRegistrationPaymentStatus(

@@ -183,6 +183,41 @@ Everything now goes through [`src/lib/workshops/bump.ts`](src/lib/workshops/bump
 So what is advertised, charged, recorded and granted are one decision. Adding a
 caller that re-derives the bump re-opens this exact bug.
 
+## Page changes are bookmarked, and registrations remember their page
+
+Two small pieces of instrumentation that only make sense together.
+
+- **`signup_page` on a registration** (migration 0083,
+  [`src/lib/workshops/signup-page.ts`](src/lib/workshops/signup-page.ts)):
+  `/workshop`, `/courses/masterclass` and a direct `/w/<slug>` link all POST the
+  same `/api/workshops/register`, so nothing ever recorded *which page* sold a
+  seat — "how many workshop tickets did the masterclass page sell?" had no
+  answer in the data. Each form now sends its own `location.pathname`; the
+  server normalizes it (`masterclass` / `workshop` / `w`, else the cleaned path,
+  query and hash dropped — they carry discounts, referral ids and emails) and
+  writes it with `recordSignupPage`, **after** the row exists and wrapped in a
+  try/catch: it is analytics, and a preview deploy runs against the live
+  database *before* its migration is applied, so a checkout must never 500 over
+  a reporting column. First page on a row wins. Rows created before this are
+  NULL — **unknown, not zero**, and every readout must say so.
+- **Bookmarked page changes** ([`src/lib/workshops/experiments.ts`](src/lib/workshops/experiments.ts)):
+  the site has no page-view analytics, so "did conversion go up?" can only be
+  answered by comparing like windows of registrations either side of a change —
+  which is worthless without the exact date. Record one here whenever you change
+  what a landing page offers. `MC_WORKSHOP_ALTERNATIVES` (2026-09-03) is the
+  first: the masterclass page stopped listing the live €22 workshop dates under
+  "in case the masterclass doesn't fit your schedule" (`MC_PAGE_OFFERS_WORKSHOPS`
+  in `MCRegister` — flip it to put them back, and bookmark *that* date too). The
+  masterclass **replay** stays: same product, same price.
+- **Where to read it**: `/admin/workshops/performance` → the panel named after
+  the change ([`mc-page-report.ts`](src/lib/workshops/mc-page-report.ts)). It
+  deliberately **ignores the period picker** — it runs the days since the change
+  against the same number of days immediately before it, which is what makes the
+  halves comparable. The conversion rate is **started → secured**: a
+  registration row is written at `prepared` the moment the form is submitted
+  (before the gateway) and flips to `paid`/`coupon` when the seat is secured, so
+  that ratio is a real funnel and the only one this database can offer.
+
 ## Share with a friend — one link builder, and the funnel behind it
 
 The countdown page (`/workshop/success`) offers every secured registrant a link
@@ -265,6 +300,33 @@ All automated workshop email lives in the workshop engine:
   deadline emails (`urgent` steps). The discount emails compute their
   hours-remaining figure at send time, so the number is true even after an
   overnight hold.
+- **A time names its place, never an offset** (September 2026): every session
+  time we print — the confirmation and every reminder, the countdown page, the
+  date calendar, `/access` — goes through `formatInTz`
+  (`src/lib/workshops/time.ts`), which now ends on the timezone's **city**
+  ("Tue, 22 Sept 2026, 10:00 **New York time**"). It used to print Intl's short
+  name, which for most of the world is a raw offset — a US registrant read
+  "10:00 GMT-4" and had to work out both the number and whose clock it was.
+  `timezoneLabel` derives the city from the IANA id the registrant's browser
+  gave us (so there's no table to maintain); an id that names no honest place
+  (the `Etc/GMT+5` family, whose sign is inverted) falls back to the short name.
+  The zone is only appended when the format actually carries a time. Because the
+  label says whose clock it is, the "· your time" markers that sat beside these
+  times on the pages are gone — anything rendering a session time should call
+  `formatInTz` and print what it returns, not re-qualify it.
+- **A name is printed as a name** (September 2026): checkout stores the name
+  exactly as typed, so "Dear felicia," went out in the seat confirmation.
+  `tidyFirstName` / `tidyName` ([`src/lib/email/names.ts`](src/lib/email/names.ts))
+  case it for display — used by the workshop `greeting` (so every lifecycle and
+  transactional mail), the three retreat greetings (waiting list, balance, bank
+  transfer) and the broadcast `{{first_name}}` merge tag. The rule is
+  deliberately timid: a name carrying **both** cases has already told us how it
+  is written ("McDonald", "de Vries") and is never touched; only a name written
+  in one case throughout is re-cased, each letter-run capitalised so
+  "mary-jane" → "Mary-Jane" and "o'brien" → "O'Brien"; and a two-letter capital
+  ("JD") stays as typed rather than becoming "Jd". Display only — nothing is
+  written back, so the row keeps what the buyer typed and history reads right
+  too. Greeting someone by name anywhere new should go through it.
 - **Sanctioned urgency exception** (owner's call, June 2026): discount-deadline
   emails may name the deadline plainly and the final one may be a "last chance"
   send. Keep it factual — no fake scarcity, no countdown theatrics. Marketing
