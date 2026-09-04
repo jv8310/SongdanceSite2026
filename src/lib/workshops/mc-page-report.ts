@@ -1,5 +1,10 @@
-// Did removing the workshop dates from the masterclass page sell more
-// masterclass seats?
+// Did a change to the masterclass page sell more masterclass seats?
+//
+// One report per bookmarked change (experiments.ts) — removing the workshop
+// dates, adding the order bump, whatever comes next. The windows and the
+// funnel are the same every time; a change opts into the extra tiles that are
+// meaningful for it (`showWorkshopSwitch` / `showBumpTakeUp`), so a bookmark
+// never inherits a tile of noise from the one before it.
 //
 // The site keeps no page-view analytics, so "conversion" here is measured on
 // the only funnel the database actually holds: a registration row is written
@@ -29,6 +34,8 @@ export type FunnelWindow = {
   securedRate: number; // secured / started, 0 when nothing started
   revenueEurMinor: number;
   perDay: number; // secured per day, so unequal windows still compare
+  /** Secured seats that added the order bump, and what it earned. */
+  bump: { taken: number; rate: number; revenueEurMinor: number };
 };
 
 export type McPageReport = {
@@ -54,6 +61,13 @@ type RegRow = {
   currency: string | null;
   settlement_amount_minor: number | null;
   settlement_currency: string | null;
+  // The bump, from the two signals that grant it (see bump.ts): a recorded
+  // ledger line, or the ticked box on a seat that has no line (a comped seat
+  // never writes one). `wants_bump` is the intent — the question this panel
+  // asks — and the ledger is what was actually charged for it.
+  wants_bump: number | null;
+  bump_amount_minor: number | null;
+  bump_currency: string | null;
 };
 
 const SECURED = new Set(['paid', 'coupon']);
@@ -63,9 +77,10 @@ const SECURED = new Set(['paid', 'coupon']);
 // `signupPage` narrows further to rows that recorded that page.
 function regQuery(opts: { masterclass: boolean; signupPage?: string }) {
   return `
-    SELECT r.payment_status,
+    SELECT r.payment_status, r.wants_bump,
            p.amount_minor, p.currency,
-           p.settlement_amount_minor, p.settlement_currency
+           p.settlement_amount_minor, p.settlement_currency,
+           b.amount_minor AS bump_amount_minor, b.currency AS bump_currency
       FROM workshop_registrations r
       JOIN workshops w ON w.id = r.workshop_id
       LEFT JOIN workshop_products mp ON mp.id = w.main_product_id
@@ -76,6 +91,12 @@ function regQuery(opts: { masterclass: boolean; signupPage?: string }) {
           FROM workshop_payments
          WHERE status IN ('paid','refunded')
       ) p ON p.registration_id = r.id AND p.rn = 1
+      LEFT JOIN (
+        SELECT registration_id, amount_minor, currency,
+               ROW_NUMBER() OVER (PARTITION BY registration_id ORDER BY id DESC) AS rn
+          FROM workshop_purchases
+         WHERE product_type = 'bump'
+      ) b ON b.registration_id = r.id AND b.rn = 1
      WHERE date(r.created_at) BETWEEN ? AND ?
        AND COALESCE(mp.slug,'') ${opts.masterclass ? 'LIKE' : 'NOT LIKE'} '%masterclass%'
        ${opts.signupPage ? 'AND r.signup_page = ?' : ''}`;
@@ -89,9 +110,24 @@ function summarize(
 ): FunnelWindow {
   let secured = 0;
   let revenueEurMinor = 0;
+  let bumpTaken = 0;
+  let bumpRevenueEurMinor = 0;
   for (const row of rows) {
     if (!SECURED.has(row.payment_status)) continue;
     secured += 1;
+    // Either signal counts as "they took it"; only a charged line has euros.
+    if (row.bump_amount_minor != null || row.wants_bump === 1) bumpTaken += 1;
+    if (row.bump_amount_minor != null) {
+      bumpRevenueEurMinor += grossEurMinor(
+        {
+          amount_minor: row.bump_amount_minor,
+          currency: row.bump_currency ?? 'EUR',
+          settlement_amount_minor: null,
+          settlement_currency: null,
+        },
+        fxRates,
+      );
+    }
     // A comped seat (and a paid one whose payment row hasn't landed yet) has no
     // amount: worth a registration, worth no euros.
     if (row.amount_minor != null) {
@@ -116,6 +152,11 @@ function summarize(
     securedRate: rows.length ? secured / rows.length : 0,
     revenueEurMinor,
     perDay: days ? secured / days : 0,
+    bump: {
+      taken: bumpTaken,
+      rate: secured ? bumpTaken / secured : 0,
+      revenueEurMinor: bumpRevenueEurMinor,
+    },
   };
 }
 
