@@ -1,8 +1,12 @@
 // Minimal Quaderno wrapper. Creates a contact + an invoice and (separately)
-// registers a payment so the invoice reads as PAID. Used by the manual
-// bank-transfer order flow (src/lib/orders/manual-order.ts) — a course paid by
-// bank transfer never hits Stripe, so the Stripe→Quaderno native connector that
-// normally makes the invoice never fires; we create it ourselves here.
+// registers a payment so the invoice reads as PAID. Used for the money no
+// gateway ever saw — a course bought by bank transfer
+// (src/lib/orders/manual-order.ts) and a retreat booking or balance settled by
+// transfer (src/lib/registrations/retreat-invoice.ts). Neither hits Stripe or
+// PayPal, so the native connector that normally raises the invoice never
+// fires; we create it ourselves here.
+//
+// Line amounts are always GROSS (tax inclusive) — see InvoiceItem below.
 // Docs: https://developers.quaderno.io
 
 export type QuadernoConfig = {
@@ -33,9 +37,23 @@ type ContactInput = {
 
 type InvoiceItem = {
   description: string;
-  // Gross unit price (tax inclusive) — the site prices are tax-inclusive, so we
-  // pass gross and let Quaderno back the tax out of it.
-  unit_price: number;
+  // The line's GROSS total — tax INCLUDED. Every price this site quotes and
+  // charges is tax-inclusive, so this is the only shape we ever send.
+  //
+  // It maps to Quaderno's `total_amount`, and never to `unit_price`. The two
+  // are not interchangeable: the API defines `unit_price` as the price per
+  // unit *before* discounts or taxes and then ADDS the tax on top, while
+  // `total_amount` is the line's final amount *after* taxes, from which
+  // "Quaderno will back-calculate the base price".
+  //
+  // Passing a gross figure as `unit_price` is what made retreat invoice
+  // 2026-4052 read €535.50 + €112.46 VAT = €647.96 on a booking charged
+  // €535.50: the guest was billed a VAT they had already paid, and the €535.50
+  // payment we registered against it left the document OUTSTANDING for the
+  // difference. Backing the tax out ourselves would not do either — at 21% a
+  // gross €100 has no exact net, so the total would drift by a cent. Quaderno
+  // owns that rounding; we state what was received.
+  gross_amount: number;
   quantity: number;
   // Preferred: let Quaderno auto-calculate the tax from the contact (country +
   // VAT number) for this tax class (e.g. 'eservice'). Requires automatic tax
@@ -168,7 +186,10 @@ export async function createInvoice(
       po_number: input.po_number,
       items_attributes: input.items.map((i) => ({
         description: i.description,
-        unit_price: i.unit_price,
+        // Gross, tax-inclusive — see InvoiceItem.gross_amount. `unit_price` is
+        // deliberately never sent: Quaderno would treat it as a net price and
+        // add the tax on top of a figure that already contains it.
+        total_amount: i.gross_amount,
         quantity: i.quantity,
         tax_class: i.tax_class,
         tax_1_name: i.tax_1_name,
@@ -230,10 +251,9 @@ export async function createPaidInvoice(
   },
 ): Promise<CreatedInvoice> {
   const invoice = await createInvoice(cfg, input);
-  const totalMajor = input.items.reduce(
-    (s, i) => s + i.unit_price * i.quantity,
-    0,
-  );
+  // gross_amount is the LINE total (quantity already in it), so the sum of the
+  // lines is the document total — and equals the money actually received.
+  const totalMajor = input.items.reduce((s, i) => s + i.gross_amount, 0);
   await markInvoicePaid(cfg, invoice.id, {
     amountMajor: totalMajor,
     date: input.paid_at,

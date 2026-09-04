@@ -405,6 +405,28 @@ gated player) but no email telling them so. Delivery now lives in the site, in
   (`/api/admin/workshops/mantra-pack-send`) that forces the sweep with a wider
   cap. Pressing it twice is harmless.
 
+## Retreat price — two discounts, neither of them a coupon
+
+A retreat has no coupon codes. A booking charged less than its tier price came
+down one of exactly two ways, both applied in
+[`/api/registrations/checkout.ts`](src/pages/api/registrations/checkout.ts) and
+both re-priced server-side (the client only asks):
+
+- **The cook-help role** — 30% off the tier, stored on the row as
+  `role_discount_cents`.
+- **The Easter egg** — drag the heart into the house on the registration page
+  (`RBRegister.astro`) for **10% off the running total**
+  (`EASTER_EGG_DISCOUNT`), applied after any role discount. It is stored in **no
+  column**: only the reduced `amount_cents` and the receipt line ("… (10%
+  discount)") carry it, which is why registration #53 read €535.50 against a
+  €595 tier with the admin page insisting "None — full price". All three
+  checkout branches now log `easter_egg_discount_cents` in their checkout
+  event, and `/admin/orders/R-<id>` re-derives it (tier price − role discount −
+  `amount_cents + balance_due_cents`, so a deposit booking isn't read as a huge
+  discount) and names it in the coupon note. Anything reporting a retreat
+  discount must account for both — the role column alone calls a discounted
+  booking full price.
+
 ## Retreat payment — three buttons, one of them not a gateway
 
 Both retreat forms (`RBRegister` château, `DSRegister` boat) offer **Pay
@@ -475,7 +497,23 @@ money appears in the bank days later. Logic in
   its invoice: `/admin/retreats/<slug>` shows **Create Quaderno invoice** /
   **Invoice the balance** on exactly the rows that are missing one
   (`/api/admin/quaderno-invoice`, which re-derives eligibility from the row
-  and trusts nothing in the form).
+  and trusts nothing in the form). The balance table's **Mark paid** raises
+  that invoice too, and carries a **no invoice** tick to settle without one
+  (`skip_invoice`, recorded on the `registration.balance.paid` event) — no
+  claim is written, so the row keeps its "Invoice the balance" button.
+- **Every line we send Quaderno is GROSS, on `total_amount`** — never
+  `unit_price`. The API defines `unit_price` as the price *before* tax and
+  adds the tax on top; `total_amount` is the line *after* tax, which Quaderno
+  back-calculates the net from ([the item schema](https://developers.quaderno.io/api/)).
+  Site prices include their VAT, so sending a gross figure as `unit_price` bills
+  the guest a tax they have already paid and leaves the document
+  **OUTSTANDING** for the difference (retreat invoice 2026-4052: €535.50
+  charged → €535.50 + €112.46 VAT = €647.96, €112.46 "due"). Backing the tax
+  out ourselves is not the fix either — at 21% a gross €100 has no exact net,
+  so the total would drift by a cent. `InvoiceItem.gross_amount`
+  ([`quaderno.ts`](src/lib/registrations/quaderno.ts)) is the only shape;
+  both callers (retreat invoices, the manual course order) pass it, and the
+  payment registered against the invoice is the same sum, so it reads PAID.
 - **The email** (`buildBankTransferEmail`) is transactional, uses the shared
   retreat shell (`retreatEmail` in `waitlist-emails.ts`, which grew an
   optional `details` panel for it), and asks the guest to **reply when they've

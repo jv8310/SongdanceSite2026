@@ -627,6 +627,12 @@ const flash = (() => {
     if (p.get('bal_invoiced')) {
       return { tone: 'ok' as const, msg: `${settled} Quaderno invoice raised.` };
     }
+    if (p.get('bal_invoice_skipped')) {
+      return {
+        tone: 'ok' as const,
+        msg: `${settled} No Quaderno invoice was raised — use "Invoice the balance" on that row if you want one.`,
+      };
+    }
     return { tone: 'ok' as const, msg: settled };
   }
   if (p.get('inv_created')) {
@@ -1221,13 +1227,26 @@ const flash = (() => {
                           </button>
                         </form>
                         <form method="POST" action="/api/admin/balance/mark-paid"
+                              class="adm-balance-markpaid"
                               onsubmit={`return confirm(${JSON.stringify(
                                 `Mark ${eur(r.balance_due_cents, r.currency)} from ${displayName} as received? Use this once their bank transfer has landed — it settles the booking in full.`,
-                              )})`}>
+                              )} + (this.skip_invoice.checked ? ${JSON.stringify(
+                                '\n\nNo Quaderno invoice will be raised for it.',
+                              )} : ${JSON.stringify(
+                                '\n\nA Quaderno invoice will be raised for this balance.',
+                              )}))`}>
                           <input type="hidden" name="registration_id" value={r.id} />
                           <input type="hidden" name="return_to" value={returnTo} />
                           <input type="hidden" name="method" value="bank-transfer" />
                           <button type="submit" class="adm-btn adm-btn--ghost">Mark paid</button>
+                          {/* Unticked = raise the invoice, which is what this
+                              button has always done. Tick it when the balance is
+                              already invoiced elsewhere — the row's "Invoice the
+                              balance" button stays available either way. */}
+                          <label class="adm-balance-noinvoice" title="Settle the balance without creating a Quaderno invoice. You can still raise one later from the registration row.">
+                            <input type="checkbox" name="skip_invoice" value="1" />
+                            <span>no invoice</span>
+                          </label>
                         </form>
                       </div>
                     </td>
@@ -1236,7 +1255,7 @@ const flash = (() => {
               })}
             </tbody>
           </table>
-          <p class="adm-table-note">The email offers two ways to settle. A <strong>bank transfer</strong> to {BALANCE_BANK_ACCOUNT.accountName} ({BALANCE_BANK_ACCOUNT.iban}) is put first, quoting the <strong>transfer ref</strong> in this table, and the guest is asked to reply once they have sent it — that transfer has no webhook, so press <strong>Mark paid</strong> here when it lands and the booking is settled in full. Otherwise the <strong>link</strong> is a checkout for that person's exact remaining balance, on the same gateway (Stripe or PayPal) they paid the deposit with, and clears itself automatically when they pay. Either way they drop off this list. “Last invited” shows when the email was last sent — use <strong>Resend link</strong> for a reminder.</p>
+          <p class="adm-table-note">The email offers two ways to settle. A <strong>bank transfer</strong> to {BALANCE_BANK_ACCOUNT.accountName} ({BALANCE_BANK_ACCOUNT.iban}) is put first, quoting the <strong>transfer ref</strong> in this table, and the guest is asked to reply once they have sent it — that transfer has no webhook, so press <strong>Mark paid</strong> here when it lands and the booking is settled in full. Otherwise the <strong>link</strong> is a checkout for that person's exact remaining balance, on the same gateway (Stripe or PayPal) they paid the deposit with, and clears itself automatically when they pay. Either way they drop off this list. “Last invited” shows when the email was last sent — use <strong>Resend link</strong> for a reminder. Marking paid also raises that balance’s <strong>Quaderno invoice</strong> (a transfer has no gateway, so nothing else does) — tick <strong>no invoice</strong> to settle it without one, e.g. when it is already invoiced. You can still raise it afterwards with <strong>Invoice the balance</strong> on that person’s registration row.</p>
         </>
       )}
     </section>

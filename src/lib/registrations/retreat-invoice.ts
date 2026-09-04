@@ -160,7 +160,9 @@ async function raiseInvoice(
       items: [
         {
           description: args.description,
-          unit_price: grossMajor,
+          // Gross — the retreat prices INCLUDE the 21% (or 0%) VAT, so this is
+          // the whole sum received and Quaderno backs the tax out of it.
+          gross_amount: grossMajor,
           quantity: 1,
           // The event's own rate, never derived from the buyer — see the
           // note at the top of this file. vat_rate is a fraction (0.21).
