@@ -22,6 +22,9 @@ export const prerender = false;
 // 'paid' from the deposit, so no Drip "Completed registration" event is
 // re-fired and no SD-ORDER goes out — same as those two paths.
 //
+// The Quaderno invoice is raised by default and can be skipped per settlement
+// (`skip_invoice=1`) — see below.
+//
 // Idempotent: markBalancePaid adds nothing once balance_due_cents is 0, and an
 // already-settled row is refused outright so a double-click can't log twice.
 export const POST: APIRoute = async ({ request, locals }) => {
@@ -34,6 +37,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const registrationId = parseInt(String(form.get('registration_id') ?? ''), 10);
   const returnTo = safeReturnTo(String(form.get('return_to') ?? ''));
   const method = String(form.get('method') ?? 'bank-transfer').slice(0, 40);
+  // Whether to raise the balance's Quaderno invoice here. Ticking "no invoice"
+  // in the balance table sends skip_invoice=1 — for a balance that is already
+  // invoiced elsewhere (a gateway that reported it, a document raised by hand),
+  // or one being settled for a reason that shouldn't produce a second one.
+  // ABSENT means invoice, so this only ever skips when explicitly asked; the
+  // row keeps its "Invoice the balance" button afterwards, so skipping now is
+  // never skipping forever.
+  const skipInvoice = String(form.get('skip_invoice') ?? '') === '1';
   if (!Number.isFinite(registrationId)) {
     return new Response('Bad registration_id', { status: 400 });
   }
@@ -51,15 +62,21 @@ export const POST: APIRoute = async ({ request, locals }) => {
           ? 'no-balance'
           : null;
 
-  let invoiced: 'ok' | 'failed' | null = null;
+  let invoiced: 'ok' | 'failed' | 'skipped' | null = null;
   if (!error) {
-    // Raise the balance's own Quaderno invoice BEFORE settling the row, while
-    // balance_due_cents still says what was owed. This money arrived by
-    // transfer (that is why this button exists), so no gateway reported it and
-    // the native connector never invoices it.
-    const invoice = await invoiceRetreatBalance(env, reg, balance);
-    if (invoice.ok === true) invoiced = 'ok';
-    else if (invoice.ok === false) invoiced = 'failed';
+    if (skipInvoice) {
+      // No claim is written, so nothing here is spent: the row's "Invoice the
+      // balance" button stays available for later.
+      invoiced = 'skipped';
+    } else {
+      // Raise the balance's own Quaderno invoice BEFORE settling the row, while
+      // balance_due_cents still says what was owed. This money arrived by
+      // transfer (that is why this button exists), so no gateway reported it and
+      // the native connector never invoices it.
+      const invoice = await invoiceRetreatBalance(env, reg, balance);
+      if (invoice.ok === true) invoiced = 'ok';
+      else if (invoice.ok === false) invoiced = 'failed';
+    }
 
     await markBalancePaid(env.DB, registrationId);
     // Lift the Drip order to the now-full amount_cents (idempotent; no event).
@@ -68,7 +85,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
       registration_id: registrationId,
       kind: 'registration.balance.paid',
       source: 'admin',
-      payload: { method, balance_cents: balance, marked_by: 'admin' },
+      // `invoice` records the choice: the recovery button and any later
+      // question about a missing document read this trail.
+      payload: {
+        method,
+        balance_cents: balance,
+        marked_by: 'admin',
+        invoice: invoiced,
+      },
     });
   }
 
@@ -82,6 +106,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // quietly short. The booking is settled either way.
     if (invoiced === 'failed') params.set('bal_invoice_failed', '1');
     if (invoiced === 'ok') params.set('bal_invoiced', '1');
+    if (invoiced === 'skipped') params.set('bal_invoice_skipped', '1');
   }
   const sep = returnTo.includes('?') ? '&' : '?';
   return new Response(null, {

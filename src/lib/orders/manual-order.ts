@@ -148,7 +148,9 @@ async function createManualInvoice(
       items: [
         {
           description: PRODUCT_LABELS[input.product_slug] ?? input.product_slug,
-          unit_price: grossMajor,
+          // Gross — course prices include the destination VAT, so Quaderno
+          // backs the tax out of this rather than adding it on top.
+          gross_amount: grossMajor,
           quantity: 1,
           // Digital course → e-service VAT class; Quaderno auto-calculates the
           // rate (or reverse-charge) from the contact.
