@@ -183,6 +183,23 @@ Everything now goes through [`src/lib/workshops/bump.ts`](src/lib/workshops/bump
 So what is advertised, charged, recorded and granted are one decision. Adding a
 caller that re-derives the bump re-opens this exact bug.
 
+### The masterclass page offers the bump too (September 2026)
+
+The bump plumbing has been right since the July 2026 reprice —
+`resolveWorkshopBumpProductId` falls back to the mantra pack for a masterclass,
+`buildCalendarItems` prices it onto every masterclass row (`hasBump`), and the
+checkout, both fulfilment paths and the tagging all honour it. But
+`MCRegister.astro` was written on **20 Jul 2026, the day before that reprice**,
+when the default bump was the €19 Authentic Singing Journey; it rendered no bump
+card and posted `bump: false`. That one line outlived the product it was a
+judgement about, so `/courses/masterclass` — the page the ads point at — was the
+only door to a masterclass seat that never offered the pack, while `/workshop`
+and a direct `/w/<slug>` link sold the *same session* with it. The card now
+reads the row's own `data-has-bump` (so the replay, and a workshop fallback if
+`MC_PAGE_OFFERS_WORKSHOPS` is flipped back on, are handled by the same code path
+rather than a masterclass special case), and the form posts what was ticked.
+Bookmarked as `MC_ORDER_BUMP`.
+
 ## Page changes are bookmarked, and registrations remember their page
 
 Two small pieces of instrumentation that only make sense together.
@@ -204,16 +221,20 @@ Two small pieces of instrumentation that only make sense together.
   the site has no page-view analytics, so "did conversion go up?" can only be
   answered by comparing like windows of registrations either side of a change —
   which is worthless without the exact date. Record one here whenever you change
-  what a landing page offers. `MC_WORKSHOP_ALTERNATIVES` (2026-09-03) is the
+  what a landing page offers. `MC_WORKSHOP_ALTERNATIVES` (2026-09-03) was the
   first: the masterclass page stopped listing the live €22 workshop dates under
   "in case the masterclass doesn't fit your schedule" (`MC_PAGE_OFFERS_WORKSHOPS`
   in `MCRegister` — flip it to put them back, and bookmark *that* date too). The
-  masterclass **replay** stays: same product, same price.
-- **Where to read it**: `/admin/workshops/performance` → the panel named after
-  the change ([`mc-page-report.ts`](src/lib/workshops/mc-page-report.ts)). It
-  deliberately **ignores the period picker** — it runs the days since the change
-  against the same number of days immediately before it, which is what makes the
-  halves comparable. The conversion rate is **started → secured**: a
+  masterclass **replay** stays: same product, same price. `MC_ORDER_BUMP`
+  (2026-09-04) is the second — the bump above.
+- **Where to read it**: `/admin/workshops/performance` → **one panel per
+  bookmark**, each named after its change
+  ([`mc-page-report.ts`](src/lib/workshops/mc-page-report.ts)). They
+  deliberately **ignore the period picker** — each runs the days since its own
+  change against the same number of days immediately before it, which is what
+  makes the halves comparable. A change opts into the extra tiles that suit it
+  (`showWorkshopSwitch` / `showBumpTakeUp` on the `PageChange`), so a bookmark
+  never inherits a tile of noise from the one before it. The conversion rate is **started → secured**: a
   registration row is written at `prepared` the moment the form is submitted
   (before the gateway) and flips to `paid`/`coupon` when the seat is secured, so
   that ratio is a real funnel and the only one this database can offer.

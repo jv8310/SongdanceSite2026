@@ -1,10 +1,20 @@
 ---
 // Masterclass registration: the live masterclass dates lead. Underneath —
 // "in case the masterclass doesn't fit your schedule" — the instant-access
-// masterclass replay and the live workshop dates. Workshop replays (and the
-// order bump — it doesn't fit this audience) are deliberately absent here.
+// masterclass replay and the live workshop dates. Workshop replays are
+// deliberately absent here.
 // Same flow as the workshop page's WERegister: pick a date → name / email /
-// (timezone) → POST /api/workshops/register → Stripe Checkout.
+// (timezone) → order bump → POST /api/workshops/register → Stripe Checkout.
+//
+// The order bump WAS absent here too. This page was written on 20 Jul 2026,
+// the day before the reprice that made the €9 "Empowering You" mantra pack the
+// default bump for a masterclass — at the time the default was the €19
+// Authentic Singing Journey, which really didn't fit this audience, and the
+// `bump: false` that decision left behind outlived the product it was about.
+// Everything else had already moved on: buildCalendarItems resolves the pack
+// for every masterclass row (hasBump), and /workshop and a direct /w/<slug>
+// link both offered it on the very same session this page sold without it.
+// Now the row's own bump drives the card, so the three doors agree.
 //
 // Prices are fixed per currency (no FX). The country selector switches the
 // currency; each date carries its full price map so the swap is instant. The
@@ -152,6 +162,11 @@ const friendSlug = (Astro.url.searchParams.get('friend') ?? '').trim();
                 data-price-minor={String(it.priceMinor)}
                 data-currency={it.currency}
                 data-prices={JSON.stringify(it.pricesByCurrency)}
+                data-has-bump={it.hasBump ? '1' : '0'}
+                data-bump-name={it.bumpName}
+                data-bump-minor={String(it.bumpMinor)}
+                data-bump-prices={JSON.stringify(it.bumpPricesByCurrency)}
+                data-bump-compare-prices={JSON.stringify(it.bumpComparePricesByCurrency)}
                 data-is-replay="0"
               />
               <span class="we-cal-radio" aria-hidden="true"></span>
@@ -190,6 +205,11 @@ const friendSlug = (Astro.url.searchParams.get('friend') ?? '').trim();
                   data-price-minor={String(it.priceMinor)}
                   data-currency={it.currency}
                   data-prices={JSON.stringify(it.pricesByCurrency)}
+                  data-has-bump={it.hasBump ? '1' : '0'}
+                  data-bump-name={it.bumpName}
+                  data-bump-minor={String(it.bumpMinor)}
+                  data-bump-prices={JSON.stringify(it.bumpPricesByCurrency)}
+                  data-bump-compare-prices={JSON.stringify(it.bumpComparePricesByCurrency)}
                   data-is-replay={it.isReplay ? '1' : '0'}
                 />
                 <span class="we-cal-radio" aria-hidden="true"></span>
@@ -272,9 +292,52 @@ const friendSlug = (Astro.url.searchParams.get('friend') ?? '').trim();
             </label>
           </div>
 
-          <div class="we-total">
-            <span id="mc-total-label">Masterclass seat</span>
-            <strong id="mc-total-amount"></strong>
+          <div class="we-bump" id="mc-bump" hidden>
+            <label class="we-bump-card">
+              <span class="we-bump-badge">One-time offer</span>
+              <span class="we-bump-row">
+                <input type="checkbox" name="bump" id="mc-bump-input" />
+                <span class="we-bump-checkbox" aria-hidden="true"></span>
+                <span class="we-bump-title" id="mc-bump-title">Yes — add the “Empowering You” mantra pack</span>
+              </span>
+              <span class="we-bump-media">
+                <img src="/media/music-covers/empowering-you-1784623795605.png" alt="Empowering You mantra pack" loading="lazy" />
+                <span class="we-bump-info">
+                  <span class="we-bump-points">
+                    <span class="we-bump-point"><strong>5 original mantras with a South African choir</strong></span>
+                    <span class="we-bump-point">For healing &amp; self-empowerment</span>
+                    <span class="we-bump-point">Yours to keep — sound along anytime</span>
+                  </span>
+                </span>
+              </span>
+              <span class="we-bump-blurb">
+                Five original mantras, recorded with a choir in South Africa for
+                healing and self-empowerment. Let your voice be heard and
+                cultivate self-love as you sound along with the powerful tunes.
+              </span>
+              <span class="we-bump-foot">
+                <span class="we-bump-prices">
+                  <span class="we-bump-was" id="mc-bump-was" hidden></span>
+                  <span class="we-bump-now" id="mc-bump-now"></span>
+                </span>
+                <span class="we-bump-save" id="mc-bump-save" hidden></span>
+              </span>
+            </label>
+          </div>
+
+          <div class="we-summary">
+            <div class="we-summary-line" id="mc-line-seat">
+              <span id="mc-line-seat-label">Masterclass seat</span>
+              <span id="mc-line-seat-amount"></span>
+            </div>
+            <div class="we-summary-line" id="mc-line-bump" hidden>
+              <span id="mc-line-bump-label">Empowering You mantra pack</span>
+              <span id="mc-line-bump-amount"></span>
+            </div>
+            <div class="we-total">
+              <span id="mc-total-label">Total</span>
+              <strong id="mc-total-amount"></strong>
+            </div>
           </div>
 
           <button type="submit" class="we-submit" id="mc-submit">Register &amp; pay →</button>
@@ -323,8 +386,18 @@ const friendSlug = (Astro.url.searchParams.get('friend') ?? '').trim();
       if (!show && vatInput) vatInput.value = '';
     }
     if (companyInput) companyInput.addEventListener('input', toggleVat);
-    var totalLabel = document.getElementById('mc-total-label');
     var totalAmount = document.getElementById('mc-total-amount');
+    var seatLineLabel = document.getElementById('mc-line-seat-label');
+    var seatLineAmount = document.getElementById('mc-line-seat-amount');
+    var bumpRow = document.getElementById('mc-bump');
+    var bumpInput = document.getElementById('mc-bump-input');
+    var bumpTitle = document.getElementById('mc-bump-title');
+    var bumpWasEl = document.getElementById('mc-bump-was');
+    var bumpNowEl = document.getElementById('mc-bump-now');
+    var bumpSaveEl = document.getElementById('mc-bump-save');
+    var bumpLine = document.getElementById('mc-line-bump');
+    var bumpLineLabel = document.getElementById('mc-line-bump-label');
+    var bumpLineAmount = document.getElementById('mc-line-bump-amount');
     var submitBtn = document.getElementById('mc-submit');
     var paypalBtn = document.getElementById('mc-paypal');
     // The page is static, so PayPal availability can't be known at build time —
@@ -459,9 +532,13 @@ const friendSlug = (Astro.url.searchParams.get('friend') ?? '').trim();
         var minor = priceFor(parse(r.dataset.prices), cur, parseInt(r.dataset.priceMinor, 10) || 0);
         r.dataset.priceMinor = String(minor);
         r.dataset.currency = cur;
+        if (r.dataset.hasBump === '1') {
+          var bMinor = priceFor(parse(r.dataset.bumpPrices), cur, parseInt(r.dataset.bumpMinor, 10) || 0);
+          r.dataset.bumpMinor = String(bMinor);
+        }
       }
       renderPrices(cur);
-      if (current) { current = booking.querySelector('input[name="mc-date"]:checked').dataset; recompute(); }
+      if (current) { current = booking.querySelector('input[name="mc-date"]:checked').dataset; refreshBump(); recompute(); }
       toggleVat();
     }
 
@@ -491,16 +568,68 @@ const friendSlug = (Astro.url.searchParams.get('friend') ?? '').trim();
       countryInput.addEventListener('input', onCountryChange);
     }
 
+    // The order bump the selected date offers. Every row carries its own
+    // (buildCalendarItems resolves it — a masterclass falls back to the site
+    // default), so the replay and any workshop fallback are handled by the same
+    // code path rather than a masterclass special case.
+    function refreshBump() {
+      if (!bumpRow || !bumpInput) return;
+      if (current && current.hasBump === '1') {
+        bumpRow.hidden = false;
+        var bName = current.bumpName || 'Empowering You mantra pack';
+        // The title quotes the album name for clarity (so "Empowering You" reads
+        // as the record's title, not a verb phrase); the summary line below keeps
+        // the plain product name (bName) as the line-item label.
+        var bTitle = bName.replace(/^(.*?)\s+mantra pack$/i, '“$1” mantra pack');
+        if (bumpTitle) bumpTitle.textContent = 'Yes — add the ' + bTitle;
+        if (bumpLineLabel) bumpLineLabel.textContent = bName;
+        var offer = parseInt(current.bumpMinor, 10) || 0;
+        if (bumpNowEl) bumpNowEl.textContent = money(offer, curCurrency);
+        // Struck "regular price" + saving — shown only when we have an anchor
+        // above the offer for this currency. The charged amount is `offer`.
+        var compare = parse(current.bumpComparePrices)[curCurrency];
+        if (bumpWasEl && bumpSaveEl) {
+          if (compare && compare > offer) {
+            bumpWasEl.textContent = money(compare, curCurrency);
+            bumpWasEl.hidden = false;
+            bumpSaveEl.textContent = 'Save ' + Math.round((1 - offer / compare) * 100) + '%';
+            bumpSaveEl.hidden = false;
+          } else {
+            bumpWasEl.hidden = true;
+            bumpSaveEl.hidden = true;
+          }
+        }
+      } else {
+        bumpRow.hidden = true;
+        bumpInput.checked = false;
+      }
+    }
+
     function recompute() {
       if (!current) return;
       var fullPriceMinor = parseInt(current.priceMinor, 10) || 0;
       var priceMinor = ticketAfterDiscount(fullPriceMinor, current.kind);
       var cur = current.currency || curCurrency;
-      totalLabel.textContent = current.kind === 'masterclass' ? 'Masterclass seat' : 'Workshop ticket';
-      totalAmount.innerHTML = (priceMinor !== fullPriceMinor)
-        ? '<span class="we-line-was">' + money(fullPriceMinor, cur) + '</span> ' + money(priceMinor, cur)
-        : money(priceMinor, cur);
-      submitBtn.textContent = 'Register & pay ' + money(priceMinor, cur) + ' →';
+      var wantsBump = current.hasBump === '1' && !!bumpInput && bumpInput.checked;
+      var bumpMinor = wantsBump ? (parseInt(current.bumpMinor, 10) || 0) : 0;
+
+      // Seat line (struck full price shown when a discount is active).
+      if (seatLineLabel) {
+        seatLineLabel.textContent = current.kind === 'masterclass' ? 'Masterclass seat' : 'Workshop ticket';
+      }
+      if (seatLineAmount) {
+        seatLineAmount.innerHTML = (priceMinor !== fullPriceMinor)
+          ? '<span class="we-line-was">' + money(fullPriceMinor, cur) + '</span> ' + money(priceMinor, cur)
+          : money(priceMinor, cur);
+      }
+
+      // Bump line — a second line item, shown only once the pack is added.
+      if (bumpLine) bumpLine.hidden = !wantsBump;
+      if (wantsBump && bumpLineAmount) bumpLineAmount.textContent = money(bumpMinor, cur);
+
+      var total = priceMinor + bumpMinor;
+      totalAmount.textContent = money(total, cur);
+      submitBtn.textContent = 'Register & pay ' + money(total, cur) + ' →';
     }
 
     function selectItem(input) {
@@ -510,6 +639,8 @@ const friendSlug = (Astro.url.searchParams.get('friend') ?? '').trim();
       // Company / VAT only for the masterclass (B2B — practitioners invoicing).
       if (bizField) bizField.hidden = current.kind !== 'masterclass';
       toggleVat();
+      if (bumpInput) bumpInput.checked = false;
+      refreshBump();
       if (form.hidden) {
         form.hidden = false;
         // next frame so the transition runs
@@ -522,6 +653,7 @@ const friendSlug = (Astro.url.searchParams.get('friend') ?? '').trim();
       var t = e.target;
       if (t && t.name === 'mc-date') selectItem(t);
     });
+    if (bumpInput) bumpInput.addEventListener('change', recompute);
 
     form.addEventListener('submit', async function (e) {
       e.preventDefault();
@@ -546,7 +678,7 @@ const friendSlug = (Astro.url.searchParams.get('friend') ?? '').trim();
         email: fd.get('email'),
         timezone: current.isReplay === '1' ? '' : (fd.get('timezone') || ''),
         country: fd.get('country') || '',
-        bump: false,
+        bump: fd.get('bump') === 'on',
         company_name: isMasterclass ? (fd.get('company_name') || '') : '',
         vat_number: isMasterclass ? (fd.get('vat_number') || '') : '',
         discount: fd.get('discount') || '',

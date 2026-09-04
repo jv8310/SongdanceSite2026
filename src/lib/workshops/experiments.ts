@@ -17,6 +17,17 @@ export type PageChange = {
   title: string;
   /** What changed, in one sentence, for whoever reads the admin panel later. */
   note: string;
+  /**
+   * Show the "workshop seats sold from the masterclass page" tile. Only
+   * meaningful for a change about whether that page offers workshop dates at
+   * all; on any other bookmark it is a tile of noise.
+   */
+  showWorkshopSwitch?: boolean;
+  /**
+   * Show the order-bump take-up tile (how many secured seats added the pack,
+   * and what it earned). Set on a bookmark that changes the bump offer.
+   */
+  showBumpTakeUp?: boolean;
 };
 
 // 3 Sept 2026 — the masterclass page listed the live €22 workshop dates under
@@ -31,10 +42,29 @@ export const MC_WORKSHOP_ALTERNATIVES: PageChange = {
   note:
     'The live workshop dates were removed from /courses/masterclass; the masterclass replay stays. ' +
     'Before this date the page offered both, and a visitor could register for a €22 workshop instead of the €44 masterclass.',
+  showWorkshopSwitch: true,
+};
+
+// 4 Sept 2026 — the masterclass page started offering the €9 "Empowering You"
+// mantra pack as an order bump. It always had one to offer: buildCalendarItems
+// resolves the pack for every masterclass row, and /workshop and a direct
+// /w/<slug> link both sold the same session with the bump on it. Only
+// /courses/masterclass — the page the ads point at — posted `bump: false`, a
+// leftover from the day before the July reprice, when the default bump was the
+// €19 Authentic Singing Journey. Watch two things here: the bump's take-up, and
+// whether asking for it costs any seats (a second decision at checkout can).
+export const MC_ORDER_BUMP: PageChange = {
+  key: 'mc-order-bump',
+  date: '2026-09-04',
+  title: 'Masterclass page: order bump added',
+  note:
+    'The €9 “Empowering You” mantra pack is now offered as an order bump on /courses/masterclass. ' +
+    'Before this date that page was the only door to a masterclass seat that never offered it — /workshop and /w/<slug> always did.',
+  showBumpTakeUp: true,
 };
 
 // Flip to true to put the workshop dates back on the masterclass page (and add
 // a second entry above with that date, so the windows stay readable).
 export const MC_PAGE_OFFERS_WORKSHOPS = false;
 
-export const PAGE_CHANGES: PageChange[] = [MC_WORKSHOP_ALTERNATIVES];
+export const PAGE_CHANGES: PageChange[] = [MC_ORDER_BUMP, MC_WORKSHOP_ALTERNATIVES];

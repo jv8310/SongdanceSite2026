@@ -6,7 +6,7 @@ import { computeWorkshopPerformance, resolveMoneyOpts, type WorkshopPerformanceR
 import { PERIOD_PRESETS, resolvePeriod, presetRangesMap } from '../../../lib/workshops/periods';
 import { computeShareReport } from '../../../lib/workshops/share-report';
 import { computeMcPageReport } from '../../../lib/workshops/mc-page-report';
-import { MC_WORKSHOP_ALTERNATIVES } from '../../../lib/workshops/experiments';
+import { PAGE_CHANGES } from '../../../lib/workshops/experiments';
 import { SHARE_CHANNEL_LABELS } from '../../../lib/workshops/share';
 
 export const prerender = false;
@@ -24,11 +24,14 @@ const money = await resolveMoneyOpts(env.DB, env);
 const report = await computeWorkshopPerformance(env.DB, { from, to, money });
 // The referral funnel — the same window, the channel that costs nothing.
 const share = await computeShareReport(env.DB, { from, to, money });
-// The bookmarked masterclass-page change, read as two equal windows either side
-// of the day it shipped. Deliberately NOT bound to the period picker above: the
+// The bookmarked page changes, each read as two equal windows either side of
+// the day it shipped. Deliberately NOT bound to the period picker above: the
 // windows are what make the two halves comparable, so they are fixed by the
-// change date rather than by whatever range is being browsed.
-const mcPage = await computeMcPageReport(env.DB, MC_WORKSHOP_ALTERNATIVES, { money });
+// change date rather than by whatever range is being browsed — which is also
+// why each bookmark gets its own panel rather than sharing one.
+const pageChanges = await Promise.all(
+  PAGE_CHANGES.map((change) => computeMcPageReport(env.DB, change, { money })),
+);
 const windowLabel = (w: { from: string; to: string; days: number }) =>
   `${dateLabel(w.from)} – ${dateLabel(w.to)} · ${w.days} day${w.days === 1 ? '' : 's'}`;
 // Step-to-step conversion, as a percentage of the step before it.
@@ -397,65 +400,82 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
       )}
     </section>
 
-    <section class="adm-section">
-      {/* ── Bookmarked page change: the masterclass page's workshop dates ── */}
-      <h2 style="margin:0 0 6px;font-size:18px;">{mcPage.change.title}</h2>
-      <p class="adm-sub" style="margin-top:0;">
-        {mcPage.change.note} Shipped <strong>{dateLabel(mcPage.change.date)}</strong>.
-        <br />This block ignores the period picker above — it compares the {mcPage.after.days} day{mcPage.after.days === 1 ? '' : 's'} since the
-        change against the {mcPage.before.days} day{mcPage.before.days === 1 ? '' : 's'} immediately before it, which is what makes the two halves
-        comparable. “Started” is a form submitted (a registration row is written before the gateway); “secured” is paid or comped. There is no
-        page-view tracking on the site, so started → secured is the conversion rate available, and it is the one this change should move.
-      </p>
-
-      <div class="pf-share">
-        <div class="pf-share-step">
-          <div class="pf-share-key">Before · masterclass</div>
-          <div class="pf-share-val">{mcPage.before.secured}<span style="font-size:14px;color:var(--adm-mute);"> / {mcPage.before.started}</span></div>
-          <div class="pf-share-sub">
-            {windowLabel(mcPage.before)}<br />
-            {pct(mcPage.before.started ? mcPage.before.securedRate * 100 : null)} secured · {eur(mcPage.before.revenueEurMinor)}
-          </div>
-        </div>
-        <div class="pf-share-step pf-share-step--out">
-          <div class="pf-share-key">After · masterclass</div>
-          <div class="pf-share-val">{mcPage.after.secured}<span style="font-size:14px;color:var(--adm-mute);"> / {mcPage.after.started}</span></div>
-          <div class="pf-share-sub">
-            {windowLabel(mcPage.after)}<br />
-            {pct(mcPage.after.started ? mcPage.after.securedRate * 100 : null)} secured · {eur(mcPage.after.revenueEurMinor)}
-          </div>
-        </div>
-        <div class="pf-share-step">
-          <div class="pf-share-key">Change in conversion</div>
-          <div class="pf-share-val">
-            {mcPage.before.started === 0 || mcPage.after.started === 0
-              ? '—'
-              : (mcPage.rateDeltaPoints >= 0 ? '+' : '') + mcPage.rateDeltaPoints.toFixed(1) + ' pts'}
-          </div>
-          <div class="pf-share-sub">
-            {mcPage.before.started === 0 || mcPage.after.started === 0
-              ? 'not enough registrations on one side yet'
-              : <>{mcPage.after.perDay.toFixed(2)} seats/day after vs {mcPage.before.perDay.toFixed(2)} before</>}
-          </div>
-        </div>
-        <div class="pf-share-step">
-          <div class="pf-share-key">Workshop seats from this page</div>
-          <div class="pf-share-val">{mcPage.workshopFromMcPage.tracked ? mcPage.workshopFromMcPage.secured : '—'}</div>
-          <div class="pf-share-sub">
-            {mcPage.workshopFromMcPage.tracked
-              ? <>{mcPage.workshopFromMcPage.started} started · {eur(mcPage.workshopFromMcPage.revenueEurMinor)} — people who came to the masterclass page and took a workshop seat instead</>
-              : <>not recorded before this shipped — no registration until now stored the page it was made on, so the historical answer is unknown, not zero</>}
-          </div>
-        </div>
-      </div>
-
-      {mcPage.workshopFromMcPage.unknownPage > 0 && (
-        <p class="adm-muted" style="margin:0 0 6px;">
-          {mcPage.workshopFromMcPage.unknownPage} registration{mcPage.workshopFromMcPage.unknownPage === 1 ? '' : 's'} in these windows
-          predate the page column and count as “unknown page”.
+    {pageChanges.map((mcPage) => (
+      <section class="adm-section">
+        {/* ── Bookmarked page change, read against the windows either side ── */}
+        <h2 style="margin:0 0 6px;font-size:18px;">{mcPage.change.title}</h2>
+        <p class="adm-sub" style="margin-top:0;">
+          {mcPage.change.note} Shipped <strong>{dateLabel(mcPage.change.date)}</strong>.
+          <br />This block ignores the period picker above — it compares the {mcPage.after.days} day{mcPage.after.days === 1 ? '' : 's'} since the
+          change against the {mcPage.before.days} day{mcPage.before.days === 1 ? '' : 's'} immediately before it, which is what makes the two halves
+          comparable. “Started” is a form submitted (a registration row is written before the gateway); “secured” is paid or comped. There is no
+          page-view tracking on the site, so started → secured is the conversion rate available, and it is the one this change should move.
         </p>
-      )}
-    </section>
+
+        <div class="pf-share">
+          <div class="pf-share-step">
+            <div class="pf-share-key">Before · masterclass</div>
+            <div class="pf-share-val">{mcPage.before.secured}<span style="font-size:14px;color:var(--adm-mute);"> / {mcPage.before.started}</span></div>
+            <div class="pf-share-sub">
+              {windowLabel(mcPage.before)}<br />
+              {pct(mcPage.before.started ? mcPage.before.securedRate * 100 : null)} secured · {eur(mcPage.before.revenueEurMinor)}
+            </div>
+          </div>
+          <div class="pf-share-step pf-share-step--out">
+            <div class="pf-share-key">After · masterclass</div>
+            <div class="pf-share-val">{mcPage.after.secured}<span style="font-size:14px;color:var(--adm-mute);"> / {mcPage.after.started}</span></div>
+            <div class="pf-share-sub">
+              {windowLabel(mcPage.after)}<br />
+              {pct(mcPage.after.started ? mcPage.after.securedRate * 100 : null)} secured · {eur(mcPage.after.revenueEurMinor)}
+            </div>
+          </div>
+          <div class="pf-share-step">
+            <div class="pf-share-key">Change in conversion</div>
+            <div class="pf-share-val">
+              {mcPage.before.started === 0 || mcPage.after.started === 0
+                ? '—'
+                : (mcPage.rateDeltaPoints >= 0 ? '+' : '') + mcPage.rateDeltaPoints.toFixed(1) + ' pts'}
+            </div>
+            <div class="pf-share-sub">
+              {mcPage.before.started === 0 || mcPage.after.started === 0
+                ? 'not enough registrations on one side yet'
+                : <>{mcPage.after.perDay.toFixed(2)} seats/day after vs {mcPage.before.perDay.toFixed(2)} before</>}
+            </div>
+          </div>
+          {mcPage.change.showBumpTakeUp && (
+            <div class="pf-share-step">
+              <div class="pf-share-key">Order bump taken</div>
+              <div class="pf-share-val">
+                {mcPage.after.secured === 0 ? '—' : pct(mcPage.after.bump.rate * 100)}
+              </div>
+              <div class="pf-share-sub">
+                {mcPage.after.secured === 0
+                  ? 'no seats secured since the change yet'
+                  : <>{mcPage.after.bump.taken} of {mcPage.after.secured} secured seats · {eur(mcPage.after.bump.revenueEurMinor)} — against {mcPage.before.bump.taken} of {mcPage.before.secured} before. Both halves count masterclass seats sold through every door, and /workshop and /w/&lt;slug&gt; already offered the bump, so the before figure is not zero-by-construction</>}
+              </div>
+            </div>
+          )}
+          {mcPage.change.showWorkshopSwitch && (
+            <div class="pf-share-step">
+              <div class="pf-share-key">Workshop seats from this page</div>
+              <div class="pf-share-val">{mcPage.workshopFromMcPage.tracked ? mcPage.workshopFromMcPage.secured : '—'}</div>
+              <div class="pf-share-sub">
+                {mcPage.workshopFromMcPage.tracked
+                  ? <>{mcPage.workshopFromMcPage.started} started · {eur(mcPage.workshopFromMcPage.revenueEurMinor)} — people who came to the masterclass page and took a workshop seat instead</>
+                  : <>not recorded before this shipped — no registration until now stored the page it was made on, so the historical answer is unknown, not zero</>}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {mcPage.change.showWorkshopSwitch && mcPage.workshopFromMcPage.unknownPage > 0 && (
+          <p class="adm-muted" style="margin:0 0 6px;">
+            {mcPage.workshopFromMcPage.unknownPage} registration{mcPage.workshopFromMcPage.unknownPage === 1 ? '' : 's'} in these windows
+            predate the page column and count as “unknown page”.
+          </p>
+        )}
+      </section>
+    ))}
 
     <section class="adm-section">
       {/* ── Share with a friend: the referral funnel ── */}
