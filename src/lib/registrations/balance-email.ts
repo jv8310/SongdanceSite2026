@@ -81,9 +81,16 @@ export function buildBalanceEmail(args: {
     `If your bank will not take the reference, your own name is enough.`;
 
   const cardHeading = 'Or pay online';
+  // "opens a fresh checkout every time" is not filler: the link used to BE the
+  // gateway's own checkout URL, which expired within a day and met everyone who
+  // came back to the email with "this checkout session has timed out". It now
+  // points at our own page, which mints a new checkout on each click — worth
+  // saying to anyone who already hit the dead one.
   const cardBody =
     'If a card or PayPal is easier, this link is a checkout for your exact ' +
-    'remaining balance — it takes a minute, and clears itself automatically.';
+    'remaining balance — it takes a minute, and clears itself automatically. ' +
+    'It opens a fresh checkout every time, so it keeps working however long ' +
+    'you leave it.';
   const ctaBtn = `Pay ${amount_label}`;
   const sig = 'With warmth,\nJacob';
 

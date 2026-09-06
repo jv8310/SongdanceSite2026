@@ -432,38 +432,40 @@ export async function getRegistrationsWithBalanceDue(
   return r.results ?? [];
 }
 
-// Record that we created a Checkout Session for the balance and emailed it.
-export async function attachBalanceSession(
+// Record that we emailed the guest their balance link. This is the "Last
+// invited" column on /admin/retreats/<slug>, so it is stamped by the SEND and
+// by nothing else — the gateway session is minted later, when they click
+// (see balance-link.ts), and that click is not a fresh invitation.
+export async function markBalanceInviteSent(
   db: D1Database,
   registrationId: number,
-  sessionId: string,
 ) {
   await db
     .prepare(
       `UPDATE registrations
-          SET balance_stripe_session_id = ?,
-              balance_invite_sent_at = datetime('now')
+          SET balance_invite_sent_at = datetime('now')
         WHERE id = ?`,
     )
-    .bind(sessionId, registrationId)
+    .bind(registrationId)
     .run();
 }
 
-// PayPal variant of attachBalanceSession: record the balance order id + that
-// we emailed the link.
-export async function attachBalancePaypalOrder(
+// Record the gateway object the guest was last sent to for their balance —
+// a Stripe Checkout Session or a PayPal order, depending on the gateway their
+// deposit rode. Both are settled by routing metadata (Stripe
+// payment_kind=balance, PayPal custom_id balance:<id>), so this column is a
+// breadcrumb for support, not a lookup key.
+export async function attachBalanceCheckoutRef(
   db: D1Database,
   registrationId: number,
-  orderId: string,
+  provider: 'stripe' | 'paypal',
+  ref: string,
 ) {
+  const column =
+    provider === 'paypal' ? 'balance_paypal_order_id' : 'balance_stripe_session_id';
   await db
-    .prepare(
-      `UPDATE registrations
-          SET balance_paypal_order_id = ?,
-              balance_invite_sent_at = datetime('now')
-        WHERE id = ?`,
-    )
-    .bind(orderId, registrationId)
+    .prepare(`UPDATE registrations SET ${column} = ? WHERE id = ?`)
+    .bind(ref, registrationId)
     .run();
 }
 

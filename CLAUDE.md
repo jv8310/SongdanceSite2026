@@ -614,6 +614,32 @@ A retreat booked with a 50% deposit owes the rest before the retreat. The
   once they have sent it (`BALANCE_REPLY_TO`, which is also the send's
   Reply-To — they must not drift). The Stripe/PayPal checkout link follows as
   the alternative, on the gateway the deposit was paid with.
+- **The emailed pay link is OURS, and it never expires** (September 2026). It
+  used to be the gateway's own URL, minted at send time — and a Stripe Checkout
+  Session lives **24 hours at the outside** (`expires_at` cannot be pushed
+  further), a PayPal approve URL less. A balance due "before 1 September" is
+  read days or weeks after it is sent, so by the time the Dolphin & Sound guests
+  clicked, every link was dead and Stripe met them with *"You're all done here —
+  You've either completed your payment or this checkout session has timed
+  out"*, which reads as **the money already left their account**. The email now
+  carries `/registrations/balance?t=<id>.<sig>`
+  ([`balance-link.ts`](src/lib/registrations/balance-link.ts), HMAC over
+  `ADMIN_SESSION_SECRET`, domain-separated `sd-balance:`), and the gateway
+  session is minted **on the click** by `createBalanceCheckout` — so the link
+  keeps working, always charges the balance *as it stands today*, and once the
+  balance is settled the page says so in our words. `sendBalanceInvite` touches
+  no gateway at all now; it only builds the link, sends, and stamps
+  `balance_invite_sent_at`. The page ([`balance.astro`](src/pages/registrations/balance.astro))
+  302s to the fresh checkout; `?stay=1` renders its panel instead (bank details
+  + a "pay online" button) and is the gateway's **cancel_url**, so backing out
+  of Stripe lands somewhere useful rather than in a redirect loop. Both
+  gateways hand back the *same* object for a repeated idempotency key, so the
+  key is bucketed by the hour — a double-click is cheap, tomorrow's click is a
+  live session. **Anything emailing a payment link people will read later must
+  do the same**; a gateway URL in an inbox is this bug again.
+- **The link is on the admin page too** — a **Pay link** column in the "Balance
+  due" table, copyable into a reply for anyone who lost the email (or got one
+  of the expired ones).
 - **A bank transfer has no webhook**, so the balance table carries a **Mark
   paid** button per row (`/api/admin/balance/mark-paid`, admin-gated) next to
   Send/Resend link, and the transfer ref beside the amount so a statement line
