@@ -391,19 +391,42 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
 
       /* focus cards */
       /* Ad economics: spend → made back → ROAS → what's still missing. */
-      .econ { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 14px; }
-      .ecard { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px 14px; border-top: 3px solid var(--accent); }
+      /* min() so a card never holds itself at 330px inside a narrower phone. */
+      .econ { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(330px, 100%), 1fr)); gap: 14px; }
+      /* The card reflows on its OWN width, not the window's — two sit side by
+         side from ~720px up. @container measures the CONTENT box, so the
+         breakpoints below are card width minus the 36px of padding. */
+      .ecard { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px 14px; border-top: 3px solid var(--accent); container-type: inline-size; }
       .ehead { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
       .ehead h3 { margin: 0; font-size: 14px; font-weight: 600; }
       .eregs { font-size: 12px; color: var(--muted); }
       .ebody { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-top: 12px; }
-      .eflow { display: flex; align-items: baseline; gap: 12px; min-width: 0; }
+      /* Two figures of EQUAL width, arrow between. As a flex row sized by
+         content, the long "made back" caption ate the ad-spend column until the
+         two 24px numbers overlapped each other. Fixed tracks mean a long
+         caption can only ever wrap. */
+      .eflow {
+        flex: 1 1 auto; min-width: 0; display: grid;
+        grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+        align-items: baseline; gap: 12px;
+      }
       .efig { display: flex; flex-direction: column; min-width: 0; }
-      .efig span { font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+      .efig span { font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
       .efig b { font-size: 24px; font-weight: 640; letter-spacing: -0.015em; color: var(--ink); font-variant-numeric: tabular-nums; margin-top: 2px; }
       .efig em { font-style: normal; font-size: 11.5px; color: var(--muted); margin-top: 3px; line-height: 1.4; }
       .earrow { color: var(--muted); font-size: 18px; align-self: center; }
       .eroas { text-align: right; flex: none; }
+      /* Too narrow for the figures to share the row with the verdict: it moves
+         above them and the figures take the whole card. */
+      @container (max-width: 440px) {
+        .ebody { flex-direction: column-reverse; align-items: stretch; gap: 10px; }
+        .eroas { text-align: left; }
+      }
+      /* Narrower still: the figures stack and the arrow turns to point down. */
+      @container (max-width: 360px) {
+        .eflow { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+        .earrow { justify-self: start; line-height: 1; transform: rotate(90deg); }
+      }
       .eroas b { display: block; font-size: 32px; line-height: 1; font-weight: 650; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
       .eroas span { display: block; margin-top: 5px; font-size: 10.5px; color: var(--muted); }
       .e-good { color: var(--good); }
