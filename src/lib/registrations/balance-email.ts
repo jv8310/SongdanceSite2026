@@ -17,10 +17,6 @@ export interface BalanceEmailContent {
   html: string;
 }
 
-// When the balance is due. Kept in sync with the deposit copy on the
-// registration form + checkout.
-export const BALANCE_DUE_LABEL = 'before 1 September 2026';
-
 // The Songdance account. A SEPA transfer needs the IBAN alone (no BIC), which
 // is why only these two lines are quoted.
 export const BANK_TRANSFER = {
@@ -51,7 +47,14 @@ export function buildBalanceEmail(args: {
   first_name: string | null;
   event_name: string;
   amount_label: string;
-  due_label: string;
+  // A live deadline, e.g. "before 1 October 2026" — appended to "is now due".
+  // OPTIONAL, and left unset on purpose: this used to be a fixed
+  // BALANCE_DUE_LABEL constant ("before 1 September 2026") that nothing ever
+  // moved, so once the date passed every send told the guest their balance was
+  // due before a day that had already gone. A deadline only belongs in this
+  // email while it is still ahead of the send — pass one when that is true, and
+  // the sentence simply reads "is now due." when it is not.
+  due_label?: string | null;
   link: string;
   reference: string;
 }): BalanceEmailContent {
@@ -60,9 +63,10 @@ export function buildBalanceEmail(args: {
   const greet = greetName ? `Hi ${greetName},` : 'Hi,';
   const subject = `Your remaining balance for ${event_name}`;
 
+  const due = (due_label ?? '').trim();
   const intro =
     `Thank you for reserving your place on ${event_name} with a deposit. ` +
-    `Your remaining balance of ${amount_label} is now due (${due_label}).`;
+    `Your remaining balance of ${amount_label} is now due${due ? ` (${due})` : ''}.`;
   const choice =
     'There are two ways to settle it. A bank transfer is the one we prefer — ' +
     'it goes straight to us, with no card fees in between.';

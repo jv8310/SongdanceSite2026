@@ -49,7 +49,6 @@ import {
 import { buildBriefingEmail, sampleBriefingData } from './briefing';
 import { formatInTz } from './time';
 import {
-  BALANCE_DUE_LABEL,
   balancePaymentReference,
   buildBalanceEmail,
 } from '../registrations/balance-email';
@@ -534,7 +533,6 @@ export function buildEmailSamples(base: string): EmailSample[] {
         first_name: 'Maria',
         event_name: 'Dolphin & Sound Retreat',
         amount_label: '€725',
-        due_label: BALANCE_DUE_LABEL,
         // The real link is our own /registrations/balance page, which mints a
         // fresh gateway checkout on each click — a gateway URL would be dead
         // within a day of the send (see registrations/balance-link.ts).

@@ -32,7 +32,6 @@ import { encodeCustomId, type PaymentProvider } from '../payments/provider';
 import { retreatPagePath } from './waitlist';
 import { buildBalancePayUrl } from './balance-link';
 import {
-  BALANCE_DUE_LABEL,
   BALANCE_REPLY_TO,
   balancePaymentReference,
   buildBalanceEmail,
@@ -40,7 +39,6 @@ import {
 
 // Re-exported so the existing import surface (balance.ts) keeps working.
 export {
-  BALANCE_DUE_LABEL,
   BALANCE_REPLY_TO,
   BANK_TRANSFER,
   balancePaymentReference,
@@ -273,7 +271,6 @@ export async function sendBalanceInvite(
     first_name: reg.first_name ?? (reg.name ? reg.name.split(' ')[0] : null),
     event_name: product.name,
     amount_label: eur(balanceCents),
-    due_label: BALANCE_DUE_LABEL,
     link,
     reference: balancePaymentReference(reg.id),
   });

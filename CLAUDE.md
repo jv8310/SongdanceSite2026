@@ -640,6 +640,17 @@ A retreat booked with a 50% deposit owes the rest before the retreat. The
 - **The link is on the admin page too** — a **Pay link** column in the "Balance
   due" table, copyable into a reply for anyone who lost the email (or got one
   of the expired ones).
+- **The email names no deadline unless one is passed in.** `buildBalanceEmail`'s
+  `due_label` used to come from a fixed `BALANCE_DUE_LABEL` constant ("before 1
+  September 2026") that nothing ever moved, so from 2 September every send told
+  the guest their balance was due before a day that had already gone. The
+  constant is gone; `due_label` is optional and unset, and the sentence reads
+  "is now due." A **live** deadline may be passed again — but a hard-coded date
+  in a shared constant will go stale silently, so it has to come from something
+  that knows today. (The dolphin sales copy still names 1 Sept 2026 in
+  `DSRegister`/`DSFAQ`/`DSPractical` and `dolphin-checkout.ts`'s `BALANCE_DUE` —
+  a new deposit booking is quoted a passed date, and what replaces it is the
+  owner's call.)
 - **A bank transfer has no webhook**, so the balance table carries a **Mark
   paid** button per row (`/api/admin/balance/mark-paid`, admin-gated) next to
   Send/Resend link, and the transfer ref beside the amount so a statement line
