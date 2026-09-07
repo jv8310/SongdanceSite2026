@@ -49,7 +49,6 @@ import {
 import { buildBriefingEmail, sampleBriefingData } from './briefing';
 import { formatInTz } from './time';
 import {
-  BALANCE_DUE_LABEL,
   balancePaymentReference,
   buildBalanceEmail,
 } from '../registrations/balance-email';
@@ -534,10 +533,10 @@ export function buildEmailSamples(base: string): EmailSample[] {
         first_name: 'Maria',
         event_name: 'Dolphin & Sound Retreat',
         amount_label: '€725',
-        due_label: BALANCE_DUE_LABEL,
-        // The real link is the Stripe (or PayPal) checkout for that person's
-        // exact balance; this is the shape one takes.
-        link: 'https://checkout.stripe.com/c/pay/cs_test_sample0123456789',
+        // The real link is our own /registrations/balance page, which mints a
+        // fresh gateway checkout on each click — a gateway URL would be dead
+        // within a day of the send (see registrations/balance-link.ts).
+        link: 'https://songdance.co/registrations/balance?t=54.0a1b2c3d4e5f60718293',
         reference: balancePaymentReference(54),
       }),
     },

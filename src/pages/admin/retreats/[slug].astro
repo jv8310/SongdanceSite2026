@@ -29,6 +29,7 @@ import {
   BANK_TRANSFER as BALANCE_BANK_ACCOUNT,
   balancePaymentReference,
 } from '../../../lib/registrations/balance-email';
+import { buildBalancePayUrl } from '../../../lib/registrations/balance-link';
 
 export const prerender = false;
 
@@ -590,6 +591,23 @@ const offerTiers = ta
 const anyFree = offerTiers.some((t) => t.free > 0);
 
 const publicBase = (env.PUBLIC_BASE_URL || Astro.url.origin).replace(/\/+$/, '');
+
+// The same durable pay link the balance email carries — a page of ours that
+// mints a fresh gateway checkout on each click, so it never goes stale. Having
+// it here means a guest who lost the email (or got one of the expired-gateway
+// links the September 2026 send went out with) can be handed a working link in
+// a reply, without another send.
+const balancePayLinks = new Map<number, string>(
+  await Promise.all(
+    balanceDue.map(
+      async (r) =>
+        [r.id, await buildBalancePayUrl(env.ADMIN_SESSION_SECRET, publicBase, r.id)] as [
+          number,
+          string,
+        ],
+    ),
+  ),
+);
 
 function waitlistTone(w: { status: string; offer_live: boolean }): string {
   if (w.status === 'invited') return w.offer_live ? 'low' : 'cancelled';
@@ -1200,6 +1218,7 @@ const flash = (() => {
                 <th>Email</th>
                 <th class="num">Balance due</th>
                 <th>Transfer ref</th>
+                <th>Pay link</th>
                 <th>Last invited</th>
                 <th></th>
               </tr>
@@ -1216,6 +1235,16 @@ const flash = (() => {
                     <td><a href={`mailto:${r.email}`}>{r.email}</a></td>
                     <td class="num">{eur(r.balance_due_cents, r.currency)}</td>
                     <td><code>{balancePaymentReference(r.id)}</code></td>
+                    <td>
+                      <input
+                        class="adm-wl-link"
+                        type="text"
+                        readonly
+                        value={balancePayLinks.get(r.id) ?? ''}
+                        onclick="this.select()"
+                        aria-label={`Balance payment link for ${displayName}`}
+                      />
+                    </td>
                     <td>{r.balance_invite_sent_at ? ymd(r.balance_invite_sent_at) : '—'}</td>
                     <td>
                       <div class="adm-balance-actions">
@@ -1255,7 +1284,7 @@ const flash = (() => {
               })}
             </tbody>
           </table>
-          <p class="adm-table-note">The email offers two ways to settle. A <strong>bank transfer</strong> to {BALANCE_BANK_ACCOUNT.accountName} ({BALANCE_BANK_ACCOUNT.iban}) is put first, quoting the <strong>transfer ref</strong> in this table, and the guest is asked to reply once they have sent it — that transfer has no webhook, so press <strong>Mark paid</strong> here when it lands and the booking is settled in full. Otherwise the <strong>link</strong> is a checkout for that person's exact remaining balance, on the same gateway (Stripe or PayPal) they paid the deposit with, and clears itself automatically when they pay. Either way they drop off this list. “Last invited” shows when the email was last sent — use <strong>Resend link</strong> for a reminder. Marking paid also raises that balance’s <strong>Quaderno invoice</strong> (a transfer has no gateway, so nothing else does) — tick <strong>no invoice</strong> to settle it without one, e.g. when it is already invoiced. You can still raise it afterwards with <strong>Invoice the balance</strong> on that person’s registration row.</p>
+          <p class="adm-table-note">The email offers two ways to settle. A <strong>bank transfer</strong> to {BALANCE_BANK_ACCOUNT.accountName} ({BALANCE_BANK_ACCOUNT.iban}) is put first, quoting the <strong>transfer ref</strong> in this table, and the guest is asked to reply once they have sent it — that transfer has no webhook, so press <strong>Mark paid</strong> here when it lands and the booking is settled in full. Otherwise the <strong>pay link</strong> is that person's own checkout for their exact remaining balance, on the same gateway (Stripe or PayPal) they paid the deposit with, and clears itself automatically when they pay. It is a page of ours that opens a <em>fresh</em> checkout on every click, so it never expires — copy it into a reply for anyone who has lost the email. Either way they drop off this list. “Last invited” shows when the email was last sent — use <strong>Resend link</strong> for a reminder. Marking paid also raises that balance’s <strong>Quaderno invoice</strong> (a transfer has no gateway, so nothing else does) — tick <strong>no invoice</strong> to settle it without one, e.g. when it is already invoiced. You can still raise it afterwards with <strong>Invoice the balance</strong> on that person’s registration row.</p>
         </>
       )}
     </section>
