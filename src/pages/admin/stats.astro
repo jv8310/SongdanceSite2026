@@ -1075,19 +1075,26 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
     .st-hd--bad { color: #f2b3ab; background: rgba(242, 169, 160, 0.16); }
     .st-hd--flat { color: rgba(243, 234, 216, 0.65); background: rgba(243, 234, 216, 0.1); }
 
-    /* ── Stream tiles ── */
     /* ── Ad economics: spend → made back → ROAS → what's still missing ── */
-    .st-econ { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 12px; }
+    /* min() so a card never holds itself at 340px inside a narrower phone. */
+    .st-econ { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr)); gap: 12px; }
     .st-econ-card {
       background: var(--adm-paper-soft); border: 1px solid var(--adm-line);
       border-radius: 14px; padding: 16px 18px 14px;
-      display: grid; grid-template-columns: 1fr auto; gap: 4px 18px; align-items: start;
+      display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 0; align-items: start;
+      /* The card reflows on its OWN width, not the window's — two of these sit
+         side by side from ~730px up, so each is far narrower than the viewport
+         a media query would read. @container measures the CONTENT box, so the
+         breakpoints below are card width minus the 36px of padding. */
+      container-type: inline-size;
     }
-    .st-econ-head { grid-column: 1; display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .st-econ-head { grid-column: 1; display: flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: wrap; }
     .st-econ-name { font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; }
     .st-econ-regs { font-size: 11.5px; color: var(--adm-mute); }
-    /* The verdict sits in the top-right of the card, biggest thing on it. */
-    .st-econ-roas { grid-column: 2; grid-row: 1 / span 2; text-align: right; }
+    /* The verdict sits in the top-right of the card, biggest thing on it. It
+       carries the gutter as its own margin rather than the card's column-gap,
+       so the column collapses to nothing when it drops under the name. */
+    .st-econ-roas { grid-column: 2; grid-row: 1 / span 2; margin-left: 18px; text-align: right; }
     .st-econ-roas-val {
       display: block; font-size: 34px; line-height: 1; font-weight: 650;
       letter-spacing: -0.02em; font-variant-numeric: tabular-nums;
@@ -1096,9 +1103,16 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
     .st-econ--good { color: #2f7d52; }
     .st-econ--bad { color: #a8412f; }
     .st-econ--flat { color: var(--adm-ink); }
-    .st-econ-flow { grid-column: 1; display: flex; align-items: baseline; gap: 12px; margin-top: 10px; }
+    /* Two figures of EQUAL width, arrow between. They were a flex row sized by
+       content, so the long "made back" caption ate the ad-spend column and the
+       two 24px numbers overlapped each other (and, narrower still, the card's
+       own edge). Fixed tracks mean a long caption can only ever wrap. */
+    .st-econ-flow {
+      grid-column: 1; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+      align-items: baseline; gap: 12px; margin-top: 10px;
+    }
     .st-econ-fig { display: flex; flex-direction: column; min-width: 0; }
-    .st-econ-fig span { font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--adm-mute); }
+    .st-econ-fig span { font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--adm-mute); white-space: nowrap; }
     .st-econ-fig b { font-size: 24px; font-weight: 640; letter-spacing: -0.015em; font-variant-numeric: tabular-nums; margin-top: 1px; }
     .st-econ-fig em { font-style: normal; font-size: 11.5px; color: var(--adm-mute); margin-top: 3px; line-height: 1.4; }
     .st-econ-arrow { font-size: 18px; color: var(--adm-mute); align-self: center; }
@@ -1106,11 +1120,23 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
       grid-column: 1 / -1; margin: 12px 0 0; padding-top: 10px;
       border-top: 1px solid var(--adm-line); font-size: 13px; line-height: 1.5;
     }
-    @media (max-width: 560px) {
-      .st-econ-card { grid-template-columns: 1fr; }
-      .st-econ-roas { grid-column: 1; grid-row: auto; text-align: left; margin-top: 10px; }
+    /* Too narrow for the figures to share the row with the verdict: it keeps
+       its corner but releases the row beneath, so they get the whole card. */
+    @container (max-width: 500px) {
+      .st-econ-roas { grid-row: 1; }
+      .st-econ-flow { grid-column: 1 / -1; }
+    }
+    /* Narrower still: the figures stack and the arrow turns to point down. */
+    @container (max-width: 360px) {
+      .st-econ-flow { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+      .st-econ-arrow { justify-self: start; line-height: 1; transform: rotate(90deg); }
+    }
+    /* Phone: the verdict drops under the name and its column collapses. */
+    @container (max-width: 300px) {
+      .st-econ-roas { grid-column: 1; grid-row: auto; margin: 10px 0 0; text-align: left; }
     }
 
+    /* ── Stream tiles ── */
     .st-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(185px, 1fr)); gap: 12px; }
     .st-tile {
       background: var(--adm-paper-soft); border: 1px solid var(--adm-line);
