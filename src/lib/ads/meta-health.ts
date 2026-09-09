@@ -113,9 +113,19 @@ export function parseExpiryFromMessage(message: string): string | null {
 
 /** A pull that wrote spend. Clears any standing error. */
 export async function recordMetaSyncOk(db: D1Database): Promise<void> {
+  const nowIso = new Date().toISOString();
   try {
-    await setConfig(db, KEY_LAST_OK, new Date().toISOString());
+    await setConfig(db, KEY_LAST_OK, nowIso);
     await setConfig(db, KEY_LAST_ERROR, '');
+    // A pull that just worked proves the recorded expiry belongs to a token
+    // that is no longer in play (it was rotated). Drop a past expiry, or the
+    // banner would keep crying "EXPIRED" at a working token forever — the
+    // debug_token probe is best-effort and may never overwrite it. ISO strings
+    // compare chronologically, so this is one statement and no read.
+    await db
+      .prepare(`DELETE FROM workshop_config WHERE key = ? AND value <> 'never' AND value < ?`)
+      .bind(KEY_TOKEN_EXPIRES, nowIso)
+      .run();
   } catch {
     // Health is bookkeeping; never let it fail the sync that succeeded.
   }
@@ -290,7 +300,11 @@ export async function readMetaAdsHealth(
   const errMs = base.error ? parseIso(base.error.at) : null;
   const liveError = base.error && (!okMs || (errMs ?? 0) > okMs) ? base.error : null;
   const stale = base.staleHours == null || base.staleHours > STALE_HOURS;
-  const expired = base.daysToExpiry != null && base.daysToExpiry < 0;
+  // A recorded expiry only means the pull is dead if nothing has succeeded
+  // since — a good pull after that date is proof the token was rotated and the
+  // record is stale (recordMetaSyncOk drops it, but never trust one writer).
+  const expiryMs = base.tokenExpiresAt ? (parseIso(base.tokenExpiresAt) ?? 0) : 0;
+  const expired = base.daysToExpiry != null && base.daysToExpiry < 0 && (!okMs || okMs < expiryMs);
 
   if (liveError?.kind === 'token' || expired) {
     base.level = 'down';
