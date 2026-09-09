@@ -18,6 +18,7 @@ import {
 import { listWorkshops, getProductById } from '../../lib/workshops/db';
 import { CAMPAIGN_AUDIENCE_LABEL } from '../../lib/ads/campaigns';
 import { syncTodayAdSpend } from '../../lib/ads/meta-insights';
+import { readMetaAdsHealth, tokenStatusLabel } from '../../lib/ads/meta-health';
 import ChartKit from '../../components/charts/ChartKit.astro';
 import {
   PERIOD_PRESETS,
@@ -51,6 +52,16 @@ const { preset, from, to } = resolvePeriod(Astro.url.searchParams, 'today');
 // old. Throttled + hard-timed-out + never throws (see syncTodayAdSpend); when
 // Meta isn't configured it is a no-op.
 const liveSpend = await syncTodayAdSpend(env);
+
+// Is the Meta pull actually working? Every ROAS, seat price and "net after ads"
+// on this page divides by ad spend, so a pull that silently stopped makes all of
+// them read better than they are — which is exactly what happened when the token
+// expired on 7 Sept 2026 and nothing on the page said so for two days.
+const adsHealth = await readMetaAdsHealth(env.DB, {
+  configured: Boolean(
+    (env.META_AD_ACCOUNT_ID ?? '').trim() && (env.META_ADS_TOKEN ?? env.META_ACCESS_TOKEN ?? '').trim(),
+  ),
+});
 
 // ---- Compare window (needs a bounded current window) ----
 
@@ -546,6 +557,17 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
 
     {flash === 'spend' && <div class="adm-flash adm-flash--ok">Ad spend imported.</div>}
 
+    {adsHealth.headline && (
+      <div class={`st-adhealth st-adhealth--${adsHealth.level}`}>
+        <strong>{adsHealth.level === 'down' ? '⛔' : '⚠'} {adsHealth.headline}</strong>
+        {adsHealth.level === 'down' && (
+          <span>Every ROAS and cost-per-registration below is divided by ad spend that stopped growing, so they all read better than they are.</span>
+        )}
+        {adsHealth.action && <span class="st-adhealth-fix">{adsHealth.action}</span>}
+        <span><a href="#ad-spend">Ad-spend panel ↓</a></span>
+      </div>
+    )}
+
     <section class="adm-section st-filterbar">
       <form method="GET" class="st-filters" id="stats-filter">
         <label>Period
@@ -965,7 +987,7 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
     </section>
 
     <!-- ─── Ad spend ops ─── -->
-    <section class="adm-section">
+    <section class="adm-section" id="ad-spend">
       <h2>Ad spend</h2>
       <p class="adm-sub">Pull spend straight from the Meta Marketing API, or import a CSV export as a fallback. Both write the same daily figures; the direct pull re-syncs a rolling 14&#8209;day window and is the source of truth for those days.</p>
 
@@ -995,6 +1017,12 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
 
         <div class="st-ads-col">
           <p class="adm-sub"><strong>Pull from Meta</strong> — needs <code>META_AD_ACCOUNT_ID</code> + an <code>ads_read</code> token set as secrets. Runs automatically about once a day; use this to sync now.</p>
+          <p class="adm-sub st-token">
+            <strong class={`st-token--${adsHealth.tokenNeverExpires ? 'ok' : adsHealth.daysToExpiry != null && adsHealth.daysToExpiry < 0 ? 'bad' : adsHealth.daysToExpiry != null && adsHealth.daysToExpiry <= 14 ? 'warn' : 'unknown'}`}>{tokenStatusLabel(adsHealth)}</strong>
+            {adsHealth.lastOkAt && <> · last good pull {new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' }).format(new Date(adsHealth.lastOkAt))}</>}
+            <br />
+            A <strong>System User</strong> token (Business Settings → System users → Generate new token → <code>ads_read</code> → <em>Token expiration: Never</em>) never expires; a personal one dies after 60 days and takes every ROAS on this page down with it, quietly. Rotate with <code>wrangler secret put META_ADS_TOKEN</code>, then press the button to confirm.
+          </p>
           <form id="spend-sync-form" class="st-inline-form">
             <button type="submit" class="adm-btn adm-btn--solid">Pull from Meta now</button>
           </form>
@@ -1289,6 +1317,16 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
     .st-pill--tof { background: rgba(201, 96, 58, 0.14); color: var(--adm-ember-deep); }
     .st-pill--rt { background: rgba(43, 37, 25, 0.07); color: var(--adm-ink-soft); }
 
+    .st-adhealth { display: grid; gap: 6px; margin: 0 0 18px; padding: 14px 16px; border-radius: 10px; font-size: 13.5px; line-height: 1.5; border: 1px solid; }
+    .st-adhealth--down { background: #fdf0ec; border-color: #e5b6a6; color: #7a2a17; }
+    .st-adhealth--warn { background: #fdf7e6; border-color: #e3d09a; color: #6d5410; }
+    .st-adhealth strong { font-size: 14px; }
+    .st-adhealth-fix { opacity: .85; }
+    .st-adhealth a { color: inherit; font-weight: 600; }
+    .st-token { line-height: 1.55; }
+    .st-token--ok { color: #2f6b3f; }
+    .st-token--warn { color: #8a6a1f; }
+    .st-token--bad { color: #8c2f1d; }
     .st-ads { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 24px; margin-top: 10px; }
     @media (max-width: 900px) { .st-ads { grid-template-columns: 1fr; } }
     .st-inline-form { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }

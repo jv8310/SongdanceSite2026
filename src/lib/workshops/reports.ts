@@ -574,7 +574,9 @@ export function buildWeeklyReportEmail(data: ReportData, baseUrl: string): Email
 
 // ── Recipients + idempotency ──────────────────────────────────────────────
 
-function reportRecipients(env: ReportEnv): string[] {
+// Exported: the Meta ad-spend alert (src/lib/ads/meta-alert.ts) is ops mail for
+// the same people, and must never drift to a different inbox than the digests.
+export function reportRecipients(env: ReportEnv): string[] {
   const raw = (env.REPORTS_TO ?? env.ORDER_NOTIFICATIONS_TO ?? '').trim();
   const list = raw
     .split(/[,;\s]+/)

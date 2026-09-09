@@ -25,6 +25,7 @@
 import { getConfig, setConfig, replaceMetaAdSpend } from '../workshops/db';
 import { getFxRatesToEur } from '../admin/fx';
 import { isAcquisitionCampaign } from './campaigns';
+import { recordMetaSyncOk, recordMetaSyncError, checkMetaTokenExpiry } from './meta-health';
 import { localHour } from '../workshops/time';
 
 export type MetaInsightsEnv = {
@@ -180,6 +181,13 @@ export async function runMetaAdSpendSync(
     markerKey?: string;
     /** Abort the Graph call after this long (default: no timeout). */
     timeoutMs?: number;
+    /**
+     * Also ask Meta when this token dies (one extra call), recording it for the
+     * dashboards' "token expires in N days" warning. The once-a-day cron and
+     * the manual "Pull from Meta now" button pass this; the per-page live sync
+     * does not — it runs every minute and the expiry moves once a month.
+     */
+    checkToken?: boolean;
   } = {},
 ): Promise<MetaSyncResult> {
   const db = env.DB;
@@ -211,7 +219,17 @@ export async function runMetaAdSpendSync(
   const to = ymdUTC(new Date());
   const from = addDaysUTC(to, -(windowDays - 1));
 
-  const insightRows = await fetchInsights(version, accountId, token, from, to, opts.timeoutMs);
+  // Record the outcome either way. A throw here reaches only a console.error in
+  // the cron (and a swallowed one-liner on a page), which is how an expired
+  // token went unnoticed for two days — the health row is what outlives it and
+  // puts a banner on the dashboards and an email in the inbox.
+  let insightRows: InsightsRow[];
+  try {
+    insightRows = await fetchInsights(version, accountId, token, from, to, opts.timeoutMs);
+  } catch (err) {
+    await recordMetaSyncError(db, err);
+    throw err;
+  }
 
   // Aggregate to one row per (day, campaign). time_increment=1 + level=campaign
   // already is one row each, but summing is defensive against duplicates. Spend
@@ -251,6 +269,11 @@ export async function runMetaAdSpendSync(
 
   await replaceMetaAdSpend(db, { from, to }, rows);
   await setConfig(db, opts.markerKey ?? SYNC_MARKER_KEY, new Date().toISOString());
+  await recordMetaSyncOk(db);
+  // Working today says nothing about next month. Once a day (and whenever the
+  // owner presses the button), ask Meta when this token expires so the warning
+  // arrives before the outage does.
+  if (opts.checkToken) await checkMetaTokenExpiry(env, db);
 
   const days = new Set(rows.map((r) => r.spend_date)).size;
   return {

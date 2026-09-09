@@ -2,6 +2,7 @@
 import { hasAdsAccess } from '../../lib/ads/auth';
 import { computeAdsDashboard } from '../../lib/ads/dashboard';
 import { syncTodayAdSpend } from '../../lib/ads/meta-insights';
+import { readMetaAdsHealth } from '../../lib/ads/meta-health';
 import { ROAS_TARGET, roasGapEurMinor, resolveMoneyOpts, type AudienceAcquisition } from '../../lib/workshops/stats';
 import {
   PERIOD_PRESETS,
@@ -29,6 +30,15 @@ const { preset, from, to } = resolvePeriod(Astro.url.searchParams, 'today');
 // you see is minutes old. Throttled, hard-timed-out and never throws; a no-op
 // until the Meta secrets are set.
 const liveSpend = await syncTodayAdSpend(env);
+
+// Whether the Meta pull is alive at all. Every cost-per-registration and ROAS
+// below divides by ad spend, so a pull that stopped makes this whole page read
+// better than reality — say so at the top rather than let it look fine.
+const adsHealth = await readMetaAdsHealth(env.DB, {
+  configured: Boolean(
+    (env.META_AD_ACCOUNT_ID ?? '').trim() && (env.META_ADS_TOKEN ?? env.META_ACCESS_TOKEN ?? '').trim(),
+  ),
+});
 
 // Compare window (needs a bounded current window), mirroring the admin stats page.
 const rawCompare = Astro.url.searchParams.get('compare');
@@ -365,6 +375,7 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
 
       .banner { background: #fff6e6; border: 1px solid #f0d69a; color: #7a5a12; border-radius: 10px; padding: 12px 16px; font-size: 13px; margin-bottom: 22px; }
       .banner code { background: rgba(0,0,0,0.05); padding: 1px 5px; border-radius: 4px; }
+      .banner--down { background: #fdf0ec; border-color: #e5b6a6; color: #7a2a17; }
 
       /* hero + KPI */
       .headline { display: grid; grid-template-columns: minmax(220px, 1fr) 3fr; gap: 14px; margin-bottom: 14px; }
@@ -610,6 +621,14 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
           <a class="signout" href="/api/ads/logout">Sign out</a>
         </div>
       </div>
+
+      {adsHealth.headline && (
+        <div class={`banner banner--${adsHealth.level}`}>
+          <strong>{adsHealth.level === 'down' ? '⛔' : '⚠'} {adsHealth.headline}</strong>
+          {adsHealth.level === 'down' && <> Cost per registration and ROAS below are divided by ad spend that stopped growing, so they read better than they are.</>}
+          {' '}Fix it on <code>/admin/stats</code> → Ad spend.
+        </div>
+      )}
 
       <form method="GET" class="filters" id="filter">
         <label>Period

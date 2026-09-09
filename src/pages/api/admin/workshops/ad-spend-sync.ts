@@ -15,7 +15,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
   }
 
   try {
-    const r = await runMetaAdSpendSync(env, { force: true });
+    // checkToken: pressing this button is also how you verify a freshly
+    // rotated token — so read its expiry back from Meta while we're here.
+    const r = await runMetaAdSpendSync(env, { force: true, checkToken: true });
     if (r.skipped && r.reason === 'not_configured') {
       return json(
         {

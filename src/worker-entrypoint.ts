@@ -26,6 +26,7 @@ import { reconcileStripeCourseOrders } from './lib/payments/stripe-reconcile';
 import { expireLapsedOffers } from './lib/registrations/waitlist';
 import { fxRatesStale, refreshFxRates } from './lib/admin/fx';
 import { runMetaAdSpendSync } from './lib/ads/meta-insights';
+import { runMetaAdsAlert } from './lib/ads/meta-alert';
 
 const WORKSHOP_CRON = '*/5 * * * *';
 
@@ -264,7 +265,7 @@ export function createExports(manifest: unknown) {
     // retroactive spend revisions), and no-ops entirely until META_AD_ACCOUNT_ID
     // + an ads_read token are set.
     ctx.waitUntil(
-      runMetaAdSpendSync(env)
+      runMetaAdSpendSync(env, { checkToken: true })
         .then((r) => {
           if (!r.skipped) {
             console.log(
@@ -274,6 +275,21 @@ export function createExports(manifest: unknown) {
         })
         .catch((err) => {
           console.error('[ads/meta] sync failed', err);
+        }),
+    );
+
+    // …and say so when it stops. The sync above records every outcome
+    // (meta-health.ts); this mails the report recipients once a day while the
+    // pull is down or the token is about to expire. Stale ad spend doesn't
+    // break a page — it silently flatters every ROAS on it — so the alert is
+    // the only thing that turns it back into news. No-op while healthy.
+    ctx.waitUntil(
+      runMetaAdsAlert(env)
+        .then((r) => {
+          if (r.sent) console.log(`[ads/meta] alert sent (${r.level})`);
+        })
+        .catch((err) => {
+          console.error('[ads/meta] alert failed', err);
         }),
     );
 

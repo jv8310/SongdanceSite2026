@@ -1220,13 +1220,62 @@ and every error swallowed into a result the page reports as "⚠ live Meta sync
 failed" rather than a 500. Both pages also **open on today** (`resolvePeriod`
 takes a fallback preset; everything else still defaults to all-time).
 
+**The token must be a System User token, and a dead one must be loud**
+(September 2026). On **7 Sept 2026** `META_ADS_TOKEN` expired — a personal
+(user) token, which Meta kills after **60 days** — and the pull failed on every
+run for two days *without anything saying so*: the hourly cron wrote a
+`console.error` nobody reads, the live per-page pull swallowed it into a
+one-line "⚠ live Meta sync failed", and `/admin/stats`, `/ads` and the
+SD-REPORT digests carried on rendering against the last spend they had. That is
+the dangerous shape of wrong — nothing looks broken, and **every ROAS, cost per
+registration and "net after ads" reads better than it is**, because the return
+is divided by a cost that stopped growing.
+
+- **The fix is the token type.** Only a **System User** token (Business
+  Settings → *System users* → your system user → **Generate new token** → the
+  ad account's app → permission **`ads_read`** → **Token expiration: Never**)
+  runs a server cron indefinitely. A token minted from a personal login expires
+  in 60 days, every time, and takes the numbers with it. The system user also
+  has to be **assigned to the ad account** with an ads role.
+- **Health is recorded, not logged**
+  ([`src/lib/ads/meta-health.ts`](src/lib/ads/meta-health.ts)): every sync
+  writes its outcome to `workshop_config` (`meta_ads_last_ok_at`,
+  `meta_ads_last_error`, `meta_ads_token_expires_at`), so a failure outlives
+  the request that hit it. Graph errors are classified (`code 190` → `token`,
+  `10`/`200` → `permission`, `4`/`17`/`32`/`613` → `rate_limit`), and Meta names
+  the expiry inside the 190 message ("The token has expired on Monday,
+  07-Sep-26…") so `parseExpiryFromMessage` recovers the date even when
+  `debug_token` can't be read.
+- **The expiry is known before it bites**: the daily sync and the manual button
+  pass `checkToken: true`, which asks Meta `debug_token` when this token dies
+  and stores it (`expires_at: 0` → `'never'`, which is what a correct System
+  User token reports). The ad-spend panel prints it — **"Token: never expires
+  ✓"** is the state to aim for — and a token inside 14 days of expiry raises a
+  warning.
+- **Both dashboards carry a banner** while spend is stale (`readMetaAdsHealth`
+  on `/admin/stats` + `/ads`), saying plainly that the figures below read better
+  than they are.
+- **One alert email a day** ([`meta-alert.ts`](src/lib/ads/meta-alert.ts)) goes
+  to the SD-REPORT recipients at 07:00 Brussels — an hour before the digest
+  whose numbers the same outage distorts — while the pull is down or the token
+  is expiring. Claimed in `events` (`meta-ads-alert-<date>`, kind
+  `ads.alert.sent`) so it's once a day, re-sent each day it stays broken, and
+  released on a send failure. It previews on `/admin/emails` under "Reports
+  (internal)". No-op while healthy.
+
+Anything else that reads a third-party credential on a schedule should copy this
+shape: record the outcome, surface it where the numbers are read, and mail
+someone. A silent integration is one that has already stopped.
+
 **Setup** (Meta side is the only real work):
 - **`META_AD_ACCOUNT_ID`** — the ad account, `act_1234567890` or bare
   `1234567890`.
 - **`META_ADS_TOKEN`** — a token with the **`ads_read`** permission on that
-  account. A **non-expiring System User token** (Business Settings → System
-  Users) is ideal for a server cron. Falls back to `META_ACCESS_TOKEN`, but the
+  account. Make it a **System User token with expiration “Never”** (above) —
+  anything else is a 60-day fuse. Falls back to `META_ACCESS_TOKEN`, but the
   Conversions API token usually lacks `ads_read`, so set this one explicitly.
+  Rotating it: `wrangler secret put META_ADS_TOKEN`, redeploy, then press
+  **Pull from Meta now** to confirm (the button re-reads the expiry).
 - Optional **`META_API_VERSION`** overrides the Graph version (default `v21.0`).
 
 **Manual trigger**: `/admin/stats` → "Pull from Meta now" button

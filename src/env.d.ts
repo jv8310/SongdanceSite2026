@@ -49,9 +49,14 @@ type Env = {
   // (src/lib/ads/meta-insights.ts), so /ads + stats ROAS need no CSV import.
   // Both required to activate; the cron no-ops until they're set.
   //   • META_AD_ACCOUNT_ID — "act_1234567890" or bare "1234567890".
-  //   • META_ADS_TOKEN — a token with `ads_read` on that account (a non-expiring
-  //     System User token is ideal). Falls back to META_ACCESS_TOKEN, but the
-  //     CAPI token usually lacks ads_read, so set this explicitly.
+  //   • META_ADS_TOKEN — a token with `ads_read` on that account. It MUST be a
+  //     System User token with "Token expiration: Never" (Business Settings →
+  //     System users → Generate new token): a token minted from a personal
+  //     login expires after 60 days and the pull dies with it — which is what
+  //     happened on 2026-09-07 (code 190), silently flattering every ROAS on
+  //     /admin/stats and /ads until someone noticed. Falls back to
+  //     META_ACCESS_TOKEN, but the CAPI token usually lacks ads_read, so set
+  //     this explicitly. Health/expiry are tracked in lib/ads/meta-health.ts.
   META_AD_ACCOUNT_ID?: string;
   META_ADS_TOKEN?: string;
   // Optional Graph API version override for the ad-spend pull; default v21.0.

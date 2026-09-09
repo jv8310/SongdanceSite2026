@@ -47,6 +47,7 @@ import {
   sampleWeeklyReportData,
 } from './reports';
 import { buildBriefingEmail, sampleBriefingData } from './briefing';
+import { buildMetaAlertEmail, sampleMetaAlertHealth } from '../ads/meta-alert';
 import { formatInTz } from './time';
 import {
   balancePaymentReference,
@@ -557,6 +558,15 @@ export function buildEmailSamples(base: string): EmailSample[] {
       timing: 'Every Tuesday morning (the 7 days ending yesterday)',
       audience: 'Team inbox (REPORTS_TO) — same sections + a revenue-by-day table',
       content: buildWeeklyReportEmail(sampleWeeklyReportData(), b),
+    },
+
+    {
+      id: 'ads_alert',
+      group: 'Reports (internal)',
+      label: 'SD-ALERT — Meta ad spend stopped updating',
+      timing: 'Once a day (07:00 Brussels) while the Meta pull is down or the token is about to expire',
+      audience: 'Team inbox (REPORTS_TO) — the ad numbers have quietly stopped being true',
+      content: buildMetaAlertEmail(sampleMetaAlertHealth(), b),
     },
 
     // ── Pre-workshop briefing (SD-BRIEFING, ops only) ────────────────────
