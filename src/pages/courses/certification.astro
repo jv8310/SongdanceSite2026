@@ -1,4 +1,9 @@
 ---
+// The certification sales page is deliberately self-contained: no "Discover
+// other courses" grid at the foot (owner's call, Sept 2026 — DiscoverMore
+// removed, as on /courses/masterclass). Sending a reader who has just reached
+// the price off to a workshop or a retreat leaks the sale; the slide-in
+// SiteMenu and CCFooter keep the rest of the site reachable.
 import '../../styles/certification-course.css';
 import Layout from '../../layouts/Layout.astro';
 import PromoBanner from '../../components/PromoBanner.astro';
@@ -23,7 +28,6 @@ import CCAboutJacob from '../../components/certification-course/CCAboutJacob.ast
 import CCStillUnsure from '../../components/certification-course/CCStillUnsure.astro';
 import CCRegister from '../../components/certification-course/CCRegister.astro';
 import CCFooter from '../../components/certification-course/CCFooter.astro';
-import DiscoverMore from '../../components/DiscoverMore.astro';
 import MetaProductView from '../../components/MetaProductView.astro';
 import { catalogItemById } from '../../lib/catalog/products';
 
@@ -67,7 +71,6 @@ const product = catalogItemById('cc-cert');
     <CCAboutJacob />
     <CCStillUnsure />
     <CCRegister />
-    <DiscoverMore currentHref="/courses/certification" />
     <CCFooter />
   </div>
 </Layout>
