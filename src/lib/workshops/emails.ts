@@ -821,7 +821,7 @@ export function attendedProEmail1(
         'The complete class library, each class with a written manual — self-paced, instant access the moment you join.',
       ),
       D.bullet(
-        'Weekly live Q&amp;A and monthly deepening sessions through the end of 2026, so the learning stays live, not just recorded.',
+        'Weekly live Q&amp;A and monthly two-hour deepening sessions for nine months from the day you begin, so the learning stays live, not just recorded.',
       ),
       D.bullet(
         'Hosted practice sessions with peers — giving and receiving is the quiet heart of it, and where facilitation actually grows.',
@@ -853,7 +853,7 @@ export function attendedProEmail1(
   return {
     subject: 'Thank you — and a word for practitioners',
     html,
-    text: `${textGreeting(ctx.name)}\n\nThank you for being part of ${ctx.workshopTitle}.\n\nBecause you work with people yourself, there's a path here that may matter more to you than the rest: the SVH Certification — learning to hold this space for others.\n\nNot healer, not fixer: space holder. Someone who keeps the room steady while another person does the one thing only they can do.\n\nWhat the path involves:\n- The complete class library, each class with a written manual — self-paced, instant access the moment you join.\n- Weekly live Q&A and monthly deepening sessions through the end of 2026, so the learning stays live, not just recorded.\n- Hosted practice sessions with peers — giving and receiving is the quiet heart of it, and where facilitation actually grows.\n- The Somatic Vocal Healing app, a full replay library, a global community, and lifetime access.\n\n${ctx.certUrl}\n\n${
+    text: `${textGreeting(ctx.name)}\n\nThank you for being part of ${ctx.workshopTitle}.\n\nBecause you work with people yourself, there's a path here that may matter more to you than the rest: the SVH Certification — learning to hold this space for others.\n\nNot healer, not fixer: space holder. Someone who keeps the room steady while another person does the one thing only they can do.\n\nWhat the path involves:\n- The complete class library, each class with a written manual — self-paced, instant access the moment you join.\n- Weekly live Q&A and monthly two-hour deepening sessions for nine months from the day you begin, so the learning stays live, not just recorded.\n- Hosted practice sessions with peers — giving and receiving is the quiet heart of it, and where facilitation actually grows.\n- The Somatic Vocal Healing app, a full replay library, a global community, and lifetime access.\n\n${ctx.certUrl}\n\n${
       ctx.promo
         ? `PS — ${pct}% off the 12-week course is also live through ${ctx.discountEndsLocal}; this link shows your price directly: ${ctx.courseUrl}`
         : `PS — your participant window is live for the next ${left}: ${CERT_PATH_DISCOUNT_PERCENT}% off the whole certification path, or ${pct}% off the 12-week course alone. This link shows your price directly: ${ctx.courseUrl}`
