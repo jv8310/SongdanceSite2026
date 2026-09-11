@@ -114,7 +114,7 @@ const tzOptions = Array.from(new Set([detectedTz, ...COMMON_TZS]));
       <section class="wk-card">
         <p class="wk-kicker">Live online workshop</p>
         <h1 class="wk-title">{workshop.title}</h1>
-        {whenLocal && <p class="wk-when">{whenLocal}<span class="wk-tz"> · your time</span></p>}
+        {whenLocal && <p class="wk-when">{whenLocal}</p>}
         {workshop.is_replay === 1 && <p class="wk-when">Watch anytime</p>}
 
         {canceled && <p class="wk-flash">Payment cancelled — you can try again below.</p>}
@@ -193,7 +193,6 @@ const tzOptions = Array.from(new Set([detectedTz, ...COMMON_TZS]));
     .wk-kicker { margin:0 0 8px; font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:#A14826; }
     .wk-title { margin:0 0 6px; font-size:30px; line-height:1.18; color:#2A1B2A; font-weight:400; }
     .wk-when { margin:0 0 4px; font-size:17px; color:#4A3848; }
-    .wk-tz { color:#B6A8B4; font-style:italic; }
     .wk-flash { margin:16px 0 0; padding:10px 14px; border-radius:10px; background:#F4ECDF; color:#A14826; font-size:14px; }
     .wk-gift { margin:16px 0 0; padding:12px 16px; border-radius:10px; background:#EAF3E8; border:1px solid rgba(74,120,72,0.3); color:#3C5A38; font-size:14px; }
     .wk-was { color:#B6A8B4; text-decoration:line-through; font-weight:400; margin-right:8px; font-size:16px; }
@@ -262,6 +261,7 @@ const tzOptions = Array.from(new Set([detectedTz, ...COMMON_TZS]));
           adiscount: fd.get('adiscount') || '',
           bump: fd.get('bump') === 'on',
           meta_event_id: fd.get('meta_event_id') || '',
+          page: location.pathname,
           provider: provider,
         };
         try {

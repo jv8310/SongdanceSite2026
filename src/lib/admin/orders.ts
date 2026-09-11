@@ -1070,8 +1070,18 @@ export function isRefundable(o: UnifiedOrder): boolean {
   // payment_intent is the synthetic `manual-<id>` the admin mark-paid
   // stamps, which no gateway would recognise.)
   if (o.provider === BANK_TRANSFER) return false;
+  // An installment plan's charges live at the gateway, keyed by its
+  // subscription — the row only ever stores the first one (and sometimes not
+  // even that, when Stripe's invoice shape hid the PaymentIntent). The
+  // subscription id is target enough: lib/admin/installments.ts enumerates the
+  // cycles from it, and each one is refundable on its own. Kept inline rather
+  // than importing hasInstallmentLedger, so this module stays leaf-level.
+  const hasPlan =
+    o.source === 'course' &&
+    o.installmentsTotal > 1 &&
+    !!(o.provider === 'paypal' ? o.paypalSubscriptionId : o.stripeSubscriptionId);
   const hasTarget =
-    o.provider === 'paypal' ? !!o.paypalCaptureId : !!o.paymentIntent;
+    hasPlan || (o.provider === 'paypal' ? !!o.paypalCaptureId : !!o.paymentIntent);
   return (
     hasTarget &&
     o.originalAmountMinor > 0 &&

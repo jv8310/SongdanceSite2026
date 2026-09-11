@@ -381,6 +381,54 @@ export async function createRefund(input: {
   return body;
 }
 
+// Every refund already issued against a PaymentIntent, so the admin can see
+// what is still refundable on ONE installment of a plan. `charge.amount_refunded`
+// would answer the same question, but it lives on the charge — which basil moved
+// out of the invoice — whereas /v1/refunds?payment_intent=… is stable across API
+// versions and hands back each refund individually (id + amount + date), which is
+// what the per-installment panel shows.
+//
+// Failed/cancelled refunds don't hold money back, so only `succeeded` and
+// `pending` count towards the refunded total.
+export async function listRefundsForPaymentIntent(
+  secretKey: string,
+  paymentIntent: string,
+): Promise<Array<{ id: string; amount: number; currency: string; status: string; created: number }>> {
+  const params = new URLSearchParams({ payment_intent: paymentIntent, limit: '100' });
+  const res = await fetch(`${STRIPE_BASE}/refunds?${params.toString()}`, {
+    headers: { Authorization: `Bearer ${secretKey}` },
+  });
+  if (!res.ok) {
+    const body = (await res.json()) as { error?: { message: string } };
+    throw new Error(`Stripe refunds.list: ${body.error?.message ?? res.status}`);
+  }
+  const body = (await res.json()) as {
+    data?: Array<{
+      id: string;
+      amount?: number;
+      currency?: string;
+      status?: string;
+      created?: number;
+    }>;
+  };
+  return (body.data ?? []).map((r) => ({
+    id: r.id,
+    amount: r.amount ?? 0,
+    currency: (r.currency ?? '').toUpperCase(),
+    status: r.status ?? '',
+    created: r.created ?? 0,
+  }));
+}
+
+// Sum of the refunds that are actually holding money back on a PaymentIntent.
+export function refundedMinorOf(
+  refunds: Array<{ amount: number; status: string }>,
+): number {
+  return refunds
+    .filter((r) => r.status === 'succeeded' || r.status === 'pending')
+    .reduce((sum, r) => sum + r.amount, 0);
+}
+
 export async function retrieveSession(secretKey: string, sessionId: string) {
   const res = await fetch(
     `${STRIPE_BASE}/checkout/sessions/${sessionId}?expand[]=payment_intent&expand[]=customer_details`,
@@ -639,9 +687,23 @@ export async function listSubscriptionInvoices(
   params.set('subscription', subscriptionId);
   params.set('limit', String(Math.max(1, Math.min(100, opts.limit ?? 100))));
   if (opts.status) params.set('status', opts.status);
-  const res = await fetch(`${STRIPE_BASE}/invoices?${params.toString()}`, {
-    headers: { Authorization: `Bearer ${secretKey}` },
-  });
+
+  // basil (2025-04-30) removed `invoice.payment_intent` and put the settling
+  // PaymentIntent under `payments`, which is an EXPANDABLE sublist — absent
+  // unless asked for. Without it every invoice comes back with a null
+  // payment_intent on a basil-pinned key, which silently costs us the refund
+  // anchor (and, on /admin/orders, the ability to refund the cycle at all).
+  // Pre-basil keys reject the expand path outright, so ask, and fall back to a
+  // bare list on the 400 rather than assuming which world we are in.
+  let res = await fetch(
+    `${STRIPE_BASE}/invoices?${params.toString()}&expand[]=data.payments`,
+    { headers: { Authorization: `Bearer ${secretKey}` } },
+  );
+  if (res.status === 400) {
+    res = await fetch(`${STRIPE_BASE}/invoices?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${secretKey}` },
+    });
+  }
   if (!res.ok) {
     const body = (await res.json()) as { error?: { message: string } };
     throw new Error(

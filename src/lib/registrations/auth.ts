@@ -16,6 +16,10 @@
 
 const COOKIE_NAME = 'sd_admin';
 const SESSION_HOURS = 12;
+// Exported so the middleware can re-issue the same cookie on an admin page
+// view (the sliding session) without re-deriving its name or lifetime.
+export const SESSION_COOKIE = COOKIE_NAME;
+export const SESSION_MAX_AGE_SECONDS = SESSION_HOURS * 3600;
 const DEFAULT_ADMIN_EMAIL = 'jacob@songdance.co';
 
 export type AdminUser = { email: string; password: string };
@@ -136,8 +140,7 @@ export async function getSessionEmail(
 }
 
 export function sessionCookieHeader(token: string) {
-  const maxAge = SESSION_HOURS * 3600;
-  return `${COOKIE_NAME}=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAge}`;
+  return `${COOKIE_NAME}=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${SESSION_MAX_AGE_SECONDS}`;
 }
 
 export function clearCookieHeader() {
@@ -210,8 +213,65 @@ export async function requireAdmin(req: Request, secret: string) {
   if (!ok) {
     return new Response('Unauthorized', {
       status: 302,
-      headers: { Location: '/admin/login' },
+      headers: { Location: loginUrl(nextFromReferer(req)) },
     });
   }
   return null;
+}
+
+// ── Getting a signed-out admin back to what they were doing ──────────────
+//
+// The session is 12 hours and slides on use (see src/middleware.ts), but it
+// can still lapse — a tab left open overnight is the ordinary case. An admin
+// *page* handles that already: it redirects to the login form. An admin form
+// *POST* used to answer a bare 401, so pressing a button on a stale page (say
+// "Mark paid" on a retreat balance) landed on a white page reading
+// "Unauthorized", with no way back and nothing to click. These build the way
+// back: log in, return to the exact page the button was on.
+
+const ADMIN_ROOT = '/admin';
+
+// Where to send someone after they sign in. Free user input (a `next` query
+// param, a Referer header), so it is only ever an in-site admin path — never
+// an absolute URL, a protocol-relative `//host` (which does not start with
+// `/admin/`), or a traversal that could climb out of /admin.
+export function safeAdminNext(raw: string | null | undefined): string {
+  const value = (raw ?? '').trim();
+  if (!value || value.includes('..')) return ADMIN_ROOT;
+  if (value !== ADMIN_ROOT && !value.startsWith(`${ADMIN_ROOT}/`)) return ADMIN_ROOT;
+  return value;
+}
+
+export function loginUrl(next: string | null | undefined): string {
+  const target = safeAdminNext(next);
+  return target === ADMIN_ROOT
+    ? '/admin/login'
+    : `/admin/login?next=${encodeURIComponent(target)}`;
+}
+
+// The admin page a form was submitted from. A same-origin form POST carries
+// the full referring URL under the default referrer policy; anything else
+// (a cross-origin referer, none at all) falls back to /admin.
+export function nextFromReferer(req: Request): string {
+  const referer = req.headers.get('Referer');
+  if (!referer) return ADMIN_ROOT;
+  try {
+    const url = new URL(referer);
+    const here = new URL(req.url);
+    if (url.origin !== here.origin) return ADMIN_ROOT;
+    return safeAdminNext(`${url.pathname}${url.search}`);
+  } catch {
+    return ADMIN_ROOT;
+  }
+}
+
+// Is this request a top-level browser navigation (an admin form submit), as
+// opposed to a fetch()/XHR call from a page that is already open? Only the
+// former can be answered with a redirect to the login form; a fetch caller
+// must keep getting its 401 so its own error handling still works.
+export function isDocumentNavigation(req: Request): boolean {
+  const dest = req.headers.get('Sec-Fetch-Dest');
+  if (dest) return dest === 'document';
+  // Pre-Fetch-Metadata browsers: a navigation asks for HTML, a fetch does not.
+  return (req.headers.get('Accept') ?? '').includes('text/html');
 }

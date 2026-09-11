@@ -12,7 +12,9 @@
 //   • Workshops/courses discount via URL percentages (?discount / ?adiscount),
 //     recorded as discount_pct/discount_percent in the checkout `events` rows.
 //   • The one real coupon is a workshop's free_coupon → payment_status='coupon'.
-//   • Retreats discount only via the cook-help role (role_discount_cents).
+//   • Retreats discount via the cook-help role (role_discount_cents) and via
+//     the registration page's 10% Easter egg, which is stored nowhere — it is
+//     re-derived from the tier price against what the booking owes.
 // We surface whichever applies as a single human-readable note.
 
 import { formatMoney } from '../workshops/currency';
@@ -494,9 +496,11 @@ type RReg = {
   notes: string | null;
   status: string;
   amount_cents: number;
+  balance_due_cents: number | null;
   currency: string;
   role: string | null;
   role_discount_cents: number;
+  tier_price_cents: number | null;
   provider: string | null;
   stripe_session_id: string | null;
   stripe_payment_intent: string | null;
@@ -518,11 +522,12 @@ async function enrichRetreat(
     .prepare(
       `SELECT r.first_name, r.last_name, r.name, r.email, r.phone, r.phone_country,
               r.country, r.company_name, r.vat_number, r.address, r.roommate_pref,
-              r.dietary, r.notes, r.status, r.amount_cents, r.currency,
-              r.role, r.role_discount_cents, r.provider,
+              r.dietary, r.notes, r.status, r.amount_cents, r.balance_due_cents,
+              r.currency, r.role, r.role_discount_cents, r.provider,
               r.stripe_session_id, r.stripe_payment_intent, r.paypal_capture_id,
               r.quaderno_invoice_id, r.created_at, r.paid_at,
-              p.name AS product_name, t.name AS tier_name, iu.name AS room_name
+              p.name AS product_name, t.name AS tier_name,
+              t.price_cents AS tier_price_cents, iu.name AS room_name
          FROM registrations r
          LEFT JOIN products p ON p.id = r.product_id
          LEFT JOIN tiers t ON t.id = r.tier_id
@@ -532,13 +537,49 @@ async function enrichRetreat(
     .bind(id)
     .first<RReg>();
 
-  let couponNote: string | null = null;
+  // What came off the list price, and why. Two things can discount a retreat
+  // booking and BOTH have to be named here — a booking that paid less than its
+  // tier while this reads "full price" is what sent Jacob hunting for a coupon
+  // that never existed (registration #53: €595 tier, €535.50 charged):
+  //   • the cook-help role, which is stored (role_discount_cents);
+  //   • the Easter egg on the registration page — drag the heart into the house
+  //     for 10% (EASTER_EGG_DISCOUNT in api/registrations/checkout.ts) — which
+  //     is NOT stored anywhere, only applied to the charged amount. So it is
+  //     recovered here the only way it can be: the tier's own price, less the
+  //     role discount, less what the booking is actually contracted for.
+  // A deposit booking has only paid part of that, so the contracted figure is
+  // amount_cents + whatever balance is still due (markBalancePaid moves the
+  // balance from one to the other, so the sum holds before and after).
+  const currency = reg?.currency || order.originalCurrency;
+  const notes: string[] = [];
   if (reg && reg.role_discount_cents > 0) {
-    couponNote = `${reg.role === 'cook_help' ? 'Cook-help role' : 'Role'} discount — ${formatMoney(
-      reg.role_discount_cents,
-      reg.currency || order.originalCurrency,
-    )} off`;
+    notes.push(
+      `${reg.role === 'cook_help' ? 'Cook-help role' : 'Role'} discount — ${formatMoney(
+        reg.role_discount_cents,
+        currency,
+      )} off`,
+    );
   }
+  if (reg && (reg.tier_price_cents ?? 0) > 0) {
+    const contracted = reg.amount_cents + (reg.balance_due_cents ?? 0);
+    const other =
+      (reg.tier_price_cents ?? 0) - reg.role_discount_cents - contracted;
+    // Only report a real reduction, and never a rounding wobble.
+    if (other > 0) {
+      const pct = Math.round(
+        (other / ((reg.tier_price_cents ?? 0) - reg.role_discount_cents)) * 100,
+      );
+      notes.push(
+        `${formatMoney(other, currency)} off the ${formatMoney(
+          reg.tier_price_cents ?? 0,
+          currency,
+        )} ${reg.tier_name ?? 'tier'} price${
+          pct === 10 ? ' — the 10% Easter egg (heart dragged into the house)' : ` (${pct}%)`
+        }`,
+      );
+    }
+  }
+  const couponNote: string | null = notes.length ? notes.join(' · ') : null;
 
   const lineItems: DetailLine[] = [];
   if (order.originalAmountMinor > 0) {

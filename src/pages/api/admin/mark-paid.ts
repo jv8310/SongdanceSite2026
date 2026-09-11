@@ -9,6 +9,7 @@ import {
 import { settleWaitlistOnPaid } from '../../../lib/registrations/waitlist';
 import { pushPaidRegistrationToDrip } from '../../../lib/registrations/paid-handler';
 import { notifyRetreatOrder } from '../../../lib/orders/notification';
+import { invoiceRetreatBooking } from '../../../lib/registrations/retreat-invoice';
 
 export const prerender = false;
 
@@ -55,6 +56,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
     await notifyRetreatOrder(env, reg, {
       stripePaymentIntent: reg.stripe_payment_intent,
     });
+    // A booking paid by IBAN transfer never reached Stripe or PayPal, so the
+    // native Quaderno connector has nothing to invoice — we raise it here.
+    // A no-op for every gateway row (see invoiceRetreatBooking).
+    await invoiceRetreatBooking(env, reg);
   }
 
   const returnTo = safeReturnTo(String(form.get('return_to') ?? ''));

@@ -1,10 +1,20 @@
 ---
 // Masterclass registration: the live masterclass dates lead. Underneath —
 // "in case the masterclass doesn't fit your schedule" — the instant-access
-// masterclass replay and the live workshop dates. Workshop replays (and the
-// order bump — it doesn't fit this audience) are deliberately absent here.
+// masterclass replay and the live workshop dates. Workshop replays are
+// deliberately absent here.
 // Same flow as the workshop page's WERegister: pick a date → name / email /
-// (timezone) → POST /api/workshops/register → Stripe Checkout.
+// (timezone) → order bump → POST /api/workshops/register → Stripe Checkout.
+//
+// The order bump WAS absent here too. This page was written on 20 Jul 2026,
+// the day before the reprice that made the €9 "Empowering You" mantra pack the
+// default bump for a masterclass — at the time the default was the €19
+// Authentic Singing Journey, which really didn't fit this audience, and the
+// `bump: false` that decision left behind outlived the product it was about.
+// Everything else had already moved on: buildCalendarItems resolves the pack
+// for every masterclass row (hasBump), and /workshop and a direct /w/<slug>
+// link both offered it on the very same session this page sold without it.
+// Now the row's own bump drives the card, so the three doors agree.
 //
 // Prices are fixed per currency (no FX). The country selector switches the
 // currency; each date carries its full price map so the swap is instant. The
@@ -13,7 +23,8 @@
 // Shared by both masterclass doors (/courses/masterclass and
 // /courses/heal-the-healer): the heading copy comes in through the `eyebrow`,
 // `heading` and `body` slots (defaults = the professional door), and the
-// booking machinery is identical — one event, one checkout, one ledger.
+// booking machinery — dates, bump, checkout, signup_page — is identical: one
+// event, one checkout, one ledger.
 //
 // Times: the "Times shown in" selector above the calendar re-renders every
 // live date (and the hero's next-date line, tagged data-mc-live-when) in the
@@ -27,6 +38,7 @@ import {
   MASTERCLASS_PROMO_TAG,
 } from '../../lib/masterclass-promo';
 import MetaPixel from '../MetaPixel.astro';
+import { MC_PAGE_OFFERS_WORKSHOPS } from '../../lib/workshops/experiments';
 interface Props {
   items: CalItem[];
   country: string;
@@ -38,10 +50,16 @@ const { items, country, detectedTz, tzOptions } = Astro.props;
 
 const masterclasses = items.filter((it) => it.kind === 'masterclass' && !it.isReplay);
 // The schedule-friendly alternatives: instant access to the masterclass
-// replay first, then the live workshop dates.
+// replay, and — only while MC_PAGE_OFFERS_WORKSHOPS is on — the live workshop
+// dates. Those were removed on 2026-09-03 (see experiments.ts): someone who
+// came for the €44 masterclass could take a €22 workshop seat instead, and we
+// want to read masterclass conversion without that door open. The replay is
+// the same product at the same price, so it stays either way.
 const alternatives = [
   ...items.filter((it) => it.kind === 'masterclass' && it.isReplay),
-  ...items.filter((it) => it.kind === 'workshop' && !it.isReplay),
+  ...(MC_PAGE_OFFERS_WORKSHOPS
+    ? items.filter((it) => it.kind === 'workshop' && !it.isReplay)
+    : []),
 ];
 const visible = [...masterclasses, ...alternatives];
 // Any live date on the list → show the timezone selector above it.
@@ -74,6 +92,13 @@ const selectedName = detected?.name ?? '';
 // registration page) so PageView + InitiateCheckout fire. Empty → renders
 // nothing.
 const pixelId = Astro.locals.runtime.env.META_PIXEL_ID ?? '';
+
+// A shared half-price link carries ?friend=<slug> — the date the sharer is
+// attending. We star it so a friend can spot "the one they're going to", while
+// every other date stays open at the same discount. Same treatment as
+// WERegister; a masterclass link now lands here rather than on /workshop, so
+// the starred date is one this page actually lists.
+const friendSlug = (Astro.url.searchParams.get('friend') ?? '').trim();
 ---
 
 <section class="we-register" id="register">
@@ -151,7 +176,7 @@ const pixelId = Astro.locals.runtime.env.META_PIXEL_ID ?? '';
       {masterclasses.length > 0 && (
         <div class="we-cal we-cal--lead-priced" role="radiogroup" aria-label="Masterclass dates">
           {masterclasses.map((it) => (
-            <label class="we-cal-item mc-cal-item--masterclass">
+            <label class={`we-cal-item mc-cal-item--masterclass${it.slug === friendSlug ? ' we-cal-item--friend' : ''}`}>
               <input
                 type="radio"
                 name="mc-date"
@@ -161,14 +186,22 @@ const pixelId = Astro.locals.runtime.env.META_PIXEL_ID ?? '';
                 data-price-minor={String(it.priceMinor)}
                 data-currency={it.currency}
                 data-prices={JSON.stringify(it.pricesByCurrency)}
+                data-has-bump={it.hasBump ? '1' : '0'}
+                data-bump-name={it.bumpName}
+                data-bump-minor={String(it.bumpMinor)}
+                data-bump-prices={JSON.stringify(it.bumpPricesByCurrency)}
+                data-bump-compare-prices={JSON.stringify(it.bumpComparePricesByCurrency)}
                 data-starts-at={it.startsAtUtc ?? ''}
                 data-is-replay="0"
               />
               <span class="we-cal-radio" aria-hidden="true"></span>
               <span class="we-cal-main">
+                {it.slug === friendSlug && (
+                  <span class="we-cal-friend"><span class="we-cal-friend-star" aria-hidden="true">★</span> Your friend is going to this one</span>
+                )}
                 <span class="we-cal-kind">Masterclass</span>
                 <span class="we-cal-when">
-                  {it.whenLocal}<span class="we-cal-tz"> · your time</span>
+                  {it.whenLocal}
                 </span>
                 <span class="we-cal-meta">
                   {`${it.durationMin} min`}
@@ -197,6 +230,11 @@ const pixelId = Astro.locals.runtime.env.META_PIXEL_ID ?? '';
                   data-price-minor={String(it.priceMinor)}
                   data-currency={it.currency}
                   data-prices={JSON.stringify(it.pricesByCurrency)}
+                  data-has-bump={it.hasBump ? '1' : '0'}
+                  data-bump-name={it.bumpName}
+                  data-bump-minor={String(it.bumpMinor)}
+                  data-bump-prices={JSON.stringify(it.bumpPricesByCurrency)}
+                  data-bump-compare-prices={JSON.stringify(it.bumpComparePricesByCurrency)}
                   data-starts-at={it.startsAtUtc ?? ''}
                   data-is-replay={it.isReplay ? '1' : '0'}
                 />
@@ -205,7 +243,6 @@ const pixelId = Astro.locals.runtime.env.META_PIXEL_ID ?? '';
                   <span class="we-cal-kind">{it.kind === 'masterclass' ? 'Masterclass' : 'Workshop'}</span>
                   <span class="we-cal-when">
                     {it.isReplay ? 'Instant access — watch anytime' : it.whenLocal}
-                    {!it.isReplay && <span class="we-cal-tz"> · your time</span>}
                   </span>
                   <span class="we-cal-meta">
                     {it.kind === 'masterclass'
@@ -272,9 +309,52 @@ const pixelId = Astro.locals.runtime.env.META_PIXEL_ID ?? '';
             </label>
           </div>
 
-          <div class="we-total">
-            <span id="mc-total-label">Masterclass seat</span>
-            <strong id="mc-total-amount"></strong>
+          <div class="we-bump" id="mc-bump" hidden>
+            <label class="we-bump-card">
+              <span class="we-bump-badge">One-time offer</span>
+              <span class="we-bump-row">
+                <input type="checkbox" name="bump" id="mc-bump-input" />
+                <span class="we-bump-checkbox" aria-hidden="true"></span>
+                <span class="we-bump-title" id="mc-bump-title">Yes — add the “Empowering You” mantra pack</span>
+              </span>
+              <span class="we-bump-media">
+                <img src="/media/music-covers/empowering-you-1784623795605.png" alt="Empowering You mantra pack" loading="lazy" />
+                <span class="we-bump-info">
+                  <span class="we-bump-points">
+                    <span class="we-bump-point"><strong>5 original mantras with a South African choir</strong></span>
+                    <span class="we-bump-point">For healing &amp; self-empowerment</span>
+                    <span class="we-bump-point">Yours to keep — sound along anytime</span>
+                  </span>
+                </span>
+              </span>
+              <span class="we-bump-blurb">
+                Five original mantras, recorded with a choir in South Africa for
+                healing and self-empowerment. Let your voice be heard and
+                cultivate self-love as you sound along with the powerful tunes.
+              </span>
+              <span class="we-bump-foot">
+                <span class="we-bump-prices">
+                  <span class="we-bump-was" id="mc-bump-was" hidden></span>
+                  <span class="we-bump-now" id="mc-bump-now"></span>
+                </span>
+                <span class="we-bump-save" id="mc-bump-save" hidden></span>
+              </span>
+            </label>
+          </div>
+
+          <div class="we-summary">
+            <div class="we-summary-line" id="mc-line-seat">
+              <span id="mc-line-seat-label">Masterclass seat</span>
+              <span id="mc-line-seat-amount"></span>
+            </div>
+            <div class="we-summary-line" id="mc-line-bump" hidden>
+              <span id="mc-line-bump-label">Empowering You mantra pack</span>
+              <span id="mc-line-bump-amount"></span>
+            </div>
+            <div class="we-total">
+              <span id="mc-total-label">Total</span>
+              <strong id="mc-total-amount"></strong>
+            </div>
           </div>
 
           <button type="submit" class="we-submit" id="mc-submit">Register &amp; pay →</button>
@@ -323,8 +403,18 @@ const pixelId = Astro.locals.runtime.env.META_PIXEL_ID ?? '';
       if (!show && vatInput) vatInput.value = '';
     }
     if (companyInput) companyInput.addEventListener('input', toggleVat);
-    var totalLabel = document.getElementById('mc-total-label');
     var totalAmount = document.getElementById('mc-total-amount');
+    var seatLineLabel = document.getElementById('mc-line-seat-label');
+    var seatLineAmount = document.getElementById('mc-line-seat-amount');
+    var bumpRow = document.getElementById('mc-bump');
+    var bumpInput = document.getElementById('mc-bump-input');
+    var bumpTitle = document.getElementById('mc-bump-title');
+    var bumpWasEl = document.getElementById('mc-bump-was');
+    var bumpNowEl = document.getElementById('mc-bump-now');
+    var bumpSaveEl = document.getElementById('mc-bump-save');
+    var bumpLine = document.getElementById('mc-line-bump');
+    var bumpLineLabel = document.getElementById('mc-line-bump-label');
+    var bumpLineAmount = document.getElementById('mc-line-bump-amount');
     var submitBtn = document.getElementById('mc-submit');
     var paypalBtn = document.getElementById('mc-paypal');
     // The page is static, so PayPal availability can't be known at build time —
@@ -391,16 +481,34 @@ const pixelId = Astro.locals.runtime.env.META_PIXEL_ID ?? '';
 
     var activeTz = (tzSelect && tzSelect.value) || 'Europe/Brussels';
 
+    // The timezone as a place rather than an offset ("New York", not "GMT-4"),
+    // mirroring timezoneLabel() in lib/workshops/time.ts. Null = no place we can
+    // print honestly, so Intl's own short name is used instead.
+    function tzPlace(tz) {
+      var id = (tz || '').trim();
+      if (!id) return null;
+      if (/^(utc|gmt|z|etc\/(utc|gmt|zulu|greenwich|universal))$/i.test(id)) return 'UTC';
+      if (/^etc\//i.test(id)) return null;
+      var city = (id.split('/').pop() || '').replace(/_/g, ' ').trim();
+      if (!/^[A-Za-z][A-Za-z '.-]*$/.test(city)) return null;
+      var aliases = { Calcutta: 'Kolkata', 'Ho Chi Minh': 'Ho Chi Minh City', Kiev: 'Kyiv', Rangoon: 'Yangon', Saigon: 'Ho Chi Minh City', Katmandu: 'Kathmandu' };
+      return aliases[city] || city;
+    }
+
     // Format a UTC instant in the active timezone, mirroring lib/workshops/time.ts:
-    // "Sun 15 Jun 2026, 20:00 CEST".
+    // "Sun 15 Jun 2026, 20:00 Brussels time".
     function formatInTz(utcIso, tz) {
       if (!utcIso) return '';
-      var opts = { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' };
+      var place = tzPlace(tz);
+      var opts = { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' };
+      if (!place) opts.timeZoneName = 'short';
+      var suffix = place ? (place === 'UTC' ? ' UTC' : ' ' + place + ' time') : '';
       try {
         opts.timeZone = tz;
-        return new Intl.DateTimeFormat('en-GB', opts).format(new Date(utcIso));
+        return new Intl.DateTimeFormat('en-GB', opts).format(new Date(utcIso)) + suffix;
       } catch (e) {
         opts.timeZone = 'UTC';
+        opts.timeZoneName = 'short';
         return new Intl.DateTimeFormat('en-GB', opts).format(new Date(utcIso));
       }
     }
@@ -415,7 +523,7 @@ const pixelId = Astro.locals.runtime.env.META_PIXEL_ID ?? '';
         if (r.dataset.isReplay === '1' || !r.dataset.startsAt) continue;
         var whenEl = r.closest('.we-cal-item').querySelector('.we-cal-when');
         if (!whenEl) continue;
-        whenEl.innerHTML = formatInTz(r.dataset.startsAt, tz) + '<span class="we-cal-tz"> · your time</span>';
+        whenEl.textContent = formatInTz(r.dataset.startsAt, tz);
       }
       var heroWhens = document.querySelectorAll('[data-mc-live-when]');
       for (var j = 0; j < heroWhens.length; j++) {
@@ -497,9 +605,13 @@ const pixelId = Astro.locals.runtime.env.META_PIXEL_ID ?? '';
         var minor = priceFor(parse(r.dataset.prices), cur, parseInt(r.dataset.priceMinor, 10) || 0);
         r.dataset.priceMinor = String(minor);
         r.dataset.currency = cur;
+        if (r.dataset.hasBump === '1') {
+          var bMinor = priceFor(parse(r.dataset.bumpPrices), cur, parseInt(r.dataset.bumpMinor, 10) || 0);
+          r.dataset.bumpMinor = String(bMinor);
+        }
       }
       renderPrices(cur);
-      if (current) { current = booking.querySelector('input[name="mc-date"]:checked').dataset; recompute(); }
+      if (current) { current = booking.querySelector('input[name="mc-date"]:checked').dataset; refreshBump(); recompute(); }
       toggleVat();
     }
 
@@ -529,16 +641,68 @@ const pixelId = Astro.locals.runtime.env.META_PIXEL_ID ?? '';
       countryInput.addEventListener('input', onCountryChange);
     }
 
+    // The order bump the selected date offers. Every row carries its own
+    // (buildCalendarItems resolves it — a masterclass falls back to the site
+    // default), so the replay and any workshop fallback are handled by the same
+    // code path rather than a masterclass special case.
+    function refreshBump() {
+      if (!bumpRow || !bumpInput) return;
+      if (current && current.hasBump === '1') {
+        bumpRow.hidden = false;
+        var bName = current.bumpName || 'Empowering You mantra pack';
+        // The title quotes the album name for clarity (so "Empowering You" reads
+        // as the record's title, not a verb phrase); the summary line below keeps
+        // the plain product name (bName) as the line-item label.
+        var bTitle = bName.replace(/^(.*?)\s+mantra pack$/i, '“$1” mantra pack');
+        if (bumpTitle) bumpTitle.textContent = 'Yes — add the ' + bTitle;
+        if (bumpLineLabel) bumpLineLabel.textContent = bName;
+        var offer = parseInt(current.bumpMinor, 10) || 0;
+        if (bumpNowEl) bumpNowEl.textContent = money(offer, curCurrency);
+        // Struck "regular price" + saving — shown only when we have an anchor
+        // above the offer for this currency. The charged amount is `offer`.
+        var compare = parse(current.bumpComparePrices)[curCurrency];
+        if (bumpWasEl && bumpSaveEl) {
+          if (compare && compare > offer) {
+            bumpWasEl.textContent = money(compare, curCurrency);
+            bumpWasEl.hidden = false;
+            bumpSaveEl.textContent = 'Save ' + Math.round((1 - offer / compare) * 100) + '%';
+            bumpSaveEl.hidden = false;
+          } else {
+            bumpWasEl.hidden = true;
+            bumpSaveEl.hidden = true;
+          }
+        }
+      } else {
+        bumpRow.hidden = true;
+        bumpInput.checked = false;
+      }
+    }
+
     function recompute() {
       if (!current) return;
       var fullPriceMinor = parseInt(current.priceMinor, 10) || 0;
       var priceMinor = ticketAfterDiscount(fullPriceMinor, current.kind);
       var cur = current.currency || curCurrency;
-      totalLabel.textContent = current.kind === 'masterclass' ? 'Masterclass seat' : 'Workshop ticket';
-      totalAmount.innerHTML = (priceMinor !== fullPriceMinor)
-        ? '<span class="we-line-was">' + money(fullPriceMinor, cur) + '</span> ' + money(priceMinor, cur)
-        : money(priceMinor, cur);
-      submitBtn.textContent = 'Register & pay ' + money(priceMinor, cur) + ' →';
+      var wantsBump = current.hasBump === '1' && !!bumpInput && bumpInput.checked;
+      var bumpMinor = wantsBump ? (parseInt(current.bumpMinor, 10) || 0) : 0;
+
+      // Seat line (struck full price shown when a discount is active).
+      if (seatLineLabel) {
+        seatLineLabel.textContent = current.kind === 'masterclass' ? 'Masterclass seat' : 'Workshop ticket';
+      }
+      if (seatLineAmount) {
+        seatLineAmount.innerHTML = (priceMinor !== fullPriceMinor)
+          ? '<span class="we-line-was">' + money(fullPriceMinor, cur) + '</span> ' + money(priceMinor, cur)
+          : money(priceMinor, cur);
+      }
+
+      // Bump line — a second line item, shown only once the pack is added.
+      if (bumpLine) bumpLine.hidden = !wantsBump;
+      if (wantsBump && bumpLineAmount) bumpLineAmount.textContent = money(bumpMinor, cur);
+
+      var total = priceMinor + bumpMinor;
+      totalAmount.textContent = money(total, cur);
+      submitBtn.textContent = 'Register & pay ' + money(total, cur) + ' →';
     }
 
     function selectItem(input) {
@@ -547,6 +711,8 @@ const pixelId = Astro.locals.runtime.env.META_PIXEL_ID ?? '';
       // Company / VAT only for the masterclass (B2B — practitioners invoicing).
       if (bizField) bizField.hidden = current.kind !== 'masterclass';
       toggleVat();
+      if (bumpInput) bumpInput.checked = false;
+      refreshBump();
       if (form.hidden) {
         form.hidden = false;
         // next frame so the transition runs
@@ -559,6 +725,7 @@ const pixelId = Astro.locals.runtime.env.META_PIXEL_ID ?? '';
       var t = e.target;
       if (t && t.name === 'mc-date') selectItem(t);
     });
+    if (bumpInput) bumpInput.addEventListener('change', recompute);
 
     form.addEventListener('submit', async function (e) {
       e.preventDefault();
@@ -585,12 +752,13 @@ const pixelId = Astro.locals.runtime.env.META_PIXEL_ID ?? '';
         // dates are displayed in) — a replay has no time, so none is sent.
         timezone: current.isReplay === '1' ? '' : activeTz,
         country: fd.get('country') || '',
-        bump: false,
+        bump: fd.get('bump') === 'on',
         company_name: isMasterclass ? (fd.get('company_name') || '') : '',
         vat_number: isMasterclass ? (fd.get('vat_number') || '') : '',
         discount: fd.get('discount') || '',
         adiscount: fd.get('adiscount') || '',
         meta_event_id: fd.get('meta_event_id') || '',
+        page: location.pathname,
         provider: provider,
       };
       try {

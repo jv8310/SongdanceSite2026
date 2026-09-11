@@ -926,13 +926,6 @@ html, body { background: var(--paper); }
   color: var(--ink);
   font-weight: 500;
 }
-/* "your time" qualifies the displayed time itself — kept beside the when, not
-   mixed in with the audience/duration meta line below. */
-.we-cal-tz {
-  font-style: italic;
-  font-weight: 400;
-  color: var(--ink-whisper);
-}
 .we-cal-meta {
   font-family: var(--font-body);
   font-size: 13px;

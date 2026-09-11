@@ -55,36 +55,76 @@ export function joinWindowFor(
   return now <= end + REJOIN_GRACE_AFTER_END_SECONDS * 1000 ? 'open' : 'closed';
 }
 
-// Format an instant in a given IANA timezone, e.g. "Sun 15 Jun 2026, 20:00 CEST".
+// ── Naming the timezone ─────────────────────────────────────────────────────
+// A time is only useful if the reader knows which clock it's on, and "10:00
+// GMT-4" makes people do arithmetic they shouldn't have to (and half of them
+// get it wrong, or read it as our time rather than theirs). We show the zone as
+// the place it is named after instead — "10:00 New York time" — derived from
+// the IANA id we already store, so there is no table to keep current.
+
+// A handful of IANA ids still carry the city's old name. Print the modern one.
+const TZ_CITY_ALIASES: Record<string, string> = {
+  Calcutta: 'Kolkata',
+  'Ho Chi Minh': 'Ho Chi Minh City',
+  Kiev: 'Kyiv',
+  Rangoon: 'Yangon',
+  Saigon: 'Ho Chi Minh City',
+  Katmandu: 'Kathmandu',
+};
+
+// "America/New_York" → "New York", "Asia/Kolkata" → "Kolkata",
+// "America/Argentina/Buenos_Aires" → "Buenos Aires", "UTC" → "UTC".
+// Returns null when the id names no place we can print honestly (the Etc/GMT+5
+// family, whose sign is inverted from what anyone expects, and anything that
+// doesn't look like a city) — the caller then falls back to Intl's own label.
+export function timezoneLabel(timezone: string | null | undefined): string | null {
+  const id = (timezone || '').trim();
+  if (!id) return null;
+  if (/^(utc|gmt|z|etc\/(utc|gmt|zulu|greenwich|universal))$/i.test(id)) return 'UTC';
+  if (/^etc\//i.test(id)) return null;
+  const city = (id.split('/').pop() || '').replace(/_/g, ' ').trim();
+  if (!/^[A-Za-z][A-Za-z '.-]*$/.test(city)) return null;
+  return TZ_CITY_ALIASES[city] ?? city;
+}
+
+// The zone as it reads after a time: "New York time", "UTC".
+function tzSuffix(label: string): string {
+  return label === 'UTC' ? 'UTC' : `${label} time`;
+}
+
+// Format an instant in a given IANA timezone, e.g.
+// "Sun 15 Jun 2026, 20:00 Brussels time". The zone is named only when the
+// format actually carries a time (a date on its own is the same day in the
+// neighbouring zones, so naming one would be noise).
 export function formatInTz(
   utcIso: string,
   timezone: string,
   opts: Intl.DateTimeFormatOptions = {},
 ): string {
   const d = new Date(utcIso);
+  const label = timezoneLabel(timezone);
+  const base: Intl.DateTimeFormatOptions = {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    // Named below as a place instead. Where we can't name one, let Intl print
+    // its own short label so the time is never left bare.
+    ...(label ? {} : { timeZoneName: 'short' }),
+    ...opts,
+  };
+  const suffix = label && base.hour !== undefined ? ` ${tzSuffix(label)}` : '';
   try {
-    return new Intl.DateTimeFormat('en-GB', {
-      timeZone: timezone,
-      weekday: 'short',
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      timeZoneName: 'short',
-      ...opts,
-    }).format(d);
+    return new Intl.DateTimeFormat('en-GB', { timeZone: timezone, ...base }).format(d) + suffix;
   } catch {
-    // Bad/unknown tz → fall back to UTC so we never throw on render.
+    // Bad/unknown tz → fall back to UTC so we never throw on render. Intl's own
+    // short name for UTC is "UTC", so there is nothing to append here.
     return new Intl.DateTimeFormat('en-GB', {
       timeZone: 'UTC',
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      timeZoneName: 'short',
-      ...opts,
+      ...base,
+      ...(base.hour === undefined ? {} : { timeZoneName: 'short' }),
     }).format(d);
   }
 }

@@ -4,6 +4,10 @@ import Layout from '../../../layouts/Layout.astro';
 import { readCookie, verifySession } from '../../../lib/registrations/auth';
 import { computeWorkshopPerformance, resolveMoneyOpts, type WorkshopPerformanceRow } from '../../../lib/workshops/stats';
 import { PERIOD_PRESETS, resolvePeriod, presetRangesMap } from '../../../lib/workshops/periods';
+import { computeShareReport } from '../../../lib/workshops/share-report';
+import { computeMcPageReport } from '../../../lib/workshops/mc-page-report';
+import { PAGE_CHANGES } from '../../../lib/workshops/experiments';
+import { SHARE_CHANNEL_LABELS } from '../../../lib/workshops/share';
 
 export const prerender = false;
 
@@ -18,6 +22,20 @@ const { preset, from, to } = resolvePeriod(Astro.url.searchParams);
 // of VAT and in true euros — and this page's figures match that one's.
 const money = await resolveMoneyOpts(env.DB, env);
 const report = await computeWorkshopPerformance(env.DB, { from, to, money });
+// The referral funnel — the same window, the channel that costs nothing.
+const share = await computeShareReport(env.DB, { from, to, money });
+// The bookmarked page changes, each read as two equal windows either side of
+// the day it shipped. Deliberately NOT bound to the period picker above: the
+// windows are what make the two halves comparable, so they are fixed by the
+// change date rather than by whatever range is being browsed — which is also
+// why each bookmark gets its own panel rather than sharing one.
+const pageChanges = await Promise.all(
+  PAGE_CHANGES.map((change) => computeMcPageReport(env.DB, change, { money })),
+);
+const windowLabel = (w: { from: string; to: string; days: number }) =>
+  `${dateLabel(w.from)} – ${dateLabel(w.to)} · ${w.days} day${w.days === 1 ? '' : 's'}`;
+// Step-to-step conversion, as a percentage of the step before it.
+const shareRate = (n: number, of: number) => (of > 0 ? (n / of) * 100 : null);
 // Drafts last, so live/past workshops lead.
 const rows = report.rows.slice().sort((a, b) => {
   const ad = a.status === 'draft' ? 1 : 0;
@@ -381,6 +399,208 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
         </div>
       )}
     </section>
+
+    {pageChanges.map((mcPage) => (
+      <section class="adm-section">
+        {/* ── Bookmarked page change, read against the windows either side ── */}
+        <h2 style="margin:0 0 6px;font-size:18px;">{mcPage.change.title}</h2>
+        <p class="adm-sub" style="margin-top:0;">
+          {mcPage.change.note} Shipped <strong>{dateLabel(mcPage.change.date)}</strong>.
+          <br />This block ignores the period picker above — it compares the {mcPage.after.days} day{mcPage.after.days === 1 ? '' : 's'} since the
+          change against the {mcPage.before.days} day{mcPage.before.days === 1 ? '' : 's'} immediately before it, which is what makes the two halves
+          comparable. “Started” is a form submitted (a registration row is written before the gateway); “secured” is paid or comped. There is no
+          page-view tracking on the site, so started → secured is the conversion rate available, and it is the one this change should move.
+        </p>
+
+        <div class="pf-share">
+          <div class="pf-share-step">
+            <div class="pf-share-key">Before · masterclass</div>
+            <div class="pf-share-val">{mcPage.before.secured}<span style="font-size:14px;color:var(--adm-mute);"> / {mcPage.before.started}</span></div>
+            <div class="pf-share-sub">
+              {windowLabel(mcPage.before)}<br />
+              {pct(mcPage.before.started ? mcPage.before.securedRate * 100 : null)} secured · {eur(mcPage.before.revenueEurMinor)}
+            </div>
+          </div>
+          <div class="pf-share-step pf-share-step--out">
+            <div class="pf-share-key">After · masterclass</div>
+            <div class="pf-share-val">{mcPage.after.secured}<span style="font-size:14px;color:var(--adm-mute);"> / {mcPage.after.started}</span></div>
+            <div class="pf-share-sub">
+              {windowLabel(mcPage.after)}<br />
+              {pct(mcPage.after.started ? mcPage.after.securedRate * 100 : null)} secured · {eur(mcPage.after.revenueEurMinor)}
+            </div>
+          </div>
+          <div class="pf-share-step">
+            <div class="pf-share-key">Change in conversion</div>
+            <div class="pf-share-val">
+              {mcPage.before.started === 0 || mcPage.after.started === 0
+                ? '—'
+                : (mcPage.rateDeltaPoints >= 0 ? '+' : '') + mcPage.rateDeltaPoints.toFixed(1) + ' pts'}
+            </div>
+            <div class="pf-share-sub">
+              {mcPage.before.started === 0 || mcPage.after.started === 0
+                ? 'not enough registrations on one side yet'
+                : <>{mcPage.after.perDay.toFixed(2)} seats/day after vs {mcPage.before.perDay.toFixed(2)} before</>}
+            </div>
+          </div>
+          {mcPage.change.showBumpTakeUp && (
+            <div class="pf-share-step">
+              <div class="pf-share-key">Order bump taken</div>
+              <div class="pf-share-val">
+                {mcPage.after.secured === 0 ? '—' : pct(mcPage.after.bump.rate * 100)}
+              </div>
+              <div class="pf-share-sub">
+                {mcPage.after.secured === 0
+                  ? 'no seats secured since the change yet'
+                  : <>{mcPage.after.bump.taken} of {mcPage.after.secured} secured seats · {eur(mcPage.after.bump.revenueEurMinor)} — against {mcPage.before.bump.taken} of {mcPage.before.secured} before. Both halves count masterclass seats sold through every door, and /workshop and /w/&lt;slug&gt; already offered the bump, so the before figure is not zero-by-construction</>}
+              </div>
+            </div>
+          )}
+          {mcPage.change.showWorkshopSwitch && (
+            <div class="pf-share-step">
+              <div class="pf-share-key">Workshop seats from this page</div>
+              <div class="pf-share-val">{mcPage.workshopFromMcPage.tracked ? mcPage.workshopFromMcPage.secured : '—'}</div>
+              <div class="pf-share-sub">
+                {mcPage.workshopFromMcPage.tracked
+                  ? <>{mcPage.workshopFromMcPage.started} started · {eur(mcPage.workshopFromMcPage.revenueEurMinor)} — people who came to the masterclass page and took a workshop seat instead</>
+                  : <>not recorded before this shipped — no registration until now stored the page it was made on, so the historical answer is unknown, not zero</>}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {mcPage.change.showWorkshopSwitch && mcPage.workshopFromMcPage.unknownPage > 0 && (
+          <p class="adm-muted" style="margin:0 0 6px;">
+            {mcPage.workshopFromMcPage.unknownPage} registration{mcPage.workshopFromMcPage.unknownPage === 1 ? '' : 's'} in these windows
+            predate the page column and count as “unknown page”.
+          </p>
+        )}
+      </section>
+    ))}
+
+    <section class="adm-section">
+      {/* ── Share with a friend: the referral funnel ── */}
+      <h2 style="margin:0 0 6px;font-size:18px;">Share with a friend</h2>
+      <p class="adm-sub" style="margin-top:0;">
+        Every paid registrant is offered a link on the countdown page that gives a friend a discount on their own
+        ticket (the public <code>?discount=50</code>, which stacks on whatever promo is running). Each step below is counted
+        separately: the panel was shown · a share button was pressed · a friend opened the link · that friend registered.
+        Link-preview crawlers (WhatsApp, Facebook and the rest fetch a URL the moment it is posted) are filtered out, and a
+        reload of the same link is not recounted — so “friends who opened a link” is people, not requests.
+        <br />Counting starts the day this shipped: an earlier window is empty because nothing was recorded then, not because nobody shared.
+      </p>
+
+      <div class="pf-share">
+        <div class="pf-share-step">
+          <div class="pf-share-key">Shown the panel</div>
+          <div class="pf-share-val">{share.panelViews}</div>
+          <div class="pf-share-sub">paid registrants who reached the countdown page</div>
+        </div>
+        <div class="pf-share-step">
+          <div class="pf-share-key">Shared it</div>
+          <div class="pf-share-val">{share.sharers}</div>
+          <div class="pf-share-sub">
+            {share.shareClicks} button press{share.shareClicks === 1 ? '' : 'es'}
+            {share.panelViews > 0 && <> · {pct(shareRate(share.sharers, share.panelViews))} of those shown</>}
+          </div>
+        </div>
+        <div class="pf-share-step">
+          <div class="pf-share-key">Friends who opened a link</div>
+          <div class="pf-share-val">{share.visits}</div>
+          <div class="pf-share-sub">
+            {share.sharers > 0
+              ? `${(share.visits / share.sharers).toFixed(1)} per person who shared`
+              : 'nobody has shared yet'}
+          </div>
+        </div>
+        <div class="pf-share-step">
+          <div class="pf-share-key">They registered</div>
+          <div class="pf-share-val">{share.registrations}</div>
+          <div class="pf-share-sub">
+            {share.visits > 0 && <>{pct(shareRate(share.registrations, share.visits))} of the friends who opened one</>}
+          </div>
+        </div>
+        <div class="pf-share-step pf-share-step--out">
+          <div class="pf-share-key">Seats secured</div>
+          <div class="pf-share-val">{share.secured}</div>
+          <div class="pf-share-sub">{eur(share.revenueEurMinor)} of ticket revenue, at the shared discount</div>
+        </div>
+      </div>
+
+      {share.byChannel.length === 0 && (
+        <p class="adm-empty">Nobody has used the share panel in this window.</p>
+      )}
+
+      {share.byChannel.length > 0 && (
+        <>
+          <h3 class="pf-share-h3">By button</h3>
+          <div class="wk-perf-scroll">
+            <table class="adm-table wk-perf">
+              <thead>
+                <tr>
+                  <th>Button</th>
+                  <th>Shares</th>
+                  <th>Friends opened</th>
+                  <th>Registered</th>
+                  <th>Secured</th>
+                  <th>Revenue</th>
+                </tr>
+              </thead>
+              <tbody>
+                {share.byChannel.map((c) => (
+                  <tr>
+                    <td>{SHARE_CHANNEL_LABELS[c.channel]}</td>
+                    <td>{c.shares || '—'}</td>
+                    <td>{c.visits || '—'}</td>
+                    <td>{c.registrations || '—'}</td>
+                    <td>{c.secured || '—'}</td>
+                    <td>{c.revenueEurMinor > 0 ? eur(c.revenueEurMinor) : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p class="adm-sub" style="margin-top:8px;">
+            The button is carried on the link itself, so a friend’s click and their registration land on the same row as the
+            press that produced them. <em>Untagged link</em> is a link that reached someone without its tag — pasted by hand,
+            or copied from a browser that couldn’t use the clipboard API.
+          </p>
+        </>
+      )}
+
+      {share.topSharers.length > 0 && (
+        <>
+          <h3 class="pf-share-h3">Who is actually sending people</h3>
+          <div class="wk-perf-scroll">
+            <table class="adm-table wk-perf">
+              <thead>
+                <tr>
+                  <th>Registrant</th>
+                  <th>Their session</th>
+                  <th>Shares</th>
+                  <th>Friends opened</th>
+                  <th>Registered</th>
+                  <th>Secured</th>
+                  <th>Revenue</th>
+                </tr>
+              </thead>
+              <tbody>
+                {share.topSharers.map((r) => (
+                  <tr>
+                    <td>{r.name || r.email || `#${r.registrationId}`}<br /><span class="adm-muted">{r.email}</span></td>
+                    <td>{r.workshopTitle ? shortTitle(r.workshopTitle) : '—'}</td>
+                    <td>{r.shares || '—'}</td>
+                    <td>{r.visits || '—'}</td>
+                    <td>{r.registrations || '—'}</td>
+                    <td>{r.secured || '—'}</td>
+                    <td>{r.revenueEurMinor > 0 ? eur(r.revenueEurMinor) : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </section>
   </main>
 
   <script is:inline type="application/json" id="perf-preset-ranges" set:html={presetRangesJson} />
@@ -401,6 +621,21 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
     .pf-aud-val { font-size:22px; font-weight:600; margin:2px 0 4px; }
     .pf-aud-sub { font-size:11px; color:var(--adm-mute); line-height:1.5; }
     .adm-table th, .adm-table td { text-align:left; padding:8px 10px; border-bottom:1px solid rgba(42,27,42,0.1); font-size:13px; white-space:nowrap; }
+
+    /* Referral funnel: one tile per step, reading left to right, with the
+       outcome tile accented so the eye lands on what it produced. */
+    .pf-share { display:flex; gap:12px; flex-wrap:wrap; margin:14px 0 18px; }
+    .pf-share-step {
+      flex:1 1 170px; min-width:160px; padding:12px 14px;
+      border:1px solid rgba(42,27,42,0.12); border-radius:12px;
+      background: var(--adm-paper-soft);
+    }
+    .pf-share-step--out { border-color: rgba(74,120,72,0.45); background: rgba(74,120,72,0.07); }
+    .pf-share-key { font-size:11px; letter-spacing:0.4px; text-transform:uppercase; color:var(--adm-mute); }
+    .pf-share-val { font-size:26px; font-weight:600; margin:2px 0 4px; }
+    .pf-share-sub { font-size:11px; color:var(--adm-mute); line-height:1.5; }
+    .pf-share-h3 { margin:18px 0 6px; font-size:15px; }
+    .adm-muted { color:var(--adm-mute); font-size:11px; }
     .adm-inline-form { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
 
     /* The daily ledger stays a table — it *is* a ledger. Frozen header: the

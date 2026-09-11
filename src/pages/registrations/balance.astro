@@ -1,0 +1,262 @@
+---
+// The durable "pay your remaining balance" page.
+//
+// The balance email's "Pay €X" button used to be the Stripe Checkout URL
+// itself. A Stripe session lives 24 hours at the outside, so anyone opening
+// the email the next day — for a balance due "before 1 September", nearly
+// everyone — was met by Stripe's "You've either completed your payment or this
+// checkout session has timed out", which reads as *the money already left*.
+//
+// The email now points here, and the gateway session is minted on the click:
+//
+//   /registrations/balance?t=<id>.<sig>          → 302 to a FRESH checkout
+//   /registrations/balance?t=…&stay=1            → this panel (the gateway's
+//                                                  cancel_url, so backing out
+//                                                  of Stripe lands somewhere
+//                                                  useful rather than looping)
+//
+// Every "nothing to pay" case is answered in our own words instead of the
+// gateway's: settled already, no balance on the booking, a link that doesn't
+// verify. The token carries no credential — it opens the guest's own balance
+// and charges the guest's own outstanding amount, exactly as the emailed
+// checkout link did.
+import Layout from '../../layouts/Layout.astro';
+import {
+  BANK_TRANSFER,
+  balancePaymentReference,
+  createBalanceCheckout,
+  formatBalanceAmount,
+  loadBalanceContext,
+  retreatPageFor,
+} from '../../lib/registrations/balance';
+import {
+  BALANCE_STAY_PARAM,
+  BALANCE_TOKEN_PARAM,
+  verifyBalanceToken,
+} from '../../lib/registrations/balance-link';
+import { getRegistrationById } from '../../lib/registrations/db';
+
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+// Someone's own balance, reached by a signed link out of their inbox. Nothing
+// here belongs in a search index.
+Astro.response.headers.set('x-robots-tag', 'noindex, nofollow');
+
+const token = Astro.url.searchParams.get(BALANCE_TOKEN_PARAM);
+const stay = Astro.url.searchParams.get(BALANCE_STAY_PARAM) === '1';
+
+type Panel = {
+  heading: string;
+  lines: string[];
+  // Present only while there is something to pay.
+  pay?: { amount: string; href: string; reference: string };
+  backHref: string;
+  backLabel: string;
+};
+
+const SUPPORT = 'jacob@songdance.co';
+
+let panel: Panel | null = null;
+let redirectTo: string | null = null;
+
+const regId = await verifyBalanceToken(env.ADMIN_SESSION_SECRET, token);
+const reg = regId ? await getRegistrationById(env.DB, regId) : null;
+
+if (!reg) {
+  panel = {
+    heading: 'We could not open this link',
+    lines: [
+      'The link may have been copied incompletely, or it belongs to a booking we no longer hold.',
+      `Email ${SUPPORT} and we will send you a new one — nothing has been charged.`,
+    ],
+    backHref: '/events',
+    backLabel: 'back to the events page',
+  };
+} else {
+  const loaded = await loadBalanceContext(env, reg);
+  // loadBalanceContext already read the product when it succeeded; only the
+  // "nothing to pay" branches have to look the slug up for the back link.
+  const productSlug = loaded.ok
+    ? loaded.ctx.product.slug
+    : ((await env.DB.prepare('SELECT slug FROM products WHERE id = ?')
+        .bind(reg.product_id)
+        .first<{ slug: string }>())?.slug ?? '');
+  const backHref = retreatPageFor(productSlug);
+
+  if (!loaded.ok) {
+    // Settled, or never owed anything: say so plainly. This is the state the
+    // expired Stripe page was trying to describe, and getting wrong.
+    const settled = loaded.error === 'already-settled' || loaded.error === 'no-balance';
+    panel = settled
+      ? {
+          heading: 'Your balance is settled',
+          lines: [
+            'There is nothing left to pay on this booking — thank you.',
+            `If you think that is wrong, reply to the email or write to ${SUPPORT} and we will look at it with you.`,
+          ],
+          backHref,
+          backLabel: 'back to the retreat page',
+        }
+      : {
+          heading: 'We could not find a balance on this booking',
+          lines: [
+            'Nothing has been charged.',
+            `Email ${SUPPORT} and we will sort it out with you directly.`,
+          ],
+          backHref,
+          backLabel: 'back to the retreat page',
+        };
+  } else {
+    const amount = formatBalanceAmount(loaded.ctx.balanceCents);
+    const payHref = `${Astro.url.pathname}?${BALANCE_TOKEN_PARAM}=${encodeURIComponent(token ?? '')}`;
+    const pay = {
+      amount,
+      href: payHref,
+      reference: balancePaymentReference(reg.id),
+    };
+
+    if (stay) {
+      panel = {
+        heading: `Your remaining balance — ${amount}`,
+        lines: [
+          `For ${loaded.ctx.product.name}. Nothing has been charged yet.`,
+        ],
+        pay,
+        backHref,
+        backLabel: 'back to the retreat page',
+      };
+    } else {
+      const checkout = await createBalanceCheckout(env, reg, Astro.url.origin);
+      if (checkout.ok) {
+        redirectTo = checkout.url;
+      } else {
+        // The gateway is the only part that can fail now, and it fails onto a
+        // page that still shows the bank details — so the guest is never left
+        // without a way to pay.
+        panel = {
+          heading: `Your remaining balance — ${amount}`,
+          lines: [
+            `For ${loaded.ctx.product.name}. Nothing has been charged.`,
+            'The card checkout would not open just now. A bank transfer settles it either way, and the details are below.',
+            `You can also try the card again in a minute, or write to ${SUPPORT}.`,
+          ],
+          pay,
+          backHref,
+          backLabel: 'back to the retreat page',
+        };
+      }
+    }
+  }
+}
+
+if (redirectTo) return Astro.redirect(redirectTo, 302);
+const p = panel!;
+---
+
+<Layout
+  title="Your remaining balance — Songdance"
+  description="Settle the remaining balance on your booking."
+>
+  <main class="bal">
+    <h1>{p.heading}</h1>
+    {p.lines.map((line) => <p>{line}</p>)}
+
+    {p.pay && (
+      <>
+        <section class="bal-bank">
+          <h2>Bank transfer — preferred</h2>
+          <dl>
+            <div><dt>Account name</dt><dd>{BANK_TRANSFER.accountName}</dd></div>
+            <div><dt>IBAN</dt><dd class="bal-strong">{BANK_TRANSFER.iban}</dd></div>
+            <div><dt>Amount</dt><dd>{p.pay.amount}</dd></div>
+            <div><dt>Reference</dt><dd><code>{p.pay.reference}</code></dd></div>
+          </dl>
+          <p class="bal-note">
+            Once you have sent it, reply to the email (it reaches me at {SUPPORT})
+            and I will mark your balance as paid by hand. If your bank will not
+            take the reference, your own name is enough.
+          </p>
+        </section>
+
+        <p class="bal-or">Or pay online</p>
+        <p><a class="bal-cta" href={p.pay.href}>Pay {p.pay.amount} &rarr;</a></p>
+        <p class="bal-note">
+          Card, PayPal and the usual European methods. This button opens a fresh
+          checkout every time, so it keeps working however long you leave it.
+        </p>
+      </>
+    )}
+
+    <p class="bal-back"><a href={p.backHref}>&larr; {p.backLabel}</a></p>
+  </main>
+</Layout>
+
+<style>
+  .bal {
+    max-width: 40rem;
+    margin: clamp(3rem, 9vw, 6rem) auto;
+    padding: 0 1.5rem;
+    font-family: var(--font-body, Georgia, serif);
+    line-height: 1.7;
+  }
+  .bal h1 {
+    font-family: var(--font-display, Georgia, serif);
+    font-size: clamp(1.9rem, 5vw, 2.5rem);
+    line-height: 1.2;
+    margin: 0 0 1rem;
+  }
+  .bal p { margin: 0 0 1rem; }
+  .bal-bank {
+    margin: 2rem 0 0;
+    padding: 1.25rem 1.4rem;
+    border: 1px solid rgba(42, 27, 42, 0.16);
+    border-radius: 12px;
+    background: rgba(251, 246, 236, 0.6);
+  }
+  .bal-bank h2 {
+    margin: 0 0 0.9rem;
+    font-family: var(--font-body, Helvetica, Arial, sans-serif);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #8a5a2b;
+  }
+  .bal-bank dl { margin: 0; }
+  .bal-bank dl > div {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 1rem;
+    padding: 0.3rem 0;
+  }
+  .bal-bank dt {
+    flex: 0 0 8.5rem;
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #7a6a78;
+  }
+  .bal-bank dd { margin: 0; }
+  .bal-strong { font-size: 1.1rem; font-weight: 700; letter-spacing: 0.04em; }
+  .bal-or {
+    margin: 2rem 0 0.6rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #7a6a78;
+  }
+  .bal-cta {
+    display: inline-block;
+    padding: 0.85rem 1.9rem;
+    border-radius: 999px;
+    background: #2a1b2a;
+    color: #f4ecdf;
+    text-decoration: none;
+    font-size: 0.95rem;
+  }
+  .bal-cta:hover { opacity: 0.9; }
+  .bal-note { font-size: 0.9rem; color: #6b5c69; }
+  .bal-back { margin-top: 2.5rem; }
+</style>

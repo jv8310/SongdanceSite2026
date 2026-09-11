@@ -421,6 +421,15 @@ export async function fulfillWorkshopPaypalCapture(
 // the refund id, so the admin endpoint (which has the refund response in hand)
 // and the webhook can both call this without double-counting. PayPal sends the
 // individual refund amount (the delta), so partials accumulate correctly.
+//
+// A course INSTALLMENT plan needs more than the capture id. We only ever store
+// the first cycle's sale on the row (paypal_capture_id = COALESCE(…)), so a
+// refund of cycle 2 or 3 matches nothing and used to fall through to
+// `paypal.refund.unmatched` — the money went back to the buyer and our row
+// never knew. Callers that can identify the plan pass it:
+//   • courseRegistrationId — the admin per-installment refund, which resolved
+//     the cycle from the row's own subscription and so knows it exactly;
+//   • subscriptionId — the webhook, from the sale's billing_agreement_id.
 export async function recordPaypalRefund(
   env: PaypalFulfillEnv,
   args: {
@@ -428,6 +437,8 @@ export async function recordPaypalRefund(
     captureId: string;
     amountMinor: number | null;
     currency: string | null;
+    subscriptionId?: string | null;
+    courseRegistrationId?: number | null;
   },
 ): Promise<'retreat' | 'course' | 'workshop' | 'none'> {
   const externalId = `paypal.refund.recorded.${args.refundId}`;
@@ -437,6 +448,23 @@ export async function recordPaypalRefund(
   }
 
   const delta = args.amountMinor ?? 0;
+
+  // 0. An explicitly identified course row (admin per-installment refund) wins:
+  //    the caller already proved the cycle belongs to it.
+  if (args.courseRegistrationId) {
+    const known = await getCourseRegistrationById(env.DB, args.courseRegistrationId);
+    if (known) {
+      await markCourseRegistrationRefunded(env.DB, known.id, delta);
+      await logEvent(env.DB, {
+        registration_id: null,
+        kind: 'paypal.course.refunded',
+        source: 'paypal',
+        external_id: externalId,
+        payload: { course_registration_id: known.id, lookup: 'explicit', ...args },
+      });
+      return 'course';
+    }
+  }
 
   // 1. Retreat
   const retreat = await getRegistrationByPaypalCapture(env.DB, args.captureId);
@@ -467,6 +495,31 @@ export async function recordPaypalRefund(
       payload: { course_registration_id: course.id, ...args },
     });
     return 'course';
+  }
+
+  // 2b. Course installment 2+ — the sale isn't on our row, so route it by the
+  //     subscription instead (the PayPal twin of the Stripe webhook's
+  //     charge → invoice → subscription walk).
+  if (args.subscriptionId) {
+    const bySub = await getCourseRegistrationByPaypalSubscription(
+      env.DB,
+      args.subscriptionId,
+    );
+    if (bySub) {
+      await markCourseRegistrationRefunded(env.DB, bySub.id, delta);
+      await logEvent(env.DB, {
+        registration_id: null,
+        kind: 'paypal.course.refunded',
+        source: 'paypal',
+        external_id: externalId,
+        payload: {
+          course_registration_id: bySub.id,
+          lookup: 'subscription',
+          ...args,
+        },
+      });
+      return 'course';
+    }
   }
 
   // 3. Workshop

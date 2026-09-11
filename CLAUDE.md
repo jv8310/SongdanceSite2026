@@ -184,11 +184,16 @@ themselves). Each is the landing page of its own top-of-funnel campaign.
   and `MCRegister`'s "Times shown in" selector re-renders every live date *and*
   that hero line (`data-mc-live-when`) — so a page never shows one session at
   two times. The chosen timezone is what gets posted.
-- **Attribution**: no per-landing-page column in D1. The ad-spend split works
-  by campaign *name* (`campaignAudience` — the name must carry "Masterclass",
-  plus "TOF" for prospecting), so both doors' spend and seats pool as
-  masterclass on `/admin/workshops/performance`; per-door results are read per
-  campaign in Ads Manager (the Pixel/CAPI Purchase events carry through).
+- **Attribution**: every registration records the page it started on
+  (`signup_page`, migration 0083 — `masterclass` / `heal-the-healer` /
+  `workshop` / `w`, see `signup-page.ts`), so "which door sold this seat" is a
+  column, not a guess. Ad *spend* still splits by campaign *name*
+  (`campaignAudience` — the name must carry "Masterclass", plus "TOF" for
+  prospecting), so both doors' spend pools as masterclass on
+  `/admin/workshops/performance`; per-door cost is read per campaign in Ads
+  Manager, per-door seats from `signup_page`. The page-change bookmarks
+  (`experiments.ts`, one panel each on the performance page) cover both doors,
+  since they share `MCRegister` — including `MC_PAGE_OFFERS_WORKSHOPS`.
 - **Price tokens** on these pages (`44€` in `MCWhat`, `MCPath`, `HHWhat`) carry
   `data-sd-price="masterclass"` so `PriceSync` localizes them; keep the
   euro-after `44€` form or the swap silently stops matching.
@@ -219,6 +224,107 @@ Everything now goes through [`src/lib/workshops/bump.ts`](src/lib/workshops/bump
 
 So what is advertised, charged, recorded and granted are one decision. Adding a
 caller that re-derives the bump re-opens this exact bug.
+
+### The masterclass page offers the bump too (September 2026)
+
+The bump plumbing has been right since the July 2026 reprice —
+`resolveWorkshopBumpProductId` falls back to the mantra pack for a masterclass,
+`buildCalendarItems` prices it onto every masterclass row (`hasBump`), and the
+checkout, both fulfilment paths and the tagging all honour it. But
+`MCRegister.astro` was written on **20 Jul 2026, the day before that reprice**,
+when the default bump was the €19 Authentic Singing Journey; it rendered no bump
+card and posted `bump: false`. That one line outlived the product it was a
+judgement about, so `/courses/masterclass` — the page the ads point at — was the
+only door to a masterclass seat that never offered the pack, while `/workshop`
+and a direct `/w/<slug>` link sold the *same session* with it. The card now
+reads the row's own `data-has-bump` (so the replay, and a workshop fallback if
+`MC_PAGE_OFFERS_WORKSHOPS` is flipped back on, are handled by the same code path
+rather than a masterclass special case), and the form posts what was ticked.
+Bookmarked as `MC_ORDER_BUMP`.
+
+## Page changes are bookmarked, and registrations remember their page
+
+Two small pieces of instrumentation that only make sense together.
+
+- **`signup_page` on a registration** (migration 0083,
+  [`src/lib/workshops/signup-page.ts`](src/lib/workshops/signup-page.ts)):
+  `/workshop`, `/courses/masterclass` and a direct `/w/<slug>` link all POST the
+  same `/api/workshops/register`, so nothing ever recorded *which page* sold a
+  seat — "how many workshop tickets did the masterclass page sell?" had no
+  answer in the data. Each form now sends its own `location.pathname`; the
+  server normalizes it (`masterclass` / `workshop` / `w`, else the cleaned path,
+  query and hash dropped — they carry discounts, referral ids and emails) and
+  writes it with `recordSignupPage`, **after** the row exists and wrapped in a
+  try/catch: it is analytics, and a preview deploy runs against the live
+  database *before* its migration is applied, so a checkout must never 500 over
+  a reporting column. First page on a row wins. Rows created before this are
+  NULL — **unknown, not zero**, and every readout must say so.
+- **Bookmarked page changes** ([`src/lib/workshops/experiments.ts`](src/lib/workshops/experiments.ts)):
+  the site has no page-view analytics, so "did conversion go up?" can only be
+  answered by comparing like windows of registrations either side of a change —
+  which is worthless without the exact date. Record one here whenever you change
+  what a landing page offers. `MC_WORKSHOP_ALTERNATIVES` (2026-09-03) was the
+  first: the masterclass page stopped listing the live €22 workshop dates under
+  "in case the masterclass doesn't fit your schedule" (`MC_PAGE_OFFERS_WORKSHOPS`
+  in `MCRegister` — flip it to put them back, and bookmark *that* date too). The
+  masterclass **replay** stays: same product, same price. `MC_ORDER_BUMP`
+  (2026-09-04) is the second — the bump above.
+- **Where to read it**: `/admin/workshops/performance` → **one panel per
+  bookmark**, each named after its change
+  ([`mc-page-report.ts`](src/lib/workshops/mc-page-report.ts)). They
+  deliberately **ignore the period picker** — each runs the days since its own
+  change against the same number of days immediately before it, which is what
+  makes the halves comparable. A change opts into the extra tiles that suit it
+  (`showWorkshopSwitch` / `showBumpTakeUp` on the `PageChange`), so a bookmark
+  never inherits a tile of noise from the one before it. The conversion rate is **started → secured**: a
+  registration row is written at `prepared` the moment the form is submitted
+  (before the gateway) and flips to `paid`/`coupon` when the seat is secured, so
+  that ratio is a real funnel and the only one this database can offer.
+
+## Share with a friend — one link builder, and the funnel behind it
+
+The countdown page (`/workshop/success`) offers every secured registrant a link
+to pass on, carrying the public `?discount=50`. Two things about it:
+
+- **The landing page is decided in exactly one place** —
+  `shareLandingPath` / `buildShareUrl`
+  ([`src/lib/workshops/share.ts`](src/lib/workshops/share.ts)). A **masterclass
+  shares `/courses/masterclass`**, a workshop shares `/workshop`. Until
+  September 2026 the page hard-coded `/workshop` for both, so every masterclass
+  attendee sent their friends to a different session at a different price, and
+  the `?friend=<slug>` ★ marker pointed at a date that page didn't list.
+  `MCRegister` now honours `?friend=` the way `WERegister` always did. Anything
+  building a share link must call `buildShareUrl` — a caller that re-derives the
+  path re-opens this bug.
+- **It is measured.** The link carries `?ref=<registration id>.<sig>` (HMAC over
+  `ADMIN_SESSION_SECRET`, domain-separated `sd-share:` — the sharer's
+  `access_token` is a credential and never rides a public link) and `?rc=<channel>`
+  per button, so a WhatsApp share is told from a paste all the way to the sale.
+
+Four steps, three of them rows in `workshop_share_events` (migration 0082):
+
+| step | recorded by | counted as |
+| --- | --- | --- |
+| panel shown | `/workshop/success` render | one row per registrant, ever (partial unique index + `INSERT OR IGNORE`) |
+| button pressed | `/api/workshops/share` (sendBeacon) | every press — totals and distinct sharers |
+| friend opened it | [`src/middleware.ts`](src/middleware.ts) | first landing per browser |
+| friend registered | `referred_by_id` / `referral_channel` on the registration | joins straight to payment status and revenue |
+
+- **Capture lives in the middleware**, not on the two landing pages: the link is
+  public and gets pasted anywhere, and the `sd_ref` cookie (30d, HttpOnly) is
+  what lets `/api/workshops/register` credit a friend who comes back days later
+  on a bare URL. `share.ts` therefore stays free of heavy imports — the report
+  lives in [`share-report.ts`](src/lib/workshops/share-report.ts) so the stats
+  module isn't pulled into every request.
+- **Two things would otherwise make the numbers lies**, and both are handled:
+  WhatsApp/Facebook/Telegram fetch a shared URL themselves to build the preview
+  card (`looksLikeShareBot` filters them, so the count moves when a link is
+  *opened*, not when it is posted), and the countdown page is reloaded
+  constantly while people wait for the Join button (hence the once-ever view).
+  A checkout on your own link is never a self-referral.
+- **Where to read it**: `/admin/workshops/performance` → "Share with a friend" —
+  the funnel, a per-button table, and who is actually sending people. Money goes
+  through `grossEurMinor` like every other euro on that page.
 
 ## Email lifecycle (workshops)
 
@@ -257,6 +363,33 @@ All automated workshop email lives in the workshop engine:
   deadline emails (`urgent` steps). The discount emails compute their
   hours-remaining figure at send time, so the number is true even after an
   overnight hold.
+- **A time names its place, never an offset** (September 2026): every session
+  time we print — the confirmation and every reminder, the countdown page, the
+  date calendar, `/access` — goes through `formatInTz`
+  (`src/lib/workshops/time.ts`), which now ends on the timezone's **city**
+  ("Tue, 22 Sept 2026, 10:00 **New York time**"). It used to print Intl's short
+  name, which for most of the world is a raw offset — a US registrant read
+  "10:00 GMT-4" and had to work out both the number and whose clock it was.
+  `timezoneLabel` derives the city from the IANA id the registrant's browser
+  gave us (so there's no table to maintain); an id that names no honest place
+  (the `Etc/GMT+5` family, whose sign is inverted) falls back to the short name.
+  The zone is only appended when the format actually carries a time. Because the
+  label says whose clock it is, the "· your time" markers that sat beside these
+  times on the pages are gone — anything rendering a session time should call
+  `formatInTz` and print what it returns, not re-qualify it.
+- **A name is printed as a name** (September 2026): checkout stores the name
+  exactly as typed, so "Dear felicia," went out in the seat confirmation.
+  `tidyFirstName` / `tidyName` ([`src/lib/email/names.ts`](src/lib/email/names.ts))
+  case it for display — used by the workshop `greeting` (so every lifecycle and
+  transactional mail), the three retreat greetings (waiting list, balance, bank
+  transfer) and the broadcast `{{first_name}}` merge tag. The rule is
+  deliberately timid: a name carrying **both** cases has already told us how it
+  is written ("McDonald", "de Vries") and is never touched; only a name written
+  in one case throughout is re-cased, each letter-run capitalised so
+  "mary-jane" → "Mary-Jane" and "o'brien" → "O'Brien"; and a two-letter capital
+  ("JD") stays as typed rather than becoming "Jd". Display only — nothing is
+  written back, so the row keeps what the buyer typed and history reads right
+  too. Greeting someone by name anywhere new should go through it.
 - **Sanctioned urgency exception** (owner's call, June 2026): discount-deadline
   emails may name the deadline plainly and the final one may be a "last chance"
   send. Keep it factual — no fake scarcity, no countdown theatrics. Marketing
@@ -335,6 +468,28 @@ gated player) but no email telling them so. Delivery now lives in the site, in
   (`/api/admin/workshops/mantra-pack-send`) that forces the sweep with a wider
   cap. Pressing it twice is harmless.
 
+## Retreat price — two discounts, neither of them a coupon
+
+A retreat has no coupon codes. A booking charged less than its tier price came
+down one of exactly two ways, both applied in
+[`/api/registrations/checkout.ts`](src/pages/api/registrations/checkout.ts) and
+both re-priced server-side (the client only asks):
+
+- **The cook-help role** — 30% off the tier, stored on the row as
+  `role_discount_cents`.
+- **The Easter egg** — drag the heart into the house on the registration page
+  (`RBRegister.astro`) for **10% off the running total**
+  (`EASTER_EGG_DISCOUNT`), applied after any role discount. It is stored in **no
+  column**: only the reduced `amount_cents` and the receipt line ("… (10%
+  discount)") carry it, which is why registration #53 read €535.50 against a
+  €595 tier with the admin page insisting "None — full price". All three
+  checkout branches now log `easter_egg_discount_cents` in their checkout
+  event, and `/admin/orders/R-<id>` re-derives it (tier price − role discount −
+  `amount_cents + balance_due_cents`, so a deposit booking isn't read as a huge
+  discount) and names it in the coupon note. Anything reporting a retreat
+  discount must account for both — the role column alone calls a discounted
+  booking full price.
+
 ## Retreat payment — three buttons, one of them not a gateway
 
 Both retreat forms (`RBRegister` château, `DSRegister` boat) offer **Pay
@@ -379,6 +534,49 @@ money appears in the bank days later. Logic in
   column now says so from the moment of booking, before any payment intent
   exists. A bank-transfer order is **never refundable from the admin**
   (`isRefundable`) — the money goes back out of the bank by hand.
+- **We raise the invoice, because Quaderno cannot.** Almost every retreat
+  invoice comes from the native Stripe/PayPal→Quaderno connector: the gateway
+  reports the charge and Quaderno makes the document. A transfer has no
+  gateway, so nothing invoiced it at all — the money landed and the books
+  stayed empty. [`retreat-invoice.ts`](src/lib/registrations/retreat-invoice.ts)
+  fills that gap on both mark-paid paths, and **only** for money no gateway
+  saw: `invoiceRetreatBooking` refuses anything that is not a `bank_transfer`
+  row (a Stripe row marked paid by hand is the connector's to invoice, and a
+  second document would bill the guest twice on paper), `invoiceRetreatBalance`
+  is for the hand-settled balance whatever gateway took the deposit. Both are
+  idempotent on an `events` claim (`retreat-invoice-<id>` /
+  `retreat-balance-invoice-<id>`, kind `retreat.invoice.created`), release it
+  on failure so the button retries, and never throw into the admin action.
+  **The tax is not the course rule**: a course passes `tax_class: 'eservice'`
+  and lets Quaderno derive destination VAT or reverse-charge from the contact
+  — for a retreat that is wrong both ways. A physical event's place of supply
+  is where it is held (Art. 53), B2C and B2B alike, so the rate comes from
+  `products.vat_rate` and is passed explicitly as `tax_1_rate`. That column
+  really varies: **0.21** for the château in Belgium, **0.0** for the boat in
+  Egypt. `amount_cents` holds only what has been *charged* (the deposit on a
+  deposit booking; `markBalancePaid` adds the balance to it later), so it is
+  the sum to invoice as it stands — never a total to subtract the outstanding
+  balance from. A row already marked paid before this existed can still get
+  its invoice: `/admin/retreats/<slug>` shows **Create Quaderno invoice** /
+  **Invoice the balance** on exactly the rows that are missing one
+  (`/api/admin/quaderno-invoice`, which re-derives eligibility from the row
+  and trusts nothing in the form). The balance table's **Mark paid** raises
+  that invoice too, and carries a **no invoice** tick to settle without one
+  (`skip_invoice`, recorded on the `registration.balance.paid` event) — no
+  claim is written, so the row keeps its "Invoice the balance" button.
+- **Every line we send Quaderno is GROSS, on `total_amount`** — never
+  `unit_price`. The API defines `unit_price` as the price *before* tax and
+  adds the tax on top; `total_amount` is the line *after* tax, which Quaderno
+  back-calculates the net from ([the item schema](https://developers.quaderno.io/api/)).
+  Site prices include their VAT, so sending a gross figure as `unit_price` bills
+  the guest a tax they have already paid and leaves the document
+  **OUTSTANDING** for the difference (retreat invoice 2026-4052: €535.50
+  charged → €535.50 + €112.46 VAT = €647.96, €112.46 "due"). Backing the tax
+  out ourselves is not the fix either — at 21% a gross €100 has no exact net,
+  so the total would drift by a cent. `InvoiceItem.gross_amount`
+  ([`quaderno.ts`](src/lib/registrations/quaderno.ts)) is the only shape;
+  both callers (retreat invoices, the manual course order) pass it, and the
+  payment registered against the invoice is the same sum, so it reads PAID.
 - **The email** (`buildBankTransferEmail`) is transactional, uses the shared
   retreat shell (`retreatEmail` in `waitlist-emails.ts`, which grew an
   optional `details` panel for it), and asks the guest to **reply when they've
@@ -458,6 +656,43 @@ A retreat booked with a 50% deposit owes the rest before the retreat. The
   once they have sent it (`BALANCE_REPLY_TO`, which is also the send's
   Reply-To — they must not drift). The Stripe/PayPal checkout link follows as
   the alternative, on the gateway the deposit was paid with.
+- **The emailed pay link is OURS, and it never expires** (September 2026). It
+  used to be the gateway's own URL, minted at send time — and a Stripe Checkout
+  Session lives **24 hours at the outside** (`expires_at` cannot be pushed
+  further), a PayPal approve URL less. A balance due "before 1 September" is
+  read days or weeks after it is sent, so by the time the Dolphin & Sound guests
+  clicked, every link was dead and Stripe met them with *"You're all done here —
+  You've either completed your payment or this checkout session has timed
+  out"*, which reads as **the money already left their account**. The email now
+  carries `/registrations/balance?t=<id>.<sig>`
+  ([`balance-link.ts`](src/lib/registrations/balance-link.ts), HMAC over
+  `ADMIN_SESSION_SECRET`, domain-separated `sd-balance:`), and the gateway
+  session is minted **on the click** by `createBalanceCheckout` — so the link
+  keeps working, always charges the balance *as it stands today*, and once the
+  balance is settled the page says so in our words. `sendBalanceInvite` touches
+  no gateway at all now; it only builds the link, sends, and stamps
+  `balance_invite_sent_at`. The page ([`balance.astro`](src/pages/registrations/balance.astro))
+  302s to the fresh checkout; `?stay=1` renders its panel instead (bank details
+  + a "pay online" button) and is the gateway's **cancel_url**, so backing out
+  of Stripe lands somewhere useful rather than in a redirect loop. Both
+  gateways hand back the *same* object for a repeated idempotency key, so the
+  key is bucketed by the hour — a double-click is cheap, tomorrow's click is a
+  live session. **Anything emailing a payment link people will read later must
+  do the same**; a gateway URL in an inbox is this bug again.
+- **The link is on the admin page too** — a **Pay link** column in the "Balance
+  due" table, copyable into a reply for anyone who lost the email (or got one
+  of the expired ones).
+- **The email names no deadline unless one is passed in.** `buildBalanceEmail`'s
+  `due_label` used to come from a fixed `BALANCE_DUE_LABEL` constant ("before 1
+  September 2026") that nothing ever moved, so from 2 September every send told
+  the guest their balance was due before a day that had already gone. The
+  constant is gone; `due_label` is optional and unset, and the sentence reads
+  "is now due." A **live** deadline may be passed again — but a hard-coded date
+  in a shared constant will go stale silently, so it has to come from something
+  that knows today. (The dolphin sales copy still names 1 Sept 2026 in
+  `DSRegister`/`DSFAQ`/`DSPractical` and `dolphin-checkout.ts`'s `BALANCE_DUE` —
+  a new deposit booking is quoted a passed date, and what replaces it is the
+  owner's call.)
 - **A bank transfer has no webhook**, so the balance table carries a **Mark
   paid** button per row (`/api/admin/balance/mark-paid`, admin-gated) next to
   Send/Resend link, and the transfer ref beside the amount so a statement line
@@ -682,6 +917,96 @@ many `invoice.paid` events actually arrived vs installments recorded. Zero
 `invoice.paid` alongside live subscription events means the endpoint isn't
 subscribed to that event, which is otherwise invisible. A short cycle is money
 Stripe never took: it can't be fixed retroactively, only invoiced or waived.
+
+## Refunding a course installment plan — one cycle at a time
+
+A plan's charges live at the **gateway**, not on our row: `amount_cents` is the
+whole plan total, and the row only ever keeps the **first** charge id
+(`stripe_payment_intent` / `paypal_capture_id` are both written with
+`COALESCE(…)`). So the admin refund button used to target installment 1 for
+every plan — a blank ("full") refund quietly gave back one cycle while the
+dialog promised the plan total, any larger amount was rejected by the gateway,
+and cycle 2+ could only be refunded from the Stripe dashboard.
+
+[`src/lib/admin/installments.ts`](src/lib/admin/installments.ts) reads the
+cycles live (`listSubscriptionInvoices` for Stripe, `listSubscriptionTransactions`
+for PayPal) and `/admin/orders/C-<id>` renders one row per installment —
+date, invoice/sale reference, amount, already-refunded, and its own Refund
+button. `/api/admin/refund` takes an optional **`installment`** (a Stripe invoice
+id / PayPal sale id):
+
+- **The id is never trusted.** It is looked up in the ledger built from *this
+  row's own* subscription id — that lookup is both the resolution and the
+  authorisation check — and the amount is clamped to that cycle, not the plan.
+- **The whole-order form's ceiling is ONE charge** (`perChargeRefundableMinor`),
+  because that is all it can reach. It only appears for a plan as the fallback
+  when the gateway can't be read; the panel is the normal path. Anything
+  offering `refundableMinor` (the plan total) as refundable against a single
+  charge is the original bug.
+- **Two gateway holes had to be closed for cycle 2+ to record at all.** Stripe's
+  basil API version hides the invoice's PaymentIntent behind an `expand`, so
+  `listSubscriptionInvoices` asks for `data.payments` and falls back to a bare
+  list on the 400; where it still comes back null, the anchor is recovered from
+  our own `course.installment.recorded` events. On PayPal, a refund of cycle 2+
+  matched no row and died as `paypal.refund.unmatched` — `recordPaypalRefund`
+  now also routes by `subscriptionId` (the webhook passes the sale's
+  `billing_agreement_id`) or an explicit `courseRegistrationId` (the admin path).
+- Both gateway reads are capped at **8s** and degrade to the fallback form; the
+  page never 500s on a Stripe blip.
+- **A PayPal cycle is refunded through v2 captures, never the v1 sale endpoint.**
+  A cycle arrives as a v1-shaped `PAYMENT.SALE.COMPLETED` and lists under
+  `GET /v1/billing/subscriptions/{id}/transactions`, which made
+  `/v1/payments/sale/{id}/refund` look like its reversal. It is not: all of
+  `/v1/payments` is deprecated and a current REST app answers it **404
+  RESOURCE_NOT_FOUND**, so every per-installment PayPal refund died at the
+  gateway with the money untouched. The id PayPal gives a cycle IS a capture, so
+  `refundSubscriptionCycle` ([`paypal.ts`](src/lib/payments/paypal.ts)) refunds
+  it at `/v2/payments/captures/{id}/refund`, keeping v1 behind it only for a
+  401/403/404 — statuses that prove nothing moved, so the fallback can never
+  refund twice. `via` on the `admin.refund.requested` event records which one
+  took it.
+- **Only the gateway call may report "failed".** Everything after it —
+  `recordPaypalRefund`, the audit note — runs against money that has already
+  moved, so a throw there used to render "PayPal refund failed", which reads as
+  *nothing happened* and invites a second press that refunds the cycle twice.
+  The bookkeeping now reports a **warning** naming the refund id and saying not
+  to retry, and the notes go through `logEventSafe`.
+- **The failure says what the gateway said, and what to do about it.** There is
+  no events viewer in the admin, so "see logs" was a dead end; the flash now
+  carries PayPal's/Stripe's own message (`gatewayDetail`). PayPal buries the
+  actionable half at the END of a long description — the part a trim cuts off —
+  so `paypalRefundHint` leads with one plain sentence per known refund `issue`
+  (carried on `PaypalApiError.issues`) and the raw text follows.
+  **`REFUND_FAILED_INSUFFICIENT_FUNDS` is not a bug**: PayPal draws a refund
+  from the account balance, then a linked confirmed bank account, and refuses —
+  changing nothing — when neither covers it. Top the account up and press
+  Refund again.
+- **Stopping the plan sits in the same panel** — refunding a cycle and forgiving
+  the ones still to come are two halves of one decision. It posts to the same
+  `/api/admin/courses/cancel-installments` the Future-revenue table uses (which
+  re-derives everything from the row), and both offer the same options in the
+  same words via the shared `keepLabel`
+  ([`installment-cancel.ts`](src/lib/courses/installment-cancel.ts)) — a second
+  doorway to that control, never a second implementation. Stopping never
+  refunds and never revokes access. It needs a live plan, so it depends on the
+  status rule below: before it, refunding one cycle flipped the row to
+  `refunded` and `isCancellablePlan` then refused — "refund one, stop the rest"
+  was impossible in that order.
+
+**A partial refund is no longer "this plan has stopped."**
+`markCourseRegistrationRefunded` used to flip `status='refunded'` on any refund,
+however small — and the revenue stack reads that status as terminal
+(`contractedMinorOf` counts a refunded row at `installments_paid` instead of its
+contracted total; the future-revenue forecast drops it entirely). So handing one
+installment of six back wrote off the four still to bill, on a plan Stripe was
+still charging. It now flips only once refunds reach everything the row has
+**collected** (`collectedGrossMinor`, the mirror of `collectedMinorOf` in
+stats.ts — the two must agree); below that the row keeps its status and only
+`refunded_amount_cents` moves, which every figure already nets off. This governs
+a Stripe-dashboard refund too, since the `charge.refunded` webhook shares the
+writer. Side effect worth knowing: album entitlement gates on `status='paid'`
+([`music/product.ts`](src/lib/music/product.ts)), so a *partial* refund of an
+album now keeps access and only a full one revokes it.
 
 ## Stripe course-installment recognition — safety-net reconcile
 

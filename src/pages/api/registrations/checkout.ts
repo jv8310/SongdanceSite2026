@@ -264,6 +264,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
     : 0;
   const finalAmountCents = amountCents - easterEggDiscountCents;
 
+  // Only the charged total is stored on the row — there is no column for this
+  // discount — so all three checkout branches below record it in their event
+  // payload. Without it a booking charged less than its tier reads as an
+  // unexplained price months later; /admin/orders/R-<id> re-derives the same
+  // figure from the tier price (see admin/order-detail.ts).
+
   const phoneCountry = findCountry(phoneCountryCode);
   const phoneE164 = phoneCountry
     ? `+${phoneCountry.dial}${phoneLocal.replace(/[^0-9]/g, '')}`
@@ -344,6 +350,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
         auto_assigned_room_id: room.id,
         role: role ?? null,
         amount_cents: finalAmountCents,
+        role_discount_cents: roleDiscountCents,
+        easter_egg_discount_cents: easterEggDiscountCents,
         reference: details.reference,
         hold_days: BANK_TRANSFER_HOLD_DAYS,
       },
@@ -408,6 +416,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
         auto_assigned_room_id: room.id,
         role: role ?? null,
         amount_cents: finalAmountCents,
+        role_discount_cents: roleDiscountCents,
+        easter_egg_discount_cents: easterEggDiscountCents,
       },
     });
     return json({ checkout_url: order.approveUrl, registration_id: registrationId });
