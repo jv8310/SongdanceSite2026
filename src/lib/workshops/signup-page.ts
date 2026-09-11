@@ -13,6 +13,7 @@ export type SignupPage = string;
 // new landing page shows up in the data before anyone remembers to add it.
 const NAMED: Array<[RegExp, string]> = [
   [/^\/courses\/masterclass\/?$/, 'masterclass'],
+  [/^\/courses\/heal-the-healer\/?$/, 'heal-the-healer'],
   [/^\/workshop\/?$/, 'workshop'],
   [/^\/w\/[^/]+\/?$/, 'w'],
 ];
@@ -42,4 +43,6 @@ export function normalizeSignupPage(raw: string | null | undefined): string | nu
 }
 
 export const MASTERCLASS_PAGE: SignupPage = 'masterclass';
+// The second door to the same masterclass (see CLAUDE.md, "one event, two doors").
+export const HEAL_THE_HEALER_PAGE: SignupPage = 'heal-the-healer';
 export const WORKSHOP_PAGE: SignupPage = 'workshop';

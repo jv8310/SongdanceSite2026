@@ -1,0 +1,92 @@
+---
+// The questions people ask before they reserve a seat — shared by both
+// masterclass doors (same event, same answers). Every answer is bound by the
+// copy book: sounding not singing, no outcome promises, "not therapy and
+// doesn't replace yours" said plainly. The practical facts (cameras off /
+// muted, replay included, free move to another masterclass date, invoice via
+// company + VAT fields) mirror what the confirmation emails, the personal page
+// and the checkout actually do — keep them in step if any of those change.
+const faqs = [
+  {
+    q: 'Do I need to be able to sing?',
+    a: [
+      'No. This is sounding, not singing: one honest tone, of what’s actually there. No melody, no technique, no audience. You cannot do it wrong — it will always express something.',
+      'If anything, trained singers have the harder start, because the technique stands politely in front of the truth.',
+    ],
+  },
+  {
+    q: 'Will I have to make sounds in front of other people?',
+    a: [
+      'Nobody is put on the spot. Cameras can stay off, you’re muted unless you choose otherwise, and soft counts — soft often counts double. We sound together, everyone at once, so what you hear is mostly your own voice.',
+      'If the idea sits oddly, that’s normal and expected. The first sound is the longest; every one after it is shorter.',
+    ],
+  },
+  {
+    q: 'I’m not a therapist. Is this still for me?',
+    a: [
+      'Yes — if part of your work is staying steady while someone else finds their way. Coaches, bodyworkers, teachers, nurses, people leading a team, people caring for a parent. Whatever the title on your door.',
+      'And you’re welcome purely as a person, too. The method makes no distinction between the two — that’s rather the point of it.',
+    ],
+  },
+  {
+    q: 'What if I can’t be there live?',
+    a: [
+      'The replay is included and yours to keep. And if life gets in the way on the day, your seat moves to another live masterclass date, free of charge, from the personal page you receive when you register.',
+      'The live session is still the thing, though — witnessed is different from watched.',
+    ],
+  },
+  {
+    q: 'Is this a certification? Can I use it with clients afterwards?',
+    a: [
+      'It isn’t a certification, and we won’t pretend that a hundred minutes make you a practitioner of this method. What you leave with is real all the same: the practice in your own body, a first map for listening to a voice, and a concrete next move for the stuck moment — things you can use in your work the same week, inside what you are already qualified to hold.',
+      'For some people the masterclass turns out to be the first honest look at whether holding this work for others belongs in their future.',
+    ],
+  },
+  {
+    q: 'Can I get an invoice for my practice?',
+    a: [
+      'Yes. Enter your company name — and, for EU businesses, your VAT number — when you register, and the invoice follows by email.',
+    ],
+  },
+  {
+    q: 'Is this therapy?',
+    a: [
+      'No, and it doesn’t replace yours. It works underneath what you already do, alongside the support you already have.',
+      'An honest note: this practice doesn’t always feel good first. Meeting what has been ignored for too long can bring up more than calm — what’s on the other end is a different flavour of peace. More lasting. Don’t expect miracles; expect a real relationship with your own voice.',
+    ],
+  },
+  {
+    q: 'What do I need on the day?',
+    a: [
+      'A quiet-ish corner where a little sound is allowed, a device with Zoom, water within reach, and a hundred minutes you don’t have to give to anyone else. Headphones if you share walls.',
+      'Nothing to prepare, nothing to read first. Half this practice happens in parked cars.',
+    ],
+  },
+];
+---
+
+<section class="mc-faq" id="faq">
+  <div class="mc-faq-inner">
+    <div class="mc-faq-head">
+      <div class="we-eyebrow" style="justify-content: center;">Before you decide</div>
+      <h2 class="we-h2">The questions people ask <em>before they come.</em></h2>
+    </div>
+    <div class="mc-faq-list">
+      {
+        faqs.map((f) => (
+          <details class="mc-faq-item">
+            <summary>{f.q}</summary>
+            <div class="mc-faq-a">
+              {f.a.map((p) => (
+                <p>{p}</p>
+              ))}
+            </div>
+          </details>
+        ))
+      }
+    </div>
+    <p class="mc-faq-more">
+      Something else? <a href="mailto:info@songdance.co">info@songdance.co</a> — a person answers.
+    </p>
+  </div>
+</section>
