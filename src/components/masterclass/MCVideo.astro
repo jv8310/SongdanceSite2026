@@ -1,10 +1,10 @@
 ---
 // Intro video (owner's call, Aug 2026): the Vimeo film made for the
-// masterclass ("Masterclass landing page"). Same embed pattern as FCVideo /
-// the grief page — player.vimeo.com iframe, chrome hidden, lazy. The
-// professional door places it directly below the hero ("Watch first"); the
-// heal-the-healer door places it after its recognition section and passes
-// its own eyebrow.
+// masterclass — "Masterclass landing page v2" since Sept 2026, the cut that
+// replaced the first one. Same embed pattern as FCVideo / WEVideo / the grief
+// page — player.vimeo.com iframe, chrome hidden, lazy. The professional door
+// places it directly below the hero ("Watch first"); the heal-the-healer door
+// places it after its recognition section and passes its own eyebrow.
 interface Props {
   eyebrow?: string;
 }
@@ -16,7 +16,7 @@ const { eyebrow = 'Watch first' } = Astro.props;
     <div class="we-eyebrow" style="justify-content: center;">{eyebrow}</div>
     <div class="mc-video-frame">
       <iframe
-        src="https://player.vimeo.com/video/1221128064?title=0&byline=0&portrait=0"
+        src="https://player.vimeo.com/video/1225945172?title=0&byline=0&portrait=0"
         title="Jacob introduces the Professional Masterclass"
         frameborder="0"
         allow="autoplay; fullscreen; picture-in-picture; clipboard-write"
