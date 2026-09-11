@@ -1,0 +1,94 @@
+---
+// The four beats of the masterclass, told from the space holder's side: the
+// practice in their own body first, the pain that isn't theirs (copy book
+// §26), the mechanism — acknowledgment, not release (§7–8) — and where it
+// sits in a working day and a working room. Same event as /courses/masterclass;
+// the professional door tells the same four beats from the client's side.
+const items = [
+  {
+    title: 'The sound of what the week left in you',
+    body: 'A guided sounding practice, from the first honest tone to the question under the whole method: what is below that? You may yawn — the best sign there is, a nervous system changing state. A breath may deepen by itself. Tears are welcome, and so is nothing at all: grey is a colour too, and it has a sound. Your own body is the only place this work can be understood from.',
+  },
+  {
+    title: 'Whose is it?',
+    body: 'Some of what you carry has your name on it. Some of it came with the room. Pain that isn’t yours sounds different — and once you can hear the difference, something becomes possible that no amount of debriefing offers: you can give it back. Not as rejection. As respect. With a bow, not a shove. Another person’s pain cannot be carried productively — not even out of love. Especially not out of love.',
+  },
+  {
+    title: 'Why it works: acknowledgment, not release',
+    body: 'The exhausted helper is always told to let it go. In our experience that doesn’t really work — you cannot let go of something you never let in. So we go the other way. The sound of the weight, not a sound to soothe it: the healing is in the acknowledgment, and acknowledged things leave on their own. It isn’t catharsis either. Nobody screams here. Volume is a dial, not a dare, and the voice never opens more than you can be with.',
+  },
+  {
+    title: 'Where it sits — in your day, and in your work',
+    body: 'Three breaths and a tone between one person and the next. In the car. On the doorstep, so the day’s weather doesn’t walk into the house with you. Then the practitioner’s half: what your role becomes while someone else sounds, and what these 100 minutes equip you to hold — and what they don’t. Plainly: this is not therapy, and it doesn’t replace yours.',
+  },
+];
+---
+
+<section class="we-what" id="inside">
+  <div class="we-what-inner">
+    <div class="we-what-head">
+      <div class="we-eyebrow">Inside the 100 minutes</div>
+      <h2 class="we-h2">
+        First it works on you.<br />
+        <em>Then we look at how it works.</em>
+      </h2>
+    </div>
+
+    <div class="we-what-intro">
+      <p>
+        Somatic Vocal Healing is sounding, not singing: one honest tone, of
+        what's actually there — a feeling, a body part, a moment. No melody,
+        no performance, no talent required. It is the first thing you ever
+        did with your voice, and it never left you; it just went quiet. The
+        safety is built into the instrument: the voice self-titrates, never
+        opening more than a person can be with.
+      </p>
+      <p>
+        This masterclass begins where the whole method begins — not with a
+        technique for your clients, but in your own body, because that's the
+        only place this work can be understood from. The second half looks at
+        how it holds together as a method, and at what your role becomes in a
+        room where the other person is the one doing the healing.
+      </p>
+    </div>
+
+    <figure class="mc-inside-figure">
+      <img
+        src="/media/library/svh-retreat-teaching-jacob-whiteboard.webp"
+        alt="Jacob at a flipchart, teaching the map of the method to a retreat group"
+        loading="lazy"
+        decoding="async"
+      />
+      <figcaption>A method with a map — Jacob teaching how the work holds together.</figcaption>
+    </figure>
+
+    <div class="we-what-sub">What the 100 minutes hold</div>
+    <div class="we-what-grid">
+      {
+        items.map((it, i) => (
+          <article class="we-what-card">
+            <div class="we-what-num">{String(i + 1).padStart(2, '0')}</div>
+            <h3 class="we-what-card-title">{it.title}</h3>
+            <p class="we-what-card-body">{it.body}</p>
+          </article>
+        ))
+      }
+    </div>
+
+    <p class="we-what-coffee">
+      You don't need a good voice. You need an <em>honest</em> one.
+    </p>
+    <!-- data-sd-price: PriceSync swaps the euro token for the visitor's market
+         label after load, so the figure here matches the register panel. The
+         token must stay in the site's euro-after copy style (44€). -->
+    <p class="we-what-coffee-foot">
+      100 minutes · live, with replay · <em data-sd-price="masterclass">44€</em>
+    </p>
+
+    <div class="we-what-cta-wrap">
+      <a href="#register" class="we-link-cta">
+        Reserve your seat <i class="ph-light ph-arrow-right"></i>
+      </a>
+    </div>
+  </div>
+</section>

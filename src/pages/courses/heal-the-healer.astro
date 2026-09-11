@@ -1,0 +1,161 @@
+---
+// The heal-the-healer door of the Professional Masterclass — the SAME live
+// event, the same €44 seat and the same checkout as /courses/masterclass,
+// told from the other side of the room. That page is the "missing tool"
+// (Somatic Vocal Healing in your work with clients); this one is "who holds
+// space for the healer?" — the practice for the space holder themselves.
+// Each is the landing page of its own top-of-funnel campaign (the ad creative
+// for this one: "You hold space for everyone but yourself", "Whose energy are
+// you still carrying?", "Where space holders finally exhale").
+//
+// Same candle-lit build (workshop-english.css + masterclass.css). The chrome
+// is shared with the professional door (MCNav / MCHero / MCVideo / MCMoments /
+// MCLyric / MCTestimonials / MCAbout / MCPath / MCFaq / MCRegister — the
+// copy that differs comes in through slots and props); the copy-heavy
+// sections are this door's own (HH* in components/heal-the-healer). Copy per
+// docs/svh-copy-book.md — note the ads say "release"; the page never does.
+// The mechanism on the page is acknowledgment (law 2).
+//
+// Self-contained like its sibling: no body links into other courses; the
+// slide-in SiteMenu keeps the full site reachable.
+import '../../styles/workshop-english.css';
+import '../../styles/masterclass.css';
+import Layout from '../../layouts/Layout.astro';
+import PromoBanner from '../../components/PromoBanner.astro';
+import MCNav from '../../components/masterclass/MCNav.astro';
+import MCHero from '../../components/masterclass/MCHero.astro';
+import MCVideo from '../../components/masterclass/MCVideo.astro';
+import MCMoments from '../../components/masterclass/MCMoments.astro';
+import HHOpening from '../../components/heal-the-healer/HHOpening.astro';
+import HHWhat from '../../components/heal-the-healer/HHWhat.astro';
+import HHBenefits from '../../components/heal-the-healer/HHBenefits.astro';
+import HHWho from '../../components/heal-the-healer/HHWho.astro';
+import MCLyric from '../../components/masterclass/MCLyric.astro';
+import MCTestimonials from '../../components/masterclass/MCTestimonials.astro';
+import MCAbout from '../../components/masterclass/MCAbout.astro';
+import MCPath from '../../components/masterclass/MCPath.astro';
+import MCFaq from '../../components/masterclass/MCFaq.astro';
+import MCRegister from '../../components/masterclass/MCRegister.astro';
+import WEFooter from '../../components/workshop-english/WEFooter.astro';
+import { buildCalendarItems, tzOptionsFor } from '../../lib/workshops/calendar';
+import { currencyForCountry } from '../../lib/workshops/currency';
+import MetaProductView from '../../components/MetaProductView.astro';
+import { catalogItemById } from '../../lib/catalog/products';
+
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+const cf = (Astro.locals.runtime as any)?.cf;
+
+// Cloudflare edge geo/timezone — no external API (mirrors /workshop).
+const country: string = (cf?.country as string) || 'EU';
+const detectedTz: string = (cf?.timezone as string) || 'Europe/Brussels';
+const currency = currencyForCountry(country === 'EU' ? null : country);
+
+// Upcoming published masterclasses + workshops, priced in the visitor's
+// currency (shared with /workshop and /courses/masterclass — see
+// lib/workshops/calendar.ts). The register section leads with the masterclass
+// dates and offers the workshop dates (incl. the instant-access replay) as
+// the schedule-friendly fallback.
+const items = await buildCalendarItems(env.DB, currency, detectedTz);
+const tzOptions = tzOptionsFor(detectedTz);
+
+// The next live masterclass, for the hero's date line (none → no line).
+const nextMc = items.find((it) => it.kind === 'masterclass' && !it.isReplay) ?? null;
+
+// Same product as the professional door: one catalog id, one ViewContent.
+const product = catalogItemById('masterclass');
+
+// The practice as it looks from the space holder's side: the one holding the
+// room sounds too; being witnessed; the honest tone.
+const moments = [
+  {
+    img: '/media/library/svh-retreat-sounding-jacob-sunset.webp',
+    alt: 'Jacob sounding with both hands on his chest, eyes closed, in a circle at sunset',
+    caption: 'The one holding the room sounds too — one honest tone, of what’s actually there.',
+  },
+  {
+    img: '/media/library/svh-retreat-walk-embrace-sunset.webp',
+    alt: 'Two participants walking with an arm around each other’s shoulders, in evening light',
+    caption: 'Witnessed is different from watched.',
+  },
+  {
+    img: '/media/library/svh-retreat-sounding-grey-hair-rocks.webp',
+    alt: 'A woman with grey hair sounding with her eyes closed, outdoors',
+    caption: '“You cannot do it wrong. It will always express something.” — Jacob',
+  },
+];
+---
+
+<Layout
+  title="Heal the Healer — A Somatic Vocal Healing Masterclass for Space Holders | Songdance"
+  description="You hold space for everyone but yourself. A 100-minute live masterclass for therapists, coaches, bodyworkers and facilitators — the sound of what the work leaves in you. €44, online, with replay."
+  image="/media/library/svh-retreat-sounding-black-vest.webp"
+  imageAlt="A participant sounding with her hands on her chest, at golden hour."
+>
+  <div class="we-site">
+    <PromoBanner />
+    <MCNav />
+    <MCHero
+      class="we-hero--hh"
+      image="/media/library/svh-retreat-sounding-black-vest.webp"
+      secondaryLabel="See what the 100 minutes hold"
+      nextWhen={nextMc?.whenLocal ?? null}
+      nextStartsAt={nextMc?.startsAtUtc ?? null}
+    >
+      <Fragment slot="eyebrow">Somatic Vocal Healing · A masterclass for space holders</Fragment>
+      <Fragment slot="heading">Who holds space <em>for the healer?</em></Fragment>
+      <Fragment slot="sub">
+        A 100-minute live masterclass for therapists, coaches, bodyworkers,
+        facilitators, teachers and leaders — <em>the people who hold space
+        for everyone but themselves.</em>
+      </Fragment>
+    </MCHero>
+    <HHOpening />
+    <MCVideo eyebrow="Meet Jacob" />
+    <MCMoments moments={moments} />
+    <HHWhat />
+    <HHBenefits />
+    <HHWho />
+    <MCLyric>
+      <Fragment slot="text">You are the healer, and you are the healed.</Fragment>
+      <Fragment slot="by">— Jacob Vermeulen</Fragment>
+    </MCLyric>
+    <MCTestimonials />
+    <MCAbout />
+    <MCPath>
+      <Fragment slot="heading">First the healer. <em>Then the space you hold.</em></Fragment>
+      <Fragment slot="body">
+        The masterclass stands on its own — come, be on the receiving end for
+        a hundred minutes, and take home a practice that fits between two
+        clients. For some people it also turns out to be a doorway: the first
+        honest look at whether holding this work for others belongs in your
+        future. These 100 minutes are the inexpensive way to find out — and
+        if they're as far as you go, they'll still have earned their keep.
+      </Fragment>
+    </MCPath>
+    <MCFaq />
+    <MCRegister
+      items={items}
+      country={country}
+      currency={currency}
+      detectedTz={detectedTz}
+      tzOptions={tzOptions}
+    >
+      <Fragment slot="heading">This time, the space<br /><em>is held for you.</em></Fragment>
+      <Fragment slot="body">
+        One hundred minutes, live, online — with a replay if the time doesn't work for you.<br />
+        Come as a professional. Come, also, as a person.<br />
+        For once, you're not the one holding the room.
+      </Fragment>
+    </MCRegister>
+    <WEFooter />
+  </div>
+  <MetaProductView
+    pixelId={env.META_PIXEL_ID}
+    contentId={product.id}
+    contentName={product.title}
+    value={product.priceEur}
+    loadPixel={false}
+  />
+</Layout>

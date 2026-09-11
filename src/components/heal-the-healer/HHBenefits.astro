@@ -1,0 +1,111 @@
+---
+// What a space holder tangibly takes home — in themselves first, then in
+// their work (the professional door lists the same two columns the other way
+// round). Concrete tools, questions and moves; never outcome promises (copy
+// book: no miracles, on purpose). The closing quote is quote bank #72.
+const you = [
+  {
+    lead: 'A thirty-second practice between sessions.',
+    body: 'One breath in, one honest tone out — first aid for your own nervous system between one person and the next. It fits in the gap you already have.',
+  },
+  {
+    lead: 'Somewhere for the day to be heard.',
+    body: 'You hear heavy things all week. Sound what the day left in you — in the car, on the doorstep — so it doesn’t walk into the house with you.',
+  },
+  {
+    lead: 'A way to tell what’s yours from what isn’t.',
+    body: 'Pain that isn’t yours sounds different once you know what to listen for. And what was never yours can be given back — with a bow, not a shove.',
+  },
+  {
+    lead: 'A door out of your own head.',
+    body: 'You spend your working life in language. A couple of minutes of sounding quiets the narrating mind and brings you back to your body — before the next person walks in.',
+  },
+  {
+    lead: 'Relief from being the one who has to know.',
+    body: 'The information comes from their sound, not your interpretation, and the discovery belongs to them. That’s less to carry — and you get to stop being the one who supplies the answers.',
+  },
+];
+const work = [
+  {
+    lead: 'A next move for the stuck moment.',
+    body: '“What is the sound of it?” — something to do rather than one more thing to know, without leaving the chair. It asks the body instead of the story.',
+  },
+  {
+    lead: 'A move for when emotion actually arrives.',
+    body: 'Overwhelm, or shutdown. You leave with a concrete move for it — the feeling goes into the tone while the body stays soft — and with the reason it stays safe: the voice never opens more than a person can be with.',
+  },
+  {
+    lead: 'A second channel besides self-report.',
+    body: 'Words can hide; a tone can’t. A first map for listening — fear is a short, fast wave, grief a longer one, anger carries a metallic edge — including an ear for what’s missing from a voice.',
+  },
+  {
+    lead: 'Something to give between sessions.',
+    body: 'Three breaths and a tone — a practice people can actually do on an ordinary Tuesday, with no equipment and no appointment. Feelings don’t keep office hours.',
+  },
+];
+---
+
+<section class="mc-benefits" id="benefits">
+  <div class="mc-benefits-inner">
+    <div class="mc-benefits-head">
+      <div class="we-eyebrow" style="justify-content: center;">What you take home</div>
+      <h2 class="we-h2">
+        Useful the same evening —<br />
+        <em>in you, and in your work.</em>
+      </h2>
+      <p class="mc-benefits-sub">
+        Nothing here needs a good voice, new equipment, or a change of
+        profession. These are the things space holders actually leave with —
+        for themselves first.
+      </p>
+    </div>
+
+    <figure class="mc-benefits-figure">
+      <img
+        src="/media/library/jacob-holding-space.webp"
+        alt="Jacob guiding a session while a participant stands behind him, head bowed"
+        loading="lazy"
+        decoding="async"
+      />
+      <figcaption>Holding the room while it happens — present, steady, out of the way. This time, for you.</figcaption>
+    </figure>
+
+    <div class="mc-benefits-grid">
+      <div class="mc-benefits-col">
+        <h3 class="mc-benefits-kicker">In you</h3>
+        <ul>
+          {
+            you.map((b) => (
+              <li>
+                <strong>{b.lead}</strong> {b.body}
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+      <div class="mc-benefits-col">
+        <h3 class="mc-benefits-kicker">In your work</h3>
+        <ul>
+          {
+            work.map((b) => (
+              <li>
+                <strong>{b.lead}</strong> {b.body}
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+    </div>
+
+    <p class="mc-benefits-honest">
+      “Don’t expect miracles — expect a real relationship with your own
+      voice.” — Jacob
+    </p>
+
+    <div class="mc-benefits-cta-wrap">
+      <a href="#register" class="we-link-cta">
+        Reserve your seat <i class="ph-light ph-arrow-right"></i>
+      </a>
+    </div>
+  </div>
+</section>

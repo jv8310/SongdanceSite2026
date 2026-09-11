@@ -2,15 +2,19 @@
 // The role, in one line (copy book B.17 + the reframes). By this point the
 // page has already said what holding space means in plain words — the lyric
 // is the distillation, and the by-line keeps it readable for someone meeting
-// the term today.
+// the term today. Both lines are slots; the defaults are the professional
+// door's. The heal-the-healer door passes Jacob's own "You are the healer,
+// and you are the healed" (quote bank #56 — safe to attribute).
 ---
 
 <section class="we-lyric">
   <div class="we-lyric-inner">
     <img class="we-lyric-mark" src="/brand/symbol-orange.png" alt="" aria-hidden="true" />
     <p class="we-lyric-text">
-      Not a healer — a space holder. We make room. The rest happens.
+      <slot name="text">Not a healer — a space holder. We make room. The rest happens.</slot>
     </p>
-    <div class="we-lyric-by">— Your role in this work, in one line</div>
+    <div class="we-lyric-by">
+      <slot name="by">— Your role in this work, in one line</slot>
+    </div>
   </div>
 </section>

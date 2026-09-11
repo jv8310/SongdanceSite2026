@@ -63,8 +63,24 @@ export const MC_ORDER_BUMP: PageChange = {
   showBumpTakeUp: true,
 };
 
+// 11 Sept 2026 — both masterclass doors changed on the page, not in the
+// offer: the next live date sits in the hero, a FAQ block precedes the
+// register panel, a "Times shown in" selector re-renders the dates, and the
+// checkout fine print says what happens next. The same day the second door
+// opened — /courses/heal-the-healer, the "who holds space for the healer?"
+// campaign page, same seat, same price, same bump (its registrations record
+// signup_page 'heal-the-healer'). Nothing to watch here but the funnel rate.
+export const MC_FAQ_AND_DATE: PageChange = {
+  key: 'mc-faq-and-date',
+  date: '2026-09-11',
+  title: 'Masterclass pages: next date in the hero, FAQ, timezone picker',
+  note:
+    'Both masterclass doors gained the next live date in the hero, a FAQ before the register panel and a timezone selector; ' +
+    'the second door /courses/heal-the-healer opened the same day. The offer itself did not change.',
+};
+
 // Flip to true to put the workshop dates back on the masterclass page (and add
 // a second entry above with that date, so the windows stay readable).
 export const MC_PAGE_OFFERS_WORKSHOPS = false;
 
-export const PAGE_CHANGES: PageChange[] = [MC_ORDER_BUMP, MC_WORKSHOP_ALTERNATIVES];
+export const PAGE_CHANGES: PageChange[] = [MC_FAQ_AND_DATE, MC_ORDER_BUMP, MC_WORKSHOP_ALTERNATIVES];
