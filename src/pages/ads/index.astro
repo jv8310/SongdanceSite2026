@@ -2,7 +2,14 @@
 import { hasAdsAccess } from '../../lib/ads/auth';
 import { computeAdsDashboard } from '../../lib/ads/dashboard';
 import { syncTodayAdSpend } from '../../lib/ads/meta-insights';
-import { ROAS_TARGET, roasGapEurMinor, resolveMoneyOpts, type AudienceAcquisition } from '../../lib/workshops/stats';
+import {
+  ROAS_TARGET,
+  roasGapEurMinor,
+  resolveMoneyOpts,
+  type AudienceAcquisition,
+  type DoorAcquisition,
+} from '../../lib/workshops/stats';
+import { MASTERCLASS_DOOR_ANGLE } from '../../lib/ads/campaigns';
 import {
   PERIOD_PRESETS,
   resolvePeriod,
@@ -10,6 +17,8 @@ import {
   shiftDays,
   shiftYears,
   daysBetween,
+  excludeFutureEventsFrom,
+  FUTURE_COSTS_PARAM,
 } from '../../lib/workshops/periods';
 import ChartKit from '../../components/charts/ChartKit.astro';
 
@@ -49,9 +58,18 @@ if (compare === 'prev' && from && to) {
 // Quaderno VAT config, so course revenue here is net of VAT and converted at
 // real rates rather than the static fallbacks.
 const money = await resolveMoneyOpts(env.DB, env);
-const d = await computeAdsDashboard(env.DB, { from, to, money });
+// "Exclude costs for future events": ad money is paid before a session runs and
+// the income it buys lands after it, so any window reaching today carries the
+// cost of what hasn't happened against none of its return. Excluding upcoming
+// sessions takes out their spend, their seats and the income those seats have
+// taken — cost and income for an event travel together or the ROAS is just a
+// different lie. Same setting on the compare window, or the halves wouldn't be.
+const excludeFuture = excludeFutureEventsFrom(Astro.url.searchParams);
+const d = await computeAdsDashboard(env.DB, { from, to, money, excludeFutureEvents: excludeFuture });
 const cmp = compare && cmpFrom && cmpTo
-  ? await computeAdsDashboard(env.DB, { from: cmpFrom, to: cmpTo, money })
+  ? await computeAdsDashboard(env.DB, {
+      from: cmpFrom, to: cmpTo, money, excludeFutureEvents: excludeFuture,
+    })
   : null;
 
 // ---- formatters ----
@@ -180,6 +198,30 @@ const econCards: EconCard[] = [
 ];
 const econTone = (roas: number | null): 'good' | 'bad' | 'flat' =>
   roas == null ? 'flat' : roas >= ROAS_TARGET ? 'good' : roas >= 1 ? 'flat' : 'bad';
+
+// ---- The masterclass, split by the door that sold the seat ----
+// One event, two landing pages, one TOF campaign each. The masterclass card
+// above pools them (that is what a masterclass seat costs); these two take it
+// apart, so the question the two campaigns actually pose — which door is worth
+// its spend — has an answer. Both carry the masterclass hue: same product,
+// different door.
+const doors = d.masterclassDoors;
+const DOOR_ACCENT: Record<string, string> = {
+  masterclass: 'var(--s2)',
+  'heal-the-healer': '#8a4b2c',
+};
+type DoorCard = { a: DoorAcquisition; angle: string; accent: string; gapEurMinor: number };
+const doorCards: DoorCard[] = doors.doors.map((a) => ({
+  a,
+  angle: MASTERCLASS_DOOR_ANGLE[a.door],
+  accent: DOOR_ACCENT[a.door] ?? 'var(--s2)',
+  gapEurMinor: roasGapEurMinor(a),
+}));
+// Nothing to show when the window holds no masterclass at all — two empty cards
+// are noise, not information.
+const showDoors =
+  doors.doors.some((a) => a.registrations > 0 || a.allocatedCostEurMinor > 0) ||
+  doors.unknown.registrations > 0;
 
 const focus = [
   {
@@ -400,6 +442,9 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
       .ehead { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
       .ehead h3 { margin: 0; font-size: 14px; font-weight: 600; }
       .eregs { font-size: 12px; color: var(--muted); }
+      /* Door cards carry the page they are: the campaign points at it. */
+      .epage { margin: 6px 0 0; font-size: 11.5px; color: var(--muted); line-height: 1.45; }
+      .epage code { background: rgba(0,0,0,0.05); padding: 1px 5px; border-radius: 4px; font-size: 11px; }
       .ebody { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-top: 12px; }
       /* Two figures of EQUAL width, arrow between. As a flex row sized by
          content, the long "made back" caption ate the ad-spend column until the
@@ -626,18 +671,32 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
             <option value="yoy" selected={compare === 'yoy'}>Same period last year</option>
           </select>
         </label>
+        <label>Future events
+          <select name={FUTURE_COSTS_PARAM} id="f-future">
+            <option value="">Include costs</option>
+            <option value="exclude" selected={excludeFuture}>Exclude costs</option>
+          </select>
+        </label>
         <button type="submit" class="apply">Apply</button>
       </form>
       <p class="rangenote">
         Showing <strong>{rangeLabel}</strong>{cmp && cmpFrom && cmpTo && <> · vs <strong>{dateLabel(cmpFrom)} → {dateLabel(cmpTo)}</strong></>}{spendFreshness && <> · {spendFreshness}</>}.
         {d.hasAdSpend && <> Prospecting spend {eur0(d.acquisitionSpendEurMinor)} ÷ {int(d.registrations)} registrations = <strong>{d.costPerRegistrationEurMinor != null ? eur(Math.round(d.costPerRegistrationEurMinor)) : '—'}</strong> per registration blended — <strong>{d.audiences.workshop.costPerRegistrationEurMinor != null ? eur(Math.round(d.audiences.workshop.costPerRegistrationEurMinor)) : '—'}</strong> per workshop registration, <strong>{d.audiences.masterclass.costPerRegistrationEurMinor != null ? eur(Math.round(d.audiences.masterclass.costPerRegistrationEurMinor)) : '—'}</strong> per masterclass registration{d.retargetingSpendEurMinor > 0 && <> · {eur0(d.retargetingSpendEurMinor)} retargeting excluded</>}. Each product is charged its own campaigns’ money, day by day — every registration at the price of a registration of its kind on the day it came in.</>}
+        {d.future.sessions > 0 && (excludeFuture ? (
+          <> <strong>Upcoming events excluded</strong> — {eur0(d.future.adSpendEurMinor)} of spend on {int(d.future.sessions)} session{d.future.sessions === 1 ? '' : 's'} that {d.future.sessions === 1 ? 'hasn’t' : 'haven’t'} run yet is left out, along with the {int(d.future.registrations)} seat{d.future.registrations === 1 ? '' : 's'} {d.future.sessions === 1 ? 'it has' : 'they have'} sold and the {eur0(d.future.engineRevenueEurMinor)} those took.</>
+        ) : (
+          <> {eur0(d.future.adSpendEurMinor)} of this spend is riding on {int(d.future.sessions)} session{d.future.sessions === 1 ? '' : 's'} that {d.future.sessions === 1 ? 'hasn’t' : 'haven’t'} run yet: the money is paid, the income it buys can’t have landed. Set <em>Future events</em> to <em>Exclude costs</em> for the ROAS of what has already happened.</>
+        ))}
+        {excludeFuture && d.future.sessions === 0 && <> Upcoming events are excluded; this window holds none.</>}
         {!(from && to) && <span class="sub-muted"> Pick a bounded period to compare against the previous one.</span>}
       </p>
 
       {!d.hasAdSpend && (
         <div class="banner">
-          No Meta ad spend has been recorded for this window, so <strong>cost&nbsp;per&nbsp;registration</strong> and <strong>ROAS</strong> show “—”.
-          Pull spend from Meta (or import the CSV) on <code>/admin/stats</code> to light these up. Registrations, attendance, conversion &amp; revenue are shown regardless.
+          {excludeFuture && d.future.adSpendEurMinor > 0
+            ? <>Every euro of spend in this window was charged to sessions that haven’t run yet, and those are excluded — so <strong>cost&nbsp;per&nbsp;registration</strong> and <strong>ROAS</strong> show “—”. Set <em>Future events</em> back to <em>Include costs</em> to see them.</>
+            : <>No Meta ad spend has been recorded for this window, so <strong>cost&nbsp;per&nbsp;registration</strong> and <strong>ROAS</strong> show “—”. Pull spend from Meta (or import the CSV) on <code>/admin/stats</code> to light these up.</>}
+          {' '}Registrations, attendance, conversion &amp; revenue are shown regardless.
         </div>
       )}
 
@@ -708,6 +767,62 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
         </div>
         <p class="secondary">Revenue is everything traceable to those registrations — the checkout itself plus the 12-Week / certification sales those people went on to buy, each buyer counted once, and each sale counted in full: a 3×/6×/12× payment plan is one purchase the ad bought, so the whole plan counts on the day it was sold (capped at what will really be charged). Course sales land weeks after the ad spend, so a young window reads low.</p>
       </section>
+
+      {showDoors && (
+        <section>
+          <h2>The masterclass, by door</h2>
+          <p class="note">One event, two landing pages, a prospecting campaign each. Every door is charged <strong>its own campaign’s</strong> money — priced day by day against the registrations <strong>its page</strong> produced — and credited with the seats it sold and the courses those people went on to buy. Together the two are the masterclass card above, taken apart.</p>
+          <div class="econ">
+            {doorCards.map((c) => (
+              <div class="ecard" style={`--accent: ${c.accent}`}>
+                <div class="ehead">
+                  <h3>{c.a.label}</h3>
+                  <span class="eregs">{int(c.a.registrations)} registration{c.a.registrations === 1 ? '' : 's'}</span>
+                </div>
+                <p class="epage"><code>{c.a.path}</code> · {c.angle}</p>
+                <div class="ebody">
+                  <div class="eflow">
+                    <div class="efig">
+                      <span>Ad spend</span>
+                      <b>{eur(Math.round(c.a.allocatedCostEurMinor))}</b>
+                      <em>{c.a.costPerRegistrationEurMinor != null ? `${eur(Math.round(c.a.costPerRegistrationEurMinor))} per registration` : 'nothing charged here'}</em>
+                    </div>
+                    <span class="earrow" aria-hidden="true">→</span>
+                    <div class="efig">
+                      <span>Made back</span>
+                      <b>{eur(c.a.revenueEurMinor)}</b>
+                      <em>
+                        {eur(c.a.ticketRevenueEurMinor)} tickets &amp; bumps · {eur(c.a.courseRevenueEurMinor)} courses from {int(c.a.courseBuyers)} buyer{c.a.courseBuyers === 1 ? '' : 's'}
+                        {c.a.collectedRevenueEurMinor < c.a.revenueEurMinor && (
+                          <> — {eur(c.a.collectedRevenueEurMinor)} charged so far, rest on their payment plans</>
+                        )}
+                      </em>
+                    </div>
+                  </div>
+                  <div class="eroas">
+                    <b class={`e-${econTone(c.a.roas)}`}>{c.a.roas != null ? c.a.roas.toFixed(2) + '×' : '—'}</b>
+                    <span>ROAS so far</span>
+                  </div>
+                </div>
+                <p class="egoal">
+                  {c.a.allocatedCostEurMinor <= 0
+                    ? <>No ad spend charged to this door in this window — nothing to return yet.</>
+                    : c.gapEurMinor > 0
+                      ? <><strong>{eur(Math.round(c.gapEurMinor))}</strong> more revenue from these registrations to reach <strong>{ROAS_TARGET}×</strong> ({eur(Math.round(ROAS_TARGET * c.a.allocatedCostEurMinor))} in total).</>
+                      : <>Past <strong>{ROAS_TARGET}×</strong> — <strong>{eur(Math.round(-c.gapEurMinor))}</strong> above the line.</>}
+                </p>
+              </div>
+            ))}
+          </div>
+          <p class="secondary">
+            {!doors.tracked && <>⚠ No registration in this window recorded the page it came from, so these seats can’t be told apart by door — the spend split is real, the registrations aren’t. </>}
+            {doors.unknown.registrations > 0 && <>{int(doors.unknown.registrations)} masterclass registration{doors.unknown.registrations === 1 ? '' : 's'} recorded no page (a direct <code>/w/…</code> link, or a row from before the column existed): <strong>unknown, not a door</strong>. {eur0(doors.unknown.allocatedCostEurMinor)} of spend and {eur0(doors.unknown.revenueEurMinor)} of income sit with them — counted in the masterclass card above, in neither door here. </>}
+            {doors.sharedSpendEurMinor > 0 && <>{eur0(doors.sharedSpendEurMinor)} of masterclass spend named no door and is split across them by the registrations each took. </>}
+            {doors.unallocatedEurMinor > 0 && <>{eur0(Math.round(doors.unallocatedEurMinor))} of a door’s own spend is charged to nothing: no registration came through that page in this window. </>}
+            Course sales land weeks after the ad spend, so a door opened recently reads low.
+          </p>
+        </section>
+      )}
 
       <section>
         <h2>Recent workshops</h2>
@@ -1017,7 +1132,7 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
       </div>
 
       <div class="flags">
-        <p>Money in EUR. Workshop-engine figures are net of tax where tax data exists; standalone course sales (12-week, certification) are amounts charged so far (installments count paid installments only, refunds subtracted), gross of VAT, converted at fallback FX. Cost per registration uses <strong>prospecting (TOF) spend only</strong> — the campaign that buys new registrations; retargeting spend is excluded from it (but still counts in total ad spend + blended ROAS). <strong>Workshop ROAS</strong> (the tile + the recent-workshop cards) charges each workshop’s income — its registrants’ tickets, order bumps and later 12-Week/certification sales — against that workshop’s share of prospecting (TOF) spend; the weighted-average tile counts each buyer’s course revenue once. The full table below instead allocates <strong>total</strong> ad spend by registration share for its Meta-cost/ROAS columns, so those reconcile with total spend + blended ROAS (spend isn’t tracked per workshop). Figures reconcile with /admin/stats for the same window.</p>
+        <p>Money in EUR. Workshop-engine figures are net of tax where tax data exists; standalone course sales (12-week, certification) are amounts charged so far (installments count paid installments only, refunds subtracted), gross of VAT, converted at fallback FX. Cost per registration uses <strong>prospecting (TOF) spend only</strong> — the campaign that buys new registrations; retargeting spend is excluded from it (but still counts in total ad spend + blended ROAS). <strong>Workshop ROAS</strong> (the tile + the recent-workshop cards) charges each workshop’s income — its registrants’ tickets, order bumps and later 12-Week/certification sales — against that workshop’s share of prospecting (TOF) spend; the weighted-average tile counts each buyer’s course revenue once. The full table below instead allocates <strong>total</strong> ad spend by registration share for its Meta-cost/ROAS columns, so those reconcile with total spend + blended ROAS (spend isn’t tracked per workshop). Figures reconcile with /admin/stats for the same window. <strong>Future events</strong> (the filter above) decides whether sessions that haven’t run yet are in these figures at all: excluding them drops the ad spend already charged to them together with the seats they have sold and what those took, so the ROAS you read is the ROAS of what has actually happened. The daily charts still plot spend on the day it was spent.</p>
         {d.flaggedNoTax > 0 && <p>⚠ {d.flaggedNoTax} workshop payment(s) had no tax data — net taken equal to gross for those.</p>}
         {d.fxConverted > 0 && <p>⚠ {d.fxConverted} course sale(s) charged in a non-EUR currency, converted with the fallback rate table.</p>}
       </div>
@@ -1051,6 +1166,8 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
         function toCustom() { presetSel.value = 'custom'; syncCompare(); }
         fromIn.addEventListener('change', toCustom);
         toIn.addEventListener('change', toCustom);
+        var futureSel = document.getElementById('f-future');
+        if (futureSel) futureSel.addEventListener('change', function () { form.submit(); });
       })();
     </script>
 

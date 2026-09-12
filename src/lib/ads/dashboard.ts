@@ -24,6 +24,8 @@ import {
   type MoneyOpts,
   type WorkshopPerformanceRow,
   type AudienceAcquisition,
+  type MasterclassDoorReport,
+  type FutureEventTotals,
   type StreamDay,
 } from '../workshops/stats';
 import { getFxRatesToEur } from '../admin/fx';
@@ -57,6 +59,12 @@ export type AdsDashboard = {
   // registrations, the masterclass campaigns' against masterclass ones. The
   // blended figure above mixes two products bought at different prices.
   audiences: { workshop: AudienceAcquisition; masterclass: AudienceAcquisition };
+  // The masterclass audience split by the door that sold the seat — the two
+  // landing pages, each with its own TOF campaign.
+  masterclassDoors: MasterclassDoorReport;
+  // Sessions that haven't run yet: what the "exclude costs for future events"
+  // filter left out, or would leave out when it is off.
+  future: FutureEventTotals;
   // Prospecting spend by campaigns naming neither product (charged across both).
   generalAcquisitionSpendEurMinor: number;
   // Prospecting spend on days that produced no registration of the product its
@@ -202,7 +210,15 @@ async function computeDailyRegistrations(
 
 export async function computeAdsDashboard(
   db: D1Database,
-  opts: { from?: string | null; to?: string | null; money?: MoneyOpts } = {},
+  opts: {
+    from?: string | null;
+    to?: string | null;
+    money?: MoneyOpts;
+    // Leave sessions that haven't run yet out of the whole snapshot: their
+    // registrations, the income they've taken, and the ad spend already charged
+    // to them. Cost and income for an event travel together (see periods.ts).
+    excludeFutureEvents?: boolean;
+  } = {},
 ): Promise<AdsDashboard> {
   const from = opts.from ?? null;
   const to = opts.to ?? null;
@@ -216,10 +232,11 @@ export async function computeAdsDashboard(
     taxCfg: opts.money?.taxCfg ?? null,
   };
 
+  const excludeFutureEvents = opts.excludeFutureEvents === true;
   const [stats, courses, perf, courseBumps, dailyRegs] = await Promise.all([
-    computeStats(db, { from, to, money }),
+    computeStats(db, { from, to, money, excludeFutureEvents }),
     computeCourseSales(db, { from, to, money }),
-    computeWorkshopPerformance(db, { from, to, money }),
+    computeWorkshopPerformance(db, { from, to, money, excludeFutureEvents }),
     computeCourseBumps(db, from, to, money.fxRates),
     computeDailyRegistrations(db, from, to),
   ]);
@@ -240,7 +257,11 @@ export async function computeAdsDashboard(
 
   const t = stats.totals;
   const totalRevenueEurMinor = t.netEurMinor + courses.totalNetEurMinor;
-  const adSpendEurMinor = stats.adSpendEurMinor;
+  // Ad spend comes off the performance report rather than computeStats: the two
+  // read the same rows over the same window, but only the performance report
+  // knows which euros were charged to sessions that haven't run yet, so only it
+  // can take them out when the reader asked for that.
+  const adSpendEurMinor = perf.adSpendEurMinor;
 
   // Acquisition series: registrations vs ad spend vs revenue, per day, plus the
   // derived daily cost-per-registration. Built over the same continuous range
@@ -300,6 +321,8 @@ export async function computeAdsDashboard(
     registrations,
     costPerRegistrationEurMinor: perf.costPerRegistrationEurMinor,
     audiences: perf.audiences,
+    masterclassDoors: perf.masterclassDoors,
+    future: perf.future,
     generalAcquisitionSpendEurMinor: perf.generalAcquisitionSpendEurMinor,
     unattributedAcquisitionSpendEurMinor: perf.unattributedAcquisitionSpendEurMinor,
     unallocatedAcquisitionSpendEurMinor: perf.unallocatedAcquisitionSpendEurMinor,

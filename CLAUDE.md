@@ -187,11 +187,15 @@ themselves). Each is the landing page of its own top-of-funnel campaign.
 - **Attribution**: every registration records the page it started on
   (`signup_page`, migration 0083 — `masterclass` / `heal-the-healer` /
   `workshop` / `w`, see `signup-page.ts`), so "which door sold this seat" is a
-  column, not a guess. Ad *spend* still splits by campaign *name*
+  column, not a guess. Ad *spend* splits by campaign *name*
   (`campaignAudience` — the name must carry "Masterclass", plus "TOF" for
-  prospecting), so both doors' spend pools as masterclass on
-  `/admin/workshops/performance`; per-door cost is read per campaign in Ads
-  Manager, per-door seats from `signup_page`. The page-change bookmarks
+  prospecting), so both doors' spend pools as masterclass wherever the *product*
+  is the question. Since September 2026 the name also carries the **door**
+  ("Missing Tool" / "Heal The Healer", `campaignMasterclassDoor`), so
+  `/admin/stats` and `/ads` show a card per door — its own campaign's money
+  against the seats *its* page sold and the courses those people bought (see
+  "Ad attribution" below). Keep the door in the campaign name or its spend falls
+  back to the shared pool and the split goes quiet. The page-change bookmarks
   (`experiments.ts`, one panel each on the performance page) cover both doors,
   since they share `MCRegister` — including `MC_PAGE_OFFERS_WORKSHOPS`.
 - **Price tokens** on these pages (`44€` in `MCWhat`, `MCPath`, `HHWhat`) carry
@@ -1210,6 +1214,51 @@ standalone 12-week/cert revenue of the people who registered for them, each
 buyer counted **once** (summing the per-session rows would count a buyer again
 for every session they attended). Adding a third
 TOF product = add its token here and its scope in `computeWorkshopPerformance`.
+
+**And a masterclass campaign only buys its own door** (`campaignMasterclassDoor`
+in [`campaigns.ts`](src/lib/ads/campaigns.ts), September 2026): the masterclass
+runs **two** TOF campaigns, one per landing page — `… SVH Masterclass (Missing
+Tool)` → `/courses/masterclass`, `… SVH Masterclass (Heal The Healer)` →
+`/courses/heal-the-healer`. Both are `campaignAudience === 'masterclass'`, so the
+*product* figures above pool them exactly as before — that is what a masterclass
+seat costs. A second classification splits that pool one level down, because
+"which door is worth its spend" is otherwise unanswerable: a door's own campaigns
+are priced **day by day against the registrations its own page produced**
+(`signup_page`, migration 0083 — the door keys **are** the `signup_page` values,
+so campaign → door → page is one string and cannot drift). Masterclass spend
+naming no door, plus the masterclass share of campaigns naming no product, is
+**shared** across the doors by the registrations each took. It rides on
+`report.masterclassDoors` (`DoorAcquisition`, same shape as an audience, with
+tickets and course sales split out), and `/admin/stats` + `/ads` render two cards
+**directly under** the workshop/masterclass ones. Three rules keep it honest: a
+masterclass registration with no page recorded is **unknown, not a door** (a
+direct `/w/<slug>` link, or a row from before 0083 — its spend and income are
+reported beside the cards and belong to neither); a door whose page took no
+registration in the window has its spend **charged to nothing** rather than to
+the other door's seats; and so doors + unknown add back to the masterclass card
+*except* by exactly that unallocated amount.
+
+**"Include costs for future events / Exclude costs"** (`FUTURE_COSTS_PARAM` /
+`excludeFutureEventsFrom` in [`periods.ts`](src/lib/workshops/periods.ts),
+September 2026): ad money is paid **before** a session runs and the income it
+buys — the ticket now, the 12-week/certification sale weeks later — lands after
+it. So every window reaching today carries the cost of sessions that haven't
+happened against none of their return, and ROAS reads permanently behind the
+facts, worst of all on "all time". The toggle on the date selector of **both**
+`/ads` and `/admin/stats` drops upcoming sessions from the whole snapshot:
+`excludeFutureEvents` on `computeWorkshopPerformance` (their rows, their
+registrations and — the point of it — the ad spend allocated to them) and on
+`computeStats` (the checkout income those seats have taken). **Cost and income
+for an event travel together**, or the ROAS is only a different lie. Two things
+make the arithmetic right: the allocation always runs over **every**
+registration, upcoming included, so a day's price stays what that day's money
+really bought — the upcoming half is then *dropped, never re-spread* onto the
+sessions that remain — and "upcoming" is the site-wide rule (`ends_at_utc`, or
+`starts_at_utc` when null, still ahead; a replay is never upcoming). Ad spend on
+those two pages now comes off `computeWorkshopPerformance` rather than
+`computeStats`, since only the allocation knows which euros were charged to a
+session that hasn't run. With the filter **off**, both dashboards say how much
+spend is riding on sessions that haven't happened yet.
 
 **A registration costs what it cost *that day*** ([`src/lib/ads/allocation.ts`](src/lib/ads/allocation.ts),
 July 2026): the per-workshop ad cost used to be one window-wide average — total
