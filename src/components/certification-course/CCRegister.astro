@@ -1,9 +1,13 @@
 ---
-import { COUNTRIES } from '../../lib/countries';
+import { COUNTRIES, COUNTRIES_PRIORITY, COUNTRIES_OTHER } from '../../lib/countries';
 import LaunchOfferCallout from '../promo/LaunchOfferCallout.astro';
 import GuaranteeBadge from '../GuaranteeBadge.astro';
 
 const countries = COUNTRIES;
+// Split for the <select> optgroups — the markets we sell most to first, then
+// every other country alphabetically (see lib/countries.ts).
+const countriesPriority = COUNTRIES_PRIORITY;
+const countriesOther = COUNTRIES_OTHER;
 ---
 
 <section class="cc-register" id="register">
@@ -125,9 +129,16 @@ const countries = COUNTRIES;
                 <span>Country</span>
                 <select name="shipping_country" autocomplete="country">
                   <option value="">—</option>
-                  {countries.map((c) => (
-                    <option value={c.code}>{c.flag} {c.name}</option>
-                  ))}
+                  <optgroup label="Frequently chosen">
+                    {countriesPriority.map((c) => (
+                      <option value={c.code}>{c.flag} {c.name}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="All countries">
+                    {countriesOther.map((c) => (
+                      <option value={c.code}>{c.flag} {c.name}</option>
+                    ))}
+                  </optgroup>
                 </select>
               </label>
             </div>
@@ -176,9 +187,16 @@ const countries = COUNTRIES;
               <div class="cc-phone-grid">
                 <select name="phone_country" required aria-label="Phone country">
                   <option value="">—</option>
-                  {countries.map((c) => (
-                    <option value={c.code} data-dial={c.dial}>{c.flag} +{c.dial}</option>
-                  ))}
+                  <optgroup label="Frequently chosen">
+                    {countriesPriority.map((c) => (
+                      <option value={c.code} data-dial={c.dial}>{c.flag} +{c.dial} {c.name}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="All countries">
+                    {countriesOther.map((c) => (
+                      <option value={c.code} data-dial={c.dial}>{c.flag} +{c.dial} {c.name}</option>
+                    ))}
+                  </optgroup>
                 </select>
                 <input type="tel" name="phone" placeholder="Phone number" autocomplete="tel" required />
               </div>

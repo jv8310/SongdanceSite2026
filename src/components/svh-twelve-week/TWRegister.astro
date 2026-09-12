@@ -1,6 +1,6 @@
 ---
 import { SESSION_URL } from './config';
-import { COUNTRIES } from '../../lib/countries';
+import { COUNTRIES, COUNTRIES_PRIORITY, COUNTRIES_OTHER } from '../../lib/countries';
 import LaunchOfferCallout from '../promo/LaunchOfferCallout.astro';
 import GuaranteeBadge from '../GuaranteeBadge.astro';
 
@@ -162,9 +162,16 @@ const includes = [
                 <span>Country</span>
                 <select name="shipping_country" autocomplete="country">
                   <option value="">—</option>
-                  {COUNTRIES.map((c) => (
-                    <option value={c.code}>{c.flag} {c.name}</option>
-                  ))}
+                  <optgroup label="Frequently chosen">
+                    {COUNTRIES_PRIORITY.map((c) => (
+                      <option value={c.code}>{c.flag} {c.name}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="All countries">
+                    {COUNTRIES_OTHER.map((c) => (
+                      <option value={c.code}>{c.flag} {c.name}</option>
+                    ))}
+                  </optgroup>
                 </select>
               </label>
             </div>

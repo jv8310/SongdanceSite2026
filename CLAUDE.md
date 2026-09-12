@@ -42,6 +42,38 @@ which must stay in sync — edit the data, not the markup:
 Course price labels in the menu carry `data-sd-price` so `PriceSync` localizes
 the currency (workshop ticket + masterclass only).
 
+## Countries — one complete list, or people can't register
+
+Every country picker, shipping-country picker and **phone dial-code** selector
+on the site reads [`src/lib/countries.ts`](src/lib/countries.ts) — and so does
+the server: `findCountry` gates `country` **and** `phone_country` on every
+checkout (`registrations/checkout`, `dolphin-checkout`, both course checkouts,
+`grief-checkout`, `journey-checkout`, `music/checkout`, `registrations/waitlist`).
+A country missing from that file therefore cannot register at all, silently —
+the form simply has no row for where they live.
+
+It used to hold **46** entries (Europe plus our biggest markets), which is what
+a phone picker offering "+32 … +64" and nothing else looked like. It now holds
+the **complete** ISO 3166-1 set (243 rows, the same code set
+[`src/lib/workshops/countries.ts`](src/lib/workshops/countries.ts) uses for the
+workshop country field). Two rules for anything touching it:
+
+- **`dial` is the country calling code, never a NANP area code** — Jamaica is
+  `1`, not `1876`. The field beside the picker takes the *national* number,
+  which in those countries already starts with its area code, and the server
+  composes `+<dial><national>`.
+- **A `<select>` renders two optgroups**, `COUNTRIES_PRIORITY` ("Frequently
+  chosen" — Belgium/Netherlands, the rest of Europe, then the biggest
+  non-European markets, the order this list has always had) then
+  `COUNTRIES_OTHER` ("All countries", alphabetical). `COUNTRIES` is the two
+  concatenated, for the datalists (`CCRegister`, `TWRegister`, `GriefRegister`,
+  `JourneyRegister`) where typing filters and order doesn't matter. Phone
+  options carry the **country name** after the dial code: ~20 countries share
+  `+1` and a flag alone doesn't tell Anguilla from Jamaica.
+
+Currency/VAT need no update per country — `currencyForCountry` falls through to
+EUR and Quaderno returns 0% for anywhere we hold no rate.
+
 ## Typography law — inline italics must be sized UP
 
 The display/lyric font **Cormorant Garamond** (`--font-lyric`) optically reads
