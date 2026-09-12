@@ -105,3 +105,22 @@ export function presetRangesMap(): Record<string, { from: string | null; to: str
     PERIOD_PRESETS.filter(([v]) => v !== 'custom').map(([v]) => [v, presetRange(v, today)]),
   );
 }
+
+// ---------------------------------------------------------------------------
+// "Include costs for future events / Exclude costs" — the other filter both
+// dashboards carry.
+//
+// Ad spend is paid before an event happens; the revenue that spend buys (the
+// ticket, and weeks later the 12-week / certification sale) lands after it. So
+// every window that reaches today carries the cost of sessions that haven't run
+// yet against none of the income they will produce, and ROAS reads permanently
+// behind the facts — worst of all on "all time", the window that should be the
+// honest one. Excluding upcoming events leaves the ROAS of what has actually
+// happened.
+
+export const FUTURE_COSTS_PARAM = 'future';
+
+/** True when the reader asked to leave upcoming sessions out of the window. */
+export function excludeFutureEventsFrom(params: URLSearchParams): boolean {
+  return params.get(FUTURE_COSTS_PARAM) === 'exclude';
+}

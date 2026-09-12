@@ -21,8 +21,13 @@ import {
   isAcquisitionCampaign,
   campaignKind,
   campaignAudience,
+  campaignMasterclassDoor,
+  MASTERCLASS_DOORS,
+  MASTERCLASS_DOOR_LABEL,
+  MASTERCLASS_DOOR_PATH,
   type CampaignKind,
   type CampaignAudience,
+  type MasterclassDoor,
 } from '../ads/campaigns';
 import { allocateSpendPools, type SpendPool } from '../ads/allocation';
 import { getTaxRate, netFromGross, type QuadernoTaxConfig } from './quaderno';
@@ -298,6 +303,17 @@ function netEurMinor(p: PaymentRow, grossEur: number): { net: number; flagged: b
   return { net: grossEur, flagged: true };
 }
 
+// A session that hasn't happened yet, as a SQL predicate on a
+// `workshop_registrations r` join: not an always-on replay, and its end (or
+// its start, when it has no end) is still ahead of the bound timestamp. Same
+// rule as listUpcomingPublishedWorkshops, so "upcoming" means one thing
+// site-wide. Two binds, both the current ISO timestamp.
+const NOT_A_FUTURE_SESSION = `NOT EXISTS (
+      SELECT 1 FROM workshops fw
+       WHERE fw.id = r.workshop_id AND fw.is_replay = 0
+         AND ((fw.ends_at_utc IS NOT NULL AND fw.ends_at_utc > ?)
+           OR (fw.ends_at_utc IS NULL AND fw.starts_at_utc > ?)))`;
+
 export async function computeStats(
   db: D1Database,
   opts: {
@@ -305,6 +321,12 @@ export async function computeStats(
     to?: string | null;
     workshopId?: number | null;
     money?: MoneyOpts;
+    // Leave out sessions that haven't run yet (see periods.ts). Their ad spend
+    // is already paid and none of the income it buys has landed, so a window
+    // reaching today reads behind the facts. Cost and income for an event
+    // travel together: excluding the cost means excluding the tickets it has
+    // sold so far too, which is what this drops here.
+    excludeFutureEvents?: boolean;
   } = {},
 ): Promise<StatsReport> {
   // Currency→EUR for charges with no EUR settlement figure. Resolved here when
@@ -324,6 +346,11 @@ export async function computeStats(
   if (opts.workshopId) {
     where.push('r.workshop_id = ?');
     binds.push(opts.workshopId);
+  }
+  if (opts.excludeFutureEvents) {
+    const nowIso = new Date().toISOString();
+    where.push(NOT_A_FUTURE_SESSION);
+    binds.push(nowIso, nowIso);
   }
 
   const pRes = await db
@@ -751,6 +778,87 @@ export type AudienceAcquisition = {
   roas: number | null;
 };
 
+// ---------------------------------------------------------------------------
+// The masterclass's two doors.
+//
+// One event, two landing pages (CLAUDE.md, "one event, two doors"), each the
+// landing page of its own TOF campaign. The masterclass card above pools them,
+// which is the right answer to "what does a masterclass seat cost" — it just
+// cannot answer "which door is worth its spend", and with two campaigns running
+// that is the live question.
+//
+// So the same day-by-day model runs one level down: a door's own campaigns
+// (campaignMasterclassDoor) are priced against the registrations its own PAGE
+// produced (`signup_page`, migration 0083), and masterclass money that names no
+// door is shared across both by the registrations each took.
+export type DoorAcquisition = {
+  door: MasterclassDoor;
+  label: string;
+  /** The landing page this door sells through — also its `signup_page` key. */
+  path: string;
+  registrations: number;
+  /** Prospecting spend by the campaigns naming this door. */
+  acquisitionSpendEurMinor: number;
+  /**
+   * What this door was actually charged: the above priced day by day against
+   * its own registrations, plus its share of masterclass spend that names no
+   * door (and of campaigns that name no product at all).
+   */
+  allocatedCostEurMinor: number;
+  costPerRegistrationEurMinor: number | null;
+  /** Checkout income from this door's seats — tickets and their order bumps. */
+  ticketRevenueEurMinor: number;
+  /**
+   * 12-week / certification sales from the people this door registered, each
+   * buyer counted once and each sale counted in full (contractedMinorOf), the
+   * same way the product cards count them.
+   */
+  courseRevenueEurMinor: number;
+  /** How many of them bought one (distinct emails). */
+  courseBuyers: number;
+  revenueEurMinor: number;
+  collectedRevenueEurMinor: number;
+  roas: number | null;
+};
+
+export type MasterclassDoorReport = {
+  doors: DoorAcquisition[];
+  /**
+   * Masterclass registrations whose page was never recorded — rows from before
+   * migration 0083, and seats taken on a direct /w/<slug> link. UNKNOWN, not
+   * zero: the doors do not add up to the masterclass without these, and a
+   * readout that hides them is claiming a split it doesn't have.
+   */
+  unknown: { registrations: number; allocatedCostEurMinor: number; revenueEurMinor: number };
+  /** True once any masterclass registration in the window carries a page. */
+  tracked: boolean;
+  /**
+   * A door's own spend that could not be charged to it: no registration came
+   * through that page in the window. Charging it to the other door is exactly
+   * the mis-attribution this split exists to remove, so it is reported instead.
+   */
+  unallocatedEurMinor: number;
+  /** Masterclass spend naming no door, split across the doors by registrations. */
+  sharedSpendEurMinor: number;
+};
+
+// Sessions that haven't run yet: what the "exclude costs for future events"
+// filter leaves out — and, when it is off, what it would leave out, so the
+// dashboards can say what is riding on events that haven't happened.
+export type FutureEventTotals = {
+  /** Was the filter on for this report? */
+  excluded: boolean;
+  /** Upcoming sessions that took a registration in the window. */
+  sessions: number;
+  registrations: number;
+  /** Total-spend share charged to those sessions. */
+  adSpendEurMinor: number;
+  /** Prospecting (TOF) share of the same. */
+  acquisitionSpendEurMinor: number;
+  /** Checkout income those sessions have already taken. */
+  engineRevenueEurMinor: number;
+};
+
 export type WorkshopPerformanceReport = {
   rows: WorkshopPerformanceRow[];
   adSpendEurMinor: number; // all campaigns
@@ -784,6 +892,13 @@ export type WorkshopPerformanceReport = {
   // costPerRegistrationEurMinor above mixes two products bought at different
   // prices.
   audiences: { workshop: AudienceAcquisition; masterclass: AudienceAcquisition };
+  // The masterclass audience split by the door (landing page + campaign) that
+  // sold the seat. The two doors' figures are the masterclass card taken apart,
+  // not a second measurement of it.
+  masterclassDoors: MasterclassDoorReport;
+  // Sessions that haven't run yet — dropped from every figure above when
+  // `excludeFutureEvents` is on, reported either way.
+  future: FutureEventTotals;
   // Prospecting spend by campaigns naming neither product, spread across both.
   generalAcquisitionSpendEurMinor: number;
   // Workshop-only ROAS (weighted average): every euro of income that traces to
@@ -808,7 +923,10 @@ export const ROAS_TARGET = 2;
  * Revenue still needed for this product to reach `target` ROAS. Negative means
  * it is already past the line by that much.
  */
-export function roasGapEurMinor(a: AudienceAcquisition, target: number = ROAS_TARGET): number {
+export function roasGapEurMinor(
+  a: Pick<AudienceAcquisition, 'allocatedCostEurMinor' | 'revenueEurMinor'>,
+  target: number = ROAS_TARGET,
+): number {
   return target * a.allocatedCostEurMinor - a.revenueEurMinor;
 }
 
@@ -820,9 +938,39 @@ function parseUtcMs(s: string | null | undefined): number | null {
   return Number.isFinite(ms) ? ms : null;
 }
 
+// The buckets the door allocation is charged to. `allocateSpendPools` works in
+// numeric ids (it was written for workshop ids), so a door bucket is an id too:
+// the door's index, plus an offset when the session hasn't run yet. Keeping
+// past and future apart INSIDE the grid is what lets the day prices stay true —
+// a day's spend really did buy those upcoming seats — while "exclude upcoming"
+// can still drop that half afterwards.
+const DOOR_KEYS = ['masterclass', 'heal-the-healer', 'unknown'] as const;
+type DoorKey = (typeof DOOR_KEYS)[number];
+const FUTURE_BUCKET = 10;
+const doorBucketId = (door: DoorKey, future: boolean): number =>
+  DOOR_KEYS.indexOf(door) + (future ? FUTURE_BUCKET : 0);
+const doorOfBucket = (id: number): DoorKey => DOOR_KEYS[id % FUTURE_BUCKET];
+const isFutureBucket = (id: number): boolean => id >= FUTURE_BUCKET;
+
+// Which door a registration came through. Anything that is not one of the two
+// masterclass pages — a direct /w/<slug> link, or a row from before migration
+// 0083 — is UNKNOWN, never silently assigned to a door.
+const doorOfPage = (page: string | null | undefined): DoorKey => {
+  const value = (page ?? '').trim();
+  return (MASTERCLASS_DOORS as readonly string[]).includes(value) ? (value as DoorKey) : 'unknown';
+};
+
 export async function computeWorkshopPerformance(
   db: D1Database,
-  opts: { from?: string | null; to?: string | null; money?: MoneyOpts } = {},
+  opts: {
+    from?: string | null;
+    to?: string | null;
+    money?: MoneyOpts;
+    // Drop sessions that haven't run yet from every figure: their registrations,
+    // the checkout income they have taken, and — the point of it — the ad spend
+    // already charged to them. See periods.ts.
+    excludeFutureEvents?: boolean;
+  } = {},
 ): Promise<WorkshopPerformanceReport> {
   // See computeStats: never count a non-EUR charge at face value.
   const fxRates = opts.money?.fxRates ?? (await getFxRatesToEur(db));
@@ -860,20 +1008,34 @@ export async function computeWorkshopPerformance(
     (w.is_masterclass === 1 ? masterclassIds : workshopIds).add(w.id);
   }
 
+  // Sessions that haven't run yet. A replay is never one of them — it is
+  // on-demand, so it has already "happened" for everyone who registered. The
+  // spend charged to these is real spend against income that cannot have landed
+  // yet, which is what `excludeFutureEvents` takes out.
+  const nowMs = Date.now();
+  const futureIds = new Set<number>();
+  for (const w of workshopRows) {
+    if (w.is_replay === 1) continue;
+    const endMs = parseUtcMs(w.ends_at_utc) ?? parseUtcMs(w.starts_at_utc);
+    if (endMs != null && endMs > nowMs) futureIds.add(w.id);
+  }
+  const excludeFuture = opts.excludeFutureEvents === true;
+  const counted = (id: number): boolean => !excludeFuture || !futureIds.has(id);
+
   // Completed registrations (paid or coupon) in the window. `reg_date` is the
   // UTC day the registration came in — the day whose ad spend bought it.
   const regBinds: unknown[] = [];
   const regRes = await db
     .prepare(
       `SELECT workshop_id, lower(email) AS email, attendance_status, joined_at_utc,
-              substr(created_at, 1, 10) AS reg_date
+              signup_page, substr(created_at, 1, 10) AS reg_date
          FROM workshop_registrations
         WHERE payment_status IN ('paid','coupon')${win('created_at', regBinds)}`,
     )
     .bind(...regBinds)
     .all<{
       workshop_id: number; email: string; attendance_status: string;
-      joined_at_utc: string | null; reg_date: string;
+      joined_at_utc: string | null; signup_page: string | null; reg_date: string;
     }>();
 
   // Bump purchases (paid) per workshop.
@@ -895,7 +1057,7 @@ export async function computeWorkshopPerformance(
   const addonBinds: unknown[] = [];
   const addonRes = await db
     .prepare(
-      `SELECT r.workshop_id, lower(r.email) AS email, prod.slug AS slug
+      `SELECT r.workshop_id, lower(r.email) AS email, r.signup_page, prod.slug AS slug
          FROM workshop_purchases pur
          JOIN workshop_payments p ON p.id = pur.payment_id AND p.status = 'paid'
          JOIN workshop_registrations r ON r.id = pur.registration_id
@@ -903,21 +1065,21 @@ export async function computeWorkshopPerformance(
         WHERE pur.product_type = 'course'${win('p.created_at', addonBinds)}`,
     )
     .bind(...addonBinds)
-    .all<{ workshop_id: number; email: string; slug: string }>();
+    .all<{ workshop_id: number; email: string; signup_page: string | null; slug: string }>();
 
   // Engine revenue (net EUR) per workshop.
   const payBinds: unknown[] = [];
   const payRes = await db
     .prepare(
-      `SELECT r.workshop_id, p.amount_minor, p.currency, p.settlement_amount_minor,
-              p.settlement_currency, p.subtotal_minor
+      `SELECT r.workshop_id, r.signup_page, p.amount_minor, p.currency,
+              p.settlement_amount_minor, p.settlement_currency, p.subtotal_minor
          FROM workshop_payments p
          JOIN workshop_registrations r ON r.id = p.registration_id
         WHERE p.status = 'paid'${win('p.created_at', payBinds)}`,
     )
     .bind(...payBinds)
     .all<{
-      workshop_id: number; amount_minor: number; currency: string;
+      workshop_id: number; signup_page: string | null; amount_minor: number; currency: string;
       settlement_amount_minor: number | null; settlement_currency: string | null;
       subtotal_minor: number | null;
     }>();
@@ -987,6 +1149,16 @@ export async function computeWorkshopPerformance(
   const adByAudienceDate = emptyByAudience();
   const acqByAudienceDate = emptyByAudience();
   const acqSpendByAudience: Record<CampaignAudience, number> = { workshop: 0, masterclass: 0, general: 0 };
+  // ...and the masterclass pool once more, by the door its campaign names. A
+  // masterclass campaign naming no door goes to `shared` and is split across
+  // both doors by the registrations each took, never guessed at.
+  type DoorSpendKey = MasterclassDoor | 'shared';
+  const doorSpendByDate: Record<DoorSpendKey, Map<string, number>> = {
+    masterclass: new Map(), 'heal-the-healer': new Map(), shared: new Map(),
+  };
+  const doorSpendTotal: Record<DoorSpendKey, number> = {
+    masterclass: 0, 'heal-the-healer': 0, shared: 0,
+  };
   const bump = (m: Map<string, number>, date: string, v: number) => m.set(date, (m.get(date) ?? 0) + v);
   for (const a of adRes.results ?? []) {
     const eur = a.amount_eur_minor ?? (a.currency === 'EUR' ? a.amount_minor : 0);
@@ -999,6 +1171,11 @@ export async function computeWorkshopPerformance(
       acqSpendByAudience[audience] += eur;
       bump(acqByDate, a.spend_date, eur);
       bump(acqByAudienceDate[audience], a.spend_date, eur);
+      if (audience === 'masterclass') {
+        const door: DoorSpendKey = campaignMasterclassDoor(a.campaign) ?? 'shared';
+        doorSpendTotal[door] += eur;
+        bump(doorSpendByDate[door], a.spend_date, eur);
+      }
     }
   }
 
@@ -1018,6 +1195,30 @@ export async function computeWorkshopPerformance(
     }
     return a;
   };
+  // The door grid: the same accumulator, keyed by door bucket instead of
+  // session, over masterclass registrations only. (A door's page sells a
+  // masterclass seat; if it ever sells a workshop seat again — see
+  // MC_PAGE_OFFERS_WORKSHOPS — that seat belongs to the workshop product's
+  // spend, so it is counted there and not here.)
+  type DoorAcc = {
+    regs: number; emails: Set<string>;
+    engineNetEurMinor: number; courseEmails: Set<string>;
+  };
+  const doorAccs = new Map<number, DoorAcc>();
+  const doorAcc = (id: number): DoorAcc => {
+    let a = doorAccs.get(id);
+    if (!a) {
+      a = { regs: 0, emails: new Set(), engineNetEurMinor: 0, courseEmails: new Set() };
+      doorAccs.set(id, a);
+    }
+    return a;
+  };
+  const doorBucketOf = (workshopId: number, page: string | null): number =>
+    doorBucketId(doorOfPage(page), futureIds.has(workshopId));
+  const doorRegsByDate = new Map<string, Map<number, number>>();
+  const doorRegsByBucket = new Map<number, number>();
+  let anySignupPage = false;
+
   const endMsByWorkshop = new Map<number, { endMs: number | null; isReplay: boolean }>();
   for (const w of workshopRows) {
     const startMs = parseUtcMs(w.starts_at_utc);
@@ -1029,6 +1230,9 @@ export async function computeWorkshopPerformance(
   // the denominator for "did this course buyer come through a workshop?", used
   // to count standalone course revenue once (not once per workshop attended).
   const allRegEmails = new Set<string>();
+  // The same set restricted to sessions that have run — what the distinct
+  // course revenue is counted over when upcoming events are excluded.
+  const pastRegEmails = new Set<string>();
   // Registrations per day per workshop — the grid the daily ad-spend allocation
   // is charged against.
   const regsByDateWorkshop = new Map<string, Map<number, number>>();
@@ -1037,9 +1241,22 @@ export async function computeWorkshopPerformance(
     a.regs += 1;
     a.emails.add(r.email);
     allRegEmails.add(r.email);
+    if (!futureIds.has(r.workshop_id)) pastRegEmails.add(r.email);
     let perDay = regsByDateWorkshop.get(r.reg_date);
     if (!perDay) { perDay = new Map(); regsByDateWorkshop.set(r.reg_date, perDay); }
     perDay.set(r.workshop_id, (perDay.get(r.workshop_id) ?? 0) + 1);
+    if (masterclassIds.has(r.workshop_id)) {
+      // Only a masterclass seat can tell us whether the doors are readable yet.
+      if (r.signup_page) anySignupPage = true;
+      const bucket = doorBucketOf(r.workshop_id, r.signup_page);
+      const da = doorAcc(bucket);
+      da.regs += 1;
+      da.emails.add(r.email);
+      let perDoor = doorRegsByDate.get(r.reg_date);
+      if (!perDoor) { perDoor = new Map(); doorRegsByDate.set(r.reg_date, perDoor); }
+      perDoor.set(bucket, (perDoor.get(bucket) ?? 0) + 1);
+      doorRegsByBucket.set(bucket, (doorRegsByBucket.get(bucket) ?? 0) + 1);
+    }
     if (r.attendance_status === 'no_show') {
       a.noShow += 1;
     } else if (r.attendance_status === 'attended') {
@@ -1056,21 +1273,25 @@ export async function computeWorkshopPerformance(
     const a = acc(c.workshop_id);
     if (c.slug === '12w-course') a.engineTw.add(c.email);
     if (c.slug === 'cert-course') a.engineCert.add(c.email);
+    if (masterclassIds.has(c.workshop_id) && (c.slug === '12w-course' || c.slug === 'cert-course')) {
+      doorAcc(doorBucketOf(c.workshop_id, c.signup_page)).courseEmails.add(c.email);
+    }
   }
   for (const p of payRes.results ?? []) {
     const slim = p as unknown as PaymentRow;
     const gross = grossEurMinor(slim, fxRates);
-    acc(p.workshop_id).netEurMinor += netEurMinor(slim, gross).net;
+    const net = netEurMinor(slim, gross).net;
+    acc(p.workshop_id).netEurMinor += net;
+    if (masterclassIds.has(p.workshop_id)) {
+      doorAcc(doorBucketOf(p.workshop_id, p.signup_page)).engineNetEurMinor += net;
+    }
   }
 
-  const totalRegistrations = [...accs.values()].reduce((s, a) => s + a.regs, 0);
-  // Window-wide cost per registration = prospecting (TOF) spend ÷
-  // registrations. This is the weighted average of the daily prices below, and
-  // the per-workshop day-by-day costs sum back to exactly this.
-  const costPerRegistrationEurMinor =
-    acquisitionSpendEurMinor > 0 && totalRegistrations > 0
-      ? acquisitionSpendEurMinor / totalRegistrations
-      : null;
+  // (Window totals — registrations and the cost of one — are computed after the
+  // allocation below: what they cover depends on `excludeFutureEvents`, and the
+  // allocation itself must always run over EVERY registration, upcoming
+  // sessions included, or the day prices would be wrong for the seats that
+  // money really bought.)
 
   // Day-by-day allocation: every registration carries the price of a
   // registration on the day it came in (that day's spend ÷ that day's
@@ -1099,6 +1320,41 @@ export async function computeWorkshopPerformance(
   const acqWorkshopPrices = acqAllocation.pools.get('workshop')!.costPerRegistrationByDate;
   const acqMasterclassPrices = acqAllocation.pools.get('masterclass')!.costPerRegistrationByDate;
   const acqGeneralPrices = acqAllocation.pools.get('general')!.costPerRegistrationByDate;
+
+  // ---- The same allocation one level down: the masterclass's two doors ----
+  // Each door's own campaigns are priced day by day against the registrations
+  // its page produced; masterclass spend naming no door is shared across both
+  // (scope null) — and so is the masterclass's share of campaigns that name no
+  // product at all, which is that day's general price × the masterclass
+  // registrations it bought. The doors are therefore the masterclass card taken
+  // apart, not a second, differently-derived measurement of it.
+  const sharedDoorSpendByDate = new Map<string, number>(doorSpendByDate.shared);
+  let generalToDoorsEurMinor = 0;
+  for (const [date, perDoor] of doorRegsByDate) {
+    let mcRegs = 0;
+    for (const n of perDoor.values()) mcRegs += n;
+    const generalPrice = acqGeneralPrices.get(date) ?? 0;
+    if (mcRegs > 0 && generalPrice > 0) {
+      const share = generalPrice * mcRegs;
+      generalToDoorsEurMinor += share;
+      sharedDoorSpendByDate.set(date, (sharedDoorSpendByDate.get(date) ?? 0) + share);
+    }
+  }
+  const doorScope = (door: MasterclassDoor): Set<number> =>
+    new Set([doorBucketId(door, false), doorBucketId(door, true)]);
+  const doorAllocation = allocateSpendPools(
+    [
+      ...MASTERCLASS_DOORS.map((door) => ({
+        key: door,
+        spendByDate: doorSpendByDate[door],
+        scope: doorScope(door),
+      })),
+      { key: 'shared', spendByDate: sharedDoorSpendByDate, scope: null },
+    ],
+    doorRegsByDate,
+    doorRegsByBucket,
+  );
+
   const costDates = [...new Set([...adByDate.keys(), ...acqByDate.keys(), ...regsByDateWorkshop.keys()])].sort();
   const dailyCosts: DailyAcquisitionCost[] = costDates.map((date) => {
     let registrations = 0;
@@ -1212,15 +1468,67 @@ export async function computeWorkshopPerformance(
     };
   });
 
+  // ---- Sessions that haven't run yet ----
+  // Their share of the spend is real money already paid against income that
+  // cannot have arrived, so it is reported either way and taken out of every
+  // figure when the reader asked for that. The allocation above ran over the
+  // whole grid, so what is dropped here is exactly what those sessions' own
+  // registrations were priced at — nothing is re-spread onto the sessions that
+  // remain (that would move the cost of an upcoming seat onto a past one).
+  const sumOverFuture = (byWorkshop: Map<number, number>): number => {
+    let v = 0;
+    for (const id of futureIds) v += byWorkshop.get(id) ?? 0;
+    return v;
+  };
+  const futurePoolSpend = (key: CampaignAudience): number => {
+    const alloc = acqAllocation.pools.get(key);
+    return alloc ? sumOverFuture(alloc.byWorkshop) : 0;
+  };
+  let futureSessions = 0;
+  let futureRegistrations = 0;
+  let futureEngineRevenueEurMinor = 0;
+  for (const [id, a] of accs) {
+    if (!futureIds.has(id) || a.regs === 0) continue;
+    futureSessions += 1;
+    futureRegistrations += a.regs;
+    futureEngineRevenueEurMinor += a.netEurMinor;
+  }
+  const future: FutureEventTotals = {
+    excluded: excludeFuture,
+    sessions: futureSessions,
+    registrations: futureRegistrations,
+    adSpendEurMinor: Math.round(sumOverFuture(totalAllocation.byWorkshop)),
+    acquisitionSpendEurMinor: Math.round(sumOverFuture(acqAllocation.byWorkshop)),
+    engineRevenueEurMinor: futureEngineRevenueEurMinor,
+  };
+
+  // Everything below counts only the sessions this report covers.
+  const reportRows = excludeFuture ? rows.filter((r) => !futureIds.has(r.workshopId)) : rows;
+  const reportAdSpendEurMinor = adSpendEurMinor - (excludeFuture ? future.adSpendEurMinor : 0);
+  const reportAcquisitionSpendEurMinor =
+    acquisitionSpendEurMinor - (excludeFuture ? future.acquisitionSpendEurMinor : 0);
+  const audienceSpend = (key: CampaignAudience): number =>
+    acqSpendByAudience[key] - (excludeFuture ? Math.round(futurePoolSpend(key)) : 0);
+
+  // Window-wide cost per registration = prospecting (TOF) spend ÷
+  // registrations. This is the weighted average of the daily prices above, and
+  // the per-workshop day-by-day costs sum back to exactly this.
+  const totalRegistrations = [...accs].reduce((n, [id, a]) => n + (counted(id) ? a.regs : 0), 0);
+  const costPerRegistrationEurMinor =
+    reportAcquisitionSpendEurMinor > 0 && totalRegistrations > 0
+      ? reportAcquisitionSpendEurMinor / totalRegistrations
+      : null;
+
   // Workshop-only revenue for the weighted-average ROAS: engine net across all
   // workshops (each payment counted once) + standalone course revenue from
   // emails that registered for ANY workshop (each buyer counted once, so a
   // multi-workshop buyer isn't double-counted the way per-row figures are).
-  const engineNetTotal = [...accs.values()].reduce((s, a) => s + a.netEurMinor, 0);
+  const engineNetTotal = [...accs].reduce((n, [id, a]) => n + (counted(id) ? a.netEurMinor : 0), 0);
+  const countedRegEmails = excludeFuture ? pastRegEmails : allRegEmails;
   let attributedDistinctEurMinor = 0;
   let attributedDistinctCollectedEurMinor = 0;
   for (const [email, s] of standalone) {
-    if (!allRegEmails.has(email)) continue;
+    if (!countedRegEmails.has(email)) continue;
     attributedDistinctEurMinor += s.eurMinor;
     attributedDistinctCollectedEurMinor += s.collectedEurMinor;
   }
@@ -1234,7 +1542,7 @@ export async function computeWorkshopPerformance(
     const ids = isMasterclass ? masterclassIds : workshopIds;
     let registrations = 0;
     let allocatedCostEurMinor = 0;
-    for (const r of rows) {
+    for (const r of reportRows) {
       if (r.isMasterclass !== isMasterclass) continue;
       registrations += r.registrations;
       allocatedCostEurMinor += r.acquisitionCostEurMinor ?? 0;
@@ -1246,7 +1554,7 @@ export async function computeWorkshopPerformance(
     let engineNetEurMinor = 0;
     const emails = new Set<string>();
     for (const [id, a] of accs) {
-      if (!ids.has(id)) continue;
+      if (!ids.has(id) || !counted(id)) continue;
       engineNetEurMinor += a.netEurMinor;
       for (const e of a.emails) emails.add(e);
     }
@@ -1261,7 +1569,7 @@ export async function computeWorkshopPerformance(
     const revenueEurMinor = engineNetEurMinor + attributedEurMinor;
     return {
       registrations,
-      acquisitionSpendEurMinor: acqSpendByAudience[isMasterclass ? 'masterclass' : 'workshop'],
+      acquisitionSpendEurMinor: audienceSpend(isMasterclass ? 'masterclass' : 'workshop'),
       allocatedCostEurMinor,
       costPerRegistrationEurMinor: registrations > 0 ? allocatedCostEurMinor / registrations : null,
       revenueEurMinor,
@@ -1270,11 +1578,102 @@ export async function computeWorkshopPerformance(
     };
   };
 
+  // ---- Per-door window figures ----
+  // Same shape as an audience, one level down. A door's buckets are its past
+  // seats and (unless they're excluded) its upcoming ones; everything it is
+  // charged comes out of the door allocation above, so the two doors plus the
+  // unknown bucket account for the masterclass's cost between them.
+  const doorBuckets = (door: DoorKey): number[] =>
+    excludeFuture ? [doorBucketId(door, false)] : [doorBucketId(door, false), doorBucketId(door, true)];
+  const doorCost = (door: DoorKey): number => {
+    let v = 0;
+    for (const [id, amount] of doorAllocation.byWorkshop) {
+      if (doorOfBucket(id) !== door) continue;
+      if (excludeFuture && isFutureBucket(id)) continue;
+      v += amount;
+    }
+    return v;
+  };
+  const doorFutureSpend = (key: string): number => {
+    const alloc = doorAllocation.pools.get(key);
+    if (!alloc) return 0;
+    let v = 0;
+    for (const [id, amount] of alloc.byWorkshop) if (isFutureBucket(id)) v += amount;
+    return v;
+  };
+  // The people a door registered, and what they went on to buy. Engine income
+  // is the checkout itself (ticket + order bump); course income is their
+  // standalone 12-week / certification sales, each buyer counted once.
+  const doorPeople = (door: DoorKey) => {
+    let registrations = 0;
+    let ticketRevenueEurMinor = 0;
+    const emails = new Set<string>();
+    const buyers = new Set<string>();
+    for (const bucket of doorBuckets(door)) {
+      const a = doorAccs.get(bucket);
+      if (!a) continue;
+      registrations += a.regs;
+      ticketRevenueEurMinor += a.engineNetEurMinor;
+      for (const e of a.emails) emails.add(e);
+      for (const e of a.courseEmails) buyers.add(e);
+    }
+    let courseRevenueEurMinor = 0;
+    let courseCollectedEurMinor = 0;
+    for (const e of emails) {
+      const standaloneSale = standalone.get(e);
+      if (!standaloneSale) continue;
+      if (standaloneSale.tw || standaloneSale.cert) buyers.add(e);
+      courseRevenueEurMinor += standaloneSale.eurMinor;
+      courseCollectedEurMinor += standaloneSale.collectedEurMinor;
+    }
+    return {
+      registrations, ticketRevenueEurMinor,
+      courseRevenueEurMinor, courseCollectedEurMinor, courseBuyers: buyers.size,
+    };
+  };
+  const buildDoor = (door: MasterclassDoor): DoorAcquisition => {
+    const people = doorPeople(door);
+    const allocatedCostEurMinor = doorCost(door);
+    const revenueEurMinor = people.ticketRevenueEurMinor + people.courseRevenueEurMinor;
+    return {
+      door,
+      label: MASTERCLASS_DOOR_LABEL[door],
+      path: MASTERCLASS_DOOR_PATH[door],
+      registrations: people.registrations,
+      acquisitionSpendEurMinor:
+        doorSpendTotal[door] - (excludeFuture ? Math.round(doorFutureSpend(door)) : 0),
+      allocatedCostEurMinor,
+      costPerRegistrationEurMinor:
+        people.registrations > 0 ? allocatedCostEurMinor / people.registrations : null,
+      ticketRevenueEurMinor: people.ticketRevenueEurMinor,
+      courseRevenueEurMinor: people.courseRevenueEurMinor,
+      courseBuyers: people.courseBuyers,
+      revenueEurMinor,
+      collectedRevenueEurMinor: people.ticketRevenueEurMinor + people.courseCollectedEurMinor,
+      roas: allocatedCostEurMinor > 0 ? revenueEurMinor / allocatedCostEurMinor : null,
+    };
+  };
+  const unknownPeople = doorPeople('unknown');
+  const masterclassDoors: MasterclassDoorReport = {
+    doors: MASTERCLASS_DOORS.map(buildDoor),
+    unknown: {
+      registrations: unknownPeople.registrations,
+      allocatedCostEurMinor: doorCost('unknown'),
+      revenueEurMinor: unknownPeople.ticketRevenueEurMinor + unknownPeople.courseRevenueEurMinor,
+    },
+    tracked: anySignupPage,
+    unallocatedEurMinor: doorAllocation.unallocatedEurMinor,
+    sharedSpendEurMinor:
+      doorSpendTotal.shared +
+      generalToDoorsEurMinor -
+      (excludeFuture ? Math.round(doorFutureSpend('shared')) : 0),
+  };
+
   return {
-    rows,
-    adSpendEurMinor,
-    acquisitionSpendEurMinor,
-    retargetingSpendEurMinor: adSpendEurMinor - acquisitionSpendEurMinor,
+    rows: reportRows,
+    adSpendEurMinor: reportAdSpendEurMinor,
+    acquisitionSpendEurMinor: reportAcquisitionSpendEurMinor,
+    retargetingSpendEurMinor: reportAdSpendEurMinor - reportAcquisitionSpendEurMinor,
     totalRegistrations,
     costPerRegistrationEurMinor,
     dailyCosts,
@@ -1282,11 +1681,15 @@ export async function computeWorkshopPerformance(
     unallocatedAcquisitionSpendEurMinor: acqAllocation.unallocatedEurMinor,
     unallocatedAdSpendEurMinor: totalAllocation.unallocatedEurMinor,
     audiences: { workshop: audienceTotals(false), masterclass: audienceTotals(true) },
-    generalAcquisitionSpendEurMinor: acqSpendByAudience.general,
+    masterclassDoors,
+    future,
+    generalAcquisitionSpendEurMinor: audienceSpend('general'),
     workshopRevenueEurMinor,
     workshopCollectedRevenueEurMinor,
     workshopRoas:
-      acquisitionSpendEurMinor > 0 ? workshopRevenueEurMinor / acquisitionSpendEurMinor : null,
+      reportAcquisitionSpendEurMinor > 0
+        ? workshopRevenueEurMinor / reportAcquisitionSpendEurMinor
+        : null,
   };
 }
 

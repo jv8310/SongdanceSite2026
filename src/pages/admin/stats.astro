@@ -13,10 +13,11 @@ import {
   ROAS_TARGET,
   roasGapEurMinor,
   type AudienceAcquisition,
+  type DoorAcquisition,
   type StreamDay,
 } from '../../lib/workshops/stats';
 import { listWorkshops, getProductById } from '../../lib/workshops/db';
-import { CAMPAIGN_AUDIENCE_LABEL } from '../../lib/ads/campaigns';
+import { CAMPAIGN_AUDIENCE_LABEL, MASTERCLASS_DOOR_ANGLE } from '../../lib/ads/campaigns';
 import { syncTodayAdSpend } from '../../lib/ads/meta-insights';
 import ChartKit from '../../components/charts/ChartKit.astro';
 import {
@@ -27,6 +28,8 @@ import {
   shiftDays,
   shiftYears,
   daysBetween,
+  excludeFutureEventsFrom,
+  FUTURE_COSTS_PARAM,
 } from '../../lib/workshops/periods';
 import {
   buildForecast,
@@ -71,19 +74,26 @@ if (compare === 'prev' && from && to) {
 const wid = parseInt(Astro.url.searchParams.get('workshop_id') ?? '', 10);
 const workshopId = Number.isFinite(wid) ? wid : null;
 
+// "Exclude costs for future events": ad money is paid before a session runs and
+// the income it buys lands after it, so any window reaching today carries the
+// cost of what hasn't happened against none of its return — worst of all on all
+// time. Excluding upcoming sessions drops their spend, their seats and the
+// income those seats have taken: cost and income for an event travel together.
+const excludeFuture = excludeFutureEventsFrom(Astro.url.searchParams);
+
 // ---- Reports ----
 // One money context for the whole page: live FX rates + Quaderno VAT config,
 // so every standalone-course figure is true EUR, net of tax.
 
 const money = await resolveMoneyOpts(env.DB, env);
 const workshops = await listWorkshops(env.DB);
-const report = await computeStats(env.DB, { from, to, workshopId });
+const report = await computeStats(env.DB, { from, to, workshopId, excludeFutureEvents: excludeFuture });
 const courses = await computeCourseSales(env.DB, { from, to, money });
 const days = mergeDailyStreams(report, courses, from, to);
 const campaignSpend = await computeAdSpendByCampaign(env.DB, { from, to });
 // Per-workshop funnel + workshop-only (TOF) ROAS. Not narrowed by the workshop
 // filter — this is the acquisition view across every workshop in the window.
-const perf = await computeWorkshopPerformance(env.DB, { from, to, money });
+const perf = await computeWorkshopPerformance(env.DB, { from, to, money, excludeFutureEvents: excludeFuture });
 const regs = await computeRegistrationsByDay(env.DB, { from, to });
 
 let cmp: {
@@ -92,8 +102,21 @@ let cmp: {
   days: ReturnType<typeof mergeDailyStreams>;
   regsTotal: number;
 } | null = null;
+// Ad spend for the compare window: `computeStats` reports what was spent, but
+// only the performance report knows how much of it was charged to sessions that
+// haven't run yet — so when they're excluded, the compare half needs its own
+// performance pass or the delta would compare unlike halves. Computed only
+// then; it is several queries for a chip.
+let cmpPerf: Awaited<ReturnType<typeof computeWorkshopPerformance>> | null = null;
+if (compare && cmpFrom && cmpTo && excludeFuture) {
+  cmpPerf = await computeWorkshopPerformance(env.DB, {
+    from: cmpFrom, to: cmpTo, money, excludeFutureEvents: true,
+  });
+}
 if (compare && cmpFrom && cmpTo) {
-  const r = await computeStats(env.DB, { from: cmpFrom, to: cmpTo, workshopId });
+  const r = await computeStats(env.DB, {
+    from: cmpFrom, to: cmpTo, workshopId, excludeFutureEvents: excludeFuture,
+  });
   const c = await computeCourseSales(env.DB, { from: cmpFrom, to: cmpTo, money });
   const rg = await computeRegistrationsByDay(env.DB, { from: cmpFrom, to: cmpTo });
   cmp = { report: r, courses: c, days: mergeDailyStreams(r, c, cmpFrom, cmpTo), regsTotal: rg.total };
@@ -103,7 +126,7 @@ if (compare && cmpFrom && cmpTo) {
 // When the window already IS all-time, reuse it instead of recomputing.
 let allDays: StreamDay[] = days;
 if (from || to || workshopId) {
-  const ra = await computeStats(env.DB, {});
+  const ra = await computeStats(env.DB, { excludeFutureEvents: excludeFuture });
   const ca = await computeCourseSales(env.DB, { money });
   allDays = mergeDailyStreams(ra, ca, null, null);
 }
@@ -180,8 +203,14 @@ if (upcoming.length) {
 
 const workshopsNet = report.totals.netEurMinor - report.totals.masterclassNetEurMinor;
 const totalNet = report.totals.netEurMinor + courses.totalNetEurMinor;
-const netAfterAds = totalNet - report.adSpendEurMinor;
-const blendedRoas = report.adSpendEurMinor > 0 ? totalNet / report.adSpendEurMinor : null;
+// Spend comes off the performance report, not computeStats: the two read the
+// same rows over the same window, but only the performance report knows which
+// euros were charged to sessions that haven't run yet — so only it can leave
+// them out when the reader asked for that.
+const adSpendEurMinor = perf.adSpendEurMinor;
+const cmpAdSpendEurMinor = cmp ? (cmpPerf?.adSpendEurMinor ?? cmp.report.adSpendEurMinor) : null;
+const netAfterAds = totalNet - adSpendEurMinor;
+const blendedRoas = adSpendEurMinor > 0 ? totalNet / adSpendEurMinor : null;
 const salesCount =
   report.totals.ticketCount + report.totals.masterclassCount + report.totals.bumpCount +
   report.totals.courseCount + courses.totalCount;
@@ -189,10 +218,11 @@ const aovEurMinor = salesCount > 0 ? Math.round(totalNet / salesCount) : null;
 
 const cmpWorkshopsNet = cmp ? cmp.report.totals.netEurMinor - cmp.report.totals.masterclassNetEurMinor : null;
 const cmpTotalNet = cmp ? cmp.report.totals.netEurMinor + cmp.courses.totalNetEurMinor : null;
-const cmpNetAfterAds = cmp && cmpTotalNet != null ? cmpTotalNet - cmp.report.adSpendEurMinor : null;
+const cmpNetAfterAds =
+  cmpTotalNet != null && cmpAdSpendEurMinor != null ? cmpTotalNet - cmpAdSpendEurMinor : null;
 const cmpBlendedRoas =
-  cmp && cmp.report.adSpendEurMinor > 0 && cmpTotalNet != null
-    ? cmpTotalNet / cmp.report.adSpendEurMinor
+  cmpAdSpendEurMinor != null && cmpAdSpendEurMinor > 0 && cmpTotalNet != null
+    ? cmpTotalNet / cmpAdSpendEurMinor
     : null;
 
 // Delta chip vs the comparison window. `goodWhenUp:false` flips the colour
@@ -378,6 +408,30 @@ const econCards: EconCard[] = [
 const econRoasTone = (roas: number | null): 'good' | 'bad' | 'flat' =>
   roas == null ? 'flat' : roas >= ROAS_TARGET ? 'good' : roas >= 1 ? 'flat' : 'bad';
 
+// ---- The masterclass, split by the door that sold the seat ----
+// One event, two landing pages, one prospecting campaign each. The masterclass
+// card above pools them — that is what a masterclass seat costs — and cannot
+// answer which door is worth its spend. These two take it apart: each door's
+// own campaign priced against the registrations its own page produced. Both
+// carry a masterclass hue: same product, different door.
+const doors = perf.masterclassDoors;
+const DOOR_COLOR: Record<string, string> = {
+  masterclass: C.masterclass,
+  'heal-the-healer': '#8a4b2c',
+};
+type DoorCard = { a: DoorAcquisition; angle: string; color: string; gapEurMinor: number };
+const doorCards: DoorCard[] = doors.doors.map((a) => ({
+  a,
+  angle: MASTERCLASS_DOOR_ANGLE[a.door],
+  color: DOOR_COLOR[a.door] ?? C.masterclass,
+  gapEurMinor: roasGapEurMinor(a),
+}));
+// Two empty cards are noise: only show the split when the window holds a
+// masterclass at all.
+const showDoors =
+  doors.doors.some((a) => a.registrations > 0 || a.allocatedCostEurMinor > 0) ||
+  doors.unknown.registrations > 0;
+
 // How fresh the ad spend is. The page pulls today's spend from Meta on every
 // load (throttled), so say plainly whether these euros are live — and say it
 // loudly when the pull failed, since the figures then silently lag.
@@ -562,6 +616,12 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
             <option value="yoy" selected={compare === 'yoy'}>Same period last year</option>
           </select>
         </label>
+        <label>Future events
+          <select name={FUTURE_COSTS_PARAM} id="f-future">
+            <option value="">Include costs</option>
+            <option value="exclude" selected={excludeFuture}>Exclude costs</option>
+          </select>
+        </label>
         <label>Workshop
           <select name="workshop_id">
             <option value="">All</option>
@@ -573,6 +633,12 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
       <p class="st-rangenote">
         Showing <strong>{rangeLabel}</strong>{cmp && cmpFrom && cmpTo && <> · vs <strong>{prettyYmd(cmpFrom)} → {prettyYmd(cmpTo)}</strong></>}.
         {workshopId && <> Standalone course sales are site-wide — the workshop filter only narrows workshop-engine figures.</>}
+        {perf.future.sessions > 0 && (excludeFuture ? (
+          <> <strong>Upcoming events excluded</strong> — {eur0(perf.future.adSpendEurMinor)} of spend on {int(perf.future.sessions)} session{perf.future.sessions === 1 ? '' : 's'} that {perf.future.sessions === 1 ? 'hasn’t' : 'haven’t'} run yet is left out, along with the {int(perf.future.registrations)} seat{perf.future.registrations === 1 ? '' : 's'} {perf.future.sessions === 1 ? 'it has' : 'they have'} sold and the {eur0(perf.future.engineRevenueEurMinor)} those took.</>
+        ) : (
+          <> {eur0(perf.future.adSpendEurMinor)} of this spend is riding on {int(perf.future.sessions)} session{perf.future.sessions === 1 ? '' : 's'} that {perf.future.sessions === 1 ? 'hasn’t' : 'haven’t'} run yet — the money is paid, the income it buys can’t have landed. Set <em>Future events</em> to <em>Exclude costs</em> to read what has already happened.</>
+        ))}
+        {excludeFuture && perf.future.sessions === 0 && <> Upcoming events are excluded; this window holds none.</>}
         {preset === 'all' && <> Compare needs a bounded period — pick a preset or a custom range.</>}
       </p>
     </section>
@@ -599,9 +665,9 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
         </div>
         <div class="st-hero-cell">
           <span class="st-hero-label">Ad spend</span>
-          <strong class="st-hero-num">{eur0(report.adSpendEurMinor)}</strong>
-          {(() => { const d = delta(report.adSpendEurMinor, cmp?.report.adSpendEurMinor, false); return d && <em class={`st-hd st-hd--${d.cls}`}>{d.arrow} {d.text}</em>; })()}
-          <span class="st-hero-mini">{eur0(report.acquisitionAdSpendEurMinor)} prospecting · {eur0(report.retargetingAdSpendEurMinor)} retargeting</span>
+          <strong class="st-hero-num">{eur0(adSpendEurMinor)}</strong>
+          {(() => { const d = delta(adSpendEurMinor, cmpAdSpendEurMinor, false); return d && <em class={`st-hd st-hd--${d.cls}`}>{d.arrow} {d.text}</em>; })()}
+          <span class="st-hero-mini">{eur0(perf.acquisitionSpendEurMinor)} prospecting · {eur0(perf.retargetingSpendEurMinor)} retargeting</span>
           {spendFreshness && <span class="st-hero-mini">{spendFreshness}</span>}
         </div>
         <div class="st-hero-cell">
@@ -682,6 +748,69 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
           </article>
         ))}
       </div>
+      {showDoors && (
+        <div class="st-econ st-econ--doors">
+          {doorCards.map((c) => (
+            <article class="st-econ-card">
+              <div class="st-econ-head">
+                <span class="st-dot" style={`background:${c.color};`}></span>
+                <span class="st-econ-name">Masterclass · {c.a.label}</span>
+                <span class="st-econ-regs">{int(c.a.registrations)} registration{c.a.registrations === 1 ? '' : 's'}</span>
+              </div>
+
+              <div class="st-econ-roas">
+                <strong class={`st-econ-roas-val st-econ--${econRoasTone(c.a.roas)}`}>
+                  {c.a.roas != null ? c.a.roas.toFixed(2) + '×' : '—'}
+                </strong>
+                <span class="st-econ-roas-lbl">ROAS so far<br />revenue ÷ ad spend</span>
+              </div>
+
+              <p class="st-econ-page"><code>{c.a.path}</code> · {c.angle}</p>
+
+              <div class="st-econ-flow">
+                <div class="st-econ-fig">
+                  <span>Ad spend</span>
+                  <b>{eur(Math.round(c.a.allocatedCostEurMinor))}</b>
+                  <em>{c.a.costPerRegistrationEurMinor != null ? `${eur(Math.round(c.a.costPerRegistrationEurMinor))} per registration` : 'nothing charged here'}</em>
+                </div>
+                <span class="st-econ-arrow" aria-hidden="true">→</span>
+                <div class="st-econ-fig">
+                  <span>Made back</span>
+                  <b>{eur(c.a.revenueEurMinor)}</b>
+                  <em>
+                    {eur(c.a.ticketRevenueEurMinor)} tickets &amp; bumps · {eur(c.a.courseRevenueEurMinor)} courses from {int(c.a.courseBuyers)} buyer{c.a.courseBuyers === 1 ? '' : 's'}
+                    {c.a.collectedRevenueEurMinor < c.a.revenueEurMinor && (
+                      <> — {eur(c.a.collectedRevenueEurMinor)} charged so far, the rest still to bill on their payment plans</>
+                    )}
+                  </em>
+                </div>
+              </div>
+
+              <p class="st-econ-goal">
+                {c.a.allocatedCostEurMinor <= 0 ? (
+                  <>No ad spend charged to this door in this window — nothing to return yet.</>
+                ) : c.gapEurMinor > 0 ? (
+                  <>
+                    <strong>{eur(Math.round(c.gapEurMinor))}</strong> more revenue from these registrations to reach <strong>{ROAS_TARGET}×</strong>
+                    {' '}(that would be {eur(Math.round(ROAS_TARGET * c.a.allocatedCostEurMinor))} in total).
+                  </>
+                ) : (
+                  <>Past <strong>{ROAS_TARGET}×</strong> — <strong>{eur(Math.round(-c.gapEurMinor))}</strong> above the line.</>
+                )}
+              </p>
+            </article>
+          ))}
+        </div>
+      )}
+      {showDoors && (
+        <p class="adm-sub" style="margin-top:10px;">
+          <strong>The masterclass, by door.</strong> One event, two landing pages, a prospecting campaign each — so the two cards above are the masterclass card taken apart, not a second measurement of it. Each door is charged <em>its own</em> campaign’s money, priced day by day against the registrations <em>its page</em> produced, and credited with the seats it sold plus the 12-Week / certification sales those people went on to buy.
+          {!doors.tracked && <> ⚠ No registration in this window recorded the page it came from, so these seats can’t be told apart by door yet — the spend split is real, the registrations aren’t.</>}
+          {doors.unknown.registrations > 0 && <> {int(doors.unknown.registrations)} masterclass registration{doors.unknown.registrations === 1 ? '' : 's'} recorded no page (a direct <code>/w/…</code> link, or a row from before the column existed): <strong>unknown, not a door</strong> — {eur0(doors.unknown.allocatedCostEurMinor)} of spend and {eur0(doors.unknown.revenueEurMinor)} of income sit with them, counted in the masterclass card above and in neither door here.</>}
+          {doors.sharedSpendEurMinor > 0 && <> {eur0(doors.sharedSpendEurMinor)} of masterclass spend named no door and is split across them by the registrations each took.</>}
+          {doors.unallocatedEurMinor > 0 && <> {eur0(Math.round(doors.unallocatedEurMinor))} of a door’s own spend is charged to nothing: no registration came through that page in this window.</>}
+        </p>
+      )}
       <p class="adm-sub" style="margin-top:10px;">
         Each product is charged only its own campaigns’ prospecting spend (a campaign named <em>Masterclass</em> never pays for workshop seats, or the other way round), priced day by day. Revenue is everything traceable to those registrations — the checkout itself plus the 12-Week / certification sales those people went on to buy, each buyer counted once, and each of those sales counted <strong>in full</strong>: a 3×/6×/12× plan is one purchase the ad bought, so the whole plan counts on the day it was sold (capped at what will really be charged — a cancelled or scheduled-to-stop plan counts only its actual charges). Course sales land weeks after the ad spend, so a young window reads low.
       </p>
@@ -967,7 +1096,7 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
     <!-- ─── Ad spend ops ─── -->
     <section class="adm-section">
       <h2>Ad spend</h2>
-      <p class="adm-sub">Pull spend straight from the Meta Marketing API, or import a CSV export as a fallback. Both write the same daily figures; the direct pull re-syncs a rolling 14&#8209;day window and is the source of truth for those days.</p>
+      <p class="adm-sub">Pull spend straight from the Meta Marketing API, or import a CSV export as a fallback. Both write the same daily figures; the direct pull re-syncs a rolling 14&#8209;day window and is the source of truth for those days.{excludeFuture && perf.future.adSpendEurMinor > 0 && <> The table below is the spend <em>ledger</em> — every euro Meta charged in this window, including the {eur0(perf.future.adSpendEurMinor)} on sessions that haven’t run yet, which the figures above leave out.</>}</p>
 
       <div class="st-ads">
         {campaignSpend.length > 0 && (
@@ -1091,6 +1220,16 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
     .st-econ-head { grid-column: 1; display: flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: wrap; }
     .st-econ-name { font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; }
     .st-econ-regs { font-size: 11.5px; color: var(--adm-mute); }
+    /* The door split sits directly under the product cards it decomposes. */
+    .st-econ--doors { margin-top: 14px; }
+    /* Column 1, under the door's name — the verdict keeps column 2. */
+    .st-econ-page {
+      grid-column: 1; margin: 6px 0 0;
+      font-size: 11.5px; color: var(--adm-mute); line-height: 1.45;
+    }
+    .st-econ-page code {
+      background: rgba(0, 0, 0, 0.05); padding: 1px 5px; border-radius: 4px; font-size: 11px;
+    }
     /* The verdict sits in the top-right of the card, biggest thing on it. It
        carries the gutter as its own margin rather than the card's column-gap,
        so the column collapses to nothing when it drops under the name. */
@@ -1351,6 +1490,8 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
       }
       fromIn.addEventListener('change', toCustom);
       toIn.addEventListener('change', toCustom);
+      var futureSel = document.getElementById('f-future');
+      if (futureSel) futureSel.addEventListener('change', function () { form.submit(); });
     })();
 
     // Charts drawn by the shared SDChart runtime (see ChartKit): smooth lines
