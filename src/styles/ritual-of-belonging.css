@@ -1498,9 +1498,11 @@ html, body { background: var(--paper); }
 }
 
 /* Phone field — country selector + local number side by side. The
-   selector is compact (showing the ISO code, flag and dial code like
-   "BE 🇧🇪 +32") so the actual number input has room. Typeahead works
-   by typing the country's ISO code ("BE" → Belgium, "NL" → Netherlands). */
+   selector is compact (the closed field shows the ISO code, flag and dial
+   code — "BE 🇧🇪 +32" — so the actual number input has room); the open
+   list carries the country name after it, which is what tells the twenty
+   or so "+1" countries apart. Typeahead works by typing the country's ISO
+   code ("BE" → Belgium, "NL" → Netherlands). */
 .rb-phone {
   display: grid;
   grid-template-columns: 7em 1fr;

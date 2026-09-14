@@ -1,5 +1,5 @@
 ---
-import { COUNTRIES } from '../../lib/countries';
+import { COUNTRIES_PRIORITY, COUNTRIES_OTHER } from '../../lib/countries';
 
 // Mirrors active tiers in D1 (see migrations/0004_room_type_catalog.sql).
 // Slugs MUST match the DB tier slugs — the server re-validates on submit.
@@ -151,9 +151,16 @@ const roomTypes: RoomType[] = [
             <span>Country</span>
             <select name="country" required>
               <option value="">— select —</option>
-              {COUNTRIES.map((c) => (
-                <option value={c.code}>{c.name} {c.flag}</option>
-              ))}
+              <optgroup label="Frequently chosen">
+                {COUNTRIES_PRIORITY.map((c) => (
+                  <option value={c.code}>{c.name} {c.flag}</option>
+                ))}
+              </optgroup>
+              <optgroup label="All countries">
+                {COUNTRIES_OTHER.map((c) => (
+                  <option value={c.code}>{c.name} {c.flag}</option>
+                ))}
+              </optgroup>
             </select>
           </label>
 
@@ -162,9 +169,16 @@ const roomTypes: RoomType[] = [
             <div class="rb-phone">
               <select name="phone_country" aria-label="Phone country code" required>
                 <option value="">—</option>
-                {COUNTRIES.map((c) => (
-                  <option value={c.code} data-dial={c.dial}>{c.code} {c.flag} +{c.dial}</option>
-                ))}
+                <optgroup label="Frequently chosen">
+                  {COUNTRIES_PRIORITY.map((c) => (
+                    <option value={c.code} data-dial={c.dial}>{c.code} {c.flag} +{c.dial} {c.name}</option>
+                  ))}
+                </optgroup>
+                <optgroup label="All countries">
+                  {COUNTRIES_OTHER.map((c) => (
+                    <option value={c.code} data-dial={c.dial}>{c.code} {c.flag} +{c.dial} {c.name}</option>
+                  ))}
+                </optgroup>
               </select>
               <input type="tel" name="phone" autocomplete="tel-national" inputmode="tel" placeholder="470 12 34 56" required />
             </div>
