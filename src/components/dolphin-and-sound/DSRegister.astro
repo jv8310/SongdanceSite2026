@@ -114,10 +114,10 @@ import { COUNTRIES_PRIORITY, COUNTRIES_OTHER } from '../../lib/countries';
             <select name="phone_country" aria-label="Phone country code" required>
               <option value="">—</option>
               <optgroup label="Frequently chosen">
-                {COUNTRIES_PRIORITY.map((c) => (<option value={c.code} data-dial={c.dial}>{c.code} +{c.dial} {c.name}</option>))}
+                {COUNTRIES_PRIORITY.map((c) => (<option value={c.code} data-dial={c.dial}>{c.code} {c.flag} +{c.dial} {c.name}</option>))}
               </optgroup>
               <optgroup label="All countries">
-                {COUNTRIES_OTHER.map((c) => (<option value={c.code} data-dial={c.dial}>{c.code} +{c.dial} {c.name}</option>))}
+                {COUNTRIES_OTHER.map((c) => (<option value={c.code} data-dial={c.dial}>{c.code} {c.flag} +{c.dial} {c.name}</option>))}
               </optgroup>
             </select>
             <input type="tel" name="phone" autocomplete="tel-national" inputmode="tel" placeholder="470 12 34 56" required />

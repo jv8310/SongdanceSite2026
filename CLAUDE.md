@@ -67,9 +67,13 @@ workshop country field). Two rules for anything touching it:
   non-European markets, the order this list has always had) then
   `COUNTRIES_OTHER` ("All countries", alphabetical). `COUNTRIES` is the two
   concatenated, for the datalists (`CCRegister`, `TWRegister`, `GriefRegister`,
-  `JourneyRegister`) where typing filters and order doesn't matter. Phone
-  options carry the **country name** after the dial code: ~20 countries share
-  `+1` and a flag alone doesn't tell Anguilla from Jamaica.
+  `JourneyRegister`) where typing filters and order doesn't matter. Every
+  dial-code option reads **flag · +dial · country name** (`dialLabel`): ~20
+  countries share `+1`, and about as many share +44/+47/+61/+590/+599, so
+  neither the dial code nor the flag names a country on its own. `TWRegister`'s
+  dial field is a searchable input, so `dialLabel` is *also* what its datalist
+  inserts, what blur normalises to and what its resolver matches — one spelling
+  or a picked country stops resolving.
 
 Currency/VAT need no update per country — `currencyForCountry` falls through to
 EUR and Quaderno returns 0% for anywhere we hold no rate.

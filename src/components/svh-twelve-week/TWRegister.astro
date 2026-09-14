@@ -1,6 +1,6 @@
 ---
 import { SESSION_URL } from './config';
-import { COUNTRIES, COUNTRIES_PRIORITY, COUNTRIES_OTHER } from '../../lib/countries';
+import { COUNTRIES, COUNTRIES_PRIORITY, COUNTRIES_OTHER, dialLabel } from '../../lib/countries';
 import LaunchOfferCallout from '../promo/LaunchOfferCallout.astro';
 import GuaranteeBadge from '../GuaranteeBadge.astro';
 
@@ -318,7 +318,7 @@ const includes = [
 
     <datalist id="tw-dial-list">
       {COUNTRIES.map((c) => (
-        <option value={`+${c.dial} ${c.name}`}>{c.flag}</option>
+        <option value={dialLabel(c)}>{c.name}</option>
       ))}
     </datalist>
 
@@ -334,7 +334,7 @@ const includes = [
 </section>
 
 <script>
-  import { COUNTRIES, findCountry } from '../../lib/countries';
+  import { COUNTRIES, findCountry, dialLabel } from '../../lib/countries';
   import { postJsonResilient } from '../../lib/client/resilient-fetch';
   import {
     prefillShipping,
@@ -1013,13 +1013,13 @@ const includes = [
         const m = findCountry(code);
         if (!m) return;
         phoneSel.value = m.code;
-        phoneSearch.value = `+${m.dial} ${m.name}`;
+        phoneSearch.value = dialLabel(m);
       };
       const resolvePhone = () => {
         const raw = phoneSearch.value.trim();
         if (!raw) { phoneSel.value = ''; return; }
         const norm = raw.toLowerCase();
-        let m = COUNTRIES.find((c) => `+${c.dial} ${c.name}`.toLowerCase() === norm);
+        let m = COUNTRIES.find((c) => dialLabel(c).toLowerCase() === norm);
         if (!m) {
           const dial = norm.replace(/[^0-9]/g, '');
           if (dial) m = COUNTRIES.find((c) => c.dial === dial);

@@ -1,5 +1,5 @@
 ---
-import { COUNTRIES, COUNTRIES_PRIORITY, COUNTRIES_OTHER } from '../../lib/countries';
+import { COUNTRIES, COUNTRIES_PRIORITY, COUNTRIES_OTHER, dialLabel } from '../../lib/countries';
 import LaunchOfferCallout from '../promo/LaunchOfferCallout.astro';
 import GuaranteeBadge from '../GuaranteeBadge.astro';
 
@@ -189,12 +189,12 @@ const countriesOther = COUNTRIES_OTHER;
                   <option value="">—</option>
                   <optgroup label="Frequently chosen">
                     {countriesPriority.map((c) => (
-                      <option value={c.code} data-dial={c.dial}>{c.flag} +{c.dial} {c.name}</option>
+                      <option value={c.code} data-dial={c.dial}>{dialLabel(c)}</option>
                     ))}
                   </optgroup>
                   <optgroup label="All countries">
                     {countriesOther.map((c) => (
-                      <option value={c.code} data-dial={c.dial}>{c.flag} +{c.dial} {c.name}</option>
+                      <option value={c.code} data-dial={c.dial}>{dialLabel(c)}</option>
                     ))}
                   </optgroup>
                 </select>

@@ -324,6 +324,18 @@ export const COUNTRIES_OTHER: Country[] = ALL
 
 export const COUNTRIES: Country[] = [...COUNTRIES_PRIORITY, ...COUNTRIES_OTHER];
 
+// How a country reads in a phone-country picker: flag, dial code, name. The
+// flag is not decoration — ~20 countries share `+1` and about as many share
+// +44/+47/+61/+590/+599, so the dial code alone names no country. The name is
+// what tells those apart for anyone who doesn't read flags at a glance.
+//
+// TWRegister's dial field is a searchable input, so this string is also what
+// the datalist inserts, what blur normalises to, and what the resolver matches
+// on — one spelling, or those three drift and a picked country stops resolving.
+export function dialLabel(c: Country): string {
+  return `${c.flag} +${c.dial} ${c.name}`;
+}
+
 export function findCountry(code: string | null | undefined): Country | undefined {
   if (!code) return undefined;
   return BY_CODE.get(code.toUpperCase());
