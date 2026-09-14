@@ -84,3 +84,18 @@ export const MC_FAQ_AND_DATE: PageChange = {
 export const MC_PAGE_OFFERS_WORKSHOPS = false;
 
 export const PAGE_CHANGES: PageChange[] = [MC_FAQ_AND_DATE, MC_ORDER_BUMP, MC_WORKSHOP_ALTERNATIVES];
+
+// The day the masterclass became two doors: /courses/heal-the-healer opened
+// alongside /courses/masterclass (see MC_FAQ_AND_DATE above).
+//
+// Before it there was ONE masterclass page, so a seat sold earlier cannot
+// belong to either door — and the spend that bought it was not part of a split
+// test. Reading those seats into the split is what made the comparison lie: the
+// Missing Tool campaign carried weeks of pre-test spend against registrations
+// the door report could not see, so its card read "€0.00 · nothing charged"
+// while the table showed €199.94 spent.
+//
+// So the per-door report never reaches back past this date (stats.ts clamps its
+// window to it). Everything earlier — seats and euros alike — counts where it
+// always did: on the masterclass product card, as masterclass, full stop.
+export const MASTERCLASS_DOOR_SPLIT_START = '2026-09-11';

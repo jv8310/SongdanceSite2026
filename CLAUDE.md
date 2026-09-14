@@ -1268,11 +1268,32 @@ naming no door, plus the masterclass share of campaigns naming no product, is
 tickets and course sales split out), and `/admin/stats` + `/ads` render two cards
 **directly under** the workshop/masterclass ones. Three rules keep it honest: a
 masterclass registration with no page recorded is **unknown, not a door** (a
-direct `/w/<slug>` link, or a row from before 0083 — its spend and income are
-reported beside the cards and belong to neither); a door whose page took no
-registration in the window has its spend **charged to nothing** rather than to
-the other door's seats; and so doors + unknown add back to the masterclass card
-*except* by exactly that unallocated amount.
+seat taken on a direct `/w/<slug>` link — its spend and income are reported
+beside the cards and belong to neither); a door whose page took no registration
+in the window has its spend **charged to nothing** rather than to the other
+door's seats (the card says so, with the figure); and so doors + unknown +
+before-the-split add back to the masterclass card *except* by exactly that
+unallocated amount.
+
+**The split never reaches back before the split existed**
+(`MASTERCLASS_DOOR_SPLIT_START` = 2026-09-11 in
+[`experiments.ts`](src/lib/workshops/experiments.ts), September 2026): before
+the day `/courses/heal-the-healer` opened there was **one** masterclass page, so
+a seat sold earlier belongs to no door and the euros that bought it were not
+part of a split test. Reading them in is what made the comparison lie — the
+Missing Tool card read "€0.00 · nothing charged here" while the campaign table
+showed €199.94, because weeks of pre-test spend sat against registrations
+recorded before the doors could be told apart. So **both sides** of the per-door
+report are clamped to that date (or the window's own start, when later): a
+registration enters a door bucket only when its `created_at` day is in the
+window, a payment counts toward a door only when the seat it paid for was sold
+in it, and masterclass spend before it is set aside as
+`masterclassDoors.beforeSplit`. Nothing is lost — those seats and euros count on
+the masterclass **product** card exactly as they always did, as masterclass and
+nothing finer, and both dashboards print the figure under the cards so the
+difference is never a silent one. Cost and seats travel together here for the
+same reason they do in the future-events filter: clamping one without the other
+charges a door for a period the other door could not sell in.
 
 **"Include costs for future events / Exclude costs"** (`FUTURE_COSTS_PARAM` /
 `excludeFutureEventsFrom` in [`periods.ts`](src/lib/workshops/periods.ts),

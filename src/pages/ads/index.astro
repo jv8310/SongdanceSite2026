@@ -771,7 +771,7 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
       {showDoors && (
         <section>
           <h2>The masterclass, by door</h2>
-          <p class="note">One event, two landing pages, a prospecting campaign each. Every door is charged <strong>its own campaign’s</strong> money — priced day by day against the registrations <strong>its page</strong> produced — and credited with the seats it sold and the courses those people went on to buy. Together the two are the masterclass card above, taken apart.</p>
+          <p class="note">One event, two landing pages, a prospecting campaign each. Every door is charged <strong>its own campaign’s</strong> money — priced day by day against the registrations <strong>its page</strong> produced — and credited with the seats it sold and the courses those people went on to buy. <strong>From {dateLabel(doors.from)}</strong>{doors.clamped && <> — the day the second door opened. Before it there was one masterclass page, so earlier seats and the euros that bought them count on the masterclass card only, never as a door</>}.</p>
           <div class="econ">
             {doorCards.map((c) => (
               <div class="ecard" style={`--accent: ${c.accent}`}>
@@ -785,7 +785,11 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
                     <div class="efig">
                       <span>Ad spend</span>
                       <b>{eur(Math.round(c.a.allocatedCostEurMinor))}</b>
-                      <em>{c.a.costPerRegistrationEurMinor != null ? `${eur(Math.round(c.a.costPerRegistrationEurMinor))} per registration` : 'nothing charged here'}</em>
+                      <em>{c.a.costPerRegistrationEurMinor != null
+                        ? `${eur(Math.round(c.a.costPerRegistrationEurMinor))} per registration`
+                        : c.a.acquisitionSpendEurMinor > 0
+                          ? `${eur(c.a.acquisitionSpendEurMinor)} spent, charged to nothing — no seat came through this page`
+                          : 'nothing charged here'}</em>
                     </div>
                     <span class="earrow" aria-hidden="true">→</span>
                     <div class="efig">
@@ -816,7 +820,8 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
           </div>
           <p class="secondary">
             {!doors.tracked && <>⚠ No registration in this window recorded the page it came from, so these seats can’t be told apart by door — the spend split is real, the registrations aren’t. </>}
-            {doors.unknown.registrations > 0 && <>{int(doors.unknown.registrations)} masterclass registration{doors.unknown.registrations === 1 ? '' : 's'} recorded no page (a direct <code>/w/…</code> link, or a row from before the column existed): <strong>unknown, not a door</strong>. {eur0(doors.unknown.allocatedCostEurMinor)} of spend and {eur0(doors.unknown.revenueEurMinor)} of income sit with them — counted in the masterclass card above, in neither door here. </>}
+            {doors.beforeSplit.registrations > 0 || doors.beforeSplit.acquisitionSpendEurMinor > 0 ? <>Before {dateLabel(doors.from)} this window also holds {int(doors.beforeSplit.registrations)} masterclass seat{doors.beforeSplit.registrations === 1 ? '' : 's'} and {eur0(doors.beforeSplit.acquisitionSpendEurMinor)} of masterclass spend from when there was <strong>one</strong> door: counted on the masterclass card above, and deliberately not split here. </> : null}
+            {doors.unknown.registrations > 0 && <>{int(doors.unknown.registrations)} masterclass registration{doors.unknown.registrations === 1 ? '' : 's'} since then recorded no page (a seat taken on a direct <code>/w/…</code> link rather than through either door): <strong>unknown, not a door</strong>. {eur0(doors.unknown.allocatedCostEurMinor)} of spend and {eur0(doors.unknown.revenueEurMinor)} of income sit with them — counted in the masterclass card above, in neither door here. </>}
             {doors.sharedSpendEurMinor > 0 && <>{eur0(doors.sharedSpendEurMinor)} of masterclass spend named no door and is split across them by the registrations each took. </>}
             {doors.unallocatedEurMinor > 0 && <>{eur0(Math.round(doors.unallocatedEurMinor))} of a door’s own spend is charged to nothing: no registration came through that page in this window. </>}
             Course sales land weeks after the ad spend, so a door opened recently reads low.
