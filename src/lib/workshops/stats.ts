@@ -34,6 +34,7 @@ import { getTaxRate, netFromGross, type QuadernoTaxConfig } from './quaderno';
 import { getFxRatesToEur } from '../admin/fx';
 import { parsePurchasedBumps } from '../courses/db';
 import { effectiveTotal } from '../courses/installment-forecast';
+import { MASTERCLASS_DOOR_SPLIT_START } from './experiments';
 
 export const MASTERCLASS_PRODUCT_SLUG = 'svh-masterclass';
 
@@ -824,13 +825,31 @@ export type DoorAcquisition = {
 export type MasterclassDoorReport = {
   doors: DoorAcquisition[];
   /**
-   * Masterclass registrations whose page was never recorded — rows from before
-   * migration 0083, and seats taken on a direct /w/<slug> link. UNKNOWN, not
-   * zero: the doors do not add up to the masterclass without these, and a
-   * readout that hides them is claiming a split it doesn't have.
+   * The first day the two doors existed to be told apart
+   * (MASTERCLASS_DOOR_SPLIT_START, or the window's own start when that is
+   * later). The split NEVER reaches back past it: before that day there was one
+   * masterclass page, so an earlier seat belongs to no door and the euros that
+   * bought it were not part of a split test.
+   */
+  from: string; // YYYY-MM-DD
+  /** True when the selected window starts earlier than `from` — i.e. clamped. */
+  clamped: boolean;
+  /**
+   * What the clamp leaves out: masterclass seats and masterclass prospecting
+   * spend from before the split. They are not lost — they count on the
+   * masterclass product card exactly as they always did, as masterclass and
+   * nothing finer. Reported so the door cards can say why they don't add up to
+   * that card, or to the campaign table.
+   */
+  beforeSplit: { registrations: number; acquisitionSpendEurMinor: number };
+  /**
+   * Masterclass registrations SINCE the split whose page was never recorded —
+   * a seat taken on a direct /w/<slug> link rather than through either door.
+   * UNKNOWN, not zero: the doors do not add up to the masterclass without
+   * these, and a readout that hides them is claiming a split it doesn't have.
    */
   unknown: { registrations: number; allocatedCostEurMinor: number; revenueEurMinor: number };
-  /** True once any masterclass registration in the window carries a page. */
+  /** True once any masterclass registration since the split carries a page. */
   tracked: boolean;
   /**
    * A door's own spend that could not be charged to it: no registration came
@@ -1022,6 +1041,23 @@ export async function computeWorkshopPerformance(
   const excludeFuture = opts.excludeFutureEvents === true;
   const counted = (id: number): boolean => !excludeFuture || !futureIds.has(id);
 
+  // The door split only exists from the day the second door opened: before it
+  // there was one masterclass page, so an earlier seat belongs to no door and
+  // the euros that bought it were not part of a split test. Both sides of the
+  // per-door report are therefore clamped to that day (or the window's own
+  // start, when the reader asked for something later) — seats and spend
+  // together, or the comparison charges one door for a period the other could
+  // not sell in. Everything earlier still counts as masterclass on the product
+  // card; it just isn't a door.
+  const winFromYmd = winFrom ? winFrom.slice(0, 10) : null;
+  const doorFrom =
+    winFromYmd && winFromYmd > MASTERCLASS_DOOR_SPLIT_START
+      ? winFromYmd
+      : MASTERCLASS_DOOR_SPLIT_START;
+  const inDoorWindow = (ymd: string): boolean => ymd >= doorFrom;
+  let beforeSplitRegistrations = 0;
+  let beforeSplitSpendEurMinor = 0;
+
   // Completed registrations (paid or coupon) in the window. `reg_date` is the
   // UTC day the registration came in — the day whose ad spend bought it.
   const regBinds: unknown[] = [];
@@ -1057,7 +1093,8 @@ export async function computeWorkshopPerformance(
   const addonBinds: unknown[] = [];
   const addonRes = await db
     .prepare(
-      `SELECT r.workshop_id, lower(r.email) AS email, r.signup_page, prod.slug AS slug
+      `SELECT r.workshop_id, lower(r.email) AS email, r.signup_page,
+              substr(r.created_at, 1, 10) AS reg_date, prod.slug AS slug
          FROM workshop_purchases pur
          JOIN workshop_payments p ON p.id = pur.payment_id AND p.status = 'paid'
          JOIN workshop_registrations r ON r.id = pur.registration_id
@@ -1065,13 +1102,17 @@ export async function computeWorkshopPerformance(
         WHERE pur.product_type = 'course'${win('p.created_at', addonBinds)}`,
     )
     .bind(...addonBinds)
-    .all<{ workshop_id: number; email: string; signup_page: string | null; slug: string }>();
+    .all<{
+      workshop_id: number; email: string; signup_page: string | null;
+      reg_date: string; slug: string;
+    }>();
 
   // Engine revenue (net EUR) per workshop.
   const payBinds: unknown[] = [];
   const payRes = await db
     .prepare(
-      `SELECT r.workshop_id, r.signup_page, p.amount_minor, p.currency,
+      `SELECT r.workshop_id, r.signup_page, substr(r.created_at, 1, 10) AS reg_date,
+              p.amount_minor, p.currency,
               p.settlement_amount_minor, p.settlement_currency, p.subtotal_minor
          FROM workshop_payments p
          JOIN workshop_registrations r ON r.id = p.registration_id
@@ -1079,7 +1120,8 @@ export async function computeWorkshopPerformance(
     )
     .bind(...payBinds)
     .all<{
-      workshop_id: number; signup_page: string | null; amount_minor: number; currency: string;
+      workshop_id: number; signup_page: string | null; reg_date: string;
+      amount_minor: number; currency: string;
       settlement_amount_minor: number | null; settlement_currency: string | null;
       subtotal_minor: number | null;
     }>();
@@ -1172,9 +1214,16 @@ export async function computeWorkshopPerformance(
       bump(acqByDate, a.spend_date, eur);
       bump(acqByAudienceDate[audience], a.spend_date, eur);
       if (audience === 'masterclass') {
-        const door: DoorSpendKey = campaignMasterclassDoor(a.campaign) ?? 'shared';
-        doorSpendTotal[door] += eur;
-        bump(doorSpendByDate[door], a.spend_date, eur);
+        if (inDoorWindow(a.spend_date)) {
+          const door: DoorSpendKey = campaignMasterclassDoor(a.campaign) ?? 'shared';
+          doorSpendTotal[door] += eur;
+          bump(doorSpendByDate[door], a.spend_date, eur);
+        } else {
+          // Masterclass money spent before there were two doors: it bought
+          // seats on the one page that existed, so it belongs to the product,
+          // not to a door.
+          beforeSplitSpendEurMinor += eur;
+        }
       }
     }
   }
@@ -1245,8 +1294,11 @@ export async function computeWorkshopPerformance(
     let perDay = regsByDateWorkshop.get(r.reg_date);
     if (!perDay) { perDay = new Map(); regsByDateWorkshop.set(r.reg_date, perDay); }
     perDay.set(r.workshop_id, (perDay.get(r.workshop_id) ?? 0) + 1);
-    if (masterclassIds.has(r.workshop_id)) {
-      // Only a masterclass seat can tell us whether the doors are readable yet.
+    if (masterclassIds.has(r.workshop_id) && !inDoorWindow(r.reg_date)) {
+      beforeSplitRegistrations += 1;
+    } else if (masterclassIds.has(r.workshop_id)) {
+      // Only a masterclass seat inside the split can tell us whether the doors
+      // are readable yet.
       if (r.signup_page) anySignupPage = true;
       const bucket = doorBucketOf(r.workshop_id, r.signup_page);
       const da = doorAcc(bucket);
@@ -1273,7 +1325,11 @@ export async function computeWorkshopPerformance(
     const a = acc(c.workshop_id);
     if (c.slug === '12w-course') a.engineTw.add(c.email);
     if (c.slug === 'cert-course') a.engineCert.add(c.email);
-    if (masterclassIds.has(c.workshop_id) && (c.slug === '12w-course' || c.slug === 'cert-course')) {
+    if (
+      masterclassIds.has(c.workshop_id) &&
+      inDoorWindow(c.reg_date) &&
+      (c.slug === '12w-course' || c.slug === 'cert-course')
+    ) {
       doorAcc(doorBucketOf(c.workshop_id, c.signup_page)).courseEmails.add(c.email);
     }
   }
@@ -1282,7 +1338,10 @@ export async function computeWorkshopPerformance(
     const gross = grossEurMinor(slim, fxRates);
     const net = netEurMinor(slim, gross).net;
     acc(p.workshop_id).netEurMinor += net;
-    if (masterclassIds.has(p.workshop_id)) {
+    // A payment counts toward a door only when the seat it paid for was sold
+    // inside the split — the same registrations the door's cost is priced
+    // against, so cost and income cover one period.
+    if (masterclassIds.has(p.workshop_id) && inDoorWindow(p.reg_date)) {
       doorAcc(doorBucketOf(p.workshop_id, p.signup_page)).engineNetEurMinor += net;
     }
   }
@@ -1656,6 +1715,12 @@ export async function computeWorkshopPerformance(
   const unknownPeople = doorPeople('unknown');
   const masterclassDoors: MasterclassDoorReport = {
     doors: MASTERCLASS_DOORS.map(buildDoor),
+    from: doorFrom,
+    clamped: !winFromYmd || winFromYmd < MASTERCLASS_DOOR_SPLIT_START,
+    beforeSplit: {
+      registrations: beforeSplitRegistrations,
+      acquisitionSpendEurMinor: beforeSplitSpendEurMinor,
+    },
     unknown: {
       registrations: unknownPeople.registrations,
       allocatedCostEurMinor: doorCost('unknown'),

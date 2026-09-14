@@ -771,7 +771,11 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
                 <div class="st-econ-fig">
                   <span>Ad spend</span>
                   <b>{eur(Math.round(c.a.allocatedCostEurMinor))}</b>
-                  <em>{c.a.costPerRegistrationEurMinor != null ? `${eur(Math.round(c.a.costPerRegistrationEurMinor))} per registration` : 'nothing charged here'}</em>
+                  <em>{c.a.costPerRegistrationEurMinor != null
+                        ? `${eur(Math.round(c.a.costPerRegistrationEurMinor))} per registration`
+                        : c.a.acquisitionSpendEurMinor > 0
+                          ? `${eur(c.a.acquisitionSpendEurMinor)} spent, charged to nothing — no seat came through this page`
+                          : 'nothing charged here'}</em>
                 </div>
                 <span class="st-econ-arrow" aria-hidden="true">→</span>
                 <div class="st-econ-fig">
@@ -804,9 +808,11 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
       )}
       {showDoors && (
         <p class="adm-sub" style="margin-top:10px;">
-          <strong>The masterclass, by door.</strong> One event, two landing pages, a prospecting campaign each — so the two cards above are the masterclass card taken apart, not a second measurement of it. Each door is charged <em>its own</em> campaign’s money, priced day by day against the registrations <em>its page</em> produced, and credited with the seats it sold plus the 12-Week / certification sales those people went on to buy.
+          <strong>The masterclass, by door — from {prettyYmd(doors.from)}.</strong> One event, two landing pages, a prospecting campaign each. Each door is charged <em>its own</em> campaign’s money, priced day by day against the registrations <em>its page</em> produced, and credited with the seats it sold plus the 12-Week / certification sales those people went on to buy.
+          {doors.clamped && <> The split starts the day the second door opened: before it there was one masterclass page, so earlier seats and the euros that bought them belong to the masterclass card only, never to a door.</>}
+          {(doors.beforeSplit.registrations > 0 || doors.beforeSplit.acquisitionSpendEurMinor > 0) && <> This window also holds {int(doors.beforeSplit.registrations)} earlier masterclass seat{doors.beforeSplit.registrations === 1 ? '' : 's'} and {eur0(doors.beforeSplit.acquisitionSpendEurMinor)} of earlier masterclass spend, counted above and deliberately not split here.</>}
           {!doors.tracked && <> ⚠ No registration in this window recorded the page it came from, so these seats can’t be told apart by door yet — the spend split is real, the registrations aren’t.</>}
-          {doors.unknown.registrations > 0 && <> {int(doors.unknown.registrations)} masterclass registration{doors.unknown.registrations === 1 ? '' : 's'} recorded no page (a direct <code>/w/…</code> link, or a row from before the column existed): <strong>unknown, not a door</strong> — {eur0(doors.unknown.allocatedCostEurMinor)} of spend and {eur0(doors.unknown.revenueEurMinor)} of income sit with them, counted in the masterclass card above and in neither door here.</>}
+          {doors.unknown.registrations > 0 && <> {int(doors.unknown.registrations)} masterclass registration{doors.unknown.registrations === 1 ? '' : 's'} since then recorded no page (a seat taken on a direct <code>/w/…</code> link rather than through either door): <strong>unknown, not a door</strong> — {eur0(doors.unknown.allocatedCostEurMinor)} of spend and {eur0(doors.unknown.revenueEurMinor)} of income sit with them, counted in the masterclass card above and in neither door here.</>}
           {doors.sharedSpendEurMinor > 0 && <> {eur0(doors.sharedSpendEurMinor)} of masterclass spend named no door and is split across them by the registrations each took.</>}
           {doors.unallocatedEurMinor > 0 && <> {eur0(Math.round(doors.unallocatedEurMinor))} of a door’s own spend is charged to nothing: no registration came through that page in this window.</>}
         </p>
