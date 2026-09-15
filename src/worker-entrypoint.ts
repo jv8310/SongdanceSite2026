@@ -39,6 +39,12 @@ const WORKSHOP_CRON = '*/5 * * * *';
 // only emits an exact slashless _redirects rule — so /old/ (the directory-format
 // form most inbound links use) would fall through to the worker and 404. Matching
 // here covers both /old and /old/ in one place.
+// The Circle checkout for the deepening-sessions (CEEE) bundle. It carries its
+// own query string (the bundle token + the campaign source), which is why
+// movedRedirect keeps a destination's own params rather than overwriting them.
+const CEEE_BUNDLE_URL =
+  'https://circle.songdance.co/plans/1938793?bundle_token=e991a50e457bf13e024cfe4dd9347864&utm_source=manual';
+
 const MOVED_URLS: Record<string, string> = {
   '/certification-course': '/courses/certification',
   '/certification-course/thanks': '/courses/certification/thanks',
@@ -59,6 +65,11 @@ const MOVED_URLS: Record<string, string> = {
   // moved out of the workshops nest (July 2026). Query string (filters) rides
   // along on the redirect.
   '/admin/workshops/stats': '/admin/stats',
+  // The deepening-sessions (CEEE) bundle is sold on Circle, not here, so this
+  // short link leaves the site — the one destination in this map that does.
+  // Both spellings of the link are handed out, so both land on the same plan.
+  '/ceee': CEEE_BUNDLE_URL,
+  '/ceee-2026': CEEE_BUNDLE_URL,
 };
 
 // Canonical host for the site (June 2026 move off the site.* subdomain). The
@@ -100,7 +111,15 @@ function hostRedirect(request: Request): Response | null {
 }
 
 // If the request path is a moved URL (with or without a trailing slash), return
-// a 301 to its new home, preserving any query string. Otherwise null.
+// a redirect to its new home, preserving any query string. Otherwise null.
+//
+// A destination may be absolute (an offer that lives on another host), and that
+// changes two things. Its own query string is part of the destination — a
+// campaign link carries a token — so it is kept and the incoming params are only
+// added where they don't collide, instead of the wholesale `search` overwrite an
+// internal move wants. And it answers 302, not 301: an off-site offer URL can be
+// reissued (a new token, a new plan), and a 301 is cached by browsers
+// indefinitely — the people who followed the old link could never be moved.
 function movedRedirect(request: Request): Response | null {
   const url = new URL(request.url);
   // Normalise a trailing slash for lookup, but never the bare root.
@@ -108,9 +127,16 @@ function movedRedirect(request: Request): Response | null {
     url.pathname.length > 1 ? url.pathname.replace(/\/+$/, '') : url.pathname;
   const destination = MOVED_URLS[path];
   if (!destination) return null;
+  const external = /^https?:\/\//i.test(destination);
   const target = new URL(destination, url.origin);
-  target.search = url.search;
-  return Response.redirect(target.toString(), 301);
+  if (external) {
+    for (const [key, value] of url.searchParams) {
+      if (!target.searchParams.has(key)) target.searchParams.append(key, value);
+    }
+  } else {
+    target.search = url.search;
+  }
+  return Response.redirect(target.toString(), external ? 302 : 301);
 }
 
 export function createExports(manifest: unknown) {
