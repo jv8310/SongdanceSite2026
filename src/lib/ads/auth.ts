@@ -8,7 +8,10 @@
 //   • The session is an HMAC-signed cookie (`sd_ads`, 30 days), signed with a
 //     key DERIVED from ADMIN_SESSION_SECRET — so no new secret is required, yet
 //     an ads token can never be replayed as an admin session and vice-versa
-//     (different derived key → different MAC).
+//     (different derived key → different MAC). Like the admin session, it
+//     SLIDES on use (src/middleware.ts): the 30 days run from the last visit
+//     to /ads, so a dashboard opened at all within a month never asks for the
+//     password again.
 //   • A valid ADMIN session ALSO grants access, so the owner sees the dashboard
 //     while already signed into /admin, without entering the ads password.
 
@@ -18,7 +21,12 @@ import {
 } from '../registrations/auth';
 
 const COOKIE_NAME = 'sd_ads';
+export const SESSION_COOKIE = COOKIE_NAME;
 const SESSION_DAYS = 30;
+export const SESSION_MAX_AGE_SECONDS = SESSION_DAYS * 86400;
+// Re-issue a cookie older than a day rather than on every request — see the
+// admin session's shouldRenewSession, of which this is the twin.
+const RENEW_AFTER_SECONDS = 86400;
 // Owner-supplied default. Override in production with a secret:
 // `wrangler secret put ADS_DASHBOARD_PASSWORD`.
 const DEFAULT_PASSWORD = 'umiforthewin';
@@ -45,7 +53,18 @@ export function checkPassword(
 }
 
 export function sessionExpiry(): number {
-  return Math.floor(Date.now() / 1000) + SESSION_DAYS * 86400;
+  return Math.floor(Date.now() / 1000) + SESSION_MAX_AGE_SECONDS;
+}
+
+// Worth re-signing? Same throttle as the admin session: a sliding window only
+// needs refreshing occasionally, and an unreadable expiry renews so an older
+// cookie is lifted to the current lifetime on first use.
+export function shouldRenewSession(cookie: string | null): boolean {
+  const expStr = (cookie ?? '').split('.')[1];
+  const exp = parseInt(expStr ?? '', 10);
+  if (!Number.isFinite(exp)) return true;
+  const remaining = exp - Math.floor(Date.now() / 1000);
+  return remaining < SESSION_MAX_AGE_SECONDS - RENEW_AFTER_SECONDS;
 }
 
 export async function signSession(secret: string, exp: number): Promise<string> {
@@ -79,8 +98,7 @@ export function readCookie(req: Request): string | null {
 }
 
 export function sessionCookieHeader(token: string): string {
-  const maxAge = SESSION_DAYS * 86400;
-  return `${COOKIE_NAME}=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAge}`;
+  return `${COOKIE_NAME}=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${SESSION_MAX_AGE_SECONDS}`;
 }
 
 export function clearCookieHeader(): string {
