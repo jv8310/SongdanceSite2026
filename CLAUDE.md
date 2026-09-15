@@ -6,7 +6,7 @@ Astro site deployed to Cloudflare Workers. Media (images) live in an R2 bucket
 ## Admin login — email + password, multi-user
 
 `/admin/login` takes an **email + password**; the session is an HMAC-signed
-cookie (`sd_admin`, 12h) carrying the signed-in email. Logic in
+cookie (`sd_admin`, **30 days, sliding**) carrying the signed-in email. Logic in
 [`src/lib/registrations/auth.ts`](src/lib/registrations/auth.ts); every admin
 page/endpoint gates on `verifySession`. Credentials come from env (no DB, no
 hashing — same posture as the rest of the site's secrets), merged from:
@@ -21,6 +21,22 @@ hashing — same posture as the rest of the site's secrets), merged from:
 Email match is case-insensitive; passwords compared timing-safe. Old
 `admin.…` sessions stay valid across the deploy (verify checks the signature,
 not the subject), so nobody is force-logged-out.
+
+**The session is 30 days and slides on use** (September 2026). It was 12
+hours, which meant signing in again most days and separately on every device —
+the admin gets used in bursts (orders in the morning, a broadcast at night)
+and 12 hours rarely spans two of them. `slideAdminSession` in
+[`src/middleware.ts`](src/middleware.ts) re-issues the cookie as the admin is
+used, so the window runs from **last use, not login**: use a device at all
+within a month and it never asks again. It covers admin **page views and the
+`/api/admin/*` calls those pages make** — a lot of admin work (uploading a
+track, saving an event, draining a broadcast) is `fetch()` traffic that used
+to let the clock run down underneath it. The re-sign is throttled to roughly
+once a day per device (`shouldRenewSession`), so it is not a `Set-Cookie` on
+every admin response, and `/api/admin/login` is excluded so **sign-out still
+ends the session immediately**. Same treatment for the `/ads` gate's own
+`sd_ads` cookie (`slideAdsSession`), which was 30 days but fixed from the day
+the password was typed.
 
 ## Navigation — one menu, three renderings
 

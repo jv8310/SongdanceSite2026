@@ -8,9 +8,19 @@ import {
   SESSION_COOKIE,
   SESSION_MAX_AGE_SECONDS,
   sessionExpiry,
+  shouldRenewSession,
   signSession,
   verifySession,
 } from './lib/registrations/auth';
+import {
+  readCookie as readAdsCookie,
+  SESSION_COOKIE as ADS_SESSION_COOKIE,
+  SESSION_MAX_AGE_SECONDS as ADS_SESSION_MAX_AGE_SECONDS,
+  sessionExpiry as adsSessionExpiry,
+  shouldRenewSession as shouldRenewAdsSession,
+  signSession as signAdsSession,
+  verifySession as verifyAdsSession,
+} from './lib/ads/auth';
 import {
   looksLikeShareBot,
   normalizeChannel,
@@ -71,20 +81,25 @@ async function captureReferral(context: Parameters<Parameters<typeof defineMiddl
   else await visit;
 }
 
-// Keeping an admin's place when the session lapses.
+// Keeping an admin signed in, and keeping their place when a session does lapse.
 //
-// The admin session is 12 hours (src/lib/registrations/auth.ts). Every admin
-// *page* handles expiry by redirecting to the login form, but an admin form
-// *POST* answers a bare 401 — so a button pressed on a tab that has been open
-// since yesterday ("Mark paid" on a retreat balance, say) lands on a white
-// page reading "Unauthorized", with nothing to click and the row you were
-// working on lost.
+// The admin session is 30 days (src/lib/registrations/auth.ts) and every admin
+// *page* handles expiry by redirecting to the login form — but an admin form
+// *POST* answers a bare 401, so a button pressed on a tab that has been open
+// for weeks ("Mark paid" on a retreat balance, say) lands on a white page
+// reading "Unauthorized", with nothing to click and the row you were working
+// on lost.
 //
 // Two halves, both here so no endpoint has to know about either:
 //
-//   • slideAdminSession — a valid session is re-issued on every admin page
-//     view, so the 12 hours run from last use rather than from login. Someone
-//     working in the admin all day is never signed out mid-task.
+//   • slideAdminSession — a valid session is re-issued as the admin is used,
+//     so the 30 days run from last use rather than from login: a device used
+//     at all within a month never has to sign in again. It covers admin page
+//     views AND the /api/admin/* calls those pages make, because plenty of
+//     admin work (uploading a track, saving an event, sending a broadcast)
+//     is fetch() traffic that used to let the clock run down underneath it.
+//     The re-sign is throttled to once a day per device (shouldRenewSession),
+//     so it isn't a Set-Cookie on every admin response.
 //   • loginRedirectForNavigation — a 401 from /api/admin/* that is answering a
 //     top-level navigation becomes a redirect to the login form, carrying the
 //     page it came from, so signing in lands back where the button was. A
@@ -97,15 +112,23 @@ async function slideAdminSession(
   context: Parameters<Parameters<typeof defineMiddleware>[0]>[0],
 ) {
   const path = context.url.pathname;
-  if (path !== '/admin' && !path.startsWith('/admin/')) return;
-  if (path === '/admin/login') return;
-  if (context.request.method !== 'GET') return;
-  if (!isDocumentNavigation(context.request)) return;
+  const isAdminPage = path === '/admin' || path.startsWith('/admin/');
+  const isAdminApi = path.startsWith(ADMIN_API_PREFIX);
+  if (!isAdminPage && !isAdminApi) return;
+  // The login form and its endpoint issue their own cookie; nothing to slide.
+  if (path === '/admin/login' || path === `${ADMIN_API_PREFIX}login`) return;
+  // An admin page renews on the navigation that loads it; an admin API call
+  // renews whatever its method, since that is the work being done.
+  if (isAdminPage && (context.request.method !== 'GET' || !isDocumentNavigation(context.request))) {
+    return;
+  }
 
   const secret = context.locals.runtime?.env?.ADMIN_SESSION_SECRET;
   if (!secret) return;
   const cookie = readCookie(context.request);
   if (!(await verifySession(secret, cookie))) return;
+  // Still has most of its life left — leave the cookie alone.
+  if (!shouldRenewSession(cookie)) return;
 
   // Re-sign for the same admin, so "signed in as" keeps naming the right
   // person; a legacy subject-less cookie renews as itself.
@@ -114,6 +137,36 @@ async function slideAdminSession(
   context.cookies.set(SESSION_COOKIE, token, {
     path: '/',
     maxAge: SESSION_MAX_AGE_SECONDS,
+    httpOnly: true,
+    secure: true,
+    sameSite: 'lax',
+  });
+}
+
+// The /ads dashboard has its own password gate and its own 30-day cookie
+// (src/lib/ads/auth.ts). Slide it the same way, so the ads manager's month
+// runs from their last visit rather than from the day they typed the
+// password — otherwise a dashboard someone checks weekly still locks them
+// out every 30 days for no reason.
+async function slideAdsSession(
+  context: Parameters<Parameters<typeof defineMiddleware>[0]>[0],
+) {
+  const path = context.url.pathname;
+  if (path !== '/ads' && !path.startsWith('/ads/')) return;
+  if (path === '/ads/login') return;
+  if (context.request.method !== 'GET') return;
+  if (!isDocumentNavigation(context.request)) return;
+
+  const secret = context.locals.runtime?.env?.ADMIN_SESSION_SECRET;
+  if (!secret) return;
+  const cookie = readAdsCookie(context.request);
+  if (!(await verifyAdsSession(secret, cookie))) return;
+  if (!shouldRenewAdsSession(cookie)) return;
+
+  const token = await signAdsSession(secret, adsSessionExpiry());
+  context.cookies.set(ADS_SESSION_COOKIE, token, {
+    path: '/',
+    maxAge: ADS_SESSION_MAX_AGE_SECONDS,
     httpOnly: true,
     secure: true,
     sameSite: 'lax',
@@ -178,6 +231,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
   // Never let the session slide break a page either.
   try {
     await slideAdminSession(context);
+    await slideAdsSession(context);
   } catch (err) {
     console.error(`admin session slide: ${String(err)}`);
   }

@@ -9,17 +9,35 @@
 //     (`[{"email":"…","password":"…"}]`). See parseAdminUsers below.
 //
 // The session cookie carries the signed-in email (base64url, so it survives the
-// dotted token format) and expires after 12 hours. Existing `admin.…` cookies
-// stay valid — verifySession only checks the signature, not the subject — so a
-// deploy doesn't force everyone to re-login. Cloudflare Access can still be
-// layered on top in production for SSO.
+// dotted token format). Existing `admin.…` cookies stay valid — verifySession
+// only checks the signature, not the subject — so a deploy doesn't force
+// everyone to re-login. Cloudflare Access can still be layered on top in
+// production for SSO.
+//
+// ── How long a device stays signed in ────────────────────────────────────
+// The session ran for 12 hours, which meant signing in again most days and
+// on every device separately: the admin is used in bursts (a morning on the
+// orders page, an evening checking a broadcast), and 12 hours almost never
+// spans two of them. It is 30 days now, and it SLIDES — src/middleware.ts
+// re-issues the cookie as you use the admin (pages and the /api/admin/*
+// calls those pages make), so the 30 days run from last use, not from login.
+// Use the admin at all within a month on a device and that device never asks
+// again; a device left untouched for 30 days does. Signing out still ends it
+// immediately, everywhere it is pressed.
+//
+// The renewal is throttled (`shouldRenewSession`) so a browsing session isn't
+// re-signing a cookie on every request — one refresh per device per day is
+// enough to keep a 30-day window from ever running out under use.
 
 const COOKIE_NAME = 'sd_admin';
-const SESSION_HOURS = 12;
+const SESSION_DAYS = 30;
+// Re-issue a cookie once it is older than this (i.e. less than
+// SESSION_MAX_AGE_SECONDS − RENEW_AFTER_SECONDS of life left).
+const RENEW_AFTER_SECONDS = 86400;
 // Exported so the middleware can re-issue the same cookie on an admin page
 // view (the sliding session) without re-deriving its name or lifetime.
 export const SESSION_COOKIE = COOKIE_NAME;
-export const SESSION_MAX_AGE_SECONDS = SESSION_HOURS * 3600;
+export const SESSION_MAX_AGE_SECONDS = SESSION_DAYS * 86400;
 const DEFAULT_ADMIN_EMAIL = 'jacob@songdance.co';
 
 export type AdminUser = { email: string; password: string };
@@ -157,7 +175,20 @@ export function readCookie(req: Request) {
 }
 
 export function sessionExpiry() {
-  return Math.floor(Date.now() / 1000) + SESSION_HOURS * 3600;
+  return Math.floor(Date.now() / 1000) + SESSION_MAX_AGE_SECONDS;
+}
+
+// Is this (already verified) session old enough to be worth re-signing? A
+// sliding session only has to be refreshed occasionally — refreshing on every
+// request would put a Set-Cookie on every admin response for no extra life.
+// An unparseable expiry says renew, so a legacy/short cookie is upgraded to
+// the current lifetime on first use rather than left to run out.
+export function shouldRenewSession(cookie: string | null): boolean {
+  const expStr = (cookie ?? '').split('.')[1];
+  const exp = parseInt(expStr ?? '', 10);
+  if (!Number.isFinite(exp)) return true;
+  const remaining = exp - Math.floor(Date.now() / 1000);
+  return remaining < SESSION_MAX_AGE_SECONDS - RENEW_AFTER_SECONDS;
 }
 
 async function hmac(secret: string, msg: string) {
@@ -221,8 +252,8 @@ export async function requireAdmin(req: Request, secret: string) {
 
 // ── Getting a signed-out admin back to what they were doing ──────────────
 //
-// The session is 12 hours and slides on use (see src/middleware.ts), but it
-// can still lapse — a tab left open overnight is the ordinary case. An admin
+// The session is 30 days and slides on use (see src/middleware.ts), but it
+// can still lapse — a device untouched for a month, or a signed-out one. An admin
 // *page* handles that already: it redirects to the login form. An admin form
 // *POST* used to answer a bare 401, so pressing a button on a stale page (say
 // "Mark paid" on a retreat balance) landed on a white page reading
