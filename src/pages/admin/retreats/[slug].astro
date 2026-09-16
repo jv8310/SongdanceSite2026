@@ -12,6 +12,7 @@ import {
   computeTierAvailability,
   getRoomsWithMode,
   getRegistrationsWithBalanceDue,
+  isInternalTestTierSlug,
 } from '../../../lib/registrations/db';
 import {
   listWaitlist,
@@ -149,12 +150,21 @@ for (const row of bookedByTier.results ?? []) {
   bookedMap.set(row.tier_id, row.c);
 }
 
-const tierSummary = ta.map(({ tier, remaining, capacity }) => ({
-  tier_name: tier.name,
-  capacity,
-  booked: bookedMap.get(tier.id) ?? 0,
-  remaining,
-}));
+// The €1 admin-test tier is left out: it is a payment-flow fixture, not a room
+// on sale, and listing it put a phantom "1 place available" beside the real
+// rooms — the total row has always excluded it, so the table disagreed with its
+// own footer. It stays bookable via ?admin=true and still shows in Rooms below.
+const hiddenTestTierCount = ta.filter(({ tier }) =>
+  isInternalTestTierSlug(tier.slug),
+).length;
+const tierSummary = ta
+  .filter(({ tier }) => !isInternalTestTierSlug(tier.slug))
+  .map(({ tier, remaining, capacity }) => ({
+    tier_name: tier.name,
+    capacity,
+    booked: bookedMap.get(tier.id) ?? 0,
+    remaining,
+  }));
 
 // Real-bed availability: iterate rooms once, skip reserved/inactive AND the
 // admin-test tier so the totals reflect the actual retreat.
@@ -577,7 +587,7 @@ const heldTotal = [...waitlistHolds.values()].reduce((n, v) => n + v, 0);
 // What can be offered, and how much of it is actually free right now:
 // remaining beds in the tier, minus the ones already promised to someone.
 const offerTiers = ta
-  .filter(({ tier }) => !/admin|test/i.test(tier.slug))
+  .filter(({ tier }) => !isInternalTestTierSlug(tier.slug))
   .map(({ tier, remaining }) => {
     const held = waitlistHolds.get(tier.id) ?? 0;
     return {
@@ -780,7 +790,7 @@ const flash = (() => {
           </tr>
         </tfoot>
       </table>
-      <p class="adm-table-note">All numbers are people, not rooms. Each registration is one person. Per-tier capacities <strong>overlap</strong> — the same bed in a multi-mode room (e.g. Room 1.2) counts toward both Private En-suite (sold solo) and Twin Bedroom (sold bed-by-bed), so summing tier capacities overcounts. The total row shows the real retreat ceiling: {maxPeople} sellable beds across all active rooms (hosts and cook excluded; fire keeper paviljoen and Room 5.2 cook help included since they're paying special-role seats). With current bookings, {placesAvailable} of those are still open; the rest are either booked or locked because a Private booking blocked the rest of a multi-mode room.</p>
+      <p class="adm-table-note">All numbers are people, not rooms. Each registration is one person. Per-tier capacities <strong>overlap</strong> — the same bed in a multi-mode room (e.g. Room 1.2) counts toward both Private En-suite (sold solo) and Twin Bedroom (sold bed-by-bed), so summing tier capacities overcounts. The total row shows the real retreat ceiling: {maxPeople} sellable beds across all active rooms (hosts and cook excluded; fire keeper paviljoen and Room 5.2 cook help included since they're paying special-role seats). With current bookings, {placesAvailable} of those are still open; the rest are either booked or locked because a Private booking blocked the rest of a multi-mode room.{hiddenTestTierCount > 0 && ' The €1 admin-test bed is a payment-flow fixture, not a place on sale, so it is left out of this table — it is still bookable from the registration page with ?admin=true.'}</p>
     </section>
 
     <!-- ─── Income ─── -->
