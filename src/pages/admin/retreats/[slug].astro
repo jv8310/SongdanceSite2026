@@ -150,13 +150,11 @@ for (const row of bookedByTier.results ?? []) {
   bookedMap.set(row.tier_id, row.c);
 }
 
-// The €1 admin-test tier is left out: it is a payment-flow fixture, not a room
-// on sale, and listing it put a phantom "1 place available" beside the real
-// rooms — the total row has always excluded it, so the table disagreed with its
-// own footer. It stays bookable via ?admin=true and still shows in Rooms below.
-const hiddenTestTierCount = ta.filter(({ tier }) =>
-  isInternalTestTierSlug(tier.slug),
-).length;
+// Internal test tiers never belong in this table: they are payment-flow
+// fixtures, not rooms on sale, and the €1 one used to advertise a phantom
+// "1 place available" beside the real rooms (dropped in migration 0084). The
+// filter stays as the guard — the total row has always excluded such a bed, so
+// listing it made the table disagree with its own footer.
 const tierSummary = ta
   .filter(({ tier }) => !isInternalTestTierSlug(tier.slug))
   .map(({ tier, remaining, capacity }) => ({
@@ -790,7 +788,7 @@ const flash = (() => {
           </tr>
         </tfoot>
       </table>
-      <p class="adm-table-note">All numbers are people, not rooms. Each registration is one person. Per-tier capacities <strong>overlap</strong> — the same bed in a multi-mode room (e.g. Room 1.2) counts toward both Private En-suite (sold solo) and Twin Bedroom (sold bed-by-bed), so summing tier capacities overcounts. The total row shows the real retreat ceiling: {maxPeople} sellable beds across all active rooms (hosts and cook excluded; fire keeper paviljoen and Room 5.2 cook help included since they're paying special-role seats). With current bookings, {placesAvailable} of those are still open; the rest are either booked or locked because a Private booking blocked the rest of a multi-mode room.{hiddenTestTierCount > 0 && ' The €1 admin-test bed is a payment-flow fixture, not a place on sale, so it is left out of this table — it is still bookable from the registration page with ?admin=true.'}</p>
+      <p class="adm-table-note">All numbers are people, not rooms. Each registration is one person. Per-tier capacities <strong>overlap</strong> — the same bed in a multi-mode room (e.g. Room 1.2) counts toward both Private En-suite (sold solo) and Twin Bedroom (sold bed-by-bed), so summing tier capacities overcounts. The total row shows the real retreat ceiling: {maxPeople} sellable beds across all active rooms (hosts and cook excluded; fire keeper paviljoen and Room 5.2 cook help included since they're paying special-role seats). With current bookings, {placesAvailable} of those are still open; the rest are either booked or locked because a Private booking blocked the rest of a multi-mode room.</p>
     </section>
 
     <!-- ─── Income ─── -->
@@ -972,7 +970,7 @@ const flash = (() => {
           </tr>
         </tfoot>
       </table>
-      <p class="adm-table-note">Rooms are grouped and sorted by building. <strong>Category</strong> is the price band (tier) the room is sold under. <strong>Sell as</strong>: <em>Single</em> — whole room, one booking locks it. <em>Multi</em> — sold bed by bed. <em>Either</em> — multi-mode; one whole-room booking locks the rest of the beds. Empty multi rooms show a dropdown: <em>Either</em> (auto), <em>Single only</em>, or <em>Multi only</em> — pin a mode to pre-decide how the room is offered on the public form. <strong>Booked</strong> counts active paid + pending registrations (incl. pre-allocated hosts/cook). <strong>Available</strong> is 0 for inactive rooms and for the empty beds in a locked whole-room booking; for a role-reserved bed it reflects whether the fire-keeper / cook-help seat is still open. <strong>Status</strong> carries a switch: <em>Reserve</em> holds a room back — its free beds stop being offered on the public form and auto-assign skips it — and <em>Open</em> puts it back on sale, so a reserved room keeps taking new bookings for its remaining beds. Either way, guests already placed in the room stay where they are. The totals row is the retreat-wide paying figure (same as the Capacity section): every active bed minus the non-paying hosts + cook, and excluding the hidden admin-test bed — so it won't equal a plain sum of the room rows above.</p>
+      <p class="adm-table-note">Rooms are grouped and sorted by building. <strong>Category</strong> is the price band (tier) the room is sold under. <strong>Sell as</strong>: <em>Single</em> — whole room, one booking locks it. <em>Multi</em> — sold bed by bed. <em>Either</em> — multi-mode; one whole-room booking locks the rest of the beds. Empty multi rooms show a dropdown: <em>Either</em> (auto), <em>Single only</em>, or <em>Multi only</em> — pin a mode to pre-decide how the room is offered on the public form. <strong>Booked</strong> counts active paid + pending registrations (incl. pre-allocated hosts/cook). <strong>Available</strong> is 0 for inactive rooms and for the empty beds in a locked whole-room booking; for a role-reserved bed it reflects whether the fire-keeper / cook-help seat is still open. <strong>Status</strong> carries a switch: <em>Reserve</em> holds a room back — its free beds stop being offered on the public form and auto-assign skips it — and <em>Open</em> puts it back on sale, so a reserved room keeps taking new bookings for its remaining beds. Either way, guests already placed in the room stay where they are. The totals row is the retreat-wide paying figure (same as the Capacity section): every active bed minus the non-paying hosts + cook, and excluding any internal test bed — so it won't equal a plain sum of the room rows above.</p>
     </section>
 
     <!-- ─── Waiting list ─── -->
