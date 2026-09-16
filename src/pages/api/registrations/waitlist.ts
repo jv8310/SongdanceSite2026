@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import {
   getProductBySlug,
   getTierBySlug,
+  isInternalTestTierSlug,
   logEventSafe,
 } from '../../../lib/registrations/db';
 import {
@@ -120,7 +121,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
   // admin-only tier just means "anything that comes free".
   let tierId: number | null = null;
   let tierName: string | null = null;
-  if (tierSlug && !/admin|test/i.test(tierSlug)) {
+  if (tierSlug && !isInternalTestTierSlug(tierSlug)) {
     const tier = await getTierBySlug(env.DB, product.id, tierSlug);
     if (tier) {
       tierId = tier.id;

@@ -623,6 +623,16 @@ function deriveRoomMode(r: {
   return r.solo_tier_id || r.couple_tier_id ? 'solo' : 'shared';
 }
 
+// The €1 admin payment-flow tier (and its "Admin test bed" inventory unit,
+// migration 0008) is internal plumbing, not a room anyone can book: the public
+// form only renders it with ?admin=true. It is therefore left out of every
+// readout of the retreat's real inventory — the public "% booked" figure, the
+// waiting-list offer picker, and the admin Capacity table. One predicate, so a
+// new readout can't quietly start counting a test bed as a place for sale.
+export function isInternalTestTierSlug(slug: string | null | undefined): boolean {
+  return !!slug && /admin|test/i.test(slug);
+}
+
 export type TierAvailability = {
   tier: Tier;
   remaining: number;
@@ -700,7 +710,7 @@ export async function computeBookedPercent(
     getTiersForProduct(db, productId),
   ]);
   const excludedTierIds = new Set(
-    tiers.filter((t) => /admin|test/i.test(t.slug)).map((t) => t.id),
+    tiers.filter((t) => isInternalTestTierSlug(t.slug)).map((t) => t.id),
   );
 
   let capacity = 0;

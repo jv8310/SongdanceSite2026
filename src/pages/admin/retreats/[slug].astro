@@ -12,6 +12,7 @@ import {
   computeTierAvailability,
   getRoomsWithMode,
   getRegistrationsWithBalanceDue,
+  isInternalTestTierSlug,
 } from '../../../lib/registrations/db';
 import {
   listWaitlist,
@@ -149,12 +150,19 @@ for (const row of bookedByTier.results ?? []) {
   bookedMap.set(row.tier_id, row.c);
 }
 
-const tierSummary = ta.map(({ tier, remaining, capacity }) => ({
-  tier_name: tier.name,
-  capacity,
-  booked: bookedMap.get(tier.id) ?? 0,
-  remaining,
-}));
+// Internal test tiers never belong in this table: they are payment-flow
+// fixtures, not rooms on sale, and the €1 one used to advertise a phantom
+// "1 place available" beside the real rooms (dropped in migration 0084). The
+// filter stays as the guard — the total row has always excluded such a bed, so
+// listing it made the table disagree with its own footer.
+const tierSummary = ta
+  .filter(({ tier }) => !isInternalTestTierSlug(tier.slug))
+  .map(({ tier, remaining, capacity }) => ({
+    tier_name: tier.name,
+    capacity,
+    booked: bookedMap.get(tier.id) ?? 0,
+    remaining,
+  }));
 
 // Real-bed availability: iterate rooms once, skip reserved/inactive AND the
 // admin-test tier so the totals reflect the actual retreat.
@@ -577,7 +585,7 @@ const heldTotal = [...waitlistHolds.values()].reduce((n, v) => n + v, 0);
 // What can be offered, and how much of it is actually free right now:
 // remaining beds in the tier, minus the ones already promised to someone.
 const offerTiers = ta
-  .filter(({ tier }) => !/admin|test/i.test(tier.slug))
+  .filter(({ tier }) => !isInternalTestTierSlug(tier.slug))
   .map(({ tier, remaining }) => {
     const held = waitlistHolds.get(tier.id) ?? 0;
     return {
@@ -962,7 +970,7 @@ const flash = (() => {
           </tr>
         </tfoot>
       </table>
-      <p class="adm-table-note">Rooms are grouped and sorted by building. <strong>Category</strong> is the price band (tier) the room is sold under. <strong>Sell as</strong>: <em>Single</em> — whole room, one booking locks it. <em>Multi</em> — sold bed by bed. <em>Either</em> — multi-mode; one whole-room booking locks the rest of the beds. Empty multi rooms show a dropdown: <em>Either</em> (auto), <em>Single only</em>, or <em>Multi only</em> — pin a mode to pre-decide how the room is offered on the public form. <strong>Booked</strong> counts active paid + pending registrations (incl. pre-allocated hosts/cook). <strong>Available</strong> is 0 for inactive rooms and for the empty beds in a locked whole-room booking; for a role-reserved bed it reflects whether the fire-keeper / cook-help seat is still open. <strong>Status</strong> carries a switch: <em>Reserve</em> holds a room back — its free beds stop being offered on the public form and auto-assign skips it — and <em>Open</em> puts it back on sale, so a reserved room keeps taking new bookings for its remaining beds. Either way, guests already placed in the room stay where they are. The totals row is the retreat-wide paying figure (same as the Capacity section): every active bed minus the non-paying hosts + cook, and excluding the hidden admin-test bed — so it won't equal a plain sum of the room rows above.</p>
+      <p class="adm-table-note">Rooms are grouped and sorted by building. <strong>Category</strong> is the price band (tier) the room is sold under. <strong>Sell as</strong>: <em>Single</em> — whole room, one booking locks it. <em>Multi</em> — sold bed by bed. <em>Either</em> — multi-mode; one whole-room booking locks the rest of the beds. Empty multi rooms show a dropdown: <em>Either</em> (auto), <em>Single only</em>, or <em>Multi only</em> — pin a mode to pre-decide how the room is offered on the public form. <strong>Booked</strong> counts active paid + pending registrations (incl. pre-allocated hosts/cook). <strong>Available</strong> is 0 for inactive rooms and for the empty beds in a locked whole-room booking; for a role-reserved bed it reflects whether the fire-keeper / cook-help seat is still open. <strong>Status</strong> carries a switch: <em>Reserve</em> holds a room back — its free beds stop being offered on the public form and auto-assign skips it — and <em>Open</em> puts it back on sale, so a reserved room keeps taking new bookings for its remaining beds. Either way, guests already placed in the room stay where they are. The totals row is the retreat-wide paying figure (same as the Capacity section): every active bed minus the non-paying hosts + cook, and excluding any internal test bed — so it won't equal a plain sum of the room rows above.</p>
     </section>
 
     <!-- ─── Waiting list ─── -->
