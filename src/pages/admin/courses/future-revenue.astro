@@ -4,6 +4,7 @@ import Layout from '../../../layouts/Layout.astro';
 import { readCookie, verifySession } from '../../../lib/registrations/auth';
 import {
   buildForecast,
+  type ForecastPerson,
   type InstallmentRow,
 } from '../../../lib/courses/installment-forecast';
 import { getTaxRate } from '../../../lib/workshops/quaderno';
@@ -133,11 +134,27 @@ function subTone(s: string | null): string {
   if (s === 'unpaid') return 'refunded';
   return 'cancelled'; // canceled, incomplete_expired
 }
-function stateLabel(state: string): string {
-  return state === 'at_risk' ? 'Watch'
-    : state === 'stopped' ? 'Stopped'
-    : state === 'not_started' ? 'Not started'
-    : 'On track';
+// A finished plan reads as finished. 'completed' covers both ways a plan runs
+// out of charges: it took every installment it was sold with, or an
+// admin-scheduled early stop has been reached (the progress column still shows
+// e.g. 2/3, so the two are told apart by name rather than by a second state).
+function stateLabel(p: ForecastPerson): string {
+  switch (p.state) {
+    case 'at_risk': return 'Watch';
+    case 'stopped': return 'Stopped';
+    case 'not_started': return 'Not started';
+    case 'completed':
+      return p.installmentsPaid >= p.installmentsTotal ? 'Completed' : 'Ended early';
+    default: return 'On track';
+  }
+}
+// The gateway keeps a finished plan's subscription open for a while after the
+// last charge (Stripe: cancel_at_period_end, so it stays `active` until the
+// final period runs out; PayPal: ACTIVE until the last cycle lapses to
+// EXPIRED). So an "active" pill on a completed plan is expected — say so,
+// rather than leaving the page implying another charge is coming.
+function windingDown(p: ForecastPerson): boolean {
+  return p.state === 'completed' && p.subStatus != null && subTone(p.subStatus) !== 'cancelled';
 }
 
 // ── SVG line chart geometry ──
@@ -239,6 +256,7 @@ const hasAtRisk = months.some((m) => m.atRiskEurMinor > 0);
         <div class="fr-stat fr-stat--hl"><span>Total projected</span><strong>{eur(totals.totalEurMinor)}</strong></div>
         <div class="fr-stat"><span>Due next 30 days</span><strong>{eur(totals.next30EurMinor)}</strong></div>
         <div class="fr-stat"><span>Open plans</span><strong>{totals.activePlans}</strong></div>
+        <div class="fr-stat" title="Plans that have taken every charge they are ever going to take — nothing left to collect."><span>Completed</span><strong>{totals.completedPlans}</strong></div>
         <div class="fr-stat"><span>Needs an eye</span><strong class={totals.attentionCount > 0 ? 'fr-risk' : ''}>{totals.attentionCount}</strong></div>
       </div>
     </section>
@@ -336,7 +354,8 @@ const hasAtRisk = months.some((m) => m.atRiskEurMinor > 0);
       <h2>
         Installment plans
         <span class="adm-sub" style="text-transform:none;letter-spacing:0;">
-          {people.length} plan(s) · cancelled / unpaid / retrying are flagged to watch
+          {people.length} plan(s) · cancelled / unpaid / retrying are flagged to
+          watch · finished plans sort to the bottom
         </span>
       </h2>
 
@@ -424,6 +443,12 @@ const hasAtRisk = months.some((m) => m.atRiskEurMinor > 0);
                     {p.subStatus
                       ? <span class={`adm-pill adm-pill--${subTone(p.subStatus)}`} title="Live subscription status">{p.subStatus}</span>
                       : <span class="adm-sub" style="text-transform:none;letter-spacing:0;">—</span>}
+                    {windingDown(p) && (
+                      <div
+                        class="fr-done"
+                        title="Every installment has been charged. Stripe keeps the subscription active until the period the last charge opened ends, then closes it; PayPal marks the plan expired after its final cycle. Nothing more will be billed."
+                      >✓ no further charges</div>
+                    )}
                     {link && (
                       <div>
                         <a class="fr-open" href={link.href} target="_blank" rel="noopener">Open in {link.label} ↗</a>
@@ -431,7 +456,7 @@ const hasAtRisk = months.some((m) => m.atRiskEurMinor > 0);
                     )}
                   </td>
                   <td>
-                    <span class={`fr-state fr-state--${p.state}`}>{stateLabel(p.state)}</span>
+                    <span class={`fr-state fr-state--${p.state}`}>{stateLabel(p)}</span>
                   </td>
                   <td>
                     {p.state === 'not_started' ? (
@@ -492,7 +517,12 @@ const hasAtRisk = months.some((m) => m.atRiskEurMinor > 0);
         (<strong>C-&lt;id&gt;</strong>) and refund the installments you mean to
         return; the same stop control is on that page too. “Watch” = the
         subscription is retrying (past&nbsp;due), unpaid, or cancelled with
-        money still owed. A <strong>Not started</strong>
+        money still owed. <strong>Completed</strong> = every charge the plan was ever
+        going to take has been taken (<em>Ended early</em> when a scheduled stop
+        got there first), so there is nothing left to collect; the gateway may
+        still show the subscription as <em>active</em> for up to a month
+        afterwards — Stripe closes it at the end of the period the last charge
+        opened, PayPal when the final cycle lapses. A <strong>Not started</strong>
         plan (0 charges, no payments) shows <strong>Remove</strong> instead: it
         deletes the stranded row after checking the gateway confirms no money was
         taken and the subscription isn’t live (otherwise it refuses and the hourly
@@ -544,6 +574,7 @@ const hasAtRisk = months.some((m) => m.atRiskEurMinor > 0);
     .fr-state--at_risk  { background: rgba(181,61,61,0.15); color: var(--adm-danger); }
     .fr-state--stopped  { background: rgba(0,0,0,0.06); color: var(--adm-mute); }
     .fr-state--not_started { background: rgba(196,128,31,0.15); color: var(--adm-warn); }
+    .fr-state--completed { background: rgba(0,0,0,0.05); color: var(--adm-ink-soft); }
 
     /* EUR-first money table */
     .fr-people { font-size: 13.5px; }
@@ -551,6 +582,10 @@ const hasAtRisk = months.some((m) => m.atRiskEurMinor > 0);
     .fr-th-sub {
       display:block; font-weight:normal; font-size:10px; letter-spacing:0.04em;
       text-transform:none; color: var(--adm-mute);
+    }
+    .fr-done {
+      margin-top:4px; font-size:11px; color: var(--adm-success);
+      letter-spacing:0.02em;
     }
     .fr-sched {
       margin-top:4px; font-size:11px; color: var(--adm-ember-deep);

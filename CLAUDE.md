@@ -1155,6 +1155,24 @@ cancelled on the orders page and in the sales digests. It now only cancels a pla
 that ended **owing** charges; one that took everything it owed keeps
 `status='paid'` and just records `subscription_status='canceled'`.
 
+**And a finished plan says so** (September 2026): `/admin/courses/future-revenue`
+had four plan states — on track / watch / stopped / not started — and no word for
+*done*, so a 3/3-paid plan read **ACTIVE · ON TRACK**, exactly like one with two
+charges still to come, and a plan whose subscription had since closed read
+**Stopped**, as if it had been cut short. `planState`
+([`installment-forecast.ts`](src/lib/courses/installment-forecast.ts)) now
+resolves **`completed`** first — every charge the plan was ever going to take has
+been taken — *before* `isDead`, so the gateway's own state no longer decides the
+wording; those rows sort to the bottom, carry their own headline count, and a
+scheduled stop reached short of the full term reads "Ended early" (the same
+state, named for what the progress column shows). The **ACTIVE pill is not a
+bug**: Stripe holds the subscription until the period the last charge opened runs
+out (`cancel_at_period_end`, set by `recordCourseInvoiceIfNew`) and PayPal until
+the final cycle lapses to `EXPIRED`, so up to a month of "active" is normal on a
+plan that owes nothing — the row now says **✓ no further charges** beside the
+pill rather than leaving the reader to wonder. Nothing about the money moved:
+a completed plan projected €0 before and projects €0 now.
+
 **Removing a dead not-started plan.** A plan stuck at 0/N whose gateway
 subscription no longer exists (e.g. an abandoned PayPal checkout PayPal has since
 purged) can't be paid or cancelled the normal way (`isCancellablePlan` requires
