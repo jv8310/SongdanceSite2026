@@ -111,6 +111,27 @@ export function needsAttention(subStatus: string | null): boolean {
   return subStatus != null && ATTENTION.has(subStatus);
 }
 
+// A plan that never took a single charge. The status set is deliberately the
+// same one `/api/admin/courses/dismiss-plan` accepts (its own Guard 1), because
+// this predicate decides whether the page offers the Remove button that posts
+// there — they must not drift, or the page offers a control the server refuses,
+// or hides one it would have honoured.
+const NEVER_PAID_STATUSES = new Set(['pending', 'expired', 'cancelled']);
+function neverCharged(row: InstallmentRow): boolean {
+  return (
+    row.installments_paid === 0 &&
+    !row.paid_at &&
+    NEVER_PAID_STATUSES.has(row.status)
+  );
+}
+
+// A plan WE ended: refunded, or cancelled owing charges. The remaining charges
+// will never arrive, but that is a decision already taken, not work waiting for
+// someone — so these are listed and never flagged.
+function endedByUs(row: InstallmentRow): boolean {
+  return row.status === 'cancelled' || row.status === 'refunded';
+}
+
 // A subscription that will issue no further invoices at all — drop it from the
 // forward projection (it's still listed in the watch list as "stopped").
 function isDead(row: InstallmentRow): boolean {
@@ -171,11 +192,15 @@ export type ForecastMonth = {
 // gateway has closed the subscription yet (Stripe holds it `active` until the
 // period the final charge opened runs out; PayPal until the last cycle lapses
 // into EXPIRED — up to a month of "active" on a plan that owes nothing).
+// 'never_paid' = not one charge was ever taken: an abandoned checkout, or a
+// subscription that never activated. It is NOT 'stopped' — nothing stopped,
+// nothing was ever collected — and it is the only state the Remove control can
+// act on.
 export type PlanState =
   | 'on_track'
   | 'at_risk'
   | 'stopped'
-  | 'not_started'
+  | 'never_paid'
   | 'completed';
 
 export type ForecastPerson = {
@@ -216,6 +241,7 @@ export type ForecastTotals = {
   next30EurMinor: number;    // due within 30 days from `now`
   activePlans: number;       // open plans still billing
   completedPlans: number;    // plans that have taken every charge they will
+  neverPaidPlans: number;    // rows that never took a charge (removable)
   attentionCount: number;    // plans flagged for a closer look
   installmentsAhead: number; // number of future charges projected
 };
@@ -285,8 +311,14 @@ function planState(row: InstallmentRow): PlanState {
   if (row.installments_paid >= row.installments_total && !rowEnded) {
     return 'completed';
   }
+  // Never charged — checked BEFORE isDead. An abandoned course checkout is
+  // flipped 'pending' → 'expired' fifteen minutes in (expireStaleCoursePendings),
+  // and reading that status as death dressed the row up as a plan that had
+  // stopped: it hid the Remove button (the one thing to do with it), and counted
+  // the charges it never took as money to chase.
+  if (neverCharged(row)) return 'never_paid';
   if (isDead(row)) return 'stopped';
-  if (!row.paid_at) return 'not_started';
+  if (!row.paid_at) return 'never_paid';
   // Short of the full term, but an admin-scheduled early stop has been reached:
   // nothing further will be charged either. Checked *after* isDead so a plan
   // whose subscription is already closed keeps reading 'stopped' (and stays
@@ -400,14 +432,22 @@ export function buildForecast(
       paypalSubscriptionId: row.paypal_subscription_id,
       paypalCaptureId: row.paypal_capture_id,
       state,
-      attention: state === 'at_risk' || (state === 'stopped' && remaining > 0),
+      // What "needs an eye" means: a plan you can still do something about.
+      // A live plan the gateway is struggling with (at_risk), or one the gateway
+      // stopped mid-schedule while charges were still owed — there the buyer has
+      // access, the rest of the money will never arrive, and nothing retries.
+      // Not a plan we ended ourselves (a decision already taken) and not one that
+      // never took a charge (an abandoned checkout, which just needs removing).
+      attention:
+        state === 'at_risk' ||
+        (state === 'stopped' && remaining > 0 && !endedByUs(row)),
     };
   });
 
   // Sort: things that need attention first, then by soonest next charge,
   // then everything finished/stopped at the bottom.
   const order: Record<PlanState, number> = {
-    at_risk: 0, on_track: 1, not_started: 2, stopped: 3, completed: 4,
+    at_risk: 0, on_track: 1, never_paid: 2, stopped: 3, completed: 4,
   };
   people.sort((a, b) => {
     if (order[a.state] !== order[b.state]) return order[a.state] - order[b.state];
@@ -426,6 +466,7 @@ export function buildForecast(
       effectiveTotal(r) - r.installments_paid > 0,
   ).length;
   const completedPlans = people.filter((p) => p.state === 'completed').length;
+  const neverPaidPlans = people.filter((p) => p.state === 'never_paid').length;
   const attentionCount = people.filter((p) => p.attention).length;
 
   return {
@@ -438,6 +479,7 @@ export function buildForecast(
       next30EurMinor: next30,
       activePlans,
       completedPlans,
+      neverPaidPlans,
       attentionCount,
       installmentsAhead,
     },

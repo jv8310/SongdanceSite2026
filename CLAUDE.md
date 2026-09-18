@@ -1089,7 +1089,7 @@ few seconds' delay) it records nothing; and if the endpoint isn't subscribed to
 `invoice.paid` (or a delivery drops), nothing else ever bumps the count.
 Meanwhile `customer.subscription.updated` still flips the row's
 `subscription_status` to `active`, so the plan sits at **0/N, `paid_at` NULL,
-coarse status `pending`/`expired`** — "ACTIVE" in Stripe, "Not started" on
+coarse status `pending`/`expired`** — "ACTIVE" in Stripe, "Never paid" on
 `/admin/courses/future-revenue` — while Stripe keeps charging monthly. No access,
 no SD-ORDER, no Drip. (This is the exact Stripe twin of the PayPal hole below.)
 
@@ -1173,15 +1173,38 @@ plan that owes nothing — the row now says **✓ no further charges** beside th
 pill rather than leaving the reader to wonder. Nothing about the money moved:
 a completed plan projected €0 before and projects €0 now.
 
-**Removing a dead not-started plan.** A plan stuck at 0/N whose gateway
+**"Needs an eye" means a plan you can still act on** (September 2026): the flag
+was `at_risk || (stopped && remaining > 0)`, and that second half swept up two
+piles of rows nobody can do anything about — plans **we** ended (refunded, or
+cancelled owing charges: a decision already taken) and, far more numerous,
+**abandoned checkouts**. A course checkout that is walked away from is flipped
+`pending` → `expired` fifteen minutes later by `expireStaleCoursePendings`, and
+`expired` is in `isDead`, so a row that never took a cent read **Stopped** with
+"3 charges left" and was counted as money to chase. Worse, `isDead` was tested
+*before* the no-anchor check, so those rows never reached the `not_started`
+state — and the **Remove** button renders only for that state, which meant the
+control built for exactly these rows was unreachable except in their first
+fifteen minutes. So: `neverCharged` (0 installments, no `paid_at`, status
+`pending`/`expired`/`cancelled` — deliberately the **same set**
+[`dismiss-plan`](src/pages/api/admin/courses/dismiss-plan.ts) accepts in its own
+Guard 1, since this predicate decides whether the page offers the button that
+posts there) is resolved **before** `isDead` and gives the state its honest name,
+**`never_paid`** ("Never paid"), with Remove restored and its own headline tile
+when the pile is non-empty. The flag now counts `at_risk` plus a plan the
+*gateway* stopped mid-schedule with charges still owed — there the buyer has
+access, the rest of the money will never arrive and nothing retries, which is
+the one stopped case that is still work. Nothing in the projection moved: a row
+with no `paid_at` was never projected.
+
+**Removing a never-paid plan.** A plan stuck at 0/N whose gateway
 subscription no longer exists (e.g. an abandoned PayPal checkout PayPal has since
 purged) can't be paid or cancelled the normal way (`isCancellablePlan` requires
 `status='paid'`), so it just clutters the watch list. `/admin/courses/future-revenue`
-shows a **Remove** button on any **Not started** plan →
+shows a **Remove** button on any **Never paid** plan →
 `/api/admin/courses/dismiss-plan` (admin-gated): it deletes the stranded row, but
 **only after the gateway confirms no money and no live subscription** — any
 settled charge or an ACTIVE/APPROVED (PayPal) / active/trialing/past_due (Stripe)
-subscription makes it refuse (a not-started row can look identical to the
+subscription makes it refuse (a never-paid row can look identical to the
 ACTIVE-but-unrecorded bug above, so removal is guarded; the reconcile records a
 real one instead). It best-effort cancels any lingering approval first
 (`cancelSubscriptionIfPresent`, tolerant of PayPal 404/422 via `PaypalApiError`),
