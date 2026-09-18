@@ -164,7 +164,19 @@ export type ForecastMonth = {
   count: number;            // installments landing this month
 };
 
-export type PlanState = 'on_track' | 'at_risk' | 'stopped' | 'not_started';
+// 'completed' = every charge this plan was ever going to take has been taken,
+// so there is nothing left to forecast. It is deliberately NOT the same as
+// 'stopped': a plan that ran its full term is finished, not cut short — and it
+// is finished the moment the last installment settles, whether or not the
+// gateway has closed the subscription yet (Stripe holds it `active` until the
+// period the final charge opened runs out; PayPal until the last cycle lapses
+// into EXPIRED — up to a month of "active" on a plan that owes nothing).
+export type PlanState =
+  | 'on_track'
+  | 'at_risk'
+  | 'stopped'
+  | 'not_started'
+  | 'completed';
 
 export type ForecastPerson = {
   id: number;
@@ -203,6 +215,7 @@ export type ForecastTotals = {
   totalEurMinor: number;     // expected + atRisk
   next30EurMinor: number;    // due within 30 days from `now`
   activePlans: number;       // open plans still billing
+  completedPlans: number;    // plans that have taken every charge they will
   attentionCount: number;    // plans flagged for a closer look
   installmentsAhead: number; // number of future charges projected
 };
@@ -259,8 +272,28 @@ function fullName(row: InstallmentRow): string {
 }
 
 function planState(row: InstallmentRow): PlanState {
+  // Our own terminal statuses: the row was cancelled owing charges, refunded,
+  // or never got off the ground. Those stay 'stopped' below however many
+  // installments they took.
+  const rowEnded =
+    row.status === 'cancelled' ||
+    row.status === 'refunded' ||
+    row.status === 'expired';
+
+  // Ran its full term — finished, regardless of what the gateway still calls
+  // the subscription (see PlanState above).
+  if (row.installments_paid >= row.installments_total && !rowEnded) {
+    return 'completed';
+  }
   if (isDead(row)) return 'stopped';
   if (!row.paid_at) return 'not_started';
+  // Short of the full term, but an admin-scheduled early stop has been reached:
+  // nothing further will be charged either. Checked *after* isDead so a plan
+  // whose subscription is already closed keeps reading 'stopped' (and stays
+  // out of the Manage control, which can't reopen a cancelled subscription).
+  if (row.installments_paid > 0 && effectiveTotal(row) <= row.installments_paid) {
+    return 'completed';
+  }
   if (needsAttention(row.subscription_status)) return 'at_risk';
   return 'on_track';
 }
@@ -374,7 +407,7 @@ export function buildForecast(
   // Sort: things that need attention first, then by soonest next charge,
   // then everything finished/stopped at the bottom.
   const order: Record<PlanState, number> = {
-    at_risk: 0, on_track: 1, not_started: 2, stopped: 3,
+    at_risk: 0, on_track: 1, not_started: 2, stopped: 3, completed: 4,
   };
   people.sort((a, b) => {
     if (order[a.state] !== order[b.state]) return order[a.state] - order[b.state];
@@ -392,6 +425,7 @@ export function buildForecast(
       r.paid_at != null &&
       effectiveTotal(r) - r.installments_paid > 0,
   ).length;
+  const completedPlans = people.filter((p) => p.state === 'completed').length;
   const attentionCount = people.filter((p) => p.attention).length;
 
   return {
@@ -403,6 +437,7 @@ export function buildForecast(
       totalEurMinor: expected + atRisk,
       next30EurMinor: next30,
       activePlans,
+      completedPlans,
       attentionCount,
       installmentsAhead,
     },
