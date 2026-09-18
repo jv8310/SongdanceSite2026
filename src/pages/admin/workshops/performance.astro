@@ -54,6 +54,15 @@ const eur0 = (minor: number) =>
   '€' + Math.round(minor / 100).toLocaleString('en-IE');
 const pct = (v: number | null) => (v != null ? v.toFixed(1) + '%' : '—');
 const roasStr = (v: number | null) => (v != null ? v.toFixed(2) + '×' : '—');
+// Profit is what is left of a session's revenue after every ad euro charged to
+// it — the *Meta* cost (prospecting + retargeting), not just the TOF slice the
+// headline ROAS divides by, because all of it was really spent. Nothing else is
+// netted off here: no Zoom, no gateway fees, no time.
+const profitOf = (revenueMinor: number, metaMinor: number | null) => revenueMinor - (metaMinor ?? 0);
+const eurSigned0 = (minor: number) =>
+  (minor < 0 ? '−€' : '€') + Math.round(Math.abs(minor) / 100).toLocaleString('en-IE');
+const profitTone = (minor: number): 'good' | 'bad' | 'flat' =>
+  minor > 0 ? 'good' : minor < 0 ? 'bad' : 'flat';
 const roasTone = (v: number | null): 'good' | 'bad' | 'flat' =>
   v == null ? 'flat' : v >= 1 ? 'good' : 'bad';
 
@@ -87,6 +96,10 @@ const totRevCollected = sum((r) => r.totalCollectedEurMinor);
 const totMeta = sum((r) => r.metaCostEurMinor ?? 0);
 const totTof = sum((r) => r.acquisitionCostEurMinor ?? 0);
 const totRoas = totMeta > 0 ? totRev / totMeta : null;
+// Both halves of the revenue bar, minus the same ad spend: what these sessions
+// are worth, and what has actually been banked against the money already paid out.
+const totProfit = totRev - totMeta;
+const totProfitCollected = totRevCollected - totMeta;
 const totAttended = totLive + totReplay;
 
 // Money bars share one scale across every card, so bar lengths are comparable
@@ -199,6 +212,14 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
             <span class="pf-track"><span class="pf-fill pf-fill--cost" style={`width:${barPct(totTof, Math.max(totRev, totMeta, 1))}%`}></span></span>
             <span class="pf-bar-amt">{eur0(totTof)}</span>
           </div>
+          <div class="pf-bar pf-bar--profit" title={`Revenue ${eur(totRev)} − Meta cost ${eur(totMeta)} (all ad spend charged to these sessions, prospecting + retargeting). Ad spend only — nothing else is netted off.`}>
+            <span class="pf-bar-key">Profit</span>
+            <span class="pf-profit-sub">
+              {totMeta > 0 ? <>revenue − Meta cost</> : <>no ad cost charged here</>}
+              {totRevCollected < totRev && <> · {eurSigned0(totProfitCollected)} on money charged so far</>}
+            </span>
+            <span class={`pf-bar-amt ${profitTone(totProfit)}`}>{eurSigned0(totProfit)}</span>
+          </div>
           <p class="pf-money-note">
             {report.audiences.workshop.costPerRegistrationEurMinor != null && <>{eur(Math.round(report.audiences.workshop.costPerRegistrationEurMinor))} / workshop reg · </>}
             {report.audiences.masterclass.costPerRegistrationEurMinor != null && <>{eur(Math.round(report.audiences.masterclass.costPerRegistrationEurMinor))} / masterclass reg · </>}
@@ -273,6 +294,18 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
                   <span class="pf-track"><span class="pf-fill pf-fill--cost" style={`width:${barPct(cost ?? 0, moneyMax)}%`}></span></span>
                   <span class="pf-bar-amt">{cost != null ? eur0(cost) : '—'}</span>
                 </div>
+                <div class="pf-bar pf-bar--profit" title={`Revenue ${eur(r.totalEurMinor)} − Meta cost ${eur(r.metaCostEurMinor ?? 0)} (all ad spend charged to this session, prospecting + retargeting). Ad spend only — nothing else is netted off.`}>
+                  <span class="pf-bar-key">Profit</span>
+                  <span class="pf-profit-sub">
+                    {r.metaCostEurMinor ? <>revenue − Meta cost</> : <>no ad cost charged here</>}
+                    {r.totalCollectedEurMinor < r.totalEurMinor && (
+                      <> · {eurSigned0(profitOf(r.totalCollectedEurMinor, r.metaCostEurMinor))} on money charged so far</>
+                    )}
+                  </span>
+                  <span class={`pf-bar-amt ${profitTone(profitOf(r.totalEurMinor, r.metaCostEurMinor))}`}>
+                    {eurSigned0(profitOf(r.totalEurMinor, r.metaCostEurMinor))}
+                  </span>
+                </div>
                 <p class="pf-money-note">
                   {r.costPerRegistrationEurMinor != null
                     ? <><b>{eur(Math.round(r.costPerRegistrationEurMinor))}</b> per registration</>
@@ -340,7 +373,7 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
 
       <p class="adm-sub" style="margin-top:14px;">
         Registrations = completed (paid or coupon). The bar splits them into live · replay · no-show — live vs replay is whether they joined before or after the live slot ended, and admin-marked attendance without a join time counts as live; any remainder is registered with nothing recorded yet.
-        TOF cost = the prospecting spend this session’s registrations pulled, out of the campaigns that were buying registrations for <em>its</em> product (a masterclass is never charged workshop-campaign money, or the other way round), priced day by day — each registration costs what a registration of that product cost on the day it came in — and the per-registration figure is that ÷ this session’s registrations, so it differs from the product average when its seats filled on cheaper or dearer days. Meta cost is the same day-by-day allocation of <em>total</em> ad spend (prospecting + retargeting); blended ROAS is revenue ÷ Meta cost. Revenue hovers to show the workshop-checkout vs attributed-course split. Conv = distinct course/cert buyers ÷ registrations.
+        TOF cost = the prospecting spend this session’s registrations pulled, out of the campaigns that were buying registrations for <em>its</em> product (a masterclass is never charged workshop-campaign money, or the other way round), priced day by day — each registration costs what a registration of that product cost on the day it came in — and the per-registration figure is that ÷ this session’s registrations, so it differs from the product average when its seats filled on cheaper or dearer days. Meta cost is the same day-by-day allocation of <em>total</em> ad spend (prospecting + retargeting); blended ROAS is revenue ÷ Meta cost, and <strong>profit</strong> is revenue − that same Meta cost — every ad euro charged to the session and <em>nothing else</em> (no gateway fees, no Zoom, no time). Revenue counts a payment plan in full on the day it was sold, so the second profit figure is the one on money actually charged so far. Revenue hovers to show the workshop-checkout vs attributed-course split. Conv = distinct course/cert buyers ÷ registrations.
       </p>
     </section>
 
@@ -724,6 +757,14 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
       width: 66px; flex: none; text-align: right;
       font-variant-numeric: tabular-nums; color: var(--adm-ink); font-weight: 600;
     }
+    /* Profit sits on the same right-hand column as the two amounts above it, so
+       the subtraction reads down the card. */
+    .pf-bar--profit { margin-top: 2px; padding-top: 6px; border-top: 1px solid var(--adm-line); }
+    .pf-card--total .pf-bar--profit { border-top-color: rgba(201, 96, 58, 0.22); }
+    .pf-profit-sub { flex: 1; font-size: 10.5px; line-height: 1.35; color: var(--adm-mute); }
+    .pf-bar-amt.good { color: var(--adm-success); }
+    .pf-bar-amt.bad { color: var(--adm-danger); }
+    .pf-bar-amt.flat { color: var(--adm-mute); }
     .pf-money-note { margin: 3px 0 0; font-size: 11px; color: var(--adm-mute); }
     .pf-money-note b { color: var(--adm-ink-soft); font-weight: 600; }
 

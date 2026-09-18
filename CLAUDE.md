@@ -841,6 +841,19 @@ Anything new that attributes a course sale to a campaign, a session or a
 channel must use `contractedMinorOf` — reading the collected slice is this bug
 again.
 
+**Profit on a session card is revenue − *Meta* cost** (September 2026): the
+workshop cards on `/admin/workshops/performance` and `/ads` print ROAS against
+**TOF** cost, which is the right divisor for "what did acquisition buy" and the
+wrong one for "did this session make money" — the retargeting euros were spent
+too. So the profit line under the two bars subtracts `metaCostEurMinor` (the
+day-by-day allocation of *total* spend, the same figure blended ROAS divides by)
+and is labelled as such on the card. It is profit **after ad spend only** —
+no gateway fees, no Zoom, no time — and, like the revenue bar above it, it
+counts a payment plan in full on the day it was sold, so the performance card
+prints the collected-revenue profit beside it whenever the two differ. A profit
+figure that silently nets nothing but TOF, or that quietly means something other
+than the revenue bar directly above it, is the bug this shape avoids.
+
 **Every course figure converts and nets the same way, on every page.** The
 attribution above only reads true if the money underneath it does, and two
 pages were computing without a money context: `/admin/workshops/performance`
