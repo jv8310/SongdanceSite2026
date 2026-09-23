@@ -300,6 +300,30 @@ export async function unsubscribeFromAll(cfg: DripConfig, email: string): Promis
   }
 }
 
+// Change a subscriber's email address in place. Drip's create/update endpoint
+// takes the current address as `email` and the replacement as `new_email`, and
+// renames the SAME subscriber — tags, custom fields, orders, event history and
+// workflow positions all carry over. Drip refuses when `new_email` already
+// belongs to another subscriber (two people can't share an address), so callers
+// should look both addresses up first and only rename when the new one is free.
+export async function changeSubscriberEmail(
+  cfg: DripConfig,
+  oldEmail: string,
+  newEmail: string,
+): Promise<void> {
+  const res = await fetch(`${baseUrl(cfg)}/subscribers`, {
+    method: 'POST',
+    headers: {
+      Authorization: authHeader(cfg),
+      'Content-Type': 'application/vnd.api+json',
+    },
+    body: JSON.stringify({ subscribers: [{ email: oldEmail, new_email: newEmail }] }),
+  });
+  if (!res.ok) {
+    throw new Error(`Drip changeSubscriberEmail: ${res.status} ${await res.text()}`);
+  }
+}
+
 // Re-activate a previously unsubscribed subscriber. Drip resubscribes when the
 // subscriber is (re)created with status "active" on the create/update endpoint.
 // Only call this for a deliberate, consented opt-in (e.g. an admin action).
