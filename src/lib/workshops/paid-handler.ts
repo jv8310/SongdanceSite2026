@@ -8,12 +8,13 @@
 // The confirmation email is idempotent via claimNotification('confirmation').
 
 import { logEvent } from '../registrations/db';
-import { upsertSubscriber } from '../registrations/drip';
+import { changeSubscriberEmail, getSubscriber, upsertSubscriber } from '../registrations/drip';
 import { recordPurchaseOrder } from '../orders/drip-order';
 import { workshopDripTags, audienceLensesFor } from './drip-tags';
 import { resolveWorkshopBumpProduct } from './bump';
 import { mirrorTagsToContact } from '../contacts/mirror';
 import {
+  changeRegistrationEmail,
   claimNotification,
   getProductById,
   getRegistrationById,
@@ -221,6 +222,87 @@ export async function resendConfirmation(
     payload: { registration_id: reg.id, workshop_id: workshop.id },
   });
   return { ok: true };
+}
+
+// What happened on the Drip side of an email change — surfaced to the admin,
+// because each outcome means something different for the person's contact:
+//   renamed  — the old subscriber was renamed in place (tags, orders and
+//              workflow history travel with it). The normal case.
+//   tagged   — Drip had no subscriber under the old address, so the new one
+//              was created/updated with this seat's tags.
+//   both     — Drip already holds BOTH addresses as separate subscribers, which
+//              it can't merge; the new one got this seat's tags and the old one
+//              was left as is.
+//   skipped  — Drip not configured, or nothing to carry (an unpaid checkout
+//              that was never pushed to Drip).
+//   error    — the Drip call failed (logged); the site's record still changed.
+export type EmailChangeDrip = 'renamed' | 'tagged' | 'both' | 'skipped' | 'error';
+
+// Admin action: correct a registrant's email. The row changes first (it is
+// the source of truth for every reminder and the join link), then Drip is
+// brought along, then — if asked — the confirmation goes to the new address.
+export async function changeRegistrantEmail(
+  env: Env,
+  registrationId: number,
+  newEmail: string,
+  opts: { resendConfirmation?: boolean } = {},
+): Promise<
+  | { ok: true; changed: boolean; drip: EmailChangeDrip; resent: boolean }
+  | { ok: false; error: 'not_found' | 'taken' }
+> {
+  const result = await changeRegistrationEmail(env.DB, registrationId, newEmail);
+  if (!result.ok) return { ok: false, error: result.reason };
+  if (!result.changed) return { ok: true, changed: false, drip: 'skipped', resent: false };
+
+  const reg = await getRegistrationById(env.DB, registrationId);
+  const workshop = reg ? await getWorkshopById(env.DB, reg.workshop_id) : null;
+  if (!reg || !workshop) return { ok: false, error: 'not_found' };
+  const secured = reg.payment_status === 'paid' || reg.payment_status === 'coupon';
+
+  await logEvent(env.DB, {
+    registration_id: null,
+    kind: 'workshop.registration.email_changed',
+    source: 'admin',
+    payload: { registration_id: reg.id, workshop_id: workshop.id, from: result.oldEmail, to: result.newEmail },
+  });
+
+  let drip: EmailChangeDrip = 'skipped';
+  if (env.DRIP_API_TOKEN && env.DRIP_ACCOUNT_ID) {
+    const cfg = { apiToken: env.DRIP_API_TOKEN, accountId: env.DRIP_ACCOUNT_ID };
+    try {
+      const [oldSub, newSub] = await Promise.all([
+        getSubscriber(cfg, result.oldEmail),
+        getSubscriber(cfg, result.newEmail),
+      ]);
+      if (oldSub && !newSub) {
+        await changeSubscriberEmail(cfg, result.oldEmail, result.newEmail);
+        drip = 'renamed';
+      } else if (secured) {
+        drip = oldSub ? 'both' : 'tagged';
+      }
+      // Re-apply this seat's tags under the new address (idempotent). After a
+      // rename it's a no-op on Drip's side; otherwise it's what gives the new
+      // address the workshop/bump tags — and it mirrors them onto the local
+      // contacts list either way.
+      if (secured) await tagInDrip(env, reg, workshop);
+    } catch (err) {
+      drip = 'error';
+      await logEvent(env.DB, {
+        registration_id: null,
+        kind: 'workshop.registration.email_change_drip_error',
+        payload: { registration_id: reg.id, from: result.oldEmail, to: result.newEmail, error: String(err) },
+      });
+    }
+  } else if (secured) {
+    // No Drip: still mirror the seat's tags onto the local contacts list.
+    await tagInDrip(env, reg, workshop).catch(() => {});
+  }
+
+  let resent = false;
+  if (opts.resendConfirmation && secured) {
+    resent = (await resendConfirmation(env, reg.id)).ok;
+  }
+  return { ok: true, changed: true, drip, resent };
 }
 
 // Side-effects when an existing registration is *moved* to a new date (the

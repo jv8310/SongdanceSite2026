@@ -41,7 +41,25 @@ const flashText =
   : liveSentMatch ? `“We’re live now” sent to ${liveSentMatch[1]} registrant${liveSentMatch[1] === '1' ? '' : 's'} — each with their join link.`
   : flash === 'live_error' ? 'Couldn’t send the “We’re live now” email — check the logs.'
   : null;
-const flashErr = flash === 'resend_error' || flash === 'briefing_error' || flash === 'live_error';
+// Email change: `email_changed_<drip outcome>[_resent]` (see changeRegistrantEmail).
+const emailMatch = flash?.match(/^email_changed_(renamed|tagged|both|skipped|error)(_resent)?$/);
+const DRIP_OUTCOME: Record<string, string> = {
+  renamed: 'Drip: the contact was renamed to the new address — tags and history carried over.',
+  tagged: 'Drip had no contact under the old address, so the new one was added with this session’s tags.',
+  both: 'Drip already had both addresses as separate contacts (it can’t merge them): the new one got this session’s tags, the old one was left as is.',
+  skipped: 'Drip: nothing to update (not configured, or this checkout was never paid).',
+  error: 'Drip update FAILED — change the address in Drip by hand (details in the event log).',
+};
+const emailFlash = emailMatch
+  ? `Email changed. ${DRIP_OUTCOME[emailMatch[1]]}${emailMatch[2] ? ' Confirmation re-sent to the new address.' : ''}`
+  : flash === 'email_taken' ? 'That address already holds a registration for this session — nothing changed.'
+  : flash === 'email_invalid' ? 'That doesn’t look like an email address — nothing changed.'
+  : flash === 'email_same' ? 'That is already this registrant’s address — nothing changed.'
+  : flash === 'email_error' ? 'Couldn’t change the email — registration not found.'
+  : null;
+const flashErr = flash === 'resend_error' || flash === 'briefing_error' || flash === 'live_error'
+  || flash === 'email_taken' || flash === 'email_invalid' || flash === 'email_error'
+  || emailMatch?.[1] === 'error';
 
 const paidCount = regs.filter((r) => r.payment_status === 'paid' || r.payment_status === 'coupon').length;
 const attendedCount = regs.filter((r) => r.attendance_status === 'attended').length;
@@ -86,7 +104,7 @@ const STATUS_LABEL: Record<string, string> = { draft: 'Draft', published: 'Publi
       </div>
     </header>
 
-    {flashText && <div class={`adm-flash ${flashErr ? 'adm-flash--err' : 'adm-flash--ok'}`}>{flashText}</div>}
+    {(flashText ?? emailFlash) && <div class={`adm-flash ${flashErr ? 'adm-flash--err' : 'adm-flash--ok'}`}>{flashText ?? emailFlash}</div>}
 
     <section class="adm-section">
       <h2>Details</h2>
@@ -157,7 +175,20 @@ const STATUS_LABEL: Record<string, string> = { draft: 'Draft', published: 'Publi
           <tbody>
             {regs.map((r) => (
               <tr>
-                <td>{r.name ?? '—'}<br /><code>{r.email}</code></td>
+                <td>
+                  {r.name ?? '—'}<br /><code>{r.email}</code>
+                  <details class="adm-email-edit">
+                    <summary>Change email</summary>
+                    <form method="POST" action="/api/admin/workshops/change-email" class="adm-email-form" onsubmit="return confirm('Change this registrant’s email to ' + this.new_email.value + '? Their Drip contact is updated too.')">
+                      <input type="hidden" name="registration_id" value={r.id} />
+                      <input type="email" name="new_email" value={r.email} required />
+                      {(r.payment_status === 'paid' || r.payment_status === 'coupon') && (
+                        <label><input type="checkbox" name="resend" value="1" checked /> Send the confirmation to the new address</label>
+                      )}
+                      <button type="submit" class="adm-resend">Save email</button>
+                    </form>
+                  </details>
+                </td>
                 <td>{r.country ?? '—'}<br /><small>{r.currency ?? ''}</small></td>
                 <td>{r.amount_minor != null && r.pay_currency ? formatMoney(r.amount_minor, r.pay_currency) : '—'}{r.settlement_amount_minor != null ? <><br /><small>€{(r.settlement_amount_minor / 100).toFixed(2)} settled</small></> : null}</td>
                 <td><span class={`adm-pill adm-pill--pay-${r.payment_status}`}>{r.payment_status}</span></td>
@@ -203,6 +234,12 @@ const STATUS_LABEL: Record<string, string> = { draft: 'Draft', published: 'Publi
     .adm-resend { margin-top:6px; display:inline-block; font-size:12px; padding:3px 9px; border-radius:999px; border:1px solid rgba(42,27,42,0.2); background:#fff; color:#2A1B2A; cursor:pointer; font-family:inherit; }
     .adm-resend:hover { background:#F4ECDF; }
     .adm-flash--err { background:#f0d8d8; }
+    .adm-email-edit { margin-top:4px; }
+    .adm-email-edit > summary { cursor:pointer; font-size:12px; color:#7a6a7a; }
+    .adm-email-form { display:flex; flex-direction:column; gap:6px; margin-top:6px; min-width:220px; }
+    .adm-email-form input[type=email] { font:inherit; font-size:13px; padding:4px 6px; }
+    .adm-email-form label { font-size:12px; display:flex; gap:6px; align-items:center; }
+    .adm-email-form .adm-resend { align-self:flex-start; margin-top:0; }
 
     /* Export CSV pop-out menu */
     .wsx-export { position:relative; }

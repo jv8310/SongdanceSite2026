@@ -725,6 +725,34 @@ export async function moveRegistrationToWorkshop(
   return { ok: true, token: reg.access_token };
 }
 
+// Admin correction of a registrant's email (a typo at checkout, or they ask to
+// use another address). Only this row changes — the token, payment, ledger and
+// sent-notification claims all key on the registration id, so every link
+// already sent keeps working. Refuses when the new address already holds a
+// seat on the same session (UNIQUE(workshop_id, email)).
+export async function changeRegistrationEmail(
+  db: D1Database,
+  registrationId: number,
+  newEmail: string,
+): Promise<
+  | { ok: true; oldEmail: string; newEmail: string; changed: boolean }
+  | { ok: false; reason: 'not_found' | 'taken' }
+> {
+  const reg = await getRegistrationById(db, registrationId);
+  if (!reg) return { ok: false, reason: 'not_found' };
+  const email = newEmail.trim().toLowerCase();
+  if (reg.email.toLowerCase() === email) {
+    return { ok: true, oldEmail: reg.email, newEmail: email, changed: false };
+  }
+  const clash = await getRegistrationByWorkshopEmail(db, reg.workshop_id, email);
+  if (clash && clash.id !== registrationId) return { ok: false, reason: 'taken' };
+  await db
+    .prepare(`UPDATE workshop_registrations SET email = ?, updated_at = datetime('now') WHERE id = ?`)
+    .bind(email, registrationId)
+    .run();
+  return { ok: true, oldEmail: reg.email, newEmail: email, changed: true };
+}
+
 export type RegistrationListRow = WorkshopRegistration & {
   amount_minor: number | null;
   pay_currency: string | null;

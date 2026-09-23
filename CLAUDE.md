@@ -382,6 +382,24 @@ Four steps, three of them rows in `workshop_share_events` (migration 0082):
   the funnel, a per-button table, and who is actually sending people. Money goes
   through `grossEurMinor` like every other euro on that page.
 
+## Changing a workshop registrant's email
+
+`/admin/workshops/<id>` → **Change email** under each registrant (a typo at
+checkout, or they ask to use another address). `changeRegistrantEmail`
+([`paid-handler.ts`](src/lib/workshops/paid-handler.ts)) rewrites only that
+row — the token, payment, ledger and sent-notification claims key on the
+registration id, so every link already sent keeps working — and refuses an
+address that already holds a seat on the same session. **Drip comes along**:
+when Drip holds the old address and not the new one, the subscriber is
+**renamed in place** (`changeSubscriberEmail`, `new_email` on the subscribers
+endpoint), so tags, orders and workflow history travel with it. Drip can't
+merge two subscribers, so when both addresses already exist the new one just
+gets the seat's tags (re-applied via `tagInDrip`, which also mirrors the
+contacts list) and the old one is left alone; the flash says which happened,
+and a failed Drip call says to fix it by hand. A tick-box re-sends the
+confirmation to the new address. Logged as
+`workshop.registration.email_changed`.
+
 ## Email lifecycle (workshops)
 
 All automated workshop email lives in the workshop engine:
