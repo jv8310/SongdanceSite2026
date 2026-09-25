@@ -32,8 +32,9 @@ import {
 import { allocateSpendPools, type SpendPool } from '../ads/allocation';
 import { getTaxRate, netFromGross, type QuadernoTaxConfig } from './quaderno';
 import { getFxRatesToEur } from '../admin/fx';
-import { parsePurchasedBumps } from '../courses/db';
-import { effectiveTotal } from '../courses/installment-forecast';
+import { parsePurchasedBumps, type PurchasedBump } from '../courses/db';
+import { BUMPS, isBumpSlug } from '../courses/bumps';
+import { effectiveTotal, addMonths } from '../courses/installment-forecast';
 import { MASTERCLASS_DOOR_SPLIT_START } from './experiments';
 
 export const MASTERCLASS_PRODUCT_SLUG = 'svh-masterclass';
@@ -161,10 +162,14 @@ function cyclesValueMinor(r: CourseMoneyRow, cycles: number): number {
 // installment's invoice), so they are collected in full on any row that took
 // money — `amount_cents` deliberately holds the course price only. Counted
 // only where the row actually carries the column.
-function bumpsMinorOf(r: CourseMoneyRow): number {
-  if (!(r.installments_paid > 0 || r.installments_total <= 1)) return 0;
+function chargedBumps(r: CourseMoneyRow): PurchasedBump[] {
+  if (!(r.installments_paid > 0 || r.installments_total <= 1)) return [];
   return parsePurchasedBumps(r.bumps ?? null)
-    .reduce((sum, b) => sum + Math.max(0, b.amount_cents), 0);
+    .map((b) => ({ slug: b.slug, amount_cents: Math.max(0, b.amount_cents) }));
+}
+
+function bumpsMinorOf(r: CourseMoneyRow): number {
+  return chargedBumps(r).reduce((sum, b) => sum + b.amount_cents, 0);
 }
 
 function netOfRefundMinor(grossMinor: number, r: CourseMoneyRow): number {
@@ -198,16 +203,45 @@ function collectedMinorOf(r: CourseMoneyRow): number {
 // cancelled/refunded row is worth only what it already took, and refunds come
 // off either way.
 function contractedMinorOf(r: CourseMoneyRow): number {
+  return netOfRefundMinor(cyclesValueMinor(r, contractedCycles(r)) + bumpsMinorOf(r), r);
+}
+
+function contractedCycles(r: CourseMoneyRow): number {
   const stopped = r.status === 'cancelled' || r.status === 'refunded';
-  const cycles = stopped
+  return stopped
     ? r.installments_paid
     : effectiveTotal({
         installments_paid: r.installments_paid,
         installments_total: r.installments_total,
         cancel_after_installment: r.cancel_after_installment ?? null,
       });
-  return netOfRefundMinor(cyclesValueMinor(r, cycles) + bumpsMinorOf(r), r);
 }
+
+// One checkout taken apart: the course line at `cycles` billing cycles and each
+// order bump bought on it, refunds off. A refund comes off the course line
+// first — a bump is only ever handed back along with the course it rode on — so
+// the parts always sum to what collectedMinorOf (cycles = paid) and
+// contractedMinorOf (cycles = contractedCycles) count for the same row. The
+// split is what lets a report show "course sales" and "course order bumps" as
+// two lines without either one counting the other.
+function checkoutPartsMinor(
+  r: CourseMoneyRow,
+  cycles: number,
+): { courseMinor: number; bumps: PurchasedBump[] } {
+  const course = cyclesValueMinor(r, cycles);
+  const refund = Math.max(0, r.refunded_amount_cents ?? 0);
+  const lines = chargedBumps(r);
+  const overflow = Math.max(0, refund - course);
+  if (overflow === 0) return { courseMinor: course - refund, bumps: lines };
+  const bumpTotal = lines.reduce((s, b) => s + b.amount_cents, 0);
+  const keep = bumpTotal > 0 ? Math.max(0, bumpTotal - overflow) / bumpTotal : 0;
+  return {
+    courseMinor: 0,
+    bumps: lines.map((b) => ({ slug: b.slug, amount_cents: Math.round(b.amount_cents * keep) })),
+  };
+}
+
+const bumpLabel = (slug: string): string => (isBumpSlug(slug) ? BUMPS[slug].label : slug);
 
 type PaymentRow = {
   id: number;
@@ -530,19 +564,46 @@ export type CourseDailyStat = {
   twelveWeekEurMinor: number;
   certificationEurMinor: number;
   otherEurMinor: number;
+  // Everything sold that day at its full value — course lines AND the order
+  // bumps bought with them (see CourseSalesReport.totalSoldEurMinor).
+  soldEurMinor: number;
 };
 
+// `netEurMinor` is what has been CHARGED on a sale so far (the course line
+// only — the figure /admin/stats has always shown); `fullValueEurMinor` is the
+// same sale counted in full, every installment of a payment plan included —
+// the figure ad attribution uses (contractedMinorOf).
+type CourseBucket = { count: number; netEurMinor: number; fullValueEurMinor: number };
+
 export type CourseSalesReport = {
-  twelveWeek: { count: number; netEurMinor: number };
-  certification: { count: number; netEurMinor: number };
-  other: { count: number; netEurMinor: number };
+  twelveWeek: CourseBucket;
+  certification: CourseBucket;
+  other: CourseBucket;
   totalCount: number;
   totalNetEurMinor: number;
-  byProduct: Array<{ slug: string; label: string; group: CourseGroup; count: number; netEurMinor: number }>;
+  totalFullValueEurMinor: number;
+  // Of totalCount, how many were bought on a 3×/6×/12× plan.
+  planCount: number;
+  // Order bumps bought on these checkouts (the `bumps` JSON). They are charged
+  // up front with the first payment, so "charged" and "full value" are one
+  // figure. NOT part of totalNetEurMinor / totalFullValueEurMinor, which are the
+  // course lines alone.
+  bumps: {
+    count: number;
+    eurMinor: number;
+    byLabel: Array<{ label: string; count: number; eurMinor: number }>;
+  };
+  // What these checkouts are worth in full: course lines at full value + their
+  // order bumps. "What did this window sell?"
+  totalSoldEurMinor: number;
+  byProduct: Array<{
+    slug: string; label: string; group: CourseGroup;
+    count: number; planCount: number; netEurMinor: number; fullValueEurMinor: number;
+  }>;
   daily: CourseDailyStat[];
   fxConverted: number; // rows converted to EUR (fallback table unless MoneyOpts gave live rates)
   taxApplied: boolean; // true when VAT was stripped per country (Quaderno configured)
-  taxEurMinor: number; // estimated VAT removed from the figures, EUR
+  taxEurMinor: number; // estimated VAT removed from the charged figures, EUR
 };
 
 type CourseRegRow = {
@@ -556,6 +617,14 @@ type CourseRegRow = {
   installments_total: number;
   refunded_amount_cents: number;
   paid_at: string;
+};
+
+// What computeCourseSales reads: enough to value the sale in full as well as
+// what it has charged so far.
+type CourseSaleRow = CourseRegRow & {
+  status: string;
+  cancel_after_installment: number | null;
+  bumps: string | null;
 };
 
 // The same row as the workshop attribution reads it: it also needs whatever
@@ -583,12 +652,13 @@ export async function computeCourseSales(
   const res = await db
     .prepare(
       `SELECT product_slug, amount_cents, currency, country, vat_number, payment_plan,
-              installments_paid, installments_total, refunded_amount_cents, paid_at
+              installments_paid, installments_total, refunded_amount_cents, paid_at,
+              status, cancel_after_installment, bumps
          FROM course_registrations
         WHERE ${where.join(' AND ')}`,
     )
     .bind(...binds)
-    .all<CourseRegRow>();
+    .all<CourseSaleRow>();
   const regRows = res.results ?? [];
   // See computeStats: resolved here when the caller passed none, so no call
   // site can silently price a non-EUR course sale off the static table.
@@ -596,29 +666,51 @@ export async function computeCourseSales(
   const taxRates = await resolveCourseTaxRates(regRows, opts.money?.taxCfg);
 
   const report: CourseSalesReport = {
-    twelveWeek: { count: 0, netEurMinor: 0 },
-    certification: { count: 0, netEurMinor: 0 },
-    other: { count: 0, netEurMinor: 0 },
+    twelveWeek: { count: 0, netEurMinor: 0, fullValueEurMinor: 0 },
+    certification: { count: 0, netEurMinor: 0, fullValueEurMinor: 0 },
+    other: { count: 0, netEurMinor: 0, fullValueEurMinor: 0 },
     totalCount: 0,
     totalNetEurMinor: 0,
+    totalFullValueEurMinor: 0,
+    planCount: 0,
+    bumps: { count: 0, eurMinor: 0, byLabel: [] },
+    totalSoldEurMinor: 0,
     byProduct: [],
     daily: [],
     fxConverted: 0,
     taxApplied: Boolean(opts.money?.taxCfg),
     taxEurMinor: 0,
   };
-  const productMap = new Map<string, { count: number; net: number }>();
-  const dailyMap = new Map<string, { tw: number; cert: number; other: number }>();
+  const productMap = new Map<string, { count: number; plans: number; net: number; full: number }>();
+  const bumpMap = new Map<string, { count: number; eurMinor: number }>();
+  const dailyMap = new Map<string, { tw: number; cert: number; other: number; sold: number }>();
 
   for (const r of regRows) {
-    const collected = collectedMinorOf(r);
+    // The course line, charged so far and in full; the order bumps once (they
+    // are charged up front, so there is no "so far" for them).
+    const charged = checkoutPartsMinor(r, r.installments_paid);
+    const full = checkoutPartsMinor(r, contractedCycles(r));
 
     const cur = (r.currency || 'EUR').toUpperCase();
     if (cur !== 'EUR') report.fxConverted += 1;
     const { eurMinor, grossEurMinor: rowGrossEur } = courseNetEur(
-      collected, r, taxRates, fxRates,
+      charged.courseMinor, r, taxRates, fxRates,
     );
     report.taxEurMinor += rowGrossEur - eurMinor;
+    const fullEurMinor = courseNetEur(full.courseMinor, r, taxRates, fxRates).eurMinor;
+    let bumpsEurMinor = 0;
+    for (const b of full.bumps) {
+      const bEur = courseNetEur(b.amount_cents, r, taxRates, fxRates).eurMinor;
+      const label = bumpLabel(b.slug);
+      const e = bumpMap.get(label) ?? { count: 0, eurMinor: 0 };
+      e.count += 1;
+      e.eurMinor += bEur;
+      bumpMap.set(label, e);
+      report.bumps.count += 1;
+      report.bumps.eurMinor += bEur;
+      bumpsEurMinor += bEur;
+    }
+    const isPlan = r.installments_total > 1;
 
     const info = COURSE_PRODUCT_INFO[r.product_slug] ?? { group: 'other' as const, label: r.product_slug };
     const bucket =
@@ -626,28 +718,41 @@ export async function computeCourseSales(
       info.group === 'certification' ? report.certification : report.other;
     bucket.count += 1;
     bucket.netEurMinor += eurMinor;
+    bucket.fullValueEurMinor += fullEurMinor;
     report.totalCount += 1;
     report.totalNetEurMinor += eurMinor;
+    report.totalFullValueEurMinor += fullEurMinor;
+    if (isPlan) report.planCount += 1;
 
-    const p = productMap.get(r.product_slug) ?? { count: 0, net: 0 };
+    const p = productMap.get(r.product_slug) ?? { count: 0, plans: 0, net: 0, full: 0 };
     p.count += 1;
+    if (isPlan) p.plans += 1;
     p.net += eurMinor;
+    p.full += fullEurMinor;
     productMap.set(r.product_slug, p);
 
     const date = (r.paid_at || '').slice(0, 10);
-    const d = dailyMap.get(date) ?? { tw: 0, cert: 0, other: 0 };
+    const d = dailyMap.get(date) ?? { tw: 0, cert: 0, other: 0, sold: 0 };
     if (info.group === 'twelve_week') d.tw += eurMinor;
     else if (info.group === 'certification') d.cert += eurMinor;
     else d.other += eurMinor;
+    d.sold += fullEurMinor + bumpsEurMinor;
     dailyMap.set(date, d);
   }
+  report.totalSoldEurMinor = report.totalFullValueEurMinor + report.bumps.eurMinor;
+  report.bumps.byLabel = [...bumpMap.entries()]
+    .map(([label, v]) => ({ label, count: v.count, eurMinor: v.eurMinor }))
+    .sort((a, b) => b.eurMinor - a.eurMinor);
 
   report.byProduct = [...productMap.entries()]
     .map(([slug, v]) => {
       const info = COURSE_PRODUCT_INFO[slug] ?? { group: 'other' as const, label: slug };
-      return { slug, label: info.label, group: info.group, count: v.count, netEurMinor: v.net };
+      return {
+        slug, label: info.label, group: info.group,
+        count: v.count, planCount: v.plans, netEurMinor: v.net, fullValueEurMinor: v.full,
+      };
     })
-    .sort((a, b) => b.netEurMinor - a.netEurMinor);
+    .sort((a, b) => b.fullValueEurMinor - a.fullValueEurMinor);
 
   report.daily = [...dailyMap.entries()]
     .sort(([a], [b]) => (a < b ? -1 : 1))
@@ -656,10 +761,144 @@ export async function computeCourseSales(
       twelveWeekEurMinor: v.tw,
       certificationEurMinor: v.cert,
       otherEurMinor: v.other,
+      soldEurMinor: v.sold,
     }));
 
   return report;
 }
+
+// ---------------------------------------------------------------------------
+// Course cash in: the course money actually CHARGED inside a window.
+//
+// computeCourseSales answers "what was sold in this window" — every figure
+// hangs off the day of the sale (`paid_at`), so a plan's later installments
+// are folded back onto the day it was bought and never show up in the window
+// they were actually charged in. That is right for attribution and wrong for
+// cash flow: yesterday's income read as the first installment of yesterday's
+// sales, and the installments of every older plan that billed yesterday were
+// nowhere at all.
+//
+// So this walks each plan's charges on their own dates: the first payment on
+// `paid_at` (with the order bumps, which ride it), then installment k on
+// `paid_at + k` calendar months — the schedule Stripe and PayPal bill on, and
+// the one the future-revenue forecast projects forward — for every
+// installment the row has recorded. Refunds go out on `refunded_at` (the day
+// of the first refund on the row; a later partial refund of the same row is
+// dated there too). Net of VAT per country and EUR-converted exactly like
+// computeCourseSales, so the two are the same money on different clocks.
+
+export type CourseCashReport = {
+  // Course lines of sales made in the window: a one-off in full, a plan's first
+  // installment.
+  firstPaymentsEurMinor: number;
+  firstPaymentCount: number;
+  // Order bumps, which are charged with that first payment.
+  bumpsEurMinor: number;
+  // Installment 2 onward of a plan, dated on its monthly schedule. In a daily
+  // or weekly window these are always plans sold on an earlier day.
+  installmentsEurMinor: number;
+  installmentCount: number;
+  // Refunds issued in the window (a positive figure, to subtract).
+  refundsEurMinor: number;
+  refundCount: number;
+  // first payments + bumps + installments − refunds.
+  totalEurMinor: number;
+  daily: Array<{ date: string; eurMinor: number }>;
+};
+
+export async function computeCourseCashIn(
+  db: D1Database,
+  opts: { from?: string | null; to?: string | null; money?: MoneyOpts } = {},
+): Promise<CourseCashReport> {
+  const from = opts.from ?? null;
+  const to = opts.to ?? null;
+  const toEnd = to ? `${to} 23:59:59` : null;
+  // A 12× plan's last charge is 11 months after the sale, so any plan with a
+  // charge in the window was sold at most a year before it opens.
+  const earliestSale = from ? isoDay(addMonths(Date.parse(`${from}T00:00:00Z`), -12)) : null;
+
+  const where: string[] = ['paid_at IS NOT NULL', "status NOT IN ('pending','expired')"];
+  const binds: unknown[] = [];
+  const saleWin: string[] = [];
+  if (earliestSale) { saleWin.push('paid_at >= ?'); binds.push(earliestSale); }
+  if (toEnd) { saleWin.push('paid_at <= ?'); binds.push(toEnd); }
+  const refundWin: string[] = ['refunded_at IS NOT NULL', 'refunded_amount_cents > 0'];
+  if (from) { refundWin.push('refunded_at >= ?'); binds.push(from); }
+  if (toEnd) { refundWin.push('refunded_at <= ?'); binds.push(toEnd); }
+  if (saleWin.length) {
+    where.push(`((${saleWin.join(' AND ')}) OR (${refundWin.join(' AND ')}))`);
+  }
+
+  const res = await db
+    .prepare(
+      `SELECT product_slug, amount_cents, currency, country, vat_number, payment_plan,
+              installments_paid, installments_total, refunded_amount_cents, paid_at,
+              refunded_at, bumps
+         FROM course_registrations
+        WHERE ${where.join(' AND ')}`,
+    )
+    .bind(...binds)
+    .all<CourseRegRow & { refunded_at: string | null; bumps: string | null }>();
+  const rows = res.results ?? [];
+  const fxRates = opts.money?.fxRates ?? (await getFxRatesToEur(db));
+  const taxRates = await resolveCourseTaxRates(rows, opts.money?.taxCfg);
+
+  const inWindow = (ymd: string): boolean =>
+    (!from || ymd >= from) && (!to || ymd <= to);
+  const report: CourseCashReport = {
+    firstPaymentsEurMinor: 0, firstPaymentCount: 0, bumpsEurMinor: 0,
+    installmentsEurMinor: 0, installmentCount: 0,
+    refundsEurMinor: 0, refundCount: 0, totalEurMinor: 0, daily: [],
+  };
+  const dailyMap = new Map<string, number>();
+  const addDay = (ymd: string, v: number) => dailyMap.set(ymd, (dailyMap.get(ymd) ?? 0) + v);
+  const eurOf = (minor: number, r: CourseRegRow) =>
+    courseNetEur(minor, r, taxRates, fxRates).eurMinor;
+
+  for (const r of rows) {
+    const saleMs = parseUtcMs(r.paid_at);
+    if (saleMs != null) {
+      const isPlan = r.installments_total > 1;
+      const perCharge = isPlan ? Math.round(r.amount_cents / r.installments_total) : r.amount_cents;
+      const charges = isPlan
+        ? Math.max(0, Math.min(r.installments_paid, r.installments_total))
+        : 1;
+      for (let k = 0; k < charges; k++) {
+        const ymd = isoDay(addMonths(saleMs, k));
+        if (!inWindow(ymd)) continue;
+        const courseEur = eurOf(perCharge, r);
+        if (k === 0) {
+          const bumpEur = chargedBumps(r).reduce((s, b) => s + eurOf(b.amount_cents, r), 0);
+          report.firstPaymentsEurMinor += courseEur;
+          report.firstPaymentCount += 1;
+          report.bumpsEurMinor += bumpEur;
+          addDay(ymd, courseEur + bumpEur);
+        } else {
+          report.installmentsEurMinor += courseEur;
+          report.installmentCount += 1;
+          addDay(ymd, courseEur);
+        }
+      }
+    }
+    const refundYmd = (r.refunded_at ?? '').slice(0, 10);
+    if (refundYmd && (r.refunded_amount_cents ?? 0) > 0 && inWindow(refundYmd)) {
+      const refundEur = eurOf(r.refunded_amount_cents, r);
+      report.refundsEurMinor += refundEur;
+      report.refundCount += 1;
+      addDay(refundYmd, -refundEur);
+    }
+  }
+
+  report.totalEurMinor =
+    report.firstPaymentsEurMinor + report.bumpsEurMinor +
+    report.installmentsEurMinor - report.refundsEurMinor;
+  report.daily = [...dailyMap.entries()]
+    .sort(([a], [b]) => (a < b ? -1 : 1))
+    .map(([date, eurMinor]) => ({ date, eurMinor }));
+  return report;
+}
+
+const isoDay = (ms: number): string => new Date(ms).toISOString().slice(0, 10);
 
 // ---------------------------------------------------------------------------
 // Per-workshop performance: the registration → attendance → course-purchase

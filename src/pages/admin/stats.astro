@@ -5,6 +5,7 @@ import { readCookie, verifySession } from '../../lib/registrations/auth';
 import {
   computeStats,
   computeCourseSales,
+  computeCourseCashIn,
   computeWorkshopPerformance,
   computeRegistrationsByDay,
   computeAdSpendByCampaign,
@@ -89,6 +90,7 @@ const money = await resolveMoneyOpts(env.DB, env);
 const workshops = await listWorkshops(env.DB);
 const report = await computeStats(env.DB, { from, to, workshopId, excludeFutureEvents: excludeFuture });
 const courses = await computeCourseSales(env.DB, { from, to, money });
+const courseCash = await computeCourseCashIn(env.DB, { from, to, money });
 const days = mergeDailyStreams(report, courses, from, to);
 const campaignSpend = await computeAdSpendByCampaign(env.DB, { from, to });
 // Per-workshop funnel + workshop-only (TOF) ROAS. Not narrowed by the workshop
@@ -211,6 +213,15 @@ const adSpendEurMinor = perf.adSpendEurMinor;
 const cmpAdSpendEurMinor = cmp ? (cmpPerf?.adSpendEurMinor ?? cmp.report.adSpendEurMinor) : null;
 const netAfterAds = totalNet - adSpendEurMinor;
 const blendedRoas = adSpendEurMinor > 0 ? totalNet / adSpendEurMinor : null;
+// The same window read the two other ways the SD-REPORT digest reads it:
+// SOLD — every sale at its full value, a payment plan counted in full on the day
+// it was sold plus the order bumps bought with it (what ad attribution and Meta
+// count) — and CASH IN — what was actually charged in the window, installments
+// on older plans included and refunds out. The headline stays what it has
+// always been: the charged-so-far value of this window's sales.
+const soldFullEurMinor = report.totals.netEurMinor + courses.totalSoldEurMinor;
+const cashInEurMinor = report.totals.netEurMinor + courseCash.totalEurMinor;
+const soldRoas = adSpendEurMinor > 0 ? soldFullEurMinor / adSpendEurMinor : null;
 const salesCount =
   report.totals.ticketCount + report.totals.masterclassCount + report.totals.bumpCount +
   report.totals.courseCount + courses.totalCount;
@@ -655,6 +666,9 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
           <span class="st-hero-sub">
             {int(salesCount)} sales{aovEurMinor != null && <> · {eur0(aovEurMinor)} avg</>} · {rangeLabel}
           </span>
+          <span class="st-hero-sub" title="Sold: payment plans counted in full on the day they were sold, plus course order bumps. Cash in: what was charged in this window — installments on earlier plans included, refunds out. The same two figures as the SD-REPORT digest.">
+            <strong>{eur0(soldFullEurMinor)}</strong> sold at full value · <strong>{eur0(cashInEurMinor)}</strong> cash in
+          </span>
           {heroSpark && (
             <svg class="st-hero-spark" viewBox={`0 0 ${heroSpark.w} ${heroSpark.h}`} preserveAspectRatio="none" aria-hidden="true">
               <path d={heroSpark.area} fill="rgba(243,234,216,0.12)"></path>
@@ -684,6 +698,7 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
             return d && <em class={`st-hd st-hd--${d.cls}`}>{d.arrow} {d.text}</em>;
           })()}
           <span class="st-hero-mini">all revenue ÷ all ad spend</span>
+          {soldRoas != null && <span class="st-hero-mini">{roasStr(soldRoas)} with plans counted in full</span>}
         </div>
       </div>
       {(report.totals.flaggedNoTax > 0 || courses.fxConverted > 0 || !courses.taxApplied) && (

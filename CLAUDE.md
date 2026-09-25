@@ -839,10 +839,12 @@ is the attribution figure now:
   charges;
 - refunds off, VAT stripped per country and FX-converted exactly as before.
 
-`collectedMinorOf` stays the **cash** figure and still drives
-`computeCourseSales`, so the `/admin/stats` revenue tiles, the daily streams
-and the SD-REPORT digests are untouched — nothing recognises revenue before it
-is charged. The two travel together through the performance report
+`collectedMinorOf` stays the **charged-so-far** figure and still drives
+`computeCourseSales`' `netEurMinor`, so the `/admin/stats` revenue tiles and the
+daily streams are untouched — nothing there recognises revenue before it is
+charged. (The SD-REPORT digests moved to full value in September 2026 — see
+"Internal reports" below: they print **Sold**, which is this contracted figure,
+beside **Cash in**, which is what was actually charged in the window.) The two travel together through the performance report
 (`attributedCourseEurMinor` / `attributedCourseCollectedEurMinor`,
 `totalEurMinor` / `totalCollectedEurMinor`, and
 `AudienceAcquisition.revenueEurMinor` / `collectedRevenueEurMinor`) and both are
@@ -894,15 +896,51 @@ Ops-only summary email (NOT customer-facing), sibling to the `SD-ORDER`
 notifications. Lives in [`src/lib/workshops/reports.ts`](src/lib/workshops/reports.ts).
 
 - **What it covers** for the window: new **workshop registrations** (paid/coupon,
-  per workshop), **course sales** (12-week / certification / grief, per product),
-  **bump offers** — both the workshop order bump (`workshop_purchases`) and the
-  12-week checkout order bumps (the `bumps` JSON on `course_registrations`) — and
-  a **revenue** breakdown that sums them. Numbers reuse the dashboard's own
-  `computeStats` + `computeCourseSales` (stats.ts), so a figure here matches
-  `/admin/stats` for the same window.
+  per workshop, with the seats each session holds now), **course sales**
+  (12-week / certification / grief, per product — full value beside charged so
+  far), **bump offers** — both the workshop order bump (`workshop_purchases`) and
+  the course checkout order bumps (the `bumps` JSON on `course_registrations`) —
+  **ad economics** per product, and the **money** in two columns (below). Numbers
+  reuse the dashboard's own `computeStats`, `computeCourseSales`,
+  `computeCourseCashIn` and `computeWorkshopPerformance` (stats.ts) with the same
+  live-FX + Quaderno money context, so every figure is on `/admin/stats` for the
+  same window (the email's button opens that exact window).
+- **Sold vs Cash in — a payment plan is one sale, paid a month at a time**
+  (September 2026). The digest used to print one hybrid: each course sale at the
+  installments it had collected *so far*, on the day it was sold — so a €797
+  certification on a 3× plan entered yesterday's report at €266, and the later
+  installments of every older plan never appeared in any report at all. Now two
+  columns:
+  - **Sold** — every sale at its **full value** on the day it was sold: the whole
+    plan (`contractedMinorOf`: capped at an admin early stop, a cancelled or
+    refunded row only what it took) plus the order bumps bought with it. The
+    figure ad attribution, the ad-economics cards and Meta already use, so the
+    digest's **blended ROAS is sold ÷ all ad spend** and agrees with them. A note
+    says how much of it is still to bill.
+  - **Cash in** — what was actually **charged** in the window
+    (`computeCourseCashIn`): first payments on new sales (with their bumps), plus
+    installment *k* of every plan on `paid_at + k` calendar months — the schedule
+    Stripe/PayPal bill on and the future-revenue forecast projects — for each
+    installment the row has recorded, less refunds dated on `refunded_at` (the
+    *first* refund on a row; a later partial refund of it is dated there too).
+
+  Workshop tickets, masterclass seats and their bumps are paid in full at
+  checkout, so they read the same in both columns. `/admin/stats` prints both
+  figures under its headline ("… sold at full value · … cash in") and the
+  full-value ROAS under blended ROAS; the headline itself is still the
+  charged-so-far value of the window's sales.
+- **Ad economics** is the stats page's per-product card as a table — workshop and
+  masterclass registrations, the prospecting spend charged to them day by day,
+  cost per registration, made back (courses in full) and ROAS — straight off
+  `computeWorkshopPerformance().audiences`. The digest's "cost per registration"
+  used to be *all* spend (retargeting included) ÷ *all* registrations; there is
+  no such figure on the dashboard.
+- **Course order bumps are netted of VAT** like every other course figure — they
+  are tallied once, in `computeCourseSales().bumps`, which both the digest and
+  `/ads` read (each used to keep its own gross-of-VAT copy).
 - **Cadence**: a **daily** digest (covering *yesterday*) every morning, plus a
-  **weekly** digest (the 7 days ending yesterday, with a revenue-by-day table)
-  every **Tuesday**. Runs on the existing **hourly** cron (no new trigger):
+  **weekly** digest (the 7 days ending yesterday, with a by-day table of
+  registrations, ad spend, sold and cash in) every **Tuesday**. Runs on the existing **hourly** cron (no new trigger):
   `runReports` self-gates to the first tick at/after **08:00 Europe/Brussels**,
   so it survives DST and a missed tick is caught up later the same day. Windows
   resolve in Brussels time, matching the stats-page presets.

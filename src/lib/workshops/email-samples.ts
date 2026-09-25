@@ -547,7 +547,7 @@ export function buildEmailSamples(base: string): EmailSample[] {
       group: 'Reports (internal)',
       label: 'SD-REPORT — daily digest',
       timing: 'Every morning (first hourly tick at/after 08:00 Brussels)',
-      audience: 'Team inbox (REPORTS_TO) — registrations, course sales, bumps, revenue for yesterday',
+      audience: 'Team inbox (REPORTS_TO) — yesterday: sold (payment plans in full) vs cash in, ad economics per product, registrations, course sales, bumps',
       content: buildDailyReportEmail(sampleDailyReportData(), b),
     },
     {
@@ -555,7 +555,7 @@ export function buildEmailSamples(base: string): EmailSample[] {
       group: 'Reports (internal)',
       label: 'SD-REPORT — weekly digest',
       timing: 'Every Tuesday morning (the 7 days ending yesterday)',
-      audience: 'Team inbox (REPORTS_TO) — same sections + a revenue-by-day table',
+      audience: 'Team inbox (REPORTS_TO) — same sections + a by-day table (regs, ad spend, sold, cash in)',
       content: buildWeeklyReportEmail(sampleWeeklyReportData(), b),
     },
 

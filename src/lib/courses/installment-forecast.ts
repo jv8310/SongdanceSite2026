@@ -124,8 +124,10 @@ function isDead(row: InstallmentRow): boolean {
 }
 
 // Add `n` calendar months to a UTC timestamp, clamping the day to the target
-// month's length (e.g. Jan 31 + 1mo → Feb 28).
-function addMonths(ms: number, n: number): number {
+// month's length (e.g. Jan 31 + 1mo → Feb 28). Exported so the cash-in figures
+// (workshops/stats.ts) date a plan's past charges on the same schedule this
+// file projects its future ones.
+export function addMonths(ms: number, n: number): number {
   const d = new Date(ms);
   const day = d.getUTCDate();
   const target = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + n, 1));
