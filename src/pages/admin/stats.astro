@@ -8,6 +8,7 @@ import {
   computeCourseCashIn,
   computeWorkshopPerformance,
   computeRegistrationsByDay,
+  computeUpcomingSessions,
   computeAdSpendByCampaign,
   mergeDailyStreams,
   resolveMoneyOpts,
@@ -33,11 +34,9 @@ import {
   FUTURE_COSTS_PARAM,
 } from '../../lib/workshops/periods';
 import {
-  buildForecast,
+  loadInstallmentForecast,
   type Forecast,
-  type InstallmentRow,
 } from '../../lib/courses/installment-forecast';
-import { getTaxRate } from '../../lib/workshops/quaderno';
 
 export const prerender = false;
 
@@ -141,44 +140,13 @@ for (const c of report.courseBreakdown) {
 }
 
 // ---- Future-revenue forecast (open installment plans, all products) ----
-// Same projection as /admin/courses/future-revenue: VAT netted per country
-// when Quaderno is configured. Never breaks the page — box hides on error.
+// The one projection /admin/courses/future-revenue and the weekly SD-REPORT
+// read too: VAT netted per country when Quaderno is configured. Never breaks
+// the page — box hides on error.
 
 let forecast: Forecast | null = null;
 try {
-  const q = await env.DB
-    .prepare(
-      `SELECT id, email, first_name, last_name, currency, country, vat_number,
-              status, payment_plan, amount_cents,
-              installments_paid, installments_total,
-              paid_at, subscription_status, provider,
-              stripe_subscription_id, stripe_payment_intent,
-              paypal_subscription_id, paypal_capture_id, cancel_after_installment
-         FROM course_registrations
-        WHERE installments_total > 1
-        ORDER BY paid_at DESC`,
-    )
-    .all<InstallmentRow>();
-  const rows = q.results ?? [];
-  if (money.taxCfg) {
-    const countries = [
-      ...new Set(
-        rows
-          .filter((r) => !r.vat_number && r.country)
-          .map((r) => (r.country as string).toUpperCase()),
-      ),
-    ];
-    const rateByCountry = new Map<string, number>();
-    await Promise.all(
-      countries.map(async (c) => {
-        rateByCountry.set(c, await getTaxRate(money.taxCfg!, c, 'eservice'));
-      }),
-    );
-    for (const r of rows) {
-      r.taxRate = r.vat_number ? 0 : rateByCountry.get((r.country ?? '').toUpperCase()) ?? 0;
-    }
-  }
-  forecast = buildForecast(rows, Date.now());
+  forecast = (await loadInstallmentForecast(env.DB, money.taxCfg)).forecast;
 } catch {
   forecast = null;
 }
@@ -186,20 +154,7 @@ try {
 // ---- Upcoming workshops (published, future-dated) with seats sold so far ----
 
 const nowIso = new Date().toISOString();
-const upcoming = workshops
-  .filter((w) => w.status === 'published' && !w.is_replay && w.starts_at_utc > nowIso)
-  .sort((a, b) => (a.starts_at_utc < b.starts_at_utc ? -1 : 1))
-  .slice(0, 5);
-let seatsByWorkshop = new Map<number, number>();
-if (upcoming.length) {
-  const seatRes = await env.DB
-    .prepare(
-      `SELECT workshop_id, COUNT(*) AS n FROM workshop_registrations
-        WHERE payment_status IN ('paid','coupon') GROUP BY workshop_id`,
-    )
-    .all<{ workshop_id: number; n: number }>();
-  seatsByWorkshop = new Map((seatRes.results ?? []).map((r) => [r.workshop_id, r.n]));
-}
+const upcoming = await computeUpcomingSessions(env.DB, { limit: 5, nowIso });
 
 // ---- Derived figures ----
 
@@ -906,9 +861,9 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
               {upcoming.map((w) => (
                 <li>
                   <a href={`/admin/workshops/${w.id}`}>
-                    <span class="st-up-date">{wkDayLabel(w.starts_at_utc)}</span>
+                    <span class="st-up-date">{wkDayLabel(w.startsAtUtc)}</span>
                     <span class="st-up-title">{shortTitle(w.title)}</span>
-                    <span class="st-up-seats"><b>{int(seatsByWorkshop.get(w.id) ?? 0)}</b> seats</span>
+                    <span class="st-up-seats"><b>{int(w.seats)}</b> seats</span>
                   </a>
                 </li>
               ))}

@@ -124,3 +124,94 @@ export const FUTURE_COSTS_PARAM = 'future';
 export function excludeFutureEventsFrom(params: URLSearchParams): boolean {
   return params.get(FUTURE_COSTS_PARAM) === 'exclude';
 }
+
+// ---------------------------------------------------------------------------
+// Business days, in UTC.
+//
+// A window's `from` / `to` are Brussels calendar days — every preset resolves
+// "today" there — but every row is stamped in UTC (SQLite's datetime('now'):
+// 'YYYY-MM-DD HH:MM:SS'). Filtering rows on `from` … `to 23:59:59` and bucketing
+// them on their first ten characters therefore read a UTC day as if it were a
+// Brussels one: a sale at 00:30 on a Brussels Tuesday (22:30 UTC Monday) landed
+// in Monday's figures and Monday's SD-REPORT. These turn a Brussels day into the
+// UTC instants that bound it, and a UTC stamp into the Brussels day it fell on,
+// so windows and daily buckets are business days end to end. (Ad spend is
+// already per calendar day — `spend_date`, in the Meta ad account's timezone —
+// and needs neither.)
+
+const BUSINESS_TZ = 'Europe/Brussels';
+
+const wallClock = new Intl.DateTimeFormat('en-US', {
+  timeZone: BUSINESS_TZ,
+  hourCycle: 'h23',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+});
+const businessDate = new Intl.DateTimeFormat('en-CA', { timeZone: BUSINESS_TZ });
+
+// Brussels' offset from UTC at an instant, in ms (+1h in winter, +2h in summer).
+function businessOffsetMs(ms: number): number {
+  const p: Record<string, number> = {};
+  for (const part of wallClock.formatToParts(new Date(ms))) {
+    if (part.type !== 'literal') p[part.type] = parseInt(part.value, 10);
+  }
+  const wall = Date.UTC(p.year, p.month - 1, p.day, p.hour % 24, p.minute, p.second);
+  return wall - (ms - (ms % 1000));
+}
+
+const sqliteStamp = (ms: number): string => new Date(ms).toISOString().slice(0, 19).replace('T', ' ');
+
+/** The UTC instant (ms) a Brussels calendar day begins. */
+export function businessDayStartMs(ymd: string): number {
+  const [y, m, d] = ymd.split('-').map((s) => parseInt(s, 10));
+  const midnightAsUtc = Date.UTC(y, m - 1, d);
+  // Brussels changes clocks at 01:00 UTC, never across its own midnight, so the
+  // offset one guess away is the offset at midnight — re-checked all the same.
+  let start = midnightAsUtc - businessOffsetMs(midnightAsUtc);
+  const settled = midnightAsUtc - businessOffsetMs(start);
+  if (settled !== start) start = settled;
+  return start;
+}
+
+/**
+ * SQL bounds for a Brussels window over a UTC 'YYYY-MM-DD HH:MM:SS' column:
+ * rows with `start <= col < end`. A missing side is open (all time).
+ */
+export function businessWindowUtc(
+  from: string | null | undefined,
+  to: string | null | undefined,
+): { start: string | null; end: string | null } {
+  return {
+    start: from ? sqliteStamp(businessDayStartMs(from)) : null,
+    end: to ? sqliteStamp(businessDayStartMs(shiftDays(to, 1))) : null,
+  };
+}
+
+// The Brussels day depends only on the UTC hour a stamp falls in (the offset is
+// whole hours), so memoise per hour: a busy window's thousands of rows format a
+// few hundred dates, not thousands.
+const dayByUtcHour = new Map<number, string>();
+
+/** The Brussels calendar day (YYYY-MM-DD) a UTC stamp or instant falls on. */
+export function businessDayOf(ts: string | number | null | undefined): string {
+  let ms: number;
+  if (typeof ts === 'number') ms = ts;
+  else {
+    const s = (ts ?? '').trim();
+    if (!s) return '';
+    ms = Date.parse(s.includes('T') ? s : s.replace(' ', 'T') + 'Z');
+    if (!Number.isFinite(ms)) return s.slice(0, 10);
+  }
+  const hour = Math.floor(ms / 3_600_000);
+  let day = dayByUtcHour.get(hour);
+  if (day === undefined) {
+    day = businessDate.format(new Date(ms));
+    if (dayByUtcHour.size > 20_000) dayByUtcHour.clear();
+    dayByUtcHour.set(hour, day);
+  }
+  return day;
+}

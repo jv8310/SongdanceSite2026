@@ -810,6 +810,33 @@ So: an exact EUR settlement wins, otherwise convert. Anything summing money out
 of `workshop_payments` must go through `grossEurMinor` — reading `amount_minor`
 as euros is this bug again.
 
+## Business days — Brussels, end to end
+
+Every window on `/admin/stats`, `/ads`, `/admin/workshops/performance` and the
+SD-REPORT digests is a range of **Brussels calendar days** (the presets resolve
+"today" there), while every row is stamped in **UTC** (`datetime('now')`,
+`YYYY-MM-DD HH:MM:SS`). Until September 2026 the compute functions filtered on
+`from` … `to 23:59:59` and bucketed on the first ten characters — i.e. UTC days
+— so a sale at 00:30 on a Brussels Tuesday (22:30 UTC Monday) sat in Monday's
+figures and Monday's report. Now, in
+[`periods.ts`](src/lib/workshops/periods.ts):
+
+- `businessWindowUtc(from, to)` turns a Brussels window into the UTC instants
+  that bound it — `start <= col < end`, DST handled (a spring-forward day is 23
+  hours long, a fall-back day 25).
+- `businessDayOf(stamp)` is the Brussels day a UTC stamp fell on (memoised per
+  UTC hour, since the offset is whole hours).
+
+`computeStats`, `computeCourseSales`, `computeCourseCashIn`,
+`computeWorkshopPerformance`, `computeRegistrationsByDay`,
+`computeUpcomingSessions`, the share report and the digest's own registration
+query all use them. **Anything new that windows or buckets a UTC column by day
+must too** — `created_at <= 'YYYY-MM-DD 23:59:59'` or `substr(created_at, 1,
+10)` is a UTC day, i.e. this bug again. Ad spend needs neither: `spend_date` is
+already a calendar day (the Meta ad account's). The page-change bookmark panels
+(`mc-page-report.ts`) still compare UTC days — both halves of each comparison
+the same way, so they stay like for like.
+
 ## Ad attribution — a payment plan is ONE sale, counted in full
 
 `/admin/workshops/performance`, the ad-economics cards on `/admin/stats` and
@@ -895,8 +922,12 @@ reaching for `FX_TO_EUR`; the SD-REPORT's course-bump tally now does too.
 Ops-only summary email (NOT customer-facing), sibling to the `SD-ORDER`
 notifications. Lives in [`src/lib/workshops/reports.ts`](src/lib/workshops/reports.ts).
 
-- **What it covers** for the window: new **workshop registrations** (paid/coupon,
-  per workshop, with the seats each session holds now), **course sales**
+- **What it covers** for the window: the headline cards, each with its
+  **change against the previous period** (below), new **workshop registrations**
+  (paid/coupon, per workshop, with the seats each session holds now), **coming
+  up** — the next five live sessions with their seats and how many were taken in
+  the window (`computeUpcomingSessions`, the same list as the stats page's
+  "Upcoming workshops" box), **course sales**
   (12-week / certification / grief, per product — full value beside charged so
   far), **bump offers** — both the workshop order bump (`workshop_purchases`) and
   the course checkout order bumps (the `bumps` JSON on `course_registrations`) —
@@ -929,6 +960,19 @@ notifications. Lives in [`src/lib/workshops/reports.ts`](src/lib/workshops/repor
   figures under its headline ("… sold at full value · … cash in") and the
   full-value ROAS under blended ROAS; the headline itself is still the
   charged-so-far value of the window's sales.
+- **Compared with the previous period** (`reportPeriods`): the daily with the
+  **same weekday a week earlier** (not the day before — sessions and campaigns
+  run on a weekly rhythm, so Monday against Sunday mostly measures the
+  calendar), the weekly with the **week before**. Every headline card carries
+  "▲ 18% vs last Thu" / "vs prior week", green when it moved the good way (down,
+  for ad spend and seat cost — the same colouring as the stats-page deltas);
+  the comparison window is gathered with the same code, so it is the figure the
+  dashboard would show for that window.
+- **Pipeline** (weekly only): what is still to collect on open payment plans,
+  what falls due in the next 30 days, and what is at risk — the
+  `loadInstallmentForecast` totals, which is now the one loader behind
+  `/admin/courses/future-revenue`, the stats page's "Future revenue" box and the
+  digest, so the three read the same number.
 - **Ad economics** is the stats page's per-product card as a table — workshop and
   masterclass registrations, the prospecting spend charged to them day by day,
   cost per registration, made back (courses in full) and ROAS — straight off
@@ -1484,10 +1528,11 @@ takes a fallback preset; everything else still defaults to all-time).
 (`/api/admin/workshops/ad-spend-sync`, admin-gated) forces a sync (bypasses the
 daily gate) so the token/account can be verified and today's spend land at once.
 
-Caveats: Meta's daily buckets are in the ad account's timezone (registrations
-bucket by `created_at` UTC — the same minor imprecision the CSV import already
-had, no regression); if the account currency has no EUR rate, `amount_eur_minor`
-is null and the sync flags `fxMissing`.
+Caveats: Meta's daily buckets are in the ad account's timezone, and
+registrations bucket by their **Brussels** day (see "Business days" below) — so
+the day-by-day pricing lines up exactly when the ad account is set to Brussels
+time; if the account currency has no EUR rate, `amount_eur_minor` is null and
+the sync flags `fxMissing`.
 
 ## Broadcasts — one-off marketing to a standalone contact list
 

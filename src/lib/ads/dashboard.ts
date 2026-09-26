@@ -11,14 +11,16 @@
 //                              day-by-day allocated Meta cost + the
 //                              cost-per-registration each workshop actually paid.
 //   • mergeDailyStreams      — per-day revenue streams + ad spend for the charts.
+//   • computeRegistrationsByDay — registrations per day, for the acquisition +
+//                              cost-per-registration charts.
 //
-// Plus one ads-specific extra this file adds: a per-day registration count (for
-// the acquisition + cost-per-registration charts).
+// Days are Brussels business days, as everywhere in stats.ts.
 
 import {
   computeStats,
   computeCourseSales,
   computeWorkshopPerformance,
+  computeRegistrationsByDay,
   mergeDailyStreams,
   type MoneyOpts,
   type WorkshopPerformanceRow,
@@ -115,44 +117,9 @@ export type AdsDashboard = {
   hasAdSpend: boolean;
 };
 
-function toEnd(to: string): string {
-  return `${to} 23:59:59`;
-}
-
 function addDays(ymd: string, n: number): string {
   const [y, m, d] = ymd.split('-').map((s) => parseInt(s, 10));
   return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
-}
-
-// Completed (paid/coupon) registrations per calendar day (UTC), keyed
-// YYYY-MM-DD off created_at — the acquisition volume the ad spend bought.
-async function computeDailyRegistrations(
-  db: D1Database,
-  from: string | null,
-  to: string | null,
-): Promise<Map<string, number>> {
-  const where: string[] = ["payment_status IN ('paid','coupon')"];
-  const binds: unknown[] = [];
-  if (from) {
-    where.push('created_at >= ?');
-    binds.push(from);
-  }
-  if (to) {
-    where.push('created_at <= ?');
-    binds.push(toEnd(to));
-  }
-  const res = await db
-    .prepare(
-      `SELECT substr(created_at, 1, 10) AS d, COUNT(*) AS n
-         FROM workshop_registrations
-        WHERE ${where.join(' AND ')}
-        GROUP BY substr(created_at, 1, 10)`,
-    )
-    .bind(...binds)
-    .all<{ d: string; n: number }>();
-  const m = new Map<string, number>();
-  for (const r of res.results ?? []) m.set(r.d, r.n);
-  return m;
 }
 
 export async function computeAdsDashboard(
@@ -180,16 +147,18 @@ export async function computeAdsDashboard(
   };
 
   const excludeFutureEvents = opts.excludeFutureEvents === true;
-  const [stats, courses, perf, dailyRegs] = await Promise.all([
+  const [stats, courses, perf, regsByDay] = await Promise.all([
     computeStats(db, { from, to, money, excludeFutureEvents }),
     computeCourseSales(db, { from, to, money }),
     computeWorkshopPerformance(db, { from, to, money, excludeFutureEvents }),
-    computeDailyRegistrations(db, from, to),
+    computeRegistrationsByDay(db, { from, to }),
   ]);
   // The 12-Week / certification checkout order bumps: tallied by
   // computeCourseSales, so they are netted of VAT and converted the same way as
   // every other course figure (and the same way the SD-REPORT digest reads them).
   const courseBumps = courses.bumps;
+  // Registrations per Brussels day — the same count /admin/stats plots.
+  const dailyRegs = new Map(regsByDay.days.map((d) => [d.date, d.count]));
 
   const dailyStreams = mergeDailyStreams(stats, courses, from, to);
 

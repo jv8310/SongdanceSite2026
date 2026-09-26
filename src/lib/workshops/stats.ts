@@ -14,6 +14,11 @@
 // true figure instead: VAT stripped per buyer country via Quaderno — the same
 // treatment /admin/courses/future-revenue applies — and EUR conversion at the
 // live `fx_rates` table. Attributed to the day of `paid_at` either way.
+//
+// Days are Brussels business days throughout: a window's `from` / `to` are
+// turned into the UTC instants that bound them (businessWindowUtc) and every
+// daily bucket is the Brussels day a UTC stamp fell on (businessDayOf) — see
+// periods.ts. Ad spend is already per calendar day (`spend_date`).
 
 import { FX_TO_EUR } from './currency';
 import { selectByIdsChunked } from '../db/chunked';
@@ -36,6 +41,7 @@ import { parsePurchasedBumps, type PurchasedBump } from '../courses/db';
 import { BUMPS, isBumpSlug } from '../courses/bumps';
 import { effectiveTotal, addMonths } from '../courses/installment-forecast';
 import { MASTERCLASS_DOOR_SPLIT_START } from './experiments';
+import { businessWindowUtc, businessDayStartMs, businessDayOf } from './periods';
 
 export const MASTERCLASS_PRODUCT_SLUG = 'svh-masterclass';
 
@@ -282,7 +288,7 @@ export type StatsTotals = {
 };
 
 export type DailyStat = {
-  date: string; // YYYY-MM-DD (UTC)
+  date: string; // YYYY-MM-DD, Brussels business day
   grossEurMinor: number;
   netEurMinor: number;
   ticketNetEurMinor: number;
@@ -370,13 +376,14 @@ export async function computeStats(
   const fxRates = opts.money?.fxRates ?? (await getFxRatesToEur(db));
   const where: string[] = ["p.status = 'paid'"];
   const binds: unknown[] = [];
-  if (opts.from) {
+  const bounds = businessWindowUtc(opts.from, opts.to);
+  if (bounds.start) {
     where.push('p.created_at >= ?');
-    binds.push(opts.from);
+    binds.push(bounds.start);
   }
-  if (opts.to) {
-    where.push('p.created_at <= ?');
-    binds.push(`${opts.to} 23:59:59`);
+  if (bounds.end) {
+    where.push('p.created_at < ?');
+    binds.push(bounds.end);
   }
   if (opts.workshopId) {
     where.push('r.workshop_id = ?');
@@ -442,7 +449,7 @@ export async function computeStats(
     totals.paidCount += 1;
     if (flagged) totals.flaggedNoTax += 1;
 
-    const date = (p.created_at || '').slice(0, 10);
+    const date = businessDayOf(p.created_at);
     const d = dailyMap.get(date) ?? { gross: 0, net: 0, ticket: 0, masterclass: 0, bump: 0, course: 0 };
     d.gross += gross;
     d.net += net;
@@ -560,7 +567,7 @@ const COURSE_PRODUCT_INFO: Record<string, { group: CourseGroup; label: string }>
 };
 
 export type CourseDailyStat = {
-  date: string; // YYYY-MM-DD (UTC, from paid_at)
+  date: string; // YYYY-MM-DD, the Brussels business day of paid_at
   twelveWeekEurMinor: number;
   certificationEurMinor: number;
   otherEurMinor: number;
@@ -646,8 +653,9 @@ export async function computeCourseSales(
   // refunded amount is subtracted below).
   const where: string[] = ['paid_at IS NOT NULL', "status NOT IN ('pending','expired')"];
   const binds: unknown[] = [];
-  if (opts.from) { where.push('paid_at >= ?'); binds.push(opts.from); }
-  if (opts.to) { where.push('paid_at <= ?'); binds.push(`${opts.to} 23:59:59`); }
+  const bounds = businessWindowUtc(opts.from, opts.to);
+  if (bounds.start) { where.push('paid_at >= ?'); binds.push(bounds.start); }
+  if (bounds.end) { where.push('paid_at < ?'); binds.push(bounds.end); }
 
   const res = await db
     .prepare(
@@ -731,7 +739,7 @@ export async function computeCourseSales(
     p.full += fullEurMinor;
     productMap.set(r.product_slug, p);
 
-    const date = (r.paid_at || '').slice(0, 10);
+    const date = businessDayOf(r.paid_at);
     const d = dailyMap.get(date) ?? { tw: 0, cert: 0, other: 0, sold: 0 };
     if (info.group === 'twelve_week') d.tw += eurMinor;
     else if (info.group === 'certification') d.cert += eurMinor;
@@ -812,19 +820,21 @@ export async function computeCourseCashIn(
 ): Promise<CourseCashReport> {
   const from = opts.from ?? null;
   const to = opts.to ?? null;
-  const toEnd = to ? `${to} 23:59:59` : null;
+  const bounds = businessWindowUtc(from, to);
   // A 12× plan's last charge is 11 months after the sale, so any plan with a
   // charge in the window was sold at most a year before it opens.
-  const earliestSale = from ? isoDay(addMonths(Date.parse(`${from}T00:00:00Z`), -12)) : null;
+  const earliestSale = from
+    ? new Date(addMonths(businessDayStartMs(from), -12)).toISOString().slice(0, 19).replace('T', ' ')
+    : null;
 
   const where: string[] = ['paid_at IS NOT NULL', "status NOT IN ('pending','expired')"];
   const binds: unknown[] = [];
   const saleWin: string[] = [];
   if (earliestSale) { saleWin.push('paid_at >= ?'); binds.push(earliestSale); }
-  if (toEnd) { saleWin.push('paid_at <= ?'); binds.push(toEnd); }
+  if (bounds.end) { saleWin.push('paid_at < ?'); binds.push(bounds.end); }
   const refundWin: string[] = ['refunded_at IS NOT NULL', 'refunded_amount_cents > 0'];
-  if (from) { refundWin.push('refunded_at >= ?'); binds.push(from); }
-  if (toEnd) { refundWin.push('refunded_at <= ?'); binds.push(toEnd); }
+  if (bounds.start) { refundWin.push('refunded_at >= ?'); binds.push(bounds.start); }
+  if (bounds.end) { refundWin.push('refunded_at < ?'); binds.push(bounds.end); }
   if (saleWin.length) {
     where.push(`((${saleWin.join(' AND ')}) OR (${refundWin.join(' AND ')}))`);
   }
@@ -864,7 +874,9 @@ export async function computeCourseCashIn(
         ? Math.max(0, Math.min(r.installments_paid, r.installments_total))
         : 1;
       for (let k = 0; k < charges; k++) {
-        const ymd = isoDay(addMonths(saleMs, k));
+        // addMonths keeps the calendar date only; the time of day decides which
+        // Brussels day a late-evening charge falls on, so it is put back.
+        const ymd = businessDayOf(addMonths(saleMs, k) + (saleMs % 86_400_000));
         if (!inWindow(ymd)) continue;
         const courseEur = eurOf(perCharge, r);
         if (k === 0) {
@@ -880,7 +892,7 @@ export async function computeCourseCashIn(
         }
       }
     }
-    const refundYmd = (r.refunded_at ?? '').slice(0, 10);
+    const refundYmd = businessDayOf(r.refunded_at);
     if (refundYmd && (r.refunded_amount_cents ?? 0) > 0 && inWindow(refundYmd)) {
       const refundEur = eurOf(r.refunded_amount_cents, r);
       report.refundsEurMinor += refundEur;
@@ -897,8 +909,6 @@ export async function computeCourseCashIn(
     .map(([date, eurMinor]) => ({ date, eurMinor }));
   return report;
 }
-
-const isoDay = (ms: number): string => new Date(ms).toISOString().slice(0, 10);
 
 // ---------------------------------------------------------------------------
 // Per-workshop performance: the registration → attendance → course-purchase
@@ -961,7 +971,7 @@ export type WorkshopPerformanceRow = {
 // bought, and therefore what a registration cost that day. This per-day price
 // is what each workshop's cost is built from (lib/ads/allocation.ts).
 export type DailyAcquisitionCost = {
-  date: string; // YYYY-MM-DD (UTC)
+  date: string; // YYYY-MM-DD, Brussels business day
   registrations: number;
   workshopRegistrations: number;
   masterclassRegistrations: number;
@@ -1232,12 +1242,11 @@ export async function computeWorkshopPerformance(
 ): Promise<WorkshopPerformanceReport> {
   // See computeStats: never count a non-EUR charge at face value.
   const fxRates = opts.money?.fxRates ?? (await getFxRatesToEur(db));
-  const winFrom = opts.from ?? null;
-  const winTo = opts.to ? `${opts.to} 23:59:59` : null;
+  const winBounds = businessWindowUtc(opts.from, opts.to);
   const win = (col: string, binds: unknown[]): string => {
     const parts: string[] = [];
-    if (winFrom) { parts.push(`${col} >= ?`); binds.push(winFrom); }
-    if (winTo) { parts.push(`${col} <= ?`); binds.push(winTo); }
+    if (winBounds.start) { parts.push(`${col} >= ?`); binds.push(winBounds.start); }
+    if (winBounds.end) { parts.push(`${col} < ?`); binds.push(winBounds.end); }
     return parts.length ? ' AND ' + parts.join(' AND ') : '';
   };
 
@@ -1288,7 +1297,7 @@ export async function computeWorkshopPerformance(
   // together, or the comparison charges one door for a period the other could
   // not sell in. Everything earlier still counts as masterclass on the product
   // card; it just isn't a door.
-  const winFromYmd = winFrom ? winFrom.slice(0, 10) : null;
+  const winFromYmd = opts.from ?? null;
   const doorFrom =
     winFromYmd && winFromYmd > MASTERCLASS_DOOR_SPLIT_START
       ? winFromYmd
@@ -1298,20 +1307,21 @@ export async function computeWorkshopPerformance(
   let beforeSplitSpendEurMinor = 0;
 
   // Completed registrations (paid or coupon) in the window. `reg_date` is the
-  // UTC day the registration came in — the day whose ad spend bought it.
+  // Brussels day the registration came in — the day whose ad spend bought it.
   const regBinds: unknown[] = [];
   const regRes = await db
     .prepare(
       `SELECT workshop_id, lower(email) AS email, attendance_status, joined_at_utc,
-              signup_page, substr(created_at, 1, 10) AS reg_date
+              signup_page, created_at AS reg_at
          FROM workshop_registrations
         WHERE payment_status IN ('paid','coupon')${win('created_at', regBinds)}`,
     )
     .bind(...regBinds)
     .all<{
       workshop_id: number; email: string; attendance_status: string;
-      joined_at_utc: string | null; signup_page: string | null; reg_date: string;
+      joined_at_utc: string | null; signup_page: string | null; reg_at: string;
     }>();
+  const regRows = (regRes.results ?? []).map((r) => ({ ...r, reg_date: businessDayOf(r.reg_at) }));
 
   // Bump purchases (paid) per workshop.
   const bumpBinds: unknown[] = [];
@@ -1333,7 +1343,7 @@ export async function computeWorkshopPerformance(
   const addonRes = await db
     .prepare(
       `SELECT r.workshop_id, lower(r.email) AS email, r.signup_page,
-              substr(r.created_at, 1, 10) AS reg_date, prod.slug AS slug
+              r.created_at AS reg_at, prod.slug AS slug
          FROM workshop_purchases pur
          JOIN workshop_payments p ON p.id = pur.payment_id AND p.status = 'paid'
          JOIN workshop_registrations r ON r.id = pur.registration_id
@@ -1343,14 +1353,14 @@ export async function computeWorkshopPerformance(
     .bind(...addonBinds)
     .all<{
       workshop_id: number; email: string; signup_page: string | null;
-      reg_date: string; slug: string;
+      reg_at: string; slug: string;
     }>();
 
   // Engine revenue (net EUR) per workshop.
   const payBinds: unknown[] = [];
   const payRes = await db
     .prepare(
-      `SELECT r.workshop_id, r.signup_page, substr(r.created_at, 1, 10) AS reg_date,
+      `SELECT r.workshop_id, r.signup_page, r.created_at AS reg_at,
               p.amount_minor, p.currency,
               p.settlement_amount_minor, p.settlement_currency, p.subtotal_minor
          FROM workshop_payments p
@@ -1359,7 +1369,7 @@ export async function computeWorkshopPerformance(
     )
     .bind(...payBinds)
     .all<{
-      workshop_id: number; signup_page: string | null; reg_date: string;
+      workshop_id: number; signup_page: string | null; reg_at: string;
       amount_minor: number; currency: string;
       settlement_amount_minor: number | null; settlement_currency: string | null;
       subtotal_minor: number | null;
@@ -1524,7 +1534,7 @@ export async function computeWorkshopPerformance(
   // Registrations per day per workshop — the grid the daily ad-spend allocation
   // is charged against.
   const regsByDateWorkshop = new Map<string, Map<number, number>>();
-  for (const r of regRes.results ?? []) {
+  for (const r of regRows) {
     const a = acc(r.workshop_id);
     a.regs += 1;
     a.emails.add(r.email);
@@ -1566,7 +1576,7 @@ export async function computeWorkshopPerformance(
     if (c.slug === 'cert-course') a.engineCert.add(c.email);
     if (
       masterclassIds.has(c.workshop_id) &&
-      inDoorWindow(c.reg_date) &&
+      inDoorWindow(businessDayOf(c.reg_at)) &&
       (c.slug === '12w-course' || c.slug === 'cert-course')
     ) {
       doorAcc(doorBucketOf(c.workshop_id, c.signup_page)).courseEmails.add(c.email);
@@ -1580,7 +1590,7 @@ export async function computeWorkshopPerformance(
     // A payment counts toward a door only when the seat it paid for was sold
     // inside the split — the same registrations the door's cost is priced
     // against, so cost and income cover one period.
-    if (masterclassIds.has(p.workshop_id) && inDoorWindow(p.reg_date)) {
+    if (masterclassIds.has(p.workshop_id) && inDoorWindow(businessDayOf(p.reg_at))) {
       doorAcc(doorBucketOf(p.workshop_id, p.signup_page)).engineNetEurMinor += net;
     }
   }
@@ -1999,8 +2009,9 @@ export async function computeWorkshopPerformance(
 
 // ---------------------------------------------------------------------------
 // Completed workshop registrations (paid or coupon) per day — the acquisition
-// pulse the dashboard plots next to ad spend. Buckets by created_at (UTC),
-// same as every other daily figure here.
+// pulse the dashboard plots next to ad spend. Buckets by the Brussels day of
+// created_at, same as every other daily figure here. Counted per UTC hour in
+// SQL (the Brussels day is a function of the hour), so the result stays small.
 
 export type RegistrationsByDay = {
   days: Array<{ date: string; count: number }>;
@@ -2013,19 +2024,84 @@ export async function computeRegistrationsByDay(
 ): Promise<RegistrationsByDay> {
   const where: string[] = ["payment_status IN ('paid','coupon')"];
   const binds: unknown[] = [];
-  if (opts.from) { where.push('created_at >= ?'); binds.push(opts.from); }
-  if (opts.to) { where.push('created_at <= ?'); binds.push(`${opts.to} 23:59:59`); }
+  const bounds = businessWindowUtc(opts.from, opts.to);
+  if (bounds.start) { where.push('created_at >= ?'); binds.push(bounds.start); }
+  if (bounds.end) { where.push('created_at < ?'); binds.push(bounds.end); }
   const res = await db
     .prepare(
-      `SELECT substr(created_at, 1, 10) AS date, COUNT(*) AS n
+      `SELECT substr(created_at, 1, 13) AS hour, COUNT(*) AS n
          FROM workshop_registrations
         WHERE ${where.join(' AND ')}
-        GROUP BY 1 ORDER BY 1`,
+        GROUP BY 1`,
     )
     .bind(...binds)
-    .all<{ date: string; n: number }>();
-  const days = (res.results ?? []).map((r) => ({ date: r.date, count: r.n }));
+    .all<{ hour: string; n: number }>();
+  const byDay = new Map<string, number>();
+  for (const r of res.results ?? []) {
+    const day = businessDayOf(`${r.hour}:00:00`);
+    byDay.set(day, (byDay.get(day) ?? 0) + r.n);
+  }
+  const days = [...byDay.entries()]
+    .sort(([a], [b]) => (a < b ? -1 : 1))
+    .map(([date, count]) => ({ date, count }));
   return { days, total: days.reduce((s, d) => s + d.count, 0) };
+}
+
+// The next published live sessions and the seats each holds — the "Upcoming
+// workshops" box on /admin/stats and the "Coming up" table in the SD-REPORT
+// digests read the same list. Seats = paid + coupon registrations; given a
+// window, `newSeats` counts the ones taken inside it (Brussels days).
+
+export type UpcomingSession = {
+  id: number;
+  title: string;
+  startsAtUtc: string;
+  displayTz: string;
+  isMasterclass: boolean;
+  seats: number;
+  newSeats: number;
+};
+
+export async function computeUpcomingSessions(
+  db: D1Database,
+  opts: { limit?: number; nowIso?: string; from?: string | null; to?: string | null } = {},
+): Promise<UpcomingSession[]> {
+  const nowIso = opts.nowIso ?? new Date().toISOString();
+  const bounds = businessWindowUtc(opts.from, opts.to);
+  const newWhere: string[] = [];
+  const newBinds: unknown[] = [];
+  if (bounds.start) { newWhere.push('r.created_at >= ?'); newBinds.push(bounds.start); }
+  if (bounds.end) { newWhere.push('r.created_at < ?'); newBinds.push(bounds.end); }
+  const res = await db
+    .prepare(
+      `SELECT w.id, w.title, w.starts_at_utc, w.display_tz,
+              CASE WHEN p.slug LIKE '%masterclass%' THEN 1 ELSE 0 END AS is_masterclass,
+              (SELECT COUNT(*) FROM workshop_registrations r
+                WHERE r.workshop_id = w.id AND r.payment_status IN ('paid','coupon')) AS seats,
+              (SELECT COUNT(*) FROM workshop_registrations r
+                WHERE r.workshop_id = w.id AND r.payment_status IN ('paid','coupon')
+                ${newWhere.length ? 'AND ' + newWhere.join(' AND ') : 'AND 0'}) AS new_seats
+         FROM workshops w
+         LEFT JOIN workshop_products p ON p.id = w.main_product_id
+        WHERE w.deleted = 0 AND w.status = 'published' AND w.is_replay = 0
+          AND w.starts_at_utc > ?
+        ORDER BY w.starts_at_utc ASC
+        LIMIT ?`,
+    )
+    .bind(...newBinds, nowIso, opts.limit ?? 5)
+    .all<{
+      id: number; title: string; starts_at_utc: string; display_tz: string;
+      is_masterclass: number; seats: number; new_seats: number;
+    }>();
+  return (res.results ?? []).map((w) => ({
+    id: w.id,
+    title: w.title,
+    startsAtUtc: w.starts_at_utc,
+    displayTz: w.display_tz,
+    isMasterclass: w.is_masterclass === 1,
+    seats: w.seats,
+    newSeats: w.new_seats,
+  }));
 }
 
 // Ad spend grouped by campaign for a window, EUR-converted, tagged with its

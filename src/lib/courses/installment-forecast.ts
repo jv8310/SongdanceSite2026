@@ -27,7 +27,7 @@
 // from Quaderno. Reverse-charge B2B (a VAT number) and non-EU sales carry a 0
 // rate, so net == gross there.
 
-import { netFromGross } from '../workshops/quaderno';
+import { netFromGross, getTaxRate, type QuadernoTaxConfig } from '../workshops/quaderno';
 
 export type InstallmentRow = {
   id: number;
@@ -444,4 +444,72 @@ export function buildForecast(
       installmentsAhead,
     },
   };
+}
+
+// ---------------------------------------------------------------------------
+// The forecast as every reader gets it: every installment plan off the local
+// mirror, each row's VAT rate resolved per country (Quaderno) when configured,
+// projected from `nowMs`. /admin/courses/future-revenue, the "Future revenue"
+// box on /admin/stats and the weekly SD-REPORT all come through here, so "still
+// to collect" is one number wherever it is read.
+
+const FORECAST_COLS = `id, email, first_name, last_name, currency, country, vat_number,
+            status, payment_plan, amount_cents,
+            installments_paid, installments_total,
+            paid_at, subscription_status, provider,
+            stripe_subscription_id, stripe_payment_intent,
+            paypal_subscription_id, paypal_capture_id`;
+
+export async function loadInstallmentForecast(
+  db: D1Database,
+  taxCfg: QuadernoTaxConfig | null | undefined,
+  nowMs: number = Date.now(),
+): Promise<{ forecast: Forecast; rows: InstallmentRow[] }> {
+  let rows: InstallmentRow[];
+  try {
+    const q = await db
+      .prepare(
+        `SELECT ${FORECAST_COLS}, cancel_after_installment
+           FROM course_registrations
+          WHERE installments_total > 1
+          ORDER BY paid_at DESC`,
+      )
+      .all<InstallmentRow>();
+    rows = q.results ?? [];
+  } catch {
+    // cancel_after_installment arrives with migration 0054. Until it's applied
+    // to this environment's D1 (e.g. a preview that shares production data
+    // before the PR merges), read the plans with no scheduled stop.
+    const q = await db
+      .prepare(
+        `SELECT ${FORECAST_COLS}
+           FROM course_registrations
+          WHERE installments_total > 1
+          ORDER BY paid_at DESC`,
+      )
+      .all<Omit<InstallmentRow, 'cancel_after_installment'>>();
+    rows = (q.results ?? []).map((r) => ({ ...r, cancel_after_installment: null }));
+  }
+
+  // Net of VAT: a VAT number is B2B reverse charge (0%); non-EU / unknown
+  // countries come back 0 from Quaderno; no Quaderno config → net = gross.
+  const rateByCountry = new Map<string, number>();
+  if (taxCfg) {
+    const countries = [
+      ...new Set(
+        rows
+          .filter((r) => !r.vat_number && r.country)
+          .map((r) => (r.country as string).toUpperCase()),
+      ),
+    ];
+    await Promise.all(
+      countries.map(async (c) => {
+        rateByCountry.set(c, await getTaxRate(taxCfg, c, 'eservice'));
+      }),
+    );
+  }
+  for (const r of rows) {
+    r.taxRate = r.vat_number ? 0 : rateByCountry.get((r.country ?? '').toUpperCase()) ?? 0;
+  }
+  return { forecast: buildForecast(rows, nowMs), rows };
 }

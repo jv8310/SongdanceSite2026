@@ -13,6 +13,10 @@
 //   • Ad economics            — spend, cost per registration and ROAS per
 //                               product (workshop / masterclass).
 //   • Money, two ways         — SOLD and CASH IN, side by side.
+//   • Coming up               — the next live sessions and their seats.
+//   • Pipeline (weekly)       — what is still to collect on open plans.
+// Every headline card carries its change against the previous period: the
+// same weekday a week earlier for the daily, the week before for the weekly.
 //
 // Sold vs cash in. A 3×/6×/12× course plan is one sale — the buyer signed for
 // every installment — but the money arrives a month at a time. The digest used
@@ -56,11 +60,13 @@ import {
   computeCourseCashIn,
   computeWorkshopPerformance,
   computeRegistrationsByDay,
+  computeUpcomingSessions,
   resolveMoneyOpts,
   type AudienceAcquisition,
   type MoneyOpts,
 } from './stats';
-import { shiftDays } from './periods';
+import { shiftDays, businessWindowUtc } from './periods';
+import { loadInstallmentForecast } from '../courses/installment-forecast';
 import { localHour } from './time';
 import { sendEmail } from './resend';
 import type { EmailContent } from './emails';
@@ -168,9 +174,78 @@ export type ReportData = {
     soldEurMinor: number;
     cashInEurMinor: number;
   }>;
+  // The same headline figures for the period this one is compared with (the
+  // same weekday a week earlier for the daily, the week before for the weekly).
+  previous: {
+    from: string;
+    to: string;
+    label: string; // "vs last Thu" / "vs prior week" — printed beside each change
+    headline: ReportHeadline;
+  } | null;
+  // The next live sessions and where their seats stand now.
+  upcoming: Array<{ title: string; when: string; seats: number; newSeats: number }>;
+  // Open installment plans — what is still to come in (weekly only).
+  pipeline: {
+    totalEurMinor: number;
+    activePlans: number;
+    next30EurMinor: number;
+    atRiskEurMinor: number;
+    attentionCount: number;
+  } | null;
 };
 
-const toEnd = (to: string) => `${to} 23:59:59`;
+// The figures on the headline cards — the ones a period is compared on.
+export type ReportHeadline = {
+  registrations: number;
+  courseSales: number;
+  soldEurMinor: number;
+  cashInEurMinor: number;
+  adSpendEurMinor: number;
+  roas: number | null;
+  workshopSeatEurMinor: number | null;
+  masterclassSeatEurMinor: number | null;
+};
+
+// One window's figures; the report adds the comparison, the upcoming sessions
+// and the pipeline around it.
+type WindowData = Omit<ReportData, 'previous' | 'upcoming' | 'pipeline'>;
+
+export function headlineOf(data: WindowData): ReportHeadline {
+  return {
+    registrations: data.registrations.total,
+    courseSales: data.courseSales.total,
+    soldEurMinor: data.sold.totalEurMinor,
+    cashInEurMinor: data.cash.totalEurMinor,
+    adSpendEurMinor: data.ads.spendEurMinor,
+    roas: data.ads.roas,
+    workshopSeatEurMinor: data.ads.workshop.costPerRegistrationEurMinor,
+    masterclassSeatEurMinor: data.ads.masterclass.costPerRegistrationEurMinor,
+  };
+}
+
+export type ReportKind = 'daily' | 'weekly';
+
+// The window a report covers, and the one it is compared with. A day is
+// compared with the same weekday a week earlier, not the day before: sessions
+// and campaigns run on a weekly rhythm, so Monday against Sunday mostly
+// measures the calendar.
+export function reportPeriods(
+  kind: ReportKind,
+  target: string,
+): { from: string; to: string; previous: { from: string; to: string; label: string } } {
+  if (kind === 'weekly') {
+    const from = shiftDays(target, -6);
+    return {
+      from,
+      to: target,
+      previous: { from: shiftDays(from, -7), to: shiftDays(target, -7), label: 'vs prior week' },
+    };
+  }
+  const prev = shiftDays(target, -7);
+  const weekday = new Intl.DateTimeFormat('en-GB', { timeZone: 'UTC', weekday: 'short' })
+    .format(new Date(`${prev}T12:00:00Z`));
+  return { from: target, to: target, previous: { from: prev, to: prev, label: `vs last ${weekday}` } };
+}
 
 function audienceLine(a: AudienceAcquisition): ReportAudience {
   return {
@@ -189,15 +264,54 @@ function eachDay(from: string, to: string): string[] {
   return out;
 }
 
-// Gather every figure for [from, to]. Pure read; safe to call for a preview.
+// Gather every figure for a report. Pure read; safe to call for a preview.
 // `money` (live FX + Quaderno VAT netting) keeps the digest's course figures
 // identical to the dashboard's — omit it and they fall back to gross/fallback.
-export async function gatherReportData(
+export async function gatherReport(
+  db: D1Database,
+  kind: ReportKind,
+  target: string,
+  money?: MoneyOpts,
+): Promise<ReportData> {
+  const { from, to, previous } = reportPeriods(kind, target);
+  const [data, prev, upcoming, forecast] = await Promise.all([
+    gatherWindow(db, from, to, money),
+    gatherWindow(db, previous.from, previous.to, money),
+    computeUpcomingSessions(db, { limit: 5, from, to }),
+    // The pipeline is a weekly figure; it is the same forecast the dashboard's
+    // "Future revenue" box and /admin/courses/future-revenue project.
+    kind === 'weekly'
+      ? loadInstallmentForecast(db, money?.taxCfg).then((r) => r.forecast.totals).catch(() => null)
+      : Promise.resolve(null),
+  ]);
+  return {
+    ...data,
+    previous: { ...previous, headline: headlineOf(prev) },
+    upcoming: upcoming.map((u) => ({
+      title: u.title,
+      when: sessionWhen(u.startsAtUtc),
+      seats: u.seats,
+      newSeats: u.newSeats,
+    })),
+    pipeline: forecast
+      ? {
+          totalEurMinor: forecast.totalEurMinor,
+          activePlans: forecast.activePlans,
+          next30EurMinor: forecast.next30EurMinor,
+          atRiskEurMinor: forecast.atRiskEurMinor,
+          attentionCount: forecast.attentionCount,
+        }
+      : null,
+  };
+}
+
+// Every figure for [from, to] — Brussels days, like the dashboard.
+async function gatherWindow(
   db: D1Database,
   from: string,
   to: string,
   money?: MoneyOpts,
-): Promise<ReportData> {
+): Promise<WindowData> {
   const [stats, courses, cashIn, perf, regsByDay] = await Promise.all([
     computeStats(db, { from, to, money }),
     computeCourseSales(db, { from, to, money }),
@@ -210,6 +324,7 @@ export async function gatherReportData(
   // workshop id (not just title), since the same title (e.g. "Somatic Vocal
   // Healing Workshop") recurs across many scheduled instances — the date is
   // what tells two rows apart. `seats` is where that session stands now.
+  const bounds = businessWindowUtc(from, to);
   const regRes = await db
     .prepare(
       `SELECT w.title AS title, w.starts_at_utc AS starts_at_utc,
@@ -219,11 +334,11 @@ export async function gatherReportData(
          FROM workshop_registrations r
          JOIN workshops w ON w.id = r.workshop_id
         WHERE r.payment_status IN ('paid','coupon')
-          AND r.created_at >= ? AND r.created_at <= ?
+          AND r.created_at >= ? AND r.created_at < ?
         GROUP BY w.id
         ORDER BY n DESC, w.title`,
     )
-    .bind(from, toEnd(to))
+    .bind(bounds.start, bounds.end)
     .all<{
       title: string;
       starts_at_utc: string;
@@ -380,6 +495,26 @@ function workshopDateLabel(startsAtUtc: string, displayTz: string): string {
   }
 }
 
+// "Tue 29 Sept, 19:00" — an upcoming session, on the Brussels clock.
+function sessionWhen(startsAtUtc: string): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: BUSINESS_TZ,
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).format(new Date(startsAtUtc));
+}
+
+// The period a report is compared with, spelled out.
+function comparedWith(p: { from: string; to: string }): string {
+  return p.from === p.to
+    ? `${dayLabel(p.from)}, the same weekday a week earlier`
+    : `the week before: ${dayLabel(p.from)} – ${dayLabel(p.to)}`;
+}
+
 const C = {
   bg: '#f3f4f6',
   card: '#ffffff',
@@ -389,12 +524,57 @@ const C = {
   faint: '#9ca3af',
 };
 
+// A change against the previous period, coloured the way /admin/stats colours
+// its deltas: green when it moved the good way (down, for a cost).
+type Change = { text: string; tone: 'good' | 'bad' | 'flat' };
+const TONE: Record<Change['tone'], string> = { good: '#047857', bad: '#b91c1c', flat: C.muted };
+
+function change(
+  cur: number | null,
+  prev: number | null | undefined,
+  label: string,
+  goodWhenUp = true,
+): Change | null {
+  if (cur == null || prev == null) return null;
+  if (prev === 0 && cur === 0) return { text: `±0% ${label}`, tone: 'flat' };
+  if (prev === 0) return { text: `new ${label}`, tone: goodWhenUp ? 'good' : 'bad' };
+  const pct = ((cur - prev) / Math.abs(prev)) * 100;
+  const up = pct > 0.5;
+  const down = pct < -0.5;
+  if (!up && !down) return { text: `±0% ${label}`, tone: 'flat' };
+  const good = up === goodWhenUp;
+  return {
+    text: `${up ? '▲' : '▼'} ${Math.abs(pct).toFixed(0)}% ${label}`,
+    tone: good ? 'good' : 'bad',
+  };
+}
+
+// Every headline card's change, in one place for the HTML and the text part.
+function headlineChanges(data: ReportData): Record<keyof ReportHeadline, Change | null> {
+  const cur = headlineOf(data);
+  const p = data.previous;
+  const c = (k: keyof ReportHeadline, goodWhenUp = true) =>
+    p ? change(cur[k], p.headline[k], p.label, goodWhenUp) : null;
+  return {
+    registrations: c('registrations'),
+    courseSales: c('courseSales'),
+    soldEurMinor: c('soldEurMinor'),
+    cashInEurMinor: c('cashInEurMinor'),
+    adSpendEurMinor: c('adSpendEurMinor', false),
+    roas: c('roas'),
+    workshopSeatEurMinor: c('workshopSeatEurMinor', false),
+    masterclassSeatEurMinor: c('masterclassSeatEurMinor', false),
+  };
+}
+
 function sectionLabel(text: string): string {
   return `<p style="margin:22px 0 8px;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:${C.faint};">${escapeHtml(text)}</p>`;
 }
 
 // A row of stat cards (label + big number + optional small line under it).
-function statCards(cards: Array<{ label: string; value: string; sub?: string }>): string {
+function statCards(
+  cards: Array<{ label: string; value: string; sub?: string; change?: Change | null }>,
+): string {
   const cells = cards
     .map(
       (c) =>
@@ -404,6 +584,7 @@ function statCards(cards: Array<{ label: string; value: string; sub?: string }>)
               <p style="margin:0 0 4px;font-size:12px;color:${C.muted};">${escapeHtml(c.label)}</p>
               <p style="margin:0;font-size:22px;font-weight:600;color:${C.ink};white-space:nowrap;">${escapeHtml(c.value)}</p>
               ${c.sub ? `<p style="margin:4px 0 0;font-size:11px;color:${C.faint};">${escapeHtml(c.sub)}</p>` : ''}
+              ${c.change ? `<p style="margin:5px 0 0;font-size:11px;font-weight:600;color:${TONE[c.change.tone]};white-space:nowrap;">${escapeHtml(c.change.text)}</p>` : ''}
             </td></tr>
           </table>
         </td>`,
@@ -517,15 +698,17 @@ function renderReport(opts: {
   const b = baseUrl.replace(/\/$/, '');
   const ads = data.ads;
 
+  const ch = headlineChanges(data);
   const snapshot = statCards([
-    { label: 'Registrations', value: String(data.registrations.total) },
+    { label: 'Registrations', value: String(data.registrations.total), change: ch.registrations },
     {
       label: 'Course sales',
       value: String(data.courseSales.total),
       sub: data.courseSales.plans ? `${data.courseSales.plans} on a plan` : undefined,
+      change: ch.courseSales,
     },
-    { label: 'Sold', value: eur0(data.sold.totalEurMinor), sub: 'courses in full' },
-    { label: 'Cash in', value: eur0(data.cash.totalEurMinor), sub: 'actually charged' },
+    { label: 'Sold', value: eur0(data.sold.totalEurMinor), sub: 'courses in full', change: ch.soldEurMinor },
+    { label: 'Cash in', value: eur0(data.cash.totalEurMinor), sub: 'actually charged', change: ch.cashInEurMinor },
   ]);
 
   // Ad-efficiency headline — spend, blended ROAS on full value, and the price
@@ -537,11 +720,58 @@ function renderReport(opts: {
       label: 'Ad spend',
       value: eur0(ads.spendEurMinor),
       sub: ads.spendEurMinor > 0 ? `${eur0(ads.prospectingEurMinor)} prospecting` : undefined,
+      change: ch.adSpendEurMinor,
     },
-    { label: 'Blended ROAS', value: roasStr(ads.roas), sub: 'sold ÷ ad spend' },
-    { label: 'Workshop seat', value: seat(ads.workshop), sub: 'cost / registration' },
-    { label: 'Masterclass seat', value: seat(ads.masterclass), sub: 'cost / registration' },
+    { label: 'Blended ROAS', value: roasStr(ads.roas), sub: 'sold ÷ ad spend', change: ch.roas },
+    {
+      label: 'Workshop seat',
+      value: seat(ads.workshop),
+      sub: 'cost / registration',
+      change: ch.workshopSeatEurMinor,
+    },
+    {
+      label: 'Masterclass seat',
+      value: seat(ads.masterclass),
+      sub: 'cost / registration',
+      change: ch.masterclassSeatEurMinor,
+    },
   ]);
+  const compareNote = data.previous
+    ? `<p style="margin:6px 0 0;font-size:11px;color:${C.faint};">Changes compare with ${escapeHtml(
+        comparedWith(data.previous),
+      )}.</p>`
+    : '';
+
+  const upcomingSection =
+    sectionLabel('Coming up') +
+    (data.upcoming.length
+      ? dataTable(
+          ['Session', 'When (Brussels)', 'Seats', 'New'],
+          data.upcoming.map((u) => [u.title, u.when, String(u.seats), u.newSeats ? `+${u.newSeats}` : '—']),
+        ) + note('New = seats taken in this report’s window.')
+      : emptyNote('Nothing scheduled ahead right now.'));
+
+  const pipelineSection = data.pipeline
+    ? sectionLabel('Pipeline — open payment plans') +
+      statCards([
+        {
+          label: 'Still to collect',
+          value: eur0(data.pipeline.totalEurMinor),
+          sub: plural(data.pipeline.activePlans, 'open plan'),
+        },
+        { label: 'Due next 30 days', value: eur0(data.pipeline.next30EurMinor) },
+        {
+          label: 'At risk',
+          value: data.pipeline.atRiskEurMinor > 0 ? eur0(data.pipeline.atRiskEurMinor) : '—',
+          sub: data.pipeline.attentionCount
+            ? `${plural(data.pipeline.attentionCount, 'plan')} need${data.pipeline.attentionCount === 1 ? 's' : ''} an eye`
+            : 'retrying / unpaid',
+        },
+      ]) +
+      note(
+        'Net of VAT: installments still to bill on every open plan, by due date — the same projection as Future revenue on the dashboard.',
+      )
+    : '';
 
   const regSection =
     sectionLabel('Workshop registrations') +
@@ -620,9 +850,12 @@ function renderReport(opts: {
         <tr><td style="padding:16px 20px 0;">${snapshot}</td></tr>
         <tr><td style="padding:6px 20px 0;">${adEfficiency}</td></tr>
         <tr><td style="padding:0 26px;">
+          ${compareNote}
           ${revenueSection}
+          ${pipelineSection}
           ${econSection}
           ${regSection}
+          ${upcomingSection}
           ${courseSection}
           ${bumpSection}
           ${extraSectionsHtml ?? ''}
@@ -631,7 +864,7 @@ function renderReport(opts: {
           <a href="${b}/admin/stats?${escapeHtml(dashboardQuery)}" style="display:inline-block;padding:9px 16px;background:${C.ink};color:#ffffff;font-size:13px;text-decoration:none;border-radius:8px;">Open this window on the dashboard →</a>
         </td></tr>
       </table>
-      <p style="margin:14px 0 0;font-size:11px;color:${C.faint};line-height:1.6;max-width:560px;">Automated report · Songdance. Every figure is net of VAT, in EUR at the live exchange rates, over UTC calendar days — the same conventions and the same calculations as the stats dashboard. A payment plan counts in full under Sold on the day it was sold (as the ad-economics cards and Meta count it); Cash in dates each installment on its monthly schedule.</p>
+      <p style="margin:14px 0 0;font-size:11px;color:${C.faint};line-height:1.6;max-width:560px;">Automated report · Songdance. Every figure is net of VAT, in EUR at the live exchange rates, over Brussels calendar days — the same conventions and the same calculations as the stats dashboard. A payment plan counts in full under Sold on the day it was sold (as the ad-economics cards and Meta count it); Cash in dates each installment on its monthly schedule.</p>
     </td></tr>
   </table>
 </body></html>`;
@@ -641,29 +874,50 @@ function renderReport(opts: {
 // Plain-text counterpart (compact but complete).
 function renderReportText(kindLabel: string, rangeLabel: string, data: ReportData): string {
   const ads = data.ads;
+  const ch = headlineChanges(data);
   const lines: string[] = [kindLabel, rangeLabel, ''];
   const seat = (a: ReportAudience) =>
     a.costPerRegistrationEurMinor != null ? eur(a.costPerRegistrationEurMinor) : '—';
+  const w = (value: string, c: Change | null) => (c ? `${value} (${c.text})` : value);
   lines.push(
-    `Registrations: ${data.registrations.total} · Course sales: ${data.courseSales.total} · Sold: ${eur(
-      data.sold.totalEurMinor,
-    )} · Cash in: ${eur(data.cash.totalEurMinor)}`,
-    `Ad spend: ${eur(ads.spendEurMinor)} · Blended ROAS: ${roasStr(ads.roas)} · Workshop seat: ${seat(
-      ads.workshop,
-    )} · Masterclass seat: ${seat(ads.masterclass)}`,
-    '',
-    'MONEY (sold · cash in)',
+    `Registrations: ${w(String(data.registrations.total), ch.registrations)}`,
+    `Course sales: ${w(String(data.courseSales.total), ch.courseSales)}`,
+    `Sold: ${w(eur(data.sold.totalEurMinor), ch.soldEurMinor)}`,
+    `Cash in: ${w(eur(data.cash.totalEurMinor), ch.cashInEurMinor)}`,
+    `Ad spend: ${w(eur(ads.spendEurMinor), ch.adSpendEurMinor)}`,
+    `Blended ROAS: ${w(roasStr(ads.roas), ch.roas)}`,
+    `Workshop seat: ${w(seat(ads.workshop), ch.workshopSeatEurMinor)}`,
+    `Masterclass seat: ${w(seat(ads.masterclass), ch.masterclassSeatEurMinor)}`,
   );
+  if (data.previous) lines.push(`(Changes compare with ${comparedWith(data.previous)}.)`);
+  lines.push('', 'MONEY (sold · cash in)');
   for (const r of moneyRows(data)) lines.push(`  ${r.label}: ${cell(r.sold)} · ${cell(r.cash)}`);
   const toBill = stillToBillNote(data);
   if (toBill) lines.push(`  ${toBill}`);
+  if (data.pipeline) {
+    const pl = data.pipeline;
+    lines.push(
+      '',
+      'PIPELINE — OPEN PAYMENT PLANS',
+      `  Still to collect: ${eur(pl.totalEurMinor)} (${plural(pl.activePlans, 'open plan')})`,
+      `  Due next 30 days: ${eur(pl.next30EurMinor)}`,
+      `  At risk (retrying / unpaid): ${pl.atRiskEurMinor > 0 ? eur(pl.atRiskEurMinor) : '—'}${
+        pl.attentionCount ? ` · ${plural(pl.attentionCount, 'plan')} to look at` : ''
+      }`,
+    );
+  }
   lines.push('', 'AD ECONOMICS (regs · ad spend · per reg · made back · ROAS)');
   for (const [name, ...rest] of audienceRows(data)) lines.push(`  ${name}: ${rest.join(' · ')}`);
   lines.push('', 'WORKSHOP REGISTRATIONS');
   if (data.registrations.byWorkshop.length) {
-    for (const w of data.registrations.byWorkshop)
-      lines.push(`  ${w.title} (${w.date}): +${w.count} · ${w.seats} seats now`);
+    for (const r of data.registrations.byWorkshop)
+      lines.push(`  ${r.title} (${r.date}): +${r.count} · ${r.seats} seats now`);
   } else lines.push('  (none)');
+  lines.push('', 'COMING UP (Brussels time)');
+  if (data.upcoming.length) {
+    for (const u of data.upcoming)
+      lines.push(`  ${u.when} · ${u.title}: ${u.seats} seats${u.newSeats ? ` (+${u.newSeats} new)` : ''}`);
+  } else lines.push('  (nothing scheduled)');
   lines.push('', 'COURSE SALES (full value · charged)');
   if (data.courseSales.byProduct.length) {
     for (const p of data.courseSales.byProduct)
@@ -870,17 +1124,15 @@ export async function runReports(env: ReportEnv, now = Date.now()): Promise<RunR
   result.daily = await sendOne(
     env,
     `report-daily-${yesterday}`,
-    () => gatherReportData(env.DB, yesterday, yesterday, money),
+    () => gatherReport(env.DB, 'daily', yesterday, money),
     (data) => buildDailyReportEmail(data, baseUrl),
   );
 
   if (dayOfWeek(today) === 2 /* Tuesday */) {
-    const weekTo = yesterday;
-    const weekFrom = shiftDays(weekTo, -6);
     result.weekly = await sendOne(
       env,
-      `report-weekly-${weekTo}`,
-      () => gatherReportData(env.DB, weekFrom, weekTo, money),
+      `report-weekly-${yesterday}`,
+      () => gatherReport(env.DB, 'weekly', yesterday, money),
       (data) => buildWeeklyReportEmail(data, baseUrl),
     );
   }
@@ -909,9 +1161,8 @@ export async function sendReportNow(
   const target = (opts.date && opts.date.trim()) || defaultDate;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(target)) throw new Error(`Bad date: ${target}`);
 
-  const from = opts.kind === 'weekly' ? shiftDays(target, -6) : target;
-  const to = target;
-  const data = await gatherReportData(env.DB, from, to, await resolveMoneyOpts(env.DB, env));
+  const data = await gatherReport(env.DB, opts.kind, target, await resolveMoneyOpts(env.DB, env));
+  const { from, to } = data;
   const content =
     opts.kind === 'weekly'
       ? buildWeeklyReportEmail(data, baseUrl)
@@ -1012,6 +1263,27 @@ export function sampleDailyReportData(): ReportData {
         cashInEurMinor: 116120,
       },
     ],
+    previous: {
+      from: '2026-06-22',
+      to: '2026-06-22',
+      label: 'vs last Mon',
+      headline: {
+        registrations: 5,
+        courseSales: 1,
+        soldEurMinor: 61300,
+        cashInEurMinor: 72400,
+        adSpendEurMinor: 12600,
+        roas: 4.87,
+        workshopSeatEurMinor: 1350,
+        masterclassSeatEurMinor: 2800,
+      },
+    },
+    upcoming: [
+      { title: 'Somatic Vocal Healing Workshop', when: 'Wed 1 Jul, 19:00', seats: 14, newSeats: 4 },
+      { title: 'SVH Masterclass', when: 'Thu 2 Jul, 18:30', seats: 11, newSeats: 2 },
+      { title: 'Somatic Vocal Healing Workshop', when: 'Mon 6 Jul, 10:00', seats: 3, newSeats: 1 },
+    ],
+    pipeline: null,
   };
 }
 
@@ -1106,6 +1378,33 @@ export function sampleWeeklyReportData(): ReportData {
       },
     },
     daily,
+    previous: {
+      from: '2026-06-15',
+      to: '2026-06-21',
+      label: 'vs prior week',
+      headline: {
+        registrations: 31,
+        courseSales: 6,
+        soldEurMinor: 352900,
+        cashInEurMinor: 301200,
+        adSpendEurMinor: 49800,
+        roas: 7.09,
+        workshopSeatEurMinor: 910,
+        masterclassSeatEurMinor: 2210,
+      },
+    },
+    upcoming: [
+      { title: 'Somatic Vocal Healing Workshop', when: 'Tue 30 Jun, 19:00', seats: 19, newSeats: 12 },
+      { title: 'SVH Masterclass', when: 'Thu 2 Jul, 18:30', seats: 8, newSeats: 8 },
+      { title: 'Somatic Vocal Healing Workshop', when: 'Mon 6 Jul, 10:00', seats: 2, newSeats: 2 },
+    ],
+    pipeline: {
+      totalEurMinor: 1284000,
+      activePlans: 37,
+      next30EurMinor: 402500,
+      atRiskEurMinor: 32900,
+      attentionCount: 2,
+    },
   };
 }
 
