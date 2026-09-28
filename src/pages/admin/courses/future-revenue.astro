@@ -3,11 +3,9 @@ import '../../../styles/admin.css';
 import Layout from '../../../layouts/Layout.astro';
 import { readCookie, verifySession } from '../../../lib/registrations/auth';
 import {
-  buildForecast,
+  loadInstallmentForecast,
   type ForecastPerson,
-  type InstallmentRow,
 } from '../../../lib/courses/installment-forecast';
-import { getTaxRate } from '../../../lib/workshops/quaderno';
 import { keepLabel } from '../../../lib/courses/installment-cancel';
 import {
   providerLinkFor,
@@ -25,77 +23,23 @@ if (!authed) {
 // Every installment plan across all course products. We project from the local
 // mirror of Stripe (installments_paid/total, subscription_status, paid_at) — no
 // live Stripe calls, so this stays fast and works against preview data.
-const BASE_COLS = `id, email, first_name, last_name, currency, country, vat_number,
-            status, payment_plan, amount_cents,
-            installments_paid, installments_total,
-            paid_at, subscription_status, provider,
-            stripe_subscription_id, stripe_payment_intent,
-            paypal_subscription_id, paypal_capture_id`;
-
-let rows: InstallmentRow[];
-try {
-  const q = await env.DB
-    .prepare(
-      `SELECT ${BASE_COLS}, cancel_after_installment
-         FROM course_registrations
-        WHERE installments_total > 1
-        ORDER BY paid_at DESC`,
-    )
-    .all<InstallmentRow>();
-  rows = q.results ?? [];
-} catch {
-  // cancel_after_installment arrives with migration 0054. Until it's applied to
-  // this environment's D1 (e.g. a preview that shares production data before the
-  // PR merges), fall back to reading the plan with no scheduled stop so the page
-  // still renders — the Manage control will report the missing column on submit.
-  const q = await env.DB
-    .prepare(
-      `SELECT ${BASE_COLS}
-         FROM course_registrations
-        WHERE installments_total > 1
-        ORDER BY paid_at DESC`,
-    )
-    .all<Omit<InstallmentRow, 'cancel_after_installment'>>();
-  rows = (q.results ?? []).map((r) => ({ ...r, cancel_after_installment: null }));
-}
-
-// Resolve the VAT rate for each row so amounts can be reported NET of tax —
-// mirroring the workshop stats. Charged amounts are gross (tax-inclusive for
-// EU B2C); net = gross / (1 + rate). A VAT number means B2B reverse charge
-// (0% — net == gross), and non-EU / unknown countries return 0 from Quaderno.
 const taxConfigured = Boolean(env.QUADERNO_API_KEY && env.QUADERNO_ACCOUNT);
-const rateByCountry = new Map<string, number>();
-if (taxConfigured) {
-  const cfg = {
-    apiKey: env.QUADERNO_API_KEY,
-    account: env.QUADERNO_ACCOUNT,
-    sandbox: env.QUADERNO_SANDBOX === '1',
-  };
-  const countries = [
-    ...new Set(
-      rows
-        .filter((r) => !r.vat_number && r.country)
-        .map((r) => (r.country as string).toUpperCase()),
-    ),
-  ];
-  await Promise.all(
-    countries.map(async (c) => {
-      rateByCountry.set(c, await getTaxRate(cfg, c, 'eservice'));
-    }),
-  );
-}
-for (const r of rows) {
-  r.taxRate = r.vat_number
-    ? 0 // reverse charge
-    : rateByCountry.get((r.country ?? '').toUpperCase()) ?? 0;
-}
+const { forecast, rows } = await loadInstallmentForecast(
+  env.DB,
+  taxConfigured
+    ? {
+        apiKey: env.QUADERNO_API_KEY,
+        account: env.QUADERNO_ACCOUNT,
+        sandbox: env.QUADERNO_SANDBOX === '1',
+      }
+    : null,
+);
 // Rows where we'd have expected EU VAT but couldn't resolve a rate (e.g.
 // Quaderno not configured in this environment) — net falls back to gross.
 const flaggedNoTax = !taxConfigured
   ? rows.filter((r) => !r.vat_number).length
   : 0;
 
-const forecast = buildForecast(rows, Date.now());
 const { months, people, totals } = forecast;
 
 // Dashboard deep-link modes (Stripe test/live, PayPal sandbox/live).

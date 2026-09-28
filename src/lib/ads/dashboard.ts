@@ -4,23 +4,24 @@
 //
 //   • computeStats           — workshop-engine revenue (tickets, masterclass,
 //                              order bumps, course add-ons) + ad spend + ROAS.
-//   • computeCourseSales     — standalone 12-week / certification / other sales.
+//   • computeCourseSales     — standalone 12-week / certification / other sales,
+//                              and the order bumps bought on those checkouts.
 //   • computeWorkshopPerformance — the per-workshop funnel: registrations →
 //                              attendance → course/cert conversion, plus the
 //                              day-by-day allocated Meta cost + the
 //                              cost-per-registration each workshop actually paid.
 //   • mergeDailyStreams      — per-day revenue streams + ad spend for the charts.
+//   • computeRegistrationsByDay — registrations per day, for the acquisition +
+//                              cost-per-registration charts.
 //
-// Plus two ads-specific extras this file adds: the 12-week checkout order bumps
-// (the `bumps` JSON on course_registrations) and a per-day registration count
-// (for the acquisition + cost-per-registration charts).
+// Days are Brussels business days, as everywhere in stats.ts.
 
 import {
   computeStats,
   computeCourseSales,
   computeWorkshopPerformance,
+  computeRegistrationsByDay,
   mergeDailyStreams,
-  fxRateToEur,
   type MoneyOpts,
   type WorkshopPerformanceRow,
   type AudienceAcquisition,
@@ -29,8 +30,6 @@ import {
   type StreamDay,
 } from '../workshops/stats';
 import { getFxRatesToEur } from '../admin/fx';
-import { parsePurchasedBumps } from '../courses/db';
-import { BUMPS, isBumpSlug } from '../courses/bumps';
 
 export type AcquisitionDay = {
   date: string; // YYYY-MM-DD
@@ -118,94 +117,9 @@ export type AdsDashboard = {
   hasAdSpend: boolean;
 };
 
-function toEnd(to: string): string {
-  return `${to} 23:59:59`;
-}
-
 function addDays(ymd: string, n: number): string {
   const [y, m, d] = ymd.split('-').map((s) => parseInt(s, 10));
   return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
-}
-
-// 12-week checkout order bumps for paid course rows in the window, converted to
-// EUR with the fallback table (the bump's currency is the course row's), grouped
-// by product label. Mirrors the SD-REPORT digest so the figures match.
-async function computeCourseBumps(
-  db: D1Database,
-  from: string | null,
-  to: string | null,
-  fxRates: Record<string, number> | undefined,
-): Promise<{ count: number; eurMinor: number; byLabel: BumpLabel[] }> {
-  const where: string[] = [
-    'paid_at IS NOT NULL',
-    "status NOT IN ('pending','expired')",
-    'bumps IS NOT NULL',
-  ];
-  const binds: unknown[] = [];
-  if (from) {
-    where.push('paid_at >= ?');
-    binds.push(from);
-  }
-  if (to) {
-    where.push('paid_at <= ?');
-    binds.push(toEnd(to));
-  }
-  const res = await db
-    .prepare(`SELECT bumps, currency FROM course_registrations WHERE ${where.join(' AND ')}`)
-    .bind(...binds)
-    .all<{ bumps: string; currency: string }>();
-
-  const map = new Map<string, { count: number; eurMinor: number }>();
-  let count = 0;
-  let eurMinor = 0;
-  for (const row of res.results ?? []) {
-    const rate = fxRateToEur(row.currency, fxRates);
-    for (const b of parsePurchasedBumps(row.bumps)) {
-      const eur = Math.round(b.amount_cents * rate);
-      const label = isBumpSlug(b.slug) ? BUMPS[b.slug].label : b.slug;
-      const e = map.get(label) ?? { count: 0, eurMinor: 0 };
-      e.count += 1;
-      e.eurMinor += eur;
-      map.set(label, e);
-      count += 1;
-      eurMinor += eur;
-    }
-  }
-  const byLabel = [...map.entries()]
-    .map(([label, v]) => ({ label, count: v.count, eurMinor: v.eurMinor }))
-    .sort((a, b) => b.eurMinor - a.eurMinor);
-  return { count, eurMinor, byLabel };
-}
-
-// Completed (paid/coupon) registrations per calendar day (UTC), keyed
-// YYYY-MM-DD off created_at — the acquisition volume the ad spend bought.
-async function computeDailyRegistrations(
-  db: D1Database,
-  from: string | null,
-  to: string | null,
-): Promise<Map<string, number>> {
-  const where: string[] = ["payment_status IN ('paid','coupon')"];
-  const binds: unknown[] = [];
-  if (from) {
-    where.push('created_at >= ?');
-    binds.push(from);
-  }
-  if (to) {
-    where.push('created_at <= ?');
-    binds.push(toEnd(to));
-  }
-  const res = await db
-    .prepare(
-      `SELECT substr(created_at, 1, 10) AS d, COUNT(*) AS n
-         FROM workshop_registrations
-        WHERE ${where.join(' AND ')}
-        GROUP BY substr(created_at, 1, 10)`,
-    )
-    .bind(...binds)
-    .all<{ d: string; n: number }>();
-  const m = new Map<string, number>();
-  for (const r of res.results ?? []) m.set(r.d, r.n);
-  return m;
 }
 
 export async function computeAdsDashboard(
@@ -233,13 +147,18 @@ export async function computeAdsDashboard(
   };
 
   const excludeFutureEvents = opts.excludeFutureEvents === true;
-  const [stats, courses, perf, courseBumps, dailyRegs] = await Promise.all([
+  const [stats, courses, perf, regsByDay] = await Promise.all([
     computeStats(db, { from, to, money, excludeFutureEvents }),
     computeCourseSales(db, { from, to, money }),
     computeWorkshopPerformance(db, { from, to, money, excludeFutureEvents }),
-    computeCourseBumps(db, from, to, money.fxRates),
-    computeDailyRegistrations(db, from, to),
+    computeRegistrationsByDay(db, { from, to }),
   ]);
+  // The 12-Week / certification checkout order bumps: tallied by
+  // computeCourseSales, so they are netted of VAT and converted the same way as
+  // every other course figure (and the same way the SD-REPORT digest reads them).
+  const courseBumps = courses.bumps;
+  // Registrations per Brussels day — the same count /admin/stats plots.
+  const dailyRegs = new Map(regsByDay.days.map((d) => [d.date, d.count]));
 
   const dailyStreams = mergeDailyStreams(stats, courses, from, to);
 

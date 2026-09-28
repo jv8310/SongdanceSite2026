@@ -10,6 +10,7 @@
 // every request.
 
 import { grossEurMinor } from './stats';
+import { businessWindowUtc } from './periods';
 import { normalizeChannel, type ShareChannel } from './share';
 
 
@@ -70,8 +71,10 @@ export async function computeShareReport(
 ): Promise<ShareReport> {
   const where: string[] = [];
   const binds: unknown[] = [];
-  if (opts.from) { where.push('created_at >= ?'); binds.push(opts.from); }
-  if (opts.to) { where.push('created_at <= ?'); binds.push(`${opts.to} 23:59:59`); }
+  // Brussels days, like every other figure on the performance page.
+  const bounds = businessWindowUtc(opts.from, opts.to);
+  if (bounds.start) { where.push('created_at >= ?'); binds.push(bounds.start); }
+  if (bounds.end) { where.push('created_at < ?'); binds.push(bounds.end); }
   const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
   const fxRates = opts.money?.fxRates;
 

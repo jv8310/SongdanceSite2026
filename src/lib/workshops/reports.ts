@@ -8,15 +8,40 @@
 //   • Workshop registrations  — new paid/coupon seats, per workshop.
 //   • Course sales            — 12-week / certification / grief etc.
 //   • Bump offers             — both the workshop order bump (workshop_purchases)
-//                               and the 12-week checkout order bumps (the `bumps`
+//                               and the course checkout order bumps (the `bumps`
 //                               JSON on course_registrations).
-//   • Revenue                 — the streams above, summed.
+//   • Ad economics            — spend, cost per registration and ROAS per
+//                               product (workshop / masterclass).
+//   • Money, two ways         — SOLD and CASH IN, side by side.
+//   • Coming up               — the next live sessions and their seats.
+//   • Pipeline (weekly)       — what is still to collect on open plans.
+// Every headline card carries its change against the previous period: the
+// same weekday a week earlier for the daily, the week before for the weekly.
+//
+// Sold vs cash in. A 3×/6×/12× course plan is one sale — the buyer signed for
+// every installment — but the money arrives a month at a time. The digest used
+// to show only one hybrid of the two: each sale at the installments it had
+// collected so far, on the day it was sold. So a €797 certification bought on
+// a 3× plan entered yesterday's report at €266, and the second and third
+// installments of every older plan never appeared in any report at all. Now:
+//   • Sold    — what the window sold, every sale at its FULL value (a plan's
+//               whole total, plus the bumps bought with it), on the day it was
+//               sold. The same figure ad attribution uses (contractedMinorOf) —
+//               the ad-economics cards, /admin/workshops/performance, and what
+//               Meta is told — so ROAS here is ROAS there.
+//   • Cash in — what was actually charged in the window: first payments on new
+//               sales, installments falling due on older plans, less refunds
+//               (computeCourseCashIn). What reaches the bank.
+// Workshop tickets, masterclass seats and their bumps are paid in full at
+// checkout, so they read the same in both columns.
 //
 // Numbers reuse the exact same compute functions as /admin/stats
-// (computeStats + computeCourseSales), so a figure here matches what the
-// dashboard shows for the same window. Windows are resolved against the
-// business timezone (Europe/Brussels) just like the stats-page presets, so
-// "yesterday" / "last 7 days" line up with the dashboard's own presets.
+// (computeStats, computeCourseSales, computeCourseCashIn,
+// computeWorkshopPerformance) with the same live-FX + Quaderno money context,
+// so every figure here is on the dashboard for the same window. Windows are
+// resolved against the business timezone (Europe/Brussels) just like the
+// stats-page presets, so "yesterday" / "last 7 days" line up with the
+// dashboard's own presets.
 //
 // Timing & idempotency: runReports rides the existing hourly cron. The first
 // tick at/after 08:00 Brussels each day stakes a unique `pending` row in the
@@ -32,18 +57,18 @@
 import {
   computeStats,
   computeCourseSales,
-  mergeDailyStreams,
+  computeCourseCashIn,
+  computeWorkshopPerformance,
+  computeRegistrationsByDay,
+  computeUpcomingSessions,
   resolveMoneyOpts,
-  fxRateToEur,
+  type AudienceAcquisition,
   type MoneyOpts,
-  type StreamDay,
 } from './stats';
-import { formatMoney } from './currency';
-import { shiftDays } from './periods';
+import { shiftDays, businessWindowUtc } from './periods';
+import { loadInstallmentForecast } from '../courses/installment-forecast';
 import { localHour } from './time';
 import { sendEmail } from './resend';
-import { parsePurchasedBumps } from '../courses/db';
-import { BUMPS, isBumpSlug } from '../courses/bumps';
 import type { EmailContent } from './emails';
 
 // The business timezone — the same one the stats-page presets resolve "today"
@@ -72,124 +97,287 @@ const DEFAULT_BASE_URL = 'https://songdance.co';
 
 // ── Data ────────────────────────────────────────────────────────────────────
 
+// One product's ad economics — the stats page's ad-economics card, as a row.
+export type ReportAudience = {
+  registrations: number;
+  // The prospecting spend charged to this product's seats, day by day.
+  adSpendEurMinor: number;
+  costPerRegistrationEurMinor: number | null;
+  // Tickets, bumps and the courses these registrants bought, each course sale
+  // in full.
+  revenueEurMinor: number;
+  roas: number | null;
+};
+
 export type ReportData = {
   from: string; // YYYY-MM-DD inclusive
   to: string; // YYYY-MM-DD inclusive
   registrations: {
     total: number; // new paid/coupon seats in the window
-    byWorkshop: Array<{ title: string; count: number; date: string }>;
+    // `seats` = every seat that session holds now, not just the new ones.
+    byWorkshop: Array<{ title: string; count: number; seats: number; date: string }>;
   };
   courseSales: {
     total: number;
-    netEurMinor: number;
-    byProduct: Array<{ label: string; count: number; netEurMinor: number }>;
+    plans: number; // of `total`, bought on a 3×/6×/12× payment plan
+    fullValueEurMinor: number; // course lines, every installment counted
+    chargedEurMinor: number; // course lines, charged so far (= the stats page's course tiles)
+    byProduct: Array<{
+      label: string; count: number; plans: number;
+      fullValueEurMinor: number; chargedEurMinor: number;
+    }>;
   };
   // Workshop order bump (workshop_purchases, product_type='bump').
   workshopBumps: { count: number; netEurMinor: number };
-  // 12-week checkout order bumps (the `bumps` JSON on course_registrations).
+  // Course checkout order bumps (the `bumps` JSON on course_registrations).
   courseBumps: {
     count: number;
     eurMinor: number;
     byLabel: Array<{ label: string; count: number; eurMinor: number }>;
   };
-  revenue: {
-    ticketsNetEurMinor: number; // workshop tickets, masterclass excluded
-    masterclassNetEurMinor: number;
-    workshopBumpsNetEurMinor: number;
-    workshopCourseAddonsNetEurMinor: number; // course add-ons sold via a workshop checkout
-    courseSalesNetEurMinor: number; // standalone course sales
+  // Everything the window SOLD, at full value.
+  sold: {
+    ticketsEurMinor: number; // workshop tickets, masterclass excluded
+    masterclassEurMinor: number;
+    workshopBumpsEurMinor: number;
+    workshopCourseAddonsEurMinor: number; // course add-ons sold via a workshop checkout
+    courseSalesEurMinor: number; // standalone course sales, whole plan
     courseBumpsEurMinor: number;
     totalEurMinor: number;
-    adSpendEurMinor: number;
-    roas: number | null; // matches the dashboard's blended ROAS (excludes course bumps)
-    costPerRegEurMinor: number | null; // ad spend ÷ workshop registrations (null if no spend/regs)
+    // Of the course sales above, what is still to be charged on their plans.
+    stillToBillEurMinor: number;
   };
-  daily: StreamDay[]; // per-day streams over the window (used by the weekly digest)
+  // What was CHARGED in the window.
+  cash: {
+    workshopEurMinor: number; // tickets + masterclass + workshop bumps + add-ons (paid at checkout)
+    courseFirstPaymentsEurMinor: number; // a one-off in full, a plan's first installment
+    courseBumpsEurMinor: number;
+    installmentsEurMinor: number; // later installments on plans sold earlier
+    installmentCount: number;
+    refundsEurMinor: number; // course refunds issued in the window (to subtract)
+    refundCount: number;
+    totalEurMinor: number;
+  };
+  ads: {
+    spendEurMinor: number; // all campaigns
+    prospectingEurMinor: number; // TOF campaigns
+    retargetingEurMinor: number;
+    roas: number | null; // sold ÷ all spend — blended, courses counted in full
+    workshop: ReportAudience;
+    masterclass: ReportAudience;
+  };
+  // Per day across the window (the weekly digest's table).
+  daily: Array<{
+    date: string;
+    registrations: number;
+    adSpendEurMinor: number;
+    soldEurMinor: number;
+    cashInEurMinor: number;
+  }>;
+  // The same headline figures for the period this one is compared with (the
+  // same weekday a week earlier for the daily, the week before for the weekly).
+  previous: {
+    from: string;
+    to: string;
+    label: string; // "vs last Thu" / "vs prior week" — printed beside each change
+    headline: ReportHeadline;
+  } | null;
+  // The next live sessions and where their seats stand now.
+  upcoming: Array<{ title: string; when: string; seats: number; newSeats: number }>;
+  // Open installment plans — what is still to come in (weekly only).
+  pipeline: {
+    totalEurMinor: number;
+    activePlans: number;
+    next30EurMinor: number;
+    atRiskEurMinor: number;
+    attentionCount: number;
+  } | null;
 };
 
-const toEnd = (to: string) => `${to} 23:59:59`;
+// The figures on the headline cards — the ones a period is compared on.
+export type ReportHeadline = {
+  registrations: number;
+  courseSales: number;
+  soldEurMinor: number;
+  cashInEurMinor: number;
+  adSpendEurMinor: number;
+  roas: number | null;
+  workshopSeatEurMinor: number | null;
+  masterclassSeatEurMinor: number | null;
+};
 
-// Gather every figure for [from, to]. Pure read; safe to call for a preview.
+// One window's figures; the report adds the comparison, the upcoming sessions
+// and the pipeline around it.
+type WindowData = Omit<ReportData, 'previous' | 'upcoming' | 'pipeline'>;
+
+export function headlineOf(data: WindowData): ReportHeadline {
+  return {
+    registrations: data.registrations.total,
+    courseSales: data.courseSales.total,
+    soldEurMinor: data.sold.totalEurMinor,
+    cashInEurMinor: data.cash.totalEurMinor,
+    adSpendEurMinor: data.ads.spendEurMinor,
+    roas: data.ads.roas,
+    workshopSeatEurMinor: data.ads.workshop.costPerRegistrationEurMinor,
+    masterclassSeatEurMinor: data.ads.masterclass.costPerRegistrationEurMinor,
+  };
+}
+
+export type ReportKind = 'daily' | 'weekly';
+
+// The window a report covers, and the one it is compared with. A day is
+// compared with the same weekday a week earlier, not the day before: sessions
+// and campaigns run on a weekly rhythm, so Monday against Sunday mostly
+// measures the calendar.
+export function reportPeriods(
+  kind: ReportKind,
+  target: string,
+): { from: string; to: string; previous: { from: string; to: string; label: string } } {
+  if (kind === 'weekly') {
+    const from = shiftDays(target, -6);
+    return {
+      from,
+      to: target,
+      previous: { from: shiftDays(from, -7), to: shiftDays(target, -7), label: 'vs prior week' },
+    };
+  }
+  const prev = shiftDays(target, -7);
+  const weekday = new Intl.DateTimeFormat('en-GB', { timeZone: 'UTC', weekday: 'short' })
+    .format(new Date(`${prev}T12:00:00Z`));
+  return { from: target, to: target, previous: { from: prev, to: prev, label: `vs last ${weekday}` } };
+}
+
+function audienceLine(a: AudienceAcquisition): ReportAudience {
+  return {
+    registrations: a.registrations,
+    adSpendEurMinor: Math.round(a.allocatedCostEurMinor),
+    costPerRegistrationEurMinor:
+      a.costPerRegistrationEurMinor != null ? Math.round(a.costPerRegistrationEurMinor) : null,
+    revenueEurMinor: a.revenueEurMinor,
+    roas: a.roas,
+  };
+}
+
+function eachDay(from: string, to: string): string[] {
+  const out: string[] = [];
+  for (let d = from; d <= to && out.length < 400; d = shiftDays(d, 1)) out.push(d);
+  return out;
+}
+
+// Gather every figure for a report. Pure read; safe to call for a preview.
 // `money` (live FX + Quaderno VAT netting) keeps the digest's course figures
 // identical to the dashboard's — omit it and they fall back to gross/fallback.
-export async function gatherReportData(
+export async function gatherReport(
+  db: D1Database,
+  kind: ReportKind,
+  target: string,
+  money?: MoneyOpts,
+): Promise<ReportData> {
+  const { from, to, previous } = reportPeriods(kind, target);
+  const [data, prev, upcoming, forecast] = await Promise.all([
+    gatherWindow(db, from, to, money),
+    gatherWindow(db, previous.from, previous.to, money),
+    computeUpcomingSessions(db, { limit: 5, from, to }),
+    // The pipeline is a weekly figure; it is the same forecast the dashboard's
+    // "Future revenue" box and /admin/courses/future-revenue project.
+    kind === 'weekly'
+      ? loadInstallmentForecast(db, money?.taxCfg).then((r) => r.forecast.totals).catch(() => null)
+      : Promise.resolve(null),
+  ]);
+  return {
+    ...data,
+    previous: { ...previous, headline: headlineOf(prev) },
+    upcoming: upcoming.map((u) => ({
+      title: u.title,
+      when: sessionWhen(u.startsAtUtc),
+      seats: u.seats,
+      newSeats: u.newSeats,
+    })),
+    pipeline: forecast
+      ? {
+          totalEurMinor: forecast.totalEurMinor,
+          activePlans: forecast.activePlans,
+          next30EurMinor: forecast.next30EurMinor,
+          atRiskEurMinor: forecast.atRiskEurMinor,
+          attentionCount: forecast.attentionCount,
+        }
+      : null,
+  };
+}
+
+// Every figure for [from, to] — Brussels days, like the dashboard.
+async function gatherWindow(
   db: D1Database,
   from: string,
   to: string,
   money?: MoneyOpts,
-): Promise<ReportData> {
-  const stats = await computeStats(db, { from, to });
-  const courses = await computeCourseSales(db, { from, to, money });
+): Promise<WindowData> {
+  const [stats, courses, cashIn, perf, regsByDay] = await Promise.all([
+    computeStats(db, { from, to, money }),
+    computeCourseSales(db, { from, to, money }),
+    computeCourseCashIn(db, { from, to, money }),
+    computeWorkshopPerformance(db, { from, to, money }),
+    computeRegistrationsByDay(db, { from, to }),
+  ]);
 
   // New registrations (secured seats) per workshop in the window. Grouped by
   // workshop id (not just title), since the same title (e.g. "Somatic Vocal
   // Healing Workshop") recurs across many scheduled instances — the date is
-  // what tells two rows apart.
+  // what tells two rows apart. `seats` is where that session stands now.
+  const bounds = businessWindowUtc(from, to);
   const regRes = await db
     .prepare(
       `SELECT w.title AS title, w.starts_at_utc AS starts_at_utc,
-              w.display_tz AS display_tz, w.is_replay AS is_replay, COUNT(*) AS n
+              w.display_tz AS display_tz, w.is_replay AS is_replay, COUNT(*) AS n,
+              (SELECT COUNT(*) FROM workshop_registrations s
+                WHERE s.workshop_id = w.id AND s.payment_status IN ('paid','coupon')) AS seats
          FROM workshop_registrations r
          JOIN workshops w ON w.id = r.workshop_id
         WHERE r.payment_status IN ('paid','coupon')
-          AND r.created_at >= ? AND r.created_at <= ?
+          AND r.created_at >= ? AND r.created_at < ?
         GROUP BY w.id
         ORDER BY n DESC, w.title`,
     )
-    .bind(from, toEnd(to))
+    .bind(bounds.start, bounds.end)
     .all<{
       title: string;
       starts_at_utc: string;
       display_tz: string;
       is_replay: number;
       n: number;
+      seats: number;
     }>();
   const byWorkshop = (regRes.results ?? []).map((r) => ({
     title: r.title,
     count: r.n,
+    seats: r.seats,
     date: r.is_replay ? 'On demand' : workshopDateLabel(r.starts_at_utc, r.display_tz),
   }));
   const regTotal = byWorkshop.reduce((s, r) => s + r.count, 0);
 
-  // 12-week checkout order bumps: parse the JSON on course rows paid in the
-  // window, convert to EUR at the live rates the rest of the digest uses (the
-  // bump's currency is the course row's currency), aggregate by product label.
-  const cbRes = await db
-    .prepare(
-      `SELECT bumps, currency FROM course_registrations
-        WHERE paid_at IS NOT NULL AND status NOT IN ('pending','expired')
-          AND bumps IS NOT NULL
-          AND paid_at >= ? AND paid_at <= ?`,
-    )
-    .bind(from, toEnd(to))
-    .all<{ bumps: string; currency: string }>();
-  const bumpMap = new Map<string, { count: number; eurMinor: number }>();
-  let courseBumpCount = 0;
-  let courseBumpEurMinor = 0;
-  for (const row of cbRes.results ?? []) {
-    const rate = fxRateToEur(row.currency, money?.fxRates);
-    for (const b of parsePurchasedBumps(row.bumps)) {
-      const eur = Math.round(b.amount_cents * rate);
-      const label = isBumpSlug(b.slug) ? BUMPS[b.slug].label : b.slug;
-      const e = bumpMap.get(label) ?? { count: 0, eurMinor: 0 };
-      e.count += 1;
-      e.eurMinor += eur;
-      bumpMap.set(label, e);
-      courseBumpCount += 1;
-      courseBumpEurMinor += eur;
-    }
-  }
-  const courseBumpsByLabel = [...bumpMap.entries()]
-    .map(([label, v]) => ({ label, count: v.count, eurMinor: v.eurMinor }))
-    .sort((a, b) => b.eurMinor - a.eurMinor);
-
   const t = stats.totals;
-  // Total = workshop-engine net (tickets + masterclass + workshop bumps +
-  // workshop course add-ons) + standalone course sales + course order bumps.
-  const totalEurMinor = t.netEurMinor + courses.totalNetEurMinor + courseBumpEurMinor;
-  // ROAS mirrors the dashboard's blended figure (engine net + course sales),
-  // so it reconciles with /admin/stats.
-  const roasNet = t.netEurMinor + courses.totalNetEurMinor;
+  // The workshop engine's figures are paid in full at checkout: the same money
+  // in both columns.
+  const workshopEurMinor = t.netEurMinor;
+  const soldTotal = workshopEurMinor + courses.totalSoldEurMinor;
+  const cashTotal = workshopEurMinor + cashIn.totalEurMinor;
+  // Ad spend off the performance report, as /admin/stats reads it.
+  const spend = perf.adSpendEurMinor;
+
+  const engineByDay = new Map(stats.daily.map((d) => [d.date, d]));
+  const soldByDay = new Map(courses.daily.map((d) => [d.date, d.soldEurMinor]));
+  const cashByDay = new Map(cashIn.daily.map((d) => [d.date, d.eurMinor]));
+  const regsOnDay = new Map(regsByDay.days.map((d) => [d.date, d.count]));
+  const daily = eachDay(from, to).map((date) => {
+    const engine = engineByDay.get(date)?.netEurMinor ?? 0;
+    return {
+      date,
+      registrations: regsOnDay.get(date) ?? 0,
+      adSpendEurMinor: engineByDay.get(date)?.adSpendEurMinor ?? 0,
+      soldEurMinor: engine + (soldByDay.get(date) ?? 0),
+      cashInEurMinor: engine + (cashByDay.get(date) ?? 0),
+    };
+  });
 
   return {
     from,
@@ -197,37 +385,48 @@ export async function gatherReportData(
     registrations: { total: regTotal, byWorkshop },
     courseSales: {
       total: courses.totalCount,
-      netEurMinor: courses.totalNetEurMinor,
+      plans: courses.planCount,
+      fullValueEurMinor: courses.totalFullValueEurMinor,
+      chargedEurMinor: courses.totalNetEurMinor,
       byProduct: courses.byProduct.map((p) => ({
         label: p.label,
         count: p.count,
-        netEurMinor: p.netEurMinor,
+        plans: p.planCount,
+        fullValueEurMinor: p.fullValueEurMinor,
+        chargedEurMinor: p.netEurMinor,
       })),
     },
     workshopBumps: { count: t.bumpCount, netEurMinor: t.bumpNetEurMinor },
-    courseBumps: {
-      count: courseBumpCount,
-      eurMinor: courseBumpEurMinor,
-      byLabel: courseBumpsByLabel,
+    courseBumps: courses.bumps,
+    sold: {
+      ticketsEurMinor: t.ticketNetEurMinor,
+      masterclassEurMinor: t.masterclassNetEurMinor,
+      workshopBumpsEurMinor: t.bumpNetEurMinor,
+      workshopCourseAddonsEurMinor: t.courseNetEurMinor,
+      courseSalesEurMinor: courses.totalFullValueEurMinor,
+      courseBumpsEurMinor: courses.bumps.eurMinor,
+      totalEurMinor: soldTotal,
+      stillToBillEurMinor: Math.max(0, courses.totalFullValueEurMinor - courses.totalNetEurMinor),
     },
-    revenue: {
-      ticketsNetEurMinor: t.ticketNetEurMinor,
-      masterclassNetEurMinor: t.masterclassNetEurMinor,
-      workshopBumpsNetEurMinor: t.bumpNetEurMinor,
-      workshopCourseAddonsNetEurMinor: t.courseNetEurMinor,
-      courseSalesNetEurMinor: courses.totalNetEurMinor,
-      courseBumpsEurMinor: courseBumpEurMinor,
-      totalEurMinor,
-      adSpendEurMinor: stats.adSpendEurMinor,
-      roas: stats.adSpendEurMinor > 0 ? roasNet / stats.adSpendEurMinor : null,
-      // Ad spend ÷ new workshop registrations — same definition the stats page
-      // and /ads dashboard use (cost per registration). Null with no spend/regs.
-      costPerRegEurMinor:
-        stats.adSpendEurMinor > 0 && regTotal > 0
-          ? Math.round(stats.adSpendEurMinor / regTotal)
-          : null,
+    cash: {
+      workshopEurMinor,
+      courseFirstPaymentsEurMinor: cashIn.firstPaymentsEurMinor,
+      courseBumpsEurMinor: cashIn.bumpsEurMinor,
+      installmentsEurMinor: cashIn.installmentsEurMinor,
+      installmentCount: cashIn.installmentCount,
+      refundsEurMinor: cashIn.refundsEurMinor,
+      refundCount: cashIn.refundCount,
+      totalEurMinor: cashTotal,
     },
-    daily: mergeDailyStreams(stats, courses, from, to),
+    ads: {
+      spendEurMinor: spend,
+      prospectingEurMinor: perf.acquisitionSpendEurMinor,
+      retargetingEurMinor: perf.retargetingSpendEurMinor,
+      roas: spend > 0 ? soldTotal / spend : null,
+      workshop: audienceLine(perf.audiences.workshop),
+      masterclass: audienceLine(perf.audiences.masterclass),
+    },
+    daily,
   };
 }
 
@@ -242,7 +441,15 @@ function escapeHtml(s: string): string {
     .replace(/'/g, '&#39;');
 }
 
-const eur = (m: number) => formatMoney(m, 'EUR');
+// Money reads the way /admin/stats prints it: cents in tables, whole euros in
+// the headline cards, thousands grouped.
+const eur = (m: number) =>
+  (m < 0 ? '−€' : '€') +
+  (Math.abs(m) / 100).toLocaleString('en-IE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const eur0 = (m: number) =>
+  (m < 0 ? '−€' : '€') + Math.round(Math.abs(m) / 100).toLocaleString('en-IE');
+const roasStr = (v: number | null) => (v != null ? v.toFixed(2) + '×' : '—');
+const plural = (n: number, one: string, many = one + 's') => `${n} ${n === 1 ? one : many}`;
 
 // "Mon 29 Jun 2026" — formatted as a calendar date (UTC, so the YYYY-MM-DD
 // label never shifts a day).
@@ -288,6 +495,26 @@ function workshopDateLabel(startsAtUtc: string, displayTz: string): string {
   }
 }
 
+// "Tue 29 Sept, 19:00" — an upcoming session, on the Brussels clock.
+function sessionWhen(startsAtUtc: string): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: BUSINESS_TZ,
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).format(new Date(startsAtUtc));
+}
+
+// The period a report is compared with, spelled out.
+function comparedWith(p: { from: string; to: string }): string {
+  return p.from === p.to
+    ? `${dayLabel(p.from)}, the same weekday a week earlier`
+    : `the week before: ${dayLabel(p.from)} – ${dayLabel(p.to)}`;
+}
+
 const C = {
   bg: '#f3f4f6',
   card: '#ffffff',
@@ -297,12 +524,57 @@ const C = {
   faint: '#9ca3af',
 };
 
+// A change against the previous period, coloured the way /admin/stats colours
+// its deltas: green when it moved the good way (down, for a cost).
+type Change = { text: string; tone: 'good' | 'bad' | 'flat' };
+const TONE: Record<Change['tone'], string> = { good: '#047857', bad: '#b91c1c', flat: C.muted };
+
+function change(
+  cur: number | null,
+  prev: number | null | undefined,
+  label: string,
+  goodWhenUp = true,
+): Change | null {
+  if (cur == null || prev == null) return null;
+  if (prev === 0 && cur === 0) return { text: `±0% ${label}`, tone: 'flat' };
+  if (prev === 0) return { text: `new ${label}`, tone: goodWhenUp ? 'good' : 'bad' };
+  const pct = ((cur - prev) / Math.abs(prev)) * 100;
+  const up = pct > 0.5;
+  const down = pct < -0.5;
+  if (!up && !down) return { text: `±0% ${label}`, tone: 'flat' };
+  const good = up === goodWhenUp;
+  return {
+    text: `${up ? '▲' : '▼'} ${Math.abs(pct).toFixed(0)}% ${label}`,
+    tone: good ? 'good' : 'bad',
+  };
+}
+
+// Every headline card's change, in one place for the HTML and the text part.
+function headlineChanges(data: ReportData): Record<keyof ReportHeadline, Change | null> {
+  const cur = headlineOf(data);
+  const p = data.previous;
+  const c = (k: keyof ReportHeadline, goodWhenUp = true) =>
+    p ? change(cur[k], p.headline[k], p.label, goodWhenUp) : null;
+  return {
+    registrations: c('registrations'),
+    courseSales: c('courseSales'),
+    soldEurMinor: c('soldEurMinor'),
+    cashInEurMinor: c('cashInEurMinor'),
+    adSpendEurMinor: c('adSpendEurMinor', false),
+    roas: c('roas'),
+    workshopSeatEurMinor: c('workshopSeatEurMinor', false),
+    masterclassSeatEurMinor: c('masterclassSeatEurMinor', false),
+  };
+}
+
 function sectionLabel(text: string): string {
   return `<p style="margin:22px 0 8px;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:${C.faint};">${escapeHtml(text)}</p>`;
 }
 
-// A row of stat cards (label + big number).
-function statCards(cards: Array<{ label: string; value: string }>): string {
+// A row of stat cards (label + big number + optional small line under it).
+function statCards(
+  cards: Array<{ label: string; value: string; sub?: string; change?: Change | null }>,
+): string {
   const cells = cards
     .map(
       (c) =>
@@ -310,7 +582,9 @@ function statCards(cards: Array<{ label: string; value: string }>): string {
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f9fafb;border:1px solid ${C.border};border-radius:10px;">
             <tr><td style="padding:14px 16px;">
               <p style="margin:0 0 4px;font-size:12px;color:${C.muted};">${escapeHtml(c.label)}</p>
-              <p style="margin:0;font-size:22px;font-weight:600;color:${C.ink};">${escapeHtml(c.value)}</p>
+              <p style="margin:0;font-size:22px;font-weight:600;color:${C.ink};white-space:nowrap;">${escapeHtml(c.value)}</p>
+              ${c.sub ? `<p style="margin:4px 0 0;font-size:11px;color:${C.faint};">${escapeHtml(c.sub)}</p>` : ''}
+              ${c.change ? `<p style="margin:5px 0 0;font-size:11px;font-weight:600;color:${TONE[c.change.tone]};white-space:nowrap;">${escapeHtml(c.change.text)}</p>` : ''}
             </td></tr>
           </table>
         </td>`,
@@ -319,24 +593,8 @@ function statCards(cards: Array<{ label: string; value: string }>): string {
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 -6px;"><tr>${cells}</tr></table>`;
 }
 
-// A two-column "label … value" table.
-function kvTable(rows: Array<[string, string]>, opts: { boldLast?: boolean } = {}): string {
-  const body = rows
-    .map(([label, value], i) => {
-      const strong = opts.boldLast && i === rows.length - 1;
-      const weight = strong ? '600' : '400';
-      const top = strong ? `border-top:1px solid ${C.border};` : '';
-      return `<tr>
-        <td style="padding:7px 14px 7px 0;font-size:14px;color:${C.muted};vertical-align:top;${top}">${escapeHtml(label)}</td>
-        <td align="right" style="padding:7px 0;font-size:14px;font-weight:${weight};color:${C.ink};white-space:nowrap;vertical-align:top;${top}">${escapeHtml(value)}</td>
-      </tr>`;
-    })
-    .join('');
-  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${body}</table>`;
-}
-
-// A headered data table.
-function dataTable(headers: string[], rows: string[][]): string {
+// A headered data table. `boldLast` sets the final row off as a total.
+function dataTable(headers: string[], rows: string[][], opts: { boldLast?: boolean } = {}): string {
   const head = headers
     .map(
       (h, i) =>
@@ -344,21 +602,87 @@ function dataTable(headers: string[], rows: string[][]): string {
     )
     .join('');
   const body = rows
-    .map(
-      (cells) =>
-        `<tr>${cells
-          .map(
-            (c, i) =>
-              `<td align="${i === 0 ? 'left' : 'right'}" style="padding:7px 10px;font-size:13px;color:${i === 0 ? C.ink : C.muted};border-bottom:1px solid #f1f2f4;white-space:${i === 0 ? 'normal' : 'nowrap'};">${escapeHtml(c)}</td>`,
-          )
-          .join('')}</tr>`,
-    )
+    .map((cells, r) => {
+      const total = opts.boldLast && r === rows.length - 1;
+      return `<tr>${cells
+        .map(
+          (c, i) =>
+            `<td align="${i === 0 ? 'left' : 'right'}" style="padding:7px 10px;font-size:13px;color:${
+              total || i === 0 ? C.ink : C.muted
+            };font-weight:${total ? '600' : '400'};border-${total ? 'top' : 'bottom'}:1px solid ${
+              total ? C.border : '#f1f2f4'
+            };white-space:${i === 0 ? 'normal' : 'nowrap'};">${escapeHtml(c)}</td>`,
+        )
+        .join('')}</tr>`;
+    })
     .join('');
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>${head}</tr>${body}</table>`;
 }
 
+function note(text: string): string {
+  return `<p style="margin:8px 0 0;font-size:12px;line-height:1.55;color:${C.muted};">${escapeHtml(text)}</p>`;
+}
+
 function emptyNote(text: string): string {
   return `<p style="margin:2px 0 0;font-size:13px;color:${C.faint};font-style:italic;">${escapeHtml(text)}</p>`;
+}
+
+// The Sold / Cash in table, as rows — shared by the HTML and the text part so
+// the two can never list different lines. `null` = not applicable ("—").
+type MoneyRow = { label: string; sold: number | null; cash: number | null; total?: boolean };
+
+function moneyRows(data: ReportData): MoneyRow[] {
+  const s = data.sold;
+  const c = data.cash;
+  const rows: MoneyRow[] = [
+    { label: 'Workshop tickets', sold: s.ticketsEurMinor, cash: s.ticketsEurMinor },
+    { label: 'Masterclass', sold: s.masterclassEurMinor, cash: s.masterclassEurMinor },
+    { label: 'Workshop order bumps', sold: s.workshopBumpsEurMinor, cash: s.workshopBumpsEurMinor },
+  ];
+  if (s.workshopCourseAddonsEurMinor !== 0) {
+    rows.push({
+      label: 'Course add-ons (via workshop)',
+      sold: s.workshopCourseAddonsEurMinor,
+      cash: s.workshopCourseAddonsEurMinor,
+    });
+  }
+  rows.push(
+    { label: 'Course sales', sold: s.courseSalesEurMinor, cash: c.courseFirstPaymentsEurMinor },
+    { label: 'Course order bumps', sold: s.courseBumpsEurMinor, cash: c.courseBumpsEurMinor },
+    {
+      label: `Installments on earlier plans${c.installmentCount ? ` (${c.installmentCount})` : ''}`,
+      sold: null,
+      cash: c.installmentsEurMinor,
+    },
+  );
+  if (c.refundsEurMinor !== 0) {
+    rows.push({ label: `Course refunds (${c.refundCount})`, sold: null, cash: -c.refundsEurMinor });
+  }
+  rows.push({ label: 'Total', sold: s.totalEurMinor, cash: c.totalEurMinor, total: true });
+  return rows;
+}
+
+const cell = (v: number | null) => (v == null ? '—' : eur(v));
+
+function stillToBillNote(data: ReportData): string | null {
+  const s = data.sold;
+  if (s.stillToBillEurMinor <= 0) return null;
+  return `${eur(s.stillToBillEurMinor)} of these course sales is still to be charged on their payment plans (${plural(
+    data.courseSales.plans,
+    'plan',
+  )}) — counted in full under Sold today, it reaches Cash in one installment at a time.`;
+}
+
+function audienceRows(data: ReportData): string[][] {
+  const row = (name: string, a: ReportAudience) => [
+    name,
+    String(a.registrations),
+    eur(a.adSpendEurMinor),
+    a.costPerRegistrationEurMinor != null ? eur(a.costPerRegistrationEurMinor) : '—',
+    eur(a.revenueEurMinor),
+    roasStr(a.roas),
+  ];
+  return [row('Workshop', data.ads.workshop), row('Masterclass', data.ads.masterclass)];
 }
 
 // The shared frame + the sections common to both digests.
@@ -368,33 +692,93 @@ function renderReport(opts: {
   data: ReportData;
   extraSectionsHtml?: string;
   baseUrl: string;
+  dashboardQuery: string;
 }): string {
-  const { kindLabel, rangeLabel, data, extraSectionsHtml, baseUrl } = opts;
-  const r = data.revenue;
+  const { kindLabel, rangeLabel, data, extraSectionsHtml, baseUrl, dashboardQuery } = opts;
   const b = baseUrl.replace(/\/$/, '');
+  const ads = data.ads;
 
+  const ch = headlineChanges(data);
   const snapshot = statCards([
-    { label: 'Registrations', value: String(data.registrations.total) },
-    { label: 'Course sales', value: String(data.courseSales.total) },
-    { label: 'Total revenue', value: eur(r.totalEurMinor) },
+    { label: 'Registrations', value: String(data.registrations.total), change: ch.registrations },
+    {
+      label: 'Course sales',
+      value: String(data.courseSales.total),
+      sub: data.courseSales.plans ? `${data.courseSales.plans} on a plan` : undefined,
+      change: ch.courseSales,
+    },
+    { label: 'Sold', value: eur0(data.sold.totalEurMinor), sub: 'courses in full', change: ch.soldEurMinor },
+    { label: 'Cash in', value: eur0(data.cash.totalEurMinor), sub: 'actually charged', change: ch.cashInEurMinor },
   ]);
 
-  // Ad-efficiency headline — cost per workshop registration + blended ROAS,
-  // shown as their own boxes at the top ('—' when there's no ad spend to divide).
+  // Ad-efficiency headline — spend, blended ROAS on full value, and the price
+  // of a seat per product ('—' when there's nothing to divide).
+  const seat = (a: ReportAudience) =>
+    a.costPerRegistrationEurMinor != null ? eur(a.costPerRegistrationEurMinor) : '—';
   const adEfficiency = statCards([
     {
-      label: 'Cost / workshop registration',
-      value: r.costPerRegEurMinor != null ? eur(r.costPerRegEurMinor) : '—',
+      label: 'Ad spend',
+      value: eur0(ads.spendEurMinor),
+      sub: ads.spendEurMinor > 0 ? `${eur0(ads.prospectingEurMinor)} prospecting` : undefined,
+      change: ch.adSpendEurMinor,
     },
-    { label: 'Blended ROAS', value: r.roas != null ? r.roas.toFixed(2) + '×' : '—' },
+    { label: 'Blended ROAS', value: roasStr(ads.roas), sub: 'sold ÷ ad spend', change: ch.roas },
+    {
+      label: 'Workshop seat',
+      value: seat(ads.workshop),
+      sub: 'cost / registration',
+      change: ch.workshopSeatEurMinor,
+    },
+    {
+      label: 'Masterclass seat',
+      value: seat(ads.masterclass),
+      sub: 'cost / registration',
+      change: ch.masterclassSeatEurMinor,
+    },
   ]);
+  const compareNote = data.previous
+    ? `<p style="margin:6px 0 0;font-size:11px;color:${C.faint};">Changes compare with ${escapeHtml(
+        comparedWith(data.previous),
+      )}.</p>`
+    : '';
+
+  const upcomingSection =
+    sectionLabel('Coming up') +
+    (data.upcoming.length
+      ? dataTable(
+          ['Session', 'When (Brussels)', 'Seats', 'New'],
+          data.upcoming.map((u) => [u.title, u.when, String(u.seats), u.newSeats ? `+${u.newSeats}` : '—']),
+        ) + note('New = seats taken in this report’s window.')
+      : emptyNote('Nothing scheduled ahead right now.'));
+
+  const pipelineSection = data.pipeline
+    ? sectionLabel('Pipeline — open payment plans') +
+      statCards([
+        {
+          label: 'Still to collect',
+          value: eur0(data.pipeline.totalEurMinor),
+          sub: plural(data.pipeline.activePlans, 'open plan'),
+        },
+        { label: 'Due next 30 days', value: eur0(data.pipeline.next30EurMinor) },
+        {
+          label: 'At risk',
+          value: data.pipeline.atRiskEurMinor > 0 ? eur0(data.pipeline.atRiskEurMinor) : '—',
+          sub: data.pipeline.attentionCount
+            ? `${plural(data.pipeline.attentionCount, 'plan')} need${data.pipeline.attentionCount === 1 ? 's' : ''} an eye`
+            : 'retrying / unpaid',
+        },
+      ]) +
+      note(
+        'Net of VAT: installments still to bill on every open plan, by due date — the same projection as Future revenue on the dashboard.',
+      )
+    : '';
 
   const regSection =
     sectionLabel('Workshop registrations') +
     (data.registrations.byWorkshop.length
       ? dataTable(
-          ['Workshop', 'Date', 'New seats'],
-          data.registrations.byWorkshop.map((w) => [w.title, w.date, String(w.count)]),
+          ['Workshop', 'Date', 'New', 'Seats now'],
+          data.registrations.byWorkshop.map((w) => [w.title, w.date, String(w.count), String(w.seats)]),
         )
       : emptyNote('No new registrations in this window.'));
 
@@ -402,12 +786,17 @@ function renderReport(opts: {
     sectionLabel('Course sales') +
     (data.courseSales.byProduct.length
       ? dataTable(
-          ['Product', 'Sales', 'Net'],
-          data.courseSales.byProduct.map((p) => [p.label, String(p.count), eur(p.netEurMinor)]),
+          ['Product', 'Sales', 'Full value', 'Charged'],
+          data.courseSales.byProduct.map((p) => [
+            p.plans ? `${p.label} · ${p.plans} on a plan` : p.label,
+            String(p.count),
+            eur(p.fullValueEurMinor),
+            eur(p.chargedEurMinor),
+          ]),
         )
       : emptyNote('No course sales in this window.'));
 
-  // Bump offers — workshop order bump + 12-week checkout order bumps.
+  // Bump offers — workshop order bump + course checkout order bumps.
   const bumpRows: string[][] = [];
   if (data.workshopBumps.count > 0) {
     bumpRows.push([
@@ -425,25 +814,25 @@ function renderReport(opts: {
       ? dataTable(['Offer', 'Taken', 'Revenue'], bumpRows)
       : emptyNote('No bump add-ons taken in this window.'));
 
+  const econSection =
+    sectionLabel('Ad economics') +
+    dataTable(['Product', 'Regs', 'Ad spend', 'Per reg', 'Made back', 'ROAS'], audienceRows(data)) +
+    note(
+      'Each product is charged only its own campaigns’ prospecting spend, priced day by day; made back = the tickets, bumps and courses those registrants bought, each course in full. Same figures as the ad-economics cards on the dashboard.',
+    );
+
+  const toBill = stillToBillNote(data);
   const revenueSection =
-    sectionLabel('Revenue') +
-    kvTable(
-      [
-        ['Workshop tickets', eur(r.ticketsNetEurMinor)],
-        ['Masterclass', eur(r.masterclassNetEurMinor)],
-        ['Workshop order bumps', eur(r.workshopBumpsNetEurMinor)],
-        ['Course add-ons (via workshop)', eur(r.workshopCourseAddonsNetEurMinor)],
-        ['Standalone course sales', eur(r.courseSalesNetEurMinor)],
-        ['Course order bumps', eur(r.courseBumpsEurMinor)],
-        ['Total', eur(r.totalEurMinor)],
-      ],
+    sectionLabel('Money') +
+    dataTable(
+      ['', 'Sold', 'Cash in'],
+      moneyRows(data).map((r) => [r.label, cell(r.sold), cell(r.cash)]),
       { boldLast: true },
     ) +
-    (r.adSpendEurMinor > 0
-      ? `<p style="margin:10px 0 0;font-size:13px;color:${C.muted};">Ad spend ${eur(
-          r.adSpendEurMinor,
-        )} · blended ROAS ${r.roas != null ? r.roas.toFixed(2) + '×' : '—'}</p>`
-      : '');
+    note(
+      'Sold = what this window sold, every payment plan at its full value. Cash in = what was actually charged in it: first payments on new sales, installments falling due on earlier plans, less refunds.',
+    ) +
+    (toBill ? note(toBill) : '');
 
   const html = `<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>${escapeHtml(
@@ -461,17 +850,21 @@ function renderReport(opts: {
         <tr><td style="padding:16px 20px 0;">${snapshot}</td></tr>
         <tr><td style="padding:6px 20px 0;">${adEfficiency}</td></tr>
         <tr><td style="padding:0 26px;">
+          ${compareNote}
+          ${revenueSection}
+          ${pipelineSection}
+          ${econSection}
           ${regSection}
+          ${upcomingSection}
           ${courseSection}
           ${bumpSection}
-          ${revenueSection}
           ${extraSectionsHtml ?? ''}
         </td></tr>
         <tr><td style="padding:18px 26px 26px;">
-          <a href="${b}/admin/stats" style="display:inline-block;padding:9px 16px;background:${C.ink};color:#ffffff;font-size:13px;text-decoration:none;border-radius:8px;">Open dashboard →</a>
+          <a href="${b}/admin/stats?${escapeHtml(dashboardQuery)}" style="display:inline-block;padding:9px 16px;background:${C.ink};color:#ffffff;font-size:13px;text-decoration:none;border-radius:8px;">Open this window on the dashboard →</a>
         </td></tr>
       </table>
-      <p style="margin:14px 0 0;font-size:11px;color:${C.faint};line-height:1.6;max-width:560px;">Automated report · Songdance. Workshop figures are net of tax; course-sale figures are the amount collected (gross of VAT), converted to EUR at fallback rates — same conventions as the stats dashboard.</p>
+      <p style="margin:14px 0 0;font-size:11px;color:${C.faint};line-height:1.6;max-width:560px;">Automated report · Songdance. Every figure is net of VAT, in EUR at the live exchange rates, over Brussels calendar days — the same conventions and the same calculations as the stats dashboard. A payment plan counts in full under Sold on the day it was sold (as the ad-economics cards and Meta count it); Cash in dates each installment on its monthly schedule.</p>
     </td></tr>
   </table>
 </body></html>`;
@@ -480,64 +873,84 @@ function renderReport(opts: {
 
 // Plain-text counterpart (compact but complete).
 function renderReportText(kindLabel: string, rangeLabel: string, data: ReportData): string {
-  const r = data.revenue;
+  const ads = data.ads;
+  const ch = headlineChanges(data);
   const lines: string[] = [kindLabel, rangeLabel, ''];
+  const seat = (a: ReportAudience) =>
+    a.costPerRegistrationEurMinor != null ? eur(a.costPerRegistrationEurMinor) : '—';
+  const w = (value: string, c: Change | null) => (c ? `${value} (${c.text})` : value);
   lines.push(
-    `Registrations: ${data.registrations.total} · Course sales: ${data.courseSales.total} · Total revenue: ${eur(
-      r.totalEurMinor,
-    )}`,
-    `Cost / workshop registration: ${
-      r.costPerRegEurMinor != null ? eur(r.costPerRegEurMinor) : '—'
-    } · Blended ROAS: ${r.roas != null ? r.roas.toFixed(2) + '×' : '—'}`,
-    '',
-    'WORKSHOP REGISTRATIONS',
+    `Registrations: ${w(String(data.registrations.total), ch.registrations)}`,
+    `Course sales: ${w(String(data.courseSales.total), ch.courseSales)}`,
+    `Sold: ${w(eur(data.sold.totalEurMinor), ch.soldEurMinor)}`,
+    `Cash in: ${w(eur(data.cash.totalEurMinor), ch.cashInEurMinor)}`,
+    `Ad spend: ${w(eur(ads.spendEurMinor), ch.adSpendEurMinor)}`,
+    `Blended ROAS: ${w(roasStr(ads.roas), ch.roas)}`,
+    `Workshop seat: ${w(seat(ads.workshop), ch.workshopSeatEurMinor)}`,
+    `Masterclass seat: ${w(seat(ads.masterclass), ch.masterclassSeatEurMinor)}`,
   );
+  if (data.previous) lines.push(`(Changes compare with ${comparedWith(data.previous)}.)`);
+  lines.push('', 'MONEY (sold · cash in)');
+  for (const r of moneyRows(data)) lines.push(`  ${r.label}: ${cell(r.sold)} · ${cell(r.cash)}`);
+  const toBill = stillToBillNote(data);
+  if (toBill) lines.push(`  ${toBill}`);
+  if (data.pipeline) {
+    const pl = data.pipeline;
+    lines.push(
+      '',
+      'PIPELINE — OPEN PAYMENT PLANS',
+      `  Still to collect: ${eur(pl.totalEurMinor)} (${plural(pl.activePlans, 'open plan')})`,
+      `  Due next 30 days: ${eur(pl.next30EurMinor)}`,
+      `  At risk (retrying / unpaid): ${pl.atRiskEurMinor > 0 ? eur(pl.atRiskEurMinor) : '—'}${
+        pl.attentionCount ? ` · ${plural(pl.attentionCount, 'plan')} to look at` : ''
+      }`,
+    );
+  }
+  lines.push('', 'AD ECONOMICS (regs · ad spend · per reg · made back · ROAS)');
+  for (const [name, ...rest] of audienceRows(data)) lines.push(`  ${name}: ${rest.join(' · ')}`);
+  lines.push('', 'WORKSHOP REGISTRATIONS');
   if (data.registrations.byWorkshop.length) {
-    for (const w of data.registrations.byWorkshop)
-      lines.push(`  ${w.title} (${w.date}): ${w.count}`);
+    for (const r of data.registrations.byWorkshop)
+      lines.push(`  ${r.title} (${r.date}): +${r.count} · ${r.seats} seats now`);
   } else lines.push('  (none)');
-  lines.push('', 'COURSE SALES');
+  lines.push('', 'COMING UP (Brussels time)');
+  if (data.upcoming.length) {
+    for (const u of data.upcoming)
+      lines.push(`  ${u.when} · ${u.title}: ${u.seats} seats${u.newSeats ? ` (+${u.newSeats} new)` : ''}`);
+  } else lines.push('  (nothing scheduled)');
+  lines.push('', 'COURSE SALES (full value · charged)');
   if (data.courseSales.byProduct.length) {
     for (const p of data.courseSales.byProduct)
-      lines.push(`  ${p.label}: ${p.count} · ${eur(p.netEurMinor)}`);
+      lines.push(
+        `  ${p.label}: ${p.count}${p.plans ? ` (${p.plans} on a plan)` : ''} · ${eur(p.fullValueEurMinor)} · ${eur(
+          p.chargedEurMinor,
+        )}`,
+      );
   } else lines.push('  (none)');
   lines.push('', 'BUMP OFFERS');
   if (data.workshopBumps.count > 0)
     lines.push(`  Workshop order bump: ${data.workshopBumps.count} · ${eur(data.workshopBumps.netEurMinor)}`);
-  if (data.courseBumps.byLabel.length) {
-    for (const bump of data.courseBumps.byLabel)
-      lines.push(`  Course bump · ${bump.label}: ${bump.count} · ${eur(bump.eurMinor)}`);
-  }
+  for (const bump of data.courseBumps.byLabel)
+    lines.push(`  Course bump · ${bump.label}: ${bump.count} · ${eur(bump.eurMinor)}`);
   if (data.workshopBumps.count === 0 && data.courseBumps.byLabel.length === 0)
     lines.push('  (none)');
-  lines.push(
-    '',
-    'REVENUE',
-    `  Workshop tickets: ${eur(r.ticketsNetEurMinor)}`,
-    `  Masterclass: ${eur(r.masterclassNetEurMinor)}`,
-    `  Workshop order bumps: ${eur(r.workshopBumpsNetEurMinor)}`,
-    `  Course add-ons (via workshop): ${eur(r.workshopCourseAddonsNetEurMinor)}`,
-    `  Standalone course sales: ${eur(r.courseSalesNetEurMinor)}`,
-    `  Course order bumps: ${eur(r.courseBumpsEurMinor)}`,
-    `  Total: ${eur(r.totalEurMinor)}`,
-  );
-  if (r.adSpendEurMinor > 0) {
-    lines.push(
-      `  Ad spend: ${eur(r.adSpendEurMinor)} · blended ROAS ${r.roas != null ? r.roas.toFixed(2) + '×' : '—'}`,
-    );
-  }
   return lines.join('\n');
 }
+
+// The dashboard link opens on the report's own window.
+const dashboardQuery = (data: ReportData) =>
+  `preset=custom&from=${data.from}&to=${data.to}`;
 
 export function buildDailyReportEmail(data: ReportData, baseUrl: string): EmailContent {
   const kindLabel = 'Daily report';
   const rangeLabel = dayLabel(data.to);
-  const subject = `SD-REPORT · Daily · ${dayLabel(data.to)} — ${data.registrations.total} reg · ${data.courseSales.total} course sales · ${eur(
-    data.revenue.totalEurMinor,
-  )}`;
+  const subject = `SD-REPORT · Daily · ${dayLabel(data.to)} — ${data.registrations.total} reg · ${plural(
+    data.courseSales.total,
+    'course sale',
+  )} · ${eur0(data.sold.totalEurMinor)} sold · ${eur0(data.cash.totalEurMinor)} cash in`;
   return {
     subject,
-    html: renderReport({ kindLabel, rangeLabel, data, baseUrl }),
+    html: renderReport({ kindLabel, rangeLabel, data, baseUrl, dashboardQuery: dashboardQuery(data) }),
     text: renderReportText(kindLabel, rangeLabel, data),
   };
 }
@@ -546,29 +959,58 @@ export function buildWeeklyReportEmail(data: ReportData, baseUrl: string): Email
   const kindLabel = 'Weekly report';
   const rangeLabel = `${dayLabel(data.from)} – ${dayLabel(data.to)}`;
 
-  // Per-day revenue table — the week at a glance.
+  // The week at a glance, one row per day, plus the week's total.
   const dailySection =
     data.daily.length > 0
-      ? sectionLabel('Revenue by day') +
+      ? sectionLabel('By day') +
         dataTable(
-          ['Day', 'Workshops', 'Courses', 'Total'],
-          data.daily.map((d) => [
-            shortDay(d.date),
-            eur(d.workshopsEurMinor + d.masterclassEurMinor),
-            eur(d.twelveWeekEurMinor + d.certificationEurMinor + d.otherCoursesEurMinor),
-            eur(d.totalEurMinor),
-          ]),
-        ) +
-        `<p style="margin:8px 0 0;font-size:12px;color:${C.faint};">Per-day totals exclude course order-bumps (counted in the totals above).</p>`
+          ['Day', 'Regs', 'Ad spend', 'Sold', 'Cash in'],
+          [
+            ...data.daily.map((d) => [
+              shortDay(d.date),
+              String(d.registrations),
+              eur(d.adSpendEurMinor),
+              eur(d.soldEurMinor),
+              eur(d.cashInEurMinor),
+            ]),
+            [
+              'Week',
+              String(data.daily.reduce((s, d) => s + d.registrations, 0)),
+              eur(data.ads.spendEurMinor),
+              eur(data.sold.totalEurMinor),
+              eur(data.cash.totalEurMinor),
+            ],
+          ],
+          { boldLast: true },
+        )
       : '';
 
-  const subject = `SD-REPORT · Weekly · ${shortDay(data.from)}–${shortDay(data.to)} — ${data.registrations.total} reg · ${data.courseSales.total} course sales · ${eur(
-    data.revenue.totalEurMinor,
-  )}`;
+  const subject = `SD-REPORT · Weekly · ${shortDay(data.from)}–${shortDay(data.to)} — ${data.registrations.total} reg · ${plural(
+    data.courseSales.total,
+    'course sale',
+  )} · ${eur0(data.sold.totalEurMinor)} sold · ${eur0(data.cash.totalEurMinor)} cash in`;
+  const text =
+    renderReportText(kindLabel, rangeLabel, data) +
+    '\n\nBY DAY (regs · ad spend · sold · cash in)\n' +
+    data.daily
+      .map(
+        (d) =>
+          `  ${shortDay(d.date)}: ${d.registrations} · ${eur(d.adSpendEurMinor)} · ${eur(d.soldEurMinor)} · ${eur(
+            d.cashInEurMinor,
+          )}`,
+      )
+      .join('\n');
   return {
     subject,
-    html: renderReport({ kindLabel, rangeLabel, data, baseUrl, extraSectionsHtml: dailySection }),
-    text: renderReportText(kindLabel, rangeLabel, data),
+    html: renderReport({
+      kindLabel,
+      rangeLabel,
+      data,
+      baseUrl,
+      extraSectionsHtml: dailySection,
+      dashboardQuery: dashboardQuery(data),
+    }),
+    text,
   };
 }
 
@@ -682,17 +1124,15 @@ export async function runReports(env: ReportEnv, now = Date.now()): Promise<RunR
   result.daily = await sendOne(
     env,
     `report-daily-${yesterday}`,
-    () => gatherReportData(env.DB, yesterday, yesterday, money),
+    () => gatherReport(env.DB, 'daily', yesterday, money),
     (data) => buildDailyReportEmail(data, baseUrl),
   );
 
   if (dayOfWeek(today) === 2 /* Tuesday */) {
-    const weekTo = yesterday;
-    const weekFrom = shiftDays(weekTo, -6);
     result.weekly = await sendOne(
       env,
-      `report-weekly-${weekTo}`,
-      () => gatherReportData(env.DB, weekFrom, weekTo, money),
+      `report-weekly-${yesterday}`,
+      () => gatherReport(env.DB, 'weekly', yesterday, money),
       (data) => buildWeeklyReportEmail(data, baseUrl),
     );
   }
@@ -721,9 +1161,8 @@ export async function sendReportNow(
   const target = (opts.date && opts.date.trim()) || defaultDate;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(target)) throw new Error(`Bad date: ${target}`);
 
-  const from = opts.kind === 'weekly' ? shiftDays(target, -6) : target;
-  const to = target;
-  const data = await gatherReportData(env.DB, from, to, await resolveMoneyOpts(env.DB, env));
+  const data = await gatherReport(env.DB, opts.kind, target, await resolveMoneyOpts(env.DB, env));
+  const { from, to } = data;
   const content =
     opts.kind === 'weekly'
       ? buildWeeklyReportEmail(data, baseUrl)
@@ -746,79 +1185,126 @@ export async function sendReportNow(
 // ── Sample data (drives the /admin/emails preview + test-send) ──────────────
 
 export function sampleDailyReportData(): ReportData {
+  // A certification on a 3× plan (full value €659, first installment €220
+  // charged) and a 12-week paid in full; one older plan billed its second
+  // installment the same day.
   return {
     from: '2026-06-29',
     to: '2026-06-29',
     registrations: {
       total: 7,
       byWorkshop: [
-        { title: 'Somatic Vocal Healing Workshop', count: 5, date: 'Mon 29 Jun 2026' },
-        { title: 'SVH Masterclass', count: 2, date: 'Wed 1 Jul 2026' },
+        { title: 'Somatic Vocal Healing Workshop', count: 5, seats: 23, date: 'Mon 29 Jun 2026' },
+        { title: 'SVH Masterclass', count: 2, seats: 11, date: 'Wed 1 Jul 2026' },
       ],
     },
     courseSales: {
       total: 2,
-      netEurMinor: 204700,
+      plans: 1,
+      fullValueEurMinor: 111350,
+      chargedEurMinor: 67400,
       byProduct: [
-        { label: 'Certification — cert only', count: 1, netEurMinor: 165000 },
-        { label: '12-Week SVH Course', count: 1, netEurMinor: 39700 },
+        { label: 'Certification — cert only', count: 1, plans: 1, fullValueEurMinor: 65900, chargedEurMinor: 21950 },
+        { label: '12-Week SVH Course', count: 1, plans: 0, fullValueEurMinor: 45450, chargedEurMinor: 45450 },
       ],
     },
-    workshopBumps: { count: 3, netEurMinor: 5700 },
+    workshopBumps: { count: 3, netEurMinor: 2230 },
     courseBumps: {
       count: 1,
-      eurMinor: 1900,
-      byLabel: [{ label: 'The Authentic Singing Journey', count: 1, eurMinor: 1900 }],
+      eurMinor: 8180,
+      byLabel: [{ label: 'The Authentic Singing Journey', count: 1, eurMinor: 8180 }],
     },
-    revenue: {
-      ticketsNetEurMinor: 3600,
-      masterclassNetEurMinor: 19400,
-      workshopBumpsNetEurMinor: 5700,
-      workshopCourseAddonsNetEurMinor: 0,
-      courseSalesNetEurMinor: 204700,
-      courseBumpsEurMinor: 1900,
-      totalEurMinor: 235300,
-      adSpendEurMinor: 8500,
-      roas: 27.46,
-      costPerRegEurMinor: 1214,
+    sold: {
+      ticketsEurMinor: 9090,
+      masterclassEurMinor: 7270,
+      workshopBumpsEurMinor: 2230,
+      workshopCourseAddonsEurMinor: 0,
+      courseSalesEurMinor: 111350,
+      courseBumpsEurMinor: 8180,
+      totalEurMinor: 138120,
+      stillToBillEurMinor: 43950,
     },
-    daily: [],
+    cash: {
+      workshopEurMinor: 18590,
+      courseFirstPaymentsEurMinor: 67400,
+      courseBumpsEurMinor: 8180,
+      installmentsEurMinor: 21950,
+      installmentCount: 1,
+      refundsEurMinor: 0,
+      refundCount: 0,
+      totalEurMinor: 116120,
+    },
+    ads: {
+      spendEurMinor: 14200,
+      prospectingEurMinor: 11800,
+      retargetingEurMinor: 2400,
+      roas: 9.73,
+      workshop: {
+        registrations: 5,
+        adSpendEurMinor: 5400,
+        costPerRegistrationEurMinor: 1080,
+        revenueEurMinor: 65180,
+        roas: 12.07,
+      },
+      masterclass: {
+        registrations: 2,
+        adSpendEurMinor: 6400,
+        costPerRegistrationEurMinor: 3200,
+        revenueEurMinor: 74400,
+        roas: 11.63,
+      },
+    },
+    daily: [
+      {
+        date: '2026-06-29',
+        registrations: 7,
+        adSpendEurMinor: 14200,
+        soldEurMinor: 138120,
+        cashInEurMinor: 116120,
+      },
+    ],
+    previous: {
+      from: '2026-06-22',
+      to: '2026-06-22',
+      label: 'vs last Mon',
+      headline: {
+        registrations: 5,
+        courseSales: 1,
+        soldEurMinor: 61300,
+        cashInEurMinor: 72400,
+        adSpendEurMinor: 12600,
+        roas: 4.87,
+        workshopSeatEurMinor: 1350,
+        masterclassSeatEurMinor: 2800,
+      },
+    },
+    upcoming: [
+      { title: 'Somatic Vocal Healing Workshop', when: 'Wed 1 Jul, 19:00', seats: 14, newSeats: 4 },
+      { title: 'SVH Masterclass', when: 'Thu 2 Jul, 18:30', seats: 11, newSeats: 2 },
+      { title: 'Somatic Vocal Healing Workshop', when: 'Mon 6 Jul, 10:00', seats: 3, newSeats: 1 },
+    ],
+    pipeline: null,
   };
 }
 
 export function sampleWeeklyReportData(): ReportData {
-  const daily: StreamDay[] = [
-    ['2026-06-22', 2100, 0, 39700, 0, 0],
-    ['2026-06-23', 3400, 11800, 0, 165000, 0],
-    ['2026-06-24', 1800, 0, 39700, 0, 9900],
-    ['2026-06-25', 4200, 23600, 79400, 0, 0],
-    ['2026-06-26', 2900, 0, 0, 165000, 9900],
-    ['2026-06-27', 5100, 35400, 39700, 0, 0],
-    ['2026-06-28', 3900, 16500, 79400, 0, 0],
-  ].map(([date, ws, mc, tw, cert, other]) => {
-    const d = date as string;
-    const workshopsEurMinor = ws as number;
-    const masterclassEurMinor = mc as number;
-    const twelveWeekEurMinor = tw as number;
-    const certificationEurMinor = cert as number;
-    const otherCoursesEurMinor = other as number;
-    return {
-      date: d,
-      workshopsEurMinor,
-      masterclassEurMinor,
-      twelveWeekEurMinor,
-      certificationEurMinor,
-      otherCoursesEurMinor,
-      totalEurMinor:
-        workshopsEurMinor +
-        masterclassEurMinor +
-        twelveWeekEurMinor +
-        certificationEurMinor +
-        otherCoursesEurMinor,
-      adSpendEurMinor: 0,
-      acquisitionAdSpendEurMinor: 0,
-    };
-  });
+  const daily: ReportData['daily'] = (
+    [
+      ['2026-06-22', 9, 8200, 47800, 31500],
+      ['2026-06-23', 6, 7900, 104410, 42900],
+      ['2026-06-24', 4, 7400, 21300, 36100],
+      ['2026-06-25', 8, 9100, 139600, 64200],
+      ['2026-06-26', 3, 6800, 12700, 29800],
+      ['2026-06-27', 5, 8700, 51900, 71900],
+      ['2026-06-28', 3, 7300, 28100, 18400],
+    ] as const
+  ).map(([date, registrations, adSpendEurMinor, soldEurMinor, cashInEurMinor]) => ({
+    date,
+    registrations,
+    adSpendEurMinor,
+    soldEurMinor,
+    cashInEurMinor,
+  }));
 
   return {
     from: '2026-06-22',
@@ -826,42 +1312,99 @@ export function sampleWeeklyReportData(): ReportData {
     registrations: {
       total: 38,
       byWorkshop: [
-        { title: 'Somatic Vocal Healing Workshop', count: 18, date: 'Mon 22 Jun 2026' },
-        { title: 'Somatic Vocal Healing Workshop', count: 11, date: 'Fri 26 Jun 2026' },
-        { title: 'SVH Masterclass', count: 9, date: 'Thu 25 Jun 2026' },
+        { title: 'Somatic Vocal Healing Workshop', count: 18, seats: 31, date: 'Mon 22 Jun 2026' },
+        { title: 'Somatic Vocal Healing Workshop', count: 11, seats: 14, date: 'Fri 26 Jun 2026' },
+        { title: 'SVH Masterclass', count: 9, seats: 17, date: 'Thu 25 Jun 2026' },
       ],
     },
     courseSales: {
-      total: 11,
-      netEurMinor: 627700,
+      total: 7,
+      plans: 4,
+      fullValueEurMinor: 305550,
+      chargedEurMinor: 151480,
       byProduct: [
-        { label: 'Certification — cert only', count: 2, netEurMinor: 330000 },
-        { label: '12-Week SVH Course', count: 7, netEurMinor: 277900 },
-        { label: 'The Grief Course', count: 2, netEurMinor: 19800 },
+        { label: 'Certification — cert only', count: 2, plans: 2, fullValueEurMinor: 131800, chargedEurMinor: 43900 },
+        { label: '12-Week SVH Course', count: 4, plans: 2, fullValueEurMinor: 163650, chargedEurMinor: 97480 },
+        { label: 'The Grief Course', count: 1, plans: 0, fullValueEurMinor: 10100, chargedEurMinor: 10100 },
       ],
     },
-    workshopBumps: { count: 14, netEurMinor: 26600 },
+    workshopBumps: { count: 14, netEurMinor: 10400 },
     courseBumps: {
-      count: 5,
-      eurMinor: 15500,
+      count: 4,
+      eurMinor: 24460,
       byLabel: [
-        { label: 'The Grief Course', count: 2, eurMinor: 9800 },
-        { label: 'The Authentic Singing Journey', count: 3, eurMinor: 5700 },
+        { label: 'The Authentic Singing Journey', count: 2, eurMinor: 16360 },
+        { label: 'The Grief Course', count: 2, eurMinor: 8100 },
       ],
     },
-    revenue: {
-      ticketsNetEurMinor: 23400,
-      masterclassNetEurMinor: 87300,
-      workshopBumpsNetEurMinor: 26600,
-      workshopCourseAddonsNetEurMinor: 4500,
-      courseSalesNetEurMinor: 627700,
-      courseBumpsEurMinor: 15500,
-      totalEurMinor: 785000,
-      adSpendEurMinor: 62000,
-      roas: 12.41,
-      costPerRegEurMinor: 1632,
+    sold: {
+      ticketsEurMinor: 32700,
+      masterclassEurMinor: 32700,
+      workshopBumpsEurMinor: 10400,
+      workshopCourseAddonsEurMinor: 0,
+      courseSalesEurMinor: 305550,
+      courseBumpsEurMinor: 24460,
+      totalEurMinor: 405810,
+      stillToBillEurMinor: 154070,
+    },
+    cash: {
+      workshopEurMinor: 75800,
+      courseFirstPaymentsEurMinor: 151480,
+      courseBumpsEurMinor: 24460,
+      installmentsEurMinor: 65560,
+      installmentCount: 4,
+      refundsEurMinor: 22500,
+      refundCount: 1,
+      totalEurMinor: 294800,
+    },
+    ads: {
+      spendEurMinor: 55400,
+      prospectingEurMinor: 46100,
+      retargetingEurMinor: 9300,
+      roas: 7.33,
+      workshop: {
+        registrations: 29,
+        adSpendEurMinor: 24900,
+        costPerRegistrationEurMinor: 859,
+        revenueEurMinor: 198400,
+        roas: 7.97,
+      },
+      masterclass: {
+        registrations: 9,
+        adSpendEurMinor: 21200,
+        costPerRegistrationEurMinor: 2356,
+        revenueEurMinor: 141300,
+        roas: 6.67,
+      },
     },
     daily,
+    previous: {
+      from: '2026-06-15',
+      to: '2026-06-21',
+      label: 'vs prior week',
+      headline: {
+        registrations: 31,
+        courseSales: 6,
+        soldEurMinor: 352900,
+        cashInEurMinor: 301200,
+        adSpendEurMinor: 49800,
+        roas: 7.09,
+        workshopSeatEurMinor: 910,
+        masterclassSeatEurMinor: 2210,
+      },
+    },
+    upcoming: [
+      { title: 'Somatic Vocal Healing Workshop', when: 'Tue 30 Jun, 19:00', seats: 19, newSeats: 12 },
+      { title: 'SVH Masterclass', when: 'Thu 2 Jul, 18:30', seats: 8, newSeats: 8 },
+      { title: 'Somatic Vocal Healing Workshop', when: 'Mon 6 Jul, 10:00', seats: 2, newSeats: 2 },
+    ],
+    pipeline: {
+      totalEurMinor: 1284000,
+      activePlans: 37,
+      next30EurMinor: 402500,
+      atRiskEurMinor: 32900,
+      attentionCount: 2,
+    },
   };
 }
 
