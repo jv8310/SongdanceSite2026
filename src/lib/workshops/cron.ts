@@ -31,6 +31,7 @@ import {
   type WorkshopRegistration,
 } from './db';
 import { sendEmail, sendEmailBatch, type BatchEmailInput } from './resend';
+import { findRebook } from './rebook';
 import { recordEmailSendStmt } from '../email/sends';
 import {
   abandonedEmail1,
@@ -931,7 +932,16 @@ async function runPostWorkshop(env: CronEnv, now: number, result: CronResult) {
           }
         }
       } else if (reg.attendance_status === 'no_show') {
-        for (const step of dueSteps(NO_SHOW_STEPS)) {
+        const steps = dueSteps(NO_SHOW_STEPS);
+        // Already moved onto another date with the free rebook? Then the move
+        // these emails offer has been used (a missed seat moves once — see
+        // rebook.ts), and that date's own confirmation and reminders have taken
+        // over, so none of the three go. Asked only while a step is due; a
+        // failed read sends as before.
+        const moved =
+          steps.length > 0 &&
+          (await findRebook(env.DB, reg.id).then((r) => r !== null, () => false));
+        for (const step of moved ? [] : steps) {
           if (step.requires && !(await notificationExists(env.DB, reg.id, step.requires))) continue;
           const content =
             step.type === 'post_no_show'

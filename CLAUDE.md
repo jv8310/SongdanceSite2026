@@ -403,6 +403,32 @@ until start + 20 min, so a stamp after that is a replay view. Attendance marked
 by hand in the admin, with no join time, counts as live; setting a registrant
 back to **No-show** in the admin reopens both doors.
 
+**A missed seat moves once** (September 2026). The free rebook makes a *new*
+coupon seat and leaves the original row as it was, so nothing recorded that the
+original had been used: its page (the link in the first confirmation email)
+kept offering the list, and every press minted another free seat
+(`upsertRegistration` only dedupes per session + email). The record is the
+`workshop.rebooked` event (`workshop-rebook-<from>-to-<to>`), read through
+[`rebook.ts`](src/lib/workshops/rebook.ts) — `findRebook`, a range on the
+unique `external_id` index, so there's no column or migration and every rebook
+made before the rule counts. Once a seat has moved, `/reregister` refuses with
+a 409, the page swaps the list for **"Your new date"** with a link to that
+seat's own countdown page (replay link stays), and the no-show emails stop,
+since two of them promise the move. The endpoint also only does what the page
+offers: a *live* session that is over (start + 20 min), onto a live date still
+ahead. The new seat is a seat like any other, so if it is missed too, its own
+page offers its own move.
+
+**A rebook never takes over a seat with money on it.** `upsertRegistration`
+reuses the person's row on the chosen date if there is one, and the rebook then
+wrote `coupon` over it — so moving onto a date they had *bought* turned that paid
+seat into a comp (and reset its `wants_bump` and source). The endpoint now only
+takes over a row that never secured anything (`prepared` / `failed`); a `paid` or
+`coupon` seat gets "You already have a place on that date" (409), a `refunded` /
+`chargeback` row is sent to info@, and in both cases the free move stays unspent.
+The page's date lists leave out dates the email already holds
+(`listCountdownLinksByEmail`), so the choice isn't offered in the first place.
+
 ## Changing a workshop registrant's email
 
 `/admin/workshops/<id>` → **Change email** under each registrant (a typo at
