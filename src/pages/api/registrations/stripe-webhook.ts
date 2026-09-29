@@ -6,6 +6,7 @@ import {
   getRegistrationByPaymentIntent,
   getRegistrationBySession,
   logEvent,
+  logEventSafe,
   markBalancePaid,
   markRegistrationPaid,
   markRegistrationRefunded,
@@ -47,6 +48,14 @@ import {
   notifyCourseOrder,
   notifyRetreatOrder,
 } from '../../../lib/orders/notification';
+import {
+  applyCardUpdate,
+  CARD_UPDATE_PAYMENT_KIND,
+} from '../../../lib/courses/card-update';
+import {
+  openDunningRun,
+  resolveDunningRunsForInvoice,
+} from '../../../lib/courses/dunning';
 
 // Invoicing note: Quaderno is connected to Stripe via Quaderno's own Stripe
 // integration, so invoices are created automatically by Quaderno when a
@@ -143,6 +152,35 @@ export const POST: APIRoute = async ({ request, locals }) => {
         });
       }
       return new Response('OK (balance)', { status: 200 });
+    }
+
+    // A buyer saved a new card for their installment plan through the
+    // card-update link (src/lib/courses/card-update.ts). A setup session
+    // carries `course_registration_id` too, so it MUST stop here: falling
+    // through to the course routing below would re-run the purchase side
+    // effects (Drip, SD-ORDER) for a plan that was bought months ago.
+    //
+    // The return page usually does this same work a second earlier; both
+    // converge on Stripe idempotency keys, so the invoice is charged once.
+    // This call is for the buyer who closed the tab. Run after the response
+    // where we can: the pay calls may take a few seconds.
+    if (
+      session.mode === 'setup' &&
+      session.metadata?.payment_kind === CARD_UPDATE_PAYMENT_KIND
+    ) {
+      const cardRegId = parseInt(session.metadata.course_registration_id ?? '', 10);
+      const cardReg = Number.isFinite(cardRegId)
+        ? await getCourseRegistrationById(env.DB, cardRegId)
+        : null;
+      if (cardReg) {
+        const work = applyCardUpdate(env, cardReg, session.id).then(
+          () => undefined,
+          (err) => console.error(`[card-update] webhook apply failed: ${String(err)}`),
+        );
+        if (ctx) ctx.waitUntil(work);
+        else await work;
+      }
+      return new Response('OK (card update)', { status: 200 });
     }
 
     // Route by metadata: retreat checkouts carry `registration_id`,
@@ -367,6 +405,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const meta = subscriptionMetadataFromInvoice(invoice);
     const paymentIntent = paymentIntentFromInvoice(invoice);
 
+    // A failed installment that has now been paid (a Stripe retry, or the
+    // card-update link): stop its reminders at once. No-op for any other
+    // invoice.
+    await resolveDunningRunsForInvoice(env.DB, invoice.id, 'paid');
+
     // Try the dedicated subscription-id lookup first; fall back to the
     // metadata that Stripe copies onto the subscription (and invoice)
     // for the very first invoice, before our attach happened.
@@ -414,12 +457,19 @@ export const POST: APIRoute = async ({ request, locals }) => {
   }
 
   // A failed installment leaves the row in `paid` (access granted on
-  // first payment) but logs the failure so the admin sees it. We don't
-  // auto-revoke access here — that's a business call, handled manually.
+  // first payment) and opens the failed-payment sequence for it: three
+  // reminders carrying the buyer's card-update link, then a hand-off to
+  // support (src/lib/courses/dunning.ts; the hourly sweep sends them). We
+  // don't auto-revoke access here — that's a business call, and the hand-off
+  // is where it gets made. Stripe fires this again on every retry of the same
+  // invoice; the run is keyed on the invoice, so a retry opens nothing new.
   if (event.type === 'invoice.payment_failed') {
     const invoice = event.data.object as StripeInvoiceLike & {
       id: string;
       attempt_count?: number;
+      amount_due?: number;
+      amount_remaining?: number;
+      currency?: string;
     };
     const failedSubscriptionId = subscriptionIdFromInvoice(invoice);
     if (failedSubscriptionId) {
@@ -428,19 +478,41 @@ export const POST: APIRoute = async ({ request, locals }) => {
         failedSubscriptionId,
       );
       if (courseReg) {
-        await logEvent(env.DB, {
+        const opened = await openDunningRun(env.DB, courseReg, {
+          id: invoice.id,
+          amountMinor: invoice.amount_remaining ?? invoice.amount_due ?? null,
+          currency: invoice.currency ?? null,
+        });
+        // Suffixed: the bare event id was already written by the logEvent at
+        // the top of this handler, and the unique index on external_id made
+        // this insert throw — a 500, so this record never landed.
+        await logEventSafe(env.DB, {
           registration_id: null,
           kind: 'course.installment.failed',
           source: 'stripe',
-          external_id: event.id,
+          external_id: `${event.id}.applied`,
           payload: {
             course_registration_id: courseReg.id,
             invoice_id: invoice.id,
             attempt_count: invoice.attempt_count,
+            dunning_opened: opened,
           },
         });
       }
     }
+    return new Response('OK', { status: 200 });
+  }
+
+  // An installment written off or voided in the Stripe dashboard is no longer
+  // owed: its reminders stop. (The hourly sweep reads the same thing off the
+  // invoice if this endpoint isn't subscribed to these events.)
+  if (
+    event.type === 'invoice.voided' ||
+    event.type === 'invoice.marked_uncollectible'
+  ) {
+    const invoice = event.data.object as { id: string };
+    await resolveDunningRunsForInvoice(env.DB, invoice.id, 'void');
+    return new Response('OK', { status: 200 });
   }
 
   // ─────────────────────────────────────────────────────────────────────

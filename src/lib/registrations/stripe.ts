@@ -244,7 +244,46 @@ async function stripePostForm(
     }
 
     const msg = stripeError?.message ?? `HTTP ${res.status}`;
-    throw new Error(`Stripe ${opts.context}: ${msg}`);
+    throw new StripeApiError(`Stripe ${opts.context}: ${msg}`, {
+      status: res.status,
+      type: stripeError?.type ?? null,
+      code: stripeError?.code ?? null,
+      declineCode: stripeError?.decline_code ?? null,
+      stripeMessage: stripeError?.message ?? null,
+    });
+  }
+}
+
+// What stripePostForm throws for a Stripe-side refusal. Still an Error with the
+// same message as before, so every existing `String(err)` caller reads the
+// same; the fields are for the callers that have to tell a declined card
+// (show the buyer the bank's reason) from a card that wants authenticating
+// (send them to confirm it) from our own mistake.
+export class StripeApiError extends Error {
+  status: number;
+  type: string | null;
+  code: string | null;
+  declineCode: string | null;
+  // Stripe's own sentence, without our "Stripe <context>:" prefix — the part
+  // that is fit to show a buyer ("Your card has insufficient funds.").
+  stripeMessage: string | null;
+  constructor(
+    message: string,
+    f: {
+      status: number;
+      type: string | null;
+      code: string | null;
+      declineCode: string | null;
+      stripeMessage: string | null;
+    },
+  ) {
+    super(message);
+    this.name = 'StripeApiError';
+    this.status = f.status;
+    this.type = f.type;
+    this.code = f.code;
+    this.declineCode = f.declineCode;
+    this.stripeMessage = f.stripeMessage;
   }
 }
 
@@ -593,6 +632,9 @@ export function paymentIntentFromInvoice(
 export type StripeSubscriptionSnapshot = {
   id: string;
   status: string;
+  // The Stripe customer the subscription bills — what a card-update page has
+  // to be opened for (src/lib/courses/card-update.ts).
+  customer: string | null;
   // Unix seconds. Every billing period is `billing_cycle_anchor + k months`,
   // so this is the one true anchor for scheduling the cancellation. Present
   // in every API version (unlike current_period_end, which basil moved onto
@@ -635,6 +677,7 @@ export async function retrieveSubscriptionWithLatestInvoice(
   return {
     id: sub.id,
     status: sub.status,
+    customer: idOf(sub.customer),
     billing_cycle_anchor:
       typeof sub.billing_cycle_anchor === 'number'
         ? sub.billing_cycle_anchor
@@ -841,6 +884,256 @@ export async function cancelSubscriptionNow(
       `Stripe subscriptions.cancel: ${body.error?.message ?? res.status}`,
     );
   }
+}
+
+// ── Card update: a failed installment's way back ────────────────────────────
+//
+// When a plan's monthly charge fails, the buyer needs somewhere to put a new
+// card. That place is a Stripe Checkout Session in SETUP mode — it collects and
+// authenticates a payment method against the customer and charges nothing —
+// and src/lib/courses/card-update.ts then does the two things Stripe won't do
+// on its own: make that card the subscription's default, and pay what is
+// already outstanding with it (an `unpaid` subscription makes no further
+// attempts by itself, so without this a saved card would change nothing).
+//
+// The session is only ever minted on a click (see the durable link in
+// src/lib/courses/card-update-link.ts): like any Checkout Session it dies
+// within 24 hours, so its URL must never be what we email.
+
+const STRIPE_GET_TIMEOUT_MS = 8000;
+
+async function stripeGetJson(
+  secretKey: string,
+  pathAndQuery: string,
+  context: string,
+): Promise<any> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), STRIPE_GET_TIMEOUT_MS);
+  try {
+    const res = await fetch(`${STRIPE_BASE}${pathAndQuery}`, {
+      headers: { Authorization: `Bearer ${secretKey}` },
+      signal: controller.signal,
+    });
+    const body = (await res.json().catch(() => null)) as any;
+    if (!res.ok || !body || body.error) {
+      throw new Error(
+        `Stripe ${context}: ${body?.error?.message ?? `HTTP ${res.status}`}`,
+      );
+    }
+    return body;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export async function createSetupCheckoutSession(input: {
+  secretKey: string;
+  customer: string;
+  // The plan's currency. Only decides whether SEPA Direct Debit is offered
+  // beside the card — the same rule the installment checkout itself uses
+  // (SEPA is EUR-only, and an unsupported method fails the whole session).
+  currency: string;
+  success_url: string;
+  cancel_url: string;
+  metadata: Record<string, string>;
+  description?: string;
+  idempotency_key?: string;
+}): Promise<{ id: string; url: string }> {
+  const form = new URLSearchParams();
+  form.set('mode', 'setup');
+  form.set('customer', input.customer);
+  form.set('success_url', input.success_url);
+  form.set('cancel_url', input.cancel_url);
+  form.set('payment_method_types[0]', 'card');
+  if (input.currency.toLowerCase() === 'eur') {
+    form.set('payment_method_types[1]', 'sepa_debit');
+  }
+  if (input.description) {
+    form.set('setup_intent_data[description]', input.description);
+  }
+  Object.entries(input.metadata).forEach(([k, v]) => {
+    form.set(`metadata[${k}]`, v);
+    form.set(`setup_intent_data[metadata][${k}]`, v);
+  });
+  return (await stripePostForm('/checkout/sessions', form, {
+    secretKey: input.secretKey,
+    idempotencyKey: input.idempotency_key,
+    context: 'checkout.sessions (setup)',
+  })) as { id: string; url: string };
+}
+
+export type SetupCheckoutSession = {
+  id: string;
+  mode: string | null;
+  status: string | null;
+  created: number; // unix seconds
+  metadata: Record<string, string>;
+  setup_intent: {
+    id: string;
+    status: string;
+    payment_method: string | null;
+  } | null;
+};
+
+export async function retrieveSetupCheckoutSession(
+  secretKey: string,
+  sessionId: string,
+): Promise<SetupCheckoutSession> {
+  const s = await stripeGetJson(
+    secretKey,
+    `/checkout/sessions/${encodeURIComponent(sessionId)}?expand[]=setup_intent`,
+    'checkout.sessions.retrieve',
+  );
+  const si = s.setup_intent;
+  return {
+    id: s.id,
+    mode: s.mode ?? null,
+    status: s.status ?? null,
+    created: typeof s.created === 'number' ? s.created : 0,
+    metadata: s.metadata ?? {},
+    setup_intent:
+      si && typeof si === 'object'
+        ? {
+            id: si.id,
+            status: si.status ?? '',
+            payment_method: idOf(si.payment_method),
+          }
+        : typeof si === 'string'
+          ? { id: si, status: '', payment_method: null }
+          : null,
+  };
+}
+
+// Future installments charge this payment method. The subscription's own
+// default wins over the customer's, and Checkout (subscription mode) set the
+// original card there — so this is the one that has to move.
+export async function setSubscriptionDefaultPaymentMethod(
+  secretKey: string,
+  subscriptionId: string,
+  paymentMethod: string,
+  idempotencyKey?: string,
+): Promise<void> {
+  const form = new URLSearchParams();
+  form.set('default_payment_method', paymentMethod);
+  await stripePostForm(`/subscriptions/${subscriptionId}`, form, {
+    secretKey,
+    idempotencyKey,
+    context: 'subscriptions.update (default_payment_method)',
+  });
+}
+
+export type StripeInvoiceSummary = {
+  id: string;
+  number: string | null;
+  status: string; // draft | open | paid | void | uncollectible
+  amount_due: number;
+  amount_remaining: number;
+  currency: string; // upper-case
+  created: number;
+  // How many times Stripe has tried to collect it. > 0 on an open invoice =
+  // a charge has actually failed (as opposed to a fresh one not yet tried).
+  attempt_count: number;
+  // Stripe's own "pay this invoice" page. Only ever read fresh, on a click —
+  // it is where a bank that insists on confirming a charge gets its 3-D Secure.
+  hosted_invoice_url: string | null;
+  next_payment_attempt: number | null;
+  subscription: string | null;
+  payment_intent: string | null;
+};
+
+function invoiceSummary(inv: any): StripeInvoiceSummary {
+  return {
+    id: inv.id,
+    number: inv.number ?? null,
+    status: inv.status ?? '',
+    amount_due: inv.amount_due ?? 0,
+    amount_remaining: inv.amount_remaining ?? inv.amount_due ?? 0,
+    currency: String(inv.currency ?? '').toUpperCase(),
+    created: inv.created ?? 0,
+    attempt_count: inv.attempt_count ?? 0,
+    hosted_invoice_url: inv.hosted_invoice_url ?? null,
+    next_payment_attempt:
+      typeof inv.next_payment_attempt === 'number' ? inv.next_payment_attempt : null,
+    subscription: subscriptionIdFromInvoice(inv),
+    payment_intent: paymentIntentFromInvoice(inv),
+  };
+}
+
+export async function retrieveInvoice(
+  secretKey: string,
+  invoiceId: string,
+): Promise<StripeInvoiceSummary> {
+  return invoiceSummary(
+    await stripeGetJson(
+      secretKey,
+      `/invoices/${encodeURIComponent(invoiceId)}`,
+      'invoices.retrieve',
+    ),
+  );
+}
+
+// Everything still owed on a subscription, oldest first: `open` invoices with
+// money remaining, plus `draft` ones with money due. The drafts matter for an
+// `unpaid` subscription — Stripe keeps generating that plan's monthly invoices
+// but stops collecting them, so a buyer who fell behind in August owes the
+// open August invoice AND the September one sitting beside it.
+export async function listOutstandingSubscriptionInvoices(
+  secretKey: string,
+  subscriptionId: string,
+): Promise<StripeInvoiceSummary[]> {
+  const params = new URLSearchParams({
+    subscription: subscriptionId,
+    limit: '100',
+  });
+  const body = await stripeGetJson(
+    secretKey,
+    `/invoices?${params.toString()}`,
+    'invoices.list',
+  );
+  return ((body.data ?? []) as any[])
+    .map(invoiceSummary)
+    .filter(
+      (i) =>
+        (i.status === 'open' && i.amount_remaining > 0) ||
+        (i.status === 'draft' && i.amount_due > 0),
+    )
+    .sort((a, b) => a.created - b.created);
+}
+
+export async function finalizeInvoice(
+  secretKey: string,
+  invoiceId: string,
+  idempotencyKey?: string,
+): Promise<StripeInvoiceSummary> {
+  return invoiceSummary(
+    await stripePostForm(`/invoices/${invoiceId}/finalize`, new URLSearchParams(), {
+      secretKey,
+      idempotencyKey,
+      context: 'invoices.finalize',
+    }),
+  );
+}
+
+// Charge an open invoice now, with the given payment method. Throws a
+// StripeApiError when the bank refuses (code `card_declined`, with the bank's
+// reason in `stripeMessage`) or wants the buyer to confirm it
+// (`invoice_payment_intent_requires_action`). A SEPA debit does not throw: it
+// comes back still `open` while the bank processes it.
+export async function payInvoice(
+  secretKey: string,
+  invoiceId: string,
+  paymentMethod: string,
+  idempotencyKey?: string,
+): Promise<StripeInvoiceSummary> {
+  const form = new URLSearchParams();
+  form.set('payment_method', paymentMethod);
+  return invoiceSummary(
+    await stripePostForm(`/invoices/${invoiceId}/pay`, form, {
+      secretKey,
+      idempotencyKey,
+      context: 'invoices.pay',
+    }),
+  );
 }
 
 export type CreateSubscriptionCheckoutInput = {

@@ -1208,6 +1208,75 @@ writer. Side effect worth knowing: album entitlement gates on `status='paid'`
 ([`music/product.ts`](src/lib/music/product.ts)), so a *partial* refund of an
 album now keeps access and only a full one revokes it.
 
+## Failed installments — a card link, three reminders, then support
+
+When a Stripe plan's monthly charge fails, the buyer gets three reminders and
+then support gets the decision (September 2026). Before this the failure only
+reached a log line — and not even that: the `invoice.payment_failed` handler
+reused the event's own id as `external_id`, hit the unique index and 500'd, so
+the record never landed. Logic in
+[`src/lib/courses/dunning.ts`](src/lib/courses/dunning.ts), words in
+[`dunning-emails.ts`](src/lib/courses/dunning-emails.ts) (previewed on
+`/admin/emails` → "Failed installment payments"), table `course_dunning`
+(migration 0085).
+
+- **The card link** — `/courses/update-payment?t=<id>.<sig>`
+  ([`card-update-link.ts`](src/lib/courses/card-update-link.ts), HMAC over
+  `ADMIN_SESSION_SECRET`, domain-separated `sd-card:`). Same shape as the
+  retreat balance link and for the same reason: it is **ours**, and the Stripe
+  page is minted **on the click** (a Checkout Session in **setup** mode), so it
+  never expires in an inbox. On `/admin/courses/future-revenue` every live
+  Stripe plan has **⧉ Copy card link** for support to paste into a reply; the
+  reminders carry the same link.
+- **Saving a card also pays what's owed**
+  ([`card-update.ts`](src/lib/courses/card-update.ts) `applyCardUpdate`): it
+  sets the card as the subscription's `default_payment_method` and then pays
+  the plan's outstanding invoices with it, oldest first — `open` ones *and*
+  `draft` ones (an `unpaid` subscription keeps generating invoices but stops
+  collecting them, so a buyer who fell behind in August owes the September one
+  too), never more than the plan has charges left (`effectiveTotal`). The
+  second half is the point: an `unpaid` subscription makes **no further
+  attempts on its own**, so a card saved without it changes nothing. It runs
+  from the return page (so the buyer reads what the charge did — paid /
+  declined with the bank's reason / "confirm with your bank" via the invoice's
+  hosted page / SEPA processing) **and** from the `checkout.session.completed`
+  webhook (the buyer who closed the tab); both converge on Stripe idempotency
+  keys built from the session id, so an invoice is charged once. It does **not**
+  record the installment — `invoice.paid` and the hourly reconcile do, and a
+  third concurrent recorder is how `installments_paid` would double-count. A
+  return link older than 6 hours charges nothing (`stale`). The webhook's setup
+  branch sits **before** the course routing: a setup session carries
+  `course_registration_id`, and falling through would re-fire the purchase's
+  Drip + SD-ORDER.
+- **The sequence**: reminder 1 as soon as a run is seen, reminder 2 three days
+  later, reminder 3 four days after that, then — still unpaid three days on — an
+  internal **SD-PAYMENT** hand-off to `DUNNING_ALERTS_TO` (default
+  `support@songdance.co`) with who, what's owed, what was sent, what the buyer
+  tried, their card link, and the way to stop the plan (Cancel… → Stop now).
+  Nothing else happens by itself: the plan stays as it is until someone
+  decides. Each gap is counted from the step before, customer mail is held to
+  the buyer's local 08:00–21:00, and the next reminder pauses a day after they
+  save a card (a week while a SEPA debit clears). Transactional — ignores
+  unsubscribes.
+- **A run is one failed invoice.** Opened by `invoice.payment_failed`, or by the
+  hourly sweep for any live plan marked `past_due` / `unpaid` with none open
+  (so a plan that fell behind before this existed, or a missed webhook, is
+  picked up — **on the first deploy every plan already behind gets reminder 1
+  within the hour**). Closed by that invoice's live state (`invoice.paid` /
+  `invoice.voided` / `invoice.marked_uncollectible`, and the sweep re-reads it)
+  or by our row (cancelled, refunded, or stopped by an admin → `stopped`).
+- **Stripe is asked before every send.** A stale `subscription_status` mirror
+  must never email someone who has paid, so each reminder and the hand-off
+  re-read the invoice first; if Stripe can't be read, nothing goes out that
+  tick. Where the sequence stands shows under **State** on the future-revenue
+  page.
+- **Stripe's own failed-payment emails should be off** (Settings → Billing →
+  Subscriptions and emails → "Send emails when card payments fail"), or buyers
+  hear it twice. And **"If all retries for a payment fail" must not be "Cancel
+  the subscription"** — that would end the plan before support gets to decide;
+  "mark unpaid" (what the account does today) or "leave past-due" both work.
+  PayPal plans are not covered: PayPal holds the payment method.
+
 ## Stripe course-installment recognition — safety-net reconcile
 
 Stripe **course installment plans** (3×/6×/12× subscriptions) record each cycle

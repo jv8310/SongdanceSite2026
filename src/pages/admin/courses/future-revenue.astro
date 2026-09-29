@@ -11,6 +11,15 @@ import {
   providerLinkFor,
   resolveProviderModes,
 } from '../../../lib/admin/provider-links';
+import {
+  cardUpdateUrl,
+  signCardUpdateToken,
+} from '../../../lib/courses/card-update-link';
+import {
+  dunningStatusLine,
+  loadDunningRunsByRegistration,
+} from '../../../lib/courses/dunning';
+import { cardOutcomeWords } from '../../../lib/courses/dunning-emails';
 
 export const prerender = false;
 
@@ -44,6 +53,36 @@ const { months, people, totals } = forecast;
 
 // Dashboard deep-link modes (Stripe test/live, PayPal sandbox/live).
 const providerModes = resolveProviderModes(env);
+
+// The failed-payment sequence per plan (reminders sent, hand-off, what the
+// buyer did with their card link) — see src/lib/courses/dunning.ts.
+const dunningByReg = await loadDunningRunsByRegistration(env.DB);
+
+// "Copy card link": the buyer's durable card-update link, for support to paste
+// into a reply. Our own URL (a fresh Stripe page is minted on each click), so
+// it keeps working however long it sits in an inbox. Offered on every live
+// Stripe plan with charges left — a card about to expire is worth replacing
+// before it fails, not only after. Built on the public origin, since it's the
+// buyer who opens it.
+const publicBase = (env.PUBLIC_BASE_URL || Astro.url.origin).replace(/\/+$/, '');
+const cardLinks = new Map<number, string>();
+for (const p of people) {
+  if (
+    p.provider !== 'paypal' &&
+    p.stripeSubscriptionId &&
+    p.remaining > 0 &&
+    (p.state === 'at_risk' || p.state === 'on_track')
+  ) {
+    cardLinks.set(p.id, cardUpdateUrl(publicBase, await signCardUpdateToken(env.ADMIN_SESSION_SECRET, p.id)));
+  }
+}
+function sqlDay(s: string | null): string {
+  if (!s) return '';
+  const d = new Date(`${s.replace(' ', 'T')}Z`);
+  return Number.isFinite(d.getTime())
+    ? d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' })
+    : '';
+}
 const returnTo = Astro.url.pathname + Astro.url.search;
 
 // Flash from the cancel-installments endpoint.
@@ -336,6 +375,9 @@ const hasAtRisk = months.some((m) => m.atRiskEurMinor > 0);
               const link = providerLinkFor(p, providerModes);
               const jsName = p.name.replace(/['\\]/g, '\\$&');
               const keepOptions = Array.from({ length: origRemaining + 1 }, (_, k) => k);
+              const cardLink = cardLinks.get(p.id) ?? null;
+              const run = dunningByReg.get(p.id) ?? null;
+              const dunning = run ? dunningStatusLine(run) : null;
               return (
                 <tr class={p.attention ? 'fr-row--watch' : ''}>
                   <td>
@@ -398,9 +440,29 @@ const hasAtRisk = months.some((m) => m.atRiskEurMinor > 0);
                         <a class="fr-open" href={link.href} target="_blank" rel="noopener">Open in {link.label} ↗</a>
                       </div>
                     )}
+                    {cardLink && (
+                      <div>
+                        <button
+                          type="button"
+                          class="fr-copy"
+                          data-copy-link={cardLink}
+                          title={`Copies ${p.name}'s card-update link: it opens a fresh Stripe page to add a card, charges whatever is outstanding as soon as it's saved, and moves the rest of the plan onto it. Never expires.`}
+                        >⧉ Copy card link</button>
+                      </div>
+                    )}
                   </td>
                   <td>
                     <span class={`fr-state fr-state--${p.state}`}>{stateLabel(p)}</span>
+                    {dunning && (
+                      <div class={`fr-dun fr-dun--${dunning.tone}`} title="Failed-payment reminders: 3 to the buyer (day 0, 3, 7), then a hand-off email to support.">
+                        {dunning.text}
+                      </div>
+                    )}
+                    {run && run.card_updated_at && run.card_update_outcome && !run.resolved_at && (
+                      <div class="fr-dun" title={run.card_update_message ?? ''}>
+                        Card saved {sqlDay(run.card_updated_at)} — {cardOutcomeWords(run.card_update_outcome)}
+                      </div>
+                    )}
                   </td>
                   <td>
                     {p.state === 'not_started' ? (
@@ -454,7 +516,15 @@ const hasAtRisk = months.some((m) => m.atRiskEurMinor > 0);
         non-EU carry no VAT, so net&nbsp;=&nbsp;gross). The <em>Original</em>
         column shows the amount actually charged in the buyer’s currency (EUR rows
         are already in the EUR column). <strong>Open in Stripe / PayPal</strong>
-        jumps to the subscription in the gateway dashboard. <strong>Manage</strong>
+        jumps to the subscription in the gateway dashboard. <strong>Copy card
+        link</strong> copies the buyer’s own card-update link to paste into a
+        reply: it opens a fresh Stripe page every time (so it never expires),
+        charges whatever the plan owes as soon as the new card is saved, and
+        moves the remaining installments onto it. The same link goes out
+        automatically when a charge fails — three reminders (straight away,
+        after 3 days, after 7), then a hand-off email to support after 10 if
+        it’s still unpaid; where that stands shows under <em>State</em>.
+        <strong>Manage</strong>
         schedules an early stop: “stop now” cancels all upcoming charges, or bill a
         chosen number more and then stop (e.g. cancel only the last). The buyer
         keeps access; only future charges stop — to give money back, open the order
@@ -540,6 +610,16 @@ const hasAtRisk = months.some((m) => m.atRiskEurMinor > 0);
       color: var(--adm-ember-deep); text-decoration:none;
     }
     .fr-open:hover { text-decoration:underline; }
+    .fr-copy {
+      margin-top:4px; padding:2px 8px; border:1px solid var(--adm-line);
+      border-radius:6px; background: var(--adm-paper-soft); cursor:pointer;
+      font-size:11px; color: var(--adm-ink-soft);
+    }
+    .fr-copy:hover { border-color: var(--adm-ember); color: var(--adm-ember-deep); }
+    .fr-copy.is-copied { border-color: var(--adm-success); color: var(--adm-success); }
+    .fr-dun { margin-top:4px; font-size:11px; line-height:1.4; color: var(--adm-ink-soft); max-width:180px; }
+    .fr-dun--handoff { color: var(--adm-danger); font-weight:600; }
+    .fr-dun--done { color: var(--adm-success); }
 
     /* Manage → schedule cancellation */
     .fr-cancel { position:relative; }
@@ -582,6 +662,26 @@ const hasAtRisk = months.some((m) => m.atRiskEurMinor > 0);
     // Installment audit — fetch on demand and render. Read-only; the endpoint
     // polls Stripe per plan, so it can take a few seconds on a long list.
     import type { InstallmentAudit } from '../../../lib/payments/stripe-audit';
+
+    // "Copy card link" — clipboard, with a fallback for a browser that refuses
+    // it (then the link is offered in a prompt to copy by hand).
+    document.querySelectorAll<HTMLButtonElement>('[data-copy-link]').forEach((b) => {
+      b.addEventListener('click', async () => {
+        const link = b.dataset.copyLink ?? '';
+        try {
+          await navigator.clipboard.writeText(link);
+          const label = b.textContent;
+          b.textContent = '✓ Copied';
+          b.classList.add('is-copied');
+          setTimeout(() => {
+            b.textContent = label;
+            b.classList.remove('is-copied');
+          }, 1800);
+        } catch {
+          window.prompt('Copy this card-update link:', link);
+        }
+      });
+    });
 
     const btn = document.getElementById('fr-audit-btn') as HTMLButtonElement | null;
     const panel = document.getElementById('fr-audit');
