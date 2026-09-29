@@ -382,6 +382,27 @@ Four steps, three of them rows in `workshop_share_events` (migration 0082):
   the funnel, a per-button table, and who is actually sending people. Money goes
   through `grossEurMinor` like every other euro on that page.
 
+## Countdown page — no reschedule once they've attended
+
+`/workshop/success` offers two ways to move a seat: **"Can't make this date?
+Switch to another"** before the start (`/api/workshops/change-date`), and the
+**free rebook** under "This session has passed" afterwards
+(`/api/workshops/reregister`). Until September 2026 the second showed to
+*everyone* once the session was over, attendees included — so someone who had
+sounded with us for the full hour was invited to come again for free. Both are
+now withheld from anyone who attended **live**, decided by `attendedLive`
+([`src/lib/workshops/time.ts`](src/lib/workshops/time.ts)); an attendee sees a
+thank-you and the replay instead, and both endpoints refuse with a 409 (a page
+left open from before the session would otherwise still offer it).
+
+"Live" matters: `attendance_status = 'attended'` alone is not the test, because
+opening the replay marks attendance too — and a no-show who watches the replay
+is still promised the free move onto a live date (the no-show emails say so).
+`joined_at_utc` is the *first* join, and a first live join is only possible
+until start + 20 min, so a stamp after that is a replay view. Attendance marked
+by hand in the admin, with no join time, counts as live; setting a registrant
+back to **No-show** in the admin reopens both doors.
+
 ## Changing a workshop registrant's email
 
 `/admin/workshops/<id>` → **Change email** under each registrant (a typo at

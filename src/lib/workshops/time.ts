@@ -55,6 +55,39 @@ export function joinWindowFor(
   return now <= end + REJOIN_GRACE_AFTER_END_SECONDS * 1000 ? 'open' : 'closed';
 }
 
+// Slack on the first-join gate below: `joined_at_utc` is D1's clock, the gate
+// was checked on the Worker's. Seconds, not minutes — a latecomer can reach the
+// replay within a minute of the gate closing, and that must not read as live.
+const LIVE_JOIN_CLOCK_SLACK_MS = 10 * 1000;
+
+// Did this registration attend the LIVE session? Someone who was in the room
+// has had what they came for, so the countdown page stops offering to move
+// them — neither the pre-start "switch to another date" nor the post-session
+// free rebook (and both endpoints refuse it, for a page left open).
+//
+// `attendance_status = 'attended'` alone is not the answer: opening the replay
+// marks attendance too (so the follow-up emails treat a replay viewer as shown
+// up), and a no-show who watched the replay is still promised the free move
+// onto a live date — "the live hour is the thing". `joined_at_utc` is the
+// FIRST join (markJoined COALESCEs it), and a first live join is only possible
+// until start + 20 min (JOIN_CLOSE_AFTER_SECONDS), so a stamp after that is a
+// replay view — a Zoom rejoin can never move it. Attendance marked by hand in
+// the admin, with no join time, counts as live.
+export function attendedLive(
+  reg: { attendance_status: string; joined_at_utc: string | null },
+  workshop: { starts_at_utc: string; is_replay: number },
+): boolean {
+  if (reg.attendance_status !== 'attended' || workshop.is_replay === 1) return false;
+  if (!reg.joined_at_utc) return true;
+  const stamp = reg.joined_at_utc;
+  // SQLite's datetime('now') is "YYYY-MM-DD HH:MM:SS", UTC with no marker.
+  const joinedMs = Date.parse(stamp.includes('T') ? stamp : stamp.replace(' ', 'T') + 'Z');
+  if (!Number.isFinite(joinedMs)) return true;
+  const lastLiveJoinMs =
+    new Date(workshop.starts_at_utc).getTime() + JOIN_CLOSE_AFTER_SECONDS * 1000;
+  return joinedMs <= lastLiveJoinMs + LIVE_JOIN_CLOCK_SLACK_MS;
+}
+
 // ── Naming the timezone ─────────────────────────────────────────────────────
 // A time is only useful if the reader knows which clock it's on, and "10:00
 // GMT-4" makes people do arithmetic they shouldn't have to (and half of them

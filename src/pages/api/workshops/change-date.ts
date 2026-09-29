@@ -3,8 +3,10 @@ import { logEvent } from '../../../lib/registrations/db';
 import {
   getPublishedWorkshopBySlug,
   getRegistrationByAccessToken,
+  getWorkshopById,
   moveRegistrationToWorkshop,
 } from '../../../lib/workshops/db';
+import { attendedLive } from '../../../lib/workshops/time';
 import { runWorkshopDateChangeSideEffects, successUrl } from '../../../lib/workshops/paid-handler';
 
 export const prerender = false;
@@ -37,6 +39,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const reg = await getRegistrationByAccessToken(env.DB, token);
   if (!reg || (reg.payment_status !== 'paid' && reg.payment_status !== 'coupon')) {
     return json({ error: 'We couldn’t find your registration.' }, 404);
+  }
+  // Already in the room (Join opens 5 minutes before the start) — the seat is
+  // being used, so it stays on this date.
+  const current = await getWorkshopById(env.DB, reg.workshop_id);
+  if (current && attendedLive(reg, current)) {
+    return json({ error: 'You’ve already joined this session, so it can’t move to another date. If that’s not right, email info@songdance.co.' }, 409);
   }
 
   const target = await getPublishedWorkshopBySlug(env.DB, slug);

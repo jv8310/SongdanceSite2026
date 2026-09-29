@@ -12,6 +12,7 @@ import {
 } from '../../lib/workshops/db';
 import { googleCalendarUrl } from '../../lib/workshops/ics';
 import {
+  attendedLive,
   formatInTz,
   joinWindowFor,
   endsAtOrDefault,
@@ -62,6 +63,10 @@ const started = startMs > 0 && Date.now() >= startMs;
 // Has this registration already joined once? Then the Join button stays
 // available for the whole session, so a Zoom drop never locks them out.
 const hasJoined = !!reg?.joined_at_utc;
+// Were they in the live room? Then the seat has been used: no "switch to
+// another date" and no free rebook once it's over — a thank-you instead. A
+// replay view doesn't count (see attendedLive); a no-show keeps both doors.
+const attended = reg && workshop ? attendedLive(reg, workshop) : false;
 
 // Live join window state (drives which block shows first; JS keeps it live).
 const win =
@@ -190,6 +195,7 @@ if (reg && paid && reg.payment_status === 'paid') {
         data-close-after={String(JOIN_CLOSE_AFTER_SECONDS)}
         data-rejoin-grace={String(REJOIN_GRACE_AFTER_END_SECONDS)}
         data-joined={hasJoined ? '1' : '0'}
+        data-attended={attended ? '1' : '0'}
         data-replay={workshop.is_replay === 1 ? '1' : '0'}
       >
         <p class="ws-kicker">You’re in</p>
@@ -233,7 +239,7 @@ if (reg && paid && reg.payment_status === 'paid') {
             </div>
 
             {upcoming.length > 0 && (
-              <div class="ws-change" id="ws-change" hidden={win === 'closed' || started}>
+              <div class="ws-change" id="ws-change" hidden={win === 'closed' || started || attended}>
                 <button type="button" class="ws-change-toggle" id="ws-change-toggle" aria-expanded="false" aria-controls="ws-change-panel">
                   Can’t make this date? <span>Switch to another →</span>
                 </button>
@@ -254,14 +260,22 @@ if (reg && paid && reg.payment_status === 'paid') {
             )}
 
             <div class="ws-missed" id="ws-missed" hidden={win !== 'closed'}>
-              <p class="ws-missed-h">This session has passed</p>
-              <p class="ws-missed-sub">Don't worry — pick one of the options below.</p>
+              <div id="ws-missed-absent" hidden={attended}>
+                <p class="ws-missed-h">This session has passed</p>
+                <p class="ws-missed-sub">Don't worry — pick one of the options below.</p>
+              </div>
+              <div id="ws-missed-attended" hidden={!attended}>
+                <p class="ws-missed-h">Thank you for being part of it</p>
+                <p class="ws-missed-sub">
+                  Whatever sound you made — it was the right one.{hasReplay && ' The replay is here whenever you’d like to return to it.'}
+                </p>
+              </div>
 
               {hasReplay && (
                 <a class="ws-join" href={replayHref}>Watch the replay →</a>
               )}
 
-              <div class="ws-rebook">
+              <div class="ws-rebook" id="ws-rebook" hidden={attended}>
                 <p class="ws-rebook-h">…or come to another date, for free</p>
                 {upcoming.length === 0 ? (
                   <p class="ws-note">No new dates are open just yet — email <a href="mailto:info@songdance.co">info@songdance.co</a> and we’ll let you know.</p>
@@ -410,8 +424,13 @@ if (reg && paid && reg.payment_status === 'paid') {
       var joinedKey = 'ws-joined:' + token;
       var joined = root.getAttribute('data-joined') === '1';
       try { joined = joined || localStorage.getItem(joinedKey) === '1'; } catch (e) {}
+      // Attended the live session (server-decided at render). A Join pressed
+      // on this page counts too — it's only reachable while the room is open —
+      // so a page left open through the session stops offering to move them.
+      var attended = root.getAttribute('data-attended') === '1';
       function markJoinedLocally() {
         joined = true;
+        attended = true;
         try { localStorage.setItem(joinedKey, '1'); } catch (e) {}
         tick();
       }
@@ -422,6 +441,9 @@ if (reg && paid && reg.payment_status === 'paid') {
       var cal = document.getElementById('ws-cal');
       var change = document.getElementById('ws-change');
       var missed = document.getElementById('ws-missed');
+      var missedAbsent = document.getElementById('ws-missed-absent');
+      var missedAttended = document.getElementById('ws-missed-attended');
+      var rebook = document.getElementById('ws-rebook');
 
       function pad(n) { return n < 10 ? '0' + n : '' + n; }
       function show(el, on) { if (el) el.hidden = !on; }
@@ -441,9 +463,15 @@ if (reg && paid && reg.payment_status === 'paid') {
         show(early, state === 'early');
         show(openBox, state === 'open');
         show(cal, state !== 'closed');
-        // Switching dates is offered right up until the session begins.
-        show(change, now < start);
+        // Switching dates is offered right up until the session begins — to
+        // anyone who hasn't already been in the room.
+        show(change, now < start && !attended);
         show(missed, state === 'closed');
+        // Once it's over: a no-show gets the replay + a free new date; someone
+        // who attended gets a thank-you and the replay, never the rebook.
+        show(missedAbsent, !attended);
+        show(missedAttended, attended);
+        show(rebook, !attended);
 
         // Once the session is underway, a joined attendee is re-entering, not
         // arriving — say so on the button.
