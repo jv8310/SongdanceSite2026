@@ -454,7 +454,7 @@ const hasAtRisk = months.some((m) => m.atRiskEurMinor > 0);
                   <td>
                     <span class={`fr-state fr-state--${p.state}`}>{stateLabel(p)}</span>
                     {dunning && (
-                      <div class={`fr-dun fr-dun--${dunning.tone}`} title="Failed-payment reminders: 3 to the buyer (day 0, 3, 7), then a hand-off email to support.">
+                      <div class={`fr-dun fr-dun--${dunning.tone}`} title="Failed-payment reminders: 3 to the buyer (day 0, 5, 12), then a hand-off email to support.">
                         {dunning.text}
                       </div>
                     )}
@@ -522,8 +522,9 @@ const hasAtRisk = months.some((m) => m.atRiskEurMinor > 0);
         charges whatever the plan owes as soon as the new card is saved, and
         moves the remaining installments onto it. The same link goes out
         automatically when a charge fails — three reminders (straight away,
-        after 3 days, after 7), then a hand-off email to support after 10 if
-        it’s still unpaid; where that stands shows under <em>State</em>.
+        after 5 days, then 7 days after that), then a hand-off email to
+        support 3 days later if it’s still unpaid; where that stands shows
+        under <em>State</em>.
         <strong>Manage</strong>
         schedules an early stop: “stop now” cancels all upcoming charges, or bill a
         chosen number more and then stop (e.g. cancel only the last). The buyer

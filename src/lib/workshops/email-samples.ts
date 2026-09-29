@@ -610,7 +610,7 @@ function dunningSamples(b: string): EmailSample[] {
       id: 'course_dunning_2',
       group,
       label: 'Reminder 2 — still open',
-      timing: '3 days after reminder 1 (paused a day after they save a card)',
+      timing: '5 days after reminder 1 (paused a day after they save a card)',
       audience,
       content: dunningReminderEmail(2, ctx),
     },
@@ -618,7 +618,7 @@ function dunningSamples(b: string): EmailSample[] {
       id: 'course_dunning_3',
       group,
       label: 'Reminder 3 — last reminder (two installments behind)',
-      timing: '4 days after reminder 2',
+      timing: '7 days after reminder 2',
       audience: `${audience} This sample shows the wording when a plan has fallen a second month behind.`,
       content: dunningReminderEmail(3, {
         ...ctx,

@@ -8,8 +8,8 @@
 -- (src/lib/courses/dunning.ts):
 --
 --   reminder 1  as soon as it's seen (held to the buyer's local 08:00–21:00)
---   reminder 2  3 days after reminder 1
---   reminder 3  4 days after reminder 2
+--   reminder 2  5 days after reminder 1
+--   reminder 3  7 days after reminder 2
 --   escalation  3 days after reminder 3, still unpaid → an internal
 --               "SD-PAYMENT" email to support@, who decide what happens to
 --               the plan

@@ -6,8 +6,8 @@
 // failed installment opens one RUN (table `course_dunning`, migration 0085):
 //
 //   reminder 1   as soon as the run is seen
-//   reminder 2   3 days after reminder 1
-//   reminder 3   4 days after reminder 2
+//   reminder 2   5 days after reminder 1
+//   reminder 3   7 days after reminder 2
 //   hand-off     3 days after reminder 3 — an internal "SD-PAYMENT" email to
 //                support@ (DUNNING_ALERTS_TO), who decide what happens to the
 //                plan: write to the buyer, stop it, or leave it open
@@ -77,7 +77,7 @@ export type DunningEnv = {
 
 // Days between steps, each counted from the step before it (so a reminder
 // held overnight by the send window never crowds the next one).
-export const DUNNING_GAP_DAYS = { reminder2: 3, reminder3: 4, handoff: 3 } as const;
+export const DUNNING_GAP_DAYS = { reminder2: 5, reminder3: 7, handoff: 3 } as const;
 // Where the hand-off lands when DUNNING_ALERTS_TO is unset.
 export const DUNNING_ALERTS_DEFAULT = 'support@songdance.co';
 
@@ -271,7 +271,10 @@ export function nextDunningStep(
   const r1 = sqlTimeMs(run.reminder1_sent_at);
   const r2 = sqlTimeMs(run.reminder2_sent_at);
   const r3 = sqlTimeMs(run.reminder3_sent_at);
-  if (r1 == null) return { step: 1, dueMs: sqlTimeMs(run.opened_at) ?? 0 };
+  // Reminder 1 is due the moment the run exists. (Not "at opened_at": SQLite
+  // rounds datetime('now') to the second, so a run opened in the same tick
+  // can read as half a second in the future and slip an hour.)
+  if (r1 == null) return { step: 1, dueMs: 0 };
   if (r2 == null) return { step: 2, dueMs: r1 + DUNNING_GAP_DAYS.reminder2 * DAY_MS };
   if (r3 == null) return { step: 3, dueMs: r2 + DUNNING_GAP_DAYS.reminder3 * DAY_MS };
   return { step: 'handoff', dueMs: r3 + DUNNING_GAP_DAYS.handoff * DAY_MS };

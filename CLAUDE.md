@@ -1248,8 +1248,8 @@ the record never landed. Logic in
   branch sits **before** the course routing: a setup session carries
   `course_registration_id`, and falling through would re-fire the purchase's
   Drip + SD-ORDER.
-- **The sequence**: reminder 1 as soon as a run is seen, reminder 2 three days
-  later, reminder 3 four days after that, then — still unpaid three days on — an
+- **The sequence**: reminder 1 as soon as a run is seen, reminder 2 five days
+  later, reminder 3 seven days after that, then — still unpaid three days on — an
   internal **SD-PAYMENT** hand-off to `DUNNING_ALERTS_TO` (default
   `support@songdance.co`) with who, what's owed, what was sent, what the buyer
   tried, their card link, and the way to stop the plan (Cancel… → Stop now).
