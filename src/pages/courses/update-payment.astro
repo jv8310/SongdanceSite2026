@@ -1,0 +1,288 @@
+---
+// "Update your card" for a course installment plan — the page every
+// failed-payment reminder links to, and what "Copy card link" on
+// /admin/courses/future-revenue hands support to paste into a reply.
+//
+//   /courses/update-payment?t=<id>.<sig>              → 302 to a FRESH Stripe
+//                                                        page to add a card
+//   /courses/update-payment?t=…&stay=1                → this panel (Stripe's
+//                                                        cancel_url — backing
+//                                                        out lands here, not in
+//                                                        a redirect loop)
+//   /courses/update-payment?t=…&session_id=cs_…       → Stripe's return: save
+//                                                        the card on the plan,
+//                                                        charge what's owed, and
+//                                                        say what happened
+//
+// The link never expires (the Stripe page is minted on each click — see
+// src/lib/courses/card-update-link.ts), and every "nothing to do" state is
+// answered in our words: plan fully paid, plan closed, a PayPal plan, a link
+// that doesn't verify.
+import Layout from '../../layouts/Layout.astro';
+import { getCourseRegistrationById } from '../../lib/courses/db';
+import {
+  applyCardUpdate,
+  cardUpdateBlock,
+  startCardUpdate,
+  type CardUpdateBlock,
+  type CardUpdateOutcome,
+} from '../../lib/courses/card-update';
+import {
+  CARD_UPDATE_SESSION_PARAM,
+  CARD_UPDATE_STAY_PARAM,
+  CARD_UPDATE_TOKEN_PARAM,
+  verifyCardUpdateToken,
+} from '../../lib/courses/card-update-link';
+import { courseDisplayName } from '../../lib/courses/dunning';
+import { formatMoney } from '../../lib/workshops/currency';
+
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+// Someone's own payment plan, reached by a signed link. Not for an index, and
+// never from a cache: the page's answer changes the moment a card is saved.
+Astro.response.headers.set('x-robots-tag', 'noindex, nofollow');
+Astro.response.headers.set('cache-control', 'no-store');
+
+const SUPPORT = 'support@songdance.co';
+
+const token = Astro.url.searchParams.get(CARD_UPDATE_TOKEN_PARAM) ?? '';
+const stay = Astro.url.searchParams.get(CARD_UPDATE_STAY_PARAM) === '1';
+const sessionId = Astro.url.searchParams.get(CARD_UPDATE_SESSION_PARAM);
+
+type Panel = {
+  heading: string;
+  lines: string[];
+  action?: { label: string; href: string };
+  tone?: 'ok' | 'warn';
+};
+
+const regId = await verifyCardUpdateToken(env.ADMIN_SESSION_SECRET, token);
+const reg = regId ? await getCourseRegistrationById(env.DB, regId) : null;
+// The plain link again — "try again" always means a fresh Stripe page.
+const retryHref = `${Astro.url.pathname}?${CARD_UPDATE_TOKEN_PARAM}=${encodeURIComponent(token)}`;
+
+let panel: Panel | null = null;
+let redirectTo: string | null = null;
+
+function blockPanel(block: CardUpdateBlock, course: string): Panel {
+  switch (block) {
+    case 'settled':
+      return {
+        heading: 'Your plan is fully paid',
+        lines: [
+          `There's nothing left to pay on ${course} — thank you.`,
+          `If you think that's wrong, write to ${SUPPORT} and we'll look at it with you.`,
+        ],
+        tone: 'ok',
+      };
+    case 'closed':
+      return {
+        heading: 'This plan is closed',
+        lines: [
+          'It no longer takes payments, so there is no card to update. Nothing has been charged.',
+          `If you think that's wrong, write to ${SUPPORT} and we'll sort it out with you.`,
+        ],
+      };
+    case 'paypal':
+      return {
+        heading: 'Your plan runs through PayPal',
+        lines: [
+          'The payment method for it lives in your PayPal account — you can change it there, under your automatic payments.',
+          `If that doesn't work, write to ${SUPPORT} and we'll help.`,
+        ],
+      };
+    default:
+      return {
+        heading: "There's no installment plan to update here",
+        lines: [
+          'Nothing has been charged.',
+          `Write to ${SUPPORT} and we'll sort it out with you directly.`,
+        ],
+      };
+  }
+}
+
+function outcomePanel(o: CardUpdateOutcome, course: string): Panel {
+  const owed = formatMoney(o.outstandingMinor, o.currency);
+  const paid = formatMoney(o.paidMinor, o.currency);
+  switch (o.result) {
+    case 'paid':
+      return {
+        heading: "Thank you — you're all set",
+        lines: [
+          `Your new card is saved, and ${paid} has gone through for ${course}.`,
+          'The rest of your installments will run on this card. There is nothing more to do.',
+        ],
+        tone: 'ok',
+      };
+    case 'nothing_owed':
+      return {
+        heading: 'Your card is updated',
+        lines: [
+          `The rest of your installments for ${course} will run on this card.`,
+          'There was nothing outstanding to charge today.',
+        ],
+        tone: 'ok',
+      };
+    case 'processing':
+      return {
+        heading: 'Your payment is on its way',
+        lines: [
+          `Your new payment details are saved, and ${owed} is being collected.`,
+          'Bank debits take a few working days to clear. There is nothing more to do.',
+        ],
+        tone: 'ok',
+      };
+    case 'declined':
+      return {
+        heading: "The payment didn't go through",
+        lines: [
+          `Your new card is saved, but the bank declined the ${owed} charge${o.message ? `: “${o.message}”` : '.'}`,
+          ...(o.paidMinor > 0 ? [`(${paid} did go through before that.)`] : []),
+          `You can try a different card — or write to ${SUPPORT} and we'll find a way with you.`,
+        ],
+        action: { label: 'Try a different card', href: retryHref },
+        tone: 'warn',
+      };
+    case 'needs_action':
+      return o.actionUrl
+        ? {
+            heading: 'Your bank wants to confirm the payment',
+            lines: [
+              `Your new card is saved. To finish, confirm the ${owed} payment with your bank — the button opens Stripe's secure payment page.`,
+            ],
+            action: { label: `Confirm ${owed}`, href: o.actionUrl },
+            tone: 'warn',
+          }
+        : {
+            heading: 'Your bank wants to confirm the payment',
+            lines: [
+              `Your new card is saved, but the bank asked for a confirmation we couldn't show here. Write to ${SUPPORT} and we'll send you a payment link.`,
+            ],
+            tone: 'warn',
+          };
+    case 'not_saved':
+      return {
+        heading: "Your card wasn't saved",
+        lines: ['Nothing has changed, and nothing was charged.'],
+        action: { label: 'Try again', href: retryHref },
+      };
+    default:
+      return {
+        heading: "We couldn't finish that just now",
+        lines: [
+          'Your card may be saved, but the payment could not be attempted from here.',
+          `Refresh this page in a minute — or write to ${SUPPORT} and we'll take it from there.`,
+        ],
+        action: { label: 'Refresh', href: Astro.url.pathname + Astro.url.search },
+        tone: 'warn',
+      };
+  }
+}
+
+if (!reg) {
+  panel = {
+    heading: 'We could not open this link',
+    lines: [
+      'The link may have been copied incompletely, or it belongs to a plan we no longer hold.',
+      `Write to ${SUPPORT} and we'll send you a new one — nothing has been charged.`,
+    ],
+  };
+} else {
+  const course = courseDisplayName(reg.product_slug);
+  const progress = `${reg.installments_paid} of ${reg.installments_total} installments paid`;
+  const stayPanel: Panel = {
+    heading: 'Update the card for your installments',
+    lines: [
+      `For ${course} — ${progress}.`,
+      'The button opens a secure Stripe page to add your card. As soon as it is saved, anything outstanding on your plan is charged to it, and the rest of your installments run on it. Nothing has been charged yet.',
+    ],
+    action: { label: 'Add a new card', href: retryHref },
+  };
+
+  if (sessionId) {
+    const result = await applyCardUpdate(env, reg, sessionId);
+    panel = result.result === 'stale' ? stayPanel : outcomePanel(result, course);
+  } else {
+    const block = cardUpdateBlock(reg);
+    if (block) {
+      panel = blockPanel(block, course);
+    } else if (stay) {
+      panel = stayPanel;
+    } else {
+      const started = await startCardUpdate(env, reg, token, Astro.url.origin);
+      if (started.ok) {
+        redirectTo = started.url;
+      } else if (started.error === 'blocked') {
+        panel = blockPanel(started.block, course);
+      } else if (started.error === 'closed') {
+        panel = blockPanel('closed', course);
+      } else {
+        panel = {
+          heading: "The card page wouldn't open just now",
+          lines: [
+            'Nothing has been charged.',
+            `Try again in a minute — or write to ${SUPPORT} and we'll sort it out with you.`,
+          ],
+          action: { label: 'Try again', href: retryHref },
+          tone: 'warn',
+        };
+      }
+    }
+  }
+}
+
+if (redirectTo) return Astro.redirect(redirectTo, 302);
+const p = panel!;
+---
+
+<Layout
+  title="Update your card — Songdance"
+  description="Update the payment card for your course installments."
+>
+  <main class="cu">
+    <h1>{p.heading}</h1>
+    {p.lines.map((line) => <p>{line}</p>)}
+    {p.action && (
+      <p class="cu-actions">
+        <a class={`cu-cta${p.tone === 'warn' ? ' cu-cta--warn' : ''}`} href={p.action.href}>{p.action.label} &rarr;</a>
+      </p>
+    )}
+    <p class="cu-note">
+      Questions about your plan? Reply to any of our emails, or write to
+      <a href={`mailto:${SUPPORT}`}>{SUPPORT}</a> — a person reads it.
+    </p>
+  </main>
+</Layout>
+
+<style>
+  .cu {
+    max-width: 40rem;
+    margin: clamp(3rem, 9vw, 6rem) auto;
+    padding: 0 1.5rem;
+    font-family: var(--font-body, Georgia, serif);
+    line-height: 1.7;
+  }
+  .cu h1 {
+    font-family: var(--font-display, Georgia, serif);
+    font-size: clamp(1.9rem, 5vw, 2.5rem);
+    line-height: 1.2;
+    margin: 0 0 1rem;
+  }
+  .cu p { margin: 0 0 1rem; }
+  .cu-actions { margin-top: 1.75rem !important; }
+  .cu-cta {
+    display: inline-block;
+    padding: 0.85rem 1.9rem;
+    border-radius: 999px;
+    background: #2a1b2a;
+    color: #f4ecdf;
+    text-decoration: none;
+    font-size: 0.95rem;
+  }
+  .cu-cta:hover { opacity: 0.9; }
+  .cu-cta--warn { background: #a14826; }
+  .cu-note { margin-top: 2.5rem !important; font-size: 0.9rem; color: #6b5c69; }
+  .cu-note a { color: inherit; }
+</style>

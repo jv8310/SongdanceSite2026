@@ -52,6 +52,11 @@ import {
   balancePaymentReference,
   buildBalanceEmail,
 } from '../registrations/balance-email';
+import {
+  dunningEscalationEmail,
+  dunningReminderEmail,
+  type DunningReminderCtx,
+} from '../courses/dunning-emails';
 
 export type EmailSample = {
   id: string;
@@ -541,6 +546,9 @@ export function buildEmailSamples(base: string): EmailSample[] {
       }),
     },
 
+    // ── Failed installment payments (course plans) ───────────────────────
+    ...dunningSamples(b),
+
     // ── Internal reports (SD-REPORT, ops only) ───────────────────────────
     {
       id: 'report_daily',
@@ -567,6 +575,89 @@ export function buildEmailSamples(base: string): EmailSample[] {
       timing: 'About 5 minutes before each live workshop/masterclass',
       audience: 'Jacob (BRIEFING_TO) — registered count, the three-door audience mix, practitioners, add-on uptake, countries',
       content: buildBriefingEmail(sampleBriefingData(), b),
+    },
+  ];
+}
+
+// The failed-installment sequence (src/lib/courses/dunning.ts): three reminders
+// with the buyer's card-update link, then the hand-off to support. The link in
+// the preview is a sample — the real one is signed per plan
+// (src/lib/courses/card-update-link.ts) and never expires.
+function dunningSamples(b: string): EmailSample[] {
+  const updateUrl = `${b}/courses/update-payment?t=42.0a1b2c3d4e5f60718293a4b5`;
+  const ctx: DunningReminderCtx = {
+    name: 'maria voss',
+    courseName: 'the 12-Week Somatic Vocal Healing Course',
+    installmentLabel: '€183.33',
+    dueLabel: '23 September',
+    outstandingCount: 1,
+    outstandingLabel: '€183.33',
+    updateUrl,
+  };
+  const group = 'Failed installment payments';
+  const audience =
+    "A Stripe installment plan whose monthly charge failed (or that Stripe marks past_due/unpaid). Stripe is asked live before every send — nobody who has paid gets one. Transactional: ignores unsubscribes.";
+  return [
+    {
+      id: 'course_dunning_1',
+      group,
+      label: 'Reminder 1 — the installment didn\'t go through',
+      timing: 'Within the hour of the failed charge (held to the buyer\'s local 08:00–21:00)',
+      audience,
+      content: dunningReminderEmail(1, ctx),
+    },
+    {
+      id: 'course_dunning_2',
+      group,
+      label: 'Reminder 2 — still open',
+      timing: '5 days after reminder 1 (paused a day after they save a card)',
+      audience,
+      content: dunningReminderEmail(2, ctx),
+    },
+    {
+      id: 'course_dunning_3',
+      group,
+      label: 'Reminder 3 — last reminder (two installments behind)',
+      timing: '7 days after reminder 2',
+      audience: `${audience} This sample shows the wording when a plan has fallen a second month behind.`,
+      content: dunningReminderEmail(3, {
+        ...ctx,
+        outstandingCount: 2,
+        outstandingLabel: '€366.66',
+      }),
+    },
+    {
+      id: 'course_dunning_handoff',
+      group,
+      label: 'SD-PAYMENT — hand-off to support (internal)',
+      timing: '3 days after reminder 3, if the installment is still unpaid',
+      audience:
+        'support@songdance.co (DUNNING_ALERTS_TO) — who, what is owed, what was sent, what the buyer tried; their card link; links to stop the plan',
+      content: dunningEscalationEmail({
+        orderNo: 'C-42',
+        name: 'Maria Voss',
+        email: 'maria@example.com',
+        courseName: 'the 12-Week Somatic Vocal Healing Course',
+        plan: '3×',
+        installmentsPaid: 1,
+        installmentsTotal: 3,
+        outstandingCount: 1,
+        outstandingLabel: '€183.33',
+        invoiceNumber: 'A1B2C3D4-0002',
+        dueLabel: '23 September',
+        stripeAttempts: 4,
+        subscriptionStatus: 'past_due',
+        reminders: ['23 Sept', '26 Sept', '30 Sept'],
+        cardUpdate: {
+          when: '28 Sept',
+          outcome: 'declined',
+          message: 'Your card has insufficient funds.',
+        },
+        updateUrl,
+        orderUrl: `${b}/admin/orders/C-42`,
+        futureRevenueUrl: `${b}/admin/courses/future-revenue`,
+        stripeUrl: 'https://dashboard.stripe.com/subscriptions/sub_example',
+      }),
     },
   ];
 }

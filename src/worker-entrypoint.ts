@@ -23,6 +23,7 @@ import { runReports } from './lib/workshops/reports';
 import { reconcileOrderNotifications } from './lib/orders/reconcile';
 import { reconcilePaypalCourseOrders } from './lib/payments/paypal-reconcile';
 import { reconcileStripeCourseOrders } from './lib/payments/stripe-reconcile';
+import { runCourseDunning } from './lib/courses/dunning';
 import { expireLapsedOffers } from './lib/registrations/waitlist';
 import { fxRatesStale, refreshFxRates } from './lib/admin/fx';
 import { runMetaAdSpendSync } from './lib/ads/meta-insights';
@@ -377,6 +378,26 @@ export function createExports(manifest: unknown) {
         })
         .catch((err) => {
           console.error('[stripe/reconcile] run failed', err);
+        }),
+    );
+
+    // Failed installment payments: three reminders to the buyer (each with
+    // their durable card-update link), then an internal SD-PAYMENT hand-off
+    // to support@ if it's still unpaid. Opens a run for any live Stripe plan
+    // marked past_due/unpaid, asks Stripe before every send whether the
+    // installment is still owed, and holds customer mail to their local
+    // 08:00–21:00. Idempotent per step; no-ops until Stripe + Resend are set.
+    ctx.waitUntil(
+      runCourseDunning(env)
+        .then((r) => {
+          if (r.opened || r.reminders || r.handoffs || r.resolved || r.failed) {
+            console.log(
+              `[dunning] opened=${r.opened} reminders=${r.reminders} handoffs=${r.handoffs} resolved=${r.resolved} failed=${r.failed}`,
+            );
+          }
+        })
+        .catch((err) => {
+          console.error('[dunning] run failed', err);
         }),
     );
   };
