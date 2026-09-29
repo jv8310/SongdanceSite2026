@@ -7,8 +7,9 @@ import {
   upsertRegistration,
   setRegistrationPaymentStatus,
 } from '../../../lib/workshops/db';
-import { attendedLive } from '../../../lib/workshops/time';
+import { attendedLive, JOIN_CLOSE_AFTER_SECONDS } from '../../../lib/workshops/time';
 import { runWorkshopPaidSideEffects, successUrl } from '../../../lib/workshops/paid-handler';
+import { findRebook, rebookEventId, REBOOK_EVENT_KIND } from '../../../lib/workshops/rebook';
 
 export const prerender = false;
 
@@ -20,6 +21,9 @@ type Body = { t?: string; workshop_slug?: string };
 // they missed can move to another upcoming date free of charge: we reuse their
 // existing details (name / email / timezone …) and create a coupon-grade
 // registration on the chosen workshop, then send the usual confirmation.
+//
+// Once per seat. The original row is left as it was, so the workshop.rebooked
+// event is the only record that it has moved — see lib/workshops/rebook.ts.
 export const POST: APIRoute = async ({ request, locals }) => {
   const env = locals.runtime.env;
   let payload: Body;
@@ -42,14 +46,36 @@ export const POST: APIRoute = async ({ request, locals }) => {
   // the countdown page no longer offers them this, but a page left open from
   // before the session still could.
   const originWorkshop = await getWorkshopById(env.DB, origin.workshop_id);
-  if (originWorkshop && attendedLive(origin, originWorkshop)) {
+  if (!originWorkshop) return json({ error: 'We couldn’t find your registration.' }, 404);
+  if (attendedLive(origin, originWorkshop)) {
     return json({ error: 'You joined this session live, so this seat can’t move to another date. If that’s not right, email info@songdance.co.' }, 409);
+  }
+  // …and one that hasn't moved already. The page swaps the list for the date
+  // they moved to, but the link in the first confirmation email opens this
+  // page too, and each press used to make another free seat.
+  if (await findRebook(env.DB, origin.id)) {
+    return json({ error: 'This seat has already moved to another date — refresh this page to see which. If that’s not right, email info@songdance.co.' }, 409);
+  }
+  // Only what the page offers: a live session that is over (the list appears
+  // once a first join is no longer possible). A replay ticket, or a session
+  // still to come, isn't a missed seat — before the start, "Switch to another
+  // date" moves the seat itself.
+  if (originWorkshop.is_replay === 1) {
+    return json({ error: 'A replay seat doesn’t move to a live date. If that’s not right, email info@songdance.co.' }, 409);
+  }
+  if (Date.now() <= new Date(originWorkshop.starts_at_utc).getTime() + JOIN_CLOSE_AFTER_SECONDS * 1000) {
+    return json({ error: 'This session isn’t over yet, so there’s nothing to move. If you can’t make it, email info@songdance.co.' }, 409);
   }
 
   const target = await getPublishedWorkshopBySlug(env.DB, slug);
   if (!target) return json({ error: 'That date isn’t open for registration.' }, 404);
   if (target.id === origin.workshop_id) {
     return json({ error: 'That’s the date you’re already on.' }, 400);
+  }
+  // Onto a live session still ahead — never a replay, never one that's begun
+  // (the same rule as /change-date).
+  if (target.is_replay === 1 || new Date(target.starts_at_utc).getTime() <= Date.now()) {
+    return json({ error: 'That date isn’t open for registration.' }, 400);
   }
 
   const { id: registrationId, token: newToken } = await upsertRegistration(env.DB, {
@@ -66,10 +92,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
   });
   await setRegistrationPaymentStatus(env.DB, registrationId, 'coupon');
 
+  // The record that this seat has moved (findRebook reads it back).
   await logEventSafe(env.DB, {
     registration_id: null,
-    kind: 'workshop.rebooked',
-    external_id: `workshop-rebook-${origin.id}-to-${registrationId}`,
+    kind: REBOOK_EVENT_KIND,
+    external_id: rebookEventId(origin.id, registrationId),
     payload: { from_registration_id: origin.id, to_registration_id: registrationId, workshop_id: target.id },
   });
 

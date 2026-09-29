@@ -5,6 +5,7 @@ import { purchaseEventId } from '../../lib/workshops/meta';
 import {
   getPaidPaymentForRegistration,
   getRegistrationByAccessToken,
+  getRegistrationById,
   getWorkshopById,
   listUpcomingPublishedWorkshops,
   resolveReplayUrl,
@@ -31,6 +32,8 @@ import {
   signShareToken,
   SHARE_CHANNEL_PARAM,
 } from '../../lib/workshops/share';
+import { findRebook } from '../../lib/workshops/rebook';
+import { successUrl } from '../../lib/workshops/paid-handler';
 
 export const prerender = false;
 
@@ -73,6 +76,33 @@ const win =
   workshop && !workshop.is_replay
     ? joinWindowFor(workshop.starts_at_utc, workshop.ends_at_utc, hasJoined)
     : 'open';
+// Has this seat already made its free move (the rebook below)? A missed seat
+// moves once: the list gives way to the date they moved to, linked to that
+// seat's own countdown page, since this one — the link in their first
+// confirmation email — is still the page they come back to. A failed read
+// shows the list as before; the endpoint refuses a second move either way.
+let rebooked = false;
+let movedTo: { whenLocal: string; kind: string; url: string } | null = null;
+if (paid && reg && workshop && workshop.is_replay !== 1) {
+  try {
+    const move = await findRebook(env.DB, reg.id);
+    if (move) {
+      rebooked = true;
+      const to = move.toRegistrationId ? await getRegistrationById(env.DB, move.toRegistrationId) : null;
+      const toWorkshop = to ? await getWorkshopById(env.DB, to.workshop_id) : null;
+      if (to && toWorkshop) {
+        movedTo = {
+          whenLocal: formatInTz(toWorkshop.starts_at_utc, tz),
+          kind: (await workshopIsMasterclass(env.DB, toWorkshop)) ? 'Masterclass' : 'Workshop',
+          url: successUrl(base, to.access_token),
+        };
+      }
+    }
+  } catch (err) {
+    console.error(`workshop/success: rebook lookup failed: ${String(err)}`);
+  }
+}
+
 // Is there a replay to offer someone who missed this session? Resolved per type
 // (a masterclass has its own replay, falling back to the workshop one).
 const hasReplay = workshop ? !!(await resolveReplayUrl(env.DB, workshop)) : false;
@@ -134,10 +164,12 @@ const shareText = workshop
 // Other upcoming live dates they can move onto, free of charge. Masterclasses
 // (the higher-priced, pro-facing dates) only appear to someone who actually
 // booked a masterclass — a regular-workshop registrant is never offered a free
-// masterclass seat.
+// masterclass seat. Only dates still ahead: "upcoming" above includes a session
+// under way, and both endpoints refuse one that has begun.
 const upcoming = reg
   ? (await listUpcomingPublishedWorkshops(env.DB, new Date().toISOString()))
       .filter((w) => w.is_replay !== 1 && w.id !== reg.workshop_id)
+      .filter((w) => new Date(w.starts_at_utc).getTime() > Date.now())
       .filter((w) => currentIsMasterclass || !(w.product_slug ?? '').includes('masterclass'))
       .map((w) => ({ slug: w.slug, whenLocal: formatInTz(w.starts_at_utc, tz), kind: (w.product_slug ?? '').includes('masterclass') ? 'Masterclass' : 'Workshop' }))
   : [];
@@ -262,7 +294,7 @@ if (reg && paid && reg.payment_status === 'paid') {
             <div class="ws-missed" id="ws-missed" hidden={win !== 'closed'}>
               <div id="ws-missed-absent" hidden={attended}>
                 <p class="ws-missed-h">This session has passed</p>
-                <p class="ws-missed-sub">Don't worry — pick one of the options below.</p>
+                <p class="ws-missed-sub">{rebooked ? 'Your place has already moved to another date.' : 'Don’t worry — pick one of the options below.'}</p>
               </div>
               <div id="ws-missed-attended" hidden={!attended}>
                 <p class="ws-missed-h">Thank you for being part of it</p>
@@ -276,21 +308,35 @@ if (reg && paid && reg.payment_status === 'paid') {
               )}
 
               <div class="ws-rebook" id="ws-rebook" hidden={attended}>
-                <p class="ws-rebook-h">…or come to another date, for free</p>
-                {upcoming.length === 0 ? (
-                  <p class="ws-note">No new dates are open just yet — email <a href="mailto:info@songdance.co">info@songdance.co</a> and we’ll let you know.</p>
+                {rebooked ? (
+                  movedTo ? (
+                    <>
+                      <p class="ws-rebook-h">Your new date</p>
+                      <p class="ws-moved">{movedTo.whenLocal} <small>· {movedTo.kind}</small></p>
+                      <a class="ws-join" href={movedTo.url}>Open that date’s page →</a>
+                    </>
+                  ) : (
+                    <p class="ws-note">Its own page is linked in the confirmation email for that date. Can’t find it? Email <a href="mailto:info@songdance.co">info@songdance.co</a>.</p>
+                  )
                 ) : (
                   <>
-                    <div class="ws-rebook-list" role="radiogroup" aria-label="Choose a new date">
-                      {upcoming.map((u) => (
-                        <label class="ws-rebook-item">
-                          <input type="radio" name="ws-newdate" value={u.slug} />
-                          <span class="ws-rebook-when">{u.whenLocal} <small>· {u.kind}</small></span>
-                        </label>
-                      ))}
-                    </div>
-                    <button type="button" class="ws-join ws-rebook-btn" id="ws-rebook-btn" disabled>Register free →</button>
-                    <p class="ws-err" id="ws-rebook-err" hidden></p>
+                    <p class="ws-rebook-h">…or come to another date, for free</p>
+                    {upcoming.length === 0 ? (
+                      <p class="ws-note">No new dates are open just yet — email <a href="mailto:info@songdance.co">info@songdance.co</a> and we’ll let you know.</p>
+                    ) : (
+                      <>
+                        <div class="ws-rebook-list" role="radiogroup" aria-label="Choose a new date">
+                          {upcoming.map((u) => (
+                            <label class="ws-rebook-item">
+                              <input type="radio" name="ws-newdate" value={u.slug} />
+                              <span class="ws-rebook-when">{u.whenLocal} <small>· {u.kind}</small></span>
+                            </label>
+                          ))}
+                        </div>
+                        <button type="button" class="ws-join ws-rebook-btn" id="ws-rebook-btn" disabled>Register free →</button>
+                        <p class="ws-err" id="ws-rebook-err" hidden></p>
+                      </>
+                    )}
                   </>
                 )}
               </div>
@@ -378,6 +424,8 @@ if (reg && paid && reg.payment_status === 'paid') {
     .ws-rebook-list { display:flex; flex-direction:column; gap:8px; margin-bottom:18px; text-align:left; }
     .ws-rebook-item { display:flex; align-items:center; gap:10px; padding:12px 14px; background:#F4ECDF; border-radius:10px; cursor:pointer; font-size:15px; color:#2A1B2A; }
     .ws-rebook-when small { color:#B6A8B4; }
+    .ws-moved { margin:0 0 18px; padding:12px 14px; background:#F4ECDF; border-radius:10px; font-size:15px; color:#2A1B2A; }
+    .ws-moved small { color:#B6A8B4; }
     .ws-err { margin:12px 0 0; color:#A14826; font-size:14px; }
 
     .ws-change { margin-top:22px; }
