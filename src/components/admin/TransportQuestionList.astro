@@ -1,0 +1,75 @@
+---
+// The travel questions of a retreat as a readable list — on the retreat page,
+// for the questions the form asks today and for a Claude draft awaiting
+// publication. English first, the Dutch beneath it, and the logic spelled out
+// ("only when …"), so a draft can be judged without opening the form.
+import { columnFor, tr, type TransportSection } from '../../lib/intake/transport';
+
+interface Props {
+  section: TransportSection;
+  // Keys that already hold guests' answers — flagged, so a reworded question is
+  // visibly the same column.
+  answeredKeys?: string[];
+}
+
+const { section, answeredKeys = [] } = Astro.props;
+const answered = new Set(answeredKeys);
+
+const TYPE_LABEL: Record<string, string> = {
+  text: 'short answer',
+  textarea: 'open answer',
+  number: 'number',
+  date: 'date',
+  time: 'time',
+  radio: 'one choice',
+  checkboxes: 'several choices',
+};
+
+const byKey = new Map(section.questions.map((q) => [q.key, q]));
+const items = section.questions.map((q) => {
+  const en = tr(q.title, 'en') ?? q.key;
+  const nl = tr(q.title, 'nl');
+  let when = '';
+  if (q.showIf) {
+    const dep = byKey.get(q.showIf.key);
+    const labels = q.showIf.valueIn.map(
+      (v) => tr(dep?.options?.find((o) => o.value === v)?.label, 'en') ?? v,
+    );
+    when = `only when “${dep ? tr(dep.title, 'en') : q.showIf.key}” is ${labels.map((l) => `“${l}”`).join(' or ')}`;
+  }
+  return {
+    key: q.key,
+    en,
+    nl: nl && nl !== en ? nl : null,
+    body: tr(q.body, 'en'),
+    meta: [TYPE_LABEL[q.type] ?? q.type, q.required ? 'required' : 'optional', `sheet column “${columnFor(q)}”`]
+      .concat(q.type === 'date' && (q.min || q.max) ? [`${q.min ?? '…'} to ${q.max ?? '…'}`] : [])
+      .join(' · '),
+    when,
+    options: (q.options ?? []).map((o) => tr(o.label, 'en') ?? o.value),
+    answered: answered.has(q.key),
+  };
+});
+---
+
+<div class="adm-tq">
+  <p class="adm-tq-why"><span>Opens with:</span> {tr(section.why, 'en')}</p>
+  <ol class="adm-tq-list">
+    {items.map((it) => (
+      <li>
+        <strong>{it.en}</strong>
+        {it.answered && <span class="adm-pill adm-pill--paid">has answers</span>}
+        <div class="adm-tq-meta">
+          {it.meta}{it.when && <> · <em>{it.when}</em></>} · <code>{it.key}</code>
+        </div>
+        {it.nl && <div class="adm-tq-nl">NL: {it.nl}</div>}
+        {it.body && <div class="adm-tq-body">{it.body}</div>}
+        {it.options.length > 0 && (
+          <ul class="adm-tq-options">
+            {it.options.map((o) => <li>{o}</li>)}
+          </ul>
+        )}
+      </li>
+    ))}
+  </ol>
+</div>

@@ -31,6 +31,37 @@ import {
   balancePaymentReference,
 } from '../../../lib/registrations/balance-email';
 import { buildBalancePayUrl } from '../../../lib/registrations/balance-link';
+import {
+  eligibleFor,
+  ensureSheetSecret,
+  intakeForProduct,
+  intakeRoster,
+  isSubmitted,
+  unlinkedIntakes,
+  type RosterRow,
+} from '../../../lib/intake/retreat-intake';
+import type { RetreatRow } from '../../../lib/intake/retreats-db';
+import type { IntakeEmailKind } from '../../../lib/intake/invitations';
+import {
+  builtInTransportSection,
+  intakeLink,
+  transportSectionForIntake,
+} from '../../../lib/intake/send';
+import {
+  answeredTransportKeys,
+  columnFor,
+  sectionFromJson,
+  type TransportSection,
+} from '../../../lib/intake/transport';
+import TransportQuestionList from '../../../components/admin/TransportQuestionList.astro';
+import {
+  appsScriptSource,
+  buildTransportTable,
+  SHEET_TAB,
+  type SheetTable,
+} from '../../../lib/intake/transport-sheet';
+import { pillClassFor, classificationLabel } from '../../../lib/intake/admin';
+import { tidyName } from '../../../lib/email/names';
 
 export const prerender = false;
 
@@ -617,6 +648,99 @@ const balancePayLinks = new Map<number, string>(
   ),
 );
 
+// ─── Intake ───
+// The screening form (and the retreat's travel questions) for every booked
+// guest, joined to this retreat through intake_retreats.product_id — see
+// src/lib/intake/retreat-intake.ts. Wrapped whole: a database the migration
+// (0085) hasn't reached yet must cost this section, never the page.
+type IntakePanel =
+  | { state: 'error'; message: string }
+  | { state: 'unlinked'; candidates: RetreatRow[] }
+  | {
+      state: 'linked';
+      intake: RetreatRow;
+      roster: RosterRow[];
+      transport: TransportSection | null;
+      // Where today's questions come from: published from this page (drafted
+      // with Claude), the retreat's file in code, or nowhere yet.
+      transportSource: 'admin' | 'code' | 'none';
+      builtIn: TransportSection | null;
+      draft: TransportSection | null;
+      answeredKeys: string[];
+      sheetSecret: string | null;
+      table: SheetTable | null;
+    };
+let intakePanel: IntakePanel;
+try {
+  const intake = await intakeForProduct(env.DB, product.id);
+  if (!intake) {
+    intakePanel = { state: 'unlinked', candidates: await unlinkedIntakes(env.DB) };
+  } else {
+    const [roster, transport, builtIn, answeredKeys] = await Promise.all([
+      intakeRoster(env.DB, product.id, intake.slug),
+      transportSectionForIntake(env.DB, intake.slug),
+      builtInTransportSection(env.DB, intake.slug),
+      answeredTransportKeys(env.DB, intake.slug),
+    ]);
+    const published = sectionFromJson(intake.transport_json);
+    intakePanel = {
+      state: 'linked',
+      intake,
+      roster,
+      transport,
+      transportSource: published ? 'admin' : builtIn ? 'code' : 'none',
+      builtIn,
+      draft: sectionFromJson(intake.transport_draft_json),
+      answeredKeys,
+      sheetSecret: transport ? await ensureSheetSecret(env.DB, intake) : null,
+      table: transport ? await buildTransportTable(env.DB, intake, transport) : null,
+    };
+  }
+} catch (err) {
+  const msg = err instanceof Error ? err.message : String(err);
+  intakePanel = {
+    state: 'error',
+    message: /no such (column|table)/i.test(msg)
+      ? 'This section needs database migration 0085, which is applied automatically when this change is merged to main.'
+      : `The intake could not be loaded: ${msg}`,
+  };
+}
+
+const INTAKE_KIND_LABEL: Record<IntakeEmailKind, string> = {
+  invitation: 'intake invitation',
+  reminder: 'reminder',
+  final: 'final note',
+  transport: 'travel-questions email',
+};
+
+// How many people a bulk send of each kind would reach right now — the same
+// rule the endpoint applies (eligibleFor), so the number on the button is the
+// number that goes out.
+const intakeCounts = (() => {
+  if (intakePanel.state !== 'linked') return null;
+  const { roster, transport } = intakePanel;
+  const count = (k: IntakeEmailKind) => roster.filter((r) => eligibleFor(k, r, !!transport)).length;
+  return {
+    people: roster.length,
+    guests: roster.filter((r) => r.registrationId != null).length,
+    invited: roster.filter((r) => r.invitation?.invitation_sent_at).length,
+    submitted: roster.filter(isSubmitted).length,
+    travel: roster.filter((r) => r.transportAt).length,
+    invitation: count('invitation'),
+    reminder: count('reminder'),
+    final: count('final'),
+    transport: count('transport'),
+  };
+})();
+
+function intakeStatus(r: RosterRow): { label: string; tone: string } {
+  if (isSubmitted(r)) return { label: 'Submitted', tone: 'paid' };
+  if (r.invitation?.final_sent_at) return { label: 'Final note sent', tone: 'low' };
+  if (r.invitation?.reminder_sent_at) return { label: 'Reminded', tone: 'low' };
+  if (r.invitation?.invitation_sent_at) return { label: 'Invited', tone: 'open' };
+  return { label: 'Not invited', tone: 'cancelled' };
+}
+
 function waitlistTone(w: { status: string; offer_live: boolean }): string {
   if (w.status === 'invited') return w.offer_live ? 'low' : 'cancelled';
   if (w.status === 'waiting') return 'waitlist';
@@ -700,6 +824,71 @@ const flash = (() => {
       tone: 'err' as const,
       msg: `Nothing changed — ${readable[reason] ?? reason}`,
     };
+  }
+  if (p.get('intake_sent')) {
+    const kind = (p.get('intake_kind') ?? 'invitation') as IntakeEmailKind;
+    const sent = Number(p.get('intake_sent') ?? '0');
+    const failed = Number(p.get('intake_failed_n') ?? '0');
+    const what = INTAKE_KIND_LABEL[kind] ?? kind;
+    return {
+      tone: failed > 0 ? ('err' as const) : ('ok' as const),
+      msg: `${sent} ${what}${sent === 1 ? '' : 's'} sent${
+        failed > 0 ? ` · ${failed} failed${p.get('intake_error') ? ` (${p.get('intake_error')})` : ''}` : ''
+      }.`,
+    };
+  }
+  if (p.get('intake_linked')) return { tone: 'ok' as const, msg: 'Intake linked to this retreat.' };
+  if (p.get('intake_unlinked')) {
+    return { tone: 'ok' as const, msg: 'Intake unlinked. Its invitees and answers are untouched on the intakes page.' };
+  }
+  if (p.get('intake_failed')) {
+    const reason = p.get('intake_failed') ?? '';
+    const readable: Record<string, string> = {
+      'no-intake': 'this retreat has no intake linked yet.',
+      'pick-an-intake': 'choose which intake to link.',
+      'unknown-intake': 'that intake no longer exists.',
+      'resend-key-missing': 'no Resend API key is configured, so no email could be sent.',
+      'no-transport-section': 'this retreat has no travel questions yet.',
+      'nobody-to-send': 'there is nobody this applies to right now.',
+      'not-on-list': 'that person is not on this retreat’s list.',
+      'already-submitted': 'they have already sent their intake.',
+      'no-real-address': 'that booking has a stand-in address, not their own — add their real one on the intakes page.',
+    };
+    return { tone: 'err' as const, msg: `Nothing was sent — ${readable[reason] ?? reason}` };
+  }
+  if (p.get('transport_drafted')) {
+    return { tone: 'ok' as const, msg: 'Claude drafted the travel questions — check the draft below, preview it, then publish. Nothing has changed for guests yet.' };
+  }
+  if (p.get('transport_published')) {
+    return { tone: 'ok' as const, msg: 'Travel questions published — the form, the travel email and the sheet use them from now on.' };
+  }
+  if (p.get('transport_discarded')) return { tone: 'ok' as const, msg: 'Draft discarded. The form is unchanged.' };
+  if (p.get('transport_reverted')) {
+    return { tone: 'ok' as const, msg: 'The edited travel questions were removed — the form is back to the ones written for this retreat in code (or none).' };
+  }
+  if (p.get('transport_failed')) {
+    const reason = p.get('transport_failed') ?? '';
+    const readable: Record<string, string> = {
+      'empty-brief': 'write what the travel questions should ask first.',
+      'no-draft': 'there is no valid draft to publish.',
+      'needs-migration': 'the database needs migration 0087 first (it applies on merge, or run the “D1 migrate” workflow on this branch).',
+    };
+    return { tone: 'err' as const, msg: `Travel questions not changed — ${readable[reason] ?? reason}` };
+  }
+  if (p.get('sheet_synced')) {
+    const n = Number(p.get('sheet_synced') ?? '0');
+    return { tone: 'ok' as const, msg: `Google Sheet updated — ${n} ${n === 1 ? 'person' : 'people'} on the “${SHEET_TAB}” tab.` };
+  }
+  if (p.get('sheet_cleared')) return { tone: 'ok' as const, msg: 'Google Sheet disconnected. The sheet itself is left as it was.' };
+  if (p.get('sheet_failed')) {
+    const reason = p.get('sheet_failed') ?? '';
+    const readable: Record<string, string> = {
+      'bad-url':
+        'that is not an Apps Script web-app URL. It looks like https://script.google.com/macros/s/…/exec — you get it from Deploy → New deployment in the script editor, not from the sheet’s address bar.',
+      'no-transport-section': 'this retreat has no travel questions yet.',
+      'no-sheet': 'no sheet is connected.',
+    };
+    return { tone: 'err' as const, msg: `Google Sheet not updated — ${readable[reason] ?? reason}` };
   }
   if (p.get('wl_offered')) {
     return { tone: 'ok' as const, msg: 'Place offered — the claim link is on its way, and the place is held until it expires.' };
@@ -1297,6 +1486,423 @@ const flash = (() => {
       )}
     </section>
 
+    <!-- ─── Intake ─── -->
+    <section class="adm-section" id="intake">
+      <div class="adm-section-head">
+        <h2>
+          Intake
+          <small>(the screening form, and travel details, for every booked guest)</small>
+        </h2>
+        {intakeCounts && (
+          <div class="adm-wl-counts">
+            <span><strong>{intakeCounts.guests}</strong> {intakeCounts.guests === 1 ? 'guest' : 'guests'}</span>
+            <span>· <strong>{intakeCounts.invited}</strong> invited</span>
+            <span>· <strong>{intakeCounts.submitted}</strong> submitted</span>
+            {intakePanel.state === 'linked' && intakePanel.transport && (
+              <span>· <strong>{intakeCounts.travel}</strong> travel details in</span>
+            )}
+          </div>
+        )}
+      </div>
+
+      {intakePanel.state === 'error' && (
+        <p class="adm-empty">{intakePanel.message}</p>
+      )}
+
+      {intakePanel.state === 'unlinked' && (
+        <div class="adm-rintake-setup">
+          <p class="adm-table-note">This retreat has no intake yet. Create one and every paid guest appears here, ready to invite — one by one or all at once.</p>
+          <form method="POST" action="/api/admin/retreat-intake/link" class="adm-wl-add-form">
+            <input type="hidden" name="product_slug" value={productSlug} />
+            <input type="hidden" name="action" value="create" />
+            <label>
+              Emails in
+              <select name="invite_locale">
+                <option value="en" selected>English</option>
+                <option value="nl">Nederlands</option>
+              </select>
+            </label>
+            <button type="submit" class="adm-btn adm-btn--solid">Create the intake for this retreat</button>
+          </form>
+          {intakePanel.candidates.length > 0 && (
+            <form method="POST" action="/api/admin/retreat-intake/link" class="adm-wl-add-form">
+              <input type="hidden" name="product_slug" value={productSlug} />
+              <input type="hidden" name="action" value="link" />
+              <label>
+                Or link one you already made
+                <select name="intake_slug" required>
+                  <option value="">— choose an intake —</option>
+                  {intakePanel.candidates.map((c) => (
+                    <option value={c.slug}>{c.name} ({c.slug}){c.active ? '' : ' · inactive'}</option>
+                  ))}
+                </select>
+              </label>
+              <button type="submit" class="adm-btn">Link</button>
+            </form>
+          )}
+        </div>
+      )}
+
+      {intakePanel.state === 'linked' && intakeCounts && (() => {
+        const { intake, roster, transport, transportSource, builtIn, draft, answeredKeys, sheetSecret, table } = intakePanel;
+        // Questions that hold answers and would disappear (or change kind) if
+        // this draft were published — the answers stay stored, but stop
+        // showing on the sheet and the admin tables.
+        const draftWarnings = (() => {
+          if (!draft) return [] as string[];
+          const inDraft = new Map(draft.questions.map((q) => [q.key, q]));
+          const now = new Map((transport?.questions ?? []).map((q) => [q.key, q]));
+          const out: string[] = [];
+          for (const key of answeredKeys) {
+            const was = now.get(key);
+            const next = inDraft.get(key);
+            const name = was ? `“${columnFor(was)}”` : `“${key}”`;
+            if (!next) out.push(`${name} has answers and is not in this draft — those answers would stop showing on the sheet.`);
+            else if (was && was.type !== next.type) out.push(`${name} has answers and changes from ${was.type} to ${next.type}.`);
+          }
+          return out;
+        })();
+        const publicForm = `${publicBase}/intake?event=${encodeURIComponent(intake.slug)}`;
+        const bulk: { kind: IntakeEmailKind; label: string; n: number; confirm: string }[] = [
+          {
+            kind: 'invitation',
+            label: 'Invite everyone not yet invited',
+            n: intakeCounts.invitation,
+            confirm: `Send the intake invitation to ${intakeCounts.invitation} guest(s) who haven't been invited yet?`,
+          },
+          {
+            kind: 'reminder',
+            label: 'Remind everyone still to send it',
+            n: intakeCounts.reminder,
+            confirm: `Send a reminder to ${intakeCounts.reminder} invited guest(s) whose intake hasn't come in?`,
+          },
+          {
+            kind: 'final',
+            label: 'Final note',
+            n: intakeCounts.final,
+            confirm: `Send the final note to ${intakeCounts.final} invited guest(s) whose intake hasn't come in?`,
+          },
+        ];
+        if (transport) {
+          bulk.push({
+            kind: 'transport',
+            label: 'Ask travel details',
+            n: intakeCounts.transport,
+            confirm: `Email the travel questions to ${intakeCounts.transport} guest(s) who sent their intake but no travel details yet?`,
+          });
+        }
+        return (
+          <>
+            <div class="adm-rintake-meta">
+              <strong>{intake.name}</strong> <code>{intake.slug}</code>
+              · emails in {intake.invite_locale === 'en' ? 'English' : 'Dutch'}
+              {!intake.active && <span class="adm-pill adm-pill--cancelled">inactive — the form is closed</span>}
+              · <a href={publicForm} target="_blank" rel="noopener">Open the form ↗</a>
+              · <a href={`/admin/intakes/retreats#retreat-${intake.slug}`}>Settings &amp; add people by hand</a>
+              · <a href={`/admin/intakes/retreat-pdf?event=${encodeURIComponent(intake.slug)}`} target="_blank" rel="noopener">Assessments PDF ↗</a>
+              <form method="POST" action="/api/admin/retreat-intake/link" class="adm-rintake-unlink"
+                    onsubmit={`return confirm(${JSON.stringify('Unlink this intake from the retreat? Nothing is deleted — its invitees and answers stay on the intakes page, and it can be linked again.')})`}>
+                <input type="hidden" name="product_slug" value={productSlug} />
+                <input type="hidden" name="action" value="unlink" />
+                <button type="submit" class="adm-btn adm-btn--tiny adm-btn--ghost">Unlink</button>
+              </form>
+            </div>
+
+            <div class="adm-balance-bar adm-rintake-bulk">
+              <span>Send to everyone it applies to:</span>
+              <div class="adm-rintake-bulk-actions">
+                {bulk.map((b) => (
+                  <form method="POST" action="/api/admin/retreat-intake/send"
+                        onsubmit={`return confirm(${JSON.stringify(b.confirm)})`}>
+                    <input type="hidden" name="product_slug" value={productSlug} />
+                    <input type="hidden" name="kind" value={b.kind} />
+                    <input type="hidden" name="scope" value="all" />
+                    <button type="submit" class={`adm-btn ${b.kind === 'invitation' ? 'adm-btn--solid' : 'adm-btn--ghost'}`} disabled={b.n === 0}>
+                      {b.label} ({b.n})
+                    </button>
+                  </form>
+                ))}
+              </div>
+            </div>
+
+            {roster.length === 0 ? (
+              <p class="adm-empty">No paid guests yet — they appear here as soon as a booking is paid.</p>
+            ) : (
+              <table class="adm-table adm-table--waitlist">
+                <thead>
+                  <tr>
+                    <th>Guest</th>
+                    <th>Intake</th>
+                    <th>Assessment</th>
+                    {transport && <th>Travel</th>}
+                    <th>Send</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {roster.map((r) => {
+                    const st = intakeStatus(r);
+                    const done = isSubmitted(r);
+                    const inv = r.invitation;
+                    const sendBtn = (kind: IntakeEmailKind, label: string, last: string | null | undefined) => (
+                      <form method="POST" action="/api/admin/retreat-intake/send">
+                        <input type="hidden" name="product_slug" value={productSlug} />
+                        <input type="hidden" name="kind" value={kind} />
+                        <input type="hidden" name="email" value={r.email} />
+                        <button type="submit" class="adm-btn adm-btn--tiny"
+                                title={last ? `Send again (last: ${ymd(last)})` : `Send the ${INTAKE_KIND_LABEL[kind]}`}>
+                          {label}{last ? ' ↻' : ''}
+                        </button>
+                      </form>
+                    );
+                    return (
+                      <tr class={done ? 'adm-rintake-row--done' : ''}>
+                        <td class="adm-wl-who">
+                          <strong>{tidyName(r.name) || r.email}</strong>
+                          <a href={`mailto:${r.email}`}>{r.email}</a>
+                          {r.registrationId == null && (
+                            <span class="adm-wl-meta">added by hand · no paid booking</span>
+                          )}
+                          {!r.emailable && (
+                            <span class="adm-wl-meta">no address of their own on the booking — add it by hand on the intakes page</span>
+                          )}
+                        </td>
+                        <td>
+                          <span class={`adm-pill adm-pill--${st.tone}`}>{st.label}</span>
+                          <div class="adm-wl-offer-meta">
+                            {inv?.invitation_sent_at && <div>invited {ymd(inv.invitation_sent_at)}</div>}
+                            {inv?.reminder_sent_at && <div>reminded {ymd(inv.reminder_sent_at)}</div>}
+                            {inv?.final_sent_at && <div>final note {ymd(inv.final_sent_at)}</div>}
+                            {r.submission && <div>sent {ymd(r.submission.created_at)}</div>}
+                            {inv && !done && (
+                              <input
+                                class="adm-wl-link"
+                                type="text"
+                                readonly
+                                value={intakeLink(publicBase, inv)}
+                                onclick="this.select()"
+                                aria-label={`Intake link for ${r.name || r.email}`}
+                              />
+                            )}
+                          </div>
+                        </td>
+                        <td>
+                          {r.submission ? (
+                            <a class="adm-assess-link" href={`/admin/intakes/${r.submission.id}`} title="Open the intake">
+                              <span class={`adm-pill ${pillClassFor(r.submission.classification)}`}>{classificationLabel(r.submission.classification)}</span>
+                              <span class="adm-assess-arrow" aria-hidden="true">→</span>
+                            </a>
+                          ) : (
+                            <span class="adm-assess-empty">—</span>
+                          )}
+                        </td>
+                        {transport && (
+                          <td>
+                            {r.transportAt ? (
+                              <span class="adm-pill adm-pill--paid">✓ {ymd(r.transportAt).slice(0, 10)}</span>
+                            ) : (
+                              <span class="adm-assess-empty">—</span>
+                            )}
+                            {inv?.transport_sent_at && (
+                              <div class="adm-wl-offer-meta"><div>asked {ymd(inv.transport_sent_at)}</div></div>
+                            )}
+                          </td>
+                        )}
+                        <td>
+                          <div class="adm-rintake-send">
+                            {!r.emailable && <span class="adm-assess-empty">—</span>}
+                            {r.emailable && !done && sendBtn('invitation', 'Invite', inv?.invitation_sent_at)}
+                            {r.emailable && !done && inv?.invitation_sent_at && sendBtn('reminder', 'Reminder', inv.reminder_sent_at)}
+                            {r.emailable && !done && inv?.invitation_sent_at && sendBtn('final', 'Final', inv.final_sent_at)}
+                            {r.emailable && transport && done && sendBtn('transport', 'Travel', inv?.transport_sent_at)}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+            <p class="adm-table-note">
+              Every <strong>paid</strong> booking is listed (hosts and cook excluded; a bank transfer joins once it is marked paid). A partner booked without an address of their own is listed but never mailed — add their real address on the intakes page and they appear below with their own buttons. <strong>Invite</strong> emails the guest their own intake link, which opens with their name and email already filled in; <strong>Reminder</strong> and <strong>Final</strong> follow once they are invited, and all three stop the moment their intake comes in. The bulk buttons send each email only to the people it applies to — the number on the button is who it reaches.
+              {transport && ' The travel questions are part of the intake itself; Travel sends them on their own — to someone who sent the intake before they existed, or whose plans changed (a newer answer replaces the older one).'}
+            </p>
+
+            <div class="adm-rintake-transport">
+              <h3>Travel questions</h3>
+              {transport ? (
+                <>
+                  <p class="adm-table-note">
+                    {transport.questions.length} questions, asked only where they apply:
+                    {' '}{transport.questions.map(columnFor).join(' · ')}.
+                    {' '}{transportSource === 'admin'
+                      ? `Edited on this page${intake.transport_updated_at ? `, published ${ymd(intake.transport_updated_at)} UTC` : ''}.`
+                      : 'Written for this retreat in the site’s code.'}
+                    {' '}<a href={`${publicForm}&only=transport`} target="_blank" rel="noopener">Open the travel form ↗</a>
+                    {' '}(sending it adds a row).
+                  </p>
+                  <details class="adm-wl-add">
+                    <summary>See the questions</summary>
+                    <TransportQuestionList section={transport} answeredKeys={answeredKeys} />
+                  </details>
+                </>
+              ) : (
+                <p class="adm-table-note">This retreat asks no travel questions yet. Describe below what the team needs to know, and Claude drafts them.</p>
+              )}
+
+              {draft && (
+                <div class="adm-rintake-draft">
+                  <h4>Draft from Claude — not live yet</h4>
+                  {intake.transport_draft_summary && (
+                    <p class="adm-rintake-draft-summary">{intake.transport_draft_summary}</p>
+                  )}
+                  {draftWarnings.map((w) => <p class="adm-rintake-warn">⚠ {w}</p>)}
+                  <TransportQuestionList section={draft} answeredKeys={answeredKeys} />
+                  <div class="adm-rintake-bulk-actions">
+                    <a class="adm-btn adm-btn--ghost" href={`${publicForm}&only=transport&preview=draft`} target="_blank" rel="noopener">Try the draft ↗</a>
+                    <form method="POST" action="/api/admin/retreat-intake/transport"
+                          onsubmit={`return confirm(${JSON.stringify(
+                            draftWarnings.length
+                              ? `Publish these travel questions? ${draftWarnings.join(' ')}`
+                              : 'Publish these travel questions? The form, the travel email and the sheet use them from now on.',
+                          )})`}>
+                      <input type="hidden" name="product_slug" value={productSlug} />
+                      <input type="hidden" name="action" value="publish" />
+                      <button type="submit" class="adm-btn adm-btn--solid">Publish</button>
+                    </form>
+                    <form method="POST" action="/api/admin/retreat-intake/transport">
+                      <input type="hidden" name="product_slug" value={productSlug} />
+                      <input type="hidden" name="action" value="discard" />
+                      <button type="submit" class="adm-btn adm-btn--ghost">Discard</button>
+                    </form>
+                  </div>
+                </div>
+              )}
+
+              <form method="POST" action="/api/admin/retreat-intake/transport" class="adm-rintake-brief" data-claude-draft>
+                <input type="hidden" name="product_slug" value={productSlug} />
+                <input type="hidden" name="action" value="draft" />
+                <label>
+                  {transport || draft ? 'Change the questions with Claude' : 'Write the travel questions with Claude'}
+                  <textarea
+                    name="brief"
+                    rows="4"
+                    required
+                    maxlength="4000"
+                    placeholder={transport || draft
+                      ? 'E.g. “Also ask whether they need a vegetarian meal on the shuttle”, or “Drop the departure questions — everyone leaves on the group transfer.”'
+                      : `E.g. “Ask how people are travelling to ${product.name}, when they arrive, and whether they can offer someone a lift.”`}
+                  ></textarea>
+                </label>
+                <div class="adm-rintake-brief-row">
+                  <button type="submit" class="adm-btn adm-btn--solid">Draft with Claude</button>
+                  <span class="adm-table-note">
+                    Claude writes the full set in English and Dutch{draft ? ', building on the draft above' : transport ? ', starting from today’s questions' : ''}. Nothing changes for guests until you press Publish. Takes up to a minute or two.
+                  </span>
+                </div>
+                {intake.transport_brief && (
+                  <p class="adm-table-note">Last instruction: “{intake.transport_brief}”</p>
+                )}
+              </form>
+
+              {transportSource === 'admin' && (
+                <form method="POST" action="/api/admin/retreat-intake/transport"
+                      onsubmit={`return confirm(${JSON.stringify(
+                        builtIn
+                          ? 'Go back to the travel questions written in the site’s code for this retreat? The version edited here is removed.'
+                          : 'Remove the travel questions? This retreat has none in code, so the form stops asking about travel.',
+                      )})`}>
+                  <input type="hidden" name="product_slug" value={productSlug} />
+                  <input type="hidden" name="action" value="revert" />
+                  <button type="submit" class="adm-btn adm-btn--tiny adm-btn--ghost">
+                    {builtIn ? 'Go back to the built-in questions' : 'Remove the travel questions'}
+                  </button>
+                </form>
+              )}
+
+              {transport && (
+                <>
+                  <h3 class="adm-rintake-subhead">Google Sheet</h3>
+                  {intake.sheet_url ? (
+                    <div class="adm-rintake-sheet">
+                      <p>
+                        {intake.sheet_error ? (
+                          <span class="adm-pill adm-pill--full">last push failed</span>
+                        ) : intake.sheet_synced_at ? (
+                          <span class="adm-pill adm-pill--paid">connected</span>
+                        ) : (
+                          <span class="adm-pill adm-pill--low">connected · not pushed yet</span>
+                        )}
+                        {' '}{intake.sheet_synced_at ? `Last pushed ${ymd(intake.sheet_synced_at)} UTC to the “${SHEET_TAB}” tab.` : ''}
+                        {intake.sheet_error && <span class="adm-rintake-sheet-error"> {intake.sheet_error}</span>}
+                      </p>
+                      <div class="adm-rintake-bulk-actions">
+                        <form method="POST" action="/api/admin/retreat-intake/sheet">
+                          <input type="hidden" name="product_slug" value={productSlug} />
+                          <input type="hidden" name="action" value="sync" />
+                          <button type="submit" class="adm-btn adm-btn--solid">Push to the sheet now</button>
+                        </form>
+                        <form method="POST" action="/api/admin/retreat-intake/sheet"
+                              onsubmit={`return confirm(${JSON.stringify('Disconnect the Google Sheet? The sheet keeps what is in it; it just stops being updated.')})`}>
+                          <input type="hidden" name="product_slug" value={productSlug} />
+                          <input type="hidden" name="action" value="clear" />
+                          <button type="submit" class="adm-btn adm-btn--ghost">Disconnect</button>
+                        </form>
+                      </div>
+                    </div>
+                  ) : (
+                    <p class="adm-table-note"><strong>No Google Sheet connected yet.</strong> The answers are stored here either way — connecting a sheet copies them over, now and every time someone answers.</p>
+                  )}
+
+                  <details class="adm-wl-add" open={!intake.sheet_url}>
+                    <summary>{intake.sheet_url ? 'Change the sheet' : 'Connect a Google Sheet (about 3 minutes)'}</summary>
+                    <ol class="adm-rintake-steps">
+                      <li>Open (or create) the Google Sheet the answers should go to.</li>
+                      <li>In the sheet: <strong>Extensions → Apps Script</strong>. Delete what’s in the editor and paste the script below. Save.</li>
+                      <li><strong>Deploy → New deployment</strong>, type <strong>Web app</strong>, execute as <strong>Me</strong>, who has access <strong>Anyone</strong>. Deploy, and allow the access Google asks for.</li>
+                      <li>Copy the <strong>Web app URL</strong> (it ends in <code>/exec</code>), paste it here and save. The answers appear on a tab called “{SHEET_TAB}”.</li>
+                    </ol>
+                    <textarea class="adm-rintake-script" readonly rows="10" onclick="this.select()" aria-label="Apps Script to paste into the sheet">{appsScriptSource(sheetSecret ?? '', intake.name)}</textarea>
+                    <form method="POST" action="/api/admin/retreat-intake/sheet" class="adm-wl-add-form">
+                      <input type="hidden" name="product_slug" value={productSlug} />
+                      <input type="hidden" name="action" value="save" />
+                      <label class="adm-wl-add-notes">
+                        Web app URL
+                        <input type="url" name="sheet_url" required placeholder="https://script.google.com/macros/s/…/exec" value={intake.sheet_url ?? ''} />
+                      </label>
+                      <button type="submit" class="adm-btn adm-btn--solid">Save &amp; push</button>
+                    </form>
+                    <p class="adm-table-note">The script only accepts pushes carrying this retreat’s secret (it is in the script), and only ever rewrites the columns it owns on its own tab — add your own notes in columns to the right, or on another tab. Rows stay in the order people first answered.</p>
+                  </details>
+
+                  {table && (
+                    <details class="adm-wl-add">
+                      <summary>Travel answers ({table.rows.length})</summary>
+                      {table.rows.length === 0 ? (
+                        <p class="adm-empty">No travel details yet.</p>
+                      ) : (
+                        <div class="adm-rintake-answers">
+                          <table class="adm-table adm-table--waitlist">
+                            <thead>
+                              <tr>{table.header.map((h) => <th>{h}</th>)}</tr>
+                            </thead>
+                            <tbody>
+                              {table.rows.map((row) => (
+                                <tr>{row.map((v) => <td>{v || '—'}</td>)}</tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </details>
+                  )}
+                </>
+              )}
+            </div>
+          </>
+        );
+      })()}
+    </section>
+
     <!-- ─── Registrations ─── -->
     <section class="adm-section">
       <h2>
@@ -1538,6 +2144,19 @@ const flash = (() => {
   </main>
 
   <script is:inline>
+    // "Draft with Claude" waits on the Claude API for up to a couple of
+    // minutes: say so on the button, and stop a second press from starting a
+    // second (billed) draft.
+    document.querySelectorAll('form[data-claude-draft]').forEach((form) => {
+      form.addEventListener('submit', () => {
+        const btn = form.querySelector('button[type="submit"]');
+        if (btn) {
+          btn.disabled = true;
+          btn.textContent = 'Claude is drafting… (up to 2 min)';
+        }
+      });
+    });
+
     // Save a room assignment without a full page reload (so the view doesn't
     // jump back to the top). Only the per-registration assign forms are
     // intercepted; bulk/delete/mark-paid forms keep their normal redirect.

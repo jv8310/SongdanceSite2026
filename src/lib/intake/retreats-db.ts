@@ -17,12 +17,26 @@ export interface RetreatRow {
   invite_locale: Locale;
   created_at: string;
   updated_at: string;
+  // Migration 0085. Read with SELECT * so this module keeps working against a
+  // database the migration hasn't reached yet (a preview deploy shares the
+  // live D1) — the fields are simply absent there.
+  product_id?: number | null;
+  sheet_url?: string | null;
+  sheet_secret?: string | null;
+  sheet_synced_at?: string | null;
+  sheet_error?: string | null;
+  // Migration 0087 — travel questions edited from the admin (transport.ts).
+  transport_json?: string | null;
+  transport_draft_json?: string | null;
+  transport_draft_summary?: string | null;
+  transport_brief?: string | null;
+  transport_updated_at?: string | null;
 }
 
 export async function listRetreats(db: D1Database): Promise<RetreatRow[]> {
   const q = await db
     .prepare(
-      `SELECT slug, name, flavour, active, invite_locale, created_at, updated_at
+      `SELECT *
          FROM intake_retreats
          ORDER BY active DESC, name`,
     )
@@ -36,7 +50,7 @@ export async function getRetreat(
 ): Promise<RetreatRow | null> {
   const row = await db
     .prepare(
-      `SELECT slug, name, flavour, active, invite_locale, created_at, updated_at
+      `SELECT *
          FROM intake_retreats
          WHERE slug = ?`,
     )

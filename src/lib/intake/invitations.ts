@@ -11,6 +11,7 @@
 // /api/intake/submit endpoint marks submitted_at when the form arrives.
 
 import type { Locale } from './copy';
+import { tidyFirstName } from '../email/names';
 
 export interface InvitationRow {
   id: string;
@@ -23,9 +24,16 @@ export interface InvitationRow {
   final_sent_at: string | null;
   submitted_at: string | null;
   created_at: string;
+  // Migration 0085 — absent on a database it hasn't reached (reads use
+  // SELECT * for exactly that reason).
+  full_name?: string | null;
+  transport_sent_at?: string | null;
 }
 
 export type InvitationKind = 'invitation' | 'reminder' | 'final';
+// The travel-questions email: the transport section on its own, for a guest
+// who already sent the intake (see transport.ts).
+export type IntakeEmailKind = InvitationKind | 'transport';
 
 export interface ParsedLine {
   first_name: string | null;
@@ -91,9 +99,7 @@ export async function listInvitations(
 ): Promise<InvitationRow[]> {
   const q = await db
     .prepare(
-      `SELECT id, token, retreat_slug, first_name, email,
-              invitation_sent_at, reminder_sent_at, final_sent_at,
-              submitted_at, created_at
+      `SELECT *
          FROM intake_invitations
          WHERE retreat_slug = ?
          ORDER BY submitted_at IS NOT NULL, created_at DESC`,
@@ -109,9 +115,7 @@ export async function getInvitationByToken(
 ): Promise<InvitationRow | null> {
   const row = await db
     .prepare(
-      `SELECT id, token, retreat_slug, first_name, email,
-              invitation_sent_at, reminder_sent_at, final_sent_at,
-              submitted_at, created_at
+      `SELECT *
          FROM intake_invitations
          WHERE token = ?`,
     )
@@ -126,9 +130,7 @@ export async function getInvitationById(
 ): Promise<InvitationRow | null> {
   const row = await db
     .prepare(
-      `SELECT id, token, retreat_slug, first_name, email,
-              invitation_sent_at, reminder_sent_at, final_sent_at,
-              submitted_at, created_at
+      `SELECT *
          FROM intake_invitations
          WHERE id = ?`,
     )
@@ -147,9 +149,7 @@ export async function findInvitationForSubmission(
 ): Promise<InvitationRow | null> {
   const row = await db
     .prepare(
-      `SELECT id, token, retreat_slug, first_name, email,
-              invitation_sent_at, reminder_sent_at, final_sent_at,
-              submitted_at, created_at
+      `SELECT *
          FROM intake_invitations
          WHERE retreat_slug = ? AND email = ?`,
     )
@@ -187,8 +187,9 @@ export interface EmailContent {
 }
 
 function greeting(locale: Locale, first_name: string | null): string {
-  if (locale === 'nl') return first_name ? `Dag ${first_name},` : 'Dag,';
-  return first_name ? `Hi ${first_name},` : 'Hi,';
+  const name = tidyFirstName(first_name);
+  if (locale === 'nl') return name ? `Dag ${name},` : 'Dag,';
+  return name ? `Hi ${name},` : 'Hi,';
 }
 
 function signoff(locale: Locale): string {
@@ -256,14 +257,52 @@ export function buildInvitationEmail(args: {
   vars: TplVars;
 }): EmailContent {
   const { kind, locale, vars } = args;
-  const subject = subjectFor(kind, locale, vars.event_name);
-  const greet = greeting(locale, vars.first_name);
-  const body = bodyCopy(kind, locale, vars.event_name);
-  const cta = ctaLabel(locale);
-  const ctaBtn = ctaButtonLabel(locale);
-  const sig = signoff(locale);
+  return renderEmail({
+    subject: subjectFor(kind, locale, vars.event_name),
+    greet: greeting(locale, vars.first_name),
+    body: bodyCopy(kind, locale, vars.event_name),
+    cta: ctaLabel(locale),
+    ctaBtn: ctaButtonLabel(locale),
+    sig: signoff(locale),
+    link: vars.link,
+  });
+}
 
-  const text = `${greet}\n\n${body}\n\n${cta}\n${vars.link}\n\n${sig}`;
+// The transport section on its own. `why` is the section's own sentence about
+// what the answers are for (the shuttle, the lifts…), so the email says the
+// retreat-specific thing without a template per retreat.
+export function buildTransportEmail(args: {
+  locale: Locale;
+  vars: TplVars & { why: string };
+}): EmailContent {
+  const { locale, vars } = args;
+  const nl = locale === 'nl';
+  return renderEmail({
+    subject: nl
+      ? `Je reis naar ${vars.event_name} — een paar praktische vragen`
+      : `Getting to ${vars.event_name} — a few practical questions`,
+    greet: greeting(locale, vars.first_name),
+    body: nl
+      ? `${vars.why}\n\nHet invullen duurt maar een paar minuten. Weet je nog niet alles? Stuur wat je al weet — met dezelfde link kan je het later aanvullen of aanpassen.`
+      : `${vars.why}\n\nIt only takes a couple of minutes. Don’t know everything yet? Send what you have — the same link lets you update it later.`,
+    cta: nl ? 'Vul je reisgegevens hier in:' : 'Fill in your travel details here:',
+    ctaBtn: nl ? 'Naar de vragen' : 'Open the questions',
+    sig: signoff(locale),
+    link: vars.link,
+  });
+}
+
+function renderEmail(p: {
+  subject: string;
+  greet: string;
+  body: string;
+  cta: string;
+  ctaBtn: string;
+  sig: string;
+  link: string;
+}): EmailContent {
+  const { subject, greet, body, cta, ctaBtn, sig, link } = p;
+  const text = `${greet}\n\n${body}\n\n${cta}\n${link}\n\n${sig}`;
 
   const html = `<!DOCTYPE html>
 <html><head><meta charset="UTF-8" /><title>${escapeHtml(subject)}</title></head>
@@ -280,7 +319,7 @@ export function buildInvitationEmail(args: {
         <p style="margin:28px 0 14px;font-family:Georgia,serif;font-size:15px;color:#4A3848;">${escapeHtml(cta)}</p>
         <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0;">
           <tr><td align="center" bgcolor="#2A1B2A" style="border-radius:999px;">
-            <a href="${escapeHtml(vars.link)}" style="display:inline-block;padding:14px 30px;font-family:Helvetica,Arial,sans-serif;font-size:15px;font-weight:500;letter-spacing:0.01em;color:#F4ECDF;text-decoration:none;border-radius:999px;">${escapeHtml(ctaBtn)} &rarr;</a>
+            <a href="${escapeHtml(link)}" style="display:inline-block;padding:14px 30px;font-family:Helvetica,Arial,sans-serif;font-size:15px;font-weight:500;letter-spacing:0.01em;color:#F4ECDF;text-decoration:none;border-radius:999px;">${escapeHtml(ctaBtn)} &rarr;</a>
           </td></tr>
         </table>
         <p style="margin:36px 0 0;font-family:Georgia,serif;font-size:16px;line-height:1.7;color:#2A1B2A;white-space:pre-line;">${escapeHtml(sig)}</p>
@@ -296,8 +335,9 @@ export function buildInvitationEmail(args: {
   return { subject, html, text };
 }
 
-export function timestampColumnFor(kind: InvitationKind): string {
+export function timestampColumnFor(kind: IntakeEmailKind): string {
   if (kind === 'invitation') return 'invitation_sent_at';
   if (kind === 'reminder') return 'reminder_sent_at';
+  if (kind === 'transport') return 'transport_sent_at';
   return 'final_sent_at';
 }

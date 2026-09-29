@@ -12,6 +12,12 @@ import {
   buildQAList,
   type IntakeRow,
 } from '../../../lib/intake/admin';
+import { transportSectionForIntake } from '../../../lib/intake/send';
+import {
+  parseTransportAnswers,
+  transportAnswersFrom,
+  transportQA,
+} from '../../../lib/intake/transport';
 
 export const prerender = false;
 
@@ -50,6 +56,28 @@ try {
 }
 
 const qaList = buildQAList(payload);
+
+// The retreat's travel questions, when it has any. The newest answer wins —
+// the travel-only form may have replaced what came with this intake — so the
+// stored row is shown when there is one, else what this intake carried.
+const transport = await transportSectionForIntake(env.DB, row.event_code);
+let travel: { question: string; answer: string }[] = [];
+let travelUpdated: string | null = null;
+if (transport) {
+  const stored = await env.DB
+    .prepare(
+      `SELECT answers_json, updated_at FROM intake_transport_answers
+        WHERE event_code = ? AND email = ?`,
+    )
+    .bind(row.event_code, row.email.toLowerCase())
+    .first<{ answers_json: string; updated_at: string }>()
+    .catch(() => null);
+  const answers = stored
+    ? parseTransportAnswers(stored.answers_json)
+    : transportAnswersFrom(transport, payload);
+  travelUpdated = stored?.updated_at ?? null;
+  if (Object.keys(answers).length > 0) travel = transportQA(transport, answers);
+}
 const summary = extractSummary(row.assessment_md);
 const assessmentHtml = row.assessment_md
   ? renderAssessmentMarkdown(row.assessment_md)
@@ -168,6 +196,23 @@ const pageTitle = `Intake — ${row.full_name ?? row.email} — Songdance`;
         </div>
       )}
     </section>
+
+    {travel.length > 0 && (
+      <section class="adm-section">
+        <h2>
+          Travel
+          {travelUpdated && <small>(latest answer, {travelUpdated.slice(0, 16)} UTC)</small>}
+        </h2>
+        <div class="adm-intake-answers">
+          {travel.map((qa) => (
+            <dl class="adm-intake-qa">
+              <dt set:html={escapeHtml(qa.question)} />
+              <dd set:html={escapeHtml(qa.answer)} />
+            </dl>
+          ))}
+        </div>
+      </section>
+    )}
 
     <section class="adm-section">
       <h2>Answers</h2>

@@ -139,6 +139,8 @@ html, body {
 .in-field input[type="text"],
 .in-field input[type="email"],
 .in-field input[type="number"],
+.in-field input[type="date"],
+.in-field input[type="time"],
 .in-field textarea {
   width: 100%;
   background: var(--paper-soft);
@@ -161,6 +163,11 @@ html, body {
 .in-field input[type="number"]::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
+}
+.in-field input[type="date"],
+.in-field input[type="time"] {
+  max-width: 240px;
+  min-height: 54px;
 }
 .in-field textarea {
   min-height: 140px;
@@ -387,4 +394,15 @@ html, body {
   .in-btn { padding: 12px 22px; font-size: 14px; }
   .in-field input,
   .in-field textarea { font-size: 16px; } /* avoid iOS zoom */
+}
+
+/* Admin trying an unpublished draft of the travel questions */
+.in-preview-banner {
+  margin: 0;
+  padding: 10px 16px;
+  background: var(--ember);
+  color: #fff;
+  font-family: var(--font-body);
+  font-size: 14px;
+  text-align: center;
 }

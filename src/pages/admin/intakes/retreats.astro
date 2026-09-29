@@ -16,6 +16,17 @@ if (!authed) {
 
 const dbRetreats = await listRetreats(env.DB);
 
+// Which retreat (product) each intake is linked to — set from the retreat's
+// own admin page, where its guests are invited (migration 0085).
+const retreatProducts = new Map<number, { slug: string; name: string }>();
+for (const p of (
+  await env.DB
+    .prepare(`SELECT id, slug, name FROM products WHERE type = 'retreat'`)
+    .all<{ id: number; slug: string; name: string }>()
+).results ?? []) {
+  retreatProducts.set(p.id, { slug: p.slug, name: p.name });
+}
+
 const siteOrigin = new URL(Astro.request.url).origin;
 function intakeUrl(slug: string, token?: string): string {
   const base = `${siteOrigin}/intake?event=${encodeURIComponent(slug)}`;
@@ -117,8 +128,14 @@ function statusOf(row: InvitationRow): { label: string; tone: string } {
           {dbRetreats.map((r) => {
             const invitations = invitationsByRetreat.get(r.slug) ?? [];
             const submitted = invitations.filter((i) => i.submitted_at).length;
+            const linked = r.product_id != null ? retreatProducts.get(r.product_id) : undefined;
             return (
               <article class="adm-retreat-card" id={`retreat-${r.slug}`}>
+                {linked && (
+                  <p class="adm-sub">
+                    Linked to <a href={`/admin/retreats/${linked.slug}#intake`}>{linked.name}</a> — invite its booked guests from there.
+                  </p>
+                )}
                 <form method="POST" action="/api/admin/save-retreat" class="adm-retreat-row">
                   <input type="hidden" name="original_slug" value={r.slug} />
                   <div class="adm-retreat-grid">

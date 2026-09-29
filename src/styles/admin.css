@@ -1173,3 +1173,92 @@ body { background: var(--adm-paper); }
 .adm-wl-add-notes { flex: 1; min-width: 220px; }
 .adm-wl-add-notes input { width: 100%; }
 .adm-mute { color: var(--adm-mute); }
+
+/* ─── Retreat intake (/admin/retreats/<slug> → Intake) ─── */
+.adm-rintake-setup { display: flex; flex-direction: column; gap: 10px; }
+.adm-rintake-setup .adm-wl-add-form { margin-top: 0; }
+.adm-rintake-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--adm-ink-soft);
+}
+.adm-rintake-meta strong { color: var(--adm-ink); }
+.adm-rintake-unlink { margin: 0 0 0 auto; }
+.adm-rintake-bulk { flex-wrap: wrap; }
+.adm-rintake-bulk-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.adm-rintake-bulk-actions form { margin: 0; }
+.adm-rintake-bulk-actions button[disabled] { opacity: 0.45; cursor: default; }
+.adm-rintake-send { display: flex; flex-wrap: wrap; gap: 4px; }
+.adm-rintake-send form { margin: 0; }
+.adm-rintake-row--done td { background: rgba(47, 122, 76, 0.03); }
+.adm-rintake-transport {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--adm-line);
+}
+.adm-rintake-transport h3 {
+  margin: 0 0 6px;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--adm-ink-soft);
+}
+.adm-rintake-sheet { display: flex; flex-direction: column; gap: 8px; margin: 8px 0; font-size: 13px; }
+.adm-rintake-sheet p { margin: 0; }
+.adm-rintake-sheet-error { color: var(--adm-danger); }
+.adm-rintake-steps { margin: 10px 0; padding-left: 20px; font-size: 13px; line-height: 1.6; }
+.adm-rintake-script {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid var(--adm-line);
+  border-radius: 5px;
+  background: var(--adm-paper-soft);
+  color: var(--adm-ink);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  line-height: 1.45;
+}
+.adm-rintake-answers { overflow-x: auto; margin-top: 10px; }
+.adm-rintake-answers td { white-space: pre-wrap; min-width: 90px; }
+/* Travel questions as a readable list (components/admin/TransportQuestionList) */
+.adm-tq { margin: 8px 0 4px; font-size: 13px; }
+.adm-tq-why { margin: 0 0 8px; font-size: 13px; line-height: 1.5; color: var(--adm-ink-soft); }
+.adm-tq-why span { font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; }
+.adm-tq-list { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; }
+.adm-tq-list > li > .adm-pill { margin-left: 6px; font-size: 10px; }
+.adm-tq-meta { font-size: 11px; color: var(--adm-ink-soft); }
+.adm-tq-nl { font-size: 12px; color: var(--adm-ink-soft); }
+.adm-tq-body { font-size: 12px; font-style: italic; color: var(--adm-ink-soft); }
+.adm-tq-options { margin: 2px 0 0; padding-left: 18px; font-size: 12px; }
+.adm-rintake-draft {
+  margin: 12px 0;
+  padding: 12px 14px;
+  border: 1px dashed var(--adm-ember, #c9603a);
+  border-radius: 8px;
+  background: var(--adm-paper-soft);
+}
+.adm-rintake-draft h4 { margin: 0 0 6px; font-size: 13px; }
+.adm-rintake-draft-summary { margin: 0 0 8px; font-size: 13px; }
+.adm-rintake-warn { margin: 0 0 8px; font-size: 12px; color: var(--adm-danger); }
+.adm-rintake-brief { display: flex; flex-direction: column; gap: 6px; margin: 12px 0; }
+.adm-rintake-brief label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--adm-ink-soft); }
+.adm-rintake-brief textarea {
+  padding: 8px 10px;
+  border: 1px solid var(--adm-line);
+  border-radius: 5px;
+  background: #fff;
+  color: var(--adm-ink);
+  font-family: inherit;
+  font-size: 13px;
+  text-transform: none;
+  letter-spacing: normal;
+}
+.adm-rintake-brief-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.adm-rintake-brief-row .adm-table-note { margin: 0; }
+.adm-rintake-transport h3 + h3,
+.adm-rintake-subhead { margin-top: 16px; }

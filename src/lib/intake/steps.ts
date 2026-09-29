@@ -14,6 +14,8 @@ export type StepType =
   | 'email'        // email input with format validation
   | 'number'       // numeric input
   | 'textarea'     // multi-line free text
+  | 'date'         // calendar day (YYYY-MM-DD) — used by transport sections
+  | 'time'         // clock time (HH:MM) — used by transport sections
   | 'radio'        // single-select from a list
   | 'checkboxes'   // multi-select from a list
   | 'consent';     // group of required checkboxes (one screen) — also the submit step
@@ -35,6 +37,9 @@ export interface StepDef {
   showIf?: { stepKey: string; valueIn: string[] };
   // For text/textarea: hard max length on the client.
   maxLength?: number;
+  // For date: the range the picker offers (YYYY-MM-DD).
+  min?: string;
+  max?: string;
   // For consent: the list of consent keys that must all be checked.
   consentKeys?: string[];
 }
