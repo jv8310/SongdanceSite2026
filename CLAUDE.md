@@ -976,9 +976,19 @@ notifications. Lives in [`src/lib/workshops/reports.ts`](src/lib/workshops/repor
 - **Ad economics** is the stats page's per-product card as a table — workshop and
   masterclass registrations, the prospecting spend charged to them day by day,
   cost per registration, made back (courses in full) and ROAS — straight off
-  `computeWorkshopPerformance().audiences`. The digest's "cost per registration"
-  used to be *all* spend (retargeting included) ÷ *all* registrations; there is
-  no such figure on the dashboard.
+  `computeWorkshopPerformance().audiences`, run with **`excludeFutureEvents`**:
+  the table covers **sessions that have run** only. Most of a window's seats are
+  for sessions still ahead, and a seat for a session that hasn't run carries its
+  ad spend but cannot have produced its course sale yet, so counting it in
+  reads every product as losing money (the weekly that prompted this showed
+  the masterclass at 0.45×, all seats counted). Cost and
+  income leave together, and a line under the table says what was set aside
+  (seats, sessions, prospecting spend, the tickets they took) — the same
+  numbers as the dashboard with **Future events → Exclude costs**. The **seat
+  cost cards** above it stay on *every* seat bought in the window (a seat's
+  price doesn't wait for its session), which is the dashboard's default view.
+  The digest's "cost per registration" used to be *all* spend (retargeting
+  included) ÷ *all* registrations; there is no such figure on the dashboard.
 - **Course order bumps are netted of VAT** like every other course figure — they
   are tallied once, in `computeCourseSales().bumps`, which both the digest and
   `/ads` read (each used to keep its own gross-of-VAT copy).
