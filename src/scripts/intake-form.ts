@@ -14,6 +14,8 @@ interface Config {
   locale: Locale;
   // 'transport' = the retreat's travel questions on their own.
   mode?: 'full' | 'transport';
+  // An admin trying an unpublished draft: the form runs, nothing is posted.
+  preview?: boolean;
   eventCode: string;
   eventLabel: string;
   shared: SharedCopy;
@@ -201,6 +203,11 @@ class IntakeApp {
   }
 
   private async submit() {
+    if (this.cfg.preview) {
+      this.phase = 'done';
+      this.render();
+      return;
+    }
     this.phase = 'submitting';
     this.render();
     try {

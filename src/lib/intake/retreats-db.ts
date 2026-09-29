@@ -25,6 +25,12 @@ export interface RetreatRow {
   sheet_secret?: string | null;
   sheet_synced_at?: string | null;
   sheet_error?: string | null;
+  // Migration 0087 — travel questions edited from the admin (transport.ts).
+  transport_json?: string | null;
+  transport_draft_json?: string | null;
+  transport_draft_summary?: string | null;
+  transport_brief?: string | null;
+  transport_updated_at?: string | null;
 }
 
 export async function listRetreats(db: D1Database): Promise<RetreatRow[]> {

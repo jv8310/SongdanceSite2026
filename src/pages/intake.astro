@@ -14,6 +14,7 @@ import {
   transportOnlySteps,
 } from '../lib/intake/transport';
 import { transportSectionForIntake } from '../lib/intake/send';
+import { readCookie, verifySession } from '../lib/registrations/auth';
 
 const url = new URL(Astro.request.url);
 const rawEvent = url.searchParams.get('event');
@@ -22,6 +23,10 @@ const rawToken = url.searchParams.get('inv');
 // ?only=transport — the retreat's travel questions on their own, for a guest
 // who already sent the intake (the "travel questions" email links here).
 const rawOnly = url.searchParams.get('only');
+// ?preview=draft — an admin trying the unpublished travel questions Claude
+// drafted on the retreat page. Only with a valid admin session; nothing is
+// saved (the client never posts in preview).
+const wantsDraft = url.searchParams.get('preview') === 'draft';
 
 const db = Astro.locals.runtime?.env?.DB as D1Database | undefined;
 
@@ -62,7 +67,14 @@ const shared = SHARED[locale];
 
 // The retreat's own travel questions (lib/intake/transport.ts), if it has any:
 // spliced into the intake, or — with ?only=transport — the whole form.
-const transport = db ? await transportSectionForIntake(db, event.code) : null;
+const runtimeEnv = Astro.locals.runtime?.env;
+const previewDraft =
+  wantsDraft && runtimeEnv
+    ? await verifySession(runtimeEnv.ADMIN_SESSION_SECRET, readCookie(Astro.request)).catch(() => false)
+    : false;
+const transport = db
+  ? await transportSectionForIntake(db, event.code, { draft: !!previewDraft })
+  : null;
 const mode: 'full' | 'transport' = rawOnly === 'transport' && transport ? 'transport' : 'full';
 const { steps, copy } =
   mode === 'transport' && transport
@@ -76,6 +88,7 @@ const langSwitchParams = new URLSearchParams();
 if (rawEvent) langSwitchParams.set('event', rawEvent);
 if (rawToken) langSwitchParams.set('inv', rawToken);
 if (mode === 'transport') langSwitchParams.set('only', 'transport');
+if (previewDraft) langSwitchParams.set('preview', 'draft');
 langSwitchParams.set('taal', otherLocale);
 const langSwitchUrl = `/intake?${langSwitchParams.toString()}`;
 
@@ -87,6 +100,7 @@ const prefilledKeys = Object.entries(prefill)
 const config = {
   locale,
   mode,
+  preview: !!previewDraft,
   eventCode: event.code,
   eventLabel,
   inviteToken,
@@ -115,7 +129,18 @@ const config = {
     crisisNote: shared.crisisNote,
   },
   steps,
-  copy,
+  copy: previewDraft
+    ? {
+        ...copy,
+        done: {
+          title: locale === 'nl' ? 'Voorbeeld — er is niets verstuurd.' : 'Preview — nothing was sent.',
+          body:
+            locale === 'nl'
+              ? 'Dit is het ontwerp van de reisvragen. Gasten zien het pas wanneer het op de retraitepagina gepubliceerd is.'
+              : 'This is the draft of the travel questions. Guests only see it once it is published on the retreat page.',
+        },
+      }
+    : copy,
   apiUrl: '/api/intake/submit',
   homeUrl: 'https://songdance.co',
   langSwitchUrl,
@@ -152,6 +177,12 @@ const firstScreen = copy[steps[0]?.key ?? 'welcome'] ?? copy.welcome;
         {shared.langSwitchTo}
       </a>
     </header>
+
+    {previewDraft && (
+      <p class="in-preview-banner">
+        Draft preview — these are the unpublished travel questions. Nothing you enter here is saved.
+      </p>
+    )}
 
     <div class="in-progress-wrap">
       <div class="in-progress-track" aria-hidden="true">

@@ -1225,3 +1225,40 @@ body { background: var(--adm-paper); }
 }
 .adm-rintake-answers { overflow-x: auto; margin-top: 10px; }
 .adm-rintake-answers td { white-space: pre-wrap; min-width: 90px; }
+/* Travel questions as a readable list (components/admin/TransportQuestionList) */
+.adm-tq { margin: 8px 0 4px; font-size: 13px; }
+.adm-tq-why { margin: 0 0 8px; font-size: 13px; line-height: 1.5; color: var(--adm-ink-soft); }
+.adm-tq-why span { font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; }
+.adm-tq-list { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; }
+.adm-tq-list > li > .adm-pill { margin-left: 6px; font-size: 10px; }
+.adm-tq-meta { font-size: 11px; color: var(--adm-ink-soft); }
+.adm-tq-nl { font-size: 12px; color: var(--adm-ink-soft); }
+.adm-tq-body { font-size: 12px; font-style: italic; color: var(--adm-ink-soft); }
+.adm-tq-options { margin: 2px 0 0; padding-left: 18px; font-size: 12px; }
+.adm-rintake-draft {
+  margin: 12px 0;
+  padding: 12px 14px;
+  border: 1px dashed var(--adm-ember, #c9603a);
+  border-radius: 8px;
+  background: var(--adm-paper-soft);
+}
+.adm-rintake-draft h4 { margin: 0 0 6px; font-size: 13px; }
+.adm-rintake-draft-summary { margin: 0 0 8px; font-size: 13px; }
+.adm-rintake-warn { margin: 0 0 8px; font-size: 12px; color: var(--adm-danger); }
+.adm-rintake-brief { display: flex; flex-direction: column; gap: 6px; margin: 12px 0; }
+.adm-rintake-brief label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--adm-ink-soft); }
+.adm-rintake-brief textarea {
+  padding: 8px 10px;
+  border: 1px solid var(--adm-line);
+  border-radius: 5px;
+  background: #fff;
+  color: var(--adm-ink);
+  font-family: inherit;
+  font-size: 13px;
+  text-transform: none;
+  letter-spacing: normal;
+}
+.adm-rintake-brief-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.adm-rintake-brief-row .adm-table-note { margin: 0; }
+.adm-rintake-transport h3 + h3,
+.adm-rintake-subhead { margin-top: 16px; }

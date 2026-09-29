@@ -8,6 +8,12 @@
 // own file under ./transport/ and registered in TRANSPORT_SECTIONS below by the
 // retreat's PRODUCT slug (the same key as /admin/retreats/<slug>).
 //
+// A section can also be edited from the admin without a deploy: on
+// /admin/retreats/<slug> → Intake the admin describes what to ask, the Claude
+// API drafts it (transport-ai.ts), and once published it is stored on the
+// intake row and wins over the file here (transportSectionForIntake in
+// send.ts). Both kinds pass validateTransportSection below.
+//
 // A registered section does three things:
 //   • its questions join the intake form, just before "anything else" — or are
 //     served on their own at /intake?…&only=transport for a guest who already
@@ -387,4 +393,209 @@ export async function listTransportRows(
     .bind(eventCode)
     .all<TransportRow>();
   return q.results ?? [];
+}
+
+// ---------- Validation (sections stored in the database) ----------
+//
+// A section can also be edited from the admin — drafted by the Claude API
+// (transport-ai.ts) and stored on the intake row (migration 0087). Whatever
+// its origin, nothing reaches the form without passing these rules, which are
+// the same ones a hand-written section follows (see the header of this file).
+
+export const TRANSPORT_TYPES: TransportQuestionType[] = [
+  'text',
+  'textarea',
+  'number',
+  'date',
+  'time',
+  'radio',
+  'checkboxes',
+];
+
+const KEY_RE = /^[a-z][a-z0-9_]{0,39}$/;
+const OPTION_RE = /^[a-z0-9][a-z0-9_]{0,39}$/;
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const MAX_QUESTIONS = 25;
+const MAX_OPTIONS = 12;
+
+function cleanLocalized(
+  raw: unknown,
+  where: string,
+  errors: string[],
+  opts: { required: boolean; max: number },
+): Localized | undefined {
+  if (raw === undefined || raw === null) {
+    if (opts.required) errors.push(`${where} is missing.`);
+    return undefined;
+  }
+  if (typeof raw === 'string') {
+    const s = raw.trim();
+    if (!s) {
+      if (opts.required) errors.push(`${where} is empty.`);
+      return undefined;
+    }
+    if (s.length > opts.max) errors.push(`${where} is longer than ${opts.max} characters.`);
+    return s.slice(0, opts.max);
+  }
+  if (typeof raw === 'object' && !Array.isArray(raw)) {
+    const o = raw as { en?: unknown; nl?: unknown };
+    const en = typeof o.en === 'string' ? o.en.trim() : '';
+    const nl = typeof o.nl === 'string' ? o.nl.trim() : '';
+    if (!en) {
+      if (opts.required || nl) errors.push(`${where} has no English text.`);
+      return undefined;
+    }
+    if (en.length > opts.max || nl.length > opts.max) {
+      errors.push(`${where} is longer than ${opts.max} characters.`);
+    }
+    return nl ? { en: en.slice(0, opts.max), nl: nl.slice(0, opts.max) } : { en: en.slice(0, opts.max) };
+  }
+  errors.push(`${where} must be text.`);
+  return undefined;
+}
+
+export type SectionCheck =
+  | { ok: true; section: TransportSection }
+  | { ok: false; errors: string[] };
+
+// Normalise and check a section. Returns the cleaned copy (unknown fields
+// dropped) or every problem found, in words an admin can act on.
+export function validateTransportSection(raw: unknown): SectionCheck {
+  const errors: string[] = [];
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return { ok: false, errors: ['The section is not an object.'] };
+  }
+  const r = raw as Record<string, unknown>;
+  const why = cleanLocalized(r.why, 'The opening sentence ("why")', errors, { required: true, max: 600 });
+  const title = cleanLocalized(r.title, 'The section title', errors, { required: false, max: 120 });
+  const sheetLocale = r.sheetLocale === 'nl' ? 'nl' : r.sheetLocale === 'en' ? 'en' : undefined;
+
+  const rawQs = Array.isArray(r.questions) ? r.questions : [];
+  if (rawQs.length === 0) errors.push('There are no questions.');
+  if (rawQs.length > MAX_QUESTIONS) errors.push(`There are more than ${MAX_QUESTIONS} questions.`);
+
+  const questions: TransportQuestion[] = [];
+  const seen = new Map<string, TransportQuestion>();
+  rawQs.slice(0, MAX_QUESTIONS).forEach((rq, i) => {
+    const n = `Question ${i + 1}`;
+    if (!rq || typeof rq !== 'object' || Array.isArray(rq)) {
+      errors.push(`${n} is not an object.`);
+      return;
+    }
+    const q = rq as Record<string, unknown>;
+    const key = typeof q.key === 'string' ? q.key.trim() : '';
+    if (!KEY_RE.test(key)) {
+      errors.push(`${n} has an invalid key "${key}" (lowercase letters, digits and _ only, starting with a letter).`);
+      return;
+    }
+    const label = `${n} (${key})`;
+    if (seen.has(key)) errors.push(`${label} repeats a key another question already uses.`);
+    const type = q.type as TransportQuestionType;
+    if (!TRANSPORT_TYPES.includes(type)) {
+      errors.push(`${label} has an unknown type "${String(q.type)}".`);
+      return;
+    }
+    const out: TransportQuestion = {
+      key,
+      type,
+      title: cleanLocalized(q.title, `${label}: the question`, errors, { required: true, max: 300 }) ?? key,
+    };
+    const body = cleanLocalized(q.body, `${label}: the explanation`, errors, { required: false, max: 600 });
+    if (body) out.body = body;
+    const placeholder = cleanLocalized(q.placeholder, `${label}: the placeholder`, errors, { required: false, max: 120 });
+    if (placeholder && (type === 'text' || type === 'textarea' || type === 'number')) out.placeholder = placeholder;
+    if (q.required === true) out.required = true;
+
+    if (type === 'radio' || type === 'checkboxes') {
+      const rawOpts = Array.isArray(q.options) ? q.options : [];
+      if (rawOpts.length < 2) errors.push(`${label} needs at least two options.`);
+      if (rawOpts.length > MAX_OPTIONS) errors.push(`${label} has more than ${MAX_OPTIONS} options.`);
+      const values = new Set<string>();
+      out.options = [];
+      rawOpts.slice(0, MAX_OPTIONS).forEach((ro, j) => {
+        const o = (ro ?? {}) as Record<string, unknown>;
+        const value = typeof o.value === 'string' ? o.value.trim() : '';
+        if (!OPTION_RE.test(value)) {
+          errors.push(`${label}, option ${j + 1}: invalid value "${value}".`);
+          return;
+        }
+        if (values.has(value)) errors.push(`${label}: option "${value}" appears twice.`);
+        values.add(value);
+        const optLabel = cleanLocalized(o.label, `${label}, option "${value}"`, errors, { required: true, max: 160 });
+        out.options!.push({ value, label: optLabel ?? value });
+      });
+    }
+
+    if (q.showIf !== undefined && q.showIf !== null) {
+      const s = q.showIf as { key?: unknown; valueIn?: unknown };
+      const depKey = typeof s.key === 'string' ? s.key.trim() : '';
+      const dep = seen.get(depKey);
+      const valueIn = Array.isArray(s.valueIn)
+        ? s.valueIn.filter((v): v is string => typeof v === 'string')
+        : [];
+      if (!dep) {
+        errors.push(`${label} is shown depending on "${depKey}", which is not an earlier question.`);
+      } else if (dep.type !== 'radio') {
+        errors.push(`${label} depends on "${depKey}", which is not a single-choice (radio) question.`);
+      } else if (valueIn.length === 0) {
+        errors.push(`${label} depends on "${depKey}" but names no answer that shows it.`);
+      } else {
+        const known = new Set((dep.options ?? []).map((o) => o.value));
+        const unknown = valueIn.filter((v) => !known.has(v));
+        if (unknown.length) errors.push(`${label} depends on answers "${unknown.join('", "')}" that "${depKey}" does not offer.`);
+        out.showIf = { key: depKey, valueIn };
+      }
+    }
+
+    if (typeof q.column === 'string' && q.column.trim()) out.column = q.column.trim().slice(0, 60);
+    if (typeof q.maxLength === 'number' && Number.isInteger(q.maxLength) && q.maxLength > 0) {
+      out.maxLength = Math.min(q.maxLength, 4000);
+    }
+    if (type === 'date') {
+      if (typeof q.min === 'string' && DATE_RE.test(q.min)) out.min = q.min;
+      if (typeof q.max === 'string' && DATE_RE.test(q.max)) out.max = q.max;
+      if (out.min && out.max && out.min > out.max) errors.push(`${label}: the earliest date is after the latest.`);
+    }
+
+    questions.push(out);
+    if (!seen.has(key)) seen.set(key, out);
+  });
+
+  if (errors.length > 0 || !why) return { ok: false, errors };
+  const section: TransportSection = { why, questions };
+  if (title) section.title = title;
+  if (sheetLocale) section.sheetLocale = sheetLocale;
+  return { ok: true, section };
+}
+
+// A stored section (JSON text) → a checked section, or null when absent or
+// unusable. A broken stored section never breaks the form: the caller falls
+// back to the code-defined one.
+export function sectionFromJson(json: string | null | undefined): TransportSection | null {
+  if (!json) return null;
+  try {
+    const check = validateTransportSection(JSON.parse(json));
+    return check.ok ? check.section : null;
+  } catch {
+    return null;
+  }
+}
+
+// Every question key some guest has already answered for this retreat. Claude
+// is told to keep them, and the admin is warned before publishing a draft that
+// drops one (the answers stay stored, but stop showing on the sheet).
+export async function answeredTransportKeys(
+  db: D1Database,
+  eventCode: string,
+): Promise<string[]> {
+  const rows =
+    (
+      await db
+        .prepare(`SELECT answers_json FROM intake_transport_answers WHERE event_code = ?`)
+        .bind(eventCode)
+        .all<{ answers_json: string }>()
+    ).results ?? [];
+  const keys = new Set<string>();
+  for (const r of rows) for (const k of Object.keys(parseTransportAnswers(r.answers_json))) keys.add(k);
+  return [...keys].sort();
 }

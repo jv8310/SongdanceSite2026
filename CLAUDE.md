@@ -829,10 +829,13 @@ pages' practical info): `dolphin-and-sound-2026` (airport, landing date/time,
 flight, same for the way home — for the shuttle) and `ritual-of-belonging-2026`
 (car/plane/train; seats to offer; airport or station; arrival; departure).
 
-**When Jacob says "for <retreat>, ask …", this is the whole job**: write or edit
-that file, register it if new, build. No migration, no admin change — the form,
-the stored answers, the admin tables and the Google Sheet all follow the
-definition. The rules:
+**Two ways to change them.** Jacob can do it himself on the retreat page
+(below — the Claude API drafts it, no deploy), or ask in a session: then write
+or edit that file, register it if new, build. No migration either way — the
+form, the stored answers, the admin tables and the Google Sheet all follow the
+definition. **A version published from the admin wins over the file**, so
+editing the file changes nothing while one is published — check the retreat
+page ("Edited on this page") first. The rules, for both:
 
 - A question is `{ key, type, title, body?, placeholder?, required?, options?,
   showIf?, column?, maxLength?, min?, max? }`; types `text`, `textarea`,
@@ -852,6 +855,35 @@ definition. The rules:
   make my own way") — required questions block sending, and the email tells
   people they can send what they know and update it later via the same link.
 - Copy-book rules apply to every string, like everywhere on the site.
+
+**From the admin, drafted by Claude** ([`transport-ai.ts`](src/lib/intake/transport-ai.ts),
+migration 0087). `/admin/retreats/<slug>` → Intake → "Change the questions with
+Claude": Jacob writes what to ask in plain words; the endpoint
+(`/api/admin/retreat-intake/transport`) sends that, the retreat's dates, the
+questions it asks today (the draft if one exists, so instructions stack) and
+the keys that already hold answers to **Claude Opus 5.5** through the official
+SDK — structured outputs against a JSON schema of the section, effort `high`,
+`fallbacks: "default"` (beta `server-side-fallback-2026-07-01`) so a safety
+decline re-runs on the recommended fallback model instead of failing. The reply
+is converted and checked by the **same `validateTransportSection`** as a
+hand-written file; a draft that breaks a rule gets one correction round with
+the errors, then fails with them in the flash. Nothing goes live on its own:
+- it is stored as a **draft** (`transport_draft_json` + Claude's
+  `transport_draft_summary`), shown on the page as a readable list
+  (`TransportQuestionList.astro`) with a warning for every answered question it
+  drops or retypes;
+- **Try the draft** opens `/intake?…&only=transport&preview=draft` — only with a
+  valid admin session (anyone else gets the published questions), with a
+  banner, and the client never posts;
+- **Publish** copies it to `transport_json` (and pushes the sheet, so a new
+  question becomes a column); **Discard** drops it; **Go back to the built-in
+  questions** clears the published version so the file applies again.
+`transportSectionForIntake` resolves published → file → none, and every
+consumer (form, submit, emails, sheet, admin) goes through it. A stored section
+that fails validation is ignored, never served. Needs `ANTHROPIC_API_KEY` (the
+same key the intake assessor uses). The **screening** questions are
+deliberately not editable this way: the assessor's system prompt
+(`system-prompt.ts`) is written around those exact questions and answers.
 
 **Where the questions appear**: inside the full intake, spliced in just before
 "anything else" (after a "Getting there." screen); and **on their own** at

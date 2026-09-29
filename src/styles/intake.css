@@ -395,3 +395,14 @@ html, body {
   .in-field input,
   .in-field textarea { font-size: 16px; } /* avoid iOS zoom */
 }
+
+/* Admin trying an unpublished draft of the travel questions */
+.in-preview-banner {
+  margin: 0;
+  padding: 10px 16px;
+  background: var(--ember);
+  color: #fff;
+  font-family: var(--font-body);
+  font-size: 14px;
+  text-align: center;
+}

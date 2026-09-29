@@ -6,7 +6,7 @@
 // (retrying a 429 under Resend's 2 req/s account limit), and on success stamps
 // the matching `*_sent_at` column so the admin can see what went when.
 
-import type { RetreatRow } from './retreats-db';
+import { getRetreat, type RetreatRow } from './retreats-db';
 import {
   buildInvitationEmail,
   buildTransportEmail,
@@ -14,7 +14,12 @@ import {
   type IntakeEmailKind,
   type InvitationRow,
 } from './invitations';
-import { transportSectionFor, tr, type TransportSection } from './transport';
+import {
+  sectionFromJson,
+  transportSectionFor,
+  tr,
+  type TransportSection,
+} from './transport';
 
 const DEFAULT_FROM = 'Songdance <intakes@mail.songdance.co>';
 const REPLY_TO = 'jacob@songdance.co';
@@ -72,7 +77,29 @@ export async function productSlugForIntake(
   }
 }
 
+// The travel questions a retreat's intake asks, in order of precedence:
+//   1. the section published from the admin (transport_json, migration 0087 —
+//      drafted with Claude on the retreat page);
+//   2. the section written in code (src/lib/intake/transport/<slug>.ts);
+//   3. none.
+// `draft: true` puts the unpublished draft first — only for an admin preview.
 export async function transportSectionForIntake(
+  db: D1Database,
+  intakeSlug: string,
+  opts: { draft?: boolean } = {},
+): Promise<TransportSection | null> {
+  const row = await getRetreat(db, intakeSlug).catch(() => null);
+  if (opts.draft) {
+    const draft = sectionFromJson(row?.transport_draft_json);
+    if (draft) return draft;
+  }
+  const published = sectionFromJson(row?.transport_json);
+  if (published) return published;
+  return builtInTransportSection(db, intakeSlug);
+}
+
+// The code-defined section alone — what "revert to built-in" goes back to.
+export async function builtInTransportSection(
   db: D1Database,
   intakeSlug: string,
 ): Promise<TransportSection | null> {

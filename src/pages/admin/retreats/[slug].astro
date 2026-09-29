@@ -42,8 +42,18 @@ import {
 } from '../../../lib/intake/retreat-intake';
 import type { RetreatRow } from '../../../lib/intake/retreats-db';
 import type { IntakeEmailKind } from '../../../lib/intake/invitations';
-import { intakeLink, transportSectionForIntake } from '../../../lib/intake/send';
-import { columnFor, type TransportSection } from '../../../lib/intake/transport';
+import {
+  builtInTransportSection,
+  intakeLink,
+  transportSectionForIntake,
+} from '../../../lib/intake/send';
+import {
+  answeredTransportKeys,
+  columnFor,
+  sectionFromJson,
+  type TransportSection,
+} from '../../../lib/intake/transport';
+import TransportQuestionList from '../../../components/admin/TransportQuestionList.astro';
 import {
   appsScriptSource,
   buildTransportTable,
@@ -651,6 +661,12 @@ type IntakePanel =
       intake: RetreatRow;
       roster: RosterRow[];
       transport: TransportSection | null;
+      // Where today's questions come from: published from this page (drafted
+      // with Claude), the retreat's file in code, or nowhere yet.
+      transportSource: 'admin' | 'code' | 'none';
+      builtIn: TransportSection | null;
+      draft: TransportSection | null;
+      answeredKeys: string[];
       sheetSecret: string | null;
       table: SheetTable | null;
     };
@@ -660,15 +676,22 @@ try {
   if (!intake) {
     intakePanel = { state: 'unlinked', candidates: await unlinkedIntakes(env.DB) };
   } else {
-    const [roster, transport] = await Promise.all([
+    const [roster, transport, builtIn, answeredKeys] = await Promise.all([
       intakeRoster(env.DB, product.id, intake.slug),
       transportSectionForIntake(env.DB, intake.slug),
+      builtInTransportSection(env.DB, intake.slug),
+      answeredTransportKeys(env.DB, intake.slug),
     ]);
+    const published = sectionFromJson(intake.transport_json);
     intakePanel = {
       state: 'linked',
       intake,
       roster,
       transport,
+      transportSource: published ? 'admin' : builtIn ? 'code' : 'none',
+      builtIn,
+      draft: sectionFromJson(intake.transport_draft_json),
+      answeredKeys,
       sheetSecret: transport ? await ensureSheetSecret(env.DB, intake) : null,
       table: transport ? await buildTransportTable(env.DB, intake, transport) : null,
     };
@@ -832,6 +855,24 @@ const flash = (() => {
       'no-real-address': 'that booking has a stand-in address, not their own — add their real one on the intakes page.',
     };
     return { tone: 'err' as const, msg: `Nothing was sent — ${readable[reason] ?? reason}` };
+  }
+  if (p.get('transport_drafted')) {
+    return { tone: 'ok' as const, msg: 'Claude drafted the travel questions — check the draft below, preview it, then publish. Nothing has changed for guests yet.' };
+  }
+  if (p.get('transport_published')) {
+    return { tone: 'ok' as const, msg: 'Travel questions published — the form, the travel email and the sheet use them from now on.' };
+  }
+  if (p.get('transport_discarded')) return { tone: 'ok' as const, msg: 'Draft discarded. The form is unchanged.' };
+  if (p.get('transport_reverted')) {
+    return { tone: 'ok' as const, msg: 'The edited travel questions were removed — the form is back to the ones written for this retreat in code (or none).' };
+  }
+  if (p.get('transport_failed')) {
+    const reason = p.get('transport_failed') ?? '';
+    const readable: Record<string, string> = {
+      'empty-brief': 'write what the travel questions should ask first.',
+      'no-draft': 'there is no valid draft to publish.',
+    };
+    return { tone: 'err' as const, msg: `Travel questions not changed — ${readable[reason] ?? reason}` };
   }
   if (p.get('sheet_synced')) {
     const n = Number(p.get('sheet_synced') ?? '0');
@@ -1502,7 +1543,24 @@ const flash = (() => {
       )}
 
       {intakePanel.state === 'linked' && intakeCounts && (() => {
-        const { intake, roster, transport, sheetSecret, table } = intakePanel;
+        const { intake, roster, transport, transportSource, builtIn, draft, answeredKeys, sheetSecret, table } = intakePanel;
+        // Questions that hold answers and would disappear (or change kind) if
+        // this draft were published — the answers stay stored, but stop
+        // showing on the sheet and the admin tables.
+        const draftWarnings = (() => {
+          if (!draft) return [] as string[];
+          const inDraft = new Map(draft.questions.map((q) => [q.key, q]));
+          const now = new Map((transport?.questions ?? []).map((q) => [q.key, q]));
+          const out: string[] = [];
+          for (const key of answeredKeys) {
+            const was = now.get(key);
+            const next = inDraft.get(key);
+            const name = was ? `“${columnFor(was)}”` : `“${key}”`;
+            if (!next) out.push(`${name} has answers and is not in this draft — those answers would stop showing on the sheet.`);
+            else if (was && was.type !== next.type) out.push(`${name} has answers and changes from ${was.type} to ${next.type}.`);
+          }
+          return out;
+        })();
         const publicForm = `${publicBase}/intake?event=${encodeURIComponent(intake.slug)}`;
         const bulk: { kind: IntakeEmailKind; label: string; n: number; confirm: string }[] = [
           {
@@ -1669,22 +1727,100 @@ const flash = (() => {
             </p>
 
             <div class="adm-rintake-transport">
-              <h3>Travel questions → Google Sheet</h3>
-              {!transport ? (
-                <p class="adm-table-note">
-                  This retreat has no travel questions yet. Tell Claude what to ask — for example
-                  <em>“For {product.name}, ask how people are travelling, when they arrive, and whether they can offer someone a lift”</em>
-                  — and they are added to the intake, with a column per question in a Google Sheet (see “Retreat intake — transport section” in CLAUDE.md).
-                </p>
-              ) : (
+              <h3>Travel questions</h3>
+              {transport ? (
                 <>
                   <p class="adm-table-note">
                     {transport.questions.length} questions, asked only where they apply:
                     {' '}{transport.questions.map(columnFor).join(' · ')}.
+                    {' '}{transportSource === 'admin'
+                      ? `Edited on this page${intake.transport_updated_at ? `, published ${ymd(intake.transport_updated_at)} UTC` : ''}.`
+                      : 'Written for this retreat in the site’s code.'}
                     {' '}<a href={`${publicForm}&only=transport`} target="_blank" rel="noopener">Open the travel form ↗</a>
-                    {' '}(sending it adds a row). To change the questions, tell Claude what to ask.
+                    {' '}(sending it adds a row).
                   </p>
+                  <details class="adm-wl-add">
+                    <summary>See the questions</summary>
+                    <TransportQuestionList section={transport} answeredKeys={answeredKeys} />
+                  </details>
+                </>
+              ) : (
+                <p class="adm-table-note">This retreat asks no travel questions yet. Describe below what the team needs to know, and Claude drafts them.</p>
+              )}
 
+              {draft && (
+                <div class="adm-rintake-draft">
+                  <h4>Draft from Claude — not live yet</h4>
+                  {intake.transport_draft_summary && (
+                    <p class="adm-rintake-draft-summary">{intake.transport_draft_summary}</p>
+                  )}
+                  {draftWarnings.map((w) => <p class="adm-rintake-warn">⚠ {w}</p>)}
+                  <TransportQuestionList section={draft} answeredKeys={answeredKeys} />
+                  <div class="adm-rintake-bulk-actions">
+                    <a class="adm-btn adm-btn--ghost" href={`${publicForm}&only=transport&preview=draft`} target="_blank" rel="noopener">Try the draft ↗</a>
+                    <form method="POST" action="/api/admin/retreat-intake/transport"
+                          onsubmit={`return confirm(${JSON.stringify(
+                            draftWarnings.length
+                              ? `Publish these travel questions? ${draftWarnings.join(' ')}`
+                              : 'Publish these travel questions? The form, the travel email and the sheet use them from now on.',
+                          )})`}>
+                      <input type="hidden" name="product_slug" value={productSlug} />
+                      <input type="hidden" name="action" value="publish" />
+                      <button type="submit" class="adm-btn adm-btn--solid">Publish</button>
+                    </form>
+                    <form method="POST" action="/api/admin/retreat-intake/transport">
+                      <input type="hidden" name="product_slug" value={productSlug} />
+                      <input type="hidden" name="action" value="discard" />
+                      <button type="submit" class="adm-btn adm-btn--ghost">Discard</button>
+                    </form>
+                  </div>
+                </div>
+              )}
+
+              <form method="POST" action="/api/admin/retreat-intake/transport" class="adm-rintake-brief" data-claude-draft>
+                <input type="hidden" name="product_slug" value={productSlug} />
+                <input type="hidden" name="action" value="draft" />
+                <label>
+                  {transport || draft ? 'Change the questions with Claude' : 'Write the travel questions with Claude'}
+                  <textarea
+                    name="brief"
+                    rows="4"
+                    required
+                    maxlength="4000"
+                    placeholder={transport || draft
+                      ? 'E.g. “Also ask whether they need a vegetarian meal on the shuttle”, or “Drop the departure questions — everyone leaves on the group transfer.”'
+                      : `E.g. “Ask how people are travelling to ${product.name}, when they arrive, and whether they can offer someone a lift.”`}
+                  ></textarea>
+                </label>
+                <div class="adm-rintake-brief-row">
+                  <button type="submit" class="adm-btn adm-btn--solid">Draft with Claude</button>
+                  <span class="adm-table-note">
+                    Claude writes the full set in English and Dutch{draft ? ', building on the draft above' : transport ? ', starting from today’s questions' : ''}. Nothing changes for guests until you press Publish. Takes up to a minute or two.
+                  </span>
+                </div>
+                {intake.transport_brief && (
+                  <p class="adm-table-note">Last instruction: “{intake.transport_brief}”</p>
+                )}
+              </form>
+
+              {transportSource === 'admin' && (
+                <form method="POST" action="/api/admin/retreat-intake/transport"
+                      onsubmit={`return confirm(${JSON.stringify(
+                        builtIn
+                          ? 'Go back to the travel questions written in the site’s code for this retreat? The version edited here is removed.'
+                          : 'Remove the travel questions? This retreat has none in code, so the form stops asking about travel.',
+                      )})`}>
+                  <input type="hidden" name="product_slug" value={productSlug} />
+                  <input type="hidden" name="action" value="revert" />
+                  <button type="submit" class="adm-btn adm-btn--tiny adm-btn--ghost">
+                    {builtIn ? 'Go back to the built-in questions' : 'Remove the travel questions'}
+                  </button>
+                </form>
+              )}
+
+              {transport && (
+                <>
+                  <h3 class="adm-rintake-subhead">Google Sheet</h3>
                   {intake.sheet_url ? (
                     <div class="adm-rintake-sheet">
                       <p>
@@ -2007,6 +2143,19 @@ const flash = (() => {
   </main>
 
   <script is:inline>
+    // "Draft with Claude" waits on the Claude API for up to a couple of
+    // minutes: say so on the button, and stop a second press from starting a
+    // second (billed) draft.
+    document.querySelectorAll('form[data-claude-draft]').forEach((form) => {
+      form.addEventListener('submit', () => {
+        const btn = form.querySelector('button[type="submit"]');
+        if (btn) {
+          btn.disabled = true;
+          btn.textContent = 'Claude is drafting… (up to 2 min)';
+        }
+      });
+    });
+
     // Save a room assignment without a full page reload (so the view doesn't
     // jump back to the top). Only the per-registration assign forms are
     // intercepted; bulk/delete/mark-paid forms keep their normal redirect.
