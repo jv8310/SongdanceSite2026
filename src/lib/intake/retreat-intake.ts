@@ -8,7 +8,8 @@
 // email address between pages.
 //
 // Who is a guest: every PAID, non-host registration on the product. The hosts
-// and the cook (host = 1) run the retreat and aren't screened; a pending
+// and the cook (host = 1) run the retreat and aren't screened — their
+// addresses are skipped even as hand-added invitees; a pending
 // booking (a bank transfer still on its way, a checkout in flight) joins the
 // list the moment it's paid. One row per email address — a booking made twice
 // under one address is one person to invite.
@@ -208,7 +209,7 @@ export async function intakeRoster(
   productId: number,
   intakeSlug: string,
 ): Promise<RosterRow[]> {
-  const [guestsQ, invitesQ, subsQ, transportQ] = await Promise.all([
+  const [guestsQ, hostsQ, invitesQ, subsQ, transportQ] = await Promise.all([
     db
       .prepare(
         `SELECT id, name, first_name, last_name, email
@@ -218,6 +219,12 @@ export async function intakeRoster(
       )
       .bind(productId)
       .all<{ id: number; name: string; first_name: string | null; last_name: string | null; email: string }>(),
+    // The retreat's hosts (and cook). Never on the list — not even through an
+    // invitation someone once added by hand for them.
+    db
+      .prepare(`SELECT DISTINCT lower(email) AS email FROM registrations WHERE product_id = ? AND host = 1`)
+      .bind(productId)
+      .all<{ email: string }>(),
     db
       .prepare(`SELECT * FROM intake_invitations WHERE retreat_slug = ?`)
       .bind(intakeSlug)
@@ -248,7 +255,8 @@ export async function intakeRoster(
   for (const t of transportQ.results ?? []) transport.set(t.email, t.updated_at);
 
   const rows: RosterRow[] = [];
-  const seen = new Set<string>();
+  const hosts = new Set((hostsQ.results ?? []).map((h) => h.email.trim()));
+  const seen = new Set<string>(hosts);
   const push = (email: string, name: string, firstName: string | null, registrationId: number | null) => {
     rows.push({
       email,

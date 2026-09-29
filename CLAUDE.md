@@ -792,7 +792,12 @@ it ([`retreat-intake.ts`](src/lib/intake/retreat-intake.ts)):
   already made by hand on `/admin/intakes/retreats` (its invitees and answers
   come along). One retreat, one intake; unlinking deletes nothing.
 - **The roster is every PAID, non-host booking**, one row per email address,
-  beside its intake state: not invited / invited / reminded / final note /
+  beside its intake state. **Hosts are never invited** — a `host = 1` booking's
+  address is skipped even as a hand-added invitee. Migration 0086 flagged them
+  (Dolphin & Sound: Jacob, Jeremy; Ritual of Belonging: Jacob, Lesanne,
+  Muriel); **a new retreat's staff rows must be flagged `host = 1` too**, or
+  they read as guests here and as paying guests in its capacity table. Beside
+  each guest: not invited / invited / reminded / final note /
   submitted, the assessment pill (→ the submission), and whether travel
   details are in. Invitees added by hand on the intakes page appear under the
   guests. A booking carrying a stand-in address (`…@placeholder.invalid` — the
