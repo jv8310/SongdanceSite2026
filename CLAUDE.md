@@ -419,6 +419,16 @@ offers: a *live* session that is over (start + 20 min), onto a live date still
 ahead. The new seat is a seat like any other, so if it is missed too, its own
 page offers its own move.
 
+**A rebook never takes over a seat with money on it.** `upsertRegistration`
+reuses the person's row on the chosen date if there is one, and the rebook then
+wrote `coupon` over it — so moving onto a date they had *bought* turned that paid
+seat into a comp (and reset its `wants_bump` and source). The endpoint now only
+takes over a row that never secured anything (`prepared` / `failed`); a `paid` or
+`coupon` seat gets "You already have a place on that date" (409), a `refunded` /
+`chargeback` row is sent to info@, and in both cases the free move stays unspent.
+The page's date lists leave out dates the email already holds
+(`listCountdownLinksByEmail`), so the choice isn't offered in the first place.
+
 ## Changing a workshop registrant's email
 
 `/admin/workshops/<id>` → **Change email** under each registrant (a typo at

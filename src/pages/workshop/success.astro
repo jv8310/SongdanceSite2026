@@ -7,6 +7,7 @@ import {
   getRegistrationByAccessToken,
   getRegistrationById,
   getWorkshopById,
+  listCountdownLinksByEmail,
   listUpcomingPublishedWorkshops,
   resolveReplayUrl,
   workshopIsMasterclass,
@@ -166,10 +167,16 @@ const shareText = workshop
 // booked a masterclass — a regular-workshop registrant is never offered a free
 // masterclass seat. Only dates still ahead: "upcoming" above includes a session
 // under way, and both endpoints refuse one that has begun.
+// Nor a date they already hold a seat on: both endpoints refuse it (a rebook
+// onto one used to overwrite that paid seat with a comp).
+const heldSlugs = reg
+  ? new Set((await listCountdownLinksByEmail(env.DB, reg.email)).map((l) => l.slug))
+  : new Set<string>();
 const upcoming = reg
   ? (await listUpcomingPublishedWorkshops(env.DB, new Date().toISOString()))
       .filter((w) => w.is_replay !== 1 && w.id !== reg.workshop_id)
       .filter((w) => new Date(w.starts_at_utc).getTime() > Date.now())
+      .filter((w) => !heldSlugs.has(w.slug))
       .filter((w) => currentIsMasterclass || !(w.product_slug ?? '').includes('masterclass'))
       .map((w) => ({ slug: w.slug, whenLocal: formatInTz(w.starts_at_utc, tz), kind: (w.product_slug ?? '').includes('masterclass') ? 'Masterclass' : 'Workshop' }))
   : [];

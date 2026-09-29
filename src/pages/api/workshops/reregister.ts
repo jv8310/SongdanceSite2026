@@ -3,6 +3,7 @@ import { logEventSafe } from '../../../lib/registrations/db';
 import {
   getPublishedWorkshopBySlug,
   getRegistrationByAccessToken,
+  getRegistrationByWorkshopEmail,
   getWorkshopById,
   upsertRegistration,
   setRegistrationPaymentStatus,
@@ -76,6 +77,24 @@ export const POST: APIRoute = async ({ request, locals }) => {
   // (the same rule as /change-date).
   if (target.is_replay === 1 || new Date(target.starts_at_utc).getTime() <= Date.now()) {
     return json({ error: 'That date isn’t open for registration.' }, 400);
+  }
+  // upsertRegistration reuses their row on that date if one exists, and the
+  // coupon write below would then turn a PAID seat into a comp (and reset its
+  // bump and source). Only a row that never secured anything — an abandoned or
+  // failed checkout — may be taken over; a seat they already hold, or one
+  // whose money went back (refund, chargeback), is left exactly as it is, and
+  // the free move stays unspent.
+  const onTarget = await getRegistrationByWorkshopEmail(env.DB, target.id, origin.email);
+  if (onTarget && onTarget.payment_status !== 'prepared' && onTarget.payment_status !== 'failed') {
+    const holds = onTarget.payment_status === 'paid' || onTarget.payment_status === 'coupon';
+    return json(
+      {
+        error: holds
+          ? 'You already have a place on that date — pick another one, or email info@songdance.co.'
+          : 'That date can’t be booked from here — email info@songdance.co and we’ll sort it out.',
+      },
+      409,
+    );
   }
 
   const { id: registrationId, token: newToken } = await upsertRegistration(env.DB, {
