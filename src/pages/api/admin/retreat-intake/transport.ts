@@ -37,6 +37,15 @@ export const POST: APIRoute = async ({ request, locals }) => {
   if (!product) return new Response('Unknown retreat', { status: 404 });
   const intake = await intakeForProduct(env.DB, product.id);
   if (!intake) return backToRetreat(product.slug, { intake_failed: 'no-intake' });
+  // Before migration 0087 reaches the database (a preview runs on the live D1
+  // ahead of it), say so — rather than paying for a Claude draft that then
+  // cannot be saved.
+  const ready = await env.DB
+    .prepare(`SELECT transport_draft_json FROM intake_retreats LIMIT 0`)
+    .run()
+    .then(() => true)
+    .catch(() => false);
+  if (!ready) return backToRetreat(product.slug, { transport_failed: 'needs-migration' });
 
   if (action === 'draft') {
     const brief = String(form.get('brief') ?? '').trim().slice(0, MAX_BRIEF);

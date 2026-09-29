@@ -871,6 +871,7 @@ const flash = (() => {
     const readable: Record<string, string> = {
       'empty-brief': 'write what the travel questions should ask first.',
       'no-draft': 'there is no valid draft to publish.',
+      'needs-migration': 'the database needs migration 0087 first (it applies on merge, or run the “D1 migrate” workflow on this branch).',
     };
     return { tone: 'err' as const, msg: `Travel questions not changed — ${readable[reason] ?? reason}` };
   }
