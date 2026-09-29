@@ -163,8 +163,25 @@ export type ReportData = {
     prospectingEurMinor: number; // TOF campaigns
     retargetingEurMinor: number;
     roas: number | null; // sold ÷ all spend — blended, courses counted in full
+    // What a seat cost in the window: every seat bought, upcoming sessions
+    // included — the price of a seat does not wait for its session.
+    workshopSeatEurMinor: number | null;
+    masterclassSeatEurMinor: number | null;
+    // The ad-economics table: sessions that have RUN only. A seat for a
+    // session still ahead carries its ad spend but cannot have produced its
+    // course sale yet, so counting it reads every product as losing money.
+    // Cost and income leave together (excludeFutureEvents, the dashboard's
+    // "Future events → Exclude costs").
     workshop: ReportAudience;
     masterclass: ReportAudience;
+    // What that table sets aside: the seats bought in the window for sessions
+    // that haven't run yet. Null when nothing was set aside.
+    upcoming: {
+      sessions: number;
+      registrations: number;
+      adSpendEurMinor: number; // prospecting spend charged to those seats
+      ticketRevenueEurMinor: number; // what those seats have taken at checkout
+    } | null;
   };
   // Per day across the window (the weekly digest's table).
   daily: Array<{
@@ -218,8 +235,8 @@ export function headlineOf(data: WindowData): ReportHeadline {
     cashInEurMinor: data.cash.totalEurMinor,
     adSpendEurMinor: data.ads.spendEurMinor,
     roas: data.ads.roas,
-    workshopSeatEurMinor: data.ads.workshop.costPerRegistrationEurMinor,
-    masterclassSeatEurMinor: data.ads.masterclass.costPerRegistrationEurMinor,
+    workshopSeatEurMinor: data.ads.workshopSeatEurMinor,
+    masterclassSeatEurMinor: data.ads.masterclassSeatEurMinor,
   };
 }
 
@@ -246,6 +263,9 @@ export function reportPeriods(
     .format(new Date(`${prev}T12:00:00Z`));
   return { from: target, to: target, previous: { from: prev, to: prev, label: `vs last ${weekday}` } };
 }
+
+const seatPrice = (a: AudienceAcquisition): number | null =>
+  a.costPerRegistrationEurMinor != null ? Math.round(a.costPerRegistrationEurMinor) : null;
 
 function audienceLine(a: AudienceAcquisition): ReportAudience {
   return {
@@ -276,7 +296,8 @@ export async function gatherReport(
   const { from, to, previous } = reportPeriods(kind, target);
   const [data, prev, upcoming, forecast] = await Promise.all([
     gatherWindow(db, from, to, money),
-    gatherWindow(db, previous.from, previous.to, money),
+    // Only its headline is read, so the economics pass is skipped.
+    gatherWindow(db, previous.from, previous.to, money, { economics: false }),
     computeUpcomingSessions(db, { limit: 5, from, to }),
     // The pipeline is a weekly figure; it is the same forecast the dashboard's
     // "Future revenue" box and /admin/courses/future-revenue project.
@@ -305,20 +326,28 @@ export async function gatherReport(
   };
 }
 
-// Every figure for [from, to] — Brussels days, like the dashboard.
+// Every figure for [from, to] — Brussels days, like the dashboard. The
+// performance report runs twice: as the dashboard opens (every seat, what spend
+// and a seat cost), and with upcoming sessions left out (the ad economics).
 async function gatherWindow(
   db: D1Database,
   from: string,
   to: string,
   money?: MoneyOpts,
+  opts: { economics?: boolean } = {},
 ): Promise<WindowData> {
-  const [stats, courses, cashIn, perf, regsByDay] = await Promise.all([
+  const [stats, courses, cashIn, perf, ranPerf, regsByDay] = await Promise.all([
     computeStats(db, { from, to, money }),
     computeCourseSales(db, { from, to, money }),
     computeCourseCashIn(db, { from, to, money }),
     computeWorkshopPerformance(db, { from, to, money }),
+    opts.economics === false
+      ? Promise.resolve(null)
+      : computeWorkshopPerformance(db, { from, to, money, excludeFutureEvents: true }),
     computeRegistrationsByDay(db, { from, to }),
   ]);
+  const economics = ranPerf ?? perf;
+  const setAside = ranPerf?.future;
 
   // New registrations (secured seats) per workshop in the window. Grouped by
   // workshop id (not just title), since the same title (e.g. "Somatic Vocal
@@ -423,8 +452,19 @@ async function gatherWindow(
       prospectingEurMinor: perf.acquisitionSpendEurMinor,
       retargetingEurMinor: perf.retargetingSpendEurMinor,
       roas: spend > 0 ? soldTotal / spend : null,
-      workshop: audienceLine(perf.audiences.workshop),
-      masterclass: audienceLine(perf.audiences.masterclass),
+      workshopSeatEurMinor: seatPrice(perf.audiences.workshop),
+      masterclassSeatEurMinor: seatPrice(perf.audiences.masterclass),
+      workshop: audienceLine(economics.audiences.workshop),
+      masterclass: audienceLine(economics.audiences.masterclass),
+      upcoming:
+        setAside && setAside.registrations > 0
+          ? {
+              sessions: setAside.sessions,
+              registrations: setAside.registrations,
+              adSpendEurMinor: setAside.acquisitionSpendEurMinor,
+              ticketRevenueEurMinor: setAside.engineRevenueEurMinor,
+            }
+          : null,
     },
     daily,
   };
@@ -673,6 +713,18 @@ function stillToBillNote(data: ReportData): string | null {
   )}) — counted in full under Sold today, it reaches Cash in one installment at a time.`;
 }
 
+// What the economics table leaves out, said in the table's own terms.
+function setAsideNote(data: ReportData): string | null {
+  const u = data.ads.upcoming;
+  if (!u) return null;
+  return `Not in the table: ${plural(u.registrations, 'seat')} bought in this window for ${plural(
+    u.sessions,
+    'session',
+  )} that ${u.sessions === 1 ? 'hasn’t' : 'haven’t'} run yet — ${eur(u.adSpendEurMinor)} of prospecting spend and the ${eur(
+    u.ticketRevenueEurMinor,
+  )} those seats have taken so far. Their course sales can’t have landed yet, so they count once the session has run.`;
+}
+
 function audienceRows(data: ReportData): string[][] {
   const row = (name: string, a: ReportAudience) => [
     name,
@@ -713,8 +765,7 @@ function renderReport(opts: {
 
   // Ad-efficiency headline — spend, blended ROAS on full value, and the price
   // of a seat per product ('—' when there's nothing to divide).
-  const seat = (a: ReportAudience) =>
-    a.costPerRegistrationEurMinor != null ? eur(a.costPerRegistrationEurMinor) : '—';
+  const seat = (v: number | null) => (v != null ? eur(v) : '—');
   const adEfficiency = statCards([
     {
       label: 'Ad spend',
@@ -725,13 +776,13 @@ function renderReport(opts: {
     { label: 'Blended ROAS', value: roasStr(ads.roas), sub: 'sold ÷ ad spend', change: ch.roas },
     {
       label: 'Workshop seat',
-      value: seat(ads.workshop),
+      value: seat(ads.workshopSeatEurMinor),
       sub: 'cost / registration',
       change: ch.workshopSeatEurMinor,
     },
     {
       label: 'Masterclass seat',
-      value: seat(ads.masterclass),
+      value: seat(ads.masterclassSeatEurMinor),
       sub: 'cost / registration',
       change: ch.masterclassSeatEurMinor,
     },
@@ -814,11 +865,13 @@ function renderReport(opts: {
       ? dataTable(['Offer', 'Taken', 'Revenue'], bumpRows)
       : emptyNote('No bump add-ons taken in this window.'));
 
+  const setAside = setAsideNote(data);
   const econSection =
-    sectionLabel('Ad economics') +
+    sectionLabel('Ad economics — sessions that have run') +
     dataTable(['Product', 'Regs', 'Ad spend', 'Per reg', 'Made back', 'ROAS'], audienceRows(data)) +
+    (setAside ? note(setAside) : '') +
     note(
-      'Each product is charged only its own campaigns’ prospecting spend, priced day by day; made back = the tickets, bumps and courses those registrants bought, each course in full. Same figures as the ad-economics cards on the dashboard.',
+      'Each product is charged only its own campaigns’ prospecting spend, priced day by day; made back = the tickets, bumps and courses those registrants bought in this window, each course in full. Same figures as the ad-economics cards on the dashboard with Future events set to Exclude costs.',
     );
 
   const toBill = stillToBillNote(data);
@@ -876,8 +929,7 @@ function renderReportText(kindLabel: string, rangeLabel: string, data: ReportDat
   const ads = data.ads;
   const ch = headlineChanges(data);
   const lines: string[] = [kindLabel, rangeLabel, ''];
-  const seat = (a: ReportAudience) =>
-    a.costPerRegistrationEurMinor != null ? eur(a.costPerRegistrationEurMinor) : '—';
+  const seat = (v: number | null) => (v != null ? eur(v) : '—');
   const w = (value: string, c: Change | null) => (c ? `${value} (${c.text})` : value);
   lines.push(
     `Registrations: ${w(String(data.registrations.total), ch.registrations)}`,
@@ -886,8 +938,8 @@ function renderReportText(kindLabel: string, rangeLabel: string, data: ReportDat
     `Cash in: ${w(eur(data.cash.totalEurMinor), ch.cashInEurMinor)}`,
     `Ad spend: ${w(eur(ads.spendEurMinor), ch.adSpendEurMinor)}`,
     `Blended ROAS: ${w(roasStr(ads.roas), ch.roas)}`,
-    `Workshop seat: ${w(seat(ads.workshop), ch.workshopSeatEurMinor)}`,
-    `Masterclass seat: ${w(seat(ads.masterclass), ch.masterclassSeatEurMinor)}`,
+    `Workshop seat: ${w(seat(ads.workshopSeatEurMinor), ch.workshopSeatEurMinor)}`,
+    `Masterclass seat: ${w(seat(ads.masterclassSeatEurMinor), ch.masterclassSeatEurMinor)}`,
   );
   if (data.previous) lines.push(`(Changes compare with ${comparedWith(data.previous)}.)`);
   lines.push('', 'MONEY (sold · cash in)');
@@ -906,17 +958,19 @@ function renderReportText(kindLabel: string, rangeLabel: string, data: ReportDat
       }`,
     );
   }
-  lines.push('', 'AD ECONOMICS (regs · ad spend · per reg · made back · ROAS)');
+  lines.push('', 'AD ECONOMICS — SESSIONS THAT HAVE RUN (regs · ad spend · per reg · made back · ROAS)');
   for (const [name, ...rest] of audienceRows(data)) lines.push(`  ${name}: ${rest.join(' · ')}`);
+  const setAside = setAsideNote(data);
+  if (setAside) lines.push(`  ${setAside}`);
   lines.push('', 'WORKSHOP REGISTRATIONS');
   if (data.registrations.byWorkshop.length) {
     for (const r of data.registrations.byWorkshop)
-      lines.push(`  ${r.title} (${r.date}): +${r.count} · ${r.seats} seats now`);
+      lines.push(`  ${r.title} (${r.date}): +${r.count} · ${plural(r.seats, 'seat')} now`);
   } else lines.push('  (none)');
   lines.push('', 'COMING UP (Brussels time)');
   if (data.upcoming.length) {
     for (const u of data.upcoming)
-      lines.push(`  ${u.when} · ${u.title}: ${u.seats} seats${u.newSeats ? ` (+${u.newSeats} new)` : ''}`);
+      lines.push(`  ${u.when} · ${u.title}: ${plural(u.seats, 'seat')}${u.newSeats ? ` (+${u.newSeats} new)` : ''}`);
   } else lines.push('  (nothing scheduled)');
   lines.push('', 'COURSE SALES (full value · charged)');
   if (data.courseSales.byProduct.length) {
@@ -1239,19 +1293,29 @@ export function sampleDailyReportData(): ReportData {
       prospectingEurMinor: 11800,
       retargetingEurMinor: 2400,
       roas: 9.73,
+      workshopSeatEurMinor: 1080,
+      masterclassSeatEurMinor: 3200,
+      // Yesterday's seats were mostly for sessions still ahead; only the two
+      // for last night's workshop have run.
       workshop: {
-        registrations: 5,
-        adSpendEurMinor: 5400,
+        registrations: 2,
+        adSpendEurMinor: 2160,
         costPerRegistrationEurMinor: 1080,
-        revenueEurMinor: 65180,
-        roas: 12.07,
+        revenueEurMinor: 49086,
+        roas: 22.73,
       },
       masterclass: {
-        registrations: 2,
-        adSpendEurMinor: 6400,
-        costPerRegistrationEurMinor: 3200,
-        revenueEurMinor: 74400,
-        roas: 11.63,
+        registrations: 0,
+        adSpendEurMinor: 0,
+        costPerRegistrationEurMinor: null,
+        revenueEurMinor: 0,
+        roas: null,
+      },
+      upcoming: {
+        sessions: 2,
+        registrations: 5,
+        adSpendEurMinor: 9640,
+        ticketRevenueEurMinor: 12726,
       },
     },
     daily: [
@@ -1312,9 +1376,11 @@ export function sampleWeeklyReportData(): ReportData {
     registrations: {
       total: 38,
       byWorkshop: [
-        { title: 'Somatic Vocal Healing Workshop', count: 18, seats: 31, date: 'Mon 22 Jun 2026' },
-        { title: 'Somatic Vocal Healing Workshop', count: 11, seats: 14, date: 'Fri 26 Jun 2026' },
-        { title: 'SVH Masterclass', count: 9, seats: 17, date: 'Thu 25 Jun 2026' },
+        { title: 'Somatic Vocal Healing Workshop', count: 12, seats: 19, date: 'Tue 30 Jun 2026' },
+        { title: 'SVH Masterclass', count: 8, seats: 8, date: 'Thu 2 Jul 2026' },
+        { title: 'Somatic Vocal Healing Workshop', count: 8, seats: 31, date: 'Mon 22 Jun 2026' },
+        { title: 'Somatic Vocal Healing Workshop', count: 7, seats: 14, date: 'Fri 26 Jun 2026' },
+        { title: 'SVH Masterclass', count: 3, seats: 17, date: 'Thu 25 Jun 2026' },
       ],
     },
     courseSales: {
@@ -1362,19 +1428,27 @@ export function sampleWeeklyReportData(): ReportData {
       prospectingEurMinor: 46100,
       retargetingEurMinor: 9300,
       roas: 7.33,
+      workshopSeatEurMinor: 859,
+      masterclassSeatEurMinor: 2082,
       workshop: {
-        registrations: 29,
-        adSpendEurMinor: 24900,
-        costPerRegistrationEurMinor: 859,
-        revenueEurMinor: 198400,
-        roas: 7.97,
+        registrations: 15,
+        adSpendEurMinor: 12900,
+        costPerRegistrationEurMinor: 860,
+        revenueEurMinor: 118170,
+        roas: 9.16,
       },
       masterclass: {
-        registrations: 9,
-        adSpendEurMinor: 21200,
-        costPerRegistrationEurMinor: 2356,
-        revenueEurMinor: 141300,
-        roas: 6.67,
+        registrations: 3,
+        adSpendEurMinor: 7070,
+        costPerRegistrationEurMinor: 2357,
+        revenueEurMinor: 76808,
+        roas: 10.86,
+      },
+      upcoming: {
+        sessions: 2,
+        registrations: 20,
+        adSpendEurMinor: 26130,
+        ticketRevenueEurMinor: 50904,
       },
     },
     daily,
@@ -1396,7 +1470,7 @@ export function sampleWeeklyReportData(): ReportData {
     upcoming: [
       { title: 'Somatic Vocal Healing Workshop', when: 'Tue 30 Jun, 19:00', seats: 19, newSeats: 12 },
       { title: 'SVH Masterclass', when: 'Thu 2 Jul, 18:30', seats: 8, newSeats: 8 },
-      { title: 'Somatic Vocal Healing Workshop', when: 'Mon 6 Jul, 10:00', seats: 2, newSeats: 2 },
+      { title: 'Somatic Vocal Healing Workshop', when: 'Mon 6 Jul, 10:00', seats: 2, newSeats: 0 },
     ],
     pipeline: {
       totalEurMinor: 1284000,
