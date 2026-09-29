@@ -3,9 +3,11 @@ import { logEventSafe } from '../../../lib/registrations/db';
 import {
   getPublishedWorkshopBySlug,
   getRegistrationByAccessToken,
+  getWorkshopById,
   upsertRegistration,
   setRegistrationPaymentStatus,
 } from '../../../lib/workshops/db';
+import { attendedLive } from '../../../lib/workshops/time';
 import { runWorkshopPaidSideEffects, successUrl } from '../../../lib/workshops/paid-handler';
 
 export const prerender = false;
@@ -35,6 +37,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const origin = await getRegistrationByAccessToken(env.DB, token);
   if (!origin || (origin.payment_status !== 'paid' && origin.payment_status !== 'coupon')) {
     return json({ error: 'We couldn’t find your registration.' }, 404);
+  }
+  // …and one they missed. Someone who was in the live room has used the seat;
+  // the countdown page no longer offers them this, but a page left open from
+  // before the session still could.
+  const originWorkshop = await getWorkshopById(env.DB, origin.workshop_id);
+  if (originWorkshop && attendedLive(origin, originWorkshop)) {
+    return json({ error: 'You joined this session live, so this seat can’t move to another date. If that’s not right, email info@songdance.co.' }, 409);
   }
 
   const target = await getPublishedWorkshopBySlug(env.DB, slug);
