@@ -49,6 +49,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
       .prepare(`UPDATE intake_invitations SET retreat_slug = ? WHERE retreat_slug = ?`)
       .bind(slug, originalSlug)
       .run();
+    // And the travel answers, so the retreat's Google Sheet keeps its rows.
+    // (Table from migration 0085 — absent before it, hence the catch.)
+    await env.DB
+      .prepare(`UPDATE intake_transport_answers SET event_code = ? WHERE event_code = ?`)
+      .bind(slug, originalSlug)
+      .run()
+      .catch(() => undefined);
   } else {
     await env.DB
       .prepare(

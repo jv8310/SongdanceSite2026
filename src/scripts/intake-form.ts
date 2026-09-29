@@ -12,6 +12,8 @@ type Answers = Record<string, string | string[] | Record<string, boolean>>;
 
 interface Config {
   locale: Locale;
+  // 'transport' = the retreat's travel questions on their own.
+  mode?: 'full' | 'transport';
   eventCode: string;
   eventLabel: string;
   shared: SharedCopy;
@@ -68,6 +70,8 @@ function isAnswered(step: StepDef, answers: Answers): boolean {
     case 'email':
     case 'number':
     case 'textarea':
+    case 'date':
+    case 'time':
     case 'radio':
       return typeof v === 'string' && v.trim().length > 0;
     case 'checkboxes':
@@ -208,6 +212,7 @@ class IntakeApp {
           locale: this.cfg.locale,
           answers: this.answers,
           inviteToken: this.cfg.inviteToken ?? undefined,
+          mode: this.cfg.mode ?? 'full',
         }),
       });
       const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
@@ -335,6 +340,19 @@ class IntakeApp {
             />
           </div>
         `;
+      case 'date':
+      case 'time':
+        return `
+          <div class="in-field">
+            <input
+              type="${step.type}"
+              id="intake-input"
+              ${step.min ? `min="${escapeAttr(step.min)}"` : ''}
+              ${step.max ? `max="${escapeAttr(step.max)}"` : ''}
+              value="${escapeAttr(asString(this.answers[step.key]))}"
+            />
+          </div>
+        `;
       case 'number':
         return `
           <div class="in-field">
@@ -422,13 +440,23 @@ class IntakeApp {
 
   private wireInputs(step: StepDef) {
     const root = this.root;
-    if (step.type === 'text' || step.type === 'email' || step.type === 'number' || step.type === 'textarea') {
+    if (
+      step.type === 'text' ||
+      step.type === 'email' ||
+      step.type === 'number' ||
+      step.type === 'textarea' ||
+      step.type === 'date' ||
+      step.type === 'time'
+    ) {
       const inp = root.querySelector<HTMLInputElement | HTMLTextAreaElement>('#intake-input');
       if (inp) {
-        inp.addEventListener('input', () => {
+        const record = () => {
           this.answers[step.key] = inp.value;
           this.validationMessage = '';
-        });
+        };
+        inp.addEventListener('input', record);
+        // Some browsers' date/time pickers only fire `change`.
+        inp.addEventListener('change', record);
         // Enter advances on single-line inputs (not textarea)
         if (step.type !== 'textarea') {
           inp.addEventListener('keydown', (e) => {
@@ -446,9 +474,13 @@ class IntakeApp {
         el.addEventListener('change', () => {
           this.answers[step.key] = el.value;
           this.validationMessage = '';
-          // Auto-advance after a brief beat so the choice is visible.
+          // Auto-advance after a brief beat so the choice is visible — except
+          // on the last screen, where "next" means "send": that stays a press
+          // of the button (the travel-only form can end on a radio).
           window.setTimeout(() => {
-            if (this.phase === 'form' && this.currentStep()?.key === step.key) {
+            const visible = this.visibleSteps();
+            const isLast = visible[visible.length - 1]?.key === step.key;
+            if (this.phase === 'form' && this.currentStep()?.key === step.key && !isLast) {
               this.goNext();
             }
           }, 320);

@@ -778,6 +778,114 @@ A retreat booked with a 50% deposit owes the rest before the retreat. The
   refuses a row that is not paid, already settled, or owes nothing, so a
   double-click can't log twice.
 
+## Retreat intake — invited from the retreat page, with a transport section per retreat
+
+The intake (`/intake`, the screening form Claude assesses — `src/lib/intake/`)
+and the retreats used to be two islands: inviting a retreat's guests meant
+copying their addresses from one admin page and pasting them into another.
+Now an intake retreat (`intake_retreats`) is **linked to its retreat product**
+(`product_id`, migration 0085) and **`/admin/retreats/<slug>` → "Intake"** runs
+it ([`retreat-intake.ts`](src/lib/intake/retreat-intake.ts)):
+
+- **Link once**: "Create the intake for this retreat" (keyed by the product
+  slug, so the link reads `/intake?event=dolphin-and-sound-2026`) or link one
+  already made by hand on `/admin/intakes/retreats` (its invitees and answers
+  come along). One retreat, one intake; unlinking deletes nothing.
+- **The roster is every PAID, non-host booking**, one row per email address,
+  beside its intake state: not invited / invited / reminded / final note /
+  submitted, the assessment pill (→ the submission), and whether travel
+  details are in. Invitees added by hand on the intakes page appear under the
+  guests. A booking carrying a stand-in address (`…@placeholder.invalid` — the
+  partners and co-facilitator booked onto a bed without an email) is **listed,
+  never mailed**: `.invalid` can't deliver, so `emailable` is false and it has
+  no buttons until a real address is added by hand.
+- **Sending**: per person (Invite, then Reminder / Final once invited; Travel)
+  or to everyone it applies to. Recipients are re-derived **server-side** by
+  `eligibleFor` — the invitation only to those never invited, reminder/final
+  only to invited-but-not-submitted, the travel email only to those whose
+  intake is in but whose travel details aren't — so the count on a bulk button
+  is exactly who it reaches, and a stale page can't mail someone who's done.
+  The invitation row is created from the booking on first send (first name for
+  the greeting via `tidyFirstName`, full name to prefill the form — new
+  `full_name` column) and keeps its token, so links already sent keep working.
+- **One sender** ([`send.ts`](src/lib/intake/send.ts)) behind both admin pages:
+  builds the tokened link, paces bulk sends under Resend's 2 req/s, retries a
+  429, stamps the `*_sent_at` column. The old `/api/admin/invitations/*`
+  endpoints use it too.
+
+### Transport section — built per retreat, on instruction
+
+How people get to a retreat differs per retreat, so each one that needs it
+gets a **`TransportSection`** in its own file,
+`src/lib/intake/transport/<product-slug>.ts`, registered in
+`TRANSPORT_SECTIONS` ([`transport.ts`](src/lib/intake/transport.ts)) **by the
+retreat's product slug**. Two exist (first drafts written from the retreat
+pages' practical info): `dolphin-and-sound-2026` (airport, landing date/time,
+flight, same for the way home — for the shuttle) and `ritual-of-belonging-2026`
+(car/plane/train; seats to offer; airport or station; arrival; departure).
+
+**When Jacob says "for <retreat>, ask …", this is the whole job**: write or edit
+that file, register it if new, build. No migration, no admin change — the form,
+the stored answers, the admin tables and the Google Sheet all follow the
+definition. The rules:
+
+- A question is `{ key, type, title, body?, placeholder?, required?, options?,
+  showIf?, column?, maxLength?, min?, max? }`; types `text`, `textarea`,
+  `number`, `date` (min/max bound the picker), `time`, `radio`, `checkboxes`.
+- **`key` is identity** (snake_case): the stored answer and the sheet column
+  hang on it. Reword freely; change a key only when the question really
+  changes — answers under an old key stop showing.
+- **`showIf: { key, valueIn }`** points at a **radio** of the same section.
+  Hidden questions are neither validated nor stored (and an answer the guest
+  typed before changing their mind is dropped).
+- Strings are `'…'` or `{ en, nl }` — the form shows the guest's language and
+  falls back to English. Give both when the retreat invites in Dutch.
+- `why` (one or two retreat-specific sentences about what the answers are for)
+  opens the section on the form **and** is the body of the travel-questions
+  email. `column` is the sheet header (defaults to the English title).
+- Offer an honest way out on a required radio ("I haven't booked yet", "I'll
+  make my own way") — required questions block sending, and the email tells
+  people they can send what they know and update it later via the same link.
+- Copy-book rules apply to every string, like everywhere on the site.
+
+**Where the questions appear**: inside the full intake, spliced in just before
+"anything else" (after a "Getting there." screen); and **on their own** at
+`/intake?event=…&inv=…&only=transport` — the **Travel** email — for a guest who
+sent the intake before the section existed, or whose plans changed. Both doors
+write the same `intake_transport_answers` row (one per person and retreat; the
+latest answer wins; a phone number the travel-only form didn't ask for is kept).
+The assessor never sees these answers — `assess.ts` walks the base `STEPS` only.
+
+### Google Sheet — an Apps Script bridge, whole table every time
+
+[`transport-sheet.ts`](src/lib/intake/transport-sheet.ts). The retreat page's
+"Travel questions → Google Sheet" block shows a ready-made **Apps Script** (with
+the intake's own `sheet_secret` filled in): paste it into the sheet
+(Extensions → Apps Script), deploy as a **web app** (execute as me, access
+Anyone), paste the `/exec` URL back. No Google Cloud project, service account or
+API key — deliberately, so it is set up from the sheet itself.
+
+- **Every push rewrites the whole table** on a tab called "Transport": Name,
+  Email, Phone (from the answer, else the intake, else the booking), one column
+  per question (option *labels*), Last updated (Brussels). Never an append — a
+  newer answer replaces its person's row, a new question becomes a column, and
+  a failed push is repaired by the next. Rows keep first-answered order and
+  only the synced columns are cleared, so notes typed to the right stay put.
+  Cells are written as plain text (a `+32` phone keeps its plus).
+- **When**: beside every submission (waitUntil), on "Push to the sheet now",
+  and from the **hourly cron** (`syncStaleTransportSheets`) for any retreat
+  whose answers changed at/after its last successful push. `sheet_synced_at` /
+  `sheet_error` record the outcome and the panel shows it in plain words (404 =
+  wrong URL, a web page instead of JSON = not shared with Anyone, bad secret =
+  paste the script again).
+- The answers are also on the retreat page ("Travel answers") and on each
+  submission's page, so nothing depends on the sheet being connected.
+
+**Preview caveat**: migration 0085 is applied on merge to main, and a preview
+shares the live D1 — before that, the retreat page's Intake section says it
+needs the migration (the rest of the page, and the public intake, work as
+before: every new read is `SELECT *` or wrapped).
+
 ## Workshop revenue in EUR — never count a charge at face value
 
 Tickets are charged in the buyer's currency (`workshop_product_prices`), and a

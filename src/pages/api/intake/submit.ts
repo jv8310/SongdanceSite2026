@@ -11,6 +11,14 @@ import {
   getInvitationByToken,
   markInvitationSubmitted,
 } from '../../../lib/intake/invitations';
+import {
+  missingTransportAnswer,
+  saveTransportAnswers,
+  transportAnswersFrom,
+  type TransportSection,
+} from '../../../lib/intake/transport';
+import { transportSectionForIntake } from '../../../lib/intake/send';
+import { syncTransportSheet } from '../../../lib/intake/transport-sheet';
 
 export const prerender = false;
 
@@ -23,6 +31,9 @@ interface SubmitBody {
   locale?: string;
   answers?: Record<string, unknown>;
   inviteToken?: string;
+  // 'transport' = the travel questions on their own (/intake?…&only=transport):
+  // no screening, no assessment — only the transport answers are stored.
+  mode?: string;
 }
 
 const json = (status: number, body: Record<string, unknown>) =>
@@ -239,6 +250,7 @@ export const POST: APIRoute = async ({ request, locals, clientAddress }) => {
   const locale: Locale = body.locale === 'en' ? 'en' : 'nl';
   const answers = body.answers ?? {};
   const inviteToken = (body.inviteToken ?? '').toString().trim().slice(0, 80) || null;
+  const mode: 'full' | 'transport' = body.mode === 'transport' ? 'transport' : 'full';
 
   if (!eventCode) {
     return json(400, { ok: false, error: 'unknown-event' });
@@ -252,8 +264,9 @@ export const POST: APIRoute = async ({ request, locals, clientAddress }) => {
   if (!fullName) return json(400, { ok: false, error: 'missing-name' });
   if (!EMAIL_RE.test(email)) return json(400, { ok: false, error: 'bad-email' });
 
-  // Required steps must be present.
-  for (const step of STEPS) {
+  // Required steps must be present (the screening only — the travel-only
+  // form asks none of them).
+  for (const step of mode === 'full' ? STEPS : []) {
     if (!step.required) continue;
     const v = answers[step.key];
     if (step.type === 'consent') {
@@ -290,6 +303,56 @@ export const POST: APIRoute = async ({ request, locals, clientAddress }) => {
 
   const event = await resolveEventWithDb(db, eventCode);
   const eventLabel = event.label[locale];
+
+  // The retreat's travel questions, when it has any (transport.ts). Checked
+  // server-side like every other required answer.
+  const transport: TransportSection | null = db
+    ? await transportSectionForIntake(db, eventCode)
+    : null;
+  if (mode === 'transport' && !transport) {
+    return json(400, { ok: false, error: 'no-transport-section' });
+  }
+  const transportAnswers = transport ? transportAnswersFrom(transport, answers) : null;
+  if (transport && transportAnswers) {
+    const missing = missingTransportAnswer(transport, transportAnswers);
+    if (missing) return json(400, { ok: false, error: `missing-transport_${missing}` });
+  }
+
+  // Store the travel answers (both doors write the same row — the latest
+  // wins) and push them to the retreat's Google Sheet. The push runs beside
+  // the response, apart from the slow assessment below, and the hourly cron
+  // catches up any push that doesn't land.
+  if (db && transport && transportAnswers) {
+    const phone = (answers.phone ?? '').toString().trim().slice(0, 40) || null;
+    let saved = false;
+    try {
+      await saveTransportAnswers(db, {
+        eventCode,
+        email,
+        fullName,
+        phone,
+        locale,
+        answers: transportAnswers,
+        source: mode === 'transport' ? 'transport' : 'intake',
+      });
+      saved = true;
+    } catch (err) {
+      console.error('[intake/submit] transport save failed', err);
+      if (mode === 'transport') return json(500, { ok: false, error: 'save-failed' });
+    }
+    if (saved) {
+      const push = syncTransportSheet(db, eventCode)
+        .then((r) => {
+          if (!r.ok && r.error !== 'no-sheet') console.warn('[intake/submit] sheet sync:', r.error);
+        })
+        .catch((err) => console.error('[intake/submit] sheet sync failed', err));
+      if (runtime?.ctx?.waitUntil) runtime.ctx.waitUntil(push);
+      else await push;
+    }
+  }
+  if (mode === 'transport') {
+    return json(200, { ok: true });
+  }
 
   const anthropicKey = cfEnv?.ANTHROPIC_API_KEY ?? import.meta.env.ANTHROPIC_API_KEY;
   const resendKey = cfEnv?.RESEND_API_KEY ?? import.meta.env.RESEND_API_KEY;

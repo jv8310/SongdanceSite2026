@@ -139,6 +139,8 @@ html, body {
 .in-field input[type="text"],
 .in-field input[type="email"],
 .in-field input[type="number"],
+.in-field input[type="date"],
+.in-field input[type="time"],
 .in-field textarea {
   width: 100%;
   background: var(--paper-soft);
@@ -161,6 +163,11 @@ html, body {
 .in-field input[type="number"]::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
+}
+.in-field input[type="date"],
+.in-field input[type="time"] {
+  max-width: 240px;
+  min-height: 54px;
 }
 .in-field textarea {
   min-height: 140px;

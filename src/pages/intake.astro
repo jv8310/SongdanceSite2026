@@ -9,11 +9,19 @@ import { resolveLocale, SHARED, STEP_COPY } from '../lib/intake/copy';
 import { STEPS } from '../lib/intake/steps';
 import { getInvitationByToken } from '../lib/intake/invitations';
 import { getRetreat } from '../lib/intake/retreats-db';
+import {
+  intakeStepsWithTransport,
+  transportOnlySteps,
+} from '../lib/intake/transport';
+import { transportSectionForIntake } from '../lib/intake/send';
 
 const url = new URL(Astro.request.url);
 const rawEvent = url.searchParams.get('event');
 const rawLocale = url.searchParams.get('taal') ?? url.searchParams.get('lang');
 const rawToken = url.searchParams.get('inv');
+// ?only=transport — the retreat's travel questions on their own, for a guest
+// who already sent the intake (the "travel questions" email links here).
+const rawOnly = url.searchParams.get('only');
 
 const db = Astro.locals.runtime?.env?.DB as D1Database | undefined;
 
@@ -31,9 +39,12 @@ if (rawToken && db) {
   if (invitation) {
     inviteToken = invitation.token;
     invitationEventCode = invitation.retreat_slug;
+    // The whole name when the invitation came from a booking (migration
+    // 0085), else the first name it was pasted with.
+    const prefillName = invitation.full_name || invitation.first_name;
     prefill = {
       email: invitation.email,
-      ...(invitation.first_name ? { full_name: invitation.first_name } : {}),
+      ...(prefillName ? { full_name: prefillName } : {}),
     };
     const retreat = await getRetreat(db, invitation.retreat_slug).catch(() => null);
     if (retreat) {
@@ -48,14 +59,23 @@ const locale = invitationLocale ?? resolveLocale(rawLocale);
 const otherLocale = locale === 'nl' ? 'en' : 'nl';
 
 const shared = SHARED[locale];
-const copy = STEP_COPY[locale];
+
+// The retreat's own travel questions (lib/intake/transport.ts), if it has any:
+// spliced into the intake, or — with ?only=transport — the whole form.
+const transport = db ? await transportSectionForIntake(db, event.code) : null;
+const mode: 'full' | 'transport' = rawOnly === 'transport' && transport ? 'transport' : 'full';
+const { steps, copy } =
+  mode === 'transport' && transport
+    ? transportOnlySteps(STEPS, STEP_COPY[locale], transport, locale)
+    : intakeStepsWithTransport(STEPS, STEP_COPY[locale], transport, locale);
 
 const eventLabel = event.label[locale];
 
-// Build the URL for the language toggle, preserving event + token.
+// Build the URL for the language toggle, preserving event + token + mode.
 const langSwitchParams = new URLSearchParams();
 if (rawEvent) langSwitchParams.set('event', rawEvent);
 if (rawToken) langSwitchParams.set('inv', rawToken);
+if (mode === 'transport') langSwitchParams.set('only', 'transport');
 langSwitchParams.set('taal', otherLocale);
 const langSwitchUrl = `/intake?${langSwitchParams.toString()}`;
 
@@ -66,6 +86,7 @@ const prefilledKeys = Object.entries(prefill)
 // Config blob the client script will read on boot.
 const config = {
   locale,
+  mode,
   eventCode: event.code,
   eventLabel,
   inviteToken,
@@ -93,7 +114,7 @@ const config = {
     optional: shared.optional,
     crisisNote: shared.crisisNote,
   },
-  steps: STEPS,
+  steps,
   copy,
   apiUrl: '/api/intake/submit',
   homeUrl: 'https://songdance.co',
@@ -101,20 +122,32 @@ const config = {
 };
 
 const pageTitle =
-  locale === 'nl'
-    ? `Intake — ${eventLabel} — Songdance`
+  mode === 'transport'
+    ? locale === 'nl'
+      ? `Reisgegevens — ${eventLabel} — Songdance`
+      : `Travel details — ${eventLabel} — Songdance`
     : `Intake — ${eventLabel} — Songdance`;
 const pageDescription =
-  locale === 'nl'
-    ? 'Een eerste kennismaking voor je deelname. Vijftien minuten, zorgvuldig gelezen.'
-    : 'A first meeting before you join. Fifteen minutes, read with care.';
+  mode === 'transport'
+    ? locale === 'nl'
+      ? 'Een paar praktische vragen over je reis. Een paar minuten.'
+      : 'A few practical questions about your journey. A couple of minutes.'
+    : locale === 'nl'
+      ? 'Een eerste kennismaking voor je deelname. Vijftien minuten, zorgvuldig gelezen.'
+      : 'A first meeting before you join. Fifteen minutes, read with care.';
+const headerLabel =
+  mode === 'transport'
+    ? locale === 'nl' ? 'Reisgegevens voor' : 'Travel details for'
+    : shared.forEventLabel;
+// The server-rendered first screen, before the client takes over.
+const firstScreen = copy[steps[0]?.key ?? 'welcome'] ?? copy.welcome;
 ---
 
 <Layout title={pageTitle} description={pageDescription}>
   <div class="in-shell" lang={locale}>
     <header class="in-header">
       <a class="in-header-brand" href={config.homeUrl}>{shared.brand}</a>
-      <span class="in-header-event">{shared.forEventLabel}: {eventLabel}</span>
+      <span class="in-header-event">{headerLabel}: {eventLabel}</span>
       <a class="in-header-lang" href={langSwitchUrl} aria-label={shared.langSwitchTo}>
         {shared.langSwitchTo}
       </a>
@@ -131,8 +164,8 @@ const pageDescription =
       <div id="intake-step-root">
         <!-- Server-rendered skeleton: the welcome screen. Client takes over. -->
         <div class="in-step">
-          <h1>{copy.welcome?.title}</h1>
-          <p class="in-body">{copy.welcome?.body}</p>
+          <h1>{firstScreen?.title}</h1>
+          <p class="in-body">{firstScreen?.body}</p>
         </div>
       </div>
     </main>

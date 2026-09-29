@@ -13,6 +13,7 @@
 
 import { createExports as baseCreateExports } from '@astrojs/cloudflare/entrypoints/server.js';
 import { assessPendingSubmissions } from './lib/intake/sweep';
+import { syncStaleTransportSheets } from './lib/intake/transport-sheet';
 import { runWorkshopCron } from './lib/workshops/cron';
 import { runBroadcasts } from './lib/broadcasts/cron';
 import { runDripOrderBackfill } from './lib/orders/drip-backfill';
@@ -252,6 +253,21 @@ export function createExports(manifest: unknown) {
         })
         .catch((err) => {
           console.error('[intake/sweep] cron run failed', err);
+        }),
+    );
+
+    // Retreat travel answers → each retreat's Google Sheet. Every answer is
+    // pushed as it arrives; this catches up any push that didn't land (a
+    // torn-down waitUntil, a Google blip). Steady state: one query, no pushes.
+    ctx.waitUntil(
+      syncStaleTransportSheets(env.DB)
+        .then((r) => {
+          if (r.synced || r.failed) {
+            console.log(`[intake/transport-sheet] synced=${r.synced} failed=${r.failed}`);
+          }
+        })
+        .catch((err) => {
+          console.error('[intake/transport-sheet] sweep failed', err);
         }),
     );
 
