@@ -501,6 +501,32 @@ const avg7 = days.map((_, i) => {
 const regsByDate = new Map(regs.days.map((r) => [r.date, r.count]));
 const regsSeries = days.map((d) => regsByDate.get(d.date) ?? 0);
 
+// Price of one registration per product over time, off the performance
+// report's day-by-day ledger (the same per-product prices that charge each
+// session its TOF cost). Daily: that day's price, blank on a day with no
+// registration of the product. 7-day: the trailing week's charged spend ÷ its
+// registrations — the trend under a noisy daily figure. Spend on a day with no
+// registration of its product isn't in either (it can't price a seat).
+const costByDate = new Map(perf.dailyCosts.map((c) => [c.date, c]));
+function seatPriceSeries(kind: 'workshop' | 'masterclass') {
+  const per = days.map((d) => {
+    const c = costByDate.get(d.date);
+    const regs = c ? (kind === 'workshop' ? c.workshopRegistrations : c.masterclassRegistrations) : 0;
+    const price = c ? (kind === 'workshop' ? c.workshopCostPerRegistrationEurMinor : c.masterclassCostPerRegistrationEurMinor) : null;
+    return { regs, charged: regs > 0 && price != null ? price * regs : 0 };
+  });
+  const daily = per.map((p) => (p.regs > 0 ? toMajor(p.charged / p.regs) : null));
+  const avg7 = per.map((_, i) => {
+    let regs = 0;
+    let charged = 0;
+    for (let j = Math.max(0, i - 6); j <= i; j++) { regs += per[j].regs; charged += per[j].charged; }
+    return regs > 0 ? toMajor(charged / regs) : null;
+  });
+  return { daily, avg7, any: per.some((p) => p.regs > 0) };
+}
+const seatPrice = { workshop: seatPriceSeries('workshop'), masterclass: seatPriceSeries('masterclass') };
+const showSeatPrice = perf.acquisitionSpendEurMinor > 0 && (seatPrice.workshop.any || seatPrice.masterclass.any);
+
 const chartData = {
   labels: days.map((d) => d.date),
   streams: [
@@ -517,6 +543,7 @@ const chartData = {
   cumulative,
   cumulativeSpend,
   regs: regsSeries,
+  seatPrice,
   compare: cmp && cmpCumulative
     ? {
         label: compare === 'yoy' ? 'Same period last year' : 'Previous period',
@@ -939,6 +966,20 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
         <div class="st-chart-block" style="margin-top:16px;">
           <h3>Registrations per day</h3>
           <div class="st-chart" id="chart-regs"></div>
+        </div>
+      )}
+      {showSeatPrice && (
+        <div class="st-chart-grid" style="margin-top:16px;">
+          <div class="st-chart-block">
+            <h3>Cost per workshop registration</h3>
+            <p class="adm-sub" style="margin:-2px 0 8px;">What one workshop seat cost in prospecting (TOF) spend, day by day · dashed = trailing 7 days.</p>
+            <div class="st-chart" id="chart-cpr-workshop"></div>
+          </div>
+          <div class="st-chart-block">
+            <h3>Cost per masterclass registration</h3>
+            <p class="adm-sub" style="margin:-2px 0 8px;">What one masterclass seat cost in prospecting (TOF) spend, day by day · dashed = trailing 7 days.</p>
+            <div class="st-chart" id="chart-cpr-masterclass"></div>
+          </div>
         </div>
       )}
     </section>
@@ -1502,6 +1543,14 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
         if (document.getElementById('chart-regs')) {
           SDChart.column('chart-regs', { labels: data.labels, values: data.regs, color: C.workshops, fmt: 'int', name: 'Registrations' });
         }
+        [['workshop', C.workshops], ['masterclass', C.masterclass]].forEach(function (k) {
+          var sp = data.seatPrice[k[0]];
+          if (!document.getElementById('chart-cpr-' + k[0])) return;
+          SDChart.line('chart-cpr-' + k[0], { labels: data.labels, fmt: 'eur', series: [
+            { name: 'Per registration (day)', color: k[1], values: sp.daily },
+            { name: 'Trailing 7 days', color: C.total, values: sp.avg7, dashed: true },
+          ] });
+        });
       }
       drawAll();
       var rt;
