@@ -2,6 +2,7 @@
 import Layout from '../../layouts/Layout.astro';
 import MetaPixel from '../../components/MetaPixel.astro';
 import { purchaseEventId } from '../../lib/workshops/meta';
+import { claimBrowserPurchase } from '../../lib/meta/pixel-once';
 import {
   getPaidPaymentForRegistration,
   getRegistrationByAccessToken,
@@ -184,14 +185,16 @@ const upcoming = reg
 // Meta Pixel Purchase — fired here in the browser, deduplicated against the
 // server-side CAPI Purchase via the deterministic per-registration event id.
 // Only for a real, settled payment (free/coupon registrations have no payment
-// row, so nothing fires).
+// row, so nothing fires), and only on the first paid render — every reminder
+// links back here, and each later visit used to report another Purchase (see
+// claimBrowserPurchase).
 const pixelId = env.META_PIXEL_ID ?? '';
 let purchase:
   | { value: number; currency: string; eventId: string; contentIds: string[] }
   | null = null;
 if (reg && paid && reg.payment_status === 'paid') {
   const pay = await getPaidPaymentForRegistration(env.DB, reg.id);
-  if (pay && pay.amount_minor > 0) {
+  if (pixelId && pay && pay.amount_minor > 0 && (await claimBrowserPurchase(env.DB, purchaseEventId(reg.id)))) {
     purchase = {
       value: Number((pay.amount_minor / 100).toFixed(2)),
       currency: pay.currency.toUpperCase(),

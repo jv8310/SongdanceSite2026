@@ -1,13 +1,16 @@
 ---
 // Browser Pixel Purchase for a course thank-you page. Mirrors the workshop
 // Purchase on /workshop/success: loads the base Pixel, then fires a single
-// Purchase only for a settled, paid order. The event id is the deterministic
+// Purchase only for a settled, paid order, and only on the first paid render of
+// the page (claimBrowserPurchase — a revisit must not report the sale again).
+// The event id is the deterministic
 // `cpur-{id}` so it deduplicates against the server-side CAPI Purchase fired
 // from the fulfillment hook (src/lib/courses/paid-handler.ts). content_ids =
 // the product slug, which is the catalog content_id.
 import MetaPixel from './MetaPixel.astro';
 import { coursePurchaseEventId } from '../lib/courses/meta';
 import { catalogContentId } from '../lib/catalog/products';
+import { claimBrowserPurchase } from '../lib/meta/pixel-once';
 
 interface Props {
   pixelId: string;
@@ -21,13 +24,19 @@ interface Props {
 const { pixelId, registrationId, status, amountCents, currency, productSlug } =
   Astro.props;
 
-const purchase =
+const eligible =
   pixelId &&
   registrationId &&
   status === 'paid' &&
   amountCents &&
   amountCents > 0 &&
-  currency
+  currency &&
+  (await claimBrowserPurchase(
+    Astro.locals.runtime.env.DB,
+    coursePurchaseEventId(registrationId),
+  ));
+const purchase =
+  eligible && registrationId && amountCents && currency
     ? {
         value: Number((amountCents / 100).toFixed(2)),
         currency: currency.toUpperCase(),
