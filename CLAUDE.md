@@ -1606,6 +1606,23 @@ webhook endpoint is registered in the PayPal app, subscribed to
 `PAYMENT.SALE.COMPLETED` + `BILLING.SUBSCRIPTION.*`, and that `PAYPAL_WEBHOOK_ID`
 matches that same live app.
 
+## Meta Purchase events — the browser Pixel fires once per order
+
+Every paid workshop/masterclass seat and course order reports one `Purchase` to
+Meta twice by design — the server CAPI send (`paid-handler`) and the browser
+Pixel on the thank-you page — folded into one by a shared event id
+(`wpur-<id>` / `cpur-<id>`). Meta only folds them inside ~48h, and
+`/workshop/success` is the page every confirmation and reminder links to (and is
+reloaded while people wait for Join), so until October 2026 **every visit sent
+another Purchase**: one buyer read as several sales in Meta, days apart, and
+Meta's cost per result came out far below ours. The Pixel now fires only on the
+first paid render, claimed in `events` by
+[`claimBrowserPurchase`](src/lib/meta/pixel-once.ts) (used by
+`/workshop/success` and `CoursePurchasePixel`). A failed claim fires nothing —
+the CAPI send already reports the sale. Any new page that fires a browser
+Purchase must go through it. Meta's history before the fix stays inflated.
+An order bump is never its own event: it rides in the one Purchase's value.
+
 ## Meta ad spend — direct pull from the Marketing API
 
 Ad spend feeds `/ads` (cost-per-registration, ROAS) and `/admin/stats`
