@@ -972,12 +972,12 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
         <div class="st-chart-grid" style="margin-top:16px;">
           <div class="st-chart-block">
             <h3>Cost per workshop registration</h3>
-            <p class="adm-sub" style="margin:-2px 0 8px;">What one workshop seat cost in prospecting (TOF) spend, day by day · dashed = trailing 7 days.</p>
+            <p class="adm-sub" style="margin:-2px 0 8px;">What one workshop seat cost in prospecting (TOF) spend, day by day · dashed = trailing 7 days. Tick either in the legend to show or hide it.</p>
             <div class="st-chart" id="chart-cpr-workshop"></div>
           </div>
           <div class="st-chart-block">
             <h3>Cost per masterclass registration</h3>
-            <p class="adm-sub" style="margin:-2px 0 8px;">What one masterclass seat cost in prospecting (TOF) spend, day by day · dashed = trailing 7 days.</p>
+            <p class="adm-sub" style="margin:-2px 0 8px;">What one masterclass seat cost in prospecting (TOF) spend, day by day · dashed = trailing 7 days. Tick either in the legend to show or hide it.</p>
             <div class="st-chart" id="chart-cpr-masterclass"></div>
           </div>
         </div>
@@ -1522,6 +1522,7 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
       var nLabels = data.labels.length;
       var C = data.colors;
       var hiddenStreams = {};
+      var hiddenSeatPrice = { workshop: {}, masterclass: {} };
       function drawAll() {
         var streamSeries = data.streams.concat([{ name: 'Total', color: C.total, values: data.total, dashed: true }]);
         SDChart.line('chart-streams', { labels: data.labels, fmt: 'eur', interactive: true, hidden: hiddenStreams, series: streamSeries });
@@ -1546,7 +1547,7 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
         [['workshop', C.workshops], ['masterclass', C.masterclass]].forEach(function (k) {
           var sp = data.seatPrice[k[0]];
           if (!document.getElementById('chart-cpr-' + k[0])) return;
-          SDChart.line('chart-cpr-' + k[0], { labels: data.labels, fmt: 'eur', series: [
+          SDChart.line('chart-cpr-' + k[0], { labels: data.labels, fmt: 'eur', interactive: true, hidden: hiddenSeatPrice[k[0]], series: [
             { name: 'Per registration (day)', color: k[1], values: sp.daily },
             { name: 'Trailing 7 days', color: C.total, values: sp.avg7, dashed: true },
           ] });
