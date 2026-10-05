@@ -13,6 +13,13 @@
 // someone's end date makes a new key → they are pushed again, and the other
 // group's tag is removed so nobody carries both.
 //
+// Holders with no order on the site — bought before it took payments
+// (`prod_SVH_9m` in Drip) or the CEEE 2025 cohort (`prod_CEEE-25`) — come from
+// cert-access-legacy.ts: `cert_ends_2026` + `cert_end_date` 2026-12-31, no
+// start date (there's no purchase to start from), and the CEEE cohort also gets
+// `cert_no_certification`: the course, not the right to apply for
+// certification. A site order always wins, and pushing one removes that tag.
+//
 // Who runs it: the hourly cron (`runCertAccessDripSync` — that IS the data
 // migration: on the first deploy it pushes everyone who already holds the
 // course, a paced batch per tick), the course paid-handler for a new buyer
@@ -23,6 +30,7 @@ import { removeTag, upsertSubscriber, type DripConfig } from '../registrations/d
 import { logEventSafe } from '../registrations/db';
 import { dripConfig } from '../orders/drip-order';
 import { getCertAccessForEmail, listCertAccess, type CertAccess, type CertAccessGroup } from './cert-access';
+import { listLegacyCertAccess, refreshLegacyRoster, type LegacyCertAccess } from './cert-access-legacy';
 
 export const CERT_DRIP_TAGS: Record<CertAccessGroup, string> = {
   'end-2026': 'cert_ends_2026',
@@ -30,6 +38,8 @@ export const CERT_DRIP_TAGS: Record<CertAccessGroup, string> = {
 };
 export const CERT_END_FIELD = 'cert_end_date';
 export const CERT_START_FIELD = 'cert_start_date';
+// CEEE 2025 free access: the course, without the right to apply for certification.
+export const CERT_NO_CERTIFICATION_TAG = 'cert_no_certification';
 
 const CLAIM_KIND = 'cert.access.drip_synced';
 const CLAIM_PREFIX = 'cert-access-drip-v1-';
@@ -45,6 +55,11 @@ type SyncEnv = {
 export function certAccessClaimKey(a: Pick<CertAccess, 'email' | 'endsOn'>): string {
   return `${CLAIM_PREFIX}${a.email}-${a.endsOn}`;
 }
+// A no-certification push is its own key, so gaining or losing that status
+// pushes again.
+export function legacyCertClaimKey(a: Pick<LegacyCertAccess, 'email' | 'endsOn' | 'noCertification'>): string {
+  return `${CLAIM_PREFIX}${a.email}-${a.endsOn}${a.noCertification ? '-nocert' : ''}`;
+}
 
 // The claim keys already pushed — so the admin page can say who is in Drip.
 export async function listSyncedCertKeys(db: D1Database): Promise<Map<string, string>> {
@@ -55,8 +70,45 @@ export async function listSyncedCertKeys(db: D1Database): Promise<Map<string, st
   return new Map((rows.results ?? []).map((r) => [r.external_id, r.created_at]));
 }
 
-async function pushOne(db: D1Database, cfg: DripConfig, a: CertAccess): Promise<'sent' | 'already' | 'failed'> {
-  const key = certAccessClaimKey(a);
+type Push = {
+  email: string;
+  key: string;
+  group: CertAccessGroup;
+  endsOn: string;
+  startsOn: string | null;
+  noCertification: boolean;
+  payload: Record<string, unknown>;
+};
+
+function sitePush(a: CertAccess): Push {
+  return {
+    email: a.email,
+    key: certAccessClaimKey(a),
+    group: a.group,
+    endsOn: a.endsOn,
+    startsOn: a.startsOn,
+    noCertification: false,
+    payload: {
+      start_reason: a.startReason,
+      product_slug: a.productSlug,
+      purchased_on: a.purchasedOn,
+    },
+  };
+}
+
+function legacyPush(a: LegacyCertAccess): Push {
+  return {
+    email: a.email,
+    key: legacyCertClaimKey(a),
+    group: a.group,
+    endsOn: a.endsOn,
+    startsOn: null,
+    noCertification: a.noCertification,
+    payload: { legacy: true, has_cert_tag: a.hasCertTag, has_ceee_tag: a.hasCeeeTag },
+  };
+}
+
+async function pushOne(db: D1Database, cfg: DripConfig, p: Push): Promise<'sent' | 'already' | 'failed'> {
   const claim = await db
     .prepare(
       `INSERT OR IGNORE INTO events (registration_id, kind, source, external_id, payload_json)
@@ -64,36 +116,41 @@ async function pushOne(db: D1Database, cfg: DripConfig, a: CertAccess): Promise<
     )
     .bind(
       CLAIM_KIND,
-      key,
+      p.key,
       JSON.stringify({
-        email: a.email,
-        group: a.group,
-        ends_on: a.endsOn,
-        starts_on: a.startsOn,
-        start_reason: a.startReason,
-        product_slug: a.productSlug,
-        purchased_on: a.purchasedOn,
+        email: p.email,
+        group: p.group,
+        ends_on: p.endsOn,
+        starts_on: p.startsOn,
+        no_certification: p.noCertification,
+        ...p.payload,
       }),
     )
     .run();
   if ((claim.meta?.changes ?? 0) === 0) return 'already';
 
   try {
+    const tags = [CERT_DRIP_TAGS[p.group]];
+    if (p.noCertification) tags.push(CERT_NO_CERTIFICATION_TAG);
     await upsertSubscriber(cfg, {
-      email: a.email,
-      tags: [CERT_DRIP_TAGS[a.group]],
-      custom_fields: { [CERT_END_FIELD]: a.endsOn, [CERT_START_FIELD]: a.startsOn },
+      email: p.email,
+      tags,
+      custom_fields: {
+        [CERT_END_FIELD]: p.endsOn,
+        ...(p.startsOn ? { [CERT_START_FIELD]: p.startsOn } : {}),
+      },
     });
-    const other: CertAccessGroup = a.group === 'end-2026' ? 'later' : 'end-2026';
-    await removeTag(cfg, a.email, CERT_DRIP_TAGS[other]);
+    const other: CertAccessGroup = p.group === 'end-2026' ? 'later' : 'end-2026';
+    await removeTag(cfg, p.email, CERT_DRIP_TAGS[other]);
+    if (!p.noCertification) await removeTag(cfg, p.email, CERT_NO_CERTIFICATION_TAG);
     return 'sent';
   } catch (err) {
-    await db.prepare(`DELETE FROM events WHERE external_id = ? AND kind = ?`).bind(key, CLAIM_KIND).run();
+    await db.prepare(`DELETE FROM events WHERE external_id = ? AND kind = ?`).bind(p.key, CLAIM_KIND).run();
     await logEventSafe(db, {
       registration_id: null,
       kind: 'cert.access.drip_error',
       source: 'system',
-      payload: { email: a.email, ends_on: a.endsOn, error: String(err).slice(0, 500) },
+      payload: { email: p.email, ends_on: p.endsOn, error: String(err).slice(0, 500) },
     });
     return 'failed';
   }
@@ -105,30 +162,52 @@ export type CertAccessSyncResult = {
   sent: number;
   failed: number;
   remaining: number;
+  refreshError?: string;
 };
 
+// Everyone who holds the course: site orders first, then the Drip-only
+// holders who have no order on the site.
+export async function listAllCertAccess(
+  db: D1Database,
+): Promise<{ site: CertAccess[]; legacy: LegacyCertAccess[] }> {
+  const site = await listCertAccess(db);
+  const legacy = await listLegacyCertAccess(db, new Set(site.map((a) => a.email)));
+  return { site, legacy };
+}
+
 // Push everyone not yet in Drip with their current end date, up to `cap`.
+// Re-reads the Drip-only roster first when it is stale (or `refresh` forces it).
 export async function runCertAccessDripSync(
   env: SyncEnv,
-  opts: { cap?: number } = {},
+  opts: { cap?: number; refresh?: boolean } = {},
 ): Promise<CertAccessSyncResult> {
   const cfg = dripConfig(env);
   if (!cfg) return { skipped: true, total: 0, sent: 0, failed: 0, remaining: 0 };
 
-  const all = await listCertAccess(env.DB);
+  let refreshError: string | undefined;
+  try {
+    await refreshLegacyRoster(env, { force: opts.refresh });
+  } catch (err) {
+    // Never block the site buyers' push on the roster read.
+    refreshError = String(err).slice(0, 200);
+    console.error('[cert-access] legacy roster refresh failed', refreshError);
+  }
+
+  const { site, legacy } = await listAllCertAccess(env.DB);
+  const all = [...site.map(sitePush), ...legacy.map(legacyPush)];
   const synced = await listSyncedCertKeys(env.DB);
-  const pending = all.filter((a) => !synced.has(certAccessClaimKey(a)));
+  const pending = all.filter((p) => !synced.has(p.key));
   const cap = opts.cap ?? DEFAULT_CAP;
 
   let sent = 0;
   let failed = 0;
-  for (const a of pending.slice(0, cap)) {
-    const r = await pushOne(env.DB, cfg, a);
+  for (const p of pending.slice(0, cap)) {
+    const r = await pushOne(env.DB, cfg, p);
     if (r === 'sent') sent++;
     if (r === 'failed') failed++;
     if (r !== 'already') await new Promise((res) => setTimeout(res, GAP_MS));
   }
-  return { total: all.length, sent, failed, remaining: Math.max(0, pending.length - sent) };
+  return { total: all.length, sent, failed, remaining: Math.max(0, pending.length - sent), refreshError };
 }
 
 // One buyer, right after a cert / path / 12-week purchase is fulfilled. Never
@@ -138,7 +217,7 @@ export async function syncCertAccessForEmail(env: SyncEnv, email: string): Promi
   if (!cfg) return;
   try {
     const a = await getCertAccessForEmail(env.DB, email);
-    if (a) await pushOne(env.DB, cfg, a);
+    if (a) await pushOne(env.DB, cfg, sitePush(a));
   } catch (err) {
     console.error('[cert-access] sync failed', String(err));
   }
