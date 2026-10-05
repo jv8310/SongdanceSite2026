@@ -25,6 +25,7 @@ import { reconcileOrderNotifications } from './lib/orders/reconcile';
 import { reconcilePaypalCourseOrders } from './lib/payments/paypal-reconcile';
 import { reconcileStripeCourseOrders } from './lib/payments/stripe-reconcile';
 import { runCourseDunning } from './lib/courses/dunning';
+import { runCertAccessDripSync } from './lib/courses/cert-access-drip';
 import { expireLapsedOffers } from './lib/registrations/waitlist';
 import { fxRatesStale, refreshFxRates } from './lib/admin/fx';
 import { runMetaAdSpendSync } from './lib/ads/meta-insights';
@@ -352,6 +353,22 @@ export function createExports(manifest: unknown) {
         })
         .catch((err) => {
           console.error('[orders/reconcile] run failed', err);
+        }),
+    );
+
+    // Certification end dates → Drip (cert_ends_2026 / cert_ends_later +
+    // cert_end_date). Pushes each student once per end date, a paced batch per
+    // tick — on the first deploy this is the backfill of everyone who already
+    // holds the course. Idempotent; no-ops until Drip is configured.
+    ctx.waitUntil(
+      runCertAccessDripSync(env)
+        .then((r) => {
+          if (r.sent || r.failed) {
+            console.log(`[cert-access] drip sent=${r.sent} failed=${r.failed} remaining=${r.remaining}`);
+          }
+        })
+        .catch((err) => {
+          console.error('[cert-access] drip sync failed', err);
         }),
     );
 

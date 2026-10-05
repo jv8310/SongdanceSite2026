@@ -21,6 +21,7 @@ import { TWELVE_WEEK_DRIP_EVENT, TWELVE_WEEK_PRODUCT_SLUG } from './twelve-week'
 import { isJourneySlug, journeyDrip } from './journeys';
 import { BUMPS, isBumpSlug } from './bumps';
 import { courseDripTags } from './drip-tags';
+import { syncCertAccessForEmail } from './cert-access-drip';
 import { mirrorTagsToContact } from '../contacts/mirror';
 import { sendCoursePurchaseEvent } from './meta';
 import { recordPurchaseOrder, type PurchaseOrderItem } from '../orders/drip-order';
@@ -241,6 +242,13 @@ export async function pushPaidCourseRegistrationToDrip(
       },
       'drip.course.order.error',
     );
+
+    // Certification end date → Drip (cert_ends_2026 / cert_ends_later +
+    // cert_end_date). A 12-week purchase can move a cert holder's start, so it
+    // re-checks too. Idempotent per end date; never throws.
+    if (['cc-cert', 'cc-bundle', TWELVE_WEEK_PRODUCT_SLUG].includes(reg.product_slug)) {
+      await syncCertAccessForEmail(env, reg.email);
+    }
   } catch (err) {
     await logEvent(env.DB, {
       registration_id: null,

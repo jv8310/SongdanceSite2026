@@ -1,0 +1,189 @@
+---
+import '../../../styles/admin.css';
+import Layout from '../../../layouts/Layout.astro';
+import { readCookie, verifySession } from '../../../lib/registrations/auth';
+import {
+  listCertAccess,
+  CERT_ACCESS_FLOOR,
+  CERT_ACCESS_MONTHS,
+  FOUNDATION_WEEKS,
+  type CertStartReason,
+} from '../../../lib/courses/cert-access';
+import {
+  certAccessClaimKey,
+  listSyncedCertKeys,
+  CERT_DRIP_TAGS,
+  CERT_END_FIELD,
+  CERT_START_FIELD,
+} from '../../../lib/courses/cert-access-drip';
+
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+const authed = await verifySession(env.ADMIN_SESSION_SECRET, readCookie(Astro.request));
+if (!authed) {
+  return Astro.redirect('/admin/login');
+}
+
+const people = await listCertAccess(env.DB);
+const synced = await listSyncedCertKeys(env.DB);
+const dripReady = !!(env.DRIP_API_TOKEN && env.DRIP_ACCOUNT_ID);
+
+const filter = Astro.url.searchParams.get('group');
+const shown = people.filter((p) => !filter || p.group === filter);
+const end2026 = people.filter((p) => p.group === 'end-2026').length;
+const later = people.length - end2026;
+const notInDrip = people.filter((p) => !synced.has(certAccessClaimKey(p))).length;
+
+const flash = Astro.url.searchParams.get('flash');
+const flashMsg = Astro.url.searchParams.get('msg');
+
+const REASON: Record<CertStartReason, string> = {
+  purchase: 'From purchase',
+  path: `Path — after the ${FOUNDATION_WEEKS} weeks`,
+  'twelve-week': `After their ${FOUNDATION_WEEKS}-week course`,
+  'mid-twelve-week': `Bought mid-${FOUNDATION_WEEKS}-week — +${FOUNDATION_WEEKS} weeks`,
+};
+const PRODUCT: Record<string, string> = {
+  'cc-cert': 'Certification',
+  'cc-bundle': 'Certification path',
+  'cert-course': 'Certification (workshop ledger)',
+};
+
+const fmt = (day: string) =>
+  new Date(`${day}T12:00:00Z`).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+const floorLabel = fmt(CERT_ACCESS_FLOOR);
+---
+
+<Layout title="Admin — Certification end dates — Songdance" description="">
+  <main class="adm">
+    <header class="adm-header">
+      <div>
+        <p class="adm-breadcrumbs">
+          <a href="/admin">Admin</a>
+          <span class="sep">/</span>
+          <a href="/admin/courses">Courses</a>
+          <span class="sep">/</span>
+          Certification end dates
+        </p>
+        <h1>Certification end dates</h1>
+      </div>
+      <div class="adm-actions">
+        <form method="post" action="/api/admin/courses/cert-access-sync">
+          <button class="adm-btn adm-btn--solid" type="submit" disabled={!dripReady}>
+            Push to Drip now{notInDrip ? ` (${notInDrip})` : ''}
+          </button>
+        </form>
+      </div>
+    </header>
+
+    {flash && (
+      <div class={`adm-flash adm-flash--${flash === 'ok' ? 'ok' : 'err'}`}>{flashMsg}</div>
+    )}
+    {!dripReady && (
+      <div class="adm-flash adm-flash--warn">Drip is not configured in this environment — nothing is pushed.</div>
+    )}
+
+    <section class="adm-section">
+      <p class="adm-sub">
+        The course runs {CERT_ACCESS_MONTHS} months from purchase — or from the end of the
+        {FOUNDATION_WEEKS}-week course for anyone who holds it too (the path, or a 12-week
+        course of their own running at the time), whether they walk the two side by side or
+        one after the other. Nobody ends before {floorLabel}. Computed from the orders on every
+        page load; Drip gets the tag <code>{CERT_DRIP_TAGS['end-2026']}</code> or
+        <code>{CERT_DRIP_TAGS.later}</code> plus the fields <code>{CERT_END_FIELD}</code> and
+        <code>{CERT_START_FIELD}</code>, pushed by the hourly cron, after every purchase, and by
+        the button above.
+      </p>
+      <div class="ca-stats">
+        <a class={`ca-stat ${!filter ? 'ca-stat--on' : ''}`} href="?"><span>Students</span><strong>{people.length}</strong></a>
+        <a class={`ca-stat ${filter === 'end-2026' ? 'ca-stat--on' : ''}`} href="?group=end-2026"><span>Ends {floorLabel}</span><strong>{end2026}</strong></a>
+        <a class={`ca-stat ${filter === 'later' ? 'ca-stat--on' : ''}`} href="?group=later"><span>Ends later</span><strong>{later}</strong></a>
+        <div class="ca-stat"><span>Not yet in Drip</span><strong>{notInDrip}</strong></div>
+      </div>
+    </section>
+
+    <section class="adm-section">
+      {shown.length === 0 ? (
+        <p class="adm-empty">No certification students here.</p>
+      ) : (
+        <table class="adm-table">
+          <thead>
+            <tr>
+              <th>Student</th>
+              <th>Bought</th>
+              <th>Purchased</th>
+              <th>9 months start</th>
+              <th>Ends</th>
+              <th>Drip</th>
+            </tr>
+          </thead>
+          <tbody>
+            {shown.map((p) => {
+              const syncedAt = synced.get(certAccessClaimKey(p));
+              return (
+                <tr>
+                  <td>
+                    <a href={`/admin/people/${encodeURIComponent(p.email)}`}>{p.name ?? p.email}</a>
+                    {p.name && <div class="ca-soft">{p.email}</div>}
+                  </td>
+                  <td>
+                    {p.source === 'course'
+                      ? <a href={`/admin/orders/C-${p.sourceId}`}>{PRODUCT[p.productSlug] ?? p.productSlug}</a>
+                      : (PRODUCT[p.productSlug] ?? p.productSlug)}
+                    {p.purchases > 1 && <div class="ca-soft">{p.purchases} purchases — latest end shown</div>}
+                  </td>
+                  <td>{fmt(p.purchasedOn)}</td>
+                  <td>
+                    {fmt(p.startsOn)}
+                    <div class="ca-soft">{REASON[p.startReason]}</div>
+                  </td>
+                  <td>
+                    <strong>{fmt(p.endsOn)}</strong>
+                    <div>
+                      <span class={`adm-pill ${p.group === 'later' ? 'adm-pill--paid' : 'adm-pill--pending'}`}>
+                        {p.group === 'later' ? 'Ends later' : 'End of 2026'}
+                      </span>
+                    </div>
+                    {p.ownNineMonthsEndOn < p.endsOn && (
+                      <div class="ca-soft">own 9 months: {fmt(p.ownNineMonthsEndOn)}</div>
+                    )}
+                  </td>
+                  <td>
+                    {syncedAt
+                      ? <span class="ca-soft" title={syncedAt}>✓ {CERT_DRIP_TAGS[p.group]}</span>
+                      : <span class="ca-soft">not yet</span>}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+    </section>
+  </main>
+
+  <style>
+    .ca-stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-top:16px; }
+    .ca-stat {
+      display:block; text-decoration:none;
+      background: var(--adm-paper-soft); border:1px solid var(--adm-line);
+      border-radius:10px; padding:14px 16px;
+    }
+    .ca-stat span {
+      display:block; font-size:11px; letter-spacing:0.06em; text-transform:uppercase;
+      color: var(--adm-ink-soft); margin-bottom:4px;
+    }
+    .ca-stat strong { font-size:22px; color: var(--adm-ink); font-variant-numeric:tabular-nums; }
+    .ca-stat--on { border-color: var(--adm-ink); }
+    .ca-soft { font-size:12px; color: var(--adm-ink-soft); }
+    @media (max-width: 720px) {
+      .adm-table { display:block; overflow-x:auto; }
+    }
+  </style>
+</Layout>

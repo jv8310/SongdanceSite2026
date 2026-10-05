@@ -208,6 +208,36 @@ in moderation, not governed by the copy book.
   REJOIN until the session's real end (70-min default / 100-min masterclass from
   `ends_at_utc`) + 10-min grace — a connectivity drop never locks them out.
 
+## Certification end dates — computed on the site, mirrored to Drip
+
+The certification course runs **9 months**, and when it ends for each student is
+decided in one place: [`src/lib/courses/cert-access.ts`](src/lib/courses/cert-access.ts)
+(`computeCertEnd`, `listCertAccess`). Nothing is stored — it is derived from the
+paid orders (`course_registrations` `cc-cert` / `cc-bundle` / `svh-12week`, plus
+the workshop ledger's `cert-course` / `12w-course` lines) on every read, so a new
+purchase, a refund or a rule change restates everyone at once.
+
+- **Clock start**: the purchase day (Brussels) — or, for anyone who holds the
+  12-week foundation too, the day the 12 weeks end: the **path** (+12 weeks,
+  whatever `activate_choice` says — side by side or one after the other is the
+  same 12 weeks + 9 months), a **standalone 12-week course** still running at
+  the cert purchase or bought within 14 days of it (starts when it ends), or a
+  cert bought on the mid-12-week **`B1`** offer (+12 weeks, since we can't see
+  when their 12 weeks began).
+- **End** = start + 9 calendar months, **never before 31 Dec 2026**
+  (`CERT_ACCESS_FLOOR`). Two groups: ends 31 Dec 2026 / ends later.
+- **Drip** ([`cert-access-drip.ts`](src/lib/courses/cert-access-drip.ts)): tag
+  `cert_ends_2026` or `cert_ends_later` (the other is removed), fields
+  `cert_end_date` + `cert_start_date` (YYYY-MM-DD). Pushed once per (email, end
+  date), claimed in `events` (`cert.access.drip_synced`, released on failure) —
+  by the **hourly cron** (that is the backfill: a paced batch per tick until
+  everyone is in), the course **paid-handler** for a new cert/path/12-week buyer,
+  and **Push to Drip now** on `/admin/courses/cert-access`, which lists everyone
+  with their start, reason and end. A moved end date is a new key, so it re-pushes.
+- Not handled: a refund after the push leaves the Drip tags in place, and
+  certification holders who never bought through this site (only tagged
+  `prod_SVH_9m` in Drip) don't appear — there's no purchase date to start from.
+
 ## Masterclass — one event, two doors
 
 `/courses/masterclass` and `/courses/heal-the-healer` (short: `/masterclass`,
