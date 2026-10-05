@@ -153,6 +153,26 @@ export async function applyTag(
   }
 }
 
+// Remove a single tag from a subscriber.
+// DELETE /v2/:account_id/subscribers/:id_or_email/tags/:tag
+// A 404 (no such subscriber, or they never had the tag) is the state we wanted.
+export async function removeTag(
+  cfg: DripConfig,
+  email: string,
+  tag: string,
+): Promise<void> {
+  const res = await fetch(
+    `${baseUrl(cfg)}/subscribers/${encodeURIComponent(email)}/tags/${encodeURIComponent(tag)}`,
+    {
+      method: 'DELETE',
+      headers: { Authorization: authHeader(cfg) },
+    },
+  );
+  if (!res.ok && res.status !== 404) {
+    throw new Error(`Drip removeTag: ${res.status} ${await res.text()}`);
+  }
+}
+
 export async function recordEvent(
   cfg: DripConfig,
   email: string,
