@@ -234,9 +234,17 @@ purchase, a refund or a rule change restates everyone at once.
   everyone is in), the course **paid-handler** for a new cert/path/12-week buyer,
   and **Push to Drip now** on `/admin/courses/cert-access`, which lists everyone
   with their start, reason and end. A moved end date is a new key, so it re-pushes.
-- Not handled: a refund after the push leaves the Drip tags in place, and
-  certification holders who never bought through this site (only tagged
-  `prod_SVH_9m` in Drip) don't appear — there's no purchase date to start from.
+- **Holders with no order on the site** ([`cert-access-legacy.ts`](src/lib/courses/cert-access-legacy.ts),
+  table `cert_access_legacy`, migration 0088): everyone Drip tags `prod_SVH_9m`
+  (bought before the site took payments) or `prod_CEEE-25` (the CEEE 2025
+  cohort, free 2026 access). The roster is copied from Drip twice a day by the
+  same hourly sweep (and on every press of the button); they end **31 Dec
+  2026**, get `cert_ends_2026` + `cert_end_date` (no start date — nothing to
+  start from), and the CEEE cohort also gets **`cert_no_certification`**: the
+  course, not the right to apply for certification. A paid order on the site
+  always wins over the Drip tags, and pushing a site buyer removes
+  `cert_no_certification`. They are listed on the same admin page.
+- Not handled: a refund after the push leaves the Drip tags in place.
 
 ## Masterclass — one event, two doors
 

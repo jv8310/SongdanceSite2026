@@ -3,7 +3,6 @@ import '../../../styles/admin.css';
 import Layout from '../../../layouts/Layout.astro';
 import { readCookie, verifySession } from '../../../lib/registrations/auth';
 import {
-  listCertAccess,
   CERT_ACCESS_FLOOR,
   CERT_ACCESS_MONTHS,
   FOUNDATION_WEEKS,
@@ -11,11 +10,19 @@ import {
 } from '../../../lib/courses/cert-access';
 import {
   certAccessClaimKey,
+  legacyCertClaimKey,
+  listAllCertAccess,
   listSyncedCertKeys,
   CERT_DRIP_TAGS,
   CERT_END_FIELD,
   CERT_START_FIELD,
+  CERT_NO_CERTIFICATION_TAG,
 } from '../../../lib/courses/cert-access-drip';
+import {
+  legacyRosterRefreshedAt,
+  CEEE_2025_TAG,
+  LEGACY_CERT_TAG,
+} from '../../../lib/courses/cert-access-legacy';
 
 export const prerender = false;
 
@@ -25,15 +32,27 @@ if (!authed) {
   return Astro.redirect('/admin/login');
 }
 
-const people = await listCertAccess(env.DB);
+const { site: people, legacy } = await listAllCertAccess(env.DB);
 const synced = await listSyncedCertKeys(env.DB);
+const rosterAt = await legacyRosterRefreshedAt(env.DB);
 const dripReady = !!(env.DRIP_API_TOKEN && env.DRIP_ACCOUNT_ID);
 
+// ?group=end-2026 | later | legacy | nocert
 const filter = Astro.url.searchParams.get('group');
-const shown = people.filter((p) => !filter || p.group === filter);
-const end2026 = people.filter((p) => p.group === 'end-2026').length;
-const later = people.length - end2026;
-const notInDrip = people.filter((p) => !synced.has(certAccessClaimKey(p))).length;
+const shown = filter === 'legacy' || filter === 'nocert' ? [] : people.filter((p) => !filter || p.group === filter);
+const shownLegacy =
+  filter === 'later' ? [] : legacy.filter((l) => filter !== 'nocert' || l.noCertification);
+const total = people.length + legacy.length;
+const end2026 = people.filter((p) => p.group === 'end-2026').length + legacy.length;
+const later = people.length - people.filter((p) => p.group === 'end-2026').length;
+const noCert = legacy.filter((l) => l.noCertification).length;
+const notInDrip =
+  people.filter((p) => !synced.has(certAccessClaimKey(p))).length +
+  legacy.filter((l) => !synced.has(legacyCertClaimKey(l))).length;
+const fmtStamp = (stamp: string) =>
+  new Date(`${stamp.replace(' ', 'T')}Z`).toLocaleString('en-GB', {
+    day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels',
+  });
 
 const flash = Astro.url.searchParams.get('flash');
 const flashMsg = Astro.url.searchParams.get('msg');
@@ -100,16 +119,25 @@ const floorLabel = fmt(CERT_ACCESS_FLOOR);
         <code>{CERT_START_FIELD}</code>, pushed by the hourly cron, after every purchase, and by
         the button above.
       </p>
+      <p class="adm-sub">
+        Also listed: everyone Drip tags <code>{LEGACY_CERT_TAG}</code> (bought before this site took
+        payments) or <code>{CEEE_2025_TAG}</code> (CEEE 2025 — free access) with no order here. They end
+        on {floorLabel}; the CEEE cohort also gets <code>{CERT_NO_CERTIFICATION_TAG}</code> — the course,
+        not the right to apply for certification. An order on the site always wins.
+        {rosterAt ? ` Drip tags last read ${fmtStamp(rosterAt)}.` : ' Drip tags not read yet — press the button.'}
+      </p>
       <div class="ca-stats">
-        <a class={`ca-stat ${!filter ? 'ca-stat--on' : ''}`} href="?"><span>Students</span><strong>{people.length}</strong></a>
+        <a class={`ca-stat ${!filter ? 'ca-stat--on' : ''}`} href="?"><span>Students</span><strong>{total}</strong></a>
         <a class={`ca-stat ${filter === 'end-2026' ? 'ca-stat--on' : ''}`} href="?group=end-2026"><span>Ends {floorLabel}</span><strong>{end2026}</strong></a>
         <a class={`ca-stat ${filter === 'later' ? 'ca-stat--on' : ''}`} href="?group=later"><span>Ends later</span><strong>{later}</strong></a>
+        <a class={`ca-stat ${filter === 'legacy' ? 'ca-stat--on' : ''}`} href="?group=legacy"><span>No order here (Drip tag)</span><strong>{legacy.length}</strong></a>
+        <a class={`ca-stat ${filter === 'nocert' ? 'ca-stat--on' : ''}`} href="?group=nocert"><span>No certification right</span><strong>{noCert}</strong></a>
         <div class="ca-stat"><span>Not yet in Drip</span><strong>{notInDrip}</strong></div>
       </div>
     </section>
 
     <section class="adm-section">
-      {shown.length === 0 ? (
+      {shown.length + shownLegacy.length === 0 ? (
         <p class="adm-empty">No certification students here.</p>
       ) : (
         <table class="adm-table">
@@ -157,6 +185,37 @@ const floorLabel = fmt(CERT_ACCESS_FLOOR);
                   <td>
                     {syncedAt
                       ? <span class="ca-soft" title={syncedAt}>✓ {CERT_DRIP_TAGS[p.group]}</span>
+                      : <span class="ca-soft">not yet</span>}
+                  </td>
+                </tr>
+              );
+            })}
+            {shownLegacy.map((l) => {
+              const syncedAt = synced.get(legacyCertClaimKey(l));
+              return (
+                <tr>
+                  <td>
+                    <a href={`/admin/people/${encodeURIComponent(l.email)}`}>{l.name ?? l.email}</a>
+                    {l.name && <div class="ca-soft">{l.email}</div>}
+                  </td>
+                  <td>
+                    {l.hasCeeeTag ? 'CEEE 2025 — free access' : 'Before this site'}
+                    <div class="ca-soft">
+                      Drip: {[l.hasCertTag && LEGACY_CERT_TAG, l.hasCeeeTag && CEEE_2025_TAG].filter(Boolean).join(' + ')}
+                    </div>
+                    {l.noCertification && (
+                      <div><span class="adm-pill adm-pill--refunded">No certification right</span></div>
+                    )}
+                  </td>
+                  <td>—</td>
+                  <td><span class="ca-soft">no order to start from</span></td>
+                  <td>
+                    <strong>{fmt(l.endsOn)}</strong>
+                    <div><span class="adm-pill adm-pill--pending">End of 2026</span></div>
+                  </td>
+                  <td>
+                    {syncedAt
+                      ? <span class="ca-soft" title={syncedAt}>✓ {CERT_DRIP_TAGS[l.group]}{l.noCertification ? ` + ${CERT_NO_CERTIFICATION_TAG}` : ''}</span>
                       : <span class="ca-soft">not yet</span>}
                   </td>
                 </tr>

@@ -153,6 +153,50 @@ export async function applyTag(
   }
 }
 
+// Every subscriber carrying a tag, whatever their mailing status (an
+// unsubscribed buyer still owns what they bought). Pages through
+// GET /v2/:account_id/subscribers?tags=…&status=all, 1000 at a time.
+export async function listSubscribersByTag(
+  cfg: DripConfig,
+  tag: string,
+): Promise<DripSubscriber[]> {
+  const out: DripSubscriber[] = [];
+  for (let page = 1; page <= 50; page++) {
+    const qs = new URLSearchParams({ tags: tag, status: 'all', per_page: '1000', page: String(page) });
+    const res = await fetch(`${baseUrl(cfg)}/subscribers?${qs}`, {
+      method: 'GET',
+      headers: { Authorization: authHeader(cfg), Accept: 'application/vnd.api+json' },
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!res.ok) {
+      throw new Error(`Drip listSubscribersByTag: ${res.status} ${await res.text()}`);
+    }
+    const data = (await res.json()) as {
+      subscribers?: Array<{
+        id?: string;
+        email: string;
+        first_name?: string;
+        last_name?: string;
+        tags?: string[];
+        custom_fields?: Record<string, string>;
+      }>;
+      meta?: { total_pages?: number };
+    };
+    for (const s of data.subscribers ?? []) {
+      out.push({
+        id: s.id,
+        email: s.email,
+        first_name: s.first_name,
+        last_name: s.last_name,
+        tags: s.tags ?? [],
+        custom_fields: s.custom_fields ?? {},
+      });
+    }
+    if (page >= (data.meta?.total_pages ?? 1)) break;
+  }
+  return out;
+}
+
 // Remove a single tag from a subscriber.
 // DELETE /v2/:account_id/subscribers/:id_or_email/tags/:tag
 // A 404 (no such subscriber, or they never had the tag) is the state we wanted.
