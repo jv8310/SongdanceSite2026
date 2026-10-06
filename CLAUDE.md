@@ -1131,6 +1131,19 @@ prints the collected-revenue profit beside it whenever the two differ. A profit
 figure that silently nets nothing but TOF, or that quietly means something other
 than the revenue bar directly above it, is the bug this shape avoids.
 
+**The same two figures are charted over time** (October 2026): the top of
+`/admin/workshops/performance` plots profit and ROAS per session
+([`SessionProfitRoasChart.astro`](src/components/admin/SessionProfitRoasChart.astro))
+— a point per dated session with activity in the window, a line per product
+(workshop blue ●, masterclass ember ■), built from the cards' own row values so
+the chart and the cards can't disagree. **Two panels on one date axis, never
+one plot with two y-scales** — euros and a ratio share nothing, and a second
+axis lets either line be stretched to say anything. A session that hasn't run
+yet (`isUpcoming`, the site-wide rule) is a hollow marker kept **off** the line:
+its cost is spent and its course income can't have landed, so joining it would
+draw a collapse that is only the calendar. Replays have no date and stay on the
+cards.
+
 **Every course figure converts and nets the same way, on every page.** The
 attribution above only reads true if the money underneath it does, and two
 pages were computing without a money context: `/admin/workshops/performance`

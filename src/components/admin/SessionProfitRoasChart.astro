@@ -1,0 +1,557 @@
+---
+// Profit and ROAS per session, over time — one dot per workshop/masterclass
+// that did something in the window, at its date, a line per product joining
+// the sessions that have run. Two panels on one shared date axis rather than
+// one plot with two y-scales: euros and a ratio have nothing in common, and a
+// second axis lets either line be stretched to say anything.
+//
+// The figures are exactly the cards' below (profit = revenue − Meta cost,
+// ROAS = revenue ÷ TOF cost), so the chart and the cards can never disagree.
+// The panels are drawn in the browser at their real width — a fixed viewBox
+// scaled down to a phone shrinks every label to 4px — and the table under
+// them carries every value for anyone without the hover.
+
+export type SessionPoint = {
+  id: number;
+  title: string;
+  dateLabel: string;
+  t: number; // session start, ms since epoch
+  kind: 'workshop' | 'masterclass';
+  upcoming: boolean;
+  profitEurMinor: number;
+  roas: number | null;
+  revenueEurMinor: number;
+  metaCostEurMinor: number | null;
+  tofCostEurMinor: number | null;
+  registrations: number;
+};
+
+interface Props {
+  points: SessionPoint[];
+}
+
+const { points } = Astro.props;
+const hasWorkshop = points.some((p) => p.kind === 'workshop');
+const hasMasterclass = points.some((p) => p.kind === 'masterclass');
+const hasUpcoming = points.some((p) => p.upcoming);
+const hasRoas = points.some((p) => p.roas != null);
+const dataJson = JSON.stringify(points).replace(/</g, '\\u003c');
+
+const eurSigned0 = (minor: number) =>
+  (minor < 0 ? '−€' : '€') + Math.round(Math.abs(minor) / 100).toLocaleString('en-IE');
+const eur0 = (minor: number) => '€' + Math.round(minor / 100).toLocaleString('en-IE');
+---
+
+<div class="spr" data-spr>
+  {points.length === 0 ? (
+    <p class="adm-empty">No dated sessions with activity in this window.</p>
+  ) : (
+    <>
+      <div class="spr-legend">
+        {hasWorkshop && (
+          <span class="spr-key">
+            <svg width="26" height="12" aria-hidden="true"><line x1="1" y1="6" x2="25" y2="6" class="spr-k-line spr-k-line--workshop" /><circle cx="13" cy="6" r="4.5" class="spr-k-mark spr-k-mark--workshop" /></svg>
+            Workshop
+          </span>
+        )}
+        {hasMasterclass && (
+          <span class="spr-key">
+            <svg width="26" height="12" aria-hidden="true"><line x1="1" y1="6" x2="25" y2="6" class="spr-k-line spr-k-line--masterclass" /><rect x="8.5" y="1.5" width="9" height="9" rx="1.5" class="spr-k-mark spr-k-mark--masterclass" /></svg>
+            Masterclass
+          </span>
+        )}
+        {hasUpcoming && (
+          <span class="spr-key spr-key--muted">
+            <svg width="12" height="12" aria-hidden="true"><circle cx="6" cy="6" r="4" class="spr-k-hollow" /></svg>
+            Hollow = not held yet: its ad cost is spent, its course income can’t have landed
+          </span>
+        )}
+      </div>
+
+      <div class="spr-panel">
+        <div class="spr-head"><b>Profit per session</b> <span>revenue − Meta cost (all ad spend charged to it)</span></div>
+        <div class="spr-plot" data-spr-plot="profit"></div>
+      </div>
+      <div class="spr-panel">
+        <div class="spr-head"><b>ROAS per session</b> <span>revenue ÷ TOF cost · the line at 1× is where income equals the prospecting spend</span></div>
+        {hasRoas
+          ? <div class="spr-plot" data-spr-plot="roas"></div>
+          : <p class="spr-none">No prospecting spend charged to any session in this window — no ROAS to plot.</p>}
+      </div>
+      <div class="spr-tip" data-spr-tip hidden></div>
+
+      <details class="spr-table">
+        <summary>Show as a table</summary>
+        <div class="wk-perf-scroll">
+          <table class="adm-table wk-perf">
+            <thead>
+              <tr><th>Session</th><th>Date</th><th>Type</th><th>Profit</th><th>ROAS</th><th>Revenue</th><th>Meta cost</th><th>TOF cost</th><th>Registrations</th></tr>
+            </thead>
+            <tbody>
+              {points.map((p) => (
+                <tr>
+                  <td><a href={`/admin/workshops/${p.id}`}>{p.title}</a></td>
+                  <td>{p.dateLabel}{p.upcoming && ' · not held yet'}</td>
+                  <td>{p.kind === 'masterclass' ? 'Masterclass' : 'Workshop'}</td>
+                  <td>{eurSigned0(p.profitEurMinor)}</td>
+                  <td>{p.roas != null ? p.roas.toFixed(2) + '×' : '—'}</td>
+                  <td>{eur0(p.revenueEurMinor)}</td>
+                  <td>{p.metaCostEurMinor != null ? eur0(p.metaCostEurMinor) : '—'}</td>
+                  <td>{p.tofCostEurMinor != null ? eur0(p.tofCostEurMinor) : '—'}</td>
+                  <td>{p.registrations}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </details>
+      <script is:inline type="application/json" data-spr-data set:html={dataJson} />
+    </>
+  )}
+</div>
+
+<style>
+  /* Series colours: workshop takes the reference categorical blue, masterclass
+     the admin's ember (the colour its "masterclass" pill already wears on the
+     cards). Validated as a pair on this surface — CVD ΔE 23, normal-vision 29,
+     both ≥ 3:1 — and the marker shape (circle / square) carries the same
+     identity for anyone the colour doesn't reach. */
+  .spr {
+    --spr-surface: var(--adm-paper-soft);
+    --spr-workshop: #2a78d6;
+    --spr-masterclass: #c9603a;
+    --spr-grid: var(--adm-line);
+    --spr-base: #c3b89d;
+    position: relative;
+    background: var(--spr-surface);
+    border: 1px solid var(--adm-line);
+    border-radius: 12px;
+    padding: 14px 16px 12px;
+  }
+  .spr-legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12px; color: var(--adm-ink); margin-bottom: 6px; }
+  .spr-key { display: inline-flex; align-items: center; gap: 7px; }
+  .spr-key svg { flex: none; }
+  .spr-key--muted { color: var(--adm-mute); font-size: 11px; }
+  .spr-k-line { stroke-width: 2; stroke-linecap: round; }
+  .spr-k-line--workshop { stroke: var(--spr-workshop); }
+  .spr-k-line--masterclass { stroke: var(--spr-masterclass); }
+  .spr-k-mark { stroke: var(--spr-surface); stroke-width: 4; paint-order: stroke; }
+  .spr-k-mark--workshop { fill: var(--spr-workshop); }
+  .spr-k-mark--masterclass { fill: var(--spr-masterclass); }
+  .spr-k-hollow { fill: var(--spr-surface); stroke: var(--adm-ink-soft); stroke-width: 2; }
+
+  .spr-panel { margin-top: 10px; }
+  .spr-head { font-size: 12px; color: var(--adm-ink); }
+  .spr-head span { color: var(--adm-mute); font-size: 11px; margin-left: 4px; }
+  .spr-plot { position: relative; width: 100%; }
+  .spr-plot :global(svg) { display: block; overflow: visible; touch-action: pan-y; }
+  .spr-plot :global(svg:focus) { outline: none; }
+  .spr-plot :global(svg:focus-visible) { outline: 2px solid var(--adm-ember); outline-offset: 2px; border-radius: 4px; }
+  .spr-none { margin: 6px 0 0; font-size: 12px; font-style: italic; color: var(--adm-mute); }
+
+  .spr :global(.spr-grid) { stroke: var(--spr-grid); stroke-width: 1; shape-rendering: crispEdges; }
+  .spr :global(.spr-base) { stroke: var(--spr-base); stroke-width: 1; shape-rendering: crispEdges; }
+  .spr :global(.spr-tick) { fill: var(--adm-mute); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .spr :global(.spr-line) { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .spr :global(.spr-line--workshop) { stroke: var(--spr-workshop); }
+  .spr :global(.spr-line--masterclass) { stroke: var(--spr-masterclass); }
+  /* The 2px surface ring keeps a marker legible where it sits on a line or
+     another marker: a 4px stroke painted *under* the fill shows 2px outside. */
+  .spr :global(.spr-mark) { stroke: var(--spr-surface); stroke-width: 4; paint-order: stroke; }
+  .spr :global(.spr-mark--workshop) { fill: var(--spr-workshop); }
+  .spr :global(.spr-mark--masterclass) { fill: var(--spr-masterclass); }
+  .spr :global(.spr-mark--upcoming) { fill: var(--spr-surface); stroke-width: 2; paint-order: normal; }
+  .spr :global(.spr-mark--upcoming.spr-mark--workshop) { stroke: var(--spr-workshop); }
+  .spr :global(.spr-mark--upcoming.spr-mark--masterclass) { stroke: var(--spr-masterclass); }
+  .spr :global(.spr-cross) { stroke: var(--adm-ink-soft); stroke-width: 1; opacity: 0.55; shape-rendering: crispEdges; }
+  .spr :global(.spr-mark.is-on) { transform-box: fill-box; transform-origin: center; transform: scale(1.4); }
+
+  /* One tooltip for both panels: the session(s) under the crosshair, values
+     first. Every string goes in through textContent. */
+  .spr-tip {
+    position: absolute; z-index: 10; pointer-events: none;
+    min-width: 200px; max-width: 280px;
+    background: #fffdf8; border: 1px solid var(--adm-line); border-radius: 10px;
+    box-shadow: 0 6px 22px rgba(43, 37, 25, 0.14);
+    padding: 9px 11px; font-size: 11.5px; color: var(--adm-ink-soft); line-height: 1.4;
+  }
+  .spr-tip :global(.spr-tip-ev + .spr-tip-ev) { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--adm-line); }
+  .spr-tip :global(.spr-tip-name) { display: flex; align-items: center; gap: 6px; color: var(--adm-ink); font-weight: 600; }
+  .spr-tip :global(.spr-tip-key) { flex: none; width: 12px; height: 2px; border-radius: 1px; }
+  .spr-tip :global(.spr-tip-when) { margin: 1px 0 5px 18px; color: var(--adm-mute); font-size: 11px; }
+  .spr-tip :global(.spr-tip-row) { display: flex; justify-content: space-between; gap: 14px; margin-left: 18px; }
+  .spr-tip :global(.spr-tip-row b) { color: var(--adm-ink); font-size: 13px; font-variant-numeric: tabular-nums; }
+  .spr-tip :global(.spr-tip-note) { margin: 4px 0 0 18px; color: var(--adm-mute); font-size: 10.5px; }
+
+  .spr-table { margin-top: 12px; font-size: 12px; }
+  .spr-table summary { cursor: pointer; color: var(--adm-ink-soft); }
+  .spr-table summary:hover { color: var(--adm-ember-deep); }
+  .spr-table table { margin-top: 8px; }
+</style>
+
+<script>
+  type Point = {
+    id: number;
+    title: string;
+    dateLabel: string;
+    t: number;
+    kind: 'workshop' | 'masterclass';
+    upcoming: boolean;
+    profitEurMinor: number;
+    roas: number | null;
+    revenueEurMinor: number;
+    metaCostEurMinor: number | null;
+    tofCostEurMinor: number | null;
+    registrations: number;
+  };
+  type Metric = 'profit' | 'roas';
+
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  const DAY = 86_400_000;
+  const KINDS = ['workshop', 'masterclass'] as const;
+  const KIND_LABEL = { workshop: 'Workshop', masterclass: 'Masterclass' } as const;
+  const KIND_COLOR = { workshop: 'var(--spr-workshop)', masterclass: 'var(--spr-masterclass)' } as const;
+
+  const el = <K extends keyof SVGElementTagNameMap>(
+    tag: K,
+    attrs: Record<string, string | number>,
+    parent?: Element,
+  ): SVGElementTagNameMap[K] => {
+    const node = document.createElementNS(SVG_NS, tag);
+    for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, String(v));
+    if (parent) parent.appendChild(node);
+    return node;
+  };
+
+  const euro = (minor: number, compact: boolean) => {
+    const v = Math.abs(minor) / 100;
+    const s = compact && v >= 1000
+      ? (v / 1000).toLocaleString('en-IE', { maximumFractionDigits: 1 }) + 'k'
+      : Math.round(v).toLocaleString('en-IE');
+    return (minor < 0 ? '−€' : '€') + s;
+  };
+  const roasLabel = (v: number) => String(+v.toFixed(2)) + '×';
+
+  // Clean tick values (1 / 2 / 2.5 / 5 × 10^k) covering [lo, hi].
+  const niceTicks = (lo: number, hi: number, count: number): number[] => {
+    if (hi <= lo) hi = lo + 1;
+    const raw = (hi - lo) / Math.max(1, count);
+    const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    const step = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((s) => s >= raw) ?? 10 * mag;
+    const start = Math.floor(lo / step) * step;
+    const end = Math.ceil(hi / step) * step;
+    const out: number[] = [];
+    for (let v = start; v <= end + step / 2; v += step) out.push(Math.round(v / step) * step);
+    return out;
+  };
+
+  const dayFmt = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
+  const monFmt = new Intl.DateTimeFormat('en-GB', { month: 'short', timeZone: 'Europe/Brussels' });
+  const monYearFmt = new Intl.DateTimeFormat('en-GB', { month: 'short', year: 'numeric', timeZone: 'Europe/Brussels' });
+
+  // Date ticks at a step that leaves each label ~80px: days, weeks (Mondays),
+  // then whole months.
+  const timeTicks = (t0: number, t1: number, maxTicks: number): { t: number; label: string }[] => {
+    const span = t1 - t0;
+    for (const days of [1, 2, 7, 14]) {
+      if (span / (days * DAY) > maxTicks) continue;
+      const first = new Date(t0);
+      first.setUTCHours(0, 0, 0, 0);
+      if (days >= 7) first.setUTCDate(first.getUTCDate() + ((8 - first.getUTCDay()) % 7));
+      const out: { t: number; label: string }[] = [];
+      for (let t = first.getTime(); t <= t1; t += days * DAY) {
+        if (t >= t0) out.push({ t, label: dayFmt.format(t) });
+      }
+      return out;
+    }
+    for (const months of [1, 2, 3, 6, 12]) {
+      if (span / (months * 30.44 * DAY) > maxTicks) continue;
+      const d = new Date(t0);
+      const cur = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1));
+      while (cur.getUTCMonth() % months !== 0) cur.setUTCMonth(cur.getUTCMonth() + 1);
+      const out: { t: number; label: string }[] = [];
+      for (; cur.getTime() <= t1; cur.setUTCMonth(cur.getUTCMonth() + months)) {
+        const t = cur.getTime();
+        out.push({ t, label: out.length === 0 || cur.getUTCMonth() === 0 ? monYearFmt.format(t) : monFmt.format(t) });
+      }
+      return out;
+    }
+    return [];
+  };
+
+  function mount(root: HTMLElement) {
+    const dataEl = root.querySelector<HTMLScriptElement>('[data-spr-data]');
+    const tip = root.querySelector<HTMLElement>('[data-spr-tip]');
+    if (!dataEl || !tip) return;
+    const points: Point[] = JSON.parse(dataEl.textContent || '[]');
+    if (points.length === 0) return;
+    const plots = Array.from(root.querySelectorAll<HTMLElement>('[data-spr-plot]'));
+
+    const valueOf = (p: Point, m: Metric): number | null => (m === 'profit' ? p.profitEurMinor : p.roas);
+
+    // Shared x-domain, padded so the first and last markers clear the edges.
+    const tMin = Math.min(...points.map((p) => p.t));
+    const tMax = Math.max(...points.map((p) => p.t));
+    const tPad = Math.max((tMax - tMin) * 0.04, DAY);
+    const x0 = tMin - tPad;
+    const x1 = tMax + tPad;
+
+    // Each panel's y-ticks. Profit always includes 0 (the break-even line);
+    // ROAS starts at 0 and always reaches past 1×, its break-even.
+    const yTicksFor = (m: Metric, h: number): number[] => {
+      const vals = points.map((p) => valueOf(p, m)).filter((v): v is number => v != null);
+      const count = h < 190 ? 3 : 4;
+      if (m === 'profit') {
+        const lo = Math.min(0, ...vals);
+        const hi = Math.max(0, ...vals);
+        return niceTicks(lo, hi > lo ? hi : lo + 10_000, count);
+      }
+      return niceTicks(0, Math.max(1.2, ...vals), count);
+    };
+    const tickText = (m: Metric, v: number, ticks: number[]) =>
+      m === 'profit' ? euro(v, Math.max(...ticks.map(Math.abs)) >= 1_000_000) : roasLabel(v);
+
+    let active: number[] = []; // ids under the crosshair
+    let focusIdx = -1;
+    let tapReady = false;
+    const sorted = points.slice().sort((a, b) => a.t - b.t);
+    const crosshairs: SVGLineElement[] = [];
+
+    const draw = () => {
+      crosshairs.length = 0;
+      const width = Math.max(280, root.clientWidth - 32);
+      const narrow = width < 560;
+      const height = narrow ? 170 : 210;
+      // One left gutter for both panels, wide enough for either's labels, so
+      // the two date axes line up exactly.
+      const tickSets = plots.map((p) => {
+        const m = p.dataset.sprPlot as Metric;
+        return { m, ticks: yTicksFor(m, height) };
+      });
+      const padL = Math.max(
+        34,
+        ...tickSets.flatMap(({ m, ticks }) => ticks.map((v) => tickText(m, v, ticks).length * 6.4 + 10)),
+      );
+      const padR = 12;
+      const plotW = width - padL - padR;
+      const xAt = (t: number) => padL + ((t - x0) / (x1 - x0)) * plotW;
+      const xTicks = timeTicks(x0, x1, Math.max(2, Math.floor(plotW / 84)));
+
+      plots.forEach((plot, i) => {
+        const { m, ticks } = tickSets[i];
+        const last = i === plots.length - 1;
+        const padT = 10;
+        const padB = last ? 26 : 8;
+        const plotH = height - padT - padB;
+        const lo = ticks[0];
+        const hi = ticks[ticks.length - 1];
+        const yAt = (v: number) => padT + (1 - (v - lo) / (hi - lo)) * plotH;
+        const svg = el('svg', {
+          width, height, viewBox: `0 0 ${width} ${height}`,
+          role: 'img', tabindex: i === 0 ? 0 : -1,
+          'aria-label': m === 'profit'
+            ? 'Profit per session over time. Use the arrow keys to step through sessions, Enter to open one.'
+            : 'ROAS per session over time.',
+        });
+
+        // Recessive horizontal gridlines; the break-even line (0 € / 1×) one
+        // step darker so the eye finds it first.
+        for (const v of ticks) {
+          el('line', { x1: padL, x2: width - padR, y1: yAt(v), y2: yAt(v), class: 'spr-grid' }, svg);
+          const t = el('text', { x: padL - 8, y: yAt(v) + 4, 'text-anchor': 'end', class: 'spr-tick' }, svg);
+          t.textContent = tickText(m, v, ticks);
+        }
+        const even = m === 'profit' ? 0 : 1;
+        if (even >= lo && even <= hi) {
+          el('line', { x1: padL, x2: width - padR, y1: yAt(even), y2: yAt(even), class: 'spr-base' }, svg);
+          // 1× is rarely a tick of its own; name it unless a tick label sits on it.
+          if (!ticks.some((v) => Math.abs(yAt(v) - yAt(even)) < 13)) {
+            const t = el('text', { x: padL - 8, y: yAt(even) + 4, 'text-anchor': 'end', class: 'spr-tick' }, svg);
+            t.textContent = tickText(m, even, ticks);
+          }
+        }
+        if (last) {
+          for (const tk of xTicks) {
+            const t = el('text', { x: xAt(tk.t), y: height - 6, 'text-anchor': 'middle', class: 'spr-tick' }, svg);
+            t.textContent = tk.label;
+          }
+        }
+
+        const cross = el('line', { x1: 0, x2: 0, y1: padT, y2: padT + plotH, class: 'spr-cross', visibility: 'hidden' }, svg);
+        crosshairs.push(cross);
+
+        // A line per product through the sessions that have run. Upcoming ones
+        // stay off it: their figures are "so far", and joining them would draw
+        // a collapse that is only the calendar.
+        for (const kind of KINDS) {
+          const held = sorted.filter((p) => p.kind === kind && !p.upcoming && valueOf(p, m) != null);
+          if (held.length < 2) continue;
+          el('polyline', {
+            points: held.map((p) => `${xAt(p.t).toFixed(1)},${yAt(valueOf(p, m)!).toFixed(1)}`).join(' '),
+            class: `spr-line spr-line--${kind}`,
+          }, svg);
+        }
+
+        for (const p of sorted) {
+          const v = valueOf(p, m);
+          if (v == null) continue;
+          const cx = xAt(p.t);
+          const cy = yAt(v);
+          const cls = `spr-mark spr-mark--${p.kind}${p.upcoming ? ' spr-mark--upcoming' : ''}${active.includes(p.id) ? ' is-on' : ''}`;
+          const mark = p.kind === 'masterclass'
+            ? el('rect', { x: cx - 4.5, y: cy - 4.5, width: 9, height: 9, rx: 1.5, class: cls }, svg)
+            : el('circle', { cx, cy, r: 4.5, class: cls }, svg);
+          mark.dataset.id = String(p.id);
+        }
+
+        // Hover snaps to the nearest session on the date axis — the reader aims
+        // at a date, never at a 9px dot — in either panel, for both.
+        const nearest = (clientX: number): Point | null => {
+          const r = svg.getBoundingClientRect();
+          const px = clientX - r.left;
+          let best: Point | null = null;
+          let bestD = Infinity;
+          for (const p of sorted) {
+            const d = Math.abs(xAt(p.t) - px);
+            if (d < bestD) { bestD = d; best = p; }
+          }
+          return best;
+        };
+        svg.addEventListener('pointermove', (e) => {
+          const p = nearest(e.clientX);
+          if (p) show(p, xAt(p.t), e.clientX, e.clientY);
+        });
+        // A touch has no hover: the first tap shows the session, a second tap
+        // on it opens it, and the tooltip stays until a tap lands elsewhere.
+        svg.addEventListener('pointerdown', (e) => {
+          const p = nearest(e.clientX);
+          tapReady = e.pointerType === 'mouse' || (p != null && active.includes(p.id));
+          if (p) show(p, xAt(p.t), e.clientX, e.clientY);
+        });
+        svg.addEventListener('pointerleave', (e) => {
+          if (e.pointerType === 'mouse') hide();
+        });
+        svg.addEventListener('click', (e) => {
+          const p = nearest(e.clientX);
+          if (!p || !tapReady) return;
+          const r = svg.getBoundingClientRect();
+          if (Math.abs(xAt(p.t) - (e.clientX - r.left)) <= 24) location.href = `/admin/workshops/${p.id}`;
+        });
+        svg.addEventListener('focus', () => {
+          if (focusIdx < 0) focusIdx = sorted.length - 1;
+          focusAt(focusIdx);
+        });
+        svg.addEventListener('blur', hide);
+        svg.addEventListener('keydown', (e) => {
+          if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+            e.preventDefault();
+            focusIdx = Math.max(0, Math.min(sorted.length - 1, focusIdx + (e.key === 'ArrowRight' ? 1 : -1)));
+            focusAt(focusIdx);
+          } else if (e.key === 'Enter' && focusIdx >= 0) {
+            location.href = `/admin/workshops/${sorted[focusIdx].id}`;
+          } else if (e.key === 'Escape') {
+            hide();
+          }
+        });
+
+        plot.replaceChildren(svg);
+      });
+
+      function focusAt(idx: number) {
+        const p = sorted[idx];
+        const svg = plots[0]?.querySelector('svg');
+        if (!p || !svg) return;
+        const r = svg.getBoundingClientRect();
+        show(p, xAt(p.t), r.left + xAt(p.t), r.top + 30);
+      }
+    };
+
+    // Every session on the snapped day — a workshop and a masterclass can share one.
+    const show = (p: Point, x: number, clientX: number, clientY: number) => {
+      const day = dayFmt.format(p.t);
+      const evs = sorted.filter((q) => Math.abs(q.t - p.t) < DAY && dayFmt.format(q.t) === day);
+      active = evs.map((q) => q.id);
+      for (const c of crosshairs) {
+        c.setAttribute('x1', String(x));
+        c.setAttribute('x2', String(x));
+        c.setAttribute('visibility', 'visible');
+      }
+      root.querySelectorAll('.spr-mark').forEach((n) => {
+        n.classList.toggle('is-on', active.includes(Number((n as SVGElement).dataset.id)));
+      });
+
+      tip.replaceChildren();
+      for (const q of evs) {
+        const box = document.createElement('div');
+        box.className = 'spr-tip-ev';
+        const name = document.createElement('div');
+        name.className = 'spr-tip-name';
+        const key = document.createElement('span');
+        key.className = 'spr-tip-key';
+        key.style.background = KIND_COLOR[q.kind];
+        name.appendChild(key);
+        name.appendChild(document.createTextNode(q.title));
+        const when = document.createElement('div');
+        when.className = 'spr-tip-when';
+        when.textContent = `${KIND_LABEL[q.kind]} · ${q.dateLabel}${q.upcoming ? ' · not held yet' : ''}`;
+        box.appendChild(name);
+        box.appendChild(when);
+        const row = (label: string, value: string) => {
+          const r = document.createElement('div');
+          r.className = 'spr-tip-row';
+          const b = document.createElement('b');
+          b.textContent = value;
+          const s = document.createElement('span');
+          s.textContent = label;
+          r.appendChild(s);
+          r.appendChild(b);
+          box.appendChild(r);
+        };
+        row('Profit', euro(q.profitEurMinor, false));
+        row('ROAS', q.roas != null ? q.roas.toFixed(2) + '×' : '— no TOF cost');
+        const note = document.createElement('div');
+        note.className = 'spr-tip-note';
+        note.textContent =
+          `Revenue ${euro(q.revenueEurMinor, false)} · Meta cost ${q.metaCostEurMinor != null ? euro(q.metaCostEurMinor, false) : '—'} · ` +
+          `${q.registrations} registration${q.registrations === 1 ? '' : 's'}` +
+          (q.upcoming ? ' — figures so far, course income still to come' : '');
+        box.appendChild(note);
+        tip.appendChild(box);
+      }
+      tip.hidden = false;
+
+      // Beside the pointer, flipped to the left near the right edge, kept
+      // inside the chart box.
+      const rb = root.getBoundingClientRect();
+      const tw = tip.offsetWidth;
+      const th = tip.offsetHeight;
+      let left = clientX - rb.left + 14;
+      if (left + tw > rb.width - 6) left = clientX - rb.left - tw - 14;
+      left = Math.max(6, left);
+      const top = Math.max(6, Math.min(clientY - rb.top - th / 2, rb.height - th - 6));
+      tip.style.left = `${left}px`;
+      tip.style.top = `${top}px`;
+    };
+
+    const hide = () => {
+      active = [];
+      tip.hidden = true;
+      for (const c of crosshairs) c.setAttribute('visibility', 'hidden');
+      root.querySelectorAll('.spr-mark.is-on').forEach((n) => n.classList.remove('is-on'));
+    };
+
+    draw();
+    document.addEventListener('pointerdown', (e) => {
+      if (!root.contains(e.target as Node)) hide();
+    });
+    let lastW = root.clientWidth;
+    new ResizeObserver(() => {
+      if (root.clientWidth === lastW) return;
+      lastW = root.clientWidth;
+      hide();
+      draw();
+    }).observe(root);
+  }
+
+  document.querySelectorAll<HTMLElement>('[data-spr]').forEach(mount);
+</script>
