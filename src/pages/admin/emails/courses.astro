@@ -1,0 +1,340 @@
+---
+// Course emails — the site taking over from Drip, one course at a time.
+//
+// Top: a switch per course (handover.ts). Off = Drip still sends that course's
+// welcome and follow-ups and the site sends nothing; on = the site sends its
+// own confirmation on payment and runs the sequence after it, for orders paid
+// from that moment — switch the matching Drip workflow off the same day.
+// Then the sequences (how many people are on each, stopped, done) with "bring
+// in earlier buyers", a lookup to stop/restart one person's series, and every
+// email rendered with sample data, with a [Test] send.
+//
+// Words: src/lib/courses/emails/confirmation-emails.ts, sequence-emails.ts,
+// asj-weeks.ts. Cadence: sequences.ts (hourly cron, 09:00 in the buyer's
+// timezone). Recovered Drip copy: see the header of each file.
+import '../../../styles/admin.css';
+import Layout from '../../../layouts/Layout.astro';
+import { readCookie, verifySession } from '../../../lib/registrations/auth';
+import { HANDOVER_UNITS, loadHandover } from '../../../lib/courses/emails/handover';
+import {
+  SEQUENCES,
+  SEQUENCE_KEYS,
+  countEarlierBuyers,
+  listEnrolmentsForEmail,
+  sequenceCounts,
+  type SequenceKey,
+} from '../../../lib/courses/emails/sequences';
+import { buildCourseEmailSamples, COURSE_SAMPLE_GROUPS } from '../../../lib/courses/emails/samples';
+
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+if (!(await verifySession(env.ADMIN_SESSION_SECRET, readCookie(Astro.request)))) {
+  return Astro.redirect('/admin/login');
+}
+
+const okMsg = Astro.url.searchParams.get('ok');
+const errMsg = Astro.url.searchParams.get('err');
+const lookup = (Astro.url.searchParams.get('email') ?? '').trim().toLowerCase();
+
+const handover = await loadHandover(env.DB);
+const counts = await sequenceCounts(env.DB); // null → migration 0089 not applied yet
+
+// Which switches put people on each sequence.
+const SEQ_UNITS: Record<SequenceKey, Array<'asj' | 'twelve-week' | 'path' | 'certification'>> = {
+  'asj-weekly': ['asj'],
+  'twelve-week': ['twelve-week', 'path'],
+  certification: ['certification'],
+};
+const waiting = new Map<SequenceKey, number>();
+if (counts) {
+  for (const key of SEQUENCE_KEYS) {
+    if (SEQ_UNITS[key].some((u) => handover.has(u))) waiting.set(key, await countEarlierBuyers(env.DB, key));
+  }
+}
+
+const enrolments = lookup ? await listEnrolmentsForEmail(env.DB, lookup) : [];
+
+const samples = buildCourseEmailSamples(env.PUBLIC_BASE_URL);
+const groups = Object.values(COURSE_SAMPLE_GROUPS);
+
+function since(v: string | undefined): string {
+  if (!v) return '';
+  const d = new Date(`${v.replace(' ', 'T')}Z`);
+  return Number.isNaN(d.getTime())
+    ? v
+    : new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' }).format(d);
+}
+---
+
+<Layout title="Admin — Course emails — Songdance" description="">
+  <main class="adm">
+    <header class="adm-header">
+      <div>
+        <p class="adm-breadcrumbs"><a href="/admin">Admin</a> <span class="sep">/</span> <a href="/admin/emails">Emails</a> <span class="sep">/</span> Courses</p>
+        <h1>Course emails — leaving Drip</h1>
+        <p class="adm-sub">
+          Each course's confirmation and follow-up emails, sent by the site instead of a Drip
+          workflow. Every switch starts <strong>off</strong>: Drip keeps sending until you turn a
+          course over here — then switch the matching Drip workflow off the same day, or buyers
+          hear it twice. Only orders paid after the switch get the site's emails.
+        </p>
+      </div>
+      <div class="adm-actions">
+        <label class="em-tolabel" for="test-to">Send tests to</label>
+        <input id="test-to" class="em-toinput" type="email" value="jacob@songdance.co" />
+        <a class="adm-btn" href="/admin/emails/stats">Open &amp; click rates →</a>
+        <a class="adm-btn adm-btn--ghost" href="/admin/emails">← All emails</a>
+      </div>
+    </header>
+
+    {okMsg && <div class="adm-flash adm-flash--ok">{okMsg}</div>}
+    {errMsg && <div class="adm-flash adm-flash--err">{errMsg}</div>}
+
+    <section class="adm-section">
+      <h2>Who sends what</h2>
+      <table class="adm-table ce-table">
+        <thead>
+          <tr><th>Course</th><th>The site sends</th><th>Switch off in Drip</th><th>Sent by</th><th></th></tr>
+        </thead>
+        <tbody>
+          {HANDOVER_UNITS.map((u) => {
+            const on = handover.get(u.unit);
+            return (
+              <tr>
+                <td><strong>{u.label}</strong></td>
+                <td class="ce-small">{u.covers}</td>
+                <td class="ce-small">{u.dripToStop}</td>
+                <td>
+                  {on ? (
+                    <span class="adm-pill adm-pill--paid">Site · since {since(on)}</span>
+                  ) : (
+                    <span class="adm-pill adm-pill--pending">Drip</span>
+                  )}
+                </td>
+                <td>
+                  <form method="post" action="/api/admin/course-emails">
+                    <input type="hidden" name="action" value="switch" />
+                    <input type="hidden" name="unit" value={u.unit} />
+                    <input type="hidden" name="on" value={on ? '0' : '1'} />
+                    <button
+                      class={`adm-btn ${on ? 'adm-btn--ghost' : ''}`}
+                      type="submit"
+                      data-confirm={on
+                        ? `Hand ${u.label} back to Drip? New orders get no site email — turn the Drip workflow back on.`
+                        : `Send ${u.label} from the site from now on? Switch off in Drip today: ${u.dripToStop}`}
+                    >
+                      {on ? 'Back to Drip' : 'Send from the site'}
+                    </button>
+                  </form>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </section>
+
+    <section class="adm-section">
+      <h2>Sequences</h2>
+      {!counts && (
+        <p class="adm-sub">
+          The sequences table arrives with migration <code>0089</code>, applied when this is merged to
+          main. Until then nothing is enrolled or sent (the previews below still work).
+        </p>
+      )}
+      <table class="adm-table ce-table">
+        <thead>
+          <tr><th>Sequence</th><th class="num">Emails</th><th class="num">Running</th><th class="num">Stopped</th><th class="num">Complete</th><th>Earlier buyers</th></tr>
+        </thead>
+        <tbody>
+          {SEQUENCE_KEYS.map((key) => {
+            const c = counts?.get(key);
+            const w = waiting.get(key);
+            return (
+              <tr>
+                <td><strong>{SEQUENCES[key].label}</strong></td>
+                <td class="num">{SEQUENCES[key].steps.length}</td>
+                <td class="num">{c?.active ?? 0}</td>
+                <td class="num">{c?.stopped ?? 0}{c?.stoppedByLink ? <span class="ce-small"> ({c.stoppedByLink} by their button)</span> : ''}</td>
+                <td class="num">{c?.completed ?? 0}</td>
+                <td>
+                  {w === undefined ? (
+                    <span class="ce-small">Switch the course on first.</span>
+                  ) : w === 0 ? (
+                    <span class="ce-small">Nobody waiting.</span>
+                  ) : (
+                    <form method="post" action="/api/admin/course-emails">
+                      <input type="hidden" name="action" value="bring-in" />
+                      <input type="hidden" name="sequence" value={key} />
+                      <button
+                        class="adm-btn adm-btn--ghost"
+                        type="submit"
+                        data-confirm={`Join ${w} buyer(s) who paid before the switch? Each starts at the step their own schedule has reached. Only do this once Drip's version is switched OFF — otherwise they get both.`}
+                      >
+                        Bring in {w} earlier buyer{w === 1 ? '' : 's'}
+                      </button>
+                    </form>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <p class="adm-table-note">
+        Each step goes out at 09:00 in the buyer's own timezone on its day (hourly cron, inside
+        08:00–21:00). A series stops on the button in every email, the mail client's one-click
+        unsubscribe, a full refund, or an address on the suppression list — never the course itself.
+      </p>
+    </section>
+
+    <section class="adm-section">
+      <h2>One person's series</h2>
+      <form method="get" class="ce-lookup">
+        <input type="email" name="email" value={lookup} placeholder="their email address" class="em-toinput" />
+        <button class="adm-btn" type="submit">Look up</button>
+      </form>
+      {lookup && enrolments.length === 0 && <p class="adm-sub">No course email series for {lookup}.</p>}
+      {enrolments.length > 0 && (
+        <table class="adm-table ce-table">
+          <thead><tr><th>Series</th><th>Last sent</th><th>Next</th><th>State</th><th></th></tr></thead>
+          <tbody>
+            {enrolments.map((e) => {
+              const def = SEQUENCES[e.sequence as SequenceKey];
+              const last = def?.steps.find((s) => s.n === e.last_sent_step)?.label;
+              const next = def?.steps.find((s) => s.n === e.next_step)?.label;
+              return (
+                <tr>
+                  <td>{def?.label ?? e.sequence}{e.variant ? <span class="ce-small"> · {e.variant}</span> : ''}</td>
+                  <td class="ce-small">{last ? `${last} · ${since(e.last_sent_at ?? undefined)}` : '—'}</td>
+                  <td class="ce-small">{e.completed_at ? '—' : `${next ?? `step ${e.next_step}`} · ${since(e.next_due_at ?? undefined)}`}</td>
+                  <td>
+                    {e.completed_at ? (
+                      <span class="adm-pill adm-pill--paid">Complete</span>
+                    ) : e.stopped_at ? (
+                      <span class="adm-pill adm-pill--cancelled">Stopped ({e.stop_source})</span>
+                    ) : (
+                      <span class="adm-pill adm-pill--open">Running</span>
+                    )}
+                  </td>
+                  <td>
+                    {!e.completed_at && (
+                      <form method="post" action="/api/admin/course-emails">
+                        <input type="hidden" name="action" value={e.stopped_at ? 'resume' : 'stop'} />
+                        <input type="hidden" name="id" value={String(e.id)} />
+                        <input type="hidden" name="back" value={`/admin/emails/courses?email=${encodeURIComponent(lookup)}`} />
+                        <button class="adm-btn adm-btn--ghost" type="submit">{e.stopped_at ? 'Restart' : 'Stop'}</button>
+                      </form>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+    </section>
+
+    {groups.map((group) => (
+      <section class="adm-section">
+        <h2>{group}</h2>
+        <div class="em-grid">
+          {samples.filter((s) => s.group === group).map((s) => (
+            <article class="em-card">
+              <header class="em-card-head">
+                <div>
+                  <h3>{s.label}</h3>
+                  <p class="em-meta"><strong>Subject:</strong> {s.content.subject}</p>
+                  <p class="em-meta"><strong>When:</strong> {s.timing}</p>
+                  <p class="em-meta"><strong>Who:</strong> {s.audience}</p>
+                </div>
+                <button class="adm-btn em-send" data-id={s.id} type="button">Send test</button>
+              </header>
+              <iframe class="em-frame" srcdoc={s.content.html} sandbox="" title={s.label} loading="lazy"></iframe>
+              <details class="em-text">
+                <summary>Plain-text version</summary>
+                <pre>{s.content.text}</pre>
+              </details>
+            </article>
+          ))}
+        </div>
+      </section>
+    ))}
+  </main>
+
+  <style>
+    .em-tolabel { font-size: 13px; color: #6f5f6d; margin-right: 6px; }
+    .em-toinput {
+      font: inherit; font-size: 14px; padding: 8px 12px; margin-right: 10px;
+      border: 1px solid rgba(161, 72, 38, 0.3); border-radius: 8px;
+      background: #fbf6ec; min-width: 220px;
+    }
+    .ce-table td { vertical-align: top; }
+    .ce-small { font-size: 12.5px; color: #6f5f6d; }
+    .ce-lookup { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+    .em-grid { display: grid; gap: 22px; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); }
+    @media (max-width: 520px) { .em-grid { grid-template-columns: 1fr; } }
+    .em-card {
+      background: #fbf6ec; border: 1px solid rgba(161, 72, 38, 0.22);
+      border-radius: 14px; padding: 18px; min-width: 0;
+    }
+    .em-card-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+    .em-card h3 { margin: 0 0 8px; font-size: 17px; font-weight: 600; }
+    .em-meta { margin: 0 0 4px; font-size: 13px; color: #6f5f6d; }
+    .em-send { white-space: nowrap; }
+    .em-send[data-state='sent'] { background: #dcefdc; }
+    .em-send[data-state='error'] { background: #f0d8d8; }
+    .em-frame {
+      width: 100%; height: 560px; border: 1px solid rgba(161, 72, 38, 0.18);
+      border-radius: 10px; background: #f4ecdf; margin-top: 12px;
+    }
+    .em-text { margin-top: 10px; font-size: 13px; }
+    .em-text pre {
+      white-space: pre-wrap; background: #f4ecdf; border-radius: 10px;
+      padding: 12px; font-size: 12.5px; line-height: 1.55;
+    }
+  </style>
+
+  <script>
+    // Confirm before a switch or a bring-in: both decide who gets real email.
+    document.querySelectorAll<HTMLButtonElement>('button[data-confirm]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        if (!window.confirm(btn.dataset.confirm ?? 'Are you sure?')) e.preventDefault();
+      });
+    });
+
+    const toInput = document.getElementById('test-to') as HTMLInputElement;
+    document.querySelectorAll<HTMLButtonElement>('.em-send').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const original = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = 'Sending…';
+        btn.removeAttribute('data-state');
+        try {
+          const res = await fetch('/api/admin/emails/test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: btn.dataset.id, to: toInput.value.trim() }),
+          });
+          const data = (await res.json()) as { ok?: boolean; error?: string };
+          if (res.ok && data.ok) {
+            btn.dataset.state = 'sent';
+            btn.textContent = 'Sent ✓';
+          } else {
+            btn.dataset.state = 'error';
+            btn.textContent = data.error ?? 'Failed';
+          }
+        } catch {
+          btn.dataset.state = 'error';
+          btn.textContent = 'Failed';
+        }
+        setTimeout(() => {
+          btn.disabled = false;
+          btn.textContent = original;
+          btn.removeAttribute('data-state');
+        }, 3500);
+      });
+    });
+  </script>
+</Layout>

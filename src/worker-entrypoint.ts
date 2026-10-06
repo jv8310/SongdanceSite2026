@@ -25,6 +25,8 @@ import { reconcileOrderNotifications } from './lib/orders/reconcile';
 import { reconcilePaypalCourseOrders } from './lib/payments/paypal-reconcile';
 import { reconcileStripeCourseOrders } from './lib/payments/stripe-reconcile';
 import { runCourseDunning } from './lib/courses/dunning';
+import { reconcileCourseWelcomes } from './lib/courses/emails/confirmation';
+import { runCourseSequences } from './lib/courses/emails/sequences';
 import { runCertAccessDripSync } from './lib/courses/cert-access-drip';
 import { expireLapsedOffers } from './lib/registrations/waitlist';
 import { fxRatesStale, refreshFxRates } from './lib/admin/fx';
@@ -431,6 +433,25 @@ export function createExports(manifest: unknown) {
         })
         .catch((err) => {
           console.error('[dunning] run failed', err);
+        }),
+    );
+
+    // Course emails sent by the site instead of Drip (src/lib/courses/emails/):
+    // first the safety net for confirmations a payment path dropped, then
+    // every sequence step that has fallen due (weekly Authentic Singing Journey
+    // sessions, 12-week + certification onboarding), each in the buyer's own
+    // 08:00–21:00. Both no-op until a course is switched over on
+    // /admin/emails/courses.
+    ctx.waitUntil(
+      reconcileCourseWelcomes(env)
+        .then(() => runCourseSequences(env))
+        .then((r) => {
+          if (r.sent || r.stopped || r.failed) {
+            console.log(`[course-emails] due=${r.due} sent=${r.sent} stopped=${r.stopped} failed=${r.failed}`);
+          }
+        })
+        .catch((err) => {
+          console.error('[course-emails] run failed', err);
         }),
     );
   };

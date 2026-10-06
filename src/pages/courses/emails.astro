@@ -1,0 +1,183 @@
+---
+// "Stop these emails" — the page behind the button on every course sequence
+// email (the weekly Authentic Singing Journey sessions, the 12-week and
+// certification onboarding notes). See src/lib/courses/emails/stop-link.ts.
+//
+// GET only shows where the series stands and one button; the button POSTs back
+// here — so an inbox scanner prefetching the link can never stop anyone's
+// journey. Once stopped, the same page offers to start it again, from the step
+// it stopped at. A stop is this one series only: no unsubscribe from
+// Songdance, and the course itself is untouched.
+import Layout from '../../layouts/Layout.astro';
+import { verifySequenceToken } from '../../lib/courses/emails/stop-link';
+import {
+  SEQUENCES,
+  getEnrolment,
+  isSequenceKey,
+  resumeEnrolment,
+  stopEnrolment,
+  type EnrolmentRow,
+  type SequenceKey,
+} from '../../lib/courses/emails/sequences';
+
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+const secret = env.ADMIN_SESSION_SECRET;
+
+let token = '';
+let action = '';
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  token = String(form.get('t') ?? '').trim();
+  action = String(form.get('action') ?? '').trim();
+} else {
+  token = (Astro.url.searchParams.get('t') ?? '').trim();
+}
+
+const id = secret ? await verifySequenceToken(secret, token) : null;
+let row: EnrolmentRow | null = id ? await getEnrolment(env.DB, id) : null;
+let justChanged: 'stopped' | 'resumed' | null = null;
+
+if (row && Astro.request.method === 'POST') {
+  if (action === 'stop' && !row.stopped_at && !row.completed_at) {
+    if (await stopEnrolment(env.DB, row.id, 'link')) justChanged = 'stopped';
+  } else if (action === 'resume' && row.stopped_at && !row.completed_at) {
+    if (await resumeEnrolment(env.DB, row.id)) justChanged = 'resumed';
+  }
+  row = await getEnrolment(env.DB, row.id);
+}
+
+const NAMES: Record<SequenceKey, { series: string; course: string }> = {
+  'asj-weekly': { series: 'the weekly Authentic Singing Journey emails', course: 'all forty sessions' },
+  'twelve-week': { series: 'the 12-Week Course emails', course: 'the course' },
+  certification: { series: 'the Certification Course emails', course: 'the course' },
+};
+
+const key = row && isSequenceKey(row.sequence) ? row.sequence : null;
+const names = key ? NAMES[key] : null;
+const nextLabel =
+  row && key && !row.completed_at
+    ? SEQUENCES[key].steps.find((s) => s.n === row!.next_step)?.label ?? null
+    : null;
+const state: 'invalid' | 'active' | 'stopped' | 'completed' = !row || !names
+  ? 'invalid'
+  : row.completed_at
+    ? 'completed'
+    : row.stopped_at
+      ? 'stopped'
+      : 'active';
+---
+
+<Layout title="Course emails — Songdance" description="">
+  <main class="seq">
+    <section class="seq-card">
+      {state === 'active' && names && (
+        <>
+          <h1>{justChanged === 'resumed' ? 'They’re back on' : 'Stop these emails?'}</h1>
+          {justChanged === 'resumed' ? (
+            <p>
+              You’ll receive {names.series} again{nextLabel ? <> — next up: <strong>{nextLabel}</strong></> : ''}.
+            </p>
+          ) : (
+            <>
+              <p>
+                This stops {names.series} to <strong>{row!.email}</strong>.
+                {nextLabel && <> The next one would be <strong>{nextLabel}</strong>.</>}
+              </p>
+              <p class="seq-note">
+                {names.course.charAt(0).toUpperCase() + names.course.slice(1)} stay{names.course === 'the course' ? 's' : ''} yours
+                either way — in the Songdance CiRCLE, for as long as you have it. This only stops these emails.
+              </p>
+              <form method="post">
+                <input type="hidden" name="t" value={token} />
+                <input type="hidden" name="action" value="stop" />
+                <button type="submit">Stop these emails</button>
+              </form>
+            </>
+          )}
+        </>
+      )}
+      {state === 'stopped' && names && (
+        <>
+          <h1>{justChanged === 'stopped' ? 'Done — they’ve stopped' : 'These emails are stopped'}</h1>
+          <p>
+            You won’t receive {names.series} any more. {names.course.charAt(0).toUpperCase() + names.course.slice(1)}
+            {names.course === 'the course' ? ' stays' : ' stay'} yours, exactly as before — nothing else changes.
+          </p>
+          <p class="seq-note">Changed your mind? You can pick them up again, from where they stopped.</p>
+          <form method="post">
+            <input type="hidden" name="t" value={token} />
+            <input type="hidden" name="action" value="resume" />
+            <button type="submit" class="seq-ghost">Start them again</button>
+          </form>
+        </>
+      )}
+      {state === 'completed' && names && (
+        <>
+          <h1>That series is complete</h1>
+          <p>
+            Every one of {names.series} has already gone out — there’s nothing left to stop.
+            {names.course.charAt(0).toUpperCase() + names.course.slice(1)}
+            {names.course === 'the course' ? ' stays' : ' stay'} yours in the Songdance CiRCLE.
+          </p>
+        </>
+      )}
+      {state === 'invalid' && (
+        <>
+          <h1>This link looks incomplete</h1>
+          <p>
+            We couldn’t verify it. Try the button in the email again, or write to
+            <a href="mailto:support@songdance.co">support@songdance.co</a> and we’ll stop
+            the emails for you ourselves.
+          </p>
+        </>
+      )}
+    </section>
+  </main>
+
+  <style>
+    .seq {
+      min-height: 60vh;
+      display: grid;
+      place-items: center;
+      padding: 64px 16px;
+      background: #f4ecdf;
+    }
+    .seq-card {
+      max-width: 480px;
+      width: 100%;
+      background: #fbf6ec;
+      border: 1px solid rgba(161, 72, 38, 0.22);
+      border-radius: 14px;
+      padding: 36px 34px;
+      font-family: Georgia, 'Times New Roman', serif;
+      color: #4a3848;
+      line-height: 1.65;
+    }
+    .seq-card h1 {
+      margin: 0 0 14px;
+      font-weight: 400;
+      font-size: 26px;
+      line-height: 1.2;
+      color: #2a1b2a;
+    }
+    .seq-card p { margin: 0 0 14px; }
+    .seq-note { font-size: 14px; color: #6f5f6d; }
+    .seq-card button {
+      background: #2a1b2a;
+      color: #f4ecdf;
+      font-family: Georgia, serif;
+      font-size: 15px;
+      border: 1px solid #2a1b2a;
+      padding: 14px 26px;
+      border-radius: 999px;
+      cursor: pointer;
+    }
+    .seq-card button.seq-ghost {
+      background: transparent;
+      color: #2a1b2a;
+    }
+    .seq-card a { color: #a14826; }
+  </style>
+</Layout>

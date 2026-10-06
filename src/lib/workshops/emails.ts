@@ -24,7 +24,7 @@ import { CERT_PATH_DISCOUNT_PERCENT } from '../courses/path';
 // the course-promoting lifecycle emails). The HTML part uses D.guaranteeNote().
 const GUARANTEE_TEXT = `And there's a ${guarantee.days}-day money-back guarantee: give the course a real try, and if it isn't for you, write to ${guarantee.email} within ${guarantee.days} days for a full refund.`;
 
-const PALETTE = {
+export const PALETTE = {
   bg: '#F4ECDF',
   card: '#FBF6EC',
   ink: '#2A1B2A',

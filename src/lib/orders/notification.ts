@@ -34,6 +34,7 @@ import {
 } from './shopify';
 import { deckGiftClaimEmail, deckGiftConfirmedEmail } from '../workshops/emails';
 import { sendAlbumPurchaseEmail } from '../music/delivery';
+import { welcomeCourseOrder } from '../courses/emails/confirmation';
 import { LANGUAGE_CHOICE_LABEL } from '../courses/journeys';
 import { BANK_TRANSFER, type OrderProvider } from '../payments/provider';
 import type { Registration } from '../registrations/db';
@@ -53,6 +54,10 @@ export type OrderEnv = {
   ORDER_NOTIFICATIONS_TO?: string;
   // Used to build the album player link in the buyer's delivery email.
   PUBLIC_BASE_URL?: string;
+  // The course confirmation + sequence emails (src/lib/courses/emails/).
+  ADMIN_SESSION_SECRET?: string;
+  MARKETING_FROM?: string;
+  MARKETING_REPLY_TO?: string;
 } & ShopifyEnv;
 
 // Where SD-ORDER notifications land when ORDER_NOTIFICATIONS_TO is unset.
@@ -533,6 +538,13 @@ export async function notifyCourseOrder(
   // hourly reconcile if a webhook was ever dropped. No-op for every other
   // product; idempotent on its own claim.
   await sendAlbumPurchaseEmail(env, reg);
+
+  // The buyer's own confirmation (and the sequence that follows it) — sent by
+  // the site once that course is switched over from Drip on
+  // /admin/emails/courses; a no-op until then. Re-reads the row itself (the
+  // Stripe paths hand over one read before it was marked paid), idempotent on
+  // its own claim, never throws.
+  await welcomeCourseOrder(env, reg);
 }
 
 // Turn the stored shipping address into the display lines the confirmation email

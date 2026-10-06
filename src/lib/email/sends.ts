@@ -57,6 +57,19 @@ export function emailTypeMeta(type: string): { group: string; label: string } {
   if (type.startsWith('broadcast_')) {
     return { group: 'Broadcasts', label: `Broadcast #${type.slice('broadcast_'.length)}` };
   }
+  // Course emails sent by the site instead of Drip (src/lib/courses/emails/):
+  // `course_confirmation_<unit>` and `course_seq_<sequence>_<step>`.
+  if (type.startsWith('course_confirmation_')) {
+    return { group: 'Course confirmations', label: type.slice('course_confirmation_'.length) };
+  }
+  if (type.startsWith('course_seq_asj-weekly_')) {
+    return { group: 'Authentic Singing Journey — weekly', label: `Week ${type.slice('course_seq_asj-weekly_'.length)}` };
+  }
+  if (type.startsWith('course_seq_')) {
+    const rest = type.slice('course_seq_'.length);
+    const cut = rest.lastIndexOf('_');
+    return { group: 'Course onboarding', label: cut > 0 ? `${rest.slice(0, cut)} · step ${rest.slice(cut + 1)}` : rest };
+  }
   return { group: 'Other', label: type };
 }
 

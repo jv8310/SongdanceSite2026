@@ -627,6 +627,87 @@ gated player) but no email telling them so. Delivery now lives in the site, in
   (`/api/admin/workshops/mantra-pack-send`) that forces the sweep with a wider
   cap. Pressing it twice is harmless.
 
+## Course emails — the site takes over from Drip, one course at a time
+
+Every course buyer used to get their welcome (and, for some courses, a run of
+follow-ups) from a **Drip workflow** fired by the purchase's tag/event; the site
+sent none. The site now holds its own version of each, in
+[`src/lib/courses/emails/`](src/lib/courses/emails/), written **as the new
+CiRCLE app works**: every course is already on the buyer's account at
+`circle.songdance.co` when the email lands, so there are no activation buttons
+and no Mighty Networks plan/space links — one sentence says to sign in with the
+address they bought with, one button opens the course. **Every CiRCLE URL comes
+from [`src/lib/courses/circle.ts`](src/lib/courses/circle.ts)** (course paths,
+the live calendar, `…/journeys/authentic-singing/week-N`) — when the app's
+routes settle, that file is the one place to change.
+
+- **The switch — off by default, per course** ([`handover.ts`](src/lib/courses/emails/handover.ts),
+  `workshop_config` key `course_emails_on:<unit>` = when it went on). Off →
+  Drip keeps sending and the site sends nothing. On → the site sends, **for
+  orders paid after that moment only**, and the matching Drip workflow must be
+  switched off the same day or buyers hear it twice. Units: 12-week, certification,
+  path, grief, asj (confirmation + the weekly series for everyone who holds it),
+  mmj, inner-child, journeys-bundle. Flipped on **`/admin/emails/courses`**,
+  which also names the Drip workflow to stop, counts each sequence, previews +
+  test-sends every email, and looks up / stops / restarts one person's series.
+- **Confirmations** ([`confirmation-emails.ts`](src/lib/courses/emails/confirmation-emails.ts),
+  sent by [`confirmation.ts`](src/lib/courses/emails/confirmation.ts)): one per
+  paid order, from `notifyCourseOrder` (so every paid path) + an hourly safety
+  net (`reconcileCourseWelcomes`, last 7 days, paid after the earliest switch).
+  Re-reads the row itself (the Stripe paths hand over a pre-paid one).
+  Transactional, idempotent on `events` claim `course-confirmation-<id>`,
+  released on failure. Includes the order (items, plan) and, for cert/path, the
+  buyer's own end date from `cert-access.ts`. Bumps ride the parent's email
+  ("Also in your order") — **but** if a bump's course is switched over while the
+  parent's isn't, the bump gets its own welcome (`…-<id>-asj` / `-grief`), or an
+  ASJ bump buyer on a Drip-run 12-week order would get no way in at all. ASJ
+  bought in the Dutch edition only gets a Dutch welcome. Albums keep their own
+  delivery email (no Drip version exists).
+- **Sequences** ([`sequences.ts`](src/lib/courses/emails/sequences.ts), words in
+  [`sequence-emails.ts`](src/lib/courses/emails/sequence-emails.ts), table
+  `course_email_sequences`, **migration 0089**): one row per (sequence, email),
+  so a second order never restarts a series. Step k is due at **09:00 in the
+  buyer's timezone, `dayOffset` days after they paid** (Drip's "wait N days,
+  send at 9:00"); the **hourly** cron sends what's due inside 08:00–21:00
+  local, claims each step by compare-and-swap on `next_step` and rolls it back
+  if the send fails; a late step never bunches (≥20 h before the next).
+  - `asj-weekly` — **Week 2 … Week 40**, one a week, each opening that week in
+    the CiRCLE; Week 1 rides the confirmation, exactly as in Drip. Everyone who
+    holds the ASJ in English: standalone, a bundle, or the course-checkout bump.
+  - `twelve-week` — day 1 "See you in Q&A?", day 2 "How to pace yourself",
+    week 2, week 6, week 12 (Q&As closing — standalone only, new), and for path
+    buyers who chose to wait, "Your certification course is open" at week 13
+    (Drip's "Activate the Certification Course Now", minus the activating).
+  - `certification` — the day-1 / day-2 notes' certification twins.
+- **Stopping is per series, and easy**: every sequence email carries a visible
+  "Stop these … emails" button → `/courses/emails?t=<id>.<sig>`
+  ([`stop-link.ts`](src/lib/courses/emails/stop-link.ts), HMAC over
+  `ADMIN_SESSION_SECRET`, domain `sd-seqstop:`), which acts on **POST only** (a
+  link prefetcher can't stop anyone) and offers "Start them again" from the step
+  it stopped at; the `List-Unsubscribe` header points at
+  `/api/courses/emails/stop` (RFC 8058 one-click), which stops the series too.
+  Neither is an unsubscribe from Songdance, and neither touches the course. A
+  series also stops on a **full** refund (`status='refunded'`) or an address in
+  `email_suppressions`.
+- **"Bring in earlier buyers"** (admin, per sequence): orders paid *before* the
+  switch stay Drip's, until this joins them **at the step their own schedule
+  has reached** (never from the start), respecting each order's own switch (a
+  path buyer stays Drip's while the path switch is off). Press it only once the
+  Drip workflow is off.
+- **Where the words came from**: the Drip API cannot read email-series or
+  workflow content (only broadcasts), so the copy was recovered from Jacob's
+  Gmail — the ASJ "Authentic Singing Week N" series (originals + customers'
+  quoted replies; weeks 11/31/33/35 survive only in the Dutch series and are
+  translated) and Jacob's own May 2026 test purchase of the path (the 12-week
+  workflow, the path welcome). Each file's header says what changed and why
+  (CiRCLE instead of activation links, "Year Course" → journey, copy-book laws —
+  notably the ASJ "Let Go – Let In" trilogy, weeks 28–31, now described as
+  acknowledgment; the session titles are kept). The Grief Course and the
+  standalone certification had no Drip welcome on record: theirs are new.
+- Tracks as `course_confirmation_<unit>` / `course_seq_<sequence>_<step>` in
+  `email_sends` (labelled on `/admin/emails/stats`). Sequence mail is from
+  `MARKETING_FROM` (Jacob); confirmations from the transactional sender.
+
 ## Retreat price — two discounts, neither of them a coupon
 
 A retreat has no coupon codes. A booking charged less than its tier price came
