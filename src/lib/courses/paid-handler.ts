@@ -33,7 +33,9 @@ import {
   LIVE_PASS_DRIP_EVENT,
   hasCertExtension,
   isLivePassSlug,
+  livePassContents,
   livePassLabelForSlug,
+  livePassMonthsOf,
   type LivePassPeriod,
 } from './live-pass';
 import { settleLivePassPeriod } from './live-pass-plan';
@@ -66,8 +68,8 @@ export async function pushPaidCourseRegistrationToDrip(
   const reg = await getCourseRegistrationById(env.DB, courseRegistrationId);
   if (!reg) return;
 
-  // A live pass gets its dates from the moment of payment, written onto the
-  // order once — before Drip, so a Drip outage never leaves a pass undated.
+  // A live pass gets its start day from the moment of payment, written onto
+  // the order once — before Drip, so a Drip outage never leaves a pass undated.
   let livePass: LivePassPeriod | null = null;
   if (isLivePassSlug(reg.product_slug)) livePass = await settleLivePassPeriod(env.DB, reg);
 
@@ -140,14 +142,14 @@ export async function pushPaidCourseRegistrationToDrip(
       // existing Drip automation drives the per-week `svh_week` field from there.
       eventName = TWELVE_WEEK_DRIP_EVENT;
     } else if (isLivePassSlug(reg.product_slug)) {
-      // The live pass. The tag (applied above) marks a pass holder; the dates
-      // say when the sessions are theirs, for any automation that greets or
-      // reminds them.
+      // The live pass. The tag (applied above) marks a pass holder; the start
+      // day and what it holds are for any automation that greets them. No end
+      // date: a pass ends with its last session, which only the member app's
+      // calendar knows (it writes "1 session left" and "ended" itself).
       eventName = LIVE_PASS_DRIP_EVENT;
-      if (livePass) {
-        customFields.live_pass_starts = livePass.startsOn;
-        customFields.live_pass_ends = livePass.endsOn;
-      }
+      if (livePass) customFields.live_pass_starts = livePass.startsOn;
+      const months = livePassMonthsOf(reg.product_slug);
+      if (months) customFields.live_pass_sessions = livePassContents(months);
       customFields.cert_extension = hasCertExtension(reg.bumps) ? 'yes' : 'no';
     } else if (isAlbumProductSlug(reg.product_slug)) {
       // Direct music-album purchase. The tag (applied above) is the access key;

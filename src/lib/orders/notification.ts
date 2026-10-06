@@ -35,6 +35,7 @@ import {
 } from './shopify';
 import { deckGiftClaimEmail, deckGiftConfirmedEmail } from '../workshops/emails';
 import { sendAlbumPurchaseEmail } from '../music/delivery';
+import { sendLivePassConfirmation } from '../courses/live-pass-email';
 import { LANGUAGE_CHOICE_LABEL } from '../courses/journeys';
 import { BANK_TRANSFER, type OrderProvider } from '../payments/provider';
 import type { Registration } from '../registrations/db';
@@ -537,6 +538,10 @@ export async function notifyCourseOrder(
   // hourly reconcile if a webhook was ever dropped. No-op for every other
   // product; idempotent on its own claim.
   await sendAlbumPurchaseEmail(env, reg);
+
+  // A live pass: "your live pass is confirmed", with what it holds and the day
+  // it starts. Same reasoning; no-op for every other product.
+  await sendLivePassConfirmation(env, reg);
 }
 
 // Turn the stored shipping address into the display lines the confirmation email

@@ -1,10 +1,11 @@
-// What a live pass bought today would look like for one address: when each
-// length would start and end, whether the certification-window add-on would buy
-// them anything, and whether they walk the 12-week course (the page then offers
-// the 9-month certification course beside the pass). Shown on the pass page
-// before they pay, re-derived by the checkout, and run once more when the
-// payment lands (the period written onto the order is the one from the moment
-// of payment).
+// What a live pass bought today would look like for one address: the day each
+// length would start, how long an extension bought with it would keep the
+// certification window open, whether that add-on would buy them anything, and
+// whether they walk the 12-week course (the page then offers the 9-month
+// certification course beside the pass). Shown on the pass page before they
+// pay, re-derived by the checkout, and run once more when the payment lands
+// (the dates written onto the order are the ones from the moment of payment).
+// Which sessions a pass holds is the member app's to count (live-pass.ts).
 
 import { brusselsToday, businessDayOf } from '../workshops/periods';
 import { findCountry } from '../countries';
@@ -25,9 +26,13 @@ export type LivePassPlan = {
   // The 12-week course: whether they hold it, and the last day of its live
   // weeks when a site order says when that is.
   twelveWeek: { holds: boolean; liveUntil: string | null };
-  // The last day of the live sessions they already have (a pass, the
-  // certification course or the 12-week course), when that is today or later.
+  // The last day of the live sessions their course still gives them (the
+  // certification course or the 12-week course), when that is today or later:
+  // a pass starts the day after.
   liveUntil: string | null;
+  // Whether a pass of theirs is still running (its months reach today or
+  // later): a new one then continues with the session after its last.
+  passRunning: boolean;
   periods: Record<LivePassMonths, LivePassPeriod & { extensionHelps: boolean }>;
 };
 
@@ -138,10 +143,13 @@ export async function planLivePass(
     listPaidLivePasses(db, email),
     loadTwelveWeek(db, email, today),
   ]);
-  const busy: string[] = [];
+  // Earlier passes never move the start (the member app queues the sessions);
+  // they only push back where this pass's months — an extension's — begin.
+  const passesUntil: string[] = [];
   for (const p of passes) {
-    if (opts.onlyPassesBefore == null || p.id < opts.onlyPassesBefore) busy.push(p.endsOn);
+    if (opts.onlyPassesBefore == null || p.id < opts.onlyPassesBefore) passesUntil.push(p.endsOn);
   }
+  const busy: string[] = [];
   if (window.courseEndsOn) busy.push(window.courseEndsOn);
   // A 12-week student extends their Q&As: the pass picks up where the 12 weeks end.
   if (twelveWeek.liveUntil) busy.push(twelveWeek.liveUntil);
@@ -149,13 +157,13 @@ export async function planLivePass(
 
   const periods = {} as LivePassPlan['periods'];
   for (const months of LIVE_PASS_MONTHS) {
-    const period = livePassPeriod({ today, months, busyUntil: busy });
+    const period = livePassPeriod({ today, months, busyUntil: busy, passesUntil });
     periods[months] = { ...period, extensionHelps: extensionWouldHelp(window, period.endsOn) };
   }
-  return { window, twelveWeek, liveUntil: latest, periods };
+  return { window, twelveWeek, liveUntil: latest, passRunning: passesUntil.some((d) => d >= today), periods };
 }
 
-// When the payment lands: the period from the paid day, written onto the order
+// When the payment lands: the dates from the paid day, written onto the order
 // ONCE (claimed in `events` as `live-pass-period-<id>`), so a webhook retry, a
 // reconcile or an admin re-fire weeks later never moves a pass that has begun.
 // Only passes on earlier orders count as already running. Returns the period

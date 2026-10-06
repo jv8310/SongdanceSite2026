@@ -1,36 +1,50 @@
-// The live pass: the weekly Q&As and the monthly deepening session, bought by
-// the month — for anyone whose course no longer includes them (or never did).
+// The live pass: the weekly Q&As and the monthly deepening session, bought as
+// a NUMBER of sessions — for anyone whose course no longer includes them (or
+// never did). Sold by the month, counted by the session:
 //
-//   1 month   €52                  four Q&As and one deepening session
-//   3 months  3 × €52, 15% off     €132
-//   6 months  6 × €52, 25% off     €234
+//   1 month   €52                  4 Q&As and 1 deepening session
+//   3 months  3 × €52, 15% off     €132    12 Q&As and 3 deepening sessions
+//   6 months  6 × €52, 25% off     €234    24 Q&As and 6 deepening sessions
+//
+// A pass holds exactly that many sessions — the next ones on the member app's
+// calendar from the day it starts — and access ends after the last of them
+// (Jacob, October 2026). A week without a Q&A costs nobody a session, and two
+// passes queue: the second picks up with the session after the first one's
+// last. The sessions are counted by the member app (songdance-app,
+// apps/api/src/lib/live-pass.ts), which holds the calendar; this site never
+// knows which session a pass ends on, and never says so.
 //
 // Plus one add-on, sold only with a pass: **Extend my certification window**
-// (+20% of the pass). It keeps the window to apply for certification open until
-// the pass ends — for a 9-month (certification) student whose window has closed,
-// and for the CEEE 2025 cohort, who hold the course without the right to certify
-// (`cert_no_certification`). Nobody else is shown it: the page hides it until
-// the address says they hold the certification course, and the checkout refuses
-// it otherwise.
+// (+20% of the pass). It keeps the window to apply for certification open for
+// the pass's months (1, 3 or 6, counted from the day its sessions start, behind
+// any earlier pass's months) — for a 9-month (certification) student whose
+// window has closed, and for the CEEE 2025 cohort, who hold the course without
+// the right to certify (`cert_no_certification`). Nobody else is shown it: the
+// page hides it until the address says they hold the certification course, and
+// the checkout refuses it otherwise.
 //
 // Prices are floored to whole units (5 for the krona family), so the advertised
 // discount is never under-delivered and the add-on never costs more than 20%:
 // €132.60 → €132, and €26.40 → €26. Other currencies scale the €52 month with the
 // albums' EUR-relative ratios (albumPriceCents) and take the same discounts.
 //
-// A pass starts on the day it is bought — unless the buyer still has live
-// sessions: then it starts the day after they end, so nobody pays twice for the
-// same month and a pass always extends what they have. "Still has live sessions"
-// means a pass of theirs still running, the certification course (site order,
-// or the Drip-only holders) still running, or the 12 weeks of a 12-week course
-// bought on the site (a 12-week student's pass picks up where the 12 weeks end;
-// the page also offers them the 9-month certification course).
+// A pass starts on the day it is bought — unless the buyer's course still gives
+// them the live sessions: then it starts the day after those end, so nobody
+// pays twice for the same session and a pass always extends what they have.
+// That means the certification course (site order, or the Drip-only holders)
+// or the 12 weeks of a 12-week course bought on the site (a 12-week student's
+// pass picks up where the 12 weeks end; the page also offers them the 9-month
+// certification course). An earlier pass does not move the start: the member
+// app queues the sessions, so a pass bought while another runs is never left
+// with a gap between the two.
 //
-// The period is computed at checkout (shown to the buyer before they pay) and
-// again when the payment lands, and written onto the order as
-// `access_starts_at` / `access_ends_at` (migration 0089, UTC instants bounding
-// Brussels days). The member app reads those two columns and nothing else, so
-// the rule lives here only.
+// The dates are computed at checkout (shown to the buyer before they pay) and
+// again when the payment lands, and written onto the order (migration 0089,
+// UTC instants bounding Brussels days): `access_starts_at` = the day the pass
+// begins, which the member app reads to count its sessions from;
+// `access_ends_at` = the end of the pass's months, which only the
+// certification-window extension uses (the member app ignores it on a paid
+// pass: the pass ends with its last session).
 //
 // Rides the ordinary course machinery under product slugs `live-pass-1m` /
 // `-3m` / `-6m`; the add-on is a row in the `bumps` JSON (`cert-extension`), so
@@ -75,6 +89,20 @@ export function livePassMonthsOf(slug: string | null | undefined): LivePassMonth
 export function parseLivePassMonths(raw: unknown): LivePassMonths | null {
   const n = Number(raw);
   return (LIVE_PASS_MONTHS as readonly number[]).includes(n) ? (n as LivePassMonths) : null;
+}
+
+// What a pass holds: 4 Q&As and 1 deepening session a month. The member app
+// counts the same numbers (packages/shared/src/products.ts, livePassSessions).
+export const LIVE_PASS_SESSIONS_PER_MONTH = { qa: 4, deepening: 1 } as const;
+
+export function livePassSessions(months: LivePassMonths): { qa: number; deepening: number } {
+  return { qa: LIVE_PASS_SESSIONS_PER_MONTH.qa * months, deepening: LIVE_PASS_SESSIONS_PER_MONTH.deepening * months };
+}
+
+// "12 Q&As and 3 deepening sessions" — always in numerals.
+export function livePassContents(months: LivePassMonths): string {
+  const { qa, deepening } = livePassSessions(months);
+  return `${qa} Q&As and ${deepening} deepening session${deepening === 1 ? '' : 's'}`;
 }
 
 export function livePassLabel(months: LivePassMonths): string {
@@ -139,23 +167,36 @@ export function livePassPriceLabel(months: LivePassMonths, currency: SupportedCu
 
 // ── The period ──────────────────────────────────────────────────────────────
 
-export type LivePassPeriod = { startsOn: string; endsOn: string }; // YYYY-MM-DD Brussels, both inclusive
+// startsOn: the day the pass begins — the member app counts its sessions from
+// here. endsOn: the last day of its months, counted from startsOn or from the
+// day after an earlier pass's months, whichever is later — what the
+// certification-window extension runs to. Both YYYY-MM-DD Brussels, inclusive.
+export type LivePassPeriod = { startsOn: string; endsOn: string };
 
-// The rule, as a pure function. `busyUntil` holds the last day of anything that
-// already gives the buyer live sessions (inclusive Brussels days); the pass
-// starts the day after the latest of them, or today when they are all behind.
+// The rule, as a pure function. `busyUntil` holds the last day of what already
+// gives the buyer live sessions through a course (inclusive Brussels days): the
+// pass starts the day after the latest of them, or today when they are all
+// behind. `passesUntil` holds the last day of their earlier passes' months:
+// those never move the start (the member app queues the sessions), only where
+// this pass's own months — and so an extension bought with it — begin.
 export function livePassPeriod(input: {
   today: string;
   months: LivePassMonths;
   busyUntil: Array<string | null | undefined>;
+  passesUntil?: Array<string | null | undefined>;
 }): LivePassPeriod {
-  let startsOn = input.today;
-  for (const until of input.busyUntil) {
-    if (!until) continue;
-    const next = addDays(until, 1);
-    if (next > startsOn) startsOn = next;
-  }
-  return { startsOn, endsOn: addDays(addMonths(startsOn, input.months), -1) };
+  const after = (from: string, untils: Array<string | null | undefined>) => {
+    let day = from;
+    for (const until of untils) {
+      if (!until) continue;
+      const next = addDays(until, 1);
+      if (next > day) day = next;
+    }
+    return day;
+  };
+  const startsOn = after(input.today, input.busyUntil);
+  const monthsFrom = after(startsOn, input.passesUntil ?? []);
+  return { startsOn, endsOn: addDays(addMonths(monthsFrom, input.months), -1) };
 }
 
 // The UTC instants written onto the order: the first moment of the first day
@@ -244,7 +285,8 @@ export async function listPaidLivePasses(db: D1Database, email?: string): Promis
   return rows.map(toPaidPass).filter((p): p is PaidLivePass => p !== null);
 }
 
-// The last day of each address's latest certification extension.
+// The last day of each address's latest certification extension (the end of
+// that pass's months).
 export async function loadCertExtensions(db: D1Database, email?: string): Promise<Map<string, string>> {
   const out = new Map<string, string>();
   for (const p of await listPaidLivePasses(db, email)) {

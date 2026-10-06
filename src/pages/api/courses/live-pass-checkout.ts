@@ -108,7 +108,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       }
       return json(
         {
-          error: `Your certification window already runs until ${fmtDay(plan.window.endsOn ?? period.endsOn)}, past the end of this pass, so the extension would add nothing. Untick it to continue.`,
+          error: `Your certification window already runs until ${fmtDay(plan.window.endsOn ?? period.endsOn)}, past what the extension would add, so it would buy you nothing. Untick it to continue.`,
         },
         400,
       );

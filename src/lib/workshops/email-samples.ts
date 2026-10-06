@@ -28,6 +28,7 @@ import {
   verificationEmail,
   deckGiftClaimEmail,
   deckGiftConfirmedEmail,
+  livePassConfirmedEmail,
   mantraPackEmail,
   albumPurchaseEmail,
   type EmailContent,
@@ -226,6 +227,27 @@ export function buildEmailSamples(base: string): EmailSample[] {
         ...sampleAlbum(b),
         albumDescription:
           'Five mantras, recorded live with a choir in South Africa, set to original music. Not songs to listen to — lines to sound with your own voice. Simple enough to carry with you, strong enough to lean on.',
+      }),
+    },
+
+    // ── Live pass — access confirmed (transactional) ─────────────────────
+    // The real send reads the day the pass starts, what holds it back and the
+    // certification window from the order — see src/lib/courses/live-pass-email.ts.
+    {
+      id: 'live_pass_confirmed',
+      group: 'Registration & reminders (transactional)',
+      label: 'Live pass — access confirmed',
+      timing: 'On payment for a live pass (every fulfilment path + the hourly reconcile)',
+      audience: 'Anyone who buys a live pass on /courses/live-pass',
+      content: livePassConfirmedEmail({
+        name,
+        loginEmail: 'you@example.com',
+        contents: '12 Q&As and 3 deepening sessions',
+        startsLabel: '1 January 2027',
+        startsToday: false,
+        courseUntilLabel: '31 December 2026',
+        certWindowUntilLabel: '31 March 2027',
+        eventsUrl: 'https://circle.songdance.co/events',
       }),
     },
 

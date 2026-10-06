@@ -35,6 +35,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     return json(200, {
       email,
       live_until: plan.liveUntil,
+      pass_running: plan.passRunning,
       periods: plan.periods,
       certification: {
         holds_course: plan.window.holdsCourse,

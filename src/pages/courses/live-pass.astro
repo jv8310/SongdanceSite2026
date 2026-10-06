@@ -1,11 +1,11 @@
 ---
-// The live pass: the weekly Q&As and the monthly deepening session, by the
-// month (src/lib/courses/live-pass.ts). Reached mostly from the member app (a
+// The live pass: the weekly Q&As and the monthly deepening session, as a
+// number of sessions (src/lib/courses/live-pass.ts). Reached mostly from the member app (a
 // locked Q&A or deepening session) and the SVH app ("Apply for Certification",
 // with ?extend=1), both of which put the member's address in ?email= (and their
 // name in ?first_name= / ?last_name=) — so the page arrives filled in: the name
-// and country from the link or from what the site holds for that address, when
-// their pass would start, the certification-window add-on only for a 9-month
+// and country from the link or from what the site holds for that address, the
+// day their pass would start, the certification-window add-on only for a 9-month
 // student it would help, and for a 12-week student the way on to the 9-month
 // certification course.
 import SiteLayout from '../../components/SiteLayout.astro';
@@ -17,6 +17,7 @@ import { albumCurrencyForCountry } from '../../lib/music/product';
 import {
   CERT_EXTENSION_PERCENT,
   LIVE_PASS_MONTHS,
+  livePassContents,
   livePassOffer,
   parseLivePassMonths,
   type LivePassMonths,
@@ -44,6 +45,7 @@ if (emailPrefill) {
     details = d;
     initialStatus = {
       live_until: plan.liveUntil,
+      pass_running: plan.passRunning,
       periods: plan.periods,
       certification: {
         holds_course: plan.window.holdsCourse,
@@ -80,14 +82,12 @@ const prices = Object.fromEntries(
 const offers = LIVE_PASS_MONTHS.map((m) => livePassOffer(m, currency));
 const certPageHref = `/courses/certification${emailPrefill ? `?email=${encodeURIComponent(emailPrefill)}` : ''}`;
 const money = (cents: number) => formatMoney(cents, currency);
-const lengthLabel = (m: number) => (m === 1 ? '1 month' : `${m} months`);
-const contents = (m: number) =>
-  m === 1 ? 'Four Q&As and one deepening session' : `About ${m * 4} Q&As and ${m} deepening sessions`;
+const aboutLabel = (m: number) => `About ${m} month${m === 1 ? '' : 's'} of sessions`;
 ---
 
 <SiteLayout
   title="Live pass — the weekly Q&As and monthly deepening sessions"
-  description="Sound with us live: a weekly Q&A and a monthly deepening session, by the month. For anyone whose course no longer includes the live sessions, or never did."
+  description="Sound with us live: 4, 12 or 24 Q&As and 1, 3 or 6 deepening sessions. For anyone whose course no longer includes the live sessions, or never did."
 >
   <main class="lp">
     <section class="lp-hero">
@@ -105,9 +105,9 @@ const contents = (m: number) =>
         <p class="lp-eyebrow">Payment received</p>
         <h2 class="lp-h2">Thank you — your pass is on its way into your account</h2>
         <p>
-          You'll find the sessions under <strong>Events</strong> in the Songdance Circle from the
-          day your pass starts, with the same email address you paid with. Your receipt and invoice
-          arrive by email.
+          A confirmation is on its way by email, with the day your pass starts. You'll find the
+          sessions under <strong>Events</strong> in the Songdance Circle from that day, with the
+          same email address you paid with. Your receipt and invoice arrive by email too.
         </p>
       </section>
     )}
@@ -122,15 +122,25 @@ const contents = (m: number) =>
       >
         <fieldset class="lp-options">
           <legend class="lp-legend">Choose your pass</legend>
+          <p class="lp-explain">
+            A pass holds the next Q&amp;As and deepening sessions on the calendar from the day it
+            starts, and ends after the last of them. A week without a Q&amp;A costs you nothing.
+          </p>
           {offers.map((o) => (
             <label class="lp-option">
-              <input type="radio" name="months" value={o.months} checked={o.months === chosenMonths} />
+              <input
+                type="radio"
+                name="months"
+                value={o.months}
+                checked={o.months === chosenMonths}
+                data-lp-contents={livePassContents(o.months)}
+              />
               <span class="lp-option-body">
                 <span class="lp-option-head">
-                  <span class="lp-option-len">{lengthLabel(o.months)}</span>
+                  <span class="lp-option-len">{livePassContents(o.months)}</span>
                   {o.discount_percent > 0 && <span class="lp-save">{o.discount_percent}% off</span>}
                 </span>
-                <span class="lp-option-sub">{contents(o.months)}</span>
+                <span class="lp-option-sub">{aboutLabel(o.months)}</span>
                 <span class="lp-option-price">
                   {o.discount_percent > 0 && (
                     <s class="lp-was" data-lp-was={o.months}>{money(o.full_cents)}</s>
@@ -152,9 +162,9 @@ const contents = (m: number) =>
               <span class="lp-addon-price">+<span data-lp-ext>{money(offers.find((o) => o.months === chosenMonths)!.extension_cents)}</span></span>
             </span>
             <span class="lp-addon-body">
-              Keeps your window to apply for certification open until your pass ends. For
-              certification students whose window has closed. Adds {CERT_EXTENSION_PERCENT}% to the
-              pass.
+              Keeps your window to apply for certification open for the months of your pass (1, 3
+              or 6, from the day it starts). For certification students whose window has closed.
+              Adds {CERT_EXTENSION_PERCENT}% to the pass.
             </span>
             <span class="lp-addon-note" data-lp-addon-note hidden></span>
           </span>
@@ -262,11 +272,19 @@ const contents = (m: number) =>
     <section class="lp-faq">
       <h2 class="lp-h2">Good to know</h2>
       <dl>
+        <dt>How long does a pass last?</dt>
+        <dd>
+          As long as its sessions: 4, 12 or 24 Q&amp;As and 1, 3 or 6 deepening sessions — the next
+          ones on the calendar from the day it starts. A week without a Q&amp;A costs you nothing:
+          your pass simply holds the next one. It ends after the last of its sessions, and you keep
+          their replays for 2 months.
+        </dd>
         <dt>When does my pass start?</dt>
         <dd>
-          The day you buy it — unless your course or an earlier pass still gives you the live
-          sessions. Then it starts the day after those end, so you never pay twice for the same
-          month. Fill in your email above and the dates show before you pay.
+          The day you buy it — unless your course still gives you the live sessions: then it starts
+          the day after they end, so you never pay twice for the same session. If you already have a
+          pass, the new one continues with the session after its last. Fill in your email above and
+          the start date shows before you pay.
         </dd>
         <dt>I'm in the 12-week course</dt>
         <dd>
@@ -276,7 +294,10 @@ const contents = (m: number) =>
         <dt>Where are the sessions?</dt>
         <dd>Under Events in the Songdance Circle, where you'll also find the replays from your pass.</dd>
         <dt>Is it a subscription?</dt>
-        <dd>No. You pay once for 1, 3 or 6 months, and it simply ends. Buy another whenever you like.</dd>
+        <dd>
+          No. You pay once, and the pass ends after its last session. We'll let you know by email
+          when 1 session is left, so you can add another whenever you like.
+        </dd>
       </dl>
     </section>
   </main>
@@ -291,6 +312,7 @@ const contents = (m: number) =>
   type Period = { startsOn: string; endsOn: string; extensionHelps: boolean };
   type Status = {
     live_until: string | null;
+    pass_running?: boolean;
     periods: Record<string, Period>;
     certification: { holds_course: boolean; may_certify: boolean; ends_on: string | null; open: boolean };
     twelve_week?: { holds: boolean; live_until: string | null };
@@ -342,14 +364,16 @@ const contents = (m: number) =>
       extEl.textContent = formatMoney(o.extension_cents, cur);
       const ext = addonInput.checked ? o.extension_cents : 0;
       totalEl.textContent = formatMoney(o.price_cents + ext, cur);
-      summaryLabel.textContent = `Live pass · ${m === 1 ? '1 month' : `${m} months`}${ext ? ' + certification window' : ''}`;
+      const contents = form!.querySelector<HTMLInputElement>('[name="months"]:checked')?.dataset.lpContents ?? '';
+      summaryLabel.textContent = `Live pass · ${contents}${ext ? ' + certification window' : ''}`;
 
-      // The dates and the add-on's verdict, once the address is known.
+      // The day each pass would start, and the add-on's verdict, once the
+      // address is known. No end date: a pass ends with its last session.
       for (const [key, p] of Object.entries(status?.periods ?? {})) {
         const el = form!.querySelector<HTMLElement>(`[data-lp-dates="${key}"]`);
         if (!el) continue;
         el.hidden = false;
-        el.textContent = `${fmtDay(p.startsOn)} – ${fmtDay(p.endsOn)}`;
+        el.textContent = `From ${fmtDay(p.startsOn)}`;
       }
       // The add-on is for 9-month students only; the 12-week card for 12-week
       // students who are not (yet) on the 9 months.
@@ -391,10 +415,15 @@ const contents = (m: number) =>
     }
 
     function showLiveUntil() {
-      statusEl.hidden = !status?.live_until;
+      const lines: string[] = [];
       if (status?.live_until) {
-        statusEl.textContent = `You already have the live sessions until ${fmtDay(status.live_until)}, so a pass starts the day after.`;
+        lines.push(`Your course gives you the live sessions until ${fmtDay(status.live_until)}, so a pass starts the day after.`);
       }
+      if (status?.pass_running) {
+        lines.push('Your current pass comes first: a new one continues with the session after its last.');
+      }
+      statusEl.hidden = lines.length === 0;
+      statusEl.textContent = lines.join(' ');
     }
 
     async function lookUp() {
@@ -507,6 +536,7 @@ const contents = (m: number) =>
   .lp-welcome { border-color: var(--moss); }
   .lp-options { border: 0; padding: 0; margin: 0 0 16px; display: grid; gap: 10px; }
   .lp-legend { font-family: var(--font-display); font-size: 22px; margin-bottom: 12px; }
+  .lp-explain { font-size: 15px; line-height: 1.55; margin: 0 0 6px; opacity: 0.85; }
   .lp-option {
     display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; cursor: pointer;
     border: 1px solid rgba(42, 27, 42, 0.16); border-radius: 12px; background: var(--paper);
@@ -527,8 +557,10 @@ const contents = (m: number) =>
   .lp-addon-head { display: flex; gap: 8px; justify-content: space-between; font-weight: 600; }
   .lp-addon-body, .lp-addon-note { display: block; font-size: 14px; line-height: 1.5; margin-top: 4px; }
   .lp-addon-note { color: var(--plum); }
-  .lp-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
-  .lp-field { display: grid; gap: 6px; font-size: 14px; }
+  /* align-items/align-content: start — a password manager's icon in one name
+     field made it taller, and the grid stretched the other field down to match. */
+  .lp-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; align-items: start; }
+  .lp-field { display: grid; gap: 6px; font-size: 14px; align-content: start; }
   .lp-field--full { grid-column: 1 / -1; }
   .lp-field input {
     font: inherit; font-size: 16px; padding: 10px 12px; border-radius: 10px;

@@ -246,7 +246,7 @@ purchase, a refund or a rule change restates everyone at once.
   `cert_no_certification`. They are listed on the same admin page.
 - Not handled: a refund after the push leaves the Drip tags in place.
 
-## Live pass — the live sessions by the month, and the certification window
+## Live pass — a number of live sessions, and the certification window
 
 `/courses/live-pass` sells the weekly Q&As and the monthly deepening session to
 anyone whose course no longer includes them (or never did). Logic in
@@ -258,31 +258,52 @@ anyone whose course no longer includes them (or never did). Logic in
   €52 month with the albums' ratios (`albumPriceCents`). The add-on **Extend my
   certification window** is +20% of the pass, floored: €10 / €26 / €46 — shown
   only to a 9-month (certification) student, CEEE cohort included.
+- **Sold by the month, counted by the session** (Jacob, October 2026): a pass
+  holds exactly **4 / 12 / 24 Q&As and 1 / 3 / 6 deepening sessions**
+  (`livePassSessions`, `livePassContents` — always in numerals) — the next ones
+  on the member app's calendar from the day it starts — and access ends after
+  the last of them. A week without a Q&A costs nobody a session, and passes
+  queue. **The member app counts the sessions** (it holds the calendar); the
+  site never knows which session a pass ends on, so no page, email or Drip
+  field gives a pass an end date.
 - **Rides the course machinery** as `live-pass-1m` / `-3m` / `-6m` on
   `course_registrations` (full payment, Stripe + PayPal); the add-on is a
   `cert-extension` row in `bumps`, so every money report already counts it.
   Drip: `prod_LivePass` (+ `prod_CertExtension`), event `Completed live pass
-  purchase`, fields `live_pass_starts` / `live_pass_ends`.
-- **When a pass runs**: from the day it is bought — or the day after the
-  buyer's current live sessions end (an earlier pass, the certification course
-  — site order or the Drip-only holders — or the 12 weeks of a 12-week course
-  bought on the site), so a pass always extends what they have. A 12-week
-  student (site order, workshop line, or the `prod_SVH_12w` tag on the contacts
-  list) is also shown a card leading on to the certification course. The page
-  shows the dates once the email is known (`/api/courses/live-pass-status`);
-  the payment fixes them **once** (`settleLivePassPeriod`, claimed as
-  `live-pass-period-<id>`) and writes them onto the order as
-  `access_starts_at` / `access_ends_at` (migration 0089, UTC instants bounding
-  Brussels days). **The member app reads those two columns** to open the
-  sessions (its `qa-extended-deepening` entitlement), so the rule lives here
-  only. A pass paid before the migration falls back to its paid day.
-- **The extension** keeps the window to apply for certification open until the
-  pass ends: `cert-access.ts` folds it in (`extendedTo`, `endsOn` = the later
-  date), the Drip-only holders too (and it lifts the CEEE cohort's
-  `cert_no_certification`), so the Drip push and the admin list follow. It is
-  only sold to someone who holds the certification course in some form, and
-  only when it reaches past the window they have — the checkout refuses it
-  otherwise, in plain words.
+  purchase`, fields `live_pass_starts` + `live_pass_sessions` ("12 Q&As and 3
+  deepening sessions").
+- **When a pass starts**: the day it is bought — or the day after the buyer's
+  course stops giving them the live sessions (the certification course — site
+  order or the Drip-only holders — or the 12 weeks of a 12-week course bought on
+  the site). **An earlier pass never moves the start**: the member app queues
+  the sessions, so a pass bought while another runs continues with the session
+  after its last, with no gap between them. A 12-week student (site order,
+  workshop line, or the `prod_SVH_12w` tag on the contacts list) is also shown a
+  card leading on to the certification course. The page shows "From <day>" per
+  length once the email is known (`/api/courses/live-pass-status`); the payment
+  fixes the dates **once** (`settleLivePassPeriod`, claimed as
+  `live-pass-period-<id>`) and writes them onto the order (migration 0089, UTC
+  instants bounding Brussels days): `access_starts_at` is the day the pass
+  begins, **which the member app counts its sessions from** (its `live-pass`
+  entitlement); `access_ends_at` is the end of the pass's months, used only by
+  the extension below (the app ignores it on a paid pass). A pass paid before
+  the migration falls back to its paid day.
+- **The mail**: on payment the buyer gets **"Your live pass is confirmed"**
+  ([`live-pass-email.ts`](src/lib/courses/live-pass-email.ts), from
+  `notifyCourseOrder`, so every fulfilment path sends it; transactional,
+  claimed `live-pass-confirmed-<id>`, previewed on `/admin/emails`): what it
+  holds, the day it starts and why that day, where the sessions are, and the
+  certification window with the add-on. **"1 session left"** and **"your pass
+  has ended"** come from the member app, the one place that knows the calendar,
+  each with the way back to this page filled in.
+- **The extension** keeps the window to apply for certification open for the
+  pass's months — from the day it starts, or from the end of an earlier pass's
+  months when that is later (`livePassPeriod`'s `endsOn`): `cert-access.ts`
+  folds it in (`extendedTo`, `endsOn` = the later date), the Drip-only holders
+  too (and it lifts the CEEE cohort's `cert_no_certification`), so the Drip
+  push and the admin list follow. It is only sold to someone who holds the
+  certification course in some form, and only when it reaches past the window
+  they have — the checkout refuses it otherwise, in plain words.
 - **One answer per person** — [`cert-window.ts`](src/lib/courses/cert-window.ts)
   (`certWindowForEmail`): holds the course, may certify, last day, open. The
   pass page reads it, and so does the **SVH app** (app.songdance.co, "Apply for
@@ -297,6 +318,8 @@ anyone whose course no longer includes them (or never did). Logic in
   the site holds for that address (latest order → workshop seat → contacts,
   `loadBuyerDetails` — the way the 12-week and certification pages fill theirs
   from Drip). `?extend=1` ticks the add-on, `?months=1|3|6` picks the length.
+  The name fields sit top-aligned (`align-items` / `align-content: start`): a
+  password manager's icon in one of them used to stretch the other down.
   The Grief and journey register forms fill `?email=`, `?first_name=` and
   `?last_name=` too (the member app's locked courses link there).
 
