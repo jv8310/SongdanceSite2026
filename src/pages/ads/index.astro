@@ -468,6 +468,10 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
       .efig b { font-size: 24px; font-weight: 640; letter-spacing: -0.015em; color: var(--ink); font-variant-numeric: tabular-nums; margin-top: 2px; }
       .efig em { font-style: normal; font-size: 11.5px; color: var(--muted); margin-top: 3px; line-height: 1.4; }
       .earrow { color: var(--muted); font-size: 18px; align-self: center; }
+      /* Cost per registration is the number the card is read for; what it
+         made back is the supporting figure. */
+      .efig--lead b { font-size: 34px; line-height: 1.05; font-weight: 650; letter-spacing: -0.02em; }
+      .efig--minor b { font-size: 18px; font-weight: 600; color: var(--ink-2); }
       .eroas { text-align: right; flex: none; }
       /* Too narrow for the figures to share the row with the verdict: it moves
          above them and the figures take the whole card. */
@@ -748,13 +752,13 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
               </div>
               <div class="ebody">
                 <div class="eflow">
-                  <div class="efig">
-                    <span>Ad spend</span>
-                    <b>{eur(Math.round(c.a.allocatedCostEurMinor))}</b>
-                    <em>{c.a.costPerRegistrationEurMinor != null ? `${eur(Math.round(c.a.costPerRegistrationEurMinor))} per registration` : 'nothing charged here'}</em>
+                  <div class="efig efig--lead">
+                    <span>Per registration</span>
+                    <b>{c.a.costPerRegistrationEurMinor != null ? eur(Math.round(c.a.costPerRegistrationEurMinor)) : '—'}</b>
+                    <em>{c.a.allocatedCostEurMinor > 0 ? `${eur(Math.round(c.a.allocatedCostEurMinor))} ad spend` : 'nothing charged here'}</em>
                   </div>
                   <span class="earrow" aria-hidden="true">→</span>
-                  <div class="efig">
+                  <div class="efig efig--minor">
                     <span>Made back</span>
                     <b>{eur(c.a.revenueEurMinor)}</b>
                     <em>
@@ -797,17 +801,17 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
                 <p class="epage"><code>{c.a.path}</code> · {c.angle}</p>
                 <div class="ebody">
                   <div class="eflow">
-                    <div class="efig">
-                      <span>Ad spend</span>
-                      <b>{eur(Math.round(c.a.allocatedCostEurMinor))}</b>
+                    <div class="efig efig--lead">
+                      <span>Per registration</span>
+                      <b>{c.a.costPerRegistrationEurMinor != null ? eur(Math.round(c.a.costPerRegistrationEurMinor)) : '—'}</b>
                       <em>{c.a.costPerRegistrationEurMinor != null
-                        ? `${eur(Math.round(c.a.costPerRegistrationEurMinor))} per registration`
+                      ? `${eur(Math.round(c.a.allocatedCostEurMinor))} ad spend`
                         : c.a.acquisitionSpendEurMinor > 0
                           ? `${eur(c.a.acquisitionSpendEurMinor)} spent, charged to nothing — no seat came through this page`
                           : 'nothing charged here'}</em>
                     </div>
                     <span class="earrow" aria-hidden="true">→</span>
-                    <div class="efig">
+                    <div class="efig efig--minor">
                       <span>Made back</span>
                       <b>{eur(c.a.revenueEurMinor)}</b>
                       <em>
