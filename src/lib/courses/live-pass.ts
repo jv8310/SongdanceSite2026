@@ -7,10 +7,11 @@
 //
 // Plus one add-on, sold only with a pass: **Extend my certification window**
 // (+20% of the pass). It keeps the window to apply for certification open until
-// the pass ends — for a certification student whose window has closed, or whose
-// course came without the right to certify (the CEEE 2025 cohort,
-// `cert_no_certification`). It is only for people who hold the certification
-// course in some form; anyone else is told so at checkout.
+// the pass ends — for a 9-month (certification) student whose window has closed,
+// and for the CEEE 2025 cohort, who hold the course without the right to certify
+// (`cert_no_certification`). Nobody else is shown it: the page hides it until
+// the address says they hold the certification course, and the checkout refuses
+// it otherwise.
 //
 // Prices are floored to whole units (5 for the krona family), so the advertised
 // discount is never under-delivered and the add-on never costs more than 20%:
@@ -19,10 +20,11 @@
 //
 // A pass starts on the day it is bought — unless the buyer still has live
 // sessions: then it starts the day after they end, so nobody pays twice for the
-// same month. "Still has live sessions" means a pass of theirs still running, or
-// the certification course (site order, or the Drip-only holders) still running.
-// The 12-week course does not count: it carries no deepening sessions, and a
-// 12-week student buys a pass for exactly those.
+// same month and a pass always extends what they have. "Still has live sessions"
+// means a pass of theirs still running, the certification course (site order,
+// or the Drip-only holders) still running, or the 12 weeks of a 12-week course
+// bought on the site (a 12-week student's pass picks up where the 12 weeks end;
+// the page also offers them the 9-month certification course).
 //
 // The period is computed at checkout (shown to the buyer before they pay) and
 // again when the payment lands, and written onto the order as

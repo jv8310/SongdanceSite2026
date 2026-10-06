@@ -256,16 +256,19 @@ anyone whose course no longer includes them (or never did). Logic in
   6 × €52 − 25% → **€234**, floored to whole units (5 for the krona family) so
   the advertised percent is never under-delivered. Other currencies scale the
   €52 month with the albums' ratios (`albumPriceCents`). The add-on **Extend my
-  certification window** is +20% of the pass, floored: €10 / €26 / €46.
+  certification window** is +20% of the pass, floored: €10 / €26 / €46 — shown
+  only to a 9-month (certification) student, CEEE cohort included.
 - **Rides the course machinery** as `live-pass-1m` / `-3m` / `-6m` on
   `course_registrations` (full payment, Stripe + PayPal); the add-on is a
   `cert-extension` row in `bumps`, so every money report already counts it.
   Drip: `prod_LivePass` (+ `prod_CertExtension`), event `Completed live pass
   purchase`, fields `live_pass_starts` / `live_pass_ends`.
 - **When a pass runs**: from the day it is bought — or the day after the
-  buyer's current live sessions end (an earlier pass, or the certification
-  course: site order or the Drip-only holders), so nobody pays twice for a
-  month. The 12-week course doesn't count (no deepening sessions). The page
+  buyer's current live sessions end (an earlier pass, the certification course
+  — site order or the Drip-only holders — or the 12 weeks of a 12-week course
+  bought on the site), so a pass always extends what they have. A 12-week
+  student (site order, workshop line, or the `prod_SVH_12w` tag on the contacts
+  list) is also shown a card leading on to the certification course. The page
   shows the dates once the email is known (`/api/courses/live-pass-status`);
   the payment fixes them **once** (`settleLivePassPeriod`, claimed as
   `live-pass-period-<id>`) and writes them onto the order as
@@ -283,16 +286,19 @@ anyone whose course no longer includes them (or never did). Logic in
 - **One answer per person** — [`cert-window.ts`](src/lib/courses/cert-window.ts)
   (`certWindowForEmail`): holds the course, may certify, last day, open. The
   pass page reads it, and so does the **SVH app** (app.songdance.co, "Apply for
-  Certification") through `GET /api/app/cert-window?email=…` with
-  `Authorization: Bearer <CERT_WINDOW_TOKEN>` (secret; the same value goes into
-  the SVH app's `config.php` as `SONGDANCE_CERT_WINDOW_TOKEN`; unset → 503 and
-  the SVH app keeps its own lifted window). Its `upgrade_url` is this page with
+  Certification") through `GET /api/app/cert-window?email=…`. No secret: email
+  is the credential here, as on `/access` and the course gates, and the pass
+  page's own status call answers the same. Its `upgrade_url` is this page with
   `?email=…&extend=1`.
-- **Links in**: the member app (a locked Q&A or deepening session) and the SVH
-  app put the member's address in `?email=`; `?extend=1` ticks the add-on,
-  `?months=1|3|6` picks the length. The Grief and journey register forms now
-  fill their email field from `?email=` too (the member app's locked courses
-  link there).
+- **The page arrives filled in.** The member app (a locked Q&A or deepening
+  session) and the SVH app put the member's address in `?email=` and their name
+  in `?first_name=` / `?last_name=`; with an address the page answers its status
+  on the server and fills the name and country from the link, else from what
+  the site holds for that address (latest order → workshop seat → contacts,
+  `loadBuyerDetails` — the way the 12-week and certification pages fill theirs
+  from Drip). `?extend=1` ticks the add-on, `?months=1|3|6` picks the length.
+  The Grief and journey register forms fill `?email=`, `?first_name=` and
+  `?last_name=` too (the member app's locked courses link there).
 
 ## Masterclass — one event, two doors
 

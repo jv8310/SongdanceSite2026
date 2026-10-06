@@ -1,8 +1,9 @@
 // GET /api/app/cert-window?email=… → the window to apply for certification for
 // one address (src/lib/courses/cert-window.ts), for the SVH app
-// (app.songdance.co → "Apply for Certification"). Server to server only:
-// `Authorization: Bearer <CERT_WINDOW_TOKEN>`, the same secret in the SVH app's
-// config.php. Off (503) until the secret is set.
+// (app.songdance.co → "Apply for Certification"), which asks it server to
+// server. No secret: email is the credential in this system, and the live-pass
+// page's own status call already answers the same for any address typed into it
+// (the 12-week and certification gates do likewise from Drip).
 //
 // {
 //   found,          // holds the certification course in some form
@@ -28,21 +29,8 @@ const json = (status: number, body: unknown) =>
     headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
   });
 
-function timingSafeEqual(a: string, b: string) {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return diff === 0;
-}
-
-export const GET: APIRoute = async ({ request, url, locals }) => {
+export const GET: APIRoute = async ({ url, locals }) => {
   const env = locals.runtime.env;
-  const secret = env.CERT_WINDOW_TOKEN?.trim();
-  if (!secret) return json(503, { error: 'not-configured' });
-  const auth = request.headers.get('authorization') ?? '';
-  const token = auth.replace(/^Bearer\s+/i, '').trim();
-  if (!token || !timingSafeEqual(token, secret)) return json(401, { error: 'unauthorized' });
-
   const email = (url.searchParams.get('email') ?? '').trim().slice(0, 254).toLowerCase();
   if (!EMAIL_RE.test(email)) return json(400, { error: 'bad-email' });
 

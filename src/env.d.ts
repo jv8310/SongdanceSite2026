@@ -124,11 +124,6 @@ type Env = {
   // skipped and the typed address is used as-is (the sale is never blocked).
   GOOGLE_ADDRESS_VALIDATION_KEY?: string;
   SVH_CERT_PORTAL_URL?: string;
-  // Shared secret for /api/app/cert-window, the SVH app's (app.songdance.co)
-  // read of each student's certification window. The same value goes into the
-  // SVH app's config.php as SONGDANCE_CERT_WINDOW_TOKEN. Unset → the endpoint
-  // answers 503 and the SVH app keeps its own (lifted) window.
-  CERT_WINDOW_TOKEN?: string;
   // Admin login is email + password, multi-user. ADMIN_PASSWORD is the original
   // owner login (paired with ADMIN_EMAIL, default jacob@songdance.co). Add
   // collaborators in ADMIN_USERS — one `email:password` per line (or `;`-

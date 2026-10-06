@@ -310,11 +310,18 @@ const countries = COUNTRIES;
       }
     }
 
-    // ?email= (a link from the member app or an email) fills the address in.
+    // ?email= / ?first_name= / ?last_name= (a link from the member app or an
+    // email) fill the form in.
     try {
-      const qEmail = (new URLSearchParams(window.location.search).get('email') ?? '').trim();
-      const emailField = form.querySelector<HTMLInputElement>('[name="email"]');
-      if (emailField && !emailField.value && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(qEmail)) emailField.value = qEmail;
+      const q = new URLSearchParams(window.location.search);
+      const fill = (name: string, value: string | null, ok = (v: string) => v.length > 0) => {
+        const field = form.querySelector<HTMLInputElement>(`[name="${name}"]`);
+        const v = (value ?? '').trim().slice(0, 100);
+        if (field && !field.value && ok(v)) field.value = v;
+      };
+      fill('email', q.get('email'), (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v));
+      fill('first_name', q.get('first_name'));
+      fill('last_name', q.get('last_name'));
     } catch {}
 
     // Prefill country from geolocation guess.

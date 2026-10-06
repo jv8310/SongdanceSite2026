@@ -1,10 +1,14 @@
 // What a live pass bought today would look like for one address: when each
-// length would start and end, and whether the certification-window add-on would
-// buy them anything. Shown on the pass page before they pay, re-derived by the
-// checkout, and run once more when the payment lands (the period written onto
-// the order is the one from the moment of payment).
+// length would start and end, whether the certification-window add-on would buy
+// them anything, and whether they walk the 12-week course (the page then offers
+// the 9-month certification course beside the pass). Shown on the pass page
+// before they pay, re-derived by the checkout, and run once more when the
+// payment lands (the period written onto the order is the one from the moment
+// of payment).
 
 import { brusselsToday, businessDayOf } from '../workshops/periods';
+import { findCountry } from '../countries';
+import { addDays, FOUNDATION_WEEKS } from './cert-access';
 import { certWindowForEmail, extensionWouldHelp, type CertWindow } from './cert-window';
 import {
   LIVE_PASS_MONTHS,
@@ -18,11 +22,108 @@ import {
 
 export type LivePassPlan = {
   window: CertWindow;
-  // The last day of the live sessions they already have (a pass, or the
-  // certification course), when that is today or later.
+  // The 12-week course: whether they hold it, and the last day of its live
+  // weeks when a site order says when that is.
+  twelveWeek: { holds: boolean; liveUntil: string | null };
+  // The last day of the live sessions they already have (a pass, the
+  // certification course or the 12-week course), when that is today or later.
   liveUntil: string | null;
   periods: Record<LivePassMonths, LivePassPeriod & { extensionHelps: boolean }>;
 };
+
+// ── The 12-week course ───────────────────────────────────────────────────────
+//
+// Its live weeks are the 12 weeks from the purchase (the member app's window:
+// 84 days from the paid date), read from the same two places a sale can land as
+// cert-access.ts reads (an order, or a 12w-course line on a workshop seat). The
+// buyers from before the site took payments carry only the Drip tag, mirrored
+// onto the contacts list: they hold the course, with no date to extend from.
+async function loadTwelveWeek(db: D1Database, email: string, today: string): Promise<LivePassPlan['twelveWeek']> {
+  const key = email.trim().toLowerCase();
+  const days: string[] = [];
+  const course = await db
+    .prepare(
+      `SELECT COALESCE(paid_at, created_at) AS at FROM course_registrations
+        WHERE status = 'paid' AND product_slug = 'svh-12week' AND lower(email) = ?`,
+    )
+    .bind(key)
+    .all<{ at: string }>();
+  for (const r of course.results ?? []) days.push(businessDayOf(r.at));
+  const ledger = await db
+    .prepare(
+      `SELECT pur.created_at AS at
+         FROM workshop_purchases pur
+         JOIN workshop_registrations wr ON wr.id = pur.registration_id
+         JOIN workshop_products p ON p.id = pur.product_id
+        WHERE pur.product_type = 'course' AND p.slug = '12w-course'
+          AND wr.payment_status IN ('paid','coupon') AND lower(wr.email) = ?`,
+    )
+    .bind(key)
+    .all<{ at: string }>()
+    .catch(() => ({ results: [] as Array<{ at: string }> }));
+  for (const r of ledger.results ?? []) days.push(businessDayOf(r.at));
+
+  let holds = days.length > 0;
+  if (!holds) {
+    const tag = await db
+      .prepare(`SELECT 1 AS x FROM contact_tags WHERE email = ? AND lower(tag) = 'prod_svh_12w' LIMIT 1`)
+      .bind(key)
+      .first<{ x: number }>()
+      .catch(() => null);
+    holds = !!tag;
+  }
+  const ends = days.map((d) => addDays(d, FOUNDATION_WEEKS * 7)).filter((d) => d >= today).sort();
+  return { holds, liveUntil: ends.pop() ?? null };
+}
+
+// ── Who they are, for the form ───────────────────────────────────────────────
+//
+// The name and country the site already holds for this address — their latest
+// order, else their latest workshop seat, else the contacts list — so the page
+// fills the form in, the way the 12-week and certification pages fill theirs
+// from Drip. Email is the credential here, as there.
+export type BuyerDetails = { firstName: string | null; lastName: string | null; country: string | null };
+
+function splitName(name: string | null | undefined): { firstName: string | null; lastName: string | null } {
+  const parts = (name ?? '').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return { firstName: null, lastName: null };
+  return { firstName: parts[0], lastName: parts.slice(1).join(' ') || null };
+}
+
+const isoCountry = (c: string | null | undefined): string | null => {
+  const code = (c ?? '').trim().toUpperCase();
+  return code && findCountry(code) ? code : null;
+};
+
+export async function loadBuyerDetails(db: D1Database, email: string): Promise<BuyerDetails> {
+  const key = email.trim().toLowerCase();
+  const order = await db
+    .prepare(
+      `SELECT first_name, last_name, country FROM course_registrations
+        WHERE lower(email) = ? AND (first_name IS NOT NULL OR last_name IS NOT NULL)
+        ORDER BY id DESC LIMIT 1`,
+    )
+    .bind(key)
+    .first<{ first_name: string | null; last_name: string | null; country: string | null }>()
+    .catch(() => null);
+  if (order) return { firstName: order.first_name, lastName: order.last_name, country: isoCountry(order.country) };
+  const seat = await db
+    .prepare(
+      `SELECT name, country FROM workshop_registrations
+        WHERE lower(email) = ? AND name IS NOT NULL ORDER BY id DESC LIMIT 1`,
+    )
+    .bind(key)
+    .first<{ name: string | null; country: string | null }>()
+    .catch(() => null);
+  if (seat) return { ...splitName(seat.name), country: isoCountry(seat.country) };
+  const contact = await db
+    .prepare(`SELECT name, country FROM contacts WHERE email = ? LIMIT 1`)
+    .bind(key)
+    .first<{ name: string | null; country: string | null }>()
+    .catch(() => null);
+  if (contact) return { ...splitName(contact.name), country: isoCountry(contact.country) };
+  return { firstName: null, lastName: null, country: null };
+}
 
 export async function planLivePass(
   db: D1Database,
@@ -32,15 +133,18 @@ export async function planLivePass(
   opts: { today?: string; onlyPassesBefore?: number } = {},
 ): Promise<LivePassPlan> {
   const today = opts.today ?? brusselsToday();
-  const [window, passes] = await Promise.all([
+  const [window, passes, twelveWeek] = await Promise.all([
     certWindowForEmail(db, email, today),
     listPaidLivePasses(db, email),
+    loadTwelveWeek(db, email, today),
   ]);
   const busy: string[] = [];
   for (const p of passes) {
     if (opts.onlyPassesBefore == null || p.id < opts.onlyPassesBefore) busy.push(p.endsOn);
   }
   if (window.courseEndsOn) busy.push(window.courseEndsOn);
+  // A 12-week student extends their Q&As: the pass picks up where the 12 weeks end.
+  if (twelveWeek.liveUntil) busy.push(twelveWeek.liveUntil);
   const latest = busy.filter((d) => d >= today).sort().pop() ?? null;
 
   const periods = {} as LivePassPlan['periods'];
@@ -48,7 +152,7 @@ export async function planLivePass(
     const period = livePassPeriod({ today, months, busyUntil: busy });
     periods[months] = { ...period, extensionHelps: extensionWouldHelp(window, period.endsOn) };
   }
-  return { window, liveUntil: latest, periods };
+  return { window, twelveWeek, liveUntil: latest, periods };
 }
 
 // When the payment lands: the period from the paid day, written onto the order

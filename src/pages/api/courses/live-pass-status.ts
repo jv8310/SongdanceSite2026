@@ -1,12 +1,13 @@
 // POST { email } → what a live pass bought today would look like for this
 // address: each length's dates, whether the certification-window add-on would
-// buy anything, and their certification window as it stands. The live-pass page
-// asks once the email is known (typed, or ?email= from the member app / the SVH
-// app). Email is the credential here, as on /access and the course gates; the
-// answer is only ever dates about the address that was typed.
+// buy anything, their certification window as it stands, whether they walk the
+// 12-week course, and the name and country to fill the form with. The live-pass
+// page asks once the email is known (typed, or ?email= from the member app / the
+// SVH app). Email is the credential here, as on /access and the course gates
+// (the 12-week and certification pages fill their forms from Drip the same way).
 
 import type { APIRoute } from 'astro';
-import { planLivePass } from '../../../lib/courses/live-pass-plan';
+import { loadBuyerDetails, planLivePass } from '../../../lib/courses/live-pass-plan';
 
 export const prerender = false;
 
@@ -30,7 +31,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
   if (!EMAIL_RE.test(email)) return json(400, { error: 'Please enter a valid email address.' });
 
   try {
-    const plan = await planLivePass(env.DB, email);
+    const [plan, details] = await Promise.all([planLivePass(env.DB, email), loadBuyerDetails(env.DB, email)]);
     return json(200, {
       email,
       live_until: plan.liveUntil,
@@ -41,6 +42,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
         ends_on: plan.window.endsOn,
         open: plan.window.open,
       },
+      twelve_week: { holds: plan.twelveWeek.holds, live_until: plan.twelveWeek.liveUntil },
+      details: { first_name: details.firstName, last_name: details.lastName, country: details.country },
     });
   } catch (err) {
     console.error('[live-pass] status failed', String(err));
