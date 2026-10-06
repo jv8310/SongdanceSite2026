@@ -10,6 +10,12 @@ import { isJourneySlug, journeyDrip, type JourneyLanguageChoice } from './journe
 import { BUMPS, isBumpSlug } from './bumps';
 import { parsePurchasedBumps } from './db';
 import { isAlbumProductSlug } from '../music/product';
+import {
+  CERT_EXTENSION_DRIP_TAG,
+  CERT_EXTENSION_SLUG,
+  LIVE_PASS_DRIP_TAG,
+  isLivePassSlug,
+} from './live-pass';
 
 // Tagging differs by course, exactly as the paid-handler applies it:
 //   grief        → prod_Grief-sp
@@ -18,6 +24,8 @@ import { isAlbumProductSlug } from '../music/product';
 //   album-<id>   → [] here — the tag lives on the music_albums row (D1), so the
 //                  paid-handler looks it up itself; this pure function must not
 //                  fall through to the cert tags for an album purchase
+//   live-pass-*  → prod_LivePass (+ prod_CertExtension with the add-on); the
+//                  pass's dates go along as custom fields, not tags
 //   cert/bundle  → prod_SVH_9m (+ prod_SVH_12w for the bundle) + each order bump's tag
 export function courseDripTags(reg: {
   product_slug: string;
@@ -27,6 +35,11 @@ export function courseDripTags(reg: {
   if (reg.product_slug === GRIEF_PRODUCT_SLUG) return [GRIEF_DRIP_TAG];
 
   if (isAlbumProductSlug(reg.product_slug)) return [];
+
+  if (isLivePassSlug(reg.product_slug)) {
+    const ext = parsePurchasedBumps(reg.bumps).some((b) => b.slug === CERT_EXTENSION_SLUG);
+    return ext ? [LIVE_PASS_DRIP_TAG, CERT_EXTENSION_DRIP_TAG] : [LIVE_PASS_DRIP_TAG];
+  }
 
   if (isJourneySlug(reg.product_slug)) {
     return journeyDrip(reg.product_slug, reg.language_choice).tags;

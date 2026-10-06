@@ -1,0 +1,434 @@
+---
+// The live pass: the weekly Q&As and the monthly deepening session, by the
+// month (src/lib/courses/live-pass.ts). Reached mostly from the member app (a
+// locked Q&A or deepening session) and the SVH app ("Apply for Certification",
+// with ?extend=1), both of which put the member's address in ?email= — so the
+// page fills it in and shows, before anyone pays, when their pass would start
+// and whether the certification-window add-on would buy them anything.
+import SiteLayout from '../../components/SiteLayout.astro';
+import { COUNTRIES, findCountry } from '../../lib/countries';
+import { edgeCountry } from '../../lib/geo';
+import { paypalConfigured } from '../../lib/payments/paypal';
+import { SUPPORTED_CURRENCIES, formatMoney } from '../../lib/workshops/currency';
+import { albumCurrencyForCountry } from '../../lib/music/product';
+import {
+  CERT_EXTENSION_PERCENT,
+  LIVE_PASS_MONTHS,
+  livePassOffer,
+  parseLivePassMonths,
+  type LivePassMonths,
+} from '../../lib/courses/live-pass';
+
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+const params = Astro.url.searchParams;
+const welcome = params.get('welcome') === '1';
+const emailParam = (params.get('email') ?? '').trim().toLowerCase();
+const emailPrefill = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailParam) ? emailParam : '';
+const wantsExtension = params.get('extend') === '1';
+const chosenMonths: LivePassMonths = parseLivePassMonths(params.get('months')) ?? 3;
+
+const geoCountry = edgeCountry(Astro.locals);
+const geoCountryMatch = geoCountry ? findCountry(geoCountry) : undefined;
+const currency = albumCurrencyForCountry(geoCountry);
+const paypalOk = paypalConfigured(env) && env.PAYPAL_ENABLED === 'true';
+
+// Every price in every market, so the country field can repaint without a
+// round trip. The server prices the charge with the same function.
+const prices = Object.fromEntries(
+  SUPPORTED_CURRENCIES.map((cur) => [
+    cur,
+    Object.fromEntries(LIVE_PASS_MONTHS.map((m) => [m, livePassOffer(m, cur)])),
+  ]),
+);
+const offers = LIVE_PASS_MONTHS.map((m) => livePassOffer(m, currency));
+const money = (cents: number) => formatMoney(cents, currency);
+const lengthLabel = (m: number) => (m === 1 ? '1 month' : `${m} months`);
+const contents = (m: number) =>
+  m === 1 ? 'Four Q&As and one deepening session' : `About ${m * 4} Q&As and ${m} deepening sessions`;
+---
+
+<SiteLayout
+  title="Live pass — the weekly Q&As and monthly deepening sessions"
+  description="Sound with us live: a weekly Q&A and a monthly deepening session, by the month. For anyone whose course no longer includes the live sessions, or never did."
+>
+  <main class="lp">
+    <section class="lp-hero">
+      <p class="lp-eyebrow">Live sessions</p>
+      <h1 class="lp-title">Keep sounding with us, <em>live</em></h1>
+      <p class="lp-lede">
+        Every week a live Q&amp;A, and once a month a two-hour deepening session — alumni and
+        current students together. The pass is for anyone whose course no longer includes the
+        live sessions, or never did.
+      </p>
+    </section>
+
+    {welcome && (
+      <section class="lp-card lp-welcome" role="status">
+        <p class="lp-eyebrow">Payment received</p>
+        <h2 class="lp-h2">Thank you — your pass is on its way into your account</h2>
+        <p>
+          You'll find the sessions under <strong>Events</strong> in the Songdance Circle from the
+          day your pass starts, with the same email address you paid with. Your receipt and invoice
+          arrive by email.
+        </p>
+      </section>
+    )}
+
+    <section class="lp-card" id="get">
+      <form class="lp-form" data-lp-form novalidate data-prices={JSON.stringify(prices)}>
+        <fieldset class="lp-options">
+          <legend class="lp-legend">Choose your pass</legend>
+          {offers.map((o) => (
+            <label class="lp-option">
+              <input type="radio" name="months" value={o.months} checked={o.months === chosenMonths} />
+              <span class="lp-option-body">
+                <span class="lp-option-head">
+                  <span class="lp-option-len">{lengthLabel(o.months)}</span>
+                  {o.discount_percent > 0 && <span class="lp-save">{o.discount_percent}% off</span>}
+                </span>
+                <span class="lp-option-sub">{contents(o.months)}</span>
+                <span class="lp-option-price">
+                  {o.discount_percent > 0 && (
+                    <s class="lp-was" data-lp-was={o.months}>{money(o.full_cents)}</s>
+                  )}
+                  <strong data-lp-price={o.months}>{money(o.price_cents)}</strong>
+                </span>
+                <span class="lp-option-dates" data-lp-dates={o.months} hidden></span>
+              </span>
+            </label>
+          ))}
+        </fieldset>
+
+        <label class="lp-addon" data-lp-addon>
+          <input type="checkbox" name="cert_extension" checked={wantsExtension} />
+          <span>
+            <span class="lp-addon-head">
+              Extend my certification window
+              <span class="lp-addon-price">+<span data-lp-ext>{money(offers.find((o) => o.months === chosenMonths)!.extension_cents)}</span></span>
+            </span>
+            <span class="lp-addon-body">
+              Keeps your window to apply for certification open until your pass ends. For
+              certification students whose window has closed, or whose course came without the
+              right to certify. Adds {CERT_EXTENSION_PERCENT}% to the pass.
+            </span>
+            <span class="lp-addon-note" data-lp-addon-note hidden></span>
+          </span>
+        </label>
+
+        <div class="lp-fields">
+          <label class="lp-field">
+            <span>First name</span>
+            <input type="text" name="first_name" autocomplete="given-name" required maxlength="100" />
+          </label>
+          <label class="lp-field">
+            <span>Last name</span>
+            <input type="text" name="last_name" autocomplete="family-name" required maxlength="100" />
+          </label>
+          <label class="lp-field lp-field--full">
+            <span>Email <span class="lp-hint">— the address you use for your courses</span></span>
+            <input
+              type="email"
+              name="email"
+              autocomplete="email"
+              required
+              maxlength="254"
+              value={emailPrefill || undefined}
+              data-lp-email
+            />
+          </label>
+          <p class="lp-status" data-lp-status hidden></p>
+          <label class="lp-field lp-field--full">
+            <span>Country</span>
+            <input
+              type="text"
+              name="country_search"
+              list="lp-country-list"
+              autocomplete="country-name"
+              placeholder="Start typing…"
+              required
+              value={geoCountryMatch?.name ?? ''}
+              data-lp-country-search
+            />
+            <input type="hidden" name="country" value={geoCountryMatch?.code ?? ''} data-lp-country />
+          </label>
+        </div>
+
+        <label class="lp-terms">
+          <input type="checkbox" name="consent_terms" required />
+          <span>
+            I agree to the <a href="/terms" target="_blank" rel="noopener">terms</a> &amp;{' '}
+            <a href="/privacy" target="_blank" rel="noopener">privacy policy</a>.
+          </span>
+        </label>
+
+        <div class="lp-summary">
+          <span data-lp-summary-label>Live pass</span>
+          <strong data-lp-total>{money(offers.find((o) => o.months === chosenMonths)!.price_cents)}</strong>
+        </div>
+
+        <div class="lp-actions">
+          <button type="submit" class="sd-btn sd-btn-primary" data-lp-submit data-provider="stripe">
+            <span>Pay by card</span>
+            <i class="ph-light ph-arrow-right"></i>
+          </button>
+          {paypalOk && (
+            <button type="submit" class="sd-btn lp-paypal" data-lp-submit data-provider="paypal">
+              Pay with <strong>PayPal</strong>
+            </button>
+          )}
+        </div>
+        <p class="lp-note">One payment, no subscription. Charged in your local currency — the price follows your country.</p>
+        <p class="lp-error" role="alert" data-lp-error hidden></p>
+      </form>
+      <datalist id="lp-country-list">
+        {COUNTRIES.map((c) => (
+          <option value={c.name} data-code={c.code}>{c.flag} {c.name}</option>
+        ))}
+      </datalist>
+    </section>
+
+    <section class="lp-faq">
+      <h2 class="lp-h2">Good to know</h2>
+      <dl>
+        <dt>When does my pass start?</dt>
+        <dd>
+          The day you buy it — unless your course or an earlier pass still gives you the live
+          sessions. Then it starts the day after those end, so you never pay twice for the same
+          month. Fill in your email above and the dates show before you pay.
+        </dd>
+        <dt>Where are the sessions?</dt>
+        <dd>Under Events in the Songdance Circle, where you'll also find the replays from your pass.</dd>
+        <dt>Is it a subscription?</dt>
+        <dd>No. You pay once for 1, 3 or 6 months, and it simply ends. Buy another whenever you like.</dd>
+      </dl>
+    </section>
+  </main>
+</SiteLayout>
+
+<script>
+  import { albumCurrencyForCountry } from '../../lib/music/product';
+  import { formatMoney } from '../../lib/workshops/currency';
+  import { COUNTRIES } from '../../lib/countries';
+
+  type Offer = { price_cents: number; full_cents: number; extension_cents: number };
+  type Period = { startsOn: string; endsOn: string; extensionHelps: boolean };
+  type Status = {
+    live_until: string | null;
+    periods: Record<string, Period>;
+    certification: { holds_course: boolean; may_certify: boolean; ends_on: string | null; open: boolean };
+  };
+
+  const form = document.querySelector<HTMLFormElement>('[data-lp-form]');
+  if (form) {
+    const prices = JSON.parse(form.dataset.prices || '{}') as Record<string, Record<string, Offer>>;
+    const countrySearch = form.querySelector<HTMLInputElement>('[data-lp-country-search]')!;
+    const countryHidden = form.querySelector<HTMLInputElement>('[data-lp-country]')!;
+    const emailInput = form.querySelector<HTMLInputElement>('[data-lp-email]')!;
+    const statusEl = form.querySelector<HTMLElement>('[data-lp-status]')!;
+    const addonInput = form.querySelector<HTMLInputElement>('[name="cert_extension"]')!;
+    const addonNote = form.querySelector<HTMLElement>('[data-lp-addon-note]')!;
+    const totalEl = form.querySelector<HTMLElement>('[data-lp-total]')!;
+    const summaryLabel = form.querySelector<HTMLElement>('[data-lp-summary-label]')!;
+    const extEl = form.querySelector<HTMLElement>('[data-lp-ext]')!;
+    const errEl = form.querySelector<HTMLElement>('[data-lp-error]')!;
+    const buttons = Array.from(form.querySelectorAll<HTMLButtonElement>('[data-lp-submit]'));
+    let status: Status | null = null;
+
+    const fmtDay = (day: string) =>
+      new Date(`${day}T12:00:00Z`).toLocaleDateString('en-GB', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        timeZone: 'UTC',
+      });
+    const months = () => Number(form.querySelector<HTMLInputElement>('[name="months"]:checked')?.value ?? 3);
+    const currency = () => albumCurrencyForCountry(countryHidden.value || null);
+
+    function repaint() {
+      const cur = currency();
+      const table = prices[cur] ?? prices.EUR;
+      for (const [m, o] of Object.entries(table)) {
+        const price = form!.querySelector<HTMLElement>(`[data-lp-price="${m}"]`);
+        const was = form!.querySelector<HTMLElement>(`[data-lp-was="${m}"]`);
+        if (price) price.textContent = formatMoney(o.price_cents, cur);
+        if (was) was.textContent = formatMoney(o.full_cents, cur);
+      }
+      const m = months();
+      const o = table[m];
+      extEl.textContent = formatMoney(o.extension_cents, cur);
+      const ext = addonInput.checked ? o.extension_cents : 0;
+      totalEl.textContent = formatMoney(o.price_cents + ext, cur);
+      summaryLabel.textContent = `Live pass · ${m === 1 ? '1 month' : `${m} months`}${ext ? ' + certification window' : ''}`;
+
+      // The dates and the add-on's verdict, once the address is known.
+      for (const [key, p] of Object.entries(status?.periods ?? {})) {
+        const el = form!.querySelector<HTMLElement>(`[data-lp-dates="${key}"]`);
+        if (!el) continue;
+        el.hidden = false;
+        el.textContent = `${fmtDay(p.startsOn)} – ${fmtDay(p.endsOn)}`;
+      }
+      if (status) {
+        const p = status.periods[String(m)];
+        const c = status.certification;
+        addonNote.hidden = false;
+        if (!c.holds_course) {
+          addonNote.textContent =
+            'We find no certification course under this email address, so the extension is not for this one. Bought it with another address? Use that one.';
+        } else if (!p?.extensionHelps && c.ends_on) {
+          addonNote.textContent = `Your certification window already runs until ${fmtDay(c.ends_on)}, past the end of this pass.`;
+        } else if (!c.may_certify) {
+          addonNote.textContent = `Your course came without the right to certify. With the extension you may apply until ${fmtDay(p.endsOn)}.`;
+        } else if (c.ends_on) {
+          addonNote.textContent = `${c.open ? 'Your window is open until' : 'Your window closed on'} ${fmtDay(c.ends_on)}. With the extension it stays open until ${fmtDay(p.endsOn)}.`;
+        }
+        const helps = !!p?.extensionHelps;
+        addonInput.disabled = !helps;
+        if (!helps) addonInput.checked = false;
+      }
+    }
+
+    async function lookUp() {
+      const email = emailInput.value.trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return;
+      try {
+        const res = await fetch('/api/courses/live-pass-status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email }),
+        });
+        if (!res.ok) return;
+        status = (await res.json()) as Status;
+        statusEl.hidden = !status.live_until;
+        if (status.live_until) {
+          statusEl.textContent = `You already have the live sessions until ${fmtDay(status.live_until)}, so a pass starts the day after.`;
+        }
+        repaint();
+      } catch {
+        /* the page works without it; the checkout checks again */
+      }
+    }
+
+    const resolveCountry = () => {
+      const typed = countrySearch.value.trim().toLowerCase();
+      const match = COUNTRIES.find((c) => c.name.toLowerCase() === typed || c.code.toLowerCase() === typed);
+      countryHidden.value = match?.code ?? '';
+      repaint();
+    };
+    (['input', 'change', 'blur'] as const).forEach((ev) => countrySearch.addEventListener(ev, resolveCountry));
+    form.querySelectorAll<HTMLInputElement>('[name="months"]').forEach((r) => r.addEventListener('change', repaint));
+    addonInput.addEventListener('change', repaint);
+    emailInput.addEventListener('change', lookUp);
+    emailInput.addEventListener('blur', lookUp);
+    repaint();
+    if (emailInput.value) void lookUp();
+
+    let provider: 'stripe' | 'paypal' = 'stripe';
+    buttons.forEach((b) =>
+      b.addEventListener('click', () => {
+        provider = b.dataset.provider === 'paypal' ? 'paypal' : 'stripe';
+      }),
+    );
+
+    const fail = (msg: string) => {
+      errEl.textContent = msg;
+      errEl.hidden = false;
+      buttons.forEach((b) => (b.disabled = false));
+    };
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errEl.hidden = true;
+      const fd = new FormData(form);
+      const get = (k: string) => String(fd.get(k) ?? '').trim();
+      if (!get('first_name') || !get('last_name')) return fail('Please add your first and last name.');
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(get('email'))) return fail('Please enter a valid email address.');
+      if (!get('country')) return fail('Please pick your country from the list.');
+      if (fd.get('consent_terms') !== 'on') return fail('Please agree to the terms to continue.');
+      buttons.forEach((b) => (b.disabled = true));
+      try {
+        const res = await fetch('/api/courses/live-pass-checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            months: months(),
+            cert_extension: addonInput.checked,
+            first_name: get('first_name'),
+            last_name: get('last_name'),
+            email: get('email'),
+            country: get('country'),
+            consent_terms: true,
+            provider,
+          }),
+        });
+        const data = (await res.json().catch(() => ({}))) as { checkout_url?: string; error?: string };
+        if (!res.ok || !data.checkout_url) return fail(data.error || 'Could not start checkout — please try again.');
+        location.href = data.checkout_url;
+      } catch {
+        fail('We could not reach the server. Please try again.');
+      }
+    });
+  }
+</script>
+
+<style>
+  .lp { max-width: 720px; margin: 0 auto; padding: 56px 16px 96px; color: var(--ink); }
+  .lp-hero { text-align: center; margin-bottom: 32px; }
+  .lp-eyebrow {
+    font-family: var(--font-body); font-size: 12px; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--ember); margin: 0 0 12px;
+  }
+  .lp-title { font-family: var(--font-display); font-weight: 400; font-size: clamp(32px, 6vw, 48px); line-height: 1.1; margin: 0 0 16px; }
+  /* Cormorant inside a Spectral heading reads small: size it up. */
+  .lp-title em { font-family: var(--font-lyric); font-size: 1.05em; }
+  .lp-lede { font-family: var(--font-body); font-size: 18px; line-height: 1.6; margin: 0 auto; max-width: 560px; }
+  .lp-h2 { font-family: var(--font-display); font-weight: 400; font-size: 26px; margin: 0 0 12px; }
+  .lp-card {
+    background: var(--paper-soft); border: 1px solid rgba(42, 27, 42, 0.12);
+    border-radius: 16px; padding: 24px; margin-bottom: 24px;
+  }
+  .lp-welcome { border-color: var(--moss); }
+  .lp-options { border: 0; padding: 0; margin: 0 0 16px; display: grid; gap: 10px; }
+  .lp-legend { font-family: var(--font-display); font-size: 22px; margin-bottom: 12px; }
+  .lp-option {
+    display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; cursor: pointer;
+    border: 1px solid rgba(42, 27, 42, 0.16); border-radius: 12px; background: var(--paper);
+  }
+  .lp-option:has(input:checked) { border-color: var(--plum); box-shadow: inset 0 0 0 1px var(--plum); }
+  .lp-option input { margin-top: 4px; accent-color: var(--plum); }
+  .lp-option-body { display: grid; gap: 2px; flex: 1; }
+  .lp-option-head { display: flex; gap: 8px; align-items: center; font-weight: 600; }
+  .lp-save { font-size: 12px; color: var(--moss); border: 1px solid var(--moss); border-radius: 999px; padding: 1px 8px; }
+  .lp-option-sub, .lp-option-dates { font-size: 14px; opacity: 0.8; }
+  .lp-option-price { display: flex; gap: 8px; align-items: baseline; }
+  .lp-was { opacity: 0.55; }
+  .lp-addon {
+    display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; margin-bottom: 20px;
+    border: 1px dashed rgba(42, 27, 42, 0.3); border-radius: 12px; cursor: pointer;
+  }
+  .lp-addon input { margin-top: 4px; accent-color: var(--ember); }
+  .lp-addon-head { display: flex; gap: 8px; justify-content: space-between; font-weight: 600; }
+  .lp-addon-body, .lp-addon-note { display: block; font-size: 14px; line-height: 1.5; margin-top: 4px; }
+  .lp-addon-note { color: var(--plum); }
+  .lp-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+  .lp-field { display: grid; gap: 6px; font-size: 14px; }
+  .lp-field--full { grid-column: 1 / -1; }
+  .lp-field input {
+    font: inherit; font-size: 16px; padding: 10px 12px; border-radius: 10px;
+    border: 1px solid rgba(42, 27, 42, 0.2); background: #fff; color: var(--ink);
+  }
+  .lp-hint { opacity: 0.6; }
+  .lp-status { grid-column: 1 / -1; margin: 0; font-size: 14px; color: var(--moss); }
+  .lp-terms { display: flex; gap: 8px; font-size: 14px; margin: 8px 0 16px; }
+  .lp-summary { display: flex; justify-content: space-between; padding: 12px 0; border-top: 1px solid rgba(42, 27, 42, 0.12); margin-bottom: 12px; }
+  .lp-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+  .lp-paypal { background: #ffc439; color: #003087; }
+  .lp-note { font-size: 13px; opacity: 0.7; margin: 12px 0 0; }
+  .lp-error { color: var(--ember); margin: 12px 0 0; }
+  .lp-faq dt { font-weight: 600; margin-top: 16px; }
+  .lp-faq dd { margin: 4px 0 0; line-height: 1.6; }
+  @media (max-width: 560px) {
+    .lp-fields { grid-template-columns: 1fr; }
+  }
+</style>

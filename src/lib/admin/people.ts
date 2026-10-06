@@ -18,6 +18,8 @@
 // shape mirrors src/lib/admin/orders.ts (which unifies *orders*; this unifies
 // *people*).
 
+import { livePassLabelForSlug } from '../courses/live-pass';
+
 // ── Notification taxonomy ───────────────────────────────────────────────────
 
 export type EmailKind = 'transactional' | 'marketing';
@@ -165,7 +167,7 @@ const COURSE_LABELS: Record<string, string> = {
   grief: 'Grief Course',
 };
 function courseLabel(slug: string): string {
-  return COURSE_LABELS[slug] ?? slug;
+  return COURSE_LABELS[slug] ?? livePassLabelForSlug(slug) ?? slug;
 }
 const IS_12W = (slug: string) => slug === 'svh-12week' || slug === '12w-course';
 const IS_CERT = (slug: string) => slug === 'cc-cert' || slug === 'cc-bundle' || slug === 'cert-course';

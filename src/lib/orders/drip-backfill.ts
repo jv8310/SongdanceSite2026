@@ -26,6 +26,7 @@ import {
 } from './drip-order';
 import { parsePurchasedBumps } from '../courses/db';
 import { BUMPS, isBumpSlug } from '../courses/bumps';
+import { CERT_EXTENSION_LABEL, CERT_EXTENSION_SLUG, livePassLabelForSlug } from '../courses/live-pass';
 
 type BackfillEnv = {
   DB: D1Database;
@@ -243,7 +244,11 @@ async function buildCourseOrder(
   if (!reg) return null;
   const bumps = parsePurchasedBumps(reg.bumps);
   const bumpItems: PurchaseOrderItem[] = bumps.map((b) => ({
-    name: isBumpSlug(b.slug) ? BUMPS[b.slug].label : b.slug,
+    name: isBumpSlug(b.slug)
+      ? BUMPS[b.slug].label
+      : b.slug === CERT_EXTENSION_SLUG
+        ? CERT_EXTENSION_LABEL
+        : b.slug,
     slug: b.slug,
     amountCents: b.amount_cents,
   }));
@@ -257,7 +262,7 @@ async function buildCourseOrder(
     occurredAt: row.occurred_at ?? reg.paid_at,
     items: [
       {
-        name: COURSE_ITEM_LABELS[reg.product_slug] ?? reg.product_slug,
+        name: COURSE_ITEM_LABELS[reg.product_slug] ?? livePassLabelForSlug(reg.product_slug) ?? reg.product_slug,
         slug: reg.product_slug,
         amountCents: reg.amount_cents,
       },

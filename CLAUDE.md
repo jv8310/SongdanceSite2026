@@ -246,6 +246,54 @@ purchase, a refund or a rule change restates everyone at once.
   `cert_no_certification`. They are listed on the same admin page.
 - Not handled: a refund after the push leaves the Drip tags in place.
 
+## Live pass — the live sessions by the month, and the certification window
+
+`/courses/live-pass` sells the weekly Q&As and the monthly deepening session to
+anyone whose course no longer includes them (or never did). Logic in
+[`src/lib/courses/live-pass.ts`](src/lib/courses/live-pass.ts) (October 2026).
+
+- **Prices**: 1 month €52; 3 months = 3 × €52 − 15% → **€132**; 6 months =
+  6 × €52 − 25% → **€234**, floored to whole units (5 for the krona family) so
+  the advertised percent is never under-delivered. Other currencies scale the
+  €52 month with the albums' ratios (`albumPriceCents`). The add-on **Extend my
+  certification window** is +20% of the pass, floored: €10 / €26 / €46.
+- **Rides the course machinery** as `live-pass-1m` / `-3m` / `-6m` on
+  `course_registrations` (full payment, Stripe + PayPal); the add-on is a
+  `cert-extension` row in `bumps`, so every money report already counts it.
+  Drip: `prod_LivePass` (+ `prod_CertExtension`), event `Completed live pass
+  purchase`, fields `live_pass_starts` / `live_pass_ends`.
+- **When a pass runs**: from the day it is bought — or the day after the
+  buyer's current live sessions end (an earlier pass, or the certification
+  course: site order or the Drip-only holders), so nobody pays twice for a
+  month. The 12-week course doesn't count (no deepening sessions). The page
+  shows the dates once the email is known (`/api/courses/live-pass-status`);
+  the payment fixes them **once** (`settleLivePassPeriod`, claimed as
+  `live-pass-period-<id>`) and writes them onto the order as
+  `access_starts_at` / `access_ends_at` (migration 0089, UTC instants bounding
+  Brussels days). **The member app reads those two columns** to open the
+  sessions (its `qa-extended-deepening` entitlement), so the rule lives here
+  only. A pass paid before the migration falls back to its paid day.
+- **The extension** keeps the window to apply for certification open until the
+  pass ends: `cert-access.ts` folds it in (`extendedTo`, `endsOn` = the later
+  date), the Drip-only holders too (and it lifts the CEEE cohort's
+  `cert_no_certification`), so the Drip push and the admin list follow. It is
+  only sold to someone who holds the certification course in some form, and
+  only when it reaches past the window they have — the checkout refuses it
+  otherwise, in plain words.
+- **One answer per person** — [`cert-window.ts`](src/lib/courses/cert-window.ts)
+  (`certWindowForEmail`): holds the course, may certify, last day, open. The
+  pass page reads it, and so does the **SVH app** (app.songdance.co, "Apply for
+  Certification") through `GET /api/app/cert-window?email=…` with
+  `Authorization: Bearer <CERT_WINDOW_TOKEN>` (secret; the same value goes into
+  the SVH app's `config.php` as `SONGDANCE_CERT_WINDOW_TOKEN`; unset → 503 and
+  the SVH app keeps its own lifted window). Its `upgrade_url` is this page with
+  `?email=…&extend=1`.
+- **Links in**: the member app (a locked Q&A or deepening session) and the SVH
+  app put the member's address in `?email=`; `?extend=1` ticks the add-on,
+  `?months=1|3|6` picks the length. The Grief and journey register forms now
+  fill their email field from `?email=` too (the member app's locked courses
+  link there).
+
 ## Masterclass — one event, two doors
 
 `/courses/masterclass` and `/courses/heal-the-healer` (short: `/masterclass`,
