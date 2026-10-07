@@ -3,9 +3,10 @@
 //
 //   asj-weekly     Week 2 … Week 40 of the Authentic Singing Journey, one a week
 //                  (Week 1 rides the confirmation, as it always did in Drip).
-//                  Everyone who holds the journey: standalone, in a bundle, or
-//                  as an order bump — except the Dutch-only edition, which has
-//                  no weekly series on the site yet.
+//                  Everyone who holds the journey in English: standalone, in a
+//                  bundle, as an order bump, or "both editions".
+//   asj-weekly-nl  The same 39 weeks in Dutch (Authentiek Zingen), for buyers
+//                  who chose the Dutch edition only.
 //   twelve-week    The 12-Week Course onboarding: day 1, day 2, week 2, week 6,
 //                  week 12. Path buyers ride it too (variant path-wait /
 //                  path-now), with "your certification course is open" at the
@@ -38,10 +39,17 @@ import { DEFAULT_SEND_TZ, withinSendWindow } from '../../workshops/time';
 import { logEvent } from '../../registrations/db';
 import { ASJ_WEEK_COUNT, asjWeek } from './asj-weeks';
 import { loadHandover, type HandoverUnit } from './handover';
-import { asjWeeklyEmail, certificationStepEmail, twelveWeekStepEmail, type SequenceEmailCtx } from './sequence-emails';
+import { ASJ_NL_COMPLETE, asjWeekNl } from './asj-weeks-nl';
+import {
+  asjWeeklyEmail,
+  asjWeeklyEmailNl,
+  certificationStepEmail,
+  twelveWeekStepEmail,
+  type SequenceEmailCtx,
+} from './sequence-emails';
 import { sequenceOneClickUrl, sequenceStopUrl, signSequenceToken } from './stop-link';
 
-export type SequenceKey = 'asj-weekly' | 'twelve-week' | 'certification';
+export type SequenceKey = 'asj-weekly' | 'asj-weekly-nl' | 'twelve-week' | 'certification';
 
 export type SequenceStep = {
   n: number;
@@ -72,11 +80,32 @@ const ASJ_STEPS: SequenceStep[] = Array.from({ length: ASJ_WEEK_COUNT - 1 }, (_,
   };
 });
 
+// Only the weeks that have their Dutch words (enrolment waits for all of them —
+// see ASJ_NL_COMPLETE below — so this list is complete whenever it is used).
+const ASJ_STEPS_NL: SequenceStep[] = Array.from({ length: ASJ_WEEK_COUNT - 1 }, (_, i) => i + 2).flatMap((week) => {
+  const w = asjWeekNl(week);
+  if (!w) return [];
+  return [
+    {
+      n: week,
+      dayOffset: 7 * (week - 1),
+      label: `Week ${week} — ${w.title}`,
+      origin: w.source === 'drip' ? ('drip' as const) : ('drip-adapted' as const),
+      build: (ctx: SequenceEmailCtx) => asjWeeklyEmailNl(week, ctx),
+    },
+  ];
+});
+
 export const SEQUENCES: Record<SequenceKey, SequenceDef> = {
   'asj-weekly': {
     key: 'asj-weekly',
     label: 'Authentic Singing Journey — weekly sessions',
     steps: ASJ_STEPS,
+  },
+  'asj-weekly-nl': {
+    key: 'asj-weekly-nl',
+    label: 'Authentiek Zingen — wekelijkse sessies (Dutch edition)',
+    steps: ASJ_STEPS_NL,
   },
   'twelve-week': {
     key: 'twelve-week',
@@ -122,7 +151,7 @@ export function isSequenceKey(v: unknown): v is SequenceKey {
 
 // Which handover switch governs a sequence for a given order.
 function unitForEnrolment(key: SequenceKey, slug: string): HandoverUnit {
-  if (key === 'asj-weekly') return 'asj';
+  if (key === 'asj-weekly' || key === 'asj-weekly-nl') return 'asj';
   if (key === 'certification') return 'certification';
   return slug === 'cc-bundle' ? 'path' : 'twelve-week';
 }
@@ -140,6 +169,9 @@ export function sequencesForOrder(
     ASJ_BUMP_PARENTS.has(slug) && parsePurchasedBumps(reg.bumps).some((b) => b.slug === 'asj');
   if ((ASJ_HOLDER_SLUGS.has(slug) && reg.language_choice !== 'nl') || hasAsjBump) {
     out.push({ key: 'asj-weekly', variant: null });
+  } else if (ASJ_HOLDER_SLUGS.has(slug) && reg.language_choice === 'nl' && ASJ_NL_COMPLETE) {
+    // The Dutch series only runs once every week has its Dutch words.
+    out.push({ key: 'asj-weekly-nl', variant: null });
   }
   if (slug === 'svh-12week') out.push({ key: 'twelve-week', variant: null });
   if (slug === 'cc-bundle') {
@@ -299,7 +331,9 @@ async function earlierBuyers(db: D1Database, key: SequenceKey): Promise<CourseRe
   const slugs =
     key === 'asj-weekly'
       ? [...ASJ_HOLDER_SLUGS, ...ASJ_BUMP_PARENTS]
-      : key === 'twelve-week'
+      : key === 'asj-weekly-nl'
+        ? [...ASJ_HOLDER_SLUGS]
+        : key === 'twelve-week'
         ? ['svh-12week', 'cc-bundle']
         : ['cc-cert'];
   const { results } = await db

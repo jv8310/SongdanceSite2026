@@ -20,6 +20,7 @@ const ORIGIN_NOTE: Record<string, string> = {
 export const COURSE_SAMPLE_GROUPS = {
   confirmations: 'Course confirmations',
   asj: 'Authentic Singing Journey — weekly sessions',
+  asjNl: 'Authentiek Zingen — wekelijkse sessies (Dutch edition)',
   twelveWeek: '12-Week Course — onboarding',
   certification: 'Certification Course — onboarding',
 } as const;
@@ -126,11 +127,11 @@ export function buildCourseEmailSamples(base: string): EmailSample[] {
     {
       id: 'course_conf_asj_nl',
       label: 'Authentiek Zingen — welkom (Dutch edition)',
-      audience: 'ASJ buyers who chose the Dutch edition only (language_choice = nl). No weekly series for them yet.',
+      audience: 'ASJ buyers who chose the Dutch edition only (language_choice = nl). Their weekly series is the Dutch one.',
       ctx: conf({
         productSlug: 'asj',
         languageChoice: 'nl',
-        asjWeekly: false,
+        asjWeekly: true,
         order: { rows: [['The Authentic Singing Journey', eur(150)]], payment: 'Volledig betaald.' },
       }),
     },
@@ -203,6 +204,12 @@ export function buildCourseEmailSamples(base: string): EmailSample[] {
     'asj-weekly',
     COURSE_SAMPLE_GROUPS.asj,
     'Everyone who holds the ASJ in English (standalone, bundle, or the order bump on a course checkout). Stops on the button, a one-click unsubscribe, a full refund or a suppressed address.',
+    () => seqCtx(null),
+  );
+  seqSamples(
+    'asj-weekly-nl',
+    COURSE_SAMPLE_GROUPS.asjNl,
+    'Buyers who chose the Dutch edition only (language_choice = nl) — the ASJ, ASJ PRO or a journeys bundle. Same cadence and stop button as the English series.',
     () => seqCtx(null),
   );
   seqSamples(

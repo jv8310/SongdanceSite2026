@@ -20,6 +20,7 @@ export type CircleArea =
   | 'certification'
   | 'grief'
   | 'asj'
+  | 'asj-nl' // the Dutch edition, Authentiek Zingen
   | 'asj-mantra-pack'
   | 'mmj'
   | 'inner-child'
@@ -30,6 +31,7 @@ const AREA_PATHS: Record<CircleArea, string> = {
   certification: '/courses/certification',
   grief: '/courses/grief',
   asj: '/journeys/authentic-singing',
+  'asj-nl': '/journeys/authentiek-zingen',
   'asj-mantra-pack': '/journeys/authentic-singing/mantra-pack',
   mmj: '/journeys/magical-movement',
   'inner-child': '/journeys/inner-child',
@@ -41,7 +43,8 @@ export function circleUrl(area?: CircleArea): string {
 }
 
 // One session of the Authentic Singing Journey (1–40), so a weekly email opens
-// on the week it is about.
-export function circleAsjWeekUrl(week: number): string {
-  return `${circleUrl('asj')}/week-${week}`;
+// on the week it is about — in the English edition, or the Dutch one
+// (Authentiek Zingen).
+export function circleAsjWeekUrl(week: number, lang: 'en' | 'nl' = 'en'): string {
+  return `${circleUrl(lang === 'nl' ? 'asj-nl' : 'asj')}/week-${week}`;
 }

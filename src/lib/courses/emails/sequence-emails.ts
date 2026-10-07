@@ -20,6 +20,7 @@
 import { MAILING_ADDRESS, shell, type EmailContent } from '../../workshops/emails';
 import { CIRCLE_HOME_URL, circleAsjWeekUrl, circleUrl } from '../circle';
 import { ASJ_WEEK_COUNT, asjWeek, asjWeekImagePath } from './asj-weeks';
+import { asjWeekNl } from './asj-weeks-nl';
 import {
   button,
   eyebrow,
@@ -103,6 +104,41 @@ export function asjWeeklyEmail(week: number, ctx: SequenceEmailCtx): EmailConten
     ],
     stop: ASJ_STOP,
     footerNote: 'You’re receiving this because you’re on the Authentic Singing Journey · Songdance · songdance.co',
+  });
+}
+
+// ── Authentiek Zingen — the Dutch edition, weekly ──────────────────────────
+//
+// For buyers who chose the Dutch edition only. The copy is the Dutch Drip
+// series ("Authentiek Zingen Week N", from info@songdance.be — ./asj-weeks-nl.ts
+// says where each week came from); the session titles are the same English
+// titles that series always used.
+
+export const ASJ_STOP_NL = {
+  label: 'Stop deze wekelijkse mails',
+  note: 'Je sessies blijven van jou — dit stopt alleen de wekelijkse mails.',
+};
+
+export function asjWeeklyEmailNl(week: number, ctx: SequenceEmailCtx): EmailContent | null {
+  const w = asjWeekNl(week);
+  if (!w) return null;
+  const last = week === ASJ_WEEK_COUNT;
+  return render(ctx, {
+    subject: `Authentiek Zingen Week ${week} — ${w.title}`,
+    preheader: last
+      ? 'De laatste sessie van je reis Authentiek Zingen.'
+      : `Sessie ${week} van ${ASJ_WEEK_COUNT} van je reis Authentiek Zingen.`,
+    heading: w.title,
+    heroImage: { src: `${ctx.base.replace(/\/+$/, '')}${asjWeekImagePath(week)}`, alt: `Week ${week} — ${w.title}` },
+    closing: 'Met warme groeten,',
+    body: [
+      eyebrow(`Week ${week} van ${ASJ_WEEK_COUNT}`),
+      greeting(ctx.name, 'nl'),
+      ...w.paragraphs.map((p) => para(p, ctx.base)),
+      button(`Open Week ${week}`, circleAsjWeekUrl(week, 'nl')),
+    ],
+    stop: ASJ_STOP_NL,
+    footerNote: 'Je ontvangt dit omdat je de reis Authentiek Zingen volgt · Songdance · songdance.co',
   });
 }
 
@@ -222,7 +258,7 @@ export function twelveWeekStepEmail(step: number, ctx: SequenceEmailCtx): EmailC
           para(
             path
               ? 'And the live Q&As carry on into your certification course, so there’s no clock on those for you either.'
-              : 'The only time-bound part is the twelve weeks of live Q&As and their replays. If, after that, you’d like to keep joining the live sessions with me, there are options for that — just reply and I’ll tell you more.',
+              : 'The only time-bound part is the twelve weeks of live Q&As and their replays. If, after that, you’d like to keep joining the live sessions with me, the [live pass](/courses/live-pass) carries them on — it starts the day after your twelve weeks end.',
             base,
           ),
           para('I hope this second half of the journey brings you even more depth, clarity and ease.', base),
@@ -251,7 +287,10 @@ export function twelveWeekStepEmail(step: number, ctx: SequenceEmailCtx): EmailC
             'The classes, the deepening sessions and your bonus mantras stay yours for life. Come back to them whenever you like — the practice doesn’t end with the course. One tone, today, is still the whole instruction.',
             base,
           ),
-          para('If you’d like to keep joining live sessions after this week, just reply and I’ll tell you what’s possible.', base),
+          para(
+            'If you’d like to keep joining the live sessions after this week, the [live pass](/courses/live-pass) carries them on — a set number of Q&As and deepening sessions, starting the day after your twelve weeks end, so there’s no gap.',
+            base,
+          ),
           button('Go to the Q&A calendar', circleUrl('live')),
           para('Thank you for these twelve weeks.', base),
         ],

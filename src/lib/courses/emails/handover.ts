@@ -64,8 +64,8 @@ export const HANDOVER_UNITS: HandoverInfo[] = [
   {
     unit: 'asj',
     label: 'Authentic Singing Journey',
-    covers: 'Confirmation (ASJ / ASJ PRO) + the 40 weekly session emails for everyone who holds the journey — standalone, in a bundle, or as an order bump',
-    dripToStop: 'The ASJ welcome and the weekly series ("Weekly sessions of the Year Course Authentic Singing", prod_ASJ)',
+    covers: 'Confirmation (ASJ / ASJ PRO) + the 40 weekly session emails for everyone who holds the journey — standalone, in a bundle, or as an order bump; in Dutch (Authentiek Zingen) for the Dutch edition',
+    dripToStop: 'The ASJ welcome and both weekly series — "Weekly sessions of the Year Course Authentic Singing" (prod_ASJ) and the Dutch "Authentiek Zingen" one (prod_JAZ)',
   },
   {
     unit: 'mmj',

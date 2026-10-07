@@ -750,7 +750,12 @@ routes settle, that file is the one place to change.
   if the send fails; a late step never bunches (≥20 h before the next).
   - `asj-weekly` — **Week 2 … Week 40**, one a week, each opening that week in
     the CiRCLE; Week 1 rides the confirmation, exactly as in Drip. Everyone who
-    holds the ASJ in English: standalone, a bundle, or the course-checkout bump.
+    holds the ASJ in English: standalone, a bundle, the course-checkout bump, or
+    "both editions".
+  - `asj-weekly-nl` — the same 39 weeks **in Dutch** (Authentiek Zingen,
+    [`asj-weeks-nl.ts`](src/lib/courses/emails/asj-weeks-nl.ts)), for buyers
+    who chose the Dutch edition only (`language_choice = 'nl'`); its stop page
+    speaks Dutch too. Same `asj` switch.
   - `twelve-week` — day 1 "See you in Q&A?", day 2 "How to pace yourself",
     week 2, week 6, week 12 (Q&As closing — standalone only, new), and for path
     buyers who chose to wait, "Your certification course is open" at week 13
@@ -775,12 +780,18 @@ routes settle, that file is the one place to change.
   workflow content (only broadcasts), so the copy was recovered from Jacob's
   Gmail — the ASJ "Authentic Singing Week N" series (originals + customers'
   quoted replies; weeks 11/31/33/35 survive only in the Dutch series and are
-  translated) and Jacob's own May 2026 test purchase of the path (the 12-week
-  workflow, the path welcome). Each file's header says what changed and why
-  (CiRCLE instead of activation links, "Year Course" → journey, copy-book laws —
-  notably the ASJ "Let Go – Let In" trilogy, weeks 28–31, now described as
-  acknowledgment; the session titles are kept). The Grief Course and the
-  standalone certification had no Drip welcome on record: theirs are new.
+  translated), its Dutch twin "Authentiek Zingen Week N" (from
+  info@songdance.be), and Jacob's own May 2026 test purchase of the path (the
+  12-week workflow, the path welcome). Each file's header says what changed and
+  why (CiRCLE instead of activation links, "Year Course" → journey, copy-book
+  laws). The Grief Course and the standalone certification had no Drip welcome
+  on record: theirs are new.
+- **One sanctioned exception to copy-book law 2**: the ASJ **"Let Go – Let In"
+  trilogy (weeks 28–30) and week 31 keep their letting-go language as the
+  sessions were made** — Jacob's call (October 2026): this is a singing
+  journey, not the SVH practice the copy book governs. Don't "fix" them, in
+  either language. (Weeks 15 and 19 were rewritten for law 2 and can be put
+  back the same way if he asks.)
 - Tracks as `course_confirmation_<unit>` / `course_seq_<sequence>_<step>` in
   `email_sends` (labelled on `/admin/emails/stats`). Sequence mail is from
   `MARKETING_FROM` (Jacob); confirmations from the transactional sender.

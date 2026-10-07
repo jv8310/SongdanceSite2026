@@ -194,7 +194,8 @@ export async function buildConfirmationCtx(
   // Does this order put them on the weekly ASJ series (and the onboarding)?
   const seqs = sequencesForOrder(reg);
   const asjSince = handover.get('asj');
-  const asjWeekly = seqs.some((s) => s.key === 'asj-weekly') && !!asjSince && paidMs >= utcMs(asjSince);
+  const asjWeekly =
+    seqs.some((s) => s.key === 'asj-weekly' || s.key === 'asj-weekly-nl') && !!asjSince && paidMs >= utcMs(asjSince);
   const onboarding = seqs.some((s) => s.key === 'twelve-week' || s.key === 'certification');
 
   let certEndsOn: string | null = null;

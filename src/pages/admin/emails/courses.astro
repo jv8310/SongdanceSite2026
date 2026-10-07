@@ -43,6 +43,7 @@ const counts = await sequenceCounts(env.DB); // null → migration 0090 not appl
 // Which switches put people on each sequence.
 const SEQ_UNITS: Record<SequenceKey, Array<'asj' | 'twelve-week' | 'path' | 'certification'>> = {
   'asj-weekly': ['asj'],
+  'asj-weekly-nl': ['asj'],
   'twelve-week': ['twelve-week', 'path'],
   certification: ['certification'],
 };

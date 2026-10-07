@@ -48,19 +48,84 @@ if (row && Astro.request.method === 'POST') {
   row = await getEnrolment(env.DB, row.id);
 }
 
-const NAMES: Record<SequenceKey, { series: string; course: string }> = {
-  'asj-weekly': { series: 'the weekly Authentic Singing Journey emails', course: 'all forty sessions' },
-  'twelve-week': { series: 'the 12-Week Course emails', course: 'the course' },
-  certification: { series: 'the Certification Course emails', course: 'the course' },
+// The page speaks the series' own language: the Dutch weekly series (Authentiek
+// Zingen) gets a Dutch page, everything else English.
+type Copy = {
+  pageTitle: string;
+  confirmTitle: string;
+  resumedTitle: string;
+  resumedA: string;
+  nextUp: string;
+  confirmA: string;
+  nextWould: string;
+  note: string;
+  stopBtn: string;
+  stoppedJustTitle: string;
+  stoppedTitle: string;
+  stopped: string;
+  changedMind: string;
+  resumeBtn: string;
+  completeTitle: string;
+  complete: string;
 };
 
+function copyFor(key: SequenceKey): Copy {
+  if (key === 'asj-weekly-nl') {
+    const series = 'de wekelijkse mails van Authentiek Zingen';
+    const keep = 'Alle veertig sessies blijven van jou';
+    return {
+      pageTitle: 'Je mails — Songdance',
+      confirmTitle: 'Deze mails stoppen?',
+      resumedTitle: 'Ze komen weer',
+      resumedA: `Je ontvangt ${series} weer`,
+      nextUp: 'de volgende:',
+      confirmA: `Dit stopt ${series} naar`,
+      nextWould: 'De volgende zou zijn:',
+      note: `${keep} hoe dan ook — in de Songdance CiRCLE, zolang je ze hebt. Dit stopt alleen deze mails.`,
+      stopBtn: 'Stop deze mails',
+      stoppedJustTitle: 'Klaar — ze zijn gestopt',
+      stoppedTitle: 'Deze mails zijn gestopt',
+      stopped: `Je ontvangt ${series} niet meer. ${keep}, net als voorheen — verder verandert er niets.`,
+      changedMind: 'Toch van gedacht veranderd? Je kunt ze weer laten komen, vanaf waar ze stopten.',
+      resumeBtn: 'Laat ze weer komen',
+      completeTitle: 'Deze reeks is afgerond',
+      complete: `Alle wekelijkse mails van Authentiek Zingen zijn al verstuurd — er is niets meer om te stoppen. ${keep} in de Songdance CiRCLE.`,
+    };
+  }
+  const series =
+    key === 'asj-weekly'
+      ? 'the weekly Authentic Singing Journey emails'
+      : key === 'twelve-week'
+        ? 'the 12-Week Course emails'
+        : 'the Certification Course emails';
+  const keep = key === 'asj-weekly' ? 'All forty sessions stay yours' : 'The course stays yours';
+  return {
+    pageTitle: 'Course emails — Songdance',
+    confirmTitle: 'Stop these emails?',
+    resumedTitle: 'They’re back on',
+    resumedA: `You’ll receive ${series} again`,
+    nextUp: 'next up:',
+    confirmA: `This stops ${series} to`,
+    nextWould: 'The next one would be',
+    note: `${keep} either way — in the Songdance CiRCLE, for as long as you have it. This only stops these emails.`,
+    stopBtn: 'Stop these emails',
+    stoppedJustTitle: 'Done — they’ve stopped',
+    stoppedTitle: 'These emails are stopped',
+    stopped: `You won’t receive ${series} any more. ${keep}, exactly as before — nothing else changes.`,
+    changedMind: 'Changed your mind? You can pick them up again, from where they stopped.',
+    resumeBtn: 'Start them again',
+    completeTitle: 'That series is complete',
+    complete: `Every one of ${series} has already gone out — there’s nothing left to stop. ${keep} in the Songdance CiRCLE.`,
+  };
+}
+
 const key = row && isSequenceKey(row.sequence) ? row.sequence : null;
-const names = key ? NAMES[key] : null;
+const t = key ? copyFor(key) : null;
 const nextLabel =
   row && key && !row.completed_at
     ? SEQUENCES[key].steps.find((s) => s.n === row!.next_step)?.label ?? null
     : null;
-const state: 'invalid' | 'active' | 'stopped' | 'completed' = !row || !names
+const state: 'invalid' | 'active' | 'stopped' | 'completed' = !row || !t
   ? 'invalid'
   : row.completed_at
     ? 'completed'
@@ -69,58 +134,48 @@ const state: 'invalid' | 'active' | 'stopped' | 'completed' = !row || !names
       : 'active';
 ---
 
-<Layout title="Course emails — Songdance" description="">
+<Layout title={t?.pageTitle ?? 'Course emails — Songdance'} description="">
   <main class="seq">
     <section class="seq-card">
-      {state === 'active' && names && (
+      {state === 'active' && t && (
         <>
-          <h1>{justChanged === 'resumed' ? 'They’re back on' : 'Stop these emails?'}</h1>
+          <h1>{justChanged === 'resumed' ? t.resumedTitle : t.confirmTitle}</h1>
           {justChanged === 'resumed' ? (
             <p>
-              You’ll receive {names.series} again{nextLabel ? <> — next up: <strong>{nextLabel}</strong></> : ''}.
+              {t.resumedA}{nextLabel ? <> — {t.nextUp} <strong>{nextLabel}</strong></> : ''}.
             </p>
           ) : (
             <>
               <p>
-                This stops {names.series} to <strong>{row!.email}</strong>.
-                {nextLabel && <> The next one would be <strong>{nextLabel}</strong>.</>}
+                {t.confirmA} <strong>{row!.email}</strong>.
+                {nextLabel && <> {t.nextWould} <strong>{nextLabel}</strong>.</>}
               </p>
-              <p class="seq-note">
-                {names.course.charAt(0).toUpperCase() + names.course.slice(1)} stay{names.course === 'the course' ? 's' : ''} yours
-                either way — in the Songdance CiRCLE, for as long as you have it. This only stops these emails.
-              </p>
+              <p class="seq-note">{t.note}</p>
               <form method="post">
                 <input type="hidden" name="t" value={token} />
                 <input type="hidden" name="action" value="stop" />
-                <button type="submit">Stop these emails</button>
+                <button type="submit">{t.stopBtn}</button>
               </form>
             </>
           )}
         </>
       )}
-      {state === 'stopped' && names && (
+      {state === 'stopped' && t && (
         <>
-          <h1>{justChanged === 'stopped' ? 'Done — they’ve stopped' : 'These emails are stopped'}</h1>
-          <p>
-            You won’t receive {names.series} any more. {names.course.charAt(0).toUpperCase() + names.course.slice(1)}
-            {names.course === 'the course' ? ' stays' : ' stay'} yours, exactly as before — nothing else changes.
-          </p>
-          <p class="seq-note">Changed your mind? You can pick them up again, from where they stopped.</p>
+          <h1>{justChanged === 'stopped' ? t.stoppedJustTitle : t.stoppedTitle}</h1>
+          <p>{t.stopped}</p>
+          <p class="seq-note">{t.changedMind}</p>
           <form method="post">
             <input type="hidden" name="t" value={token} />
             <input type="hidden" name="action" value="resume" />
-            <button type="submit" class="seq-ghost">Start them again</button>
+            <button type="submit" class="seq-ghost">{t.resumeBtn}</button>
           </form>
         </>
       )}
-      {state === 'completed' && names && (
+      {state === 'completed' && t && (
         <>
-          <h1>That series is complete</h1>
-          <p>
-            Every one of {names.series} has already gone out — there’s nothing left to stop.
-            {names.course.charAt(0).toUpperCase() + names.course.slice(1)}
-            {names.course === 'the course' ? ' stays' : ' stay'} yours in the Songdance CiRCLE.
-          </p>
+          <h1>{t.completeTitle}</h1>
+          <p>{t.complete}</p>
         </>
       )}
       {state === 'invalid' && (

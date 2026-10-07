@@ -17,11 +17,12 @@
 //     notes is the two of them, and the confirmation says so).
 //   • Copy book, law 2 (acknowledgment, never "letting go" as the mechanism):
 //     week 15 ("What are you ready to surrender to the fire?" — the fire ritual
-//     the book names as the thing that doesn't work), week 19 ("liberating our
-//     emotions"), weeks 28–31 (the "Let Go – Let In" trilogy and what follows).
-//     The session TITLES are kept — they name recordings people see in the app
-//     — but the notes now describe acknowledgment. Renaming "Let It Go" is
-//     Jacob's call.
+//     the book names as the thing that doesn't work) and week 19 ("liberating
+//     our emotions") were rewritten.
+//   • EXCEPT the "Let Go – Let In" trilogy (weeks 28–30) and week 31 after it:
+//     Jacob's call (October 2026) is to keep their letting-go language as the
+//     sessions were made — this is a singing journey, not the SVH practice the
+//     copy book governs. Don't "fix" them.
 //   • Week 7 "the best remedy" and "will stimulate your energy" → an invitation,
 //     not an outcome (no outcome promises).
 //   • Week 20 dropped its paragraph selling "The Mantra Collection" (now the PRO
@@ -285,27 +286,27 @@ export const ASJ_WEEKS: AsjWeek[] = [
   {
     week: 28,
     title: 'Let It Go',
-    source: 'rewritten',
+    source: 'drip',
     paragraphs: [
-      'This week begins a trilogy: ‘Let Go – Let In’.',
-      'In this first session, we invite you to give sound to the whispers of your soul — to hear what is asking for your attention, and what has had its time. Everything wants to be heard before it can leave on its own…',
+      'The first session of the trilogy ‘Let Go – Let In’.',
+      'During this session, we invite you to give sound to the whispers of your soul as it tells you what to let go of, what no longer serves you…',
     ],
   },
   {
     week: 29,
     title: 'The Wisdom Of Your Voice',
-    source: 'rewritten',
+    source: 'drip',
     paragraphs: [
-      'Last week you received the first session of the ‘Let Go – Let In’ trilogy. This week we go a little deeper, and tune in to the wisdom of your voice.',
+      'Last week you received the first session from the ‘Let Go – Let In’ trilogy. This week we go a little deeper into the practice of letting go, and tune in to the wisdom of your voice.',
     ],
   },
   {
     week: 30,
     title: 'Bring In The New',
-    source: 'rewritten',
+    source: 'drip',
     paragraphs: [
-      'In the first two sessions of this trilogy, we gave sound to what has had its time. In this third and final session of ‘Let Go – Let In’, we turn to welcoming in new energy — filling ourselves up with freshness, new ideas, new inspiration and new strength…',
-      'Feel free to return to these three sessions whenever something in you is asking to be heard.',
+      'In the first two sessions of this trilogy we created space for letting go. In this third and final session of the trilogy ‘Let Go – Let In’, we focus on welcoming in new energy — filling ourselves up with freshness, new ideas, new inspiration and new strength…',
+      'Feel free to return to these sessions whenever there is something you would like to let go of.',
     ],
   },
   {
@@ -313,8 +314,8 @@ export const ASJ_WEEKS: AsjWeek[] = [
     title: 'Expectation & Disappointment',
     source: 'translated',
     paragraphs: [
-      'The trilogy is behind us. Now comes the waiting, to see what it has changed… Has something really shifted? Has something fundamental in your life begun to move?',
-      'With questions like these, dreams and expectations arise all by themselves. And then disappointment is waiting around the corner… What if that disappointment could be welcomed too — as a wondrous part of the human experience?',
+      'The trilogy around letting go is behind us. Now it is a matter of waiting to see what the ‘result’ will be… Did you manage to truly let go of something? Did you manage to change something fundamental in your life?',
+      'With all those questions, dreams and expectations arise all by themselves. And then disappointment lurks around the corner… Wouldn’t it be a gift to be able to embrace that disappointment, as a wondrous part of the human experience…',
     ],
   },
   {

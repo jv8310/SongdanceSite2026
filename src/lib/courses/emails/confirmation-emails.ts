@@ -418,13 +418,18 @@ function asjDutch(ctx: ConfirmationCtx): EmailContent {
         ctx.base,
       ),
       accessBlockNl(ctx.email, pro ? 'alle veertig sessies, en je PRO-mantrapakket,' : 'alle veertig sessies'),
-      para('Ga in je eigen tempo. Eén sessie per week is een mooi ritme, maar er is geen verkeerd ritme.', ctx.base),
+      para(
+        ctx.asjWeekly
+          ? 'Ga in je eigen tempo. Wil je een ritme? Dan stuur ik je vanaf nu elke week de volgende sessie: wat ze is, waar ze vandaan komt, waartoe ze uitnodigt. In elke mail zit een knop om ze te stoppen, als je de reis liever op je eigen manier loopt.'
+          : 'Ga in je eigen tempo. Eén sessie per week is een mooi ritme, maar er is geen verkeerd ritme.',
+        ctx.base,
+      ),
       subhead('Begin met Week 1 — Discover Your Voice'),
       para(
         'Sessie 1 vraagt niets anders dan luisteren — naar jezelf, naar de klank die je al hebt. Doe ze zo vaak je wil: elke keer brengt ze iets nieuws.',
         ctx.base,
       ),
-      button('Open Week 1', circleAsjWeekUrl(1)),
+      button('Open Week 1', circleAsjWeekUrl(1, 'nl')),
       pro
         ? para(
             `Je PRO-mantrapakket staat ook op je account: alle mantra’s en klanklandschappen van de reis, zonder mijn begeleiding, in een vorm om mee te zingen — met licentie voor je eigen groepen, cliënten en events. [Open het mantrapakket](${circleUrl('asj-mantra-pack')}).`,
@@ -489,9 +494,10 @@ function innerChild(ctx: ConfirmationCtx): EmailContent {
 
 function bundle(ctx: ConfirmationCtx): EmailContent {
   const pro = HAS_PRO.has(ctx.productSlug);
+  const dutchOnly = ctx.languageChoice === 'nl';
   const dutch =
     ctx.languageChoice === 'nl'
-      ? ' You chose the Dutch edition — Authentiek Zingen.'
+      ? ` You chose the Dutch edition — Authentiek Zingen${ctx.asjWeekly ? ', so the weekly emails come in Dutch' : ''}.`
       : ctx.languageChoice === 'both'
         ? ' You chose both editions, so the Dutch sessions — Authentiek Zingen — are there too.'
         : '';
@@ -504,7 +510,7 @@ function bundle(ctx: ConfirmationCtx): EmailContent {
       para('Thank you for choosing all three journeys.', ctx.base),
       accessBlock(ctx.email, pro ? 'all three journeys, and your PRO mantra pack,' : 'all three journeys'),
       para(
-        `[The Authentic Singing Journey](${circleUrl('asj')}) — forty sessions of music, mantras and your own voice. Begin with [Week 1, Discover Your Voice](${circleAsjWeekUrl(1)}).${asjWeekly}${dutch}`,
+        `[The Authentic Singing Journey](${circleUrl(dutchOnly ? 'asj-nl' : 'asj')}) — forty sessions of music, mantras and your own voice. Begin with [Week 1, Discover Your Voice](${circleAsjWeekUrl(1, dutchOnly ? 'nl' : 'en')}).${asjWeekly}${dutch}`,
         ctx.base,
       ),
       para(

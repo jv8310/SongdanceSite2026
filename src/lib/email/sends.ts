@@ -63,6 +63,9 @@ export function emailTypeMeta(type: string): { group: string; label: string } {
   if (type.startsWith('course_confirmation_')) {
     return { group: 'Course confirmations', label: type.slice('course_confirmation_'.length) };
   }
+  if (type.startsWith('course_seq_asj-weekly-nl_')) {
+    return { group: 'Authentiek Zingen — wekelijks (NL)', label: `Week ${type.slice('course_seq_asj-weekly-nl_'.length)}` };
+  }
   if (type.startsWith('course_seq_asj-weekly_')) {
     return { group: 'Authentic Singing Journey — weekly', label: `Week ${type.slice('course_seq_asj-weekly_'.length)}` };
   }
