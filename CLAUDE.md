@@ -755,7 +755,13 @@ routes settle, that file is the one place to change.
   - `asj-weekly-nl` — the same 39 weeks **in Dutch** (Authentiek Zingen,
     [`asj-weeks-nl.ts`](src/lib/courses/emails/asj-weeks-nl.ts)), for buyers
     who chose the Dutch edition only (`language_choice = 'nl'`); its stop page
-    speaks Dutch too. Same `asj` switch.
+    speaks Dutch too, and its buttons open the Dutch edition in the CiRCLE.
+    Same `asj` switch. 28 weeks are the Dutch Drip copy; 12 survive nowhere and
+    are translated from the English (marked `translated`); Drip's combined
+    week 29+30 mail and its "Integratietijd" pause are flattened into the same
+    one-a-week rhythm as the English series. It only enrols anyone while every
+    week 2–40 has its words (`ASJ_NL_COMPLETE`), so a week deleted from the
+    file stops new Dutch enrolments rather than sending a series with a hole.
   - `twelve-week` — day 1 "See you in Q&A?", day 2 "How to pace yourself",
     week 2, week 6, week 12 (Q&As closing — standalone only, new), and for path
     buyers who chose to wait, "Your certification course is open" at week 13

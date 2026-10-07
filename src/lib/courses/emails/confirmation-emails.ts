@@ -408,9 +408,9 @@ function asjDutch(ctx: ConfirmationCtx): EmailContent {
     preheader: 'Week 1 staat voor je klaar — veertig weken muziek, mantra’s en je eigen stem.',
     heading: 'Een warm welkom',
     body: [
-      para('Wat fijn dat je kiest voor de reis van Authentiek Zingen!', ctx.base),
+      para('Wat fijn dat je kiest voor Authentiek Zingen van Songdance!', ctx.base),
       para(
-        'De komende veertig weken ga je op een speelse en toch diepe manier met je stem aan de slag: zingen, muziek maken, mediteren, leren — en onderweg veel nieuwe energie vinden.',
+        'Gedurende de volgende veertig weken ga je met je stem op een speelse en tegelijk diepgaande manier aan de slag: zingen, muziek maken, mediteren, bijleren en veel energie genereren.',
         ctx.base,
       ),
       para(
