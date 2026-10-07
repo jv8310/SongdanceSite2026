@@ -1146,6 +1146,59 @@ export function albumPurchaseEmail(
   };
 }
 
+// ── Live pass — access confirmed (transactional) ───────────────────────────
+// Sent on payment for a live pass (src/lib/courses/live-pass-email.ts). A pass
+// is a number of sessions, so this names the sessions and the day it starts —
+// never an end date: it ends with its last session, which only the member
+// app's calendar knows (the app writes "1 session left" and "ended" itself).
+export type LivePassConfirmedCtx = {
+  name?: string | null;
+  loginEmail: string;
+  contents: string; // "12 Q&As and 3 deepening sessions"
+  startsLabel: string; // "19 May 2027"
+  startsToday: boolean;
+  courseUntilLabel?: string | null; // their course's live sessions run until then
+  passRunning?: boolean; // an earlier pass of theirs comes first
+  certWindowUntilLabel?: string | null; // bought the certification-window extension
+  eventsUrl: string;
+};
+
+export function livePassConfirmedEmail(ctx: LivePassConfirmedCtx): EmailContent {
+  const from = ctx.startsToday ? 'today' : ctx.startsLabel;
+  const lines: string[] = [];
+  if (ctx.courseUntilLabel) {
+    lines.push(`Your course gives you the live sessions until ${ctx.courseUntilLabel}, so your pass picks up the day after — nothing is counted twice.`);
+  }
+  if (ctx.passRunning) {
+    lines.push('Your current pass comes first: this one continues with the session after its last.');
+  }
+  const order = lines.join(' ');
+  const where = 'You\'ll find the sessions under Events in the Songdance Circle — sign in with';
+  const how =
+    'A week without a Q&A costs you nothing: your pass simply holds the next one, and ends after the last of its sessions. The replays of your sessions stay there for 2 months. We\'ll write when 1 session is left.';
+  const cert = ctx.certWindowUntilLabel
+    ? `And your window to apply for certification now stays open until ${ctx.certWindowUntilLabel}.`
+    : '';
+  const html = shell({
+    preheader: `${ctx.contents}, from ${from}.`,
+    heading: 'Your live pass is confirmed',
+    bodyHtml: `<p style="margin:0 0 14px;">${greeting(ctx.name)}</p>
+      <p style="margin:0 0 14px;">Thank you — your live pass holds the next <strong>${escapeHtml(ctx.contents)}</strong> on the calendar, from <strong>${escapeHtml(from)}</strong>.</p>
+      ${order ? `<p style="margin:0 0 14px;">${escapeHtml(order)}</p>` : ''}
+      <p style="margin:0 0 14px;">${escapeHtml(where)} <strong>${escapeHtml(ctx.loginEmail)}</strong>. Join from there when a session begins.</p>
+      <p style="margin:0 0 14px;">${escapeHtml(how)}</p>
+      ${cert ? `<p style="margin:0 0 14px;">${escapeHtml(cert)}</p>` : ''}
+      <p style="margin:0;">Questions? Just reply to this email — a person reads it.</p>`,
+    cta: { label: 'Open the sessions →', href: ctx.eventsUrl },
+    footerNote: 'Your live pass — see you in the sessions.',
+  });
+  return {
+    subject: `Your live pass is confirmed — ${ctx.contents}`,
+    html,
+    text: `${textGreeting(ctx.name)}\n\nThank you — your live pass holds the next ${ctx.contents} on the calendar, from ${from}.\n${order ? `\n${order}\n` : ''}\n${where} ${ctx.loginEmail}. Join from there when a session begins:\n\n${ctx.eventsUrl}\n\n${how}\n${cert ? `\n${cert}\n` : ''}\nQuestions? Just reply to this email — a person reads it.\n\nWarmly,\nJacob`,
+  };
+}
+
 // ── No-show 1 (right after): seat is safe ──────────────────────────────────
 export function noShowEmail1(ctx: LifecycleCtx & { hubUrl: string }): EmailContent {
   const html = shell({

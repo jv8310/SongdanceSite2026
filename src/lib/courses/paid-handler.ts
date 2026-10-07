@@ -27,6 +27,18 @@ import { sendCoursePurchaseEvent } from './meta';
 import { recordPurchaseOrder, type PurchaseOrderItem } from '../orders/drip-order';
 import { getAlbum, type MusicAlbumRow } from '../music/db';
 import { albumIdFromProductSlug, isAlbumProductSlug } from '../music/product';
+import {
+  CERT_EXTENSION_LABEL,
+  CERT_EXTENSION_SLUG,
+  LIVE_PASS_DRIP_EVENT,
+  hasCertExtension,
+  isLivePassSlug,
+  livePassContents,
+  livePassLabelForSlug,
+  livePassMonthsOf,
+  type LivePassPeriod,
+} from './live-pass';
+import { settleLivePassPeriod } from './live-pass-plan';
 
 // Readable order-item names for the known course products (Drip itemises the
 // order with these). Journeys fall back to their slug, which still carries the
@@ -55,6 +67,11 @@ export async function pushPaidCourseRegistrationToDrip(
 ): Promise<void> {
   const reg = await getCourseRegistrationById(env.DB, courseRegistrationId);
   if (!reg) return;
+
+  // A live pass gets its start day from the moment of payment, written onto
+  // the order once — before Drip, so a Drip outage never leaves a pass undated.
+  let livePass: LivePassPeriod | null = null;
+  if (isLivePassSlug(reg.product_slug)) livePass = await settleLivePassPeriod(env.DB, reg);
 
   try {
     const dripCfg = {
@@ -124,6 +141,16 @@ export async function pushPaidCourseRegistrationToDrip(
       // is the same foundation-access tag the cert bundle grants — Jacob's
       // existing Drip automation drives the per-week `svh_week` field from there.
       eventName = TWELVE_WEEK_DRIP_EVENT;
+    } else if (isLivePassSlug(reg.product_slug)) {
+      // The live pass. The tag (applied above) marks a pass holder; the start
+      // day and what it holds are for any automation that greets them. No end
+      // date: a pass ends with its last session, which only the member app's
+      // calendar knows (it writes "1 session left" and "ended" itself).
+      eventName = LIVE_PASS_DRIP_EVENT;
+      if (livePass) customFields.live_pass_starts = livePass.startsOn;
+      const months = livePassMonthsOf(reg.product_slug);
+      if (months) customFields.live_pass_sessions = livePassContents(months);
+      customFields.cert_extension = hasCertExtension(reg.bumps) ? 'yes' : 'no';
     } else if (isAlbumProductSlug(reg.product_slug)) {
       // Direct music-album purchase. The tag (applied above) is the access key;
       // the event carries which album for any automation that wants it.
@@ -208,7 +235,11 @@ export async function pushPaidCourseRegistrationToDrip(
     // charged on top of amount_cents). Idempotent on order id `course-<id>`:
     // installment re-calls and admin re-fires fold into one order.
     const bumpItems: PurchaseOrderItem[] = purchasedBumps.map((b) => ({
-      name: isBumpSlug(b.slug) ? BUMPS[b.slug].label : b.slug,
+      name: isBumpSlug(b.slug)
+        ? BUMPS[b.slug].label
+        : b.slug === CERT_EXTENSION_SLUG
+          ? CERT_EXTENSION_LABEL
+          : b.slug,
       slug: b.slug,
       amountCents: b.amount_cents,
     }));
@@ -225,7 +256,11 @@ export async function pushPaidCourseRegistrationToDrip(
         items: [
           {
             // Albums itemise under their real title (the slug is `album-<id>`).
-            name: album?.title ?? COURSE_ITEM_LABELS[reg.product_slug] ?? reg.product_slug,
+            name:
+              album?.title ??
+              COURSE_ITEM_LABELS[reg.product_slug] ??
+              livePassLabelForSlug(reg.product_slug) ??
+              reg.product_slug,
             slug: reg.product_slug,
             amountCents: reg.amount_cents,
           },
@@ -245,8 +280,12 @@ export async function pushPaidCourseRegistrationToDrip(
 
     // Certification end date → Drip (cert_ends_2026 / cert_ends_later +
     // cert_end_date). A 12-week purchase can move a cert holder's start, so it
-    // re-checks too. Idempotent per end date; never throws.
-    if (['cc-cert', 'cc-bundle', TWELVE_WEEK_PRODUCT_SLUG].includes(reg.product_slug)) {
+    // re-checks too, and so does a live pass carrying the certification-window
+    // extension. Idempotent per end date; never throws.
+    if (
+      ['cc-cert', 'cc-bundle', TWELVE_WEEK_PRODUCT_SLUG].includes(reg.product_slug) ||
+      (isLivePassSlug(reg.product_slug) && hasCertExtension(reg.bumps))
+    ) {
       await syncCertAccessForEmail(env, reg.email);
     }
   } catch (err) {

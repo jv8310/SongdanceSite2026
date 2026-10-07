@@ -1,0 +1,589 @@
+---
+// The live pass: the weekly Q&As and the monthly deepening session, as a
+// number of sessions (src/lib/courses/live-pass.ts). Reached mostly from the member app (a
+// locked Q&A or deepening session) and the SVH app ("Apply for Certification",
+// with ?extend=1), both of which put the member's address in ?email= (and their
+// name in ?first_name= / ?last_name=) — so the page arrives filled in: the name
+// and country from the link or from what the site holds for that address, the
+// day their pass would start, the certification-window add-on only for a 9-month
+// student it would help, and for a 12-week student the way on to the 9-month
+// certification course.
+import SiteLayout from '../../components/SiteLayout.astro';
+import { COUNTRIES, findCountry } from '../../lib/countries';
+import { edgeCountry } from '../../lib/geo';
+import { paypalConfigured } from '../../lib/payments/paypal';
+import { SUPPORTED_CURRENCIES, formatMoney } from '../../lib/workshops/currency';
+import { albumCurrencyForCountry } from '../../lib/music/product';
+import {
+  CERT_EXTENSION_PERCENT,
+  LIVE_PASS_MONTHS,
+  livePassContents,
+  livePassOffer,
+  parseLivePassMonths,
+  type LivePassMonths,
+} from '../../lib/courses/live-pass';
+import { loadBuyerDetails, planLivePass } from '../../lib/courses/live-pass-plan';
+
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+const params = Astro.url.searchParams;
+const welcome = params.get('welcome') === '1';
+const emailParam = (params.get('email') ?? '').trim().toLowerCase();
+const emailPrefill = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailParam) ? emailParam : '';
+const wantsExtension = params.get('extend') === '1';
+const chosenMonths: LivePassMonths = parseLivePassMonths(params.get('months')) ?? 3;
+const nameParam = (k: string) => (params.get(k) ?? '').trim().slice(0, 100);
+
+// With the address in the link, the page arrives answered: the same status the
+// form asks for when an address is typed (/api/courses/live-pass-status).
+let initialStatus: Record<string, unknown> | null = null;
+let details = { firstName: null as string | null, lastName: null as string | null, country: null as string | null };
+if (emailPrefill) {
+  try {
+    const [plan, d] = await Promise.all([planLivePass(env.DB, emailPrefill), loadBuyerDetails(env.DB, emailPrefill)]);
+    details = d;
+    initialStatus = {
+      live_until: plan.liveUntil,
+      pass_running: plan.passRunning,
+      periods: plan.periods,
+      certification: {
+        holds_course: plan.window.holdsCourse,
+        may_certify: plan.window.mayCertify,
+        ends_on: plan.window.endsOn,
+        open: plan.window.open,
+      },
+      twelve_week: { holds: plan.twelveWeek.holds, live_until: plan.twelveWeek.liveUntil },
+    };
+  } catch {
+    /* the form asks again from the browser */
+  }
+}
+const firstNamePrefill = nameParam('first_name') || details.firstName || '';
+const lastNamePrefill = nameParam('last_name') || details.lastName || '';
+const certInitial = initialStatus?.certification as { holds_course?: boolean } | undefined;
+const showAddon = !!certInitial?.holds_course;
+const twelveInitial = initialStatus?.twelve_week as { holds?: boolean } | undefined;
+const showUpgrade = !!twelveInitial?.holds && !certInitial?.holds_course;
+
+const geoCountry = details.country ?? edgeCountry(Astro.locals);
+const geoCountryMatch = geoCountry ? findCountry(geoCountry) : undefined;
+const currency = albumCurrencyForCountry(geoCountry);
+const paypalOk = paypalConfigured(env) && env.PAYPAL_ENABLED === 'true';
+
+// Every price in every market, so the country field can repaint without a
+// round trip. The server prices the charge with the same function.
+const prices = Object.fromEntries(
+  SUPPORTED_CURRENCIES.map((cur) => [
+    cur,
+    Object.fromEntries(LIVE_PASS_MONTHS.map((m) => [m, livePassOffer(m, cur)])),
+  ]),
+);
+const offers = LIVE_PASS_MONTHS.map((m) => livePassOffer(m, currency));
+const certPageHref = `/courses/certification${emailPrefill ? `?email=${encodeURIComponent(emailPrefill)}` : ''}`;
+const money = (cents: number) => formatMoney(cents, currency);
+const aboutLabel = (m: number) => `About ${m} month${m === 1 ? '' : 's'} of sessions`;
+---
+
+<SiteLayout
+  title="Live pass — the weekly Q&As and monthly deepening sessions"
+  description="Sound with us live: 4, 12 or 24 Q&As and 1, 3 or 6 deepening sessions. For anyone whose course no longer includes the live sessions, or never did."
+>
+  <main class="lp">
+    <section class="lp-hero">
+      <p class="lp-eyebrow">Live sessions</p>
+      <h1 class="lp-title">Keep sounding with us, <em>live</em></h1>
+      <p class="lp-lede">
+        Every week a live Q&amp;A, and once a month a two-hour deepening session — alumni and
+        current students together. The pass is for anyone whose course no longer includes the
+        live sessions, or never did.
+      </p>
+    </section>
+
+    {welcome && (
+      <section class="lp-card lp-welcome" role="status">
+        <p class="lp-eyebrow">Payment received</p>
+        <h2 class="lp-h2">Thank you — your pass is on its way into your account</h2>
+        <p>
+          A confirmation is on its way by email, with the day your pass starts. You'll find the
+          sessions under <strong>Events</strong> in the Songdance Circle from that day, with the
+          same email address you paid with. Your receipt and invoice arrive by email too.
+        </p>
+      </section>
+    )}
+
+    <section class="lp-card" id="get">
+      <form
+        class="lp-form"
+        data-lp-form
+        novalidate
+        data-prices={JSON.stringify(prices)}
+        data-status={initialStatus ? JSON.stringify(initialStatus) : undefined}
+      >
+        <fieldset class="lp-options">
+          <legend class="lp-legend">Choose your pass</legend>
+          <p class="lp-explain">
+            A pass holds the next Q&amp;As and deepening sessions on the calendar from the day it
+            starts, and ends after the last of them. A week without a Q&amp;A costs you nothing.
+          </p>
+          {offers.map((o) => (
+            <label class="lp-option">
+              <input
+                type="radio"
+                name="months"
+                value={o.months}
+                checked={o.months === chosenMonths}
+                data-lp-contents={livePassContents(o.months)}
+              />
+              <span class="lp-option-body">
+                <span class="lp-option-head">
+                  <span class="lp-option-len">{livePassContents(o.months)}</span>
+                  {o.discount_percent > 0 && <span class="lp-save">{o.discount_percent}% off</span>}
+                </span>
+                <span class="lp-option-sub">{aboutLabel(o.months)}</span>
+                <span class="lp-option-price">
+                  {o.discount_percent > 0 && (
+                    <s class="lp-was" data-lp-was={o.months}>{money(o.full_cents)}</s>
+                  )}
+                  <strong data-lp-price={o.months}>{money(o.price_cents)}</strong>
+                </span>
+                <span class="lp-option-dates" data-lp-dates={o.months} hidden></span>
+              </span>
+            </label>
+          ))}
+        </fieldset>
+
+        {/* Only for a 9-month (certification) student; shown once the address says so. */}
+        <label class="lp-addon" data-lp-addon hidden={!showAddon}>
+          <input type="checkbox" name="cert_extension" checked={wantsExtension && showAddon} />
+          <span>
+            <span class="lp-addon-head">
+              Extend my certification window
+              <span class="lp-addon-price">+<span data-lp-ext>{money(offers.find((o) => o.months === chosenMonths)!.extension_cents)}</span></span>
+            </span>
+            <span class="lp-addon-body">
+              Keeps your window to apply for certification open for the months of your pass (1, 3
+              or 6, from the day it starts). For certification students whose window has closed.
+              Adds {CERT_EXTENSION_PERCENT}% to the pass.
+            </span>
+            <span class="lp-addon-note" data-lp-addon-note hidden></span>
+          </span>
+        </label>
+
+        <div class="lp-fields">
+          <label class="lp-field">
+            <span>First name</span>
+            <input
+              type="text"
+              name="first_name"
+              autocomplete="given-name"
+              required
+              maxlength="100"
+              value={firstNamePrefill || undefined}
+            />
+          </label>
+          <label class="lp-field">
+            <span>Last name</span>
+            <input
+              type="text"
+              name="last_name"
+              autocomplete="family-name"
+              required
+              maxlength="100"
+              value={lastNamePrefill || undefined}
+            />
+          </label>
+          <label class="lp-field lp-field--full">
+            <span>Email <span class="lp-hint">— the address you use for your courses</span></span>
+            <input
+              type="email"
+              name="email"
+              autocomplete="email"
+              required
+              maxlength="254"
+              value={emailPrefill || undefined}
+              data-lp-email
+            />
+          </label>
+          <p class="lp-status" data-lp-status hidden></p>
+          <label class="lp-field lp-field--full">
+            <span>Country</span>
+            <input
+              type="text"
+              name="country_search"
+              list="lp-country-list"
+              autocomplete="country-name"
+              placeholder="Start typing…"
+              required
+              value={geoCountryMatch?.name ?? ''}
+              data-lp-country-search
+            />
+            <input type="hidden" name="country" value={geoCountryMatch?.code ?? ''} data-lp-country />
+          </label>
+        </div>
+
+        <label class="lp-terms">
+          <input type="checkbox" name="consent_terms" required />
+          <span>
+            I agree to the <a href="/terms" target="_blank" rel="noopener">terms</a> &amp;{' '}
+            <a href="/privacy" target="_blank" rel="noopener">privacy policy</a>.
+          </span>
+        </label>
+
+        <div class="lp-summary">
+          <span data-lp-summary-label>Live pass</span>
+          <strong data-lp-total>{money(offers.find((o) => o.months === chosenMonths)!.price_cents)}</strong>
+        </div>
+
+        <div class="lp-actions">
+          <button type="submit" class="sd-btn sd-btn-primary" data-lp-submit data-provider="stripe">
+            <span>Pay by card</span>
+            <i class="ph-light ph-arrow-right"></i>
+          </button>
+          {paypalOk && (
+            <button type="submit" class="sd-btn lp-paypal" data-lp-submit data-provider="paypal">
+              Pay with <strong>PayPal</strong>
+            </button>
+          )}
+        </div>
+        <p class="lp-note">One payment, no subscription. Charged in your local currency — the price follows your country.</p>
+        <p class="lp-error" role="alert" data-lp-error hidden></p>
+      </form>
+      <div class="lp-upgrade" data-lp-upgrade hidden={!showUpgrade}>
+        <p class="lp-eyebrow">From the 12 weeks</p>
+        <p class="lp-upgrade-title">Or go on to the 9-month certification course</p>
+        <p class="lp-upgrade-body">
+          A pass keeps your Q&amp;As going after the 12 weeks. The certification course continues
+          where they leave off: the class library and manuals, weekly Q&amp;As, monthly deepening
+          sessions and practice together, for nine months.
+        </p>
+        <a class="sd-btn lp-upgrade-btn" href={certPageHref} data-lp-upgrade-link>
+          <span>See the certification course</span>
+          <i class="ph-light ph-arrow-right"></i>
+        </a>
+      </div>
+      <datalist id="lp-country-list">
+        {COUNTRIES.map((c) => (
+          <option value={c.name} data-code={c.code}>{c.flag} {c.name}</option>
+        ))}
+      </datalist>
+    </section>
+
+    <section class="lp-faq">
+      <h2 class="lp-h2">Good to know</h2>
+      <dl>
+        <dt>How long does a pass last?</dt>
+        <dd>
+          As long as its sessions: 4, 12 or 24 Q&amp;As and 1, 3 or 6 deepening sessions — the next
+          ones on the calendar from the day it starts. A week without a Q&amp;A costs you nothing:
+          your pass simply holds the next one. It ends after the last of its sessions, and you keep
+          their replays for 2 months.
+        </dd>
+        <dt>When does my pass start?</dt>
+        <dd>
+          The day you buy it — unless your course still gives you the live sessions: then it starts
+          the day after they end, so you never pay twice for the same session. If you already have a
+          pass, the new one continues with the session after its last. Fill in your email above and
+          the start date shows before you pay.
+        </dd>
+        <dt>I'm in the 12-week course</dt>
+        <dd>
+          A pass continues your Q&amp;As once your 12 weeks are over: it starts the day after they
+          end, and brings the monthly deepening session with it.
+        </dd>
+        <dt>Where are the sessions?</dt>
+        <dd>Under Events in the Songdance Circle, where you'll also find the replays from your pass.</dd>
+        <dt>Is it a subscription?</dt>
+        <dd>
+          No. You pay once, and the pass ends after its last session. We'll let you know by email
+          when 1 session is left, so you can add another whenever you like.
+        </dd>
+      </dl>
+    </section>
+  </main>
+</SiteLayout>
+
+<script>
+  import { albumCurrencyForCountry } from '../../lib/music/product';
+  import { formatMoney } from '../../lib/workshops/currency';
+  import { COUNTRIES } from '../../lib/countries';
+
+  type Offer = { price_cents: number; full_cents: number; extension_cents: number };
+  type Period = { startsOn: string; endsOn: string; extensionHelps: boolean };
+  type Status = {
+    live_until: string | null;
+    pass_running?: boolean;
+    periods: Record<string, Period>;
+    certification: { holds_course: boolean; may_certify: boolean; ends_on: string | null; open: boolean };
+    twelve_week?: { holds: boolean; live_until: string | null };
+    details?: { first_name: string | null; last_name: string | null; country: string | null };
+  };
+
+  const form = document.querySelector<HTMLFormElement>('[data-lp-form]');
+  if (form) {
+    const prices = JSON.parse(form.dataset.prices || '{}') as Record<string, Record<string, Offer>>;
+    const countrySearch = form.querySelector<HTMLInputElement>('[data-lp-country-search]')!;
+    const countryHidden = form.querySelector<HTMLInputElement>('[data-lp-country]')!;
+    const emailInput = form.querySelector<HTMLInputElement>('[data-lp-email]')!;
+    const statusEl = form.querySelector<HTMLElement>('[data-lp-status]')!;
+    const addonLabel = form.querySelector<HTMLElement>('[data-lp-addon]')!;
+    const addonInput = form.querySelector<HTMLInputElement>('[name="cert_extension"]')!;
+    const addonNote = form.querySelector<HTMLElement>('[data-lp-addon-note]')!;
+    const upgradeEl = document.querySelector<HTMLElement>('[data-lp-upgrade]');
+    const upgradeLink = document.querySelector<HTMLAnchorElement>('[data-lp-upgrade-link]');
+    const wantsExtension = new URLSearchParams(location.search).get('extend') === '1';
+    const totalEl = form.querySelector<HTMLElement>('[data-lp-total]')!;
+    const summaryLabel = form.querySelector<HTMLElement>('[data-lp-summary-label]')!;
+    const extEl = form.querySelector<HTMLElement>('[data-lp-ext]')!;
+    const errEl = form.querySelector<HTMLElement>('[data-lp-error]')!;
+    const buttons = Array.from(form.querySelectorAll<HTMLButtonElement>('[data-lp-submit]'));
+    let status: Status | null = form.dataset.status ? (JSON.parse(form.dataset.status) as Status) : null;
+    let countryTouched = false;
+
+    const fmtDay = (day: string) =>
+      new Date(`${day}T12:00:00Z`).toLocaleDateString('en-GB', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        timeZone: 'UTC',
+      });
+    const months = () => Number(form.querySelector<HTMLInputElement>('[name="months"]:checked')?.value ?? 3);
+    const currency = () => albumCurrencyForCountry(countryHidden.value || null);
+
+    function repaint() {
+      const cur = currency();
+      const table = prices[cur] ?? prices.EUR;
+      for (const [m, o] of Object.entries(table)) {
+        const price = form!.querySelector<HTMLElement>(`[data-lp-price="${m}"]`);
+        const was = form!.querySelector<HTMLElement>(`[data-lp-was="${m}"]`);
+        if (price) price.textContent = formatMoney(o.price_cents, cur);
+        if (was) was.textContent = formatMoney(o.full_cents, cur);
+      }
+      const m = months();
+      const o = table[m];
+      extEl.textContent = formatMoney(o.extension_cents, cur);
+      const ext = addonInput.checked ? o.extension_cents : 0;
+      totalEl.textContent = formatMoney(o.price_cents + ext, cur);
+      const contents = form!.querySelector<HTMLInputElement>('[name="months"]:checked')?.dataset.lpContents ?? '';
+      summaryLabel.textContent = `Live pass · ${contents}${ext ? ' + certification window' : ''}`;
+
+      // The day each pass would start, and the add-on's verdict, once the
+      // address is known. No end date: a pass ends with its last session.
+      for (const [key, p] of Object.entries(status?.periods ?? {})) {
+        const el = form!.querySelector<HTMLElement>(`[data-lp-dates="${key}"]`);
+        if (!el) continue;
+        el.hidden = false;
+        el.textContent = `From ${fmtDay(p.startsOn)}`;
+      }
+      // The add-on is for 9-month students only; the 12-week card for 12-week
+      // students who are not (yet) on the 9 months.
+      const c = status?.certification;
+      addonLabel.hidden = !c?.holds_course;
+      if (!c?.holds_course) addonInput.checked = false;
+      if (upgradeEl) upgradeEl.hidden = !(status?.twelve_week?.holds && !c?.holds_course);
+      if (status && c?.holds_course) {
+        const p = status.periods[String(m)];
+        addonNote.hidden = false;
+        if (!p?.extensionHelps && c.ends_on) {
+          addonNote.textContent = `Your certification window already runs until ${fmtDay(c.ends_on)}, past the end of this pass.`;
+        } else if (!c.may_certify) {
+          addonNote.textContent = `With the extension you may apply for certification until ${fmtDay(p.endsOn)}.`;
+        } else if (c.ends_on) {
+          addonNote.textContent = `${c.open ? 'Your window is open until' : 'Your window closed on'} ${fmtDay(c.ends_on)}. With the extension it stays open until ${fmtDay(p.endsOn)}.`;
+        }
+        const helps = !!p?.extensionHelps;
+        addonInput.disabled = !helps;
+        if (!helps) addonInput.checked = false;
+      }
+    }
+
+    // Fill what is still empty with what the site holds for this address; a
+    // country only replaces the guess from where the visitor is, never a choice.
+    function fillDetails(d: Status['details']) {
+      if (!d) return;
+      const first = form!.querySelector<HTMLInputElement>('[name="first_name"]')!;
+      const last = form!.querySelector<HTMLInputElement>('[name="last_name"]')!;
+      if (!first.value && d.first_name) first.value = d.first_name;
+      if (!last.value && d.last_name) last.value = d.last_name;
+      if (!countryTouched && d.country) {
+        const match = COUNTRIES.find((c) => c.code === d.country);
+        if (match) {
+          countrySearch.value = match.name;
+          countryHidden.value = match.code;
+        }
+      }
+    }
+
+    function showLiveUntil() {
+      const lines: string[] = [];
+      if (status?.live_until) {
+        lines.push(`Your course gives you the live sessions until ${fmtDay(status.live_until)}, so a pass starts the day after.`);
+      }
+      if (status?.pass_running) {
+        lines.push('Your current pass comes first: a new one continues with the session after its last.');
+      }
+      statusEl.hidden = lines.length === 0;
+      statusEl.textContent = lines.join(' ');
+    }
+
+    async function lookUp() {
+      const email = emailInput.value.trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return;
+      try {
+        const res = await fetch('/api/courses/live-pass-status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email }),
+        });
+        if (!res.ok) return;
+        const fresh = (await res.json()) as Status;
+        const wasCertStudent = !!status?.certification.holds_course;
+        status = fresh;
+        fillDetails(fresh.details);
+        // Arrived with ?extend=1 and the address only now known: tick it for them.
+        if (wantsExtension && !wasCertStudent && fresh.certification.holds_course) addonInput.checked = true;
+        if (upgradeLink) upgradeLink.href = `/courses/certification?email=${encodeURIComponent(email)}`;
+        showLiveUntil();
+        repaint();
+      } catch {
+        /* the page works without it; the checkout checks again */
+      }
+    }
+
+    const resolveCountry = () => {
+      const typed = countrySearch.value.trim().toLowerCase();
+      const match = COUNTRIES.find((c) => c.name.toLowerCase() === typed || c.code.toLowerCase() === typed);
+      countryHidden.value = match?.code ?? '';
+      repaint();
+    };
+    (['input', 'change', 'blur'] as const).forEach((ev) => countrySearch.addEventListener(ev, resolveCountry));
+    countrySearch.addEventListener('input', () => (countryTouched = true));
+    form.querySelectorAll<HTMLInputElement>('[name="months"]').forEach((r) => r.addEventListener('change', repaint));
+    addonInput.addEventListener('change', repaint);
+    emailInput.addEventListener('change', lookUp);
+    emailInput.addEventListener('blur', lookUp);
+    showLiveUntil();
+    repaint();
+    // Answered on the server when the address came in the link; asked here otherwise.
+    if (emailInput.value && !status) void lookUp();
+
+    let provider: 'stripe' | 'paypal' = 'stripe';
+    buttons.forEach((b) =>
+      b.addEventListener('click', () => {
+        provider = b.dataset.provider === 'paypal' ? 'paypal' : 'stripe';
+      }),
+    );
+
+    const fail = (msg: string) => {
+      errEl.textContent = msg;
+      errEl.hidden = false;
+      buttons.forEach((b) => (b.disabled = false));
+    };
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errEl.hidden = true;
+      const fd = new FormData(form);
+      const get = (k: string) => String(fd.get(k) ?? '').trim();
+      if (!get('first_name') || !get('last_name')) return fail('Please add your first and last name.');
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(get('email'))) return fail('Please enter a valid email address.');
+      if (!get('country')) return fail('Please pick your country from the list.');
+      if (fd.get('consent_terms') !== 'on') return fail('Please agree to the terms to continue.');
+      buttons.forEach((b) => (b.disabled = true));
+      try {
+        const res = await fetch('/api/courses/live-pass-checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            months: months(),
+            cert_extension: addonInput.checked,
+            first_name: get('first_name'),
+            last_name: get('last_name'),
+            email: get('email'),
+            country: get('country'),
+            consent_terms: true,
+            provider,
+          }),
+        });
+        const data = (await res.json().catch(() => ({}))) as { checkout_url?: string; error?: string };
+        if (!res.ok || !data.checkout_url) return fail(data.error || 'Could not start checkout — please try again.');
+        location.href = data.checkout_url;
+      } catch {
+        fail('We could not reach the server. Please try again.');
+      }
+    });
+  }
+</script>
+
+<style>
+  .lp { max-width: 720px; margin: 0 auto; padding: 56px 16px 96px; color: var(--ink); }
+  /* Several pieces carry their own display; hidden must still hide them. */
+  .lp [hidden] { display: none !important; }
+  .lp-hero { text-align: center; margin-bottom: 32px; }
+  .lp-eyebrow {
+    font-family: var(--font-body); font-size: 12px; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--ember); margin: 0 0 12px;
+  }
+  .lp-title { font-family: var(--font-display); font-weight: 400; font-size: clamp(32px, 6vw, 48px); line-height: 1.1; margin: 0 0 16px; }
+  /* Cormorant inside a Spectral heading reads small: size it up. */
+  .lp-title em { font-family: var(--font-lyric); font-size: 1.05em; }
+  .lp-lede { font-family: var(--font-body); font-size: 18px; line-height: 1.6; margin: 0 auto; max-width: 560px; }
+  .lp-h2 { font-family: var(--font-display); font-weight: 400; font-size: 26px; margin: 0 0 12px; }
+  .lp-card {
+    background: var(--paper-soft); border: 1px solid rgba(42, 27, 42, 0.12);
+    border-radius: 16px; padding: 24px; margin-bottom: 24px;
+  }
+  .lp-welcome { border-color: var(--moss); }
+  .lp-options { border: 0; padding: 0; margin: 0 0 16px; display: grid; gap: 10px; }
+  .lp-legend { font-family: var(--font-display); font-size: 22px; margin-bottom: 12px; }
+  .lp-explain { font-size: 15px; line-height: 1.55; margin: 0 0 6px; opacity: 0.85; }
+  .lp-option {
+    display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; cursor: pointer;
+    border: 1px solid rgba(42, 27, 42, 0.16); border-radius: 12px; background: var(--paper);
+  }
+  .lp-option:has(input:checked) { border-color: var(--plum); box-shadow: inset 0 0 0 1px var(--plum); }
+  .lp-option input { margin-top: 4px; accent-color: var(--plum); }
+  .lp-option-body { display: grid; gap: 2px; flex: 1; }
+  .lp-option-head { display: flex; gap: 8px; align-items: center; font-weight: 600; }
+  .lp-save { font-size: 12px; color: var(--moss); border: 1px solid var(--moss); border-radius: 999px; padding: 1px 8px; }
+  .lp-option-sub, .lp-option-dates { font-size: 14px; opacity: 0.8; }
+  .lp-option-price { display: flex; gap: 8px; align-items: baseline; }
+  .lp-was { opacity: 0.55; }
+  .lp-addon {
+    display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; margin-bottom: 20px;
+    border: 1px dashed rgba(42, 27, 42, 0.3); border-radius: 12px; cursor: pointer;
+  }
+  .lp-addon input { margin-top: 4px; accent-color: var(--ember); }
+  .lp-addon-head { display: flex; gap: 8px; justify-content: space-between; font-weight: 600; }
+  .lp-addon-body, .lp-addon-note { display: block; font-size: 14px; line-height: 1.5; margin-top: 4px; }
+  .lp-addon-note { color: var(--plum); }
+  /* align-items/align-content: start — a password manager's icon in one name
+     field made it taller, and the grid stretched the other field down to match. */
+  .lp-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; align-items: start; }
+  .lp-field { display: grid; gap: 6px; font-size: 14px; align-content: start; }
+  .lp-field--full { grid-column: 1 / -1; }
+  .lp-field input {
+    font: inherit; font-size: 16px; padding: 10px 12px; border-radius: 10px;
+    border: 1px solid rgba(42, 27, 42, 0.2); background: #fff; color: var(--ink);
+  }
+  .lp-hint { opacity: 0.6; }
+  .lp-status { grid-column: 1 / -1; margin: 0; font-size: 14px; color: var(--moss); }
+  .lp-terms { display: flex; gap: 8px; font-size: 14px; margin: 8px 0 16px; }
+  .lp-summary { display: flex; justify-content: space-between; padding: 12px 0; border-top: 1px solid rgba(42, 27, 42, 0.12); margin-bottom: 12px; }
+  .lp-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+  .lp-paypal { background: #ffc439; color: #003087; }
+  .lp-note { font-size: 13px; opacity: 0.7; margin: 12px 0 0; }
+  .lp-error { color: var(--ember); margin: 12px 0 0; }
+  .lp-upgrade {
+    margin-top: 20px; padding: 18px 20px; border-radius: 12px;
+    border: 1px solid rgba(42, 27, 42, 0.16); background: var(--paper);
+  }
+  .lp-upgrade-title { font-family: var(--font-display); font-size: 20px; margin: 0 0 6px; }
+  .lp-upgrade-body { font-size: 15px; line-height: 1.55; margin: 0 0 14px; }
+  .lp-upgrade-btn { display: inline-flex; gap: 8px; align-items: center; }
+  .lp-faq dt { font-weight: 600; margin-top: 16px; }
+  .lp-faq dd { margin: 4px 0 0; line-height: 1.6; }
+  @media (max-width: 560px) {
+    .lp-fields { grid-template-columns: 1fr; }
+  }
+</style>
