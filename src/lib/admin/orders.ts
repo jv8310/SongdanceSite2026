@@ -23,6 +23,7 @@
 //     EUR charges with no country on file.
 
 import { DEFAULT_FX_TO_EUR } from './fx';
+import { livePassLabelForSlug } from '../courses/live-pass';
 import { BANK_TRANSFER, type OrderProvider } from '../payments/provider';
 import { getTaxRate, type QuadernoTaxConfig } from '../workshops/quaderno';
 import { LABEL_BY_SLUG, isJourneySlug } from '../courses/journeys';
@@ -137,7 +138,7 @@ function courseLabel(slug: string): string {
   // Journeys (asj / mmj / inner-child / bundles) carry their own friendly names
   // in the journeys module — use them so the overview never shows a raw slug.
   if (isJourneySlug(slug)) return LABEL_BY_SLUG[slug];
-  return slug;
+  return livePassLabelForSlug(slug) ?? slug;
 }
 
 // Compact display name for the orders table. The full marketing titles ("Somatic

@@ -28,6 +28,10 @@
 //     site recorded sales): we can't see when their 12 weeks end, so they get
 //     the full 12 weeks on top of the purchase date, generously.
 //
+// 4. A live pass bought with the "Extend my certification window" add-on
+//    (live-pass.ts) keeps the window open until the pass ends: the end date is
+//    then the later of the two, and `extendedTo` says so.
+//
 // Purchases are read from both places a course sale can land, the same pair
 // `hasBoughtCert` in workshops/cron.ts checks: `course_registrations` (status
 // 'paid' — a refunded or cancelled order holds nothing) and the workshop
@@ -35,6 +39,7 @@
 // Days are Brussels calendar days, like every other date the site reports.
 
 import { businessDayOf } from '../workshops/periods';
+import { loadCertExtensions } from './live-pass';
 
 export const CERT_ACCESS_MONTHS = 9;
 export const FOUNDATION_WEEKS = 12;
@@ -66,7 +71,9 @@ export type CertAccess = {
   startReason: CertStartReason;
   startsOn: string; // the day the 9 months start
   ownNineMonthsEndOn: string; // start + 9 months, before the floor
-  endsOn: string; // max(floor, ownNineMonthsEndOn)
+  courseEndsOn: string; // max(floor, ownNineMonthsEndOn)
+  extendedTo: string | null; // the last day of a certification-window extension
+  endsOn: string; // max(courseEndsOn, extendedTo)
   group: CertAccessGroup;
   purchases: number; // cert purchases on this address
 };
@@ -198,7 +205,8 @@ function isCertSlug(slug: string): boolean {
 // Everyone who holds the certification, one entry per address, with the
 // purchase that ends latest deciding their date. Sorted by end date, then email.
 export async function listCertAccess(db: D1Database): Promise<CertAccess[]> {
-  return buildCertAccess(await loadPurchases(db));
+  const [rows, extensions] = await Promise.all([loadPurchases(db), loadCertExtensions(db)]);
+  return buildCertAccess(rows, extensions);
 }
 
 // One address — the paid-handler's live path. Null when they hold no cert.
@@ -206,10 +214,16 @@ export async function getCertAccessForEmail(
   db: D1Database,
   email: string,
 ): Promise<CertAccess | null> {
-  return buildCertAccess(await loadPurchases(db, email))[0] ?? null;
+  const [rows, extensions] = await Promise.all([loadPurchases(db, email), loadCertExtensions(db, email)]);
+  return buildCertAccess(rows, extensions)[0] ?? null;
 }
 
-function buildCertAccess(rows: PurchaseRow[]): CertAccess[] {
+// The later of a course end and an extension's last day.
+export function extendEnd(courseEndsOn: string, extendedTo: string | null | undefined): string {
+  return extendedTo && extendedTo > courseEndsOn ? extendedTo : courseEndsOn;
+}
+
+function buildCertAccess(rows: PurchaseRow[], extensions: Map<string, string>): CertAccess[] {
   const byEmail = new Map<string, PurchaseRow[]>();
   for (const r of rows) {
     const key = r.email.trim().toLowerCase();
@@ -247,12 +261,25 @@ function buildCertAccess(rows: PurchaseRow[]): CertAccess[] {
         sourceId: c.id,
         productSlug: c.product_slug,
         purchasedOn: day,
-        ...end,
+        startReason: end.startReason,
+        startsOn: end.startsOn,
+        ownNineMonthsEndOn: end.ownNineMonthsEndOn,
+        courseEndsOn: end.endsOn,
+        extendedTo: null,
+        endsOn: end.endsOn,
         group: certGroupFor(end.endsOn),
         purchases: certs.length,
       };
     }
-    if (best) out.push(best);
+    if (best) {
+      const ext = extensions.get(email) ?? null;
+      if (ext && ext > best.courseEndsOn) {
+        best.extendedTo = ext;
+        best.endsOn = ext;
+        best.group = certGroupFor(ext);
+      }
+      out.push(best);
+    }
   }
   out.sort((a, b) => (a.endsOn === b.endsOn ? a.email.localeCompare(b.email) : a.endsOn.localeCompare(b.endsOn)));
   return out;

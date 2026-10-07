@@ -10,7 +10,12 @@ import type { DeckGiftShipping } from './deck-promo';
 export type CourseProductSlug = 'cc-cert' | 'cc-bundle' | 'grief-course' | 'svh-12week';
 // `album-<id>` = a music album bought on its own (src/lib/music/product.ts);
 // the id half is the dynamic music_albums row key, hence the template type.
-export type CourseRegistrationSlug = CourseProductSlug | JourneySlug | `album-${string}`;
+// `live-pass-<n>m` = the live pass, 1/3/6 months (src/lib/courses/live-pass.ts).
+export type CourseRegistrationSlug =
+  | CourseProductSlug
+  | JourneySlug
+  | `album-${string}`
+  | `live-pass-${number}m`;
 export type ActivateChoice = 'now' | 'wait';
 export type PaymentPlan = 'full' | '3x' | '6x' | '12x';
 

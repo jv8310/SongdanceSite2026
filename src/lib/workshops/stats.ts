@@ -39,6 +39,7 @@ import { getTaxRate, netFromGross, type QuadernoTaxConfig } from './quaderno';
 import { getFxRatesToEur } from '../admin/fx';
 import { parsePurchasedBumps, type PurchasedBump } from '../courses/db';
 import { BUMPS, isBumpSlug } from '../courses/bumps';
+import { CERT_EXTENSION_LABEL, CERT_EXTENSION_SLUG, livePassLabelForSlug } from '../courses/live-pass';
 import { effectiveTotal, addMonths } from '../courses/installment-forecast';
 import { MASTERCLASS_DOOR_SPLIT_START } from './experiments';
 import { businessWindowUtc, businessDayStartMs, businessDayOf } from './periods';
@@ -247,7 +248,8 @@ function checkoutPartsMinor(
   };
 }
 
-const bumpLabel = (slug: string): string => (isBumpSlug(slug) ? BUMPS[slug].label : slug);
+const bumpLabel = (slug: string): string =>
+  isBumpSlug(slug) ? BUMPS[slug].label : slug === CERT_EXTENSION_SLUG ? CERT_EXTENSION_LABEL : slug;
 
 type PaymentRow = {
   id: number;
@@ -720,7 +722,10 @@ export async function computeCourseSales(
     }
     const isPlan = r.installments_total > 1;
 
-    const info = COURSE_PRODUCT_INFO[r.product_slug] ?? { group: 'other' as const, label: r.product_slug };
+    const info = COURSE_PRODUCT_INFO[r.product_slug] ?? {
+      group: 'other' as const,
+      label: livePassLabelForSlug(r.product_slug) ?? r.product_slug,
+    };
     const bucket =
       info.group === 'twelve_week' ? report.twelveWeek :
       info.group === 'certification' ? report.certification : report.other;
@@ -754,7 +759,7 @@ export async function computeCourseSales(
 
   report.byProduct = [...productMap.entries()]
     .map(([slug, v]) => {
-      const info = COURSE_PRODUCT_INFO[slug] ?? { group: 'other' as const, label: slug };
+      const info = COURSE_PRODUCT_INFO[slug] ?? { group: 'other' as const, label: livePassLabelForSlug(slug) ?? slug };
       return {
         slug, label: info.label, group: info.group,
         count: v.count, planCount: v.plans, netEurMinor: v.net, fullValueEurMinor: v.full,
