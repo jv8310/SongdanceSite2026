@@ -18,6 +18,7 @@
 import type { CourseRegistration } from '../courses/db';
 import { parsePurchasedBumps } from '../courses/db';
 import { BUMPS, isBumpSlug, type BumpSlug } from '../courses/bumps';
+import { CERT_EXTENSION_LABEL, CERT_EXTENSION_SLUG, livePassLabelForSlug } from '../courses/live-pass';
 import {
   DECK_GIFT_BUMP_SLUG,
   DECK_GIFT_LABEL,
@@ -35,6 +36,7 @@ import {
 import { deckGiftClaimEmail, deckGiftConfirmedEmail } from '../workshops/emails';
 import { sendAlbumPurchaseEmail } from '../music/delivery';
 import { welcomeCourseOrder } from '../courses/emails/confirmation';
+import { sendLivePassConfirmation } from '../courses/live-pass-email';
 import { LANGUAGE_CHOICE_LABEL } from '../courses/journeys';
 import { BANK_TRANSFER, type OrderProvider } from '../payments/provider';
 import type { Registration } from '../registrations/db';
@@ -470,7 +472,8 @@ export async function notifyCourseOrder(
   reg: CourseRegistration,
   opts?: { stripePaymentIntent?: string | null; stripeSubscriptionId?: string | null },
 ): Promise<void> {
-  const productName = COURSE_PRODUCT_LABELS[reg.product_slug] ?? reg.product_slug;
+  const productName =
+    COURSE_PRODUCT_LABELS[reg.product_slug] ?? livePassLabelForSlug(reg.product_slug) ?? reg.product_slug;
   // Best-effort: which workshop did this buyer come through? Never blocks send.
   let attendedWorkshop: OrderNotificationInput['attendedWorkshop'] = null;
   try {
@@ -482,7 +485,7 @@ export async function notifyCourseOrder(
     [reg.first_name, reg.last_name].filter(Boolean).join(' ').trim() ||
     reg.email.split('@')[0];
   const bumps = parsePurchasedBumps(reg.bumps)
-    .filter((b) => isBumpSlug(b.slug) || b.slug === DECK_GIFT_BUMP_SLUG)
+    .filter((b) => isBumpSlug(b.slug) || b.slug === DECK_GIFT_BUMP_SLUG || b.slug === CERT_EXTENSION_SLUG)
     .map((b) => ({
       // The Song Deck gift is a zero-amount add-on fulfilled via Shopify: when a
       // shipping address was collected + Shopify is configured, the €0 order is
@@ -490,7 +493,9 @@ export async function notifyCourseOrder(
       // the SVH-BONUS claim email to self-order the deck free on songdeck.shop.
       label: isBumpSlug(b.slug)
         ? BUMPS[b.slug as BumpSlug].label
-        : `🎁 ${DECK_GIFT_LABEL} (auto-placed on Shopify when a shipping address was given, else ${DECK_GIFT_COUPON_CODE} claim email)`,
+        : b.slug === CERT_EXTENSION_SLUG
+          ? CERT_EXTENSION_LABEL
+          : `🎁 ${DECK_GIFT_LABEL} (auto-placed on Shopify when a shipping address was given, else ${DECK_GIFT_COUPON_CODE} claim email)`,
       amountCents: b.amount_cents,
     }));
   await sendOrderNotification(env, {
@@ -539,9 +544,14 @@ export async function notifyCourseOrder(
   // product; idempotent on its own claim.
   await sendAlbumPurchaseEmail(env, reg);
 
+  // A live pass: "your live pass is confirmed", with what it holds and the day
+  // it starts. Same reasoning; no-op for every other product.
+  await sendLivePassConfirmation(env, reg);
+
   // The buyer's own confirmation (and the sequence that follows it) — sent by
   // the site once that course is switched over from Drip on
-  // /admin/emails/courses; a no-op until then. Re-reads the row itself (the
+  // /admin/emails/courses; a no-op until then (and always for a live pass or an
+  // album, which carry their own emails above). Re-reads the row itself (the
   // Stripe paths hand over one read before it was marked paid), idempotent on
   // its own claim, never throws.
   await welcomeCourseOrder(env, reg);

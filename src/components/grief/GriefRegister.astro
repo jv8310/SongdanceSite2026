@@ -310,6 +310,20 @@ const countries = COUNTRIES;
       }
     }
 
+    // ?email= / ?first_name= / ?last_name= (a link from the member app or an
+    // email) fill the form in.
+    try {
+      const q = new URLSearchParams(window.location.search);
+      const fill = (name: string, value: string | null, ok = (v: string) => v.length > 0) => {
+        const field = form.querySelector<HTMLInputElement>(`[name="${name}"]`);
+        const v = (value ?? '').trim().slice(0, 100);
+        if (field && !field.value && ok(v)) field.value = v;
+      };
+      fill('email', q.get('email'), (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v));
+      fill('first_name', q.get('first_name'));
+      fill('last_name', q.get('last_name'));
+    } catch {}
+
     // Prefill country from geolocation guess.
     const guess = guessCountry();
     if (guess) {

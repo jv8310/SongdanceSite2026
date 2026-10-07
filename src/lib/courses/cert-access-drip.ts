@@ -30,7 +30,12 @@ import { removeTag, upsertSubscriber, type DripConfig } from '../registrations/d
 import { logEventSafe } from '../registrations/db';
 import { dripConfig } from '../orders/drip-order';
 import { getCertAccessForEmail, listCertAccess, type CertAccess, type CertAccessGroup } from './cert-access';
-import { listLegacyCertAccess, refreshLegacyRoster, type LegacyCertAccess } from './cert-access-legacy';
+import {
+  getLegacyCertAccessForEmail,
+  listLegacyCertAccess,
+  refreshLegacyRoster,
+  type LegacyCertAccess,
+} from './cert-access-legacy';
 
 export const CERT_DRIP_TAGS: Record<CertAccessGroup, string> = {
   'end-2026': 'cert_ends_2026',
@@ -92,6 +97,7 @@ function sitePush(a: CertAccess): Push {
       start_reason: a.startReason,
       product_slug: a.productSlug,
       purchased_on: a.purchasedOn,
+      ...(a.extendedTo ? { extended_to: a.extendedTo } : {}),
     },
   };
 }
@@ -104,7 +110,12 @@ function legacyPush(a: LegacyCertAccess): Push {
     endsOn: a.endsOn,
     startsOn: null,
     noCertification: a.noCertification,
-    payload: { legacy: true, has_cert_tag: a.hasCertTag, has_ceee_tag: a.hasCeeeTag },
+    payload: {
+      legacy: true,
+      has_cert_tag: a.hasCertTag,
+      has_ceee_tag: a.hasCeeeTag,
+      ...(a.extendedTo ? { extended_to: a.extendedTo } : {}),
+    },
   };
 }
 
@@ -210,14 +221,20 @@ export async function runCertAccessDripSync(
   return { total: all.length, sent, failed, remaining: Math.max(0, pending.length - sent), refreshError };
 }
 
-// One buyer, right after a cert / path / 12-week purchase is fulfilled. Never
-// throws — the hourly sweep picks up anything this misses.
+// One buyer, right after a cert / path / 12-week purchase — or a live pass with
+// the certification-window extension — is fulfilled. Never throws — the hourly
+// sweep picks up anything this misses.
 export async function syncCertAccessForEmail(env: SyncEnv, email: string): Promise<void> {
   const cfg = dripConfig(env);
   if (!cfg) return;
   try {
     const a = await getCertAccessForEmail(env.DB, email);
-    if (a) await pushOne(env.DB, cfg, sitePush(a));
+    if (a) {
+      await pushOne(env.DB, cfg, sitePush(a));
+      return;
+    }
+    const legacy = await getLegacyCertAccessForEmail(env.DB, email);
+    if (legacy) await pushOne(env.DB, cfg, legacyPush(legacy));
   } catch (err) {
     console.error('[cert-access] sync failed', String(err));
   }

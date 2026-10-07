@@ -45,6 +45,7 @@ export const EMAIL_TYPE_META: Record<string, { group: string; label: string }> =
   downsell_2: { group: 'Downsell — after the window', label: 'Email 2 — free practice + calendar' },
   deck_gift_claim: { group: 'Songdeck gift', label: 'SVH-BONUS claim — free deck' },
   deck_gift_confirmed: { group: 'Songdeck gift', label: 'Order placed — on its way' },
+  live_pass_confirmed: { group: 'Live pass', label: 'Access confirmed' },
   course_dunning_1: { group: 'Failed installment payments', label: "Reminder 1 — didn't go through" },
   course_dunning_2: { group: 'Failed installment payments', label: 'Reminder 2 — still open' },
   course_dunning_3: { group: 'Failed installment payments', label: 'Reminder 3 — last reminder' },

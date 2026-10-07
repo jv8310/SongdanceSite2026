@@ -12,7 +12,7 @@
 //                  end of the twelve weeks when they chose to wait.
 //   certification  The standalone certification onboarding: day 1, day 2.
 //
-// Table course_email_sequences (migration 0089): one row per (sequence, email).
+// Table course_email_sequences (migration 0090): one row per (sequence, email).
 // Step k falls due at 09:00 in the buyer's own timezone, `dayOffset` days after
 // the day they paid — the "wait N days, send at 9:00" rhythm Drip ran — and the
 // hourly cron sends whatever is due, inside the local 08:00–21:00 window. Each

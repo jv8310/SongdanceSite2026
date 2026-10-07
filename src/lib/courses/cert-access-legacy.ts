@@ -13,10 +13,15 @@
 // `cert_access_legacy` (migration 0088) so /admin/courses/cert-access can list
 // them without a Drip call per page view; it refreshes twice a day from the
 // hourly cron and on the admin page's button.
+//
+// A live pass bought with the certification-window extension (live-pass.ts)
+// moves their end to the pass's last day when that is later — and, for the
+// CEEE cohort, gives them the right to certify until then.
 
 import { listSubscribersByTag } from '../registrations/drip';
 import { dripConfig } from '../orders/drip-order';
-import { CERT_ACCESS_FLOOR, certGroupFor, type CertAccessGroup } from './cert-access';
+import { CERT_ACCESS_FLOOR, certGroupFor, extendEnd, type CertAccessGroup } from './cert-access';
+import { loadCertExtensions } from './live-pass';
 
 export const LEGACY_CERT_TAG = 'prod_SVH_9m';
 export const CEEE_2025_TAG = 'prod_CEEE-25';
@@ -27,8 +32,10 @@ export type LegacyCertAccess = {
   name: string | null;
   hasCertTag: boolean;
   hasCeeeTag: boolean;
-  // CEEE 2025 free access: the course, not the right to certify.
+  // CEEE 2025 free access: the course, not the right to certify — unless they
+  // bought the extension.
   noCertification: boolean;
+  extendedTo: string | null;
   endsOn: string;
   group: CertAccessGroup;
 };
@@ -55,17 +62,41 @@ export async function listLegacyCertAccess(
   } catch {
     return [];
   }
-  return rows
-    .filter((r) => !siteEmails.has(r.email))
-    .map((r) => ({
-      email: r.email,
-      name: r.name,
-      hasCertTag: !!r.has_cert_tag,
-      hasCeeeTag: !!r.has_ceee_tag,
-      noCertification: !!r.has_ceee_tag,
-      endsOn: CERT_ACCESS_FLOOR,
-      group: certGroupFor(CERT_ACCESS_FLOOR),
-    }));
+  const extensions = await loadCertExtensions(db);
+  return rows.filter((r) => !siteEmails.has(r.email)).map((r) => toLegacy(r, extensions.get(r.email) ?? null));
+}
+
+// One address on the roster (whatever the site holds for it — the caller asks
+// the site first). Null when they are not on it, or before migration 0088.
+export async function getLegacyCertAccessForEmail(db: D1Database, email: string): Promise<LegacyCertAccess | null> {
+  const key = email.trim().toLowerCase();
+  let row: Row | null = null;
+  try {
+    row = await db
+      .prepare(`SELECT email, name, has_cert_tag, has_ceee_tag FROM cert_access_legacy WHERE email = ?`)
+      .bind(key)
+      .first<Row>();
+  } catch {
+    return null;
+  }
+  if (!row) return null;
+  const extensions = await loadCertExtensions(db, key);
+  return toLegacy(row, extensions.get(key) ?? null);
+}
+
+function toLegacy(r: Row, ext: string | null): LegacyCertAccess {
+  const extendedTo = ext && ext > CERT_ACCESS_FLOOR ? ext : null;
+  const endsOn = extendEnd(CERT_ACCESS_FLOOR, ext);
+  return {
+    email: r.email,
+    name: r.name,
+    hasCertTag: !!r.has_cert_tag,
+    hasCeeeTag: !!r.has_ceee_tag,
+    noCertification: !!r.has_ceee_tag && !ext,
+    extendedTo,
+    endsOn,
+    group: certGroupFor(endsOn),
+  };
 }
 
 export async function legacyRosterRefreshedAt(db: D1Database): Promise<string | null> {

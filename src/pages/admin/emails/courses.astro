@@ -38,7 +38,7 @@ const errMsg = Astro.url.searchParams.get('err');
 const lookup = (Astro.url.searchParams.get('email') ?? '').trim().toLowerCase();
 
 const handover = await loadHandover(env.DB);
-const counts = await sequenceCounts(env.DB); // null → migration 0089 not applied yet
+const counts = await sequenceCounts(env.DB); // null → migration 0090 not applied yet
 
 // Which switches put people on each sequence.
 const SEQ_UNITS: Record<SequenceKey, Array<'asj' | 'twelve-week' | 'path' | 'certification'>> = {
@@ -139,7 +139,7 @@ function since(v: string | undefined): string {
       <h2>Sequences</h2>
       {!counts && (
         <p class="adm-sub">
-          The sequences table arrives with migration <code>0089</code>, applied when this is merged to
+          The sequences table arrives with migration <code>0090</code>, applied when this is merged to
           main. Until then nothing is enrolled or sent (the previews below still work).
         </p>
       )}
