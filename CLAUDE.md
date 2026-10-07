@@ -1208,6 +1208,32 @@ prints the collected-revenue profit beside it whenever the two differ. A profit
 figure that silently nets nothing but TOF, or that quietly means something other
 than the revenue bar directly above it, is the bug this shape avoids.
 
+**The same two figures are charted per session** (October 2026): the top of
+`/admin/workshops/performance` plots profit and ROAS per session
+([`SessionProfitRoasChart.astro`](src/components/admin/SessionProfitRoasChart.astro))
+— a **bar** per dated session with activity in the window, coloured by product
+(workshop blue, masterclass ember), built from the cards' own row values so the
+chart and the cards can't disagree. **Two panels on one shared axis, never one
+plot with two y-scales** — euros and a ratio share nothing, and a second axis
+lets either series be stretched to say anything. The axis is the **sessions,
+evenly spaced, not the calendar** (dates under the bars): on a time axis a quiet
+month stretched the chart into long empty runs. A dashed **trend line** per
+product is a least-squares fit over that product's held sessions in order, so
+its slope — printed above each panel — reads "per session of this product".
+Toggles above the chart (also the legend) switch Workshop / Masterclass / Trend,
+remembered per browser. A session that hasn't run yet (`isUpcoming`, the
+site-wide rule) is a **pale** bar and is left out of the trend: its cost is
+spent and its course income can't have landed. Replays have no date and stay on
+the cards.
+
+**The summary card comes in three** (October 2026): **All sessions**, then
+**Workshops** and **Masterclasses** on their own, same card shape, one money
+scale across the three. Every bar, count and profit is a sum over the scope's
+rows, so the two products add up to All; the big ROAS is the report's own
+(each buyer counted once ÷ TOF spend) — `report.workshopRoas` for All, the
+audience `roas` for a product, the same figure its ad-economics card on
+`/admin/stats` prints. A product with no activity in the window gets no card.
+
 **Every course figure converts and nets the same way, on every page.** The
 attribution above only reads true if the money underneath it does, and two
 pages were computing without a money context: `/admin/workshops/performance`

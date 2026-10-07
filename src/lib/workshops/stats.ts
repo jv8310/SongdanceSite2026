@@ -931,6 +931,10 @@ export type WorkshopPerformanceRow = {
   // decides whose ad money may be charged to it (a masterclass campaign only
   // ever pays for masterclass seats).
   isMasterclass: boolean;
+  // Hasn't run yet (its end, or its start when it has none, is still ahead;
+  // never a replay) — the site-wide rule. Its ad cost is spent and the course
+  // income it buys cannot have landed, so its profit and ROAS are "so far".
+  isUpcoming: boolean;
   status: string;
   registrations: number; // paid or coupon
   attendedLive: number;
@@ -1751,6 +1755,7 @@ export async function computeWorkshopPerformance(
       startsAtUtc: w.starts_at_utc,
       isReplay: w.is_replay === 1,
       isMasterclass: w.is_masterclass === 1,
+      isUpcoming: futureIds.has(w.id),
       status: w.status,
       registrations: a.regs,
       attendedLive: a.live,

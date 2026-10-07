@@ -8,6 +8,7 @@ import { computeShareReport } from '../../../lib/workshops/share-report';
 import { computeMcPageReport } from '../../../lib/workshops/mc-page-report';
 import { PAGE_CHANGES } from '../../../lib/workshops/experiments';
 import { SHARE_CHANNEL_LABELS } from '../../../lib/workshops/share';
+import SessionProfitRoasChart, { type SessionPoint } from '../../../components/admin/SessionProfitRoasChart.astro';
 
 export const prerender = false;
 
@@ -78,29 +79,93 @@ const dateLabel = (iso: string) =>
   }).format(new Date(iso));
 const shortTitle = (t: string) => t.replace(/Somatic Vocal Healing/gi, 'SVH');
 
-// Totals. Attendance/conversion recomputed from the sums rather than averaging
-// the per-row percentages.
-const sum = (f: (r: WorkshopPerformanceRow) => number) => rows.reduce((s, r) => s + f(r), 0);
-const totRegs = sum((r) => r.registrations);
-const totLive = sum((r) => r.attendedLive);
-const totReplay = sum((r) => r.replayViews);
-const totNoShow = sum((r) => r.noShows);
-const totBumps = sum((r) => r.bumpBuys);
-const totCourse = sum((r) => r.courseBuys);
-const totCert = sum((r) => r.certBuys);
-const totRev = sum((r) => r.totalEurMinor);
-// The part of that already charged. Course plans bill monthly, so a window
-// with a fresh 6x path shows a large gap between the two — the sale is real,
-// the cash arrives over the next months.
-const totRevCollected = sum((r) => r.totalCollectedEurMinor);
-const totMeta = sum((r) => r.metaCostEurMinor ?? 0);
-const totTof = sum((r) => r.acquisitionCostEurMinor ?? 0);
-const totRoas = totMeta > 0 ? totRev / totMeta : null;
-// Both halves of the revenue bar, minus the same ad spend: what these sessions
-// are worth, and what has actually been banked against the money already paid out.
-const totProfit = totRev - totMeta;
-const totProfitCollected = totRevCollected - totMeta;
-const totAttended = totLive + totReplay;
+// The summary cards: everything, then each product on its own. Every figure
+// is a sum over the scope's rows — so Workshops + Masterclasses add up to All
+// sessions — with attendance and conversion recomputed from those sums rather
+// than averaged from per-row percentages. The big ROAS is the report's own:
+// income from the scope's registrants with each buyer counted once, ÷ the TOF
+// spend charged to it (for a product, the figure its ad-economics card on
+// /admin/stats prints).
+type Summary = {
+  key: 'all' | 'workshop' | 'masterclass';
+  name: string;
+  scope: string;
+  roas: number | null;
+  perReg: { label: string; eurMinor: number | null }[];
+  active: number;
+  regs: number;
+  live: number;
+  replay: number;
+  noShow: number;
+  attended: number;
+  bumps: number;
+  course: number;
+  cert: number;
+  rev: number;
+  // The part of the revenue already charged. Course plans bill monthly, so a
+  // window with a fresh 6x path shows a large gap between the two — the sale
+  // is real, the cash arrives over the next months.
+  revCollected: number;
+  meta: number;
+  tof: number;
+  blendedRoas: number | null;
+  // Both halves of the revenue bar, minus the same ad spend: what these
+  // sessions are worth, and what has actually been banked against the money
+  // already paid out.
+  profit: number;
+  profitCollected: number;
+};
+const summarize = (
+  key: Summary['key'],
+  name: string,
+  scope: string,
+  rs: WorkshopPerformanceRow[],
+  roas: number | null,
+  perReg: Summary['perReg'],
+): Summary => {
+  const sum = (f: (r: WorkshopPerformanceRow) => number) => rs.reduce((s, r) => s + f(r), 0);
+  const live = sum((r) => r.attendedLive);
+  const replay = sum((r) => r.replayViews);
+  const rev = sum((r) => r.totalEurMinor);
+  const revCollected = sum((r) => r.totalCollectedEurMinor);
+  const meta = sum((r) => r.metaCostEurMinor ?? 0);
+  return {
+    key, name, scope, roas, perReg,
+    active: rs.filter((r) => r.registrations > 0 || r.totalEurMinor > 0).length,
+    regs: sum((r) => r.registrations),
+    live,
+    replay,
+    noShow: sum((r) => r.noShows),
+    attended: live + replay,
+    bumps: sum((r) => r.bumpBuys),
+    course: sum((r) => r.courseBuys),
+    cert: sum((r) => r.certBuys),
+    rev,
+    revCollected,
+    meta,
+    tof: sum((r) => r.acquisitionCostEurMinor ?? 0),
+    blendedRoas: meta > 0 ? rev / meta : null,
+    profit: rev - meta,
+    profitCollected: revCollected - meta,
+  };
+};
+const { workshop: wsAud, masterclass: mcAud } = report.audiences;
+const summaries: Summary[] = [
+  summarize('all', 'All sessions', 'workshops + masterclasses', rows, report.workshopRoas, [
+    { label: 'workshop reg', eurMinor: wsAud.costPerRegistrationEurMinor },
+    { label: 'masterclass reg', eurMinor: mcAud.costPerRegistrationEurMinor },
+  ]),
+  summarize('workshop', 'Workshops', 'workshop sessions only', rows.filter((r) => !r.isMasterclass), wsAud.roas, [
+    { label: 'workshop reg', eurMinor: wsAud.costPerRegistrationEurMinor },
+  ]),
+  summarize('masterclass', 'Masterclasses', 'masterclass sessions only', rows.filter((r) => r.isMasterclass), mcAud.roas, [
+    { label: 'masterclass reg', eurMinor: mcAud.costPerRegistrationEurMinor },
+  ]),
+// A product with nothing in the window gets no card of zeros.
+].filter((sm) => sm.key === 'all' || sm.active > 0);
+// The three cards share one money scale, so a product's bars read as its share
+// of the whole.
+const summaryMax = Math.max(1, ...summaries.map((sm) => Math.max(sm.rev, sm.meta)));
 
 // Money bars share one scale across every card, so bar lengths are comparable
 // workshop to workshop rather than each card telling its own story.
@@ -126,6 +191,29 @@ const segments = (r: Attendance): Seg[] => {
 // Nothing recorded at all — an upcoming session. Showing the bar and a row of
 // zeros there reads as "nobody came"; it hasn't happened yet.
 const anyAttendance = (r: Attendance) => r.attendedLive + r.replayViews + r.noShows > 0;
+
+// The chart over the cards: one point per dated session that did something in
+// this window, carrying the very figures its card prints (profit = revenue −
+// Meta cost, ROAS = revenue ÷ TOF cost). An on-demand replay has no date to sit
+// on, so it stays on the cards only.
+const startMs = (s: string) => Date.parse(s.includes('T') ? s : s.replace(' ', 'T') + 'Z');
+const chartPoints: SessionPoint[] = activeRows
+  .filter((r) => !r.isReplay && Number.isFinite(startMs(r.startsAtUtc)))
+  .map((r) => ({
+    id: r.workshopId,
+    title: shortTitle(r.title),
+    dateLabel: dateLabel(r.startsAtUtc),
+    t: startMs(r.startsAtUtc),
+    kind: r.isMasterclass ? 'masterclass' as const : 'workshop' as const,
+    upcoming: r.isUpcoming,
+    profitEurMinor: profitOf(r.totalEurMinor, r.metaCostEurMinor),
+    roas: r.workshopRoas,
+    revenueEurMinor: r.totalEurMinor,
+    metaCostEurMinor: r.metaCostEurMinor,
+    tofCostEurMinor: r.acquisitionCostEurMinor,
+    registrations: r.registrations,
+  }))
+  .sort((a, b) => a.t - b.t);
 
 const presetRangesJson = JSON.stringify(presetRangesMap()).replace(/</g, '\\u003c');
 const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
@@ -185,72 +273,84 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
     </section>
 
     <section class="adm-section">
-      {/* ── Summary band: the same card shape, totalled ── */}
-      <article class="pf-card pf-card--total">
-        <div class="pf-id">
-          <div class="pf-name">All workshops</div>
-          <div class="pf-when">{rangeLabel} · {activeRows.length} with activity</div>
-        </div>
+      <h2 style="margin:0 0 6px;font-size:18px;">Profit and ROAS per session</h2>
+      <p class="adm-sub" style="margin-top:0;">
+        One bar per workshop and masterclass with activity in this window, in date order — the same profit and ROAS its card below prints — with a dashed trend line per product through the sessions that have run. Two panels on one session axis rather than two scales on one plot. Switch Workshop, Masterclass and Trend on or off above the chart; hover (or tap) a bar for its figures, click it to open that session.
+      </p>
+      <SessionProfitRoasChart points={chartPoints} />
+    </section>
 
-        <div class="pf-roas">
-          <b class={roasTone(report.workshopRoas)}>{roasStr(report.workshopRoas)}</b>
-          <span>ROAS<br />income ÷ TOF spend</span>
-        </div>
+    <section class="adm-section">
+      {/* ── Summary band: the same card shape, totalled — all sessions, then
+            each product on its own ── */}
+      <div class="pf-summaries">
+        {summaries.map((sm) => (
+          <article class={`pf-card pf-card--total pf-card--${sm.key}`}>
+            <div class="pf-id">
+              <div class="pf-name">{sm.key !== 'all' && <i class={`pf-sw pf-sw--${sm.key}`} aria-hidden="true"></i>}{sm.name}</div>
+              <div class="pf-when">{sm.scope} · {rangeLabel} · {sm.active} with activity</div>
+            </div>
 
-        <div class="pf-money">
-          <div class="pf-bar" title={`${eur(totRevCollected)} of this has been charged so far; the rest is installments still to bill`}>
-            <span class="pf-bar-key">Revenue</span>
-            <span class="pf-track">
-              <span class="pf-fill pf-fill--rev" style={`width:${barPct(totRev, Math.max(totRev, totMeta, 1))}%`}>
-                <span class="pf-fill-paid" style={`width:${totRev > 0 ? (totRevCollected / totRev) * 100 : 100}%`}></span>
-              </span>
-            </span>
-            <span class="pf-bar-amt">{eur0(totRev)}</span>
-          </div>
-          <div class="pf-bar">
-            <span class="pf-bar-key">TOF cost</span>
-            <span class="pf-track"><span class="pf-fill pf-fill--cost" style={`width:${barPct(totTof, Math.max(totRev, totMeta, 1))}%`}></span></span>
-            <span class="pf-bar-amt">{eur0(totTof)}</span>
-          </div>
-          <div class="pf-bar pf-bar--profit" title={`Revenue ${eur(totRev)} − Meta cost ${eur(totMeta)} (all ad spend charged to these sessions, prospecting + retargeting). Ad spend only — nothing else is netted off.`}>
-            <span class="pf-bar-key">Profit</span>
-            <span class="pf-profit-sub">
-              {totMeta > 0 ? <>revenue − Meta cost</> : <>no ad cost charged here</>}
-              {totRevCollected < totRev && <> · {eurSigned0(totProfitCollected)} on money charged so far</>}
-            </span>
-            <span class={`pf-bar-amt ${profitTone(totProfit)}`}>{eurSigned0(totProfit)}</span>
-          </div>
-          <p class="pf-money-note">
-            {report.audiences.workshop.costPerRegistrationEurMinor != null && <>{eur(Math.round(report.audiences.workshop.costPerRegistrationEurMinor))} / workshop reg · </>}
-            {report.audiences.masterclass.costPerRegistrationEurMinor != null && <>{eur(Math.round(report.audiences.masterclass.costPerRegistrationEurMinor))} / masterclass reg · </>}
-            {eur0(totMeta)} total Meta cost
-            {totRevCollected < totRev && <> · {eur0(totRevCollected)} of the revenue charged so far</>}
-          </p>
-        </div>
+            <div class="pf-roas" title="Income from these sessions' registrants, each buyer counted once, ÷ the prospecting (TOF) spend charged to them">
+              <b class={roasTone(sm.roas)}>{roasStr(sm.roas)}</b>
+              <span>ROAS<br />income ÷ TOF spend</span>
+            </div>
 
-        <div class="pf-funnel">
-          <div class="pf-funnel-top"><b>{totRegs}</b> registrations · <b>{pct(totRegs > 0 ? (totAttended / totRegs) * 100 : null)}</b> attended</div>
-          <div class="pf-seg">
-            {segments({ registrations: totRegs, attendedLive: totLive, replayViews: totReplay, noShows: totNoShow }).map((s) => (
-              <span class={`pf-seg-part pf-seg-part--${s.key}`} style={`width:${(s.n / Math.max(1, totRegs)) * 100}%`} title={`${s.n} ${s.label}`}></span>
-            ))}
-          </div>
-          <div class="pf-legend">
-            <span><i class="pf-dot pf-dot--live"></i>{totLive} live</span>
-            <span><i class="pf-dot pf-dot--replay"></i>{totReplay} replay</span>
-            <span><i class="pf-dot pf-dot--noshow"></i>{totNoShow} no-show</span>
-          </div>
-        </div>
+            <div class="pf-money">
+              <div class="pf-bar" title={`${eur(sm.revCollected)} of this has been charged so far; the rest is installments still to bill`}>
+                <span class="pf-bar-key">Revenue</span>
+                <span class="pf-track">
+                  <span class="pf-fill pf-fill--rev" style={`width:${barPct(sm.rev, summaryMax)}%`}>
+                    <span class="pf-fill-paid" style={`width:${sm.rev > 0 ? (sm.revCollected / sm.rev) * 100 : 100}%`}></span>
+                  </span>
+                </span>
+                <span class="pf-bar-amt">{eur0(sm.rev)}</span>
+              </div>
+              <div class="pf-bar">
+                <span class="pf-bar-key">TOF cost</span>
+                <span class="pf-track"><span class="pf-fill pf-fill--cost" style={`width:${barPct(sm.tof, summaryMax)}%`}></span></span>
+                <span class="pf-bar-amt">{eur0(sm.tof)}</span>
+              </div>
+              <div class="pf-bar pf-bar--profit" title={`Revenue ${eur(sm.rev)} − Meta cost ${eur(sm.meta)} (all ad spend charged to these sessions, prospecting + retargeting). Ad spend only — nothing else is netted off.`}>
+                <span class="pf-bar-key">Profit</span>
+                <span class="pf-profit-sub">
+                  {sm.meta > 0 ? <>revenue − Meta cost</> : <>no ad cost charged here</>}
+                  {sm.revCollected < sm.rev && <> · {eurSigned0(sm.profitCollected)} on money charged so far</>}
+                </span>
+                <span class={`pf-bar-amt ${profitTone(sm.profit)}`}>{eurSigned0(sm.profit)}</span>
+              </div>
+              <p class="pf-money-note">
+                {sm.perReg.map((c) => c.eurMinor != null && <>{eur(Math.round(c.eurMinor))} / {c.label} · </>)}
+                {eur0(sm.meta)} total Meta cost
+                {sm.revCollected < sm.rev && <> · {eur0(sm.revCollected)} of the revenue charged so far</>}
+              </p>
+            </div>
 
-        <div class="pf-chips">
-          <span class="pf-chip"><b>{totBumps}</b> bumps</span>
-          <span class="pf-chip"><b>{totCourse}</b> course</span>
-          <span class="pf-chip"><b>{totCert}</b> cert path</span>
-          <span class="pf-chip"><b>{pct(totRegs > 0 ? ((totCourse + totCert) / totRegs) * 100 : null)}</b> conv</span>
-          <span class="pf-chip"><b>{pct(totAttended > 0 ? ((totCourse + totCert) / totAttended) * 100 : null)}</b> conv / attendee</span>
-          <span class="pf-chip"><b>{roasStr(totRoas)}</b> blended ROAS</span>
-        </div>
-      </article>
+            <div class="pf-funnel">
+              <div class="pf-funnel-top"><b>{sm.regs}</b> registrations · <b>{pct(sm.regs > 0 ? (sm.attended / sm.regs) * 100 : null)}</b> attended</div>
+              <div class="pf-seg">
+                {segments({ registrations: sm.regs, attendedLive: sm.live, replayViews: sm.replay, noShows: sm.noShow }).map((s) => (
+                  <span class={`pf-seg-part pf-seg-part--${s.key}`} style={`width:${(s.n / Math.max(1, sm.regs)) * 100}%`} title={`${s.n} ${s.label}`}></span>
+                ))}
+              </div>
+              <div class="pf-legend">
+                <span><i class="pf-dot pf-dot--live"></i>{sm.live} live</span>
+                <span><i class="pf-dot pf-dot--replay"></i>{sm.replay} replay</span>
+                <span><i class="pf-dot pf-dot--noshow"></i>{sm.noShow} no-show</span>
+              </div>
+            </div>
+
+            <div class="pf-chips">
+              <span class="pf-chip"><b>{sm.bumps}</b> bumps</span>
+              <span class="pf-chip"><b>{sm.course}</b> course</span>
+              <span class="pf-chip"><b>{sm.cert}</b> cert path</span>
+              <span class="pf-chip"><b>{pct(sm.regs > 0 ? ((sm.course + sm.cert) / sm.regs) * 100 : null)}</b> conv</span>
+              <span class="pf-chip"><b>{pct(sm.attended > 0 ? ((sm.course + sm.cert) / sm.attended) * 100 : null)}</b> conv / attendee</span>
+              <span class="pf-chip"><b>{roasStr(sm.blendedRoas)}</b> blended ROAS</span>
+            </div>
+          </article>
+        ))}
+      </div>
 
       {activeRows.length === 0 && <p class="adm-empty">No workshop activity in this window.</p>}
 
@@ -707,6 +807,19 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
       margin-bottom: 16px;
     }
     .pf-card--total:hover { border-color: rgba(201, 96, 58, 0.45); }
+    /* The consolidated card, then one per product: the product cards keep the
+       same shape and carry their product's chart colour down the left edge
+       and as a swatch by the name, so they map straight onto the chart above. */
+    .pf-summaries { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+    .pf-summaries .pf-card--total { margin-bottom: 0; }
+    .pf-card--workshop, .pf-card--masterclass { background: var(--adm-paper-soft); border-color: var(--adm-line); }
+    .pf-card--workshop { box-shadow: inset 4px 0 0 #2a78d6; }
+    .pf-card--masterclass { box-shadow: inset 4px 0 0 #c9603a; }
+    .pf-card--workshop:hover { border-color: #d5cab1; box-shadow: inset 4px 0 0 #2a78d6, 0 2px 10px rgba(43, 37, 25, 0.05); }
+    .pf-card--masterclass:hover { border-color: #d5cab1; box-shadow: inset 4px 0 0 #c9603a, 0 2px 10px rgba(43, 37, 25, 0.05); }
+    .pf-sw { display: inline-block; width: 10px; height: 10px; border-radius: 2.5px; margin-right: 7px; vertical-align: 0; }
+    .pf-sw--workshop { background: #2a78d6; }
+    .pf-sw--masterclass { background: #c9603a; }
 
     /* Identity */
     .pf-name {
