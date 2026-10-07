@@ -1,9 +1,14 @@
 ---
-// Profit and ROAS per session, over time — one dot per workshop/masterclass
-// that did something in the window, at its date, a line per product joining
-// the sessions that have run. Two panels on one shared date axis rather than
-// one plot with two y-scales: euros and a ratio have nothing in common, and a
-// second axis lets either line be stretched to say anything.
+// Profit and ROAS per session — one bar per workshop/masterclass that did
+// something in the window, in date order, coloured by product, with a trend
+// line per product. Two panels on one shared session axis rather than one plot
+// with two y-scales: euros and a ratio have nothing in common, and a second
+// axis lets either series be stretched to say anything.
+//
+// The axis is the sessions themselves, evenly spaced, not the calendar: on a
+// time axis a quiet month stretches the chart into long empty runs and a busy
+// week crushes its sessions together, and the question here is "how did each
+// session do", not "when". The date sits under each bar instead.
 //
 // The figures are exactly the cards' below (profit = revenue − Meta cost,
 // ROAS = revenue ÷ TOF cost), so the chart and the cards can never disagree.
@@ -47,37 +52,47 @@ const eur0 = (minor: number) => '€' + Math.round(minor / 100).toLocaleString('
     <p class="adm-empty">No dated sessions with activity in this window.</p>
   ) : (
     <>
-      <div class="spr-legend">
+      {/* The toggles are the legend: each carries its series' swatch, so
+          identity never rests on colour-matching alone. */}
+      <div class="spr-toggles" role="group" aria-label="Show on the chart">
         {hasWorkshop && (
-          <span class="spr-key">
-            <svg width="26" height="12" aria-hidden="true"><line x1="1" y1="6" x2="25" y2="6" class="spr-k-line spr-k-line--workshop" /><circle cx="13" cy="6" r="4.5" class="spr-k-mark spr-k-mark--workshop" /></svg>
-            Workshop
-          </span>
+          <button type="button" class="spr-toggle" data-spr-toggle="workshop" aria-pressed="true">
+            <span class="spr-sw spr-sw--workshop" aria-hidden="true"></span>Workshop
+          </button>
         )}
         {hasMasterclass && (
-          <span class="spr-key">
-            <svg width="26" height="12" aria-hidden="true"><line x1="1" y1="6" x2="25" y2="6" class="spr-k-line spr-k-line--masterclass" /><rect x="8.5" y="1.5" width="9" height="9" rx="1.5" class="spr-k-mark spr-k-mark--masterclass" /></svg>
-            Masterclass
-          </span>
+          <button type="button" class="spr-toggle" data-spr-toggle="masterclass" aria-pressed="true">
+            <span class="spr-sw spr-sw--masterclass" aria-hidden="true"></span>Masterclass
+          </button>
         )}
+        <button type="button" class="spr-toggle" data-spr-toggle="trend" aria-pressed="true">
+          <svg width="22" height="10" aria-hidden="true"><line x1="1" y1="5" x2="21" y2="5" class="spr-sw-trend" /></svg>Trend
+        </button>
         {hasUpcoming && (
-          <span class="spr-key spr-key--muted">
-            <svg width="12" height="12" aria-hidden="true"><circle cx="6" cy="6" r="4" class="spr-k-hollow" /></svg>
-            Hollow = not held yet: its ad cost is spent, its course income can’t have landed
+          <span class="spr-key-note">
+            <span class="spr-sw spr-sw--pale" aria-hidden="true"></span>
+            pale = not held yet: its ad cost is spent, its course income can’t have landed (left out of the trend)
           </span>
         )}
       </div>
 
       <div class="spr-panel">
         <div class="spr-head"><b>Profit per session</b> <span>revenue − Meta cost (all ad spend charged to it)</span></div>
+        <div class="spr-trend-note" data-spr-trend="profit"></div>
         <div class="spr-plot" data-spr-plot="profit"></div>
       </div>
       <div class="spr-panel">
         <div class="spr-head"><b>ROAS per session</b> <span>revenue ÷ TOF cost · the line at 1× is where income equals the prospecting spend</span></div>
-        {hasRoas
-          ? <div class="spr-plot" data-spr-plot="roas"></div>
-          : <p class="spr-none">No prospecting spend charged to any session in this window — no ROAS to plot.</p>}
+        {hasRoas ? (
+          <>
+            <div class="spr-trend-note" data-spr-trend="roas"></div>
+            <div class="spr-plot" data-spr-plot="roas"></div>
+          </>
+        ) : (
+          <p class="spr-none">No prospecting spend charged to any session in this window — no ROAS to plot.</p>
+        )}
       </div>
+      <p class="spr-none" data-spr-empty hidden>Turn on Workshop or Masterclass to see the sessions.</p>
       <div class="spr-tip" data-spr-tip hidden></div>
 
       <details class="spr-table">
@@ -114,12 +129,14 @@ const eur0 = (minor: number) => '€' + Math.round(minor / 100).toLocaleString('
   /* Series colours: workshop takes the reference categorical blue, masterclass
      the admin's ember (the colour its "masterclass" pill already wears on the
      cards). Validated as a pair on this surface — CVD ΔE 23, normal-vision 29,
-     both ≥ 3:1 — and the marker shape (circle / square) carries the same
-     identity for anyone the colour doesn't reach. */
+     both ≥ 3:1. The trend lines are the same hues two steps darker, dashed,
+     on a surface-coloured halo, so they read where they cross their own bars. */
   .spr {
     --spr-surface: var(--adm-paper-soft);
     --spr-workshop: #2a78d6;
     --spr-masterclass: #c9603a;
+    --spr-workshop-trend: #184f95;
+    --spr-masterclass-trend: #8a3519;
     --spr-grid: var(--adm-line);
     --spr-base: #c3b89d;
     position: relative;
@@ -128,21 +145,38 @@ const eur0 = (minor: number) => '€' + Math.round(minor / 100).toLocaleString('
     border-radius: 12px;
     padding: 14px 16px 12px;
   }
-  .spr-legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12px; color: var(--adm-ink); margin-bottom: 6px; }
-  .spr-key { display: inline-flex; align-items: center; gap: 7px; }
-  .spr-key svg { flex: none; }
-  .spr-key--muted { color: var(--adm-mute); font-size: 11px; }
-  .spr-k-line { stroke-width: 2; stroke-linecap: round; }
-  .spr-k-line--workshop { stroke: var(--spr-workshop); }
-  .spr-k-line--masterclass { stroke: var(--spr-masterclass); }
-  .spr-k-mark { stroke: var(--spr-surface); stroke-width: 4; paint-order: stroke; }
-  .spr-k-mark--workshop { fill: var(--spr-workshop); }
-  .spr-k-mark--masterclass { fill: var(--spr-masterclass); }
-  .spr-k-hollow { fill: var(--spr-surface); stroke: var(--adm-ink-soft); stroke-width: 2; }
 
-  .spr-panel { margin-top: 10px; }
+  .spr-toggles { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 8px; margin-bottom: 4px; }
+  .spr-toggle {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 5px 11px 5px 9px; border-radius: 999px;
+    border: 1px solid var(--adm-line); background: #fffdf8;
+    font: inherit; font-size: 12px; color: var(--adm-ink); cursor: pointer;
+    transition: opacity 0.12s ease, border-color 0.12s ease;
+  }
+  .spr-toggle:hover { border-color: #d5cab1; }
+  .spr-toggle:focus-visible { outline: 2px solid var(--adm-ember); outline-offset: 2px; }
+  .spr-toggle svg { flex: none; }
+  /* Off: the swatch goes grey and the label quiet, never gone — the button
+     has to stay findable to be turned back on. */
+  .spr-toggle[aria-pressed='false'] { background: transparent; color: var(--adm-mute); }
+  .spr-toggle[aria-pressed='false'] .spr-sw { background: #d8cfba; }
+  .spr-toggle[aria-pressed='false'] .spr-sw-trend { stroke: #c9bfa8; }
+  .spr-sw { flex: none; display: inline-block; width: 10px; height: 10px; border-radius: 2.5px; }
+  .spr-sw--workshop { background: var(--spr-workshop); }
+  .spr-sw--masterclass { background: var(--spr-masterclass); }
+  .spr-sw--pale { background: linear-gradient(90deg, rgba(42, 120, 214, 0.32) 50%, rgba(201, 96, 58, 0.32) 50%); }
+  .spr-sw-trend { stroke: var(--adm-ink-soft); stroke-width: 2; stroke-dasharray: 5 3; stroke-linecap: round; }
+  .spr-key-note { display: inline-flex; align-items: center; gap: 7px; margin-left: 4px; font-size: 11px; color: var(--adm-mute); }
+
+  .spr-panel { margin-top: 12px; }
+  .spr-panel[hidden] { display: none; }
   .spr-head { font-size: 12px; color: var(--adm-ink); }
   .spr-head span { color: var(--adm-mute); font-size: 11px; margin-left: 4px; }
+  .spr-trend-note { min-height: 15px; margin-top: 2px; font-size: 11px; color: var(--adm-ink-soft); font-variant-numeric: tabular-nums; }
+  .spr-trend-note :global(.spr-tn) { display: inline-flex; align-items: center; gap: 5px; margin-right: 14px; }
+  .spr-trend-note :global(.spr-tn i) { display: inline-block; width: 12px; border-top: 2px dashed; }
+  .spr-trend-note :global(.spr-tn b) { color: var(--adm-ink); font-weight: 600; }
   .spr-plot { position: relative; width: 100%; }
   .spr-plot :global(svg) { display: block; overflow: visible; touch-action: pan-y; }
   .spr-plot :global(svg:focus) { outline: none; }
@@ -152,22 +186,17 @@ const eur0 = (minor: number) => '€' + Math.round(minor / 100).toLocaleString('
   .spr :global(.spr-grid) { stroke: var(--spr-grid); stroke-width: 1; shape-rendering: crispEdges; }
   .spr :global(.spr-base) { stroke: var(--spr-base); stroke-width: 1; shape-rendering: crispEdges; }
   .spr :global(.spr-tick) { fill: var(--adm-mute); font-size: 11px; font-variant-numeric: tabular-nums; }
-  .spr :global(.spr-line) { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
-  .spr :global(.spr-line--workshop) { stroke: var(--spr-workshop); }
-  .spr :global(.spr-line--masterclass) { stroke: var(--spr-masterclass); }
-  /* The 2px surface ring keeps a marker legible where it sits on a line or
-     another marker: a 4px stroke painted *under* the fill shows 2px outside. */
-  .spr :global(.spr-mark) { stroke: var(--spr-surface); stroke-width: 4; paint-order: stroke; }
-  .spr :global(.spr-mark--workshop) { fill: var(--spr-workshop); }
-  .spr :global(.spr-mark--masterclass) { fill: var(--spr-masterclass); }
-  .spr :global(.spr-mark--upcoming) { fill: var(--spr-surface); stroke-width: 2; paint-order: normal; }
-  .spr :global(.spr-mark--upcoming.spr-mark--workshop) { stroke: var(--spr-workshop); }
-  .spr :global(.spr-mark--upcoming.spr-mark--masterclass) { stroke: var(--spr-masterclass); }
-  .spr :global(.spr-cross) { stroke: var(--adm-ink-soft); stroke-width: 1; opacity: 0.55; shape-rendering: crispEdges; }
-  .spr :global(.spr-mark.is-on) { transform-box: fill-box; transform-origin: center; transform: scale(1.4); }
+  .spr :global(.spr-band) { fill: rgba(43, 37, 25, 0.06); }
+  .spr :global(.spr-bar--workshop) { fill: var(--spr-workshop); }
+  .spr :global(.spr-bar--masterclass) { fill: var(--spr-masterclass); }
+  .spr :global(.spr-bar--upcoming) { fill-opacity: 0.32; }
+  .spr :global(.spr-trend-halo) { fill: none; stroke: var(--spr-surface); stroke-width: 5; stroke-linecap: round; opacity: 0.9; }
+  .spr :global(.spr-trend) { fill: none; stroke-width: 2; stroke-dasharray: 7 4; stroke-linecap: round; }
+  .spr :global(.spr-trend--workshop) { stroke: var(--spr-workshop-trend); }
+  .spr :global(.spr-trend--masterclass) { stroke: var(--spr-masterclass-trend); }
 
-  /* One tooltip for both panels: the session(s) under the crosshair, values
-     first. Every string goes in through textContent. */
+  /* One tooltip for both panels: the session under the pointer, values first.
+     Every string goes in through textContent. */
   .spr-tip {
     position: absolute; z-index: 10; pointer-events: none;
     min-width: 200px; max-width: 280px;
@@ -175,13 +204,12 @@ const eur0 = (minor: number) => '€' + Math.round(minor / 100).toLocaleString('
     box-shadow: 0 6px 22px rgba(43, 37, 25, 0.14);
     padding: 9px 11px; font-size: 11.5px; color: var(--adm-ink-soft); line-height: 1.4;
   }
-  .spr-tip :global(.spr-tip-ev + .spr-tip-ev) { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--adm-line); }
   .spr-tip :global(.spr-tip-name) { display: flex; align-items: center; gap: 6px; color: var(--adm-ink); font-weight: 600; }
-  .spr-tip :global(.spr-tip-key) { flex: none; width: 12px; height: 2px; border-radius: 1px; }
-  .spr-tip :global(.spr-tip-when) { margin: 1px 0 5px 18px; color: var(--adm-mute); font-size: 11px; }
-  .spr-tip :global(.spr-tip-row) { display: flex; justify-content: space-between; gap: 14px; margin-left: 18px; }
+  .spr-tip :global(.spr-tip-key) { flex: none; width: 10px; height: 10px; border-radius: 2.5px; }
+  .spr-tip :global(.spr-tip-when) { margin: 1px 0 5px 16px; color: var(--adm-mute); font-size: 11px; }
+  .spr-tip :global(.spr-tip-row) { display: flex; justify-content: space-between; gap: 14px; margin-left: 16px; }
   .spr-tip :global(.spr-tip-row b) { color: var(--adm-ink); font-size: 13px; font-variant-numeric: tabular-nums; }
-  .spr-tip :global(.spr-tip-note) { margin: 4px 0 0 18px; color: var(--adm-mute); font-size: 10.5px; }
+  .spr-tip :global(.spr-tip-note) { margin: 4px 0 0 16px; color: var(--adm-mute); font-size: 10.5px; }
 
   .spr-table { margin-top: 12px; font-size: 12px; }
   .spr-table summary { cursor: pointer; color: var(--adm-ink-soft); }
@@ -190,12 +218,13 @@ const eur0 = (minor: number) => '€' + Math.round(minor / 100).toLocaleString('
 </style>
 
 <script>
+  type Kind = 'workshop' | 'masterclass';
   type Point = {
     id: number;
     title: string;
     dateLabel: string;
     t: number;
-    kind: 'workshop' | 'masterclass';
+    kind: Kind;
     upcoming: boolean;
     profitEurMinor: number;
     roas: number | null;
@@ -205,12 +234,12 @@ const eur0 = (minor: number) => '€' + Math.round(minor / 100).toLocaleString('
     registrations: number;
   };
   type Metric = 'profit' | 'roas';
+  type Toggle = Kind | 'trend';
 
   const SVG_NS = 'http://www.w3.org/2000/svg';
-  const DAY = 86_400_000;
-  const KINDS = ['workshop', 'masterclass'] as const;
+  const KINDS: Kind[] = ['workshop', 'masterclass'];
   const KIND_LABEL = { workshop: 'Workshop', masterclass: 'Masterclass' } as const;
-  const KIND_COLOR = { workshop: 'var(--spr-workshop)', masterclass: 'var(--spr-masterclass)' } as const;
+  const STORE_KEY = 'sd-perf-chart-toggles';
 
   const el = <K extends keyof SVGElementTagNameMap>(
     tag: K,
@@ -245,210 +274,256 @@ const eur0 = (minor: number) => '€' + Math.round(minor / 100).toLocaleString('
     return out;
   };
 
-  const dayFmt = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
-  const monFmt = new Intl.DateTimeFormat('en-GB', { month: 'short', timeZone: 'Europe/Brussels' });
-  const monYearFmt = new Intl.DateTimeFormat('en-GB', { month: 'short', year: 'numeric', timeZone: 'Europe/Brussels' });
-
-  // Date ticks at a step that leaves each label ~80px: days, weeks (Mondays),
-  // then whole months.
-  const timeTicks = (t0: number, t1: number, maxTicks: number): { t: number; label: string }[] => {
-    const span = t1 - t0;
-    for (const days of [1, 2, 7, 14]) {
-      if (span / (days * DAY) > maxTicks) continue;
-      const first = new Date(t0);
-      first.setUTCHours(0, 0, 0, 0);
-      if (days >= 7) first.setUTCDate(first.getUTCDate() + ((8 - first.getUTCDay()) % 7));
-      const out: { t: number; label: string }[] = [];
-      for (let t = first.getTime(); t <= t1; t += days * DAY) {
-        if (t >= t0) out.push({ t, label: dayFmt.format(t) });
-      }
-      return out;
-    }
-    for (const months of [1, 2, 3, 6, 12]) {
-      if (span / (months * 30.44 * DAY) > maxTicks) continue;
-      const d = new Date(t0);
-      const cur = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1));
-      while (cur.getUTCMonth() % months !== 0) cur.setUTCMonth(cur.getUTCMonth() + 1);
-      const out: { t: number; label: string }[] = [];
-      for (; cur.getTime() <= t1; cur.setUTCMonth(cur.getUTCMonth() + months)) {
-        const t = cur.getTime();
-        out.push({ t, label: out.length === 0 || cur.getUTCMonth() === 0 ? monYearFmt.format(t) : monFmt.format(t) });
-      }
-      return out;
-    }
-    return [];
+  // Least-squares line through a product's held sessions, in the order they
+  // happened: x = the session's place in that product's own run (0, 1, 2…),
+  // so the slope reads "per session of this product" whatever else is shown.
+  const fit = (ys: number[]): { a: number; b: number } | null => {
+    const n = ys.length;
+    if (n < 2) return null;
+    const mx = (n - 1) / 2;
+    const my = ys.reduce((s, y) => s + y, 0) / n;
+    let sxy = 0;
+    let sxx = 0;
+    ys.forEach((y, i) => { sxy += (i - mx) * (y - my); sxx += (i - mx) ** 2; });
+    const b = sxx > 0 ? sxy / sxx : 0;
+    return { a: my - b * mx, b };
   };
+
+  // A bar with a 4px rounded data end and a square foot on the baseline, for
+  // positive and negative values alike.
+  const barPath = (x: number, w: number, y0: number, y1: number): string => {
+    const up = y1 <= y0;
+    const h = Math.abs(y0 - y1);
+    const r = Math.min(4, w / 2, h);
+    if (up) {
+      return `M${x},${y0}V${y1 + r}Q${x},${y1} ${x + r},${y1}H${x + w - r}Q${x + w},${y1} ${x + w},${y1 + r}V${y0}Z`;
+    }
+    return `M${x},${y0}V${y1 - r}Q${x},${y1} ${x + r},${y1}H${x + w - r}Q${x + w},${y1} ${x + w},${y1 - r}V${y0}Z`;
+  };
+
+  let clipSeq = 0;
+  const dayFmt = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' });
+  const yearFmt = new Intl.DateTimeFormat('en-GB', { year: 'numeric', timeZone: 'Europe/Brussels' });
 
   function mount(root: HTMLElement) {
     const dataEl = root.querySelector<HTMLScriptElement>('[data-spr-data]');
-    const tip = root.querySelector<HTMLElement>('[data-spr-tip]');
-    if (!dataEl || !tip) return;
-    const points: Point[] = JSON.parse(dataEl.textContent || '[]');
-    if (points.length === 0) return;
+    const tipEl = root.querySelector<HTMLElement>('[data-spr-tip]');
+    if (!dataEl || !tipEl) return;
+    const tip: HTMLElement = tipEl;
+    const all: Point[] = JSON.parse(dataEl.textContent || '[]');
+    if (all.length === 0) return;
+    all.sort((a, b) => a.t - b.t);
     const plots = Array.from(root.querySelectorAll<HTMLElement>('[data-spr-plot]'));
+    const panels = plots.map((p) => p.closest<HTMLElement>('.spr-panel'));
+    const emptyNote = root.querySelector<HTMLElement>('[data-spr-empty]');
+    const toggles = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-spr-toggle]'));
 
     const valueOf = (p: Point, m: Metric): number | null => (m === 'profit' ? p.profitEurMinor : p.roas);
 
-    // Shared x-domain, padded so the first and last markers clear the edges.
-    const tMin = Math.min(...points.map((p) => p.t));
-    const tMax = Math.max(...points.map((p) => p.t));
-    const tPad = Math.max((tMax - tMin) * 0.04, DAY);
-    const x0 = tMin - tPad;
-    const x1 = tMax + tPad;
-
-    // Each panel's y-ticks. Profit always includes 0 (the break-even line);
-    // ROAS starts at 0 and always reaches past 1×, its break-even.
-    const yTicksFor = (m: Metric, h: number): number[] => {
-      const vals = points.map((p) => valueOf(p, m)).filter((v): v is number => v != null);
-      const count = h < 190 ? 3 : 4;
-      if (m === 'profit') {
-        const lo = Math.min(0, ...vals);
-        const hi = Math.max(0, ...vals);
-        return niceTicks(lo, hi > lo ? hi : lo + 10_000, count);
+    // Which series are on. A per-viewer convenience, so it lives in the
+    // browser — and the chart reads right without it.
+    const on: Record<Toggle, boolean> = { workshop: true, masterclass: true, trend: true };
+    try {
+      const saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
+      if (saved && typeof saved === 'object') {
+        for (const k of Object.keys(on) as Toggle[]) if (typeof saved[k] === 'boolean') on[k] = saved[k];
       }
-      return niceTicks(0, Math.max(1.2, ...vals), count);
+    } catch { /* storage unavailable: defaults */ }
+    const syncToggles = () => {
+      for (const b of toggles) b.setAttribute('aria-pressed', String(on[b.dataset.sprToggle as Toggle]));
     };
-    const tickText = (m: Metric, v: number, ticks: number[]) =>
-      m === 'profit' ? euro(v, Math.max(...ticks.map(Math.abs)) >= 1_000_000) : roasLabel(v);
 
-    let active: number[] = []; // ids under the crosshair
-    let focusIdx = -1;
+    let shown: Point[] = [];
+    let active = -1; // slot under the pointer / keyboard focus
     let tapReady = false;
-    const sorted = points.slice().sort((a, b) => a.t - b.t);
-    const crosshairs: SVGLineElement[] = [];
+    let layout: { padL: number; slotW: number } = { padL: 0, slotW: 1 };
+    const bands: SVGRectElement[] = [];
 
     const draw = () => {
-      crosshairs.length = 0;
+      bands.length = 0;
+      shown = all.filter((p) => on[p.kind]);
+      const nothing = shown.length === 0;
+      if (emptyNote) emptyNote.hidden = !nothing;
+      panels.forEach((pn) => { if (pn) pn.hidden = nothing; });
+      if (nothing) { hide(); return; }
+
       const width = Math.max(280, root.clientWidth - 32);
       const narrow = width < 560;
-      const height = narrow ? 170 : 210;
-      // One left gutter for both panels, wide enough for either's labels, so
-      // the two date axes line up exactly.
-      const tickSets = plots.map((p) => {
-        const m = p.dataset.sprPlot as Metric;
-        return { m, ticks: yTicksFor(m, height) };
-      });
-      const padL = Math.max(
-        34,
-        ...tickSets.flatMap(({ m, ticks }) => ticks.map((v) => tickText(m, v, ticks).length * 6.4 + 10)),
-      );
-      const padR = 12;
-      const plotW = width - padL - padR;
-      const xAt = (t: number) => padL + ((t - x0) / (x1 - x0)) * plotW;
-      const xTicks = timeTicks(x0, x1, Math.max(2, Math.floor(plotW / 84)));
+      const height = narrow ? 180 : 220;
 
-      plots.forEach((plot, i) => {
-        const { m, ticks } = tickSets[i];
-        const last = i === plots.length - 1;
-        const padT = 10;
-        const padB = last ? 26 : 8;
+      // Y-ticks per panel, over what is on screen. Profit always includes 0
+      // (break-even); ROAS starts at 0 and always reaches past 1×.
+      const tickSets = plots.map((plot) => {
+        const m = plot.dataset.sprPlot as Metric;
+        const vals = shown.map((p) => valueOf(p, m)).filter((v): v is number => v != null);
+        const count = narrow ? 3 : 4;
+        let ticks: number[];
+        if (m === 'profit') {
+          const lo = Math.min(0, ...vals);
+          const hi = Math.max(0, ...vals);
+          ticks = niceTicks(lo, hi > lo ? hi : lo + 10_000, count);
+        } else {
+          ticks = niceTicks(0, Math.max(1.2, ...vals), count);
+        }
+        const compact = m === 'profit' && Math.max(...ticks.map(Math.abs)) >= 1_000_000;
+        const text = (v: number) => (m === 'profit' ? euro(v, compact) : roasLabel(v));
+        return { m, ticks, text };
+      });
+      // One left gutter for both panels, so the two session axes line up.
+      const padL = Math.max(34, ...tickSets.flatMap(({ ticks, text }) => ticks.map((v) => text(v).length * 6.4 + 10)));
+      const padR = 8;
+      const plotW = width - padL - padR;
+      const slotW = plotW / shown.length;
+      const barW = Math.max(2, Math.min(24, slotW * 0.72));
+      const xAt = (i: number) => padL + slotW * (i + 0.5);
+      layout = { padL, slotW };
+
+      // Dates under the bars, thinned to what fits; the year rides along
+      // wherever it changes, if the window spans more than one.
+      const every = Math.max(1, Math.ceil(64 / slotW));
+      const multiYear = yearFmt.format(shown[0].t) !== yearFmt.format(shown[shown.length - 1].t);
+
+      // Trend per product over its held sessions, as two end points on the
+      // axis — straight even when the other product's bars sit in between.
+      const trends = (m: Metric) => KINDS.filter((k) => on[k] && on.trend).map((k) => {
+        const held = shown
+          .map((p, i) => ({ p, i, v: valueOf(p, m) }))
+          .filter((d): d is { p: Point; i: number; v: number } => d.p.kind === k && !d.p.upcoming && d.v != null);
+        const f = fit(held.map((d) => d.v));
+        if (!f) return null;
+        return { k, f, first: held[0], last: held[held.length - 1], n: held.length };
+      }).filter((x): x is NonNullable<typeof x> => x != null);
+
+      plots.forEach((plot, pi) => {
+        const { m, ticks, text } = tickSets[pi];
+        const last = pi === plots.length - 1;
+        const padT = 8;
+        const padB = last ? 24 : 6;
         const plotH = height - padT - padB;
         const lo = ticks[0];
         const hi = ticks[ticks.length - 1];
         const yAt = (v: number) => padT + (1 - (v - lo) / (hi - lo)) * plotH;
         const svg = el('svg', {
           width, height, viewBox: `0 0 ${width} ${height}`,
-          role: 'img', tabindex: i === 0 ? 0 : -1,
+          role: 'img', tabindex: pi === 0 ? 0 : -1,
           'aria-label': m === 'profit'
-            ? 'Profit per session over time. Use the arrow keys to step through sessions, Enter to open one.'
-            : 'ROAS per session over time.',
+            ? 'Profit per session. Use the arrow keys to step through sessions, Enter to open one.'
+            : 'ROAS per session.',
         });
 
-        // Recessive horizontal gridlines; the break-even line (0 € / 1×) one
-        // step darker so the eye finds it first.
+        const band = el('rect', { x: 0, y: padT, width: slotW, height: plotH, class: 'spr-band', visibility: 'hidden' }, svg);
+        bands.push(band);
+
+        // Recessive gridlines; the break-even line (€0 / 1×) a step darker.
         for (const v of ticks) {
           el('line', { x1: padL, x2: width - padR, y1: yAt(v), y2: yAt(v), class: 'spr-grid' }, svg);
           const t = el('text', { x: padL - 8, y: yAt(v) + 4, 'text-anchor': 'end', class: 'spr-tick' }, svg);
-          t.textContent = tickText(m, v, ticks);
+          t.textContent = text(v);
         }
         const even = m === 'profit' ? 0 : 1;
+        const y0 = yAt(m === 'profit' ? 0 : lo);
+        if (last) {
+          shown.forEach((p, i) => {
+            if (i % every !== 0) return;
+            const prev = i - every >= 0 ? shown[i - every] : null;
+            const yr = multiYear && (!prev || yearFmt.format(prev.t) !== yearFmt.format(p.t)) ? ` ${yearFmt.format(p.t)}` : '';
+            const t = el('text', { x: xAt(i), y: height - 6, 'text-anchor': 'middle', class: 'spr-tick' }, svg);
+            t.textContent = dayFmt.format(p.t) + yr;
+          });
+        }
+
+        shown.forEach((p, i) => {
+          const v = valueOf(p, m);
+          if (v == null) return;
+          let y1 = yAt(v);
+          // A session that broke exactly even still gets a sliver, so its
+          // slot reads "zero", not "missing".
+          if (Math.abs(y1 - y0) < 1.5) y1 = y0 - 1.5;
+          el('path', {
+            d: barPath(xAt(i) - barW / 2, barW, y0, y1),
+            class: `spr-bar spr-bar--${p.kind}${p.upcoming ? ' spr-bar--upcoming' : ''}`,
+          }, svg);
+        });
+
         if (even >= lo && even <= hi) {
           el('line', { x1: padL, x2: width - padR, y1: yAt(even), y2: yAt(even), class: 'spr-base' }, svg);
           // 1× is rarely a tick of its own; name it unless a tick label sits on it.
           if (!ticks.some((v) => Math.abs(yAt(v) - yAt(even)) < 13)) {
             const t = el('text', { x: padL - 8, y: yAt(even) + 4, 'text-anchor': 'end', class: 'spr-tick' }, svg);
-            t.textContent = tickText(m, even, ticks);
-          }
-        }
-        if (last) {
-          for (const tk of xTicks) {
-            const t = el('text', { x: xAt(tk.t), y: height - 6, 'text-anchor': 'middle', class: 'spr-tick' }, svg);
-            t.textContent = tk.label;
+            t.textContent = text(even);
           }
         }
 
-        const cross = el('line', { x1: 0, x2: 0, y1: padT, y2: padT + plotH, class: 'spr-cross', visibility: 'hidden' }, svg);
-        crosshairs.push(cross);
-
-        // A line per product through the sessions that have run. Upcoming ones
-        // stay off it: their figures are "so far", and joining them would draw
-        // a collapse that is only the calendar.
-        for (const kind of KINDS) {
-          const held = sorted.filter((p) => p.kind === kind && !p.upcoming && valueOf(p, m) != null);
-          if (held.length < 2) continue;
-          el('polyline', {
-            points: held.map((p) => `${xAt(p.t).toFixed(1)},${yAt(valueOf(p, m)!).toFixed(1)}`).join(' '),
-            class: `spr-line spr-line--${kind}`,
-          }, svg);
+        // Trend lines sit over the bars, on a halo so they read where they
+        // cross their own colour — clipped to the plot, since a steep fit can
+        // run past the axis at its far end.
+        const tr = trends(m);
+        const clipId = `spr-clip-${++clipSeq}`;
+        const clip = el('clipPath', { id: clipId }, el('defs', {}, svg));
+        el('rect', { x: padL, y: padT - 2, width: plotW, height: plotH + 4 }, clip);
+        const trendLayer = el('g', { 'clip-path': `url(#${clipId})` }, svg);
+        for (const { k, f, first, last: end, n } of tr) {
+          const a = { x: xAt(first.i), y: yAt(f.a) };
+          const b = { x: xAt(end.i), y: yAt(f.a + f.b * (n - 1)) };
+          el('line', { x1: a.x, y1: a.y, x2: b.x, y2: b.y, class: 'spr-trend-halo' }, trendLayer);
+          el('line', { x1: a.x, y1: a.y, x2: b.x, y2: b.y, class: `spr-trend spr-trend--${k}` }, trendLayer);
         }
 
-        for (const p of sorted) {
-          const v = valueOf(p, m);
-          if (v == null) continue;
-          const cx = xAt(p.t);
-          const cy = yAt(v);
-          const cls = `spr-mark spr-mark--${p.kind}${p.upcoming ? ' spr-mark--upcoming' : ''}${active.includes(p.id) ? ' is-on' : ''}`;
-          const mark = p.kind === 'masterclass'
-            ? el('rect', { x: cx - 4.5, y: cy - 4.5, width: 9, height: 9, rx: 1.5, class: cls }, svg)
-            : el('circle', { cx, cy, r: 4.5, class: cls }, svg);
-          mark.dataset.id = String(p.id);
+        // The slope, in words, above the panel: the line shows a direction,
+        // the number says how steep.
+        const note = root.querySelector<HTMLElement>(`[data-spr-trend="${m}"]`);
+        if (note) {
+          note.replaceChildren();
+          for (const { k, f, n } of tr) {
+            const s = document.createElement('span');
+            s.className = 'spr-tn';
+            const line = document.createElement('i');
+            line.style.borderTopColor = `var(--spr-${k}-trend)`;
+            const b = document.createElement('b');
+            const per = m === 'profit' ? euro(Math.abs(f.b), false) : String(+Math.abs(f.b).toFixed(2)) + '×';
+            b.textContent = `${f.b > 0 ? '▲ +' : f.b < 0 ? '▼ −' : ''}${per}`;
+            s.appendChild(line);
+            s.appendChild(document.createTextNode(`${KIND_LABEL[k]} trend `));
+            s.appendChild(b);
+            s.appendChild(document.createTextNode(` per session, over ${n} held`));
+            note.appendChild(s);
+          }
         }
 
-        // Hover snaps to the nearest session on the date axis — the reader aims
-        // at a date, never at a 9px dot — in either panel, for both.
-        const nearest = (clientX: number): Point | null => {
+        // The whole slot is the hit target, in either panel, for both.
+        const slotAt = (clientX: number): number => {
           const r = svg.getBoundingClientRect();
-          const px = clientX - r.left;
-          let best: Point | null = null;
-          let bestD = Infinity;
-          for (const p of sorted) {
-            const d = Math.abs(xAt(p.t) - px);
-            if (d < bestD) { bestD = d; best = p; }
-          }
-          return best;
+          const i = Math.floor((clientX - r.left - padL) / slotW);
+          return i >= 0 && i < shown.length ? i : -1;
         };
         svg.addEventListener('pointermove', (e) => {
-          const p = nearest(e.clientX);
-          if (p) show(p, xAt(p.t), e.clientX, e.clientY);
+          const i = slotAt(e.clientX);
+          if (i < 0) { if (e.pointerType === 'mouse') hide(); return; }
+          show(i, e.clientX, e.clientY);
         });
         // A touch has no hover: the first tap shows the session, a second tap
         // on it opens it, and the tooltip stays until a tap lands elsewhere.
         svg.addEventListener('pointerdown', (e) => {
-          const p = nearest(e.clientX);
-          tapReady = e.pointerType === 'mouse' || (p != null && active.includes(p.id));
-          if (p) show(p, xAt(p.t), e.clientX, e.clientY);
+          const i = slotAt(e.clientX);
+          tapReady = e.pointerType === 'mouse' || (i >= 0 && i === active);
+          if (i >= 0) show(i, e.clientX, e.clientY);
         });
         svg.addEventListener('pointerleave', (e) => {
           if (e.pointerType === 'mouse') hide();
         });
         svg.addEventListener('click', (e) => {
-          const p = nearest(e.clientX);
-          if (!p || !tapReady) return;
-          const r = svg.getBoundingClientRect();
-          if (Math.abs(xAt(p.t) - (e.clientX - r.left)) <= 24) location.href = `/admin/workshops/${p.id}`;
+          const i = slotAt(e.clientX);
+          if (i >= 0 && tapReady) location.href = `/admin/workshops/${shown[i].id}`;
         });
-        svg.addEventListener('focus', () => {
-          if (focusIdx < 0) focusIdx = sorted.length - 1;
-          focusAt(focusIdx);
-        });
+        svg.addEventListener('focus', () => focusAt(active >= 0 ? active : shown.length - 1));
         svg.addEventListener('blur', hide);
         svg.addEventListener('keydown', (e) => {
           if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
             e.preventDefault();
-            focusIdx = Math.max(0, Math.min(sorted.length - 1, focusIdx + (e.key === 'ArrowRight' ? 1 : -1)));
-            focusAt(focusIdx);
-          } else if (e.key === 'Enter' && focusIdx >= 0) {
-            location.href = `/admin/workshops/${sorted[focusIdx].id}`;
+            const from = active >= 0 ? active : shown.length - 1;
+            focusAt(Math.max(0, Math.min(shown.length - 1, from + (e.key === 'ArrowRight' ? 1 : -1))));
+          } else if (e.key === 'Enter' && active >= 0) {
+            location.href = `/admin/workshops/${shown[active].id}`;
           } else if (e.key === 'Escape') {
             hide();
           }
@@ -456,68 +531,58 @@ const eur0 = (minor: number) => '€' + Math.round(minor / 100).toLocaleString('
 
         plot.replaceChildren(svg);
       });
-
-      function focusAt(idx: number) {
-        const p = sorted[idx];
-        const svg = plots[0]?.querySelector('svg');
-        if (!p || !svg) return;
-        const r = svg.getBoundingClientRect();
-        show(p, xAt(p.t), r.left + xAt(p.t), r.top + 30);
-      }
     };
 
-    // Every session on the snapped day — a workshop and a masterclass can share one.
-    const show = (p: Point, x: number, clientX: number, clientY: number) => {
-      const day = dayFmt.format(p.t);
-      const evs = sorted.filter((q) => Math.abs(q.t - p.t) < DAY && dayFmt.format(q.t) === day);
-      active = evs.map((q) => q.id);
-      for (const c of crosshairs) {
-        c.setAttribute('x1', String(x));
-        c.setAttribute('x2', String(x));
-        c.setAttribute('visibility', 'visible');
+    function focusAt(i: number) {
+      const svg = plots[0]?.querySelector('svg');
+      if (!svg || i < 0) return;
+      const r = svg.getBoundingClientRect();
+      show(i, r.left + layout.padL + layout.slotW * (i + 0.5), r.top + 40);
+    }
+
+    function show(i: number, clientX: number, clientY: number) {
+      const p = shown[i];
+      if (!p) return;
+      active = i;
+      for (const b of bands) {
+        b.setAttribute('x', String(layout.padL + layout.slotW * i));
+        b.setAttribute('visibility', 'visible');
       }
-      root.querySelectorAll('.spr-mark').forEach((n) => {
-        n.classList.toggle('is-on', active.includes(Number((n as SVGElement).dataset.id)));
-      });
 
       tip.replaceChildren();
-      for (const q of evs) {
-        const box = document.createElement('div');
-        box.className = 'spr-tip-ev';
-        const name = document.createElement('div');
-        name.className = 'spr-tip-name';
-        const key = document.createElement('span');
-        key.className = 'spr-tip-key';
-        key.style.background = KIND_COLOR[q.kind];
-        name.appendChild(key);
-        name.appendChild(document.createTextNode(q.title));
-        const when = document.createElement('div');
-        when.className = 'spr-tip-when';
-        when.textContent = `${KIND_LABEL[q.kind]} · ${q.dateLabel}${q.upcoming ? ' · not held yet' : ''}`;
-        box.appendChild(name);
-        box.appendChild(when);
-        const row = (label: string, value: string) => {
-          const r = document.createElement('div');
-          r.className = 'spr-tip-row';
-          const b = document.createElement('b');
-          b.textContent = value;
-          const s = document.createElement('span');
-          s.textContent = label;
-          r.appendChild(s);
-          r.appendChild(b);
-          box.appendChild(r);
-        };
-        row('Profit', euro(q.profitEurMinor, false));
-        row('ROAS', q.roas != null ? q.roas.toFixed(2) + '×' : '— no TOF cost');
-        const note = document.createElement('div');
-        note.className = 'spr-tip-note';
-        note.textContent =
-          `Revenue ${euro(q.revenueEurMinor, false)} · Meta cost ${q.metaCostEurMinor != null ? euro(q.metaCostEurMinor, false) : '—'} · ` +
-          `${q.registrations} registration${q.registrations === 1 ? '' : 's'}` +
-          (q.upcoming ? ' — figures so far, course income still to come' : '');
-        box.appendChild(note);
-        tip.appendChild(box);
-      }
+      const name = document.createElement('div');
+      name.className = 'spr-tip-name';
+      const key = document.createElement('span');
+      key.className = 'spr-tip-key';
+      key.style.background = `var(--spr-${p.kind})`;
+      if (p.upcoming) key.style.opacity = '0.4';
+      name.appendChild(key);
+      name.appendChild(document.createTextNode(p.title));
+      const when = document.createElement('div');
+      when.className = 'spr-tip-when';
+      when.textContent = `${KIND_LABEL[p.kind]} · ${p.dateLabel}${p.upcoming ? ' · not held yet' : ''}`;
+      tip.appendChild(name);
+      tip.appendChild(when);
+      const row = (label: string, value: string) => {
+        const r = document.createElement('div');
+        r.className = 'spr-tip-row';
+        const s = document.createElement('span');
+        s.textContent = label;
+        const b = document.createElement('b');
+        b.textContent = value;
+        r.appendChild(s);
+        r.appendChild(b);
+        tip.appendChild(r);
+      };
+      row('Profit', euro(p.profitEurMinor, false));
+      row('ROAS', p.roas != null ? p.roas.toFixed(2) + '×' : '— no TOF cost');
+      const note = document.createElement('div');
+      note.className = 'spr-tip-note';
+      note.textContent =
+        `Revenue ${euro(p.revenueEurMinor, false)} · Meta cost ${p.metaCostEurMinor != null ? euro(p.metaCostEurMinor, false) : '—'} · ` +
+        `${p.registrations} registration${p.registrations === 1 ? '' : 's'}` +
+        (p.upcoming ? ' — figures so far, course income still to come' : '');
+      tip.appendChild(note);
       tip.hidden = false;
 
       // Beside the pointer, flipped to the left near the right edge, kept
@@ -525,21 +590,32 @@ const eur0 = (minor: number) => '€' + Math.round(minor / 100).toLocaleString('
       const rb = root.getBoundingClientRect();
       const tw = tip.offsetWidth;
       const th = tip.offsetHeight;
-      let left = clientX - rb.left + 14;
-      if (left + tw > rb.width - 6) left = clientX - rb.left - tw - 14;
+      let left = clientX - rb.left + 16;
+      if (left + tw > rb.width - 6) left = clientX - rb.left - tw - 16;
       left = Math.max(6, left);
       const top = Math.max(6, Math.min(clientY - rb.top - th / 2, rb.height - th - 6));
       tip.style.left = `${left}px`;
       tip.style.top = `${top}px`;
-    };
+    }
 
-    const hide = () => {
-      active = [];
+    function hide() {
+      active = -1;
       tip.hidden = true;
-      for (const c of crosshairs) c.setAttribute('visibility', 'hidden');
-      root.querySelectorAll('.spr-mark.is-on').forEach((n) => n.classList.remove('is-on'));
-    };
+      for (const b of bands) b.setAttribute('visibility', 'hidden');
+    }
 
+    for (const b of toggles) {
+      b.addEventListener('click', () => {
+        const k = b.dataset.sprToggle as Toggle;
+        on[k] = !on[k];
+        syncToggles();
+        try { localStorage.setItem(STORE_KEY, JSON.stringify(on)); } catch { /* not kept: fine */ }
+        hide();
+        draw();
+      });
+    }
+
+    syncToggles();
     draw();
     document.addEventListener('pointerdown', (e) => {
       if (!root.contains(e.target as Node)) hide();
