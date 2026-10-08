@@ -36,6 +36,8 @@ const PAGES: Entry[] = [
   { path: '/contact', priority: 0.5, changefreq: 'monthly' },
   { path: '/terms', priority: 0.3, changefreq: 'yearly' },
   { path: '/privacy', priority: 0.3, changefreq: 'yearly' },
+  { path: '/community-guidelines', priority: 0.3, changefreq: 'yearly' },
+  { path: '/delete-account', priority: 0.2, changefreq: 'yearly' },
 ];
 
 export const GET: APIRoute = () => {
