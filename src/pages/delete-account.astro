@@ -1,0 +1,69 @@
+---
+// Deleting a Songdance app account. Google Play asks every app with accounts
+// for a web page where people can ask for deletion without reinstalling the
+// app (Data safety → "Account deletion URL"); Apple takes the same page as the
+// optional "User Privacy Choices URL". The Play listing points at this page and
+// at its #data section, so keep both the path and the anchor.
+//
+// What it says is deleted and kept follows the app's erase routine
+// (songdance-app, apps/api/src/lib/users.ts deleteAccountNow) and its
+// deletion screen. Change one, change the other.
+import SiteLayout from '../components/SiteLayout.astro';
+import PageHero from '../components/PageHero.astro';
+---
+
+<SiteLayout
+  title="Delete your account — Songdance"
+  description="How to delete your Songdance app account, in the app or by email, and what is deleted and what is kept."
+>
+  <PageHero
+    eyebrow="Legal"
+    title="Delete your Songdance account"
+    lede="For the Songdance app on iPhone, Android and the web, by SONGDANCE BV."
+  />
+
+  <section class="sd-section sd-prose sd-legal">
+    <div class="sd-prose-inner">
+      <p class="sd-legal-updated">Last update: 8 October 2026</p>
+
+      <h2>In the app</h2>
+      <p>Open your profile (your round picture, top right) and choose <strong>Delete my account</strong>. Tap <strong>Send me a code</strong>: we send six digits to the email address of your account, to make sure it is you. Enter them and choose <strong>Close my account</strong>.</p>
+      <p>Your account then closes after a pause of <strong>14 days</strong>. You are signed out on every device straight away, and an email tells you the day it closes. If you sign in during those 14 days, the account simply stays open.</p>
+
+      <h2>Without the app</h2>
+      <p>Write to <a href="mailto:support@songdance.co?subject=Delete%20my%20Songdance%20account">support@songdance.co</a> from the email address of your account, with the subject <strong>Delete my Songdance account</strong>. We confirm by email and close the account within one month, usually within a few days. You don’t need to install the app for this.</p>
+
+      <h2>What we delete</h2>
+      <ul>
+        <li>Your profile: your name, your picture, your introduction, and the website and links you added</li>
+        <li>The email addresses linked to your account</li>
+        <li>Your WhatsApp number, if you entered one for practice</li>
+        <li>Your signed-in devices and their notification tokens</li>
+        <li>Your progress in the courses and your welcome checklist</li>
+        <li>The events you said you would attend, and your personal calendar address</li>
+        <li>Your practice availability, and practice sessions still to come (your partner is told the session is off, without your name)</li>
+        <li>The hearts you gave, the posts you followed, your notifications and notification settings, the reports you made and the blocks you set</li>
+        <li>The introduction you shared in the circle</li>
+      </ul>
+
+      <h2>What we keep, and why</h2>
+      <ul>
+        <li><strong>Your purchases on songdance.co and their invoices.</strong> Belgian accounting law asks us to keep them for seven years. Deleting the app account does not cancel or refund a purchase.</li>
+        <li><strong>Your other posts and comments in the circle</strong>, with what you attached to them. They stay under “Former member”, without your name or picture, so a conversation keeps its shape. If you want them gone too, delete them before you close your account, or say so in your email and we remove them.</li>
+        <li><strong>Practice sessions that already took place</strong>, because they are part of your partner’s record too.</li>
+        <li><strong>A short record</strong> that the account was closed, and of earlier changes to its access, in our audit log for two years, so we can answer questions about it.</li>
+      </ul>
+
+      <h2 id="data">Deleting some data only</h2>
+      <p>You don’t have to close your account to remove part of what we hold. In the app you can clear your WhatsApp number in the practice settings, remove a linked email address or sign out a device in your profile, turn notifications off, and delete your own posts and comments. For anything else, write to <a href="mailto:support@songdance.co">support@songdance.co</a> and tell us what you would like removed.</p>
+
+      <p>More about what we collect and why is in our <a href="/privacy">privacy policy</a>.</p>
+
+      <div class="sd-legal-block">
+        <p><strong>SONGDANCE BV</strong></p>
+        <p>Beaupréstraat 13, 8310 Brugge, Belgium</p>
+        <p>Email: <a href="mailto:support@songdance.co">support@songdance.co</a></p>
+      </div>
+    </div>
+  </section>
+</SiteLayout>
