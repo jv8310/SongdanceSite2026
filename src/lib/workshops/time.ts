@@ -125,9 +125,84 @@ function tzSuffix(label: string): string {
   return label === 'UTC' ? 'UTC' : `${label} time`;
 }
 
+// ── 12-hour or 24-hour clock ────────────────────────────────────────────────
+// Every time used to be printed on the British 24-hour clock, so an American
+// read "07:00 New York time" and had to write in to ask whether that was
+// morning or evening. A time is now printed on the clock its timezone's people
+// use day to day: "7:00 PM New York time", "19:00 Brussels time".
+//
+// The split follows CLDR's preferred hour cycle for the country each zone is
+// in, with one deliberate override: all of Europe reads 24-hour, Cyprus
+// included, although CLDR puts Greece, Albania and Cyprus on the 12-hour clock.
+// It is written as each IANA area's usual clock plus the zones that differ, so
+// the older spellings browsers still report ("Asia/Calcutta", "US/Eastern")
+// land on the right side without a table of every zone. Anything unknown is
+// 24-hour, as before.
+
+// Areas where the 12-hour clock is the rule (US/, Canada/, Mexico/ and Chile/
+// are the old aliases of American zones).
+const TWELVE_HOUR_AREAS = new Set(['America', 'Australia', 'Pacific', 'US', 'Canada', 'Mexico', 'Chile']);
+
+// Zones in those areas whose country keeps a 24-hour clock: Brazil, Greenland,
+// the French and Dutch Caribbean and their neighbours, and the French and NZ-
+// associated Pacific.
+const TWENTY_FOUR_HOUR_ZONES = new Set([
+  // Brazil
+  'America/Araguaina', 'America/Bahia', 'America/Belem', 'America/Boa_Vista',
+  'America/Campo_Grande', 'America/Cuiaba', 'America/Eirunepe', 'America/Fortaleza',
+  'America/Maceio', 'America/Manaus', 'America/Noronha', 'America/Porto_Acre',
+  'America/Porto_Velho', 'America/Recife', 'America/Rio_Branco', 'America/Santarem',
+  'America/Sao_Paulo',
+  // Greenland
+  'America/Danmarkshavn', 'America/Godthab', 'America/Nuuk', 'America/Scoresbysund',
+  'America/Thule',
+  // Caribbean and South America
+  'America/Anguilla', 'America/Aruba', 'America/Belize', 'America/Cayenne',
+  'America/Curacao', 'America/Guadeloupe', 'America/Kralendijk', 'America/Lower_Princes',
+  'America/Marigot', 'America/Martinique', 'America/Miquelon', 'America/Montserrat',
+  'America/Paramaribo', 'America/Port-au-Prince', 'America/St_Barthelemy',
+  // Pacific
+  'Pacific/Fakaofo', 'Pacific/Funafuti', 'Pacific/Gambier', 'Pacific/Marquesas',
+  'Pacific/Nauru', 'Pacific/Niue', 'Pacific/Norfolk', 'Pacific/Noumea',
+  'Pacific/Pitcairn', 'Pacific/Rarotonga', 'Pacific/Tahiti', 'Pacific/Wallis',
+]);
+
+// Zones outside those areas whose country uses the 12-hour clock: South Asia,
+// the Gulf and the Levant, East and Southeast Asia's 12-hour countries, North
+// and East Africa, and a few single-name aliases.
+const TWELVE_HOUR_ZONES = new Set([
+  'Asia/Aden', 'Asia/Amman', 'Asia/Baghdad', 'Asia/Bahrain', 'Asia/Beirut',
+  'Asia/Brunei', 'Asia/Calcutta', 'Asia/Dacca', 'Asia/Damascus', 'Asia/Dhaka',
+  'Asia/Dubai', 'Asia/Gaza', 'Asia/Hebron', 'Asia/Hong_Kong', 'Asia/Karachi',
+  'Asia/Kolkata', 'Asia/Kuala_Lumpur', 'Asia/Kuching', 'Asia/Kuwait', 'Asia/Macao',
+  'Asia/Macau', 'Asia/Manila', 'Asia/Muscat', 'Asia/Phnom_Penh', 'Asia/Pyongyang',
+  'Asia/Qatar', 'Asia/Riyadh', 'Asia/Seoul', 'Asia/Singapore', 'Asia/Taipei',
+  'Asia/Thimbu', 'Asia/Thimphu',
+  'Africa/Accra', 'Africa/Addis_Ababa', 'Africa/Algiers', 'Africa/Asmara',
+  'Africa/Asmera', 'Africa/Banjul', 'Africa/Blantyre', 'Africa/Cairo',
+  'Africa/Djibouti', 'Africa/El_Aaiun', 'Africa/Freetown', 'Africa/Juba',
+  'Africa/Khartoum', 'Africa/Lusaka', 'Africa/Maseru', 'Africa/Mbabane',
+  'Africa/Mogadishu', 'Africa/Monrovia', 'Africa/Ndjamena', 'Africa/Nouakchott',
+  'Africa/Tripoli', 'Africa/Tunis', 'Africa/Windhoek',
+  'Atlantic/Bermuda', 'Antarctica/Macquarie',
+  'Cuba', 'Egypt', 'Hongkong', 'Jamaica', 'Kwajalein', 'Libya', 'Navajo', 'NZ',
+  'NZ-CHAT', 'ROC', 'ROK', 'Singapore',
+  'EST', 'MST', 'HST', 'EST5EDT', 'CST6CDT', 'MST7MDT', 'PST8PDT',
+]);
+
+// Does this timezone's reader expect "7:00 PM" rather than "19:00"?
+export function usesTwelveHourClock(timezone: string | null | undefined): boolean {
+  const id = (timezone || '').trim();
+  if (!id) return false;
+  if (TWELVE_HOUR_ZONES.has(id)) return true;
+  if (TWENTY_FOUR_HOUR_ZONES.has(id)) return false;
+  return TWELVE_HOUR_AREAS.has(id.split('/')[0]);
+}
+
 // Format an instant in a given IANA timezone, e.g.
-// "Sun 15 Jun 2026, 20:00 Brussels time". The zone is named only when the
-// format actually carries a time (a date on its own is the same day in the
+// "Sun 15 Jun 2026, 20:00 Brussels time" or "Sun 15 Jun 2026, 2:00 PM New York
+// time" (see usesTwelveHourClock). The zone is named only when the format
+// actually carries a time (a date on its own is the same day in the
 // neighbouring zones, so naming one would be noise).
 export function formatInTz(
   utcIso: string,
@@ -136,30 +211,46 @@ export function formatInTz(
 ): string {
   const d = new Date(utcIso);
   const label = timezoneLabel(timezone);
-  const base: Intl.DateTimeFormatOptions = {
+  const base = (twelveHour: boolean): Intl.DateTimeFormatOptions => ({
     weekday: 'short',
     day: 'numeric',
     month: 'short',
     year: 'numeric',
-    hour: '2-digit',
+    ...(twelveHour ? { hour: 'numeric', hourCycle: 'h12' } : { hour: '2-digit' }),
     minute: '2-digit',
     // Named below as a place instead. Where we can't name one, let Intl print
     // its own short label so the time is never left bare.
     ...(label ? {} : { timeZoneName: 'short' }),
     ...opts,
-  };
-  const suffix = label && base.hour !== undefined ? ` ${tzSuffix(label)}` : '';
+  });
   try {
-    return new Intl.DateTimeFormat('en-GB', { timeZone: timezone, ...base }).format(d) + suffix;
+    const o = base(usesTwelveHourClock(timezone));
+    const suffix = label && o.hour !== undefined ? ` ${tzSuffix(label)}` : '';
+    return formatParts(new Intl.DateTimeFormat('en-GB', { timeZone: timezone, ...o }), d) + suffix;
   } catch {
-    // Bad/unknown tz → fall back to UTC so we never throw on render. Intl's own
-    // short name for UTC is "UTC", so there is nothing to append here.
+    // Bad/unknown tz → fall back to UTC (24-hour) so we never throw on render.
+    // Intl's own short name for UTC is "UTC", so there is nothing to append.
+    const o = base(false);
     return new Intl.DateTimeFormat('en-GB', {
       timeZone: 'UTC',
-      ...base,
-      ...(base.hour === undefined ? {} : { timeZoneName: 'short' }),
+      ...o,
+      ...(o.hour === undefined ? {} : { timeZoneName: 'short' }),
     }).format(d);
   }
+}
+
+// en-GB writes the 12-hour day period as "pm", behind a narrow no-break space
+// some mail clients draw as a box. Print "PM", the form people ask about, held
+// to its time by an ordinary no-break space.
+function formatParts(fmt: Intl.DateTimeFormat, d: Date): string {
+  const parts = fmt.formatToParts(d);
+  return parts
+    .map((p, i) => {
+      if (p.type === 'dayPeriod') return p.value.toUpperCase();
+      if (p.type === 'literal' && parts[i + 1]?.type === 'dayPeriod') return ' ';
+      return p.value;
+    })
+    .join('');
 }
 
 // ICS / Google "dates" basic format: YYYYMMDDTHHMMSSZ (UTC).

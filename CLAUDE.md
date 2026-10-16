@@ -613,6 +613,17 @@ All automated workshop email lives in the workshop engine:
   label says whose clock it is, the "· your time" markers that sat beside these
   times on the pages are gone — anything rendering a session time should call
   `formatInTz` and print what it returns, not re-qualify it.
+- **…and is printed on that place's own clock** (October 2026): a US registrant
+  read "07:00 New York time" and wrote in to ask whether it was morning or
+  evening. `formatInTz` now prints **"7:00 PM New York time"** wherever the
+  zone's people use the 12-hour clock and keeps **"19:00 Brussels time"**
+  everywhere else. The rule is `usesTwelveHourClock` (`time.ts`): CLDR's
+  preferred hour cycle for the zone's country, written as each IANA area's
+  usual clock plus the zones that differ, with **all of Europe on 24-hour**,
+  Greece, Albania and Cyprus included (CLDR puts those three on 12-hour). The
+  "Times shown in" pickers in `MCRegister` / `WERegister` re-render in the
+  browser, so the server writes each option's clock on it (`data-clock`)
+  rather than copying the table into the page.
 - **A name is printed as a name** (September 2026): checkout stores the name
   exactly as typed, so "Dear felicia," went out in the seat confirmation.
   `tidyFirstName` / `tidyName` ([`src/lib/email/names.ts`](src/lib/email/names.ts))
