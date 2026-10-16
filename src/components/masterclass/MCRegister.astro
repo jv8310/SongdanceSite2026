@@ -31,6 +31,7 @@
 // chosen timezone, and that timezone is what gets posted — mirrors WERegister.
 import type { CalItem } from '../workshop-english/types';
 import { ALL_COUNTRIES } from '../../lib/workshops/countries';
+import { usesTwelveHourClock } from '../../lib/workshops/time';
 import LaunchOfferCallout from '../promo/LaunchOfferCallout.astro';
 import {
   masterclassPromoActive,
@@ -144,7 +145,7 @@ const friendSlug = (Astro.url.searchParams.get('friend') ?? '').trim();
               <span>Times shown in</span>
               <select id="mc-tz-select" name="timezone" aria-label="Your timezone">
                 {tzOptions.map((tz) => (
-                  <option value={tz} selected={tz === detectedTz}>{tz.replace(/_/g, ' ')}</option>
+                  <option value={tz} selected={tz === detectedTz} data-clock={usesTwelveHourClock(tz) ? '12' : '24'}>{tz.replace(/_/g, ' ')}</option>
                 ))}
               </select>
             </label>
@@ -495,8 +496,33 @@ const friendSlug = (Astro.url.searchParams.get('friend') ?? '').trim();
       return aliases[city] || city;
     }
 
+    // 12- or 24-hour clock for a timezone: the server decides it per option
+    // (usesTwelveHourClock in lib/workshops/time.ts) and writes it on the
+    // <option> as data-clock, so the rule lives in one place.
+    function twelveHourFor(tz) {
+      var opts = tzSelect ? tzSelect.options : [];
+      for (var i = 0; i < opts.length; i++) {
+        if (opts[i].value === tz) return opts[i].getAttribute('data-clock') === '12';
+      }
+      return false;
+    }
+
+    // Join Intl's parts, printing the 12-hour day period as "PM" behind an
+    // ordinary no-break space — as formatParts() in lib/workshops/time.ts.
+    function joinParts(parts) {
+      var out = '';
+      for (var i = 0; i < parts.length; i++) {
+        var p = parts[i];
+        if (p.type === 'dayPeriod') out += p.value.toUpperCase();
+        else if (p.type === 'literal' && parts[i + 1] && parts[i + 1].type === 'dayPeriod') out += '\u00a0';
+        else out += p.value;
+      }
+      return out;
+    }
+
     // Format a UTC instant in the active timezone, mirroring lib/workshops/time.ts:
-    // "Sun 15 Jun 2026, 20:00 Brussels time".
+    // "Sun 15 Jun 2026, 20:00 Brussels time", or "2:00 PM New York time" on a
+    // 12-hour clock.
     function formatInTz(utcIso, tz) {
       if (!utcIso) return '';
       var place = tzPlace(tz);
@@ -505,9 +531,15 @@ const friendSlug = (Astro.url.searchParams.get('friend') ?? '').trim();
       var suffix = place ? (place === 'UTC' ? ' UTC' : ' ' + place + ' time') : '';
       try {
         opts.timeZone = tz;
-        return new Intl.DateTimeFormat('en-GB', opts).format(new Date(utcIso)) + suffix;
+        if (twelveHourFor(tz)) {
+          opts.hour = 'numeric';
+          opts.hourCycle = 'h12';
+        }
+        return joinParts(new Intl.DateTimeFormat('en-GB', opts).formatToParts(new Date(utcIso))) + suffix;
       } catch (e) {
         opts.timeZone = 'UTC';
+        opts.hour = '2-digit';
+        delete opts.hourCycle;
         opts.timeZoneName = 'short';
         return new Intl.DateTimeFormat('en-GB', opts).format(new Date(utcIso));
       }
