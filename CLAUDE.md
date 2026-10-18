@@ -338,8 +338,8 @@ anyone whose course no longer includes them (or never did). Logic in
   `?email=…&extend=1`.
 - **The way on, for a 12-week student** (October 2026): a 12-week holder who is not on the
   9 months sees the certification course **above** the pass options, with what it adds
-  (library + manuals, nine months of Q&As and deepening sessions with no pass, practice
-  together, the path to certification, and that it begins when their 12 weeks are over). The
+  (library + manuals, nine months of Q&As and deepening sessions with no pass, Practice
+  Together, the SVH app with its quizzes, recordings and SVH AI, the path to certification, and that it begins when their 12 weeks are over). The
   member app links 12-week students straight to the certification page
   (`/courses/certification?email=…`) and certification students here with `?extend=1`, from
   the course page in the last week of their live window and after it (web only).
