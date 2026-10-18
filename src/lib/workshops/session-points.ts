@@ -1,12 +1,13 @@
-// The points behind the profit & ROAS per-session chart
+// The points behind the per-session chart
 // (src/components/admin/SessionProfitRoasChart.astro), built in one place for
 // every page that draws it — /admin/workshops/performance and /ads — so the two
 // can never plot different figures for the same session.
 //
 // One point per dated session that did something in the window, carrying the
 // very figures its card prints: profit = revenue − Meta cost (every ad euro
-// charged to it, prospecting + retargeting), ROAS = revenue ÷ TOF cost. An
-// on-demand replay has no date to sit on, so it stays on the cards only.
+// charged to it, prospecting + retargeting), ROAS = revenue ÷ TOF cost, cost
+// per registration = TOF cost ÷ registrations. An on-demand replay has no date
+// to sit on, so it stays on the cards only.
 
 import type { WorkshopPerformanceRow } from './stats';
 
@@ -22,6 +23,8 @@ export type SessionPoint = {
   revenueEurMinor: number;
   metaCostEurMinor: number | null;
   tofCostEurMinor: number | null;
+  // TOF cost ÷ registrations — the session's own day-weighted seat price.
+  costPerRegEurMinor: number | null;
   registrations: number;
 };
 
@@ -47,6 +50,7 @@ export function sessionChartPoints(rows: WorkshopPerformanceRow[]): SessionPoint
       revenueEurMinor: r.totalEurMinor,
       metaCostEurMinor: r.metaCostEurMinor,
       tofCostEurMinor: r.acquisitionCostEurMinor,
+      costPerRegEurMinor: r.costPerRegistrationEurMinor,
       registrations: r.registrations,
     }))
     .sort((a, b) => a.t - b.t);

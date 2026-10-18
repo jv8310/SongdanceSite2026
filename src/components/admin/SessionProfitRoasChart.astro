@@ -1,9 +1,10 @@
 ---
-// Profit and ROAS per session — one bar per workshop/masterclass that did
-// something in the window, in date order, coloured by product, with a trend
-// line per product. Two panels on one shared session axis rather than one plot
-// with two y-scales: euros and a ratio have nothing in common, and a second
-// axis lets either series be stretched to say anything.
+// Profit, ROAS and cost per registration per session — one bar per
+// workshop/masterclass that did something in the window, in date order,
+// coloured by product, with a trend line per product. One panel per measure on
+// one shared session axis rather than one plot with several y-scales: euros and
+// a ratio have nothing in common, and a second axis lets any series be
+// stretched to say anything.
 //
 // The axis is the sessions themselves, evenly spaced, not the calendar: on a
 // time axis a quiet month stretches the chart into long empty runs and a busy
@@ -11,8 +12,9 @@
 // session do", not "when". The date sits under each bar instead.
 //
 // The figures are exactly the cards' (profit = revenue − Meta cost, ROAS =
-// revenue ÷ TOF cost), built by `sessionChartPoints`, so the chart and the
-// cards can never disagree — on /admin/workshops/performance and /ads alike.
+// revenue ÷ TOF cost, per registration = TOF cost ÷ registrations), built by
+// `sessionChartPoints`, so the chart and the cards can never disagree — on
+// /admin/workshops/performance and /ads alike.
 // It brings its own styles and colour tokens (--spr-*, defaulting to the admin
 // palette), so a page outside the admin can host it and re-point the tokens.
 // The panels are drawn in the browser at their real width — a fixed viewBox
@@ -33,11 +35,14 @@ const hasWorkshop = points.some((p) => p.kind === 'workshop');
 const hasMasterclass = points.some((p) => p.kind === 'masterclass');
 const hasUpcoming = points.some((p) => p.upcoming);
 const hasRoas = points.some((p) => p.roas != null);
+const hasCpr = points.some((p) => p.costPerRegEurMinor != null);
 const dataJson = JSON.stringify(points).replace(/</g, '\\u003c');
 
 const eurSigned0 = (minor: number) =>
   (minor < 0 ? '−€' : '€') + Math.round(Math.abs(minor) / 100).toLocaleString('en-IE');
 const eur0 = (minor: number) => '€' + Math.round(minor / 100).toLocaleString('en-IE');
+const eur2 = (minor: number) =>
+  '€' + (minor / 100).toLocaleString('en-IE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 ---
 
 <div class="spr" data-spr data-spr-links={links ? "1" : "0"}>
@@ -85,6 +90,17 @@ const eur0 = (minor: number) => '€' + Math.round(minor / 100).toLocaleString('
           <p class="spr-none">No prospecting spend charged to any session in this window — no ROAS to plot.</p>
         )}
       </div>
+      <div class="spr-panel">
+        <div class="spr-head"><b>Cost per registration, per session</b> <span>TOF cost ÷ registrations · lower is better</span></div>
+        {hasCpr ? (
+          <>
+            <div class="spr-trend-note" data-spr-trend="cpr"></div>
+            <div class="spr-plot" data-spr-plot="cpr"></div>
+          </>
+        ) : (
+          <p class="spr-none">No prospecting spend charged to any session in this window — no cost per registration to plot.</p>
+        )}
+      </div>
       <p class="spr-none" data-spr-empty hidden>Turn on Workshop or Masterclass to see the sessions.</p>
       <div class="spr-tip" data-spr-tip hidden></div>
 
@@ -93,7 +109,7 @@ const eur0 = (minor: number) => '€' + Math.round(minor / 100).toLocaleString('
         <div class="spr-scroll">
           <table class="spr-tbl">
             <thead>
-              <tr><th>Session</th><th>Date</th><th>Type</th><th>Profit</th><th>ROAS</th><th>Revenue</th><th>Meta cost</th><th>TOF cost</th><th>Registrations</th></tr>
+              <tr><th>Session</th><th>Date</th><th>Type</th><th>Profit</th><th>ROAS</th><th>Per reg.</th><th>Revenue</th><th>Meta cost</th><th>TOF cost</th><th>Registrations</th></tr>
             </thead>
             <tbody>
               {points.map((p) => (
@@ -103,6 +119,7 @@ const eur0 = (minor: number) => '€' + Math.round(minor / 100).toLocaleString('
                   <td>{p.kind === 'masterclass' ? 'Masterclass' : 'Workshop'}</td>
                   <td>{eurSigned0(p.profitEurMinor)}</td>
                   <td>{p.roas != null ? p.roas.toFixed(2) + '×' : '—'}</td>
+                  <td>{p.costPerRegEurMinor != null ? eur2(p.costPerRegEurMinor) : '—'}</td>
                   <td>{eur0(p.revenueEurMinor)}</td>
                   <td>{p.metaCostEurMinor != null ? eur0(p.metaCostEurMinor) : '—'}</td>
                   <td>{p.tofCostEurMinor != null ? eur0(p.tofCostEurMinor) : '—'}</td>
@@ -253,9 +270,10 @@ const eur0 = (minor: number) => '€' + Math.round(minor / 100).toLocaleString('
     revenueEurMinor: number;
     metaCostEurMinor: number | null;
     tofCostEurMinor: number | null;
+    costPerRegEurMinor: number | null;
     registrations: number;
   };
-  type Metric = 'profit' | 'roas';
+  type Metric = 'profit' | 'roas' | 'cpr';
   type Toggle = Kind | 'trend';
 
   const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -282,6 +300,9 @@ const eur0 = (minor: number) => '€' + Math.round(minor / 100).toLocaleString('
     return (minor < 0 ? '−€' : '€') + s;
   };
   const roasLabel = (v: number) => String(+v.toFixed(2)) + '×';
+  // Seat prices and their slopes are small numbers, so they keep their cents.
+  const euroCents = (minor: number) =>
+    (minor < 0 ? '−€' : '€') + (Math.abs(minor) / 100).toLocaleString('en-IE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   // Clean tick values (1 / 2 / 2.5 / 5 × 10^k) covering [lo, hi].
   const niceTicks = (lo: number, hi: number, count: number): number[] => {
@@ -341,7 +362,8 @@ const eur0 = (minor: number) => '€' + Math.round(minor / 100).toLocaleString('
     const toggles = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-spr-toggle]'));
     const links = root.dataset.sprLinks !== '0';
 
-    const valueOf = (p: Point, m: Metric): number | null => (m === 'profit' ? p.profitEurMinor : p.roas);
+    const valueOf = (p: Point, m: Metric): number | null =>
+      m === 'profit' ? p.profitEurMinor : m === 'roas' ? p.roas : p.costPerRegEurMinor;
 
     // Which series are on. A per-viewer convenience, so it lives in the
     // browser — and the chart reads right without it.
@@ -372,10 +394,11 @@ const eur0 = (minor: number) => '€' + Math.round(minor / 100).toLocaleString('
 
       const width = Math.max(280, root.clientWidth - 32);
       const narrow = width < 560;
-      const height = narrow ? 180 : 220;
+      const height = narrow ? 170 : 200;
 
       // Y-ticks per panel, over what is on screen. Profit always includes 0
-      // (break-even); ROAS starts at 0 and always reaches past 1×.
+      // (break-even); ROAS starts at 0 and always reaches past 1×; cost per
+      // registration starts at 0.
       const tickSets = plots.map((plot) => {
         const m = plot.dataset.sprPlot as Metric;
         const vals = shown.map((p) => valueOf(p, m)).filter((v): v is number => v != null);
@@ -385,14 +408,17 @@ const eur0 = (minor: number) => '€' + Math.round(minor / 100).toLocaleString('
           const lo = Math.min(0, ...vals);
           const hi = Math.max(0, ...vals);
           ticks = niceTicks(lo, hi > lo ? hi : lo + 10_000, count);
-        } else {
+        } else if (m === 'roas') {
           ticks = niceTicks(0, Math.max(1.2, ...vals), count);
+        } else {
+          const hi = Math.max(0, ...vals);
+          ticks = niceTicks(0, hi > 0 ? hi : 1_000, count);
         }
-        const compact = m === 'profit' && Math.max(...ticks.map(Math.abs)) >= 1_000_000;
-        const text = (v: number) => (m === 'profit' ? euro(v, compact) : roasLabel(v));
+        const compact = m !== 'roas' && Math.max(...ticks.map(Math.abs)) >= 1_000_000;
+        const text = (v: number) => (m === 'roas' ? roasLabel(v) : euro(v, compact));
         return { m, ticks, text };
       });
-      // One left gutter for both panels, so the two session axes line up.
+      // One left gutter for every panel, so the session axes line up.
       const padL = Math.max(34, ...tickSets.flatMap(({ ticks, text }) => ticks.map((v) => text(v).length * 6.4 + 10)));
       const padR = 8;
       const plotW = width - padL - padR;
@@ -431,19 +457,20 @@ const eur0 = (minor: number) => '€' + Math.round(minor / 100).toLocaleString('
           role: 'img', tabindex: pi === 0 ? 0 : -1,
           'aria-label': m === 'profit'
             ? `Profit per session. Use the arrow keys to step through sessions${links ? ', Enter to open one' : ''}.`
-            : 'ROAS per session.',
+            : m === 'roas' ? 'ROAS per session.' : 'Cost per registration per session.',
         });
 
         const band = el('rect', { x: 0, y: padT, width: slotW, height: plotH, class: 'spr-band', visibility: 'hidden' }, svg);
         bands.push(band);
 
         // Recessive gridlines; the break-even line (€0 / 1×) a step darker.
+        // A seat price has no break-even, so its panel has none.
         for (const v of ticks) {
           el('line', { x1: padL, x2: width - padR, y1: yAt(v), y2: yAt(v), class: 'spr-grid' }, svg);
           const t = el('text', { x: padL - 8, y: yAt(v) + 4, 'text-anchor': 'end', class: 'spr-tick' }, svg);
           t.textContent = text(v);
         }
-        const even = m === 'profit' ? 0 : 1;
+        const even = m === 'profit' ? 0 : m === 'roas' ? 1 : null;
         const y0 = yAt(m === 'profit' ? 0 : lo);
         if (last) {
           shown.forEach((p, i) => {
@@ -468,7 +495,7 @@ const eur0 = (minor: number) => '€' + Math.round(minor / 100).toLocaleString('
           }, svg);
         });
 
-        if (even >= lo && even <= hi) {
+        if (even != null && even >= lo && even <= hi) {
           el('line', { x1: padL, x2: width - padR, y1: yAt(even), y2: yAt(even), class: 'spr-base' }, svg);
           // 1× is rarely a tick of its own; name it unless a tick label sits on it.
           if (!ticks.some((v) => Math.abs(yAt(v) - yAt(even)) < 13)) {
@@ -503,7 +530,9 @@ const eur0 = (minor: number) => '€' + Math.round(minor / 100).toLocaleString('
             const line = document.createElement('i');
             line.style.borderTopColor = `var(--spr-${k}-trend)`;
             const b = document.createElement('b');
-            const per = m === 'profit' ? euro(Math.abs(f.b), false) : String(+Math.abs(f.b).toFixed(2)) + '×';
+            const per = m === 'profit' ? euro(Math.abs(f.b), false)
+              : m === 'roas' ? String(+Math.abs(f.b).toFixed(2)) + '×'
+              : euroCents(Math.abs(f.b));
             b.textContent = `${f.b > 0 ? '▲ +' : f.b < 0 ? '▼ −' : ''}${per}`;
             s.appendChild(line);
             s.appendChild(document.createTextNode(`${KIND_LABEL[k]} trend `));
@@ -600,6 +629,7 @@ const eur0 = (minor: number) => '€' + Math.round(minor / 100).toLocaleString('
       };
       row('Profit', euro(p.profitEurMinor, false));
       row('ROAS', p.roas != null ? p.roas.toFixed(2) + '×' : '— no TOF cost');
+      row('Per registration', p.costPerRegEurMinor != null ? euroCents(p.costPerRegEurMinor) : '—');
       const note = document.createElement('div');
       note.className = 'spr-tip-note';
       note.textContent =
