@@ -43,7 +43,7 @@ export type LivePassPlan = {
 // cert-access.ts reads (an order, or a 12w-course line on a workshop seat). The
 // buyers from before the site took payments carry only the Drip tag, mirrored
 // onto the contacts list: they hold the course, with no date to extend from.
-async function loadTwelveWeek(db: D1Database, email: string, today: string): Promise<LivePassPlan['twelveWeek']> {
+export async function loadTwelveWeek(db: D1Database, email: string, today = brusselsToday()): Promise<LivePassPlan['twelveWeek']> {
   const key = email.trim().toLowerCase();
   const days: string[] = [];
   const course = await db
