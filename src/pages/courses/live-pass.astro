@@ -66,6 +66,28 @@ const showAddon = !!certInitial?.holds_course;
 const twelveInitial = initialStatus?.twelve_week as { holds?: boolean } | undefined;
 const showUpgrade = !!twelveInitial?.holds && !certInitial?.holds_course;
 
+// The day a pass starts, said before the options when their course (or a
+// pass) still runs: it never begins inside live weeks they already have.
+// Same words as the browser's showLiveUntil().
+const fmtDay = (day: string) =>
+  new Date(`${day}T12:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+const initialPeriods = initialStatus?.periods as Record<string, { startsOn: string }> | undefined;
+const startNotice = startNoticeText(
+  initialStatus?.live_until as string | null | undefined,
+  !!initialStatus?.pass_running,
+  initialPeriods?.[String(chosenMonths)]?.startsOn ?? null,
+);
+function startNoticeText(liveUntil: string | null | undefined, passRunning: boolean, startsOn: string | null): string {
+  const lines: string[] = [];
+  if (liveUntil) {
+    lines.push(
+      `Your course gives you the live sessions until ${fmtDay(liveUntil)}, so a pass only starts when they end${startsOn ? `, on ${fmtDay(startsOn)}` : ''}. You never pay for a session you already have.`,
+    );
+  }
+  if (passRunning) lines.push('Your current pass comes first: a new one continues with the session after its last.');
+  return lines.join(' ');
+}
+
 const geoCountry = details.country ?? edgeCountry(Astro.locals);
 const geoCountryMatch = geoCountry ? findCountry(geoCountry) : undefined;
 const currency = albumCurrencyForCountry(geoCountry);
@@ -112,6 +134,42 @@ const aboutLabel = (m: number) => `About ${m} month${m === 1 ? '' : 's'} of sess
       </section>
     )}
 
+    {/* For a 12-week student not (yet) on the 9 months: the way on, before the
+        pass — shown once the address says so. */}
+    <section class="lp-upgrade" data-lp-upgrade hidden={!showUpgrade} aria-labelledby="lp-upgrade-title">
+      <p class="lp-eyebrow">From the 12 weeks</p>
+      <h2 class="lp-upgrade-title" id="lp-upgrade-title">Or go on to the 9-month certification course</h2>
+      <p class="lp-upgrade-body">
+        A pass keeps your Q&amp;As going. The certification course continues the work the 12 weeks
+        began:
+      </p>
+      <ul class="lp-benefits">
+        <li>
+          <strong>The full class library</strong>, every module with a written manual, self-paced
+          and yours to keep.
+        </li>
+        <li>
+          <strong>Weekly Q&amp;As and the monthly two-hour deepening session</strong> for nine
+          months, with no pass to buy.
+        </li>
+        <li>
+          <strong>Hosted practice sessions</strong> to give and receive with peers: where you learn
+          to hold space for someone else.
+        </li>
+        <li>
+          <strong>The path to becoming a certified practitioner</strong>, if you choose to walk it.
+        </li>
+        <li>
+          <strong>Nothing overlaps.</strong> Join while your 12 weeks are still running and your
+          nine months begin when they are over.
+        </li>
+      </ul>
+      <a class="sd-btn lp-upgrade-btn" href={certPageHref} data-lp-upgrade-link>
+        <span>See the certification course</span>
+        <i class="ph-light ph-arrow-right"></i>
+      </a>
+    </section>
+
     <section class="lp-card" id="get">
       <form
         class="lp-form"
@@ -126,6 +184,7 @@ const aboutLabel = (m: number) => `About ${m} month${m === 1 ? '' : 's'} of sess
             A pass holds the next Q&amp;As and deepening sessions on the calendar from the day it
             starts, and ends after the last of them. A week without a Q&amp;A costs you nothing.
           </p>
+          <p class="lp-status" data-lp-status role="status" hidden={!startNotice}>{startNotice}</p>
           {offers.map((o) => (
             <label class="lp-option">
               <input
@@ -205,7 +264,6 @@ const aboutLabel = (m: number) => `About ${m} month${m === 1 ? '' : 's'} of sess
               data-lp-email
             />
           </label>
-          <p class="lp-status" data-lp-status hidden></p>
           <label class="lp-field lp-field--full">
             <span>Country</span>
             <input
@@ -249,19 +307,6 @@ const aboutLabel = (m: number) => `About ${m} month${m === 1 ? '' : 's'} of sess
         <p class="lp-note">One payment, no subscription. Charged in your local currency — the price follows your country.</p>
         <p class="lp-error" role="alert" data-lp-error hidden></p>
       </form>
-      <div class="lp-upgrade" data-lp-upgrade hidden={!showUpgrade}>
-        <p class="lp-eyebrow">From the 12 weeks</p>
-        <p class="lp-upgrade-title">Or go on to the 9-month certification course</p>
-        <p class="lp-upgrade-body">
-          A pass keeps your Q&amp;As going after the 12 weeks. The certification course continues
-          where they leave off: the class library and manuals, weekly Q&amp;As, monthly deepening
-          sessions and practice together, for nine months.
-        </p>
-        <a class="sd-btn lp-upgrade-btn" href={certPageHref} data-lp-upgrade-link>
-          <span>See the certification course</span>
-          <i class="ph-light ph-arrow-right"></i>
-        </a>
-      </div>
       <datalist id="lp-country-list">
         {COUNTRIES.map((c) => (
           <option value={c.name} data-code={c.code}>{c.flag} {c.name}</option>
@@ -289,7 +334,9 @@ const aboutLabel = (m: number) => `About ${m} month${m === 1 ? '' : 's'} of sess
         <dt>I'm in the 12-week course</dt>
         <dd>
           A pass continues your Q&amp;As once your 12 weeks are over: it starts the day after they
-          end, and brings the monthly deepening session with it.
+          end, and brings the monthly deepening session with it. Or go on to the 9-month
+          certification course, which carries the Q&amp;As and the deepening sessions for nine
+          months, with no pass to buy.
         </dd>
         <dt>Where are the sessions?</dt>
         <dd>Under Events in the Songdance Circle, where you'll also find the replays from your pass.</dd>
@@ -414,10 +461,14 @@ const aboutLabel = (m: number) => `About ${m} month${m === 1 ? '' : 's'} of sess
       }
     }
 
+    // Same words as the server's startNoticeText(), with the chosen length's day.
     function showLiveUntil() {
       const lines: string[] = [];
       if (status?.live_until) {
-        lines.push(`Your course gives you the live sessions until ${fmtDay(status.live_until)}, so a pass starts the day after.`);
+        const startsOn = status.periods?.[String(months())]?.startsOn;
+        lines.push(
+          `Your course gives you the live sessions until ${fmtDay(status.live_until)}, so a pass only starts when they end${startsOn ? `, on ${fmtDay(startsOn)}` : ''}. You never pay for a session you already have.`,
+        );
       }
       if (status?.pass_running) {
         lines.push('Your current pass comes first: a new one continues with the session after its last.');
@@ -458,7 +509,12 @@ const aboutLabel = (m: number) => `About ${m} month${m === 1 ? '' : 's'} of sess
     };
     (['input', 'change', 'blur'] as const).forEach((ev) => countrySearch.addEventListener(ev, resolveCountry));
     countrySearch.addEventListener('input', () => (countryTouched = true));
-    form.querySelectorAll<HTMLInputElement>('[name="months"]').forEach((r) => r.addEventListener('change', repaint));
+    form.querySelectorAll<HTMLInputElement>('[name="months"]').forEach((r) =>
+      r.addEventListener('change', () => {
+        showLiveUntil();
+        repaint();
+      }),
+    );
     addonInput.addEventListener('change', repaint);
     emailInput.addEventListener('change', lookUp);
     emailInput.addEventListener('blur', lookUp);
@@ -567,7 +623,10 @@ const aboutLabel = (m: number) => `About ${m} month${m === 1 ? '' : 's'} of sess
     border: 1px solid rgba(42, 27, 42, 0.2); background: #fff; color: var(--ink);
   }
   .lp-hint { opacity: 0.6; }
-  .lp-status { grid-column: 1 / -1; margin: 0; font-size: 14px; color: var(--moss); }
+  .lp-status {
+    margin: 0 0 14px; padding: 12px 14px; border-radius: 10px; font-size: 15px; line-height: 1.5;
+    color: var(--ink); background: rgba(92, 106, 74, 0.1); border-left: 3px solid var(--moss);
+  }
   .lp-terms { display: flex; gap: 8px; font-size: 14px; margin: 8px 0 16px; }
   .lp-summary { display: flex; justify-content: space-between; padding: 12px 0; border-top: 1px solid rgba(42, 27, 42, 0.12); margin-bottom: 12px; }
   .lp-actions { display: flex; flex-wrap: wrap; gap: 10px; }
@@ -575,11 +634,14 @@ const aboutLabel = (m: number) => `About ${m} month${m === 1 ? '' : 's'} of sess
   .lp-note { font-size: 13px; opacity: 0.7; margin: 12px 0 0; }
   .lp-error { color: var(--ember); margin: 12px 0 0; }
   .lp-upgrade {
-    margin-top: 20px; padding: 18px 20px; border-radius: 12px;
+    margin: 0 0 24px; padding: 20px 22px; border-radius: 12px;
     border: 1px solid rgba(42, 27, 42, 0.16); background: var(--paper);
   }
-  .lp-upgrade-title { font-family: var(--font-display); font-size: 20px; margin: 0 0 6px; }
-  .lp-upgrade-body { font-size: 15px; line-height: 1.55; margin: 0 0 14px; }
+  .lp-upgrade[hidden] { display: none; }
+  .lp-upgrade-title { font-family: var(--font-display); font-size: 22px; font-weight: 400; margin: 0 0 6px; }
+  .lp-upgrade-body { font-size: 15px; line-height: 1.55; margin: 0 0 10px; }
+  .lp-benefits { margin: 0 0 16px; padding-left: 20px; font-size: 15px; line-height: 1.55; }
+  .lp-benefits li { margin: 0 0 6px; }
   .lp-upgrade-btn { display: inline-flex; gap: 8px; align-items: center; }
   .lp-faq dt { font-weight: 600; margin-top: 16px; }
   .lp-faq dd { margin: 4px 0 0; line-height: 1.6; }
