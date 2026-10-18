@@ -82,6 +82,9 @@ body { background: var(--adm-paper); }
 }
 .adm-btn--nav svg { flex: 0 0 auto; color: var(--adm-ink-soft); }
 .adm-btn--nav:hover svg { color: var(--adm-ember-deep); }
+/* Icon-only top-menu buttons (People / Settings / Images). */
+.adm-btn--nav.adm-btn--icon { min-width: 0; padding: 8px 10px; }
+.adm-btn--nav.adm-btn--icon svg { width: 18px; height: 18px; }
 
 .adm-breadcrumbs {
   font-family: ui-monospace, monospace;
