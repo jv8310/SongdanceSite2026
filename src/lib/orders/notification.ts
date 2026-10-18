@@ -55,6 +55,8 @@ export type OrderEnv = {
   ORDER_NOTIFICATIONS_TO?: string;
   // Used to build the album player link in the buyer's delivery email.
   PUBLIC_BASE_URL?: string;
+  // Signs the monthly live pass's manage link in its confirmation email.
+  ADMIN_SESSION_SECRET?: string;
 } & ShopifyEnv;
 
 // Where SD-ORDER notifications land when ORDER_NOTIFICATIONS_TO is unset.
@@ -74,6 +76,7 @@ const PAYMENT_PLAN_LABELS: Record<string, string> = {
   '3x': '3× monthly installments',
   '6x': '6× monthly installments',
   '12x': '12× monthly installments',
+  subscription: 'monthly, renews until cancelled',
 };
 
 export type OrderNotificationInput = {

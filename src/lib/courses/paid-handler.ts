@@ -31,6 +31,8 @@ import {
   CERT_EXTENSION_LABEL,
   CERT_EXTENSION_SLUG,
   LIVE_PASS_DRIP_EVENT,
+  LIVE_PASS_MONTHLY_DRIP_EVENT,
+  isLivePassMonthlySlug,
   hasCertExtension,
   isLivePassSlug,
   livePassContents,
@@ -39,6 +41,7 @@ import {
   type LivePassPeriod,
 } from './live-pass';
 import { settleLivePassPeriod } from './live-pass-plan';
+import { brusselsToday } from '../workshops/periods';
 
 // Readable order-item names for the known course products (Drip itemises the
 // order with these). Journeys fall back to their slug, which still carries the
@@ -151,6 +154,12 @@ export async function pushPaidCourseRegistrationToDrip(
       const months = livePassMonthsOf(reg.product_slug);
       if (months) customFields.live_pass_sessions = livePassContents(months);
       customFields.cert_extension = hasCertExtension(reg.bumps) ? 'yes' : 'no';
+    } else if (isLivePassMonthlySlug(reg.product_slug)) {
+      // The monthly live pass: renews until cancelled, so it has neither a
+      // count nor an end to report — only the day it began.
+      eventName = LIVE_PASS_MONTHLY_DRIP_EVENT;
+      customFields.live_pass_starts = brusselsToday();
+      customFields.live_pass_sessions = 'monthly';
     } else if (isAlbumProductSlug(reg.product_slug)) {
       // Direct music-album purchase. The tag (applied above) is the access key;
       // the event carries which album for any automation that wants it.

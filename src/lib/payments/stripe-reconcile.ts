@@ -60,7 +60,7 @@ import {
   type CourseRegistration,
   type SubscriptionStatus,
 } from '../courses/db';
-import { effectiveTotal } from '../courses/installment-forecast';
+import { effectiveTotal, isOpenEndedPlan } from '../courses/installment-forecast';
 import {
   recordCourseInvoiceIfNew,
   type StripeCourseFulfillEnv,
@@ -145,13 +145,20 @@ async function openStripeCoursePlanRows(
     .prepare(
       `SELECT * FROM course_registrations
         WHERE provider = 'stripe'
-          AND status IN ('paid', 'cancelled')
-          AND installments_total > 1
           AND installments_paid > 0
-          AND installments_paid < installments_total
           AND stripe_subscription_id IS NOT NULL
           AND paid_at IS NOT NULL
-          AND created_at >= datetime('now', ?)
+          AND (
+            (status IN ('paid', 'cancelled')
+              AND installments_total > 1
+              AND installments_paid < installments_total
+              AND created_at >= datetime('now', ?))
+            -- An open-ended monthly (the monthly live pass) while it runs: it
+            -- bills for as long as it lives, so no age window.
+            OR (status = 'paid'
+              AND installments_total = 0
+              AND COALESCE(subscription_status, 'active') NOT IN ('canceled', 'incomplete_expired'))
+          )
         ORDER BY paid_at ASC`,
     )
     .bind(dayModifier)
@@ -163,7 +170,9 @@ async function openStripeCoursePlanRows(
 // Installment k (0-indexed) falls due `paid_at + k months`, so the next one is
 // at index installments_paid.
 function nextInstallmentOverdue(row: CourseRegistration, nowMs: number): boolean {
-  if (row.installments_paid >= effectiveTotal(row)) return false;
+  // An open-ended subscription always has a next month (effectiveTotal is what
+  // it has charged, so the test below would never let it through).
+  if (!isOpenEndedPlan(row) && row.installments_paid >= effectiveTotal(row)) return false;
   const anchor = row.paid_at ? Date.parse(row.paid_at) : NaN;
   if (!Number.isFinite(anchor)) return false;
   const dueUnix = addMonthsUnix(

@@ -1,0 +1,13 @@
+-- The monthly live pass (src/lib/courses/live-pass.ts) is the site's first
+-- open-ended subscription: it renews every month until the buyer cancels
+-- (payment_plan 'subscription', installments_total 0, amount_cents = ONE month,
+-- installments_paid = months charged).
+--
+-- paid_through is the end of the last month it has paid for, stamped each time a
+-- month is recorded (stampPaidThrough in src/lib/courses/db.ts). Once the buyer
+-- cancels, the member app keeps the sessions open until this instant and then
+-- closes them — the contract it already reads (songdance-app,
+-- apps/api/fixtures/site-pending/0085_app_product_contract.sql; its sync detects
+-- the column when it appears). 'YYYY-MM-DD HH:MM:SS' UTC like every other stamp
+-- here. NULL on every other order.
+ALTER TABLE course_registrations ADD COLUMN paid_through TEXT;

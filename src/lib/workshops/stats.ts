@@ -40,7 +40,7 @@ import { getFxRatesToEur } from '../admin/fx';
 import { parsePurchasedBumps, type PurchasedBump } from '../courses/db';
 import { BUMPS, isBumpSlug } from '../courses/bumps';
 import { CERT_EXTENSION_LABEL, CERT_EXTENSION_SLUG, livePassLabelForSlug } from '../courses/live-pass';
-import { effectiveTotal, addMonths } from '../courses/installment-forecast';
+import { effectiveTotal, addMonths, isOpenEndedPlan } from '../courses/installment-forecast';
 import { MASTERCLASS_DOOR_SPLIT_START } from './experiments';
 import { businessWindowUtc, businessDayStartMs, businessDayOf } from './periods';
 
@@ -156,8 +156,13 @@ type CourseMoneyRow = {
 };
 
 // Gross value of `cycles` billing cycles of a row, in its own currency. A
-// one-off plan is its whole amount whatever the cycle count says.
+// one-off plan is its whole amount whatever the cycle count says. An open-ended
+// subscription (the monthly live pass, installments_total = 0) stores ONE
+// month in amount_cents, so it is worth a month per cycle — and, since it
+// promises nothing beyond what it has charged, its contracted value is the
+// same figure (effectiveTotal = installments_paid).
 function cyclesValueMinor(r: CourseMoneyRow, cycles: number): number {
+  if (isOpenEndedPlan(r)) return r.amount_cents * Math.max(0, cycles);
   if (r.installments_total > 1) {
     const n = Math.max(0, Math.min(cycles, r.installments_total));
     return Math.round(r.amount_cents * (n / r.installments_total));
@@ -835,7 +840,8 @@ export async function computeCourseCashIn(
   const where: string[] = ['paid_at IS NOT NULL', "status NOT IN ('pending','expired')"];
   const binds: unknown[] = [];
   const saleWin: string[] = [];
-  if (earliestSale) { saleWin.push('paid_at >= ?'); binds.push(earliestSale); }
+  // …except an open-ended monthly subscription, which can bill for years.
+  if (earliestSale) { saleWin.push('(paid_at >= ? OR installments_total = 0)'); binds.push(earliestSale); }
   if (bounds.end) { saleWin.push('paid_at < ?'); binds.push(bounds.end); }
   const refundWin: string[] = ['refunded_at IS NOT NULL', 'refunded_amount_cents > 0'];
   if (bounds.start) { refundWin.push('refunded_at >= ?'); binds.push(bounds.start); }
@@ -874,10 +880,15 @@ export async function computeCourseCashIn(
     const saleMs = parseUtcMs(r.paid_at);
     if (saleMs != null) {
       const isPlan = r.installments_total > 1;
+      // An open-ended subscription: amount_cents is one month, every recorded
+      // month a charge on the same calendar schedule.
+      const openEnded = isOpenEndedPlan(r);
       const perCharge = isPlan ? Math.round(r.amount_cents / r.installments_total) : r.amount_cents;
       const charges = isPlan
         ? Math.max(0, Math.min(r.installments_paid, r.installments_total))
-        : 1;
+        : openEnded
+          ? Math.max(0, r.installments_paid)
+          : 1;
       for (let k = 0; k < charges; k++) {
         // addMonths keeps the calendar date only; the time of day decides which
         // Brussels day a late-evening charge falls on, so it is put back.

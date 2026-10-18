@@ -11,7 +11,10 @@ import { brusselsToday, businessDayOf } from '../workshops/periods';
 import { findCountry } from '../countries';
 import { addDays, FOUNDATION_WEEKS } from './cert-access';
 import { certWindowForEmail, extensionWouldHelp, type CertWindow } from './cert-window';
+import { monthlyPaidThroughDay } from './live-pass-monthly';
+import type { CourseRegistration } from './db';
 import {
+  LIVE_PASS_MONTHLY_SLUG,
   LIVE_PASS_MONTHS,
   listPaidLivePasses,
   livePassMonthsOf,
@@ -33,6 +36,12 @@ export type LivePassPlan = {
   // Whether a pass of theirs is still running (its months reach today or
   // later): a new one then continues with the session after its last.
   passRunning: boolean;
+  // The last day of the month a monthly of theirs has paid for, when that is
+  // today or later (running, or cancelled with its month still to run): a pass
+  // starts the day after, so it never pays for days the monthly already has.
+  monthlyUntil: string | null;
+  // Whether that monthly still renews (not cancelled on our side).
+  monthlyRenews: boolean;
   periods: Record<LivePassMonths, LivePassPeriod & { extensionHelps: boolean }>;
 };
 
@@ -138,10 +147,11 @@ export async function planLivePass(
   opts: { today?: string; onlyPassesBefore?: number } = {},
 ): Promise<LivePassPlan> {
   const today = opts.today ?? brusselsToday();
-  const [window, passes, twelveWeek] = await Promise.all([
+  const [window, passes, twelveWeek, monthly] = await Promise.all([
     certWindowForEmail(db, email, today),
     listPaidLivePasses(db, email),
     loadTwelveWeek(db, email, today),
+    loadMonthly(db, email, today),
   ]);
   // Earlier passes never move the start (the member app queues the sessions);
   // they only push back where this pass's months — an extension's — begin.
@@ -154,13 +164,49 @@ export async function planLivePass(
   // A 12-week student extends their Q&As: the pass picks up where the 12 weeks end.
   if (twelveWeek.liveUntil) busy.push(twelveWeek.liveUntil);
   const latest = busy.filter((d) => d >= today).sort().pop() ?? null;
+  // A monthly's paid month holds the start back too, but it is not "your
+  // course" — the page words it on its own (monthlyUntil).
+  if (monthly.until) busy.push(monthly.until);
 
   const periods = {} as LivePassPlan['periods'];
   for (const months of LIVE_PASS_MONTHS) {
     const period = livePassPeriod({ today, months, busyUntil: busy, passesUntil });
     periods[months] = { ...period, extensionHelps: extensionWouldHelp(window, period.endsOn) };
   }
-  return { window, twelveWeek, liveUntil: latest, passRunning: passesUntil.some((d) => d >= today), periods };
+  return {
+    window,
+    twelveWeek,
+    liveUntil: latest,
+    passRunning: passesUntil.some((d) => d >= today),
+    monthlyUntil: monthly.until,
+    monthlyRenews: monthly.renews,
+    periods,
+  };
+}
+
+// The monthly live pass (live-pass-monthly.ts): the last day its paid months
+// cover (inclusive Brussels day — the day before paid_through's), when that is
+// today or later.
+async function loadMonthly(db: D1Database, email: string, today: string): Promise<{ until: string | null; renews: boolean }> {
+  const rows = await db
+    .prepare(
+      `SELECT * FROM course_registrations
+        WHERE product_slug = ? AND lower(email) = ? AND installments_paid > 0 AND status IN ('paid','cancelled')`,
+    )
+    .bind(LIVE_PASS_MONTHLY_SLUG, email.trim().toLowerCase())
+    .all<CourseRegistration>()
+    .catch(() => ({ results: [] as CourseRegistration[] }));
+  let until: string | null = null;
+  let renews = false;
+  for (const r of rows.results ?? []) {
+    const through = monthlyPaidThroughDay(r);
+    if (!through) continue;
+    const last = addDays(through, -1);
+    if (last < today) continue;
+    if (!until || last > until) until = last;
+    if (r.status === 'paid' && !['canceled', 'incomplete_expired'].includes(r.subscription_status ?? '')) renews = true;
+  }
+  return { until, renews };
 }
 
 // When the payment lands: the dates from the paid day, written onto the order

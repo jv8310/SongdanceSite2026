@@ -59,15 +59,31 @@ export type InstallmentRow = {
   taxRate?: number;
 };
 
+// An open-ended subscription (the monthly live pass): it renews until the buyer
+// cancels, so it has no plan length. Stored as `installments_total = 0`,
+// `payment_plan = 'subscription'`, with `amount_cents` the price of ONE month
+// (not a plan total) and `installments_paid` the months charged so far — the
+// contract the member app already reads (songdance-app,
+// apps/api/fixtures/site-pending/0085_app_product_contract.sql). Every
+// `installments_total > 1` test reads false for it, which keeps it out of the
+// installment forecast, the dunning sequence, the plan audit and the
+// early-stop tools: it never owes a charge it hasn't taken.
+export function isOpenEndedPlan(row: { installments_total: number }): boolean {
+  return row.installments_total === 0;
+}
+
 // Effective plan length: the admin-scheduled stop if one is set (clamped into
 // [installments_paid, installments_total]), otherwise the full plan. Typed
 // structurally so a full `CourseRegistration` (the webhook / reconcile side)
-// can be measured with the same rule as a forecast row.
+// can be measured with the same rule as a forecast row. An open-ended
+// subscription is as long as what it has charged: it never "completes" and
+// never has a charge left to forecast.
 export function effectiveTotal(row: {
   installments_paid: number;
   installments_total: number;
   cancel_after_installment: number | null;
 }): number {
+  if (isOpenEndedPlan(row)) return row.installments_paid;
   if (row.cancel_after_installment == null) return row.installments_total;
   return Math.max(
     row.installments_paid,
