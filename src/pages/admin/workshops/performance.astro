@@ -223,6 +223,15 @@ const chartPoints: SessionPoint[] = activeRows
   }))
   .sort((a, b) => a.t - b.t);
 
+// The boxes at the top: the most recent sessions that have run, newest first,
+// each with its whole story at a glance — the same figures its card below
+// prints, nothing recomputed.
+const LATEST_N = 6;
+const latestRows = pastRows
+  .filter((r) => !r.isReplay && Number.isFinite(startMs(r.startsAtUtc)))
+  .sort((a, b) => startMs(b.startsAtUtc) - startMs(a.startsAtUtc))
+  .slice(0, LATEST_N);
+
 const presetRangesJson = JSON.stringify(presetRangesMap()).replace(/</g, '\\u003c');
 const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
 ---
@@ -233,7 +242,6 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
       <div>
         <p class="adm-breadcrumbs"><a href="/admin">Admin</a> <span class="sep">/</span> <a href="/admin/workshops">Workshops</a> <span class="sep">/</span> Performance</p>
         <h1>Per-workshop performance</h1>
-        <p class="adm-sub">The funnel per workshop: registrations → attendance → course purchases. Course / Cert buys are matched by email across workshop checkouts and standalone course sales, so someone who registered for several workshops counts toward each. Revenue counts each course sale <strong>in full</strong> — a 3×/6×/12× plan is one purchase the ad bought, so all of its installments count on the day it was sold; the lighter part of the revenue bar is what has actually been charged so far.</p>
       </div>
       <div class="adm-actions">
         <a class="adm-btn adm-btn--ghost" href="/admin/stats">← Statistics</a>
@@ -252,38 +260,55 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
         <label>To <input type="date" name="to" id="f-to" value={to ?? ''} /></label>
         <button type="submit" class="adm-btn adm-btn--solid">Apply</button>
       </form>
-      <p class="adm-sub" style="margin-top:10px;">
-        Showing <strong>{rangeLabel}</strong> ·
-        prospecting (TOF) spend {eur(report.acquisitionSpendEurMinor)} ÷ {report.totalRegistrations} registrations =
-        <strong>{report.costPerRegistrationEurMinor != null ? eur(Math.round(report.costPerRegistrationEurMinor)) : '—'}</strong> cost per registration, blended.
-        {report.retargetingSpendEurMinor > 0 && <> Retargeting {eur(report.retargetingSpendEurMinor)} is excluded from that (total ad spend {eur(report.adSpendEurMinor)}).</>}
-      </p>
-      <div class="pf-aud">
-        {([
-          ['Workshop', report.audiences.workshop],
-          ['Masterclass', report.audiences.masterclass],
-        ] as const).map(([label, a]) => (
-          <div class="pf-aud-card">
-            <div class="pf-aud-key">Cost per {label.toLowerCase()} registration</div>
-            <div class="pf-aud-val">{a.costPerRegistrationEurMinor != null ? eur(Math.round(a.costPerRegistrationEurMinor)) : '—'}</div>
-            <div class="pf-aud-sub">
-              {eur(a.allocatedCostEurMinor)} charged ÷ {a.registrations} registration{a.registrations === 1 ? '' : 's'}
-              <br />{label} campaigns spent {eur(a.acquisitionSpendEurMinor)} (TOF)
-            </div>
-          </div>
-        ))}
-      </div>
-      <p class="adm-sub" style="margin-top:10px;">
-        Each product is charged its <strong>own campaigns’ money</strong>: a campaign whose name says <em>Masterclass</em> only ever pays for masterclass seats, one that says <em>Workshop</em> only for workshop seats. Within that, the charge is <strong>day by day</strong> — every registration carries the price of a registration of its own kind on the day it came in (that day’s spend for that product ÷ that day’s registrations for it), so a session that filled on expensive days costs more per seat than the average. See the daily table below.
-        {report.generalAcquisitionSpendEurMinor > 0 && <> {eur(report.generalAcquisitionSpendEurMinor)} of TOF spend came from campaigns naming neither product — that part is charged across every registration.</>}
-        {report.unallocatedAcquisitionSpendEurMinor > 0 && <> {eur(report.unallocatedAcquisitionSpendEurMinor)} could not be charged to anything: its product took no registration at all in this window, and charging it to the other product’s seats is exactly what this split avoids.</>}
-      </p>
     </section>
+
+    {latestRows.length > 0 && (
+      <section class="adm-section">
+        <h2 class="pf-h2">Latest sessions</h2>
+        <div class="pf-latest">
+          {latestRows.map((r) => {
+            const profit = profitOf(r.totalEurMinor, r.metaCostEurMinor);
+            const attended = r.attendedLive + r.replayViews;
+            return (
+              <a class={`pf-tile pf-tile--${r.isMasterclass ? 'masterclass' : 'workshop'}`} href={`/admin/workshops/${r.workshopId}`}>
+                <div class="pf-tile-head">
+                  <span class="pf-tile-name">{shortTitle(r.title)}</span>
+                  <span class="pf-tile-when">{dateLabel(r.startsAtUtc)} · {r.isMasterclass ? 'masterclass' : 'workshop'}</span>
+                </div>
+                <div class="pf-tile-big">
+                  <div>
+                    <b class={profitTone(profit)}>{eurSigned0(profit)}</b>
+                    <span>profit</span>
+                  </div>
+                  <div>
+                    <b class={roasTone(r.workshopRoas)}>{roasStr(r.workshopRoas)}</b>
+                    <span>ROAS</span>
+                  </div>
+                </div>
+                <dl class="pf-tile-grid">
+                  <div><dt>In</dt><dd>{eur0(r.totalEurMinor)}</dd></div>
+                  <div><dt>Out (Meta)</dt><dd>{eur0(r.metaCostEurMinor ?? 0)}</dd></div>
+                  <div><dt>Cost / reg</dt><dd>{r.costPerRegistrationEurMinor != null ? eur(Math.round(r.costPerRegistrationEurMinor)) : '—'}</dd></div>
+                  <div><dt>Registrations</dt><dd>{r.registrations}</dd></div>
+                  <div><dt>Attended</dt><dd>{attended} <small>({pct(r.attendancePct)})</small></dd></div>
+                  <div><dt>Live · replay · no-show</dt><dd>{r.attendedLive} · {r.replayViews} · {r.noShows}</dd></div>
+                  <div><dt>Course · cert</dt><dd>{r.courseBuys} · {r.certBuys}</dd></div>
+                  <div><dt>Conv / attendee</dt><dd>{pct(r.conversionPerAttendeePct)}</dd></div>
+                </dl>
+                {r.totalCollectedEurMinor < r.totalEurMinor && (
+                  <p class="pf-tile-note">{eur0(r.totalCollectedEurMinor)} of the in charged so far</p>
+                )}
+              </a>
+            );
+          })}
+        </div>
+      </section>
+    )}
 
     <section class="adm-section">
       <h2 style="margin:0 0 6px;font-size:18px;">Profit and ROAS per session</h2>
       <p class="adm-sub" style="margin-top:0;">
-        One bar per workshop and masterclass with activity in this window, in date order — the same profit and ROAS its card below prints — with a dashed trend line per product through the sessions that have run. Two panels on one session axis rather than two scales on one plot. Switch Workshop, Masterclass and Trend on or off above the chart; hover (or tap) a bar for its figures, click it to open that session.
+        One bar per session in date order, dashed trend per product. Hover a bar for its figures, click to open it.
       </p>
       <SessionProfitRoasChart points={chartPoints} />
     </section>
@@ -493,8 +518,39 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
       )}
 
       <p class="adm-sub" style="margin-top:14px;">
+        Course / Cert buys are matched by email across workshop checkouts and standalone course sales, so someone who registered for several workshops counts toward each. Revenue counts each course sale <strong>in full</strong> — a 3×/6×/12× plan is one purchase the ad bought, so all of its installments count on the day it was sold; the lighter part of the revenue bar is what has actually been charged so far.
         Registrations = completed (paid or coupon). The bar splits them into live · replay · no-show — live vs replay is whether they joined before or after the live slot ended, and admin-marked attendance without a join time counts as live; any remainder is registered with nothing recorded yet.
         TOF cost = the prospecting spend this session’s registrations pulled, out of the campaigns that were buying registrations for <em>its</em> product (a masterclass is never charged workshop-campaign money, or the other way round), priced day by day — each registration costs what a registration of that product cost on the day it came in — and the per-registration figure is that ÷ this session’s registrations, so it differs from the product average when its seats filled on cheaper or dearer days. Meta cost is the same day-by-day allocation of <em>total</em> ad spend (prospecting + retargeting); blended ROAS is revenue ÷ Meta cost, and <strong>profit</strong> is revenue − that same Meta cost — every ad euro charged to the session and <em>nothing else</em> (no gateway fees, no Zoom, no time). Revenue counts a payment plan in full on the day it was sold, so the second profit figure is the one on money actually charged so far. Revenue hovers to show the workshop-checkout vs attributed-course split. Conv = distinct course/cert buyers ÷ registrations.
+      </p>
+    </section>
+
+    <section class="adm-section">
+      <h2 class="pf-h2">Cost per registration</h2>
+      <p class="adm-sub" style="margin-top:10px;">
+        Showing <strong>{rangeLabel}</strong> ·
+        prospecting (TOF) spend {eur(report.acquisitionSpendEurMinor)} ÷ {report.totalRegistrations} registrations =
+        <strong>{report.costPerRegistrationEurMinor != null ? eur(Math.round(report.costPerRegistrationEurMinor)) : '—'}</strong> cost per registration, blended.
+        {report.retargetingSpendEurMinor > 0 && <> Retargeting {eur(report.retargetingSpendEurMinor)} is excluded from that (total ad spend {eur(report.adSpendEurMinor)}).</>}
+      </p>
+      <div class="pf-aud">
+        {([
+          ['Workshop', report.audiences.workshop],
+          ['Masterclass', report.audiences.masterclass],
+        ] as const).map(([label, a]) => (
+          <div class="pf-aud-card">
+            <div class="pf-aud-key">Cost per {label.toLowerCase()} registration</div>
+            <div class="pf-aud-val">{a.costPerRegistrationEurMinor != null ? eur(Math.round(a.costPerRegistrationEurMinor)) : '—'}</div>
+            <div class="pf-aud-sub">
+              {eur(a.allocatedCostEurMinor)} charged ÷ {a.registrations} registration{a.registrations === 1 ? '' : 's'}
+              <br />{label} campaigns spent {eur(a.acquisitionSpendEurMinor)} (TOF)
+            </div>
+          </div>
+        ))}
+      </div>
+      <p class="adm-sub" style="margin-top:10px;">
+        Each product is charged its <strong>own campaigns’ money</strong>: a campaign whose name says <em>Masterclass</em> only ever pays for masterclass seats, one that says <em>Workshop</em> only for workshop seats. Within that, the charge is <strong>day by day</strong> — every registration carries the price of a registration of its own kind on the day it came in (that day’s spend for that product ÷ that day’s registrations for it), so a session that filled on expensive days costs more per seat than the average. See the daily table below.
+        {report.generalAcquisitionSpendEurMinor > 0 && <> {eur(report.generalAcquisitionSpendEurMinor)} of TOF spend came from campaigns naming neither product — that part is charged across every registration.</>}
+        {report.unallocatedAcquisitionSpendEurMinor > 0 && <> {eur(report.unallocatedAcquisitionSpendEurMinor)} could not be charged to anything: its product took no registration at all in this window, and charging it to the other product’s seats is exactly what this split avoids.</>}
       </p>
     </section>
 
@@ -765,6 +821,37 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
 
     /* The two prices that matter: what a workshop seat costs and what a
        masterclass seat costs, each out of its own campaigns' budget. */
+    .pf-h2 { margin: 0 0 10px; font-size: 18px; }
+    .pf-latest {
+      display: grid; gap: 12px;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    }
+    .pf-tile {
+      display: flex; flex-direction: column; gap: 10px;
+      padding: 14px 16px; border: 1px solid var(--adm-line); border-radius: 12px;
+      background: var(--adm-paper-soft); color: inherit; text-decoration: none;
+      border-top: 3px solid #2a78d6;
+    }
+    .pf-tile--masterclass { border-top-color: #c9603a; }
+    .pf-tile:hover { border-color: var(--adm-ember-deep); }
+    .pf-tile-head { display: flex; flex-direction: column; gap: 2px; }
+    .pf-tile-name { font-weight: 650; font-size: 14px; }
+    .pf-tile-when { font-size: 11.5px; color: var(--adm-mute); }
+    .pf-tile-big { display: flex; gap: 22px; }
+    .pf-tile-big div { display: flex; flex-direction: column; }
+    .pf-tile-big b { font-size: 24px; font-weight: 650; font-variant-numeric: tabular-nums; line-height: 1.1; }
+    .pf-tile-big b.good { color: var(--adm-success); }
+    .pf-tile-big b.bad { color: var(--adm-danger); }
+    .pf-tile-big b.flat { color: var(--adm-mute); }
+    .pf-tile-big span { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--adm-mute); }
+    .pf-tile-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; margin: 0;
+    }
+    .pf-tile-grid div { display: flex; flex-direction: column; min-width: 0; }
+    .pf-tile-grid dt { font-size: 10.5px; color: var(--adm-mute); }
+    .pf-tile-grid dd { margin: 0; font-size: 13.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .pf-tile-grid small { font-weight: 400; color: var(--adm-mute); }
+    .pf-tile-note { margin: 0; font-size: 11px; color: var(--adm-mute); }
     .pf-aud { display:flex; gap:12px; flex-wrap:wrap; margin-top:12px; }
     .pf-aud-card {
       flex:1 1 220px; min-width:200px; padding:12px 14px;
