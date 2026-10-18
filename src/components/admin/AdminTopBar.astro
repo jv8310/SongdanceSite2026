@@ -3,6 +3,9 @@
 // Layout.astro so the global actions stay reachable wherever you navigate.
 // It is sticky on scroll; each page's own breadcrumbs / back link / title sit
 // underneath it in the page's .adm-header.
+// Stats + Performance carry labels; People / Settings / Images are icon-only
+// (title + aria-label) to save width. Calendar sync lives in Settings and on
+// the workshops page.
 import { getSessionEmail, readCookie } from '../../lib/registrations/auth';
 
 // Which admin is signed in (multi-user login). Defensive — never let a cookie
@@ -26,24 +29,18 @@ try {
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
         <span>Stats</span>
       </a>
-      <form method="POST" action="/api/admin/workshops/calendar-sync">
-        <input type="hidden" name="return" value="/admin" />
-        <button class="adm-btn adm-btn--ghost adm-btn--nav" type="submit">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-          <span>Calendar sync</span>
-        </button>
-      </form>
-      <a class="adm-btn adm-btn--ghost adm-btn--nav" href="/admin/people">
+      <a class="adm-btn adm-btn--ghost adm-btn--nav" href="/admin/workshops/performance">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
+        <span>Performance</span>
+      </a>
+      <a class="adm-btn adm-btn--ghost adm-btn--nav adm-btn--icon" href="/admin/people" title="People" aria-label="People">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-        <span>People</span>
       </a>
-      <a class="adm-btn adm-btn--ghost adm-btn--nav" href="/admin/settings">
+      <a class="adm-btn adm-btn--ghost adm-btn--nav adm-btn--icon" href="/admin/settings" title="Settings" aria-label="Settings">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-        <span>Settings</span>
       </a>
-      <a class="adm-btn adm-btn--ghost adm-btn--nav" href="/admin/image-manager">
+      <a class="adm-btn adm-btn--ghost adm-btn--nav adm-btn--icon" href="/admin/image-manager" title="Images" aria-label="Images">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-        <span>Images</span>
       </a>
       {signedInAs && (
         <span class="adm-topbar-user" title={`Signed in as ${signedInAs}`}>{signedInAs}</span>
