@@ -395,10 +395,11 @@ themselves). Each is the landing page of its own top-of-funnel campaign.
   (`campaignAudience` — the name must carry "Masterclass", plus "TOF" for
   prospecting), so both doors' spend pools as masterclass wherever the *product*
   is the question. Since September 2026 the name also carries the **door**
-  ("Missing Tool" / "Heal The Healer", `campaignMasterclassDoor`), so
-  `/admin/stats` and `/ads` show a card per door — its own campaign's money
-  against the seats *its* page sold and the courses those people bought (see
-  "Ad attribution" below). Keep the door in the campaign name or its spend falls
+  ("Missing Tool" / "Heal The Healer", `campaignMasterclassDoor`), so the
+  report can price each door against the seats *its* page sold and the courses
+  those people bought (see "Ad attribution" below) — the per-door cards that
+  showed it were taken off `/admin/stats` and `/ads` when the split test ended
+  (October 2026). Keep the door in the campaign name or its spend falls
   back to the shared pool and the split goes quiet. The page-change bookmarks
   (`experiments.ts`, one panel each on the performance page) cover both doors,
   since they share `MCRegister` — including `MC_PAGE_OFFERS_WORKSHOPS`.
@@ -1244,7 +1245,8 @@ channel must use `contractedMinorOf` — reading the collected slice is this bug
 again.
 
 **Profit on a session card is revenue − *Meta* cost** (September 2026): the
-workshop cards on `/admin/workshops/performance` and `/ads` print ROAS against
+workshop cards on `/admin/workshops/performance` and `/ads` (and, since October
+2026, the "Recent workshops" boxes on `/ads`, beside cost per registration) print ROAS against
 **TOF** cost, which is the right divisor for "what did acquisition buy" and the
 wrong one for "did this session make money" — the retargeting euros were spent
 too. So the profit line under the two bars subtracts `metaCostEurMinor` (the
@@ -1257,13 +1259,22 @@ figure that silently nets nothing but TOF, or that quietly means something other
 than the revenue bar directly above it, is the bug this shape avoids.
 
 **The same two figures are charted per session** (October 2026): the top of
-`/admin/workshops/performance` plots profit and ROAS per session
+`/admin/workshops/performance` and a section of `/ads` (just above "Results per
+workshop") plot profit, ROAS and cost per registration per session
 ([`SessionProfitRoasChart.astro`](src/components/admin/SessionProfitRoasChart.astro))
 — a **bar** per dated session with activity in the window, coloured by product
-(workshop blue, masterclass ember), built from the cards' own row values so the
-chart and the cards can't disagree. **Two panels on one shared axis, never one
-plot with two y-scales** — euros and a ratio share nothing, and a second axis
-lets either series be stretched to say anything. The axis is the **sessions,
+(workshop blue, masterclass ember — the page's own orange on `/ads`), built
+from the cards' own row values by **one** builder,
+[`sessionChartPoints`](src/lib/workshops/session-points.ts), so the chart, the
+cards and the two pages can't disagree. The component brings its own styles
+and `--spr-*` colour tokens (defaulting to the admin palette); `/ads`, which
+has no admin stylesheet, re-points them in its own `<style>`. It renders with
+`links={false}` there: a bar or table row opens `/admin/workshops/<id>` on the
+admin page, but the `/ads` viewer holds only the ads password. **One panel per
+measure on one shared axis, never one plot with several y-scales** — euros and
+a ratio share nothing, and a second axis lets any series be stretched to say
+anything. The third panel, cost per registration (TOF cost ÷ registrations),
+has no break-even line and its trend slope keeps its cents. The axis is the **sessions,
 evenly spaced, not the calendar** (dates under the bars): on a time axis a quiet
 month stretched the chart into long empty runs. A dashed **trend line** per
 product is a least-squares fit over that product's held sessions in order, so
@@ -1889,8 +1900,11 @@ so campaign → door → page is one string and cannot drift). Masterclass spend
 naming no door, plus the masterclass share of campaigns naming no product, is
 **shared** across the doors by the registrations each took. It rides on
 `report.masterclassDoors` (`DoorAcquisition`, same shape as an audience, with
-tickets and course sales split out), and `/admin/stats` + `/ads` render two cards
-**directly under** the workshop/masterclass ones. Three rules keep it honest: a
+tickets and course sales split out). `/admin/stats` + `/ads` rendered two cards
+directly under the workshop/masterclass ones until **the split test ended
+(October 2026)**: the cards and their notes are gone from both pages, and
+nothing on screen reads `masterclassDoors` now — the calculation is left in
+place, so a new door test needs only its cards back. Three rules keep it honest: a
 masterclass registration with no page recorded is **unknown, not a door** (a
 seat taken on a direct `/w/<slug>` link — its spend and income are reported
 beside the cards and belong to neither); a door whose page took no registration
@@ -1939,7 +1953,22 @@ sessions that remain — and "upcoming" is the site-wide rule (`ends_at_utc`, or
 those two pages now comes off `computeWorkshopPerformance` rather than
 `computeStats`, since only the allocation knows which euros were charged to a
 session that hasn't run. With the filter **off**, both dashboards say how much
-spend is riding on sessions that haven't happened yet.
+spend is riding on sessions that haven't happened yet. **`/ads` opens with it
+on** (October 2026): no `future` param means exclude there, so its "Include
+costs" option posts an explicit `future=include` — an empty value would read as
+"absent" and snap back to exclude. `/admin/stats` still defaults to include.
+
+**"Ad spend vs revenue" carries a cumulative profit line** (October 2026), on
+`/ads` and — the same chart, full width — on `/admin/stats` (where it replaced
+"Daily revenue vs ad spend" and keeps that chart's 7-day average): the running
+total of revenue − ad spend from the first day shown, on the same euro axis as
+the two daily lines, every line switchable from the legend so the scale can
+refit to the daily ones. It is the chart's own two lines netted, so it is
+profit after **ad spend only** and counts every ad euro spent that day; with
+"Exclude costs" on, the revenue line drops upcoming seats' tickets but a day's
+spend stays whole. `SDChart.line` grew a below-zero scale for it (whole nice
+steps either side of a zero baseline; all-positive charts draw exactly as
+before).
 
 **A registration costs what it cost *that day*** ([`src/lib/ads/allocation.ts`](src/lib/ads/allocation.ts),
 July 2026): the per-workshop ad cost used to be one window-wide average — total
@@ -1968,8 +1997,11 @@ stop summing to total prospecting spend by exactly that amount (footnoted
 wherever non-zero). `WorkshopPerformanceRow.costPerRegistrationEurMinor` is a
 session's own day-weighted seat price, out of its own product's budget;
 `dailyCosts` on the report is the day-by-day ledger with a price *per product*
-(shown as a table on `/admin/workshops/performance`, and the `/ads`
-cost-per-registration chart, which stays blended).
+(shown as a table on `/admin/workshops/performance`, and as the `/ads`
+cost-per-registration chart — one line per product since October 2026, each
+with a dashed trend weighted by that day's registrations, all four switchable
+from the legend; a day its product took no paid-for registration is a gap,
+there being nothing to price).
 
 **Cadence**: rides the existing **hourly** cron (`worker-entrypoint.ts`),
 self-gating via a `meta_ad_spend_synced_at` marker in `workshop_config` to the
@@ -1989,8 +2021,10 @@ the previous UTC day, since Meta buckets in the ad account's timezone), its own
 14-day sync), throttled to once a minute across all viewers with the marker
 stamped at *attempt* time (a broken token backs off too), an 8s hard timeout,
 and every error swallowed into a result the page reports as "⚠ live Meta sync
-failed" rather than a 500. Both pages also **open on today** (`resolvePeriod`
-takes a fallback preset; everything else still defaults to all-time).
+failed" rather than a 500. `/admin/stats` **opens on today** and `/ads` on the
+**last 30 days** (October 2026; `resolvePeriod` takes a fallback preset;
+everything else still defaults to all-time) — the live pull runs on both
+either way, since today sits inside both windows.
 
 **Setup** (Meta side is the only real work):
 - **`META_AD_ACCOUNT_ID`** — the ad account, `act_1234567890` or bare

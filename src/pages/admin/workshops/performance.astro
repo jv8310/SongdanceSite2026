@@ -8,7 +8,8 @@ import { computeShareReport } from '../../../lib/workshops/share-report';
 import { computeMcPageReport } from '../../../lib/workshops/mc-page-report';
 import { PAGE_CHANGES } from '../../../lib/workshops/experiments';
 import { SHARE_CHANNEL_LABELS } from '../../../lib/workshops/share';
-import SessionProfitRoasChart, { type SessionPoint } from '../../../components/admin/SessionProfitRoasChart.astro';
+import SessionProfitRoasChart from '../../../components/admin/SessionProfitRoasChart.astro';
+import { sessionChartPoints } from '../../../lib/workshops/session-points';
 
 export const prerender = false;
 
@@ -200,28 +201,10 @@ const segments = (r: Attendance): Seg[] => {
 // zeros there reads as "nobody came"; it hasn't happened yet.
 const anyAttendance = (r: Attendance) => r.attendedLive + r.replayViews + r.noShows > 0;
 
-// The chart over the cards: one point per dated session that did something in
-// this window, carrying the very figures its card prints (profit = revenue −
-// Meta cost, ROAS = revenue ÷ TOF cost). An on-demand replay has no date to sit
-// on, so it stays on the cards only.
+// The chart over the cards — the same points /ads plots (session-points.ts).
+const chartPoints = sessionChartPoints(rows);
+
 const startMs = (s: string) => Date.parse(s.includes('T') ? s : s.replace(' ', 'T') + 'Z');
-const chartPoints: SessionPoint[] = activeRows
-  .filter((r) => !r.isReplay && Number.isFinite(startMs(r.startsAtUtc)))
-  .map((r) => ({
-    id: r.workshopId,
-    title: shortTitle(r.title),
-    dateLabel: dateLabel(r.startsAtUtc),
-    t: startMs(r.startsAtUtc),
-    kind: r.isMasterclass ? 'masterclass' as const : 'workshop' as const,
-    upcoming: r.isUpcoming,
-    profitEurMinor: profitOf(r.totalEurMinor, r.metaCostEurMinor),
-    roas: r.workshopRoas,
-    revenueEurMinor: r.totalEurMinor,
-    metaCostEurMinor: r.metaCostEurMinor,
-    tofCostEurMinor: r.acquisitionCostEurMinor,
-    registrations: r.registrations,
-  }))
-  .sort((a, b) => a.t - b.t);
 
 // The boxes at the top: the most recent sessions that have run, newest first,
 // each with its whole story at a glance — the same figures its card below
@@ -347,7 +330,7 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
     )}
 
     <section class="adm-section">
-      <h2 style="margin:0 0 6px;font-size:18px;">Profit and ROAS per session</h2>
+      <h2 style="margin:0 0 6px;font-size:18px;">Profit, ROAS and cost per session</h2>
       <p class="adm-sub" style="margin-top:0;">
         One bar per session in date order, dashed trend per product. Hover a bar for its figures, click to open it.
       </p>

@@ -7,9 +7,7 @@ import {
   roasGapEurMinor,
   resolveMoneyOpts,
   type AudienceAcquisition,
-  type DoorAcquisition,
 } from '../../lib/workshops/stats';
-import { MASTERCLASS_DOOR_ANGLE } from '../../lib/ads/campaigns';
 import {
   PERIOD_PRESETS,
   resolvePeriod,
@@ -21,6 +19,8 @@ import {
   FUTURE_COSTS_PARAM,
 } from '../../lib/workshops/periods';
 import ChartKit from '../../components/charts/ChartKit.astro';
+import SessionProfitRoasChart from '../../components/admin/SessionProfitRoasChart.astro';
+import { sessionChartPoints } from '../../lib/workshops/session-points';
 
 export const prerender = false;
 
@@ -30,9 +30,10 @@ if (!(await hasAdsAccess(env, Astro.request))) {
   return Astro.redirect('/ads/login?next=' + encodeURIComponent(next));
 }
 
-// Opens on **today** — this dashboard answers "how is today's spend doing";
-// any other window is one click away in the period picker.
-const { preset, from, to } = resolvePeriod(Astro.url.searchParams, 'today');
+// Opens on the **last 30 days** — long enough for a month of sessions to have
+// run and sold on, short enough to read as "how are the ads doing now"; any
+// other window is one click away in the period picker.
+const { preset, from, to } = resolvePeriod(Astro.url.searchParams, 'last30');
 
 // Today's Meta spend, pulled inline before the figures are computed, so what
 // you see is minutes old. Throttled, hard-timed-out and never throws; a no-op
@@ -64,7 +65,11 @@ const money = await resolveMoneyOpts(env.DB, env);
 // sessions takes out their spend, their seats and the income those seats have
 // taken — cost and income for an event travel together or the ROAS is just a
 // different lie. Same setting on the compare window, or the halves wouldn't be.
-const excludeFuture = excludeFutureEventsFrom(Astro.url.searchParams);
+// It is the default here: the page opens excluding them, and only an explicit
+// "Include costs" (`future=include`) puts them back.
+const excludeFuture = Astro.url.searchParams.has(FUTURE_COSTS_PARAM)
+  ? excludeFutureEventsFrom(Astro.url.searchParams)
+  : true;
 const d = await computeAdsDashboard(env.DB, { from, to, money, excludeFutureEvents: excludeFuture });
 const cmp = compare && cmpFrom && cmpTo
   ? await computeAdsDashboard(env.DB, {
@@ -207,30 +212,6 @@ const econCards: EconCard[] = [
 const econTone = (roas: number | null): 'good' | 'bad' | 'flat' =>
   roas == null ? 'flat' : roas >= ROAS_TARGET ? 'good' : roas >= 1 ? 'flat' : 'bad';
 
-// ---- The masterclass, split by the door that sold the seat ----
-// One event, two landing pages, one TOF campaign each. The masterclass card
-// above pools them (that is what a masterclass seat costs); these two take it
-// apart, so the question the two campaigns actually pose — which door is worth
-// its spend — has an answer. Both carry the masterclass hue: same product,
-// different door.
-const doors = d.masterclassDoors;
-const DOOR_ACCENT: Record<string, string> = {
-  masterclass: 'var(--s2)',
-  'heal-the-healer': '#8a4b2c',
-};
-type DoorCard = { a: DoorAcquisition; angle: string; accent: string; gapEurMinor: number };
-const doorCards: DoorCard[] = doors.doors.map((a) => ({
-  a,
-  angle: MASTERCLASS_DOOR_ANGLE[a.door],
-  accent: DOOR_ACCENT[a.door] ?? 'var(--s2)',
-  gapEurMinor: roasGapEurMinor(a),
-}));
-// Nothing to show when the window holds no masterclass at all — two empty cards
-// are noise, not information.
-const showDoors =
-  doors.doors.some((a) => a.registrations > 0 || a.allocatedCostEurMinor > 0) ||
-  doors.unknown.registrations > 0;
-
 const focus = [
   {
     name: 'Workshops', count: d.workshops.ticketCount, eurMinor: d.workshops.netEurMinor,
@@ -259,6 +240,9 @@ const rows = d.workshopRows.slice().sort((a, b) => {
   return ad - bd;
 });
 const activeRows = rows.filter((r) => r.registrations > 0 || r.totalEurMinor > 0);
+// The per-session profit & ROAS chart — the same points the admin performance
+// page plots (session-points.ts), so the two pages can't disagree on a session.
+const chartPoints = sessionChartPoints(d.workshopRows);
 
 // ---- per-workshop cards ----
 // Money bars share one scale across every card, so bar lengths compare
@@ -323,13 +307,59 @@ const anyTw = ds.some((x) => x.twelveWeekEurMinor > 0);
 const anyCert = ds.some((x) => x.certificationEurMinor > 0);
 const anyOther = ds.some((x) => x.otherCoursesEurMinor > 0);
 
+// Cost per registration, one line per product, each with its trend: a
+// least-squares line over the days that priced a registration, every day
+// weighted by its registrations — a day with one €180 seat must not swing the
+// trend like a day of twenty. Drawn from its first priced day to its last.
+const cpaTrend = (prices: (number | null)[], weights: number[]): (number | null)[] => {
+  const pts = prices
+    .map((v, i) => ({ i, v, w: weights[i] }))
+    .filter((p): p is { i: number; v: number; w: number } => p.v != null && p.w > 0);
+  const out: (number | null)[] = prices.map(() => null);
+  if (pts.length < 2) return out;
+  const sw = pts.reduce((a, p) => a + p.w, 0);
+  const mx = pts.reduce((a, p) => a + p.w * p.i, 0) / sw;
+  const my = pts.reduce((a, p) => a + p.w * p.v, 0) / sw;
+  let sxy = 0;
+  let sxx = 0;
+  for (const p of pts) { sxy += p.w * (p.i - mx) * (p.v - my); sxx += p.w * (p.i - mx) ** 2; }
+  const b = sxx > 0 ? sxy / sxx : 0;
+  for (let i = pts[0].i; i <= pts[pts.length - 1].i; i++) out[i] = Math.max(0, my + b * (i - mx));
+  return out;
+};
+const cpaWorkshopMinor = acq.map((x) => x.workshopCpaEurMinor);
+const cpaMasterclassMinor = acq.map((x) => x.masterclassCpaEurMinor);
+const majorOrNull = (v: number | null) => (v == null ? null : toMajor(v));
+const anyCpaWorkshop = cpaWorkshopMinor.some((v) => v != null);
+const anyCpaMasterclass = cpaMasterclassMinor.some((v) => v != null);
+
+// Running total of revenue − ad spend from the first day shown: where the
+// window stands after its ads, day by day. In euros like the two lines it is
+// drawn beside, so it shares their axis.
+function cumulativeProfit(dailyNetMinor: number[]): number[] {
+  let run = 0;
+  return dailyNetMinor.map((v) => toMajor((run += v)));
+}
+
 const chartData = {
   acq: {
     labels: acq.map((x) => x.date),
     registrations: acq.map((x) => x.registrations),
-    cpa: acq.map((x) => (x.cpaEurMinor == null ? null : toMajor(x.cpaEurMinor))),
+    cpaSeries: [
+      ...(anyCpaWorkshop ? [
+        { name: 'Workshop', color: 'var-s1', values: cpaWorkshopMinor.map(majorOrNull) },
+        { name: 'Workshop trend', color: '#184f95', dashed: true,
+          values: cpaTrend(cpaWorkshopMinor, acq.map((x) => x.workshopRegistrations)).map(majorOrNull) },
+      ] : []),
+      ...(anyCpaMasterclass ? [
+        { name: 'Masterclass', color: 'var-s2', values: cpaMasterclassMinor.map(majorOrNull) },
+        { name: 'Masterclass trend', color: '#8a3519', dashed: true,
+          values: cpaTrend(cpaMasterclassMinor, acq.map((x) => x.masterclassRegistrations)).map(majorOrNull) },
+      ] : []),
+    ],
     adSpend: acq.map((x) => toMajor(x.adSpendEurMinor)),
     revenue: acq.map((x) => toMajor(x.revenueEurMinor)),
+    cumulativeProfit: cumulativeProfit(acq.map((x) => x.revenueEurMinor - x.adSpendEurMinor)),
   },
   streams: {
     labels: ds.map((x) => x.date),
@@ -450,9 +480,6 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
       .ehead { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
       .ehead h3 { margin: 0; font-size: 14px; font-weight: 600; }
       .eregs { font-size: 12px; color: var(--muted); }
-      /* Door cards carry the page they are: the campaign points at it. */
-      .epage { margin: 6px 0 0; font-size: 11.5px; color: var(--muted); line-height: 1.45; }
-      .epage code { background: rgba(0,0,0,0.05); padding: 1px 5px; border-radius: 4px; font-size: 11px; }
       .ebody { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-top: 12px; }
       /* Two figures of EQUAL width, arrow between. As a flex row sized by
          content, the long "made back" caption ate the ad-spend column until the
@@ -500,24 +527,35 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
       .secondary { margin-top: 12px; color: var(--ink-2); font-size: 12.5px; }
 
       /* recent-workshop highlight boxes */
-      .wk-boxes { display: grid; grid-template-columns: repeat(auto-fit, minmax(224px, 1fr)); gap: 14px; }
-      .wk-box { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 15px 16px 16px; display: flex; flex-direction: column; }
-      .wk-box .wk-head { min-height: 34px; margin-bottom: 8px; }
-      .wk-box .wk-title { font-size: 13.5px; font-weight: 600; line-height: 1.25; color: var(--ink); }
-      .wk-box .wk-when { font-size: 11px; color: var(--muted); margin-top: 2px; }
-      .wk-box .wk-roas { display: flex; align-items: baseline; gap: 7px; }
-      .wk-box .wk-roas b { font-size: 33px; font-weight: 650; letter-spacing: -0.02em; line-height: 1; }
+      .wk-boxes { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+      .wk-box { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px 18px 16px; display: flex; flex-direction: column; }
+      .wk-box .wk-head { min-height: 40px; margin-bottom: 10px; }
+      .wk-box .wk-title { font-size: 15px; font-weight: 600; line-height: 1.25; color: var(--ink); }
+      .wk-box .wk-when { font-size: 12px; color: var(--muted); margin-top: 3px; }
+      /* Number, then its label under it: beside it the label wrapped into a
+         narrow column at this card width. */
+      .wk-box .wk-roas { display: flex; flex-direction: column; gap: 4px; }
+      .wk-box .wk-roas b { font-size: 40px; font-weight: 650; letter-spacing: -0.02em; line-height: 1; }
       .wk-box .wk-roas b.good { color: var(--good); }
       .wk-box .wk-roas b.bad { color: var(--ember-deep); }
       .wk-box .wk-roas b.flat { color: var(--muted); }
-      .wk-box .wk-roas span { font-size: 11.5px; color: var(--muted); }
-      .wk-box .wk-mini { margin: 12px 0 11px; display: flex; flex-direction: column; gap: 5px; }
-      .wk-box .wk-bar { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--ink-2); }
+      .wk-box .wk-roas span { font-size: 12px; color: var(--muted); }
+      .wk-box .wk-mini { margin: 14px 0 12px; display: flex; flex-direction: column; gap: 7px; }
+      .wk-box .wk-bar { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink-2); }
       .wk-box .wk-bar .wk-key { width: 34px; flex: none; color: var(--muted); }
-      .wk-box .wk-bar .wk-track { flex: 1; height: 8px; background: var(--surface); border-radius: 4px; overflow: hidden; }
-      .wk-box .wk-bar .wk-fill { display: block; height: 100%; border-radius: 4px; min-width: 2px; }
-      .wk-box .wk-bar .wk-amt { width: 52px; flex: none; text-align: right; font-variant-numeric: tabular-nums; }
-      .wk-box .wk-foot { display: flex; justify-content: space-between; gap: 8px; margin-top: auto; padding-top: 10px; border-top: 1px solid var(--hair); font-size: 11.5px; color: var(--ink-2); }
+      .wk-box .wk-bar .wk-track { flex: 1; height: 10px; background: var(--surface); border-radius: 5px; overflow: hidden; }
+      .wk-box .wk-bar .wk-fill { display: block; height: 100%; border-radius: 5px; min-width: 2px; }
+      .wk-box .wk-bar .wk-amt { width: 60px; flex: none; text-align: right; font-variant-numeric: tabular-nums; }
+      /* What the session made after its ad spend, and what a seat cost. */
+      .wk-box .wk-pair { display: grid; grid-template-columns: 1fr 1fr; align-items: end; gap: 10px; padding: 11px 0 12px; border-top: 1px solid var(--hair); }
+      .wk-box .wk-pair span { display: block; font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+      .wk-box .wk-pair b { display: block; margin-top: 2px; font-size: 20px; font-weight: 650; color: var(--ink); font-variant-numeric: tabular-nums; }
+      .wk-box .wk-pair b.good { color: var(--good); }
+      .wk-box .wk-pair b.bad { color: var(--bad); }
+      /* Each figure stays whole: a narrow card wraps between them, never
+         inside one. */
+      .wk-box .wk-foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 6px; margin-top: auto; padding-top: 11px; border-top: 1px solid var(--hair); font-size: 12px; color: var(--ink-2); }
+      .wk-box .wk-foot span { white-space: nowrap; }
       .wk-box .wk-foot b { color: var(--ink); font-weight: 600; }
 
       /* ── Results per workshop: one card per workshop, one card per row ──
@@ -647,6 +685,22 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
       .legend i.sw--dash { border-top-style: dashed; }
       .tip { position: absolute; pointer-events: none; background: var(--ink); color: #fff; font-size: 12px; line-height: 1.5; border-radius: 8px; padding: 7px 10px; opacity: 0; transition: opacity .08s; z-index: 6; white-space: nowrap; }
       .empty { color: var(--muted); font-size: 13px; padding: 12px 0; }
+      /* The per-session chart brings its own styles; point its colour tokens at
+         this page's palette (white card like the other charts, masterclass in
+         the page's own orange). The extra attribute outranks the component's
+         own defaults whatever order the two stylesheets load in. */
+      .spr-host :global(.spr[data-spr]) {
+        --spr-surface: var(--card);
+        --spr-head-bg: var(--surface);
+        --spr-ink: var(--ink);
+        --spr-ink-soft: var(--ink-2);
+        --spr-mute: var(--muted);
+        --spr-line: var(--line);
+        --spr-accent: var(--ember);
+        --spr-accent-deep: var(--ember-deep);
+        --spr-workshop: var(--s1);
+        --spr-masterclass: var(--s2);
+      }
 
       /* tables */
       .scroll { overflow-x: auto; }
@@ -692,7 +746,7 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
         </label>
         <label>Future events
           <select name={FUTURE_COSTS_PARAM} id="f-future">
-            <option value="">Include costs</option>
+            <option value="include" selected={!excludeFuture}>Include costs</option>
             <option value="exclude" selected={excludeFuture}>Exclude costs</option>
           </select>
         </label>
@@ -787,67 +841,6 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
         <p class="secondary">Revenue is everything traceable to those registrations — the checkout itself plus the 12-Week / certification sales those people went on to buy, each buyer counted once, and each sale counted in full: a 3×/6×/12× payment plan is one purchase the ad bought, so the whole plan counts on the day it was sold (capped at what will really be charged). Course sales land weeks after the ad spend, so a young window reads low.</p>
       </section>
 
-      {showDoors && (
-        <section>
-          <h2>The masterclass, by door</h2>
-          <p class="note">One event, two landing pages, a prospecting campaign each. Every door is charged <strong>its own campaign’s</strong> money — priced day by day against the registrations <strong>its page</strong> produced — and credited with the seats it sold and the courses those people went on to buy. <strong>From {dateLabel(doors.from)}</strong>{doors.clamped && <> — the day the second door opened. Before it there was one masterclass page, so earlier seats and the euros that bought them count on the masterclass card only, never as a door</>}.</p>
-          <div class="econ">
-            {doorCards.map((c) => (
-              <div class="ecard" style={`--accent: ${c.accent}`}>
-                <div class="ehead">
-                  <h3>{c.a.label}</h3>
-                  <span class="eregs">{int(c.a.registrations)} registration{c.a.registrations === 1 ? '' : 's'}</span>
-                </div>
-                <p class="epage"><code>{c.a.path}</code> · {c.angle}</p>
-                <div class="ebody">
-                  <div class="eflow">
-                    <div class="efig efig--lead">
-                      <span>Per registration</span>
-                      <b>{c.a.costPerRegistrationEurMinor != null ? eur(Math.round(c.a.costPerRegistrationEurMinor)) : '—'}</b>
-                      <em>{c.a.costPerRegistrationEurMinor != null
-                      ? `${eur(Math.round(c.a.allocatedCostEurMinor))} ad spend`
-                        : c.a.acquisitionSpendEurMinor > 0
-                          ? `${eur(c.a.acquisitionSpendEurMinor)} spent, charged to nothing — no seat came through this page`
-                          : 'nothing charged here'}</em>
-                    </div>
-                    <span class="earrow" aria-hidden="true">→</span>
-                    <div class="efig efig--minor">
-                      <span>Made back</span>
-                      <b>{eur(c.a.revenueEurMinor)}</b>
-                      <em>
-                        {eur(c.a.ticketRevenueEurMinor)} tickets &amp; bumps · {eur(c.a.courseRevenueEurMinor)} courses from {int(c.a.courseBuyers)} buyer{c.a.courseBuyers === 1 ? '' : 's'}
-                        {c.a.collectedRevenueEurMinor < c.a.revenueEurMinor && (
-                          <> — {eur(c.a.collectedRevenueEurMinor)} charged so far, rest on their payment plans</>
-                        )}
-                      </em>
-                    </div>
-                  </div>
-                  <div class="eroas">
-                    <b class={`e-${econTone(c.a.roas)}`}>{c.a.roas != null ? c.a.roas.toFixed(2) + '×' : '—'}</b>
-                    <span>ROAS so far</span>
-                  </div>
-                </div>
-                <p class="egoal">
-                  {c.a.allocatedCostEurMinor <= 0
-                    ? <>No ad spend charged to this door in this window — nothing to return yet.</>
-                    : c.gapEurMinor > 0
-                      ? <><strong>{eur(Math.round(c.gapEurMinor))}</strong> more revenue from these registrations to reach <strong>{ROAS_TARGET}×</strong> ({eur(Math.round(ROAS_TARGET * c.a.allocatedCostEurMinor))} in total).</>
-                      : <>Past <strong>{ROAS_TARGET}×</strong> — <strong>{eur(Math.round(-c.gapEurMinor))}</strong> above the line.</>}
-                </p>
-              </div>
-            ))}
-          </div>
-          <p class="secondary">
-            {!doors.tracked && <>⚠ No registration in this window recorded the page it came from, so these seats can’t be told apart by door — the spend split is real, the registrations aren’t. </>}
-            {doors.beforeSplit.registrations > 0 || doors.beforeSplit.acquisitionSpendEurMinor > 0 ? <>Before {dateLabel(doors.from)} this window also holds {int(doors.beforeSplit.registrations)} masterclass seat{doors.beforeSplit.registrations === 1 ? '' : 's'} and {eur0(doors.beforeSplit.acquisitionSpendEurMinor)} of masterclass spend from when there was <strong>one</strong> door: counted on the masterclass card above, and deliberately not split here. </> : null}
-            {doors.unknown.registrations > 0 && <>{int(doors.unknown.registrations)} masterclass registration{doors.unknown.registrations === 1 ? '' : 's'} since then recorded no page (a seat taken on a direct <code>/w/…</code> link rather than through either door): <strong>unknown, not a door</strong>. {eur0(doors.unknown.allocatedCostEurMinor)} of spend and {eur0(doors.unknown.revenueEurMinor)} of income sit with them — counted in the masterclass card above, in neither door here. </>}
-            {doors.sharedSpendEurMinor > 0 && <>{eur0(doors.sharedSpendEurMinor)} of masterclass spend named no door and is split across them by the registrations each took. </>}
-            {doors.unallocatedEurMinor > 0 && <>{eur0(Math.round(doors.unallocatedEurMinor))} of a door’s own spend is charged to nothing: no registration came through that page in this window. </>}
-            Course sales land weeks after the ad spend, so a door opened recently reads low.
-          </p>
-        </section>
-      )}
-
       <section>
         <h2>Recent workshops</h2>
         <p class="note">
@@ -862,6 +855,9 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
               const income = r.totalEurMinor;
               const cost = r.acquisitionCostEurMinor ?? 0;
               const mx = Math.max(income, cost, 1);
+              // Profit is the same figure as the session's card: revenue minus
+              // every ad euro charged to it (prospecting + retargeting).
+              const profit = profitOf(income, r.metaCostEurMinor);
               return (
                 <div class="wk-box">
                   <div class="wk-head">
@@ -870,7 +866,7 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
                   </div>
                   <div class="wk-roas">
                     <b class={tone}>{roasStr(r.workshopRoas)}</b>
-                    <span>ROAS · workshop-only</span>
+                    <span>ROAS · income ÷ TOF cost</span>
                   </div>
                   <div class="wk-mini">
                     <div class="wk-bar">
@@ -882,6 +878,16 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
                       <span class="wk-key">TOF</span>
                       <span class="wk-track"><span class="wk-fill" style={`width:${(cost / mx) * 100}%;background:var(--s2);`}></span></span>
                       <span class="wk-amt">{r.acquisitionCostEurMinor != null ? eur0(cost) : '—'}</span>
+                    </div>
+                  </div>
+                  <div class="wk-pair">
+                    <div title={`Revenue ${eur(income)} − Meta cost ${eur(r.metaCostEurMinor ?? 0)} (all ad spend charged to this session, prospecting + retargeting). Ad spend only — nothing else is netted off.`}>
+                      <span>Profit</span>
+                      <b class={profitTone(profit)}>{eurSigned0(profit)}</b>
+                    </div>
+                    <div title="Prospecting (TOF) cost charged to this session ÷ its registrations">
+                      <span>Cost / reg</span>
+                      <b>{r.costPerRegistrationEurMinor != null ? eur(Math.round(r.costPerRegistrationEurMinor)) : '—'}</b>
                     </div>
                   </div>
                   <div class="wk-foot">
@@ -932,13 +938,13 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
               </div>
               <div class="chart-block">
                 <h3>Cost per registration</h3>
-                <p class="ch-sub">Prospecting (TOF) spend ÷ registrations, per day{!d.hasAdSpend && ' — needs imported spend'}</p>
+                <p class="ch-sub">Per product, per day: its campaigns’ prospecting (TOF) spend ÷ its registrations. Dashed = trend, each day weighted by its registrations. Tick a line to show/hide it{!d.hasAdSpend && ' — needs imported spend'}</p>
                 <div class="chart" id="ch-cpa"></div>
               </div>
             </div>
             <div class="chart-block span">
               <h3>Ad spend vs revenue</h3>
-              <p class="ch-sub">Both in euros — same axis</p>
+              <p class="ch-sub">All in euros, one axis. Cumulative profit = revenue − ad spend, added up from the first day shown (ad spend only, nothing else netted off). Tick a line to show/hide it — the scale fits what’s shown</p>
               <div class="chart" id="ch-spend"></div>
             </div>
             <div class="chart-block span">
@@ -948,6 +954,12 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
             </div>
           </>
         )}
+      </section>
+
+      <section>
+        <h2>Profit, ROAS and cost per session</h2>
+        <p class="note">One bar per workshop and masterclass with activity in this window, in date order — the same profit (revenue − Meta cost), ROAS (revenue ÷ TOF cost) and cost per registration (TOF cost ÷ registrations) as its card under “Results per workshop” — with a dashed trend line per product through the sessions that have run. One panel per measure on one session axis, never two scales on one plot. Switch Workshop, Masterclass and Trend on or off above the chart; hover (or tap) a bar for its figures.</p>
+        <div class="spr-host"><SessionProfitRoasChart points={chartPoints} links={false} /></div>
       </section>
 
       <section>
@@ -1218,13 +1230,16 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
         if (!el || !window.SDChart) return;
         var data = JSON.parse(el.textContent);
         var hiddenStreams = {};
+        var hiddenCpa = {};
+        var hiddenSpend = {};
         function drawAll() {
           if (!document.getElementById('ch-regs')) return;
           SDChart.column('ch-regs', { labels: data.acq.labels, values: data.acq.registrations, color: 'var-s1', fmt: 'int', name: 'Registrations' });
-          SDChart.line('ch-cpa', { labels: data.acq.labels, fmt: 'eur', area: true, labelLast: true, series: [{ name: 'Cost / registration', color: 'var-s4', values: data.acq.cpa }] });
-          SDChart.line('ch-spend', { labels: data.acq.labels, fmt: 'eur', series: [
+          SDChart.line('ch-cpa', { labels: data.acq.labels, fmt: 'eur', interactive: true, hidden: hiddenCpa, series: data.acq.cpaSeries });
+          SDChart.line('ch-spend', { labels: data.acq.labels, fmt: 'eur', interactive: true, hidden: hiddenSpend, series: [
             { name: 'Revenue', color: 'var-s5', values: data.acq.revenue },
             { name: 'Ad spend', color: 'var-s2', values: data.acq.adSpend },
+            { name: 'Cumulative profit', color: 'var-ink', values: data.acq.cumulativeProfit },
           ] });
           var streamSeries = data.streams.series.concat([{ name: 'Total', color: '#8a8076', values: data.streams.total, dashed: true }]);
           SDChart.line('ch-streams', { labels: data.streams.labels, fmt: 'eur', interactive: true, hidden: hiddenStreams, series: streamSeries });
