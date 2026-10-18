@@ -142,6 +142,10 @@ type Env = {
   // ADMIN_SESSION_SECRET (see src/lib/email/unsubscribe.ts).
   UNSUBSCRIBE_SECRET?: string;
   PUBLIC_BASE_URL: string;
+  // The member app's admin door (service binding → Worker songdance-app-api,
+  // entrypoint SiteAdmin): the "App access" section on a person's page. Absent
+  // in local `astro dev`. See src/lib/admin/app-access.ts.
+  APP_ADMIN?: import('./lib/admin/app-access').AppAdminBinding;
 };
 
 type Runtime = import('@astrojs/cloudflare').Runtime<Env>;
