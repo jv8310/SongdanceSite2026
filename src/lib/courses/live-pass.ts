@@ -49,6 +49,25 @@
 // Rides the ordinary course machinery under product slugs `live-pass-1m` /
 // `-3m` / `-6m`; the add-on is a row in the `bumps` JSON (`cert-extension`), so
 // every money report already counts it.
+//
+// ── The monthly (October 2026) ──────────────────────────────────────────────
+//
+// Beside the three passes, a **monthly** that renews by itself until the buyer
+// cancels: €52 a month (the 1-month pass's price, same currencies), charged on
+// the same day each month by Stripe or PayPal. It is time, not a count: while
+// it runs it opens every Q&A and deepening session, and once cancelled it runs
+// to the end of the month already paid for, then stops. Cancel any time, from
+// the link in its confirmation email (/courses/live-pass/manage), and start
+// again whenever. No certification-window add-on with it — that is sold with a
+// pass, for a stretch of months known up front.
+//
+// It is the open-ended subscription the member app was built to read
+// (songdance-app: site slug `qa-plan-deepening` → product
+// `qa-extended-deepening`, "active until the end of the paid period"): one row,
+// payment_plan 'subscription', installments_total 0, amount_cents = ONE month,
+// installments_paid = months charged, paid_through = the end of the last month
+// charged (migration 0090). See isOpenEndedPlan in installment-forecast.ts for
+// how the money reports read it.
 
 import { formatMoney, type SupportedCurrency } from '../workshops/currency';
 import { businessDayOf, businessWindowUtc } from '../workshops/periods';
@@ -71,6 +90,18 @@ export const LIVE_PASS_DRIP_EVENT = 'Completed live pass purchase';
 export const LIVE_PASS_PAGE_PATH = '/courses/live-pass';
 
 export const CERT_EXTENSION_LABEL = 'Extend my certification window';
+
+// The monthly's slug is the member app's contract, not a `live-pass-` one: the
+// app already maps it onto its open-ended plan, so no app change is needed.
+export const LIVE_PASS_MONTHLY_SLUG = 'qa-plan-deepening';
+export const LIVE_PASS_MONTHLY_LABEL = 'Live pass · monthly';
+export const LIVE_PASS_MONTHLY_DRIP_TAG = 'prod_LivePassMonthly';
+export const LIVE_PASS_MONTHLY_DRIP_EVENT = 'Started live pass monthly';
+export const LIVE_PASS_MANAGE_PATH = '/courses/live-pass/manage';
+
+export function isLivePassMonthlySlug(slug: string | null | undefined): boolean {
+  return slug === LIVE_PASS_MONTHLY_SLUG;
+}
 
 export function livePassSlug(months: LivePassMonths): `live-pass-${number}m` {
   return `live-pass-${months}m`;
@@ -111,6 +142,7 @@ export function livePassLabel(months: LivePassMonths): string {
 
 // "Live pass · 3 months" for a live-pass slug, else null — for the label maps.
 export function livePassLabelForSlug(slug: string): string | null {
+  if (isLivePassMonthlySlug(slug)) return LIVE_PASS_MONTHLY_LABEL;
   const months = livePassMonthsOf(slug);
   return months ? livePassLabel(months) : null;
 }
@@ -128,6 +160,11 @@ function floorTo(cents: number, step: number): number {
 // One month at the full price, in a market.
 export function livePassMonthlyCents(currency: SupportedCurrency): number {
   return albumPriceCents(LIVE_PASS_MONTHLY_EUR_CENTS, currency);
+}
+
+// The monthly: one month at the full price, every month.
+export function livePassMonthlyPriceCents(currency: SupportedCurrency): number {
+  return livePassMonthlyCents(currency);
 }
 
 // The pass, discounted for its length and floored to a whole unit.

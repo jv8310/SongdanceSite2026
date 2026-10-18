@@ -856,12 +856,15 @@ export async function setSubscriptionCancelAt(
 // prorated and no further one is generated. Called once the final installment
 // settles (see recordCourseInvoiceIfNew), which makes the plan's stop exact
 // even if the scheduled cancel_at was wrong or never applied.
+// `value: false` takes the flag back off (the monthly live pass's "keep it
+// after all", while the paid month is still running).
 export async function setSubscriptionCancelAtPeriodEnd(
   secretKey: string,
   subscriptionId: string,
+  value = true,
 ): Promise<void> {
   const form = new URLSearchParams();
-  form.set('cancel_at_period_end', 'true');
+  form.set('cancel_at_period_end', value ? 'true' : 'false');
   await updateSubscription(secretKey, subscriptionId, form);
 }
 
@@ -1205,9 +1208,13 @@ export async function createSubscriptionCheckoutSession(
   );
   form.set('line_items[0][price_data][recurring][interval]', 'month');
   form.set('line_items[0][price_data][recurring][interval_count]', '1');
+  // installment_count 0 = open-ended: renews monthly until cancelled, and the
+  // webhook schedules no cancel_at for it.
   form.set(
     'line_items[0][price_data][product_data][name]',
-    `${input.product_name} — ${input.installment_count}-month plan`,
+    input.installment_count > 0
+      ? `${input.product_name} — ${input.installment_count}-month plan`
+      : `${input.product_name} — monthly`,
   );
   if (input.product_description) {
     form.set(

@@ -427,7 +427,7 @@ export type CreateSubscriptionInput = {
   planName: string; // e.g. "12-Week Course — 3-month plan"
   monthlyAmountMinor: number;
   currency: string; // ISO-4217 (upper)
-  installmentCount: number; // total_cycles, e.g. 3
+  installmentCount: number; // total_cycles, e.g. 3 (0 = open-ended)
   customId: string; // routing key, e.g. 'course:123'
   returnUrl: string;
   cancelUrl: string;
@@ -476,7 +476,7 @@ export async function createSubscription(
           frequency: { interval_unit: 'MONTH', interval_count: 1 },
           tenure_type: 'REGULAR',
           sequence: 1,
-          total_cycles: input.installmentCount, // finite → completes after N
+          total_cycles: input.installmentCount, // finite → completes after N; 0 = renews until cancelled
           pricing_scheme: {
             fixed_price: {
               value: minorToPaypalAmount(input.monthlyAmountMinor),

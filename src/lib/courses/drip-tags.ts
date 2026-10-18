@@ -15,6 +15,8 @@ import {
   CERT_EXTENSION_SLUG,
   LIVE_PASS_DRIP_TAG,
   isLivePassSlug,
+  isLivePassMonthlySlug,
+  LIVE_PASS_MONTHLY_DRIP_TAG,
 } from './live-pass';
 
 // Tagging differs by course, exactly as the paid-handler applies it:
@@ -26,6 +28,7 @@ import {
 //                  fall through to the cert tags for an album purchase
 //   live-pass-*  → prod_LivePass (+ prod_CertExtension with the add-on); the
 //                  pass's dates go along as custom fields, not tags
+//   qa-plan-deepening (the monthly live pass) → prod_LivePass + prod_LivePassMonthly
 //   cert/bundle  → prod_SVH_9m (+ prod_SVH_12w for the bundle) + each order bump's tag
 export function courseDripTags(reg: {
   product_slug: string;
@@ -35,6 +38,10 @@ export function courseDripTags(reg: {
   if (reg.product_slug === GRIEF_PRODUCT_SLUG) return [GRIEF_DRIP_TAG];
 
   if (isAlbumProductSlug(reg.product_slug)) return [];
+
+  // The monthly: the live pass tag (a pass holder, for any automation keyed on
+  // it) plus its own, so the two can be told apart.
+  if (isLivePassMonthlySlug(reg.product_slug)) return [LIVE_PASS_DRIP_TAG, LIVE_PASS_MONTHLY_DRIP_TAG];
 
   if (isLivePassSlug(reg.product_slug)) {
     const ext = parsePurchasedBumps(reg.bumps).some((b) => b.slug === CERT_EXTENSION_SLUG);

@@ -329,6 +329,36 @@ anyone whose course no longer includes them (or never did). Logic in
   push and the admin list follow. It is only sold to someone who holds the
   certification course in some form, and only when it reaches past the window
   they have — the checkout refuses it otherwise, in plain words.
+- **The monthly** (October 2026) — beside the three passes, a **monthly** that
+  renews until cancelled: **€52 a month** (the 1-month price, same currencies),
+  every Q&A and deepening session while it runs — time, not a count. It is the
+  site's first **open-ended subscription**, stored the way the member app was
+  already built to read it: product slug **`qa-plan-deepening`** (→ the app's
+  `qa-extended-deepening`), `payment_plan 'subscription'`, **`installments_total
+  0`**, `amount_cents` = **one month**, `installments_paid` = months charged,
+  **`paid_through`** = the end of the last month charged (migration 0090,
+  `stampPaidThrough`). `isOpenEndedPlan` (`installment-forecast.ts`) is the
+  test; `effectiveTotal` returns what it has charged, so every `installments_total
+  > 1` path (forecast, dunning, audit, early stop, card update) leaves it out and
+  the money helpers count it a month per charge (`cyclesValueMinor`,
+  `collectedGrossMinor`, the cash-in schedule, the orders page). Stripe: a
+  subscription-mode Checkout with `installment_count 0` (no `cancel_at`); PayPal:
+  `total_cycles 0`. No certification-window add-on with it, and one per address
+  (the checkout refuses a second). **Cancelling** is the buyer's, from the signed
+  link in its confirmation email (`/courses/live-pass/manage?t=…`,
+  [`live-pass-manage-link.ts`](src/lib/courses/live-pass-manage-link.ts),
+  `sd-lpm:`), sent again to the inbox on the order from "Manage my monthly" on the
+  pass page — never shown on screen. Stripe gets `cancel_at_period_end` (and can
+  be taken back while the month runs); PayPal is cancelled at once; either way the
+  app keeps the sessions open to `paid_through`. A renewal the gateway gives up on
+  (Stripe `unpaid`, PayPal `SUSPENDED`) ends the monthly and emails the buyer the
+  way back ([`live-pass-monthly.ts`](src/lib/courses/live-pass-monthly.ts)) — not
+  the plans' dunning sequence: a monthly owes nothing beyond its month. A pass
+  bought while a monthly is paid up starts the day after its paid month
+  (`planLivePass`'s `monthlyUntil`). Drip: `prod_LivePass` + `prod_LivePassMonthly`,
+  event `Started live pass monthly`. The hourly Stripe reconcile also records a
+  missed monthly renewal (pass 2, no age window). Emails (`/admin/emails`):
+  monthly running / stopped / manage link.
 - **One answer per person** — [`cert-window.ts`](src/lib/courses/cert-window.ts)
   (`certWindowForEmail`): holds the course, may certify, last day, open. The
   pass page reads it, and so does the **SVH app** (app.songdance.co, "Apply for

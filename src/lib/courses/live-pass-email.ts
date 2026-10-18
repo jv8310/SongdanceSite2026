@@ -17,24 +17,42 @@
 
 import { getCourseRegistrationById, type CourseRegistration } from './db';
 import { logEvent } from '../registrations/db';
-import { livePassConfirmedEmail } from '../workshops/emails';
+import { livePassConfirmedEmail, livePassManageLinkEmail, livePassMonthlyConfirmedEmail } from '../workshops/emails';
+import { formatMoney, type SupportedCurrency } from '../workshops/currency';
+import { buildLivePassManageUrl } from './live-pass-manage-link';
+import { monthlyPaidThroughDay } from './live-pass-monthly';
 import { sendEmail } from '../workshops/resend';
 import { businessDayOf } from '../workshops/periods';
 import { certWindowForEmail } from './cert-window';
-import { hasCertExtension, isLivePassSlug, livePassContents, livePassMonthsOf } from './live-pass';
+import { hasCertExtension, isLivePassMonthlySlug, isLivePassSlug, livePassContents, livePassMonthsOf } from './live-pass';
 import { planLivePass, settleLivePassPeriod } from './live-pass-plan';
 
 // Where the sessions are: the member app's Events tab (circle.songdance.co
 // moves from Mighty to the app at cutover; the path is the same in both).
 export const LIVE_PASS_EVENTS_URL = 'https://circle.songdance.co/events';
 
-type MailEnv = { DB: D1Database; RESEND_API_KEY?: string; RESEND_REPLY_TO?: string };
+type MailEnv = {
+  DB: D1Database;
+  RESEND_API_KEY?: string;
+  RESEND_REPLY_TO?: string;
+  // For the monthly's manage link; without them its email says "reply to cancel".
+  ADMIN_SESSION_SECRET?: string;
+  PUBLIC_BASE_URL?: string;
+};
+
+const baseUrlOf = (env: MailEnv) => (env.PUBLIC_BASE_URL ?? 'https://songdance.co').replace(/\/+$/, '');
+
+export async function livePassManageUrlFor(env: MailEnv, regId: number): Promise<string | null> {
+  if (!env.ADMIN_SESSION_SECRET) return null;
+  return buildLivePassManageUrl(env.ADMIN_SESSION_SECRET, baseUrlOf(env), regId);
+}
 
 const fmtDay = (day: string) =>
   new Date(`${day}T12:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
 
 export async function sendLivePassConfirmation(env: MailEnv, passed: CourseRegistration): Promise<void> {
   if (!env.RESEND_API_KEY) return;
+  if (isLivePassMonthlySlug(passed.product_slug)) return sendMonthlyConfirmation(env, passed);
   if (!isLivePassSlug(passed.product_slug)) return;
   // The Stripe webhook hands over the row as it was before it was marked paid:
   // read it again, and write only for a pass that really is paid.
@@ -71,6 +89,10 @@ export async function sendLivePassConfirmation(env: MailEnv, passed: CourseRegis
       startsLabel: fmtDay(period.startsOn),
       startsToday: period.startsOn <= paidOn,
       courseUntilLabel: plan.liveUntil && period.startsOn > paidOn ? fmtDay(plan.liveUntil) : null,
+      monthlyUntilLabel:
+        plan.monthlyUntil && period.startsOn > paidOn && (!plan.liveUntil || plan.monthlyUntil > plan.liveUntil)
+          ? fmtDay(plan.monthlyUntil)
+          : null,
       passRunning: plan.passRunning,
       certWindowUntilLabel: window?.endsOn ? fmtDay(window.endsOn) : null,
       eventsUrl: LIVE_PASS_EVENTS_URL,
@@ -100,4 +122,77 @@ export async function sendLivePassConfirmation(env: MailEnv, passed: CourseRegis
       payload: { course_registration_id: reg.id, error: String(err) },
     }).catch(() => {});
   }
+}
+
+// "Your monthly live pass is running" — the first payment of the monthly. Later
+// months send nothing (Stripe/PayPal send their own receipts). Same claim shape
+// as the pass confirmation: `live-pass-monthly-confirmed-<id>`, released on failure.
+async function sendMonthlyConfirmation(env: MailEnv, passed: CourseRegistration): Promise<void> {
+  const reg = await getCourseRegistrationById(env.DB, passed.id).catch(() => null);
+  if (!reg || reg.status !== 'paid' || reg.installments_paid < 1) return;
+  const externalId = `live-pass-monthly-confirmed-${reg.id}`;
+  let claimed = false;
+  try {
+    const r = await env.DB
+      .prepare(
+        `INSERT OR IGNORE INTO events (registration_id, kind, source, external_id)
+         VALUES (NULL, 'live_pass.confirmation.sent', 'system', ?)`,
+      )
+      .bind(externalId)
+      .run();
+    claimed = (r.meta?.changes ?? 0) > 0;
+    if (!claimed) return;
+    const renewsOn = monthlyPaidThroughDay(reg);
+    const content = livePassMonthlyConfirmedEmail({
+      name: reg.first_name,
+      loginEmail: reg.email,
+      priceLabel: formatMoney(reg.amount_cents, (reg.currency || 'EUR').toUpperCase() as SupportedCurrency),
+      renewsLabel: renewsOn ? fmtDay(renewsOn) : null,
+      manageUrl: await livePassManageUrlFor(env, reg.id),
+      eventsUrl: LIVE_PASS_EVENTS_URL,
+    });
+    await sendEmail({
+      apiKey: env.RESEND_API_KEY!,
+      replyTo: env.RESEND_REPLY_TO,
+      to: reg.email,
+      subject: content.subject,
+      html: content.html,
+      text: content.text,
+      entityRefId: externalId,
+      track: { db: env.DB, type: 'live_pass_monthly_confirmed' },
+    });
+  } catch (err) {
+    if (claimed) {
+      await env.DB
+        .prepare(`DELETE FROM events WHERE external_id = ? AND kind = 'live_pass.confirmation.sent'`)
+        .bind(externalId)
+        .run()
+        .catch(() => {});
+    }
+    await logEvent(env.DB, {
+      registration_id: null,
+      kind: 'live_pass.confirmation.error',
+      source: 'system',
+      payload: { course_registration_id: reg.id, error: String(err) },
+    }).catch(() => {});
+  }
+}
+
+// The manage link again, to the address on the order (the pass page's "Manage
+// my monthly" for anyone who has lost the confirmation). Throws on a failed
+// send so the endpoint can say so.
+export async function sendLivePassManageLink(env: MailEnv, reg: CourseRegistration): Promise<void> {
+  if (!env.RESEND_API_KEY) throw new Error('email is not configured');
+  const manageUrl = await livePassManageUrlFor(env, reg.id);
+  if (!manageUrl) throw new Error('ADMIN_SESSION_SECRET is not set');
+  const content = livePassManageLinkEmail({ name: reg.first_name, manageUrl });
+  await sendEmail({
+    apiKey: env.RESEND_API_KEY,
+    replyTo: env.RESEND_REPLY_TO,
+    to: reg.email,
+    subject: content.subject,
+    html: content.html,
+    text: content.text,
+    track: { db: env.DB, type: 'live_pass_manage_link' },
+  });
 }

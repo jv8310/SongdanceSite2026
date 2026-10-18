@@ -10,14 +10,19 @@ import type { DeckGiftShipping } from './deck-promo';
 export type CourseProductSlug = 'cc-cert' | 'cc-bundle' | 'grief-course' | 'svh-12week';
 // `album-<id>` = a music album bought on its own (src/lib/music/product.ts);
 // the id half is the dynamic music_albums row key, hence the template type.
-// `live-pass-<n>m` = the live pass, 1/3/6 months (src/lib/courses/live-pass.ts).
+// `live-pass-<n>m` = the live pass, 1/3/6 months (src/lib/courses/live-pass.ts);
+// `qa-plan-deepening` = the monthly live pass, an open-ended subscription (the
+// member app's slug for it).
 export type CourseRegistrationSlug =
   | CourseProductSlug
   | JourneySlug
   | `album-${string}`
-  | `live-pass-${number}m`;
+  | `live-pass-${number}m`
+  | 'qa-plan-deepening';
 export type ActivateChoice = 'now' | 'wait';
-export type PaymentPlan = 'full' | '3x' | '6x' | '12x';
+// 'subscription' = open-ended, renews until cancelled (installments_total 0;
+// see isOpenEndedPlan in installment-forecast.ts).
+export type PaymentPlan = 'full' | '3x' | '6x' | '12x' | 'subscription';
 
 // Mirrors the Stripe Subscription `status` enum exactly. We store it
 // verbatim so the admin view shows the live Stripe state without a
@@ -94,6 +99,9 @@ export type CourseRegistration = {
   cancelled_at: string | null;
   refunded_at: string | null;
   refunded_amount_cents: number;
+  // End of the last month an open-ended subscription has paid for (migration
+  // 0090); absent before it, NULL on every other row.
+  paid_through?: string | null;
 };
 
 export type CreatePendingCourseRegistrationInput = {
@@ -387,6 +395,29 @@ export async function recordInstallmentPaid(
     )
     .bind(paymentIntent, id)
     .run();
+  await stampPaidThrough(db, id);
+}
+
+// An open-ended subscription (the monthly live pass, installments_total = 0)
+// is paid up to one calendar month per charge from its first: paid_through is
+// what the member app keeps access open to once the buyer cancels (migration
+// 0090). Months are counted close enough to the gateway's own anchor
+// arithmetic (SQLite rolls a 31st forward a day or two where Stripe clamps
+// back — the generous side). No-op on every other row; never throws, since a
+// preview runs against the live D1 before the migration is applied.
+export async function stampPaidThrough(db: D1Database, id: number): Promise<void> {
+  try {
+    await db
+      .prepare(
+        `UPDATE course_registrations
+            SET paid_through = datetime(paid_at, '+' || installments_paid || ' months')
+          WHERE id = ? AND installments_total = 0 AND paid_at IS NOT NULL AND installments_paid > 0`,
+      )
+      .bind(id)
+      .run();
+  } catch (err) {
+    console.error('[course] paid_through not stamped', String(err));
+  }
 }
 
 // Mirror Stripe's live `subscription.status` onto our row so the admin
@@ -445,7 +476,10 @@ export function collectedGrossMinor(r: {
   bumps?: string | null;
 }): number {
   const cycles =
-    r.installments_total > 1
+    r.installments_total === 0
+      ? // An open-ended subscription: amount_cents is one month.
+        r.amount_cents * Math.max(0, r.installments_paid)
+      : r.installments_total > 1
       ? Math.round(
           r.amount_cents *
             (Math.max(0, Math.min(r.installments_paid, r.installments_total)) /
@@ -639,6 +673,7 @@ export async function recordPaypalInstallmentPaid(
     )
     .bind(captureId, id)
     .run();
+  await stampPaidThrough(db, id);
 }
 
 // Mirror a (normalised) PayPal subscription status onto the row, keyed by the

@@ -444,7 +444,9 @@ async function enrichCourse(
   const planLabel =
     reg && reg.installments_total > 1
       ? `${plan} · ${reg.installments_paid}/${reg.installments_total} charged`
-      : plan;
+      : reg && reg.installments_total === 0
+        ? `monthly until cancelled · ${reg.installments_paid} month${reg.installments_paid === 1 ? '' : 's'} charged`
+        : plan;
   // Manual bank-transfer orders carry a synthetic `manual-<id>` payment intent
   // (see src/lib/orders/manual-order.ts) and never touched Stripe/PayPal.
   const isManual = reg?.stripe_payment_intent?.startsWith('manual-') ?? false;

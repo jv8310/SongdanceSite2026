@@ -2,26 +2,35 @@ import type { APIRoute } from 'astro';
 import {
   createPendingCourseRegistration,
   attachStripeSessionToCourse,
+  attachStripeSubscriptionToCourse,
   attachPaypalOrderToCourse,
+  attachPaypalSubscriptionToCourse,
 } from '../../../lib/courses/db';
 import { edgeTimezone } from '../../../lib/geo';
 import { logEventSafe } from '../../../lib/registrations/db';
 import {
   createCheckoutSession,
   createCustomer,
+  createSubscriptionCheckoutSession,
   paypalEnabled,
 } from '../../../lib/registrations/stripe';
 import {
   paypalConfigured,
   createOrder as createPaypalOrder,
+  createSubscription as createPaypalSubscription,
 } from '../../../lib/payments/paypal';
+import { formatMoney } from '../../../lib/workshops/currency';
+import { findRunningMonthly } from '../../../lib/courses/live-pass-monthly';
 import { encodeCustomId, parseProvider } from '../../../lib/payments/provider';
 import { findCountry } from '../../../lib/countries';
 import { albumCurrencyForCountry } from '../../../lib/music/product';
 import {
   CERT_EXTENSION_LABEL,
   CERT_EXTENSION_SLUG,
+  LIVE_PASS_MONTHLY_LABEL,
+  LIVE_PASS_MONTHLY_SLUG,
   LIVE_PASS_PAGE_PATH,
+  livePassMonthlyPriceCents,
   livePassLabel,
   livePassOffer,
   livePassSlug,
@@ -39,6 +48,11 @@ export const prerender = false;
 // a second line item and a `cert-extension` row in `bumps` — refused for anyone
 // it would buy nothing (no certification course on this address, or a window
 // that already reaches past the end of this pass).
+//
+// `months: 'monthly'` is the monthly live pass instead: an open-ended
+// subscription (Stripe subscription mode / a PayPal plan with no cycle limit),
+// one month's price a month, no add-on, and refused while the address already
+// has one running.
 type Body = {
   months?: number | string;
   cert_extension?: boolean;
@@ -69,9 +83,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
       return json({ error: 'Invalid JSON' }, 400);
     }
 
+    const isMonthly = payload.months === 'monthly';
     const months = parseLivePassMonths(payload.months);
-    if (!months) return json({ error: 'Please choose 1, 3 or 6 months.' }, 400);
-    const withExtension = payload.cert_extension === true;
+    if (!months && !isMonthly) return json({ error: 'Please choose 1, 3 or 6 months, or monthly.' }, 400);
+    const withExtension = !isMonthly && payload.cert_extension === true;
 
     const firstName = (payload.first_name ?? '').trim();
     const lastName = (payload.last_name ?? '').trim();
@@ -93,6 +108,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
     if (!payload.consent_terms) {
       return json({ error: 'Please agree to the terms to continue.' }, 400);
     }
+
+    if (isMonthly) {
+      return await startMonthly(env, locals, { firstName, lastName, email, countryCode, provider });
+    }
+    if (!months) return json({ error: 'Please choose 1, 3 or 6 months, or monthly.' }, 400);
 
     const plan = await planLivePass(env.DB, email);
     const period = plan.periods[months];
@@ -281,6 +301,138 @@ export const POST: APIRoute = async ({ request, locals }) => {
     return json({ error: `Could not start checkout: ${message}` }, 500);
   }
 };
+
+// The monthly live pass: one row, payment_plan 'subscription',
+// installments_total 0, amount_cents = one month (isOpenEndedPlan). Recorded,
+// granted and confirmed by the same paths as every course subscription; the
+// webhook schedules no stop for it (installment_count 0).
+async function startMonthly(
+  env: Env,
+  locals: App.Locals,
+  who: { firstName: string; lastName: string; email: string; countryCode: string; provider: 'stripe' | 'paypal' },
+): Promise<Response> {
+  const { firstName, lastName, email, countryCode, provider } = who;
+  if (await findRunningMonthly(env.DB, email)) {
+    return json(
+      {
+        error:
+          'You already have a monthly live pass running under this email address. To check or cancel it, use “Manage my monthly” on this page.',
+      },
+      409,
+    );
+  }
+  const currency = albumCurrencyForCountry(countryCode);
+  const monthlyCents = livePassMonthlyPriceCents(currency);
+  const slug = LIVE_PASS_MONTHLY_SLUG;
+  const label = LIVE_PASS_MONTHLY_LABEL;
+  const describe = `${formatMoney(monthlyCents, currency)} a month, renews monthly until cancelled`;
+
+  const registrationId = await createPendingCourseRegistration(env.DB, {
+    email,
+    first_name: firstName,
+    last_name: lastName,
+    country: countryCode,
+    phone: null,
+    phone_country: null,
+    company_name: null,
+    vat_number: null,
+    product_slug: slug,
+    activate_choice: null,
+    language_choice: null,
+    source_variant: 'direct',
+    timezone: edgeTimezone(locals),
+    bumps: [],
+    amount_cents: monthlyCents,
+    currency,
+    consent_terms: true,
+    payment_plan: 'subscription',
+    installments_total: 0,
+    provider,
+  });
+
+  const baseUrl = env.PUBLIC_BASE_URL.replace(/\/$/, '');
+  const successPath = `${LIVE_PASS_PAGE_PATH}?welcome=monthly`;
+  const cancelUrl = `${baseUrl}${LIVE_PASS_PAGE_PATH}?email=${encodeURIComponent(email)}&months=monthly#get`;
+
+  if (provider === 'paypal') {
+    const sub = await createPaypalSubscription({
+      env,
+      productName: label,
+      productDescription: describe,
+      planName: `${label} — monthly`,
+      monthlyAmountMinor: monthlyCents,
+      currency,
+      installmentCount: 0, // PayPal: total_cycles 0 = renews until cancelled
+      customId: encodeCustomId('course', registrationId),
+      returnUrl: `${baseUrl}/api/payments/paypal-return?dest=${encodeURIComponent(successPath)}`,
+      cancelUrl,
+      brandName: 'Songdance',
+      subscriber: { email, firstName, lastName },
+      requestId: `${slug}-reg-${registrationId}-pp`,
+    });
+    await attachPaypalSubscriptionToCourse(env.DB, registrationId, sub.subscriptionId);
+    await logEventSafe(env.DB, {
+      registration_id: null,
+      kind: 'course.checkout.paypal.subscription.created',
+      source: 'system',
+      external_id: `local-course-pp-${registrationId}-monthly`,
+      payload: { course_registration_id: registrationId, subscription_id: sub.subscriptionId, product_slug: slug, currency, monthly_amount_cents: monthlyCents },
+    });
+    return json({ checkout_url: sub.approveUrl, course_registration_id: registrationId });
+  }
+
+  // Stripe subscription mode needs a Customer to bill each month.
+  const cust = await createCustomer({
+    secretKey: env.STRIPE_SECRET_KEY,
+    email,
+    name: `${firstName} ${lastName}`,
+    country: countryCode,
+    description: `${firstName} ${lastName} · ${slug} reg ${registrationId}`,
+    metadata: {
+      course_registration_id: String(registrationId),
+      contact_first_name: firstName,
+      contact_last_name: lastName,
+      product_slug: slug,
+      payment_plan: 'subscription',
+      tax_class: 'eservice',
+    },
+  });
+  const session = await createSubscriptionCheckoutSession({
+    secretKey: env.STRIPE_SECRET_KEY,
+    customer: cust.id,
+    success_url: `${baseUrl}${successPath}`,
+    cancel_url: cancelUrl,
+    product_name: label,
+    product_description: describe,
+    payment_intent_description: label,
+    product_metadata: { tax_class: 'eservice', product_slug: slug },
+    monthly_amount_cents: monthlyCents,
+    currency: currency.toLowerCase(),
+    installment_count: 0, // open-ended: no cancel_at is scheduled
+    metadata: {
+      course_registration_id: String(registrationId),
+      product_slug: slug,
+      source_variant: 'direct',
+      payment_plan: 'subscription',
+      first_name: firstName,
+      last_name: lastName,
+      country: countryCode,
+      currency,
+      tax_class: 'eservice',
+    },
+    idempotency_key: `${slug}-reg-${registrationId}`,
+  });
+  await attachStripeSessionToCourse(env.DB, registrationId, session.id);
+  if (session.subscription) await attachStripeSubscriptionToCourse(env.DB, registrationId, session.subscription);
+  await logEventSafe(env.DB, {
+    registration_id: null,
+    kind: 'course.checkout.subscription.created',
+    source: 'system',
+    external_id: `local-course-${registrationId}-monthly`,
+    payload: { course_registration_id: registrationId, session_id: session.id, product_slug: slug, currency, monthly_amount_cents: monthlyCents, installments_total: 0 },
+  });
+  return json({ checkout_url: session.url, course_registration_id: registrationId });
+}
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {

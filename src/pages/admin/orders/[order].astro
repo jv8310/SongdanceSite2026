@@ -111,6 +111,12 @@ const keepOptions = Array.from({ length: planRemaining + 1 }, (_, k) => k);
 // Say WHY there is nothing to stop, rather than a flat "unavailable".
 const stopBlockedReason = (() => {
   if (canStopPlan || !planReg) return null;
+  // The monthly live pass renews until cancelled: it has no charges "left" to
+  // forgive. The buyer stops it from their own link; to stop it for them,
+  // cancel the subscription at the gateway and the webhook follows.
+  if (planReg.installments_total === 0) {
+    return `A monthly subscription — it renews until it is cancelled. The buyer cancels from the link in their confirmation email (or asks for it again on the live pass page); to stop it for them, cancel the subscription in ${planReg.provider === 'paypal' ? 'PayPal' : 'Stripe'} and this order follows.`;
+  }
   if (planRemaining <= 0) {
     return 'Every charge on this plan has been made — there is nothing left to stop.';
   }
@@ -299,7 +305,9 @@ function ymdhm(iso: string | null): string {
               <div class="od-inst-head">
                 <h2>Installments</h2>
                 <span class="od-inst-sub">
-                  {o.paymentPlan} · {o.installmentsPaid}/{o.installmentsTotal} charged ·
+                  {o.installmentsTotal === 0
+                    ? `monthly until cancelled · ${o.installmentsPaid} charged`
+                    : `${o.paymentPlan} · ${o.installmentsPaid}/${o.installmentsTotal} charged`} ·
                   live from {ledger?.provider === 'paypal' ? 'PayPal' : 'Stripe'}
                 </span>
               </div>

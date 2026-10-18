@@ -1,0 +1,190 @@
+---
+// "Manage my monthly" — the monthly live pass's own page, reached only by the
+// signed link in its confirmation email (or sent again from the pass page):
+//
+//   GET  /courses/live-pass/manage?t=<id>.<sig>   → where it stands: renews on …,
+//                                                   ends on …, or has ended
+//   POST (same URL) action=cancel | resume        → does it, then says so
+//
+// Cancelling charges nothing more; the sessions stay open to the end of the
+// month already paid for (src/lib/courses/live-pass-monthly.ts). Taking it back
+// works on Stripe while that month runs; a cancelled PayPal monthly is started
+// again from the pass page. No JavaScript: a form and an answer.
+import Layout from '../../../layouts/Layout.astro';
+import { getCourseRegistrationById } from '../../../lib/courses/db';
+import { isLivePassMonthlySlug, LIVE_PASS_PAGE_PATH } from '../../../lib/courses/live-pass';
+import { LIVE_PASS_MANAGE_TOKEN_PARAM, verifyLivePassManageToken } from '../../../lib/courses/live-pass-manage-link';
+import {
+  cancelMonthly,
+  readMonthlyState,
+  resumeMonthly,
+  type MonthlyState,
+} from '../../../lib/courses/live-pass-monthly';
+import { formatMoney } from '../../../lib/workshops/currency';
+
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+Astro.response.headers.set('x-robots-tag', 'noindex, nofollow');
+Astro.response.headers.set('cache-control', 'no-store');
+
+const SUPPORT = 'support@songdance.co';
+const token = Astro.url.searchParams.get(LIVE_PASS_MANAGE_TOKEN_PARAM) ?? '';
+const regId = await verifyLivePassManageToken(env.ADMIN_SESSION_SECRET, token);
+const reg = regId ? await getCourseRegistrationById(env.DB, regId) : null;
+
+const fmtDay = (day: string | null) =>
+  day
+    ? new Date(`${day}T12:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
+    : null;
+
+let flash: { tone: 'ok' | 'warn'; text: string } | null = null;
+let state: MonthlyState | null = null;
+
+if (reg && isLivePassMonthlySlug(reg.product_slug)) {
+  if (Astro.request.method === 'POST') {
+    const form = await Astro.request.formData().catch(() => null);
+    const action = String(form?.get('action') ?? '');
+    try {
+      if (action === 'cancel') {
+        await cancelMonthly(env, reg);
+        flash = { tone: 'ok', text: 'Done — your monthly is cancelled. Nothing more will be charged.' };
+      } else if (action === 'resume') {
+        const ok = await resumeMonthly(env, reg);
+        flash = ok
+          ? { tone: 'ok', text: 'Done — your monthly carries on, and renews as before.' }
+          : { tone: 'warn', text: 'This monthly can no longer be taken back — you can start a new one from the live pass page.' };
+      }
+    } catch (err) {
+      console.error('[live-pass] manage action failed', String(err));
+      flash = { tone: 'warn', text: `That didn't go through, and nothing has changed. Please try again in a minute — or write to ${SUPPORT}.` };
+    }
+  }
+  const fresh = (await getCourseRegistrationById(env.DB, reg.id)) ?? reg;
+  state = await readMonthlyState(env, fresh);
+}
+
+const price = reg ? formatMoney(reg.amount_cents, (reg.currency || 'EUR').toUpperCase()) : '';
+const passHref = reg ? `${LIVE_PASS_PAGE_PATH}?email=${encodeURIComponent(reg.email)}#get` : LIVE_PASS_PAGE_PATH;
+
+type Panel = { heading: string; lines: string[]; action?: 'cancel' | 'resume'; link?: { label: string; href: string } };
+let p: Panel;
+if (!reg || !isLivePassMonthlySlug(reg.product_slug) || !state) {
+  p = {
+    heading: 'This link does not open a monthly',
+    lines: [
+      'The link may be incomplete — try opening it from the email again.',
+      `You can also ask for a new one on the live pass page, under “Manage my monthly”, or write to ${SUPPORT}.`,
+    ],
+    link: { label: 'The live pass page', href: LIVE_PASS_PAGE_PATH },
+  };
+} else if (state.kind === 'renews') {
+  p = {
+    heading: 'Your monthly live pass is running',
+    lines: [
+      'It opens every weekly Q&A and every monthly deepening session.',
+      state.on ? `It renews on ${fmtDay(state.on)} for ${price}, and on the same day each month after that.` : `It renews each month for ${price}.`,
+      'Cancel any time: nothing more is charged, and the sessions stay open until the end of the month you have already paid for.',
+    ],
+    action: 'cancel',
+  };
+} else if (state.kind === 'behind') {
+  p = {
+    heading: "This month's payment hasn't gone through yet",
+    lines: [
+      `The payment of ${price} for this month didn't go through, and ${reg.provider === 'paypal' ? 'PayPal' : 'Stripe'} is trying again. If it keeps failing, the monthly stops by itself and we'll write to tell you.`,
+      'If you would rather stop it now, you can cancel below.',
+    ],
+    action: 'cancel',
+  };
+} else if (state.kind === 'ending') {
+  p = {
+    heading: 'Your monthly is cancelled',
+    lines: [
+      'Nothing more will be charged.',
+      state.on ? `The sessions stay open until ${fmtDay(state.on)}, the end of the month you have paid for.` : 'The sessions stay open until the end of the month you have paid for.',
+      ...(reg.provider === 'paypal'
+        ? ['Changed your mind? You can start a new monthly — or a pass — from the live pass page.']
+        : ['Changed your mind? You can keep it running, and it renews as before.']),
+    ],
+    ...(reg.provider === 'paypal' ? { link: { label: 'The live pass page', href: passHref } } : { action: 'resume' as const }),
+  };
+} else if (state.kind === 'ended') {
+  p = {
+    heading: 'Your monthly has ended',
+    lines: [
+      'Nothing more is charged.',
+      'Whenever you would like to come back to the sessions, you can start a new monthly — or a pass for 1, 3 or 6 months.',
+    ],
+    link: { label: 'The live pass page', href: passHref },
+  };
+} else {
+  p = {
+    heading: 'This monthly never started',
+    lines: ['No payment was taken for it. You can start one from the live pass page.'],
+    link: { label: 'The live pass page', href: passHref },
+  };
+}
+---
+
+<Layout title="Your monthly live pass — Songdance" description="Check or cancel your monthly live pass.">
+  <main class="lpm">
+    {flash && <p class={`lpm-flash lpm-flash--${flash.tone}`} role="status">{flash.text}</p>}
+    <h1>{p.heading}</h1>
+    {p.lines.map((line) => <p>{line}</p>)}
+    {p.action === 'cancel' && (
+      <form method="post" class="lpm-actions">
+        <input type="hidden" name="action" value="cancel" />
+        <button type="submit" class="lpm-cta lpm-cta--quiet">Cancel my monthly</button>
+      </form>
+    )}
+    {p.action === 'resume' && (
+      <form method="post" class="lpm-actions">
+        <input type="hidden" name="action" value="resume" />
+        <button type="submit" class="lpm-cta">Keep my monthly running</button>
+      </form>
+    )}
+    {p.link && (
+      <p class="lpm-actions"><a class="lpm-cta" href={p.link.href}>{p.link.label} &rarr;</a></p>
+    )}
+    <p class="lpm-note">
+      Questions? Reply to any of our emails, or write to <a href={`mailto:${SUPPORT}`}>{SUPPORT}</a> — a person reads it.
+    </p>
+  </main>
+</Layout>
+
+<style>
+  .lpm {
+    max-width: 40rem;
+    margin: clamp(3rem, 9vw, 6rem) auto;
+    padding: 0 1.5rem;
+    font-family: var(--font-body, Georgia, serif);
+    line-height: 1.7;
+  }
+  .lpm h1 {
+    font-family: var(--font-display, Georgia, serif);
+    font-size: clamp(1.9rem, 5vw, 2.5rem);
+    line-height: 1.2;
+    margin: 0 0 1rem;
+  }
+  .lpm p { margin: 0 0 1rem; }
+  .lpm-actions { margin-top: 1.75rem !important; }
+  .lpm-cta {
+    display: inline-block;
+    padding: 0.85rem 1.9rem;
+    border: 0;
+    border-radius: 999px;
+    background: #2a1b2a;
+    color: #f4ecdf;
+    text-decoration: none;
+    font: inherit;
+    font-size: 0.95rem;
+    cursor: pointer;
+  }
+  .lpm-cta:hover { opacity: 0.9; }
+  .lpm-cta--quiet { background: transparent; color: #2a1b2a; box-shadow: inset 0 0 0 1px #2a1b2a; }
+  .lpm-flash { padding: 0.75rem 1rem; border-radius: 10px; background: #e7eedf; }
+  .lpm-flash--warn { background: #f6e1d6; }
+  .lpm-note { margin-top: 2.5rem !important; font-size: 0.9rem; color: #6b5c69; }
+  .lpm-note a { color: inherit; }
+</style>
