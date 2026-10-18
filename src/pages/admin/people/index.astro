@@ -25,6 +25,9 @@ const subParam = params.get('sub');
 const kindParam = params.get('kind');
 const proParam = params.get('pro') === '1';
 const q = params.get('q') ?? '';
+// A whole address typed into search: its page can be opened even when the
+// site knows nothing of it (App access there answers from the member app).
+const typedEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(q.trim()) ? q.trim().toLowerCase() : null;
 
 const filter: PeopleFilter = {
   subscription: subParam === 'subscribed' || subParam === 'unsubscribed' ? subParam : null,
@@ -170,6 +173,12 @@ function fmtDate(s: string | null): string {
 
     <section class="adm-section">
       {filtered.length === 0 && <p class="adm-empty">No people match these filters.</p>}
+      {typedEmail && !filtered.some((p) => p.email === typedEmail) && (
+        <p class="adm-table-note">
+          <a href={`/admin/people/${encodeURIComponent(typedEmail)}`}>Open the page for {typedEmail}</a> to see or give their
+          access in the member app, even though the site has no record of them.
+        </p>
+      )}
 
       {filtered.length > 0 && (
         <table class="adm-table ppl-table">

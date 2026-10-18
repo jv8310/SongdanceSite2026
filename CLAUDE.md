@@ -38,6 +38,31 @@ ends the session immediately**. Same treatment for the `/ads` gate's own
 `sd_ads` cookie (`slideAdsSession`), which was 30 days but fixed from the day
 the password was typed.
 
+## App access — the member app, from a person's page
+
+`/admin/people/<email>` → **App access** shows and changes that person's access in the
+member app (songdance-app, Worker `songdance-app-api`): their **courses** (add one with a
+start/end date and a note, change its dates — the activation date of a certification that
+waits — or revoke it with a reason), their **Circle space seats** (only for a space none of
+their courses opens), and the spaces they **host**. Every admin login may use it. A whole
+address typed into the People search links to that page even when the site has no record
+of the person, since the app may still know them.
+
+- **The site never reads or writes an `app_*` table.** It asks the app through a service
+  binding (`APP_ADMIN` in `wrangler.jsonc` → the app's `SiteAdmin` entrypoint), reachable
+  only from Workers on this Cloudflare account — the binding is the credential, no secret.
+  The app runs the same code as its own admin and MCP tools and logs every change as
+  `site:<the admin's sign-in email>`. Helper: [`src/lib/admin/app-access.ts`](src/lib/admin/app-access.ts);
+  every change posts to [`/api/admin/app-access`](src/pages/api/admin/app-access.ts) with an
+  `action` and comes back to the section with a flash.
+- **Deploy order: the app first.** Until the app is deployed with its `SiteAdmin`
+  entrypoint, and in local `astro dev` (no binding), the section says the app does not
+  answer; the rest of the page is untouched. A preview version talks to the **production**
+  app, so a change made on a preview link is real.
+- A revoke is permanent in the app: no order, Drip tag or sync brings that course back —
+  adding it again by hand does. Revoking never refunds. Drip tags no longer switch courses
+  on or off; the app reads them once, at a member's first sign-in.
+
 ## Navigation — one menu, three renderings
 
 The site menu has a single source of truth: [`src/data/nav.ts`](src/data/nav.ts)
