@@ -48,6 +48,14 @@ const rows = report.rows.slice().sort((a, b) => {
 // bottom rather than filling the page with empty cards.
 const activeRows = rows.filter((r) => r.registrations > 0 || r.totalEurMinor > 0);
 const idleRows = rows.filter((r) => !(r.registrations > 0 || r.totalEurMinor > 0));
+// Sessions still ahead sit folded away behind a button, so the page opens on
+// the latest sessions that have actually run rather than a scroll of future
+// dates. They keep their place at the top of the list when unfolded.
+const upcomingRows = activeRows.filter((r) => r.isUpcoming);
+const pastRows = activeRows.filter((r) => !r.isUpcoming);
+const cardRows = [...upcomingRows, ...pastRows];
+// Nothing held yet in this window — nothing to fold them out of the way of.
+const showUpcomingInitially = pastRows.length === 0;
 
 const eur = (minor: number) =>
   '€' + (minor / 100).toLocaleString('en-IE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -354,14 +362,27 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
 
       {activeRows.length === 0 && <p class="adm-empty">No workshop activity in this window.</p>}
 
+      {upcomingRows.length > 0 && (
+        <button
+          type="button"
+          class="pf-upcoming-toggle"
+          id="pf-upcoming-toggle"
+          aria-controls="pf-list"
+          aria-expanded={showUpcomingInitially ? 'true' : 'false'}
+          data-n={upcomingRows.length}
+        >
+          {showUpcomingInitially ? 'Hide' : 'Show'} {upcomingRows.length} upcoming session{upcomingRows.length === 1 ? '' : 's'}
+        </button>
+      )}
+
       {/* ── One card per workshop, one card per row ── */}
-      <div class="pf-list">
-        {activeRows.map((r) => {
+      <div class={`pf-list${showUpcomingInitially ? ' is-showing-upcoming' : ''}`} id="pf-list">
+        {cardRows.map((r) => {
           const segs = segments(r);
           const held = anyAttendance(r);
           const cost = r.acquisitionCostEurMinor;
           return (
-            <article class="pf-card">
+            <article class={`pf-card${r.isUpcoming ? ' pf-card--upcoming' : ''}`}>
               <div class="pf-id">
                 <a class="pf-name" href={`/admin/workshops/${r.workshopId}`}>{shortTitle(r.title)}</a>
                 <div class="pf-when">
@@ -789,6 +810,17 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
        width at any size: identity, the ROAS it earned, money in vs money out,
        the attendance bar, then the rest as chips. */
     .pf-list { display: flex; flex-direction: column; gap: 10px; }
+    .pf-list:not(.is-showing-upcoming) .pf-card--upcoming { display: none; }
+    .pf-upcoming-toggle {
+      display: inline-flex; align-items: center; gap: 6px;
+      margin: 0 0 10px; padding: 7px 13px;
+      border: 1px dashed var(--adm-line); border-radius: 9px;
+      background: rgba(251, 246, 234, 0.6); color: var(--adm-ink-soft);
+      font: inherit; font-size: 12.5px; cursor: pointer;
+    }
+    .pf-upcoming-toggle::after { content: '▾'; font-size: 11px; }
+    .pf-upcoming-toggle[aria-expanded='true']::after { content: '▴'; }
+    .pf-upcoming-toggle:hover { border-style: solid; color: var(--adm-ember-deep); }
     .pf-card {
       display: grid;
       grid-template-columns: minmax(190px, 1.05fr) 118px minmax(210px, 1.25fr) minmax(210px, 1.2fr);
@@ -967,6 +999,17 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
       function toCustom() { presetSel.value = 'custom'; }
       fromIn.addEventListener('change', toCustom);
       toIn.addEventListener('change', toCustom);
+
+      var upBtn = document.getElementById('pf-upcoming-toggle');
+      var list = document.getElementById('pf-list');
+      if (upBtn && list) {
+        upBtn.addEventListener('click', function () {
+          var open = list.classList.toggle('is-showing-upcoming');
+          var n = Number(upBtn.getAttribute('data-n'));
+          upBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+          upBtn.textContent = (open ? 'Hide ' : 'Show ') + n + ' upcoming session' + (n === 1 ? '' : 's');
+        });
+      }
     })();
   </script>
 </Layout>
