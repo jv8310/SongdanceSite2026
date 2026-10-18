@@ -336,6 +336,16 @@ anyone whose course no longer includes them (or never did). Logic in
   is the credential here, as on `/access` and the course gates, and the pass
   page's own status call answers the same. Its `upgrade_url` is this page with
   `?email=…&extend=1`.
+- **The same answer is the SVH app's door** (October 2026): app.songdance.co no
+  longer keeps a whitelist that Drip filled and emptied by tag. Its login and
+  token refresh ask `GET /api/app/cert-window`, and only someone who holds the
+  certification course, until `ends_on` (the course's end, or later with the
+  certification-window extension), gets in (`app_access`). Everyone else is
+  turned away with a button: a 12-week student to `certification_url`
+  (`twelve_week`, from `loadTwelveWeek` in `live-pass-plan.ts`), a student whose
+  time has run out to `upgrade_url` (the live pass with the extension ticked).
+  The CEEE cohort holds the course, so it gets in even while it may not certify.
+  The app side is `api/app_access.php` in the Songdance repo.
 - **The way on, for a 12-week student** (October 2026): a 12-week holder who is not on the
   9 months sees the certification course **above** the pass options, with what it adds
   (library + manuals, nine months of Q&As and deepening sessions with no pass, Practice
