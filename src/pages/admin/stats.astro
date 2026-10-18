@@ -324,6 +324,7 @@ const C = {
   total: '#8a8076',
   spend: '#c9603a',
   compare: '#b8b0a4',
+  profit: '#2b2519',
 };
 
 // Compress a daily series into ≤ maxPts buckets (summing) so sparklines stay
@@ -462,6 +463,10 @@ let cum = 0;
 const cumulative = days.map((d) => toMajor((cum += d.totalEurMinor)));
 let cumSpend = 0;
 const cumulativeSpend = days.map((d) => toMajor((cumSpend += d.adSpendEurMinor)));
+// Running revenue − ad spend from the first day shown: the "Ad spend vs
+// revenue" chart's profit line (the same series /ads draws).
+let cumNet = 0;
+const cumulativeProfit = days.map((d) => toMajor((cumNet += d.totalEurMinor - d.adSpendEurMinor)));
 let cmpCum = 0;
 const cmpCumulative = cmp ? cmp.days.map((d) => toMajor((cmpCum += d.totalEurMinor))) : null;
 
@@ -517,6 +522,7 @@ const chartData = {
   avg7,
   cumulative,
   cumulativeSpend,
+  cumulativeProfit,
   regs: regsSeries,
   seatPrice,
   compare: cmp && cmpCumulative
@@ -838,17 +844,15 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
             <p class="adm-sub" style="margin:-2px 0 8px;">Tick a series in the legend to show or hide it — the scale fits what’s shown.</p>
             <div class="st-chart" id="chart-streams"></div>
           </div>
-          <div class="st-chart-grid">
-            <div class="st-chart-block">
-              <h3>Cumulative revenue vs cumulative ad spend</h3>
-              <p class="adm-sub" style="margin:-2px 0 8px;">The gap between the lines is the window’s net after ads{cmp ? ' · dashed = comparison revenue' : ''}.</p>
-              <div class="st-chart" id="chart-cumulative"></div>
-            </div>
-            <div class="st-chart-block">
-              <h3>Daily revenue vs ad spend</h3>
-              <p class="adm-sub" style="margin:-2px 0 8px;">With a 7-day average to show the trend under the spikes.</p>
-              <div class="st-chart" id="chart-spend"></div>
-            </div>
+          <div class="st-chart-block">
+            <h3>Ad spend vs revenue</h3>
+            <p class="adm-sub" style="margin:-2px 0 8px;">All in euros, one axis — the same chart as on /ads. Cumulative profit = revenue − ad spend, added up from the first day shown (ad spend only, nothing else netted off); the 7-day average is the trend under the revenue spikes. Tick a line to show or hide it — the scale fits what’s shown.</p>
+            <div class="st-chart" id="chart-spend"></div>
+          </div>
+          <div class="st-chart-block">
+            <h3>Cumulative revenue vs cumulative ad spend</h3>
+            <p class="adm-sub" style="margin:-2px 0 8px;">The gap between the lines is the window’s net after ads{cmp ? ' · dashed = comparison revenue' : ''}.</p>
+            <div class="st-chart" id="chart-cumulative"></div>
           </div>
         </>
       )}
@@ -1423,6 +1427,7 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
       var C = data.colors;
       var hiddenStreams = {};
       var hiddenSeatPrice = { workshop: {}, masterclass: {} };
+      var hiddenSpend = {};
       function drawAll() {
         var streamSeries = data.streams.concat([{ name: 'Total', color: C.total, values: data.total, dashed: true }]);
         SDChart.line('chart-streams', { labels: data.labels, fmt: 'eur', interactive: true, hidden: hiddenStreams, series: streamSeries });
@@ -1435,11 +1440,12 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
         SDChart.line('chart-cumulative', { labels: data.labels, fmt: 'eur', series: cumSeries });
 
         var spendSeries = [
-          { name: 'Total revenue', color: C.workshops, values: data.total },
+          { name: 'Revenue', color: C.twelveWeek, values: data.total },
           { name: '7-day average', color: C.total, values: data.avg7, dashed: true },
           { name: 'Ad spend', color: C.spend, values: data.adSpend },
+          { name: 'Cumulative profit', color: C.profit, values: data.cumulativeProfit },
         ];
-        SDChart.line('chart-spend', { labels: data.labels, fmt: 'eur', series: spendSeries });
+        SDChart.line('chart-spend', { labels: data.labels, fmt: 'eur', interactive: true, hidden: hiddenSpend, series: spendSeries });
 
         if (document.getElementById('chart-regs')) {
           SDChart.column('chart-regs', { labels: data.labels, values: data.regs, color: C.workshops, fmt: 'int', name: 'Registrations' });

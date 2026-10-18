@@ -30,9 +30,10 @@ if (!(await hasAdsAccess(env, Astro.request))) {
   return Astro.redirect('/ads/login?next=' + encodeURIComponent(next));
 }
 
-// Opens on **today** — this dashboard answers "how is today's spend doing";
-// any other window is one click away in the period picker.
-const { preset, from, to } = resolvePeriod(Astro.url.searchParams, 'today');
+// Opens on the **last 30 days** — long enough for a month of sessions to have
+// run and sold on, short enough to read as "how are the ads doing now"; any
+// other window is one click away in the period picker.
+const { preset, from, to } = resolvePeriod(Astro.url.searchParams, 'last30');
 
 // Today's Meta spend, pulled inline before the figures are computed, so what
 // you see is minutes old. Throttled, hard-timed-out and never throws; a no-op
@@ -64,7 +65,11 @@ const money = await resolveMoneyOpts(env.DB, env);
 // sessions takes out their spend, their seats and the income those seats have
 // taken — cost and income for an event travel together or the ROAS is just a
 // different lie. Same setting on the compare window, or the halves wouldn't be.
-const excludeFuture = excludeFutureEventsFrom(Astro.url.searchParams);
+// It is the default here: the page opens excluding them, and only an explicit
+// "Include costs" (`future=include`) puts them back.
+const excludeFuture = Astro.url.searchParams.has(FUTURE_COSTS_PARAM)
+  ? excludeFutureEventsFrom(Astro.url.searchParams)
+  : true;
 const d = await computeAdsDashboard(env.DB, { from, to, money, excludeFutureEvents: excludeFuture });
 const cmp = compare && cmpFrom && cmpTo
   ? await computeAdsDashboard(env.DB, {
@@ -328,6 +333,14 @@ const majorOrNull = (v: number | null) => (v == null ? null : toMajor(v));
 const anyCpaWorkshop = cpaWorkshopMinor.some((v) => v != null);
 const anyCpaMasterclass = cpaMasterclassMinor.some((v) => v != null);
 
+// Running total of revenue − ad spend from the first day shown: where the
+// window stands after its ads, day by day. In euros like the two lines it is
+// drawn beside, so it shares their axis.
+function cumulativeProfit(dailyNetMinor: number[]): number[] {
+  let run = 0;
+  return dailyNetMinor.map((v) => toMajor((run += v)));
+}
+
 const chartData = {
   acq: {
     labels: acq.map((x) => x.date),
@@ -346,6 +359,7 @@ const chartData = {
     ],
     adSpend: acq.map((x) => toMajor(x.adSpendEurMinor)),
     revenue: acq.map((x) => toMajor(x.revenueEurMinor)),
+    cumulativeProfit: cumulativeProfit(acq.map((x) => x.revenueEurMinor - x.adSpendEurMinor)),
   },
   streams: {
     labels: ds.map((x) => x.date),
@@ -732,7 +746,7 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
         </label>
         <label>Future events
           <select name={FUTURE_COSTS_PARAM} id="f-future">
-            <option value="">Include costs</option>
+            <option value="include" selected={!excludeFuture}>Include costs</option>
             <option value="exclude" selected={excludeFuture}>Exclude costs</option>
           </select>
         </label>
@@ -930,7 +944,7 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
             </div>
             <div class="chart-block span">
               <h3>Ad spend vs revenue</h3>
-              <p class="ch-sub">Both in euros — same axis</p>
+              <p class="ch-sub">All in euros, one axis. Cumulative profit = revenue − ad spend, added up from the first day shown (ad spend only, nothing else netted off). Tick a line to show/hide it — the scale fits what’s shown</p>
               <div class="chart" id="ch-spend"></div>
             </div>
             <div class="chart-block span">
@@ -1217,13 +1231,15 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
         var data = JSON.parse(el.textContent);
         var hiddenStreams = {};
         var hiddenCpa = {};
+        var hiddenSpend = {};
         function drawAll() {
           if (!document.getElementById('ch-regs')) return;
           SDChart.column('ch-regs', { labels: data.acq.labels, values: data.acq.registrations, color: 'var-s1', fmt: 'int', name: 'Registrations' });
           SDChart.line('ch-cpa', { labels: data.acq.labels, fmt: 'eur', interactive: true, hidden: hiddenCpa, series: data.acq.cpaSeries });
-          SDChart.line('ch-spend', { labels: data.acq.labels, fmt: 'eur', series: [
+          SDChart.line('ch-spend', { labels: data.acq.labels, fmt: 'eur', interactive: true, hidden: hiddenSpend, series: [
             { name: 'Revenue', color: 'var-s5', values: data.acq.revenue },
             { name: 'Ad spend', color: 'var-s2', values: data.acq.adSpend },
+            { name: 'Cumulative profit', color: 'var-ink', values: data.acq.cumulativeProfit },
           ] });
           var streamSeries = data.streams.series.concat([{ name: 'Total', color: '#8a8076', values: data.streams.total, dashed: true }]);
           SDChart.line('ch-streams', { labels: data.streams.labels, fmt: 'eur', interactive: true, hidden: hiddenStreams, series: streamSeries });

@@ -1941,7 +1941,22 @@ sessions that remain — and "upcoming" is the site-wide rule (`ends_at_utc`, or
 those two pages now comes off `computeWorkshopPerformance` rather than
 `computeStats`, since only the allocation knows which euros were charged to a
 session that hasn't run. With the filter **off**, both dashboards say how much
-spend is riding on sessions that haven't happened yet.
+spend is riding on sessions that haven't happened yet. **`/ads` opens with it
+on** (October 2026): no `future` param means exclude there, so its "Include
+costs" option posts an explicit `future=include` — an empty value would read as
+"absent" and snap back to exclude. `/admin/stats` still defaults to include.
+
+**"Ad spend vs revenue" carries a cumulative profit line** (October 2026), on
+`/ads` and — the same chart, full width — on `/admin/stats` (where it replaced
+"Daily revenue vs ad spend" and keeps that chart's 7-day average): the running
+total of revenue − ad spend from the first day shown, on the same euro axis as
+the two daily lines, every line switchable from the legend so the scale can
+refit to the daily ones. It is the chart's own two lines netted, so it is
+profit after **ad spend only** and counts every ad euro spent that day; with
+"Exclude costs" on, the revenue line drops upcoming seats' tickets but a day's
+spend stays whole. `SDChart.line` grew a below-zero scale for it (whole nice
+steps either side of a zero baseline; all-positive charts draw exactly as
+before).
 
 **A registration costs what it cost *that day*** ([`src/lib/ads/allocation.ts`](src/lib/ads/allocation.ts),
 July 2026): the per-workshop ad cost used to be one window-wide average — total
@@ -1994,8 +2009,10 @@ the previous UTC day, since Meta buckets in the ad account's timezone), its own
 14-day sync), throttled to once a minute across all viewers with the marker
 stamped at *attempt* time (a broken token backs off too), an 8s hard timeout,
 and every error swallowed into a result the page reports as "⚠ live Meta sync
-failed" rather than a 500. Both pages also **open on today** (`resolvePeriod`
-takes a fallback preset; everything else still defaults to all-time).
+failed" rather than a 500. `/admin/stats` **opens on today** and `/ads` on the
+**last 30 days** (October 2026; `resolvePeriod` takes a fallback preset;
+everything else still defaults to all-time) — the live pull runs on both
+either way, since today sits inside both windows.
 
 **Setup** (Meta side is the only real work):
 - **`META_AD_ACCOUNT_ID`** — the ad account, `act_1234567890` or bare
