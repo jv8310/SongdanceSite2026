@@ -5,8 +5,15 @@
 // ./confirmation-emails.ts and ./sequence-emails.ts), but while a Drip workflow
 // is still live, sending ours too would mail every buyer twice. So each course
 // has a switch, OFF by default: off → Drip keeps sending, the site sends
-// nothing; on → the site sends, and the matching Drip workflow should be
-// switched off in Drip the same day. Flipped on /admin/emails/courses.
+// nothing; on → the site sends, and the matching Drip email steps are switched
+// off in Drip the same day. Flipped on /admin/emails/courses. Nothing goes on
+// before the CiRCLE app is live: every one of these emails sends the buyer
+// there.
+//
+// "Switched off" means the email steps set to draft, one by one — never the
+// workflow paused: the 12-week and certification workflows also keep fields
+// and tags that other automations wait on (`drip.keep` below). The map was
+// read from the Drip account itself (October 2026); re-read it before the day.
 //
 // A switch covers everything the site sends for that course: the confirmation
 // on payment and any sequence that follows it. Stored in workshop_config as
@@ -32,60 +39,158 @@ export type HandoverInfo = {
   label: string;
   // What the site sends once this is on.
   covers: string;
-  // The Drip side to switch off the same day.
-  dripToStop: string;
+  // The Drip side, read from the account itself (October 2026, read-only).
+  drip: {
+    // What Drip sends this course's buyers today.
+    today: string;
+    // Exactly what to switch off in Drip the day this goes on, in Drip's own
+    // names. Empty = nothing to switch off.
+    switchOff: string[];
+    // Non-email steps in the same workflow that must keep running: they are
+    // why the emails are set to draft one by one instead of pausing the
+    // workflow.
+    keep?: string[];
+  };
+  // Units that share Drip steps with this one: switching off those steps
+  // affects their buyers too, so they go on the same day.
+  together?: HandoverUnit[];
 };
+
+// The 12-Week, Certification and path switches share two Drip workflows (a
+// path buyer carries both tags), so they go on together.
+const SVH_TOGETHER: HandoverUnit[] = ['twelve-week', 'certification', 'path'];
 
 export const HANDOVER_UNITS: HandoverInfo[] = [
   {
     unit: 'twelve-week',
     label: '12-Week Course',
     covers: 'Confirmation + the onboarding emails (day 1, day 2, week 2, week 6, week 12)',
-    dripToStop: 'The 12-Week Course workflow (prod_SVH_12w): "Thank you for registering…", "See you in Q&A?", "How to pace yourself", "Welcome to Week 2/6"',
+    drip: {
+      today:
+        'Workflow “prod_SVH_12w” (starts on the prod_SVH_12w tag) sends six emails: SVH 12w Course - Access (on purchase), See you in Q&A? (day 1), SVH 12w Course - How to pace yourself (day 2), SVH - Week 2 Check-In (day 7), SVH - Week 6 Check-In (day 35) and SVH - Week 12 Check-In (day 77, only to buyers without the certification).',
+      switchOff: [
+        'In workflow “prod_SVH_12w”, set those six “Send an email” steps to draft. Don’t pause the workflow.',
+      ],
+      keep: [
+        'The prod_SVH_week counter (1 … 12, then “Ended since …”): the certification workflow waits on it for path buyers.',
+        'prod_SVH_QandA, prod_SVH_start, prod_SVH_payment and the prod_SVH_12w_end tag.',
+        'The HTTP post at the end of a standalone 12-week run (Drip hides where it goes, so find out before ever removing it).',
+        'Removing the buyer from “m25 | SVH Workshop”.',
+      ],
+    },
+    together: SVH_TOGETHER,
   },
   {
     unit: 'certification',
     label: 'Certification Course (on its own)',
     covers: 'Confirmation + two onboarding emails (day 1, day 2)',
-    dripToStop: 'The certification welcome for prod_SVH_9m buyers',
+    drip: {
+      today:
+        'Workflow “prod_SVH_9m” (starts on the prod_SVH_9m tag) sends one of three “SVH 9m - Activation” emails (the Mighty Networks activation) — or first “SVH 9m - Wait until after 12w course”, and the activation once the 12 weeks end.',
+      switchOff: [
+        'In workflow “prod_SVH_9m”, set its four “Send an email” steps (the three SVH 9m - Activation, and SVH 9m - Wait until after 12w course) to draft. Don’t pause the workflow.',
+      ],
+      keep: ['The vsh_whitelist tag and the prod_SVH_9m_status field it sets.'],
+    },
+    together: SVH_TOGETHER,
   },
   {
     unit: 'path',
     label: '12-Week + Certification path',
     covers: 'Path confirmation + the 12-week onboarding + "your certification course is open" at week 12',
-    dripToStop: 'The path workflow ("here\'s how the path unfolds", "Activate the Certification Course Now") and the 12-week workflow for path buyers',
+    drip: {
+      today:
+        'No workflow of its own: a path buyer carries both tags, so both workflows above run for them — the 12-week emails, and the certification activation (at once when they chose to start now; otherwise “Wait until after 12w course” first and the activation when the 12 weeks end).',
+      switchOff: ['Nothing of its own — the steps in “prod_SVH_12w” and “prod_SVH_9m” above.'],
+    },
+    together: SVH_TOGETHER,
   },
   {
     unit: 'grief',
     label: 'The Grief Course',
     covers: 'Confirmation',
-    dripToStop: 'The Grief Course welcome (prod_Grief-sp)',
+    drip: {
+      today: 'Nothing. Drip has no Grief workflow (the prod_Grief-sp tag starts nothing), so Grief buyers get no welcome today.',
+      switchOff: [],
+    },
   },
   {
     unit: 'asj',
     label: 'Authentic Singing Journey',
-    covers: 'Confirmation (ASJ / ASJ PRO) + the 40 weekly session emails for everyone who holds the journey — standalone, in a bundle, or as an order bump; in Dutch (Authentiek Zingen) for the Dutch edition',
-    dripToStop: 'The ASJ welcome and both weekly series — "Weekly sessions of the Year Course Authentic Singing" (prod_ASJ) and the Dutch "Authentiek Zingen" one (prod_JAZ)',
+    covers: 'Confirmation (ASJ / ASJ PRO) + the weekly session emails for everyone who holds the journey — standalone, in a bundle, or as an order bump; in Dutch (Authentiek Zingen) for the Dutch edition',
+    drip: {
+      today:
+        'Workflow “prod_ASJ” subscribes every prod_ASJ buyer to the email series “prod_ASJ” (41 emails at 08:00 their time: Welcome, Discover the Additional Videos on day 3, then Week 2 … Week 40), every link pointing into Mighty Networks. The Dutch side (workflow and series “prod_JAZ”) is paused: Dutch-edition buyers get nothing today.',
+      switchOff: [
+        'In workflow “prod_ASJ”, set the “Subscribe to email series prod_ASJ” step to draft (keep its tag steps).',
+        'Pause the email series “prod_ASJ” itself — everyone still in it would otherwise keep getting Mighty Networks links — then press “Bring in earlier buyers” on the weekly series below. Buyers from before the site took payments have no order here and have to be brought over from Drip.',
+      ],
+      keep: [
+        'ASJ_start and the tag swap: the workflow removes prod_ASJ within seconds and leaves prod_ASJ_end, which is the lasting marker.',
+      ],
+    },
+    together: ['journeys-bundle'],
   },
   {
     unit: 'mmj',
     label: 'Magical Movement Journey',
     covers: 'Confirmation',
-    dripToStop: 'The Magical Movement welcome (prod_MMJ)',
+    drip: {
+      today: 'Nothing — workflow “prod_MMJ” (MMJ Welcome Email) is paused, so buyers get no welcome today.',
+      switchOff: [],
+    },
   },
   {
     unit: 'inner-child',
     label: 'Inner Child Healing Journey',
     covers: 'Confirmation',
-    dripToStop: 'The Inner Child welcome (prod_InnerChild)',
+    drip: {
+      today: 'Nothing — workflow “prod_Inner Child” and its welcome series are paused, so buyers get no welcome today.',
+      switchOff: [],
+    },
   },
   {
     unit: 'journeys-bundle',
     label: 'The Three Journeys (bundle)',
     covers: 'Confirmation (bundle / bundle PRO)',
-    dripToStop: 'The welcome emails Drip sends a bundle buyer for each journey',
+    drip: {
+      today:
+        'No workflow of its own: the bundle’s prod_ASJ tag starts the ASJ series (its Welcome and the weekly emails); the MMJ and Inner Child workflows are paused.',
+      switchOff: ['Nothing of its own — the ASJ steps above.'],
+    },
+    together: ['asj'],
   },
 ];
+
+// Drip automations that belong to no single switch but change when the CiRCLE
+// replaces Mighty Networks. Shown under the switches on /admin/emails/courses.
+export const DRIP_ELSEWHERE: Array<{ name: string; does: string; when: string }> = [
+  {
+    name: 'Workflow “Access to Products”',
+    does: 'Sends “Your Songdance Products” / “Jouw Songdance Programma’s” — the Mighty Networks activation links — whenever the prod_access tag is applied, which is what /access → “Activate all my products” does (about 150 a year).',
+    when: 'Pause it the day the CiRCLE goes live; the /access button changes on the site the same day.',
+  },
+  {
+    name: 'Two Zapier webhooks (subscriber.applied_tag, April 2026)',
+    does: 'Fire on every tag Drip applies; the Zaps decide what to do with each (probably the Mighty Networks access bridge). Not visible from Drip.',
+    when: 'Check in Zapier what they feed before Mighty Networks goes. The site keeps applying every prod_* tag in Drip, so they keep firing until then.',
+  },
+  {
+    name: 'Workflows “m25 | SVH Workshop” and “m26g | SVH Workshop”',
+    does: 'The old workshop lifecycle (reminders, 12-week coupon, register again). The site never applies their tags or the svh_workshop event, so it doesn’t feed them; the site’s own workshop emails do this job.',
+    when: 'Not tied to the app — they can be paused once nobody is left inside.',
+  },
+  {
+    name: '“CEEE Renewal / Registration”, “Songdeck Account Welcome”, series “Join CEEE Monthly”',
+    does: 'CEEE membership mail and the Songdeck account welcome — not course purchases on the site.',
+    when: 'Stay in Drip for now.',
+  },
+];
+
+// One line for the confirm dialog on the switch.
+export function dripSwitchOffSummary(u: HandoverInfo): string {
+  return u.drip.switchOff.length ? u.drip.switchOff.join(' ') : 'nothing — Drip sends nothing for this course today.';
+}
 
 const KEY_PREFIX = 'course_emails_on:';
 

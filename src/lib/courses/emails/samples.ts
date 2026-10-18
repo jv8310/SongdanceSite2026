@@ -14,6 +14,7 @@ import type { SequenceEmailCtx } from './sequence-emails';
 const ORIGIN_NOTE: Record<string, string> = {
   drip: 'copy: Drip, as it was',
   'drip-adapted': 'copy: Drip, adapted (new app, copy book)',
+  unread: 'copy: new — Drip’s version (“SVH - Week 12 Check-In”) sits in a workflow its API can’t read',
   new: 'copy: new — Drip had no email here',
 };
 
@@ -193,7 +194,7 @@ export function buildCourseEmailSamples(base: string): EmailSample[] {
         id: `course_seq_${key}_${step.n}`,
         group,
         label: step.label,
-        timing: `${step.dayOffset === 1 ? 'Day 1' : `Day ${step.dayOffset}`} after payment, at 09:00 in their timezone · ${ORIGIN_NOTE[step.origin]}`,
+        timing: `${step.dayOffset === 1 ? 'Day 1' : `Day ${step.dayOffset}`} after payment, at ${String(SEQUENCES[key].sendHour ?? 9).padStart(2, '0')}:00 in their timezone · ${ORIGIN_NOTE[step.origin]}`,
         audience,
         content,
       });

@@ -4,18 +4,24 @@
 // Top: a switch per course (handover.ts). Off = Drip still sends that course's
 // welcome and follow-ups and the site sends nothing; on = the site sends its
 // own confirmation on payment and runs the sequence after it, for orders paid
-// from that moment — switch the matching Drip workflow off the same day.
+// from that moment — switch the matching Drip steps off the same day (the
+// exact steps, read from the Drip account, are in handover.ts).
 // Then the sequences (how many people are on each, stopped, done) with "bring
 // in earlier buyers", a lookup to stop/restart one person's series, and every
 // email rendered with sample data, with a [Test] send.
 //
 // Words: src/lib/courses/emails/confirmation-emails.ts, sequence-emails.ts,
-// asj-weeks.ts. Cadence: sequences.ts (hourly cron, 09:00 in the buyer's
+// asj-weeks.ts. Cadence: sequences.ts (hourly cron, 09:00 — ASJ 08:00 — in the buyer's
 // timezone). Recovered Drip copy: see the header of each file.
 import '../../../styles/admin.css';
 import Layout from '../../../layouts/Layout.astro';
 import { readCookie, verifySession } from '../../../lib/registrations/auth';
-import { HANDOVER_UNITS, loadHandover } from '../../../lib/courses/emails/handover';
+import {
+  DRIP_ELSEWHERE,
+  HANDOVER_UNITS,
+  dripSwitchOffSummary,
+  loadHandover,
+} from '../../../lib/courses/emails/handover';
 import {
   SEQUENCES,
   SEQUENCE_KEYS,
@@ -80,6 +86,10 @@ function since(v: string | undefined): string {
           course over here — then switch the matching Drip workflow off the same day, or buyers
           hear it twice. Only orders paid after the switch get the site's emails.
         </p>
+        <p class="adm-sub">
+          <strong>Leave every switch off until the CiRCLE is live:</strong> these emails send buyers
+          to circle.songdance.co, and Drip's still point into Mighty Networks.
+        </p>
       </div>
       <div class="adm-actions">
         <label class="em-tolabel" for="test-to">Send tests to</label>
@@ -96,7 +106,7 @@ function since(v: string | undefined): string {
       <h2>Who sends what</h2>
       <table class="adm-table ce-table">
         <thead>
-          <tr><th>Course</th><th>The site sends</th><th>Switch off in Drip</th><th>Sent by</th><th></th></tr>
+          <tr><th>Course</th><th>The site sends</th><th>Drip today — and what to switch off there</th><th>Sent by</th><th></th></tr>
         </thead>
         <tbody>
           {HANDOVER_UNITS.map((u) => {
@@ -105,7 +115,33 @@ function since(v: string | undefined): string {
               <tr>
                 <td><strong>{u.label}</strong></td>
                 <td class="ce-small">{u.covers}</td>
-                <td class="ce-small">{u.dripToStop}</td>
+                <td class="ce-small ce-drip">
+                  <p>{u.drip.today}</p>
+                  {u.drip.switchOff.length > 0 ? (
+                    <>
+                      <p class="ce-drip-h">Switch off in Drip</p>
+                      <ul>{u.drip.switchOff.map((x) => <li>{x}</li>)}</ul>
+                    </>
+                  ) : (
+                    <p class="ce-drip-h">Nothing to switch off in Drip</p>
+                  )}
+                  {u.drip.keep && (
+                    <>
+                      <p class="ce-drip-h">Keep running</p>
+                      <ul>{u.drip.keep.map((x) => <li>{x}</li>)}</ul>
+                    </>
+                  )}
+                  {u.together && (
+                    <p class="ce-drip-together">
+                      Goes on the same day as{' '}
+                      {u.together
+                        .filter((t) => t !== u.unit)
+                        .map((t) => HANDOVER_UNITS.find((x) => x.unit === t)?.label ?? t)
+                        .join(' and ')}
+                      .
+                    </p>
+                  )}
+                </td>
                 <td>
                   {on ? (
                     <span class="adm-pill adm-pill--paid">Site · since {since(on)}</span>
@@ -122,8 +158,8 @@ function since(v: string | undefined): string {
                       class={`adm-btn ${on ? 'adm-btn--ghost' : ''}`}
                       type="submit"
                       data-confirm={on
-                        ? `Hand ${u.label} back to Drip? New orders get no site email — turn the Drip workflow back on.`
-                        : `Send ${u.label} from the site from now on? Switch off in Drip today: ${u.dripToStop}`}
+                        ? `Hand ${u.label} back to Drip? New orders get no site email — set the Drip email steps back to active.`
+                        : `Send ${u.label} from the site from now on? Switch off in Drip today: ${dripSwitchOffSummary(u)}`}
                     >
                       {on ? 'Back to Drip' : 'Send from the site'}
                     </button>
@@ -132,6 +168,28 @@ function since(v: string | undefined): string {
               </tr>
             );
           })}
+        </tbody>
+      </table>
+    </section>
+
+    <section class="adm-section">
+      <h2>Elsewhere in Drip</h2>
+      <p class="adm-sub">
+        Automations that belong to no single switch, but change when the CiRCLE replaces Mighty
+        Networks. Read from the Drip account; nothing here has been changed.
+      </p>
+      <table class="adm-table ce-table">
+        <thead>
+          <tr><th>In Drip</th><th>What it does</th><th>When</th></tr>
+        </thead>
+        <tbody>
+          {DRIP_ELSEWHERE.map((d) => (
+            <tr>
+              <td><strong>{d.name}</strong></td>
+              <td class="ce-small">{d.does}</td>
+              <td class="ce-small">{d.when}</td>
+            </tr>
+          ))}
         </tbody>
       </table>
     </section>
@@ -184,7 +242,8 @@ function since(v: string | undefined): string {
         </tbody>
       </table>
       <p class="adm-table-note">
-        Each step goes out at 09:00 in the buyer's own timezone on its day (hourly cron, inside
+        Each step goes out at 09:00 in the buyer's own timezone on its day — 08:00 for the weekly ASJ
+        series, as Drip sent it (hourly cron, inside
         08:00–21:00). A series stops on the button in every email, the mail client's one-click
         unsubscribe, a full refund, or an address on the suppression list — never the course itself.
       </p>
@@ -273,6 +332,11 @@ function since(v: string | undefined): string {
     }
     .ce-table td { vertical-align: top; }
     .ce-small { font-size: 12.5px; color: #6f5f6d; }
+    .ce-drip p { margin: 0 0 6px; }
+    .ce-drip ul { margin: 0 0 8px; padding-left: 18px; }
+    .ce-drip li { margin: 0 0 3px; }
+    .ce-drip-h { font-weight: 600; color: #2a1b2a; margin-top: 8px !important; }
+    .ce-drip-together { color: #a14826; }
     .ce-lookup { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
     .em-grid { display: grid; gap: 22px; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); }
     @media (max-width: 520px) { .em-grid { grid-template-columns: 1fr; } }

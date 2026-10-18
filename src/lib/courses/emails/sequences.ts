@@ -56,7 +56,9 @@ export type SequenceStep = {
   dayOffset: number;
   label: string;
   // Where the words came from — shown beside the preview.
-  origin: 'drip' | 'drip-adapted' | 'new';
+  // 'unread': Drip has this email, but in a workflow, whose words its API
+  // can't read — so these words are new.
+  origin: 'drip' | 'drip-adapted' | 'unread' | 'new';
   // Variants this step is sent to (absent = everyone on the sequence).
   onlyVariants?: Array<string | null>;
   build: (ctx: SequenceEmailCtx) => EmailContent | null;
@@ -65,6 +67,9 @@ export type SequenceStep = {
 export type SequenceDef = {
   key: SequenceKey;
   label: string;
+  // Local hour the steps fall due (default 09:00). Drip sent the ASJ series at
+  // 08:00 and the 12-week notes at 09:00; each keeps its hour.
+  sendHour?: number;
   steps: SequenceStep[];
 };
 
@@ -100,11 +105,13 @@ export const SEQUENCES: Record<SequenceKey, SequenceDef> = {
   'asj-weekly': {
     key: 'asj-weekly',
     label: 'Authentic Singing Journey — weekly sessions',
+    sendHour: 8,
     steps: ASJ_STEPS,
   },
   'asj-weekly-nl': {
     key: 'asj-weekly-nl',
     label: 'Authentiek Zingen — wekelijkse sessies (Dutch edition)',
+    sendHour: 8,
     steps: ASJ_STEPS_NL,
   },
   'twelve-week': {
@@ -119,7 +126,7 @@ export const SEQUENCES: Record<SequenceKey, SequenceDef> = {
         n: 5,
         dayOffset: 77,
         label: 'Week 12 — the last week of live Q&As (12-week only)',
-        origin: 'new',
+        origin: 'unread',
         onlyVariants: [null],
         build: (c) => twelveWeekStepEmail(5, c),
       },
@@ -228,11 +235,17 @@ function tzOffsetMinutes(ms: number, tz: string): number {
   return Math.round((asUtc - ms) / 60_000);
 }
 
-// 09:00 local time, `dayOffset` calendar days after the local day of `startMs`.
-export function dueAtMs(startMs: number, dayOffset: number, tz: string | null | undefined): number {
+// `hour`:00 local time (09:00 unless the sequence says otherwise), `dayOffset`
+// calendar days after the local day of `startMs`.
+export function dueAtMs(
+  startMs: number,
+  dayOffset: number,
+  tz: string | null | undefined,
+  hour: number = SEND_LOCAL_HOUR,
+): number {
   const zone = validTz(tz);
   const local = new Date(startMs + tzOffsetMinutes(startMs, zone) * 60_000);
-  const guess = Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate() + dayOffset, SEND_LOCAL_HOUR);
+  const guess = Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate() + dayOffset, hour);
   let utc = guess - tzOffsetMinutes(guess, zone) * 60_000;
   utc = guess - tzOffsetMinutes(utc, zone) * 60_000; // settle across a DST change
   return utc;
@@ -252,7 +265,7 @@ type SeqEnv = {
 function firstStepFrom(def: SequenceDef, variant: string | null, startMs: number, tz: string | null, notBeforeMs: number) {
   for (const s of def.steps) {
     if (s.onlyVariants && !s.onlyVariants.includes(variant)) continue;
-    const due = dueAtMs(startMs, s.dayOffset, tz);
+    const due = dueAtMs(startMs, s.dayOffset, tz, def.sendHour);
     if (due > notBeforeMs) return { step: s, due };
   }
   return null;
@@ -456,7 +469,7 @@ function nextAfter(row: EnrolmentRow, n: number, nowMs: number): { n: number; du
   for (const s of def.steps) {
     if (s.n <= n) continue;
     if (s.onlyVariants && !s.onlyVariants.includes(row.variant)) continue;
-    return { n: s.n, dueMs: Math.max(dueAtMs(startMs, s.dayOffset, row.timezone), nowMs + MIN_GAP_MS) };
+    return { n: s.n, dueMs: Math.max(dueAtMs(startMs, s.dayOffset, row.timezone, def.sendHour), nowMs + MIN_GAP_MS) };
   }
   return null;
 }

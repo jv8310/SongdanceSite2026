@@ -744,8 +744,8 @@ routes settle, that file is the one place to change.
   [`sequence-emails.ts`](src/lib/courses/emails/sequence-emails.ts), table
   `course_email_sequences`, **migration 0090**): one row per (sequence, email),
   so a second order never restarts a series. Step k is due at **09:00 in the
-  buyer's timezone, `dayOffset` days after they paid** (Drip's "wait N days,
-  send at 9:00"); the **hourly** cron sends what's due inside 08:00–21:00
+  buyer's timezone (08:00 for the ASJ series, as Drip sent it — `sendHour`),
+  `dayOffset` days after they paid** (Drip's "wait N days, send at 9:00"); the **hourly** cron sends what's due inside 08:00–21:00
   local, claims each step by compare-and-swap on `next_step` and rolls it back
   if the send fails; a late step never bunches (≥20 h before the next).
   - `asj-weekly` — **Week 2 … Week 40**, one a week, each opening that week in
@@ -763,7 +763,8 @@ routes settle, that file is the one place to change.
     week 2–40 has its words (`ASJ_NL_COMPLETE`), so a week deleted from the
     file stops new Dutch enrolments rather than sending a series with a hole.
   - `twelve-week` — day 1 "See you in Q&A?", day 2 "How to pace yourself",
-    week 2, week 6, week 12 (Q&As closing — standalone only, new), and for path
+    week 2, week 6, week 12 (Q&As closing — standalone only; Drip's "Week 12
+    Check-In", rewritten since its words can't be read), and for path
     buyers who chose to wait, "Your certification course is open" at week 13
     (Drip's "Activate the Certification Course Now", minus the activating).
   - `certification` — the day-1 / day-2 notes' certification twins.
@@ -782,8 +783,10 @@ routes settle, that file is the one place to change.
   has reached** (never from the start), respecting each order's own switch (a
   path buyer stays Drip's while the path switch is off). Press it only once the
   Drip workflow is off.
-- **Where the words came from**: the Drip API cannot read email-series or
-  workflow content (only broadcasts), so the copy was recovered from Jacob's
+- **Where the words came from**: the Drip API can't read the emails inside a
+  **workflow** (only their titles); it can read an **email series** (the Drip
+  connector's `get_campaign_email`), which is how the ASJ series was checked
+  against Drip in October 2026. The workflow copy was recovered from Jacob's
   Gmail — the ASJ "Authentic Singing Week N" series (originals + customers'
   quoted replies; weeks 11/31/33/35 survive only in the Dutch series and are
   translated), its Dutch twin "Authentiek Zingen Week N" (from
