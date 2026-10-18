@@ -347,7 +347,7 @@ anyone whose course no longer includes them (or never did). Logic in
   (the checkout refuses a second). **Cancelling** is the buyer's, from the signed
   link in its confirmation email (`/courses/live-pass/manage?t=…`,
   [`live-pass-manage-link.ts`](src/lib/courses/live-pass-manage-link.ts),
-  `sd-lpm:`), sent again to the inbox on the order from "Manage my monthly" on the
+  `sd-lpm:`), sent again to the inbox on the order from "Manage my monthly pass" on the
   pass page — never shown on screen. Stripe gets `cancel_at_period_end` (and can
   be taken back while the month runs); PayPal is cancelled at once; either way the
   app keeps the sessions open to `paid_through`. A renewal the gateway gives up on

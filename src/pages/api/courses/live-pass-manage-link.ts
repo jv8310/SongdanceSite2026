@@ -1,6 +1,6 @@
 // POST { email } → email the monthly live pass's manage link to that address,
 // if it has a monthly (running, or cancelled with its paid month still to run).
-// The pass page's "Manage my monthly", for anyone who has lost the
+// The pass page's "Manage my monthly pass", for anyone who has lost the
 // confirmation. The answer is the same whether or not a monthly was found, and
 // the link only ever goes to the inbox on the order: stopping a subscription
 // takes the inbox, not just the address.

@@ -286,7 +286,7 @@ export function buildEmailSamples(base: string): EmailSample[] {
       id: 'live_pass_manage_link',
       group: 'Registration & reminders (transactional)',
       label: 'Live pass monthly — manage link',
-      timing: 'When someone asks for it under “Manage my monthly” on /courses/live-pass',
+      timing: 'When someone asks for it under “Manage my monthly pass” on /courses/live-pass',
       audience: 'The address on a monthly order (only ever that inbox)',
       content: livePassManageLinkEmail({
         name,

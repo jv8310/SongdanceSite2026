@@ -179,7 +179,7 @@ async function sendMonthlyConfirmation(env: MailEnv, passed: CourseRegistration)
 }
 
 // The manage link again, to the address on the order (the pass page's "Manage
-// my monthly" for anyone who has lost the confirmation). Throws on a failed
+// my monthly pass" for anyone who has lost the confirmation). Throws on a failed
 // send so the endpoint can say so.
 export async function sendLivePassManageLink(env: MailEnv, reg: CourseRegistration): Promise<void> {
   if (!env.RESEND_API_KEY) throw new Error('email is not configured');

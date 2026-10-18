@@ -1,4 +1,4 @@
-// The durable "manage my monthly" link for the monthly live pass
+// The durable "manage my monthly pass" link for the monthly live pass
 // (src/lib/courses/live-pass.ts): /courses/live-pass/manage?t=<token>.
 //
 // It is how a buyer cancels — or takes a cancellation back — with no account

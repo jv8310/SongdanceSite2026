@@ -42,7 +42,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       email,
       live_until: plan.liveUntil,
       pass_running: plan.passRunning,
-      // A monthly already running: the page offers "Manage my monthly" instead
+      // A monthly already running: the page offers "Manage my monthly pass" instead
       // of a second one (a yes/no only — the manage link goes by email).
       monthly_running: !!monthly,
       monthly_until: plan.monthlyUntil,

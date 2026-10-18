@@ -11,7 +11,7 @@
 //
 // Beside the three passes, the monthly (October 2026): €52 a month, renews until
 // cancelled, every session while it runs (live-pass.ts). ?months=monthly picks
-// it; an address that already has one running sees "Manage my monthly" instead,
+// it; an address that already has one running sees "Manage my monthly pass" instead,
 // which emails the manage link to that address (never shown on screen).
 import SiteLayout from '../../components/SiteLayout.astro';
 import { COUNTRIES, findCountry } from '../../lib/countries';
@@ -108,7 +108,7 @@ function startNoticeText(
   const lines: string[] = [];
   if (monthlyUntil && !monthly) {
     lines.push(
-      `Your monthly has paid for the sessions until ${fmtDay(monthlyUntil)}, so a pass starts the day after${startsOn ? `, on ${fmtDay(startsOn)}` : ''}.${monthlyRuns ? ' If you are switching to a pass, cancel the monthly under “Manage my monthly”, or it keeps renewing.' : ''}`,
+      `Your monthly has paid for the sessions until ${fmtDay(monthlyUntil)}, so a pass starts the day after${startsOn ? `, on ${fmtDay(startsOn)}` : ''}.${monthlyRuns ? ' If you are switching to a pass, cancel the monthly under “Manage my monthly pass”, or it keeps renewing.' : ''}`,
     );
   }
   if (liveUntil) {
@@ -395,7 +395,7 @@ const aboutLabel = (m: number) => `About ${m} month${m === 1 ? '' : 's'} of sess
     </section>
 
     <section class="lp-card lp-manage" id="manage" aria-labelledby="lp-manage-title">
-      <h2 class="lp-h2" id="lp-manage-title">Manage my monthly</h2>
+      <h2 class="lp-h2" id="lp-manage-title">Manage my monthly pass</h2>
       <p>
         To see when your monthly renews, or to cancel it, use the link in its confirmation email.
         Lost it? Enter the address you pay with and we'll send it there again.
@@ -452,7 +452,7 @@ const aboutLabel = (m: number) => `About ${m} month${m === 1 ? '' : 's'} of sess
         <dt>How do I cancel the monthly?</dt>
         <dd>
           Any time, in two clicks, from the link in its confirmation email (or ask for the link under
-          “Manage my monthly” above). Nothing more is charged, and the sessions stay open until the
+          “Manage my monthly pass” above). Nothing more is charged, and the sessions stay open until the
           end of the month you have already paid for.
         </dd>
       </dl>
@@ -614,7 +614,7 @@ const aboutLabel = (m: number) => `About ${m} month${m === 1 ? '' : 's'} of sess
       if (status?.monthly_until && !monthly) {
         const startsOn = status.periods?.[String(months())]?.startsOn;
         lines.push(
-          `Your monthly has paid for the sessions until ${fmtDay(status.monthly_until)}, so a pass starts the day after${startsOn ? `, on ${fmtDay(startsOn)}` : ''}.${status.monthly_running ? ' If you are switching to a pass, cancel the monthly under “Manage my monthly”, or it keeps renewing.' : ''}`,
+          `Your monthly has paid for the sessions until ${fmtDay(status.monthly_until)}, so a pass starts the day after${startsOn ? `, on ${fmtDay(startsOn)}` : ''}.${status.monthly_running ? ' If you are switching to a pass, cancel the monthly under “Manage my monthly pass”, or it keeps renewing.' : ''}`,
         );
       }
       if (status?.live_until) {
@@ -729,7 +729,7 @@ const aboutLabel = (m: number) => `About ${m} month${m === 1 ? '' : 's'} of sess
     });
   }
 
-  // "Manage my monthly": the link goes to the inbox on the order, never on screen.
+  // "Manage my monthly pass": the link goes to the inbox on the order, never on screen.
   const manage = document.querySelector<HTMLFormElement>('[data-lp-manage]');
   const manageMsg = document.querySelector<HTMLElement>('[data-lp-manage-msg]');
   if (manage && manageMsg) {

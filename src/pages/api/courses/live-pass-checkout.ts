@@ -316,7 +316,7 @@ async function startMonthly(
     return json(
       {
         error:
-          'You already have a monthly live pass running under this email address. To check or cancel it, use “Manage my monthly” on this page.',
+          'You already have a monthly live pass running under this email address. To check or cancel it, use “Manage my monthly pass” on this page.',
       },
       409,
     );

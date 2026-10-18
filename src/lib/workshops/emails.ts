@@ -1234,7 +1234,7 @@ export function livePassMonthlyConfirmedEmail(ctx: LivePassMonthlyConfirmedCtx):
       <p style="margin:0 0 14px;">${escapeHtml(where)} <strong>${escapeHtml(ctx.loginEmail)}</strong>. Join from there when a session begins — <a href="${escapeHtml(ctx.eventsUrl)}" style="color:#C9603A;">open the sessions</a>.</p>
       <p style="margin:0 0 14px;">${escapeHtml(stop)}</p>
       <p style="margin:0;">Questions? Just reply to this email — a person reads it.</p>`,
-    cta: ctx.manageUrl ? { label: 'Manage my monthly →', href: ctx.manageUrl } : { label: 'Open the sessions →', href: ctx.eventsUrl },
+    cta: ctx.manageUrl ? { label: 'Manage my monthly pass →', href: ctx.manageUrl } : { label: 'Open the sessions →', href: ctx.eventsUrl },
     footerNote: 'Keep this email: its link is how you cancel or check your monthly.',
   });
   return {
@@ -1269,7 +1269,7 @@ export function livePassMonthlyStoppedEmail(ctx: { name?: string | null; passUrl
 }
 
 // ── Live pass monthly — your manage link (transactional) ───────────────────
-// Asked for on the pass page ("Manage my monthly"), sent only to the address on
+// Asked for on the pass page ("Manage my monthly pass"), sent only to the address on
 // the order: stopping a subscription needs the inbox, not just the address.
 export function livePassManageLinkEmail(ctx: { name?: string | null; manageUrl: string }): EmailContent {
   const body = 'Here is the link to your monthly live pass. From there you can see when it renews, and cancel it — or, if you already have, change your mind.';
@@ -1279,7 +1279,7 @@ export function livePassManageLinkEmail(ctx: { name?: string | null; manageUrl: 
     bodyHtml: `<p style="margin:0 0 14px;">${greeting(ctx.name)}</p>
       <p style="margin:0 0 14px;">${escapeHtml(body)}</p>
       <p style="margin:0;">If you didn't ask for this, you can ignore it — nothing changes until the link is used.</p>`,
-    cta: { label: 'Manage my monthly →', href: ctx.manageUrl },
+    cta: { label: 'Manage my monthly pass →', href: ctx.manageUrl },
   });
   return {
     subject: 'The link to your monthly live pass',

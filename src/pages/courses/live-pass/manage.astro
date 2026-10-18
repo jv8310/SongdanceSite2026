@@ -1,5 +1,5 @@
 ---
-// "Manage my monthly" — the monthly live pass's own page, reached only by the
+// "Manage my monthly pass" — the monthly live pass's own page, reached only by the
 // signed link in its confirmation email (or sent again from the pass page):
 //
 //   GET  /courses/live-pass/manage?t=<id>.<sig>   → where it stands: renews on …,
@@ -74,7 +74,7 @@ if (!reg || !isLivePassMonthlySlug(reg.product_slug) || !state) {
     heading: 'This link does not open a monthly',
     lines: [
       'The link may be incomplete — try opening it from the email again.',
-      `You can also ask for a new one on the live pass page, under “Manage my monthly”, or write to ${SUPPORT}.`,
+      `You can also ask for a new one on the live pass page, under “Manage my monthly pass”, or write to ${SUPPORT}.`,
     ],
     link: { label: 'The live pass page', href: LIVE_PASS_PAGE_PATH },
   };
@@ -135,13 +135,13 @@ if (!reg || !isLivePassMonthlySlug(reg.product_slug) || !state) {
     {p.action === 'cancel' && (
       <form method="post" class="lpm-actions">
         <input type="hidden" name="action" value="cancel" />
-        <button type="submit" class="lpm-cta lpm-cta--quiet">Cancel my monthly</button>
+        <button type="submit" class="lpm-cta lpm-cta--quiet">Cancel my monthly pass</button>
       </form>
     )}
     {p.action === 'resume' && (
       <form method="post" class="lpm-actions">
         <input type="hidden" name="action" value="resume" />
-        <button type="submit" class="lpm-cta">Keep my monthly running</button>
+        <button type="submit" class="lpm-cta">Keep my monthly pass running</button>
       </form>
     )}
     {p.link && (
