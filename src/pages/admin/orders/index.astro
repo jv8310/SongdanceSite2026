@@ -425,7 +425,7 @@ const pages = pageNumbers(result.page, result.pageCount);
                               method="POST"
                               action="/api/admin/refund"
                               class="ord-menu-refund"
-                              onsubmit={`return confirm('Refund ${o.orderNo} (${jsName}, ${o.email})?\\nBlank = full ${remainingMajor} ${o.originalCurrency}. This moves real money.')`}
+                              onsubmit={`return confirm('Refund ${o.orderNo} (${jsName}, ${o.email})?\\nBlank = full ${remainingMajor} ${o.originalCurrency}. This moves real money.' + (this.elements.revoke_access && this.elements.revoke_access.checked ? '\\nIt ALSO takes the course away in the member app.' : ''))`}
                             >
                               <input type="hidden" name="order_no" value={o.orderNo} />
                               <input type="hidden" name="return_to" value={returnTo} />
@@ -441,7 +441,12 @@ const pages = pageNumbers(result.page, result.pageCount);
                                 />
                               </label>
                               <button type="submit" class="adm-btn adm-btn--danger adm-btn--tiny">Issue refund</button>
-                              <p class="ord-refund-hint">Blank = full refund of what’s left.</p>
+                              {o.source === 'course' && (
+                                <label class="ord-revoke">
+                                  <input type="checkbox" name="revoke_access" value="1" /> Also take away the course in the app
+                                </label>
+                              )}
+                              <p class="ord-refund-hint">Blank = full refund of what’s left.{o.source === 'course' && ' A full refund closes the course in the app by itself; a partial one only if ticked.'}</p>
                             </form>
                           </>
                         )}
@@ -626,6 +631,7 @@ const pages = pageNumbers(result.page, result.pageCount);
       padding:7px 10px; border:1px solid rgba(42,27,42,0.18); border-radius:7px; font-size:14px;
     }
     .ord-refund-hint { font-size:11px; color:var(--adm-mute); margin:0; }
+    .ord-revoke { display:flex; gap:6px; align-items:center; font-size:12px; color:var(--adm-ink-soft); margin:4px 0; }
     .sr-only {
       position:absolute; width:1px; height:1px; padding:0; margin:-1px;
       overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0;
