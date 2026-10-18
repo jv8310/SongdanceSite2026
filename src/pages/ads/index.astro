@@ -21,6 +21,8 @@ import {
   FUTURE_COSTS_PARAM,
 } from '../../lib/workshops/periods';
 import ChartKit from '../../components/charts/ChartKit.astro';
+import SessionProfitRoasChart from '../../components/admin/SessionProfitRoasChart.astro';
+import { sessionChartPoints } from '../../lib/workshops/session-points';
 
 export const prerender = false;
 
@@ -259,6 +261,9 @@ const rows = d.workshopRows.slice().sort((a, b) => {
   return ad - bd;
 });
 const activeRows = rows.filter((r) => r.registrations > 0 || r.totalEurMinor > 0);
+// The per-session profit & ROAS chart — the same points the admin performance
+// page plots (session-points.ts), so the two pages can't disagree on a session.
+const chartPoints = sessionChartPoints(d.workshopRows);
 
 // ---- per-workshop cards ----
 // Money bars share one scale across every card, so bar lengths compare
@@ -647,6 +652,22 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
       .legend i.sw--dash { border-top-style: dashed; }
       .tip { position: absolute; pointer-events: none; background: var(--ink); color: #fff; font-size: 12px; line-height: 1.5; border-radius: 8px; padding: 7px 10px; opacity: 0; transition: opacity .08s; z-index: 6; white-space: nowrap; }
       .empty { color: var(--muted); font-size: 13px; padding: 12px 0; }
+      /* The per-session chart brings its own styles; point its colour tokens at
+         this page's palette (white card like the other charts, masterclass in
+         the page's own orange). The extra attribute outranks the component's
+         own defaults whatever order the two stylesheets load in. */
+      .spr-host :global(.spr[data-spr]) {
+        --spr-surface: var(--card);
+        --spr-head-bg: var(--surface);
+        --spr-ink: var(--ink);
+        --spr-ink-soft: var(--ink-2);
+        --spr-mute: var(--muted);
+        --spr-line: var(--line);
+        --spr-accent: var(--ember);
+        --spr-accent-deep: var(--ember-deep);
+        --spr-workshop: var(--s1);
+        --spr-masterclass: var(--s2);
+      }
 
       /* tables */
       .scroll { overflow-x: auto; }
@@ -948,6 +969,12 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
             </div>
           </>
         )}
+      </section>
+
+      <section>
+        <h2>Profit and ROAS per session</h2>
+        <p class="note">One bar per workshop and masterclass with activity in this window, in date order — the same profit (revenue − Meta cost) and ROAS (revenue ÷ TOF cost) as its card under “Results per workshop” — with a dashed trend line per product through the sessions that have run. Two panels on one session axis, never two scales on one plot. Switch Workshop, Masterclass and Trend on or off above the chart; hover (or tap) a bar for its figures.</p>
+        <div class="spr-host"><SessionProfitRoasChart points={chartPoints} links={false} /></div>
       </section>
 
       <section>

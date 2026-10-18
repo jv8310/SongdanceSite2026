@@ -1220,11 +1220,18 @@ figure that silently nets nothing but TOF, or that quietly means something other
 than the revenue bar directly above it, is the bug this shape avoids.
 
 **The same two figures are charted per session** (October 2026): the top of
-`/admin/workshops/performance` plots profit and ROAS per session
+`/admin/workshops/performance` and a section of `/ads` (just above "Results per
+workshop") plot profit and ROAS per session
 ([`SessionProfitRoasChart.astro`](src/components/admin/SessionProfitRoasChart.astro))
 — a **bar** per dated session with activity in the window, coloured by product
-(workshop blue, masterclass ember), built from the cards' own row values so the
-chart and the cards can't disagree. **Two panels on one shared axis, never one
+(workshop blue, masterclass ember — the page's own orange on `/ads`), built
+from the cards' own row values by **one** builder,
+[`sessionChartPoints`](src/lib/workshops/session-points.ts), so the chart, the
+cards and the two pages can't disagree. The component brings its own styles
+and `--spr-*` colour tokens (defaulting to the admin palette); `/ads`, which
+has no admin stylesheet, re-points them in its own `<style>`. It renders with
+`links={false}` there: a bar or table row opens `/admin/workshops/<id>` on the
+admin page, but the `/ads` viewer holds only the ads password. **Two panels on one shared axis, never one
 plot with two y-scales** — euros and a ratio share nothing, and a second axis
 lets either series be stretched to say anything. The axis is the **sessions,
 evenly spaced, not the calendar** (dates under the bars): on a time axis a quiet

@@ -10,32 +10,25 @@
 // week crushes its sessions together, and the question here is "how did each
 // session do", not "when". The date sits under each bar instead.
 //
-// The figures are exactly the cards' below (profit = revenue − Meta cost,
-// ROAS = revenue ÷ TOF cost), so the chart and the cards can never disagree.
+// The figures are exactly the cards' (profit = revenue − Meta cost, ROAS =
+// revenue ÷ TOF cost), built by `sessionChartPoints`, so the chart and the
+// cards can never disagree — on /admin/workshops/performance and /ads alike.
+// It brings its own styles and colour tokens (--spr-*, defaulting to the admin
+// palette), so a page outside the admin can host it and re-point the tokens.
 // The panels are drawn in the browser at their real width — a fixed viewBox
 // scaled down to a phone shrinks every label to 4px — and the table under
 // them carries every value for anyone without the hover.
 
-export type SessionPoint = {
-  id: number;
-  title: string;
-  dateLabel: string;
-  t: number; // session start, ms since epoch
-  kind: 'workshop' | 'masterclass';
-  upcoming: boolean;
-  profitEurMinor: number;
-  roas: number | null;
-  revenueEurMinor: number;
-  metaCostEurMinor: number | null;
-  tofCostEurMinor: number | null;
-  registrations: number;
-};
+import type { SessionPoint } from '../../lib/workshops/session-points';
 
 interface Props {
   points: SessionPoint[];
+  // Bars and table rows open the session's admin page. Off on /ads: its viewer
+  // holds the ads password, which opens no admin page.
+  links?: boolean;
 }
 
-const { points } = Astro.props;
+const { points, links = true } = Astro.props;
 const hasWorkshop = points.some((p) => p.kind === 'workshop');
 const hasMasterclass = points.some((p) => p.kind === 'masterclass');
 const hasUpcoming = points.some((p) => p.upcoming);
@@ -47,9 +40,9 @@ const eurSigned0 = (minor: number) =>
 const eur0 = (minor: number) => '€' + Math.round(minor / 100).toLocaleString('en-IE');
 ---
 
-<div class="spr" data-spr>
+<div class="spr" data-spr data-spr-links={links ? "1" : "0"}>
   {points.length === 0 ? (
-    <p class="adm-empty">No dated sessions with activity in this window.</p>
+    <p class="spr-empty">No dated sessions with activity in this window.</p>
   ) : (
     <>
       {/* The toggles are the legend: each carries its series' swatch, so
@@ -97,15 +90,15 @@ const eur0 = (minor: number) => '€' + Math.round(minor / 100).toLocaleString('
 
       <details class="spr-table">
         <summary>Show as a table</summary>
-        <div class="wk-perf-scroll">
-          <table class="adm-table wk-perf">
+        <div class="spr-scroll">
+          <table class="spr-tbl">
             <thead>
               <tr><th>Session</th><th>Date</th><th>Type</th><th>Profit</th><th>ROAS</th><th>Revenue</th><th>Meta cost</th><th>TOF cost</th><th>Registrations</th></tr>
             </thead>
             <tbody>
               {points.map((p) => (
                 <tr>
-                  <td><a href={`/admin/workshops/${p.id}`}>{p.title}</a></td>
+                  <td>{links ? <a href={`/admin/workshops/${p.id}`}>{p.title}</a> : p.title}</td>
                   <td>{p.dateLabel}{p.upcoming && ' · not held yet'}</td>
                   <td>{p.kind === 'masterclass' ? 'Masterclass' : 'Workshop'}</td>
                   <td>{eurSigned0(p.profitEurMinor)}</td>
@@ -132,16 +125,23 @@ const eur0 = (minor: number) => '€' + Math.round(minor / 100).toLocaleString('
      both ≥ 3:1. The trend lines are the same hues two steps darker, dashed,
      on a surface-coloured halo, so they read where they cross their own bars. */
   .spr {
-    --spr-surface: var(--adm-paper-soft);
+    --spr-surface: var(--adm-paper-soft, #fbf6ea);
+    --spr-head-bg: var(--adm-paper, #f6efe1);
+    --spr-ink: var(--adm-ink, #2b2519);
+    --spr-ink-soft: var(--adm-ink-soft, #6f6757);
+    --spr-mute: var(--adm-mute, #9a8e75);
+    --spr-line: var(--adm-line, #e3dac4);
+    --spr-accent: var(--adm-ember, #c9603a);
+    --spr-accent-deep: var(--adm-ember-deep, #9d3f1f);
     --spr-workshop: #2a78d6;
     --spr-masterclass: #c9603a;
     --spr-workshop-trend: #184f95;
     --spr-masterclass-trend: #8a3519;
-    --spr-grid: var(--adm-line);
+    --spr-grid: var(--spr-line);
     --spr-base: #c3b89d;
     position: relative;
     background: var(--spr-surface);
-    border: 1px solid var(--adm-line);
+    border: 1px solid var(--spr-line);
     border-radius: 12px;
     padding: 14px 16px 12px;
   }
@@ -150,42 +150,48 @@ const eur0 = (minor: number) => '€' + Math.round(minor / 100).toLocaleString('
   .spr-toggle {
     display: inline-flex; align-items: center; gap: 7px;
     padding: 5px 11px 5px 9px; border-radius: 999px;
-    border: 1px solid var(--adm-line); background: #fffdf8;
-    font: inherit; font-size: 12px; color: var(--adm-ink); cursor: pointer;
+    border: 1px solid var(--spr-line); background: #fffdf8;
+    font: inherit; font-size: 12px; color: var(--spr-ink); cursor: pointer;
     transition: opacity 0.12s ease, border-color 0.12s ease;
   }
   .spr-toggle:hover { border-color: #d5cab1; }
-  .spr-toggle:focus-visible { outline: 2px solid var(--adm-ember); outline-offset: 2px; }
+  .spr-toggle:focus-visible { outline: 2px solid var(--spr-accent); outline-offset: 2px; }
   .spr-toggle svg { flex: none; }
   /* Off: the swatch goes grey and the label quiet, never gone — the button
      has to stay findable to be turned back on. */
-  .spr-toggle[aria-pressed='false'] { background: transparent; color: var(--adm-mute); }
+  .spr-toggle[aria-pressed='false'] { background: transparent; color: var(--spr-mute); }
   .spr-toggle[aria-pressed='false'] .spr-sw { background: #d8cfba; }
   .spr-toggle[aria-pressed='false'] .spr-sw-trend { stroke: #c9bfa8; }
   .spr-sw { flex: none; display: inline-block; width: 10px; height: 10px; border-radius: 2.5px; }
   .spr-sw--workshop { background: var(--spr-workshop); }
   .spr-sw--masterclass { background: var(--spr-masterclass); }
-  .spr-sw--pale { background: linear-gradient(90deg, rgba(42, 120, 214, 0.32) 50%, rgba(201, 96, 58, 0.32) 50%); }
-  .spr-sw-trend { stroke: var(--adm-ink-soft); stroke-width: 2; stroke-dasharray: 5 3; stroke-linecap: round; }
-  .spr-key-note { display: inline-flex; align-items: center; gap: 7px; margin-left: 4px; font-size: 11px; color: var(--adm-mute); }
+  .spr-sw--pale {
+    background: linear-gradient(90deg,
+      color-mix(in srgb, var(--spr-workshop) 32%, transparent) 50%,
+      color-mix(in srgb, var(--spr-masterclass) 32%, transparent) 50%);
+  }
+  .spr-sw-trend { stroke: var(--spr-ink-soft); stroke-width: 2; stroke-dasharray: 5 3; stroke-linecap: round; }
+  .spr-key-note { display: inline-flex; align-items: center; gap: 7px; margin-left: 4px; font-size: 11px; color: var(--spr-mute); }
 
   .spr-panel { margin-top: 12px; }
   .spr-panel[hidden] { display: none; }
-  .spr-head { font-size: 12px; color: var(--adm-ink); }
-  .spr-head span { color: var(--adm-mute); font-size: 11px; margin-left: 4px; }
-  .spr-trend-note { min-height: 15px; margin-top: 2px; font-size: 11px; color: var(--adm-ink-soft); font-variant-numeric: tabular-nums; }
-  .spr-trend-note :global(.spr-tn) { display: inline-flex; align-items: center; gap: 5px; margin-right: 14px; }
-  .spr-trend-note :global(.spr-tn i) { display: inline-block; width: 12px; border-top: 2px dashed; }
-  .spr-trend-note :global(.spr-tn b) { color: var(--adm-ink); font-weight: 600; }
+  .spr-head { font-size: 12px; color: var(--spr-ink); }
+  .spr-head span { color: var(--spr-mute); font-size: 11px; margin-left: 4px; }
+  .spr-trend-note { min-height: 15px; margin-top: 2px; font-size: 11px; color: var(--spr-ink-soft); font-variant-numeric: tabular-nums; }
+  /* An inline block, not flex: a long note on a phone wraps as a sentence
+     (flex broke its words into columns) and its line key stays with it. */
+  .spr-trend-note :global(.spr-tn) { display: inline-block; max-width: 100%; margin-right: 14px; }
+  .spr-trend-note :global(.spr-tn i) { display: inline-block; width: 12px; margin-right: 5px; vertical-align: middle; border-top: 2px dashed; }
+  .spr-trend-note :global(.spr-tn b) { color: var(--spr-ink); font-weight: 600; }
   .spr-plot { position: relative; width: 100%; }
   .spr-plot :global(svg) { display: block; overflow: visible; touch-action: pan-y; }
   .spr-plot :global(svg:focus) { outline: none; }
-  .spr-plot :global(svg:focus-visible) { outline: 2px solid var(--adm-ember); outline-offset: 2px; border-radius: 4px; }
-  .spr-none { margin: 6px 0 0; font-size: 12px; font-style: italic; color: var(--adm-mute); }
+  .spr-plot :global(svg:focus-visible) { outline: 2px solid var(--spr-accent); outline-offset: 2px; border-radius: 4px; }
+  .spr-none { margin: 6px 0 0; font-size: 12px; font-style: italic; color: var(--spr-mute); }
 
   .spr :global(.spr-grid) { stroke: var(--spr-grid); stroke-width: 1; shape-rendering: crispEdges; }
   .spr :global(.spr-base) { stroke: var(--spr-base); stroke-width: 1; shape-rendering: crispEdges; }
-  .spr :global(.spr-tick) { fill: var(--adm-mute); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .spr :global(.spr-tick) { fill: var(--spr-mute); font-size: 11px; font-variant-numeric: tabular-nums; }
   .spr :global(.spr-band) { fill: rgba(43, 37, 25, 0.06); }
   .spr :global(.spr-bar--workshop) { fill: var(--spr-workshop); }
   .spr :global(.spr-bar--masterclass) { fill: var(--spr-masterclass); }
@@ -200,21 +206,37 @@ const eur0 = (minor: number) => '€' + Math.round(minor / 100).toLocaleString('
   .spr-tip {
     position: absolute; z-index: 10; pointer-events: none;
     min-width: 200px; max-width: 280px;
-    background: #fffdf8; border: 1px solid var(--adm-line); border-radius: 10px;
+    background: #fffdf8; border: 1px solid var(--spr-line); border-radius: 10px;
     box-shadow: 0 6px 22px rgba(43, 37, 25, 0.14);
-    padding: 9px 11px; font-size: 11.5px; color: var(--adm-ink-soft); line-height: 1.4;
+    padding: 9px 11px; font-size: 11.5px; color: var(--spr-ink-soft); line-height: 1.4;
   }
-  .spr-tip :global(.spr-tip-name) { display: flex; align-items: center; gap: 6px; color: var(--adm-ink); font-weight: 600; }
+  .spr-tip :global(.spr-tip-name) { display: flex; align-items: center; gap: 6px; color: var(--spr-ink); font-weight: 600; }
   .spr-tip :global(.spr-tip-key) { flex: none; width: 10px; height: 10px; border-radius: 2.5px; }
-  .spr-tip :global(.spr-tip-when) { margin: 1px 0 5px 16px; color: var(--adm-mute); font-size: 11px; }
+  .spr-tip :global(.spr-tip-when) { margin: 1px 0 5px 16px; color: var(--spr-mute); font-size: 11px; }
   .spr-tip :global(.spr-tip-row) { display: flex; justify-content: space-between; gap: 14px; margin-left: 16px; }
-  .spr-tip :global(.spr-tip-row b) { color: var(--adm-ink); font-size: 13px; font-variant-numeric: tabular-nums; }
-  .spr-tip :global(.spr-tip-note) { margin: 4px 0 0 16px; color: var(--adm-mute); font-size: 10.5px; }
+  .spr-tip :global(.spr-tip-row b) { color: var(--spr-ink); font-size: 13px; font-variant-numeric: tabular-nums; }
+  .spr-tip :global(.spr-tip-note) { margin: 4px 0 0 16px; color: var(--spr-mute); font-size: 10.5px; }
 
+  .spr-empty {
+    margin: 0; padding: 20px; text-align: center;
+    color: var(--spr-ink-soft); border: 1px dashed var(--spr-line); border-radius: 8px;
+  }
   .spr-table { margin-top: 12px; font-size: 12px; }
-  .spr-table summary { cursor: pointer; color: var(--adm-ink-soft); }
-  .spr-table summary:hover { color: var(--adm-ember-deep); }
-  .spr-table table { margin-top: 8px; }
+  .spr-table summary { cursor: pointer; color: var(--spr-ink-soft); }
+  .spr-table summary:hover { color: var(--spr-accent-deep); }
+  .spr-scroll { overflow: auto; max-height: 52vh; margin-top: 8px; border: 1px solid var(--spr-line); border-radius: 8px; }
+  .spr-tbl { width: 100%; border-collapse: collapse; }
+  .spr-tbl th, .spr-tbl td {
+    padding: 8px 10px; text-align: left; white-space: nowrap; font-size: 13px;
+    border-bottom: 1px solid var(--spr-line); color: var(--spr-ink);
+  }
+  .spr-tbl tr:last-child td { border-bottom: none; }
+  .spr-tbl th {
+    position: sticky; top: 0; z-index: 1;
+    font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 600;
+    color: var(--spr-ink-soft); background: var(--spr-head-bg);
+  }
+  .spr-tbl a { color: var(--spr-accent-deep); }
 </style>
 
 <script>
@@ -317,6 +339,7 @@ const eur0 = (minor: number) => '€' + Math.round(minor / 100).toLocaleString('
     const panels = plots.map((p) => p.closest<HTMLElement>('.spr-panel'));
     const emptyNote = root.querySelector<HTMLElement>('[data-spr-empty]');
     const toggles = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-spr-toggle]'));
+    const links = root.dataset.sprLinks !== '0';
 
     const valueOf = (p: Point, m: Metric): number | null => (m === 'profit' ? p.profitEurMinor : p.roas);
 
@@ -407,7 +430,7 @@ const eur0 = (minor: number) => '€' + Math.round(minor / 100).toLocaleString('
           width, height, viewBox: `0 0 ${width} ${height}`,
           role: 'img', tabindex: pi === 0 ? 0 : -1,
           'aria-label': m === 'profit'
-            ? 'Profit per session. Use the arrow keys to step through sessions, Enter to open one.'
+            ? `Profit per session. Use the arrow keys to step through sessions${links ? ', Enter to open one' : ''}.`
             : 'ROAS per session.',
         });
 
@@ -502,7 +525,8 @@ const eur0 = (minor: number) => '€' + Math.round(minor / 100).toLocaleString('
           show(i, e.clientX, e.clientY);
         });
         // A touch has no hover: the first tap shows the session, a second tap
-        // on it opens it, and the tooltip stays until a tap lands elsewhere.
+        // on it opens it (where sessions link), and the tooltip stays until a
+        // tap lands elsewhere.
         svg.addEventListener('pointerdown', (e) => {
           const i = slotAt(e.clientX);
           tapReady = e.pointerType === 'mouse' || (i >= 0 && i === active);
@@ -513,7 +537,7 @@ const eur0 = (minor: number) => '€' + Math.round(minor / 100).toLocaleString('
         });
         svg.addEventListener('click', (e) => {
           const i = slotAt(e.clientX);
-          if (i >= 0 && tapReady) location.href = `/admin/workshops/${shown[i].id}`;
+          if (links && i >= 0 && tapReady) location.href = `/admin/workshops/${shown[i].id}`;
         });
         svg.addEventListener('focus', () => focusAt(active >= 0 ? active : shown.length - 1));
         svg.addEventListener('blur', hide);
@@ -522,7 +546,7 @@ const eur0 = (minor: number) => '€' + Math.round(minor / 100).toLocaleString('
             e.preventDefault();
             const from = active >= 0 ? active : shown.length - 1;
             focusAt(Math.max(0, Math.min(shown.length - 1, from + (e.key === 'ArrowRight' ? 1 : -1))));
-          } else if (e.key === 'Enter' && active >= 0) {
+          } else if (links && e.key === 'Enter' && active >= 0) {
             location.href = `/admin/workshops/${shown[active].id}`;
           } else if (e.key === 'Escape') {
             hide();
