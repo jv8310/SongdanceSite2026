@@ -8,7 +8,7 @@ import PageHero from '../components/PageHero.astro';
 //     to its countdown page, so you can step back into it.
 //   • Music albums — gated album players (src/lib/music/) the email's Drip tags
 //     hold; the lookup also sets the listener cookie so each link plays at once.
-//   • CiRCLE products — if you hold anything that lives in the Songdance CiRCLE
+//   • CiRCLE products — if you hold anything that lives in the CiRCLE
 //     (courses, journeys, …) we show the two paths: step inside if you're set
 //     up, or request activation (tags you `prod_access` in Drip via
 //     /api/access-products, which triggers the activation email).
@@ -19,12 +19,12 @@ const CIRCLE_URL = 'https://circle.songdance.co/feed';
 
 <SiteLayout
   title="Log in & access your products"
-  description="Enter your email to find your Songdance workshops, masterclasses and the products waiting for you in the Songdance CiRCLE."
+  description="Enter your email to find your Songdance workshops, masterclasses and the products waiting for you in the CiRCLE."
 >
   <PageHero
     eyebrow="Your account"
     title="Log in &amp; access your&nbsp;products"
-    lede="Pop in the email you used with Songdance and we'll show you what's waiting — your live sessions, your music, and everything held for you in the Songdance CiRCLE."
+    lede="Pop in the email you used with Songdance and we'll show you what's waiting — your live sessions, your music, and everything held for you in the CiRCLE."
   />
 
   <section class="sd-section access-paths">
@@ -83,16 +83,16 @@ const CIRCLE_URL = 'https://circle.songdance.co/feed';
         <div class="access-sessions" data-music-list></div>
       </div>
 
-      <!-- Products in the Songdance CiRCLE -->
+      <!-- Products in the CiRCLE -->
       <div class="access-block" hidden data-circle-block>
-        <h2 class="access-block-h">Your Songdance CiRCLE</h2>
+        <h2 class="access-block-h">Your CiRCLE</h2>
         <p class="access-block-p" data-circle-list hidden></p>
         <div class="access-grid">
           <article class="access-card">
             <span class="access-step">Already set up</span>
             <h3 class="access-card-h">You're in — step inside.</h3>
             <p class="access-card-p">
-              If you've already activated your products in the Songdance CiRCLE,
+              If you've already activated your products in the CiRCLE,
               everything is waiting for you there.
             </p>
             <a
@@ -101,7 +101,7 @@ const CIRCLE_URL = 'https://circle.songdance.co/feed';
               target="_blank"
               rel="noopener"
             >
-              Open the Songdance CiRCLE
+              Open the CiRCLE
               <i class="ph-light ph-arrow-up-right"></i>
             </a>
           </article>
@@ -110,7 +110,7 @@ const CIRCLE_URL = 'https://circle.songdance.co/feed';
             <span class="access-step">Missing products</span>
             <h3 class="access-card-h">Something's not there yet?</h3>
             <p class="access-card-p">
-              If products are missing from your Songdance CiRCLE, they need to be
+              If products are missing from your CiRCLE, they need to be
               activated first. We'll email you the steps to set everything up.
             </p>
             <button type="button" class="sd-btn sd-btn-primary" data-activate>
@@ -131,7 +131,7 @@ const CIRCLE_URL = 'https://circle.songdance.co/feed';
         <h2 class="access-block-h">We couldn't find anything under that email</h2>
         <p class="access-block-p">
           Double-check the address, or — if you've bought with us before — we can
-          send you the steps to activate your products in the Songdance CiRCLE.
+          send you the steps to activate your products in the CiRCLE.
         </p>
         <div class="access-none-actions">
           <button type="button" class="sd-btn sd-btn-primary" data-activate>
