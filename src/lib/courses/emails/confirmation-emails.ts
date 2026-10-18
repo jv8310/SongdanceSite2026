@@ -440,7 +440,7 @@ function asjDutch(ctx: ConfirmationCtx): EmailContent {
       ),
       subhead('Begin met Week 1 — Discover Your Voice'),
       para(
-        'Sessie 1 vraagt niets anders dan luisteren — naar jezelf, naar de klank die je al hebt. Doe ze zo vaak je wil: elke keer brengt ze iets nieuws.',
+        'Elke sessie duurt ongeveer twintig minuten. Je kiest zelf welke je aanspreekt, maar begin met de eerste: sessie 1 vraagt niets anders dan luisteren — naar jezelf, naar de klank die je al hebt. Doe ze zo vaak je wil: elke keer brengt ze iets nieuws.',
         ctx.base,
       ),
       button('Open Week 1', circleAsjWeekUrl(1, 'nl')),

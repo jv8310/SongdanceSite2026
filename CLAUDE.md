@@ -740,11 +740,13 @@ routes settle, that file is the one place to change.
   `prod_ASJ` swaps `prod_ASJ` for `prod_ASJ_end` within seconds. The 12-week,
   certification and path switches share those two workflows, so they go on the
   **same day**; the bundle goes with the ASJ (its `prod_ASJ` tag starts Drip's
-  ASJ series). **Drip Rules are not in the map**: Drip's API has no endpoint
-  for Automation → Rules, and rules do send course mail (Grief, MMJ, Inner
-  Child, the Dutch edition and the bundle get their welcome that way, their
-  workflows being paused or absent) — `RULES_PENDING` flags those units until
-  the rules are listed by hand. `DRIP_ELSEWHERE` lists what belongs to no switch: "Access
+  ASJ series). **Drip Rules are in the map too**, read by hand in the Drip UI
+  (Drip's API has no endpoint for Automation → Rules): Grief, MMJ and Inner
+  Child get their welcome from one email-only rule each ("Order -> Grief Course
+  2024 Self Paced", "Order -> MMJ", "Order -> Inner Child Healing" — pause it on
+  the day), the Dutch edition from "Order -> JAZ + JAZ_PRO" (delete its email
+  action, keep its `prod_JAZ_einde` tag), and the bundle gets all three plus
+  Drip's ASJ series, so it goes on with the ASJ, MMJ and Inner Child switches. `DRIP_ELSEWHERE` lists what belongs to no switch: "Access
   to Products" (the Mighty activation links behind /access → "Activate all my
   products"), two Zapier webhooks on every tag, the old workshop workflows,
   and the "Join CEEE Monthly" series — the CEEE monthly membership it offers

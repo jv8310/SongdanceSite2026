@@ -14,10 +14,9 @@
 // workflow paused: the 12-week and certification workflows also keep fields
 // and tags that other automations wait on (`drip.keep` below). The map was
 // read from the Drip account itself (October 2026); re-read it before the day.
-// It covers WORKFLOWS and EMAIL SERIES only: Drip's API has no endpoint for
-// Rules (Automation → Rules), which also send course emails (e.g. the
-// per-product "Your Songdance Program" welcome), so `RULES_PENDING` marks the
-// units whose Drip side is unknown until someone lists those rules.
+// Drip's API has no endpoint for Rules (Automation → Rules), which send the
+// welcomes of the Grief Course, the two journeys and the Dutch edition; those
+// were read by hand in the Drip UI (18 October 2026) and are folded in below.
 //
 // A switch covers everything the site sends for that course: the confirmation
 // on payment and any sequence that follows it. Stored in workshop_config as
@@ -80,6 +79,7 @@ export const HANDOVER_UNITS: HandoverInfo[] = [
         'prod_SVH_QandA, prod_SVH_start, prod_SVH_payment and the prod_SVH_12w_end tag.',
         'The HTTP post at the end of a standalone 12-week run (Drip hides where it goes, so find out before ever removing it).',
         'Removing the buyer from “m25 | SVH Workshop”.',
+        'Rule “prod SVH 12w Restart” (restarts the workflow when prod_SVH_12w-Restart is applied).',
       ],
     },
     together: SVH_TOGETHER,
@@ -94,7 +94,9 @@ export const HANDOVER_UNITS: HandoverInfo[] = [
       switchOff: [
         'In workflow “prod_SVH_9m”, set its four “Send an email” steps (the three SVH 9m - Activation, and SVH 9m - Wait until after 12w course) to draft. Don’t pause the workflow.',
       ],
-      keep: ['The vsh_whitelist tag and the prod_SVH_9m_status field it sets.'],
+      keep: [
+        'The vsh_whitelist tag and the prod_SVH_9m_status field it sets — the tag fires rule “VSH Web App Whitelist”, which whitelists the buyer in the VSH app (app.songdance.co).',
+      ],
     },
     together: SVH_TOGETHER,
   },
@@ -114,8 +116,8 @@ export const HANDOVER_UNITS: HandoverInfo[] = [
     label: 'The Grief Course',
     covers: 'Confirmation',
     drip: {
-      today: 'No workflow or email series: whatever Grief buyers get from Drip comes from a Rule on the prod_Grief-sp tag, which the API can’t read.',
-      switchOff: ['The Drip Rule(s) that email Grief buyers — to be listed from Automation → Rules.'],
+      today: 'Rule “Order -> Grief Course 2024 Self Paced” (on the prod_Grief-sp tag) sends “Access The Grief Course”, with an “Access the program” button into Mighty Networks. No workflow.',
+      switchOff: ['Pause the rule “Order -> Grief Course 2024 Self Paced” (its other action re-applies the tag the site already applies).'],
     },
   },
   {
@@ -124,13 +126,15 @@ export const HANDOVER_UNITS: HandoverInfo[] = [
     covers: 'Confirmation (ASJ / ASJ PRO) + the weekly session emails for everyone who holds the journey — standalone, in a bundle, or as an order bump; in Dutch (Authentiek Zingen) for the Dutch edition',
     drip: {
       today:
-        'Workflow “prod_ASJ” subscribes every prod_ASJ buyer to the email series “prod_ASJ” (41 emails at 08:00 their time: a welcome, a day-3 note, then Week 2 … Week 40), every link pointing into Mighty Networks. The Dutch side (workflow and series “prod_JAZ”) is paused; whatever Dutch-edition buyers get now comes from a Drip Rule on prod_JAZ, which the API can’t read.',
+        'Workflow “prod_ASJ” subscribes every prod_ASJ buyer to the email series “prod_ASJ” (41 emails at 08:00 their time: a welcome, a day-3 note, then Week 2 … Week 40), every link pointing into Mighty Networks. The Dutch side (workflow and series “prod_JAZ”) is paused: a Dutch-edition buyer gets only rule “Order -> JAZ + JAZ_PRO” — “Jaartraject Authentiek Zingen”, with activation buttons — and no weekly mails.',
       switchOff: [
         'In workflow “prod_ASJ”, set the “Subscribe to email series prod_ASJ” step to draft (keep its tag steps).',
+        'In rule “Order -> JAZ + JAZ_PRO”, delete the “Send email” action (keep “Apply tag prod_JAZ_einde”).',
         'Pause the email series “prod_ASJ” itself — everyone still in it would otherwise keep getting Mighty Networks links — then press “Bring in earlier buyers” on the weekly series below. Buyers from before the site took payments have no order here and have to be brought over from Drip.',
       ],
       keep: [
         'ASJ_start and the tag swap: the workflow removes prod_ASJ within seconds and leaves prod_ASJ_end, which is the lasting marker.',
+        'The prod_JAZ_einde tag the Dutch rule applies.',
       ],
     },
     together: ['journeys-bundle'],
@@ -140,18 +144,20 @@ export const HANDOVER_UNITS: HandoverInfo[] = [
     label: 'Magical Movement Journey',
     covers: 'Confirmation',
     drip: {
-      today: 'Workflow “prod_MMJ” (MMJ Welcome Email) is paused; the welcome buyers get now comes from a Drip Rule, which the API can’t read.',
-      switchOff: ['The Drip Rule(s) that email MMJ buyers — to be listed from Automation → Rules.'],
+      today: 'Rule “Order -> MMJ” (on the prod_MMJ tag) sends “Access the Magical Movement Journey”, with an “Access the program” button into Mighty Networks. (Workflow “prod_MMJ” is paused.)',
+      switchOff: ['Pause the rule “Order -> MMJ” — it only sends that email.'],
     },
+    together: ['journeys-bundle'],
   },
   {
     unit: 'inner-child',
     label: 'Inner Child Healing Journey',
     covers: 'Confirmation',
     drip: {
-      today: 'Workflow “prod_Inner Child” and its welcome series are paused; the welcome buyers get now (the “Your Songdance Program” mail) comes from a Drip Rule, which the API can’t read.',
-      switchOff: ['The Drip Rule(s) that email Inner Child buyers — to be listed from Automation → Rules.'],
+      today: 'Rule “Order -> Inner Child Healing” (on the prod_InnerChild tag) sends “Inner Child Healing Journey”, with an “Access the program” button into Mighty Networks. (Workflow “prod_Inner Child” and its series are paused.)',
+      switchOff: ['Pause the rule “Order -> Inner Child Healing” — it only sends that email.'],
     },
+    together: ['journeys-bundle'],
   },
   {
     unit: 'journeys-bundle',
@@ -159,10 +165,10 @@ export const HANDOVER_UNITS: HandoverInfo[] = [
     covers: 'Confirmation (bundle / bundle PRO)',
     drip: {
       today:
-        'No workflow of its own: the bundle’s prod_ASJ tag starts the ASJ series (its Welcome and the weekly emails), and any Rules on prod_MMJ / prod_InnerChild / prod_SJB send their own mails.',
-      switchOff: ['The ASJ steps above, and the Drip Rules on the bundle’s tags — to be listed from Automation → Rules.'],
+        'No workflow or rule of its own: its tags start the ASJ series (welcome + weekly emails) and the MMJ and Inner Child rules, so a bundle buyer gets three Drip welcomes.',
+      switchOff: ['Nothing of its own — the ASJ, MMJ and Inner Child steps above.'],
     },
-    together: ['asj'],
+    together: ['asj', 'mmj', 'inner-child'],
   },
 ];
 
@@ -176,8 +182,8 @@ export const DRIP_ELSEWHERE: Array<{ name: string; does: string; when: string }>
   },
   {
     name: 'Two Zapier webhooks (subscriber.applied_tag, April 2026)',
-    does: 'Fire on every tag Drip applies and feed the Zapier automations behind the Mighty Networks access.',
-    when: 'Jacob turns the Zapier automations off when the CiRCLE goes live.',
+    does: 'Fire on every tag Drip applies and feed the Zapier automations behind the Mighty Networks access. Two rules post to Zapier too: “Temp Webhook” and “prod_VSH_CT_Extended \"done\" -> Remove from Mighty”.',
+    when: 'Jacob turns the Zapier automations off when the CiRCLE goes live; pause those two rules the same day.',
   },
   {
     name: 'Workflows “m25 | SVH Workshop” and “m26g | SVH Workshop”',
@@ -190,15 +196,16 @@ export const DRIP_ELSEWHERE: Array<{ name: string; does: string; when: string }>
     when: 'Switch it off the day the 12-Week switch goes on: from then the site’s week-12 note offers the live pass.',
   },
   {
+    name: 'The other active rules',
+    does: 'Retreat and event confirmations (Portugal, Dolphin & Sound — fired by the site’s own ev_2026-11_Dolphin tag — Home is Heart, Elaisa, Klankopstellingen), legacy products (Conscious Marketing, Mantra Collection, VSH Level 1/2, Ripples of Bliss, the 2023 masterclass, CEEE 2025, 1:1 session), and plumbing (country → sd.be tags, the VSH app whitelist / un-whitelist, Songdeck tagging from Shopify, workshop trigger links).',
+    when: 'None is a course email the site replaces — leave them. (“Order -> Mantra Collection” fires on prod_Mantra, which no site purchase applies.)',
+  },
+  {
     name: '“CEEE Renewal / Registration”, “Songdeck Account Welcome”',
     does: 'CEEE membership renewal mail and the Songdeck account welcome — not course purchases on the site.',
     when: 'Stay in Drip for now.',
   },
 ];
-
-// Units whose Drip side includes Rules nobody has listed yet (see the header).
-export const RULES_PENDING: HandoverUnit[] = ['grief', 'asj', 'mmj', 'inner-child', 'journeys-bundle'];
-export const RULES_NOTE = 'Drip Rules (Automation → Rules) send emails too, and no API can read them — so this column is incomplete until the rules are listed.';
 
 // One line for the confirm dialog on the switch.
 export function dripSwitchOffSummary(u: HandoverInfo): string {
