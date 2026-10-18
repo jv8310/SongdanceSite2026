@@ -1970,8 +1970,11 @@ stop summing to total prospecting spend by exactly that amount (footnoted
 wherever non-zero). `WorkshopPerformanceRow.costPerRegistrationEurMinor` is a
 session's own day-weighted seat price, out of its own product's budget;
 `dailyCosts` on the report is the day-by-day ledger with a price *per product*
-(shown as a table on `/admin/workshops/performance`, and the `/ads`
-cost-per-registration chart, which stays blended).
+(shown as a table on `/admin/workshops/performance`, and as the `/ads`
+cost-per-registration chart — one line per product since October 2026, each
+with a dashed trend weighted by that day's registrations, all four switchable
+from the legend; a day its product took no paid-for registration is a gap,
+there being nothing to price).
 
 **Cadence**: rides the existing **hourly** cron (`worker-entrypoint.ts`),
 self-gating via a `meta_ad_spend_synced_at` marker in `workshop_config` to the

@@ -302,11 +302,48 @@ const anyTw = ds.some((x) => x.twelveWeekEurMinor > 0);
 const anyCert = ds.some((x) => x.certificationEurMinor > 0);
 const anyOther = ds.some((x) => x.otherCoursesEurMinor > 0);
 
+// Cost per registration, one line per product, each with its trend: a
+// least-squares line over the days that priced a registration, every day
+// weighted by its registrations — a day with one €180 seat must not swing the
+// trend like a day of twenty. Drawn from its first priced day to its last.
+const cpaTrend = (prices: (number | null)[], weights: number[]): (number | null)[] => {
+  const pts = prices
+    .map((v, i) => ({ i, v, w: weights[i] }))
+    .filter((p): p is { i: number; v: number; w: number } => p.v != null && p.w > 0);
+  const out: (number | null)[] = prices.map(() => null);
+  if (pts.length < 2) return out;
+  const sw = pts.reduce((a, p) => a + p.w, 0);
+  const mx = pts.reduce((a, p) => a + p.w * p.i, 0) / sw;
+  const my = pts.reduce((a, p) => a + p.w * p.v, 0) / sw;
+  let sxy = 0;
+  let sxx = 0;
+  for (const p of pts) { sxy += p.w * (p.i - mx) * (p.v - my); sxx += p.w * (p.i - mx) ** 2; }
+  const b = sxx > 0 ? sxy / sxx : 0;
+  for (let i = pts[0].i; i <= pts[pts.length - 1].i; i++) out[i] = Math.max(0, my + b * (i - mx));
+  return out;
+};
+const cpaWorkshopMinor = acq.map((x) => x.workshopCpaEurMinor);
+const cpaMasterclassMinor = acq.map((x) => x.masterclassCpaEurMinor);
+const majorOrNull = (v: number | null) => (v == null ? null : toMajor(v));
+const anyCpaWorkshop = cpaWorkshopMinor.some((v) => v != null);
+const anyCpaMasterclass = cpaMasterclassMinor.some((v) => v != null);
+
 const chartData = {
   acq: {
     labels: acq.map((x) => x.date),
     registrations: acq.map((x) => x.registrations),
-    cpa: acq.map((x) => (x.cpaEurMinor == null ? null : toMajor(x.cpaEurMinor))),
+    cpaSeries: [
+      ...(anyCpaWorkshop ? [
+        { name: 'Workshop', color: 'var-s1', values: cpaWorkshopMinor.map(majorOrNull) },
+        { name: 'Workshop trend', color: '#184f95', dashed: true,
+          values: cpaTrend(cpaWorkshopMinor, acq.map((x) => x.workshopRegistrations)).map(majorOrNull) },
+      ] : []),
+      ...(anyCpaMasterclass ? [
+        { name: 'Masterclass', color: 'var-s2', values: cpaMasterclassMinor.map(majorOrNull) },
+        { name: 'Masterclass trend', color: '#8a3519', dashed: true,
+          values: cpaTrend(cpaMasterclassMinor, acq.map((x) => x.masterclassRegistrations)).map(majorOrNull) },
+      ] : []),
+    ],
     adSpend: acq.map((x) => toMajor(x.adSpendEurMinor)),
     revenue: acq.map((x) => toMajor(x.revenueEurMinor)),
   },
@@ -887,7 +924,7 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
               </div>
               <div class="chart-block">
                 <h3>Cost per registration</h3>
-                <p class="ch-sub">Prospecting (TOF) spend ÷ registrations, per day{!d.hasAdSpend && ' — needs imported spend'}</p>
+                <p class="ch-sub">Per product, per day: its campaigns’ prospecting (TOF) spend ÷ its registrations. Dashed = trend, each day weighted by its registrations. Tick a line to show/hide it{!d.hasAdSpend && ' — needs imported spend'}</p>
                 <div class="chart" id="ch-cpa"></div>
               </div>
             </div>
@@ -1179,10 +1216,11 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
         if (!el || !window.SDChart) return;
         var data = JSON.parse(el.textContent);
         var hiddenStreams = {};
+        var hiddenCpa = {};
         function drawAll() {
           if (!document.getElementById('ch-regs')) return;
           SDChart.column('ch-regs', { labels: data.acq.labels, values: data.acq.registrations, color: 'var-s1', fmt: 'int', name: 'Registrations' });
-          SDChart.line('ch-cpa', { labels: data.acq.labels, fmt: 'eur', area: true, labelLast: true, series: [{ name: 'Cost / registration', color: 'var-s4', values: data.acq.cpa }] });
+          SDChart.line('ch-cpa', { labels: data.acq.labels, fmt: 'eur', interactive: true, hidden: hiddenCpa, series: data.acq.cpaSeries });
           SDChart.line('ch-spend', { labels: data.acq.labels, fmt: 'eur', series: [
             { name: 'Revenue', color: 'var-s5', values: data.acq.revenue },
             { name: 'Ad spend', color: 'var-s2', values: data.acq.adSpend },

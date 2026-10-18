@@ -40,6 +40,15 @@ export type AcquisitionDay = {
   // Prospecting spend ÷ registrations that day — the price each of that day's
   // registrations is charged at in the per-workshop cost allocation.
   cpaEurMinor: number | null;
+  // The same, per product: that day's workshop (masterclass) campaign spend ÷
+  // its workshop (masterclass) registrations, plus its share of any campaign
+  // naming neither — the day prices the per-session costs are built from
+  // (report.dailyCosts). null when the product took no registration that day
+  // or none of it was paid for: there is nothing to price.
+  workshopRegistrations: number;
+  masterclassRegistrations: number;
+  workshopCpaEurMinor: number | null;
+  masterclassCpaEurMinor: number | null;
 };
 
 export type BumpLabel = { label: string; count: number; eurMinor: number };
@@ -197,8 +206,12 @@ export async function computeAdsDashboard(
   } else {
     dates = [...new Set([...streamByDate.keys(), ...dailyRegs.keys()])].sort();
   }
+  const costByDate = new Map(perf.dailyCosts.map((dc) => [dc.date, dc]));
+  const dayPrice = (regs: number, price: number | null | undefined): number | null =>
+    regs > 0 && price != null && price > 0 ? Math.round(price) : null;
   const acquisition: AcquisitionDay[] = dates.map((date) => {
     const s = streamByDate.get(date);
+    const dc = costByDate.get(date);
     const regs = dailyRegs.get(date) ?? 0;
     const spend = s?.adSpendEurMinor ?? 0;
     const acqSpend = s?.acquisitionAdSpendEurMinor ?? 0;
@@ -211,6 +224,10 @@ export async function computeAdsDashboard(
       revenueEurMinor: rev,
       // Cost per registration = prospecting (TOF) spend ÷ registrations.
       cpaEurMinor: regs > 0 && acqSpend > 0 ? Math.round(acqSpend / regs) : null,
+      workshopRegistrations: dc?.workshopRegistrations ?? 0,
+      masterclassRegistrations: dc?.masterclassRegistrations ?? 0,
+      workshopCpaEurMinor: dayPrice(dc?.workshopRegistrations ?? 0, dc?.workshopCostPerRegistrationEurMinor),
+      masterclassCpaEurMinor: dayPrice(dc?.masterclassRegistrations ?? 0, dc?.masterclassCostPerRegistrationEurMinor),
     };
   });
 
