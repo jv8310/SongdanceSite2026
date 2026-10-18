@@ -798,6 +798,12 @@ routes settle, that file is the one place to change.
   journey, not the SVH practice the copy book governs. Don't "fix" them, in
   either language. (Weeks 15 and 19 were rewritten for law 2 and can be put
   back the same way if he asks.)
+- **Every one opens on a picture** ([`images.ts`](src/lib/courses/emails/images.ts)):
+  a confirmation on its course page's own hero (the ASJ welcome on its Week 1
+  session picture), each 12-week / certification note on a different retreat
+  photo, each weekly ASJ email (both languages) on that week's session picture
+  (`asjWeekImagePath`). All from the R2 library, checked at the shell's 558×260
+  crop (`pos` moves the crop off a face); a new course or note picks one there.
 - Tracks as `course_confirmation_<unit>` / `course_seq_<sequence>_<step>` in
   `email_sends` (labelled on `/admin/emails/stats`). Sequence mail is from
   `MARKETING_FROM` (Jacob); confirmations from the transactional sender.

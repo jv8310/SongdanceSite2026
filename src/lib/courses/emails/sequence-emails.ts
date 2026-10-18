@@ -21,6 +21,7 @@ import { MAILING_ADDRESS, shell, type EmailContent } from '../../workshops/email
 import { CIRCLE_HOME_URL, circleAsjWeekUrl, circleUrl } from '../circle';
 import { ASJ_WEEK_COUNT, asjWeek, asjWeekImagePath } from './asj-weeks';
 import { asjWeekNl } from './asj-weeks-nl';
+import { courseImage, type HeroImage } from './images';
 import {
   button,
   eyebrow,
@@ -52,7 +53,7 @@ type Built = {
   heading: string;
   body: Array<Block | null | false>;
   closing?: string;
-  heroImage?: { src: string; alt: string };
+  heroImage?: HeroImage;
   stop: { label: string; note: string };
   footerNote: string;
 };
@@ -170,6 +171,7 @@ export function twelveWeekStepEmail(step: number, ctx: SequenceEmailCtx): EmailC
         subject: 'See you in Q&A?',
         preheader: 'The live Q&As, and where to find them.',
         heading: 'See you in Q&A?',
+        heroImage: courseImage(ctx.base, 'qa'),
         body: [
           greeting(ctx.name),
           para('Yesterday you joined the course, and you may already have watched the first class.', base),
@@ -196,6 +198,7 @@ export function twelveWeekStepEmail(step: number, ctx: SequenceEmailCtx): EmailC
         subject: 'How to pace yourself',
         preheader: 'Follow your own flow — there is no right speed.',
         heading: 'How to pace yourself',
+        heroImage: courseImage(ctx.base, 'oneBreath'),
         body: [
           greeting(ctx.name),
           para('You’re now two days into the course. Beautiful.', base),
@@ -222,6 +225,7 @@ export function twelveWeekStepEmail(step: number, ctx: SequenceEmailCtx): EmailC
         subject: 'Welcome to Week 2',
         preheader: 'Explore the deepening sessions.',
         heading: 'Welcome to Week 2',
+        heroImage: courseImage(ctx.base, 'soundingBlue'),
         body: [
           greeting(ctx.name),
           para('Welcome to Week 2 of the course! How are you feeling on your journey so far?', base),
@@ -250,6 +254,7 @@ export function twelveWeekStepEmail(step: number, ctx: SequenceEmailCtx): EmailC
         subject: 'Welcome to Week 6',
         preheader: 'Where are you in your process?',
         heading: 'Halfway',
+        heroImage: courseImage(ctx.base, 'circleTrees'),
         body: [
           greeting(ctx.name),
           para('You are now six weeks into the course. Halfway.', base),
@@ -276,6 +281,7 @@ export function twelveWeekStepEmail(step: number, ctx: SequenceEmailCtx): EmailC
         subject: 'Your last week of live Q&As',
         preheader: 'The classes stay yours for life; the live Q&As close after this week.',
         heading: 'The twelfth week',
+        heroImage: courseImage(ctx.base, 'walkEmbrace'),
         body: [
           greeting(ctx.name),
           para('You’re in the twelfth week of the course — the last week of the live Q&As and their replays.', base),
@@ -305,6 +311,7 @@ export function twelveWeekStepEmail(step: number, ctx: SequenceEmailCtx): EmailC
         subject: 'Your certification course is open',
         preheader: 'It’s already on your account — there’s nothing to activate.',
         heading: 'Your certification course is open',
+        heroImage: courseImage(ctx.base, 'certification'),
         body: [
           greeting(ctx.name),
           para('Congratulations on making your way through the 12-Week Course. Are you ready for what’s next?', base),
@@ -343,6 +350,7 @@ export function certificationStepEmail(step: number, ctx: SequenceEmailCtx): Ema
         subject: 'See you in the live sessions?',
         preheader: 'The weekly Q&As and the monthly deepening sessions, and where to find them.',
         heading: 'See you in the live sessions?',
+        heroImage: courseImage(ctx.base, 'qa'),
         body: [
           greeting(ctx.name),
           para('Yesterday you joined the certification course, and you may already have opened the first class.', base),
@@ -370,6 +378,7 @@ export function certificationStepEmail(step: number, ctx: SequenceEmailCtx): Ema
         subject: 'How to pace yourself',
         preheader: 'Classes, manuals, practice — in your own rhythm.',
         heading: 'How to pace yourself',
+        heroImage: courseImage(ctx.base, 'cupReceiving'),
         body: [
           greeting(ctx.name),
           para('You’re now two days into the course. Beautiful.', base),

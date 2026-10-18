@@ -20,6 +20,7 @@ import { guarantee } from '../../guarantee';
 import { shell, type EmailContent } from '../../workshops/emails';
 import { CIRCLE_HOME_URL, circleAsjWeekUrl, circleUrl, type CircleArea } from '../circle';
 import { asjWeek } from './asj-weeks';
+import { courseImage, type CourseImageKey } from './images';
 import {
   accessBlock,
   accessBlockNl,
@@ -106,6 +107,8 @@ function finish(
     subject: string;
     preheader: string;
     heading: string;
+    // The header picture (./images.ts).
+    hero: CourseImageKey;
     body: Array<Block | null | false>;
     closing?: string;
     lang?: 'en' | 'nl';
@@ -131,7 +134,12 @@ function finish(
   ]);
   return {
     subject: opts.subject,
-    html: shell({ preheader: opts.preheader, heading: opts.heading, bodyHtml: content.html }),
+    html: shell({
+      preheader: opts.preheader,
+      heading: opts.heading,
+      heroImage: courseImage(ctx.base, opts.hero),
+      bodyHtml: content.html,
+    }),
     text: content.text,
   };
 }
@@ -192,6 +200,7 @@ const TWELVE_WEEK_INSIDE = list([
 
 function twelveWeek(ctx: ConfirmationCtx): EmailContent {
   return finish(ctx, {
+    hero: 'twelveWeek',
     subject: 'Welcome to the 12-Week Course',
     preheader: 'Your place is confirmed — the course is already waiting for you in the CiRCLE.',
     heading: 'Welcome to the 12-Week Course',
@@ -258,6 +267,7 @@ function certYear(ctx: ConfirmationCtx): Block | null {
 
 function certification(ctx: ConfirmationCtx): EmailContent {
   return finish(ctx, {
+    hero: 'certification',
     subject: 'Welcome to the Certification Course',
     preheader: 'Your place is confirmed — everything is already waiting for you in the CiRCLE.',
     heading: 'Welcome to the Certification Course',
@@ -289,6 +299,7 @@ function path(ctx: ConfirmationCtx): EmailContent {
     ? 'You chose to open it straight away, so it’s already on your account too: the class library with written manuals, the monthly live deepening sessions, hosted practice sessions and the Somatic Vocal Healing app.'
     : `It opens on its own when your twelve weeks are complete${ctx.certOpensOn ? ` — on ${ctx.certOpensOn}` : ''} — and I’ll write to you that day. It brings the class library with written manuals, the monthly live deepening sessions, hosted practice sessions and the Somatic Vocal Healing app; the weekly Q&As simply carry on.`;
   return finish(ctx, {
+    hero: 'path',
     subject: 'Welcome — here’s how the path unfolds',
     preheader: now
       ? 'Both courses are already waiting for you in the CiRCLE.'
@@ -327,6 +338,7 @@ function path(ctx: ConfirmationCtx): EmailContent {
 
 function grief(ctx: ConfirmationCtx): EmailContent {
   return finish(ctx, {
+    hero: 'grief',
     subject: 'Welcome to the Grief Course',
     preheader: 'Everything is waiting for you in the CiRCLE — at the pace grief sets.',
     heading: 'Welcome to the Grief Course',
@@ -362,6 +374,7 @@ function asj(ctx: ConfirmationCtx): EmailContent {
   const week1 = asjWeek(1)!;
   const pro = HAS_PRO.has(ctx.productSlug);
   return finish(ctx, {
+    hero: 'asjWeek1',
     subject: 'Welcome to the Authentic Singing Journey',
     preheader: 'Week 1 is waiting for you — forty weeks of music, mantras and your own voice.',
     heading: 'A warm welcome to you',
@@ -404,6 +417,7 @@ function asjDutch(ctx: ConfirmationCtx): EmailContent {
   const pro = HAS_PRO.has(ctx.productSlug);
   return finish(ctx, {
     lang: 'nl',
+    hero: 'asjWeek1',
     subject: 'Welkom bij Authentiek Zingen',
     preheader: 'Week 1 staat voor je klaar — veertig weken muziek, mantra’s en je eigen stem.',
     heading: 'Een warm welkom',
@@ -445,6 +459,7 @@ function asjDutch(ctx: ConfirmationCtx): EmailContent {
 
 function mmj(ctx: ConfirmationCtx): EmailContent {
   return finish(ctx, {
+    hero: 'mmj',
     subject: 'Welcome to the Magical Movement Journey',
     preheader: 'Ten sessions, ten ways back into the body — already waiting for you in the CiRCLE.',
     heading: 'Welcome to the Magical Movement Journey',
@@ -468,6 +483,7 @@ function mmj(ctx: ConfirmationCtx): EmailContent {
 
 function innerChild(ctx: ConfirmationCtx): EmailContent {
   return finish(ctx, {
+    hero: 'innerChild',
     subject: 'Welcome to the Inner Child Healing Journey',
     preheader: 'Five sessions, no rush — already waiting for you in the CiRCLE.',
     heading: 'Welcome to the Inner Child Healing Journey',
@@ -503,6 +519,7 @@ function bundle(ctx: ConfirmationCtx): EmailContent {
         : '';
   const asjWeekly = ctx.asjWeekly ? ' I’ll send you one session a week after that.' : '';
   return finish(ctx, {
+    hero: 'journeys',
     subject: 'Welcome to the Three Journeys',
     preheader: 'Singing, movement and the inner child — all three are already waiting in the CiRCLE.',
     heading: 'Welcome to the Three Journeys',
