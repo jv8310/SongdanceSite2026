@@ -49,6 +49,14 @@ const rows = report.rows.slice().sort((a, b) => {
 // bottom rather than filling the page with empty cards.
 const activeRows = rows.filter((r) => r.registrations > 0 || r.totalEurMinor > 0);
 const idleRows = rows.filter((r) => !(r.registrations > 0 || r.totalEurMinor > 0));
+// Sessions still ahead sit folded away behind a button, so the page opens on
+// the latest sessions that have actually run rather than a scroll of future
+// dates. They keep their place at the top of the list when unfolded.
+const upcomingRows = activeRows.filter((r) => r.isUpcoming);
+const pastRows = activeRows.filter((r) => !r.isUpcoming);
+const cardRows = [...upcomingRows, ...pastRows];
+// Nothing held yet in this window — nothing to fold them out of the way of.
+const showUpcomingInitially = pastRows.length === 0;
 
 const eur = (minor: number) =>
   '€' + (minor / 100).toLocaleString('en-IE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -196,6 +204,19 @@ const anyAttendance = (r: Attendance) => r.attendedLive + r.replayViews + r.noSh
 // The chart over the cards — the same points /ads plots (session-points.ts).
 const chartPoints = sessionChartPoints(rows);
 
+const startMs = (s: string) => Date.parse(s.includes('T') ? s : s.replace(' ', 'T') + 'Z');
+
+// The boxes at the top: the most recent sessions that have run, newest first,
+// each with its whole story at a glance — the same figures its card below
+// prints, nothing recomputed.
+const LATEST_N = 4;
+const latestRows = pastRows
+  .filter((r) => !r.isReplay && Number.isFinite(startMs(r.startsAtUtc)))
+  .sort((a, b) => startMs(b.startsAtUtc) - startMs(a.startsAtUtc))
+  .slice(0, LATEST_N);
+// One money scale across the boxes, so their bars compare box to box.
+const latestMax = Math.max(1, ...latestRows.map((r) => Math.max(r.totalEurMinor, r.metaCostEurMinor ?? 0)));
+
 const presetRangesJson = JSON.stringify(presetRangesMap()).replace(/</g, '\\u003c');
 const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
 ---
@@ -206,7 +227,6 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
       <div>
         <p class="adm-breadcrumbs"><a href="/admin">Admin</a> <span class="sep">/</span> <a href="/admin/workshops">Workshops</a> <span class="sep">/</span> Performance</p>
         <h1>Per-workshop performance</h1>
-        <p class="adm-sub">The funnel per workshop: registrations → attendance → course purchases. Course / Cert buys are matched by email across workshop checkouts and standalone course sales, so someone who registered for several workshops counts toward each. Revenue counts each course sale <strong>in full</strong> — a 3×/6×/12× plan is one purchase the ad bought, so all of its installments count on the day it was sold; the lighter part of the revenue bar is what has actually been charged so far.</p>
       </div>
       <div class="adm-actions">
         <a class="adm-btn adm-btn--ghost" href="/admin/stats">← Statistics</a>
@@ -225,38 +245,94 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
         <label>To <input type="date" name="to" id="f-to" value={to ?? ''} /></label>
         <button type="submit" class="adm-btn adm-btn--solid">Apply</button>
       </form>
-      <p class="adm-sub" style="margin-top:10px;">
-        Showing <strong>{rangeLabel}</strong> ·
-        prospecting (TOF) spend {eur(report.acquisitionSpendEurMinor)} ÷ {report.totalRegistrations} registrations =
-        <strong>{report.costPerRegistrationEurMinor != null ? eur(Math.round(report.costPerRegistrationEurMinor)) : '—'}</strong> cost per registration, blended.
-        {report.retargetingSpendEurMinor > 0 && <> Retargeting {eur(report.retargetingSpendEurMinor)} is excluded from that (total ad spend {eur(report.adSpendEurMinor)}).</>}
-      </p>
-      <div class="pf-aud">
-        {([
-          ['Workshop', report.audiences.workshop],
-          ['Masterclass', report.audiences.masterclass],
-        ] as const).map(([label, a]) => (
-          <div class="pf-aud-card">
-            <div class="pf-aud-key">Cost per {label.toLowerCase()} registration</div>
-            <div class="pf-aud-val">{a.costPerRegistrationEurMinor != null ? eur(Math.round(a.costPerRegistrationEurMinor)) : '—'}</div>
-            <div class="pf-aud-sub">
-              {eur(a.allocatedCostEurMinor)} charged ÷ {a.registrations} registration{a.registrations === 1 ? '' : 's'}
-              <br />{label} campaigns spent {eur(a.acquisitionSpendEurMinor)} (TOF)
-            </div>
-          </div>
-        ))}
-      </div>
-      <p class="adm-sub" style="margin-top:10px;">
-        Each product is charged its <strong>own campaigns’ money</strong>: a campaign whose name says <em>Masterclass</em> only ever pays for masterclass seats, one that says <em>Workshop</em> only for workshop seats. Within that, the charge is <strong>day by day</strong> — every registration carries the price of a registration of its own kind on the day it came in (that day’s spend for that product ÷ that day’s registrations for it), so a session that filled on expensive days costs more per seat than the average. See the daily table below.
-        {report.generalAcquisitionSpendEurMinor > 0 && <> {eur(report.generalAcquisitionSpendEurMinor)} of TOF spend came from campaigns naming neither product — that part is charged across every registration.</>}
-        {report.unallocatedAcquisitionSpendEurMinor > 0 && <> {eur(report.unallocatedAcquisitionSpendEurMinor)} could not be charged to anything: its product took no registration at all in this window, and charging it to the other product’s seats is exactly what this split avoids.</>}
-      </p>
     </section>
+
+    {latestRows.length > 0 && (
+      <section class="adm-section">
+        <h2 class="pf-h2">Latest sessions</h2>
+        <div class="pf-latest">
+          {latestRows.map((r) => {
+            const profit = profitOf(r.totalEurMinor, r.metaCostEurMinor);
+            const attended = r.attendedLive + r.replayViews;
+            const buyers = r.courseBuys + r.certBuys;
+            return (
+              <a class={`pf-tile pf-tile--${r.isMasterclass ? 'masterclass' : 'workshop'}`} href={`/admin/workshops/${r.workshopId}`}>
+                <div class="pf-tile-head">
+                  <span class="pf-tile-name">{shortTitle(r.title)}</span>
+                  <span class="pf-tile-when">{dateLabel(r.startsAtUtc)} · {r.isMasterclass ? 'masterclass' : 'workshop'}</span>
+                </div>
+                <div class="pf-tile-big">
+                  <div>
+                    <b class={profitTone(profit)}>{eurSigned0(profit)}</b>
+                    <span>profit</span>
+                  </div>
+                  <div>
+                    <b class={roasTone(r.workshopRoas)}>{roasStr(r.workshopRoas)}</b>
+                    <span>ROAS</span>
+                  </div>
+                </div>
+                <div class="pf-tile-money">
+                  <div class="pf-tile-bar" title={`${eur(r.totalCollectedEurMinor)} of ${eur(r.totalEurMinor)} charged so far`}>
+                    <span class="pf-tile-key">In</span>
+                    <span class="pf-track">
+                      <span class="pf-fill pf-fill--rev" style={`width:${barPct(r.totalEurMinor, latestMax)}%`}>
+                        <span class="pf-fill-paid" style={`width:${r.totalEurMinor > 0 ? (r.totalCollectedEurMinor / r.totalEurMinor) * 100 : 100}%`}></span>
+                      </span>
+                    </span>
+                    <span class="pf-tile-amt">{eur0(r.totalEurMinor)}</span>
+                  </div>
+                  <div class="pf-tile-bar" title="All Meta ad spend charged to this session (prospecting + retargeting)">
+                    <span class="pf-tile-key">Out</span>
+                    <span class="pf-track"><span class="pf-fill pf-fill--cost" style={`width:${barPct(r.metaCostEurMinor ?? 0, latestMax)}%`}></span></span>
+                    <span class="pf-tile-amt">{eur0(r.metaCostEurMinor ?? 0)}</span>
+                  </div>
+                  <p class="pf-tile-note">
+                    {r.costPerRegistrationEurMinor != null ? <><b>{eur(Math.round(r.costPerRegistrationEurMinor))}</b> per registration</> : <>no ad spend charged</>}
+                    {r.totalCollectedEurMinor < r.totalEurMinor && <> · {eur0(r.totalCollectedEurMinor)} charged so far</>}
+                  </p>
+                </div>
+
+                <div class="pf-tile-funnel">
+                  {[
+                    { key: 'reg', label: 'Registered', n: r.registrations },
+                    { key: 'att', label: 'Attended', n: attended },
+                    { key: 'buy', label: 'Bought a course', n: buyers },
+                  ].map((st) => (
+                    <div class="pf-tile-step">
+                      <span class="pf-tile-key">{st.label}</span>
+                      <span class="pf-track"><span class={`pf-fill pf-tile-fill--${st.key}`} style={`width:${barPct(st.n, Math.max(1, r.registrations))}%`}></span></span>
+                      <span class="pf-tile-amt">{st.n}</span>
+                    </div>
+                  ))}
+                  <p class="pf-tile-note">
+                    {r.courseBuys} course · {r.certBuys} cert · <b>{pct(r.conversionPerAttendeePct)}</b> of attendees bought
+                  </p>
+                </div>
+
+                <div class="pf-tile-att">
+                  <div class="pf-seg">
+                    {segments(r).map((sg) => (
+                      <span class={`pf-seg-part pf-seg-part--${sg.key}`} style={`width:${(sg.n / Math.max(1, r.registrations)) * 100}%`} title={`${sg.n} ${sg.label}`}></span>
+                    ))}
+                  </div>
+                  <div class="pf-legend">
+                    <span><i class="pf-dot pf-dot--live"></i>{r.attendedLive} live</span>
+                    <span><i class="pf-dot pf-dot--replay"></i>{r.replayViews} replay</span>
+                    <span><i class="pf-dot pf-dot--noshow"></i>{r.noShows} no-show</span>
+                    <span><b>{pct(r.attendancePct)}</b> attended</span>
+                  </div>
+                </div>
+              </a>
+            );
+          })}
+        </div>
+      </section>
+    )}
 
     <section class="adm-section">
       <h2 style="margin:0 0 6px;font-size:18px;">Profit, ROAS and cost per session</h2>
       <p class="adm-sub" style="margin-top:0;">
-        One bar per workshop and masterclass with activity in this window, in date order — the same profit, ROAS and cost per registration its card below prints — with a dashed trend line per product through the sessions that have run. One panel per measure on one session axis rather than several scales on one plot. Switch Workshop, Masterclass and Trend on or off above the chart; hover (or tap) a bar for its figures, click it to open that session.
+        One bar per session in date order, dashed trend per product. Hover a bar for its figures, click to open it.
       </p>
       <SessionProfitRoasChart points={chartPoints} />
     </section>
@@ -335,14 +411,27 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
 
       {activeRows.length === 0 && <p class="adm-empty">No workshop activity in this window.</p>}
 
+      {upcomingRows.length > 0 && (
+        <button
+          type="button"
+          class="pf-upcoming-toggle"
+          id="pf-upcoming-toggle"
+          aria-controls="pf-list"
+          aria-expanded={showUpcomingInitially ? 'true' : 'false'}
+          data-n={upcomingRows.length}
+        >
+          {showUpcomingInitially ? 'Hide' : 'Show'} {upcomingRows.length} upcoming session{upcomingRows.length === 1 ? '' : 's'}
+        </button>
+      )}
+
       {/* ── One card per workshop, one card per row ── */}
-      <div class="pf-list">
-        {activeRows.map((r) => {
+      <div class={`pf-list${showUpcomingInitially ? ' is-showing-upcoming' : ''}`} id="pf-list">
+        {cardRows.map((r) => {
           const segs = segments(r);
           const held = anyAttendance(r);
           const cost = r.acquisitionCostEurMinor;
           return (
-            <article class="pf-card">
+            <article class={`pf-card${r.isUpcoming ? ' pf-card--upcoming' : ''}`}>
               <div class="pf-id">
                 <a class="pf-name" href={`/admin/workshops/${r.workshopId}`}>{shortTitle(r.title)}</a>
                 <div class="pf-when">
@@ -453,8 +542,39 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
       )}
 
       <p class="adm-sub" style="margin-top:14px;">
+        Course / Cert buys are matched by email across workshop checkouts and standalone course sales, so someone who registered for several workshops counts toward each. Revenue counts each course sale <strong>in full</strong> — a 3×/6×/12× plan is one purchase the ad bought, so all of its installments count on the day it was sold; the lighter part of the revenue bar is what has actually been charged so far.
         Registrations = completed (paid or coupon). The bar splits them into live · replay · no-show — live vs replay is whether they joined before or after the live slot ended, and admin-marked attendance without a join time counts as live; any remainder is registered with nothing recorded yet.
         TOF cost = the prospecting spend this session’s registrations pulled, out of the campaigns that were buying registrations for <em>its</em> product (a masterclass is never charged workshop-campaign money, or the other way round), priced day by day — each registration costs what a registration of that product cost on the day it came in — and the per-registration figure is that ÷ this session’s registrations, so it differs from the product average when its seats filled on cheaper or dearer days. Meta cost is the same day-by-day allocation of <em>total</em> ad spend (prospecting + retargeting); blended ROAS is revenue ÷ Meta cost, and <strong>profit</strong> is revenue − that same Meta cost — every ad euro charged to the session and <em>nothing else</em> (no gateway fees, no Zoom, no time). Revenue counts a payment plan in full on the day it was sold, so the second profit figure is the one on money actually charged so far. Revenue hovers to show the workshop-checkout vs attributed-course split. Conv = distinct course/cert buyers ÷ registrations.
+      </p>
+    </section>
+
+    <section class="adm-section">
+      <h2 class="pf-h2">Cost per registration</h2>
+      <p class="adm-sub" style="margin-top:10px;">
+        Showing <strong>{rangeLabel}</strong> ·
+        prospecting (TOF) spend {eur(report.acquisitionSpendEurMinor)} ÷ {report.totalRegistrations} registrations =
+        <strong>{report.costPerRegistrationEurMinor != null ? eur(Math.round(report.costPerRegistrationEurMinor)) : '—'}</strong> cost per registration, blended.
+        {report.retargetingSpendEurMinor > 0 && <> Retargeting {eur(report.retargetingSpendEurMinor)} is excluded from that (total ad spend {eur(report.adSpendEurMinor)}).</>}
+      </p>
+      <div class="pf-aud">
+        {([
+          ['Workshop', report.audiences.workshop],
+          ['Masterclass', report.audiences.masterclass],
+        ] as const).map(([label, a]) => (
+          <div class="pf-aud-card">
+            <div class="pf-aud-key">Cost per {label.toLowerCase()} registration</div>
+            <div class="pf-aud-val">{a.costPerRegistrationEurMinor != null ? eur(Math.round(a.costPerRegistrationEurMinor)) : '—'}</div>
+            <div class="pf-aud-sub">
+              {eur(a.allocatedCostEurMinor)} charged ÷ {a.registrations} registration{a.registrations === 1 ? '' : 's'}
+              <br />{label} campaigns spent {eur(a.acquisitionSpendEurMinor)} (TOF)
+            </div>
+          </div>
+        ))}
+      </div>
+      <p class="adm-sub" style="margin-top:10px;">
+        Each product is charged its <strong>own campaigns’ money</strong>: a campaign whose name says <em>Masterclass</em> only ever pays for masterclass seats, one that says <em>Workshop</em> only for workshop seats. Within that, the charge is <strong>day by day</strong> — every registration carries the price of a registration of its own kind on the day it came in (that day’s spend for that product ÷ that day’s registrations for it), so a session that filled on expensive days costs more per seat than the average. See the daily table below.
+        {report.generalAcquisitionSpendEurMinor > 0 && <> {eur(report.generalAcquisitionSpendEurMinor)} of TOF spend came from campaigns naming neither product — that part is charged across every registration.</>}
+        {report.unallocatedAcquisitionSpendEurMinor > 0 && <> {eur(report.unallocatedAcquisitionSpendEurMinor)} could not be charged to anything: its product took no registration at all in this window, and charging it to the other product’s seats is exactly what this split avoids.</>}
       </p>
     </section>
 
@@ -725,6 +845,47 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
 
     /* The two prices that matter: what a workshop seat costs and what a
        masterclass seat costs, each out of its own campaigns' budget. */
+    .pf-h2 { margin: 0 0 10px; font-size: 18px; }
+    .pf-latest {
+      display: grid; gap: 12px;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+    .pf-tile {
+      display: flex; flex-direction: column; gap: 10px;
+      padding: 14px 16px; border: 1px solid var(--adm-line); border-radius: 12px;
+      background: var(--adm-paper-soft); color: inherit; text-decoration: none;
+      border-top: 3px solid #2a78d6;
+    }
+    .pf-tile--masterclass { border-top-color: #c9603a; }
+    .pf-tile:hover { border-color: var(--adm-ember-deep); }
+    .pf-tile-head { display: flex; flex-direction: column; gap: 2px; }
+    .pf-tile-name { font-weight: 650; font-size: 14px; }
+    .pf-tile-when { font-size: 11.5px; color: var(--adm-mute); }
+    .pf-tile-big { display: flex; gap: 22px; }
+    .pf-tile-big div { display: flex; flex-direction: column; }
+    .pf-tile-big b { font-size: 24px; font-weight: 650; font-variant-numeric: tabular-nums; line-height: 1.1; }
+    .pf-tile-big b.good { color: var(--adm-success); }
+    .pf-tile-big b.bad { color: var(--adm-danger); }
+    .pf-tile-big b.flat { color: var(--adm-mute); }
+    .pf-tile-big span { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--adm-mute); }
+    .pf-tile-money, .pf-tile-funnel, .pf-tile-att {
+      display: flex; flex-direction: column; gap: 5px;
+      padding-top: 10px; border-top: 1px solid var(--adm-line);
+    }
+    .pf-tile-bar, .pf-tile-step {
+      display: grid; grid-template-columns: 92px 1fr 54px; align-items: center; gap: 8px;
+    }
+    .pf-tile-money .pf-tile-bar { grid-template-columns: 30px 1fr 60px; }
+    .pf-tile .pf-track { display: block; }
+    .pf-tile-key { font-size: 11px; color: var(--adm-mute); white-space: nowrap; }
+    .pf-tile-amt { font-size: 13px; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+    .pf-tile-fill--reg { background: rgba(43, 37, 25, 0.28); }
+    .pf-tile-fill--att { background: #2f7a4c; }
+    .pf-tile-fill--buy { background: var(--adm-ember); }
+    .pf-tile-note b { color: var(--adm-ink); font-weight: 650; }
+    .pf-tile-note { margin: 0; font-size: 11px; color: var(--adm-mute); }
+    @media (max-width: 1180px) { .pf-latest { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 640px) { .pf-latest { grid-template-columns: 1fr; } }
     .pf-aud { display:flex; gap:12px; flex-wrap:wrap; margin-top:12px; }
     .pf-aud-card {
       flex:1 1 220px; min-width:200px; padding:12px 14px;
@@ -770,6 +931,17 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
        width at any size: identity, the ROAS it earned, money in vs money out,
        the attendance bar, then the rest as chips. */
     .pf-list { display: flex; flex-direction: column; gap: 10px; }
+    .pf-list:not(.is-showing-upcoming) .pf-card--upcoming { display: none; }
+    .pf-upcoming-toggle {
+      display: inline-flex; align-items: center; gap: 6px;
+      margin: 0 0 10px; padding: 7px 13px;
+      border: 1px dashed var(--adm-line); border-radius: 9px;
+      background: rgba(251, 246, 234, 0.6); color: var(--adm-ink-soft);
+      font: inherit; font-size: 12.5px; cursor: pointer;
+    }
+    .pf-upcoming-toggle::after { content: '▾'; font-size: 11px; }
+    .pf-upcoming-toggle[aria-expanded='true']::after { content: '▴'; }
+    .pf-upcoming-toggle:hover { border-style: solid; color: var(--adm-ember-deep); }
     .pf-card {
       display: grid;
       grid-template-columns: minmax(190px, 1.05fr) 118px minmax(210px, 1.25fr) minmax(210px, 1.2fr);
@@ -948,6 +1120,17 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
       function toCustom() { presetSel.value = 'custom'; }
       fromIn.addEventListener('change', toCustom);
       toIn.addEventListener('change', toCustom);
+
+      var upBtn = document.getElementById('pf-upcoming-toggle');
+      var list = document.getElementById('pf-list');
+      if (upBtn && list) {
+        upBtn.addEventListener('click', function () {
+          var open = list.classList.toggle('is-showing-upcoming');
+          var n = Number(upBtn.getAttribute('data-n'));
+          upBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+          upBtn.textContent = (open ? 'Hide ' : 'Show ') + n + ' upcoming session' + (n === 1 ? '' : 's');
+        });
+      }
     })();
   </script>
 </Layout>

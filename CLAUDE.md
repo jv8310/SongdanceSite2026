@@ -336,6 +336,18 @@ anyone whose course no longer includes them (or never did). Logic in
   is the credential here, as on `/access` and the course gates, and the pass
   page's own status call answers the same. Its `upgrade_url` is this page with
   `?email=…&extend=1`.
+- **The way on, for a 12-week student** (October 2026): a 12-week holder who is not on the
+  9 months sees the certification course **above** the pass options, with what it adds
+  (library + manuals, nine months of Q&As and deepening sessions with no pass, Practice
+  Together, the SVH app with its quizzes, recordings and SVH AI, the path to certification, and that it begins when their 12 weeks are over). The
+  member app links 12-week students straight to the certification page
+  (`/courses/certification?email=…`) and certification students here with `?extend=1`, from
+  the course page in the last week of their live window and after it (web only).
+- **The start is said up front.** When their course still gives them the live sessions, a
+  callout at the top of the options says until when, and that the pass starts when they end,
+  on the day the chosen length would begin (server-rendered from `?email=`, repainted on
+  every change). The member app enforces the same rule on its side: a pass never counts a
+  session the member's own course still opens, even one the site can't see (an admin grant).
 - **The page arrives filled in.** The member app (a locked Q&A or deepening
   session) and the SVH app put the member's address in `?email=` and their name
   in `?first_name=` / `?last_name=`; with an address the page answers its status
