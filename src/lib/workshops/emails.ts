@@ -1173,7 +1173,7 @@ export function livePassConfirmedEmail(ctx: LivePassConfirmedCtx): EmailContent 
     lines.push('Your current pass comes first: this one continues with the session after its last.');
   }
   const order = lines.join(' ');
-  const where = 'You\'ll find the sessions under Events in the Songdance Circle — sign in with';
+  const where = 'You\'ll find the sessions under Events in the CiRCLE — sign in with';
   const how =
     'A week without a Q&A costs you nothing: your pass simply holds the next one, and ends after the last of its sessions. The replays of your sessions stay there for 2 months. We\'ll write when 1 session is left.';
   const cert = ctx.certWindowUntilLabel
