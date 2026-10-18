@@ -4,9 +4,8 @@
 //
 //   • The Authentic Singing Journey — a day-3 note on the additional videos,
 //     then one email a week, Week 2 … Week 40, each opening that week's
-//     session (and the same in Dutch, with the Kennisdatabank on day 3). The
-//     copy is the Drip series', week by week (./asj-weeks.ts says exactly what
-//     changed).
+//     session (the Dutch edition: the weeks alone). The copy is the Drip
+//     series', week by week (./asj-weeks.ts says exactly what changed).
 //   • The 12-Week Course — the Drip workflow's notes ("See you in Q&A?", "How
 //     to pace yourself", "Welcome to Week 2", "Welcome to Week 6"), plus a
 //     week-12 note when the live Q&As close, and — for path buyers who chose to
@@ -172,36 +171,6 @@ export function asjWeeklyEmailNl(week: number, ctx: SequenceEmailCtx): EmailCont
   });
 }
 
-// Dag 3: Drip's "Ontdek de Kennisdatabank", the Dutch twin of the email above.
-export function asjExtrasEmailNl(ctx: SequenceEmailCtx): EmailContent {
-  return render(ctx, {
-    subject: 'Ontdek de Kennisdatabank',
-    preheader: 'Naast de veertig sessies: filmpjes en uitleg die je onderweg helpen.',
-    heading: 'Hoe gaat het?',
-    heroImage: courseImage(ctx.base, 'asjExtras'),
-    closing: 'Met warme groeten,',
-    body: [
-      greeting(ctx.name, 'nl'),
-      para(
-        'We willen je graag laten kennismaken met de Kennisdatabank. Daar vind je allerhande filmpjes en uitleg over Authentiek Zingen en wat erbij komt kijken — in de CiRCLE, naast je sessies. Enkele voorbeelden:',
-        ctx.base,
-      ),
-      list([
-        'Replays van de voorbije livestreams',
-        'Allerhande tips over wat te doen bij keelpijn of een droge keel',
-        'Extra uitleg en filmpjes bij sommige sessies',
-      ]),
-      para(
-        'Laat het niet na om je ervaringen, vragen en feedback met ons te delen — antwoord gewoon op deze mail. Het zijn net die ervaringen die ons inspireren voor nieuwe filmpjes in de Kennisdatabank.',
-        ctx.base,
-      ),
-      button('Naar de Kennisdatabank', circleAsjExtrasUrl('nl')),
-    ],
-    stop: ASJ_STOP_NL,
-    footerNote: 'Je ontvangt dit omdat je de reis Authentiek Zingen volgt · Songdance · songdance.co',
-  });
-}
-
 // ── The 12-Week Course ─────────────────────────────────────────────────────
 
 const COURSE_STOP = {
@@ -353,7 +322,7 @@ export function twelveWeekStepEmail(step: number, ctx: SequenceEmailCtx): EmailC
             base,
           ),
           para(
-            'If you’d like to keep joining the live sessions after this week, the [live pass](/courses/live-pass) carries them on — a set number of Q&As and deepening sessions, starting the day after your twelve weeks end, so there’s no gap.',
+            'If you’d like to keep joining the live sessions after this week, the [live pass](/courses/live-pass) carries them on — for 1, 3 or 6 months of Q&As and deepening sessions, starting the day after your twelve weeks end, so there’s no gap.',
             base,
           ),
           button('Go to the Q&A calendar', circleUrl('live')),

@@ -740,13 +740,17 @@ routes settle, that file is the one place to change.
   `prod_ASJ` swaps `prod_ASJ` for `prod_ASJ_end` within seconds. The 12-week,
   certification and path switches share those two workflows, so they go on the
   **same day**; the bundle goes with the ASJ (its `prod_ASJ` tag starts Drip's
-  ASJ series). Grief, MMJ, Inner Child and the Dutch edition have nothing to
-  switch off — Drip sends their buyers nothing today (no Grief workflow; the
-  others are paused). `DRIP_ELSEWHERE` lists what belongs to no switch: "Access
+  ASJ series). **Drip Rules are not in the map**: Drip's API has no endpoint
+  for Automation → Rules, and rules do send course mail (Grief, MMJ, Inner
+  Child, the Dutch edition and the bundle get their welcome that way, their
+  workflows being paused or absent) — `RULES_PENDING` flags those units until
+  the rules are listed by hand. `DRIP_ELSEWHERE` lists what belongs to no switch: "Access
   to Products" (the Mighty activation links behind /access → "Activate all my
   products"), two Zapier webhooks on every tag, the old workshop workflows,
-  and the "Join CEEE Monthly" series — which offers what the live pass now
-  sells to every 12-week finisher, today.
+  and the "Join CEEE Monthly" series — the CEEE monthly membership it offers
+  every 12-week finisher is replaced by the live pass, so `/ceee` and
+  `/ceee-2026` now redirect to `/courses/live-pass` (they used to leave for a
+  Mighty Networks plan).
 - **Confirmations** ([`confirmation-emails.ts`](src/lib/courses/emails/confirmation-emails.ts),
   sent by [`confirmation.ts`](src/lib/courses/emails/confirmation.ts)): one per
   paid order, from `notifyCourseOrder` (so every paid path) + an hourly safety
@@ -774,8 +778,9 @@ routes settle, that file is the one place to change.
     exactly as in Drip, and every step lands at **08:00** local as Drip's did. Everyone who
     holds the ASJ in English: standalone, a bundle, the course-checkout bump, or
     "both editions".
-  - `asj-weekly-nl` — the same **in Dutch** (Authentiek Zingen: the day-3
-    "Ontdek de Kennisdatabank", then the 39 weeks,
+  - `asj-weekly-nl` — the same 39 weeks **in Dutch** (Authentiek Zingen; no
+    day-3 note — Drip's introduced a Kennisdatabank that no longer exists, so
+    never mention it,
     [`asj-weeks-nl.ts`](src/lib/courses/emails/asj-weeks-nl.ts)), for buyers
     who chose the Dutch edition only (`language_choice = 'nl'`); its stop page
     speaks Dutch too, and its buttons open the Dutch edition in the CiRCLE.

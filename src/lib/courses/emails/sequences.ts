@@ -6,8 +6,8 @@
 //                  the confirmation, as it always did in Drip).
 //                  Everyone who holds the journey in English: standalone, in a
 //                  bundle, as an order bump, or "both editions".
-//   asj-weekly-nl  The same in Dutch (Authentiek Zingen: the Kennisdatabank
-//                  note, then the 39 weeks), for Dutch-edition-only buyers.
+//   asj-weekly-nl  The same 39 weeks in Dutch (Authentiek Zingen), for buyers
+//                  who chose the Dutch edition only.
 //   twelve-week    The 12-Week Course onboarding: day 1, day 2, week 2, week 6,
 //                  week 12. Path buyers ride it too (variant path-wait /
 //                  path-now), with "your certification course is open" at the
@@ -43,7 +43,6 @@ import { loadHandover, type HandoverUnit } from './handover';
 import { ASJ_NL_COMPLETE, asjWeekNl } from './asj-weeks-nl';
 import {
   asjExtrasEmail,
-  asjExtrasEmailNl,
   asjWeeklyEmail,
   asjWeeklyEmailNl,
   certificationStepEmail,
@@ -102,14 +101,9 @@ const ASJ_STEPS: SequenceStep[] = [
 
 // Only the weeks that have their Dutch words (enrolment waits for all of them —
 // see ASJ_NL_COMPLETE below — so this list is complete whenever it is used).
+// No day-3 note in Dutch: Drip's ("Ontdek de Kennisdatabank") introduced a
+// knowledge base that no longer exists.
 const ASJ_STEPS_NL: SequenceStep[] = [
-  {
-    n: 1,
-    dayOffset: 3,
-    label: 'Dag 3 — Ontdek de Kennisdatabank',
-    origin: 'drip-adapted',
-    build: (ctx: SequenceEmailCtx) => asjExtrasEmailNl(ctx),
-  },
   ...Array.from({ length: ASJ_WEEK_COUNT - 1 }, (_, i) => i + 2).flatMap((week): SequenceStep[] => {
     const w = asjWeekNl(week);
     if (!w) return [];

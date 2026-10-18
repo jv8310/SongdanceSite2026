@@ -19,6 +19,8 @@ import { readCookie, verifySession } from '../../../lib/registrations/auth';
 import {
   DRIP_ELSEWHERE,
   HANDOVER_UNITS,
+  RULES_NOTE,
+  RULES_PENDING,
   dripSwitchOffSummary,
   loadHandover,
 } from '../../../lib/courses/emails/handover';
@@ -131,6 +133,7 @@ function since(v: string | undefined): string {
                       <ul>{u.drip.keep.map((x) => <li>{x}</li>)}</ul>
                     </>
                   )}
+                  {RULES_PENDING.includes(u.unit) && <p class="ce-drip-together">{RULES_NOTE}</p>}
                   {u.together && (
                     <p class="ce-drip-together">
                       Goes on the same day as{' '}

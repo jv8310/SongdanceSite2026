@@ -63,11 +63,10 @@ export function emailTypeMeta(type: string): { group: string; label: string } {
   if (type.startsWith('course_confirmation_')) {
     return { group: 'Course confirmations', label: type.slice('course_confirmation_'.length) };
   }
-  // Step 1 of either ASJ series is the day-3 note; every other step is its week.
   if (type.startsWith('course_seq_asj-weekly-nl_')) {
-    const n = type.slice('course_seq_asj-weekly-nl_'.length);
-    return { group: 'Authentiek Zingen — wekelijks (NL)', label: n === '1' ? 'Dag 3 — Kennisdatabank' : `Week ${n}` };
+    return { group: 'Authentiek Zingen — wekelijks (NL)', label: `Week ${type.slice('course_seq_asj-weekly-nl_'.length)}` };
   }
+  // Step 1 of the English series is the day-3 note; every other step is its week.
   if (type.startsWith('course_seq_asj-weekly_')) {
     const n = type.slice('course_seq_asj-weekly_'.length);
     return { group: 'Authentic Singing Journey — weekly', label: n === '1' ? 'Day 3 — additional videos' : `Week ${n}` };

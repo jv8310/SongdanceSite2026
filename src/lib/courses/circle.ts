@@ -56,8 +56,7 @@ export function circleAsjWeekUrl(week: number, lang: 'en' | 'nl' = 'en'): string
   return `${circleUrl(lang === 'nl' ? 'asj-nl' : 'asj')}/week-${week}`;
 }
 
-// The journey's additional videos (the English edition) — or the Dutch
-// edition's Kennisdatabank: tips, extra explanation, replays of past streams.
-export function circleAsjExtrasUrl(lang: 'en' | 'nl' = 'en'): string {
-  return `${circleUrl(lang === 'nl' ? 'asj-nl' : 'asj')}/extras`;
+// The journey's additional videos (English edition).
+export function circleAsjExtrasUrl(): string {
+  return `${circleUrl('asj')}/extras`;
 }
