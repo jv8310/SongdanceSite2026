@@ -55,8 +55,3 @@ export function circleUrl(area?: CircleArea): string {
 export function circleAsjWeekUrl(week: number, lang: 'en' | 'nl' = 'en'): string {
   return `${circleUrl(lang === 'nl' ? 'asj-nl' : 'asj')}/week-${week}`;
 }
-
-// The journey's additional videos (English edition).
-export function circleAsjExtrasUrl(): string {
-  return `${circleUrl('asj')}/extras`;
-}

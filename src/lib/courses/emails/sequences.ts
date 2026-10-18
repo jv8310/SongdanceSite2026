@@ -1,9 +1,8 @@
 // Course email sequences — what follows a confirmation, sent by the site
 // instead of a Drip workflow.
 //
-//   asj-weekly     A day-3 note on the additional videos, then Week 2 … Week 40
-//                  of the Authentic Singing Journey, one a week (Week 1 rides
-//                  the confirmation, as it always did in Drip).
+//   asj-weekly     Week 2 … Week 40 of the Authentic Singing Journey, one a week
+//                  (Week 1 rides the confirmation, as it always did in Drip).
 //                  Everyone who holds the journey in English: standalone, in a
 //                  bundle, as an order bump, or "both editions".
 //   asj-weekly-nl  The same 39 weeks in Dutch (Authentiek Zingen), for buyers
@@ -42,7 +41,6 @@ import { ASJ_WEEK_COUNT, asjWeek } from './asj-weeks';
 import { loadHandover, type HandoverUnit } from './handover';
 import { ASJ_NL_COMPLETE, asjWeekNl } from './asj-weeks-nl';
 import {
-  asjExtrasEmail,
   asjWeeklyEmail,
   asjWeeklyEmailNl,
   certificationStepEmail,
@@ -75,49 +73,36 @@ export type SequenceDef = {
   steps: SequenceStep[];
 };
 
-// Step n is the week it opens (2 … 40), with one exception: step 1 is the day-3
-// note about the additional videos (Drip's series had it between the welcome
-// and Week 2), since Week 1 itself rides the confirmation.
-const ASJ_STEPS: SequenceStep[] = [
-  {
-    n: 1,
-    dayOffset: 3,
-    label: 'Day 3 — Discover the additional videos',
-    origin: 'drip-adapted',
-    build: (ctx: SequenceEmailCtx) => asjExtrasEmail(ctx),
-  },
-  ...Array.from({ length: ASJ_WEEK_COUNT - 1 }, (_, i): SequenceStep => {
-    const week = i + 2;
-    const w = asjWeek(week)!;
-    return {
+// Step n is the week it opens (2 … 40). Only the weekly session emails: Drip's
+// series also had a day-3 note (videos, a knowledge base) and those are left
+// out on purpose, in both languages.
+const ASJ_STEPS: SequenceStep[] = Array.from({ length: ASJ_WEEK_COUNT - 1 }, (_, i) => {
+  const week = i + 2;
+  const w = asjWeek(week)!;
+  return {
+    n: week,
+    dayOffset: 7 * (week - 1),
+    label: `Week ${week} — ${w.title}`,
+    origin: w.source === 'drip' ? 'drip' : 'drip-adapted',
+    build: (ctx: SequenceEmailCtx) => asjWeeklyEmail(week, ctx),
+  };
+});
+
+// Only the weeks that have their Dutch words (enrolment waits for all of them —
+// see ASJ_NL_COMPLETE below — so this list is complete whenever it is used).
+const ASJ_STEPS_NL: SequenceStep[] = Array.from({ length: ASJ_WEEK_COUNT - 1 }, (_, i) => i + 2).flatMap((week): SequenceStep[] => {
+  const w = asjWeekNl(week);
+  if (!w) return [];
+  return [
+    {
       n: week,
       dayOffset: 7 * (week - 1),
       label: `Week ${week} — ${w.title}`,
       origin: w.source === 'drip' ? 'drip' : 'drip-adapted',
-      build: (ctx: SequenceEmailCtx) => asjWeeklyEmail(week, ctx),
-    };
-  }),
-];
-
-// Only the weeks that have their Dutch words (enrolment waits for all of them —
-// see ASJ_NL_COMPLETE below — so this list is complete whenever it is used).
-// No day-3 note in Dutch: Drip's ("Ontdek de Kennisdatabank") introduced a
-// knowledge base that no longer exists.
-const ASJ_STEPS_NL: SequenceStep[] = [
-  ...Array.from({ length: ASJ_WEEK_COUNT - 1 }, (_, i) => i + 2).flatMap((week): SequenceStep[] => {
-    const w = asjWeekNl(week);
-    if (!w) return [];
-    return [
-      {
-        n: week,
-        dayOffset: 7 * (week - 1),
-        label: `Week ${week} — ${w.title}`,
-        origin: w.source === 'drip' ? 'drip' : 'drip-adapted',
-        build: (ctx: SequenceEmailCtx) => asjWeeklyEmailNl(week, ctx),
-      },
-    ];
-  }),
-];
+      build: (ctx: SequenceEmailCtx) => asjWeeklyEmailNl(week, ctx),
+    },
+  ];
+});
 
 export const SEQUENCES: Record<SequenceKey, SequenceDef> = {
   'asj-weekly': {

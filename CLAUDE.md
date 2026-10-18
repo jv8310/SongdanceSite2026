@@ -772,15 +772,15 @@ routes settle, that file is the one place to change.
   `dayOffset` days after they paid** (Drip's "wait N days, send at 9:00"); the **hourly** cron sends what's due inside 08:00–21:00
   local, claims each step by compare-and-swap on `next_step` and rolls it back
   if the send fails; a late step never bunches (≥20 h before the next).
-  - `asj-weekly` — a **day-3 note on the additional videos** (Drip's "Discover
-    the Additional Videos", step `n = 1`), then **Week 2 … Week 40**, one a
-    week, each opening that week in the CiRCLE; Week 1 rides the confirmation,
-    exactly as in Drip, and every step lands at **08:00** local as Drip's did. Everyone who
+  - `asj-weekly` — **Week 2 … Week 40**, one a week, each opening that week in
+    the CiRCLE, and **nothing else**: Drip's day-3 note (additional videos /
+    the Dutch Kennisdatabank) is left out on purpose in both languages — no
+    videos, no knowledge base, no other mails (Jacob, October 2026). Week 1
+    rides the confirmation, exactly as in Drip, and every step lands at
+    **08:00** local as Drip's did. Everyone who
     holds the ASJ in English: standalone, a bundle, the course-checkout bump, or
     "both editions".
-  - `asj-weekly-nl` — the same 39 weeks **in Dutch** (Authentiek Zingen; no
-    day-3 note — Drip's introduced a Kennisdatabank that no longer exists, so
-    never mention it,
+  - `asj-weekly-nl` — the same 39 weeks **in Dutch** (Authentiek Zingen,
     [`asj-weeks-nl.ts`](src/lib/courses/emails/asj-weeks-nl.ts)), for buyers
     who chose the Dutch edition only (`language_choice = 'nl'`); its stop page
     speaks Dutch too, and its buttons open the Dutch edition in the CiRCLE.

@@ -2,10 +2,10 @@
 // a time (./sequences.ts decides when). Pure builders, previewed and
 // test-sent from /admin/emails/courses.
 //
-//   • The Authentic Singing Journey — a day-3 note on the additional videos,
-//     then one email a week, Week 2 … Week 40, each opening that week's
-//     session (the Dutch edition: the weeks alone). The copy is the Drip
-//     series', week by week (./asj-weeks.ts says exactly what changed).
+//   • The Authentic Singing Journey — one email a week, Week 2 … Week 40, each
+//     opening that week's session, and nothing else (in English and Dutch).
+//     The copy is the Drip series', week by week (./asj-weeks.ts says exactly
+//     what changed).
 //   • The 12-Week Course — the Drip workflow's notes ("See you in Q&A?", "How
 //     to pace yourself", "Welcome to Week 2", "Welcome to Week 6"), plus a
 //     week-12 note when the live Q&As close, and — for path buyers who chose to
@@ -19,7 +19,7 @@
 // an unsubscribe from Songdance, never the course itself.
 
 import { MAILING_ADDRESS, shell, type EmailContent } from '../../workshops/emails';
-import { CIRCLE_HOME_URL, circleAsjExtrasUrl, circleAsjWeekUrl, circleUrl } from '../circle';
+import { CIRCLE_HOME_URL, circleAsjWeekUrl, circleUrl } from '../circle';
 import { ASJ_WEEK_COUNT, asjWeek, asjWeekImagePath } from './asj-weeks';
 import { asjWeekNl } from './asj-weeks-nl';
 import { courseImage, type HeroImage } from './images';
@@ -103,33 +103,6 @@ export function asjWeeklyEmail(week: number, ctx: SequenceEmailCtx): EmailConten
       greeting(ctx.name),
       ...w.paragraphs.map((p) => para(p, ctx.base)),
       button(`Open Week ${week}`, circleAsjWeekUrl(week)),
-    ],
-    stop: ASJ_STOP,
-    footerNote: 'You’re receiving this because you’re on the Authentic Singing Journey · Songdance · songdance.co',
-  });
-}
-
-// Day 3, between the welcome (Week 1) and Week 2: Drip's "Discover the
-// Additional Videos". The CiRCLE holds them beside the sessions; the
-// "share underneath the videos" of the Mighty Networks days becomes a reply.
-export function asjExtrasEmail(ctx: SequenceEmailCtx): EmailContent {
-  return render(ctx, {
-    subject: 'Discover the additional videos',
-    preheader: 'Beside the forty sessions: videos to support you as you go.',
-    heading: 'The additional videos',
-    heroImage: courseImage(ctx.base, 'asjExtras'),
-    closing: 'Warmly,',
-    body: [
-      greeting(ctx.name),
-      para(
-        'Beside the forty sessions, your journey has a set of additional videos: resources that support you as you go through the sessions. You’ll find them in the CiRCLE, next to your sessions.',
-        ctx.base,
-      ),
-      para(
-        'Your experiences and questions are welcome along the way — just reply to this email. I read every one, and I’m happy to answer.',
-        ctx.base,
-      ),
-      button('Go to the videos', circleAsjExtrasUrl()),
     ],
     stop: ASJ_STOP,
     footerNote: 'You’re receiving this because you’re on the Authentic Singing Journey · Songdance · songdance.co',

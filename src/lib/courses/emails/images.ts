@@ -24,7 +24,6 @@ const PICS = {
   mmj: { file: 'movement.webp', alt: 'A dancer at the water’s edge at sunset', pos: 'center 35%' },
   innerChild: { file: 'inner-child-glow.webp', alt: 'A child crouched in warm evening light' },
   journeys: { file: 'singing-lights-woman.webp', alt: 'A woman holding a string of small lights' },
-  asjExtras: { file: 'singing-nature.webp', alt: 'Light falling into a canyon, a small figure below' },
   qa: { file: 'svh-retreat-teaching-jacob-laughing.webp', alt: 'Jacob laughing at the keyboard during a live session', pos: 'center 48%' },
   oneBreath: { file: 'svhgpt-01-hero-in-one-breath.webp', alt: 'One breath in, one tone out' },
   cupReceiving: { file: 'svhgpt-05-the-cup-receiving.webp', alt: 'Two open hands, held like a cup' },

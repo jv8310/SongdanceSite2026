@@ -124,7 +124,7 @@ export const HANDOVER_UNITS: HandoverInfo[] = [
     covers: 'Confirmation (ASJ / ASJ PRO) + the weekly session emails for everyone who holds the journey — standalone, in a bundle, or as an order bump; in Dutch (Authentiek Zingen) for the Dutch edition',
     drip: {
       today:
-        'Workflow “prod_ASJ” subscribes every prod_ASJ buyer to the email series “prod_ASJ” (41 emails at 08:00 their time: Welcome, Discover the Additional Videos on day 3, then Week 2 … Week 40), every link pointing into Mighty Networks. The Dutch side (workflow and series “prod_JAZ”) is paused; whatever Dutch-edition buyers get now comes from a Drip Rule on prod_JAZ, which the API can’t read.',
+        'Workflow “prod_ASJ” subscribes every prod_ASJ buyer to the email series “prod_ASJ” (41 emails at 08:00 their time: a welcome, a day-3 note, then Week 2 … Week 40), every link pointing into Mighty Networks. The Dutch side (workflow and series “prod_JAZ”) is paused; whatever Dutch-edition buyers get now comes from a Drip Rule on prod_JAZ, which the API can’t read.',
       switchOff: [
         'In workflow “prod_ASJ”, set the “Subscribe to email series prod_ASJ” step to draft (keep its tag steps).',
         'Pause the email series “prod_ASJ” itself — everyone still in it would otherwise keep getting Mighty Networks links — then press “Bring in earlier buyers” on the weekly series below. Buyers from before the site took payments have no order here and have to be brought over from Drip.',
