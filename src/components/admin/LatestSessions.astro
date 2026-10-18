@@ -1,0 +1,199 @@
+---
+// The most recent sessions that have run, newest first, one box each with the
+// whole story at a glance: profit and ROAS, money in against Meta cost out,
+// registered → attended → bought, and the live / replay / no-show split.
+// Every figure is the session's own performance row, the same values its card
+// on /admin/workshops/performance prints — nothing is recomputed here.
+// Used at the top of that page and of /admin/stats.
+import type { WorkshopPerformanceRow } from '../../lib/workshops/stats';
+
+interface Props {
+  rows: WorkshopPerformanceRow[];
+  count?: number;
+  title?: string;
+  note?: string;
+}
+const { rows, count = 4, title = 'Latest sessions', note } = Astro.props;
+
+const startMs = (s: string) => Date.parse(s.includes('T') ? s : s.replace(' ', 'T') + 'Z');
+const latest = rows
+  .filter((r) => !r.isUpcoming && !r.isReplay && (r.registrations > 0 || r.totalEurMinor > 0))
+  .filter((r) => Number.isFinite(startMs(r.startsAtUtc)))
+  .sort((a, b) => startMs(b.startsAtUtc) - startMs(a.startsAtUtc))
+  .slice(0, count);
+// One money scale across the boxes, so their bars compare box to box.
+const moneyMax = Math.max(1, ...latest.map((r) => Math.max(r.totalEurMinor, r.metaCostEurMinor ?? 0)));
+
+const eur = (minor: number) =>
+  '€' + (minor / 100).toLocaleString('en-IE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const eur0 = (minor: number) => '€' + Math.round(minor / 100).toLocaleString('en-IE');
+const eurSigned0 = (minor: number) =>
+  (minor < 0 ? '−€' : '€') + Math.round(Math.abs(minor) / 100).toLocaleString('en-IE');
+const pct = (v: number | null) => (v != null ? v.toFixed(1) + '%' : '—');
+const roasStr = (v: number | null) => (v != null ? v.toFixed(2) + '×' : '—');
+const profitTone = (v: number) => (v > 0 ? 'good' : v < 0 ? 'bad' : 'flat');
+const roasTone = (v: number | null) => (v == null ? 'flat' : v >= 1 ? 'good' : 'bad');
+const barPct = (v: number, max: number) => (max > 0 ? Math.min(100, (v / max) * 100) : 0);
+const dateLabel = (iso: string) =>
+  new Intl.DateTimeFormat('en-GB', {
+    day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/Brussels',
+  }).format(new Date(iso));
+const shortTitle = (t: string) => t.replace(/Somatic Vocal Healing/gi, 'SVH');
+// Profit = revenue − Meta cost (all ad spend charged to the session), as on
+// the session cards. Ad spend only — nothing else is netted off.
+const profitOf = (r: WorkshopPerformanceRow) => r.totalEurMinor - (r.metaCostEurMinor ?? 0);
+const segments = (r: WorkshopPerformanceRow) => {
+  const open = Math.max(0, r.registrations - r.attendedLive - r.replayViews - r.noShows);
+  return [
+    { key: 'live', label: 'live', n: r.attendedLive },
+    { key: 'replay', label: 'replay', n: r.replayViews },
+    { key: 'noshow', label: 'no-show', n: r.noShows },
+    { key: 'open', label: 'not marked', n: open },
+  ].filter((s) => s.n > 0);
+};
+---
+
+{latest.length > 0 && (
+  <section class="adm-section">
+    <h2 class="ls-h2">{title}{note && <span class="ls-note">{note}</span>}</h2>
+    <div class="ls-grid">
+      {latest.map((r) => {
+        const profit = profitOf(r);
+        const attended = r.attendedLive + r.replayViews;
+        const buyers = r.courseBuys + r.certBuys;
+        return (
+          <a class={`ls-tile ls-tile--${r.isMasterclass ? 'masterclass' : 'workshop'}`} href={`/admin/workshops/${r.workshopId}`}>
+            <div class="ls-head">
+              <span class="ls-name">{shortTitle(r.title)}</span>
+              <span class="ls-when">{dateLabel(r.startsAtUtc)} · {r.isMasterclass ? 'masterclass' : 'workshop'}</span>
+            </div>
+            <div class="ls-big">
+              <div>
+                <b class={profitTone(profit)}>{eurSigned0(profit)}</b>
+                <span>profit</span>
+              </div>
+              <div>
+                <b class={roasTone(r.workshopRoas)}>{roasStr(r.workshopRoas)}</b>
+                <span>ROAS</span>
+              </div>
+            </div>
+
+            <div class="ls-block">
+              <div class="ls-row ls-row--money" title={`${eur(r.totalCollectedEurMinor)} of ${eur(r.totalEurMinor)} charged so far`}>
+                <span class="ls-key">In</span>
+                <span class="ls-track">
+                  <span class="ls-fill ls-fill--rev" style={`width:${barPct(r.totalEurMinor, moneyMax)}%`}>
+                    <span class="ls-fill-paid" style={`width:${r.totalEurMinor > 0 ? (r.totalCollectedEurMinor / r.totalEurMinor) * 100 : 100}%`}></span>
+                  </span>
+                </span>
+                <span class="ls-amt">{eur0(r.totalEurMinor)}</span>
+              </div>
+              <div class="ls-row ls-row--money" title="All Meta ad spend charged to this session (prospecting + retargeting)">
+                <span class="ls-key">Out</span>
+                <span class="ls-track"><span class="ls-fill ls-fill--cost" style={`width:${barPct(r.metaCostEurMinor ?? 0, moneyMax)}%`}></span></span>
+                <span class="ls-amt">{eur0(r.metaCostEurMinor ?? 0)}</span>
+              </div>
+              <p class="ls-small">
+                {r.costPerRegistrationEurMinor != null ? <><b>{eur(Math.round(r.costPerRegistrationEurMinor))}</b> per registration</> : <>no ad spend charged</>}
+                {r.totalCollectedEurMinor < r.totalEurMinor && <> · {eur0(r.totalCollectedEurMinor)} charged so far</>}
+              </p>
+            </div>
+
+            <div class="ls-block">
+              {[
+                { key: 'reg', label: 'Registered', n: r.registrations },
+                { key: 'att', label: 'Attended', n: attended },
+                { key: 'buy', label: 'Bought a course', n: buyers },
+              ].map((st) => (
+                <div class="ls-row">
+                  <span class="ls-key">{st.label}</span>
+                  <span class="ls-track"><span class={`ls-fill ls-fill--${st.key}`} style={`width:${barPct(st.n, Math.max(1, r.registrations))}%`}></span></span>
+                  <span class="ls-amt">{st.n}</span>
+                </div>
+              ))}
+              <p class="ls-small">
+                {r.courseBuys} course · {r.certBuys} cert · <b>{pct(r.conversionPerAttendeePct)}</b> of attendees bought
+              </p>
+            </div>
+
+            <div class="ls-block">
+              <div class="ls-seg">
+                {segments(r).map((sg) => (
+                  <span class={`ls-seg-part ls-seg-part--${sg.key}`} style={`width:${(sg.n / Math.max(1, r.registrations)) * 100}%`} title={`${sg.n} ${sg.label}`}></span>
+                ))}
+              </div>
+              <div class="ls-legend">
+                <span><i class="ls-dot ls-dot--live"></i>{r.attendedLive} live</span>
+                <span><i class="ls-dot ls-dot--replay"></i>{r.replayViews} replay</span>
+                <span><i class="ls-dot ls-dot--noshow"></i>{r.noShows} no-show</span>
+                <span><b>{pct(r.attendancePct)}</b> attended</span>
+              </div>
+            </div>
+          </a>
+        );
+      })}
+    </div>
+  </section>
+)}
+
+<style>
+  .ls-h2 { margin: 0 0 10px; font-size: 18px; }
+  .ls-note { margin-left: 10px; font-size: 12px; font-weight: 400; color: var(--adm-mute); }
+  .ls-grid { display: grid; gap: 12px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  @media (max-width: 1180px) { .ls-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 640px) { .ls-grid { grid-template-columns: 1fr; } }
+  .ls-tile {
+    display: flex; flex-direction: column; gap: 10px;
+    padding: 14px 16px; border: 1px solid var(--adm-line); border-radius: 12px;
+    background: var(--adm-paper-soft); color: inherit; text-decoration: none;
+    border-top: 3px solid #2a78d6;
+  }
+  .ls-tile--masterclass { border-top-color: #c9603a; }
+  .ls-tile:hover { border-color: var(--adm-ember-deep); }
+  .ls-head { display: flex; flex-direction: column; gap: 2px; }
+  .ls-name { font-weight: 650; font-size: 14px; }
+  .ls-when { font-size: 11.5px; color: var(--adm-mute); }
+  .ls-big { display: flex; gap: 22px; }
+  .ls-big div { display: flex; flex-direction: column; }
+  .ls-big b { font-size: 24px; font-weight: 650; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .ls-big b.good { color: var(--adm-success); }
+  .ls-big b.bad { color: var(--adm-danger); }
+  .ls-big b.flat { color: var(--adm-mute); }
+  .ls-big span { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--adm-mute); }
+  .ls-block {
+    display: flex; flex-direction: column; gap: 5px;
+    padding-top: 10px; border-top: 1px solid var(--adm-line);
+  }
+  .ls-row { display: grid; grid-template-columns: 92px 1fr 54px; align-items: center; gap: 8px; }
+  .ls-row--money { grid-template-columns: 30px 1fr 60px; }
+  .ls-key { font-size: 11px; color: var(--adm-mute); white-space: nowrap; }
+  .ls-amt { font-size: 13px; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+  .ls-track {
+    display: block; height: 9px; border-radius: 5px; overflow: hidden;
+    background: rgba(43, 37, 25, 0.08);
+  }
+  .ls-fill { display: block; height: 100%; border-radius: 5px; min-width: 2px; }
+  .ls-fill--rev { background: rgba(47, 122, 76, 0.34); }
+  .ls-fill-paid { display: block; height: 100%; border-radius: 5px; background: var(--adm-success); }
+  .ls-fill--cost { background: var(--adm-ember); }
+  .ls-fill--reg { background: rgba(43, 37, 25, 0.28); }
+  .ls-fill--att { background: #2f7a4c; }
+  .ls-fill--buy { background: var(--adm-ember); }
+  .ls-small { margin: 0; font-size: 11px; color: var(--adm-mute); }
+  .ls-small b { color: var(--adm-ink); font-weight: 650; }
+  .ls-seg {
+    display: flex; height: 11px; border-radius: 5px; overflow: hidden;
+    background: rgba(43, 37, 25, 0.08);
+  }
+  .ls-seg-part { display: block; height: 100%; }
+  .ls-seg-part--live { background: #2f7a4c; }
+  .ls-seg-part--replay { background: #86b295; }
+  .ls-seg-part--noshow { background: #b53d3d; }
+  .ls-seg-part--open { background: rgba(43, 37, 25, 0.16); }
+  .ls-legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 10.5px; color: var(--adm-mute); }
+  .ls-legend b { color: var(--adm-ink); font-weight: 650; }
+  .ls-dot { display: inline-block; width: 7px; height: 7px; border-radius: 2px; margin-right: 5px; }
+  .ls-dot--live { background: #2f7a4c; }
+  .ls-dot--replay { background: #86b295; }
+  .ls-dot--noshow { background: #b53d3d; }
+</style>
