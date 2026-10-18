@@ -1,8 +1,11 @@
 // The Authentic Singing Journey, week by week — the words of the weekly email.
 //
 // Recovered from the Drip series "Weekly sessions of the Year Course Authentic
-// Singing" (Yavin & Upala, 2020–2022), which still read in customers' replies
-// and in the test inbox — the Drip API does not expose email-series content.
+// Singing" (Yavin & Upala, 2020–2022) — first from customers' replies and the
+// test inbox, then checked week by week against the live Drip series itself
+// (series "prod_ASJ", read through the Drip connector, October 2026). The Gmail
+// copy is an older, fuller version than today's Drip (the "Step By Step / Open
+// Up / Blossom" lines, the Inner Child pointers) and is kept.
 // Each week was a short note: what the session is, where it came from, what it
 // invites. That stays the shape here.
 //
@@ -27,8 +30,10 @@
 //     not an outcome (no outcome promises).
 //   • Week 20 dropped its paragraph selling "The Mantra Collection" (now the PRO
 //     mantra pack, which a buyer can't add on its own from the site).
-//   • Weeks 11, 31, 33, 35 survive only in the Dutch series ("Authentiek Zingen
-//     Week N"): translated from the Dutch, marked `translated`.
+//   • Weeks 11, 31, 33, 35 were missing from the mailbox and first translated
+//     from the Dutch series; they now carry Drip's own English (titles as
+//     Drip heads them: "Arabian Dreams / Expectation & disappointment",
+//     "Rhythm / Cuban Style").
 //   • Typos fixed ("a tender song is sang", a stray quote in week 9).
 //
 // Markup in `paragraphs`: plain text, plus [link text](/path) for a link to the
@@ -142,10 +147,10 @@ export const ASJ_WEEKS: AsjWeek[] = [
   {
     week: 11,
     title: 'Harmony 1: Acceptance Of Disharmony',
-    source: 'translated',
+    source: 'drip',
     paragraphs: [
-      'In Week 1 you listened to your own voice.',
-      'This week you listen to your own voice once more — but this time in harmony with another instrument…',
+      'In Week 1 we invited you to listen to your own voice.',
+      'This week we’ll guide you to listen to your own voice once again, but this time in harmony with a different instrument.',
     ],
   },
   {
@@ -311,11 +316,11 @@ export const ASJ_WEEKS: AsjWeek[] = [
   },
   {
     week: 31,
-    title: 'Expectation & Disappointment',
-    source: 'translated',
+    title: 'Arabian Dreams: Expectation & Disappointment',
+    source: 'drip',
     paragraphs: [
-      'The trilogy around letting go is behind us. Now it is a matter of waiting to see what the ‘result’ will be… Did you manage to truly let go of something? Did you manage to change something fundamental in your life?',
-      'With all those questions, dreams and expectations arise all by themselves. And then disappointment lurks around the corner… Wouldn’t it be a gift to be able to embrace that disappointment, as a wondrous part of the human experience…',
+      'The trilogy based on letting go is now behind us. The ‘results’ may not be apparent yet, but let’s see what unfolds… Did it work to ‘really’ let something go? Did you succeed in bringing a significant change in your life?',
+      'All those questions automatically lead to expectations. Often disappointment is not far behind. Wouldn’t it be wonderful to be able to embrace that disappointment as part of the incredible human experience?',
     ],
   },
   {
@@ -326,10 +331,10 @@ export const ASJ_WEEKS: AsjWeek[] = [
   },
   {
     week: 33,
-    title: 'Cuban Style',
-    source: 'translated',
+    title: 'Rhythm: Cuban Style',
+    source: 'drip',
     paragraphs: [
-      'Rhythm hides in everything. When we let it move through us, energy starts to flow that we are otherwise often cut off from…',
+      'Rhythm lies hidden in everything. When we let ourselves get immersed in it, energies start flowing that we are normally cut off from.',
     ],
   },
   {
@@ -343,10 +348,10 @@ export const ASJ_WEEKS: AsjWeek[] = [
   {
     week: 35,
     title: 'Anger: It Is Time',
-    source: 'translated',
+    source: 'drip-edited',
     paragraphs: [
-      'With only five sessions to go until the end of the journey, our friend ‘anger’ simply couldn’t be missing…',
-      'Are you in touch with your anger? And did you know that anger and love can go hand in hand?',
+      'With only five sessions to go until the end of the journey, our ‘friend’ anger couldn’t be left out…',
+      'Do you feel connected with your anger, or are you afraid of it? Did you know that anger and love can actually go together hand in hand?',
     ],
   },
   {

@@ -721,12 +721,32 @@ routes settle, that file is the one place to change.
 - **The switch — off by default, per course** ([`handover.ts`](src/lib/courses/emails/handover.ts),
   `workshop_config` key `course_emails_on:<unit>` = when it went on). Off →
   Drip keeps sending and the site sends nothing. On → the site sends, **for
-  orders paid after that moment only**, and the matching Drip workflow must be
+  orders paid after that moment only**, and the matching Drip email steps must be
   switched off the same day or buyers hear it twice. Units: 12-week, certification,
   path, grief, asj (confirmation + the weekly series for everyone who holds it),
   mmj, inner-child, journeys-bundle. Flipped on **`/admin/emails/courses`**,
-  which also names the Drip workflow to stop, counts each sequence, previews +
-  test-sends every email, and looks up / stops / restarts one person's series.
+  which counts each sequence, previews + test-sends every email, and looks up /
+  stops / restarts one person's series. **Nothing goes on before the CiRCLE app
+  is live** (every one of these emails sends the buyer there; Drip's still
+  point into Mighty Networks, which today *is* circle.songdance.co — see the
+  note in `circle.ts` on redirecting its old `/posts/<N>-…` links).
+- **The Drip side, per switch** (`drip` on each unit in `handover.ts`, shown on
+  that page; read from the Drip account through the Drip connector, read-only,
+  October 2026 — re-read it before the day): what Drip sends that course today,
+  the exact steps to switch off, and what must keep running. Switching off
+  means **setting the email steps to draft, never pausing the workflow**:
+  `prod_SVH_12w` also writes the `prod_SVH_week` counter that `prod_SVH_9m`
+  waits on for path buyers, the Q&A fields, `prod_SVH_12w_end` and an HTTP post;
+  `prod_ASJ` swaps `prod_ASJ` for `prod_ASJ_end` within seconds. The 12-week,
+  certification and path switches share those two workflows, so they go on the
+  **same day**; the bundle goes with the ASJ (its `prod_ASJ` tag starts Drip's
+  ASJ series). Grief, MMJ, Inner Child and the Dutch edition have nothing to
+  switch off — Drip sends their buyers nothing today (no Grief workflow; the
+  others are paused). `DRIP_ELSEWHERE` lists what belongs to no switch: "Access
+  to Products" (the Mighty activation links behind /access → "Activate all my
+  products"), two Zapier webhooks on every tag, the old workshop workflows,
+  and the "Join CEEE Monthly" series — which offers what the live pass now
+  sells to every 12-week finisher, today.
 - **Confirmations** ([`confirmation-emails.ts`](src/lib/courses/emails/confirmation-emails.ts),
   sent by [`confirmation.ts`](src/lib/courses/emails/confirmation.ts)): one per
   paid order, from `notifyCourseOrder` (so every paid path) + an hourly safety
@@ -748,16 +768,21 @@ routes settle, that file is the one place to change.
   `dayOffset` days after they paid** (Drip's "wait N days, send at 9:00"); the **hourly** cron sends what's due inside 08:00–21:00
   local, claims each step by compare-and-swap on `next_step` and rolls it back
   if the send fails; a late step never bunches (≥20 h before the next).
-  - `asj-weekly` — **Week 2 … Week 40**, one a week, each opening that week in
-    the CiRCLE; Week 1 rides the confirmation, exactly as in Drip. Everyone who
+  - `asj-weekly` — a **day-3 note on the additional videos** (Drip's "Discover
+    the Additional Videos", step `n = 1`), then **Week 2 … Week 40**, one a
+    week, each opening that week in the CiRCLE; Week 1 rides the confirmation,
+    exactly as in Drip, and every step lands at **08:00** local as Drip's did. Everyone who
     holds the ASJ in English: standalone, a bundle, the course-checkout bump, or
     "both editions".
-  - `asj-weekly-nl` — the same 39 weeks **in Dutch** (Authentiek Zingen,
+  - `asj-weekly-nl` — the same **in Dutch** (Authentiek Zingen: the day-3
+    "Ontdek de Kennisdatabank", then the 39 weeks,
     [`asj-weeks-nl.ts`](src/lib/courses/emails/asj-weeks-nl.ts)), for buyers
     who chose the Dutch edition only (`language_choice = 'nl'`); its stop page
     speaks Dutch too, and its buttons open the Dutch edition in the CiRCLE.
-    Same `asj` switch. 28 weeks are the Dutch Drip copy; 12 survive nowhere and
-    are translated from the English (marked `translated`); Drip's combined
+    Same `asj` switch. Every week is the Dutch Drip copy (the twelve missing
+    from the mailbox came from the paused Drip series itself) except week 30,
+    which Drip only ever sent inside its "Week 29 en 30" mail and is
+    `translated`; Drip's combined
     week 29+30 mail and its "Integratietijd" pause are flattened into the same
     one-a-week rhythm as the English series. It only enrols anyone while every
     week 2–40 has its words (`ASJ_NL_COMPLETE`), so a week deleted from the
@@ -788,8 +813,8 @@ routes settle, that file is the one place to change.
   connector's `get_campaign_email`), which is how the ASJ series was checked
   against Drip in October 2026. The workflow copy was recovered from Jacob's
   Gmail — the ASJ "Authentic Singing Week N" series (originals + customers'
-  quoted replies; weeks 11/31/33/35 survive only in the Dutch series and are
-  translated), its Dutch twin "Authentiek Zingen Week N" (from
+  quoted replies, an older and fuller version than today's Drip; weeks
+  11/31/33/35 then came from the Drip series itself), its Dutch twin "Authentiek Zingen Week N" (from
   info@songdance.be), and Jacob's own May 2026 test purchase of the path (the
   12-week workflow, the path welcome). Each file's header says what changed and
   why (CiRCLE instead of activation links, "Year Course" → journey, copy-book

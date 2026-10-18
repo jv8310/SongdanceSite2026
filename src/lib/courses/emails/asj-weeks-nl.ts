@@ -4,7 +4,9 @@
 // Recovered from the Dutch Drip series "Authentiek Zingen Week N" (sent from
 // info@songdance.be, Nov 2020 – Sep 2021, greeting "Dag <voornaam>,", signed
 // "Met warme groeten, Yavin & Upala"), the twin of the English series in
-// ./asj-weeks.ts — originals and customers' quoted replies in Jacob's Gmail.
+// ./asj-weeks.ts — first from Jacob's Gmail, then completed from the paused
+// Drip series "prod_JAZ" itself (read through the Drip connector, October
+// 2026).
 // Session titles are the ones the Dutch emails used (the series' own overview,
 // "Overzicht van de sessies"); most are the English titles, a few are Dutch
 // ("Laat het los", "De Gouden Schaal", "Nieuwe Energie").
@@ -13,9 +15,12 @@
 //   • "Jaartraject" → "reis", "Naar Mijn Account" → a button that opens the
 //     week in the CiRCLE, signed Jacob (the "we" is Yavin & Upala, who made
 //     the sessions).
-//   • Twelve weeks survive nowhere in the mailbox — 2, 3, 4, 8, 10, 12, 14, 16,
-//     21, 27, 28, 32 — so they are translated from the English series and
-//     marked `translated`.
+//   • Twelve weeks — 2, 3, 4, 8, 10, 12, 14, 16, 21, 27, 28, 32 — were missing
+//     from the mailbox and first translated from the English; they now carry
+//     the Drip series' own Dutch (typos fixed: "Yavisky", "moto"). Week 8's
+//     Inner Child paragraph gets the link its Drip text named but never had.
+//   • Week 30 is the one week still `translated`: Drip only ever sent it inside
+//     the combined "Week 29 en 30" mail, with no words of its own.
 //   • Drip sent weeks 29 and 30 together in one mail and paused two weeks; here
 //     every week has its own mail, like the English series, so both are
 //     rewritten around one session each. The "Integratietijd" interlude after
@@ -47,28 +52,29 @@ export const ASJ_WEEKS_NL: AsjWeekNl[] = [
   {
     week: 2,
     title: 'Enjoy Your Voice',
-    source: 'translated',
+    source: 'drip',
     paragraphs: [
-      'Heb je genoten van je eerste sessie — luisteren naar jezelf, je stem ontdekken? Doe ze gerust zo vaak als je wil: elke keer kan ze je iets nieuws brengen.',
-      'Klaar voor Week 2? Sessie 2 heet Enjoy Your Voice en draait helemaal om de vreugde van het zingen. We leggen de focus op aarden en op de energie laten stromen doorheen je hele lichaam. Je merkt dat deze sessie totaal anders is dan sessie 1, en dat is ook de bedoeling: we willen je een grote variatie aan benaderingen, muziekgenres en oefeningen aanbieden. Deze week: een overvloed aan ritme en energie. Geniet ervan!',
+      'Heb je genoten van de eerste sessie? Luisteren naar je eigen stem, Discover Your Voice… Het is een basissessie die je vaak opnieuw kunt doen en waar je telkens iets nieuws uit kunt halen.',
+      'Klaar voor week 2? Deze sessie heet Enjoy Your Voice en staat in het teken van het plezier van zingen. Ditmaal ligt de focus op gronden en de energie laten stromen doorheen heel je lichaam! Je zal merken dat deze sessie totaal anders is dan de vorige, en daar staan we voor. We trachten om een grote diversiteit aan te bieden van verschillende benaderingen, muzikale genres en vibes. Deze week is het een weldaad van ritme en sfeer.',
     ],
   },
   {
     week: 3,
     title: 'Imitate: African Chill',
-    source: 'translated',
+    source: 'drip-edited',
     paragraphs: [
-      'Hier zijn we dan, bij Week 3. In week 1 luisterde je naar je stem, in week 2 zong en swingde je mee op de muziek.',
-      'Deze week draait het erom je stem nog wat meer vrijheid te geven, via de kracht van imitatie.',
+      'We zijn aangekomen bij Week 3 van de reis. We hebben geluisterd naar onze stem tijdens de eerste week en heerlijk swingend gezongen tijdens de tweede week.',
+      'Deze week willen we je helpen om je stem wat vrijer te maken dankzij de kracht van imitatie. We doen dit op de klanken van een zwoele gitaar.',
     ],
   },
   {
     week: 4,
     title: 'I Am Restful - I Am Peace',
-    source: 'translated',
+    source: 'drip',
     paragraphs: [
-      'Je hebt nu drie sessies achter de rug onder het label Step By Step. Deze week doen we de eerste sessie onder het label Open Up.',
-      'Deze sessie nodigt je uit om klank te geven aan nervositeit, stress en onrust. Keer er gerust naar terug wanneer die gevoelens in je leven opduiken.',
+      'Je hebt drie sessies achter de rug die onder het label ‘Step by Step’ vallen.',
+      'Deze week is het de beurt aan een eerste sessie onder het motto ‘Open Up’.',
+      'Doe deze sessie in het bijzonder wanneer je zenuwachtig bent, stress hebt of je rusteloos voelt.',
     ],
   },
   {
@@ -104,10 +110,11 @@ export const ASJ_WEEKS_NL: AsjWeekNl[] = [
   {
     week: 8,
     title: 'The Morning',
-    source: 'translated',
+    source: 'drip',
     paragraphs: [
-      'Voor Week 8 hebben we opnieuw een sessie onder het label Step By Step. We brengen je in een lichte meditatieve staat, zodat je open en ontvankelijk kunt luisteren en nieuwe manieren ontdekt om je geheugen te gebruiken.',
-      'In deze sessie klinkt een teder lied — een lied voor jou en je innerlijke kind. Voel je de roep om daar dieper op in te gaan? Dan is de [Inner Child Healing Journey](/courses/inner-child) een hele reis op zich.',
+      'Voor week 8 hebben we opnieuw een ‘Step By Step’-sessie klaar voor jou.',
+      'We brengen je in een licht meditatieve staat om onbevangen te kunnen luisteren en vervolgens zonder angst te kunnen nazingen — zonder gebruik te maken van het kortetermijngeheugen.',
+      'In deze sessie wordt een teder lied gezongen. Een lied voor jou en je Innerlijke Kind om meer vrijheid en vreugde in je wereld te brengen. Als je hier dieper op wil ingaan, dan is de [Inner Child Healing Journey](/courses/inner-child) misschien iets voor jou.',
     ],
   },
   {
@@ -123,11 +130,11 @@ export const ASJ_WEEKS_NL: AsjWeekNl[] = [
   {
     week: 10,
     title: 'Feel Now',
-    source: 'translated',
+    source: 'drip-edited',
     paragraphs: [
-      'Je hebt de eerste mijlpaal bereikt.',
-      'Je bent een kwart van de reis Authentiek Zingen gevorderd. Dit is al de tiende week waarin je je stem laat weerklinken, terwijl je haar kwaliteiten observeert en verkent. We willen je daarmee feliciteren — en je groeiende zelfvertrouwen erkennen.',
-      'Deze week nodigen we je uit om te verdiepen in gevoeligheid.',
+      'Je hebt de eerste mijlpaal bereikt: een kwart van de reis. Dit is intussen de tiende week waarin jij je stem laat klinken op een kwalitatieve manier.',
+      'Hiervoor willen we jou feliciteren en tevens bedanken voor het vertrouwen.',
+      'Deze week nodigen we je uit om extra aandacht te besteden aan jouw (hoog)gevoeligheid…',
     ],
   },
   {
@@ -142,10 +149,10 @@ export const ASJ_WEEKS_NL: AsjWeekNl[] = [
   {
     week: 12,
     title: 'Russian Delight',
-    source: 'translated',
+    source: 'drip-edited',
     paragraphs: [
-      'Deze week hebben we een bijzondere traktatie uit Rusland.',
-      'Yavinsky en zijn band brengen een sessie vol ritme, energie en flink wat virtuositeit.',
+      'Deze week hebben we bijzonder bezoek vanuit Rusland.',
+      'Yavinsky en zijn band verzorgen deze sessie vol ritme, sfeer en virtuositeit.',
     ],
   },
   {
@@ -159,9 +166,10 @@ export const ASJ_WEEKS_NL: AsjWeekNl[] = [
   {
     week: 14,
     title: 'The Elements: Water',
-    source: 'translated',
+    source: 'drip',
     paragraphs: [
-      'In de komende weken brengen we je enkele sessies onder het label Blossom. Je wordt begeleid om af te stemmen op de energie van de elementen die ons omringen en inspireren, en je eraan over te geven: water, vuur, lucht en aarde.',
+      'De komende weken mag je je verheugen op enkele sessies onder het label ‘Blossom’. Daarbij stemmen we ons af op en geven we ons over aan universele energieën.',
+      'We kozen daarbij voor de energie van de elementen die ons omringen en inspireren…',
     ],
   },
   {
@@ -176,9 +184,9 @@ export const ASJ_WEEKS_NL: AsjWeekNl[] = [
   {
     week: 16,
     title: 'The Elements: Air',
-    source: 'translated',
+    source: 'drip',
     paragraphs: [
-      'Verwen jezelf deze week met de derde sessie in de Blossom-reeks over de elementen. We richten ons op de lucht, en de wind zal ons leiden…',
+      'Deze week mag je jezelf verwennen met een derde Blossom-sessie op rij. Het is de beurt aan het element ‘Lucht’, voor de gelegenheid voorgesteld door de wind…',
     ],
   },
   {
@@ -217,9 +225,10 @@ export const ASJ_WEEKS_NL: AsjWeekNl[] = [
   {
     week: 21,
     title: 'It’s Okay',
-    source: 'translated',
+    source: 'drip-edited',
     paragraphs: [
-      'Wanneer vermoeidheid toeslaat, is het goed om te rusten. In deze Blossom-sessie verkennen we rust als een bron van inspiratie en energie.',
+      'Als we moe zijn, dan is het best dat we rust nemen.',
+      'In deze Blossom-sessie verkennen we ‘rust’ als inspiratie- en krachtbron.',
     ],
   },
   {
@@ -269,20 +278,20 @@ export const ASJ_WEEKS_NL: AsjWeekNl[] = [
   {
     week: 27,
     title: 'The Echo of Silence',
-    source: 'translated',
+    source: 'drip',
     paragraphs: [
-      'Deze sessie ontstond in een heuvelachtige streek in Marokko, tussen Marrakech en Essaouira, omringd door de stilte en de schoonheid van het landschap. De mensen er leven eenvoudig en de kinderen spelen vrolijk op straat. Goederen gaan per muilezel van het ene dorp naar het andere.',
-      'Het is er geen gemakkelijk leven… Er is veel armoede en werkloosheid, en toch is het inspirerend om te zien hoeveel mensen er een leven vol vreugde leiden, overgegeven aan de natuurlijke stroom ervan.',
-      'Dat, samen met het adembenemende landschap, inspireerde ons tot de sessie ‘The Echo of Silence’…',
+      'Deze sessie maakten we in een heuvelachtig Marokko tussen Marrakesh en Essaouira. Omringd door de stilte en pracht van het landschap en de eenvoud van de lokale bevolking. Met de ezel worden wat waren gebracht van het ene dorpje naar het andere, kinderen spelen vrolijk op straat.',
+      'Toegegeven, het is hier voor de locals een hard bestaan. Er heerst veel armoede en werkloosheid. Maar het is inspirerend hoe er velen in slagen om toch vreugdevol, gelaten en met de flow in het leven te staan.',
+      'Dit, in combinatie met het prachtige landschap, inspireerde ons voor de sessie The Echo of Silence…',
     ],
   },
   {
     week: 28,
     title: 'Let go - Let in: Laat het los',
-    source: 'translated',
+    source: 'drip-edited',
     paragraphs: [
       'De eerste sessie van de trilogie ‘Let go – Let in’.',
-      'Tijdens deze sessie nodigen we je uit om klank te geven aan het fluisteren van je ziel, wanneer die je vertelt wat je mag loslaten, wat je niet langer dient…',
+      'Graag willen we jou uitnodigen om tijdens deze sessie klank te geven aan het gefluister van je ziel over zaken die je mag loslaten, die je niet langer dienen…',
     ],
   },
   {
@@ -314,8 +323,11 @@ export const ASJ_WEEKS_NL: AsjWeekNl[] = [
   {
     week: 32,
     title: 'My Fear',
-    source: 'translated',
-    paragraphs: ['Het moest er ooit van komen… een sessie over angst…', 'Ben je er klaar voor?'],
+    source: 'drip',
+    paragraphs: [
+      'Het moest er eens van komen, een sessie over angst…',
+      'Durf jij het aan?',
+    ],
   },
   {
     week: 33,

@@ -181,8 +181,13 @@ export const DRIP_ELSEWHERE: Array<{ name: string; does: string; when: string }>
     when: 'Not tied to the app — they can be paused once nobody is left inside.',
   },
   {
-    name: '“CEEE Renewal / Registration”, “Songdeck Account Welcome”, series “Join CEEE Monthly”',
-    does: 'CEEE membership mail and the Songdeck account welcome — not course purchases on the site.',
+    name: 'Email series “Join CEEE Monthly” (“Continue your journey”)',
+    does: 'Tells a 12-week finisher their course has ended and offers the CEEE monthly membership (songdance.co/ceee-2026, which redirects to a Mighty Networks plan). 96 people are in it; no workflow subscribes anyone, so it is fed from outside the workflows — most likely the HTTP post at the end of “prod_SVH_12w”, or a Drip rule.',
+    when: 'Live today, app or no app: it offers what the live pass now sells, and the site’s week-12 note points to the live pass — so once the 12-Week switch is on, a finisher hears both. Decide which offer stays; /ceee-2026 dies with Mighty Networks either way.',
+  },
+  {
+    name: '“CEEE Renewal / Registration”, “Songdeck Account Welcome”',
+    does: 'CEEE membership renewal mail and the Songdeck account welcome — not course purchases on the site.',
     when: 'Stay in Drip for now.',
   },
 ];

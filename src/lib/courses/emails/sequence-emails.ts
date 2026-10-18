@@ -2,9 +2,11 @@
 // a time (./sequences.ts decides when). Pure builders, previewed and
 // test-sent from /admin/emails/courses.
 //
-//   • The Authentic Singing Journey — one email a week, Week 2 … Week 40, each
-//     opening that week's session. The copy is the Drip series', week by week
-//     (./asj-weeks.ts says exactly what changed).
+//   • The Authentic Singing Journey — a day-3 note on the additional videos,
+//     then one email a week, Week 2 … Week 40, each opening that week's
+//     session (and the same in Dutch, with the Kennisdatabank on day 3). The
+//     copy is the Drip series', week by week (./asj-weeks.ts says exactly what
+//     changed).
 //   • The 12-Week Course — the Drip workflow's notes ("See you in Q&A?", "How
 //     to pace yourself", "Welcome to Week 2", "Welcome to Week 6"), plus a
 //     week-12 note when the live Q&As close, and — for path buyers who chose to
@@ -18,7 +20,7 @@
 // an unsubscribe from Songdance, never the course itself.
 
 import { MAILING_ADDRESS, shell, type EmailContent } from '../../workshops/emails';
-import { CIRCLE_HOME_URL, circleAsjWeekUrl, circleUrl } from '../circle';
+import { CIRCLE_HOME_URL, circleAsjExtrasUrl, circleAsjWeekUrl, circleUrl } from '../circle';
 import { ASJ_WEEK_COUNT, asjWeek, asjWeekImagePath } from './asj-weeks';
 import { asjWeekNl } from './asj-weeks-nl';
 import { courseImage, type HeroImage } from './images';
@@ -108,6 +110,33 @@ export function asjWeeklyEmail(week: number, ctx: SequenceEmailCtx): EmailConten
   });
 }
 
+// Day 3, between the welcome (Week 1) and Week 2: Drip's "Discover the
+// Additional Videos". The CiRCLE holds them beside the sessions; the
+// "share underneath the videos" of the Mighty Networks days becomes a reply.
+export function asjExtrasEmail(ctx: SequenceEmailCtx): EmailContent {
+  return render(ctx, {
+    subject: 'Discover the additional videos',
+    preheader: 'Beside the forty sessions: videos to support you as you go.',
+    heading: 'The additional videos',
+    heroImage: courseImage(ctx.base, 'asjExtras'),
+    closing: 'Warmly,',
+    body: [
+      greeting(ctx.name),
+      para(
+        'Beside the forty sessions, your journey has a set of additional videos: resources that support you as you go through the sessions. You’ll find them in the CiRCLE, next to your sessions.',
+        ctx.base,
+      ),
+      para(
+        'Your experiences and questions are welcome along the way — just reply to this email. I read every one, and I’m happy to answer.',
+        ctx.base,
+      ),
+      button('Go to the videos', circleAsjExtrasUrl()),
+    ],
+    stop: ASJ_STOP,
+    footerNote: 'You’re receiving this because you’re on the Authentic Singing Journey · Songdance · songdance.co',
+  });
+}
+
 // ── Authentiek Zingen — the Dutch edition, weekly ──────────────────────────
 //
 // For buyers who chose the Dutch edition only. The copy is the Dutch Drip
@@ -137,6 +166,36 @@ export function asjWeeklyEmailNl(week: number, ctx: SequenceEmailCtx): EmailCont
       greeting(ctx.name, 'nl'),
       ...w.paragraphs.map((p) => para(p, ctx.base)),
       button(`Open Week ${week}`, circleAsjWeekUrl(week, 'nl')),
+    ],
+    stop: ASJ_STOP_NL,
+    footerNote: 'Je ontvangt dit omdat je de reis Authentiek Zingen volgt · Songdance · songdance.co',
+  });
+}
+
+// Dag 3: Drip's "Ontdek de Kennisdatabank", the Dutch twin of the email above.
+export function asjExtrasEmailNl(ctx: SequenceEmailCtx): EmailContent {
+  return render(ctx, {
+    subject: 'Ontdek de Kennisdatabank',
+    preheader: 'Naast de veertig sessies: filmpjes en uitleg die je onderweg helpen.',
+    heading: 'Hoe gaat het?',
+    heroImage: courseImage(ctx.base, 'asjExtras'),
+    closing: 'Met warme groeten,',
+    body: [
+      greeting(ctx.name, 'nl'),
+      para(
+        'We willen je graag laten kennismaken met de Kennisdatabank. Daar vind je allerhande filmpjes en uitleg over Authentiek Zingen en wat erbij komt kijken — in de CiRCLE, naast je sessies. Enkele voorbeelden:',
+        ctx.base,
+      ),
+      list([
+        'Replays van de voorbije livestreams',
+        'Allerhande tips over wat te doen bij keelpijn of een droge keel',
+        'Extra uitleg en filmpjes bij sommige sessies',
+      ]),
+      para(
+        'Laat het niet na om je ervaringen, vragen en feedback met ons te delen — antwoord gewoon op deze mail. Het zijn net die ervaringen die ons inspireren voor nieuwe filmpjes in de Kennisdatabank.',
+        ctx.base,
+      ),
+      button('Naar de Kennisdatabank', circleAsjExtrasUrl('nl')),
     ],
     stop: ASJ_STOP_NL,
     footerNote: 'Je ontvangt dit omdat je de reis Authentiek Zingen volgt · Songdance · songdance.co',

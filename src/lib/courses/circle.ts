@@ -8,6 +8,13 @@
 // change. (The old Mighty Networks plan/space links — /plans/<id>?bundle_token,
 // /spaces/<id>/feed — are gone with it; none of them belong in an email.)
 //
+// Until the app goes live, circle.songdance.co IS the Mighty Networks
+// community, and every Drip email links into it: the ASJ series to
+// /posts/<N>-<slug> (e.g. /posts/11-harmony-1) and /spaces/<id>/content, the
+// /ceee short link to /plans/1938793. When the new app takes the domain over,
+// those links break in every inbox unless it redirects them — /posts/<N>-… to
+// the week's page is the one worth keeping.
+//
 // Kept free of imports so email builders, pages and the cron can all use it.
 
 export const CIRCLE_ORIGIN = 'https://circle.songdance.co';
@@ -47,4 +54,10 @@ export function circleUrl(area?: CircleArea): string {
 // (Authentiek Zingen).
 export function circleAsjWeekUrl(week: number, lang: 'en' | 'nl' = 'en'): string {
   return `${circleUrl(lang === 'nl' ? 'asj-nl' : 'asj')}/week-${week}`;
+}
+
+// The journey's additional videos (the English edition) — or the Dutch
+// edition's Kennisdatabank: tips, extra explanation, replays of past streams.
+export function circleAsjExtrasUrl(lang: 'en' | 'nl' = 'en'): string {
+  return `${circleUrl(lang === 'nl' ? 'asj-nl' : 'asj')}/extras`;
 }
