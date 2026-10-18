@@ -3,7 +3,7 @@
 // Layout.astro so the global actions stay reachable wherever you navigate.
 // It is sticky on scroll; each page's own breadcrumbs / back link / title sit
 // underneath it in the page's .adm-header.
-// Stats + Performance carry labels; People / Settings / Images are icon-only
+// Stats + Performance carry labels; People / Settings / Images / Sign out are icon-only
 // (title + aria-label) to save width. Calendar sync lives in Settings and on
 // the workshops page.
 import { getSessionEmail, readCookie } from '../../lib/registrations/auth';
@@ -47,9 +47,8 @@ try {
       )}
       <form method="POST" action="/api/admin/login?_method=DELETE">
         <input type="hidden" name="_method" value="DELETE" />
-        <button class="adm-btn adm-btn--ghost adm-btn--nav" type="submit">
+        <button class="adm-btn adm-btn--ghost adm-btn--nav adm-btn--icon" type="submit" title="Sign out" aria-label="Sign out">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-          <span>Sign out</span>
         </button>
       </form>
     </nav>
