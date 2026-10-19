@@ -1619,6 +1619,24 @@ writer. Side effect worth knowing: album entitlement gates on `status='paid'`
 ([`music/product.ts`](src/lib/music/product.ts)), so a *partial* refund of an
 album now keeps access and only a full one revokes it.
 
+**A fully refunded plan is closed at the gateway too** (October 2026). The
+status rule above flips a row to `refunded` once refunds reach everything it
+collected, and the order page then said "the plan is already closed" — but
+nothing told PayPal or Stripe, so a 3× PayPal plan whose first cycle and bump
+were refunded stayed ACTIVE and charged cycle 2 a month later, onto a row that
+still read refunded (future revenue showed ACTIVE beside STOPPED). Now:
+`markCourseRegistrationRefunded` returns true on the refund that flips it, and
+every caller (both PayPal refund routes, both Stripe `charge.refunded`
+branches) then runs `closePlanAtGateway`
+([`installment-cancel.ts`](src/lib/courses/installment-cancel.ts)) — cancel the
+subscription now, mirror `subscription_status='canceled'`, log
+`course.plan.closed_at_gateway` (`.failed` on error, never thrown). A cycle that
+still lands on a refunded/cancelled row is recorded (a new charge puts a
+`refunded` row back to `paid`, refunds still netted; `cancelled` stays), logged
+`course.installment.charged_after_close`, and closes the subscription the same
+way. A closed row whose gateway still bills reads **Watch** on future revenue,
+and both Stop controls accept it (only "Stop now").
+
 ## Failed installments — a card link, three reminders, then support
 
 When a Stripe plan's monthly charge fails, the buyer gets three reminders and

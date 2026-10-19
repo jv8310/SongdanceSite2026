@@ -303,6 +303,20 @@ function planState(row: InstallmentRow): PlanState {
   if (row.installments_paid >= row.installments_total && !rowEnded) {
     return 'completed';
   }
+  // Closed here (refunded / cancelled) but the gateway still says it is
+  // billing, with charges left on the plan: that is not "stopped", it is a
+  // plan charging behind a closed order — the case that read ACTIVE beside
+  // STOPPED and then took another cycle (October 2026). Flag it.
+  if (
+    rowEnded &&
+    row.installments_paid < row.installments_total &&
+    (row.subscription_status === 'active' ||
+      row.subscription_status === 'past_due' ||
+      row.subscription_status === 'unpaid' ||
+      row.subscription_status === 'trialing')
+  ) {
+    return 'at_risk';
+  }
   if (isDead(row)) return 'stopped';
   if (!row.paid_at) return 'not_started';
   // Short of the full term, but an admin-scheduled early stop has been reached:
