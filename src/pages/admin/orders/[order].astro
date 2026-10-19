@@ -127,7 +127,7 @@ const stopBlockedReason = (() => {
     return 'This plan has already stopped — the subscription is closed at the gateway.';
   }
   if (planReg.status === 'refunded') {
-    return 'This order is fully refunded, so the plan is already closed.';
+    return 'This order is fully refunded and its subscription is closed at the gateway.';
   }
   if (planReg.status !== 'paid') {
     return `This plan is “${planReg.status}” — only a live, paid plan can be stopped from here.`;

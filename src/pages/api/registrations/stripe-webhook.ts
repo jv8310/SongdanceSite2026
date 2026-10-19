@@ -38,6 +38,7 @@ import {
 } from '../../../lib/courses/db';
 import { pushPaidCourseRegistrationToDrip } from '../../../lib/courses/paid-handler';
 import { effectiveTotal } from '../../../lib/courses/installment-forecast';
+import { closePlanAtGateway } from '../../../lib/courses/installment-cancel';
 import { stopUnpaidMonthly } from '../../../lib/courses/live-pass-monthly';
 import { recordCourseInvoiceIfNew } from '../../../lib/courses/stripe-fulfill';
 import {
@@ -695,11 +696,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
         charge.payment_intent,
       );
       if (courseReg) {
-        await markCourseRegistrationRefunded(
+        const closed = await markCourseRegistrationRefunded(
           env.DB,
           courseReg.id,
           refundDelta,
         );
+        if (closed) await closePlanAtGateway(env as any, courseReg.id, 'refunded');
         await logEvent(env.DB, {
           registration_id: null,
           kind: 'course.registration.refunded',
@@ -736,11 +738,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
             subscriptionId,
           );
           if (courseReg) {
-            await markCourseRegistrationRefunded(
+            const closed = await markCourseRegistrationRefunded(
               env.DB,
               courseReg.id,
               refundDelta,
             );
+            if (closed) {
+              await closePlanAtGateway(env as any, courseReg.id, 'refunded');
+            }
             await logEvent(env.DB, {
               registration_id: null,
               kind: 'course.registration.refunded',

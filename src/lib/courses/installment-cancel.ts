@@ -28,10 +28,15 @@ import {
   setSubscriptionCancelAt,
   setSubscriptionCancelAtPeriodEnd,
 } from '../registrations/stripe';
-import { cancelSubscription, paypalConfigured } from '../payments/paypal';
+import {
+  cancelSubscription,
+  cancelSubscriptionIfPresent,
+  paypalConfigured,
+} from '../payments/paypal';
 import {
   getCourseRegistrationById,
   setCourseCancelAfterInstallment,
+  setCourseSubscriptionStatusById,
   type CourseRegistration,
 } from './db';
 import { logEvent } from '../registrations/db';
@@ -79,12 +84,16 @@ export type CancelResult =
   | { ok: true; target: number; keep: number; cleared: boolean; immediate: boolean }
   | { ok: false; reason: string };
 
-// Is this plan in a state where an early-stop can still be scheduled?
+// Is this plan in a state where an early-stop can still be scheduled? A row
+// closed here (refunded / cancelled) whose subscription is still live at the
+// gateway counts: it is a plan still billing behind an order that reads
+// closed, and stopping it is exactly what it needs (only "stop now" is
+// accepted for it — see scheduleInstallmentCancellation).
 export function isCancellablePlan(reg: CourseRegistration): boolean {
   return (
     reg.installments_total > 1 &&
     reg.installments_paid < reg.installments_total &&
-    reg.status === 'paid' &&
+    (reg.status === 'paid' || reg.status === 'refunded' || reg.status === 'cancelled') &&
     reg.subscription_status !== 'canceled' &&
     reg.subscription_status !== 'incomplete_expired'
   );
@@ -121,6 +130,9 @@ export async function scheduleInstallmentCancellation(
   const target = reg.installments_paid + keep; // total charges to ever make
   const cleared = target >= reg.installments_total; // "keep the full plan"
   const immediate = keep === 0;
+  if (reg.status !== 'paid' && !immediate) {
+    return { ok: false, reason: `This order is ${reg.status} — only "Stop now" applies to it` };
+  }
 
   const anchor = Date.parse(reg.paid_at);
   if (immediate && !Number.isFinite(anchor)) {
@@ -251,5 +263,85 @@ export async function enforcePaypalScheduledCancel(
         error: String(err),
       },
     });
+  }
+}
+
+export type ClosePlanEnv = {
+  DB: D1Database;
+  STRIPE_SECRET_KEY?: string;
+  PAYPAL_CLIENT_ID?: string;
+  PAYPAL_CLIENT_SECRET?: string;
+  PAYPAL_ENV?: string;
+} & Record<string, unknown>;
+
+// Cancel an installment plan's subscription at the gateway NOW, because the
+// site already treats the plan as over:
+//   • 'refunded' — a refund just gave back everything the plan had collected.
+//     The order page then says the plan is closed, so it must be: until
+//     October 2026 nothing told PayPal/Stripe, and a fully refunded 3× plan
+//     charged its next cycle a month later.
+//   • 'charged_after_close' — a cycle landed on a row that was refunded or
+//     cancelled. The charge is recorded (it is real money); this stops the
+//     next one.
+// Never refunds and never throws: the money side is already recorded, and a
+// failure is logged so the order page's Stop control (which still offers
+// itself while the subscription is live) can finish the job.
+export async function closePlanAtGateway(
+  env: ClosePlanEnv,
+  regId: number,
+  reason: 'refunded' | 'charged_after_close',
+): Promise<void> {
+  const reg = await getCourseRegistrationById(env.DB, regId);
+  if (!reg || reg.installments_total <= 1) return;
+  if (
+    reg.subscription_status === 'canceled' ||
+    reg.subscription_status === 'incomplete_expired'
+  ) {
+    return;
+  }
+  const subscriptionId =
+    reg.provider === 'paypal' ? reg.paypal_subscription_id : reg.stripe_subscription_id;
+  if (!subscriptionId) return;
+  try {
+    if (reg.provider === 'paypal') {
+      if (!paypalConfigured(env)) return;
+      await cancelSubscriptionIfPresent(
+        env as any,
+        subscriptionId,
+        reason === 'refunded'
+          ? 'Plan refunded (Songdance)'
+          : 'Charged after the plan was closed (Songdance)',
+      );
+    } else {
+      if (!env.STRIPE_SECRET_KEY) return;
+      await cancelSubscriptionNow(env.STRIPE_SECRET_KEY, subscriptionId);
+    }
+    await setCourseSubscriptionStatusById(env.DB, reg.id, 'canceled');
+    await logEvent(env.DB, {
+      registration_id: null,
+      kind: 'course.plan.closed_at_gateway',
+      source: 'system',
+      payload: {
+        course_registration_id: reg.id,
+        provider: reg.provider,
+        subscription_id: subscriptionId,
+        reason,
+        installments_paid: reg.installments_paid,
+        installments_total: reg.installments_total,
+      },
+    });
+  } catch (err) {
+    await logEvent(env.DB, {
+      registration_id: null,
+      kind: 'course.plan.closed_at_gateway.failed',
+      source: 'system',
+      payload: {
+        course_registration_id: reg.id,
+        provider: reg.provider,
+        subscription_id: subscriptionId,
+        reason,
+        error: String(err),
+      },
+    }).catch(() => {});
   }
 }
