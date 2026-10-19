@@ -1635,7 +1635,12 @@ still lands on a refunded/cancelled row is recorded (a new charge puts a
 `refunded` row back to `paid`, refunds still netted; `cancelled` stays), logged
 `course.installment.charged_after_close`, and closes the subscription the same
 way. A closed row whose gateway still bills reads **Watch** on future revenue,
-and both Stop controls accept it (only "Stop now").
+and both Stop controls accept it (only "Stop now"). A refunded row still records a
+gateway cancellation (`markCourseRegistrationCancelled` keeps its `refunded`
+status but sets `subscription_status='canceled'` — it used to skip the row,
+so a plan cancelled in PayPal kept reading ACTIVE), and "Stop now" on a PayPal
+plan PayPal already closed succeeds: its 422 is checked against the live
+subscription (`cancelPaypalOrConfirmClosed`) instead of shown as an error.
 
 ## Failed installments — a card link, three reminders, then support
 

@@ -31,6 +31,8 @@ import {
 import {
   cancelSubscription,
   cancelSubscriptionIfPresent,
+  getSubscription,
+  PaypalApiError,
   paypalConfigured,
 } from '../payments/paypal';
 import {
@@ -77,6 +79,28 @@ async function stripeBillingAnchor(
     return sub.billing_cycle_anchor;
   } catch {
     return null;
+  }
+}
+
+// "Stop now" on PayPal. PayPal answers a cancel of a subscription that is
+// already CANCELLED or EXPIRED with a 422 — which is what happened when the
+// plan had been cancelled in PayPal by hand and the page still read ACTIVE.
+// That is the outcome we wanted, so on a 404/422 read the subscription and
+// succeed when it is closed; anything else still throws.
+async function cancelPaypalOrConfirmClosed(
+  env: CancelEnv,
+  subscriptionId: string,
+): Promise<void> {
+  try {
+    await cancelSubscription(env, subscriptionId, 'Cancelled by Songdance (admin)');
+  } catch (err) {
+    if (!(err instanceof PaypalApiError) || (err.status !== 404 && err.status !== 422)) {
+      throw err;
+    }
+    if (err.status === 404) return;
+    const sub = await getSubscription(env, subscriptionId);
+    const status = (sub.status || '').toUpperCase();
+    if (status !== 'CANCELLED' && status !== 'EXPIRED') throw err;
   }
 }
 
@@ -150,7 +174,7 @@ export async function scheduleInstallmentCancellation(
       if (!paypalConfigured(env)) {
         return { ok: false, reason: 'PayPal is not configured here' };
       }
-      await cancelSubscription(env, reg.paypal_subscription_id, 'Cancelled by Songdance (admin)');
+      await cancelPaypalOrConfirmClosed(env, reg.paypal_subscription_id);
     }
     // A partial keep (≥1) is enforced by the installment webhook once the
     // target charge lands — nothing to call on PayPal right now.
@@ -195,6 +219,9 @@ export async function scheduleInstallmentCancellation(
   }
 
   await setCourseCancelAfterInstallment(env.DB, reg.id, cleared ? null : target);
+  // Stopped now: say so on the row at once rather than waiting for the
+  // gateway's webhook, which may never come for a row it can't move.
+  if (immediate) await setCourseSubscriptionStatusById(env.DB, reg.id, 'canceled');
 
   await logEvent(env.DB, {
     registration_id: null,

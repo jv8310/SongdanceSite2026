@@ -448,8 +448,10 @@ export async function updateCourseSubscriptionStatus(
 
 // Flip the row to 'cancelled' (terminal — no Drip side-effects). Used by
 // `customer.subscription.deleted` and as an idempotent step inside the
-// `customer.subscription.updated → canceled` path. Guards against
-// over-writing a 'refunded' row (refund is a stronger statement).
+// `customer.subscription.updated → canceled` path. A 'refunded' row keeps
+// its status (refund is a stronger statement) but still records that the
+// subscription is closed — it used to be skipped whole, so a refunded plan
+// cancelled at PayPal kept reading ACTIVE here (October 2026).
 export async function markCourseRegistrationCancelled(
   db: D1Database,
   id: number,
@@ -457,11 +459,11 @@ export async function markCourseRegistrationCancelled(
   await db
     .prepare(
       `UPDATE course_registrations
-         SET status = 'cancelled',
+         SET status = CASE WHEN status = 'refunded' THEN status ELSE 'cancelled' END,
              subscription_status = 'canceled',
-             cancelled_at = COALESCE(cancelled_at, datetime('now'))
-       WHERE id = ?
-         AND status NOT IN ('refunded')`,
+             cancelled_at = CASE WHEN status = 'refunded' THEN cancelled_at
+                                 ELSE COALESCE(cancelled_at, datetime('now')) END
+       WHERE id = ?`,
     )
     .bind(id)
     .run();
