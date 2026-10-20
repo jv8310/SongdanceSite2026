@@ -27,6 +27,7 @@ import { reconcileStripeCourseOrders } from './lib/payments/stripe-reconcile';
 import { runCourseDunning } from './lib/courses/dunning';
 import { reconcileCourseWelcomes } from './lib/courses/emails/confirmation';
 import { runCourseSequences } from './lib/courses/emails/sequences';
+import { runDripTakeover } from './lib/courses/emails/drip-takeover';
 import { runCertAccessDripSync } from './lib/courses/cert-access-drip';
 import { expireLapsedOffers } from './lib/registrations/waitlist';
 import { fxRatesStale, refreshFxRates } from './lib/admin/fx';
@@ -439,6 +440,18 @@ export function createExports(manifest: unknown) {
     // /admin/emails/courses.
     ctx.waitUntil(
       reconcileCourseWelcomes(env)
+        // People already on Drip's ASJ / Dutch weekly series move to the site's,
+        // a batch per tick, once that takeover is switched on (drip-takeover.ts).
+        .then(() =>
+          runDripTakeover(env).then(
+            (rs) => {
+              for (const t of rs) {
+                if (t.moved || t.failed) console.log(`[drip-takeover] ${t.key} moved=${t.moved} failed=${t.failed} inDrip=${t.inDrip}`);
+              }
+            },
+            (err) => console.error('[drip-takeover] failed', err),
+          ),
+        )
         .then(() => runCourseSequences(env))
         .then((r) => {
           if (r.sent || r.stopped || r.failed) {

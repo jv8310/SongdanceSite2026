@@ -16,7 +16,6 @@
 // courses (the Authentic Singing Journey IS singing — "a different door",
 // ch. 6/43), acknowledgment not release, no outcome promises.
 
-import { guarantee } from '../../guarantee';
 import { shell, type EmailContent } from '../../workshops/emails';
 import { CIRCLE_HOME_URL, circleAsjWeekUrl, circleUrl, type CircleArea } from '../circle';
 import { asjWeek } from './asj-weeks';
@@ -116,7 +115,6 @@ function finish(
 ): EmailContent {
   const nl = opts.lang === 'nl';
   const footnotes = [
-    para(nl ? GUARANTEE_NL : guarantee.line, ctx.base, { small: true }),
     para(
       nl
         ? 'Vragen, of klopt er iets niet? Antwoord gewoon op deze e-mail — iemand leest elk bericht.'
@@ -144,7 +142,6 @@ function finish(
   };
 }
 
-const GUARANTEE_NL = `Neem de volle ${guarantee.days} dagen. Is de cursus niets voor jou, schrijf ons dan en je krijgt het volledige bedrag terug.`;
 
 function orderBlock(ctx: ConfirmationCtx, nl: boolean): Block {
   return orderPanel(nl ? 'Je bestelling' : 'Your order', ctx.order.rows, ctx.order.payment);
@@ -183,10 +180,6 @@ const TWELVE_WEEK_INSIDE = list([
   {
     lead: 'The classes —',
     rest: 'six main classes and six deepening sessions, chaptered so it’s easy to find your way. Yours for life.',
-  },
-  {
-    lead: 'Your five bonus mantras —',
-    rest: 'five of my original mantras, for the pleasure of a voice doing something beautiful.',
   },
   {
     lead: 'The live Q&As —',
@@ -243,7 +236,7 @@ function certInside(opts: { includeQa: boolean }) {
     },
     {
       lead: 'Hosted practice sessions —',
-      rest: 'to give and receive with peers. The quiet heart of the course.',
+      rest: 'to give and receive with peers. This is where you make the practice together.',
     },
     {
       lead: 'The Somatic Vocal Healing app —',
@@ -299,7 +292,7 @@ function path(ctx: ConfirmationCtx): EmailContent {
     ? 'You chose to open it straight away, so it’s already on your account too: the class library with written manuals, the monthly live deepening sessions, hosted practice sessions and the Somatic Vocal Healing app.'
     : `It opens on its own when your twelve weeks are complete${ctx.certOpensOn ? ` — on ${ctx.certOpensOn}` : ''} — and I’ll write to you that day. It brings the class library with written manuals, the monthly live deepening sessions, hosted practice sessions and the Somatic Vocal Healing app; the weekly Q&As simply carry on.`;
   return finish(ctx, {
-    hero: 'path',
+    hero: 'certification',
     subject: 'Welcome — here’s how the path unfolds',
     preheader: now
       ? 'Both courses are already waiting for you in the CiRCLE.'
@@ -316,7 +309,7 @@ function path(ctx: ConfirmationCtx): EmailContent {
       list([
         {
           lead: 'First, the 12-Week Course —',
-          rest: 'one class a week at your own pace (six main classes, six deepening sessions), weekly live Q&As with replays, and five bonus mantras.',
+          rest: 'one class a week at your own pace (six main classes, six deepening sessions), and weekly live Q&As with replays.',
         },
         { lead: 'Then the Certification Course —', rest: certLine },
       ]),
@@ -420,7 +413,7 @@ function asjDutch(ctx: ConfirmationCtx): EmailContent {
     hero: 'asjWeek1',
     subject: 'Welkom bij Authentiek Zingen',
     preheader: 'Week 1 staat voor je klaar — veertig weken muziek, mantra’s en je eigen stem.',
-    heading: 'Een warm welkom',
+    heading: 'Hartelijk welkom',
     body: [
       para('Wat fijn dat je kiest voor Authentiek Zingen van Songdance!', ctx.base),
       para(
@@ -462,7 +455,7 @@ function mmj(ctx: ConfirmationCtx): EmailContent {
     hero: 'mmj',
     subject: 'Welcome to the Magical Movement Journey',
     preheader: 'Ten sessions, ten ways back into the body — already waiting for you in the CiRCLE.',
-    heading: 'Welcome to the Magical Movement Journey',
+    heading: 'Welcome to the\nMagical Movement Journey',
     body: [
       para('Thank you for choosing the Magical Movement Journey.', ctx.base),
       accessBlock(ctx.email, 'the journey'),
@@ -486,7 +479,7 @@ function innerChild(ctx: ConfirmationCtx): EmailContent {
     hero: 'innerChild',
     subject: 'Welcome to the Inner Child Healing Journey',
     preheader: 'Five sessions, no rush — already waiting for you in the CiRCLE.',
-    heading: 'Welcome to the Inner Child Healing Journey',
+    heading: 'Welcome to the\nInner Child Healing Journey',
     body: [
       para('Thank you for choosing the Inner Child Healing Journey.', ctx.base),
       para(

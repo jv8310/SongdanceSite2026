@@ -103,14 +103,14 @@ export function orderPanel(title: string, rows: Array<[string, string]>, footer?
   const trs = rows
     .map(
       ([k, v]) =>
-        `<tr><td style="padding:3px 0;font-size:14px;color:${PALETTE.soft};">${escapeHtml(k)}</td><td align="right" style="padding:3px 0 3px 12px;font-size:14px;color:${PALETTE.ink};white-space:nowrap;">${escapeHtml(v)}</td></tr>`,
+        `<tr><td style="padding:7px 0;font-size:14px;color:${PALETTE.soft};">${escapeHtml(k)}</td><td align="right" style="padding:7px 0 7px 16px;font-size:14px;color:${PALETTE.ink};white-space:nowrap;">${escapeHtml(v)}</td></tr>`,
     )
     .join('');
   return {
-    html: `<div style="margin:6px 0 20px;padding:14px 18px;border:1px solid ${PALETTE.border};border-radius:10px;background-color:${PALETTE.bg};">
-        <p style="margin:0 0 8px;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:${PALETTE.ember};">${escapeHtml(title)}</p>
+    html: `<div style="margin:32px 0 28px;padding:20px 24px;border:1px solid ${PALETTE.border};border-radius:10px;background-color:${PALETTE.bg};">
+        <p style="margin:0 0 12px;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:${PALETTE.ember};">${escapeHtml(title)}</p>
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${trs}</table>
-        ${footer ? `<p style="margin:8px 0 0;font-size:13px;color:${PALETTE.soft};">${escapeHtml(footer)}</p>` : ''}
+        ${footer ? `<p style="margin:14px 0 0;font-size:13px;color:${PALETTE.soft};">${escapeHtml(footer)}</p>` : ''}
       </div>`,
     text: `${title.toUpperCase()}\n${rows.map(([k, v]) => `${k}: ${v}`).join('\n')}${footer ? `\n${footer}` : ''}`,
   };

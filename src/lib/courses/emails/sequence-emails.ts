@@ -20,7 +20,7 @@
 
 import { MAILING_ADDRESS, shell, type EmailContent } from '../../workshops/emails';
 import { CIRCLE_HOME_URL, circleAsjWeekUrl, circleUrl } from '../circle';
-import { ASJ_WEEK_COUNT, asjWeek, asjWeekImagePath } from './asj-weeks';
+import { ASJ_WEEK_COUNT, asjWeek, asjWeekImagePath, asjWeekImagePos } from './asj-weeks';
 import { asjWeekNl } from './asj-weeks-nl';
 import { courseImage, type HeroImage } from './images';
 import {
@@ -96,7 +96,11 @@ export function asjWeeklyEmail(week: number, ctx: SequenceEmailCtx): EmailConten
       ? 'The last session of your Authentic Singing Journey.'
       : `Session ${week} of ${ASJ_WEEK_COUNT} of your Authentic Singing Journey.`,
     heading: w.title,
-    heroImage: { src: `${ctx.base.replace(/\/+$/, '')}${asjWeekImagePath(week)}`, alt: `Week ${week} — ${w.title}` },
+    heroImage: {
+      src: `${ctx.base.replace(/\/+$/, '')}${asjWeekImagePath(week)}`,
+      alt: `Week ${week} — ${w.title}`,
+      objectPosition: asjWeekImagePos(week),
+    },
     closing: 'Much love to you,',
     body: [
       eyebrow(`Week ${week} of ${ASJ_WEEK_COUNT}`),
@@ -131,7 +135,11 @@ export function asjWeeklyEmailNl(week: number, ctx: SequenceEmailCtx): EmailCont
       ? 'De laatste sessie van je reis Authentiek Zingen.'
       : `Sessie ${week} van ${ASJ_WEEK_COUNT} van je reis Authentiek Zingen.`,
     heading: w.title,
-    heroImage: { src: `${ctx.base.replace(/\/+$/, '')}${asjWeekImagePath(week)}`, alt: `Week ${week} — ${w.title}` },
+    heroImage: {
+      src: `${ctx.base.replace(/\/+$/, '')}${asjWeekImagePath(week)}`,
+      alt: `Week ${week} — ${w.title}`,
+      objectPosition: asjWeekImagePos(week),
+    },
     closing: 'Met warme groeten,',
     body: [
       eyebrow(`Week ${week} van ${ASJ_WEEK_COUNT}`),
@@ -291,7 +299,7 @@ export function twelveWeekStepEmail(step: number, ctx: SequenceEmailCtx): EmailC
             base,
           ),
           para(
-            'The classes, the deepening sessions and your bonus mantras stay yours for life. Come back to them whenever you like — the practice doesn’t end with the course. One tone, today, is still the whole instruction.',
+            'The classes and the deepening sessions stay yours for life. Come back to them whenever you like — the practice doesn’t end with the course. One tone, today, is still the whole instruction.',
             base,
           ),
           para(

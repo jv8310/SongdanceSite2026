@@ -6,6 +6,10 @@
 //   action=bring-in  sequence        Join buyers from before the switch at the
 //                                    step their own schedule has reached
 //                                    (sequences.ts → bringInEarlierBuyers).
+//   action=drip-takeover  sequence, on=1|0
+//                                    Start / stop moving the people on Drip's
+//                                    ASJ / Dutch weekly series over to the site's,
+//                                    at the week each has reached (drip-takeover.ts).
 //   action=stop|resume  id           Stop / restart one person's series.
 //
 // Form posts from the admin page; every action redirects back with a flash.
@@ -22,6 +26,7 @@ import {
   stopEnrolment,
 } from '../../../lib/courses/emails/sequences';
 import { logEventSafe } from '../../../lib/registrations/db';
+import { isTakeoverKey, setTakeover } from '../../../lib/courses/emails/drip-takeover';
 
 export const prerender = false;
 
@@ -69,6 +74,26 @@ export const POST: APIRoute = async ({ request, locals }) => {
         payload: { sequence: key, enrolled: n },
       });
       return flash(returnTo, 'ok', `${n} earlier buyer${n === 1 ? '' : 's'} joined, each at the step their own schedule has reached.`);
+    }
+
+    if (action === 'drip-takeover') {
+      const key = String(form.get('sequence') ?? '');
+      if (!isTakeoverKey(key)) return flash(returnTo, 'err', 'Unknown sequence.');
+      const on = String(form.get('on') ?? '') === '1';
+      await setTakeover(env.DB, key, on);
+      await logEventSafe(env.DB, {
+        registration_id: null,
+        kind: 'course.emails.drip_takeover_switch',
+        source: 'admin',
+        payload: { sequence: key, on },
+      });
+      return flash(
+        returnTo,
+        'ok',
+        on
+          ? 'Taking over from Drip: each hour a batch of the people on Drip’s series moves to the site’s, at the week they have reached, and comes off the Drip series in the same step.'
+          : 'Takeover stopped. Whoever has moved stays on the site’s series; everyone else stays on Drip’s.',
+      );
     }
 
     if (action === 'stop' || action === 'resume') {

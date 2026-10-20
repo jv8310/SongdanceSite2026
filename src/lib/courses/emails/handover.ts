@@ -130,7 +130,7 @@ export const HANDOVER_UNITS: HandoverInfo[] = [
       switchOff: [
         'In workflow “prod_ASJ”, set the “Subscribe to email series prod_ASJ” step to draft (keep its tag steps).',
         'In rule “Order -> JAZ + JAZ_PRO”, delete the “Send email” action (keep “Apply tag prod_JAZ_einde”).',
-        'Pause the email series “prod_ASJ” itself — everyone still in it would otherwise keep getting Mighty Networks links — then press “Bring in earlier buyers” on the weekly series below. Buyers from before the site took payments have no order here and have to be brought over from Drip.',
+        'Press “Take over from Drip” on both weekly series below: everyone still on Drip’s “prod_ASJ” (and the paused Dutch “prod_JAZ”) moves to the site’s series at the week they have reached and comes off the Drip series in the same step — no need to pause the series by hand. Then “Bring in earlier buyers” for any site order not on Drip’s series.',
       ],
       keep: [
         'ASJ_start and the tag swap: the workflow removes prod_ASJ within seconds and leaves prod_ASJ_end, which is the lasting marker.',

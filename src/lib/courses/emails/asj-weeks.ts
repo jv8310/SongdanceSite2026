@@ -406,6 +406,18 @@ export function asjWeek(n: number): AsjWeek | null {
 
 // The session thumbnail from the R2 library — the same image the course page
 // shows for that week. Week 29 is the English-edition file.
+// Where to hold the email header's crop on a session picture (they are square,
+// the header is 558×260): the vertical object-position, checked by eye per
+// week so a face, a head or an eye isn't cut off. Absent = centre.
+const ASJ_WEEK_IMAGE_POS: Record<number, number> = {
+  2: 25, 5: 30, 11: 35, 12: 12, 18: 35, 22: 30, 23: 44, 24: 8, 25: 12, 28: 22, 29: 82, 31: 40, 33: 45, 35: 12, 39: 15,
+};
+
+export function asjWeekImagePos(n: number): string | undefined {
+  const p = ASJ_WEEK_IMAGE_POS[n];
+  return p === undefined ? undefined : `center ${p}%`;
+}
+
 export function asjWeekImagePath(n: number): string {
   return `/media/library/${n === 29 ? 'asj-week29en' : `asj-week${n}`}.webp`;
 }

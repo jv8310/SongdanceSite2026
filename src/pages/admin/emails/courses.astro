@@ -31,6 +31,13 @@ import {
   type SequenceKey,
 } from '../../../lib/courses/emails/sequences';
 import { buildCourseEmailSamples, COURSE_SAMPLE_GROUPS } from '../../../lib/courses/emails/samples';
+import {
+  DRIP_SERIES,
+  isTakeoverKey,
+  loadTakeover,
+  takeoverCounts,
+  type TakeoverKey,
+} from '../../../lib/courses/emails/drip-takeover';
 
 export const prerender = false;
 
@@ -59,6 +66,10 @@ if (counts) {
     if (SEQ_UNITS[key].some((u) => handover.has(u))) waiting.set(key, await countEarlierBuyers(env.DB, key));
   }
 }
+
+const takeover = await loadTakeover(env.DB);
+const takeoverStats = new Map<TakeoverKey, { moved: number; settled: number }>();
+for (const k of Object.keys(DRIP_SERIES) as TakeoverKey[]) takeoverStats.set(k, await takeoverCounts(env.DB, k));
 
 const enrolments = lookup ? await listEnrolmentsForEmail(env.DB, lookup) : [];
 
@@ -204,7 +215,7 @@ function since(v: string | undefined): string {
       )}
       <table class="adm-table ce-table">
         <thead>
-          <tr><th>Sequence</th><th class="num">Emails</th><th class="num">Running</th><th class="num">Stopped</th><th class="num">Complete</th><th>Earlier buyers</th></tr>
+          <tr><th>Sequence</th><th class="num">Emails</th><th class="num">Running</th><th class="num">Stopped</th><th class="num">Complete</th><th>Earlier buyers</th><th>People on Drip's series</th></tr>
         </thead>
         <tbody>
           {SEQUENCE_KEYS.map((key) => {
@@ -235,6 +246,31 @@ function since(v: string | undefined): string {
                       </button>
                     </form>
                   )}
+                </td>
+                <td>
+                  {isTakeoverKey(key) ? (() => {
+                    const tk = key;
+                    const runningSince = takeover.get(tk);
+                    const st = takeoverStats.get(tk);
+                    return (
+                      <form method="post" action="/api/admin/course-emails">
+                        <input type="hidden" name="action" value="drip-takeover" />
+                        <input type="hidden" name="sequence" value={tk} />
+                        <input type="hidden" name="on" value={runningSince ? '0' : '1'} />
+                        {st && st.moved > 0 && <span class="ce-small">{st.moved} moved so far. </span>}
+                        {runningSince && !handover.has('asj') && <span class="ce-small">Waiting for the ASJ switch. </span>}
+                        <button
+                          class={`adm-btn ${runningSince ? 'adm-btn--ghost' : ''}`}
+                          type="submit"
+                          data-confirm={runningSince
+                            ? 'Stop moving people over? Whoever has moved stays on the site’s series.'
+                            : `Move everyone on Drip’s “${DRIP_SERIES[tk].name}” series to the site’s, each at the week they have reached? Each person comes off the Drip series as they move — a batch every hour. Only once the CiRCLE is live.`}
+                        >
+                          {runningSince ? 'Stop the takeover' : `Take over from Drip`}
+                        </button>
+                      </form>
+                    );
+                  })() : <span class="ce-small">—</span>}
                 </td>
               </tr>
             );

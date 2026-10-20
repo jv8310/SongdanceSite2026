@@ -800,6 +800,22 @@ routes settle, that file is the one place to change.
     buyers who chose to wait, "Your certification course is open" at week 13
     (Drip's "Activate the Certification Course Now", minus the activating).
   - `certification` — the day-1 / day-2 notes' certification twins.
+- **Taking over the people already on Drip's weekly series**
+  ([`drip-takeover.ts`](src/lib/courses/emails/drip-takeover.ts)): most of
+  Drip's ASJ / Dutch series subscribers bought before the site took payments,
+  so "Bring in earlier buyers" can't reach them. Drip knows where each stands
+  (`last_sent_email_index` / `last_sent_email_at` on the series subscription;
+  `weekReached` maps an index to a week — the Dutch series drifts after week 28
+  around its combined "Week 29 en 30" mail and "Integratietijd"). **Take over
+  from Drip** (per series on `/admin/emails/courses`, `drip_takeover_on:<seq>`)
+  makes the hourly cron move a batch per tick: enrol at the **next** week, due a
+  week after their last Drip email at 08:00 their time (or the next tick when
+  that is already past — the paused Dutch series), the start set back so later
+  weeks follow a week apart, never a backlog; then **remove them from the Drip
+  series** (`removeFromCampaign`) in the same step, so nothing needs pausing by
+  hand and nobody gets a week twice. Only while the `asj` switch is on too.
+  Each person settles once (`events` claim `drip-takeover-<seq>-<email>`:
+  moved / already-on-site / complete); left on, it picks up late arrivals.
 - **Stopping is per series, and easy**: every sequence email carries a visible
   "Stop these … emails" button → `/courses/emails?t=<id>.<sig>`
   ([`stop-link.ts`](src/lib/courses/emails/stop-link.ts), HMAC over
@@ -833,6 +849,8 @@ routes settle, that file is the one place to change.
   journey, not the SVH practice the copy book governs. Don't "fix" them, in
   either language. (Weeks 15 and 19 were rewritten for law 2 and can be put
   back the same way if he asks.)
+- **No refund promise in the confirmations** (Jacob, October 2026) — the
+  receipt (`orderPanel`) closes them, with room above and below it.
 - **Every one opens on a picture** ([`images.ts`](src/lib/courses/emails/images.ts)):
   a confirmation on its course page's own hero (the ASJ welcome on its Week 1
   session picture), each 12-week / certification note on a different retreat

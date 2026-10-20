@@ -17,8 +17,7 @@ type Pic = { file: string; alt: string; pos?: string };
 
 const PICS = {
   twelveWeek: { file: 'svh-retreat-circle-sunset-group-jacob-central.webp', alt: 'A Songdance circle sounding together outdoors' },
-  certification: { file: 'svh-retreat-facilitator-jacob-seated.webp', alt: 'Jacob at the microphone, holding space for a circle', pos: 'center 30%' },
-  path: { file: 'jacob-holding-space.webp', alt: 'Jacob facilitating a circle' },
+  certification: { file: 'svh-retreat-facilitator-jacob-seated.webp', alt: 'Jacob at the microphone, holding space for a circle', pos: 'center 42%' },
   grief: { file: 'grief-jacob-letting-go-sounding.webp', alt: 'Jacob sounding on an open hillside, arms wide', pos: 'center 40%' },
   asjWeek1: { file: 'asj-week1.webp', alt: 'Week 1 of the Authentic Singing Journey' },
   mmj: { file: 'movement.webp', alt: 'A dancer at the water’s edge at sunset', pos: 'center 35%' },

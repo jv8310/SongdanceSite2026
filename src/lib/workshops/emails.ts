@@ -77,6 +77,7 @@ export function escapeHtml(s: string): string {
 // (src/lib/broadcasts/email.ts) render in the exact same parchment frame.
 export function shell(opts: {
   preheader: string;
+  // A "\n" breaks the line (a long title reads better split deliberately).
   heading: string;
   bodyHtml: string;
   // The hero renders as a fixed-height landscape band (object-fit cover) so a
@@ -95,7 +96,7 @@ export function shell(opts: {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="color-scheme" content="light only" />
-  <title>${escapeHtml(heading)}</title>
+  <title>${escapeHtml(heading.replace(/\n/g, ' '))}</title>
 </head>
 <body style="margin:0;padding:0;background-color:${PALETTE.bg};font-family:Georgia,'Times New Roman',serif;color:${PALETTE.ink};">
   <div style="display:none;font-size:1px;color:${PALETTE.bg};line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">${escapeHtml(preheader)}</div>
@@ -103,7 +104,7 @@ export function shell(opts: {
     <tr><td align="center" style="padding:40px 16px;">
       <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="width:560px;max-width:100%;">
         <tr><td align="center" style="padding:0 24px 8px;">
-          <h1 style="margin:0;font-family:Georgia,serif;font-weight:400;font-size:28px;line-height:1.2;letter-spacing:-0.01em;color:${PALETTE.ink};">${escapeHtml(heading)}</h1>
+          <h1 style="margin:0;font-family:Georgia,serif;font-weight:400;font-size:28px;line-height:1.2;letter-spacing:-0.01em;color:${PALETTE.ink};">${escapeHtml(heading).replace(/\n/g, '<br />')}</h1>
         </td></tr>
         <tr><td style="padding:20px 24px 0;">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:${PALETTE.card};border:1px solid ${PALETTE.border};border-radius:14px;">
