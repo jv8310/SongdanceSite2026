@@ -6,7 +6,8 @@
 // which is what opens the gated album player at /music/<album> — but no email
 // ever told the buyer that, so the pack arrived silently. This module is that
 // email: it resolves the bump to its published music album, and sends the
-// buyer the player link plus the address that opens it.
+// buyer the player link plus the address that opens it — or, once the album
+// plays in the app (src/lib/music/in-app.ts), the way into the app instead.
 //
 // Two paths, one idempotent send per buyer:
 //   • Live — runWorkshopPaidSideEffects calls deliverMantraPack() right after
@@ -39,6 +40,7 @@ import {
   type MusicAlbumRow,
 } from '../music/db';
 import { albumBaseUrl, albumCoverEmailUrl, albumPlayerUrl } from '../music/delivery';
+import { albumAppUrl, albumPlaysInApp } from '../music/in-app';
 import { workshopOffersBumpSql } from './bump';
 import {
   claimNotification,
@@ -213,14 +215,17 @@ async function deliver(
   entityRefId: string,
 ) {
   const base = albumBaseUrl(env);
+  // Once the album plays in the app (src/lib/music/in-app.ts), the button opens
+  // it there; until then it carries ?email= and opens straight into the player.
+  const appUrl = (await albumPlaysInApp(env.DB, target.album.id)) ? albumAppUrl(target.album.id) : null;
   const content = mantraPackEmail({
     name: reg.name,
     loginEmail: reg.email,
     albumTitle: target.album.title,
-    // Carries ?email= so the button opens straight into the player.
-    albumUrl: albumPlayerUrl(base, target.album.id, reg.email),
+    albumUrl: appUrl ?? albumPlayerUrl(base, target.album.id, reg.email),
     trackTitles: target.trackTitles,
     coverUrl: albumCoverEmailUrl(base, target.album),
+    inApp: !!appUrl,
   });
   await sendEmail({
     apiKey: env.RESEND_API_KEY!,

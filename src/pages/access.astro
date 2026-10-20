@@ -77,7 +77,7 @@ const CIRCLE_URL = 'https://circle.songdance.co/feed';
       <!-- Gated music albums (the player pages open with this same email) -->
       <div class="access-block" hidden data-music-block>
         <h2 class="access-block-h">Your music</h2>
-        <p class="access-block-p">
+        <p class="access-block-p" data-music-lede>
           Albums that came with your orders — press play right where you are.
         </p>
         <div class="access-sessions" data-music-list></div>
@@ -357,7 +357,7 @@ const CIRCLE_URL = 'https://circle.songdance.co/feed';
     url: string;
     status: 'upcoming' | 'replay' | 'missed';
   };
-  type MusicAlbum = { title: string; url: string; cover: string | null };
+  type MusicAlbum = { title: string; url: string; cover: string | null; in_app?: boolean };
   type LookupResult = {
     ok?: boolean;
     email?: string;
@@ -423,6 +423,15 @@ const CIRCLE_URL = 'https://circle.songdance.co/feed';
 
   function renderMusic(albums: MusicAlbum[]) {
     if (!musicList) return;
+    // Albums that play in the app (src/lib/music/in-app.ts) open there.
+    const lede = document.querySelector<HTMLElement>('[data-music-lede]');
+    const inApp = albums.filter((a) => a.in_app).length;
+    if (lede && inApp) {
+      lede.textContent =
+        inApp === albums.length
+          ? 'Albums that came with your orders — in your Library in the CiRCLE, our app. Sign in there with this same email.'
+          : 'Albums that came with your orders. Those in the CiRCLE, our app, open there with this same email; the rest play right here.';
+    }
     musicList.innerHTML = albums
       .map(
         (a) => `
@@ -430,13 +439,13 @@ const CIRCLE_URL = 'https://circle.songdance.co/feed';
             <div class="access-session-meta${a.cover ? ' has-cover' : ''}">
               ${a.cover ? `<img class="access-album-cover" src="${esc(a.cover)}" alt="" loading="lazy" />` : ''}
               <div>
-                <span class="access-session-kind">Album</span>
+                <span class="access-session-kind">${a.in_app ? 'Album · in your app Library' : 'Album'}</span>
                 <h3 class="access-session-title">${esc(a.title)}</h3>
               </div>
             </div>
             <a class="sd-btn sd-btn-primary" href="${esc(a.url)}">
-              Open the album
-              <i class="ph-light ph-play"></i>
+              ${a.in_app ? 'Open it in the app' : 'Open the album'}
+              <i class="ph-light ${a.in_app ? 'ph-arrow-right' : 'ph-play'}"></i>
             </a>
           </div>`,
       )

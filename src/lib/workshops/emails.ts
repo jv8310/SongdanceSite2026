@@ -1054,13 +1054,19 @@ export function deckGiftConfirmedEmail(ctx: {
 // carries the buyer's address (`?email=`), so the page opens *signed in*; the
 // address is still named because that's what opens it on another device, and
 // because a forwarded/expired link should leave them knowing the way in.
+//
+// An album that plays in the app (src/lib/music/in-app.ts) hands over the app
+// instead: `inApp` set, `albumUrl` is the album's course in the CiRCLE, and the
+// "how to open it" part says to sign in there with the address they ordered
+// with — the app reads the order, so there is nothing to activate.
 type AlbumEmailCtx = {
   name?: string | null;
   loginEmail: string;
   albumTitle: string;
-  albumUrl: string; // already carries ?email= — see src/lib/music/delivery.ts
+  albumUrl: string; // the player with ?email= (src/lib/music/delivery.ts), or the app's course when inApp
   trackTitles: string[];
   coverUrl?: string | null;
+  inApp?: boolean;
 };
 
 function albumSectionHead(label: string): string {
@@ -1087,28 +1093,46 @@ function albumOpenText(loginEmail: string, albumUrl: string): string {
   return `\nHow to open it — this link knows it's you, so it opens straight into the player:\n${albumUrl}\n\nNothing to download, nothing to install; bookmark the page and it's there for good. On another device, or if you ever land on the email box, it opens with ${loginEmail} — the address you ordered with.\n`;
 }
 
+// The album in the app: where it is, and the one address that opens it.
+function albumAppHtml(loginEmail: string): string {
+  return `${albumSectionHead('Where to find it')}
+      <p style="margin:0 0 14px;">It's in the Songdance CiRCLE, our app, in your Library. Press the button and sign in with <strong>${escapeHtml(loginEmail)}</strong> — the address you ordered with. There's no password: we send you a code. It's already on your account; there's nothing to activate.</p>
+      <p style="margin:0 0 14px;font-size:14px;color:${PALETTE.soft};">The same sign-in works on your phone, your tablet and your computer, so the mantras are with you wherever you are.</p>`;
+}
+
+function albumAppText(loginEmail: string, appUrl: string): string {
+  return `\nWhere to find it — in the Songdance CiRCLE, our app, in your Library:\n${appUrl}\n\nSign in with ${loginEmail} — the address you ordered with. There's no password: we send you a code. It's already on your account; there's nothing to activate. The same sign-in works on your phone, your tablet and your computer.\n`;
+}
+
+function albumWayIn(ctx: AlbumEmailCtx): { html: string; text: string } {
+  return ctx.inApp
+    ? { html: albumAppHtml(ctx.loginEmail), text: albumAppText(ctx.loginEmail, ctx.albumUrl) }
+    : { html: albumOpenHtml(ctx.loginEmail), text: albumOpenText(ctx.loginEmail, ctx.albumUrl) };
+}
+
 export function mantraPackEmail(ctx: AlbumEmailCtx): EmailContent {
   const intro = `<p style="margin:0 0 14px;">These are five mantras, recorded live with a choir in South Africa and set to original music. Not tracks to sit back and listen to — lines to carry with your own voice, as loudly or as quietly as you like.</p>`;
   const introBlock = ctx.coverUrl
     ? figureRow(ctx.coverUrl, `${ctx.albumTitle} — album cover`, intro)
     : intro;
+  const way = albumWayIn(ctx);
   const html = shell({
-    preheader: `Your mantras are ready — open the player any time.`,
+    preheader: ctx.inApp ? `Your mantras are ready — in your Library in the Songdance app.` : `Your mantras are ready — open the player any time.`,
     heading: 'Your mantras are ready',
     bodyHtml: `<p style="margin:0 0 14px;">${greeting(ctx.name)}</p>
       <p style="margin:0 0 14px;">You added the <strong>${escapeHtml(ctx.albumTitle)}</strong> mantra pack to your order — thank you. It's yours now, and it stays yours: open it whenever you want, on any device, as often as you like.</p>
       ${introBlock}
       ${albumTracksHtml(ctx.trackTitles)}
-      ${albumOpenHtml(ctx.loginEmail)}
+      ${way.html}
       <p style="margin:0 0 14px;">A mantra is a different door from the sounding we do together. Sounding asks what's here today and lets that out, unedited; a mantra hands you a line and lets the music carry it. Both belong. Some days one is what you want, some days the other.</p>
       ${quoteLine('Words worth repeating, in your own voice.')}`,
-    cta: { label: 'Open my mantra player →', href: ctx.albumUrl },
+    cta: { label: ctx.inApp ? 'Open my mantras in the app →' : 'Open my mantra player →', href: ctx.albumUrl },
     footerNote: "This came with your order — it's yours to keep.",
   });
   return {
     subject: `Your mantras are ready — ${ctx.albumTitle}`,
     html,
-    text: `${textGreeting(ctx.name)}\n\nYou added the ${ctx.albumTitle} mantra pack to your order — thank you. It's yours now, and it stays yours: open it whenever you want, on any device, as often as you like.\n\nThese are five mantras, recorded live with a choir in South Africa and set to original music. Not tracks to sit back and listen to — lines to carry with your own voice, as loudly or as quietly as you like.\n${albumTracksText(ctx.trackTitles)}${albumOpenText(ctx.loginEmail, ctx.albumUrl)}\nA mantra is a different door from the sounding we do together. Sounding asks what's here today and lets that out, unedited; a mantra hands you a line and lets the music carry it. Both belong.\n\nWarmly,\nJacob`,
+    text: `${textGreeting(ctx.name)}\n\nYou added the ${ctx.albumTitle} mantra pack to your order — thank you. It's yours now, and it stays yours: open it whenever you want, on any device, as often as you like.\n\nThese are five mantras, recorded live with a choir in South Africa and set to original music. Not tracks to sit back and listen to — lines to carry with your own voice, as loudly or as quietly as you like.\n${albumTracksText(ctx.trackTitles)}${way.text}\nA mantra is a different door from the sounding we do together. Sounding asks what's here today and lets that out, unedited; a mantra hands you a line and lets the music carry it. Both belong.\n\nWarmly,\nJacob`,
   };
 }
 
@@ -1128,22 +1152,23 @@ export function albumPurchaseEmail(
   const introBlock = ctx.coverUrl
     ? figureRow(ctx.coverUrl, `${ctx.albumTitle} — album cover`, intro)
     : intro;
+  const way = albumWayIn(ctx);
   const html = shell({
-    preheader: `${ctx.albumTitle} is yours — open the player any time.`,
+    preheader: ctx.inApp ? `${ctx.albumTitle} is yours — in your Library in the Songdance app.` : `${ctx.albumTitle} is yours — open the player any time.`,
     heading: 'Your album is ready',
     bodyHtml: `<p style="margin:0 0 14px;">${greeting(ctx.name)}</p>
       <p style="margin:0 0 14px;">Thank you — <strong>${escapeHtml(ctx.albumTitle)}</strong> is yours. It stays yours: no subscription, no expiry, nothing to renew.</p>
       ${introBlock}
       ${albumTracksHtml(ctx.trackTitles)}
-      ${albumOpenHtml(ctx.loginEmail)}
+      ${way.html}
       <p style="margin:0 0 14px;">If anything doesn't play, or you'd rather have the files another way, just reply to this email — a person reads it.</p>`,
-    cta: { label: 'Open my album →', href: ctx.albumUrl },
+    cta: { label: ctx.inApp ? 'Open my album in the app →' : 'Open my album →', href: ctx.albumUrl },
     footerNote: "Your album — yours to keep.",
   });
   return {
     subject: `Your album is ready — ${ctx.albumTitle}`,
     html,
-    text: `${textGreeting(ctx.name)}\n\nThank you — ${ctx.albumTitle} is yours. It stays yours: no subscription, no expiry, nothing to renew.\n${desc ? `\n${desc}\n` : ''}${albumTracksText(ctx.trackTitles)}${albumOpenText(ctx.loginEmail, ctx.albumUrl)}\nIf anything doesn't play, or you'd rather have the files another way, just reply to this email — a person reads it.\n\nWarmly,\nJacob`,
+    text: `${textGreeting(ctx.name)}\n\nThank you — ${ctx.albumTitle} is yours. It stays yours: no subscription, no expiry, nothing to renew.\n${desc ? `\n${desc}\n` : ''}${albumTracksText(ctx.trackTitles)}${way.text}\nIf anything doesn't play, or you'd rather have the files another way, just reply to this email — a person reads it.\n\nWarmly,\nJacob`,
   };
 }
 

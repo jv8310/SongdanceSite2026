@@ -52,6 +52,7 @@ import {
 } from './reports';
 import { buildBriefingEmail, sampleBriefingData } from './briefing';
 import { formatInTz } from './time';
+import { circleCourseUrl } from '../courses/circle';
 import {
   balancePaymentReference,
   buildBalanceEmail,
@@ -228,6 +229,32 @@ export function buildEmailSamples(base: string): EmailSample[] {
       audience: 'Anyone who buys a music album on its own from /music/<album>',
       content: albumPurchaseEmail({
         ...sampleAlbum(b),
+        albumDescription:
+          'Five mantras, recorded live with a choir in South Africa, set to original music. Not songs to listen to — lines to sound with your own voice. Simple enough to carry with you, strong enough to lean on.',
+      }),
+    },
+
+    // ── The same two, once the album plays in the app ─────────────────────
+    // The switch is per album, on /admin/music/<id> ("Plays in the app"); the
+    // button then opens the album's course in the CiRCLE — see src/lib/music/in-app.ts.
+    {
+      id: 'mantra_pack_in_app',
+      group: 'Registration & reminders (transactional)',
+      label: 'Mantra pack — in the app',
+      timing: 'As "Mantra pack — your player is ready", once the album plays in the app',
+      audience: 'Workshop / masterclass buyers who added the "Empowering You" mantra pack',
+      content: mantraPackEmail({ ...sampleAlbum(b), albumUrl: circleCourseUrl('empowering-you'), inApp: true }),
+    },
+    {
+      id: 'album_delivery_in_app',
+      group: 'Registration & reminders (transactional)',
+      label: 'Album purchase — in the app',
+      timing: 'As "Album purchase — your album is ready", once the album plays in the app',
+      audience: 'Anyone who buys an album on its own that plays in the app',
+      content: albumPurchaseEmail({
+        ...sampleAlbum(b),
+        albumUrl: circleCourseUrl('empowering-you'),
+        inApp: true,
         albumDescription:
           'Five mantras, recorded live with a choir in South Africa, set to original music. Not songs to listen to — lines to sound with your own voice. Simple enough to carry with you, strong enough to lean on.',
       }),
