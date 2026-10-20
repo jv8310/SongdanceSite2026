@@ -123,6 +123,18 @@ body { background: var(--adm-paper); }
 }
 .adm-palette-item strong { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .adm-palette-item span { font-size: 12px; color: var(--adm-ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.adm-palette-app {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 3px;
+  white-space: normal !important;
+}
+.adm-palette-app em { font-style: normal; color: var(--adm-mute); margin-right: 2px; }
+.adm-palette-course {
+  font-weight: 500; font-size: 11px; padding: 1px 7px; border-radius: 999px;
+  border: 1px solid var(--adm-line); white-space: nowrap;
+}
+.adm-palette-course--open { color: var(--adm-success); border-color: rgba(47, 122, 76, 0.35); background: rgba(47, 122, 76, 0.07); }
+.adm-palette-course--waiting { color: var(--adm-warn); border-color: rgba(196, 128, 31, 0.35); background: rgba(196, 128, 31, 0.07); }
+.adm-palette-course--ended { color: var(--adm-mute); }
 .adm-palette-item.is-active { background: var(--adm-paper); box-shadow: inset 3px 0 0 var(--adm-ember); }
 .adm-palette-orders {
   flex: 0 0 auto; margin-right: 8px; padding: 3px 8px; font-size: 12px;

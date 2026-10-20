@@ -48,6 +48,14 @@ export type AppMemberAccess = {
   };
 };
 
+// One line per person in the ⌘K people search (AdminTopBar): account + the
+// courses the app opens, revoked ones left out.
+export type AppAccessSummary = {
+  email: string;
+  account: { role: string; lastSeenAt: string | null } | null;
+  courses: Array<{ label: string; state: AppCourseState }>;
+};
+
 export type AppAnswer<T> = { ok: true; data: T } | { ok: false; error: string; message: string };
 
 type DateField = string | null | undefined;
@@ -55,6 +63,7 @@ type DateField = string | null | undefined;
 // The methods the app's SiteAdmin entrypoint offers (apps/api/src/site-admin-entrypoint.ts).
 export type AppAdminBinding = {
   member(input: { email: string }): Promise<AppAnswer<AppMemberAccess>>;
+  accessSummaries(input: { emails: string[] }): Promise<AppAnswer<AppAccessSummary[]>>;
   grantCourse(input: { email: string; product: string; startsAt?: string; endsAt?: string; note: string; actor: string }): Promise<AppAnswer<AppCourse>>;
   revokeCourse(input: { email: string; entitlementId: string; reason: string; actor: string }): Promise<AppAnswer<AppCourse>>;
   setCourseDates(input: { email: string; entitlementId: string; startsAt?: DateField; activatedAt?: DateField; endsAt?: DateField; actor: string }): Promise<AppAnswer<AppCourse>>;

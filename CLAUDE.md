@@ -55,6 +55,10 @@ of the person, since the app may still know them.
   `site:<the admin's sign-in email>`. Helper: [`src/lib/admin/app-access.ts`](src/lib/admin/app-access.ts);
   every change posts to [`/api/admin/app-access`](src/pages/api/admin/app-access.ts) with an
   `action` and comes back to the section with a flash.
+- **The ⌘K people search shows it too**: each hit (and a typed address the site has no
+  row for) carries the person's app account and the courses the app opens, from one
+  `accessSummaries` call per result list (`/api/admin/people-search`). An app without that
+  method yet just leaves the line off.
 - **Deploy order: the app first.** Until the app is deployed with its `SiteAdmin`
   entrypoint, and in local `astro dev` (no binding), the section says the app does not
   answer; the rest of the page is untouched. A preview version talks to the **production**

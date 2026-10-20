@@ -7,7 +7,8 @@
 // (title + aria-label) to save width. Calendar sync lives in Settings and on
 // the workshops page. The search button (and ⌘K / Ctrl+K on any admin page)
 // opens the people palette: type a name, email or order number and jump to that
-// person's page (/api/admin/people-search).
+// person's page (/api/admin/people-search). Each hit also shows their member-app
+// access — account or not, and the courses the app opens for them.
 import { getSessionEmail, readCookie } from '../../lib/registrations/auth';
 
 // Which admin is signed in (multi-user login). Defensive — never let a cookie
@@ -86,8 +87,38 @@ try {
 </dialog>
 
 <script>
-  type Hit = { email: string; name: string | null; orders: number };
-  type Item = { href: string; title: string; sub: string; ordersHref?: string };
+  type CourseState = 'active' | 'waiting-activation' | 'starts-later' | 'ended' | 'revoked';
+  type AppLine = { account: boolean; role: string | null; courses: Array<{ label: string; state: CourseState }> };
+  type Hit = { email: string; name: string | null; orders: number; app: AppLine | null };
+  type Item = { href: string; title: string; sub: string; ordersHref?: string; app?: AppLine | null };
+
+  const STATE_WORD: Record<CourseState, string> = {
+    active: 'open',
+    'waiting-activation': 'waiting for activation',
+    'starts-later': 'starts later',
+    ended: 'ended',
+    revoked: 'revoked',
+  };
+
+  // "App: Certification course · open, Grief course · ended" — or that there is nothing.
+  const appLine = (app: AppLine): HTMLElement => {
+    const el = document.createElement('span');
+    el.className = 'adm-palette-app';
+    const lead = document.createElement('em');
+    lead.textContent = app.account ? (app.role && app.role !== 'member' ? `App (${app.role === 'admin' ? 'app admin' : app.role})` : 'App') : 'No app account';
+    el.append(lead);
+    if (!app.courses.length) {
+      if (app.account) el.append(' · no courses');
+      return el;
+    }
+    for (const c of app.courses) {
+      const chip = document.createElement('b');
+      chip.className = `adm-palette-course adm-palette-course--${c.state === 'active' ? 'open' : c.state === 'ended' ? 'ended' : 'waiting'}`;
+      chip.textContent = c.state === 'active' ? c.label : `${c.label} · ${STATE_WORD[c.state]}`;
+      el.append(chip);
+    }
+    return el;
+  };
 
   const dialog = document.querySelector<HTMLDialogElement>('[data-adm-palette]');
   const input = document.querySelector<HTMLInputElement>('[data-adm-palette-input]');
@@ -126,6 +157,7 @@ try {
           const s = document.createElement('span');
           s.textContent = it.sub;
           a.append(t, s);
+          if (it.app) a.append(appLine(it.app));
           li.append(a);
           if (it.ordersHref) {
             const o = document.createElement('a');
@@ -170,7 +202,7 @@ try {
         const res = await fetch(`/api/admin/people-search?q=${encodeURIComponent(q)}`, { signal: ctrl.signal });
         if (res.status === 401) { setItems([], 'Your session has ended — sign in again.'); return; }
         if (!res.ok) throw new Error(String(res.status));
-        const { people } = (await res.json()) as { people: Hit[] };
+        const { people, typedApp } = (await res.json()) as { people: Hit[]; typedApp: AppLine | null };
         const hits: Item[] = people.map((p) => ({
           href: personHref(p.email),
           title: p.name || p.email,
@@ -178,11 +210,12 @@ try {
             .filter(Boolean)
             .join(' · '),
           ordersHref: p.orders ? ordersHref(p.email) : undefined,
+          app: p.app,
         }));
         // A whole address the site doesn't know still has a page (App access).
         const typed = q.toLowerCase();
         if (EMAIL_RE.test(typed) && !people.some((p) => p.email === typed)) {
-          hits.push({ href: personHref(typed), title: typed, sub: 'Open this address' });
+          hits.push({ href: personHref(typed), title: typed, sub: 'Open this address', app: typedApp });
         }
         const all = [...direct, ...hits];
         setItems(all, all.length ? '' : 'Nobody matches that.');
