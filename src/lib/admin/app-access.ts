@@ -6,6 +6,11 @@
 // entrypoint SiteAdmin), which is reachable only from Workers on this
 // Cloudflare account — the binding is the credential, there is no secret.
 //
+// Certification lives here too: whether they applied in the app (their own
+// ticks), and "certified" — Jacob's word, with the certificate the student
+// downloads from their certification page in the app. The file is kept in the
+// app's private bucket; this site only passes it through.
+//
 // Every change runs through the same code as the app's own admin tools and is
 // written to the app's audit log as `site:<the admin's sign-in email>`.
 // Answers are plain data ({ ok, data } | { ok, error, message }); a binding
@@ -37,6 +42,22 @@ export type AppCourse = {
   isCertification: boolean;
 };
 
+export type AppCertCheck = 'classes' | 'practice' | 'qa' | 'quiz' | 'video' | 'applied';
+
+export type AppCertified = {
+  email: string; // the address the record sits under (may be a linked one)
+  on: string; // YYYY-MM-DD
+  note: string | null;
+  by: string;
+  certificate: { filename: string; contentType: string; sizeBytes: number; addedAt: string | null; by: string | null } | null;
+};
+
+export type AppCertification = {
+  available: boolean; // false until the app's migration app_0030 has run
+  checks: Record<AppCertCheck, string | null> | null; // null without an app account
+  certified: AppCertified | null;
+};
+
 export type AppMemberAccess = {
   email: string;
   account: { name: string | null; role: string; createdAt: string; lastSeenAt: string | null } | null;
@@ -44,6 +65,7 @@ export type AppMemberAccess = {
   courses: AppCourse[];
   spaceSeats: Array<{ spaceKey: string; title: string; source: string; grantedBy: string | null; createdAt: string }>;
   hostSpaces: Array<{ spaceKey: string; title: string }>;
+  certification?: AppCertification; // absent from an app deployed before certification
   catalogue: {
     products: Array<{ key: string; label: string }>;
     spaces: Array<{ key: string; title: string; audience: string; archived: boolean }>;
@@ -66,7 +88,29 @@ export type AppAdminBinding = {
   unseatFromSpace(input: { email: string; spaceKey: string; reason: string; actor: string }): Promise<AppAnswer<{ revoked: number }>>;
   addHost(input: { email: string; spaceKey: string; actor: string }): Promise<AppAnswer<{ role: string }>>;
   removeHost(input: { email: string; spaceKey: string; actor: string }): Promise<AppAnswer<{ removed: boolean }>>;
+  certify(input: { email: string; on?: string; note?: string; actor: string }): Promise<AppAnswer<AppCertified>>;
+  uncertify(input: { email: string; reason: string; actor: string }): Promise<AppAnswer<{ removed: boolean }>>;
+  addCertificate(input: { email: string; filename?: string; bytes: ArrayBuffer; actor: string }): Promise<AppAnswer<AppCertified>>;
+  removeCertificate(input: { email: string; actor: string }): Promise<AppAnswer<AppCertified>>;
+  certificate(input: { email: string }): Promise<AppAnswer<{ filename: string; contentType: string; bytes: ArrayBuffer }>>;
 };
+
+/** What the app takes as a certificate (its MAX_CERTIFICATE_BYTES); the app checks the bytes again. */
+export const MAX_CERTIFICATE_BYTES = 20 * 1024 * 1024;
+
+/** The five steps the student ticks before sending the form, in the app's order. */
+export const CERT_STEPS: Array<{ key: AppCertCheck; label: string }> = [
+  { key: 'classes', label: 'all the classes' },
+  { key: 'practice', label: 'practised 3 times or more' },
+  { key: 'qa', label: '6 Q&As or more' },
+  { key: 'quiz', label: 'Level 3 in the quiz' },
+  { key: 'video', label: 'session video ready' },
+];
+
+export function fileSize(bytes: number): string {
+  if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
 
 export const APP_NOT_CONNECTED =
   'The member app does not answer here. On songdance.co this means the app has not been deployed with its SiteAdmin entrypoint yet; in local development there is no app to ask.';
