@@ -132,6 +132,7 @@ const jsEmail = email.replace(/['\\]/g, '\\$&');
         {person?.name && <p class="adm-sub">{email}</p>}
       </div>
       <div class="adm-actions">
+        <a class="adm-btn adm-btn--ghost" href={`/admin/orders?email=${encodeURIComponent(email)}`}>Orders →</a>
         <a class="adm-btn adm-btn--ghost" href={`mailto:${email}`}>Email</a>
         <a class="adm-btn adm-btn--ghost" href={`/api/admin/drip-profile?email=${encodeURIComponent(email)}`} target="_blank" rel="noopener">Drip profile ↗</a>
         <a class="adm-btn adm-btn--ghost" href={backHref}>← Back to people</a>
@@ -179,7 +180,7 @@ const jsEmail = email.replace(/['\\]/g, '\\$&');
               {person && (
                 <div class="pd-stat"><span>Last activity</span><strong>{fmtDate(person.lastActivity)}</strong></div>
               )}
-              <div class="pd-stat"><span>Orders</span><strong>{orders.length}</strong></div>
+              <div class="pd-stat"><span>Orders</span><strong>{orders.length > 0 ? <a href={`/admin/orders?email=${encodeURIComponent(email)}`}>{orders.length}</a> : 0}</strong></div>
               <div class="pd-stat"><span>Tracked sends</span><strong>{sends.length}</strong></div>
             </div>
             {person && person.purchases.length > 0 && (
@@ -441,7 +442,7 @@ const jsEmail = email.replace(/['\\]/g, '\\$&');
 
         <!-- ─── Orders ─── -->
         <section class="adm-section">
-          <h2>Orders</h2>
+          <h2>Orders {orders.length > 0 && <a class="pd-h2-link" href={`/admin/orders?email=${encodeURIComponent(email)}`}>open in Orders →</a>}</h2>
           {orders.length === 0 && <p class="adm-empty">No orders on file.</p>}
           {orders.length > 0 && (
             <table class="adm-table pd-orders">
@@ -569,6 +570,8 @@ const jsEmail = email.replace(/['\\]/g, '\\$&');
     .pd-contact-kv dd { display:inline; margin:0 0 0 4px; }
 
     .pd-orders, .pd-sends { margin-bottom: 14px; }
+    .pd-h2-link { margin-left: 10px; font-family: ui-sans-serif, -apple-system, sans-serif; font-size: 13px; font-weight: 400; color: var(--adm-ink-soft); }
+    .pd-h2-link:hover { color: var(--adm-ember-deep); }
     .pd-orders:last-child, .pd-sends:last-child { margin-bottom: 0; }
     .pd-src {
       font-size:10px; font-weight:600; letter-spacing:0.04em; text-transform:uppercase;

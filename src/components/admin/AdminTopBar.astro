@@ -5,7 +5,9 @@
 // underneath it in the page's .adm-header.
 // Stats + Performance carry labels; People / Settings / Images / Sign out are icon-only
 // (title + aria-label) to save width. Calendar sync lives in Settings and on
-// the workshops page.
+// the workshops page. The search button (and ⌘K / Ctrl+K on any admin page)
+// opens the people palette: type a name, email or order number and jump to that
+// person's page (/api/admin/people-search).
 import { getSessionEmail, readCookie } from '../../lib/registrations/auth';
 
 // Which admin is signed in (multi-user login). Defensive — never let a cookie
@@ -25,6 +27,11 @@ try {
       <span>Admin</span>
     </a>
     <nav class="adm-actions" aria-label="Admin">
+      <button type="button" class="adm-btn adm-btn--ghost adm-btn--nav adm-search-btn" data-adm-search-open title="Find a person (⌘K)" aria-label="Find a person">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <span>Find</span>
+        <kbd class="adm-search-kbd" data-adm-search-kbd>⌘K</kbd>
+      </button>
       <a class="adm-btn adm-btn--ghost adm-btn--nav" href="/admin/stats">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
         <span>Stats</span>
@@ -54,3 +61,176 @@ try {
     </nav>
   </div>
 </header>
+
+<dialog class="adm-palette" data-adm-palette aria-label="Find a person">
+  <div class="adm-palette-box">
+    <div class="adm-palette-field">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input
+        type="search"
+        data-adm-palette-input
+        placeholder="Find a person — name, email or order #"
+        autocomplete="off"
+        spellcheck="false"
+        role="combobox"
+        aria-expanded="true"
+        aria-controls="adm-palette-list"
+        aria-autocomplete="list"
+      />
+      <kbd class="adm-search-kbd">esc</kbd>
+    </div>
+    <ul class="adm-palette-list" id="adm-palette-list" role="listbox" data-adm-palette-list></ul>
+    <p class="adm-palette-hint" data-adm-palette-hint>Type at least two letters.</p>
+    <p class="adm-palette-foot"><kbd>↑</kbd><kbd>↓</kbd> to move · <kbd>↵</kbd> person · <kbd>⇧↵</kbd> their orders</p>
+  </div>
+</dialog>
+
+<script>
+  type Hit = { email: string; name: string | null; orders: number };
+  type Item = { href: string; title: string; sub: string; ordersHref?: string };
+
+  const dialog = document.querySelector<HTMLDialogElement>('[data-adm-palette]');
+  const input = document.querySelector<HTMLInputElement>('[data-adm-palette-input]');
+  const list = document.querySelector<HTMLUListElement>('[data-adm-palette-list]');
+  const hint = document.querySelector<HTMLElement>('[data-adm-palette-hint]');
+
+  if (dialog && input && list && hint) {
+    const isMac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+    if (!isMac) {
+      document.querySelectorAll<HTMLElement>('[data-adm-search-kbd]').forEach((k) => (k.textContent = 'Ctrl K'));
+      document.querySelectorAll<HTMLElement>('[data-adm-search-open]').forEach((b) => (b.title = 'Find a person (Ctrl+K)'));
+    }
+
+    const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const ORDER_RE = /^[rcw]-\d+$/i;
+    const personHref = (email: string) => `/admin/people/${encodeURIComponent(email)}`;
+    const ordersHref = (email: string) => `/admin/orders?email=${encodeURIComponent(email)}`;
+
+    let items: Item[] = [];
+    let active = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let ctrl: AbortController | null = null;
+
+    const render = () => {
+      list.replaceChildren(
+        ...items.map((it, i) => {
+          const li = document.createElement('li');
+          li.id = `adm-palette-opt-${i}`;
+          li.setAttribute('role', 'option');
+          li.setAttribute('aria-selected', String(i === active));
+          li.className = 'adm-palette-item' + (i === active ? ' is-active' : '');
+          const a = document.createElement('a');
+          a.href = it.href;
+          const t = document.createElement('strong');
+          t.textContent = it.title;
+          const s = document.createElement('span');
+          s.textContent = it.sub;
+          a.append(t, s);
+          li.append(a);
+          if (it.ordersHref) {
+            const o = document.createElement('a');
+            o.href = it.ordersHref;
+            o.className = 'adm-palette-orders';
+            o.textContent = 'Orders →';
+            li.append(o);
+          }
+          li.addEventListener('mousemove', () => {
+            if (active !== i) { active = i; render(); }
+          });
+          return li;
+        }),
+      );
+      if (items.length) input.setAttribute('aria-activedescendant', `adm-palette-opt-${active}`);
+      else input.removeAttribute('aria-activedescendant');
+      list.querySelector('.is-active')?.scrollIntoView({ block: 'nearest' });
+    };
+
+    const setItems = (next: Item[], message: string) => {
+      items = next;
+      active = 0;
+      hint.textContent = message;
+      hint.hidden = !message;
+      render();
+    };
+
+    // What the typed text opens on its own, before (or without) a search hit.
+    const directItems = (q: string): Item[] => {
+      if (ORDER_RE.test(q)) {
+        const no = q.toUpperCase();
+        return [{ href: `/admin/orders/${no}`, title: `Order ${no}`, sub: 'Open this order' }];
+      }
+      return [];
+    };
+
+    const search = async (q: string) => {
+      ctrl?.abort();
+      ctrl = new AbortController();
+      const direct = directItems(q);
+      try {
+        const res = await fetch(`/api/admin/people-search?q=${encodeURIComponent(q)}`, { signal: ctrl.signal });
+        if (res.status === 401) { setItems([], 'Your session has ended — sign in again.'); return; }
+        if (!res.ok) throw new Error(String(res.status));
+        const { people } = (await res.json()) as { people: Hit[] };
+        const hits: Item[] = people.map((p) => ({
+          href: personHref(p.email),
+          title: p.name || p.email,
+          sub: [p.name ? p.email : null, p.orders ? `${p.orders} order${p.orders === 1 ? '' : 's'}` : 'no orders']
+            .filter(Boolean)
+            .join(' · '),
+          ordersHref: p.orders ? ordersHref(p.email) : undefined,
+        }));
+        // A whole address the site doesn't know still has a page (App access).
+        const typed = q.toLowerCase();
+        if (EMAIL_RE.test(typed) && !people.some((p) => p.email === typed)) {
+          hits.push({ href: personHref(typed), title: typed, sub: 'Open this address' });
+        }
+        const all = [...direct, ...hits];
+        setItems(all, all.length ? '' : 'Nobody matches that.');
+      } catch (err) {
+        if ((err as Error).name === 'AbortError') return;
+        setItems(direct, 'Search failed — try again.');
+      }
+    };
+
+    input.addEventListener('input', () => {
+      clearTimeout(timer);
+      const q = input.value.trim();
+      if (q.length < 2) { ctrl?.abort(); setItems([], 'Type at least two letters.'); return; }
+      setItems(directItems(q), 'Searching…');
+      timer = setTimeout(() => search(q), 160);
+    });
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (!items.length) return;
+        active = (active + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+        render();
+      } else if (e.key === 'Enter') {
+        const it = items[active];
+        if (!it) return;
+        e.preventDefault();
+        const href = e.shiftKey && it.ordersHref ? it.ordersHref : it.href;
+        if (e.metaKey || e.ctrlKey) window.open(href, '_blank');
+        else window.location.href = href;
+      }
+    });
+
+    const open = () => {
+      if (dialog.open) return;
+      dialog.showModal();
+      input.select();
+    };
+    document.querySelectorAll('[data-adm-search-open]').forEach((b) => b.addEventListener('click', open));
+    // Click on the backdrop (outside the box) closes.
+    dialog.addEventListener('click', (e) => { if (e.target === dialog) dialog.close(); });
+
+    document.addEventListener('keydown', (e) => {
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        if (dialog.open) dialog.close();
+        else open();
+      }
+    });
+  }
+</script>
