@@ -35,6 +35,8 @@ import {
   DRIP_SERIES,
   isTakeoverKey,
   loadTakeover,
+  TAKEOVER_KEYS,
+  TAKEOVER_SOURCES,
   takeoverCounts,
   type TakeoverKey,
 } from '../../../lib/courses/emails/drip-takeover';
@@ -69,7 +71,7 @@ if (counts) {
 
 const takeover = await loadTakeover(env.DB);
 const takeoverStats = new Map<TakeoverKey, { moved: number; settled: number }>();
-for (const k of Object.keys(DRIP_SERIES) as TakeoverKey[]) takeoverStats.set(k, await takeoverCounts(env.DB, k));
+for (const k of TAKEOVER_KEYS) takeoverStats.set(k, await takeoverCounts(env.DB, k));
 
 const enrolments = lookup ? await listEnrolmentsForEmail(env.DB, lookup) : [];
 
@@ -252,19 +254,22 @@ function since(v: string | undefined): string {
                     const tk = key;
                     const runningSince = takeover.get(tk);
                     const st = takeoverStats.get(tk);
+                    const src = TAKEOVER_SOURCES[tk];
                     return (
                       <form method="post" action="/api/admin/course-emails">
                         <input type="hidden" name="action" value="drip-takeover" />
                         <input type="hidden" name="sequence" value={tk} />
                         <input type="hidden" name="on" value={runningSince ? '0' : '1'} />
                         {st && st.moved > 0 && <span class="ce-small">{st.moved} moved so far. </span>}
-                        {runningSince && !handover.has('asj') && <span class="ce-small">Waiting for the ASJ switch. </span>}
+                        {runningSince && !handover.has(src.unit) && <span class="ce-small">Waiting for the {src.unit === 'asj' ? 'ASJ' : '12-week'} switch. </span>}
                         <button
                           class={`adm-btn ${runningSince ? 'adm-btn--ghost' : ''}`}
                           type="submit"
                           data-confirm={runningSince
                             ? 'Stop moving people over? Whoever has moved stays on the site’s series.'
-                            : `Move everyone on Drip’s “${DRIP_SERIES[tk].name}” series to the site’s, each at the week they have reached? Each person comes off the Drip series as they move — a batch every hour. Only once the CiRCLE is live.`}
+                            : src.removesFromDrip
+                              ? `Move everyone on Drip’s “${DRIP_SERIES[tk as keyof typeof DRIP_SERIES].name}” series to the site’s, each at the week they have reached? Each person comes off the Drip series as they move — a batch every hour. Only once the CiRCLE is live.`
+                              : `Move everyone whose 12 weeks are still running in Drip (tag prod_SVH_12w, from their prod_SVH_start) to the site’s series, each at the next step on their own schedule? Path students follow once the path switch is on too. Drip’s workflow keeps running — set its EMAIL steps to draft the same day, or they get both. A batch every hour. Only once the CiRCLE is live.`}
                         >
                           {runningSince ? 'Stop the takeover' : `Take over from Drip`}
                         </button>

@@ -73,6 +73,7 @@ export const HANDOVER_UNITS: HandoverInfo[] = [
         'Workflow “prod_SVH_12w” (starts on the prod_SVH_12w tag) sends six emails: SVH 12w Course - Access (on purchase), See you in Q&A? (day 1), SVH 12w Course - How to pace yourself (day 2), SVH - Week 2 Check-In (day 7), SVH - Week 6 Check-In (day 35) and SVH - Week 12 Check-In (day 77, only to buyers without the certification).',
       switchOff: [
         'In workflow “prod_SVH_12w”, set those six “Send an email” steps to draft. Don’t pause the workflow.',
+        'Same day: press “Take over from Drip” on the 12-week series below, so the students already in their 12 weeks get the rest of their notes from the site.',
       ],
       keep: [
         'The prod_SVH_week counter (1 … 12, then “Ended since …”): the certification workflow waits on it for path buyers.',

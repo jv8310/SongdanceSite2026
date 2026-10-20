@@ -714,9 +714,14 @@ CiRCLE app works**: every course is already on the buyer's account at
 `circle.songdance.co` when the email lands, so there are no activation buttons
 and no Mighty Networks plan/space links — one sentence says to sign in with the
 address they bought with, one button opens the course. **Every CiRCLE URL comes
-from [`src/lib/courses/circle.ts`](src/lib/courses/circle.ts)** (course paths,
-the live calendar, `…/journeys/authentic-singing/week-N`) — when the app's
-routes settle, that file is the one place to change.
+from [`src/lib/courses/circle.ts`](src/lib/courses/circle.ts)**, and its paths
+are the app's real routes (checked against the `songdance-app` repo, October
+2026): a course is `/course/<course key>` (`svh-12week`, `cc-cert`,
+`grief-course`, `asj`, `jaz`, `mantra-pack`, `mmj`, `inner-child`), ASJ week N
+is lesson `/lesson/asj-lNN` (`jaz-lNN` in Dutch), and the live calendar is
+`/events` — **not** `/live` (Not found) and not `/courses/…` (the app sends
+Mighty's old `/courses/*` to the library). If the app's routes move, that file
+is the one place to change.
 
 - **The switch — off by default, per course** ([`handover.ts`](src/lib/courses/emails/handover.ts),
   `workshop_config` key `course_emails_on:<unit>` = when it went on). Off →
@@ -728,8 +733,8 @@ routes settle, that file is the one place to change.
   which counts each sequence, previews + test-sends every email, and looks up /
   stops / restarts one person's series. **Nothing goes on before the CiRCLE app
   is live** (every one of these emails sends the buyer there; Drip's still
-  point into Mighty Networks, which today *is* circle.songdance.co — see the
-  note in `circle.ts` on redirecting its old `/posts/<N>-…` links).
+  point into Mighty Networks, which today *is* circle.songdance.co; the app
+  redirects those old `/posts/…` / `/spaces/…` links itself, see `circle.ts`).
 - **The Drip side, per switch** (`drip` on each unit in `handover.ts`, shown on
   that page; read from the Drip account through the Drip connector, read-only,
   October 2026 — re-read it before the day): what Drip sends that course today,
@@ -816,6 +821,17 @@ routes settle, that file is the one place to change.
   hand and nobody gets a week twice. Only while the `asj` switch is on too.
   Each person settles once (`events` claim `drip-takeover-<seq>-<email>`:
   moved / already-on-site / complete); left on, it picks up late arrivals.
+  **The 12-week students too** (`drip_takeover_on:twelve-week`): their notes
+  are steps in the `prod_SVH_12w` *workflow*, not a series, so there is no index
+  to read and nothing to remove them from — but that workflow writes the day
+  their 12 weeks began (`prod_SVH_start`). Everyone tagged `prod_SVH_12w` whose
+  12 weeks are still running joins the site's series at the first step still
+  ahead on their own schedule (as "Bring in earlier buyers" does), in their
+  Drip `time_zone`; path students (`prod_SVH_9m` too) as path-wait while
+  `prod_SVH_9m_status` reads "not activated", else path-now, and only once the
+  path switch is on. Drip's six email steps are set to draft by hand the same
+  day — the workflow keeps running. The certification course needs no
+  takeover: its notes are day 1 and day 2.
 - **Stopping is per series, and easy**: every sequence email carries a visible
   "Stop these … emails" button → `/courses/emails?t=<id>.<sig>`
   ([`stop-link.ts`](src/lib/courses/emails/stop-link.ts), HMAC over

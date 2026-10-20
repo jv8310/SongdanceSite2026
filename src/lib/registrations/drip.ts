@@ -69,6 +69,7 @@ export type DripSubscriber = {
   last_name?: string;
   country?: string;
   phone?: string;
+  time_zone?: string;
   tags: string[];
   custom_fields: Record<string, string>;
 };
@@ -177,6 +178,7 @@ export async function listSubscribersByTag(
         email: string;
         first_name?: string;
         last_name?: string;
+        time_zone?: string;
         tags?: string[];
         custom_fields?: Record<string, string>;
       }>;
@@ -188,6 +190,7 @@ export async function listSubscribersByTag(
         email: s.email,
         first_name: s.first_name,
         last_name: s.last_name,
+        time_zone: s.time_zone,
         tags: s.tags ?? [],
         custom_fields: s.custom_fields ?? {},
       });

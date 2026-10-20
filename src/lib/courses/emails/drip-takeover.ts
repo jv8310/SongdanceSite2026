@@ -18,28 +18,56 @@
 // Left on, it also picks up anyone the Drip workflow still adds to the series.
 // Each person is settled once (an `events` claim, `drip-takeover-<seq>-<email>`):
 // moved, already on the site's series, or finished in Drip.
+//
+// The 12-Week Course is the same idea, read differently: its onboarding mails
+// are steps in a Drip WORKFLOW ("prod_SVH_12w"), not a series, so there is no
+// email index to read and nothing to remove anyone from. What Drip does keep
+// on every student is the day their 12 weeks began (`prod_SVH_start`, written
+// by that workflow). So everyone tagged `prod_SVH_12w` whose 12 weeks are
+// still running joins the site's series at the first step still ahead of them
+// on their own schedule — exactly what "Bring in earlier buyers" does for a
+// site order — and Drip's email steps are set to draft by hand the same day
+// (the workflow itself keeps running: it writes the week counter, the Q&A
+// fields and the certification hand-off). Path students (also tagged
+// `prod_SVH_9m`) ride it as path-now, or path-wait while their certification
+// is "not activated", and only once the path switch is on as well.
+//
+// The certification course needs none of this: its onboarding is a day-1 and a
+// day-2 note, so whoever is mid-way on switch day is at most a day from done.
 
 import { logEventSafe } from '../../registrations/db';
 import {
   listCampaignSubscribers,
   listSubscriberCampaignSubscriptions,
+  listSubscribersByTag,
   removeFromCampaign,
   type DripConfig,
 } from '../../registrations/drip';
 import { ASJ_WEEK_COUNT } from './asj-weeks';
 import { loadHandover } from './handover';
-import { dueAtMs, SEQUENCES, sqlUtc, utcMs } from './sequences';
+import { dueAtMs, firstStepFrom, SEQUENCES, sqlUtc, utcMs } from './sequences';
 
-export type TakeoverKey = 'asj-weekly' | 'asj-weekly-nl';
+type SeriesKey = 'asj-weekly' | 'asj-weekly-nl';
+export type TakeoverKey = SeriesKey | 'twelve-week';
 
 // The Drip email series each site series replaces.
-export const DRIP_SERIES: Record<TakeoverKey, { campaignId: string; name: string }> = {
+export const DRIP_SERIES: Record<SeriesKey, { campaignId: string; name: string }> = {
   'asj-weekly': { campaignId: '808009203', name: 'prod_ASJ' },
   'asj-weekly-nl': { campaignId: '866191894', name: 'prod_JAZ' },
 };
 
+// What each takeover reads in Drip, and the handover switch it waits for —
+// for the admin page.
+export const TAKEOVER_SOURCES: Record<TakeoverKey, { drip: string; unit: 'asj' | 'twelve-week'; removesFromDrip: boolean }> = {
+  'asj-weekly': { drip: 'the “prod_ASJ” series', unit: 'asj', removesFromDrip: true },
+  'asj-weekly-nl': { drip: 'the “prod_JAZ” series', unit: 'asj', removesFromDrip: true },
+  'twelve-week': { drip: 'the “prod_SVH_12w” workflow', unit: 'twelve-week', removesFromDrip: false },
+};
+
+export const TAKEOVER_KEYS = Object.keys(TAKEOVER_SOURCES) as TakeoverKey[];
+
 export function isTakeoverKey(v: unknown): v is TakeoverKey {
-  return v === 'asj-weekly' || v === 'asj-weekly-nl';
+  return v === 'asj-weekly' || v === 'asj-weekly-nl' || v === 'twelve-week';
 }
 
 // The week a Drip email index covers (the last week the person has had).
@@ -47,7 +75,7 @@ export function isTakeoverKey(v: unknown): v is TakeoverKey {
 // index N. The Dutch series drifts after week 28: index 29 is the combined
 // "Week 29 en 30" mail, 30–36 are weeks 31–37, 37 is the "Integratietijd"
 // interlude (still week 37), and 38–40 are weeks 38–40 again.
-export function weekReached(key: TakeoverKey, index: number): number {
+export function weekReached(key: SeriesKey, index: number): number {
   if (index <= 1) return 1;
   if (key === 'asj-weekly' || index <= 28) return Math.min(index, ASJ_WEEK_COUNT);
   if (index === 29) return 30;
@@ -139,11 +167,17 @@ export async function runDripTakeover(
   if (!env.DRIP_API_TOKEN || !env.DRIP_ACCOUNT_ID) return [];
   const cfg: DripConfig = { apiToken: env.DRIP_API_TOKEN, accountId: env.DRIP_ACCOUNT_ID };
   const [on, handover] = await Promise.all([loadTakeover(env.DB), loadHandover(env.DB)]);
-  if (!handover.has('asj')) return [];
   const nowMs = opts.nowMs ?? Date.now();
   const out: TakeoverResult[] = [];
 
   for (const key of on.keys()) {
+    if (key === 'twelve-week') {
+      if (handover.has('twelve-week')) {
+        out.push(await takeOverTwelveWeek(env, cfg, handover, nowMs, opts.batch ?? BATCH));
+      }
+      continue;
+    }
+    if (!handover.has('asj')) continue;
     const { campaignId } = DRIP_SERIES[key];
     const res: TakeoverResult = { key, inDrip: 0, moved: 0, skipped: 0, failed: 0 };
     out.push(res);
@@ -228,4 +262,83 @@ export async function runDripTakeover(
     }
   }
   return out;
+}
+
+// Drip writes its dates as "2026-10-17 15:29:40 +0000".
+function dripUtcMs(s: string | undefined): number {
+  return s ? utcMs(s.trim().slice(0, 19)) : NaN;
+}
+
+// Which version of the onboarding a 12-week student in Drip gets: a path
+// student (tagged prod_SVH_9m too) is path-wait while their certification
+// reads "not activated", else path-now; everyone else the 12-week's own.
+export function twelveWeekVariant(tags: string[], fields: Record<string, string>): string | null {
+  if (!tags.includes('prod_SVH_9m')) return null;
+  return /not activated/i.test(fields.prod_SVH_9m_status ?? '') ? 'path-wait' : 'path-now';
+}
+
+async function takeOverTwelveWeek(
+  env: TakeoverEnv,
+  cfg: DripConfig,
+  handover: Map<string, string>,
+  nowMs: number,
+  batch: number,
+): Promise<TakeoverResult> {
+  const key = 'twelve-week' as const;
+  const res: TakeoverResult = { key, inDrip: 0, moved: 0, skipped: 0, failed: 0 };
+  const def = SEQUENCES[key];
+  const lastOffset = Math.max(...def.steps.map((st) => st.dayOffset));
+  const settled = await settledEmails(env.DB, key);
+  const subscribers = await listSubscribersByTag(cfg, 'prod_SVH_12w');
+  let budget = batch;
+
+  for (const s of subscribers) {
+    if (budget <= 0) break;
+    const email = s.email.trim().toLowerCase();
+    if (settled.has(email)) continue;
+    const startMs = dripUtcMs(s.custom_fields.prod_SVH_start);
+    // Only the 12 weeks still running (and a day's margin past the last step):
+    // the rest finished long ago and need no claim at all.
+    if (!Number.isFinite(startMs) || startMs < nowMs - (lastOffset + 1) * 86_400_000) continue;
+    res.inDrip++;
+    const variant = twelveWeekVariant(s.tags, s.custom_fields);
+    if (variant && !handover.has('path')) continue; // the path stays Drip's until its own switch
+    budget--;
+    try {
+      const tz = s.time_zone ?? null;
+      const first = firstStepFrom(def, variant, startMs, tz, nowMs);
+      if (!first) {
+        await settle(env.DB, key, email, 'complete', { start: sqlUtc(startMs) });
+        res.skipped++;
+        continue;
+      }
+      const ins = await env.DB
+        .prepare(
+          `INSERT OR IGNORE INTO course_email_sequences
+             (sequence, email, first_name, timezone, course_registration_id, variant,
+              started_at, next_step, next_due_at)
+           VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?)`,
+        )
+        .bind(key, email, s.first_name ?? null, tz, variant, sqlUtc(startMs), first.step.n, sqlUtc(first.due))
+        .run();
+      const already = (ins.meta?.changes ?? 0) === 0;
+      await settle(env.DB, key, email, already ? 'already-on-site' : 'moved', {
+        start: sqlUtc(startMs),
+        variant,
+        next_step: first.step.n,
+        due: sqlUtc(first.due),
+      });
+      if (already) res.skipped++;
+      else res.moved++;
+    } catch (err) {
+      res.failed++;
+      await logEventSafe(env.DB, {
+        registration_id: null,
+        kind: 'course.emails.drip_takeover_error',
+        source: 'cron',
+        payload: { sequence: key, email, error: String(err) },
+      });
+    }
+  }
+  return res;
 }

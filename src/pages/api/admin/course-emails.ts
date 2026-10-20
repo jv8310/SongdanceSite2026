@@ -91,7 +91,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
         returnTo,
         'ok',
         on
-          ? 'Taking over from Drip: each hour a batch of the people on Drip’s series moves to the site’s, at the week they have reached, and comes off the Drip series in the same step.'
+          ? key === 'twelve-week'
+            ? 'Taking over from Drip: each hour a batch of the 12-week students still in their 12 weeks joins the site’s series at the next step on their own schedule. Set the Drip workflow’s email steps to draft today.'
+            : 'Taking over from Drip: each hour a batch of the people on Drip’s series moves to the site’s, at the week they have reached, and comes off the Drip series in the same step.'
           : 'Takeover stopped. Whoever has moved stays on the site’s series; everyone else stays on Drip’s.',
       );
     }

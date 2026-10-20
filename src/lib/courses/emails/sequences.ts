@@ -265,7 +265,7 @@ type SeqEnv = {
   MARKETING_REPLY_TO?: string;
 };
 
-function firstStepFrom(def: SequenceDef, variant: string | null, startMs: number, tz: string | null, notBeforeMs: number) {
+export function firstStepFrom(def: SequenceDef, variant: string | null, startMs: number, tz: string | null, notBeforeMs: number) {
   for (const s of def.steps) {
     if (s.onlyVariants && !s.onlyVariants.includes(variant)) continue;
     const due = dueAtMs(startMs, s.dayOffset, tz, def.sendHour);
