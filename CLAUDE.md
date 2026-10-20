@@ -75,6 +75,18 @@ of the person, since the app may still know them.
   bumps included) only **after** the gateway took the refund, and the flash says what was
   taken away — or, if the app did not answer, that access still stands. Workshop lines are
   not covered.
+- **Certification** (October 2026): the same section shows whether they ticked "I've filled
+  in the form and applied for certification" in the app (and how many of the five steps), and
+  carries **Mark as certified** — a day, a note and, optionally in the same step, the
+  **certificate** (PDF, JPEG or PNG, up to 20 MB, a multipart post to `/api/admin/app-access`).
+  Once certified, the app's certification course page swaps "Apply for certification" for a
+  "🎓 You are certified" label, and the certificate is there to download. The certificate can be
+  replaced, taken away (they stay certified) or the whole certification undone (the file goes
+  with it); **`/api/admin/app-certificate?email=`** shows the file. It is not a Drip tag: the
+  app keeps it per address (`app_certified`, the app's `lib/certified.ts`), so it works before
+  the person has an app account, and the file sits in the app's private bucket — this site only
+  passes it through the binding. Claude can do the same through the app's MCP tools
+  (`set_certified`, `add_certificate_from_url`, `create_certificate_upload`).
 - A revoke is permanent in the app: no order, Drip tag or sync brings that course back —
   adding it again by hand does. Revoking never refunds. Drip tags no longer switch courses
   on or off; the app reads them once, at a member's first sign-in.

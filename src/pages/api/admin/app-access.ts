@@ -3,9 +3,11 @@
 // field `action` picks the change; the app does it and logs it under the
 // signed-in admin. Admin-gated; always redirects back to the person's page
 // with a flash (app_ok / app_err + app_msg), anchored on the section.
+// The certification forms post multipart (the certificate rides along as a
+// file); everything else is a plain form.
 import type { APIRoute } from 'astro';
 import { getSessionEmail, readCookie, verifySession } from '../../../lib/registrations/auth';
-import { askApp, type AppAnswer } from '../../../lib/admin/app-access';
+import { MAX_CERTIFICATE_BYTES, askApp, type AppAnswer } from '../../../lib/admin/app-access';
 
 export const prerender = false;
 
@@ -35,6 +37,15 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const n = Number(v);
     return Number.isInteger(n) && n >= 1 && n <= 36 ? n : 'bad';
   };
+
+  // The certificate, when one was chosen ('none' = the field was empty; 'big' = over the app's limit).
+  const certificateFile = async (): Promise<{ name: string; bytes: ArrayBuffer } | 'none' | 'big'> => {
+    const f = form?.get('certificate');
+    if (!f || typeof f === 'string' || f.size === 0) return 'none';
+    if (f.size > MAX_CERTIFICATE_BYTES) return 'big';
+    return { name: f.name, bytes: await f.arrayBuffer() };
+  };
+  const tooBig = `A certificate may be at most ${MAX_CERTIFICATE_BYTES / 1024 / 1024} MB.`;
 
   const action = field('action');
   let result: AppAnswer<unknown>;
@@ -109,6 +120,46 @@ export const POST: APIRoute = async ({ request, locals }) => {
       const r = await askApp(env, (app) => app.removeHost({ email, spaceKey: field('space'), actor }));
       result = r;
       done = r.ok && !r.data.removed ? 'Was not a host of that space; nothing changed.' : 'No longer a host of that space.';
+      break;
+    }
+    case 'certify': {
+      // Mark as certified, and add the certificate in the same step when one was chosen.
+      const file = await certificateFile();
+      if (file === 'big') return back(page, { app_err: '1', app_msg: tooBig });
+      const r = await askApp(env, (app) => app.certify({ email, on: field('on') || undefined, note: field('note') || undefined, actor }));
+      if (r.ok && file !== 'none') {
+        const c = await askApp(env, (app) => app.addCertificate({ email, filename: file.name, bytes: file.bytes, actor }));
+        if (!c.ok) return back(page, { app_err: '1', app_msg: `Certified, but the certificate was not added: ${c.message}` });
+      }
+      result = r;
+      done =
+        file !== 'none'
+          ? 'Certified, with the certificate. The app shows "You are certified" and the certificate to download.'
+          : 'Certified. The app shows "You are certified"; add the certificate whenever it is ready.';
+      break;
+    }
+    case 'certified-day': {
+      result = await askApp(env, (app) => app.certify({ email, on: field('on') || undefined, note: field('note') || undefined, actor }));
+      done = 'Saved.';
+      break;
+    }
+    case 'add-certificate': {
+      const file = await certificateFile();
+      if (file === 'big') return back(page, { app_err: '1', app_msg: tooBig });
+      if (file === 'none') return back(page, { app_err: '1', app_msg: 'Choose the certificate file first.' });
+      result = await askApp(env, (app) => app.addCertificate({ email, filename: file.name, bytes: file.bytes, actor }));
+      done = 'Certificate added. They can download it from their certification page in the app.';
+      break;
+    }
+    case 'remove-certificate': {
+      result = await askApp(env, (app) => app.removeCertificate({ email, actor }));
+      done = 'Certificate taken away. They are still certified.';
+      break;
+    }
+    case 'uncertify': {
+      const r = await askApp(env, (app) => app.uncertify({ email, reason: field('reason'), actor }));
+      result = r;
+      done = r.ok && !r.data.removed ? 'Was not certified; nothing changed.' : 'Certification taken back, and the certificate with it.';
       break;
     }
     default:

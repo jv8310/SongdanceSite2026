@@ -4,9 +4,10 @@
 // courses/workshops (src/lib/admin/orders.ts), tracked email sends with
 // open/click data (src/lib/email/sends.ts), and Drip-imported contact tags
 // (src/lib/broadcasts/db.ts). Read-only, assembled live — no `people` table.
-// The one exception is "App access": the person's courses, Circle seats and
-// host spaces in the member app, which the app answers and changes through its
-// service binding (src/lib/admin/app-access.ts, /api/admin/app-access).
+// The one exception is "App access": the person's courses, certification,
+// Circle seats and host spaces in the member app, which the app answers and
+// changes through its service binding (src/lib/admin/app-access.ts,
+// /api/admin/app-access).
 import '../../../styles/admin.css';
 import Layout from '../../../layouts/Layout.astro';
 import { readCookie, verifySession } from '../../../lib/registrations/auth';
@@ -16,7 +17,7 @@ import { getFxRatesToEur } from '../../../lib/admin/fx';
 import { formatMoney } from '../../../lib/workshops/currency';
 import { emailSendsForAddress } from '../../../lib/email/sends';
 import { getContact, listBroadcasts } from '../../../lib/broadcasts/db';
-import { STATE_LABEL, STATE_PILL, actorLabel, askApp, day, sourceLabel } from '../../../lib/admin/app-access';
+import { CERT_STEPS, MAX_CERTIFICATE_BYTES, STATE_LABEL, STATE_PILL, actorLabel, askApp, day, fileSize, sourceLabel } from '../../../lib/admin/app-access';
 
 export const prerender = false;
 
@@ -114,6 +115,10 @@ const todayBrussels = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Bruss
 const seatableSpaces = app ? app.catalogue.spaces.filter((sp) => sp.audience !== 'everyone') : [];
 const hostableSpaces = app ? app.catalogue.spaces.filter((sp) => !sp.archived && !app.hostSpaces.some((h) => h.spaceKey === sp.key)) : [];
 const ROLE_LABEL: Record<string, string> = { member: 'member', host: 'host', admin: 'app admin' };
+// Certification: their own ticks in the app, and Jacob's "certified" with the certificate.
+const cert = app?.certification ?? null;
+const certSteps = cert?.checks ? CERT_STEPS.filter((st) => cert.checks?.[st.key]).length : 0;
+const certificateHref = `/api/admin/app-certificate?email=${encodeURIComponent(email)}`;
 const jsEmail = email.replace(/['\\]/g, '\\$&');
 ---
 
@@ -339,6 +344,97 @@ const jsEmail = email.replace(/['\\]/g, '\\$&');
                 <p class="pd-mute">The start date also starts any live sessions the course comes with. With no start date only the materials open. For the 12-week or certification course, "Live sessions for" gives that many months of Q&amp;As, live classes and deepening sessions from the start, instead of the course's own 12 weeks / 9 months; the materials stay open for good. Leave "Ends" empty unless the whole course should close.</p>
               </form>
             </details>
+
+            <h3 class="app-h3" id="app-certification">Certification</h3>
+            {!cert && <p class="pd-mute">The app does not answer about certification yet: it needs the app deployed with it first.</p>}
+            {cert && !cert.available && <p class="pd-mute">The app's database does not have certification yet (migration app_0030). Run the app's migrations first.</p>}
+            {cert && cert.available && (
+              <>
+                <p class="app-cert-line">
+                  {!cert.checks && <span class="pd-mute">No app account, so nothing ticked in the app.</span>}
+                  {cert.checks && (cert.checks.applied
+                    ? <>Applied in the app on <strong>{fmtDate(cert.checks.applied)}</strong> ("I've filled in the form and applied")</>
+                    : <span class="pd-mute">Has not ticked "I've applied" in the app.</span>)}
+                  {cert.checks && <span class="pd-mute"> · steps ticked: {certSteps} of {CERT_STEPS.length}{certSteps > 0 && certSteps < CERT_STEPS.length ? ` (${CERT_STEPS.filter((st) => cert.checks?.[st.key]).map((st) => st.label).join(', ')})` : ''}</span>}
+                </p>
+
+                {cert.certified ? (
+                  <div class="app-cert">
+                    <p class="app-cert-status">
+                      <span class="adm-pill adm-pill--paid">🎓 certified</span>
+                      <span>since <strong>{cert.certified.on}</strong></span>
+                      <span class="pd-mute">by {actorLabel(cert.certified.by) ?? 'an admin'}{cert.certified.email !== email ? ` · under ${cert.certified.email}` : ''}</span>
+                    </p>
+                    {cert.certified.note && <p class="pd-mute">{cert.certified.note}</p>}
+                    {cert.certified.certificate ? (
+                      <p class="app-cert-file">
+                        Certificate: <a href={certificateHref} target="_blank" rel="noopener">{cert.certified.certificate.filename}</a>
+                        <span class="pd-mute"> · {fileSize(cert.certified.certificate.sizeBytes)}{cert.certified.certificate.addedAt ? ` · added ${fmtDate(cert.certified.certificate.addedAt)}` : ''}{cert.certified.certificate.by ? ` by ${actorLabel(cert.certified.certificate.by)}` : ''}</span>
+                      </p>
+                    ) : (
+                      <p class="pd-mute">No certificate yet: the app says "You are certified", and offers the certificate to download once it is added.</p>
+                    )}
+                    <form method="POST" action="/api/admin/app-access" enctype="multipart/form-data" class="app-form app-inline">
+                      <input type="hidden" name="action" value="add-certificate" />
+                      <input type="hidden" name="email" value={email} />
+                      <div class="adm-grid">
+                        <label class="span-2"><span>{cert.certified.certificate ? 'Replace the certificate' : 'Add the certificate'} (PDF, JPEG or PNG, up to {MAX_CERTIFICATE_BYTES / 1024 / 1024} MB)</span><input type="file" name="certificate" accept="application/pdf,image/jpeg,image/png" required /></label>
+                      </div>
+                      <button type="submit" class="adm-btn adm-btn--solid">{cert.certified.certificate ? 'Replace certificate' : 'Add certificate'}</button>
+                    </form>
+                    <details class="app-add">
+                      <summary>Change the day or the note, take the certificate away, or undo</summary>
+                      <form method="POST" action="/api/admin/app-access" class="app-form">
+                        <input type="hidden" name="action" value="certified-day" />
+                        <input type="hidden" name="email" value={email} />
+                        <div class="adm-grid app-grid">
+                          <label><span>Certified on</span><input type="date" name="on" value={cert.certified.on} required /></label>
+                          <label class="span-2"><span>Note (optional)</span><input type="text" name="note" maxlength="500" placeholder="Kept in the app's log" /></label>
+                        </div>
+                        <button type="submit" class="adm-btn adm-btn--tiny">Save</button>
+                      </form>
+                      {cert.certified.certificate && (
+                        <form
+                          method="POST"
+                          action="/api/admin/app-access"
+                          class="app-form"
+                          onsubmit={`return confirm('Take the certificate away from ${jsEmail}? They stay certified.')`}
+                        >
+                          <input type="hidden" name="action" value="remove-certificate" />
+                          <input type="hidden" name="email" value={email} />
+                          <button type="submit" class="adm-btn adm-btn--tiny adm-btn--danger">Take the certificate away</button>
+                        </form>
+                      )}
+                      <form
+                        method="POST"
+                        action="/api/admin/app-access"
+                        class="app-form"
+                        onsubmit={`return confirm('Undo the certification of ${jsEmail}? The certificate is deleted too.')`}
+                      >
+                        <input type="hidden" name="action" value="uncertify" />
+                        <input type="hidden" name="email" value={email} />
+                        <div class="adm-grid app-grid">
+                          <label class="span-full"><span>Reason</span><input type="text" name="reason" required maxlength="500" placeholder="Why (kept in the app's log)" /></label>
+                        </div>
+                        <button type="submit" class="adm-btn adm-btn--tiny adm-btn--danger">Undo certification</button>
+                      </form>
+                    </details>
+                  </div>
+                ) : (
+                  <form method="POST" action="/api/admin/app-access" enctype="multipart/form-data" class="app-form app-inline">
+                    <input type="hidden" name="action" value="certify" />
+                    <input type="hidden" name="email" value={email} />
+                    <div class="adm-grid">
+                      <label><span>Certified on</span><input type="date" name="on" value={todayBrussels} required /></label>
+                      <label class="span-2"><span>Certificate (optional: PDF, JPEG or PNG, up to {MAX_CERTIFICATE_BYTES / 1024 / 1024} MB)</span><input type="file" name="certificate" accept="application/pdf,image/jpeg,image/png" /></label>
+                      <label class="span-full"><span>Note (optional)</span><input type="text" name="note" maxlength="500" placeholder="Kept in the app's log, e.g. reviewed the session video" /></label>
+                    </div>
+                    <button type="submit" class="adm-btn adm-btn--solid">Mark as certified</button>
+                    <p class="pd-mute">On their certification course page in the app, "Apply for certification" becomes a "You are certified" label, and their certification page offers the certificate to download. Works before they have an app account: it waits under this address. The certificate can be added now or later.</p>
+                  </form>
+                )}
+              </>
+            )}
 
             <h3 class="app-h3">CiRCLE spaces</h3>
             <p class="pd-mute">A course already opens its own spaces. Seat someone here only in a space none of their courses gives them.</p>
@@ -624,6 +720,9 @@ const jsEmail = email.replace(/['\\]/g, '\\$&');
     .app-grid { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
     .app-scroll { overflow-x: auto; }
     .app-inline { margin-top: 12px; }
+    .app-cert-line { margin: 0 0 6px; font-size: 14px; }
+    .app-cert-status { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 6px; font-size: 14px; }
+    .app-cert-file { margin: 6px 0 0; font-size: 14px; }
     @media (max-width: 720px) {
       .app-grid, .app-form .adm-grid { grid-template-columns: 1fr; }
       .app-form .adm-grid > label.span-2 { grid-column: auto; }
