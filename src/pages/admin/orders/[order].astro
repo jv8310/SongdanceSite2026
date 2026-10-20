@@ -177,6 +177,8 @@ function ymdhm(iso: string | null): string {
         {o && <p class="adm-sub">{o.productLabel}</p>}
       </div>
       <div class="adm-actions">
+        {o && <a class="adm-btn adm-btn--ghost" href={`/admin/people/${encodeURIComponent(o.email.trim().toLowerCase())}`}>Person →</a>}
+        {o && <a class="adm-btn adm-btn--ghost" href={`/admin/orders?email=${encodeURIComponent(o.email.trim().toLowerCase())}`}>All their orders</a>}
         <a class="adm-btn adm-btn--ghost" href={backHref}>← Back to orders</a>
       </div>
     </header>
@@ -205,7 +207,7 @@ function ymdhm(iso: string | null): string {
               <div class="od-stat"><span>Name</span><strong>{name}</strong></div>
               <div class="od-stat">
                 <span>Email</span>
-                <strong><a href={`mailto:${o.email}`}>{o.email}</a></strong>
+                <strong><a href={`/admin/people/${encodeURIComponent(o.email.trim().toLowerCase())}`} title="Open this person">{o.email}</a></strong>
               </div>
               <div class="od-stat">
                 <span>Original</span>
