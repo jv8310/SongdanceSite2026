@@ -175,6 +175,15 @@ html, body { background: var(--paper); }
     linear-gradient(180deg, rgba(244,236,223,0.62) 0%, rgba(244,236,223,0.36) 40%, rgba(244,236,223,0.9) 100%),
     radial-gradient(ellipse at 50% 92%, rgba(244,236,223,0.9) 0%, rgba(244,236,223,0) 60%);
 }
+/* Inner child: the photo was too faint — let it come through more, scrim kept
+   just strong enough behind the text block. */
+.jr-theme-child .jr-hero-bg img { opacity: 0.62; filter: saturate(0.82) contrast(0.98) brightness(1.02); }
+.jr-theme-child .jr-hero-bg::after {
+  background:
+    radial-gradient(ellipse 72% 56% at 50% 46%, rgba(244,236,223,0.58) 0%, rgba(244,236,223,0) 72%),
+    linear-gradient(180deg, rgba(244,236,223,0.48) 0%, rgba(244,236,223,0.2) 40%, rgba(244,236,223,0.82) 100%),
+    radial-gradient(ellipse at 50% 92%, rgba(244,236,223,0.85) 0%, rgba(244,236,223,0) 60%);
+}
 @keyframes jr-breath {
   0%, 100% { transform: scale(1.0); }
   50% { transform: scale(1.045); }
