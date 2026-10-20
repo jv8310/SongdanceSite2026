@@ -107,14 +107,21 @@ function apply(area: HTMLTextAreaElement, fmt: Fmt): void {
     const end = endAt === -1 ? value.length : endAt;
     const lines = value.slice(start, end).split('\n');
     const strip = (l: string) => l.replace(/^(#{1,6}\s+|\s*(?:•|-|–|\*|\d{1,2}[.)])\s+)/, '');
+    // The line just above: a list item there means this one carries the same list on
+    // (no blank line between, and a numbered list keeps counting).
+    const above = start > 0 ? value.slice(value.lastIndexOf('\n', start - 2) + 1, start - 1) : '';
+    const aboveItem = ITEM.exec(above);
+    const continues = fmt !== 'heading' && !!aboveItem && /\d/.test(aboveItem[2]!) === (fmt === 'numbered');
+    const from = continues && fmt === 'numbered' ? Number.parseInt(aboveItem![2]!, 10) + 1 : 1;
     const marked = lines.map((l, i) => {
       const bare = strip(l);
       if (fmt === 'heading') return `## ${bare || 'A heading'}`;
       if (fmt === 'list') return `- ${bare}`;
-      return `${i + 1}. ${bare}`;
+      return `${from + i}. ${bare}`;
     });
-    // A heading or a list reads as its own block: a blank line before it when it follows text.
-    const before = start > 0 && value.slice(0, start).trimEnd() !== '' && !/\n\s*\n$/.test(value.slice(0, start)) ? '\n' : '';
+    // A heading or a new list reads as its own block: a blank line before it when it follows text.
+    const before =
+      !continues && start > 0 && value.slice(0, start).trimEnd() !== '' && !/\n\s*\n$/.test(value.slice(0, start)) ? '\n' : '';
     area.setRangeText(before + marked.join('\n'), start, end, 'end');
   }
   area.focus();
