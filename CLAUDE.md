@@ -809,6 +809,45 @@ gated player) but no email telling them so. Delivery now lives in the site, in
   (`/api/admin/workshops/mantra-pack-send`) that forces the sweep with a wider
   cap. Pressing it twice is harmless.
 
+## Albums in the app — "Empowering You" moves to the CiRCLE library
+
+The "Empowering You" mantras (the €9 workshop / masterclass bump, the album sold
+on its own at `/music/empowering-you`, and the five mantras the 12-week course
+has always come with — on Mighty, the 12-week space's "Ripples of Bliss"
+playlist) are a **course in the member app's Library**, course key
+`empowering-you` (October 2026). The site keeps selling it; **where it plays**
+moves, one switch per album:
+[`src/lib/music/in-app.ts`](src/lib/music/in-app.ts), `/admin/music/<id>` →
+**Plays in the app** (`workshop_config` `album_in_app_on:<album id>`, logged as
+`music.album.in_app_on/off`). Only an album named in `APP_ALBUM_COURSES` (album
+id → app course key, the same string) can be switched; renaming its slug takes it
+out of the app's reach.
+
+- **Off (default)** — everything as before: the player, its emails, `/access`.
+- **On** — `/music/<album>` still sells it, but an owner (the `sd_music` cookie,
+  the `?email=` link, `?welcome=1` after checkout, an admin) is shown the way into
+  the app instead of the player; a non-owner arriving with `?email=` (the app's
+  locked shelf links here with `?email=`/`?first_name=`/`?last_name=`) gets the
+  sales page with the checkout filled in. `mantraPackEmail` / `albumPurchaseEmail`
+  take `inApp` (button → `circleCourseUrl(<course>)`, "sign in with the address
+  you ordered with"), previewed on `/admin/emails` as "… — in the app";
+  `/api/access-lookup` returns `in_app` per album (no listener cookie for those);
+  `/music` and the bump cards (`WERegister`, `MCRegister`, `/w/<slug>`) say it
+  waits in the app Library.
+- **Turn it on only when** the app holds the tracks and answers at
+  `circle.songdance.co` (after the cutover — before it, that address is Mighty).
+  App side: deploy the API, then in Claude (Songdance App connector)
+  `import_site_album {"albumId":"empowering-you"}` (copies the tracks out of this
+  bucket into the app's, track N = lesson `empowering-you-lNN`; re-run after any
+  change on `/admin/music`) and `publish_courses {"courseKeys":["empowering-you"],"note":"…"}`.
+- **Who holds it in the app** (songdance-app `packages/shared`): `album-empowering-you`
+  orders, the `mantra-empower-bump` workshop line, the `prod_MantraEmpower` tag
+  (Drip or the contacts mirror — this covers coupon seats with `wants_bump` and no
+  ledger line), and **every 12-week student** (`svh-12week`, `cc-bundle`; the
+  sales page promises "five of Jacob's original mantras on joining"). The 12-week
+  and path welcome emails name the album. A refunded seat takes the bump back in
+  the app without a mail of the app's own.
+
 ## Course emails — the site takes over from Drip, one course at a time
 
 Every course buyer used to get their welcome (and, for some courses, a run of

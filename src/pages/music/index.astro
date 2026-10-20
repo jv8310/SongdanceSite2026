@@ -5,6 +5,7 @@ import { albumCoverUrl, albumUrl, listAlbums } from '../../lib/music/db';
 import { albumCurrencyForCountry, albumPriceLabel } from '../../lib/music/product';
 import { catalogItemById } from '../../lib/catalog/products';
 import { edgeCountry } from '../../lib/geo';
+import { albumsInApp } from '../../lib/music/in-app';
 
 export const prerender = false;
 
@@ -20,6 +21,9 @@ const songdeck = catalogItemById('songdeck');
 // table the album page + checkout use). The Songdeck stays EUR-only — it's a
 // physical product fulfilled on songdeck.shop.
 const currency = albumCurrencyForCountry(edgeCountry(Astro.locals));
+// Albums that play in the app (src/lib/music/in-app.ts) open there for their owners.
+const inApp = await albumsInApp(env.DB);
+const anyInApp = albums.some((a) => inApp.has(a.id));
 ---
 
 <SiteLayout
@@ -84,10 +88,17 @@ const currency = albumCurrencyForCountry(edgeCountry(Astro.locals));
       ))}
     </div>
 
-    <p class="mu-note">
-      Already yours? Every album opens with the email you used at checkout — here or via
-      <a href="/access">your account</a>.
-    </p>
+    {anyInApp ? (
+      <p class="mu-note">
+        Already yours? Your albums are in your Library in the Songdance CiRCLE, our app — sign in
+        with the email you used at checkout, or find them via <a href="/access">your account</a>.
+      </p>
+    ) : (
+      <p class="mu-note">
+        Already yours? Every album opens with the email you used at checkout — here or via
+        <a href="/access">your account</a>.
+      </p>
+    )}
   </section>
 </SiteLayout>
 

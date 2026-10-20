@@ -57,6 +57,13 @@ export function circleUrl(area?: CircleArea): string {
   return area ? `${CIRCLE_ORIGIN}${AREA_PATHS[area]}` : CIRCLE_HOME_URL;
 }
 
+// Any course by its key — for the courses that come and go with what the site
+// sells, like a music album the app plays (src/lib/music/in-app.ts), so this
+// list of areas need not grow with them.
+export function circleCourseUrl(courseKey: string): string {
+  return `${CIRCLE_ORIGIN}/course/${encodeURIComponent(courseKey)}`;
+}
+
 // One session of the Authentic Singing Journey (1–40), so a weekly email opens
 // on the week it is about — in the English edition, or the Dutch one
 // (Authentiek Zingen). Week N is lesson asj-lNN / jaz-lNN in the app (asj-l00
