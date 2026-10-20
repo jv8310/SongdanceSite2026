@@ -28,15 +28,45 @@ export const POST: APIRoute = async ({ request, locals }) => {
   // was not on the form (the activation date of a course that has none) is not.
   const dateField = (k: string): string | undefined => (form?.has(k) ? field(k) : undefined);
 
+  // A number of months ('' = none). A field that is not a whole 1–36 is refused.
+  const monthsField = (k: string): number | null | 'bad' => {
+    const v = field(k);
+    if (!v) return null;
+    const n = Number(v);
+    return Number.isInteger(n) && n >= 1 && n <= 36 ? n : 'bad';
+  };
+
   const action = field('action');
   let result: AppAnswer<unknown>;
   let done = '';
   switch (action) {
     case 'grant-course': {
+      const months = monthsField('live_months');
+      if (months === 'bad') return back(page, { app_err: '1', app_msg: 'Months must be a whole number from 1 to 36.' });
       result = await askApp(env, (app) =>
-        app.grantCourse({ email, product: field('product'), startsAt: field('starts_at') || undefined, endsAt: field('ends_at') || undefined, note: field('note'), actor }),
+        app.grantCourse({
+          email,
+          product: field('product'),
+          startsAt: field('starts_at') || undefined,
+          endsAt: field('ends_at') || undefined,
+          ...(months ? { liveMonths: months } : {}),
+          note: field('note'),
+          actor,
+        }),
       );
-      done = 'Course added. It shows in the app the next time they open it.';
+      done = months
+        ? `Course added, with ${months} month${months === 1 ? '' : 's'} of live sessions from its start. It shows in the app the next time they open it.`
+        : 'Course added. It shows in the app the next time they open it.';
+      break;
+    }
+    case 'extend-course': {
+      const months = monthsField('months');
+      if (months === null || months === 'bad') return back(page, { app_err: '1', app_msg: 'Months must be a whole number from 1 to 36.' });
+      const r = await askApp(env, (app) => app.extendCourse({ email, entitlementId: field('entitlement_id'), months, actor }));
+      result = r;
+      done = r.ok
+        ? `${months} month${months === 1 ? '' : 's'} of live sessions added: they now run until ${r.data.liveSetByAdmin ?? r.data.liveUntil?.slice(0, 10)}.`
+        : '';
       break;
     }
     case 'revoke-course': {
@@ -52,6 +82,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
           startsAt: dateField('starts_at'),
           activatedAt: dateField('activated_at'),
           endsAt: dateField('ends_at'),
+          liveUntil: dateField('live_until'),
           actor,
         }),
       );

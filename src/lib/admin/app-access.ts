@@ -28,6 +28,8 @@ export type AppCourse = {
   endsAt: string | null;
   graceUntil: string | null;
   liveUntil: string | null;
+  liveSetByAdmin?: string | null; // the last day of the live sessions an admin set (extra time)
+  hasLiveWindow?: boolean;        // the 12-week / certification course: its live sessions run out
   revokedAt: string | null;
   revokeReason: string | null;
   note: string | null;
@@ -55,9 +57,11 @@ type DateField = string | null | undefined;
 // The methods the app's SiteAdmin entrypoint offers (apps/api/src/site-admin-entrypoint.ts).
 export type AppAdminBinding = {
   member(input: { email: string }): Promise<AppAnswer<AppMemberAccess>>;
-  grantCourse(input: { email: string; product: string; startsAt?: string; endsAt?: string; note: string; actor: string }): Promise<AppAnswer<AppCourse>>;
+  grantCourse(input: { email: string; product: string; startsAt?: string; endsAt?: string; liveMonths?: number; note: string; actor: string }): Promise<AppAnswer<AppCourse>>;
   revokeCourse(input: { email: string; entitlementId: string; reason: string; actor: string }): Promise<AppAnswer<AppCourse>>;
-  setCourseDates(input: { email: string; entitlementId: string; startsAt?: DateField; activatedAt?: DateField; endsAt?: DateField; actor: string }): Promise<AppAnswer<AppCourse>>;
+  setCourseDates(input: { email: string; entitlementId: string; startsAt?: DateField; activatedAt?: DateField; endsAt?: DateField; liveUntil?: DateField; actor: string }): Promise<AppAnswer<AppCourse>>;
+  extendCourse(input: { email: string; entitlementId: string; months: number; actor: string }): Promise<AppAnswer<AppCourse>>;
+  revokeOrder(input: { email: string; courseRegistrationId: number; reason: string; actor: string }): Promise<AppAnswer<{ revoked: AppCourse[] }>>;
   seatInSpace(input: { email: string; spaceKey: string; note: string; actor: string }): Promise<AppAnswer<{ created: boolean; hasAccount: boolean }>>;
   unseatFromSpace(input: { email: string; spaceKey: string; reason: string; actor: string }): Promise<AppAnswer<{ revoked: number }>>;
   addHost(input: { email: string; spaceKey: string; actor: string }): Promise<AppAnswer<{ role: string }>>;

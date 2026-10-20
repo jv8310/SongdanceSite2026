@@ -363,7 +363,7 @@ function ymdhm(iso: string | null): string {
                                 method="POST"
                                 action="/api/admin/refund"
                                 class="od-inst-refund"
-                                onsubmit={`return confirm('Refund installment ${inst.seq} of ${o.orderNo} (${jsName}, ${o.email})?\\nBlank = the whole installment, ${leftMajor} ${cur}. This moves real money.')`}
+                                onsubmit={`return confirm('Refund installment ${inst.seq} of ${o.orderNo} (${jsName}, ${o.email})?\\nBlank = the whole installment, ${leftMajor} ${cur}. This moves real money.' + (this.elements.revoke_access && this.elements.revoke_access.checked ? '\\nIt ALSO takes the course away in the member app.' : ''))`}
                               >
                                 <input type="hidden" name="order_no" value={o.orderNo} />
                                 <input type="hidden" name="return_to" value={selfReturn} />
@@ -378,6 +378,11 @@ function ymdhm(iso: string | null): string {
                                   aria-label={`Refund amount for installment ${inst.seq} (${cur})`}
                                 />
                                 <button type="submit" class="adm-btn adm-btn--danger adm-btn--tiny">Refund</button>
+                                {o.source === 'course' && (
+                                  <label class="od-revoke" title="A refund of one installment leaves the course open in the member app. Tick to close it too.">
+                                    <input type="checkbox" name="revoke_access" value="1" /> also take away the course in the app
+                                  </label>
+                                )}
                               </form>
                             ) : (
                               <span class="od-inst-none">
@@ -474,7 +479,7 @@ function ymdhm(iso: string | null): string {
               method="POST"
               action="/api/admin/refund"
               class="od-refund"
-              onsubmit={`return confirm('Refund ${o.orderNo} (${jsName}, ${o.email})?\\nBlank = ${isPlan ? 'the first installment' : 'the full'} ${remainingMajor} ${o.originalCurrency}. This moves real money.')`}
+              onsubmit={`return confirm('Refund ${o.orderNo} (${jsName}, ${o.email})?\\nBlank = ${isPlan ? 'the first installment' : 'the full'} ${remainingMajor} ${o.originalCurrency}. This moves real money.' + (this.elements.revoke_access && this.elements.revoke_access.checked ? '\\nIt ALSO takes the course away in the member app.' : ''))`}
             >
               <input type="hidden" name="order_no" value={o.orderNo} />
               <input type="hidden" name="return_to" value={selfReturn} />
@@ -490,6 +495,11 @@ function ymdhm(iso: string | null): string {
                 />
               </label>
               <button type="submit" class="adm-btn adm-btn--danger">Issue refund</button>
+              {o.source === 'course' && (
+                <label class="od-revoke">
+                  <input type="checkbox" name="revoke_access" value="1" /> Also take away the course in the member app
+                </label>
+              )}
               <p class="od-refund-hint">
                 {isPlan ? (
                   <>
@@ -657,6 +667,8 @@ function ymdhm(iso: string | null): string {
       .od-inst-refund { justify-content:flex-start; }
     }
 
+    .od-revoke { display:flex; gap:6px; align-items:center; font-size:12px; color:var(--adm-ink-soft); white-space:nowrap; }
+    .od-refund .od-revoke { flex-direction:row; }
     .od-refund {
       display:flex; flex-wrap:wrap; align-items:flex-end; gap:12px;
       border:1px solid var(--adm-line); border-radius:12px;

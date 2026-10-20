@@ -251,7 +251,12 @@ const jsEmail = email.replace(/['\\]/g, '\\$&');
                         )}
                         {c.endsAt && <span>ends {day(c.endsAt)}</span>}
                         {c.graceUntil && <span>closes {day(c.graceUntil)} (stopped plan)</span>}
-                        {c.liveUntil && c.state !== 'revoked' && <span class="pd-mute">live sessions until {day(c.liveUntil)}</span>}
+                        {c.liveUntil && c.state !== 'revoked' && (
+                          <span class="pd-mute">
+                            live sessions {new Date(c.liveUntil).getTime() < Date.now() ? 'ended' : 'until'} {day(c.liveUntil)}
+                            {c.liveSetByAdmin && ' (set by hand)'}
+                          </span>
+                        )}
                         {c.revokedAt && <span>revoked {day(c.revokedAt)}</span>}
                       </td>
                       <td>
@@ -264,6 +269,18 @@ const jsEmail = email.replace(/['\\]/g, '\\$&');
                         {c.state !== 'revoked' && (
                           <details class="app-details">
                             <summary>Change</summary>
+                            {c.hasLiveWindow && (
+                              <form method="POST" action="/api/admin/app-access" class="app-form">
+                                <input type="hidden" name="action" value="extend-course" />
+                                <input type="hidden" name="email" value={email} />
+                                <input type="hidden" name="entitlement_id" value={c.id} />
+                                <div class="adm-grid app-grid">
+                                  <label><span>Extra time (months)</span><input type="number" name="months" min="1" max="36" step="1" required placeholder="e.g. 3" /></label>
+                                </div>
+                                <button type="submit" class="adm-btn adm-btn--tiny adm-btn--solid">Give extra time</button>
+                                <p class="pd-mute">Months of Q&amp;As, live classes and deepening sessions: added to the day the live sessions end, or counted from today if they have already ended. The materials never run out.</p>
+                              </form>
+                            )}
                             <form method="POST" action="/api/admin/app-access" class="app-form">
                               <input type="hidden" name="action" value="course-dates" />
                               <input type="hidden" name="email" value={email} />
@@ -272,9 +289,10 @@ const jsEmail = email.replace(/['\\]/g, '\\$&');
                                 <label><span>Starts</span><input type="date" name="starts_at" value={day(c.startsAt)} /></label>
                                 {c.isCertification && c.activateChoice === 'wait' && <label><span>Activated</span><input type="date" name="activated_at" value={day(c.activatedAt)} /></label>}
                                 <label><span>Ends</span><input type="date" name="ends_at" value={day(c.endsAt)} /></label>
+                                {c.hasLiveWindow && <label><span>Live sessions until</span><input type="date" name="live_until" value={c.liveSetByAdmin ?? ''} /></label>}
                               </div>
                               <button type="submit" class="adm-btn adm-btn--tiny">Save dates</button>
-                              <p class="pd-mute">An empty field clears that date. A date set here wins over the order's.</p>
+                              <p class="pd-mute">An empty field clears that date. A date set here wins over the order's.{c.hasLiveWindow && ' "Ends" closes the whole course, materials included; "Live sessions until" moves only the live sessions (empty = the course\'s own 12 weeks / 9 months).'}</p>
                             </form>
                             <form
                               method="POST"
@@ -314,10 +332,11 @@ const jsEmail = email.replace(/['\\]/g, '\\$&');
                   </label>
                   <label><span>Starts</span><input type="date" name="starts_at" value={todayBrussels} /></label>
                   <label><span>Ends (optional)</span><input type="date" name="ends_at" /></label>
+                  <label><span>Live sessions for (months, optional)</span><input type="number" name="live_months" min="1" max="36" step="1" placeholder="12-week / certification" /></label>
                   <label class="span-full"><span>Note</span><input type="text" name="note" required maxlength="500" placeholder="Why (kept in the app's log), e.g. comp after the retreat" /></label>
                 </div>
                 <button type="submit" class="adm-btn adm-btn--solid">Add course</button>
-                <p class="pd-mute">The start date also starts any live sessions the course comes with. With no start date only the materials open.</p>
+                <p class="pd-mute">The start date also starts any live sessions the course comes with. With no start date only the materials open. For the 12-week or certification course, "Live sessions for" gives that many months of Q&amp;As, live classes and deepening sessions from the start, instead of the course's own 12 weeks / 9 months; the materials stay open for good. Leave "Ends" empty unless the whole course should close.</p>
               </form>
             </details>
 

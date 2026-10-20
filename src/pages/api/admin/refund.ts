@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
-import { readCookie, verifySession } from '../../../lib/registrations/auth';
+import { getSessionEmail, readCookie, verifySession } from '../../../lib/registrations/auth';
+import { askApp } from '../../../lib/admin/app-access';
 import { logEventSafe } from '../../../lib/registrations/db';
 import { createRefund } from '../../../lib/registrations/stripe';
 import {
@@ -42,9 +43,18 @@ export const prerender = false;
 // Without an `installment` the target is still the row's single stored charge —
 // so for a plan the ceiling is ONE charge, not the plan total. Offering the
 // whole plan there is what made a "full" refund silently give back one cycle.
+//
+// TAKING THE COURSE AWAY TOO. A full refund closes the course in the member
+// app by itself (the app's sync revokes everything from a refunded order); a
+// partial one — one installment, part of a payment — leaves access alone. A
+// course order's refund form therefore carries a `revoke_access` tick: once the
+// gateway has taken the refund (never before, never on a failure), the app is
+// asked to revoke everything it holds from that order, logged under the
+// signed-in admin (lib/admin/app-access.ts). Its outcome is added to the flash.
 export const POST: APIRoute = async ({ request, locals }) => {
   const env = locals.runtime.env;
-  if (!(await verifySession(env.ADMIN_SESSION_SECRET, readCookie(request)))) {
+  const cookie = readCookie(request);
+  if (!(await verifySession(env.ADMIN_SESSION_SECRET, cookie))) {
     return new Response('Unauthorized', { status: 401 });
   }
 
@@ -53,6 +63,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const amountRaw = String(form.get('amount') ?? '').trim();
   const installmentId = String(form.get('installment') ?? '').trim();
   const returnTo = safeReturnTo(String(form.get('return_to') ?? ''));
+  const revokeAccess = form.get('revoke_access') === '1';
 
   const parsed = parseOrderNo(orderNo);
   if (!parsed) {
@@ -71,6 +82,19 @@ export const POST: APIRoute = async ({ request, locals }) => {
       msg: 'Order is not refundable',
     });
   }
+
+  // Called only once the gateway has accepted the refund: the money has moved,
+  // so a failure here is a note in the flash, never "refund failed".
+  const appRevokeNote = async (): Promise<string> => {
+    if (!revokeAccess || order.source !== 'course') return '';
+    const actor = (await getSessionEmail(env.ADMIN_SESSION_SECRET, cookie)) ?? 'admin';
+    const r = await askApp(env, (app) =>
+      app.revokeOrder({ email: order.email, courseRegistrationId: order.rowId, reason: `Refund on ${order.orderNo}${cycleNote}`, actor }),
+    );
+    if (!r.ok) return `. Access in the app was NOT taken away (${r.message}) — do it on their People page.`;
+    if (!r.data.revoked.length) return '. The app held nothing from this order to take away.';
+    return `. Taken away in the app: ${r.data.revoked.map((c) => c.label).join(', ')}.`;
+  };
 
   // Resolve which charge to refund. With an `installment`, that cycle — proven
   // to belong to this order by finding it in the order's own ledger. Without
@@ -264,12 +288,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
     if (bookkeepingError) {
       return redirect(returnTo, {
         flash: 'refund_warn',
-        msg: `PayPal DID refund ${amtMajor} ${currency} for ${order.orderNo}${cycleNote} (refund ${refund.id}) — but recording it here failed, so this page still shows the old figures. Do not refund again. ${bookkeepingError}`,
+        msg: `PayPal DID refund ${amtMajor} ${currency} for ${order.orderNo}${cycleNote} (refund ${refund.id}) — but recording it here failed, so this page still shows the old figures. Do not refund again. ${bookkeepingError}${await appRevokeNote()}`,
       });
     }
     return redirect(returnTo, {
       flash: 'refund_ok',
-      msg: `PayPal refund of ${amtMajor} ${currency} submitted for ${order.orderNo}${cycleNote}`,
+      msg: `PayPal refund of ${amtMajor} ${currency} submitted for ${order.orderNo}${cycleNote}${await appRevokeNote()}`,
     });
   }
 
@@ -335,7 +359,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const amtMajor = (refund.amount / 100).toFixed(2);
   return redirect(returnTo, {
     flash: 'refund_ok',
-    msg: `Refund of ${amtMajor} ${refund.currency.toUpperCase()} submitted for ${order.orderNo}${cycleNote}`,
+    msg: `Refund of ${amtMajor} ${refund.currency.toUpperCase()} submitted for ${order.orderNo}${cycleNote}${await appRevokeNote()}`,
   });
 };
 

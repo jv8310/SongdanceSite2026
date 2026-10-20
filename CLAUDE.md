@@ -59,6 +59,22 @@ of the person, since the app may still know them.
   entrypoint, and in local `astro dev` (no binding), the section says the app does not
   answer; the rest of the page is untouched. A preview version talks to the **production**
   app, so a change made on a preview link is real.
+- **Extra time on the 12-week / certification course** (October 2026): those courses'
+  materials never end; what runs out is their **live sessions** (12 weeks / 9 months from the
+  start). "Ends" can only cut a course short, so the course row's **Change** carries **Give
+  extra time (months)** — N calendar months added to the day the live sessions end, or from
+  today once they have ended — and a **Live sessions until** date (empty = the course's own
+  window). "Add a course" takes **Live sessions for (months)**, counted from its start. All of
+  it is the app's `meta.liveUntil` on that row (`extendCourse`, `grantCourse.liveMonths`,
+  `setCourseDates.liveUntil`).
+- **A refund can close the course too.** A full refund closes it in the app by itself (the
+  app's sync revokes a refunded order); a partial one — one installment, part of a payment —
+  leaves access alone. Every refund form on a course order (`/admin/orders`, the order page's
+  whole-order form and each installment row) carries **Also take away the course in the
+  app**; `/api/admin/refund` asks the app (`revokeOrder`, everything that order holds,
+  bumps included) only **after** the gateway took the refund, and the flash says what was
+  taken away — or, if the app did not answer, that access still stands. Workshop lines are
+  not covered.
 - A revoke is permanent in the app: no order, Drip tag or sync brings that course back —
   adding it again by hand does. Revoking never refunds. Drip tags no longer switch courses
   on or off; the app reads them once, at a member's first sign-in.
