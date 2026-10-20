@@ -2,7 +2,7 @@
 //   ok, email, first_name?,
 //   sessions: [{ title, kind, when, url, status }],
 //   circle: { has, products[] },
-//   music: [{ title, url, cover }]
+//   music: [{ title, url, cover, in_app }]
 // }
 //
 // The pre-purchase account lookup behind /access. Given an email we run two
@@ -31,6 +31,7 @@ import { workshopBumpTagsForEmail } from '../../lib/workshops/bump';
 import { formatInTz } from '../../lib/workshops/time';
 import { albumCoverUrl, albumUrl, listAlbumsForTags } from '../../lib/music/db';
 import { listenerCookieHeader, signListener } from '../../lib/music/access';
+import { albumAppUrl, albumsInApp } from '../../lib/music/in-app';
 
 export const prerender = false;
 
@@ -168,13 +169,20 @@ export const POST: APIRoute = async ({ request, locals }) => {
   //    of failure: tagging on a paid registration is best-effort and never
   //    retried, so a buyer whose tag never landed saw no "Your music" block at
   //    all — for something they'd paid for. The local read settles it.
-  let music: Array<{ title: string; url: string; cover: string | null }> = [];
+  //
+  //    An album that plays in the app (src/lib/music/in-app.ts) is listed with
+  //    the app as the place to open it (`in_app`), not the player here.
+  let music: Array<{ title: string; url: string; cover: string | null; in_app: boolean }> = [];
   const extraHeaders: Record<string, string> = {};
   try {
     const localTags = await workshopBumpTagsForEmail(env.DB, email);
     const albums = await listAlbumsForTags(env.DB, [...subscriberTags, ...localTags]);
-    music = albums.map((a) => ({ title: a.title, url: albumUrl(a), cover: albumCoverUrl(a) }));
-    if (albums.length > 0) {
+    const inApp = await albumsInApp(env.DB);
+    music = albums.map((a) => {
+      const appUrl = inApp.has(a.id) ? albumAppUrl(a.id) : null;
+      return { title: a.title, url: appUrl ?? albumUrl(a), cover: albumCoverUrl(a), in_app: !!appUrl };
+    });
+    if (albums.some((a) => !inApp.has(a.id))) {
       extraHeaders['Set-Cookie'] = listenerCookieHeader(
         await signListener(env.ADMIN_SESSION_SECRET, email),
       );

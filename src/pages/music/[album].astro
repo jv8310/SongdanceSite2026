@@ -17,6 +17,7 @@ import {
   type MusicTrackRow,
 } from '../../lib/music/db';
 import { albumCurrencyForCountry, albumPriceLabel } from '../../lib/music/product';
+import { albumAppUrl, albumInAppSince } from '../../lib/music/in-app';
 import { paypalConfigured } from '../../lib/payments/paypal';
 import { COUNTRIES, findCountry } from '../../lib/countries';
 import { edgeCountry } from '../../lib/geo';
@@ -78,6 +79,19 @@ if (!isAdmin && !cookieGranted && emailParamValid) {
 
 const granted = isAdmin || cookieGranted;
 
+// An album that plays in the app (src/lib/music/in-app.ts, switched on per
+// album on /admin/music/<id>): this page still sells it, but whoever holds it —
+// the cookie, the email link above, the return from checkout — is shown the way
+// into the app instead of the player, and the "already own it" door is the app.
+const inAppSince = await albumInAppSince(env.DB, album.id);
+const appUrl = inAppSince ? albumAppUrl(album.id) : null;
+const inApp = !!appUrl;
+// The app's own links here carry the member's name and address (a locked
+// album in its library): they fill the checkout form.
+const nameParam = (key: string) => (Astro.url.searchParams.get(key) ?? '').trim().slice(0, 100);
+const prefillFirst = nameParam('first_name');
+const prefillLast = nameParam('last_name');
+
 // Purchasable? (price set in admin). The buyer's edge-detected country picks
 // the opening currency; the checkout form's own country select re-derives it
 // client-side from the same ratios, and the server derives it a third time at
@@ -124,7 +138,9 @@ const totalLabel =
   title={`${album.title} — Songdance`}
   description={
     granted
-      ? 'Your album, ready to play.'
+      ? inApp
+        ? 'Your album, in your Library in the Songdance app.'
+        : 'Your album, ready to play.'
       : album.description ??
         `${album.title} — original music from the practice, streaming on any device.`
   }
@@ -132,7 +148,40 @@ const totalLabel =
   newsletter={false}
   promo={false}
 >
-  {granted ? (
+  {inApp && (granted || welcome || !forSale) ? (
+    <section class="mp-gate sd-section">
+      <div class="mp-gate-card">
+        {isAdmin && (
+          <p class="mp-adminnote">
+            Admin view — this album plays in the app since {inAppSince?.slice(0, 10)}, so its owners see
+            this page instead of the player. The switch is on /admin/music/{album.id}.
+          </p>
+        )}
+        {cover && <img class="mp-gate-cover" src={cover} alt={`${album.title} — cover`} />}
+        <p class="mp-eyebrow">{welcome ? 'Payment received' : granted ? 'Your album' : 'Album'}</p>
+        <h1 class="mp-gate-title">{album.title}</h1>
+        <p class="mp-gate-p">
+          {welcome
+            ? 'Thank you — the album is yours. It’s waiting in your Library in the Songdance CiRCLE, our app.'
+            : granted
+              ? 'It’s in your Library in the Songdance CiRCLE, our app — every track, on your phone, your tablet and your computer.'
+              : 'This album plays in the Songdance CiRCLE, our app. If it came with one of your orders, it’s in your Library there.'}
+        </p>
+        <p class="mp-gate-p">
+          Sign in with {listenerEmail && !isAdmin ? <strong>{listenerEmail}</strong> : welcome ? 'the email you just paid with' : 'the email from your order'} —
+          there’s no password, we send you a code. There’s nothing to activate.
+        </p>
+        <a class="sd-btn sd-btn-primary" href={appUrl}>
+          Open it in the app
+          <i class="ph-light ph-arrow-right"></i>
+        </a>
+        <p class="mp-gate-help">
+          Can’t find it? Write to
+          <a href="mailto:support@songdance.co">support@songdance.co</a> and we'll help you personally.
+        </p>
+      </div>
+    </section>
+  ) : granted ? (
     <Fragment>
     <section class="mp sd-section">
       {isAdmin && album.published !== 1 && (
@@ -236,7 +285,7 @@ const totalLabel =
       set:html={JSON.stringify({ title: album.title, cover, tracks: payload }).replace(/</g, '\\u003c')}
     />
     </Fragment>
-  ) : forSale && !welcome && !emailParamValid ? (
+  ) : forSale && !welcome && (inApp || !emailParamValid) ? (
     <Fragment>
     <section class="ms sd-section" data-price-eur={priceEurCents}>
       <!-- Hero: the album as a product -->
@@ -248,7 +297,7 @@ const totalLabel =
           {album.description && <p class="ms-desc">{album.description}</p>}
           <p class="ms-facts">
             {tracks.length} track{tracks.length === 1 ? '' : 's'}{totalLabel && ` · ${totalLabel}`}
-            · streaming, on any device · yours to keep
+            {inApp ? '· in the Songdance app · yours to keep' : '· streaming, on any device · yours to keep'}
           </p>
           <div class="ms-hero-buy">
             <span class="ms-price" data-price-current>{priceLabel}</span>
@@ -258,8 +307,14 @@ const totalLabel =
             </a>
           </div>
           <p class="ms-own-hint">
-            Already own this album? <a href="#open">Open it with your email</a>
+            Already own this album? <a href="#open">{inApp ? 'Open it in the app' : 'Open it with your email'}</a>
           </p>
+          {inApp && emailParamValid && (
+            <p class="ms-own-hint">
+              We don't see it under <strong>{emailParam}</strong> yet. If you've just ordered it, give it a
+              few minutes to arrive in your Library.
+            </p>
+          )}
         </div>
       </header>
 
@@ -286,24 +341,32 @@ const totalLabel =
           <h2 class="ms-checkout-title">
             {album.title} — <span data-price-current>{priceLabel}</span>
           </h2>
-          <ul class="ms-points">
-            <li><i class="ph-light ph-device-mobile-speaker"></i> Stream it anywhere — phone, tablet, computer</li>
-            <li><i class="ph-light ph-infinity"></i> Yours to keep, no subscription</li>
-            <li><i class="ph-light ph-envelope-simple"></i> Opens with your email right after payment</li>
-          </ul>
+          {inApp ? (
+            <ul class="ms-points">
+              <li><i class="ph-light ph-device-mobile-speaker"></i> In the Songdance CiRCLE, our app — phone, tablet, computer</li>
+              <li><i class="ph-light ph-infinity"></i> Yours to keep, no subscription</li>
+              <li><i class="ph-light ph-envelope-simple"></i> In your Library right after payment — sign in with the email you buy with</li>
+            </ul>
+          ) : (
+            <ul class="ms-points">
+              <li><i class="ph-light ph-device-mobile-speaker"></i> Stream it anywhere — phone, tablet, computer</li>
+              <li><i class="ph-light ph-infinity"></i> Yours to keep, no subscription</li>
+              <li><i class="ph-light ph-envelope-simple"></i> Opens with your email right after payment</li>
+            </ul>
+          )}
           <form class="ms-form" data-buy-form>
             <div class="ms-fields">
               <label class="ms-field">
                 <span>First name</span>
-                <input type="text" name="first_name" autocomplete="given-name" required maxlength="100" />
+                <input type="text" name="first_name" autocomplete="given-name" required maxlength="100" value={prefillFirst || undefined} />
               </label>
               <label class="ms-field">
                 <span>Last name</span>
-                <input type="text" name="last_name" autocomplete="family-name" required maxlength="100" />
+                <input type="text" name="last_name" autocomplete="family-name" required maxlength="100" value={prefillLast || undefined} />
               </label>
               <label class="ms-field ms-field--full">
                 <span>Email</span>
-                <input type="email" name="email" placeholder="you@somewhere" autocomplete="email" required maxlength="254" />
+                <input type="email" name="email" placeholder="you@somewhere" autocomplete="email" required maxlength="254" value={emailParamValid ? emailParam : undefined} />
               </label>
               <label class="ms-field ms-field--full">
                 <span>Country</span>
@@ -352,6 +415,23 @@ const totalLabel =
       </div>
 
       <!-- Already own it -->
+      {inApp ? (
+      <div class="ms-own" id="open">
+        <h2 class="ms-h2">Already own this album?</h2>
+        <p class="ms-own-p">
+          It's in your Library in the Songdance CiRCLE, our app. Sign in there with the email from
+          your order — there's no password, we send you a code.
+        </p>
+        <a class="sd-btn sd-btn-primary" href={appUrl}>
+          Open it in the app
+          <i class="ph-light ph-arrow-right"></i>
+        </a>
+        <p class="mp-gate-help">
+          Can't find it? Write to
+          <a href="mailto:support@songdance.co">support@songdance.co</a> and we'll help you personally.
+        </p>
+      </div>
+      ) : (
       <div class="ms-own" id="open">
         <h2 class="ms-h2">Already own this album?</h2>
         <p class="ms-own-p">
@@ -382,6 +462,7 @@ const totalLabel =
           <a href="mailto:support@songdance.co">support@songdance.co</a> and we'll help you personally.
         </p>
       </div>
+      )}
     </section>
     </Fragment>
   ) : (
