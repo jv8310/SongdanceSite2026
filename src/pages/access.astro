@@ -9,12 +9,14 @@ import PageHero from '../components/PageHero.astro';
 //   • Music albums — gated album players (src/lib/music/) the email's Drip tags
 //     hold; the lookup also sets the listener cookie so each link plays at once.
 //   • CiRCLE products — if you hold anything that lives in the CiRCLE
-//     (courses, journeys, …) we show the two paths: step inside if you're set
-//     up, or request activation (tags you `prod_access` in Drip via
-//     /api/access-products, which triggers the activation email).
-// If we find nothing under the address we still offer activation, so nobody is
-// left stuck.
-const CIRCLE_URL = 'https://circle.songdance.co/feed';
+//     (courses, journeys, …) we send you in: the CiRCLE app at
+//     circle.songdance.co already holds every course on the address (site
+//     orders and Drip tags), so there is nothing to activate any more. The
+//     button opens its sign-in with this address filled in.
+// The old "Activate all my products" (the prod_access tag → Drip's Mighty
+// Networks activation email) went with Mighty Networks.
+const CIRCLE_URL = 'https://circle.songdance.co';
+const CIRCLE_SIGN_IN = `${CIRCLE_URL}/sign-in`;
 ---
 
 <SiteLayout
@@ -89,39 +91,32 @@ const CIRCLE_URL = 'https://circle.songdance.co/feed';
         <p class="access-block-p" data-circle-list hidden></p>
         <div class="access-grid">
           <article class="access-card">
-            <span class="access-step">Already set up</span>
-            <h3 class="access-card-h">You're in — step inside.</h3>
+            <span class="access-step">Step inside</span>
+            <h3 class="access-card-h">Everything is waiting in the CiRCLE.</h3>
             <p class="access-card-p">
-              If you've already activated your products in the CiRCLE,
-              everything is waiting for you there.
+              Sign in with this same email address. We send you a code — no
+              password, nothing to activate. Your courses are already there.
             </p>
             <a
-              href={CIRCLE_URL}
+              href={CIRCLE_SIGN_IN}
               class="sd-btn sd-btn-primary"
               target="_blank"
               rel="noopener"
+              data-circle-link
             >
               Open the CiRCLE
               <i class="ph-light ph-arrow-up-right"></i>
             </a>
           </article>
 
-          <article class="access-card" data-activate-card>
+          <article class="access-card">
             <span class="access-step">Missing products</span>
-            <h3 class="access-card-h">Something's not there yet?</h3>
+            <h3 class="access-card-h">Something's not there?</h3>
             <p class="access-card-p">
-              If products are missing from your CiRCLE, they need to be
-              activated first. We'll email you the steps to set everything up.
+              If you bought under another address, sign in with that one — or
+              write to <a href="mailto:support@songdance.co">support@songdance.co</a>
+              and we'll put it on your account.
             </p>
-            <button type="button" class="sd-btn sd-btn-primary" data-activate>
-              <span data-activate-label>Activate all my products</span>
-              <i class="ph-light ph-envelope-simple"></i>
-            </button>
-            <p class="access-activated" hidden data-activated>
-              <i class="ph-light ph-envelope-open"></i>
-              Sent — check your email for the steps to activate everything.
-            </p>
-            <p class="access-error" hidden role="alert" data-activate-error></p>
           </article>
         </div>
       </div>
@@ -130,20 +125,11 @@ const CIRCLE_URL = 'https://circle.songdance.co/feed';
       <div class="access-block" hidden data-none-block>
         <h2 class="access-block-h">We couldn't find anything under that email</h2>
         <p class="access-block-p">
-          Double-check the address, or — if you've bought with us before — we can
-          send you the steps to activate your products in the CiRCLE.
+          Double-check the address, or try another one you may have bought with.
+          If you've been with us before and it still doesn't show, write to
+          <a href="mailto:support@songdance.co">support@songdance.co</a> and we'll
+          find it for you.
         </p>
-        <div class="access-none-actions">
-          <button type="button" class="sd-btn sd-btn-primary" data-activate>
-            <span data-activate-label>Email me the activation steps</span>
-            <i class="ph-light ph-envelope-simple"></i>
-          </button>
-          <p class="access-activated" hidden data-activated>
-            <i class="ph-light ph-envelope-open"></i>
-            Sent — check your email for the steps to activate everything.
-          </p>
-          <p class="access-error" hidden role="alert" data-activate-error></p>
-        </div>
       </div>
 
       <p class="access-reset">
@@ -316,16 +302,6 @@ const CIRCLE_URL = 'https://circle.songdance.co/feed';
   }
   .access-card-p { color: var(--ink-soft); margin: 0; max-width: 42ch; }
   .access-card .sd-btn { margin-top: var(--sp-3); }
-  .access-none-actions { display: flex; flex-direction: column; align-items: flex-start; gap: var(--sp-3); }
-
-  .access-activated {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    color: var(--ember-deep);
-    font-size: var(--t-body-sm);
-    margin: var(--sp-3) 0 0;
-  }
   .access-error {
     color: var(--ember-deep);
     font-size: var(--t-body-sm);
@@ -381,7 +357,7 @@ const CIRCLE_URL = 'https://circle.songdance.co/feed';
   const musicList = document.querySelector<HTMLElement>('[data-music-list]');
   const noneBlock = document.querySelector<HTMLElement>('[data-none-block]');
 
-  // The looked-up email, reused for the activation request.
+  // The looked-up email, carried onto the CiRCLE sign-in link.
   let currentEmail = '';
 
   const esc = (s: string) =>
@@ -485,14 +461,12 @@ const CIRCLE_URL = 'https://circle.songdance.co/feed';
     // Nothing at all
     if (noneBlock) noneBlock.hidden = hasSessions || hasCircle || hasMusic;
 
-    // Reset any activation states from a previous lookup.
-    document.querySelectorAll<HTMLElement>('[data-activated]').forEach((el) => (el.hidden = true));
-    document.querySelectorAll<HTMLElement>('[data-activate-error]').forEach((el) => (el.hidden = true));
-    document.querySelectorAll<HTMLButtonElement>('[data-activate]').forEach((b) => {
-      b.disabled = false;
-      b.hidden = false;
-      const lbl = b.querySelector<HTMLElement>('[data-activate-label]');
-      if (lbl && lbl.dataset.original) lbl.textContent = lbl.dataset.original;
+    // The CiRCLE's sign-in opens with this address filled in.
+    document.querySelectorAll<HTMLAnchorElement>('[data-circle-link]').forEach((a) => {
+      const u = new URL(a.href);
+      if (currentEmail) u.searchParams.set('email', currentEmail);
+      else u.searchParams.delete('email');
+      a.href = u.toString();
     });
 
     if (lookupWrap) lookupWrap.hidden = true;
@@ -539,41 +513,6 @@ const CIRCLE_URL = 'https://circle.songdance.co/feed';
       if (btn) btn.disabled = false;
       if (lookupLabel) lookupLabel.textContent = original;
     }
-  });
-
-  // Activation — reuses the already-entered email, so no second prompt. Wired on
-  // every [data-activate] button (the CiRCLE card + the nothing-found block).
-  document.querySelectorAll<HTMLButtonElement>('[data-activate]').forEach((btn) => {
-    const scope = btn.closest('[data-activate-card], .access-none-actions') ?? document;
-    const label = btn.querySelector<HTMLElement>('[data-activate-label]');
-    if (label) label.dataset.original = label.textContent ?? 'Activate all my products';
-    const done = scope.querySelector<HTMLElement>('[data-activated]');
-    const errEl = scope.querySelector<HTMLElement>('[data-activate-error]');
-
-    btn.addEventListener('click', async () => {
-      if (!currentEmail) return;
-      if (errEl) errEl.hidden = true;
-      btn.disabled = true;
-      if (label) label.textContent = 'Sending…';
-      try {
-        const res = await fetch('/api/access-products', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: currentEmail, hp: '' }),
-        });
-        const payload = (await res.json().catch(() => ({}))) as { ok?: boolean };
-        if (!res.ok || !payload?.ok) throw new Error('request-failed');
-        btn.hidden = true;
-        if (done) done.hidden = false;
-      } catch {
-        btn.disabled = false;
-        if (label && label.dataset.original) label.textContent = label.dataset.original;
-        if (errEl) {
-          errEl.textContent = "That didn't go through — please try again in a moment.";
-          errEl.hidden = false;
-        }
-      }
-    });
   });
 
   document.querySelectorAll<HTMLAnchorElement>('[data-reset]').forEach((a) =>
