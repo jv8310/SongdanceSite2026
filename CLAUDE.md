@@ -59,6 +59,13 @@ of the person, since the app may still know them.
   entrypoint, and in local `astro dev` (no binding), the section says the app does not
   answer; the rest of the page is untouched. A preview version talks to the **production**
   app, so a change made on a preview link is real.
+- **Deploying the app from a session.** The app is not deployed by merging: its **Deploy**
+  workflow (songdance-app, `migrations` → `api` → `web`, or `migrations-api-web`) is started by
+  Jacob, or by a session when he asks for that deploy in it — the cloud environment carries
+  `DEPLOY_GITHUB_TOKEN` for exactly that (fine-grained, songdance-app only, Actions read and
+  write; the Claude GitHub App itself cannot start a workflow). How, and the rules: songdance-app
+  `docs/DEPLOY.md` A11, "Started from a cloud session". Runs queue, so `migrations` and `api`
+  may be started back to back. A site change that needs the app goes in after the app's deploy.
 - **Extra time on the 12-week / certification course** (October 2026): those courses'
   materials never end; what runs out is their **live sessions** (12 weeks / 9 months from the
   start). "Ends" can only cut a course short, so the course row's **Change** carries **Give
@@ -82,7 +89,14 @@ of the person, since the app may still know them.
   Once certified, the app's certification course page swaps "Apply for certification" for a
   "🎓 You are certified" label, and the certificate is there to download. The certificate can be
   replaced, taken away (they stay certified) or the whole certification undone (the file goes
-  with it); **`/api/admin/app-certificate?email=`** shows the file. It is not a Drip tag: the
+  with it); **`/api/admin/app-certificate?email=`** shows the file. **Jacob's feedback** on the
+  session goes with it (same block, and optionally the form that certifies): plain text in the
+  app's lesson format — blank lines between paragraphs, `**bold**`, `*italic*`, `## ` or a
+  bold line for a heading, `- ` / `1. ` lists, web addresses as links — written in
+  `FeedbackEditor.astro` with formatting buttons and a preview
+  ([`feedback-editor.ts`](src/lib/client/feedback-editor.ts), which follows the app's
+  `rich-text.ts` / `FeedText.tsx` rules; change one, change the other). The member reads it on
+  their certification page under the certificate; the certified label opens that page. It is not a Drip tag: the
   app keeps it per address (`app_certified`, the app's `lib/certified.ts`), so it works before
   the person has an app account, and the file sits in the app's private bucket — this site only
   passes it through the binding. Claude can do the same through the app's MCP tools
@@ -820,6 +834,45 @@ gated player) but no email telling them so. Delivery now lives in the site, in
   album is being delivered, how many buyers are still waiting, and a button
   (`/api/admin/workshops/mantra-pack-send`) that forces the sweep with a wider
   cap. Pressing it twice is harmless.
+
+## Albums in the app — "Empowering You" moves to the CiRCLE library
+
+The "Empowering You" mantras (the €9 workshop / masterclass bump, the album sold
+on its own at `/music/empowering-you`, and the five mantras the 12-week course
+has always come with — on Mighty, the 12-week space's "Ripples of Bliss"
+playlist) are a **course in the member app's Library**, course key
+`empowering-you` (October 2026). The site keeps selling it; **where it plays**
+moves, one switch per album:
+[`src/lib/music/in-app.ts`](src/lib/music/in-app.ts), `/admin/music/<id>` →
+**Plays in the app** (`workshop_config` `album_in_app_on:<album id>`, logged as
+`music.album.in_app_on/off`). Only an album named in `APP_ALBUM_COURSES` (album
+id → app course key, the same string) can be switched; renaming its slug takes it
+out of the app's reach.
+
+- **Off (default)** — everything as before: the player, its emails, `/access`.
+- **On** — `/music/<album>` still sells it, but an owner (the `sd_music` cookie,
+  the `?email=` link, `?welcome=1` after checkout, an admin) is shown the way into
+  the app instead of the player; a non-owner arriving with `?email=` (the app's
+  locked shelf links here with `?email=`/`?first_name=`/`?last_name=`) gets the
+  sales page with the checkout filled in. `mantraPackEmail` / `albumPurchaseEmail`
+  take `inApp` (button → `circleCourseUrl(<course>)`, "sign in with the address
+  you ordered with"), previewed on `/admin/emails` as "… — in the app";
+  `/api/access-lookup` returns `in_app` per album (no listener cookie for those);
+  `/music` and the bump cards (`WERegister`, `MCRegister`, `/w/<slug>`) say it
+  waits in the app Library.
+- **Turn it on only when** the app holds the tracks and answers at
+  `circle.songdance.co` (after the cutover — before it, that address is Mighty).
+  App side: deploy the API, then in Claude (Songdance App connector)
+  `import_site_album {"albumId":"empowering-you"}` (copies the tracks out of this
+  bucket into the app's, track N = lesson `empowering-you-lNN`; re-run after any
+  change on `/admin/music`) and `publish_courses {"courseKeys":["empowering-you"],"note":"…"}`.
+- **Who holds it in the app** (songdance-app `packages/shared`): `album-empowering-you`
+  orders, the `mantra-empower-bump` workshop line, the `prod_MantraEmpower` tag
+  (Drip or the contacts mirror — this covers coupon seats with `wants_bump` and no
+  ledger line), and **every 12-week student** (`svh-12week`, `cc-bundle`; the
+  sales page promises "five of Jacob's original mantras on joining"). The 12-week
+  and path welcome emails name the album. A refunded seat takes the bump back in
+  the app without a mail of the app's own.
 
 ## Course emails — the site takes over from Drip, one course at a time
 

@@ -126,7 +126,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
       // Mark as certified, and add the certificate in the same step when one was chosen.
       const file = await certificateFile();
       if (file === 'big') return back(page, { app_err: '1', app_msg: tooBig });
-      const r = await askApp(env, (app) => app.certify({ email, on: field('on') || undefined, note: field('note') || undefined, actor }));
+      // The feedback is kept as typed (its line breaks are its layout); only an empty one is left out.
+      const feedback = String(form?.get('feedback') ?? '');
+      const r = await askApp(env, (app) =>
+        app.certify({ email, on: field('on') || undefined, note: field('note') || undefined, ...(feedback.trim() ? { feedback } : {}), actor }),
+      );
       if (r.ok && file !== 'none') {
         const c = await askApp(env, (app) => app.addCertificate({ email, filename: file.name, bytes: file.bytes, actor }));
         if (!c.ok) return back(page, { app_err: '1', app_msg: `Certified, but the certificate was not added: ${c.message}` });
@@ -136,6 +140,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
         file !== 'none'
           ? 'Certified, with the certificate. The app shows "You are certified" and the certificate to download.'
           : 'Certified. The app shows "You are certified"; add the certificate whenever it is ready.';
+      break;
+    }
+    case 'certification-feedback': {
+      const feedback = String(form?.get('feedback') ?? '');
+      const r = await askApp(env, (app) => app.certificationFeedback({ email, feedback: feedback.trim() ? feedback : null, actor }));
+      result = r;
+      done = feedback.trim() ? 'Feedback saved. They read it on their certification page in the app, beside the certificate.' : 'Feedback taken away.';
       break;
     }
     case 'certified-day': {

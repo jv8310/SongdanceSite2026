@@ -6,7 +6,8 @@ import {
   getProductById,
   resolvePrice,
 } from '../../lib/workshops/db';
-import { resolveWorkshopBumpProductId } from '../../lib/workshops/bump';
+import { DEFAULT_BUMP_SLUG, resolveWorkshopBumpProductId } from '../../lib/workshops/bump';
+import { EMPOWERING_YOU_ALBUM, albumPlaysInApp } from '../../lib/music/in-app';
 import { currencyForCountry, formatMoney } from '../../lib/workshops/currency';
 import { formatInTz } from '../../lib/workshops/time';
 import {
@@ -51,6 +52,7 @@ let ticketLabel = '';
 let ticketFullLabel = ''; // pre-discount price, shown struck-through when discounted
 let bumpLabel = '';
 let bumpName = '';
+let bumpInApp = false;
 let ticketProductId: number | null = null;
 
 if (workshop?.main_product_id) {
@@ -72,6 +74,9 @@ if (workshop?.main_product_id) {
     if (bumpProduct && bumpPrice) {
       bumpName = bumpProduct.name;
       bumpLabel = formatMoney(bumpPrice.amountMinor, bumpPrice.currency);
+      // The mantra pack is the "Empowering You" album: once it plays in the
+      // app (src/lib/music/in-app.ts), say where it will be.
+      bumpInApp = bumpProduct.slug === DEFAULT_BUMP_SLUG && (await albumPlaysInApp(env.DB, EMPOWERING_YOU_ALBUM));
     }
   }
 }
@@ -159,7 +164,7 @@ const tzOptions = Array.from(new Set([detectedTz, ...COMMON_TZS]));
           {bumpName && (
             <label class="wk-bump">
               <input type="checkbox" name="bump" />
-              <span><strong>Add {bumpName}</strong> for {bumpLabel}</span>
+              <span><strong>Add {bumpName}</strong> for {bumpLabel}{bumpInApp && ' — it waits in your Library in the Songdance app'}</span>
             </label>
           )}
 

@@ -11,6 +11,7 @@
 // Masterclass entries (€44) are always shown in the list too — highlighted with
 // the plum accent and their own per-row price — so the practitioner date is
 // bookable for everyone, not only the pro (door 3) lens.
+import { EMPOWERING_YOU_ALBUM, albumPlaysInApp } from '../../lib/music/in-app';
 import type { CalItem } from './types';
 import { ALL_COUNTRIES } from '../../lib/workshops/countries';
 import { usesTwelveHourClock } from '../../lib/workshops/time';
@@ -52,6 +53,10 @@ const selectedName = detected?.name ?? '';
 // rather than on each row. The pro-only masterclass entries are priced
 // differently, so they keep their own per-row price (re-shown by CSS).
 const leadTicket = items.find((it) => it.kind !== 'masterclass');
+// The bump card shows the "Empowering You" mantra pack (its cover is the
+// album's). Once that album plays in the app (src/lib/music/in-app.ts), the card
+// says where the buyer will find it.
+const bumpInApp = await albumPlaysInApp(Astro.locals.runtime.env.DB, EMPOWERING_YOU_ALBUM);
 ---
 
 <section class="we-register" id="register">
@@ -217,7 +222,7 @@ const leadTicket = items.find((it) => it.kind !== 'masterclass');
                   <span class="we-bump-points">
                     <span class="we-bump-point"><strong>5 original mantras with a South African choir</strong></span>
                     <span class="we-bump-point">For healing &amp; self-empowerment</span>
-                    <span class="we-bump-point">Yours to keep — sound along anytime</span>
+                    <span class="we-bump-point">{bumpInApp ? 'Yours to keep, in your Songdance app' : 'Yours to keep — sound along anytime'}</span>
                   </span>
                 </span>
               </span>
@@ -225,6 +230,7 @@ const leadTicket = items.find((it) => it.kind !== 'masterclass');
                 Five original mantras, recorded with a choir in South Africa for
                 healing and self-empowerment. Let your voice be heard and
                 cultivate self-love as you sound along with the powerful tunes.
+                {bumpInApp && ' They wait in your Library in the Songdance CiRCLE, our app, as soon as you’ve paid — on your phone and your computer.'}
               </span>
               <span class="we-bump-foot">
                 <span class="we-bump-prices">

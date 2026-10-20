@@ -5,6 +5,7 @@ import { readCookie, verifySession } from '../../../lib/registrations/auth';
 import { albumCoverUrl, albumUrl, formatDuration, getAlbum, listTracks } from '../../../lib/music/db';
 import { listProducts } from '../../../lib/workshops/db';
 import { signedStreamUrl } from '../../../lib/music/access';
+import { albumAppUrl, albumInAppSince, appCourseForAlbum } from '../../../lib/music/in-app';
 
 export const prerender = false;
 
@@ -47,8 +48,20 @@ const grantedBy = albumTag
 const bumpTagSuggestions = products.filter((p) => p.type === 'bump').map(productTag);
 const cover = albumCoverUrl(album);
 
+// Whether the app plays this album instead of the player here (in-app.ts).
+const appCourse = appCourseForAlbum(album.id);
+const inAppSince = appCourse ? await albumInAppSince(env.DB, album.id) : null;
+const appUrl = appCourse ? albumAppUrl(album.id) : null;
+
 const flash = Astro.url.searchParams.get('flash');
-const flashText = flash === 'saved' ? { tone: 'ok' as const, text: 'Album saved.' } : null;
+const flashText =
+  flash === 'saved'
+    ? { tone: 'ok' as const, text: 'Album saved.' }
+    : flash === 'in-app-on'
+      ? { tone: 'ok' as const, text: 'The album now plays in the app: its owners are sent there from here on.' }
+      : flash === 'in-app-off'
+        ? { tone: 'ok' as const, text: 'The album plays here again, in the player.' }
+        : null;
 
 function fmtBytes(n: number | null): string {
   if (!n) return '';
@@ -133,6 +146,42 @@ function fmtBytes(n: number | null): string {
         </p>
       )}
     </section>
+
+    {appCourse && (
+      <section class="adm-section">
+        <h2>Plays in the app</h2>
+        {inAppSince ? (
+          <p class="music-note">
+            <strong>On since {inAppSince.slice(0, 16)} UTC.</strong> Owners who open the player page are
+            shown the way into the app instead (<a href={appUrl} target="_blank" rel="noopener">{appUrl}</a>);
+            the delivery emails, <a href="/access" target="_blank" rel="noopener">/access</a> and the bump
+            cards on the workshop and masterclass checkouts send them there too. The page still sells it.
+          </p>
+        ) : (
+          <p class="music-note">
+            Off — the album plays here, in the player. In the app it is the course
+            <code>{appCourse}</code> in the Library, open to everyone who bought it here or as the
+            workshop / masterclass bump, and to every 12-week student (the course comes with these
+            mantras). Turn this on once the app has it — the tracks copied with
+            <code>import_site_album {`{"albumId":"${album.id}"}`}</code> and the course published with
+            <code>publish_courses</code> (Claude, Songdance App connector) — and once
+            <code>circle.songdance.co</code> is the app, not Mighty Networks. Owners are then sent to
+            the app instead of the player, by the page, the emails and /access.
+          </p>
+        )}
+        <form method="POST" action="/api/admin/music/in-app" class="music-settings-actions">
+          <input type="hidden" name="album_id" value={album.id} />
+          <input type="hidden" name="on" value={inAppSince ? '0' : '1'} />
+          <button type="submit" class={inAppSince ? 'adm-btn adm-btn--ghost' : 'adm-btn adm-btn--solid'}>
+            {inAppSince ? 'Play it here again' : 'Play it in the app from now on'}
+          </button>
+        </form>
+        <p class="music-note">
+          Changing the URL id (slug) above takes the album out of the app's reach: the app knows it
+          as <code>{album.id}</code>.
+        </p>
+      </section>
+    )}
 
     <section class="adm-section">
       <h2>Album settings</h2>

@@ -1,0 +1,67 @@
+---
+// Jacob's feedback on a student's certification session, written on their
+// People page (App access → Certification) and read in the member app on their
+// certification page. A textarea, four buttons that write the marks, and a
+// preview of how the app lays it out (src/lib/client/feedback-editor.ts says
+// which marks are read, and why the text stays plain).
+import { MAX_CERT_FEEDBACK_CHARS } from '../../lib/admin/app-access';
+
+type Props = { value?: string | null; label?: string };
+const { value = '', label = 'Feedback on their session (optional)' } = Astro.props;
+---
+
+<div class="fb" data-feedback-editor>
+  <div class="fb-head">
+    <span class="fb-label">{label}</span>
+    <span class="fb-tools" role="toolbar" aria-label="Formatting">
+      <button type="button" class="fb-tool" data-fmt="bold" title="Bold (Ctrl/⌘ B)"><strong>B</strong></button>
+      <button type="button" class="fb-tool" data-fmt="italic" title="Italic (Ctrl/⌘ I)"><em>I</em></button>
+      <button type="button" class="fb-tool" data-fmt="heading" title="Heading">H</button>
+      <button type="button" class="fb-tool" data-fmt="list" title="List">• List</button>
+      <button type="button" class="fb-tool" data-fmt="numbered" title="Numbered list">1. List</button>
+    </span>
+  </div>
+  <div class="fb-panes">
+    <textarea
+      name="feedback"
+      rows="10"
+      maxlength={MAX_CERT_FEEDBACK_CHARS}
+      placeholder={'What you saw in their session, in your words.\n\nA blank line starts a new paragraph. **bold**, *italic*, "## " for a heading, "- " for a list. Web addresses become links.'}
+    >{value ?? ''}</textarea>
+    <div class="fb-preview" data-feedback-preview aria-live="polite"></div>
+  </div>
+  <p class="fb-foot"><span>Left: what you write. Right: how it reads in the app.</span><span data-feedback-count></span></p>
+</div>
+
+<script>
+  import { initFeedbackEditors } from '../../lib/client/feedback-editor';
+  initFeedbackEditors();
+</script>
+
+<style>
+  .fb { margin: 4px 0 10px; }
+  .fb-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+  .fb-label { font-size: 12px; color: var(--adm-mute); }
+  .fb-tools { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+  .fb-tool {
+    font: inherit; font-size: 12px; line-height: 1; padding: 6px 9px; border-radius: 6px; cursor: pointer;
+    border: 1px solid var(--adm-line); background: var(--adm-paper-soft); color: var(--adm-ink-soft);
+  }
+  .fb-tool:hover { border-color: var(--adm-ember-deep); color: var(--adm-ember-deep); }
+  .fb-panes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .fb-panes textarea { width: 100%; min-height: 220px; font: inherit; font-size: 14px; line-height: 1.5; resize: vertical; box-sizing: border-box; }
+  .fb-preview {
+    border: 1px solid var(--adm-line); border-radius: 8px; background: var(--adm-paper-soft);
+    padding: 10px 14px; font-size: 14px; line-height: 1.55; overflow-wrap: anywhere; max-height: 420px; overflow-y: auto;
+  }
+  .fb-preview :global(p) { margin: 0 0 10px; }
+  .fb-preview :global(h4) { font-size: 15px; margin: 14px 0 6px; }
+  .fb-preview :global(h4:first-child) { margin-top: 0; }
+  .fb-preview :global(ul), .fb-preview :global(ol) { margin: 0 0 10px; padding-left: 20px; }
+  .fb-preview :global(em) { font-style: italic; }
+  .fb-preview :global(.fb-empty) { color: var(--adm-mute); }
+  .fb-foot { display: flex; justify-content: space-between; gap: 8px; margin: 4px 0 0; font-size: 12px; color: var(--adm-mute); }
+  @media (max-width: 720px) {
+    .fb-panes { grid-template-columns: 1fr; }
+  }
+</style>

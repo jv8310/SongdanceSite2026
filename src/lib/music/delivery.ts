@@ -8,7 +8,10 @@
 //     notifyCourseOrder so every fulfilment path covers it (Stripe webhook,
 //     PayPal, free checkout, admin mark-paid, and the hourly reconcile).
 //
-// Both hand over the same kind of link: albumPlayerUrl() carries the buyer's
+// An album that plays in the app (src/lib/music/in-app.ts) hands over the app
+// instead of the player: same emails, the CiRCLE course as the button.
+//
+// Otherwise both hand over the same kind of link: albumPlayerUrl() carries the buyer's
 // own address as `?email=`, so /music/<album> signs them in and opens straight
 // into the player instead of asking for an address we already know. The email
 // IS the credential in this system (same as /access and the gate form), so the
@@ -21,6 +24,7 @@ import { logEvent } from '../registrations/db';
 import { albumPurchaseEmail } from '../workshops/emails';
 import { sendEmail } from '../workshops/resend';
 import { albumCoverUrl, getAlbum, listTracks, type MusicAlbumRow } from './db';
+import { albumAppUrl, albumPlaysInApp } from './in-app';
 import { albumIdFromProductSlug, isAlbumProductSlug } from './product';
 
 const DEFAULT_BASE_URL = 'https://songdance.co';
@@ -94,14 +98,17 @@ export async function sendAlbumPurchaseEmail(
 
     const base = albumBaseUrl(env);
     const tracks = await listTracks(env.DB, album.id);
+    // An album that plays in the app sends the buyer there instead (in-app.ts).
+    const appUrl = (await albumPlaysInApp(env.DB, album.id)) ? albumAppUrl(album.id) : null;
     const content = albumPurchaseEmail({
       name: reg.first_name,
       loginEmail: reg.email,
       albumTitle: album.title,
       albumDescription: album.description,
-      albumUrl: albumPlayerUrl(base, album.id, reg.email),
+      albumUrl: appUrl ?? albumPlayerUrl(base, album.id, reg.email),
       trackTitles: tracks.map((t) => t.title),
       coverUrl: albumCoverEmailUrl(base, album),
+      inApp: !!appUrl,
     });
     await sendEmail({
       apiKey: env.RESEND_API_KEY,
