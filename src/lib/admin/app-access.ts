@@ -50,6 +50,8 @@ export type AppCertified = {
   note: string | null;
   by: string;
   certificate: { filename: string; contentType: string; sizeBytes: number; addedAt: string | null; by: string | null } | null;
+  // Jacob's feedback on the session (absent from an app deployed before it).
+  feedback?: { text: string; at: string | null; by: string | null } | null;
 };
 
 export type AppCertification = {
@@ -88,12 +90,16 @@ export type AppAdminBinding = {
   unseatFromSpace(input: { email: string; spaceKey: string; reason: string; actor: string }): Promise<AppAnswer<{ revoked: number }>>;
   addHost(input: { email: string; spaceKey: string; actor: string }): Promise<AppAnswer<{ role: string }>>;
   removeHost(input: { email: string; spaceKey: string; actor: string }): Promise<AppAnswer<{ removed: boolean }>>;
-  certify(input: { email: string; on?: string; note?: string; actor: string }): Promise<AppAnswer<AppCertified>>;
+  certify(input: { email: string; on?: string; note?: string; feedback?: string; actor: string }): Promise<AppAnswer<AppCertified>>;
+  certificationFeedback(input: { email: string; feedback: string | null; actor: string }): Promise<AppAnswer<AppCertified>>;
   uncertify(input: { email: string; reason: string; actor: string }): Promise<AppAnswer<{ removed: boolean }>>;
   addCertificate(input: { email: string; filename?: string; bytes: ArrayBuffer; actor: string }): Promise<AppAnswer<AppCertified>>;
   removeCertificate(input: { email: string; actor: string }): Promise<AppAnswer<AppCertified>>;
   certificate(input: { email: string }): Promise<AppAnswer<{ filename: string; contentType: string; bytes: ArrayBuffer }>>;
 };
+
+/** The longest feedback the app keeps (its MAX_CERT_FEEDBACK_CHARS). */
+export const MAX_CERT_FEEDBACK_CHARS = 20_000;
 
 /** What the app takes as a certificate (its MAX_CERTIFICATE_BYTES); the app checks the bytes again. */
 export const MAX_CERTIFICATE_BYTES = 20 * 1024 * 1024;

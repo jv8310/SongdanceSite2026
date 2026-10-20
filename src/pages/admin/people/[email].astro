@@ -17,6 +17,7 @@ import { getFxRatesToEur } from '../../../lib/admin/fx';
 import { formatMoney } from '../../../lib/workshops/currency';
 import { emailSendsForAddress } from '../../../lib/email/sends';
 import { getContact, listBroadcasts } from '../../../lib/broadcasts/db';
+import FeedbackEditor from '../../../components/admin/FeedbackEditor.astro';
 import { CERT_STEPS, MAX_CERTIFICATE_BYTES, STATE_LABEL, STATE_PILL, actorLabel, askApp, day, fileSize, sourceLabel } from '../../../lib/admin/app-access';
 
 export const prerender = false;
@@ -382,6 +383,20 @@ const jsEmail = email.replace(/['\\]/g, '\\$&');
                       </div>
                       <button type="submit" class="adm-btn adm-btn--solid">{cert.certified.certificate ? 'Replace certificate' : 'Add certificate'}</button>
                     </form>
+                    {cert.certified.feedback !== undefined && (
+                      <form method="POST" action="/api/admin/app-access" class="app-form app-inline" id="app-cert-feedback">
+                        <input type="hidden" name="action" value="certification-feedback" />
+                        <input type="hidden" name="email" value={email} />
+                        <FeedbackEditor value={cert.certified.feedback?.text ?? ''} label="Your feedback on their session" />
+                        <button type="submit" class="adm-btn adm-btn--solid">{cert.certified.feedback ? 'Save feedback' : 'Add feedback'}</button>
+                        <p class="pd-mute">
+                          {cert.certified.feedback
+                            ? `Saved ${fmtDate(cert.certified.feedback.at)}${cert.certified.feedback.by ? ` by ${actorLabel(cert.certified.feedback.by)}` : ''}. `
+                            : ''}
+                          They read it on their certification page in the app, under the certificate. Saving an empty box takes it away.
+                        </p>
+                      </form>
+                    )}
                     <details class="app-add">
                       <summary>Change the day or the note, take the certificate away, or undo</summary>
                       <form method="POST" action="/api/admin/app-access" class="app-form">
@@ -429,8 +444,9 @@ const jsEmail = email.replace(/['\\]/g, '\\$&');
                       <label class="span-2"><span>Certificate (optional: PDF, JPEG or PNG, up to {MAX_CERTIFICATE_BYTES / 1024 / 1024} MB)</span><input type="file" name="certificate" accept="application/pdf,image/jpeg,image/png" /></label>
                       <label class="span-full"><span>Note (optional)</span><input type="text" name="note" maxlength="500" placeholder="Kept in the app's log, e.g. reviewed the session video" /></label>
                     </div>
+                    <FeedbackEditor />
                     <button type="submit" class="adm-btn adm-btn--solid">Mark as certified</button>
-                    <p class="pd-mute">On their certification course page in the app, "Apply for certification" becomes a "You are certified" label, and their certification page offers the certificate to download. Works before they have an app account: it waits under this address. The certificate can be added now or later.</p>
+                    <p class="pd-mute">On their certification course page in the app, "Apply for certification" becomes a "You are certified" label; it opens their certification page, with the certificate to download and your feedback. Works before they have an app account: it waits under this address. The certificate and the feedback can be added now or later.</p>
                   </form>
                 )}
               </>
