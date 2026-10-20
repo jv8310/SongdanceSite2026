@@ -59,6 +59,13 @@ of the person, since the app may still know them.
   entrypoint, and in local `astro dev` (no binding), the section says the app does not
   answer; the rest of the page is untouched. A preview version talks to the **production**
   app, so a change made on a preview link is real.
+- **Deploying the app from a session.** The app is not deployed by merging: its **Deploy**
+  workflow (songdance-app, `migrations` → `api` → `web`, or `migrations-api-web`) is started by
+  Jacob, or by a session when he asks for that deploy in it — the cloud environment carries
+  `DEPLOY_GITHUB_TOKEN` for exactly that (fine-grained, songdance-app only, Actions read and
+  write; the Claude GitHub App itself cannot start a workflow). How, and the rules: songdance-app
+  `docs/DEPLOY.md` A11, "Started from a cloud session". Runs queue, so `migrations` and `api`
+  may be started back to back. A site change that needs the app goes in after the app's deploy.
 - **Extra time on the 12-week / certification course** (October 2026): those courses'
   materials never end; what runs out is their **live sessions** (12 weeks / 9 months from the
   start). "Ends" can only cut a course short, so the course row's **Change** carries **Give
