@@ -15,7 +15,7 @@
 //      lands on the same page's "this session has passed" view, where they can
 //      watch the replay or move onto a new date for free.
 //   2. Drip — the subscriber's tags, to tell whether they hold any product that
-//      lives in the Songdance CiRCLE (courses, journeys, the grief course, …).
+//      lives in the CiRCLE (courses, journeys, the grief course, …).
 //      Also grabs a first name to greet them. The same tag set decides which
 //      gated music albums (src/lib/music/) the email holds — those come back in
 //      `music`, each with its player link, and finding any also sets the signed
@@ -42,7 +42,7 @@ const json = (status: number, body: Record<string, unknown>, headers: Record<str
     headers: { 'Content-Type': 'application/json', ...headers },
   });
 
-// Tags that mean "owns something that lives in the Songdance CiRCLE" → a nice
+// Tags that mean "owns something that lives in the CiRCLE" → a nice
 // display name. Any other `prod_*` tag (or a legacy VSH training tag) still
 // counts as a CiRCLE product for the `has` flag, just without a named line.
 // `prod_access` is the activation-request marker, not a product — excluded.

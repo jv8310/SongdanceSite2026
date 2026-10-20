@@ -83,11 +83,17 @@
     }
 
     function fmtInt(v) { return Number(v).toLocaleString('en-IE'); }
-    function fmtEur(v) { return '€' + Number(v).toLocaleString('en-IE', { maximumFractionDigits: 0 }); }
+    // A negative amount reads "−€1,234", never "€-1,234".
+    function fmtEur(v) {
+      var n = Number(v);
+      return (n < 0 ? '−€' : '€') + Math.abs(n).toLocaleString('en-IE', { maximumFractionDigits: 0 });
+    }
     function fmtEurAxis(v) {
-      if (v >= 10000) return '€' + Math.round(v / 1000) + 'k';
-      if (v >= 1000) return '€' + (v / 1000).toFixed(1) + 'k';
-      return '€' + Math.round(v);
+      var sign = v < 0 ? '−' : '';
+      v = Math.abs(v);
+      if (v >= 10000) return sign + '€' + Math.round(v / 1000) + 'k';
+      if (v >= 1000) return sign + '€' + (v / 1000).toFixed(1) + 'k';
+      return sign + '€' + Math.round(v);
     }
     function niceMax(v) {
       if (v <= 0) return 1;
@@ -210,6 +216,7 @@
     // ---- Line / area chart -------------------------------------------------
     // opts: { labels, series:[{name,color,values,dashed?}], fmt:'eur'|'int',
     //         area?, smooth?(default true), interactive?, hidden?, labelLast? }
+    // Values may be negative: the scale then reaches below zero.
     function line(mountId, opts) {
       var mount = document.getElementById(mountId);
       if (!mount) return;
@@ -229,26 +236,42 @@
 
         var W = Math.max(mount.clientWidth || 700, 320), H = 262;
         var padL = 56, padR = labelLast ? 52 : 18, padT = 16, padB = 28;
-        var max = 1;
-        visible.forEach(function (s) { s.values.forEach(function (v) { if (v != null && v > max) max = v; }); });
-        max = niceMax(max);
+        var max = 1, min = 0;
+        visible.forEach(function (s) {
+          s.values.forEach(function (v) { if (v != null) { if (v > max) max = v; if (v < min) min = v; } });
+        });
+        // All-positive data keeps the classic 0 → max scale in four steps. A
+        // series that dips below zero (a running profit) gets a scale that spans
+        // it, in whole nice steps either side, with zero drawn as the baseline.
+        var lo = 0, hi, stepV, ticks;
+        if (min >= 0) {
+          hi = niceMax(max); stepV = hi / 4; ticks = 4;
+        } else {
+          stepV = niceMax((max - min) / 4);
+          lo = Math.floor(min / stepV) * stepV;
+          hi = Math.max(stepV, Math.ceil(max / stepV) * stepV);
+          ticks = Math.round((hi - lo) / stepV);
+        }
         function x(i) { return n === 1 ? (padL + W - padR) / 2 : padL + (W - padL - padR) * (i / (n - 1)); }
-        function y(v) { return H - padB - (H - padT - padB) * (v / max); }
-        var baseY = H - padB;
+        function y(v) { return H - padB - (H - padT - padB) * ((v - lo) / (hi - lo)); }
+        var floorY = H - padB; // bottom of the plot: x labels sit under it
+        var baseY = y(0);      // zero: where an area wash closes
 
         var svg = elNS('svg', { viewBox: '0 0 ' + W + ' ' + H, class: 'sdc-svg', height: H, preserveAspectRatio: 'none' });
         // gridlines + y ticks
-        for (var g = 0; g <= 4; g++) {
-          var gy = baseY - (H - padT - padB) * (g / 4);
-          svg.appendChild(elNS('line', { x1: padL, y1: gy, x2: W - padR, y2: gy, stroke: t.grid, 'stroke-width': 1 }));
+        for (var g = 0; g <= ticks; g++) {
+          var gv = lo + stepV * g;
+          var gy = y(gv);
+          var isZero = lo < 0 && Math.abs(gv) < stepV / 1000;
+          svg.appendChild(elNS('line', { x1: padL, y1: gy, x2: W - padR, y2: gy, stroke: isZero ? t.baseline : t.grid, 'stroke-width': 1 }));
           var tk = elNS('text', { x: padL - 8, y: gy + 4, 'text-anchor': 'end', class: 'sdc-axis--val' });
-          tk.textContent = fmtAxis(max * g / 4);
+          tk.textContent = fmtAxis(isZero ? 0 : gv);
           svg.appendChild(tk);
         }
         // x ticks (~7)
         var step = Math.max(1, Math.ceil(n / 7)), many = n > 370;
         for (var i = 0; i < n; i += step) {
-          var tx = elNS('text', { x: x(i), y: baseY + 18, 'text-anchor': 'middle', class: 'sdc-axis' });
+          var tx = elNS('text', { x: x(i), y: floorY + 18, 'text-anchor': 'middle', class: 'sdc-axis' });
           tx.textContent = shortDate(labels[i], many);
           svg.appendChild(tx);
         }
@@ -290,7 +313,7 @@
         });
 
         // hover: crosshair + per-series dots + tooltip
-        var guide = elNS('line', { y1: padT, y2: baseY, stroke: t.baseline, 'stroke-width': 1, visibility: 'hidden' });
+        var guide = elNS('line', { y1: padT, y2: floorY, stroke: t.baseline, 'stroke-width': 1, visibility: 'hidden' });
         svg.appendChild(guide);
         var dots = visible.map(function (s) {
           var c = elNS('circle', { r: 4, fill: resolveColor(s.color), stroke: t.surface, 'stroke-width': 2, visibility: 'hidden' });

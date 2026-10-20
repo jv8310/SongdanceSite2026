@@ -29,6 +29,9 @@ import {
   deckGiftClaimEmail,
   deckGiftConfirmedEmail,
   livePassConfirmedEmail,
+  livePassMonthlyConfirmedEmail,
+  livePassMonthlyStoppedEmail,
+  livePassManageLinkEmail,
   mantraPackEmail,
   albumPurchaseEmail,
   type EmailContent,
@@ -248,6 +251,46 @@ export function buildEmailSamples(base: string): EmailSample[] {
         courseUntilLabel: '31 December 2026',
         certWindowUntilLabel: '31 March 2027',
         eventsUrl: 'https://circle.songdance.co/events',
+      }),
+    },
+
+    // ── Live pass monthly (transactional) ────────────────────────────────
+    // src/lib/courses/live-pass-email.ts + live-pass-monthly.ts.
+    {
+      id: 'live_pass_monthly_confirmed',
+      group: 'Registration & reminders (transactional)',
+      label: 'Live pass monthly — running',
+      timing: 'On the first payment of a monthly live pass (later months send nothing)',
+      audience: 'Anyone who starts the monthly on /courses/live-pass',
+      content: livePassMonthlyConfirmedEmail({
+        name,
+        loginEmail: 'you@example.com',
+        priceLabel: '€52',
+        renewsLabel: '18 November 2026',
+        manageUrl: 'https://songdance.co/courses/live-pass/manage?t=123.example',
+        eventsUrl: 'https://circle.songdance.co/events',
+      }),
+    },
+    {
+      id: 'live_pass_monthly_stopped',
+      group: 'Registration & reminders (transactional)',
+      label: 'Live pass monthly — stopped (renewal failed)',
+      timing: "When Stripe gives up on a month's charge (unpaid) or PayPal suspends the subscription",
+      audience: 'A monthly holder whose renewal could not be charged',
+      content: livePassMonthlyStoppedEmail({
+        name,
+        passUrl: 'https://songdance.co/courses/live-pass?email=you%40example.com&months=monthly#get',
+      }),
+    },
+    {
+      id: 'live_pass_manage_link',
+      group: 'Registration & reminders (transactional)',
+      label: 'Live pass monthly — manage link',
+      timing: 'When someone asks for it under “Manage my monthly pass” on /courses/live-pass',
+      audience: 'The address on a monthly order (only ever that inbox)',
+      content: livePassManageLinkEmail({
+        name,
+        manageUrl: 'https://songdance.co/courses/live-pass/manage?t=123.example',
       }),
     },
 

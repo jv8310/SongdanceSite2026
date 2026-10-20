@@ -33,7 +33,10 @@ import {
   type CourseRegistration,
 } from '../courses/db';
 import { pushPaidCourseRegistrationToDrip } from '../courses/paid-handler';
-import { enforcePaypalScheduledCancel } from '../courses/installment-cancel';
+import {
+  closePlanAtGateway,
+  enforcePaypalScheduledCancel,
+} from '../courses/installment-cancel';
 import { notifyCourseOrder, notifyRetreatOrder } from '../orders/notification';
 import {
   getRegistrationById as getWorkshopRegById,
@@ -119,6 +122,12 @@ export async function recordCoursePaypalInstallment(
   if (await eventExists(env.DB, externalId)) return false;
 
   const wasFirst = courseReg.installments_paid === 0;
+  // A cycle landing on a plan the site already closed (fully refunded, or
+  // cancelled) is real money the gateway took anyway — record it, then stop
+  // the next one below.
+  const closedBefore =
+    !wasFirst &&
+    (courseReg.status === 'refunded' || courseReg.status === 'cancelled');
   await recordPaypalInstallmentPaid(env.DB, courseReg.id, captureId);
   await logEvent(env.DB, {
     registration_id: null,
@@ -142,6 +151,19 @@ export async function recordCoursePaypalInstallment(
   // partial schedule is set and reached). Re-read so installments_paid is fresh.
   const afterInc = await getCourseRegistrationById(env.DB, courseReg.id);
   if (afterInc) await enforcePaypalScheduledCancel(env as any, afterInc);
+  if (closedBefore) {
+    await logEvent(env.DB, {
+      registration_id: null,
+      kind: 'course.installment.charged_after_close',
+      source: 'paypal',
+      payload: {
+        course_registration_id: courseReg.id,
+        sale_id: saleId,
+        status_before: courseReg.status,
+      },
+    });
+    await closePlanAtGateway(env as any, courseReg.id, 'charged_after_close');
+  }
   return true;
 }
 
@@ -454,7 +476,7 @@ export async function recordPaypalRefund(
   if (args.courseRegistrationId) {
     const known = await getCourseRegistrationById(env.DB, args.courseRegistrationId);
     if (known) {
-      await markCourseRegistrationRefunded(env.DB, known.id, delta);
+      const closed = await markCourseRegistrationRefunded(env.DB, known.id, delta);
       await logEvent(env.DB, {
         registration_id: null,
         kind: 'paypal.course.refunded',
@@ -462,6 +484,7 @@ export async function recordPaypalRefund(
         external_id: externalId,
         payload: { course_registration_id: known.id, lookup: 'explicit', ...args },
       });
+      if (closed) await closePlanAtGateway(env as any, known.id, 'refunded');
       return 'course';
     }
   }
@@ -486,7 +509,7 @@ export async function recordPaypalRefund(
     args.captureId,
   );
   if (course) {
-    await markCourseRegistrationRefunded(env.DB, course.id, delta);
+    const closed = await markCourseRegistrationRefunded(env.DB, course.id, delta);
     await logEvent(env.DB, {
       registration_id: null,
       kind: 'paypal.course.refunded',
@@ -494,6 +517,7 @@ export async function recordPaypalRefund(
       external_id: externalId,
       payload: { course_registration_id: course.id, ...args },
     });
+    if (closed) await closePlanAtGateway(env as any, course.id, 'refunded');
     return 'course';
   }
 
@@ -506,7 +530,7 @@ export async function recordPaypalRefund(
       args.subscriptionId,
     );
     if (bySub) {
-      await markCourseRegistrationRefunded(env.DB, bySub.id, delta);
+      const closed = await markCourseRegistrationRefunded(env.DB, bySub.id, delta);
       await logEvent(env.DB, {
         registration_id: null,
         kind: 'paypal.course.refunded',
@@ -518,6 +542,7 @@ export async function recordPaypalRefund(
           ...args,
         },
       });
+      if (closed) await closePlanAtGateway(env as any, bySub.id, 'refunded');
       return 'course';
     }
   }

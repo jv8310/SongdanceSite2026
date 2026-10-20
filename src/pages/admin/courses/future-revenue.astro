@@ -69,6 +69,7 @@ const cardLinks = new Map<number, string>();
 for (const p of people) {
   if (
     p.provider !== 'paypal' &&
+    p.rowStatus === 'paid' &&
     p.stripeSubscriptionId &&
     p.remaining > 0 &&
     (p.state === 'at_risk' || p.state === 'on_track')

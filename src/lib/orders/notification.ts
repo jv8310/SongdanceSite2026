@@ -2,8 +2,9 @@
 // real purchase is paid through the site. NOT customer-facing: the recipients
 // are jacob@ / support@ (configurable via ORDER_NOTIFICATIONS_TO), the subject
 // is prefixed `SD-ORDER:` for easy inbox filtering, and the body carries every
-// order detail plus one-click links into Quaderno (the invoice), Stripe (the
-// payment) and Drip (the subscriber).
+// order detail, a primary button onto the order in the Songdance admin
+// (/admin/orders/C-<id> / R-<id>), and one-click links into Quaderno (the
+// invoice), Stripe (the payment) and Drip (the subscriber).
 //
 // Scope: retreat registrations and course registrations (grief, 12-week,
 // certification, bundle). Workshop and masterclass registrations are NOT
@@ -39,6 +40,7 @@ import { welcomeCourseOrder } from '../courses/emails/confirmation';
 import { sendLivePassConfirmation } from '../courses/live-pass-email';
 import { LANGUAGE_CHOICE_LABEL } from '../courses/journeys';
 import { BANK_TRANSFER, type OrderProvider } from '../payments/provider';
+import { makeOrderNo } from '../admin/orders';
 import type { Registration } from '../registrations/db';
 import { logEvent } from '../registrations/db';
 import { getSubscriber } from '../registrations/drip';
@@ -56,7 +58,8 @@ export type OrderEnv = {
   ORDER_NOTIFICATIONS_TO?: string;
   // Used to build the album player link in the buyer's delivery email.
   PUBLIC_BASE_URL?: string;
-  // The course confirmation + sequence emails (src/lib/courses/emails/).
+  // Signs the monthly live pass's manage link in its confirmation email, and
+  // the course confirmation + sequence emails (src/lib/courses/emails/).
   ADMIN_SESSION_SECRET?: string;
   MARKETING_FROM?: string;
   MARKETING_REPLY_TO?: string;
@@ -79,6 +82,7 @@ const PAYMENT_PLAN_LABELS: Record<string, string> = {
   '3x': '3× monthly installments',
   '6x': '6× monthly installments',
   '12x': '12× monthly installments',
+  subscription: 'monthly, renews until cancelled',
 };
 
 export type OrderNotificationInput = {
@@ -128,6 +132,8 @@ export type OrderNotificationInput = {
 // Link config resolved from env at send time (kept out of the pure builder so
 // the builder stays trivially previewable with sample data).
 type LinkContext = {
+  // Origin of the site, for the admin order link. Defaults to songdance.co.
+  siteBaseUrl?: string | null;
   quadernoAccount?: string | null;
   dripAccountId?: string | null;
   dripSubscriberId?: string | null;
@@ -234,6 +240,13 @@ function dripUrl(ctx: LinkContext): string | null {
   return `https://www.getdrip.com/${ctx.dripAccountId}/subscribers`;
 }
 
+// The order's own page in the Songdance admin — the one place that shows the
+// whole order (plan, installments, refunds, the person) and acts on it.
+function adminOrderUrl(input: OrderNotificationInput, ctx: LinkContext): string {
+  const base = (ctx.siteBaseUrl || 'https://songdance.co').replace(/\/+$/, '');
+  return `${base}/admin/orders/${makeOrderNo(input.orderType, input.orderId)}`;
+}
+
 // ── The email itself ───────────────────────────────────────────────────────
 export function buildOrderNotificationEmail(
   input: OrderNotificationInput,
@@ -291,6 +304,7 @@ export function buildOrderNotificationEmail(
     ['Paid at', input.paidAt],
   ];
 
+  const adminUrl = adminOrderUrl(input, ctx);
   const links: Array<[string, string | null]> = [
     ['Quaderno invoice', quadernoUrl(ctx, input.email)],
     [`${gatewayLabel(input.provider)} payment`, paymentUrl(input)],
@@ -331,7 +345,10 @@ export function buildOrderNotificationEmail(
         <tr><td style="padding:14px 26px 0;">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${rowsHtml}</table>
         </td></tr>
-        <tr><td style="padding:18px 26px 26px;">
+        <tr><td style="padding:20px 26px 4px;">
+          <a href="${adminUrl}" style="display:block;padding:14px 20px;background:#c2410c;color:#ffffff;font-size:15px;font-weight:600;text-align:center;text-decoration:none;border-radius:10px;">Open order ${escapeHtml(makeOrderNo(input.orderType, input.orderId))} in Songdance admin →</a>
+        </td></tr>
+        <tr><td style="padding:14px 26px 26px;">
           ${linksHtml || '<p style="margin:0;font-size:13px;color:#9ca3af;">No external links available.</p>'}
         </td></tr>
       </table>
@@ -343,6 +360,8 @@ export function buildOrderNotificationEmail(
   // ── Plain text ──
   const textLines = [
     subject,
+    '',
+    `Open in Songdance admin: ${adminUrl}`,
     '',
     ...fields
       .filter(([, v]) => v != null && String(v).trim() !== '')
@@ -404,6 +423,7 @@ export async function sendOrderNotification(
     }
 
     const content = buildOrderNotificationEmail(input, {
+      siteBaseUrl: env.PUBLIC_BASE_URL ?? null,
       quadernoAccount: env.QUADERNO_ACCOUNT ?? null,
       dripAccountId: env.DRIP_ACCOUNT_ID ?? null,
       dripSubscriberId,

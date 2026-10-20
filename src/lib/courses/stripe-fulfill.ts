@@ -20,6 +20,7 @@ import {
   recordInstallmentPaid,
 } from './db';
 import { effectiveTotal } from './installment-forecast';
+import { closePlanAtGateway } from './installment-cancel';
 import { logEvent } from '../registrations/db';
 import {
   pushPaidCourseRegistrationToDrip,
@@ -111,6 +112,10 @@ export async function recordCourseInvoiceIfNew(
   if (already) return false;
 
   const wasFirstPayment = courseReg.installments_paid === 0;
+  // Same guard as the PayPal recorder: a charge on a plan already closed here.
+  const closedBefore =
+    !wasFirstPayment &&
+    (courseReg.status === 'refunded' || courseReg.status === 'cancelled');
   await recordInstallmentPaid(env.DB, courseReg.id, paymentIntent);
   await logEvent(env.DB, {
     registration_id: null,
@@ -135,5 +140,18 @@ export async function recordCourseInvoiceIfNew(
   // period boundary (no proration, no further charge). Re-reads the row so the
   // just-incremented count is the one we test.
   await stopSubscriptionAtPeriodEnd(env, courseReg.id);
+  if (closedBefore) {
+    await logEvent(env.DB, {
+      registration_id: null,
+      kind: 'course.installment.charged_after_close',
+      source: 'stripe',
+      payload: {
+        course_registration_id: courseReg.id,
+        invoice_id: invoiceId,
+        status_before: courseReg.status,
+      },
+    });
+    await closePlanAtGateway(env as any, courseReg.id, 'charged_after_close');
+  }
   return true;
 }

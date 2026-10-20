@@ -111,6 +111,12 @@ const keepOptions = Array.from({ length: planRemaining + 1 }, (_, k) => k);
 // Say WHY there is nothing to stop, rather than a flat "unavailable".
 const stopBlockedReason = (() => {
   if (canStopPlan || !planReg) return null;
+  // The monthly live pass renews until cancelled: it has no charges "left" to
+  // forgive. The buyer stops it from their own link; to stop it for them,
+  // cancel the subscription at the gateway and the webhook follows.
+  if (planReg.installments_total === 0) {
+    return `A monthly subscription — it renews until it is cancelled. The buyer cancels from the link in their confirmation email (or asks for it again on the live pass page); to stop it for them, cancel the subscription in ${planReg.provider === 'paypal' ? 'PayPal' : 'Stripe'} and this order follows.`;
+  }
   if (planRemaining <= 0) {
     return 'Every charge on this plan has been made — there is nothing left to stop.';
   }
@@ -121,7 +127,7 @@ const stopBlockedReason = (() => {
     return 'This plan has already stopped — the subscription is closed at the gateway.';
   }
   if (planReg.status === 'refunded') {
-    return 'This order is fully refunded, so the plan is already closed.';
+    return 'This order is fully refunded and its subscription is closed at the gateway.';
   }
   if (planReg.status !== 'paid') {
     return `This plan is “${planReg.status}” — only a live, paid plan can be stopped from here.`;
@@ -171,6 +177,8 @@ function ymdhm(iso: string | null): string {
         {o && <p class="adm-sub">{o.productLabel}</p>}
       </div>
       <div class="adm-actions">
+        {o && <a class="adm-btn adm-btn--ghost" href={`/admin/people/${encodeURIComponent(o.email.trim().toLowerCase())}`}>Person →</a>}
+        {o && <a class="adm-btn adm-btn--ghost" href={`/admin/orders?email=${encodeURIComponent(o.email.trim().toLowerCase())}`}>All their orders</a>}
         <a class="adm-btn adm-btn--ghost" href={backHref}>← Back to orders</a>
       </div>
     </header>
@@ -199,7 +207,7 @@ function ymdhm(iso: string | null): string {
               <div class="od-stat"><span>Name</span><strong>{name}</strong></div>
               <div class="od-stat">
                 <span>Email</span>
-                <strong><a href={`mailto:${o.email}`}>{o.email}</a></strong>
+                <strong><a href={`/admin/people/${encodeURIComponent(o.email.trim().toLowerCase())}`} title="Open this person">{o.email}</a></strong>
               </div>
               <div class="od-stat">
                 <span>Original</span>
@@ -299,7 +307,9 @@ function ymdhm(iso: string | null): string {
               <div class="od-inst-head">
                 <h2>Installments</h2>
                 <span class="od-inst-sub">
-                  {o.paymentPlan} · {o.installmentsPaid}/{o.installmentsTotal} charged ·
+                  {o.installmentsTotal === 0
+                    ? `monthly until cancelled · ${o.installmentsPaid} charged`
+                    : `${o.paymentPlan} · ${o.installmentsPaid}/${o.installmentsTotal} charged`} ·
                   live from {ledger?.provider === 'paypal' ? 'PayPal' : 'Stripe'}
                 </span>
               </div>
@@ -353,7 +363,7 @@ function ymdhm(iso: string | null): string {
                                 method="POST"
                                 action="/api/admin/refund"
                                 class="od-inst-refund"
-                                onsubmit={`return confirm('Refund installment ${inst.seq} of ${o.orderNo} (${jsName}, ${o.email})?\\nBlank = the whole installment, ${leftMajor} ${cur}. This moves real money.')`}
+                                onsubmit={`return confirm('Refund installment ${inst.seq} of ${o.orderNo} (${jsName}, ${o.email})?\\nBlank = the whole installment, ${leftMajor} ${cur}. This moves real money.' + (this.elements.revoke_access && this.elements.revoke_access.checked ? '\\nIt ALSO takes the course away in the member app.' : ''))`}
                               >
                                 <input type="hidden" name="order_no" value={o.orderNo} />
                                 <input type="hidden" name="return_to" value={selfReturn} />
@@ -368,6 +378,11 @@ function ymdhm(iso: string | null): string {
                                   aria-label={`Refund amount for installment ${inst.seq} (${cur})`}
                                 />
                                 <button type="submit" class="adm-btn adm-btn--danger adm-btn--tiny">Refund</button>
+                                {o.source === 'course' && (
+                                  <label class="od-revoke" title="A refund of one installment leaves the course open in the member app. Tick to close it too.">
+                                    <input type="checkbox" name="revoke_access" value="1" /> also take away the course in the app
+                                  </label>
+                                )}
                               </form>
                             ) : (
                               <span class="od-inst-none">
@@ -464,7 +479,7 @@ function ymdhm(iso: string | null): string {
               method="POST"
               action="/api/admin/refund"
               class="od-refund"
-              onsubmit={`return confirm('Refund ${o.orderNo} (${jsName}, ${o.email})?\\nBlank = ${isPlan ? 'the first installment' : 'the full'} ${remainingMajor} ${o.originalCurrency}. This moves real money.')`}
+              onsubmit={`return confirm('Refund ${o.orderNo} (${jsName}, ${o.email})?\\nBlank = ${isPlan ? 'the first installment' : 'the full'} ${remainingMajor} ${o.originalCurrency}. This moves real money.' + (this.elements.revoke_access && this.elements.revoke_access.checked ? '\\nIt ALSO takes the course away in the member app.' : ''))`}
             >
               <input type="hidden" name="order_no" value={o.orderNo} />
               <input type="hidden" name="return_to" value={selfReturn} />
@@ -480,6 +495,11 @@ function ymdhm(iso: string | null): string {
                 />
               </label>
               <button type="submit" class="adm-btn adm-btn--danger">Issue refund</button>
+              {o.source === 'course' && (
+                <label class="od-revoke">
+                  <input type="checkbox" name="revoke_access" value="1" /> Also take away the course in the member app
+                </label>
+              )}
               <p class="od-refund-hint">
                 {isPlan ? (
                   <>
@@ -647,6 +667,8 @@ function ymdhm(iso: string | null): string {
       .od-inst-refund { justify-content:flex-start; }
     }
 
+    .od-revoke { display:flex; gap:6px; align-items:center; font-size:12px; color:var(--adm-ink-soft); white-space:nowrap; }
+    .od-refund .od-revoke { flex-direction:row; }
     .od-refund {
       display:flex; flex-wrap:wrap; align-items:flex-end; gap:12px;
       border:1px solid var(--adm-line); border-radius:12px;

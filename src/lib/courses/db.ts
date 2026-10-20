@@ -10,14 +10,19 @@ import type { DeckGiftShipping } from './deck-promo';
 export type CourseProductSlug = 'cc-cert' | 'cc-bundle' | 'grief-course' | 'svh-12week';
 // `album-<id>` = a music album bought on its own (src/lib/music/product.ts);
 // the id half is the dynamic music_albums row key, hence the template type.
-// `live-pass-<n>m` = the live pass, 1/3/6 months (src/lib/courses/live-pass.ts).
+// `live-pass-<n>m` = the live pass, 1/3/6 months (src/lib/courses/live-pass.ts);
+// `qa-plan-deepening` = the monthly live pass, an open-ended subscription (the
+// member app's slug for it).
 export type CourseRegistrationSlug =
   | CourseProductSlug
   | JourneySlug
   | `album-${string}`
-  | `live-pass-${number}m`;
+  | `live-pass-${number}m`
+  | 'qa-plan-deepening';
 export type ActivateChoice = 'now' | 'wait';
-export type PaymentPlan = 'full' | '3x' | '6x' | '12x';
+// 'subscription' = open-ended, renews until cancelled (installments_total 0;
+// see isOpenEndedPlan in installment-forecast.ts).
+export type PaymentPlan = 'full' | '3x' | '6x' | '12x' | 'subscription';
 
 // Mirrors the Stripe Subscription `status` enum exactly. We store it
 // verbatim so the admin view shows the live Stripe state without a
@@ -94,6 +99,9 @@ export type CourseRegistration = {
   cancelled_at: string | null;
   refunded_at: string | null;
   refunded_amount_cents: number;
+  // End of the last month an open-ended subscription has paid for (migration
+  // 0090); absent before it, NULL on every other row.
+  paid_through?: string | null;
 };
 
 export type CreatePendingCourseRegistrationInput = {
@@ -365,10 +373,13 @@ export async function getCourseRegistrationBySubscription(
 // (so the first installment grants access). Uses a single UPDATE so the
 // transition is atomic with the count change.
 //
-// We deliberately leave 'cancelled' and 'refunded' rows alone: once an
-// admin (or a later webhook) has moved the row out of the paid lane, a
-// late `invoice.paid` for a still-flying invoice must not silently
-// resurrect it. Stripe normally stops issuing invoices the moment a sub
+// We deliberately leave a 'cancelled' row alone: once an admin (or a later
+// webhook) has moved the row out of the paid lane, a late `invoice.paid` for
+// a still-flying invoice must not silently resurrect it. A 'refunded' row is
+// different: it means "everything collected went back", and a new charge makes
+// that false — leaving it 'refunded' hid a real charge behind an order that
+// read fully refunded (October 2026). It returns to 'paid' with its refunds
+// still netted off, and the recorder closes the plan at the gateway. Stripe normally stops issuing invoices the moment a sub
 // is cancelled, but there's a tiny race if invoice generation and
 // cancellation overlap — this guard makes that race safe.
 export async function recordInstallmentPaid(
@@ -380,13 +391,36 @@ export async function recordInstallmentPaid(
     .prepare(
       `UPDATE course_registrations
          SET installments_paid = installments_paid + 1,
-             status = CASE WHEN status IN ('cancelled','refunded') THEN status ELSE 'paid' END,
+             status = CASE WHEN status = 'cancelled' THEN status ELSE 'paid' END,
              stripe_payment_intent = COALESCE(stripe_payment_intent, ?),
              paid_at = COALESCE(paid_at, datetime('now'))
        WHERE id = ?`,
     )
     .bind(paymentIntent, id)
     .run();
+  await stampPaidThrough(db, id);
+}
+
+// An open-ended subscription (the monthly live pass, installments_total = 0)
+// is paid up to one calendar month per charge from its first: paid_through is
+// what the member app keeps access open to once the buyer cancels (migration
+// 0090). Months are counted close enough to the gateway's own anchor
+// arithmetic (SQLite rolls a 31st forward a day or two where Stripe clamps
+// back — the generous side). No-op on every other row; never throws, since a
+// preview runs against the live D1 before the migration is applied.
+export async function stampPaidThrough(db: D1Database, id: number): Promise<void> {
+  try {
+    await db
+      .prepare(
+        `UPDATE course_registrations
+            SET paid_through = datetime(paid_at, '+' || installments_paid || ' months')
+          WHERE id = ? AND installments_total = 0 AND paid_at IS NOT NULL AND installments_paid > 0`,
+      )
+      .bind(id)
+      .run();
+  } catch (err) {
+    console.error('[course] paid_through not stamped', String(err));
+  }
 }
 
 // Mirror Stripe's live `subscription.status` onto our row so the admin
@@ -445,7 +479,10 @@ export function collectedGrossMinor(r: {
   bumps?: string | null;
 }): number {
   const cycles =
-    r.installments_total > 1
+    r.installments_total === 0
+      ? // An open-ended subscription: amount_cents is one month.
+        r.amount_cents * Math.max(0, r.installments_paid)
+      : r.installments_total > 1
       ? Math.round(
           r.amount_cents *
             (Math.max(0, Math.min(r.installments_paid, r.installments_total)) /
@@ -485,11 +522,15 @@ export function collectedGrossMinor(r: {
 // collected-gross rule instead of being re-derived in SQL. Safe under
 // concurrency: the increment is atomic, the total only ever grows, and the flip
 // is idempotent — whichever writer reads last does it.
+// Returns true when THIS refund is the one that made the row fully refunded
+// (status flipped to 'refunded' just now) — the caller then closes the plan at
+// the gateway (closePlanAtGateway), or a plan with charges left keeps billing
+// under an order the admin reads as closed.
 export async function markCourseRegistrationRefunded(
   db: D1Database,
   id: number,
   refundedAmountCents: number,
-) {
+): Promise<boolean> {
   await db
     .prepare(
       `UPDATE course_registrations
@@ -503,7 +544,7 @@ export async function markCourseRegistrationRefunded(
   const row = await db
     .prepare(
       `SELECT amount_cents, refunded_amount_cents, installments_paid,
-              installments_total, bumps
+              installments_total, bumps, status
          FROM course_registrations WHERE id = ?`,
     )
     .bind(id)
@@ -513,11 +554,13 @@ export async function markCourseRegistrationRefunded(
       installments_paid: number;
       installments_total: number;
       bumps: string | null;
+      status: string;
     }>();
-  if (!row) return;
+  if (!row) return false;
 
   const collected = collectedGrossMinor(row);
-  if (collected > 0 && (row.refunded_amount_cents ?? 0) < collected) return;
+  if (collected > 0 && (row.refunded_amount_cents ?? 0) < collected) return false;
+  if (row.status === 'refunded') return false;
 
   await db
     .prepare(
@@ -525,6 +568,7 @@ export async function markCourseRegistrationRefunded(
     )
     .bind(id)
     .run();
+  return true;
 }
 
 // Look up a course row by the first installment's PaymentIntent (the only
@@ -632,13 +676,14 @@ export async function recordPaypalInstallmentPaid(
     .prepare(
       `UPDATE course_registrations
          SET installments_paid = installments_paid + 1,
-             status = CASE WHEN status IN ('cancelled','refunded') THEN status ELSE 'paid' END,
+             status = CASE WHEN status = 'cancelled' THEN status ELSE 'paid' END,
              paypal_capture_id = COALESCE(paypal_capture_id, ?),
              paid_at = COALESCE(paid_at, datetime('now'))
        WHERE id = ?`,
     )
     .bind(captureId, id)
     .run();
+  await stampPaidThrough(db, id);
 }
 
 // Mirror a (normalised) PayPal subscription status onto the row, keyed by the
@@ -658,4 +703,16 @@ export async function updateCourseSubscriptionStatusByPaypal(
     .bind(subscriptionStatus, subscriptionId)
     .run();
   return (res.meta?.changes ?? 0) > 0;
+}
+
+// Mirror a subscription status onto one row by id, whichever gateway it is on.
+export async function setCourseSubscriptionStatusById(
+  db: D1Database,
+  id: number,
+  subscriptionStatus: SubscriptionStatus,
+): Promise<void> {
+  await db
+    .prepare(`UPDATE course_registrations SET subscription_status = ? WHERE id = ?`)
+    .bind(subscriptionStatus, id)
+    .run();
 }

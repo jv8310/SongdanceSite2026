@@ -474,9 +474,13 @@ async function loadRetreatOrders(
 
 // ── Courses ────────────────────────────────────────────────────────────────
 
-// Columns every course path needs to money-up a row.
+// Columns every course path needs to money-up a row. An open-ended monthly
+// subscription (installments_total 0) stores ONE month in amount_cents, so its
+// order is worth the months charged so far (at least the one it opened with).
 const COURSE_MONEY_COLS = `id, created_at, status, country,
-              amount_cents, currency, refunded_amount_cents`;
+              CASE WHEN installments_total = 0 THEN amount_cents * MAX(1, installments_paid)
+                   ELSE amount_cents END AS amount_cents,
+              currency, refunded_amount_cents`;
 
 type CourseMoneyRow = {
   id: number;

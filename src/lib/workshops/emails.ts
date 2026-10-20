@@ -825,7 +825,7 @@ export function attendedProEmail1(
         'Weekly live Q&amp;A and monthly two-hour deepening sessions for nine months from the day you begin, so the learning stays live, not just recorded.',
       ),
       D.bullet(
-        'Hosted practice sessions with peers — giving and receiving is the quiet heart of it, and where facilitation actually grows.',
+        'Practice Together sessions with peers — giving and receiving is the quiet heart of it, and where facilitation actually grows.',
       ),
       D.bullet(
         'The Somatic Vocal Healing app, a full replay library, a global community, and lifetime access.',
@@ -854,7 +854,7 @@ export function attendedProEmail1(
   return {
     subject: 'Thank you — and a word for practitioners',
     html,
-    text: `${textGreeting(ctx.name)}\n\nThank you for being part of ${ctx.workshopTitle}.\n\nBecause you work with people yourself, there's a path here that may matter more to you than the rest: the SVH Certification — learning to hold this space for others.\n\nNot healer, not fixer: space holder. Someone who keeps the room steady while another person does the one thing only they can do.\n\nWhat the path involves:\n- The complete class library, each class with a written manual — self-paced, instant access the moment you join.\n- Weekly live Q&A and monthly two-hour deepening sessions for nine months from the day you begin, so the learning stays live, not just recorded.\n- Hosted practice sessions with peers — giving and receiving is the quiet heart of it, and where facilitation actually grows.\n- The Somatic Vocal Healing app, a full replay library, a global community, and lifetime access.\n\n${ctx.certUrl}\n\n${
+    text: `${textGreeting(ctx.name)}\n\nThank you for being part of ${ctx.workshopTitle}.\n\nBecause you work with people yourself, there's a path here that may matter more to you than the rest: the SVH Certification — learning to hold this space for others.\n\nNot healer, not fixer: space holder. Someone who keeps the room steady while another person does the one thing only they can do.\n\nWhat the path involves:\n- The complete class library, each class with a written manual — self-paced, instant access the moment you join.\n- Weekly live Q&A and monthly two-hour deepening sessions for nine months from the day you begin, so the learning stays live, not just recorded.\n- Practice Together sessions with peers — giving and receiving is the quiet heart of it, and where facilitation actually grows.\n- The Somatic Vocal Healing app, a full replay library, a global community, and lifetime access.\n\n${ctx.certUrl}\n\n${
       ctx.promo
         ? `PS — ${pct}% off the 12-week course is also live through ${ctx.discountEndsLocal}; this link shows your price directly: ${ctx.courseUrl}`
         : `PS — your participant window is live for the next ${left}: ${CERT_PATH_DISCOUNT_PERCENT}% off the whole certification path, or ${pct}% off the 12-week course alone. This link shows your price directly: ${ctx.courseUrl}`
@@ -1160,6 +1160,7 @@ export type LivePassConfirmedCtx = {
   startsToday: boolean;
   courseUntilLabel?: string | null; // their course's live sessions run until then
   passRunning?: boolean; // an earlier pass of theirs comes first
+  monthlyUntilLabel?: string | null; // their monthly has paid for the sessions until then
   certWindowUntilLabel?: string | null; // bought the certification-window extension
   eventsUrl: string;
 };
@@ -1170,11 +1171,14 @@ export function livePassConfirmedEmail(ctx: LivePassConfirmedCtx): EmailContent 
   if (ctx.courseUntilLabel) {
     lines.push(`Your course gives you the live sessions until ${ctx.courseUntilLabel}, so your pass picks up the day after — nothing is counted twice.`);
   }
+  if (ctx.monthlyUntilLabel) {
+    lines.push(`Your monthly has paid for the sessions until ${ctx.monthlyUntilLabel}, so your pass picks up the day after.`);
+  }
   if (ctx.passRunning) {
     lines.push('Your current pass comes first: this one continues with the session after its last.');
   }
   const order = lines.join(' ');
-  const where = 'You\'ll find the sessions under Events in the Songdance Circle — sign in with';
+  const where = 'You\'ll find the sessions under Events in the CiRCLE — sign in with';
   const how =
     'A week without a Q&A costs you nothing: your pass simply holds the next one, and ends after the last of its sessions. The replays of your sessions stay there for 2 months. We\'ll write when 1 session is left.';
   const cert = ctx.certWindowUntilLabel
@@ -1197,6 +1201,91 @@ export function livePassConfirmedEmail(ctx: LivePassConfirmedCtx): EmailContent 
     subject: `Your live pass is confirmed — ${ctx.contents}`,
     html,
     text: `${textGreeting(ctx.name)}\n\nThank you — your live pass holds the next ${ctx.contents} on the calendar, from ${from}.\n${order ? `\n${order}\n` : ''}\n${where} ${ctx.loginEmail}. Join from there when a session begins:\n\n${ctx.eventsUrl}\n\n${how}\n${cert ? `\n${cert}\n` : ''}\nQuestions? Just reply to this email — a person reads it.\n\nWarmly,\nJacob`,
+  };
+}
+
+// ── Live pass monthly — confirmed (transactional) ──────────────────────────
+// Sent on the first payment of the monthly live pass
+// (src/lib/courses/live-pass-email.ts). It renews by itself, so this says so
+// plainly, what it costs each month, and how to stop it: the manage link (the
+// only way to cancel without writing to us), or a reply.
+export type LivePassMonthlyConfirmedCtx = {
+  name?: string | null;
+  loginEmail: string;
+  priceLabel: string; // "€52"
+  renewsLabel: string | null; // "18 November 2026" — the next charge
+  manageUrl: string | null;
+  eventsUrl: string;
+};
+
+export function livePassMonthlyConfirmedEmail(ctx: LivePassMonthlyConfirmedCtx): EmailContent {
+  const renews = ctx.renewsLabel
+    ? `It renews by itself on the same day each month — the next payment of ${ctx.priceLabel} is on ${ctx.renewsLabel}.`
+    : `It renews by itself on the same day each month, ${ctx.priceLabel} each time.`;
+  const where = "You'll find the sessions under Events in the CiRCLE — sign in with";
+  const stop = ctx.manageUrl
+    ? 'You can cancel any time, in two clicks, from the link below. Nothing more is charged, and the sessions stay open until the end of the month you have already paid for.'
+    : 'You can cancel any time — just reply to this email. Nothing more is charged, and the sessions stay open until the end of the month you have already paid for.';
+  const html = shell({
+    preheader: `Every Q&A and deepening session, ${ctx.priceLabel} a month, cancel any time.`,
+    heading: 'Your monthly live pass is running',
+    bodyHtml: `<p style="margin:0 0 14px;">${greeting(ctx.name)}</p>
+      <p style="margin:0 0 14px;">Thank you — from today your monthly live pass opens <strong>every weekly Q&amp;A and every monthly deepening session</strong> for as long as it runs.</p>
+      <p style="margin:0 0 14px;">${escapeHtml(renews)}</p>
+      <p style="margin:0 0 14px;">${escapeHtml(where)} <strong>${escapeHtml(ctx.loginEmail)}</strong>. Join from there when a session begins — <a href="${escapeHtml(ctx.eventsUrl)}" style="color:#C9603A;">open the sessions</a>.</p>
+      <p style="margin:0 0 14px;">${escapeHtml(stop)}</p>
+      <p style="margin:0;">Questions? Just reply to this email — a person reads it.</p>`,
+    cta: ctx.manageUrl ? { label: 'Manage my monthly pass →', href: ctx.manageUrl } : { label: 'Open the sessions →', href: ctx.eventsUrl },
+    footerNote: 'Keep this email: its link is how you cancel or check your monthly.',
+  });
+  return {
+    subject: 'Your monthly live pass is running',
+    html,
+    text: `${textGreeting(ctx.name)}\n\nThank you — from today your monthly live pass opens every weekly Q&A and every monthly deepening session for as long as it runs.\n\n${renews}\n\n${where} ${ctx.loginEmail}. Join from there when a session begins:\n\n${ctx.eventsUrl}\n\n${stop}${ctx.manageUrl ? `\n\n${ctx.manageUrl}` : ''}\n\nQuestions? Just reply to this email — a person reads it.\n\nWarmly,\nJacob`,
+  };
+}
+
+// ── Live pass monthly — stopped after a failed renewal (transactional) ──────
+// Stripe or PayPal tried this month's payment and gave up, so the monthly has
+// ended (src/lib/courses/live-pass-monthly.ts). Plain, no blame, and the way
+// back.
+export function livePassMonthlyStoppedEmail(ctx: { name?: string | null; passUrl: string }): EmailContent {
+  const body =
+    "This month's payment for your monthly live pass didn't go through, even after a few tries, so the monthly has stopped and nothing more will be charged. Often it is simply a card that has expired or been replaced.";
+  const back = 'Whenever you would like to come back to the sessions, you can start a new monthly — or a pass for 1, 3 or 6 months — from the page below.';
+  const html = shell({
+    preheader: "This month's payment didn't go through, so your monthly has stopped.",
+    heading: 'Your monthly live pass has stopped',
+    bodyHtml: `<p style="margin:0 0 14px;">${greeting(ctx.name)}</p>
+      <p style="margin:0 0 14px;">${escapeHtml(body)}</p>
+      <p style="margin:0 0 14px;">${escapeHtml(back)}</p>
+      <p style="margin:0;">If you think this is a mistake, just reply — a person reads it.</p>`,
+    cta: { label: 'Back to the live pass →', href: ctx.passUrl },
+  });
+  return {
+    subject: 'Your monthly live pass has stopped',
+    html,
+    text: `${textGreeting(ctx.name)}\n\n${body}\n\n${back}\n\n${ctx.passUrl}\n\nIf you think this is a mistake, just reply — a person reads it.\n\nWarmly,\nJacob`,
+  };
+}
+
+// ── Live pass monthly — your manage link (transactional) ───────────────────
+// Asked for on the pass page ("Manage my monthly pass"), sent only to the address on
+// the order: stopping a subscription needs the inbox, not just the address.
+export function livePassManageLinkEmail(ctx: { name?: string | null; manageUrl: string }): EmailContent {
+  const body = 'Here is the link to your monthly live pass. From there you can see when it renews, and cancel it — or, if you already have, change your mind.';
+  const html = shell({
+    preheader: 'The link to check or cancel your monthly live pass.',
+    heading: 'Your monthly live pass',
+    bodyHtml: `<p style="margin:0 0 14px;">${greeting(ctx.name)}</p>
+      <p style="margin:0 0 14px;">${escapeHtml(body)}</p>
+      <p style="margin:0;">If you didn't ask for this, you can ignore it — nothing changes until the link is used.</p>`,
+    cta: { label: 'Manage my monthly pass →', href: ctx.manageUrl },
+  });
+  return {
+    subject: 'The link to your monthly live pass',
+    html,
+    text: `${textGreeting(ctx.name)}\n\n${body}\n\n${ctx.manageUrl}\n\nIf you didn't ask for this, you can ignore it — nothing changes until the link is used.\n\nWarmly,\nJacob`,
   };
 }
 

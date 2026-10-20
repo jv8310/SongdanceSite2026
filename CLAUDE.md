@@ -38,6 +38,47 @@ ends the session immediately**. Same treatment for the `/ads` gate's own
 `sd_ads` cookie (`slideAdsSession`), which was 30 days but fixed from the day
 the password was typed.
 
+## App access — the member app, from a person's page
+
+`/admin/people/<email>` → **App access** shows and changes that person's access in the
+member app (songdance-app, Worker `songdance-app-api`): their **courses** (add one with a
+start/end date and a note, change its dates — the activation date of a certification that
+waits — or revoke it with a reason), their **Circle space seats** (only for a space none of
+their courses opens), and the spaces they **host**. Every admin login may use it. A whole
+address typed into the People search links to that page even when the site has no record
+of the person, since the app may still know them.
+
+- **The site never reads or writes an `app_*` table.** It asks the app through a service
+  binding (`APP_ADMIN` in `wrangler.jsonc` → the app's `SiteAdmin` entrypoint), reachable
+  only from Workers on this Cloudflare account — the binding is the credential, no secret.
+  The app runs the same code as its own admin and MCP tools and logs every change as
+  `site:<the admin's sign-in email>`. Helper: [`src/lib/admin/app-access.ts`](src/lib/admin/app-access.ts);
+  every change posts to [`/api/admin/app-access`](src/pages/api/admin/app-access.ts) with an
+  `action` and comes back to the section with a flash.
+- **Deploy order: the app first.** Until the app is deployed with its `SiteAdmin`
+  entrypoint, and in local `astro dev` (no binding), the section says the app does not
+  answer; the rest of the page is untouched. A preview version talks to the **production**
+  app, so a change made on a preview link is real.
+- **Extra time on the 12-week / certification course** (October 2026): those courses'
+  materials never end; what runs out is their **live sessions** (12 weeks / 9 months from the
+  start). "Ends" can only cut a course short, so the course row's **Change** carries **Give
+  extra time (months)** — N calendar months added to the day the live sessions end, or from
+  today once they have ended — and a **Live sessions until** date (empty = the course's own
+  window). "Add a course" takes **Live sessions for (months)**, counted from its start. All of
+  it is the app's `meta.liveUntil` on that row (`extendCourse`, `grantCourse.liveMonths`,
+  `setCourseDates.liveUntil`).
+- **A refund can close the course too.** A full refund closes it in the app by itself (the
+  app's sync revokes a refunded order); a partial one — one installment, part of a payment —
+  leaves access alone. Every refund form on a course order (`/admin/orders`, the order page's
+  whole-order form and each installment row) carries **Also take away the course in the
+  app**; `/api/admin/refund` asks the app (`revokeOrder`, everything that order holds,
+  bumps included) only **after** the gateway took the refund, and the flash says what was
+  taken away — or, if the app did not answer, that access still stands. Workshop lines are
+  not covered.
+- A revoke is permanent in the app: no order, Drip tag or sync brings that course back —
+  adding it again by hand does. Revoking never refunds. Drip tags no longer switch courses
+  on or off; the app reads them once, at a member's first sign-in.
+
 ## Navigation — one menu, three renderings
 
 The site menu has a single source of truth: [`src/data/nav.ts`](src/data/nav.ts)
@@ -304,6 +345,36 @@ anyone whose course no longer includes them (or never did). Logic in
   push and the admin list follow. It is only sold to someone who holds the
   certification course in some form, and only when it reaches past the window
   they have — the checkout refuses it otherwise, in plain words.
+- **The monthly** (October 2026) — beside the three passes, a **monthly** that
+  renews until cancelled: **€52 a month** (the 1-month price, same currencies),
+  every Q&A and deepening session while it runs — time, not a count. It is the
+  site's first **open-ended subscription**, stored the way the member app was
+  already built to read it: product slug **`qa-plan-deepening`** (→ the app's
+  `qa-extended-deepening`), `payment_plan 'subscription'`, **`installments_total
+  0`**, `amount_cents` = **one month**, `installments_paid` = months charged,
+  **`paid_through`** = the end of the last month charged (migration 0090,
+  `stampPaidThrough`). `isOpenEndedPlan` (`installment-forecast.ts`) is the
+  test; `effectiveTotal` returns what it has charged, so every `installments_total
+  > 1` path (forecast, dunning, audit, early stop, card update) leaves it out and
+  the money helpers count it a month per charge (`cyclesValueMinor`,
+  `collectedGrossMinor`, the cash-in schedule, the orders page). Stripe: a
+  subscription-mode Checkout with `installment_count 0` (no `cancel_at`); PayPal:
+  `total_cycles 0`. No certification-window add-on with it, and one per address
+  (the checkout refuses a second). **Cancelling** is the buyer's, from the signed
+  link in its confirmation email (`/courses/live-pass/manage?t=…`,
+  [`live-pass-manage-link.ts`](src/lib/courses/live-pass-manage-link.ts),
+  `sd-lpm:`), sent again to the inbox on the order from "Manage my monthly pass" on the
+  pass page — never shown on screen. Stripe gets `cancel_at_period_end` (and can
+  be taken back while the month runs); PayPal is cancelled at once; either way the
+  app keeps the sessions open to `paid_through`. A renewal the gateway gives up on
+  (Stripe `unpaid`, PayPal `SUSPENDED`) ends the monthly and emails the buyer the
+  way back ([`live-pass-monthly.ts`](src/lib/courses/live-pass-monthly.ts)) — not
+  the plans' dunning sequence: a monthly owes nothing beyond its month. A pass
+  bought while a monthly is paid up starts the day after its paid month
+  (`planLivePass`'s `monthlyUntil`). Drip: `prod_LivePass` + `prod_LivePassMonthly`,
+  event `Started live pass monthly`. The hourly Stripe reconcile also records a
+  missed monthly renewal (pass 2, no age window). Emails (`/admin/emails`):
+  monthly running / stopped / manage link.
 - **One answer per person** — [`cert-window.ts`](src/lib/courses/cert-window.ts)
   (`certWindowForEmail`): holds the course, may certify, last day, open. The
   pass page reads it, and so does the **SVH app** (app.songdance.co, "Apply for
@@ -311,6 +382,28 @@ anyone whose course no longer includes them (or never did). Logic in
   is the credential here, as on `/access` and the course gates, and the pass
   page's own status call answers the same. Its `upgrade_url` is this page with
   `?email=…&extend=1`.
+- **The same answer is the SVH app's door** (October 2026): app.songdance.co no
+  longer keeps a whitelist that Drip filled and emptied by tag. Its login and
+  token refresh ask `GET /api/app/cert-window`, and only someone who holds the
+  certification course, until `ends_on` (the course's end, or later with the
+  certification-window extension), gets in (`app_access`). Everyone else is
+  turned away with a button: a 12-week student to `certification_url`
+  (`twelve_week`, from `loadTwelveWeek` in `live-pass-plan.ts`), a student whose
+  time has run out to `upgrade_url` (the live pass with the extension ticked).
+  The CEEE cohort holds the course, so it gets in even while it may not certify.
+  The app side is `api/app_access.php` in the Songdance repo.
+- **The way on, for a 12-week student** (October 2026): a 12-week holder who is not on the
+  9 months sees the certification course **above** the pass options, with what it adds
+  (library + manuals, nine months of Q&As and deepening sessions with no pass, Practice
+  Together, the SVH app with its quizzes, recordings and SVH AI, the path to certification, and that it begins when their 12 weeks are over). The
+  member app links 12-week students straight to the certification page
+  (`/courses/certification?email=…`) and certification students here with `?extend=1`, from
+  the course page in the last week of their live window and after it (web only).
+- **The start is said up front.** When their course still gives them the live sessions, a
+  callout at the top of the options says until when, and that the pass starts when they end,
+  on the day the chosen length would begin (server-rendered from `?email=`, repainted on
+  every change). The member app enforces the same rule on its side: a pass never counts a
+  session the member's own course still opens, even one the site can't see (an admin grant).
 - **The page arrives filled in.** The member app (a locked Q&A or deepening
   session) and the SVH app put the member's address in `?email=` and their name
   in `?first_name=` / `?last_name=`; with an address the page answers its status
@@ -358,10 +451,11 @@ themselves). Each is the landing page of its own top-of-funnel campaign.
   (`campaignAudience` — the name must carry "Masterclass", plus "TOF" for
   prospecting), so both doors' spend pools as masterclass wherever the *product*
   is the question. Since September 2026 the name also carries the **door**
-  ("Missing Tool" / "Heal The Healer", `campaignMasterclassDoor`), so
-  `/admin/stats` and `/ads` show a card per door — its own campaign's money
-  against the seats *its* page sold and the courses those people bought (see
-  "Ad attribution" below). Keep the door in the campaign name or its spend falls
+  ("Missing Tool" / "Heal The Healer", `campaignMasterclassDoor`), so the
+  report can price each door against the seats *its* page sold and the courses
+  those people bought (see "Ad attribution" below) — the per-door cards that
+  showed it were taken off `/admin/stats` and `/ads` when the split test ended
+  (October 2026). Keep the door in the campaign name or its spend falls
   back to the shared pool and the split goes quiet. The page-change bookmarks
   (`experiments.ts`, one panel each on the performance page) cover both doors,
   since they share `MCRegister` — including `MC_PAGE_OFFERS_WORKSHOPS`.
@@ -613,6 +707,17 @@ All automated workshop email lives in the workshop engine:
   label says whose clock it is, the "· your time" markers that sat beside these
   times on the pages are gone — anything rendering a session time should call
   `formatInTz` and print what it returns, not re-qualify it.
+- **…and is printed on that place's own clock** (October 2026): a US registrant
+  read "07:00 New York time" and wrote in to ask whether it was morning or
+  evening. `formatInTz` now prints **"7:00 PM New York time"** wherever the
+  zone's people use the 12-hour clock and keeps **"19:00 Brussels time"**
+  everywhere else. The rule is `usesTwelveHourClock` (`time.ts`): CLDR's
+  preferred hour cycle for the zone's country, written as each IANA area's
+  usual clock plus the zones that differ, with **all of Europe on 24-hour**,
+  Greece, Albania and Cyprus included (CLDR puts those three on 12-hour). The
+  "Times shown in" pickers in `MCRegister` / `WERegister` re-render in the
+  browser, so the server writes each option's clock on it (`data-clock`)
+  rather than copying the table into the page.
 - **A name is printed as a name** (September 2026): checkout stores the name
   exactly as typed, so "Dear felicia," went out in the seat confirmation.
   `tidyFirstName` / `tidyName` ([`src/lib/email/names.ts`](src/lib/email/names.ts))
@@ -1369,7 +1474,8 @@ channel must use `contractedMinorOf` — reading the collected slice is this bug
 again.
 
 **Profit on a session card is revenue − *Meta* cost** (September 2026): the
-workshop cards on `/admin/workshops/performance` and `/ads` print ROAS against
+workshop cards on `/admin/workshops/performance` and `/ads` (and, since October
+2026, the "Recent workshops" boxes on `/ads`, beside cost per registration) print ROAS against
 **TOF** cost, which is the right divisor for "what did acquisition buy" and the
 wrong one for "did this session make money" — the retargeting euros were spent
 too. So the profit line under the two bars subtracts `metaCostEurMinor` (the
@@ -1380,6 +1486,41 @@ counts a payment plan in full on the day it was sold, so the performance card
 prints the collected-revenue profit beside it whenever the two differ. A profit
 figure that silently nets nothing but TOF, or that quietly means something other
 than the revenue bar directly above it, is the bug this shape avoids.
+
+**The same two figures are charted per session** (October 2026): the top of
+`/admin/workshops/performance` and a section of `/ads` (just above "Results per
+workshop") plot profit, ROAS and cost per registration per session
+([`SessionProfitRoasChart.astro`](src/components/admin/SessionProfitRoasChart.astro))
+— a **bar** per dated session with activity in the window, coloured by product
+(workshop blue, masterclass ember — the page's own orange on `/ads`), built
+from the cards' own row values by **one** builder,
+[`sessionChartPoints`](src/lib/workshops/session-points.ts), so the chart, the
+cards and the two pages can't disagree. The component brings its own styles
+and `--spr-*` colour tokens (defaulting to the admin palette); `/ads`, which
+has no admin stylesheet, re-points them in its own `<style>`. It renders with
+`links={false}` there: a bar or table row opens `/admin/workshops/<id>` on the
+admin page, but the `/ads` viewer holds only the ads password. **One panel per
+measure on one shared axis, never one plot with several y-scales** — euros and
+a ratio share nothing, and a second axis lets any series be stretched to say
+anything. The third panel, cost per registration (TOF cost ÷ registrations),
+has no break-even line and its trend slope keeps its cents. The axis is the **sessions,
+evenly spaced, not the calendar** (dates under the bars): on a time axis a quiet
+month stretched the chart into long empty runs. A dashed **trend line** per
+product is a least-squares fit over that product's held sessions in order, so
+its slope — printed above each panel — reads "per session of this product".
+Toggles above the chart (also the legend) switch Workshop / Masterclass / Trend,
+remembered per browser. A session that hasn't run yet (`isUpcoming`, the
+site-wide rule) is a **pale** bar and is left out of the trend: its cost is
+spent and its course income can't have landed. Replays have no date and stay on
+the cards.
+
+**The summary card comes in three** (October 2026): **All sessions**, then
+**Workshops** and **Masterclasses** on their own, same card shape, one money
+scale across the three. Every bar, count and profit is a sum over the scope's
+rows, so the two products add up to All; the big ROAS is the report's own
+(each buyer counted once ÷ TOF spend) — `report.workshopRoas` for All, the
+audience `roas` for a product, the same figure its ad-economics card on
+`/admin/stats` prints. A product with no activity in the window gets no card.
 
 **Every course figure converts and nets the same way, on every page.** The
 attribution above only reads true if the money underneath it does, and two
@@ -1666,6 +1807,24 @@ a Stripe-dashboard refund too, since the `charge.refunded` webhook shares the
 writer. Side effect worth knowing: album entitlement gates on `status='paid'`
 ([`music/product.ts`](src/lib/music/product.ts)), so a *partial* refund of an
 album now keeps access and only a full one revokes it.
+
+**A fully refunded plan is closed at the gateway too** (October 2026). The
+status rule above flips a row to `refunded` once refunds reach everything it
+collected, and the order page then said "the plan is already closed" — but
+nothing told PayPal or Stripe, so a 3× PayPal plan whose first cycle and bump
+were refunded stayed ACTIVE and charged cycle 2 a month later, onto a row that
+still read refunded (future revenue showed ACTIVE beside STOPPED). Now:
+`markCourseRegistrationRefunded` returns true on the refund that flips it, and
+every caller (both PayPal refund routes, both Stripe `charge.refunded`
+branches) then runs `closePlanAtGateway`
+([`installment-cancel.ts`](src/lib/courses/installment-cancel.ts)) — cancel the
+subscription now, mirror `subscription_status='canceled'`, log
+`course.plan.closed_at_gateway` (`.failed` on error, never thrown). A cycle that
+still lands on a refunded/cancelled row is recorded (a new charge puts a
+`refunded` row back to `paid`, refunds still netted; `cancelled` stays), logged
+`course.installment.charged_after_close`, and closes the subscription the same
+way. A closed row whose gateway still bills reads **Watch** on future revenue,
+and both Stop controls accept it (only "Stop now").
 
 ## Failed installments — a card link, three reminders, then support
 
@@ -1988,8 +2147,11 @@ so campaign → door → page is one string and cannot drift). Masterclass spend
 naming no door, plus the masterclass share of campaigns naming no product, is
 **shared** across the doors by the registrations each took. It rides on
 `report.masterclassDoors` (`DoorAcquisition`, same shape as an audience, with
-tickets and course sales split out), and `/admin/stats` + `/ads` render two cards
-**directly under** the workshop/masterclass ones. Three rules keep it honest: a
+tickets and course sales split out). `/admin/stats` + `/ads` rendered two cards
+directly under the workshop/masterclass ones until **the split test ended
+(October 2026)**: the cards and their notes are gone from both pages, and
+nothing on screen reads `masterclassDoors` now — the calculation is left in
+place, so a new door test needs only its cards back. Three rules keep it honest: a
 masterclass registration with no page recorded is **unknown, not a door** (a
 seat taken on a direct `/w/<slug>` link — its spend and income are reported
 beside the cards and belong to neither); a door whose page took no registration
@@ -2038,7 +2200,22 @@ sessions that remain — and "upcoming" is the site-wide rule (`ends_at_utc`, or
 those two pages now comes off `computeWorkshopPerformance` rather than
 `computeStats`, since only the allocation knows which euros were charged to a
 session that hasn't run. With the filter **off**, both dashboards say how much
-spend is riding on sessions that haven't happened yet.
+spend is riding on sessions that haven't happened yet. **`/ads` opens with it
+on** (October 2026): no `future` param means exclude there, so its "Include
+costs" option posts an explicit `future=include` — an empty value would read as
+"absent" and snap back to exclude. `/admin/stats` still defaults to include.
+
+**"Ad spend vs revenue" carries a cumulative profit line** (October 2026), on
+`/ads` and — the same chart, full width — on `/admin/stats` (where it replaced
+"Daily revenue vs ad spend" and keeps that chart's 7-day average): the running
+total of revenue − ad spend from the first day shown, on the same euro axis as
+the two daily lines, every line switchable from the legend so the scale can
+refit to the daily ones. It is the chart's own two lines netted, so it is
+profit after **ad spend only** and counts every ad euro spent that day; with
+"Exclude costs" on, the revenue line drops upcoming seats' tickets but a day's
+spend stays whole. `SDChart.line` grew a below-zero scale for it (whole nice
+steps either side of a zero baseline; all-positive charts draw exactly as
+before).
 
 **A registration costs what it cost *that day*** ([`src/lib/ads/allocation.ts`](src/lib/ads/allocation.ts),
 July 2026): the per-workshop ad cost used to be one window-wide average — total
@@ -2067,8 +2244,11 @@ stop summing to total prospecting spend by exactly that amount (footnoted
 wherever non-zero). `WorkshopPerformanceRow.costPerRegistrationEurMinor` is a
 session's own day-weighted seat price, out of its own product's budget;
 `dailyCosts` on the report is the day-by-day ledger with a price *per product*
-(shown as a table on `/admin/workshops/performance`, and the `/ads`
-cost-per-registration chart, which stays blended).
+(shown as a table on `/admin/workshops/performance`, and as the `/ads`
+cost-per-registration chart — one line per product since October 2026, each
+with a dashed trend weighted by that day's registrations, all four switchable
+from the legend; a day its product took no paid-for registration is a gap,
+there being nothing to price).
 
 **Cadence**: rides the existing **hourly** cron (`worker-entrypoint.ts`),
 self-gating via a `meta_ad_spend_synced_at` marker in `workshop_config` to the
@@ -2088,8 +2268,10 @@ the previous UTC day, since Meta buckets in the ad account's timezone), its own
 14-day sync), throttled to once a minute across all viewers with the marker
 stamped at *attempt* time (a broken token backs off too), an 8s hard timeout,
 and every error swallowed into a result the page reports as "⚠ live Meta sync
-failed" rather than a 500. Both pages also **open on today** (`resolvePeriod`
-takes a fallback preset; everything else still defaults to all-time).
+failed" rather than a 500. `/admin/stats` **opens on today** and `/ads` on the
+**last 30 days** (October 2026; `resolvePeriod` takes a fallback preset;
+everything else still defaults to all-time) — the live pull runs on both
+either way, since today sits inside both windows.
 
 **Setup** (Meta side is the only real work):
 - **`META_AD_ACCOUNT_ID`** — the ad account, `act_1234567890` or bare

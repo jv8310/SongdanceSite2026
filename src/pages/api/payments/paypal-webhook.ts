@@ -19,6 +19,7 @@ import {
   type PaypalFulfillEnv,
 } from '../../../lib/payments/paypal-fulfill';
 import { getCourseRegistrationByPaypalSubscription } from '../../../lib/courses/db';
+import { stopUnpaidMonthly } from '../../../lib/courses/live-pass-monthly';
 
 export const prerender = false;
 
@@ -209,6 +210,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
       const status = (resource.status as string | undefined) ?? '';
       if (subscriptionId) {
         await applyPaypalSubscriptionStatus(env, subscriptionId, status);
+        // PayPal suspends a subscription once its own retries of a charge are
+        // spent: the monthly live pass then ends (live-pass-monthly.ts). No-op
+        // for an installment plan.
+        if (type === 'BILLING.SUBSCRIPTION.SUSPENDED') {
+          const monthly = await getCourseRegistrationByPaypalSubscription(env.DB, subscriptionId);
+          if (monthly) await stopUnpaidMonthly(env, monthly, 'paypal_suspended');
+        }
       }
       return new Response('OK', { status: 200 });
     }

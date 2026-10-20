@@ -18,6 +18,15 @@
       "migrations_dir": "migrations"
     }
   ],
+  // The member app's admin door: the "App access" section on a person's page
+  // (/admin/people/<email>) reads and changes their app courses, Circle seats
+  // and host spaces through the app Worker's SiteAdmin entrypoint. Only
+  // Workers on this account can reach it, so there is no secret. Until the app
+  // is deployed with that entrypoint the section says the app does not answer
+  // (src/lib/admin/app-access.ts).
+  "services": [
+    { "binding": "APP_ADMIN", "service": "songdance-app-api", "entrypoint": "SiteAdmin" }
+  ],
   // Media bucket — admin-uploaded event card images live here and are
   // served back through the worker at /media/<key>. Create the bucket once
   // with: wrangler r2 bucket create songdance-media

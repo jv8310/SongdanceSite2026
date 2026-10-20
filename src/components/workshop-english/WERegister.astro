@@ -13,6 +13,7 @@
 // bookable for everyone, not only the pro (door 3) lens.
 import type { CalItem } from './types';
 import { ALL_COUNTRIES } from '../../lib/workshops/countries';
+import { usesTwelveHourClock } from '../../lib/workshops/time';
 import LaunchOfferCallout from '../promo/LaunchOfferCallout.astro';
 import MetaPixel from '../MetaPixel.astro';
 interface Props {
@@ -61,7 +62,7 @@ const leadTicket = items.find((it) => it.kind !== 'masterclass');
       What in you is waiting<br /><em>to be heard?</em>
     </h2>
     <p class="we-register-body we-swap" id="we-reg-body">
-      Come. One hour. Live.<br />
+      Come. Seventy minutes. Live.<br />
       You don't need any skill, any preparation, anything to prove.<br />
       You just open your mouth<br />
       and see what happens.
@@ -87,7 +88,7 @@ const leadTicket = items.find((it) => it.kind !== 'masterclass');
             <span>Times shown in</span>
             <select id="we-tz-select" aria-label="Your timezone">
               {tzOptions.map((tz) => (
-                <option value={tz} selected={tz === detectedTz}>{tz.replace(/_/g, ' ')}</option>
+                <option value={tz} selected={tz === detectedTz} data-clock={usesTwelveHourClock(tz) ? '12' : '24'}>{tz.replace(/_/g, ' ')}</option>
               ))}
             </select>
           </label>
@@ -376,24 +377,58 @@ const leadTicket = items.find((it) => it.kind !== 'masterclass');
       return aliases[city] || city;
     }
 
+    // 12- or 24-hour clock for a timezone: the server decides it per option
+    // (usesTwelveHourClock in lib/workshops/time.ts) and writes it on the
+    // <option> as data-clock, so the rule lives in one place.
+    function twelveHourFor(tz) {
+      var opts = tzSelect ? tzSelect.options : [];
+      for (var i = 0; i < opts.length; i++) {
+        if (opts[i].value === tz) return opts[i].getAttribute('data-clock') === '12';
+      }
+      return false;
+    }
+
+    // Join Intl's parts, printing the 12-hour day period as "PM" behind an
+    // ordinary no-break space — as formatParts() in lib/workshops/time.ts.
+    function joinParts(parts) {
+      var out = '';
+      for (var i = 0; i < parts.length; i++) {
+        var p = parts[i];
+        if (p.type === 'dayPeriod') out += p.value.toUpperCase();
+        else if (p.type === 'literal' && parts[i + 1] && parts[i + 1].type === 'dayPeriod') out += '\u00a0';
+        else out += p.value;
+      }
+      return out;
+    }
+
     // Format a UTC instant in the active timezone, mirroring lib/workshops/time.ts.
-    // `withTime` true → "Sun 15 Jun 2026, 20:00 Brussels time"; false → "Sun 15 Jun 2026".
+    // `withTime` true → "Sun 15 Jun 2026, 20:00 Brussels time" (or "2:00 PM New
+    // York time" on a 12-hour clock); false → "Sun 15 Jun 2026".
     function formatInTz(utcIso, tz, withTime) {
       if (!utcIso) return '';
       var place = tzPlace(tz);
       var opts = { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' };
       if (withTime) {
-        opts.hour = '2-digit';
         opts.minute = '2-digit';
         if (!place) opts.timeZoneName = 'short';
       }
       var suffix = withTime && place ? (place === 'UTC' ? ' UTC' : ' ' + place + ' time') : '';
       try {
         opts.timeZone = tz;
-        return new Intl.DateTimeFormat('en-GB', opts).format(new Date(utcIso)) + suffix;
+        if (withTime && twelveHourFor(tz)) {
+          opts.hour = 'numeric';
+          opts.hourCycle = 'h12';
+        } else if (withTime) {
+          opts.hour = '2-digit';
+        }
+        return joinParts(new Intl.DateTimeFormat('en-GB', opts).formatToParts(new Date(utcIso))) + suffix;
       } catch (e) {
         opts.timeZone = 'UTC';
-        if (withTime) opts.timeZoneName = 'short';
+        if (withTime) {
+          opts.hour = '2-digit';
+          delete opts.hourCycle;
+          opts.timeZoneName = 'short';
+        }
         return new Intl.DateTimeFormat('en-GB', opts).format(new Date(utcIso));
       }
     }

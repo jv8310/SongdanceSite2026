@@ -2,7 +2,7 @@
 //
 // "Activate all my products" from /access. Applies the `prod_access` tag to the
 // subscriber in Drip; a Drip automation listening for that tag sends the email
-// that walks people through activating their products in the Songdance CiRCLE.
+// that walks people through activating their products in the CiRCLE.
 // Drip creates the subscriber if the address is new, so this is safe for anyone
 // who reaches the page. The only side effect is on Drip (+ an audit event).
 

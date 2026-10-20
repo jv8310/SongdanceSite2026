@@ -38,6 +38,8 @@ import {
 } from '../../../lib/courses/db';
 import { pushPaidCourseRegistrationToDrip } from '../../../lib/courses/paid-handler';
 import { effectiveTotal } from '../../../lib/courses/installment-forecast';
+import { closePlanAtGateway } from '../../../lib/courses/installment-cancel';
+import { stopUnpaidMonthly } from '../../../lib/courses/live-pass-monthly';
 import { recordCourseInvoiceIfNew } from '../../../lib/courses/stripe-fulfill';
 import {
   handleWorkshopCheckoutCompleted,
@@ -536,6 +538,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
       sub.id,
       sub.status,
     );
+    // The monthly live pass renews until cancelled; once Stripe has given up
+    // retrying this month's charge (`unpaid`) it ends, rather than opening
+    // sessions nobody paid for (src/lib/courses/live-pass-monthly.ts).
+    if (updated && sub.status === 'unpaid') {
+      const monthly = await getCourseRegistrationBySubscription(env.DB, sub.id);
+      if (monthly) await stopUnpaidMonthly(env, monthly, 'stripe_unpaid');
+    }
     if (!updated) {
       // We saw an updated event before our checkout.session.completed
       // handler had attached the subscription — fine, the next event
@@ -687,11 +696,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
         charge.payment_intent,
       );
       if (courseReg) {
-        await markCourseRegistrationRefunded(
+        const closed = await markCourseRegistrationRefunded(
           env.DB,
           courseReg.id,
           refundDelta,
         );
+        if (closed) await closePlanAtGateway(env as any, courseReg.id, 'refunded');
         await logEvent(env.DB, {
           registration_id: null,
           kind: 'course.registration.refunded',
@@ -728,11 +738,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
             subscriptionId,
           );
           if (courseReg) {
-            await markCourseRegistrationRefunded(
+            const closed = await markCourseRegistrationRefunded(
               env.DB,
               courseReg.id,
               refundDelta,
             );
+            if (closed) {
+              await closePlanAtGateway(env as any, courseReg.id, 'refunded');
+            }
             await logEvent(env.DB, {
               registration_id: null,
               kind: 'course.registration.refunded',

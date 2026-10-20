@@ -91,7 +91,8 @@ export type InstallmentLedger = {
 // falls back to the ordinary single-charge form, exactly as before.
 function ledgerSubscriptionOf(o: UnifiedOrder): string | null {
   if (o.source !== 'course') return null;
-  if (o.installmentsTotal <= 1) return null;
+  // 0 = an open-ended monthly subscription: its months are cycles too.
+  if (o.installmentsTotal === 1 || o.installmentsTotal < 0) return null;
   return o.provider === 'paypal' ? o.paypalSubscriptionId : o.stripeSubscriptionId;
 }
 
@@ -150,6 +151,10 @@ export function installmentRefundableMinor(i: Installment): number {
 // €449 installment at the gateway.
 export function perChargeRefundableMinor(o: UnifiedOrder): number {
   const remaining = Math.max(0, o.originalAmountMinor - o.refundedMinor);
+  // An open-ended monthly: the order is the months charged, each one month.
+  if (o.installmentsTotal === 0) {
+    return Math.min(remaining, Math.round(o.originalAmountMinor / Math.max(1, o.installmentsPaid)));
+  }
   if (o.installmentsTotal <= 1) return remaining;
   const perCharge = Math.round(o.originalAmountMinor / o.installmentsTotal);
   return Math.min(remaining, perCharge);

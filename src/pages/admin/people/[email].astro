@@ -4,6 +4,9 @@
 // courses/workshops (src/lib/admin/orders.ts), tracked email sends with
 // open/click data (src/lib/email/sends.ts), and Drip-imported contact tags
 // (src/lib/broadcasts/db.ts). Read-only, assembled live — no `people` table.
+// The one exception is "App access": the person's courses, Circle seats and
+// host spaces in the member app, which the app answers and changes through its
+// service binding (src/lib/admin/app-access.ts, /api/admin/app-access).
 import '../../../styles/admin.css';
 import Layout from '../../../layouts/Layout.astro';
 import { readCookie, verifySession } from '../../../lib/registrations/auth';
@@ -13,6 +16,7 @@ import { getFxRatesToEur } from '../../../lib/admin/fx';
 import { formatMoney } from '../../../lib/workshops/currency';
 import { emailSendsForAddress } from '../../../lib/email/sends';
 import { getContact, listBroadcasts } from '../../../lib/broadcasts/db';
+import { STATE_LABEL, STATE_PILL, actorLabel, askApp, day, sourceLabel } from '../../../lib/admin/app-access';
 
 export const prerender = false;
 
@@ -49,12 +53,15 @@ const quaderno =
       }
     : undefined;
 
-const [allPeople, orders, sends, contact, broadcasts] = await Promise.all([
+const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+const [allPeople, orders, sends, contact, broadcasts, appAccess] = await Promise.all([
   listPeople(env.DB),
   listAllOrders(env.DB, { email }, { fxRates, quaderno }),
   emailSendsForAddress(env.DB, email),
   getContact(env.DB, email),
   listBroadcasts(env.DB),
+  validEmail ? askApp(env, (app) => app.member({ email })) : Promise.resolve(null),
 ]);
 
 const person = allPeople.find((p) => p.email === email) ?? null;
@@ -94,6 +101,19 @@ function fmtDateTime(s: string | null): string | undefined {
 }
 
 const sendGroups = [...new Set(sends.map((s) => s.group))];
+
+// App access (see the header). A failed answer prints its message in place.
+const app = appAccess?.ok ? appAccess.data : null;
+const appProblem = appAccess && !appAccess.ok ? appAccess.message : null;
+const appFlash = Astro.url.searchParams.get('app_msg');
+const appFlashErr = Astro.url.searchParams.has('app_err');
+const otherEmails = app ? app.linkedEmails.filter((e) => e !== email) : [];
+// A course with live sessions starts its live window on its start date; a
+// grant with no start opens the materials only. So the form starts on today.
+const todayBrussels = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Brussels' }).format(new Date());
+const seatableSpaces = app ? app.catalogue.spaces.filter((sp) => sp.audience !== 'everyone') : [];
+const hostableSpaces = app ? app.catalogue.spaces.filter((sp) => !sp.archived && !app.hostSpaces.some((h) => h.spaceKey === sp.key)) : [];
+const ROLE_LABEL: Record<string, string> = { member: 'member', host: 'host', admin: 'app admin' };
 const jsEmail = email.replace(/['\\]/g, '\\$&');
 ---
 
@@ -112,6 +132,7 @@ const jsEmail = email.replace(/['\\]/g, '\\$&');
         {person?.name && <p class="adm-sub">{email}</p>}
       </div>
       <div class="adm-actions">
+        <a class="adm-btn adm-btn--ghost" href={`/admin/orders?email=${encodeURIComponent(email)}`}>Orders →</a>
         <a class="adm-btn adm-btn--ghost" href={`mailto:${email}`}>Email</a>
         <a class="adm-btn adm-btn--ghost" href={`/api/admin/drip-profile?email=${encodeURIComponent(email)}`} target="_blank" rel="noopener">Drip profile ↗</a>
         <a class="adm-btn adm-btn--ghost" href={backHref}>← Back to people</a>
@@ -120,7 +141,7 @@ const jsEmail = email.replace(/['\\]/g, '\\$&');
 
     {!exists && (
       <section class="adm-section">
-        <p class="adm-empty">No record found for “{email}”.</p>
+        <p class="adm-empty">Nothing on the site for “{email}”.</p>
       </section>
     )}
 
@@ -159,7 +180,7 @@ const jsEmail = email.replace(/['\\]/g, '\\$&');
               {person && (
                 <div class="pd-stat"><span>Last activity</span><strong>{fmtDate(person.lastActivity)}</strong></div>
               )}
-              <div class="pd-stat"><span>Orders</span><strong>{orders.length}</strong></div>
+              <div class="pd-stat"><span>Orders</span><strong>{orders.length > 0 ? <a href={`/admin/orders?email=${encodeURIComponent(email)}`}>{orders.length}</a> : 0}</strong></div>
               <div class="pd-stat"><span>Tracked sends</span><strong>{sends.length}</strong></div>
             </div>
             {person && person.purchases.length > 0 && (
@@ -184,7 +205,240 @@ const jsEmail = email.replace(/['\\]/g, '\\$&');
             </form>
           )}
         </section>
+      </>
+    )}
 
+    <!-- ─── App access (the member app answers this one) ─── -->
+    {validEmail && (
+      <section class="adm-section" id="app-access">
+        <h2>App access</h2>
+        {appFlash && <div class={`adm-flash ${appFlashErr ? 'adm-flash--err' : 'adm-flash--ok'}`}>{appFlash}</div>}
+        {appProblem && <p class="adm-empty">{appProblem}</p>}
+        {app && (
+          <>
+            <p class="app-account">
+              {app.account
+                ? <>Has an app account{app.account.name ? ` as ${app.account.name}` : ''} · {ROLE_LABEL[app.account.role] ?? app.account.role} · {app.account.lastSeenAt ? `last seen ${fmtDate(app.account.lastSeenAt)}` : 'has not opened the app yet'}</>
+                : 'No app account yet. Whatever you add here is waiting for them the first time they sign in to the app with this address.'}
+            </p>
+            {otherEmails.length > 0 && <p class="pd-mute">Also linked in the app: {otherEmails.join(', ')}</p>}
+
+            <h3 class="app-h3">Courses</h3>
+            {app.courses.length === 0 && <p class="adm-empty">No courses in the app.</p>}
+            {app.courses.length > 0 && (
+              <div class="app-scroll"><table class="adm-table app-table">
+                <thead>
+                  <tr>
+                    <th>Course</th>
+                    <th>Status</th>
+                    <th>Dates</th>
+                    <th>Where it comes from</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {app.courses.map((c) => (
+                    <tr class={c.state === 'revoked' ? 'app-row--off' : ''}>
+                      <td>
+                        {c.label}
+                        {c.email !== email && <><br /><span class="pd-mute">under {c.email}</span></>}
+                      </td>
+                      <td><span class={`adm-pill adm-pill--${STATE_PILL[c.state]}`}>{STATE_LABEL[c.state]}</span></td>
+                      <td class="app-dates">
+                        {c.startsAt ? <span>from {day(c.startsAt)}</span> : <span class="pd-mute">no start date (materials only)</span>}
+                        {c.isCertification && c.activateChoice === 'wait' && (
+                          c.activatedAt ? <span>activated {day(c.activatedAt)}</span> : <span class="pd-mute">not activated yet</span>
+                        )}
+                        {c.endsAt && <span>ends {day(c.endsAt)}</span>}
+                        {c.graceUntil && <span>closes {day(c.graceUntil)} (stopped plan)</span>}
+                        {c.liveUntil && c.state !== 'revoked' && (
+                          <span class="pd-mute">
+                            live sessions {new Date(c.liveUntil).getTime() < Date.now() ? 'ended' : 'until'} {day(c.liveUntil)}
+                            {c.liveSetByAdmin && ' (set by hand)'}
+                          </span>
+                        )}
+                        {c.revokedAt && <span>revoked {day(c.revokedAt)}</span>}
+                      </td>
+                      <td>
+                        {sourceLabel(c.source)}
+                        {c.state !== 'revoked' && c.by && <span class="pd-mute"> by {actorLabel(c.by)}</span>}
+                        {c.state === 'revoked' && <><br /><span class="pd-mute">Revoked{c.by ? ` by ${actorLabel(c.by)}` : ''}{c.note ? `: ${c.note}` : ''}</span></>}
+                        {c.state !== 'revoked' && c.note && <><br /><span class="pd-mute">{c.note}</span></>}
+                      </td>
+                      <td class="app-actions">
+                        {c.state !== 'revoked' && (
+                          <details class="app-details">
+                            <summary>Change</summary>
+                            {c.hasLiveWindow && (
+                              <form method="POST" action="/api/admin/app-access" class="app-form">
+                                <input type="hidden" name="action" value="extend-course" />
+                                <input type="hidden" name="email" value={email} />
+                                <input type="hidden" name="entitlement_id" value={c.id} />
+                                <div class="adm-grid app-grid">
+                                  <label><span>Extra time (months)</span><input type="number" name="months" min="1" max="36" step="1" required placeholder="e.g. 3" /></label>
+                                </div>
+                                <button type="submit" class="adm-btn adm-btn--tiny adm-btn--solid">Give extra time</button>
+                                <p class="pd-mute">Months of Q&amp;As, live classes and deepening sessions: added to the day the live sessions end, or counted from today if they have already ended. The materials never run out.</p>
+                              </form>
+                            )}
+                            <form method="POST" action="/api/admin/app-access" class="app-form">
+                              <input type="hidden" name="action" value="course-dates" />
+                              <input type="hidden" name="email" value={email} />
+                              <input type="hidden" name="entitlement_id" value={c.id} />
+                              <div class="adm-grid app-grid">
+                                <label><span>Starts</span><input type="date" name="starts_at" value={day(c.startsAt)} /></label>
+                                {c.isCertification && c.activateChoice === 'wait' && <label><span>Activated</span><input type="date" name="activated_at" value={day(c.activatedAt)} /></label>}
+                                <label><span>Ends</span><input type="date" name="ends_at" value={day(c.endsAt)} /></label>
+                                {c.hasLiveWindow && <label><span>Live sessions until</span><input type="date" name="live_until" value={c.liveSetByAdmin ?? ''} /></label>}
+                              </div>
+                              <button type="submit" class="adm-btn adm-btn--tiny">Save dates</button>
+                              <p class="pd-mute">An empty field clears that date. A date set here wins over the order's.{c.hasLiveWindow && ' "Ends" closes the whole course, materials included; "Live sessions until" moves only the live sessions (empty = the course\'s own 12 weeks / 9 months).'}</p>
+                            </form>
+                            <form
+                              method="POST"
+                              action="/api/admin/app-access"
+                              class="app-form"
+                              onsubmit={`return confirm('Take ${c.label.replace(/['\\]/g, '\\$&')} away from ${jsEmail} in the app? Nothing is refunded, and no order or Drip tag brings it back.')`}
+                            >
+                              <input type="hidden" name="action" value="revoke-course" />
+                              <input type="hidden" name="email" value={email} />
+                              <input type="hidden" name="entitlement_id" value={c.id} />
+                              <div class="adm-grid app-grid">
+                                <label class="span-full"><span>Reason</span><input type="text" name="reason" required maxlength="500" placeholder="Why (kept in the app's log)" /></label>
+                              </div>
+                              <button type="submit" class="adm-btn adm-btn--tiny adm-btn--danger">Revoke</button>
+                            </form>
+                          </details>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table></div>
+            )}
+
+            <details class="app-add" open={app.courses.length === 0}>
+              <summary>Add a course</summary>
+              <form method="POST" action="/api/admin/app-access" class="app-form">
+                <input type="hidden" name="action" value="grant-course" />
+                <input type="hidden" name="email" value={email} />
+                <div class="adm-grid">
+                  <label class="span-2">
+                    <span>Course</span>
+                    <select name="product" required>
+                      <option value="">Choose a course…</option>
+                      {app.catalogue.products.map((p) => <option value={p.key}>{p.label}</option>)}
+                    </select>
+                  </label>
+                  <label><span>Starts</span><input type="date" name="starts_at" value={todayBrussels} /></label>
+                  <label><span>Ends (optional)</span><input type="date" name="ends_at" /></label>
+                  <label><span>Live sessions for (months, optional)</span><input type="number" name="live_months" min="1" max="36" step="1" placeholder="12-week / certification" /></label>
+                  <label class="span-full"><span>Note</span><input type="text" name="note" required maxlength="500" placeholder="Why (kept in the app's log), e.g. comp after the retreat" /></label>
+                </div>
+                <button type="submit" class="adm-btn adm-btn--solid">Add course</button>
+                <p class="pd-mute">The start date also starts any live sessions the course comes with. With no start date only the materials open. For the 12-week or certification course, "Live sessions for" gives that many months of Q&amp;As, live classes and deepening sessions from the start, instead of the course's own 12 weeks / 9 months; the materials stay open for good. Leave "Ends" empty unless the whole course should close.</p>
+              </form>
+            </details>
+
+            <h3 class="app-h3">CiRCLE spaces</h3>
+            <p class="pd-mute">A course already opens its own spaces. Seat someone here only in a space none of their courses gives them.</p>
+            {app.spaceSeats.length > 0 && (
+              <div class="app-scroll"><table class="adm-table app-table">
+                <tbody>
+                  {app.spaceSeats.map((seat) => (
+                    <tr>
+                      <td>{seat.title}</td>
+                      <td class="pd-mute">{seat.source === 'import' ? 'Brought over from Mighty' : `Seated by ${actorLabel(seat.grantedBy) ?? 'an admin'}`} · {fmtDate(seat.createdAt)}</td>
+                      <td class="app-actions">
+                        <details class="app-details">
+                          <summary>Remove</summary>
+                          <form method="POST" action="/api/admin/app-access" class="app-form">
+                            <input type="hidden" name="action" value="unseat-space" />
+                            <input type="hidden" name="email" value={email} />
+                            <input type="hidden" name="space" value={seat.spaceKey} />
+                            <div class="adm-grid app-grid">
+                              <label class="span-full"><span>Reason</span><input type="text" name="reason" required maxlength="500" placeholder="Why (kept in the app's log)" /></label>
+                            </div>
+                            <button type="submit" class="adm-btn adm-btn--tiny adm-btn--danger">Take the seat away</button>
+                          </form>
+                        </details>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table></div>
+            )}
+            {seatableSpaces.length > 0 && (
+              <form method="POST" action="/api/admin/app-access" class="app-form app-inline">
+                <input type="hidden" name="action" value="seat-space" />
+                <input type="hidden" name="email" value={email} />
+                <div class="adm-grid">
+                  <label class="span-2">
+                    <span>Space</span>
+                    <select name="space" required>
+                      <option value="">Choose a space…</option>
+                      {seatableSpaces.map((sp) => <option value={sp.key}>{sp.title}{sp.archived ? ' (archive)' : ''}</option>)}
+                    </select>
+                  </label>
+                  <label class="span-2"><span>Note</span><input type="text" name="note" required maxlength="500" placeholder="Why (kept in the app's log)" /></label>
+                </div>
+                <button type="submit" class="adm-btn adm-btn--solid">Seat in space</button>
+              </form>
+            )}
+
+            <h3 class="app-h3">Hosting</h3>
+            {!app.account && <p class="pd-mute">Hosting needs an app account. Once they have signed in to the app, you can make them a host here.</p>}
+            {app.account && (
+              <>
+                {app.hostSpaces.length === 0 && <p class="pd-mute">Not a host of any space.</p>}
+                {app.hostSpaces.length > 0 && (
+                  <div class="app-scroll"><table class="adm-table app-table">
+                    <tbody>
+                      {app.hostSpaces.map((h) => (
+                        <tr>
+                          <td>Host of {h.title}</td>
+                          <td class="app-actions">
+                            <form
+                              method="POST"
+                              action="/api/admin/app-access"
+                              onsubmit={`return confirm('Stop ${jsEmail} hosting ${h.title.replace(/['\\]/g, '\\$&')}?')`}
+                            >
+                              <input type="hidden" name="action" value="remove-host" />
+                              <input type="hidden" name="email" value={email} />
+                              <input type="hidden" name="space" value={h.spaceKey} />
+                              <button type="submit" class="adm-btn adm-btn--tiny adm-btn--danger">Remove</button>
+                            </form>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table></div>
+                )}
+                {hostableSpaces.length > 0 && (
+                  <form method="POST" action="/api/admin/app-access" class="app-form app-inline">
+                    <input type="hidden" name="action" value="add-host" />
+                    <input type="hidden" name="email" value={email} />
+                    <div class="adm-grid">
+                      <label class="span-2">
+                        <span>Space</span>
+                        <select name="space" required>
+                          <option value="">Choose a space…</option>
+                          {hostableSpaces.map((sp) => <option value={sp.key}>{sp.title}</option>)}
+                        </select>
+                      </label>
+                    </div>
+                    <button type="submit" class="adm-btn adm-btn--solid">Make host</button>
+                  </form>
+                )}
+              </>
+            )}
+          </>
+        )}
+      </section>
+    )}
+
+    {exists && (
+      <>
         <!-- ─── Tags (Drip) ─── -->
         <section class="adm-section">
           <h2>Tags</h2>
@@ -207,7 +461,7 @@ const jsEmail = email.replace(/['\\]/g, '\\$&');
 
         <!-- ─── Orders ─── -->
         <section class="adm-section">
-          <h2>Orders</h2>
+          <h2>Orders {orders.length > 0 && <a class="pd-h2-link" href={`/admin/orders?email=${encodeURIComponent(email)}`}>open in Orders →</a>}</h2>
           {orders.length === 0 && <p class="adm-empty">No orders on file.</p>}
           {orders.length > 0 && (
             <table class="adm-table pd-orders">
@@ -335,6 +589,8 @@ const jsEmail = email.replace(/['\\]/g, '\\$&');
     .pd-contact-kv dd { display:inline; margin:0 0 0 4px; }
 
     .pd-orders, .pd-sends { margin-bottom: 14px; }
+    .pd-h2-link { margin-left: 10px; font-family: ui-sans-serif, -apple-system, sans-serif; font-size: 13px; font-weight: 400; color: var(--adm-ink-soft); }
+    .pd-h2-link:hover { color: var(--adm-ember-deep); }
     .pd-orders:last-child, .pd-sends:last-child { margin-bottom: 0; }
     .pd-src {
       font-size:10px; font-weight:600; letter-spacing:0.04em; text-transform:uppercase;
@@ -347,6 +603,32 @@ const jsEmail = email.replace(/['\\]/g, '\\$&');
     .pd-refunded { color: var(--adm-danger); }
 
     .pd-mute { color: var(--adm-mute); font-size: 12px; margin: 0; }
+
+    .app-account { margin: 0 0 6px; font-size: 14px; }
+    .app-h3 { font-size: 15px; margin: 22px 0 8px; }
+    .app-table { margin-bottom: 10px; }
+    .app-table td { vertical-align: top; }
+    .app-dates span { display: block; }
+    .app-row--off td { opacity: 0.6; }
+    .app-actions { width: 1%; white-space: nowrap; text-align: right; }
+    .app-details summary, .app-add summary {
+      cursor: pointer; font-size: 13px; color: var(--adm-ember-deep); list-style: none;
+    }
+    .app-details summary::-webkit-details-marker, .app-add summary::-webkit-details-marker { display: none; }
+    .app-details[open] { white-space: normal; text-align: left; min-width: 340px; }
+    .app-add { margin: 12px 0 0; }
+    .app-add > summary { font-weight: 600; font-size: 14px; }
+    .app-form { margin: 10px 0 0; }
+    .app-form .adm-grid { margin-bottom: 8px; }
+    .app-form .pd-mute { margin-top: 6px; }
+    .app-grid { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+    .app-scroll { overflow-x: auto; }
+    .app-inline { margin-top: 12px; }
+    @media (max-width: 720px) {
+      .app-grid, .app-form .adm-grid { grid-template-columns: 1fr; }
+      .app-form .adm-grid > label.span-2 { grid-column: auto; }
+      .app-details[open] { min-width: 0; }
+    }
     .pd-danger { color: var(--adm-danger); font-weight: 600; font-size: 12px; text-transform: uppercase; }
   </style>
 </Layout>
