@@ -69,6 +69,7 @@ export type DripSubscriber = {
   last_name?: string;
   country?: string;
   phone?: string;
+  time_zone?: string;
   tags: string[];
   custom_fields: Record<string, string>;
 };
@@ -177,6 +178,7 @@ export async function listSubscribersByTag(
         email: string;
         first_name?: string;
         last_name?: string;
+        time_zone?: string;
         tags?: string[];
         custom_fields?: Record<string, string>;
       }>;
@@ -188,6 +190,7 @@ export async function listSubscribersByTag(
         email: s.email,
         first_name: s.first_name,
         last_name: s.last_name,
+        time_zone: s.time_zone,
         tags: s.tags ?? [],
         custom_fields: s.custom_fields ?? {},
       });
@@ -414,4 +417,95 @@ function scrubCustomFields(
     out[k] = String(v);
   }
   return out;
+}
+
+// ── Email series (campaigns) — for moving people off a Drip series ──────────
+
+export type DripCampaignSubscriber = {
+  id: string;
+  email: string;
+  first_name: string | null;
+  time_zone: string | null;
+};
+
+// One page of the people actively receiving an email series.
+// GET /v2/:account_id/campaigns/:campaign_id/subscribers
+export async function listCampaignSubscribers(
+  cfg: DripConfig,
+  campaignId: string,
+  page: number,
+  perPage = 1000,
+): Promise<{ subscribers: DripCampaignSubscriber[]; totalPages: number; totalCount: number }> {
+  const qs = new URLSearchParams({ status: 'active', per_page: String(perPage), page: String(page) });
+  const res = await fetch(`${baseUrl(cfg)}/campaigns/${encodeURIComponent(campaignId)}/subscribers?${qs}`, {
+    method: 'GET',
+    headers: { Authorization: authHeader(cfg), Accept: 'application/vnd.api+json' },
+    signal: AbortSignal.timeout(20000),
+  });
+  if (!res.ok) throw new Error(`Drip listCampaignSubscribers: ${res.status} ${await res.text()}`);
+  const data = (await res.json()) as {
+    subscribers?: Array<{ id: string; email: string; first_name?: string | null; time_zone?: string | null }>;
+    meta?: { total_pages?: number; total_count?: number };
+  };
+  return {
+    subscribers: (data.subscribers ?? []).map((s) => ({
+      id: s.id,
+      email: s.email,
+      first_name: s.first_name ?? null,
+      time_zone: s.time_zone ?? null,
+    })),
+    totalPages: data.meta?.total_pages ?? 1,
+    totalCount: data.meta?.total_count ?? 0,
+  };
+}
+
+export type DripCampaignSubscription = {
+  campaign_id: string;
+  status: string;
+  is_complete: boolean;
+  // 0-based position in the series of the last email sent; null before the first.
+  last_sent_email_index: number | null;
+  last_sent_email_at: string | null;
+};
+
+// Where one subscriber stands in each email series they were ever on.
+// GET /v2/:account_id/subscribers/:id_or_email/campaign_subscriptions
+export async function listSubscriberCampaignSubscriptions(
+  cfg: DripConfig,
+  idOrEmail: string,
+): Promise<DripCampaignSubscription[]> {
+  const res = await fetch(
+    `${baseUrl(cfg)}/subscribers/${encodeURIComponent(idOrEmail)}/campaign_subscriptions?per_page=100`,
+    {
+      method: 'GET',
+      headers: { Authorization: authHeader(cfg), Accept: 'application/vnd.api+json' },
+      signal: AbortSignal.timeout(15000),
+    },
+  );
+  if (res.status === 404) return [];
+  if (!res.ok) throw new Error(`Drip campaign_subscriptions: ${res.status} ${await res.text()}`);
+  const data = (await res.json()) as { campaign_subscriptions?: Array<Record<string, unknown>> };
+  return (data.campaign_subscriptions ?? []).map((c) => ({
+    campaign_id: String(c.campaign_id ?? ''),
+    status: String(c.status ?? ''),
+    is_complete: c.is_complete === true,
+    last_sent_email_index: typeof c.last_sent_email_index === 'number' ? c.last_sent_email_index : null,
+    last_sent_email_at: typeof c.last_sent_email_at === 'string' ? c.last_sent_email_at : null,
+  }));
+}
+
+// Take a subscriber off ONE email series (nothing else about them changes).
+// POST /v2/:account_id/subscribers/:id_or_email/remove?campaign_id=…
+export async function removeFromCampaign(cfg: DripConfig, idOrEmail: string, campaignId: string): Promise<void> {
+  const res = await fetch(
+    `${baseUrl(cfg)}/subscribers/${encodeURIComponent(idOrEmail)}/remove?campaign_id=${encodeURIComponent(campaignId)}`,
+    {
+      method: 'POST',
+      headers: { Authorization: authHeader(cfg), 'Content-Type': 'application/vnd.api+json' },
+      signal: AbortSignal.timeout(15000),
+    },
+  );
+  if (!res.ok && res.status !== 404) {
+    throw new Error(`Drip removeFromCampaign: ${res.status} ${await res.text()}`);
+  }
 }

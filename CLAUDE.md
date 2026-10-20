@@ -809,6 +809,179 @@ gated player) but no email telling them so. Delivery now lives in the site, in
   (`/api/admin/workshops/mantra-pack-send`) that forces the sweep with a wider
   cap. Pressing it twice is harmless.
 
+## Course emails — the site takes over from Drip, one course at a time
+
+Every course buyer used to get their welcome (and, for some courses, a run of
+follow-ups) from a **Drip workflow** fired by the purchase's tag/event; the site
+sent none. The site now holds its own version of each, in
+[`src/lib/courses/emails/`](src/lib/courses/emails/), written **as the new
+CiRCLE app works**: every course is already on the buyer's account at
+`circle.songdance.co` when the email lands, so there are no activation buttons
+and no Mighty Networks plan/space links — one sentence says to sign in with the
+address they bought with, one button opens the course. **Every CiRCLE URL comes
+from [`src/lib/courses/circle.ts`](src/lib/courses/circle.ts)**, and its paths
+are the app's real routes (checked against the `songdance-app` repo, October
+2026): a course is `/course/<course key>` (`svh-12week`, `cc-cert`,
+`grief-course`, `asj`, `jaz`, `mantra-pack`, `mmj`, `inner-child`), ASJ week N
+is lesson `/lesson/asj-lNN` (`jaz-lNN` in Dutch), and the live calendar is
+`/events` — **not** `/live` (Not found) and not `/courses/…` (the app sends
+Mighty's old `/courses/*` to the library). If the app's routes move, that file
+is the one place to change.
+
+- **The switch — off by default, per course** ([`handover.ts`](src/lib/courses/emails/handover.ts),
+  `workshop_config` key `course_emails_on:<unit>` = when it went on). Off →
+  Drip keeps sending and the site sends nothing. On → the site sends, **for
+  orders paid after that moment only**, and the matching Drip email steps must be
+  switched off the same day or buyers hear it twice. Units: 12-week, certification,
+  path, grief, asj (confirmation + the weekly series for everyone who holds it),
+  mmj, inner-child, journeys-bundle. Flipped on **`/admin/emails/courses`**,
+  which counts each sequence, previews + test-sends every email, and looks up /
+  stops / restarts one person's series. **Nothing goes on before the CiRCLE app
+  is live** (every one of these emails sends the buyer there; Drip's still
+  point into Mighty Networks, which today *is* circle.songdance.co; the app
+  redirects those old `/posts/…` / `/spaces/…` links itself, see `circle.ts`).
+- **The Drip side, per switch** (`drip` on each unit in `handover.ts`, shown on
+  that page; read from the Drip account through the Drip connector, read-only,
+  October 2026 — re-read it before the day): what Drip sends that course today,
+  the exact steps to switch off, and what must keep running. Switching off
+  means **setting the email steps to draft, never pausing the workflow**:
+  `prod_SVH_12w` also writes the `prod_SVH_week` counter that `prod_SVH_9m`
+  waits on for path buyers, the Q&A fields, `prod_SVH_12w_end` and an HTTP post;
+  `prod_ASJ` swaps `prod_ASJ` for `prod_ASJ_end` within seconds. The 12-week,
+  certification and path switches share those two workflows, so they go on the
+  **same day**; the bundle goes with the ASJ (its `prod_ASJ` tag starts Drip's
+  ASJ series). **Drip Rules are in the map too**, read by hand in the Drip UI
+  (Drip's API has no endpoint for Automation → Rules): Grief, MMJ and Inner
+  Child get their welcome from one email-only rule each ("Order -> Grief Course
+  2024 Self Paced", "Order -> MMJ", "Order -> Inner Child Healing" — pause it on
+  the day), the Dutch edition from "Order -> JAZ + JAZ_PRO" (delete its email
+  action, keep its `prod_JAZ_einde` tag), and the bundle gets all three plus
+  Drip's ASJ series, so it goes on with the ASJ, MMJ and Inner Child switches. `DRIP_ELSEWHERE` lists what belongs to no switch: "Access
+  to Products" (the Mighty activation links behind /access → "Activate all my
+  products"), two Zapier webhooks on every tag, the old workshop workflows,
+  and the "Join CEEE Monthly" series — the CEEE monthly membership it offers
+  every 12-week finisher is replaced by the live pass, so `/ceee` and
+  `/ceee-2026` now redirect to `/courses/live-pass` (they used to leave for a
+  Mighty Networks plan).
+- **Confirmations** ([`confirmation-emails.ts`](src/lib/courses/emails/confirmation-emails.ts),
+  sent by [`confirmation.ts`](src/lib/courses/emails/confirmation.ts)): one per
+  paid order, from `notifyCourseOrder` (so every paid path) + an hourly safety
+  net (`reconcileCourseWelcomes`, last 7 days, paid after the earliest switch).
+  Re-reads the row itself (the Stripe paths hand over a pre-paid one).
+  Transactional, idempotent on `events` claim `course-confirmation-<id>`,
+  released on failure. Includes the order (items, plan) and, for cert/path, the
+  buyer's own end date from `cert-access.ts`. Bumps ride the parent's email
+  ("Also in your order") — **but** if a bump's course is switched over while the
+  parent's isn't, the bump gets its own welcome (`…-<id>-asj` / `-grief`), or an
+  ASJ bump buyer on a Drip-run 12-week order would get no way in at all. ASJ
+  bought in the Dutch edition only gets a Dutch welcome. Albums keep their own
+  delivery email (no Drip version exists).
+- **Sequences** ([`sequences.ts`](src/lib/courses/emails/sequences.ts), words in
+  [`sequence-emails.ts`](src/lib/courses/emails/sequence-emails.ts), table
+  `course_email_sequences`, **migration 0090**): one row per (sequence, email),
+  so a second order never restarts a series. Step k is due at **09:00 in the
+  buyer's timezone (08:00 for the ASJ series, as Drip sent it — `sendHour`),
+  `dayOffset` days after they paid** (Drip's "wait N days, send at 9:00"); the **hourly** cron sends what's due inside 08:00–21:00
+  local, claims each step by compare-and-swap on `next_step` and rolls it back
+  if the send fails; a late step never bunches (≥20 h before the next).
+  - `asj-weekly` — **Week 2 … Week 40**, one a week, each opening that week in
+    the CiRCLE, and **nothing else**: Drip's day-3 note (additional videos /
+    the Dutch Kennisdatabank) is left out on purpose in both languages — no
+    videos, no knowledge base, no other mails (Jacob, October 2026). Week 1
+    rides the confirmation, exactly as in Drip, and every step lands at
+    **08:00** local as Drip's did. Everyone who
+    holds the ASJ in English: standalone, a bundle, the course-checkout bump, or
+    "both editions".
+  - `asj-weekly-nl` — the same 39 weeks **in Dutch** (Authentiek Zingen,
+    [`asj-weeks-nl.ts`](src/lib/courses/emails/asj-weeks-nl.ts)), for buyers
+    who chose the Dutch edition only (`language_choice = 'nl'`); its stop page
+    speaks Dutch too, and its buttons open the Dutch edition in the CiRCLE.
+    Same `asj` switch. Every week is the Dutch Drip copy (the twelve missing
+    from the mailbox came from the paused Drip series itself) except week 30,
+    which Drip only ever sent inside its "Week 29 en 30" mail and is
+    `translated`; Drip's combined
+    week 29+30 mail and its "Integratietijd" pause are flattened into the same
+    one-a-week rhythm as the English series. It only enrols anyone while every
+    week 2–40 has its words (`ASJ_NL_COMPLETE`), so a week deleted from the
+    file stops new Dutch enrolments rather than sending a series with a hole.
+  - `twelve-week` — day 1 "See you in Q&A?", day 2 "How to pace yourself",
+    week 2, week 6, week 12 (Q&As closing — standalone only; Drip's "Week 12
+    Check-In", rewritten since its words can't be read), and for path
+    buyers who chose to wait, "Your certification course is open" at week 13
+    (Drip's "Activate the Certification Course Now", minus the activating).
+  - `certification` — the day-1 / day-2 notes' certification twins.
+- **Taking over the people already on Drip's weekly series**
+  ([`drip-takeover.ts`](src/lib/courses/emails/drip-takeover.ts)): most of
+  Drip's ASJ / Dutch series subscribers bought before the site took payments,
+  so "Bring in earlier buyers" can't reach them. Drip knows where each stands
+  (`last_sent_email_index` / `last_sent_email_at` on the series subscription;
+  `weekReached` maps an index to a week — the Dutch series drifts after week 28
+  around its combined "Week 29 en 30" mail and "Integratietijd"). **Take over
+  from Drip** (per series on `/admin/emails/courses`, `drip_takeover_on:<seq>`)
+  makes the hourly cron move a batch per tick: enrol at the **next** week, due a
+  week after their last Drip email at 08:00 their time (or the next tick when
+  that is already past — the paused Dutch series), the start set back so later
+  weeks follow a week apart, never a backlog; then **remove them from the Drip
+  series** (`removeFromCampaign`) in the same step, so nothing needs pausing by
+  hand and nobody gets a week twice. Only while the `asj` switch is on too.
+  Each person settles once (`events` claim `drip-takeover-<seq>-<email>`:
+  moved / already-on-site / complete); left on, it picks up late arrivals.
+  **The 12-week students too** (`drip_takeover_on:twelve-week`): their notes
+  are steps in the `prod_SVH_12w` *workflow*, not a series, so there is no index
+  to read and nothing to remove them from — but that workflow writes the day
+  their 12 weeks began (`prod_SVH_start`). Everyone tagged `prod_SVH_12w` whose
+  12 weeks are still running joins the site's series at the first step still
+  ahead on their own schedule (as "Bring in earlier buyers" does), in their
+  Drip `time_zone`; path students (`prod_SVH_9m` too) as path-wait while
+  `prod_SVH_9m_status` reads "not activated", else path-now, and only once the
+  path switch is on. Drip's six email steps are set to draft by hand the same
+  day — the workflow keeps running. The certification course needs no
+  takeover: its notes are day 1 and day 2.
+- **Stopping is per series, and easy**: every sequence email carries a visible
+  "Stop these … emails" button → `/courses/emails?t=<id>.<sig>`
+  ([`stop-link.ts`](src/lib/courses/emails/stop-link.ts), HMAC over
+  `ADMIN_SESSION_SECRET`, domain `sd-seqstop:`), which acts on **POST only** (a
+  link prefetcher can't stop anyone) and offers "Start them again" from the step
+  it stopped at; the `List-Unsubscribe` header points at
+  `/api/courses/emails/stop` (RFC 8058 one-click), which stops the series too.
+  Neither is an unsubscribe from Songdance, and neither touches the course. A
+  series also stops on a **full** refund (`status='refunded'`) or an address in
+  `email_suppressions`.
+- **"Bring in earlier buyers"** (admin, per sequence): orders paid *before* the
+  switch stay Drip's, until this joins them **at the step their own schedule
+  has reached** (never from the start), respecting each order's own switch (a
+  path buyer stays Drip's while the path switch is off). Press it only once the
+  Drip workflow is off.
+- **Where the words came from**: the Drip API can't read the emails inside a
+  **workflow** (only their titles); it can read an **email series** (the Drip
+  connector's `get_campaign_email`), which is how the ASJ series was checked
+  against Drip in October 2026. The workflow copy was recovered from Jacob's
+  Gmail — the ASJ "Authentic Singing Week N" series (originals + customers'
+  quoted replies, an older and fuller version than today's Drip; weeks
+  11/31/33/35 then came from the Drip series itself), its Dutch twin "Authentiek Zingen Week N" (from
+  info@songdance.be), and Jacob's own May 2026 test purchase of the path (the
+  12-week workflow, the path welcome). Each file's header says what changed and
+  why (CiRCLE instead of activation links, "Year Course" → journey, copy-book
+  laws). The Grief Course and the standalone certification had no Drip welcome
+  on record: theirs are new.
+- **One sanctioned exception to copy-book law 2**: the ASJ **"Let Go – Let In"
+  trilogy (weeks 28–30) and week 31 keep their letting-go language as the
+  sessions were made** — Jacob's call (October 2026): this is a singing
+  journey, not the SVH practice the copy book governs. Don't "fix" them, in
+  either language. (Weeks 15 and 19 were rewritten for law 2 and can be put
+  back the same way if he asks.)
+- **No refund promise in the confirmations** (Jacob, October 2026) — the
+  receipt (`orderPanel`) closes them, with room above and below it.
+- **Every one opens on a picture** ([`images.ts`](src/lib/courses/emails/images.ts)):
+  a confirmation on its course page's own hero (the ASJ welcome on its Week 1
+  session picture), each 12-week / certification note on a different retreat
+  photo, each weekly ASJ email (both languages) on that week's session picture
+  (`asjWeekImagePath`). All from the R2 library, checked at the shell's 558×260
+  crop (`pos` moves the crop off a face); a new course or note picks one there.
+- Tracks as `course_confirmation_<unit>` / `course_seq_<sequence>_<step>` in
+  `email_sends` (labelled on `/admin/emails/stats`). Sequence mail is from
+  `MARKETING_FROM` (Jacob); confirmations from the transactional sender.
+
 ## Retreat price — two discounts, neither of them a coupon
 
 A retreat has no coupon codes. A booking charged less than its tier price came

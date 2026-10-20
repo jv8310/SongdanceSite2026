@@ -36,6 +36,7 @@ import {
 } from './shopify';
 import { deckGiftClaimEmail, deckGiftConfirmedEmail } from '../workshops/emails';
 import { sendAlbumPurchaseEmail } from '../music/delivery';
+import { welcomeCourseOrder } from '../courses/emails/confirmation';
 import { sendLivePassConfirmation } from '../courses/live-pass-email';
 import { LANGUAGE_CHOICE_LABEL } from '../courses/journeys';
 import { BANK_TRANSFER, type OrderProvider } from '../payments/provider';
@@ -57,8 +58,11 @@ export type OrderEnv = {
   ORDER_NOTIFICATIONS_TO?: string;
   // Used to build the album player link in the buyer's delivery email.
   PUBLIC_BASE_URL?: string;
-  // Signs the monthly live pass's manage link in its confirmation email.
+  // Signs the monthly live pass's manage link in its confirmation email, and
+  // the course confirmation + sequence emails (src/lib/courses/emails/).
   ADMIN_SESSION_SECRET?: string;
+  MARKETING_FROM?: string;
+  MARKETING_REPLY_TO?: string;
 } & ShopifyEnv;
 
 // Where SD-ORDER notifications land when ORDER_NOTIFICATIONS_TO is unset.
@@ -563,6 +567,14 @@ export async function notifyCourseOrder(
   // A live pass: "your live pass is confirmed", with what it holds and the day
   // it starts. Same reasoning; no-op for every other product.
   await sendLivePassConfirmation(env, reg);
+
+  // The buyer's own confirmation (and the sequence that follows it) — sent by
+  // the site once that course is switched over from Drip on
+  // /admin/emails/courses; a no-op until then (and always for a live pass or an
+  // album, which carry their own emails above). Re-reads the row itself (the
+  // Stripe paths hand over one read before it was marked paid), idempotent on
+  // its own claim, never throws.
+  await welcomeCourseOrder(env, reg);
 }
 
 // Turn the stored shipping address into the display lines the confirmation email

@@ -25,6 +25,9 @@ import { reconcileOrderNotifications } from './lib/orders/reconcile';
 import { reconcilePaypalCourseOrders } from './lib/payments/paypal-reconcile';
 import { reconcileStripeCourseOrders } from './lib/payments/stripe-reconcile';
 import { runCourseDunning } from './lib/courses/dunning';
+import { reconcileCourseWelcomes } from './lib/courses/emails/confirmation';
+import { runCourseSequences } from './lib/courses/emails/sequences';
+import { runDripTakeover } from './lib/courses/emails/drip-takeover';
 import { runCertAccessDripSync } from './lib/courses/cert-access-drip';
 import { expireLapsedOffers } from './lib/registrations/waitlist';
 import { fxRatesStale, refreshFxRates } from './lib/admin/fx';
@@ -42,12 +45,6 @@ const WORKSHOP_CRON = '*/5 * * * *';
 // only emits an exact slashless _redirects rule — so /old/ (the directory-format
 // form most inbound links use) would fall through to the worker and 404. Matching
 // here covers both /old and /old/ in one place.
-// The Circle checkout for the deepening-sessions (CEEE) bundle. It carries its
-// own query string (the bundle token + the campaign source), which is why
-// movedRedirect keeps a destination's own params rather than overwriting them.
-const CEEE_BUNDLE_URL =
-  'https://circle.songdance.co/plans/1938793?bundle_token=e991a50e457bf13e024cfe4dd9347864&utm_source=manual';
-
 const MOVED_URLS: Record<string, string> = {
   '/certification-course': '/courses/certification',
   '/certification-course/thanks': '/courses/certification/thanks',
@@ -68,11 +65,12 @@ const MOVED_URLS: Record<string, string> = {
   // moved out of the workshops nest (July 2026). Query string (filters) rides
   // along on the redirect.
   '/admin/workshops/stats': '/admin/stats',
-  // The deepening-sessions (CEEE) bundle is sold on Circle, not here, so this
-  // short link leaves the site — the one destination in this map that does.
-  // Both spellings of the link are handed out, so both land on the same plan.
-  '/ceee': CEEE_BUNDLE_URL,
-  '/ceee-2026': CEEE_BUNDLE_URL,
+  // The CEEE monthly membership (once a Mighty Networks plan) is replaced by
+  // the live pass — the same Q&As and deepening sessions, for 1, 3 or 6
+  // months (October 2026). Both spellings of the old link are still out there,
+  // in Drip's "Join CEEE Monthly" mail among others.
+  '/ceee': '/courses/live-pass',
+  '/ceee-2026': '/courses/live-pass',
 };
 
 // Canonical host for the site (June 2026 move off the site.* subdomain). The
@@ -431,6 +429,37 @@ export function createExports(manifest: unknown) {
         })
         .catch((err) => {
           console.error('[dunning] run failed', err);
+        }),
+    );
+
+    // Course emails sent by the site instead of Drip (src/lib/courses/emails/):
+    // first the safety net for confirmations a payment path dropped, then
+    // every sequence step that has fallen due (weekly Authentic Singing Journey
+    // sessions, 12-week + certification onboarding), each in the buyer's own
+    // 08:00–21:00. Both no-op until a course is switched over on
+    // /admin/emails/courses.
+    ctx.waitUntil(
+      reconcileCourseWelcomes(env)
+        // People already on Drip's ASJ / Dutch weekly series move to the site's,
+        // a batch per tick, once that takeover is switched on (drip-takeover.ts).
+        .then(() =>
+          runDripTakeover(env).then(
+            (rs) => {
+              for (const t of rs) {
+                if (t.moved || t.failed) console.log(`[drip-takeover] ${t.key} moved=${t.moved} failed=${t.failed} inDrip=${t.inDrip}`);
+              }
+            },
+            (err) => console.error('[drip-takeover] failed', err),
+          ),
+        )
+        .then(() => runCourseSequences(env))
+        .then((r) => {
+          if (r.sent || r.stopped || r.failed) {
+            console.log(`[course-emails] due=${r.due} sent=${r.sent} stopped=${r.stopped} failed=${r.failed}`);
+          }
+        })
+        .catch((err) => {
+          console.error('[course-emails] run failed', err);
         }),
     );
   };
