@@ -15,7 +15,7 @@ import PageHero from '../components/PageHero.astro';
 
   <section class="sd-section sd-prose sd-legal">
     <div class="sd-prose-inner">
-      <p class="sd-legal-updated">Last update: 8 October 2026</p>
+      <p class="sd-legal-updated">Last update: 20 October 2026</p>
 
       <h2>1. Who we are</h2>
       <div class="sd-legal-block">
@@ -59,12 +59,13 @@ import PageHero from '../components/PageHero.astro';
       <p><strong>Signing in and security.</strong> Sign-in codes and sign-in links (stored only in scrambled form), one record per signed-in device (platform, device name, when it was last used), a short-lived counter per network address to stop abuse (the address itself is scrambled with a secret key and not stored), a log of changes to accounts and access, and server logs our host keeps for a few days.</p>
       <p><strong>Learning.</strong> Where you stopped in each class, which classes you marked as done, and the steps of your welcome checklist. Manuals you download stay on your phone; we do not see them there.</p>
       <p><strong>The CiRCLE.</strong> The posts, comments, hearts, answers, pictures, sound recordings and files you share, the spaces you belong to, and the reports and blocks you make. What you post is visible to the members of the space you post in. Hosts can remove posts and comments in their spaces.</p>
+      <p><strong>Messages.</strong> The messages you write to another member, and the pictures you add to them. A conversation is between the two of you: no host and no admin screen shows it, and the only way anyone else sees a message is when one of you reports it, which sends us that one message. A block hides the conversation from both of you. A message you delete reads “Message deleted”. A message you write to Songdance itself is not kept in the app: it is sent to support@songdance.co by email, with your email address to reply to.</p>
       <p><strong>Live sessions.</strong> The sessions you say you will attend, and, if you ask for one, a personal calendar address that lists them. Meetings are created on the host’s own Zoom account; your sign-up stays with us. When you join a call, Zoom’s own privacy policy applies to the call (see also 3.4 on recordings).</p>
       <p><strong>Practice together.</strong> The WhatsApp number you choose to enter, with the moment you agreed to its use; your availability, bookings and requests; and whether a session took place. Your number is shown only to a partner whose request you accepted, on that session’s page, and is hidden again once you have both confirmed or a day after the session. You can clear it at any time. The conversation itself happens in WhatsApp, under WhatsApp’s own terms.</p>
-      <p><strong>Notifications.</strong> If you allow notifications on your phone, a notification token for that device, stored with your signed-in device and removed when you sign out, and your notification choices. If you use the app only on the web, we send the same notices by email. When you open a course or a session your account does not include, we may email you the page on songdance.co where it is offered, at most once per item; you can switch this off in the app’s notification settings.</p>
+      <p><strong>Notifications.</strong> If you allow notifications on your phone, a notification token for that device, stored with your signed-in device and removed when you sign out, and your notification choices. If you use the app only on the web, we send the same notices by email. When you open a course or a session your account does not include, we may email you the page on songdance.co where it is offered, at most once per item; you can switch this off in the app’s notification settings. When a message has waited an hour for you and no phone of yours could be told, one email says who wrote, without the words; it has its own switch too.</p>
       <p><strong>Videos.</strong> Classes and replays play in Vimeo’s player in “do not track” mode: Vimeo sets no cookies and records no viewing session about you, and receives only what it needs to stream the video (such as your network address and device type).</p>
       <p><strong>On your device.</strong> The app keeps you signed in using your phone’s secure storage or, on the web, your browser’s local storage. The app contains no advertising, no analytics tools and no tracking, and it does not use your location.</p>
-      <p><strong>About sensitive topics.</strong> What you share in the CiRCLE may say something about your emotional life or health. You decide what you share and in which space. We use it only to show it to the members of that space and to moderate it, never for anything else. By posting such content you give your explicit consent to this (Art. 9(2)(a)); you can withdraw it by deleting the post.</p>
+      <p><strong>About sensitive topics.</strong> What you share in the CiRCLE or in a message may say something about your emotional life or health. You decide what you share, in which space and with whom. We use it only to show it to the members of that space or to the person you write to, and to moderate it, never for anything else. By posting or sending such content you give your explicit consent to this (Art. 9(2)(a)); you can withdraw it by deleting the post or the message.</p>
       <p><strong>Why:</strong> to perform the contract with you and give you the courses and community you signed up for (Art. 6(1)(b)); our legitimate interest in keeping accounts secure, moderating the community, keeping a record of access changes and telling you where to find what your account does not yet include (Art. 6(1)(f)); and your consent for notifications on your device and for your WhatsApp number (Art. 6(1)(a)), which you can withdraw at any time in the app.</p>
 
       <h2>4. Who we share data with</h2>
@@ -72,7 +73,7 @@ import PageHero from '../components/PageHero.astro';
       <ul>
         <li><strong>Payment providers</strong> (PayPal, credit card processing, Bancontact/iDEAL providers) — payment handling</li>
         <li><strong>Drip</strong> — email newsletter and customer emails</li>
-        <li><strong>Resend</strong> — sign-in codes, account and course emails, and email notifications from the app</li>
+        <li><strong>Resend</strong> — sign-in codes, account and course emails, email notifications from the app, and the messages members write to Songdance in the app (sent on to support@songdance.co)</li>
         <li><strong>Cloudflare</strong> — hosting of the website and the Songdance app, its database and its file storage</li>
         <li><strong>Expo</strong>, with <strong>Apple Push Notification service</strong> and <strong>Google Firebase Cloud Messaging</strong> — delivering notifications to your phone, and delivering app updates</li>
         <li><strong>Vimeo</strong> — hosting and streaming course videos and replays</li>
@@ -95,6 +96,7 @@ import PageHero from '../components/PageHero.astro';
         <li><strong>Email correspondence:</strong> up to 3 years after the last exchange</li>
         <li><strong>Songdance app account:</strong> until you delete it (see section 6); your profile, devices, progress, practice availability, event sign-ups and settings go with it</li>
         <li><strong>Posts and comments:</strong> until you or a host delete them. If you delete your account, they stay visible as “Former member”, without your name or picture, unless you ask us to remove them</li>
+        <li><strong>Messages:</strong> until you delete them. If you delete your account, the messages you sent stay readable for the person you wrote to, as “Former member”, without your name or picture</li>
         <li><strong>Sign-in codes and links:</strong> valid for 10 to 15 minutes, deleted within a day</li>
         <li><strong>Security counters:</strong> deleted within a day; <strong>server logs:</strong> a few days</li>
         <li><strong>Signed-in devices and notification tokens:</strong> until you sign out, and at the latest 30 days after a sign-in expires (a sign-in lasts at most 180 days)</li>
