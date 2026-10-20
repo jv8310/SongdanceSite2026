@@ -82,7 +82,14 @@ of the person, since the app may still know them.
   Once certified, the app's certification course page swaps "Apply for certification" for a
   "🎓 You are certified" label, and the certificate is there to download. The certificate can be
   replaced, taken away (they stay certified) or the whole certification undone (the file goes
-  with it); **`/api/admin/app-certificate?email=`** shows the file. It is not a Drip tag: the
+  with it); **`/api/admin/app-certificate?email=`** shows the file. **Jacob's feedback** on the
+  session goes with it (same block, and optionally the form that certifies): plain text in the
+  app's lesson format — blank lines between paragraphs, `**bold**`, `*italic*`, `## ` or a
+  bold line for a heading, `- ` / `1. ` lists, web addresses as links — written in
+  `FeedbackEditor.astro` with formatting buttons and a preview
+  ([`feedback-editor.ts`](src/lib/client/feedback-editor.ts), which follows the app's
+  `rich-text.ts` / `FeedText.tsx` rules; change one, change the other). The member reads it on
+  their certification page under the certificate; the certified label opens that page. It is not a Drip tag: the
   app keeps it per address (`app_certified`, the app's `lib/certified.ts`), so it works before
   the person has an app account, and the file sits in the app's private bucket — this site only
   passes it through the binding. Claude can do the same through the app's MCP tools
