@@ -125,14 +125,15 @@ try {
           t.textContent = it.title;
           const s = document.createElement('span');
           s.textContent = it.sub;
-          a.append(t, s);
-          li.append(a);
+          a.appendChild(t);
+          a.appendChild(s);
+          li.appendChild(a);
           if (it.ordersHref) {
             const o = document.createElement('a');
             o.href = it.ordersHref;
             o.className = 'adm-palette-orders';
             o.textContent = 'Orders →';
-            li.append(o);
+            li.appendChild(o);
           }
           li.addEventListener('mousemove', () => {
             if (active !== i) { active = i; render(); }
