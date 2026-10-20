@@ -178,8 +178,8 @@ export const HANDOVER_UNITS: HandoverInfo[] = [
 export const DRIP_ELSEWHERE: Array<{ name: string; does: string; when: string }> = [
   {
     name: 'Workflow “Access to Products”',
-    does: 'Sends “Your Songdance Products” / “Jouw Songdance Programma’s” — the Mighty Networks activation links — whenever the prod_access tag is applied, which is what /access → “Activate all my products” does (about 150 a year).',
-    when: 'Pause it the day the CiRCLE goes live; the /access button changes on the site the same day.',
+    does: 'Sends “Your Songdance Products” / “Jouw Songdance Programma’s” — the Mighty Networks activation links — whenever the prod_access tag is applied, which is what /access → “Activate all my products” did (about 150 a year). That button is gone: /access now sends people to the CiRCLE’s sign-in.',
+    when: 'Pause it the day the CiRCLE goes live (the site no longer applies prod_access).',
   },
   {
     name: 'Two Zapier webhooks (subscriber.applied_tag, April 2026)',

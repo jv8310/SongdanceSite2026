@@ -21,8 +21,7 @@
 //      `music`, each with its player link, and finding any also sets the signed
 //      sd_music cookie so the linked player opens without asking again.
 //
-// Nothing here writes: it's a read-only "what do you have with us?" probe. The
-// actual activation request stays on /api/access-products.
+// Nothing here writes: it's a read-only "what do you have with us?" probe.
 
 import type { APIRoute } from 'astro';
 import { getSubscriber } from '../../lib/registrations/drip';
