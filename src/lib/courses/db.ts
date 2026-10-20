@@ -373,10 +373,13 @@ export async function getCourseRegistrationBySubscription(
 // (so the first installment grants access). Uses a single UPDATE so the
 // transition is atomic with the count change.
 //
-// We deliberately leave 'cancelled' and 'refunded' rows alone: once an
-// admin (or a later webhook) has moved the row out of the paid lane, a
-// late `invoice.paid` for a still-flying invoice must not silently
-// resurrect it. Stripe normally stops issuing invoices the moment a sub
+// We deliberately leave a 'cancelled' row alone: once an admin (or a later
+// webhook) has moved the row out of the paid lane, a late `invoice.paid` for
+// a still-flying invoice must not silently resurrect it. A 'refunded' row is
+// different: it means "everything collected went back", and a new charge makes
+// that false — leaving it 'refunded' hid a real charge behind an order that
+// read fully refunded (October 2026). It returns to 'paid' with its refunds
+// still netted off, and the recorder closes the plan at the gateway. Stripe normally stops issuing invoices the moment a sub
 // is cancelled, but there's a tiny race if invoice generation and
 // cancellation overlap — this guard makes that race safe.
 export async function recordInstallmentPaid(
@@ -388,7 +391,7 @@ export async function recordInstallmentPaid(
     .prepare(
       `UPDATE course_registrations
          SET installments_paid = installments_paid + 1,
-             status = CASE WHEN status IN ('cancelled','refunded') THEN status ELSE 'paid' END,
+             status = CASE WHEN status = 'cancelled' THEN status ELSE 'paid' END,
              stripe_payment_intent = COALESCE(stripe_payment_intent, ?),
              paid_at = COALESCE(paid_at, datetime('now'))
        WHERE id = ?`,
@@ -519,11 +522,15 @@ export function collectedGrossMinor(r: {
 // collected-gross rule instead of being re-derived in SQL. Safe under
 // concurrency: the increment is atomic, the total only ever grows, and the flip
 // is idempotent — whichever writer reads last does it.
+// Returns true when THIS refund is the one that made the row fully refunded
+// (status flipped to 'refunded' just now) — the caller then closes the plan at
+// the gateway (closePlanAtGateway), or a plan with charges left keeps billing
+// under an order the admin reads as closed.
 export async function markCourseRegistrationRefunded(
   db: D1Database,
   id: number,
   refundedAmountCents: number,
-) {
+): Promise<boolean> {
   await db
     .prepare(
       `UPDATE course_registrations
@@ -537,7 +544,7 @@ export async function markCourseRegistrationRefunded(
   const row = await db
     .prepare(
       `SELECT amount_cents, refunded_amount_cents, installments_paid,
-              installments_total, bumps
+              installments_total, bumps, status
          FROM course_registrations WHERE id = ?`,
     )
     .bind(id)
@@ -547,11 +554,13 @@ export async function markCourseRegistrationRefunded(
       installments_paid: number;
       installments_total: number;
       bumps: string | null;
+      status: string;
     }>();
-  if (!row) return;
+  if (!row) return false;
 
   const collected = collectedGrossMinor(row);
-  if (collected > 0 && (row.refunded_amount_cents ?? 0) < collected) return;
+  if (collected > 0 && (row.refunded_amount_cents ?? 0) < collected) return false;
+  if (row.status === 'refunded') return false;
 
   await db
     .prepare(
@@ -559,6 +568,7 @@ export async function markCourseRegistrationRefunded(
     )
     .bind(id)
     .run();
+  return true;
 }
 
 // Look up a course row by the first installment's PaymentIntent (the only
@@ -666,7 +676,7 @@ export async function recordPaypalInstallmentPaid(
     .prepare(
       `UPDATE course_registrations
          SET installments_paid = installments_paid + 1,
-             status = CASE WHEN status IN ('cancelled','refunded') THEN status ELSE 'paid' END,
+             status = CASE WHEN status = 'cancelled' THEN status ELSE 'paid' END,
              paypal_capture_id = COALESCE(paypal_capture_id, ?),
              paid_at = COALESCE(paid_at, datetime('now'))
        WHERE id = ?`,
@@ -693,4 +703,16 @@ export async function updateCourseSubscriptionStatusByPaypal(
     .bind(subscriptionStatus, subscriptionId)
     .run();
   return (res.meta?.changes ?? 0) > 0;
+}
+
+// Mirror a subscription status onto one row by id, whichever gateway it is on.
+export async function setCourseSubscriptionStatusById(
+  db: D1Database,
+  id: number,
+  subscriptionStatus: SubscriptionStatus,
+): Promise<void> {
+  await db
+    .prepare(`UPDATE course_registrations SET subscription_status = ? WHERE id = ?`)
+    .bind(subscriptionStatus, id)
+    .run();
 }

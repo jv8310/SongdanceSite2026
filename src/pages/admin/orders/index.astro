@@ -40,6 +40,10 @@ const parseList = <T extends string>(raw: string | null, allowed: readonly T[]):
 const selectedSources = parseList(Astro.url.searchParams.get('source'), SOURCES);
 const selectedStatuses = parseList(Astro.url.searchParams.get('status'), STATUSES);
 const q = Astro.url.searchParams.get('q') ?? '';
+// One buyer's orders, exact address — the link from a person's page and the ⌘K palette.
+const rawEmail = (Astro.url.searchParams.get('email') ?? '').trim().toLowerCase();
+const emailFilter = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail) ? rawEmail : '';
+const personHref = (email: string) => `/admin/people/${encodeURIComponent(email.trim().toLowerCase())}`;
 
 // ── Paging — the table used to render every order the site has ever taken ──
 const parseNum = (raw: string | null): number | null => {
@@ -68,7 +72,7 @@ const quaderno =
 
 const result = await listOrdersPage(
   env.DB,
-  { sources: selectedSources, statuses: selectedStatuses, query: q },
+  { sources: selectedSources, statuses: selectedStatuses, query: q, email: emailFilter || null },
   { fxRates, quaderno },
   { page: requestedPage, perPage },
 );
@@ -96,6 +100,7 @@ function filterHref(
   if (sources.length) params.set('source', sources.join(','));
   if (statuses.length) params.set('status', statuses.join(','));
   if (query) params.set('q', query);
+  if (emailFilter) params.set('email', emailFilter);
   if (perPage !== DEFAULT_ORDERS_PER_PAGE) params.set('per', String(perPage));
   if (page > 1) params.set('page', String(page));
   const qs = params.toString();
@@ -111,6 +116,7 @@ function perPageHref(per: number): string {
   if (selectedSources.length) params.set('source', selectedSources.join(','));
   if (selectedStatuses.length) params.set('status', selectedStatuses.join(','));
   if (q) params.set('q', q);
+  if (emailFilter) params.set('email', emailFilter);
   if (per !== DEFAULT_ORDERS_PER_PAGE) params.set('per', String(per));
   const qs = params.toString();
   return '/admin/orders' + (qs ? `?${qs}` : '');
@@ -252,6 +258,20 @@ const pages = pageNumbers(result.page, result.pageCount);
       <div class={`adm-flash adm-flash--${flashBanner.tone}`}>{flashBanner.text}</div>
     )}
 
+    {emailFilter && (
+      <div class="ord-person-bar">
+        <span>Orders for <strong>{emailFilter}</strong></span>
+        <a class="adm-btn adm-btn--ghost" href={personHref(emailFilter)}>Person →</a>
+        <a class="adm-btn adm-btn--ghost" href={(() => {
+          const sp = new URLSearchParams(Astro.url.searchParams);
+          sp.delete('email');
+          sp.delete('page');
+          const qs = sp.toString();
+          return '/admin/orders' + (qs ? `?${qs}` : '');
+        })()}>Show everyone's</a>
+      </div>
+    )}
+
     <!-- ─── Summary ─── -->
     <section class="adm-section">
       <div class="ord-summary">
@@ -296,6 +316,7 @@ const pages = pageNumbers(result.page, result.pageCount);
         {selectedSources.length > 0 && <input type="hidden" name="source" value={selectedSources.join(',')} />}
         {selectedStatuses.length > 0 && <input type="hidden" name="status" value={selectedStatuses.join(',')} />}
         {perPage !== DEFAULT_ORDERS_PER_PAGE && <input type="hidden" name="per" value={String(perPage)} />}
+        {emailFilter && <input type="hidden" name="email" value={emailFilter} />}
         <input type="search" name="q" value={q} placeholder="Search name, email, order # or product…" />
         <button type="submit" class="adm-btn adm-btn--solid">Search</button>
         {q && <a class="adm-btn adm-btn--ghost" href={filterHref(selectedSources, selectedStatuses, '')}>Clear</a>}
@@ -373,10 +394,10 @@ const pages = pageNumbers(result.page, result.pageCount);
                     <span class="ord-product-name" title={o.productLabel}>{shortProductLabel(o.productLabel, o.source)}</span>
                   </td>
                   <td class="ord-cust">
-                    <span class={`ord-cust-name${name === '—' ? ' is-empty' : ''}`}>
+                    <a class={`ord-cust-name${name === '—' ? ' is-empty' : ''}`} href={personHref(o.email)} title="Open this person">
                       {name === '—' ? 'No name' : name}
-                    </span>
-                    <a class="ord-cust-email" href={`mailto:${o.email}`} title={o.email}>{o.email}</a>
+                    </a>
+                    <a class="ord-cust-email" href={personHref(o.email)} title={`Open ${o.email}`}>{o.email}</a>
                   </td>
                   <td class="ord-pay">
                     <span class={`ord-pay-gw ord-pay-gw--${o.provider}`}>{pay.gateway}</span>
@@ -406,6 +427,9 @@ const pages = pageNumbers(result.page, result.pageCount);
                       <summary class="ord-menu-btn" title="Actions" aria-label="Actions">⋯</summary>
                       <div class="ord-menu-panel">
                         <a class="ord-menu-item" href={detailHref}>View details →</a>
+                        <a class="ord-menu-item" href={personHref(o.email)}>Person →</a>
+                        {!emailFilter && <a class="ord-menu-item" href={`/admin/orders?email=${encodeURIComponent(o.email.trim().toLowerCase())}`}>All their orders →</a>}
+                        <a class="ord-menu-item" href={`mailto:${o.email}`}>Email them</a>
                         <hr class="ord-menu-sep" />
                         {link && (
                           <a class="ord-menu-item" href={link.href} target="_blank" rel="noopener">Open in {link.label} ↗</a>
@@ -571,7 +595,14 @@ const pages = pageNumbers(result.page, result.pageCount);
     /* Customer: name stacked over a muted email, reclaiming the width the two
        separate columns used to spend — so Product can breathe. */
     .ord-cust { min-width:190px; line-height:1.35; }
-    .ord-cust-name { display:block; font-weight:600; color:var(--adm-ink); }
+    .ord-cust-name { display:block; font-weight:600; color:var(--adm-ink); text-decoration:none; }
+    a.ord-cust-name:hover { color:var(--adm-ember-deep); text-decoration:underline; }
+    .ord-person-bar {
+      display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+      margin:0 0 18px; padding:10px 14px; border:1px solid var(--adm-line);
+      border-left:3px solid var(--adm-ember); border-radius:6px; background:var(--adm-paper-soft);
+    }
+    .ord-person-bar > span { flex:1; min-width:200px; }
     .ord-cust-name.is-empty { color:var(--adm-mute); font-weight:500; }
     .ord-cust-email {
       display:block; max-width:250px; font-size:12px; color:var(--adm-ink-soft);
