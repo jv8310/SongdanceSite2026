@@ -1,10 +1,16 @@
 ---
 // Bottom-of-page frames promoting the other two journeys + the all-three
 // bundle. `current` is the page's own course, which is omitted from the cards.
+// Every price here is read from src/lib/courses/journeys.ts (the EUR row), so
+// a reprice there can't leave this banner quoting an old figure.
+import { priceCents, compareAtCents } from '../../lib/courses/journeys';
+
 interface Props {
   current: 'asj' | 'mmj' | 'inner-child';
 }
 const { current } = Astro.props;
+
+const eur = (cents: number | null) => `€${Math.round((cents ?? 0) / 100)}`;
 
 type Card = { key: Props['current']; title: string; line: string; href: string; img: string; price: string };
 const ALL: Card[] = [
@@ -14,7 +20,7 @@ const ALL: Card[] = [
     line: 'Forty weeks of mantras & music — singing, with nothing to prove.',
     href: '/courses/authentic-singing',
     img: '/media/library/singing-lights-woman.webp',
-    price: '€150',
+    price: eur(priceCents('asj', 'EUR')),
   },
   {
     key: 'mmj',
@@ -22,7 +28,7 @@ const ALL: Card[] = [
     line: 'Guided movement you can do in your own room — standing or seated.',
     href: '/courses/magical-movement',
     img: '/media/library/movement.webp',
-    price: '€49',
+    price: eur(priceCents('mmj', 'EUR')),
   },
   {
     key: 'inner-child',
@@ -30,10 +36,13 @@ const ALL: Card[] = [
     line: 'Five gentle sessions to meet the child you were.',
     href: '/courses/inner-child',
     img: '/media/library/inner-child-glow.webp',
-    price: '€29',
+    price: eur(priceCents('inner-child', 'EUR')),
   },
 ];
 const others = ALL.filter((c) => c.key !== current);
+
+const bundlePrice = eur(priceCents('journeys-bundle', 'EUR'));
+const bundleBefore = eur(compareAtCents('journeys-bundle', 'EUR'));
 ---
 
 <section class="jr-section jr-cross">
@@ -68,8 +77,8 @@ const others = ALL.filter((c) => c.key !== current);
         </span>
       </span>
       <span class="jr-cross-bundle-price">
-        <span class="jr-cross-bundle-strike">€177</span>
-        <span class="jr-cross-bundle-amount">€142</span>
+        <span class="jr-cross-bundle-strike">{bundleBefore}</span>
+        <span class="jr-cross-bundle-amount">{bundlePrice}</span>
         <span class="jr-cross-bundle-go">Choose the bundle <i class="ph-light ph-arrow-right"></i></span>
       </span>
     </a>
