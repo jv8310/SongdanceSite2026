@@ -26,9 +26,9 @@ const PICS = {
   qa: { file: 'svh-retreat-teaching-jacob-laughing.webp', alt: 'Jacob laughing at the keyboard during a live session', pos: 'center 48%' },
   oneBreath: { file: 'svhgpt-01-hero-in-one-breath.webp', alt: 'One breath in, one tone out' },
   cupReceiving: { file: 'svhgpt-05-the-cup-receiving.webp', alt: 'Two open hands, held like a cup' },
-  soundingBlue: { file: 'svh-retreat-sounding-blue.webp', alt: 'A participant sounding, hand on her chest', pos: 'center 30%' },
+  soundingBlue: { file: 'svh-retreat-sounding-blue.webp', alt: 'A participant sounding, hand on her chest', pos: 'center 38%' },
   circleTrees: { file: 'svh-retreat-circle-trees-sunset.webp', alt: 'A circle sounding among the trees at sunset' },
-  walkEmbrace: { file: 'svh-retreat-walk-embrace-sunset.webp', alt: 'Two participants walking arm in arm at sunset', pos: 'center 30%' },
+  walkEmbrace: { file: 'svh-retreat-walk-embrace-sunset.webp', alt: 'Two participants walking arm in arm at sunset', pos: 'center 40%' },
 } satisfies Record<string, Pic>;
 
 export type CourseImageKey = keyof typeof PICS;
