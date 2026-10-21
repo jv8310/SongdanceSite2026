@@ -137,6 +137,26 @@ const groups = [...new Set(samples.map((s) => s.group))];
     </section>
 
     <section class="adm-section em-realsend">
+      <h2>Songdeck gift orders — shipping method</h2>
+      <p class="adm-sub">
+        Gift orders placed before October 2026 carry a generic
+        "Free worldwide shipping" line instead of the shop's own method for the
+        address (Buspakje Nederland, EU Letterbox, …). <strong>Check</strong>
+        lists every gift order with its line now and the method it should
+        carry. <strong>Fix</strong> swaps the wrong ones at €0 (no email to the
+        customer); fulfilled, cancelled and TEST orders are left alone. Needs
+        the <code>read_orders</code> and <code>write_order_edits</code> scopes
+        on the Shopify app.
+      </p>
+      <div class="em-realsend-row">
+        <button id="sdf-check" class="adm-btn" type="button">Check</button>
+        <button id="sdf-apply" class="adm-btn adm-btn--ghost" type="button">Fix shipping methods</button>
+      </div>
+      <p id="sdf-status" class="em-realsend-status"></p>
+      <div id="sdf-table"></div>
+    </section>
+
+    <section class="adm-section em-realsend">
       <h2>Mantra pack — deliver to buyers</h2>
       <p class="adm-sub">
         Everyone who takes the <strong>Empowering You</strong> order bump now
@@ -320,14 +340,14 @@ const groups = [...new Set(samples.map((s) => s.group))];
         const data = (await res.json()) as {
           ok?: boolean; error?: string; shop?: string; variantId?: string;
           envKeys?: string[];
-          placed?: { orderName?: string; adminUrl?: string } | null;
+          placed?: { orderName?: string; adminUrl?: string; shippingMethod?: string } | null;
         };
         const shopNote = data.shop ? `  ·  domain: ${data.shop}` : '';
         if (res.ok && data.ok) {
           sdStatus.dataset.state = 'ok';
           if (data.placed && data.placed.adminUrl) {
             sdStatus.innerHTML =
-              `Placed test order ${data.placed.orderName ?? ''} ✓ — ` +
+              `Placed test order ${data.placed.orderName ?? ''} ✓ (shipping: ${data.placed.shippingMethod ?? '?'}) — ` +
               `<a href="${data.placed.adminUrl}" target="_blank" rel="noopener">open in Shopify</a> and cancel it.`;
           } else {
             sdStatus.textContent = `Connection OK ✓ — ${data.shop ?? ''}, deck variant resolved. Ready to place orders.`;
@@ -356,6 +376,84 @@ const groups = [...new Set(samples.map((s) => s.group))];
         confirm('Place a real €0 test order in Shopify? It will be tagged TEST — cancel it in Shopify afterwards.')
       ) {
         sdRun(true);
+      }
+    });
+
+    // Songdeck gift orders — report / repair the shipping method.
+    const sdfCheck = document.getElementById('sdf-check') as HTMLButtonElement | null;
+    const sdfApply = document.getElementById('sdf-apply') as HTMLButtonElement | null;
+    const sdfStatus = document.getElementById('sdf-status') as HTMLElement | null;
+    const sdfTable = document.getElementById('sdf-table') as HTMLElement | null;
+    const sdfOutcome: Record<string, string> = {
+      ok: 'correct',
+      would_fix: 'to fix',
+      fixed: 'fixed ✓',
+      skipped: 'left alone',
+      error: 'error',
+    };
+    async function sdfRun(apply: boolean) {
+      if (!sdfStatus || !sdfTable) return;
+      if (sdfCheck) sdfCheck.disabled = true;
+      if (sdfApply) sdfApply.disabled = true;
+      sdfStatus.removeAttribute('data-state');
+      sdfStatus.textContent = apply ? 'Fixing…' : 'Checking…';
+      sdfTable.replaceChildren();
+      try {
+        const res = await fetch('/api/admin/courses/deck-gift-shipping-fix', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ apply }),
+        });
+        const data = (await res.json()) as {
+          ok?: boolean;
+          error?: string;
+          rows?: Array<{
+            email: string; orderName: string | null; draftName: string | null;
+            country: string | null; current: string | null; target: string | null;
+            outcome: string; note?: string;
+          }>;
+        };
+        if (data.error) throw new Error(data.error);
+        const rows = data.rows ?? [];
+        const count = (o: string) => rows.filter((r) => r.outcome === o).length;
+        sdfStatus.dataset.state = data.ok ? 'ok' : 'error';
+        sdfStatus.textContent =
+          `${rows.length} gift orders · ${count('ok')} correct · ` +
+          (apply ? `${count('fixed')} fixed` : `${count('would_fix')} to fix`) +
+          ` · ${count('skipped')} left alone` +
+          (count('error') ? ` · ${count('error')} errors` : '');
+        const table = document.createElement('table');
+        table.className = 'adm-table';
+        const head = table.insertRow();
+        for (const h of ['Order', 'Email', 'Country', 'Now', 'Should be', 'Result']) {
+          const th = document.createElement('th');
+          th.textContent = h;
+          head.appendChild(th);
+        }
+        for (const r of rows) {
+          const tr = table.insertRow();
+          const cells = [
+            r.orderName ?? r.draftName ?? '—',
+            r.email,
+            r.country ?? '—',
+            r.current ?? '—',
+            r.target ?? '—',
+            (sdfOutcome[r.outcome] ?? r.outcome) + (r.note ? ` — ${r.note}` : ''),
+          ];
+          for (const c of cells) tr.insertCell().textContent = c;
+        }
+        sdfTable.appendChild(table);
+      } catch (err) {
+        sdfStatus.dataset.state = 'error';
+        sdfStatus.textContent = err instanceof Error ? err.message : 'Failed';
+      }
+      if (sdfCheck) sdfCheck.disabled = false;
+      if (sdfApply) sdfApply.disabled = false;
+    }
+    sdfCheck?.addEventListener('click', () => sdfRun(false));
+    sdfApply?.addEventListener('click', () => {
+      if (confirm('Change the shipping method on every gift order that carries the wrong one? Customers are not emailed.')) {
+        sdfRun(true);
       }
     });
 

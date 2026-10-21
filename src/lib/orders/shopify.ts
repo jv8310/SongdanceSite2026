@@ -6,6 +6,12 @@
 // for the deck variant with a 100% discount and a free shipping line, completed
 // (payment_pending:false) into a paid €0 order that Shopify then fulfils/ships.
 //
+// The shipping line carries the shop's OWN method for the address (Buspakje
+// Nederland, EU Letterbox, Europe Letterbox, UK Letterbox, World Letterbox, …),
+// asked of Shopify with draftOrderCalculate, at €0. Until October 2026 every gift
+// went out as a made-up "Free worldwide shipping", which the warehouse can't map
+// to a parcel service. See deckGiftShippingLine.
+//
 // Idempotent: the order claims a unique `events` row
 // (external_id `deck-gift-shopify-<regId>`, kind `deck.gift.shopify.created`)
 // before creating anything, so every fulfilment path (Stripe webhook, PayPal,
@@ -74,7 +80,7 @@ export function shopifyConfigured(env: ShopifyEnv): boolean {
 export type DeckGiftShopifyResult =
   | { status: 'skipped'; reason: string }
   | { status: 'already' }
-  | { status: 'placed'; orderName: string; orderGid: string }
+  | { status: 'placed'; orderName: string; orderGid: string; shippingMethod: string }
   | { status: 'failed'; error: string };
 
 // Country codes whose subdivisions Shopify validates as province codes and where
@@ -217,6 +223,64 @@ mutation deckGiftDraftComplete($id: ID!) {
   }
 }`;
 
+const DRAFT_ORDER_CALCULATE = `
+mutation deckGiftDraftCalculate($input: DraftOrderInput!) {
+  draftOrderCalculate(input: $input) {
+    calculatedDraftOrder { availableShippingRates { handle title price { amount } } }
+    userErrors { field message }
+  }
+}`;
+
+// The title the shipping line used before it followed the shop's own methods,
+// and still the fallback when Shopify offers no rate for the address.
+const FALLBACK_SHIPPING_TITLE = 'Free worldwide shipping';
+
+// The shipping line for a gift: the method the shop itself offers for this
+// address, by its own title, at €0. We ask Shopify for the rates a paying
+// customer would be shown (the order WITHOUT the gift discount, so a rate
+// conditioned on the order's value still applies) and take the cheapest — each
+// zone offers the deck one letterbox rate, and the cheapest is what a buyer
+// picks. Only the title is taken, never the handle: a handle would charge the
+// rate's price on an order we complete as paid. Never throws: a calculate that
+// fails or offers nothing falls back to the old title, so the gift still ships.
+async function deckGiftShippingLine(
+  env: ShopifyEnv,
+  token: string,
+  input: Record<string, unknown>,
+): Promise<{ title: string; price: string }> {
+  try {
+    return { title: await deckRateTitle(env, token, input), price: '0' };
+  } catch (err) {
+    await logEvent(env.DB, {
+      registration_id: null,
+      kind: 'deck.gift.shopify.shipping_fallback',
+      source: 'system',
+      payload: { error: String(err) },
+    }).catch(() => {});
+    return { title: FALLBACK_SHIPPING_TITLE, price: '0' };
+  }
+}
+
+// The title of the cheapest rate the shop offers this draft (see above). Throws
+// when Shopify refuses the calculation or offers no rate for the address.
+async function deckRateTitle(
+  env: ShopifyEnv,
+  token: string,
+  input: Record<string, unknown>,
+): Promise<string> {
+  const { appliedDiscount: _discount, shippingLine: _line, ...priced } = input;
+  const data = await shopifyGraphQL(env, token, DRAFT_ORDER_CALCULATE, { input: priced });
+  const errs = data?.draftOrderCalculate?.userErrors ?? [];
+  if (errs.length) throw new Error(`draftOrderCalculate: ${JSON.stringify(errs).slice(0, 300)}`);
+  const rates: Array<{ title?: string; price?: { amount?: string } }> =
+    data?.draftOrderCalculate?.calculatedDraftOrder?.availableShippingRates ?? [];
+  const best = rates
+    .filter((r) => typeof r.title === 'string' && r.title.trim())
+    .sort((a, b) => Number(a.price?.amount ?? 0) - Number(b.price?.amount ?? 0))[0];
+  if (!best?.title) throw new Error('no shipping rate offered for this address');
+  return best.title.trim();
+}
+
 const DECK_VARIANT_QUERY = `
 query deckVariant($id: ID!) {
   product(id: $id) { variants(first: 1) { nodes { id } } }
@@ -296,11 +360,13 @@ export async function placeDeckGiftShopifyOrder(
         valueType: 'PERCENTAGE',
         value: 100.0,
       },
-      shippingLine: { title: 'Free worldwide shipping', price: '0' },
       shippingAddress: mailingAddress(ship),
     };
+    const shippingLine = await deckGiftShippingLine(env, token, input);
 
-    const created = await shopifyGraphQL(env, token, DRAFT_ORDER_CREATE, { input });
+    const created = await shopifyGraphQL(env, token, DRAFT_ORDER_CREATE, {
+      input: { ...input, shippingLine },
+    });
     const createErr = created?.draftOrderCreate?.userErrors ?? [];
     if (createErr.length) {
       throw new Error(`draftOrderCreate: ${JSON.stringify(createErr).slice(0, 300)}`);
@@ -330,10 +396,11 @@ export async function placeDeckGiftShopifyOrder(
         order_name: orderName,
         email: reg.email,
         ship_to: `${ship.city}, ${ship.country}`,
+        shipping_method: shippingLine.title,
       },
     }).catch(() => {});
 
-    return { status: 'placed', orderName, orderGid };
+    return { status: 'placed', orderName, orderGid, shippingMethod: shippingLine.title };
   } catch (err) {
     // Release the claim so a later reconcile can retry, and let the caller fall
     // back to the coupon claim email.
@@ -403,7 +470,7 @@ export type DeckGiftTestResult = {
   envKeys?: string[];
   shop?: string;
   variantId?: string;
-  placed?: { orderName: string; orderGid: string; adminUrl: string } | null;
+  placed?: { orderName: string; orderGid: string; adminUrl: string; shippingMethod: string } | null;
   error?: string;
 };
 
@@ -469,10 +536,12 @@ export async function testDeckGiftShopify(
         valueType: 'PERCENTAGE',
         value: 100.0,
       },
-      shippingLine: { title: 'Free worldwide shipping', price: '0' },
       shippingAddress: mailingAddress(ship),
     };
-    const created = await shopifyGraphQL(env, token, DRAFT_ORDER_CREATE, { input });
+    const shippingLine = await deckGiftShippingLine(env, token, input);
+    const created = await shopifyGraphQL(env, token, DRAFT_ORDER_CREATE, {
+      input: { ...input, shippingLine },
+    });
     const cErr = created?.draftOrderCreate?.userErrors ?? [];
     if (cErr.length) {
       return { ok: false, configured: true, shop, variantId, error: `draftOrderCreate: ${JSON.stringify(cErr)}` };
@@ -493,7 +562,7 @@ export async function testDeckGiftShopify(
     const orderName: string = draft?.name ?? '(draft)';
     const numId = String(draftGid).split('/').pop();
     const adminUrl = `https://${shop}/admin/draft_orders/${numId}`;
-    return { ok: true, configured: true, shop, variantId, placed: { orderName, orderGid: draftGid, adminUrl } };
+    return { ok: true, configured: true, shop, variantId, placed: { orderName, orderGid: draftGid, adminUrl, shippingMethod: shippingLine.title } };
   } catch (err) {
     const base = err instanceof Error ? err.message : String(err);
     // If the configured domain isn't a *.myshopify.com admin domain, that's the
@@ -503,4 +572,248 @@ export async function testDeckGiftShopify(
       : '';
     return { ok: false, configured: true, shop, envKeys: shopifyEnvKeys(env), error: base + domainHint };
   }
+}
+
+// ── Repair: gift orders placed with the wrong shipping method ───────────────
+// Every gift placed before October 2026 went out as "Free worldwide shipping".
+// This walks the gifts we placed (the deck.gift.shopify.completed log, which
+// holds each one's draft order), works out the method the shop offers for that
+// address today (the same deckRateTitle new gifts use), and — with apply —
+// swaps the order's shipping line for that method at €0 through an order edit
+// (no customer notification). Orders already fulfilled, cancelled or tagged
+// TEST are left alone, and one whose line already reads right is skipped, so
+// running it twice is harmless. Without apply it only reports.
+//
+// Needs two scopes the gift app did not need before: read_orders (to find the
+// order a draft became and read its shipping line) and write_order_edits.
+export type DeckGiftShippingFixRow = {
+  registrationId: number;
+  email: string;
+  draftName: string | null;
+  orderName: string | null;
+  country: string | null;
+  current: string | null;
+  target: string | null;
+  outcome: 'ok' | 'would_fix' | 'fixed' | 'skipped' | 'error';
+  note?: string;
+};
+
+export type DeckGiftShippingFixResult = {
+  ok: boolean;
+  apply: boolean;
+  rows: DeckGiftShippingFixRow[];
+  error?: string;
+};
+
+const GIFT_DRAFT_ORDER_QUERY = `
+query deckGiftDraft($id: ID!) {
+  draftOrder(id: $id) {
+    name
+    order {
+      id name tags cancelledAt displayFulfillmentStatus currencyCode
+      shippingLine { title }
+    }
+  }
+}`;
+
+const ORDER_EDIT_BEGIN = `
+mutation deckGiftEditBegin($id: ID!) {
+  orderEditBegin(id: $id) {
+    calculatedOrder { id shippingLines { id title stagedStatus } }
+    userErrors { field message }
+  }
+}`;
+
+const ORDER_EDIT_REMOVE_SHIPPING = `
+mutation deckGiftEditRemoveShipping($id: ID!, $shippingLineId: ID!) {
+  orderEditRemoveShippingLine(id: $id, shippingLineId: $shippingLineId) {
+    calculatedOrder { id }
+    userErrors { field message }
+  }
+}`;
+
+const ORDER_EDIT_ADD_SHIPPING = `
+mutation deckGiftEditAddShipping($id: ID!, $shippingLine: OrderEditAddShippingLineInput!) {
+  orderEditAddShippingLine(id: $id, shippingLine: $shippingLine) {
+    calculatedOrder { id }
+    userErrors { field message }
+  }
+}`;
+
+const ORDER_EDIT_COMMIT = `
+mutation deckGiftEditCommit($id: ID!, $staffNote: String) {
+  orderEditCommit(id: $id, notifyCustomer: false, staffNote: $staffNote) {
+    order { id name }
+    userErrors { field message }
+  }
+}`;
+
+function scopeHint(err: unknown): string {
+  const msg = String(err);
+  return /access denied|required access|ACCESS_DENIED/i.test(msg)
+    ? `${msg.slice(0, 200)} — give the Shopify app the read_orders and write_order_edits scopes (and release/install that version), then run this again.`
+    : msg.slice(0, 300);
+}
+
+function userErrorsOf(data: any, field: string): string | null {
+  const errs = data?.[field]?.userErrors ?? [];
+  return errs.length ? `${field}: ${JSON.stringify(errs).slice(0, 300)}` : null;
+}
+
+async function swapShippingLine(
+  env: ShopifyEnv,
+  token: string,
+  orderGid: string,
+  title: string,
+  currencyCode: string,
+): Promise<void> {
+  const begun = await shopifyGraphQL(env, token, ORDER_EDIT_BEGIN, { id: orderGid });
+  const beginErr = userErrorsOf(begun, 'orderEditBegin');
+  if (beginErr) throw new Error(beginErr);
+  const calc = begun?.orderEditBegin?.calculatedOrder;
+  if (!calc?.id) throw new Error('orderEditBegin returned no calculated order');
+
+  const lines: Array<{ id?: string | null; stagedStatus?: string }> = calc.shippingLines ?? [];
+  for (const line of lines) {
+    if (!line.id || line.stagedStatus === 'REMOVED') continue;
+    const removed = await shopifyGraphQL(env, token, ORDER_EDIT_REMOVE_SHIPPING, {
+      id: calc.id,
+      shippingLineId: line.id,
+    });
+    const removeErr = userErrorsOf(removed, 'orderEditRemoveShippingLine');
+    if (removeErr) throw new Error(removeErr);
+  }
+
+  const added = await shopifyGraphQL(env, token, ORDER_EDIT_ADD_SHIPPING, {
+    id: calc.id,
+    shippingLine: { title, price: { amount: '0', currencyCode } },
+  });
+  const addErr = userErrorsOf(added, 'orderEditAddShippingLine');
+  if (addErr) throw new Error(addErr);
+
+  const committed = await shopifyGraphQL(env, token, ORDER_EDIT_COMMIT, {
+    id: calc.id,
+    staffNote: `Songdeck gift: shipping method set to "${title}" (was a generic free-shipping line).`,
+  });
+  const commitErr = userErrorsOf(committed, 'orderEditCommit');
+  if (commitErr) throw new Error(commitErr);
+}
+
+export async function fixDeckGiftShipping(
+  env: ShopifyEnv,
+  opts: { apply?: boolean } = {},
+): Promise<DeckGiftShippingFixResult> {
+  const apply = opts.apply === true;
+  if (!shopifyConfigured(env)) {
+    return { ok: false, apply, rows: [], error: 'Shopify is not configured on this Worker.' };
+  }
+
+  const placed = await env.DB
+    .prepare(
+      `SELECT payload_json FROM events
+        WHERE kind = 'deck.gift.shopify.completed'
+        ORDER BY id`,
+    )
+    .all<{ payload_json: string | null }>();
+  const gifts: Array<{ registrationId: number; draftGid: string; draftName: string | null }> = [];
+  const seen = new Set<number>();
+  for (const r of placed.results ?? []) {
+    try {
+      const p = JSON.parse(r.payload_json ?? '{}');
+      const id = Number(p.course_registration_id);
+      if (!Number.isFinite(id) || seen.has(id) || typeof p.order_gid !== 'string') continue;
+      if (!p.order_gid.includes('/DraftOrder/')) continue;
+      seen.add(id);
+      gifts.push({ registrationId: id, draftGid: p.order_gid, draftName: p.order_name ?? null });
+    } catch {
+      /* a payload we can't read names no order */
+    }
+  }
+
+  let token: string;
+  let variantId: string;
+  try {
+    token = await shopifyAdminToken(env);
+    variantId = await resolveDeckVariantId(env, token);
+  } catch (err) {
+    return { ok: false, apply, rows: [], error: String(err).slice(0, 300) };
+  }
+
+  const rows: DeckGiftShippingFixRow[] = [];
+  for (const gift of gifts) {
+    const reg = await env.DB
+      .prepare(`SELECT email, deck_gift_shipping FROM course_registrations WHERE id = ?`)
+      .bind(gift.registrationId)
+      .first<{ email: string; deck_gift_shipping: string | null }>();
+    const ship = parseDeckGiftShipping(reg?.deck_gift_shipping ?? null);
+    const row: DeckGiftShippingFixRow = {
+      registrationId: gift.registrationId,
+      email: reg?.email ?? '',
+      draftName: gift.draftName,
+      orderName: null,
+      country: ship?.country ?? null,
+      current: null,
+      target: null,
+      outcome: 'skipped',
+    };
+    rows.push(row);
+    try {
+      const data = await shopifyGraphQL(env, token, GIFT_DRAFT_ORDER_QUERY, { id: gift.draftGid });
+      const order = data?.draftOrder?.order;
+      if (!order?.id) {
+        row.note = 'the draft never became an order';
+        continue;
+      }
+      row.orderName = order.name ?? null;
+      row.current = order.shippingLine?.title ?? null;
+      const tags: string[] = Array.isArray(order.tags) ? order.tags : [];
+      if (tags.some((t) => t.toUpperCase() === 'TEST')) {
+        row.note = 'test order';
+        continue;
+      }
+      if (order.cancelledAt) {
+        row.note = 'cancelled';
+        continue;
+      }
+      if (order.displayFulfillmentStatus && order.displayFulfillmentStatus !== 'UNFULFILLED') {
+        row.note = `already ${String(order.displayFulfillmentStatus).toLowerCase().replace(/_/g, ' ')}`;
+        continue;
+      }
+      if (!ship) {
+        row.note = 'no address on our side to price';
+        continue;
+      }
+      row.target = await deckRateTitle(env, token, {
+        email: row.email || undefined,
+        lineItems: [{ variantId, quantity: 1 }],
+        shippingAddress: mailingAddress(ship),
+      });
+      if (row.current === row.target) {
+        row.outcome = 'ok';
+        continue;
+      }
+      if (!apply) {
+        row.outcome = 'would_fix';
+        continue;
+      }
+      await swapShippingLine(env, token, order.id, row.target, order.currencyCode || 'EUR');
+      row.outcome = 'fixed';
+      await logEvent(env.DB, {
+        registration_id: null,
+        kind: 'deck.gift.shopify.shipping_fixed',
+        source: 'admin',
+        payload: {
+          course_registration_id: gift.registrationId,
+          order_name: row.orderName,
+          from: row.current,
+          to: row.target,
+        },
+      }).catch(() => {});
+    } catch (err) {
+      row.outcome = 'error';
+      row.note = scopeHint(err);
+    }
+  }
+
+  return { ok: rows.every((r) => r.outcome !== 'error'), apply, rows };
 }

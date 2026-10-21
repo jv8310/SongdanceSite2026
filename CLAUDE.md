@@ -253,7 +253,21 @@ in moderation, not governed by the copy book.
   → [`placeDeckGiftShopifyOrder`](src/lib/orders/shopify.ts) creates a draft
   order for the deck variant with a **100% discount** + free shipping line and
   completes it (`draftOrderComplete`, `paymentPending:false`) into a **paid €0
-  order** Shopify ships (idempotent on `deck-gift-shopify-<id>`), then a
+  order** Shopify ships (idempotent on `deck-gift-shopify-<id>`). Its shipping
+  line is **the shop's own method for that address** at €0 (Buspakje Nederland,
+  EU Letterbox, Europe Letterbox, UK Letterbox, World Letterbox, …), read from
+  `draftOrderCalculate`'s rates for the order without the gift discount, the
+  cheapest taken by title, never by handle (a handle would charge its price).
+  Until October 2026 every gift said "Free worldwide shipping", which the
+  warehouse can't map to a service; that title is now only the fallback when
+  Shopify offers no rate (logged `deck.gift.shopify.shipping_fallback`). The
+  orders placed before that are repaired from `/admin/emails` → **Songdeck gift
+  orders — shipping method** (`fixDeckGiftShipping`,
+  `/api/admin/courses/deck-gift-shipping-fix`): Check lists each gift order's
+  line beside the method its address gets today; Fix swaps the wrong ones at €0
+  by order edit, no customer mail, leaving fulfilled / cancelled / TEST orders
+  alone. It needs `read_orders` + `write_order_edits` on the Shopify app, which
+  placing gifts never did. Then a
   `deckGiftConfirmedEmail` ("on its way to …", tracks as `deck_gift_confirmed`)
   goes out. **Otherwise** (Shopify unset, no address, or the API errored — the
   claim releases so the reconcile retries) → the original transactional
