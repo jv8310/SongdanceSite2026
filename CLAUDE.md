@@ -260,7 +260,14 @@ in moderation, not governed by the copy book.
   cheapest taken by title, never by handle (a handle would charge its price).
   Until October 2026 every gift said "Free worldwide shipping", which the
   warehouse can't map to a service; that title is now only the fallback when
-  Shopify offers no rate (logged `deck.gift.shopify.shipping_fallback`). Then a
+  Shopify offers no rate (logged `deck.gift.shopify.shipping_fallback`). The
+  orders placed before that are repaired from `/admin/emails` → **Songdeck gift
+  orders — shipping method** (`fixDeckGiftShipping`,
+  `/api/admin/courses/deck-gift-shipping-fix`): Check lists each gift order's
+  line beside the method its address gets today; Fix swaps the wrong ones at €0
+  by order edit, no customer mail, leaving fulfilled / cancelled / TEST orders
+  alone. It needs `read_orders` + `write_order_edits` on the Shopify app, which
+  placing gifts never did. Then a
   `deckGiftConfirmedEmail` ("on its way to …", tracks as `deck_gift_confirmed`)
   goes out. **Otherwise** (Shopify unset, no address, or the API errored — the
   claim releases so the reconcile retries) → the original transactional
