@@ -610,7 +610,7 @@ query deckGiftDraft($id: ID!) {
   draftOrder(id: $id) {
     name
     order {
-      id name tags cancelledAt displayFulfillmentStatus currencyCode
+      id name tags cancelledAt displayFulfillmentStatus currencyCode presentmentCurrencyCode
       shippingLine { title }
     }
   }
@@ -796,7 +796,15 @@ export async function fixDeckGiftShipping(
         row.outcome = 'would_fix';
         continue;
       }
-      await swapShippingLine(env, token, order.id, row.target, order.currencyCode || 'EUR');
+      // An order edit prices in the currency the customer was shown (GBP, USD,
+      // CAD, …), not the shop's EUR, or Shopify refuses the line.
+      await swapShippingLine(
+        env,
+        token,
+        order.id,
+        row.target,
+        order.presentmentCurrencyCode || order.currencyCode || 'EUR',
+      );
       row.outcome = 'fixed';
       await logEvent(env.DB, {
         registration_id: null,
