@@ -6,6 +6,12 @@
 // for the deck variant with a 100% discount and a free shipping line, completed
 // (payment_pending:false) into a paid €0 order that Shopify then fulfils/ships.
 //
+// The shipping line carries the shop's OWN method for the address (Buspakje
+// Nederland, EU Letterbox, Europe Letterbox, UK Letterbox, World Letterbox, …),
+// asked of Shopify with draftOrderCalculate, at €0. Until October 2026 every gift
+// went out as a made-up "Free worldwide shipping", which the warehouse can't map
+// to a parcel service. See deckGiftShippingLine.
+//
 // Idempotent: the order claims a unique `events` row
 // (external_id `deck-gift-shopify-<regId>`, kind `deck.gift.shopify.created`)
 // before creating anything, so every fulfilment path (Stripe webhook, PayPal,
@@ -74,7 +80,7 @@ export function shopifyConfigured(env: ShopifyEnv): boolean {
 export type DeckGiftShopifyResult =
   | { status: 'skipped'; reason: string }
   | { status: 'already' }
-  | { status: 'placed'; orderName: string; orderGid: string }
+  | { status: 'placed'; orderName: string; orderGid: string; shippingMethod: string }
   | { status: 'failed'; error: string };
 
 // Country codes whose subdivisions Shopify validates as province codes and where
@@ -217,6 +223,54 @@ mutation deckGiftDraftComplete($id: ID!) {
   }
 }`;
 
+const DRAFT_ORDER_CALCULATE = `
+mutation deckGiftDraftCalculate($input: DraftOrderInput!) {
+  draftOrderCalculate(input: $input) {
+    calculatedDraftOrder { availableShippingRates { handle title price { amount } } }
+    userErrors { field message }
+  }
+}`;
+
+// The title the shipping line used before it followed the shop's own methods,
+// and still the fallback when Shopify offers no rate for the address.
+const FALLBACK_SHIPPING_TITLE = 'Free worldwide shipping';
+
+// The shipping line for a gift: the method the shop itself offers for this
+// address, by its own title, at €0. We ask Shopify for the rates a paying
+// customer would be shown (the order WITHOUT the gift discount, so a rate
+// conditioned on the order's value still applies) and take the cheapest — each
+// zone offers the deck one letterbox rate, and the cheapest is what a buyer
+// picks. Only the title is taken, never the handle: a handle would charge the
+// rate's price on an order we complete as paid. Never throws: a calculate that
+// fails or offers nothing falls back to the old title, so the gift still ships.
+async function deckGiftShippingLine(
+  env: ShopifyEnv,
+  token: string,
+  input: Record<string, unknown>,
+): Promise<{ title: string; price: string }> {
+  const { appliedDiscount: _discount, shippingLine: _line, ...priced } = input;
+  try {
+    const data = await shopifyGraphQL(env, token, DRAFT_ORDER_CALCULATE, { input: priced });
+    const errs = data?.draftOrderCalculate?.userErrors ?? [];
+    if (errs.length) throw new Error(`draftOrderCalculate: ${JSON.stringify(errs).slice(0, 300)}`);
+    const rates: Array<{ title?: string; price?: { amount?: string } }> =
+      data?.draftOrderCalculate?.calculatedDraftOrder?.availableShippingRates ?? [];
+    const best = rates
+      .filter((r) => typeof r.title === 'string' && r.title.trim())
+      .sort((a, b) => Number(a.price?.amount ?? 0) - Number(b.price?.amount ?? 0))[0];
+    if (best?.title) return { title: best.title.trim(), price: '0' };
+    throw new Error('no shipping rate offered for this address');
+  } catch (err) {
+    await logEvent(env.DB, {
+      registration_id: null,
+      kind: 'deck.gift.shopify.shipping_fallback',
+      source: 'system',
+      payload: { error: String(err) },
+    }).catch(() => {});
+    return { title: FALLBACK_SHIPPING_TITLE, price: '0' };
+  }
+}
+
 const DECK_VARIANT_QUERY = `
 query deckVariant($id: ID!) {
   product(id: $id) { variants(first: 1) { nodes { id } } }
@@ -296,11 +350,13 @@ export async function placeDeckGiftShopifyOrder(
         valueType: 'PERCENTAGE',
         value: 100.0,
       },
-      shippingLine: { title: 'Free worldwide shipping', price: '0' },
       shippingAddress: mailingAddress(ship),
     };
+    const shippingLine = await deckGiftShippingLine(env, token, input);
 
-    const created = await shopifyGraphQL(env, token, DRAFT_ORDER_CREATE, { input });
+    const created = await shopifyGraphQL(env, token, DRAFT_ORDER_CREATE, {
+      input: { ...input, shippingLine },
+    });
     const createErr = created?.draftOrderCreate?.userErrors ?? [];
     if (createErr.length) {
       throw new Error(`draftOrderCreate: ${JSON.stringify(createErr).slice(0, 300)}`);
@@ -330,10 +386,11 @@ export async function placeDeckGiftShopifyOrder(
         order_name: orderName,
         email: reg.email,
         ship_to: `${ship.city}, ${ship.country}`,
+        shipping_method: shippingLine.title,
       },
     }).catch(() => {});
 
-    return { status: 'placed', orderName, orderGid };
+    return { status: 'placed', orderName, orderGid, shippingMethod: shippingLine.title };
   } catch (err) {
     // Release the claim so a later reconcile can retry, and let the caller fall
     // back to the coupon claim email.
@@ -403,7 +460,7 @@ export type DeckGiftTestResult = {
   envKeys?: string[];
   shop?: string;
   variantId?: string;
-  placed?: { orderName: string; orderGid: string; adminUrl: string } | null;
+  placed?: { orderName: string; orderGid: string; adminUrl: string; shippingMethod: string } | null;
   error?: string;
 };
 
@@ -469,10 +526,12 @@ export async function testDeckGiftShopify(
         valueType: 'PERCENTAGE',
         value: 100.0,
       },
-      shippingLine: { title: 'Free worldwide shipping', price: '0' },
       shippingAddress: mailingAddress(ship),
     };
-    const created = await shopifyGraphQL(env, token, DRAFT_ORDER_CREATE, { input });
+    const shippingLine = await deckGiftShippingLine(env, token, input);
+    const created = await shopifyGraphQL(env, token, DRAFT_ORDER_CREATE, {
+      input: { ...input, shippingLine },
+    });
     const cErr = created?.draftOrderCreate?.userErrors ?? [];
     if (cErr.length) {
       return { ok: false, configured: true, shop, variantId, error: `draftOrderCreate: ${JSON.stringify(cErr)}` };
@@ -493,7 +552,7 @@ export async function testDeckGiftShopify(
     const orderName: string = draft?.name ?? '(draft)';
     const numId = String(draftGid).split('/').pop();
     const adminUrl = `https://${shop}/admin/draft_orders/${numId}`;
-    return { ok: true, configured: true, shop, variantId, placed: { orderName, orderGid: draftGid, adminUrl } };
+    return { ok: true, configured: true, shop, variantId, placed: { orderName, orderGid: draftGid, adminUrl, shippingMethod: shippingLine.title } };
   } catch (err) {
     const base = err instanceof Error ? err.message : String(err);
     // If the configured domain isn't a *.myshopify.com admin domain, that's the

@@ -320,14 +320,14 @@ const groups = [...new Set(samples.map((s) => s.group))];
         const data = (await res.json()) as {
           ok?: boolean; error?: string; shop?: string; variantId?: string;
           envKeys?: string[];
-          placed?: { orderName?: string; adminUrl?: string } | null;
+          placed?: { orderName?: string; adminUrl?: string; shippingMethod?: string } | null;
         };
         const shopNote = data.shop ? `  ·  domain: ${data.shop}` : '';
         if (res.ok && data.ok) {
           sdStatus.dataset.state = 'ok';
           if (data.placed && data.placed.adminUrl) {
             sdStatus.innerHTML =
-              `Placed test order ${data.placed.orderName ?? ''} ✓ — ` +
+              `Placed test order ${data.placed.orderName ?? ''} ✓ (shipping: ${data.placed.shippingMethod ?? '?'}) — ` +
               `<a href="${data.placed.adminUrl}" target="_blank" rel="noopener">open in Shopify</a> and cancel it.`;
           } else {
             sdStatus.textContent = `Connection OK ✓ — ${data.shop ?? ''}, deck variant resolved. Ready to place orders.`;
