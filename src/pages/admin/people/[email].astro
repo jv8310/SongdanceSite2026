@@ -121,6 +121,17 @@ const cert = app?.certification ?? null;
 const certSteps = cert?.checks ? CERT_STEPS.filter((st) => cert.checks?.[st.key]).length : 0;
 const certificateHref = `/api/admin/app-certificate?email=${encodeURIComponent(email)}`;
 const jsEmail = email.replace(/['\\]/g, '\\$&');
+
+// Flash from the unsubscribe / resubscribe endpoints, which return here.
+const subFlashKind = Astro.url.searchParams.get('flash');
+const subFlash =
+  subFlashKind === 'unsub_ok'
+    ? { tone: 'ok' as const, text: 'Unsubscribed — on the suppression list, and unsubscribed in Drip if Drip knows the address.' }
+  : subFlashKind === 'resub_ok'
+    ? { tone: 'ok' as const, text: 'Resubscribed — lifted the suppression and reactivated them in Drip.' }
+  : subFlashKind === 'unsub_error' || subFlashKind === 'resub_error'
+    ? { tone: 'err' as const, text: Astro.url.searchParams.get('msg') ?? 'That did not work.' }
+  : null;
 ---
 
 <Layout title={`Admin — ${email || 'Person'} — Songdance`} description="">
@@ -197,6 +208,21 @@ const jsEmail = email.replace(/['\\]/g, '\\$&');
               </p>
             )}
           </div>
+
+          {subFlash && <div class={`adm-flash ${subFlash.tone === 'err' ? 'adm-flash--err' : 'adm-flash--ok'} pd-resub`}>{subFlash.text}</div>}
+
+          {person?.subscribed && (
+            <form
+              method="POST"
+              action="/api/admin/unsubscribe"
+              class="pd-resub"
+              onsubmit={`return confirm('Unsubscribe ${jsEmail}? They get no more marketing email from the site, and are unsubscribed in Drip. Order and session mail still arrives.')`}
+            >
+              <input type="hidden" name="email" value={email} />
+              <input type="hidden" name="return_to" value={selfReturn} />
+              <button type="submit" class="adm-btn adm-btn--ghost">Unsubscribe</button>
+            </form>
+          )}
 
           {person && !person.subscribed && (
             <form
