@@ -11,7 +11,9 @@
 // astro.config.mjs. The adapter calls `createExports(manifest)` at
 // worker init and uses the `default` export as the worker object.
 
+import { WorkerEntrypoint } from 'cloudflare:workers';
 import { createExports as baseCreateExports } from '@astrojs/cloudflare/entrypoints/server.js';
+import { unsubscribeFromApp } from './lib/app-bridge/unsubscribe';
 import { assessPendingSubmissions } from './lib/intake/sweep';
 import { syncStaleTransportSheets } from './lib/intake/transport-sheet';
 import { runWorkshopCron } from './lib/workshops/cron';
@@ -138,6 +140,20 @@ function movedRedirect(request: Request): Response | null {
     target.search = url.search;
   }
   return Response.redirect(target.toString(), external ? 302 : 301);
+}
+
+// RPC for the member app (songdance-app, Worker `songdance-app-api`), the
+// mirror of the app's own SiteAdmin entrypoint that this site calls. A named
+// entrypoint is not routed by fetch: only a Worker on this Cloudflare account
+// with a service binding to `songdance-site` + entrypoint `AppBridge` can call
+// it — the app's binding SITE. The binding is the credential, no secret.
+// Exported through `namedExports` in astro.config.mjs.
+export class AppBridge extends WorkerEntrypoint<Env> {
+  // Unsubscribe an address from marketing, as the admin's Unsubscribe button
+  // does (src/lib/app-bridge/unsubscribe.ts). `actor` is who asked in the app.
+  unsubscribe(input: { email: string; actor: string }) {
+    return unsubscribeFromApp(this.env, input);
+  }
 }
 
 export function createExports(manifest: unknown) {
@@ -479,5 +495,6 @@ export function createExports(manifest: unknown) {
       fetch,
       scheduled,
     },
+    AppBridge,
   };
 }
