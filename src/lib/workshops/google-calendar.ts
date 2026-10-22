@@ -23,6 +23,11 @@ export type GCalEvent = {
   endUtc: string | null;
   timeZone: string | null;
   isAllDay: boolean;
+  // The meeting the event carries (see meetingOf): Zoom's own Calendar add-on
+  // puts it in conferenceData, a pasted invite leaves it in the location or the
+  // description. Null when the event has none yet.
+  joinUrl: string | null;
+  passcode: string | null;
 };
 
 // ── Access token minting ────────────────────────────────────────────────
@@ -172,15 +177,46 @@ export async function listCalendars(accessToken: string): Promise<GCalListEntry[
 type RawGEvent = {
   id: string;
   summary?: string;
+  location?: string;
+  description?: string;
   start?: { dateTime?: string; date?: string; timeZone?: string };
   end?: { dateTime?: string; date?: string; timeZone?: string };
+  conferenceData?: {
+    entryPoints?: Array<{ entryPointType?: string; uri?: string; passcode?: string; password?: string }>;
+  };
 };
+
+// A Zoom link written into the location or the description. The description is
+// HTML when the event was edited in Google Calendar, so the link may sit in an
+// href with its & written as &amp;.
+const ZOOM_LINK = /https:\/\/[a-z0-9.-]*zoom\.us\/(?:j|my|w|s)\/[^\s"'<>)]+/i;
+const PASSCODE = /(?:passcode|password|meeting password|wachtwoord|toegangscode|kenncode)\s*[:：]\s*([^\s<>"']+)/i;
+
+const unescapeHtml = (s: string): string =>
+  s.replace(/&amp;/gi, '&').replace(/&nbsp;/gi, ' ').replace(/<br\s*\/?>/gi, '\n');
+
+export function meetingOf(e: Pick<RawGEvent, 'location' | 'description' | 'conferenceData'>): { joinUrl: string | null; passcode: string | null } {
+  const video = (e.conferenceData?.entryPoints ?? []).find(
+    (p) => p.entryPointType === 'video' && /^https:\/\//i.test(p.uri ?? ''),
+  );
+  if (video?.uri) return { joinUrl: video.uri, passcode: video.passcode || video.password || null };
+  for (const text of [e.location, e.description]) {
+    if (!text) continue;
+    const plain = unescapeHtml(text);
+    const link = ZOOM_LINK.exec(plain)?.[0];
+    if (!link) continue;
+    const passcode = PASSCODE.exec(plain.replace(/<[^>]+>/g, ' '))?.[1] ?? null;
+    return { joinUrl: link.replace(/[.,;]+$/, ''), passcode };
+  }
+  return { joinUrl: null, passcode: null };
+}
 
 // Find upcoming events whose summary exactly (case-insensitively) matches the
 // title. Handles pagination + expands recurring events into instances.
 export async function findEventsByTitle(
   cfg: GoogleCalConfig,
   title: string,
+  until?: string, // ISO instant: only events starting before it (a weekly series never ends)
 ): Promise<GCalEvent[]> {
   const token = await getAccessToken(cfg);
   const wanted = title.trim().toLowerCase();
@@ -193,6 +229,7 @@ export async function findEventsByTitle(
     );
     url.searchParams.set('q', title);
     url.searchParams.set('timeMin', new Date().toISOString());
+    if (until) url.searchParams.set('timeMax', until);
     url.searchParams.set('singleEvents', 'true');
     url.searchParams.set('orderBy', 'startTime');
     url.searchParams.set('maxResults', '50');
@@ -212,6 +249,7 @@ export async function findEventsByTitle(
         endUtc: e.end?.dateTime ? new Date(e.end.dateTime).toISOString() : null,
         timeZone: e.start?.timeZone ?? null,
         isAllDay,
+        ...meetingOf(e),
       });
     }
     pageToken = data.nextPageToken;

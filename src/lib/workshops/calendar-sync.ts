@@ -10,6 +10,12 @@
 //
 // Idempotency: each created workshop is keyed on the Google event id, so an
 // event that already exists is skipped (never re-created or overwritten).
+//
+// Live sessions in the member app (syncAppSessions, below) come from the same
+// calendar: the app names the titles it wants ("SVH Q&A") and decides what each
+// becomes there (the app's lib/calendar-sessions.ts). This file only reads the
+// calendar — time, place and the Zoom link the event carries — and hands it
+// over through the APP_ADMIN binding; the site never writes an app_ table.
 
 import {
   createSyncedWorkshop,
@@ -18,6 +24,7 @@ import {
 } from './db';
 import { findEventsByTitle } from './google-calendar';
 import type { GoogleCalConfig } from './google-calendar';
+import { askApp, type AppCalendarMissing, type AppCalendarSessionIn, type AppCalendarSessionOut } from '../admin/app-access';
 
 export type SyncMapping = {
   // Exact title (case-insensitive) of the event as it appears on the calendar.
@@ -122,4 +129,66 @@ export async function syncMappedEvents(
   }
 
   return { created, skipped };
+}
+
+// ── Live sessions in the member app ─────────────────────────────────────────
+
+export type AppSessionsResult = {
+  titles: string[];                 // what the app asked for
+  sessions: AppCalendarSessionOut[];
+  missing: AppCalendarMissing[];     // sessions made from the calendar that it no longer carries
+  error: string | null;             // the app did not answer, or the calendar could not be read
+};
+
+// A calendar event with a start and no end (rare) is given an hour.
+const APP_SESSION_FALLBACK_MIN = 60;
+// How far ahead the app's sessions are read. A weekly Q&A is usually one
+// repeating calendar event with no last date; members see this far ahead.
+export const APP_SESSION_HORIZON_DAYS = 120;
+
+export async function syncAppSessions(
+  env: { APP_ADMIN?: unknown },
+  cfg: GoogleCalConfig,
+  actor: string,
+): Promise<AppSessionsResult> {
+  const titles = await askApp(env, async (app) =>
+    app.calendarSessionTitles
+      ? app.calendarSessionTitles()
+      : { ok: false as const, error: 'not-deployed', message: 'The member app has not been deployed with the calendar sync yet.' },
+  );
+  if (!titles.ok) return { titles: [], sessions: [], missing: [], error: titles.message };
+
+  const until = new Date(Date.now() + APP_SESSION_HORIZON_DAYS * 86_400_000).toISOString();
+  const found: AppCalendarSessionIn[] = [];
+  for (const title of titles.data) {
+    for (const ev of await findEventsByTitle(cfg, title, until)) {
+      if (ev.isAllDay || !ev.startUtc) continue;
+      found.push({
+        calendarEventId: ev.id,
+        calendarTitle: title,
+        startsAt: ev.startUtc,
+        endsAt: ev.endUtc ?? addMinutesIso(ev.startUtc, APP_SESSION_FALLBACK_MIN),
+        timeZone: ev.timeZone,
+        joinUrl: ev.joinUrl,
+        passcode: ev.passcode,
+      });
+    }
+  }
+  // Asked even when nothing was found: the app says which of its sessions the
+  // calendar no longer carries.
+  const r = await askApp(env, async (app) =>
+    app.calendarSessions
+      ? app.calendarSessions({ actor, until, sessions: found })
+      : { ok: false as const, error: 'not-deployed', message: 'The member app has not been deployed with the calendar sync yet.' },
+  );
+  return r.ok
+    ? { titles: titles.data, sessions: r.data.sessions, missing: r.data.missing ?? [], error: null }
+    : { titles: titles.data, sessions: [], missing: [], error: r.message };
+}
+
+// "3 new, 1 moved" for a flash line.
+export function countAppOutcomes(sessions: AppCalendarSessionOut[]): Record<AppCalendarSessionOut['outcome'], number> {
+  const n = { created: 0, linked: 0, updated: 0, unchanged: 0, skipped: 0 };
+  for (const s of sessions) n[s.outcome]++;
+  return n;
 }

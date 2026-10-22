@@ -2,6 +2,7 @@
 import '../../styles/admin.css';
 import Layout from '../../layouts/Layout.astro';
 import { readCookie, verifySession } from '../../lib/registrations/auth';
+import { calendarSyncFlash } from '../../lib/workshops/calendar-sync-flash';
 
 export const prerender = false;
 
@@ -11,17 +12,7 @@ if (!authed) {
   return Astro.redirect('/admin/login');
 }
 
-const flash = Astro.url.searchParams.get('flash');
-const created = Astro.url.searchParams.get('created');
-const skipped = Astro.url.searchParams.get('skipped');
-const flashBanner =
-  flash === 'cal_synced'
-    ? { tone: 'ok' as const, text: `Calendar sync: ${created ?? 0} published, ${skipped ?? 0} skipped.` }
-  : flash === 'cal_notconnected'
-    ? { tone: 'warn' as const, text: 'Google Calendar isn’t connected yet — set it up in Settings → Calendar sync.' }
-  : flash === 'cal_error'
-    ? { tone: 'warn' as const, text: 'Calendar sync failed. Check Settings → Calendar sync.' }
-  : null;
+const flashBanner = calendarSyncFlash(Astro.url.searchParams);
 ---
 
 <Layout title="Admin — Songdance" description="">
