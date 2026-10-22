@@ -1,14 +1,17 @@
 import type { APIRoute } from 'astro';
-import { readCookie, verifySession } from '../../../../lib/registrations/auth';
+import { getSessionEmail, readCookie, verifySession } from '../../../../lib/registrations/auth';
 import { resolveGoogleConfig } from '../../../../lib/workshops/google-config';
-import { syncMappedEvents } from '../../../../lib/workshops/calendar-sync';
+import { countAppOutcomes, syncAppSessions, syncMappedEvents } from '../../../../lib/workshops/calendar-sync';
 import { logEvent } from '../../../../lib/registrations/db';
 
 export const prerender = false;
 
 // POST → finds the hard-coded calendar event types (SVH Workshop / SVH
 // Masterclass) on the connected Google Calendar and publishes any new ones as
-// workshops. Events already synced are skipped.
+// workshops. Events already synced are skipped. Then hands the titles the
+// member app asks for (SVH Q&A) to the app, which makes them live sessions
+// (lib/workshops/calendar-sync.ts → syncAppSessions); the workshops never wait
+// on the app, and an app that does not answer only adds a line to the flash.
 //
 // Two callers, distinguished by content-type:
 //   - A browser form post (the "Calendar sync" header button) → run the sync,
@@ -16,9 +19,11 @@ export const prerender = false;
 //   - A fetch() from the settings page's "Sync now" → return JSON details.
 export const POST: APIRoute = async ({ request, locals }) => {
   const env = locals.runtime.env;
-  if (!(await verifySession(env.ADMIN_SESSION_SECRET, readCookie(request)))) {
+  const cookie = readCookie(request);
+  if (!(await verifySession(env.ADMIN_SESSION_SECRET, cookie))) {
     return new Response('Unauthorized', { status: 401 });
   }
+  const actor = (await getSessionEmail(env.ADMIN_SESSION_SECRET, cookie)) ?? 'admin';
 
   const ct = request.headers.get('content-type') || '';
   const isForm = ct.includes('form-urlencoded') || ct.includes('multipart/form-data');
@@ -38,14 +43,36 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
   try {
     const result = await syncMappedEvents(env.DB, cfg, 'published');
+    let app;
+    try {
+      app = await syncAppSessions(env, cfg, actor);
+    } catch (err) {
+      app = { titles: [], sessions: [], missing: [], error: `The calendar could not be read for the app's sessions: ${String(err)}` };
+    }
+    const n = countAppOutcomes(app.sessions);
     await logEvent(env.DB, {
       registration_id: null,
       kind: 'workshop.calendar.sync',
-      payload: { created: result.created.length, skipped: result.skipped.length },
+      payload: {
+        created: result.created.length,
+        skipped: result.skipped.length,
+        app: { ...n, missing: app.missing.length, error: app.error },
+      },
     });
-    return isForm
-      ? redirect(`${back}?flash=cal_synced&created=${result.created.length}&skipped=${result.skipped.length}`)
-      : json(result);
+    if (!isForm) return json({ ...result, app });
+    const q = new URLSearchParams({
+      flash: 'cal_synced',
+      created: String(result.created.length),
+      skipped: String(result.skipped.length),
+    });
+    if (app.error) q.set('app_error', '1');
+    else {
+      q.set('app_created', String(n.created + n.linked));
+      q.set('app_updated', String(n.updated));
+      q.set('app_skipped', String(n.skipped));
+      q.set('app_missing', String(app.missing.length));
+    }
+    return redirect(`${back}?${q}`);
   } catch (err) {
     await logEvent(env.DB, { registration_id: null, kind: 'workshop.calendar.error', payload: { error: String(err) } });
     return isForm

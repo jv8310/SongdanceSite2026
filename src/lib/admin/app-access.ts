@@ -96,6 +96,31 @@ export type AppAdminBinding = {
   addCertificate(input: { email: string; filename?: string; bytes: ArrayBuffer; actor: string }): Promise<AppAnswer<AppCertified>>;
   removeCertificate(input: { email: string; actor: string }): Promise<AppAnswer<AppCertified>>;
   certificate(input: { email: string }): Promise<AppAnswer<{ filename: string; contentType: string; bytes: ArrayBuffer }>>;
+  // Jacob's Google Calendar → live sessions in the app (the app's lib/calendar-sessions.ts;
+  // here, src/lib/workshops/calendar-sync.ts). Absent from an app deployed before it.
+  calendarSessionTitles?(): Promise<AppAnswer<string[]>>;
+  calendarSessions?(input: { actor: string; until: string; sessions: AppCalendarSessionIn[] }): Promise<AppAnswer<{ sessions: AppCalendarSessionOut[]; missing: AppCalendarMissing[] }>>;
+};
+
+export type AppCalendarSessionIn = {
+  calendarEventId: string;
+  calendarTitle: string;
+  startsAt: string;
+  endsAt: string;
+  timeZone: string | null;
+  joinUrl: string | null;
+  passcode: string | null;
+};
+
+export type AppCalendarMissing = { eventId: string; title: string; startsAt: string; calendarTitle: string };
+
+export type AppCalendarSessionOut = {
+  calendarEventId: string;
+  calendarTitle: string;
+  startsAt: string;
+  outcome: 'created' | 'linked' | 'updated' | 'unchanged' | 'skipped';
+  eventId: string | null;
+  detail: string | null;
 };
 
 /** The longest feedback the app keeps (its MAX_CERT_FEEDBACK_CHARS). */

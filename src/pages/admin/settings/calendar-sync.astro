@@ -3,7 +3,8 @@ import '../../../styles/admin.css';
 import Layout from '../../../layouts/Layout.astro';
 import { readCookie, verifySession } from '../../../lib/registrations/auth';
 import { getConnectionState } from '../../../lib/workshops/google-config';
-import { SYNC_MAPPINGS } from '../../../lib/workshops/calendar-sync';
+import { APP_SESSION_HORIZON_DAYS, SYNC_MAPPINGS } from '../../../lib/workshops/calendar-sync';
+import { askApp } from '../../../lib/admin/app-access';
 
 export const prerender = false;
 
@@ -13,6 +14,14 @@ if (!(await verifySession(env.ADMIN_SESSION_SECRET, readCookie(Astro.request))))
 }
 
 const state = await getConnectionState(env.DB, env);
+
+// The titles the member app takes from the calendar as live sessions (its
+// lib/calendar-sessions.ts decides what each becomes there).
+const appTitles = await askApp(env, async (app) =>
+  app.calendarSessionTitles
+    ? app.calendarSessionTitles()
+    : { ok: false as const, error: 'not-deployed', message: 'The member app has not been deployed with the calendar sync yet.' },
+);
 
 const flash = Astro.url.searchParams.get('flash');
 const FLASH: Record<string, { tone: 'ok' | 'warn'; text: string }> = {
@@ -51,7 +60,7 @@ const flashText = flash ? FLASH[flash] ?? null : null;
           ? <span class="adm-pill adm-pill--published">Ready</span>
           : <span class="adm-pill adm-pill--cancelled">Not connected</span>}
       </h2>
-      <p class="adm-sub">The sync looks for these event titles on the calendar. A matching date becomes a published workshop; events already synced are skipped.</p>
+      <p class="adm-sub">The sync looks for these event titles on the calendar. A matching date becomes a published workshop; events already synced are skipped. The member app’s titles become live sessions in the app, with the Zoom link the calendar event carries.</p>
       <table class="adm-table">
         <thead><tr><th>Calendar title</th><th></th><th>Becomes on the site</th><th>Type</th></tr></thead>
         <tbody>
@@ -63,8 +72,19 @@ const flashText = flash ? FLASH[flash] ?? null : null;
               <td><span class="adm-pill">{m.kind === 'masterclass' ? 'Masterclass' : 'Workshop'}</span></td>
             </tr>
           ))}
+          {appTitles.ok && appTitles.data.map((t) => (
+            <tr>
+              <td><code>{t}</code></td>
+              <td aria-hidden="true">→</td>
+              <td>A live session in the member app</td>
+              <td><span class="adm-pill">App</span></td>
+            </tr>
+          ))}
         </tbody>
       </table>
+      {appTitles.ok
+        ? <p class="adm-sub" style="margin-top:10px;">App sessions are read {APP_SESSION_HORIZON_DAYS} days ahead. Each calendar event is one session: moving it on the calendar, or changing its Zoom link, changes the session at the next sync; an edit made in the app is kept. Deleting it on the calendar cancels nothing — the sync lists it, and you cancel it in the app.</p>
+        : <p class="adm-sub" style="margin-top:10px;">Member app: {appTitles.message}</p>}
       <div class="adm-inline-form" style="margin-top:16px;">
         <button id="cs-sync" class="adm-btn adm-btn--solid" disabled={!state.ready}>Sync now</button>
         {!state.ready && <span class="adm-sub">Finish the connection below to enable the sync.</span>}
@@ -192,7 +212,24 @@ const flashText = flash ? FLASH[flash] ?? null : null;
             data.skipped.forEach(function (s) { html += '<li>' + s.summary + (s.startsAtUtc ? ' — ' + s.startsAtUtc : '') + ' — ' + s.reason + '</li>'; });
             html += '</ul>';
           }
-          if (!data.created.length && !data.skipped.length) html = 'No matching upcoming events found on the calendar.';
+          if (!data.created.length && !data.skipped.length) html = '<p>No matching upcoming workshops found on the calendar.</p>';
+          var app = data.app || { sessions: [], missing: [], error: null };
+          var esc = function (t) { return String(t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+          var when = function (iso) { return new Date(iso).toLocaleString('en-GB', { timeZone: 'Europe/Brussels', weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) + ' Brussels time'; };
+          var WORD = { created: 'new', linked: 'already in the app, now linked', updated: 'changed', unchanged: 'unchanged', skipped: 'skipped' };
+          if (app.error) html += '<p>Member app: ' + esc(app.error) + '</p>';
+          else if (app.sessions.length) {
+            html += '<p>Member app:</p><ul>';
+            app.sessions.forEach(function (s) {
+              html += '<li>' + esc(s.calendarTitle) + ' — ' + when(s.startsAt) + ' — ' + WORD[s.outcome] + (s.detail ? ' (' + esc(s.detail) + ')' : '') + '</li>';
+            });
+            html += '</ul>';
+          } else html += '<p>Member app: no upcoming ' + (app.titles || []).map(esc).join(' / ') + ' events on the calendar.</p>';
+          if (app.missing && app.missing.length) {
+            html += '<p>In the app but no longer on the calendar (cancel them in the app if they are off):</p><ul>';
+            app.missing.forEach(function (m) { html += '<li>' + esc(m.title) + ' — ' + when(m.startsAt) + '</li>'; });
+            html += '</ul>';
+          }
           out.innerHTML = html;
           btn.disabled = false;
         } catch (e) { out.textContent = 'Error: ' + (e.message || e); btn.disabled = false; }

@@ -105,6 +105,28 @@ of the person, since the app may still know them.
   adding it again by hand does. Revoking never refunds. Drip tags no longer switch courses
   on or off; the app reads them once, at a member's first sign-in.
 
+## Calendar sync — workshops here, Q&As in the app
+
+**Settings → Calendar sync** (and the header "Calendar sync" button, both
+`/api/admin/workshops/calendar-sync`) reads the connected Google Calendar.
+`SYNC_MAPPINGS` in [`calendar-sync.ts`](src/lib/workshops/calendar-sync.ts) turns
+"SVH Workshop" / "SVH Masterclass" events into published workshops here, as
+always. Since October 2026 the same press also hands **"SVH Q&A"** events to the
+member app (`syncAppSessions`, through `APP_ADMIN` → `calendarSessionTitles` /
+`calendarSessions`), which makes each one Jacob's live Q&A there with the Zoom
+link the event carries — `meetingOf` in
+[`google-calendar.ts`](src/lib/workshops/google-calendar.ts) reads it from Zoom's
+Calendar add-on (conferenceData) or a link pasted into the location or the
+description, with the passcode. **What an "SVH Q&A" becomes (preset, title, host)
+is decided in the app** (`lib/calendar-sessions.ts`); the site asks the app which
+titles to look for and never writes an `app_` table. The app keeps one session per
+calendar event, follows a time or link changed on the calendar, keeps edits made
+in the app, and never cancels on its own: an event deleted from the calendar is
+listed after the sync ("no longer on the calendar") for Jacob to cancel in the
+app. Read 120 days ahead (`APP_SESSION_HORIZON_DAYS`), so one weekly repeating
+event works. Deploy order: the app first (an older app answers "not deployed
+yet" and the workshops sync as before).
+
 ## Navigation — one menu, three renderings
 
 The site menu has a single source of truth: [`src/data/nav.ts`](src/data/nav.ts)
