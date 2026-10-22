@@ -101,6 +101,16 @@ of the person, since the app may still know them.
   the person has an app account, and the file sits in the app's private bucket — this site only
   passes it through the binding. Claude can do the same through the app's MCP tools
   (`set_certified`, `add_certificate_from_url`, `create_certificate_upload`).
+- **The other direction: `AppBridge`** (October 2026). The app reaches the site through its
+  own service binding (`SITE` → this Worker's `AppBridge` entrypoint, exported from
+  `src/worker-entrypoint.ts` via `namedExports` in `astro.config.mjs`). One method so far,
+  `unsubscribe` ([`src/lib/app-bridge/unsubscribe.ts`](src/lib/app-bridge/unsubscribe.ts)):
+  the same as the **Unsubscribe** button on `/admin/people/<email>` — the address onto
+  `email_suppressions` (source `app:<actor>`), Drip unsubscribed best-effort, and the answer
+  says what Drip did. The app's MCP tool `unsubscribe_email` calls it, so Claude can
+  unsubscribe someone who asked by email. The app never writes a site table itself, so
+  anything else it should change here goes through a method on this entrypoint. **Deploy
+  order: this site first**; the app's binding fails until `AppBridge` is live.
 - A revoke is permanent in the app: no order, Drip tag or sync brings that course back —
   adding it again by hand does. Revoking never refunds. Drip tags no longer switch courses
   on or off; the app reads them once, at a member's first sign-in.

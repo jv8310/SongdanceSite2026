@@ -18,6 +18,8 @@ export default defineConfig({
     // `scheduled` handler for the hourly intake-assessment Cron trigger.
     workerEntryPoint: {
       path: './src/worker-entrypoint.ts',
+      // AppBridge: the member app's way in (its service binding SITE).
+      namedExports: ['AppBridge'],
     },
   }),
   integrations: [react()],
