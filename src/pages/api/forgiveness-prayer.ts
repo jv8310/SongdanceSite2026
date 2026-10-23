@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { forgivenessForYouOpen } from '../../lib/forgiveness-offline';
 
 export const prerender = false;
 
@@ -70,6 +71,9 @@ const fallbackResponse = (reason: string, detail?: string) => {
 };
 
 export const POST: APIRoute = async ({ request, locals }) => {
+  if (!(await forgivenessForYouOpen(request, (locals as any).runtime?.env))) {
+    return new Response('Not found', { status: 404 });
+  }
   let body: { q1?: string; q2?: string; q3?: string; q4?: string; q5?: string; center?: string };
   try {
     body = await request.json();

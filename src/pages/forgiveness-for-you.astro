@@ -2,6 +2,15 @@
 import Layout from '../layouts/Layout.astro';
 import ThreeLayersWalk from '../components/forgiveness-magnet/ThreeLayersWalk.jsx';
 import '../styles/forgiveness-for-you.css';
+import { FORGIVENESS_FOR_YOU_ONLINE, forgivenessForYouOpen } from '../lib/forgiveness-offline';
+
+export const prerender = false;
+
+// Offline for now: admins only (see src/lib/forgiveness-offline.ts).
+const env = (Astro.locals as any).runtime?.env ?? {};
+if (!(await forgivenessForYouOpen(Astro.request, env))) {
+  return Astro.redirect('/courses/forgiveness', 302);
+}
 ---
 
 <Layout
@@ -10,6 +19,11 @@ import '../styles/forgiveness-for-you.css';
   image="/media/library/forgiveness-foryou-twilight.webp"
   imageAlt="A woman at the water's edge in the quiet of twilight."
 >
+  {!FORGIVENESS_FOR_YOU_ONLINE && (
+    <p style="position:fixed;top:0;left:0;right:0;z-index:1000;margin:0;padding:6px 16px;background:#7a2e1f;color:#fff;font:13px/1.4 system-ui,sans-serif;text-align:center;">
+      Offline — only visible to signed-in admins.
+    </p>
+  )}
   <ThreeLayersWalk client:load />
 
   <footer class="tlw-footer-quiet">
