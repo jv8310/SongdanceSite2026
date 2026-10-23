@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { forgivenessForYouOpen } from '../../lib/forgiveness-offline';
 
 export const prerender = false;
 
@@ -255,6 +256,9 @@ async function recordInDrip(args: {
 }
 
 export const POST: APIRoute = async ({ request, locals }) => {
+  if (!(await forgivenessForYouOpen(request, (locals as any).runtime?.env))) {
+    return new Response('Not found', { status: 404 });
+  }
   let body: {
     email?: string;
     situation?: string;

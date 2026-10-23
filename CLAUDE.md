@@ -137,6 +137,18 @@ app. Read 120 days ahead (`APP_SESSION_HORIZON_DAYS`), so one weekly repeating
 event works. Deploy order: the app first (an older app answers "not deployed
 yet" and the workshops sync as before).
 
+## Forgiveness prayer lead magnet — offline, kept for later
+
+`/forgiveness-for-you` (five questions → a personalised prayer, emailed, Drip tag
+`m26_Forgiveness`) is **offline since October 2026**, with every file kept:
+the page, `src/components/forgiveness-magnet/ThreeLayersWalk.jsx`,
+`src/lib/forgiveness-prayer.ts`, `/api/forgiveness-prayer` (Claude) and
+`/api/forgiveness-deliver` (Resend + Drip). The switch is
+`FORGIVENESS_FOR_YOU_ONLINE` in [`src/lib/forgiveness-offline.ts`](src/lib/forgiveness-offline.ts):
+while false, a signed-in admin still sees the page (with an "Offline" banner)
+and can run it end to end; everyone else gets a 302 to `/courses/forgiveness`
+and both APIs answer 404. Set it to true to bring it back.
+
 ## Navigation — one menu, three renderings
 
 The site menu has a single source of truth: [`src/data/nav.ts`](src/data/nav.ts)
