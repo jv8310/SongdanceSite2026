@@ -3,9 +3,10 @@
 // Layout.astro so the global actions stay reachable wherever you navigate.
 // It is sticky on scroll; each page's own breadcrumbs / back link / title sit
 // underneath it in the page's .adm-header.
-// Stats + Performance carry labels; People / Settings / Images / Sign out are icon-only
-// (title + aria-label) to save width. Calendar sync lives in Settings and on
-// the workshops page. The search button (and ⌘K / Ctrl+K on any admin page)
+// Stats + Performance carry labels; Calendar sync / People / Settings / Images /
+// Sign out are icon-only (title + aria-label) to save width. Calendar sync posts
+// straight to the sync and lands back on /admin, which shows its flash line
+// (Settings → Calendar sync has the details). The search button (and ⌘K / Ctrl+K on any admin page)
 // opens the people palette: type a name, email or order number and jump to that
 // person's page (/api/admin/people-search).
 import { getSessionEmail, readCookie } from '../../lib/registrations/auth';
@@ -40,6 +41,12 @@ try {
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
         <span>Performance</span>
       </a>
+      <form method="POST" action="/api/admin/workshops/calendar-sync">
+        <input type="hidden" name="return" value="/admin" />
+        <button class="adm-btn adm-btn--ghost adm-btn--nav adm-btn--icon" type="submit" title="Calendar sync" aria-label="Calendar sync">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        </button>
+      </form>
       <a class="adm-btn adm-btn--ghost adm-btn--nav adm-btn--icon" href="/admin/people" title="People" aria-label="People">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
       </a>
