@@ -103,14 +103,33 @@ of the person, since the app may still know them.
   (`set_certified`, `add_certificate_from_url`, `create_certificate_upload`).
 - **The other direction: `AppBridge`** (October 2026). The app reaches the site through its
   own service binding (`SITE` → this Worker's `AppBridge` entrypoint, exported from
-  `src/worker-entrypoint.ts` via `namedExports` in `astro.config.mjs`). One method so far,
-  `unsubscribe` ([`src/lib/app-bridge/unsubscribe.ts`](src/lib/app-bridge/unsubscribe.ts)):
-  the same as the **Unsubscribe** button on `/admin/people/<email>` — the address onto
-  `email_suppressions` (source `app:<actor>`), Drip unsubscribed best-effort, and the answer
-  says what Drip did. The app's MCP tool `unsubscribe_email` calls it, so Claude can
-  unsubscribe someone who asked by email. The app never writes a site table itself, so
-  anything else it should change here goes through a method on this entrypoint. **Deploy
-  order: this site first**; the app's binding fails until `AppBridge` is live.
+  `src/worker-entrypoint.ts` via `namedExports` in `astro.config.mjs`). Three methods:
+  - `unsubscribe` ([`src/lib/app-bridge/unsubscribe.ts`](src/lib/app-bridge/unsubscribe.ts)):
+    the same as the **Unsubscribe** button on `/admin/people/<email>` — the address onto
+    `email_suppressions` (source `app:<actor>`), Drip unsubscribed best-effort, and the answer
+    says what Drip did. The app's MCP tool `unsubscribe_email` calls it, so Claude can
+    unsubscribe someone who asked by email.
+  - `orders` and `refund` ([`src/lib/app-bridge/refund.ts`](src/lib/app-bridge/refund.ts),
+    October 2026), behind the app's MCP tools `list_site_orders` and `refund_order`, so Claude
+    can refund — in full or in part — what the **Refund** forms on `/admin/orders/<no>` refund.
+    Both doors run **one function**, [`src/lib/admin/refund.ts`](src/lib/admin/refund.ts)
+    (`resolveRefundTarget` → `issueRefund`): which charge, how much is left, the gateway call
+    alone may say "failed", PayPal recorded here, Stripe by its webhook. What the app's door
+    adds: a **typed confirmation, always** (Jacob's rule), `REFUND <order> [#<installment>]
+    <amount> <currency>`, checked here against the refund this call comes to, so "full" has to
+    be confirmed with its figure and anything else moves nothing; that figure is the
+    **gateway's** (`readChargeRemaining`: a course row's `amount_cents` leaves out its bumps, a
+    retreat row's grows with the balance, which is another charge); **one charge per call**,
+    a plan by installment number (a plan with none named is refused); and **a repeat is the
+    same refund** — the same request the same Brussels day carries the same key to the gateway
+    (`Idempotency-Key` / `PayPal-Request-Id`) and is answered from `events` (`app.refund.done`,
+    `external_id` = that key). Orders go by number and installments by theirs, so no payment id
+    leaves the site. Logged with source `app` and the connection as `actor`; taking the course
+    away in the app is the app's own step after the answer (`takeAwayCourse`).
+
+  The app never writes a site table itself, so anything else it should change here goes
+  through a method on this entrypoint. **Deploy order: this site first**; the app's binding
+  fails until `AppBridge` has the method.
 - A revoke is permanent in the app: no order, Drip tag or sync brings that course back —
   adding it again by hand does. Revoking never refunds. Drip tags no longer switch courses
   on or off; the app reads them once, at a member's first sign-in.
@@ -1852,7 +1871,8 @@ dialog promised the plan total, any larger amount was rejected by the gateway,
 and cycle 2+ could only be refunded from the Stripe dashboard.
 
 [`src/lib/admin/installments.ts`](src/lib/admin/installments.ts) reads the
-cycles live (`listSubscriptionInvoices` for Stripe, `listSubscriptionTransactions`
+cycles live (the refund itself is [`src/lib/admin/refund.ts`](src/lib/admin/refund.ts),
+shared with Claude's `refund_order`, see AppBridge above) (`listSubscriptionInvoices` for Stripe, `listSubscriptionTransactions`
 for PayPal) and `/admin/orders/C-<id>` renders one row per installment —
 date, invoice/sale reference, amount, already-refunded, and its own Refund
 button. `/api/admin/refund` takes an optional **`installment`** (a Stripe invoice
