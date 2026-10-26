@@ -688,6 +688,26 @@ export function normalizePaypalSubStatus(status: string): SubscriptionStatus {
 
 // ── Refunds (Payments API v2) ─────────────────────────────────────────────
 
+// One capture as PayPal holds it now: what it took and whether any of it has
+// gone back. PayPal reports a refunded STATE on a capture, never a figure, so a
+// PARTIALLY_REFUNDED capture's remainder has to come from our own books.
+export async function getCapture(
+  env: PaypalEnv,
+  captureId: string,
+): Promise<{ id: string; status: string; amountMinor: number | null; currency: string | null }> {
+  const c = await ppFetch<{
+    id: string;
+    status?: string;
+    amount?: { value?: string; currency_code?: string };
+  }>(env, 'GET', `/v2/payments/captures/${encodeURIComponent(captureId)}`);
+  return {
+    id: c.id,
+    status: c.status ?? '',
+    amountMinor: c.amount?.value ? Math.round(parseFloat(c.amount.value) * 100) : null,
+    currency: c.amount?.currency_code?.toUpperCase() ?? null,
+  };
+}
+
 export async function refundCapture(input: {
   env: PaypalEnv;
   captureId: string;
@@ -736,6 +756,7 @@ export async function refundSale(input: {
   amountMinor?: number | null;
   currency?: string | null;
   noteToPayer?: string;
+  requestId?: string;
 }): Promise<{ id: string; status: string; amountMinor: number | null }> {
   const body: Record<string, unknown> = {};
   if (input.amountMinor != null && input.currency) {
@@ -750,7 +771,13 @@ export async function refundSale(input: {
     state?: string;
     status?: string;
     amount?: { total?: string };
-  }>(input.env, 'POST', `/v1/payments/sale/${input.saleId}/refund`, body);
+  }>(
+    input.env,
+    'POST',
+    `/v1/payments/sale/${input.saleId}/refund`,
+    body,
+    input.requestId ? { 'PayPal-Request-Id': input.requestId } : undefined,
+  );
   return {
     id: refund.id,
     status: refund.status ?? refund.state ?? 'completed',
@@ -788,6 +815,8 @@ export async function refundSubscriptionCycle(input: {
   currency?: string | null; // required when amountMinor is given
   noteToPayer?: string;
   customId?: string;
+  // PayPal-Request-Id: the same id twice is the same refund, never a second one.
+  requestId?: string;
 }): Promise<{
   id: string;
   status: string;
@@ -802,6 +831,7 @@ export async function refundSubscriptionCycle(input: {
       currency: input.currency,
       noteToPayer: input.noteToPayer,
       customId: input.customId,
+      requestId: input.requestId,
     });
     return { ...refund, via: 'capture' };
   } catch (err) {
@@ -815,6 +845,7 @@ export async function refundSubscriptionCycle(input: {
         amountMinor: input.amountMinor,
         currency: input.currency,
         noteToPayer: input.noteToPayer,
+        requestId: input.requestId,
       });
       return { ...refund, via: 'sale' };
     } catch (saleErr) {

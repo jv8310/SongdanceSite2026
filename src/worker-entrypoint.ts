@@ -13,6 +13,7 @@
 
 import { WorkerEntrypoint } from 'cloudflare:workers';
 import { createExports as baseCreateExports } from '@astrojs/cloudflare/entrypoints/server.js';
+import { ordersForApp, refundFromApp } from './lib/app-bridge/refund';
 import { unsubscribeFromApp } from './lib/app-bridge/unsubscribe';
 import { assessPendingSubmissions } from './lib/intake/sweep';
 import { syncStaleTransportSheets } from './lib/intake/transport-sheet';
@@ -153,6 +154,26 @@ export class AppBridge extends WorkerEntrypoint<Env> {
   // does (src/lib/app-bridge/unsubscribe.ts). `actor` is who asked in the app.
   unsubscribe(input: { email: string; actor: string }) {
     return unsubscribeFromApp(this.env, input);
+  }
+
+  // A person's orders (their linked emails), with what each can still give
+  // back, charge by charge (src/lib/app-bridge/refund.ts).
+  orders(input: { emails: string[] }) {
+    return ordersForApp(this.env, input);
+  }
+
+  // Refund one charge of one order, in full or in part, as the Refund forms on
+  // /admin/orders do: the same code (lib/admin/refund.ts), behind a typed
+  // confirmation that must name the order, installment, amount and currency.
+  refund(input: {
+    orderNo: string;
+    installment?: number | null;
+    amount: 'full' | number;
+    confirm: string;
+    note: string;
+    actor: string;
+  }) {
+    return refundFromApp(this.env, input);
   }
 }
 

@@ -459,6 +459,35 @@ export async function listRefundsForPaymentIntent(
   }));
 }
 
+// What a PaymentIntent actually took, read from Stripe — the honest ceiling for
+// refunding it. Our rows can't say: a course row's amount_cents leaves out the
+// order bumps charged with it, and a retreat row's grows when its balance is
+// paid, which is a different PaymentIntent.
+export async function retrievePaymentIntent(
+  secretKey: string,
+  paymentIntent: string,
+): Promise<{ id: string; status: string; amountReceived: number; currency: string }> {
+  const res = await fetch(`${STRIPE_BASE}/payment_intents/${encodeURIComponent(paymentIntent)}`, {
+    headers: { Authorization: `Bearer ${secretKey}` },
+  });
+  const body = (await res.json()) as {
+    id?: string;
+    status?: string;
+    amount_received?: number;
+    currency?: string;
+    error?: { message: string };
+  };
+  if (!res.ok || body.error) {
+    throw new Error(`Stripe payment_intents.retrieve: ${body.error?.message ?? res.status}`);
+  }
+  return {
+    id: body.id ?? paymentIntent,
+    status: body.status ?? '',
+    amountReceived: body.amount_received ?? 0,
+    currency: (body.currency ?? '').toUpperCase(),
+  };
+}
+
 // Sum of the refunds that are actually holding money back on a PaymentIntent.
 export function refundedMinorOf(
   refunds: Array<{ amount: number; status: string }>,
