@@ -479,7 +479,7 @@ function ymdhm(iso: string | null): string {
               method="POST"
               action="/api/admin/refund"
               class="od-refund"
-              onsubmit={`return confirm('Refund ${o.orderNo} (${jsName}, ${o.email})?\\nBlank = ${isPlan ? 'the first installment' : 'the full'} ${remainingMajor} ${o.originalCurrency}. This moves real money.' + (this.elements.revoke_access && this.elements.revoke_access.checked ? '\\nIt ALSO takes the course away in the member app.' : ''))`}
+              onsubmit={`return confirm('Refund ' + this.elements.amount.value + ' ${o.originalCurrency} on ${o.orderNo} (${jsName}, ${o.email})?\\nThis moves real money.' + (Number(this.elements.amount.value) === Number('${remainingMajor}') ? '\\nThat is everything left on ${isPlan ? 'the first installment' : 'this charge'}${o.source === 'workshop' ? ': their seat is cancelled too' : ''}.' : '') + (this.elements.revoke_access && this.elements.revoke_access.checked ? '\\nIt ALSO takes the course away in the member app.' : ''))`}
             >
               <input type="hidden" name="order_no" value={o.orderNo} />
               <input type="hidden" name="return_to" value={selfReturn} />
@@ -491,9 +491,11 @@ function ymdhm(iso: string | null): string {
                   step="0.01"
                   min="0.01"
                   max={remainingMajor}
-                  placeholder={`full ${remainingMajor}`}
+                  placeholder={`up to ${remainingMajor}`}
+                  required
                 />
               </label>
+              <button type="button" class="adm-btn adm-btn--ghost" onclick={`this.form.elements.amount.value = '${remainingMajor}'`}>All {remainingMajor}</button>
               <button type="submit" class="adm-btn adm-btn--danger">Issue refund</button>
               {o.source === 'course' && (
                 <label class="od-revoke">
@@ -503,14 +505,17 @@ function ymdhm(iso: string | null): string {
               <p class="od-refund-hint">
                 {isPlan ? (
                   <>
-                    Blank = the <strong>first installment</strong> ({remainingMajor} {o.originalCurrency}) —
+                    “All” = the <strong>first installment</strong> ({remainingMajor} {o.originalCurrency}) —
                     the only charge recorded on this order. The other{' '}
                     {o.installmentsTotal - 1} are refundable individually once{' '}
                     {ledger?.provider === 'paypal' ? 'PayPal' : 'Stripe'} can be read again;
                     {' '}{formatMoney(wholeOrderRemaining, o.originalCurrency)} is outstanding across the plan.
                   </>
                 ) : (
-                  <>Blank = full refund of what’s left ({remainingMajor} {o.originalCurrency}).</>
+                  <>
+                    Type the amount to give back; “All” fills in everything left ({remainingMajor} {o.originalCurrency}).
+                    {o.source === 'workshop' && ' A full refund cancels the seat; to give back only the order bump, type its price.'}
+                  </>
                 )}
               </p>
             </form>

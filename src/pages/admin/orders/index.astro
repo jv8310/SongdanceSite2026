@@ -449,7 +449,7 @@ const pages = pageNumbers(result.page, result.pageCount);
                               method="POST"
                               action="/api/admin/refund"
                               class="ord-menu-refund"
-                              onsubmit={`return confirm('Refund ${o.orderNo} (${jsName}, ${o.email})?\\nBlank = full ${remainingMajor} ${o.originalCurrency}. This moves real money.' + (this.elements.revoke_access && this.elements.revoke_access.checked ? '\\nIt ALSO takes the course away in the member app.' : ''))`}
+                              onsubmit={`return confirm('Refund ' + this.elements.amount.value + ' ${o.originalCurrency} on ${o.orderNo} (${jsName}, ${o.email})?\\nThis moves real money.' + (Number(this.elements.amount.value) === Number('${remainingMajor}') ? '\\nThat is everything left on this charge${o.source === 'workshop' ? ': their seat is cancelled too' : ''}.' : '') + (this.elements.revoke_access && this.elements.revoke_access.checked ? '\\nIt ALSO takes the course away in the member app.' : ''))`}
                             >
                               <input type="hidden" name="order_no" value={o.orderNo} />
                               <input type="hidden" name="return_to" value={returnTo} />
@@ -461,16 +461,18 @@ const pages = pageNumbers(result.page, result.pageCount);
                                   step="0.01"
                                   min="0.01"
                                   max={remainingMajor}
-                                  placeholder={`full ${remainingMajor}`}
+                                  placeholder={`up to ${remainingMajor}`}
+                                  required
                                 />
                               </label>
+                              <button type="button" class="adm-btn adm-btn--ghost adm-btn--tiny" onclick={`this.form.elements.amount.value = '${remainingMajor}'`}>All {remainingMajor}</button>
                               <button type="submit" class="adm-btn adm-btn--danger adm-btn--tiny">Issue refund</button>
                               {o.source === 'course' && (
                                 <label class="ord-revoke">
                                   <input type="checkbox" name="revoke_access" value="1" /> Also take away the course in the app
                                 </label>
                               )}
-                              <p class="ord-refund-hint">Blank = full refund of what’s left.{o.source === 'course' && ' A full refund closes the course in the app by itself; a partial one only if ticked.'}</p>
+                              <p class="ord-refund-hint">Type the amount to give back; “All” fills in everything left on this charge.{o.source === 'course' && ' A full refund closes the course in the app by itself; a partial one only if ticked.'}{o.source === 'workshop' && ' A full refund cancels the seat; to give back only the order bump, type its price.'}</p>
                             </form>
                           </>
                         )}
