@@ -189,13 +189,6 @@ const TWELVE_WEEK_INSIDE = list([
     lead: 'The community —',
     rest: 'a place to share where you are, and to hear where others are.',
   },
-  // The 12 weeks come with these mantras (the sales page: "five of Jacob's
-  // original mantras on joining"); in the CiRCLE they are the album "Empowering
-  // You", in the Library beside the course (songdance-app: COURSE_UNLOCKS).
-  {
-    lead: 'Five of my original mantras —',
-    rest: 'Empowering You, recorded live with a choir in South Africa, in your Library beside the course. Yours to keep.',
-  },
 ]);
 
 function twelveWeek(ctx: ConfirmationCtx): EmailContent {
@@ -316,7 +309,7 @@ function path(ctx: ConfirmationCtx): EmailContent {
       list([
         {
           lead: 'First, the 12-Week Course —',
-          rest: 'one class a week at your own pace (six main classes, six deepening sessions), and weekly live Q&As with replays. Five of my original mantras come with it, the album Empowering You, in your Library.',
+          rest: 'one class a week at your own pace (six main classes, six deepening sessions), and weekly live Q&As with replays.',
         },
         { lead: 'Then the Certification Course —', rest: certLine },
       ]),

@@ -946,10 +946,12 @@ out of the app's reach.
 - **Who holds it in the app** (songdance-app `packages/shared`): `album-empowering-you`
   orders, the `mantra-empower-bump` workshop line, the `prod_MantraEmpower` tag
   (Drip or the contacts mirror — this covers coupon seats with `wants_bump` and no
-  ledger line), and **every 12-week student** (`svh-12week`, `cc-bundle`; the
-  sales page promises "five of Jacob's original mantras on joining"). The 12-week
-  and path welcome emails name the album. A refunded seat takes the bump back in
-  the app without a mail of the app's own.
+  ledger line), and, by the app's own rule, every 12-week student (`svh-12week`,
+  `cc-bundle`). **The 12-week course no longer promises it** (Jacob, October
+  2026): the sales page, the 12-week and path welcome emails and the
+  after-workshop pitch dropped "five of Jacob's original mantras on joining" —
+  don't put it back. A refunded seat takes the bump back in the app without a
+  mail of the app's own.
 
 ## Course emails — the site takes over from Drip, one course at a time
 
