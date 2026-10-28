@@ -3,7 +3,7 @@
 // masterclass) carry their own deliberate price points, mirroring:
 //   - migrations/0023_workshop_ticket_price_9.sql   (svh-ticket)
 //   - migrations/0022_workshop_masterclass.sql       (svh-masterclass)
-// The themed courses and journeys (grief + the three journeys) instead reuse
+// The themed courses and journeys (grief, forgiveness + the three journeys) instead reuse
 // the SAME per-currency price maps the checkout charges from, so the figure on
 // the grid/nav is exactly what the buyer pays in their currency.
 //
@@ -18,6 +18,7 @@
 
 import { formatMoney, SUPPORTED_CURRENCIES } from './currency';
 import { GRIEF_PRICE } from '../courses/grief';
+import { FORGIVENESS_PRICE } from '../courses/forgiveness';
 import { PRICE_BY_SLUG } from '../courses/journeys';
 import { PRICE as TWELVE_WEEK_PRICE } from '../courses/twelve-week';
 import { getCertOffer } from '../courses/variant';
@@ -27,6 +28,7 @@ export type MarketingProduct =
   | 'ticket'
   | 'masterclass'
   | 'grief'
+  | 'forgiveness'
   | 'asj'
   | 'mmj'
   | 'inner-child'
@@ -69,6 +71,7 @@ export const MARKETING_PRICES_MINOR: Record<MarketingProduct, Record<string, num
     AUD: 5900, NZD: 7400, NOK: 44900, SEK: 44900, DKK: 29800,
   },
   grief: toMinor(GRIEF_PRICE),
+  forgiveness: toMinor(FORGIVENESS_PRICE),
   asj: toMinor(PRICE_BY_SLUG.asj!),
   mmj: toMinor(PRICE_BY_SLUG.mmj!),
   'inner-child': toMinor(PRICE_BY_SLUG['inner-child']!),
@@ -93,6 +96,7 @@ export const EUR_COPY_LABEL: Record<MarketingProduct, string> = {
   ticket: '22€',
   masterclass: '44€',
   grief: `€${GRIEF_PRICE.EUR}`,
+  forgiveness: `€${FORGIVENESS_PRICE.EUR}`,
   asj: `€${PRICE_BY_SLUG.asj!.EUR}`,
   mmj: `€${PRICE_BY_SLUG.mmj!.EUR}`,
   'inner-child': `€${PRICE_BY_SLUG['inner-child']!.EUR}`,

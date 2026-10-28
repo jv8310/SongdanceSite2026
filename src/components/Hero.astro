@@ -1,4 +1,6 @@
 ---
+import { FORGIVENESS_SESSIONS } from '../lib/courses/forgiveness';
+
 // A small set of hero headlines. One is shown on load, picked at random in the
 // browser (the site is statically built, so the rotation has to be client-side
 // to actually change on reload). The first is the no-JS / first-paint default.
@@ -9,11 +11,21 @@ const headlines = [
   'Before the words, there was a <em>sound.</em>',
   'You were born making <em>sound.</em>',
 ];
+
+// While the Forgiveness Course takes registrations, a small announcement sits
+// above the eyebrow. The page is static, so the inline script below takes it
+// away once the last session has ended.
+const forgivenessUntil = FORGIVENESS_SESSIONS[FORGIVENESS_SESSIONS.length - 1].endsAtUtc;
 ---
 
 <header class="sd-hero">
   <div class="sd-hero-inner">
     <div class="sd-hero-text">
+      <a href="/courses/forgiveness" class="sd-hero-announce" data-forgive-until={forgivenessUntil}>
+        <span class="sd-hero-announce-tag">Registrations now open</span>
+        <span>The Forgiveness Course · 6–16 Dec</span>
+        <i class="ph-light ph-arrow-right" aria-hidden="true"></i>
+      </a>
       <div class="sd-hero-eyebrow-row" data-anim="hero-eyebrow">
         <span class="sd-hero-eyebrow-line"></span>
         <div class="sd-eyebrow">Sound as the body's language</div>
@@ -43,6 +55,14 @@ const headlines = [
 </header>
 
 <script is:inline>
+  (function () {
+    var a = document.querySelector('.sd-hero-announce[data-forgive-until]');
+    var t = a ? Date.parse(a.getAttribute('data-forgive-until') || '') : 0;
+    if (a && t && Date.now() > t) a.remove();
+  })();
+</script>
+
+<script is:inline>
   // Pick a random hero headline on each load. Runs inline (synchronously) so it
   // resolves before the GSAP entrance fades the headline in.
   (function () {
@@ -56,3 +76,32 @@ const headlines = [
     }
   })();
 </script>
+
+<style>
+  .sd-hero-announce {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px 10px;
+    margin-bottom: var(--sp-5);
+    padding: 6px 14px 6px 6px;
+    border: 1px solid var(--line);
+    border-radius: var(--r-pill);
+    background: var(--paper-soft);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 13px;
+    text-decoration: none;
+    transition: border-color 0.2s ease, background 0.2s ease;
+  }
+  .sd-hero-announce:hover { border-color: var(--ember); background: var(--paper); }
+  .sd-hero-announce-tag {
+    padding: 3px 10px;
+    border-radius: var(--r-pill);
+    background: var(--ember);
+    color: var(--paper);
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .sd-hero-announce i { color: var(--ember); }
+</style>

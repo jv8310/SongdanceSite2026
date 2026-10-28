@@ -1,0 +1,102 @@
+---
+// After the Forgiveness Course checkout: Stripe returns with ?session_id=,
+// PayPal (via /api/payments/paypal-return) with ?paypal_order=, the free comp
+// with its synthetic session id. Shows the four sessions on the buyer's clock
+// and where they will find them.
+import SiteLayout from '../../../components/SiteLayout.astro';
+import CoursePurchasePixel from '../../../components/CoursePurchasePixel.astro';
+import { edgeTimezone } from '../../../lib/geo';
+import { forgivenessSessionsIn } from '../../../lib/courses/forgiveness';
+import { CIRCLE_HOME_URL } from '../../../lib/courses/circle';
+import { tidyFirstName } from '../../../lib/email/names';
+import '../../../styles/forgiveness.css';
+
+export const prerender = false;
+
+const sessionId = Astro.url.searchParams.get('session_id');
+const paypalOrder = Astro.url.searchParams.get('paypal_order');
+const env = Astro.locals.runtime.env;
+const lookup: [string, string] | null = sessionId
+  ? ['stripe_session_id', sessionId]
+  : paypalOrder
+    ? ['paypal_order_id', paypalOrder]
+    : null;
+
+type Row = {
+  id: number;
+  first_name: string | null;
+  email: string;
+  status: string;
+  product_slug: string;
+  amount_cents: number;
+  currency: string;
+  timezone: string | null;
+};
+
+let reg: Row | null = null;
+if (lookup) {
+  reg = await env.DB
+    .prepare(
+      `SELECT id, first_name, email, status, product_slug, amount_cents, currency, timezone
+         FROM course_registrations
+        WHERE ${lookup[0]} = ? AND product_slug = 'forgiveness-course'`,
+    )
+    .bind(lookup[1])
+    .first<Row>();
+}
+
+const isPaid = reg?.status === 'paid';
+const firstName = tidyFirstName(reg?.first_name);
+const sessions = forgivenessSessionsIn(reg?.timezone ?? edgeTimezone(Astro.locals));
+const circleHost = CIRCLE_HOME_URL.replace(/^https?:\/\//, '');
+---
+
+<SiteLayout
+  title="Thank you — The Forgiveness Course — Songdance"
+  description="Your place on the Forgiveness Course is confirmed."
+  newsletter={false}
+>
+  <CoursePurchasePixel
+    pixelId={env.META_PIXEL_ID ?? ''}
+    registrationId={reg?.id}
+    status={reg?.status}
+    amountCents={reg?.amount_cents}
+    currency={reg?.currency}
+    productSlug={reg?.product_slug}
+  />
+  <div class="fc-site">
+    <section class="fc-register" style="min-height: 70vh;">
+      <div class="fc-register-inner">
+        <div class="fc-eyebrow" style="justify-content: center;">The Forgiveness Course</div>
+        <h1 class="fc-register-h2">Thank you{firstName ? `, ${firstName}` : ''}.</h1>
+        {reg && !isPaid ? (
+          <p class="fc-register-sub">
+            Your payment is being confirmed. This page shows your place within a minute or two;
+            you can close it safely, and the confirmation email follows.
+          </p>
+        ) : (
+          <p class="fc-register-sub">
+            Your place is held. A confirmation email is on its way, with everything below.
+          </p>
+        )}
+        <ul class="fc-thanks-dates">
+          {sessions.map((s) => (
+            <li>
+              <span class="fc-thanks-n">Class 0{s.n}</span>
+              <span>{s.weekday} {s.date}, {s.time}</span>
+            </li>
+          ))}
+        </ul>
+        <p class="fc-register-closed">
+          The four sessions and their replays are in the Songdance app, at
+          <a href={CIRCLE_HOME_URL}>{circleHost}</a>. Sign in there with
+          {reg ? <strong> {reg.email}</strong> : ' the address you registered with'}; the Zoom link opens
+          a few minutes before each session.
+        </p>
+        <p class="fc-register-closed" style="margin-top: var(--sp-5);">
+          <a href="/courses/forgiveness">Back to the course page</a>
+        </p>
+      </div>
+    </section>
+  </div>
+</SiteLayout>

@@ -20,32 +20,65 @@ import FCRegister from '../../components/forgiveness/FCRegister.astro';
 import FCFaq from '../../components/forgiveness/FCFaq.astro';
 import FCFooter from '../../components/forgiveness/FCFooter.astro';
 import DiscoverMore from '../../components/DiscoverMore.astro';
+import MetaProductView from '../../components/MetaProductView.astro';
+import { edgeCountry, edgeTimezone } from '../../lib/geo';
+import { formatMoney } from '../../lib/workshops/currency';
+import {
+  FORGIVENESS_DATES_LABEL,
+  FORGIVENESS_PRICE,
+  FORGIVENESS_SESSION_MINUTES,
+  forgivenessCurrencyForCountry,
+  forgivenessOffer,
+  forgivenessRegistrationOpen,
+  forgivenessSessionsIn,
+} from '../../lib/courses/forgiveness';
+
+// Rendered per visit: the four December sessions print on the visitor's own
+// clock (edge timezone) and the price in their country's currency, both
+// re-derived by the checkout.
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+const tz = edgeTimezone(Astro.locals);
+const country = edgeCountry(Astro.locals);
+const sessions = forgivenessSessionsIn(tz);
+const brusselsNote = sessions[0].time !== forgivenessSessionsIn('Europe/Brussels')[0].time;
+const currency = forgivenessCurrencyForCountry(country);
+const priceLabel = formatMoney(forgivenessOffer(currency).price_cents, currency);
+const open = forgivenessRegistrationOpen();
+const sessionHours = FORGIVENESS_SESSION_MINUTES / 60;
 ---
 
 <Layout
   title="The Forgiveness Course — Songdance"
-  description="A forgiveness course where your body comes with you. Four live sessions with Daniela Hess and Jacob Vermeulen. Coming in Fall 2026 — lifetime access to replays."
+  description="A forgiveness course where your body comes with you. Four live sessions with Daniela Hess and Jacob Vermeulen, 6–16 December 2026 — lifetime access to the replays."
   image="/media/library/forgiveness-sunflowers-sunset.webp"
   imageAlt="A field of sunflowers turned toward the setting sun."
 >
+  <MetaProductView
+    pixelId={env.META_PIXEL_ID}
+    contentId="forgiveness-course"
+    contentName="The Forgiveness Course"
+    value={FORGIVENESS_PRICE.EUR}
+  />
   <div class="fc-site">
     <PromoBanner />
-    <FCNav />
-    <FCHero />
+    <FCNav open={open} datesLabel={FORGIVENESS_DATES_LABEL} />
+    <FCHero open={open} priceLabel={priceLabel} datesLabel={FORGIVENESS_DATES_LABEL} sessionHours={sessionHours} />
     <FCVideo />
-    <FCSchedule />
+    <FCSchedule sessions={sessions} brusselsNote={brusselsNote} />
     <FCOpening />
     <FCBypass />
     <FCLayers />
     <FCPhrases />
     <FCLyric />
     <FCForYou />
-    <FCGlance />
+    <FCGlance open={open} priceLabel={priceLabel} datesLabel={FORGIVENESS_DATES_LABEL} sessionHours={sessionHours} />
     <FCClasses />
     <FCTestimonials />
     <FCGuides />
-    <FCRegister />
-    <FCFaq />
+    <FCRegister open={open} currency={currency} country={country} firstSession={sessions[0].short} />
+    <FCFaq sessionLines={sessions.map((s) => `${s.weekday} ${s.date}, ${s.time}`)} sessionHours={sessionHours} />
     <DiscoverMore currentHref="/courses/forgiveness" />
     <FCFooter />
   </div>

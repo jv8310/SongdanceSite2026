@@ -17,6 +17,7 @@ import { getCourseRegistrationById, parsePurchasedBumps } from './db';
 import { logEvent } from '../registrations/db';
 import { recordEvent, upsertSubscriber } from '../registrations/drip';
 import { GRIEF_DRIP_EVENT, GRIEF_PRODUCT_SLUG } from './grief';
+import { FORGIVENESS_DRIP_EVENT, FORGIVENESS_PRODUCT_SLUG } from './forgiveness';
 import { TWELVE_WEEK_DRIP_EVENT, TWELVE_WEEK_PRODUCT_SLUG } from './twelve-week';
 import { isJourneySlug, journeyDrip } from './journeys';
 import { BUMPS, isBumpSlug } from './bumps';
@@ -49,6 +50,7 @@ const COURSE_ITEM_LABELS: Record<string, string> = {
   'cc-cert': 'SVH Certification',
   'cc-bundle': 'SVH Certification + Foundation bundle',
   'grief-course': 'The Grief Course',
+  'forgiveness-course': 'The Forgiveness Course',
   'svh-12week': '12-Week SVH Foundation Course',
 };
 
@@ -132,6 +134,10 @@ export async function pushPaidCourseRegistrationToDrip(
     let eventName: string;
     if (isGrief) {
       eventName = GRIEF_DRIP_EVENT;
+    } else if (reg.product_slug === FORGIVENESS_PRODUCT_SLUG) {
+      // The December live course. `prod_Forgiveness` (applied above) marks a
+      // buyer; the site sends the welcome itself (no Drip workflow exists).
+      eventName = FORGIVENESS_DRIP_EVENT;
     } else if (isJourneySlug(reg.product_slug)) {
       // The Three Journeys (+ ASJ PRO mantra pack, + all-three bundle) — the
       // event carries the same identity the tags do; the buyer's Dutch/English

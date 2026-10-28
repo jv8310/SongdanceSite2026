@@ -23,6 +23,7 @@ export const ABANDONED_COURSES: Record<string, AbandonedCourseMeta> = {
   'cc-cert': { path: '/courses/certification', name: 'the Somatic Vocal Healing Certification' },
   'cc-bundle': { path: '/courses/certification', name: 'the Somatic Vocal Healing Certification' },
   'grief-course': { path: '/courses/grief', name: 'the Grief Course' },
+  'forgiveness-course': { path: '/courses/forgiveness', name: 'the Forgiveness Course' },
 };
 
 // The slugs we nudge — for the SQL IN (…) filter in the cron.

@@ -110,6 +110,24 @@ export function buildCourseEmailSamples(base: string): EmailSample[] {
       ctx: conf({ productSlug: 'grief-course', order: { rows: [['The Grief Course', eur(99)]], payment: 'Paid in full.' } }),
     },
     {
+      id: 'course_conf_forgiveness',
+      label: 'The Forgiveness Course — welcome (with the Grief Course order bump)',
+      audience:
+        'Buyers of the Forgiveness Course (forgiveness-course). Drip never had a welcome for it, so this goes out from the first order, no switch. The four session times print on the buyer’s own clock (here: New York).',
+      ctx: conf({
+        productSlug: 'forgiveness-course',
+        bumps: ['grief'],
+        timezone: 'America/New_York',
+        order: {
+          rows: [
+            ['The Forgiveness Course', eur(147)],
+            ['The Grief Course', eur(49)],
+          ],
+          payment: 'Paid in full.',
+        },
+      }),
+    },
+    {
       id: 'course_conf_asj',
       label: 'Authentic Singing Journey — welcome (opens Week 1)',
       audience: 'Buyers of the ASJ (asj), English edition. Week 1 rides this email; the weekly series starts at Week 2.',
