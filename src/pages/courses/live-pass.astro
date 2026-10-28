@@ -35,7 +35,7 @@ import {
   parseLivePassMonths,
   type LivePassMonths,
 } from '../../lib/courses/live-pass';
-import { loadBuyerDetails, planLivePass } from '../../lib/courses/live-pass-plan';
+import { loadBuyerDetails, planLivePass, planMonthlyStart } from '../../lib/courses/live-pass-plan';
 import { findRunningMonthly } from '../../lib/courses/live-pass-monthly';
 
 export const prerender = false;
@@ -44,6 +44,8 @@ const env = Astro.locals.runtime.env;
 const params = Astro.url.searchParams;
 const welcome = params.get('welcome') === '1';
 const welcomeMonthly = params.get('welcome') === 'monthly';
+// A monthly whose first charge waits for the live sessions they already have.
+const welcomeStarts = /^\d{4}-\d{2}-\d{2}$/.test(params.get('starts') ?? '') ? params.get('starts') : null;
 const emailParam = (params.get('email') ?? '').trim().toLowerCase();
 const emailPrefill = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailParam) ? emailParam : '';
 const wantsExtension = params.get('extend') === '1';
@@ -63,11 +65,15 @@ if (emailPrefill) {
       findRunningMonthly(env.DB, emailPrefill),
     ]);
     details = d;
+    const start = await planMonthlyStart(env, emailPrefill, plan);
     initialStatus = {
       live_until: plan.liveUntil,
       pass_running: plan.passRunning,
       monthly_running: !!monthly,
       monthly_until: plan.monthlyUntil,
+      monthly_starts_on: start.startsOn,
+      monthly_covered_until: start.coveredUntil,
+      monthly_covered_by: start.coveredBy,
       periods: plan.periods,
       certification: {
         holds_course: plan.window.holdsCourse,
@@ -96,6 +102,11 @@ const fmtDay = (day: string) =>
 const initialPeriods = initialStatus?.periods as Record<string, { startsOn: string }> | undefined;
 const monthlyRunning = !!initialStatus?.monthly_running;
 const startMonthly = chosenMonthly && !monthlyRunning;
+// A monthly taken now starts when the live sessions they already have end
+// (planMonthlyStart: this site's dates and the member app's), first charged then.
+const monthlyStartsOn = (initialStatus?.monthly_starts_on as string | null | undefined) ?? null;
+const monthlyCoveredUntil = (initialStatus?.monthly_covered_until as string | null | undefined) ?? null;
+const monthlyCoveredBy = (initialStatus?.monthly_covered_by as string | null | undefined) ?? null;
 const startNotice = startNoticeText(
   initialStatus?.live_until as string | null | undefined,
   !!initialStatus?.pass_running,
@@ -103,7 +114,16 @@ const startNotice = startNoticeText(
   startMonthly,
   (initialStatus?.monthly_until as string | null | undefined) ?? null,
   monthlyRunning,
+  monthlyStartsOn,
+  monthlyCoveredUntil,
+  monthlyCoveredBy,
 );
+// "through your Extended Q&A plan" / "through your course". Same words as the
+// browser's showLiveUntil().
+function coveredThrough(by: string | null): string {
+  if (!by) return '';
+  return ` through ${by.startsWith('your ') ? by : `your ${by}`}`;
+}
 function startNoticeText(
   liveUntil: string | null | undefined,
   passRunning: boolean,
@@ -111,14 +131,23 @@ function startNoticeText(
   monthly: boolean,
   monthlyUntil: string | null,
   monthlyRuns: boolean,
+  monthlyStarts: string | null,
+  coveredUntil: string | null,
+  coveredBy: string | null,
 ): string {
   const lines: string[] = [];
+  const monthlyLater = monthly && !!monthlyStarts && !!coveredUntil;
+  if (monthlyLater) {
+    lines.push(
+      `You already have the live sessions until ${fmtDay(coveredUntil!)}${coveredThrough(coveredBy)}, so a monthly starts on ${fmtDay(monthlyStarts!)} — nothing is charged until then.`,
+    );
+  }
   if (monthlyUntil && !monthly) {
     lines.push(
       `Your monthly has paid for the sessions until ${fmtDay(monthlyUntil)}, so a pass starts the day after${startsOn ? `, on ${fmtDay(startsOn)}` : ''}.${monthlyRuns ? ' If you are switching to a pass, cancel the monthly under “Manage my monthly pass”, or it keeps renewing.' : ''}`,
     );
   }
-  if (liveUntil) {
+  if (liveUntil && !monthlyLater) {
     lines.push(
       monthly
         ? `Your course gives you the live sessions until ${fmtDay(liveUntil)}. A monthly starts the day you take it, alongside them — a pass waits until they end.`
@@ -155,7 +184,13 @@ const monthlyPrices = Object.fromEntries(
 );
 const monthlyFirstCents = livePassMonthlyFirstCents(currency);
 const monthlyCents = livePassMonthlyRenewalCents(currency);
-const monthlyTotal = (first: string, then: string) => `${first}, then ${then} a month`;
+const monthlyTotal = (first: string, then: string, startsOn: string | null) =>
+  startsOn ? `${first} on ${fmtDay(startsOn)}, then ${then} a month` : `${first}, then ${then} a month`;
+// Under the pay buttons with the monthly chosen. Same words as the browser's monthlyNoteFor().
+const monthlyNoteText = (startsOn: string | null) =>
+  startsOn
+    ? `Nothing is charged today. The first month is charged on ${fmtDay(startsOn)}, then every month after it, at the lower price, on the same day each month until you cancel — any time, from the link in your confirmation email. Charged in your local currency.`
+    : 'The first month is charged today, and every month after it, at the lower price, on the same day each month until you cancel — any time, from the link in your confirmation email. Charged in your local currency.';
 const certPageHref = `/courses/certification${emailPrefill ? `?email=${encodeURIComponent(emailPrefill)}` : ''}`;
 const money = (cents: number) => formatMoney(cents, currency);
 const aboutLabel = (m: number) => `About ${m} month${m === 1 ? '' : 's'}`;
@@ -256,12 +291,26 @@ const faq: { q: string; a: string }[] = [
     {welcomeMonthly && (
       <section class="lp-narrow lp-card lp-welcome" role="status">
         <p class="lp-eyebrow">Payment received</p>
-        <h2 class="lp-h3">Thank you — your monthly live pass is starting</h2>
-        <p>
-          A confirmation is on its way by email. You'll find every session under <strong>Events</strong>
-          in the CiRCLE, with the same email address you paid with. It renews on the same day each
-          month; the link in that email is how you cancel, any time.
-        </p>
+        {welcomeStarts ? (
+          <>
+            <h2 class="lp-h3">Thank you — your monthly live pass starts on {fmtDay(welcomeStarts)}</h2>
+            <p>
+              Nothing has been charged today. The first month is charged on {fmtDay(welcomeStarts)},
+              when the live sessions you already have end, and then on the same day each month. A
+              confirmation is on its way by email; its link is how you cancel, before it begins or any
+              time after.
+            </p>
+          </>
+        ) : (
+          <>
+            <h2 class="lp-h3">Thank you — your monthly live pass is starting</h2>
+            <p>
+              A confirmation is on its way by email. You'll find every session under <strong>Events</strong>
+              in the CiRCLE, with the same email address you paid with. It renews on the same day each
+              month; the link in that email is how you cancel, any time.
+            </p>
+          </>
+        )}
       </section>
     )}
 
@@ -429,6 +478,9 @@ const faq: { q: string; a: string }[] = [
               <span class="lp-monthly-main">
                 <span class="lp-plan-len">Monthly <span class="lp-save lp-save--plain">Cancel any time</span></span>
                 <span class="lp-monthly-desc">Every Q&amp;A and deepening session while it runs. Renews each month until you cancel.</span>
+                <span class="lp-plan-dates" data-lp-monthly-starts hidden={!monthlyStartsOn || monthlyRunning}>
+                  {monthlyStartsOn ? `Starts ${fmtDay(monthlyStartsOn)} — nothing charged until then` : ''}
+                </span>
                 <span class="lp-plan-dates" data-lp-monthly-note hidden={!monthlyRunning}>
                   {monthlyRunning ? 'You already have a monthly running — manage it below.' : ''}
                 </span>
@@ -520,7 +572,7 @@ const faq: { q: string; a: string }[] = [
 
           <div class="lp-summary">
             <span data-lp-summary-label>{startMonthly ? 'Live pass · monthly' : `Live pass · ${livePassContents(chosenMonths)}`}</span>
-            <strong data-lp-total>{startMonthly ? monthlyTotal(money(monthlyFirstCents), money(monthlyCents)) : money(offers.find((o) => o.months === chosenMonths)!.price_cents)}</strong>
+            <strong data-lp-total>{startMonthly ? monthlyTotal(money(monthlyFirstCents), money(monthlyCents), monthlyStartsOn) : money(offers.find((o) => o.months === chosenMonths)!.price_cents)}</strong>
           </div>
 
           <div class="lp-actions">
@@ -540,9 +592,7 @@ const faq: { q: string; a: string }[] = [
           </p>
           <p class="lp-note" data-lp-note-monthly hidden={!startMonthly}>
             <i class="ph-light ph-lock-simple" aria-hidden="true"></i>
-            The first month is charged today, and every month after it, at the lower price, on the
-            same day each month until you cancel — any time, from the link in your confirmation
-            email. Charged in your local currency.
+            <span data-lp-note-monthly-text>{monthlyNoteText(monthlyStartsOn)}</span>
           </p>
           <p class="lp-error" role="alert" data-lp-error hidden></p>
         </form>
@@ -600,6 +650,9 @@ const faq: { q: string; a: string }[] = [
     pass_running?: boolean;
     monthly_running?: boolean;
     monthly_until?: string | null;
+    monthly_starts_on?: string | null;
+    monthly_covered_until?: string | null;
+    monthly_covered_by?: string | null;
     periods: Record<string, Period>;
     certification: { holds_course: boolean; may_certify: boolean; ends_on: string | null; open: boolean };
     twelve_week?: { holds: boolean; live_until: string | null };
@@ -614,8 +667,11 @@ const faq: { q: string; a: string }[] = [
     const monthlyFirstEl = form.querySelector<HTMLElement>('[data-lp-monthly-first]')!;
     const monthlyPriceEl = form.querySelector<HTMLElement>('[data-lp-monthly-price]')!;
     const monthlyNote = form.querySelector<HTMLElement>('[data-lp-monthly-note]')!;
+    const monthlyStartsEl = form.querySelector<HTMLElement>('[data-lp-monthly-starts]')!;
     const notePass = form.querySelector<HTMLElement>('[data-lp-note-pass]')!;
     const noteMonthly = form.querySelector<HTMLElement>('[data-lp-note-monthly]')!;
+    // The words only: the note's lock icon sits beside them.
+    const noteMonthlyText = form.querySelector<HTMLElement>('[data-lp-note-monthly-text]')!;
     const countrySearch = form.querySelector<HTMLInputElement>('[data-lp-country-search]')!;
     const countryHidden = form.querySelector<HTMLInputElement>('[data-lp-country]')!;
     const emailInput = form.querySelector<HTMLInputElement>('[data-lp-email]')!;
@@ -672,8 +728,14 @@ const faq: { q: string; a: string }[] = [
       // No certification-window add-on with the monthly: it is sold with a pass.
       if (monthly) addonInput.checked = false;
       const ext = addonInput.checked ? o.extension_cents : 0;
+      const startsOn = status?.monthly_running ? null : status?.monthly_starts_on ?? null;
+      monthlyStartsEl.hidden = !startsOn;
+      monthlyStartsEl.textContent = startsOn ? `Starts ${fmtDay(startsOn)} — nothing charged until then` : '';
+      noteMonthlyText.textContent = monthlyNoteFor(startsOn);
       if (monthly) {
-        totalEl.textContent = `${formatMoney(monthlyCents.first, cur)}, then ${formatMoney(monthlyCents.then, cur)} a month`;
+        totalEl.textContent = startsOn
+          ? `${formatMoney(monthlyCents.first, cur)} on ${fmtDay(startsOn)}, then ${formatMoney(monthlyCents.then, cur)} a month`
+          : `${formatMoney(monthlyCents.first, cur)}, then ${formatMoney(monthlyCents.then, cur)} a month`;
         summaryLabel.textContent = 'Live pass · monthly';
       } else {
         totalEl.textContent = formatMoney(o.price_cents + ext, cur);
@@ -741,16 +803,31 @@ const faq: { q: string; a: string }[] = [
     }
 
     // Same words as the server's startNoticeText(), with the chosen length's day.
+    // Same words as the server's monthlyNoteText().
+    function monthlyNoteFor(startsOn: string | null): string {
+      return startsOn
+        ? `Nothing is charged today. The first month is charged on ${fmtDay(startsOn)}, then every month after it, at the lower price, on the same day each month until you cancel — any time, from the link in your confirmation email. Charged in your local currency.`
+        : 'The first month is charged today, and every month after it, at the lower price, on the same day each month until you cancel — any time, from the link in your confirmation email. Charged in your local currency.';
+    }
+    const coveredThrough = (by: string | null | undefined) =>
+      by ? ` through ${by.startsWith('your ') ? by : `your ${by}`}` : '';
+
     function showLiveUntil() {
       const lines: string[] = [];
       const monthly = isMonthly();
+      const monthlyLater = monthly && !!status?.monthly_starts_on && !!status?.monthly_covered_until;
+      if (monthlyLater) {
+        lines.push(
+          `You already have the live sessions until ${fmtDay(status!.monthly_covered_until!)}${coveredThrough(status!.monthly_covered_by)}, so a monthly starts on ${fmtDay(status!.monthly_starts_on!)} — nothing is charged until then.`,
+        );
+      }
       if (status?.monthly_until && !monthly) {
         const startsOn = status.periods?.[String(months())]?.startsOn;
         lines.push(
           `Your monthly has paid for the sessions until ${fmtDay(status.monthly_until)}, so a pass starts the day after${startsOn ? `, on ${fmtDay(startsOn)}` : ''}.${status.monthly_running ? ' If you are switching to a pass, cancel the monthly under “Manage my monthly pass”, or it keeps renewing.' : ''}`,
         );
       }
-      if (status?.live_until) {
+      if (status?.live_until && !monthlyLater) {
         const startsOn = status.periods?.[String(months())]?.startsOn;
         lines.push(
           monthly

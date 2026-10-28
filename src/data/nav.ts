@@ -4,8 +4,7 @@
 // renderings can never drift apart.
 //
 // data-sd-price opts a label into the client-side currency localization
-// (PriceSync). Every priced course carries its MarketingProduct token;
-// forgiveness has no price yet, so it stays untagged.
+// (PriceSync). Every priced course carries its MarketingProduct token.
 import type { MarketingProduct } from '../lib/workshops/marketing-prices';
 
 export interface NavCourse {
@@ -40,7 +39,7 @@ export const courseMenu: NavCourseGroup[] = [
     title: 'Courses by Theme',
     items: [
       { href: '/courses/grief', label: 'Grief Course — €99', price: 'grief' },
-      { href: '/courses/forgiveness', label: 'Forgiveness Course' },
+      { href: '/courses/forgiveness', label: 'Forgiveness Course — €147', price: 'forgiveness' },
     ],
   },
   {

@@ -1,0 +1,30 @@
+Hello {{ subscriber.first_name | default: "there" }},
+
+There's a piece of advice that sounds kind and lands heavy: just let it go. Most of us have tried. We said the words, we even meant them, and something in the body didn't come along.
+
+That's not a failure of will. What hurt us was felt in the body, and the body rarely changes its mind because the head has made a decision. It wants to be heard first.
+
+Not a sound to make it go away: the sound of what still hurts, acknowledged.
+
+This December, Daniela Hess and I are holding The Forgiveness Course: four live evenings on Zoom where we take forgiveness in its natural order (others, then yourself, then what lies underneath both), with sounding as the way the body takes part.
+
+  Sun 6 Dec   The dynamics of forgiveness, and why it usually fails
+  Wed 9 Dec   Forgiving others
+  Sun 13 Dec  Forgiving self
+  Wed 16 Dec  Forgiving separation, and what's underneath
+
+Each evening runs 19:00-21:00 Brussels time; the course page shows it in your own time. Can't be there live? Every session is recorded, and the replays are yours to keep.
+
+You don't need to have forgiven anything, or to feel ready to. You don't need any experience with sounding. You can stay muted the whole time; soft counts, and a hum is a complete practice.
+
+The Forgiveness Course: four live evenings with Daniela Hess and me, 6-16 December 2026. Lifetime access to the replays. EUR 147.
+
+See the dates and register: https://songdance.co/courses/forgiveness?utm_source=drip&utm_medium=email&utm_campaign=forgiveness_launch&utm_content=text#register
+
+With love,
+Jacob
+
+--
+A quiet list, about one email a month.
+Unsubscribe: {{ unsubscribe_url }}
+{{ postal_address }}

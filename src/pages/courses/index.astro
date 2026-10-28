@@ -12,6 +12,7 @@ interface CourseItem {
   desc: string;
   note: string;
   price?: MarketingProduct; // opts into client-side currency localization + promo strike
+  flag?: string; // a small ribbon over the picture ("Registrations now open")
   pos?: string; // object-position override when the 3:2 crop would clip the subject
 }
 interface CourseGroup {
@@ -26,7 +27,7 @@ interface CourseGroup {
 // currency AND — while the launch promo is live — strike the normal price and
 // show the discounted one. Every figure matches what's charged at checkout.
 // Certification shows its cert-only line with the €797 sticker struck
-// permanently (hasCompareStrike); Forgiveness (not on sale yet) shows no figure.
+// permanently (hasCompareStrike).
 const groups: CourseGroup[] = [
   {
     title: 'Somatic Vocal Healing',
@@ -84,7 +85,9 @@ const groups: CourseGroup[] = [
         href: '/courses/forgiveness',
         img: '/media/library/forgiveness-sunflowers-sunset.webp',
         desc: 'When forgiveness feels impossible, come anyway. Four live sessions honoring what the words alone never reached.',
-        note: 'with Daniela · Fall 2026',
+        note: 'with Daniela · 6–16 Dec · €147',
+        price: 'forgiveness',
+        flag: 'Registrations now open',
       },
     ],
   },
@@ -166,6 +169,7 @@ const coursesLd = coursesJsonLd(
               <a class="sd-course-card sd-course-card--media" href={it.href}>
                 <span class="sd-course-card-media">
                   <img src={it.img} alt="" loading="lazy" decoding="async" style={it.pos ? `object-position:${it.pos}` : undefined} />
+                  {it.flag && <span class="sd-course-card-flag">{it.flag}</span>}
                 </span>
                 <span class="sd-course-card-body">
                   <span class="sd-course-card-label">{it.label}</span>
@@ -210,9 +214,23 @@ const coursesLd = coursesJsonLd(
   }
   .sd-course-card-media {
     display: block;
+    position: relative;
     aspect-ratio: 3 / 2;
     overflow: hidden;
     background: var(--paper-deep);
+  }
+  .sd-course-card-flag {
+    position: absolute;
+    left: var(--sp-3);
+    top: var(--sp-3);
+    padding: 5px 11px;
+    border-radius: var(--r-pill);
+    background: var(--ember);
+    color: var(--paper);
+    font-family: var(--font-body);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
   }
   .sd-course-card-media img {
     width: 100%;

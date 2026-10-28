@@ -12,10 +12,11 @@
 // again from the pass page. No JavaScript: a form and an answer.
 import Layout from '../../../layouts/Layout.astro';
 import { getCourseRegistrationById } from '../../../lib/courses/db';
-import { isLivePassMonthlySlug, LIVE_PASS_PAGE_PATH } from '../../../lib/courses/live-pass';
+import { isLivePassMonthlySlug, LIVE_PASS_PAGE_PATH, monthlyFirstMonthExtraCents } from '../../../lib/courses/live-pass';
 import { LIVE_PASS_MANAGE_TOKEN_PARAM, verifyLivePassManageToken } from '../../../lib/courses/live-pass-manage-link';
 import {
   cancelMonthly,
+  isScheduledMonthly,
   readMonthlyState,
   resumeMonthly,
   type MonthlyState,
@@ -47,8 +48,11 @@ if (reg && isLivePassMonthlySlug(reg.product_slug)) {
     const action = String(form?.get('action') ?? '');
     try {
       if (action === 'cancel') {
+        const beforeStart = isScheduledMonthly(reg);
         await cancelMonthly(env, reg);
-        flash = { tone: 'ok', text: 'Done — your monthly is cancelled. Nothing more will be charged.' };
+        flash = beforeStart
+          ? { tone: 'ok', text: 'Done — your monthly is cancelled before it began. Nothing was charged, and nothing will be.' }
+          : { tone: 'ok', text: 'Done — your monthly is cancelled. Nothing more will be charged.' };
       } else if (action === 'resume') {
         const ok = await resumeMonthly(env, reg);
         flash = ok
@@ -65,6 +69,10 @@ if (reg && isLivePassMonthlySlug(reg.product_slug)) {
 }
 
 const price = reg ? formatMoney(reg.amount_cents, (reg.currency || 'EUR').toUpperCase()) : '';
+// The first month, when it costs more than the rest (live-pass.ts, "The monthly's price").
+const firstPrice = reg
+  ? formatMoney(reg.amount_cents + monthlyFirstMonthExtraCents(reg.bumps), (reg.currency || 'EUR').toUpperCase())
+  : '';
 const passHref = reg ? `${LIVE_PASS_PAGE_PATH}?email=${encodeURIComponent(reg.email)}#get` : LIVE_PASS_PAGE_PATH;
 
 type Panel = { heading: string; lines: string[]; action?: 'cancel' | 'resume'; link?: { label: string; href: string } };
@@ -77,6 +85,20 @@ if (!reg || !isLivePassMonthlySlug(reg.product_slug) || !state) {
       `You can also ask for a new one on the live pass page, under “Manage my monthly pass”, or write to ${SUPPORT}.`,
     ],
     link: { label: 'The live pass page', href: LIVE_PASS_PAGE_PATH },
+  };
+} else if (state.kind === 'scheduled') {
+  const day = fmtDay(state.on);
+  p = {
+    heading: day ? `Your monthly live pass starts on ${day}` : 'Your monthly live pass starts later',
+    lines: [
+      'Nothing has been charged yet.',
+      day
+        ? `On ${day} the first month is charged — ${firstPrice} — and from then on ${price} a month, on the same day each month.`
+        : `The first month is charged when it starts — ${firstPrice} — and from then on ${price} a month.`,
+      'Until then, the live sessions you already have carry on as they are.',
+      'Changed your mind? Cancel now, and nothing is ever charged.',
+    ],
+    action: 'cancel',
   };
 } else if (state.kind === 'renews') {
   p = {

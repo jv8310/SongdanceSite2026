@@ -15,6 +15,7 @@ import {
   type PaypalFulfillEnv,
 } from '../../../lib/payments/paypal-fulfill';
 import { logEvent } from '../../../lib/registrations/db';
+import { noteScheduledMonthly } from '../../../lib/courses/live-pass-scheduled';
 
 export const prerender = false;
 
@@ -69,6 +70,9 @@ export const GET: APIRoute = async ({ request, locals }) => {
       const routed = decodeCustomId(sub.customId);
       if (routed?.kind === 'course') {
         await applyPaypalSubscriptionStatus(env, subscriptionId, sub.status);
+        // A monthly live pass with a later start: agreed now, first charged
+        // then (live-pass-scheduled.ts). No-op for anything else.
+        if ((sub.status || '').toUpperCase() === 'ACTIVE') await noteScheduledMonthly(env as any, routed.id);
       }
       return redirect(['paypal_sub', subscriptionId]);
     }

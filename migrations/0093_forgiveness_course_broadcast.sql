@@ -1,0 +1,144 @@
+-- Seed the Forgiveness Course launch broadcast as a DRAFT: registrations are
+-- open for the four live sessions, 6–16 December 2026. It appears in
+-- /admin/broadcasts ready to review, test-send and launch; nothing sends until
+-- you launch it. The site-list twin of docs/emails/forgiveness-course-launch.drip.html
+-- (same body; the footer carries {{ unsubscribe_url }} + the literal postal address,
+-- links use utm_source=broadcast). Built from one template so the two can't drift.
+--
+-- Audience: everyone sendable except `in-drip` — the buyers mirrored from Drip,
+-- who get the Drip twin instead (CLAUDE.md, "Don't double-send with Drip").
+-- Idempotent via the NOT EXISTS name guard.
+--
+-- format='html': body IS the full email. The renderer still substitutes
+-- {{ subscriber.first_name | default: "there" }} and {{ unsubscribe_url }}.
+
+INSERT INTO broadcasts (name, subject, preheader, heading, body, format, status, audience_exclude_tags)
+SELECT 'The Forgiveness Course — registrations open (December 2026)',
+       'When forgiveness feels impossible',
+       'Four live evenings with Daniela and me, 6–16 December. Registrations are open.',
+       'When forgiveness feels impossible…',
+       '<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
+<title>When forgiveness feels impossible</title>
+<link href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,500;1,400&family=Cormorant+Garamond:ital@1&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  body { margin: 0; padding: 0; background-color: #EADFCB; }
+  table { border-collapse: collapse; }
+  img { display: block; border: 0; line-height: 100%; outline: none; text-decoration: none; }
+  a { color: #A14826; text-decoration: none; }
+  .preheader { display: none !important; visibility: hidden; opacity: 0; max-height: 0; overflow: hidden; mso-hide: all; }
+  @media only screen and (max-width: 600px) {
+    .wrapper { width: 100% !important; }
+    .pad { padding-left: 26px !important; padding-right: 26px !important; }
+    .h1 { font-size: 34px !important; line-height: 1.15 !important; }
+    .offer-h { font-size: 29px !important; line-height: 1.2 !important; }
+    .band img { width: 100% !important; }
+  }
+</style>
+</head>
+<body style="margin: 0; padding: 0; background-color: #EADFCB; -webkit-font-smoothing: antialiased;">
+
+<span class="preheader">Four live evenings with Daniela and me, 6&ndash;16 December. Registrations are open.</span>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #EADFCB;">
+<tr><td align="center" style="padding: 24px 12px;">
+
+<table role="presentation" class="wrapper" width="600" cellpadding="0" cellspacing="0" style="width: 600px; background-color: #F4ECDF; border-radius: 4px; overflow: hidden;">
+
+<!-- HERO — sunflowers turned toward the setting sun -->
+<tr><td style="padding: 0;">
+  <a href="https://songdance.co/courses/forgiveness?utm_source=broadcast&amp;utm_medium=email&amp;utm_campaign=forgiveness_launch&amp;utm_content=hero" style="text-decoration: none; display: block;"><img src="https://songdance.co/email/forgiveness-sunflowers.jpg" width="600" alt="A field of sunflowers turned toward the setting sun" style="width: 100%; height: auto; background-color: #2A1B2A;"></a>
+</td></tr>
+
+<!-- INTRO -->
+<tr><td class="pad" style="padding: 46px 44px 12px;">
+  <p style="margin: 0 0 22px; font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 11px; letter-spacing: 2.5px; color: #A14826; font-weight: 600; text-transform: uppercase;"><span style="display: inline-block; width: 26px; height: 1px; background-color: #A14826; vertical-align: middle; margin-right: 12px;"></span>The Forgiveness Course &middot; registrations open</p>
+  <h1 class="h1" style="font-family: ''Spectral'', Georgia, ''Times New Roman'', serif; font-weight: 400; font-size: 40px; line-height: 1.12; color: #2A1B2A; margin: 0 0 28px;">When forgiveness feels <em style="font-family: ''Cormorant Garamond'', Georgia, serif; font-style: italic; font-size: 1.05em; color: #C9603A;">impossible&hellip;</em></h1>
+  <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #2A1B2A; margin: 0 0 16px;">Hello {{ subscriber.first_name | default: "there" }},</p>
+  <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #2A1B2A; margin: 0 0 16px;">There&rsquo;s a piece of advice that sounds kind and lands heavy: <em style="font-family: ''Cormorant Garamond'', Georgia, serif; font-style: italic; font-size: 1.25em; color: #4A3848;">just let it go.</em> Most of us have tried. We said the words, we even meant them &mdash; and something in the body didn&rsquo;t come along.</p>
+  <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #2A1B2A; margin: 0;">That&rsquo;s not a failure of will. What hurt us was felt in the body, and the body rarely changes its mind because the head has made a decision. It wants to be heard first.</p>
+</td></tr>
+
+<!-- LYRIC PULL-QUOTE -->
+<tr><td class="pad" style="padding: 28px 44px 16px;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+    <td style="border-left: 2px solid #C9603A; padding: 2px 0 2px 20px;"><p style="font-family: ''Cormorant Garamond'', Georgia, serif; font-style: italic; font-size: 23px; line-height: 1.4; color: #4A3848; margin: 0;">Not a sound to make it go away &mdash; the sound of what still hurts, acknowledged.</p></td>
+  </tr></table>
+</td></tr>
+
+<tr><td class="pad" style="padding: 8px 44px 6px;">
+  <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #2A1B2A; margin: 0 0 16px;">This December, Daniela Hess and I are holding <strong style="font-weight: 600;">The Forgiveness Course</strong>: four live evenings on Zoom where we take forgiveness in its natural order &mdash; others, then yourself, then what lies underneath both &mdash; with sounding as the way the body takes part.</p>
+</td></tr>
+
+<!-- THE FOUR EVENINGS -->
+<tr><td class="pad" style="padding: 10px 44px 6px;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-bottom: 1px solid #E2D5C1;">
+    <tr>
+      <td style="padding: 12px 0; border-top: 1px solid #E2D5C1; width: 96px; vertical-align: top;"><p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 11px; letter-spacing: 1.6px; text-transform: uppercase; color: #A14826; font-weight: 600; margin: 3px 0 0;">Sun 6 Dec</p></td>
+      <td style="padding: 12px 0; border-top: 1px solid #E2D5C1; vertical-align: top;"><p style="font-family: ''Spectral'', Georgia, ''Times New Roman'', serif; font-size: 18px; line-height: 1.3; color: #2A1B2A; margin: 0;">The dynamics of forgiveness</p><p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.5; color: #6A5868; margin: 2px 0 0;">and why it usually fails</p></td>
+    </tr><tr>
+      <td style="padding: 12px 0; border-top: 1px solid #E2D5C1; width: 96px; vertical-align: top;"><p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 11px; letter-spacing: 1.6px; text-transform: uppercase; color: #A14826; font-weight: 600; margin: 3px 0 0;">Wed 9 Dec</p></td>
+      <td style="padding: 12px 0; border-top: 1px solid #E2D5C1; vertical-align: top;"><p style="font-family: ''Spectral'', Georgia, ''Times New Roman'', serif; font-size: 18px; line-height: 1.3; color: #2A1B2A; margin: 0;">Forgiving others</p><p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.5; color: #6A5868; margin: 2px 0 0;">naming the pain without condoning the act</p></td>
+    </tr><tr>
+      <td style="padding: 12px 0; border-top: 1px solid #E2D5C1; width: 96px; vertical-align: top;"><p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 11px; letter-spacing: 1.6px; text-transform: uppercase; color: #A14826; font-weight: 600; margin: 3px 0 0;">Sun 13 Dec</p></td>
+      <td style="padding: 12px 0; border-top: 1px solid #E2D5C1; vertical-align: top;"><p style="font-family: ''Spectral'', Georgia, ''Times New Roman'', serif; font-size: 18px; line-height: 1.3; color: #2A1B2A; margin: 0;">Forgiving self</p><p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.5; color: #6A5868; margin: 2px 0 0;">meeting the parts of you that were pushed away</p></td>
+    </tr><tr>
+      <td style="padding: 12px 0; border-top: 1px solid #E2D5C1; width: 96px; vertical-align: top;"><p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 11px; letter-spacing: 1.6px; text-transform: uppercase; color: #A14826; font-weight: 600; margin: 3px 0 0;">Wed 16 Dec</p></td>
+      <td style="padding: 12px 0; border-top: 1px solid #E2D5C1; vertical-align: top;"><p style="font-family: ''Spectral'', Georgia, ''Times New Roman'', serif; font-size: 18px; line-height: 1.3; color: #2A1B2A; margin: 0;">Forgiving separation</p><p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.5; color: #6A5868; margin: 2px 0 0;">and what&rsquo;s underneath</p></td>
+    </tr>
+  </table>
+  <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 15px; line-height: 1.7; color: #4A3848; margin: 16px 0 0;">Each evening runs 19:00&ndash;21:00 Brussels time &mdash; <a href="https://songdance.co/courses/forgiveness?utm_source=broadcast&amp;utm_medium=email&amp;utm_campaign=forgiveness_launch&amp;utm_content=times#schedule" style="color: #A14826; text-decoration: underline; text-underline-offset: 2px;">the course page shows it in your own time</a>. Can&rsquo;t be there live? Every session is recorded, and the replays are yours to keep.</p>
+</td></tr>
+
+<!-- BAND — Daniela and Jacob -->
+<tr><td style="padding: 30px 44px 4px;" class="pad band">
+  <img src="https://songdance.co/email/forgiveness-daniela-and-jacob.jpg" width="512" alt="Daniela Hess and Jacob, smiling side by side" style="width: 100%; height: auto; border-radius: 4px; background-color: #2A1B2A;">
+</td></tr>
+
+<tr><td class="pad" style="padding: 22px 44px 6px;">
+  <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #2A1B2A; margin: 0;">You don&rsquo;t need to have forgiven anything, or to feel ready to. You don&rsquo;t need any experience with sounding. You can stay muted the whole time &mdash; soft counts, and a hum is a complete practice.</p>
+</td></tr>
+
+<!-- OFFER BOX -->
+<tr><td style="padding: 34px 44px 0;" class="pad">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #4A2540; border-radius: 4px;">
+    <tr><td style="padding: 40px 38px;" class="pad">
+      <p style="margin: 0 0 16px; font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 11px; letter-spacing: 2.5px; color: #E7C9B8; font-weight: 600; text-transform: uppercase;">The Forgiveness Course</p>
+      <h2 class="offer-h" style="font-family: ''Spectral'', Georgia, ''Times New Roman'', serif; font-weight: 400; font-size: 32px; line-height: 1.18; color: #F4ECDF; margin: 0 0 20px;">Come <em style="font-family: ''Cormorant Garamond'', Georgia, serif; font-style: italic; font-size: 1.05em; color: #F2DCC9;">anyway</em>.</h2>
+      <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #EADFCB; margin: 0 0 4px;">Four live evenings with Daniela Hess and me, 6&ndash;16 December 2026. Lifetime access to the replays. &euro;147.</p>
+      <table role="presentation" cellpadding="0" cellspacing="0" style="margin: 28px 0 6px;"><tr>
+        <td style="background-color: #F4ECDF; border-radius: 32px;"><a href="https://songdance.co/courses/forgiveness?utm_source=broadcast&amp;utm_medium=email&amp;utm_campaign=forgiveness_launch&amp;utm_content=cta#register" style="display: inline-block; font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 14px; font-weight: 600; letter-spacing: 0.3px; color: #4A2540; padding: 15px 34px; text-decoration: none;">See the dates and register &rarr;</a></td>
+      </tr></table>
+    </td></tr>
+  </table>
+</td></tr>
+
+<!-- SIGN-OFF -->
+<tr><td class="pad" style="padding: 34px 44px 40px;">
+  <p style="font-family: ''Cormorant Garamond'', Georgia, serif; font-style: italic; font-size: 18px; line-height: 1.5; color: #4A3848; margin: 0;">With love,<br>Jacob</p>
+</td></tr>
+
+<tr><td style="background-color: #EADFCB; padding: 32px 44px 34px;" class="pad">
+  <img src="https://songdance.co/brand/logo-wordmark-dark.png" width="130" alt="Songdance" style="width: 130px; height: auto; margin: 0 0 18px;">
+  <p style="font-family: ''Cormorant Garamond'', Georgia, serif; font-style: italic; font-size: 16px; line-height: 1.5; color: #7A6A78; margin: 0 0 18px;">Honoring what the words alone never reached.</p>
+  <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 12px; line-height: 1.9; color: #A14826; margin: 0 0 16px;"><a href="https://songdance.co/what-is-svh" style="color: #A14826; text-decoration: none;">what is svh</a>&nbsp;&nbsp;&middot;&nbsp;&nbsp;<a href="https://songdance.co/courses" style="color: #A14826; text-decoration: none;">courses</a>&nbsp;&nbsp;&middot;&nbsp;&nbsp;<a href="https://songdance.co/events" style="color: #A14826; text-decoration: none;">events</a>&nbsp;&nbsp;&middot;&nbsp;&nbsp;<a href="https://songdance.co/about" style="color: #A14826; text-decoration: none;">about</a></p>
+  <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 11px; line-height: 1.7; color: #7A6A78; margin: 0 0 6px;">A quiet list &mdash; about one email a month.</p>
+  <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 11px; line-height: 1.7; color: #7A6A78; margin: 0 0 6px;">Not for you? <a href="{{ unsubscribe_url }}" style="color: #7A6A78; text-decoration: underline;">Unsubscribe</a> &mdash; you won&rsquo;t hear from this list again.</p>
+  <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 11px; line-height: 1.7; color: #9A8A78; margin: 0;">Songdance BV &middot; Beaupréstraat 13, 8310 Bruges, Belgium<br>BE0743575076</p>
+</td></tr>
+
+</table>
+
+</td></tr>
+</table>
+
+</body>
+</html>
+',
+       'html', 'draft', 'in-drip'
+WHERE NOT EXISTS (SELECT 1 FROM broadcasts WHERE name = 'The Forgiveness Course — registrations open (December 2026)');

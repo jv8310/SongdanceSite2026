@@ -74,6 +74,7 @@ const COURSE_PRODUCT_LABELS: Record<string, string> = {
   'cc-cert': 'SVH Certification Course',
   'cc-bundle': '12-Week Course + Certification Course',
   'grief-course': 'The Grief Course',
+  'forgiveness-course': 'The Forgiveness Course',
   'svh-12week': '12-Week SVH Course',
 };
 

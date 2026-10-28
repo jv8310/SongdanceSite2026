@@ -124,7 +124,13 @@ async function strandedStripeCourseSubRows(
           AND status IN ('pending', 'expired')
           AND payment_plan <> 'full'
           AND stripe_subscription_id IS NOT NULL
-          AND created_at >= datetime('now', ?)
+          -- …or a monthly live pass whose first charge was scheduled for a later
+          -- day (live-pass-scheduled.ts): it can be agreed long before it bills.
+          AND (created_at >= datetime('now', ?)
+               OR (installments_total = 0 AND access_starts_at >= datetime('now', '-30 days')))
+          -- (and not before that day: there is nothing to find yet)
+          AND NOT (installments_total = 0 AND installments_paid = 0
+                   AND access_starts_at IS NOT NULL AND access_starts_at > datetime('now'))
         ORDER BY created_at ASC
         LIMIT ?`,
     )
@@ -221,6 +227,7 @@ async function recordSettledInvoices(
       fresh,
       inv.id,
       inv.payment_intent,
+      inv.amount_paid,
     );
     if (did) recorded += 1;
   }

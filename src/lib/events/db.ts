@@ -76,6 +76,7 @@ const EVENT_MARKETING_PRODUCT: Record<string, MarketingProduct> = {
   'svh-12-week': 'twelve-week',
   'certification-course': 'cert',
   'grief-course': 'grief',
+  'forgiveness-course': 'forgiveness',
 };
 
 export const CATEGORIES: EventCategory[] = ['retreat', 'online', 'course'];

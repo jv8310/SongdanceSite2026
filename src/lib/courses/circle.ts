@@ -11,7 +11,7 @@
 // The paths below are the app's own routes (songdance-app, apps/app/src/app),
 // checked against it in October 2026: a course is /course/<course key> — the
 // key IS the product key that unlocks it (svh-12week, cc-cert, grief-course,
-// asj, jaz, mantra-pack, mmj, inner-child) — a lesson is /lesson/<lesson id>,
+// forgiveness-course, asj, jaz, mantra-pack, mmj, inner-child) — a lesson is /lesson/<lesson id>,
 // and the live calendar is the Events tab, /events. Mind the near misses: the
 // app sends Mighty's old /courses/* to the library, and /live or /journeys/…
 // are "Not found". A signed-out visitor is signed in first, then lands on the
@@ -34,6 +34,7 @@ export type CircleArea =
   | 'twelve-week'
   | 'certification'
   | 'grief'
+  | 'forgiveness'
   | 'asj'
   | 'asj-nl' // the Dutch edition, Authentiek Zingen
   | 'asj-mantra-pack'
@@ -45,6 +46,7 @@ const AREA_PATHS: Record<CircleArea, string> = {
   'twelve-week': '/course/svh-12week',
   certification: '/course/cc-cert',
   grief: '/course/grief-course',
+  forgiveness: '/course/forgiveness-course',
   asj: '/course/asj',
   'asj-nl': '/course/jaz',
   'asj-mantra-pack': '/course/mantra-pack',

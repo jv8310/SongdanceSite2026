@@ -9,7 +9,9 @@
 // Gated per course by the handover switch (./handover.ts): until a course is
 // switched over, Drip sends its welcome and the site sends nothing. Only orders
 // paid after the switch went on are ever confirmed from here, so flipping it
-// never mails people who already had Drip's version.
+// never mails people who already had Drip's version. A course Drip never
+// welcomed (SITE_ONLY_CONFIRMATIONS) has no switch: the site confirms it from
+// its first order.
 //
 // Transactional: never suppression-gated (it is the receipt and the way in).
 // Idempotent on an `events` claim (`course-confirmation-<id>`), released if the
@@ -40,6 +42,14 @@ type WelcomeEnv = {
 
 const CLAIM_KIND = 'course.confirmation.sent';
 
+// Courses no Drip workflow or rule ever welcomed, so there is nothing to hand
+// over: the site sends their confirmation from the first order, with no switch.
+// Their order bumps ride the same email ("Also in your order").
+// product slug → the email_sends type it tracks as.
+const SITE_ONLY_CONFIRMATIONS: Record<string, string> = {
+  'forgiveness-course': 'course_confirmation_forgiveness',
+};
+
 export function confirmationClaimId(courseRegistrationId: number): string {
   return `course-confirmation-${courseRegistrationId}`;
 }
@@ -56,6 +66,16 @@ export async function welcomeCourseOrder(
     const reg = await getCourseRegistrationById(env.DB, id);
     if (!reg || reg.status !== 'paid') return;
     const handover = opts?.handover ?? (await loadHandover(env.DB));
+    const siteOnly = SITE_ONLY_CONFIRMATIONS[reg.product_slug];
+    if (siteOnly) {
+      // The ASJ weekly series still follows an ASJ bump once that switch is on.
+      if (handover.size) await enrollCourseSequences(env, reg, handover);
+      if (!env.RESEND_API_KEY) return;
+      await sendClaimed(env, reg, confirmationClaimId(reg.id), siteOnly, async () =>
+        courseConfirmationEmail(await buildConfirmationCtx(env, reg, handover)),
+      );
+      return;
+    }
     if (!handover.size) return; // everything still with Drip
     await enrollCourseSequences(env, reg, handover);
     await sendCourseConfirmation(env, reg, handover);
@@ -249,6 +269,7 @@ export async function buildConfirmationCtx(
     onboarding,
     certEndsOn,
     certOpensOn,
+    timezone: reg.timezone,
     order: { rows, payment },
     base,
   };
@@ -260,7 +281,8 @@ export async function buildConfirmationCtx(
 // re-running it for an order that already has its rows is a no-op).
 export async function reconcileCourseWelcomes(env: WelcomeEnv, opts?: { limit?: number }): Promise<{ checked: number }> {
   const handover = await loadHandover(env.DB);
-  if (!handover.size) return { checked: 0 };
+  let checked = await reconcileSiteOnlyWelcomes(env, handover, opts?.limit ?? 200);
+  if (!handover.size) return { checked };
   // Nothing paid before the earliest switch can be ours to send.
   const earliest = [...handover.values()].sort()[0];
   const { results } = await env.DB
@@ -275,10 +297,40 @@ export async function reconcileCourseWelcomes(env: WelcomeEnv, opts?: { limit?: 
     )
     .bind(earliest, opts?.limit ?? 200)
     .all<{ id: number }>();
-  let checked = 0;
   for (const r of results ?? []) {
     checked++;
     await welcomeCourseOrder(env, r.id, { handover });
   }
   return { checked };
+}
+
+// The courses with no switch: their paid orders from the last 7 days that still
+// have no confirmation claim (welcomeCourseOrder is a no-op for one that has).
+async function reconcileSiteOnlyWelcomes(
+  env: WelcomeEnv,
+  handover: Map<HandoverUnit, string>,
+  limit: number,
+): Promise<number> {
+  const slugs = Object.keys(SITE_ONLY_CONFIRMATIONS);
+  const { results } = await env.DB
+    .prepare(
+      `SELECT r.id FROM course_registrations r
+        WHERE r.status = 'paid'
+          AND r.product_slug IN (${slugs.map(() => '?').join(',')})
+          AND COALESCE(r.paid_at, r.created_at) >= datetime('now', '-7 days')
+          AND NOT EXISTS (
+            SELECT 1 FROM events e
+             WHERE e.kind = '${CLAIM_KIND}' AND e.external_id = 'course-confirmation-' || r.id
+          )
+        ORDER BY r.id DESC
+        LIMIT ?`,
+    )
+    .bind(...slugs, limit)
+    .all<{ id: number }>();
+  let checked = 0;
+  for (const r of results ?? []) {
+    checked++;
+    await welcomeCourseOrder(env, r.id, { handover });
+  }
+  return checked;
 }

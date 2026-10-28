@@ -902,6 +902,34 @@ export async function setSubscriptionCancelAtPeriodEnd(
 // access the earlier installments granted; we're only forgiving the rest).
 // Stripe then fires `customer.subscription.deleted`, which our webhook folds
 // onto the row (status → cancelled). Idempotent: a 404 (already gone) is OK.
+// A one-off amount on a subscription's NEXT invoice — for a subscription whose
+// first charge is deferred (trial_end above), the first real invoice. The
+// monthly live pass's first-month extra rides it this way: as a Checkout
+// one-time line it would be charged on the day of checkout.
+export async function addSubscriptionInvoiceItem(input: {
+  secretKey: string;
+  customer: string;
+  subscription: string;
+  amount_cents: number;
+  currency: string;
+  description: string;
+  metadata?: Record<string, string>;
+  idempotency_key?: string;
+}): Promise<{ id: string }> {
+  const form = new URLSearchParams();
+  form.set('customer', input.customer);
+  form.set('subscription', input.subscription);
+  form.set('amount', String(input.amount_cents));
+  form.set('currency', input.currency.toLowerCase());
+  form.set('description', input.description);
+  Object.entries(input.metadata ?? {}).forEach(([k, v]) => form.set(`metadata[${k}]`, v));
+  return (await stripePostForm('/invoiceitems', form, {
+    secretKey: input.secretKey,
+    idempotencyKey: input.idempotency_key,
+    context: 'invoiceitems.create',
+  })) as { id: string };
+}
+
 export async function cancelSubscriptionNow(
   secretKey: string,
   subscriptionId: string,
@@ -1193,6 +1221,15 @@ export type CreateSubscriptionCheckoutInput = {
   one_time_line_items?: StripeLineItem[];
   // Collect a shipping address on the Checkout page (see the one-off input).
   shipping_countries?: string[];
+  // A first charge on a later day (unix seconds, ≥ 48h ahead): nothing is
+  // charged at checkout and the subscription bills from then — the monthly live
+  // pass that waits for the live sessions the buyer already has to end. One-time
+  // line items would still be charged today, so a deferred start must not pass
+  // any (see addSubscriptionInvoiceItem).
+  trial_end?: number;
+  // A line under the pay button (Checkout's custom_text.submit), e.g. what is
+  // charged when, since Stripe's own summary calls a deferred start a trial.
+  submit_message?: string;
 };
 
 export async function createSubscriptionCheckoutSession(
@@ -1267,6 +1304,12 @@ export async function createSubscriptionCheckoutSession(
       'subscription_data[description]',
       input.payment_intent_description,
     );
+  }
+  if (input.trial_end) {
+    form.set('subscription_data[trial_end]', String(Math.floor(input.trial_end)));
+  }
+  if (input.submit_message) {
+    form.set('custom_text[submit][message]', input.submit_message.slice(0, 1200));
   }
   form.set('line_items[0][quantity]', '1');
 

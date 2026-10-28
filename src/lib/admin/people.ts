@@ -164,6 +164,7 @@ const COURSE_LABELS: Record<string, string> = {
   'svh-12week': '12-Week Course',
   '12w-course': '12-Week Course',
   'grief-course': 'Grief Course',
+  'forgiveness-course': 'Forgiveness Course',
   grief: 'Grief Course',
 };
 function courseLabel(slug: string): string {

@@ -19,6 +19,7 @@
 import { shell, type EmailContent } from '../../workshops/emails';
 import { CIRCLE_HOME_URL, circleAsjWeekUrl, circleUrl, type CircleArea } from '../circle';
 import { asjWeek } from './asj-weeks';
+import { FORGIVENESS_SESSION_MINUTES, forgivenessSessionsIn } from '../forgiveness';
 import { courseImage, type CourseImageKey } from './images';
 import {
   accessBlock,
@@ -51,6 +52,9 @@ export type ConfirmationCtx = {
   // Already formatted, in the buyer's language ("31 December 2026").
   certEndsOn?: string | null;
   certOpensOn?: string | null;
+  // The buyer's IANA timezone (edge-detected at checkout), so a dated course
+  // prints its sessions on their own clock. Null → Brussels.
+  timezone?: string | null;
   order: { rows: Array<[string, string]>; payment: string };
   base: string;
 };
@@ -60,6 +64,7 @@ export const COURSE_DISPLAY_NAMES: Record<string, string> = {
   'cc-cert': 'Somatic Vocal Healing Certification Course',
   'cc-bundle': '12-Week Course + Certification Course',
   'grief-course': 'The Grief Course',
+  'forgiveness-course': 'The Forgiveness Course',
   asj: 'The Authentic Singing Journey',
   'asj-pro': 'The Authentic Singing Journey — PRO',
   mmj: 'The Magical Movement Journey',
@@ -80,6 +85,8 @@ export function courseConfirmationEmail(ctx: ConfirmationCtx): EmailContent | nu
       return path(ctx);
     case 'grief-course':
       return grief(ctx);
+    case 'forgiveness-course':
+      return forgiveness(ctx);
     case 'asj':
     case 'asj-pro':
       return ctx.languageChoice === 'nl' ? asjDutch(ctx) : asj(ctx);
@@ -364,6 +371,49 @@ function grief(ctx: ConfirmationCtx): EmailContent {
         ctx.base,
       ),
       open('Open the course', 'grief'),
+    ],
+  });
+}
+
+// ── The Forgiveness Course ─────────────────────────────────────────────────
+// Four live sessions in December (../forgiveness.ts). Drip never had a welcome
+// for it, so this one goes out from the first order (./confirmation.ts,
+// SITE_ONLY_CONFIRMATIONS). The sessions sit on the CiRCLE calendar, tagged
+// with the course, so the Zoom link is handed out there; each replay becomes
+// one of the course's four lessons.
+
+function forgiveness(ctx: ConfirmationCtx): EmailContent {
+  const hours = FORGIVENESS_SESSION_MINUTES / 60;
+  return finish(ctx, {
+    hero: 'forgiveness',
+    subject: 'Welcome to the Forgiveness Course',
+    preheader: 'Four live sessions from 6 December, and the replays are yours to keep.',
+    heading: 'Welcome to the Forgiveness Course',
+    body: [
+      para('Thank you for joining The Forgiveness Course, with Daniela Hess and me.', ctx.base),
+      accessBlock(ctx.email, 'the course'),
+      subhead('The four live sessions'),
+      list(
+        forgivenessSessionsIn(ctx.timezone).map((s) => ({
+          lead: `${s.short} —`,
+          rest: `class ${s.n}, ${s.title.charAt(0).toLowerCase()}${s.title.slice(1)}`,
+        })),
+      ),
+      para(
+        `Each session is ${hours} hours, live on Zoom. You’ll find all four under [Events in the CiRCLE](${circleUrl('live')}); the Join button lights up there a few minutes before each one begins.`,
+        ctx.base,
+      ),
+      para(
+        'Can’t be there live? Every class is recorded, and the replay is in the course within a day. Yours to keep, for as long as you want it.',
+        ctx.base,
+      ),
+      subhead('A word before you begin'),
+      para(
+        'There is nothing to prepare, and nothing you need to have forgiven first. Bring whoever or whatever you can’t quite make peace with, and a room where you can make a sound. You can stay muted while you sound; soft counts.',
+        ctx.base,
+      ),
+      open('Open the course', 'forgiveness'),
+      ...bumpBlocks(ctx),
     ],
   });
 }

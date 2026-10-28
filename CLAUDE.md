@@ -156,6 +156,42 @@ app. Read 120 days ahead (`APP_SESSION_HORIZON_DAYS`), so one weekly repeating
 event works. Deploy order: the app first (an older app answers "not deployed
 yet" and the workshops sync as before).
 
+## The Forgiveness Course — four live sessions, December 2026
+
+`/courses/forgiveness` sells the course since October 2026: four live sessions on Zoom
+with Daniela Hess and Jacob, **Sun 6, Wed 9, Sun 13 and Wed 16 December 2026, 19:00–21:00
+Brussels time** (Jacob's Google Calendar, "Forgiveness Course 1" … "4"), lifetime access to
+the replays, **€147** (per-currency points, `FORGIVENESS_PRICE`). One file holds the facts:
+[`src/lib/courses/forgiveness.ts`](src/lib/courses/forgiveness.ts) — slug
+`forgiveness-course`, Drip tag `prod_Forgiveness`, event `Completed Forgiveness course
+registration`, the sessions as UTC instants, and `forgivenessSessionsIn(tz)`, which prints
+them on the reader's clock with the city (the page reads the edge timezone, the email the
+buyer's). Change a date there and the page, the email, the homepage band and the hero
+announcement follow.
+
+- **Checkout**: `/api/courses/forgiveness-checkout` — the Grief Course's checkout (full
+  payment, Stripe + PayPal, company/VAT, `?discount=` / `?adiscount=`) plus the **ASJ and
+  Grief order bumps** of `bumps.ts`, charged as their own line items and recorded in the
+  row's `bumps` JSON (tags via `courseDripTags`, the app opens them via its
+  `BUMP_SLUG_TO_PRODUCT`). `/api/courses/bump-offers` hides a bump the address already owns
+  (Drip tags, fails open). The checkout refuses once the last session has ended
+  (`forgivenessRegistrationOpen`), and the page swaps the form for a note.
+- **Where buyers go: the member app.** A paid row opens the course `forgiveness-course` in
+  the CiRCLE; the four sessions are app events (`owns-product`, product
+  `forgiveness-course`), so the Zoom link is handed out there and each replay becomes one of
+  the course's four lessons. Nothing on the site holds a Zoom link.
+- **Confirmation**: Drip never had a welcome for this course, so the site confirms it from
+  the first order with no handover switch (`SITE_ONLY_CONFIRMATIONS` in
+  `emails/confirmation.ts`, words in `confirmation-emails.ts`, previewed on
+  `/admin/emails/courses`); the hourly sweep retries a failed send.
+- **Promotion**: a "Registrations now open" ribbon on its `/courses` card, the price in the
+  menu (`MarketingProduct` `forgiveness`), the homepage hero announcement and
+  `ForgivenessBand` — both static, both remove themselves in the browser once the last
+  session has ended. Migrations 0092 + 0094 put the `/events` grid card back with its dates;
+  0093 seeds the launch broadcast as a draft (site list minus `in-drip`); its Drip twin is
+  `docs/emails/forgiveness-course-launch.drip.html` (Drip draft broadcast 859731837).
+- Registrants: `/admin/courses/forgiveness-course`.
+
 ## Forgiveness prayer lead magnet — offline, kept for later
 
 `/forgiveness-for-you` (five questions → a personalised prayer, emailed, Drip tag
@@ -469,7 +505,34 @@ anyone whose course no longer includes them (or never did). Logic in
   helpers count as the pass's own money, never as an order bump
   (`isCourseTopUpSlug`), and which PayPal's sale routing sets aside by its exact
   amount (every other sale on a monthly is a month). Monthlies started before
-  this (October 2026) keep their €52 plan: nothing changes them by itself. It is the
+  this (October 2026) keep their €52 plan: nothing changes them by itself.
+  **A monthly starts when the live sessions they already have end** (October
+  2026): `planMonthlyStart` ([`live-pass-plan.ts`](src/lib/courses/live-pass-plan.ts))
+  takes the latest of the site's own dates (course / 12-week live weeks, a
+  cancelled monthly's paid month) and the **member app's** — `member()` through
+  `APP_ADMIN`, each open course's `liveUntil`, the "live sessions until" the
+  People page prints, so an admin grant like a CEEE year of Q&As counts (a plain
+  date is the last day covered, an instant the moment it ends; app silent → site
+  dates only). Two or more days off → agreed now, **first charged that day at
+  09:00 Brussels**: Stripe Checkout with `subscription_data[trial_end]` and a
+  `custom_text` line (no one-time line — it would charge today; the €8 is added
+  to the first real invoice by `addSubscriptionInvoiceItem` once Checkout
+  completes), PayPal a plan whose first cycle is a €52 `TRIAL` cycle then €44
+  `REGULAR`, `start_time` that day, no setup fee. Until then the row is a
+  **scheduled monthly** (`SCHEDULED_MONTHLY_SQL` / `isScheduledMonthly` in
+  `live-pass-monthly.ts`): `pending` (or `expired`), `installments_paid 0`,
+  `access_starts_at` = the day, subscription `trialing` (Stripe) / `active`
+  (PayPal). It is not swept to `expired`, counts as their one monthly, shows as
+  "Starts …" on the page, the manage page, the order page and Stats → Live pass,
+  and cancelling it closes the subscription at once. The moment it is agreed,
+  [`live-pass-scheduled.ts`](src/lib/courses/live-pass-scheduled.ts)
+  (`noteScheduledMonthly`, from the Stripe webhook's checkout completion, the
+  PayPal return page and `BILLING.SUBSCRIPTION.ACTIVATED`) adds the €8, marks it
+  and sends **"Your monthly live pass starts on …"** with the manage link. A €0
+  invoice on a monthly (the trial's opening) is never recorded as a month
+  (`recordCourseInvoiceIfNew`'s `amountPaid`); the first real charge then lands
+  like any monthly's. Both reconciles skip a scheduled monthly until its day and
+  look at it for 30 days after, however long ago it was agreed. It is the
   site's first **open-ended subscription**, stored the way the member app was
   already built to read it: product slug **`qa-plan-deepening`** (→ the app's
   `qa-extended-deepening`), `payment_plan 'subscription'`, **`installments_total

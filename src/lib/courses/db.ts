@@ -7,7 +7,7 @@ import type { DeckGiftShipping } from './deck-promo';
 // The thematic SVH course products. Journeys (asj/mmj/inner-child + PRO/bundle)
 // are also stored on course_registrations, so the registration's product_slug
 // is the union of both.
-export type CourseProductSlug = 'cc-cert' | 'cc-bundle' | 'grief-course' | 'svh-12week';
+export type CourseProductSlug = 'cc-cert' | 'cc-bundle' | 'grief-course' | 'forgiveness-course' | 'svh-12week';
 // `album-<id>` = a music album bought on its own (src/lib/music/product.ts);
 // the id half is the dynamic music_albums row key, hence the template type.
 // `live-pass-<n>m` = the live pass, 1/3/6 months (src/lib/courses/live-pass.ts);
@@ -58,7 +58,7 @@ export type CourseRegistration = {
   language_choice: JourneyLanguageChoice | null;
   source_variant: string | null;
   // Order bumps bought alongside the course, as a JSON array of
-  // {slug, amount_cents} (12-week only). NULL when none — see ./bumps.ts and
+  // {slug, amount_cents} (12-week, certification, forgiveness). NULL when none — see ./bumps.ts and
   // parsePurchasedBumps below.
   bumps: string | null;
   // The Song Deck gift shipping address, collected inline while the gift window
@@ -102,6 +102,10 @@ export type CourseRegistration = {
   // End of the last month an open-ended subscription has paid for (migration
   // 0090); absent before it, NULL on every other row.
   paid_through?: string | null;
+  // A live pass's period (migration 0089). On a monthly that has not been
+  // charged yet: the day its first charge is scheduled for (live-pass-monthly.ts).
+  access_starts_at?: string | null;
+  access_ends_at?: string | null;
 };
 
 export type CreatePendingCourseRegistrationInput = {
@@ -270,13 +274,20 @@ export async function getCourseRegistrationBySession(
 // has almost certainly abandoned by 15 min. If they do still pay (Stripe
 // sessions live up to 24h), `markCourseRegistrationPaid` will flip the
 // row back to `paid` since its guard is only `status != 'paid'`.
+// A checkout nobody finished. Not a monthly live pass whose first charge is
+// scheduled for a later day: it waits, pending, with its subscription agreed
+// (live-pass-monthly.ts, SCHEDULED_MONTHLY_SQL — kept in step by hand, since
+// this module sits under that one).
 export async function expireStaleCoursePendings(db: D1Database) {
   await db
     .prepare(
       `UPDATE course_registrations
           SET status = 'expired'
         WHERE status = 'pending'
-          AND created_at < datetime('now', '-15 minutes')`,
+          AND created_at < datetime('now', '-15 minutes')
+          AND NOT (installments_total = 0 AND installments_paid = 0
+                   AND access_starts_at IS NOT NULL
+                   AND COALESCE(subscription_status, '') IN ('trialing','active'))`,
     )
     .run();
 }

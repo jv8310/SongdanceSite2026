@@ -1280,6 +1280,51 @@ export function livePassMonthlyConfirmedEmail(ctx: LivePassMonthlyConfirmedCtx):
   };
 }
 
+// ── Live pass monthly — agreed, starting later (transactional) ──────────────
+// A monthly taken while the buyer still has the live sessions: nothing is
+// charged today, and the first month is charged on the day those end
+// (src/lib/courses/live-pass-scheduled.ts). On that day "Your monthly live pass
+// is running" follows, as for a monthly that starts at once.
+export type LivePassMonthlyScheduledCtx = {
+  name?: string | null;
+  loginEmail: string;
+  startsLabel: string; // "1 January 2027" — the day of the first charge
+  firstMonthLabel: string; // "€52"
+  priceLabel: string; // "€44" — each month after the first
+  coveredUntilLabel: string | null; // "31 December 2026" — the live sessions they already have
+  manageUrl: string | null;
+  eventsUrl: string;
+};
+
+export function livePassMonthlyScheduledEmail(ctx: LivePassMonthlyScheduledCtx): EmailContent {
+  const opens = ctx.coveredUntilLabel
+    ? `You already have the live sessions until ${ctx.coveredUntilLabel}, so your monthly picks up from there: from ${ctx.startsLabel} it opens every weekly Q&A and every monthly deepening session.`
+    : `From ${ctx.startsLabel} it opens every weekly Q&A and every monthly deepening session.`;
+  const charges = `The first month, ${ctx.firstMonthLabel}, is charged on ${ctx.startsLabel}. From then on it is ${ctx.priceLabel} a month, on the same day each month, until you cancel.`;
+  const where = "You'll find the sessions under Events in the CiRCLE — sign in with";
+  const stop = ctx.manageUrl
+    ? `Changed your mind? Cancel before ${ctx.startsLabel} from the link below and nothing is ever charged — or any time after, and nothing more is charged.`
+    : `Changed your mind? Just reply to this email — nothing is charged before ${ctx.startsLabel}.`;
+  const html = shell({
+    preheader: `Nothing is charged today. Your monthly starts on ${ctx.startsLabel}.`,
+    heading: `Your monthly live pass starts on ${ctx.startsLabel}`,
+    bodyHtml: `<p style="margin:0 0 14px;">${greeting(ctx.name)}</p>
+      <p style="margin:0 0 14px;">Thank you — your monthly live pass is set up. <strong>Nothing has been charged today.</strong></p>
+      <p style="margin:0 0 14px;">${escapeHtml(opens)}</p>
+      <p style="margin:0 0 14px;">${escapeHtml(charges)}</p>
+      <p style="margin:0 0 14px;">${escapeHtml(where)} <strong>${escapeHtml(ctx.loginEmail)}</strong> — <a href="${escapeHtml(ctx.eventsUrl)}" style="color:#C9603A;">open the sessions</a>.</p>
+      <p style="margin:0 0 14px;">${escapeHtml(stop)}</p>
+      <p style="margin:0;">Questions? Just reply to this email — a person reads it.</p>`,
+    cta: ctx.manageUrl ? { label: 'Manage my monthly pass →', href: ctx.manageUrl } : { label: 'Open the sessions →', href: ctx.eventsUrl },
+    footerNote: 'Keep this email: its link is how you cancel or check your monthly.',
+  });
+  return {
+    subject: `Your monthly live pass starts on ${ctx.startsLabel}`,
+    html,
+    text: `${textGreeting(ctx.name)}\n\nThank you — your monthly live pass is set up. Nothing has been charged today.\n\n${opens}\n\n${charges}\n\n${where} ${ctx.loginEmail}:\n\n${ctx.eventsUrl}\n\n${stop}${ctx.manageUrl ? `\n\n${ctx.manageUrl}` : ''}\n\nQuestions? Just reply to this email — a person reads it.\n\nWarmly,\nJacob`,
+  };
+}
+
 // ── Live pass monthly — stopped after a failed renewal (transactional) ──────
 // Stripe or PayPal tried this month's payment and gave up, so the monthly has
 // ended (src/lib/courses/live-pass-monthly.ts). Plain, no blame, and the way

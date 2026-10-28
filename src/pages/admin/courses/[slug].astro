@@ -25,6 +25,10 @@ const COURSES: Record<
     name: 'The Grief Course',
     productSlugs: ['grief-course'],
   },
+  'forgiveness-course': {
+    name: 'The Forgiveness Course',
+    productSlugs: ['forgiveness-course'],
+  },
 };
 
 const slug = Astro.params.slug ?? '';
@@ -145,6 +149,7 @@ function productLabel(slug: string) {
   if (slug === 'cc-cert') return 'Cert only';
   if (slug === 'cc-bundle') return 'Bundle';
   if (slug === 'grief-course') return 'Grief Course';
+  if (slug === 'forgiveness-course') return 'Forgiveness Course';
   return slug;
 }
 function activateLabel(choice: Row['activate_choice'], productSlug: string) {

@@ -43,6 +43,7 @@ export const MANUAL_ORDER_PRODUCTS: {
   { slug: 'cc-bundle', label: '12-Week Course + Certification Course', hasActivateChoice: true },
   { slug: 'svh-12week', label: '12-Week SVH Course', hasActivateChoice: false },
   { slug: 'grief-course', label: 'The Grief Course', hasActivateChoice: false },
+  { slug: 'forgiveness-course', label: 'The Forgiveness Course', hasActivateChoice: false },
 ];
 
 const PRODUCT_LABELS: Record<string, string> = Object.fromEntries(

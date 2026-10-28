@@ -1,4 +1,11 @@
 ---
+interface Props {
+  open: boolean;
+  priceLabel: string;
+  datesLabel: string;
+  sessionHours: number;
+}
+const { open, priceLabel, datesLabel, sessionHours } = Astro.props;
 ---
 
 <section class="fc-glance" id="course">
@@ -10,21 +17,21 @@
         A short, focused live course online with Daniela Hess and Jacob Vermeulen.
       </p>
       <ul class="fc-glance-list">
-        <li>Four 90-minute live sessions on Zoom</li>
+        <li>Four live sessions on Zoom, {sessionHours} hours each</li>
         <li><strong>Lifetime access to all replays</strong> — included for every participant</li>
         <li>Teachings, somatic practices, guided journeys</li>
-        <li>Coming in Fall 2026 · exact dates announced soon</li>
+        <li>{datesLabel}</li>
       </ul>
       <p class="fc-glance-tzhint">
-        <a href="#schedule">See the four sessions →</a>
+        <a href="#schedule">See the four dates →</a>
       </p>
     </div>
     <aside class="fc-glance-side">
       <div class="fc-glance-tuition-label">Price</div>
-      <div class="fc-glance-tuition"><span>€</span>147</div>
-      <a href="#register" class="fc-glance-side-cta">Keep me in the loop</a>
+      <div class="fc-glance-tuition">{priceLabel}</div>
+      <a href="#register" class="fc-glance-side-cta">{open ? 'Register now' : 'Ask about the replays'}</a>
       <p class="fc-glance-side-note">
-        Not open yet — leave your email and we'll tell you when enrollment opens.
+        {open ? 'One payment · lifetime access to the replays.' : 'The December sessions have taken place.'}
       </p>
     </aside>
   </div>
