@@ -292,7 +292,8 @@ export function buildEmailSamples(base: string): EmailSample[] {
       content: livePassMonthlyConfirmedEmail({
         name,
         loginEmail: 'you@example.com',
-        priceLabel: '€52',
+        priceLabel: '€44',
+        firstMonthLabel: '€52',
         renewsLabel: '18 November 2026',
         manageUrl: 'https://songdance.co/courses/live-pass/manage?t=123.example',
         eventsUrl: 'https://circle.songdance.co/events',

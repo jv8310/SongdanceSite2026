@@ -53,8 +53,9 @@
 // ── The monthly (October 2026) ──────────────────────────────────────────────
 //
 // Beside the three passes, a **monthly** that renews by itself until the buyer
-// cancels: €52 a month (the 1-month pass's price, same currencies), charged on
-// the same day each month by Stripe or PayPal. It is time, not a count: while
+// cancels: €52 the first month (the 1-month pass's price, same currencies),
+// then €44 a month (see "The monthly's price" below), charged on the same day
+// each month by Stripe or PayPal. It is time, not a count: while
 // it runs it opens every Q&A and deepening session, and once cancelled it runs
 // to the end of the month already paid for, then stops. Cancel any time, from
 // the link in its confirmation email (/courses/live-pass/manage), and start
@@ -68,6 +69,24 @@
 // installments_paid = months charged, paid_through = the end of the last month
 // charged (migration 0090). See isOpenEndedPlan in installment-forecast.ts for
 // how the money reports read it.
+//
+// The monthly's price (Jacob, October 2026): €52 the first month, then €44 —
+// 15% off, the 3-month pass's rate per month, so staying is rewarded where
+// people most often stop, while paying ahead stays the better deal at every
+// length (3 months on the monthly €140 against the pass's €132; 6 months €272
+// against €234). Cheaper renewals would undercut the 3-month pass: at €39, three
+// months on the monthly is €130, less than the pass and cancellable.
+//
+// Both gateways bill a subscription at one recurring price, so the subscription
+// is the renewal price — `amount_cents` is €44, which is what every month after
+// the first charges — and the first month's €8 more rides the first charge as a
+// one-off: a one-time line on Stripe's first invoice (one €52 charge), PayPal's
+// setup fee (two charges in the same minute, €8 + €44, as order bumps on a plan
+// already are). It is a `monthly-first-month` row in `bumps`, so the row says
+// what was charged; the money reports count it as the pass's own money, not as
+// an order bump (isCourseTopUpSlug, stats.ts). Not PayPal's trial cycle: the
+// site tells a monthly payment from a setup fee by its amount, and a €52 first
+// cycle on a €44 plan would never be counted.
 
 import { formatMoney, type SupportedCurrency } from '../workshops/currency';
 import { businessDayOf, businessWindowUtc } from '../workshops/periods';
@@ -99,8 +118,36 @@ export const LIVE_PASS_MONTHLY_DRIP_TAG = 'prod_LivePassMonthly';
 export const LIVE_PASS_MONTHLY_DRIP_EVENT = 'Started live pass monthly';
 export const LIVE_PASS_MANAGE_PATH = '/courses/live-pass/manage';
 
+// Every month after the first, this much under the first month's price.
+export const LIVE_PASS_MONTHLY_RENEWAL_DISCOUNT_PERCENT = 15;
+// The first month's extra over the renewal price, as a `bumps` row.
+export const MONTHLY_FIRST_MONTH_SLUG = 'monthly-first-month';
+export const MONTHLY_FIRST_MONTH_LABEL = 'First month at the full price';
+
 export function isLivePassMonthlySlug(slug: string | null | undefined): boolean {
   return slug === LIVE_PASS_MONTHLY_SLUG;
+}
+
+// A `bumps` row that is part of the course's own price rather than an add-on
+// bought beside it: the monthly's first-month extra. Counted as the course's
+// money in the reports, never as an order bump.
+export function isCourseTopUpSlug(slug: string): boolean {
+  return slug === MONTHLY_FIRST_MONTH_SLUG;
+}
+
+// What a live-pass `bumps` row is called on an order (SD-ORDER, Drip order,
+// reports), else null.
+export function livePassExtraLabel(slug: string): string | null {
+  if (slug === CERT_EXTENSION_SLUG) return CERT_EXTENSION_LABEL;
+  if (slug === MONTHLY_FIRST_MONTH_SLUG) return MONTHLY_FIRST_MONTH_LABEL;
+  return null;
+}
+
+// The monthly's first-month extra recorded on a row (0 when none).
+export function monthlyFirstMonthExtraCents(bumps: string | null | undefined): number {
+  return parsePurchasedBumps(bumps ?? null)
+    .filter((b) => b.slug === MONTHLY_FIRST_MONTH_SLUG)
+    .reduce((sum, b) => sum + Math.max(0, b.amount_cents), 0);
 }
 
 export function livePassSlug(months: LivePassMonths): `live-pass-${number}m` {
@@ -162,9 +209,17 @@ export function livePassMonthlyCents(currency: SupportedCurrency): number {
   return albumPriceCents(LIVE_PASS_MONTHLY_EUR_CENTS, currency);
 }
 
-// The monthly: one month at the full price, every month.
-export function livePassMonthlyPriceCents(currency: SupportedCurrency): number {
+// The monthly's first month: one month at the full price.
+export function livePassMonthlyFirstCents(currency: SupportedCurrency): number {
   return livePassMonthlyCents(currency);
+}
+
+// The monthly from its second month on: 15% off, floored like the passes.
+export function livePassMonthlyRenewalCents(currency: SupportedCurrency): number {
+  return floorTo(
+    (livePassMonthlyCents(currency) * (100 - LIVE_PASS_MONTHLY_RENEWAL_DISCOUNT_PERCENT)) / 100,
+    stepCents(currency),
+  );
 }
 
 // The pass, discounted for its length and floored to a whole unit.

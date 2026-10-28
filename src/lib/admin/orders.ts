@@ -23,7 +23,7 @@
 //     EUR charges with no country on file.
 
 import { DEFAULT_FX_TO_EUR } from './fx';
-import { livePassLabelForSlug } from '../courses/live-pass';
+import { LIVE_PASS_MONTHLY_SLUG, LIVE_PASS_MONTHS, livePassLabelForSlug, livePassSlug } from '../courses/live-pass';
 import { BANK_TRANSFER, type OrderProvider } from '../payments/provider';
 import { getTaxRate, type QuadernoTaxConfig } from '../workshops/quaderno';
 import { LABEL_BY_SLUG, isJourneySlug } from '../courses/journeys';
@@ -476,9 +476,14 @@ async function loadRetreatOrders(
 
 // Columns every course path needs to money-up a row. An open-ended monthly
 // subscription (installments_total 0) stores ONE month in amount_cents, so its
-// order is worth the months charged so far (at least the one it opened with).
+// order is worth the months charged so far (at least the one it opened with),
+// plus its first month's extra over the renewal price — a `monthly-first-month`
+// row in `bumps` (live-pass.ts), part of the pass's own price.
 const COURSE_MONEY_COLS = `id, created_at, status, country,
               CASE WHEN installments_total = 0 THEN amount_cents * MAX(1, installments_paid)
+                     + COALESCE((SELECT SUM(json_extract(b.value, '$.amount_cents'))
+                                   FROM json_each(CASE WHEN json_valid(bumps) THEN bumps ELSE '[]' END) b
+                                  WHERE json_extract(b.value, '$.slug') = 'monthly-first-month'), 0)
                    ELSE amount_cents END AS amount_cents,
               currency, refunded_amount_cents`;
 
@@ -513,7 +518,13 @@ type CourseRow = CourseMoneyRow & {
 // whose label contains the term matches, plus a plain slug LIKE for the ones
 // that show their slug verbatim (albums, unmapped products).
 const KNOWN_COURSE_SLUGS = [
-  ...new Set([...Object.keys(COURSE_LABELS), ...Object.keys(LABEL_BY_SLUG)]),
+  ...new Set([
+    ...Object.keys(COURSE_LABELS),
+    ...Object.keys(LABEL_BY_SLUG),
+    // "Live pass" / "monthly" find the passes and the monthly (qa-plan-deepening).
+    ...LIVE_PASS_MONTHS.map(livePassSlug),
+    LIVE_PASS_MONTHLY_SLUG,
+  ]),
 ];
 function courseSlugsMatching(q: string): string[] {
   return KNOWN_COURSE_SLUGS.filter((s) => courseLabel(s).toLowerCase().includes(q));

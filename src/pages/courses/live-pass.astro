@@ -9,8 +9,9 @@
 // student it would help, and for a 12-week student the way on to the 9-month
 // certification course.
 //
-// Beside the three passes, the monthly (October 2026): €52 a month, renews until
-// cancelled, every session while it runs (live-pass.ts). ?months=monthly picks
+// Beside the three passes, the monthly (October 2026): €52 the first month, then
+// €44 a month, renews until cancelled, every session while it runs (live-pass.ts,
+// "The monthly's price"). ?months=monthly picks
 // it; an address that already has one running sees "Manage my monthly pass" instead,
 // which emails the manage link to that address (never shown on screen).
 import SiteLayout from '../../components/SiteLayout.astro';
@@ -23,7 +24,8 @@ import {
   CERT_EXTENSION_PERCENT,
   LIVE_PASS_MONTHS,
   livePassContents,
-  livePassMonthlyPriceCents,
+  livePassMonthlyFirstCents,
+  livePassMonthlyRenewalCents,
   livePassOffer,
   parseLivePassMonths,
   type LivePassMonths,
@@ -142,8 +144,13 @@ const prices = Object.fromEntries(
   ]),
 );
 const offers = LIVE_PASS_MONTHS.map((m) => livePassOffer(m, currency));
-const monthlyPrices = Object.fromEntries(SUPPORTED_CURRENCIES.map((cur) => [cur, livePassMonthlyPriceCents(cur)]));
-const monthlyCents = livePassMonthlyPriceCents(currency);
+// The monthly: the first month at the full price, every month after it less.
+const monthlyPrices = Object.fromEntries(
+  SUPPORTED_CURRENCIES.map((cur) => [cur, { first: livePassMonthlyFirstCents(cur), then: livePassMonthlyRenewalCents(cur) }]),
+);
+const monthlyFirstCents = livePassMonthlyFirstCents(currency);
+const monthlyCents = livePassMonthlyRenewalCents(currency);
+const monthlyTotal = (first: string, then: string) => `${first}, then ${then} a month`;
 const certPageHref = `/courses/certification${emailPrefill ? `?email=${encodeURIComponent(emailPrefill)}` : ''}`;
 const money = (cents: number) => formatMoney(cents, currency);
 const aboutLabel = (m: number) => `About ${m} month${m === 1 ? '' : 's'} of sessions`;
@@ -279,7 +286,7 @@ const aboutLabel = (m: number) => `About ${m} month${m === 1 ? '' : 's'} of sess
               </span>
               <span class="lp-option-sub">Every Q&amp;A and deepening session while it runs. Renews each month until you cancel.</span>
               <span class="lp-option-price">
-                <strong data-lp-monthly-price>{money(monthlyCents)}</strong><span class="lp-per">a month</span>
+                <strong data-lp-monthly-first>{money(monthlyFirstCents)}</strong><span class="lp-per">the first month, then <strong data-lp-monthly-price>{money(monthlyCents)}</strong> a month</span>
               </span>
               <span class="lp-option-dates" data-lp-monthly-note hidden={!monthlyRunning}>
                 {monthlyRunning ? 'You already have a monthly running — manage it below.' : ''}
@@ -366,7 +373,7 @@ const aboutLabel = (m: number) => `About ${m} month${m === 1 ? '' : 's'} of sess
 
         <div class="lp-summary">
           <span data-lp-summary-label>{startMonthly ? 'Live pass · monthly' : 'Live pass'}</span>
-          <strong data-lp-total>{startMonthly ? `${money(monthlyCents)} a month` : money(offers.find((o) => o.months === chosenMonths)!.price_cents)}</strong>
+          <strong data-lp-total>{startMonthly ? monthlyTotal(money(monthlyFirstCents), money(monthlyCents)) : money(offers.find((o) => o.months === chosenMonths)!.price_cents)}</strong>
         </div>
 
         <div class="lp-actions">
@@ -382,8 +389,9 @@ const aboutLabel = (m: number) => `About ${m} month${m === 1 ? '' : 's'} of sess
         </div>
         <p class="lp-note" data-lp-note-pass hidden={startMonthly}>One payment, no subscription. Charged in your local currency — the price follows your country.</p>
         <p class="lp-note" data-lp-note-monthly hidden={!startMonthly}>
-          Charged today and then on the same day each month, until you cancel — any time, from the
-          link in your confirmation email. Charged in your local currency.
+          The first month is charged today, and every month after it, at the lower price, on the
+          same day each month until you cancel — any time, from the link in your confirmation
+          email. Charged in your local currency.
         </p>
         <p class="lp-error" role="alert" data-lp-error hidden></p>
       </form>
@@ -481,8 +489,9 @@ const aboutLabel = (m: number) => `About ${m} month${m === 1 ? '' : 's'} of sess
   const form = document.querySelector<HTMLFormElement>('[data-lp-form]');
   if (form) {
     const prices = JSON.parse(form.dataset.prices || '{}') as Record<string, Record<string, Offer>>;
-    const monthlyPrices = JSON.parse(form.dataset.monthlyPrices || '{}') as Record<string, number>;
+    const monthlyPrices = JSON.parse(form.dataset.monthlyPrices || '{}') as Record<string, { first: number; then: number }>;
     const monthlyInput = form.querySelector<HTMLInputElement>('[name="months"][value="monthly"]')!;
+    const monthlyFirstEl = form.querySelector<HTMLElement>('[data-lp-monthly-first]')!;
     const monthlyPriceEl = form.querySelector<HTMLElement>('[data-lp-monthly-price]')!;
     const monthlyNote = form.querySelector<HTMLElement>('[data-lp-monthly-note]')!;
     const notePass = form.querySelector<HTMLElement>('[data-lp-note-pass]')!;
@@ -531,7 +540,8 @@ const aboutLabel = (m: number) => `About ${m} month${m === 1 ? '' : 's'} of sess
         if (was) was.textContent = formatMoney(o.full_cents, cur);
       }
       const monthlyCents = monthlyPrices[cur] ?? monthlyPrices.EUR;
-      monthlyPriceEl.textContent = formatMoney(monthlyCents, cur);
+      monthlyFirstEl.textContent = formatMoney(monthlyCents.first, cur);
+      monthlyPriceEl.textContent = formatMoney(monthlyCents.then, cur);
       const m = months();
       const o = table[m];
       extEl.textContent = formatMoney(o.extension_cents, cur);
@@ -540,7 +550,7 @@ const aboutLabel = (m: number) => `About ${m} month${m === 1 ? '' : 's'} of sess
       if (monthly) addonInput.checked = false;
       const ext = addonInput.checked ? o.extension_cents : 0;
       if (monthly) {
-        totalEl.textContent = `${formatMoney(monthlyCents, cur)} a month`;
+        totalEl.textContent = `${formatMoney(monthlyCents.first, cur)}, then ${formatMoney(monthlyCents.then, cur)} a month`;
         summaryLabel.textContent = 'Live pass · monthly';
       } else {
         totalEl.textContent = formatMoney(o.price_cents + ext, cur);
@@ -793,7 +803,7 @@ const aboutLabel = (m: number) => `About ${m} month${m === 1 ? '' : 's'} of sess
   .lp-option-head { display: flex; gap: 8px; align-items: center; font-weight: 600; }
   .lp-save { font-size: 12px; color: var(--moss); border: 1px solid var(--moss); border-radius: 999px; padding: 1px 8px; }
   .lp-option-sub, .lp-option-dates { font-size: 14px; opacity: 0.8; }
-  .lp-option-price { display: flex; gap: 8px; align-items: baseline; }
+  .lp-option-price { display: flex; flex-wrap: wrap; gap: 0 8px; align-items: baseline; }
   .lp-was { opacity: 0.55; }
   .lp-addon {
     display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; margin-bottom: 20px;
@@ -818,7 +828,8 @@ const aboutLabel = (m: number) => `About ${m} month${m === 1 ? '' : 's'} of sess
     color: var(--ink); background: rgba(92, 106, 74, 0.1); border-left: 3px solid var(--moss);
   }
   .lp-terms { display: flex; gap: 8px; font-size: 14px; margin: 8px 0 16px; }
-  .lp-summary { display: flex; justify-content: space-between; padding: 12px 0; border-top: 1px solid rgba(42, 27, 42, 0.12); margin-bottom: 12px; }
+  .lp-summary { display: flex; justify-content: space-between; gap: 12px; padding: 12px 0; border-top: 1px solid rgba(42, 27, 42, 0.12); margin-bottom: 12px; }
+  .lp-summary strong { text-align: right; }
   .lp-actions { display: flex; flex-wrap: wrap; gap: 10px; }
   .lp-paypal { background: #ffc439; color: #003087; }
   .lp-note { font-size: 13px; opacity: 0.7; margin: 12px 0 0; }

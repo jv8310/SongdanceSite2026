@@ -285,14 +285,16 @@ export type ClosePlanEnv = {
 //     next one.
 // Never refunds and never throws: the money side is already recorded, and a
 // failure is logged so the order page's Stop control (which still offers
-// itself while the subscription is live) can finish the job.
+// itself while the subscription is live) can finish the job. The monthly live
+// pass (installments_total 0) is a subscription too: refunded in full, it
+// stops billing the same way.
 export async function closePlanAtGateway(
   env: ClosePlanEnv,
   regId: number,
   reason: 'refunded' | 'charged_after_close',
 ): Promise<void> {
   const reg = await getCourseRegistrationById(env.DB, regId);
-  if (!reg || reg.installments_total <= 1) return;
+  if (!reg || reg.installments_total === 1) return;
   if (
     reg.subscription_status === 'canceled' ||
     reg.subscription_status === 'incomplete_expired'

@@ -12,6 +12,7 @@
 import { sendPurchaseEvent } from '../workshops/meta';
 import { catalogContentId } from '../catalog/products';
 import type { CourseRegistration } from './db';
+import { monthlyFirstMonthExtraCents } from './live-pass';
 
 export type CourseMetaEnv = {
   META_PIXEL_ID?: string;
@@ -42,7 +43,9 @@ export async function sendCoursePurchaseEvent(
     {
       eventId: coursePurchaseEventId(reg.id),
       email: reg.email,
-      value: reg.amount_cents / 100,
+      // The course's price — for the monthly live pass, its first month, whose
+      // extra over the renewal price sits in `bumps` (live-pass.ts).
+      value: (reg.amount_cents + monthlyFirstMonthExtraCents(reg.bumps)) / 100,
       currency: reg.currency,
       orderId: `creg-${reg.id}`,
       // Fold variant slugs (cc-bundle, asj-pro) to their canonical catalog id.
