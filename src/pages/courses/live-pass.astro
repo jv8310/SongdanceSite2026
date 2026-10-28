@@ -10,8 +10,8 @@
 // certification course.
 //
 // The order is the sell (October 2026): what the pass is and what it opens,
-// then the prices and the checkout, and only after them — for a 12-week
-// student — the certification course.
+// then — for a 12-week student only — the certification course, then the
+// prices and the checkout.
 //
 // Beside the three passes, the monthly (October 2026): €52 the first month, then
 // €44 a month, renews until cancelled, every session while it runs (live-pass.ts,
@@ -163,8 +163,8 @@ const aboutLabel = (m: number) => `About ${m} month${m === 1 ? '' : 's'}`;
 // cheaper than it is. The browser repaints it with the same sum.
 const perMonthCents = (o: { price_cents: number; months: number }) => Math.ceil(o.price_cents / o.months / 100) * 100;
 
-// The page sells first, prices second, and only then — for a 12-week student —
-// points on to the certification course.
+// The page sells first; a 12-week student then sees the certification course,
+// just before the prices.
 const features: { icon: string; title: string; body: string }[] = [
   {
     icon: 'ph-chats-circle',
@@ -199,7 +199,7 @@ const features: { icon: string; title: string; body: string }[] = [
 ];
 
 // What the 9 months add, for a 12-week student (same points as before the
-// redesign, now after the pass rather than before it).
+// redesign).
 const upgradeBenefits: { icon: string; lead: string; rest: string }[] = [
   { icon: 'ph-books', lead: 'The full class library', rest: ', every module with a written manual, self-paced and yours to keep.' },
   { icon: 'ph-calendar-check', lead: 'Weekly Q&As and the monthly two-hour deepening session', rest: ' for nine months, with no pass to buy.' },
@@ -337,6 +337,32 @@ const faq: { q: string; a: string }[] = [
       </p>
     </section>
 
+    {/* For a 12-week student not (yet) on the 9 months: the way on, between
+        the sell and the prices — shown once the address says so. Under the
+        checkout it was easy to miss. */}
+    <section class="lp-upgrade" data-lp-upgrade hidden={!showUpgrade} aria-labelledby="lp-upgrade-title">
+      <div class="lp-upgrade-intro">
+        <p class="lp-eyebrow lp-eyebrow--on-night">From the 12 weeks</p>
+        <h2 class="lp-upgrade-title" id="lp-upgrade-title">Or go further: the 9-month <em>certification course</em></h2>
+        <p class="lp-upgrade-body">
+          A pass keeps your Q&amp;As going. The certification course continues the work the 12 weeks
+          began — and brings the live sessions with it for nine months, with no pass to buy.
+        </p>
+        <a class="sd-btn sd-btn-on-night lp-upgrade-btn" href={certPageHref} data-lp-upgrade-link>
+          <span>See the certification course</span>
+          <i class="ph-light ph-arrow-right" aria-hidden="true"></i>
+        </a>
+      </div>
+      <ul class="lp-benefits">
+        {upgradeBenefits.map((b) => (
+          <li>
+            <i class={`ph-light ${b.icon}`} aria-hidden="true"></i>
+            <span><strong>{b.lead}</strong>{b.rest}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+
     {/* 2 — The prices, and the checkout. */}
     <section class="lp-buy" id="get" aria-labelledby="lp-buy-title">
       <div class="lp-section-head">
@@ -407,9 +433,10 @@ const faq: { q: string; a: string }[] = [
                   {monthlyRunning ? 'You already have a monthly running — manage it below.' : ''}
                 </span>
               </span>
+              {/* Leads with what it costs a month; the first month's higher price sits under it. */}
               <span class="lp-monthly-price">
-                <strong data-lp-monthly-first>{money(monthlyFirstCents)}</strong>
-                <span class="lp-per">the first month, then <strong data-lp-monthly-price>{money(monthlyCents)}</strong> a month</span>
+                <span class="lp-monthly-rate"><strong data-lp-monthly-price>{money(monthlyCents)}</strong> <span class="lp-per">a month</span></span>
+                <span class="lp-monthly-first">First month <span data-lp-monthly-first>{money(monthlyFirstCents)}</span></span>
               </span>
             </label>
           </fieldset>
@@ -525,31 +552,6 @@ const faq: { q: string; a: string }[] = [
           ))}
         </datalist>
       </div>
-    </section>
-
-    {/* 3 — For a 12-week student not (yet) on the 9 months: the way on, after
-        the pass — shown once the address says so. */}
-    <section class="lp-upgrade" data-lp-upgrade hidden={!showUpgrade} aria-labelledby="lp-upgrade-title">
-      <div class="lp-upgrade-intro">
-        <p class="lp-eyebrow lp-eyebrow--on-night">From the 12 weeks</p>
-        <h2 class="lp-upgrade-title" id="lp-upgrade-title">Or go further: the 9-month <em>certification course</em></h2>
-        <p class="lp-upgrade-body">
-          A pass keeps your Q&amp;As going. The certification course continues the work the 12 weeks
-          began — and brings the live sessions with it for nine months, with no pass to buy.
-        </p>
-        <a class="sd-btn sd-btn-on-night lp-upgrade-btn" href={certPageHref} data-lp-upgrade-link>
-          <span>See the certification course</span>
-          <i class="ph-light ph-arrow-right" aria-hidden="true"></i>
-        </a>
-      </div>
-      <ul class="lp-benefits">
-        {upgradeBenefits.map((b) => (
-          <li>
-            <i class={`ph-light ${b.icon}`} aria-hidden="true"></i>
-            <span><strong>{b.lead}</strong>{b.rest}</span>
-          </li>
-        ))}
-      </ul>
     </section>
 
     <section class="lp-narrow lp-card lp-manage" id="manage" aria-labelledby="lp-manage-title">
@@ -1046,7 +1048,8 @@ const faq: { q: string; a: string }[] = [
   .lp-plan--monthly .lp-plan-len { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding-right: 0; }
   .lp-monthly-desc { font-size: 15px; line-height: 1.5; color: var(--ink-soft); }
   .lp-monthly-price { grid-column: 2; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
-  .lp-monthly-price > strong { font-family: var(--font-display); font-weight: 400; font-size: 30px; line-height: 1; }
+  .lp-monthly-rate strong { font-family: var(--font-display); font-weight: 400; font-size: 30px; line-height: 1; }
+  .lp-monthly-first { font-size: 13px; color: var(--ink-quiet); }
   .lp-per { font-size: 14px; color: var(--ink-soft); }
   @media (min-width: 760px) {
     .lp-plan--monthly { grid-template-columns: auto 1fr auto; align-items: center; }

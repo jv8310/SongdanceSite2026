@@ -528,9 +528,10 @@ anyone whose course no longer includes them (or never did). Logic in
   The CEEE cohort holds the course, so it gets in even while it may not certify.
   The app side is `api/app_access.php` in the Songdance repo.
 - **The way on, for a 12-week student** (October 2026): a 12-week holder who is not on the
-  9 months sees the certification course **after** the pass options and the checkout (the
-  page sells the pass first — what it opens, with icons — then the prices, then this;
-  Jacob, October 2026), with what it adds
+  9 months sees the certification course **between the sell and the prices** (the page
+  sells the pass first — what it opens, with icons — then this card, then the pass options
+  and the checkout; under the checkout it was easy to miss — Jacob, October 2026), with
+  what it adds
   (library + manuals, nine months of Q&As and deepening sessions with no pass, Practice
   Together, the SVH app with its quizzes, recordings and SVH AI, the path to certification, and that it begins when their 12 weeks are over). The
   member app links 12-week students straight to the certification page
