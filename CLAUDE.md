@@ -275,7 +275,16 @@ in moderation, not governed by the copy book.
   lifecycle emails quote one number for both. The path's discounted figures
   are floored to the nearest 5 (`pctMajor`), so the sale reads in round
   prices — EUR path €1,347 → **€1,075** (cert €635 + 12-week €440), 3×
-  €375/mo, 6× €200/mo — and the advertised percent is never under-delivered.
+  €375/mo, 6× €201/mo — and the advertised percent is never under-delivered.
+- **The path's longer plans** (October 2026, `PATH_PREMIUM_PERCENT_6X` /
+  `_12X` in `path.ts`): 6 monthly payments cost **12%** more than the path's
+  one-off price, 12 monthly payments **13%** more, worked from the path total as
+  it stands for that buyer (so a sale or override carries through) and rounded
+  to whole units — EUR €1,347 → 6× €251, 12× €127. The 3-month plan stays the
+  sum of the two courses' ladders (+6%). The 12-month plan only shows with
+  `?installment=12` (`/courses/certification?installment=12&email=…`), like
+  the certification alone's; a newcomer is only offered the path, so before
+  this that link showed them no 12-month plan at all.
   A `?discount=N` / `?adiscount=N` override still wins outright and, since
   September 2026, takes its percent off the **whole path** — both lines, the
   same shape as the workshop sale (EUR path €1,347 at 50% → **€670**). The
