@@ -1972,7 +1972,9 @@ every caller (both PayPal refund routes, both Stripe `charge.refunded`
 branches) then runs `closePlanAtGateway`
 ([`installment-cancel.ts`](src/lib/courses/installment-cancel.ts)) — cancel the
 subscription now, mirror `subscription_status='canceled'`, log
-`course.plan.closed_at_gateway` (`.failed` on error, never thrown). A cycle that
+`course.plan.closed_at_gateway` (`.failed` on error, never thrown). The monthly
+live pass (`installments_total 0`) is included: until October 2026 the check read
+`<= 1`, so a fully refunded monthly kept billing. A cycle that
 still lands on a refunded/cancelled row is recorded (a new charge puts a
 `refunded` row back to `paid`, refunds still netted; `cancelled` stays), logged
 `course.installment.charged_after_close`, and closes the subscription the same
