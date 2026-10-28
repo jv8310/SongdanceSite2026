@@ -20,7 +20,8 @@ import {
   createSubscription as createPaypalSubscription,
 } from '../../../lib/payments/paypal';
 import { formatMoney } from '../../../lib/workshops/currency';
-import { findRunningMonthly } from '../../../lib/courses/live-pass-monthly';
+import { findRunningMonthly, recordMonthlyStart } from '../../../lib/courses/live-pass-monthly';
+import { businessDayStartMs } from '../../../lib/workshops/periods';
 import { encodeCustomId, parseProvider } from '../../../lib/payments/provider';
 import { findCountry } from '../../../lib/countries';
 import { albumCurrencyForCountry } from '../../../lib/music/product';
@@ -40,7 +41,7 @@ import {
   parseLivePassMonths,
   recordLivePassPeriod,
 } from '../../../lib/courses/live-pass';
-import { planLivePass } from '../../../lib/courses/live-pass-plan';
+import { planLivePass, planMonthlyStart } from '../../../lib/courses/live-pass-plan';
 
 export const prerender = false;
 
@@ -55,7 +56,9 @@ export const prerender = false;
 // `months: 'monthly'` is the monthly live pass instead: an open-ended
 // subscription (Stripe subscription mode / a PayPal plan with no cycle limit),
 // the full month's price the first month and less after, no add-on, and
-// refused while the address already has one running.
+// refused while the address already has one running. Taken while the buyer
+// still has the live sessions, it is agreed now and first charged the day
+// those end (planMonthlyStart).
 type Body = {
   months?: number | string;
   cert_extension?: boolean;
@@ -332,7 +335,16 @@ async function startMonthly(
   const extraCents = Math.max(0, firstCents - monthlyCents);
   const slug = LIVE_PASS_MONTHLY_SLUG;
   const label = LIVE_PASS_MONTHLY_LABEL;
-  const describe = `${formatMoney(firstCents, currency)} the first month, then ${formatMoney(monthlyCents, currency)} a month until cancelled`;
+  // The day of the first charge: today, or the day the live sessions they
+  // already have end — on this site or in the member app.
+  const start = await planMonthlyStart(env, email, await planLivePass(env.DB, email));
+  const startsOn = start.startsOn;
+  // Charged at 09:00 Brussels on that day.
+  const firstChargeMs = startsOn ? businessDayStartMs(startsOn) + 9 * 3_600_000 : null;
+  const startsLabel = startsOn ? fmtDay(startsOn) : null;
+  const describe = startsLabel
+    ? `Starts ${startsLabel}: ${formatMoney(firstCents, currency)} the first month, then ${formatMoney(monthlyCents, currency)} a month until cancelled`
+    : `${formatMoney(firstCents, currency)} the first month, then ${formatMoney(monthlyCents, currency)} a month until cancelled`;
 
   const registrationId = await createPendingCourseRegistration(env.DB, {
     email,
@@ -356,9 +368,10 @@ async function startMonthly(
     installments_total: 0,
     provider,
   });
+  if (startsOn) await recordMonthlyStart(env.DB, registrationId, startsOn);
 
   const baseUrl = env.PUBLIC_BASE_URL.replace(/\/$/, '');
-  const successPath = `${LIVE_PASS_PAGE_PATH}?welcome=monthly`;
+  const successPath = `${LIVE_PASS_PAGE_PATH}?welcome=monthly${startsOn ? `&starts=${startsOn}` : ''}`;
   const cancelUrl = `${baseUrl}${LIVE_PASS_PAGE_PATH}?email=${encodeURIComponent(email)}&months=monthly#get`;
 
   if (provider === 'paypal') {
@@ -370,9 +383,18 @@ async function startMonthly(
       monthlyAmountMinor: monthlyCents,
       currency,
       installmentCount: 0, // PayPal: total_cycles 0 = renews until cancelled
-      // The first month's extra: charged once at the start, as its own sale,
-      // which paypal-fulfill tells from a month by its amount.
-      setupFeeMinor: extraCents || undefined,
+      ...(firstChargeMs
+        ? {
+            // A later start: the first month is a cycle of its own at its full
+            // price, billed on that day (a setup fee would be taken today).
+            firstCycleMinor: firstCents,
+            startTime: new Date(firstChargeMs).toISOString(),
+          }
+        : {
+            // The first month's extra: charged once at the start, as its own
+            // sale, which paypal-fulfill tells from a month by its amount.
+            setupFeeMinor: extraCents || undefined,
+          }),
       customId: encodeCustomId('course', registrationId),
       returnUrl: `${baseUrl}/api/payments/paypal-return?dest=${encodeURIComponent(successPath)}`,
       cancelUrl,
@@ -386,7 +408,7 @@ async function startMonthly(
       kind: 'course.checkout.paypal.subscription.created',
       source: 'system',
       external_id: `local-course-pp-${registrationId}-monthly`,
-      payload: { course_registration_id: registrationId, subscription_id: sub.subscriptionId, product_slug: slug, currency, monthly_amount_cents: monthlyCents, first_month_extra_cents: extraCents },
+      payload: { course_registration_id: registrationId, subscription_id: sub.subscriptionId, product_slug: slug, currency, monthly_amount_cents: monthlyCents, first_month_extra_cents: extraCents, starts_on: startsOn, covered_by: start.coveredBy },
     });
     return json({ checkout_url: sub.approveUrl, course_registration_id: registrationId });
   }
@@ -419,9 +441,19 @@ async function startMonthly(
     monthly_amount_cents: monthlyCents,
     currency: currency.toLowerCase(),
     installment_count: 0, // open-ended: no cancel_at is scheduled
+    // A later start: nothing today, the subscription bills from that day, and
+    // the first month's extra is added to that first invoice once Checkout
+    // completes (live-pass-scheduled.ts) — as a one-time line here it would be
+    // charged today.
+    ...(firstChargeMs
+      ? {
+          trial_end: Math.floor(firstChargeMs / 1000),
+          submit_message: `Nothing is charged today. Your monthly starts on ${startsLabel}: the first month, ${formatMoney(firstCents, currency)}, is charged that day, then ${formatMoney(monthlyCents, currency)} every month after it until you cancel.`,
+        }
+      : {}),
     // The first month's extra, on the first invoice only.
     one_time_line_items:
-      extraCents > 0
+      extraCents > 0 && !firstChargeMs
         ? [
             {
               name: MONTHLY_FIRST_MONTH_LABEL,
@@ -443,6 +475,7 @@ async function startMonthly(
       country: countryCode,
       currency,
       tax_class: 'eservice',
+      ...(startsOn ? { monthly_starts_on: startsOn, first_month_extra_cents: String(extraCents) } : {}),
     },
     idempotency_key: `${slug}-reg-${registrationId}`,
   });
@@ -453,7 +486,7 @@ async function startMonthly(
     kind: 'course.checkout.subscription.created',
     source: 'system',
     external_id: `local-course-${registrationId}-monthly`,
-    payload: { course_registration_id: registrationId, session_id: session.id, product_slug: slug, currency, monthly_amount_cents: monthlyCents, first_month_extra_cents: extraCents, installments_total: 0 },
+    payload: { course_registration_id: registrationId, session_id: session.id, product_slug: slug, currency, monthly_amount_cents: monthlyCents, first_month_extra_cents: extraCents, installments_total: 0, starts_on: startsOn, covered_by: start.coveredBy },
   });
   return json({ checkout_url: session.url, course_registration_id: registrationId });
 }

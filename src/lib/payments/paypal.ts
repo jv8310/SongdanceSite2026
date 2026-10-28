@@ -438,6 +438,13 @@ export type CreateSubscriptionInput = {
   // PayPal equivalent of a Stripe one-time line item on the first invoice. Used
   // for order bumps bought alongside an installment plan. Omit / 0 for none.
   setupFeeMinor?: number;
+  // A first cycle at its own price, before the regular ones (PayPal's TRIAL
+  // tenure, one cycle) — the monthly live pass's first month when its start is
+  // deferred: a setup fee would be charged at approval, this is charged with the
+  // first cycle on startTime.
+  firstCycleMinor?: number;
+  // When billing begins (ISO 8601, in the future). Omit for now.
+  startTime?: string;
 };
 
 // Create product → plan → subscription, returning the subscription id + the
@@ -472,10 +479,26 @@ export async function createSubscription(
       name: input.planName.slice(0, 127),
       status: 'ACTIVE',
       billing_cycles: [
+        ...(input.firstCycleMinor && input.firstCycleMinor > 0
+          ? [
+              {
+                frequency: { interval_unit: 'MONTH', interval_count: 1 },
+                tenure_type: 'TRIAL',
+                sequence: 1,
+                total_cycles: 1,
+                pricing_scheme: {
+                  fixed_price: {
+                    value: minorToPaypalAmount(input.firstCycleMinor),
+                    currency_code: currency,
+                  },
+                },
+              },
+            ]
+          : []),
         {
           frequency: { interval_unit: 'MONTH', interval_count: 1 },
           tenure_type: 'REGULAR',
-          sequence: 1,
+          sequence: input.firstCycleMinor && input.firstCycleMinor > 0 ? 2 : 1,
           total_cycles: input.installmentCount, // finite → completes after N; 0 = renews until cancelled
           pricing_scheme: {
             fixed_price: {
@@ -514,6 +537,7 @@ export async function createSubscription(
     '/v1/billing/subscriptions',
     {
       plan_id: plan.id,
+      ...(input.startTime ? { start_time: input.startTime } : {}),
       custom_id: input.customId.slice(0, 127),
       ...(input.subscriber
         ? {

@@ -100,7 +100,12 @@ export async function recordCourseInvoiceIfNew(
   courseReg: CourseRegistration,
   invoiceId: string,
   paymentIntent: string | null,
+  // What the invoice took, when the caller has it. A €0 invoice on a monthly is
+  // the opening of a deferred start (its trial), not a month: the first real
+  // charge comes on the day it starts (live-pass-scheduled.ts).
+  amountPaid?: number | null,
 ): Promise<boolean> {
+  if (amountPaid === 0 && courseReg.installments_total === 0) return false;
   const already = await env.DB
     .prepare(
       `SELECT 1 AS one FROM events

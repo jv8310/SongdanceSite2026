@@ -41,6 +41,7 @@ import { effectiveTotal } from '../../../lib/courses/installment-forecast';
 import { closePlanAtGateway } from '../../../lib/courses/installment-cancel';
 import { stopUnpaidMonthly } from '../../../lib/courses/live-pass-monthly';
 import { recordCourseInvoiceIfNew } from '../../../lib/courses/stripe-fulfill';
+import { noteScheduledMonthly } from '../../../lib/courses/live-pass-scheduled';
 import {
   handleWorkshopCheckoutCompleted,
   handleWorkshopDispute,
@@ -279,6 +280,15 @@ export const POST: APIRoute = async ({ request, locals }) => {
             }
           }
 
+          // A monthly live pass with a later first charge: agreed today,
+          // nothing charged until it starts (live-pass-scheduled.ts).
+          if (sub?.status === 'trialing') {
+            await noteScheduledMonthly(env, courseReg.id, {
+              subscriptionStatus: sub.status,
+              customer: sub.customer ?? null,
+            });
+          }
+
           const inv = sub?.latest_invoice ?? null;
           if (inv && (inv.paid || inv.status === 'paid')) {
             const refreshed = await getCourseRegistrationById(
@@ -291,6 +301,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
                 refreshed,
                 inv.id,
                 inv.payment_intent,
+                inv.amount_paid,
               );
             }
           }
@@ -453,7 +464,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       return new Response('Subscription not linked', { status: 200 });
     }
 
-    await recordCourseInvoiceIfNew(env, courseReg, invoice.id, paymentIntent);
+    await recordCourseInvoiceIfNew(env, courseReg, invoice.id, paymentIntent, invoice.amount_paid);
 
     return new Response('OK', { status: 200 });
   }

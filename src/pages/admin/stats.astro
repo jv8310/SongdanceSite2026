@@ -995,6 +995,7 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
           <div class="st-box-rows">
             <div><span>Payment failing, being retried</span><b class={livePass.monthly.behind > 0 ? 'st-neg-ink' : ''}>{livePass.monthly.behind || '—'}</b></div>
             <div><span>Cancelled, paid month still running</span><b>{livePass.monthly.ending || '—'}</b></div>
+            <div><span>Agreed, starting later</span><b>{livePass.monthly.scheduled || '—'}</b></div>
             <div><span>Started</span><b>{livePass.monthly.started || '—'}</b><i>{rangeLabel}</i></div>
             <div><span>Cancelled</span><b>{livePass.monthly.cancelled || '—'}</b><i>{rangeLabel}</i></div>
             <div><span>Stopped by a failed payment</span><b class={livePass.monthly.stopped > 0 ? 'st-neg-ink' : ''}>{livePass.monthly.stopped || '—'}</b><i>{rangeLabel}</i></div>
@@ -1004,7 +1005,7 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
               <i>{int(livePass.monthly.charges)} {livePass.monthly.charges === 1 ? 'monthly charge' : 'monthly charges'} · {rangeLabel}</i>
             </div>
           </div>
-          <p class="st-box-note">The first three lines are as of today, whatever the period. Net of VAT. “Cancelled” counts cancels made on the site, by the buyer or from an order page, not ones made in Stripe or PayPal directly.</p>
+          <p class="st-box-note">The first four lines are as of today, whatever the period. “Starting later” is a monthly taken while the buyer still had the live sessions: nothing is charged until they end. Net of VAT. “Cancelled” counts cancels made on the site, by the buyer or from an order page, not ones made in Stripe or PayPal directly.</p>
         </div>
 
         <div class="st-box">
@@ -1030,7 +1031,7 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
         </div>
       </div>
 
-      <h3 class="st-lp-h3">Monthlies running now</h3>
+      <h3 class="st-lp-h3">Monthlies running now, or starting later</h3>
       {livePass.monthly.rows.length === 0 ? (
         <p class="adm-empty">No monthly is running.</p>
       ) : (
@@ -1052,6 +1053,7 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
                   {m.standing === 'renews' && <span>Renews {m.through ? prettyYmd(m.through) : 'monthly'}</span>}
                   {m.standing === 'behind' && <span class="st-neg-ink">Payment failing, being retried</span>}
                   {m.standing === 'ending' && <span>Cancelled · open until {m.through ? prettyYmd(m.through) : '—'}</span>}
+                  {m.standing === 'scheduled' && <span>Starts {m.through ? prettyYmd(m.through) : 'later'} · nothing charged yet</span>}
                 </td>
                 <td><a href={`/admin/orders/C-${m.id}`} class="st-box-link">{m.standing === 'ending' ? 'Open →' : 'Cancel / open →'}</a></td>
               </tr>
