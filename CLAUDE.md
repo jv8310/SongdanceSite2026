@@ -187,8 +187,8 @@ announcement follow.
 - **Promotion**: a "Registrations now open" ribbon on its `/courses` card, the price in the
   menu (`MarketingProduct` `forgiveness`), the homepage hero announcement and
   `ForgivenessBand` — both static, both remove themselves in the browser once the last
-  session has ended. Migration 0091 puts the `/events` grid card back with its dates;
-  0092 seeds the launch broadcast as a draft (site list minus `in-drip`); its Drip twin is
+  session has ended. Migration 0092 puts the `/events` grid card back with its dates;
+  0093 seeds the launch broadcast as a draft (site list minus `in-drip`); its Drip twin is
   `docs/emails/forgiveness-course-launch.drip.html` (Drip draft broadcast 859731837).
 - Registrants: `/admin/courses/forgiveness-course`.
 
