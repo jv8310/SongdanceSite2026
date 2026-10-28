@@ -1,5 +1,11 @@
 ---
 import SiteMenu from '../SiteMenu.astro';
+
+interface Props {
+  open: boolean;
+  datesLabel: string;
+}
+const { open, datesLabel } = Astro.props;
 ---
 
 <nav class="fc-nav">
@@ -11,9 +17,9 @@ import SiteMenu from '../SiteMenu.astro';
     <div class="fc-nav-meta">
       <span>Live · 4 sessions</span>
       <span class="dot"></span>
-      <span>Coming in Fall 2026</span>
+      <span>{datesLabel}</span>
     </div>
-    <a href="#register" class="fc-nav-cta">Stay in the loop</a>
+    <a href="#register" class="fc-nav-cta">{open ? 'Register' : 'The course'}</a>
     <button class="sm-trigger" data-sm-trigger aria-label="Open menu" aria-expanded="false">
       <i class="ph-light ph-list"></i>
     </button>

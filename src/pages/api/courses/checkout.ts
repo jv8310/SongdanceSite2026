@@ -346,16 +346,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
         400,
       );
     }
-    // The Certification path (cc-bundle) is offered in full, 3×, or 6× — both
-    // its lines carry a 3- and 6-month ladder, but no 12-month plan, so reject a
-    // 12× request rather than mischarge against the old flat bundle ladder.
-    if (productSlug === 'cc-bundle' && paymentPlan === '12x') {
-      return json(
-        { error: 'The certification path is available in full, 3, or 6 monthly payments.' },
-        400,
-      );
-    }
-
     // Price the order. The bundle IS the "Certification path": both lines
     // re-derived server-side from the email so the charge always matches
     // eligibility — during a live workshop window the whole path takes 20%
@@ -378,12 +368,15 @@ export const POST: APIRoute = async ({ request, locals }) => {
         pathPricing = buildCertificationPathPricing(currency, eff);
       }
       chargedPriceCents = pathPricing.total_cents;
-      // 6× draws the longer-term monthly; 3× (and the unused full case) the
-      // standard one. installmentPlan below carries the matching count.
+      // 6× and 12× draw the path's own longer-term monthlies (path.ts); 3× (and
+      // the unused full case) the standard one. installmentPlan below carries
+      // the matching count.
       chargedMonthlyCents =
-        paymentPlan === '6x'
-          ? pathPricing.total_monthly_6x_cents
-          : pathPricing.total_monthly_cents;
+        paymentPlan === '12x'
+          ? pathPricing.total_monthly_12x_cents
+          : paymentPlan === '6x'
+            ? pathPricing.total_monthly_6x_cents
+            : pathPricing.total_monthly_cents;
     } else {
       // cc-cert. A verified German graduate's `offer` is already the 20%-off
       // cert (its list price stays as base_price for the receipt), so no URL
@@ -419,9 +412,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
           ? baseOffer.base_price * 100
           : offer.price_cents;
     const originalMonthlyCents = pathPricing
-      ? paymentPlan === '6x'
-        ? pathPricing.base_total_monthly_6x_cents
-        : pathPricing.base_total_monthly_cents
+      ? paymentPlan === '12x'
+        ? pathPricing.base_total_monthly_12x_cents
+        : paymentPlan === '6x'
+          ? pathPricing.base_total_monthly_6x_cents
+          : pathPricing.base_total_monthly_cents
       : germanGrad
         ? baseInstallmentPlan?.monthly_cents ?? 0
         : certPromoApplied

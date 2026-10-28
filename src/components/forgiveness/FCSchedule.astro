@@ -1,30 +1,39 @@
 ---
-// The Forgiveness Course returns in Fall 2026. Exact dates and times are still
-// being set; the four-session arc is previewed below and the schedule will be
-// announced once confirmed.
-const sessions = [
-  { label: 'Class 01', title: 'The dynamics of forgiveness' },
-  { label: 'Class 02', title: 'Forgiving others' },
-  { label: 'Class 03', title: 'Forgiving self' },
-  { label: 'Class 04', title: 'Forgiving separation' },
-];
+// The four December sessions, on the visitor's own clock (the page reads their
+// edge timezone; forgivenessSessionsIn names the city). The class titles are
+// the four-class arc below (FCClasses).
+import { FORGIVENESS_SESSION_MINUTES, type ForgivenessSessionView } from '../../lib/courses/forgiveness';
+
+interface Props {
+  sessions: ForgivenessSessionView[];
+  // The visitor is not on Brussels time: say the hour there too.
+  brusselsNote: boolean;
+}
+
+const { sessions, brusselsNote } = Astro.props;
 ---
 
 <section class="fc-schedule" id="schedule">
   <div class="fc-schedule-inner">
     <div class="fc-schedule-head">
       <div class="fc-eyebrow" style="justify-content: center;">When we gather</div>
-      <h2 class="fc-h2">Coming in <em>Fall 2026.</em></h2>
+      <h2 class="fc-h2">Four evenings in <em>December.</em></h2>
       <p class="fc-schedule-sub">
-        Each session is 90 minutes, live on Zoom. Exact dates and times announced soon.
+        Each session is {FORGIVENESS_SESSION_MINUTES / 60} hours, live on Zoom{brusselsNote ? ' — 19:00 to 21:00 in Brussels' : ''}.
+        Times are shown where you are.
       </p>
     </div>
 
     <div class="fc-schedule-grid">
       {sessions.map((s) => (
         <article class="fc-schedule-card">
-          <div class="fc-schedule-label">{s.label}</div>
+          <div class="fc-schedule-label">Class 0{s.n}</div>
           <div class="fc-schedule-title">{s.title}</div>
+          <time class="fc-schedule-date" datetime={s.startsAtUtc}>
+            <span class="fc-schedule-day">{s.weekday}</span>
+            <span class="fc-schedule-fullday">{s.date}</span>
+            <span class="fc-schedule-time">{s.time}</span>
+          </time>
         </article>
       ))}
     </div>

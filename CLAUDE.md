@@ -156,6 +156,42 @@ app. Read 120 days ahead (`APP_SESSION_HORIZON_DAYS`), so one weekly repeating
 event works. Deploy order: the app first (an older app answers "not deployed
 yet" and the workshops sync as before).
 
+## The Forgiveness Course — four live sessions, December 2026
+
+`/courses/forgiveness` sells the course since October 2026: four live sessions on Zoom
+with Daniela Hess and Jacob, **Sun 6, Wed 9, Sun 13 and Wed 16 December 2026, 19:00–21:00
+Brussels time** (Jacob's Google Calendar, "Forgiveness Course 1" … "4"), lifetime access to
+the replays, **€147** (per-currency points, `FORGIVENESS_PRICE`). One file holds the facts:
+[`src/lib/courses/forgiveness.ts`](src/lib/courses/forgiveness.ts) — slug
+`forgiveness-course`, Drip tag `prod_Forgiveness`, event `Completed Forgiveness course
+registration`, the sessions as UTC instants, and `forgivenessSessionsIn(tz)`, which prints
+them on the reader's clock with the city (the page reads the edge timezone, the email the
+buyer's). Change a date there and the page, the email, the homepage band and the hero
+announcement follow.
+
+- **Checkout**: `/api/courses/forgiveness-checkout` — the Grief Course's checkout (full
+  payment, Stripe + PayPal, company/VAT, `?discount=` / `?adiscount=`) plus the **ASJ and
+  Grief order bumps** of `bumps.ts`, charged as their own line items and recorded in the
+  row's `bumps` JSON (tags via `courseDripTags`, the app opens them via its
+  `BUMP_SLUG_TO_PRODUCT`). `/api/courses/bump-offers` hides a bump the address already owns
+  (Drip tags, fails open). The checkout refuses once the last session has ended
+  (`forgivenessRegistrationOpen`), and the page swaps the form for a note.
+- **Where buyers go: the member app.** A paid row opens the course `forgiveness-course` in
+  the CiRCLE; the four sessions are app events (`owns-product`, product
+  `forgiveness-course`), so the Zoom link is handed out there and each replay becomes one of
+  the course's four lessons. Nothing on the site holds a Zoom link.
+- **Confirmation**: Drip never had a welcome for this course, so the site confirms it from
+  the first order with no handover switch (`SITE_ONLY_CONFIRMATIONS` in
+  `emails/confirmation.ts`, words in `confirmation-emails.ts`, previewed on
+  `/admin/emails/courses`); the hourly sweep retries a failed send.
+- **Promotion**: a "Registrations now open" ribbon on its `/courses` card, the price in the
+  menu (`MarketingProduct` `forgiveness`), the homepage hero announcement and
+  `ForgivenessBand` — both static, both remove themselves in the browser once the last
+  session has ended. Migrations 0092 + 0094 put the `/events` grid card back with its dates;
+  0093 seeds the launch broadcast as a draft (site list minus `in-drip`); its Drip twin is
+  `docs/emails/forgiveness-course-launch.drip.html` (Drip draft broadcast 859731837).
+- Registrants: `/admin/courses/forgiveness-course`.
+
 ## Forgiveness prayer lead magnet — offline, kept for later
 
 `/forgiveness-for-you` (five questions → a personalised prayer, emailed, Drip tag
@@ -275,7 +311,16 @@ in moderation, not governed by the copy book.
   lifecycle emails quote one number for both. The path's discounted figures
   are floored to the nearest 5 (`pctMajor`), so the sale reads in round
   prices — EUR path €1,347 → **€1,075** (cert €635 + 12-week €440), 3×
-  €375/mo, 6× €200/mo — and the advertised percent is never under-delivered.
+  €375/mo, 6× €201/mo — and the advertised percent is never under-delivered.
+- **The path's longer plans** (October 2026, `PATH_PREMIUM_PERCENT_6X` /
+  `_12X` in `path.ts`): 6 monthly payments cost **12%** more than the path's
+  one-off price, 12 monthly payments **13%** more, worked from the path total as
+  it stands for that buyer (so a sale or override carries through) and rounded
+  to whole units — EUR €1,347 → 6× €251, 12× €127. The 3-month plan stays the
+  sum of the two courses' ladders (+6%). The 12-month plan only shows with
+  `?installment=12` (`/courses/certification?installment=12&email=…`), like
+  the certification alone's; a newcomer is only offered the path, so before
+  this that link showed them no 12-month plan at all.
   A `?discount=N` / `?adiscount=N` override still wins outright and, since
   September 2026, takes its percent off the **whole path** — both lines, the
   same shape as the workshop sale (EUR path €1,347 at 50% → **€670**). The

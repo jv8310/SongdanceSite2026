@@ -1,96 +1,431 @@
 ---
+// Registration for the December sessions: name, email, country (which sets the
+// currency), optional company + VAT, the two order bumps (ASJ / Grief, the same
+// ones the 12-week and certification checkouts carry), then Stripe or PayPal
+// through /api/courses/forgiveness-checkout. Prices are rendered here in the
+// visitor's edge currency and repainted in the browser from the same modules
+// the server charges from (forgiveness.ts, bumps.ts), so the figure shown is
+// the figure charged. Once the last session has ended the form gives way to a
+// note.
+import { COUNTRIES, findCountry } from '../../lib/countries';
+import GuaranteeBadge from '../GuaranteeBadge.astro';
+import { BUMP_ORDER, BUMPS, bumpOffer } from '../../lib/courses/bumps';
+import { formatMoney, type SupportedCurrency } from '../../lib/workshops/currency';
+import {
+  FORGIVENESS_DATES_LABEL,
+  FORGIVENESS_SESSION_MINUTES,
+  forgivenessOffer,
+} from '../../lib/courses/forgiveness';
+
+interface Props {
+  open: boolean;
+  currency: SupportedCurrency;
+  country: string | null;
+  // "Sun 6 Dec, 19:00 Brussels time" for the first session, in the visitor's zone.
+  firstSession: string;
+}
+
+const { open, currency, country, firstSession } = Astro.props;
+const offer = forgivenessOffer(currency);
+const prefill = findCountry(country);
+
+// The ASJ's own blurb speaks of "the modules" of the 12-week course.
+const BLURBS: Record<string, string> = {
+  asj: 'Somewhere to keep practising between the sessions — original music made to sound along with, yours to keep.',
+};
+const bumps = BUMP_ORDER.map((slug) => {
+  const o = bumpOffer(slug, currency);
+  return { ...o, blurb: BLURBS[slug] ?? BUMPS[slug].blurb };
+});
+const save = (b: { price_cents: number; compare_at_cents: number | null }) =>
+  b.compare_at_cents ? Math.round((1 - b.price_cents / b.compare_at_cents) * 100) : 0;
 ---
 
 <section class="fc-register" id="register">
   <div class="fc-register-inner">
-    <div class="fc-eyebrow" style="justify-content: center;">Stay in the loop</div>
-    <h2 class="fc-register-h2">Be the first <em>to know.</em></h2>
+    <div class="fc-eyebrow" style="justify-content: center;">{open ? 'Registrations now open' : 'Registration'}</div>
+    <h2 class="fc-register-h2">Come <em>anyway.</em></h2>
     <p class="fc-register-sub">
-      Enrollment isn't open yet. Leave your email and we'll write the moment dates are set.
+      Four live evenings, {FORGIVENESS_DATES_LABEL}. The first begins {firstSession}.
     </p>
     <ul class="fc-register-bullets">
-      <li>Four 90-minute live sessions on Zoom · coming in Fall 2026</li>
-      <li>Lifetime access to replays — for everyone, forever</li>
-      <li>Teachings, somatic practices, journeys</li>
+      <li>4 live sessions on Zoom · {FORGIVENESS_SESSION_MINUTES / 60} hours each</li>
+      <li>Lifetime access to the replays</li>
+      <li>With Daniela Hess &amp; Jacob</li>
     </ul>
-    <form class="fc-register-form" data-fc-news-form>
-      <input
-        type="text"
-        name="hp"
-        class="fc-news-hp"
-        tabindex="-1"
-        autocomplete="off"
-        aria-hidden="true"
-      />
-      <input
-        type="email"
-        name="email"
-        class="fc-news-input"
-        placeholder="you@somewhere"
-        aria-label="Email address"
-        autocomplete="email"
-        required
-      />
-      <button type="submit" class="fc-register-cta" data-fc-news-submit>
-        <span data-fc-news-label>Keep me in the loop</span>
-        <i class="ph-light ph-arrow-right"></i>
-      </button>
-    </form>
-    <p class="fc-register-note" data-fc-news-note>
-      No spam — just word when the doors open. Easy to leave, any time.
-    </p>
-    <p class="fc-register-error" hidden role="alert" data-fc-news-error></p>
-    <p class="fc-register-thanks" hidden data-fc-news-thanks>
-      Thank you. We'll be in touch the moment enrollment opens.
-    </p>
+
+    {open ? (
+      <div class="fc-checkout">
+        <div class="fc-checkout-price">
+          <span class="fc-checkout-strike" data-fc-strike hidden></span>
+          <span class="fc-checkout-amount" data-fc-amount>{formatMoney(offer.price_cents, currency)}</span>
+        </div>
+        <p class="fc-checkout-price-note">
+          One-time payment · the four sessions and their replays
+          <span class="fc-checkout-badge" data-fc-discount-badge hidden></span>
+        </p>
+
+        <form class="fc-fields" data-fc-form novalidate>
+          <label class="fc-field fc-field--half">
+            <span>First name</span>
+            <input type="text" name="first_name" autocomplete="given-name" required />
+          </label>
+          <label class="fc-field fc-field--half">
+            <span>Last name</span>
+            <input type="text" name="last_name" autocomplete="family-name" required />
+          </label>
+          <label class="fc-field">
+            <span>Email</span>
+            <input type="email" name="email" autocomplete="email" required />
+            <span class="fc-field-note">Your sessions and replays open in the Songdance app with this address.</span>
+          </label>
+          <label class="fc-field">
+            <span>Country</span>
+            <input
+              type="text"
+              name="country_search"
+              list="fc-country-list"
+              autocomplete="country-name"
+              placeholder="Start typing…"
+              value={prefill?.name ?? ''}
+              required
+            />
+            <input type="hidden" name="country" value={prefill?.code ?? ''} />
+            <span class="fc-field-note" data-fc-currency-note hidden></span>
+          </label>
+          <label class="fc-field">
+            <span>Company <span class="fc-field-note">— optional, for a business invoice</span></span>
+            <input type="text" name="company_name" autocomplete="organization" placeholder="Your company name" />
+          </label>
+          <label class="fc-field" data-fc-vat hidden>
+            <span>VAT number <span class="fc-field-note">— optional, for EU reverse-charge</span></span>
+            <input type="text" name="vat_number" autocomplete="off" placeholder="e.g. BE0123456789" />
+          </label>
+
+          <div class="fc-bumps-wrap" data-fc-bumps-wrap>
+            <div class="fc-bumps-label">Add to your registration</div>
+            <div class="fc-bumps">
+              {bumps.map((b) => (
+                <label class="fc-bump" data-fc-bump={b.slug}>
+                  <input type="checkbox" class="fc-bump-check" name="bump" value={b.slug} />
+                  <span class="fc-bump-box" aria-hidden="true"></span>
+                  <img class="fc-bump-thumb" src={b.image} alt="" loading="lazy" />
+                  <span class="fc-bump-body">
+                    <span class="fc-bump-head">
+                      <span class="fc-bump-title">{b.label}</span>
+                      <span class="fc-bump-price" data-fc-bump-price>
+                        {b.compare_at_cents && <s class="fc-bump-was">{formatMoney(b.compare_at_cents, currency)}</s>}{' '}
+                        {formatMoney(b.price_cents, currency)}
+                        {save(b) > 0 && <span class="fc-bump-save">Save {save(b)}%</span>}
+                      </span>
+                    </span>
+                    <span class="fc-bump-points">
+                      {b.points.map((p) => <span class="fc-bump-point">{p}</span>)}
+                    </span>
+                    <span class="fc-bump-blurb">{b.blurb}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <label class="fc-consent">
+            <input type="checkbox" name="consent_terms" required />
+            <span>I agree to the <a href="/terms" target="_blank" rel="noopener">terms and conditions</a>.</span>
+          </label>
+
+          <div class="fc-checkout-summary">
+            <span>The Forgiveness Course<span data-fc-summary-extra></span></span>
+            <span class="fc-checkout-summary-amount" data-fc-summary>{formatMoney(offer.price_cents, currency)}</span>
+          </div>
+
+          <p class="fc-register-error" data-fc-error role="alert"></p>
+
+          <button type="submit" class="fc-register-cta fc-checkout-cta" data-fc-cta>
+            <span>Continue to payment</span>
+            <i class="ph-light ph-arrow-right"></i>
+          </button>
+          <button type="button" class="fc-register-cta fc-checkout-cta fc-checkout-paypal" data-fc-paypal hidden>
+            <span>Pay with <strong>PayPal</strong></span>
+          </button>
+          <p class="fc-register-note">
+            <i class="ph-light ph-lock-simple"></i> Secure checkout by Stripe. Invoice by Quaderno.
+          </p>
+        </form>
+
+        <datalist id="fc-country-list">
+          {COUNTRIES.map((c) => <option value={c.name} data-code={c.code}>{c.flag} {c.name}</option>)}
+        </datalist>
+      </div>
+    ) : (
+      <p class="fc-register-closed">
+        The December sessions have taken place. Write to
+        <a href="mailto:support@songdance.co">support@songdance.co</a> if you would like the replays, or to hear when
+        the course runs again.
+      </p>
+    )}
+
+    {open && (
+      <div class="fc-register-guarantee">
+        <GuaranteeBadge variant="card" />
+      </div>
+    )}
   </div>
 </section>
 
 <script>
-  const form = document.querySelector<HTMLFormElement>('[data-fc-news-form]');
-  const note = document.querySelector<HTMLElement>('[data-fc-news-note]');
-  const errorEl = document.querySelector<HTMLElement>('[data-fc-news-error]');
-  const thanks = document.querySelector<HTMLElement>('[data-fc-news-thanks]');
-  const label = document.querySelector<HTMLElement>('[data-fc-news-label]');
+  import { COUNTRIES } from '../../lib/countries';
+  import { BUMP_ORDER, bumpOffer, type BumpSlug } from '../../lib/courses/bumps';
+  import { FORGIVENESS_PRICE } from '../../lib/courses/forgiveness';
+  import { currencyForCountry, formatMoney, isSupportedCurrency, type SupportedCurrency } from '../../lib/workshops/currency';
+  import { launchPromoPercent } from '../../lib/promo';
+  import { postJsonResilient } from '../../lib/client/resilient-fetch';
 
-  form?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    if (errorEl) errorEl.hidden = true;
+  const CURRENCY_LABEL: Record<SupportedCurrency, string> = {
+    EUR: 'euros', USD: 'US dollars', GBP: 'pounds', CAD: 'Canadian dollars',
+    CHF: 'Swiss francs', AUD: 'Australian dollars', NZD: 'New Zealand dollars',
+    NOK: 'Norwegian kroner', SEK: 'Swedish kronor', DKK: 'Danish kroner',
+  };
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-    const data = new FormData(form);
-    const email = String(data.get('email') ?? '').trim();
-    if (!email) return;
-
-    const btn = form.querySelector<HTMLButtonElement>('[data-fc-news-submit]');
-    const original = label?.textContent ?? 'Keep me in the loop';
-    if (btn) btn.disabled = true;
-    if (label) label.textContent = 'Sending…';
-
+  // ?discount=N (1–99, public) and the owner's ?adiscount=N (1–100). The
+  // server re-validates both; this only decides what is displayed.
+  function readPct(name: string, max: number): number {
     try {
-      const res = await fetch('/api/newsletter', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email,
-          hp: String(data.get('hp') ?? ''),
-          source: 'forgiveness-course',
-        }),
-      });
-      const payload = (await res.json().catch(() => ({}))) as { ok?: boolean };
-      if (res.ok && payload?.ok) {
-        form.hidden = true;
-        if (note) note.hidden = true;
-        if (thanks) thanks.hidden = false;
-        return;
-      }
-      throw new Error('request-failed');
-    } catch {
-      if (btn) btn.disabled = false;
-      if (label) label.textContent = original;
-      if (errorEl) {
-        errorEl.textContent = "That didn't go through. Please check the address and try again.";
-        errorEl.hidden = false;
-      }
+      const n = parseInt(new URLSearchParams(window.location.search).get(name) ?? '', 10);
+      if (Number.isInteger(n) && n >= 1 && n <= max) return n;
+    } catch {}
+    return 0;
+  }
+  const publicPct = Math.max(readPct('discount', 99), launchPromoPercent());
+  const secretPct = readPct('adiscount', 100);
+  const discountPct = Math.max(publicPct, secretPct);
+  const free = secretPct >= 100;
+
+  const form = document.querySelector<HTMLFormElement>('[data-fc-form]');
+  if (form) {
+    const $ = <T extends HTMLElement>(sel: string) => document.querySelector<T>(sel)!;
+    const amountEl = $('[data-fc-amount]');
+    const strikeEl = $('[data-fc-strike]');
+    const badgeEl = $('[data-fc-discount-badge]');
+    const summaryEl = $('[data-fc-summary]');
+    const summaryExtraEl = $('[data-fc-summary-extra]');
+    const currencyNoteEl = $('[data-fc-currency-note]');
+    const bumpsWrap = $('[data-fc-bumps-wrap]');
+    const countryInput = form.querySelector<HTMLInputElement>('[name="country_search"]')!;
+    const countryHidden = form.querySelector<HTMLInputElement>('[name="country"]')!;
+    const emailInput = form.querySelector<HTMLInputElement>('[name="email"]')!;
+    const companyInput = form.querySelector<HTMLInputElement>('[name="company_name"]')!;
+    const vatField = $('[data-fc-vat]');
+    const vatInput = form.querySelector<HTMLInputElement>('[name="vat_number"]')!;
+    const errorEl = $('[data-fc-error]');
+    const cta = $<HTMLButtonElement>('[data-fc-cta]');
+    const paypalBtn = document.querySelector<HTMLButtonElement>('[data-fc-paypal]');
+    const bumpEls = new Map<BumpSlug, HTMLLabelElement>();
+    for (const slug of BUMP_ORDER) {
+      const el = form.querySelector<HTMLLabelElement>(`[data-fc-bump="${slug}"]`);
+      if (el) bumpEls.set(slug, el);
     }
-  });
+
+    let currency: SupportedCurrency = 'EUR';
+    // Bumps hidden because the address already owns them (Drip tags).
+    let owned = new Set<BumpSlug>();
+
+    const pctOff = (cents: number) => (discountPct > 0 ? Math.round((cents * (100 - discountPct)) / 100) : cents);
+    const tickedBumps = (): BumpSlug[] =>
+      BUMP_ORDER.filter((slug) => {
+        const el = bumpEls.get(slug);
+        return !!el && !el.hidden && !!el.querySelector<HTMLInputElement>('input')?.checked;
+      });
+
+    function render() {
+      const base = FORGIVENESS_PRICE[currency] * 100;
+      const course = pctOff(base);
+      strikeEl.hidden = discountPct <= 0;
+      badgeEl.hidden = discountPct <= 0;
+      if (discountPct > 0) {
+        strikeEl.textContent = formatMoney(base, currency);
+        badgeEl.textContent = `${discountPct}% off`;
+      }
+      amountEl.textContent = formatMoney(course, currency);
+
+      // A comp (?adiscount=100) carries no add-ons: there is nothing to charge.
+      bumpsWrap.hidden = free || BUMP_ORDER.every((s) => owned.has(s));
+      for (const slug of BUMP_ORDER) {
+        const el = bumpEls.get(slug);
+        if (!el) continue;
+        el.hidden = owned.has(slug);
+        const o = bumpOffer(slug, currency);
+        const pct = o.compare_at_cents ? Math.round((1 - o.price_cents / o.compare_at_cents) * 100) : 0;
+        el.querySelector('[data-fc-bump-price]')!.innerHTML =
+          (o.compare_at_cents ? `<s class="fc-bump-was">${formatMoney(o.compare_at_cents, currency)}</s> ` : '') +
+          formatMoney(o.price_cents, currency) +
+          (pct > 0 ? ` <span class="fc-bump-save">Save ${pct}%</span>` : '');
+        el.classList.toggle('fc-bump--selected', !el.hidden && !!el.querySelector<HTMLInputElement>('input')?.checked);
+      }
+      const ticked = free ? [] : tickedBumps();
+      const bumpTotal = ticked.reduce((s, slug) => s + bumpOffer(slug, currency).price_cents, 0);
+      summaryExtraEl.textContent = ticked.length ? ` + ${ticked.length === 1 ? 'one add-on' : 'two add-ons'}` : '';
+      summaryEl.textContent = formatMoney(course + bumpTotal, currency);
+
+      currencyNoteEl.hidden = currency === 'EUR';
+      currencyNoteEl.textContent = currency === 'EUR' ? '' : `Shown and charged in ${CURRENCY_LABEL[currency]} (${currency}).`;
+    }
+
+    function resolveCountry() {
+      const typed = countryInput.value.trim().toLowerCase();
+      const match = COUNTRIES.find((c) => c.name.toLowerCase() === typed || c.code.toLowerCase() === typed);
+      countryHidden.value = match ? match.code : '';
+      const next = currencyForCountry(match?.code ?? countryHidden.value);
+      currency = isSupportedCurrency(next) ? next : 'EUR';
+      render();
+    }
+    countryInput.addEventListener('change', resolveCountry);
+    countryInput.addEventListener('input', resolveCountry);
+    countryInput.addEventListener('blur', resolveCountry);
+
+    function toggleVat() {
+      const show = companyInput.value.trim().length > 0;
+      vatField.hidden = !show;
+      if (!show) vatInput.value = '';
+    }
+    companyInput.addEventListener('input', toggleVat);
+
+    for (const el of bumpEls.values()) {
+      el.querySelector('input')?.addEventListener('change', render);
+    }
+
+    // Hide the add-ons this address already owns. Best-effort: a failed or
+    // slow lookup leaves both on offer.
+    let lookedUp = '';
+    async function checkOwned() {
+      const email = emailInput.value.trim().toLowerCase();
+      if (!EMAIL_RE.test(email) || email === lookedUp) return;
+      lookedUp = email;
+      try {
+        const res = await fetch('/api/courses/bump-offers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, country: countryHidden.value }),
+        });
+        if (!res.ok) return;
+        const body = (await res.json()) as { bumps?: Array<{ slug: string }> };
+        if (email !== emailInput.value.trim().toLowerCase()) return;
+        const offered = new Set<string>((body.bumps ?? []).map((b) => b.slug));
+        owned = new Set(BUMP_ORDER.filter((s) => !offered.has(s)));
+        for (const slug of owned) {
+          const input = bumpEls.get(slug)?.querySelector<HTMLInputElement>('input');
+          if (input) input.checked = false;
+        }
+        render();
+      } catch {}
+    }
+    emailInput.addEventListener('change', checkOwned);
+    emailInput.addEventListener('blur', checkOwned);
+
+    // ?email= / ?first_name= / ?last_name= (the abandoned-checkout email, the
+    // member app) fill the form in.
+    try {
+      const q = new URLSearchParams(window.location.search);
+      const fill = (name: string, value: string | null, ok = (v: string) => v.length > 0) => {
+        const field = form.querySelector<HTMLInputElement>(`[name="${name}"]`);
+        const v = (value ?? '').trim().slice(0, 100);
+        if (field && !field.value && ok(v)) field.value = v;
+      };
+      fill('email', q.get('email'), (v) => EMAIL_RE.test(v));
+      fill('first_name', q.get('first_name'));
+      fill('last_name', q.get('last_name'));
+    } catch {}
+
+    toggleVat();
+    resolveCountry();
+    void checkOwned();
+
+    // PayPal is offered only when the gateway is live.
+    if (paypalBtn) {
+      fetch('/api/payments/availability')
+        .then((r) => r.json())
+        .then((d: any) => { if (d?.paypal) paypalBtn.hidden = false; })
+        .catch(() => {});
+    }
+    let nextProvider: 'stripe' | 'paypal' = 'stripe';
+    paypalBtn?.addEventListener('click', () => {
+      nextProvider = 'paypal';
+      form.requestSubmit();
+    });
+
+    function fail(msg: string) {
+      errorEl.textContent = msg;
+      errorEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errorEl.textContent = '';
+      const get = (name: string) => String(form.querySelector<HTMLInputElement>(`[name="${name}"]`)?.value ?? '').trim();
+      const first_name = get('first_name');
+      const last_name = get('last_name');
+      const email = get('email');
+      const country = countryHidden.value.trim();
+      const company_name = get('company_name');
+      const vat_number = get('vat_number');
+      const consent = form.querySelector<HTMLInputElement>('[name="consent_terms"]')!.checked;
+
+      if (!first_name || !last_name) return fail('Please add your first and last name.');
+      if (!EMAIL_RE.test(email)) return fail('Please enter a valid email address.');
+      if (!country) return fail('Please select your country from the list.');
+      if (vat_number && !company_name) return fail('Please add your company name to use a VAT number.');
+      if (!consent) return fail('Please agree to the terms to continue.');
+
+      const provider = nextProvider;
+      nextProvider = 'stripe';
+      const bumps = free ? [] : tickedBumps();
+      const original = cta.innerHTML;
+      cta.disabled = true;
+      if (paypalBtn) paypalBtn.disabled = true;
+      cta.innerHTML = '<span>Opening secure checkout…</span>';
+      const restore = () => {
+        cta.disabled = false;
+        if (paypalBtn) paypalBtn.disabled = false;
+        cta.innerHTML = original;
+      };
+
+      try {
+        const res = await postJsonResilient('/api/courses/forgiveness-checkout', {
+          first_name,
+          last_name,
+          email,
+          country,
+          company_name: company_name || undefined,
+          vat_number: vat_number || undefined,
+          consent_terms: true,
+          provider,
+          ...(bumps.length ? { bumps } : {}),
+          ...(publicPct > 0 ? { discount_percent: publicPct } : {}),
+          ...(secretPct > 0 ? { adiscount_percent: secretPct } : {}),
+        });
+        let body: { checkout_url?: string; error?: string } = {};
+        try { body = (await res.json()) as typeof body; } catch {}
+        if (!res.ok || !body.checkout_url) {
+          fail(body.error || `Could not start checkout (HTTP ${res.status}). Please try again.`);
+          restore();
+          return;
+        }
+        const fbq = (window as any).fbq;
+        if (fbq) {
+          try {
+            fbq('track', 'InitiateCheckout', {
+              content_ids: ['forgiveness-course', ...bumps.map((b) => (b === 'grief' ? 'grief-course' : b))],
+              content_type: 'product',
+              currency,
+            });
+          } catch {}
+        }
+        window.location.href = body.checkout_url;
+      } catch {
+        fail('We could not reach the server. Please try again.');
+        restore();
+      }
+    });
+  }
 </script>

@@ -5,6 +5,7 @@
 // the handler (they aren't mirrored onto contacts).
 
 import { GRIEF_DRIP_TAG, GRIEF_PRODUCT_SLUG } from './grief';
+import { FORGIVENESS_DRIP_TAG, FORGIVENESS_PRODUCT_SLUG } from './forgiveness';
 import { TWELVE_WEEK_DRIP_TAG, TWELVE_WEEK_PRODUCT_SLUG } from './twelve-week';
 import { isJourneySlug, journeyDrip, type JourneyLanguageChoice } from './journeys';
 import { BUMPS, isBumpSlug } from './bumps';
@@ -23,6 +24,7 @@ import {
 //   grief        → prod_Grief-sp
 //   journeys     → DRIP_BY_SLUG tags, honouring the Dutch-edition language choice
 //   svh-12week   → prod_SVH_12w + each purchased order bump's product tag
+//   forgiveness-course → prod_Forgiveness + each purchased order bump's product tag
 //   album-<id>   → [] here — the tag lives on the music_albums row (D1), so the
 //                  paid-handler looks it up itself; this pure function must not
 //                  fall through to the cert tags for an album purchase
@@ -52,9 +54,9 @@ export function courseDripTags(reg: {
     return journeyDrip(reg.product_slug, reg.language_choice).tags;
   }
 
-  // Purchased order bumps (ASJ / Grief) grant their product tag, on both the
-  // 12-week and the cert/bundle checkouts. The zero-amount Song Deck gift row
-  // isn't a bump slug, so isBumpSlug skips it.
+  // Purchased order bumps (ASJ / Grief) grant their product tag, on the
+  // 12-week, the cert/bundle and the forgiveness checkouts. The zero-amount
+  // Song Deck gift row isn't a bump slug, so isBumpSlug skips it.
   const bumpTags: string[] = [];
   for (const b of parsePurchasedBumps(reg.bumps)) {
     if (isBumpSlug(b.slug)) bumpTags.push(BUMPS[b.slug].dripTag);
@@ -62,6 +64,10 @@ export function courseDripTags(reg: {
 
   if (reg.product_slug === TWELVE_WEEK_PRODUCT_SLUG) {
     return [TWELVE_WEEK_DRIP_TAG, ...bumpTags];
+  }
+
+  if (reg.product_slug === FORGIVENESS_PRODUCT_SLUG) {
+    return [FORGIVENESS_DRIP_TAG, ...bumpTags];
   }
 
   // cert (cc-cert) / bundle (cc-bundle).

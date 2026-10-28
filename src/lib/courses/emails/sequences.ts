@@ -167,7 +167,7 @@ function unitForEnrolment(key: SequenceKey, slug: string): HandoverUnit {
 }
 
 const ASJ_HOLDER_SLUGS = new Set(['asj', 'asj-pro', 'journeys-bundle', 'journeys-bundle-pro']);
-const ASJ_BUMP_PARENTS = new Set(['svh-12week', 'cc-cert', 'cc-bundle']);
+const ASJ_BUMP_PARENTS = new Set(['svh-12week', 'cc-cert', 'cc-bundle', 'forgiveness-course']);
 
 // The sequences an order puts its buyer on (before the handover switches).
 export function sequencesForOrder(
