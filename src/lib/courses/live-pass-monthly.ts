@@ -20,6 +20,13 @@
 //   buyer is told, with the way back to the pass page. This is not the
 //   installment plans' dunning sequence (dunning.ts): a plan owes the rest of
 //   what was bought, a monthly owes nothing beyond the month it is in.
+// - **Scheduled** (October 2026): a monthly taken while the buyer still has the
+//   live sessions (planMonthlyStart in live-pass-plan.ts) is agreed now and
+//   first charged on the day those end. Until then the row stays `pending`,
+//   with its subscription agreed (`subscription_status` trialing on Stripe,
+//   active on PayPal) and the day of the first charge in `access_starts_at`;
+//   it counts as their monthly (one per address), is not swept to `expired`,
+//   and cancelling it closes the subscription at once — nothing was charged.
 
 import {
   getCourseRegistrationById,
@@ -28,7 +35,7 @@ import {
 } from './db';
 import { addMonths } from './installment-forecast';
 import { isLivePassMonthlySlug, LIVE_PASS_MONTHLY_SLUG, LIVE_PASS_PAGE_PATH } from './live-pass';
-import { businessDayOf, brusselsToday } from '../workshops/periods';
+import { businessDayOf, businessDayStartMs, brusselsToday } from '../workshops/periods';
 import { logEventSafe } from '../registrations/db';
 import {
   cancelSubscriptionNow,
@@ -54,15 +61,54 @@ export type MonthlyEnv = PaypalEnv & {
 
 const ENDED_SUB = ['canceled', 'incomplete_expired'];
 
-// The monthly an address has running (paid, its subscription not ended), the
-// newest if there were ever two. A cancelled one whose paid month still runs
-// is not "running": it renews no more, and a new one may be started.
+// A monthly agreed for a later first charge (see the header). The same test in
+// SQL, for queries over many rows; expireStaleCoursePendings (db.ts) repeats it.
+export const SCHEDULED_MONTHLY_SQL = `(installments_total = 0 AND installments_paid = 0
+  AND status IN ('pending','expired') AND access_starts_at IS NOT NULL
+  AND COALESCE(subscription_status, '') IN ('trialing','active'))`;
+
+export function isScheduledMonthly(
+  reg: Pick<CourseRegistration, 'product_slug' | 'installments_paid' | 'status' | 'subscription_status' | 'access_starts_at'>,
+): boolean {
+  return (
+    isLivePassMonthlySlug(reg.product_slug) &&
+    reg.installments_paid === 0 &&
+    (reg.status === 'pending' || reg.status === 'expired') &&
+    !!reg.access_starts_at &&
+    (reg.subscription_status === 'trialing' || reg.subscription_status === 'active')
+  );
+}
+
+// The Brussels day a monthly's first charge is scheduled for, while it has not
+// been charged; null once it has (or when it started at once).
+export function monthlyStartDay(reg: Pick<CourseRegistration, 'installments_paid' | 'access_starts_at'>): string | null {
+  return reg.installments_paid === 0 && reg.access_starts_at ? businessDayOf(reg.access_starts_at) : null;
+}
+
+// Written at checkout: the start of the Brussels day of the first charge.
+export async function recordMonthlyStart(db: D1Database, id: number, startsOn: string): Promise<void> {
+  await db
+    .prepare(`UPDATE course_registrations SET access_starts_at = ? WHERE id = ?`)
+    .bind(sqliteStamp(businessDayStartMs(startsOn)), id)
+    .run();
+}
+
+function sqliteStamp(ms: number): string {
+  return new Date(ms).toISOString().slice(0, 19).replace('T', ' ');
+}
+
+// The monthly an address has running (paid, its subscription not ended) or
+// agreed for a later start, the newest if there were ever two. A cancelled one
+// whose paid month still runs is not "running": it renews no more, and a new
+// one may be started.
 export async function findRunningMonthly(db: D1Database, email: string): Promise<CourseRegistration | null> {
   return db
     .prepare(
       `SELECT * FROM course_registrations
-        WHERE product_slug = ? AND lower(email) = ? AND status = 'paid'
-          AND COALESCE(subscription_status, 'active') NOT IN ('canceled','incomplete_expired')
+        WHERE product_slug = ? AND lower(email) = ?
+          AND ((status = 'paid'
+                AND COALESCE(subscription_status, 'active') NOT IN ('canceled','incomplete_expired'))
+               OR ${SCHEDULED_MONTHLY_SQL})
         ORDER BY id DESC LIMIT 1`,
     )
     .bind(LIVE_PASS_MONTHLY_SLUG, email.trim().toLowerCase())
@@ -81,6 +127,7 @@ export function monthlyPaidThroughDay(reg: Pick<CourseRegistration, 'paid_at' | 
 }
 
 export type MonthlyState =
+  | { kind: 'scheduled'; on: string | null } // agreed; the first charge is on `on`
   | { kind: 'renews'; on: string | null } // running; the next charge is on `on`
   | { kind: 'behind'; on: string | null } // this month's charge failed; the gateway is retrying
   | { kind: 'ending'; on: string | null } // cancelled; the sessions stay open until `on`
@@ -94,6 +141,7 @@ export async function readMonthlyState(env: MonthlyEnv, reg: CourseRegistration)
   const through = monthlyPaidThroughDay(reg);
   const stopped = (): MonthlyState =>
     through && through > brusselsToday() ? { kind: 'ending', on: through } : { kind: 'ended', on: through };
+  if (isScheduledMonthly(reg)) return { kind: 'scheduled', on: monthlyStartDay(reg) };
   if (reg.status === 'pending' || reg.status === 'expired' || reg.installments_paid <= 0) return { kind: 'not-started' };
   if (reg.status !== 'paid' || ENDED_SUB.includes(reg.subscription_status ?? '')) return stopped();
 
@@ -128,6 +176,31 @@ export async function readMonthlyState(env: MonthlyEnv, reg: CourseRegistration)
 // cancelling twice changes nothing.
 export async function cancelMonthly(env: MonthlyEnv, reg: CourseRegistration, by = 'member'): Promise<MonthlyState> {
   if (!isLivePassMonthlySlug(reg.product_slug)) throw new Error('not a monthly live pass');
+  // Not started yet: nothing was charged and nothing is owed, so the
+  // subscription closes now on either gateway.
+  if (isScheduledMonthly(reg)) {
+    if (reg.provider === 'paypal') {
+      if (reg.paypal_subscription_id) {
+        if (!paypalConfigured(env)) throw new Error('PayPal is not configured');
+        await cancelSubscriptionIfPresent(
+          env,
+          reg.paypal_subscription_id,
+          by === 'member' ? 'Cancelled by the member before it began' : 'Cancelled by Songdance before it began',
+        );
+      }
+    } else {
+      if (!reg.stripe_subscription_id || !env.STRIPE_SECRET_KEY) throw new Error('no Stripe subscription on this order');
+      await cancelSubscriptionNow(env.STRIPE_SECRET_KEY, reg.stripe_subscription_id);
+    }
+    await markCourseRegistrationCancelled(env.DB, reg.id);
+    await logEventSafe(env.DB, {
+      registration_id: null,
+      kind: 'live_pass.monthly.cancelled',
+      source: 'system',
+      payload: { course_registration_id: reg.id, provider: reg.provider, before_start: monthlyStartDay(reg), by },
+    });
+    return { kind: 'not-started' };
+  }
   if (reg.provider === 'paypal') {
     if (reg.paypal_subscription_id) {
       if (!paypalConfigured(env)) throw new Error('PayPal is not configured');

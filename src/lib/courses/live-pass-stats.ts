@@ -29,20 +29,22 @@ import {
   monthlyFirstMonthExtraCents,
   type LivePassMonths,
 } from './live-pass';
-import { monthlyPaidThroughDay } from './live-pass-monthly';
+import { isScheduledMonthly, monthlyPaidThroughDay, monthlyStartDay, SCHEDULED_MONTHLY_SQL } from './live-pass-monthly';
 
-export type MonthlyStanding = 'behind' | 'renews' | 'ending';
+// 'scheduled': agreed, first charged on a later day (the live sessions they
+// already have run until then — live-pass-scheduled.ts).
+export type MonthlyStanding = 'behind' | 'renews' | 'scheduled' | 'ending';
 
 export type LivePassMonthlyRow = {
   id: number;
   name: string;
   email: string;
   provider: 'stripe' | 'paypal';
-  startedOn: string; // Brussels day of the first payment
+  startedOn: string; // Brussels day of the first payment (of the sign-up, while scheduled)
   monthsCharged: number;
   priceMinor: number; // what each renewal charges, in its own currency
   currency: string;
-  through: string | null; // the next renewal, or the last day open once cancelled
+  through: string | null; // the next renewal, the first charge while scheduled, or the last day open once cancelled
   standing: MonthlyStanding;
 };
 
@@ -50,6 +52,7 @@ export type LivePassStats = {
   monthly: {
     renewing: number;
     behind: number;
+    scheduled: number; // agreed, first charged on a later day
     ending: number;
     monthlyEurMinor: number; // what the renewing ones bring in a month
     started: number; // in the window
@@ -70,6 +73,9 @@ export type LivePassStats = {
 
 type MonthlyDbRow = {
   id: number;
+  product_slug: string;
+  access_starts_at: string | null;
+  created_at: string;
   first_name: string | null;
   last_name: string | null;
   email: string;
@@ -99,7 +105,7 @@ type PassDbRow = {
 };
 
 const ENDED_SUB = ['canceled', 'incomplete_expired'];
-const STANDING_ORDER: Record<MonthlyStanding, number> = { behind: 0, renews: 1, ending: 2 };
+const STANDING_ORDER: Record<MonthlyStanding, number> = { behind: 0, renews: 1, scheduled: 2, ending: 3 };
 const DAY_MS = 86_400_000;
 
 export async function computeLivePassStats(
@@ -117,7 +123,8 @@ export async function computeLivePassStats(
       await db
         .prepare(
           `SELECT * FROM course_registrations
-            WHERE product_slug = ? AND status NOT IN ('pending','expired') AND installments_paid > 0`,
+            WHERE product_slug = ?
+              AND ((status NOT IN ('pending','expired') AND installments_paid > 0) OR ${SCHEDULED_MONTHLY_SQL})`,
         )
         .bind(LIVE_PASS_MONTHLY_SLUG)
         .all<MonthlyDbRow>()
@@ -179,6 +186,7 @@ export async function computeLivePassStats(
   const monthly: LivePassStats['monthly'] = {
     renewing: 0,
     behind: 0,
+    scheduled: 0,
     ending: 0,
     monthlyEurMinor: 0,
     started: 0,
@@ -190,6 +198,22 @@ export async function computeLivePassStats(
   };
 
   for (const r of monthlies) {
+    if (isScheduledMonthly(r as any)) {
+      monthly.scheduled += 1;
+      monthly.rows.push({
+        id: r.id,
+        name: [r.first_name, r.last_name].filter(Boolean).join(' ').trim() || r.email,
+        email: r.email,
+        provider: r.provider === 'paypal' ? 'paypal' : 'stripe',
+        startedOn: businessDayOf(r.created_at),
+        monthsCharged: 0,
+        priceMinor: r.amount_cents,
+        currency: (r.currency || 'EUR').toUpperCase(),
+        through: monthlyStartDay(r),
+        standing: 'scheduled',
+      });
+      continue;
+    }
     const startedOn = businessDayOf(r.paid_at);
     if (inWindow(startedOn)) monthly.started += 1;
 

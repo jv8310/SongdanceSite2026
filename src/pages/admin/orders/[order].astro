@@ -19,6 +19,7 @@ import { getCourseRegistrationById } from '../../../lib/courses/db';
 import { effectiveTotal } from '../../../lib/courses/installment-forecast';
 import { isCancellablePlan, keepLabel } from '../../../lib/courses/installment-cancel';
 import { readMonthlyState } from '../../../lib/courses/live-pass-monthly';
+import { monthlyFirstMonthExtraCents } from '../../../lib/courses/live-pass';
 import { getFxRatesToEur } from '../../../lib/admin/fx';
 import { providerLinkFor, resolveProviderModes } from '../../../lib/admin/provider-links';
 
@@ -125,6 +126,13 @@ const monthlyStateText = (() => {
   const on = 'on' in monthlyState ? monthlyDay(monthlyState.on) : null;
   const price = formatMoney(planReg.amount_cents, (planReg.currency || 'EUR').toUpperCase());
   switch (monthlyState.kind) {
+    case 'scheduled': {
+      const first = formatMoney(
+        planReg.amount_cents + monthlyFirstMonthExtraCents(planReg.bumps),
+        (planReg.currency || 'EUR').toUpperCase(),
+      );
+      return `Starts ${on ? `on ${on}` : 'later'} — nothing charged yet. The first month (${first}) is charged that day, when the live sessions they already have end, then ${price} a month.`;
+    }
     case 'renews':
       return on ? `Running — renews on ${on} at ${price}.` : `Running — renews each month at ${price}.`;
     case 'behind':
@@ -140,6 +148,10 @@ const monthlyStateText = (() => {
 const monthlyCancelConfirm = (() => {
   if (!monthlyState || !('on' in monthlyState)) return '';
   const on = monthlyDay(monthlyState.on);
+  if (monthlyState.kind === 'scheduled') {
+    const who = name.replace(/['\\]/g, '\\$&');
+    return `Cancel ${who}\\'s monthly live pass before it begins?\\nNothing has been charged and nothing will be. The subscription closes now.\\nThey are not emailed about it.`;
+  }
   const back =
     planReg?.provider === 'paypal'
       ? 'PayPal cancels it at once; it cannot be taken back (they can start a new one).'
@@ -442,7 +454,7 @@ function ymdhm(iso: string | null): string {
                 {monthlyState ? (
                   <div class="od-monthly">
                     <p class="od-monthly-state">{monthlyStateText}</p>
-                    {(monthlyState.kind === 'renews' || monthlyState.kind === 'behind') && (
+                    {(monthlyState.kind === 'scheduled' || monthlyState.kind === 'renews' || monthlyState.kind === 'behind') && (
                       <form
                         method="POST"
                         action="/api/admin/live-pass/monthly"

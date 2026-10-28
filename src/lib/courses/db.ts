@@ -102,6 +102,10 @@ export type CourseRegistration = {
   // End of the last month an open-ended subscription has paid for (migration
   // 0090); absent before it, NULL on every other row.
   paid_through?: string | null;
+  // A live pass's period (migration 0089). On a monthly that has not been
+  // charged yet: the day its first charge is scheduled for (live-pass-monthly.ts).
+  access_starts_at?: string | null;
+  access_ends_at?: string | null;
 };
 
 export type CreatePendingCourseRegistrationInput = {
@@ -270,13 +274,20 @@ export async function getCourseRegistrationBySession(
 // has almost certainly abandoned by 15 min. If they do still pay (Stripe
 // sessions live up to 24h), `markCourseRegistrationPaid` will flip the
 // row back to `paid` since its guard is only `status != 'paid'`.
+// A checkout nobody finished. Not a monthly live pass whose first charge is
+// scheduled for a later day: it waits, pending, with its subscription agreed
+// (live-pass-monthly.ts, SCHEDULED_MONTHLY_SQL — kept in step by hand, since
+// this module sits under that one).
 export async function expireStaleCoursePendings(db: D1Database) {
   await db
     .prepare(
       `UPDATE course_registrations
           SET status = 'expired'
         WHERE status = 'pending'
-          AND created_at < datetime('now', '-15 minutes')`,
+          AND created_at < datetime('now', '-15 minutes')
+          AND NOT (installments_total = 0 AND installments_paid = 0
+                   AND access_starts_at IS NOT NULL
+                   AND COALESCE(subscription_status, '') IN ('trialing','active'))`,
     )
     .run();
 }

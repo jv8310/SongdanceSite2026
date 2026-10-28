@@ -8,6 +8,7 @@
 // Which sessions a pass holds is the member app's to count (live-pass.ts).
 
 import { brusselsToday, businessDayOf } from '../workshops/periods';
+import { askApp } from '../admin/app-access';
 import { findCountry } from '../countries';
 import { addDays, FOUNDATION_WEEKS } from './cert-access';
 import { certWindowForEmail, extensionWouldHelp, type CertWindow } from './cert-window';
@@ -182,6 +183,71 @@ export async function planLivePass(
     monthlyRenews: monthly.renews,
     periods,
   };
+}
+
+// ── When a monthly starts ───────────────────────────────────────────────────
+//
+// A monthly opens every session from its first charge, so it starts — and is
+// first charged — when the live sessions this person already has run out (Jacob,
+// October 2026: someone with Q&As until 31 December who takes a monthly in
+// October pays from 1 January, not twice for November and December). What they
+// already have is read from two places:
+//   • the site's own dates (planLivePass): the certification course or the
+//     12-week weeks bought here, and a cancelled monthly's paid month;
+//   • the member app, which holds every access rule — an admin grant such as a
+//     CEEE year of Q&As, extra time on a course, the Mighty imports — asked
+//     through APP_ADMIN for the address (`member`), the same answer the People
+//     page's App access section prints: each open course's `liveUntil` ("live
+//     sessions until …"). A plain date is the last day it covers; an instant is
+//     the moment it ends.
+// When the app does not answer, the site's own dates decide. A start less than
+// two days off is today: Stripe's trial needs 48 hours, and a day's overlap is
+// not worth a charge on another day.
+export type MonthlyStart = {
+  startsOn: string | null; // the Brussels day of the first charge; null = today
+  coveredUntil: string | null; // the last day of the live sessions they already have
+  coveredBy: string | null; // what gives them those, for the page ("Extended Q&A plan")
+};
+
+export const MONTHLY_DEFER_MIN_DAYS = 2;
+export const MONTHLY_DEFER_MAX_DAYS = 700;
+
+const APP_ASK_MS = 4000;
+
+export async function planMonthlyStart(
+  env: { APP_ADMIN?: unknown },
+  email: string,
+  plan: Pick<LivePassPlan, 'liveUntil' | 'monthlyUntil' | 'monthlyRenews'>,
+  today = brusselsToday(),
+): Promise<MonthlyStart> {
+  // Each candidate is the first day NOT covered, with what covers the days before it.
+  const free: Array<{ day: string; by: string }> = [];
+  if (plan.liveUntil) free.push({ day: addDays(plan.liveUntil, 1), by: 'your course' });
+  if (plan.monthlyUntil && !plan.monthlyRenews) free.push({ day: addDays(plan.monthlyUntil, 1), by: 'your monthly' });
+
+  const app = await Promise.race([
+    askApp(env, (a) => a.member({ email: email.trim().toLowerCase() })),
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), APP_ASK_MS)),
+  ]);
+  if (app?.ok) {
+    for (const c of app.data.courses) {
+      if (c.state === 'ended' || c.state === 'revoked' || !c.liveUntil) continue;
+      const v = c.liveUntil.trim();
+      const day = /^\d{4}-\d{2}-\d{2}$/.test(v) ? addDays(v, 1) : businessDayOf(v);
+      if (day) free.push({ day, by: c.label });
+    }
+  }
+
+  const latest = free.filter((f) => f.day > today).sort((x, y) => x.day.localeCompare(y.day)).pop() ?? null;
+  if (!latest) return { startsOn: null, coveredUntil: null, coveredBy: null };
+  const coveredUntil = addDays(latest.day, -1);
+  const deferDays = daysFrom(today, latest.day);
+  const startsOn = deferDays >= MONTHLY_DEFER_MIN_DAYS && deferDays <= MONTHLY_DEFER_MAX_DAYS ? latest.day : null;
+  return { startsOn, coveredUntil, coveredBy: latest.by };
+}
+
+function daysFrom(a: string, b: string): number {
+  return Math.round((Date.parse(`${b}T12:00:00Z`) - Date.parse(`${a}T12:00:00Z`)) / 86_400_000);
 }
 
 // The monthly live pass (live-pass-monthly.ts): the last day its paid months

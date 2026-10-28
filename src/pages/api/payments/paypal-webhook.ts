@@ -20,6 +20,7 @@ import {
 } from '../../../lib/payments/paypal-fulfill';
 import { getCourseRegistrationByPaypalSubscription } from '../../../lib/courses/db';
 import { stopUnpaidMonthly } from '../../../lib/courses/live-pass-monthly';
+import { noteScheduledMonthly } from '../../../lib/courses/live-pass-scheduled';
 
 export const prerender = false;
 
@@ -216,6 +217,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
         if (type === 'BILLING.SUBSCRIPTION.SUSPENDED') {
           const monthly = await getCourseRegistrationByPaypalSubscription(env.DB, subscriptionId);
           if (monthly) await stopUnpaidMonthly(env, monthly, 'paypal_suspended');
+        }
+        // A monthly live pass agreed for a later start (the return page does
+        // the same; whichever comes first, the second is a no-op).
+        if (type === 'BILLING.SUBSCRIPTION.ACTIVATED') {
+          const monthly = await getCourseRegistrationByPaypalSubscription(env.DB, subscriptionId);
+          if (monthly) await noteScheduledMonthly(env as any, monthly.id);
         }
       }
       return new Response('OK', { status: 200 });

@@ -8,7 +8,7 @@
 // (the 12-week and certification pages fill their forms from Drip the same way).
 
 import type { APIRoute } from 'astro';
-import { loadBuyerDetails, planLivePass } from '../../../lib/courses/live-pass-plan';
+import { loadBuyerDetails, planLivePass, planMonthlyStart } from '../../../lib/courses/live-pass-plan';
 import { findRunningMonthly } from '../../../lib/courses/live-pass-monthly';
 
 export const prerender = false;
@@ -38,6 +38,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
       loadBuyerDetails(env.DB, email),
       findRunningMonthly(env.DB, email),
     ]);
+    // When a monthly taken today would be first charged: the day the live
+    // sessions they already have end (here or in the member app), else today.
+    const start = await planMonthlyStart(env, email, plan);
     return json(200, {
       email,
       live_until: plan.liveUntil,
@@ -46,6 +49,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
       // of a second one (a yes/no only — the manage link goes by email).
       monthly_running: !!monthly,
       monthly_until: plan.monthlyUntil,
+      monthly_starts_on: start.startsOn,
+      monthly_covered_until: start.coveredUntil,
+      monthly_covered_by: start.coveredBy,
       periods: plan.periods,
       certification: {
         holds_course: plan.window.holdsCourse,

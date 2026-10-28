@@ -2,7 +2,7 @@ import type { APIRoute } from 'astro';
 import { getSessionEmail, readCookie } from '../../../../lib/registrations/auth';
 import { getCourseRegistrationById } from '../../../../lib/courses/db';
 import { isLivePassMonthlySlug } from '../../../../lib/courses/live-pass';
-import { cancelMonthly, resumeMonthly } from '../../../../lib/courses/live-pass-monthly';
+import { cancelMonthly, isScheduledMonthly, resumeMonthly } from '../../../../lib/courses/live-pass-monthly';
 
 export const prerender = false;
 
@@ -29,10 +29,17 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
   try {
     if (action === 'cancel') {
-      if (reg.status !== 'paid') {
+      const scheduled = isScheduledMonthly(reg);
+      if (reg.status !== 'paid' && !scheduled) {
         return redirect(returnTo, { flash: 'cancel_error', msg: `This monthly is “${reg.status}”, so there is nothing to cancel.` });
       }
       const state = await cancelMonthly(env as any, reg, `admin:${admin}`);
+      if (scheduled) {
+        return redirect(returnTo, {
+          flash: 'cancel_ok',
+          msg: `${who}'s monthly is cancelled before it began: nothing was charged and nothing will be.`,
+        });
+      }
       const until = state.kind === 'ending' && state.on ? ` Their sessions stay open until ${fmtDay(state.on)}.` : '';
       return redirect(returnTo, {
         flash: 'cancel_ok',
