@@ -27,13 +27,13 @@ import { launchPromoActive } from '../promo';
 import {
   priceCents,
   monthlyCents,
-  monthlyCents6x,
   applyPercentCents,
   bestDiscountStatus,
   anchorMsFromWorkshop,
   effectiveTwelveWeekDiscount,
   INSTALLMENT_COUNT,
   INSTALLMENT_COUNT_6X,
+  INSTALLMENT_COUNT_12X,
   type DiscountKind,
   type EffectiveDiscount,
 } from './twelve-week';
@@ -58,6 +58,21 @@ export const CERT_PATH_DISCOUNT_PERCENT = 20;
 export const GERMAN_CERT_DISCOUNT_PERCENT = CERT_PATH_DISCOUNT_PERCENT; // 20% off the cert line
 export const GERMAN_TWELVE_WEEK_DISCOUNT_PERCENT = 75; // 75% off the English 12-week line
 
+// The path's longer plans carry their own premium over paying in full (Jacob,
+// October 2026): 6 monthly payments cost 12% more than the path's one-off
+// price, 12 monthly payments 13% more. They used to be the sum of the two
+// courses' own 6-month ladders (+14% on the path) and there was no 12-month
+// plan at all. Worked from the path's total as it stands for this buyer, so a
+// workshop sale, an override or the German graduate pairing carry through to
+// every plan the same way; rounded to whole units. The 3-month plan keeps its
+// two-ladder sum (+6%).
+export const PATH_PREMIUM_PERCENT_6X = 12;
+export const PATH_PREMIUM_PERCENT_12X = 13;
+
+function pathMonthlyCents(totalCents: number, count: number, premiumPercent: number): number {
+  return Math.round((totalCents * (100 + premiumPercent)) / 100 / count / 100) * 100;
+}
+
 export type CertificationPathPricing = {
   currency: Currency;
   // 12-week line (workshop-discounted)
@@ -79,6 +94,10 @@ export type CertificationPathPricing = {
   total_monthly_6x_cents: number;
   base_total_monthly_6x_cents: number;
   installment_6x_count: number;
+  // 12-month tier, only offered with `?installment=12`
+  total_monthly_12x_cents: number;
+  base_total_monthly_12x_cents: number;
+  installment_12x_count: number;
   discount: {
     eligible: boolean;
     percent: number;
@@ -145,13 +164,6 @@ export function buildCertificationPathPricing(
   // discounted one), so the path's monthly list price reads honestly. Equals
   // certMonthly when no discount is live.
   const certBaseMonthly = baseCert.installments?.monthly_cents ?? 0;
-  // Same composition for the 6-month tier: cert's 6-month ladder (discounted
-  // the same way) + the discounted 12-week 6-month monthly. The struck
-  // "before" is the full cert 6-month monthly + the full 12-week 6-month one.
-  const certMonthly6x = pctMajor(cert.installments_6x?.monthly_cents ?? 0, certPercent);
-  const certBaseMonthly6x = baseCert.installments_6x?.monthly_cents ?? 0;
-  const twBaseMonthly6x = monthlyCents6x(currency);
-  const twMonthly6x = pctMajor(twBaseMonthly6x, twPercent);
   return {
     currency,
     twelve_week_base_cents: twBase,
@@ -168,9 +180,12 @@ export function buildCertificationPathPricing(
     base_total_cents: certBase + twBase,
     base_total_monthly_cents: certBaseMonthly + twBaseMonthly,
     installment_count: INSTALLMENT_COUNT,
-    total_monthly_6x_cents: certMonthly6x + twMonthly6x,
-    base_total_monthly_6x_cents: certBaseMonthly6x + twBaseMonthly6x,
+    total_monthly_6x_cents: pathMonthlyCents(certPrice + twPrice, INSTALLMENT_COUNT_6X, PATH_PREMIUM_PERCENT_6X),
+    base_total_monthly_6x_cents: pathMonthlyCents(certBase + twBase, INSTALLMENT_COUNT_6X, PATH_PREMIUM_PERCENT_6X),
     installment_6x_count: INSTALLMENT_COUNT_6X,
+    total_monthly_12x_cents: pathMonthlyCents(certPrice + twPrice, INSTALLMENT_COUNT_12X, PATH_PREMIUM_PERCENT_12X),
+    base_total_monthly_12x_cents: pathMonthlyCents(certBase + twBase, INSTALLMENT_COUNT_12X, PATH_PREMIUM_PERCENT_12X),
+    installment_12x_count: INSTALLMENT_COUNT_12X,
     discount: {
       eligible: eff.eligible,
       // The percent the path actually applies — 20 during the workshop
@@ -230,16 +245,12 @@ export function buildGermanCertificationPathPricing(
   const certBase = baseCert.base_price * 100;
   const twBase = priceCents(currency);
   const twBaseMonthly = monthlyCents(currency);
-  const twBaseMonthly6x = monthlyCents6x(currency);
   const certBaseMonthly = baseCert.installments?.monthly_cents ?? 0;
-  const certBaseMonthly6x = baseCert.installments_6x?.monthly_cents ?? 0;
 
   const twPrice = pctMajor(twBase, GERMAN_TWELVE_WEEK_DISCOUNT_PERCENT);
   const twMonthly = pctMajor(twBaseMonthly, GERMAN_TWELVE_WEEK_DISCOUNT_PERCENT);
-  const twMonthly6x = pctMajor(twBaseMonthly6x, GERMAN_TWELVE_WEEK_DISCOUNT_PERCENT);
   const certPrice = pctMajor(baseCert.price_cents, GERMAN_CERT_DISCOUNT_PERCENT);
   const certMonthly = pctMajor(certBaseMonthly, GERMAN_CERT_DISCOUNT_PERCENT);
-  const certMonthly6x = pctMajor(certBaseMonthly6x, GERMAN_CERT_DISCOUNT_PERCENT);
 
   // Blended percent off the combined list total — for the receipt/metadata
   // audit only (each line carries its own percent on the page).
@@ -261,9 +272,12 @@ export function buildGermanCertificationPathPricing(
     base_total_cents: certBase + twBase,
     base_total_monthly_cents: certBaseMonthly + twBaseMonthly,
     installment_count: INSTALLMENT_COUNT,
-    total_monthly_6x_cents: certMonthly6x + twMonthly6x,
-    base_total_monthly_6x_cents: certBaseMonthly6x + twBaseMonthly6x,
+    total_monthly_6x_cents: pathMonthlyCents(certPrice + twPrice, INSTALLMENT_COUNT_6X, PATH_PREMIUM_PERCENT_6X),
+    base_total_monthly_6x_cents: pathMonthlyCents(certBase + twBase, INSTALLMENT_COUNT_6X, PATH_PREMIUM_PERCENT_6X),
     installment_6x_count: INSTALLMENT_COUNT_6X,
+    total_monthly_12x_cents: pathMonthlyCents(certPrice + twPrice, INSTALLMENT_COUNT_12X, PATH_PREMIUM_PERCENT_12X),
+    base_total_monthly_12x_cents: pathMonthlyCents(certBase + twBase, INSTALLMENT_COUNT_12X, PATH_PREMIUM_PERCENT_12X),
+    installment_12x_count: INSTALLMENT_COUNT_12X,
     discount: {
       eligible: true,
       percent: blended,

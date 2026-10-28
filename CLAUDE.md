@@ -311,7 +311,16 @@ in moderation, not governed by the copy book.
   lifecycle emails quote one number for both. The path's discounted figures
   are floored to the nearest 5 (`pctMajor`), so the sale reads in round
   prices — EUR path €1,347 → **€1,075** (cert €635 + 12-week €440), 3×
-  €375/mo, 6× €200/mo — and the advertised percent is never under-delivered.
+  €375/mo, 6× €201/mo — and the advertised percent is never under-delivered.
+- **The path's longer plans** (October 2026, `PATH_PREMIUM_PERCENT_6X` /
+  `_12X` in `path.ts`): 6 monthly payments cost **12%** more than the path's
+  one-off price, 12 monthly payments **13%** more, worked from the path total as
+  it stands for that buyer (so a sale or override carries through) and rounded
+  to whole units — EUR €1,347 → 6× €251, 12× €127. The 3-month plan stays the
+  sum of the two courses' ladders (+6%). The 12-month plan only shows with
+  `?installment=12` (`/courses/certification?installment=12&email=…`), like
+  the certification alone's; a newcomer is only offered the path, so before
+  this that link showed them no 12-month plan at all.
   A `?discount=N` / `?adiscount=N` override still wins outright and, since
   September 2026, takes its percent off the **whole path** — both lines, the
   same shape as the workshop sale (EUR path €1,347 at 50% → **€670**). The
@@ -515,7 +524,20 @@ anyone whose course no longer includes them (or never did). Logic in
   `sd-lpm:`), sent again to the inbox on the order from "Manage my monthly pass" on the
   pass page — never shown on screen. Stripe gets `cancel_at_period_end` (and can
   be taken back while the month runs); PayPal is cancelled at once; either way the
-  app keeps the sessions open to `paid_through`. A renewal the gateway gives up on
+  app keeps the sessions open to `paid_through`. **An admin can do the same for
+  them** from the order page (`/admin/orders/C-<id>`, where a plan's Stop control
+  sits): it says where the monthly stands (read from the gateway) and offers
+  **Cancel the monthly** / **Keep it after all** (`/api/admin/live-pass/monthly`,
+  the same `cancelMonthly` / `resumeMonthly`, logged with `by: admin:<email>`;
+  no refund, no email to the buyer). **`/admin/stats` → Live pass**
+  ([`live-pass-stats.ts`](src/lib/courses/live-pass-stats.ts), D1 only): the
+  monthlies renewing / failing / cancelled-but-running with what they bring in a
+  month, started / cancelled / stopped / cash in for the window, passes sold by
+  length with the extension, and every open monthly by name, linked to its order.
+  "Ending" for a Stripe monthly comes from the site's own cancel/resume events
+  (its row stays `paid` until the month runs out), so a cancel made in the Stripe
+  dashboard only shows when the month ends; `idx_events_kind` (migration 0091)
+  keeps that read cheap. A renewal the gateway gives up on
   (Stripe `unpaid`, PayPal `SUSPENDED`) ends the monthly and emails the buyer the
   way back ([`live-pass-monthly.ts`](src/lib/courses/live-pass-monthly.ts)) — not
   the plans' dunning sequence: a monthly owes nothing beyond its month. A pass

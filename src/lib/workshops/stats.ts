@@ -95,7 +95,7 @@ function courseTaxCountry(
 // Per-country VAT rates for a set of course rows (skipping B2B reverse-charge
 // rows — a VAT number means 0%). getTaxRate caches per isolate, so repeated
 // windows/pages re-resolve for free. No config → empty map → net = gross.
-async function resolveCourseTaxRates(
+export async function resolveCourseTaxRates(
   rows: Array<{ country?: string | null; vat_number?: string | null; currency?: string | null }>,
   taxCfg: QuadernoTaxConfig | null | undefined,
 ): Promise<Map<string, number>> {
@@ -127,7 +127,7 @@ export function fxRateToEur(
 }
 
 // Collected gross (original currency) → net-of-VAT EUR minor units.
-function courseNetEur(
+export function courseNetEur(
   collectedMinor: number,
   row: { country?: string | null; vat_number?: string | null; currency?: string | null },
   taxRates: Map<string, number>,
