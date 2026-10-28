@@ -1,4 +1,10 @@
 ---
+interface Props {
+  // "Sunday 6 December, 19:00 Brussels time" … in the visitor's zone.
+  sessionLines: string[];
+  sessionHours: number;
+}
+const { sessionLines, sessionHours } = Astro.props;
 ---
 
 <section class="fc-faq" id="faq">
@@ -17,13 +23,14 @@
         </summary>
         <div class="fc-faq-answer">
           <p>
-            The Forgiveness Course returns in <strong>Fall 2026</strong>. It runs
-            as four 90-minute live sessions on Zoom — you can
-            <a href="#schedule">see the four-session arc</a> at the top of this page.
+            Four live sessions on Zoom in <strong>December 2026</strong>, {sessionHours} hours each:
           </p>
+          <ul>
+            {sessionLines.map((l) => <li>{l}</li>)}
+          </ul>
           <p>
-            The exact dates and times are still being set. Once they're confirmed,
-            everyone registered will be the first to hear.
+            The Zoom link waits for you in the Songdance app, where you sign in with the
+            address you register with. Can't be there for one? The replay is there within a day.
           </p>
         </div>
       </details>

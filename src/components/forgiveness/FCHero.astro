@@ -1,4 +1,11 @@
 ---
+interface Props {
+  open: boolean;
+  priceLabel: string;
+  datesLabel: string;
+  sessionHours: number;
+}
+const { open, priceLabel, datesLabel, sessionHours } = Astro.props;
 ---
 
 <section class="fc-hero" id="top">
@@ -7,7 +14,9 @@
   </div>
   <div class="fc-hero-inner">
     <img class="fc-hero-mark" src="/brand/symbol-orange.png" alt="" aria-hidden="true" />
-    <div class="fc-hero-eyebrow">The Forgiveness Course · 2026</div>
+    <div class="fc-hero-eyebrow">
+      The Forgiveness Course · {open ? 'Registrations now open' : 'December 2026'}
+    </div>
     <h1 class="fc-hero-head">
       When forgiveness feels <em>impossible…</em><br />come anyway.
     </h1>
@@ -15,17 +24,17 @@
       Honoring what the words alone never reached.
     </p>
     <a href="#register" class="fc-hero-cta">
-      Keep me in the loop <i class="ph-light ph-arrow-right"></i>
+      {open ? `Register — ${priceLabel}` : 'About the course'} <i class="ph-light ph-arrow-right"></i>
     </a>
     <div class="fc-hero-meta">
-      <span>Coming in Fall 2026 · 90 min each</span>
+      <span>{datesLabel} · {sessionHours} hours each</span>
       <span class="dot"></span>
       <span>Live on Zoom</span>
       <span class="dot"></span>
       <span>Lifetime access to replays</span>
     </div>
     <a href="#schedule" class="fc-hero-dates-link">
-      See the four sessions <i class="ph-light ph-arrow-down"></i>
+      See the four dates <i class="ph-light ph-arrow-down"></i>
     </a>
   </div>
 </section>

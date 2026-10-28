@@ -1,0 +1,122 @@
+---
+// Homepage band for the Forgiveness Course while registration is open (four
+// live sessions in December 2026, src/lib/courses/forgiveness.ts). The homepage
+// is built statically, so the band removes itself in the browser once the last
+// session has ended (data-until), and the price chip is localized by PriceSync
+// like every other course price on the site.
+import { FORGIVENESS_DATES_LABEL, FORGIVENESS_PRICE, FORGIVENESS_SESSIONS } from '../lib/courses/forgiveness';
+
+const until = FORGIVENESS_SESSIONS[FORGIVENESS_SESSIONS.length - 1].endsAtUtc;
+---
+
+<section class="sd-forgive" data-forgive-until={until} aria-labelledby="sd-forgive-head">
+  <div class="sd-forgive-bg" aria-hidden="true">
+    <img src="/media/library/forgiveness-sunflowers-sunset.webp" alt="" loading="lazy" />
+  </div>
+  <div class="sd-forgive-inner" data-anim="reveal">
+    <div class="sd-forgive-eyebrow">Registrations now open</div>
+    <h2 class="sd-forgive-head" id="sd-forgive-head">
+      When forgiveness feels <em>impossible…</em> come anyway.
+    </h2>
+    <p class="sd-forgive-body">
+      The Forgiveness Course, with Daniela Hess and Jacob: four live evenings on Zoom, from the
+      people who hurt you to the parts of yourself you have pushed away, with sound as the way in.
+      Every session is recorded, and the replays are yours to keep.
+    </p>
+    <div class="sd-forgive-meta">
+      <span>4 live sessions</span>
+      <span class="sd-dot"></span>
+      <span>{FORGIVENESS_DATES_LABEL}</span>
+      <span class="sd-dot"></span>
+      <span data-sd-price="forgiveness">€{FORGIVENESS_PRICE.EUR}</span>
+    </div>
+    <a href="/courses/forgiveness" class="sd-btn sd-btn-primary">See the dates and register →</a>
+  </div>
+</section>
+
+<script is:inline>
+  (function () {
+    document.querySelectorAll('[data-forgive-until]').forEach(function (el) {
+      var t = Date.parse(el.getAttribute('data-forgive-until') || '');
+      if (t && Date.now() > t) el.remove();
+    });
+  })();
+</script>
+
+<style>
+  .sd-forgive {
+    position: relative;
+    overflow: hidden;
+    padding: var(--sp-10) var(--sp-7);
+    background: var(--paper-deep);
+    isolation: isolate;
+  }
+  .sd-forgive-bg {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+  }
+  .sd-forgive-bg img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center 60%;
+  }
+  .sd-forgive-bg::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, rgba(244, 236, 223, 0.94) 0%, rgba(244, 236, 223, 0.86) 48%, rgba(244, 236, 223, 0.25) 100%);
+  }
+  .sd-forgive-inner {
+    max-width: var(--container);
+    margin: 0 auto;
+  }
+  .sd-forgive-inner > * { max-width: 34rem; }
+  .sd-forgive-eyebrow {
+    display: inline-block;
+    padding: 5px 12px;
+    border-radius: var(--r-pill);
+    background: var(--ember);
+    color: var(--paper);
+    font-family: var(--font-body);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+  }
+  .sd-forgive-head {
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: var(--t-h1);
+    line-height: var(--lh-snug);
+    letter-spacing: var(--tr-display);
+    color: var(--ink);
+    margin: var(--sp-4) 0 var(--sp-4);
+    text-wrap: balance;
+  }
+  .sd-forgive-head em {
+    font-family: var(--font-lyric);
+    font-style: italic;
+    font-size: 1.05em;
+    color: var(--plum);
+  }
+  .sd-forgive-body {
+    font-size: var(--t-body-lg);
+    line-height: var(--lh-prose);
+    color: var(--ink-soft);
+    margin: 0 0 var(--sp-5);
+  }
+  .sd-forgive-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 4px;
+    color: var(--ink-soft);
+    font-size: var(--t-body-sm);
+    margin-bottom: var(--sp-6);
+  }
+  @media (max-width: 720px) {
+    .sd-forgive { padding: var(--sp-9) var(--sp-5); }
+    .sd-forgive-bg::after { background: rgba(244, 236, 223, 0.88); }
+  }
+</style>

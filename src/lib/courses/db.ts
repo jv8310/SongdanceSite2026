@@ -7,7 +7,7 @@ import type { DeckGiftShipping } from './deck-promo';
 // The thematic SVH course products. Journeys (asj/mmj/inner-child + PRO/bundle)
 // are also stored on course_registrations, so the registration's product_slug
 // is the union of both.
-export type CourseProductSlug = 'cc-cert' | 'cc-bundle' | 'grief-course' | 'svh-12week';
+export type CourseProductSlug = 'cc-cert' | 'cc-bundle' | 'grief-course' | 'forgiveness-course' | 'svh-12week';
 // `album-<id>` = a music album bought on its own (src/lib/music/product.ts);
 // the id half is the dynamic music_albums row key, hence the template type.
 // `live-pass-<n>m` = the live pass, 1/3/6 months (src/lib/courses/live-pass.ts);
@@ -58,7 +58,7 @@ export type CourseRegistration = {
   language_choice: JourneyLanguageChoice | null;
   source_variant: string | null;
   // Order bumps bought alongside the course, as a JSON array of
-  // {slug, amount_cents} (12-week only). NULL when none — see ./bumps.ts and
+  // {slug, amount_cents} (12-week, certification, forgiveness). NULL when none — see ./bumps.ts and
   // parsePurchasedBumps below.
   bumps: string | null;
   // The Song Deck gift shipping address, collected inline while the gift window
