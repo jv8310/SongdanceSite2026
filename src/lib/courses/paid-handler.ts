@@ -28,14 +28,13 @@ import { recordPurchaseOrder, type PurchaseOrderItem } from '../orders/drip-orde
 import { getAlbum, type MusicAlbumRow } from '../music/db';
 import { albumIdFromProductSlug, isAlbumProductSlug } from '../music/product';
 import {
-  CERT_EXTENSION_LABEL,
-  CERT_EXTENSION_SLUG,
   LIVE_PASS_DRIP_EVENT,
   LIVE_PASS_MONTHLY_DRIP_EVENT,
   isLivePassMonthlySlug,
   hasCertExtension,
   isLivePassSlug,
   livePassContents,
+  livePassExtraLabel,
   livePassLabelForSlug,
   livePassMonthsOf,
   type LivePassPeriod,
@@ -244,11 +243,7 @@ export async function pushPaidCourseRegistrationToDrip(
     // charged on top of amount_cents). Idempotent on order id `course-<id>`:
     // installment re-calls and admin re-fires fold into one order.
     const bumpItems: PurchaseOrderItem[] = purchasedBumps.map((b) => ({
-      name: isBumpSlug(b.slug)
-        ? BUMPS[b.slug].label
-        : b.slug === CERT_EXTENSION_SLUG
-          ? CERT_EXTENSION_LABEL
-          : b.slug,
+      name: isBumpSlug(b.slug) ? BUMPS[b.slug].label : livePassExtraLabel(b.slug) ?? b.slug,
       slug: b.slug,
       amountCents: b.amount_cents,
     }));

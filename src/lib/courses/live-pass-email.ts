@@ -24,7 +24,14 @@ import { monthlyPaidThroughDay } from './live-pass-monthly';
 import { sendEmail } from '../workshops/resend';
 import { businessDayOf } from '../workshops/periods';
 import { certWindowForEmail } from './cert-window';
-import { hasCertExtension, isLivePassMonthlySlug, isLivePassSlug, livePassContents, livePassMonthsOf } from './live-pass';
+import {
+  hasCertExtension,
+  isLivePassMonthlySlug,
+  isLivePassSlug,
+  livePassContents,
+  livePassMonthsOf,
+  monthlyFirstMonthExtraCents,
+} from './live-pass';
 import { planLivePass, settleLivePassPeriod } from './live-pass-plan';
 
 // Where the sessions are: the member app's Events tab (circle.songdance.co
@@ -143,10 +150,13 @@ async function sendMonthlyConfirmation(env: MailEnv, passed: CourseRegistration)
     claimed = (r.meta?.changes ?? 0) > 0;
     if (!claimed) return;
     const renewsOn = monthlyPaidThroughDay(reg);
+    const currency = (reg.currency || 'EUR').toUpperCase() as SupportedCurrency;
+    const firstExtra = monthlyFirstMonthExtraCents(reg.bumps);
     const content = livePassMonthlyConfirmedEmail({
       name: reg.first_name,
       loginEmail: reg.email,
-      priceLabel: formatMoney(reg.amount_cents, (reg.currency || 'EUR').toUpperCase() as SupportedCurrency),
+      priceLabel: formatMoney(reg.amount_cents, currency),
+      firstMonthLabel: firstExtra > 0 ? formatMoney(reg.amount_cents + firstExtra, currency) : null,
       renewsLabel: renewsOn ? fmtDay(renewsOn) : null,
       manageUrl: await livePassManageUrlFor(env, reg.id),
       eventsUrl: LIVE_PASS_EVENTS_URL,

@@ -476,9 +476,14 @@ async function loadRetreatOrders(
 
 // Columns every course path needs to money-up a row. An open-ended monthly
 // subscription (installments_total 0) stores ONE month in amount_cents, so its
-// order is worth the months charged so far (at least the one it opened with).
+// order is worth the months charged so far (at least the one it opened with),
+// plus its first month's extra over the renewal price — a `monthly-first-month`
+// row in `bumps` (live-pass.ts), part of the pass's own price.
 const COURSE_MONEY_COLS = `id, created_at, status, country,
               CASE WHEN installments_total = 0 THEN amount_cents * MAX(1, installments_paid)
+                     + COALESCE((SELECT SUM(json_extract(b.value, '$.amount_cents'))
+                                   FROM json_each(CASE WHEN json_valid(bumps) THEN bumps ELSE '[]' END) b
+                                  WHERE json_extract(b.value, '$.slug') = 'monthly-first-month'), 0)
                    ELSE amount_cents END AS amount_cents,
               currency, refunded_amount_cents`;
 

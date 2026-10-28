@@ -449,8 +449,18 @@ anyone whose course no longer includes them (or never did). Logic in
   certification course in some form, and only when it reaches past the window
   they have — the checkout refuses it otherwise, in plain words.
 - **The monthly** (October 2026) — beside the three passes, a **monthly** that
-  renews until cancelled: **€52 a month** (the 1-month price, same currencies),
-  every Q&A and deepening session while it runs — time, not a count. It is the
+  renews until cancelled: **€52 the first month, then €44 a month** (the 1-month
+  price, then 15% off — the 3-month pass's rate, so paying ahead stays the better
+  deal at every length; `livePassMonthlyFirstCents` / `livePassMonthlyRenewalCents`,
+  same currencies), every Q&A and deepening session while it runs — time, not a
+  count. The subscription itself is the **renewal** price (`amount_cents` €44);
+  the first month's €8 more rides the first charge as a one-off (Stripe: a
+  one-time line on invoice 1; PayPal: the plan's setup fee, a second sale the
+  same minute) and a **`monthly-first-month`** row in `bumps`, which the money
+  helpers count as the pass's own money, never as an order bump
+  (`isCourseTopUpSlug`), and which PayPal's sale routing sets aside by its exact
+  amount (every other sale on a monthly is a month). Monthlies started before
+  this (October 2026) keep their €52 plan: nothing changes them by itself. It is the
   site's first **open-ended subscription**, stored the way the member app was
   already built to read it: product slug **`qa-plan-deepening`** (→ the app's
   `qa-extended-deepening`), `payment_plan 'subscription'`, **`installments_total

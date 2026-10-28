@@ -490,7 +490,7 @@ export function collectedGrossMinor(r: {
         )
       : r.amount_cents;
   const bumps =
-    r.installments_paid > 0 || r.installments_total <= 1
+    r.installments_paid > 0 || r.installments_total === 1
       ? parsePurchasedBumps(r.bumps ?? null).reduce(
           (sum, b) => sum + Math.max(0, b.amount_cents),
           0,

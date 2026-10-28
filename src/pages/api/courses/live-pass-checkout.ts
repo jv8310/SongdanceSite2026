@@ -30,7 +30,10 @@ import {
   LIVE_PASS_MONTHLY_LABEL,
   LIVE_PASS_MONTHLY_SLUG,
   LIVE_PASS_PAGE_PATH,
-  livePassMonthlyPriceCents,
+  MONTHLY_FIRST_MONTH_LABEL,
+  MONTHLY_FIRST_MONTH_SLUG,
+  livePassMonthlyFirstCents,
+  livePassMonthlyRenewalCents,
   livePassLabel,
   livePassOffer,
   livePassSlug,
@@ -51,8 +54,8 @@ export const prerender = false;
 //
 // `months: 'monthly'` is the monthly live pass instead: an open-ended
 // subscription (Stripe subscription mode / a PayPal plan with no cycle limit),
-// one month's price a month, no add-on, and refused while the address already
-// has one running.
+// the full month's price the first month and less after, no add-on, and
+// refused while the address already has one running.
 type Body = {
   months?: number | string;
   cert_extension?: boolean;
@@ -303,9 +306,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
 };
 
 // The monthly live pass: one row, payment_plan 'subscription',
-// installments_total 0, amount_cents = one month (isOpenEndedPlan). Recorded,
-// granted and confirmed by the same paths as every course subscription; the
-// webhook schedules no stop for it (installment_count 0).
+// installments_total 0, amount_cents = one month at the renewal price
+// (isOpenEndedPlan). The first month's extra is a one-off on the first charge
+// and a `monthly-first-month` row in `bumps` (live-pass.ts, "The monthly's
+// price"). Recorded, granted and confirmed by the same paths as every course
+// subscription; the webhook schedules no stop for it (installment_count 0).
 async function startMonthly(
   env: Env,
   locals: App.Locals,
@@ -322,10 +327,12 @@ async function startMonthly(
     );
   }
   const currency = albumCurrencyForCountry(countryCode);
-  const monthlyCents = livePassMonthlyPriceCents(currency);
+  const firstCents = livePassMonthlyFirstCents(currency);
+  const monthlyCents = livePassMonthlyRenewalCents(currency);
+  const extraCents = Math.max(0, firstCents - monthlyCents);
   const slug = LIVE_PASS_MONTHLY_SLUG;
   const label = LIVE_PASS_MONTHLY_LABEL;
-  const describe = `${formatMoney(monthlyCents, currency)} a month, renews monthly until cancelled`;
+  const describe = `${formatMoney(firstCents, currency)} the first month, then ${formatMoney(monthlyCents, currency)} a month until cancelled`;
 
   const registrationId = await createPendingCourseRegistration(env.DB, {
     email,
@@ -341,7 +348,7 @@ async function startMonthly(
     language_choice: null,
     source_variant: 'direct',
     timezone: edgeTimezone(locals),
-    bumps: [],
+    bumps: extraCents > 0 ? [{ slug: MONTHLY_FIRST_MONTH_SLUG, amount_cents: extraCents }] : [],
     amount_cents: monthlyCents,
     currency,
     consent_terms: true,
@@ -363,6 +370,9 @@ async function startMonthly(
       monthlyAmountMinor: monthlyCents,
       currency,
       installmentCount: 0, // PayPal: total_cycles 0 = renews until cancelled
+      // The first month's extra: charged once at the start, as its own sale,
+      // which paypal-fulfill tells from a month by its amount.
+      setupFeeMinor: extraCents || undefined,
       customId: encodeCustomId('course', registrationId),
       returnUrl: `${baseUrl}/api/payments/paypal-return?dest=${encodeURIComponent(successPath)}`,
       cancelUrl,
@@ -376,7 +386,7 @@ async function startMonthly(
       kind: 'course.checkout.paypal.subscription.created',
       source: 'system',
       external_id: `local-course-pp-${registrationId}-monthly`,
-      payload: { course_registration_id: registrationId, subscription_id: sub.subscriptionId, product_slug: slug, currency, monthly_amount_cents: monthlyCents },
+      payload: { course_registration_id: registrationId, subscription_id: sub.subscriptionId, product_slug: slug, currency, monthly_amount_cents: monthlyCents, first_month_extra_cents: extraCents },
     });
     return json({ checkout_url: sub.approveUrl, course_registration_id: registrationId });
   }
@@ -409,6 +419,20 @@ async function startMonthly(
     monthly_amount_cents: monthlyCents,
     currency: currency.toLowerCase(),
     installment_count: 0, // open-ended: no cancel_at is scheduled
+    // The first month's extra, on the first invoice only.
+    one_time_line_items:
+      extraCents > 0
+        ? [
+            {
+              name: MONTHLY_FIRST_MONTH_LABEL,
+              description: `Your first month is ${formatMoney(firstCents, currency)}; every month after it, ${formatMoney(monthlyCents, currency)}.`,
+              amount_cents: extraCents,
+              currency: currency.toLowerCase(),
+              quantity: 1,
+              product_metadata: { tax_class: 'eservice', product_slug: MONTHLY_FIRST_MONTH_SLUG },
+            },
+          ]
+        : undefined,
     metadata: {
       course_registration_id: String(registrationId),
       product_slug: slug,
@@ -429,7 +453,7 @@ async function startMonthly(
     kind: 'course.checkout.subscription.created',
     source: 'system',
     external_id: `local-course-${registrationId}-monthly`,
-    payload: { course_registration_id: registrationId, session_id: session.id, product_slug: slug, currency, monthly_amount_cents: monthlyCents, installments_total: 0 },
+    payload: { course_registration_id: registrationId, session_id: session.id, product_slug: slug, currency, monthly_amount_cents: monthlyCents, first_month_extra_cents: extraCents, installments_total: 0 },
   });
   return json({ checkout_url: session.url, course_registration_id: registrationId });
 }

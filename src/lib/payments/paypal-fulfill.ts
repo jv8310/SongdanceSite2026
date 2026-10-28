@@ -53,6 +53,7 @@ import {
 import { getTaxRate, netFromGross } from '../workshops/quaderno';
 import { runWorkshopPaidSideEffects } from '../workshops/paid-handler';
 import { normalizePaypalSubStatus, type PaypalCapture } from './paypal';
+import { monthlyFirstMonthExtraCents } from '../courses/live-pass';
 import { resolveWorkshopBumpProductId } from '../workshops/bump';
 
 export type PaypalFulfillEnv = {
@@ -178,7 +179,10 @@ export async function recordCoursePaypalInstallment(
 // (amount_cents / installments_total — exact, since checkout stores
 // monthly × N) bumps the counter; anything else is logged as a setup-fee charge
 // under the SAME external_id namespace, so webhook and reconcile alike can
-// never count it later. An unknown amount (null) falls through as an
+// never count it later. An open-ended monthly has one setup fee only — its
+// first month's extra (live-pass.ts, "The monthly's price") — so there it is
+// the other way round: that exact sum is set aside and every other sale is a
+// month, whatever the month costs. An unknown amount (null) falls through as an
 // installment — the pre-existing behaviour.
 export async function recordCoursePaypalSubscriptionSale(
   env: PaypalFulfillEnv,
@@ -194,7 +198,14 @@ export async function recordCoursePaypalSubscriptionSale(
     courseReg.installments_total > 0
       ? Math.round(courseReg.amount_cents / courseReg.installments_total)
       : null;
-  if (amountMinor != null && monthly != null && monthly > 0 && amountMinor !== monthly) {
+  const openEndedExtra =
+    courseReg.installments_total === 0 ? monthlyFirstMonthExtraCents(courseReg.bumps) : 0;
+  const isSetupFee =
+    amountMinor != null &&
+    (monthly != null
+      ? monthly > 0 && amountMinor !== monthly
+      : openEndedExtra > 0 && amountMinor === openEndedExtra && amountMinor !== courseReg.amount_cents);
+  if (isSetupFee) {
     await logEvent(env.DB, {
       registration_id: null,
       kind: 'paypal.course.setup_fee',
@@ -204,7 +215,7 @@ export async function recordCoursePaypalSubscriptionSale(
         course_registration_id: courseReg.id,
         sale_id: saleId,
         amount_minor: amountMinor,
-        expected_monthly_minor: monthly,
+        expected_monthly_minor: monthly ?? courseReg.amount_cents,
       },
     });
     return false;

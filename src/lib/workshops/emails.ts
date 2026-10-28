@@ -1237,22 +1237,32 @@ export function livePassConfirmedEmail(ctx: LivePassConfirmedCtx): EmailContent 
 export type LivePassMonthlyConfirmedCtx = {
   name?: string | null;
   loginEmail: string;
-  priceLabel: string; // "€52"
+  priceLabel: string; // "€44" — what each month after the first costs
+  // "€52" — what the first month cost, when it cost more than the rest
+  // (live-pass.ts, "The monthly's price"); null for a monthly at one price.
+  firstMonthLabel?: string | null;
   renewsLabel: string | null; // "18 November 2026" — the next charge
   manageUrl: string | null;
   eventsUrl: string;
 };
 
 export function livePassMonthlyConfirmedEmail(ctx: LivePassMonthlyConfirmedCtx): EmailContent {
-  const renews = ctx.renewsLabel
-    ? `It renews by itself on the same day each month — the next payment of ${ctx.priceLabel} is on ${ctx.renewsLabel}.`
-    : `It renews by itself on the same day each month, ${ctx.priceLabel} each time.`;
+  const stepsDown = !!ctx.firstMonthLabel && ctx.firstMonthLabel !== ctx.priceLabel;
+  const renews = stepsDown
+    ? ctx.renewsLabel
+      ? `Your first month (${ctx.firstMonthLabel}) is paid. From the second month it is ${ctx.priceLabel} a month, renewing by itself on the same day each month — the next payment is on ${ctx.renewsLabel}.`
+      : `Your first month (${ctx.firstMonthLabel}) is paid. From the second month it is ${ctx.priceLabel} a month, renewing by itself on the same day each month.`
+    : ctx.renewsLabel
+      ? `It renews by itself on the same day each month — the next payment of ${ctx.priceLabel} is on ${ctx.renewsLabel}.`
+      : `It renews by itself on the same day each month, ${ctx.priceLabel} each time.`;
   const where = "You'll find the sessions under Events in the CiRCLE — sign in with";
   const stop = ctx.manageUrl
     ? 'You can cancel any time, in two clicks, from the link below. Nothing more is charged, and the sessions stay open until the end of the month you have already paid for.'
     : 'You can cancel any time — just reply to this email. Nothing more is charged, and the sessions stay open until the end of the month you have already paid for.';
   const html = shell({
-    preheader: `Every Q&A and deepening session, ${ctx.priceLabel} a month, cancel any time.`,
+    preheader: stepsDown
+      ? `Every Q&A and deepening session, ${ctx.priceLabel} a month from the second month, cancel any time.`
+      : `Every Q&A and deepening session, ${ctx.priceLabel} a month, cancel any time.`,
     heading: 'Your monthly live pass is running',
     bodyHtml: `<p style="margin:0 0 14px;">${greeting(ctx.name)}</p>
       <p style="margin:0 0 14px;">Thank you — from today your monthly live pass opens <strong>every weekly Q&amp;A and every monthly deepening session</strong> for as long as it runs.</p>

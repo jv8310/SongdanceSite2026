@@ -39,7 +39,7 @@ import { getTaxRate, netFromGross, type QuadernoTaxConfig } from './quaderno';
 import { getFxRatesToEur } from '../admin/fx';
 import { parsePurchasedBumps, type PurchasedBump } from '../courses/db';
 import { BUMPS, isBumpSlug } from '../courses/bumps';
-import { CERT_EXTENSION_LABEL, CERT_EXTENSION_SLUG, livePassLabelForSlug } from '../courses/live-pass';
+import { isCourseTopUpSlug, livePassExtraLabel, livePassLabelForSlug } from '../courses/live-pass';
 import { effectiveTotal, addMonths, isOpenEndedPlan } from '../courses/installment-forecast';
 import { MASTERCLASS_DOOR_SPLIT_START } from './experiments';
 import { businessWindowUtc, businessDayStartMs, businessDayOf } from './periods';
@@ -160,9 +160,14 @@ type CourseMoneyRow = {
 // subscription (the monthly live pass, installments_total = 0) stores ONE
 // month in amount_cents, so it is worth a month per cycle — and, since it
 // promises nothing beyond what it has charged, its contracted value is the
-// same figure (effectiveTotal = installments_paid).
+// same figure (effectiveTotal = installments_paid). Its first month costs more
+// than the rest: the extra rides the first charge as a `bumps` row
+// (isCourseTopUpSlug) and is the course's own money, so it is counted here.
 function cyclesValueMinor(r: CourseMoneyRow, cycles: number): number {
-  if (isOpenEndedPlan(r)) return r.amount_cents * Math.max(0, cycles);
+  if (isOpenEndedPlan(r)) {
+    const n = Math.max(0, cycles);
+    return r.amount_cents * n + (n > 0 ? courseTopUpMinorOf(r) : 0);
+  }
   if (r.installments_total > 1) {
     const n = Math.max(0, Math.min(cycles, r.installments_total));
     return Math.round(r.amount_cents * (n / r.installments_total));
@@ -173,11 +178,20 @@ function cyclesValueMinor(r: CourseMoneyRow, cycles: number): number {
 // Order bumps ride the charge as their own line item (or the first
 // installment's invoice), so they are collected in full on any row that took
 // money — `amount_cents` deliberately holds the course price only. Counted
-// only where the row actually carries the column.
+// only where the row actually carries the column. A course's own first-charge
+// extra (the monthly's first month) sits in the same column but is not a bump:
+// cyclesValueMinor counts it.
 function chargedBumps(r: CourseMoneyRow): PurchasedBump[] {
-  if (!(r.installments_paid > 0 || r.installments_total <= 1)) return [];
+  if (!(r.installments_paid > 0 || r.installments_total === 1)) return [];
   return parsePurchasedBumps(r.bumps ?? null)
+    .filter((b) => !isCourseTopUpSlug(b.slug))
     .map((b) => ({ slug: b.slug, amount_cents: Math.max(0, b.amount_cents) }));
+}
+
+function courseTopUpMinorOf(r: CourseMoneyRow): number {
+  return parsePurchasedBumps(r.bumps ?? null)
+    .filter((b) => isCourseTopUpSlug(b.slug))
+    .reduce((sum, b) => sum + Math.max(0, b.amount_cents), 0);
 }
 
 function bumpsMinorOf(r: CourseMoneyRow): number {
@@ -254,7 +268,7 @@ function checkoutPartsMinor(
 }
 
 const bumpLabel = (slug: string): string =>
-  isBumpSlug(slug) ? BUMPS[slug].label : slug === CERT_EXTENSION_SLUG ? CERT_EXTENSION_LABEL : slug;
+  isBumpSlug(slug) ? BUMPS[slug].label : livePassExtraLabel(slug) ?? slug;
 
 type PaymentRow = {
   id: number;
@@ -884,6 +898,8 @@ export async function computeCourseCashIn(
       // month a charge on the same calendar schedule.
       const openEnded = isOpenEndedPlan(r);
       const perCharge = isPlan ? Math.round(r.amount_cents / r.installments_total) : r.amount_cents;
+      // …whose first month carries its extra (cyclesValueMinor).
+      const firstExtra = openEnded ? courseTopUpMinorOf(r) : 0;
       const charges = isPlan
         ? Math.max(0, Math.min(r.installments_paid, r.installments_total))
         : openEnded
@@ -894,7 +910,7 @@ export async function computeCourseCashIn(
         // Brussels day a late-evening charge falls on, so it is put back.
         const ymd = businessDayOf(addMonths(saleMs, k) + (saleMs % 86_400_000));
         if (!inWindow(ymd)) continue;
-        const courseEur = eurOf(perCharge, r);
+        const courseEur = eurOf(perCharge + (k === 0 ? firstExtra : 0), r);
         if (k === 0) {
           const bumpEur = chargedBumps(r).reduce((s, b) => s + eurOf(b.amount_cents, r), 0);
           report.firstPaymentsEurMinor += courseEur;
