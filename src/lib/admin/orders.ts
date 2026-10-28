@@ -23,7 +23,7 @@
 //     EUR charges with no country on file.
 
 import { DEFAULT_FX_TO_EUR } from './fx';
-import { livePassLabelForSlug } from '../courses/live-pass';
+import { LIVE_PASS_MONTHLY_SLUG, LIVE_PASS_MONTHS, livePassLabelForSlug, livePassSlug } from '../courses/live-pass';
 import { BANK_TRANSFER, type OrderProvider } from '../payments/provider';
 import { getTaxRate, type QuadernoTaxConfig } from '../workshops/quaderno';
 import { LABEL_BY_SLUG, isJourneySlug } from '../courses/journeys';
@@ -518,7 +518,13 @@ type CourseRow = CourseMoneyRow & {
 // whose label contains the term matches, plus a plain slug LIKE for the ones
 // that show their slug verbatim (albums, unmapped products).
 const KNOWN_COURSE_SLUGS = [
-  ...new Set([...Object.keys(COURSE_LABELS), ...Object.keys(LABEL_BY_SLUG)]),
+  ...new Set([
+    ...Object.keys(COURSE_LABELS),
+    ...Object.keys(LABEL_BY_SLUG),
+    // "Live pass" / "monthly" find the passes and the monthly (qa-plan-deepening).
+    ...LIVE_PASS_MONTHS.map(livePassSlug),
+    LIVE_PASS_MONTHLY_SLUG,
+  ]),
 ];
 function courseSlugsMatching(q: string): string[] {
   return KNOWN_COURSE_SLUGS.filter((s) => courseLabel(s).toLowerCase().includes(q));
