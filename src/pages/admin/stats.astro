@@ -37,6 +37,8 @@ import {
   loadInstallmentForecast,
   type Forecast,
 } from '../../lib/courses/installment-forecast';
+import { computeLivePassStats } from '../../lib/courses/live-pass-stats';
+import { formatMoney } from '../../lib/workshops/currency';
 
 export const prerender = false;
 
@@ -90,6 +92,8 @@ const workshops = await listWorkshops(env.DB);
 const report = await computeStats(env.DB, { from, to, workshopId, excludeFutureEvents: excludeFuture });
 const courses = await computeCourseSales(env.DB, { from, to, money });
 const courseCash = await computeCourseCashIn(env.DB, { from, to, money });
+// The live pass box: the monthlies as they stand now, and what sold in the window.
+const livePass = await computeLivePassStats(env.DB, { from, to, money });
 const days = mergeDailyStreams(report, courses, from, to);
 const campaignSpend = await computeAdSpendByCampaign(env.DB, { from, to });
 // Per-workshop funnel + workshop-only (TOF) ROAS. Not narrowed by the workshop
@@ -975,6 +979,89 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
       </table>
     </section>
 
+    <!-- ─── Live pass: the monthlies now, and what sold in the window ─── -->
+    <section class="adm-section" id="live-pass">
+      <h2>Live pass</h2>
+      <div class="st-boxes">
+        <div class="st-box">
+          <div class="st-box-head">
+            <h3>Monthly</h3>
+            <a href="/admin/orders?q=monthly" class="st-box-link">Orders →</a>
+          </div>
+          <div class="st-box-big">
+            <strong>{int(livePass.monthly.renewing)} renewing</strong>
+            <span>{eur0(livePass.monthly.monthlyEurMinor)} a month between them</span>
+          </div>
+          <div class="st-box-rows">
+            <div><span>Payment failing, being retried</span><b class={livePass.monthly.behind > 0 ? 'st-neg-ink' : ''}>{livePass.monthly.behind || '—'}</b></div>
+            <div><span>Cancelled, paid month still running</span><b>{livePass.monthly.ending || '—'}</b></div>
+            <div><span>Started</span><b>{livePass.monthly.started || '—'}</b><i>{rangeLabel}</i></div>
+            <div><span>Cancelled</span><b>{livePass.monthly.cancelled || '—'}</b><i>{rangeLabel}</i></div>
+            <div><span>Stopped by a failed payment</span><b class={livePass.monthly.stopped > 0 ? 'st-neg-ink' : ''}>{livePass.monthly.stopped || '—'}</b><i>{rangeLabel}</i></div>
+            <div>
+              <span>Cash in</span>
+              <b>{livePass.monthly.charges > 0 ? eur0(livePass.monthly.cashEurMinor) : '—'}</b>
+              <i>{int(livePass.monthly.charges)} {livePass.monthly.charges === 1 ? 'monthly charge' : 'monthly charges'} · {rangeLabel}</i>
+            </div>
+          </div>
+          <p class="st-box-note">The first three lines are as of today, whatever the period. Net of VAT. “Cancelled” counts cancels made on the site, by the buyer or from an order page, not ones made in Stripe or PayPal directly.</p>
+        </div>
+
+        <div class="st-box">
+          <div class="st-box-head">
+            <h3>Passes sold</h3>
+            <a href="/admin/orders?q=live+pass" class="st-box-link">Orders →</a>
+          </div>
+          <div class="st-box-big">
+            <strong>{int(livePass.passes.count)} {livePass.passes.count === 1 ? 'pass' : 'passes'}</strong>
+            <span>{eur0(livePass.passes.eurMinor)} · {rangeLabel}</span>
+          </div>
+          <div class="st-box-rows">
+            {livePass.passes.byLength.map((p) => (
+              <div><span>{p.contents}</span><b>{p.count || '—'}</b>{p.count > 0 && <i>{eur0(p.eurMinor)}</i>}</div>
+            ))}
+            <div>
+              <span>With the certification extension</span>
+              <b>{livePass.passes.extensionCount || '—'}</b>
+              {livePass.passes.extensionCount > 0 && <i>{eur0(livePass.passes.extensionEurMinor)} for the extension</i>}
+            </div>
+          </div>
+          <p class="st-box-note">Passes paid in the period, net of VAT, refunds off. The total includes the extensions.</p>
+        </div>
+      </div>
+
+      <h3 class="st-lp-h3">Monthlies running now</h3>
+      {livePass.monthly.rows.length === 0 ? (
+        <p class="adm-empty">No monthly is running.</p>
+      ) : (
+        <table class="adm-table st-table st-lp-table">
+          <thead>
+            <tr><th>Member</th><th>Since</th><th class="num">Months</th><th class="num">Each month</th><th>Where it stands</th><th aria-label="Order"></th></tr>
+          </thead>
+          <tbody>
+            {livePass.monthly.rows.map((m) => (
+              <tr>
+                <td>
+                  <a href={`/admin/orders/C-${m.id}`}>{m.name}</a>
+                  <span class="st-lp-sub">{m.email}</span>
+                </td>
+                <td>{prettyYmd(m.startedOn)}</td>
+                <td class="num">{m.monthsCharged}</td>
+                <td class="num">{formatMoney(m.priceMinor, m.currency)} <span class="st-lp-sub">{m.provider === 'paypal' ? 'PayPal' : 'Stripe'}</span></td>
+                <td>
+                  {m.standing === 'renews' && <span>Renews {m.through ? prettyYmd(m.through) : 'monthly'}</span>}
+                  {m.standing === 'behind' && <span class="st-neg-ink">Payment failing, being retried</span>}
+                  {m.standing === 'ending' && <span>Cancelled · open until {m.through ? prettyYmd(m.through) : '—'}</span>}
+                </td>
+                <td><a href={`/admin/orders/C-${m.id}`} class="st-box-link">{m.standing === 'ending' ? 'Open →' : 'Cancel / open →'}</a></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      <p class="adm-sub">A monthly is cancelled from its order page: nothing more is charged and nothing is refunded, and its sessions stay open to the end of the month already paid for.</p>
+    </section>
+
     {courses.byProduct.length > 0 && (
       <section class="adm-section">
         <h2>Standalone course sales</h2>
@@ -1263,6 +1350,12 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
     .st-box-rows > div > i { flex-basis: 100%; font-style: normal; font-size: 11px; color: var(--adm-mute); }
     .st-box-rows--roomy > div { padding: 6px 0; }
     .st-neg-ink { color: var(--adm-danger) !important; }
+    .st-lp-h3 { margin: 20px 0 8px; font-family: Georgia, serif; font-weight: 500; font-size: 1.02rem; color: var(--adm-ink); }
+    .st-lp-sub { display: block; font-size: 11px; color: var(--adm-mute); }
+    .st-lp-table td { vertical-align: top; }
+    @media (max-width: 640px) {
+      .st-lp-table { display: block; overflow-x: auto; }
+    }
     .st-box-note { margin: 10px 0 0; font-size: 11px; color: var(--adm-mute); }
     .st-box-empty { margin: 4px 0 8px; font-size: 13px; color: var(--adm-ink-soft); }
 

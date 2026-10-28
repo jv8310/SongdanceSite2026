@@ -2,7 +2,8 @@
 // three things that change it — the buyer cancels, the buyer takes that back,
 // and a renewal that could not be charged stops it.
 //
-// - **Cancel** (the buyer, from /courses/live-pass/manage): Stripe gets
+// - **Cancel** (the buyer, from /courses/live-pass/manage, or an admin from the
+//   order page /admin/orders/C-<id>, same function): Stripe gets
 //   `cancel_at_period_end`, so nothing more is charged and the subscription
 //   ends on the day the month already paid for runs out — Stripe then fires
 //   `customer.subscription.deleted` and the webhook marks the row cancelled.
@@ -122,14 +123,19 @@ export async function readMonthlyState(env: MonthlyEnv, reg: CourseRegistration)
     : { kind: 'renews', on: through };
 }
 
-// The buyer cancels. Nothing more is charged; the month already paid for runs
-// out. Idempotent: cancelling twice changes nothing.
-export async function cancelMonthly(env: MonthlyEnv, reg: CourseRegistration): Promise<MonthlyState> {
+// The buyer cancels (or an admin, for them: `by` = 'admin:<their email>').
+// Nothing more is charged; the month already paid for runs out. Idempotent:
+// cancelling twice changes nothing.
+export async function cancelMonthly(env: MonthlyEnv, reg: CourseRegistration, by = 'member'): Promise<MonthlyState> {
   if (!isLivePassMonthlySlug(reg.product_slug)) throw new Error('not a monthly live pass');
   if (reg.provider === 'paypal') {
     if (reg.paypal_subscription_id) {
       if (!paypalConfigured(env)) throw new Error('PayPal is not configured');
-      await cancelSubscriptionIfPresent(env, reg.paypal_subscription_id, 'Cancelled by the member');
+      await cancelSubscriptionIfPresent(
+        env,
+        reg.paypal_subscription_id,
+        by === 'member' ? 'Cancelled by the member' : 'Cancelled by Songdance',
+      );
     }
     await markCourseRegistrationCancelled(env.DB, reg.id);
   } else {
@@ -140,7 +146,7 @@ export async function cancelMonthly(env: MonthlyEnv, reg: CourseRegistration): P
     registration_id: null,
     kind: 'live_pass.monthly.cancelled',
     source: 'system',
-    payload: { course_registration_id: reg.id, provider: reg.provider, paid_through: monthlyPaidThroughDay(reg) },
+    payload: { course_registration_id: reg.id, provider: reg.provider, paid_through: monthlyPaidThroughDay(reg), by },
   });
   const fresh = (await getCourseRegistrationById(env.DB, reg.id)) ?? reg;
   const through = monthlyPaidThroughDay(fresh);
@@ -148,7 +154,7 @@ export async function cancelMonthly(env: MonthlyEnv, reg: CourseRegistration): P
 }
 
 // Take a cancellation back while the paid month still runs (Stripe only).
-export async function resumeMonthly(env: MonthlyEnv, reg: CourseRegistration): Promise<boolean> {
+export async function resumeMonthly(env: MonthlyEnv, reg: CourseRegistration, by = 'member'): Promise<boolean> {
   if (!isLivePassMonthlySlug(reg.product_slug) || reg.provider === 'paypal') return false;
   if (reg.status !== 'paid' || !reg.stripe_subscription_id || !env.STRIPE_SECRET_KEY) return false;
   const sub = await retrieveSubscriptionWithLatestInvoice(env.STRIPE_SECRET_KEY, reg.stripe_subscription_id);
@@ -158,7 +164,7 @@ export async function resumeMonthly(env: MonthlyEnv, reg: CourseRegistration): P
     registration_id: null,
     kind: 'live_pass.monthly.resumed',
     source: 'system',
-    payload: { course_registration_id: reg.id },
+    payload: { course_registration_id: reg.id, by },
   });
   return true;
 }

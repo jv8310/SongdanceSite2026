@@ -18,6 +18,7 @@ import {
 import { getCourseRegistrationById } from '../../../lib/courses/db';
 import { effectiveTotal } from '../../../lib/courses/installment-forecast';
 import { isCancellablePlan, keepLabel } from '../../../lib/courses/installment-cancel';
+import { readMonthlyState } from '../../../lib/courses/live-pass-monthly';
 import { getFxRatesToEur } from '../../../lib/admin/fx';
 import { providerLinkFor, resolveProviderModes } from '../../../lib/admin/provider-links';
 
@@ -108,15 +109,49 @@ const canStopPlan =
 // rather than silently proposing a change.
 const currentKeep = planReg ? effectiveTotal(planReg) - planReg.installments_paid : 0;
 const keepOptions = Array.from({ length: planRemaining + 1 }, (_, k) => k);
+// The monthly live pass renews until cancelled: it has no charges "left" to
+// forgive, so instead of the stop control it gets its own — where it stands
+// (read from the gateway) and Cancel / Keep it after all, the same functions
+// the buyer's manage link runs (/api/admin/live-pass/monthly).
+const isMonthly = planReg?.installments_total === 0;
+const monthlyState = isMonthly && planReg ? await readMonthlyState(env as any, planReg) : null;
+const monthlyGateway = planReg?.provider === 'paypal' ? 'PayPal' : 'Stripe';
+const monthlyDay = (day: string | null | undefined) =>
+  day
+    ? new Date(`${day}T12:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
+    : null;
+const monthlyStateText = (() => {
+  if (!monthlyState || !planReg) return null;
+  const on = 'on' in monthlyState ? monthlyDay(monthlyState.on) : null;
+  const price = formatMoney(planReg.amount_cents, (planReg.currency || 'EUR').toUpperCase());
+  switch (monthlyState.kind) {
+    case 'renews':
+      return on ? `Running — renews on ${on} at ${price}.` : `Running — renews each month at ${price}.`;
+    case 'behind':
+      return `This month's payment didn't go through and ${monthlyGateway} is retrying. If it keeps failing, the monthly stops by itself and the buyer is told.`;
+    case 'ending':
+      return `Cancelled — nothing more is charged.${on ? ` Their sessions stay open until ${on}.` : ''}`;
+    case 'ended':
+      return `Ended${on ? ` — the sessions it paid for ran until ${on}` : ''}.`;
+    default:
+      return 'Not started — no payment has come in yet.';
+  }
+})();
+const monthlyCancelConfirm = (() => {
+  if (!monthlyState || !('on' in monthlyState)) return '';
+  const on = monthlyDay(monthlyState.on);
+  const back =
+    planReg?.provider === 'paypal'
+      ? 'PayPal cancels it at once; it cannot be taken back (they can start a new one).'
+      : 'It can be taken back here until then.';
+  // Escaped for a single-quoted confirm('…') like jsName (declared further down).
+  const who = name.replace(/['\\]/g, '\\$&');
+  return `Cancel ${who}\\'s monthly live pass?\\nNothing more is charged and nothing is refunded${on ? `; their sessions stay open until ${on}` : ''}. ${back}\\nThey are not emailed about it.`;
+})();
+
 // Say WHY there is nothing to stop, rather than a flat "unavailable".
 const stopBlockedReason = (() => {
   if (canStopPlan || !planReg) return null;
-  // The monthly live pass renews until cancelled: it has no charges "left" to
-  // forgive. The buyer stops it from their own link; to stop it for them,
-  // cancel the subscription at the gateway and the webhook follows.
-  if (planReg.installments_total === 0) {
-    return `A monthly subscription — it renews until it is cancelled. The buyer cancels from the link in their confirmation email (or asks for it again on the live pass page); to stop it for them, cancel the subscription in ${planReg.provider === 'paypal' ? 'PayPal' : 'Stripe'} and this order follows.`;
-  }
   if (planRemaining <= 0) {
     return 'Every charge on this plan has been made — there is nothing left to stop.';
   }
@@ -404,7 +439,32 @@ function ymdhm(iso: string | null): string {
                 row — nothing about the schedule is trusted from this form.
               */}
               <div class="od-inst-stop">
-                {canStopPlan ? (
+                {monthlyState ? (
+                  <div class="od-monthly">
+                    <p class="od-monthly-state">{monthlyStateText}</p>
+                    {(monthlyState.kind === 'renews' || monthlyState.kind === 'behind') && (
+                      <form
+                        method="POST"
+                        action="/api/admin/live-pass/monthly"
+                        class="od-inst-stop-form"
+                        onsubmit={`return confirm('${monthlyCancelConfirm}')`}
+                      >
+                        <input type="hidden" name="course_registration_id" value={o.rowId} />
+                        <input type="hidden" name="action" value="cancel" />
+                        <input type="hidden" name="return_to" value={selfReturn} />
+                        <button type="submit" class="adm-btn adm-btn--danger adm-btn--tiny">Cancel the monthly</button>
+                      </form>
+                    )}
+                    {monthlyState.kind === 'ending' && planReg?.provider !== 'paypal' && planReg?.status === 'paid' && (
+                      <form method="POST" action="/api/admin/live-pass/monthly" class="od-inst-stop-form">
+                        <input type="hidden" name="course_registration_id" value={o.rowId} />
+                        <input type="hidden" name="action" value="resume" />
+                        <input type="hidden" name="return_to" value={selfReturn} />
+                        <button type="submit" class="adm-btn adm-btn--tiny">Keep it after all</button>
+                      </form>
+                    )}
+                  </div>
+                ) : canStopPlan ? (
                   <form
                     method="POST"
                     action="/api/admin/courses/cancel-installments"
@@ -439,9 +499,20 @@ function ymdhm(iso: string | null): string {
                 plan keeps billing. Refunds are subtracted from the order total; the order
                 only reads <strong>refunded</strong> once everything collected has gone back.
                 {ledger?.provider === 'paypal' && ' PayPal reports a refunded state per cycle but not the amount, so the “Refunded” column shows ? — the order total above is the reliable figure.'}
-                {' '}<strong>Stopping the plan forgives future charges only</strong> — it never
-                gives money back, and the buyer keeps access either way. The same control is on
-                {' '}<a href="/admin/courses/future-revenue">Future revenue</a>, across all plans.
+                {isMonthly ? (
+                  <>
+                    {' '}<strong>Cancelling the monthly stops future charges only</strong> — it never
+                    gives money back, and the sessions already paid for stay open to the end of
+                    that month. Refunding everything it has charged cancels it too. Every monthly is
+                    listed on <a href="/admin/stats#live-pass">Stats → Live pass</a>.
+                  </>
+                ) : (
+                  <>
+                    {' '}<strong>Stopping the plan forgives future charges only</strong> — it never
+                    gives money back, and the buyer keeps access either way. The same control is on
+                    {' '}<a href="/admin/courses/future-revenue">Future revenue</a>, across all plans.
+                  </>
+                )}
               </p>
             </div>
           </section>
@@ -656,6 +727,8 @@ function ymdhm(iso: string | null): string {
       padding:6px 8px; border:1px solid var(--adm-line); border-radius:7px;
       font:inherit; font-size:12px; background:var(--adm-paper);
     }
+    .od-monthly { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    .od-monthly-state { margin:0; font-size:12.5px; color:var(--adm-ink); flex:1 1 260px; }
     .od-inst-stop-hint, .od-inst-stop-none {
       flex-basis:100%; margin:0; font-size:11px; color:var(--adm-mute);
     }

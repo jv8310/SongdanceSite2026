@@ -479,7 +479,20 @@ anyone whose course no longer includes them (or never did). Logic in
   `sd-lpm:`), sent again to the inbox on the order from "Manage my monthly pass" on the
   pass page — never shown on screen. Stripe gets `cancel_at_period_end` (and can
   be taken back while the month runs); PayPal is cancelled at once; either way the
-  app keeps the sessions open to `paid_through`. A renewal the gateway gives up on
+  app keeps the sessions open to `paid_through`. **An admin can do the same for
+  them** from the order page (`/admin/orders/C-<id>`, where a plan's Stop control
+  sits): it says where the monthly stands (read from the gateway) and offers
+  **Cancel the monthly** / **Keep it after all** (`/api/admin/live-pass/monthly`,
+  the same `cancelMonthly` / `resumeMonthly`, logged with `by: admin:<email>`;
+  no refund, no email to the buyer). **`/admin/stats` → Live pass**
+  ([`live-pass-stats.ts`](src/lib/courses/live-pass-stats.ts), D1 only): the
+  monthlies renewing / failing / cancelled-but-running with what they bring in a
+  month, started / cancelled / stopped / cash in for the window, passes sold by
+  length with the extension, and every open monthly by name, linked to its order.
+  "Ending" for a Stripe monthly comes from the site's own cancel/resume events
+  (its row stays `paid` until the month runs out), so a cancel made in the Stripe
+  dashboard only shows when the month ends; `idx_events_kind` (migration 0091)
+  keeps that read cheap. A renewal the gateway gives up on
   (Stripe `unpaid`, PayPal `SUSPENDED`) ends the monthly and emails the buyer the
   way back ([`live-pass-monthly.ts`](src/lib/courses/live-pass-monthly.ts)) — not
   the plans' dunning sequence: a monthly owes nothing beyond its month. A pass
