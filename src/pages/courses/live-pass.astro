@@ -9,6 +9,10 @@
 // student it would help, and for a 12-week student the way on to the 9-month
 // certification course.
 //
+// The order is the sell (October 2026): what the pass is and what it opens,
+// then the prices and the checkout, and only after them — for a 12-week
+// student — the certification course.
+//
 // Beside the three passes, the monthly (October 2026): €52 the first month, then
 // €44 a month, renews until cancelled, every session while it runs (live-pass.ts,
 // "The monthly's price"). ?months=monthly picks
@@ -27,6 +31,7 @@ import {
   livePassMonthlyFirstCents,
   livePassMonthlyRenewalCents,
   livePassOffer,
+  livePassSessions,
   parseLivePassMonths,
   type LivePassMonths,
 } from '../../lib/courses/live-pass';
@@ -153,7 +158,83 @@ const monthlyCents = livePassMonthlyRenewalCents(currency);
 const monthlyTotal = (first: string, then: string) => `${first}, then ${then} a month`;
 const certPageHref = `/courses/certification${emailPrefill ? `?email=${encodeURIComponent(emailPrefill)}` : ''}`;
 const money = (cents: number) => formatMoney(cents, currency);
-const aboutLabel = (m: number) => `About ${m} month${m === 1 ? '' : 's'} of sessions`;
+const aboutLabel = (m: number) => `About ${m} month${m === 1 ? '' : 's'}`;
+// What a pass comes to a month, rounded up to a whole unit so it never reads
+// cheaper than it is. The browser repaints it with the same sum.
+const perMonthCents = (o: { price_cents: number; months: number }) => Math.ceil(o.price_cents / o.months / 100) * 100;
+
+// The page sells first, prices second, and only then — for a 12-week student —
+// points on to the certification course.
+const features: { icon: string; title: string; body: string }[] = [
+  {
+    icon: 'ph-chats-circle',
+    title: 'A live Q&A, every week',
+    body: 'A live hour with Jacob — and on the calls he is not on, with Karen Evans. Bring your questions, a sound that surprised you, whatever came up in your practice.',
+  },
+  {
+    icon: 'ph-moon-stars',
+    title: 'Two hours deeper, every month',
+    body: 'Once a month, alumni and current students take the work wider with Jacob — into questions that don’t fit a single class, and the practice as it lives now.',
+  },
+  {
+    icon: 'ph-play-circle',
+    title: 'Replays for 2 months',
+    body: 'Can’t make the time? The replay of every session in your pass stays for 2 months, so you can catch up when your day allows.',
+  },
+  {
+    icon: 'ph-ticket',
+    title: 'Counted by the session',
+    body: 'A pass holds the next Q&As and deepening sessions on the calendar. A week without a Q&A costs you nothing — your pass simply holds the next one.',
+  },
+  {
+    icon: 'ph-calendar-plus',
+    title: 'Never pay twice',
+    body: 'Still have live sessions from your course? Your pass starts the day after they end, so it always adds to what you have.',
+  },
+  {
+    icon: 'ph-video-camera',
+    title: 'Live on Zoom, from the CiRCLE',
+    body: 'Every session is under Events in the CiRCLE. Sign in with the address you use for your courses and join from there, wherever you are.',
+  },
+];
+
+// What the 9 months add, for a 12-week student (same points as before the
+// redesign, now after the pass rather than before it).
+const upgradeBenefits: { icon: string; lead: string; rest: string }[] = [
+  { icon: 'ph-books', lead: 'The full class library', rest: ', every module with a written manual, self-paced and yours to keep.' },
+  { icon: 'ph-calendar-check', lead: 'Weekly Q&As and the monthly two-hour deepening session', rest: ' for nine months, with no pass to buy.' },
+  { icon: 'ph-hand-heart', lead: 'Practice Together', rest: ': give and receive with your peers, where you learn to hold space for someone else.' },
+  { icon: 'ph-device-mobile', lead: 'The Somatic Vocal Healing app', rest: ': record and tag your own sounds, train your ear with quizzes and training rounds, ask SVH AI about everything taught in the Q&As, and find someone to practise with, live.' },
+  { icon: 'ph-seal-check', lead: 'The path to becoming a certified practitioner', rest: ', if you choose to walk it.' },
+  { icon: 'ph-clock-countdown', lead: 'Nothing overlaps.', rest: ' Join while your 12 weeks are still running and your nine months begin when they are over.' },
+];
+
+const faq: { q: string; a: string }[] = [
+  {
+    q: 'How long does a pass last?',
+    a: 'As long as its sessions: 4, 12 or 24 Q&As and 1, 3 or 6 deepening sessions — the next ones on the calendar from the day it starts. A week without a Q&A costs you nothing: your pass simply holds the next one. It ends after the last of its sessions, and you keep their replays for 2 months.',
+  },
+  {
+    q: 'When does my pass start?',
+    a: 'The day you buy it — unless your course still gives you the live sessions: then it starts the day after they end, so you never pay twice for the same session. If you already have a pass, the new one continues with the session after its last. Fill in your email above and the start date shows before you pay.',
+  },
+  {
+    q: 'I’m in the 12-week course',
+    a: 'A pass continues your Q&As once your 12 weeks are over: it starts the day after they end, and brings the monthly deepening session with it. Or go on to the 9-month certification course, which carries the Q&As and the deepening sessions for nine months, with no pass to buy.',
+  },
+  {
+    q: 'Where are the sessions?',
+    a: 'Under Events in the CiRCLE, where you’ll also find the replays from your pass.',
+  },
+  {
+    q: 'Is it a subscription?',
+    a: 'A pass isn’t: you pay once, and it ends after its last session. We’ll let you know by email when 1 session is left, so you can add another whenever you like. The monthly is: it opens every session while it runs and renews on the same day each month, so there is nothing to remember.',
+  },
+  {
+    q: 'How do I cancel the monthly?',
+    a: 'Any time, in two clicks, from the link in its confirmation email (or ask for the link under “Manage my monthly pass” above). Nothing more is charged, and the sessions stay open until the end of the month you have already paid for.',
+  },
+];
 ---
 
 <SiteLayout
@@ -161,20 +242,10 @@ const aboutLabel = (m: number) => `About ${m} month${m === 1 ? '' : 's'} of sess
   description="Sound with us live: 4, 12 or 24 Q&As and 1, 3 or 6 deepening sessions, or monthly until you cancel. For anyone whose course no longer includes the live sessions, or never did."
 >
   <main class="lp">
-    <section class="lp-hero">
-      <p class="lp-eyebrow">Live sessions</p>
-      <h1 class="lp-title">Keep sounding with us, <em>live</em></h1>
-      <p class="lp-lede">
-        Every week a live Q&amp;A, and once a month a two-hour deepening session — alumni and
-        current students together. The pass is for anyone whose course no longer includes the
-        live sessions, or never did.
-      </p>
-    </section>
-
     {welcome && (
-      <section class="lp-card lp-welcome" role="status">
+      <section class="lp-narrow lp-card lp-welcome" role="status">
         <p class="lp-eyebrow">Payment received</p>
-        <h2 class="lp-h2">Thank you — your pass is on its way into your account</h2>
+        <h2 class="lp-h3">Thank you — your pass is on its way into your account</h2>
         <p>
           A confirmation is on its way by email, with the day your pass starts. You'll find the
           sessions under <strong>Events</strong> in the CiRCLE from that day, with the
@@ -183,9 +254,9 @@ const aboutLabel = (m: number) => `About ${m} month${m === 1 ? '' : 's'} of sess
       </section>
     )}
     {welcomeMonthly && (
-      <section class="lp-card lp-welcome" role="status">
+      <section class="lp-narrow lp-card lp-welcome" role="status">
         <p class="lp-eyebrow">Payment received</p>
-        <h2 class="lp-h2">Thank you — your monthly live pass is starting</h2>
+        <h2 class="lp-h3">Thank you — your monthly live pass is starting</h2>
         <p>
           A confirmation is on its way by email. You'll find every session under <strong>Events</strong>
           in the CiRCLE, with the same email address you paid with. It renews on the same day each
@@ -194,216 +265,295 @@ const aboutLabel = (m: number) => `About ${m} month${m === 1 ? '' : 's'} of sess
       </section>
     )}
 
-    {/* For a 12-week student not (yet) on the 9 months: the way on, before the
-        pass — shown once the address says so. */}
-    <section class="lp-upgrade" data-lp-upgrade hidden={!showUpgrade} aria-labelledby="lp-upgrade-title">
-      <p class="lp-eyebrow">From the 12 weeks</p>
-      <h2 class="lp-upgrade-title" id="lp-upgrade-title">Or go on to the 9-month certification course</h2>
-      <p class="lp-upgrade-body">
-        A pass keeps your Q&amp;As going. The certification course continues the work the 12 weeks
-        began:
-      </p>
-      <ul class="lp-benefits">
-        <li>
-          <strong>The full class library</strong>, every module with a written manual, self-paced
-          and yours to keep.
-        </li>
-        <li>
-          <strong>Weekly Q&amp;As and the monthly two-hour deepening session</strong> for nine
-          months, with no pass to buy.
-        </li>
-        <li>
-          <strong>Practice Together</strong>: give and receive with your peers, where you learn to
-          hold space for someone else.
-        </li>
-        <li>
-          <strong>The Somatic Vocal Healing app</strong>: record and tag your own sounds, train your
-          ear with quizzes and training rounds, ask SVH AI about everything taught in the Q&amp;As,
-          and find someone to practise with, live.
-        </li>
-        <li>
-          <strong>The path to becoming a certified practitioner</strong>, if you choose to walk it.
-        </li>
-        <li>
-          <strong>Nothing overlaps.</strong> Join while your 12 weeks are still running and your
-          nine months begin when they are over.
-        </li>
-      </ul>
-      <a class="sd-btn lp-upgrade-btn" href={certPageHref} data-lp-upgrade-link>
-        <span>See the certification course</span>
-        <i class="ph-light ph-arrow-right"></i>
-      </a>
+    {/* 1 — The sell: what the pass is and what it opens. */}
+    <section class="lp-hero">
+      <div class="lp-hero-text">
+        <p class="lp-eyebrow">The live pass</p>
+        <h1 class="lp-title">Keep sounding with us, <em>live</em></h1>
+        <p class="lp-lede">
+          Every week a live Q&amp;A with Jacob, and once a month a two-hour deepening session —
+          alumni and current students together. For anyone whose course no longer includes the
+          live sessions, or never did.
+        </p>
+        <ul class="lp-hero-meta">
+          <li><i class="ph-light ph-chats-circle" aria-hidden="true"></i> A live Q&amp;A every week</li>
+          <li><i class="ph-light ph-moon-stars" aria-hidden="true"></i> A 2-hour deepening session every month</li>
+          <li><i class="ph-light ph-play-circle" aria-hidden="true"></i> Replays for 2 months</li>
+        </ul>
+        <div class="lp-hero-actions">
+          <a class="sd-btn sd-btn-primary" href="#get">
+            <span>Choose your pass</span>
+            <i class="ph-light ph-arrow-down" aria-hidden="true"></i>
+          </a>
+          <a class="lp-quiet-link" href="#inside">What's inside</a>
+        </div>
+      </div>
+      <figure class="lp-hero-photo">
+        <img
+          src="/media/library/svh-retreat-teaching-jacob-laughing.webp"
+          alt="Jacob laughing at the microphone, in the middle of answering a question"
+          width="1333"
+          height="2000"
+          decoding="async"
+          fetchpriority="high"
+        />
+        <span class="lp-live"><span class="lp-live-dot" aria-hidden="true"></span> Live, every week</span>
+      </figure>
     </section>
 
-    <section class="lp-card" id="get">
-      <form
-        class="lp-form"
-        data-lp-form
-        novalidate
-        data-prices={JSON.stringify(prices)}
-        data-monthly-prices={JSON.stringify(monthlyPrices)}
-        data-status={initialStatus ? JSON.stringify(initialStatus) : undefined}
-      >
-        <fieldset class="lp-options">
-          <legend class="lp-legend">Choose your pass</legend>
-          <p class="lp-explain">
-            A pass holds the next Q&amp;As and deepening sessions on the calendar from the day it
-            starts, and ends after the last of them. A week without a Q&amp;A costs you nothing.
-            Or take the monthly: it renews by itself until you cancel.
-          </p>
+    <section class="lp-for" aria-labelledby="lp-for-title">
+      <h2 class="lp-for-title" id="lp-for-title">The pass is for you when</h2>
+      <ul class="lp-for-list">
+        <li><i class="ph-light ph-graduation-cap" aria-hidden="true"></i> Your nine months of certification are over</li>
+        <li><i class="ph-light ph-hourglass-medium" aria-hidden="true"></i> Your 12 weeks have come to an end</li>
+        <li><i class="ph-light ph-books" aria-hidden="true"></i> Your course never came with live sessions</li>
+      </ul>
+    </section>
+
+    <section class="lp-inside" id="inside" aria-labelledby="lp-inside-title">
+      <div class="lp-section-head">
+        <p class="lp-eyebrow">What the pass opens</p>
+        <h2 class="lp-h2" id="lp-inside-title">Every week a Q&amp;A.<br /> Every month, <em>two hours deeper.</em></h2>
+      </div>
+      <div class="lp-features">
+        {features.map((f) => (
+          <article class="lp-feature">
+            <span class="lp-feature-icon" aria-hidden="true"><i class={`ph-light ${f.icon}`}></i></span>
+            <h3 class="lp-feature-title">{f.title}</h3>
+            <p class="lp-feature-body">{f.body}</p>
+          </article>
+        ))}
+      </div>
+    </section>
+
+    <section class="lp-quote" aria-label="Sounding together">
+      <p class="lp-quote-eyebrow">Witnessed, not watched</p>
+      <p class="lp-quote-text">
+        Sounding alone is one thing. Sounding where others can hear you is another.
+      </p>
+      <p class="lp-quote-sub">
+        Something happens in a circle that doesn't happen alone: being heard changes what dares to
+        come out.
+      </p>
+    </section>
+
+    {/* 2 — The prices, and the checkout. */}
+    <section class="lp-buy" id="get" aria-labelledby="lp-buy-title">
+      <div class="lp-section-head">
+        <p class="lp-eyebrow">Choose your pass</p>
+        <h2 class="lp-h2" id="lp-buy-title">Pay once, <em>or go monthly</em></h2>
+        <p class="lp-section-lede">
+          The longer the pass, the less each session costs. Or take the monthly, and cancel any
+          time. Prices follow your country.
+        </p>
+      </div>
+
+      <div class="lp-card lp-buy-card">
+        <form
+          class="lp-form"
+          data-lp-form
+          novalidate
+          data-prices={JSON.stringify(prices)}
+          data-monthly-prices={JSON.stringify(monthlyPrices)}
+          data-status={initialStatus ? JSON.stringify(initialStatus) : undefined}
+        >
           <p class="lp-status" data-lp-status role="status" hidden={!startNotice}>{startNotice}</p>
-          {offers.map((o) => (
-            <label class="lp-option">
-              <input
-                type="radio"
-                name="months"
-                value={o.months}
-                checked={!startMonthly && o.months === chosenMonths}
-                data-lp-contents={livePassContents(o.months)}
-              />
-              <span class="lp-option-body">
-                <span class="lp-option-head">
-                  <span class="lp-option-len">{livePassContents(o.months)}</span>
-                  {o.discount_percent > 0 && <span class="lp-save">{o.discount_percent}% off</span>}
+
+          <fieldset class="lp-options">
+            <legend class="lp-sr">Choose your pass</legend>
+            <div class="lp-plans">
+              {offers.map((o) => {
+                const s = livePassSessions(o.months);
+                return (
+                  <label class:list={['lp-plan', o.months === 6 && 'lp-plan--best']}>
+                    <input
+                      type="radio"
+                      name="months"
+                      value={o.months}
+                      checked={!startMonthly && o.months === chosenMonths}
+                      data-lp-contents={livePassContents(o.months)}
+                    />
+                    {o.months === 6 && <span class="lp-ribbon">Best value</span>}
+                    <span class="lp-plan-check" aria-hidden="true"><i class="ph-light ph-check"></i></span>
+                    <span class="lp-plan-len">{aboutLabel(o.months)}</span>
+                    <span class="lp-plan-price">
+                      <strong data-lp-price={o.months}>{money(o.price_cents)}</strong>
+                      {o.discount_percent > 0 && <s class="lp-was" data-lp-was={o.months}>{money(o.full_cents)}</s>}
+                    </span>
+                    <span class="lp-plan-per">
+                      <span><span data-lp-per={o.months}>{money(perMonthCents(o))}</span> a month</span>
+                      {o.discount_percent > 0 && <span class="lp-save">{o.discount_percent}% off</span>}
+                    </span>
+                    <span class="lp-plan-holds">
+                      <span><i class="ph-light ph-chats-circle" aria-hidden="true"></i> {s.qa} Q&amp;As</span>
+                      <span><i class="ph-light ph-moon-stars" aria-hidden="true"></i> {s.deepening} deepening session{s.deepening === 1 ? '' : 's'}</span>
+                    </span>
+                    <span class="lp-plan-dates" data-lp-dates={o.months} hidden></span>
+                  </label>
+                );
+              })}
+            </div>
+
+            <p class="lp-or"><span>or</span></p>
+
+            <label class="lp-plan lp-plan--monthly" data-lp-monthly-option>
+              <input type="radio" name="months" value="monthly" checked={startMonthly} disabled={monthlyRunning} />
+              <span class="lp-plan-check" aria-hidden="true"><i class="ph-light ph-check"></i></span>
+              <span class="lp-monthly-icon" aria-hidden="true"><i class="ph-light ph-repeat"></i></span>
+              <span class="lp-monthly-main">
+                <span class="lp-plan-len">Monthly <span class="lp-save lp-save--plain">Cancel any time</span></span>
+                <span class="lp-monthly-desc">Every Q&amp;A and deepening session while it runs. Renews each month until you cancel.</span>
+                <span class="lp-plan-dates" data-lp-monthly-note hidden={!monthlyRunning}>
+                  {monthlyRunning ? 'You already have a monthly running — manage it below.' : ''}
                 </span>
-                <span class="lp-option-sub">{aboutLabel(o.months)}</span>
-                <span class="lp-option-price">
-                  {o.discount_percent > 0 && (
-                    <s class="lp-was" data-lp-was={o.months}>{money(o.full_cents)}</s>
-                  )}
-                  <strong data-lp-price={o.months}>{money(o.price_cents)}</strong>
-                </span>
-                <span class="lp-option-dates" data-lp-dates={o.months} hidden></span>
+              </span>
+              <span class="lp-monthly-price">
+                <strong data-lp-monthly-first>{money(monthlyFirstCents)}</strong>
+                <span class="lp-per">the first month, then <strong data-lp-monthly-price>{money(monthlyCents)}</strong> a month</span>
               </span>
             </label>
-          ))}
-          <label class="lp-option lp-option--monthly" data-lp-monthly-option>
-            <input type="radio" name="months" value="monthly" checked={startMonthly} disabled={monthlyRunning} />
-            <span class="lp-option-body">
-              <span class="lp-option-head">
-                <span class="lp-option-len">Monthly</span>
-                <span class="lp-save lp-save--plain">Cancel any time</span>
+          </fieldset>
+
+          {/* Only for a 9-month (certification) student; shown once the address says so. */}
+          <label class="lp-addon" data-lp-addon hidden={!showAddon || startMonthly}>
+            <input type="checkbox" name="cert_extension" checked={wantsExtension && showAddon} />
+            <span>
+              <span class="lp-addon-head">
+                <span><i class="ph-light ph-seal-check" aria-hidden="true"></i> Extend my certification window</span>
+                <span class="lp-addon-price">+<span data-lp-ext>{money(offers.find((o) => o.months === chosenMonths)!.extension_cents)}</span></span>
               </span>
-              <span class="lp-option-sub">Every Q&amp;A and deepening session while it runs. Renews each month until you cancel.</span>
-              <span class="lp-option-price">
-                <strong data-lp-monthly-first>{money(monthlyFirstCents)}</strong><span class="lp-per">the first month, then <strong data-lp-monthly-price>{money(monthlyCents)}</strong> a month</span>
+              <span class="lp-addon-body">
+                Keeps your window to apply for certification open for the months of your pass (1, 3
+                or 6, from the day it starts). For certification students whose window has closed.
+                Adds {CERT_EXTENSION_PERCENT}% to the pass.
               </span>
-              <span class="lp-option-dates" data-lp-monthly-note hidden={!monthlyRunning}>
-                {monthlyRunning ? 'You already have a monthly running — manage it below.' : ''}
-              </span>
+              <span class="lp-addon-note" data-lp-addon-note hidden></span>
             </span>
           </label>
-        </fieldset>
 
-        {/* Only for a 9-month (certification) student; shown once the address says so. */}
-        <label class="lp-addon" data-lp-addon hidden={!showAddon || startMonthly}>
-          <input type="checkbox" name="cert_extension" checked={wantsExtension && showAddon} />
-          <span>
-            <span class="lp-addon-head">
-              Extend my certification window
-              <span class="lp-addon-price">+<span data-lp-ext>{money(offers.find((o) => o.months === chosenMonths)!.extension_cents)}</span></span>
+          <h3 class="lp-step">Your details</h3>
+          <div class="lp-fields">
+            <label class="lp-field">
+              <span>First name</span>
+              <input
+                type="text"
+                name="first_name"
+                autocomplete="given-name"
+                required
+                maxlength="100"
+                value={firstNamePrefill || undefined}
+              />
+            </label>
+            <label class="lp-field">
+              <span>Last name</span>
+              <input
+                type="text"
+                name="last_name"
+                autocomplete="family-name"
+                required
+                maxlength="100"
+                value={lastNamePrefill || undefined}
+              />
+            </label>
+            <label class="lp-field lp-field--full">
+              <span>Email <span class="lp-hint">— the address you use for your courses</span></span>
+              <input
+                type="email"
+                name="email"
+                autocomplete="email"
+                required
+                maxlength="254"
+                value={emailPrefill || undefined}
+                data-lp-email
+              />
+            </label>
+            <label class="lp-field lp-field--full">
+              <span>Country</span>
+              <input
+                type="text"
+                name="country_search"
+                list="lp-country-list"
+                autocomplete="country-name"
+                placeholder="Start typing…"
+                required
+                value={geoCountryMatch?.name ?? ''}
+                data-lp-country-search
+              />
+              <input type="hidden" name="country" value={geoCountryMatch?.code ?? ''} data-lp-country />
+            </label>
+          </div>
+
+          <label class="lp-terms">
+            <input type="checkbox" name="consent_terms" required />
+            <span>
+              I agree to the <a href="/terms" target="_blank" rel="noopener">terms</a> &amp;{' '}
+              <a href="/privacy" target="_blank" rel="noopener">privacy policy</a>.
             </span>
-            <span class="lp-addon-body">
-              Keeps your window to apply for certification open for the months of your pass (1, 3
-              or 6, from the day it starts). For certification students whose window has closed.
-              Adds {CERT_EXTENSION_PERCENT}% to the pass.
-            </span>
-            <span class="lp-addon-note" data-lp-addon-note hidden></span>
-          </span>
-        </label>
-
-        <div class="lp-fields">
-          <label class="lp-field">
-            <span>First name</span>
-            <input
-              type="text"
-              name="first_name"
-              autocomplete="given-name"
-              required
-              maxlength="100"
-              value={firstNamePrefill || undefined}
-            />
           </label>
-          <label class="lp-field">
-            <span>Last name</span>
-            <input
-              type="text"
-              name="last_name"
-              autocomplete="family-name"
-              required
-              maxlength="100"
-              value={lastNamePrefill || undefined}
-            />
-          </label>
-          <label class="lp-field lp-field--full">
-            <span>Email <span class="lp-hint">— the address you use for your courses</span></span>
-            <input
-              type="email"
-              name="email"
-              autocomplete="email"
-              required
-              maxlength="254"
-              value={emailPrefill || undefined}
-              data-lp-email
-            />
-          </label>
-          <label class="lp-field lp-field--full">
-            <span>Country</span>
-            <input
-              type="text"
-              name="country_search"
-              list="lp-country-list"
-              autocomplete="country-name"
-              placeholder="Start typing…"
-              required
-              value={geoCountryMatch?.name ?? ''}
-              data-lp-country-search
-            />
-            <input type="hidden" name="country" value={geoCountryMatch?.code ?? ''} data-lp-country />
-          </label>
-        </div>
 
-        <label class="lp-terms">
-          <input type="checkbox" name="consent_terms" required />
-          <span>
-            I agree to the <a href="/terms" target="_blank" rel="noopener">terms</a> &amp;{' '}
-            <a href="/privacy" target="_blank" rel="noopener">privacy policy</a>.
-          </span>
-        </label>
+          <div class="lp-summary">
+            <span data-lp-summary-label>{startMonthly ? 'Live pass · monthly' : `Live pass · ${livePassContents(chosenMonths)}`}</span>
+            <strong data-lp-total>{startMonthly ? monthlyTotal(money(monthlyFirstCents), money(monthlyCents)) : money(offers.find((o) => o.months === chosenMonths)!.price_cents)}</strong>
+          </div>
 
-        <div class="lp-summary">
-          <span data-lp-summary-label>{startMonthly ? 'Live pass · monthly' : 'Live pass'}</span>
-          <strong data-lp-total>{startMonthly ? monthlyTotal(money(monthlyFirstCents), money(monthlyCents)) : money(offers.find((o) => o.months === chosenMonths)!.price_cents)}</strong>
-        </div>
-
-        <div class="lp-actions">
-          <button type="submit" class="sd-btn sd-btn-primary" data-lp-submit data-provider="stripe">
-            <span>Pay by card</span>
-            <i class="ph-light ph-arrow-right"></i>
-          </button>
-          {paypalOk && (
-            <button type="submit" class="sd-btn lp-paypal" data-lp-submit data-provider="paypal">
-              Pay with <strong>PayPal</strong>
+          <div class="lp-actions">
+            <button type="submit" class="sd-btn sd-btn-primary" data-lp-submit data-provider="stripe">
+              <span>Pay by card</span>
+              <i class="ph-light ph-arrow-right" aria-hidden="true"></i>
             </button>
-          )}
-        </div>
-        <p class="lp-note" data-lp-note-pass hidden={startMonthly}>One payment, no subscription. Charged in your local currency — the price follows your country.</p>
-        <p class="lp-note" data-lp-note-monthly hidden={!startMonthly}>
-          The first month is charged today, and every month after it, at the lower price, on the
-          same day each month until you cancel — any time, from the link in your confirmation
-          email. Charged in your local currency.
-        </p>
-        <p class="lp-error" role="alert" data-lp-error hidden></p>
-      </form>
-      <datalist id="lp-country-list">
-        {COUNTRIES.map((c) => (
-          <option value={c.name} data-code={c.code}>{c.flag} {c.name}</option>
-        ))}
-      </datalist>
+            {paypalOk && (
+              <button type="submit" class="sd-btn lp-paypal" data-lp-submit data-provider="paypal">
+                Pay with <strong>PayPal</strong>
+              </button>
+            )}
+          </div>
+          <p class="lp-note" data-lp-note-pass hidden={startMonthly}>
+            <i class="ph-light ph-lock-simple" aria-hidden="true"></i>
+            One payment, no subscription. Charged in your local currency — the price follows your country.
+          </p>
+          <p class="lp-note" data-lp-note-monthly hidden={!startMonthly}>
+            <i class="ph-light ph-lock-simple" aria-hidden="true"></i>
+            The first month is charged today, and every month after it, at the lower price, on the
+            same day each month until you cancel — any time, from the link in your confirmation
+            email. Charged in your local currency.
+          </p>
+          <p class="lp-error" role="alert" data-lp-error hidden></p>
+        </form>
+        <datalist id="lp-country-list">
+          {COUNTRIES.map((c) => (
+            <option value={c.name} data-code={c.code}>{c.flag} {c.name}</option>
+          ))}
+        </datalist>
+      </div>
     </section>
 
-    <section class="lp-card lp-manage" id="manage" aria-labelledby="lp-manage-title">
-      <h2 class="lp-h2" id="lp-manage-title">Manage my monthly pass</h2>
+    {/* 3 — For a 12-week student not (yet) on the 9 months: the way on, after
+        the pass — shown once the address says so. */}
+    <section class="lp-upgrade" data-lp-upgrade hidden={!showUpgrade} aria-labelledby="lp-upgrade-title">
+      <div class="lp-upgrade-intro">
+        <p class="lp-eyebrow lp-eyebrow--on-night">From the 12 weeks</p>
+        <h2 class="lp-upgrade-title" id="lp-upgrade-title">Or go further: the 9-month <em>certification course</em></h2>
+        <p class="lp-upgrade-body">
+          A pass keeps your Q&amp;As going. The certification course continues the work the 12 weeks
+          began — and brings the live sessions with it for nine months, with no pass to buy.
+        </p>
+        <a class="sd-btn sd-btn-on-night lp-upgrade-btn" href={certPageHref} data-lp-upgrade-link>
+          <span>See the certification course</span>
+          <i class="ph-light ph-arrow-right" aria-hidden="true"></i>
+        </a>
+      </div>
+      <ul class="lp-benefits">
+        {upgradeBenefits.map((b) => (
+          <li>
+            <i class={`ph-light ${b.icon}`} aria-hidden="true"></i>
+            <span><strong>{b.lead}</strong>{b.rest}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+
+    <section class="lp-narrow lp-card lp-manage" id="manage" aria-labelledby="lp-manage-title">
+      <h2 class="lp-h3" id="lp-manage-title"><i class="ph-light ph-repeat" aria-hidden="true"></i> Manage my monthly pass</h2>
       <p>
         To see when your monthly renews, or to cancel it, use the link in its confirmation email.
         Lost it? Enter the address you pay with and we'll send it there again.
@@ -419,51 +569,19 @@ const aboutLabel = (m: number) => `About ${m} month${m === 1 ? '' : 's'} of sess
           aria-label="Your email address"
           value={emailPrefill || undefined}
         />
-        <button type="submit" class="sd-btn">Send me the link</button>
+        <button type="submit" class="sd-btn sd-btn-primary">Send me the link</button>
       </form>
       <p class="lp-manage-msg" role="status" data-lp-manage-msg hidden></p>
     </section>
 
-    <section class="lp-faq">
-      <h2 class="lp-h2">Good to know</h2>
-      <dl>
-        <dt>How long does a pass last?</dt>
-        <dd>
-          As long as its sessions: 4, 12 or 24 Q&amp;As and 1, 3 or 6 deepening sessions — the next
-          ones on the calendar from the day it starts. A week without a Q&amp;A costs you nothing:
-          your pass simply holds the next one. It ends after the last of its sessions, and you keep
-          their replays for 2 months.
-        </dd>
-        <dt>When does my pass start?</dt>
-        <dd>
-          The day you buy it — unless your course still gives you the live sessions: then it starts
-          the day after they end, so you never pay twice for the same session. If you already have a
-          pass, the new one continues with the session after its last. Fill in your email above and
-          the start date shows before you pay.
-        </dd>
-        <dt>I'm in the 12-week course</dt>
-        <dd>
-          A pass continues your Q&amp;As once your 12 weeks are over: it starts the day after they
-          end, and brings the monthly deepening session with it. Or go on to the 9-month
-          certification course, which carries the Q&amp;As and the deepening sessions for nine
-          months, with no pass to buy.
-        </dd>
-        <dt>Where are the sessions?</dt>
-        <dd>Under Events in the CiRCLE, where you'll also find the replays from your pass.</dd>
-        <dt>Is it a subscription?</dt>
-        <dd>
-          A pass isn't: you pay once, and it ends after its last session. We'll let you know by email
-          when 1 session is left, so you can add another whenever you like. The monthly is: it opens
-          every session while it runs and renews on the same day each month, so there is nothing to
-          remember.
-        </dd>
-        <dt>How do I cancel the monthly?</dt>
-        <dd>
-          Any time, in two clicks, from the link in its confirmation email (or ask for the link under
-          “Manage my monthly pass” above). Nothing more is charged, and the sessions stay open until the
-          end of the month you have already paid for.
-        </dd>
-      </dl>
+    <section class="lp-narrow lp-faq" aria-labelledby="lp-faq-title">
+      <h2 class="lp-h2" id="lp-faq-title">Good to know</h2>
+      {faq.map((q) => (
+        <details class="lp-faq-item">
+          <summary>{q.q}<i class="ph-light ph-plus" aria-hidden="true"></i></summary>
+          <p>{q.a}</p>
+        </details>
+      ))}
     </section>
   </main>
 </SiteLayout>
@@ -536,8 +654,11 @@ const aboutLabel = (m: number) => `About ${m} month${m === 1 ? '' : 's'} of sess
       for (const [m, o] of Object.entries(table)) {
         const price = form!.querySelector<HTMLElement>(`[data-lp-price="${m}"]`);
         const was = form!.querySelector<HTMLElement>(`[data-lp-was="${m}"]`);
+        const per = form!.querySelector<HTMLElement>(`[data-lp-per="${m}"]`);
         if (price) price.textContent = formatMoney(o.price_cents, cur);
         if (was) was.textContent = formatMoney(o.full_cents, cur);
+        // Same sum as the server's perMonthCents: rounded up to a whole unit.
+        if (per) per.textContent = formatMoney(Math.ceil(o.price_cents / Number(m) / 100) * 100, cur);
       }
       const monthlyCents = monthlyPrices[cur] ?? monthlyPrices.EUR;
       monthlyFirstEl.textContent = formatMoney(monthlyCents.first, cur);
@@ -772,91 +893,260 @@ const aboutLabel = (m: number) => `About ${m} month${m === 1 ? '' : 's'} of sess
 </script>
 
 <style>
-  .lp { max-width: 720px; margin: 0 auto; padding: 56px 16px 96px; color: var(--ink); }
+  .lp { max-width: 1120px; margin: 0 auto; padding: 48px 20px 96px; color: var(--ink); font-family: var(--font-body); }
   /* Several pieces carry their own display; hidden must still hide them. */
   .lp [hidden] { display: none !important; }
-  .lp-hero { text-align: center; margin-bottom: 32px; }
+  .lp-narrow { max-width: 760px; margin-left: auto; margin-right: auto; }
+  .lp-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
   .lp-eyebrow {
-    font-family: var(--font-body); font-size: 12px; letter-spacing: 0.14em;
-    text-transform: uppercase; color: var(--ember); margin: 0 0 12px;
+    font-size: 12px; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--ember-deep); margin: 0 0 12px;
   }
-  .lp-title { font-family: var(--font-display); font-weight: 400; font-size: clamp(32px, 6vw, 48px); line-height: 1.1; margin: 0 0 16px; }
+  .lp-eyebrow--on-night { color: var(--ember-soft); }
+  .lp-h2 { font-family: var(--font-display); font-weight: 400; font-size: clamp(28px, 3.6vw, 40px); line-height: 1.15; margin: 0; }
+  .lp-h3 { font-family: var(--font-display); font-weight: 400; font-size: 24px; line-height: 1.25; margin: 0 0 10px; }
   /* Cormorant inside a Spectral heading reads small: size it up. */
-  .lp-title em { font-family: var(--font-lyric); font-size: 1.05em; }
-  .lp-lede { font-family: var(--font-body); font-size: 18px; line-height: 1.6; margin: 0 auto; max-width: 560px; }
-  .lp-h2 { font-family: var(--font-display); font-weight: 400; font-size: 26px; margin: 0 0 12px; }
-  .lp-card {
-    background: var(--paper-soft); border: 1px solid rgba(42, 27, 42, 0.12);
-    border-radius: 16px; padding: 24px; margin-bottom: 24px;
+  .lp-title em, .lp-h2 em, .lp-upgrade-title em { font-family: var(--font-lyric); font-style: italic; font-size: 1.05em; color: var(--plum); }
+  .lp-card { background: var(--paper-soft); border: 1px solid var(--line); border-radius: 20px; padding: 28px; }
+  .lp-welcome { border-color: var(--moss); margin-bottom: 36px; }
+  .lp-welcome p:last-child { margin: 0; line-height: 1.6; }
+
+  /* ── 1. The sell ─────────────────────────────────────────────────────── */
+  .lp-hero { display: grid; gap: 32px; align-items: center; margin-bottom: 40px; }
+  .lp-title {
+    font-family: var(--font-display); font-weight: 400; font-size: clamp(38px, 6vw, 64px);
+    line-height: 1.05; letter-spacing: -0.01em; margin: 0 0 18px;
   }
-  .lp-welcome { border-color: var(--moss); }
-  .lp-options { border: 0; padding: 0; margin: 0 0 16px; display: grid; gap: 10px; }
-  .lp-legend { font-family: var(--font-display); font-size: 22px; margin-bottom: 12px; }
-  .lp-explain { font-size: 15px; line-height: 1.55; margin: 0 0 6px; opacity: 0.85; }
-  .lp-option {
-    display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; cursor: pointer;
-    border: 1px solid rgba(42, 27, 42, 0.16); border-radius: 12px; background: var(--paper);
+  .lp-title, .lp-h2, .lp-upgrade-title, .lp-quote-text { text-wrap: balance; }
+  .lp-lede { font-size: 19px; line-height: 1.6; color: var(--ink-soft); margin: 0 0 24px; max-width: 34em; }
+  .lp-hero-meta { list-style: none; padding: 0; margin: 0 0 30px; display: grid; gap: 10px; }
+  .lp-hero-meta li { display: flex; align-items: center; gap: 12px; font-size: 16px; }
+  .lp-hero-meta i { flex: none; font-size: 22px; color: var(--ember); }
+  .lp-hero-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; }
+  .lp-quiet-link { font-size: 15px; color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--ember); padding-bottom: 2px; }
+  .lp-quiet-link:hover { color: var(--ember-deep); }
+  .lp-hero-photo {
+    position: relative; margin: 0; border-radius: 24px; overflow: hidden; aspect-ratio: 4 / 3;
+    background: var(--paper-deep); box-shadow: 0 28px 60px -34px rgba(42, 27, 42, 0.55);
   }
-  .lp-option:has(input:checked) { border-color: var(--plum); box-shadow: inset 0 0 0 1px var(--plum); }
-  .lp-option input { margin-top: 4px; accent-color: var(--plum); }
-  .lp-option-body { display: grid; gap: 2px; flex: 1; }
-  .lp-option-head { display: flex; gap: 8px; align-items: center; font-weight: 600; }
-  .lp-save { font-size: 12px; color: var(--moss); border: 1px solid var(--moss); border-radius: 999px; padding: 1px 8px; }
-  .lp-option-sub, .lp-option-dates { font-size: 14px; opacity: 0.8; }
-  .lp-option-price { display: flex; flex-wrap: wrap; gap: 0 8px; align-items: baseline; }
-  .lp-was { opacity: 0.55; }
+  .lp-hero-photo img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: 55% 42%; }
+  .lp-live {
+    position: absolute; left: 16px; bottom: 16px; display: inline-flex; align-items: center; gap: 8px;
+    padding: 8px 14px; border-radius: 999px; background: rgba(250, 245, 234, 0.92); color: var(--ink);
+    font-size: 13px; font-weight: 500;
+  }
+  .lp-live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ember); animation: lp-pulse 2s ease-out infinite; }
+  @keyframes lp-pulse {
+    0% { box-shadow: 0 0 0 0 rgba(201, 96, 58, 0.5); }
+    100% { box-shadow: 0 0 0 10px rgba(201, 96, 58, 0); }
+  }
+  @media (prefers-reduced-motion: reduce) { .lp-live-dot { animation: none; } }
+  @media (min-width: 880px) {
+    .lp-hero { grid-template-columns: 1.15fr 0.85fr; gap: 56px; margin-bottom: 48px; }
+    .lp-hero-photo { aspect-ratio: 4 / 5; }
+  }
+
+  .lp-for {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; padding: 16px 20px;
+    border-radius: 16px; background: var(--paper-deep); margin-bottom: 80px;
+  }
+  .lp-for-title { font-family: var(--font-body); font-size: 14px; font-weight: 600; margin: 0; }
+  .lp-for-list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+  .lp-for-list li {
+    display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px; border-radius: 999px;
+    background: var(--paper-soft); border: 1px solid var(--line); font-size: 14px;
+  }
+  .lp-for-list i { font-size: 18px; color: var(--plum); }
+
+  .lp-section-head { text-align: center; max-width: 680px; margin: 0 auto 36px; }
+  .lp-section-lede { font-size: 17px; line-height: 1.6; color: var(--ink-soft); margin: 14px 0 0; }
+
+  .lp-inside { margin-bottom: 72px; scroll-margin-top: 96px; }
+  .lp-features { display: grid; gap: 16px; }
+  .lp-feature { background: var(--paper-soft); border: 1px solid var(--line); border-radius: 18px; padding: 24px; }
+  .lp-feature-icon {
+    display: inline-grid; place-items: center; width: 48px; height: 48px; border-radius: 14px;
+    background: var(--ember-glow); color: var(--ember-deep); font-size: 26px; margin-bottom: 16px;
+  }
+  .lp-feature-title { font-family: var(--font-display); font-weight: 400; font-size: 21px; line-height: 1.25; margin: 0 0 8px; }
+  .lp-feature-body { font-size: 15.5px; line-height: 1.6; color: var(--ink-soft); margin: 0; }
+  @media (min-width: 640px) { .lp-features { grid-template-columns: 1fr 1fr; } }
+  @media (min-width: 980px) { .lp-features { grid-template-columns: repeat(3, 1fr); } }
+
+  .lp-quote { text-align: center; max-width: 760px; margin: 0 auto 80px; }
+  .lp-quote-eyebrow { font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-quiet); margin: 0 0 14px; }
+  .lp-quote-text { font-family: var(--font-lyric); font-style: italic; font-size: clamp(28px, 4vw, 40px); line-height: 1.25; color: var(--plum); margin: 0 0 14px; }
+  .lp-quote-sub { font-size: 16px; line-height: 1.6; color: var(--ink-quiet); margin: 0; }
+
+  /* ── 2. The prices ───────────────────────────────────────────────────── */
+  .lp-buy { margin-bottom: 64px; scroll-margin-top: 96px; }
+  .lp-buy-card { max-width: 980px; margin: 0 auto; }
+  .lp-status {
+    margin: 0 0 20px; padding: 12px 14px; border-radius: 10px; font-size: 15px; line-height: 1.5;
+    color: var(--ink); background: rgba(92, 106, 74, 0.1); border-left: 3px solid var(--moss);
+  }
+  .lp-options { border: 0; padding: 0; margin: 0 0 20px; min-width: 0; }
+  .lp-plans { display: grid; gap: 14px; }
+  @media (min-width: 760px) { .lp-plans { grid-template-columns: repeat(3, 1fr); } }
+  .lp-plan {
+    position: relative; display: flex; flex-direction: column; gap: 10px; padding: 22px 20px 20px;
+    border: 1px solid var(--line-strong); border-radius: 16px; background: var(--paper); cursor: pointer;
+    transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+  }
+  .lp-plan:hover { border-color: var(--plum); }
+  /* The radio stays in the form and the tab order; the card is what shows. */
+  .lp-plan input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
+  .lp-plan:has(input:checked) {
+    border-color: var(--plum); background: #fff;
+    box-shadow: 0 0 0 1px var(--plum), 0 18px 40px -28px rgba(74, 37, 64, 0.6);
+  }
+  .lp-plan:has(input:focus-visible) { outline: 2px solid var(--ember); outline-offset: 3px; }
+  .lp-plan:has(input:disabled) { cursor: default; opacity: 0.6; }
+  .lp-plan-check {
+    position: absolute; top: 18px; right: 18px; width: 24px; height: 24px; border-radius: 50%;
+    display: grid; place-items: center; font-size: 14px; color: transparent;
+    border: 1.5px solid var(--line-strong); background: var(--paper-soft);
+  }
+  .lp-plan:has(input:checked) .lp-plan-check { background: var(--plum); border-color: var(--plum); color: var(--paper); }
+  .lp-plan-len {
+    font-size: 12.5px; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--ink-quiet); padding-right: 32px;
+  }
+  .lp-plan-price { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; }
+  .lp-plan-price strong { font-family: var(--font-display); font-weight: 400; font-size: 40px; line-height: 1; }
+  .lp-was { font-size: 16px; color: var(--ink-quiet); }
+  .lp-plan-per { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 14px; color: var(--ink-soft); }
+  .lp-save {
+    font-size: 12px; font-weight: 600; letter-spacing: 0; text-transform: none;
+    color: var(--moss-deep); background: rgba(92, 106, 74, 0.13); border-radius: 999px; padding: 2px 9px;
+  }
+  .lp-save--plain { color: var(--plum); background: rgba(74, 37, 64, 0.08); }
+  .lp-plan-holds { display: grid; gap: 6px; margin-top: 4px; padding-top: 14px; border-top: 1px solid var(--line); font-size: 15px; }
+  .lp-plan-holds span { display: flex; align-items: center; gap: 8px; }
+  .lp-plan-holds i { font-size: 18px; color: var(--ember); }
+  .lp-plan-dates { font-size: 13.5px; font-weight: 500; color: var(--moss-deep); }
+  .lp-ribbon {
+    position: absolute; top: -11px; left: 18px; padding: 3px 10px; border-radius: 999px;
+    background: var(--ember); color: #fff; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+  }
+
+  .lp-or {
+    display: flex; align-items: center; gap: 14px; margin: 18px 0; color: var(--ink-quiet);
+    font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase;
+  }
+  .lp-or::before, .lp-or::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+
+  .lp-plan--monthly { display: grid; grid-template-columns: auto 1fr; gap: 10px 16px; align-items: start; }
+  .lp-monthly-icon {
+    display: grid; place-items: center; width: 44px; height: 44px; border-radius: 12px;
+    background: rgba(74, 37, 64, 0.08); color: var(--plum); font-size: 24px;
+  }
+  .lp-monthly-main { display: grid; gap: 4px; padding-right: 32px; }
+  .lp-plan--monthly .lp-plan-len { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding-right: 0; }
+  .lp-monthly-desc { font-size: 15px; line-height: 1.5; color: var(--ink-soft); }
+  .lp-monthly-price { grid-column: 2; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
+  .lp-monthly-price > strong { font-family: var(--font-display); font-weight: 400; font-size: 30px; line-height: 1; }
+  .lp-per { font-size: 14px; color: var(--ink-soft); }
+  @media (min-width: 760px) {
+    .lp-plan--monthly { grid-template-columns: auto 1fr auto; align-items: center; }
+    .lp-monthly-price { grid-column: auto; flex-direction: column; align-items: flex-end; text-align: right; padding-right: 40px; }
+  }
+
   .lp-addon {
-    display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; margin-bottom: 20px;
-    border: 1px dashed rgba(42, 27, 42, 0.3); border-radius: 12px; cursor: pointer;
+    display: flex; gap: 12px; align-items: flex-start; padding: 16px 18px; margin: 0 0 24px; cursor: pointer;
+    border: 1px dashed rgba(201, 96, 58, 0.55); border-radius: 14px; background: rgba(242, 220, 201, 0.35);
   }
   .lp-addon input { margin-top: 4px; accent-color: var(--ember); }
   .lp-addon-head { display: flex; gap: 8px; justify-content: space-between; font-weight: 600; }
+  .lp-addon-head i { color: var(--ember-deep); margin-right: 4px; }
   .lp-addon-body, .lp-addon-note { display: block; font-size: 14px; line-height: 1.5; margin-top: 4px; }
   .lp-addon-note { color: var(--plum); }
+
+  .lp-step {
+    font-family: var(--font-display); font-weight: 400; font-size: 22px; margin: 0 0 14px;
+    padding-top: 22px; border-top: 1px solid var(--line);
+  }
   /* align-items/align-content: start — a password manager's icon in one name
      field made it taller, and the grid stretched the other field down to match. */
   .lp-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; align-items: start; }
   .lp-field { display: grid; gap: 6px; font-size: 14px; align-content: start; }
   .lp-field--full { grid-column: 1 / -1; }
   .lp-field input {
-    font: inherit; font-size: 16px; padding: 10px 12px; border-radius: 10px;
+    font: inherit; font-size: 16px; padding: 11px 12px; border-radius: 10px;
     border: 1px solid rgba(42, 27, 42, 0.2); background: #fff; color: var(--ink);
   }
-  .lp-hint { opacity: 0.6; }
-  .lp-status {
-    margin: 0 0 14px; padding: 12px 14px; border-radius: 10px; font-size: 15px; line-height: 1.5;
-    color: var(--ink); background: rgba(92, 106, 74, 0.1); border-left: 3px solid var(--moss);
+  .lp-field input:focus { outline: 2px solid var(--plum-soft); border-color: var(--plum); }
+  .lp-hint { color: var(--ink-quiet); }
+  .lp-terms { display: flex; gap: 8px; font-size: 14px; margin: 8px 0 18px; }
+  .lp-summary {
+    display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 6px 16px;
+    padding: 16px 18px; border-radius: 12px; background: var(--paper-deep); margin-bottom: 14px;
   }
-  .lp-terms { display: flex; gap: 8px; font-size: 14px; margin: 8px 0 16px; }
-  .lp-summary { display: flex; justify-content: space-between; gap: 12px; padding: 12px 0; border-top: 1px solid rgba(42, 27, 42, 0.12); margin-bottom: 12px; }
-  .lp-summary strong { text-align: right; }
+  .lp-summary strong { margin-left: auto; text-align: right; font-family: var(--font-display); font-weight: 400; font-size: 22px; }
   .lp-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+  .lp-actions .sd-btn { justify-content: center; }
   .lp-paypal { background: #ffc439; color: #003087; }
-  .lp-note { font-size: 13px; opacity: 0.7; margin: 12px 0 0; }
-  .lp-error { color: var(--ember); margin: 12px 0 0; }
+  .lp-note { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; line-height: 1.5; color: var(--ink-quiet); margin: 14px 0 0; }
+  .lp-note i { flex: none; font-size: 15px; margin-top: 1px; }
+  .lp-error { color: var(--ember-deep); margin: 12px 0 0; }
+
+  /* ── 3. The way on, for a 12-week student ────────────────────────────── */
   .lp-upgrade {
-    margin: 0 0 24px; padding: 20px 22px; border-radius: 12px;
-    border: 1px solid rgba(42, 27, 42, 0.16); background: var(--paper);
+    display: grid; gap: 28px; max-width: 1040px; margin: 0 auto 64px; padding: 36px 26px; border-radius: 24px;
+    color: var(--paper);
+    background: radial-gradient(120% 140% at 0% 0%, var(--night-soft) 0%, var(--night) 55%, var(--night-deep) 100%);
   }
-  .lp-upgrade[hidden] { display: none; }
-  .lp-upgrade-title { font-family: var(--font-display); font-size: 22px; font-weight: 400; margin: 0 0 6px; }
-  .lp-upgrade-body { font-size: 15px; line-height: 1.55; margin: 0 0 10px; }
-  .lp-benefits { margin: 0 0 16px; padding-left: 20px; font-size: 15px; line-height: 1.55; }
-  .lp-benefits li { margin: 0 0 6px; }
-  .lp-upgrade-btn { display: inline-flex; gap: 8px; align-items: center; }
-  .lp-save--plain { color: var(--plum); border-color: rgba(42, 27, 42, 0.3); }
-  .lp-per { font-size: 14px; opacity: 0.8; }
-  .lp-option:has(input:disabled) { cursor: default; opacity: 0.7; }
-  .lp-manage p { line-height: 1.6; margin: 0 0 12px; }
+  .lp-upgrade-title { font-family: var(--font-display); font-weight: 400; font-size: clamp(26px, 3.2vw, 36px); line-height: 1.15; margin: 0 0 14px; }
+  .lp-upgrade-title em { color: var(--ember-soft); }
+  .lp-upgrade-body { font-size: 16.5px; line-height: 1.6; color: rgba(244, 236, 223, 0.82); margin: 0 0 24px; }
+  .lp-benefits { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; }
+  .lp-benefits li { display: flex; gap: 14px; align-items: flex-start; font-size: 15px; line-height: 1.55; color: rgba(244, 236, 223, 0.8); }
+  .lp-benefits strong { color: var(--paper); font-weight: 600; }
+  .lp-benefits i { flex: none; font-size: 22px; color: var(--ember-soft); margin-top: 1px; }
+  @media (min-width: 880px) {
+    .lp-upgrade { grid-template-columns: 0.9fr 1.1fr; gap: 48px; padding: 48px; align-items: start; }
+  }
+
+  .lp-manage { margin-bottom: 64px; }
+  .lp-manage .lp-h3 { display: flex; align-items: center; gap: 10px; }
+  .lp-manage .lp-h3 i { color: var(--plum); }
+  .lp-manage p { line-height: 1.6; margin: 0 0 14px; color: var(--ink-soft); }
   .lp-manage-form { display: flex; flex-wrap: wrap; gap: 10px; }
   .lp-manage-form input {
-    flex: 1 1 220px; font: inherit; font-size: 16px; padding: 10px 12px; border-radius: 10px;
+    flex: 1 1 220px; font: inherit; font-size: 16px; padding: 11px 12px; border-radius: 10px;
     border: 1px solid rgba(42, 27, 42, 0.2); background: #fff; color: var(--ink);
   }
   .lp-manage-msg { margin: 12px 0 0 !important; font-size: 15px; }
-  .lp-faq dt { font-weight: 600; margin-top: 16px; }
-  .lp-faq dd { margin: 4px 0 0; line-height: 1.6; }
+
+  .lp-faq .lp-h2 { text-align: center; margin-bottom: 20px; }
+  .lp-faq-item { border-bottom: 1px solid var(--line); }
+  .lp-faq-item summary {
+    list-style: none; cursor: pointer; display: flex; justify-content: space-between; align-items: center;
+    gap: 16px; padding: 18px 2px; font-size: 16.5px; font-weight: 600;
+  }
+  .lp-faq-item summary::-webkit-details-marker { display: none; }
+  .lp-faq-item summary i { flex: none; font-size: 18px; color: var(--ember); transition: transform 0.2s; }
+  .lp-faq-item[open] summary i { transform: rotate(45deg); }
+  .lp-faq-item p { margin: 0 0 18px; line-height: 1.65; color: var(--ink-soft); }
+
+  @media (max-width: 759px) {
+    .lp-plan--monthly { grid-template-columns: 1fr; }
+    .lp-monthly-icon { display: none; }
+    .lp-monthly-price { grid-column: auto; }
+  }
+  @media (max-width: 639px) {
+    /* Icon beside the words: six cards stacked would otherwise run very long. */
+    .lp-feature { display: grid; grid-template-columns: 40px 1fr; gap: 4px 14px; padding: 20px; }
+    .lp-feature-icon { grid-row: span 2; width: 40px; height: 40px; border-radius: 12px; font-size: 22px; margin: 0; }
+    .lp-feature-title { font-size: 19px; margin: 6px 0 4px; }
+    .lp-for-list li { border-radius: 12px; }
+  }
   @media (max-width: 560px) {
+    .lp { padding-top: 32px; }
+    .lp-card { padding: 20px; }
     .lp-fields { grid-template-columns: 1fr; }
+    .lp-actions .sd-btn { flex: 1 1 100%; }
+    .lp-for { margin-bottom: 64px; }
   }
 </style>
