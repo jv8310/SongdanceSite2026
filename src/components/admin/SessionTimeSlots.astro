@@ -1,0 +1,195 @@
+---
+// "Day & time" — which weekday and start time sell best, one table per product,
+// built by timeSlotTables (src/lib/workshops/time-slots.ts) from the same rows
+// the session cards print, so a slot is exactly its sessions added up.
+//
+// Three groupings of the same sessions (weekday + start time, weekday alone,
+// start time alone), switched in the browser and remembered per browser. A slot
+// with fewer than MIN_SESSIONS sessions is greyed: its rates are mostly one
+// evening's luck. The best figure per column is marked only among the slots
+// that have enough sessions.
+
+import type { WorkshopPerformanceRow } from '../../lib/workshops/stats';
+import {
+  timeSlotTables,
+  heldSessions,
+  MIN_SESSIONS,
+  type SlotGrouping,
+  type TimeSlotStats,
+  type TimeSlotTable,
+  type BestColumn,
+} from '../../lib/workshops/time-slots';
+
+interface Props {
+  rows: WorkshopPerformanceRow[];
+}
+
+const { rows } = Astro.props;
+const tables = timeSlotTables(rows);
+const upcomingLeftOut = rows.filter((r) => r.isUpcoming && r.registrations > 0).length;
+const heldCount = heldSessions(rows).length;
+
+const GROUPINGS: [SlotGrouping, string][] = [
+  ['slot', 'Day & time'],
+  ['day', 'Day'],
+  ['time', 'Start time'],
+];
+const PRODUCT_NAMES = { workshop: 'Workshops', masterclass: 'Masterclasses' } as const;
+
+const eur0 = (minor: number) => '€' + Math.round(minor / 100).toLocaleString('en-IE');
+const eur2 = (minor: number) =>
+  '€' + (minor / 100).toLocaleString('en-IE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const eurSigned0 = (minor: number) =>
+  (minor < 0 ? '−€' : '€') + Math.round(Math.abs(minor) / 100).toLocaleString('en-IE');
+const pct = (v: number | null) => (v != null ? v.toFixed(1) + '%' : '—');
+const roasStr = (v: number | null) => (v != null ? v.toFixed(2) + '×' : '—');
+
+const isBest = (t: TimeSlotTable, s: TimeSlotStats, col: BestColumn) => t.best[col] === s.key;
+const cell = (t: TimeSlotTable, s: TimeSlotStats, col: BestColumn) =>
+  `num${isBest(t, s, col) ? ' sts-best' : ''}`;
+---
+
+<div class="sts" data-sts data-group="slot">
+  {tables.length === 0 ? (
+    <p class="adm-empty">No held session with a seat in this window.</p>
+  ) : (
+    <>
+      <div class="sts-switch" role="group" aria-label="Group sessions by">
+        {GROUPINGS.map(([g, label]) => (
+          <button type="button" class="sts-seg" data-sts-group={g} aria-pressed={g === 'slot' ? 'true' : 'false'}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {(['workshop', 'masterclass'] as const).map((product) => {
+        const mine = tables.filter((t) => t.product === product);
+        if (mine.length === 0) return null;
+        return (
+          <div class="sts-product">
+            <h3 class="sts-h3"><i class={`sts-sw sts-sw--${product}`} aria-hidden="true"></i>{PRODUCT_NAMES[product]} <span>{mine[0].total.sessions} held</span></h3>
+            {mine.map((t) => (
+              <div class="sts-scroll" data-sts-table={t.grouping}>
+                <table class="adm-table sts-table">
+                  <thead>
+                    <tr>
+                      <th>{GROUPINGS.find(([g]) => g === t.grouping)?.[1]}</th>
+                      <th class="num">Sessions</th>
+                      <th class="num" title="Paid + coupon seats ÷ sessions">Seats / session</th>
+                      <th class="num" title="Joined live ÷ seats (a replay view doesn't count)">Joined live</th>
+                      <th class="num" title="Distinct 12-week / certification buyers ÷ seats">Bought a course</th>
+                      <th class="num" title="Tickets, bumps, add-ons and course sales at full value ÷ seats">Revenue / seat</th>
+                      <th class="num" title="Prospecting (TOF) spend charged to these seats ÷ seats">Ad cost / seat</th>
+                      <th class="num" title="Revenue ÷ TOF cost">ROAS</th>
+                      <th class="num" title="(Revenue − every ad euro charged) ÷ sessions">Profit / session</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {t.slots.map((s) => (
+                      <tr class={s.thin ? 'sts-thin' : ''}>
+                        <td title={s.sessionDates.join('\n')}>
+                          <b>{s.label}</b>
+                          {s.thin && <span class="sts-few">few sessions</span>}
+                        </td>
+                        <td class="num" title={s.sessionDates.join('\n')}>{s.sessions}</td>
+                        <td class={cell(t, s, 'seatsPerSession')} title={`${s.seats} seats`}>{s.seatsPerSession.toFixed(1)}</td>
+                        <td class={cell(t, s, 'joinedLivePct')} title={`${s.joinedLive} of ${s.seats}`}>{pct(s.joinedLivePct)}</td>
+                        <td class={cell(t, s, 'conversionPct')} title={`${s.buyers} of ${s.seats}`}>{pct(s.conversionPct)}</td>
+                        <td class={cell(t, s, 'revenuePerSeatEurMinor')} title={`${eur0(s.revenueEurMinor)} in all`}>
+                          {s.revenuePerSeatEurMinor != null ? eur2(s.revenuePerSeatEurMinor) : '—'}
+                        </td>
+                        <td class={cell(t, s, 'costPerSeatEurMinor')} title={s.tofCostEurMinor != null ? `${eur0(s.tofCostEurMinor)} in all` : 'No ad spend charged'}>
+                          {s.costPerSeatEurMinor != null ? eur2(s.costPerSeatEurMinor) : '—'}
+                        </td>
+                        <td class={cell(t, s, 'roas')}>{roasStr(s.roas)}</td>
+                        <td class={`${cell(t, s, 'profitPerSessionEurMinor')} ${s.profitPerSessionEurMinor < 0 ? 'sts-neg' : ''}`}>
+                          {eurSigned0(s.profitPerSessionEurMinor)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <th>All</th>
+                      <td class="num">{t.total.sessions}</td>
+                      <td class="num">{t.total.seatsPerSession.toFixed(1)}</td>
+                      <td class="num">{pct(t.total.joinedLivePct)}</td>
+                      <td class="num">{pct(t.total.conversionPct)}</td>
+                      <td class="num">{t.total.revenuePerSeatEurMinor != null ? eur2(t.total.revenuePerSeatEurMinor) : '—'}</td>
+                      <td class="num">{t.total.costPerSeatEurMinor != null ? eur2(t.total.costPerSeatEurMinor) : '—'}</td>
+                      <td class="num">{roasStr(t.total.roas)}</td>
+                      <td class="num">{eurSigned0(t.total.profitPerSessionEurMinor)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            ))}
+          </div>
+        );
+      })}
+
+      <p class="adm-table-note">
+        {heldCount} held session{heldCount === 1 ? '' : 's'}, by their start time in Brussels.
+        <b class="sts-best-key">Bold</b> = the best figure in its column among slots with {MIN_SESSIONS}+ sessions;
+        greyed = fewer than {MIN_SESSIONS}, too few to read much into.
+        {upcomingLeftOut > 0 && <> {upcomingLeftOut} session{upcomingLeftOut === 1 ? '' : 's'} not held yet {upcomingLeftOut === 1 ? 'is' : 'are'} left out (cost spent, course income still to come), and so are replays.</>}
+        {upcomingLeftOut === 0 && <> Replays are left out: they have no time.</>}
+        How full a slot gets says as much about the ad budget and how long it was on sale as about the time itself;
+        joined live, bought a course and revenue per seat compare the times more fairly.
+        Someone who took two sessions counts toward both, as on the cards.
+      </p>
+    </>
+  )}
+</div>
+
+<script>
+  const KEY = 'sd-perf-slot-group';
+  for (const root of document.querySelectorAll<HTMLElement>('[data-sts]')) {
+    const buttons = [...root.querySelectorAll<HTMLButtonElement>('[data-sts-group]')];
+    const show = (g: string) => {
+      root.dataset.group = g;
+      for (const b of buttons) b.setAttribute('aria-pressed', b.dataset.stsGroup === g ? 'true' : 'false');
+    };
+    let saved: string | null = null;
+    try { saved = localStorage.getItem(KEY); } catch { /* storage blocked */ }
+    if (saved && buttons.some((b) => b.dataset.stsGroup === saved)) show(saved);
+    for (const b of buttons) {
+      b.addEventListener('click', () => {
+        const g = b.dataset.stsGroup ?? 'slot';
+        show(g);
+        try { localStorage.setItem(KEY, g); } catch { /* storage blocked */ }
+      });
+    }
+  }
+</script>
+
+<style>
+  .sts-switch { display: inline-flex; border: 1px solid var(--adm-line); border-radius: 8px; overflow: hidden; margin-bottom: 14px; }
+  .sts-seg {
+    font: inherit; font-size: 13px; padding: 6px 14px; border: 0; cursor: pointer;
+    background: var(--adm-paper-soft); color: var(--adm-ink-soft);
+  }
+  .sts-seg + .sts-seg { border-left: 1px solid var(--adm-line); }
+  .sts-seg[aria-pressed='true'] { background: var(--adm-ink); color: var(--adm-paper-soft); }
+  .sts-product + .sts-product { margin-top: 22px; }
+  .sts-h3 { margin: 0 0 8px; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+  .sts-h3 span { font-weight: 400; font-size: 13px; color: var(--adm-ink-soft); }
+  .sts-sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; }
+  .sts-sw--workshop { background: #2a78d6; }
+  .sts-sw--masterclass { background: var(--adm-ember); }
+  .sts-scroll { overflow-x: auto; display: none; }
+  .sts[data-group='slot'] [data-sts-table='slot'],
+  .sts[data-group='day'] [data-sts-table='day'],
+  .sts[data-group='time'] [data-sts-table='time'] { display: block; }
+  .sts-table { font-size: 13px; min-width: 760px; }
+  .sts-table td { white-space: nowrap; }
+  .sts-table td.sts-best { font-weight: 700; color: var(--adm-success); }
+  .sts-table td.sts-neg { color: var(--adm-danger); }
+  .sts-table tr.sts-thin td { color: var(--adm-mute); }
+  .sts-table tr.sts-thin td.sts-neg { color: var(--adm-mute); }
+  .sts-few {
+    margin-left: 6px; font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--adm-mute); border: 1px solid var(--adm-line); border-radius: 4px; padding: 1px 5px;
+  }
+  .sts-best-key { color: var(--adm-success); }
+</style>

@@ -1000,6 +1000,10 @@ export type WorkshopPerformanceRow = {
   // registrations) — the day-weighted price of a seat here, which differs from
   // the window average when its registrations landed on cheaper/dearer days.
   costPerRegistrationEurMinor: number | null;
+  // Distinct people who bought the 12-week or the certification (either or
+  // both) — the numerator of conversionPct, kept whole so pages that add rows
+  // together (the day & time panel) don't rebuild it from a rounded percent.
+  courseCertBuyers: number;
   conversionPct: number | null; // distinct course/cert buyers ÷ registrations
   conversionPerAttendeePct: number | null; // distinct course/cert buyers ÷ attendees (live + replay)
 };
@@ -1807,6 +1811,7 @@ export async function computeWorkshopPerformance(
           : null,
       costPerRegistrationEurMinor:
         acquisitionCostEurMinor != null && a.regs > 0 ? acquisitionCostEurMinor / a.regs : null,
+      courseCertBuyers: buyers.size,
       conversionPct: a.regs > 0 ? (buyers.size / a.regs) * 100 : null,
       // Conversion of people who actually attended (not just registered) — the
       // next funnel step down. Denominator is live + replay attendees.
