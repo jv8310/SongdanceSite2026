@@ -8,6 +8,10 @@
 // with fewer than MIN_SESSIONS sessions is greyed: its rates are mostly one
 // evening's luck. The best figure per column is marked only among the slots
 // that have enough sessions.
+//
+// It brings its own styles and colour tokens (--sts-*, defaulting to the admin
+// palette), like SessionProfitRoasChart, so /ads — which has no admin
+// stylesheet — can host it and re-point the tokens.
 
 import type { WorkshopPerformanceRow } from '../../lib/workshops/stats';
 import {
@@ -51,7 +55,7 @@ const cell = (t: TimeSlotTable, s: TimeSlotStats, col: BestColumn) =>
 
 <div class="sts" data-sts data-group="slot">
   {tables.length === 0 ? (
-    <p class="adm-empty">No held session with a seat in this window.</p>
+    <p class="sts-empty">No held session with a seat in this window.</p>
   ) : (
     <>
       <div class="sts-switch" role="group" aria-label="Group sessions by">
@@ -70,7 +74,7 @@ const cell = (t: TimeSlotTable, s: TimeSlotStats, col: BestColumn) =>
             <h3 class="sts-h3"><i class={`sts-sw sts-sw--${product}`} aria-hidden="true"></i>{PRODUCT_NAMES[product]} <span>{mine[0].total.sessions} held</span></h3>
             {mine.map((t) => (
               <div class="sts-scroll" data-sts-table={t.grouping}>
-                <table class="adm-table sts-table">
+                <table class="sts-table">
                   <thead>
                     <tr>
                       <th>{GROUPINGS.find(([g]) => g === t.grouping)?.[1]}</th>
@@ -128,7 +132,7 @@ const cell = (t: TimeSlotTable, s: TimeSlotStats, col: BestColumn) =>
         );
       })}
 
-      <p class="adm-table-note">
+      <p class="sts-note">
         {heldCount} held session{heldCount === 1 ? '' : 's'}, by their start time in Brussels.
         <b class="sts-best-key">Bold</b> = the best figure in its column among slots with {MIN_SESSIONS}+ sessions;
         greyed = fewer than {MIN_SESSIONS}, too few to read much into.
@@ -164,32 +168,63 @@ const cell = (t: TimeSlotTable, s: TimeSlotStats, col: BestColumn) =>
 </script>
 
 <style>
-  .sts-switch { display: inline-flex; border: 1px solid var(--adm-line); border-radius: 8px; overflow: hidden; margin-bottom: 14px; }
+  .sts {
+    --sts-surface: var(--adm-paper-soft, #fbf6ea);
+    --sts-head-bg: var(--adm-paper, #f6efe1);
+    --sts-ink: var(--adm-ink, #2b2519);
+    --sts-ink-soft: var(--adm-ink-soft, #6f6757);
+    --sts-mute: var(--adm-mute, #9a8e75);
+    --sts-line: var(--adm-line, #e3dac4);
+    --sts-good: var(--adm-success, #2f7a4c);
+    --sts-bad: var(--adm-danger, #b53d3d);
+    --sts-workshop: #2a78d6;
+    --sts-masterclass: var(--adm-ember, #c9603a);
+    color: var(--sts-ink);
+  }
+  .sts-switch { display: inline-flex; border: 1px solid var(--sts-line); border-radius: 8px; overflow: hidden; margin-bottom: 14px; }
   .sts-seg {
     font: inherit; font-size: 13px; padding: 6px 14px; border: 0; cursor: pointer;
-    background: var(--adm-paper-soft); color: var(--adm-ink-soft);
+    background: var(--sts-surface); color: var(--sts-ink-soft);
   }
-  .sts-seg + .sts-seg { border-left: 1px solid var(--adm-line); }
-  .sts-seg[aria-pressed='true'] { background: var(--adm-ink); color: var(--adm-paper-soft); }
+  .sts-seg + .sts-seg { border-left: 1px solid var(--sts-line); }
+  .sts-seg[aria-pressed='true'] { background: var(--sts-ink); color: var(--sts-surface); }
   .sts-product + .sts-product { margin-top: 22px; }
   .sts-h3 { margin: 0 0 8px; font-size: 15px; display: flex; align-items: center; gap: 8px; }
-  .sts-h3 span { font-weight: 400; font-size: 13px; color: var(--adm-ink-soft); }
+  .sts-h3 span { font-weight: 400; font-size: 13px; color: var(--sts-ink-soft); }
   .sts-sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; }
-  .sts-sw--workshop { background: #2a78d6; }
-  .sts-sw--masterclass { background: var(--adm-ember); }
+  .sts-sw--workshop { background: var(--sts-workshop); }
+  .sts-sw--masterclass { background: var(--sts-masterclass); }
   .sts-scroll { overflow-x: auto; display: none; }
   .sts[data-group='slot'] [data-sts-table='slot'],
   .sts[data-group='day'] [data-sts-table='day'],
   .sts[data-group='time'] [data-sts-table='time'] { display: block; }
-  .sts-table { font-size: 13px; min-width: 760px; }
-  .sts-table td { white-space: nowrap; }
-  .sts-table td.sts-best { font-weight: 700; color: var(--adm-success); }
-  .sts-table td.sts-neg { color: var(--adm-danger); }
-  .sts-table tr.sts-thin td { color: var(--adm-mute); }
-  .sts-table tr.sts-thin td.sts-neg { color: var(--adm-mute); }
+  .sts-table {
+    width: 100%; min-width: 760px; border-collapse: separate; border-spacing: 0;
+    font-size: 13px; background: var(--sts-surface);
+    border: 1px solid var(--sts-line); border-radius: 8px; overflow: hidden;
+  }
+  .sts-table th, .sts-table td {
+    padding: 9px 12px; text-align: left; white-space: nowrap;
+    border-bottom: 1px solid var(--sts-line);
+  }
+  .sts-table thead th {
+    font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--sts-ink-soft); background: var(--sts-head-bg); font-weight: 600;
+  }
+  .sts-table tbody tr:last-child td { border-bottom: none; }
+  .sts-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .sts-table tfoot th, .sts-table tfoot td {
+    background: var(--sts-head-bg); font-weight: 600;
+    border-top: 1px solid var(--sts-line); border-bottom: none;
+  }
+  .sts-table td.sts-best { font-weight: 700; color: var(--sts-good); }
+  .sts-table td.sts-neg { color: var(--sts-bad); }
+  .sts-table tr.sts-thin td { color: var(--sts-mute); }
   .sts-few {
     margin-left: 6px; font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase;
-    color: var(--adm-mute); border: 1px solid var(--adm-line); border-radius: 4px; padding: 1px 5px;
+    color: var(--sts-mute); border: 1px solid var(--sts-line); border-radius: 4px; padding: 1px 5px;
   }
-  .sts-best-key { color: var(--adm-success); }
+  .sts-note { margin: 10px 2px 0; font-size: 12px; color: var(--sts-ink-soft); line-height: 1.5; }
+  .sts-best-key { color: var(--sts-good); }
+  .sts-empty { color: var(--sts-mute); font-size: 13px; }
 </style>

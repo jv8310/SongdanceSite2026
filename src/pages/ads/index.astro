@@ -21,6 +21,7 @@ import {
 import ChartKit from '../../components/charts/ChartKit.astro';
 import SessionProfitRoasChart from '../../components/admin/SessionProfitRoasChart.astro';
 import { sessionChartPoints } from '../../lib/workshops/session-points';
+import SessionTimeSlots from '../../components/admin/SessionTimeSlots.astro';
 
 export const prerender = false;
 
@@ -701,6 +702,20 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
         --spr-workshop: var(--s1);
         --spr-masterclass: var(--s2);
       }
+      /* The day & time panel too: white tables like this page's, products in
+         its own blue and orange. */
+      .sts-host :global(.sts[data-sts]) {
+        --sts-surface: var(--card);
+        --sts-head-bg: var(--surface);
+        --sts-ink: var(--ink);
+        --sts-ink-soft: var(--ink-2);
+        --sts-mute: var(--muted);
+        --sts-line: var(--line);
+        --sts-good: var(--good);
+        --sts-bad: var(--bad);
+        --sts-workshop: var(--s1);
+        --sts-masterclass: var(--s2);
+      }
 
       /* tables */
       .scroll { overflow-x: auto; }
@@ -960,6 +975,12 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
         <h2>Profit, ROAS and cost per session</h2>
         <p class="note">One bar per workshop and masterclass with activity in this window, in date order — the same profit (revenue − Meta cost), ROAS (revenue ÷ TOF cost) and cost per registration (TOF cost ÷ registrations) as its card under “Results per workshop” — with a dashed trend line per product through the sessions that have run. One panel per measure on one session axis, never two scales on one plot. Switch Workshop, Masterclass and Trend on or off above the chart; hover (or tap) a bar for its figures.</p>
         <div class="spr-host"><SessionProfitRoasChart points={chartPoints} links={false} /></div>
+      </section>
+
+      <section id="day-and-time">
+        <h2>Day &amp; time</h2>
+        <p class="note">Which weekday and start time sell best: the sessions in this window that have run, grouped by when they ran (Brussels time), per product — the same figures as their cards under “Results per workshop”, added up. Switch between day &amp; time, day alone and start time alone; hover a slot for its dates.</p>
+        <div class="sts-host"><SessionTimeSlots rows={d.workshopRows} /></div>
       </section>
 
       <section>

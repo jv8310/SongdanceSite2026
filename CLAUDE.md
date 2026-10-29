@@ -1764,7 +1764,9 @@ certification buyers, `courseCertBuyers` on the row), revenue and TOF cost per
 seat, ROAS and profit per session — each a sum over the cards' own rows. Replays
 and sessions not held yet are left out; a slot with fewer than 3 sessions is
 greyed, and the best figure per column is marked only among the rest. It follows
-the period picker.
+the period picker. The same panel sits on `/ads` under its per-session chart
+(October 2026); like the chart it carries its own styles and `--sts-*` colour
+tokens, which `/ads` re-points to its palette.
 
 **The summary card comes in three** (October 2026): **All sessions**, then
 **Workshops** and **Masterclasses** on their own, same card shape, one money
