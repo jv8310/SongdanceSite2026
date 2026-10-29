@@ -1754,6 +1754,18 @@ site-wide rule) is a **pale** bar and is left out of the trend: its cost is
 spent and its course income can't have landed. Replays have no date and stay on
 the cards.
 
+**Day & time** (October 2026): under that chart on `/admin/workshops/performance`,
+the held sessions grouped by **weekday + start time** (Brussels), or by weekday
+or start time alone (a switch, remembered per browser), one table per product
+([`time-slots.ts`](src/lib/workshops/time-slots.ts),
+[`SessionTimeSlots.astro`](src/components/admin/SessionTimeSlots.astro)):
+sessions, seats per session, joined live, bought a course (distinct 12-week /
+certification buyers, `courseCertBuyers` on the row), revenue and TOF cost per
+seat, ROAS and profit per session — each a sum over the cards' own rows. Replays
+and sessions not held yet are left out; a slot with fewer than 3 sessions is
+greyed, and the best figure per column is marked only among the rest. It follows
+the period picker.
+
 **The summary card comes in three** (October 2026): **All sessions**, then
 **Workshops** and **Masterclasses** on their own, same card shape, one money
 scale across the three. Every bar, count and profit is a sum over the scope's

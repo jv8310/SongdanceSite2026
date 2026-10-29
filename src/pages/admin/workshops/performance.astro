@@ -10,6 +10,7 @@ import { PAGE_CHANGES } from '../../../lib/workshops/experiments';
 import { SHARE_CHANNEL_LABELS } from '../../../lib/workshops/share';
 import LatestSessions from '../../../components/admin/LatestSessions.astro';
 import SessionProfitRoasChart from '../../../components/admin/SessionProfitRoasChart.astro';
+import SessionTimeSlots from '../../../components/admin/SessionTimeSlots.astro';
 import { sessionChartPoints } from '../../../lib/workshops/session-points';
 
 export const prerender = false;
@@ -243,6 +244,14 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
         One bar per session in date order, dashed trend per product. Hover a bar for its figures, click to open it.
       </p>
       <SessionProfitRoasChart points={chartPoints} />
+    </section>
+
+    <section class="adm-section" id="day-and-time">
+      <h2 style="margin:0 0 6px;font-size:18px;">Day &amp; time</h2>
+      <p class="adm-sub" style="margin-top:0;">
+        Which weekday and start time sell best: the held sessions in this window grouped by when they ran, per product. Hover a slot for its dates.
+      </p>
+      <SessionTimeSlots rows={rows} />
     </section>
 
     <section class="adm-section">
