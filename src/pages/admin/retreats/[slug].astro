@@ -406,7 +406,11 @@ function roomState(r: {
     return { state: 'reserved', label: 'Reserved' };
   }
   if (r.status === 'inactive') return { state: 'inactive', label: 'Inactive' };
-  if (r.mode === 'solo' && r.capacity > 1) return { state: 'locked', label: 'Locked (private)' };
+  if (r.mode === 'solo' && r.capacity > 1) {
+    // Empty and pinned to Single only: still on sale, as one whole-room booking.
+    if (r.beds_sold === 0) return { state: 'open', label: 'Open · single only' };
+    return { state: 'locked', label: 'Locked (private)' };
+  }
   if (r.beds_sold === 0) return { state: 'open', label: 'Open' };
   if (r.beds_sold >= r.capacity) return { state: 'taken', label: 'Taken' };
   return { state: 'half', label: 'Half booked' };
@@ -475,13 +479,16 @@ const roomBreakdown = roomsWithMode
     const t = roomType(r);
     const s = roomState(r);
     const isBookable = r.status !== 'inactive';
-    // Locked = solo booking on a multi-bed room; the remaining beds are
-    // blocked by that private booking and not sellable, so show 0 here
-    // (matches the placesAvailable footer in the capacity table).
-    const locked = s.state === 'locked';
-    const available = !isBookable || locked
+    // A room in solo mode sells one whole-room booking: once that booking
+    // is in, the remaining beds are blocked (0); while it is still empty
+    // (pinned to "Single only") it has that one booking left (1). Both
+    // match the placesAvailable footer in the capacity table.
+    const soloRoom = r.mode === 'solo' && r.capacity > 1;
+    const available = !isBookable
       ? 0
-      : Math.max(0, r.capacity - r.beds_sold);
+      : soloRoom
+        ? (r.beds_sold === 0 ? 1 : 0)
+        : Math.max(0, r.capacity - r.beds_sold);
     const isMulti = r.solo_tier_id != null && r.shared_tier_id != null;
     // Only multi rooms can be pinned, and only while still empty. Once a
     // bed is booked the mode is decided by that booking, so we just show
