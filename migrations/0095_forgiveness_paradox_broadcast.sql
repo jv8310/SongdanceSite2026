@@ -29,7 +29,7 @@
 INSERT INTO broadcasts (name, subject, preheader, heading, body, body_text, format, status, audience_exclude_tags)
 SELECT 'The Forgiveness Course — forgiveness is a paradox (November 2026)',
        'You can’t decide to forgive',
-       'Forgiveness is a paradox. Four live evenings with Daniela and me, from 6 December: with the body, through the voice.',
+       'Forgiveness is a paradox. Four live sessions with Daniela and me, from 6 December: with the body, through the voice.',
        'Forgiveness is a paradox.',
        '<!DOCTYPE html>
 <html lang="en">
@@ -61,7 +61,7 @@ SELECT 'The Forgiveness Course — forgiveness is a paradox (November 2026)',
 </head>
 <body style="margin: 0; padding: 0; background-color: #EADFCB; -webkit-font-smoothing: antialiased;">
 
-<span class="preheader">Forgiveness is a paradox. Four live evenings with Daniela and me, from 6 December: with the body, through the voice.&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;</span>
+<span class="preheader">Forgiveness is a paradox. Four live sessions with Daniela and me, from 6 December: with the body, through the voice.&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;</span>
 
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #EADFCB;">
 <tr><td align="center" style="padding: 24px 12px;">
@@ -145,14 +145,14 @@ SELECT 'The Forgiveness Course — forgiveness is a paradox (November 2026)',
 </td></tr>
 <tr><td class="pad" style="padding: 26px 44px 6px;">
   <h2 class="h2" style="font-family: ''Spectral'', Georgia, ''Times New Roman'', serif; font-weight: 400; font-size: 30px; line-height: 1.2; color: #2A1B2A; margin: 0 0 20px;">And with my good friend <em style="font-family: ''Cormorant Garamond'', Georgia, serif; font-style: italic; font-weight: 500; font-size: 1.05em; color: #C9603A;">Daniela.</em></h2>
-  <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #2A1B2A; margin: 0 0 16px;">I&rsquo;m holding these four evenings with Daniela Hess. She has guided forgiveness work, in groups and one to one, for twenty-five years, and she is one of the most unhurried people I know.</p>
+  <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #2A1B2A; margin: 0 0 16px;">I&rsquo;m holding these four sessions with Daniela Hess. She has guided forgiveness work, in groups and one to one, for twenty-five years, and she is one of the most unhurried people I know.</p>
   <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #2A1B2A; margin: 0 0 16px;">In the hardest stretch of my life, she was one of the two friends who stayed close. The Grief Course grew out of that time, and we made it together. This is the next one.</p>
   <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #2A1B2A; margin: 0;">She brings twenty-five years of forgiveness work. I bring the voice. Between us we hold the space; what happens in it is yours, in its own time.</p>
 </td></tr>
 
-<!-- THE FOUR EVENINGS -->
+<!-- THE FOUR SESSIONS -->
 <tr><td class="pad" style="padding: 36px 44px 6px;">
-  <p style="margin: 0 0 6px; font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 11px; letter-spacing: 2.5px; color: #A14826; font-weight: 600; text-transform: uppercase;">Four evenings &middot; live on Zoom</p>
+  <p style="margin: 0 0 6px; font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 11px; letter-spacing: 2.5px; color: #A14826; font-weight: 600; text-transform: uppercase;">Four sessions &middot; live on Zoom</p>
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-bottom: 1px solid #E2D5C1;">
     <tr>
       <td class="when" style="padding: 13px 0; border-top: 1px solid #E2D5C1; width: 96px; vertical-align: top;"><p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 11px; letter-spacing: 1.6px; text-transform: uppercase; color: #A14826; font-weight: 600; margin: 4px 0 0;">Sun 6 Dec</p></td>
@@ -168,7 +168,7 @@ SELECT 'The Forgiveness Course — forgiveness is a paradox (November 2026)',
       <td style="padding: 13px 0; border-top: 1px solid #E2D5C1; vertical-align: top;"><p style="font-family: ''Spectral'', Georgia, ''Times New Roman'', serif; font-size: 18px; line-height: 1.3; color: #2A1B2A; margin: 0;">Forgiving separation</p><p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.5; color: #6A5868; margin: 3px 0 0;">and what lies underneath both</p></td>
     </tr>
   </table>
-  <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 15px; line-height: 1.7; color: #4A3848; margin: 16px 0 0;">Each evening runs 19:00&ndash;21:00 Brussels time, and <a href="https://songdance.co/courses/forgiveness?utm_source=broadcast&amp;utm_medium=email&amp;utm_campaign=forgiveness_paradox&amp;utm_content=times#schedule" style="color: #A14826; text-decoration: underline; text-underline-offset: 2px;">the course page shows it in your own time</a>. Can&rsquo;t be there live? Every session is recorded, the replay is up within a day, and the replays are yours for life.</p>
+  <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 15px; line-height: 1.7; color: #4A3848; margin: 16px 0 0;">Each session runs 19:00&ndash;21:00 Brussels time, and <a href="https://songdance.co/courses/forgiveness?utm_source=broadcast&amp;utm_medium=email&amp;utm_campaign=forgiveness_paradox&amp;utm_content=times#schedule" style="color: #A14826; text-decoration: underline; text-underline-offset: 2px;">the course page shows it in your own time</a>. Can&rsquo;t be there live? Every session is recorded, the replay is up within a day, and the replays are yours for life.</p>
 </td></tr>
 
 <tr><td class="pad" style="padding: 26px 44px 6px;">
@@ -181,9 +181,9 @@ SELECT 'The Forgiveness Course — forgiveness is a paradox (November 2026)',
     <tr><td style="padding: 40px 38px 38px;" class="pad">
       <p style="margin: 0 0 16px; font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 11px; letter-spacing: 2.5px; color: #E7C9B8; font-weight: 600; text-transform: uppercase;">The Forgiveness Course</p>
       <h2 class="offer-h" style="font-family: ''Spectral'', Georgia, ''Times New Roman'', serif; font-weight: 400; font-size: 32px; line-height: 1.18; color: #F4ECDF; margin: 0 0 20px;">Not ready to forgive? <em style="font-family: ''Cormorant Garamond'', Georgia, serif; font-style: italic; font-weight: 500; font-size: 1.05em; color: #F2DCC9;">Come anyway.</em></h2>
-      <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #EADFCB; margin: 0;">Four live evenings on Zoom with Daniela Hess and me: 6, 9, 13 and 16&nbsp;December 2026, 19:00&ndash;21:00 Brussels time. Lifetime access to the replays. &euro;147.</p>
+      <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #EADFCB; margin: 0;">Four live sessions on Zoom with Daniela Hess and me: 6, 9, 13 and 16&nbsp;December 2026, 19:00&ndash;21:00 Brussels time. Lifetime access to the replays. &euro;147.</p>
       <table role="presentation" cellpadding="0" cellspacing="0" style="margin: 28px 0 14px;"><tr>
-        <td style="background-color: #F4ECDF; border-radius: 32px;"><a href="https://songdance.co/courses/forgiveness?utm_source=broadcast&amp;utm_medium=email&amp;utm_campaign=forgiveness_paradox&amp;utm_content=cta&amp;email={{ subscriber.email | url_encode }}#register" style="display: inline-block; font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 15px; font-weight: 600; letter-spacing: 0.3px; color: #4A2540; padding: 16px 34px; text-decoration: none;">Join the four evenings &rarr;</a></td>
+        <td style="background-color: #F4ECDF; border-radius: 32px;"><a href="https://songdance.co/courses/forgiveness?utm_source=broadcast&amp;utm_medium=email&amp;utm_campaign=forgiveness_paradox&amp;utm_content=cta&amp;email={{ subscriber.email | url_encode }}#register" style="display: inline-block; font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 15px; font-weight: 600; letter-spacing: 0.3px; color: #4A2540; padding: 16px 34px; text-decoration: none;">Join the four sessions &rarr;</a></td>
       </tr></table>
       <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 13px; line-height: 1.6; color: #C9B4C3; margin: 0;">One payment. The page shows the price in your own currency.</p>
     </td></tr>
@@ -249,30 +249,30 @@ We''ll also meet the four phrases of ho''oponopono: I''m sorry. Please forgive m
 
 AND WITH MY GOOD FRIEND DANIELA
 
-I''m holding these four evenings with Daniela Hess. She has guided forgiveness work, in groups and one to one, for twenty-five years, and she is one of the most unhurried people I know.
+I''m holding these four sessions with Daniela Hess. She has guided forgiveness work, in groups and one to one, for twenty-five years, and she is one of the most unhurried people I know.
 
 In the hardest stretch of my life, she was one of the two friends who stayed close. The Grief Course grew out of that time, and we made it together. This is the next one.
 
 She brings twenty-five years of forgiveness work. I bring the voice. Between us we hold the space; what happens in it is yours, in its own time.
 
 
-FOUR EVENINGS, LIVE ON ZOOM
+FOUR SESSIONS, LIVE ON ZOOM
 
   Sun 6 Dec   The dynamics of forgiveness: why "just let it go" doesn''t work, and what does
   Wed 9 Dec   Forgiving others: naming the pain without condoning the act
   Sun 13 Dec  Forgiving self: meeting the parts of you that were pushed away
   Wed 16 Dec  Forgiving separation, and what lies underneath both
 
-Each evening runs 19:00-21:00 Brussels time; the course page shows it in your own time. Can''t be there live? Every session is recorded, the replay is up within a day, and the replays are yours for life.
+Each session runs 19:00-21:00 Brussels time; the course page shows it in your own time. Can''t be there live? Every session is recorded, the replay is up within a day, and the replays are yours for life.
 
 You don''t need to have forgiven anything, or to want to yet. You don''t need a good voice, or any experience with sounding. You can stay muted the whole time: soft counts, and a hum is a complete practice.
 
 
 Not ready to forgive? Come anyway.
 
-The Forgiveness Course: four live evenings on Zoom with Daniela Hess and me, 6, 9, 13 and 16 December 2026. Lifetime access to the replays. EUR 147 (the page shows it in your own currency).
+The Forgiveness Course: four live sessions on Zoom with Daniela Hess and me, 6, 9, 13 and 16 December 2026. Lifetime access to the replays. EUR 147 (the page shows it in your own currency).
 
-Join the four evenings:
+Join the four sessions:
 https://songdance.co/courses/forgiveness?utm_source=broadcast&utm_medium=email&utm_campaign=forgiveness_paradox&utm_content=text&email={{ subscriber.email | url_encode }}#register
 
 With love,
