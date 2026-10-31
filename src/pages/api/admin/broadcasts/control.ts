@@ -48,7 +48,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         return json({ error: `Can't launch a broadcast that is ${b.status}.` }, 409);
       }
       if (!env.RESEND_API_KEY) return json({ error: 'RESEND_API_KEY is not configured.' }, 500);
-      const recipients = await launchBroadcast(env.DB, id);
+      const recipients = await launchBroadcast(env.DB, id, env);
       return json({ ok: true, status: 'sending', recipients });
     }
     case 'duplicate': {

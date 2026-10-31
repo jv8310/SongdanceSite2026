@@ -38,7 +38,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
   let refreshed;
   if (p.refresh === true) {
     const tags = new Set([...splitTags(criteria.includeTags), ...splitTags(criteria.excludeTags)]);
-    refreshed = await refreshBroadcastSegments(env.DB, tags);
+    refreshed = await refreshBroadcastSegments(env.DB, tags, env);
   }
 
   const count = await countAudience(env.DB, criteria);

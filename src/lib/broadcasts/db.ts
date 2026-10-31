@@ -604,7 +604,13 @@ export async function snapshotRecipients(db: D1Database, broadcastId: number): P
 
 // Snapshot the audience and flip the broadcast to 'sending'. Returns the total
 // recipient count (not just the rows added this call).
-export async function launchBroadcast(db: D1Database, id: number): Promise<number> {
+export async function launchBroadcast(
+  db: D1Database,
+  id: number,
+  // The env carrying APP_ADMIN, so a broadcast aimed at `app:` tags snapshots
+  // the app's answer of this minute (segment-refresh.ts).
+  app?: { APP_ADMIN?: unknown },
+): Promise<number> {
   // Freshen any tag-segments this broadcast targets (workshop-passed-nonbuyer,
   // in-drip) BEFORE the snapshot, so the queue reflects current data rather than
   // tags last built by hand. Gated to the tags actually used and best-effort
@@ -614,7 +620,7 @@ export async function launchBroadcast(db: D1Database, id: number): Promise<numbe
   if (b) {
     const criteria = criteriaOf(b);
     const tags = new Set([...splitTags(criteria.includeTags), ...splitTags(criteria.excludeTags)]);
-    if (tags.size) await refreshBroadcastSegments(db, tags);
+    if (tags.size) await refreshBroadcastSegments(db, tags, app);
   }
   await snapshotRecipients(db, id);
   await db

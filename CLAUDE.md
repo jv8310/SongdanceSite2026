@@ -127,6 +127,21 @@ of the person, since the app may still know them.
     leaves the site. Logged with source `app` and the connection as `actor`; taking the course
     away in the app is the app's own step after the answer (`takeAwayCourse`).
 
+  - `broadcastTags`, `broadcastAudience`, `broadcasts`, `broadcast`, `previewBroadcast`,
+    `saveBroadcast`, `testBroadcast`, `sendBroadcast`, `holdBroadcast`
+    ([`src/lib/app-bridge/broadcasts.ts`](src/lib/app-bridge/broadcasts.ts), October 2026),
+    behind the app's MCP tools `broadcast_*`, so Claude prepares a broadcast instead of HTML
+    being pasted into `/admin/broadcasts`: tags with counts, an audience count, a draft with
+    its audience (draft or paused only; a sending one is paused first), the email rendered
+    for a reader (`html` for Claude to show), a test, and the send. All of it is the admin
+    pages' own code (`broadcasts/db.ts`, `broadcasts/email.ts`). **Sending takes a typed
+    confirmation, always**: `SEND <id> <count>` (launch now), `SCHEDULE <id> <count>` (with
+    `at`, up to 90 days), `RESUME <id> <pending>` (a paused one), the count worked out here
+    at that moment after `refreshBroadcastSegments` (so the app's tags are asked for anew);
+    any other figure sends nothing and the answer names the right one, and an audience naming
+    `app:` tags is refused when the app does not answer. `holdBroadcast` pauses or
+    unschedules, no confirmation. Logged as `app.broadcast.*` with the connection as `actor`.
+
   The app never writes a site table itself, so anything else it should change here goes
   through a method on this entrypoint. **Deploy order: this site first**; the app's binding
   fails until `AppBridge` has the method.
@@ -2587,6 +2602,21 @@ e.g. a Drip export) and one-off `broadcasts` sent to it. Lives in
   live "X contacts match" estimate (`/api/admin/broadcasts/audience`); the launch
   snapshot applies the same `audienceWhere` criteria. Blank = the whole sendable
   list. (Tag fields are free text too — any tag works, listed or not.)
+  - **Everyone in the app** (`app:` tags, October 2026,
+    [`src/lib/broadcasts/app-tags.ts`](src/lib/broadcasts/app-tags.ts)): the site asks the
+    member app (`APP_ADMIN` → `broadcastMembers`, the app's `lib/broadcast-tags.ts`, where the
+    tags are defined) who has an account and what they can open, and writes `app:member`
+    (every account that may be written to), `app:signed-in`, `app:course:<course key>`,
+    `app:live` and `app:certified` onto the contact list — **every hour** (worker-entrypoint)
+    and **again at launch / "Refresh segments"** when a broadcast names one
+    (`refreshBroadcastSegments`, which now takes the env so `launchBroadcast` can pass
+    `APP_ADMIN`). Everything under `app:` belongs to the app: a tag it no longer lists comes
+    off, nothing outside the prefix is touched, the app can't write another tag. A member who
+    isn't a contact becomes one (source `app`), so `app:member` really is everyone; an
+    existing contact only gets a missing name/timezone filled. One D1 batch, diffed first
+    (steady state writes nothing); an empty answer changes nothing. Last result in
+    `workshop_config` `broadcast_app_tags_synced` / `_error`. No Drip tag starts with `app:`
+    (checked October 2026); keep it that way.
   - **Don't double-send with Drip** (`in-drip` tag): the contacts list was a CSV
     import from a Drip export (those people are no longer in Drip), but every site
     **buyer** is pushed to Drip *and* mirrored into contacts — so buyers live in

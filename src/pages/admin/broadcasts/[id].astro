@@ -54,7 +54,9 @@ const audienceTags = [
   ...(b.audience_exclude_tags ?? '').split(','),
 ].map((t) => t.trim().toLowerCase());
 const usesRefreshableSegment =
-  audienceTags.includes('workshop-passed-nonbuyer') || audienceTags.includes('in-drip');
+  audienceTags.includes('workshop-passed-nonbuyer') ||
+  audienceTags.includes('in-drip') ||
+  audienceTags.some((t) => t.startsWith('app:'));
 const preview = previewBroadcast(b, env.PUBLIC_BASE_URL);
 const dripHtml = dripHtmlForBroadcast(b);
 // A human label for an armed auto-stop, formatted in the business timezone so
@@ -188,7 +190,7 @@ const statusLabel: Record<string, string> = {
                 data-include={b.audience_include_tags ?? ''} data-exclude={b.audience_exclude_tags ?? ''}
                 data-field={b.audience_field ?? ''} data-field-value={b.audience_field_value ?? ''}>↻ Refresh segments &amp; recount</button>
               <span id="bc-refresh-msg" class="bc-msg"></span>
-              <br /><small class="bc-muted">Rebuilds <code>workshop-passed-nonbuyer</code> and re-syncs the <code>in-drip</code> marker from live registrations/purchases, then recounts. This also runs automatically the moment you launch.</small>
+              <br /><small class="bc-muted">Rebuilds <code>workshop-passed-nonbuyer</code>, re-syncs the <code>in-drip</code> marker from live registrations/purchases and asks the member app again for its <code>app:</code> tags, then recounts. This also runs automatically the moment you launch.</small>
             </p>
           )}
           {b.scheduled_at && (
@@ -747,7 +749,9 @@ const statusLabel: Record<string, string> = {
           if (!res.ok) throw new Error(data.error || 'Refresh failed');
           const el = document.getElementById('bc-audience-count');
           if (el) el.textContent = Number(data.count).toLocaleString();
-          if (msg) msg.textContent = `Segments refreshed — ${Number(data.count).toLocaleString()} contacts would be queued now.`;
+          const app = data.refreshed && data.refreshed.appTags;
+          const appNote = !app ? '' : app.ok ? ` App tags: ${Number(app.members).toLocaleString()} members.` : ` App tags not refreshed: ${app.message}`;
+          if (msg) msg.textContent = `Segments refreshed — ${Number(data.count).toLocaleString()} contacts would be queued now.${appNote}`;
         } catch (err) {
           if (msg) msg.textContent = 'Failed: ' + (err.message || err);
         } finally {
