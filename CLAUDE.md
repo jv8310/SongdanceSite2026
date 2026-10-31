@@ -205,6 +205,13 @@ announcement follow.
   session has ended. Migrations 0092 + 0094 put the `/events` grid card back with its dates;
   0093 seeds the launch broadcast as a draft (site list minus `in-drip`); its Drip twin is
   `docs/emails/forgiveness-course-launch.drip.html` (Drip draft broadcast 859731837).
+  0095 seeds its replacement, **"Forgiveness is a paradox"** (November 2026, subject "You
+  can't decide to forgive"; site list minus `in-drip` and `prod_forgiveness`), from
+  `docs/emails/forgiveness-paradox.broadcast.html` + `.txt`: three paradoxes, forgiveness
+  *with* the body through the voice, Daniela, the four sessions ("sessions", never "evenings": many readers are in the US, where 19:00 Brussels is the afternoon or morning); its checkout links carry
+  `{{ subscriber.email | url_encode }}` so the form arrives filled in. Send one of the two
+  site drafts, never both. The registration box on the page now reads "Not ready to
+  forgive? Come anyway." (it said only "Come anyway.").
 - Registrants: `/admin/courses/forgiveness-course`.
 
 ## Forgiveness prayer lead magnet — offline, kept for later
