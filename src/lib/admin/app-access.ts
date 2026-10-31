@@ -100,6 +100,19 @@ export type AppAdminBinding = {
   // here, src/lib/workshops/calendar-sync.ts). Absent from an app deployed before it.
   calendarSessionTitles?(): Promise<AppAnswer<string[]>>;
   calendarSessions?(input: { actor: string; until: string; sessions: AppCalendarSessionIn[] }): Promise<AppAnswer<{ sessions: AppCalendarSessionOut[]; missing: AppCalendarMissing[] }>>;
+  // Everyone with an app account who can be written to, with the `app:` tags
+  // broadcasts aim at (the app's lib/broadcast-tags.ts; here,
+  // src/lib/broadcasts/app-tags.ts). Absent from an app deployed before it.
+  broadcastMembers?(): Promise<AppAnswer<AppBroadcastMembers>>;
+};
+
+export type AppBroadcastMember = { email: string; name: string | null; timezone: string | null; tags: string[] };
+
+export type AppBroadcastMembers = {
+  generatedAt: string;
+  members: AppBroadcastMember[];
+  skipped: Record<string, number>;
+  tags: Array<{ tag: string; n: number }>;
 };
 
 export type AppCalendarSessionIn = {

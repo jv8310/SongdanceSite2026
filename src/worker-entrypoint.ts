@@ -15,10 +15,23 @@ import { WorkerEntrypoint } from 'cloudflare:workers';
 import { createExports as baseCreateExports } from '@astrojs/cloudflare/entrypoints/server.js';
 import { ordersForApp, refundFromApp } from './lib/app-bridge/refund';
 import { unsubscribeFromApp } from './lib/app-bridge/unsubscribe';
+import {
+  broadcastAudienceForApp,
+  broadcastForApp,
+  broadcastsForApp,
+  broadcastTagsForApp,
+  holdBroadcastFromApp,
+  previewBroadcastForApp,
+  saveBroadcastFromApp,
+  sendBroadcastFromApp,
+  testBroadcastFromApp,
+  type SaveBroadcastInput,
+} from './lib/app-bridge/broadcasts';
 import { assessPendingSubmissions } from './lib/intake/sweep';
 import { syncStaleTransportSheets } from './lib/intake/transport-sheet';
 import { runWorkshopCron } from './lib/workshops/cron';
 import { runBroadcasts } from './lib/broadcasts/cron';
+import { syncAppTags } from './lib/broadcasts/app-tags';
 import { runDripOrderBackfill } from './lib/orders/drip-backfill';
 import { runContactTagBackfill } from './lib/contacts/tag-backfill';
 import { runMasterclassSeatMove } from './lib/workshops/masterclass-move';
@@ -175,6 +188,49 @@ export class AppBridge extends WorkerEntrypoint<Env> {
   }) {
     return refundFromApp(this.env, input);
   }
+
+  // Broadcasts (src/lib/app-bridge/broadcasts.ts): what /admin/broadcasts does,
+  // for the app's broadcast tools. The tags with their counts (the app's own
+  // `app:` tags first), how many an audience reaches, the broadcasts and one of
+  // them, the email as it will arrive, a draft written or changed, a test.
+  broadcastTags(input: { query?: string; limit?: number; refresh?: boolean }) {
+    return broadcastTagsForApp(this.env, input);
+  }
+
+  broadcastAudience(input: { includeTags?: string[] | string; excludeTags?: string[] | string; field?: string; fieldValue?: string; refresh?: boolean }) {
+    return broadcastAudienceForApp(this.env, input);
+  }
+
+  broadcasts(input: { limit?: number; status?: string }) {
+    return broadcastsForApp(this.env, input);
+  }
+
+  broadcast(input: { id: number }) {
+    return broadcastForApp(this.env, input);
+  }
+
+  previewBroadcast(input: { id: number; as?: string }) {
+    return previewBroadcastForApp(this.env, input);
+  }
+
+  saveBroadcast(input: SaveBroadcastInput) {
+    return saveBroadcastFromApp(this.env, input);
+  }
+
+  testBroadcast(input: { id: number; to: string; actor: string }) {
+    return testBroadcastFromApp(this.env, input);
+  }
+
+  // Launch now, schedule (`at`), or resume a paused one, behind a typed
+  // confirmation naming the broadcast and who it reaches at this moment.
+  sendBroadcast(input: { id: number; at?: string; confirm: string; actor: string }) {
+    return sendBroadcastFromApp(this.env, input);
+  }
+
+  // Pause a sending broadcast, or cancel a scheduled launch.
+  holdBroadcast(input: { id: number; actor: string }) {
+    return holdBroadcastFromApp(this.env, input);
+  }
 }
 
 export function createExports(manifest: unknown) {
@@ -305,6 +361,23 @@ export function createExports(manifest: unknown) {
         })
         .catch((err) => {
           console.error('[intake/transport-sheet] sweep failed', err);
+        }),
+    );
+
+    // The member app's `app:` tags on the contact list (app:member,
+    // app:course:<key>, …), so a broadcast can be aimed at everyone with an app
+    // account. Asked of the app through APP_ADMIN; steady state writes nothing,
+    // and a broadcast naming an app: tag asks again at launch.
+    ctx.waitUntil(
+      syncAppTags(env)
+        .then((r) => {
+          if (!r.ok) console.log(`[broadcasts/app-tags] not synced: ${r.error}`);
+          else if (r.added || r.removed || r.created) {
+            console.log(`[broadcasts/app-tags] members=${r.members} added=${r.added} removed=${r.removed} created=${r.created}`);
+          }
+        })
+        .catch((err) => {
+          console.error('[broadcasts/app-tags] sync failed', err);
         }),
     );
 

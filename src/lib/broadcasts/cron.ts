@@ -54,6 +54,9 @@ type BroadcastCronEnv = {
   UNSUBSCRIBE_SECRET?: string;
   ADMIN_SESSION_SECRET?: string;
   PUBLIC_BASE_URL: string;
+  // The member app, asked for its `app:` tags when a scheduled broadcast that
+  // names one launches (segment-refresh.ts).
+  APP_ADMIN?: unknown;
 };
 
 // Pacing. The drain sends in BATCH_SIZE chunks through Resend's batch endpoint
@@ -114,7 +117,7 @@ export async function runBroadcasts(
   const due = await listDueScheduledBroadcasts(env.DB, now);
   for (const d of due) {
     try {
-      await launchBroadcast(env.DB, d.id);
+      await launchBroadcast(env.DB, d.id, env);
       result.launched += 1;
     } catch (err) {
       console.error(`[broadcasts/cron] scheduled launch of ${d.id} failed`, err);
