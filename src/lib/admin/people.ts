@@ -15,9 +15,8 @@
 //                       transactional vs marketing.
 //
 //   • newsletter      — signed up through the site's own form (the footer's
-//                       "Stay in touch", src/lib/contacts/newsletter.ts): a
-//                       contact tagged `newsletter` whose `custom` carries
-//                       newsletter_signed_up_at. Only those contacts are read —
+//                       "Stay in touch", src/lib/contacts/newsletter.ts): the
+//                       newsletter_signups table. Only those people are read —
 //                       not the whole imported contacts list.
 //
 // Everything is read-only and query-driven; there is no `people` table. The
@@ -118,7 +117,7 @@ export type Person = {
   marketingEmailsReceived: number;
 
   // Signed up for the letter through the site's own form (latest signup).
-  newsletterSignedUpAt: string | null; // 'YYYY-MM-DD HH:MM:SS' UTC, like the rest
+  newsletterSignedUpAt: string | null; // 'YYYY-MM-DD HH:MM:SS' UTC, latest signup
   newsletterPage: string | null; // the path the form sat on
 
   // Is this a paying/secured customer, or only a lead (form/cart, no seat)?
@@ -229,25 +228,18 @@ async function loadNotifications(db: D1Database): Promise<{ results: Notif[] }> 
   }
 }
 
-// Newsletter signups made on the site (see the header). Read through the tag
-// index, then only rows carrying the signup stamp, so the Drip-era `newsletter`
-// tags carried in by the CSV import don't pull those contacts in. json_valid
-// guards json_extract, which throws on a malformed `custom`. Never fails the
-// page: an error here just leaves the signups out.
+// Newsletter signups made on the site (see the header): the newsletter_signups
+// table (migration 0096), with the contact's name and country when the list has
+// them. Never fails the page — before the migration (a preview runs on the live
+// database first) or on any error, the signups are simply left out.
 async function loadNewsletterSignups(db: D1Database): Promise<NewsletterSignup[]> {
-  const stamp = (key: string) =>
-    `CASE WHEN json_valid(k.custom) THEN json_extract(k.custom, '$.${key}') END`;
   try {
     const res = await db
       .prepare(
-        `SELECT email, name, country, signed_up_at, page FROM (
-           SELECT lower(k.email) AS email, k.name, k.country,
-                  ${stamp('newsletter_signed_up_at')} AS signed_up_at,
-                  ${stamp('newsletter_signup_page')} AS page
-             FROM contact_tags t
-             JOIN contacts k ON k.email = t.email
-            WHERE t.tag = 'newsletter'
-         ) WHERE signed_up_at IS NOT NULL`,
+        `SELECT n.email AS email, k.name AS name, k.country AS country,
+                n.signed_up_at AS signed_up_at, n.page AS page
+           FROM newsletter_signups n
+           LEFT JOIN contacts k ON k.email = n.email`,
       )
       .all<NewsletterSignup>();
     return res.results ?? [];
@@ -255,15 +247,6 @@ async function loadNewsletterSignups(db: D1Database): Promise<NewsletterSignup[]
     console.error(`listPeople: newsletter signups skipped: ${String(err)}`);
     return [];
   }
-}
-
-// An ISO instant ('2026-11-01T10:00:00.000Z') as the 'YYYY-MM-DD HH:MM:SS' UTC
-// stamp every other column here uses, so first-seen / last-activity compare
-// like for like.
-function isoToStamp(iso: string | null): string | null {
-  if (!iso) return null;
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 19).replace('T', ' ');
 }
 
 export async function listPeople(db: D1Database): Promise<Person[]> {
@@ -443,7 +426,7 @@ export async function listPeople(db: D1Database): Promise<Person[]> {
   // Newsletter signups on the site's own form.
   for (const n of newsletter) {
     if (!n.email) continue;
-    const at = isoToStamp(n.signed_up_at);
+    const at = n.signed_up_at;
     if (!at) continue;
     const p = get(n.email);
     if (!p.name && n.name) p.name = n.name;

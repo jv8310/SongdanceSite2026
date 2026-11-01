@@ -9,7 +9,7 @@ export const prerender = false;
 
 // POST /api/newsletter — the newsletter signup ("Stay in touch" in the footer of
 // every SiteLayout page, NewsletterFooter.astro). Writes the address onto the
-// site's own contacts list (tag `newsletter`, the signup recorded in `custom`),
+// site's own contacts list (tag `newsletter`, the signup in newsletter_signups),
 // which feeds broadcasts and /admin/people — see src/lib/contacts/newsletter.ts.
 // It no longer writes to Drip.
 //
@@ -55,7 +55,11 @@ export const POST: APIRoute = async ({ request, locals, url }) => {
         ['email', 'first_name', 'source', 'page', 'hp'].map((k) => [k, form.get(k)?.toString()]),
       );
     } else {
-      body = (await request.json()) as Body;
+      const parsed: unknown = await request.json();
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return json(400, { ok: false, error: 'bad-body' });
+      }
+      body = parsed as Body;
     }
   } catch {
     return json(400, { ok: false, error: 'bad-body' });

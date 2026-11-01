@@ -190,7 +190,14 @@ export async function importContacts(
   for (let i = 0; i < taggedEmails.length; i += EMAILS_PER_STMT) {
     const slice = taggedEmails.slice(i, i + EMAILS_PER_STMT);
     statements.push(
-      db.prepare(`DELETE FROM contact_tags WHERE email IN (${slice.map(() => '?').join(',')})`).bind(...slice),
+      // …except the tags the site itself owns: `in-drip` (purchase mirror) and
+      // `newsletter` (the site's signup form) say something a CSV cannot know.
+      db
+        .prepare(
+          `DELETE FROM contact_tags WHERE email IN (${slice.map(() => '?').join(',')})
+             AND tag NOT IN ('in-drip', 'newsletter')`,
+        )
+        .bind(...slice),
     );
   }
   for (let i = 0; i < tagPairs.length; i += TAGS_PER_STMT) {

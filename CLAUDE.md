@@ -2585,18 +2585,27 @@ through [`src/lib/contacts/newsletter.ts`](src/lib/contacts/newsletter.ts)
   except a missing name filled. Tag **`newsletter`** (plus `forgiveness course
   waitlist` for `source=forgiveness-course`), added with the purchase mirror's
   `addContactTagStatements`, never the `in-drip` marker, so a broadcast
-  excluding `in-drip` still reaches them. The signup goes into `custom`
-  (`newsletter_signed_up_at`, `newsletter_signup_page`, `newsletter_source`),
-  merged per key with `json_patch` (no null values: in a merge patch a null
-  deletes the key). Logged as `newsletter.signup` (`_suppressed` when on the
-  suppression list).
+  excluding `in-drip` still reaches them. The signup itself is a row in
+  **`newsletter_signups`** (migration 0096: first and latest signup, page,
+  source, count) — **not** keys in `contacts.custom`, because that JSON belongs
+  to the CSV import and a re-import (a list-cleaning file) replaced it whole,
+  taking the person off People. The importer also leaves the site-owned tags
+  `newsletter` and `in-drip` alone when it rewrites a row's tags. Logged as
+  `newsletter.signup` (`_suppressed` when on the suppression list).
+- **A name is kept only if it looks like one** (`normalizeSignupName`: letters,
+  marks, spaces, `'` `.` `-`). Anyone can type any address, and the name is what
+  broadcasts greet that inbox with — so `personalize()` in
+  `broadcasts/email.ts` also **HTML-escapes the recipient's name and address**
+  wherever it writes raw email HTML (the shell already escaped the heading and
+  preheader). Before this, a "name" carrying a link went into mail sent from
+  our domain as a link.
 - **A signup never lifts an unsubscribe** — anyone can type any address. The
   contact is recorded and shows on People as unsubscribed with the signup date;
   an admin resubscribes after hearing from them. The visitor sees the same
   thank-you either way. No double opt-in and no welcome email yet.
-- **People shows them**: `listPeople` reads contacts tagged `newsletter` that
-  carry `newsletter_signed_up_at` (not the whole contacts list, and not the
-  Drip-era `newsletter` tags from the CSV import) — a pill on the list, a
+- **People shows them**: `listPeople` reads `newsletter_signups` (not the whole
+  contacts list, and not the Drip-era `newsletter` tags from the CSV import;
+  nothing before migration 0096 is applied) — a pill on the list, a
   **newsletter signups** filter (`?newsletter=1`, the CSV too) and count, and
   the signup date on the person page.
 - **The form**: the script posts JSON and shows the thank-you only once the

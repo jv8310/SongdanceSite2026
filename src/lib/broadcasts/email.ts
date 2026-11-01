@@ -13,7 +13,7 @@
 // (docs/svh-copy-book.md) still apply to the words; this module only frames and
 // personalises them.
 
-import { shell, MAILING_ADDRESS, type EmailContent } from '../workshops/emails';
+import { shell, escapeHtml, MAILING_ADDRESS, type EmailContent } from '../workshops/emails';
 import type { Broadcast } from './db';
 import { tidyName } from '../email/names';
 
@@ -33,9 +33,16 @@ function defaultOf(filters: string): string {
 // unsubscribe link). Any OTHER merge tag resolves to its `default:` value, or is
 // dropped — so an unrecognised `{{ subscriber.x }}` is never sent to a reader
 // literally (custom fields aren't loaded at send time).
+//
+// `html: true` when the result is raw email HTML (an html-format body, or the
+// simple-format body before bodyToHtml): the recipient's name and address are
+// then HTML-escaped. Both come from outside — the public newsletter form lets
+// anyone type a name for any address — so unescaped they could plant a link in
+// mail sent from our own domain. The subject, the text parts and the shell's
+// heading/preheader (which escapes on its own) take the raw value.
 export function personalize(
   s: string,
-  opts: { firstName?: string; unsubscribeUrl?: string; email?: string } = {},
+  opts: { firstName?: string; unsubscribeUrl?: string; email?: string; html?: boolean } = {},
 ): string {
   const fn = tidyName(opts.firstName);
   const email = (opts.email || '').trim();
@@ -43,19 +50,22 @@ export function personalize(
     const key = rawPath.toLowerCase().replace(/^subscriber\./, '');
     const def = defaultOf(filters || '');
     let val: string;
+    let fromRecipient = false; // the name or address of the person we send to
     if (['first_name', 'firstname', 'first', 'fname', 'name', 'full_name', 'fullname'].includes(key)) {
+      fromRecipient = !!fn;
       val = fn || def || 'friend';
     } else if (['unsubscribe_url', 'unsubscribeurl', 'unsub_url'].includes(key)) {
       val = opts.unsubscribeUrl || def || '';
     } else if (['email', 'email_address', 'emailaddress'].includes(key)) {
+      fromRecipient = !!email;
       val = email || def || '';
     } else {
       val = def || '';
     }
     // Honour a Liquid `| url_encode` filter — without it, an email with a '+'
     // (or the unsubscribe URL's own query string) breaks the link it sits in.
-    if (/\|\s*url_encode\b/i.test(filters || '')) val = encodeURIComponent(val);
-    return val;
+    if (/\|\s*url_encode\b/i.test(filters || '')) return encodeURIComponent(val);
+    return opts.html && fromRecipient ? escapeHtml(val) : val;
   });
 }
 
@@ -85,6 +95,10 @@ function stripToText(html: string): string {
     .replace(/<\/(p|div|tr|h[1-6])>/gi, '\n')
     .replace(/<[^>]+>/g, '')
     .replace(/&nbsp;/g, ' ')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#0?39;/g, "'")
     .replace(/&amp;/g, '&')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
@@ -122,7 +136,7 @@ export function renderBroadcast(
 
   if (b.format === 'html') {
     const hadUnsub = hasUnsubToken(b.body);
-    let html = personalize(b.body, { firstName: fn, unsubscribeUrl: unsub, email: em });
+    let html = personalize(b.body, { firstName: fn, unsubscribeUrl: unsub, email: em, html: true });
     // Append a footer only if the author didn't place their own unsubscribe tag.
     if (unsub && !hadUnsub) html = appendUnsubFooter(html, unsub);
     // Ensure the legal postal address is present (unless the author's footer
@@ -137,7 +151,8 @@ export function renderBroadcast(
 
   // simple
   const heading = personalize(b.heading, { firstName: fn, email: em });
-  const bodyTokened = personalize(b.body, { firstName: fn, unsubscribeUrl: unsub, email: em });
+  const bodyTokened = personalize(b.body, { firstName: fn, unsubscribeUrl: unsub, email: em, html: true });
+  const bodyText = personalize(b.body, { firstName: fn, unsubscribeUrl: unsub, email: em });
   const cta = b.cta_label && b.cta_href ? { label: b.cta_label, href: b.cta_href } : undefined;
 
   const html = shell({
@@ -155,7 +170,7 @@ export function renderBroadcast(
   if (b.body_text) {
     text = personalize(b.body_text, { firstName: fn, unsubscribeUrl: unsub, email: em });
   } else {
-    const lines = [heading, '', stripToText(bodyToHtml(bodyTokened))];
+    const lines = [heading, '', stripToText(bodyToHtml(bodyText))];
     if (cta) lines.push('', `${cta.label}: ${cta.href}`);
     lines.push('', 'Songdance · songdance.co', MAILING_ADDRESS);
     if (unsub) lines.push(`Unsubscribe: ${unsub}`);
