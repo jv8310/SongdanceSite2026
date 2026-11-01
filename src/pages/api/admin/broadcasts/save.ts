@@ -1,14 +1,20 @@
 // POST { id?, name, subject, preheader?, heading, body, hero_image?, cta_label?,
-// cta_href?, from_preset?, from_name?, from_local?, reply_to?, topic? } →
-// create a new draft broadcast, or update an existing one (until it is done).
-// Admin-gated.
+// cta_href?, from_preset?, from_name?, from_local?, reply_to?, topic?,
+// audience_mode?, audience_rules? } → create a new draft broadcast, or update
+// an existing one (until it is done). Admin-gated.
 //
-// The sender (0098) and topic (0099) are written after the main row, by their
-// own guarded statements (saveBroadcastExtras), and only when the form posted
-// them: a field that isn't in the body — a disabled select is never posted —
-// means "leave it as it is". They are validated before anything is written, so
-// a bad sender or topic saves nothing. On a preview whose migrations aren't
-// applied yet the rest still saves, with a `warning`.
+// The sender (0098), topic (0099) and audience rules (0100) are written after
+// the main row, by their own guarded statements (saveBroadcastExtras), and only
+// when the form posted them: a field that isn't in the body — a disabled select
+// is never posted — means "leave it as it is". They are validated before
+// anything is written, so a bad sender, topic or rule set saves nothing. On a
+// preview whose migrations aren't applied yet the rest still saves, with a
+// `warning`.
+//
+// Audience: `audience_mode: 'rules'` stores the segment rules (checked and
+// compiled once here); `'simple'` clears them so the include/exclude/field
+// columns apply again. Those columns are always saved as posted, so switching
+// back to Tags restores what was there.
 
 import type { APIRoute } from 'astro';
 import { readCookie, verifySession } from '../../../../lib/registrations/auth';
@@ -22,6 +28,12 @@ import {
   type BroadcastInput,
 } from '../../../../lib/broadcasts/db';
 import { resolveSenderInput } from '../../../../lib/broadcasts/sender';
+import {
+  AudienceRulesError,
+  compileSegment,
+  parseSegmentRules,
+  segmentFeatures,
+} from '../../../../lib/broadcasts/segment-rules';
 import { getTopic } from '../../../../lib/email/topics';
 
 export const prerender = false;
@@ -101,6 +113,28 @@ export const POST: APIRoute = async ({ request, locals }) => {
     }
   }
 
+  if ('audience_mode' in p) {
+    const mode = String(p.audience_mode ?? '');
+    if (mode === 'rules') {
+      const parsed = parseSegmentRules(p.audience_rules);
+      if (!parsed.ok) return json({ error: parsed.error }, 400);
+      // Rules mode with no conditions = the whole sendable list.
+      const rules = parsed.rules ?? { match: 'all' as const, conditions: [] };
+      try {
+        compileSegment(rules, await segmentFeatures(env.DB));
+      } catch (err) {
+        if (err instanceof AudienceRulesError) return json({ error: err.message }, 400);
+        throw err;
+      }
+      // Before 0100 this group is skipped and the save answers with a warning.
+      extras.audience_rules = JSON.stringify(rules);
+    } else if (mode === 'simple') {
+      if (ready.rules) extras.audience_rules = null;
+    } else {
+      return json({ error: 'Unknown audience mode.' }, 400);
+    }
+  }
+
   const id = num(p.id);
   let savedId: number;
   if (id) {
@@ -120,17 +154,17 @@ export const POST: APIRoute = async ({ request, locals }) => {
   return json({ ok: true, id: savedId, ...(warning ? { warning } : {}) });
 };
 
-const NEEDS: Record<string, { what: string; migration: string }> = {
+const NEEDS: Record<string, { what: string; migration: string; plural?: boolean }> = {
   sender: { what: 'sender', migration: '0098' },
   topic: { what: 'topic', migration: '0099' },
-  rules: { what: 'audience rules', migration: '0100' },
+  rules: { what: 'audience rules', migration: '0100', plural: true },
 };
 function skippedWarning(groups: string[]): string {
   const g = groups.map((k) => NEEDS[k]).filter(Boolean);
   const what = g.map((x) => x.what).join(' and ');
   const migrations = g.map((x) => x.migration).join(', ');
-  const many = g.length > 1;
-  return `Saved — but the ${what} need${many ? '' : 's'} migration${many ? 's' : ''} ${migrations} (applied when merged), so ${many ? 'those were left as they were' : 'it was left as it was'}.`;
+  const many = g.length > 1 || g.some((x) => x.plural);
+  return `Saved — but the ${what} need${many ? '' : 's'} migration${g.length > 1 ? 's' : ''} ${migrations} (applied when merged), so ${many ? 'those were left as they were' : 'it was left as it was'}.`;
 }
 
 function str(v: unknown): string | null {

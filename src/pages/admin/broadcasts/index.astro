@@ -18,6 +18,8 @@ import {
 import { listTopics, topicsReady } from '../../../lib/email/topics';
 import { broadcastSender, marketingSenderDomain } from '../../../lib/broadcasts/sender';
 import BroadcastSenderTopic from '../../../components/admin/BroadcastSenderTopic.astro';
+import SegmentBuilder from '../../../components/admin/SegmentBuilder.astro';
+import { loadSegmentOptions } from '../../../lib/broadcasts/segment-catalog';
 
 export const prerender = false;
 
@@ -35,6 +37,8 @@ const topicReady = columns.topic && (await topicsReady(env.DB));
 const topics = topicReady ? await listTopics(env.DB) : [];
 const topicName = new Map(topics.map((t) => [t.key, t.name]));
 const defaultSender = broadcastSender({}, env);
+// The segment builder's option lists (Rules mode needs migration 0100).
+const segmentOptions = await loadSegmentOptions(env.DB);
 
 // Per-broadcast send progress + engagement, for the table. A draft hasn't been
 // launched, so it has no recipients or sends yet — leave its figures blank.
@@ -90,6 +94,7 @@ const fmtSched = (s: string | null): string | null => {
       {broadcasts.length === 0 ? (
         <p class="bc-empty">No broadcasts yet.</p>
       ) : (
+        <div class="bc-table-wrap">
         <table class="bc-table">
           <thead><tr>
             <th>Name</th><th>Status</th>
@@ -126,6 +131,7 @@ const fmtSched = (s: string | null): string | null => {
             ))}
           </tbody>
         </table>
+        </div>
       )}
     </section>
 
@@ -211,6 +217,7 @@ const fmtSched = (s: string | null): string | null => {
             faster, but mailing in the small hours hurts opens &amp; looks spammy.
           </p>
 
+          <SegmentBuilder rules={null} mode="simple" options={segmentOptions}>
           <fieldset class="bc-audience">
             <legend>Audience <span id="bc-aud-count" class="bc-aud-count">whole list</span></legend>
             <label class="bc-field">
@@ -243,6 +250,7 @@ const fmtSched = (s: string | null): string | null => {
               </div>
             )}
           </fieldset>
+          </SegmentBuilder>
 
           <div class="bc-actions">
             <button class="adm-btn" type="submit">Create draft</button>
@@ -264,7 +272,7 @@ const fmtSched = (s: string | null): string | null => {
 
   <style>
     .bc-compose { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; align-items: start; }
-    @media (max-width: 1000px) { .bc-compose { grid-template-columns: 1fr; } }
+    @media (max-width: 1000px) { .bc-compose { grid-template-columns: minmax(0, 1fr); } }
     .bc-form { display: flex; flex-direction: column; gap: 14px; }
     .bc-field { display: flex; flex-direction: column; gap: 5px; }
     .bc-field > span { font-size: 13px; color: #4a3848; }
@@ -276,8 +284,8 @@ const fmtSched = (s: string | null): string | null => {
     }
     .bc-field textarea { resize: vertical; line-height: 1.6; }
     .bc-simple-only { display: flex; flex-direction: column; gap: 14px; }
-    .bc-row { display: flex; gap: 14px; }
-    .bc-row .bc-field { flex: 1; }
+    .bc-row { display: flex; flex-wrap: wrap; gap: 14px; }
+    .bc-row .bc-field { flex: 1 1 180px; min-width: 0; }
     .bc-hint { font-size: 12.5px; color: #6f5f6d; margin: -4px 0 0; line-height: 1.6; }
     .bc-actions { display: flex; align-items: center; gap: 14px; }
     .bc-msg { font-size: 13px; color: #6f5f6d; }
@@ -285,6 +293,7 @@ const fmtSched = (s: string | null): string | null => {
     .bc-preview-head { display: flex; align-items: center; justify-content: space-between; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: #6f5f6d; }
     .bc-frame { width: 100%; height: 620px; border: 1px solid rgba(161,72,38,0.22); border-radius: 12px; background: #fff; }
     .bc-empty { font-size: 14px; color: #6f5f6d; }
+    .bc-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
     .bc-table { width: 100%; border-collapse: collapse; background: #fbf6ec; border: 1px solid rgba(161,72,38,0.22); border-radius: 12px; overflow: hidden; }
     .bc-table th, .bc-table td { padding: 10px 14px; text-align: left; font-size: 14px; border-bottom: 1px solid rgba(161,72,38,0.12); vertical-align: middle; }
     .bc-table th { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.05em; color: #6f5f6d; }
@@ -304,7 +313,7 @@ const fmtSched = (s: string | null): string | null => {
     .bc-pill--sending { background: #d9ead0; color: #38601f; }
     .bc-pill--paused { background: #f4dcc9; color: #a14826; }
     .bc-pill--done { background: #dfe7ef; color: #335; }
-    .bc-audience { border: 1px solid rgba(161,72,38,0.22); border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; margin: 0; }
+    .bc-audience { border: 1px solid rgba(161,72,38,0.22); border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; margin: 0; min-width: 0; }
     .bc-audience legend { font-size: 13px; color: #4a3848; padding: 0 6px; }
     .bc-aud-count { color: #a14826; font-weight: 600; }
     .bc-tagcloud { display: flex; flex-direction: column; gap: 8px; }

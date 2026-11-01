@@ -6,6 +6,14 @@
 // both read the same numbers.
 
 import { refreshBroadcastSegments } from './segment-refresh';
+import {
+  AudienceRulesError,
+  compileSegment,
+  parseSegmentRules,
+  segmentFeatures,
+  tagsInRules,
+  type SegmentRules,
+} from './segment-rules';
 
 export type Broadcast = {
   id: number;
@@ -93,6 +101,12 @@ export type AudienceCriteria = {
   field?: string | null; // custom-field key
   fieldValue?: string | null; // exact match
   topic?: string | null; // email_topics.key: leave out everyone who left this topic
+  // Segment rules (0100). When set they REPLACE include/exclude/field (which
+  // stay on the row, so switching back to tags restores them).
+  rules?: SegmentRules | null;
+  // Set when the stored rules can't be read: every count and snapshot then
+  // refuses (AudienceRulesError) rather than fall back to the whole list.
+  rulesError?: string | null;
 };
 
 // Each broadcast tracks its sends under its own email_type, so the stats table
@@ -394,20 +408,37 @@ export async function getContact(
 
 // ── Audience targeting ──────────────────────────────────────────────────────
 
-// The one mapping from a broadcast row to its audience criteria.
+// The one mapping from a broadcast row to its audience criteria. Never throws:
+// unreadable rules come back as `rulesError`, which audienceSql turns into an
+// AudienceRulesError — so a page can still render and say what is wrong.
 export function broadcastCriteria(b: Broadcast): AudienceCriteria {
-  return {
+  const c: AudienceCriteria = {
     includeTags: b.audience_include_tags,
     excludeTags: b.audience_exclude_tags,
     field: b.audience_field,
     fieldValue: b.audience_field_value,
     topic: b.topic ?? null,
   };
+  const stored = b.audience_rules;
+  if (stored != null && String(stored).trim() !== '') {
+    const parsed = parseSegmentRules(String(stored));
+    if (!parsed.ok) c.rulesError = `The saved audience rules could not be read: ${parsed.error}`;
+    else if (!parsed.rules) c.rulesError = 'The saved audience rules could not be read.';
+    else c.rules = parsed.rules;
+  }
+  return c;
 }
 
-// Every tag the criteria name (include ∪ exclude) — what refreshBroadcastSegments
-// is asked to freshen before a count or a launch.
+// Do these criteria target by rules (rather than include/exclude tags)?
+export function criteriaUseRules(c: AudienceCriteria): boolean {
+  return !!(c.rules || c.rulesError);
+}
+
+// Every tag the criteria name — what refreshBroadcastSegments is asked to
+// freshen before a count or a launch: the tags in the rules in rules mode,
+// include ∪ exclude otherwise.
 export function audienceTags(c: AudienceCriteria): Set<string> {
+  if (criteriaUseRules(c)) return new Set(tagsInRules(c.rules));
   return new Set([...splitTags(c.includeTags), ...splitTags(c.excludeTags)]);
 }
 
@@ -427,7 +458,10 @@ async function topicOptoutsReady(db: D1Database): Promise<boolean> {
 // the criteria name a topic — everyone who left it. Tag matching goes through
 // the normalized contact_tags table, each list bound once as JSON (json_each),
 // so the bound-parameter count never grows with the list; the field filter uses
-// json_extract on the preserved `custom` blob.
+// json_extract on the preserved `custom` blob. With segment rules, the rules
+// (segment-rules.ts) take the place of the tag and field clauses. Throws
+// AudienceRulesError when the rules can't be read or compiled — callers refuse,
+// never fall back to the whole list.
 export async function audienceSql(
   db: D1Database,
   criteria: AudienceCriteria,
@@ -441,6 +475,16 @@ export async function audienceSql(
   if (topic && (await topicOptoutsReady(db))) {
     clauses.push(`NOT EXISTS (SELECT 1 FROM email_topic_optouts o WHERE o.email = c.email AND o.topic = ?)`);
     binds.push(topic);
+  }
+
+  if (criteria.rulesError) throw new AudienceRulesError(criteria.rulesError);
+  if (criteria.rules) {
+    const seg = compileSegment(criteria.rules, await segmentFeatures(db));
+    if (seg.sql) {
+      clauses.push(`(${seg.sql})`);
+      binds.push(...seg.binds);
+    }
+    return { sql: clauses.join(' AND '), binds };
   }
 
   const include = splitTags(criteria.includeTags);
@@ -491,6 +535,7 @@ export async function countAudienceChecked(
       .first<{ n: number }>();
     return { count: r?.n ?? 0 };
   } catch (err) {
+    if (err instanceof AudienceRulesError) return { error: err.message };
     return { error: `The audience could not be counted: ${String(err instanceof Error ? err.message : err).slice(0, 200)}` };
   }
 }
@@ -759,7 +804,12 @@ export async function launchBroadcast(
   // leaves the broadcast as it was.
   const b = await getBroadcast(db, id);
   if (b) {
-    const tags = audienceTags(broadcastCriteria(b));
+    const c = broadcastCriteria(b);
+    // Build the audience once before anything changes: rules that can't be
+    // read or compiled throw AudienceRulesError here, with nothing refreshed,
+    // snapshotted or flipped.
+    await audienceSql(db, c);
+    const tags = audienceTags(c);
     if (tags.size) await refreshBroadcastSegments(db, tags, app);
   }
   await snapshotRecipients(db, id);
@@ -874,6 +924,16 @@ export async function setBroadcastScheduledAt(
   await db
     .prepare(`UPDATE broadcasts SET scheduled_at = ? WHERE id = ? AND status = 'draft'`)
     .bind(scheduledAtIso, id)
+    .run();
+}
+
+// A scheduled launch the audience refused (rules that can't be read or
+// compiled): unschedule it and say why on the draft, so it neither fires every
+// tick nor goes out to anyone the rules didn't mean.
+export async function refuseScheduledLaunch(db: D1Database, id: number, why: string): Promise<void> {
+  await db
+    .prepare(`UPDATE broadcasts SET scheduled_at = NULL, paused_reason = ? WHERE id = ? AND status = 'draft'`)
+    .bind(`Scheduled launch refused: ${why}`.slice(0, 500), id)
     .run();
 }
 

@@ -6,6 +6,8 @@
 import type { APIRoute } from 'astro';
 import { readCookie, verifySession } from '../../../../lib/registrations/auth';
 import {
+  broadcastCriteria,
+  countAudienceChecked,
   deleteBroadcast,
   duplicateBroadcast,
   getBroadcast,
@@ -17,6 +19,7 @@ import {
   setBroadcastStopAt,
   setBroadcastUrgent,
 } from '../../../../lib/broadcasts/db';
+import { AudienceRulesError } from '../../../../lib/broadcasts/segment-rules';
 
 export const prerender = false;
 
@@ -48,7 +51,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
         return json({ error: `Can't launch a broadcast that is ${b.status}.` }, 409);
       }
       if (!env.RESEND_API_KEY) return json({ error: 'RESEND_API_KEY is not configured.' }, 500);
-      const recipients = await launchBroadcast(env.DB, id, env);
+      let recipients: number;
+      try {
+        recipients = await launchBroadcast(env.DB, id, env);
+      } catch (err) {
+        // Rules that can't be read or compiled: nothing was snapshotted.
+        if (err instanceof AudienceRulesError) return json({ error: err.message }, 409);
+        throw err;
+      }
       return json({ ok: true, status: 'sending', recipients });
     }
     case 'duplicate': {
@@ -114,7 +124,17 @@ export const POST: APIRoute = async ({ request, locals }) => {
       if (ms <= Date.now()) {
         return json({ error: 'Pick a launch time in the future.' }, 400);
       }
+      // An audience that can't be counted now would be refused when the time
+      // comes; say so now instead.
+      const counted = await countAudienceChecked(env.DB, broadcastCriteria(b));
+      if ('error' in counted) return json({ error: counted.error }, 409);
       await setBroadcastScheduledAt(env.DB, id, new Date(ms).toISOString());
+      // A note left by an earlier refused launch no longer applies.
+      if (b.paused_reason) {
+        try {
+          await env.DB.prepare(`UPDATE broadcasts SET paused_reason = NULL WHERE id = ? AND status = 'draft'`).bind(id).run();
+        } catch { /* cosmetic */ }
+      }
       return json({ ok: true, scheduled_at: new Date(ms).toISOString() });
     }
     case 'unschedule': {

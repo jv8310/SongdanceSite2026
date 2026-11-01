@@ -10,14 +10,19 @@ import {
   recipientCounts,
   broadcastStats,
   broadcastEmailType,
-  countAudience,
+  countAudienceChecked,
   availableTags,
   cleaningCounts,
   pendingByTimezone,
   failedReasons,
   broadcastCriteria,
   broadcastColumnsReady,
+  criteriaUseRules,
+  audienceTags as audienceTagsOf,
 } from '../../../lib/broadcasts/db';
+import { describeSegment } from '../../../lib/broadcasts/segment-rules';
+import { loadSegmentOptions, segmentNames } from '../../../lib/broadcasts/segment-catalog';
+import SegmentBuilder from '../../../components/admin/SegmentBuilder.astro';
 import { previewBroadcast } from '../../../lib/broadcasts/email';
 import { getTopic, listTopics, topicsReady } from '../../../lib/email/topics';
 import { broadcastSender, marketingSenderDomain } from '../../../lib/broadcasts/sender';
@@ -43,8 +48,15 @@ const isEditable = b.status !== 'done';
 const counts = await recipientCounts(env.DB, b.id);
 const stats = await broadcastStats(env.DB, broadcastEmailType(b.id));
 // The audience this broadcast targets right now (criteria minus suppressions
-// and topic opt-outs) — the same criteria the launch snapshot takes.
-const audience = await countAudience(env.DB, broadcastCriteria(b));
+// and topic opt-outs) — the same criteria the launch snapshot takes. Rules
+// that can't be read or counted say so (and Launch is off) rather than read 0.
+const crit = broadcastCriteria(b);
+const usesRules = criteriaUseRules(crit);
+const counted = await countAudienceChecked(env.DB, crit);
+const audience = 'count' in counted ? counted.count : 0;
+const audienceError = 'error' in counted ? counted.error : null;
+const rulesDescription =
+  usesRules && crit.rules ? describeSegment(crit.rules, await segmentNames(env.DB, crit.rules)) : null;
 // Sender (0098) and topic (0099): shown, and editable once their migrations run.
 const columns = await broadcastColumnsReady(env.DB);
 const topicReady = columns.topic && (await topicsReady(env.DB));
@@ -52,14 +64,12 @@ const topics = topicReady ? await listTopics(env.DB) : [];
 const topic = b.topic ? await getTopic(env.DB, b.topic) : null;
 const sender = broadcastSender(b, env);
 const tags = isEditable ? await availableTags(env.DB, 1000) : [];
+const segmentOptions = isEditable ? await loadSegmentOptions(env.DB) : null;
 const hasAudienceFilter = !!(b.audience_include_tags || b.audience_exclude_tags || b.audience_field);
 // Does this broadcast target a segment that's recomputed at launch (and can be
 // refreshed by hand)? Gate the "Refresh segments" control on it — matches
 // refreshBroadcastSegments' own gating.
-const audienceTags = [
-  ...(b.audience_include_tags ?? '').split(','),
-  ...(b.audience_exclude_tags ?? '').split(','),
-].map((t) => t.trim().toLowerCase());
+const audienceTags = [...audienceTagsOf(crit)];
 const usesRefreshableSegment =
   audienceTags.includes('workshop-passed-nonbuyer') ||
   audienceTags.includes('in-drip') ||
@@ -176,8 +186,11 @@ const statusLabel: Record<string, string> = {
       </div>
     </header>
 
-    {b.status === 'paused' && b.paused_reason && (
+    {(b.status === 'paused' || b.status === 'draft') && b.paused_reason && (
       <div class="adm-flash adm-flash--warn">{b.paused_reason}</div>
+    )}
+    {audienceError && b.status !== 'done' && (
+      <div class="adm-flash adm-flash--err">{audienceError} Launching is off until the audience can be counted — fix the rules below, or switch the audience back to Tags.</div>
     )}
 
     <section class="adm-section">
@@ -186,7 +199,7 @@ const statusLabel: Record<string, string> = {
         <div class="bc-launch">
           <p>
             This will queue <strong id="bc-audience-count">{audience.toLocaleString()}</strong> contacts
-            ({hasAudienceFilter ? 'matching your audience filter' : 'the whole list'}, minus
+            ({usesRules ? 'matching your rules' : hasAudienceFilter ? 'matching your audience filter' : 'the whole list'}, minus
             unsubscribes{topic ? ` and anyone who left “${topic.name}”` : ''}). They'll be sent over the coming days, only inside each
             recipient's local {b.window_start_hour}:00–{b.window_end_hour}:00, and
             the send auto-pauses if bounces or spam complaints spike.
@@ -195,7 +208,8 @@ const statusLabel: Record<string, string> = {
             <p class="bc-refresh-seg">
               <button id="bc-refresh-seg" class="adm-btn adm-btn--ghost" type="button"
                 data-include={b.audience_include_tags ?? ''} data-exclude={b.audience_exclude_tags ?? ''}
-                data-field={b.audience_field ?? ''} data-field-value={b.audience_field_value ?? ''} data-topic={b.topic ?? ''}>↻ Refresh segments &amp; recount</button>
+                data-field={b.audience_field ?? ''} data-field-value={b.audience_field_value ?? ''} data-topic={b.topic ?? ''}
+                data-mode={usesRules ? 'rules' : 'simple'} data-rules={b.audience_rules ?? ''}>↻ Refresh segments &amp; recount</button>
               <span id="bc-refresh-msg" class="bc-msg"></span>
               <br /><small class="bc-muted">Rebuilds <code>workshop-passed-nonbuyer</code>, re-syncs the <code>in-drip</code> marker from live registrations/purchases and asks the member app again for its <code>app:</code> tags, then recounts. This also runs automatically the moment you launch.</small>
             </p>
@@ -207,7 +221,7 @@ const statusLabel: Record<string, string> = {
               You can still launch it now, or change/cancel the schedule below.
             </p>
           )}
-          <button id="bc-launch" class="adm-btn" type="button" data-id={b.id}>Launch broadcast now →</button>
+          <button id="bc-launch" class="adm-btn" type="button" data-id={b.id} disabled={!!audienceError}>Launch broadcast now →</button>
           <span id="bc-launch-msg" class="bc-msg"></span>
 
           <div class="bc-schedule">
@@ -441,6 +455,8 @@ const statusLabel: Record<string, string> = {
               <label class="bc-field"><span>end <em>(1–24)</em></span><input name="window_end_hour" type="number" min="1" max="24" value={b.window_end_hour} /></label>
             </div>
 
+            {segmentOptions && (
+            <SegmentBuilder rules={crit.rules ?? null} mode={usesRules ? 'rules' : 'simple'} note={crit.rulesError ?? null} options={segmentOptions}>
             <fieldset class="bc-audience">
               <legend>Audience <span id="bc-aud-count" class="bc-aud-count"></span></legend>
               <label class="bc-field"><span>Include tags <em>(match ANY; blank = everyone)</em></span><input name="audience_include_tags" id="aud-include" value={b.audience_include_tags ?? ''} /></label>
@@ -461,6 +477,8 @@ const statusLabel: Record<string, string> = {
                 </div>
               )}
             </fieldset>
+            </SegmentBuilder>
+            )}
 
             <div class="bc-actions">
               <button class="adm-btn" type="submit">Save changes</button>
@@ -473,7 +491,7 @@ const statusLabel: Record<string, string> = {
             <dt>From</dt><dd>{sender.from}</dd>
             <dt>Reply-to</dt><dd>{sender.replyTo}</dd>
             <dt>Topic</dt><dd>{topic ? topic.name : b.topic ? b.topic : 'No topic'}</dd>
-            <dt>Audience</dt><dd>{hasAudienceFilter ? [
+            <dt>Audience</dt><dd>{usesRules ? (rulesDescription ?? crit.rulesError ?? 'Rules') : hasAudienceFilter ? [
               b.audience_include_tags ? `include: ${b.audience_include_tags}` : null,
               b.audience_exclude_tags ? `exclude: ${b.audience_exclude_tags}` : null,
               b.audience_field ? `${b.audience_field} = ${b.audience_field_value ?? ''}` : null,
@@ -507,7 +525,7 @@ const statusLabel: Record<string, string> = {
 
   <style>
     .bc-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; align-items: start; }
-    @media (max-width: 1000px) { .bc-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 1000px) { .bc-grid { grid-template-columns: minmax(0, 1fr); } }
     .bc-pill { font-size: 13px; padding: 2px 11px; border-radius: 999px; background: #ece0cf; color: #4a3848; vertical-align: middle; margin-left: 8px; }
     .bc-pill--sending { background: #d9ead0; color: #38601f; }
     .bc-pill--paused { background: #f4dcc9; color: #a14826; }
@@ -523,8 +541,8 @@ const statusLabel: Record<string, string> = {
     }
     .bc-field textarea { resize: vertical; line-height: 1.6; }
     .bc-simple-only { display: flex; flex-direction: column; gap: 12px; }
-    .bc-row { display: flex; gap: 12px; }
-    .bc-row .bc-field { flex: 1; }
+    .bc-row { display: flex; flex-wrap: wrap; gap: 12px; }
+    .bc-row .bc-field { flex: 1 1 180px; min-width: 0; }
     .bc-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
     .bc-msg { font-size: 13px; color: #6f5f6d; }
     .bc-stopat { border: 1px solid rgba(161,72,38,0.22); border-radius: 10px; padding: 14px 16px; margin: 16px 0 0; }
@@ -591,7 +609,7 @@ const statusLabel: Record<string, string> = {
     .bc-muted { color: #b6a8b4; }
     .bc-from { margin: 0 0 8px; font-size: 12.5px; color: #4a3848; word-break: break-word; }
     .bc-from.is-error { color: #a14826; }
-    .bc-audience { border: 1px solid rgba(161,72,38,0.22); border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; margin: 0; }
+    .bc-audience { border: 1px solid rgba(161,72,38,0.22); border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; margin: 0; min-width: 0; }
     .bc-audience legend { font-size: 13px; color: #4a3848; padding: 0 6px; }
     .bc-aud-count { color: #a14826; font-weight: 600; }
     .bc-tagcloud { display: flex; flex-direction: column; gap: 8px; }
@@ -774,6 +792,8 @@ const statusLabel: Record<string, string> = {
               audience_field: btn.dataset.field || '',
               audience_field_value: btn.dataset.fieldValue || '',
               topic: btn.dataset.topic || '',
+              audience_mode: btn.dataset.mode || 'simple',
+              rules: btn.dataset.rules || '',
             }),
           });
           const data = await res.json();

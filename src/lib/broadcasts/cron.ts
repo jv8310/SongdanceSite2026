@@ -24,6 +24,8 @@ import {
 import { getTopic, type EmailTopic } from '../email/topics';
 import { renderBroadcast } from './email';
 import { broadcastSender } from './sender';
+import { AudienceRulesError } from './segment-rules';
+import { logEventSafe } from '../registrations/db';
 import {
   blockedEmailsIn,
   broadcastEmailType,
@@ -42,6 +44,7 @@ import {
   pendingCount,
   pendingTimezones,
   reclaimStaleClaims,
+  refuseScheduledLaunch,
   stopBroadcastAtDeadline,
   type Broadcast,
   type DrainCandidate,
@@ -122,6 +125,22 @@ export async function runBroadcasts(
       await launchBroadcast(env.DB, d.id, env);
       result.launched += 1;
     } catch (err) {
+      if (err instanceof AudienceRulesError) {
+        // Rules that can't be counted: never a fallback to the whole list.
+        // Unschedule it and say why on the draft (it would refuse every tick).
+        try {
+          await refuseScheduledLaunch(env.DB, d.id, err.message);
+        } catch (e) {
+          console.error(`[broadcasts/cron] could not unschedule ${d.id}`, e);
+        }
+        await logEventSafe(env.DB, {
+          registration_id: null,
+          kind: 'broadcast.launch_refused',
+          source: 'system',
+          payload: { broadcastId: d.id, scheduledAt: d.scheduled_at, error: err.message },
+        });
+        continue;
+      }
       console.error(`[broadcasts/cron] scheduled launch of ${d.id} failed`, err);
     }
   }
