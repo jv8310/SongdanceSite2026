@@ -1,5 +1,10 @@
 ---
 // Newsletter signup. Kept quiet — no hype, no fixed cadence promise.
+// Posts to /api/newsletter, which puts the address on the site's contacts list
+// (tag `newsletter`) — see src/lib/contacts/newsletter.ts. The script sends it
+// as JSON and only says thank you once the server has it; without a script the
+// form posts itself and the endpoint sends the browser back here.
+const page = Astro.url.pathname;
 ---
 
 <section class="sd-news" id="newsletter">
@@ -7,13 +12,14 @@
     <div class="sd-eyebrow">Stay in touch</div>
     <h2 class="sd-news-head">The occasional letter —<br />practices, and what's coming next.</h2>
     <p class="sd-news-sub">No spam, no fixed schedule. Easy to leave.</p>
-    <form class="sd-news-form" data-news-form>
+    <form class="sd-news-form" method="post" action="/api/newsletter" data-news-form>
       <input
         type="text"
         name="first_name"
         placeholder="First name"
         aria-label="first name"
         autocomplete="given-name"
+        maxlength="80"
       />
       <input
         type="email"
@@ -21,24 +27,82 @@
         placeholder="you@somewhere"
         aria-label="email"
         autocomplete="email"
+        maxlength="254"
         required
       />
+      <input type="hidden" name="page" value={page} />
+      <input type="hidden" name="source" value="footer" />
+      <div class="sd-news-hp" aria-hidden="true">
+        <label>Leave this empty <input type="text" name="hp" tabindex="-1" autocomplete="off" /></label>
+      </div>
       <button type="submit" class="sd-btn sd-btn-primary">Subscribe</button>
     </form>
+    <p class="sd-news-error" hidden data-news-error role="alert"></p>
     <p class="sd-news-thanks" hidden data-news-thanks>Thank you. We'll be in touch when there's something worth sending.</p>
   </div>
 </section>
 
 <script>
-  // TODO(infra): wire to Drip via a /api/newsletter endpoint. For now this is
-  // an optimistic, no-backend confirmation so the shell is complete.
+  const MESSAGES = {
+    check: "That address doesn't look complete. Could you check it?",
+    error: 'Something went wrong on our side. Please try again in a moment, or write to support@songdance.co.',
+  } as const;
+
   const form = document.querySelector<HTMLFormElement>('[data-news-form]');
   const thanks = document.querySelector<HTMLParagraphElement>('[data-news-thanks]');
-  form?.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const email = form.querySelector<HTMLInputElement>('input[type="email"]');
-    if (!email?.value) return;
-    form.hidden = true;
+  const errorEl = document.querySelector<HTMLParagraphElement>('[data-news-error]');
+
+  function showThanks() {
+    if (form) form.hidden = true;
+    if (errorEl) errorEl.hidden = true;
     if (thanks) thanks.hidden = false;
+  }
+  function showError(kind: keyof typeof MESSAGES) {
+    if (!errorEl) return;
+    errorEl.textContent = MESSAGES[kind];
+    errorEl.hidden = false;
+  }
+
+  // Back from a no-script post (the endpoint adds ?newsletter=…).
+  const state = new URLSearchParams(location.search).get('newsletter');
+  if (state === 'thanks') showThanks();
+  else if (state === 'check' || state === 'error') showError(state);
+
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const data = new FormData(form);
+    const email = String(data.get('email') ?? '').trim();
+    if (!email) return;
+    const button = form.querySelector<HTMLButtonElement>('button[type="submit"]');
+    if (button) {
+      button.disabled = true;
+      button.setAttribute('aria-busy', 'true');
+    }
+    if (errorEl) errorEl.hidden = true;
+    try {
+      const res = await fetch('/api/newsletter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          first_name: String(data.get('first_name') ?? ''),
+          source: String(data.get('source') ?? 'footer'),
+          page: location.pathname,
+          hp: String(data.get('hp') ?? ''),
+        }),
+      });
+      if (res.ok) {
+        showThanks();
+        return;
+      }
+      showError(res.status === 400 ? 'check' : 'error');
+    } catch {
+      showError('error');
+    } finally {
+      if (button) {
+        button.disabled = false;
+        button.removeAttribute('aria-busy');
+      }
+    }
   });
 </script>

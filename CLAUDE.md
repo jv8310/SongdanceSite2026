@@ -2571,6 +2571,42 @@ the day-by-day pricing lines up exactly when the ad account is set to Brussels
 time; if the account currency has no EUR rate, `amount_eur_minor` is null and
 the sync flags `fxMissing`.
 
+## Newsletter signup — the footer form writes to the contacts list
+
+The "Stay in touch" form at the foot of every `SiteLayout` page
+(`NewsletterFooter.astro`) showed "Thank you" and **threw the address away**
+until November 2026 (a placeholder waiting for a Drip endpoint), and
+`/api/newsletter` wrote only to Drip and had no caller. Now the form posts to
+`/api/newsletter`, which writes the site's own **contacts** list — no Drip —
+through [`src/lib/contacts/newsletter.ts`](src/lib/contacts/newsletter.ts)
+(`recordNewsletterSignup`):
+
+- **contacts row**: new → source `newsletter`; already on the list → untouched
+  except a missing name filled. Tag **`newsletter`** (plus `forgiveness course
+  waitlist` for `source=forgiveness-course`), added with the purchase mirror's
+  `addContactTagStatements`, never the `in-drip` marker, so a broadcast
+  excluding `in-drip` still reaches them. The signup goes into `custom`
+  (`newsletter_signed_up_at`, `newsletter_signup_page`, `newsletter_source`),
+  merged per key with `json_patch` (no null values: in a merge patch a null
+  deletes the key). Logged as `newsletter.signup` (`_suppressed` when on the
+  suppression list).
+- **A signup never lifts an unsubscribe** — anyone can type any address. The
+  contact is recorded and shows on People as unsubscribed with the signup date;
+  an admin resubscribes after hearing from them. The visitor sees the same
+  thank-you either way. No double opt-in and no welcome email yet.
+- **People shows them**: `listPeople` reads contacts tagged `newsletter` that
+  carry `newsletter_signed_up_at` (not the whole contacts list, and not the
+  Drip-era `newsletter` tags from the CSV import) — a pill on the list, a
+  **newsletter signups** filter (`?newsletter=1`, the CSV too) and count, and
+  the signup date on the person page.
+- **The form**: the script posts JSON and shows the thank-you only once the
+  server has it (an inline message otherwise); without a script the form posts
+  itself and the endpoint 303s back with `?newsletter=thanks|check|error`. A
+  hidden `hp` honeypot, and a cross-site `Origin` is refused (403). On a phone
+  the fields stack (they were ~70px each side by side), and
+  `.sd-news-form[hidden]` is needed because `display: flex` outranks the
+  browser's `[hidden]` rule.
+
 ## Broadcasts — one-off marketing to a standalone contact list
 
 Separate from the workshop lifecycle: a `contacts` list (imported from a CSV,

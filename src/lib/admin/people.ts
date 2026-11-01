@@ -14,6 +14,12 @@
 //                       joined back through the person's registrations, split
 //                       transactional vs marketing.
 //
+//   • newsletter      — signed up through the site's own form (the footer's
+//                       "Stay in touch", src/lib/contacts/newsletter.ts): a
+//                       contact tagged `newsletter` whose `custom` carries
+//                       newsletter_signed_up_at. Only those contacts are read —
+//                       not the whole imported contacts list.
+//
 // Everything is read-only and query-driven; there is no `people` table. The
 // shape mirrors src/lib/admin/orders.ts (which unifies *orders*; this unifies
 // *people*).
@@ -111,6 +117,10 @@ export type Person = {
   totalEmailsReceived: number;
   marketingEmailsReceived: number;
 
+  // Signed up for the letter through the site's own form (latest signup).
+  newsletterSignedUpAt: string | null; // 'YYYY-MM-DD HH:MM:SS' UTC, like the rest
+  newsletterPage: string | null; // the path the form sat on
+
   // Is this a paying/secured customer, or only a lead (form/cart, no seat)?
   isCustomer: boolean;
 
@@ -154,6 +164,13 @@ type RetreatReg = {
   paid_at: string | null;
 };
 type Suppression = { email: string; source: string | null; created_at: string };
+type NewsletterSignup = {
+  email: string;
+  name: string | null;
+  country: string | null;
+  signed_up_at: string | null;
+  page: string | null;
+};
 
 // ── Labels ──────────────────────────────────────────────────────────────────
 
@@ -212,8 +229,45 @@ async function loadNotifications(db: D1Database): Promise<{ results: Notif[] }> 
   }
 }
 
+// Newsletter signups made on the site (see the header). Read through the tag
+// index, then only rows carrying the signup stamp, so the Drip-era `newsletter`
+// tags carried in by the CSV import don't pull those contacts in. json_valid
+// guards json_extract, which throws on a malformed `custom`. Never fails the
+// page: an error here just leaves the signups out.
+async function loadNewsletterSignups(db: D1Database): Promise<NewsletterSignup[]> {
+  const stamp = (key: string) =>
+    `CASE WHEN json_valid(k.custom) THEN json_extract(k.custom, '$.${key}') END`;
+  try {
+    const res = await db
+      .prepare(
+        `SELECT email, name, country, signed_up_at, page FROM (
+           SELECT lower(k.email) AS email, k.name, k.country,
+                  ${stamp('newsletter_signed_up_at')} AS signed_up_at,
+                  ${stamp('newsletter_signup_page')} AS page
+             FROM contact_tags t
+             JOIN contacts k ON k.email = t.email
+            WHERE t.tag = 'newsletter'
+         ) WHERE signed_up_at IS NOT NULL`,
+      )
+      .all<NewsletterSignup>();
+    return res.results ?? [];
+  } catch (err) {
+    console.error(`listPeople: newsletter signups skipped: ${String(err)}`);
+    return [];
+  }
+}
+
+// An ISO instant ('2026-11-01T10:00:00.000Z') as the 'YYYY-MM-DD HH:MM:SS' UTC
+// stamp every other column here uses, so first-seen / last-activity compare
+// like for like.
+function isoToStamp(iso: string | null): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 19).replace('T', ' ');
+}
+
 export async function listPeople(db: D1Database): Promise<Person[]> {
-  const [wregRes, notifRes, courseRes, wPurchaseRes, retreatRes, supprRes] = await Promise.all([
+  const [wregRes, notifRes, courseRes, wPurchaseRes, retreatRes, supprRes, newsletter] = await Promise.all([
     db
       .prepare(
         `SELECT lower(r.email) AS email, r.name, r.country, r.attendance_status,
@@ -251,6 +305,7 @@ export async function listPeople(db: D1Database): Promise<Person[]> {
     db
       .prepare(`SELECT lower(email) AS email, source, created_at FROM email_suppressions`)
       .all<Suppression>(),
+    loadNewsletterSignups(db),
   ]);
 
   const byEmail = new Map<string, Person>();
@@ -276,6 +331,8 @@ export async function listPeople(db: D1Database): Promise<Person[]> {
         emailsReceived: [],
         totalEmailsReceived: 0,
         marketingEmailsReceived: 0,
+        newsletterSignedUpAt: null,
+        newsletterPage: null,
         isCustomer: false,
         firstSeen: null,
         lastActivity: null,
@@ -383,6 +440,20 @@ export async function listPeople(db: D1Database): Promise<Person[]> {
     p.emailsReceived.sort((a, b) => (b.lastAt ?? '').localeCompare(a.lastAt ?? ''));
   }
 
+  // Newsletter signups on the site's own form.
+  for (const n of newsletter) {
+    if (!n.email) continue;
+    const at = isoToStamp(n.signed_up_at);
+    if (!at) continue;
+    const p = get(n.email);
+    if (!p.name && n.name) p.name = n.name;
+    if (!p.country && n.country) p.country = n.country;
+    p.newsletterSignedUpAt = at;
+    p.newsletterPage = n.page;
+    p.firstSeen = earlierOf(p.firstSeen, at);
+    p.lastActivity = laterOf(p.lastActivity, at);
+  }
+
   // Suppression state (overrides the default `subscribed: true`).
   for (const s of supprRes.results ?? []) {
     if (!s.email) continue;
@@ -411,6 +482,7 @@ export type PeopleFilter = {
   subscription?: 'subscribed' | 'unsubscribed' | null;
   kind?: 'customer' | 'lead' | null;
   pro?: boolean | null;
+  newsletter?: boolean | null;
   query?: string | null;
 };
 
@@ -421,6 +493,7 @@ export function filterPeople(people: Person[], filter: PeopleFilter): Person[] {
   if (filter.kind === 'customer') out = out.filter((p) => p.isCustomer);
   if (filter.kind === 'lead') out = out.filter((p) => !p.isCustomer);
   if (filter.pro) out = out.filter((p) => p.isPro);
+  if (filter.newsletter) out = out.filter((p) => !!p.newsletterSignedUpAt);
   const q = (filter.query ?? '').trim().toLowerCase();
   if (q) {
     out = out.filter(
@@ -437,10 +510,11 @@ export type PeopleSummary = {
   customers: number;
   leads: number;
   pro: number;
+  newsletter: number;
 };
 
 export function summarisePeople(people: Person[]): PeopleSummary {
-  const s: PeopleSummary = { total: 0, subscribed: 0, unsubscribed: 0, customers: 0, leads: 0, pro: 0 };
+  const s: PeopleSummary = { total: 0, subscribed: 0, unsubscribed: 0, customers: 0, leads: 0, pro: 0, newsletter: 0 };
   for (const p of people) {
     s.total += 1;
     if (p.subscribed) s.subscribed += 1;
@@ -448,6 +522,7 @@ export function summarisePeople(people: Person[]): PeopleSummary {
     if (p.isCustomer) s.customers += 1;
     else s.leads += 1;
     if (p.isPro) s.pro += 1;
+    if (p.newsletterSignedUpAt) s.newsletter += 1;
   }
   return s;
 }

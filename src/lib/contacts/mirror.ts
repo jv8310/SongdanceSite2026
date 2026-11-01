@@ -89,36 +89,45 @@ export async function writeContactTags(
       .bind(email, name, timezone, country, source),
   ];
 
-  if (tags.length) {
-    // Additive: INSERT OR IGNORE on the (email, tag) PK, so re-runs and tags the
-    // contact already carries are no-ops. Tag count per order is tiny (≤ ~10),
-    // well under D1's 100-bound-param cap.
-    statements.push(
-      db
-        .prepare(
-          `INSERT OR IGNORE INTO contact_tags (email, tag) VALUES ${tags
-            .map(() => '(?, ?)')
-            .join(', ')}`,
-        )
-        .bind(...tags.flatMap((t) => [email, t])),
-    );
-    // Keep the display column in sync with the normalized tags (source of truth).
-    statements.push(
-      db
-        .prepare(
-          `UPDATE contacts
-              SET tags = (
-                    SELECT group_concat(tag, ', ')
-                      FROM (SELECT tag FROM contact_tags WHERE email = ?1 ORDER BY tag)
-                  ),
-                  updated_at = datetime('now')
-            WHERE email = ?1`,
-        )
-        .bind(email),
-    );
-  }
+  statements.push(...addContactTagStatements(db, email, tags));
 
   await db.batch(statements);
+}
+
+// The additive tag write shared by every writer of the contacts list (the
+// purchase mirror above, the newsletter signup in ./newsletter.ts): add the
+// tags with INSERT OR IGNORE on the (email, tag) PK, so re-runs and tags the
+// contact already carries are no-ops, then resync the denormalized display
+// `tags` column from the normalized table (the source of truth). Expects an
+// already-lowercased email and tags from normalizeContactTags; the contact row
+// must exist (or be created earlier in the same batch). Tag counts are tiny
+// (≤ ~10), well under D1's 100-bound-param cap.
+export function addContactTagStatements(
+  db: D1Database,
+  email: string,
+  tags: string[],
+): D1PreparedStatement[] {
+  if (!tags.length) return [];
+  return [
+    db
+      .prepare(
+        `INSERT OR IGNORE INTO contact_tags (email, tag) VALUES ${tags
+          .map(() => '(?, ?)')
+          .join(', ')}`,
+      )
+      .bind(...tags.flatMap((t) => [email, t])),
+    db
+      .prepare(
+        `UPDATE contacts
+            SET tags = (
+                  SELECT group_concat(tag, ', ')
+                    FROM (SELECT tag FROM contact_tags WHERE email = ?1 ORDER BY tag)
+                ),
+                updated_at = datetime('now')
+          WHERE email = ?1`,
+      )
+      .bind(email),
+  ];
 }
 
 // Re-runnable, trim-correct sync of the buyer-only `in-drip` marker (see

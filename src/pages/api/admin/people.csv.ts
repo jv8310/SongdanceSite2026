@@ -18,6 +18,7 @@ export const GET: APIRoute = async ({ request, locals, url }) => {
     subscription: sub === 'subscribed' || sub === 'unsubscribed' ? sub : null,
     kind: kind === 'customer' || kind === 'lead' ? kind : null,
     pro: url.searchParams.get('pro') === '1' ? true : null,
+    newsletter: url.searchParams.get('newsletter') === '1' ? true : null,
     query: url.searchParams.get('q') ?? '',
   };
 
@@ -29,6 +30,7 @@ export const GET: APIRoute = async ({ request, locals, url }) => {
     'workshops_secured', 'workshops_attended', 'workshops_no_show', 'workshops_unfinished',
     'bought_12week', 'bought_certification', 'retreats_bought', 'purchases',
     'emails_total', 'emails_marketing', 'emails_received',
+    'newsletter_signed_up_at', 'newsletter_page',
     'first_seen', 'last_activity',
   ];
   const lines = [headers.join(',')];
@@ -45,6 +47,7 @@ export const GET: APIRoute = async ({ request, locals, url }) => {
         p.bought12w ? 'yes' : 'no', p.boughtCert ? 'yes' : 'no', p.retreatsBought,
         p.purchases.join('; '),
         p.totalEmailsReceived, p.marketingEmailsReceived, emailsList,
+        p.newsletterSignedUpAt, p.newsletterPage,
         p.firstSeen, p.lastActivity,
       ]
         .map(csvField)

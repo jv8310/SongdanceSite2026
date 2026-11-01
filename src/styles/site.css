@@ -664,6 +664,23 @@ body:has([data-sd-promo]) .jr-nav {
   transition: background var(--d-base) var(--ease);
 }
 .sd-news-form button:hover { background: var(--plum); }
+.sd-news-form button:disabled { opacity: 0.6; cursor: progress; }
+/* `display: flex` above outranks the browser's own [hidden] rule, so the form
+   stayed on screen under its thank-you. */
+.sd-news-form[hidden] { display: none; }
+/* On a phone, name / email / button side by side left each field ~70px wide:
+   stack them in one rounded box instead. */
+@media (max-width: 560px) {
+  .sd-news-form { flex-direction: column; border-radius: var(--r-lg); }
+  .sd-news-form input + input { border-top: 1px solid var(--line); }
+  .sd-news-form button { padding: 14px 22px; justify-content: center; }
+}
+/* Honeypot: off screen for people, still in the form for bots. */
+.sd-news-hp { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+.sd-news-error {
+  font-family: var(--font-body); font-size: 15px;
+  color: var(--ember-deep); margin: var(--sp-4) 0 0;
+}
 .sd-news-thanks {
   font-family: var(--font-lyric); font-style: italic;
   font-size: 22px; color: var(--ink); margin: 0;

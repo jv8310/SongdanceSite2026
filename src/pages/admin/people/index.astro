@@ -24,6 +24,7 @@ const params = Astro.url.searchParams;
 const subParam = params.get('sub');
 const kindParam = params.get('kind');
 const proParam = params.get('pro') === '1';
+const newsParam = params.get('newsletter') === '1';
 const q = params.get('q') ?? '';
 // A whole address typed into search: its page can be opened even when the
 // site knows nothing of it (App access there answers from the member app).
@@ -33,6 +34,7 @@ const filter: PeopleFilter = {
   subscription: subParam === 'subscribed' || subParam === 'unsubscribed' ? subParam : null,
   kind: kindParam === 'customer' || kindParam === 'lead' ? kindParam : null,
   pro: proParam ? true : null,
+  newsletter: newsParam ? true : null,
   query: q,
 };
 
@@ -64,15 +66,17 @@ const flashBanner =
   : null;
 
 // Build a filter URL from explicit values (preserving the search box).
-function href(next: Partial<{ sub: string | null; kind: string | null; pro: boolean; q: string }>): string {
+function href(next: Partial<{ sub: string | null; kind: string | null; pro: boolean; newsletter: boolean; q: string }>): string {
   const sp = new URLSearchParams();
   const sub = next.sub === undefined ? filter.subscription : next.sub;
   const kind = next.kind === undefined ? filter.kind : next.kind;
   const pro = next.pro === undefined ? !!filter.pro : next.pro;
+  const newsletter = next.newsletter === undefined ? !!filter.newsletter : next.newsletter;
   const query = next.q === undefined ? q : next.q;
   if (sub) sp.set('sub', sub);
   if (kind) sp.set('kind', kind);
   if (pro) sp.set('pro', '1');
+  if (newsletter) sp.set('newsletter', '1');
   if (query) sp.set('q', query);
   const s = sp.toString();
   return '/admin/people' + (s ? `?${s}` : '');
@@ -83,6 +87,7 @@ const csvHref = (() => {
   if (filter.subscription) sp.set('sub', filter.subscription);
   if (filter.kind) sp.set('kind', filter.kind);
   if (filter.pro) sp.set('pro', '1');
+  if (filter.newsletter) sp.set('newsletter', '1');
   if (q) sp.set('q', q);
   const s = sp.toString();
   return '/api/admin/people.csv' + (s ? `?${s}` : '');
@@ -136,13 +141,16 @@ function fmtDate(s: string | null): string {
         <div class="ord-stat"><span>Customers</span><strong>{summary.customers}</strong></div>
         <div class="ord-stat"><span>Leads</span><strong>{summary.leads}</strong></div>
         <div class="ord-stat"><span>Practitioners</span><strong>{summary.pro}</strong></div>
+        <div class="ord-stat"><span>Newsletter signups</span><strong>{summary.newsletter}</strong></div>
       </div>
       <p class="adm-table-note">
         &ldquo;Subscribed&rdquo; means the address is not on the marketing
         unsubscribe list. Transactional email (confirmations, reminders) always
         sends regardless. &ldquo;Customer&rdquo; = secured a workshop seat or
         bought a course/retreat; everyone else is a lead (form or unfinished
-        checkout). This page surfaces everyone who has engaged <em>plus</em>
+        checkout). &ldquo;Newsletter signups&rdquo; signed up through the
+        &ldquo;Stay in touch&rdquo; form at the foot of the site. This page
+        surfaces everyone who has engaged <em>plus</em>
         everyone on the unsubscribe list — not your full contact list — so a big
         imported suppression set makes the unsubscribed share look larger here
         than across your whole audience.
@@ -160,11 +168,13 @@ function fmtDate(s: string | null): string {
         <a href={href({ kind: 'customer' })} class={filter.kind === 'customer' ? 'is-on' : ''}>customers</a>
         <a href={href({ kind: 'lead' })} class={filter.kind === 'lead' ? 'is-on' : ''}>leads</a>
         <a href={href({ pro: !filter.pro })} class={`ppl-toggle ${filter.pro ? 'is-on' : ''}`}>practitioners</a>
+        <a href={href({ newsletter: !filter.newsletter })} class={`ppl-toggle ${filter.newsletter ? 'is-on' : ''}`}>newsletter signups</a>
       </span>
       <form method="GET" action="/admin/people" class="ord-search">
         {filter.subscription && <input type="hidden" name="sub" value={filter.subscription} />}
         {filter.kind && <input type="hidden" name="kind" value={filter.kind} />}
         {filter.pro && <input type="hidden" name="pro" value="1" />}
+        {filter.newsletter && <input type="hidden" name="newsletter" value="1" />}
         <input type="search" name="q" value={q} placeholder="Search name or email…" />
         <button type="submit" class="adm-btn adm-btn--solid">Search</button>
         {q && <a class="adm-btn adm-btn--ghost" href={href({ q: '' })}>Clear</a>}
@@ -200,6 +210,9 @@ function fmtDate(s: string | null): string {
                 <td>
                   <a href={`mailto:${p.email}`}>{p.email}</a>
                   {p.isPro && <span class="adm-pill adm-pill--pro">pro</span>}
+                  {p.newsletterSignedUpAt && (
+                    <span class="adm-pill adm-pill--news" title={`Signed up for the letter on ${fmtDate(p.newsletterSignedUpAt)}${p.newsletterPage ? ` (on ${p.newsletterPage})` : ''}`}>newsletter</span>
+                  )}
                 </td>
                 <td>{p.name ?? '—'}{p.country ? <span class="ppl-country"> · {p.country}</span> : ''}</td>
                 <td>
@@ -305,6 +318,7 @@ function fmtDate(s: string | null): string {
 
     .adm-pill + .adm-pill { margin-left:6px; }
     .adm-pill--pro { background:#efe3d2; color:var(--adm-ember-deep); margin-left:6px; }
+    .adm-pill--news { background:rgba(47, 122, 76, 0.10); color:var(--adm-success); margin-left:6px; }
     .adm-pill--src-course   { background:#d6e4f0; color:#2a5a8a; }
     .adm-pill--src-retreat  { background:rgba(201, 96, 58, 0.16); color:var(--adm-ember-deep); }
 
