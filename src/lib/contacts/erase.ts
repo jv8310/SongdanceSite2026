@@ -29,7 +29,9 @@
 // writer of the contacts list checks (importContacts, writeContactTags, the
 // newsletter signup, syncAppTags, the admin add, Resubscribe), so it is never
 // mailed or imported again. The event that records the erase carries a sha256
-// of the address, never the address itself.
+// of the address, never the address itself. Erasing an address a second time
+// only clears what came back since (log entries, topic choices, a newsletter
+// signup — leftoverAfterErase counts them for the person page).
 //
 // This module must not import src/lib/broadcasts/db.ts (that file imports
 // erasedAmong from here).
@@ -265,7 +267,31 @@ export type EraseCounts = {
 
 export type EraseResult =
   | { ok: true; counts: EraseCounts; kept: { tags: string[]; fields: string[] }; drip: 'unsubscribed' | 'not-configured' | 'failed' }
+  // Already erased: only what came back since was cleared (see eraseContact).
+  | { ok: true; again: true; events: number; topicOptOuts: number; newsletter: number }
   | { ok: false; error: string };
+
+/**
+ * Rows naming an already-erased address that came back after the erase (log
+ * entries, topic choices, a newsletter signup). Every writer refuses an erased
+ * address, so this is 0 unless one slipped through; the person page offers to
+ * clear them. An error reads as 0.
+ */
+export async function leftoverAfterErase(db: D1Database, email: string): Promise<number> {
+  const e = norm(email);
+  if (!e) return 0;
+  try {
+    const tables = await eraseTables(db);
+    const [events, topics, newsletter] = await Promise.all([
+      count(db.prepare(`SELECT COUNT(*) AS n FROM events WHERE ${EVENTS_WHERE}`).bind(e)),
+      tables.topics ? count(db.prepare('SELECT COUNT(*) AS n FROM email_topic_optouts WHERE email = ?1').bind(e)) : 0,
+      tables.newsletter ? count(db.prepare('SELECT COUNT(*) AS n FROM newsletter_signups WHERE email = ?1').bind(e)) : 0,
+    ]);
+    return events + topics + newsletter;
+  } catch {
+    return 0;
+  }
+}
 
 export async function eraseContact(
   env: { DB: D1Database; DRIP_API_TOKEN?: string; DRIP_ACCOUNT_ID?: string },
@@ -282,7 +308,27 @@ export async function eraseContact(
   } catch (err) {
     return { ok: false, error: `Nothing was erased: the database could not be read (${String(err).slice(0, 200)}).` };
   }
-  if (plan.alreadyErased) return { ok: false, error: 'This address was already erased.' };
+  if (plan.alreadyErased) {
+    // Erased before: clear only what may have come back since (an old writer, a
+    // row that slipped in) and touch nothing else — no contact, no Drip.
+    const again: D1PreparedStatement[] = [db.prepare(`DELETE FROM events WHERE ${EVENTS_WHERE}`).bind(e)];
+    if (plan.tables.topics) again.push(db.prepare('DELETE FROM email_topic_optouts WHERE email = ?1').bind(e));
+    if (plan.tables.newsletter) again.push(db.prepare('DELETE FROM newsletter_signups WHERE email = ?1').bind(e));
+    let res: D1Result[];
+    try {
+      res = await db.batch(again);
+    } catch (err) {
+      return { ok: false, error: `Nothing was removed: ${String((err as Error)?.message ?? err).slice(0, 200)}` };
+    }
+    const n = (i: number) => Number(res[i]?.meta?.changes ?? 0);
+    return {
+      ok: true,
+      again: true,
+      events: n(0),
+      topicOptOuts: plan.tables.topics ? n(1) : 0,
+      newsletter: plan.tables.newsletter ? n(plan.tables.topics ? 2 : 1) : 0,
+    };
+  }
 
   const keepTags = plan.tagsKept;
   const keptCustom = Object.keys(plan.fieldsKept).length ? JSON.stringify(plan.fieldsKept) : null;

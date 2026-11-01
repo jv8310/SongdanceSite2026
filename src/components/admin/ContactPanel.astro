@@ -18,7 +18,7 @@ import {
   timezoneNames,
   withFlash,
 } from '../../lib/contacts/edit';
-import { ERASED_REASON, previewErase, type ErasePlan } from '../../lib/contacts/erase';
+import { ERASED_REASON, leftoverAfterErase, previewErase, type ErasePlan } from '../../lib/contacts/erase';
 import PersonTopics from './PersonTopics.astro';
 import {
   PURCHASE_EVIDENCE_DETAIL,
@@ -43,6 +43,8 @@ const [contact, suppression] = valid
   ? await Promise.all([getContactFull(env.DB, email), getSuppression(env.DB, email)])
   : [null, null];
 const erased = suppression?.reason === ERASED_REASON;
+// Rows naming an erased address that came back after the erase (normally 0).
+const leftover = erased ? await leftoverAfterErase(env.DB, email) : 0;
 
 const flash = Astro.url.searchParams.get('contact_msg');
 const flashErr = Astro.url.searchParams.has('contact_err');
@@ -92,6 +94,18 @@ const tzListId = 'ct-tz-list';
         <p class="ct-note">
           Kept as purchase evidence, {PURCHASE_EVIDENCE_WHY}: {[...evidence.tags, ...evidence.fields].join(', ')}. {PURCHASE_EVIDENCE_DETAIL}
         </p>
+      )}
+      {leftover > 0 && (
+        <form method="POST" action="/api/admin/contacts/erase" class="ct-inline">
+          <input type="hidden" name="email" value={email} />
+          <input type="hidden" name="return_to" value={returnTo} />
+          <input type="hidden" name="confirm" value={`ERASE ${email}`} />
+          <span class="ct-note ct-note--inline">
+            {plural(leftover, 'row naming this address has', 'rows naming this address have')} come back since the
+            erase (log entries, topic choices or a newsletter signup).
+          </span>
+          <button type="submit" class="adm-btn adm-btn--danger">Remove {leftover === 1 ? 'it' : 'them'}</button>
+        </form>
       )}
     </div>
   )}

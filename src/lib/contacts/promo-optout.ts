@@ -9,8 +9,15 @@
 // purpose: it tags an address that is ALREADY a contact and never creates one,
 // and never one that was erased. A tag on an address we don't hold can't cause
 // any mail, so leaving those out loses nothing.
+//
+// An erased address is left entirely alone: no Drip call (Drip would re-create
+// the subscriber the admin was told to delete) and no plain address in the log
+// (erase cannot run twice to clear it). Its event carries a sha256, as the
+// erase's own does. So does the event for an address that is not a contact —
+// the link is unsigned, so anyone can post any address to it.
 
 import { NOPROMO_TAG } from './site-tags';
+import { emailHash, isErased } from './erase';
 import { applyTag } from '../registrations/drip';
 import { logEventSafe } from '../registrations/db';
 
@@ -22,6 +29,15 @@ export async function recordPromoOptOut(
   email: string,
 ): Promise<{ local: boolean; drip: boolean }> {
   const e = email.trim().toLowerCase();
+  if (await isErased(env.DB, e)) {
+    await logEventSafe(env.DB, {
+      registration_id: null,
+      kind: 'contact.promo_optout',
+      source: 'link',
+      payload: { email_sha256: await emailHash(e), erased: true, local: false, drip: false },
+    });
+    return { local: false, drip: false };
+  }
   let local = false;
   try {
     const [ins] = await env.DB.batch([
@@ -57,11 +73,13 @@ export async function recordPromoOptOut(
     }
   }
 
+  // The plain address only for a contact we just tagged (an erase clears that
+  // row with the contact); a hash otherwise.
   await logEventSafe(env.DB, {
     registration_id: null,
     kind: 'contact.promo_optout',
     source: 'link',
-    payload: { email: e, local, drip },
+    payload: local ? { email: e, local, drip } : { email_sha256: await emailHash(e), local, drip },
   });
   return { local, drip };
 }

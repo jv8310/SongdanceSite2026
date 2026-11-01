@@ -916,12 +916,16 @@ All automated workshop email lives in the workshop engine:
   sends honor it; transactional (confirmation/reminders) always deliver.
   Lifecycle mail links to `/unsubscribe` (the global switch, confirm button on
   a POST); broadcasts link to `/email-preferences` (topics or everything, see
-  "Email topics" below). **The one-click POST is answered in
-  `src/worker-entrypoint.ts`, before Astro** ([`one-click.ts`](src/lib/email/one-click.ts)):
+  "Email topics" below). **Every one-click POST is answered in
+  `src/worker-entrypoint.ts`, before Astro** (`ONE_CLICK_POSTS`: `/api/unsubscribe`
+  → [`one-click.ts`](src/lib/email/one-click.ts), and the course sequences'
+  `/api/courses/emails/stop` → [`courses/emails/one-click.ts`](src/lib/courses/emails/one-click.ts)):
   Astro's origin check (`security.checkOrigin`, on by default) answers 403 to a
   form-encoded POST without the site's own `Origin`, which is exactly what
   Gmail's one-click is — so until November 2026 the Unsubscribe button in Gmail
-  did nothing. Test it with `curl -X POST -H 'Content-Type:
+  did nothing. **Any new `List-Unsubscribe` target goes in that table.** Test it
+  on the **built** worker (`wrangler dev` on `dist`; `astro dev` doesn't run the
+  origin check, so it hides the bug) with `curl -X POST -H 'Content-Type:
   application/x-www-form-urlencoded' -d 'List-Unsubscribe=One-Click'` and no
   Origin header. With `&topic=` (a broadcast that names one) it leaves that
   topic only; without, everything. A failure on the topic path falls back to the
@@ -1255,7 +1259,9 @@ is the one place to change.
   `ADMIN_SESSION_SECRET`, domain `sd-seqstop:`), which acts on **POST only** (a
   link prefetcher can't stop anyone) and offers "Start them again" from the step
   it stopped at; the `List-Unsubscribe` header points at
-  `/api/courses/emails/stop` (RFC 8058 one-click), which stops the series too.
+  `/api/courses/emails/stop` (RFC 8058 one-click, answered in the worker
+  entrypoint ahead of Astro's origin check — see "Email lifecycle →
+  Unsubscribe"), which stops the series too.
   Neither is an unsubscribe from Songdance, and neither touches the course. A
   series also stops on a **full** refund (`status='refunded'`) or an address in
   `email_suppressions`.
@@ -2850,6 +2856,12 @@ e.g. a Drip export) and one-off `broadcasts` sent to it. Lives in
   topics" below). Its audience then leaves out everyone who left that topic, a
   later opt-out is caught at send time (the row is marked `suppressed`, error
   `topic opt-out`), and the footer says "This came to you as part of “…”.
+  **A broadcast with no topic leaves out everyone who has left every active
+  topic** (same at launch and at send time, `LEFT_EVERY_TOPIC_SQL` in
+  `broadcasts/db.ts`): the choices page tells someone who unticks them all
+  that no newsletters or announcements will come, and a topic-less broadcast —
+  every one made before 0099, and every one the app's tools make — is exactly
+  that. A topic added later brings them back for topic-less sends.
 - **Segment builder** (0100, [`segment-rules.ts`](src/lib/broadcasts/segment-rules.ts),
   `SegmentBuilder.astro` on both compose pages): **Audience: Tags | Rules**.
   Rules are stored as JSON in `broadcasts.audience_rules` and, while set,
@@ -2858,7 +2870,8 @@ e.g. a Drip export) and one-off `broadcasts` sent to it. Lives in
   groups: **tag** (any / none / all of), **custom field** (equals, does not
   equal, contains, empty, not empty, more / less than), **topic** (subscribed /
   left), **country** (ISO codes, matched against the names and spellings the
-  list holds too), **bought** (anything, a course, a workshop or masterclass
+  list holds too — each spelling in every casing as SQLite's `upper()` folds it,
+  which is ASCII only: `België` → `BELGIë`), **bought** (anything, a course, a workshop or masterclass
   seat, a retreat, an album — ever, in the last N days, never, since receiving
   broadcast N, not since), **booked** (a session, a retreat), **email** (received
   / opened / did not open / clicked / did not click broadcast N, or clicked a
@@ -2933,7 +2946,9 @@ model (migration 0099, [`src/lib/email/topics.ts`](src/lib/email/topics.ts)):
   broadcast can exclude it) and Drip `nopromo_June26` best-effort, as before.
   The link is unsigned (`?e=`), so the local write only tags an address that is
   **already a contact** (never creates one, never an erased one), and a
-  cross-site `Origin` is refused.
+  cross-site `Origin` is refused. An **erased** address is left alone entirely
+  (no Drip call — it would re-create the subscriber — and its event carries a
+  sha256, not the address); so is the event for an address that isn't a contact.
 - **Admin**: the **Topics** block on `/admin/people/<email>`
   (`PersonTopics.astro` → `/api/admin/topics`) shows which topics the address
   still gets, with the source and date of each opt-out, and changes them
@@ -2993,6 +3008,10 @@ import. Now ([`src/lib/contacts/edit.ts`](src/lib/contacts/edit.ts),
   `workshop_verification_codes` (they expire), other events, and the member
   app account (its own tool, `delete_member_account`). One `db.batch`, each
   statement only for a table that exists (0096 / 0097 / 0099 probed).
+  **Erasing an address again** only clears what came back since (log entries,
+  topic choices, a newsletter signup) and changes nothing else; the erased
+  panel offers it when `leftoverAfterErase` finds any (normally none: every
+  writer refuses an erased address).
 - **An erased address stays out**: `importContacts` skips it (and counts it),
   the purchase mirror (`writeContactTags`) writes nothing, the newsletter form
   writes nothing, `syncAppTags` drops it in JS before the diff (SQL backstop

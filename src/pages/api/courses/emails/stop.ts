@@ -6,26 +6,16 @@
 // course. A human who GETs the URL is sent to the /courses/emails page.
 
 import type { APIRoute } from 'astro';
-import { verifySequenceToken, SEQUENCE_STOP_PATH } from '../../../../lib/courses/emails/stop-link';
-import { stopEnrolment } from '../../../../lib/courses/emails/sequences';
+import { SEQUENCE_STOP_PATH } from '../../../../lib/courses/emails/stop-link';
+import { handleSequenceOneClick } from '../../../../lib/courses/emails/one-click';
 
 export const prerender = false;
 
-export const POST: APIRoute = async ({ request, url, locals }) => {
-  const env = locals.runtime.env;
-  let token = (url.searchParams.get('t') ?? '').trim();
-  if (!token) {
-    try {
-      const form = await request.formData();
-      token = String(form.get('t') ?? '').trim();
-    } catch {
-      // not form-encoded — fall through to validation
-    }
-  }
-  const id = env.ADMIN_SESSION_SECRET ? await verifySequenceToken(env.ADMIN_SESSION_SECRET, token) : null;
-  if (!id) return new Response('Invalid link.', { status: 400 });
-  await stopEnrolment(env.DB, id, 'one-click').catch(() => false);
-  return new Response('These emails are stopped.', { status: 200 });
+// In production the POST never reaches this file: src/worker-entrypoint.ts
+// answers it first (Astro's origin check would 403 Gmail's Origin-less POST).
+// Both run handleSequenceOneClick, so `astro dev` behaves the same way.
+export const POST: APIRoute = async ({ request, locals }) => {
+  return handleSequenceOneClick(request, locals.runtime.env);
 };
 
 export const GET: APIRoute = async ({ url }) => {

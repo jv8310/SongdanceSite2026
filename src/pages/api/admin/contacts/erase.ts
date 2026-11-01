@@ -51,6 +51,20 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
   const r = await eraseContact(env, email, by);
   if (!r.ok) return to({ erase: '1', contact_msg: r.error, contact_err: '1' }, '#erase');
+  if ('again' in r) {
+    const back: string[] = [];
+    if (r.events) back.push(plural(r.events, 'log entry that named the address', 'log entries that named the address'));
+    if (r.topicOptOuts) back.push(plural(r.topicOptOuts, 'topic choice', 'topic choices'));
+    if (r.newsletter) back.push('a newsletter signup');
+    return to(
+      {
+        contact_msg: back.length
+          ? `Already erased. Removed what had come back since: ${back.join(', ')}.`
+          : 'Already erased, and nothing had come back since.',
+      },
+      '#contact',
+    );
+  }
 
   const c = r.counts;
   const parts: string[] = [];

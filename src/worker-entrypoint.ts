@@ -49,6 +49,8 @@ import { expireLapsedOffers } from './lib/registrations/waitlist';
 import { fxRatesStale, refreshFxRates } from './lib/admin/fx';
 import { runMetaAdSpendSync } from './lib/ads/meta-insights';
 import { handleOneClickUnsubscribe } from './lib/email/one-click';
+import { handleSequenceOneClick } from './lib/courses/emails/one-click';
+import { SEQUENCE_ONE_CLICK_PATH } from './lib/courses/emails/stop-link';
 
 const WORKSHOP_CRON = '*/5 * * * *';
 
@@ -127,6 +129,14 @@ function hostRedirect(request: Request): Response | null {
   url.hostname = CANONICAL_HOST;
   return Response.redirect(url.toString(), 308);
 }
+
+// RFC 8058 one-click targets, by path (no trailing slash). Answered before
+// Astro, whose origin check 403s Gmail's Origin-less form POST; anything a
+// List-Unsubscribe header points at must be listed here.
+const ONE_CLICK_POSTS = new Map<string, (request: Request, env: Env) => Promise<Response>>([
+  ['/api/unsubscribe', handleOneClickUnsubscribe],
+  [SEQUENCE_ONE_CLICK_PATH, handleSequenceOneClick],
+]);
 
 // If the request path is a moved URL (with or without a trailing slash), return
 // a redirect to its new home, preserving any query string. Otherwise null.
@@ -592,14 +602,14 @@ export function createExports(manifest: unknown) {
     if (hostRedir) return hostRedir;
     const redirect = movedRedirect(request as Request);
     if (redirect) return redirect;
-    // RFC 8058 one-click unsubscribe, answered before Astro: its origin check
+    // RFC 8058 one-click targets, answered before Astro: its origin check
     // (security.checkOrigin) 403s a form-encoded POST with no Origin header,
-    // which is exactly what Gmail's one-click POST is (src/lib/email/one-click.ts).
+    // which is exactly what Gmail's one-click POST is. Every URL a
+    // List-Unsubscribe header points at belongs in ONE_CLICK_POSTS.
     if (request.method === 'POST') {
-      const path = new URL(request.url).pathname;
-      if (path === '/api/unsubscribe' || path === '/api/unsubscribe/') {
-        return handleOneClickUnsubscribe(request as Request, env);
-      }
+      const path = new URL(request.url).pathname.replace(/\/+$/, '');
+      const handler = ONE_CLICK_POSTS.get(path);
+      if (handler) return handler(request as Request, env);
     }
     return base.default.fetch(request, env, ctx);
   };

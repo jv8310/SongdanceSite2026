@@ -120,6 +120,16 @@ const COUNTRY_ALIASES: Record<string, string[]> = {
   IT: ['ITALIA'],
 };
 
+// What SQLite's upper() makes of a spelling, in each casing it is likely to
+// be stored in. upper() without ICU folds a–z only, so 'Türkiye' becomes
+// 'TüRKIYE', never 'TÜRKIYE'.
+function sqliteUpper(s: string): string {
+  return s.replace(/[a-z]/g, (ch) => ch.toUpperCase());
+}
+function sqliteUpperForms(s: string): string[] {
+  return [...new Set([sqliteUpper(s), sqliteUpper(s.toLowerCase()), s.toUpperCase()])];
+}
+
 // The workshop lifecycle marketing emails (workshops/cron.ts) — counted, with
 // broadcasts and course sequences, as "a marketing email" for the activity
 // condition. Inlined: they are constants, not reader input.
@@ -500,12 +510,17 @@ function compileCondition(c: Condition, f: SegmentFeatures): Frag {
       return c.op === 'left' ? q`c.email IN (${sub})` : q`c.email NOT IN (${sub})`;
     }
     case 'country': {
+      // D1's upper() folds ASCII letters only ('België' → 'BELGIë'), so the
+      // list carries every spelling the way SQLite folds it: the name as
+      // written, all lower case and all capitals. Stored 'België', 'belgië'
+      // and 'BELGIË' then all land on one of them.
       const names = new Set<string>();
       for (const code of c.countries) {
         names.add(code);
+        const spellings = [...(COUNTRY_ALIASES[code] ?? [])];
         const country = findCountry(code);
-        if (country) names.add(country.name.toUpperCase());
-        for (const a of COUNTRY_ALIASES[code] ?? []) names.add(a);
+        if (country) spellings.push(country.name);
+        for (const s of spellings) for (const v of sqliteUpperForms(s)) names.add(v);
       }
       const col = raw(`upper(trim(COALESCE(c.country, '')))`);
       return c.op === 'not_in'

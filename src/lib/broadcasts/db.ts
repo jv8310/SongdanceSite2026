@@ -457,6 +457,14 @@ export function audienceTags(c: AudienceCriteria): Set<string> {
   return new Set([...splitTags(c.includeTags), ...splitTags(c.excludeTags)]);
 }
 
+// The addresses that have left every active topic (none while no topic is
+// active). Uncorrelated, so SQLite works it out once per statement. A topic
+// added later brings them back for topic-less broadcasts: they have not left it.
+const LEFT_EVERY_TOPIC_SQL = `SELECT o.email FROM email_topic_optouts o
+    JOIN email_topics t ON t.key = o.topic AND t.active = 1
+   GROUP BY o.email
+  HAVING COUNT(DISTINCT o.topic) = (SELECT COUNT(*) FROM email_topics WHERE active = 1)`;
+
 let optoutTableReady = false;
 async function topicOptoutsReady(db: D1Database): Promise<boolean> {
   if (optoutTableReady) return true;
@@ -470,7 +478,8 @@ async function topicOptoutsReady(db: D1Database): Promise<boolean> {
 
 // Build the WHERE additions (and their binds) for a set of audience criteria,
 // against a `contacts c` row. Always excludes the suppression list, and — when
-// the criteria name a topic — everyone who left it. Tag matching goes through
+// the criteria name a topic — everyone who left it; with no topic, everyone who
+// left every topic. Tag matching goes through
 // the normalized contact_tags table, each list bound once as JSON (json_each),
 // so the bound-parameter count never grows with the list; the field filter uses
 // json_extract on the preserved `custom` blob. With segment rules, the rules
@@ -487,9 +496,16 @@ export async function audienceSql(
   const topic = (criteria.topic ?? '').trim();
   // Before migration 0099 there is no opt-out table, and nobody can have left a
   // topic, so leaving the clause out counts the same people.
-  if (topic && (await topicOptoutsReady(db))) {
-    clauses.push(`NOT EXISTS (SELECT 1 FROM email_topic_optouts o WHERE o.email = c.email AND o.topic = ?)`);
-    binds.push(topic);
+  if (await topicOptoutsReady(db)) {
+    if (topic) {
+      clauses.push(`NOT EXISTS (SELECT 1 FROM email_topic_optouts o WHERE o.email = c.email AND o.topic = ?)`);
+      binds.push(topic);
+    } else {
+      // No topic: everyone who has left EVERY topic stays out too. The choices
+      // page tells them "no newsletters or announcements will come", and a
+      // broadcast with no topic is exactly that.
+      clauses.push(`c.email NOT IN (${LEFT_EVERY_TOPIC_SQL})`);
+    }
   }
 
   if (criteria.rulesError) throw new AudienceRulesError(criteria.rulesError);
@@ -1223,8 +1239,9 @@ export async function suppressedEmailsIn(db: D1Database, emails: string[]): Prom
 
 // The chunk's send-time re-check, topic-aware: which of these addresses must
 // not get this broadcast now — globally unsubscribed (marker null, as before)
-// or, when the broadcast names a topic, left that topic since launch (marker
-// 'topic opt-out', written to broadcast_recipients.error). One query; the list
+// or, when the broadcast names a topic, left that topic since launch — or, when
+// it names none, left every topic (marker 'topic opt-out', written to
+// broadcast_recipients.error). One query; the list
 // is bound once as JSON. Before 0099 the topic half is simply left out.
 export async function blockedEmailsIn(
   db: D1Database,
@@ -1235,13 +1252,21 @@ export async function blockedEmailsIn(
   const out = new Map<string, string | null>();
   if (clean.length === 0) return out;
   const list = JSON.stringify(clean);
-  const withTopic = !!topic && (await topicOptoutsReady(db));
+  const topicsReady = await topicOptoutsReady(db);
+  const withTopic = !!topic && topicsReady;
+  // No topic: an address that has left every topic is blocked as a topic
+  // opt-out (the same rule audienceSql applies at launch).
+  const withAllTopics = !topic && topicsReady;
   const r = await db
     .prepare(
       `SELECT email, NULL AS why FROM email_suppressions WHERE email IN (SELECT value FROM json_each(?1))` +
         (withTopic
           ? ` UNION ALL SELECT email, 'topic opt-out' AS why FROM email_topic_optouts
                 WHERE topic = ?2 AND email IN (SELECT value FROM json_each(?1))`
+          : '') +
+        (withAllTopics
+          ? ` UNION ALL SELECT email, 'topic opt-out' AS why FROM (${LEFT_EVERY_TOPIC_SQL})
+                WHERE email IN (SELECT value FROM json_each(?1))`
           : ''),
     )
     .bind(...(withTopic ? [list, topic as string] : [list]))
