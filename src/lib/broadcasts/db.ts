@@ -1557,6 +1557,9 @@ export async function broadcastStats(
       .bind(...(since ? [emailType, since] : [emailType]))
       .first<Omit<BroadcastStats, 'openRate' | 'clickRate'>>();
     if (!r) return ZERO_STATS;
+    // SUM over no rows is NULL (a broadcast launched minutes ago has no tracked
+    // sends yet), and the detail page calls toLocaleString on every figure.
+    for (const k of Object.keys(r) as (keyof typeof r)[]) r[k] = Number(r[k] ?? 0);
     const denom = r.delivered || r.sent || 0;
     return {
       ...r,

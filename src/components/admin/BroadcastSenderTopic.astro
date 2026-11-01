@@ -79,8 +79,8 @@ const isCustom = preset === 'custom';
   .bst-custom { display: flex; gap: 10px; flex-wrap: wrap; }
   .bst-custom[hidden] { display: none; }
   .bst-custom > input { flex: 1 1 180px; }
-  .bst-addr { display: flex; align-items: center; gap: 6px; flex: 1 1 200px; }
-  .bst-addr input { flex: 1; }
+  .bst-addr { display: flex; align-items: center; gap: 6px; flex: 1 1 220px; min-width: 0; }
+  .bst-addr input { flex: 1 1 auto; width: 100%; min-width: 0; }
   .bst-domain { font-size: 14px; color: #4a3848; white-space: nowrap; }
   .bst-reply { display: flex; flex-direction: column; gap: 5px; margin-top: 4px; }
   .bst-hint { font-size: 12.5px; color: #6f5f6d; line-height: 1.6; }
