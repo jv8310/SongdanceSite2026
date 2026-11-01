@@ -24,6 +24,7 @@
 
 import { logEventSafe } from '../registrations/db';
 import { normalizeTimezone } from '../broadcasts/db';
+import { isErased } from './erase';
 
 // The buyer-only marker every purchase mirror stamps onto its contact — see the
 // module header. Deliberately a value Drip would never emit itself, so it can't
@@ -62,6 +63,9 @@ export async function writeContactTags(
 ): Promise<void> {
   const email = input.email.trim().toLowerCase();
   if (!email) return;
+  // An erased address (src/lib/contacts/erase.ts) is never written back onto the
+  // list — not by a purchase, the tag backfill or anything else that mirrors.
+  if (await isErased(db, email)) return;
   // Always stamp the buyer-only `in-drip` marker alongside the order's own tags,
   // so every purchase-mirrored contact is flagged as also-in-Drip (and therefore
   // excludable from broadcasts). normalizeContactTags de-dupes, so re-runs and a

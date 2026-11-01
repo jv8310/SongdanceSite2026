@@ -117,21 +117,33 @@ function customJson(custom: Record<string, unknown> | null | undefined): string 
 
 // ── Contacts ────────────────────────────────────────────────────────────────
 
+// (Imported here rather than at the top so this hunk stays inside importContacts'
+// region of the file; ES imports are hoisted either way.)
+import { erasedAmong } from '../contacts/erase';
+import { SITE_OWNED_TAGS } from '../contacts/site-tags';
+
 // Upsert a batch of contacts plus their normalized tags, suppress anyone
 // imported with status 'unsubscribed' (stored, but never emailed), and act on an
 // email-verifier verdict (bad → suppress; risky → tag). Everything runs in one
 // D1 batch (a transaction). D1 caps bound parameters at 100 per statement, so
 // every multi-row statement is chunked well under that. Returns how many rows
-// were seen, suppressed (unsub + invalid), and tagged risky.
+// were seen, suppressed (unsub + invalid), and tagged risky, and how many rows
+// were skipped because the address was erased (src/lib/contacts/erase.ts): an
+// erased address is never imported again.
 export async function importContacts(
   db: D1Database,
-  rows: ContactRow[],
+  allRows: ContactRow[],
   source = 'import',
-): Promise<{ processed: number; suppressed: number; risky: number }> {
-  if (rows.length === 0) return { processed: 0, suppressed: 0, risky: 0 };
+): Promise<{ processed: number; suppressed: number; risky: number; skippedErased: number }> {
+  if (allRows.length === 0) return { processed: 0, suppressed: 0, risky: 0, skippedErased: 0 };
+  const erased = await erasedAmong(db, allRows.map((r) => r.email.trim().toLowerCase()));
+  const rows = erased.size ? allRows.filter((r) => !erased.has(r.email.trim().toLowerCase())) : allRows;
+  const skippedErased = allRows.length - rows.length;
+  if (rows.length === 0) return { processed: 0, suppressed: 0, risky: 0, skippedErased };
   const ROWS_PER_STMT = 12; // 12 × 7 binds = 84  (≤ 100)
   const TAGS_PER_STMT = 45; // 45 × 2 binds = 90
   const EMAILS_PER_STMT = 90; // DELETE … IN / suppression insert
+  const CLEAR_EMAILS_PER_STMT = 89; // the tag-clearing DELETE: 89 emails + the site-owned tag list = 90
   const statements: D1PreparedStatement[] = [];
 
   const allEmails: string[] = [];
@@ -187,17 +199,19 @@ export async function importContacts(
   // Replace tags ONLY for rows that actually carried a tags value — clear
   // (≤90/stmt) then re-insert (≤45 pairs). A row with no tags column (e.g. a
   // verifier re-import) must NOT wipe a contact's existing targeting tags.
-  for (let i = 0; i < taggedEmails.length; i += EMAILS_PER_STMT) {
-    const slice = taggedEmails.slice(i, i + EMAILS_PER_STMT);
+  const siteOwned = JSON.stringify(SITE_OWNED_TAGS);
+  for (let i = 0; i < taggedEmails.length; i += CLEAR_EMAILS_PER_STMT) {
+    const slice = taggedEmails.slice(i, i + CLEAR_EMAILS_PER_STMT);
     statements.push(
-      // …except the tags the site itself owns: `in-drip` (purchase mirror) and
-      // `newsletter` (the site's signup form) say something a CSV cannot know.
+      // …except the tags the site itself owns (SITE_OWNED_TAGS: the purchase
+      // mirror's `in-drip`, the signup form's `newsletter`, the promo opt-out):
+      // they say something a CSV cannot know.
       db
         .prepare(
           `DELETE FROM contact_tags WHERE email IN (${slice.map(() => '?').join(',')})
-             AND tag NOT IN ('in-drip', 'newsletter')`,
+             AND tag NOT IN (SELECT value FROM json_each(?))`,
         )
-        .bind(...slice),
+        .bind(...slice, siteOwned),
     );
   }
   for (let i = 0; i < tagPairs.length; i += TAGS_PER_STMT) {
@@ -270,6 +284,7 @@ export async function importContacts(
     processed: rows.length,
     suppressed: unsubEmails.length + invalidEmails.length,
     risky: riskyEmails.length,
+    skippedErased,
   };
 }
 

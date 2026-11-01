@@ -218,7 +218,9 @@ function fmtDate(s: string | null): string {
                 <td>
                   {p.subscribed
                     ? <span class="adm-pill adm-pill--paid">subscribed</span>
-                    : <span class="adm-pill adm-pill--cancelled" title={`Unsubscribed ${fmtDate(p.unsubscribedAt)}${p.unsubscribeSource ? ` (${p.unsubscribeSource})` : ''}`}>unsubscribed</span>}
+                    : p.unsubscribeReason === 'erased'
+                      ? <span class="adm-pill adm-pill--cancelled" title={`Erased ${fmtDate(p.unsubscribedAt)}`}>erased</span>
+                      : <span class="adm-pill adm-pill--cancelled" title={`Unsubscribed ${fmtDate(p.unsubscribedAt)}${p.unsubscribeSource ? ` (${p.unsubscribeSource})` : ''}`}>unsubscribed</span>}
                 </td>
                 <td>
                   {p.workshopsSecured > 0
@@ -257,7 +259,7 @@ function fmtDate(s: string | null): string {
                     <a class="adm-btn adm-btn--tiny adm-btn--solid" href={`/admin/people/${encodeURIComponent(p.email)}?return_to=${encodeURIComponent(returnTo)}`}>Details</a>
                     <a class="adm-btn adm-btn--tiny" href={`/api/admin/drip-profile?email=${encodeURIComponent(p.email)}`} target="_blank" rel="noopener">Drip</a>
                     <a class="adm-btn adm-btn--tiny" href={`/admin/orders?q=${encodeURIComponent(p.email)}`}>Orders</a>
-                    {!p.subscribed && (
+                    {!p.subscribed && p.unsubscribeReason !== 'erased' && (
                       <form
                         method="POST"
                         action="/api/admin/resubscribe"

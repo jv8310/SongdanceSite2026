@@ -29,9 +29,15 @@
 // and an admin can Resubscribe it after hearing from them. The caller is told,
 // so it can log it; the visitor is not, since that would say whether an address
 // is on our list.
+//
+// An ERASED address (src/lib/contacts/erase.ts) writes nothing at all: no
+// contact, no tag, no signup row, and the event that records the attempt
+// carries a hash of the address, not the address. The visitor sees the same
+// thank-you as anyone else.
 
 import { logEventSafe } from '../registrations/db';
 import { addContactTagStatements, normalizeContactTags } from './mirror';
+import { emailHash } from './erase';
 
 export const NEWSLETTER_TAG = 'newsletter';
 export const NEWSLETTER_SOURCE = 'newsletter';
@@ -97,10 +103,21 @@ export async function recordNewsletterSignup(
   const before = await db
     .prepare(
       `SELECT EXISTS (SELECT 1 FROM contacts WHERE email = ?1) AS existing,
-              EXISTS (SELECT 1 FROM email_suppressions WHERE email = ?1) AS suppressed`,
+              EXISTS (SELECT 1 FROM email_suppressions WHERE email = ?1) AS suppressed,
+              EXISTS (SELECT 1 FROM email_suppressions WHERE email = ?1 AND reason = 'erased') AS erased`,
     )
     .bind(email)
-    .first<{ existing: number; suppressed: number }>();
+    .first<{ existing: number; suppressed: number; erased: number }>();
+
+  if (before?.erased) {
+    await logEventSafe(db, {
+      registration_id: null,
+      kind: 'newsletter.signup_erased',
+      source: 'web',
+      payload: { email_sha256: await emailHash(email), source, page },
+    });
+    return { email, isNew: false, suppressed: true };
+  }
 
   const tags = normalizeContactTags([NEWSLETTER_TAG, SOURCE_TAGS.get(source) ?? '']);
 

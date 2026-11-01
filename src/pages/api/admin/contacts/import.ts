@@ -61,18 +61,22 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
   let suppressed = 0;
   let risky = 0;
+  let skippedErased = 0;
   try {
     const res = await importContacts(env.DB, valid, (payload.source || 'import').slice(0, 40));
     suppressed = res.suppressed;
     risky = res.risky;
+    // Erased addresses (src/lib/contacts/erase.ts) are never imported again.
+    skippedErased = res.skippedErased;
   } catch (err) {
     return json({ error: `Import failed: ${String(err)}` }, 500);
   }
 
   return json({
     ok: true,
-    processed: valid.length,
+    processed: valid.length - skippedErased,
     skipped,
+    skippedErased,
     suppressed,
     risky,
     total: await countContacts(env.DB),

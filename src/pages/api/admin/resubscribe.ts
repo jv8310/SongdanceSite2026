@@ -7,6 +7,7 @@
 import type { APIRoute } from 'astro';
 import { readCookie, verifySession } from '../../../lib/registrations/auth';
 import { resubscribeEmail } from '../../../lib/email/unsubscribe';
+import { isErased } from '../../../lib/contacts/erase';
 
 export const prerender = false;
 
@@ -26,6 +27,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
   if (!EMAIL_RE.test(email)) {
     return redirect(safeReturn, { flash: 'resub_error', msg: 'Invalid email address.' });
+  }
+
+  // An erased address stays suppressed for good (src/lib/contacts/erase.ts).
+  if (await isErased(env.DB, email)) {
+    return redirect(safeReturn, { flash: 'resub_error', msg: "This address was erased. It can't be resubscribed from here." });
   }
 
   try {

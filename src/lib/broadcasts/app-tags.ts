@@ -22,6 +22,10 @@
 //     Steady state writes nothing: the change is worked out first.
 //   • An answer with nobody in it changes nothing (an app that answers empty is
 //     more likely broken than empty).
+//   • An erased address (src/lib/contacts/erase.ts) is left out of the answer
+//     before the change is worked out, so it never becomes a contact again and
+//     never gets an `app:` tag (and steady state still writes nothing). The two
+//     INSERTs carry the same rule in SQL as a backstop.
 //
 // When: on the hourly cron, and just before a broadcast that names an `app:`
 // tag is launched or its segments are refreshed (segment-refresh.ts). A failed
@@ -32,6 +36,7 @@ import { askApp, type AppBroadcastMember } from '../admin/app-access';
 import { getConfig, setConfig } from '../workshops/db';
 import { logEventSafe } from '../registrations/db';
 import { normalizeTimezone } from './db';
+import { erasedAmong } from '../contacts/erase';
 
 export const APP_TAG_PREFIX = 'app:';
 export const APP_MEMBER_TAG = 'app:member';
@@ -118,6 +123,8 @@ export async function syncAppTags(env: { DB: D1Database; APP_ADMIN?: unknown }):
 
   try {
     const db = env.DB;
+    for (const email of await erasedAmong(db, [...want.keys()])) want.delete(email);
+    if (want.size === 0) return fail('empty', 'The app answered with nobody who may be on the list; the app: tags were left as they were.');
     const current = (
       await db.prepare(`SELECT email, tag FROM contact_tags WHERE tag LIKE 'app:%'`).all<{ email: string; tag: string }>()
     ).results ?? [];
@@ -151,7 +158,9 @@ export async function syncAppTags(env: { DB: D1Database; APP_ADMIN?: unknown }):
           .prepare(
             `INSERT INTO contacts (email, name, timezone, source)
                SELECT json_extract(value, '$.e'), json_extract(value, '$.n'), json_extract(value, '$.z'), 'app'
-                 FROM json_each(?1) WHERE 1
+                 FROM json_each(?1)
+                WHERE NOT EXISTS (SELECT 1 FROM email_suppressions s
+                                   WHERE s.email = json_extract(value, '$.e') AND s.reason = 'erased')
              ON CONFLICT(email) DO UPDATE SET
                name = COALESCE(contacts.name, excluded.name),
                timezone = COALESCE(contacts.timezone, excluded.timezone),
@@ -178,7 +187,9 @@ export async function syncAppTags(env: { DB: D1Database; APP_ADMIN?: unknown }):
         db
           .prepare(
             `INSERT OR IGNORE INTO contact_tags (email, tag)
-               SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]') FROM json_each(?1)`,
+               SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]') FROM json_each(?1)
+                WHERE NOT EXISTS (SELECT 1 FROM email_suppressions s
+                                   WHERE s.email = json_extract(value, '$[0]') AND s.reason = 'erased')`,
           )
           .bind(JSON.stringify(part)),
       );
