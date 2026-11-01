@@ -1,10 +1,10 @@
-// POST { id, action: 'launch' | 'pause' | 'resume' } → drive a broadcast's
+// POST { id, action: 'launch' | 'pause' | 'resume' | … } → drive a broadcast's
 // lifecycle. Launch snapshots the current sendable contacts into the queue and
 // flips it to 'sending'; the 5-minute cron does the actual paced delivery.
 // Pause/resume let the owner stop and restart a drip by hand. Admin-gated.
 
 import type { APIRoute } from 'astro';
-import { readCookie, verifySession } from '../../../../lib/registrations/auth';
+import { getSessionEmail, readCookie, verifySession } from '../../../../lib/registrations/auth';
 import {
   broadcastCriteria,
   countAudienceChecked,
@@ -20,6 +20,7 @@ import {
   setBroadcastUrgent,
 } from '../../../../lib/broadcasts/db';
 import { AudienceRulesError } from '../../../../lib/broadcasts/segment-rules';
+import { createResendDraft } from '../../../../lib/broadcasts/resend-unopened';
 
 export const prerender = false;
 
@@ -29,14 +30,16 @@ export const POST: APIRoute = async ({ request, locals }) => {
     return json({ error: 'Unauthorized' }, 401);
   }
 
-  let payload: { id?: number; action?: string; stop_at?: string; scheduled_at?: string };
+  let payload: {
+    id?: number;
+    action?: string;
+    stop_at?: string;
+    scheduled_at?: string;
+    subject?: string;
+    exclude_buyers?: boolean;
+  };
   try {
-    payload = (await request.json()) as {
-      id?: number;
-      action?: string;
-      stop_at?: string;
-      scheduled_at?: string;
-    };
+    payload = (await request.json()) as typeof payload;
   } catch {
     return json({ error: 'Invalid request.' }, 400);
   }
@@ -67,6 +70,19 @@ export const POST: APIRoute = async ({ request, locals }) => {
       const newId = await duplicateBroadcast(env.DB, id);
       if (!newId) return json({ error: 'Could not duplicate.' }, 500);
       return json({ ok: true, id: newId });
+    }
+    case 'resend_unopened': {
+      // A new draft for everyone who received this one and neither opened nor
+      // clicked it (resend-unopened.ts). Refused while the source is still
+      // sending; the client redirects to the new draft.
+      const by = (await getSessionEmail(env.ADMIN_SESSION_SECRET, readCookie(request))) ?? 'admin';
+      const r = await createResendDraft(env.DB, id, {
+        subject: typeof payload.subject === 'string' ? payload.subject : null,
+        excludeBuyers: payload.exclude_buyers === true,
+        by,
+      });
+      if (!r.ok) return json({ error: r.error }, 409);
+      return json({ ok: true, id: r.id, count: r.count, ...(r.warning ? { warning: r.warning } : {}) });
     }
     case 'pause': {
       await pauseBroadcast(env.DB, id, 'Paused by admin.');

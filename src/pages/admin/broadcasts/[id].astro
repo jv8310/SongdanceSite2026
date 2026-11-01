@@ -22,6 +22,7 @@ import {
 } from '../../../lib/broadcasts/db';
 import { describeSegment } from '../../../lib/broadcasts/segment-rules';
 import { loadSegmentOptions, segmentNames } from '../../../lib/broadcasts/segment-catalog';
+import { resendReadiness, resendsOf } from '../../../lib/broadcasts/resend-unopened';
 import SegmentBuilder from '../../../components/admin/SegmentBuilder.astro';
 import { previewBroadcast } from '../../../lib/broadcasts/email';
 import { getTopic, listTopics, topicsReady } from '../../../lib/email/topics';
@@ -75,6 +76,11 @@ const usesRefreshableSegment =
   audienceTags.includes('in-drip') ||
   audienceTags.some((t) => t.startsWith('app:'));
 const preview = previewBroadcast(b, env.PUBLIC_BASE_URL, topic?.name ?? null);
+// Resend to non-openers (0100): where this one stands, the resends already
+// made from it, and — on a resend draft — the broadcast it follows.
+const resend = isDraft ? null : await resendReadiness(env.DB, b);
+const resends = isDraft ? [] : await resendsOf(env.DB, b.id);
+const resendSource = b.resend_of ? await getBroadcast(env.DB, b.resend_of) : null;
 const dripHtml = dripHtmlForBroadcast(b);
 // A human label for an armed auto-stop, formatted in the business timezone so
 // "midnight Brussels" reads plainly regardless of where the admin is sitting.
@@ -189,6 +195,12 @@ const statusLabel: Record<string, string> = {
     {(b.status === 'paused' || b.status === 'draft') && b.paused_reason && (
       <div class="adm-flash adm-flash--warn">{b.paused_reason}</div>
     )}
+    {b.resend_of && (
+      <p class="bc-resend-of">
+        Resend of {resendSource ? <a href={`/admin/broadcasts/${b.resend_of}`}>“{resendSource.name}”</a> : 'a broadcast'} (#{b.resend_of}),
+        to those who didn't open or click it.
+      </p>
+    )}
     {audienceError && b.status !== 'done' && (
       <div class="adm-flash adm-flash--err">{audienceError} Launching is off until the audience can be counted — fix the rules below, or switch the audience back to Tags.</div>
     )}
@@ -280,6 +292,42 @@ const statusLabel: Record<string, string> = {
             </details>
           )}
 
+          {resend && (
+            <details class="bc-resend">
+              <summary><strong>Resend to non-openers…</strong>{resends.length > 0 && <span class="bc-muted"> · {resends.length} already made</span>}</summary>
+              {resends.length > 0 && (
+                <p class="bc-note">
+                  Already made:{' '}
+                  {resends.map((r, i) => (
+                    <>{i > 0 && ', '}<a href={`/admin/broadcasts/${r.id}`}>#{r.id}</a> ({r.status})</>
+                  ))}
+                </p>
+              )}
+              <p class="bc-note">
+                Makes a new draft with the same email, sender and topic, for everyone who received this one and
+                neither opened nor clicked it. Unsubscribes and topic opt-outs are left out as always. Opens are
+                approximate: some mail apps open every message by themselves (Apple Mail), so a few people who never
+                saw it won't be in the resend.
+              </p>
+              {resend.allowed ? (
+                resend.lastSentAgo && (
+                  <p class="bc-note">
+                    The last email went out {resend.lastSentAgo}.
+                    {resend.hoursSinceLast != null && resend.hoursSinceLast < 24 && ' Opens keep arriving for a day or two, so waiting a little gives a truer list of non-openers.'}
+                  </p>
+                )
+              ) : (
+                <p class="bc-resend-why">{resend.reason}{resend.lastSentAgo && ` The last email went out ${resend.lastSentAgo}.`}</p>
+              )}
+              <label class="bc-field"><span>Subject line for the resend</span><input id="bc-resend-subject" value={b.subject} disabled={!resend.allowed} /></label>
+              <label class="bc-resend-check"><input type="checkbox" id="bc-resend-buyers" disabled={!resend.allowed} /> Leave out anyone who bought something after receiving this one</label>
+              <div class="bc-actions">
+                <button id="bc-resend-btn" class="adm-btn" type="button" data-id={b.id} disabled={!resend.allowed}>Create the draft →</button>
+                <span id="bc-resend-msg" class="bc-msg"></span>
+              </div>
+            </details>
+          )}
+
           {showPacing && (
             <div class={`bc-pace${b.urgent ? ' bc-pace--urgent' : ''}`}>
               <strong>Pacing — who's eligible right now</strong>
@@ -319,7 +367,7 @@ const statusLabel: Record<string, string> = {
               </table>
               {!b.urgent && (
                 <p class="bc-note">
-                  Throughput tops out at ~350/tick, but only across the eligible slice — so when most of the queue is
+                  Throughput tops out at ~3,000/tick, but only across the eligible slice — so when most of the queue is
                   asleep it paces slowly by design (nothing is failing). To push the whole list out now regardless of
                   local hour — e.g. for a same-day deadline — hit <strong>⚡ Send now</strong> above (or widen the send
                   window toward 0:00–24:00 below); it takes effect on the next tick.
@@ -607,6 +655,16 @@ const statusLabel: Record<string, string> = {
     .bc-pace-tz td.zero { color: #b7a9b4; }
     .bc-pace-tz tr.out td:first-child { color: #6f5f6d; }
     .bc-muted { color: #b6a8b4; }
+    .bc-resend { border: 1px solid rgba(161,72,38,0.22); border-radius: 10px; padding: 12px 16px; margin: 0 0 16px; display: block; }
+    .bc-resend summary { cursor: pointer; font-size: 13.5px; color: #4a3848; }
+    .bc-resend[open] summary { margin-bottom: 10px; }
+    .bc-resend .bc-field { margin: 0 0 10px; max-width: 560px; }
+    .bc-resend .bc-note a { color: #a14826; }
+    .bc-resend-check { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; color: #4a3848; margin: 0 0 12px; line-height: 1.5; }
+    .bc-resend-check input { margin-top: 3px; }
+    .bc-resend-why { font-size: 13px; color: #a14826; background: #f9efe2; border: 1px solid rgba(161,72,38,0.22); border-radius: 8px; padding: 8px 12px; margin: 0 0 12px; line-height: 1.6; max-width: 74ch; }
+    .bc-resend-of { font-size: 13px; color: #335; background: #eef2f8; border: 1px solid rgba(51,51,85,0.18); border-radius: 8px; padding: 8px 12px; margin: 0 0 16px; line-height: 1.6; }
+    .bc-resend-of a { color: #a14826; }
     .bc-from { margin: 0 0 8px; font-size: 12.5px; color: #4a3848; word-break: break-word; }
     .bc-from.is-error { color: #a14826; }
     .bc-audience { border: 1px solid rgba(161,72,38,0.22); border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; margin: 0; min-width: 0; }
@@ -850,6 +908,28 @@ const statusLabel: Record<string, string> = {
         } catch (err) { m.textContent = 'Failed: ' + (err.message || err); }
       });
     });
+
+    // Resend to non-openers: make the draft, then open it.
+    (function () {
+      const btn = document.getElementById('bc-resend-btn');
+      if (!btn) return;
+      btn.addEventListener('click', async () => {
+        const msg = document.getElementById('bc-resend-msg');
+        const subject = document.getElementById('bc-resend-subject').value.trim();
+        const excludeBuyers = document.getElementById('bc-resend-buyers').checked;
+        btn.disabled = true;
+        msg.textContent = 'Making the draft…';
+        try {
+          const res = await fetch('/api/admin/broadcasts/control', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: Number(btn.dataset.id), action: 'resend_unopened', subject, exclude_buyers: excludeBuyers }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Failed');
+          window.location.href = '/admin/broadcasts/' + data.id;
+        } catch (err) { msg.textContent = 'Failed: ' + (err.message || err); btn.disabled = false; }
+      });
+    })();
 
     // Remove queued contacts carrying given tags (e.g. Drip "undeliverable").
     (function () {

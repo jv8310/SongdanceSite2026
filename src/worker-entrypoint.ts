@@ -198,7 +198,17 @@ export class AppBridge extends WorkerEntrypoint<Env> {
     return broadcastTagsForApp(this.env, input);
   }
 
-  broadcastAudience(input: { includeTags?: string[] | string; excludeTags?: string[] | string; field?: string; fieldValue?: string; refresh?: boolean }) {
+  // `rules` (segment rules, an object or its JSON) counts by rules instead of
+  // the tags; `topic` leaves out everyone who left that topic. Both optional.
+  broadcastAudience(input: {
+    includeTags?: string[] | string;
+    excludeTags?: string[] | string;
+    field?: string;
+    fieldValue?: string;
+    refresh?: boolean;
+    rules?: unknown;
+    topic?: string | null;
+  }) {
     return broadcastAudienceForApp(this.env, input);
   }
 

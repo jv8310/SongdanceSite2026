@@ -141,6 +141,25 @@ of the person, since the app may still know them.
     any other figure sends nothing and the answer names the right one, and an audience naming
     `app:` tags is refused when the app does not answer. `holdBroadcast` pauses or
     unschedules, no confirmation. Logged as `app.broadcast.*` with the connection as `actor`.
+    **Sender, topic and segment rules** (November 2026, see "Broadcasts" below) ride along as
+    optional fields: `saveBroadcast` takes `fromName` / `fromLocal` / `replyTo` (merged over
+    what the broadcast has, checked by the compose page's own `resolveSenderInput`; both name
+    and address null = the default sender), `topic` (a key `broadcastTags` now lists, null =
+    none) and `rules` (segment rules as an object or JSON, parsed and dry-compiled; null =
+    back to the tags; at most 20,000 characters as JSON); `broadcastAudience` takes `rules`
+    and `topic`. A call with only the old fields writes none of them (the extras go through
+    `saveBroadcastExtras` only for a field that was given). **The last audience written wins**:
+    tags given without `rules` on a rules broadcast clear its rules. Asking for one the
+    database can't hold yet answers `needs-migration` **before anything is written**; a bad
+    value answers `bad-sender` / `bad-topic` (naming the topics there are) / `bad-rules`.
+    Every broadcast the app reads carries `sender` (`from`, `replyTo`, `custom`, `fromName`,
+    `fromLocal`), `topic` (`{ key, name }`), `audience.mode` (`rules` | `tags`) with
+    `audience.rules`, and `resendOf`; one broadcast (`broadcast`) also `audience.description`
+    (the rules in words) and `audienceError` when its rules can't be counted. The SEND count
+    is `countAudienceChecked(broadcastCriteria(b))` — the admin pages' own mapping, topic
+    opt-outs included — and rules that can't be counted answer `bad-audience`, never a send to
+    everyone. **The member app's `broadcast_*` MCP tools don't expose these fields yet**: an
+    app release adds them to the tool schemas before Claude can use them from the app.
 
   The app never writes a site table itself, so anything else it should change here goes
   through a method on this entrypoint. **Deploy order: this site first**; the app's binding
@@ -894,6 +913,18 @@ All automated workshop email lives in the workshop engine:
 - **Unsubscribe**: `src/lib/email/unsubscribe.ts`, `/unsubscribe`,
   `/api/unsubscribe` (RFC 8058 one-click), `email_suppressions` table. Marketing
   sends honor it; transactional (confirmation/reminders) always deliver.
+  Lifecycle mail links to `/unsubscribe` (the global switch, confirm button on
+  a POST); broadcasts link to `/email-preferences` (topics or everything, see
+  "Email topics" below). **The one-click POST is answered in
+  `src/worker-entrypoint.ts`, before Astro** ([`one-click.ts`](src/lib/email/one-click.ts)):
+  Astro's origin check (`security.checkOrigin`, on by default) answers 403 to a
+  form-encoded POST without the site's own `Origin`, which is exactly what
+  Gmail's one-click is — so until November 2026 the Unsubscribe button in Gmail
+  did nothing. Test it with `curl -X POST -H 'Content-Type:
+  application/x-www-form-urlencoded' -d 'List-Unsubscribe=One-Click'` and no
+  Origin header. With `&topic=` (a broadcast that names one) it leaves that
+  topic only; without, everything. A failure on the topic path falls back to the
+  full unsubscribe, and an address already suppressed gets no topic row.
 - **Review**: `/admin/emails` previews every email with sample data + test-send.
 - **Engagement stats**: every send is recorded in `email_sends` (keyed on the
   Resend message id) by `sendEmail`'s `track` option; the Resend event webhook
@@ -908,6 +939,24 @@ All automated workshop email lives in the workshop engine:
   confirmations/reminders. To light it up: enable
   open+click tracking on the sending domain in Resend, add the webhook endpoint,
   and set the signing secret. `variant` column is the seed for future A/B tests.
+  **The event time is the payload's top-level `created_at`** (November 2026):
+  `data.created_at` is when the *email* was created, and was read until then, so
+  `delivered_at` / `first_opened_at` / `first_clicked_at` all carried roughly the
+  send time. **Clicks per link** (migration 0097,
+  [`link-clicks.ts`](src/lib/email/link-clicks.ts)): `email.clicked` also writes
+  a row to `email_link_clicks` (the click's own `data.click.timestamp`, the link,
+  the user agent — never the IP) — **for broadcasts only** (`email_type GLOB
+  'broadcast_*'`), because transactional links carry live credentials (a
+  waiting-list `?claim=`, an intake `&inv=`, a music stream signature). Even
+  then the URL is normalised to an **allowlist** of query parameters (`utm_*`,
+  `discount`, `adiscount`, `installment`, `months`, `extend`, `friend`, `rc`,
+  `ref`), a path segment carrying an `@` is masked, and the unsubscribe /
+  preferences links are kept apart (`link_kind`). A click with no user agent, a
+  scanner's user agent, or within 10 s of the send is stored as `likely_bot`
+  (`bot_reason`), and Svix's message id (`event_id`, unique) makes a retried
+  delivery a no-op for the click count too. The broadcast page lists them per
+  link (`BroadcastLinkClicks.astro`: clicks, people, likely bots; only http(s)
+  URLs become links). Before 0097 it says so and nothing is recorded.
 - **Timezone-aware sending**: non-urgent mail (early reminders 7d/2d/1d + all
   lifecycle marketing) is held to the recipient's local 08:00–21:00 window
   (`withinSendWindow` in `src/lib/workshops/time.ts`, keyed on the registrant's
@@ -2602,7 +2651,10 @@ through [`src/lib/contacts/newsletter.ts`](src/lib/contacts/newsletter.ts)
 - **A signup never lifts an unsubscribe** — anyone can type any address. The
   contact is recorded and shows on People as unsubscribed with the signup date;
   an admin resubscribes after hearing from them. The visitor sees the same
-  thank-you either way. No double opt-in and no welcome email yet.
+  thank-you either way. No double opt-in and no welcome email yet. An
+  **erased** address (see "Contacts" below) writes nothing at all — no contact,
+  tag or signup row — and its event (`newsletter.signup_erased`) carries a
+  sha256 of the address, not the address.
 - **People shows them**: `listPeople` reads `newsletter_signups` (not the whole
   contacts list, and not the Drip-era `newsletter` tags from the CSV import;
   nothing before migration 0096 is applied) — a pill on the list, a
@@ -2652,8 +2704,12 @@ e.g. a Drip export) and one-off `broadcasts` sent to it. Lives in
   tags, and one custom-field equals filter (e.g. `Nederlands = No`). The compose
   page lists all your tags with counts — searchable, click to add — and shows a
   live "X contacts match" estimate (`/api/admin/broadcasts/audience`); the launch
-  snapshot applies the same `audienceWhere` criteria. Blank = the whole sendable
-  list. (Tag fields are free text too — any tag works, listed or not.)
+  snapshot applies the same criteria. Blank = the whole sendable list. (Tag
+  fields are free text too — any tag works, listed or not.) **One mapping from a
+  broadcast to its audience**: `broadcastCriteria(b)` → `audienceSql` (both in
+  `db.ts`) — the compose count, the detail page, the launch snapshot and the
+  app's SEND confirmation all go through it, so they can't count different
+  people. Or write the audience as **rules** (the segment builder, below).
   - **Everyone in the app** (`app:` tags, October 2026,
     [`src/lib/broadcasts/app-tags.ts`](src/lib/broadcasts/app-tags.ts)): the site asks the
     member app (`APP_ADMIN` → `broadcastMembers`, the app's `lib/broadcast-tags.ts`, where the
@@ -2694,7 +2750,7 @@ e.g. a Drip export) and one-off `broadcasts` sent to it. Lives in
   the words. Test-send before launch.
 - **Send window is per-broadcast** (`window_start_hour`/`window_end_hour`,
   default 08:00–21:00 local). Widen it to push faster — but the real throughput
-  lever is `MAX_PER_RUN` in `cron.ts` (currently **1000**/tick ≈ up to ~288k/day).
+  lever is `MAX_PER_RUN` in `cron.ts` (currently **3000**/tick ≈ up to ~860k/day).
   The drain sends in **`BATCH_SIZE`=90 chunks through Resend's batch endpoint**
   (`sendEmailBatch`, `POST /emails/batch` — one HTTP request per chunk, not one
   per recipient), with a short `BATCH_GAP_MS`=600 pause between chunks to stay
@@ -2753,14 +2809,195 @@ e.g. a Drip export) and one-off `broadcasts` sent to it. Lives in
   Per-broadcast stats show on its detail page; the rollup shows on
   `/admin/emails/stats` under "Broadcasts" (`emailTypeMeta` knows the prefix).
 - **Compliance**: every send honours `email_suppressions` (re-checked at send
-  time), carries the RFC 8058 one-click `List-Unsubscribe` header, and a footer
-  unsubscribe link — same plumbing as lifecycle marketing. The physical postal
+  time, with the topic opt-outs: `blockedEmailsIn`), carries the RFC 8058
+  one-click `List-Unsubscribe` header (`&topic=` when the broadcast names one),
+  and a footer link to `/email-preferences` ("Change what you get or
+  unsubscribe"; `{{unsubscribe_url}}` and its alias `{{preferences_url}}` in
+  pasted HTML — the Drip copy maps both to Drip's own `{{ unsubscribe_url }}`).
+  The physical postal
   address (`MAILING_ADDRESS` in `emails.ts`) is in the shell footer (simple) and
   auto-appended to pasted HTML (`ensureAddress`, idempotent).
 - **Editable until done**: a broadcast can be edited while `sending`/`paused`
   (not just `draft`) — the cron re-renders each batch from the row, so content
   edits reach recipients not yet sent. Stats label broadcasts by their real name
   (`/admin/emails/stats` looks the name up from the id).
+- **Preview safety for the November 2026 columns**: the sender (0098), topic
+  (0099) and rules / `resend_of` (0100) columns are **never** named in
+  `createBroadcast` / `updateBroadcast` (a preview runs on the live D1 before
+  its migration is applied, and one unknown column fails the whole statement).
+  They are written by `saveBroadcastExtras`, one guarded `UPDATE` per group
+  (sender / topic / rules), probed by `broadcastColumnsReady`; a group that
+  isn't there is skipped and the save answers with a warning naming the
+  migration, and each control it concerns is disabled with "Needs migration
+  NNNN (applied when merged)". `Duplicate` copies them (not `resend_of`).
+- **Sender per broadcast** (0098, [`sender.ts`](src/lib/broadcasts/sender.ts)):
+  `from_name` + `from_local` (the part before the @) + `reply_to`, NULL = the
+  default (`MARKETING_FROM`, "Jacob from Songdance" <info@m.songdance.co>,
+  replying to `MARKETING_REPLY_TO`). The **domain is never stored or typed**: it
+  is read from `MARKETING_FROM` (fallback `m.songdance.co`) — never from the
+  code's `MARKETING_FROM_DEFAULT`, which is the *transactional* domain — so a
+  broadcast can only go out from the verified marketing domain. Presets on both
+  compose pages (`BroadcastSenderTopic.astro`): the default, **Jacob van
+  Songdance — info@**, **Lorenz & Carmen — deutsch@**, or "Someone else…" (name:
+  letters, numbers, spaces and `& ' . - !`, ≤ 80; address: `[a-z0-9._-]`). Every
+  preset replies to support@songdance.co unless the broadcast's reply-to says
+  otherwise. A "From … · Reply-to …" line sits above the preview, and the cron,
+  the test send and the app's test all take `broadcastSender(b, env)`; a stored
+  value that no longer validates falls back to the default silently (one bad row
+  must never make Resend reject a whole batch).
+- **Topic** (0099): a broadcast may name one of the email topics (see "Email
+  topics" below). Its audience then leaves out everyone who left that topic, a
+  later opt-out is caught at send time (the row is marked `suppressed`, error
+  `topic opt-out`), and the footer says "This came to you as part of “…”.
+- **Segment builder** (0100, [`segment-rules.ts`](src/lib/broadcasts/segment-rules.ts),
+  `SegmentBuilder.astro` on both compose pages): **Audience: Tags | Rules**.
+  Rules are stored as JSON in `broadcasts.audience_rules` and, while set,
+  **replace** include/exclude/field (those stay on the row, so switching back to
+  Tags restores them). A rule set is all/any of conditions, with one level of
+  groups: **tag** (any / none / all of), **custom field** (equals, does not
+  equal, contains, empty, not empty, more / less than), **topic** (subscribed /
+  left), **country** (ISO codes, matched against the names and spellings the
+  list holds too), **bought** (anything, a course, a workshop or masterclass
+  seat, a retreat, an album — ever, in the last N days, never, since receiving
+  broadcast N, not since), **booked** (a session, a retreat), **email** (received
+  / opened / did not open / clicked / did not click broadcast N, or clicked a
+  link containing … — needs 0097), **activity** (opened or clicked any marketing
+  email in the last N days, or not), **newsletter signup** (0096) and **added to
+  the list** in the last N days. How the SQL is shaped, and why: every list is
+  bound **once as JSON** (`json_each`), so the cap is **20 conditions / 90
+  bound values**, never the length of a list; a condition on another table is an
+  **uncorrelated** `c.email IN (SELECT …)` (a correlated one looked
+  `registrations` up per contact — it has no `lower(email)` index); prefixes use
+  `GLOB` (a `LIKE … ESCAPE '\'` breaks inside a JS template literal); times go
+  through `julianday()`; "did not open / did not click / bought nothing since"
+  hold **only for people who received** broadcast N. Saved segments:
+  `broadcast_segments`, save / load / delete from the builder
+  (`/api/admin/broadcasts/segments`). Only `audience_mode` and the hidden
+  `audience_rules` are posted (the builder's own controls carry no `name`).
+  **Rules that can't be read or compiled never fall back to the whole list**:
+  `broadcastCriteria` returns them as `rulesError`, `audienceSql` throws
+  `AudienceRulesError`, every count and snapshot refuses — the page shows the
+  error with Launch off, launching or scheduling answers 409, and a scheduled
+  launch that meets them is unscheduled with the reason on the draft (logged
+  `broadcast.launch_refused`).
+- **Resend to non-openers** (0100, [`resend-unopened.ts`](src/lib/broadcasts/resend-unopened.ts)):
+  a sent broadcast's page → **Resend to non-openers…** makes a new draft "<name>
+  (resend to unopened)" with the same email, sender, topic and window (an
+  optional new subject), `resend_of` = the source, aimed by rules at everyone
+  who **received it and neither opened nor clicked it** (`resendUnopenedRules`),
+  optionally also **bought nothing since receiving it**. Unsubscribes and the
+  topic opt-out apply as always. **Only once the source has finished** — done,
+  or paused with nothing left in its queue: while it sends, everyone mailed
+  minutes earlier would count as a non-opener. The panel says how long ago the
+  last email went out (opens keep arriving for a day or two), lists the resends
+  already made, and the draft carries "Resend of “…” (#N)". Opens are
+  approximate: Apple Mail opens every message by itself, so a few people who
+  never saw it are not in the resend, and a send with no tracked `email_sends`
+  row counts as unopened. If the rules can't be written the new draft is deleted
+  rather than left aimed at the source's whole audience. `control.ts` action
+  `resend_unopened`, logged `broadcast.resend_created`.
+- **Clicks per link**: the broadcast page's table under the engagement figures,
+  from `email_link_clicks` (see "Email lifecycle → Engagement stats").
+
+## Email topics and the preferences page
+
+The three Drip topics — **Somatic Vocal Healing** (`svh`), **Retreat, Workshops
+& Events** (`events`), **Partner Offerings** (`partners`) — on an **opt-out**
+model (migration 0099, [`src/lib/email/topics.ts`](src/lib/email/topics.ts)):
+`email_topics` holds the list (name, a line for the preferences page, order),
+`email_topic_optouts` one row per address and topic left (source `preferences`
+/ `one_click` / `admin:<email>`); **no row = subscribed**.
+`email_suppressions` stays the global "send nothing" switch.
+
+- **Scope: broadcasts only.** A broadcast names at most one topic (above).
+  Workshop lifecycle marketing and course sequences follow the **global
+  suppression only**, transactional mail ignores both, and opt-outs are **not
+  mirrored to Drip** (Drip's own topics keep their own state).
+- **`/email-preferences?e=…&t=…[&topic=…]`** — where a broadcast's footer link
+  lands, on the same `(e, t)` HMAC token as `/unsubscribe` (so every link
+  already sent keeps working): stop the topic the email came under, tick which
+  topics to keep, or unsubscribe from everything (`email_suppressions` + Drip).
+  **A GET never writes** (link scanners open these); every change is a button's
+  POST. An address already unsubscribed from everything gets no topic rows.
+  Before 0099 only "Unsubscribe from everything" shows. Reader-facing words
+  follow the copy book.
+- **`/unsubscribe`** stays the global switch, linked from lifecycle mail.
+- **One-click with a topic**: a topic broadcast's `List-Unsubscribe` points at
+  `/api/unsubscribe?…&topic=<key>`, which leaves that topic only (handled ahead
+  of Astro, see "Email lifecycle → Unsubscribe"); a GET of it 302s to the
+  preferences page.
+- **The launch-campaign opt-out is local now** (`/unsubscribe-promo`,
+  [`promo-optout.ts`](src/lib/contacts/promo-optout.ts)): it tags the contact
+  `nopromo_june26` (`NOPROMO_TAG` in `contacts/site-tags.ts`, so a site
+  broadcast can exclude it) and Drip `nopromo_June26` best-effort, as before.
+  The link is unsigned (`?e=`), so the local write only tags an address that is
+  **already a contact** (never creates one, never an erased one), and a
+  cross-site `Origin` is refused.
+- **Admin**: the **Topics** block on `/admin/people/<email>`
+  (`PersonTopics.astro` → `/api/admin/topics`) shows which topics the address
+  still gets, with the source and date of each opt-out, and changes them
+  (logged with the admin's address).
+
+## Contacts — edit, add, search, erase
+
+The marketing list (`contacts` + `contact_tags`) used to change only by CSV
+import. Now ([`src/lib/contacts/edit.ts`](src/lib/contacts/edit.ts),
+[`erase.ts`](src/lib/contacts/erase.ts), November 2026):
+
+- **The Contact panel** on `/admin/people/<email>` (`ContactPanel.astro`,
+  replacing the old Tags section) changes the name, timezone and country, adds
+  and removes tags, sets and removes custom fields, and takes the contact off
+  the list — form posts to `/api/admin/contacts/edit` (`action` = `details`,
+  `add_tags`, `remove_tag`, `set_field`, `remove_field`, `delete`), 303 back with
+  a flash. `contact_tags` is the source of truth; `contacts.tags` (display) is
+  resynced after each change. **`app:` tags are read-only** (the member app's
+  hourly sync owns them). Every change is logged as `contact.*` with the admin's
+  address as `by`. A CSV re-import that carries custom columns still replaces
+  the whole `custom` blob, admin edits included.
+- **`/admin/contacts`**: **Find a contact** (`?q=`, address or name, prefix
+  matches first, 25 / 50 / 100 a page; each row opens the person page, which
+  links back to the search) and **Add a contact** by hand (refused for an
+  erased address).
+- **Purchase evidence is kept, always** ([`site-tags.ts`](src/lib/contacts/site-tags.ts),
+  a leaf module with no imports, beside `SITE_OWNED_TAGS` and `NOPROMO_TAG`):
+  for people who bought before the site took payments, tags matching
+  `prod_*`, `prodg_*`, `cert_*`, `ceee*` or `*vsh*` (any case), `in-drip`, and
+  the Drip-synced custom keys `prod_SVH_week`, `prod_SVH_9m_status`,
+  `prod_SVH_start`, `svh_week` (and their aliases) are the **only proof of
+  purchase** — the member app's sync (`sync/site.ts`, `derive.ts`) and the site
+  (`live-pass-plan.ts`, the workshop downsell in `workshops/cron.ts`) read them.
+  So removing one, or changing an evidence field, needs an explicit second
+  confirm (`confirm_evidence=1`) and is logged as such, and **Delete contact
+  refuses** while any are there and says to use Erase, which keeps them. Delete
+  also takes the address out of the pending queue of any broadcast still
+  sending or paused.
+- **Erase** (`/api/admin/contacts/erase`, from the panel; a confirmation page
+  lists exactly what goes and what is **kept — "needed for the courses they
+  bought"**) is the answer to "please delete my data". It deletes the contact's
+  personal fields and every non-evidence tag, the newsletter signup
+  (`newsletter_signups`), their topic choices, their rows in broadcast send
+  queues, their per-link clicks, and the `events` rows whose payload `email` is
+  the address for the kinds this list writes (`contact.*` — including
+  `contact.mirror.error` — `newsletter.*`, `email.preferences.*`). It keeps a
+  minimal contacts row (the address and only the evidence keys; name,
+  timezone, country and every other field nulled; `source` unchanged) **when
+  evidence remains**, else deletes the row. `email_sends` rows are kept but
+  anonymised (`erased@erased.invalid`, subject nulled), so every broadcast's
+  figures stay true. The address goes onto `email_suppressions` with reason
+  **`erased`**; the erase event (`contact.erased`) carries a sha256 of the
+  address, never the address. Drip is unsubscribed best-effort (delete the
+  subscriber in Drip by hand). **Not touched**: orders, registrations,
+  payments and invoices (legal retention), the waiting list, intake forms,
+  `cert_access_legacy`, `contact_tag_backfill` / `drip_order_backfill`,
+  `workshop_verification_codes` (they expire), other events, and the member
+  app account (its own tool, `delete_member_account`). One `db.batch`, each
+  statement only for a table that exists (0096 / 0097 / 0099 probed).
+- **An erased address stays out**: `importContacts` skips it (and counts it),
+  the purchase mirror (`writeContactTags`) writes nothing, the newsletter form
+  writes nothing, `syncAppTags` drops it in JS before the diff (SQL backstop
+  too, so steady state still writes nothing), the admin add refuses, and
+  **Resubscribe refuses** (other suppressions — bounced, complaint — can still
+  be lifted by hand). People shows it with an **erased** pill.
 
 ## Music albums — buyer-only mantra players
 
