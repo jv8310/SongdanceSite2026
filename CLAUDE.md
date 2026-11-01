@@ -155,7 +155,8 @@ of the person, since the app may still know them.
     Every broadcast the app reads carries `sender` (`from`, `replyTo`, `custom`, `fromName`,
     `fromLocal`), `topic` (`{ key, name }`), `audience.mode` (`rules` | `tags`) with
     `audience.rules`, and `resendOf`; one broadcast (`broadcast`) also `audience.description`
-    (the rules in words) and `audienceError` when its rules can't be counted. The SEND count
+    (the rules in words), `audienceError` when its rules can't be counted, and `links`
+    (clicks per link, the broadcast page's table; null on a draft or before 0097). The SEND count
     is `countAudienceChecked(broadcastCriteria(b))` — the admin pages' own mapping, topic
     opt-outs included — and rules that can't be counted answer `bad-audience`, never a send to
     everyone. **The member app's `broadcast_*` MCP tools don't expose these fields yet**: an

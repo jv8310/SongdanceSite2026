@@ -70,6 +70,7 @@ import { broadcastSender, resolveSenderInput } from '../broadcasts/sender';
 import { getTopic, listTopics, topicsByKey, TOPIC_KEY_RE, type EmailTopic } from '../email/topics';
 import { preferencesPageUrl, unsubscribeSecret } from '../email/unsubscribe';
 import { logEventSafe } from '../registrations/db';
+import { broadcastLinkClicks } from '../email/link-clicks';
 
 type BridgeEnv = {
   DB: D1Database;
@@ -185,13 +186,14 @@ function summary(env: BridgeEnv, b: Broadcast, topics: Map<string, EmailTopic>) 
 
 async function detail(env: BridgeEnv, b: Broadcast) {
   const c = broadcastCriteria(b);
-  const [counted, queue, stats, unknown, topics, names] = await Promise.all([
+  const [counted, queue, stats, unknown, topics, names, clicks] = await Promise.all([
     countAudienceChecked(env.DB, c),
     b.status === 'draft' ? Promise.resolve(null) : recipientCounts(env.DB, b.id),
     b.status === 'draft' ? Promise.resolve(null) : broadcastStats(env.DB, broadcastEmailType(b.id)),
     unknownTags(env.DB, c),
     topicsByKey(env.DB),
     c.rules ? segmentNames(env.DB, c.rules) : Promise.resolve(null),
+    b.status === 'draft' ? Promise.resolve(null) : broadcastLinkClicks(env.DB, b.id),
   ]);
   const head = summary(env, b, topics);
   return {
@@ -214,6 +216,9 @@ async function detail(env: BridgeEnv, b: Broadcast) {
     unknownTags: unknown,
     queue,
     stats,
+    // Clicks per link (migration 0097, src/lib/email/link-clicks.ts): null on a
+    // draft or before 0097, else the broadcast page's own table, most-clicked first.
+    links: clicks && clicks.ready ? clicks.rows : null,
   };
 }
 
