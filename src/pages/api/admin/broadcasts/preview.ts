@@ -1,10 +1,15 @@
 // POST { subject, heading, body, format, body_text?, preheader?, hero_image?,
-// cta_label?, cta_href? } → { html, text } rendered exactly as it would send,
-// so the compose page can show a live preview of unsaved edits. Admin-gated.
+// cta_label?, cta_href?, from_preset?, from_name?, from_local?, reply_to?,
+// topic? } → { html, text, from, replyTo, senderError? } rendered exactly as it
+// would send, so the compose page can show a live preview of unsaved edits and
+// the From line above it. A sender or topic that isn't posted (a disabled
+// select) reads as the default / no topic. Admin-gated.
 
 import type { APIRoute } from 'astro';
 import { readCookie, verifySession } from '../../../../lib/registrations/auth';
-import { renderBroadcast } from '../../../../lib/broadcasts/email';
+import { renderBroadcast, samplePreferencesUrl } from '../../../../lib/broadcasts/email';
+import { broadcastSender, resolveSenderInput, type SenderFields } from '../../../../lib/broadcasts/sender';
+import { getTopic } from '../../../../lib/email/topics';
 import type { Broadcast } from '../../../../lib/broadcasts/db';
 
 export const prerender = false;
@@ -21,6 +26,19 @@ export const POST: APIRoute = async ({ request, locals }) => {
   } catch {
     return json({ error: 'Invalid request.' }, 400);
   }
+
+  // The sender as the form has it (validated the way save.ts validates it).
+  let sender: SenderFields = { from_name: null, from_local: null, reply_to: null };
+  let senderError: string | undefined;
+  if ('from_preset' in p) {
+    const r = resolveSenderInput(
+      { preset: p.from_preset, from_name: p.from_name, from_local: p.from_local, reply_to: p.reply_to },
+      env,
+    );
+    if (r.ok) sender = r.fields;
+    else senderError = r.error;
+  }
+  const topic = 'topic' in p && str(p.topic) ? await getTopic(env.DB, str(p.topic)) : null;
 
   // A transient Broadcast shaped from the posted fields (never saved).
   const draft: Broadcast = {
@@ -51,14 +69,18 @@ export const POST: APIRoute = async ({ request, locals }) => {
     created_at: '',
     started_at: null,
     completed_at: null,
+    ...sender,
+    topic: topic?.key ?? null,
   };
 
   const base = env.PUBLIC_BASE_URL.replace(/\/$/, '');
   const content = renderBroadcast(draft, {
     firstName: 'Maria',
-    unsubscribeUrl: `${base}/unsubscribe?e=sample%40example.com&t=preview`,
+    unsubscribeUrl: samplePreferencesUrl(base, topic?.key),
+    topicName: topic?.name ?? null,
   });
-  return json({ html: content.html, text: content.text });
+  const { from, replyTo } = broadcastSender(draft, env);
+  return json({ html: content.html, text: content.text, from, replyTo, ...(senderError ? { senderError } : {}) });
 };
 
 function str(v: unknown): string | null {

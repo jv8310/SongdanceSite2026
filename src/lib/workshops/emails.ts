@@ -87,9 +87,16 @@ export function shell(opts: {
   extras?: ButtonLink[];
   footerNote?: string;
   unsubscribeUrl?: string;
+  // Broadcasts only (src/lib/broadcasts/email.ts): the footer link's words and a
+  // plain-text line before it ("This came to you as part of …"). Lifecycle mail
+  // passes neither and renders exactly as before.
+  unsubscribeLabel?: string;
+  unsubscribeNote?: string;
   address?: string;
 }): string {
   const { preheader, heading, bodyHtml, heroImage, cta, extras, footerNote, unsubscribeUrl, address } = opts;
+  const unsubscribeLabel = opts.unsubscribeLabel || 'No more emails like this — unsubscribe';
+  const unsubscribeNote = opts.unsubscribeNote ? `${escapeHtml(opts.unsubscribeNote)} ` : '';
   return `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en">
 <head>
@@ -122,7 +129,7 @@ export function shell(opts: {
         <tr><td align="center" style="padding:10px 24px 24px;">
           <p style="margin:0;font-family:Georgia,serif;font-size:11px;line-height:1.6;color:${PALETTE.faint};">${escapeHtml(footerNote ?? 'Songdance · songdance.co')}</p>
           ${address ? `<p style="margin:4px 0 0;font-family:Georgia,serif;font-size:11px;line-height:1.6;color:${PALETTE.faint};">${escapeHtml(address)}</p>` : ''}
-          ${unsubscribeUrl ? `<p style="margin:6px 0 0;font-family:Georgia,serif;font-size:11px;line-height:1.6;color:${PALETTE.faint};"><a href="${unsubscribeUrl}" style="color:${PALETTE.faint};text-decoration:underline;">No more emails like this — unsubscribe</a></p>` : ''}
+          ${unsubscribeUrl ? `<p style="margin:6px 0 0;font-family:Georgia,serif;font-size:11px;line-height:1.6;color:${PALETTE.faint};">${unsubscribeNote}<a href="${unsubscribeUrl}" style="color:${PALETTE.faint};text-decoration:underline;">${escapeHtml(unsubscribeLabel)}</a></p>` : ''}
         </td></tr>
       </table>
     </td></tr>

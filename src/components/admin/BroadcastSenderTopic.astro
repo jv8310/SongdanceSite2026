@@ -1,0 +1,99 @@
+---
+// The "From" and "Topic" fields of a broadcast's compose form (both compose
+// pages, inside the form, just after the subject line).
+//
+// - From: a preset (src/lib/broadcasts/sender.ts SENDER_PRESETS) or "Someone
+//   else…" with a name and the part before the @; the domain is fixed to the
+//   marketing domain. Reply-to is editable whichever sender is picked (default
+//   support@songdance.co). Migration 0098.
+// - Topic: one of the email topics (src/lib/email/topics.ts) or none. Someone
+//   who left the topic is left out, and the footer names it. Migration 0099.
+//
+// A field whose migration isn't applied yet is disabled — a disabled control is
+// never posted, which the save endpoint reads as "leave it as it is".
+import { SENDER_PRESETS, presetKeyFor } from '../../lib/broadcasts/sender';
+import type { EmailTopic } from '../../lib/email/topics';
+
+interface Props {
+  fields: { from_name?: string | null; from_local?: string | null; reply_to?: string | null; topic?: string | null };
+  senderReady: boolean;
+  topicReady: boolean;
+  topics: EmailTopic[];
+  domain: string;
+}
+
+const { fields, senderReady, topicReady, topics, domain } = Astro.props;
+const preset = presetKeyFor(fields);
+const isCustom = preset === 'custom';
+---
+
+<div class="bst">
+  <div class="bst-field">
+    <span class="bst-label">From</span>
+    <select name="from_preset" id="bst-preset" disabled={!senderReady}>
+      {SENDER_PRESETS.map((p) => (
+        <option value={p.key} selected={p.key === preset}>{p.label}</option>
+      ))}
+      <option value="custom" selected={isCustom}>Someone else…</option>
+    </select>
+    <div class="bst-custom" id="bst-custom" hidden={!isCustom}>
+      <input name="from_name" placeholder="Sender name" maxlength="80" value={isCustom ? (fields.from_name ?? '') : ''} disabled={!senderReady} aria-label="Sender name" />
+      <span class="bst-addr">
+        <input name="from_local" placeholder="info" maxlength="64" value={isCustom ? (fields.from_local ?? '') : ''} disabled={!senderReady} aria-label="Address before the @" />
+        <span class="bst-domain">@{domain}</span>
+      </span>
+    </div>
+    <label class="bst-reply">
+      <span class="bst-label">Reply-to <em>(optional)</em></span>
+      <input name="reply_to" type="email" placeholder="support@songdance.co" maxlength="254" value={fields.reply_to ?? ''} disabled={!senderReady} />
+    </label>
+    {!senderReady && <p class="adm-empty bst-note">Needs migration 0098 (applied when merged).</p>}
+  </div>
+
+  <label class="bst-field">
+    <span class="bst-label">Topic</span>
+    <select name="topic" id="bst-topic" disabled={!topicReady}>
+      <option value="" selected={!fields.topic}>No topic — the unsubscribe link offers every topic and “unsubscribe from everything”</option>
+      {topics.map((t) => (
+        <option value={t.key} selected={fields.topic === t.key}>{t.name}</option>
+      ))}
+    </select>
+    {topicReady ? (
+      <span class="bst-hint">Someone who left this topic is left out of the audience, and the footer tells the reader which topic this came under.</span>
+    ) : (
+      <p class="adm-empty bst-note">Needs migration 0099 (applied when merged).</p>
+    )}
+  </label>
+</div>
+
+<style>
+  .bst { display: flex; flex-direction: column; gap: 12px; }
+  .bst-field { display: flex; flex-direction: column; gap: 5px; }
+  .bst-label { font-size: 13px; color: #4a3848; }
+  .bst-label em { color: #b6a8b4; font-style: normal; }
+  .bst select, .bst input {
+    font: inherit; font-size: 14px; padding: 9px 11px; border: 1px solid rgba(161,72,38,0.3);
+    border-radius: 8px; background: #fff; color: #2a1b2a; min-width: 0;
+  }
+  .bst select:disabled, .bst input:disabled { background: #f4ecdf; color: #9b8fa0; }
+  .bst-custom { display: flex; gap: 10px; flex-wrap: wrap; }
+  .bst-custom[hidden] { display: none; }
+  .bst-custom > input { flex: 1 1 180px; }
+  .bst-addr { display: flex; align-items: center; gap: 6px; flex: 1 1 200px; }
+  .bst-addr input { flex: 1; }
+  .bst-domain { font-size: 14px; color: #4a3848; white-space: nowrap; }
+  .bst-reply { display: flex; flex-direction: column; gap: 5px; margin-top: 4px; }
+  .bst-hint { font-size: 12.5px; color: #6f5f6d; line-height: 1.6; }
+  .bst-note { margin: 0; font-size: 12.5px; }
+</style>
+
+<script is:inline>
+  (function () {
+    const sel = document.getElementById('bst-preset');
+    const row = document.getElementById('bst-custom');
+    if (!sel || !row) return;
+    const sync = () => { row.hidden = sel.value !== 'custom'; };
+    sel.addEventListener('change', sync);
+    sync();
+  })();
+</script>

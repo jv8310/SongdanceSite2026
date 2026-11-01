@@ -1,19 +1,17 @@
 ---
 // Promo-launch opt-out confirm page. Linked from the launch-campaign emails
 // (June 2026). Reads ?e=<email>; on load a small script POSTs to
-// /api/unsubscribe-promo, which tags the subscriber `nopromo_June26` in Drip
-// so the launch segment excludes them. They stay on the general monthly list.
+// /api/unsubscribe-promo, which tags the contact `nopromo_june26` on the site's
+// own list and `nopromo_June26` in Drip (src/lib/contacts/promo-optout.ts), so
+// the launch segment excludes them. They stay on the general monthly list.
 //
 // We tag from client-side JS (not on GET) so link-prefetchers and email
 // security scanners — which don't run JavaScript — can't opt anyone out by
 // accident. A <noscript> form button covers the rare JS-disabled visitor.
 import Layout from '../layouts/Layout.astro';
-import { applyTag } from '../lib/registrations/drip';
+import { recordPromoOptOut } from '../lib/contacts/promo-optout';
 
 export const prerender = false;
-
-// Keep in sync with PROMO_TAG in src/pages/api/unsubscribe-promo.ts.
-const PROMO_TAG = 'nopromo_June26';
 
 let email = (Astro.url.searchParams.get('e') ?? '').trim().toLowerCase();
 
@@ -21,17 +19,9 @@ let email = (Astro.url.searchParams.get('e') ?? '').trim().toLowerCase();
 if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
   email = String(form.get('e') ?? '').trim().toLowerCase();
-  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    const env = Astro.locals.runtime.env;
-    try {
-      await applyTag(
-        { apiToken: env.DRIP_API_TOKEN, accountId: env.DRIP_ACCOUNT_ID },
-        email,
-        PROMO_TAG,
-      );
-    } catch {
-      /* best-effort — still show the confirmation */
-    }
+  if (email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    // Never throws; still show the confirmation whatever Drip said.
+    await recordPromoOptOut(Astro.locals.runtime.env, email);
   }
 }
 

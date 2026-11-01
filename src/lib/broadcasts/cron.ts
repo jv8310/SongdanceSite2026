@@ -14,16 +14,18 @@
 // several days instead of blasting it in one reputation-shredding burst.
 
 import { sendEmailBatch, type BatchEmailInput } from '../workshops/resend';
-import { MARKETING_FROM_DEFAULT, MARKETING_REPLY_TO_DEFAULT } from '../workshops/emails';
 import { recordEmailSendStmt } from '../email/sends';
 import { DEFAULT_SEND_TZ, localHour } from '../workshops/time';
 import {
   oneClickUnsubscribeUrl,
-  unsubscribePageUrl,
+  preferencesPageUrl,
   unsubscribeSecret,
 } from '../email/unsubscribe';
+import { getTopic, type EmailTopic } from '../email/topics';
 import { renderBroadcast } from './email';
+import { broadcastSender } from './sender';
 import {
+  blockedEmailsIn,
   broadcastEmailType,
   broadcastStats,
   claimRecipientStmt,
@@ -41,7 +43,6 @@ import {
   pendingTimezones,
   reclaimStaleClaims,
   stopBroadcastAtDeadline,
-  suppressedEmailsIn,
   type Broadcast,
   type DrainCandidate,
 } from './db';
@@ -80,8 +81,9 @@ type BroadcastCronEnv = {
 //     interval, so two drains can't overlap and double the request rate. The
 //     real ceiling now is Resend's account rate limit + daily cap, not Worker
 //     wall-clock — raise this (and those) together to go higher still.
-//   • BATCH_SIZE — emails per Resend request (max 100). Kept at 90 so the chunk's
-//     suppression re-check IN-list stays under D1's 100-bound-param cap.
+//   • BATCH_SIZE — emails per Resend request (max 100). Kept at 90; the chunk's
+//     suppression/topic re-check binds its list once as JSON (blockedEmailsIn),
+//     and the claim batch is one statement per row.
 //   • BATCH_GAP_MS — pause between chunks, the safety rail that keeps the request
 //     rate (1 request per chunk) under Resend's default 2 req/s. Leave it put.
 const MAX_PER_RUN = 3000;
@@ -193,9 +195,11 @@ async function drainBroadcast(
   now: number,
 ): Promise<number> {
   const base = env.PUBLIC_BASE_URL.replace(/\/$/, '');
-  const from = env.MARKETING_FROM || MARKETING_FROM_DEFAULT;
-  const replyTo = env.MARKETING_REPLY_TO || MARKETING_REPLY_TO_DEFAULT;
+  // The broadcast's own sender (migration 0098), else MARKETING_FROM / _REPLY_TO.
+  const { from, replyTo } = broadcastSender(b, env);
   const secret = unsubscribeSecret(env);
+  // Its topic, once per broadcast per tick (null before 0099, or none named).
+  const topic = b.topic ? await getTopic(env.DB, b.topic) : null;
 
   // Recover any rows orphaned in 'sending' by an earlier interrupted run.
   await reclaimStaleClaims(env.DB, b.id);
@@ -234,7 +238,7 @@ async function drainBroadcast(
   let sent = 0;
   for (let i = 0; i < candidates.length && sent < MAX_PER_RUN; i += BATCH_SIZE) {
     const chunk = candidates.slice(i, i + BATCH_SIZE).slice(0, MAX_PER_RUN - sent);
-    const justSent = await sendChunk(env, b, emailType, base, from, replyTo, secret, chunk);
+    const justSent = await sendChunk(env, b, emailType, base, from, replyTo, secret, topic, chunk);
     sent += justSent;
     // Pace between chunks (one Resend request each) to stay under the rate limit;
     // skip the wait when there's nothing left to do this tick.
@@ -255,6 +259,7 @@ async function sendChunk(
   from: string,
   replyTo: string,
   secret: string | null,
+  topic: EmailTopic | null,
   chunk: DrainCandidate[],
 ): Promise<number> {
   if (chunk.length === 0) return 0;
@@ -266,28 +271,38 @@ async function sendChunk(
   const claimed = chunk.filter((_, idx) => (claimResults[idx]?.meta?.changes ?? 0) === 1);
   if (claimed.length === 0) return 0;
 
-  // 2. One suppression re-check for the chunk (someone may have unsubscribed
-  //    since launch). Split the claimed rows into send vs. skip.
-  const suppressed = await suppressedEmailsIn(
+  // 2. One re-check for the chunk: someone may have unsubscribed — or left this
+  //    broadcast's topic — since launch. Split the claimed rows into send vs.
+  //    skip; a topic opt-out is marked as such on the row.
+  const blocked = await blockedEmailsIn(
     env.DB,
     claimed.map((c) => c.email),
+    topic?.key ?? null,
   );
-  const toSend = claimed.filter((c) => !suppressed.has(c.email.trim().toLowerCase()));
-  const toSkip = claimed.filter((c) => suppressed.has(c.email.trim().toLowerCase()));
-  const skipStmts = toSkip.map((c) => markRecipientSuppressedStmt(env.DB, c.id));
+  const toSend = claimed.filter((c) => !blocked.has(c.email.trim().toLowerCase()));
+  const toSkip = claimed.filter((c) => blocked.has(c.email.trim().toLowerCase()));
+  const skipStmts = toSkip.map((c) =>
+    markRecipientSuppressedStmt(env.DB, c.id, blocked.get(c.email.trim().toLowerCase()) ?? null),
+  );
 
   if (toSend.length === 0) {
     if (skipStmts.length) await env.DB.batch(skipStmts);
     return 0;
   }
 
-  // 3. Render each recipient (per-recipient first name + one-click unsubscribe).
+  // 3. Render each recipient: first name, the footer's choices-page link and the
+  //    one-click header (both topic-scoped when the broadcast names a topic).
   const payload: BatchEmailInput[] = [];
   for (const c of toSend) {
     const firstName = (c.name ?? '').trim().split(/\s+/)[0] ?? '';
-    const footerUnsub = secret ? await unsubscribePageUrl(base, secret, c.email) : undefined;
-    const oneClickUnsub = secret ? await oneClickUnsubscribeUrl(base, secret, c.email) : undefined;
-    const content = renderBroadcast(b, { firstName, unsubscribeUrl: footerUnsub, email: c.email });
+    const footerUnsub = secret ? await preferencesPageUrl(base, secret, c.email, topic?.key) : undefined;
+    const oneClickUnsub = secret ? await oneClickUnsubscribeUrl(base, secret, c.email, topic?.key) : undefined;
+    const content = renderBroadcast(b, {
+      firstName,
+      unsubscribeUrl: footerUnsub,
+      email: c.email,
+      topicName: topic?.name ?? null,
+    });
     payload.push({
       from,
       replyTo,

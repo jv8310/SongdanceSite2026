@@ -15,8 +15,13 @@ import {
   cleaningCounts,
   pendingByTimezone,
   failedReasons,
+  broadcastCriteria,
+  broadcastColumnsReady,
 } from '../../../lib/broadcasts/db';
 import { previewBroadcast } from '../../../lib/broadcasts/email';
+import { getTopic, listTopics, topicsReady } from '../../../lib/email/topics';
+import { broadcastSender, marketingSenderDomain } from '../../../lib/broadcasts/sender';
+import BroadcastSenderTopic from '../../../components/admin/BroadcastSenderTopic.astro';
 import { dripHtmlForBroadcast } from '../../../lib/broadcasts/drip';
 import { DEFAULT_SEND_TZ, localHour } from '../../../lib/workshops/time';
 
@@ -37,13 +42,15 @@ const isDraft = b.status === 'draft';
 const isEditable = b.status !== 'done';
 const counts = await recipientCounts(env.DB, b.id);
 const stats = await broadcastStats(env.DB, broadcastEmailType(b.id));
-// The audience this broadcast targets right now (criteria minus suppressions).
-const audience = await countAudience(env.DB, {
-  includeTags: b.audience_include_tags,
-  excludeTags: b.audience_exclude_tags,
-  field: b.audience_field,
-  fieldValue: b.audience_field_value,
-});
+// The audience this broadcast targets right now (criteria minus suppressions
+// and topic opt-outs) — the same criteria the launch snapshot takes.
+const audience = await countAudience(env.DB, broadcastCriteria(b));
+// Sender (0098) and topic (0099): shown, and editable once their migrations run.
+const columns = await broadcastColumnsReady(env.DB);
+const topicReady = columns.topic && (await topicsReady(env.DB));
+const topics = topicReady ? await listTopics(env.DB) : [];
+const topic = b.topic ? await getTopic(env.DB, b.topic) : null;
+const sender = broadcastSender(b, env);
 const tags = isEditable ? await availableTags(env.DB, 1000) : [];
 const hasAudienceFilter = !!(b.audience_include_tags || b.audience_exclude_tags || b.audience_field);
 // Does this broadcast target a segment that's recomputed at launch (and can be
@@ -57,7 +64,7 @@ const usesRefreshableSegment =
   audienceTags.includes('workshop-passed-nonbuyer') ||
   audienceTags.includes('in-drip') ||
   audienceTags.some((t) => t.startsWith('app:'));
-const preview = previewBroadcast(b, env.PUBLIC_BASE_URL);
+const preview = previewBroadcast(b, env.PUBLIC_BASE_URL, topic?.name ?? null);
 const dripHtml = dripHtmlForBroadcast(b);
 // A human label for an armed auto-stop, formatted in the business timezone so
 // "midnight Brussels" reads plainly regardless of where the admin is sitting.
@@ -162,7 +169,7 @@ const statusLabel: Record<string, string> = {
           <a href="/admin/broadcasts">Broadcasts</a> <span class="sep">/</span> {b.name}
         </p>
         <h1>{b.name} <span class={`bc-pill bc-pill--${b.status}`}>{statusLabel[b.status]}</span></h1>
-        <p class="adm-sub">Subject: {b.subject} · {b.format === 'html' ? 'HTML' : 'Simple'} · {b.urgent ? '⚡ urgent — local-time windows ignored' : `window ${b.window_start_hour}:00–${b.window_end_hour}:00 local`}</p>
+        <p class="adm-sub">Subject: {b.subject} · {b.format === 'html' ? 'HTML' : 'Simple'} · {b.urgent ? '⚡ urgent — local-time windows ignored' : `window ${b.window_start_hour}:00–${b.window_end_hour}:00 local`} · From: {sender.from}{topic && ` · Topic: ${topic.name}`}</p>
       </div>
       <div class="adm-actions">
         <a class="adm-btn adm-btn--ghost" href="/admin/broadcasts">← All broadcasts</a>
@@ -180,7 +187,7 @@ const statusLabel: Record<string, string> = {
           <p>
             This will queue <strong id="bc-audience-count">{audience.toLocaleString()}</strong> contacts
             ({hasAudienceFilter ? 'matching your audience filter' : 'the whole list'}, minus
-            unsubscribes). They'll be sent over the coming days, only inside each
+            unsubscribes{topic ? ` and anyone who left “${topic.name}”` : ''}). They'll be sent over the coming days, only inside each
             recipient's local {b.window_start_hour}:00–{b.window_end_hour}:00, and
             the send auto-pauses if bounces or spam complaints spike.
           </p>
@@ -188,7 +195,7 @@ const statusLabel: Record<string, string> = {
             <p class="bc-refresh-seg">
               <button id="bc-refresh-seg" class="adm-btn adm-btn--ghost" type="button"
                 data-include={b.audience_include_tags ?? ''} data-exclude={b.audience_exclude_tags ?? ''}
-                data-field={b.audience_field ?? ''} data-field-value={b.audience_field_value ?? ''}>↻ Refresh segments &amp; recount</button>
+                data-field={b.audience_field ?? ''} data-field-value={b.audience_field_value ?? ''} data-topic={b.topic ?? ''}>↻ Refresh segments &amp; recount</button>
               <span id="bc-refresh-msg" class="bc-msg"></span>
               <br /><small class="bc-muted">Rebuilds <code>workshop-passed-nonbuyer</code>, re-syncs the <code>in-drip</code> marker from live registrations/purchases and asks the member app again for its <code>app:</code> tags, then recounts. This also runs automatically the moment you launch.</small>
             </p>
@@ -402,6 +409,13 @@ const statusLabel: Record<string, string> = {
             <input type="hidden" name="id" value={b.id} />
             <label class="bc-field"><span>Internal name</span><input name="name" required value={b.name} /></label>
             <label class="bc-field"><span>Subject line</span><input name="subject" required value={b.subject} /></label>
+            <BroadcastSenderTopic
+              fields={{ from_name: b.from_name, from_local: b.from_local, reply_to: b.reply_to, topic: b.topic }}
+              senderReady={columns.sender}
+              topicReady={topicReady}
+              topics={topics}
+              domain={marketingSenderDomain(env)}
+            />
             <label class="bc-field">
               <span>Content format</span>
               <select name="format" id="bc-format">
@@ -456,6 +470,9 @@ const statusLabel: Record<string, string> = {
         ) : (
           <dl class="bc-readonly">
             <dt>Format</dt><dd>{b.format === 'html' ? 'Pasted HTML' : 'Simple template'}</dd>
+            <dt>From</dt><dd>{sender.from}</dd>
+            <dt>Reply-to</dt><dd>{sender.replyTo}</dd>
+            <dt>Topic</dt><dd>{topic ? topic.name : b.topic ? b.topic : 'No topic'}</dd>
             <dt>Audience</dt><dd>{hasAudienceFilter ? [
               b.audience_include_tags ? `include: ${b.audience_include_tags}` : null,
               b.audience_exclude_tags ? `exclude: ${b.audience_exclude_tags}` : null,
@@ -471,6 +488,7 @@ const statusLabel: Record<string, string> = {
 
       <section class="adm-section">
         <h2>Preview</h2>
+        <p class="bc-from" id="bc-from-line">From: {sender.from} · Reply-to: {sender.replyTo}</p>
         <iframe id="bc-preview" class="bc-frame" srcdoc={preview.html} sandbox="" title="Broadcast preview"></iframe>
         <div class="bc-test">
           <input id="bc-test-to" type="email" value="jacob@songdance.co" />
@@ -571,6 +589,8 @@ const statusLabel: Record<string, string> = {
     .bc-pace-tz td.zero { color: #b7a9b4; }
     .bc-pace-tz tr.out td:first-child { color: #6f5f6d; }
     .bc-muted { color: #b6a8b4; }
+    .bc-from { margin: 0 0 8px; font-size: 12.5px; color: #4a3848; word-break: break-word; }
+    .bc-from.is-error { color: #a14826; }
     .bc-audience { border: 1px solid rgba(161,72,38,0.22); border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; margin: 0; }
     .bc-audience legend { font-size: 13px; color: #4a3848; padding: 0 6px; }
     .bc-aud-count { color: #a14826; font-weight: 600; }
@@ -623,7 +643,16 @@ const statusLabel: Record<string, string> = {
           });
           const data = await res.json();
           if (res.ok && data.html) previewFrame.srcdoc = data.html;
+          if (res.ok) showFrom(data);
         } catch (_) { /* best-effort */ }
+      }
+      const fromLine = document.getElementById('bc-from-line');
+      function showFrom(data) {
+        if (!fromLine || !data.from) return;
+        fromLine.classList.toggle('is-error', !!data.senderError);
+        fromLine.textContent = data.senderError
+          ? data.senderError
+          : 'From: ' + data.from + ' · Reply-to: ' + data.replyTo;
       }
       const schedule = () => { clearTimeout(timer); timer = setTimeout(updatePreview, 400); };
 
@@ -640,6 +669,7 @@ const statusLabel: Record<string, string> = {
           audience_field_value: fd.get('audience_field_value'),
         };
         const any = Object.values(payload).some((v) => (v || '').toString().trim());
+        payload.topic = fd.get('topic');
         try {
           const res = await fetch('/api/admin/broadcasts/audience', {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
@@ -685,7 +715,7 @@ const statusLabel: Record<string, string> = {
           const data = await res.json();
           if (!res.ok) throw new Error(data.error || 'Save failed');
           formDirty = false;
-          saveMsg.textContent = 'Saved ✓ — applies to recipients not yet sent.';
+          saveMsg.textContent = data.warning ? data.warning : 'Saved ✓ — applies to recipients not yet sent.';
           updatePreview();
         } catch (err) { saveMsg.textContent = 'Failed: ' + (err.message || err); }
       });
@@ -743,6 +773,7 @@ const statusLabel: Record<string, string> = {
               audience_exclude_tags: btn.dataset.exclude || '',
               audience_field: btn.dataset.field || '',
               audience_field_value: btn.dataset.fieldValue || '',
+              topic: btn.dataset.topic || '',
             }),
           });
           const data = await res.json();

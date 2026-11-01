@@ -19,10 +19,13 @@
 // Error crossing an RPC boundary keeps its message and loses its code.
 
 import {
+  audienceTags,
   availableTags,
+  broadcastCriteria,
   broadcastEmailType,
   broadcastStats,
   countAudience,
+  countAudienceChecked,
   countContacts,
   countSendable,
   createBroadcast,
@@ -44,8 +47,9 @@ import { previewBroadcast, renderBroadcast } from '../broadcasts/email';
 import { refreshBroadcastSegments, type SegmentRefreshResult } from '../broadcasts/segment-refresh';
 import { appTagSyncState, isAppTag, syncAppTags, usesAppTags } from '../broadcasts/app-tags';
 import { sendEmail } from '../workshops/resend';
-import { MARKETING_FROM_DEFAULT, MARKETING_REPLY_TO_DEFAULT } from '../workshops/emails';
-import { unsubscribePageUrl, unsubscribeSecret } from '../email/unsubscribe';
+import { broadcastSender } from '../broadcasts/sender';
+import { getTopic } from '../email/topics';
+import { preferencesPageUrl, unsubscribeSecret } from '../email/unsubscribe';
 import { logEventSafe } from '../registrations/db';
 
 type BridgeEnv = {
@@ -98,24 +102,19 @@ function tagField(v: unknown): string | null | undefined {
   return tags.length ? tags.join(', ') : null;
 }
 
-function criteriaOf(b: Pick<Broadcast, 'audience_include_tags' | 'audience_exclude_tags' | 'audience_field' | 'audience_field_value'>): AudienceCriteria {
-  return {
-    includeTags: b.audience_include_tags,
-    excludeTags: b.audience_exclude_tags,
-    field: b.audience_field,
-    fieldValue: b.audience_field_value,
-  };
-}
+// A broadcast's criteria come from broadcastCriteria (broadcasts/db.ts), the
+// same mapping the admin count and the launch snapshot use — so the SEND
+// confirmation always names the audience the snapshot will take (topic
+// opt-outs included).
 
-const tagsIn = (c: AudienceCriteria) => new Set([...splitTags(c.includeTags), ...splitTags(c.excludeTags)]);
-
-// Tags the criteria name that no contact carries: almost always a typo.
+// Tags the criteria name that no contact carries: almost always a typo. The
+// list is bound once as JSON, so its length never meets D1's parameter cap.
 async function unknownTags(db: D1Database, c: AudienceCriteria): Promise<string[]> {
-  const tags = [...tagsIn(c)];
+  const tags = [...audienceTags(c)];
   if (!tags.length) return [];
   const r = await db
-    .prepare(`SELECT DISTINCT tag FROM contact_tags WHERE tag IN (${tags.map(() => '?').join(',')})`)
-    .bind(...tags)
+    .prepare(`SELECT DISTINCT tag FROM contact_tags WHERE tag IN (SELECT value FROM json_each(?))`)
+    .bind(JSON.stringify(tags))
     .all<{ tag: string }>();
   const known = new Set((r.results ?? []).map((t) => t.tag));
   return tags.filter((t) => !known.has(t));
@@ -147,7 +146,7 @@ function summary(env: BridgeEnv, b: Broadcast) {
 }
 
 async function detail(env: BridgeEnv, b: Broadcast) {
-  const c = criteriaOf(b);
+  const c = broadcastCriteria(b);
   const [audienceNow, queue, stats, unknown] = await Promise.all([
     countAudience(env.DB, c),
     b.status === 'draft' ? Promise.resolve(null) : recipientCounts(env.DB, b.id),
@@ -203,7 +202,7 @@ export async function broadcastAudienceForApp(
     fieldValue: String(input?.fieldValue ?? '').trim() || null,
   };
   let refreshed: SegmentRefreshResult | null = null;
-  if (input?.refresh === true) refreshed = await refreshBroadcastSegments(env.DB, tagsIn(c), env);
+  if (input?.refresh === true) refreshed = await refreshBroadcastSegments(env.DB, audienceTags(c), env);
   const [count, sendable, unknown] = await Promise.all([countAudience(env.DB, c), countSendable(env.DB), unknownTags(env.DB, c)]);
   return { ok: true as const, count, sendable, unknownTags: unknown, refreshed };
 }
@@ -227,16 +226,17 @@ export async function previewBroadcastForApp(env: BridgeEnv, input: { id?: unkno
   const b = await getBroadcast(env.DB, Number(input?.id));
   if (!b) return fail('not-found', `No broadcast ${String(input?.id)}.`);
   const as = String(input?.as ?? '').trim().toLowerCase();
+  const topic = b.topic ? await getTopic(env.DB, b.topic) : null;
   if (!as) {
-    const content = previewBroadcast(b, base(env));
+    const content = previewBroadcast(b, base(env), topic?.name ?? null);
     return { ok: true as const, id: b.id, as: null, firstName: 'Maria', subject: content.subject, preheader: b.preheader || b.subject, html: content.html, text: content.text };
   }
   if (!EMAIL_RE.test(as)) return fail('bad-email', `"${as}" is not an email address.`);
   const contact = await env.DB.prepare('SELECT name FROM contacts WHERE email = ?').bind(as).first<{ name: string | null }>();
   const firstName = (contact?.name ?? '').trim().split(/\s+/)[0] || as.split('@')[0] || 'friend';
   const secret = unsubscribeSecret(env);
-  const unsub = secret ? await unsubscribePageUrl(base(env), secret, as) : undefined;
-  const content = renderBroadcast(b, { firstName, unsubscribeUrl: unsub, email: as });
+  const unsub = secret ? await preferencesPageUrl(base(env), secret, as, topic?.key) : undefined;
+  const content = renderBroadcast(b, { firstName, unsubscribeUrl: unsub, email: as, topicName: topic?.name ?? null });
   return {
     ok: true as const,
     id: b.id,
@@ -370,13 +370,15 @@ export async function testBroadcastFromApp(env: BridgeEnv, input: { id?: unknown
   const contact = await env.DB.prepare('SELECT name FROM contacts WHERE email = ?').bind(to).first<{ name: string | null }>();
   const firstName = (contact?.name ?? '').trim().split(/\s+/)[0] || to.split('@')[0] || 'friend';
   const secret = unsubscribeSecret(env);
-  const unsub = secret ? await unsubscribePageUrl(base(env), secret, to) : undefined;
-  const content = renderBroadcast(b, { firstName, unsubscribeUrl: unsub, email: to });
+  const topic = b.topic ? await getTopic(env.DB, b.topic) : null;
+  const unsub = secret ? await preferencesPageUrl(base(env), secret, to, topic?.key) : undefined;
+  const content = renderBroadcast(b, { firstName, unsubscribeUrl: unsub, email: to, topicName: topic?.name ?? null });
+  const { from, replyTo } = broadcastSender(b, env);
   try {
     await sendEmail({
       apiKey: env.RESEND_API_KEY,
-      from: env.MARKETING_FROM || MARKETING_FROM_DEFAULT,
-      replyTo: env.MARKETING_REPLY_TO || MARKETING_REPLY_TO_DEFAULT,
+      from,
+      replyTo,
       to,
       subject: `[Test] ${content.subject}`,
       html: content.html,
@@ -441,13 +443,15 @@ export async function sendBroadcastFromApp(
   if (verb === 'RESUME') {
     expected = await pendingCount(env.DB, b.id);
   } else {
-    const c = criteriaOf(b);
-    const tags = tagsIn(c);
+    const c = broadcastCriteria(b);
+    const tags = audienceTags(c);
     if (tags.size) refreshed = await refreshBroadcastSegments(env.DB, tags, env);
     if (refreshed?.appTags && !refreshed.appTags.ok && usesAppTags(tags)) {
       return fail('app-tags', `The app's tags could not be asked for, so this audience is not known for sure: ${refreshed.appTags.message} Nothing was sent.`);
     }
-    expected = await countAudience(env.DB, c);
+    const counted = await countAudienceChecked(env.DB, c);
+    if ('error' in counted) return fail('bad-audience', `${counted.error} Nothing was sent.`);
+    expected = counted.count;
   }
   const want = `${verb} ${b.id} ${expected}`;
   if (expected === 0) return fail('nobody', `Broadcast ${b.id} reaches nobody right now. Nothing was sent.`);

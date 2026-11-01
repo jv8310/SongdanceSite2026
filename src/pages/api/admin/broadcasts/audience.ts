@@ -1,5 +1,6 @@
-// POST { includeTags?, excludeTags?, field?, fieldValue?, refresh? } → { count }
-// of contacts matching the audience criteria (minus suppressions). Powers the
+// POST { includeTags?, excludeTags?, field?, fieldValue?, topic?, refresh? } →
+// { count } of contacts matching the audience criteria (minus suppressions and,
+// with a topic, everyone who left it). Powers the
 // live "X contacts match" estimate on the compose page. With `refresh: true`
 // (the "Refresh segments" button, never the keystroke estimate) it first
 // recomputes the tag-segments this audience uses (workshop-passed-nonbuyer,
@@ -8,7 +9,8 @@
 
 import type { APIRoute } from 'astro';
 import { readCookie, verifySession } from '../../../../lib/registrations/auth';
-import { countAudience, splitTags } from '../../../../lib/broadcasts/db';
+import { audienceTags, countAudience, type AudienceCriteria } from '../../../../lib/broadcasts/db';
+import { TOPIC_KEY_RE } from '../../../../lib/email/topics';
 import { refreshBroadcastSegments } from '../../../../lib/broadcasts/segment-refresh';
 
 export const prerender = false;
@@ -26,19 +28,20 @@ export const POST: APIRoute = async ({ request, locals }) => {
     return json({ error: 'Invalid request.' }, 400);
   }
 
-  const criteria = {
+  const topic = str(p.topic);
+  const criteria: AudienceCriteria = {
     includeTags: str(p.audience_include_tags ?? p.includeTags),
     excludeTags: str(p.audience_exclude_tags ?? p.excludeTags),
     field: str(p.audience_field ?? p.field),
     fieldValue: str(p.audience_field_value ?? p.fieldValue),
+    topic: topic && TOPIC_KEY_RE.test(topic) ? topic : null,
   };
 
   // Opt-in: only the explicit "refresh" action rebuilds segments — the live
   // estimate (fired on every keystroke) must never trigger a list-wide re-tag.
   let refreshed;
   if (p.refresh === true) {
-    const tags = new Set([...splitTags(criteria.includeTags), ...splitTags(criteria.excludeTags)]);
-    refreshed = await refreshBroadcastSegments(env.DB, tags, env);
+    refreshed = await refreshBroadcastSegments(env.DB, audienceTags(criteria), env);
   }
 
   const count = await countAudience(env.DB, criteria);
