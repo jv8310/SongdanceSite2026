@@ -19,6 +19,7 @@ import {
 import { previewBroadcast } from '../../../lib/broadcasts/email';
 import { dripHtmlForBroadcast } from '../../../lib/broadcasts/drip';
 import { DEFAULT_SEND_TZ, localHour } from '../../../lib/workshops/time';
+import BroadcastLinkClicks from '../../../components/admin/BroadcastLinkClicks.astro';
 
 export const prerender = false;
 
@@ -238,6 +239,7 @@ const statusLabel: Record<string, string> = {
             Open/click data flows in from the Resend webhook; it also appears on
             <a href="/admin/emails/stats">email stats</a> under “Broadcasts”.
           </p>
+          <BroadcastLinkClicks broadcastId={b.id} />
 
           {failReasons.length > 0 && (
             <details class="bc-fails">

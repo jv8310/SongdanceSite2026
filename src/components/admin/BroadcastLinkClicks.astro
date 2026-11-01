@@ -1,0 +1,97 @@
+---
+// Clicks per link on one broadcast (email_link_clicks, migration 0097; logic in
+// src/lib/email/link-clicks.ts). Sits under the engagement figures on
+// /admin/broadcasts/<id>. Reads D1 itself, so the page only passes the id.
+// Before 0097 is applied (a preview against production D1) it says so and
+// renders nothing else.
+import { broadcastLinkClicks, type LinkClickRow } from '../../lib/email/link-clicks';
+
+interface Props {
+  broadcastId: number;
+}
+const { broadcastId } = Astro.props;
+const env = Astro.locals.runtime.env;
+
+const { ready, rows } = await broadcastLinkClicks(env.DB, broadcastId);
+// Content links first (most clicked on top, as the query orders them), then the
+// unsubscribe / preferences links, muted.
+const content = rows.filter((r) => r.kind === 'content');
+const housekeeping = rows.filter((r) => r.kind !== 'content');
+const ordered: LinkClickRow[] = [...content, ...housekeeping];
+
+const isWebLink = (url: string) => /^https?:\/\//i.test(url);
+const botShare = (r: LinkClickRow) => (r.clicks > 0 && r.botClicks > 0 ? `${Math.round((r.botClicks / r.clicks) * 100)}%` : '—');
+---
+
+<div class="blc">
+  <h3>Clicks per link</h3>
+  {!ready ? (
+    <p class="adm-empty">Clicks per link need migration 0097 (applied when merged).</p>
+  ) : ordered.length === 0 ? (
+    <p class="adm-empty">
+      No link clicks recorded yet. Clicks are recorded one by one from the day this went live; earlier ones only
+      count in the click rate above.
+    </p>
+  ) : (
+    <>
+      <table class="adm-table blc-table">
+        <thead>
+          <tr>
+            <th>Link</th>
+            <th class="num">Clicks</th>
+            <th class="num">People</th>
+            <th class="num">Likely bots</th>
+          </tr>
+        </thead>
+        <tbody>
+          {ordered.map((r) => (
+            <tr class={r.kind === 'content' ? '' : 'blc-muted'}>
+              <td class="blc-link">
+                {r.kind !== 'content' && <span class="blc-kind">Unsubscribe / preferences link</span>}
+                {isWebLink(r.url) ? (
+                  <a href={r.url} target="_blank" rel="noopener noreferrer" title={r.url}>{r.url}</a>
+                ) : (
+                  <span title={r.url}>{r.url}</span>
+                )}
+              </td>
+              <td class="num">{r.clicks.toLocaleString()}</td>
+              <td class="num" title={`${r.clickers.toLocaleString()} including likely bots`}>{r.humanClickers.toLocaleString()}</td>
+              <td class="num">{botShare(r)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p class="adm-table-note">
+        Likely bots: a click within 10 seconds of the email arriving, or from a known mail scanner (security filters
+        open every link to check it). They are counted, and left out of “People” and of the segment condition
+        “clicked a link containing…”.
+      </p>
+    </>
+  )}
+</div>
+
+<style>
+  .blc { margin: 4px 0 18px; }
+  .blc h3 { font-size: 14px; margin: 0 0 8px; color: #4a3848; }
+  .blc-table { font-size: 13px; table-layout: fixed; }
+  .blc-table th:first-child { width: auto; }
+  .blc-table th.num { width: 92px; }
+  .blc-link { overflow: hidden; }
+  .blc-link a, .blc-link > span:last-child {
+    display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .blc-link a { color: var(--adm-ember-deep, #9d3f1f); text-decoration: none; }
+  .blc-link a:hover { text-decoration: underline; }
+  .blc-muted td { color: var(--adm-ink-soft, #6f6757); background: rgba(0, 0, 0, 0.02); }
+  .blc-muted .blc-link a { color: var(--adm-ink-soft, #6f6757); }
+  .blc-kind {
+    display: block; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase;
+    color: var(--adm-mute, #9a8e75); margin-bottom: 2px;
+  }
+  @media (max-width: 640px) {
+    .blc-table th, .blc-table td { padding: 8px 6px; }
+    .blc-table th { font-size: 10px; letter-spacing: 0.04em; }
+    .blc-table th.num { width: 50px; }
+    .blc-link a, .blc-link > span:last-child { white-space: normal; word-break: break-all; }
+  }
+</style>
