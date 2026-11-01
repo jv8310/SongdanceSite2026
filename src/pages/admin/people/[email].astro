@@ -18,6 +18,7 @@ import { formatMoney } from '../../../lib/workshops/currency';
 import { emailSendsForAddress } from '../../../lib/email/sends';
 import { getContact, listBroadcasts } from '../../../lib/broadcasts/db';
 import FeedbackEditor from '../../../components/admin/FeedbackEditor.astro';
+import PersonTopics from '../../../components/admin/PersonTopics.astro';
 import { CERT_STEPS, MAX_CERTIFICATE_BYTES, STATE_LABEL, STATE_PILL, actorLabel, askApp, day, fileSize, sourceLabel } from '../../../lib/admin/app-access';
 
 export const prerender = false;
@@ -602,6 +603,7 @@ const subFlash =
               </dl>
             </div>
           )}
+          {validEmail && <PersonTopics email={email} returnTo={selfReturn} />}
         </section>
 
         <!-- ─── Orders ─── -->
