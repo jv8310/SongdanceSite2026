@@ -4,6 +4,9 @@
 // browser and posted in chunks, so a 55k import streams in with live progress
 // and never trips a request limit. Columns are auto-detected: email (required),
 // name / first+last name, timezone (IANA — drives local-time sending), country.
+// Also: find a contact by address or name (each opens its person page, where
+// the Contact panel edits or erases it) and add one by hand
+// (src/lib/contacts/edit.ts, POST /api/admin/contacts/edit).
 import '../../../styles/admin.css';
 import Layout from '../../../layouts/Layout.astro';
 import { readCookie, verifySession } from '../../../lib/registrations/auth';
@@ -15,6 +18,8 @@ import {
   countBounceSuppressions,
   uncheckedContactDomainCount,
 } from '../../../lib/broadcasts/db';
+import { SEARCH_PAGE_SIZES, searchContacts, timezoneNames, type ContactSearchRow } from '../../../lib/contacts/edit';
+import { COUNTRIES_OTHER, COUNTRIES_PRIORITY } from '../../../lib/countries';
 
 export const prerender = false;
 
@@ -31,6 +36,32 @@ const deadSuppressed = await countDeadDomainSuppressions(env.DB);
 const uncheckedDomains = await uncheckedContactDomainCount(env.DB);
 // Addresses taken off by the bounce-checker loop + Resend hard bounces/complaints.
 const bounceSuppressed = await countBounceSuppressions(env.DB);
+
+// Find a contact (?q=, ≥ 2 characters) — address or name, prefix matches first.
+const params = Astro.url.searchParams;
+const q = (params.get('q') ?? '').trim();
+const perParam = Number(params.get('per'));
+const per = (SEARCH_PAGE_SIZES as readonly number[]).includes(perParam) ? perParam : 50;
+const page = Math.max(1, Math.floor(Number(params.get('page')) || 1));
+let found: { rows: ContactSearchRow[]; total: number } = { rows: [], total: 0 };
+let searchError: string | null = null;
+if (q.length >= 2) {
+  try {
+    found = await searchContacts(env.DB, { q, page, per });
+  } catch (err) {
+    searchError = `The search did not work: ${String((err as Error)?.message ?? err).slice(0, 200)}`;
+  }
+}
+const pages = Math.max(1, Math.ceil(found.total / per));
+const searchHref = (p: number) => `/admin/contacts?q=${encodeURIComponent(q)}&per=${per}${p > 1 ? `&page=${p}` : ''}#find`;
+// The person page links back here, to this search.
+const returnHere = `/admin/contacts${q ? `?q=${encodeURIComponent(q)}${per !== 50 ? `&per=${per}` : ''}${page > 1 ? `&page=${page}` : ''}` : ''}`;
+const personHref = (email: string) => `/admin/people/${encodeURIComponent(email)}?return_to=${encodeURIComponent(returnHere)}`;
+
+// Flash from /api/admin/contacts/edit (an "Add a contact" that did not go through).
+const contactMsg = params.get('contact_msg');
+const contactErr = params.has('contact_err');
+const tzNames = timezoneNames();
 ---
 
 <Layout title="Admin — Contacts — Songdance" description="">
@@ -58,6 +89,91 @@ const bounceSuppressed = await countBounceSuppressions(env.DB);
         <div class="ct-stat"><span class="ct-num">{deadSuppressed.toLocaleString()}</span><span class="ct-lbl">at dead domains</span></div>
         <div class="ct-stat"><span class="ct-num">{bounceSuppressed.toLocaleString()}</span><span class="ct-lbl">bounced / complained</span></div>
       </div>
+    </section>
+
+    <section class="adm-section" id="find">
+      <h2>Find a contact</h2>
+      <form method="GET" action="/admin/contacts#find" class="ct-actions">
+        <input type="search" name="q" value={q} class="ct-input" placeholder="email or name" autocomplete="off" spellcheck="false" />
+        {per !== 50 && <input type="hidden" name="per" value={per} />}
+        <button type="submit" class="adm-btn">Search</button>
+      </form>
+      {q && q.length < 2 && <p class="ct-help">Type at least two characters.</p>}
+      {searchError && <p class="adm-flash adm-flash--err">{searchError}</p>}
+      {q.length >= 2 && !searchError && (
+        <>
+          <p class="ct-help">
+            {found.total.toLocaleString()} {found.total === 1 ? 'match' : 'matches'}
+            {found.rows.length > 0 && ` · page ${page} of ${pages}`}
+            {found.rows.length === 0 && found.total > 0 && <> · <a href={searchHref(1)}>back to page 1</a></>}
+          </p>
+          {found.rows.length > 0 && (
+            <table class="ct-table">
+              <thead><tr><th>Email</th><th>Name</th><th>Country</th><th>Timezone</th><th>Tags</th><th>Source</th><th>Added</th></tr></thead>
+              <tbody>
+                {found.rows.map((c) => (
+                  <tr>
+                    <td>
+                      <a href={personHref(c.email)}>{c.email}</a>
+                      {c.suppression && <span class="ct-muted"> · {c.suppression === 'erased' ? 'erased' : 'not mailed'}</span>}
+                    </td>
+                    <td>{c.name ?? '—'}</td>
+                    <td>{c.country ?? '—'}</td>
+                    <td>{c.timezone ?? <span class="ct-muted">default window</span>}</td>
+                    <td class="ct-tags ct-ellipsis" title={c.tags ?? ''}>{c.tags ?? '—'}</td>
+                    <td>{c.source ?? '—'}</td>
+                    <td>{(c.created_at ?? '').slice(0, 10)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          {pages > 1 && (
+            <p class="ct-actions ct-pager">
+              {page > 1 && <a class="adm-btn adm-btn--ghost" href={searchHref(page - 1)}>← Previous</a>}
+              {page < pages && <a class="adm-btn adm-btn--ghost" href={searchHref(page + 1)}>Next →</a>}
+            </p>
+          )}
+        </>
+      )}
+    </section>
+
+    <section class="adm-section" id="add-contact">
+      <h2>Add a contact</h2>
+      {contactMsg && <div class={`adm-flash ${contactErr ? 'adm-flash--err' : 'adm-flash--ok'}`}>{contactMsg}</div>}
+      <form method="POST" action="/api/admin/contacts/edit" class="ct-add">
+        <input type="hidden" name="action" value="add" />
+        <input type="hidden" name="go" value="person" />
+        <input type="hidden" name="return_to" value="/admin/contacts" />
+        <div class="adm-grid ct-add-grid">
+          <label class="span-2"><span>Email *</span><input type="email" name="email" required autocomplete="off" spellcheck="false" /></label>
+          <label class="span-2"><span>Name</span><input type="text" name="name" maxlength="120" autocomplete="off" /></label>
+          <label><span>Timezone</span><input type="text" name="timezone" list="ct-tz-list" placeholder="Europe/Brussels" autocomplete="off" spellcheck="false" /></label>
+          <label>
+            <span>Country</span>
+            <select name="country">
+              <option value="">—</option>
+              <optgroup label="Frequently chosen">
+                {COUNTRIES_PRIORITY.map((c) => <option value={c.code}>{c.name}</option>)}
+              </optgroup>
+              <optgroup label="All countries">
+                {COUNTRIES_OTHER.map((c) => <option value={c.code}>{c.name}</option>)}
+              </optgroup>
+            </select>
+          </label>
+          <label class="span-2"><span>Tags</span><input type="text" name="tags" placeholder="comma-separated" autocomplete="off" spellcheck="false" /></label>
+        </div>
+        <button type="submit" class="adm-btn adm-btn--solid">Add contact</button>
+      </form>
+      {tzNames.length > 0 && (
+        <datalist id="ct-tz-list">
+          {tzNames.map((z) => <option value={z} />)}
+        </datalist>
+      )}
+      <p class="ct-help">
+        Added by hand (source “admin”). Everyone on the list is mailed by broadcasts, so add only people who asked to
+        hear from us.
+      </p>
     </section>
 
     <section class="adm-section">
@@ -176,7 +292,7 @@ const bounceSuppressed = await countBounceSuppressions(env.DB);
           <tbody>
             {recent.map((c) => (
               <tr>
-                <td>{c.email}</td>
+                <td><a href={personHref(c.email)}>{c.email}</a></td>
                 <td>{c.name ?? '—'}</td>
                 <td>{c.timezone ?? <span class="ct-muted">default window</span>}</td>
                 <td>{c.country ?? '—'}</td>
@@ -221,6 +337,16 @@ const bounceSuppressed = await countBounceSuppressions(env.DB);
     .ct-values label { display: inline-flex; align-items: center; gap: 6px; font-size: 13.5px; color: #2a1b2a; cursor: pointer; }
     .ct-values .bad { color: #a14826; }
     .ct-values .cnt { color: #6f5f6d; font-variant-numeric: tabular-nums; }
+    .ct-table a { color: #a14826; }
+    .ct-ellipsis { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ct-pager { margin-top: 12px; }
+    .ct-add .adm-grid { margin: 6px 0 12px; }
+    .ct-add-grid input[type='text'], .ct-add-grid input[type='email'] { padding: 8px 10px; border: 1px solid var(--adm-line); border-radius: 6px; font: inherit; font-size: 14px; background: #fff; width: 100%; }
+    @media (max-width: 720px) {
+      .ct-add-grid { grid-template-columns: 1fr; }
+      .ct-add-grid > label.span-2 { grid-column: auto; }
+      .ct-table { display: block; overflow-x: auto; }
+    }
   </style>
 
   <script is:inline>
@@ -403,6 +529,7 @@ const bounceSuppressed = await countBounceSuppressions(env.DB);
       let processed = 0;
       let suppressed = 0;
       let risky = 0;
+      let skippedErased = 0;
       let latestTotal = null;
       try {
         for (let i = 0; i < parsedRows.length; i += CHUNK) {
@@ -417,6 +544,7 @@ const bounceSuppressed = await countBounceSuppressions(env.DB);
           processed += data.processed || 0;
           suppressed += data.suppressed || 0;
           risky += data.risky || 0;
+          skippedErased += data.skippedErased || 0;
           latestTotal = data.total;
           done += chunk.length;
           const pct = Math.round((done / parsedRows.length) * 100);
@@ -426,7 +554,8 @@ const bounceSuppressed = await countBounceSuppressions(env.DB);
         progress.textContent =
           `Imported ${processed.toLocaleString()} contacts. ✓` +
           (suppressed > 0 ? ` · ${suppressed.toLocaleString()} suppressed (invalid/unsub)` : '') +
-          (risky > 0 ? ` · ${risky.toLocaleString()} tagged risky` : '');
+          (risky > 0 ? ` · ${risky.toLocaleString()} tagged risky` : '') +
+          (skippedErased > 0 ? ` · ${skippedErased.toLocaleString()} erased ${skippedErased === 1 ? 'address' : 'addresses'} skipped` : '');
         if (latestTotal != null && totalEl) totalEl.textContent = Number(latestTotal).toLocaleString();
       } catch (err) {
         progress.textContent = 'Failed: ' + (err && err.message ? err.message : String(err));

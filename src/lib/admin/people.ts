@@ -97,6 +97,8 @@ export type Person = {
   subscribed: boolean;
   unsubscribedAt: string | null;
   unsubscribeSource: string | null;
+  // Why: 'unsubscribe' | 'bounced' | 'complaint' | 'erased' (src/lib/contacts/erase.ts) | …
+  unsubscribeReason: string | null;
 
   // Engagement (workshops).
   workshopsSecured: number; // paid or comped seats
@@ -162,7 +164,7 @@ type RetreatReg = {
   created_at: string;
   paid_at: string | null;
 };
-type Suppression = { email: string; source: string | null; created_at: string };
+type Suppression = { email: string; reason: string | null; source: string | null; created_at: string };
 type NewsletterSignup = {
   email: string;
   name: string | null;
@@ -286,7 +288,7 @@ export async function listPeople(db: D1Database): Promise<Person[]> {
       )
       .all<RetreatReg>(),
     db
-      .prepare(`SELECT lower(email) AS email, source, created_at FROM email_suppressions`)
+      .prepare(`SELECT lower(email) AS email, reason, source, created_at FROM email_suppressions`)
       .all<Suppression>(),
     loadNewsletterSignups(db),
   ]);
@@ -302,6 +304,7 @@ export async function listPeople(db: D1Database): Promise<Person[]> {
         subscribed: true,
         unsubscribedAt: null,
         unsubscribeSource: null,
+        unsubscribeReason: null,
         workshopsSecured: 0,
         workshopsAttended: 0,
         workshopsNoShow: 0,
@@ -444,6 +447,7 @@ export async function listPeople(db: D1Database): Promise<Person[]> {
     p.subscribed = false;
     p.unsubscribedAt = s.created_at;
     p.unsubscribeSource = s.source;
+    p.unsubscribeReason = s.reason;
     p.lastActivity = laterOf(p.lastActivity, s.created_at);
   }
 

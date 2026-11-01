@@ -1,0 +1,428 @@
+---
+// The "Contact" section of /admin/people/<email>: this address on the marketing
+// list (contacts + contact_tags) — name, timezone, country, tags, custom fields —
+// with the controls to change them, take the contact off the list, or erase the
+// person's marketing data. Every form posts to /api/admin/contacts/edit or
+// /api/admin/contacts/erase and comes back here with a flash (#contact).
+//
+// The erase step is opened on demand (?erase=1): only then are the counts read
+// (previewErase), so an ordinary page view costs nothing extra. It lists what
+// goes and, with the reason, what stays — purchase evidence first.
+// Logic: src/lib/contacts/edit.ts, src/lib/contacts/erase.ts, site-tags.ts.
+import { COUNTRIES_OTHER, COUNTRIES_PRIORITY } from '../../lib/countries';
+import {
+  EMAIL_RE,
+  contactEvidence,
+  getContactFull,
+  getSuppression,
+  timezoneNames,
+  withFlash,
+} from '../../lib/contacts/edit';
+import { ERASED_REASON, previewErase, type ErasePlan } from '../../lib/contacts/erase';
+import {
+  PURCHASE_EVIDENCE_DETAIL,
+  PURCHASE_EVIDENCE_WHY,
+  isPurchaseEvidenceField,
+  isPurchaseEvidenceTag,
+} from '../../lib/contacts/site-tags';
+
+interface Props {
+  email: string;
+  // This page's own URL (path + query, flash parameters already dropped): where
+  // every form comes back to.
+  returnTo: string;
+  nameHint?: string | null;
+}
+
+const { email, returnTo, nameHint = null } = Astro.props;
+const env = Astro.locals.runtime.env;
+const valid = EMAIL_RE.test(email);
+
+const [contact, suppression] = valid
+  ? await Promise.all([getContactFull(env.DB, email), getSuppression(env.DB, email)])
+  : [null, null];
+const erased = suppression?.reason === ERASED_REASON;
+
+const flash = Astro.url.searchParams.get('contact_msg');
+const flashErr = Astro.url.searchParams.has('contact_err');
+
+// The erase step, read only when asked for.
+const eraseOpen = valid && !erased && Astro.url.searchParams.get('erase') === '1';
+let plan: ErasePlan | null = null;
+let planError: string | null = null;
+if (eraseOpen) {
+  try {
+    plan = await previewErase(env.DB, email);
+  } catch (err) {
+    planError = `The erase step could not be prepared: ${String((err as Error)?.message ?? err).slice(0, 200)}`;
+  }
+}
+const eraseHref = withFlash(returnTo, { erase: '1' }, '#erase');
+const closeHref = withFlash(returnTo, {}, '#contact');
+
+const evidence = contact ? contactEvidence(contact) : { tags: [], fields: [] };
+const hasEvidence = evidence.tags.length + evidence.fields.length > 0;
+const plainTags = contact ? contact.tags.filter((t) => !isPurchaseEvidenceTag(t)) : [];
+const customEntries = contact ? Object.entries(contact.custom) : [];
+
+const tzNames = contact && !erased ? timezoneNames() : [];
+const day = (s: string | null | undefined) => (s ? String(s).slice(0, 10) : '—');
+const countryKnown = (v: string | null) => !v || [...COUNTRIES_PRIORITY, ...COUNTRIES_OTHER].some((c) => c.code === v);
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+const list = (xs: string[], max = 20) => (xs.length > max ? `${xs.slice(0, max).join(', ')} and ${xs.length - max} more` : xs.join(', '));
+const jsEmail = email.replace(/['\\]/g, '\\$&');
+const tzListId = 'ct-tz-list';
+---
+
+<section class="adm-section" id="contact">
+  <h2>Contact</h2>
+  {flash && <div class={`adm-flash ${flashErr ? 'adm-flash--err' : 'adm-flash--ok'}`}>{flash}</div>}
+
+  {!valid && <p class="adm-empty">Not a valid email address.</p>}
+
+  {valid && erased && (
+    <div class="ct-box">
+      <p class="ct-line"><span class="adm-pill adm-pill--cancelled">erased {day(suppression?.created_at)}</span></p>
+      <p class="ct-note">
+        This address was erased on {day(suppression?.created_at)}. Its marketing data is gone; the address stays on
+        the suppression list so it is never mailed or imported again. Orders, invoices and registrations are kept.
+      </p>
+      {contact && hasEvidence && (
+        <p class="ct-note">
+          Kept as purchase evidence, {PURCHASE_EVIDENCE_WHY}: {[...evidence.tags, ...evidence.fields].join(', ')}. {PURCHASE_EVIDENCE_DETAIL}
+        </p>
+      )}
+    </div>
+  )}
+
+  {valid && !erased && !contact && (
+    <div class="ct-box">
+      <p class="adm-empty ct-empty">Not on the contacts list.</p>
+      <form method="POST" action="/api/admin/contacts/edit" class="ct-inline">
+        <input type="hidden" name="action" value="add" />
+        <input type="hidden" name="email" value={email} />
+        <input type="hidden" name="name" value={nameHint ?? ''} />
+        <input type="hidden" name="return_to" value={returnTo} />
+        <button type="submit" class="adm-btn">Add to the contacts list</button>
+      </form>
+      <p class="ct-note">Everyone on the list is mailed by broadcasts, so add only people who asked to hear from us.</p>
+    </div>
+  )}
+
+  {valid && !erased && contact && (
+    <div class="ct-box">
+      <!-- Name, timezone, country -->
+      <form method="POST" action="/api/admin/contacts/edit" class="ct-form">
+        <input type="hidden" name="action" value="details" />
+        <input type="hidden" name="email" value={email} />
+        <input type="hidden" name="return_to" value={returnTo} />
+        <div class="adm-grid ct-grid">
+          <label class="span-2">
+            <span>Name</span>
+            <input type="text" name="name" value={contact.name ?? ''} maxlength="120" autocomplete="off" />
+          </label>
+          <label>
+            <span>Timezone</span>
+            <input type="text" name="timezone" value={contact.timezone ?? ''} list={tzListId} placeholder="Europe/Brussels" autocomplete="off" spellcheck="false" />
+          </label>
+          <label>
+            <span>Country</span>
+            <select name="country">
+              {!countryKnown(contact.country) && <option value={contact.country ?? ''} selected>{contact.country} (as imported)</option>}
+              <option value="" selected={!contact.country}>—</option>
+              <optgroup label="Frequently chosen">
+                {COUNTRIES_PRIORITY.map((c) => <option value={c.code} selected={c.code === contact.country}>{c.name}</option>)}
+              </optgroup>
+              <optgroup label="All countries">
+                {COUNTRIES_OTHER.map((c) => <option value={c.code} selected={c.code === contact.country}>{c.name}</option>)}
+              </optgroup>
+            </select>
+          </label>
+        </div>
+        <button type="submit" class="adm-btn adm-btn--solid">Save details</button>
+      </form>
+      <p class="ct-meta">
+        Source: {contact.source ?? '—'} · on the list since {day(contact.created_at)} · last changed {day(contact.updated_at)}
+      </p>
+
+      <!-- Tags -->
+      <h3 class="ct-h3">Tags</h3>
+      {contact.tags.length === 0 && <p class="ct-note">No tags.</p>}
+      {contact.tags.length > 0 && (
+        <div class="ct-tags">
+          {evidence.tags.map((t) => (
+            <span class="adm-pill ct-tag ct-tag--evidence" title={`Purchase evidence, ${PURCHASE_EVIDENCE_WHY}. ${PURCHASE_EVIDENCE_DETAIL}`}>
+              <span aria-hidden="true">✓</span> {t}
+            </span>
+          ))}
+          {plainTags.map((t) =>
+            t.startsWith('app:') ? (
+              <span class="adm-pill ct-tag ct-tag--app" title="Set by the member app every hour">{t}</span>
+            ) : (
+              <form method="POST" action="/api/admin/contacts/edit" class="ct-tagform">
+                <input type="hidden" name="action" value="remove_tag" />
+                <input type="hidden" name="email" value={email} />
+                <input type="hidden" name="tag" value={t} />
+                <input type="hidden" name="return_to" value={returnTo} />
+                <span class="adm-pill ct-tag">
+                  {t}
+                  <button type="submit" class="ct-x" aria-label={`Remove the tag ${t}`} title="Remove this tag">×</button>
+                </span>
+              </form>
+            ),
+          )}
+        </div>
+      )}
+      {evidence.tags.length > 0 && (
+        <details class="ct-evidence">
+          <summary>The ✓ tags are purchase evidence. Remove one…</summary>
+          <p class="ct-note">They are {PURCHASE_EVIDENCE_WHY}. {PURCHASE_EVIDENCE_DETAIL} Erase keeps them, and removing one here is logged.</p>
+          <form method="POST" action="/api/admin/contacts/edit" class="ct-inline">
+            <input type="hidden" name="action" value="remove_tag" />
+            <input type="hidden" name="email" value={email} />
+            <input type="hidden" name="return_to" value={returnTo} />
+            <select name="tag" class="ct-input" required>
+              {evidence.tags.map((t) => <option value={t}>{t}</option>)}
+            </select>
+            <label class="ct-check">
+              <input type="checkbox" name="confirm_evidence" value="1" required /> Yes, remove this proof of purchase
+            </label>
+            <button type="submit" class="adm-btn adm-btn--danger">Remove</button>
+          </form>
+        </details>
+      )}
+      <form method="POST" action="/api/admin/contacts/edit" class="ct-inline ct-addtags">
+        <input type="hidden" name="action" value="add_tags" />
+        <input type="hidden" name="email" value={email} />
+        <input type="hidden" name="return_to" value={returnTo} />
+        <input type="text" name="tags" class="ct-input" placeholder="Add tags, comma-separated" autocomplete="off" spellcheck="false" />
+        <button type="submit" class="adm-btn">Add</button>
+      </form>
+
+      <!-- Custom fields -->
+      <h3 class="ct-h3">Custom fields</h3>
+      <div class="ct-scroll">
+        <table class="adm-table ct-fields">
+          <thead><tr><th>Field</th><th>Value</th><th></th></tr></thead>
+          <tbody>
+            {customEntries.map(([k, v], i) => {
+              const ev = isPurchaseEvidenceField(k);
+              const formId = `ct-field-${i}`;
+              return (
+                <tr class={ev ? 'ct-row--evidence' : ''}>
+                  <td class="ct-key">
+                    {ev && <span title={`Purchase evidence, ${PURCHASE_EVIDENCE_WHY}. ${PURCHASE_EVIDENCE_DETAIL}`} aria-label="purchase evidence">✓ </span>}
+                    {k}
+                  </td>
+                  <td>
+                    <input form={formId} type="text" name="value" value={v} maxlength="1000" class="ct-input ct-input--wide" autocomplete="off" />
+                  </td>
+                  <td class="ct-actions">
+                    <form id={formId} method="POST" action="/api/admin/contacts/edit" class="ct-inline">
+                      <input type="hidden" name="email" value={email} />
+                      <input type="hidden" name="key" value={k} />
+                      <input type="hidden" name="return_to" value={returnTo} />
+                      {ev && (
+                        <label class="ct-check" title="Needed to change or remove purchase evidence">
+                          <input type="checkbox" name="confirm_evidence" value="1" /> change evidence
+                        </label>
+                      )}
+                      <button type="submit" name="action" value="set_field" class="adm-btn">Save</button>
+                      <button type="submit" name="action" value="remove_field" class="adm-btn adm-btn--ghost">Remove</button>
+                    </form>
+                  </td>
+                </tr>
+              );
+            })}
+            <tr>
+              <td>
+                <input form="ct-field-new" type="text" name="key" class="ct-input" placeholder="Field" maxlength="80" autocomplete="off" spellcheck="false" required />
+              </td>
+              <td>
+                <input form="ct-field-new" type="text" name="value" class="ct-input ct-input--wide" placeholder="Value" maxlength="1000" autocomplete="off" />
+              </td>
+              <td class="ct-actions">
+                <form id="ct-field-new" method="POST" action="/api/admin/contacts/edit" class="ct-inline">
+                  <input type="hidden" name="action" value="set_field" />
+                  <input type="hidden" name="email" value={email} />
+                  <input type="hidden" name="return_to" value={returnTo} />
+                  <button type="submit" class="adm-btn">Add field</button>
+                </form>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="ct-note">A CSV import that carries extra columns replaces these fields.</p>
+
+      {/* PersonTopics (workstream C) goes here: <PersonTopics email={email} returnTo={returnTo} /> */}
+
+      <!-- Off the list -->
+      <h3 class="ct-h3">Remove from the contacts list</h3>
+      {hasEvidence ? (
+        <p class="ct-note">
+          This contact carries purchase evidence ({[...evidence.tags, ...evidence.fields].join(', ')}), so it can't
+          simply be removed. Erase below keeps that evidence and removes everything else.
+        </p>
+      ) : (
+        <form
+          method="POST"
+          action="/api/admin/contacts/edit"
+          class="ct-inline"
+          onsubmit={`return confirm('Take ${jsEmail} off the contacts list, with its tags?')`}
+        >
+          <input type="hidden" name="action" value="delete" />
+          <input type="hidden" name="email" value={email} />
+          <input type="hidden" name="return_to" value={returnTo} />
+          <button type="submit" class="adm-btn adm-btn--danger">Remove from the contacts list</button>
+          <span class="ct-note ct-note--inline">
+            Takes the contact and its tags off the list. A purchase, the member app's hourly sync, a newsletter signup
+            or a CSV import can add them back. To keep them off for good, use Erase below.
+          </span>
+        </form>
+      )}
+    </div>
+  )}
+
+  {tzNames.length > 0 && (
+    <datalist id={tzListId}>
+      {tzNames.map((z) => <option value={z} />)}
+    </datalist>
+  )}
+
+  <!-- Erase -->
+  {valid && !erased && !eraseOpen && (
+    <div class="ct-danger" id="erase">
+      <div>
+        <strong>Erase this person's marketing data</strong>
+        <p class="ct-danger-note">
+          For someone who asked us to delete their data. Shows exactly what goes and what stays before anything
+          happens.
+        </p>
+      </div>
+      <a class="adm-btn adm-btn--danger" href={eraseHref}>Erase…</a>
+    </div>
+  )}
+
+  {eraseOpen && (
+    <div class="ct-danger ct-danger--open" id="erase">
+      <strong>Erase {email}</strong>
+      {planError && <p class="adm-flash adm-flash--err">{planError}</p>}
+      {plan && (
+        <>
+          <p class="ct-danger-note">This removes:</p>
+          <ul class="ct-list">
+            {plan.contact && !plan.keepRow && (
+              <li>
+                the contact{plan.personalFields.length ? ` (${plan.personalFields.join(', ')})` : ''}
+                {plan.fieldsRemoved.length > 0 && ` and its ${plural(plan.fieldsRemoved.length, 'field', 'fields')}: ${list(plan.fieldsRemoved)}`}
+              </li>
+            )}
+            {plan.contact && plan.keepRow && (
+              <li>
+                the contact's {plan.personalFields.length ? plan.personalFields.join(', ') : 'name, timezone and country (all empty)'}
+                {plan.fieldsRemoved.length > 0 && ` and ${plural(plan.fieldsRemoved.length, 'field', 'fields')}: ${list(plan.fieldsRemoved)}`}
+              </li>
+            )}
+            {plan.tagsRemoved.length > 0 && <li>{plural(plan.tagsRemoved.length, 'tag', 'tags')}: {list(plan.tagsRemoved)}</li>}
+            {plan.recipients > 0 && <li>{plural(plan.recipients, 'broadcast queue row', 'broadcast queue rows')}</li>}
+            {(plan.clicks ?? 0) > 0 && <li>{plural(plan.clicks ?? 0, 'link click', 'link clicks')}</li>}
+            {(plan.topicOptOuts ?? 0) > 0 && <li>{plural(plan.topicOptOuts ?? 0, 'topic choice', 'topic choices')}</li>}
+            {(plan.newsletter ?? 0) > 0 && <li>the newsletter signup</li>}
+            {plan.events > 0 && <li>{plural(plan.events, 'log entry that names', 'log entries that name')} the address (contact changes, newsletter signups)</li>}
+            {plan.sends > 0 && <li>{plural(plan.sends, 'email record', 'email records')} — kept for the stats, with the address and subject removed</li>}
+            {!plan.contact && plan.tagsRemoved.length === 0 && plan.recipients === 0 && !plan.clicks && !plan.topicOptOuts && !plan.newsletter && plan.events === 0 && plan.sends === 0 && (
+              <li>nothing on the marketing side: the address only goes onto the suppression list</li>
+            )}
+          </ul>
+
+          {(plan.tagsKept.length > 0 || Object.keys(plan.fieldsKept).length > 0) && (
+            <>
+              <p class="ct-danger-note">
+                <strong>This keeps what is {PURCHASE_EVIDENCE_WHY}.</strong> {PURCHASE_EVIDENCE_DETAIL}
+              </p>
+              <ul class="ct-list">
+                {plan.tagsKept.length > 0 && <li>{plural(plan.tagsKept.length, 'tag', 'tags')}: {plan.tagsKept.join(', ')}</li>}
+                {Object.entries(plan.fieldsKept).map(([k, v]) => <li>the field {k} = {String(v ?? '')}</li>)}
+                {plan.keepRow && <li>a contacts row holding only the address and those fields</li>}
+              </ul>
+            </>
+          )}
+
+          <p class="ct-danger-note">
+            This also keeps: orders, registrations, payments and invoices (we must keep those); intake forms and the
+            waiting list; certification records; the order queues (contact_tag_backfill, drip_order_backfill) and
+            sign-in codes (workshop_verification_codes, they expire); the member app account (remove it with the
+            app's own tool); the Drip subscriber (unsubscribed here, delete it in Drip by hand). The address stays on
+            the suppression list as “erased”, so nothing ever mails or imports it again.
+          </p>
+
+          <form method="POST" action="/api/admin/contacts/erase" class="ct-inline ct-erase-form">
+            <input type="hidden" name="email" value={email} />
+            <input type="hidden" name="return_to" value={returnTo} />
+            <input type="text" name="confirm" class="ct-input ct-input--wide" placeholder={`ERASE ${email}`} autocomplete="off" spellcheck="false" required />
+            <button type="submit" class="adm-btn ct-erase-btn">Erase</button>
+            <a class="adm-btn adm-btn--ghost" href={closeHref}>Cancel</a>
+          </form>
+          <p class="ct-note">Type <code>ERASE {email}</code> to confirm. This cannot be undone.</p>
+        </>
+      )}
+    </div>
+  )}
+</section>
+
+<style>
+  .ct-box { border: 1px solid var(--adm-line); border-radius: 12px; background: var(--adm-paper-soft); padding: 14px 16px; }
+  .ct-line { margin: 0 0 8px; }
+  .ct-note { font-size: 12.5px; color: var(--adm-ink-soft); line-height: 1.6; margin: 6px 0 0; max-width: 72ch; }
+  .ct-note--inline { display: inline; margin: 0 0 0 6px; }
+  .ct-note code { background: #f4ecdf; padding: 1px 5px; border-radius: 4px; }
+  .ct-empty { margin: 0 0 10px; }
+  .ct-form { margin: 0 0 6px; }
+  .ct-form .adm-grid { margin-bottom: 10px; }
+  .ct-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .ct-grid input[type='text'] { padding: 8px 10px; border: 1px solid var(--adm-line); border-radius: 6px; font: inherit; font-size: 14px; background: #fff; width: 100%; }
+  .ct-meta { font-size: 12px; color: var(--adm-mute); margin: 6px 0 0; }
+  .ct-h3 { font-size: 14px; margin: 18px 0 8px; }
+  .ct-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+  .ct-tagform { display: inline; margin: 0; }
+  /* Tags show as stored (removal matches the exact string), not uppercased like other pills. */
+  .ct-tag { background: rgba(154, 142, 117, 0.16); color: var(--adm-ink-soft); display: inline-flex; align-items: center; gap: 4px; text-transform: none; letter-spacing: normal; font-size: 12.5px; }
+  .ct-tag--app { background: rgba(80, 110, 160, 0.14); color: #2a4a7a; }
+  .ct-tag--evidence { background: rgba(47, 122, 76, 0.12); color: var(--adm-success); }
+  .ct-x { border: 0; background: transparent; color: inherit; cursor: pointer; font: inherit; font-size: 14px; line-height: 1; padding: 0 0 0 2px; opacity: 0.6; }
+  .ct-x:hover { opacity: 1; color: var(--adm-danger); }
+  .ct-inline { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0; }
+  .ct-addtags { margin-top: 10px; }
+  .ct-input { font: inherit; font-size: 13.5px; padding: 6px 10px; border: 1px solid var(--adm-line); border-radius: 6px; background: #fff; min-width: 0; box-sizing: border-box; }
+  .ct-input--wide { width: 100%; min-width: 180px; }
+  .ct-check { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; color: var(--adm-ink-soft); }
+  .ct-evidence { margin: 10px 0 0; }
+  .ct-evidence summary { cursor: pointer; font-size: 12.5px; color: var(--adm-ember-deep); }
+  .ct-evidence form { margin-top: 8px; }
+  .ct-scroll { overflow-x: auto; }
+  .ct-fields td { vertical-align: middle; }
+  .ct-key { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; word-break: break-word; }
+  .ct-row--evidence .ct-key { color: var(--adm-success); }
+  .ct-actions { width: 1%; white-space: nowrap; }
+  .ct-actions .ct-inline { flex-wrap: nowrap; }
+  .ct-danger { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; border: 1px solid rgba(178, 52, 34, 0.35); border-radius: 10px; padding: 14px 16px; margin: 16px 0 0; background: #fbeeea; }
+  .ct-danger--open { display: block; }
+  .ct-danger > div:first-child { min-width: 240px; }
+  .ct-danger strong { font-size: 13px; color: #8f2e1c; }
+  .ct-danger-note { font-size: 12.5px; color: #6f5f6d; margin: 8px 0 0; line-height: 1.6; max-width: 76ch; }
+  .ct-list { font-size: 12.5px; color: #4a3848; line-height: 1.6; margin: 4px 0 0; padding-left: 20px; max-width: 76ch; }
+  .ct-erase-form { margin-top: 12px; }
+  .ct-erase-form .ct-input--wide { max-width: 360px; }
+  .ct-erase-btn { background: var(--adm-danger); border-color: var(--adm-danger); color: #fff; }
+  .ct-erase-btn:hover { background: #8f2e1c; border-color: #8f2e1c; }
+  @media (max-width: 720px) {
+    .ct-grid { grid-template-columns: 1fr; }
+    .ct-grid > label.span-2 { grid-column: auto; }
+    .ct-fields thead { display: none; }
+    .ct-fields tr { display: block; padding: 8px 0; border-bottom: 1px solid var(--adm-line); }
+    .ct-fields td { display: block; width: auto; border: 0; padding: 4px 0; }
+    .ct-actions .ct-inline { flex-wrap: wrap; }
+    .ct-input--wide { min-width: 0; }
+  }
+</style>

@@ -2,8 +2,9 @@
 // Admin — Person detail: everything the site knows about one email address —
 // engagement summary (src/lib/admin/people.ts), every order across retreats/
 // courses/workshops (src/lib/admin/orders.ts), tracked email sends with
-// open/click data (src/lib/email/sends.ts), and Drip-imported contact tags
-// (src/lib/broadcasts/db.ts). Read-only, assembled live — no `people` table.
+// open/click data (src/lib/email/sends.ts), and the address on the marketing
+// list — the Contact panel (ContactPanel.astro: edit, add, remove, erase). The
+// rest is read-only, assembled live — no `people` table.
 // The one exception is "App access": the person's courses, certification,
 // Circle seats and host spaces in the member app, which the app answers and
 // changes through its service binding (src/lib/admin/app-access.ts,
@@ -18,6 +19,8 @@ import { formatMoney } from '../../../lib/workshops/currency';
 import { emailSendsForAddress } from '../../../lib/email/sends';
 import { getContact, listBroadcasts } from '../../../lib/broadcasts/db';
 import FeedbackEditor from '../../../components/admin/FeedbackEditor.astro';
+import ContactPanel from '../../../components/admin/ContactPanel.astro';
+import { FLASH_PARAMS, getSuppression, safeAdminReturn } from '../../../lib/contacts/edit';
 import { CERT_STEPS, MAX_CERTIFICATE_BYTES, STATE_LABEL, STATE_PILL, actorLabel, askApp, day, fileSize, sourceLabel } from '../../../lib/admin/app-access';
 
 export const prerender = false;
@@ -41,9 +44,16 @@ try {
 }
 const email = decodedEmailParam.trim().toLowerCase();
 
-const rawReturn = Astro.url.searchParams.get('return_to') ?? '';
-const backHref = rawReturn.startsWith('/admin/people') ? rawReturn : '/admin/people';
-const selfReturn = Astro.url.pathname + Astro.url.search;
+// Back link: wherever the person was opened from inside the admin (People, the
+// contacts search, an order…). selfReturn is this page for the forms to come
+// back to, without the flash parameters a previous action left on it, so an old
+// message never rides along into the next one.
+const backHref = safeAdminReturn(Astro.url.searchParams.get('return_to'), '/admin/people');
+const backLabel = backHref.startsWith('/admin/contacts') ? '← Back to contacts' : backHref.startsWith('/admin/people') ? '← Back to people' : '← Back';
+const selfUrl = new URL(Astro.url.pathname + Astro.url.search, 'https://x.invalid');
+for (const k of FLASH_PARAMS) selfUrl.searchParams.delete(k);
+selfUrl.searchParams.delete('email');
+const selfReturn = selfUrl.pathname + selfUrl.search;
 
 const fxRates = await getFxRatesToEur(env.DB);
 const quaderno =
@@ -57,14 +67,16 @@ const quaderno =
 
 const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
-const [allPeople, orders, sends, contact, broadcasts, appAccess] = await Promise.all([
+const [allPeople, orders, sends, contact, broadcasts, appAccess, suppression] = await Promise.all([
   listPeople(env.DB),
   listAllOrders(env.DB, { email }, { fxRates, quaderno }),
   emailSendsForAddress(env.DB, email),
   getContact(env.DB, email),
   listBroadcasts(env.DB),
   validEmail ? askApp(env, (app) => app.member({ email })) : Promise.resolve(null),
+  validEmail ? getSuppression(env.DB, email) : Promise.resolve(null),
 ]);
+const erased = suppression?.reason === 'erased';
 
 const person = allPeople.find((p) => p.email === email) ?? null;
 
@@ -152,7 +164,7 @@ const subFlash =
         <a class="adm-btn adm-btn--ghost" href={`/admin/orders?email=${encodeURIComponent(email)}`}>Orders →</a>
         <a class="adm-btn adm-btn--ghost" href={`mailto:${email}`}>Email</a>
         <a class="adm-btn adm-btn--ghost" href={`/api/admin/drip-profile?email=${encodeURIComponent(email)}`} target="_blank" rel="noopener">Drip profile ↗</a>
-        <a class="adm-btn adm-btn--ghost" href={backHref}>← Back to people</a>
+        <a class="adm-btn adm-btn--ghost" href={backHref}>{backLabel}</a>
       </div>
     </header>
 
@@ -170,7 +182,9 @@ const subFlash =
             <div class="pd-head">
               {person?.subscribed
                 ? <span class="adm-pill adm-pill--paid">subscribed</span>
-                : person && <span class="adm-pill adm-pill--cancelled" title={`Unsubscribed ${fmtDate(person.unsubscribedAt)}${person.unsubscribeSource ? ` (${person.unsubscribeSource})` : ''}`}>unsubscribed</span>}
+                : person?.unsubscribeReason === 'erased'
+                  ? <span class="adm-pill adm-pill--cancelled" title={`Erased ${fmtDate(person.unsubscribedAt)}`}>erased</span>
+                  : person && <span class="adm-pill adm-pill--cancelled" title={`Unsubscribed ${fmtDate(person.unsubscribedAt)}${person.unsubscribeSource ? ` (${person.unsubscribeSource})` : ''}`}>unsubscribed</span>}
               {person?.isCustomer && <span class="adm-pill adm-pill--paid">customer</span>}
               {person && !person.isCustomer && <span class="adm-pill adm-pill--pending">lead</span>}
               {person?.isPro && <span class="adm-pill adm-pill--pro">pro</span>}
@@ -218,7 +232,7 @@ const subFlash =
 
           {subFlash && <div class={`adm-flash ${subFlash.tone === 'err' ? 'adm-flash--err' : 'adm-flash--ok'} pd-resub`}>{subFlash.text}</div>}
 
-          {person?.subscribed && (
+          {(person?.subscribed || (!person && contact && !suppression)) && (
             <form
               method="POST"
               action="/api/admin/unsubscribe"
@@ -231,7 +245,7 @@ const subFlash =
             </form>
           )}
 
-          {person && !person.subscribed && (
+          {person && !person.subscribed && !erased && (
             <form
               method="POST"
               action="/api/admin/resubscribe"
@@ -582,28 +596,13 @@ const subFlash =
       </section>
     )}
 
+    <!-- ─── Contact: the marketing list (edit, add, remove, erase) ─── -->
+    {/* Outside the `exists` block: a whole address typed into search can be
+        added or erased even when the site knows nothing else about it. */}
+    <ContactPanel email={email} returnTo={selfReturn} nameHint={person?.name ?? null} />
+
     {exists && (
       <>
-        <!-- ─── Tags (Drip) ─── -->
-        <section class="adm-section">
-          <h2>Tags</h2>
-          {!contact && <p class="adm-empty">Not in the imported contacts list.</p>}
-          {contact && (
-            <div class="pd-contact">
-              {contact.tags.length === 0 && <p class="pd-mute">No tags recorded.</p>}
-              {contact.tags.length > 0 && (
-                <div class="pd-tags">
-                  {contact.tags.map((t) => <span class="adm-pill pd-tag">{t}</span>)}
-                </div>
-              )}
-              <dl class="pd-contact-kv">
-                {contact.timezone && <><dt>Timezone</dt><dd>{contact.timezone}</dd></>}
-                {contact.country && <><dt>Country</dt><dd>{contact.country}</dd></>}
-              </dl>
-            </div>
-          )}
-        </section>
-
         <!-- ─── Orders ─── -->
         <section class="adm-section">
           <h2>Orders {orders.length > 0 && <a class="pd-h2-link" href={`/admin/orders?email=${encodeURIComponent(email)}`}>open in Orders →</a>}</h2>
@@ -725,13 +724,6 @@ const subFlash =
     .adm-pill--pro { background:#efe3d2; color:var(--adm-ember-deep); }
     .adm-pill--src-course { background:#d6e4f0; color:#2a5a8a; margin-right:6px; }
     .adm-pill--src-retreat { background:rgba(201, 96, 58, 0.16); color:var(--adm-ember-deep); }
-
-    .pd-contact { border: 1px solid var(--adm-line); border-radius: 12px; background: var(--adm-paper-soft); padding: 14px 16px; }
-    .pd-tags { display:flex; flex-wrap:wrap; gap:6px; }
-    .pd-tag { background: rgba(154, 142, 117, 0.16); color: var(--adm-ink-soft); }
-    .pd-contact-kv { display:flex; gap:20px; margin:10px 0 0; font-size:13px; }
-    .pd-contact-kv dt { color: var(--adm-mute); display:inline; }
-    .pd-contact-kv dd { display:inline; margin:0 0 0 4px; }
 
     .pd-orders, .pd-sends { margin-bottom: 14px; }
     .pd-h2-link { margin-left: 10px; font-family: ui-sans-serif, -apple-system, sans-serif; font-size: 13px; font-weight: 400; color: var(--adm-ink-soft); }
