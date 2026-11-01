@@ -19,6 +19,7 @@ import {
   withFlash,
 } from '../../lib/contacts/edit';
 import { ERASED_REASON, previewErase, type ErasePlan } from '../../lib/contacts/erase';
+import PersonTopics from './PersonTopics.astro';
 import {
   PURCHASE_EVIDENCE_DETAIL,
   PURCHASE_EVIDENCE_WHY,
@@ -255,7 +256,7 @@ const tzListId = 'ct-tz-list';
       </div>
       <p class="ct-note">A CSV import that carries extra columns replaces these fields.</p>
 
-      {/* PersonTopics (workstream C) goes here: <PersonTopics email={email} returnTo={returnTo} /> */}
+      <PersonTopics email={email} returnTo={returnTo} />
 
       <!-- Off the list -->
       <h3 class="ct-h3">Remove from the contacts list</h3>

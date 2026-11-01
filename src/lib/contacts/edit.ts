@@ -536,7 +536,7 @@ export async function searchContacts(
 // Flash parameters any admin endpoint may have left on a person page's URL.
 // They are dropped before a new flash is set (and from the page's own
 // return_to), so an old error never rides along into a later success.
-export const FLASH_PARAMS = ['contact_msg', 'contact_err', 'flash', 'msg', 'app_msg', 'app_err', 'app_ok', 'erase'] as const;
+export const FLASH_PARAMS = ['contact_msg', 'contact_err', 'flash', 'msg', 'app_msg', 'app_err', 'app_ok', 'erase', 'topics_msg', 'topics_err'] as const;
 
 /** A same-site admin path from a posted return_to, or the fallback. */
 export function safeAdminReturn(raw: string | null | undefined, fallback: string): string {

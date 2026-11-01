@@ -1,0 +1,328 @@
+---
+// The reader's choices page — where a broadcast's footer link lands
+// ("Change what you get or unsubscribe"). Same self-authenticating (e, t) token
+// as /unsubscribe (src/lib/email/unsubscribe.ts), so every footer link already
+// sent keeps working.
+//
+// - Leave the topic the email came under (?topic=…), pick which topics to keep,
+//   or unsubscribe from everything (email_suppressions + Drip, as /unsubscribe).
+// - A GET never changes anything (link scanners open these); every change is a
+//   POST from a button.
+// - An address already unsubscribed from everything gets no topic writes and
+//   sees the "unsubscribed" state; resubscribing is a person's job (support@).
+// - Before migration 0099 only "Unsubscribe from everything" renders.
+// Topics govern broadcasts only (src/lib/email/topics.ts); the footnote says so.
+import SiteLayout from '../components/SiteLayout.astro';
+import {
+  isEmailSuppressed,
+  unsubscribeEmail,
+  unsubscribeSecret,
+  verifyUnsubscribeToken,
+} from '../lib/email/unsubscribe';
+import {
+  getTopic,
+  listTopics,
+  optOutOfTopic,
+  setTopicOptOuts,
+  topicOptOuts,
+  topicsReady,
+  type EmailTopic,
+} from '../lib/email/topics';
+import { logEventSafe } from '../lib/registrations/db';
+
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+const secret = unsubscribeSecret(env);
+
+type State = 'invalid' | 'form' | 'saved' | 'left_topic' | 'all' | 'unsubscribed';
+let state: State = 'invalid';
+let email = '';
+let token = '';
+let topicKey = '';
+let action = '';
+let form: FormData | null = null;
+
+if (Astro.request.method === 'POST') {
+  try {
+    form = await Astro.request.formData();
+  } catch {
+    form = null;
+  }
+  email = String(form?.get('e') ?? '').trim().toLowerCase();
+  token = String(form?.get('t') ?? '').trim();
+  topicKey = String(form?.get('topic') ?? '').trim();
+  action = String(form?.get('action') ?? '').trim();
+} else {
+  email = (Astro.url.searchParams.get('e') ?? '').trim().toLowerCase();
+  token = (Astro.url.searchParams.get('t') ?? '').trim();
+  topicKey = (Astro.url.searchParams.get('topic') ?? '').trim();
+}
+
+const valid = !!secret && (await verifyUnsubscribeToken(secret, email, token));
+const ready = valid ? await topicsReady(env.DB) : false;
+const topics: EmailTopic[] = ready ? await listTopics(env.DB) : [];
+const arrivedTopic = ready && topicKey ? await getTopic(env.DB, topicKey) : null;
+let leftTopic: EmailTopic | null = null;
+let kept: EmailTopic[] = [];
+
+if (valid) {
+  let suppressed = false;
+  try {
+    suppressed = await isEmailSuppressed(env.DB, email);
+  } catch {
+    suppressed = false;
+  }
+  if (suppressed) {
+    state = 'unsubscribed';
+  } else if (Astro.request.method === 'POST' && action === 'all') {
+    await unsubscribeEmail(env, email, 'preferences');
+    await logEventSafe(env.DB, {
+      registration_id: null,
+      kind: 'email.preferences.unsubscribed',
+      source: 'web',
+      payload: { email },
+    });
+    state = 'all';
+  } else if (Astro.request.method === 'POST' && ready && action === 'leave_topic' && arrivedTopic) {
+    await optOutOfTopic(env.DB, email, arrivedTopic.key, 'preferences');
+    await logEventSafe(env.DB, {
+      registration_id: null,
+      kind: 'email.preferences.saved',
+      source: 'web',
+      payload: { email, kept: null, left: [arrivedTopic.key] },
+    });
+    leftTopic = arrivedTopic;
+    state = 'left_topic';
+  } else if (Astro.request.method === 'POST' && ready && action === 'save' && form) {
+    const keep = new Set(form.getAll('keep').map((v) => String(v)));
+    const out = topics.filter((t) => !keep.has(t.key)).map((t) => t.key);
+    await setTopicOptOuts(env.DB, email, out, 'preferences');
+    kept = topics.filter((t) => keep.has(t.key));
+    await logEventSafe(env.DB, {
+      registration_id: null,
+      kind: 'email.preferences.saved',
+      source: 'web',
+      payload: { email, kept: kept.map((t) => t.key), left: out },
+    });
+    state = 'saved';
+  } else {
+    state = 'form';
+  }
+}
+
+const optedOut = valid && ready && state !== 'unsubscribed' && state !== 'all' ? await topicOptOuts(env.DB, email) : new Set<string>();
+const showTopicBox = state === 'form' && !!arrivedTopic && !optedOut.has(arrivedTopic.key);
+const showForm = state === 'form' || state === 'saved' || state === 'left_topic';
+const allKept = state === 'saved' && kept.length === topics.length;
+---
+
+<SiteLayout title="Your email choices — Songdance" description="" newsletter={false} promo={false}>
+  <main class="ep">
+    <section class="ep-card">
+      {state === 'invalid' && (
+        <>
+          <h1>This link looks incomplete</h1>
+          <p>
+            We couldn't verify the link. Try the link at the bottom of the email again, or write to
+            {' '}<a href="mailto:support@songdance.co">support@songdance.co</a> and we'll sort it out for you ourselves.
+          </p>
+        </>
+      )}
+
+      {(state === 'all' || state === 'unsubscribed') && (
+        <>
+          <h1>{state === 'all' ? "Done — you won't hear from us" : "You're unsubscribed"}</h1>
+          <p>
+            <strong>{email}</strong> won't receive newsletters, announcements or follow-ups from Songdance.
+            Confirmations and reminders for anything you've booked still arrive.
+          </p>
+          <p class="ep-note">
+            Want to hear from us again one day? Write to
+            {' '}<a href="mailto:support@songdance.co">support@songdance.co</a> and we'll put you back on the list ourselves.
+          </p>
+        </>
+      )}
+
+      {state === 'saved' && (
+        <>
+          <h1>Saved</h1>
+          {kept.length === 0 ? (
+            <p>
+              You've unticked every topic, so no newsletters or announcements will come. The short series after a
+              workshop you joined still comes, unless you unsubscribe from everything below.
+            </p>
+          ) : (
+            <p>
+              We'll write to <strong>{email}</strong> {allKept ? 'about' : 'only about'}: {kept.map((t) => t.name).join(', ')}.
+            </p>
+          )}
+        </>
+      )}
+
+      {state === 'left_topic' && leftTopic && (
+        <>
+          <h1>Done</h1>
+          <p>
+            No more emails about <strong>{leftTopic.name}</strong> to <strong>{email}</strong>.
+            Changed your mind? Tick it again below.
+          </p>
+        </>
+      )}
+
+      {state === 'form' && (
+        <>
+          <h1>Choose what reaches you</h1>
+          <p>
+            Emails to <strong>{email}</strong>.{ready && topics.length > 0 && " Untick what you'd rather not hear about. Nothing else changes."}
+          </p>
+        </>
+      )}
+
+      {showTopicBox && arrivedTopic && (
+        <form method="post" class="ep-topicbox">
+          <input type="hidden" name="e" value={email} />
+          <input type="hidden" name="t" value={token} />
+          <input type="hidden" name="topic" value={arrivedTopic.key} />
+          <input type="hidden" name="action" value="leave_topic" />
+          <p>You came here from an email about <strong>{arrivedTopic.name}</strong>.</p>
+          <button type="submit" class="ep-btn">Stop emails about {arrivedTopic.name}</button>
+        </form>
+      )}
+
+      {showForm && ready && topics.length > 0 && (
+        <form method="post" class="ep-topics">
+          <input type="hidden" name="e" value={email} />
+          <input type="hidden" name="t" value={token} />
+          <input type="hidden" name="action" value="save" />
+          <fieldset>
+            <legend>We write to you about</legend>
+            {topics.map((t) => (
+              <label class="ep-topic">
+                <input type="checkbox" name="keep" value={t.key} checked={!optedOut.has(t.key)} />
+                <span>
+                  <strong>{t.name}</strong>
+                  {t.description && <span class="ep-desc">{t.description}</span>}
+                </span>
+              </label>
+            ))}
+          </fieldset>
+          <button type="submit" class="ep-btn">Save my choices</button>
+        </form>
+      )}
+
+      {showForm && (
+        <form method="post" class="ep-all">
+          <input type="hidden" name="e" value={email} />
+          <input type="hidden" name="t" value={token} />
+          <input type="hidden" name="action" value="all" />
+          <h2>Or stop everything</h2>
+          <p>
+            No more newsletters, announcements or workshop follow-ups. Confirmations and reminders for anything
+            you've booked still arrive.
+          </p>
+          <button type="submit" class="ep-btn ep-btn--ghost">Unsubscribe from everything</button>
+        </form>
+      )}
+
+      {showForm && ready && topics.length > 0 && (
+        <p class="ep-foot">
+          Topics are for our newsletters and announcements. The short series after a workshop you joined, and the
+          notes that come with a course you're in, stop only with “Unsubscribe from everything”.
+        </p>
+      )}
+    </section>
+  </main>
+</SiteLayout>
+
+<style>
+  .ep {
+    min-height: 60vh;
+    display: grid;
+    place-items: center;
+    padding: 64px 16px;
+    background: var(--paper);
+  }
+  .ep-card {
+    width: 100%;
+    max-width: 560px;
+    box-sizing: border-box;
+    background: var(--paper-soft);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 36px 34px;
+    font-family: var(--font-body);
+    font-size: 16px;
+    color: var(--ink-soft);
+    line-height: 1.65;
+  }
+  @media (max-width: 520px) {
+    .ep-card { padding: 28px 20px; }
+  }
+  .ep-card h1 {
+    margin: 0 0 14px;
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: 28px;
+    line-height: 1.2;
+    color: var(--ink);
+  }
+  .ep-card h2 {
+    margin: 0 0 8px;
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: 20px;
+    color: var(--ink);
+  }
+  .ep-card p { margin: 0 0 14px; }
+  .ep-card strong { color: var(--ink); font-weight: 600; word-break: break-word; }
+  .ep-card a { color: var(--ember-deep); }
+  .ep-note, .ep-foot { font-size: 14px; color: var(--ink-quiet); }
+  .ep-foot { margin: 22px 0 0; }
+  .ep-topicbox {
+    margin: 6px 0 22px;
+    padding: 16px 18px;
+    border: 1px solid var(--ember-soft);
+    background: var(--ember-glow);
+    border-radius: 10px;
+  }
+  .ep-topicbox p { margin: 0 0 12px; }
+  .ep-topics { margin: 8px 0 0; }
+  .ep-topics fieldset { border: 0; padding: 0; margin: 0 0 16px; }
+  .ep-topics legend {
+    font-size: 13px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ember-deep);
+    margin: 0 0 10px;
+  }
+  .ep-topic {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    padding: 12px 0;
+    border-top: 1px solid var(--line);
+    cursor: pointer;
+  }
+  .ep-topic:last-child { border-bottom: 1px solid var(--line); }
+  .ep-topic input { margin-top: 5px; width: 18px; height: 18px; accent-color: var(--ink); flex: none; }
+  .ep-topic strong { display: block; }
+  .ep-desc { display: block; font-size: 14px; color: var(--ink-quiet); }
+  .ep-all { margin: 26px 0 0; padding-top: 22px; border-top: 1px solid var(--line); }
+  .ep-btn {
+    background: var(--ink);
+    color: var(--paper);
+    font-family: var(--font-body);
+    font-size: 15px;
+    border: 1px solid var(--ink);
+    padding: 12px 24px;
+    border-radius: 999px;
+    cursor: pointer;
+  }
+  .ep-btn--ghost {
+    background: transparent;
+    color: var(--ember-deep);
+    border-color: var(--ember-soft);
+  }
+  .ep-btn--ghost:hover { background: var(--ember-glow); }
+</style>

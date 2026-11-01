@@ -1,0 +1,554 @@
+---
+// The audience of a broadcast, in two modes (both compose pages, around the
+// existing tags fieldset, which goes in the default slot unchanged):
+//
+// - Tags — the include/exclude/field fieldset as it always was.
+// - Rules — a list of conditions (tag, custom field, topic, country, bought,
+//   booked, an earlier broadcast received/opened/clicked, email activity,
+//   newsletter signup, added to the list), matched all or any, with one level
+//   of groups. src/lib/broadcasts/segment-rules.ts checks and compiles them.
+//
+// Only two things are posted with the form: `audience_mode` and, in Rules mode,
+// the hidden `audience_rules` (the rules as JSON). The condition controls carry
+// no `name`, so they never leak into the save/preview payloads; the hidden input
+// is disabled in Tags mode, which the save endpoint reads as "clear the rules".
+// Every option label is set with textContent / new Option(), never innerHTML.
+// Rules mode needs migration 0100; until then the radio is disabled.
+import type { SegmentRules } from '../../lib/broadcasts/segment-rules';
+import type { SegmentOptions } from '../../lib/broadcasts/segment-catalog';
+
+interface Props {
+  rules: SegmentRules | null;
+  // 'rules' with rules = null: the stored rules couldn't be read (`note` says why).
+  mode?: 'simple' | 'rules';
+  note?: string | null;
+  options: SegmentOptions;
+}
+
+const { rules, options, note } = Astro.props;
+const mode = Astro.props.mode ?? (rules ? 'rules' : 'simple');
+const isRules = mode === 'rules';
+// JSON inside a <script> element: escape "<" so "</script>" can't end it.
+const data = JSON.stringify(options).replace(/</g, '\\u003c');
+---
+
+<div class="sb" data-sb>
+  <div class="sb-mode">
+    <span class="sb-mode-label">Audience</span>
+    <label><input type="radio" name="audience_mode" value="simple" checked={!isRules} /> Tags</label>
+    <label><input type="radio" name="audience_mode" value="rules" checked={isRules} disabled={!options.features.rules && !isRules} /> Rules</label>
+    {!options.features.rules && <span class="sb-note">Rules need migration 0100 (applied when merged).</span>}
+  </div>
+  <div class="sb-simple" hidden={isRules}><slot /></div>
+  <div class="sb-rules" hidden={!isRules}>
+    <input type="hidden" name="audience_rules" value={rules ? JSON.stringify(rules) : ''} disabled={!isRules} />
+    {note && <p class="sb-error">{note}</p>}
+    <p class="sb-head">
+      Send to contacts who match
+      <select class="sb-in" data-sb-match aria-label="Match all or any">
+        <option value="all" selected={!rules || rules.match !== 'any'}>all</option>
+        <option value="any" selected={rules?.match === 'any'}>any</option>
+      </select>
+      of these <span class="sb-count" data-sb-count aria-live="polite"></span>
+    </p>
+    <ol class="sb-list" data-sb-list></ol>
+    <p class="sb-add">
+      <button type="button" class="adm-btn adm-btn--ghost" data-sb-add>+ Condition</button>
+      <button type="button" class="adm-btn adm-btn--ghost" data-sb-add-group>+ Group (all/any of…)</button>
+    </p>
+    <p class="sb-saved">
+      <select data-sb-load disabled={!options.features.rules} aria-label="Saved segments">
+        <option value="">Load a saved segment…</option>
+        {options.saved.map((s) => <option value={s.id}>{s.name}</option>)}
+      </select>
+      <button type="button" class="adm-btn adm-btn--ghost" data-sb-save disabled={!options.features.rules}>Save as segment…</button>
+      <button type="button" class="adm-btn adm-btn--ghost" data-sb-delete disabled={!options.features.rules}>Delete saved</button>
+      <span class="sb-msg" data-sb-msg aria-live="polite"></span>
+    </p>
+    <p class="sb-help">
+      Unsubscribed addresses are always left out, and so is everyone who left this broadcast's topic.
+      No conditions = the whole sendable list. “Did not open / did not click” only counts people who
+      received that broadcast, and opens are approximate (some mail apps open every message themselves).
+    </p>
+  </div>
+  <script is:inline type="application/json" data-sb-data set:html={data} />
+</div>
+
+<style is:global>
+  .sb { display: flex; flex-direction: column; gap: 10px; }
+  .sb [hidden] { display: none !important; }
+  .sb-mode { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; font-size: 13px; color: #4a3848; }
+  .sb-mode-label { font-weight: 600; }
+  .sb-mode label { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
+  .sb-note { font-size: 12.5px; color: #8a7d88; }
+  .sb-rules { border: 1px solid rgba(161,72,38,0.22); border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+  .sb-error { margin: 0; font-size: 13px; color: #a14826; background: #fbeeea; border-radius: 8px; padding: 8px 10px; }
+  .sb-head { margin: 0; font-size: 13.5px; color: #4a3848; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .sb-count { color: #a14826; font-weight: 600; }
+  .sb-count.is-err { color: #a14826; font-weight: 500; background: #fbeeea; border-radius: 6px; padding: 2px 8px; }
+  .sb-list, .sb-sublist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  .sb-cond { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 10px; border-radius: 8px; background: #fbf6ec; border: 1px solid rgba(161,72,38,0.14); }
+  .sb-body { display: contents; }
+  .sb-group { border: 1px dashed rgba(161,72,38,0.4); border-radius: 10px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+  .sb-group-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 13px; color: #4a3848; }
+  .sb-group-head .sb-rm { margin-left: auto; }
+  .sb-empty { font-size: 13px; color: #6f5f6d; padding: 4px 2px; }
+  .sb-in { font: inherit; font-size: 13.5px; padding: 6px 8px; border: 1px solid rgba(161,72,38,0.3); border-radius: 7px; background: #fff; color: #2a1b2a; max-width: 100%; min-width: 0; }
+  .sb-in:disabled { background: #f4ecdf; color: #9b8fa0; }
+  .sb-type { font-weight: 600; }
+  .sb-num { width: 6.5em; }
+  .sb-text { flex: 1 1 160px; }
+  .sb-multi { flex: 1 1 100%; width: 100%; }
+  .sb-word { font-size: 13px; color: #4a3848; }
+  .sb-hint { font-size: 12px; color: #8a7d88; flex: 1 1 100%; }
+  .sb-chips { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+  .sb-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; background: #fff; border: 1px solid rgba(161,72,38,0.3); border-radius: 999px; padding: 2px 4px 2px 10px; color: #4a3848; }
+  .sb-chip button { font: inherit; border: 0; background: transparent; cursor: pointer; color: #a14826; padding: 0 4px; line-height: 1; }
+  .sb-rm { font: inherit; font-size: 16px; line-height: 1; border: 1px solid rgba(178,52,34,0.35); color: #b23422; background: transparent; border-radius: 6px; padding: 3px 8px; cursor: pointer; margin-left: auto; }
+  .sb-rm:hover { background: #fbeeea; }
+  .sb-add, .sb-saved { margin: 0; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .sb-saved select { font: inherit; font-size: 13px; padding: 6px 8px; border: 1px solid rgba(161,72,38,0.3); border-radius: 7px; background: #fff; max-width: 100%; }
+  .sb-msg { font-size: 12.5px; color: #6f5f6d; }
+  .sb-msg.is-err { color: #a14826; }
+  .sb-help { margin: 0; font-size: 12px; color: #6f5f6d; line-height: 1.6; }
+</style>
+
+<script is:inline>
+  (function () {
+    const TYPES = [
+      ['tag', 'Tag'], ['field', 'Custom field'], ['topic', 'Topic'], ['country', 'Country'],
+      ['bought', 'Bought'], ['booked', 'Booked'], ['email', 'Email'], ['activity', 'Email activity'],
+      ['newsletter', 'Newsletter signup'], ['added', 'Added to the list'],
+    ];
+
+    document.querySelectorAll('[data-sb]').forEach(init);
+
+    function init(root) {
+      if (root.dataset.sbReady) return;
+      root.dataset.sbReady = '1';
+      const form = root.closest('form');
+      let opts = {};
+      try { opts = JSON.parse(root.querySelector('[data-sb-data]').textContent || '{}'); } catch (_) { opts = {}; }
+      const F = opts.features || {};
+      const hidden = root.querySelector('input[name="audience_rules"]');
+      const simpleBox = root.querySelector('.sb-simple');
+      const rulesBox = root.querySelector('.sb-rules');
+      const list = root.querySelector('[data-sb-list]');
+      const matchSel = root.querySelector('[data-sb-match]');
+      const countEl = root.querySelector('[data-sb-count]');
+      const msgEl = root.querySelector('[data-sb-msg]');
+      const loadSel = root.querySelector('[data-sb-load]');
+      const uid = 'sb' + Math.random().toString(36).slice(2, 8);
+
+      // Shared datalists: tags now, custom-field keys on first use.
+      const tagList = document.createElement('datalist');
+      tagList.id = uid + '-tags';
+      (opts.tags || []).forEach((t) => { const o = document.createElement('option'); o.value = t.tag; o.label = t.n + ' contacts'; tagList.append(o); });
+      const keyList = document.createElement('datalist');
+      keyList.id = uid + '-keys';
+      root.append(tagList, keyList);
+      const knownTags = new Set((opts.tags || []).map((t) => t.tag));
+      let keysLoaded = false;
+
+      let state = { match: 'all', conditions: [] };
+      try {
+        const v = hidden.value ? JSON.parse(hidden.value) : null;
+        if (v && Array.isArray(v.conditions)) state = { match: v.match === 'any' ? 'any' : 'all', conditions: v.conditions };
+      } catch (_) { /* unreadable: start empty */ }
+
+      // ── small builders (textContent only) ──
+      function el(tag, cls, text) {
+        const e = document.createElement(tag);
+        if (cls) e.className = cls;
+        if (text != null) e.textContent = text;
+        return e;
+      }
+      function word(t) { return el('span', 'sb-word', t); }
+      function select(options, value, onChange, cls) {
+        const s = el('select', 'sb-in' + (cls ? ' ' + cls : ''));
+        options.forEach((o) => { const opt = new Option(o[1], String(o[0])); if (o[2]) opt.disabled = true; s.add(opt); });
+        if (value != null && value !== '' && ![...s.options].some((o) => o.value === String(value))) {
+          s.add(new Option('#' + value, String(value)));
+        }
+        if (value != null) s.value = String(value);
+        s.addEventListener('change', () => onChange(s.value));
+        return s;
+      }
+      function multi(options, values, onChange, size) {
+        const s = el('select', 'sb-in sb-multi');
+        s.multiple = true;
+        s.size = size || 6;
+        const chosen = new Set((values || []).map(String));
+        options.forEach((o) => { const opt = new Option(o[1], String(o[0])); opt.selected = chosen.has(String(o[0])); s.add(opt); });
+        s.addEventListener('change', () => onChange([...s.selectedOptions].map((o) => o.value)));
+        return s;
+      }
+      function days(value, onChange) {
+        const i = el('input', 'sb-in sb-num');
+        i.type = 'number'; i.min = '1'; i.max = '3650'; i.step = '1';
+        i.value = value != null ? String(value) : '';
+        i.setAttribute('aria-label', 'Number of days');
+        i.addEventListener('input', () => onChange(i.value === '' ? null : Number(i.value)));
+        return i;
+      }
+      function text(value, placeholder, onChange, listId) {
+        const i = el('input', 'sb-in sb-text');
+        i.type = 'text';
+        i.value = value || '';
+        i.placeholder = placeholder || '';
+        i.maxLength = 200;
+        if (listId) i.setAttribute('list', listId);
+        i.addEventListener('input', () => onChange(i.value));
+        return i;
+      }
+      const bcOptions = () => {
+        const b = (opts.broadcasts || []).map((x) => [x.id, '#' + x.id + ' · ' + x.name]);
+        return b.length ? b : [['', 'No sent broadcasts yet', true]];
+      };
+
+      function defaults(type) {
+        const firstBc = (opts.broadcasts || [])[0];
+        switch (type) {
+          case 'tag': return { type, op: 'any', tags: [] };
+          case 'field': return { type, key: '', op: 'eq', value: '' };
+          case 'topic': return { type, op: 'left', topic: ((opts.topics || [])[0] || {}).key || '' };
+          case 'country': return { type, op: 'in', countries: [] };
+          case 'bought': return { type, product: 'course', when: 'ever', items: [] };
+          case 'booked': return { type, kind: 'workshop', workshopId: ((opts.workshops || [])[0] || {}).id || null };
+          case 'email': return { type, op: 'received', broadcastId: firstBc ? firstBc.id : null };
+          case 'activity': return { type, op: 'engaged', days: 90 };
+          case 'newsletter': return { type, days: 30 };
+          case 'added': return { type, days: 30 };
+        }
+        return { type: 'tag', op: 'any', tags: [] };
+      }
+
+      // Fill one condition's controls; `refill` redraws them when a choice
+      // changes which controls apply.
+      function fillBody(body, c, refill) {
+        const ch = () => changed();
+        switch (c.type) {
+          case 'tag': {
+            body.append(select([['any', 'has any of'], ['none', 'has none of'], ['all', 'has all of']], c.op, (v) => { c.op = v; ch(); }));
+            if (!Array.isArray(c.tags)) c.tags = [];
+            const chips = el('span', 'sb-chips');
+            c.tags.forEach((t) => {
+              const chip = el('span', 'sb-chip', t);
+              const x = el('button', null, '×');
+              x.type = 'button';
+              x.setAttribute('aria-label', 'Remove tag ' + t);
+              x.addEventListener('click', () => { c.tags = c.tags.filter((y) => y !== t); refill('.sb-add-tag'); ch(); });
+              chip.append(x);
+              chips.append(chip);
+            });
+            body.append(chips);
+            const add = el('input', 'sb-in sb-text sb-add-tag');
+            add.type = 'text';
+            add.placeholder = c.tags.length ? 'add another tag…' : 'type or pick a tag…';
+            add.setAttribute('list', tagList.id);
+            add.setAttribute('aria-label', 'Add a tag');
+            const commit = () => {
+              const parts = add.value.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+              if (!parts.length) return;
+              parts.forEach((p) => { if (!c.tags.includes(p)) c.tags.push(p); });
+              add.value = '';
+              refill('.sb-add-tag');
+              ch();
+            };
+            add.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); commit(); } });
+            add.addEventListener('change', commit);
+            add.addEventListener('input', () => { if (knownTags.has(add.value.trim().toLowerCase())) commit(); });
+            body.append(add);
+            break;
+          }
+          case 'field': {
+            const key = text(c.key, 'field name', (v) => { c.key = v; ch(); }, keyList.id);
+            key.classList.add('sb-key');
+            key.addEventListener('focus', loadKeys);
+            body.append(key);
+            body.append(select([
+              ['eq', 'equals'], ['neq', 'does not equal'], ['contains', 'contains'], ['empty', 'is empty'],
+              ['not_empty', 'is not empty'], ['gt', 'is more than'], ['lt', 'is less than'],
+            ], c.op, (v) => { c.op = v; refill(); ch(); }));
+            if (c.op !== 'empty' && c.op !== 'not_empty') body.append(text(c.value, 'value', (v) => { c.value = v; ch(); }));
+            break;
+          }
+          case 'topic': {
+            body.append(select([['left', 'has left'], ['subscribed', 'is subscribed to']], c.op, (v) => { c.op = v; ch(); }));
+            const topics = (opts.topics || []).map((t) => [t.key, t.name]);
+            if (!F.topics || !topics.length) {
+              const s = select([['', 'Topics need migration 0099 (applied when merged)', true]], '', () => {});
+              s.disabled = true;
+              body.append(s);
+            } else {
+              if (!c.topic) c.topic = topics[0][0];
+              body.append(select(topics, c.topic, (v) => { c.topic = v; ch(); }));
+            }
+            break;
+          }
+          case 'country': {
+            body.append(select([['in', 'is one of'], ['not_in', 'is not one of']], c.op, (v) => { c.op = v; ch(); }));
+            body.append(multi((opts.countries || []).map((x) => [x.code, x.code + ' – ' + x.name]), c.countries, (v) => { c.countries = v; ch(); }));
+            body.append(el('span', 'sb-hint', 'Ctrl/⌘-click to pick several. Matches the code or the country name the contact carries.'));
+            break;
+          }
+          case 'bought': {
+            body.append(select([
+              ['any', 'any purchase'], ['course', 'a course'], ['workshop', 'a workshop seat'],
+              ['masterclass', 'a masterclass seat'], ['retreat', 'a retreat'], ['album', 'an album'],
+            ], c.product, (v) => { c.product = v; c.items = []; refill(); ch(); }));
+            body.append(select([
+              ['ever', 'ever'], ['within', 'in the last … days'], ['never', 'never'],
+              ['since_broadcast', 'since receiving broadcast…'], ['not_since_broadcast', 'not since receiving broadcast…'],
+            ], c.when, (v) => { c.when = v; refill(); ch(); }));
+            if (c.when === 'within') {
+              if (!c.days) c.days = 30;
+              body.append(days(c.days, (v) => { c.days = v; ch(); }), word('days'));
+            }
+            if (c.when === 'since_broadcast' || c.when === 'not_since_broadcast') {
+              if (!c.broadcastId && (opts.broadcasts || [])[0]) c.broadcastId = opts.broadcasts[0].id;
+              body.append(select(bcOptions(), c.broadcastId, (v) => { c.broadcastId = Number(v) || null; ch(); }));
+            }
+            const items = c.product === 'course' ? (opts.courses || []).map((x) => [x.key, x.label])
+              : c.product === 'retreat' ? (opts.retreats || []).map((x) => [x.slug, x.name])
+              : c.product === 'album' ? (opts.albums || []).map((x) => [x.id, x.title]) : null;
+            if (items) {
+              body.append(multi(items, c.items, (v) => { c.items = v; ch(); }, Math.min(6, Math.max(3, items.length))));
+              body.append(el('span', 'sb-hint', 'None picked = any ' + (c.product === 'course' ? 'course' : c.product) + '. Ctrl/⌘-click to pick several.'));
+            }
+            break;
+          }
+          case 'booked': {
+            body.append(select([['workshop', 'a workshop session'], ['retreat', 'a retreat']], c.kind, (v) => {
+              c.kind = v; delete c.workshopId; delete c.retreat;
+              if (v === 'workshop') c.workshopId = ((opts.workshops || [])[0] || {}).id || null;
+              else c.retreat = ((opts.retreats || [])[0] || {}).slug || '';
+              refill(); ch();
+            }));
+            if (c.kind === 'retreat') {
+              const r = (opts.retreats || []).map((x) => [x.slug, x.name]);
+              body.append(select(r.length ? r : [['', 'No retreats', true]], c.retreat, (v) => { c.retreat = v; ch(); }));
+            } else {
+              const w = (opts.workshops || []).map((x) => [x.id, x.label]);
+              body.append(select(w.length ? w : [['', 'No sessions in the last 400 days', true]], c.workshopId, (v) => { c.workshopId = Number(v) || null; ch(); }));
+              body.append(el('span', 'sb-hint', 'A paid or free (coupon) seat on that session.'));
+            }
+            break;
+          }
+          case 'email': {
+            body.append(select([
+              ['received', 'received'], ['opened', 'opened'], ['not_opened', 'did not open'],
+              ['clicked', 'clicked'], ['not_clicked', 'did not click'], ['clicked_link', 'clicked a link containing…'],
+            ], c.op, (v) => { c.op = v; refill(); ch(); }));
+            body.append(select(bcOptions(), c.broadcastId, (v) => { c.broadcastId = Number(v) || null; ch(); }));
+            if (c.op === 'clicked_link') {
+              const t = text(c.text, 'part of the link, e.g. /courses/forgiveness', (v) => { c.text = v; ch(); });
+              if (!F.linkClicks) { t.disabled = true; t.placeholder = 'needs migration 0097 (applied when merged)'; }
+              body.append(t);
+            }
+            break;
+          }
+          case 'activity': {
+            body.append(select([
+              ['engaged', 'opened or clicked any marketing email in the last'],
+              ['not_engaged', 'no open or click in the last'],
+            ], c.op, (v) => { c.op = v; ch(); }));
+            body.append(days(c.days, (v) => { c.days = v; ch(); }), word('days'));
+            break;
+          }
+          case 'newsletter': {
+            body.append(word('signed up in the last'));
+            const d = days(c.days, (v) => { c.days = v; ch(); });
+            if (!F.newsletter) d.disabled = true;
+            body.append(d, word('days'));
+            if (!F.newsletter) body.append(el('span', 'sb-hint', 'Needs migration 0096 (applied when merged).'));
+            break;
+          }
+          case 'added': {
+            body.append(word('in the last'), days(c.days, (v) => { c.days = v; ch(); }), word('days'));
+            break;
+          }
+        }
+      }
+
+      function condRow(c, onReplace, onRemove) {
+        const li = el('li', 'sb-cond');
+        const typeSel = select(TYPES, c.type, (t) => onReplace(defaults(t)), 'sb-type');
+        typeSel.setAttribute('aria-label', 'Kind of condition');
+        const body = el('span', 'sb-body');
+        const rm = el('button', 'sb-rm', '×');
+        rm.type = 'button';
+        rm.title = 'Remove this condition';
+        rm.setAttribute('aria-label', 'Remove this condition');
+        rm.addEventListener('click', onRemove);
+        const refill = (focusSel) => {
+          body.replaceChildren();
+          fillBody(body, c, refill);
+          if (focusSel) { const f = body.querySelector(focusSel); if (f) f.focus(); }
+        };
+        fillBody(body, c, refill);
+        li.append(typeSel, body, rm);
+        return li;
+      }
+
+      function groupRow(g, onRemove) {
+        const li = el('li', 'sb-group');
+        const head = el('div', 'sb-group-head');
+        head.append(word('Group: match'), select([['all', 'all'], ['any', 'any']], g.match, (v) => { g.match = v; changed(); }), word('of these'));
+        const rm = el('button', 'sb-rm', '×');
+        rm.type = 'button';
+        rm.title = 'Remove this group';
+        rm.setAttribute('aria-label', 'Remove this group');
+        rm.addEventListener('click', onRemove);
+        head.append(rm);
+        const sub = el('ol', 'sb-sublist');
+        if (!Array.isArray(g.conditions)) g.conditions = [];
+        g.conditions.forEach((c, i) => {
+          sub.append(condRow(c, (nc) => { g.conditions[i] = nc; render(); }, () => { g.conditions.splice(i, 1); render(); }));
+        });
+        if (!g.conditions.length) sub.append(el('li', 'sb-empty', 'An empty group is ignored — add a condition to it.'));
+        const add = el('button', 'adm-btn adm-btn--ghost', '+ Condition in this group');
+        add.type = 'button';
+        add.addEventListener('click', () => { g.conditions.push(defaults('tag')); render(); });
+        const addP = el('p', 'sb-add');
+        addP.append(add);
+        li.append(head, sub, addP);
+        return li;
+      }
+
+      function isGroup(x) { return x && typeof x === 'object' && !('type' in x) && Array.isArray(x.conditions); }
+
+      function render() {
+        list.replaceChildren();
+        state.conditions.forEach((x, i) => {
+          const remove = () => { state.conditions.splice(i, 1); render(); };
+          list.append(isGroup(x)
+            ? groupRow(x, remove)
+            : condRow(x, (nc) => { state.conditions[i] = nc; render(); }, remove));
+        });
+        if (!state.conditions.length) list.append(el('li', 'sb-empty', 'No conditions — the whole sendable list.'));
+        matchSel.value = state.match;
+        changed();
+      }
+
+      // Serialise, tell the page (preview / unsaved-changes), recount.
+      function changed() {
+        hidden.value = JSON.stringify(state);
+        root.dispatchEvent(new Event('input', { bubbles: true }));
+        scheduleCount();
+      }
+
+      function mode() {
+        const r = root.querySelector('input[name="audience_mode"]:checked');
+        return r ? r.value : 'simple';
+      }
+      let timer = null;
+      let seq = 0;
+      function scheduleCount() { clearTimeout(timer); timer = setTimeout(count, 600); }
+      async function count() {
+        if (mode() !== 'rules') return;
+        const my = ++seq;
+        countEl.classList.remove('is-err');
+        countEl.textContent = 'counting…';
+        const topicEl = form ? form.querySelector('[name="topic"]') : null;
+        const topic = topicEl && !topicEl.disabled ? topicEl.value : '';
+        try {
+          const res = await fetch('/api/admin/broadcasts/audience', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ audience_mode: 'rules', rules: state, topic }),
+          });
+          const data = await res.json();
+          if (my !== seq) return;
+          if (!res.ok) { countEl.textContent = data.error || 'Could not count this audience.'; countEl.classList.add('is-err'); return; }
+          countEl.textContent = '≈ ' + Number(data.count).toLocaleString() + ' contacts';
+        } catch (_) {
+          if (my === seq) { countEl.textContent = 'Could not count this audience.'; countEl.classList.add('is-err'); }
+        }
+      }
+
+      function applyMode() {
+        const rules = mode() === 'rules';
+        simpleBox.hidden = rules;
+        rulesBox.hidden = !rules;
+        hidden.disabled = !rules;
+        if (rules) { hidden.value = JSON.stringify(state); scheduleCount(); }
+      }
+      root.querySelectorAll('input[name="audience_mode"]').forEach((r) => r.addEventListener('change', () => {
+        applyMode();
+        root.dispatchEvent(new Event('input', { bubbles: true }));
+      }));
+      const topicSel = form ? form.querySelector('[name="topic"]') : null;
+      if (topicSel) topicSel.addEventListener('change', scheduleCount);
+      matchSel.addEventListener('change', () => { state.match = matchSel.value === 'any' ? 'any' : 'all'; changed(); });
+      root.querySelector('[data-sb-add]').addEventListener('click', () => { state.conditions.push(defaults('tag')); render(); });
+      root.querySelector('[data-sb-add-group]').addEventListener('click', () => { state.conditions.push({ match: 'any', conditions: [defaults('tag')] }); render(); });
+      // Enter in a condition field must not submit the compose form.
+      rulesBox.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target && e.target.tagName === 'INPUT') e.preventDefault(); });
+
+      async function loadKeys() {
+        if (keysLoaded) return;
+        keysLoaded = true;
+        try {
+          const data = await post({ action: 'field_keys' });
+          (data.keys || []).forEach((k) => { const o = document.createElement('option'); o.value = k.key; o.label = k.n + ' contacts'; keyList.append(o); });
+        } catch (_) { keysLoaded = false; }
+      }
+
+      // ── saved segments ──
+      async function post(body) {
+        const res = await fetch('/api/admin/broadcasts/segments', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'Request failed');
+        return data;
+      }
+      function say(t, err) { msgEl.textContent = t; msgEl.classList.toggle('is-err', !!err); }
+      root.querySelector('[data-sb-save]').addEventListener('click', async () => {
+        const name = (prompt('Name for this segment') || '').trim();
+        if (!name) return;
+        try {
+          const data = await post({ action: 'save', name, rules: state });
+          let opt = [...loadSel.options].find((o) => o.value === String(data.id));
+          if (!opt) { opt = new Option(data.name || name, String(data.id)); loadSel.add(opt); }
+          else opt.textContent = data.name || name;
+          loadSel.value = String(data.id);
+          say('Saved “' + (data.name || name) + '”.');
+        } catch (err) { say('Not saved: ' + err.message, true); }
+      });
+      loadSel.addEventListener('change', async () => {
+        const id = loadSel.value;
+        if (!id) return;
+        if (state.conditions.length && !confirm('Replace the current conditions?')) { loadSel.value = ''; return; }
+        try {
+          const data = await post({ action: 'get', id: Number(id) });
+          const r = data.segment.rules;
+          state = { match: r.match === 'any' ? 'any' : 'all', conditions: Array.isArray(r.conditions) ? r.conditions : [] };
+          render();
+          say('Loaded “' + data.segment.name + '”. Saving the broadcast keeps its own copy.');
+        } catch (err) { say('Not loaded: ' + err.message, true); }
+      });
+      root.querySelector('[data-sb-delete]').addEventListener('click', async () => {
+        const id = loadSel.value;
+        const opt = loadSel.selectedOptions[0];
+        if (!id || !opt) { say('Pick a saved segment in the list first.', true); return; }
+        if (!confirm('Delete the saved segment “' + opt.textContent + '”? Broadcasts that loaded it keep their own copy.')) return;
+        try {
+          await post({ action: 'delete', id: Number(id) });
+          opt.remove();
+          loadSel.value = '';
+          say('Deleted.');
+        } catch (err) { say('Not deleted: ' + err.message, true); }
+      });
+
+      // First paint: draw without telling the page anything changed.
+      list.replaceChildren();
+      state.conditions.forEach((x, i) => {
+        const remove = () => { state.conditions.splice(i, 1); render(); };
+        list.append(isGroup(x) ? groupRow(x, remove) : condRow(x, (nc) => { state.conditions[i] = nc; render(); }, remove));
+      });
+      if (!state.conditions.length) list.append(el('li', 'sb-empty', 'No conditions — the whole sendable list.'));
+      applyMode();
+    }
+  })();
+</script>

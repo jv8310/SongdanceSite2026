@@ -10,13 +10,24 @@ import {
   recipientCounts,
   broadcastStats,
   broadcastEmailType,
-  countAudience,
+  countAudienceChecked,
   availableTags,
   cleaningCounts,
   pendingByTimezone,
   failedReasons,
+  broadcastCriteria,
+  broadcastColumnsReady,
+  criteriaUseRules,
+  audienceTags as audienceTagsOf,
 } from '../../../lib/broadcasts/db';
+import { describeSegment } from '../../../lib/broadcasts/segment-rules';
+import { loadSegmentOptions, segmentNames } from '../../../lib/broadcasts/segment-catalog';
+import { resendReadiness, resendsOf } from '../../../lib/broadcasts/resend-unopened';
+import SegmentBuilder from '../../../components/admin/SegmentBuilder.astro';
 import { previewBroadcast } from '../../../lib/broadcasts/email';
+import { getTopic, listTopics, topicsReady } from '../../../lib/email/topics';
+import { broadcastSender, marketingSenderDomain } from '../../../lib/broadcasts/sender';
+import BroadcastSenderTopic from '../../../components/admin/BroadcastSenderTopic.astro';
 import { dripHtmlForBroadcast } from '../../../lib/broadcasts/drip';
 import { DEFAULT_SEND_TZ, localHour } from '../../../lib/workshops/time';
 import BroadcastLinkClicks from '../../../components/admin/BroadcastLinkClicks.astro';
@@ -38,27 +49,39 @@ const isDraft = b.status === 'draft';
 const isEditable = b.status !== 'done';
 const counts = await recipientCounts(env.DB, b.id);
 const stats = await broadcastStats(env.DB, broadcastEmailType(b.id));
-// The audience this broadcast targets right now (criteria minus suppressions).
-const audience = await countAudience(env.DB, {
-  includeTags: b.audience_include_tags,
-  excludeTags: b.audience_exclude_tags,
-  field: b.audience_field,
-  fieldValue: b.audience_field_value,
-});
+// The audience this broadcast targets right now (criteria minus suppressions
+// and topic opt-outs) — the same criteria the launch snapshot takes. Rules
+// that can't be read or counted say so (and Launch is off) rather than read 0.
+const crit = broadcastCriteria(b);
+const usesRules = criteriaUseRules(crit);
+const counted = await countAudienceChecked(env.DB, crit);
+const audience = 'count' in counted ? counted.count : 0;
+const audienceError = 'error' in counted ? counted.error : null;
+const rulesDescription =
+  usesRules && crit.rules ? describeSegment(crit.rules, await segmentNames(env.DB, crit.rules)) : null;
+// Sender (0098) and topic (0099): shown, and editable once their migrations run.
+const columns = await broadcastColumnsReady(env.DB);
+const topicReady = columns.topic && (await topicsReady(env.DB));
+const topics = topicReady ? await listTopics(env.DB) : [];
+const topic = b.topic ? await getTopic(env.DB, b.topic) : null;
+const sender = broadcastSender(b, env);
 const tags = isEditable ? await availableTags(env.DB, 1000) : [];
+const segmentOptions = isEditable ? await loadSegmentOptions(env.DB) : null;
 const hasAudienceFilter = !!(b.audience_include_tags || b.audience_exclude_tags || b.audience_field);
 // Does this broadcast target a segment that's recomputed at launch (and can be
 // refreshed by hand)? Gate the "Refresh segments" control on it — matches
 // refreshBroadcastSegments' own gating.
-const audienceTags = [
-  ...(b.audience_include_tags ?? '').split(','),
-  ...(b.audience_exclude_tags ?? '').split(','),
-].map((t) => t.trim().toLowerCase());
+const audienceTags = [...audienceTagsOf(crit)];
 const usesRefreshableSegment =
   audienceTags.includes('workshop-passed-nonbuyer') ||
   audienceTags.includes('in-drip') ||
   audienceTags.some((t) => t.startsWith('app:'));
-const preview = previewBroadcast(b, env.PUBLIC_BASE_URL);
+const preview = previewBroadcast(b, env.PUBLIC_BASE_URL, topic?.name ?? null);
+// Resend to non-openers (0100): where this one stands, the resends already
+// made from it, and — on a resend draft — the broadcast it follows.
+const resend = isDraft ? null : await resendReadiness(env.DB, b);
+const resends = isDraft ? [] : await resendsOf(env.DB, b.id);
+const resendSource = b.resend_of ? await getBroadcast(env.DB, b.resend_of) : null;
 const dripHtml = dripHtmlForBroadcast(b);
 // A human label for an armed auto-stop, formatted in the business timezone so
 // "midnight Brussels" reads plainly regardless of where the admin is sitting.
@@ -163,15 +186,24 @@ const statusLabel: Record<string, string> = {
           <a href="/admin/broadcasts">Broadcasts</a> <span class="sep">/</span> {b.name}
         </p>
         <h1>{b.name} <span class={`bc-pill bc-pill--${b.status}`}>{statusLabel[b.status]}</span></h1>
-        <p class="adm-sub">Subject: {b.subject} · {b.format === 'html' ? 'HTML' : 'Simple'} · {b.urgent ? '⚡ urgent — local-time windows ignored' : `window ${b.window_start_hour}:00–${b.window_end_hour}:00 local`}</p>
+        <p class="adm-sub">Subject: {b.subject} · {b.format === 'html' ? 'HTML' : 'Simple'} · {b.urgent ? '⚡ urgent — local-time windows ignored' : `window ${b.window_start_hour}:00–${b.window_end_hour}:00 local`} · From: {sender.from}{topic && ` · Topic: ${topic.name}`}</p>
       </div>
       <div class="adm-actions">
         <a class="adm-btn adm-btn--ghost" href="/admin/broadcasts">← All broadcasts</a>
       </div>
     </header>
 
-    {b.status === 'paused' && b.paused_reason && (
+    {(b.status === 'paused' || b.status === 'draft') && b.paused_reason && (
       <div class="adm-flash adm-flash--warn">{b.paused_reason}</div>
+    )}
+    {b.resend_of && (
+      <p class="bc-resend-of">
+        Resend of {resendSource ? <a href={`/admin/broadcasts/${b.resend_of}`}>“{resendSource.name}”</a> : 'a broadcast'} (#{b.resend_of}),
+        to those who didn't open or click it.
+      </p>
+    )}
+    {audienceError && b.status !== 'done' && (
+      <div class="adm-flash adm-flash--err">{audienceError} Launching is off until the audience can be counted — fix the rules below, or switch the audience back to Tags.</div>
     )}
 
     <section class="adm-section">
@@ -180,8 +212,8 @@ const statusLabel: Record<string, string> = {
         <div class="bc-launch">
           <p>
             This will queue <strong id="bc-audience-count">{audience.toLocaleString()}</strong> contacts
-            ({hasAudienceFilter ? 'matching your audience filter' : 'the whole list'}, minus
-            unsubscribes). They'll be sent over the coming days, only inside each
+            ({usesRules ? 'matching your rules' : hasAudienceFilter ? 'matching your audience filter' : 'the whole list'}, minus
+            unsubscribes{topic ? ` and anyone who left “${topic.name}”` : ''}). They'll be sent over the coming days, only inside each
             recipient's local {b.window_start_hour}:00–{b.window_end_hour}:00, and
             the send auto-pauses if bounces or spam complaints spike.
           </p>
@@ -189,7 +221,8 @@ const statusLabel: Record<string, string> = {
             <p class="bc-refresh-seg">
               <button id="bc-refresh-seg" class="adm-btn adm-btn--ghost" type="button"
                 data-include={b.audience_include_tags ?? ''} data-exclude={b.audience_exclude_tags ?? ''}
-                data-field={b.audience_field ?? ''} data-field-value={b.audience_field_value ?? ''}>↻ Refresh segments &amp; recount</button>
+                data-field={b.audience_field ?? ''} data-field-value={b.audience_field_value ?? ''} data-topic={b.topic ?? ''}
+                data-mode={usesRules ? 'rules' : 'simple'} data-rules={b.audience_rules ?? ''}>↻ Refresh segments &amp; recount</button>
               <span id="bc-refresh-msg" class="bc-msg"></span>
               <br /><small class="bc-muted">Rebuilds <code>workshop-passed-nonbuyer</code>, re-syncs the <code>in-drip</code> marker from live registrations/purchases and asks the member app again for its <code>app:</code> tags, then recounts. This also runs automatically the moment you launch.</small>
             </p>
@@ -201,7 +234,7 @@ const statusLabel: Record<string, string> = {
               You can still launch it now, or change/cancel the schedule below.
             </p>
           )}
-          <button id="bc-launch" class="adm-btn" type="button" data-id={b.id}>Launch broadcast now →</button>
+          <button id="bc-launch" class="adm-btn" type="button" data-id={b.id} disabled={!!audienceError}>Launch broadcast now →</button>
           <span id="bc-launch-msg" class="bc-msg"></span>
 
           <div class="bc-schedule">
@@ -261,6 +294,42 @@ const statusLabel: Record<string, string> = {
             </details>
           )}
 
+          {resend && (
+            <details class="bc-resend">
+              <summary><strong>Resend to non-openers…</strong>{resends.length > 0 && <span class="bc-muted"> · {resends.length} already made</span>}</summary>
+              {resends.length > 0 && (
+                <p class="bc-note">
+                  Already made:{' '}
+                  {resends.map((r, i) => (
+                    <>{i > 0 && ', '}<a href={`/admin/broadcasts/${r.id}`}>#{r.id}</a> ({r.status})</>
+                  ))}
+                </p>
+              )}
+              <p class="bc-note">
+                Makes a new draft with the same email, sender and topic, for everyone who received this one and
+                neither opened nor clicked it. Unsubscribes and topic opt-outs are left out as always. Opens are
+                approximate: some mail apps open every message by themselves (Apple Mail), so a few people who never
+                saw it won't be in the resend.
+              </p>
+              {resend.allowed ? (
+                resend.lastSentAgo && (
+                  <p class="bc-note">
+                    The last email went out {resend.lastSentAgo}.
+                    {resend.hoursSinceLast != null && resend.hoursSinceLast < 24 && ' Opens keep arriving for a day or two, so waiting a little gives a truer list of non-openers.'}
+                  </p>
+                )
+              ) : (
+                <p class="bc-resend-why">{resend.reason}{resend.lastSentAgo && ` The last email went out ${resend.lastSentAgo}.`}</p>
+              )}
+              <label class="bc-field"><span>Subject line for the resend</span><input id="bc-resend-subject" value={b.subject} disabled={!resend.allowed} /></label>
+              <label class="bc-resend-check"><input type="checkbox" id="bc-resend-buyers" disabled={!resend.allowed} /> Leave out anyone who bought something after receiving this one</label>
+              <div class="bc-actions">
+                <button id="bc-resend-btn" class="adm-btn" type="button" data-id={b.id} disabled={!resend.allowed}>Create the draft →</button>
+                <span id="bc-resend-msg" class="bc-msg"></span>
+              </div>
+            </details>
+          )}
+
           {showPacing && (
             <div class={`bc-pace${b.urgent ? ' bc-pace--urgent' : ''}`}>
               <strong>Pacing — who's eligible right now</strong>
@@ -300,7 +369,7 @@ const statusLabel: Record<string, string> = {
               </table>
               {!b.urgent && (
                 <p class="bc-note">
-                  Throughput tops out at ~350/tick, but only across the eligible slice — so when most of the queue is
+                  Throughput tops out at ~3,000/tick, but only across the eligible slice — so when most of the queue is
                   asleep it paces slowly by design (nothing is failing). To push the whole list out now regardless of
                   local hour — e.g. for a same-day deadline — hit <strong>⚡ Send now</strong> above (or widen the send
                   window toward 0:00–24:00 below); it takes effect on the next tick.
@@ -404,6 +473,13 @@ const statusLabel: Record<string, string> = {
             <input type="hidden" name="id" value={b.id} />
             <label class="bc-field"><span>Internal name</span><input name="name" required value={b.name} /></label>
             <label class="bc-field"><span>Subject line</span><input name="subject" required value={b.subject} /></label>
+            <BroadcastSenderTopic
+              fields={{ from_name: b.from_name, from_local: b.from_local, reply_to: b.reply_to, topic: b.topic }}
+              senderReady={columns.sender}
+              topicReady={topicReady}
+              topics={topics}
+              domain={marketingSenderDomain(env)}
+            />
             <label class="bc-field">
               <span>Content format</span>
               <select name="format" id="bc-format">
@@ -429,6 +505,8 @@ const statusLabel: Record<string, string> = {
               <label class="bc-field"><span>end <em>(1–24)</em></span><input name="window_end_hour" type="number" min="1" max="24" value={b.window_end_hour} /></label>
             </div>
 
+            {segmentOptions && (
+            <SegmentBuilder rules={crit.rules ?? null} mode={usesRules ? 'rules' : 'simple'} note={crit.rulesError ?? null} options={segmentOptions}>
             <fieldset class="bc-audience">
               <legend>Audience <span id="bc-aud-count" class="bc-aud-count"></span></legend>
               <label class="bc-field"><span>Include tags <em>(match ANY; blank = everyone)</em></span><input name="audience_include_tags" id="aud-include" value={b.audience_include_tags ?? ''} /></label>
@@ -449,6 +527,8 @@ const statusLabel: Record<string, string> = {
                 </div>
               )}
             </fieldset>
+            </SegmentBuilder>
+            )}
 
             <div class="bc-actions">
               <button class="adm-btn" type="submit">Save changes</button>
@@ -458,7 +538,10 @@ const statusLabel: Record<string, string> = {
         ) : (
           <dl class="bc-readonly">
             <dt>Format</dt><dd>{b.format === 'html' ? 'Pasted HTML' : 'Simple template'}</dd>
-            <dt>Audience</dt><dd>{hasAudienceFilter ? [
+            <dt>From</dt><dd>{sender.from}</dd>
+            <dt>Reply-to</dt><dd>{sender.replyTo}</dd>
+            <dt>Topic</dt><dd>{topic ? topic.name : b.topic ? b.topic : 'No topic'}</dd>
+            <dt>Audience</dt><dd>{usesRules ? (rulesDescription ?? crit.rulesError ?? 'Rules') : hasAudienceFilter ? [
               b.audience_include_tags ? `include: ${b.audience_include_tags}` : null,
               b.audience_exclude_tags ? `exclude: ${b.audience_exclude_tags}` : null,
               b.audience_field ? `${b.audience_field} = ${b.audience_field_value ?? ''}` : null,
@@ -473,6 +556,7 @@ const statusLabel: Record<string, string> = {
 
       <section class="adm-section">
         <h2>Preview</h2>
+        <p class="bc-from" id="bc-from-line">From: {sender.from} · Reply-to: {sender.replyTo}</p>
         <iframe id="bc-preview" class="bc-frame" srcdoc={preview.html} sandbox="" title="Broadcast preview"></iframe>
         <div class="bc-test">
           <input id="bc-test-to" type="email" value="jacob@songdance.co" />
@@ -491,7 +575,7 @@ const statusLabel: Record<string, string> = {
 
   <style>
     .bc-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; align-items: start; }
-    @media (max-width: 1000px) { .bc-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 1000px) { .bc-grid { grid-template-columns: minmax(0, 1fr); } }
     .bc-pill { font-size: 13px; padding: 2px 11px; border-radius: 999px; background: #ece0cf; color: #4a3848; vertical-align: middle; margin-left: 8px; }
     .bc-pill--sending { background: #d9ead0; color: #38601f; }
     .bc-pill--paused { background: #f4dcc9; color: #a14826; }
@@ -507,8 +591,8 @@ const statusLabel: Record<string, string> = {
     }
     .bc-field textarea { resize: vertical; line-height: 1.6; }
     .bc-simple-only { display: flex; flex-direction: column; gap: 12px; }
-    .bc-row { display: flex; gap: 12px; }
-    .bc-row .bc-field { flex: 1; }
+    .bc-row { display: flex; flex-wrap: wrap; gap: 12px; }
+    .bc-row .bc-field { flex: 1 1 180px; min-width: 0; }
     .bc-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
     .bc-msg { font-size: 13px; color: #6f5f6d; }
     .bc-stopat { border: 1px solid rgba(161,72,38,0.22); border-radius: 10px; padding: 14px 16px; margin: 16px 0 0; }
@@ -573,7 +657,19 @@ const statusLabel: Record<string, string> = {
     .bc-pace-tz td.zero { color: #b7a9b4; }
     .bc-pace-tz tr.out td:first-child { color: #6f5f6d; }
     .bc-muted { color: #b6a8b4; }
-    .bc-audience { border: 1px solid rgba(161,72,38,0.22); border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; margin: 0; }
+    .bc-resend { border: 1px solid rgba(161,72,38,0.22); border-radius: 10px; padding: 12px 16px; margin: 0 0 16px; display: block; }
+    .bc-resend summary { cursor: pointer; font-size: 13.5px; color: #4a3848; }
+    .bc-resend[open] summary { margin-bottom: 10px; }
+    .bc-resend .bc-field { margin: 0 0 10px; max-width: 560px; }
+    .bc-resend .bc-note a { color: #a14826; }
+    .bc-resend-check { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; color: #4a3848; margin: 0 0 12px; line-height: 1.5; }
+    .bc-resend-check input { margin-top: 3px; }
+    .bc-resend-why { font-size: 13px; color: #a14826; background: #f9efe2; border: 1px solid rgba(161,72,38,0.22); border-radius: 8px; padding: 8px 12px; margin: 0 0 12px; line-height: 1.6; max-width: 74ch; }
+    .bc-resend-of { font-size: 13px; color: #335; background: #eef2f8; border: 1px solid rgba(51,51,85,0.18); border-radius: 8px; padding: 8px 12px; margin: 0 0 16px; line-height: 1.6; }
+    .bc-resend-of a { color: #a14826; }
+    .bc-from { margin: 0 0 8px; font-size: 12.5px; color: #4a3848; word-break: break-word; }
+    .bc-from.is-error { color: #a14826; }
+    .bc-audience { border: 1px solid rgba(161,72,38,0.22); border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; margin: 0; min-width: 0; }
     .bc-audience legend { font-size: 13px; color: #4a3848; padding: 0 6px; }
     .bc-aud-count { color: #a14826; font-weight: 600; }
     .bc-tagcloud { display: flex; flex-direction: column; gap: 8px; }
@@ -625,7 +721,16 @@ const statusLabel: Record<string, string> = {
           });
           const data = await res.json();
           if (res.ok && data.html) previewFrame.srcdoc = data.html;
+          if (res.ok) showFrom(data);
         } catch (_) { /* best-effort */ }
+      }
+      const fromLine = document.getElementById('bc-from-line');
+      function showFrom(data) {
+        if (!fromLine || !data.from) return;
+        fromLine.classList.toggle('is-error', !!data.senderError);
+        fromLine.textContent = data.senderError
+          ? data.senderError
+          : 'From: ' + data.from + ' · Reply-to: ' + data.replyTo;
       }
       const schedule = () => { clearTimeout(timer); timer = setTimeout(updatePreview, 400); };
 
@@ -642,6 +747,7 @@ const statusLabel: Record<string, string> = {
           audience_field_value: fd.get('audience_field_value'),
         };
         const any = Object.values(payload).some((v) => (v || '').toString().trim());
+        payload.topic = fd.get('topic');
         try {
           const res = await fetch('/api/admin/broadcasts/audience', {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
@@ -687,7 +793,7 @@ const statusLabel: Record<string, string> = {
           const data = await res.json();
           if (!res.ok) throw new Error(data.error || 'Save failed');
           formDirty = false;
-          saveMsg.textContent = 'Saved ✓ — applies to recipients not yet sent.';
+          saveMsg.textContent = data.warning ? data.warning : 'Saved ✓ — applies to recipients not yet sent.';
           updatePreview();
         } catch (err) { saveMsg.textContent = 'Failed: ' + (err.message || err); }
       });
@@ -745,6 +851,9 @@ const statusLabel: Record<string, string> = {
               audience_exclude_tags: btn.dataset.exclude || '',
               audience_field: btn.dataset.field || '',
               audience_field_value: btn.dataset.fieldValue || '',
+              topic: btn.dataset.topic || '',
+              audience_mode: btn.dataset.mode || 'simple',
+              rules: btn.dataset.rules || '',
             }),
           });
           const data = await res.json();
@@ -801,6 +910,28 @@ const statusLabel: Record<string, string> = {
         } catch (err) { m.textContent = 'Failed: ' + (err.message || err); }
       });
     });
+
+    // Resend to non-openers: make the draft, then open it.
+    (function () {
+      const btn = document.getElementById('bc-resend-btn');
+      if (!btn) return;
+      btn.addEventListener('click', async () => {
+        const msg = document.getElementById('bc-resend-msg');
+        const subject = document.getElementById('bc-resend-subject').value.trim();
+        const excludeBuyers = document.getElementById('bc-resend-buyers').checked;
+        btn.disabled = true;
+        msg.textContent = 'Making the draft…';
+        try {
+          const res = await fetch('/api/admin/broadcasts/control', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: Number(btn.dataset.id), action: 'resend_unopened', subject, exclude_buyers: excludeBuyers }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Failed');
+          window.location.href = '/admin/broadcasts/' + data.id;
+        } catch (err) { msg.textContent = 'Failed: ' + (err.message || err); btn.disabled = false; }
+      });
+    })();
 
     // Remove queued contacts carrying given tags (e.g. Drip "undeliverable").
     (function () {

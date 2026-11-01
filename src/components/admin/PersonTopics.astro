@@ -1,0 +1,61 @@
+---
+// The Topics block on /admin/people/<email>: which email topics (migration
+// 0099, src/lib/email/topics.ts) this address still gets. Ticked = subscribed;
+// the opt-out's source and date sit in the tooltip. Posts to /api/admin/topics,
+// which comes back here (#topics) with a flash. Topics govern broadcasts only.
+import { isEmailSuppressed } from '../../lib/email/unsubscribe';
+import { listTopics, topicOptOutRows, topicsReady } from '../../lib/email/topics';
+
+interface Props {
+  email: string;
+  returnTo: string;
+}
+
+const { email, returnTo } = Astro.props;
+const env = Astro.locals.runtime.env;
+const ready = await topicsReady(env.DB);
+const topics = ready ? await listTopics(env.DB) : [];
+const outs = ready ? await topicOptOutRows(env.DB, email) : [];
+const outBy = new Map(outs.map((o) => [o.topic, o]));
+const suppressed = ready ? await isEmailSuppressed(env.DB, email).catch(() => false) : false;
+const msg = Astro.url.searchParams.get('topics_msg');
+const err = Astro.url.searchParams.get('topics_err');
+const sourceLabel = (s: string | null) =>
+  !s ? 'unknown' : s === 'preferences' ? 'their choices page' : s === 'one_click' ? 'one-click unsubscribe' : s;
+---
+
+<div class="pt" id="topics">
+  <h3>Topics</h3>
+  {msg && <div class="adm-flash adm-flash--ok">{msg}</div>}
+  {err && <div class="adm-flash adm-flash--err">{err}</div>}
+  {!ready && <p class="adm-empty">Topics need migration 0099 (applied when merged).</p>}
+  {ready && suppressed && (
+    <p class="adm-empty">Unsubscribed from everything — topics only matter once they are resubscribed.</p>
+  )}
+  {ready && !suppressed && topics.length > 0 && (
+    <form method="POST" action="/api/admin/topics" class="pt-form">
+      <input type="hidden" name="email" value={email} />
+      <input type="hidden" name="return_to" value={returnTo} />
+      {topics.map((t) => {
+        const out = outBy.get(t.key);
+        return (
+          <label class="pt-row" title={out ? `Left on ${out.created_at.slice(0, 10)} via ${sourceLabel(out.source)}` : 'Subscribed'}>
+            <input type="checkbox" name="keep" value={t.key} checked={!out} />
+            <span>{t.name}</span>
+            {out && <span class="pt-left">left {out.created_at.slice(0, 10)}</span>}
+          </label>
+        );
+      })}
+      <button type="submit" class="adm-btn adm-btn--ghost">Save topics</button>
+    </form>
+  )}
+</div>
+
+<style>
+  .pt { margin-top: 14px; }
+  .pt h3 { margin: 0 0 8px; font-size: 14px; }
+  .pt-form { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+  .pt-row { display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; }
+  .pt-left { font-size: 12px; color: #a14826; }
+  .pt-form .adm-btn { margin-top: 6px; }
+</style>

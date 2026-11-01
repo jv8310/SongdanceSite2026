@@ -48,6 +48,7 @@ import { runCertAccessDripSync } from './lib/courses/cert-access-drip';
 import { expireLapsedOffers } from './lib/registrations/waitlist';
 import { fxRatesStale, refreshFxRates } from './lib/admin/fx';
 import { runMetaAdSpendSync } from './lib/ads/meta-insights';
+import { handleOneClickUnsubscribe } from './lib/email/one-click';
 
 const WORKSHOP_CRON = '*/5 * * * *';
 
@@ -197,7 +198,17 @@ export class AppBridge extends WorkerEntrypoint<Env> {
     return broadcastTagsForApp(this.env, input);
   }
 
-  broadcastAudience(input: { includeTags?: string[] | string; excludeTags?: string[] | string; field?: string; fieldValue?: string; refresh?: boolean }) {
+  // `rules` (segment rules, an object or its JSON) counts by rules instead of
+  // the tags; `topic` leaves out everyone who left that topic. Both optional.
+  broadcastAudience(input: {
+    includeTags?: string[] | string;
+    excludeTags?: string[] | string;
+    field?: string;
+    fieldValue?: string;
+    refresh?: boolean;
+    rules?: unknown;
+    topic?: string | null;
+  }) {
     return broadcastAudienceForApp(this.env, input);
   }
 
@@ -581,6 +592,15 @@ export function createExports(manifest: unknown) {
     if (hostRedir) return hostRedir;
     const redirect = movedRedirect(request as Request);
     if (redirect) return redirect;
+    // RFC 8058 one-click unsubscribe, answered before Astro: its origin check
+    // (security.checkOrigin) 403s a form-encoded POST with no Origin header,
+    // which is exactly what Gmail's one-click POST is (src/lib/email/one-click.ts).
+    if (request.method === 'POST') {
+      const path = new URL(request.url).pathname;
+      if (path === '/api/unsubscribe' || path === '/api/unsubscribe/') {
+        return handleOneClickUnsubscribe(request as Request, env);
+      }
+    }
     return base.default.fetch(request, env, ctx);
   };
 

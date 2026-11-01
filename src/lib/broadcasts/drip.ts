@@ -24,6 +24,10 @@ function hasUnsubToken(s: string): boolean {
 export function broadcastToDrip(html: string): string {
   let out = html.split('utm_source=broadcast').join('utm_source=drip');
 
+  // The site's choices page ({{preferences_url}}, topics or everything) has no
+  // Drip twin: Drip's own unsubscribe page is where its readers manage that.
+  out = out.replace(/\{\{\s*preferences_?url\s*\}\}/gi, '{{ unsubscribe_url }}');
+
   // Upgrade the launch-design footer's single unsubscribe paragraph
   //   "Not for you? Unsubscribe — you won't hear from this list again."
   // to Drip's two-tier launch unsubscribe, reusing that paragraph's own styles.

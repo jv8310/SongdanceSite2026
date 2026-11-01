@@ -8,8 +8,12 @@
 // Two URLs are minted per email:
 //   - unsubscribePageUrl(): /unsubscribe?e=…&t=…   (human-facing confirm page,
 //     linked from the email footer)
-//   - oneClickUnsubscribeUrl(): /api/unsubscribe?e=…&t=…  (RFC 8058 one-click
-//     POST target, referenced from the List-Unsubscribe header)
+//   - oneClickUnsubscribeUrl(): /api/unsubscribe?e=…&t=…[&topic=…]  (RFC 8058
+//     one-click POST target, referenced from the List-Unsubscribe header; the
+//     POST is answered in src/worker-entrypoint.ts, ahead of Astro's origin
+//     check, by src/lib/email/one-click.ts)
+//   - preferencesPageUrl(): /email-preferences?e=…&t=…[&topic=…]  (broadcast
+//     footers: topics or everything)
 //
 // Suppression only gates marketing-flavoured sends (abandoned checkout,
 // post-workshop promotion, downsell). Transactional email — verification,
@@ -47,9 +51,34 @@ export async function unsubscribePageUrl(base: string, secret: string, email: st
   return `${base.replace(/\/$/, '')}/unsubscribe?e=${encodeURIComponent(email.trim().toLowerCase())}&t=${t}`;
 }
 
-export async function oneClickUnsubscribeUrl(base: string, secret: string, email: string): Promise<string> {
+// With a topic (a broadcast that names one — src/lib/email/topics.ts), the
+// one-click POST leaves just that topic instead of everything. The token is the
+// same HMAC either way: it already authorises a full unsubscribe, so narrowing
+// it needs no signature of its own, and tampering with `topic` only changes how
+// one's own address is scoped.
+export async function oneClickUnsubscribeUrl(
+  base: string,
+  secret: string,
+  email: string,
+  topic?: string | null,
+): Promise<string> {
   const t = await unsubscribeToken(secret, email);
-  return `${base.replace(/\/$/, '')}/api/unsubscribe?e=${encodeURIComponent(email.trim().toLowerCase())}&t=${t}`;
+  const tp = topic ? `&topic=${encodeURIComponent(topic)}` : '';
+  return `${base.replace(/\/$/, '')}/api/unsubscribe?e=${encodeURIComponent(email.trim().toLowerCase())}&t=${t}${tp}`;
+}
+
+// The reader's choices page (/email-preferences): leave a topic, pick topics,
+// or unsubscribe from everything. Broadcast footers link here; `topic` is the
+// one the broadcast came under, offered first. Same (e, t) token as above.
+export async function preferencesPageUrl(
+  base: string,
+  secret: string,
+  email: string,
+  topic?: string | null,
+): Promise<string> {
+  const t = await unsubscribeToken(secret, email);
+  const tp = topic ? `&topic=${encodeURIComponent(topic)}` : '';
+  return `${base.replace(/\/$/, '')}/email-preferences?e=${encodeURIComponent(email.trim().toLowerCase())}&t=${t}${tp}`;
 }
 
 // ── Suppression list ──────────────────────────────────────────────────────

@@ -6,11 +6,9 @@ import { readCookie, verifySession } from '../../../../lib/registrations/auth';
 import { getBroadcast } from '../../../../lib/broadcasts/db';
 import { renderBroadcast } from '../../../../lib/broadcasts/email';
 import { sendEmail } from '../../../../lib/workshops/resend';
-import {
-  MARKETING_FROM_DEFAULT,
-  MARKETING_REPLY_TO_DEFAULT,
-} from '../../../../lib/workshops/emails';
-import { unsubscribePageUrl, unsubscribeSecret } from '../../../../lib/email/unsubscribe';
+import { broadcastSender } from '../../../../lib/broadcasts/sender';
+import { getTopic } from '../../../../lib/email/topics';
+import { preferencesPageUrl, unsubscribeSecret } from '../../../../lib/email/unsubscribe';
 
 export const prerender = false;
 
@@ -36,17 +34,20 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const b = await getBroadcast(env.DB, Number(payload.id));
   if (!b) return json({ error: 'Broadcast not found.' }, 404);
 
+  // The same sender, topic footer and choices-page link a real send carries.
   const base = env.PUBLIC_BASE_URL.replace(/\/$/, '');
   const secret = unsubscribeSecret(env);
-  const unsub = secret ? await unsubscribePageUrl(base, secret, to) : undefined;
+  const topic = b.topic ? await getTopic(env.DB, b.topic) : null;
+  const unsub = secret ? await preferencesPageUrl(base, secret, to, topic?.key) : undefined;
   const firstName = to.split('@')[0] ?? 'friend';
-  const content = renderBroadcast(b, { firstName, unsubscribeUrl: unsub, email: to });
+  const content = renderBroadcast(b, { firstName, unsubscribeUrl: unsub, email: to, topicName: topic?.name ?? null });
+  const { from, replyTo } = broadcastSender(b, env);
 
   try {
     await sendEmail({
       apiKey: env.RESEND_API_KEY,
-      from: env.MARKETING_FROM || MARKETING_FROM_DEFAULT,
-      replyTo: env.MARKETING_REPLY_TO || MARKETING_REPLY_TO_DEFAULT,
+      from,
+      replyTo,
       to,
       subject: `[Test] ${content.subject}`,
       html: content.html,

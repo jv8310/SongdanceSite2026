@@ -4,8 +4,14 @@
 //   • 'simple' — the author's copy is paragraphs (light inline HTML allowed),
 //     wrapped in the shared parchment shell so it matches the lifecycle mail.
 //   • 'html'   — `body` IS the full email HTML, used as-is, so a designed
-//     template can be pasted straight in. `{{unsubscribe_url}}` is substituted
-//     (and if it's missing an unsubscribe footer is appended for compliance).
+//     template can be pasted straight in. `{{unsubscribe_url}}` (alias
+//     `{{preferences_url}}`) is substituted (and if it's missing an unsubscribe
+//     footer is appended for compliance).
+//
+// The footer link of a broadcast is the reader's choices page
+// (/email-preferences, built by the callers with preferencesPageUrl): leave the
+// broadcast's topic, pick topics, or unsubscribe from everything. With a topic
+// the footer names it ("This came to you as part of …").
 //
 // `{{first_name}}` is substituted in both. We also understand Drip/Liquid-style
 // merge tags (e.g. `{{ subscriber.first_name | default: "there" }}`), honouring
@@ -54,7 +60,7 @@ export function personalize(
     if (['first_name', 'firstname', 'first', 'fname', 'name', 'full_name', 'fullname'].includes(key)) {
       fromRecipient = !!fn;
       val = fn || def || 'friend';
-    } else if (['unsubscribe_url', 'unsubscribeurl', 'unsub_url'].includes(key)) {
+    } else if (['unsubscribe_url', 'unsubscribeurl', 'unsub_url', 'preferences_url', 'preferencesurl'].includes(key)) {
       val = opts.unsubscribeUrl || def || '';
     } else if (['email', 'email_address', 'emailaddress'].includes(key)) {
       fromRecipient = !!email;
@@ -75,7 +81,16 @@ export function applyTokens(s: string, firstName: string): string {
 }
 
 function hasUnsubToken(s: string): boolean {
-  return /\{\{\s*(?:subscriber\.)?unsub(?:scribe)?[_\s]?url\b[^}]*\}\}/i.test(s);
+  return /\{\{\s*(?:subscriber\.)?(?:unsub(?:scribe)?|preferences)[_\s]?url\b[^}]*\}\}/i.test(s);
+}
+
+// The footer's words, fixed: with a topic the reader is told which one it came
+// under; without, the link offers both ways.
+export function broadcastFooterWords(topicName?: string | null): { label: string; note?: string } {
+  const name = (topicName ?? '').trim();
+  return name
+    ? { label: 'Change what you get or unsubscribe', note: `This came to you as part of “${name}”.` }
+    : { label: 'Unsubscribe or choose what you get' };
 }
 
 // Turn the author's copy into shell-ready HTML (simple format). A blank line
@@ -106,8 +121,14 @@ function stripToText(html: string): string {
 
 // A minimal unsubscribe footer for pasted-HTML emails that don't carry their
 // own {{unsubscribe_url}}. Inserted before </body> when present.
-function appendUnsubFooter(html: string, url: string): string {
-  const footer = `<div style="font-family:Georgia,serif;font-size:11px;line-height:1.6;color:#9b8fa0;text-align:center;padding:18px 12px;">Songdance · songdance.co<br /><a href="${url}" style="color:#9b8fa0;text-decoration:underline;">No more emails like this — unsubscribe</a></div>`;
+function appendUnsubFooter(
+  html: string,
+  url: string,
+  label = 'No more emails like this — unsubscribe',
+  note?: string,
+): string {
+  const lead = note ? `${escapeHtml(note)} ` : '';
+  const footer = `<div style="font-family:Georgia,serif;font-size:11px;line-height:1.6;color:#9b8fa0;text-align:center;padding:18px 12px;">Songdance · songdance.co<br />${lead}<a href="${url}" style="color:#9b8fa0;text-decoration:underline;">${escapeHtml(label)}</a></div>`;
   if (/<\/body>/i.test(html)) return html.replace(/<\/body>/i, `${footer}</body>`);
   return html + footer;
 }
@@ -124,28 +145,33 @@ function ensureAddress(html: string): string {
 }
 
 // Render a broadcast for one recipient. `unsubscribeUrl` is the human-facing
-// footer link (the one-click RFC 8058 header is set separately on the send).
+// footer link — for a broadcast, the reader's choices page (preferencesPageUrl);
+// the one-click RFC 8058 header is set separately on the send. `topicName` is
+// the broadcast's topic, looked up by the caller (getTopic), since this is
+// synchronous.
 export function renderBroadcast(
   b: Broadcast,
-  opts: { firstName?: string; unsubscribeUrl?: string; email?: string } = {},
+  opts: { firstName?: string; unsubscribeUrl?: string; email?: string; topicName?: string | null } = {},
 ): EmailContent {
   const fn = opts.firstName ?? '';
   const unsub = opts.unsubscribeUrl ?? '';
   const em = opts.email ?? '';
   const subject = personalize(b.subject, { firstName: fn, email: em });
+  const words = broadcastFooterWords(opts.topicName);
+  const textUnsub = `${words.note ? `${words.note} ` : ''}Change what you get or unsubscribe: ${unsub}`;
 
   if (b.format === 'html') {
     const hadUnsub = hasUnsubToken(b.body);
     let html = personalize(b.body, { firstName: fn, unsubscribeUrl: unsub, email: em, html: true });
     // Append a footer only if the author didn't place their own unsubscribe tag.
-    if (unsub && !hadUnsub) html = appendUnsubFooter(html, unsub);
+    if (unsub && !hadUnsub) html = appendUnsubFooter(html, unsub, words.label, words.note);
     // Ensure the legal postal address is present (unless the author's footer
     // already has it). The text part is derived from the final html, so it
     // inherits the address without double-listing it.
     html = ensureAddress(html);
     const text = b.body_text
       ? personalize(b.body_text, { firstName: fn, unsubscribeUrl: unsub, email: em })
-      : `${stripToText(html)}${unsub && !hadUnsub ? `\n\nUnsubscribe: ${unsub}` : ''}`;
+      : `${stripToText(html)}${unsub && !hadUnsub ? `\n\n${textUnsub}` : ''}`;
     return { subject, html, text };
   }
 
@@ -164,6 +190,8 @@ export function renderBroadcast(
     footerNote: 'Songdance · songdance.co',
     address: MAILING_ADDRESS,
     unsubscribeUrl: opts.unsubscribeUrl,
+    unsubscribeLabel: words.label,
+    unsubscribeNote: words.note,
   });
 
   let text: string;
@@ -173,18 +201,30 @@ export function renderBroadcast(
     const lines = [heading, '', stripToText(bodyToHtml(bodyText))];
     if (cta) lines.push('', `${cta.label}: ${cta.href}`);
     lines.push('', 'Songdance · songdance.co', MAILING_ADDRESS);
-    if (unsub) lines.push(`Unsubscribe: ${unsub}`);
+    if (unsub) lines.push(textUnsub);
     text = lines.join('\n');
   }
   return { subject, html, text };
 }
 
+// The dummy choices-page link the admin previews carry, so the footer shows.
+export function samplePreferencesUrl(base = 'https://songdance.co', topic?: string | null): string {
+  const tp = topic ? `&topic=${encodeURIComponent(topic)}` : '';
+  return `${base.replace(/\/$/, '')}/email-preferences?e=sample%40example.com&t=preview${tp}`;
+}
+
 // A sample render for the admin preview / iframe — placeholder first name and a
-// dummy unsubscribe link so the footer shows.
-export function previewBroadcast(b: Broadcast, base = 'https://songdance.co'): EmailContent {
+// dummy choices-page link so the footer shows. Pass the topic's name (getTopic)
+// for the footer to name it.
+export function previewBroadcast(
+  b: Broadcast,
+  base = 'https://songdance.co',
+  topicName?: string | null,
+): EmailContent {
   return renderBroadcast(b, {
     firstName: 'Maria',
     email: 'maria@example.com',
-    unsubscribeUrl: `${base.replace(/\/$/, '')}/unsubscribe?e=sample%40example.com&t=preview`,
+    unsubscribeUrl: samplePreferencesUrl(base, b.topic),
+    topicName,
   });
 }

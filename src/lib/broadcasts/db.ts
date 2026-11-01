@@ -6,6 +6,14 @@
 // both read the same numbers.
 
 import { refreshBroadcastSegments } from './segment-refresh';
+import {
+  AudienceRulesError,
+  compileSegment,
+  parseSegmentRules,
+  segmentFeatures,
+  tagsInRules,
+  type SegmentRules,
+} from './segment-rules';
 
 export type Broadcast = {
   id: number;
@@ -48,7 +56,26 @@ export type Broadcast = {
   created_at: string;
   started_at: string | null;
   completed_at: string | null;
+  // Optional: these columns arrive with later migrations, so a row read on a
+  // preview before they are applied has none of them (and a literal Broadcast
+  // built elsewhere needn't name them). Written only by saveBroadcastExtras —
+  // never inside createBroadcast/updateBroadcast, whose column lists must stay
+  // valid against a production D1 without them.
+  // 0098 — sender (src/lib/broadcasts/sender.ts); NULL = the default.
+  from_name?: string | null;
+  from_local?: string | null;
+  reply_to?: string | null;
+  // 0099 — email_topics.key (src/lib/email/topics.ts); NULL = no topic.
+  topic?: string | null;
+  // 0100 — segment rules JSON + the broadcast a non-opener resend follows.
+  audience_rules?: string | null;
+  resend_of?: number | null;
 };
+
+// The columns written outside the create/update statements (see above).
+export type BroadcastExtras = Partial<
+  Pick<Broadcast, 'from_name' | 'from_local' | 'reply_to' | 'topic' | 'audience_rules' | 'resend_of'>
+>;
 
 export type ContactRow = {
   email: string;
@@ -64,12 +91,22 @@ export type ContactRow = {
   verdict?: 'bad' | 'risky' | 'good' | null;
 };
 
-// Audience targeting criteria, shared by the count + snapshot queries.
+// Audience targeting criteria, shared by the count + snapshot queries. Build
+// them from a broadcast with broadcastCriteria(b) — the one place that maps the
+// row to criteria, so the admin count, the app's SEND confirmation and the
+// launch snapshot can never count different audiences.
 export type AudienceCriteria = {
   includeTags?: string | null; // comma-separated; contact must carry ANY
   excludeTags?: string | null; // comma-separated; contact must carry NONE
   field?: string | null; // custom-field key
   fieldValue?: string | null; // exact match
+  topic?: string | null; // email_topics.key: leave out everyone who left this topic
+  // Segment rules (0100). When set they REPLACE include/exclude/field (which
+  // stay on the row, so switching back to tags restores them).
+  rules?: SegmentRules | null;
+  // Set when the stored rules can't be read: every count and snapshot then
+  // refuses (AudienceRulesError) rather than fall back to the whole list.
+  rulesError?: string | null;
 };
 
 // Each broadcast tracks its sends under its own email_type, so the stats table
@@ -386,32 +423,99 @@ export async function getContact(
 
 // ── Audience targeting ──────────────────────────────────────────────────────
 
+// The one mapping from a broadcast row to its audience criteria. Never throws:
+// unreadable rules come back as `rulesError`, which audienceSql turns into an
+// AudienceRulesError — so a page can still render and say what is wrong.
+export function broadcastCriteria(b: Broadcast): AudienceCriteria {
+  const c: AudienceCriteria = {
+    includeTags: b.audience_include_tags,
+    excludeTags: b.audience_exclude_tags,
+    field: b.audience_field,
+    fieldValue: b.audience_field_value,
+    topic: b.topic ?? null,
+  };
+  const stored = b.audience_rules;
+  if (stored != null && String(stored).trim() !== '') {
+    const parsed = parseSegmentRules(String(stored));
+    if (!parsed.ok) c.rulesError = `The saved audience rules could not be read: ${parsed.error}`;
+    else if (!parsed.rules) c.rulesError = 'The saved audience rules could not be read.';
+    else c.rules = parsed.rules;
+  }
+  return c;
+}
+
+// Do these criteria target by rules (rather than include/exclude tags)?
+export function criteriaUseRules(c: AudienceCriteria): boolean {
+  return !!(c.rules || c.rulesError);
+}
+
+// Every tag the criteria name — what refreshBroadcastSegments is asked to
+// freshen before a count or a launch: the tags in the rules in rules mode,
+// include ∪ exclude otherwise.
+export function audienceTags(c: AudienceCriteria): Set<string> {
+  if (criteriaUseRules(c)) return new Set(tagsInRules(c.rules));
+  return new Set([...splitTags(c.includeTags), ...splitTags(c.excludeTags)]);
+}
+
+let optoutTableReady = false;
+async function topicOptoutsReady(db: D1Database): Promise<boolean> {
+  if (optoutTableReady) return true;
+  try {
+    await db.prepare('SELECT 1 FROM email_topic_optouts LIMIT 0').run();
+    return (optoutTableReady = true);
+  } catch {
+    return false;
+  }
+}
+
 // Build the WHERE additions (and their binds) for a set of audience criteria,
-// against a `contacts c` row. Always excludes the suppression list. Tag matching
-// goes through the normalized contact_tags table; the field filter uses
-// json_extract on the preserved `custom` blob.
-function audienceWhere(criteria: AudienceCriteria): { sql: string; binds: string[] } {
+// against a `contacts c` row. Always excludes the suppression list, and — when
+// the criteria name a topic — everyone who left it. Tag matching goes through
+// the normalized contact_tags table, each list bound once as JSON (json_each),
+// so the bound-parameter count never grows with the list; the field filter uses
+// json_extract on the preserved `custom` blob. With segment rules, the rules
+// (segment-rules.ts) take the place of the tag and field clauses. Throws
+// AudienceRulesError when the rules can't be read or compiled — callers refuse,
+// never fall back to the whole list.
+export async function audienceSql(
+  db: D1Database,
+  criteria: AudienceCriteria,
+): Promise<{ sql: string; binds: (string | number)[] }> {
   const clauses = [`NOT EXISTS (SELECT 1 FROM email_suppressions s WHERE s.email = c.email)`];
-  const binds: string[] = [];
+  const binds: (string | number)[] = [];
+
+  const topic = (criteria.topic ?? '').trim();
+  // Before migration 0099 there is no opt-out table, and nobody can have left a
+  // topic, so leaving the clause out counts the same people.
+  if (topic && (await topicOptoutsReady(db))) {
+    clauses.push(`NOT EXISTS (SELECT 1 FROM email_topic_optouts o WHERE o.email = c.email AND o.topic = ?)`);
+    binds.push(topic);
+  }
+
+  if (criteria.rulesError) throw new AudienceRulesError(criteria.rulesError);
+  if (criteria.rules) {
+    const seg = compileSegment(criteria.rules, await segmentFeatures(db));
+    if (seg.sql) {
+      clauses.push(`(${seg.sql})`);
+      binds.push(...seg.binds);
+    }
+    return { sql: clauses.join(' AND '), binds };
+  }
 
   const include = splitTags(criteria.includeTags);
   if (include.length) {
     clauses.push(
-      `EXISTS (SELECT 1 FROM contact_tags t WHERE t.email = c.email AND t.tag IN (${include
-        .map(() => '?')
-        .join(',')}))`,
+      `EXISTS (SELECT 1 FROM contact_tags t WHERE t.email = c.email AND t.tag IN (SELECT value FROM json_each(?)))`,
     );
-    binds.push(...include);
+    binds.push(JSON.stringify(include));
   }
 
   const exclude = splitTags(criteria.excludeTags);
   if (exclude.length) {
     clauses.push(
-      `NOT EXISTS (SELECT 1 FROM contact_tags t WHERE t.email = c.email AND t.tag IN (${exclude
-        .map(() => '?')
-        .join(',')}))`,
+      `NOT EXISTS (SELECT 1 FROM contact_tags t WHERE t.email = c.email AND t.tag IN (SELECT value FROM json_each(?)))`,
     );
-    binds.push(...exclude);
+    binds.push(JSON.stringify(exclude));
   }
 
   const field = (criteria.field ?? '').trim();
@@ -425,29 +529,29 @@ function audienceWhere(criteria: AudienceCriteria): { sql: string; binds: string
   return { sql: clauses.join(' AND '), binds };
 }
 
-function criteriaOf(b: Broadcast | AudienceCriteria): AudienceCriteria {
-  if ('audience_include_tags' in b) {
-    return {
-      includeTags: b.audience_include_tags,
-      excludeTags: b.audience_exclude_tags,
-      field: b.audience_field,
-      fieldValue: b.audience_field_value,
-    };
-  }
-  return b;
+// How many contacts match these criteria right now (minus suppressions and
+// topic opt-outs). 0 on any error, as the live estimates expect.
+export async function countAudience(db: D1Database, criteria: AudienceCriteria): Promise<number> {
+  const r = await countAudienceChecked(db, criteria);
+  return 'count' in r ? r.count : 0;
 }
 
-// How many contacts match these criteria right now (minus suppressions).
-export async function countAudience(db: D1Database, criteria: AudienceCriteria): Promise<number> {
+// The same count, but an error comes back as words instead of a silent 0 —
+// for the places that must not mistake "couldn't count" for "nobody".
+export async function countAudienceChecked(
+  db: D1Database,
+  criteria: AudienceCriteria,
+): Promise<{ count: number } | { error: string }> {
   try {
-    const { sql, binds } = audienceWhere(criteria);
+    const { sql, binds } = await audienceSql(db, criteria);
     const r = await db
       .prepare(`SELECT COUNT(*) AS n FROM contacts c WHERE ${sql}`)
       .bind(...binds)
       .first<{ n: number }>();
-    return r?.n ?? 0;
-  } catch {
-    return 0;
+    return { count: r?.n ?? 0 };
+  } catch (err) {
+    if (err instanceof AudienceRulesError) return { error: err.message };
+    return { error: `The audience could not be counted: ${String(err instanceof Error ? err.message : err).slice(0, 200)}` };
   }
 }
 
@@ -468,6 +572,65 @@ export async function getBroadcast(db: D1Database, id: number): Promise<Broadcas
   } catch {
     return null;
   }
+}
+
+// Which of the later broadcast columns exist yet (0098 sender, 0099 topic,
+// 0100 rules). A preview runs against production D1 before its migration is
+// applied, so pages disable what isn't there and say so. Trues are memoised.
+const columnsSeen = { sender: false, topic: false, rules: false };
+async function probeColumn(db: D1Database, col: string): Promise<boolean> {
+  try {
+    await db.prepare(`SELECT ${col} FROM broadcasts LIMIT 0`).run();
+    return true;
+  } catch {
+    return false;
+  }
+}
+export async function broadcastColumnsReady(
+  db: D1Database,
+): Promise<{ sender: boolean; topic: boolean; rules: boolean }> {
+  if (!columnsSeen.sender) columnsSeen.sender = await probeColumn(db, 'from_name');
+  if (!columnsSeen.topic) columnsSeen.topic = await probeColumn(db, 'topic');
+  if (!columnsSeen.rules) columnsSeen.rules = await probeColumn(db, 'audience_rules');
+  return { ...columnsSeen };
+}
+
+// Write the later columns, each group in its own guarded statement so that a
+// missing column (a preview before its migration) skips that group and never
+// the save itself. A group is written only when one of its keys is defined;
+// within it, undefined keys keep their value (the SET list is built from the
+// defined keys only). Done broadcasts are never touched.
+export async function saveBroadcastExtras(
+  db: D1Database,
+  id: number,
+  x: BroadcastExtras,
+): Promise<{ saved: string[]; skipped: string[] }> {
+  const groups: Array<{ name: 'sender' | 'topic' | 'rules'; keys: (keyof BroadcastExtras)[] }> = [
+    { name: 'sender', keys: ['from_name', 'from_local', 'reply_to'] },
+    { name: 'topic', keys: ['topic'] },
+    { name: 'rules', keys: ['audience_rules', 'resend_of'] },
+  ];
+  const saved: string[] = [];
+  const skipped: string[] = [];
+  const ready = await broadcastColumnsReady(db);
+  for (const g of groups) {
+    const keys = g.keys.filter((k) => x[k] !== undefined);
+    if (!keys.length) continue;
+    if (!ready[g.name]) {
+      skipped.push(g.name);
+      continue;
+    }
+    try {
+      await db
+        .prepare(`UPDATE broadcasts SET ${keys.map((k) => `${k} = ?`).join(', ')} WHERE id = ? AND status != 'done'`)
+        .bind(...keys.map((k) => x[k] ?? null), id)
+        .run();
+      saved.push(g.name);
+    } catch {
+      skipped.push(g.name);
+    }
+  }
+  return { saved, skipped };
 }
 
 export type BroadcastInput = {
@@ -583,7 +746,7 @@ export async function updateBroadcast(db: D1Database, id: number, b: BroadcastIn
 export async function duplicateBroadcast(db: D1Database, sourceId: number): Promise<number> {
   const src = await getBroadcast(db, sourceId);
   if (!src) return 0;
-  return createBroadcast(db, {
+  const id = await createBroadcast(db, {
     name: `Copy of ${src.name}`,
     subject: src.subject,
     preheader: src.preheader,
@@ -601,6 +764,18 @@ export async function duplicateBroadcast(db: D1Database, sourceId: number): Prom
     audience_field: src.audience_field,
     audience_field_value: src.audience_field_value,
   });
+  // The sender, topic and rules ride along (each only when the source row has
+  // the column); resend_of does not — the copy is not a resend.
+  if (id) {
+    await saveBroadcastExtras(db, id, {
+      from_name: src.from_name,
+      from_local: src.from_local,
+      reply_to: src.reply_to,
+      topic: src.topic,
+      audience_rules: src.audience_rules,
+    });
+  }
+  return id;
 }
 
 // ── Launch / queue ────────────────────────────────────────────────────────────
@@ -608,10 +783,12 @@ export async function duplicateBroadcast(db: D1Database, sourceId: number): Prom
 // Snapshot the contacts matching the broadcast's audience into the queue.
 // INSERT … SELECT does the whole (filtered) list in one statement; INSERT OR
 // IGNORE + the UNIQUE(broadcast_id,email) makes a re-launch a safe top-up.
-// Returns the number of new rows added this call.
+// Returns the number of new rows added this call. Throws if the audience can't
+// be built — it never falls back to the whole list.
 export async function snapshotRecipients(db: D1Database, broadcastId: number): Promise<number> {
   const b = await getBroadcast(db, broadcastId);
-  const { sql, binds } = audienceWhere(b ? criteriaOf(b) : {});
+  if (!b) return 0;
+  const { sql, binds } = await audienceSql(db, broadcastCriteria(b));
   const r = await db
     .prepare(
       `INSERT OR IGNORE INTO broadcast_recipients (broadcast_id, email, name, timezone, status)
@@ -638,10 +815,16 @@ export async function launchBroadcast(
   // tags last built by hand. Gated to the tags actually used and best-effort
   // (never blocks the launch) — see refreshBroadcastSegments. Runs here so both
   // the manual launch (control.ts) and the scheduled/cron auto-launch get it.
+  // Order: criteria → refresh → snapshot → status flip; an error before the flip
+  // leaves the broadcast as it was.
   const b = await getBroadcast(db, id);
   if (b) {
-    const criteria = criteriaOf(b);
-    const tags = new Set([...splitTags(criteria.includeTags), ...splitTags(criteria.excludeTags)]);
+    const c = broadcastCriteria(b);
+    // Build the audience once before anything changes: rules that can't be
+    // read or compiled throw AudienceRulesError here, with nothing refreshed,
+    // snapshotted or flipped.
+    await audienceSql(db, c);
+    const tags = audienceTags(c);
     if (tags.size) await refreshBroadcastSegments(db, tags, app);
   }
   await snapshotRecipients(db, id);
@@ -756,6 +939,16 @@ export async function setBroadcastScheduledAt(
   await db
     .prepare(`UPDATE broadcasts SET scheduled_at = ? WHERE id = ? AND status = 'draft'`)
     .bind(scheduledAtIso, id)
+    .run();
+}
+
+// A scheduled launch the audience refused (rules that can't be read or
+// compiled): unschedule it and say why on the draft, so it neither fires every
+// tick nor goes out to anyone the rules didn't mean.
+export async function refuseScheduledLaunch(db: D1Database, id: number, why: string): Promise<void> {
+  await db
+    .prepare(`UPDATE broadcasts SET scheduled_at = NULL, paused_reason = ? WHERE id = ? AND status = 'draft'`)
+    .bind(`Scheduled launch refused: ${why}`.slice(0, 500), id)
     .run();
 }
 
@@ -944,8 +1137,8 @@ export async function markRecipientSent(db: D1Database, id: number, resendId: st
   await markRecipientSentStmt(db, id, resendId).run();
 }
 
-export async function markRecipientSuppressed(db: D1Database, id: number): Promise<void> {
-  await markRecipientSuppressedStmt(db, id).run();
+export async function markRecipientSuppressed(db: D1Database, id: number, reason?: string | null): Promise<void> {
+  await markRecipientSuppressedStmt(db, id, reason).run();
 }
 
 // A transient send failure releases the row back to 'pending' so a later run
@@ -986,8 +1179,16 @@ export function markRecipientSentStmt(db: D1Database, id: number, resendId: stri
     .bind(resendId, id);
 }
 
-export function markRecipientSuppressedStmt(db: D1Database, id: number): D1PreparedStatement {
-  return db.prepare(`UPDATE broadcast_recipients SET status = 'suppressed' WHERE id = ?`).bind(id);
+// `reason` lands on `error` (e.g. 'topic opt-out'); a global unsubscribe passes
+// none and keeps whatever was there, as before.
+export function markRecipientSuppressedStmt(
+  db: D1Database,
+  id: number,
+  reason?: string | null,
+): D1PreparedStatement {
+  return db
+    .prepare(`UPDATE broadcast_recipients SET status = 'suppressed', error = COALESCE(?, error) WHERE id = ?`)
+    .bind(reason ?? null, id);
 }
 
 export function markRecipientRetryOrFailStmt(
@@ -1018,6 +1219,39 @@ export async function suppressedEmailsIn(db: D1Database, emails: string[]): Prom
     .bind(...clean)
     .all<{ email: string }>();
   return new Set((r.results ?? []).map((row) => row.email));
+}
+
+// The chunk's send-time re-check, topic-aware: which of these addresses must
+// not get this broadcast now — globally unsubscribed (marker null, as before)
+// or, when the broadcast names a topic, left that topic since launch (marker
+// 'topic opt-out', written to broadcast_recipients.error). One query; the list
+// is bound once as JSON. Before 0099 the topic half is simply left out.
+export async function blockedEmailsIn(
+  db: D1Database,
+  emails: string[],
+  topic?: string | null,
+): Promise<Map<string, string | null>> {
+  const clean = [...new Set(emails.map((e) => e.trim().toLowerCase()).filter(Boolean))];
+  const out = new Map<string, string | null>();
+  if (clean.length === 0) return out;
+  const list = JSON.stringify(clean);
+  const withTopic = !!topic && (await topicOptoutsReady(db));
+  const r = await db
+    .prepare(
+      `SELECT email, NULL AS why FROM email_suppressions WHERE email IN (SELECT value FROM json_each(?1))` +
+        (withTopic
+          ? ` UNION ALL SELECT email, 'topic opt-out' AS why FROM email_topic_optouts
+                WHERE topic = ?2 AND email IN (SELECT value FROM json_each(?1))`
+          : ''),
+    )
+    .bind(...(withTopic ? [list, topic as string] : [list]))
+    .all<{ email: string; why: string | null }>();
+  for (const row of r.results ?? []) {
+    // A global unsubscribe outranks a topic opt-out (keep its null marker).
+    if (out.has(row.email) && out.get(row.email) === null) continue;
+    out.set(row.email, row.why);
+  }
+  return out;
 }
 
 export type RecipientCounts = {
@@ -1398,6 +1632,9 @@ export async function broadcastStats(
       .bind(...(since ? [emailType, since] : [emailType]))
       .first<Omit<BroadcastStats, 'openRate' | 'clickRate'>>();
     if (!r) return ZERO_STATS;
+    // SUM over no rows is NULL (a broadcast launched minutes ago has no tracked
+    // sends yet), and the detail page calls toLocaleString on every figure.
+    for (const k of Object.keys(r) as (keyof typeof r)[]) r[k] = Number(r[k] ?? 0);
     const denom = r.delivered || r.sent || 0;
     return {
       ...r,
