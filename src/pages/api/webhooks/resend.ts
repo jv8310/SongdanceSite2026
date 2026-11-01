@@ -16,6 +16,12 @@ import { logEvent } from '../../../lib/registrations/db';
 
 export const prerender = false;
 
+// Field meanings as Resend documents them (resend.com/docs/webhooks/emails/
+// clicked, checked November 2026): the TOP-LEVEL created_at is when the event
+// happened (the webhook event's creation); data.created_at is when the EMAIL
+// was created, i.e. roughly the send time. data.click.timestamp is the click's
+// own time. Until November 2026 this handler preferred data.created_at, so
+// delivered_at / first_opened_at / first_clicked_at all carried the send time.
 type ResendWebhookBody = {
   type?: string;
   created_at?: string;
@@ -26,8 +32,15 @@ type ResendWebhookBody = {
     // email.bounced carries SES-style bounce metadata; type is
     // 'Permanent' | 'Transient' | 'Undetermined'. Used to suppress hard bounces.
     bounce?: { type?: string };
+    // email.clicked: which link, when, from what browser. ipAddress is sent
+    // too and is deliberately never read or stored.
+    click?: { link?: string; timestamp?: string; ipAddress?: string; userAgent?: string };
   };
 };
+
+function toIso(x: string | undefined): string | null {
+  return x && Number.isFinite(Date.parse(x)) ? new Date(x).toISOString() : null;
+}
 
 export const POST: APIRoute = async ({ request, locals }) => {
   const env = locals.runtime.env;
@@ -42,11 +55,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
   }
 
   const rawBody = await request.text();
-  const verified = await verifyResendWebhook(
-    rawBody,
-    readSvixHeaders(request.headers),
-    env.RESEND_WEBHOOK_SECRET,
-  );
+  const svix = readSvixHeaders(request.headers);
+  const verified = await verifyResendWebhook(rawBody, svix, env.RESEND_WEBHOOK_SECRET);
   if (!verified) {
     return new Response(JSON.stringify({ error: 'invalid signature' }), {
       status: 401,
@@ -66,11 +76,17 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
   const type = body.type ?? '';
   const resendId = body.data?.email_id ?? body.data?.id ?? '';
-  const atIso = body.data?.created_at ?? body.created_at ?? new Date().toISOString();
+  const atIso = toIso(body.created_at) ?? toIso(body.data?.created_at) ?? new Date().toISOString();
 
   if (resendId && type.startsWith('email.')) {
     try {
-      await applyResendEvent(env.DB, type, resendId, atIso, { bounceType: body.data?.bounce?.type });
+      await applyResendEvent(env.DB, type, resendId, atIso, {
+        bounceType: body.data?.bounce?.type,
+        click: body.data?.click
+          ? { link: body.data.click.link, timestamp: body.data.click.timestamp, userAgent: body.data.click.userAgent }
+          : undefined,
+        eventId: svix.id,
+      });
     } catch (err) {
       // Never fail the webhook on a write hiccup (e.g. table not migrated yet);
       // log for visibility and ack so Resend moves on.

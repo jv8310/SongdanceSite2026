@@ -9,6 +9,7 @@
 // than a broken send. Recording a send must NEVER throw into the mail path.
 
 import { suppressEmailWithReason } from './unsubscribe';
+import { recordLinkClick } from './link-clicks';
 
 // The notification/email types the engine emits, mapped to a human group +
 // label for the stats view. Unknown types fall back to their raw key, so a new
@@ -171,12 +172,24 @@ function isPermanentBounce(bounceType?: string): boolean {
   return (bounceType ?? '').toLowerCase() === 'permanent';
 }
 
+// A timestamp from the payload when it parses, else the fallback.
+function isoOr(value: string | undefined, fallback: string): string {
+  return value && Number.isFinite(Date.parse(value)) ? new Date(value).toISOString() : fallback;
+}
+
 export async function applyResendEvent(
   db: D1Database,
   type: string,
   resendId: string,
   atIso: string,
-  opts: { bounceType?: string } = {},
+  opts: {
+    bounceType?: string;
+    // email.clicked carries data.click (link, timestamp, userAgent — see
+    // link-clicks.ts for the payload as Resend documents it).
+    click?: { link?: string; timestamp?: string; userAgent?: string };
+    // The Svix message id of this delivery: a retried delivery repeats it.
+    eventId?: string | null;
+  } = {},
 ): Promise<void> {
   let sql: string | null = null;
   let binds: string[] = [atIso, resendId];
@@ -193,6 +206,18 @@ export async function applyResendEvent(
       binds = [atIso, atIso, resendId];
       break;
     case 'email.clicked':
+      // Per-link record first (broadcasts only, email_link_clicks). It is also
+      // the dedupe: a Svix retry of a click already stored is not counted twice.
+      if (opts.click?.link) {
+        const r = await recordLinkClick(db, {
+          eventId: opts.eventId ?? null,
+          resendId,
+          link: opts.click.link,
+          clickedAt: isoOr(opts.click.timestamp, atIso),
+          userAgent: opts.click.userAgent ?? null,
+        });
+        if (r === 'duplicate') return;
+      }
       sql = `UPDATE email_sends
                 SET first_clicked_at = COALESCE(first_clicked_at, ?),
                     last_clicked_at = ?,
