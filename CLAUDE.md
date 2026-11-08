@@ -2174,6 +2174,41 @@ the record never landed. Logic in
   "mark unpaid" (what the account does today) or "leave past-due" both work.
   PayPal plans are not covered: PayPal holds the payment method.
 
+## Pay what's left — settle a plan in one payment, with a discount
+
+`/admin/orders/C-<id>` → Installments → **Pay what's left, in one payment**
+(November 2026): type an optional discount (in the plan's currency), press **Make
+link**, copy it into a reply. The buyer's link,
+`/courses/pay-remaining?t=<id>.<discount>.<sig>`
+([`payoff-link.ts`](src/lib/courses/payoff-link.ts), HMAC over
+`ADMIN_SESSION_SECRET`, domain `sd-payoff:`), carries the discount **signed**, so
+nobody can change it, and never the amount: each click works out what the plan
+still owes ([`payoff.ts`](src/lib/courses/payoff.ts) `payoffQuote` — the
+installments not yet charged, up to an admin early stop on a live plan, the whole
+term on a plan Stripe closed for an unpaid month), less the discount, and mints a
+fresh one-off Stripe Checkout (card, Bancontact, iDEAL only — no SEPA / Sofort,
+which take days; `immediate_methods_only`). Made on demand by a GET to the order
+page (`?payoff_discount=50`); nothing is stored and nothing is emailed.
+
+- **When it is paid** (`applyPayoff`, from the return page and the
+  `checkout.session.completed` webhook's `payment_kind=course_payoff` branch, which
+  sits before the course routing so it is never read as a purchase; one `events`
+  claim, `course-payoff-<session>`, kind `course.plan.paid_off`):
+  `installments_paid = installments_total`, `amount_cents` = what the earlier
+  installments took + this payment (so every money figure reads the money that
+  really came in, discount included), early stop cleared, a `cancelled` plan back
+  to `paid` — **written before** the subscription is cancelled, so
+  `customer.subscription.deleted` reads it as complete, not owing. Then the
+  subscription is cancelled at Stripe, any `open` invoice voided, and the plan's
+  dunning runs closed (`course.payoff.closed` / `.close_failed`).
+- **Why it exists**: the card link answers "this plan is closed" once Stripe has
+  given up on a month, which left no way to pay the last installment; and a buyer
+  asking to pay the rest at once, at a small discount, had no way to do it.
+- **Not covered**: PayPal plans, refunded orders, the monthly live pass. The
+  payment is a charge outside the subscription, so it is not in the
+  per-installment refund table; refund it from Stripe. Quaderno's Stripe connector
+  invoices it like any charge.
+
 ## Stripe course-installment recognition — safety-net reconcile
 
 Stripe **course installment plans** (3×/6×/12× subscriptions) record each cycle

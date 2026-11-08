@@ -38,6 +38,10 @@ export type CreateCheckoutSessionInput = {
   // the order, e.g. the post-workshop Song Deck gift). Stripe requires the
   // allowed countries enumerated explicitly — pass ISO-2 codes.
   shipping_countries?: string[];
+  // Only methods that settle on the spot (card, Bancontact, iDEAL): leaves out
+  // SEPA debit and Sofort, which take days to clear. For a payment whose
+  // effect has to happen when the buyer comes back (a plan paid off).
+  immediate_methods_only?: boolean;
 };
 
 export type CreateCustomerInput = {
@@ -340,7 +344,8 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput) {
   const sessionCurrency = (input.line_items[0]?.currency ?? 'eur').toLowerCase();
   const methods = ['card'];
   if (sessionCurrency === 'eur') {
-    methods.push('bancontact', 'ideal', 'sepa_debit', 'sofort');
+    methods.push('bancontact', 'ideal');
+    if (!input.immediate_methods_only) methods.push('sepa_debit', 'sofort');
   }
   if (input.enablePaypal) methods.push('paypal');
   methods.forEach((m, i) => form.set(`payment_method_types[${i}]`, m));
@@ -1062,6 +1067,56 @@ export async function retrieveSetupCheckoutSession(
           ? { id: si, status: '', payment_method: null }
           : null,
   };
+}
+
+// A one-off (payment mode) Checkout Session read back on our return page —
+// the "pay what's left" link (src/lib/courses/payoff.ts) reads it to decide
+// whether the money is in before it closes the plan.
+export type PaymentCheckoutSession = {
+  id: string;
+  mode: string | null;
+  status: string | null; // open | complete | expired
+  payment_status: string | null; // paid | unpaid | no_payment_required
+  amount_total: number;
+  currency: string; // upper-case
+  payment_intent: string | null;
+  metadata: Record<string, string>;
+};
+
+export async function retrievePaymentCheckoutSession(
+  secretKey: string,
+  sessionId: string,
+): Promise<PaymentCheckoutSession> {
+  const s = await stripeGetJson(
+    secretKey,
+    `/checkout/sessions/${encodeURIComponent(sessionId)}`,
+    'checkout.sessions.retrieve',
+  );
+  return {
+    id: s.id,
+    mode: s.mode ?? null,
+    status: s.status ?? null,
+    payment_status: s.payment_status ?? null,
+    amount_total: typeof s.amount_total === 'number' ? s.amount_total : 0,
+    currency: String(s.currency ?? '').toUpperCase(),
+    payment_intent: idOf(s.payment_intent),
+    metadata: s.metadata ?? {},
+  };
+}
+
+// Void an open invoice: it stops being owed and Stripe stops chasing it. Used
+// when a plan is paid off in one go and the month that failed is settled by
+// that payment instead.
+export async function voidInvoice(
+  secretKey: string,
+  invoiceId: string,
+  idempotencyKey?: string,
+): Promise<void> {
+  await stripePostForm(`/invoices/${encodeURIComponent(invoiceId)}/void`, new URLSearchParams(), {
+    secretKey,
+    idempotencyKey,
+    context: 'invoices.void',
+  });
 }
 
 // Future installments charge this payment method. The subscription's own

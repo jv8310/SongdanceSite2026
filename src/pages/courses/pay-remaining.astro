@@ -1,0 +1,214 @@
+---
+// "Pay what's left" on a course installment plan, in one payment — the link
+// an admin makes on /admin/orders/C-<id> (see src/lib/courses/payoff-link.ts).
+//
+//   /courses/pay-remaining?t=<id>.<discount>.<sig>   → 302 to a FRESH Stripe
+//                                                      page for what is left
+//   /courses/pay-remaining?t=…&stay=1                → this panel (Stripe's
+//                                                      cancel_url)
+//   /courses/pay-remaining?t=…&session_id=cs_…       → Stripe's return: record
+//                                                      the payment, close the
+//                                                      plan, say so
+//
+// The link never expires (the Stripe page is minted on each click) and the
+// amount is worked out from the order on every visit, so once the plan is
+// settled the page says so in our words.
+import Layout from '../../layouts/Layout.astro';
+import { getCourseRegistrationById } from '../../lib/courses/db';
+import {
+  applyPayoff,
+  payoffQuote,
+  startPayoff,
+  type PayoffBlock,
+} from '../../lib/courses/payoff';
+import {
+  PAYOFF_SESSION_PARAM,
+  PAYOFF_STAY_PARAM,
+  PAYOFF_TOKEN_PARAM,
+  verifyPayoffToken,
+} from '../../lib/courses/payoff-link';
+import { courseDisplayName } from '../../lib/courses/dunning';
+import { formatMoney } from '../../lib/workshops/currency';
+
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+Astro.response.headers.set('x-robots-tag', 'noindex, nofollow');
+Astro.response.headers.set('cache-control', 'no-store');
+
+const SUPPORT = 'support@songdance.co';
+
+const token = Astro.url.searchParams.get(PAYOFF_TOKEN_PARAM) ?? '';
+const stay = Astro.url.searchParams.get(PAYOFF_STAY_PARAM) === '1';
+const sessionId = Astro.url.searchParams.get(PAYOFF_SESSION_PARAM);
+
+type Panel = {
+  heading: string;
+  lines: string[];
+  action?: { label: string; href: string };
+  tone?: 'ok' | 'warn';
+};
+
+const parsed = await verifyPayoffToken(env.ADMIN_SESSION_SECRET, token);
+const reg = parsed ? await getCourseRegistrationById(env.DB, parsed.courseRegistrationId) : null;
+const retryHref = `${Astro.url.pathname}?${PAYOFF_TOKEN_PARAM}=${encodeURIComponent(token)}`;
+
+let panel: Panel | null = null;
+let redirectTo: string | null = null;
+
+function blockPanel(block: PayoffBlock, course: string): Panel {
+  switch (block) {
+    case 'settled':
+      return {
+        heading: 'Your plan is fully paid',
+        lines: [`There's nothing left to pay on ${course}. Thank you.`],
+        tone: 'ok',
+      };
+    case 'nothing_due':
+      return {
+        heading: 'There is nothing to pay',
+        lines: [`Nothing is left to pay on ${course}.`, `Write to ${SUPPORT} if you think that's wrong.`],
+        tone: 'ok',
+      };
+    case 'paypal':
+      return {
+        heading: 'Your plan runs through PayPal',
+        lines: [`Write to ${SUPPORT} and we'll settle the rest of it with you directly. Nothing has been charged.`],
+      };
+    default:
+      return {
+        heading: "This link can't be used for your plan",
+        lines: ['Nothing has been charged.', `Write to ${SUPPORT} and we'll sort it out with you directly.`],
+      };
+  }
+}
+
+if (!reg || !parsed) {
+  panel = {
+    heading: 'We could not open this link',
+    lines: [
+      'The link may have been copied incompletely.',
+      `Write to ${SUPPORT} and we'll send you a new one. Nothing has been charged.`,
+    ],
+  };
+} else {
+  const course = courseDisplayName(reg.product_slug);
+  if (sessionId) {
+    const r = await applyPayoff(env, reg.id, sessionId);
+    if (r.result === 'paid') {
+      panel = {
+        heading: "Thank you, you're all set",
+        lines: [
+          `${formatMoney(r.paidMinor, r.currency)} has gone through, and ${course} is now paid in full.`,
+          'No more monthly payments will be taken. There is nothing more to do.',
+        ],
+        tone: 'ok',
+      };
+    } else if (r.result === 'processing') {
+      panel = {
+        heading: 'Your payment is on its way',
+        lines: ['Your bank is still processing it. There is nothing more to do; we will see it come in.'],
+        tone: 'ok',
+      };
+    } else if (r.result === 'not_paid') {
+      panel = {
+        heading: 'Nothing was paid',
+        lines: ['The payment was not completed, so nothing has been charged.'],
+        action: { label: 'Try again', href: retryHref },
+      };
+    } else {
+      panel = {
+        heading: "We couldn't confirm your payment just now",
+        lines: [
+          'If you completed the payment, it is safe: refresh this page in a minute.',
+          `Or write to ${SUPPORT} and we'll check it for you.`,
+        ],
+        action: { label: 'Refresh', href: Astro.url.pathname + Astro.url.search },
+        tone: 'warn',
+      };
+    }
+  } else {
+    const q = payoffQuote(reg, parsed.discountMinor);
+    if (q.block) {
+      panel = blockPanel(q.block, course);
+    } else if (stay) {
+      const m = (n: number) => formatMoney(n, q.currency);
+      panel = {
+        heading: 'Pay the rest of your plan',
+        lines: [
+          `For ${course}: ${q.cyclesLeft} installment${q.cyclesLeft === 1 ? '' : 's'} left, ${m(q.remainingMinor)}.`,
+          q.discountMinor > 0
+            ? `With your ${m(q.discountMinor)} discount you pay ${m(q.dueMinor)}, once, and no more monthly payments are taken.`
+            : `You pay ${m(q.dueMinor)}, once, and no more monthly payments are taken.`,
+          'Nothing has been charged yet.',
+        ],
+        action: { label: `Pay ${m(q.dueMinor)}`, href: retryHref },
+      };
+    } else {
+      const started = await startPayoff(env, reg, token, parsed.discountMinor, Astro.url.origin);
+      if (started.ok) {
+        redirectTo = started.url;
+      } else if (started.error === 'blocked') {
+        panel = blockPanel(started.block, course);
+      } else {
+        panel = {
+          heading: "The payment page wouldn't open just now",
+          lines: ['Nothing has been charged.', `Try again in a minute, or write to ${SUPPORT} and we'll sort it out with you.`],
+          action: { label: 'Try again', href: retryHref },
+          tone: 'warn',
+        };
+      }
+    }
+  }
+}
+
+if (redirectTo) return Astro.redirect(redirectTo, 302);
+const p = panel!;
+---
+
+<Layout title="Pay the rest of your plan — Songdance" description="Pay what is left on your course payment plan in one go.">
+  <main class="pr">
+    <h1>{p.heading}</h1>
+    {p.lines.map((line) => <p>{line}</p>)}
+    {p.action && (
+      <p class="pr-actions">
+        <a class={`pr-cta${p.tone === 'warn' ? ' pr-cta--warn' : ''}`} href={p.action.href}>{p.action.label} &rarr;</a>
+      </p>
+    )}
+    <p class="pr-note">
+      Questions about your plan? Reply to any of our emails, or write to
+      <a href={`mailto:${SUPPORT}`}>{SUPPORT}</a>. A person reads it.
+    </p>
+  </main>
+</Layout>
+
+<style>
+  .pr {
+    max-width: 40rem;
+    margin: clamp(3rem, 9vw, 6rem) auto;
+    padding: 0 1.5rem;
+    font-family: var(--font-body, Georgia, serif);
+    line-height: 1.7;
+  }
+  .pr h1 {
+    font-family: var(--font-display, Georgia, serif);
+    font-size: clamp(1.9rem, 5vw, 2.5rem);
+    line-height: 1.2;
+    margin: 0 0 1rem;
+  }
+  .pr p { margin: 0 0 1rem; }
+  .pr-actions { margin-top: 1.75rem !important; }
+  .pr-cta {
+    display: inline-block;
+    padding: 0.85rem 1.9rem;
+    border-radius: 999px;
+    background: #2a1b2a;
+    color: #f4ecdf;
+    text-decoration: none;
+    font-size: 0.95rem;
+  }
+  .pr-cta:hover { opacity: 0.9; }
+  .pr-cta--warn { background: #a14826; }
+  .pr-note { margin-top: 2.5rem !important; font-size: 0.9rem; color: #6b5c69; }
+  .pr-note a { color: inherit; }
+</style>

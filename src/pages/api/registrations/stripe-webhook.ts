@@ -55,6 +55,7 @@ import {
   applyCardUpdate,
   CARD_UPDATE_PAYMENT_KIND,
 } from '../../../lib/courses/card-update';
+import { PAYOFF_PAYMENT_KIND, applyPayoff } from '../../../lib/courses/payoff';
 import {
   openDunningRun,
   resolveDunningRunsForInvoice,
@@ -184,6 +185,29 @@ export const POST: APIRoute = async ({ request, locals }) => {
         else await work;
       }
       return new Response('OK (card update)', { status: 200 });
+    }
+
+    // A plan paid off in one go through the "pay what's left" link
+    // (src/lib/courses/payoff.ts). It carries course_registration_id, so it
+    // MUST stop here too, or the course routing below would treat it as a new
+    // purchase. The return page usually records it a second earlier; both
+    // converge on one events claim.
+    if (
+      session.mode === 'payment' &&
+      session.metadata?.payment_kind === PAYOFF_PAYMENT_KIND
+    ) {
+      const payoffRegId = parseInt(session.metadata.course_registration_id ?? '', 10);
+      if (Number.isFinite(payoffRegId)) {
+        const work = applyPayoff(env, payoffRegId, session.id).then(
+          (r) => {
+            if (r.result === 'error') console.error(`[payoff] webhook apply failed: ${r.detail}`);
+          },
+          (err) => console.error(`[payoff] webhook apply failed: ${String(err)}`),
+        );
+        if (ctx) ctx.waitUntil(work);
+        else await work;
+      }
+      return new Response('OK (payoff)', { status: 200 });
     }
 
     // Route by metadata: retreat checkouts carry `registration_id`,
