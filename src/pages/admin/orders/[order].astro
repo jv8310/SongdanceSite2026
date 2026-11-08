@@ -18,6 +18,8 @@ import {
 import { getCourseRegistrationById } from '../../../lib/courses/db';
 import { effectiveTotal } from '../../../lib/courses/installment-forecast';
 import { isCancellablePlan, keepLabel } from '../../../lib/courses/installment-cancel';
+import { payoffQuote, payoffSummary } from '../../../lib/courses/payoff';
+import { buildPayoffUrl } from '../../../lib/courses/payoff-link';
 import { readMonthlyState } from '../../../lib/courses/live-pass-monthly';
 import { monthlyFirstMonthExtraCents } from '../../../lib/courses/live-pass';
 import { getFxRatesToEur } from '../../../lib/admin/fx';
@@ -195,6 +197,32 @@ const rowChargeTarget = o
 // shareable link so Jacob can re-send it (e.g. a registrant who lost the email).
 const siteBase = (env.PUBLIC_BASE_URL || Astro.url.origin).replace(/\/$/, '');
 const countdownUrl = detail?.countdownPath ? `${siteBase}${detail.countdownPath}` : null;
+// "Pay what's left": a link the buyer pays the rest of the plan with, in one
+// go, less a discount typed here (src/lib/courses/payoff.ts). Made on demand
+// by a GET to this same page (?payoff_discount=50) — the link is signed, the
+// discount is inside it, and nothing is stored.
+const payoffParam = Astro.url.searchParams.get('payoff_discount');
+const payoffDiscountMinor = (() => {
+  if (payoffParam == null) return 0;
+  const n = Number(String(payoffParam).replace(',', '.'));
+  return Number.isFinite(n) && n > 0 ? Math.round(n * 100) : 0;
+})();
+const payoff =
+  planReg && planReg.installments_total > 1 ? payoffQuote(planReg, payoffDiscountMinor) : null;
+const payoffUrlMade =
+  payoff && !payoff.block && payoffParam != null && planReg
+    ? await buildPayoffUrl(env.ADMIN_SESSION_SECRET, siteBase, planReg.id, payoff.discountMinor)
+    : null;
+const payoffBlockedText = payoff?.block
+  ? {
+      not_a_plan: '',
+      paypal: 'PayPal plan — the pay-what’s-left link works for Stripe plans only.',
+      not_started: 'The plan never took its first payment — nothing to settle by link.',
+      refunded: 'Money has gone back on this order — settle it by hand rather than by link.',
+      settled: 'Nothing left to pay on this plan.',
+      nothing_due: 'That discount covers everything left — no link needed.',
+    }[payoff.block]
+  : null;
 // What the whole-order form can actually refund: it targets the row's single
 // stored charge, so on a plan that is ONE installment — never the plan total.
 const remaining = o ? perChargeRefundableMinor(o) : 0;
@@ -450,6 +478,50 @@ function ymdhm(iso: string | null): string {
                 Future-revenue table uses, which re-derives everything from the
                 row — nothing about the schedule is trusted from this form.
               */}
+              {payoff && !isMonthly && (
+                <div class="od-payoff">
+                  <h3>Pay what’s left, in one payment</h3>
+                  {payoff.block ? (
+                    <p class="od-inst-stop-none">{payoffBlockedText}</p>
+                  ) : (
+                    <>
+                      <form method="GET" class="od-inst-stop-form">
+                        {[...Astro.url.searchParams.entries()]
+                          .filter(([k]) => k !== 'payoff_discount' && k !== 'flash' && k !== 'msg')
+                          .map(([k, v]) => <input type="hidden" name={k} value={v} />)}
+                        <label>
+                          <span>Discount ({payoff.currency}, optional)</span>
+                          <input
+                            type="number"
+                            name="payoff_discount"
+                            step="0.01"
+                            min="0"
+                            value={payoffParam ?? ''}
+                            placeholder="0"
+                          />
+                        </label>
+                        <button type="submit" class="adm-btn adm-btn--tiny">Make link</button>
+                      </form>
+                      <p class="od-payoff-sum">{payoffSummary(payoff)}</p>
+                      {payoffUrlMade && (
+                        <div class="od-countdown-row">
+                          <a class="od-countdown-url adm-mono" href={payoffUrlMade} target="_blank" rel="noopener">{payoffUrlMade}</a>
+                          <button type="button" class="adm-btn adm-btn--ghost od-copy" data-copy data-url={payoffUrlMade}>Copy link</button>
+                        </div>
+                      )}
+                      <p class="od-inst-stop-hint">
+                        The buyer pays once on a Stripe page; then every installment reads as
+                        charged, the order total becomes what really came in, the subscription
+                        closes and any unpaid month is voided. Works on a plan Stripe already
+                        closed for an unpaid month. The amount is worked out again on every
+                        click, so the link stays right. Making a link charges nothing and emails
+                        no one. Refund that payment from Stripe if ever needed.
+                      </p>
+                    </>
+                  )}
+                </div>
+              )}
+
               <div class="od-inst-stop">
                 {monthlyState ? (
                   <div class="od-monthly">
@@ -679,6 +751,9 @@ function ymdhm(iso: string | null): string {
     .od-kv dd.adm-mono { font-size:12px; }
 
     /* Countdown / join page — a shareable per-registrant link with a copy button. */
+    .od-payoff { margin:16px 0; padding:12px 14px; border:1px solid var(--adm-line, #e5ddd0); border-radius:8px; }
+    .od-payoff h3 { margin:0 0 8px; font-size:14px; }
+    .od-payoff-sum { margin:8px 0; font-size:13px; }
     .od-countdown {
       margin-bottom:14px; padding:14px 16px;
       border:1px solid var(--adm-line); border-radius:12px; background:var(--adm-paper-soft);
