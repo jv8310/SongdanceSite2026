@@ -1,0 +1,209 @@
+---
+import SiteLayout from '../../components/SiteLayout.astro';
+import '../../styles/sessions.css';
+import { getBooking } from '../../lib/sessions/db';
+import { bookingIcsUrl, verifyBookingToken } from '../../lib/sessions/link';
+import { loadSessionSettings } from '../../lib/sessions/config';
+import { loadAvailability } from '../../lib/sessions/availability';
+import { canClientMove } from '../../lib/sessions/actions';
+import { SESSION_EMAIL_TITLE } from '../../lib/sessions/confirm';
+import { getCourseRegistrationById } from '../../lib/courses/db';
+import { googleCalendarUrl } from '../../lib/workshops/ics';
+import { formatInTz } from '../../lib/workshops/time';
+
+export const prerender = false;
+
+// The client's own page for their individual session, from the signed link in
+// every email (/sessions/booking?t=<id>.<sig>, src/lib/sessions/link.ts). It is
+// also where the payment page returns to (?welcome=1). Shows the time on their
+// clock, the Zoom link, the calendar files, and — until the move window closes
+// — a picker to move the session to another free moment.
+const env = Astro.locals.runtime.env;
+const token = Astro.url.searchParams.get('t') ?? '';
+const id = await verifyBookingToken(env.ADMIN_SESSION_SECRET, token);
+const b = id ? await getBooking(env.DB, id).catch(() => null) : null;
+const welcome = Astro.url.searchParams.get('welcome') === '1';
+const movedParam = Astro.url.searchParams.get('moved') === '1';
+
+const settings = await loadSessionSettings(env.DB);
+const reg = b?.course_registration_id ? await getCourseRegistrationById(env.DB, b.course_registration_id).catch(() => null) : null;
+const tz = b?.timezone || 'Europe/Brussels';
+const whenLocal = b ? formatInTz(b.starts_at_utc, tz) : '';
+const now = Date.now();
+const past = b ? Date.parse(b.ends_at_utc) < now : false;
+
+// Payment received but the webhook hasn't confirmed the booking yet (a few
+// seconds, usually): the page waits and looks again.
+const confirming = !!b && (b.status === 'held' || b.status === 'expired') && (welcome || reg?.status === 'paid');
+const abandoned = !!b && (b.status === 'held' || b.status === 'expired') && !confirming;
+
+const canMove = !!b && canClientMove(b, settings.rescheduleHours, now);
+let moveSlots: Array<{ s: string; e: string }> = [];
+if (canMove && b) {
+  const av = await loadAvailability(env, settings, { excludeBookingId: b.id });
+  if (av.ok) moveSlots = av.slots.filter((s) => s.startUtc !== b.starts_at_utc).map((s) => ({ s: s.startUtc, e: s.endUtc }));
+}
+const moveUntil = b ? formatInTz(new Date(Date.parse(b.starts_at_utc) - settings.rescheduleHours * 3_600_000).toISOString(), tz) : '';
+
+const icsUrl = b ? await bookingIcsUrl(env.ADMIN_SESSION_SECRET, env.PUBLIC_BASE_URL, b.id) : '#';
+const gcalUrl = b
+  ? googleCalendarUrl({
+      title: SESSION_EMAIL_TITLE,
+      startsAtUtc: b.starts_at_utc,
+      endsAtUtc: b.ends_at_utc,
+      description: b.join_url ? `Zoom: ${b.join_url}${b.join_passcode ? ` (passcode ${b.join_passcode})` : ''}` : '',
+      location: b.join_url ?? 'Zoom',
+      url: Astro.url.toString().replace(/[?&]welcome=1/, ''),
+    })
+  : '#';
+const first = (b?.first_name ?? '').trim();
+---
+
+<SiteLayout title="Your session with Jacob — Songdance" description="Your individual session with Jacob." newsletter={false} promo={false}>
+  <main class="ss">
+    <section class="ss-book sd-section">
+      <div class="ss-book-inner ss-mine">
+        {!b ? (
+          <>
+            <h1 class="ss-h2">This link doesn't open a booking</h1>
+            <p class="ss-note">Please use the link in your confirmation email — or write to <a href="mailto:support@songdance.co">support@songdance.co</a> and we'll help.</p>
+          </>
+        ) : confirming ? (
+          <>
+            <div class="sd-eyebrow">Individual session</div>
+            <h1 class="ss-h2">Thank you{first ? `, ${first}` : ''} — confirming your payment…</h1>
+            <p class="ss-lede">This takes a few seconds. Your moment, <strong>{whenLocal}</strong>, is kept for you. The page looks again by itself, and your confirmation email is on its way.</p>
+            <meta http-equiv="refresh" content="4" />
+          </>
+        ) : abandoned ? (
+          <>
+            <h1 class="ss-h2">This booking wasn't completed</h1>
+            <p class="ss-note">No payment came through for {whenLocal}, so the moment is free again. <a href="/sessions#book">Choose a moment</a> to book.</p>
+          </>
+        ) : b.status === 'conflict' ? (
+          <>
+            <div class="sd-eyebrow">Individual session</div>
+            <h1 class="ss-h2">Your payment came through</h1>
+            <p class="ss-note">The moment you chose, {whenLocal}, was taken while you were paying. Nothing is lost — we will write to you within a day to find another time, or refund you in full if you prefer. You can also simply reply to the email we sent.</p>
+          </>
+        ) : b.status === 'cancelled' ? (
+          <>
+            <h1 class="ss-h2">This session is cancelled</h1>
+            <p class="ss-note">Your session on {whenLocal} was cancelled. Questions? Write to <a href="mailto:support@songdance.co">support@songdance.co</a>.</p>
+          </>
+        ) : (
+          <>
+            <div class="sd-eyebrow">Individual session</div>
+            <h1 class="ss-h2">{past ? 'Your session has taken place' : welcome ? `Thank you${first ? `, ${first}` : ''} — your session is booked` : `Your session${first ? `, ${first}` : ''}`}</h1>
+            {movedParam && <p class="ss-note">Done — your session has moved. A confirmation is on its way to your inbox.</p>}
+
+            <div class="ss-card">
+              <p class="ss-card-when"><i class="ph-light ph-calendar-check"></i> {whenLocal}</p>
+              <p class="ss-card-sub">{b.duration_min} minutes, one to one with Jacob, on Zoom.</p>
+              {!past && (
+                b.join_url ? (
+                  <p class="ss-card-zoom">
+                    Zoom: <a href={b.join_url} target="_blank" rel="noopener">{b.join_url}</a>
+                    {b.join_passcode && <> · passcode <strong>{b.join_passcode}</strong></>}
+                  </p>
+                ) : (
+                  <p class="ss-card-zoom">Your Zoom link follows by email before the session, and will show here.</p>
+                )
+              )}
+              {!past && (
+                <div class="ss-actions">
+                  {b.join_url && <a class="sd-btn sd-btn-primary" href={b.join_url} target="_blank" rel="noopener">Join on Zoom <i class="ph-light ph-arrow-up-right"></i></a>}
+                  <a class="sd-btn sd-btn-quiet" href={gcalUrl} target="_blank" rel="noopener">Add to Google Calendar</a>
+                  <a class="sd-btn sd-btn-quiet" href={icsUrl}>Apple / Outlook (.ics)</a>
+                </div>
+              )}
+            </div>
+
+            {past ? (
+              <p class="ss-lede">Thank you for sounding with Jacob. If you would like another session, <a href="/sessions#book">choose a moment</a>.</p>
+            ) : (
+              <>
+                <h2 class="ss-h3">How to prepare</h2>
+                <p class="ss-lede">There is nothing to prepare. If you would like to be comfortable: a quiet-ish room where a little sound is allowed, headphones if you share walls, water nearby. A few minutes early is perfect — Jacob lets you in from the waiting room.</p>
+
+                {canMove ? (
+                  <details class="ss-move" data-move-wrap>
+                    <summary>Need another moment? Move your session <small>(until {moveUntil})</small></summary>
+                    {moveSlots.length === 0 ? (
+                      <p class="ss-note">There are no other free moments right now. Look again later, or reply to your confirmation email.</p>
+                    ) : (
+                      <div class="ss-widget" data-widget>
+                        <div class="ss-tz"><label><span>Times shown in</span><select data-tz></select></label></div>
+                        <div class="ss-days" data-days role="tablist" aria-label="Days with free moments"></div>
+                        <div class="ss-times" data-times aria-live="polite"></div>
+                        <div class="ss-move-confirm" data-confirm hidden>
+                          <p class="ss-chosen" data-chosen></p>
+                          <button type="button" class="sd-btn sd-btn-primary" data-move>Move my session here</button>
+                          <p class="ss-error" role="alert" data-error hidden></p>
+                        </div>
+                      </div>
+                    )}
+                  </details>
+                ) : (
+                  <p class="ss-small">Need to change something? Reply to your confirmation email — a person reads it.</p>
+                )}
+              </>
+            )}
+          </>
+        )}
+      </div>
+    </section>
+  </main>
+  <script type="application/json" id="ss-move-data" set:html={JSON.stringify({ slots: moveSlots, token, tz })} />
+</SiteLayout>
+
+<script>
+  import { mountPicker, type PickerSlot } from '../../lib/client/session-picker';
+
+  const root = document.querySelector<HTMLElement>('[data-widget]');
+  const raw = document.getElementById('ss-move-data')?.textContent;
+  if (root && raw) {
+    const data = JSON.parse(raw) as { slots: PickerSlot[]; token: string; tz: string };
+    const confirmEl = root.querySelector<HTMLElement>('[data-confirm]')!;
+    const chosenEl = root.querySelector<HTMLElement>('[data-chosen]')!;
+    const errEl = root.querySelector<HTMLElement>('[data-error]')!;
+    const btn = root.querySelector<HTMLButtonElement>('[data-move]')!;
+    const picker = mountPicker(root, data.slots, {
+      fallbackTz: data.tz,
+      preferTz: data.tz,
+      onChange: (slot) => {
+        confirmEl.hidden = !slot;
+        if (slot) {
+          errEl.hidden = true;
+          chosenEl.innerHTML = `New moment: <strong>${picker.label(slot.s)}</strong>`;
+        }
+      },
+    });
+    btn.addEventListener('click', async () => {
+      const slot = picker.selected();
+      if (!slot) return;
+      btn.disabled = true;
+      errEl.hidden = true;
+      try {
+        const res = await fetch('/api/sessions/reschedule', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ t: data.token, start: slot.s }),
+        });
+        const out = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; taken?: boolean };
+        if (!res.ok || !out.ok) {
+          if (out.taken) picker.remove(slot.s);
+          throw new Error(out.error || 'Could not move the session.');
+        }
+        const u = new URL(location.href);
+        u.searchParams.delete('welcome');
+        u.searchParams.set('moved', '1');
+        location.href = u.toString();
+      } catch (err) {
+        errEl.textContent = (err as Error).message;
+        errEl.hidden = false;
+        btn.disabled = false;
+      }
+    });
+  }
+</script>

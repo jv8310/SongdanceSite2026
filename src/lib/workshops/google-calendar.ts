@@ -49,7 +49,13 @@ function pemToPkcs8(pem: string): ArrayBuffer {
   return buf.buffer;
 }
 
-async function serviceAccountToken(saJson: string): Promise<string> {
+// Read-only is all the workshop import needs; the individual-session bookings
+// (src/lib/sessions/calendar.ts) also write the booked session into the
+// calendar, which needs calendar.events.
+export const GOOGLE_READ_SCOPE = 'https://www.googleapis.com/auth/calendar.readonly';
+export const GOOGLE_EVENTS_SCOPE = 'https://www.googleapis.com/auth/calendar.events';
+
+async function serviceAccountToken(saJson: string, scope: string = GOOGLE_READ_SCOPE): Promise<string> {
   const sa = JSON.parse(saJson) as { client_email: string; private_key: string };
   const now = Math.floor(Date.now() / 1000);
   const header = base64url(new TextEncoder().encode(JSON.stringify({ alg: 'RS256', typ: 'JWT' })));
@@ -57,7 +63,7 @@ async function serviceAccountToken(saJson: string): Promise<string> {
     new TextEncoder().encode(
       JSON.stringify({
         iss: sa.client_email,
-        scope: 'https://www.googleapis.com/auth/calendar.readonly',
+        scope,
         aud: 'https://oauth2.googleapis.com/token',
         iat: now,
         exp: now + 3600,
@@ -102,8 +108,10 @@ async function oauthRefreshToken(cfg: GoogleCalConfig): Promise<string> {
   return ((await res.json()) as { access_token: string }).access_token;
 }
 
-export async function getAccessToken(cfg: GoogleCalConfig): Promise<string> {
-  if (cfg.saJson) return serviceAccountToken(cfg.saJson);
+// `scope` only matters for a service account (it asks for it per token); an
+// OAuth refresh token carries whatever was granted when it was connected.
+export async function getAccessToken(cfg: GoogleCalConfig, scope?: string): Promise<string> {
+  if (cfg.saJson) return serviceAccountToken(cfg.saJson, scope);
   if (cfg.oauthClientId && cfg.oauthClientSecret && cfg.oauthRefreshToken) {
     return oauthRefreshToken(cfg);
   }
@@ -112,7 +120,11 @@ export async function getAccessToken(cfg: GoogleCalConfig): Promise<string> {
 
 // ── Interactive OAuth (admin "Connect" flow) ──────────────────────────────
 
-export const GOOGLE_SCOPE = 'https://www.googleapis.com/auth/calendar.readonly';
+// Asks for writing events too (November 2026): a booked individual session is
+// written into the calendar. A refresh token connected before keeps read-only
+// access until Settings → Calendar sync → Connect is pressed again; until then
+// bookings still work and the admin is told the calendar was not written.
+export const GOOGLE_SCOPE = `${GOOGLE_READ_SCOPE} ${GOOGLE_EVENTS_SCOPE}`;
 
 // Build the consent URL. access_type=offline + prompt=consent guarantees a
 // refresh_token is returned even on a repeat authorisation.

@@ -18,7 +18,10 @@ export type CourseRegistrationSlug =
   | JourneySlug
   | `album-${string}`
   | `live-pass-${number}m`
-  | 'qa-plan-deepening';
+  | 'qa-plan-deepening'
+  // An individual session with Jacob (src/lib/sessions/), its moment on
+  // session_bookings.
+  | 'individual-session';
 export type ActivateChoice = 'now' | 'wait';
 // 'subscription' = open-ended, renews until cancelled (installments_total 0;
 // see isOpenEndedPlan in installment-forecast.ts).

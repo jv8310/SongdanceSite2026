@@ -1,0 +1,301 @@
+---
+import '../../../styles/admin.css';
+import Layout from '../../../layouts/Layout.astro';
+import { readCookie, verifySession } from '../../../lib/registrations/auth';
+import { bookingOpen, loadSessionSettings, sessionPriceLabel } from '../../../lib/sessions/config';
+import { loadAvailability } from '../../../lib/sessions/availability';
+import { calendarCanWrite } from '../../../lib/sessions/calendar';
+import { listBookingsForAdmin, type AdminBookingRow } from '../../../lib/sessions/db';
+import { zoomCheck, zoomConfigured } from '../../../lib/sessions/zoom';
+import { bookingUrl } from '../../../lib/sessions/link';
+import { formatInTz } from '../../../lib/workshops/time';
+import { formatMoney } from '../../../lib/workshops/currency';
+
+export const prerender = false;
+
+// Individual sessions — settings, the state of the Google and Zoom
+// connections, the free moments the calendar gives right now, and every
+// booking with what can be done to it (src/lib/sessions/).
+const env = Astro.locals.runtime.env;
+const authed = await verifySession(env.ADMIN_SESSION_SECRET, readCookie(Astro.request));
+if (!authed) return Astro.redirect('/admin/login');
+
+const settings = await loadSessionSettings(env.DB);
+const open = bookingOpen(settings);
+
+let migrationMissing = false;
+let upcoming: AdminBookingRow[] = [];
+let past: AdminBookingRow[] = [];
+try {
+  upcoming = await listBookingsForAdmin(env.DB, { upcoming: true, limit: 200 });
+  past = await listBookingsForAdmin(env.DB, { upcoming: false, limit: 50 });
+} catch {
+  migrationMissing = true;
+}
+
+const av = await loadAvailability(env, settings).catch((err) => ({ ok: false as const, error: 'calendar-error' as const, message: String(err) }));
+const canWrite = av.ok ? await calendarCanWrite(av.cfg) : null;
+const zoom = Astro.url.searchParams.get('zoomcheck') === '1'
+  ? await zoomCheck(env)
+  : { ok: zoomConfigured(env), message: zoomConfigured(env) ? 'Configured — every booking gets a Zoom meeting of its own. (Test it with the button.)' : 'Not connected — bookings use the link on the Boekingen event, else the standard link below.' };
+
+// Free moments for the next 14 days, by Brussels day.
+const preview = new Map<string, string[]>();
+if (av.ok) {
+  const until = Date.now() + 14 * 86_400_000;
+  for (const s of av.slots) {
+    if (Date.parse(s.startUtc) > until) break;
+    const day = formatInTz(s.startUtc, 'Europe/Brussels', { hour: undefined, minute: undefined, year: undefined });
+    const time = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(s.startUtc));
+    if (!preview.has(day)) preview.set(day, []);
+    preview.get(day)!.push(time);
+  }
+}
+
+const flash = Astro.url.searchParams.get('flash');
+const msg = Astro.url.searchParams.get('msg');
+const bru = (iso: string) => formatInTz(iso, 'Europe/Brussels');
+const name = (b: AdminBookingRow) => [b.first_name, b.last_name].filter(Boolean).join(' ').trim() || b.email;
+const statusPill = (b: AdminBookingRow): [string, string] => {
+  if (b.status === 'booked' && b.reg_status === 'refunded') return ['refunded', 'adm-pill--refunded'];
+  if (b.status === 'booked') return ['booked', 'adm-pill--paid'];
+  if (b.status === 'held') return ['being paid', 'adm-pill--pending'];
+  if (b.status === 'conflict') return ['paid · moment taken', 'adm-pill--refunded'];
+  if (b.status === 'cancelled') return ['cancelled', 'adm-pill--src-system'];
+  return [b.status, 'adm-pill--src-system'];
+};
+const srcLabel: Record<string, string> = {
+  'zoom-api': 'own Zoom meeting',
+  calendar: 'from the Boekingen event',
+  standard: 'standard link',
+  admin: 'set by hand',
+};
+const manageLinks = new Map<number, string>();
+for (const b of upcoming) manageLinks.set(b.id, await bookingUrl(env.ADMIN_SESSION_SECRET, env.PUBLIC_BASE_URL, b.id));
+---
+
+<Layout title="Admin — Individual sessions — Songdance" description="">
+  <main class="adm">
+    <header class="adm-header">
+      <div>
+        <p class="adm-breadcrumbs"><a href="/admin">Admin</a><span class="sep">/</span>Individual sessions</p>
+        <h1>Individual sessions</h1>
+        <p class="adm-sub">
+          Every event titled <strong>“{settings.calendarTitle}”</strong> on your Google Calendar is a window that can be booked on
+          <a href="/sessions" target="_blank" rel="noopener">/sessions</a>, cut into sessions of {settings.durationMin} minutes with
+          {settings.bufferMin} minutes between them. Anything else on the calendar that shows you busy is kept free. A paid booking gets
+          its Zoom link, goes into your calendar and is confirmed by email; reminders go a day and an hour before.
+        </p>
+      </div>
+      <div class="adm-actions">
+        <a class="adm-btn adm-btn--ghost" href="/sessions" target="_blank" rel="noopener">Open /sessions ↗</a>
+        <a class="adm-btn adm-btn--ghost" href="/admin">← Admin</a>
+      </div>
+    </header>
+
+    {flash && msg && <div class={`adm-flash adm-flash--${flash === 'ok' ? 'ok' : 'err'}`}>{msg}</div>}
+    {migrationMissing && <div class="adm-flash adm-flash--warn">The bookings table isn't there yet — migration 0096 runs when this is merged to main.</div>}
+
+    <section class="adm-section">
+      <h2>Status</h2>
+      <table class="adm-table ses-status">
+        <tbody>
+          <tr>
+            <th>Booking</th>
+            <td>
+              {open
+                ? <><span class="adm-pill adm-pill--open">open</span> {sessionPriceLabel(settings.priceEurCents, 'EUR')} per session (other currencies follow the album ratios)</>
+                : <><span class="adm-pill adm-pill--full">closed</span> No price set — /sessions says "opens soon". Set a price below to open it.</>}
+            </td>
+          </tr>
+          <tr>
+            <th>Google Calendar</th>
+            <td>
+              {av.ok
+                ? <>Reading <code>{av.cfg.calendarId}</code> — <strong>{av.windowCount}</strong> “{settings.calendarTitle}” event{av.windowCount === 1 ? '' : 's'} in the next {settings.horizonDays} days, <strong>{av.slots.length}</strong> free moment{av.slots.length === 1 ? '' : 's'}.</>
+                : <span class="ses-warn">{av.message}</span>}
+              <br />
+              {canWrite === true && <>Writing booked sessions into the calendar: <span class="adm-pill adm-pill--open">allowed</span></>}
+              {canWrite === false && <>Writing booked sessions into the calendar: <span class="adm-pill adm-pill--full">not allowed</span> — the connection is read-only. <a href="/admin/settings/calendar-sync">Settings → Calendar sync</a> → connect again and allow editing events. Bookings work regardless.</>}
+              {canWrite === null && av.ok && <>Writing into the calendar: shown on each booking below.</>}
+            </td>
+          </tr>
+          <tr>
+            <th>Zoom</th>
+            <td>
+              <span class={`adm-pill ${zoom.ok ? 'adm-pill--open' : 'adm-pill--low'}`}>{zoom.ok ? 'API' : 'fallback'}</span> {zoom.message}
+              {zoomConfigured(env) && <> <a href="/admin/sessions?zoomcheck=1">Test the Zoom connection</a></>}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="adm-section">
+      <h2>Upcoming <small>{upcoming.length}</small></h2>
+      {upcoming.length === 0 ? <p class="adm-empty">No upcoming sessions.</p> : (
+        <table class="adm-table">
+          <thead><tr><th>When (Brussels)</th><th>Client</th><th>Status</th><th>Zoom</th><th>Calendar</th><th>Order</th><th></th></tr></thead>
+          <tbody>
+            {upcoming.map((b) => {
+              const [label, cls] = statusPill(b);
+              return (
+                <tr>
+                  <td>
+                    <strong>{bru(b.starts_at_utc)}</strong><br />
+                    <small>{b.duration_min} min{b.timezone && b.timezone !== 'Europe/Brussels' ? ` · their clock: ${formatInTz(b.starts_at_utc, b.timezone)}` : ''}{b.reschedule_count ? ` · moved ${b.reschedule_count}×` : ''}</small>
+                  </td>
+                  <td>
+                    <a href={`/admin/people/${encodeURIComponent(b.email)}`}>{name(b)}</a><br />
+                    <small class="adm-mono">{b.email}</small>
+                    {b.note && <p class="ses-note">“{b.note}”</p>}
+                  </td>
+                  <td>
+                    <span class={`adm-pill ${cls}`}>{label}</span>
+                    {b.status === 'held' && b.hold_expires_at && <><br /><small>kept until {bru(b.hold_expires_at)}</small></>}
+                  </td>
+                  <td>
+                    {b.join_url
+                      ? <><a href={b.join_url} target="_blank" rel="noopener" class="adm-truncate ses-link">{b.join_url}</a><small>{srcLabel[b.join_source ?? ''] ?? ''}{b.join_passcode ? ` · ${b.join_passcode}` : ''}</small></>
+                      : <span class="ses-warn">no link yet</span>}
+                    {b.status === 'booked' && (
+                      <details class="ses-details">
+                        <summary>{b.join_url ? 'Change link' : 'Add a link'}</summary>
+                        <form method="POST" action="/api/admin/sessions" class="ses-inline">
+                          <input type="hidden" name="action" value="set_link" />
+                          <input type="hidden" name="booking_id" value={b.id} />
+                          <input type="text" name="join_url" placeholder="https://zoom.us/j/…" required />
+                          <input type="text" name="passcode" placeholder="passcode (optional)" />
+                          <button class="adm-btn adm-btn--solid" type="submit">Save</button>
+                        </form>
+                      </details>
+                    )}
+                  </td>
+                  <td>
+                    {b.calendar_event_id && !b.calendar_error ? 'written' : b.status === 'booked' ? <span class="ses-warn">{b.calendar_error ?? 'not written'}</span> : '—'}
+                    {b.status === 'booked' && (b.calendar_error || !b.calendar_event_id) && (
+                      <form method="POST" action="/api/admin/sessions">
+                        <input type="hidden" name="action" value="calendar" />
+                        <input type="hidden" name="booking_id" value={b.id} />
+                        <button class="adm-btn adm-btn--ghost" type="submit">Write it again</button>
+                      </form>
+                    )}
+                  </td>
+                  <td>
+                    {b.course_registration_id
+                      ? <><a href={`/admin/orders/C-${b.course_registration_id}`}>C-{b.course_registration_id}</a><br /><small>{b.reg_amount_cents != null && b.reg_currency ? formatMoney(b.reg_amount_cents, b.reg_currency) : ''} · {b.reg_status}</small></>
+                      : '—'}
+                  </td>
+                  <td>
+                    <a href={manageLinks.get(b.id)} target="_blank" rel="noopener"><small>client's page ↗</small></a>
+                    {(b.status === 'booked' || b.status === 'conflict' || b.status === 'held') && (
+                      <details class="ses-details">
+                        <summary>Cancel…</summary>
+                        <form method="POST" action="/api/admin/sessions" class="ses-cancel">
+                          <input type="hidden" name="action" value="cancel" />
+                          <input type="hidden" name="booking_id" value={b.id} />
+                          <label>Reason (for the log) <input type="text" name="reason" placeholder="e.g. asked to cancel" /></label>
+                          <label class="ses-check"><input type="checkbox" name="email_client" checked={b.status === 'booked'} /> Email the client that it is cancelled</label>
+                          <label>A line for them (optional) <textarea name="message" rows="2" placeholder="e.g. Your refund is on its way."></textarea></label>
+                          <button class="adm-btn adm-btn--danger" type="submit">Cancel this session</button>
+                          <small>Frees the moment, deletes the Zoom meeting and the calendar entry. No refund — do that on the order.</small>
+                        </form>
+                      </details>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+    </section>
+
+    <section class="adm-section">
+      <h2>Free moments, next 14 days <small>Brussels time</small></h2>
+      {!av.ok ? <p class="adm-empty">{av.message}</p> : preview.size === 0 ? (
+        <p class="adm-empty">No free moments in the next 14 days. Add an event titled “{settings.calendarTitle}” to your calendar for the hours you want to offer.</p>
+      ) : (
+        <div class="ses-preview">
+          {Array.from(preview.entries()).map(([day, times]) => (
+            <div class="ses-day"><strong>{day}</strong><span>{times.join(' · ')}</span></div>
+          ))}
+        </div>
+      )}
+    </section>
+
+    <section class="adm-section">
+      <h2>Settings</h2>
+      <form method="POST" action="/api/admin/sessions" class="adm-grid">
+        <input type="hidden" name="action" value="settings" />
+        <label><span>Price (EUR)</span><input type="number" name="price_eur" min="0" step="1" value={settings.priceEurCents ? String(settings.priceEurCents / 100) : ''} placeholder="empty = closed" /></label>
+        <label><span>Length (minutes)</span><input type="number" name="duration_min" min="15" max="240" step="5" value={settings.durationMin} /></label>
+        <label><span>Buffer between (minutes)</span><input type="number" name="buffer_min" min="0" max="120" step="5" value={settings.bufferMin} /></label>
+        <label><span>Bookable from (hours ahead)</span><input type="number" name="min_notice_hours" min="0" max="720" value={settings.minNoticeHours} /></label>
+        <label><span>Show how far ahead (days)</span><input type="number" name="horizon_days" min="1" max="365" value={settings.horizonDays} /></label>
+        <label><span>Client may move until (hours before)</span><input type="number" name="reschedule_hours" min="0" max="720" value={settings.rescheduleHours} /></label>
+        <label class="span-2"><span>Calendar title of the bookable windows</span><input type="text" name="calendar_title" value={settings.calendarTitle} /></label>
+        <label class="span-2"><span>Standard Zoom link (when the Zoom API isn't connected and the event carries none)</span><input type="text" name="standard_join_url" value={settings.standardJoinUrl} placeholder="https://zoom.us/j/…" /></label>
+        <label><span>Its passcode</span><input type="text" name="standard_passcode" value={settings.standardPasscode} /></label>
+        <label><span>&nbsp;</span><button class="adm-btn adm-btn--solid" type="submit">Save settings</button></label>
+      </form>
+      <p class="adm-table-note">
+        Prices in other currencies follow from the EUR price with the same ratios as the albums ($ = €, £ ≈ 0.9×, kr ≈ 11×, rounded).
+        "Client may move until" 0 = only you can move a session (they reply to the email).
+      </p>
+    </section>
+
+    <section class="adm-section">
+      <h2>Earlier &amp; cancelled <small>{past.length}</small></h2>
+      {past.length === 0 ? <p class="adm-empty">Nothing yet.</p> : (
+        <table class="adm-table">
+          <thead><tr><th>When (Brussels)</th><th>Client</th><th>Status</th><th>Order</th></tr></thead>
+          <tbody>
+            {past.map((b) => {
+              const [label, cls] = statusPill(b);
+              return (
+                <tr>
+                  <td>{bru(b.starts_at_utc)}</td>
+                  <td><a href={`/admin/people/${encodeURIComponent(b.email)}`}>{name(b)}</a> <small class="adm-mono">{b.email}</small></td>
+                  <td><span class={`adm-pill ${cls}`}>{label}</span>{b.cancel_reason && <small> {b.cancel_reason}</small>}</td>
+                  <td>{b.course_registration_id ? <a href={`/admin/orders/C-${b.course_registration_id}`}>C-{b.course_registration_id}</a> : '—'}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+    </section>
+
+    <section class="adm-section">
+      <h2>Setup notes</h2>
+      <ul class="ses-help">
+        <li><strong>Free moments:</strong> put an event titled “{settings.calendarTitle}” on the connected calendar for the hours you offer (a repeating event works). A Zoom link pasted on that event (location or description, or Zoom's calendar add-on) is used for its sessions when the Zoom API isn't connected.</li>
+        <li><strong>Busy time:</strong> every other event that shows you busy blocks the moments it touches. All-day events count only when set to “Busy”.</li>
+        <li><strong>Writing into your calendar</strong> needs permission to edit events: if the status above says read-only, go to Settings → Calendar sync and connect Google again.</li>
+        <li><strong>A Zoom meeting per booking:</strong> create a Server-to-Server OAuth app on marketplace.zoom.us (scopes to create, update and delete meetings), then set the worker secrets <code>ZOOM_ACCOUNT_ID</code>, <code>ZOOM_CLIENT_ID</code> and <code>ZOOM_CLIENT_SECRET</code>.</li>
+        <li><strong>Refunds</strong> are done on the order (Orders → C-…). A full refund cancels the session by itself within five minutes; a cancel here never refunds.</li>
+      </ul>
+    </section>
+  </main>
+</Layout>
+
+<style>
+  .ses-status th { width: 170px; vertical-align: top; text-transform: none; letter-spacing: 0; font-size: 13px; }
+  .ses-warn { color: var(--adm-danger, #b53d3d); }
+  .ses-note { margin: 6px 0 0; font-size: 12px; color: var(--adm-ink-soft); font-style: italic; max-width: 260px; white-space: pre-line; }
+  .ses-link { display: block; max-width: 200px; }
+  .ses-details { margin-top: 6px; font-size: 12px; }
+  .ses-details summary { cursor: pointer; color: var(--adm-ember-deep, #a14826); }
+  .ses-inline, .ses-cancel { display: grid; gap: 6px; margin-top: 6px; min-width: 220px; }
+  .ses-inline input, .ses-cancel input[type="text"], .ses-cancel textarea {
+    padding: 6px 8px; border: 1px solid var(--adm-line); border-radius: 6px; font: inherit; font-size: 13px;
+  }
+  .ses-cancel label { display: grid; gap: 4px; font-size: 12px; }
+  .ses-cancel .ses-check { display: flex; gap: 6px; align-items: center; }
+  .ses-preview { display: grid; gap: 6px; }
+  .ses-day { display: flex; gap: 14px; flex-wrap: wrap; font-size: 14px; padding: 6px 0; border-bottom: 1px solid var(--adm-line); }
+  .ses-day strong { min-width: 150px; }
+  .ses-help { font-size: 14px; line-height: 1.6; color: var(--adm-ink-soft); padding-left: 18px; }
+  .ses-help li { margin-bottom: 8px; }
+</style>

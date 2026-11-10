@@ -42,6 +42,10 @@ export type CreateCheckoutSessionInput = {
   // SEPA debit and Sofort, which take days to clear. For a payment whose
   // effect has to happen when the buyer comes back (a plan paid off).
   immediate_methods_only?: boolean;
+  // Unix seconds at which the Checkout page closes (Stripe allows 30 minutes to
+  // 24 hours from now). For a payment that holds something only for a while —
+  // an individual session's moment — so the page can't be paid after the hold.
+  expires_at?: number;
 };
 
 export type CreateCustomerInput = {
@@ -308,6 +312,7 @@ export async function createCheckoutSession(input: CreateCheckoutSessionInput) {
     form.set('customer_email', input.customer_email);
   }
   form.set('payment_intent_data[capture_method]', 'automatic');
+  if (input.expires_at) form.set('expires_at', String(Math.floor(input.expires_at)));
   if (input.payment_intent_description) {
     form.set(
       'payment_intent_data[description]',

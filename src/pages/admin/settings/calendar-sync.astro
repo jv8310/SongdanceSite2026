@@ -145,6 +145,10 @@ const flashText = flash ? FLASH[flash] ?? null : null;
               </form>
               <a class="adm-btn adm-btn--ghost" href="/api/admin/workshops/google-connect">Re-connect</a>
             </div>
+            <p class="adm-sub">
+              The connection also asks to edit events: a booked <a href="/admin/sessions">individual session</a> is written into
+              this calendar. A connection made before November 2026 is read-only — press Re-connect once and allow it.
+            </p>
           ) : (
             <a class="adm-btn adm-btn--solid" href="/api/admin/workshops/google-connect">Connect Google Calendar →</a>
           )}

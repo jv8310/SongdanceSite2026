@@ -166,6 +166,7 @@ const COURSE_LABELS: Record<string, string> = {
   'grief-course': 'Grief Course',
   'forgiveness-course': 'Forgiveness Course',
   grief: 'Grief Course',
+  'individual-session': 'Individual session',
 };
 function courseLabel(slug: string): string {
   return COURSE_LABELS[slug] ?? livePassLabelForSlug(slug) ?? slug;

@@ -31,6 +31,7 @@ import { assessPendingSubmissions } from './lib/intake/sweep';
 import { syncStaleTransportSheets } from './lib/intake/transport-sheet';
 import { runWorkshopCron } from './lib/workshops/cron';
 import { runBroadcasts } from './lib/broadcasts/cron';
+import { runSessionCron } from './lib/sessions/cron';
 import { syncAppTags } from './lib/broadcasts/app-tags';
 import { runDripOrderBackfill } from './lib/orders/drip-backfill';
 import { runContactTagBackfill } from './lib/contacts/tag-backfill';
@@ -267,6 +268,22 @@ export function createExports(manifest: unknown) {
           })
           .catch((err) => {
             console.error('[broadcasts/cron] run failed', err);
+          }),
+      );
+      // Individual sessions: reminders (a day and an hour before), the safety
+      // net for a paid booking still only held, refunded orders' sessions
+      // cancelled, lapsed holds freed (src/lib/sessions/cron.ts).
+      ctx.waitUntil(
+        runSessionCron(env)
+          .then((r) => {
+            if (r.confirmed || r.reminders || r.cancelled || r.expired) {
+              console.log(
+                `[sessions/cron] confirmed=${r.confirmed} reminders=${r.reminders} cancelled=${r.cancelled} expired=${r.expired}`,
+              );
+            }
+          })
+          .catch((err) => {
+            console.error('[sessions/cron] run failed', err);
           }),
       );
       // One-shot historical Drip order backfill (gated by DRIP_BACKFILL_ENABLED).

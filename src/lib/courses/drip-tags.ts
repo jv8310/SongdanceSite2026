@@ -11,6 +11,7 @@ import { isJourneySlug, journeyDrip, type JourneyLanguageChoice } from './journe
 import { BUMPS, isBumpSlug } from './bumps';
 import { parsePurchasedBumps } from './db';
 import { isAlbumProductSlug } from '../music/product';
+import { isSessionProductSlug, SESSION_DRIP_TAG } from '../sessions/config';
 import {
   CERT_EXTENSION_DRIP_TAG,
   CERT_EXTENSION_SLUG,
@@ -31,6 +32,7 @@ import {
 //   live-pass-*  → prod_LivePass (+ prod_CertExtension with the add-on); the
 //                  pass's dates go along as custom fields, not tags
 //   qa-plan-deepening (the monthly live pass) → prod_LivePass + prod_LivePassMonthly
+//   individual-session → prod_Session (the moment lives on session_bookings)
 //   cert/bundle  → prod_SVH_9m (+ prod_SVH_12w for the bundle) + each order bump's tag
 export function courseDripTags(reg: {
   product_slug: string;
@@ -40,6 +42,9 @@ export function courseDripTags(reg: {
   if (reg.product_slug === GRIEF_PRODUCT_SLUG) return [GRIEF_DRIP_TAG];
 
   if (isAlbumProductSlug(reg.product_slug)) return [];
+
+  // An individual session — its own tag, never the cert tags below.
+  if (isSessionProductSlug(reg.product_slug)) return [SESSION_DRIP_TAG];
 
   // The monthly: the live pass tag (a pass holder, for any automation keyed on
   // it) plus its own, so the two can be told apart.
