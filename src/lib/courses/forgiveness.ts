@@ -63,7 +63,7 @@ export const FORGIVENESS_SESSIONS: ForgivenessSession[] = [
   { n: 1, title: 'The dynamics of forgiveness', startsAtUtc: '2026-12-06T18:00:00Z', endsAtUtc: '2026-12-06T20:00:00Z' },
   { n: 2, title: 'Forgiving others', startsAtUtc: '2026-12-09T18:00:00Z', endsAtUtc: '2026-12-09T20:00:00Z' },
   { n: 3, title: 'Forgiving self', startsAtUtc: '2026-12-13T18:00:00Z', endsAtUtc: '2026-12-13T20:00:00Z' },
-  { n: 4, title: 'Forgiving separation', startsAtUtc: '2026-12-16T18:00:00Z', endsAtUtc: '2026-12-16T20:00:00Z' },
+  { n: 4, title: 'Living with forgiveness', startsAtUtc: '2026-12-16T18:00:00Z', endsAtUtc: '2026-12-16T20:00:00Z' },
 ];
 
 export const FORGIVENESS_SESSION_MINUTES = 120;
