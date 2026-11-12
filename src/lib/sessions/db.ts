@@ -1,4 +1,4 @@
-// session_bookings — reads and writes (migrations/0096_session_bookings.sql).
+// session_bookings — reads and writes (migrations/0097_session_bookings.sql).
 //
 // The one rule that matters: two bookings never share a moment. Taking a
 // moment (a hold at checkout, or a move) is a single INSERT … SELECT / UPDATE
@@ -66,7 +66,7 @@ export async function takenIntervals(
       .all<{ starts_at_utc: string; ends_at_utc: string }>();
     rows = r.results ?? [];
   } catch {
-    // Only before migration 0096 has run (a preview on the live database):
+    // Only before migration 0097 has run (a preview on the live database):
     // nothing can have been booked yet, and taking a moment fails loudly on
     // its own INSERT.
     rows = [];

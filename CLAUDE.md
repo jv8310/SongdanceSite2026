@@ -174,7 +174,7 @@ yet" and the workshops sync as before).
 ## Individual sessions — booked from "Boekingen" on the calendar (November 2026)
 
 `/sessions` sells one-to-one sessions with Jacob on Zoom. Logic in
-[`src/lib/sessions/`](src/lib/sessions/), table `session_bookings` (migration 0096),
+[`src/lib/sessions/`](src/lib/sessions/), table `session_bookings` (migration 0097),
 admin on **`/admin/sessions`** (settings, Google/Zoom state, the free moments of the
 next 14 days, every booking).
 
@@ -237,7 +237,7 @@ next 14 days, every booking).
 - **Admin** can cancel (frees the moment, deletes the Zoom meeting and the calendar entry,
   optional mail with a line of their own — **never refunds**: that stays on the order page),
   set a Zoom link by hand, and write the calendar entry again.
-- **Preview caveat**: migration 0096 runs on merge; before it, `/sessions` renders (holds
+- **Preview caveat**: migration 0097 runs on merge; before it, `/sessions` renders (holds
   fail) and `/admin/sessions` says the table is missing.
 
 ## The Forgiveness Course — four live sessions, December 2026

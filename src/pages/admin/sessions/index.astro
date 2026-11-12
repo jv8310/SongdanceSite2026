@@ -94,7 +94,7 @@ for (const b of upcoming) manageLinks.set(b.id, await bookingUrl(env.ADMIN_SESSI
     </header>
 
     {flash && msg && <div class={`adm-flash adm-flash--${flash === 'ok' ? 'ok' : 'err'}`}>{msg}</div>}
-    {migrationMissing && <div class="adm-flash adm-flash--warn">The bookings table isn't there yet — migration 0096 runs when this is merged to main.</div>}
+    {migrationMissing && <div class="adm-flash adm-flash--warn">The bookings table isn't there yet — migration 0097 runs when this is merged to main.</div>}
 
     <section class="adm-section">
       <h2>Status</h2>

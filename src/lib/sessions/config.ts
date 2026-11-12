@@ -7,7 +7,7 @@
 import { getConfig, setConfig } from '../workshops/db';
 
 // One product slug for every booking. The payment rides course_registrations
-// under it (see migrations/0096_session_bookings.sql).
+// under it (see migrations/0097_session_bookings.sql).
 export const SESSION_PRODUCT_SLUG = 'individual-session' as const;
 export const SESSION_PRODUCT_LABEL = 'Individual session with Jacob';
 export const SESSION_DRIP_TAG = 'prod_Session';
