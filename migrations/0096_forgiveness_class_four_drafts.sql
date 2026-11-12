@@ -16,7 +16,6 @@ SET body = REPLACE(REPLACE(REPLACE(body,
     body_text = REPLACE(REPLACE(body_text,
       'Forgiving separation, and what lies underneath both', 'Living with forgiveness, tying it all together'),
       'Forgiving separation, and what''s underneath', 'Living with forgiveness, tying it all together')
-    , updated_at = datetime('now')
 WHERE status = 'draft'
   AND name IN (
     'The Forgiveness Course — registrations open (December 2026)',
@@ -43,7 +42,6 @@ SET body = REPLACE(REPLACE(REPLACE(body,
       'Go below every hurt, and below that, and you reach the oldest one: separation. Me over here, you over there. Underneath it is something that was never broken. But you can''t skip to it. You only get there by walking through the first two.',
       'You don''t forgive once and stay there. An anniversary, a phone call, a song on the radio, and it''s back. That isn''t failure. Each time it returns, it asks to be met again, a little more gently than the time before.'),
       'It is true that we are separate, and it is true that we are one, at the same time. Maybe in the softness of that paradox, there''s also healing.',
-      'Maybe forgiveness is less something you do once, and more a way of living.'),
-    updated_at = datetime('now')
+      'Maybe forgiveness is less something you do once, and more a way of living.')
 WHERE status = 'draft'
   AND name LIKE '%forgiveness is a paradox%';
