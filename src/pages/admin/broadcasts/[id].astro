@@ -419,7 +419,7 @@ const statusLabel: Record<string, string> = {
               <label class="bc-field"><span>Hero image URL</span><input name="hero_image" value={b.hero_image ?? ''} /></label>
               <div class="bc-row">
                 <label class="bc-field"><span>Button label</span><input name="cta_label" value={b.cta_label ?? ''} /></label>
-                <label class="bc-field"><span>Button link</span><input name="cta_href" value={b.cta_href ?? ''} /></label>
+                <label class="bc-field"><span>Button link — add <code>{'{{prefill}}'}</code> to open the form with the reader's email and name filled in</span><input name="cta_href" value={b.cta_href ?? ''} placeholder="https://songdance.co/courses/forgiveness?{{prefill}}#register" /></label>
               </div>
             </div>
             <div class="bc-row">

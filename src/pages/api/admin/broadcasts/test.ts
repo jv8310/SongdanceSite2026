@@ -39,8 +39,15 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const base = env.PUBLIC_BASE_URL.replace(/\/$/, '');
   const secret = unsubscribeSecret(env);
   const unsub = secret ? await unsubscribePageUrl(base, secret, to) : undefined;
-  const firstName = to.split('@')[0] ?? 'friend';
-  const content = renderBroadcast(b, { firstName, unsubscribeUrl: unsub, email: to });
+  // Rendered as that reader would get it: their name from the contact list,
+  // so a {{prefill}} button carries it in the test too.
+  const contact = await env.DB.prepare('SELECT name FROM contacts WHERE email = ?')
+    .bind(to.toLowerCase())
+    .first<{ name: string | null }>()
+    .catch(() => null);
+  const name = contact?.name ?? undefined;
+  const firstName = (name ?? '').trim().split(/\s+/)[0] || to.split('@')[0] || 'friend';
+  const content = renderBroadcast(b, { firstName, name, unsubscribeUrl: unsub, email: to });
 
   try {
     await sendEmail({

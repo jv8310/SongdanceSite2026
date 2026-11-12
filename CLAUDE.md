@@ -212,6 +212,18 @@ announcement follow.
   `{{ subscriber.email | url_encode }}` so the form arrives filled in. Send one of the two
   site drafts, never both. The registration box on the page now reads "Not ready to
   forgive? Come anyway." (it said only "Come anyway.").
+- **Who it is for** (November 2026, Jacob's notes): mostly women of 40–62 carrying a soul
+  wound (rejection, abandonment, betrayal, humiliation, injustice; a life she feels trapped in;
+  needs never met). The page's **Two doors in** (`FCDoors.astro`, after "Forgiveness is for
+  you if…") gives concrete situations, second person: door one = someone hurt you (class two),
+  door two = you did something, or didn't (class three). Class 4 is **Living with
+  forgiveness** — the page no longer names "forgiving separation" anywhere.
+- **The run-up sequence** (six site broadcasts, all excluding `in-drip` and
+  `prod_forgiveness`, so buyers drop out of every later one): **#17 "Forgiveness is a
+  paradox"** first (its third paradox is "Forgiveness isn't a finish line" since migration
+  0096; no separation), then #18 (17 Nov), #19 (22 Nov), #20 (29 Nov), #21 (3 Dec), #22
+  (6 Dec, the day it starts). #18–#22 are simple format with a `{{prefill}}` button. The
+  launch draft (#16) is not sent.
 - Registrants: `/admin/courses/forgiveness-course`.
 
 ## Forgiveness prayer lead magnet — offline, kept for later
@@ -2682,6 +2694,14 @@ e.g. a Drip export) and one-off `broadcasts` sent to it. Lives in
   a footer is appended). Optional
   `body_text` overrides the auto plain-text part. Same copy-book rules apply to
   the words. Test-send before launch.
+- **Links carry the reader** (November 2026, `personalize` / `personalizeHtml`
+  in `broadcasts/email.ts`): a merge tag inside the button link or any
+  `href="…"` in the body is url-encoded by itself, and **`{{prefill}}`** expands
+  to `email=…&first_name=…&last_name=…` (the parts known; the name is the
+  recipient row's full name split on its first space; `{{last_name}}` works on
+  its own too). So `https://songdance.co/courses/forgiveness?{{prefill}}#register`
+  opens the checkout filled in — every course, pass and journey form reads those
+  three. The save checks (admin and `saveBroadcast`) accept a merge tag in a link.
 - **Send window is per-broadcast** (`window_start_hour`/`window_end_hour`,
   default 08:00–21:00 local). Widen it to push faster — but the real throughput
   lever is `MAX_PER_RUN` in `cron.ts` (currently **1000**/tick ≈ up to ~288k/day).

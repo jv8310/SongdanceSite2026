@@ -56,6 +56,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const base = env.PUBLIC_BASE_URL.replace(/\/$/, '');
   const content = renderBroadcast(draft, {
     firstName: 'Maria',
+    name: 'Maria Peeters',
+    email: 'maria@example.com',
     unsubscribeUrl: `${base}/unsubscribe?e=sample%40example.com&t=preview`,
   });
   return json({ html: content.html, text: content.text });

@@ -12,6 +12,7 @@ import FCLayers from '../../components/forgiveness/FCLayers.astro';
 import FCPhrases from '../../components/forgiveness/FCPhrases.astro';
 import FCLyric from '../../components/forgiveness/FCLyric.astro';
 import FCForYou from '../../components/forgiveness/FCForYou.astro';
+import FCDoors from '../../components/forgiveness/FCDoors.astro';
 import FCGlance from '../../components/forgiveness/FCGlance.astro';
 import FCClasses from '../../components/forgiveness/FCClasses.astro';
 import FCTestimonials from '../../components/forgiveness/FCTestimonials.astro';
@@ -73,6 +74,7 @@ const sessionHours = FORGIVENESS_SESSION_MINUTES / 60;
     <FCPhrases />
     <FCLyric />
     <FCForYou />
+    <FCDoors />
     <FCGlance open={open} priceLabel={priceLabel} datesLabel={FORGIVENESS_DATES_LABEL} sessionHours={sessionHours} />
     <FCClasses />
     <FCTestimonials />

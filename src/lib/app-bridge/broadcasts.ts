@@ -236,7 +236,7 @@ export async function previewBroadcastForApp(env: BridgeEnv, input: { id?: unkno
   const firstName = (contact?.name ?? '').trim().split(/\s+/)[0] || as.split('@')[0] || 'friend';
   const secret = unsubscribeSecret(env);
   const unsub = secret ? await unsubscribePageUrl(base(env), secret, as) : undefined;
-  const content = renderBroadcast(b, { firstName, unsubscribeUrl: unsub, email: as });
+  const content = renderBroadcast(b, { firstName, name: contact?.name ?? undefined, unsubscribeUrl: unsub, email: as });
   return {
     ok: true as const,
     id: b.id,
@@ -288,7 +288,12 @@ const LIMITS: Record<string, number> = {
 };
 
 // A link the email may carry: our own path or an https address.
-const okLink = (v: string) => /^https:\/\/[^\s"'<>]+$/i.test(v) || /^\/[^\s"'<>]*$/.test(v);
+// A merge tag ({{prefill}}, {{ subscriber.email | url_encode }} …) is allowed
+// inside a link: it is filled in, encoded, per reader when the email is made.
+const okLink = (raw: string) => {
+  const v = raw.replace(/\{\{[^}]*\}\}/g, 'x');
+  return /^https:\/\/[^\s"'<>]+$/i.test(v) || /^\/[^\s"'<>]*$/.test(v);
+};
 
 export async function saveBroadcastFromApp(env: BridgeEnv, input: SaveBroadcastInput) {
   const p = (input ?? {}) as Record<string, unknown>;
@@ -371,7 +376,7 @@ export async function testBroadcastFromApp(env: BridgeEnv, input: { id?: unknown
   const firstName = (contact?.name ?? '').trim().split(/\s+/)[0] || to.split('@')[0] || 'friend';
   const secret = unsubscribeSecret(env);
   const unsub = secret ? await unsubscribePageUrl(base(env), secret, to) : undefined;
-  const content = renderBroadcast(b, { firstName, unsubscribeUrl: unsub, email: to });
+  const content = renderBroadcast(b, { firstName, name: contact?.name ?? undefined, unsubscribeUrl: unsub, email: to });
   try {
     await sendEmail({
       apiKey: env.RESEND_API_KEY,
