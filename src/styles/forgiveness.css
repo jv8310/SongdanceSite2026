@@ -1281,6 +1281,20 @@ html, body { background: var(--paper); }
   font-family: var(--font-body); font-size: 14px; color: rgba(244,236,223,0.8);
 }
 .fc-checkout-summary-amount { font-family: var(--font-display); font-size: 24px; color: var(--paper); }
+/* The order, line by line, once an add-on is ticked */
+.fc-checkout-lines {
+  grid-column: 1 / -1;
+  display: grid; gap: var(--sp-2);
+  border-top: 1px solid rgba(244,236,223,0.16);
+  padding-top: var(--sp-4);
+  text-align: left;
+}
+.fc-checkout-lines[hidden] { display: none; }
+.fc-checkout-line {
+  display: flex; justify-content: space-between; align-items: baseline; gap: var(--sp-3);
+  font-family: var(--font-body); font-size: 14px; color: rgba(244,236,223,0.8);
+}
+.fc-checkout-line span:last-child { font-variant-numeric: tabular-nums; color: rgba(244,236,223,0.92); white-space: nowrap; }
 .fc-fields .fc-register-error { grid-column: 1 / -1; margin: 0; min-height: 0; }
 .fc-fields .fc-register-error:empty { display: none; }
 .fc-checkout-cta { grid-column: 1 / -1; justify-content: center; border: 0; cursor: pointer; }
@@ -1294,7 +1308,8 @@ html, body { background: var(--paper); }
   color: rgba(244,236,223,0.82);
 }
 .fc-register-closed a { color: var(--ember-soft); }
-.fc-register-guarantee { max-width: 600px; margin: var(--sp-6) auto 0; text-align: left; }
+/* As wide as the checkout card above it (600 + its padding and border). */
+.fc-register-guarantee { max-width: 666px; margin: var(--sp-6) auto 0; text-align: left; }
 
 /* ---------- FAQ ---------- */
 .fc-faq {
