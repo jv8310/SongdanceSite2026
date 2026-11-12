@@ -287,7 +287,7 @@ async function sendChunk(
     const firstName = (c.name ?? '').trim().split(/\s+/)[0] ?? '';
     const footerUnsub = secret ? await unsubscribePageUrl(base, secret, c.email) : undefined;
     const oneClickUnsub = secret ? await oneClickUnsubscribeUrl(base, secret, c.email) : undefined;
-    const content = renderBroadcast(b, { firstName, unsubscribeUrl: footerUnsub, email: c.email });
+    const content = renderBroadcast(b, { firstName, name: c.name ?? undefined, unsubscribeUrl: footerUnsub, email: c.email });
     payload.push({
       from,
       replyTo,

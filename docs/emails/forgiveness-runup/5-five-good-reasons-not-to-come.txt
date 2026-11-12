@@ -1,0 +1,37 @@
+Hello {{ subscriber.first_name | default: "there" }},
+
+On Sunday, Daniela and I begin the Forgiveness Course. If you've read these emails and haven't joined, I'd guess there's a reason. These are the five I'd put my money on.
+
+1. "I'm not ready to forgive."
+Good. Don't be. We don't begin with forgiving. We begin with the resentment, the rage, the never. Nobody will ask you to forgive anyone, at any point.
+
+2. "I can't sing."
+It isn't singing. It's sounding: one honest tone, the sound of what is there. Camera off and microphone off if you like. Half of this practice happens in parked cars.
+
+3. "What happened to me is too big for this."
+It may be too big to forgive. It isn't too big to be heard. You set the volume and the distance, and the voice only brings up what you can be with. If it's raw right now, reply to this email first and we'll think it through with you honestly.
+
+4. "I'm the one who did the harm."
+Then the third session is yours. It is given to exactly this: the belief of being unforgivable. And you won't have to say out loud what it was.
+
+5. "I can't make the dates."
+Every session is recorded, the replay is up within a day, and the replays are yours for life. You can do the whole course that way.
+
+
+"I came skeptical and left with my chest open. Sounding sounds strange until you do it. Then it sounds like the only thing that ever made sense."
+Simone Pugh, Great Britain
+
+
+Still not ready? Come anyway.
+
+We begin this Sunday, 6 December, at 19:00 Brussels time (18:00 in London, 1:00 PM in New York, 10:00 AM in Los Angeles). Four live sessions on Zoom with Daniela Hess and me, and lifetime access to the replays. EUR 147 (the page shows it in your own currency).
+
+Join us on Sunday:
+https://songdance.co/courses/forgiveness?utm_source=broadcast&utm_medium=email&utm_campaign=forgiveness_seq&utm_content=e5_text&{{prefill}}#register
+
+With love,
+Jacob
+
+--
+Not for you? Unsubscribe: {{ unsubscribe_url }}
+Songdance BV, Beaupréstraat 13, 8310 Bruges, Belgium

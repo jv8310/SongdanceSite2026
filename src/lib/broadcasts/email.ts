@@ -9,7 +9,14 @@
 //
 // `{{first_name}}` is substituted in both. We also understand Drip/Liquid-style
 // merge tags (e.g. `{{ subscriber.first_name | default: "there" }}`), honouring
-// the `default:` value, so a pasted Drip template just works. Copy rules
+// the `default:` value, so a pasted Drip template just works.
+//
+// Links carry the reader (November 2026): a merge tag inside a link — the
+// button's link (ctaHref), or any href="…" in the body — is url-encoded by
+// itself, and `{{prefill}}` is the whole set a checkout form reads:
+// `email=…&first_name=…&last_name=…` (the parts we know, encoded). So
+// `/courses/forgiveness?{{prefill}}#register` opens the form filled in. The
+// recipient's name is the contact's full name, split on the first space. Copy rules
 // (docs/svh-copy-book.md) still apply to the words; this module only frames and
 // personalises them.
 
@@ -33,30 +40,92 @@ function defaultOf(filters: string): string {
 // unsubscribe link). Any OTHER merge tag resolves to its `default:` value, or is
 // dropped — so an unrecognised `{{ subscriber.x }}` is never sent to a reader
 // literally (custom fields aren't loaded at send time).
-export function personalize(
-  s: string,
-  opts: { firstName?: string; unsubscribeUrl?: string; email?: string } = {},
-): string {
-  const fn = tidyName(opts.firstName);
+export type PersonalizeOpts = {
+  firstName?: string;
+  // The contact's full name ("Maria van Dam"). Gives the last name, and the
+  // first name when `firstName` isn't passed.
+  name?: string;
+  unsubscribeUrl?: string;
+  email?: string;
+};
+
+// First and last name from what we hold: the full name split on its first
+// space ("Maria van Dam" → Maria / van Dam), tidied for display.
+export function readerNames(opts: PersonalizeOpts): { first: string; last: string } {
+  const full = (opts.name || '').trim().replace(/\s+/g, ' ');
+  const at = full.indexOf(' ');
+  const first = (opts.firstName || '').trim() || (at > 0 ? full.slice(0, at) : full);
+  const last = at > 0 ? full.slice(at + 1) : '';
+  return { first: tidyName(first), last: tidyName(last) };
+}
+
+// `email=…&first_name=…&last_name=…` — the parts we know, each encoded.
+export function prefillQuery(opts: PersonalizeOpts): string {
+  const { first, last } = readerNames(opts);
+  const parts: string[] = [];
+  const email = (opts.email || '').trim();
+  if (email) parts.push(`email=${encodeURIComponent(email)}`);
+  if (first) parts.push(`first_name=${encodeURIComponent(first)}`);
+  if (last) parts.push(`last_name=${encodeURIComponent(last)}`);
+  return parts.join('&');
+}
+
+const FIRST_KEYS = ['first_name', 'firstname', 'first', 'fname', 'name'];
+const LAST_KEYS = ['last_name', 'lastname', 'last', 'lname', 'surname'];
+const FULL_KEYS = ['full_name', 'fullname'];
+const EMAIL_KEYS = ['email', 'email_address', 'emailaddress'];
+const UNSUB_KEYS = ['unsubscribe_url', 'unsubscribeurl', 'unsub_url'];
+
+// `inUrl`: the text is (part of) a link, so the reader's own details are
+// url-encoded even without a `| url_encode` filter — an email with a '+', or a
+// name with a space or an accent, would otherwise break the link. The
+// unsubscribe URL is a whole address and never encoded there.
+export function personalize(s: string, opts: PersonalizeOpts = {}, inUrl = false): string {
+  const { first, last } = readerNames(opts);
   const email = (opts.email || '').trim();
   return s.replace(MERGE_RE, (_m, rawPath: string, filters: string) => {
     const key = rawPath.toLowerCase().replace(/^subscriber\./, '');
     const def = defaultOf(filters || '');
+    const encodeFilter = /\|\s*url_encode\b/i.test(filters || '');
+    if (key === 'prefill') return prefillQuery(opts);
     let val: string;
-    if (['first_name', 'firstname', 'first', 'fname', 'name', 'full_name', 'fullname'].includes(key)) {
-      val = fn || def || 'friend';
-    } else if (['unsubscribe_url', 'unsubscribeurl', 'unsub_url'].includes(key)) {
+    let identity = true;
+    if (FIRST_KEYS.includes(key)) {
+      // In a link an unknown name stays empty: the form leaves the field blank
+      // rather than filling in "friend".
+      val = first || def || (inUrl ? '' : 'friend');
+    } else if (LAST_KEYS.includes(key)) {
+      val = last || def || '';
+    } else if (FULL_KEYS.includes(key)) {
+      val = [first, last].filter(Boolean).join(' ') || def || (inUrl ? '' : 'friend');
+    } else if (UNSUB_KEYS.includes(key)) {
       val = opts.unsubscribeUrl || def || '';
-    } else if (['email', 'email_address', 'emailaddress'].includes(key)) {
+      identity = false;
+    } else if (EMAIL_KEYS.includes(key)) {
       val = email || def || '';
     } else {
       val = def || '';
     }
     // Honour a Liquid `| url_encode` filter — without it, an email with a '+'
     // (or the unsubscribe URL's own query string) breaks the link it sits in.
-    if (/\|\s*url_encode\b/i.test(filters || '')) val = encodeURIComponent(val);
+    if (encodeFilter || (inUrl && identity)) val = encodeURIComponent(val);
     return val;
   });
+}
+
+// Personalize HTML: merge tags inside an href="…" are treated as part of a
+// link (above), everything else as text.
+export function personalizeHtml(html: string, opts: PersonalizeOpts = {}): string {
+  const HREF_RE = /(\bhref\s*=\s*)(["'])([\s\S]*?)\2/gi;
+  let out = '';
+  let last = 0;
+  for (const m of html.matchAll(HREF_RE)) {
+    const at = m.index ?? 0;
+    out += personalize(html.slice(last, at), opts);
+    out += `${m[1]}${m[2]}${personalize(m[3], opts, true)}${m[2]}`;
+    last = at + m[0].length;
+  }
+  return out + personalize(html.slice(last), opts);
 }
 
 // Back-compat alias (first name only).
@@ -111,18 +180,15 @@ function ensureAddress(html: string): string {
 
 // Render a broadcast for one recipient. `unsubscribeUrl` is the human-facing
 // footer link (the one-click RFC 8058 header is set separately on the send).
-export function renderBroadcast(
-  b: Broadcast,
-  opts: { firstName?: string; unsubscribeUrl?: string; email?: string } = {},
-): EmailContent {
-  const fn = opts.firstName ?? '';
+export function renderBroadcast(b: Broadcast, opts: PersonalizeOpts = {}): EmailContent {
   const unsub = opts.unsubscribeUrl ?? '';
-  const em = opts.email ?? '';
-  const subject = personalize(b.subject, { firstName: fn, email: em });
+  const who: PersonalizeOpts = { firstName: opts.firstName, name: opts.name, email: opts.email };
+  const all: PersonalizeOpts = { ...who, unsubscribeUrl: unsub };
+  const subject = personalize(b.subject, who);
 
   if (b.format === 'html') {
     const hadUnsub = hasUnsubToken(b.body);
-    let html = personalize(b.body, { firstName: fn, unsubscribeUrl: unsub, email: em });
+    let html = personalizeHtml(b.body, all);
     // Append a footer only if the author didn't place their own unsubscribe tag.
     if (unsub && !hadUnsub) html = appendUnsubFooter(html, unsub);
     // Ensure the legal postal address is present (unless the author's footer
@@ -130,18 +196,21 @@ export function renderBroadcast(
     // inherits the address without double-listing it.
     html = ensureAddress(html);
     const text = b.body_text
-      ? personalize(b.body_text, { firstName: fn, unsubscribeUrl: unsub, email: em })
+      ? personalize(b.body_text, all)
       : `${stripToText(html)}${unsub && !hadUnsub ? `\n\nUnsubscribe: ${unsub}` : ''}`;
     return { subject, html, text };
   }
 
   // simple
-  const heading = personalize(b.heading, { firstName: fn, email: em });
-  const bodyTokened = personalize(b.body, { firstName: fn, unsubscribeUrl: unsub, email: em });
-  const cta = b.cta_label && b.cta_href ? { label: b.cta_label, href: b.cta_href } : undefined;
+  const heading = personalize(b.heading, who);
+  const bodyTokened = personalizeHtml(b.body, all);
+  const cta =
+    b.cta_label && b.cta_href
+      ? { label: personalize(b.cta_label, who), href: personalize(b.cta_href, all, true) }
+      : undefined;
 
   const html = shell({
-    preheader: personalize(b.preheader || b.subject, { firstName: fn, email: em }),
+    preheader: personalize(b.preheader || b.subject, who),
     heading,
     bodyHtml: bodyToHtml(bodyTokened),
     heroImage: b.hero_image ? { src: b.hero_image, alt: heading } : undefined,
@@ -153,7 +222,7 @@ export function renderBroadcast(
 
   let text: string;
   if (b.body_text) {
-    text = personalize(b.body_text, { firstName: fn, unsubscribeUrl: unsub, email: em });
+    text = personalize(b.body_text, all);
   } else {
     const lines = [heading, '', stripToText(bodyToHtml(bodyTokened))];
     if (cta) lines.push('', `${cta.label}: ${cta.href}`);
@@ -169,6 +238,7 @@ export function renderBroadcast(
 export function previewBroadcast(b: Broadcast, base = 'https://songdance.co'): EmailContent {
   return renderBroadcast(b, {
     firstName: 'Maria',
+    name: 'Maria Peeters',
     email: 'maria@example.com',
     unsubscribeUrl: `${base.replace(/\/$/, '')}/unsubscribe?e=sample%40example.com&t=preview`,
   });
