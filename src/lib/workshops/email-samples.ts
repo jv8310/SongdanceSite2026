@@ -59,6 +59,14 @@ import {
   buildBalanceEmail,
 } from '../registrations/balance-email';
 import {
+  sessionCancelledEmail,
+  sessionConfirmedEmail,
+  sessionConflictEmail,
+  sessionMovedEmail,
+  sessionReminderEmail,
+  type SessionEmailCtx,
+} from '../sessions/emails';
+import {
   dunningEscalationEmail,
   dunningReminderEmail,
   type DunningReminderCtx,
@@ -92,6 +100,30 @@ function sampleAlbum(b: string) {
       "Let's keep going",
     ],
   };
+}
+
+function sessionSamples(b: string, name: string): EmailSample[] {
+  const ctx: SessionEmailCtx = {
+    name,
+    whenLocal: formatInTz('2026-11-19T09:00:00Z', 'Europe/Brussels'),
+    durationMin: 60,
+    joinUrl: 'https://us06web.zoom.us/j/81234567890?pwd=sample',
+    passcode: '482913',
+    manageUrl: `${b}/sessions/booking?t=sample`,
+    icsUrl: `${b}/api/sessions/ics?t=sample`,
+    googleCalUrl: 'https://calendar.google.com/calendar/render?action=TEMPLATE',
+    moveUntilLabel: formatInTz('2026-11-18T09:00:00Z', 'Europe/Brussels'),
+  };
+  const group = 'Individual sessions (transactional)';
+  const audience = 'Whoever books an individual session on /sessions';
+  return [
+    { id: 'session_confirmed', group, label: 'Booked — confirmation', timing: 'On payment (every fulfilment path + the 5-minute safety net)', audience, content: sessionConfirmedEmail(ctx) },
+    { id: 'session_reminder_24h', group, label: 'Reminder — the day before', timing: '24 hours before (skipped when booked less than a day ahead)', audience, content: sessionReminderEmail('24h', ctx) },
+    { id: 'session_reminder_1h', group, label: 'Reminder — an hour before', timing: '1 hour before', audience, content: sessionReminderEmail('1h', { ...ctx, moveUntilLabel: null }) },
+    { id: 'session_moved', group, label: 'Moved to another moment', timing: 'When the client moves it from their booking page', audience, content: sessionMovedEmail({ ...ctx, previousLocal: formatInTz('2026-11-17T15:00:00Z', 'Europe/Brussels') }) },
+    { id: 'session_cancelled', group, label: 'Cancelled (by you)', timing: 'When you cancel on /admin/sessions with "email the client" ticked', audience, content: sessionCancelledEmail({ name, whenLocal: ctx.whenLocal, message: 'Your refund is on its way — I hope we find another moment soon.' }) },
+    { id: 'session_conflict', group, label: 'Paid, but the moment was taken', timing: 'Rare: a payment that arrived after the hold lapsed and someone else took the moment', audience, content: sessionConflictEmail({ name, whenLocal: ctx.whenLocal }) },
+  ];
 }
 
 export function buildEmailSamples(base: string): EmailSample[] {
@@ -260,6 +292,11 @@ export function buildEmailSamples(base: string): EmailSample[] {
           'Five mantras, recorded live with a choir in South Africa, set to original music. Not songs to listen to — lines to sound with your own voice. Simple enough to carry with you, strong enough to lean on.',
       }),
     },
+
+    // ── Individual sessions (transactional) — src/lib/sessions/ ─────────
+    // The real sends read the booking: the client's own clock, the Zoom
+    // meeting (or fallback link) and their signed booking page.
+    ...sessionSamples(b, name),
 
     // ── Live pass — access confirmed (transactional) ─────────────────────
     // The real send reads the day the pass starts, what holds it back and the

@@ -586,6 +586,7 @@ const COURSE_PRODUCT_INFO: Record<string, { group: CourseGroup; label: string }>
   'cc-bundle': { group: 'certification', label: 'Certification — Foundation + Cert bundle' },
   'grief-course': { group: 'other', label: 'The Grief Course' },
   'forgiveness-course': { group: 'other', label: 'The Forgiveness Course' },
+  'individual-session': { group: 'other', label: 'Individual sessions' },
 };
 
 export type CourseDailyStat = {

@@ -41,6 +41,7 @@ import {
   type LivePassPeriod,
 } from './live-pass';
 import { settleLivePassPeriod } from './live-pass-plan';
+import { isSessionProductSlug, SESSION_DRIP_EVENT, SESSION_PRODUCT_LABEL } from '../sessions/config';
 import { brusselsToday } from '../workshops/periods';
 
 // Readable order-item names for the known course products (Drip itemises the
@@ -52,6 +53,7 @@ const COURSE_ITEM_LABELS: Record<string, string> = {
   'grief-course': 'The Grief Course',
   'forgiveness-course': 'The Forgiveness Course',
   'svh-12week': '12-Week SVH Foundation Course',
+  'individual-session': SESSION_PRODUCT_LABEL,
 };
 
 export type CoursePaidHandlerEnv = {
@@ -165,6 +167,10 @@ export async function pushPaidCourseRegistrationToDrip(
       eventName = LIVE_PASS_MONTHLY_DRIP_EVENT;
       customFields.live_pass_starts = brusselsToday();
       customFields.live_pass_sessions = 'monthly';
+    } else if (isSessionProductSlug(reg.product_slug)) {
+      // An individual session with Jacob. The moment itself is on
+      // session_bookings; the event carries the order for any automation.
+      eventName = SESSION_DRIP_EVENT;
     } else if (isAlbumProductSlug(reg.product_slug)) {
       // Direct music-album purchase. The tag (applied above) is the access key;
       // the event carries which album for any automation that wants it.

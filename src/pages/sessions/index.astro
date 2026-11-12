@@ -1,0 +1,326 @@
+---
+import SiteLayout from '../../components/SiteLayout.astro';
+import '../../styles/sessions.css';
+import { readCookie, verifySession } from '../../lib/registrations/auth';
+import { bookingOpen, loadSessionSettings, sessionCurrencyForCountry, sessionPriceLabel } from '../../lib/sessions/config';
+import { loadAvailability } from '../../lib/sessions/availability';
+import { getBooking, releaseHold } from '../../lib/sessions/db';
+import { verifyBookingToken } from '../../lib/sessions/link';
+import { getCourseRegistrationById } from '../../lib/courses/db';
+import { paypalConfigured } from '../../lib/payments/paypal';
+import { COUNTRIES, findCountry } from '../../lib/countries';
+import { edgeCountry, edgeTimezone } from '../../lib/geo';
+
+export const prerender = false;
+
+// Individual sessions with Jacob — the booking page.
+//
+// The free moments come from Jacob's Google Calendar: every event titled
+// "Boekingen" (the title is a setting on /admin/sessions) is a window, cut into
+// sessions of the set length (src/lib/sessions/). The page renders them as
+// UTC instants and the browser shows them on the visitor's own clock. Nothing
+// is sold until a price is set on /admin/sessions; an admin sees the page
+// either way.
+const env = Astro.locals.runtime.env;
+const isAdmin = await verifySession(env.ADMIN_SESSION_SECRET, readCookie(Astro.request));
+const settings = await loadSessionSettings(env.DB);
+const open = bookingOpen(settings);
+
+// Back from the payment page without paying (?release=<token>): give the
+// moment back at once instead of keeping it for the rest of the hold.
+let released = false;
+const releaseToken = Astro.url.searchParams.get('release');
+if (releaseToken) {
+  const id = await verifyBookingToken(env.ADMIN_SESSION_SECRET, releaseToken);
+  const b = id ? await getBooking(env.DB, id).catch(() => null) : null;
+  if (b && b.status === 'held') {
+    const reg = b.course_registration_id
+      ? await getCourseRegistrationById(env.DB, b.course_registration_id).catch(() => null)
+      : null;
+    if (!reg || reg.status !== 'paid') released = await releaseHold(env.DB, b.id);
+  }
+}
+
+let slots: Array<{ s: string; e: string }> = [];
+let availabilityError: string | null = null;
+if (open || isAdmin) {
+  const av = await loadAvailability(env, settings);
+  if (av.ok) slots = av.slots.map((s) => ({ s: s.startUtc, e: s.endUtc }));
+  else availabilityError = av.message;
+}
+
+const geoCountry = edgeCountry(Astro.locals);
+const geoMatch = geoCountry ? findCountry(geoCountry) : undefined;
+const priceLabel = open ? sessionPriceLabel(settings.priceEurCents, sessionCurrencyForCountry(geoCountry)) : null;
+const paypalOk = paypalConfigured(env) && env.PAYPAL_ENABLED === 'true';
+
+const param = (k: string, max = 100) => (Astro.url.searchParams.get(k) ?? '').trim().slice(0, max);
+const prefillEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(param('email', 254)) ? param('email', 254).toLowerCase() : '';
+const prefillFirst = param('first_name');
+const prefillLast = param('last_name');
+
+const widget = {
+  slots,
+  durationMin: settings.durationMin,
+  priceEurCents: settings.priceEurCents,
+  open,
+  serverTz: edgeTimezone(Astro.locals) ?? 'Europe/Brussels',
+};
+const moveHours = settings.rescheduleHours;
+---
+
+<SiteLayout
+  title="Individual sessions with Jacob — Songdance"
+  description={`One to one with Jacob on Zoom: ${settings.durationMin} minutes in which he holds the space and you sound what is there.`}
+  image="https://songdance.co/media/library/jacob-soft-portrait.webp"
+  imageAlt="Jacob, smiling"
+>
+  <main class="ss">
+    {isAdmin && !open && (
+      <div class="ss-admin-note">
+        Admin view — booking is closed until a price is set on <a href="/admin/sessions">/admin/sessions</a>. Visitors see "opens soon".
+      </div>
+    )}
+
+    <section class="ss-hero sd-section">
+      <div class="ss-hero-text">
+        <div class="sd-eyebrow">Individual sessions</div>
+        <h1 class="ss-title">One to one, <em>with Jacob</em></h1>
+        <p class="ss-lede">
+          {settings.durationMin} minutes on Zoom, just the two of you. Jacob holds the space; you bring what is there today — and give it a sound.
+        </p>
+        <ul class="ss-facts">
+          <li><i class="ph-light ph-clock"></i> {settings.durationMin} minutes, live on Zoom</li>
+          <li><i class="ph-light ph-calendar-check"></i> Pick a moment below, on your own clock</li>
+          {priceLabel && <li><i class="ph-light ph-tag"></i> <span data-price-current>{priceLabel}</span> per session</li>}
+        </ul>
+        {open && <a class="sd-btn sd-btn-primary ss-cta" href="#book">Choose a moment <i class="ph-light ph-arrow-down"></i></a>}
+      </div>
+      <div class="ss-hero-img">
+        <img src="/media/library/jacob-soft-portrait.webp" alt="Jacob, smiling" width="1333" height="2000" loading="eager" />
+      </div>
+    </section>
+
+    <section class="ss-prose sd-section">
+      <div class="ss-prose-inner">
+        <h2 class="ss-h2">What a session is</h2>
+        <p>
+          We begin where you are. A few words to arrive, then the practice itself: one breath in, one tone out — the sound <em>of</em> what is there. Jacob listens, asks the next honest question, and keeps the room steady while you do the one thing only you can do.
+        </p>
+        <p>
+          Nothing is pushed. Your rhythm, your tempo; volume is a dial, not a dare, and soft counts. What comes is met with acknowledgment — heard, not fixed.
+        </p>
+        <p class="ss-quote">“You are the healer, and you are the healed.”</p>
+        <h2 class="ss-h2">Who it is for</h2>
+        <p>
+          For anyone who would like to be met one to one — whether you have sounded with us in a workshop or never made a sound on purpose. You don't need a good voice; you need an honest one.
+        </p>
+        <p class="ss-small">
+          Honest small print: this is not therapy, and it doesn't replace it. Don't expect miracles — expect a real relationship with your own voice.
+        </p>
+      </div>
+    </section>
+
+    <section class="ss-book sd-section" id="book">
+      <div class="ss-book-inner">
+        <h2 class="ss-h2">Choose a moment</h2>
+
+        {released && <p class="ss-note">No problem — that moment is free again. Choose any time below.</p>}
+
+        {!open && !isAdmin ? (
+          <p class="ss-note">
+            Booking opens soon. In the meantime, write to <a href="mailto:support@songdance.co">support@songdance.co</a> and we'll let you know.
+          </p>
+        ) : availabilityError ? (
+          <p class="ss-note">
+            The calendar can't be shown right now — please try again in a little while, or write to <a href="mailto:support@songdance.co">support@songdance.co</a>.
+            {isAdmin && <span class="ss-admin-err"> Admin: {availabilityError}</span>}
+          </p>
+        ) : (
+          <div class="ss-widget" data-widget>
+            <div class="ss-tz">
+              <label>
+                <span>Times shown in</span>
+                <select data-tz></select>
+              </label>
+            </div>
+
+            <p class="ss-empty" data-empty hidden>
+              All moments are taken right now. New ones are added regularly — please look again soon, or write to <a href="mailto:support@songdance.co">support@songdance.co</a>.
+            </p>
+
+            <div class="ss-days" data-days role="tablist" aria-label="Days with free moments"></div>
+            <div class="ss-times" data-times aria-live="polite"></div>
+
+            <form class="ss-form" data-form hidden>
+              <div class="ss-chosen" data-chosen></div>
+              <div class="ss-fields">
+                <label class="ss-field">
+                  <span>First name</span>
+                  <input type="text" name="first_name" autocomplete="given-name" required maxlength="100" value={prefillFirst || undefined} />
+                </label>
+                <label class="ss-field">
+                  <span>Last name</span>
+                  <input type="text" name="last_name" autocomplete="family-name" required maxlength="100" value={prefillLast || undefined} />
+                </label>
+                <label class="ss-field ss-field--full">
+                  <span>Email</span>
+                  <input type="email" name="email" autocomplete="email" placeholder="you@somewhere" required maxlength="254" value={prefillEmail || undefined} />
+                </label>
+                <label class="ss-field ss-field--full">
+                  <span>Country</span>
+                  <input type="text" name="country_search" list="ss-country-list" autocomplete="country-name" placeholder="Start typing…" required value={geoMatch?.name ?? ''} data-country-search />
+                  <input type="hidden" name="country" value={geoMatch?.code ?? ''} data-country />
+                </label>
+                <label class="ss-field ss-field--full">
+                  <span>What would you like to bring? <small>(optional — only Jacob reads it)</small></span>
+                  <textarea name="note" rows="3" maxlength="2000" placeholder="A few words are plenty."></textarea>
+                </label>
+              </div>
+              <label class="ss-terms">
+                <input type="checkbox" name="consent_terms" required />
+                <span>I agree to the <a href="/terms" target="_blank" rel="noopener">terms</a> &amp; <a href="/privacy" target="_blank" rel="noopener">privacy policy</a>.</span>
+              </label>
+              <div class="ss-actions">
+                <button type="submit" class="sd-btn sd-btn-primary" data-submit data-provider="stripe" disabled={!open}>
+                  <span>Book &amp; pay by card{priceLabel && <> — <span data-price-current>{priceLabel}</span></>}</span>
+                  <i class="ph-light ph-arrow-right"></i>
+                </button>
+                {paypalOk && (
+                  <button type="submit" class="sd-btn ss-paypal" data-submit data-provider="paypal" disabled={!open}>Pay with PayPal</button>
+                )}
+              </div>
+              <p class="ss-small">Charged in your local currency — the price follows your country. Your moment is kept for you while you pay.</p>
+              <p class="ss-error" role="alert" data-error hidden></p>
+            </form>
+            <datalist id="ss-country-list">
+              {COUNTRIES.map((c) => <option value={c.name} data-code={c.code}>{c.flag} {c.name}</option>)}
+            </datalist>
+          </div>
+        )}
+        <noscript><p class="ss-note">Booking needs JavaScript. Or write to <a href="mailto:support@songdance.co">support@songdance.co</a>.</p></noscript>
+      </div>
+    </section>
+
+    <section class="ss-faq sd-section">
+      <div class="ss-prose-inner">
+        <h2 class="ss-h2">Questions</h2>
+        <div class="sd-faq">
+        <details class="sd-faq-item"><summary>How does it work on Zoom?</summary>
+          <p>Right after booking you get an email with your Zoom link, and again the day before and an hour before. A quiet-ish room where a little sound is allowed, headphones if you share walls, water nearby — that's the whole list.</p>
+        </details>
+        <details class="sd-faq-item"><summary>Do I need any experience?</summary>
+          <p>None. No skill, no warm-up, no good voice. If you've never made a sound on purpose, that's a fine place to begin.</p>
+        </details>
+        <details class="sd-faq-item"><summary>Can I move my session?</summary>
+          <p>{moveHours > 0
+            ? `Yes — from the link in your confirmation email, until ${moveHours} hours before it begins. After that, reply to the email and we'll see what's possible.`
+            : 'Reply to your confirmation email and we’ll see what’s possible.'}</p>
+        </details>
+        <details class="sd-faq-item"><summary>Is the session recorded?</summary>
+          <p>No. What happens in the session stays between you and Jacob.</p>
+        </details>
+        <details class="sd-faq-item"><summary>Is this therapy?</summary>
+          <p>No. Somatic Vocal Healing is not therapy and doesn't replace it. When the healing work runs deep, good support on an ongoing basis matters — this can be one part of it.</p>
+        </details>
+        </div>
+      </div>
+    </section>
+  </main>
+  <script type="application/json" id="ss-data" set:html={JSON.stringify(widget)} />
+</SiteLayout>
+
+<script>
+  import { mountPicker, type PickerSlot } from '../../lib/client/session-picker';
+  import { sessionCurrencyForCountry, sessionPriceCents } from '../../lib/sessions/price';
+  import { formatMoney } from '../../lib/workshops/currency';
+  import { COUNTRIES } from '../../lib/countries';
+
+  type Data = { slots: PickerSlot[]; durationMin: number; priceEurCents: number; open: boolean; serverTz: string };
+
+  const root = document.querySelector<HTMLElement>('[data-widget]');
+  const raw = document.getElementById('ss-data')?.textContent;
+  if (root && raw) {
+    const data = JSON.parse(raw) as Data;
+    const form = root.querySelector<HTMLFormElement>('[data-form]')!;
+    const chosenEl = root.querySelector<HTMLElement>('[data-chosen]')!;
+    const errEl = root.querySelector<HTMLElement>('[data-error]')!;
+    let wasHidden = true;
+
+    const picker = mountPicker(root, data.slots, {
+      fallbackTz: data.serverTz,
+      onChange: (slot) => {
+        form.hidden = !slot;
+        if (!slot) { wasHidden = true; return; }
+        errEl.hidden = true;
+        chosenEl.innerHTML = `<i class="ph-light ph-calendar-check"></i> <strong>${picker.label(slot.s)}</strong> · ${data.durationMin} minutes on Zoom`;
+        if (wasHidden) form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        wasHidden = false;
+      },
+    });
+
+    // ── Country → currency → price ──────────────────────────────────────
+    const countrySearch = form.querySelector<HTMLInputElement>('[data-country-search]');
+    const countryHidden = form.querySelector<HTMLInputElement>('[data-country]');
+    const priceEls = Array.from(document.querySelectorAll<HTMLElement>('[data-price-current]'));
+    const repaint = () => {
+      if (!data.priceEurCents) return;
+      const cur = sessionCurrencyForCountry(countryHidden?.value || null);
+      const label = formatMoney(sessionPriceCents(data.priceEurCents, cur), cur);
+      priceEls.forEach((el) => { el.textContent = label; });
+    };
+    const resolveCountry = () => {
+      const typed = (countrySearch?.value ?? '').trim().toLowerCase();
+      const match = COUNTRIES.find((c) => c.name.toLowerCase() === typed || c.code.toLowerCase() === typed);
+      if (countryHidden) countryHidden.value = match?.code ?? '';
+      repaint();
+    };
+    (['input', 'change', 'blur'] as const).forEach((ev) => countrySearch?.addEventListener(ev, resolveCountry));
+    repaint();
+
+    // ── Submit ──────────────────────────────────────────────────────────
+    const buttons = Array.from(form.querySelectorAll<HTMLButtonElement>('[data-submit]'));
+    let provider: 'stripe' | 'paypal' = 'stripe';
+    buttons.forEach((b) => b.addEventListener('click', () => { provider = b.dataset.provider === 'paypal' ? 'paypal' : 'stripe'; }));
+    const showError = (msg: string) => { errEl.textContent = msg; errEl.hidden = false; };
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errEl.hidden = true;
+      const slot = picker.selected();
+      if (!slot) return showError('Please choose a moment first.');
+      const fd = new FormData(form);
+      if (!String(fd.get('country') ?? '').trim()) {
+        countrySearch?.focus();
+        return showError('Please pick your country from the list.');
+      }
+      buttons.forEach((b) => { b.disabled = true; });
+      try {
+        const res = await fetch('/api/sessions/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            start: slot.s,
+            first_name: String(fd.get('first_name') ?? '').trim(),
+            last_name: String(fd.get('last_name') ?? '').trim(),
+            email: String(fd.get('email') ?? '').trim(),
+            country: String(fd.get('country') ?? '').trim(),
+            note: String(fd.get('note') ?? '').trim(),
+            timezone: picker.tz(),
+            consent_terms: fd.get('consent_terms') === 'on',
+            provider,
+          }),
+        });
+        const out = (await res.json().catch(() => ({}))) as { checkout_url?: string; error?: string; taken?: boolean };
+        if (!res.ok || !out.checkout_url) {
+          if (out.taken) picker.remove(slot.s);
+          throw new Error(out.error || 'Could not start checkout.');
+        }
+        location.href = out.checkout_url;
+      } catch (err) {
+        showError((err as Error).message || 'Could not start checkout — please try again.');
+        buttons.forEach((b) => { b.disabled = !data.open; });
+      }
+    });
+  }
+</script>

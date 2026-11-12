@@ -38,6 +38,8 @@ import { deckGiftClaimEmail, deckGiftConfirmedEmail } from '../workshops/emails'
 import { sendAlbumPurchaseEmail } from '../music/delivery';
 import { welcomeCourseOrder } from '../courses/emails/confirmation';
 import { sendLivePassConfirmation } from '../courses/live-pass-email';
+import { confirmSessionBooking, sessionOrderRows, type SessionEnv } from '../sessions/confirm';
+import { isSessionProductSlug, SESSION_PRODUCT_LABEL } from '../sessions/config';
 import { LANGUAGE_CHOICE_LABEL } from '../courses/journeys';
 import { BANK_TRANSFER, type OrderProvider } from '../payments/provider';
 import { makeOrderNo } from '../admin/orders';
@@ -63,7 +65,10 @@ export type OrderEnv = {
   ADMIN_SESSION_SECRET?: string;
   MARKETING_FROM?: string;
   MARKETING_REPLY_TO?: string;
-} & ShopifyEnv;
+} & ShopifyEnv &
+  // An individual session is confirmed from here (Zoom + calendar), so the
+  // worker env's Zoom and Google settings ride along; all optional.
+  Omit<SessionEnv, 'DB'>;
 
 // Where SD-ORDER notifications land when ORDER_NOTIFICATIONS_TO is unset.
 const DEFAULT_RECIPIENTS = ['jacob@songdance.co', 'support@songdance.co'];
@@ -76,6 +81,7 @@ const COURSE_PRODUCT_LABELS: Record<string, string> = {
   'grief-course': 'The Grief Course',
   'forgiveness-course': 'The Forgiveness Course',
   'svh-12week': '12-Week SVH Course',
+  'individual-session': SESSION_PRODUCT_LABEL,
 };
 
 const PAYMENT_PLAN_LABELS: Record<string, string> = {
@@ -115,6 +121,9 @@ export type OrderNotificationInput = {
     attendanceStatus: string; // 'registered' | 'attended' | 'no_show'
     moreCount?: number;
   } | null;
+  // Extra [label, value] rows shown right under the product (an individual
+  // session's time, Zoom link and calendar state).
+  extraRows?: Array<[string, string]>;
   paymentPlan?: string | null;
   installmentsTotal?: number | null;
   activateChoice?: string | null;
@@ -279,6 +288,7 @@ export function buildOrderNotificationEmail(
   const fields: Array<[string, string | null | undefined]> = [
     ['Order', `#${input.orderId} · ${input.orderType === 'course' ? 'Course' : 'Retreat'}`],
     ['Product', input.tierName ? `${input.productName} — ${input.tierName}` : input.productName],
+    ...(input.extraRows ?? []),
     ['Workshop attended', attendedWorkshopValue(input.attendedWorkshop)],
     ['Amount', planLabel ? `${amount} (${planLabel})` : amount],
     ['Add-ons', addonsValue],
@@ -495,6 +505,12 @@ export async function notifyCourseOrder(
 ): Promise<void> {
   const productName =
     COURSE_PRODUCT_LABELS[reg.product_slug] ?? livePassLabelForSlug(reg.product_slug) ?? reg.product_slug;
+  // An individual session is confirmed first (the moment, its Zoom meeting,
+  // Jacob's calendar, the client's email), so the SD-ORDER below can say when
+  // it is and whether everything landed. Idempotent; never throws.
+  const sessionRows = isSessionProductSlug(reg.product_slug)
+    ? sessionOrderRows(await confirmSessionBooking(env, reg))
+    : null;
   // Best-effort: which workshop did this buyer come through? Never blocks send.
   let attendedWorkshop: OrderNotificationInput['attendedWorkshop'] = null;
   try {
@@ -534,6 +550,8 @@ export async function notifyCourseOrder(
     amountCents: reg.amount_cents,
     currency: reg.currency,
     bumps: bumps.length ? bumps : undefined,
+    extraRows: sessionRows ?? undefined,
+    notes: sessionRows ? await sessionNote(env.DB, reg.id) : undefined,
     paymentPlan: reg.payment_plan,
     installmentsTotal: reg.installments_total,
     activateChoice: reg.activate_choice,
@@ -575,6 +593,19 @@ export async function notifyCourseOrder(
   // Stripe paths hand over one read before it was marked paid), idempotent on
   // its own claim, never throws.
   await welcomeCourseOrder(env, reg);
+}
+
+// What the client wrote under "what brings you" — for the SD-ORDER.
+async function sessionNote(db: D1Database, regId: number): Promise<string | undefined> {
+  try {
+    const r = await db
+      .prepare(`SELECT note FROM session_bookings WHERE course_registration_id = ? ORDER BY id DESC LIMIT 1`)
+      .bind(regId)
+      .first<{ note: string | null }>();
+    return r?.note ?? undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 // Turn the stored shipping address into the display lines the confirmation email

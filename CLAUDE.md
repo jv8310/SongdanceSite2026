@@ -171,6 +171,75 @@ app. Read 120 days ahead (`APP_SESSION_HORIZON_DAYS`), so one weekly repeating
 event works. Deploy order: the app first (an older app answers "not deployed
 yet" and the workshops sync as before).
 
+## Individual sessions — booked from "Boekingen" on the calendar (November 2026)
+
+`/sessions` sells one-to-one sessions with Jacob on Zoom. Logic in
+[`src/lib/sessions/`](src/lib/sessions/), table `session_bookings` (migration 0097),
+admin on **`/admin/sessions`** (settings, Google/Zoom state, the free moments of the
+next 14 days, every booking).
+
+- **Free moments come from Jacob's Google Calendar** (the one connected under Settings →
+  Calendar sync): every event titled **"Boekingen"** (the title is a setting) is a window,
+  cut into sessions of the set length with a buffer between ([`slots.ts`](src/lib/sessions/slots.ts),
+  pure). Overlapping windows merge; any other event that shows him **busy** blocks what it
+  touches, buffer included (all-day events only when set to Busy; declined events and our
+  own entry for a session being moved don't count); so do bookings held or made on the site
+  (the database is the truth for those). A blocked moment resumes on the first quarter hour
+  after the blocker. Minimum notice and horizon are settings. The page shows the moments on
+  the visitor's own clock ([`session-picker.ts`](src/lib/client/session-picker.ts), shared
+  with the move picker); styles are global in `src/styles/sessions.css` because the picker
+  writes its buttons with innerHTML.
+- **Closed until a price is set.** Every setting lives in `workshop_config` (`sessions_*`,
+  [`config.ts`](src/lib/sessions/config.ts)): price (EUR; 0 = closed, the page says "opens
+  soon"), length (60), buffer (15), notice (24h), horizon (60d), the window title, the
+  standard Zoom link + passcode, and until how many hours before the client may move it (24).
+  Other currencies follow the EUR price with the album ratios ([`price.ts`](src/lib/sessions/price.ts)).
+- **One moment, one booking — atomically.** The checkout re-reads the calendar, then
+  `createHold` takes the moment in one `INSERT … SELECT … WHERE NOT EXISTS (overlap)` — two
+  buyers can't both get it. A hold lasts 35 minutes; the Stripe page closes after 30
+  (`expires_at`, a new option on `createCheckoutSession`) and offers only methods that settle
+  at once (no SEPA/Sofort). Backing out (`cancel_url` = `/sessions?release=<token>`) frees it
+  at once; a second try by the same address releases their own unpaid hold. A payment that
+  lands after the hold lapsed (rare, PayPal) still books it when the moment is free, else the
+  row goes to **`conflict`**: the buyer is told we'll find another time or refund, Jacob gets an
+  SD-SESSION mail.
+- **The payment rides the course machinery** as product slug **`individual-session`**
+  (`course_registrations`, full payment, Stripe + PayPal), so webhooks, the PayPal return,
+  reconciles, admin mark-paid, SD-ORDER, Drip (`prod_Session`, event `Completed individual
+  session booking`) and Meta all work unchanged. `courseDripTags` returns its own tag (never
+  the cert tags). The member app maps the slug to nothing.
+- **On payment** `notifyCourseOrder` runs `confirmSessionBooking` ([`confirm.ts`](src/lib/sessions/confirm.ts))
+  before the SD-ORDER (which then lists the session's time, Zoom link and calendar state):
+  the moment becomes `booked`; the meeting is **a Zoom meeting of its own** via a Zoom
+  Server-to-Server OAuth app ([`zoom.ts`](src/lib/sessions/zoom.ts); secrets `ZOOM_ACCOUNT_ID`,
+  `ZOOM_CLIENT_ID`, `ZOOM_CLIENT_SECRET`, optional `ZOOM_USER`), else the Zoom link pasted on
+  its "Boekingen" event (saved at checkout), else the standard link; the session is
+  **written into the calendar** as "Sessie — <name>" (opaque, tagged with the booking id); the
+  client gets the confirmation (claimed once in `events`, `session-confirmed-<id>`).
+- **Calendar writing needs `calendar.events`.** `GOOGLE_SCOPE` asks for it since this change;
+  a connection made before is read-only until Settings → Calendar sync → Re-connect. Until
+  then bookings work and the booking/admin page say "not written" (button: write it again).
+  `getAccessToken(cfg, scope)` asks a service account for the scope per token.
+- **The client's page** `/sessions/booking?t=<id>.<sig>` ([`link.ts`](src/lib/sessions/link.ts),
+  HMAC over `ADMIN_SESSION_SECRET`, domain `sd-session:`) is in every email and is the payment
+  return (`?welcome=1` waits and refreshes until the webhook confirmed). It shows the time on
+  their clock, the Zoom link, Google/ICS (`/api/sessions/ics`, stable UID) and, until the move
+  window closes, a picker to **move** it (`/api/sessions/reschedule` → `moveSession` in
+  [`actions.ts`](src/lib/sessions/actions.ts): atomic move, Zoom meeting moved, calendar entry
+  patched, "Your session has moved" + SD-SESSION to Jacob).
+- **Emails** ([`emails.ts`](src/lib/sessions/emails.ts), transactional, previewed on
+  `/admin/emails` → "Individual sessions"): booked, the day before (skipped when booked less
+  than a day ahead), an hour before (with the Join button), moved, cancelled, conflict.
+- **The 5-minute cron** ([`cron.ts`](src/lib/sessions/cron.ts)): confirms a paid booking
+  still only held, re-sends a missing confirmation, sends the reminders (CAS on their columns),
+  cancels the session of an order **refunded in full** (Zoom + calendar, no mail), expires
+  lapsed holds. Exits on one query while the table is empty.
+- **Admin** can cancel (frees the moment, deletes the Zoom meeting and the calendar entry,
+  optional mail with a line of their own — **never refunds**: that stays on the order page),
+  set a Zoom link by hand, and write the calendar entry again.
+- **Preview caveat**: migration 0097 runs on merge; before it, `/sessions` renders (holds
+  fail) and `/admin/sessions` says the table is missing.
+
 ## The Forgiveness Course — four live sessions, December 2026
 
 `/courses/forgiveness` sells the course since October 2026: four live sessions on Zoom

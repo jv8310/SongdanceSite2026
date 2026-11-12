@@ -48,6 +48,7 @@ const COURSE_ITEM_LABELS: Record<string, string> = {
   'grief-course': 'The Grief Course',
   'forgiveness-course': 'The Forgiveness Course',
   'svh-12week': '12-Week SVH Foundation Course',
+  'individual-session': 'Individual session with Jacob',
 };
 
 type QueueRow = {
