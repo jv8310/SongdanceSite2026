@@ -1,0 +1,41 @@
+Hello {{ subscriber.first_name | default: "there" }},
+
+It usually starts at the sink. Or at three in the morning.
+
+  What you should have said.
+  What they would say back.
+  What you'd say then.
+
+You've had this conversation a hundred times, and you win it every time. And in the morning, nothing has moved.
+
+For one of us it's the sister who stopped speaking after the funeral. For another, the father who left when she was nine and never called. The husband who had the affair and then told your friends a different story. The boss, in front of the whole team. The doctor who didn't listen for years.
+
+
+THE CONVERSATION WAS NEVER THE MISSING PART
+
+We keep rehearsing because we believe the right words, finally said, would finish it. But words invite an answer. They defend themselves, you answer back, and round it goes. Even inside your own head.
+
+A tone is different. There are no rebuttals in a tone.
+
+In the second session of the Forgiveness Course, you don't say it to them. You sound it. The anger that has been polite for years. The hurt underneath the anger. Not screamed: one honest tone, as soft as you like, with your microphone off if you want.
+
+They don't need to be in the room. They don't even need to be alive. And nobody asks you to excuse what was done. Naming the pain is not condoning the act.
+
+What was never said is heard at last, by the one person who was there for all of it. You. And acknowledged things tend to leave on their own.
+
+
+Not ready to forgive? Come anyway.
+
+The Forgiveness Course: four live sessions on Zoom with Daniela Hess and me, 6, 9, 13 and 16 December 2026, 19:00-21:00 Brussels time. Lifetime access to the replays. EUR 147 (the page shows it in your own currency).
+
+Join the four sessions:
+https://songdance.co/courses/forgiveness?utm_source=broadcast&utm_medium=email&utm_campaign=forgiveness_seq&utm_content=e2_text&{{prefill}}#register
+
+With love,
+Jacob
+
+P.S. Can't be there live? Every session is recorded, the replay is up within a day, and the replays are yours for life.
+
+--
+Not for you? Unsubscribe: {{ unsubscribe_url }}
+Songdance BV, Beaupréstraat 13, 8310 Bruges, Belgium

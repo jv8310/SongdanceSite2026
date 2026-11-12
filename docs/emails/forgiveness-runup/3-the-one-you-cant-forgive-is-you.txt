@@ -1,0 +1,39 @@
+Hello {{ subscriber.first_name | default: "there" }},
+
+Last time I wrote about the people who hurt us. This is the other door. It's quieter, because almost nobody talks about it.
+
+  The gate you left open.
+  The room you weren't in when she died.
+  The last thing you said, which was an argument.
+
+You have your own list. And you know the voice that reads it back to you: I'm not good enough. I'm unforgivable. I'm a bad person.
+
+
+AN INNER COURT THAT NEVER ADJOURNS
+
+In there you are the accused, the prosecutor and the judge. The trial has run for years, and it has never reached a verdict you can live with.
+
+People tell you to be kinder to yourself. You've tried. But a kind phrase repeated until it sounds true doesn't reach the place where guilt lives. Guilt isn't an opinion you hold. It's something the body carries: in the chest, in the throat, in the photograph you can't quite look at.
+
+So in the third session we don't argue with the inner critic, and we don't hand out absolution. It isn't ours to give. We let the guilt have its own sound. And the critic too: it has a tone as well, and it has waited a long time to be heard.
+
+"I'm sorry." The first of four old Hawaiian phrases. Said, it's an apology. Sounded, it becomes something else: the grief that was never allowed to flow.
+
+You don't have to tell anyone what it was. Not us, not the group. You can stay muted the whole time. Soft counts, and a hum is a complete practice.
+
+
+Feel unforgivable? Come anyway.
+
+The Forgiveness Course: four live sessions on Zoom with Daniela Hess and me, 6, 9, 13 and 16 December 2026, 19:00-21:00 Brussels time. Lifetime access to the replays. EUR 147 (the page shows it in your own currency).
+
+Join the four sessions:
+https://songdance.co/courses/forgiveness?utm_source=broadcast&utm_medium=email&utm_campaign=forgiveness_seq&utm_content=e3_text&{{prefill}}#register
+
+With love,
+Jacob
+
+P.S. If you're thinking "yes, but what I did really is unforgivable": that is the sentence the third session is given to. It isn't a reason to stay away. It's where we begin.
+
+--
+Not for you? Unsubscribe: {{ unsubscribe_url }}
+Songdance BV, Beaupréstraat 13, 8310 Bruges, Belgium

@@ -11,13 +11,35 @@ interface Props {
 }
 
 const { sessions, brusselsNote } = Astro.props;
+
+// "We begin in 24 days": worked out per visit (the page is server-rendered),
+// from the next session that has not ended. Nothing once the last one is over.
+const now = Date.now();
+const next = sessions.find((s) => Date.parse(s.endsAtUtc) > now);
+let countdown: string | null = null;
+if (next) {
+  const ms = Date.parse(next.startsAtUtc) - now;
+  const hours = Math.ceil(ms / 3_600_000);
+  const days = Math.ceil(ms / 86_400_000);
+  const what = next.n === 1 ? 'We begin' : `Class ${next.n} is`;
+  if (ms <= 0) countdown = `Class ${next.n} is live now`;
+  else if (hours <= 1) countdown = `${what} within the hour`;
+  else if (hours < 36) countdown = `${what} in ${hours} hours`;
+  else countdown = `${what} in ${days} days`;
+}
 ---
 
 <section class="fc-schedule" id="schedule">
   <div class="fc-schedule-inner">
     <div class="fc-schedule-head">
       <div class="fc-eyebrow" style="justify-content: center;">When we gather</div>
-      <h2 class="fc-h2">Four evenings in <em>December.</em></h2>
+      <h2 class="fc-h2">Four sessions in <em>December.</em></h2>
+      {countdown && (
+        <p class="fc-schedule-count">
+          <span class="fc-schedule-count-dot" aria-hidden="true" />
+          {countdown}
+        </p>
+      )}
       <p class="fc-schedule-sub">
         Each session is {FORGIVENESS_SESSION_MINUTES / 60} hours, live on Zoom{brusselsNote ? ' — 19:00 to 21:00 in Brussels' : ''}.
         Times are shown where you are.

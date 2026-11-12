@@ -5,6 +5,19 @@ const phrases = [
   { said: 'Thank you', sounded: 'The gratefulness that arises when the system has finally been heard' },
   { said: 'I love you', sounded: 'The love under everything — met as direct experience, not belief — in its own time' },
 ];
+
+// Three slow sine lines behind the mantra: the voice, drawn. Each path is two
+// viewBox-widths long and slides one width, so the loop has no seam.
+const wave = (period: number, amp: number) => {
+  let d = `M0 60 Q ${period / 4} ${60 - amp} ${period / 2} 60`;
+  for (let x = period; x <= 2400; x += period / 2) d += ` T ${x} 60`;
+  return d;
+};
+const waves = [
+  { d: wave(300, 26), cls: 'fc-wave-a' },
+  { d: wave(400, 38), cls: 'fc-wave-b' },
+  { d: wave(600, 18), cls: 'fc-wave-c' },
+];
 ---
 
 <section class="fc-phrases">
@@ -16,9 +29,15 @@ const phrases = [
         <em>A new way to meet them.</em>
       </h2>
     </div>
-    <p class="fc-phrases-mantra">
-      I'm sorry. Please forgive me.<br />Thank you. I love you.
-    </p>
+    <div class="fc-phrases-voice">
+      <svg class="fc-wave" viewBox="0 0 1200 120" preserveAspectRatio="none" aria-hidden="true">
+        {waves.map((w) => <path d={w.d} class={w.cls} />)}
+      </svg>
+      <p class="fc-phrases-mantra" data-fc-on>
+        <span>I'm sorry.</span> <span>Please forgive me.</span><br />
+        <span>Thank you.</span> <span>I love you.</span>
+      </p>
+    </div>
     <p class="fc-phrases-lead">
       Four phrases from Hawaiian ho'oponopono. Repeated by millions, often as
       mantra. Powerful in their simplicity. In this course, we don't only say

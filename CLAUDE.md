@@ -222,8 +222,27 @@ announcement follow.
   `prod_forgiveness`, so buyers drop out of every later one): **#17 "Forgiveness is a
   paradox"** first (its third paradox is "Forgiveness isn't a finish line" since migration
   0096; no separation), then #18 (17 Nov), #19 (22 Nov), #20 (29 Nov), #21 (3 Dec), #22
-  (6 Dec, the day it starts). #18–#22 are simple format with a `{{prefill}}` button. The
-  launch draft (#16) is not sent.
+  (6 Dec, the day it starts). **#18–#22 are designed `html` emails in the paradox email's
+  look** (hero, Spectral headline with one Cormorant word in ember, a night band, a plum
+  offer box), each on one idea: the conversation you never had ("no rebuttals in a tone") ·
+  the one you can't forgive is you (the inner court) · four sentences your body already
+  knows (ho'oponopono said → sounded, the schedule) · five good reasons not to come · today
+  we begin (the hour in four cities, what to bring). Their source is
+  [`docs/emails/forgiveness-runup/build.mjs`](docs/emails/forgiveness-runup/build.mjs): edit
+  the words there, run it, and save the generated `.html` + `.txt` into the draft
+  (`broadcast_save`, format html, with `bodyText`: the automatic text part of an html
+  broadcast would include its `<style>` block). Every link carries `{{prefill}}`. The launch
+  draft (#16) is not sent.
+- **Motion on the page** (November 2026, [`FCMotion.astro`](src/components/forgiveness/FCMotion.astro)
+  + the "Motion" block at the end of `forgiveness.css`): sections fade up as they are
+  reached, the hero's lines arrive in turn with a slow ripple around the mark, the mantra
+  lights up phrase by phrase over three drifting sine lines, a line draws through the three
+  steps, the lyric arrives in two halves, FAQ answers ease open, and the schedule carries a
+  server-rendered countdown ("We begin in N days"). The script only marks what is still
+  below the fold when it starts, hands each element back to its own styles after it has
+  arrived, and does nothing with "reduce motion" on or without JavaScript. A new section
+  joins by adding its selector to `TARGETS`; a one-off sequence takes `data-fc-on` and
+  styles on `.is-on`.
 - Registrants: `/admin/courses/forgiveness-course`.
 
 ## Forgiveness prayer lead magnet — offline, kept for later

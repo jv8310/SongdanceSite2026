@@ -1915,3 +1915,166 @@ html.fc-cart-open, html.fc-cart-open body { overflow: hidden; }
   font-size: 1.25em;
   color: var(--ink);
 }
+
+/* =====================================================================
+   Motion (November 2026). FCMotion.astro adds `fc-motion` to <html> and
+   marks what should arrive on scroll; without it, and with "reduce motion"
+   on, everything below is simply still.
+   ===================================================================== */
+
+/* Countdown under "Four sessions in December" */
+.fc-schedule-count {
+  display: inline-flex; align-items: center; gap: 10px;
+  margin: var(--sp-5) auto 0;
+  padding: 8px 18px 8px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  background: var(--paper);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--ember-deep);
+}
+.fc-schedule-count-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--ember);
+  box-shadow: 0 0 0 0 rgba(201, 96, 58, 0.5);
+}
+
+/* The two lines of the lyric stand one under the other */
+.fc-lyric-text span { display: block; }
+
+/* The mantra, with the voice drawn behind it */
+.fc-phrases-voice { position: relative; }
+.fc-phrases-voice .fc-phrases-mantra { position: relative; z-index: 1; }
+.fc-wave {
+  position: absolute;
+  left: 50%; top: 50%;
+  width: min(1100px, 128%);
+  height: 150px;
+  transform: translate(-50%, -50%);
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0.55;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 22%, #000 78%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 22%, #000 78%, transparent);
+}
+.fc-wave path {
+  fill: none;
+  stroke: var(--ember);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+.fc-wave .fc-wave-b { stroke: rgba(244, 236, 223, 0.5); }
+.fc-wave .fc-wave-c { stroke: rgba(201, 96, 58, 0.55); }
+
+/* The three steps: a line that runs through them, in order */
+.fc-layers-grid { position: relative; }
+@media (min-width: 881px) {
+  .fc-layers-grid::before {
+    content: "";
+    position: absolute;
+    left: 0; right: 0;
+    top: calc(var(--sp-6) * -1);
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--ember) 14%, var(--ember) 86%, transparent);
+    opacity: 0.5;
+    transform-origin: left center;
+  }
+}
+
+/* The ripple around the mark in the hero */
+.fc-hero-markwrap {
+  position: relative;
+  width: 56px; height: 56px;
+  margin: 0 auto var(--sp-6);
+}
+.fc-hero-markwrap .fc-hero-mark { margin: 0; position: relative; }
+.fc-hero-ring {
+  position: absolute; inset: 0;
+  border-radius: 50%;
+  border: 1px solid var(--ember);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Small touches that need no script */
+.fc-hero-cta i, .fc-link-cta i, .fc-glance-side-cta i { transition: transform var(--d-base) var(--ease); }
+.fc-hero-cta:hover i, .fc-link-cta:hover i { transform: translateX(4px); }
+.fc-door { transition: box-shadow var(--d-base) var(--ease), transform var(--d-base) var(--ease); }
+.fc-door:hover { box-shadow: var(--shadow-2); transform: translateY(-2px); }
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Hero: the lines arrive one after the other */
+  .fc-hero-inner > * { animation: fc-rise 1.1s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+  .fc-hero-inner > :nth-child(1) { animation-delay: 0.05s; }
+  .fc-hero-inner > :nth-child(2) { animation-delay: 0.2s; }
+  .fc-hero-inner > :nth-child(3) { animation-delay: 0.38s; }
+  .fc-hero-inner > :nth-child(4) { animation-delay: 0.62s; }
+  .fc-hero-inner > :nth-child(5) { animation-delay: 0.82s; }
+  .fc-hero-inner > :nth-child(6) { animation-delay: 1s; }
+  .fc-hero-inner > :nth-child(7) { animation-delay: 1.12s; }
+  .fc-hero-ring { animation: fc-ripple 6s ease-out 1.4s infinite; }
+  .fc-hero-ring + .fc-hero-ring { animation-delay: 4.4s; }
+
+  .fc-schedule-count-dot { animation: fc-pulse 2.4s ease-out infinite; }
+
+  .fc-wave .fc-wave-a { animation: fc-wave 26s linear infinite; }
+  .fc-wave .fc-wave-b { animation: fc-wave 38s linear infinite reverse; }
+  .fc-wave .fc-wave-c { animation: fc-wave 54s linear infinite; }
+
+  /* An answer opens, it doesn't jump */
+  .fc-faq-item[open] .fc-faq-answer { animation: fc-rise 0.45s var(--ease) both; }
+
+  /* Arriving on scroll */
+  .fc-motion [data-fc-reveal] {
+    opacity: 0;
+    transform: translate3d(0, 22px, 0);
+    transition: opacity 0.9s var(--ease), transform 0.9s cubic-bezier(0.2, 0.7, 0.2, 1);
+    transition-delay: var(--fc-d, 0ms);
+    will-change: opacity, transform;
+  }
+  .fc-motion [data-fc-reveal="left"] { transform: translate3d(-22px, 0, 0); }
+  .fc-motion [data-fc-reveal="scale"] { transform: scale(0.94); }
+  .fc-motion [data-fc-reveal].is-in { opacity: 1; transform: none; }
+
+  /* The mantra lights up phrase by phrase */
+  .fc-motion .fc-phrases-mantra[data-fc-on] span { opacity: 0.16; transition: opacity 1.3s var(--ease); }
+  .fc-motion .fc-phrases-mantra[data-fc-on].is-on span { opacity: 1; }
+  .fc-motion .fc-phrases-mantra.is-on span:nth-of-type(1) { transition-delay: 0.2s; }
+  .fc-motion .fc-phrases-mantra.is-on span:nth-of-type(2) { transition-delay: 1.1s; }
+  .fc-motion .fc-phrases-mantra.is-on span:nth-of-type(3) { transition-delay: 2s; }
+  .fc-motion .fc-phrases-mantra.is-on span:nth-of-type(4) { transition-delay: 2.9s; }
+
+  /* The lyric: the mind first, then the body */
+  .fc-motion .fc-lyric-text[data-fc-on] span {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0);
+    transition: opacity 1.2s var(--ease), transform 1.2s cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+  .fc-motion .fc-lyric-text[data-fc-on].is-on span { opacity: 1; transform: none; }
+  .fc-motion .fc-lyric-text.is-on span:nth-of-type(2) { transition-delay: 1.1s; }
+
+  /* The line through the three steps draws itself */
+  .fc-motion .fc-layers-grid[data-fc-on]::before { transform: scaleX(0); transition: transform 1.9s cubic-bezier(0.3, 0.6, 0.2, 1) 0.25s; }
+  .fc-motion .fc-layers-grid[data-fc-on].is-on::before { transform: scaleX(1); }
+}
+
+@keyframes fc-rise {
+  from { opacity: 0; transform: translate3d(0, 18px, 0); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes fc-ripple {
+  0% { transform: scale(0.9); opacity: 0; }
+  14% { opacity: 0.42; }
+  100% { transform: scale(2.7); opacity: 0; }
+}
+@keyframes fc-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(201, 96, 58, 0.5); }
+  100% { box-shadow: 0 0 0 10px rgba(201, 96, 58, 0); }
+}
+@keyframes fc-wave {
+  from { transform: translateX(0); }
+  to { transform: translateX(-1200px); }
+}
