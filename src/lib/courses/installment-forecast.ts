@@ -303,6 +303,21 @@ function planState(row: InstallmentRow): PlanState {
   if (row.installments_paid >= row.installments_total && !rowEnded) {
     return 'completed';
   }
+  // A checkout that never took a penny, whose Stripe subscription is `unpaid`:
+  // the opening invoice failed (a declined card, a SEPA debit that bounced)
+  // and Stripe has stopped trying. Nothing is billing and nothing will — it is
+  // an abandoned attempt, typically one of several made minutes before the
+  // order that went through (November 2026: two 0/6 rows reading UNPAID ·
+  // WATCH beside a buyer's live plan). Not started, so the Remove button
+  // shows; dismiss-plan still checks Stripe for a paid invoice and cancels
+  // the subscription before deleting the row.
+  if (
+    row.installments_paid === 0 &&
+    !row.paid_at &&
+    row.subscription_status === 'unpaid'
+  ) {
+    return 'not_started';
+  }
   // Closed here (refunded / cancelled) but the gateway still says it is
   // billing, with charges left on the plan: that is not "stopped", it is a
   // plan charging behind a closed order — the case that read ACTIVE beside
