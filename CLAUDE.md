@@ -237,6 +237,13 @@ next 14 days, every booking).
 - **Admin** can cancel (frees the moment, deletes the Zoom meeting and the calendar entry,
   optional mail with a line of their own — **never refunds**: that stays on the order page),
   set a Zoom link by hand, and write the calendar entry again.
+- **Jacob's settings** (migration 0098, November 2026): **€175, 50 minutes, 10 minutes
+  between**, so a window is cut on the hour. Still editable on `/admin/sessions`.
+- **Setting up Zoom, Cloudflare and Google from a browser**: the step-by-step brief for a
+  Claude in Chrome session is [`docs/sessions-setup-chrome.md`](docs/sessions-setup-chrome.md)
+  (Zoom Server-to-Server app with `meeting:write|update|delete:meeting:admin`, the four
+  `ZOOM_*` worker secrets as type Secret, `ZOOM_USER = jacob@songdance.co`, Google
+  Re-connect). Set `ZOOM_USER`: an account-level app's "me" is not reliably the host.
 - **Preview caveat**: migration 0097 runs on merge; before it, `/sessions` renders (holds
   fail) and `/admin/sessions` says the table is missing.
 
