@@ -212,6 +212,15 @@ announcement follow.
   `{{ subscriber.email | url_encode }}` so the form arrives filled in. Send one of the two
   site drafts, never both. The registration box on the page now reads "Not ready to
   forgive? Come anyway." (it said only "Come anyway.").
+- **Who it is for** (November 2026, Jacob's notes): mostly women of 40–62 carrying a soul
+  wound (rejection, abandonment, betrayal, humiliation, injustice; a life she feels trapped in;
+  needs never met). The page's **Two doors in** (`FCDoors.astro`, after "Forgiveness is for
+  you if…") gives concrete situations, second person: door one = someone hurt you (class two),
+  door two = you did something, or didn't (class three). Class 4 is **Living with
+  forgiveness** — the page no longer names "forgiving separation" anywhere.
+- **The run-up sequence**: five site broadcast drafts, #18–#22, "Forgiveness Course 1/5 …
+  5/5" (13 Nov, 22 Nov, 29 Nov, 3 Dec, 6 Dec), simple format, same audience as 0095. They
+  replace the "paradox" draft (#17) and the launch draft (#16); send the sequence or those.
 - Registrants: `/admin/courses/forgiveness-course`.
 
 ## Forgiveness prayer lead magnet — offline, kept for later

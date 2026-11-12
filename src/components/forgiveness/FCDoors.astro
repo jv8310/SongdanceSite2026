@@ -1,0 +1,80 @@
+---
+// "Two doors in" — who the course is for, in the reader's own situations.
+// Door one is class two (someone hurt you), door two is class three (you did
+// something, or didn't). The examples come from Jacob's and Daniela's notes on
+// the people who come (November 2026); keep them concrete and plain, in the
+// second person, and never more graphic than these.
+const doorOne = [
+  'Your sister stopped speaking to you after your mother’s funeral.',
+  'Your father left when you were nine and never called.',
+  'Your mother taught you that good girls never raise their voices, and you kept quiet through thirty years of family dinners.',
+  'Your grown daughter cut off contact and won’t say why.',
+  'A group of girls bullied you for years, and the teacher looked away.',
+  'Someone you trusted hurt you, and when you told, no one believed you.',
+  'Your husband had an affair, and then told your friends a different story.',
+  'You were let go after 22 years, the week you came back from caring for a parent.',
+  'A doctor dismissed your symptoms for years.',
+  'Your brother died by suicide. You keep asking why, and there is an anger you hide.',
+  'Your congregation turned away from you after your divorce.',
+];
+
+const doorTwo = [
+  'You fell asleep while watching your father, and he got up, fell and hurt himself.',
+  'You weren’t in the room when your mother died.',
+  'The last words you said to a friend were an argument, and she died the next week.',
+  'You agreed to take your husband off life support.',
+  'You were short-tempered through your son’s teenage years, and he moved out at eighteen.',
+  'You worked long hours and missed your children’s childhood.',
+  'You didn’t believe your daughter when she told you what happened.',
+  'You left the gate open, and your dog ran into the road.',
+  'As a child you bullied a girl in your class, and you have never forgotten her face.',
+  'You glanced at your phone, and the other driver went to the hospital.',
+];
+---
+
+<section class="fc-doors">
+  <div class="fc-doors-inner">
+    <div class="fc-doors-head">
+      <div class="fc-eyebrow">Two doors in</div>
+      <h2 class="fc-h2">Someone hurt you. Or you hurt someone. <em>Often both.</em></h2>
+      <p class="fc-lead">
+        It usually starts with a wound that has a name: rejection, abandonment,
+        betrayal, humiliation, injustice. Sometimes it is a life you feel trapped
+        in, or needs that were never met.
+      </p>
+      <p class="fc-lead">
+        And then you find a way to live with it. You stay quiet and polite, and
+        the resentment builds. You keep your distance from the people or the
+        place that hurt you. You stay busy, so there is no time to feel it. You
+        replay the conversation you never had.
+      </p>
+    </div>
+
+    <div class="fc-doors-grid">
+      <article class="fc-door">
+        <div class="fc-door-label">Door one <span>· Class two</span></div>
+        <h3 class="fc-door-title">Someone or something hurt you</h3>
+        <p class="fc-door-sub">
+          A person, a family, a workplace, a doctor, a church, a culture. Or
+          someone you love was hurt.
+        </p>
+        <ul class="fc-door-list">{doorOne.map((t) => <li>{t}</li>)}</ul>
+      </article>
+      <article class="fc-door">
+        <div class="fc-door-label">Door two <span>· Class three</span></div>
+        <h3 class="fc-door-title">You did something, or didn’t</h3>
+        <p class="fc-door-sub">
+          And you keep living it again. <em>I’m not good enough. I’m unforgivable.
+          I’m a bad person.</em>
+        </p>
+        <ul class="fc-door-list">{doorTwo.map((t) => <li>{t}</li>)}</ul>
+      </article>
+    </div>
+
+    <p class="fc-doors-foot">
+      Whichever door you come through, class one begins with why
+      <em>“just let it go”</em> never worked, and class four brings it all home,
+      into the days you actually live.
+    </p>
+  </div>
+</section>
