@@ -22,3 +22,28 @@ WHERE status = 'draft'
     'The Forgiveness Course — registrations open (December 2026)',
     'The Forgiveness Course — forgiveness is a paradox (November 2026)'
   );
+
+
+-- "Forgiveness is a paradox" (#17) becomes email 1 of the run-up (Jacob,
+-- November 2026), and its third paradox no longer names separation: it is now
+-- "Forgiveness isn't a finish line", which leads into class 4, Living with
+-- forgiveness. docs/emails/forgiveness-paradox.broadcast.html + .txt carry the
+-- same words. Draft only; a no-op once the text is gone.
+UPDATE broadcasts
+SET body = REPLACE(REPLACE(REPLACE(body,
+      'At the very bottom, there may be nothing to forgive.',
+      'Forgiveness isn&rsquo;t a finish line.'),
+      'Go below every hurt, and below that, and you reach the oldest one: separation. Me over here, you over there. Underneath it is something that was never broken. But you can&rsquo;t skip to it. You only get there by walking through the first two.',
+      'You don&rsquo;t forgive once and stay there. An anniversary, a phone call, a song on the radio, and it&rsquo;s back. That isn&rsquo;t failure. Each time it returns, it asks to be met again, a little more gently than the time before.'),
+      'It is true that we are separate, and it is true that we are one, at the same time. Maybe in the softness of that paradox, there&rsquo;s also healing.',
+      'Maybe forgiveness is less something you do once, and more a way of living.'),
+    body_text = REPLACE(REPLACE(REPLACE(body_text,
+      'III. At the very bottom, there may be nothing to forgive.',
+      'III. Forgiveness isn''t a finish line.'),
+      'Go below every hurt, and below that, and you reach the oldest one: separation. Me over here, you over there. Underneath it is something that was never broken. But you can''t skip to it. You only get there by walking through the first two.',
+      'You don''t forgive once and stay there. An anniversary, a phone call, a song on the radio, and it''s back. That isn''t failure. Each time it returns, it asks to be met again, a little more gently than the time before.'),
+      'It is true that we are separate, and it is true that we are one, at the same time. Maybe in the softness of that paradox, there''s also healing.',
+      'Maybe forgiveness is less something you do once, and more a way of living.'),
+    updated_at = datetime('now')
+WHERE status = 'draft'
+  AND name LIKE '%forgiveness is a paradox%';

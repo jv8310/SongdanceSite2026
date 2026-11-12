@@ -218,9 +218,12 @@ announcement follow.
   you if…") gives concrete situations, second person: door one = someone hurt you (class two),
   door two = you did something, or didn't (class three). Class 4 is **Living with
   forgiveness** — the page no longer names "forgiving separation" anywhere.
-- **The run-up sequence**: five site broadcast drafts, #18–#22, "Forgiveness Course 1/5 …
-  5/5" (13 Nov, 22 Nov, 29 Nov, 3 Dec, 6 Dec), simple format, same audience as 0095. They
-  replace the "paradox" draft (#17) and the launch draft (#16); send the sequence or those.
+- **The run-up sequence** (six site broadcasts, all excluding `in-drip` and
+  `prod_forgiveness`, so buyers drop out of every later one): **#17 "Forgiveness is a
+  paradox"** first (its third paradox is "Forgiveness isn't a finish line" since migration
+  0096; no separation), then #18 (17 Nov), #19 (22 Nov), #20 (29 Nov), #21 (3 Dec), #22
+  (6 Dec, the day it starts). #18–#22 are simple format with a `{{prefill}}` button. The
+  launch draft (#16) is not sent.
 - Registrants: `/admin/courses/forgiveness-course`.
 
 ## Forgiveness prayer lead magnet — offline, kept for later
