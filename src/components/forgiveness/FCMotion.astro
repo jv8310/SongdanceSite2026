@@ -1,0 +1,104 @@
+---
+// Motion for the Forgiveness page (November 2026): things arrive as you reach
+// them. Nothing here is needed to read the page: without JavaScript, or with
+// "reduce motion" on, every element simply stands where it is.
+//
+// Two kinds of target:
+//   • reveal  — fades up once when scrolled to, then gets its own styles back
+//               (so hover effects keep their timing);
+//   • [data-fc-on] in the markup — gets `.is-on` once and keeps it (the mantra
+//               lighting up phrase by phrase, the line across the three steps).
+// Anything already on screen when the script starts is left alone, so nothing
+// flashes on load or when the page opens at #register. Styles: forgiveness.css,
+// "Motion".
+---
+
+<script>
+  type Opt = { v?: string; step?: number; base?: number; row?: string };
+  const TARGETS: Array<[string, Opt?]> = [
+    ['.fc-schedule-head > *'],
+    ['.fc-schedule-card', { step: 110 }],
+    ['.fc-schedule-replay'],
+    ['.fc-opening-inner > *', { step: 70 }],
+    ['.fc-bypass-carousel', { v: 'left' }],
+    ['.fc-bypass-text > *', { step: 80 }],
+    ['.fc-layers-head > *'],
+    ['.fc-layer', { step: 170 }],
+    ['.fc-layers-foot'],
+    ['.fc-phrases-head > *'],
+    ['.fc-phrases-lead'],
+    ['.fc-phrases-emphasis', { v: 'scale' }],
+    ['.fc-phrase-said', { row: '.fc-phrase', step: 60 }],
+    ['.fc-phrase-sounded', { v: 'left', base: 380, row: '.fc-phrase', step: 60 }],
+    ['.fc-phrases-close'],
+    ['.fc-lyric-mark', { v: 'scale' }],
+    ['.fc-lyric-by', { base: 1500 }],
+    ['.fc-foryou-head > *'],
+    ['.fc-foryou-list > li', { step: 50 }],
+    ['.fc-doors-head > *'],
+    ['.fc-door', { step: 160 }],
+    ['.fc-door-list > li', { step: 45 }],
+    ['.fc-doors-foot'],
+    ['.fc-glance-inner > *', { step: 140 }],
+    ['.fc-classes-head > *'],
+    ['.fc-class-row', { step: 0 }],
+    ['.fc-testimonials-head > *'],
+    ['.fc-testimonial', { step: 90 }],
+    ['.fc-guides-head > *'],
+    ['.fc-guide', { step: 160 }],
+    ['.fc-faq-head > *'],
+    ['.fc-faq-item', { step: 50 }],
+  ];
+
+  const site = document.querySelector<HTMLElement>('.fc-site');
+  const calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (site && !calm && 'IntersectionObserver' in window) {
+    const fold = window.innerHeight;
+    const below = (el: Element) => el.getBoundingClientRect().top > fold * 0.92;
+
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (!e.isIntersecting) continue;
+          const el = e.target as HTMLElement;
+          io.unobserve(el);
+          if (el.hasAttribute('data-fc-on')) {
+            el.classList.add('is-on');
+            continue;
+          }
+          el.classList.add('is-in');
+          const wait = parseFloat(el.style.getPropertyValue('--fc-d')) || 0;
+          // Hand the element back to its own styles once it has arrived.
+          window.setTimeout(() => {
+            el.removeAttribute('data-fc-reveal');
+            el.classList.remove('is-in');
+            el.style.removeProperty('--fc-d');
+          }, wait + 1200);
+        }
+      },
+      { rootMargin: '0px 0px -7% 0px', threshold: 0.06 },
+    );
+
+    for (const [sel, opt = {}] of TARGETS) {
+      const seen = new Map<Element, number>();
+      site.querySelectorAll<HTMLElement>(sel).forEach((el) => {
+        if (!below(el)) return;
+        const anchor = opt.row ? el.closest(opt.row) : el;
+        const parent = anchor?.parentElement ?? el;
+        const i = opt.row && anchor ? Array.prototype.indexOf.call(parent.children, anchor) : (seen.get(parent) ?? 0);
+        if (!opt.row) seen.set(parent, i + 1);
+        const delay = (opt.base ?? 0) + Math.min(Math.max(i, 0), 6) * (opt.step ?? 90);
+        if (delay) el.style.setProperty('--fc-d', `${delay}ms`);
+        el.setAttribute('data-fc-reveal', opt.v ?? 'up');
+        io.observe(el);
+      });
+    }
+
+    site.querySelectorAll<HTMLElement>('[data-fc-on]').forEach((el) => {
+      if (below(el)) io.observe(el);
+      else el.classList.add('is-on');
+    });
+
+    document.documentElement.classList.add('fc-motion');
+  }
+</script>

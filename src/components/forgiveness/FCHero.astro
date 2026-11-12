@@ -13,7 +13,11 @@ const { open, priceLabel, datesLabel, sessionHours } = Astro.props;
     <img src="/media/library/forgiveness-sunflowers-sunset.webp" alt="" />
   </div>
   <div class="fc-hero-inner">
-    <img class="fc-hero-mark" src="/brand/symbol-orange.png" alt="" aria-hidden="true" />
+    <div class="fc-hero-markwrap" aria-hidden="true">
+      <span class="fc-hero-ring"></span>
+      <span class="fc-hero-ring"></span>
+      <img class="fc-hero-mark" src="/brand/symbol-orange.png" alt="" />
+    </div>
     <div class="fc-hero-eyebrow">
       The Forgiveness Course · {open ? 'Registrations now open' : 'December 2026'}
     </div>

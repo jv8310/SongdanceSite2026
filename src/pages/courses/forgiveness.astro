@@ -13,6 +13,7 @@ import FCPhrases from '../../components/forgiveness/FCPhrases.astro';
 import FCLyric from '../../components/forgiveness/FCLyric.astro';
 import FCForYou from '../../components/forgiveness/FCForYou.astro';
 import FCDoors from '../../components/forgiveness/FCDoors.astro';
+import FCMotion from '../../components/forgiveness/FCMotion.astro';
 import FCGlance from '../../components/forgiveness/FCGlance.astro';
 import FCClasses from '../../components/forgiveness/FCClasses.astro';
 import FCTestimonials from '../../components/forgiveness/FCTestimonials.astro';
@@ -83,5 +84,6 @@ const sessionHours = FORGIVENESS_SESSION_MINUTES / 60;
     <FCFaq sessionLines={sessions.map((s) => `${s.weekday} ${s.date}, ${s.time}`)} sessionHours={sessionHours} />
     <DiscoverMore currentHref="/courses/forgiveness" />
     <FCFooter />
+    <FCMotion />
   </div>
 </Layout>

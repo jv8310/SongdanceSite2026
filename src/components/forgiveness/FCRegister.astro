@@ -112,7 +112,7 @@ const save = (b: { price_cents: number; compare_at_cents: number | null }) =>
                   <img class="fc-bump-thumb" src={b.image} alt="" loading="lazy" />
                   <span class="fc-bump-body">
                     <span class="fc-bump-head">
-                      <span class="fc-bump-title">{b.label}</span>
+                      <span class="fc-bump-title" data-fc-bump-title>{b.label}</span>
                       <span class="fc-bump-price" data-fc-bump-price>
                         {b.compare_at_cents && <s class="fc-bump-was">{formatMoney(b.compare_at_cents, currency)}</s>}{' '}
                         {formatMoney(b.price_cents, currency)}
@@ -134,8 +134,9 @@ const save = (b: { price_cents: number; compare_at_cents: number | null }) =>
             <span>I agree to the <a href="/terms" target="_blank" rel="noopener">terms and conditions</a>.</span>
           </label>
 
+          <div class="fc-checkout-lines" data-fc-lines hidden></div>
           <div class="fc-checkout-summary">
-            <span>The Forgiveness Course<span data-fc-summary-extra></span></span>
+            <span data-fc-summary-label>The Forgiveness Course</span>
             <span class="fc-checkout-summary-amount" data-fc-summary>{formatMoney(offer.price_cents, currency)}</span>
           </div>
 
@@ -209,7 +210,8 @@ const save = (b: { price_cents: number; compare_at_cents: number | null }) =>
     const strikeEl = $('[data-fc-strike]');
     const badgeEl = $('[data-fc-discount-badge]');
     const summaryEl = $('[data-fc-summary]');
-    const summaryExtraEl = $('[data-fc-summary-extra]');
+    const summaryLabelEl = $('[data-fc-summary-label]');
+    const linesEl = $('[data-fc-lines]');
     const currencyNoteEl = $('[data-fc-currency-note]');
     const bumpsWrap = $('[data-fc-bumps-wrap]');
     const countryInput = form.querySelector<HTMLInputElement>('[name="country_search"]')!;
@@ -265,7 +267,28 @@ const save = (b: { price_cents: number; compare_at_cents: number | null }) =>
       }
       const ticked = free ? [] : tickedBumps();
       const bumpTotal = ticked.reduce((s, slug) => s + bumpOffer(slug, currency).price_cents, 0);
-      summaryExtraEl.textContent = ticked.length ? ` + ${ticked.length === 1 ? 'one add-on' : 'two add-ons'}` : '';
+      // With an add-on ticked, the order is listed line by line over the total.
+      linesEl.hidden = ticked.length === 0;
+      linesEl.replaceChildren();
+      if (ticked.length) {
+        const rows: Array<[string, number]> = [['The Forgiveness Course', course]];
+        for (const slug of ticked) {
+          const name = bumpEls.get(slug)?.querySelector('[data-fc-bump-title]')?.textContent?.trim() || 'Add-on';
+          rows.push([name, bumpOffer(slug, currency).price_cents]);
+        }
+        for (const [name, cents] of rows) {
+          const row = document.createElement('div');
+          row.className = 'fc-checkout-line';
+          const a = document.createElement('span');
+          a.textContent = name;
+          const b = document.createElement('span');
+          b.textContent = formatMoney(cents, currency);
+          row.appendChild(a);
+          row.appendChild(b);
+          linesEl.appendChild(row);
+        }
+      }
+      summaryLabelEl.textContent = ticked.length ? 'Total' : 'The Forgiveness Course';
       summaryEl.textContent = formatMoney(course + bumpTotal, currency);
 
       currencyNoteEl.hidden = currency === 'EUR';

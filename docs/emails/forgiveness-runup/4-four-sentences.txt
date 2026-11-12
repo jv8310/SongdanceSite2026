@@ -1,0 +1,43 @@
+Hello {{ subscriber.first_name | default: "there" }},
+
+I'm sorry. Please forgive me. Thank you. I love you.
+
+These four sentences come from Hawai'i. The practice is called ho'oponopono, and millions of people repeat them every day, like a mantra.
+
+I love them. And I've noticed something, in myself first: you can say all four with a perfectly straight face while your body says something else entirely.
+
+So in the Forgiveness Course we don't only say them. We sound them. Because the body has its own version of each.
+
+  I'm sorry: the grief that was never allowed to flow.
+  Please forgive me: the surrender of being right.
+  Thank you: the gratefulness that arises when the system has finally been heard.
+  I love you: the love under everything, met as experience and not as belief, in its own time.
+
+TRY IT TONIGHT
+Say "I'm sorry" out loud, once. Then don't say it: hum it. One low, soft tone that carries what the words carry. And listen to the three seconds of quiet afterwards. The difference between those two is the whole course.
+
+
+ONE WEEK FROM TODAY, WE BEGIN
+
+  Sun 6 Dec   The dynamics of forgiveness: why "just let it go" doesn't work, and what does
+  Wed 9 Dec   Forgiving others: naming the pain without condoning the act
+  Sun 13 Dec  Forgiving self: meeting the parts of you that were pushed away
+  Wed 16 Dec  Living with forgiveness: tying it all together
+
+Each session runs 19:00-21:00 Brussels time; the course page shows it in your own time. Can't be there live? Every session is recorded, the replay is up within a day, and the replays are yours for life.
+
+Daniela has guided forgiveness work for twenty-five years, in groups and one to one. I bring the voice. Between us we hold the space; what happens in it is yours, in its own time.
+
+The Forgiveness Course: four live sessions on Zoom with Daniela Hess and me, 6, 9, 13 and 16 December 2026, 19:00-21:00 Brussels time. Lifetime access to the replays. EUR 147 (the page shows it in your own currency).
+
+Save your place:
+https://songdance.co/courses/forgiveness?utm_source=broadcast&utm_medium=email&utm_campaign=forgiveness_seq&utm_content=e4_text&{{prefill}}#register
+
+With love,
+Jacob
+
+P.S. You don't need a good voice for any of this, or any experience with sounding. You can stay muted the whole time.
+
+--
+Not for you? Unsubscribe: {{ unsubscribe_url }}
+Songdance BV, Beaupréstraat 13, 8310 Bruges, Belgium

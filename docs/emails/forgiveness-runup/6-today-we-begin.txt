@@ -1,0 +1,34 @@
+Hello {{ subscriber.first_name | default: "there" }},
+
+Today Daniela and I open the Forgiveness Course, and there is still room for you.
+
+THE FIRST SESSION: two hours, live on Zoom
+  19:00 Brussels
+  18:00 London
+  1:00 PM New York
+  10:00 AM Los Angeles
+
+
+WHAT TO BRING
+
+- A room where you can make a sound. Or one where you can't. A hum counts, and so does sounding it silently, fully imagined.
+- Headphones, if others are home. You can stay muted the whole two hours. Nobody will hear you unless you choose it.
+- Nothing forgiven. Nothing decided. No good voice, no experience, no readiness. Whatever you're carrying is the right thing to arrive with.
+
+How to join today: register, then sign in to the Songdance app with the same email address. The session waits for you there, with its Zoom link.
+
+Can't make today? Register anyway. The replay is up within a day, and you join us live on Wednesday.
+
+When forgiveness feels impossible... come anyway.
+
+The Forgiveness Course: four live sessions on Zoom with Daniela Hess and me, 6, 9, 13 and 16 December 2026, 19:00-21:00 Brussels time. Lifetime access to the replays. EUR 147 (the page shows it in your own currency).
+
+Join today:
+https://songdance.co/courses/forgiveness?utm_source=broadcast&utm_medium=email&utm_campaign=forgiveness_seq&utm_content=e6_text&{{prefill}}#register
+
+See you there, I hope.
+Jacob
+
+--
+Not for you? Unsubscribe: {{ unsubscribe_url }}
+Songdance BV, Beaupréstraat 13, 8310 Bruges, Belgium
