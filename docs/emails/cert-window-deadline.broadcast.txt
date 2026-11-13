@@ -2,8 +2,9 @@ SUBJECT: Your certification window closes on 31 December
 (alt: "Apply for certification by 31 December, or take the time you need")
 PREHEADER: Seven weeks to send your application, and the way to keep the door open for as long as you need.
 
-AUDIENCE (Drip): tag cert_ends_2026, minus cert_no_certification (the CEEE 2025 cohort, who may not apply anyway).
+AUDIENCE (site broadcast): include cert:ends-2026; exclude cert:no-certification (the CEEE 2025 cohort, who may not apply) and app:certified (already certified).
 From: Jacob · Reply-to: support@songdance.co
+Seeded as a draft by migrations/0099_cert_window_broadcast.sql; the plain-text part is everything below the --- line.
 
 ---
 
@@ -56,7 +57,7 @@ The extension is an add-on to the pass: it costs 20% of the pass on top.
 A pass bought now doesn't overlap with what you already have: it starts on 1 January, the day after your course's live sessions end. When it runs out, add another pass with the extension and it picks up where the last one ended. As many times as you need.
 
 Extend my certification window:
-https://songdance.co/courses/live-pass?email={{ subscriber.email | url_encode }}&first_name={{ subscriber.first_name | url_encode }}&extend=1
+https://songdance.co/courses/live-pass?{{prefill}}&extend=1&utm_source=broadcast&utm_medium=email&utm_campaign=cert_window_2026&utm_content=text
 
 (The link fills in your address, so the page knows you're a certification student and shows the extension already ticked.)
 
@@ -68,5 +69,5 @@ With warmth,
 Jacob
 
 ---
-{{ html_postal_address }}
-Unsubscribe: {{ unsubscribe_url }}
+Not for you? Unsubscribe: {{ unsubscribe_url }}
+Songdance BV, Beaupréstraat 13, 8310 Bruges, Belgium

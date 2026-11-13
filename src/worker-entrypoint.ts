@@ -33,6 +33,7 @@ import { runWorkshopCron } from './lib/workshops/cron';
 import { runBroadcasts } from './lib/broadcasts/cron';
 import { runSessionCron } from './lib/sessions/cron';
 import { syncAppTags } from './lib/broadcasts/app-tags';
+import { syncCertTags } from './lib/broadcasts/cert-tags';
 import { runDripOrderBackfill } from './lib/orders/drip-backfill';
 import { runContactTagBackfill } from './lib/contacts/tag-backfill';
 import { runMasterclassSeatMove } from './lib/workshops/masterclass-move';
@@ -395,6 +396,23 @@ export function createExports(manifest: unknown) {
         })
         .catch((err) => {
           console.error('[broadcasts/app-tags] sync failed', err);
+        }),
+    );
+
+    // The certification course's `cert:` tags on the contact list (cert:holder,
+    // cert:ends-2026, cert:ends-later, cert:no-certification), so a broadcast
+    // can reach the students whose window to apply closes on 31 December.
+    // Steady state writes nothing; a broadcast naming one recomputes at launch.
+    ctx.waitUntil(
+      syncCertTags(env.DB)
+        .then((r) => {
+          if (!r.ok) console.log(`[broadcasts/cert-tags] not synced: ${r.error}`);
+          else if (r.added || r.removed || r.created) {
+            console.log(`[broadcasts/cert-tags] holders=${r.holders} added=${r.added} removed=${r.removed} created=${r.created}`);
+          }
+        })
+        .catch((err) => {
+          console.error('[broadcasts/cert-tags] sync failed', err);
         }),
     );
 

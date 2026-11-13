@@ -2796,6 +2796,17 @@ e.g. a Drip export) and one-off `broadcasts` sent to it. Lives in
     (steady state writes nothing); an empty answer changes nothing. Last result in
     `workshop_config` `broadcast_app_tags_synced` / `_error`. No Drip tag starts with `app:`
     (checked October 2026); keep it that way.
+  - **The certification students by their window** (`cert:` tags, November 2026,
+    [`src/lib/broadcasts/cert-tags.ts`](src/lib/broadcasts/cert-tags.ts)): `cert:holder`,
+    `cert:ends-2026` (the course, extension included, ends on or before 31 Dec 2026),
+    `cert:ends-later` and `cert:no-certification` (the CEEE 2025 cohort), computed from the
+    same data as the Drip push (`listCertAccess` + the Drip-only roster), so they match
+    Drip's `cert_ends_2026` / `cert_ends_later` / `cert_no_certification`. Written onto the
+    contact list **hourly** and again at launch / "Refresh segments" when a broadcast names
+    one; everything under `cert:` is this module's (a tag it no longer computes comes off),
+    a holder not yet on the list becomes a contact (source `cert`). Pair with
+    `app:certified` to leave out who is certified already. The window-deadline broadcast
+    (migration 0099, `docs/emails/cert-window-deadline.broadcast.html`) is aimed with them.
   - **Don't double-send with Drip** (`in-drip` tag): the contacts list was a CSV
     import from a Drip export (those people are no longer in Drip), but every site
     **buyer** is pushed to Drip *and* mirrored into contacts — so buyers live in

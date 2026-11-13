@@ -1,0 +1,209 @@
+-- Seed the certification-window deadline broadcast as a DRAFT: everyone whose
+-- certification course ends on 31 December 2026, told that their live Q&As and
+-- their window to apply for certification close that day, how to apply in the
+-- CiRCLE before then, and how a live pass with "Extend my certification window"
+-- keeps the window open for as long as they need. It appears in
+-- /admin/broadcasts ready to review, test-send and launch; nothing sends until
+-- you launch it. Source of the words and markup:
+-- docs/emails/cert-window-deadline.broadcast.html (+ .txt, below its --- line,
+-- for the plain-text part); body and body_text below are those verbatim (quotes
+-- doubled), so a change goes into both places.
+--
+-- Audience (sent from here only, not from Drip, so no in-drip exclusion):
+--   include cert:ends-2026          the course, extension included, ends on or
+--                                   before 31 Dec 2026 (cert-tags.ts; computed
+--                                   hourly and again at launch, the same data
+--                                   as Drip's cert_ends_2026)
+--   exclude cert:no-certification   the CEEE 2025 cohort: they may not apply
+--           app:certified           already certified (the member app's word)
+-- Unsubscribes and suppressions are left out by the send itself.
+--
+-- format='html': body IS the full email. The renderer substitutes
+-- {{ subscriber.first_name | default: "there" }}, {{prefill}} (the live pass
+-- page opens with their address and name, so it knows they are a certification
+-- student and ticks the extension: &extend=1) and {{ unsubscribe_url }}. The
+-- footer carries the postal address, so ensureAddress adds nothing. The hero is
+-- public/email/svh-retreat-circle-sunset-group-jacob-central.jpg.
+
+INSERT INTO broadcasts (name, subject, preheader, heading, body, body_text, format, status, audience_include_tags, audience_exclude_tags)
+SELECT 'Certification — your window closes on 31 December (November 2026)',
+       'Your certification window closes on 31 December',
+       'Seven weeks to send your application, and the way to keep the door open for as long as you need.',
+       'Your window closes on 31 December.',
+       '<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
+<title>Your certification window closes on 31 December</title>
+<link href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,500;1,400&family=Cormorant+Garamond:ital@1&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  body { margin: 0; padding: 0; background-color: #EADFCB; }
+  table { border-collapse: collapse; }
+  img { display: block; border: 0; line-height: 100%; outline: none; text-decoration: none; }
+  a { color: #A14826; text-decoration: none; }
+  .preheader { display: none !important; visibility: hidden; opacity: 0; max-height: 0; overflow: hidden; mso-hide: all; }
+  @media only screen and (max-width: 600px) {
+    .wrapper { width: 100% !important; }
+    .pad { padding-left: 26px !important; padding-right: 26px !important; }
+    .h1 { font-size: 34px !important; line-height: 1.15 !important; }
+    .offer-h { font-size: 27px !important; line-height: 1.2 !important; }
+  }
+</style>
+</head>
+<body style="margin: 0; padding: 0; background-color: #EADFCB; -webkit-font-smoothing: antialiased;">
+
+<span class="preheader">Seven weeks to send your application, and the way to keep the door open for as long as you need.</span>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #EADFCB;">
+<tr><td align="center" style="padding: 24px 12px;">
+
+<table role="presentation" class="wrapper" width="600" cellpadding="0" cellspacing="0" style="width: 600px; background-color: #F4ECDF; border-radius: 4px; overflow: hidden;">
+
+<!-- HERO — a sounding circle at golden hour -->
+<tr><td style="padding: 0;">
+  <img src="https://songdance.co/email/svh-retreat-circle-sunset-group-jacob-central.jpg" width="600" alt="A Somatic Vocal Healing circle at sunset, Jacob in the middle" style="width: 100%; height: auto; background-color: #2A1B2A;">
+</td></tr>
+
+<!-- INTRO -->
+<tr><td class="pad" style="padding: 46px 44px 10px;">
+  <p style="margin: 0 0 18px; font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 11px; letter-spacing: 2.5px; color: #A14826; font-weight: 600; text-transform: uppercase;"><span style="display: inline-block; width: 26px; height: 1px; background-color: #A14826; vertical-align: middle; margin-right: 12px;"></span>Somatic Vocal Healing Certification</p>
+  <h1 class="h1" style="font-family: ''Spectral'', Georgia, ''Times New Roman'', serif; font-weight: 400; font-size: 40px; line-height: 1.12; color: #2A1B2A; margin: 0 0 28px;">Your window closes on<br><em style="font-family: ''Cormorant Garamond'', Georgia, serif; font-style: italic; font-size: 1.05em; color: #C9603A;">31&nbsp;December</em>.</h1>
+  <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #2A1B2A; margin: 0 0 16px;">Hi {{ subscriber.first_name | default: "there" }},</p>
+  <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #2A1B2A; margin: 0 0 12px;">A date to put in your calendar: on <strong style="font-weight: 600;">31 December 2026</strong>, two things in your certification course come to an end:</p>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 18px;">
+    <tr><td style="padding: 0 0 8px 4px;"><p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 15.5px; line-height: 1.6; color: #4A3848; margin: 0;"><span style="color: #C9603A;">&#10022;</span>&nbsp;&nbsp;the live sessions: the weekly Q&amp;As and the monthly deepening session</p></td></tr>
+    <tr><td style="padding: 0 0 8px 4px;"><p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 15.5px; line-height: 1.6; color: #4A3848; margin: 0;"><span style="color: #C9603A;">&#10022;</span>&nbsp;&nbsp;your window to apply for certification</p></td></tr>
+  </table>
+  <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #2A1B2A; margin: 0 0 16px;">If you want to become a certified practitioner, your application has to be in by 31 December. If that&rsquo;s too soon, you can keep the window open for as long as you need. Both ways are below.</p>
+  <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 15px; line-height: 1.7; color: #6A5868; margin: 0 0 0px;">Already sent your application? Thank you. There is nothing more to do: I will review your video, and you will hear from me within 90 days of sending it.</p>
+</td></tr>
+
+<!-- APPLY -->
+<tr><td class="pad" style="padding: 34px 44px 10px;">
+  <p style="margin: 0 0 18px; font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 11px; letter-spacing: 2.5px; color: #A14826; font-weight: 600; text-transform: uppercase;"><span style="display: inline-block; width: 26px; height: 1px; background-color: #A14826; vertical-align: middle; margin-right: 12px;"></span>Applying before 31 December</p>
+  <h2 class="offer-h" style="font-family: ''Spectral'', Georgia, ''Times New Roman'', serif; font-weight: 400; font-size: 30px; line-height: 1.2; color: #2A1B2A; margin: 0 0 20px;">Five steps, <em style="font-family: ''Cormorant Garamond'', Georgia, serif; font-style: italic; font-size: 1.05em; color: #C9603A;">on your own word</em>.</h2>
+  <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #2A1B2A; margin: 0 0 18px;">Everything is in the CiRCLE app. Open the certification course and press <strong style="font-weight: 600;">Apply for certification</strong>. Tick each step when it&rsquo;s done:</p>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+    <tr><td width="34" valign="top" style="padding: 0 0 14px;"><p style="font-family: ''Spectral'', Georgia, ''Times New Roman'', serif; font-size: 20px; line-height: 1.3; color: #C9603A; margin: 0;">1</p></td><td valign="top" style="padding: 2px 0 14px;"><p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 15.5px; line-height: 1.6; color: #2A1B2A; margin: 0;"><strong style="font-weight: 600;">Watch all the classes,</strong> live or as replays.</p></td></tr>
+    <tr><td width="34" valign="top" style="padding: 0 0 14px;"><p style="font-family: ''Spectral'', Georgia, ''Times New Roman'', serif; font-size: 20px; line-height: 1.3; color: #C9603A; margin: 0;">2</p></td><td valign="top" style="padding: 2px 0 14px;"><p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 15.5px; line-height: 1.6; color: #2A1B2A; margin: 0;"><strong style="font-weight: 600;">Practise at least 3 times</strong> with fellow students, under Practice in the app.</p></td></tr>
+    <tr><td width="34" valign="top" style="padding: 0 0 14px;"><p style="font-family: ''Spectral'', Georgia, ''Times New Roman'', serif; font-size: 20px; line-height: 1.3; color: #C9603A; margin: 0;">3</p></td><td valign="top" style="padding: 2px 0 14px;"><p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 15.5px; line-height: 1.6; color: #2A1B2A; margin: 0;"><strong style="font-weight: 600;">View at least 6 Q&amp;A sessions,</strong> live or as replays.</p></td></tr>
+    <tr><td width="34" valign="top" style="padding: 0 0 14px;"><p style="font-family: ''Spectral'', Georgia, ''Times New Roman'', serif; font-size: 20px; line-height: 1.3; color: #C9603A; margin: 0;">4</p></td><td valign="top" style="padding: 2px 0 14px;"><p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 15.5px; line-height: 1.6; color: #2A1B2A; margin: 0;"><strong style="font-weight: 600;">Reach Level 3</strong> in the Training Quiz.</p></td></tr>
+    <tr><td width="34" valign="top" style="padding: 0 0 14px;"><p style="font-family: ''Spectral'', Georgia, ''Times New Roman'', serif; font-size: 20px; line-height: 1.3; color: #C9603A; margin: 0;">5</p></td><td valign="top" style="padding: 2px 0 14px;"><p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 15.5px; line-height: 1.6; color: #2A1B2A; margin: 0;"><strong style="font-weight: 600;">Record a session you lead</strong> with a client: 30 minutes at most, on Zoom or in person, with someone who isn&rsquo;t a student of the course.</p></td></tr>
+  </table>
+  <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #2A1B2A; margin: 0 0 22px;">Once all five are ticked, <strong style="font-weight: 600;">Submit for certification</strong> opens the application form. Send it before the end of 31 December. Within 90 days I&rsquo;ll send you personal feedback on your session and, if everything is in place, your certificate.</p>
+  <table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="background-color: #C9603A; border-radius: 32px;"><a href="https://circle.songdance.co/certification" style="display: inline-block; font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 14px; font-weight: 600; letter-spacing: 0.3px; color: #FFFFFF; padding: 15px 34px; text-decoration: none;">Open Apply for certification &rarr;</a></td></tr></table>
+</td></tr>
+
+<tr><td class="pad" style="padding: 30px 44px 10px;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+    <td style="border-left: 2px solid #C9603A; padding: 2px 0 2px 20px;"><p style="font-family: ''Cormorant Garamond'', Georgia, serif; font-style: italic; font-size: 21px; line-height: 1.45; color: #4A3848; margin: 0;">One tip: the video usually takes the longest. Finding a client, a time, a quiet room. If you&rsquo;re planning to apply, book that session this week.</p></td>
+  </tr></table>
+</td></tr>
+
+<!-- EXTEND — plum offer box -->
+<tr><td class="pad" style="padding: 36px 44px 10px;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #4A2540; border-radius: 4px;">
+    <tr><td style="padding: 34px 32px 32px;">
+      <p style="margin: 0 0 16px; font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 11px; letter-spacing: 2.5px; color: #F2DCC9; font-weight: 600; text-transform: uppercase;">Need more time?</p>
+      <h2 class="offer-h" style="font-family: ''Spectral'', Georgia, ''Times New Roman'', serif; font-weight: 400; font-size: 30px; line-height: 1.2; color: #F4ECDF; margin: 0 0 20px;">Keep the window open, <em style="font-family: ''Cormorant Garamond'', Georgia, serif; font-style: italic; font-size: 1.05em; color: #F2DCC9;">as long as you need</em>.</h2>
+      <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 15.5px; line-height: 1.7; color: #F4ECDF; margin: 0 0 16px;">Not ready yet? That&rsquo;s fine. There&rsquo;s no hurry in this work, and I&rsquo;d rather you apply when the session in your video is truly yours.</p>
+      <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 15.5px; line-height: 1.7; color: #F4ECDF; margin: 0 0 14px;">On the live pass page, choose a live pass and tick <strong style="font-weight: 600;">Extend my certification window</strong>. Your Q&amp;As and deepening sessions continue, and your window to apply stays open for the months of the pass.</p><p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 15.5px; line-height: 1.7; color: #F4ECDF; margin: 0 0 18px;">The extension is an add-on to the pass: it costs <strong style="font-weight: 600;">20% of the pass</strong> on top, so for one month that&rsquo;s &euro;10 more.</p>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 8px;"><tr><td style="padding: 0 0 6px;"><p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: #E7C9B8; margin: 0;">Pass + extension</p></td><td align="right" style="padding: 0 0 6px;"><p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: #E7C9B8; margin: 0;">You pay</p></td></tr><tr><td valign="top" style="padding: 12px 10px 12px 0; border-top: 1px solid #6B4A63;"><p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 15px; line-height: 1.5; color: #F4ECDF; margin: 0;"><strong style="font-weight: 600;">1 month</strong></p><p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 13px; line-height: 1.5; color: #E7C9B8; margin: 2px 0 0;">4 Q&amp;As and 1 deepening session<br>Window open 1 month longer</p></td><td align="right" valign="top" style="padding: 12px 0; border-top: 1px solid #6B4A63; white-space: nowrap;"><p style="font-family: ''Spectral'', Georgia, ''Times New Roman'', serif; font-size: 20px; line-height: 1.3; color: #F4ECDF; margin: 0;">&euro;62</p><p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 12px; line-height: 1.5; color: #E7C9B8; margin: 2px 0 0;">&euro;52 pass<br>+ &euro;10 extension</p></td></tr><tr><td valign="top" style="padding: 12px 10px 12px 0; border-top: 1px solid #6B4A63;"><p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 15px; line-height: 1.5; color: #F4ECDF; margin: 0;"><strong style="font-weight: 600;">3 months</strong></p><p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 13px; line-height: 1.5; color: #E7C9B8; margin: 2px 0 0;">12 Q&amp;As and 3 deepening sessions<br>Window open 3 months longer</p></td><td align="right" valign="top" style="padding: 12px 0; border-top: 1px solid #6B4A63; white-space: nowrap;"><p style="font-family: ''Spectral'', Georgia, ''Times New Roman'', serif; font-size: 20px; line-height: 1.3; color: #F4ECDF; margin: 0;">&euro;158</p><p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 12px; line-height: 1.5; color: #E7C9B8; margin: 2px 0 0;">&euro;132 pass<br>+ &euro;26 extension</p></td></tr><tr><td valign="top" style="padding: 12px 10px 12px 0; border-top: 1px solid #6B4A63;"><p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 15px; line-height: 1.5; color: #F4ECDF; margin: 0;"><strong style="font-weight: 600;">6 months</strong></p><p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 13px; line-height: 1.5; color: #E7C9B8; margin: 2px 0 0;">24 Q&amp;As and 6 deepening sessions<br>Window open 6 months longer</p></td><td align="right" valign="top" style="padding: 12px 0; border-top: 1px solid #6B4A63; white-space: nowrap;"><p style="font-family: ''Spectral'', Georgia, ''Times New Roman'', serif; font-size: 20px; line-height: 1.3; color: #F4ECDF; margin: 0;">&euro;280</p><p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 12px; line-height: 1.5; color: #E7C9B8; margin: 2px 0 0;">&euro;234 pass<br>+ &euro;46 extension</p></td></tr></table>
+      <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 12px; line-height: 1.6; color: #E7C9B8; margin: 0 0 18px;">Prices in euros; the page shows them in your own currency.</p>
+      <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 15.5px; line-height: 1.7; color: #F4ECDF; margin: 0 0 24px;">A pass bought now doesn&rsquo;t overlap with what you already have: it starts on <strong style="font-weight: 600;">1 January</strong>, the day after your course&rsquo;s live sessions end. When it runs out, add another pass with the extension and it picks up where the last one ended. As many times as you need.</p>
+      <table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="background-color: #F4ECDF; border-radius: 32px;"><a href="https://songdance.co/courses/live-pass?{{prefill}}&amp;extend=1&amp;utm_source=broadcast&amp;utm_medium=email&amp;utm_campaign=cert_window_2026" style="display: inline-block; font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 14px; font-weight: 600; letter-spacing: 0.3px; color: #4A2540; padding: 15px 34px; text-decoration: none;">Extend my certification window &rarr;</a></td></tr></table>
+      <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 13px; line-height: 1.6; color: #E7C9B8; margin: 18px 0 0;">The link fills in your address, so the page knows you&rsquo;re a certification student and the extension is already ticked. You can extend after 31 December too, and the window opens again; buying before then means your Q&amp;As carry on without a break.</p>
+    </td></tr>
+  </table>
+</td></tr>
+
+<!-- CLOSING + SIGN-OFF -->
+<tr><td class="pad" style="padding: 34px 44px 40px;">
+  <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.7; color: #4A3848; margin: 0 0 18px;">Questions about where you stand? Reply to this email and we&rsquo;ll look it up for you.</p>
+  <p style="font-family: ''Cormorant Garamond'', Georgia, serif; font-style: italic; font-size: 18px; line-height: 1.5; color: #4A3848; margin: 0;">With warmth,<br>Jacob</p>
+</td></tr>
+
+<tr><td style="background-color: #EADFCB; padding: 32px 44px 34px;" class="pad">
+  <img src="https://songdance.co/brand/logo-wordmark-dark.png" width="130" alt="Songdance" style="width: 130px; height: auto; margin: 0 0 18px;">
+  <p style="font-family: ''Cormorant Garamond'', Georgia, serif; font-style: italic; font-size: 16px; line-height: 1.5; color: #7A6A78; margin: 0 0 18px;">The sound was always yours.</p>
+  <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 11px; line-height: 1.7; color: #7A6A78; margin: 0 0 6px;">You&rsquo;re receiving this because you&rsquo;re enrolled in the Somatic Vocal Healing Certification course. <a href="{{ unsubscribe_url }}" style="color: #7A6A78; text-decoration: underline;">Unsubscribe</a></p>
+  <p style="font-family: ''Figtree'', -apple-system, BlinkMacSystemFont, ''Segoe UI'', Helvetica, Arial, sans-serif; font-size: 11px; line-height: 1.7; color: #9A8A78; margin: 0;">Songdance BV, Beaupréstraat 13, 8310 Bruges, Belgium<br>BE0743575076</p>
+</td></tr>
+
+</table>
+
+</td></tr>
+</table>
+
+</body>
+</html>
+',
+       'Hi {{ subscriber.first_name | default: "there" }},
+
+A date to put in your calendar: on 31 December 2026, two things in your Somatic Vocal Healing Certification course come to an end:
+
+- the live sessions: the weekly Q&As and the monthly deepening session
+- your window to apply for certification
+
+If you want to become a certified practitioner, your application has to be in by 31 December. If that''s too soon, you can keep the window open for as long as you need. Both are below.
+
+If you''ve already sent your application: thank you. There is nothing more to do: I will review your video, and you will hear from me within 90 days of sending it.
+
+
+APPLYING BEFORE 31 DECEMBER
+
+Everything is in the CiRCLE app. Open the certification course and press "Apply for certification":
+https://circle.songdance.co/certification
+
+You''ll find five steps there, each on your own word. Tick each one when it''s done:
+
+1. Watch all the classes, live or as replays.
+2. Practise at least 3 times with fellow students (under Practice in the app).
+3. View at least 6 Q&A sessions, live or as replays.
+4. Reach Level 3 in the Training Quiz.
+5. Record a session you lead with a client: 30 minutes at most, on Zoom or in person, with someone who isn''t a student of the course.
+
+Once all five are ticked, "Submit for certification" opens the application form. Send it before the end of 31 December. Within 90 days I''ll send you personal feedback on your session and, if everything is in place, your certificate.
+
+One tip: the video usually takes the longest. Finding a client, a time, a quiet room. If you''re planning to apply, book that session this week.
+
+
+NEED MORE TIME? KEEP THE WINDOW OPEN
+
+Not ready yet? That''s fine. There''s no hurry in this work, and I''d rather you apply when the session in your video is truly yours.
+
+On the live pass page, choose a live pass and tick "Extend my certification window". Together they do two things:
+
+- your Q&As and deepening sessions continue
+- your window to apply stays open for the months of the pass
+
+The extension is an add-on to the pass: it costs 20% of the pass on top.
+
+1 month:  €62 in total (€52 pass + €10 extension): 4 Q&As and 1 deepening session, window open 1 month longer
+3 months: €158 in total (€132 pass + €26 extension): 12 Q&As and 3 deepening sessions, window open 3 months longer
+6 months: €280 in total (€234 pass + €46 extension): 24 Q&As and 6 deepening sessions, window open 6 months longer
+(Prices in euros; the page shows them in your own currency.)
+
+A pass bought now doesn''t overlap with what you already have: it starts on 1 January, the day after your course''s live sessions end. When it runs out, add another pass with the extension and it picks up where the last one ended. As many times as you need.
+
+Extend my certification window:
+https://songdance.co/courses/live-pass?{{prefill}}&extend=1&utm_source=broadcast&utm_medium=email&utm_campaign=cert_window_2026&utm_content=text
+
+(The link fills in your address, so the page knows you''re a certification student and shows the extension already ticked.)
+
+You can extend after 31 December too, and the window opens again. Buying before then just means your Q&As carry on without a break.
+
+Questions about where you stand? Reply to this email and we''ll look it up for you.
+
+With warmth,
+Jacob
+
+---
+Not for you? Unsubscribe: {{ unsubscribe_url }}
+Songdance BV, Beaupréstraat 13, 8310 Bruges, Belgium
+',
+       'html', 'draft', 'cert:ends-2026', 'cert:no-certification,app:certified'
+WHERE NOT EXISTS (SELECT 1 FROM broadcasts WHERE name = 'Certification — your window closes on 31 December (November 2026)');
