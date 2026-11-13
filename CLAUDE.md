@@ -526,6 +526,36 @@ in moderation, not governed by the copy book.
   REJOIN until the session's real end (70-min default / 100-min masterclass from
   `ends_at_utc`) + 10-min grace — a connectivity drop never locks them out.
 
+## Course checkout card — one look for the certification and the 12-week form
+
+The priced form on `/courses/certification` (`CCRegister`) and `/courses/12-week`
+(`TWRegister`) is **one design, styled once** in
+[`src/styles/course-checkout.css`](src/styles/course-checkout.css) (November 2026): a warm
+paper card on the page's dark close, serif prices, labels in Cormorant italic. It was a dark
+glass panel with monospace capitals for every label, which read as a settings screen, and its
+discount was a 10px tag with the countdown a line under the total.
+
+- **Paired selectors**: every rule names both forms (`.cc-…` certification, `.tw-reg-…`
+  12-week), so a change to one is a change to both. The palette is the `--co-*` block at the
+  top of that file; nothing in the card uses a colour outside it. The stylesheet is imported
+  by the two components themselves. Only the pay buttons (`.cc-checkout-cta`, `.tw-reg-cta`)
+  stay in the page stylesheets, since the thank-you pages use them on the dark ground.
+- **The discount band** (`.co-deal`, built by `dealHtml` in
+  [`src/lib/client/checkout-deal.ts`](src/lib/client/checkout-deal.ts)): the percent in large
+  numerals, what it is ("Your workshop discount"), what it covers and saves, and — for the
+  workshop sale's 48 hours — the countdown in three tiles on a line of its own. On the
+  certification form it heads the offer card it belongs to; on the 12-week form it heads the
+  whole card and follows the option chosen. A complimentary place (`?adiscount=100`) gets no
+  band: it has its own banner.
+- **One clock, painted by name**: `paintClocks(root, 'deal', msLeft)` writes every
+  `data-co-clock="deal"` in the card, so the band and the line above the pay button ("You save
+  €272. Your discount ends in 31:12:25.") always read the same; the Songdeck gift's hour is
+  `'gift'`, and while it runs the discount's clock is not drawn (the discount stays), as before.
+- **The savings line** (`.co-nudge`) follows the offer and the plan: on a monthly plan it is
+  the saving over the whole run.
+- Offers on the certification form are stacked, never side by side: at half the card's width
+  the band and its clock broke over four lines.
+
 ## Certification end dates — computed on the site, mirrored to Drip
 
 The certification course runs **9 months**, and when it ends for each student is

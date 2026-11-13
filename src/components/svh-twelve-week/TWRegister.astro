@@ -3,6 +3,9 @@ import { SESSION_URL } from './config';
 import { COUNTRIES, COUNTRIES_PRIORITY, COUNTRIES_OTHER, dialLabel } from '../../lib/countries';
 import LaunchOfferCallout from '../promo/LaunchOfferCallout.astro';
 import GuaranteeBadge from '../GuaranteeBadge.astro';
+import { clockHtml } from '../../lib/client/checkout-deal';
+// The priced card's looks, shared with the certification checkout.
+import '../../styles/course-checkout.css';
 
 const includes = [
   '18+ hours of video across 12 modules, full of guided practices',
@@ -50,6 +53,10 @@ const includes = [
     <!-- Cloned + filled by the script once an email has been entered. -->
     <template data-tw-template>
       <div class="tw-reg-priced">
+        <!-- The discount, and how long it runs, across the head of the card. -->
+        <div class="tw-reg-deal" data-slot="deal" hidden></div>
+
+        <p class="tw-reg-hello" data-slot="hello"></p>
         <div class="tw-reg-emailline">
           <span class="tw-reg-emaillabel">Your price for</span>
           <span class="tw-reg-emailval" data-slot="email"></span>
@@ -61,11 +68,6 @@ const includes = [
         <div class="tw-reg-offers-wrap" data-slot="offers-wrap" hidden>
           <div class="tw-reg-steplabel">Choose your option</div>
           <div class="tw-reg-plans" data-slot="offers"></div>
-        </div>
-
-        <div class="tw-reg-badge" data-slot="badge" hidden>
-          <span class="dot" aria-hidden="true"></span>
-          <span data-slot="badge-text"></span>
         </div>
 
         <div class="tw-reg-pricebox" data-slot="pricebox">
@@ -90,21 +92,13 @@ const includes = [
           </div>
         </div>
 
-        <div class="tw-reg-countdown" data-slot="countdown" hidden>
-          <i class="ph-light ph-hourglass-medium" aria-hidden="true"></i>
-          <span>Your discount ends in <span class="clock" data-slot="clock">--:--:--</span></span>
-        </div>
-
         <!-- Post-workshop Song Deck gift: shown only inside the 1-hour window
              after the buyer's live workshop (status.deck_gift). Its countdown
              replaces the 48h discount countdown while it's live. -->
         <div class="tw-reg-gift" data-slot="gift" hidden>
           <div class="tw-reg-gift-head">
             <span class="tw-reg-gift-pill">Free gift · free global shipping</span>
-            <span class="tw-reg-gift-count">
-              <i class="ph-light ph-hourglass-medium" aria-hidden="true"></i>
-              Gift leaves in <span class="clock" data-slot="gift-clock">--:--</span>
-            </span>
+            <Fragment set:html={clockHtml('gift', 'Gift leaves in', { trimHours: true })} />
           </div>
           <div class="tw-reg-gift-body">
             <img
@@ -290,6 +284,9 @@ const includes = [
 
         <!-- Course line + any selected bumps + total. Rebuilt by renderSummary. -->
         <div class="tw-reg-summary" data-slot="summary"></div>
+        <!-- What the discount saves and, while it is timed, until when —
+             repeated here because this is where the buyer decides. -->
+        <p class="co-nudge" data-slot="deal-nudge" hidden></p>
 
         <button type="button" class="tw-reg-cta" data-slot="cta">
           <span>Continue to payment</span>
@@ -341,6 +338,7 @@ const includes = [
     wireShippingReset,
     resolveShipping,
   } from '../../lib/client/deck-gift-shipping';
+  import { dealHtml, paintClocks } from '../../lib/client/checkout-deal';
 
   type Plan = 'full' | '3x' | '6x' | '12x';
   type OfferId = '12week' | 'path';
@@ -451,7 +449,11 @@ const includes = [
   function money(cents: number, cur: string): string {
     const major = cents / 100;
     const sym = SYM[cur] ?? '';
-    const body = Number.isInteger(major) ? String(major) : major.toFixed(2);
+    // Thousands grouped ("€1,075"), decimals only when there are any.
+    const body = major.toLocaleString('en-US', {
+      minimumFractionDigits: Number.isInteger(major) ? 0 : 2,
+      maximumFractionDigits: 2,
+    });
     return sym ? `${sym}${body}` : `${body} ${cur}`;
   }
   function escapeHtml(s: string): string {
@@ -568,6 +570,10 @@ const includes = [
       const q = <T extends HTMLElement>(sel: string) => root.querySelector(sel) as T;
 
       (q('[data-slot="email"]') as HTMLElement).textContent = email;
+      const first = (status.first_name ?? '').trim();
+      (q('[data-slot="hello"]') as HTMLElement).textContent = first
+        ? `Hi ${first} — here is your price.`
+        : 'Here is your price.';
       q<HTMLButtonElement>('[data-slot="change"]').addEventListener('click', () => showEmailForm(email));
 
       // Everyone can switch between the 12-week course and the full
@@ -602,13 +608,10 @@ const includes = [
             monthlyWasCents: p.base_total_monthly_cents,
             monthlyNowCents: p.total_monthly_cents,
             count: p.installment_count,
-            badgeText: dd.eligible
-              ? (dd.kind === 'override'
-                  ? `${dd.percent}% off the whole path`
-                  : dd.kind === 'promo'
-                    ? `Extended sale — ${dd.percent}% off`
-                    : `Workshop discount — ${dd.percent}% off the whole path`)
-              : '',
+            dealPercent: dd.eligible ? dd.percent : 0,
+            dealTitle: dd.kind === 'override' ? 'Your discount'
+              : dd.kind === 'promo' ? 'Extended sale' : 'Your workshop discount',
+            dealScope: 'On the whole path',
             offerName: 'Certification path',
             discountOff: dd.eligible ? ` (${dd.percent}% off)` : '',
             showCountdown: dd.eligible && dd.kind === 'post' && !!dd.expires_at_ms,
@@ -624,13 +627,10 @@ const includes = [
           monthlyWasCents: status.installment_monthly_cents,
           monthlyNowCents: d.eligible ? d.monthly_cents : status.installment_monthly_cents,
           count: status.installment_count,
-          badgeText: d.eligible
-            ? (d.kind === 'override'
-                ? `${d.percent}% off`
-                : d.kind === 'promo'
-                  ? `Extended sale — ${d.percent}% off`
-                  : `Workshop discount — ${d.percent}% off`)
-            : '',
+          dealPercent: d.eligible ? d.percent : 0,
+          dealTitle: d.kind === 'override' ? 'Your discount'
+            : d.kind === 'promo' ? 'Extended sale' : 'Your workshop discount',
+          dealScope: 'On the 12-Week Course',
           offerName: '12-Week Course',
           discountOff: d.eligible ? ` (${d.percent}% off)` : '',
           showCountdown: d.eligible && d.kind === 'post' && !!d.expires_at_ms,
@@ -682,25 +682,38 @@ const includes = [
         );
       };
 
-      // ---- Price box + badge + countdown
+      // Paints every "deal" clock in the card — the band at its head and the
+      // reminder above the pay button — so the two always read the same.
+      let paintDealClock: (() => void) | undefined;
+
+      // ---- Discount band + price box + countdown
       const renderPrice = () => {
         const v = view();
         const isPath = selectedOffer === 'path' && !!status.path;
-        const badge = q('[data-slot="badge"]') as HTMLElement;
+        const dealEl = q('[data-slot="deal"]') as HTMLElement;
         const pricebox = q('[data-slot="pricebox"]') as HTMLElement;
         const pathbox = q('[data-slot="pathbox"]') as HTMLElement;
         const activate = q('[data-slot="activate"]') as HTMLElement;
         const was = q('[data-slot="was"]') as HTMLElement;
         const now = q('[data-slot="now"]') as HTMLElement;
         const pricenote = q('[data-slot="pricenote"]') as HTMLElement;
-        const countdown = q('[data-slot="countdown"]') as HTMLElement;
 
-        // Discount badge shows for either offer when a discount is live.
-        if (v.badgeText) {
-          badge.hidden = false;
-          (q('[data-slot="badge-text"]') as HTMLElement).textContent = v.badgeText;
+        // The band shows for either offer while a discount is live (never on a
+        // complimentary place, which has its own banner). Its clock runs for
+        // the workshop sale's 48h, except during the gift's own hour.
+        const timed = v.showCountdown && !!v.expiresAtMs && !deckGiftLive();
+        if (v.dealPercent > 0 && !isFreeComp) {
+          const saved = v.wasCents - v.nowCents;
+          dealEl.hidden = false;
+          dealEl.innerHTML = dealHtml({
+            percent: v.dealPercent,
+            title: v.dealTitle,
+            detail: saved > 0 ? `${v.dealScope} · you save ${money(saved, v.cur)}` : v.dealScope,
+            countdown: timed,
+          });
         } else {
-          badge.hidden = true;
+          dealEl.hidden = true;
+          dealEl.innerHTML = '';
         }
 
         if (isPath) {
@@ -748,13 +761,7 @@ const includes = [
         // the 48h countdown returns on the re-render. Either clock hitting
         // zero re-fetches + re-prices.
         window.clearInterval(countdownTimer);
-        const fmtClock = (leftMs: number) => {
-          const s = Math.floor(leftMs / 1000);
-          const hh = String(Math.floor(s / 3600)).padStart(2, '0');
-          const mm = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
-          const ss = String(s % 60).padStart(2, '0');
-          return `${hh}:${mm}:${ss}`;
-        };
+        paintDealClock = undefined;
         const refetch = async () => {
           window.clearInterval(countdownTimer);
           const fresh = await fetchStatus(email, status.country);
@@ -764,30 +771,26 @@ const includes = [
         if (deckGiftLive()) {
           const ends = status.deck_gift!.ends_at_ms!;
           gift.hidden = false;
-          countdown.hidden = true;
-          const giftClock = q('[data-slot="gift-clock"]') as HTMLElement;
           const tick = () => {
             const left = ends - Date.now();
             if (left <= 0) { void refetch(); return; }
-            giftClock.textContent = fmtClock(left);
+            paintClocks(gift, 'gift', left);
           };
           tick();
           countdownTimer = window.setInterval(tick, 1000);
-        } else if (v.showCountdown && v.expiresAtMs) {
-          const expires = v.expiresAtMs;
+        } else if (timed) {
+          const expires = v.expiresAtMs!;
           gift.hidden = true;
-          countdown.hidden = false;
-          const clock = q('[data-slot="clock"]') as HTMLElement;
           const tick = () => {
             const left = expires - Date.now();
             if (left <= 0) { void refetch(); return; }
-            clock.textContent = fmtClock(left);
+            paintClocks(root, 'deal', left);
           };
+          paintDealClock = tick;
           tick();
           countdownTimer = window.setInterval(tick, 1000);
         } else {
           gift.hidden = true;
-          countdown.hidden = true;
         }
       };
 
@@ -932,6 +935,27 @@ const includes = [
         `<div class="tw-reg-sumrow${cls ? ' ' + cls : ''}">` +
         `<span class="tw-reg-sumrow-label">${escapeHtml(label)}</span>` +
         `<span class="tw-reg-sumrow-amt">${amountHtml}</span></div>`;
+      const nudgeEl = q('[data-slot="deal-nudge"]') as HTMLElement;
+      // Under the summary: what the discount saves on the chosen plan, and —
+      // while the workshop sale's clock runs — until when.
+      const renderNudge = (savedCents: number, cur: string) => {
+        const v = view();
+        const timed = v.showCountdown && !!v.expiresAtMs && !deckGiftLive();
+        if (savedCents <= 0 || isFreeComp) {
+          nudgeEl.hidden = true;
+          nudgeEl.innerHTML = '';
+          return;
+        }
+        nudgeEl.hidden = false;
+        nudgeEl.innerHTML =
+          (timed ? '<i class="ph-light ph-hourglass-medium" aria-hidden="true"></i>' : '') +
+          `<span>You save <strong>${money(savedCents, cur)}</strong>.` +
+          (timed
+            ? ` Your discount ends in <span data-co-clock="deal" data-co-text>--:--:--</span>.`
+            : '') +
+          '</span>';
+        paintDealClock?.();
+      };
       const renderSummary = () => {
         const v = view();
         const cur = v.cur;
@@ -940,31 +964,40 @@ const includes = [
         let mainAmount: string;
         let courseNowCents: number;
         let perCount = v.count;
+        // What the discount takes off the plan chosen, over its whole run.
+        let savedCents = 0;
         const d = status.discount;
         if (selectedPlan === '6x' && selectedOffer === 'path' && status.path) {
           perCount = status.path.installment_6x_count;
+          savedCents =
+            (status.path.base_total_monthly_6x_cents - status.path.total_monthly_6x_cents) * perCount;
           mainLabel = `${v.offerName} · ${perCount} monthly payments${v.discountOff}`;
           mainAmount = `${money(status.path.total_monthly_6x_cents, cur)}/mo`;
           courseNowCents = status.path.total_monthly_6x_cents;
         } else if (selectedPlan === '6x' && selectedOffer === '12week') {
           perCount = status.installment_6x_count;
           courseNowCents = d.eligible ? d.monthly_6x_cents : status.installment_monthly_6x_cents;
+          savedCents = (status.installment_monthly_6x_cents - courseNowCents) * perCount;
           mainLabel = `${v.offerName} · ${perCount} monthly payments${v.discountOff}`;
           mainAmount = `${money(courseNowCents, cur)}/mo`;
         } else if (selectedPlan === '12x' && selectedOffer === '12week') {
           perCount = status.installment_12x_count;
           courseNowCents = d.eligible ? d.monthly_12x_cents : status.installment_monthly_12x_cents;
+          savedCents = (status.installment_monthly_12x_cents - courseNowCents) * perCount;
           mainLabel = `${v.offerName} · ${perCount} monthly payments${v.discountOff}`;
           mainAmount = `${money(courseNowCents, cur)}/mo`;
         } else if (selectedPlan === '3x') {
           mainLabel = `${v.offerName} · ${v.count} monthly payments${v.discountOff}`;
           mainAmount = `${money(v.monthlyNowCents, cur)}/mo`;
           courseNowCents = v.monthlyNowCents;
+          savedCents = (v.monthlyWasCents - v.monthlyNowCents) * v.count;
         } else {
           mainLabel = `${v.offerName} · one payment${v.discountOff}`;
           mainAmount = money(v.nowCents, cur);
           courseNowCents = v.nowCents;
+          savedCents = v.wasCents - v.nowCents;
         }
+        renderNudge(savedCents, cur);
 
         const bumps = selectedBumpOffers();
         const giftRow = deckGiftLive();

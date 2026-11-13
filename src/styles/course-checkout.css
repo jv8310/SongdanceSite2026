@@ -1,0 +1,879 @@
+/* =========================================================
+   Course checkout — the card both course checkouts share
+   (certification: CCRegister · 12-week: TWRegister).
+
+   A letter by candlelight: a warm paper card on the page's dark close, the
+   offer written in serif, and the discount as an ember band with its clock at
+   the head of the offer. Before November 2026 this was a dark glass panel with
+   monospace capitals for every label, which read as a settings screen.
+
+   Everything the two forms draw is styled here, once, on paired selectors
+   (.cc-… is the certification form, .tw-reg-… the 12-week one), so the two can
+   not drift. The palette is the block of --co-* variables below: change it
+   there and every part follows. Loaded from the two components themselves.
+   ========================================================= */
+
+.cc-variant,
+.tw-reg-priced {
+  --co-card: #FCF7EE;
+  --co-card-deep: #F3EADB;
+  --co-fill: #FFFDF8;
+  --co-tint: rgba(42, 27, 42, 0.045);
+  --co-ink: var(--ink);
+  --co-ink-soft: var(--ink-soft);
+  --co-ink-quiet: #6E5E6C;
+  --co-line: rgba(42, 27, 42, 0.12);
+  --co-line-strong: rgba(42, 27, 42, 0.22);
+  --co-accent: var(--ember);
+  --co-accent-ink: var(--ember-deep);
+  --co-accent-wash: #FBEBE0;
+  --co-accent-line: rgba(201, 96, 58, 0.42);
+  --co-strike: rgba(42, 27, 42, 0.46);
+  --co-danger: #9B2C1C;
+  --co-pad-x: var(--sp-7);
+  --co-pad-y: var(--sp-7);
+
+  position: relative;
+  box-sizing: border-box;
+  margin: 0 auto;
+  padding: var(--co-pad-y) var(--co-pad-x);
+  text-align: left;
+  color: var(--co-ink);
+  color-scheme: light;
+  background:
+    radial-gradient(110% 46% at 50% 0%, #FFFBF3 0%, rgba(255, 251, 243, 0) 72%),
+    linear-gradient(180deg, var(--co-card) 0%, var(--co-card-deep) 100%);
+  border-radius: var(--r-xl);
+  box-shadow:
+    0 0 0 1px rgba(244, 236, 223, 0.6),
+    0 46px 90px -44px rgba(0, 0, 0, 0.85),
+    0 0 150px -30px rgba(201, 96, 58, 0.42);
+}
+.cc-variant { max-width: 640px; }
+.tw-reg-priced { max-width: 560px; }
+@media (max-width: 560px) {
+  .cc-variant,
+  .tw-reg-priced {
+    --co-pad-x: 20px;
+    --co-pad-y: 28px;
+    border-radius: 22px;
+  }
+}
+
+/* ---------- Greeting ---------- */
+.cc-variant-greeting,
+.tw-reg-hello {
+  font-family: var(--font-lyric); font-style: italic;
+  font-size: 25px; line-height: 1.2;
+  color: var(--co-accent-ink);
+  margin: 0 0 var(--sp-2);
+}
+.tw-reg-hello { margin-bottom: var(--sp-4); }
+.cc-variant-title {
+  font-family: var(--font-display);
+  font-size: clamp(30px, 3.6vw, 40px);
+  line-height: 1.12; letter-spacing: -0.012em;
+  font-weight: 400;
+  color: var(--co-ink);
+  margin: 0 0 var(--sp-4);
+  text-wrap: balance;
+}
+.cc-variant-title em { font-family: var(--font-lyric); font-style: italic; font-size: 1.05em; color: var(--co-accent-ink); }
+.cc-variant-body {
+  font-family: var(--font-body);
+  font-size: 17px; line-height: 1.7;
+  color: var(--co-ink-soft);
+  margin: 0 0 var(--sp-6);
+}
+
+/* ---------- "Continuing as …" ---------- */
+.cc-variant-emailline,
+.tw-reg-emailline {
+  display: flex; align-items: baseline; gap: 6px 8px; flex-wrap: wrap;
+  margin: 0 0 var(--sp-5); padding: 12px 16px;
+  background: var(--co-tint);
+  border-radius: 12px;
+  font-family: var(--font-body); font-size: 15px;
+  color: var(--co-ink-soft);
+}
+.cc-variant-emaillabel,
+.tw-reg-emaillabel { color: var(--co-ink-quiet); }
+.cc-variant-email,
+.tw-reg-emailval {
+  /* Basis auto, so a long address moves to its own line whole before it is
+     ever broken mid-word. */
+  flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere;
+  color: var(--co-ink); font-weight: 600;
+}
+.cc-variant-emailchange,
+.tw-reg-emailchange {
+  font-family: var(--font-body); font-size: 14px;
+  color: var(--co-accent-ink);
+  background: none; border: 0; padding: 0; cursor: pointer;
+  text-decoration: underline; text-underline-offset: 3px;
+}
+.cc-variant-emailchange:hover,
+.tw-reg-emailchange:hover { color: var(--co-ink); }
+
+/* ---------- Step labels: a handwritten line, then a rule ---------- */
+.cc-step-label,
+.tw-reg-steplabel {
+  display: flex; align-items: center; gap: 14px;
+  font-family: var(--font-lyric); font-style: italic;
+  font-size: 24px; line-height: 1.2;
+  color: var(--co-ink);
+  text-align: left;
+  margin: var(--sp-7) 0 var(--sp-4);
+}
+.cc-step-label::after,
+.tw-reg-steplabel::after {
+  content: ""; flex: 1; height: 1px; min-width: 24px;
+  background: var(--co-line);
+}
+/* The first label follows the greeting, which brings its own space. */
+.cc-variant [data-slot="offer-picker"] > .cc-step-label,
+.tw-reg-offers-wrap .tw-reg-steplabel { margin-top: 0; }
+
+/* ---------- The discount band ---------- */
+.co-deal {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 14px 24px;
+  padding: 18px 24px;
+  color: #FFF8EE;
+  background:
+    radial-gradient(90% 160% at 0% 0%, rgba(255, 214, 170, 0.28) 0%, rgba(255, 214, 170, 0) 60%),
+    linear-gradient(120deg, #B9532D 0%, #99401F 100%);
+  text-align: left;
+}
+.co-deal-main { display: flex; align-items: center; gap: 16px; flex: 1 1 100%; min-width: 0; }
+.co-deal-fig {
+  display: flex; align-items: baseline; gap: 5px; flex: none;
+  padding-right: 16px;
+  border-right: 1px solid rgba(255, 248, 238, 0.34);
+  font-family: var(--font-display); line-height: 1; white-space: nowrap;
+}
+.co-deal-num { font-size: 50px; font-weight: 500; letter-spacing: -0.02em; font-feature-settings: "lnum" 1; }
+.co-deal-unit { font-family: var(--font-lyric); font-style: italic; font-size: 24px; }
+.co-deal-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.co-deal-title { font-family: var(--font-display); font-size: 20px; line-height: 1.2; font-weight: 500; }
+.co-deal-detail { font-family: var(--font-body); font-size: 14.5px; line-height: 1.4; color: rgba(255, 248, 238, 0.92); }
+
+/* ---------- The countdown: three tiles ---------- */
+.co-clock {
+  --co-tile: rgba(42, 27, 42, 0.3);
+  --co-tile-fg: #FFF8EE;
+  display: flex; align-items: center; gap: 12px; flex: none;
+  color: inherit;
+}
+.co-clock[hidden] { display: none; }
+/* In the band the clock has a line of its own, under a hairline: at these card
+   widths it never fitted beside the words, and squeezed them when it tried. */
+.co-deal .co-clock {
+  flex: 1 1 100%;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 248, 238, 0.26);
+}
+.co-clock-label {
+  font-family: var(--font-lyric); font-style: italic;
+  font-size: 20px; line-height: 1; white-space: nowrap;
+}
+.co-clock-tiles { display: flex; gap: 6px; }
+.co-clock-tile {
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  min-width: 58px; box-sizing: border-box;
+  padding: 9px 6px 7px;
+  border-radius: 10px;
+  background: var(--co-tile);
+  color: var(--co-tile-fg);
+}
+.co-clock-tile[hidden] { display: none; }
+.co-clock-tile b {
+  font-family: var(--font-display); font-weight: 500;
+  font-size: 30px; line-height: 1;
+  font-feature-settings: "tnum" 1, "lnum" 1; font-variant-numeric: tabular-nums lining-nums;
+}
+.co-clock-tile i {
+  font-family: var(--font-body); font-style: normal;
+  font-size: 11px; line-height: 1; opacity: 0.86;
+}
+@media (max-width: 400px) {
+  .co-deal { padding: 16px 18px; }
+  .co-deal-num { font-size: 42px; }
+  .co-clock-tile { min-width: 50px; }
+  .co-clock-tile b { font-size: 26px; }
+}
+
+/* The 12-week form wears the band across the head of the whole card. */
+.tw-reg-deal {
+  margin: calc(-1 * var(--co-pad-y)) calc(-1 * var(--co-pad-x)) var(--sp-6);
+  border-radius: var(--r-xl) var(--r-xl) 0 0;
+  overflow: hidden;
+}
+.tw-reg-deal[hidden] { display: none; }
+.tw-reg-deal .co-deal { padding: 20px var(--co-pad-x); }
+@media (max-width: 560px) { .tw-reg-deal { border-radius: 22px 22px 0 0; } }
+
+/* The reminder above the pay button: what is saved, and until when. */
+.co-nudge {
+  margin: calc(-1 * var(--sp-2)) 0 var(--sp-4);
+  font-family: var(--font-body); font-size: 15px; line-height: 1.5;
+  color: var(--co-accent-ink); text-align: center; text-wrap: balance;
+}
+.co-nudge[hidden] { display: none; }
+.co-nudge i { font-size: 17px; margin-right: 6px; vertical-align: -2px; }
+.co-nudge strong { font-weight: 600; }
+.co-nudge [data-co-text] { font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* ---------- Offer cards (certification) ---------- */
+/* One under the other, always: side by side, the band and its clock had half
+   the card each and broke over four lines. */
+.cc-offers { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp-3); }
+.cc-offer {
+  position: relative; display: block;
+  appearance: none; font: inherit; text-align: left;
+  padding: 0; overflow: hidden;
+  color: var(--co-ink);
+  background: var(--co-fill);
+  border: 1px solid var(--co-line-strong);
+  border-radius: var(--r-lg);
+  cursor: pointer;
+  transition: border-color var(--d-base) var(--ease), box-shadow var(--d-base) var(--ease);
+}
+.cc-offer:hover { border-color: var(--co-accent-line); }
+.cc-offer--single { cursor: default; }
+.cc-offer--selected,
+.cc-offer--selected:hover {
+  border-color: var(--co-accent);
+  box-shadow: 0 0 0 1px var(--co-accent), 0 22px 40px -26px rgba(161, 72, 38, 0.6);
+}
+.cc-offer:focus,
+.cc-plan-option:focus,
+.tw-reg-plan:focus { outline: none; }
+.cc-offer:focus-visible,
+.cc-plan-option:focus-visible,
+.tw-reg-plan:focus-visible { outline: 2px solid var(--co-accent); outline-offset: 3px; }
+.cc-offer-main {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--sp-3);
+  align-items: start;
+  padding: var(--sp-5);
+}
+.cc-offer--single .cc-offer-main { grid-template-columns: minmax(0, 1fr); padding: var(--sp-5) var(--sp-6) var(--sp-6); }
+.cc-offer-body { min-width: 0; }
+@media (max-width: 560px) {
+  .cc-offer-main,
+  .cc-offer--single .cc-offer-main { padding: var(--sp-4) 18px var(--sp-5); }
+  .cc-offer-name { font-size: 22px; }
+}
+.cc-offer-name {
+  font-family: var(--font-display); font-size: 24px; line-height: 1.2;
+  font-weight: 500; color: var(--co-ink);
+  text-wrap: balance;
+}
+.cc-offer-save {
+  margin: 6px 0 0;
+  font-family: var(--font-body); font-size: 14.5px; line-height: 1.5;
+  color: var(--co-ink-quiet);
+}
+.cc-offer-save:empty { display: none; }
+
+/* Radio marks (offers, plans) */
+.cc-offer-radio,
+.cc-plan-radio,
+.tw-reg-plan-radio {
+  position: relative; flex: none;
+  width: 20px; height: 20px; box-sizing: border-box;
+  border-radius: 50%;
+  border: 1.5px solid var(--co-line-strong);
+  background: var(--co-fill);
+  transition: border-color var(--d-base) var(--ease);
+}
+.cc-offer-radio { margin-top: 5px; }
+.cc-offer--selected .cc-offer-radio,
+.cc-plan-option--selected .cc-plan-radio,
+.tw-reg-plan--selected .tw-reg-plan-radio { border-color: var(--co-accent); }
+.cc-offer--selected .cc-offer-radio::after,
+.cc-plan-option--selected .cc-plan-radio::after,
+.tw-reg-plan--selected .tw-reg-plan-radio::after {
+  content: ""; position: absolute; inset: 3.5px;
+  border-radius: 50%; background: var(--co-accent);
+}
+
+/* Price rows: the path's two lines + total, and the single course's price */
+.cc-offer-path,
+.cc-offer-prices,
+.tw-reg-pathbox {
+  display: flex; flex-direction: column; gap: 10px;
+  margin-top: var(--sp-4); padding-top: var(--sp-4);
+  border-top: 1px solid var(--co-line);
+}
+.tw-reg-pathbox {
+  margin: var(--sp-4) 0 0; padding: var(--sp-5);
+  background: var(--co-fill);
+  border: 1px solid var(--co-line-strong); border-radius: var(--r-lg);
+}
+.tw-reg-pathbox[hidden] { display: none; }
+.cc-offer-pathline,
+.cc-offer-row,
+.tw-reg-pathline {
+  display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-3);
+}
+.cc-offer-pathline-name,
+.cc-offer-row-label,
+.tw-reg-pathline-name {
+  font-family: var(--font-body); font-size: 16px; color: var(--co-ink-soft);
+}
+.cc-offer-pathline-amt,
+.cc-offer-row-value,
+.tw-reg-pathline-amt {
+  font-family: var(--font-display); font-size: 20px; color: var(--co-ink);
+  font-feature-settings: "tnum" 1, "lnum" 1; white-space: nowrap;
+}
+.cc-offer-pathtotal,
+.tw-reg-pathtotal {
+  display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-3);
+  flex-wrap: wrap;
+  margin-top: 4px; padding-top: var(--sp-4);
+  border-top: 1px solid var(--co-line);
+}
+.cc-offer-pathtotal-label,
+.tw-reg-pathtotal-label {
+  font-family: var(--font-body); font-size: 16px; font-weight: 600; color: var(--co-ink);
+}
+.cc-offer-pathtotal-amt,
+.tw-reg-pathtotal-amt,
+.cc-offer-row--your .cc-offer-row-value {
+  font-family: var(--font-display); font-weight: 500;
+  font-size: clamp(32px, 5vw, 40px); line-height: 1;
+  color: var(--co-ink);
+  font-feature-settings: "tnum" 1, "lnum" 1;
+  margin-left: auto;
+}
+.cc-offer-row--your .cc-offer-row-label { font-weight: 600; color: var(--co-ink); }
+.cc-offer-base,
+.cc-offer-strike {
+  color: var(--co-strike);
+  text-decoration: line-through; text-decoration-thickness: 1px;
+}
+
+/* A struck "was" price beside the price that counts */
+.cc-amount-strike,
+.tw-amount-strike {
+  margin-right: 8px;
+  font-size: 0.74em; font-weight: 400;
+  color: var(--co-strike);
+  text-decoration: line-through; text-decoration-thickness: 1px;
+}
+
+/* The 12-week price when there is nothing to choose between */
+.tw-reg-pricebox {
+  display: flex; align-items: baseline; gap: 6px var(--sp-3); flex-wrap: wrap;
+  padding: var(--sp-5);
+  background: var(--co-fill);
+  border: 1px solid var(--co-line-strong); border-radius: var(--r-lg);
+}
+.tw-reg-pricebox[hidden] { display: none; }
+.tw-reg-pricenow {
+  font-family: var(--font-display); font-weight: 500;
+  font-size: clamp(38px, 6vw, 48px); line-height: 1;
+  color: var(--co-ink); font-feature-settings: "tnum" 1, "lnum" 1;
+}
+.tw-reg-pricewas {
+  font-family: var(--font-display); font-size: 24px;
+  color: var(--co-strike);
+  text-decoration: line-through; text-decoration-thickness: 1px;
+}
+.tw-reg-pricewas[hidden] { display: none; }
+.tw-reg-pricenote {
+  width: 100%; margin-top: 4px;
+  font-family: var(--font-body); font-size: 15px; color: var(--co-ink-quiet);
+}
+
+/* ---------- Choices: an offer row (12-week), a payment plan (both) ---------- */
+.cc-plan-options,
+.tw-reg-plans { display: grid; gap: 10px; }
+.tw-reg-offers-wrap[hidden] { display: none; }
+.cc-plan-option,
+.tw-reg-plan {
+  appearance: none; font: inherit; cursor: pointer; text-align: left;
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 4px var(--sp-3); align-items: center;
+  padding: 16px 18px;
+  color: var(--co-ink);
+  background: var(--co-fill);
+  border: 1px solid var(--co-line-strong);
+  border-radius: 14px;
+  transition: border-color var(--d-base) var(--ease), background var(--d-base) var(--ease),
+              box-shadow var(--d-base) var(--ease);
+}
+.cc-plan-option:hover,
+.tw-reg-plan:hover { border-color: var(--co-accent-line); }
+.cc-plan-option--selected,
+.cc-plan-option--selected:hover,
+.tw-reg-plan--selected,
+.tw-reg-plan--selected:hover {
+  border-color: var(--co-accent);
+  background: var(--co-accent-wash);
+  box-shadow: 0 0 0 1px var(--co-accent);
+}
+.cc-plan-text,
+.tw-reg-plan-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.cc-plan-title,
+.tw-reg-plan-title {
+  font-family: var(--font-body); font-size: 16px; font-weight: 600; color: var(--co-ink);
+}
+.cc-plan-sub,
+.tw-reg-plan-sub {
+  font-family: var(--font-body); font-size: 14px; line-height: 1.45; color: var(--co-ink-quiet);
+}
+.cc-plan-amount,
+.tw-reg-plan-amount {
+  font-family: var(--font-display); font-size: 21px; font-weight: 500;
+  color: var(--co-ink); font-feature-settings: "tnum" 1, "lnum" 1; white-space: nowrap;
+}
+@media (max-width: 480px) {
+  /* The amount drops under the words rather than squeezing them. */
+  .cc-plan-option,
+  .tw-reg-plan { grid-template-columns: auto minmax(0, 1fr); }
+  .cc-plan-amount,
+  .tw-reg-plan-amount { grid-column: 2; }
+}
+
+/* ---------- Fields ---------- */
+.cc-variant-fields,
+.tw-reg-fields {
+  display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-4) var(--sp-3);
+  margin-bottom: var(--sp-4);
+}
+@media (max-width: 520px) {
+  .cc-variant-fields,
+  .tw-reg-fields { grid-template-columns: 1fr; }
+}
+.cc-variant-field,
+.tw-reg-field {
+  display: flex; flex-direction: column; gap: 6px;
+  /* Let the grid cell shrink below the input's own width, so a field never
+     pushes past the card (or the gift panel) on a narrow screen. */
+  min-width: 0;
+}
+.cc-variant-field--full,
+.tw-reg-field--full { grid-column: 1 / -1; }
+.cc-variant-field[hidden],
+.tw-reg-field[hidden] { display: none; }
+.cc-variant-field > span,
+.tw-reg-field > span {
+  font-family: var(--font-body); font-size: 14px; font-weight: 500;
+  color: var(--co-ink-soft);
+}
+.cc-field-note,
+.tw-reg-fieldnote { font-weight: 400; color: var(--co-ink-quiet); }
+.cc-variant-field input,
+.cc-variant-field select,
+.tw-reg-field input,
+.tw-reg-field select {
+  width: 100%; min-width: 0; box-sizing: border-box;
+  font-family: var(--font-body); font-size: 16px;
+  padding: 12px 14px;
+  color: var(--co-ink);
+  background: var(--co-fill);
+  border: 1px solid var(--co-line-strong);
+  border-radius: 12px;
+  outline: none;
+  transition: border-color var(--d-base) var(--ease), box-shadow var(--d-base) var(--ease);
+}
+.cc-variant-field input::placeholder,
+.tw-reg-field input::placeholder { color: rgba(42, 27, 42, 0.4); }
+.cc-variant-field input:focus,
+.cc-variant-field select:focus,
+.tw-reg-field input:focus,
+.tw-reg-field select:focus {
+  border-color: var(--co-accent);
+  box-shadow: 0 0 0 4px rgba(201, 96, 58, 0.16);
+}
+.cc-phone-grid { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: var(--sp-2); min-width: 0; }
+.tw-reg-phonegrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: var(--sp-2); }
+
+/* ---------- When does the certification course open? ---------- */
+.cc-activate-toggle,
+.tw-reg-activate {
+  margin: var(--sp-5) 0 var(--sp-4); padding: var(--sp-3) var(--sp-4) var(--sp-4);
+  min-width: 0;
+  background: var(--co-fill);
+  border: 1px solid var(--co-line-strong); border-radius: 14px;
+}
+.tw-reg-activate[hidden] { display: none; }
+.cc-activate-toggle legend,
+.tw-reg-activate legend {
+  padding: 0 8px;
+  font-family: var(--font-body); font-size: 14px; font-weight: 600; color: var(--co-ink-soft);
+}
+.cc-activate-toggle label,
+.tw-reg-activate label {
+  display: flex; align-items: flex-start; gap: 12px; padding: 8px 0; cursor: pointer;
+  font-family: var(--font-body); font-size: 15.5px; line-height: 1.45; color: var(--co-ink);
+}
+.cc-activate-toggle label strong,
+.tw-reg-activate label strong { font-weight: 600; }
+.cc-activate-toggle label small,
+.tw-reg-activate label small {
+  display: block; margin-top: 2px;
+  font-size: 14px; color: var(--co-ink-quiet);
+}
+.cc-activate-toggle input[type="radio"],
+.tw-reg-activate input[type="radio"] {
+  flex: none; width: 18px; height: 18px; margin: 2px 0 0;
+  accent-color: var(--co-accent);
+}
+.cc-activate-note,
+.tw-reg-activate-note {
+  margin: 6px 0 0 30px;
+  font-family: var(--font-body); font-size: 14px; color: var(--co-ink-quiet);
+}
+
+/* ---------- Terms ---------- */
+.cc-consent,
+.tw-reg-consent {
+  display: flex; gap: 12px; align-items: flex-start;
+  margin: var(--sp-4) 0;
+  font-family: var(--font-body); font-size: 15px; line-height: 1.5;
+  color: var(--co-ink-soft); text-align: left;
+}
+.cc-consent input,
+.tw-reg-consent input {
+  flex: none; width: 18px; height: 18px; margin: 2px 0 0;
+  accent-color: var(--co-accent);
+}
+.cc-consent a,
+.tw-reg-consent a { color: var(--co-ink); text-decoration-color: var(--co-accent); text-underline-offset: 3px; }
+
+/* ---------- Order bumps ---------- */
+.cc-bumps-wrap[hidden],
+.tw-reg-bumps-wrap[hidden] { display: none; }
+.cc-bumps,
+.tw-reg-bumps { display: grid; gap: 10px; }
+.cc-bump,
+.tw-reg-bump {
+  position: relative; cursor: pointer;
+  display: grid; grid-template-columns: auto auto minmax(0, 1fr); gap: var(--sp-3); align-items: start;
+  padding: 16px 18px;
+  color: var(--co-ink);
+  background: var(--co-fill);
+  border: 1px solid var(--co-line-strong); border-radius: 14px;
+  transition: border-color var(--d-base) var(--ease), background var(--d-base) var(--ease),
+              box-shadow var(--d-base) var(--ease);
+}
+.cc-bump:hover,
+.tw-reg-bump:hover { border-color: var(--co-accent-line); }
+.cc-bump--selected,
+.cc-bump--selected:hover,
+.tw-reg-bump--selected,
+.tw-reg-bump--selected:hover {
+  border-color: var(--co-accent);
+  background: var(--co-accent-wash);
+  box-shadow: 0 0 0 1px var(--co-accent);
+}
+.cc-bump-check,
+.tw-reg-bump-check { position: absolute; opacity: 0; width: 0; height: 0; }
+.cc-bump-box,
+.tw-reg-bump-box {
+  position: relative; flex: none;
+  width: 20px; height: 20px; box-sizing: border-box; margin-top: 2px;
+  border-radius: 6px;
+  border: 1.5px solid var(--co-line-strong);
+  background: var(--co-fill);
+  transition: border-color var(--d-base) var(--ease), background var(--d-base) var(--ease);
+}
+.cc-bump--selected .cc-bump-box,
+.tw-reg-bump--selected .tw-reg-bump-box { border-color: var(--co-accent); background: var(--co-accent); }
+.cc-bump--selected .cc-bump-box::after,
+.tw-reg-bump--selected .tw-reg-bump-box::after {
+  content: ""; position: absolute; left: 5.5px; top: 1.5px; width: 5px; height: 10px;
+  border: solid #FFF8EE; border-width: 0 2px 2px 0; transform: rotate(45deg);
+}
+.cc-bump-check:focus-visible + .cc-bump-box,
+.tw-reg-bump-check:focus-visible + .tw-reg-bump-box { outline: 2px solid var(--co-accent); outline-offset: 2px; }
+.cc-bump-thumb,
+.tw-reg-bump-thumb {
+  flex: none; width: 60px; height: 60px; object-fit: cover;
+  border-radius: 10px; border: 1px solid var(--co-line);
+}
+.cc-bump-body,
+.tw-reg-bump-body { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.cc-bump-head,
+.tw-reg-bump-head { display: flex; align-items: baseline; justify-content: space-between; gap: 4px var(--sp-3); flex-wrap: wrap; }
+.cc-bump-title,
+.tw-reg-bump-title { font-family: var(--font-body); font-size: 16px; font-weight: 600; color: var(--co-ink); }
+.cc-bump-price,
+.tw-reg-bump-price {
+  font-family: var(--font-display); font-size: 20px; font-weight: 500; color: var(--co-ink);
+  font-feature-settings: "tnum" 1, "lnum" 1; white-space: nowrap;
+}
+.cc-bump-was {
+  margin-right: 6px; font-size: 15px; font-weight: 400;
+  color: var(--co-strike); text-decoration: line-through;
+}
+.cc-bump-save,
+.tw-reg-bump-save {
+  margin-left: 6px; padding: 3px 9px;
+  font-family: var(--font-body); font-size: 12px; font-weight: 600; white-space: nowrap;
+  color: #FFF8EE; background: #A9492A;
+  border-radius: var(--r-pill);
+  vertical-align: 2px;
+}
+.cc-bump-points,
+.tw-reg-bump-points { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.cc-bump-point,
+.tw-reg-bump-point {
+  position: relative; padding-left: 16px;
+  font-family: var(--font-body); font-size: 14px; color: var(--co-ink-soft);
+}
+.cc-bump-point::before,
+.tw-reg-bump-point::before { content: "✓"; position: absolute; left: 0; color: var(--co-accent); font-size: 12px; }
+.cc-bump-blurb,
+.tw-reg-bump-blurb { font-family: var(--font-body); font-size: 14px; line-height: 1.5; color: var(--co-ink-quiet); }
+@media (max-width: 520px) {
+  .cc-bump,
+  .tw-reg-bump { grid-template-columns: auto minmax(0, 1fr); }
+  .cc-bump-thumb,
+  .tw-reg-bump-thumb { display: none; }
+}
+
+/* ---------- The Songdeck gift (the hour after a live workshop) ---------- */
+.cc-gift,
+.tw-reg-gift {
+  margin: var(--sp-5) 0 0; padding: var(--sp-5);
+  background: linear-gradient(180deg, var(--co-accent-wash) 0%, #FFF7EE 100%);
+  border: 1px solid var(--co-accent-line); border-radius: var(--r-lg);
+}
+.cc-gift[hidden],
+.tw-reg-gift[hidden] { display: none; }
+.cc-gift-head,
+.tw-reg-gift-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap; margin-bottom: var(--sp-4);
+}
+.cc-gift-pill,
+.tw-reg-gift-pill {
+  padding: 7px 14px;
+  font-family: var(--font-body); font-size: 13px; font-weight: 600;
+  color: #FFF8EE; background: #A9492A;
+  border-radius: var(--r-pill);
+}
+.cc-gift .co-clock,
+.tw-reg-gift .co-clock {
+  --co-tile: var(--co-ink);
+  color: var(--co-accent-ink);
+}
+.cc-gift-body,
+.tw-reg-gift-body { display: flex; gap: var(--sp-4); align-items: flex-start; }
+.cc-gift-thumb,
+.tw-reg-gift-thumb {
+  flex: 0 0 auto; width: 120px; height: 120px; object-fit: cover;
+  border-radius: 12px; border: 1px solid var(--co-line);
+}
+.cc-gift-title,
+.tw-reg-gift-title {
+  margin: 0; font-family: var(--font-display); font-size: 22px; line-height: 1.2; color: var(--co-ink);
+}
+.cc-gift-sub,
+.tw-reg-gift-sub {
+  margin: 8px 0 0; font-family: var(--font-body); font-size: 15px; line-height: 1.55;
+  color: var(--co-ink-soft);
+}
+.cc-gift-points,
+.tw-reg-gift-points {
+  margin: 12px 0 0; padding: 0; list-style: none;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.cc-gift-points li,
+.tw-reg-gift-points li {
+  position: relative; padding-left: 18px;
+  font-family: var(--font-body); font-size: 14px; line-height: 1.45; color: var(--co-ink-soft);
+}
+.cc-gift-points li::before,
+.tw-reg-gift-points li::before { content: "✓"; position: absolute; left: 0; color: var(--co-accent); }
+@media (max-width: 560px) {
+  .cc-gift,
+  .tw-reg-gift { padding: var(--sp-4); }
+  .cc-gift-body,
+  .tw-reg-gift-body { flex-direction: column; }
+  .cc-gift-thumb,
+  .tw-reg-gift-thumb { width: 100%; height: 160px; }
+}
+.cc-gift-ship,
+.tw-reg-gift-ship {
+  margin-top: var(--sp-5); padding-top: var(--sp-4);
+  border-top: 1px solid var(--co-accent-line);
+}
+/* A label that wraps ("State / Province — optional") must not push its input
+   below its neighbour's: line the inputs up along the bottom of the row. */
+.cc-gift-ship .cc-variant-fields,
+.tw-reg-gift-ship .tw-reg-fields { align-items: end; }
+.cc-gift-ship-label,
+.tw-reg-gift-ship-label {
+  margin-bottom: var(--sp-3);
+  font-family: var(--font-lyric); font-style: italic; font-size: 22px; color: var(--co-ink);
+}
+.cc-gift-ship-note,
+.tw-reg-gift-ship-note {
+  margin: 10px 0 0; font-family: var(--font-body); font-size: 14px; line-height: 1.45;
+  color: var(--co-ink-quiet);
+}
+
+/* ---------- What you are about to pay ---------- */
+.cc-checkout-summary,
+.tw-reg-summary {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 6px var(--sp-3);
+  flex-wrap: wrap;
+  margin: var(--sp-6) 0 var(--sp-4); padding: 18px 20px;
+  font-family: var(--font-body);
+  background: var(--co-accent-wash);
+  border: 1px solid var(--co-accent-line);
+  border-radius: 16px;
+}
+.cc-checkout-summary-label,
+.tw-reg-summary-label {
+  flex: 1 1 200px;
+  font-size: 15.5px; line-height: 1.4; color: var(--co-ink-soft); text-wrap: balance;
+}
+.cc-checkout-summary-amount,
+.tw-reg-summary-amount {
+  margin-left: auto;
+  font-family: var(--font-display); font-size: 28px; font-weight: 500; line-height: 1.1;
+  color: var(--co-ink); font-feature-settings: "tnum" 1, "lnum" 1; white-space: nowrap;
+}
+.cc-checkout-addons {
+  margin: calc(-1 * var(--sp-2)) 0 var(--sp-4);
+  font-family: var(--font-body); font-size: 14px; color: var(--co-ink-quiet); text-align: center;
+}
+.cc-checkout-addons[hidden] { display: none; }
+/* The itemised form (12-week: course + add-ons + total). */
+.tw-reg-summary.tw-reg-summary--items { display: block; }
+.tw-reg-sumrow { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-3); padding: 4px 0; }
+.tw-reg-sumrow-label { font-family: var(--font-body); font-size: 15.5px; color: var(--co-ink-soft); text-wrap: balance; }
+.tw-reg-sumrow-amt {
+  font-family: var(--font-body); font-size: 15.5px; color: var(--co-ink);
+  font-feature-settings: "tnum" 1; white-space: nowrap;
+}
+.tw-reg-sumrow--bump .tw-reg-sumrow-label { color: var(--co-ink-quiet); }
+.tw-reg-sumrow--bump .tw-reg-sumrow-label::before { content: "+ "; color: var(--co-accent); }
+.tw-reg-sumrow--total { margin-top: 8px; padding-top: 12px; border-top: 1px solid var(--co-accent-line); }
+.tw-reg-sumrow--total .tw-reg-sumrow-label { font-weight: 600; color: var(--co-ink); }
+.tw-reg-sumrow--total .tw-reg-sumrow-amt { font-family: var(--font-display); font-size: 28px; color: var(--co-ink); }
+.tw-reg-sumrow--total .tw-reg-sumrow-amt strong { font-weight: 500; }
+.tw-reg-sumnote { margin: 4px 0 0; font-family: var(--font-body); font-size: 14px; color: var(--co-ink-quiet); }
+
+/* The pay button, inside the card */
+.cc-variant .cc-checkout-cta,
+.tw-reg-priced .tw-reg-cta {
+  font-size: 17px; font-weight: 600;
+  padding: 19px 28px;
+  color: #FFF8EE;
+  box-shadow: 0 16px 30px -14px rgba(161, 72, 38, 0.85);
+}
+.cc-variant .cc-register-error,
+.tw-reg-priced .tw-reg-error {
+  font-size: 15px; font-weight: 500; text-align: center;
+  color: var(--co-danger);
+}
+.cc-soft-fallback {
+  margin: var(--sp-4) 0 0;
+  font-family: var(--font-body); font-size: 15px;
+  color: var(--co-ink-quiet); text-align: center;
+}
+.cc-soft-fallback:empty { display: none; }
+.cc-soft-fallback a { color: var(--co-ink); text-decoration-color: var(--co-accent); text-underline-offset: 3px; }
+
+/* ---------- 12-week: the pointer to the path, when it could not be priced ---------- */
+.tw-reg-pathteaser {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--sp-4); flex-wrap: wrap;
+  margin: var(--sp-5) 0 0; padding: var(--sp-4) var(--sp-5);
+  background: var(--co-fill);
+  border: 1px solid var(--co-line-strong); border-left: 3px solid var(--co-accent);
+  border-radius: 14px;
+}
+.tw-reg-pathteaser[hidden] { display: none; }
+.tw-reg-pathteaser-text { flex: 1; min-width: 220px; }
+.tw-reg-pathteaser-eyebrow {
+  margin: 0 0 4px; font-family: var(--font-lyric); font-style: italic; font-size: 19px;
+  color: var(--co-accent-ink);
+}
+.tw-reg-pathteaser-h {
+  margin: 0 0 6px; font-family: var(--font-display); font-size: 19px;
+  font-weight: 400; line-height: 1.25; color: var(--co-ink);
+}
+.tw-reg-pathteaser-h em { font-family: var(--font-lyric); font-style: italic; font-size: 1.05em; }
+.tw-reg-pathteaser-p { margin: 0; font-family: var(--font-body); font-size: 14.5px; line-height: 1.5; color: var(--co-ink-quiet); }
+.tw-reg-pathteaser-link {
+  display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  padding: 10px 18px;
+  font-family: var(--font-body); font-size: 15px; font-weight: 600;
+  color: var(--co-accent-ink); text-decoration: none;
+  background: var(--co-accent-wash);
+  border: 1px solid var(--co-accent-line); border-radius: var(--r-pill);
+  transition: background var(--d-base) var(--ease);
+}
+.tw-reg-pathteaser-link:hover { background: #F6DCCB; }
+.tw-reg-pathteaser-link:focus-visible { outline: 2px solid var(--co-accent); outline-offset: 2px; }
+
+/* ---------- Certification: already registered (the portal, "activate now") ---------- */
+.cc-variant-portal {
+  display: inline-flex; align-items: center; gap: 10px;
+  margin-top: var(--sp-4); padding: 15px 28px;
+  font-family: var(--font-body); font-size: 16px; font-weight: 600;
+  color: #FFF8EE; text-decoration: none;
+  background: var(--co-accent);
+  border-radius: var(--r-pill);
+  transition: background var(--d-base) var(--ease);
+}
+.cc-variant-portal:hover { background: var(--co-accent-ink); color: #FFF8EE; }
+.cc-activate-now {
+  margin: 0 0 var(--sp-2); padding: var(--sp-5);
+  text-align: left;
+  background: var(--co-accent-wash);
+  border: 1px solid var(--co-accent-line); border-radius: var(--r-lg);
+}
+.cc-activate-now[hidden] { display: none; }
+.cc-activate-now-title {
+  margin: 0 0 var(--sp-2);
+  font-family: var(--font-display); font-size: 22px; font-weight: 500; line-height: 1.25;
+  color: var(--co-ink);
+}
+.cc-activate-now-body,
+.cc-activate-confirm-body {
+  margin: 0 0 var(--sp-4);
+  font-family: var(--font-body); font-size: 16px; line-height: 1.6; color: var(--co-ink-soft);
+}
+.cc-activate-now-btn {
+  display: inline-flex; align-items: center; gap: 10px;
+  padding: 14px 24px;
+  font-family: var(--font-body); font-size: 16px; font-weight: 600;
+  color: #FFF8EE; background: var(--co-accent);
+  border: 0; border-radius: var(--r-pill); cursor: pointer;
+  transition: background var(--d-base) var(--ease);
+}
+.cc-activate-now-btn:hover:not(:disabled) { background: var(--co-accent-ink); }
+.cc-activate-now-btn:disabled { opacity: 0.6; cursor: default; }
+.cc-activate-now-actions[hidden],
+.cc-activate-confirm[hidden] { display: none; }
+.cc-activate-confirm {
+  padding: var(--sp-4);
+  background: var(--co-fill);
+  border: 1px solid var(--co-line-strong); border-radius: 14px;
+}
+.cc-activate-confirm-actions { display: flex; align-items: center; gap: var(--sp-4); flex-wrap: wrap; }
+.cc-activate-cancel {
+  padding: 8px 4px;
+  font-family: var(--font-body); font-size: 15px;
+  color: var(--co-ink-soft); background: none; border: 0; cursor: pointer;
+  text-decoration: underline; text-underline-offset: 3px;
+}
+.cc-activate-cancel:hover { color: var(--co-ink); }
+.cc-activate-now-msg {
+  margin: var(--sp-3) 0 0;
+  font-family: var(--font-body); font-size: 15px; line-height: 1.5; color: var(--co-ink-soft);
+  opacity: 0; transition: opacity var(--d-base) var(--ease);
+}
+.cc-activate-now-msg:empty { display: none; }
+.cc-activate-now-msg.is-visible { opacity: 1; }
+.cc-activate-now-msg.is-error { color: var(--co-danger); }

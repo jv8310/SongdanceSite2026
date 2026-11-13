@@ -2,6 +2,9 @@
 import { COUNTRIES, COUNTRIES_PRIORITY, COUNTRIES_OTHER, dialLabel } from '../../lib/countries';
 import LaunchOfferCallout from '../promo/LaunchOfferCallout.astro';
 import GuaranteeBadge from '../GuaranteeBadge.astro';
+import { clockHtml } from '../../lib/client/checkout-deal';
+// The priced card's looks, shared with the 12-week checkout.
+import '../../styles/course-checkout.css';
 
 const countries = COUNTRIES;
 // Split for the <select> optgroups — the markets we sell most to first, then
@@ -45,7 +48,7 @@ const countriesOther = COUNTRIES_OTHER;
       <p class="cc-register-error" data-cc-error></p>
     </div>
 
-    <div class="cc-register-guarantee" style="margin:26px 0 0;">
+    <div class="cc-register-guarantee" style="max-width:640px;margin:26px auto 0;">
       <GuaranteeBadge variant="card" />
     </div>
 
@@ -68,10 +71,7 @@ const countriesOther = COUNTRIES_OTHER;
         <div class="cc-gift" data-slot="gift" hidden>
           <div class="cc-gift-head">
             <span class="cc-gift-pill">Free gift · free global shipping</span>
-            <span class="cc-gift-count">
-              <i class="ph-light ph-hourglass-medium" aria-hidden="true"></i>
-              Gift leaves in <span class="clock" data-slot="gift-clock">--:--</span>
-            </span>
+            <Fragment set:html={clockHtml('gift', 'Gift leaves in', { trimHours: true })} />
           </div>
           <div class="cc-gift-body">
             <img
@@ -258,6 +258,9 @@ const countriesOther = COUNTRIES_OTHER;
             <span class="cc-checkout-summary-label" data-slot="summary-label"></span>
             <span class="cc-checkout-summary-amount" data-slot="summary-amount"></span>
           </div>
+          <!-- What the discount saves and, while it is timed, until when —
+               repeated here because this is where the buyer decides. -->
+          <p class="co-nudge" data-slot="deal-nudge" hidden></p>
           <p class="cc-checkout-addons" data-slot="bumps-total" hidden></p>
 
           <button type="button" class="cc-checkout-cta" data-slot="checkout-cta">
@@ -331,6 +334,7 @@ const countriesOther = COUNTRIES_OTHER;
     wireShippingReset,
     resolveShipping,
   } from '../../lib/client/deck-gift-shipping';
+  import { dealHtml, paintClocks } from '../../lib/client/checkout-deal';
 
   type Currency =
     | 'EUR' | 'USD' | 'GBP' | 'CAD' | 'CHF'
@@ -1056,39 +1060,37 @@ const countriesOther = COUNTRIES_OTHER;
     // each card render; on expiry we re-fetch so the now-full price re-renders.
     // While the Song Deck gift window is live, the gift panel's own 1-hour
     // clock REPLACES this one (the discount itself stays).
+    // Is the path's discount on a clock right now? (The workshop sale's 48h,
+    // and not while the gift's own hour is running.)
+    const pathTimed = () => {
+      const p = decision.path;
+      return !!(
+        p &&
+        p.discount.eligible &&
+        p.discount.kind === 'post' &&
+        p.discount.expires_at_ms &&
+        !giftLive()
+      );
+    };
+    // Paints every "deal" clock in the card — the band on the path card and
+    // the reminder above the pay button — so the two always read the same.
+    let paintDealClock: (() => void) | undefined;
     function startPathCountdown() {
       window.clearInterval(pathCountdownTimer);
-      const p = decision.path;
-      const clockWrap = offersEl.querySelector<HTMLElement>('[data-cd]');
-      const clock = offersEl.querySelector<HTMLElement>('[data-clock]');
-      if (giftLive()) {
-        if (clockWrap) clockWrap.hidden = true;
-        return;
-      }
-      if (clockWrap) clockWrap.hidden = false;
-      if (
-        !p ||
-        !clock ||
-        !p.discount.eligible ||
-        p.discount.kind !== 'post' ||
-        !p.discount.expires_at_ms
-      ) {
-        return;
-      }
-      const expires = p.discount.expires_at_ms;
+      paintDealClock = undefined;
+      if (!pathTimed()) return;
+      const expires = decision.path!.discount.expires_at_ms!;
       const tick = () => {
         const left = expires - Date.now();
         if (left <= 0) {
           window.clearInterval(pathCountdownTimer);
+          paintDealClock = undefined;
           refreshForCountry(lastCountry || decision.country || '');
           return;
         }
-        const s = Math.floor(left / 1000);
-        const hh = String(Math.floor(s / 3600)).padStart(2, '0');
-        const mm = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
-        const ss = String(s % 60).padStart(2, '0');
-        clock.textContent = `${hh}:${mm}:${ss}`;
+        paintClocks(root, 'deal', left);
       };
+      paintDealClock = tick;
       tick();
       pathCountdownTimer = window.setInterval(tick, 1000);
     }
@@ -1105,7 +1107,6 @@ const countriesOther = COUNTRIES_OTHER;
         return;
       }
       giftEl.hidden = false;
-      const clock = giftEl.querySelector<HTMLElement>('[data-slot="gift-clock"]')!;
       const ends = decision.deck_gift!.ends_at_ms!;
       const tick = () => {
         const left = ends - Date.now();
@@ -1115,11 +1116,7 @@ const countriesOther = COUNTRIES_OTHER;
           refreshForCountry(lastCountry || decision.country || '');
           return;
         }
-        const s = Math.floor(left / 1000);
-        const hh = String(Math.floor(s / 3600)).padStart(2, '0');
-        const mm = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
-        const ss = String(s % 60).padStart(2, '0');
-        clock.textContent = `${hh}:${mm}:${ss}`;
+        paintClocks(giftEl, 'gift', left);
       };
       tick();
       giftCountdownTimer = window.setInterval(tick, 1000);
@@ -1143,6 +1140,7 @@ const countriesOther = COUNTRIES_OTHER;
           i === 0,
           decision.offers.length > 1,
           decision.path,
+          pathTimed(),
         );
         card.dataset.offerSlug = offer.slug;
         // For a complimentary place, annotate each card so its (still-shown)
@@ -1338,7 +1336,55 @@ const countriesOther = COUNTRIES_OTHER;
     // buyer is about to commit, so there's no "wait, what am I paying?".
     const summaryLabel = root.querySelector('[data-slot="summary-label"]') as HTMLElement;
     const summaryAmount = root.querySelector('[data-slot="summary-amount"]') as HTMLElement;
+    // Under the summary: what the discount saves on the chosen offer and plan,
+    // and — while the workshop sale's clock runs — until when.
+    const nudgeEl = root.querySelector('[data-slot="deal-nudge"]') as HTMLElement;
+    function renderNudge() {
+      let save = 0;
+      let cur = decision.currency!;
+      let timed = false;
+      if (!isFreeComp && selectedOfferSlug === 'cc-bundle' && decision.path) {
+        const p = decision.path;
+        cur = p.currency;
+        if (selectedPlan === 'full') {
+          save = p.base_total_cents - p.total_cents;
+        } else {
+          const [count, monthly, baseMonthly] =
+            selectedPlan === '12x'
+              ? [p.installment_12x_count, p.total_monthly_12x_cents, p.base_total_monthly_12x_cents]
+              : selectedPlan === '6x'
+                ? [p.installment_6x_count, p.total_monthly_6x_cents, p.base_total_monthly_6x_cents]
+                : [p.installment_count, p.total_monthly_cents, p.base_total_monthly_cents];
+          save = (baseMonthly - monthly) * count;
+        }
+        timed = pathTimed();
+      } else if (!isFreeComp && shownDiscountPct > 0) {
+        const offer = decision.offers.find((o) => o.slug === selectedOfferSlug);
+        const ladder = offer ? ladderFor(offer, selectedPlan) : undefined;
+        if (offer) {
+          save =
+            selectedPlan !== 'full' && ladder
+              ? (ladder.monthly_cents - applyDiscountCents(ladder.monthly_cents)) * ladder.count
+              : offer.price_cents - applyDiscountCents(offer.price_cents);
+        }
+      }
+      if (save <= 0) {
+        nudgeEl.hidden = true;
+        nudgeEl.innerHTML = '';
+        return;
+      }
+      nudgeEl.hidden = false;
+      nudgeEl.innerHTML =
+        (timed ? '<i class="ph-light ph-hourglass-medium" aria-hidden="true"></i>' : '') +
+        `<span>You save <strong>${escapeHtml(moneyCents(save, cur))}</strong>.` +
+        (timed
+          ? ` Your discount ends in <span data-co-clock="deal" data-co-text>--:--:--</span>.`
+          : '') +
+        '</span>';
+      paintDealClock?.();
+    }
     function renderSummary() {
+      renderNudge();
       // Complimentary place: strike the would-be price and show "Free".
       if (isFreeComp) {
         const cur = decision.currency!;
@@ -1362,9 +1408,7 @@ const countriesOther = COUNTRIES_OTHER;
         const off = p.discount.eligible
           ? p.discount.kind === 'german'
             ? ` (12-week ${pctOff(p.twelve_week_base_cents, p.twelve_week_price_cents)}% off · cert ${pctOff(p.cert_base_price_cents, p.cert_price_cents)}% off)`
-            : p.discount.kind === 'override'
-              ? ` (12-week ${p.discount.percent}% off)`
-              : ` (${p.discount.percent}% off)`
+            : ` (${p.discount.percent}% off)`
           : '';
         if (selectedPlan === '3x' || selectedPlan === '6x' || selectedPlan === '12x') {
           const count =
@@ -1457,6 +1501,7 @@ const countriesOther = COUNTRIES_OTHER;
     primary: boolean,
     selectable: boolean,
     path?: PathPricing,
+    timed = false,
   ): HTMLElement {
     const card = document.createElement('button');
     card.type = 'button';
@@ -1466,9 +1511,10 @@ const countriesOther = COUNTRIES_OTHER;
       ? `<span class="cc-offer-radio" aria-hidden="true"></span>`
       : '';
 
-    // The path: two transparent line items + a combined total. During a live
-    // workshop window the whole path (both lines) is struck 20% off, with the
-    // 48h countdown; an override strikes both lines at its own percent.
+    // The path: the discount band (with its clock while the workshop sale
+    // runs), then two transparent line items + a combined total. During a live
+    // workshop window the whole path (both lines) is struck 20% off; an
+    // override strikes both lines at its own percent.
     if (offer.slug === 'cc-bundle' && path) {
       const cur = path.currency;
       const d = path.discount;
@@ -1479,64 +1525,77 @@ const countriesOther = COUNTRIES_OTHER;
       const twAmt = d.eligible
         ? `<span class="cc-amount-strike">${escapeHtml(moneyCents(path.twelve_week_base_cents, cur))}</span>${escapeHtml(moneyCents(path.twelve_week_price_cents, cur))}`
         : escapeHtml(moneyCents(path.twelve_week_base_cents, cur));
-      const badgeText = d.eligible
-        ? d.kind === 'german'
-          ? `German graduate — 12-week ${twPct}% off · certification ${certPct}% off`
-          : d.kind === 'override'
-            ? `${d.percent}% off the whole path`
-            : d.kind === 'promo'
-              ? `Extended sale — ${d.percent}% off`
-              : `Workshop discount — ${d.percent}% off the whole path`
-        : '';
-      const badge = badgeText
-        ? `<div class="cc-offer-badge"><span class="dot" aria-hidden="true"></span><span>${escapeHtml(badgeText)}</span></div>`
-        : '';
-      const countdown =
-        d.eligible && d.kind === 'post' && d.expires_at_ms
-          ? `<div class="cc-offer-countdown" data-cd><i class="ph-light ph-hourglass-medium" aria-hidden="true"></i><span>Discount ends in <span class="clock" data-clock>--:--:--</span></span></div>`
+      const saved = path.base_total_cents - path.total_cents;
+      const savedText = saved > 0 ? ` · you save ${moneyCents(saved, cur)}` : '';
+      // A complimentary place has its own banner; no discount to announce.
+      const deal =
+        d.eligible && !isFreeComp
+          ? dealHtml(
+              d.kind === 'german'
+                ? {
+                    title: 'German graduate price',
+                    detail: `12-week ${twPct}% off · certification ${certPct}% off${savedText}`,
+                  }
+                : {
+                    percent: d.percent,
+                    title:
+                      d.kind === 'override'
+                        ? 'Your discount'
+                        : d.kind === 'promo'
+                          ? 'Extended sale'
+                          : 'Your workshop discount',
+                    detail: `On the whole path${savedText}`,
+                    countdown: timed,
+                  },
+            )
           : '';
       card.innerHTML = `
-        ${radioMark}
-        <div class="cc-offer-body">
-          <div class="cc-offer-name">${escapeHtml(offer.label)}</div>
-          ${badge}
-          <div class="cc-offer-path">
-            <div class="cc-offer-pathline">
-              <span class="cc-offer-pathline-name">12-Week Course</span>
-              <span class="cc-offer-pathline-amt">${twAmt}</span>
-            </div>
-            <div class="cc-offer-pathline">
-              <span class="cc-offer-pathline-name">Certification Course</span>
-              <span class="cc-offer-pathline-amt">${strikeCents(path.cert_base_price_cents, path.cert_price_cents, cur)}</span>
-            </div>
-            <div class="cc-offer-pathtotal">
-              <span class="cc-offer-pathtotal-label">Total</span>
-              <span class="cc-offer-pathtotal-amt">${strikeCents(path.base_total_cents, path.total_cents, cur)}</span>
+        ${deal}
+        <span class="cc-offer-main">
+          ${radioMark}
+          <div class="cc-offer-body">
+            <div class="cc-offer-name">${escapeHtml(offer.label)}</div>
+            <p class="cc-offer-save">${escapeHtml(offer.save_note)}</p>
+            <div class="cc-offer-path">
+              <div class="cc-offer-pathline">
+                <span class="cc-offer-pathline-name">12-Week Course</span>
+                <span class="cc-offer-pathline-amt">${twAmt}</span>
+              </div>
+              <div class="cc-offer-pathline">
+                <span class="cc-offer-pathline-name">Certification Course</span>
+                <span class="cc-offer-pathline-amt">${strikeCents(path.cert_base_price_cents, path.cert_price_cents, cur)}</span>
+              </div>
+              <div class="cc-offer-pathtotal">
+                <span class="cc-offer-pathtotal-label">Total</span>
+                <span class="cc-offer-pathtotal-amt">${strikeCents(path.base_total_cents, path.total_cents, cur)}</span>
+              </div>
             </div>
           </div>
-          ${countdown}
-          <p class="cc-offer-save">${escapeHtml(offer.save_note)}</p>
-        </div>
+        </span>
       `;
       return card;
     }
 
-    // With a discount, the "Your price" row stops being the prominent one —
-    // it gets struck through, and a new "After N% off" row takes the spotlight.
-    const yourRowClass = shownDiscountPct > 0 ? 'cc-offer-row' : 'cc-offer-row cc-offer-row--your';
-    const yourValueClass =
-      shownDiscountPct > 0 ? 'cc-offer-row-value cc-offer-strike' : 'cc-offer-row-value cc-offer-your';
-    const discountedRow =
-      shownDiscountPct > 0
-        ? `
-          <div class="cc-offer-row cc-offer-row--your">
-            <span class="cc-offer-row-label">After ${shownDiscountPct}% off</span>
-            <span class="cc-offer-row-value cc-offer-your">${moneyCents(
-              applyDiscountCents(offer.price_cents),
-              offer.currency,
-            )}</span>
-          </div>`
+    // The certification course on its own. With a link discount the band
+    // announces it, the standard price is struck, and "Your price" is the
+    // discounted one.
+    const discounted = shownDiscountPct > 0;
+    const nowCents = applyDiscountCents(offer.price_cents);
+    const deal =
+      discounted && !isFreeComp
+        ? dealHtml({
+            percent: shownDiscountPct,
+            title: 'Your discount',
+            detail: `You save ${moneyCents(offer.price_cents - nowCents, offer.currency)}`,
+          })
         : '';
+    const standardRow = discounted
+      ? `
+          <div class="cc-offer-row">
+            <span class="cc-offer-row-label">Standard price</span>
+            <span class="cc-offer-row-value cc-offer-strike">${money(offer.price, offer.currency)}</span>
+          </div>`
+      : '';
 
     // A separate struck "Base price" row only renders while a promo prices the
     // offer under its list (base > price) — with the mid-cohort discount
@@ -1550,19 +1609,22 @@ const countriesOther = COUNTRIES_OTHER;
           </div>`
         : '';
     card.innerHTML = `
-      ${radioMark}
-      <div class="cc-offer-body">
-        <div class="cc-offer-name">${escapeHtml(offer.label)}</div>
-        <div class="cc-offer-prices">
-          ${baseRow}
-          <div class="${yourRowClass}">
-            <span class="cc-offer-row-label">Your price</span>
-            <span class="${yourValueClass}">${money(offer.price, offer.currency)}</span>
+      ${deal}
+      <span class="cc-offer-main">
+        ${radioMark}
+        <div class="cc-offer-body">
+          <div class="cc-offer-name">${escapeHtml(offer.label)}</div>
+          <p class="cc-offer-save">${escapeHtml(offer.save_note)}</p>
+          <div class="cc-offer-prices">
+            ${baseRow}
+            ${standardRow}
+            <div class="cc-offer-row cc-offer-row--your">
+              <span class="cc-offer-row-label">Your price</span>
+              <span class="cc-offer-row-value">${moneyCents(nowCents, offer.currency)}</span>
+            </div>
           </div>
-          ${discountedRow}
         </div>
-        <p class="cc-offer-save">${escapeHtml(offer.save_note)}</p>
-      </div>
+      </span>
     `;
     return card;
   }
