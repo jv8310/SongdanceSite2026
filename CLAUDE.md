@@ -286,8 +286,11 @@ announcement follow.
   `docs/emails/forgiveness-paradox.broadcast.html` + `.txt`: three paradoxes, forgiveness
   *with* the body through the voice, Daniela, the four sessions ("sessions", never "evenings": many readers are in the US, where 19:00 Brussels is the afternoon or morning); its checkout links carry
   `{{ subscriber.email | url_encode }}` so the form arrives filled in. Send one of the two
-  site drafts, never both. The registration box on the page now reads "Not ready to
-  forgive? Come anyway." (it said only "Come anyway.").
+  site drafts, never both. The registration box on the page reads **"Ready or not, come as
+  you are."** (November 2026; it was "Not ready to forgive? Come anyway.", which shut out
+  the reader who *is* ready — Jacob). Run-up email #18 says the same; #19 ("Feel
+  unforgivable?") and #21 ("Still not ready?") keep their own lines on purpose. Its
+  checkout is the 12-week course's paper card (below).
 - **Who it is for** (November 2026, Jacob's notes): mostly women of 40–62 carrying a soul
   wound (rejection, abandonment, betrayal, humiliation, injustice; a life she feels trapped in;
   needs never met). The page's **Two doors in** (`FCDoors.astro`, after "Forgiveness is for
@@ -536,7 +539,10 @@ glass panel with monospace capitals for every label, which read as a settings sc
 discount was a 10px tag with the countdown a line under the total.
 
 - **Paired selectors**: every rule names both forms (`.cc-…` certification, `.tw-reg-…`
-  12-week), so a change to one is a change to both. The palette is the `--co-*` block at the
+  12-week), so a change to one is a change to both. The Forgiveness Course form (`FCRegister`) wears the
+  12-week form's `tw-reg-…` classes and imports the same stylesheet, so it follows too; only
+  its width and pay buttons are in `forgiveness.css`, and a `?discount=` link shows the same
+  band (no clock). The palette is the `--co-*` block at the
   top of that file; nothing in the card uses a colour outside it. The stylesheet is imported
   by the two components themselves. Only the pay buttons (`.cc-checkout-cta`, `.tw-reg-cta`)
   stay in the page stylesheets, since the thank-you pages use them on the dark ground.

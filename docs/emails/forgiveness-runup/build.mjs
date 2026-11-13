@@ -164,7 +164,7 @@ const emails = [
           p('What was never said is heard at last, by the one person who was there for all of it. You. And acknowledged things tend to leave on their own.', true),
         '40px 44px 0',
       ),
-      offer(n, `Not ready to forgive? ${paleEm('Come anyway.')}`, FACTS, 'Join the four sessions'),
+      offer(n, `Ready or not, ${paleEm('come as you are.')}`, FACTS, 'Join the four sessions'),
       signoff(n, `Can&rsquo;t be there live? Every session is recorded, the replay is up within a day, and the replays are yours for life. ${a(n, 'ps', 'See the four dates in your own time', 'schedule')}.`),
     ],
     text: (n) => `${HELLO}
@@ -193,7 +193,7 @@ They don't need to be in the room. They don't even need to be alive. And nobody 
 What was never said is heard at last, by the one person who was there for all of it. You. And acknowledged things tend to leave on their own.
 
 
-Not ready to forgive? Come anyway.
+Ready or not, come as you are.
 
 ${TEXT_FACTS}
 

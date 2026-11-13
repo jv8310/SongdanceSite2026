@@ -9,8 +9,10 @@
 
    Everything the two forms draw is styled here, once, on paired selectors
    (.cc-… is the certification form, .tw-reg-… the 12-week one), so the two can
-   not drift. The palette is the block of --co-* variables below: change it
-   there and every part follows. Loaded from the two components themselves.
+   not drift. The Forgiveness Course form (FCRegister) wears the 12-week
+   form's tw-reg-… classes, so it follows too. The palette is the block of
+   --co-* variables below: change it there and every part follows. Loaded from
+   the components themselves.
    ========================================================= */
 
 .cc-variant,
@@ -607,7 +609,8 @@
   font-family: var(--font-display); font-size: 20px; font-weight: 500; color: var(--co-ink);
   font-feature-settings: "tnum" 1, "lnum" 1; white-space: nowrap;
 }
-.cc-bump-was {
+.cc-bump-was,
+.tw-reg-bump-was {
   margin-right: 6px; font-size: 15px; font-weight: 400;
   color: var(--co-strike); text-decoration: line-through;
 }

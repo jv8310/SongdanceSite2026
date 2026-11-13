@@ -9,6 +9,7 @@
 // note.
 import { COUNTRIES, findCountry } from '../../lib/countries';
 import GuaranteeBadge from '../GuaranteeBadge.astro';
+import '../../styles/course-checkout.css';
 import { BUMP_ORDER, BUMPS, bumpOffer } from '../../lib/courses/bumps';
 import { formatMoney, type SupportedCurrency } from '../../lib/workshops/currency';
 import {
@@ -44,9 +45,9 @@ const save = (b: { price_cents: number; compare_at_cents: number | null }) =>
 <section class="fc-register" id="register">
   <div class="fc-register-inner">
     <div class="fc-eyebrow" style="justify-content: center;">{open ? 'Registrations now open' : 'Registration'}</div>
-    <h2 class="fc-register-h2">Not ready to forgive?<br /><em>Come anyway.</em></h2>
+    <h2 class="fc-register-h2">Ready or not,<br /><em>come as you are.</em></h2>
     <p class="fc-register-sub">
-      Four live evenings, {FORGIVENESS_DATES_LABEL}. The first begins {firstSession}.
+      Four live sessions, {FORGIVENESS_DATES_LABEL}. The first begins {firstSession}.
     </p>
     <ul class="fc-register-bullets">
       <li>4 live sessions on Zoom · {FORGIVENESS_SESSION_MINUTES / 60} hours each</li>
@@ -54,91 +55,97 @@ const save = (b: { price_cents: number; compare_at_cents: number | null }) =>
       <li>With Daniela Hess &amp; Jacob</li>
     </ul>
 
+    <!-- The 12-week course's paper card (course-checkout.css): this form wears
+         its tw-reg-… classes, so the three course checkouts share one look. -->
     {open ? (
-      <div class="fc-checkout">
-        <div class="fc-checkout-price">
-          <span class="fc-checkout-strike" data-fc-strike hidden></span>
-          <span class="fc-checkout-amount" data-fc-amount>{formatMoney(offer.price_cents, currency)}</span>
+      <div class="tw-reg-priced fc-checkout">
+        <!-- A ?discount= / ?adiscount= link: the percent across the head of the card. -->
+        <div class="tw-reg-deal" data-fc-deal hidden></div>
+
+        <div class="tw-reg-pricebox">
+          <span class="tw-reg-pricewas" data-fc-strike hidden></span>
+          <span class="tw-reg-pricenow" data-fc-amount>{formatMoney(offer.price_cents, currency)}</span>
+          <span class="tw-reg-pricenote">One payment · the four live sessions and their replays</span>
         </div>
-        <p class="fc-checkout-price-note">
-          One-time payment · the four sessions and their replays
-          <span class="fc-checkout-badge" data-fc-discount-badge hidden></span>
-        </p>
 
-        <form class="fc-fields" data-fc-form novalidate>
-          <label class="fc-field fc-field--half">
-            <span>First name</span>
-            <input type="text" name="first_name" autocomplete="given-name" required />
-          </label>
-          <label class="fc-field fc-field--half">
-            <span>Last name</span>
-            <input type="text" name="last_name" autocomplete="family-name" required />
-          </label>
-          <label class="fc-field">
-            <span>Email</span>
-            <input type="email" name="email" autocomplete="email" required />
-            <span class="fc-field-note">Your sessions and replays open in the Songdance app with this address.</span>
-          </label>
-          <label class="fc-field">
-            <span>Country</span>
-            <input
-              type="text"
-              name="country_search"
-              list="fc-country-list"
-              autocomplete="country-name"
-              placeholder="Start typing…"
-              value={prefill?.name ?? ''}
-              required
-            />
-            <input type="hidden" name="country" value={prefill?.code ?? ''} />
-            <span class="fc-field-note" data-fc-currency-note hidden></span>
-          </label>
-          <label class="fc-field">
-            <span>Company <span class="fc-field-note">— optional, for a business invoice</span></span>
-            <input type="text" name="company_name" autocomplete="organization" placeholder="Your company name" />
-          </label>
-          <label class="fc-field" data-fc-vat hidden>
-            <span>VAT number <span class="fc-field-note">— optional, for EU reverse-charge</span></span>
-            <input type="text" name="vat_number" autocomplete="off" placeholder="e.g. BE0123456789" />
-          </label>
+        <form data-fc-form novalidate>
+          <div class="tw-reg-steplabel">Your details</div>
+          <div class="tw-reg-fields">
+            <label class="tw-reg-field">
+              <span>First name</span>
+              <input type="text" name="first_name" autocomplete="given-name" required />
+            </label>
+            <label class="tw-reg-field">
+              <span>Last name</span>
+              <input type="text" name="last_name" autocomplete="family-name" required />
+            </label>
+            <label class="tw-reg-field tw-reg-field--full">
+              <span>Email</span>
+              <input type="email" name="email" autocomplete="email" required />
+              <span class="tw-reg-fieldnote fc-field-note">Your sessions and replays open in the Songdance app with this address.</span>
+            </label>
+            <label class="tw-reg-field tw-reg-field--full">
+              <span>Country</span>
+              <input
+                type="text"
+                name="country_search"
+                list="fc-country-list"
+                autocomplete="country-name"
+                placeholder="Start typing…"
+                value={prefill?.name ?? ''}
+                required
+              />
+              <input type="hidden" name="country" value={prefill?.code ?? ''} />
+              <span class="tw-reg-fieldnote fc-field-note" data-fc-currency-note hidden></span>
+            </label>
+            <label class="tw-reg-field tw-reg-field--full">
+              <span>Company <span class="tw-reg-fieldnote">— optional, for a business invoice</span></span>
+              <input type="text" name="company_name" autocomplete="organization" placeholder="Your company name" />
+            </label>
+            <label class="tw-reg-field tw-reg-field--full" data-fc-vat hidden>
+              <span>VAT number <span class="tw-reg-fieldnote">— optional, for EU reverse-charge</span></span>
+              <input type="text" name="vat_number" autocomplete="off" placeholder="e.g. BE0123456789" />
+            </label>
+          </div>
 
-          <div class="fc-bumps-wrap" data-fc-bumps-wrap>
-            <div class="fc-bumps-label">Add to your registration</div>
-            <div class="fc-bumps">
+          <div class="tw-reg-bumps-wrap" data-fc-bumps-wrap>
+            <div class="tw-reg-steplabel">Add to your registration</div>
+            <div class="tw-reg-bumps">
               {bumps.map((b) => (
-                <label class="fc-bump" data-fc-bump={b.slug}>
-                  <input type="checkbox" class="fc-bump-check" name="bump" value={b.slug} />
-                  <span class="fc-bump-box" aria-hidden="true"></span>
-                  <img class="fc-bump-thumb" src={b.image} alt="" loading="lazy" />
-                  <span class="fc-bump-body">
-                    <span class="fc-bump-head">
-                      <span class="fc-bump-title" data-fc-bump-title>{b.label}</span>
-                      <span class="fc-bump-price" data-fc-bump-price>
-                        {b.compare_at_cents && <s class="fc-bump-was">{formatMoney(b.compare_at_cents, currency)}</s>}{' '}
+                <label class="tw-reg-bump" data-fc-bump={b.slug}>
+                  <input type="checkbox" class="tw-reg-bump-check" name="bump" value={b.slug} />
+                  <span class="tw-reg-bump-box" aria-hidden="true"></span>
+                  <img class="tw-reg-bump-thumb" src={b.image} alt="" loading="lazy" />
+                  <span class="tw-reg-bump-body">
+                    <span class="tw-reg-bump-head">
+                      <span class="tw-reg-bump-title" data-fc-bump-title>{b.label}</span>
+                      <span class="tw-reg-bump-price" data-fc-bump-price>
+                        {b.compare_at_cents && <s class="tw-reg-bump-was">{formatMoney(b.compare_at_cents, currency)}</s>}{' '}
                         {formatMoney(b.price_cents, currency)}
-                        {save(b) > 0 && <span class="fc-bump-save">Save {save(b)}%</span>}
+                        {save(b) > 0 && <span class="tw-reg-bump-save">Save {save(b)}%</span>}
                       </span>
                     </span>
-                    <span class="fc-bump-points">
-                      {b.points.map((p) => <span class="fc-bump-point">{p}</span>)}
+                    <span class="tw-reg-bump-points">
+                      {b.points.map((p) => <span class="tw-reg-bump-point">{p}</span>)}
                     </span>
-                    <span class="fc-bump-blurb">{b.blurb}</span>
+                    <span class="tw-reg-bump-blurb">{b.blurb}</span>
                   </span>
                 </label>
               ))}
             </div>
           </div>
 
-          <label class="fc-consent">
+          <label class="tw-reg-consent">
             <input type="checkbox" name="consent_terms" required />
             <span>I agree to the <a href="/terms" target="_blank" rel="noopener">terms and conditions</a>.</span>
           </label>
 
-          <div class="fc-checkout-lines" data-fc-lines hidden></div>
-          <div class="fc-checkout-summary">
-            <span data-fc-summary-label>The Forgiveness Course</span>
-            <span class="fc-checkout-summary-amount" data-fc-summary>{formatMoney(offer.price_cents, currency)}</span>
+          <!-- The course alone, or course + add-ons + total. Rebuilt by render(). -->
+          <div class="tw-reg-summary" data-fc-summary>
+            <span class="tw-reg-summary-label">The Forgiveness Course</span>
+            <span class="tw-reg-summary-amount">{formatMoney(offer.price_cents, currency)}</span>
           </div>
+          <p class="co-nudge" data-fc-nudge hidden></p>
 
           <p class="fc-register-error" data-fc-error role="alert"></p>
 
@@ -181,6 +188,7 @@ const save = (b: { price_cents: number; compare_at_cents: number | null }) =>
   import { currencyForCountry, formatMoney, isSupportedCurrency, type SupportedCurrency } from '../../lib/workshops/currency';
   import { launchPromoPercent } from '../../lib/promo';
   import { postJsonResilient } from '../../lib/client/resilient-fetch';
+  import { dealHtml } from '../../lib/client/checkout-deal';
 
   const CURRENCY_LABEL: Record<SupportedCurrency, string> = {
     EUR: 'euros', USD: 'US dollars', GBP: 'pounds', CAD: 'Canadian dollars',
@@ -208,10 +216,9 @@ const save = (b: { price_cents: number; compare_at_cents: number | null }) =>
     const $ = <T extends HTMLElement>(sel: string) => document.querySelector<T>(sel)!;
     const amountEl = $('[data-fc-amount]');
     const strikeEl = $('[data-fc-strike]');
-    const badgeEl = $('[data-fc-discount-badge]');
+    const dealEl = $('[data-fc-deal]');
     const summaryEl = $('[data-fc-summary]');
-    const summaryLabelEl = $('[data-fc-summary-label]');
-    const linesEl = $('[data-fc-lines]');
+    const nudgeEl = $('[data-fc-nudge]');
     const currencyNoteEl = $('[data-fc-currency-note]');
     const bumpsWrap = $('[data-fc-bumps-wrap]');
     const countryInput = form.querySelector<HTMLInputElement>('[name="country_search"]')!;
@@ -244,12 +251,24 @@ const save = (b: { price_cents: number; compare_at_cents: number | null }) =>
       const base = FORGIVENESS_PRICE[currency] * 100;
       const course = pctOff(base);
       strikeEl.hidden = discountPct <= 0;
-      badgeEl.hidden = discountPct <= 0;
-      if (discountPct > 0) {
-        strikeEl.textContent = formatMoney(base, currency);
-        badgeEl.textContent = `${discountPct}% off`;
-      }
+      if (discountPct > 0) strikeEl.textContent = formatMoney(base, currency);
       amountEl.textContent = formatMoney(course, currency);
+
+      // A discount link: the band across the head of the card, and the saving
+      // again above the pay button. A complimentary place gets neither: the
+      // price reads 0 and there is nothing to save towards.
+      const showDeal = discountPct > 0 && !free;
+      dealEl.hidden = !showDeal;
+      nudgeEl.hidden = !showDeal;
+      if (showDeal) {
+        const saved = formatMoney(base - course, currency);
+        dealEl.innerHTML = dealHtml({
+          percent: discountPct,
+          title: 'Your discount',
+          detail: `On the Forgiveness Course · you save ${saved}`,
+        });
+        nudgeEl.innerHTML = `<i class="ph-light ph-sparkle" aria-hidden="true"></i>You save <strong>${saved}</strong> on the course.`;
+      }
 
       // A comp (?adiscount=100) carries no add-ons: there is nothing to charge.
       bumpsWrap.hidden = free || BUMP_ORDER.every((s) => owned.has(s));
@@ -260,36 +279,41 @@ const save = (b: { price_cents: number; compare_at_cents: number | null }) =>
         const o = bumpOffer(slug, currency);
         const pct = o.compare_at_cents ? Math.round((1 - o.price_cents / o.compare_at_cents) * 100) : 0;
         el.querySelector('[data-fc-bump-price]')!.innerHTML =
-          (o.compare_at_cents ? `<s class="fc-bump-was">${formatMoney(o.compare_at_cents, currency)}</s> ` : '') +
+          (o.compare_at_cents ? `<s class="tw-reg-bump-was">${formatMoney(o.compare_at_cents, currency)}</s> ` : '') +
           formatMoney(o.price_cents, currency) +
-          (pct > 0 ? ` <span class="fc-bump-save">Save ${pct}%</span>` : '');
-        el.classList.toggle('fc-bump--selected', !el.hidden && !!el.querySelector<HTMLInputElement>('input')?.checked);
+          (pct > 0 ? ` <span class="tw-reg-bump-save">Save ${pct}%</span>` : '');
+        el.classList.toggle('tw-reg-bump--selected', !el.hidden && !!el.querySelector<HTMLInputElement>('input')?.checked);
       }
       const ticked = free ? [] : tickedBumps();
       const bumpTotal = ticked.reduce((s, slug) => s + bumpOffer(slug, currency).price_cents, 0);
-      // With an add-on ticked, the order is listed line by line over the total.
-      linesEl.hidden = ticked.length === 0;
-      linesEl.replaceChildren();
-      if (ticked.length) {
-        const rows: Array<[string, number]> = [['The Forgiveness Course', course]];
+      // The course alone, or — with an add-on ticked — line by line over the total.
+      const span = (cls: string, text: string) => {
+        const el = document.createElement('span');
+        el.className = cls;
+        el.textContent = text;
+        return el;
+      };
+      summaryEl.replaceChildren();
+      summaryEl.classList.toggle('tw-reg-summary--items', ticked.length > 0);
+      if (!ticked.length) {
+        summaryEl.append(
+          span('tw-reg-summary-label', 'The Forgiveness Course'),
+          span('tw-reg-summary-amount', formatMoney(course, currency)),
+        );
+      } else {
+        const row = (cls: string, name: string, cents: number) => {
+          const r = document.createElement('div');
+          r.className = `tw-reg-sumrow ${cls}`.trim();
+          r.append(span('tw-reg-sumrow-label', name), span('tw-reg-sumrow-amt', formatMoney(cents, currency)));
+          summaryEl.appendChild(r);
+        };
+        row('', 'The Forgiveness Course', course);
         for (const slug of ticked) {
           const name = bumpEls.get(slug)?.querySelector('[data-fc-bump-title]')?.textContent?.trim() || 'Add-on';
-          rows.push([name, bumpOffer(slug, currency).price_cents]);
+          row('tw-reg-sumrow--bump', name, bumpOffer(slug, currency).price_cents);
         }
-        for (const [name, cents] of rows) {
-          const row = document.createElement('div');
-          row.className = 'fc-checkout-line';
-          const a = document.createElement('span');
-          a.textContent = name;
-          const b = document.createElement('span');
-          b.textContent = formatMoney(cents, currency);
-          row.appendChild(a);
-          row.appendChild(b);
-          linesEl.appendChild(row);
-        }
+        row('tw-reg-sumrow--total', 'Total', course + bumpTotal);
       }
-      summaryLabelEl.textContent = ticked.length ? 'Total' : 'The Forgiveness Course';
-      summaryEl.textContent = formatMoney(course + bumpTotal, currency);
 
       currencyNoteEl.hidden = currency === 'EUR';
       currencyNoteEl.textContent = currency === 'EUR' ? '' : `Shown and charged in ${CURRENCY_LABEL[currency]} (${currency}).`;
