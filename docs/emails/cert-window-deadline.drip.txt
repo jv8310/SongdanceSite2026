@@ -41,15 +41,17 @@ NEED MORE TIME? KEEP THE WINDOW OPEN
 
 Not ready yet? That's fine. There's no hurry in this work, and I'd rather you apply when the session in your video is truly yours.
 
-On the live pass page you can add "Extend my certification window" to a live pass. It does two things:
+On the live pass page, choose a live pass and tick "Extend my certification window". Together they do two things:
 
 - your Q&As and deepening sessions continue
 - your window to apply stays open for the months of the pass
 
-1 month: €52 + €10 for the extension (4 Q&As and 1 deepening session)
-3 months: €132 + €26 (12 Q&As and 3 deepening sessions)
-6 months: €234 + €46 (24 Q&As and 6 deepening sessions)
-(The page shows the price in your own currency.)
+The extension is an add-on to the pass: it costs 20% of the pass on top.
+
+1 month:  €62 in total (€52 pass + €10 extension): 4 Q&As and 1 deepening session, window open 1 month longer
+3 months: €158 in total (€132 pass + €26 extension): 12 Q&As and 3 deepening sessions, window open 3 months longer
+6 months: €280 in total (€234 pass + €46 extension): 24 Q&As and 6 deepening sessions, window open 6 months longer
+(Prices in euros; the page shows them in your own currency.)
 
 A pass bought now doesn't overlap with what you already have: it starts on 1 January, the day after your course's live sessions end. When it runs out, add another pass with the extension and it picks up where the last one ended. As many times as you need.
 
