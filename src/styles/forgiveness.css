@@ -1164,6 +1164,54 @@ html, body { background: var(--paper); }
    read alike. Only what is this form's own is styled here: its width, the pay
    buttons and the lines under them. */
 .tw-reg-priced.fc-checkout { max-width: 600px; }
+/* The offer at the head of the card: name and contents, price beside them. */
+.fc-offer {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  gap: var(--sp-3) var(--sp-5);
+  padding-bottom: var(--sp-5);
+  border-bottom: 1px solid var(--co-line);
+}
+.fc-offer-text { min-width: 0; flex: 1 1 auto; }
+.fc-offer-name {
+  margin: 0 0 6px;
+  font-family: var(--font-display); font-weight: 400;
+  font-size: clamp(26px, 3.4vw, 32px); line-height: 1.12; letter-spacing: -0.01em;
+  color: var(--co-ink);
+}
+.fc-offer-what {
+  margin: 0;
+  font-family: var(--font-body); font-size: 15.5px; line-height: 1.5;
+  color: var(--co-ink-quiet); text-wrap: pretty;
+}
+.fc-offer-price {
+  display: flex; flex-direction: column; align-items: flex-end; flex: none;
+  text-align: right;
+}
+.fc-offer-was {
+  font-family: var(--font-display); font-size: 20px; line-height: 1;
+  color: var(--co-strike);
+  text-decoration: line-through; text-decoration-thickness: 1px;
+  margin-bottom: 4px;
+}
+.fc-offer-was[hidden] { display: none; }
+.fc-offer-now {
+  font-family: var(--font-display); font-weight: 500;
+  font-size: clamp(40px, 6vw, 52px); line-height: 1; letter-spacing: -0.02em;
+  color: var(--co-ink); font-feature-settings: "tnum" 1, "lnum" 1;
+  white-space: nowrap;
+}
+.fc-offer-once {
+  margin-top: 6px;
+  font-family: var(--font-lyric); font-style: italic; font-size: 19px; line-height: 1;
+  color: var(--co-accent-ink);
+}
+@media (max-width: 460px) {
+  .fc-offer { flex-direction: column; align-items: flex-start; }
+  .fc-offer-price { flex-direction: row; align-items: baseline; gap: 10px; text-align: left; }
+  .fc-offer-was { margin-bottom: 0; }
+}
+/* The discount band sits flush on the card's head; the offer follows it. */
+.fc-checkout .tw-reg-deal + .fc-offer { margin-top: 0; }
 .fc-checkout .fc-field-note { font-size: 13.5px; line-height: 1.45; }
 .fc-checkout .fc-field-note[hidden] { display: none; }
 .fc-checkout .tw-reg-consent { margin-top: var(--sp-6); }

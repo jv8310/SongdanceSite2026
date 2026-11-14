@@ -62,10 +62,18 @@ const save = (b: { price_cents: number; compare_at_cents: number | null }) =>
         <!-- A ?discount= / ?adiscount= link: the percent across the head of the card. -->
         <div class="tw-reg-deal" data-fc-deal hidden></div>
 
-        <div class="tw-reg-pricebox">
-          <span class="tw-reg-pricewas" data-fc-strike hidden></span>
-          <span class="tw-reg-pricenow" data-fc-amount>{formatMoney(offer.price_cents, currency)}</span>
-          <span class="tw-reg-pricenote">One payment · the four live sessions and their replays</span>
+        <!-- What it is on the left, what it costs on the right: the offer as a
+             header, not a lone price in a box. -->
+        <div class="fc-offer">
+          <div class="fc-offer-text">
+            <p class="fc-offer-name">The Forgiveness Course</p>
+            <p class="fc-offer-what">Four live sessions on Zoom, {FORGIVENESS_DATES_LABEL}, and the replays for life.</p>
+          </div>
+          <div class="fc-offer-price">
+            <span class="fc-offer-was" data-fc-strike hidden></span>
+            <span class="fc-offer-now" data-fc-amount>{formatMoney(offer.price_cents, currency)}</span>
+            <span class="fc-offer-once">one payment</span>
+          </div>
         </div>
 
         <form data-fc-form novalidate>
