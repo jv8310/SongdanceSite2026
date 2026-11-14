@@ -10,9 +10,11 @@ Seeded as a draft by migrations/0099_cert_window_broadcast.sql; the plain-text p
 
 Hi {{ subscriber.first_name | default: "there" }},
 
-A date to put in your calendar: on 31 December 2026, two things in your Somatic Vocal Healing Certification course come to an end:
+A date to put in your calendar: on 31 December 2026, a few things in your Somatic Vocal Healing Certification course come to an end:
 
 - the live sessions: the weekly Q&As and the monthly deepening session
+- Practice Together, your sessions with fellow students
+- the SVH app: the Training Quiz and the SVH AI chat
 - your window to apply for certification
 
 If you want to become a certified practitioner, your application has to be in by 31 December. If that's too soon, you can keep the window open for as long as you need. Both are below.
@@ -35,16 +37,17 @@ You'll find five steps there, each on your own word. Tick each one when it's don
 
 Once all five are ticked, "Submit for certification" opens the application form. Send it before the end of 31 December. Within 90 days I'll send you personal feedback on your session and, if everything is in place, your certificate.
 
-One tip: the video usually takes the longest. Finding a client, a time, a quiet room. If you're planning to apply, book that session this week.
+One tip: the video usually takes the longest. Finding a client, a time, a quiet room. If you're planning to apply, book that session this week, and reach Level 3 in the quiz while the SVH app is still open to you.
 
 
 NEED MORE TIME? KEEP THE WINDOW OPEN
 
 Not ready yet? That's fine. There's no hurry in this work, and I'd rather you apply when the session in your video is truly yours.
 
-On the live pass page, choose a live pass and tick "Extend my certification window". Together they do two things:
+On the live pass page, choose a live pass and tick "Extend my certification window". With the two together:
 
 - your Q&As and deepening sessions continue
+- Practice Together and the SVH app stay open
 - your window to apply stays open for the months of the pass
 
 The extension is an add-on to the pass: it costs 20% of the pass on top.
