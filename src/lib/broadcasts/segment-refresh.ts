@@ -13,6 +13,9 @@
 //     asked of the app through APP_ADMIN by syncAppTags (app-tags.ts). Synced
 //     hourly too; at launch it makes the queue the app's answer of this minute.
 //     Only when the caller passes the env that carries the binding.
+//   • `cert:…` — the certification course's holders and when their window to
+//     apply closes (`cert:ends-2026`, …), computed here by syncCertTags
+//     (cert-tags.ts) from the same data as the Drip push. Hourly too.
 //
 // Gated to the tags a broadcast actually uses (Jacob's "IF these are used"): a
 // broadcast that references neither is a no-op, so an unrelated launch never
@@ -24,12 +27,14 @@ import { buildPastWorkshopSegment, PAST_WORKSHOP_SEGMENT_TAG } from '../contacts
 import { syncInDripTag, IN_DRIP_TAG } from '../contacts/mirror';
 import { logEventSafe } from '../registrations/db';
 import { syncAppTags, usesAppTags, type AppTagSyncResult } from './app-tags';
+import { syncCertTags, usesCertTags, type CertTagSyncResult } from './cert-tags';
 
 export type SegmentRefreshResult = {
   // Rows newly tagged this run (undefined if that refresher didn't apply).
   segmentAdded?: number; // workshop-passed-nonbuyer
   inDripAdded?: number; // in-drip
   appTags?: AppTagSyncResult; // app:… (the app's answer, or why there was none)
+  certTags?: CertTagSyncResult; // cert:… (never throws: a failure is its answer)
 };
 
 // `tags` is the normalized (lowercased, trimmed) set of a broadcast's include +
@@ -46,6 +51,10 @@ export async function refreshBroadcastSegments(
   // the last sync left them.
   if (app && usesAppTags(tags)) {
     out.appTags = await syncAppTags({ DB: db, APP_ADMIN: app.APP_ADMIN });
+  }
+
+  if (usesCertTags(tags)) {
+    out.certTags = await syncCertTags(db);
   }
 
   if (tags.has(PAST_WORKSHOP_SEGMENT_TAG)) {

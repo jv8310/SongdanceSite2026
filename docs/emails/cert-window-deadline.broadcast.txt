@@ -1,0 +1,73 @@
+SUBJECT: Your certification window closes on 31 December
+(alt: "Apply for certification by 31 December, or take the time you need")
+PREHEADER: Seven weeks to send your application, and the way to keep the door open for as long as you need.
+
+AUDIENCE (site broadcast): include cert:ends-2026; exclude cert:no-certification (the CEEE 2025 cohort, who may not apply) and app:certified (already certified).
+From: Jacob · Reply-to: support@songdance.co
+Seeded as a draft by migrations/0099_cert_window_broadcast.sql; the plain-text part is everything below the --- line.
+
+---
+
+Hi {{ subscriber.first_name | default: "there" }},
+
+A date to put in your calendar: on 31 December 2026, two things in your Somatic Vocal Healing Certification course come to an end:
+
+- the live sessions: the weekly Q&As and the monthly deepening session
+- your window to apply for certification
+
+If you want to become a certified practitioner, your application has to be in by 31 December. If that's too soon, you can keep the window open for as long as you need. Both are below.
+
+If you've already sent your application: thank you. There is nothing more to do: I will review your video, and you will hear from me within 90 days of sending it.
+
+
+APPLYING BEFORE 31 DECEMBER
+
+Everything is in the CiRCLE app. Open the certification course and press "Apply for certification":
+https://circle.songdance.co/certification
+
+You'll find five steps there, each on your own word. Tick each one when it's done:
+
+1. Watch all the classes, live or as replays.
+2. Practise at least 3 times with fellow students (under Practice in the app).
+3. View at least 6 Q&A sessions, live or as replays.
+4. Reach Level 3 in the Training Quiz.
+5. Record a session you lead with a client: 30 minutes at most, on Zoom or in person, with someone who isn't a student of the course.
+
+Once all five are ticked, "Submit for certification" opens the application form. Send it before the end of 31 December. Within 90 days I'll send you personal feedback on your session and, if everything is in place, your certificate.
+
+One tip: the video usually takes the longest. Finding a client, a time, a quiet room. If you're planning to apply, book that session this week.
+
+
+NEED MORE TIME? KEEP THE WINDOW OPEN
+
+Not ready yet? That's fine. There's no hurry in this work, and I'd rather you apply when the session in your video is truly yours.
+
+On the live pass page, choose a live pass and tick "Extend my certification window". Together they do two things:
+
+- your Q&As and deepening sessions continue
+- your window to apply stays open for the months of the pass
+
+The extension is an add-on to the pass: it costs 20% of the pass on top.
+
+1 month:  €62 in total (€52 pass + €10 extension): 4 Q&As and 1 deepening session, window open 1 month longer
+3 months: €158 in total (€132 pass + €26 extension): 12 Q&As and 3 deepening sessions, window open 3 months longer
+6 months: €280 in total (€234 pass + €46 extension): 24 Q&As and 6 deepening sessions, window open 6 months longer
+(Prices in euros; the page shows them in your own currency.)
+
+A pass bought now doesn't overlap with what you already have: it starts on 1 January, the day after your course's live sessions end. When it runs out, add another pass with the extension and it picks up where the last one ended. As many times as you need.
+
+Extend my certification window:
+https://songdance.co/courses/live-pass?{{prefill}}&extend=1&utm_source=broadcast&utm_medium=email&utm_campaign=cert_window_2026&utm_content=text
+
+(The link fills in your address, so the page knows you're a certification student and shows the extension already ticked.)
+
+You can extend after 31 December too, and the window opens again. Buying before then just means your Q&As carry on without a break.
+
+Questions about where you stand? Reply to this email and we'll look it up for you.
+
+With warmth,
+Jacob
+
+---
+Not for you? Unsubscribe: {{ unsubscribe_url }}
+Songdance BV, Beaupréstraat 13, 8310 Bruges, Belgium
