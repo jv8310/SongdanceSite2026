@@ -1,4 +1,4 @@
-// Zoom for the individual sessions — one meeting of its own per booking,
+// Zoom for the private sessions — one meeting of its own per booking,
 // through a Zoom "Server-to-Server OAuth" app on Jacob's Zoom account.
 //
 // Setup (Zoom side, once): marketplace.zoom.us → Develop → Build App →

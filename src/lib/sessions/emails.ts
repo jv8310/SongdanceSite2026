@@ -79,10 +79,10 @@ export function sessionConfirmedEmail(ctx: SessionEmailCtx): EmailContent {
   const z = zoomBlock(ctx);
   const mv = moveLine(ctx);
   const html = shell({
-    preheader: `Your individual session with Jacob — ${ctx.whenLocal}`,
+    preheader: `Your private session with Jacob — ${ctx.whenLocal}`,
     heading: 'Your session is booked',
     bodyHtml: `${p(greeting(ctx.name))}
-      ${p('Thank you — your individual session with Jacob is booked.')}
+      ${p('Thank you — your private session with Jacob is booked.')}
       ${when(ctx.whenLocal)}
       <p style="margin:0 0 14px;color:${PALETTE.soft};">${ctx.durationMin} minutes, one to one, on Zoom.</p>
       ${z.html}
@@ -94,12 +94,12 @@ export function sessionConfirmedEmail(ctx: SessionEmailCtx): EmailContent {
       <p style="margin:0;">We will send a reminder the day before and an hour before, each with the link.</p>`,
     cta: { label: 'Open my booking page', href: ctx.manageUrl },
     extras: calendarExtras(ctx),
-    footerNote: 'Your individual session with Jacob · Songdance',
+    footerNote: 'Your private session with Jacob · Songdance',
   });
   return {
     subject: `Your session with Jacob is booked — ${ctx.whenLocal}`,
     html,
-    text: `${textGreeting(ctx.name)}\n\nThank you — your individual session with Jacob is booked.\n\nWhen: ${ctx.whenLocal}\n${ctx.durationMin} minutes, one to one, on Zoom.\n\n${z.text}\n\nWhat happens: Jacob holds the space; you bring what is there today. A few words to arrive, then sounding — at your pace, as soft as you like.\n\n${PREPARE_TEXT}\n\n${mv.text}\n\nYour booking page: ${ctx.manageUrl}\nAdd to Google Calendar: ${ctx.googleCalUrl}\nApple / Outlook (.ics): ${ctx.icsUrl}\n\nWe will send a reminder the day before and an hour before, each with the link.\n\nWarmly,\nJacob`,
+    text: `${textGreeting(ctx.name)}\n\nThank you — your private session with Jacob is booked.\n\nWhen: ${ctx.whenLocal}\n${ctx.durationMin} minutes, one to one, on Zoom.\n\n${z.text}\n\nWhat happens: Jacob holds the space; you bring what is there today. A few words to arrive, then sounding — at your pace, as soft as you like.\n\n${PREPARE_TEXT}\n\n${mv.text}\n\nYour booking page: ${ctx.manageUrl}\nAdd to Google Calendar: ${ctx.googleCalUrl}\nApple / Outlook (.ics): ${ctx.icsUrl}\n\nWe will send a reminder the day before and an hour before, each with the link.\n\nWarmly,\nJacob`,
   };
 }
 
@@ -112,7 +112,7 @@ export function sessionReminderEmail(kind: '24h' | '1h', ctx: SessionEmailCtx): 
     preheader: `Your session with Jacob is ${lead} — ${ctx.whenLocal}`,
     heading: soon ? 'Your session starts in an hour' : 'Your session is tomorrow',
     bodyHtml: `${p(greeting(ctx.name))}
-      ${p(`Your individual session with Jacob is ${lead}:`)}
+      ${p(`Your private session with Jacob is ${lead}:`)}
       ${when(ctx.whenLocal)}
       <p style="margin:0 0 14px;color:${PALETTE.soft};">${ctx.durationMin} minutes, on Zoom.</p>
       ${z.html}
@@ -120,12 +120,12 @@ export function sessionReminderEmail(kind: '24h' | '1h', ctx: SessionEmailCtx): 
       ${soon ? '' : moveLine(ctx).html}`,
     cta: ctx.joinUrl ? { label: 'Join on Zoom', href: ctx.joinUrl } : { label: 'Open my booking page', href: ctx.manageUrl },
     extras: ctx.joinUrl ? [{ label: 'My booking page', href: ctx.manageUrl }, ...(soon ? [] : calendarExtras(ctx))] : calendarExtras(ctx),
-    footerNote: 'Your individual session with Jacob · Songdance',
+    footerNote: 'Your private session with Jacob · Songdance',
   });
   return {
     subject: soon ? `In an hour: your session with Jacob` : `Tomorrow: your session with Jacob — ${ctx.whenLocal}`,
     html,
-    text: `${textGreeting(ctx.name)}\n\nYour individual session with Jacob is ${lead}:\n${ctx.whenLocal} (${ctx.durationMin} minutes, on Zoom)\n\n${z.text}\n\n${soon ? 'A few minutes early is perfect: Jacob lets you in from the waiting room when it begins.' : `${PREPARE_TEXT}\n\n${moveLine(ctx).text}`}\n\nYour booking page: ${ctx.manageUrl}\n\nWarmly,\nJacob`,
+    text: `${textGreeting(ctx.name)}\n\nYour private session with Jacob is ${lead}:\n${ctx.whenLocal} (${ctx.durationMin} minutes, on Zoom)\n\n${z.text}\n\n${soon ? 'A few minutes early is perfect: Jacob lets you in from the waiting room when it begins.' : `${PREPARE_TEXT}\n\n${moveLine(ctx).text}`}\n\nYour booking page: ${ctx.manageUrl}\n\nWarmly,\nJacob`,
   };
 }
 
@@ -136,7 +136,7 @@ export function sessionMovedEmail(ctx: SessionEmailCtx & { previousLocal: string
     preheader: `Your session with Jacob is now on ${ctx.whenLocal}`,
     heading: 'Your session has moved',
     bodyHtml: `${p(greeting(ctx.name))}
-      ${p('Your individual session with Jacob is now on:')}
+      ${p('Your private session with Jacob is now on:')}
       ${when(ctx.whenLocal)}
       <p style="margin:0 0 14px;color:${PALETTE.soft};">instead of ${escapeHtml(ctx.previousLocal)}.</p>
       ${z.html}
@@ -144,12 +144,12 @@ export function sessionMovedEmail(ctx: SessionEmailCtx & { previousLocal: string
       ${moveLine(ctx).html}`,
     cta: { label: 'Open my booking page', href: ctx.manageUrl },
     extras: calendarExtras(ctx),
-    footerNote: 'Your individual session with Jacob · Songdance',
+    footerNote: 'Your private session with Jacob · Songdance',
   });
   return {
     subject: `Your session with Jacob has moved — ${ctx.whenLocal}`,
     html,
-    text: `${textGreeting(ctx.name)}\n\nYour individual session with Jacob is now on:\n${ctx.whenLocal}\ninstead of ${ctx.previousLocal}.\n\n${z.text}\n\nThe calendar entry you may have saved still shows the old time.\nAdd to Google Calendar: ${ctx.googleCalUrl}\nApple / Outlook (.ics): ${ctx.icsUrl}\n\n${moveLine(ctx).text}\n\nYour booking page: ${ctx.manageUrl}\n\nWarmly,\nJacob`,
+    text: `${textGreeting(ctx.name)}\n\nYour private session with Jacob is now on:\n${ctx.whenLocal}\ninstead of ${ctx.previousLocal}.\n\n${z.text}\n\nThe calendar entry you may have saved still shows the old time.\nAdd to Google Calendar: ${ctx.googleCalUrl}\nApple / Outlook (.ics): ${ctx.icsUrl}\n\n${moveLine(ctx).text}\n\nYour booking page: ${ctx.manageUrl}\n\nWarmly,\nJacob`,
   };
 }
 
@@ -160,7 +160,7 @@ export function sessionCancelledEmail(ctx: { name?: string | null; whenLocal: st
     preheader: `Your session with Jacob on ${ctx.whenLocal} is cancelled`,
     heading: 'Your session is cancelled',
     bodyHtml: `${p(greeting(ctx.name))}
-      ${p('Your individual session with Jacob on')}
+      ${p('Your private session with Jacob on')}
       ${when(ctx.whenLocal)}
       ${p('is cancelled.')}
       ${msg ? `<p style="margin:0 0 14px;white-space:pre-line;">${escapeHtml(msg)}</p>` : ''}
@@ -170,7 +170,7 @@ export function sessionCancelledEmail(ctx: { name?: string | null; whenLocal: st
   return {
     subject: `Your session with Jacob on ${ctx.whenLocal} is cancelled`,
     html,
-    text: `${textGreeting(ctx.name)}\n\nYour individual session with Jacob on ${ctx.whenLocal} is cancelled.\n${msg ? `\n${msg}\n` : ''}\nQuestions? Just reply to this email — a person reads it.\n\nWarmly,\nJacob`,
+    text: `${textGreeting(ctx.name)}\n\nYour private session with Jacob on ${ctx.whenLocal} is cancelled.\n${msg ? `\n${msg}\n` : ''}\nQuestions? Just reply to this email — a person reads it.\n\nWarmly,\nJacob`,
   };
 }
 
@@ -180,7 +180,7 @@ export function sessionConflictEmail(ctx: { name?: string | null; whenLocal: str
     preheader: 'Your payment came through — we will find your moment with you',
     heading: 'Your payment came through',
     bodyHtml: `${p(greeting(ctx.name))}
-      ${p('Thank you — your payment for an individual session with Jacob came through.')}
+      ${p('Thank you — your payment for an private session with Jacob came through.')}
       ${p(`The moment you chose, <strong>${escapeHtml(ctx.whenLocal)}</strong>, was taken by someone else while you were paying. Nothing is lost: we will write to you within a day to find another time that suits you — or refund you in full, if you prefer.`)}
       ${p('You can also reply to this email straight away with a few moments that work for you.')}`,
     footerNote: 'Songdance · songdance.co',
@@ -188,7 +188,7 @@ export function sessionConflictEmail(ctx: { name?: string | null; whenLocal: str
   return {
     subject: 'Your session with Jacob — we will find your moment with you',
     html,
-    text: `${textGreeting(ctx.name)}\n\nThank you — your payment for an individual session with Jacob came through.\n\nThe moment you chose, ${ctx.whenLocal}, was taken by someone else while you were paying. Nothing is lost: we will write to you within a day to find another time that suits you — or refund you in full, if you prefer.\n\nYou can also reply to this email straight away with a few moments that work for you.\n\nWarmly,\nJacob`,
+    text: `${textGreeting(ctx.name)}\n\nThank you — your payment for an private session with Jacob came through.\n\nThe moment you chose, ${ctx.whenLocal}, was taken by someone else while you were paying. Nothing is lost: we will write to you within a day to find another time that suits you — or refund you in full, if you prefer.\n\nYou can also reply to this email straight away with a few moments that work for you.\n\nWarmly,\nJacob`,
   };
 }
 
@@ -204,7 +204,7 @@ export function sessionInternalEmail(input: {
   <div style="max-width:600px;margin:0 auto;background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:22px 26px;">
     <h1 style="margin:0 0 14px;font-size:18px;color:#111827;">${escapeHtml(input.subject)}</h1>
     ${rows}
-    <p style="margin:18px 0 0;"><a href="${input.adminUrl}" style="display:inline-block;padding:11px 18px;background:#c2410c;color:#fff;text-decoration:none;border-radius:8px;font-size:14px;">Open individual sessions in admin →</a></p>
+    <p style="margin:18px 0 0;"><a href="${input.adminUrl}" style="display:inline-block;padding:11px 18px;background:#c2410c;color:#fff;text-decoration:none;border-radius:8px;font-size:14px;">Open private sessions in admin →</a></p>
   </div>
 </body></html>`;
   return { subject: input.subject, html, text: [input.subject, '', ...input.lines, '', input.adminUrl].join('\n') };

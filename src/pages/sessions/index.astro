@@ -13,7 +13,7 @@ import { edgeCountry, edgeTimezone } from '../../lib/geo';
 
 export const prerender = false;
 
-// Individual sessions with Jacob — the booking page.
+// Private sessions with Jacob — the booking page.
 //
 // The free moments come from Jacob's Google Calendar: every event titled
 // "Boekingen" (the title is a setting on /admin/sessions) is a window, cut into
@@ -67,11 +67,22 @@ const widget = {
   serverTz: edgeTimezone(Astro.locals) ?? 'Europe/Brussels',
 };
 const moveHours = settings.rescheduleHours;
+
+// "Fifty minutes" reads warmer than "50 minutes" in running text; the length is
+// a setting, so the word follows it (digits for a length not in the list).
+const MINUTE_WORDS: Record<number, string> = {
+  30: 'thirty', 40: 'forty', 45: 'forty-five', 50: 'fifty', 55: 'fifty-five',
+  60: 'sixty', 75: 'seventy-five', 90: 'ninety',
+};
+const minutesWord = MINUTE_WORDS[settings.durationMin] ?? String(settings.durationMin);
+const MinutesWord = minutesWord.charAt(0).toUpperCase() + minutesWord.slice(1);
+const metaPrice = open ? sessionPriceLabel(settings.priceEurCents, 'EUR') : null;
+const metaDescription = `Private Somatic Vocal Healing sessions with Jacob on Zoom. ${MinutesWord} minutes${metaPrice ? `, ${metaPrice}` : ''}. He holds the space; you give sound to what is there.`;
 ---
 
 <SiteLayout
-  title="Individual sessions with Jacob — Songdance"
-  description={`One to one with Jacob on Zoom: ${settings.durationMin} minutes in which he holds the space and you sound what is there.`}
+  title="Private sessions with Jacob — Somatic Vocal Healing | Songdance"
+  description={metaDescription}
   image="https://songdance.co/media/library/jacob-soft-portrait.webp"
   imageAlt="Jacob, smiling"
 >
@@ -84,14 +95,14 @@ const moveHours = settings.rescheduleHours;
 
     <section class="ss-hero sd-section">
       <div class="ss-hero-text">
-        <div class="sd-eyebrow">Individual sessions</div>
+        <div class="sd-eyebrow">Private sessions</div>
         <h1 class="ss-title">One to one, <em>with Jacob</em></h1>
         <p class="ss-lede">
-          {settings.durationMin} minutes on Zoom, just the two of you. Jacob holds the space; you bring what is there today — and give it a sound.
+          Just the two of you. You bring what is there today; Jacob holds the space while you give it sound.
         </p>
         <ul class="ss-facts">
           <li><i class="ph-light ph-clock"></i> {settings.durationMin} minutes, live on Zoom</li>
-          <li><i class="ph-light ph-calendar-check"></i> Pick a moment below, on your own clock</li>
+          <li><i class="ph-light ph-calendar-check"></i> Times shown on your own clock</li>
           {priceLabel && <li><i class="ph-light ph-tag"></i> <span data-price-current>{priceLabel}</span> per session</li>}
         </ul>
         {open && <a class="sd-btn sd-btn-primary ss-cta" href="#book">Choose a moment <i class="ph-light ph-arrow-down"></i></a>}
@@ -105,19 +116,45 @@ const moveHours = settings.rescheduleHours;
       <div class="ss-prose-inner">
         <h2 class="ss-h2">What a session is</h2>
         <p>
-          We begin where you are. A few words to arrive, then the practice itself: one breath in, one tone out — the sound <em>of</em> what is there. Jacob listens, asks the next honest question, and keeps the room steady while you do the one thing only you can do.
+          We begin where you are. A few words to arrive, then the practice itself: one breath in, one tone out — the sound <em>of</em> what is there.
         </p>
         <p>
-          Nothing is pushed. Your rhythm, your tempo; volume is a dial, not a dare, and soft counts. What comes is met with acknowledgment — heard, not fixed.
+          Jacob listens and asks the next question. The question shapes the sound, so he takes his time with it. Whatever he offers is an offer: if it doesn't fit, leave it. You are the one who knows.
+        </p>
+        <p>
+          Nothing is pushed. Your rhythm, your tempo. Soft counts — volume is a dial, not a dare. What comes is met with acknowledgment: heard, not fixed.
         </p>
         <p class="ss-quote">“You are the healer, and you are the healed.”</p>
+
+        <h2 class="ss-h2">How {minutesWord} minutes usually go</h2>
+        <ol class="ss-steps">
+          <li><strong>Arriving.</strong> A breath, and the sound of the moment: how you are right now, in sound.</li>
+          <li><strong>Your intention, in words and in sound.</strong> Sometimes the two agree. Sometimes the sound points somewhere deeper, and then we follow the sound.</li>
+          <li><strong>Following what is there.</strong> One question, one breath, one sound at a time. If something is too big, we make it smaller, not louder.</li>
+          <li><strong>Landing.</strong> A few minutes to hear what came, and often one small practice to take with you.</li>
+        </ol>
+        <p class="ss-aside">That's the usual shape. If something else is more alive on the day, we go there.</p>
+
         <h2 class="ss-h2">Who it is for</h2>
         <p>
-          For anyone who would like to be met one to one — whether you have sounded with us in a workshop or never made a sound on purpose. You don't need a good voice; you need an honest one.
+          For anyone who would like to be met one to one — whether you've sounded with us in a workshop or never made a sound on purpose. You don't need a good voice; you need an honest one.
         </p>
+        <p>You might come with:</p>
+        <ul class="ss-list">
+          <li>something you've carried a long time and never said out loud</li>
+          <li>a loss, a decision, or a relationship that keeps asking for attention</li>
+          <li>something that opened in a workshop and wants more room than a group can give</li>
+          <li>a wish to feel the work from the receiving side, if you hold space for others yourself</li>
+        </ul>
         <p class="ss-small">
-          Honest small print: this is not therapy, and it doesn't replace it. Don't expect miracles — expect a real relationship with your own voice.
+          <strong>Honest small print:</strong> this is not therapy, and it doesn't replace it. Don't expect miracles. Expect {minutesWord} honest minutes with your own voice.
         </p>
+
+        <h2 class="ss-h2">With Jacob</h2>
+        <p>
+          Jacob Vermeulen is the founder of Somatic Vocal Healing: a pianist, singer and composer who has taught for over a decade. He holds the space; he isn't the healer. The sound, and whatever it moves, is yours.
+        </p>
+        <p><a class="ss-more" href="/about">More about Jacob →</a></p>
       </div>
     </section>
 
@@ -146,7 +183,7 @@ const moveHours = settings.rescheduleHours;
             </div>
 
             <p class="ss-empty" data-empty hidden>
-              All moments are taken right now. New ones are added regularly — please look again soon, or write to <a href="mailto:support@songdance.co">support@songdance.co</a>.
+              All moments are taken for now. New ones open regularly — look again soon, or write to <a href="mailto:support@songdance.co">support@songdance.co</a>.
             </p>
 
             <div class="ss-days" data-days role="tablist" aria-label="Days with free moments"></div>
@@ -190,7 +227,7 @@ const moveHours = settings.rescheduleHours;
                   <button type="submit" class="sd-btn ss-paypal" data-submit data-provider="paypal" disabled={!open}>Pay with PayPal</button>
                 )}
               </div>
-              <p class="ss-small">Charged in your local currency — the price follows your country. Your moment is kept for you while you pay.</p>
+              <p class="ss-small">The price adjusts to your country and is charged in your local currency. Your moment is held for you while you pay.</p>
               <p class="ss-error" role="alert" data-error hidden></p>
             </form>
             <datalist id="ss-country-list">
@@ -212,6 +249,15 @@ const moveHours = settings.rescheduleHours;
         <details class="sd-faq-item"><summary>Do I need any experience?</summary>
           <p>None. No skill, no warm-up, no good voice. If you've never made a sound on purpose, that's a fine place to begin.</p>
         </details>
+        <details class="sd-faq-item"><summary>What if no sound comes?</summary>
+          <p>Then we start smaller. A hum is a sound. You can't do this wrong: whatever comes is expressing something.</p>
+        </details>
+        <details class="sd-faq-item"><summary>What if it gets intense?</summary>
+          <p>Then we make it smaller, not louder. You sound the energy of a feeling from where you sit now; you don't have to go back into it. Jacob keeps the pace with you, and you can pause whenever you need.</p>
+        </details>
+        <details class="sd-faq-item"><summary>How many sessions will I need?</summary>
+          <p>There's no package and no plan to sign up for. One session is a complete thing. If a process has started that's worth continuing, Jacob may say so. Whether and when you book again stays your choice.</p>
+        </details>
         <details class="sd-faq-item"><summary>Can I move my session?</summary>
           <p>{moveHours > 0
             ? `Yes — from the link in your confirmation email, until ${moveHours} hours before it begins. After that, reply to the email and we'll see what's possible.`
@@ -221,7 +267,7 @@ const moveHours = settings.rescheduleHours;
           <p>No. What happens in the session stays between you and Jacob.</p>
         </details>
         <details class="sd-faq-item"><summary>Is this therapy?</summary>
-          <p>No. Somatic Vocal Healing is not therapy and doesn't replace it. When the healing work runs deep, good support on an ongoing basis matters — this can be one part of it.</p>
+          <p>No. Somatic Vocal Healing is not therapy and doesn't replace it. If you're going through something heavy, ongoing support from a therapist or doctor matters. A session can sit alongside that, not instead of it.</p>
         </details>
         </div>
       </div>

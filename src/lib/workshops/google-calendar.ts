@@ -120,7 +120,7 @@ export async function getAccessToken(cfg: GoogleCalConfig, scope?: string): Prom
 
 // ── Interactive OAuth (admin "Connect" flow) ──────────────────────────────
 
-// Asks for writing events too (November 2026): a booked individual session is
+// Asks for writing events too (November 2026): a booked private session is
 // written into the calendar. A refresh token connected before keeps read-only
 // access until Settings → Calendar sync → Connect is pressed again; until then
 // bookings still work and the admin is told the calendar was not written.

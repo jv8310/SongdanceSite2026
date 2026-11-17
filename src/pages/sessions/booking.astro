@@ -13,7 +13,7 @@ import { formatInTz } from '../../lib/workshops/time';
 
 export const prerender = false;
 
-// The client's own page for their individual session, from the signed link in
+// The client's own page for their private session, from the signed link in
 // every email (/sessions/booking?t=<id>.<sig>, src/lib/sessions/link.ts). It is
 // also where the payment page returns to (?welcome=1). Shows the time on their
 // clock, the Zoom link, the calendar files, and — until the move window closes
@@ -59,7 +59,7 @@ const gcalUrl = b
 const first = (b?.first_name ?? '').trim();
 ---
 
-<SiteLayout title="Your session with Jacob — Songdance" description="Your individual session with Jacob." newsletter={false} promo={false}>
+<SiteLayout title="Your session with Jacob — Songdance" description="Your private session with Jacob." newsletter={false} promo={false}>
   <main class="ss">
     <section class="ss-book sd-section">
       <div class="ss-book-inner ss-mine">
@@ -70,7 +70,7 @@ const first = (b?.first_name ?? '').trim();
           </>
         ) : confirming ? (
           <>
-            <div class="sd-eyebrow">Individual session</div>
+            <div class="sd-eyebrow">Private session</div>
             <h1 class="ss-h2">Thank you{first ? `, ${first}` : ''} — confirming your payment…</h1>
             <p class="ss-lede">This takes a few seconds. Your moment, <strong>{whenLocal}</strong>, is kept for you. The page looks again by itself, and your confirmation email is on its way.</p>
             <meta http-equiv="refresh" content="4" />
@@ -82,7 +82,7 @@ const first = (b?.first_name ?? '').trim();
           </>
         ) : b.status === 'conflict' ? (
           <>
-            <div class="sd-eyebrow">Individual session</div>
+            <div class="sd-eyebrow">Private session</div>
             <h1 class="ss-h2">Your payment came through</h1>
             <p class="ss-note">The moment you chose, {whenLocal}, was taken while you were paying. Nothing is lost — we will write to you within a day to find another time, or refund you in full if you prefer. You can also simply reply to the email we sent.</p>
           </>
@@ -93,7 +93,7 @@ const first = (b?.first_name ?? '').trim();
           </>
         ) : (
           <>
-            <div class="sd-eyebrow">Individual session</div>
+            <div class="sd-eyebrow">Private session</div>
             <h1 class="ss-h2">{past ? 'Your session has taken place' : welcome ? `Thank you${first ? `, ${first}` : ''} — your session is booked` : `Your session${first ? `, ${first}` : ''}`}</h1>
             {movedParam && <p class="ss-note">Done — your session has moved. A confirmation is on its way to your inbox.</p>}
 

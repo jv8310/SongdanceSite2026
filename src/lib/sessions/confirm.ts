@@ -54,7 +54,7 @@ export type SessionEnv = ZoomEnv & {
   GOOGLE_CALENDAR_ID?: string;
 };
 
-export const SESSION_EMAIL_TITLE = 'Individual session with Jacob';
+export const SESSION_EMAIL_TITLE = 'Private session with Jacob';
 export const baseUrlOf = (env: { PUBLIC_BASE_URL?: string }) =>
   (env.PUBLIC_BASE_URL ?? 'https://songdance.co').replace(/\/+$/, '');
 export const adminSessionsUrl = (env: { PUBLIC_BASE_URL?: string }) => `${baseUrlOf(env)}/admin/sessions`;
@@ -156,7 +156,7 @@ export async function ensureMeeting(env: SessionEnv, b: SessionBooking, settings
 // ── The calendar entry ──────────────────────────────────────────────────────
 export function calendarEventFor(env: SessionEnv, b: SessionBooking): SessionCalendarEvent {
   const lines = [
-    `Individual session (Songdance) with ${bookingName(b)}`,
+    `Private session (Songdance) with ${bookingName(b)}`,
     `Email: ${b.email}`,
     b.timezone ? `Their clock: ${formatInTz(b.starts_at_utc, b.timezone)}` : '',
     b.note ? `\nWhat brings them:\n${b.note}` : '',
@@ -276,7 +276,7 @@ export async function confirmSessionBooking(
       });
       if (sent) {
         await sendInternal(env, `SD-SESSION: moment taken — ${bookingName(b)} paid for ${brusselsWhen(b.starts_at_utc)}`, [
-          `${bookingName(b)} (${b.email}) paid for an individual session at ${brusselsWhen(b.starts_at_utc)}, but that moment was taken by someone else while they were paying (their hold had lapsed).`,
+          `${bookingName(b)} (${b.email}) paid for an private session at ${brusselsWhen(b.starts_at_utc)}, but that moment was taken by someone else while they were paying (their hold had lapsed).`,
           'They were told we would write within a day to find another time, or refund in full.',
           `Order C-${reg.id}.`,
         ]);

@@ -1,4 +1,4 @@
-// The moment picker for individual sessions — used by /sessions (booking) and
+// The moment picker for private sessions — used by /sessions (booking) and
 // /sessions/booking (moving a session). Renders the free moments (UTC instants
 // from the server) on the visitor's clock: a "Times shown in" select, a row of
 // days, the times of the chosen day. Browser-only; no network.

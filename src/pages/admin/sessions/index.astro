@@ -13,7 +13,7 @@ import { formatMoney } from '../../../lib/workshops/currency';
 
 export const prerender = false;
 
-// Individual sessions — settings, the state of the Google and Zoom
+// Private sessions — settings, the state of the Google and Zoom
 // connections, the free moments the calendar gives right now, and every
 // booking with what can be done to it (src/lib/sessions/).
 const env = Astro.locals.runtime.env;
@@ -74,12 +74,12 @@ const manageLinks = new Map<number, string>();
 for (const b of upcoming) manageLinks.set(b.id, await bookingUrl(env.ADMIN_SESSION_SECRET, env.PUBLIC_BASE_URL, b.id));
 ---
 
-<Layout title="Admin — Individual sessions — Songdance" description="">
+<Layout title="Admin — Private sessions — Songdance" description="">
   <main class="adm">
     <header class="adm-header">
       <div>
-        <p class="adm-breadcrumbs"><a href="/admin">Admin</a><span class="sep">/</span>Individual sessions</p>
-        <h1>Individual sessions</h1>
+        <p class="adm-breadcrumbs"><a href="/admin">Admin</a><span class="sep">/</span>Private sessions</p>
+        <h1>Private sessions</h1>
         <p class="adm-sub">
           Every event titled <strong>“{settings.calendarTitle}”</strong> on your Google Calendar is a window that can be booked on
           <a href="/sessions" target="_blank" rel="noopener">/sessions</a>, cut into sessions of {settings.durationMin} minutes with

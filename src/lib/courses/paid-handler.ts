@@ -168,7 +168,7 @@ export async function pushPaidCourseRegistrationToDrip(
       customFields.live_pass_starts = brusselsToday();
       customFields.live_pass_sessions = 'monthly';
     } else if (isSessionProductSlug(reg.product_slug)) {
-      // An individual session with Jacob. The moment itself is on
+      // An private session with Jacob. The moment itself is on
       // session_bookings; the event carries the order for any automation.
       eventName = SESSION_DRIP_EVENT;
     } else if (isAlbumProductSlug(reg.product_slug)) {

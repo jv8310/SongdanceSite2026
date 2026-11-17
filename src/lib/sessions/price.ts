@@ -1,4 +1,4 @@
-// An individual session's price per market — pure, safe for the browser.
+// An private session's price per market — pure, safe for the browser.
 //
 // One EUR price (set on /admin/sessions), scaled to each market with the same
 // EUR-relative ratios the albums and the journeys use (albumPriceCents), so

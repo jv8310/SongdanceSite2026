@@ -25,7 +25,7 @@ import { formatInTz } from '../../../lib/workshops/time';
 
 export const prerender = false;
 
-// Checkout for an individual session (/sessions). The buyer picked a moment
+// Checkout for an private session (/sessions). The buyer picked a moment
 // the page showed as free; it is checked again against the calendar and the
 // bookings right now, then taken for them (a hold, atomic — two buyers can't
 // both get it) before the payment page opens. The Stripe page closes after 30
@@ -188,7 +188,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         email,
         name: `${firstName} ${lastName}`,
         country: countryCode,
-        description: `${firstName} ${lastName} · individual session ${bookingId} · reg ${registrationId}`,
+        description: `${firstName} ${lastName} · private session ${bookingId} · reg ${registrationId}`,
         metadata: {
           course_registration_id: String(registrationId),
           contact_first_name: firstName,

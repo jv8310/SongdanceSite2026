@@ -171,7 +171,7 @@ app. Read 120 days ahead (`APP_SESSION_HORIZON_DAYS`), so one weekly repeating
 event works. Deploy order: the app first (an older app answers "not deployed
 yet" and the workshops sync as before).
 
-## Individual sessions — booked from "Boekingen" on the calendar (November 2026)
+## Private sessions — booked from "Boekingen" on the calendar (November 2026)
 
 `/sessions` sells one-to-one sessions with Jacob on Zoom. Logic in
 [`src/lib/sessions/`](src/lib/sessions/), table `session_bookings` (migration 0097),
@@ -228,7 +228,7 @@ next 14 days, every booking).
   [`actions.ts`](src/lib/sessions/actions.ts): atomic move, Zoom meeting moved, calendar entry
   patched, "Your session has moved" + SD-SESSION to Jacob).
 - **Emails** ([`emails.ts`](src/lib/sessions/emails.ts), transactional, previewed on
-  `/admin/emails` → "Individual sessions"): booked, the day before (skipped when booked less
+  `/admin/emails` → "Private sessions"): booked, the day before (skipped when booked less
   than a day ahead), an hour before (with the Join button), moved, cancelled, conflict.
 - **The 5-minute cron** ([`cron.ts`](src/lib/sessions/cron.ts)): confirms a paid booking
   still only held, re-sends a missing confirmation, sends the reminders (CAS on their columns),
@@ -239,6 +239,15 @@ next 14 days, every booking).
   set a Zoom link by hand, and write the calendar entry again.
 - **Jacob's settings** (migration 0098, November 2026): **€175, 50 minutes, 10 minutes
   between**, so a window is cut on the hour. Still editable on `/admin/sessions`.
+- **The page's words** (17 Nov 2026, Jacob's copy revision): the offer is called **"private
+  session"** everywhere a client or the admin reads it (page, emails, booking page, Stripe
+  line, order labels); the slug `individual-session`, the Drip tag and the Drip event
+  `Completed individual session booking` keep their names. The page has "How fifty minutes
+  usually go" (four beats; the number word follows the length setting), "You might come
+  with", "With Jacob" and FAQs for no sound / intense / how many sessions. Left out until
+  Jacob confirms: replays of a session (the FAQ still says it is not recorded, and the Zoom
+  meetings are made without recording), a cancellation FAQ (no policy in the terms yet), the
+  Zoom "original sound" line, a testimonial.
 - **Setting up Zoom, Cloudflare and Google from a browser**: the step-by-step brief for a
   Claude in Chrome session is [`docs/sessions-setup-chrome.md`](docs/sessions-setup-chrome.md)
   (Zoom Server-to-Server app with `meeting:write|update|delete:meeting:admin`, the four

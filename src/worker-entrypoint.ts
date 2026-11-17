@@ -271,7 +271,7 @@ export function createExports(manifest: unknown) {
             console.error('[broadcasts/cron] run failed', err);
           }),
       );
-      // Individual sessions: reminders (a day and an hour before), the safety
+      // Private sessions: reminders (a day and an hour before), the safety
       // net for a paid booking still only held, refunded orders' sessions
       // cancelled, lapsed holds freed (src/lib/sessions/cron.ts).
       ctx.waitUntil(

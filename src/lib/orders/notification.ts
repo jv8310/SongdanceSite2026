@@ -66,7 +66,7 @@ export type OrderEnv = {
   MARKETING_FROM?: string;
   MARKETING_REPLY_TO?: string;
 } & ShopifyEnv &
-  // An individual session is confirmed from here (Zoom + calendar), so the
+  // An private session is confirmed from here (Zoom + calendar), so the
   // worker env's Zoom and Google settings ride along; all optional.
   Omit<SessionEnv, 'DB'>;
 
@@ -505,7 +505,7 @@ export async function notifyCourseOrder(
 ): Promise<void> {
   const productName =
     COURSE_PRODUCT_LABELS[reg.product_slug] ?? livePassLabelForSlug(reg.product_slug) ?? reg.product_slug;
-  // An individual session is confirmed first (the moment, its Zoom meeting,
+  // An private session is confirmed first (the moment, its Zoom meeting,
   // Jacob's calendar, the client's email), so the SD-ORDER below can say when
   // it is and whether everything landed. Idempotent; never throws.
   const sessionRows = isSessionProductSlug(reg.product_slug)

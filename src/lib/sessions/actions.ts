@@ -109,7 +109,7 @@ export async function moveSession(
     { kind: 'session.moved.sent', track: 'session_moved' },
   );
   await sendInternal(env, `SD-SESSION: ${bookingName(nb)} moved their session to ${brusselsWhen(nb.starts_at_utc)}`, [
-    `${bookingName(nb)} (${nb.email}) moved their individual session.`,
+    `${bookingName(nb)} (${nb.email}) moved their private session.`,
     `From: ${brusselsWhen(previous)}`,
     `To: ${brusselsWhen(nb.starts_at_utc)}`,
     nb.calendar_event_id && !nb.calendar_error ? 'Your calendar has been updated.' : `Your calendar was not updated${nb.calendar_error ? `: ${nb.calendar_error}` : ''}.`,

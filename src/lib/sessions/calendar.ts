@@ -1,4 +1,4 @@
-// Google Calendar for the individual sessions: read the bookable windows (the
+// Google Calendar for the private sessions: read the bookable windows (the
 // "Boekingen" events) and everything else that makes Jacob busy, and write the
 // booked session back as its own event.
 //
