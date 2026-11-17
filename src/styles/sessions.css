@@ -1,4 +1,4 @@
-/* Individual sessions — /sessions (booking) and /sessions/booking (the
+/* Private sessions — /sessions (booking) and /sessions/booking (the
    client's own page). Global on purpose: the moment picker
    (src/lib/client/session-picker.ts) writes its buttons with innerHTML, which
    Astro's scoped styles would not reach. Every class is prefixed ss-. */
@@ -34,6 +34,22 @@
 .ss-prose-inner .ss-h2:not(:first-child) { margin-top: 40px; }
 .ss-quote { font-family: var(--font-lyric); font-style: italic; font-size: 1.6em; line-height: 1.3; color: var(--ember-deep); text-align: center; margin: 32px 0 !important; }
 .ss-small { font-family: var(--font-body); font-size: var(--t-body-sm); color: var(--fg-quiet); line-height: 1.6; }
+.ss-small strong { color: var(--fg-soft); font-weight: 600; }
+/* "How fifty minutes usually go": four numbered beats. */
+.ss-steps { list-style: none; counter-reset: ss-step; padding: 0; margin: 0 0 18px; display: grid; gap: 14px; }
+.ss-steps li { counter-increment: ss-step; position: relative; padding-left: 44px; }
+.ss-steps li::before {
+  content: counter(ss-step); position: absolute; left: 0; top: 0.1em;
+  width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
+  font-family: var(--font-display); font-size: 0.95em; color: var(--ember-deep);
+  border: 1px solid var(--line);
+}
+.ss-steps strong { color: var(--fg); font-weight: 600; }
+.ss-aside { font-family: var(--font-lyric); font-style: italic; font-size: 1.25em; line-height: 1.45; color: var(--fg-soft); }
+.ss-list { margin: 0 0 18px; padding-left: 1.2em; display: grid; gap: 6px; }
+.ss-list li::marker { color: var(--ember); }
+.ss-more { color: var(--ember-deep); text-decoration: none; border-bottom: 1px solid currentColor; }
+.ss-more:hover { opacity: 0.8; }
 
 .ss-book-inner { max-width: 880px; margin: 0 auto; }
 .ss-note { font-family: var(--font-body); font-size: var(--t-body); color: var(--fg-soft); background: var(--bg-elevated); border: 1px solid var(--line); border-radius: 12px; padding: 14px 18px; }

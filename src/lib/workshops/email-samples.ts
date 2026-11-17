@@ -114,8 +114,8 @@ function sessionSamples(b: string, name: string): EmailSample[] {
     googleCalUrl: 'https://calendar.google.com/calendar/render?action=TEMPLATE',
     moveUntilLabel: formatInTz('2026-11-18T09:00:00Z', 'Europe/Brussels'),
   };
-  const group = 'Individual sessions (transactional)';
-  const audience = 'Whoever books an individual session on /sessions';
+  const group = 'Private sessions (transactional)';
+  const audience = 'Whoever books an private session on /sessions';
   return [
     { id: 'session_confirmed', group, label: 'Booked — confirmation', timing: 'On payment (every fulfilment path + the 5-minute safety net)', audience, content: sessionConfirmedEmail(ctx) },
     { id: 'session_reminder_24h', group, label: 'Reminder — the day before', timing: '24 hours before (skipped when booked less than a day ahead)', audience, content: sessionReminderEmail('24h', ctx) },
@@ -293,7 +293,7 @@ export function buildEmailSamples(base: string): EmailSample[] {
       }),
     },
 
-    // ── Individual sessions (transactional) — src/lib/sessions/ ─────────
+    // ── Private sessions (transactional) — src/lib/sessions/ ─────────
     // The real sends read the booking: the client's own clock, the Zoom
     // meeting (or fallback link) and their signed booking page.
     ...sessionSamples(b, name),

@@ -62,7 +62,7 @@ type Env = {
   GOOGLE_OAUTH_CLIENT_SECRET?: string;
   GOOGLE_OAUTH_REFRESH_TOKEN?: string;
   GOOGLE_CALENDAR_ID?: string;
-  // Individual sessions (src/lib/sessions/zoom.ts) — a Zoom Server-to-Server
+  // Private sessions (src/lib/sessions/zoom.ts) — a Zoom Server-to-Server
   // OAuth app makes one meeting per booking. Optional: without them a booking
   // takes the link on its "Boekingen" calendar event, else the standard link
   // set on /admin/sessions. ZOOM_USER = whose meetings (default "me").

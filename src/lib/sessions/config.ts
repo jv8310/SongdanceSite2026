@@ -1,4 +1,4 @@
-// Individual sessions — the settings Jacob changes himself on /admin/sessions,
+// Private sessions — the settings Jacob changes himself on /admin/sessions,
 // stored in workshop_config (no deploy needed), with the defaults below.
 //
 // Kept free of heavy imports: the public page, the checkout, the cron and the
@@ -9,7 +9,7 @@ import { getConfig, setConfig } from '../workshops/db';
 // One product slug for every booking. The payment rides course_registrations
 // under it (see migrations/0097_session_bookings.sql).
 export const SESSION_PRODUCT_SLUG = 'individual-session' as const;
-export const SESSION_PRODUCT_LABEL = 'Individual session with Jacob';
+export const SESSION_PRODUCT_LABEL = 'Private session with Jacob';
 export const SESSION_DRIP_TAG = 'prod_Session';
 export const SESSION_DRIP_EVENT = 'Completed individual session booking';
 

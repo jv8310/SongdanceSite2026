@@ -132,7 +132,7 @@ const COURSE_LABELS: Record<string, string> = {
   'forgiveness-course': 'The Forgiveness Course',
   'svh-12week': 'SVH 12-Week Course',
   'grief': 'The Grief Course',
-  'individual-session': 'Individual session',
+  'individual-session': 'Private session',
 };
 
 function courseLabel(slug: string): string {

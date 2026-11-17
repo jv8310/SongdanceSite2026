@@ -44,7 +44,7 @@ export type CreateCheckoutSessionInput = {
   immediate_methods_only?: boolean;
   // Unix seconds at which the Checkout page closes (Stripe allows 30 minutes to
   // 24 hours from now). For a payment that holds something only for a while —
-  // an individual session's moment — so the page can't be paid after the hold.
+  // an private session's moment — so the page can't be paid after the hold.
   expires_at?: number;
 };
 

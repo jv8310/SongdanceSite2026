@@ -19,7 +19,7 @@ export type CourseRegistrationSlug =
   | `album-${string}`
   | `live-pass-${number}m`
   | 'qa-plan-deepening'
-  // An individual session with Jacob (src/lib/sessions/), its moment on
+  // An private session with Jacob (src/lib/sessions/), its moment on
   // session_bookings.
   | 'individual-session';
 export type ActivateChoice = 'now' | 'wait';

@@ -1,4 +1,4 @@
-// The individual sessions' 5-minute tick (src/worker-entrypoint.ts):
+// The private sessions' 5-minute tick (src/worker-entrypoint.ts):
 //   1. a paid order whose booking is still only held → confirm it (the safety
 //      net behind notifyCourseOrder);
 //   2. a booked session whose confirmation never went out → send it;

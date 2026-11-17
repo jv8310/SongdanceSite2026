@@ -43,7 +43,7 @@ export function courseDripTags(reg: {
 
   if (isAlbumProductSlug(reg.product_slug)) return [];
 
-  // An individual session — its own tag, never the cert tags below.
+  // An private session — its own tag, never the cert tags below.
   if (isSessionProductSlug(reg.product_slug)) return [SESSION_DRIP_TAG];
 
   // The monthly: the live pass tag (a pass holder, for any automation keyed on
