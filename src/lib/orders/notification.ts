@@ -214,7 +214,15 @@ function quadernoUrl(ctx: LinkContext, email: string): string | null {
   return `https://${ctx.quadernoAccount}.quadernoapp.com/invoices?q=${encodeURIComponent(email)}`;
 }
 
-function gatewayLabel(provider: OrderProvider | undefined): string {
+// A course order given away with no payment carries a synthetic payment intent:
+// `comp-<id>` (a free live pass, live-pass-grant.ts) or `free-100-<id>` (a
+// 100%-off checkout, free-checkout.ts). No gateway ever saw it.
+export function isFreeOrderIntent(intent: string | null | undefined): boolean {
+  return !!intent && (intent.startsWith('comp-') || intent.startsWith('free-100-'));
+}
+
+function gatewayLabel(provider: OrderProvider | undefined, intent?: string | null): string {
+  if (isFreeOrderIntent(intent)) return 'None (given free)';
   if (provider === BANK_TRANSFER) return 'Bank transfer';
   return provider === 'paypal' ? 'PayPal' : 'Stripe';
 }
@@ -224,6 +232,7 @@ function paymentUrl(input: OrderNotificationInput): string | null {
   // A manual IBAN transfer never touched a gateway, so there is nothing to
   // link to — the money is in the bank statement.
   if (input.provider === BANK_TRANSFER) return null;
+  if (isFreeOrderIntent(input.stripePaymentIntent)) return null;
   if (input.provider === 'paypal') {
     if (input.paypalSubscriptionId) {
       return `https://www.paypal.com/billing/subscriptions/${input.paypalSubscriptionId}`;
@@ -293,7 +302,7 @@ export function buildOrderNotificationEmail(
     ['Amount', planLabel ? `${amount} (${planLabel})` : amount],
     ['Add-ons', addonsValue],
     ['Order total', orderTotal],
-    ['Gateway', gatewayLabel(input.provider)],
+    ['Gateway', gatewayLabel(input.provider, input.stripePaymentIntent)],
     ['Name', input.customerName],
     ['Email', input.email],
     ['Phone', input.phone],
@@ -318,7 +327,7 @@ export function buildOrderNotificationEmail(
   const adminUrl = adminOrderUrl(input, ctx);
   const links: Array<[string, string | null]> = [
     ['Quaderno invoice', quadernoUrl(ctx, input.email)],
-    [`${gatewayLabel(input.provider)} payment`, paymentUrl(input)],
+    [`${gatewayLabel(input.provider, input.stripePaymentIntent)} payment`, paymentUrl(input)],
     ['Drip subscriber', dripUrl(ctx)],
   ];
 
@@ -501,7 +510,9 @@ export async function findAttendedWorkshopForEmail(
 export async function notifyCourseOrder(
   env: OrderEnv,
   reg: CourseRegistration,
-  opts?: { stripePaymentIntent?: string | null; stripeSubscriptionId?: string | null },
+  // `notes`: a line for the SD-ORDER's Notes row (a free live pass: who gave it
+  // and why).
+  opts?: { stripePaymentIntent?: string | null; stripeSubscriptionId?: string | null; notes?: string },
 ): Promise<void> {
   const productName =
     COURSE_PRODUCT_LABELS[reg.product_slug] ?? livePassLabelForSlug(reg.product_slug) ?? reg.product_slug;
@@ -551,7 +562,7 @@ export async function notifyCourseOrder(
     currency: reg.currency,
     bumps: bumps.length ? bumps : undefined,
     extraRows: sessionRows ?? undefined,
-    notes: sessionRows ? await sessionNote(env.DB, reg.id) : undefined,
+    notes: sessionRows ? await sessionNote(env.DB, reg.id) : opts?.notes,
     paymentPlan: reg.payment_plan,
     installmentsTotal: reg.installments_total,
     activateChoice: reg.activate_choice,

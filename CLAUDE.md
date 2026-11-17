@@ -142,6 +142,10 @@ of the person, since the app may still know them.
     `app:` tags is refused when the app does not answer. `holdBroadcast` pauses or
     unschedules, no confirmation. Logged as `app.broadcast.*` with the connection as `actor`.
 
+  - `grantLivePass` ([`src/lib/app-bridge/live-pass.ts`](src/lib/app-bridge/live-pass.ts),
+    November 2026): a free live pass, the People page's "Give a free live pass" (see "Live
+    pass" below), actor `app:<connection>`; a refusal is `{ ok: false, error, message }`.
+
   The app never writes a site table itself, so anything else it should change here goes
   through a method on this entrypoint. **Deploy order: this site first**; the app's binding
   fails until `AppBridge` has the method.
@@ -801,6 +805,21 @@ anyone whose course no longer includes them (or never did). Logic in
   password manager's icon in one of them used to stretch the other down.
   The Grief and journey register forms fill `?email=`, `?first_name=` and
   `?last_name=` too (the member app's locked courses link there).
+- **A free pass** (November 2026): Jacob gives one from **`/admin/people/<email>` → "Give a
+  free live pass"** (length, the extension, whether to send "Your live pass is confirmed",
+  a note) or Claude does through the app (`AppBridge.grantLivePass`); both run
+  [`live-pass-grant.ts`](src/lib/courses/live-pass-grant.ts) (`grantLivePass`). It is a
+  paid **€0 order** like a bought one (`live-pass-<n>m`, `source_variant 'comp'`, a €0
+  `cert-extension` bump, payment intent **`comp-<id>`**, which the orders pages and the
+  SD-ORDER read as "given free"), so the period, Drip, the member app and the reports
+  follow by themselves; Meta hears nothing (€0). The extension follows the checkout's rule
+  in its words (`extensionRefusal` in `live-pass-plan.ts`, shared with the checkout), and
+  passes queue. With the email unticked, its claim (`live-pass-confirmed-<id>`) is taken
+  first so no sweep sends it. Who gave it and why is the `course.live_pass.granted` event
+  (and the SD-ORDER's Notes); the same grant (address, length, extension) within two
+  minutes answers the first one again (`repeated: true`) rather than making a second pass.
+  It counts among the passes on Stats → Live pass, at €0. To take one away, revoke it under
+  App access.
 
 ## Masterclass — one event, two doors
 

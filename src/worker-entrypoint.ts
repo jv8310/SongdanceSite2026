@@ -15,6 +15,7 @@ import { WorkerEntrypoint } from 'cloudflare:workers';
 import { createExports as baseCreateExports } from '@astrojs/cloudflare/entrypoints/server.js';
 import { ordersForApp, refundFromApp } from './lib/app-bridge/refund';
 import { unsubscribeFromApp } from './lib/app-bridge/unsubscribe';
+import { grantLivePassFromApp } from './lib/app-bridge/live-pass';
 import {
   broadcastAudienceForApp,
   broadcastForApp,
@@ -189,6 +190,15 @@ export class AppBridge extends WorkerEntrypoint<Env> {
     actor: string;
   }) {
     return refundFromApp(this.env, input);
+  }
+
+  // Give a free live pass (1, 3 or 6 months), with or without the
+  // certification-window extension, as "Give a free live pass" on the People
+  // page does (src/lib/courses/live-pass-grant.ts). A refusal answers
+  // { ok: false, error, message }; the same grant twice within two minutes
+  // answers the first one again (repeated: true).
+  grantLivePass(input: { email: string; months: 1 | 3 | 6; extend: boolean; note: string; actor: string; notify?: boolean }) {
+    return grantLivePassFromApp(this.env, input);
   }
 
   // Broadcasts (src/lib/app-bridge/broadcasts.ts): what /admin/broadcasts does,
