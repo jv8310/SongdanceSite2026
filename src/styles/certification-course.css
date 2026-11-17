@@ -1037,6 +1037,7 @@ html, body { background: var(--paper); }
   color: var(--ink); font-weight: 500;
 }
 .cc-promise-items .item { display: inline-flex; align-items: center; gap: 10px; }
+.cc-promise-items .icon { font-size: 1.15em; color: var(--ember); }
 .cc-promise-items .dot {
   width: 5px; height: 5px; border-radius: 50%;
   background: var(--ember);

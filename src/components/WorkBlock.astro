@@ -9,6 +9,7 @@ const rows = [
     href: '/what-is-svh',
     cta: 'Read more',
     img: '/media/library/svh-retreat-sounding-portrait-jacob-sunset.webp',
+    alt: 'A man sounds with his eyes closed and a hand on his chest',
     pos: 'center 25%',
     flip: false,
   },
@@ -21,6 +22,7 @@ const rows = [
     href: '/what-is-svh',
     cta: 'Read more',
     img: '/media/library/svh-retreat-sounding-patterned-rocks.webp',
+    alt: 'A woman sounds with her eyes closed, held by the people beside her',
     pos: 'center 18%',
     flip: true,
   },
@@ -33,6 +35,7 @@ const rows = [
     href: '/events',
     cta: 'See upcoming events →',
     img: '/media/library/svh-retreat-circle-trees-sunset.webp',
+    alt: 'A circle of people sounding together in a field at sunset, framed by pine trees',
     pos: 'center 44%',
     flip: false,
   },
@@ -62,7 +65,7 @@ const rows = [
             <span class="sd-work-chapter-label">{r.label}</span>
           </div>
           <figure class="sd-work-row-img">
-            <img src={r.img} alt="" style={r.pos ? `object-position:${r.pos}` : undefined} />
+            <img src={r.img} alt={r.alt} style={r.pos ? `object-position:${r.pos}` : undefined} />
           </figure>
           <div class="sd-work-row-text">
             <h3 class="sd-work-row-title">{r.title}</h3>
