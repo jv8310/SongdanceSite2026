@@ -56,6 +56,12 @@ const PREPARE_HTML = p(
 const PREPARE_TEXT =
   'There is nothing to prepare. If you would like to be comfortable: a quiet-ish room where a little sound is allowed, headphones if you share walls, water nearby. Come as you are — and as you sound.';
 
+// The session is recorded unless the client would rather not (Jacob, Nov 2026);
+// the recording goes to them when they ask for it afterwards.
+const RECORDING_LINE =
+  'Jacob records the session for you, unless you would rather he didn\u2019t: just reply to this email or say so at the start. Afterwards, ask for the recording and he sends it to you. It isn\u2019t shared with anyone else.';
+const RECORDING_HTML = p(RECORDING_LINE);
+
 function moveLine(ctx: SessionEmailCtx): { html: string; text: string } {
   if (!ctx.moveUntilLabel) {
     return {
@@ -90,6 +96,7 @@ export function sessionConfirmedEmail(ctx: SessionEmailCtx): EmailContent {
       ${p('Jacob holds the space; you bring what is there today. A few words to arrive, then sounding — at your pace, as soft as you like. Nothing is asked of you that you do not choose.')}
       ${label('How to prepare')}
       ${PREPARE_HTML}
+      ${RECORDING_HTML}
       ${mv.html}
       <p style="margin:0;">We will send a reminder the day before and an hour before, each with the link.</p>`,
     cta: { label: 'Open my booking page', href: ctx.manageUrl },
@@ -99,7 +106,7 @@ export function sessionConfirmedEmail(ctx: SessionEmailCtx): EmailContent {
   return {
     subject: `Your session with Jacob is booked — ${ctx.whenLocal}`,
     html,
-    text: `${textGreeting(ctx.name)}\n\nThank you — your private session with Jacob is booked.\n\nWhen: ${ctx.whenLocal}\n${ctx.durationMin} minutes, one to one, on Zoom.\n\n${z.text}\n\nWhat happens: Jacob holds the space; you bring what is there today. A few words to arrive, then sounding — at your pace, as soft as you like.\n\n${PREPARE_TEXT}\n\n${mv.text}\n\nYour booking page: ${ctx.manageUrl}\nAdd to Google Calendar: ${ctx.googleCalUrl}\nApple / Outlook (.ics): ${ctx.icsUrl}\n\nWe will send a reminder the day before and an hour before, each with the link.\n\nWarmly,\nJacob`,
+    text: `${textGreeting(ctx.name)}\n\nThank you — your private session with Jacob is booked.\n\nWhen: ${ctx.whenLocal}\n${ctx.durationMin} minutes, one to one, on Zoom.\n\n${z.text}\n\nWhat happens: Jacob holds the space; you bring what is there today. A few words to arrive, then sounding — at your pace, as soft as you like.\n\n${PREPARE_TEXT}\n\n${RECORDING_LINE}\n\n${mv.text}\n\nYour booking page: ${ctx.manageUrl}\nAdd to Google Calendar: ${ctx.googleCalUrl}\nApple / Outlook (.ics): ${ctx.icsUrl}\n\nWe will send a reminder the day before and an hour before, each with the link.\n\nWarmly,\nJacob`,
   };
 }
 
