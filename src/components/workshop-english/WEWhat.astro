@@ -1,5 +1,12 @@
 ---
-// The four experience beats. This is the neutral copy rendered server-side so
+// The four experience beats — and little else (Jacob, November 2026): the
+// section used to open on a second big headline and three paragraphs right
+// after WEOpening's, and close on two lyric lines in two sizes. Now it is a
+// short heading, the four cards, the facts in one line and the way to register.
+// (No practice on the page either: the sound of the moment is what we do in
+// the workshop, and the page doesn't give it away.)
+//
+// This is the neutral copy rendered server-side so
 // no-JS visitors get a complete page. The personalization controller in
 // workshop.astro rewrites every card's title + body to the visitor's chosen
 // lens (healing / freedom / professional) — see the CARDS map there.
@@ -25,31 +32,11 @@ const items = [
 
 <section class="we-what" id="workshop">
   <div class="we-what-inner">
-    <div class="we-what-head">
+    <div class="we-what-head we-what-head--wide">
       <div class="we-eyebrow">What to expect</div>
-      <h2 class="we-h2">
-        Seventy minutes —<br />
-        and a <em>different way in</em> to yourself.
-      </h2>
+      <h2 class="we-h2">What happens in <em>seventy minutes</em></h2>
     </div>
 
-    <div class="we-what-intro">
-      <p>
-        Somatic Vocal Healing is a somatic practice: you use your own voice to
-        feel what's here and give it expression. Singing is its own beautiful
-        art — this is something quieter and more inward. Your voice becomes a
-        way to meet what's alive in you, and the crackle, the wobble, the little
-        break in the throat all belong, because they carry information.
-      </p>
-      <p>
-        In these seventy minutes I'll introduce you to the method, gently. You'll sound.
-        You'll feel. You'll notice that your body has been waiting a long time
-        for a language that doesn't come from the head.
-      </p>
-      <p>You don't need a good voice. You need your honest one.</p>
-    </div>
-
-    <div class="we-what-sub">What you'll experience</div>
     <div class="we-what-grid">
       {
         items.map((it, i) => (
@@ -62,39 +49,8 @@ const items = [
       }
     </div>
 
-    <!-- Try it here: the deck's "The sound of the moment" slide (practice one),
-         as a plum panel under the four beats. The ring breathes with the
-         steps: a disc grows on the in-breath, two rings ripple out on the
-         tone; a ten-second cycle that runs only while the panel is on screen
-         and stays still under reduced motion. Words: the deck, copy book
-         ch. 9 and 39. -->
-    <div class="we-moment">
-      <div class="we-moment-ring">
-        <div class="we-breath" aria-hidden="true" data-we-breath>
-          <span class="ring"></span><span class="disc"></span><span class="rip"></span><span class="rip r2"></span>
-          <span class="lbl"><span class="l-in">breathe in</span><span class="l-out">and sound</span></span>
-        </div>
-      </div>
-      <div class="we-moment-text">
-        <div class="we-moment-eyebrow">Try it now · thirty seconds</div>
-        <h3 class="we-moment-title">The sound of the <em>moment</em></h3>
-        <ol class="we-moment-steps">
-          <li>Place one hand on your heart.</li>
-          <li>Ask, out loud: <em>how am I feeling, in this moment?</em></li>
-          <li>Breathe in. Then one tone, until the end of the breath.</li>
-          <li>What did your sound tell you?</li>
-        </ol>
-        <p class="we-moment-foot">It can’t be done wrong. In the workshop we do this together, live.</p>
-      </div>
-    </div>
-
-    <p class="we-what-coffee">
-      Seventy minutes only opens the door. But it's enough to feel that this is real —
-      and to leave with a practice you can keep for
-      <em>the rest of your life.</em>
-    </p>
-    <p class="we-what-coffee-foot">
-      Seventy minutes. <span data-sd-price="ticket">22€</span>. That's deliberate — <em>the door should be easy to open.</em>
+    <p class="we-what-facts">
+      70 minutes · Live on Zoom · Replay included · <span data-sd-price="ticket">22€</span>
     </p>
 
     <div class="we-what-cta-wrap">
@@ -104,13 +60,3 @@ const items = [
     </div>
   </div>
 </section>
-
-<script>
-  // The breathing ring only breathes while it is on screen.
-  const ring = document.querySelector<HTMLElement>('[data-we-breath]');
-  if (ring && !window.matchMedia('(prefers-reduced-motion: reduce)').matches && 'IntersectionObserver' in window) {
-    new IntersectionObserver((entries) => {
-      entries.forEach((e) => ring.classList.toggle('is-on', e.isIntersecting));
-    }).observe(ring);
-  }
-</script>
