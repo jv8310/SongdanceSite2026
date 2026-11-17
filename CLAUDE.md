@@ -409,19 +409,32 @@ truth for the site's voice, headlines, paragraphs, quotes, and the non-negotiabl
 rules of the practice (Somatic Vocal Healing). No page should be written or
 changed without first pulling language and direction from it.
 
-The four laws it enforces (never break these in any string on the site):
+The copy book is **v3 (17 November 2026)**. The four guidelines it enforces
+(never break these in any string on the site):
 
 1. The sound **of** something, never *for* it (one named exception — chapter 35).
-2. **Acknowledgment** — never "release" or "letting go" as the mechanism.
-3. **Sounding**, not singing.
+2. **Acknowledgment before release** — release follows acknowledgment by
+   itself; it is never the method, and "letting go" is never the instruction.
+3. **Sounding**, not singing — and sounds stay tonal: a tone, a hum, never
+   whispering or breath alone.
 4. Facilitators **hold space**; the participant heals themselves.
 
-Also: no outcome promises, no rescue framing, and **never** the words "Hamer"
-or "German New Medicine" anywhere, in any string. Prices and program
-structures do not live in the copy book — only the practice itself.
-Marketing mechanics (discounts, deadlines, seat counters, "X places left",
-and a measure of genuine urgency) are a separate craft from the copy: allowed
-in moderation, not governed by the copy book.
+Two terms (v3): *somatic sounding* is the act itself; *Somatic Vocal Healing*
+is somatic sounding with a therapeutic framework on top — use the first for the
+practice, the second for the method and the trainings. Neither is a therapy in
+itself (chapter 47).
+
+Also: no outcome promises, no safety guarantees, no rescue framing, no digs at
+therapy or therapists, and **never** the words "Hamer" or "German New Medicine"
+anywhere, in any string (v3 keeps those terms out of the copy book itself; this
+file is the brief that names them). A participant's words are a blockquote
+opening with **Participant:** — anonymised, published only with consent, never
+attributed to Jacob — and no blockquote is ever reworded (trim at a sentence end
+or leave it). Prices and program structures do not live in the copy book — only
+the practice itself. Marketing mechanics (discounts, deadlines, seat counters,
+"X places left", and a measure of genuine urgency) are a separate craft from the
+copy: allowed in moderation and only when true (real deadlines, real seat
+counts, nothing manufactured), not governed by the copy book.
 
 ## Course pricing — certification, workshop sale, Song Deck gift (July 2026)
 
