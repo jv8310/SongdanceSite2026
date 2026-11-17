@@ -1,0 +1,35 @@
+---
+// One drawn sound. The line itself is painted by src/scripts/sound-waves.ts
+// (bundled once per page, however many waves it shows); colours come from the
+// --wave-* properties in site.css, so the same component works on paper, plum
+// and night (wrap dark grounds in .sd-on-dark).
+//
+// `label` is required: a plain description of the line's SHAPE ("A short, fast,
+// trembling wave"). The feeling's name is real text beside the canvas, never
+// drawn inside it, and a wave is never presented as what a visitor's own
+// feeling "is" — it is a listening guide, not a diagnosis.
+import type { WaveKind } from './kinds';
+
+interface Props {
+  kind: WaveKind;
+  label: string;
+  /** CSS height (e.g. 96, "clamp(110px, 14vw, 190px)"). Default: site.css (120px). */
+  height?: number | string;
+  class?: string;
+}
+
+const { kind, label, height, class: cls } = Astro.props;
+const h = typeof height === 'number' ? `${height}px` : height;
+---
+
+<canvas
+  class:list={['sd-wave', cls]}
+  data-sd-wave={kind}
+  role="img"
+  aria-label={label}
+  style={h ? `height:${h}` : undefined}
+></canvas>
+
+<script>
+  import '../../scripts/sound-waves.ts';
+</script>

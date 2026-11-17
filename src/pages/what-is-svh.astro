@@ -1,6 +1,9 @@
 ---
 import SiteLayout from '../components/SiteLayout.astro';
 import SoftCta from '../components/SoftCta.astro';
+import SoundWave from '../components/sound/SoundWave.astro';
+import SoundSignatures from '../components/sound/SoundSignatures.astro';
+import type { WaveKind } from '../components/sound/kinds';
 
 // Illustrated chapter set (R2 `library/svhgpt-*`) made for exactly these
 // ideas — candle-lit, throat-lit, wholly on-brand. Real retreat photography
@@ -39,6 +42,7 @@ const chapters = [
       a: { k: 'Singing', items: ['Turns feeling into form', 'Wants to sound good', 'A shape to get right'] },
       b: { k: 'Sounding', items: ['Starts from a question', 'Asks what is here', 'In and out at the same time'] },
     },
+    tonal: true,
   },
   {
     n: '03',
@@ -53,6 +57,7 @@ const chapters = [
       'You stay with it and let it finish on its own. Sometimes it shifts on its own: turns inward into a hum, opens into something rounder, dissolves. You don’t force it anywhere. You attend it.',
       'And when the tone finishes, there’s one more question: <em>what is below that?</em> You make the sound of that too. You only ever need to go one level deeper for a shift to happen.',
     ],
+    tail: true,
   },
   {
     n: '04',
@@ -81,6 +86,36 @@ const chapters = [
       'No one can heal you — not a teacher, not a method, not a sound. Nobody can make your sound for you, which means nobody can do your acknowledging for you. And the healing is in the acknowledgment.',
       'That doesn’t mean you do it alone — we never stop needing each other. But what we give each other isn’t the healing; it’s the space where healing becomes possible. A guide holds that space. What rises in it is yours.',
     ],
+  },
+];
+
+// Why the practice stays tonal (chapter 02), drawn: the deck's "Why tonal?"
+// four-up. Words from copy book ch. 5, 6 and 18 and guideline 3.
+const tonal: { kind: WaveKind; name: string; line: string; label: string; on?: boolean }[] = [
+  {
+    kind: 'scream',
+    name: 'A scream',
+    line: 'Screaming performs the anger. The tone acknowledges it.',
+    label: 'A clipped, chaotic wave',
+  },
+  {
+    kind: 'song',
+    name: 'A song',
+    line: 'Singing turns feeling into form. A note belongs to music.',
+    label: 'A wave that glides up and down after a melody',
+  },
+  {
+    kind: 'breath',
+    name: 'A breath',
+    line: 'Sounds stay tonal: never whispering, never breath alone.',
+    label: 'A faint, noisy, almost flat wave',
+  },
+  {
+    kind: 'tone',
+    name: 'A tone',
+    line: 'One tone — the tone of what’s there, right now. A tone belongs to you.',
+    label: 'A clear, even, sustained wave',
+    on: true,
   },
 ];
 
@@ -206,6 +241,13 @@ const faqSchema = {
           </div>
           <h2 class="wsv-chapter-h">{c.h}</h2>
           {c.p.map((para) => <p set:html={para} />)}
+          {c.tail && (
+            <figure class="wsv-tail">
+              <figcaption class="wsv-tail-k">A breath of sound</figcaption>
+              <SoundWave kind="tail" label="An even sound wave that wavers, in ember, at the very end of the breath" height={110} />
+              <p class="wsv-tail-line">Below every wound, another door.</p>
+            </figure>
+          )}
           {c.contrast && (
             <div class="wsv-contrast">
               <div class="wsv-contrast-col">
@@ -220,23 +262,40 @@ const faqSchema = {
           )}
         </div>
       </div>
+      {c.tonal && (
+        <div class="wsv-tonal wsv-reveal">
+          <p class="wsv-tonal-k">Why a tone</p>
+          <ul class="wsv-tonal-grid">
+            {tonal.map((t) => (
+              <li class:list={['wsv-tonal-cell', { 'wsv-tonal-cell--on sd-on-dark': t.on }]}>
+                <p class="wsv-tonal-name">{t.name}</p>
+                <SoundWave kind={t.kind} label={t.label} height={88} />
+                <p class="wsv-tonal-line">{t.line}</p>
+              </li>
+            ))}
+          </ul>
+          <p class="wsv-tonal-foot">It’s not screaming into the void. We don’t go to screaming.</p>
+        </div>
+      )}
     </section>
   ))}
 
+  <!-- There is a map: the four signatures, on night ---------------------- -->
+  <SoundSignatures
+    id="map"
+    tone="night"
+    eyebrow="Reading the sound"
+    heading="There is a <em>map</em>"
+    lede="A sound carries information, and the information has patterns. High or low. Forward or back. Sharp or round. Steady or trembling. Once you know what to listen for, your own voice becomes readable."
+  />
+
   <!-- Wave band: in and out at once ------------------------------------- -->
   <section class="wsv-wave">
-    <img
-      class="wsv-wave-img"
-      src="/media/library/svhgpt-08-oscillation-breath-rhythm.webp"
-      alt=""
-      width="1915"
-      height="821"
-      loading="lazy"
-      decoding="async"
-      aria-hidden="true"
-    />
     <div class="wsv-wave-inner wsv-reveal">
       <div class="wsv-eyebrow">In and out at once</div>
+      <div class="wsv-wave-line">
+        <SoundWave kind="tone" label="One clear, sustained tone moving across the page" height="clamp(110px, 14vw, 190px)" />
+      </div>
       <p class="wsv-wave-text">
         Sounding goes in and out at the same time: outward into expression, so
         what’s here finally gets said — and inward into listening, because the
@@ -687,16 +746,108 @@ const faqSchema = {
     padding: var(--sp-10) var(--sp-7);
     overflow: hidden;
   }
-  .wsv-wave-img {
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%);
-    width: 140%;
+  /* A live tone across the band (it was the svhgpt-08 illustration of a
+     wave). Full-bleed inside the centred column, quieter than the text. */
+  .wsv-wave-line {
+    width: 100vw;
     max-width: 1600px;
-    opacity: 0.5;
-    mix-blend-mode: multiply;
-    pointer-events: none;
+    position: relative;
+    left: 50%;
+    transform: translateX(-50%);
+    margin: var(--sp-5) 0 0;
+    opacity: 0.72;
+  }
+  .wsv-wave-line :global(.sd-wave) { --wave-stroke: var(--ink-soft); --wave-rule: transparent; }
+
+  /* The tail of a breath, under chapter 03's third paragraph */
+  .wsv-tail {
+    margin: var(--sp-6) 0 0;
+    padding: var(--sp-4) var(--sp-5) var(--sp-5);
+    border-radius: var(--r-md);
+    background: var(--paper-soft);
+    border: 1px solid var(--line);
+  }
+  .wsv-tail-k {
+    font-family: var(--font-body);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    color: var(--ember-deep);
+    font-weight: 600;
+    margin-bottom: var(--sp-2);
+  }
+  .wsv-chapter-text .wsv-tail-line {
+    font-family: var(--font-lyric);
+    font-style: italic;
+    font-size: 21px;
+    line-height: 1.35;
+    color: var(--ink);
+    margin: var(--sp-2) 0 0;
+  }
+
+  /* Why a tone: scream / song / breath / tone, under chapter 02 */
+  .wsv-tonal {
+    max-width: var(--sd-max);
+    margin: var(--sp-8) auto 0;
+  }
+  .wsv-tonal-k {
+    font-family: var(--font-body);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    color: var(--ember-deep);
+    font-weight: 600;
+    margin: 0 0 var(--sp-4);
+    text-align: center;
+  }
+  .wsv-tonal-grid {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--sp-3);
+  }
+  .wsv-tonal-cell {
+    min-width: 0;
+    padding: var(--sp-5);
+    border-radius: var(--r-md);
+    background: var(--paper-soft);
+    border: 1px solid var(--line);
+  }
+  .wsv-tonal-cell--on {
+    background: var(--plum);
+    border-color: var(--plum);
+    color: var(--paper);
+  }
+  .wsv-tonal-name {
+    font-family: var(--font-lyric);
+    font-style: italic;
+    font-size: 26px;
+    line-height: 1.2;
+    margin: 0 0 var(--sp-3);
+    color: inherit;
+  }
+  .wsv-tonal-line {
+    font-size: var(--t-body-sm);
+    line-height: 1.55;
+    color: var(--ink-soft);
+    margin: var(--sp-3) 0 0;
+  }
+  .wsv-tonal-cell--on .wsv-tonal-line { color: rgba(244, 236, 223, 0.8); }
+  .wsv-tonal-foot {
+    font-family: var(--font-lyric);
+    font-style: italic;
+    font-size: clamp(20px, 2.2vw, 24px);
+    line-height: 1.4;
+    color: var(--ink);
+    text-align: center;
+    margin: var(--sp-6) 0 0;
+  }
+  @media (max-width: 760px) {
+    .wsv-tonal-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .wsv-tonal-cell { padding: var(--sp-4); }
+    .wsv-tonal-name { font-size: 22px; }
   }
   .wsv-wave-inner {
     position: relative;

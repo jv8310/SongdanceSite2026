@@ -1522,3 +1522,104 @@ a.sd-evt-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-2); 
   color: var(--ember-deep);
 }
 .sd-details-row dd { margin: 0; font-family: var(--font-body); font-size: var(--t-body); color: var(--ink); }
+
+/* =========================================================
+   Sound visuals — drawn sound (November 2026)
+   <SoundWave> / <SoundSignatures> (src/components/sound/), painted by
+   src/scripts/sound-waves.ts. Colour comes from here, never from the script:
+   the canvas reads --wave-stroke / --wave-accent / --wave-rule / --wave-glow.
+   The height is fixed in CSS so a canvas never shifts the layout as it loads.
+   ========================================================= */
+.sd-wave {
+  display: block; width: 100%; height: 120px;
+  --wave-stroke: var(--ink);
+  --wave-accent: var(--ember);
+  --wave-rule: var(--line);
+  --wave-glow: transparent;
+}
+.sd-on-dark .sd-wave {
+  --wave-stroke: rgba(244, 236, 223, 0.92);
+  --wave-accent: var(--ember-lift);
+  --wave-rule: var(--line-on-dark);
+  --wave-glow: rgba(201, 96, 58, 0.55);
+}
+
+/* The four signatures band */
+.sd-sig { padding: var(--sp-10) var(--sp-7); background: var(--paper); color: var(--ink); }
+.sd-sig--plum { background: var(--plum); color: var(--paper); }
+.sd-sig--night { background: var(--night); color: var(--paper); }
+.sd-sig--bare { padding: 0; background: transparent; color: inherit; }
+.sd-sig-inner { max-width: var(--sd-max); margin: 0 auto; }
+.sd-sig--bare .sd-sig-inner { max-width: none; }
+
+.sd-sig-head { max-width: 720px; margin: 0 auto var(--sp-8); text-align: center; }
+.sd-sig-eyebrow {
+  font-family: var(--font-body); font-size: 12px; font-weight: 500;
+  text-transform: uppercase; letter-spacing: 0.22em; color: var(--ember-deep);
+}
+.sd-on-dark .sd-sig-eyebrow { color: var(--ember-soft); }
+.sd-sig-title {
+  font-family: var(--font-display); font-weight: 400;
+  font-size: clamp(32px, 4vw, 52px); line-height: 1.1; letter-spacing: -0.012em;
+  margin: var(--sp-4) 0 0; color: inherit; text-wrap: balance;
+}
+/* Typography law: Cormorant inside a Spectral heading is sized up. */
+.sd-sig-title em { font-family: var(--font-lyric); font-style: italic; font-size: 1.05em; color: var(--ember-deep); }
+.sd-on-dark .sd-sig-title em { color: var(--ember-lift); }
+.sd-sig-lede {
+  font-size: var(--t-body-lg); line-height: var(--lh-prose); color: var(--ink-soft);
+  max-width: 54ch; margin: var(--sp-5) auto 0;
+}
+.sd-on-dark .sd-sig-lede { color: rgba(244, 236, 223, 0.78); }
+
+.sd-sig-grid {
+  list-style: none; margin: 0; padding: 0;
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--sp-6);
+}
+.sd-sig-cell { min-width: 0; }
+.sd-sig-name {
+  margin: 0 0 var(--sp-3);
+  font-family: var(--font-lyric); font-style: italic; font-weight: 400;
+  font-size: 30px; line-height: 1.15; color: inherit;
+}
+.sd-sig-sub { font-size: 0.66em; color: var(--ink-quiet); }
+.sd-on-dark .sd-sig-sub { color: rgba(244, 236, 223, 0.6); }
+.sd-sig-line {
+  margin: var(--sp-3) 0 0; font-size: var(--t-body-sm); line-height: 1.55; color: var(--ink-soft);
+}
+.sd-on-dark .sd-sig-line { color: rgba(244, 236, 223, 0.74); }
+
+.sd-sig-foot {
+  margin: var(--sp-8) auto 0; max-width: 640px; text-align: center;
+  padding-top: var(--sp-6); border-top: 1px solid var(--line);
+}
+.sd-on-dark .sd-sig-foot { border-top-color: var(--line-on-dark); }
+.sd-sig-footline {
+  margin: 0; font-family: var(--font-lyric); font-style: italic;
+  font-size: clamp(20px, 2.2vw, 25px); line-height: 1.4; color: inherit; text-wrap: balance;
+}
+.sd-sig-link {
+  display: inline-block; margin-top: var(--sp-4);
+  font-family: var(--font-body); font-size: 14px; color: inherit;
+  text-decoration: underline; text-decoration-color: var(--ember); text-underline-offset: 4px;
+}
+.sd-on-dark .sd-sig-link { text-decoration-color: var(--ember-lift); }
+.sd-sig-link:hover { text-decoration-color: var(--ember-deep); }
+
+.sd-sig--compact .sd-sig-grid { gap: var(--sp-5); }
+.sd-sig--compact .sd-wave { height: 84px; }
+.sd-sig--compact .sd-sig-name { font-size: 24px; }
+.sd-sig--compact .sd-sig-foot { margin-top: var(--sp-6); padding-top: var(--sp-5); }
+.sd-sig--compact .sd-sig-footline { font-size: 20px; }
+
+@media (max-width: 760px) {
+  .sd-sig { padding: var(--sp-9) var(--sp-5); }
+  .sd-sig--bare { padding: 0; }
+  .sd-sig-head { margin-bottom: var(--sp-7); }
+  .sd-sig-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-6) var(--sp-4); }
+  .sd-sig-cell .sd-wave { height: 96px; }
+  .sd-sig--compact .sd-sig-cell .sd-wave { height: 72px; }
+  .sd-sig-name { font-size: 25px; }
+  .sd-sig-sub { display: block; font-size: 0.72em; margin-top: 2px; }
+}
+.sd-sig[id] { scroll-margin-top: 72px; }

@@ -1,0 +1,138 @@
+---
+// The four sound signatures — fear, grief, anger, pain — as moving lines, from
+// the masterclass deck's "Sound signatures" slide (November 2026). Used on the
+// homepage, /what-is-svh, the masterclass and the 12-week course.
+//
+// Every string defaults to copy book v3 (ch. 13 "There is a map", ch. 17–20 for
+// the four feelings); pages pass their own eyebrow / heading / footline where
+// the section needs different words — from the copy book, as always.
+//
+// Rules (do not break): the shapes are Jacob's (see sound-waves.ts); anger and
+// pain take the ember accent, fear and grief the neutral stroke; this is a
+// listening guide, never a diagnosis, so the footline keeps that sense on every
+// page that shows the four.
+import SoundWave from './SoundWave.astro';
+import type { WaveKind } from './kinds';
+
+interface Signature {
+  kind: WaveKind;
+  name: string;
+  sub: string;
+  line: string;
+  label: string;
+}
+
+interface Props {
+  tone?: 'paper' | 'plum' | 'night';
+  eyebrow?: string;
+  /** May carry one inline <em> (rendered in Cormorant, sized up). */
+  heading?: string;
+  headingLevel?: 'h2' | 'h3';
+  lede?: string;
+  footline?: string;
+  link?: { href: string; label: string };
+  /** No section of its own: just the grid (and foot), inside a parent section. */
+  bare?: boolean;
+  /** Smaller waves and type, for a band inside a busy page. */
+  compact?: boolean;
+  id?: string;
+  /** Extra attributes for the head and the grid, e.g. { 'data-anim': 'reveal' }. */
+  revealAttrs?: Record<string, string>;
+  /** Extra classes for the head and the grid, e.g. 'wsv-reveal'. */
+  revealClass?: string;
+}
+
+const SIGNATURES: Signature[] = [
+  {
+    kind: 'fear',
+    name: 'Fear',
+    sub: 'the short wave',
+    line: 'A short, fast wave — a quick tremble, like a small animal’s heartbeat.',
+    label: 'A short, fast, trembling wave',
+  },
+  {
+    kind: 'grief',
+    name: 'Grief',
+    sub: 'the river',
+    line: 'Round and wavering. Grief is the river, not the knot.',
+    label: 'Long, round, rolling waves',
+  },
+  {
+    kind: 'anger',
+    name: 'Anger',
+    sub: 'the metallic edge',
+    line: 'Metallic, and it moves forward — out of the body, toward something.',
+    label: 'Sharp, saw-toothed waves, with an arrow pointing forward',
+  },
+  {
+    kind: 'pain',
+    name: 'Pain',
+    sub: 'the signal',
+    line: 'Sharp but contained — a centered ah that stays where it is.',
+    label: 'Sharp waves gathered around one point, with arrows pointing in towards it',
+  },
+];
+
+const {
+  tone = 'paper',
+  eyebrow = 'There is a map',
+  heading = 'Patterns you can <em>hear</em>',
+  headingLevel = 'h2',
+  lede = 'A sound carries information, and the information has patterns. High or low. Forward or back. Sharp or round. Steady or trembling.',
+  footline = 'A listening guide, never a lookup table. What your own sound was about is yours to discover.',
+  link,
+  bare = false,
+  compact = false,
+  id,
+  revealAttrs = {},
+  revealClass,
+} = Astro.props;
+
+const dark = tone !== 'paper';
+const H = headingLevel;
+const Root = bare ? 'div' : 'section';
+---
+
+<Root
+  id={id}
+  class:list={[
+    'sd-sig',
+    `sd-sig--${tone}`,
+    { 'sd-on-dark': dark, 'sd-sig--bare': bare, 'sd-sig--compact': compact },
+  ]}
+>
+  <div class="sd-sig-inner">
+    {!bare && (eyebrow || heading || lede) && (
+      <div class:list={['sd-sig-head', revealClass]} {...revealAttrs}>
+        {eyebrow && <div class="sd-sig-eyebrow">{eyebrow}</div>}
+        {heading && <H class="sd-sig-title" set:html={heading} />}
+        {lede && <p class="sd-sig-lede">{lede}</p>}
+      </div>
+    )}
+
+    <div class:list={['sd-sig-body', revealClass]} {...revealAttrs}>
+      <ul class="sd-sig-grid">
+        {SIGNATURES.map((s) => (
+          <li class={`sd-sig-cell sd-sig-cell--${s.kind}`}>
+            <p class="sd-sig-name">
+              {s.name} <span class="sd-sig-sub">— {s.sub}</span>
+            </p>
+            <SoundWave kind={s.kind} label={s.label} />
+            <p class="sd-sig-line">{s.line}</p>
+          </li>
+        ))}
+      </ul>
+
+      {(footline || link) && (
+        <div class="sd-sig-foot">
+          {footline && <p class="sd-sig-footline">{footline}</p>}
+          {link && (
+            <a class="sd-sig-link" href={link.href}>
+              {link.label}
+            </a>
+          )}
+        </div>
+      )}
+    </div>
+  </div>
+</Root>
