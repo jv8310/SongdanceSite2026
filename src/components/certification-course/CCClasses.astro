@@ -1,9 +1,55 @@
 ---
 // The class curriculum, presented as a self-paced library of modules — each
 // title with a one-line text. The page sells the library, not a schedule,
-// so there is no date logic here; the prominent promise below the grid
+// so there is no date logic here; the prominent promise below the path
 // carries what every module is (fully edited video + thorough manual).
+//
+// On a wide screen the modules sit on the deck's drawn path ("The whole
+// path": .pathwrap / modPoints / smooth / layoutPath): a hand-wobbled ember
+// line through ten nodes, the 12-week foundation and then modules 01–09,
+// titles alternating above and below. Narrower, the same list flows down
+// with an ember rule on its left. Titles and blurbs stay SVH_CERT_CLASSES'.
 import { SVH_CERT_CLASSES } from '../../lib/courses/svh-cert-classes';
+import { FOUNDATION_WEEKS } from '../../lib/courses/cert-access';
+
+const nodes = [
+  { no: 'Foundation', title: `The ${FOUNDATION_WEEKS}-Week Course`, blurb: 'Until you can become your own space holder.', found: true },
+  ...SVH_CERT_CLASSES.map((c) => ({
+    no: String(c.number).padStart(2, '0'),
+    title: c.title ?? '',
+    blurb: c.blurb ?? '',
+    found: false,
+  })),
+];
+
+// The deck's geometry, in a 1380 × 520 box.
+const VBW = 1380;
+const VBH = 520;
+const MID = 262;
+const N = nodes.length;
+const pts = nodes.map((_, i) => [
+  70 + (i * (VBW - 140)) / (N - 1),
+  MID + (i % 2 ? 1 : -1) * 66 + 12 * Math.sin(i * 1.7),
+]);
+function smooth(p: number[][]): string {
+  let d = `M${p[0][0].toFixed(1)} ${p[0][1].toFixed(1)}`;
+  for (let i = 0; i < p.length - 1; i++) {
+    const p0 = p[i - 1] || p[i];
+    const p1 = p[i];
+    const p2 = p[i + 1];
+    const p3 = p[i + 2] || p2;
+    const w = (i % 2 ? 1 : -1) * 6;
+    const c1x = p1[0] + (p2[0] - p0[0]) / 6;
+    const c1y = p1[1] + (p2[1] - p0[1]) / 6 + w;
+    const c2x = p2[0] - (p3[0] - p1[0]) / 6;
+    const c2y = p2[1] - (p3[1] - p1[1]) / 6 - w;
+    d += ` C${c1x.toFixed(1)} ${c1y.toFixed(1)}, ${c2x.toFixed(1)} ${c2y.toFixed(1)}, ${p2[0].toFixed(1)} ${p2[1].toFixed(1)}`;
+  }
+  return d;
+}
+const pathD = smooth(pts);
+const place = (i: number) =>
+  `--x:${((pts[i][0] / VBW) * 100).toFixed(3)}%;--y:${((pts[i][1] / VBH) * 100).toFixed(3)}%;--k:${i}`;
 ---
 
 <section class="cc-classes" id="classes">
@@ -15,14 +61,25 @@ import { SVH_CERT_CLASSES } from '../../lib/courses/svh-cert-classes';
       </h2>
     </div>
 
-    <div class="cc-classes-grid">
-      {SVH_CERT_CLASSES.map((item) => (
-        <article class="cc-card">
-          <div class="cc-card-num">Module {String(item.number).padStart(2, '0')}</div>
-          <h3 class="cc-card-title">{item.title}</h3>
-          <p class="cc-card-blurb">{item.blurb}</p>
-        </article>
-      ))}
+    <div class="cc-path" data-cc-motion>
+      <svg class="cc-path-line" viewBox={`0 0 ${VBW} ${VBH}`} preserveAspectRatio="none" aria-hidden="true">
+        <path d={pathD} pathLength="100" />
+      </svg>
+      <ol class="cc-path-mods">
+        {nodes.map((m, i) => (
+          <li
+            class:list={['cc-path-mod', pts[i][1] < MID ? 'up' : 'down', { found: m.found, last: i === N - 1 }]}
+            style={place(i)}
+          >
+            <span class="cc-path-node" aria-hidden="true"></span>
+            <span class="cc-path-text">
+              <span class="cc-path-no">{m.found ? m.no : `Module ${m.no}`}</span>
+              <h3 class="cc-path-title">{m.title}</h3>
+              <p class="cc-path-blurb">{m.blurb}</p>
+            </span>
+          </li>
+        ))}
+      </ol>
     </div>
 
     <div class="cc-classes-promise">
@@ -35,3 +92,20 @@ import { SVH_CERT_CLASSES } from '../../lib/courses/svh-cert-classes';
     </div>
   </div>
 </section>
+
+<script>
+  // Draw the path once it is reached (CCStructure carries the same observer
+  // for the timeline; each component's script is bundled once).
+  if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches && 'IntersectionObserver' in window) {
+    const io = new IntersectionObserver(
+      (entries) => entries.forEach((e) => {
+        if (e.isIntersecting) { e.target.classList.add('is-in'); io.unobserve(e.target); }
+      }),
+      { rootMargin: '0px 0px -15% 0px' },
+    );
+    document.querySelectorAll<HTMLElement>('.cc-path[data-cc-motion]').forEach((el) => {
+      el.classList.add('is-waiting');
+      io.observe(el);
+    });
+  }
+</script>

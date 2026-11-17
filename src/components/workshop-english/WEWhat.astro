@@ -62,6 +62,25 @@ const items = [
       }
     </div>
 
+    <!-- Beside "Guided sounding": the deck's breathing ring ("The sound of the
+         moment"). A disc grows on the in-breath, two rings ripple out on the
+         sound; a ten-second cycle that starts once it is on screen and stays
+         still under reduced motion. Words: copy book ch. 9. -->
+    <div class="we-moment">
+      <div class="we-breath" aria-hidden="true" data-we-breath>
+        <span class="ring"></span><span class="disc"></span><span class="rip"></span><span class="rip r2"></span>
+        <span class="lbl"><span class="l-in">breathe in</span><span class="l-out">and sound</span></span>
+      </div>
+      <div class="we-moment-text">
+        <div class="we-what-sub">The sound of the moment</div>
+        <p class="we-moment-lyric">One breath in. One tone out.</p>
+        <p class="we-moment-body">
+          The tone of how it actually is, right now — not how it should be. It
+          takes thirty seconds. It can't be done wrong.
+        </p>
+      </div>
+    </div>
+
     <p class="we-what-coffee">
       Seventy minutes only opens the door. But it's enough to feel that this is real —
       and to leave with a practice you can keep for
@@ -78,3 +97,13 @@ const items = [
     </div>
   </div>
 </section>
+
+<script>
+  // The breathing ring only breathes while it is on screen.
+  const ring = document.querySelector<HTMLElement>('[data-we-breath]');
+  if (ring && !window.matchMedia('(prefers-reduced-motion: reduce)').matches && 'IntersectionObserver' in window) {
+    new IntersectionObserver((entries) => {
+      entries.forEach((e) => ring.classList.toggle('is-on', e.isIntersecting));
+    }).observe(ring);
+  }
+</script>

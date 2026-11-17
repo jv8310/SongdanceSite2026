@@ -1550,3 +1550,108 @@ html, body { background: var(--paper); }
 }
 
 
+
+/* ---------- The timeline above "How the work lives in time" ----------
+   From the masterclass deck (.tl / buildTimeline), re-expressed in the site's
+   tokens. Motion only while .is-waiting → .is-in (CCStructure's script). */
+.cc-tl { max-width: 1080px; margin: 0 auto var(--sp-9); display: flex; flex-direction: column; gap: 10px; }
+.cc-tl-top { display: flex; gap: 6px; }
+.cc-tl-top div { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.cc-tl-top b {
+  font-family: var(--font-lyric); font-style: italic; font-weight: 400;
+  font-size: clamp(21px, 2.2vw, 27px); line-height: 1.15; color: var(--ink);
+}
+.cc-tl-top span { font-size: 13px; line-height: 1.4; color: var(--ink-quiet); }
+.cc-tl-track { position: relative; height: 22px; display: flex; align-items: center; }
+.cc-tl-bar { display: flex; gap: 6px; height: 8px; width: 100%; }
+.cc-tl-bar i { display: block; border-radius: 4px; transform-origin: left center; }
+.cc-tl-bar .s1 { background: var(--ember); }
+.cc-tl-bar .s2 { background: var(--plum); }
+.cc-tl-dots { position: absolute; inset: 0; }
+.cc-tl-dots i {
+  position: absolute; top: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px;
+  border-radius: 50%; background: var(--ember); border: 3px solid var(--paper-soft);
+}
+.cc-tl-ticks { position: relative; height: 12px; }
+.cc-tl-ticks i { position: absolute; top: 0; width: 1px; height: 12px; background: var(--ink-whisper); }
+.cc-tl-legend {
+  display: flex; flex-wrap: wrap; gap: 8px 32px; align-items: center; margin-top: 6px;
+  font-size: 11px; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-quiet);
+}
+.cc-tl-legend span { display: inline-flex; align-items: center; gap: 10px; }
+.cc-tl-legend .cc-tl-end { margin-left: auto; text-transform: none; letter-spacing: 0; font-size: 13px; font-weight: 400; }
+.lg-tick { display: inline-block; width: 1px; height: 12px; background: var(--ink-quiet); }
+.lg-dot { display: inline-block; width: 11px; height: 11px; border-radius: 50%; background: var(--ember); }
+
+.cc-tl.is-waiting:not(.is-in) .cc-tl-bar i { transform: scaleX(0); }
+.cc-tl.is-waiting:not(.is-in) .cc-tl-dots i,
+.cc-tl.is-waiting:not(.is-in) .cc-tl-ticks i { opacity: 0; }
+.cc-tl.is-in .cc-tl-bar .s1 { animation: cc-grow 700ms var(--ease) both; }
+.cc-tl.is-in .cc-tl-bar .s2 { animation: cc-grow 900ms var(--ease) both 450ms; }
+.cc-tl.is-in .cc-tl-ticks i { animation: cc-fade 400ms linear both; animation-delay: calc(var(--k) * 14ms + 300ms); }
+.cc-tl.is-in .cc-tl-dots i { animation: cc-pop 520ms var(--ease) both; animation-delay: calc(var(--k) * 90ms + 1100ms); }
+@keyframes cc-grow { from { transform: scaleX(0); } to { transform: none; } }
+@keyframes cc-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes cc-pop { from { transform: scale(0); } to { transform: none; } }
+
+@media (max-width: 720px) {
+  .cc-tl { margin-bottom: var(--sp-8); }
+  .cc-tl-top { flex-direction: column; gap: 10px; }
+  .cc-tl-top div { flex: none !important; }
+  .cc-tl-dots i { width: 12px; height: 12px; margin: -6px 0 0 -6px; border-width: 2px; }
+  .cc-tl-legend .cc-tl-end { margin-left: 0; }
+}
+@media (max-width: 720px) {
+  .cc-tl-top div:first-child b { color: var(--ember-deep); }
+  .cc-tl-top div:last-child b { color: var(--plum); }
+}
+
+/* ---------- The whole path (CCClasses) ----------
+   Narrow first: a list flowing down an ember rule. From 1240px the deck's
+   drawn path: the SVG line plus each module placed at its node (--x, --y,
+   computed in CCClasses), titles alternating above and below. */
+.cc-path { position: relative; max-width: 760px; margin: 0 auto; }
+.cc-path-line { display: none; }
+.cc-path-mods { list-style: none; margin: 0; padding: 0 0 0 28px; border-left: 2px solid var(--ember); }
+.cc-path-mod { position: relative; padding: 0 0 var(--sp-6); }
+.cc-path-mod:last-child { padding-bottom: 0; }
+.cc-path-node {
+  position: absolute; left: -38px; top: 4px; width: 18px; height: 18px; border-radius: 50%;
+  background: var(--paper); border: 2.5px solid var(--ember); box-sizing: border-box;
+}
+.cc-path-mod.found .cc-path-node { background: var(--plum); border-color: var(--plum); }
+.cc-path-mod.last .cc-path-node { background: var(--ember); }
+.cc-path-text { display: flex; flex-direction: column; gap: 4px; }
+.cc-path-no {
+  font-family: var(--font-body); font-size: 11px; font-weight: 500;
+  letter-spacing: 0.22em; text-transform: uppercase; color: var(--ember-deep);
+}
+.cc-path-mod.found .cc-path-no, .cc-path-mod.found .cc-path-title { color: var(--plum); }
+.cc-path-title {
+  font-family: var(--font-display); font-weight: 400; font-size: 20px; line-height: 1.22;
+  color: var(--ink); margin: 0; text-wrap: balance;
+}
+.cc-path-blurb { font-size: 14px; line-height: 1.55; color: var(--ink-soft); margin: 0; }
+
+@media (min-width: 1240px) {
+  .cc-path { max-width: none; height: 640px; margin: 0 64px; }
+  .cc-path-line { display: block; position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  .cc-path-line path {
+    fill: none; stroke: var(--ember); stroke-width: 3; stroke-linecap: round;
+    stroke-dasharray: 100; stroke-dashoffset: 0;
+  }
+  .cc-path-mods { position: absolute; inset: 0; padding: 0; border: 0; }
+  .cc-path-mod { position: absolute; left: var(--x); top: var(--y); width: 0; height: 0; padding: 0; }
+  .cc-path-node { left: 0; top: 0; width: 20px; height: 20px; transform: translate(-50%, -50%); }
+  .cc-path-text { position: absolute; left: -92px; width: 184px; text-align: center; align-items: center; }
+  .cc-path-mod.up .cc-path-text { bottom: 24px; }
+  .cc-path-mod.down .cc-path-text { top: 24px; }
+  .cc-path-title { font-size: 19px; }
+  .cc-path-blurb { font-size: 13.5px; }
+
+  .cc-path.is-waiting:not(.is-in) .cc-path-line path { stroke-dashoffset: 100; }
+  .cc-path.is-waiting:not(.is-in) .cc-path-mod { opacity: 0; }
+  .cc-path.is-in .cc-path-line path { animation: cc-draw 2600ms var(--ease) both; }
+  .cc-path.is-in .cc-path-mod { animation: cc-fade 800ms var(--ease) both; animation-delay: calc(var(--k) * 200ms + 400ms); }
+}
+@keyframes cc-draw { from { stroke-dashoffset: 100; } to { stroke-dashoffset: 0; } }

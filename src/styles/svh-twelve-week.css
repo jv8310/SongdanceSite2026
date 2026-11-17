@@ -365,15 +365,16 @@ html, body { background: var(--paper); }
 .tw-mod-d em { font-family: var(--font-lyric); font-style: italic; color: var(--plum); }
 
 /* ---------- Sounding-wave divider ---------- */
-/* A full-bleed band carrying the painterly waveform. The artwork's own warm
-   paper ground matches the page, so it reads as a deliberate breath between
-   movements rather than a pasted-in rectangle. */
+/* A full-bleed band carrying one live tone (site.css .sd-wave), a deliberate
+   breath between movements. */
 .tw-wave { background: var(--paper-deep); padding: 0; overflow: hidden; line-height: 0; }
 .tw-wave--alt { background: var(--paper-deep); }
-.tw-wave img {
-  display: block; width: 100%; height: clamp(110px, 14vw, 190px);
-  object-fit: cover; object-position: center;
-}
+.tw-wave .sd-wave { --wave-stroke: var(--ink-soft); --wave-rule: transparent; opacity: 0.8; }
+
+/* ---------- Reading your sound: the four signatures under "Sounding" ---------- */
+.tw-sig { max-width: var(--sd-max, 1240px); margin: var(--sp-9) auto 0; padding-top: var(--sp-8); border-top: 1px solid var(--line); }
+.tw-sig-head { text-align: center; max-width: 620px; margin: 0 auto var(--sp-7); }
+.tw-sig-head .tw-h2 { margin-top: var(--sp-3); }
 
 /* ---------- Who it's for ---------- */
 .tw-who { background: var(--paper-soft); }
