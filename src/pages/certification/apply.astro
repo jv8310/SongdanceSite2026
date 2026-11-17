@@ -1,0 +1,355 @@
+---
+// Submit for certification — the form a certification student sends once the
+// five steps on their certification page in the member app are done. It took
+// the place of the Google Form in November 2026 (src/lib/certification/).
+//
+//   GET  /certification/apply?email=…&first_name=…&last_name=…   the form, filled in
+//   POST (same URL)                                                saves it, then ?sent=1
+//
+// The member app's "Submit for certification" button opens it with the
+// member's address and name. On sending: the row (cert_applications), "your
+// submission is in" to the student, SD-CERT to Jacob, and the app is told, so
+// its certification page reads "waiting for review".
+//
+// The window to apply is the site's own answer (cert-window.ts): an address
+// that holds the course with a closed window, or without the right to certify,
+// is told so with the way to open it. An address the site does not know is let
+// through (people write from a second address) and flagged in the admin.
+// No JavaScript needed: a form and an answer.
+import SiteLayout from '../../components/SiteLayout.astro';
+import { certWindowForEmail, type CertWindow } from '../../lib/courses/cert-window';
+import { submitCertApplication } from '../../lib/certification/actions';
+import { certTableReady, listCertApplicationsForEmail } from '../../lib/certification/db';
+
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+Astro.response.headers.set('x-robots-tag', 'noindex, nofollow');
+Astro.response.headers.set('cache-control', 'no-store');
+
+const SUPPORT = 'support@songdance.co';
+const UPLOAD_URL = 'https://www.dropbox.com/request/mf4ixwty4i52ahxoz6lb';
+const REVIEW_URL = 'https://www.trustpilot.com/review/songdance.co';
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const TESTIMONIAL_LEFT = "I've left a testimonial";
+const TESTIMONIAL_NO = "I'd rather not";
+
+// What the reviewer looks for in the session video (the copy of the member
+// app's certification page, and of the form this one replaced).
+const SKILLS: Array<[string, string]> = [
+  ['A clear mandate', 'You receive what the person is really asking for, work inside it, and keep returning to it: the two of you on the same team, the whole session in service of that one thing.'],
+  ['Holding and facilitating', "You move between softening (making space, being with) and leading (carrying the wave through), and know, moment to moment, which one you're doing. You manage the wave rather than force it."],
+  ['A tonal sound', "Sounding, not screaming: the sound of what's there. You stay with the feeling without becoming it, working the dial up and down rather than performing an emotion."],
+  ['Momentum', 'Once feeling flows, you can feel the current and ride it, supporting, not dragging, and you recognise the melting point when acknowledgment lands and the frozen thing starts to move.'],
+  ['Meeting resistance with attunement', 'You go under the resistance rather than confront it, meeting the pain it was protecting. Safety of the relationship comes first; when in doubt, you back off rather than push.'],
+  ['Staying relaxed, in scope, and closing well', 'You keep it tonal and continue through the wave instead of stopping in the middle, dose what the body can take, stay inside the bounds of the work, and land the session: grounding, and one full breath at the end.'],
+];
+
+const q = Astro.url.searchParams;
+const sent = q.has('sent');
+const values = {
+  email: (q.get('email') ?? '').trim().toLowerCase(),
+  first_name: (q.get('first_name') ?? '').trim(),
+  last_name: (q.get('last_name') ?? '').trim(),
+  classes: false,
+  video_url: '',
+  video_uploaded: false,
+  course_feedback: '',
+  testimonial: '',
+  testimonial_other: '',
+  comments: '',
+};
+const errors: string[] = [];
+const ready = await certTableReady(env.DB);
+
+// Why the window says no, in the student's words; null = it does not.
+function windowRefusal(w: CertWindow): { text: string; extendUrl: string } | null {
+  if (!w.holdsCourse || w.open) return null;
+  const extendUrl = `/courses/live-pass?email=${encodeURIComponent(w.email)}&extend=1`;
+  if (!w.mayCertify) {
+    return { text: 'Your course comes without the window to apply for certification. A live pass with the certification window extension opens it.', extendUrl };
+  }
+  const day = w.endsOn
+    ? new Date(`${w.endsOn}T12:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
+    : null;
+  return { text: `Your window to apply for certification closed${day ? ` on ${day}` : ''}. A live pass with the certification window extension opens it again.`, extendUrl };
+}
+
+let refusal: ReturnType<typeof windowRefusal> = null;
+
+if (Astro.request.method === 'POST' && ready) {
+  const form = await Astro.request.formData().catch(() => null);
+  const f = (k: string, max = 300) => String(form?.get(k) ?? '').trim().slice(0, max);
+  values.email = f('email', 254).toLowerCase();
+  values.first_name = f('first_name', 100);
+  values.last_name = f('last_name', 100);
+  values.classes = form?.get('classes') === 'yes';
+  values.video_url = f('video_url', 1000);
+  values.video_uploaded = form?.get('video_uploaded') === 'yes';
+  values.course_feedback = f('course_feedback', 8000);
+  values.testimonial = f('testimonial', 40);
+  values.testimonial_other = f('testimonial_other', 2000);
+  values.comments = f('comments', 8000);
+
+  // A filled-in field no person sees: a bot. It is thanked and nothing is kept.
+  if (f('website')) return Astro.redirect(`${Astro.url.pathname}?sent=1`, 303);
+
+  if (!values.first_name) errors.push('Your first name is missing.');
+  if (!values.last_name) errors.push('Your last name is missing.');
+  if (!EMAIL_RE.test(values.email)) errors.push('That email address does not look right.');
+  if (!values.classes) errors.push('Please confirm that you have joined all live classes or watched the replays.');
+  if (values.video_url && !/^https?:\/\/\S+\.\S+/i.test(values.video_url)) errors.push('The video link should be a web address starting with https://.');
+  if (!values.video_url && !values.video_uploaded) errors.push('Your session video is missing: upload it through the link, or paste a link to it.');
+
+  if (!errors.length) {
+    refusal = windowRefusal(await certWindowForEmail(env.DB, values.email));
+    if (!refusal) {
+      // The same form twice within ten minutes (a double press, a reload) is one submission.
+      const earlier = await listCertApplicationsForEmail(env.DB, values.email);
+      const double = earlier.find((a) => a.status === 'submitted' && Date.now() - Date.parse(a.submitted_at) < 10 * 60_000);
+      if (!double) {
+        const testimonial =
+          values.testimonial === 'left' ? TESTIMONIAL_LEFT : values.testimonial === 'no' ? TESTIMONIAL_NO : values.testimonial_other || null;
+        try {
+          await submitCertApplication(env, {
+            email: values.email,
+            first_name: values.first_name,
+            last_name: values.last_name,
+            classes_confirmed: true,
+            video_url: values.video_url || null,
+            video_uploaded: values.video_uploaded,
+            course_feedback: values.course_feedback || null,
+            testimonial,
+            comments: values.comments || null,
+          });
+        } catch (err) {
+          console.error('[certification/apply] not saved', err);
+          errors.push(`Something went wrong on our side and your submission was not saved. Please try again, or write to ${SUPPORT}.`);
+        }
+      }
+      if (!errors.length) return Astro.redirect(`${Astro.url.pathname}?sent=1`, 303);
+    }
+  }
+} else if (!sent && ready && EMAIL_RE.test(values.email)) {
+  // Arriving from the app with an address: say at once when the window is closed.
+  refusal = windowRefusal(await certWindowForEmail(env.DB, values.email).catch(() => ({ holdsCourse: false }) as CertWindow));
+}
+---
+
+<SiteLayout title="Submit for certification — Songdance" description="Send your session video for the Somatic Vocal Healing certification." newsletter={false} promo={false}>
+  <main class="ca">
+    {sent ? (
+      <section class="ca-done">
+        <p class="ca-eyebrow">Somatic Vocal Healing certification</p>
+        <h1>Your submission is in.</h1>
+        <p>Thank you, and congratulations on reaching this milestone. A confirmation is on its way to your inbox.</p>
+        <h2>What happens next</h2>
+        <p>Jacob reviews every submission himself, in the order they come in. Within 90 days you will hear from him by email, and on your certification page in the Songdance app: personal feedback on your session and, if all is in place, your certificate.</p>
+        <p class="ca-actions"><a class="ca-cta" href="https://circle.songdance.co/certification">Back to your certification page</a></p>
+        <p class="ca-note">Something to add or correct? Write to <a href={`mailto:${SUPPORT}`}>{SUPPORT}</a>.</p>
+      </section>
+    ) : !ready ? (
+      <section class="ca-done">
+        <h1>Submit for certification</h1>
+        <p>This form is not open yet. Please try again in a little while, or write to <a href={`mailto:${SUPPORT}`}>{SUPPORT}</a>.</p>
+      </section>
+    ) : (
+      <>
+        <header class="ca-head">
+          <p class="ca-eyebrow">Somatic Vocal Healing certification</p>
+          <h1>Submit for certification</h1>
+          <p>Congratulations. You have completed the requirements on your certification page. Send your session video below, and Jacob will review it.</p>
+        </header>
+
+        {refusal && (
+          <div class="ca-flash ca-flash--warn" role="alert">
+            <p>{refusal.text}</p>
+            <p><a href={refusal.extendUrl}>Extend my certification window</a> · Questions? <a href={`mailto:${SUPPORT}`}>{SUPPORT}</a></p>
+          </div>
+        )}
+        {errors.length > 0 && (
+          <div class="ca-flash ca-flash--warn" role="alert">
+            <p>Nothing has been sent yet:</p>
+            <ul>{errors.map((e) => <li>{e}</li>)}</ul>
+          </div>
+        )}
+
+        <form method="POST" class="ca-form" novalidate>
+          <fieldset>
+            <legend>About you</legend>
+            <div class="ca-row">
+              <label><span>First name</span><input type="text" name="first_name" value={values.first_name} required maxlength="100" autocomplete="given-name" /></label>
+              <label><span>Last name</span><input type="text" name="last_name" value={values.last_name} required maxlength="100" autocomplete="family-name" /></label>
+            </div>
+            <label><span>Email</span><input type="email" name="email" value={values.email} required maxlength="254" autocomplete="email" /></label>
+            <p class="ca-hint">Use the address you joined the certification course with: it is how your certification finds you in the app.</p>
+            <label class="ca-check">
+              <input type="checkbox" name="classes" value="yes" checked={values.classes} required />
+              <span>I have joined all live classes or watched the replays.</span>
+            </label>
+          </fieldset>
+
+          <fieldset>
+            <legend>Your session video</legend>
+            <p>In this video you show how you lead a Somatic Vocal Healing session with a client.</p>
+            <ul class="ca-points">
+              <li>The client cannot be a student of the course, and preferably is not a close friend or family member (not forbidden, but not recommended).</li>
+              <li>Record the session in Zoom, or with your camera for a session in person.</li>
+              <li>The session is 30 minutes at most.</li>
+            </ul>
+            <details class="ca-skills">
+              <summary>What Jacob looks for in it</summary>
+              <p>We don't want you to go into the session with these on your mind, but these are the skills we look for:</p>
+              <dl>
+                {SKILLS.map(([name, text]) => (
+                  <>
+                    <dt>{name}</dt>
+                    <dd>{text}</dd>
+                  </>
+                ))}
+              </dl>
+            </details>
+
+            <div class="ca-option">
+              <h3>Option 1: upload the file</h3>
+              <p><a class="ca-link" href={UPLOAD_URL} target="_blank" rel="noopener">Upload your video here</a> (opens Dropbox in a new tab), then tick the box.</p>
+              <label class="ca-check">
+                <input type="checkbox" name="video_uploaded" value="yes" checked={values.video_uploaded} />
+                <span>I have uploaded my video through this link.</span>
+              </label>
+            </div>
+            <div class="ca-option">
+              <h3>Option 2: a link</h3>
+              <label>
+                <span>Upload the video to YouTube (privacy set to "unlisted") and paste its link</span>
+                <input type="url" name="video_url" value={values.video_url} maxlength="1000" placeholder="https://youtu.be/…" inputmode="url" />
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Final questions</legend>
+            <label>
+              <span>Is there any way I could improve this course? Any feedback, comments or suggestions you'd like to share?</span>
+              <textarea name="course_feedback" rows="5" maxlength="8000">{values.course_feedback}</textarea>
+            </label>
+
+            <div class="ca-testimonial">
+              <h3>Testimonial</h3>
+              <p>I would love for more people to discover Somatic Vocal Healing. Would you help by giving Songdance a star review, and sharing something you've appreciated about this course or about me as a teacher? The reviews go on the website, where they give newly interested students a warm first impression.</p>
+              <p><a class="ca-link" href={REVIEW_URL} target="_blank" rel="noopener">Write your review</a> (opens in a new tab). Big thanks!</p>
+              <label class="ca-check"><input type="radio" name="testimonial" value="left" checked={values.testimonial === 'left'} /><span>I've left a testimonial</span></label>
+              <label class="ca-check"><input type="radio" name="testimonial" value="no" checked={values.testimonial === 'no'} /><span>I'd rather not</span></label>
+              <label class="ca-check"><input type="radio" name="testimonial" value="other" checked={values.testimonial === 'other'} /><span>Something else:</span></label>
+              <input type="text" name="testimonial_other" value={values.testimonial_other} maxlength="2000" aria-label="Something else about a testimonial" />
+            </div>
+
+            <label>
+              <span>Other comments or questions about your certification?</span>
+              <textarea name="comments" rows="4" maxlength="8000">{values.comments}</textarea>
+            </label>
+          </fieldset>
+
+          <!-- Not for people: left empty by anyone who can read this page. -->
+          <div class="ca-hp" aria-hidden="true"><label>Website <input type="text" name="website" tabindex="-1" autocomplete="off" /></label></div>
+
+          <section class="ca-next">
+            <h2>What will happen next?</h2>
+            <p>Once you press the button below, your part is complete. Jacob reviews each submission in the order they come in. Within 90 days you will hear from him by email, and on your certification page in the app: personal feedback and, if all is in place, your certificate.</p>
+            <p>With love,<br />Jacob</p>
+          </section>
+
+          <button type="submit" class="ca-cta">Submit for certification</button>
+        </form>
+      </>
+    )}
+  </main>
+</SiteLayout>
+
+<style>
+  .ca {
+    max-width: 44rem;
+    margin: clamp(2.5rem, 8vw, 5rem) auto;
+    padding: 0 1.25rem;
+    font-family: var(--font-body, Georgia, serif);
+    line-height: 1.7;
+    color: var(--ink, #2a1b2a);
+  }
+  .ca h1 {
+    font-family: var(--font-display, Georgia, serif);
+    font-weight: 400;
+    font-size: clamp(2rem, 5.5vw, 2.8rem);
+    line-height: 1.15;
+    margin: 0 0 1rem;
+  }
+  .ca h2 { font-family: var(--font-display, Georgia, serif); font-weight: 400; font-size: 1.5rem; margin: 2rem 0 0.5rem; }
+  .ca h3 { font-size: 1rem; font-weight: 600; margin: 0 0 0.35rem; }
+  .ca p { margin: 0 0 1rem; }
+  .ca-eyebrow { font-size: 0.8rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ember, #c9603a); margin-bottom: 0.6rem !important; }
+  .ca-form { display: grid; gap: 1.75rem; margin-top: 2rem; }
+  .ca fieldset {
+    border: 1px solid rgba(42, 27, 42, 0.14);
+    border-radius: 16px;
+    padding: 1.25rem 1.25rem 1.4rem;
+    margin: 0;
+    background: rgba(255, 255, 255, 0.45);
+    display: grid;
+    gap: 1rem;
+    min-width: 0;
+  }
+  .ca legend { font-family: var(--font-display, Georgia, serif); font-size: 1.3rem; padding: 0 0.5rem; }
+  .ca fieldset p, .ca fieldset ul { margin: 0; }
+  .ca label { display: grid; gap: 0.35rem; font-size: 0.95rem; }
+  .ca label > span { font-weight: 500; }
+  .ca input[type='text'], .ca input[type='email'], .ca input[type='url'], .ca textarea {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.7rem 0.85rem;
+    border: 1px solid rgba(42, 27, 42, 0.28);
+    border-radius: 10px;
+    background: #fff;
+    font: inherit;
+    color: inherit;
+  }
+  .ca textarea { resize: vertical; }
+  .ca input:focus-visible, .ca textarea:focus-visible { outline: 2px solid var(--ember, #c9603a); outline-offset: 1px; }
+  .ca-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; align-items: start; }
+  @media (max-width: 34rem) { .ca-row { grid-template-columns: 1fr; } }
+  .ca-check { display: flex !important; align-items: flex-start; gap: 0.6rem !important; cursor: pointer; }
+  .ca-check input { margin-top: 0.4rem; flex: none; width: 1.05rem; height: 1.05rem; accent-color: var(--ember, #c9603a); }
+  .ca-check > span { font-weight: 400 !important; }
+  .ca-hint { font-size: 0.85rem; color: #6b5c69; margin-top: -0.5rem !important; }
+  .ca-points { padding-left: 1.2rem; display: grid; gap: 0.35rem; }
+  .ca-skills { border-top: 1px solid rgba(42, 27, 42, 0.12); border-bottom: 1px solid rgba(42, 27, 42, 0.12); padding: 0.7rem 0; }
+  .ca-skills summary { cursor: pointer; font-weight: 500; }
+  .ca-skills p { margin: 0.8rem 0 0.5rem !important; font-size: 0.95rem; }
+  .ca-skills dt { font-weight: 600; margin-top: 0.8rem; }
+  .ca-skills dd { margin: 0.15rem 0 0; font-size: 0.95rem; color: #4a3848; }
+  .ca-option { display: grid; gap: 0.5rem; padding: 1rem; border-radius: 12px; background: rgba(42, 27, 42, 0.04); }
+  .ca-testimonial { display: grid; gap: 0.6rem; }
+  .ca-link { color: var(--ember, #a14826); font-weight: 600; }
+  .ca-hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+  .ca-next h2 { margin-top: 0; }
+  .ca-cta {
+    display: inline-block;
+    justify-self: start;
+    padding: 0.95rem 2.1rem;
+    border: 0;
+    border-radius: 999px;
+    background: #2a1b2a;
+    color: #f4ecdf;
+    text-decoration: none;
+    font: inherit;
+    font-size: 1rem;
+    cursor: pointer;
+  }
+  .ca-cta:hover { opacity: 0.9; }
+  .ca-actions { margin-top: 1.75rem !important; }
+  .ca-flash { padding: 0.9rem 1.1rem; border-radius: 12px; margin-top: 1.5rem; }
+  .ca-flash--warn { background: #f6e1d6; }
+  .ca-flash p { margin: 0 0 0.4rem; }
+  .ca-flash ul { margin: 0; padding-left: 1.2rem; }
+  .ca-flash a { color: inherit; font-weight: 600; }
+  .ca-note { margin-top: 2.5rem !important; font-size: 0.9rem; color: #6b5c69; }
+  .ca-note a { color: inherit; }
+</style>

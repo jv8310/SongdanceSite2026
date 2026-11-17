@@ -66,6 +66,7 @@ import {
   sessionReminderEmail,
   type SessionEmailCtx,
 } from '../sessions/emails';
+import { certCertifiedEmail, certInternalEmail, certReceivedEmail, certResponseEmail } from '../certification/emails';
 import {
   dunningEscalationEmail,
   dunningReminderEmail,
@@ -696,6 +697,7 @@ export function buildEmailSamples(base: string): EmailSample[] {
 
     // ── Failed installment payments (course plans) ───────────────────────
     ...dunningSamples(b),
+    ...certificationSamples(b),
 
     // ── Internal reports (SD-REPORT, ops only) ───────────────────────────
     {
@@ -723,6 +725,41 @@ export function buildEmailSamples(base: string): EmailSample[] {
       timing: 'About 5 minutes before each live workshop/masterclass',
       audience: 'Jacob (BRIEFING_TO) — registered count, the three-door audience mix, practitioners, add-on uptake, countries',
       content: buildBriefingEmail(sampleBriefingData(), b),
+    },
+  ];
+}
+
+// Certification (src/lib/certification/): the form on /certification/apply and
+// Jacob's review on /admin/certification. The real sends carry the student's
+// own name and Jacob's own words.
+function certificationSamples(b: string): EmailSample[] {
+  const group = 'Certification (transactional)';
+  const audience = 'A student who sent the certification form';
+  const feedback =
+    '**What I saw**\n\nYou took your time with the mandate, and came back to it twice when the session drifted. Your client could feel that the two of you were on the same team.\n\n**What to keep growing**\n\n- Stay with the tone a little longer before you speak.\n- Close with one full breath together.';
+  const response =
+    'Thank you for this session. Your presence with your client is warm and steady.\n\n**What I would like you to look at**\n\n- The sounds became breath alone for long stretches. Keep it tonal: a hum is enough.\n- The session went on after the wave had landed. Close when it lands.\n\nRecord a new session with these two in mind, and send it when you are ready.';
+  return [
+    { id: 'cert_received', group, label: 'Submission received — waiting for review', timing: 'The moment the form on /certification/apply is sent', audience, content: certReceivedEmail({ name: 'maria voss', videoGiven: true }) },
+    { id: 'cert_certified', group, label: 'Certified — congratulations', timing: 'When you certify on /admin/certification with the email ticked', audience, content: certCertifiedEmail({ name: 'maria voss', hasCertificate: true, feedback }) },
+    { id: 'cert_response', group, label: 'Not certified yet — please see my response', timing: 'When you send a response on /admin/certification with the email ticked', audience, content: certResponseEmail({ name: 'maria voss', response, applyUrl: `${b}/certification/apply?email=maria%40example.com&first_name=Maria&last_name=Voss` }) },
+    {
+      id: 'cert_internal',
+      group: 'Reports (internal)',
+      label: 'SD-CERT — new certification submission',
+      timing: 'The moment the form is sent, to jacob@songdance.co (CERT_NOTIFICATIONS_TO)',
+      audience: 'You',
+      content: certInternalEmail({
+        name: 'Maria Voss',
+        email: 'maria@example.com',
+        videoUrl: 'https://youtu.be/dQw4w9WgXcQ',
+        videoUploaded: false,
+        courseFeedback: 'More time for practice in pairs would have helped me.',
+        testimonial: "I've left a testimonial",
+        comments: null,
+        windowLine: 'open until 2026-12-31',
+        adminUrl: `${b}/admin/certification/12`,
+      }),
     },
   ];
 }

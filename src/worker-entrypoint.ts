@@ -34,6 +34,7 @@ import { runWorkshopCron } from './lib/workshops/cron';
 import { runBroadcasts } from './lib/broadcasts/cron';
 import { runSessionCron } from './lib/sessions/cron';
 import { syncAppTags } from './lib/broadcasts/app-tags';
+import { retryCertAppSync } from './lib/certification/app-sync';
 import { syncCertTags } from './lib/broadcasts/cert-tags';
 import { runDripOrderBackfill } from './lib/orders/drip-backfill';
 import { runContactTagBackfill } from './lib/contacts/tag-backfill';
@@ -406,6 +407,19 @@ export function createExports(manifest: unknown) {
         })
         .catch((err) => {
           console.error('[broadcasts/app-tags] sync failed', err);
+        }),
+    );
+
+    // Certification submissions whose status the member app has not taken yet
+    // (it did not answer when the form came in or the review was saved): told
+    // again, each from its own rows (src/lib/certification/app-sync.ts).
+    ctx.waitUntil(
+      retryCertAppSync(env)
+        .then((r) => {
+          if (r.tried) console.log(`[certification/app-sync] tried=${r.tried} ok=${r.ok}`);
+        })
+        .catch((err) => {
+          console.error('[certification/app-sync] retry failed', err);
         }),
     );
 
