@@ -389,6 +389,22 @@ announcement follow.
   joins by adding its selector to `TARGETS`; a one-off sequence takes `data-fc-on` and
   styles on `.is-on`.
 - Registrants: `/admin/courses/forgiveness-course`.
+- **Its ads, and the Forgiveness box** (17 Nov 2026): a Meta campaign with **"Forgiveness"** in
+  its name (`isForgivenessCampaign` in [`campaigns.ts`](src/lib/ads/campaigns.ts)) is the course's.
+  Its money stays in **total** ad spend and blended ROAS (the course's sales are in the revenue)
+  but is charged to **no** workshop or masterclass seat: it is never prospecting / retargeting /
+  `general`, never in a cost per registration or a session's cost (both `computeStats` and
+  `computeWorkshopPerformance` set it aside as `forgivenessAdSpendEurMinor` /
+  `forgivenessSpendEurMinor`; the headline spend lines say "· €N Forgiveness"). It is measured on
+  its own in the **Forgiveness box at the top of `/admin/stats` and `/ads`**
+  ([`forgiveness-report.ts`](src/lib/ads/forgiveness-report.ts) +
+  [`ForgivenessBox.astro`](src/components/admin/ForgivenessBox.astro)): sales (free places and full
+  refunds apart), revenue net of VAT with the bumps, ad spend (prospecting · retargeting), profit,
+  ROAS, cost per sale, what it still needs for 2×, today / last 7 days / the page's period, a
+  running revenue-vs-spend line, and the campaigns. The main figures are the **whole run**
+  whatever period the page shows. ROAS counts every sale of the course, ads or not — no order says
+  where its buyer came from. The box shows while registration is open, afterwards only on a period
+  that saw it sell or spend. Keep the word in the campaign name or the spend lands on the workshops.
 
 ## Forgiveness prayer lead magnet — offline, kept for later
 

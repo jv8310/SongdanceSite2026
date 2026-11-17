@@ -140,3 +140,23 @@ export const MASTERCLASS_DOOR_ANGLE: Record<MasterclassDoor, string> = {
   masterclass: 'the missing tool in your work with clients',
   'heal-the-healer': 'who holds space for the healer?',
 };
+
+// ---------------------------------------------------------------------------
+// The Forgiveness Course's own campaigns (November 2026).
+//
+// The course sells straight from its ads (to /courses/forgiveness): it buys no
+// workshop or masterclass seat. Left to the rules above, a "… TOF … Forgiveness"
+// campaign names neither product, reads as `general`, and its money would be
+// charged across every workshop and masterclass seat in the window — exactly
+// the mis-attribution the product split exists to prevent. So any campaign
+// whose name carries "Forgiveness" (or "Forgive") is taken out of the workshop
+// funnel altogether: it counts in TOTAL ad spend (and so in blended ROAS, whose
+// revenue holds the course's sales), never in prospecting / retargeting / cost
+// per registration, and it is measured on its own against the course's sales
+// (lib/ads/forgiveness-report.ts, the Forgiveness box on /ads and /admin/stats).
+// Keep the word in the campaign name, or its spend lands on the workshops.
+const FORGIVENESS_TOKEN = /forgiv/i;
+
+export function isForgivenessCampaign(campaign: string | null | undefined): boolean {
+  return FORGIVENESS_TOKEN.test((campaign ?? '').trim());
+}

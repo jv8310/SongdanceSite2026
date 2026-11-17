@@ -22,6 +22,8 @@ import { CAMPAIGN_AUDIENCE_LABEL } from '../../lib/ads/campaigns';
 import { syncTodayAdSpend } from '../../lib/ads/meta-insights';
 import ChartKit from '../../components/charts/ChartKit.astro';
 import LatestSessions from '../../components/admin/LatestSessions.astro';
+import ForgivenessBox from '../../components/admin/ForgivenessBox.astro';
+import { computeForgivenessReport } from '../../lib/ads/forgiveness-report';
 import {
   PERIOD_PRESETS,
   resolvePeriod,
@@ -95,6 +97,8 @@ const courseCash = await computeCourseCashIn(env.DB, { from, to, money });
 // The live pass box: the monthlies as they stand now, and what sold in the window.
 const livePass = await computeLivePassStats(env.DB, { from, to, money });
 const days = mergeDailyStreams(report, courses, from, to);
+// The Forgiveness Course against its own campaigns — the box at the top.
+const forgiveness = await computeForgivenessReport(env.DB, { from, to, money });
 const campaignSpend = await computeAdSpendByCampaign(env.DB, { from, to });
 // Per-workshop funnel + workshop-only (TOF) ROAS. Not narrowed by the workshop
 // filter — this is the acquisition view across every workshop in the window.
@@ -629,6 +633,8 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
       </p>
     </section>
 
+    {forgiveness.show && <ForgivenessBox report={forgiveness} />}
+
     <LatestSessions rows={latestPerf.rows} note="each session over its whole life, whatever the period above" />
 
     <!-- ─── Hero band ─── -->
@@ -658,7 +664,7 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
           <span class="st-hero-label">Ad spend</span>
           <strong class="st-hero-num">{eur0(adSpendEurMinor)}</strong>
           {(() => { const d = delta(adSpendEurMinor, cmpAdSpendEurMinor, false); return d && <em class={`st-hd st-hd--${d.cls}`}>{d.arrow} {d.text}</em>; })()}
-          <span class="st-hero-mini">{eur0(perf.acquisitionSpendEurMinor)} prospecting · {eur0(perf.retargetingSpendEurMinor)} retargeting</span>
+          <span class="st-hero-mini">{eur0(perf.acquisitionSpendEurMinor)} prospecting · {eur0(perf.retargetingSpendEurMinor)} retargeting{perf.forgivenessSpendEurMinor > 0 && <> · {eur0(perf.forgivenessSpendEurMinor)} Forgiveness</>}</span>
           {spendFreshness && <span class="st-hero-mini">{spendFreshness}</span>}
         </div>
         <div class="st-hero-cell">
@@ -1130,7 +1136,7 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
       <div class="st-ads">
         {campaignSpend.length > 0 && (
           <div class="st-ads-col">
-            <p class="adm-sub"><strong>By campaign</strong> — this window. Cost per registration counts <strong>prospecting</strong> (a campaign with “TOF” in its name) only; the rest is retargeting and is excluded from it (but still in total spend + blended ROAS). <strong>Charged to</strong> is the product a campaign buys registrations for, taken from its name — its money is only ever charged to those sessions, so the workshop and masterclass seat prices stay each other’s business. A campaign naming neither is charged across both.</p>
+            <p class="adm-sub"><strong>By campaign</strong> — this window. Cost per registration counts <strong>prospecting</strong> (a campaign with “TOF” in its name) only; the rest is retargeting and is excluded from it (but still in total spend + blended ROAS). <strong>Charged to</strong> is the product a campaign buys registrations for, taken from its name — its money is only ever charged to those sessions, so the workshop and masterclass seat prices stay each other’s business. A campaign naming neither is charged across both. A campaign naming <strong>Forgiveness</strong> is charged to no session: it sits in total spend and is measured against the course’s own sales in the Forgiveness box at the top.</p>
             <table class="adm-table st-table">
               <thead><tr><th>Campaign</th><th>Type</th><th>Charged to</th><th class="num">Spend (EUR)</th></tr></thead>
               <tbody>
@@ -1138,12 +1144,12 @@ const fcMax = Math.max(...fcMonths.map((m) => m.totalEurMinor), 1);
                   <tr>
                     <td>{c.campaign || <em>(no campaign name)</em>}</td>
                     <td><span class={`st-pill ${c.kind === 'acquisition' ? 'st-pill--tof' : 'st-pill--rt'}`}>{c.kind === 'acquisition' ? 'Prospecting' : 'Retargeting'}</span></td>
-                    <td>{CAMPAIGN_AUDIENCE_LABEL[c.audience]}</td>
+                    <td>{c.forgiveness ? 'Forgiveness Course' : CAMPAIGN_AUDIENCE_LABEL[c.audience]}</td>
                     <td class="num">{eur(c.eurMinor)}</td>
                   </tr>
                 ))}
                 <tr class="st-row--total">
-                  <td colspan="3"><strong>Total</strong> <span class="adm-sub" style="font-weight:400;">· {eur0(campaignSpend.filter((c) => c.kind === 'acquisition').reduce((s, c) => s + c.eurMinor, 0))} prospecting · {eur0(campaignSpend.filter((c) => c.kind === 'retargeting').reduce((s, c) => s + c.eurMinor, 0))} retargeting</span></td>
+                  <td colspan="3"><strong>Total</strong> <span class="adm-sub" style="font-weight:400;">· {eur0(campaignSpend.filter((c) => !c.forgiveness && c.kind === 'acquisition').reduce((s, c) => s + c.eurMinor, 0))} prospecting · {eur0(campaignSpend.filter((c) => !c.forgiveness && c.kind === 'retargeting').reduce((s, c) => s + c.eurMinor, 0))} retargeting{campaignSpend.some((c) => c.forgiveness) && <> · {eur0(campaignSpend.filter((c) => c.forgiveness).reduce((s, c) => s + c.eurMinor, 0))} Forgiveness</>}</span></td>
                   <td class="num"><strong>{eur(campaignSpend.reduce((s, c) => s + c.eurMinor, 0))}</strong></td>
                 </tr>
               </tbody>

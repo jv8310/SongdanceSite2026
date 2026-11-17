@@ -471,7 +471,7 @@ const rangeLabel = from && to ? `${from} → ${to}` : 'all time';
         Showing <strong>{rangeLabel}</strong> ·
         prospecting (TOF) spend {eur(report.acquisitionSpendEurMinor)} ÷ {report.totalRegistrations} registrations =
         <strong>{report.costPerRegistrationEurMinor != null ? eur(Math.round(report.costPerRegistrationEurMinor)) : '—'}</strong> cost per registration, blended.
-        {report.retargetingSpendEurMinor > 0 && <> Retargeting {eur(report.retargetingSpendEurMinor)} is excluded from that (total ad spend {eur(report.adSpendEurMinor)}).</>}
+        {report.retargetingSpendEurMinor > 0 && <> Retargeting {eur(report.retargetingSpendEurMinor)} is excluded from that (total ad spend {eur(report.adSpendEurMinor)}).</>}{report.forgivenessSpendEurMinor > 0 && <> The Forgiveness Course’s campaigns ({eur(report.forgivenessSpendEurMinor)}) buy no seat and are charged to no session.</>}
       </p>
       <div class="pf-aud">
         {([

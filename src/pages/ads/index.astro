@@ -22,6 +22,8 @@ import ChartKit from '../../components/charts/ChartKit.astro';
 import SessionProfitRoasChart from '../../components/admin/SessionProfitRoasChart.astro';
 import { sessionChartPoints } from '../../lib/workshops/session-points';
 import SessionTimeSlots from '../../components/admin/SessionTimeSlots.astro';
+import ForgivenessBox from '../../components/admin/ForgivenessBox.astro';
+import { computeForgivenessReport } from '../../lib/ads/forgiveness-report';
 
 export const prerender = false;
 
@@ -72,6 +74,8 @@ const excludeFuture = Astro.url.searchParams.has(FUTURE_COSTS_PARAM)
   ? excludeFutureEventsFrom(Astro.url.searchParams)
   : true;
 const d = await computeAdsDashboard(env.DB, { from, to, money, excludeFutureEvents: excludeFuture });
+// The Forgiveness Course against its own campaigns — the box at the top.
+const forgiveness = await computeForgivenessReport(env.DB, { from, to, money });
 const cmp = compare && cmpFrom && cmpTo
   ? await computeAdsDashboard(env.DB, {
       from: cmpFrom, to: cmpTo, money, excludeFutureEvents: excludeFuture,
@@ -142,7 +146,8 @@ const tiles: Array<{ label: string; value: string; sub?: string; d: Delta }> = [
     label: 'Ad spend',
     value: d.hasAdSpend ? eur0(d.adSpendEurMinor) : '—',
     sub: d.hasAdSpend
-      ? `${eur0(d.acquisitionSpendEurMinor)} prospecting · ${eur0(d.retargetingSpendEurMinor)} retargeting`
+      ? `${eur0(d.acquisitionSpendEurMinor)} prospecting · ${eur0(d.retargetingSpendEurMinor)} retargeting` +
+        (d.forgivenessSpendEurMinor > 0 ? ` · ${eur0(d.forgivenessSpendEurMinor)} Forgiveness` : '')
       : 'no spend imported',
     d: delta(d.adSpendEurMinor, cmp?.adSpendEurMinor),
   },
@@ -702,6 +707,18 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
         --spr-workshop: var(--s1);
         --spr-masterclass: var(--s2);
       }
+      /* The Forgiveness box: a white card like the others here. */
+      .fb-host :global(.fb) {
+        --fb-surface: var(--card);
+        --fb-ink: var(--ink);
+        --fb-ink-soft: var(--ink-2);
+        --fb-mute: var(--muted);
+        --fb-line: var(--line);
+        --fb-link: var(--ember-deep);
+        --fb-good: var(--good);
+        --fb-bad: var(--bad);
+        --fb-spend: var(--ember);
+      }
       /* The day & time panel too: white tables like this page's, products in
          its own blue and orange. */
       .sts-host :global(.sts[data-sts]) {
@@ -778,6 +795,12 @@ const anyDaily = ds.length > 0 || acq.some((x) => x.registrations > 0);
         {excludeFuture && d.future.sessions === 0 && <> Upcoming events are excluded; this window holds none.</>}
         {!(from && to) && <span class="sub-muted"> Pick a bounded period to compare against the previous one.</span>}
       </p>
+
+      {forgiveness.show && (
+        <div class="fb-host">
+          <ForgivenessBox report={forgiveness} links={false} />
+        </div>
+      )}
 
       {!d.hasAdSpend && (
         <div class="banner">

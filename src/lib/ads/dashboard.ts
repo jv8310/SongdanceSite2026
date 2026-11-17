@@ -60,7 +60,8 @@ export type AdsDashboard = {
   // Headline (ads-manager KPIs) ------------------------------------------
   adSpendEurMinor: number; // all campaigns
   acquisitionSpendEurMinor: number; // prospecting (TOF) campaigns
-  retargetingSpendEurMinor: number; // everything else
+  retargetingSpendEurMinor: number; // everything else, Forgiveness campaigns excepted
+  forgivenessSpendEurMinor: number; // the Forgiveness Course's campaigns (in adSpendEurMinor, on no session)
   registrations: number;
   costPerRegistrationEurMinor: number | null; // prospecting spend ÷ registrations (window average, both products)
   // The same figure per product: the workshop campaigns' money against workshop
@@ -254,6 +255,7 @@ export async function computeAdsDashboard(
     adSpendEurMinor,
     acquisitionSpendEurMinor: perf.acquisitionSpendEurMinor,
     retargetingSpendEurMinor: perf.retargetingSpendEurMinor,
+    forgivenessSpendEurMinor: perf.forgivenessSpendEurMinor,
     registrations,
     costPerRegistrationEurMinor: perf.costPerRegistrationEurMinor,
     audiences: perf.audiences,

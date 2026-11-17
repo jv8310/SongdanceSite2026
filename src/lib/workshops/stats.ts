@@ -27,6 +27,7 @@ import {
   campaignKind,
   campaignAudience,
   campaignMasterclassDoor,
+  isForgivenessCampaign,
   MASTERCLASS_DOORS,
   MASTERCLASS_DOOR_LABEL,
   MASTERCLASS_DOOR_PATH,
@@ -326,7 +327,8 @@ export type StatsReport = {
   daily: DailyStat[];
   adSpendEurMinor: number; // all campaigns (drives blended ROAS)
   acquisitionAdSpendEurMinor: number; // prospecting (TOF) share
-  retargetingAdSpendEurMinor: number; // everything else
+  retargetingAdSpendEurMinor: number; // everything else, Forgiveness campaigns excepted
+  forgivenessAdSpendEurMinor: number; // the Forgiveness Course's own campaigns
   roas: number | null;
   courseBreakdown: Array<{ product_id: number; count: number; netEurMinor: number }>;
 };
@@ -523,15 +525,21 @@ export async function computeStats(
 
   // Total spend drives blended ROAS; the acquisition (TOF/prospecting) share
   // drives cost per registration. Split both overall and per day.
+  // The Forgiveness Course's campaigns count in total spend (its sales are in
+  // the revenue) but buy no workshop seat, so they are neither prospecting nor
+  // retargeting here (lib/ads/campaigns.ts isForgivenessCampaign).
   let adSpendEurMinor = 0;
   let acquisitionAdSpendEurMinor = 0;
+  let forgivenessAdSpendEurMinor = 0;
   const adByDate = new Map<string, number>();
   const acqByDate = new Map<string, number>();
   for (const a of adRes.results ?? []) {
     const eur = a.amount_eur_minor ?? (a.currency === 'EUR' ? a.amount_minor : 0);
     adSpendEurMinor += eur;
     adByDate.set(a.spend_date, (adByDate.get(a.spend_date) ?? 0) + eur);
-    if (isAcquisitionCampaign(a.campaign)) {
+    if (isForgivenessCampaign(a.campaign)) {
+      forgivenessAdSpendEurMinor += eur;
+    } else if (isAcquisitionCampaign(a.campaign)) {
       acquisitionAdSpendEurMinor += eur;
       acqByDate.set(a.spend_date, (acqByDate.get(a.spend_date) ?? 0) + eur);
     }
@@ -563,7 +571,8 @@ export async function computeStats(
     daily,
     adSpendEurMinor,
     acquisitionAdSpendEurMinor,
-    retargetingAdSpendEurMinor: adSpendEurMinor - acquisitionAdSpendEurMinor,
+    retargetingAdSpendEurMinor: adSpendEurMinor - acquisitionAdSpendEurMinor - forgivenessAdSpendEurMinor,
+    forgivenessAdSpendEurMinor,
     roas: adSpendEurMinor > 0 ? totals.netEurMinor / adSpendEurMinor : null,
     courseBreakdown: [...courseMap.entries()].map(([product_id, v]) => ({
       product_id,
@@ -799,6 +808,63 @@ export async function computeCourseSales(
     }));
 
   return report;
+}
+
+// ---------------------------------------------------------------------------
+// One course product's sales, order by order: what the Forgiveness box on /ads
+// and /admin/stats reads (lib/ads/forgiveness-report.ts). Valued exactly like
+// computeCourseSales — net of VAT per country, live FX, refunds off, a plan in
+// full — so its figures are the ones that product adds to the page's totals.
+// Unlike computeCourseSales it tells a free place (an order that took no money:
+// the owner's ?adiscount=100 link) from a sale, and a fully refunded order from
+// one that stands.
+
+export type CourseProductOrder = {
+  paidAt: string; // UTC stamp
+  day: string; // Brussels business day of paidAt
+  courseEurMinor: number; // the course line, full value, refunds off
+  bumpsEurMinor: number; // order bumps bought with it
+  bumpCount: number;
+  free: boolean; // took no money at all
+  refunded: boolean; // refunded in full
+};
+
+export async function computeCourseProductOrders(
+  db: D1Database,
+  slug: string,
+  opts: { money?: MoneyOpts } = {},
+): Promise<CourseProductOrder[]> {
+  const res = await db
+    .prepare(
+      `SELECT product_slug, amount_cents, currency, country, vat_number, payment_plan,
+              installments_paid, installments_total, refunded_amount_cents, paid_at,
+              status, cancel_after_installment, bumps
+         FROM course_registrations
+        WHERE product_slug = ? AND paid_at IS NOT NULL AND status NOT IN ('pending','expired')
+        ORDER BY paid_at`,
+    )
+    .bind(slug)
+    .all<CourseSaleRow>();
+  const rows = res.results ?? [];
+  const fxRates = opts.money?.fxRates ?? (await getFxRatesToEur(db));
+  const taxRates = await resolveCourseTaxRates(rows, opts.money?.taxCfg);
+  return rows.map((r) => {
+    const full = checkoutPartsMinor(r, contractedCycles(r));
+    const grossBumps = parsePurchasedBumps(r.bumps ?? null).reduce(
+      (sum, b) => sum + Math.max(0, b.amount_cents), 0,
+    );
+    return {
+      paidAt: r.paid_at,
+      day: businessDayOf(r.paid_at),
+      courseEurMinor: courseNetEur(full.courseMinor, r, taxRates, fxRates).eurMinor,
+      bumpsEurMinor: full.bumps.reduce(
+        (sum, b) => sum + courseNetEur(b.amount_cents, r, taxRates, fxRates).eurMinor, 0,
+      ),
+      bumpCount: full.bumps.filter((b) => b.amount_cents > 0).length,
+      free: r.amount_cents <= 0 && grossBumps <= 0,
+      refunded: r.status === 'refunded',
+    };
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -1171,9 +1237,12 @@ export type FutureEventTotals = {
 
 export type WorkshopPerformanceReport = {
   rows: WorkshopPerformanceRow[];
-  adSpendEurMinor: number; // all campaigns
+  adSpendEurMinor: number; // all campaigns, the Forgiveness Course's included
   acquisitionSpendEurMinor: number; // prospecting (TOF) campaigns
-  retargetingSpendEurMinor: number; // everything else
+  retargetingSpendEurMinor: number; // everything else, Forgiveness campaigns excepted
+  // The Forgiveness Course's own campaigns: in adSpendEurMinor, charged to no
+  // session (lib/ads/campaigns.ts isForgivenessCampaign).
+  forgivenessSpendEurMinor: number;
   totalRegistrations: number;
   // Cost per registration is charged against prospecting spend only — the
   // campaign that actually buys registrations. (Retargeting re-touches people
@@ -1493,8 +1562,16 @@ export async function computeWorkshopPerformance(
     masterclass: 0, 'heal-the-healer': 0, shared: 0,
   };
   const bump = (m: Map<string, number>, date: string, v: number) => m.set(date, (m.get(date) ?? 0) + v);
+  // The Forgiveness Course's campaigns buy no session seat: their euros count
+  // in total ad spend (blended ROAS reads the course's sales too) and nowhere
+  // else here — never priced onto a registration, never in a session's cost.
+  let forgivenessSpendEurMinor = 0;
   for (const a of adRes.results ?? []) {
     const eur = a.amount_eur_minor ?? (a.currency === 'EUR' ? a.amount_minor : 0);
+    if (isForgivenessCampaign(a.campaign)) {
+      forgivenessSpendEurMinor += eur;
+      continue;
+    }
     const audience = campaignAudience(a.campaign);
     adSpendEurMinor += eur;
     bump(adByDate, a.spend_date, eur);
@@ -2029,9 +2106,10 @@ export async function computeWorkshopPerformance(
 
   return {
     rows: reportRows,
-    adSpendEurMinor: reportAdSpendEurMinor,
+    adSpendEurMinor: reportAdSpendEurMinor + forgivenessSpendEurMinor,
     acquisitionSpendEurMinor: reportAcquisitionSpendEurMinor,
     retargetingSpendEurMinor: reportAdSpendEurMinor - reportAcquisitionSpendEurMinor,
+    forgivenessSpendEurMinor,
     totalRegistrations,
     costPerRegistrationEurMinor,
     dailyCosts,
@@ -2157,6 +2235,8 @@ export type CampaignSpend = {
   kind: CampaignKind;
   // Which product's registrations this campaign's spend is charged to.
   audience: CampaignAudience;
+  // A Forgiveness Course campaign: charged to no session (isForgivenessCampaign).
+  forgiveness: boolean;
   eurMinor: number;
 };
 
@@ -2186,6 +2266,7 @@ export async function computeAdSpendByCampaign(
       campaign,
       kind: campaignKind(campaign),
       audience: campaignAudience(campaign),
+      forgiveness: isForgivenessCampaign(campaign),
       eurMinor,
     }))
     .sort((a, b) => b.eurMinor - a.eurMinor);
