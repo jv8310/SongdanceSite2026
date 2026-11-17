@@ -53,27 +53,39 @@ export async function createZoomMeeting(
   input: { topic: string; agenda?: string; startUtc: string; durationMin: number },
 ): Promise<ZoomMeeting> {
   const user = encodeURIComponent(env.ZOOM_USER?.trim() || 'me');
-  const res = await fetch(`https://api.zoom.us/v2/users/${user}/meetings`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${await zoomToken(env)}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      topic: input.topic.slice(0, 200),
-      agenda: (input.agenda ?? '').slice(0, 2000),
-      type: 2, // scheduled
-      start_time: zoomTime(input.startUtc),
-      timezone: 'UTC',
-      duration: input.durationMin,
-      settings: {
-        join_before_host: false,
-        waiting_room: true,
-        host_video: true,
-        participant_video: true,
-        mute_upon_entry: false,
-        auto_recording: 'none',
-        approval_type: 2, // no registration
-      },
-    }),
-  });
+  // A session is recorded unless the client would rather not (Jacob, November
+  // 2026): the meeting starts recording to the Zoom cloud by itself, Jacob stops
+  // it when asked, and sends the recording to whoever asks afterwards. An account
+  // that refuses cloud recording gets the meeting with Jacob's own Zoom default.
+  const token = await zoomToken(env);
+  const create = (recording: boolean) =>
+    fetch(`https://api.zoom.us/v2/users/${user}/meetings`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        topic: input.topic.slice(0, 200),
+        agenda: (input.agenda ?? '').slice(0, 2000),
+        type: 2, // scheduled
+        start_time: zoomTime(input.startUtc),
+        timezone: 'UTC',
+        duration: input.durationMin,
+        settings: {
+          join_before_host: false,
+          waiting_room: true,
+          host_video: true,
+          participant_video: true,
+          mute_upon_entry: false,
+          ...(recording ? { auto_recording: 'cloud' } : {}),
+          approval_type: 2, // no registration
+        },
+      }),
+    });
+  let res = await create(true);
+  if (!res.ok && res.status >= 400 && res.status < 500 && res.status !== 401) {
+    const text = await res.text();
+    if (/record/i.test(text)) res = await create(false);
+    else throw new Error(`Zoom create meeting: ${res.status} ${text.slice(0, 300)}`);
+  }
   if (!res.ok) throw new Error(`Zoom create meeting: ${res.status} ${(await res.text()).slice(0, 300)}`);
   const m = (await res.json()) as { id: number | string; join_url: string; password?: string };
   return { id: String(m.id), joinUrl: m.join_url, passcode: m.password || null };

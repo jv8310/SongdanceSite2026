@@ -244,10 +244,14 @@ next 14 days, every booking).
   line, order labels); the slug `individual-session`, the Drip tag and the Drip event
   `Completed individual session booking` keep their names. The page has "How fifty minutes
   usually go" (four beats; the number word follows the length setting), "You might come
-  with", "With Jacob" and FAQs for no sound / intense / how many sessions. Left out until
-  Jacob confirms: replays of a session (the FAQ still says it is not recorded, and the Zoom
-  meetings are made without recording), a cancellation FAQ (no policy in the terms yet), the
-  Zoom "original sound" line, a testimonial.
+  with", "With Jacob" and FAQs for no sound / intense / how many sessions. **Recording**
+  (Jacob, same day): every session is recorded unless the client would rather not (they say
+  so in the note or at the start), and the recording goes to whoever asks for it afterwards —
+  so the Zoom meeting is made with `auto_recording: 'cloud'` (an account that refuses it gets
+  the meeting with Jacob's own Zoom default, `zoom.ts`), the FAQ says so, and the booking
+  email carries one line about it. The Zoom FAQ says the client and Jacob switch on
+  "original sound" together at the start. Still left out: a cancellation FAQ (no policy in
+  the terms yet) and a testimonial.
 - **Setting up Zoom, Cloudflare and Google from a browser**: the step-by-step brief for a
   Claude in Chrome session is [`docs/sessions-setup-chrome.md`](docs/sessions-setup-chrome.md)
   (Zoom Server-to-Server app with `meeting:write|update|delete:meeting:admin`, the four
