@@ -256,6 +256,20 @@ next 14 days, every booking).
   email carries one line about it. The Zoom FAQ says the client and Jacob switch on
   "original sound" together at the start. Still left out: a cancellation FAQ (no policy in
   the terms yet) and a testimonial.
+- **Discount links** (17 Nov 2026, Jacob): `/sessions?discount=N` (or `?adiscount=N`, which
+  wins when both are set), **N from 1 to 100** — unlike the course links, the public
+  `?discount` goes all the way to 100 here, as asked. `clampSessionDiscount` /
+  `sessionDiscountFrom` / `sessionDiscountedCents` in [`price.ts`](src/lib/sessions/price.ts)
+  serve the page and the checkout alike (rounded down to whole units, so the percent is
+  never under-delivered: €175 at 50% → €87). The page strikes the list price through and
+  says the percent; the checkout re-derives it from the posted percent and records it in
+  the Stripe metadata and the checkout events. **100 = complimentary**: no payment page —
+  `/api/sessions/checkout` takes the hold, writes the order at 0 (`source_variant
+  'free-comp'`, intent `free-100-<id>`), runs Drip and `notifyCourseOrder` (which books it:
+  Zoom, calendar, the client's email, SD-ORDER) and sends them to their booking page; a
+  step that fails after the order is paid is logged (`session.free.*`) and left to the
+  5-minute cron, never undone. Backing out of a payment page keeps the discount on the way
+  back (`cancel_url` carries it).
 - **Setting up Zoom, Cloudflare and Google from a browser**: the step-by-step brief for a
   Claude in Chrome session is [`docs/sessions-setup-chrome.md`](docs/sessions-setup-chrome.md)
   (Zoom Server-to-Server app with `meeting:write|update|delete:meeting:admin`, the four

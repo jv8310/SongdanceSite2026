@@ -3,7 +3,11 @@ import {
   attachPaypalOrderToCourse,
   attachStripeSessionToCourse,
   createPendingCourseRegistration,
+  getCourseRegistrationById,
+  markCourseRegistrationPaid,
 } from '../../../lib/courses/db';
+import { pushPaidCourseRegistrationToDrip } from '../../../lib/courses/paid-handler';
+import { notifyCourseOrder } from '../../../lib/orders/notification';
 import { edgeTimezone } from '../../../lib/geo';
 import { logEventSafe } from '../../../lib/registrations/db';
 import { createCheckoutSession, createCustomer, paypalEnabled } from '../../../lib/registrations/stripe';
@@ -18,6 +22,7 @@ import {
   sessionCurrencyForCountry,
   sessionPriceCents,
 } from '../../../lib/sessions/config';
+import { sessionDiscountedCents, sessionDiscountFrom } from '../../../lib/sessions/price';
 import { findOfferedSlot, loadAvailability } from '../../../lib/sessions/availability';
 import { attachRegistration, createHold, releaseHold, releaseOwnHolds, setMeeting } from '../../../lib/sessions/db';
 import { signBookingToken, BOOKING_PATH } from '../../../lib/sessions/link';
@@ -42,6 +47,10 @@ type Body = {
   note?: string;
   consent_terms?: boolean;
   provider?: string;
+  // A discount link (?discount=N / ?adiscount=N, 1–100): re-derived here, so
+  // the charge can't be spoofed beyond what a link may give. 100 = complimentary.
+  discount_percent?: number | string;
+  adiscount_percent?: number | string;
 };
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -121,7 +130,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
     }
 
     const currency = sessionCurrencyForCountry(countryCode);
-    const priceCents = sessionPriceCents(settings.priceEurCents, currency);
+    const listCents = sessionPriceCents(settings.priceEurCents, currency);
+    const discountPct = sessionDiscountFrom({ discount: payload.discount_percent, adiscount: payload.adiscount_percent });
+    const priceCents = sessionDiscountedCents(listCents, discountPct);
+    const free = discountPct === 100;
     const whenBrussels = formatInTz(offered.slot.startUtc, 'Europe/Brussels');
     const label = `${SESSION_PRODUCT_LABEL} — ${whenBrussels}`;
 
@@ -137,7 +149,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       product_slug: SESSION_PRODUCT_SLUG,
       activate_choice: null,
       language_choice: null,
-      source_variant: 'direct',
+      source_variant: free ? 'free-comp' : 'direct',
       timezone,
       amount_cents: priceCents,
       currency,
@@ -153,7 +165,49 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const successPath = `${BOOKING_PATH}?t=${encodeURIComponent(token)}&welcome=1`;
     // Backing out of the payment page frees the moment at once (/sessions
     // reads ?release=), so it isn't kept from the next person for 35 minutes.
-    const cancelUrl = `${baseUrl}/sessions?release=${encodeURIComponent(token)}#book`;
+    // The discount comes back with them, so the price they return to is theirs.
+    const discountQ = discountPct > 0 ? `&discount=${discountPct}` : '';
+    const cancelUrl = `${baseUrl}/sessions?release=${encodeURIComponent(token)}${discountQ}#book`;
+
+    // A complimentary session (100%): nothing to charge, so no payment page.
+    // The booking is made here, with the same steps a payment would start:
+    // marked paid at 0, Drip, then notifyCourseOrder, which confirms the
+    // booking (its own Zoom meeting, the calendar entry, the client's email)
+    // and sends the SD-ORDER. From here on the moment is theirs: a step that
+    // fails is logged, never undone, and the 5-minute session cron confirms a
+    // paid booking still held.
+    if (free) {
+      await markCourseRegistrationPaid(env.DB, registrationId, `free-100-${registrationId}`);
+      const freeBookingId = bookingId;
+      bookingId = null; // paid: the catch below must not give the moment back
+      await logEventSafe(env.DB, {
+        registration_id: null,
+        kind: 'course.free_checkout.fulfilled',
+        source: 'system',
+        external_id: `local-course-${registrationId}`,
+        payload: {
+          course_registration_id: registrationId,
+          product_slug: SESSION_PRODUCT_SLUG,
+          booking_id: freeBookingId,
+          currency,
+          original_amount_cents: listCents,
+          discount_percent: 100,
+          source_variant: 'free-comp',
+        },
+      });
+      try {
+        await pushPaidCourseRegistrationToDrip(env, registrationId);
+      } catch (err) {
+        await logEventSafe(env.DB, { registration_id: null, kind: 'session.free.drip_error', source: 'system', payload: { course_registration_id: registrationId, error: String(err) } });
+      }
+      try {
+        const paidReg = await getCourseRegistrationById(env.DB, registrationId);
+        if (paidReg) await notifyCourseOrder(env, paidReg, { stripePaymentIntent: paidReg.stripe_payment_intent, stripeSubscriptionId: null });
+      } catch (err) {
+        await logEventSafe(env.DB, { registration_id: null, kind: 'session.free.confirm_error', source: 'system', payload: { course_registration_id: registrationId, error: String(err) } });
+      }
+      return json({ checkout_url: `${baseUrl}${successPath}`, booking_id: freeBookingId, free: true });
+    }
 
     if (provider === 'paypal') {
       const order = await createPaypalOrder({
@@ -176,7 +230,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         kind: 'course.checkout.paypal.order.created',
         source: 'system',
         external_id: `local-course-pp-${registrationId}`,
-        payload: { course_registration_id: registrationId, order_id: order.id, product_slug: SESSION_PRODUCT_SLUG, booking_id: bookingId, currency, amount_cents: priceCents },
+        payload: { course_registration_id: registrationId, order_id: order.id, product_slug: SESSION_PRODUCT_SLUG, booking_id: bookingId, currency, amount_cents: priceCents, discount_percent: discountPct, original_amount_cents: listCents },
       });
       return json({ checkout_url: order.approveUrl, booking_id: bookingId });
     }
@@ -239,6 +293,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         country: countryCode,
         currency,
         tax_class: 'eservice',
+        ...(discountPct > 0 ? { discount_percent: String(discountPct), original_amount_cents: String(listCents) } : {}),
       },
       idempotency_key: `session-${bookingId}-reg-${registrationId}`,
     });
@@ -248,7 +303,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       kind: 'course.checkout.session.created',
       source: 'system',
       external_id: `local-course-${registrationId}`,
-      payload: { course_registration_id: registrationId, session_id: session.id, product_slug: SESSION_PRODUCT_SLUG, booking_id: bookingId, currency, amount_cents: priceCents },
+      payload: { course_registration_id: registrationId, session_id: session.id, product_slug: SESSION_PRODUCT_SLUG, booking_id: bookingId, currency, amount_cents: priceCents, discount_percent: discountPct, original_amount_cents: listCents },
     });
     return json({ checkout_url: session.url, booking_id: bookingId });
   } catch (err) {

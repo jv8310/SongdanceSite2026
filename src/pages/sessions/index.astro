@@ -2,7 +2,9 @@
 import SiteLayout from '../../components/SiteLayout.astro';
 import '../../styles/sessions.css';
 import { readCookie, verifySession } from '../../lib/registrations/auth';
-import { bookingOpen, loadSessionSettings, sessionCurrencyForCountry, sessionPriceLabel } from '../../lib/sessions/config';
+import { bookingOpen, loadSessionSettings, sessionCurrencyForCountry, sessionPriceCents, sessionPriceLabel } from '../../lib/sessions/config';
+import { sessionDiscountedCents, sessionDiscountFrom } from '../../lib/sessions/price';
+import { formatMoney } from '../../lib/workshops/currency';
 import { loadAvailability } from '../../lib/sessions/availability';
 import { getBooking, releaseHold } from '../../lib/sessions/db';
 import { verifyBookingToken } from '../../lib/sessions/link';
@@ -51,10 +53,19 @@ if (open || isAdmin) {
 
 const geoCountry = edgeCountry(Astro.locals);
 const geoMatch = geoCountry ? findCountry(geoCountry) : undefined;
-const priceLabel = open ? sessionPriceLabel(settings.priceEurCents, sessionCurrencyForCountry(geoCountry)) : null;
 const paypalOk = paypalConfigured(env) && env.PAYPAL_ENABLED === 'true';
 
 const param = (k: string, max = 100) => (Astro.url.searchParams.get(k) ?? '').trim().slice(0, max);
+
+// A discount link (?discount=N or ?adiscount=N, 1–100, src/lib/sessions/price.ts):
+// 100 is a complimentary session, booked without a payment page; less comes off
+// the price. The checkout re-derives the same figure from the same functions.
+const discountPct = open ? sessionDiscountFrom({ discount: param('discount', 8), adiscount: param('adiscount', 8) }) : 0;
+const freeSession = discountPct === 100;
+const geoCurrency = sessionCurrencyForCountry(geoCountry);
+const listCents = open ? sessionPriceCents(settings.priceEurCents, geoCurrency) : 0;
+const listLabel = open ? sessionPriceLabel(settings.priceEurCents, geoCurrency) : null;
+const priceLabel = open ? formatMoney(sessionDiscountedCents(listCents, discountPct), geoCurrency) : null;
 const prefillEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(param('email', 254)) ? param('email', 254).toLowerCase() : '';
 const prefillFirst = param('first_name');
 const prefillLast = param('last_name');
@@ -63,6 +74,7 @@ const widget = {
   slots,
   durationMin: settings.durationMin,
   priceEurCents: settings.priceEurCents,
+  discountPct,
   open,
   serverTz: edgeTimezone(Astro.locals) ?? 'Europe/Brussels',
 };
@@ -103,7 +115,15 @@ const metaDescription = `Private Somatic Vocal Healing sessions with Jacob on Zo
         <ul class="ss-facts">
           <li><i class="ph-light ph-clock"></i> {settings.durationMin} minutes, live on Zoom</li>
           <li><i class="ph-light ph-calendar-check"></i> Times shown on your own clock</li>
-          {priceLabel && <li><i class="ph-light ph-tag"></i> <span data-price-current>{priceLabel}</span> per session</li>}
+          {priceLabel && (
+            freeSession ? (
+              <li><i class="ph-light ph-gift"></i> <s class="ss-was" data-price-original>{listLabel}</s> Complimentary for you: nothing to pay</li>
+            ) : discountPct > 0 ? (
+              <li><i class="ph-light ph-tag"></i> <s class="ss-was" data-price-original>{listLabel}</s> <span data-price-current>{priceLabel}</span> per session, with your {discountPct}% discount</li>
+            ) : (
+              <li><i class="ph-light ph-tag"></i> <span data-price-current>{priceLabel}</span> per session</li>
+            )
+          )}
         </ul>
         {open && <a class="sd-btn sd-btn-primary ss-cta" href="#book">Choose a moment <i class="ph-light ph-arrow-down"></i></a>}
       </div>
@@ -220,14 +240,20 @@ const metaDescription = `Private Somatic Vocal Healing sessions with Jacob on Zo
               </label>
               <div class="ss-actions">
                 <button type="submit" class="sd-btn sd-btn-primary" data-submit data-provider="stripe" disabled={!open}>
-                  <span>Book &amp; pay by card{priceLabel && <> — <span data-price-current>{priceLabel}</span></>}</span>
+                  {freeSession
+                    ? <span>Book my session</span>
+                    : <span>Book &amp; pay by card{priceLabel && <> — <span data-price-current>{priceLabel}</span></>}</span>}
                   <i class="ph-light ph-arrow-right"></i>
                 </button>
-                {paypalOk && (
+                {paypalOk && !freeSession && (
                   <button type="submit" class="sd-btn ss-paypal" data-submit data-provider="paypal" disabled={!open}>Pay with PayPal</button>
                 )}
               </div>
-              <p class="ss-small">The price adjusts to your country and is charged in your local currency. Your moment is held for you while you pay.</p>
+              {freeSession ? (
+                <p class="ss-small">Your session is complimentary: there is nothing to pay. Confirm, and the moment is yours.</p>
+              ) : (
+                <p class="ss-small">{discountPct > 0 && <>Your {discountPct}% discount is in the price above. </>}The price adjusts to your country and is charged in your local currency. Your moment is held for you while you pay.</p>
+              )}
               <p class="ss-error" role="alert" data-error hidden></p>
             </form>
             <datalist id="ss-country-list">
@@ -278,11 +304,11 @@ const metaDescription = `Private Somatic Vocal Healing sessions with Jacob on Zo
 
 <script>
   import { mountPicker, type PickerSlot } from '../../lib/client/session-picker';
-  import { sessionCurrencyForCountry, sessionPriceCents } from '../../lib/sessions/price';
+  import { sessionCurrencyForCountry, sessionDiscountedCents, sessionPriceCents } from '../../lib/sessions/price';
   import { formatMoney } from '../../lib/workshops/currency';
   import { COUNTRIES } from '../../lib/countries';
 
-  type Data = { slots: PickerSlot[]; durationMin: number; priceEurCents: number; open: boolean; serverTz: string };
+  type Data = { slots: PickerSlot[]; durationMin: number; priceEurCents: number; discountPct: number; open: boolean; serverTz: string };
 
   const root = document.querySelector<HTMLElement>('[data-widget]');
   const raw = document.getElementById('ss-data')?.textContent;
@@ -309,11 +335,14 @@ const metaDescription = `Private Somatic Vocal Healing sessions with Jacob on Zo
     const countrySearch = form.querySelector<HTMLInputElement>('[data-country-search]');
     const countryHidden = form.querySelector<HTMLInputElement>('[data-country]');
     const priceEls = Array.from(document.querySelectorAll<HTMLElement>('[data-price-current]'));
+    const originalEls = Array.from(document.querySelectorAll<HTMLElement>('[data-price-original]'));
     const repaint = () => {
       if (!data.priceEurCents) return;
       const cur = sessionCurrencyForCountry(countryHidden?.value || null);
-      const label = formatMoney(sessionPriceCents(data.priceEurCents, cur), cur);
+      const list = sessionPriceCents(data.priceEurCents, cur);
+      const label = formatMoney(sessionDiscountedCents(list, data.discountPct), cur);
       priceEls.forEach((el) => { el.textContent = label; });
+      originalEls.forEach((el) => { el.textContent = formatMoney(list, cur); });
     };
     const resolveCountry = () => {
       const typed = (countrySearch?.value ?? '').trim().toLowerCase();
@@ -355,6 +384,7 @@ const metaDescription = `Private Somatic Vocal Healing sessions with Jacob on Zo
             timezone: picker.tz(),
             consent_terms: fd.get('consent_terms') === 'on',
             provider,
+            discount_percent: data.discountPct || undefined,
           }),
         });
         const out = (await res.json().catch(() => ({}))) as { checkout_url?: string; error?: string; taken?: boolean };
