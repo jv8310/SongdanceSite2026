@@ -82,25 +82,13 @@ of the person, since the app may still know them.
   bumps included) only **after** the gateway took the refund, and the flash says what was
   taken away — or, if the app did not answer, that access still stands. Workshop lines are
   not covered.
-- **Certification** (October 2026): the same section shows whether they ticked "I've filled
-  in the form and applied for certification" in the app (and how many of the five steps), and
-  carries **Mark as certified** — a day, a note and, optionally in the same step, the
-  **certificate** (PDF, JPEG or PNG, up to 20 MB, a multipart post to `/api/admin/app-access`).
-  Once certified, the app's certification course page swaps "Apply for certification" for a
-  "🎓 You are certified" label, and the certificate is there to download. The certificate can be
-  replaced, taken away (they stay certified) or the whole certification undone (the file goes
-  with it); **`/api/admin/app-certificate?email=`** shows the file. **Jacob's feedback** on the
-  session goes with it (same block, and optionally the form that certifies): plain text in the
-  app's lesson format — blank lines between paragraphs, `**bold**`, `*italic*`, `## ` or a
-  bold line for a heading, `- ` / `1. ` lists, web addresses as links — written in
-  `FeedbackEditor.astro` with formatting buttons and a preview
-  ([`feedback-editor.ts`](src/lib/client/feedback-editor.ts), which follows the app's
-  `rich-text.ts` / `FeedText.tsx` rules; change one, change the other). The member reads it on
-  their certification page under the certificate; the certified label opens that page. It is not a Drip tag: the
-  app keeps it per address (`app_certified`, the app's `lib/certified.ts`), so it works before
-  the person has an app account, and the file sits in the app's private bucket — this site only
-  passes it through the binding. Claude can do the same through the app's MCP tools
-  (`set_certified`, `add_certificate_from_url`, `create_certificate_upload`).
+- **Certification** is no longer managed here: the section only says where the person stands
+  (certified, waiting for review, response sent) and links their submissions. Certifying, the
+  certificate and the feedback moved to **`/admin/certification`** (November 2026, below).
+  `/api/admin/app-access` still carries the certificate / feedback / day actions, which that
+  section's review page posts to with `return_to`; **`/api/admin/app-certificate?email=`** still
+  shows the file. Claude can do the same through the app's MCP tools (`set_certified`,
+  `add_certificate_from_url`, `create_certificate_upload`).
 - **The other direction: `AppBridge`** (October 2026). The app reaches the site through its
   own service binding (`SITE` → this Worker's `AppBridge` entrypoint, exported from
   `src/worker-entrypoint.ts` via `namedExports` in `astro.config.mjs`). Three methods:
@@ -152,6 +140,56 @@ of the person, since the app may still know them.
 - A revoke is permanent in the app: no order, Drip tag or sync brings that course back —
   adding it again by hand does. Revoking never refunds. Drip tags no longer switch courses
   on or off; the app reads them once, at a member's first sign-in.
+
+## Certification — the form, the review, the emails (November 2026)
+
+The whole certification process is on the site and in the member app; the Google Form and
+its sheet are retired. Logic in [`src/lib/certification/`](src/lib/certification/), table
+`cert_applications` (migration 0100).
+
+- **The form**: `/certification/apply` ([`apply.astro`](src/pages/certification/apply.astro),
+  no JavaScript, posts to itself). The app's "Submit for certification" button opens it with
+  `?email=&first_name=&last_name=`. Same questions as the Google Form: name, address, "joined
+  all classes", the session video (the Dropbox upload link **or** a YouTube link; one of the
+  two is required), course feedback, testimonial, comments. The window is the site's own
+  (`certWindowForEmail`): a closed window or the CEEE cohort's "no right" is refused with the
+  way to the live pass extension; an address the site does not know is let through and shown
+  as such in the admin. A honeypot field; the same address twice in ten minutes is one
+  submission.
+- **On sending** (`submitCertApplication` in `actions.ts`): the row, **"Your submission is
+  in"** to the student, **SD-CERT** to `jacob@songdance.co` (`CERT_NOTIFICATIONS_TO`
+  overrides; its reply-to is the student), and the app is told `submitted`.
+- **The admin**: **`/admin/certification`** (tabs waiting / response sent / certified / set
+  aside / all, search, "Add someone by hand", the import) and **`/admin/certification/<id>`**
+  (the video embedded when it is YouTube, the answers, the window, what the app holds, your
+  note, and the review). Two outcomes, each with a tick-box for its email:
+  **Certify** (day, certificate, feedback: the app's own `certify` + `addCertificate`, then the
+  row `certified`, then **"Congratulations, you are certified"**) and **Send a response**
+  (the row `response` with Jacob's words, the app told, **"Your certification: please see my
+  response"**, which carries the words and the form link filled in). A new attempt is a new
+  row. "Without an email": back to waiting, set aside, delete. Everything posts to
+  [`/api/admin/certification`](src/pages/api/admin/certification.ts).
+- **Certified stays the app's record** (`app_certified`): the review page reads it live, so a
+  certification made by Claude shows here too, and the list names anyone certified in the
+  app with no row ("Add a record"). The site never writes an `app_` table.
+- **The app follows** ([`app-sync.ts`](src/lib/certification/app-sync.ts)): after every change
+  the app is told what the person's newest not-set-aside row says (`APP_ADMIN.certApplication`:
+  `submitted` / `response` with the words / `none`), derived from the rows so it converges. A
+  call the app did not take marks the rows `app_sync_pending`; the hourly cron retries
+  (`retryCertAppSync`) and the page has "Try now". **Deploy order: the app first** (its
+  `certApplication` + `certifiedList` and migration `app_0038`); before that the form still
+  saves and mails, and the status waits.
+- **The Google Sheet** ([`import.ts`](src/lib/certification/import.ts), pure): pasted from
+  the sheet or its CSV, columns found by header (Dutch "Tijdstempel" included, times read on
+  Brussels' clock), the unnamed first column becomes the admin note, a row without an
+  address is left out and named. A row arrives `certified` when the app has the address
+  certified, `submitted` when sent in the last 90 days, else `archived` ("outcome not
+  recorded"). Never an email; `import_key` makes a second import add nothing.
+- **Emails** ([`emails.ts`](src/lib/certification/emails.ts), transactional, previewed on
+  `/admin/emails` → "Certification"; tracked as `cert_received` / `cert_certified` /
+  `cert_response`). Jacob's words are laid out by `renderFeedback`, the same reader as the
+  editor's preview. A failed send never undoes a change: the row says whether the email went
+  (`received_email_at` / `outcome_email_at`) and the page offers to send it again.
 
 ## Calendar sync — workshops here, Q&As in the app
 

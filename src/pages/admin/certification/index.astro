@@ -1,0 +1,272 @@
+---
+// Admin — Certification: every certification submission in one place
+// (src/lib/certification/, table cert_applications). The form on
+// /certification/apply writes here; the old Google Sheet's rows are imported
+// at the bottom of this page. A row opens its review page
+// (/admin/certification/<id>): certify, send a response, set aside.
+//
+// "Certified" itself stays the member app's record. This page asks the app who
+// is certified, so someone certified by Claude or before the site kept
+// submissions shows as certified here too, and is listed when they have no
+// submission at all.
+import '../../../styles/admin.css';
+import Layout from '../../../layouts/Layout.astro';
+import { readCookie, verifySession } from '../../../lib/registrations/auth';
+import { askApp } from '../../../lib/admin/app-access';
+import {
+  CERT_STATUS_LABEL,
+  CERT_STATUS_PILL,
+  certName,
+  certTableReady,
+  countCertApplications,
+  listCertApplications,
+  videoLinks,
+  type CertApplication,
+  type CertStatus,
+} from '../../../lib/certification/db';
+
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+if (!(await verifySession(env.ADMIN_SESSION_SECRET, readCookie(Astro.request)))) {
+  return Astro.redirect('/admin/login');
+}
+
+const q = Astro.url.searchParams;
+const msg = q.get('msg');
+const isErr = q.has('err');
+const search = (q.get('q') ?? '').trim();
+const TABS: Array<{ key: CertStatus | 'all'; label: string }> = [
+  { key: 'submitted', label: 'Waiting for review' },
+  { key: 'response', label: 'Response sent' },
+  { key: 'certified', label: 'Certified' },
+  { key: 'archived', label: 'Set aside' },
+  { key: 'all', label: 'All' },
+];
+const rawTab = q.get('status') ?? (search ? 'all' : 'submitted');
+const tab = (TABS.some((t) => t.key === rawTab) ? rawTab : 'submitted') as CertStatus | 'all';
+
+const ready = await certTableReady(env.DB);
+const [rows, counts, appList] = ready
+  ? await Promise.all([
+      listCertApplications(env.DB, { status: tab, q: search }),
+      countCertApplications(env.DB),
+      askApp(env, async (app) => (app.certifiedList ? app.certifiedList() : { ok: false as const, error: 'not-deployed', message: 'The member app has not been deployed with certification submissions yet.' })),
+    ])
+  : [[] as CertApplication[], { submitted: 0, response: 0, certified: 0, archived: 0, all: 0 }, null];
+
+// Certified in the app: by address, with the day.
+const appCertified = new Map<string, { on: string; hasCertificate: boolean }>();
+if (appList?.ok) for (const c of appList.data) appCertified.set(c.email.toLowerCase(), { on: c.on, hasCertificate: c.hasCertificate });
+
+// Certified in the app with no submission on the site at all.
+let withoutRow: Array<{ email: string; on: string; hasCertificate: boolean }> = [];
+if (ready && appCertified.size && (tab === 'certified' || tab === 'all') && !search) {
+  const all = await listCertApplications(env.DB, { status: 'all' });
+  const have = new Set(all.map((a) => a.email));
+  withoutRow = [...appCertified.entries()].filter(([e]) => !have.has(e)).map(([email, v]) => ({ email, ...v }));
+}
+
+const fmtDay = (iso: string) => {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime())
+    ? '—'
+    : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/Brussels' });
+};
+const daysAgo = (iso: string) => Math.max(0, Math.floor((Date.now() - Date.parse(iso)) / 86_400_000));
+const tabHref = (key: string) => `/admin/certification?status=${key}${search ? `&q=${encodeURIComponent(search)}` : ''}`;
+const SOURCE_LABEL: Record<string, string> = { site: 'the form', 'google-form': 'Google Form', admin: 'added by hand' };
+---
+
+<Layout title="Admin — Certification — Songdance" description="">
+  <main class="adm">
+    <header class="adm-header">
+      <div>
+        <p class="adm-breadcrumbs"><a href="/admin">Admin</a><span class="sep">/</span>Certification</p>
+        <h1>Certification</h1>
+        <p class="adm-sub">
+          Every submission for the Somatic Vocal Healing certification. Students send the form on
+          <a href="/certification/apply" target="_blank" rel="noopener">/certification/apply</a> (the member app's "Submit for certification"
+          button opens it filled in); you get an email for each. Open one to watch the video and either certify or send a response. The
+          student gets an email either way, and their certification page in the app follows.
+        </p>
+      </div>
+      <div class="adm-actions">
+        <a class="adm-btn adm-btn--ghost" href="/certification/apply" target="_blank" rel="noopener">Open the form ↗</a>
+        <a class="adm-btn adm-btn--ghost" href="/admin/emails">Emails</a>
+        <a class="adm-btn adm-btn--ghost" href="/admin">← Admin</a>
+      </div>
+    </header>
+
+    {msg && <div class={`adm-flash adm-flash--${isErr ? 'err' : 'ok'}`}>{msg}</div>}
+    {!ready && <div class="adm-flash adm-flash--warn">The submissions table isn't there yet: migration 0100 runs when this is merged to main.</div>}
+    {ready && appList && !appList.ok && <div class="adm-flash adm-flash--warn">{appList.message} Until it answers, this page cannot say who is certified in the app, and a change made here waits for it.</div>}
+
+    {ready && (
+      <section class="adm-section">
+        <div class="cert-bar">
+          <nav class="adm-filters" aria-label="Status">
+            {TABS.map((t) => (
+              <a href={tabHref(t.key)} class={t.key === tab ? 'is-on' : ''}>{t.label} <small>{counts[t.key]}</small></a>
+            ))}
+          </nav>
+          <form method="GET" class="cert-search">
+            <input type="hidden" name="status" value="all" />
+            <input type="search" name="q" value={search} placeholder="Name, email or note" aria-label="Search submissions" />
+            <button class="adm-btn adm-btn--ghost" type="submit">Search</button>
+          </form>
+        </div>
+
+        {rows.length === 0 ? (
+          <p class="adm-empty">
+            {search ? `Nothing matches “${search}”.` : tab === 'submitted' ? 'Nothing is waiting for review.' : 'Nothing here.'}
+          </p>
+        ) : (
+          <div class="cert-scroll">
+            <table class="adm-table">
+              <thead>
+                <tr><th>Sent</th><th>Who</th><th>Video</th><th>Status</th><th>Your note</th><th></th></tr>
+              </thead>
+              <tbody>
+                {rows.map((a) => {
+                  const links = videoLinks(a.video_url);
+                  const inApp = appCertified.get(a.email);
+                  return (
+                    <tr>
+                      <td>
+                        <strong>{fmtDay(a.submitted_at)}</strong><br />
+                        <small>{a.status === 'submitted' ? `${daysAgo(a.submitted_at)} day${daysAgo(a.submitted_at) === 1 ? '' : 's'} ago · ` : ''}{SOURCE_LABEL[a.source] ?? a.source}</small>
+                      </td>
+                      <td>
+                        <a href={`/admin/certification/${a.id}`}><strong>{certName(a)}</strong></a><br />
+                        <small class="adm-mono">{a.email}</small>
+                      </td>
+                      <td>
+                        {links.length > 0
+                          ? links.map((l, i) => <a href={l} target="_blank" rel="noopener" class="cert-video">Video{links.length > 1 ? ` ${i + 1}` : ''} ↗</a>)
+                          : a.video_uploaded
+                            ? <small>uploaded (Dropbox)</small>
+                            : <small class="cert-mute">{a.video_url ? a.video_url.slice(0, 40) : 'none given'}</small>}
+                      </td>
+                      <td>
+                        <span class={`adm-pill adm-pill--${CERT_STATUS_PILL[a.status]}`}>{CERT_STATUS_LABEL[a.status]}</span>
+                        {inApp && a.status !== 'certified' && <><br /><small>🎓 certified in the app since {inApp.on}</small></>}
+                        {a.status === 'certified' && appList?.ok && !inApp && <><br /><small class="cert-warn">not certified in the app</small></>}
+                        {a.app_sync_pending === 1 && <><br /><small class="cert-warn">the app has not followed yet</small></>}
+                        {(a.status === 'certified' || a.status === 'response') && a.source === 'site' && !a.outcome_email_at && <><br /><small class="cert-warn">no email sent</small></>}
+                      </td>
+                      <td><small class="cert-note">{a.admin_note ?? ''}</small></td>
+                      <td><a class="adm-btn adm-btn--tiny" href={`/admin/certification/${a.id}`}>{a.status === 'submitted' ? 'Review' : 'Open'}</a></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+    )}
+
+    {withoutRow.length > 0 && (
+      <section class="adm-section">
+        <h2>Certified in the app, no submission here <small>{withoutRow.length}</small></h2>
+        <p class="adm-sub">Certified from a person's page or by Claude before submissions were kept here. "Add a record" makes a row for them so their certificate and feedback can be managed from this section; nothing is emailed and nothing changes in the app.</p>
+        <div class="cert-scroll">
+          <table class="adm-table">
+            <thead><tr><th>Who</th><th>Certified on</th><th>Certificate</th><th></th></tr></thead>
+            <tbody>
+              {withoutRow.map((c) => (
+                <tr>
+                  <td><a href={`/admin/people/${encodeURIComponent(c.email)}`} class="adm-mono">{c.email}</a></td>
+                  <td>{c.on}</td>
+                  <td>{c.hasCertificate ? 'added' : <span class="cert-mute">none yet</span>}</td>
+                  <td>
+                    <form method="POST" action="/api/admin/certification">
+                      <input type="hidden" name="action" value="add" />
+                      <input type="hidden" name="email" value={c.email} />
+                      <input type="hidden" name="status" value="certified" />
+                      <input type="hidden" name="admin_note" value="Certified before submissions were kept here" />
+                      <button class="adm-btn adm-btn--tiny" type="submit">Add a record</button>
+                    </form>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    )}
+
+    {ready && (
+      <section class="adm-section">
+        <h2>Add or import</h2>
+        <details class="cert-details">
+          <summary>Add someone by hand</summary>
+          <p class="adm-sub">For a video that reached you another way (by email, WeTransfer, after a 1:1). No email is sent. As "waiting for review", their certification page in the app says so.</p>
+          <form method="POST" action="/api/admin/certification" class="cert-form">
+            <input type="hidden" name="action" value="add" />
+            <div class="adm-grid">
+              <label class="span-2"><span>Email</span><input type="email" name="email" required maxlength="254" /></label>
+              <label><span>First name</span><input type="text" name="first_name" maxlength="100" /></label>
+              <label><span>Last name</span><input type="text" name="last_name" maxlength="100" /></label>
+              <label class="span-2"><span>Video link (optional)</span><input type="text" name="video_url" maxlength="1000" placeholder="https://…" /></label>
+              <label>
+                <span>Arrives as</span>
+                <select name="status">
+                  <option value="submitted">waiting for review</option>
+                  <option value="certified">certified (already in the app)</option>
+                  <option value="archived">set aside</option>
+                </select>
+              </label>
+              <label class="span-full"><span>Your note (never shown to them)</span><input type="text" name="admin_note" maxlength="500" /></label>
+            </div>
+            <button class="adm-btn adm-btn--solid" type="submit">Add</button>
+          </form>
+        </details>
+
+        <details class="cert-details" open={counts.all === 0}>
+          <summary>Import the Google Form's answers</summary>
+          <ol class="cert-help">
+            <li>Open the responses sheet ("Form Responses 1").</li>
+            <li>Either select everything (Ctrl/⌘ A), copy, and paste it in the box below, or use File → Download → Comma-separated values (.csv) and choose that file.</li>
+            <li>Press Import. Keep the header row in: the columns are found by their names.</li>
+          </ol>
+          <p class="adm-sub">
+            What a row arrives as: <strong>certified</strong> when the app already has that address as certified; <strong>waiting for review</strong>
+            when it was sent in the last 90 days; otherwise <strong>set aside</strong> (its outcome was never recorded: open it to mark it certified or
+            leave it). The words in the sheet's first column ("ELDER", "granted like that") become your note. A row with no email address is
+            left out and named. No email is sent, and importing twice adds nothing twice.
+          </p>
+          <form method="POST" action="/api/admin/certification" enctype="multipart/form-data" class="cert-form">
+            <input type="hidden" name="action" value="import" />
+            <label class="cert-block"><span>Paste the sheet here</span><textarea name="text" rows="6" spellcheck="false" placeholder="Paste from Google Sheets, header row included"></textarea></label>
+            <label class="cert-block"><span>…or choose its CSV file</span><input type="file" name="file" accept=".csv,.tsv,text/csv,text/tab-separated-values,text/plain" /></label>
+            <button class="adm-btn adm-btn--solid" type="submit">Import</button>
+          </form>
+        </details>
+      </section>
+    )}
+  </main>
+</Layout>
+
+<style>
+  .cert-bar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .cert-bar .adm-filters small { opacity: 0.7; margin-left: 2px; }
+  .cert-search { display: flex; gap: 6px; }
+  .cert-search input[type='search'] { padding: 7px 10px; border: 1px solid var(--adm-line); border-radius: 6px; font: inherit; font-size: 14px; min-width: 220px; }
+  .cert-scroll { overflow-x: auto; }
+  .cert-video { display: block; white-space: nowrap; }
+  .cert-mute { color: var(--adm-mute, #8a7c88); }
+  .cert-warn { color: var(--adm-danger, #b53d3d); }
+  .cert-note { display: block; max-width: 220px; color: var(--adm-ink-soft); }
+  .cert-details { margin: 10px 0; padding: 10px 14px; border: 1px solid var(--adm-line); border-radius: 10px; }
+  .cert-details summary { cursor: pointer; font-weight: 600; }
+  .cert-form { display: grid; gap: 12px; margin-top: 12px; justify-items: start; }
+  .cert-form .adm-grid { width: 100%; }
+  .cert-block { display: grid; gap: 4px; width: 100%; font-size: 13px; }
+  .cert-block textarea { width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid var(--adm-line); border-radius: 6px; font-family: ui-monospace, monospace; font-size: 12px; }
+  .cert-help { font-size: 14px; line-height: 1.6; color: var(--adm-ink-soft); padding-left: 18px; }
+  @media (max-width: 720px) {
+    .cert-form .adm-grid { grid-template-columns: 1fr 1fr; }
+  }
+</style>

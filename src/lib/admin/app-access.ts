@@ -58,7 +58,13 @@ export type AppCertification = {
   available: boolean; // false until the app's migration app_0030 has run
   checks: Record<AppCertCheck, string | null> | null; // null without an app account
   certified: AppCertified | null;
+  // Where their submission stands in the app (absent from an app deployed before it).
+  application?: AppCertApplicationState | null;
 };
+
+// What the app shows for a submission (the app's CertApplication): the site's
+// form and its review tell it (src/lib/certification/app-sync.ts).
+export type AppCertApplicationState = { status: 'submitted' | 'response'; submittedAt: string | null; response: string | null; respondedAt: string | null };
 
 export type AppMemberAccess = {
   email: string;
@@ -96,6 +102,10 @@ export type AppAdminBinding = {
   addCertificate(input: { email: string; filename?: string; bytes: ArrayBuffer; actor: string }): Promise<AppAnswer<AppCertified>>;
   removeCertificate(input: { email: string; actor: string }): Promise<AppAnswer<AppCertified>>;
   certificate(input: { email: string }): Promise<AppAnswer<{ filename: string; contentType: string; bytes: ArrayBuffer }>>;
+  // Where a certification submission stands, for the app's certification page, and
+  // everyone certified in the app (src/lib/certification/). Absent from an app deployed before them.
+  certApplication?(input: { email: string; status: 'submitted' | 'response' | 'none'; submittedAt?: string | null; response?: string | null; respondedAt?: string | null; actor: string }): Promise<AppAnswer<{ application: AppCertApplicationState | null }>>;
+  certifiedList?(): Promise<AppAnswer<Array<{ email: string; on: string; hasCertificate: boolean; note: string | null }>>>;
   // Jacob's Google Calendar → live sessions in the app (the app's lib/calendar-sessions.ts;
   // here, src/lib/workshops/calendar-sync.ts). Absent from an app deployed before it.
   calendarSessionTitles?(): Promise<AppAnswer<string[]>>;

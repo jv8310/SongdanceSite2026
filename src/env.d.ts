@@ -102,6 +102,10 @@ type Env = {
   // installment still unpaid after the three failed-payment reminders
   // (src/lib/courses/dunning.ts). Defaults to support@songdance.co.
   DUNNING_ALERTS_TO?: string;
+  // Comma-separated recipients for the internal "SD-CERT" note about a new
+  // certification submission (src/lib/certification/actions.ts). Defaults to
+  // jacob@songdance.co.
+  CERT_NOTIFICATIONS_TO?: string;
   ANTHROPIC_API_KEY?: string;
   // Post-workshop Songdeck gift — direct Shopify fulfilment (optional). When the
   // store domain + token + product id are set, the course checkout places the

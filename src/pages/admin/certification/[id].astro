@@ -1,0 +1,387 @@
+---
+// Admin — one certification submission: the answers, the video, where the
+// person stands (their window on the site, their ticks and certification in the
+// member app), and the review: certify, or send a response.
+//
+// Certifying and responding post to /api/admin/certification. The certificate,
+// the feedback and the day of someone already certified are the app's own
+// record, so those forms post to /api/admin/app-access (as the People page
+// did) with `return_to` this page.
+import '../../../styles/admin.css';
+import Layout from '../../../layouts/Layout.astro';
+import FeedbackEditor from '../../../components/admin/FeedbackEditor.astro';
+import { readCookie, verifySession } from '../../../lib/registrations/auth';
+import { CERT_STEPS, MAX_CERTIFICATE_BYTES, actorLabel, askApp, fileSize } from '../../../lib/admin/app-access';
+import { certWindowForEmail } from '../../../lib/courses/cert-window';
+import { certWindowLine } from '../../../lib/certification/actions';
+import {
+  CERT_STATUS_LABEL,
+  CERT_STATUS_PILL,
+  certName,
+  getCertApplication,
+  listCertApplicationsForEmail,
+  videoLinks,
+  youtubeEmbed,
+} from '../../../lib/certification/db';
+import { renderFeedback } from '../../../lib/client/feedback-editor';
+
+export const prerender = false;
+
+const env = Astro.locals.runtime.env;
+if (!(await verifySession(env.ADMIN_SESSION_SECRET, readCookie(Astro.request)))) {
+  return Astro.redirect('/admin/login');
+}
+
+const id = Number(Astro.params.id);
+const a = Number.isInteger(id) && id > 0 ? await getCertApplication(env.DB, id).catch(() => null) : null;
+if (!a) return Astro.redirect('/admin/certification?err=1&msg=' + encodeURIComponent('That submission is not there.'));
+
+const q = Astro.url.searchParams;
+const msg = q.get('msg') ?? q.get('app_msg');
+const isErr = q.has('err') || q.has('app_err');
+const self = `/admin/certification/${a.id}`;
+
+const [others, window, appAnswer] = await Promise.all([
+  listCertApplicationsForEmail(env.DB, a.email),
+  certWindowForEmail(env.DB, a.email).catch(() => null),
+  askApp(env, (app) => app.member({ email: a.email })),
+]);
+const app = appAnswer.ok ? appAnswer.data : null;
+const cert = app?.certification ?? null;
+const certified = cert?.certified ?? null;
+const steps = cert?.checks ? CERT_STEPS.filter((s) => cert.checks?.[s.key]) : [];
+const links = videoLinks(a.video_url);
+const embeds = links.map((l) => youtubeEmbed(l)).filter((e): e is string => !!e);
+const earlier = others.filter((o) => o.id !== a.id);
+const lastResponse = earlier.find((o) => o.response?.trim() && o.status === 'response');
+
+const fmt = (iso: string | null) => {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime())
+    ? '—'
+    : d.toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' });
+};
+const todayBrussels = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Brussels' }).format(new Date());
+const SOURCE_LABEL: Record<string, string> = { site: 'the form on the site', 'google-form': 'the Google Form (imported)', admin: 'added by hand' };
+const certificateHref = `/api/admin/app-certificate?email=${encodeURIComponent(a.email)}`;
+const mb = MAX_CERTIFICATE_BYTES / 1024 / 1024;
+const quoted = certName(a).replace(/['\\]/g, '\\$&');
+// The review is open for anything not certified; a certified one manages what the app holds.
+const reviewable = !certified;
+---
+
+<Layout title={`Admin — Certification — ${certName(a)} — Songdance`} description="">
+  <main class="adm">
+    <header class="adm-header">
+      <div>
+        <p class="adm-breadcrumbs">
+          <a href="/admin">Admin</a><span class="sep">/</span><a href="/admin/certification">Certification</a><span class="sep">/</span>{certName(a)}
+        </p>
+        <h1>{certName(a)}</h1>
+        <p class="adm-sub">
+          <span class={`adm-pill adm-pill--${CERT_STATUS_PILL[a.status]}`}>{CERT_STATUS_LABEL[a.status]}</span>
+          {' '}{a.email} · sent {fmt(a.submitted_at)} through {SOURCE_LABEL[a.source] ?? a.source}
+          {a.reviewed_at && a.status !== 'submitted' ? ` · reviewed ${fmt(a.reviewed_at)}${a.reviewed_by ? ` by ${a.reviewed_by}` : ''}` : ''}
+        </p>
+      </div>
+      <div class="adm-actions">
+        <a class="adm-btn adm-btn--ghost" href={`/admin/people/${encodeURIComponent(a.email)}`}>Their page →</a>
+        <a class="adm-btn adm-btn--ghost" href={`mailto:${a.email}`}>Email</a>
+        <a class="adm-btn adm-btn--ghost" href="/admin/certification">← All submissions</a>
+      </div>
+    </header>
+
+    {msg && <div class={`adm-flash adm-flash--${isErr ? 'err' : 'ok'}`}>{msg}</div>}
+    {a.app_sync_pending === 1 && (
+      <div class="adm-flash adm-flash--warn">
+        The member app has not taken the latest change yet{a.app_sync_error ? ` (${a.app_sync_error})` : ''}. It is tried again every hour.
+        <form method="POST" action="/api/admin/certification" class="cd-inline">
+          <input type="hidden" name="action" value="sync" /><input type="hidden" name="id" value={a.id} />
+          <button class="adm-btn adm-btn--tiny" type="submit">Try now</button>
+        </form>
+      </div>
+    )}
+    {certified && a.status !== 'certified' && (
+      <div class="adm-flash adm-flash--warn">
+        The app has {a.email} as certified since {certified.on}, but this submission reads "{CERT_STATUS_LABEL[a.status]}".
+        <form method="POST" action="/api/admin/certification" class="cd-inline">
+          <input type="hidden" name="action" value="status" /><input type="hidden" name="id" value={a.id} /><input type="hidden" name="status" value="certified" />
+          <button class="adm-btn adm-btn--tiny" type="submit">Mark this one certified (no email)</button>
+        </form>
+      </div>
+    )}
+    {!certified && a.status === 'certified' && appAnswer.ok && (
+      <div class="adm-flash adm-flash--warn">This submission reads "certified", but the app does not have {a.email} as certified. Certify below to make it so, or set the submission back to waiting.</div>
+    )}
+
+    <div class="cd-cols">
+      <section class="adm-section">
+        <h2>The session video</h2>
+        {embeds.map((src) => (
+          <div class="cd-video"><iframe src={src} title="Session video" loading="lazy" allow="accelerometer; encrypted-media; picture-in-picture" allowfullscreen></iframe></div>
+        ))}
+        {links.length > 0 && (
+          <ul class="cd-links">
+            {links.map((l) => <li><a href={l} target="_blank" rel="noopener">{l}</a></li>)}
+          </ul>
+        )}
+        {a.video_url && links.length === 0 && <p>They wrote: “{a.video_url}”</p>}
+        {a.video_uploaded === 1 && <p>They said they uploaded the file through the Dropbox upload link: look in the file request's folder for their name.</p>}
+        {!a.video_url && a.video_uploaded !== 1 && <p class="adm-empty">No video was given with this submission.</p>}
+
+        <h2 class="cd-h2">Their answers</h2>
+        <dl class="cd-answers">
+          <dt>Joined all live classes or watched the replays</dt>
+          <dd>{a.classes_confirmed === 1 ? 'Yes' : a.source === 'admin' ? 'Not asked (added by hand)' : 'Not confirmed'}</dd>
+          <dt>How could the course be better?</dt>
+          <dd>{a.course_feedback ?? <span class="cd-mute">Nothing written.</span>}</dd>
+          <dt>Testimonial</dt>
+          <dd>{a.testimonial ?? <span class="cd-mute">Not answered.</span>}</dd>
+          <dt>Other comments or questions</dt>
+          <dd>{a.comments ?? <span class="cd-mute">Nothing written.</span>}</dd>
+        </dl>
+
+        <details class="cd-details">
+          <summary>Correct the name, address or video link</summary>
+          <form method="POST" action="/api/admin/certification" class="cd-form">
+            <input type="hidden" name="action" value="edit" /><input type="hidden" name="id" value={a.id} />
+            <div class="adm-grid">
+              <label class="span-2"><span>Email</span><input type="email" name="email" value={a.email} required maxlength="254" /></label>
+              <label><span>First name</span><input type="text" name="first_name" value={a.first_name ?? ''} maxlength="100" /></label>
+              <label><span>Last name</span><input type="text" name="last_name" value={a.last_name ?? ''} maxlength="100" /></label>
+              <label class="span-full"><span>Video link</span><input type="text" name="video_url" value={a.video_url ?? ''} maxlength="1000" /></label>
+            </div>
+            <button class="adm-btn adm-btn--tiny" type="submit">Save</button>
+            <p class="cd-mute">The address is how the certification finds them in the app: change it to the one they sign in there with.</p>
+          </form>
+        </details>
+      </section>
+
+      <section class="adm-section">
+        <h2>Where they stand</h2>
+        <dl class="cd-answers">
+          <dt>Window to apply (the site)</dt>
+          <dd>{window ? certWindowLine(window) : 'could not be read'}</dd>
+          <dt>In the app</dt>
+          <dd>
+            {!appAnswer.ok && <span class="cd-warn">{appAnswer.message}</span>}
+            {app && !app.account && 'No app account under this address yet. A certification or a status waits under the address until they sign in.'}
+            {app?.account && <>Account{app.account.name ? ` of ${app.account.name}` : ''}{app.account.lastSeenAt ? `, last seen ${app.account.lastSeenAt.slice(0, 10)}` : ''}. Steps ticked: {steps.length} of {CERT_STEPS.length}{steps.length > 0 && steps.length < CERT_STEPS.length ? ` (${steps.map((s) => s.label).join(', ')})` : ''}.</>}
+          </dd>
+          <dt>Their certification page reads</dt>
+          <dd>
+            {certified
+              ? `🎓 You are certified (since ${certified.on})`
+              : cert?.application?.status === 'submitted'
+                ? 'Your submission is in, waiting for review'
+                : cert?.application?.status === 'response'
+                  ? "Jacob's response, with the way to send the form again"
+                  : app
+                    ? 'The steps and "Submit for certification"'
+                    : '—'}
+          </dd>
+          <dt>Emails</dt>
+          <dd>
+            "Your submission is in": {a.received_email_at ? `sent ${fmt(a.received_email_at)}` : 'not sent'}
+            {a.status !== 'submitted' && a.status !== 'archived' && <><br />{a.status === 'certified' ? '"You are certified"' : '"Please see my response"'}: {a.outcome_email_at ? `sent ${fmt(a.outcome_email_at)}` : 'not sent'}</>}
+          </dd>
+        </dl>
+        <div class="cd-row">
+          {a.status === 'submitted' && (
+            <form method="POST" action="/api/admin/certification">
+              <input type="hidden" name="action" value="resend" /><input type="hidden" name="id" value={a.id} /><input type="hidden" name="which" value="received" />
+              <button class="adm-btn adm-btn--tiny" type="submit">{a.received_email_at ? 'Send "your submission is in" again' : 'Send "your submission is in"'}</button>
+            </form>
+          )}
+          {(a.status === 'certified' || a.status === 'response') && (
+            <form method="POST" action="/api/admin/certification">
+              <input type="hidden" name="action" value="resend" /><input type="hidden" name="id" value={a.id} /><input type="hidden" name="which" value="outcome" />
+              <button class="adm-btn adm-btn--tiny" type="submit">{a.outcome_email_at ? 'Send the outcome email again' : 'Send the outcome email'}</button>
+            </form>
+          )}
+        </div>
+
+        <h2 class="cd-h2">Your note</h2>
+        <form method="POST" action="/api/admin/certification" class="cd-form">
+          <input type="hidden" name="action" value="note" /><input type="hidden" name="id" value={a.id} />
+          <textarea name="admin_note" rows="3" maxlength="2000" placeholder="For yourself. Never shown to them.">{a.admin_note ?? ''}</textarea>
+          <button class="adm-btn adm-btn--tiny" type="submit">Save note</button>
+        </form>
+
+        {earlier.length > 0 && (
+          <>
+            <h2 class="cd-h2">Their other submissions</h2>
+            <ul class="cd-links">
+              {earlier.map((o) => (
+                <li>
+                  <a href={`/admin/certification/${o.id}`}>{fmt(o.submitted_at)}</a>{' '}
+                  <span class={`adm-pill adm-pill--${CERT_STATUS_PILL[o.status]}`}>{CERT_STATUS_LABEL[o.status]}</span>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </section>
+    </div>
+
+    {a.response?.trim() && a.status === 'response' && (
+      <section class="adm-section">
+        <h2>The response you sent</h2>
+        <div class="cd-words" set:html={renderFeedback(a.response)} />
+        <p class="cd-mute">They read it on their certification page in the app and in the email. When they send the form again it arrives as a new submission, and this one stays as it is.</p>
+      </section>
+    )}
+
+    {reviewable && (
+      <section class="adm-section" id="review">
+        <h2>Review</h2>
+        {lastResponse && a.status === 'submitted' && (
+          <details class="cd-details">
+            <summary>Your response to their earlier submission ({fmt(lastResponse.submitted_at)})</summary>
+            <div class="cd-words" set:html={renderFeedback(lastResponse.response ?? '')} />
+          </details>
+        )}
+        <div class="cd-review">
+          <form method="POST" action="/api/admin/certification" enctype="multipart/form-data" class="cd-card cd-card--yes">
+            <h3>🎓 Certify</h3>
+            <input type="hidden" name="action" value="certify" /><input type="hidden" name="id" value={a.id} />
+            <div class="adm-grid">
+              <label class="span-2"><span>Certified on</span><input type="date" name="on" value={todayBrussels} required /></label>
+              <label class="span-2"><span>Certificate (optional: PDF, JPEG or PNG, up to {mb} MB)</span><input type="file" name="certificate" accept="application/pdf,image/jpeg,image/png" /></label>
+              <label class="span-full"><span>Note for the log (optional)</span><input type="text" name="note" maxlength="500" placeholder="e.g. reviewed the session video" /></label>
+            </div>
+            <FeedbackEditor label="Your feedback on their session (optional; they read it beside the certificate, and in the email)" />
+            <label class="cd-check"><input type="checkbox" name="send_email" checked /> Email them "Congratulations, you are certified"</label>
+            <button type="submit" class="adm-btn adm-btn--solid">Certify {a.first_name ?? ''}</button>
+            <p class="cd-mute">Their certification page in the app turns to "You are certified", with the certificate to download and your feedback. The certificate and the feedback can also be added afterwards, on this page.</p>
+          </form>
+
+          <form method="POST" action="/api/admin/certification" class="cd-card">
+            <h3>Send a response instead</h3>
+            <input type="hidden" name="action" value="respond" /><input type="hidden" name="id" value={a.id} />
+            <FeedbackEditor value={a.status === 'response' ? a.response : ''} label="Your response: what you saw, and what you would like them to look at" />
+            <label class="cd-check"><input type="checkbox" name="send_email" checked /> Email them "Please see my response"</label>
+            <button type="submit" class="adm-btn adm-btn--solid">{a.status === 'response' ? 'Save and send the response again' : 'Send the response'}</button>
+            <p class="cd-mute">Not certified yet. Their certification page shows your words in place of "waiting for review", with a button to send the form again with a new video.</p>
+          </form>
+        </div>
+      </section>
+    )}
+
+    {certified && (
+      <section class="adm-section" id="certified">
+        <h2>🎓 Certified</h2>
+        <p>
+          Since <strong>{certified.on}</strong>, by {actorLabel(certified.by) ?? 'an admin'}{certified.email !== a.email ? ` · under ${certified.email}` : ''}.
+          {certified.note ? ` ${certified.note}` : ''}
+        </p>
+        {certified.certificate ? (
+          <p>
+            Certificate: <a href={certificateHref} target="_blank" rel="noopener">{certified.certificate.filename}</a>
+            <span class="cd-mute"> · {fileSize(certified.certificate.sizeBytes)}{certified.certificate.addedAt ? ` · added ${certified.certificate.addedAt.slice(0, 10)}` : ''}</span>
+          </p>
+        ) : (
+          <p class="cd-warn">No certificate yet: the app says "You are certified", and offers the certificate to download once it is added.</p>
+        )}
+        <div class="cd-review">
+          <form method="POST" action="/api/admin/app-access" enctype="multipart/form-data" class="cd-card">
+            <h3>{certified.certificate ? 'Replace the certificate' : 'Add the certificate'}</h3>
+            <input type="hidden" name="action" value="add-certificate" /><input type="hidden" name="email" value={a.email} /><input type="hidden" name="return_to" value={self} />
+            <div class="adm-grid">
+              <label class="span-full"><span>PDF, JPEG or PNG, up to {mb} MB</span><input type="file" name="certificate" accept="application/pdf,image/jpeg,image/png" required /></label>
+            </div>
+            <button type="submit" class="adm-btn adm-btn--solid">{certified.certificate ? 'Replace certificate' : 'Add certificate'}</button>
+          </form>
+          <form method="POST" action="/api/admin/app-access" class="cd-card">
+            <h3>Your feedback on their session</h3>
+            <input type="hidden" name="action" value="certification-feedback" /><input type="hidden" name="email" value={a.email} /><input type="hidden" name="return_to" value={self} />
+            <FeedbackEditor value={certified.feedback?.text ?? ''} label="They read it on their certification page, under the certificate" />
+            <button type="submit" class="adm-btn adm-btn--solid">{certified.feedback ? 'Save feedback' : 'Add feedback'}</button>
+            <p class="cd-mute">Saving an empty box takes it away. Saving here sends no email: use "Send the outcome email again" above when they should hear about it.</p>
+          </form>
+        </div>
+        <details class="cd-details">
+          <summary>Change the day, take the certificate away, or undo the certification</summary>
+          <form method="POST" action="/api/admin/app-access" class="cd-form">
+            <input type="hidden" name="action" value="certified-day" /><input type="hidden" name="email" value={a.email} /><input type="hidden" name="return_to" value={self} />
+            <div class="adm-grid">
+              <label><span>Certified on</span><input type="date" name="on" value={certified.on} required /></label>
+              <label class="span-2"><span>Note (optional)</span><input type="text" name="note" maxlength="500" /></label>
+            </div>
+            <button type="submit" class="adm-btn adm-btn--tiny">Save</button>
+          </form>
+          {certified.certificate && (
+            <form method="POST" action="/api/admin/app-access" class="cd-form" onsubmit={`return confirm('Take the certificate away from ${quoted}? They stay certified.')`}>
+              <input type="hidden" name="action" value="remove-certificate" /><input type="hidden" name="email" value={a.email} /><input type="hidden" name="return_to" value={self} />
+              <button type="submit" class="adm-btn adm-btn--tiny adm-btn--danger">Take the certificate away</button>
+            </form>
+          )}
+          <form method="POST" action="/api/admin/certification" class="cd-form" onsubmit={`return confirm('Undo the certification of ${quoted}? The certificate and the feedback are deleted too.')`}>
+            <input type="hidden" name="action" value="uncertify" /><input type="hidden" name="id" value={a.id} />
+            <div class="adm-grid">
+              <label class="span-full"><span>Reason</span><input type="text" name="reason" required maxlength="500" placeholder="Why (kept in the app's log)" /></label>
+            </div>
+            <button type="submit" class="adm-btn adm-btn--tiny adm-btn--danger">Undo certification</button>
+          </form>
+        </details>
+      </section>
+    )}
+
+    <section class="adm-section">
+      <h2>Without an email</h2>
+      <div class="cd-row">
+        {a.status !== 'submitted' && !certified && (
+          <form method="POST" action="/api/admin/certification">
+            <input type="hidden" name="action" value="status" /><input type="hidden" name="id" value={a.id} /><input type="hidden" name="status" value="submitted" />
+            <button class="adm-btn adm-btn--tiny" type="submit">Back to waiting for review</button>
+          </form>
+        )}
+        {a.status !== 'archived' && !certified && (
+          <form method="POST" action="/api/admin/certification">
+            <input type="hidden" name="action" value="status" /><input type="hidden" name="id" value={a.id} /><input type="hidden" name="status" value="archived" />
+            <button class="adm-btn adm-btn--tiny" type="submit">Set aside</button>
+          </form>
+        )}
+        <form method="POST" action="/api/admin/certification" onsubmit={`return confirm('Delete this submission of ${quoted}? Its answers are gone for good. A certification in the app is not touched.')`}>
+          <input type="hidden" name="action" value="delete" /><input type="hidden" name="id" value={a.id} />
+          <button class="adm-btn adm-btn--tiny adm-btn--danger" type="submit">Delete this submission</button>
+        </form>
+      </div>
+      <p class="cd-mute">"Set aside" is for a duplicate, a test, or an old submission whose outcome was never recorded: the app stops saying "waiting for review" and nobody is written to.</p>
+    </section>
+  </main>
+</Layout>
+
+<style>
+  .cd-cols { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 0 24px; align-items: start; }
+  @media (max-width: 900px) { .cd-cols { grid-template-columns: 1fr; } }
+  .cd-h2 { margin-top: 26px !important; }
+  .cd-video { position: relative; aspect-ratio: 16 / 9; margin: 0 0 12px; border-radius: 10px; overflow: hidden; background: #000; }
+  .cd-video iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+  .cd-links { margin: 0 0 12px; padding-left: 18px; font-size: 14px; overflow-wrap: anywhere; line-height: 1.9; }
+  .cd-answers { margin: 0; font-size: 14px; line-height: 1.6; }
+  .cd-answers dt { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--adm-ink-soft); margin-top: 14px; }
+  .cd-answers dt:first-child { margin-top: 0; }
+  .cd-answers dd { margin: 3px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .cd-mute { color: var(--adm-mute, #8a7c88); font-size: 13px; }
+  .cd-warn { color: var(--adm-danger, #b53d3d); }
+  .cd-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .cd-inline { display: inline-block; margin-left: 8px; }
+  .cd-details { margin: 14px 0 0; padding: 10px 14px; border: 1px solid var(--adm-line); border-radius: 10px; }
+  .cd-details summary { cursor: pointer; font-weight: 600; font-size: 14px; }
+  .cd-form { display: grid; gap: 10px; margin-top: 12px; justify-items: start; }
+  .cd-form .adm-grid, .cd-form textarea { width: 100%; box-sizing: border-box; }
+  .cd-form textarea { padding: 8px 10px; border: 1px solid var(--adm-line); border-radius: 6px; font: inherit; font-size: 14px; }
+  .cd-review { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
+  @media (max-width: 1100px) { .cd-review { grid-template-columns: 1fr; } }
+  .cd-card { display: grid; gap: 12px; justify-items: start; padding: 16px 18px; border: 1px solid var(--adm-line); border-radius: 12px; background: var(--adm-paper-soft, #fbf6ec); min-width: 0; }
+  .cd-card > :global(*) { max-width: 100%; }
+  .cd-card :global(.fb), .cd-card .adm-grid { width: 100%; }
+  .cd-card--yes { border-color: #9bb38a; background: #f1f5ea; }
+  .cd-card h3 { margin: 0; font-size: 16px; }
+  .cd-check { display: flex; gap: 8px; align-items: center; font-size: 14px; }
+  .cd-words { font-size: 14px; line-height: 1.6; padding: 12px 16px; border: 1px solid var(--adm-line); border-radius: 10px; background: var(--adm-paper-soft, #fbf6ec); margin-bottom: 10px; }
+  .cd-words :global(p) { margin: 0 0 10px; }
+  .cd-words :global(h4) { font-size: 15px; margin: 14px 0 6px; }
+</style>

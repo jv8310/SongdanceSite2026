@@ -1,6 +1,7 @@
 // POST /api/admin/app-access — change one person's access in the member app
 // from their People page ("App access", src/lib/admin/app-access.ts). One form
-// field `action` picks the change; the app does it and logs it under the
+// field `action` picks the change (the certificate and feedback forms of
+// /admin/certification/<id> post here as well, with `return_to`); the app does it and logs it under the
 // signed-in admin. Admin-gated; always redirects back to the person's page
 // with a flash (app_ok / app_err + app_msg), anchored on the section.
 // The certification forms post multipart (the certificate rides along as a
@@ -24,7 +25,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const field = (k: string) => String(form?.get(k) ?? '').trim();
   const email = field('email').toLowerCase();
   if (!EMAIL_RE.test(email)) return back('/admin/people', { app_err: '1', app_msg: 'Invalid email address.' });
-  const page = `/admin/people/${encodeURIComponent(email)}`;
+  // The Certification admin (/admin/certification/<id>) posts the certificate and
+  // feedback forms here too, and wants its own page back.
+  const returnTo = field('return_to');
+  const page = /^\/admin\/certification\/\d+$/.test(returnTo) ? returnTo : `/admin/people/${encodeURIComponent(email)}`;
 
   // A date field that was left on the form is sent ('' = clear it); one that
   // was not on the form (the activation date of a course that has none) is not.
@@ -183,5 +187,5 @@ export const POST: APIRoute = async ({ request, locals }) => {
 function back(base: string, params: Record<string, string>): Response {
   const url = new URL(base, 'https://x');
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
-  return new Response(null, { status: 303, headers: { Location: `${url.pathname}${url.search}#app-access` } });
+  return new Response(null, { status: 303, headers: { Location: `${url.pathname}${url.search}${url.pathname.startsWith('/admin/people') ? '#app-access' : ''}` } });
 }
