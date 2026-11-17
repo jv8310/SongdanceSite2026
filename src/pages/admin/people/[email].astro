@@ -18,6 +18,8 @@ import { formatMoney } from '../../../lib/workshops/currency';
 import { emailSendsForAddress } from '../../../lib/email/sends';
 import { getContact, listBroadcasts } from '../../../lib/broadcasts/db';
 import FeedbackEditor from '../../../components/admin/FeedbackEditor.astro';
+import { planLivePass } from '../../../lib/courses/live-pass-plan';
+import { LIVE_PASS_MONTHS, livePassContents } from '../../../lib/courses/live-pass';
 import { CERT_STEPS, MAX_CERTIFICATE_BYTES, STATE_LABEL, STATE_PILL, actorLabel, askApp, day, fileSize, sourceLabel } from '../../../lib/admin/app-access';
 
 export const prerender = false;
@@ -57,13 +59,14 @@ const quaderno =
 
 const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
-const [allPeople, orders, sends, contact, broadcasts, appAccess] = await Promise.all([
+const [allPeople, orders, sends, contact, broadcasts, appAccess, passPlan] = await Promise.all([
   listPeople(env.DB),
   listAllOrders(env.DB, { email }, { fxRates, quaderno }),
   emailSendsForAddress(env.DB, email),
   getContact(env.DB, email),
   listBroadcasts(env.DB),
   validEmail ? askApp(env, (app) => app.member({ email })) : Promise.resolve(null),
+  validEmail ? planLivePass(env.DB, email).catch(() => null) : Promise.resolve(null),
 ]);
 
 const person = allPeople.find((p) => p.email === email) ?? null;
@@ -121,6 +124,13 @@ const cert = app?.certification ?? null;
 const certSteps = cert?.checks ? CERT_STEPS.filter((st) => cert.checks?.[st.key]).length : 0;
 const certificateHref = `/api/admin/app-certificate?email=${encodeURIComponent(email)}`;
 const jsEmail = email.replace(/['\\]/g, '\\$&');
+
+// "Give a free live pass" (src/lib/courses/live-pass-grant.ts): what a pass
+// given today would look like, and its flash.
+const lpFlash = Astro.url.searchParams.get('lp_msg');
+const lpFlashErr = Astro.url.searchParams.has('lp_err');
+const fmtDayLong = (d: string) =>
+  new Date(`${d}T12:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
 
 // Flash from the unsubscribe / resubscribe endpoints, which return here.
 const subFlashKind = Astro.url.searchParams.get('flash');
@@ -575,6 +585,53 @@ const subFlash =
       </section>
     )}
 
+    <!-- ─── Give a free live pass (no payment; the same pass the page sells) ─── -->
+    {validEmail && (
+      <section class="adm-section" id="free-live-pass">
+        <h2>Give a free live pass</h2>
+        {lpFlash && <div class={`adm-flash ${lpFlashErr ? 'adm-flash--err' : 'adm-flash--ok'}`}>{lpFlash}</div>}
+        {passPlan && (
+          <p class="pd-mute">
+            {passPlan.liveUntil
+              ? `Their course gives them the live sessions until ${fmtDayLong(passPlan.liveUntil)}; a pass starts the day after. `
+              : passPlan.passRunning
+                ? 'A pass of theirs is running; a new one continues with the session after its last. '
+                : 'A pass given now starts today. '}
+            {passPlan.window.holdsCourse
+              ? `Certification window: open until ${passPlan.window.endsOn ? fmtDayLong(passPlan.window.endsOn) : '—'}.`
+              : 'No certification course on this address, so the extension cannot be added.'}
+          </p>
+        )}
+        <form method="POST" action="/api/admin/live-pass/grant" class="app-form" onsubmit="this.querySelector('button[type=submit]').disabled = true">
+          <input type="hidden" name="email" value={email} />
+          <div class="adm-grid">
+            <label>
+              <span>Length</span>
+              <select name="months" required>
+                {LIVE_PASS_MONTHS.map((m) => (
+                  <option value={m} selected={m === 3}>
+                    {m === 1 ? '1 month' : `${m} months`} · {livePassContents(m)}
+                    {passPlan ? ` · from ${fmtDayLong(passPlan.periods[m].startsOn)}` : ''}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label class="lp-check">
+              <input type="checkbox" name="extend" value="1" disabled={passPlan ? !passPlan.window.holdsCourse : false} />
+              <span>Extend the certification window</span>
+            </label>
+            <label class="lp-check">
+              <input type="checkbox" name="notify" value="1" checked />
+              <span>Send them “Your live pass is confirmed”</span>
+            </label>
+            <label class="span-full"><span>Note</span><input type="text" name="note" required maxlength="500" placeholder="Why (kept with the order and in the SD-ORDER), e.g. thank you for hosting the Dutch group" /></label>
+          </div>
+          <button type="submit" class="adm-btn adm-btn--solid">Give the pass</button>
+          <p class="pd-mute">A paid order at €0, the same as a bought pass: the member app counts its sessions, passes queue, the Drip tags follow and money reports count it at €0. The extension is refused when it would not reach past the window they already have. To take it away again, revoke it under App access.</p>
+        </form>
+      </section>
+    )}
+
     {exists && (
       <>
         <!-- ─── Tags (Drip) ─── -->
@@ -757,6 +814,8 @@ const subFlash =
     .app-add { margin: 12px 0 0; }
     .app-add > summary { font-weight: 600; font-size: 14px; }
     .app-form { margin: 10px 0 0; }
+    .adm-grid > label.lp-check { flex-direction: row; align-items: center; gap: 8px; align-self: end; padding-bottom: 8px; }
+    .adm-grid > label.lp-check > span { text-transform: none; letter-spacing: 0; font-size: 13px; color: var(--adm-ink); }
     .app-form .adm-grid { margin-bottom: 8px; }
     .app-form .pd-mute { margin-top: 6px; }
     .app-grid { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }

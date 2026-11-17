@@ -198,6 +198,8 @@ function paymentDisplay(o: { provider: OrderProvider; paymentMethod: string | nu
   // never touched a gateway (see src/lib/orders/manual-order.ts). A retreat
   // booked with the "pay by IBAN" button says so from the moment it is made,
   // before any payment intent exists.
+  // Given away with no payment (a free live pass, a 100%-off checkout).
+  if (/^(comp-|free-100-)/.test(o.paymentIntent ?? '')) return { gateway: 'Free', method: null as string | null };
   if (o.provider === BANK_TRANSFER || o.paymentIntent?.startsWith('manual-')) {
     return { gateway: 'Bank transfer', method: null as string | null };
   }

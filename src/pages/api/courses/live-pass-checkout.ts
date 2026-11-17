@@ -41,7 +41,7 @@ import {
   parseLivePassMonths,
   recordLivePassPeriod,
 } from '../../../lib/courses/live-pass';
-import { planLivePass, planMonthlyStart } from '../../../lib/courses/live-pass-plan';
+import { extensionRefusal, planLivePass, planMonthlyStart } from '../../../lib/courses/live-pass-plan';
 
 export const prerender = false;
 
@@ -122,23 +122,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     const plan = await planLivePass(env.DB, email);
     const period = plan.periods[months];
-    if (withExtension && !period.extensionHelps) {
-      if (!plan.window.holdsCourse) {
-        return json(
-          {
-            error:
-              'The certification extension is for students of the certification course, and we find no certification course under this email address. If you bought it with another address, please use that one.',
-          },
-          400,
-        );
-      }
-      return json(
-        {
-          error: `Your certification window already runs until ${fmtDay(plan.window.endsOn ?? period.endsOn)}, past what the extension would add, so it would buy you nothing. Untick it to continue.`,
-        },
-        400,
-      );
-    }
+    const refusal = withExtension ? extensionRefusal(plan, months) : null;
+    if (refusal) return json({ error: refusal }, 400);
 
     const currency = albumCurrencyForCountry(countryCode);
     const offer = livePassOffer(months, currency);

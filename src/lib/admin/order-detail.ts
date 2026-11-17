@@ -450,7 +450,12 @@ async function enrichCourse(
   // Manual bank-transfer orders carry a synthetic `manual-<id>` payment intent
   // (see src/lib/orders/manual-order.ts) and never touched Stripe/PayPal.
   const isManual = reg?.stripe_payment_intent?.startsWith('manual-') ?? false;
-  const gateway = isManual
+  // Given away with no payment: a free live pass (`comp-<id>`) or a 100%-off
+  // checkout (`free-100-<id>`). No gateway holds anything for it.
+  const isFree = /^(comp-|free-100-)/.test(reg?.stripe_payment_intent ?? '');
+  const gateway = isFree
+    ? 'None (given free)'
+    : isManual
     ? 'Bank transfer (manual)'
     : order.provider === 'paypal'
       ? 'PayPal'
@@ -459,7 +464,7 @@ async function enrichCourse(
     field('Gateway', gateway),
     field('Plan', planLabel),
     field('Payment status', reg?.status),
-    ...(isManual
+    ...(isManual || isFree
       ? []
       : [
           field('Stripe session', reg?.stripe_session_id, { mono: true }),

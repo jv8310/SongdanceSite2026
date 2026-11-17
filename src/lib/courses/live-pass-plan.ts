@@ -185,6 +185,26 @@ export async function planLivePass(
   };
 }
 
+// Why the "Extend my certification window" add-on is refused for this length,
+// in the words the buyer reads — or null when it would buy them something. One
+// rule for both doors that can add it: the checkout and a free pass given from
+// the admin or the member app (live-pass-grant.ts).
+export function extensionRefusal(plan: LivePassPlan, months: LivePassMonths): string | null {
+  const period = plan.periods[months];
+  if (period.extensionHelps) return null;
+  if (!plan.window.holdsCourse) {
+    return 'The certification extension is for students of the certification course, and we find no certification course under this email address. If you bought it with another address, please use that one.';
+  }
+  const day = plan.window.endsOn ?? period.endsOn;
+  const label = new Date(`${day}T12:00:00Z`).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+  return `Your certification window already runs until ${label}, past what the extension would add, so it would buy you nothing. Untick it to continue.`;
+}
+
 // ── When a monthly starts ───────────────────────────────────────────────────
 //
 // A monthly opens every session from its first charge, so it starts — and is
