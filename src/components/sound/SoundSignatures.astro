@@ -9,8 +9,10 @@
 //
 // Rules (do not break): the shapes are Jacob's (see sound-waves.ts); anger and
 // pain take the ember accent, fear and grief the neutral stroke; this is a
-// listening guide, never a diagnosis, so the footline keeps that sense on every
-// page that shows the four.
+// listening guide, never a diagnosis, so the foot keeps that sense on every
+// page that shows the four. The foot's two lines are Jacob's own, from the
+// deck's "Sound signatures" slide: the feeling is asked first, the sound
+// compared with it after.
 import SoundWave from './SoundWave.astro';
 import type { WaveKind } from './kinds';
 
@@ -30,6 +32,8 @@ interface Props {
   headingLevel?: 'h2' | 'h3';
   lede?: string;
   footline?: string;
+  /** One plain line under the footline. */
+  footnote?: string;
   link?: { href: string; label: string };
   /** No section of its own: just the grid (and foot), inside a parent section. */
   bare?: boolean;
@@ -79,7 +83,8 @@ const {
   heading = 'Patterns you can <em>hear</em>',
   headingLevel = 'h2',
   lede = 'A sound carries information, and the information has patterns. High or low. Forward or back. Sharp or round. Steady or trembling.',
-  footline = 'A listening guide, never a lookup table. What your own sound was about is yours to discover.',
+  footline = 'Learn the alphabet. Then read the word.',
+  footnote = 'Ask what you felt first. Then compare it with what you heard.',
   link,
   bare = false,
   compact = false,
@@ -123,9 +128,10 @@ const Root = bare ? 'div' : 'section';
         ))}
       </ul>
 
-      {(footline || link) && (
+      {(footline || footnote || link) && (
         <div class="sd-sig-foot">
           {footline && <p class="sd-sig-footline">{footline}</p>}
+          {footnote && <p class="sd-sig-footnote">{footnote}</p>}
           {link && (
             <a class="sd-sig-link" href={link.href}>
               {link.label}

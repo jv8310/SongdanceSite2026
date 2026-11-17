@@ -1240,32 +1240,60 @@ html, body { background: var(--paper); }
   }
 }
 
-/* ---------- The sound of the moment: the breathing ring (WEWhat) ----------
-   From the masterclass deck (.breath, keyframes breathcycle / rip / rip2 /
-   lin / lout), re-expressed in the site's tokens. Still until .is-on. */
+/* ---------- The sound of the moment: try it here (WEWhat) ----------
+   A plum panel under the four beats: the deck's breathing ring (.breath,
+   keyframes breathcycle / rip / rip2 / lin / lout, re-expressed in the site's
+   tokens) beside the four steps of the practice. Still until .is-on. */
 .we-moment {
-  display: grid; grid-template-columns: minmax(0, 260px) minmax(0, 1fr);
-  gap: var(--sp-7); align-items: center;
-  max-width: 820px; margin: var(--sp-8) auto 0;
+  display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: var(--sp-8); align-items: center;
+  margin: var(--sp-8) 0 0; padding: var(--sp-8) var(--sp-8);
+  border-radius: var(--r-lg);
+  background: var(--plum); color: var(--paper);
 }
-.we-moment .we-what-sub { margin-bottom: var(--sp-3); }
-.we-moment-lyric {
-  font-family: var(--font-lyric); font-style: italic; font-weight: 400;
-  font-size: clamp(28px, 3vw, 38px); line-height: 1.2; color: var(--ink); margin: 0;
+.we-moment-ring { display: grid; place-items: center; }
+.we-moment-eyebrow {
+  font-family: var(--font-body); font-size: 12px; font-weight: 500;
+  text-transform: uppercase; letter-spacing: 0.22em; color: var(--ember-soft);
 }
-.we-moment-body { font-size: var(--t-body); line-height: var(--lh-prose); color: var(--ink-soft); margin: var(--sp-3) 0 0; max-width: 46ch; }
+.we-moment-title {
+  font-family: var(--font-display); font-weight: 400;
+  font-size: clamp(30px, 3.4vw, 44px); line-height: 1.1; letter-spacing: -0.012em;
+  color: var(--paper); margin: var(--sp-3) 0 0;
+}
+/* Typography law: Cormorant inside a Spectral heading is sized up. */
+.we-moment-title em { font-family: var(--font-lyric); font-style: italic; font-size: 1.05em; color: var(--ember-lift); }
+.we-moment-steps {
+  list-style: none; counter-reset: we-step; margin: var(--sp-6) 0 0; padding: 0;
+  display: flex; flex-direction: column;
+}
+.we-moment-steps li {
+  counter-increment: we-step;
+  position: relative; padding: var(--sp-3) 0 var(--sp-3) 34px;
+  border-top: 1px solid var(--line-on-dark);
+  font-size: var(--t-body-lg); line-height: 1.5; color: rgba(244, 236, 223, 0.88);
+}
+.we-moment-steps li:last-child { border-bottom: 1px solid var(--line-on-dark); }
+.we-moment-steps li::before {
+  content: counter(we-step);
+  position: absolute; left: 0; top: var(--sp-3);
+  font-family: var(--font-display); font-size: 20px; line-height: 1.4; color: var(--ember-lift);
+}
+/* …and inside body text it is sized up more. */
+.we-moment-steps em { font-family: var(--font-lyric); font-style: italic; font-size: 1.28em; line-height: 1; color: var(--paper); }
+.we-moment-foot { font-size: var(--t-body-sm); line-height: 1.6; color: rgba(244, 236, 223, 0.7); margin: var(--sp-5) 0 0; }
 
-.we-breath { position: relative; width: 100%; max-width: 260px; aspect-ratio: 1; justify-self: center; }
-.we-breath .ring { position: absolute; inset: 0; border: 1px solid var(--line-strong); border-radius: 50%; }
+.we-breath { position: relative; width: 100%; max-width: 340px; aspect-ratio: 1; }
+.we-breath .ring { position: absolute; inset: 0; border: 1px solid rgba(244, 236, 223, 0.3); border-radius: 50%; }
 .we-breath .disc {
   position: absolute; inset: 0; border-radius: 50%;
-  background: radial-gradient(circle at 50% 50%, rgba(201, 96, 58, 0.5), rgba(201, 96, 58, 0.16) 55%, rgba(201, 96, 58, 0) 72%);
+  background: radial-gradient(circle at 50% 50%, rgba(224, 139, 99, 0.72), rgba(224, 139, 99, 0.26) 55%, rgba(224, 139, 99, 0) 72%);
   transform: scale(0.8);
 }
-.we-breath .rip { position: absolute; inset: 0; border-radius: 50%; border: 2px solid var(--ember); opacity: 0; }
+.we-breath .rip { position: absolute; inset: 0; border-radius: 50%; border: 2px solid var(--ember-lift); opacity: 0; }
 .we-breath .lbl {
   position: absolute; inset: 0; display: grid; place-items: center;
-  font-family: var(--font-lyric); font-style: italic; font-size: 26px; color: var(--plum);
+  font-family: var(--font-lyric); font-style: italic; font-size: clamp(26px, 2.6vw, 34px); color: var(--paper);
 }
 .we-breath .lbl span { grid-area: 1 / 1; }
 .we-breath .l-out { opacity: 0; }
@@ -1280,8 +1308,10 @@ html, body { background: var(--paper); }
 @keyframes we-lin { 0%, 35% { opacity: 1; } 41%, 95% { opacity: 0; } 100% { opacity: 1; } }
 @keyframes we-lout { 0%, 38% { opacity: 0; } 44%, 93% { opacity: 1; } 99%, 100% { opacity: 0; } }
 
-@media (max-width: 720px) {
-  .we-moment { grid-template-columns: 1fr; gap: var(--sp-5); text-align: center; }
-  .we-breath { max-width: 200px; }
-  .we-moment-body { margin-left: auto; margin-right: auto; }
+@media (max-width: 860px) {
+  .we-moment { grid-template-columns: 1fr; gap: var(--sp-6); padding: var(--sp-7) var(--sp-5); border-radius: var(--r-md); }
+  .we-breath { max-width: 220px; }
+  .we-moment-eyebrow, .we-moment-title { text-align: center; }
+  .we-moment-steps li { font-size: var(--t-body); }
+  .we-moment-foot { text-align: center; }
 }

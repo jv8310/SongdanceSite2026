@@ -1598,6 +1598,10 @@ a.sd-evt-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-2); 
   margin: 0; font-family: var(--font-lyric); font-style: italic;
   font-size: clamp(20px, 2.2vw, 25px); line-height: 1.4; color: inherit; text-wrap: balance;
 }
+.sd-sig-footnote {
+  margin: var(--sp-3) 0 0; font-size: var(--t-body-sm); line-height: 1.55; color: var(--ink-soft);
+}
+.sd-on-dark .sd-sig-footnote { color: rgba(244, 236, 223, 0.72); }
 .sd-sig-link {
   display: inline-block; margin-top: var(--sp-4);
   font-family: var(--font-body); font-size: 14px; color: inherit;
